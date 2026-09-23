@@ -139,22 +139,32 @@ test_that("selection reference weights are structural convergence parameters", {
     weights = BayesTools::wf_cumulative(c(1, 1, 1))
   )
 
-  object <- bselmodel(
-    yi          = c(.1, .2, .3),
-    sei         = c(.1, .1, .1),
-    measure     = "SMD",
-    prior_bias  = prior_bias,
-    only_priors = TRUE,
-    silent      = TRUE
-  )
+  fit <- suppressWarnings(bselmodel(
+    yi                 = c(.1, .2, .3, .05, .25),
+    sei                = c(.1, .1, .1, .12, .08),
+    measure            = "SMD",
+    prior_bias         = prior_bias,
+    chains             = 2,
+    sample             = 200,
+    burnin             = 100,
+    adapt              = 100,
+    seed               = 1,
+    silent             = TRUE,
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL, min_ESS = NULL, max_error = NULL, max_SD_error = NULL
+    )
+  ))
 
+  # BayesTools classifies the reference weight from the prior list: it is
+  # reported as a structural constant, the other weights are assessed.
+  diagnostics <- attr(fit[["fit"]][["converged"]], "diagnostics", exact = TRUE)
+  states <- stats::setNames(diagnostics[["state"]], diagnostics[["parameter"]])
   expect_identical(
-    .convergence_structural_parameters(object[["priors"]]),
-    c("omega[1]", "omega[0,0.025]")
+    unname(states[c("omega[0,0.025]", "omega[0.025,0.05]", "omega[0.05,1]")]),
+    c("structural_constant", "assessable", "assessable")
   )
-
-  object[["priors"]][["outcome"]][["bias"]] <- NULL
-  expect_length(.convergence_structural_parameters(object[["priors"]]), 0L)
+  expect_false(any(states == "not_assessable"))
+  expect_true(isTRUE(as.logical(fit[["fit"]][["converged"]])))
 })
 
 test_that("selection model fit data and syntax use only the selected-normal kernel", {

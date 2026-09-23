@@ -62,12 +62,15 @@ test_that(".fit forwards only supported BayesTools extension controls", {
       )
     },
     .create_model_syntax = function(...) "model {}",
-    .convergence_structural_parameters = function(...) character(),
     .package = "RoBMA"
   )
+  checked <- NULL
   testthat::local_mocked_bindings(
     JAGS_extend = mock_extend,
-    JAGS_check_convergence = function(...) TRUE,
+    JAGS_check_convergence = function(...) {
+      checked <<- list(...)
+      TRUE
+    },
     .package = "BayesTools"
   )
 
@@ -81,6 +84,10 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   expect_identical(forwarded[["autofit_control"]], object[["autofit_control"]])
   expect_false("seed" %in% names(forwarded))
   expect_true(result[["has_posterior"]])
+  # BayesTools classifies structural parameters from the fit's prior list;
+  # RoBMA excludes no parameters by name.
+  expect_identical(checked[["prior_list"]], attr(stored_fit, "prior_list"))
+  expect_false("add_parameters" %in% names(checked))
 })
 
 

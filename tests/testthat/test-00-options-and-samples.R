@@ -207,6 +207,50 @@ test_that("targeted convergence controls retain product-space indicator checks",
   expect_match(checked[["warnings"]], "indicator|not assessable|R-hat")
 })
 
+test_that("convergence rechecks leave structural weights to BayesTools", {
+
+  # A one-sided weight function fixes the most significant bin (omega[1]) at
+  # one; BayesTools reports it as a structural constant from the prior list.
+  set.seed(46)
+  make_chain <- function() {
+    cbind(
+      mu         = stats::rnorm(200),
+      "omega[1]" = 1,
+      "omega[2]" = stats::runif(200, 0.5, 1),
+      "omega[3]" = stats::runif(200, 0.2, 0.5)
+    )
+  }
+  fit <- list(
+    mcmc = coda::mcmc.list(coda::mcmc(make_chain()), coda::mcmc(make_chain())),
+    summary.pars = list(mutate = NULL)
+  )
+  class(fit) <- "runjags"
+  weightfunction <- BayesTools::prior_weightfunction(
+    "one-sided", c(.025, .05), BayesTools::wf_cumulative(c(1, 1, 1))
+  )
+  attr(fit, "prior_list") <- list(
+    mu    = BayesTools::prior("normal", list(0, 1)),
+    omega = weightfunction
+  )
+
+  checked <- RoBMA:::.recheck_brma_fit(list(
+    fit    = fit,
+    priors = list(outcome = list(bias = weightfunction)),
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL, min_ESS = NULL, max_error = NULL, max_SD_error = NULL
+    )
+  ))
+  diagnostics <- attr(checked[["converged"]], "diagnostics", exact = TRUE)
+  states <- stats::setNames(diagnostics[["state"]], diagnostics[["parameter"]])
+
+  expect_identical(
+    unname(states[c("omega[0,0.025]", "omega[0.025,0.05]", "omega[0.05,1]")]),
+    c("structural_constant", "assessable", "assessable")
+  )
+  expect_true(isTRUE(as.logical(checked[["converged"]])))
+  expect_length(checked[["warnings"]], 0L)
+})
+
 test_that("control updates distinguish missing and explicit indicator settings", {
 
   old_autofit <- set_autofit_control()
