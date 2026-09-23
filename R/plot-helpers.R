@@ -363,6 +363,32 @@
   return(NULL)
 }
 
+# The fitted coordinate that a factor level (or cell) structurally is: a
+# direct level cell of treatment, independent, or ordered coding. BayesTools
+# labels every coordinate that is not structurally a level cell as a contrast
+# coefficient '<parameter>{j}' holding that coordinate, so a level whose
+# unit-weight coordinate a coefficient also holds is not a level cell. This
+# keeps a mean-difference or orthonormal level whose design row is a unit
+# vector in floating point (the first of four mean-difference levels) from
+# being taken for that coordinate.
+.brma_catalog_level_coordinate <- function(quantity, quantities) {
+
+  key        <- quantity[["extraction_key"]][[1L]]
+  coordinate <- .brma_catalog_key_coordinate(key)
+  if (is.null(coordinate) || !identical(key[["type"]], "factor_level")) {
+    return(coordinate)
+  }
+  holders <- vapply(quantities[["extraction_key"]], function(other) {
+    is.list(other) && identical(other[["type"]], "factor_level") &&
+      identical(.brma_catalog_key_coordinate(other), coordinate)
+  }, logical(1))
+  if (sum(holders) != 1L) {
+    return(NULL)
+  }
+
+  return(coordinate)
+}
+
 # Contrast coefficients '<term>{j}' of mean-difference, orthonormal, and
 # ordered factors are factor-level catalog quantities that no RoBMA entry
 # covers: RoBMA addresses factor terms through their level labels.

@@ -217,15 +217,49 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
     ),
     error = conditionMessage
   )
-  expect_identical(combined, paste0(
-    "Point hypotheses on factor level 'alloc:ablat[systematic]' are not ",
-    "supported: the level combines several fitted contrast coefficients ",
-    "(mean-difference, orthonormal, or ordered contrasts), and point ",
-    "hypotheses on a single level require a level fitted as one coefficient ",
-    "(treatment or independent contrasts). Test the level with a region ",
-    "hypothesis such as 'alloc:ablat[systematic] > 0' or a level contrast ",
-    "such as 'alloc:ablat[systematic] = alloc:ablat[random]'."
-  ))
+  combined_message <- function(level) {
+
+    paste0(
+      "Point hypotheses on factor level 'alloc:ablat[", level, "]' are not ",
+      "supported: the level is a linear combination of the fitted contrast ",
+      "coefficients (mean-difference, orthonormal, or ordered contrasts), ",
+      "not a fitted coefficient itself, and point hypotheses on a single ",
+      "level require a level fitted as its own coefficient (treatment or ",
+      "independent contrasts). Test the level with a region hypothesis such ",
+      "as 'alloc:ablat[", level, "] > 0' or a level contrast such as ",
+      "'alloc:ablat[", level, "] = alloc:ablat[random]'."
+    )
+  }
+  expect_identical(combined, combined_message("systematic"))
+
+  # A level whose key is one unit-weight coordinate that a contrast
+  # coefficient '{2}' also holds (a unit design row of mean-difference coding
+  # in floating point) is not a level cell.
+  quantities <- rbind(
+    quantities,
+    data.frame(
+      quantity_id      = c("q_unitrow", "q_coefficient2"),
+      canonical_name   = c("mu_alloc__xXx__ablat[unitrow]", "mu_alloc__xXx__ablat{2}"),
+      component        = c("unitrow", "{2}"),
+      status           = c("derived", "sampled"),
+      fixed_value      = NA_real_,
+      extraction_key   = I(rep(list(list(
+        type = "factor_level", dependencies = "mu_alloc__xXx__ablat[2]",
+        weights = 1
+      )), 2L)),
+      stringsAsFactors = FALSE
+    )
+  )
+  level_names <- c(level_names, unitrow = "mu_alloc__xXx__ablat[unitrow]")
+  unit_row <- tryCatch(
+    .hypothesis_brma_formula_coefficient_level_targets(
+      object     = object,
+      selected   = selected_levels("unitrow"),
+      point_refs = data.frame(level = "unitrow", value = 0)
+    ),
+    error = conditionMessage
+  )
+  expect_identical(unit_row, combined_message("unitrow"))
 })
 
 

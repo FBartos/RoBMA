@@ -127,21 +127,37 @@ test_that("mean-difference level point hypotheses stop without a single coordina
   skip_on_cran()
   fit <- .factor_level_target_fits()[["meandif"]]
 
+  # The first of four mean-difference levels has the design row (0, 1, 0) in
+  # floating point: its extraction key is one coordinate with unit weight, the
+  # coordinate of the contrast coefficient g2{2}. It is still not a level cell.
+  quantities <- BayesTools::parameter_catalog(fit[["fit"]])[["quantities"]]
+  unit_key   <- quantities[["extraction_key"]][[
+    which(quantities[["canonical_name"]] == "mu_g2[1]")
+  ]]
+  coefficient_key <- quantities[["extraction_key"]][[
+    which(quantities[["canonical_name"]] == "mu_g2{2}")
+  ]]
+  if (identical(unname(as.numeric(unit_key[["weights"]])), 1)) {
+    expect_identical(unit_key[["dependencies"]], coefficient_key[["dependencies"]])
+  }
+
   cases <- list(
     c(hypothesis = "g1[10] = 0", level = "g1[10]", other = "g1[5]"),
-    c(hypothesis = "g2[2] = 0",  level = "g2[2]",  other = "g2[1]")
+    c(hypothesis = "g2[2] = 0",  level = "g2[2]",  other = "g2[1]"),
+    c(hypothesis = "g2[1] = 0",  level = "g2[1]",  other = "g2[2]")
   )
   for (case in cases) {
     expect_error(
       suppressWarnings(hypothesis(fit, case[["hypothesis"]], density_method = "KDE")),
       paste0(
         "Point hypotheses on factor level '", case[["level"]], "' are not ",
-        "supported: the level combines several fitted contrast coefficients ",
-        "(mean-difference, orthonormal, or ordered contrasts), and point ",
-        "hypotheses on a single level require a level fitted as one ",
-        "coefficient (treatment or independent contrasts). Test the level ",
-        "with a region hypothesis such as '", case[["level"]], " > 0' or a ",
-        "level contrast such as '", case[["level"]], " = ", case[["other"]], "'."
+        "supported: the level is a linear combination of the fitted contrast ",
+        "coefficients (mean-difference, orthonormal, or ordered contrasts), ",
+        "not a fitted coefficient itself, and point hypotheses on a single ",
+        "level require a level fitted as its own coefficient (treatment or ",
+        "independent contrasts). Test the level with a region hypothesis such ",
+        "as '", case[["level"]], " > 0' or a level contrast such as '",
+        case[["level"]], " = ", case[["other"]], "'."
       ),
       fixed = TRUE,
       info = case[["hypothesis"]]

@@ -1169,10 +1169,11 @@ hypothesis.brma <- function(object, hypothesis,
       drop = FALSE
     ]
     # Canonical level names are level labels, never coordinates: a level is a
-    # fitted coefficient only when its extraction key maps it to one
-    # coordinate with unit weight (a direct level cell).
+    # fitted coefficient only when it is structurally one coordinate (a direct
+    # level cell), never by a unit design row of mean-difference or
+    # orthonormal coding.
     target <- if (nrow(quantity) == 1L) {
-      .brma_catalog_key_coordinate(quantity[["extraction_key"]][[1L]])
+      .brma_catalog_level_coordinate(quantity, quantities)
     }
     target_i <- if (is.null(target)) {
       NA_integer_
@@ -1219,9 +1220,10 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
-# A factor level that combines several fitted contrast coefficients
-# (mean-difference, orthonormal, or ordered contrasts) has no single fitted
-# coefficient whose prior ordinate a point hypothesis could use.
+# A factor level that is not structurally one fitted coordinate (levels of
+# mean-difference and orthonormal coding, ordered levels beyond the first
+# increment) has no fitted coefficient whose prior ordinate a point hypothesis
+# could use.
 .hypothesis_brma_stop_combined_level <- function(selected, quantities, level) {
 
   label    <- .hypothesis_brma_alias_label(
@@ -1240,11 +1242,12 @@ hypothesis.brma <- function(object, hypothesis,
 
   stop(
     "Point hypotheses on factor level '", selector, "' are not supported: ",
-    "the level combines several fitted contrast coefficients ",
-    "(mean-difference, orthonormal, or ordered contrasts), and point ",
-    "hypotheses on a single level require a level fitted as one coefficient ",
-    "(treatment or independent contrasts). Test the level with a region ",
-    "hypothesis such as '", selector, " > 0'",
+    "the level is a linear combination of the fitted contrast coefficients ",
+    "(mean-difference, orthonormal, or ordered contrasts), not a fitted ",
+    "coefficient itself, and point hypotheses on a single level require a ",
+    "level fitted as its own coefficient (treatment or independent ",
+    "contrasts). Test the level with a region hypothesis such as '",
+    selector, " > 0'",
     if (length(others) > 0L) {
       paste0(" or a level contrast such as '", selector, " = ", label, "[",
              others[[1L]], "]'")
