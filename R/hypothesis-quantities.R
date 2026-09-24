@@ -275,8 +275,9 @@ hypothesis_quantities.brma <- function(object, ...) {
 }
 
 
-# Whether hypothesis() accepts a point hypothesis on the fitted coordinate of
-# a factor level: its induced original-scale prior needs an exact ordinate
+# Whether hypothesis() accepts a point hypothesis on a fitted formula
+# coordinate (a factor level or a scalar coefficient): its induced
+# original-scale prior needs an exact ordinate
 # (.hypothesis_brma_formula_prior_target()). The classification follows from
 # the prior's provenance; it is taken at the usual null value 0.
 .hypothesis_quantities_exact_level_ordinate <- function(coordinate, object,
@@ -350,6 +351,24 @@ hypothesis_quantities.brma <- function(object, ...) {
   }
   route <- .hypothesis_brma_formula_transform_route(target)
   if (route[["type"]] %in% c("identity", "affine")) {
+    # hypothesis() tests points on the coefficient's induced original-scale
+    # prior only where that prior has an exact ordinate (for example, not
+    # when the predictor scaling combines it with a Cauchy slope).
+    exact <- .hypothesis_quantities_exact_level_ordinate(
+      coordinate        = target[["target"]],
+      object            = object,
+      formula_parameter = formula_parameter
+    )
+    if (!exact) {
+      out[["point_test"]]         <- FALSE
+      out[["point_test_methods"]] <- ""
+      out[["reason"]] <- paste0(
+        "Point hypotheses are not supported for '", row[["parameter"]],
+        "': its induced prior on the original scale has no exact ordinate. ",
+        "Point hypotheses on the fitted-scale coefficient are available with ",
+        "standardized_coefficients = TRUE."
+      )
+    }
     return(out)
   }
   if (identical(route[["type"]], "exp_affine")) {
