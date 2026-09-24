@@ -31,6 +31,22 @@ context("Random-slope correlation routes")
   return(fit)
 }
 
+# Draws 3 and 4 allocate the whole block variance to the intercept: the SD
+# of the scaled slope is zero and the original-scale correlation undefined.
+.random_correlation_zero_sd_fit <- function() {
+
+  fit   <- .random_correlation_fit()
+  chain <- fit[["fit"]][["mcmc"]][[1L]]
+  chain[3:4, "mu__xRE_ALLOCx_heterogeneity__weight[1]"] <- 1
+  chain[3:4, "mu__xRE_ALLOCx_heterogeneity__weight[2]"] <- 0
+  chain[3:4, "mu__xREx__study_intercept"] <-
+    chain[3:4, "mu__xRE_ALLOCx_heterogeneity__allocation_sd"]
+  chain[3:4, "mu__xREx__study_x"] <- 0
+  fit[["fit"]][["mcmc"]][[1L]] <- chain
+
+  return(fit)
+}
+
 .random_correlation_selection <- function(fit, name) {
 
   BayesTools::parameter_catalog_resolve(
@@ -126,3 +142,38 @@ test_that("correlation hypotheses use the correlation draws", {
   }
 })
 
+
+test_that("correlation hypotheses use the defined draws of a declared quantity", {
+
+  skip_on_cran()
+  fit <- .random_correlation_zero_sd_fit()
+
+  # The random-parameter bundle keeps the undefined-draw declaration.
+  selected <- .brma_random_parameter_select(fit, "rho(intercept,x)")
+  expect_identical(which(is.na(selected[["samples"]][, 1L])), 3:4)
+  expect_identical(
+    attr(selected[["samples"]], "undefined_draws"),
+    stats::setNames("correlation", colnames(selected[["samples"]]))
+  )
+
+  selection <- .random_correlation_selection(fit, "(mu) cor(intercept,x)")
+  posterior <- as.numeric(as.matrix(BayesTools::parameter_draws(fit[["fit"]], selection)))
+  defined   <- posterior[!is.na(posterior)]
+  expect_length(defined, 298L)
+
+  result <- suppressWarnings(hypothesis(
+    fit, "rho(intercept,x) > 0", columns = "all", seed = 1
+  ))
+  expect_equal(
+    result[["posterior"]], .random_correlation_odds(mean(defined > 0)),
+    tolerance = 1e-12
+  )
+  expect_true(paste0(
+    "rho(intercept,x): computed from 298 of 300 posterior draws where the ",
+    "correlation is defined, i.e. both SDs are positive."
+  ) %in% attr(result, "footnotes"))
+
+  # Plots of the correlation use the same defined draws.
+  plotted <- .brma_random_parameter_mixed_posterior(fit, "rho(intercept,x)")
+  expect_identical(as.numeric(plotted[[1L]]), defined)
+})

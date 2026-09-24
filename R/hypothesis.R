@@ -876,6 +876,26 @@ hypothesis.brma <- function(object, hypothesis,
       )
     }
   }
+  # Quantities declared as possibly undefined are tested over their defined
+  # draws, and the table notes the share.
+  posterior_defined <- .brma_random_parameter_defined_draws(
+    posterior_values,
+    posterior[["samples"]],
+    posterior[["spec"]][["label"]]
+  )
+  prior_defined <- .brma_random_parameter_defined_draws(
+    prior_values,
+    prior[["samples"]],
+    posterior[["spec"]][["label"]]
+  )
+  defined_footnote <- .brma_random_parameter_defined_footnote(
+    label             = posterior[["spec"]][["label"]],
+    samples           = posterior[["samples"]],
+    posterior_defined = posterior_defined,
+    prior_defined     = prior_defined
+  )
+  posterior_values <- posterior_values[posterior_defined]
+  prior_values     <- prior_values[prior_defined]
 
   point_refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
@@ -1004,7 +1024,7 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   if (!precomputed || nrow(point_refs) == 0L) {
-    return(BayesTools::hypothesis_BF(
+    out <- BayesTools::hypothesis_BF(
       posterior      = posterior_values,
       prior          = prior_values,
       hypothesis     = hypothesis,
@@ -1014,7 +1034,11 @@ hypothesis.brma <- function(object, hypothesis,
       seed           = seed,
       columns        = columns,
       density_method = if (precomputed) "KDE" else density_method
-    ))
+    )
+    if (!is.null(defined_footnote)) {
+      attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
+    }
+    return(out)
   }
 
   samples <- .brma_random_parameter_mixed_posterior(

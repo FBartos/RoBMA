@@ -147,8 +147,15 @@
     )
   })
 
+  samples <- coda::mcmc.list(semantic_chains)
+  attr(samples, "undefined_draws") <- attr(
+    extracted[[1L]][["samples"]],
+    "undefined_draws",
+    exact = TRUE
+  )
+
   list(
-    samples = coda::mcmc.list(semantic_chains),
+    samples = samples,
     specs   = specs,
     priors  = extracted[[1L]][["priors"]]
   )
@@ -227,6 +234,65 @@
   return(raw_samples)
 }
 
+# Draws of a quantity declared as possibly undefined (an original-scale
+# correlation with a zero SD; attribute 'undefined_draws' of the extracted
+# samples) are left out where the quantity is undefined. Any other missing
+# draw is an error. Returns the mask of defined draws.
+.brma_random_parameter_defined_draws <- function(values, samples, label) {
+
+  defined <- !is.na(values)
+  if (all(defined)) {
+    return(defined)
+  }
+  if (is.null(attr(samples, "undefined_draws", exact = TRUE))) {
+    stop(
+      "The draws of random-effect quantity '", label, "' contain missing ",
+      "values. Missing draws are accepted only for quantities declared as ",
+      "possibly undefined (original-scale random-effect correlations).",
+      call. = FALSE
+    )
+  }
+  if (!any(defined)) {
+    stop(
+      "Random-effect quantity '", label, "' is undefined in every draw.",
+      call. = FALSE
+    )
+  }
+
+  return(defined)
+}
+
+# Footnote for results computed over the defined draws only.
+.brma_random_parameter_defined_footnote <- function(label, samples,
+                                                    posterior_defined,
+                                                    prior_defined = NULL) {
+
+  counts <- function(defined, what) {
+    if (is.null(defined) || all(defined)) {
+      return(NULL)
+    }
+    paste(sum(defined), "of", length(defined), what, "draws")
+  }
+  parts <- c(
+    counts(posterior_defined, "posterior"),
+    counts(prior_defined, "prior")
+  )
+  if (length(parts) == 0L) {
+    return(NULL)
+  }
+  reason <- attr(samples, "undefined_draws", exact = TRUE)
+  condition <- if (identical(unname(reason[[1L]]), "correlation")) {
+    "where the correlation is defined, i.e. both SDs are positive."
+  } else {
+    "where the quantity is defined."
+  }
+
+  paste0(
+    label, ": computed from ", paste(parts, collapse = " and "), " ",
+    condition
+  )
+}
+
 .brma_random_parameter_extract_fit <- function(
     fit, standardized_coefficients = FALSE, selections = NULL) {
 
@@ -298,19 +364,32 @@
       )
     }
   }
-  columns <- lapply(selections, function(selection) {
-    as.matrix(BayesTools::parameter_draws(
+  draws <- lapply(selections, function(selection) {
+    BayesTools::parameter_draws(
       extraction_fit,
       selection,
       model_samples = model_samples
-    ))
+    )
   })
-  samples <- do.call(cbind, columns)
+  samples <- do.call(cbind, lapply(draws, as.matrix))
   parameter_names <- .brma_random_parameter_io_names(
     quantities[["canonical_name"]],
     quantities[["quantity"]]
   )
   colnames(samples) <- parameter_names
+  # Quantities that can be undefined in some draws (original-scale
+  # correlations with a zero SD) keep parameter_draws()' declaration, by
+  # column, so that consumers accept only these missing draws.
+  undefined <- unlist(lapply(seq_along(draws), function(i) {
+    declared <- attr(draws[[i]], "undefined_draws", exact = TRUE)
+    if (is.null(declared)) {
+      return(NULL)
+    }
+    stats::setNames(unname(declared[[1L]]), parameter_names[[i]])
+  }))
+  if (length(undefined) > 0L) {
+    attr(samples, "undefined_draws") <- undefined
+  }
   specs  <- .brma_random_parameter_specs(quantities)
   specs[["display_transform"]] <- I(lapply(selections, function(selection) {
     BayesTools::parameter_transform(extraction_fit, selection)
@@ -639,14 +718,16 @@
     allocation_definition
   )
 
+  samples <- bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
+  undefined <- attr(bundle[["samples"]], "undefined_draws", exact = TRUE)
+  if (entry[["parameter"]] %in% names(undefined)) {
+    attr(samples, "undefined_draws") <- undefined[entry[["parameter"]]]
+  }
+
   list(
     entry        = entry,
     spec         = spec,
-    samples      = if (chains) {
-      bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
-    } else {
-      bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
-    },
+    samples      = samples,
     prior        = NULL,
     source_prior = .brma_random_parameter_source_prior(
       object,
@@ -1659,6 +1740,16 @@
       }
     }
   }
+  # Quantities declared as possibly undefined keep their defined draws.
+  defined <- .brma_random_parameter_defined_draws(
+    values,
+    selected[["samples"]],
+    selected[["spec"]][["label"]]
+  )
+  values <- values[defined]
+  if (!is.null(posterior_inclusion)) {
+    posterior_inclusion <- posterior_inclusion[defined]
+  }
   attr(values, "sample_ind") <- FALSE
   attr(values, "models_ind") <- rep(1, length(values))
   attr(values, "parameter")  <- selected[["entry"]][["parameter"]]
@@ -1762,10 +1853,16 @@
       prior_inclusion <- raw_samples[, indicator]
       if (conditional) {
         prior_values <- prior_selected[["samples"]][, 1L]
+        undefined    <- attr(
+          prior_selected[["samples"]],
+          "undefined_draws",
+          exact = TRUE
+        )
         prior_selected[["samples"]] <- matrix(
           prior_values[prior_inclusion == 1],
           ncol = 1L
         )
+        attr(prior_selected[["samples"]], "undefined_draws") <- undefined
         prior_inclusion <- NULL
       }
     }
@@ -1787,8 +1884,16 @@
         call. = FALSE
       )
     }
+    prior_values <- prior_selected[["samples"]][, 1L]
+    if (!zero_gate && !gated_aggregate) {
+      prior_values <- prior_values[.brma_random_parameter_defined_draws(
+        prior_values,
+        prior_selected[["samples"]],
+        selected[["spec"]][["label"]]
+      )]
+    }
     prior_density <- .brma_random_parameter_prior_density(
-      prior_selected[["samples"]][, 1L],
+      prior_values,
       support                 = support,
       inclusion               = if (zero_gate) prior_inclusion else NULL,
       inclusion_probability   = if (zero_gate) {
