@@ -12,10 +12,12 @@
 # - "exact": the likelihood factor is a Gaussian kernel in the target and the
 #   prior factor a (truncated) normal density, so the row is a truncated normal
 #   with closed-form quantiles and truncation.
-# - "bound": a Gaussian kernel times another proper scalar prior. Outside the
-#   radius r (in kernel standard deviations) the kernel is at most
-#   exp(-r^2 / 2), so the omitted mass is at most exp(-r^2 / 2) times the prior
-#   mass there, relative to a lower bound on the row's total mass.
+# - "bound": a Gaussian kernel times another proper scalar prior. Beyond a
+#   distance r (in kernel standard deviations) from the kernel center the
+#   kernel is at most exp(-r^2 / 2), so the omitted mass on each side is at most
+#   exp(-r^2 / 2) times the prior mass there, relative to a lower bound on the
+#   row's total mass. Each end sits where its side's bound reaches
+#   (1 - normalization_prob) / 2.
 # - "estimate": any other row. Its interval starts at the draws-based range and
 #   each side is extended until the exponential-envelope tail estimate
 #   q(b) / |d log q / dz| at the endpoint is below the side's target.
@@ -351,16 +353,86 @@
   unusable <- bound[!is.finite(log_mass[bound])]
   laws[["kind"]][unusable] <- "estimate"
   bound <- setdiff(bound, unusable)
-  if (length(bound) > 0L) {
-    # exp(-r^2 / 2) / M <= 1 - probability; M <= 1 for a proper prior.
-    radius <- sqrt(2 * pmax(0, -log1p(-probability) - log_mass[bound]))
-    intervals[bound, 1L] <- laws[["center"]][bound] -
-      radius * laws[["scale"]][bound]
-    intervals[bound, 2L] <- laws[["center"]][bound] +
-      radius * laws[["scale"]][bound]
+  for (prior in unique(laws[["prior"]][bound])) {
+    rows <- bound[vapply(laws[["prior"]][bound], identical, logical(1L), prior)]
+    intervals[rows, ] <- .iwmde_qcmde_bound_interval(
+      prior       = prior,
+      center      = laws[["center"]][rows],
+      scale       = laws[["scale"]][rows],
+      log_mass    = log_mass[rows],
+      probability = probability
+    )
   }
 
   return(list(laws = laws, intervals = intervals, log_mass = log_mass))
+}
+
+
+# The tail bound of one side of a "bound" row, on the log scale: beyond b the
+# kernel is at most exp(-max(0, (c - b) / s)^2 / 2) (mirrored above), so the
+# omitted mass is at most that times the prior mass beyond b, relative to the
+# lower bound M on the row's mass. Increasing in b below, decreasing above.
+.iwmde_qcmde_bound_side_log <- function(prior, value, center, scale, log_mass,
+                                        side) {
+
+  if (identical(side, "lower")) {
+    distance <- pmax(0, (center - value) / scale)
+    tail     <- BayesTools::cdf(prior, value)
+  } else {
+    distance <- pmax(0, (value - center) / scale)
+    tail     <- BayesTools::ccdf(prior, value)
+  }
+
+  return(-distance^2 / 2 + log(pmax(tail, 0)) - log_mass)
+}
+
+
+# The interval of "bound" rows: each end is where that side's own tail bound
+# reaches (1 - probability) / 2. The symmetric radius
+# r^2 = 2 (-log(1 - probability) - log M) brackets both ends (widened until each
+# side meets its target) and a bisection places them, so an end stops where the
+# prior's own mass runs out instead of crossing a finite support boundary.
+.iwmde_qcmde_bound_interval <- function(prior, center, scale, log_mass,
+                                        probability) {
+
+  log_target <- log((1 - probability) / 2)
+  radius     <- sqrt(2 * pmax(0, -log1p(-probability) - log_mass))
+  side_log   <- function(value, side) {
+    .iwmde_qcmde_bound_side_log(prior, value, center, scale, log_mass, side)
+  }
+  lower <- center - radius * scale
+  upper <- center + radius * scale
+  for (iteration in seq_len(60L)) {
+    lower_open <- side_log(lower, "lower") > log_target
+    upper_open <- side_log(upper, "upper") > log_target
+    if (!any(lower_open | upper_open)) {
+      break
+    }
+    lower[lower_open] <- center[lower_open] -
+      2 * (center[lower_open] - lower[lower_open])
+    upper[upper_open] <- center[upper_open] +
+      2 * (upper[upper_open] - center[upper_open])
+  }
+
+  # The lower end is the largest value whose lower bound meets the target and
+  # the upper end the smallest whose upper bound does, both within the bracket.
+  out <- matrix(NA_real_, nrow = length(center), ncol = 2L)
+  for (side in c("lower", "upper")) {
+    meeting <- if (identical(side, "lower")) lower else upper
+    failing <- if (identical(side, "lower")) upper else lower
+    reached <- side_log(failing, side) <= log_target
+    for (iteration in seq_len(80L)) {
+      middle <- (meeting + failing) / 2
+      meets  <- side_log(middle, side) <= log_target
+      meeting[meets]  <- middle[meets]
+      failing[!meets] <- middle[!meets]
+    }
+    meeting[reached] <- if (identical(side, "lower")) upper[reached] else
+      lower[reached]
+    out[, if (identical(side, "lower")) 1L else 2L] <- meeting
+  }
+
+  return(out)
 }
 
 

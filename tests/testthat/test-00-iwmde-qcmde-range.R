@@ -134,6 +134,56 @@ test_that("a Gaussian kernel with a Cauchy prior keeps a valid mass bound", {
 })
 
 
+test_that("a bound row at a finite support boundary ends where its side bound meets the target", {
+
+  # A Gaussian kernel times a half-Cauchy prior on (0, Inf), with the kernel
+  # centre near and below the boundary. The symmetric radius c -/+ r s crosses
+  # 0; each end must instead sit where its own side's bound reaches
+  # (1 - p) / 2, which stays inside the support. The reference masses come
+  # from adaptive quadrature of prior(v) exp(-((v - c) / s)^2 / 2).
+  prior <- BayesTools::prior("cauchy", list(location = 0, scale = .5),
+                             truncation = list(lower = 0, upper = Inf))
+  probability <- .999
+  target      <- (1 - probability) / 2
+  for (center in c(.05, -.1)) {
+    scale <- .2
+    laws  <- .iwmde_qcmde_row_laws(list(), list(.qcmde_range_state(prior)),
+                                   list(type = "scalar"),
+                                   .qcmde_range_kernel(center, scale))
+    expect_identical(laws[["kind"]], "bound")
+    intervals <- .iwmde_qcmde_law_intervals(laws, probability)
+    interval  <- intervals[["intervals"]][1L, ]
+    radius    <- sqrt(2 * (-log1p(-probability) - intervals[["log_mass"]]))
+    expect_lt(center - radius * scale, 0)
+    expect_gt(interval[[1L]], 1e-5)
+    expect_lt(interval[[1L]], interval[[2L]])
+
+    density <- function(v) {
+      2 * stats::dcauchy(v, 0, .5) * exp(-((v - center) / scale)^2 / 2)
+    }
+    mass  <- function(lower, upper) {
+      stats::integrate(density, lower, upper, rel.tol = 1e-12,
+                       subdivisions = 1000L)$value
+    }
+    total <- mass(0, Inf)
+    below <- mass(0, interval[[1L]]) / total
+    above <- mass(interval[[2L]], Inf) / total
+    expect_lte(below, target)
+    expect_lte(above, target)
+    # The lower end is not needlessly close to the boundary: the side bound
+    # is within the looseness of the mass bound of the true lower mass.
+    expect_gt(below, target / 20)
+
+    # The reported bound over the row's own interval keeps the guarantee.
+    own <- .iwmde_qcmde_row_truncation(laws, intervals[["log_mass"]], interval,
+                                       estimates = NA_real_)
+    expect_identical(own[["status"]], "bound")
+    expect_gte(own[["value"]], below + above)
+    expect_lte(own[["value"]], 1 - probability + 1e-12)
+  }
+})
+
+
 test_that("rows without a Gaussian kernel or a supported prior are estimates", {
 
   normal <- BayesTools::prior("normal", list(mean = 0, sd = 1))
