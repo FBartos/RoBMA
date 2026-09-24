@@ -4,7 +4,9 @@ context("Point-test eligibility of scalar formula coefficients")
 # coefficient exactly when hypothesis() runs a point hypothesis on it with
 # that method. With a standardized predictor, the original-scale intercept
 # combines the intercept with the slope:
-# - two Cauchy priors (intercept and slope) give no exact prior ordinate;
+# - two Cauchy priors (intercept and slope): BayesTools has no exact route
+#   for their sum, whose ordinate it evaluates numerically and classifies as
+#   'unknown' (although a sum of Cauchy terms is itself Cauchy);
 # - the same priors with a raw predictor keep the intercept as the fitted
 #   coefficient itself (exact);
 # - a normal intercept with a Cauchy slope is a Gaussian convolution, which
