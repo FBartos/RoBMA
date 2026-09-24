@@ -297,3 +297,54 @@ test_that("a Gaussian tail extends close to its target in few passes", {
   expect_lt(max(abs(ends) - needed), .3)
   expect_lte(result[["passes"]], 4L)
 })
+
+
+test_that("IWMDE keeps the draws-based range for its normalization-mass check", {
+
+  # IWMDE integrates the marginal density to check its weights, so the range
+  # stays the central `normalization_prob` quantile range of the draws, widened
+  # by 10% on each side; the per-row qCMDE range does not apply to it.
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  values    <- stats::qnorm(stats::ppoints(400L), .2, .5)
+  grid <- .iwmde_normalization_grid(values, numeric(), c(-Inf, Inf), transform,
+                                    normalization_points = 50L,
+                                    normalization_prob   = .999)
+  quantiles <- stats::quantile(values, c(5e-4, 1 - 5e-4), names = FALSE,
+                               type = 8)
+  expect_equal(range(grid[["x"]]), quantiles + c(-.1, .1) * diff(quantiles),
+               tolerance = 1e-12)
+
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+      matrix(stats::dnorm(values, .2, .5, log = TRUE), nrow = length(values),
+             ncol = length(row_states))
+    },
+    .package = "RoBMA"
+  )
+  rows   <- seq_len(40L)
+  states <- lapply(values[rows], function(value) {
+    list(baseline_log_q = stats::dnorm(value, .2, .5, log = TRUE))
+  })
+  iwmde <- .iwmde_density_iwmde(
+    context            = list(),
+    parameter          = "mu",
+    display_grid       = 0,
+    row_states         = states,
+    active_rows        = rows,
+    active_values      = values[rows],
+    proposal_weight    = list(
+      log_weight = stats::dnorm(values[rows], .2, .5, log = TRUE),
+      method     = "oracle_posterior"
+    ),
+    active_mass        = 1,
+    replacement        = list(type = "scalar"),
+    normalization_grid = grid
+  )
+  expect_equal(iwmde[["normalization_range"]], range(grid[["x"]]))
+  expect_identical(iwmde[["normalization_points"]], 50L)
+  expect_null(iwmde[["normalization_truncation"]])
+  expect_equal(iwmde[["support_grid_normalization_integral"]],
+               diff(stats::pnorm(range(grid[["x"]]), .2, .5)),
+               tolerance = 1e-3)
+})
