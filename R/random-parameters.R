@@ -98,7 +98,6 @@
       seed          = seed,
       formula_scale = list()
     )
-    raw_samples <- .brma_random_parameter_complete_prior_sd(fit, raw_samples)
     extracted <- .brma_random_parameter_extract_fit(
       fit                       = .brma_random_parameter_fit_with_samples(
         fit,
@@ -159,79 +158,6 @@
     specs   = specs,
     priors  = extracted[[1L]][["priors"]]
   )
-}
-
-# Prior draws cover the stochastic nodes of the prior list. Random-effect SDs
-# that the model derives deterministically from a variance allocation are
-# monitored nodes without prior draws, although catalog evaluators (the
-# original-scale correlation) declare them as dependencies. Add them on the
-# fitted scale from the catalog's SD quantities, which BayesTools evaluates
-# from the allocation sources present in the prior draws; on posterior draws
-# these quantities equal the monitored SDs.
-.brma_random_parameter_complete_prior_sd <- function(fit, raw_samples) {
-
-  coordinates <- BayesTools::parameter_coordinates(fit)
-  sd_rows     <- which(
-    coordinates[["role"]] == "random_sd" &
-      !coordinates[["coordinate_name"]] %in% colnames(raw_samples)
-  )
-  if (length(sd_rows) == 0L) {
-    return(raw_samples)
-  }
-
-  catalog     <- BayesTools::parameter_catalog(fit)
-  quantities  <- catalog[["quantities"]]
-  sd_keys     <- quantities[["extraction_key"]]
-  terms       <- unlist(
-    lapply(attr(fit, "formula_design", exact = TRUE), `[[`, "random_effects"),
-    recursive = FALSE
-  )
-  prior_fit <- .brma_random_parameter_fit_with_samples(
-    fit,
-    coda::mcmc.list(coda::mcmc(raw_samples))
-  )
-  attr(prior_fit, "formula_scale") <- list()
-
-  for (row in sd_rows) {
-    coordinate <- coordinates[["coordinate_name"]][[row]]
-    block      <- coordinates[["random_block"]][[row]]
-    parameter  <- coordinates[["formula_parameter"]][[row]]
-    term <- Filter(function(term) {
-      identical(term[["block_name"]], block) &&
-        coordinate %in% term[["sd_parameter_names"]]
-    }, terms)
-    index <- if (length(term) == 1L) {
-      match(coordinate, term[[1L]][["sd_parameter_names"]])
-    } else {
-      NA_integer_
-    }
-    source <- which(vapply(sd_keys, function(key) {
-      is.list(key) && identical(key[["evaluator"]], "sd") &&
-        identical(key[["formula_parameter"]], parameter) &&
-        identical(key[["random_block"]], block) &&
-        identical(as.integer(key[["index"]]), index)
-    }, logical(1)))
-    if (length(source) != 1L) {
-      stop(
-        "Prior draws of the random-effect standard deviation '", coordinate,
-        "' are unavailable from its declared sources.",
-        call. = FALSE
-      )
-    }
-    selection <- BayesTools::parameter_catalog_resolve(
-      catalog,
-      alias     = quantities[["canonical_name"]][[source]],
-      namespace = quantities[["namespace"]][[source]]
-    )
-    values <- as.numeric(as.matrix(BayesTools::parameter_draws(
-      prior_fit,
-      selection
-    )))
-    raw_samples <- cbind(raw_samples, values)
-    colnames(raw_samples)[ncol(raw_samples)] <- coordinate
-  }
-
-  return(raw_samples)
 }
 
 # Draws of a quantity declared as possibly undefined (an original-scale

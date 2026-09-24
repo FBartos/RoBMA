@@ -59,32 +59,6 @@ context("Random-slope correlation routes")
 .random_correlation_odds <- function(p) p / (1 - p)
 
 
-test_that("prior draws gain the allocation-derived SDs the correlation needs", {
-
-  skip_on_cran()
-  fit     <- .random_correlation_fit()
-  samples <- as.matrix(fit[["fit"]][["mcmc"]])
-  sds     <- c("mu__xREx__study_intercept", "mu__xREx__study_x")
-
-  # On posterior draws without the monitored SDs, the completion reproduces
-  # the monitored values exactly.
-  completed <- .brma_random_parameter_complete_prior_sd(
-    fit[["fit"]],
-    samples[, setdiff(colnames(samples), sds)]
-  )
-  expect_identical(unname(completed[, sds]), unname(samples[, sds]))
-
-  # Prior draws lack the deterministic SD monitors until completed.
-  raw <- BayesTools::transform_prior_samples(
-    fit[["fit"]], n_samples = 50, seed = 1, formula_scale = list()
-  )
-  expect_false(any(sds %in% colnames(raw)))
-  expect_true(all(sds %in% colnames(
-    .brma_random_parameter_complete_prior_sd(fit[["fit"]], raw)
-  )))
-})
-
-
 test_that("correlation hypotheses use the correlation draws", {
 
   skip_on_cran()
@@ -94,11 +68,16 @@ test_that("correlation hypotheses use the correlation draws", {
 
   # Prior correlation draws: parameter_draws() on the prior draws of the
   # same seed, with the allocation-derived SDs (the fitted-scale SD
-  # quantities) supplied as the declared sources.
+  # quantities evaluated from the allocation sources alone) supplied as the
+  # declared sources. The prior draws carry the deterministic SD monitors
+  # the correlation depends on, equal to these SDs.
+  sd_names <- c("mu__xREx__study_intercept", "mu__xREx__study_x")
   raw <- BayesTools::transform_prior_samples(
     fit[["fit"]], n_samples = 10000, seed = 1, formula_scale = list()
   )
-  prior_fit <- BayesTools::JAGS_with_draws(fit[["fit"]], coda::mcmc.list(coda::mcmc(raw)))
+  expect_true(all(sd_names %in% colnames(raw)))
+  sources   <- raw[, setdiff(colnames(raw), sd_names), drop = FALSE]
+  prior_fit <- BayesTools::JAGS_with_draws(fit[["fit"]], coda::mcmc.list(coda::mcmc(sources)))
   attr(prior_fit, "formula_scale") <- list()
   sds <- vapply(c(intercept = "(mu) sd(intercept)", x = "(mu) sd(x)"), function(name) {
     as.numeric(as.matrix(BayesTools::parameter_draws(
@@ -106,9 +85,10 @@ test_that("correlation hypotheses use the correlation draws", {
       .random_correlation_selection(fit, name)
     )))
   }, numeric(nrow(raw)))
-  colnames(sds) <- c("mu__xREx__study_intercept", "mu__xREx__study_x")
+  colnames(sds) <- sd_names
+  expect_identical(unname(raw[, sd_names]), unname(sds))
   prior <- as.numeric(as.matrix(BayesTools::parameter_draws(
-    fit[["fit"]], selection, model_samples = cbind(raw, sds)
+    fit[["fit"]], selection, model_samples = cbind(sources, sds)
   )))
 
   regions <- list(
