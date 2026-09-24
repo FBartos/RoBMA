@@ -96,7 +96,9 @@
   stopped as "absent from the fitted coefficient transformation", and with
   levels 1:4 a label could select the coordinate of another level. A level
   maps to a fitted coordinate only when the contrast makes it a direct level
-  cell, and plots of every contrast draw the selected level.
+  cell, and plots of every contrast draw the selected level. Messages about a
+  level's prior ordinate, transform, or support name the level selector (e.g.
+  `g[2]`) instead of its backend coordinate (`mu_g[1]`).
 - explains that selectors of factor contrast coefficients (`g{1}`, the `{j}`
   coefficients of mean-difference, orthonormal, and ordered factors) are not
   supported in `hypothesis()` and `plot()` and names the level-label form such

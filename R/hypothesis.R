@@ -1189,7 +1189,14 @@ hypothesis.brma <- function(object, hypothesis,
 
   occurrences <- selected[["resolution"]][["occurrences"]]
   quantities  <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  term_label  <- .hypothesis_brma_alias_label(
+    selected[["aliases"]],
+    selected[["parameter"]]
+  )
   out <- lapply(levels, function(level) {
+    # Messages name the level by its selector, never by its backend
+    # coordinate: with levels 1:4, coordinate 'mu_g[2]' is level 3.
+    selector <- paste0(term_label, "[", level, "]")
     level_occurrences <- occurrences[
       !is.na(occurrences[["level"]]) & occurrences[["level"]] == level,
       ,
@@ -1198,8 +1205,8 @@ hypothesis.brma <- function(object, hypothesis,
     level_name <- unique(level_occurrences[["canonical_name"]])
     if (length(level_name) != 1L) {
       stop(
-        "Resolved formula coefficient level '", level,
-        "' is ambiguous in the fitted parameter catalog.",
+        "Factor level '", selector, "' is ambiguous in the fitted parameter ",
+        "catalog.",
         call. = FALSE
       )
     }
@@ -1245,7 +1252,8 @@ hypothesis.brma <- function(object, hypothesis,
       formula_parameter = formula_parameter,
       target            = target,
       target_i          = target_i,
-      transform         = transform
+      transform         = transform,
+      level_selector    = selector
     )
     target_info[["route"]] <-
       .hypothesis_brma_formula_transform_route(target_info)
@@ -1391,6 +1399,32 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
+# How messages name a formula coefficient target: a factor level by its
+# selector (e.g. 'g[10]'), never by the backend coordinate that the target
+# holds; a scalar coefficient by its parameter name.
+.hypothesis_brma_formula_target_name <- function(target_info) {
+
+  if (!is.null(target_info[["level_selector"]])) {
+    return(target_info[["level_selector"]])
+  }
+
+  return(target_info[["target"]])
+}
+
+
+.hypothesis_brma_formula_target_description <- function(target_info) {
+
+  paste0(
+    if (is.null(target_info[["level_selector"]])) {
+      "transformed coefficient"
+    } else {
+      "factor level"
+    },
+    " '", .hypothesis_brma_formula_target_name(target_info), "'"
+  )
+}
+
+
 .hypothesis_brma_formula_prior_target <- function(
     object, samples, hypothesis, target_info, point_values = NULL,
     force_linear = FALSE) {
@@ -1418,9 +1452,9 @@ hypothesis.brma <- function(object, hypothesis,
     ordinate <- BayesTools::prior_density_ordinate(prior_density, value)
     if (!isTRUE(ordinate[["exact"]])) {
       stop(
-        "The induced prior ordinate for transformed coefficient '",
-        target_info[["target"]], "' is not exact enough for a point-null ",
-        "Bayes factor.",
+        "The induced prior ordinate for ",
+        .hypothesis_brma_formula_target_description(target_info),
+        " is not exact enough for a point-null Bayes factor.",
         call. = FALSE
       )
     }
@@ -1438,8 +1472,8 @@ hypothesis.brma <- function(object, hypothesis,
       type   = "unsupported_formula_transform",
       reason = paste0(
         "qCMDE/IWMDE does not support the fitted nonlinear joint transform ",
-        "for '", target_info[["target"]], "'. Use density_method = 'KDE' ",
-        "or standardized_coefficients = TRUE."
+        "for '", .hypothesis_brma_formula_target_name(target_info), "'. Use ",
+        "density_method = 'KDE' or standardized_coefficients = TRUE."
       )
     )
   }
@@ -1454,12 +1488,13 @@ hypothesis.brma <- function(object, hypothesis,
 
   transform <- target_info[["transform"]]
   target    <- target_info[["target"]]
+  name      <- .hypothesis_brma_formula_target_name(target_info)
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
       !identical(transform[["target_scale"]], "original")) {
     return(list(
       type   = "unsupported",
       reason = paste0(
-        "The fitted coefficient transform for '", target,
+        "The fitted coefficient transform for '", name,
         "' lacks the certified structural metadata required for hypothesis testing."
       )
     ))
@@ -1475,7 +1510,7 @@ hypothesis.brma <- function(object, hypothesis,
     return(list(
       type   = "unsupported",
       reason = paste0(
-        "The fitted coefficient '", target,
+        "The fitted coefficient '", name,
         "' is structurally fixed and has no posterior hypothesis route."
       )
     ))
@@ -1520,7 +1555,7 @@ hypothesis.brma <- function(object, hypothesis,
   list(
     type   = "unsupported",
     reason = paste0(
-      "The fitted nonlinear joint coefficient transform for '", target,
+      "The fitted nonlinear joint coefficient transform for '", name,
       "' is not supported by hypothesis()."
     )
   )
@@ -1542,8 +1577,8 @@ hypothesis.brma <- function(object, hypothesis,
   if (any(outside_or_boundary)) {
     stop(
       "Point-null value ", values[which(outside_or_boundary)[[1L]]],
-      " is outside or on the boundary of the open support for transformed ",
-      "coefficient '", target_info[["target"]], "'.",
+      " is outside or on the boundary of the open support for ",
+      .hypothesis_brma_formula_target_description(target_info), ".",
       call. = FALSE
     )
   }

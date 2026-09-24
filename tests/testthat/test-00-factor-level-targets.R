@@ -399,14 +399,188 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     "Point hypotheses on factor level 'g[hi]'",
     fixed = TRUE
   )
+  # The stop names the level selector, not the backend coordinate 'mu_g[1]'.
   for (method in c("KDE", "qCMDE")) {
     expect_error(
       suppressWarnings(hypothesis(ordered, "g[mid] = 0.1", density_method = method)),
-      "is not exact enough for a point-null Bayes factor",
+      paste0(
+        "The induced prior ordinate for factor level 'g[mid]' is not exact ",
+        "enough for a point-null Bayes factor."
+      ),
       fixed = TRUE,
       info = method
     )
   }
+
+  # With numeric labels, the first increment's coordinate 'mu_g[1]' reads as
+  # the reference level '1': the stop names the level the hypothesis wrote.
+  data[["g"]] <- factor(
+    c("1", "2", "3")[as.integer(data[["g"]])],
+    levels = c("1", "2", "3")
+  )
+  numeric_labels <- suppressWarnings(brma(
+    yi = yi, sei = sei, mods = ~ g, data = data, measure = "SMD",
+    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
+    chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
+  ))
+  message <- tryCatch(
+    suppressWarnings(hypothesis(numeric_labels, "g[2] = 0.1", density_method = "KDE")),
+    error = conditionMessage
+  )
+  expect_identical(message, paste0(
+    "The induced prior ordinate for factor level 'g[2]' is not exact enough ",
+    "for a point-null Bayes factor."
+  ))
+})
+
+
+test_that("formula coefficient messages name factor levels by their selector", {
+
+  # A level target holds its backend coordinate ('mu_g[1]' for level '2');
+  # messages name the level selector instead. Scalar targets keep their
+  # parameter name.
+  transform <- structure(
+    list(
+      schema_version    = 1L,
+      target_scale      = "original",
+      target_names      = "mu_g[1]",
+      matrix            = matrix(
+        1, 1L, 1L, dimnames = list("mu_g[1]", "mu_g[1]")
+      ),
+      source_transforms = c("mu_g[1]" = "log"),
+      output_transforms = list("mu_g[1]" = "identity")
+    ),
+    class = "BayesTools_formula_coefficient_transform"
+  )
+  level  <- list(
+    formula_parameter = "mu",
+    target            = "mu_g[1]",
+    target_i          = 1L,
+    transform         = transform,
+    level_selector    = "g[2]"
+  )
+  scalar <- level[setdiff(names(level), "level_selector")]
+
+  expect_identical(
+    .hypothesis_brma_formula_transform_route(level)[["reason"]],
+    "The fitted nonlinear joint coefficient transform for 'g[2]' is not supported by hypothesis()."
+  )
+  expect_identical(
+    .hypothesis_brma_formula_transform_route(scalar)[["reason"]],
+    "The fitted nonlinear joint coefficient transform for 'mu_g[1]' is not supported by hypothesis()."
+  )
+  fixed <- level
+  fixed[["transform"]][["matrix"]][1L, 1L] <- 0
+  expect_identical(
+    .hypothesis_brma_formula_transform_route(fixed)[["reason"]],
+    "The fitted coefficient 'g[2]' is structurally fixed and has no posterior hypothesis route."
+  )
+  uncertified <- level
+  uncertified[["transform"]][["target_scale"]] <- "fitted"
+  expect_identical(
+    .hypothesis_brma_formula_transform_route(uncertified)[["reason"]],
+    paste0(
+      "The fitted coefficient transform for 'g[2]' lacks the certified ",
+      "structural metadata required for hypothesis testing."
+    )
+  )
+
+  supported <- level
+  supported[["route"]] <- list(type = "exp_affine", support = c(0, Inf))
+  expect_error(
+    .hypothesis_brma_check_formula_point_support(
+      data.frame(value = 0), supported
+    ),
+    "open support for factor level 'g[2]'.",
+    fixed = TRUE
+  )
+  scalar_supported <- supported[setdiff(names(supported), "level_selector")]
+  expect_error(
+    .hypothesis_brma_check_formula_point_support(
+      data.frame(value = 0), scalar_supported
+    ),
+    "open support for transformed coefficient 'mu_g[1]'.",
+    fixed = TRUE
+  )
+
+  # The prior-ordinate stop and the qCMDE/IWMDE transform reason.
+  exact <- TRUE
+  testthat::local_mocked_bindings(
+    JAGS_formula_prior_density = function(...) list(),
+    prior_density_ordinate     = function(...) list(exact = exact),
+    .package = "BayesTools"
+  )
+  prior_target <- .hypothesis_brma_formula_prior_target(
+    object       = list(fit = NULL),
+    samples      = list(),
+    hypothesis   = NULL,
+    target_info  = supported,
+    point_values = 0.1,
+    force_linear = TRUE
+  )
+  expect_identical(
+    prior_target[["parameter_spec"]][["reason"]],
+    paste0(
+      "qCMDE/IWMDE does not support the fitted nonlinear joint transform ",
+      "for 'g[2]'. Use density_method = 'KDE' or ",
+      "standardized_coefficients = TRUE."
+    )
+  )
+  exact <- FALSE
+  expect_error(
+    .hypothesis_brma_formula_prior_target(
+      object       = list(fit = NULL),
+      samples      = list(),
+      hypothesis   = NULL,
+      target_info  = supported,
+      point_values = 0.1,
+      force_linear = TRUE
+    ),
+    paste0(
+      "The induced prior ordinate for factor level 'g[2]' is not exact ",
+      "enough for a point-null Bayes factor."
+    ),
+    fixed = TRUE
+  )
+})
+
+
+test_that("an ambiguous level resolution names the level selector", {
+
+  testthat::local_mocked_bindings(
+    JAGS_formula_coefficient_transform = function(...) structure(
+      list(schema_version = 1L),
+      class = "BayesTools_formula_coefficient_transform"
+    ),
+    parameter_catalog = function(...) list(quantities = data.frame(
+      quantity_id = character(), stringsAsFactors = FALSE
+    )),
+    .package = "BayesTools"
+  )
+  selected <- list(
+    parameter  = "mu_g",
+    component  = "mods",
+    aliases    = list(g = "mu_g", mu_g = "mu_g"),
+    entry      = list(
+      role              = "formula_coefficient_group",
+      formula_parameter = "mu"
+    ),
+    resolution = list(occurrences = data.frame(
+      level          = c("2", "2"),
+      canonical_name = c("mu_g[2]", "mu_h[2]"),
+      quantity_id    = c("q1", "q2"),
+      stringsAsFactors = FALSE
+    ))
+  )
+  expect_error(
+    .hypothesis_brma_formula_coefficient_level_targets(
+      object     = list(fit = NULL),
+      selected   = selected,
+      point_refs = data.frame(level = "2", value = 0.1, stringsAsFactors = FALSE)
+    ),
+    "Factor level 'g[2]' is ambiguous in the fitted parameter catalog.",
+    fixed = TRUE
+  )
 })
 
 
