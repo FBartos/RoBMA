@@ -2,13 +2,17 @@ context("Point-test eligibility of scalar formula coefficients")
 
 # hypothesis_quantities() must list a point-test method for a scalar formula
 # coefficient exactly when hypothesis() runs a point hypothesis on it with
-# that method. The same Cauchy slope prior is fitted with a standardized and
-# with a raw predictor: the standardized fit's original-scale intercept
-# combines the intercept with the Cauchy slope (no exact prior ordinate),
-# while the raw fit's intercept is the fitted coefficient itself. A
-# model-averaged fit with a standardized predictor and the default priors
-# combines the intercept and slope mixtures: their null components put a
-# point mass at 0, but the continuous part has no exact ordinate.
+# that method. With a standardized predictor, the original-scale intercept
+# combines the intercept with the slope:
+# - two Cauchy priors (intercept and slope) give no exact prior ordinate;
+# - the same priors with a raw predictor keep the intercept as the fitted
+#   coefficient itself (exact);
+# - a normal intercept with a Cauchy slope is a Gaussian convolution, which
+#   BayesTools evaluates exactly;
+# - model-averaged fits combine the intercept and slope mixtures: their null
+#   components put a point mass at 0, and point hypotheses elsewhere use the
+#   continuous part, which is exact for the default normal priors (per
+#   component) but not when both alternatives are Cauchy.
 .scalar_eligibility_cache <- new.env(parent = emptyenv())
 
 .scalar_eligibility_fits <- function() {
@@ -24,16 +28,29 @@ context("Point-test eligibility of scalar formula coefficients")
     sei = stats::runif(k, 0.1, 0.3)
   )
   data[["yi"]] <- stats::rnorm(k, 0.1 * data[["x"]], data[["sei"]])
+  cauchy <- BayesTools::prior("cauchy", list(0, 0.5))
   fits <- lapply(c(standardized = TRUE, raw = FALSE), function(standardize) {
     suppressWarnings(brma(
       yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
-      prior_mods = list(x = BayesTools::prior("cauchy", list(0, 0.5))),
+      prior_effect = cauchy, prior_mods = list(x = cauchy),
       standardize_continuous_predictors = standardize,
       chains = 1, sample = 1000, burnin = 200, adapt = 100,
       seed = 1, silent = TRUE
     ))
   })
+  fits[["convolution"]] <- suppressWarnings(brma(
+    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
+    prior_mods = list(x = cauchy),
+    chains = 1, sample = 1000, burnin = 200, adapt = 100,
+    seed = 1, silent = TRUE
+  ))
   fits[["averaged"]] <- suppressWarnings(BMA.norm(
+    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
+    prior_effect = cauchy, prior_mods = list(x = cauchy),
+    chains = 1, sample = 1000, burnin = 200, adapt = 100,
+    seed = 1, silent = TRUE
+  ))
+  fits[["averaged_default"]] <- suppressWarnings(BMA.norm(
     yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
     chains = 1, sample = 1000, burnin = 200, adapt = 100,
     seed = 1, silent = TRUE
@@ -101,8 +118,19 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
     standardized_coefficients = TRUE, seed = 1
   )), "data.frame")
 
-  # The atom at 0 of the model-averaged intercept does not make its
-  # continuous ordinate exact; the fitted-scale alternative runs.
+  # A normal intercept with a Cauchy slope has an exact induced ordinate.
+  convolution <- hypothesis_quantities(fits[["convolution"]])
+  convolution <- convolution[convolution[["alias"]] == "mu_intercept", , drop = FALSE]
+  expect_true(convolution[["point_test"]])
+  expect_identical(convolution[["point_test_methods"]], "KDE, qCMDE, IWMDE")
+  expect_identical(convolution[["reason"]], "")
+  expect_s3_class(suppressWarnings(hypothesis(
+    fits[["convolution"]], "mu_intercept = 0", density_method = "KDE", seed = 1
+  )), "data.frame")
+
+  # The atom at 0 of a model-averaged intercept does not make its continuous
+  # ordinate exact: with Cauchy alternatives it is not, and the fitted-scale
+  # alternative runs; with the default normal priors it is.
   averaged <- hypothesis_quantities(fits[["averaged"]])
   averaged <- averaged[averaged[["alias"]] == "mu_intercept", , drop = FALSE]
   expect_false(averaged[["point_test"]])
@@ -111,6 +139,13 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
     fits[["averaged"]], "mu_intercept = 0.1", density_method = "KDE",
     standardized_coefficients = TRUE, seed = 1
   )), "data.frame")
+
+  averaged_default <- hypothesis_quantities(fits[["averaged_default"]])
+  averaged_default <- averaged_default[
+    averaged_default[["alias"]] == "mu_intercept", , drop = FALSE
+  ]
+  expect_true(averaged_default[["point_test"]])
+  expect_identical(averaged_default[["point_test_methods"]], "KDE, qCMDE, IWMDE")
 
   raw <- hypothesis_quantities(fits[["raw"]])
   expect_true(all(raw[["point_test"]]))
