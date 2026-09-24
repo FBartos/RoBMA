@@ -365,10 +365,20 @@ hypothesis.brma <- function(object, hypothesis,
     parameter      = parameter,
     require_direct = !level_contrast
   )
+  # Point statements on a level fixed by the contrast need no posterior
+  # ordinate: the level's declared atom decides them.
+  fixed_point_levels <- .hypothesis_brma_fixed_point_levels(
+    object     = object,
+    selected   = selected,
+    point_refs = point_refs
+  )
+  only_fixed_points <- nrow(point_refs) > 0L &&
+    all(!is.na(point_refs[["level"]]) &
+          point_refs[["level"]] %in% fixed_point_levels)
   if (.density_method_uses_precomputed(
       density_method,
       allow_normal = TRUE
-    ) && nrow(requested_point_refs) == 0L) {
+    ) && (nrow(requested_point_refs) == 0L || only_fixed_points)) {
     density_method <- "KDE"
   }
   coefficient_target <- .hypothesis_brma_formula_coefficient_target(
@@ -531,6 +541,13 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+    .hypothesis_brma_check_fixed_level_points(
+      posterior    = posterior,
+      hypothesis   = hypothesis,
+      parameter    = parameter,
+      fixed_levels = fixed_point_levels,
+      seed         = seed
+    )
     posterior <- .hypothesis_brma_attach_iwmde(
       object                   = object,
       posterior                = posterior,
@@ -1220,10 +1237,7 @@ hypothesis.brma <- function(object, hypothesis,
       match(target, transform[["target_names"]])
     }
     if (is.na(target_i)) {
-      fixed <- nrow(quantity) == 1L &&
-        (quantity[["status"]] %in% c("fixed", "structural") ||
-           is.finite(quantity[["fixed_value"]]))
-      if (fixed) {
+      if (.hypothesis_brma_level_quantity_fixed(quantity)) {
         return(NULL)
       }
       key <- if (nrow(quantity) == 1L) quantity[["extraction_key"]][[1L]]
@@ -1256,6 +1270,74 @@ hypothesis.brma <- function(object, hypothesis,
   out <- out[!vapply(out, is.null, logical(1))]
 
   return(out)
+}
+
+
+# A level quantity fixed by the contrast (the treatment reference level).
+.hypothesis_brma_level_quantity_fixed <- function(quantity) {
+
+  nrow(quantity) == 1L &&
+    (quantity[["status"]] %in% c("fixed", "structural") ||
+       is.finite(quantity[["fixed_value"]]))
+}
+
+
+# Levels of the selected factor term that point hypotheses reference and that
+# the contrast fixes (the treatment reference level).
+.hypothesis_brma_fixed_point_levels <- function(object, selected, point_refs) {
+
+  entry  <- selected[["entry"]]
+  levels <- unique(point_refs[["level"]][!is.na(point_refs[["level"]])])
+  if (length(levels) == 0L || is.null(entry) ||
+      selected[["component"]] %in% c("random", "bias") ||
+      !identical(entry[["role"]], "formula_coefficient_group")) {
+    return(character())
+  }
+
+  occurrences <- selected[["resolution"]][["occurrences"]]
+  quantities  <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  fixed <- vapply(levels, function(level) {
+    ids <- occurrences[["quantity_id"]][
+      !is.na(occurrences[["level"]]) & occurrences[["level"]] == level
+    ]
+    .hypothesis_brma_level_quantity_fixed(quantities[
+      quantities[["quantity_id"]] %in% unique(ids),
+      ,
+      drop = FALSE
+    ])
+  }, logical(1))
+
+  return(levels[fixed])
+}
+
+
+# Point statements on a level fixed by the contrast involve no posterior
+# density: the level's declared atom decides them. Evaluate them through the
+# BayesTools route that handles declared atoms, so that a qCMDE/IWMDE call
+# reports the same reason as KDE instead of failing for lack of an ordinate.
+.hypothesis_brma_check_fixed_level_points <- function(
+    posterior, hypothesis, parameter, fixed_levels, seed) {
+
+  refs <- BayesTools::hypothesis_parse_point_reference(
+    hypothesis     = hypothesis,
+    allow_compound = TRUE
+  )
+  statements <- unique(refs[["hypothesis"]][
+    refs[["direct"]] & refs[["parameter"]] == parameter &
+      !is.na(refs[["level"]]) & refs[["level"]] %in% fixed_levels
+  ])
+  if (length(statements) == 0L) {
+    return(invisible(TRUE))
+  }
+  BayesTools::hypothesis_BF(
+    posterior      = posterior,
+    hypothesis     = statements,
+    parameter      = parameter,
+    seed           = seed,
+    density_method = "KDE"
+  )
+
+  return(invisible(TRUE))
 }
 
 

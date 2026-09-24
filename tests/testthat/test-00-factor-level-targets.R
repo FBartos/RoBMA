@@ -408,3 +408,55 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     )
   }
 })
+
+
+test_that("point hypotheses on the fixed reference level give the KDE reason for every method", {
+
+  skip_on_cran()
+  fit <- .factor_level_target_fits()[["treatment"]]
+
+  # The treatment reference level g1[5] is fixed at 0 by the contrast: its
+  # declared atom decides point statements on it, whatever the density
+  # method, and no qCMDE/IWMDE ordinate enters.
+  statements <- list(
+    "g1[5] = 0",
+    "g1[5] = 0.1",
+    c("g1[5] = 0", "g1[10] = 0")
+  )
+  for (statement in statements) {
+    info <- paste(statement, collapse = ", ")
+    kde  <- tryCatch(
+      suppressWarnings(hypothesis(fit, statement, density_method = "KDE")),
+      error = conditionMessage
+    )
+    expect_type(kde, "character")
+    expect_error(
+      suppressWarnings(hypothesis(fit, statement)),
+      kde,
+      fixed = TRUE,
+      info  = info
+    )
+    for (method in c("qCMDE", "IWMDE")) {
+      expect_error(
+        suppressWarnings(hypothesis(fit, statement, density_method = method)),
+        kde,
+        fixed = TRUE,
+        info  = paste(info, method)
+      )
+    }
+  }
+  expect_match(
+    tryCatch(
+      suppressWarnings(hypothesis(fit, "g1[5] = 0", density_method = "KDE")),
+      error = conditionMessage
+    ),
+    "declared point mass at the exact null hypothesis value",
+    fixed = TRUE
+  )
+
+  # The other levels keep their qCMDE ordinates.
+  expect_s3_class(
+    suppressWarnings(hypothesis(fit, c("g1[10] = 0", "g1[20] = 0"), seed = 1)),
+    "data.frame"
+  )
+})
