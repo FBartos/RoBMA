@@ -124,8 +124,9 @@
   are linear combinations of the contrast coefficients or whose fitted
   coefficient has no exact prior ordinate (mean-difference, orthonormal, and
   ordered levels), and scalar coefficients whose induced original-scale prior
-  has no exact ordinate (e.g. an intercept combined with a Cauchy slope by
-  predictor standardization) report `point_test = FALSE` with a reason.
+  has no exact ordinate (e.g. an intercept combined by predictor
+  standardization with a Cauchy slope or with a model-averaged slope) report
+  `point_test = FALSE` with a reason.
 - gives point hypotheses on a factor level fixed by the contrast (the
   treatment reference level) the same reason under the default qCMDE and under
   IWMDE as under KDE, instead of "linear weights are all zero". When

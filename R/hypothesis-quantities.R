@@ -279,7 +279,11 @@ hypothesis_quantities.brma <- function(object, ...) {
 # coordinate (a factor level or a scalar coefficient): its induced
 # original-scale prior needs an exact ordinate
 # (.hypothesis_brma_formula_prior_target()). The classification follows from
-# the prior's provenance; it is taken at the usual null value 0.
+# the prior's provenance; it is taken at the usual null value 0. A point mass
+# there (the null components of a model-averaged prior) makes the ordinate at
+# 0 exact by itself, while point hypotheses elsewhere use the continuous part,
+# whose classification BayesTools records with the atom ('unknown' when it
+# has no exact ordinate).
 .hypothesis_quantities_exact_level_ordinate <- function(coordinate, object,
                                                         formula_parameter) {
 
@@ -289,8 +293,14 @@ hypothesis_quantities.brma <- function(object, ...) {
     target       = coordinate,
     target_scale = "original"
   )
+  ordinate <- BayesTools::prior_density_ordinate(density, 0)
+  if (identical(ordinate[["behavior"]], "point_mass")) {
+    continuous <- ordinate[["provenance"]][["continuous_behavior"]]
+    return(is.character(continuous) && length(continuous) == 1L &&
+             continuous %in% c("regular", "zero", "infinite", "undefined"))
+  }
 
-  return(isTRUE(BayesTools::prior_density_ordinate(density, 0)[["exact"]]))
+  return(isTRUE(ordinate[["exact"]]))
 }
 
 

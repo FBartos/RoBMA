@@ -5,7 +5,10 @@ context("Point-test eligibility of scalar formula coefficients")
 # that method. The same Cauchy slope prior is fitted with a standardized and
 # with a raw predictor: the standardized fit's original-scale intercept
 # combines the intercept with the Cauchy slope (no exact prior ordinate),
-# while the raw fit's intercept is the fitted coefficient itself.
+# while the raw fit's intercept is the fitted coefficient itself. A
+# model-averaged fit with a standardized predictor and the default priors
+# combines the intercept and slope mixtures: their null components put a
+# point mass at 0, but the continuous part has no exact ordinate.
 .scalar_eligibility_cache <- new.env(parent = emptyenv())
 
 .scalar_eligibility_fits <- function() {
@@ -30,6 +33,11 @@ context("Point-test eligibility of scalar formula coefficients")
       seed = 1, silent = TRUE
     ))
   })
+  fits[["averaged"]] <- suppressWarnings(BMA.norm(
+    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
+    chains = 1, sample = 1000, burnin = 200, adapt = 100,
+    seed = 1, silent = TRUE
+  ))
   .scalar_eligibility_cache[["fits"]] <- fits
 
   return(fits)
@@ -90,6 +98,17 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
   # The alternative named in the reason runs.
   expect_s3_class(suppressWarnings(hypothesis(
     fits[["standardized"]], "mu_intercept = 0.1", density_method = "KDE",
+    standardized_coefficients = TRUE, seed = 1
+  )), "data.frame")
+
+  # The atom at 0 of the model-averaged intercept does not make its
+  # continuous ordinate exact; the fitted-scale alternative runs.
+  averaged <- hypothesis_quantities(fits[["averaged"]])
+  averaged <- averaged[averaged[["alias"]] == "mu_intercept", , drop = FALSE]
+  expect_false(averaged[["point_test"]])
+  expect_identical(averaged[["point_test_methods"]], "")
+  expect_s3_class(suppressWarnings(hypothesis(
+    fits[["averaged"]], "mu_intercept = 0.1", density_method = "KDE",
     standardized_coefficients = TRUE, seed = 1
   )), "data.frame")
 
