@@ -177,3 +177,35 @@ test_that("summary footnotes follow the renamed random-effect rows", {
   )
   expect_false(any(grepl("cor(intercept,x)", footnotes, fixed = TRUE)))
 })
+
+
+test_that("qCMDE/IWMDE stops for the correlation name the requested operation", {
+
+  skip_on_cran()
+  fit <- .random_correlation_fit()
+
+  # The scaled block's original-scale correlation has no scalar source
+  # coordinate for a qCMDE/IWMDE ordinate.
+  for (method in c("qCMDE", "IWMDE")) {
+    expect_error(
+      suppressWarnings(hypothesis(
+        fit, "rho(intercept,x) = 0", density_method = method, seed = 1
+      )),
+      paste0(
+        "qCMDE/IWMDE point hypotheses are not available for random-effect ",
+        "quantity 'rho(intercept,x)' because it has no supported scalar ",
+        "random-component coordinate. Use density_method = 'KDE'."
+      ),
+      fixed = TRUE,
+      info  = method
+    )
+  }
+  expect_error(
+    plot(fit, parameter = "rho(intercept,x)", density_method = "qCMDE"),
+    paste0(
+      "qCMDE/IWMDE plots are not available for random-effect quantity ",
+      "'rho(intercept,x)'"
+    ),
+    fixed = TRUE
+  )
+})

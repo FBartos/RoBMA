@@ -326,7 +326,11 @@ lines.brma <- function(
     density_sample_parameter <- parameter
     random_label <- attr(samples, "random_parameter_label", exact = TRUE)
     if (.density_method_uses_precomputed(density_method)) {
-      target <- .brma_random_parameter_density_target(x, parameter)
+      target <- .brma_random_parameter_density_target(
+        x,
+        parameter,
+        operation = "plots"
+      )
       if (is.null(target[["parameter"]])) {
         stop(target[["reason"]], call. = FALSE)
       }

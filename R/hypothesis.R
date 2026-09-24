@@ -956,7 +956,11 @@ hypothesis.brma <- function(object, hypothesis,
       )
     }
     target <- if (precomputed) {
-      .brma_random_parameter_density_target(object, parameter)
+      .brma_random_parameter_density_target(
+        object,
+        parameter,
+        operation = "point hypotheses"
+      )
     } else {
       NULL
     }

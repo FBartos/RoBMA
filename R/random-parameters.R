@@ -1012,7 +1012,10 @@
   )
 }
 
-.brma_random_parameter_density_target <- function(object, parameter) {
+# 'operation' names what the target is for in the reason returned when there
+# is none (e.g. "plots", "point hypotheses").
+.brma_random_parameter_density_target <- function(object, parameter,
+                                                  operation = "densities") {
 
   selected  <- .brma_random_parameter_select(object, parameter)
   covariance_update <- BayesTools::random_effects_marginal_update_plan(
@@ -1117,7 +1120,8 @@
 
   return(list(
     reason = paste0(
-      "qCMDE/IWMDE plots are not available for random-effect quantity '",
+      "qCMDE/IWMDE ", operation, " are not available for random-effect ",
+      "quantity '",
       selected[["spec"]][["label"]],
       "' because it has no supported scalar random-component coordinate. ",
       "Use density_method = 'KDE'."
