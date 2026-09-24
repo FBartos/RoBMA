@@ -58,6 +58,11 @@
 #' remain available. Formula-random coordinates are replaced by their semantic
 #' RoBMA quantities using the same names as summaries, plots, and hypotheses,
 #' such as `tau_total`, `tau_common`, `rho(...)`, and `tau2_prop(...)`.
+#' A `rho(...)` column can contain `NA` draws: an original-scale correlation
+#' is undefined in draws where one of its standard deviations is zero, e.g.
+#' where an inclusion gate or a point prior sets it to zero. Summaries
+#' and hypothesis tests of the correlation use its defined draws; summaries
+#' computed from the exported draws need to handle the `NA` values.
 #' Random-effect SD switches are exposed as exact columns named after the
 #' standard deviation they act on, with an `_indicator` suffix, pairing with
 #' the semantic SD column the same way `mu_x_indicator` pairs with `mu_x`. A

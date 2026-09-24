@@ -104,6 +104,11 @@ fitted coordinates such as model indicators and likelihood parameters
 remain available. Formula-random coordinates are replaced by their semantic
 RoBMA quantities using the same names as summaries, plots, and hypotheses,
 such as \code{tau_total}, \code{tau_common}, \code{rho(...)}, and \code{tau2_prop(...)}.
+A \code{rho(...)} column can contain \code{NA} draws: an original-scale correlation
+is undefined in draws where one of its standard deviations is zero, e.g.
+where an inclusion gate or a point prior sets it to zero. Summaries
+and hypothesis tests of the correlation use its defined draws; summaries
+computed from the exported draws need to handle the \code{NA} values.
 Random-effect SD switches are exposed as exact columns named after the
 standard deviation they act on, with an \verb{_indicator} suffix, pairing with
 the semantic SD column the same way \code{mu_x_indicator} pairs with \code{mu_x}. A
