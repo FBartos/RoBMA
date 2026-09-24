@@ -143,6 +143,12 @@ test_that("marginal random-effect posterior draws use the shared covariance plan
 
 test_that("random-formula qCMDE uses the marginal selection likelihood", {
 
+  # A few posterior rows carry most of the conditional tau density at the
+  # edge of the bulk, so the bulk diagnostics depend on the qCMDE row budget,
+  # not on the fixture's MCMC ESS: 80 rows gave a bulk relative MCSE of
+  # 0.11-0.25 across fixtures (0.25 rejects). All 600 rows of the thinned
+  # fixture give 0.058 and a bulk ESS of 174, inside the warning thresholds
+  # (0.10 and 100).
   expect_s3_class(
     plot(
       fit_bselmodel_mv,
@@ -151,7 +157,7 @@ test_that("random-formula qCMDE uses the marginal selection likelihood", {
       density_method  = "qCMDE",
       density_control = list(
         n_points             = 20L,
-        samples              = 80L,
+        samples              = 600L,
         normalization_points = 20L
       ),
       plot_type = "ggplot"
