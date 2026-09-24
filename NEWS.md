@@ -1272,6 +1272,17 @@
   constructors. This can
   change moderator coefficient interpretation for calls that did not specify
   `set_contrast_factor_predictors` explicitly.
+- stops model-averaging fits (`BMA.norm()`, `RoBMA()`, `BMA.glmm()`,
+  `BMA.mv()`, `RoBMA.mv()`) with their default mean-difference factor contrasts
+  (and any fit with orthonormal contrasts) when a moderator or scale formula
+  interacts a factor with a predictor whose own term is missing, such as `g:x`
+  in `mods = ~ g + g:x` or `mods = ~ g / x`. Such a term codes `g` by level
+  indicators and has one coefficient per level; with BayesTools 0.3.0 its
+  mean-difference prior was fitted as independent priors on these level
+  coefficients and summarized as differences from the mean. Specify an
+  independent prior for that term (`prior_mods = list("g:x" = prior_factor(...,
+  contrast = "independent"))`), include the missing term (`mods = ~ g * x`), or
+  set `set_contrast_factor_predictors = "treatment"`.
 - returns a `draws_array` from generic `as_draws(brma_samples)` so chain dimensions
   are explicit. `as_draws_matrix()` remains available and retains its chain-count
   metadata in the matrix representation.

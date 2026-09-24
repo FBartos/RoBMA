@@ -63,7 +63,15 @@
 #' level. Random-coefficient blocks reuse the resolved fixed-factor contrast
 #' unless `random_block(contrasts = ...)` overrides it. A warning is issued
 #' when default or inherited independent contrasts make a fixed or random
-#' design overspecified.
+#' design overspecified. With `"meandif"` or `"orthonormal"` contrasts, a
+#' formula term that interacts a factor with a predictor whose own term is
+#' missing, such as `g:x` in `~ g + g:x` or `~ g / x`, stops the fit: the term
+#' codes `g` by level indicators, with one coefficient per level, on which
+#' mean-difference and orthonormal priors are not defined. Specify an
+#' independent prior for that term, e.g., `prior_mods = list("g:x" =
+#' prior_factor("normal", list(0, 1), contrast = "independent"))` (or
+#' `prior_scale` for a scale formula), include the missing term (`~ g * x`),
+#' or use `set_contrast_factor_predictors = "treatment"`.
 #' @param prior_informed_field character. The field of the informed prior distributions.
 #' Omit to use the standard default prior specification; explicit `NULL` is invalid.
 #' @param prior_informed_subfield character. The subfield of the informed prior distributions.

@@ -64,7 +64,14 @@ Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, 
 level. Random-coefficient blocks reuse the resolved fixed-factor contrast
 unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
 when default or inherited independent contrasts make a fixed or random
-design overspecified.}
+design overspecified. With \code{"meandif"} or \code{"orthonormal"} contrasts, a
+formula term that interacts a factor with a predictor whose own term is
+missing, such as \code{g:x} in \code{~ g + g:x} or \code{~ g / x}, stops the fit: the term
+codes \code{g} by level indicators, with one coefficient per level, on which
+mean-difference and orthonormal priors are not defined. Specify an
+independent prior for that term, e.g., \code{prior_mods = list("g:x" = prior_factor("normal", list(0, 1), contrast = "independent"))} (or
+\code{prior_scale} for a scale formula), include the missing term (\code{~ g * x}),
+or use \code{set_contrast_factor_predictors = "treatment"}.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
