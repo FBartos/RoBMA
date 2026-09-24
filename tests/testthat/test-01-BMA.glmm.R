@@ -10,14 +10,27 @@ skip_refit_if_cached("BMA.glmm")
 test_that("BMA.glmm fits binomial model (OR)", {
   data(dat.bcg, package = "metadat")
 
+  # The chains leave the effect's null model only rarely and stay there for
+  # hundreds of iterations (posterior null probability about 0.015), so short
+  # chains can sit in one model and misstate the inclusion Bayes factor.
+  # 160,000 iterations per chain, thinned to 1,000 draws, let every chain visit
+  # both models.
   fit <- BMA.glmm(
     ai = tpos, bi = tneg, ci = cpos, di = cneg,
     data = dat.bcg, measure = "OR",
-    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    chains = 3, sample = 1000, burnin = 2000, adapt = 500, thin = 160,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm", fit)
+
+  samples <- coda::as.mcmc.list(fit[["fit"]])
+  for (column in c("mu", "mu_indicator")) {
+    psrf <- coda::gelman.diag(
+      samples[, column], autoburnin = FALSE, multivariate = FALSE
+    )[["psrf"]]
+    expect_lt(psrf[1L, "Point est."], 1.05, label = paste("R-hat of", column))
+  }
 
   expect_s3_class(fit, "BMA.glmm")
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$mu))
