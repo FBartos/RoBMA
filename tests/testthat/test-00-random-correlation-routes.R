@@ -1,0 +1,128 @@
+context("Random-slope correlation routes")
+
+# A scaled us(1 + x | study) block: the original-scale intercept-slope
+# correlation is derived from the LKJ correlation and the allocation-derived
+# SDs. Small single-chain fit; the expectations are identities on its draws.
+.random_correlation_cache <- new.env(parent = emptyenv())
+
+.random_correlation_fit <- function() {
+
+  if (!is.null(.random_correlation_cache[["fit"]])) {
+    return(.random_correlation_cache[["fit"]])
+  }
+
+  set.seed(2)
+  k   <- 30L
+  dat <- data.frame(
+    study = rep(sprintf("s%02d", seq_len(10L)), each = 3L),
+    x     = stats::rnorm(k)
+  )
+  dat[["yi"]] <- 0.2 + 0.1 * dat[["x"]] +
+    stats::rnorm(10L, 0, 0.1)[as.integer(factor(dat[["study"]]))] +
+    stats::rnorm(k, 0, 0.15)
+  fit <- suppressWarnings(brma.mv(
+    yi = yi, V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
+    silent = TRUE
+  ))
+  .random_correlation_cache[["fit"]] <- fit
+
+  return(fit)
+}
+
+.random_correlation_selection <- function(fit, name) {
+
+  BayesTools::parameter_catalog_resolve(
+    BayesTools::parameter_catalog(fit[["fit"]]),
+    alias     = name,
+    namespace = "mu"
+  )
+}
+
+.random_correlation_odds <- function(p) p / (1 - p)
+
+
+test_that("prior draws gain the allocation-derived SDs the correlation needs", {
+
+  skip_on_cran()
+  fit     <- .random_correlation_fit()
+  samples <- as.matrix(fit[["fit"]][["mcmc"]])
+  sds     <- c("mu__xREx__study_intercept", "mu__xREx__study_x")
+
+  # On posterior draws without the monitored SDs, the completion reproduces
+  # the monitored values exactly.
+  completed <- .brma_random_parameter_complete_prior_sd(
+    fit[["fit"]],
+    samples[, setdiff(colnames(samples), sds)]
+  )
+  expect_identical(unname(completed[, sds]), unname(samples[, sds]))
+
+  # Prior draws lack the deterministic SD monitors until completed.
+  raw <- BayesTools::transform_prior_samples(
+    fit[["fit"]], n_samples = 50, seed = 1, formula_scale = list()
+  )
+  expect_false(any(sds %in% colnames(raw)))
+  expect_true(all(sds %in% colnames(
+    .brma_random_parameter_complete_prior_sd(fit[["fit"]], raw)
+  )))
+})
+
+
+test_that("correlation hypotheses use the correlation draws", {
+
+  skip_on_cran()
+  fit       <- .random_correlation_fit()
+  selection <- .random_correlation_selection(fit, "(mu) cor(intercept,x)")
+  posterior <- as.numeric(as.matrix(BayesTools::parameter_draws(fit[["fit"]], selection)))
+
+  # Prior correlation draws: parameter_draws() on the prior draws of the
+  # same seed, with the allocation-derived SDs (the fitted-scale SD
+  # quantities) supplied as the declared sources.
+  raw <- BayesTools::transform_prior_samples(
+    fit[["fit"]], n_samples = 10000, seed = 1, formula_scale = list()
+  )
+  prior_fit <- BayesTools::JAGS_with_draws(fit[["fit"]], coda::mcmc.list(coda::mcmc(raw)))
+  attr(prior_fit, "formula_scale") <- list()
+  sds <- vapply(c(intercept = "(mu) sd(intercept)", x = "(mu) sd(x)"), function(name) {
+    as.numeric(as.matrix(BayesTools::parameter_draws(
+      prior_fit,
+      .random_correlation_selection(fit, name)
+    )))
+  }, numeric(nrow(raw)))
+  colnames(sds) <- c("mu__xREx__study_intercept", "mu__xREx__study_x")
+  prior <- as.numeric(as.matrix(BayesTools::parameter_draws(
+    fit[["fit"]], selection, model_samples = cbind(raw, sds)
+  )))
+
+  regions <- list(
+    "rho(intercept,x) > 0" = function(x) x > 0,
+    "rho(intercept,x) > -0.5 & rho(intercept,x) < 0.5" = function(x) x > -0.5 & x < 0.5
+  )
+  for (hypothesis in names(regions)) {
+    region <- regions[[hypothesis]]
+    result <- suppressWarnings(hypothesis(fit, hypothesis, columns = "all", seed = 1))
+    # Region tests report odds.
+    expect_equal(
+      result[["posterior"]], .random_correlation_odds(mean(region(posterior))),
+      tolerance = 1e-12, info = hypothesis
+    )
+    expect_equal(
+      result[["prior"]], .random_correlation_odds(mean(region(prior))),
+      tolerance = 1e-12, info = hypothesis
+    )
+  }
+
+  # On the fitted scale the correlation is the LKJ(1) correlation, uniform on
+  # (-1, 1): both regions have prior probability 1/2 (Monte Carlo SE 0.005
+  # with 10,000 prior draws; tolerance 4 SE).
+  for (hypothesis in names(regions)) {
+    result <- suppressWarnings(hypothesis(
+      fit, hypothesis, columns = "all", seed = 1,
+      standardized_coefficients = TRUE
+    ))
+    prior_probability <- result[["prior"]] / (1 + result[["prior"]])
+    expect_lt(abs(prior_probability - 0.5), 0.02)
+  }
+})
+
