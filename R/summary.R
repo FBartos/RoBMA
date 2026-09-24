@@ -663,10 +663,30 @@ print.brma <- function(x, ...) {
   }
 
   matched_rows <- rows[matched]
+  old_rows     <- rownames(estimates)[matched]
   rownames(estimates)[matched] <- .brma_random_parameter_io_names(
     rownames(estimates)[matched],
     quantities[["quantity"]][matched_rows]
   )
+  # Row footnotes are keyed and prefixed by their row label: rename them with
+  # their rows.
+  new_rows  <- rownames(estimates)[matched]
+  footnotes <- attr(estimates, "footnotes", exact = TRUE)
+  footnote_rows <- match(names(footnotes), old_rows)
+  for (i in which(!is.na(footnote_rows))) {
+    old_prefix <- paste0(old_rows[[footnote_rows[[i]]]], ":")
+    new_row    <- new_rows[[footnote_rows[[i]]]]
+    if (startsWith(footnotes[[i]], old_prefix)) {
+      footnotes[[i]] <- paste0(
+        new_row, ":",
+        substring(footnotes[[i]], nchar(old_prefix) + 1L)
+      )
+    }
+    names(footnotes)[[i]] <- new_row
+  }
+  if (any(!is.na(footnote_rows))) {
+    attr(estimates, "footnotes") <- footnotes
+  }
   parameters[matched] <- .brma_random_parameter_io_names(
     parameters[matched],
     quantities[["quantity"]][matched_rows]

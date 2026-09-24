@@ -177,3 +177,23 @@ test_that("correlation hypotheses use the defined draws of a declared quantity",
   plotted <- .brma_random_parameter_mixed_posterior(fit, "rho(intercept,x)")
   expect_identical(as.numeric(plotted[[1L]]), defined)
 })
+
+
+test_that("summary footnotes follow the renamed random-effect rows", {
+
+  skip_on_cran()
+  fit       <- .random_correlation_zero_sd_fit()
+  estimates <- summary(fit)[["estimates_random"]]
+  footnotes <- attr(estimates, "footnotes")
+
+  expect_true("rho(intercept,x)" %in% rownames(estimates))
+  expect_false("cor(intercept,x)" %in% rownames(estimates))
+  expect_identical(
+    footnotes[["rho(intercept,x)"]],
+    paste0(
+      "rho(intercept,x): summarized over 298 of 300 draws where the ",
+      "correlation is defined, i.e. both SDs are positive."
+    )
+  )
+  expect_false(any(grepl("cor(intercept,x)", footnotes, fixed = TRUE)))
+})
