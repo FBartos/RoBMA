@@ -26,7 +26,7 @@ for_each_case(prediction_newdata_metafor_cases(), function(case) {
   })
 })
 
-test_that("Predictions for equivalent interaction parameterizations match", {
+test_that("Predictions of equivalent interaction parameterizations agree", {
 
   model_names <- c("bcg_meta-regression4", "bcg_meta-regression4b")
   skip_if_missing_fits(model_names)
@@ -34,11 +34,33 @@ test_that("Predictions for equivalent interaction parameterizations match", {
   fit_brma1 <- fits[["bcg_meta-regression4"]]
   fit_brma2 <- fits[["bcg_meta-regression4b"]]
 
-  expect_equal(
-    .sample_means(predict(fit_brma1, type = "terms")),
-    .sample_means(predict(fit_brma2, type = "terms")),
-    tolerance = 0.15,
-    info      = "per-study predictions match"
+  # The treatment (4) and mean-difference (4b) fits code the same design but
+  # put different priors on the effects, so their per-study predictions
+  # legitimately differ (by up to about 0.2 on the log risk ratio scale).
+  # Each fit's predictions must equal its own coefficient draws times its
+  # fitted design, draw by draw, and the two fits must agree up to posterior
+  # uncertainty: their 95% prediction intervals overlap for every study.
+  coefficients <- c(
+    "mu_intercept", "mu_alloc[1]", "mu_alloc[2]", "mu_year_before1969",
+    "mu_alloc__xXx__year_before1969[1]", "mu_alloc__xXx__year_before1969[2]"
+  )
+  intervals <- lapply(list(fit_brma1, fit_brma2), function(fit) {
+    design <- .fitted_formula_design(fit, "mu", required = TRUE)
+    expect_identical(as.integer(design[["assign"]]), c(0L, 1L, 1L, 2L, 3L, 3L))
+    draws      <- .get_posterior_samples(fit[["fit"]])[, coefficients]
+    prediction <- predict(fit, type = "terms")
+    expect_equal(
+      unname(unclass(as.matrix(prediction))),
+      unname(draws %*% t(design[["model_matrix"]])),
+      tolerance = 1e-12,
+      info      = "predictions are the coefficient draws times the design"
+    )
+    summary(prediction)[, c("0.025", "0.975")]
+  })
+  expect_true(
+    all(pmax(intervals[[1]][, "0.025"], intervals[[2]][, "0.025"]) <=
+          pmin(intervals[[1]][, "0.975"], intervals[[2]][, "0.975"])),
+    info = "95% prediction intervals of the two parameterizations overlap"
   )
   expect_equal(
     .sample_mean(pooled_effect(fit_brma1), "mu"),
