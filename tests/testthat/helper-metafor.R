@@ -400,11 +400,18 @@ expect_prediction_matches_metafor <- function(case) {
 
   if (kind %in% c("glmm", "glmm_reg")) {
     brma_mu  <- .sample_mean(pooled_effect(fit_brma), "mu")
-    brma_tau <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
     testthat::expect_equal(brma_mu, fit_metafor$beta[[1]], tolerance = tolerance,
                            info = paste(name, "pooled effect"))
-    testthat::expect_equal(brma_tau, sqrt(fit_metafor$tau2), tolerance = tau_tol,
-                           info = paste(name, "pooled tau"))
+    # The posterior mean of tau and metafor's maximum-likelihood estimate are
+    # different estimands (with 13 studies the posterior of tau is skewed and
+    # its mean sits above the likelihood maximum), so their distance is not a
+    # Monte Carlo error. The likelihood estimate must instead lie inside the
+    # central 95% posterior interval of tau.
+    tau_summary <- summary(pooled_heterogeneity(fit_brma))
+    testthat::expect_gte(sqrt(fit_metafor$tau2), tau_summary["tau", "0.025"],
+                         label = paste(name, "metafor tau vs posterior 2.5% quantile"))
+    testthat::expect_lte(sqrt(fit_metafor$tau2), tau_summary["tau", "0.975"],
+                         label = paste(name, "metafor tau vs posterior 97.5% quantile"))
 
     theta <- .sample_means(blup(fit_brma))
     testthat::expect_equal(length(theta), nrow(fit_brma$data$outcome),
