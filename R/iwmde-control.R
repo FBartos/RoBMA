@@ -113,6 +113,15 @@
       call. = FALSE
     )
   }
+  # qCMDE covers this probability of every row's conditional density, which
+  # needs an unbounded range at 1.
+  if (identical(density_method, "qCMDE") &&
+      defaults[["normalization_prob"]] >= 1) {
+    stop(
+      "'density_control$normalization_prob' must be lower than 1 for qCMDE.",
+      call. = FALSE
+    )
+  }
   defaults[["display_grid"]] <- .iwmde_normalize_display_grid(
     defaults[["display_grid"]]
   )

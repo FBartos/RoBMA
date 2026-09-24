@@ -271,6 +271,10 @@
     normalization_relative_error      =
       diagnostics[["normalization_relative_error"]],
     normalization_mass_ratio          = diagnostics[["normalization_mass_ratio"]],
+    normalization_truncation          = diagnostics[["normalization_truncation"]],
+    normalization_truncation_status   =
+      diagnostics[["normalization_truncation_status"]],
+    truncation_ordinate_bound         = diagnostics[["truncation_ordinate_bound"]],
     normalization_range               = diagnostics[["normalization_range"]],
     normalization_initial_points      = diagnostics[["normalization_initial_points"]],
     normalization_initial_range       = diagnostics[["normalization_initial_range"]],

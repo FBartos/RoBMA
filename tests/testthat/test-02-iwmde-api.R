@@ -648,7 +648,8 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
 
   reason <- .iwmde_diagnostics_density_failure_reason(diagnostics)
   expect_match(reason, "qCMDE.*ordinate")
-  expect_match(reason, "normalization_points.*normalization_prob")
+  expect_match(reason, "increasing 'normalization_points'", fixed = TRUE)
+  expect_false(grepl("normalization_prob", reason, fixed = TRUE))
   expect_false(grepl("maximum allowed", reason, fixed = TRUE))
   expect_null(.iwmde_posterior_density_attribute(
     diagnostic     = diagnostic,
@@ -1495,7 +1496,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "6")
-  expect_equal(provenance[["algorithm_version"]], "22")
+  expect_equal(provenance[["algorithm_version"]], "23")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -1799,7 +1800,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   expect_false(.iwmde_posterior_ordinate_supports_bf(qcmde_fail))
   expect_match(
     .iwmde_posterior_ordinate_failure_reasons(qcmde_fail),
-    "qCMDE.*ordinate.*6%.*normalization_points.*normalization_prob"
+    "qCMDE.*ordinate changes by +6%.*increasing 'normalization_points'"
   )
 
   iwmde_warn <- ordinate("iwmde", .94)
@@ -1961,7 +1962,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   )
   expect_match(
     .hypothesis_brma_diagnostic_reason(raw_diagnostic),
-    "qCMDE.*ordinate.*6%.*normalization_points.*normalization_prob"
+    "qCMDE.*ordinate changes by +6%.*increasing 'normalization_points'"
   )
   expect_match(
     .hypothesis_brma_iwmde_ordinate_failure_message(
@@ -1972,7 +1973,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     ),
     paste0(
       "qCMDE posterior ordinate for 'mu = 0' was rejected by diagnostics: ",
-      ".*normalization_points.*normalization_prob"
+      ".*increasing 'normalization_points'"
     )
   )
   expect_equal(

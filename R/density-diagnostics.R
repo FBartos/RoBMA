@@ -70,9 +70,23 @@
 #' from `final_normalization_integral`; IWMDE uses
 #' `support_grid_normalization_integral`. This compact accessor reports their
 #' common normalization check as `normalization_relative_error`. The active
-#' policy check is identified by `stability_metric`: qCMDE checks posterior
-#' ordinate movement, whereas IWMDE checks normalization mass. The table also
-#' reports the stability and adaptive-quadrature warning/rejection thresholds.
+#' policy check is identified by `stability_metric`: qCMDE checks its posterior
+#' ordinate error bound (`ordinate_error_bound`), whereas IWMDE checks
+#' normalization mass. The qCMDE bound adds two parts. `ordinate_relative_change`
+#' is the ordinate's movement between the selected normalization grid and the
+#' coarser nested grid over the same range, which measures discretization and
+#' overstates the error of the selected grid. `truncation_ordinate_bound` is
+#' \eqn{t / (1 - t)} for the largest fraction \eqn{t} of any row's conditional
+#' mass outside the normalization range (`normalization_truncation`): a row
+#' normalizer missing that fraction overstates the row's density by at most
+#' this relative amount. `normalization_truncation_status` states how \eqn{t}
+#' is known: `"exact"` for rows whose Gaussian likelihood kernel meets a normal
+#' prior, `"bound"` for a Gaussian kernel with another proper prior, and
+#' `"estimate"` (from the exponential envelope of the tails at the range ends)
+#' otherwise; it reports the weakest status among the rows. Setting
+#' `normalization_prob` closer to 1 widens the range and lowers the truncation;
+#' increasing `normalization_points` refines the grid. The table also reports the
+#' stability and adaptive-quadrature warning/rejection thresholds.
 #'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an
@@ -83,10 +97,12 @@
 #' @return A data frame of class `RoBMA_density_diagnostics`, with one row per
 #' computed or failed requested point ordinate. Columns identify the estimator, parameter, requested
 #' and evaluated values, schema/source provenance, row counts, active mass,
-#' relative MCSE, ESS, largest contribution share, finite terms, normalization
-#' and quadrature checks, whether the qCMDE pilot gate stopped refinement and
-#' the bulk effective sample size it stopped on, fixed-sampling state, policy
-#' thresholds, weight fallbacks, status, and warnings.
+#' relative MCSE, ESS, largest contribution share, finite terms, normalization,
+#' truncation, and quadrature checks, the qCMDE pilot-gate columns (the nested
+#' normalization grids have no refinement sequence to stop, so
+#' `pilot_gate_stopped` is `FALSE` and `pilot_bulk_ess` is `NA`),
+#' fixed-sampling state, policy thresholds, weight fallbacks, status, and
+#' warnings.
 #'
 #' The exact columns, in order, are `schema_version`, `algorithm_version`,
 #' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
@@ -99,6 +115,8 @@
 #' `sampling_uncertainty_type`, `ess`, `max_weight_share`,
 #' `normalization_relative_error`, `stability_metric`,
 #' `stability_relative_error`, `ordinate_relative_change`,
+#' `normalization_truncation`, `normalization_truncation_status`,
+#' `truncation_ordinate_bound`,
 #' `quadrature_relative_change`, `pilot_gate_stopped`, `pilot_bulk_ess`,
 #' `target_relative_mcse`,
 #' `stability_warning_threshold`, `stability_rejection_threshold`,
@@ -253,10 +271,12 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   if (!is.null(entry[["failure_reason"]])) failure <- entry[["failure_reason"]]
   policy     <- .iwmde_diagnostic_policy()
   estimator  <- .iwmde_public_character(diagnostics[["estimator"]])
-  stability_metric <- if (identical(estimator, "q_grid_cmde")) {
+  stability_metric <- if (!identical(estimator, "q_grid_cmde")) {
+    "normalization_relative_error"
+  } else if (is.null(diagnostics[["truncation_ordinate_bound"]])) {
     "ordinate_relative_change"
   } else {
-    "normalization_relative_error"
+    "ordinate_error_bound"
   }
   stability_error <- .iwmde_diagnostics_stability_relative_error(
     diagnostics = diagnostics,
@@ -335,6 +355,15 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     ordinate_relative_change = .iwmde_public_numeric(
       diagnostics[["ordinate_relative_change"]]
     ),
+    normalization_truncation = .iwmde_public_numeric(
+      diagnostics[["normalization_truncation"]]
+    ),
+    normalization_truncation_status = .iwmde_public_character(
+      diagnostics[["normalization_truncation_status"]]
+    ),
+    truncation_ordinate_bound = .iwmde_public_numeric(
+      diagnostics[["truncation_ordinate_bound"]]
+    ),
     quadrature_relative_change = .iwmde_public_numeric(
       diagnostics[["max_quadrature_relative_change"]]
     ),
@@ -405,7 +434,11 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     max_weight_share = numeric(),
     normalization_relative_error = numeric(),
     stability_metric = character(), stability_relative_error = numeric(),
-    ordinate_relative_change = numeric(), quadrature_relative_change = numeric(),
+    ordinate_relative_change = numeric(),
+    normalization_truncation = numeric(),
+    normalization_truncation_status = character(),
+    truncation_ordinate_bound = numeric(),
+    quadrature_relative_change = numeric(),
     pilot_gate_stopped = logical(), pilot_bulk_ess = numeric(),
     target_relative_mcse = numeric(), stability_warning_threshold = numeric(),
     stability_rejection_threshold = numeric(),
@@ -432,16 +465,22 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
 .density_diagnostics_validate <- function(diagnostics) {
 
   template <- .iwmde_empty_public_density_diagnostics()
-  added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason")
+  added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason",
+             "normalization_truncation", "normalization_truncation_status",
+             "truncation_ordinate_bound")
   if (inherits(diagnostics, "RoBMA_density_diagnostics") &&
       is.data.frame(diagnostics) &&
-      identical(names(diagnostics), setdiff(names(template), added))) {
+      !identical(names(diagnostics), names(template)) &&
+      all(setdiff(names(template), added) %in% names(diagnostics)) &&
+      all(names(diagnostics) %in% names(template)) &&
+      identical(names(diagnostics),
+                intersect(names(template), names(diagnostics)))) {
     # Older records did not store these values. Do not reconstruct log
-    # estimates or failure evidence from presentation fields.
-    diagnostics[["ordinate"]] <- rep(NA_real_, nrow(diagnostics))
-    diagnostics[["log_ordinate"]] <- rep(NA_real_, nrow(diagnostics))
-    diagnostics[["numerical_status"]] <- rep(NA_character_, nrow(diagnostics))
-    diagnostics[["failure_reason"]] <- rep(NA_character_, nrow(diagnostics))
+    # estimates, truncation, or failure evidence from presentation fields.
+    for (name in setdiff(added, names(diagnostics))) {
+      diagnostics[[name]] <- rep(template[[name]][NA_integer_],
+                                 nrow(diagnostics))
+    }
     diagnostics <- diagnostics[names(template)]
   }
   if (!inherits(diagnostics, "RoBMA_density_diagnostics") ||

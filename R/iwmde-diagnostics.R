@@ -137,6 +137,14 @@
     diagnostics = diagnostics,
     estimator   = estimator
   )
+  if (identical(normalization_error, Inf) &&
+      identical(estimator, "q_grid_cmde")) {
+    return(paste0(
+      "qCMDE posterior ordinate error is unbounded: a conditional density ",
+      "does not decrease at an end of the normalization range. Inspect ",
+      "density_diagnostics() and try another 'density_method'"
+    ))
+  }
   if (!is.finite(normalization_error)) {
     return("normalization diagnostics are unavailable")
   }
@@ -145,8 +153,11 @@
   if (normalization_error > fail_tolerance) {
     return(paste0(
       .iwmde_estimator_label(estimator),
-      .iwmde_diagnostics_normalization_error_phrase(estimator),
-      .iwmde_percent(normalization_error),
+      .iwmde_diagnostics_stability_description(
+        diagnostics = diagnostics,
+        estimator   = estimator,
+        error       = normalization_error
+      ),
       ". ",
       .iwmde_diagnostics_mass_failure_action(diagnostics, estimator)
     ))
@@ -342,6 +353,23 @@
       "Try increasing 'samples' in the 'density_control' argument or using ",
       "'samples = Inf' for the eligible-row census"
     ))
+  }
+  if (identical(estimator, "q_grid_cmde")) {
+    # The nested grids share one range, so their change is discretization and
+    # the grid resolution is its remedy; the range's tail truncation is set by
+    # the conditional coverage.
+    components <- .iwmde_diagnostics_qcmde_error_components(diagnostics)
+    if (components[["reported"]] && is.finite(components[["truncation"]]) &&
+        (!is.finite(components[["change"]]) ||
+         components[["truncation"]] >= components[["change"]])) {
+      return(paste0(
+        "Try setting 'normalization_prob' closer to 1 in the ",
+        "'density_control' argument"
+      ))
+    }
+    return(
+      "Try increasing 'normalization_points' in the 'density_control' argument"
+    )
   }
 
   return(paste0(
@@ -541,8 +569,11 @@
       normalization_error <= fail_tolerance) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
-      .iwmde_diagnostics_normalization_error_phrase(estimator),
-      .iwmde_percent(normalization_error),
+      .iwmde_diagnostics_stability_description(
+        diagnostics = diagnostics,
+        estimator   = estimator,
+        error       = normalization_error
+      ),
       " (warning threshold ",
       .iwmde_percent(warning_tolerance),
       "; rejection threshold ",
@@ -716,8 +747,11 @@
       normalization_error <= fail_tolerance) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
-      .iwmde_diagnostics_normalization_error_phrase(estimator),
-      .iwmde_percent(normalization_error),
+      .iwmde_diagnostics_stability_description(
+        diagnostics = diagnostics,
+        estimator   = estimator,
+        error       = normalization_error
+      ),
       " (warning threshold ",
       .iwmde_percent(warning_tolerance),
       "; BF rejection threshold ",
@@ -828,27 +862,81 @@
 }
 
 
+# The qCMDE ordinate error bound: the ordinate change between the nested grids
+# (discretization) plus the relative bound t / (1 - t) that the largest row
+# truncation t places on the ordinate. Diagnostics that do not report the
+# truncation carry only the grid change.
 .iwmde_diagnostics_qcmde_ordinate_relative_change <- function(diagnostics) {
 
-  ordinate_change <- .iwmde_diagnostic_scalar_any(
-    diagnostics,
-    c("ordinate_relative_change", "bf_ordinate_relative_change")
-  )
-  if (!is.finite(ordinate_change) || ordinate_change < 0) {
+  components <- .iwmde_diagnostics_qcmde_error_components(diagnostics)
+  change     <- components[["change"]]
+  if (!is.finite(change) || change < 0) {
+    return(NA_real_)
+  }
+  if (!components[["reported"]]) {
+    return(change)
+  }
+  truncation <- components[["truncation"]]
+  if (is.na(truncation) || truncation < 0) {
     return(NA_real_)
   }
 
-  return(ordinate_change)
+  return(change + truncation)
 }
 
 
-.iwmde_diagnostics_normalization_error_phrase <- function(estimator) {
+.iwmde_diagnostics_qcmde_error_components <- function(diagnostics) {
 
-  if (identical(estimator, "q_grid_cmde")) {
-    return(" posterior ordinate changes by ")
+  reported <- !is.null(diagnostics[["truncation_ordinate_bound"]])
+
+  return(list(
+    change     = .iwmde_diagnostic_scalar_any(
+      diagnostics,
+      c("ordinate_relative_change", "bf_ordinate_relative_change")
+    ),
+    reported   = reported,
+    truncation = if (reported) {
+      .iwmde_diagnostic_scalar(diagnostics, "truncation_ordinate_bound")
+    } else {
+      NA_real_
+    },
+    status     = .iwmde_public_character(
+      diagnostics[["normalization_truncation_status"]]
+    )
+  ))
+}
+
+
+# The observed stability error in words, after the estimator label.
+.iwmde_diagnostics_stability_description <- function(diagnostics, estimator,
+                                                     error) {
+
+  if (!identical(estimator, "q_grid_cmde")) {
+    return(paste0(
+      " normalization mass differs from active posterior mass by ",
+      .iwmde_percent(error)
+    ))
   }
+  components <- .iwmde_diagnostics_qcmde_error_components(diagnostics)
+  if (!components[["reported"]]) {
+    return(paste0(" posterior ordinate changes by ", .iwmde_percent(error)))
+  }
+  status <- switch(
+    as.character(components[["status"]]),
+    exact    = "exact",
+    bound    = "upper bound",
+    estimate = "estimated",
+    "status unavailable"
+  )
 
-  return(" normalization mass differs from active posterior mass by ")
+  percent <- function(value) trimws(.iwmde_percent(value))
+
+  return(paste0(
+    " posterior ordinate error bound is ", percent(error),
+    " (grid change ", percent(components[["change"]]),
+    "; tail truncation ", percent(components[["truncation"]]),
+    ", ", status, ")"
+  ))
 }
 
 

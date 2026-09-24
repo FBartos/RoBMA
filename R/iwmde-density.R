@@ -845,6 +845,12 @@
     final_grid[["z"]],
     norm_y_final
   )
+  truncation <- .iwmde_qcmde_truncation_summary(.iwmde_qcmde_row_truncation(
+    laws      = evaluation[["laws"]],
+    log_mass  = evaluation[["log_mass"]],
+    x_range   = range(final_grid[["x"]]),
+    estimates = .iwmde_qcmde_grid_tail_estimates(final_grid)
+  ))
 
   return(list(
     x                      = display_grid,
@@ -895,6 +901,9 @@
     ),
     normalization_scale               = transform[["type"]],
     normalization_mass_ratio          = 1,
+    normalization_truncation          = truncation[["max"]],
+    normalization_truncation_status   = truncation[["status"]],
+    truncation_ordinate_bound         = truncation[["ordinate_bound"]],
     pilot_y                           = pilot_y,
     validation_y                      = validation_y,
     ordinate_relative_change          = ordinate_change[["relative"]],

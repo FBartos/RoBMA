@@ -18,10 +18,12 @@ computation.}
 A data frame of class \code{RoBMA_density_diagnostics}, with one row per
 computed or failed requested point ordinate. Columns identify the estimator, parameter, requested
 and evaluated values, schema/source provenance, row counts, active mass,
-relative MCSE, ESS, largest contribution share, finite terms, normalization
-and quadrature checks, whether the qCMDE pilot gate stopped refinement and
-the bulk effective sample size it stopped on, fixed-sampling state, policy
-thresholds, weight fallbacks, status, and warnings.
+relative MCSE, ESS, largest contribution share, finite terms, normalization,
+truncation, and quadrature checks, the qCMDE pilot-gate columns (the nested
+normalization grids have no refinement sequence to stop, so
+\code{pilot_gate_stopped} is \code{FALSE} and \code{pilot_bulk_ess} is \code{NA}),
+fixed-sampling state, policy thresholds, weight fallbacks, status, and
+warnings.
 
 The exact columns, in order, are \code{schema_version}, \code{algorithm_version},
 \code{source_fingerprint}, \code{estimator}, \code{density_method}, \code{parameter}, \code{level},
@@ -34,6 +36,8 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{sampling_uncertainty_type}, \code{ess}, \code{max_weight_share},
 \code{normalization_relative_error}, \code{stability_metric},
 \code{stability_relative_error}, \code{ordinate_relative_change},
+\code{normalization_truncation}, \code{normalization_truncation_status},
+\code{truncation_ordinate_bound},
 \code{quadrature_relative_change}, \code{pilot_gate_stopped}, \code{pilot_bulk_ess},
 \code{target_relative_mcse},
 \code{stability_warning_threshold}, \code{stability_rejection_threshold},
@@ -115,9 +119,23 @@ qCMDE's full method diagnostics distinguish \code{pilot_normalization_integral}
 from \code{final_normalization_integral}; IWMDE uses
 \code{support_grid_normalization_integral}. This compact accessor reports their
 common normalization check as \code{normalization_relative_error}. The active
-policy check is identified by \code{stability_metric}: qCMDE checks posterior
-ordinate movement, whereas IWMDE checks normalization mass. The table also
-reports the stability and adaptive-quadrature warning/rejection thresholds.
+policy check is identified by \code{stability_metric}: qCMDE checks its posterior
+ordinate error bound (\code{ordinate_error_bound}), whereas IWMDE checks
+normalization mass. The qCMDE bound adds two parts. \code{ordinate_relative_change}
+is the ordinate's movement between the selected normalization grid and the
+coarser nested grid over the same range, which measures discretization and
+overstates the error of the selected grid. \code{truncation_ordinate_bound} is
+\eqn{t / (1 - t)} for the largest fraction \eqn{t} of any row's conditional
+mass outside the normalization range (\code{normalization_truncation}): a row
+normalizer missing that fraction overstates the row's density by at most
+this relative amount. \code{normalization_truncation_status} states how \eqn{t}
+is known: \code{"exact"} for rows whose Gaussian likelihood kernel meets a normal
+prior, \code{"bound"} for a Gaussian kernel with another proper prior, and
+\code{"estimate"} (from the exponential envelope of the tails at the range ends)
+otherwise; it reports the weakest status among the rows. Setting
+\code{normalization_prob} closer to 1 widens the range and lowers the truncation;
+increasing \code{normalization_points} refines the grid. The table also reports the
+stability and adaptive-quadrature warning/rejection thresholds.
 }
 \examples{
 \dontrun{

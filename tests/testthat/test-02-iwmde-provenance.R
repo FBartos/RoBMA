@@ -92,7 +92,7 @@ test_that("request keys carry schema and algorithm versions", {
   )
 
   expect_equal(request[["schema_version"]], "6")
-  expect_equal(request[["algorithm_version"]], "22")
+  expect_equal(request[["algorithm_version"]], "23")
 
   testthat::local_mocked_bindings(
     .iwmde_algorithm_version = function() "changed",
@@ -305,12 +305,28 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     p95_normalizer_relative_change = 0,
     n_rescued_normalizer           = 0L,
     n_initial_dropped_normalizer   = 0L,
-    n_refinement_steps              = 0L
+    n_refinement_steps              = 0L,
+    normalization_truncation        = 1e-4,
+    normalization_truncation_status = "exact",
+    truncation_ordinate_bound       = 1e-4 / (1 - 1e-4)
   )
   expect_s3_class(
     .iwmde_new_density_result(density_fields),
     "iwmde_density_result"
   )
+  for (field in c("normalization_truncation", "truncation_ordinate_bound",
+                  "normalization_truncation_status")) {
+    invalid_truncation <- density_fields
+    invalid_truncation[[field]] <- if (identical(field, "normalization_truncation_status")) {
+      "guess"
+    } else {
+      -1
+    }
+    expect_error(
+      .iwmde_new_density_result(invalid_truncation),
+      "invalid truncation metadata"
+    )
+  }
   invalid_density        <- density_fields
   invalid_density[["y"]] <- "invalid"
   expect_error(
@@ -541,7 +557,7 @@ test_that("plan keys carry schema and algorithm versions", {
   payload <- .iwmde_plan_key_payload(plan)
 
   expect_equal(payload[["schema_version"]], "6")
-  expect_equal(payload[["algorithm_version"]], "22")
+  expect_equal(payload[["algorithm_version"]], "23")
   expect_identical(
     payload[["prior_ordinates"]],
     .iwmde_compact_nulls(prior_ordinates)

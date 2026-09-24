@@ -442,6 +442,8 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     "sampling_uncertainty_type", "ess", "max_weight_share",
     "normalization_relative_error", "stability_metric",
     "stability_relative_error", "ordinate_relative_change",
+    "normalization_truncation", "normalization_truncation_status",
+    "truncation_ordinate_bound",
     "quadrature_relative_change", "pilot_gate_stopped", "pilot_bulk_ess",
     "target_relative_mcse",
     "stability_warning_threshold", "stability_rejection_threshold",
@@ -473,6 +475,10 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
   )
   expect_true(out[["sampling_target_met"]])
   expect_equal(out[["stability_metric"]], "normalization_relative_error")
+  # IWMDE reports no qCMDE truncation.
+  expect_true(is.na(out[["normalization_truncation"]]))
+  expect_true(is.na(out[["normalization_truncation_status"]]))
+  expect_true(is.na(out[["truncation_ordinate_bound"]]))
   expect_equal(out[["stability_warning_threshold"]], .05)
   expect_equal(out[["stability_rejection_threshold"]], .10)
   expect_equal(out[["quadrature_warning_threshold"]], .025)

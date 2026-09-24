@@ -188,7 +188,8 @@ hypothesis.default <- function(object, ...) {
 #' IWMDE; use \code{Inf} for the eligible-row census),
 #' \code{target_relative_mcse} (default \code{0.05}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
-#' \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999}),
+#' \code{max(50, n_points)}), \code{normalization_prob} (default \code{0.999};
+#' lower than 1 for qCMDE),
 #' and \code{display_grid} (default \code{"adaptive"}).
 #' \code{integration_control} (default \code{NULL}) retains the fitted
 #' selection-integration settings. Supply a control created by
@@ -206,13 +207,21 @@ hypothesis.default <- function(object, ...) {
 #' fixed sample does not meet the precision target, a
 #' warning recommends increasing \code{samples} or using the census; if the
 #' census does not meet the target, obtain more posterior draws.
-#' \code{display_grid} is immaterial for point-only requests. Increase
-#' \code{normalization_points} and \code{normalization_prob} to check numerical
-#' support coverage. A point ordinate warns at relative MCSE at least 5 percent,
+#' \code{display_grid} is immaterial for point-only requests. qCMDE normalizes
+#' each posterior row's conditional density over a range covering at least its
+#' central \code{normalization_prob} mass, on \code{normalization_points} nodes
+#' and the nested grid of those nodes and their midpoints. Set
+#' \code{normalization_prob} closer to 1 to reduce the tail truncation, and
+#' increase \code{normalization_points} to reduce the discretization error that
+#' [density_diagnostics()] report. IWMDE checks its normalization mass on
+#' \code{normalization_points} points over the central \code{normalization_prob}
+#' quantile range of the target draws, widened by 10 percent on each side.
+#' A point ordinate warns at relative MCSE at least 5 percent,
 #' ESS below 100, maximum contribution share at least 20 percent, or fewer than
 #' 100 finite contributions. These same-sample diagnostics do not suppress a
-#' finite fixed-design estimate. qCMDE ordinate movement warns above 2.5
-#' percent and is
+#' finite fixed-design estimate. The qCMDE ordinate error bound (the ordinate
+#' change between the nested grids plus the tail-truncation bound) warns above
+#' 2.5 percent and is
 #' rejected above 5 percent; IWMDE normalization error warns above 5 percent and
 #' is rejected above 10 percent. Adaptive-quadrature sensitivity warns above
 #' 2.5 percent and is rejected above 5 percent.

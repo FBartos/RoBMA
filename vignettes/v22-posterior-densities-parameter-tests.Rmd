@@ -228,11 +228,11 @@ It can be seriously inaccurate at one-sided boundaries and at posterior ordinate
 
 | Setting | Default | Role |
 |:--|:--|:--|
-| `n_points` | `100` | Number of plotted density points; also determines the default initial normalization-grid size. |
+| `n_points` | `100` | Number of plotted density points; also determines the default normalization-grid size. |
 | `samples` | `500` for qCMDE; `1,000` for IWMDE | Maximum eligible posterior rows evaluated for curves and point ordinates; use `Inf` for the census. |
 | `target_relative_mcse` | `0.05` | Warning target for point-ordinate relative Monte Carlo error. |
-| `normalization_points` | `NULL` | Initial hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. |
-| `normalization_prob` | `0.999` | Central posterior probability used to seed the hidden normalization range; qCMDE refines and extends that range. |
+| `normalization_points` | `NULL` | Hidden normalization-grid size; `NULL` resolves to `max(50, n_points)`. qCMDE also evaluates the nested grid of these points and their midpoints. |
+| `normalization_prob` | `0.999` | qCMDE: the central probability of every posterior row's conditional density that the normalization range covers (lower than 1). IWMDE: the central probability of the target draws that sets its normalization-check range. |
 | `display_grid` | `"adaptive"` | Adaptive or uniform placement of plotted points; it is immaterial for a point-only hypothesis. |
 | `integration_control` | `NULL` | Post-fit selection-likelihood integration controls, supplied by `set_selection_likelihood_control()`; `NULL` uses the fitted controls. |
 
@@ -244,12 +244,13 @@ If the sample does not meet the precision target, a warning recommends increasin
 
 The estimator diagnostics distinguish the eligible row count, achieved budget, evaluated and retained rows, active mixture mass, relative Monte Carlo error, effective sample size (ESS), largest contribution share, finite contribution count, dropped rows, and normalization stability.
 The method-specific records use `pilot_normalization_integral` and `final_normalization_integral` for qCMDE and `support_grid_normalization_integral` for IWMDE.
-The public `density_diagnostics()` table reports this normalization check as `normalization_relative_error` and separately identifies the active `stability_metric`: qCMDE checks posterior-ordinate movement, whereas IWMDE checks normalization mass.
+The public `density_diagnostics()` table reports this normalization check as `normalization_relative_error` and separately identifies the active `stability_metric`: qCMDE checks its posterior-ordinate error bound, whereas IWMDE checks normalization mass.
+The qCMDE bound adds the ordinate's movement between its two nested normalization grids, which measures discretization, and the relative bound $t/(1-t)$ implied by the largest fraction $t$ of any row's conditional mass outside the normalization range (`normalization_truncation`, reported with its `normalization_truncation_status`: exact, bound, or estimate).
 The diagnostics also report `requested_samples`, `all_rows_used`, whether the precision target and independent numerical-stability gates were met, and any IWMDE weight fallback and its reason.
 
 Point-ordinate reliability warnings are issued when relative MCSE is at least 5%, ESS is below 100, the largest contribution share is at least 20%, or fewer than 100 finite contributions remain.
 These same-sample diagnostics never decide whether a finite fixed-design estimate is returned.
-qCMDE posterior-ordinate movement warns above 2.5% and rejects above 5%; IWMDE normalization error warns above 5% and rejects above 10%.
+The qCMDE posterior-ordinate error bound warns above 2.5% and rejects above 5%; IWMDE normalization error warns above 5% and rejects above 10%.
 Adaptive-quadrature sensitivity warns above 2.5% and rejects above 5%.
 Warnings indicate an estimate that deserves a sensitivity analysis; only non-finite ordinates and independent numerical-stability failures make the result unavailable.
 

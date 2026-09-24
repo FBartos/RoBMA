@@ -22,10 +22,10 @@ Default is \code{FALSE}.}
 \value{
 For single estimates, a list of class \code{"bf_default"} with components:
 \itemize{
-  \item \code{bf}: (scalar) value of the Bayes factor in favor of
-  \code{x1} over \code{x2}.
-  \item \code{log}: Boolean indicating whether \code{bf} corresponds
-  to the log Bayes factor.
+\item \code{bf}: (scalar) value of the Bayes factor in favor of
+\code{x1} over \code{x2}.
+\item \code{log}: Boolean indicating whether \code{bf} corresponds
+to the log Bayes factor.
 }
 For repeated estimates, a list of class \code{c("bf.brma", "bf_bridge_list")}
 with a vector \code{bf}, scalar \code{bf_median_based}, and \code{log}. It

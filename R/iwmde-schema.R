@@ -417,7 +417,8 @@
       "ordinate_log_change", "pilot_ordinate_relative_change",
       "pilot_ordinate_log_change", "p95_normalizer_relative_change",
       "n_rescued_normalizer", "n_initial_dropped_normalizer",
-      "n_refinement_steps"
+      "n_refinement_steps", "normalization_truncation",
+      "normalization_truncation_status", "truncation_ordinate_bound"
     )
   } else {
     c(
@@ -501,6 +502,18 @@
           allow_missing = FALSE
         )) {
       stop("Internal qCMDE density result has invalid normalization metadata.",
+           call. = FALSE)
+    }
+    truncation <- density[["normalization_truncation"]]
+    bound      <- density[["truncation_ordinate_bound"]]
+    status     <- density[["normalization_truncation_status"]]
+    if (!is.numeric(truncation) || length(truncation) != 1L ||
+        !(is.na(truncation) || (truncation >= 0 && truncation <= 1)) ||
+        !is.numeric(bound) || length(bound) != 1L ||
+        !(is.na(bound) || bound >= 0) ||
+        !is.character(status) || length(status) != 1L ||
+        !status %in% .iwmde_qcmde_truncation_statuses()) {
+      stop("Internal qCMDE density result has invalid truncation metadata.",
            call. = FALSE)
     }
   } else {

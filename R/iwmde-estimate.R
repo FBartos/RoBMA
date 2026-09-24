@@ -790,6 +790,10 @@
     normalization_initial_range = density[["normalization_initial_range"]],
     normalization_scale         = density[["normalization_scale"]],
     normalization_mass_ratio    = density[["normalization_mass_ratio"]],
+    normalization_truncation    = density[["normalization_truncation"]],
+    normalization_truncation_status =
+      density[["normalization_truncation_status"]],
+    truncation_ordinate_bound   = density[["truncation_ordinate_bound"]],
     max_ordinate_relative_change =
       .iwmde_max_or_na(density[["ordinate_relative_change"]]),
     max_normalizer_relative_change =

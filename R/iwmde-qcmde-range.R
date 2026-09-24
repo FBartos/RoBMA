@@ -756,6 +756,19 @@
 }
 
 
+# Both ends' tail estimates of every row of a normalized grid, summed.
+.iwmde_qcmde_grid_tail_estimates <- function(grid) {
+
+  tails <- .iwmde_qcmde_tail_estimates(
+    z              = grid[["z"]],
+    log_density    = grid[["log_q"]] + grid[["log_jacobian"]],
+    log_normalizer = grid[["log_normalizer"]]
+  )
+
+  return(tails[["lower"]] + tails[["upper"]])
+}
+
+
 # The largest row truncation, the weakest status among the rows, and the
 # relative bound it places on a normalized ordinate: a row normalizer that
 # misses the fraction t of its mass overstates that row's density by the
