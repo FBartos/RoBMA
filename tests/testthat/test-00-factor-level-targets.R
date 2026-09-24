@@ -362,8 +362,9 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     )
   }
 
-  # Ordered coding: the first increment is a fitted coefficient, the later
-  # level is a sum of increments.
+  # Ordered coding: the first increment is a fitted coefficient, but its
+  # prior (the ordered total times its allocation) has no exact ordinate; the
+  # later level is a sum of increments. No level supports point hypotheses.
   set.seed(3)
   k    <- 48L
   data <- data.frame(
@@ -379,10 +380,18 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
   quantities <- hypothesis_quantities(ordered)
   g <- quantities[quantities[["alias"]] == "g", , drop = FALSE]
   expect_false(g[["point_test"]])
-  expect_identical(g[["point_test_methods"]], "KDE, qCMDE, IWMDE")
+  expect_identical(g[["point_test_methods"]], "")
   expect_match(
     g[["reason"]],
     "Point hypotheses are not supported for level 'g[hi]': it is a linear",
+    fixed = TRUE
+  )
+  expect_match(
+    g[["reason"]],
+    paste0(
+      "Point hypotheses are not supported for level 'g[mid]': the induced ",
+      "prior of its fitted coefficient has no exact ordinate"
+    ),
     fixed = TRUE
   )
   expect_error(
@@ -390,4 +399,12 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     "Point hypotheses on factor level 'g[hi]'",
     fixed = TRUE
   )
+  for (method in c("KDE", "qCMDE")) {
+    expect_error(
+      suppressWarnings(hypothesis(ordered, "g[mid] = 0.1", density_method = method)),
+      "is not exact enough for a point-null Bayes factor",
+      fixed = TRUE,
+      info = method
+    )
+  }
 })

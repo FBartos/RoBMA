@@ -201,10 +201,13 @@ hypothesis_quantities.brma <- function(object, ...) {
 
 
 # Point hypotheses on a factor level need the level to be a fitted coefficient
-# itself (a direct level cell); levels that are linear combinations of the
-# contrast coefficients (mean-difference and orthonormal levels, ordered
-# levels beyond the first increment) stop in hypothesis(). Structural levels
-# (the treatment reference) are fixed and not counted.
+# itself (a direct level cell) whose induced prior has an exact ordinate.
+# hypothesis() stops point hypotheses on levels that are linear combinations
+# of the contrast coefficients (mean-difference and orthonormal levels,
+# ordered levels beyond the first increment) and on levels whose fitted
+# coefficient has no exact prior ordinate (the first increment of an ordered
+# prior, a product of the ordered total and its allocation). Structural
+# levels (the treatment reference) are fixed and not counted.
 .hypothesis_quantities_factor_point_support <- function(object, entry, out) {
 
   metadata   <- .brma_parameter_catalog_metadata(object)
@@ -221,36 +224,72 @@ hypothesis_quantities.brma <- function(object, ...) {
   if (nrow(members) == 0L) {
     return(out)
   }
-  supported <- vapply(seq_len(nrow(members)), function(i) {
-    !is.null(.brma_catalog_level_coordinate(
-      members[i, , drop = FALSE],
-      quantities
-    ))
-  }, logical(1))
-  if (all(supported)) {
+  coordinates <- lapply(seq_len(nrow(members)), function(i) {
+    .brma_catalog_level_coordinate(members[i, , drop = FALSE], quantities)
+  })
+  combined <- vapply(coordinates, is.null, logical(1))
+  inexact  <- !combined
+  inexact[!combined] <- !vapply(
+    coordinates[!combined],
+    .hypothesis_quantities_exact_level_ordinate,
+    logical(1),
+    object            = object,
+    formula_parameter = entry[["formula_parameter"]]
+  )
+  if (!any(combined | inexact)) {
     return(out)
   }
 
   label <- .brma_factor_term_selectors(metadata, entry)[["label"]]
-  selectors <- function(levels) {
-    paste0("'", label, "[", levels, "]'", collapse = ", ")
+  levels_text <- function(levels) {
+    paste0(
+      "level", if (length(levels) > 1L) "s", " ",
+      paste0("'", label, "[", levels, "]'", collapse = ", ")
+    )
   }
   out[["point_test"]] <- FALSE
-  if (!any(supported)) {
+  if (all(combined | inexact)) {
     out[["point_test_methods"]] <- ""
   }
-  out[["reason"]] <- paste0(
-    "Point hypotheses are not supported for level",
-    if (sum(!supported) > 1L) "s", " ",
-    selectors(members[["component"]][!supported]),
-    if (sum(!supported) > 1L) ": each is" else ": it is",
-    " a linear combination of the fitted contrast coefficients ",
-    "(mean-difference, orthonormal, or ordered contrasts), not a fitted ",
-    "coefficient itself. Region hypotheses and level contrasts are ",
-    "available for all levels."
-  )
+  out[["reason"]] <- paste(c(
+    if (any(combined)) paste0(
+      "Point hypotheses are not supported for ",
+      levels_text(members[["component"]][combined]),
+      if (sum(combined) > 1L) ": each is" else ": it is",
+      " a linear combination of the fitted contrast coefficients ",
+      "(mean-difference, orthonormal, or ordered contrasts), not a fitted ",
+      "coefficient itself."
+    ),
+    if (any(inexact)) paste0(
+      "Point hypotheses are not supported for ",
+      levels_text(members[["component"]][inexact]),
+      ": the induced prior of ",
+      if (sum(inexact) > 1L) "their fitted coefficients has" else
+        "its fitted coefficient has",
+      " no exact ordinate (as for the first increment of an ordered prior)."
+    ),
+    "Region hypotheses and level contrasts are available for all levels."
+  ), collapse = " ")
 
   return(out)
+}
+
+
+# Whether hypothesis() accepts a point hypothesis on the fitted coordinate of
+# a factor level: its induced original-scale prior needs an exact ordinate
+# (.hypothesis_brma_formula_prior_target()). The classification follows from
+# the prior's provenance; it is taken at the usual null value 0.
+.hypothesis_quantities_exact_level_ordinate <- function(coordinate, object,
+                                                        formula_parameter) {
+
+  density <- BayesTools::JAGS_formula_prior_density(
+    fit          = object[["fit"]],
+    parameter    = formula_parameter,
+    target       = coordinate,
+    target_scale = "original"
+  )
+
+  return(isTRUE(BayesTools::prior_density_ordinate(density, 0)[["exact"]]))
 }
 
 
