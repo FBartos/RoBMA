@@ -200,6 +200,60 @@ hypothesis_quantities.brma <- function(object, ...) {
 }
 
 
+# Point hypotheses on a factor level need the level to be a fitted coefficient
+# itself (a direct level cell); levels that are linear combinations of the
+# contrast coefficients (mean-difference and orthonormal levels, ordered
+# levels beyond the first increment) stop in hypothesis(). Structural levels
+# (the treatment reference) are fixed and not counted.
+.hypothesis_quantities_factor_point_support <- function(object, entry, out) {
+
+  metadata   <- .brma_parameter_catalog_metadata(object)
+  quantities <- metadata[["catalog"]][["quantities"]]
+  members    <- quantities[
+    quantities[["quantity_id"]] %in%
+      unlist(entry[["member_quantity_ids"]], use.names = FALSE),
+    ,
+    drop = FALSE
+  ]
+  structural <- members[["status"]] %in% c("fixed", "structural") |
+    is.finite(members[["fixed_value"]])
+  members <- members[!structural, , drop = FALSE]
+  if (nrow(members) == 0L) {
+    return(out)
+  }
+  supported <- vapply(seq_len(nrow(members)), function(i) {
+    !is.null(.brma_catalog_level_coordinate(
+      members[i, , drop = FALSE],
+      quantities
+    ))
+  }, logical(1))
+  if (all(supported)) {
+    return(out)
+  }
+
+  label <- .brma_factor_term_selectors(metadata, entry)[["label"]]
+  selectors <- function(levels) {
+    paste0("'", label, "[", levels, "]'", collapse = ", ")
+  }
+  out[["point_test"]] <- FALSE
+  if (!any(supported)) {
+    out[["point_test_methods"]] <- ""
+  }
+  out[["reason"]] <- paste0(
+    "Point hypotheses are not supported for level",
+    if (sum(!supported) > 1L) "s", " ",
+    selectors(members[["component"]][!supported]),
+    if (sum(!supported) > 1L) ": each is" else ": it is",
+    " a linear combination of the fitted contrast coefficients ",
+    "(mean-difference, orthonormal, or ordered contrasts), not a fitted ",
+    "coefficient itself. Region hypotheses and level contrasts are ",
+    "available for all levels."
+  )
+
+  return(out)
+}
+
+
 .hypothesis_quantities_brma_route <- function(object, row, entry = NULL) {
 
   likelihood_aware <- .hypothesis_quantities_iwmde_capability(object)
@@ -229,6 +283,11 @@ hypothesis_quantities.brma <- function(object, ...) {
       "tests are undefined."
     )
     return(out)
+  }
+  if (!is.null(entry) &&
+      identical(entry[["role"]], "formula_coefficient_group") &&
+      !is.null(object[["fit"]])) {
+    out <- .hypothesis_quantities_factor_point_support(object, entry, out)
   }
   formula_parameter <- if (is.null(entry)) NULL else entry[["formula_parameter"]]
   if (is.null(entry) || identical(row[["component"]], "random") ||

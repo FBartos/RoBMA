@@ -322,3 +322,72 @@ test_that("repeated hypothesis rows are numbered by statement", {
   expect_identical(rownames(groups), c("g1 (1)", "g2", "g1 (3)"))
   expect_identical(names(attr(groups, "warnings")), "g1 (3)")
 })
+
+
+test_that("hypothesis_quantities reports point tests only for fitted level coefficients", {
+
+  skip_on_cran()
+  fits <- .factor_level_target_fits()
+
+  # Treatment levels are fitted coefficients (the reference level is fixed).
+  treatment <- hypothesis_quantities(fits[["treatment"]])
+  treatment <- treatment[treatment[["term"]] %in% c("g1", "g2"), , drop = FALSE]
+  expect_true(all(treatment[["point_test"]]))
+  expect_identical(unique(treatment[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
+  expect_false(any(nzchar(treatment[["reason"]])))
+
+  # Mean-difference levels are linear combinations of the contrast
+  # coefficients; hypothesis() stops their point hypotheses.
+  meandif <- hypothesis_quantities(fits[["meandif"]])
+  g1 <- meandif[meandif[["alias"]] == "g1", , drop = FALSE]
+  expect_false(g1[["point_test"]])
+  expect_true(g1[["direction_test"]])
+  expect_identical(g1[["point_test_methods"]], "")
+  expect_identical(g1[["reason"]], paste0(
+    "Point hypotheses are not supported for levels 'g1[5]', 'g1[10]', ",
+    "'g1[20]': each is a linear combination of the fitted contrast ",
+    "coefficients (mean-difference, orthonormal, or ordered contrasts), not ",
+    "a fitted coefficient itself. Region hypotheses and level contrasts are ",
+    "available for all levels."
+  ))
+  expect_false(any(meandif[["point_test"]][meandif[["term"]] == "g2"]))
+  for (level in c("5", "10", "20")) {
+    expect_error(
+      suppressWarnings(hypothesis(
+        fits[["meandif"]], paste0("g1[", level, "] = 0"), density_method = "KDE"
+      )),
+      "Point hypotheses on factor level",
+      fixed = TRUE,
+      info = level
+    )
+  }
+
+  # Ordered coding: the first increment is a fitted coefficient, the later
+  # level is a sum of increments.
+  set.seed(3)
+  k    <- 48L
+  data <- data.frame(
+    g   = factor(rep(c("lo", "mid", "hi"), length.out = k), levels = c("lo", "mid", "hi")),
+    sei = stats::runif(k, 0.1, 0.3)
+  )
+  data[["yi"]] <- stats::rnorm(k, c(0, 0.2, 0.3)[as.integer(data[["g"]])], data[["sei"]])
+  ordered <- suppressWarnings(brma(
+    yi = yi, sei = sei, mods = ~ g, data = data, measure = "SMD",
+    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
+    chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
+  ))
+  quantities <- hypothesis_quantities(ordered)
+  g <- quantities[quantities[["alias"]] == "g", , drop = FALSE]
+  expect_false(g[["point_test"]])
+  expect_identical(g[["point_test_methods"]], "KDE, qCMDE, IWMDE")
+  expect_match(
+    g[["reason"]],
+    "Point hypotheses are not supported for level 'g[hi]': it is a linear",
+    fixed = TRUE
+  )
+  expect_error(
+    suppressWarnings(hypothesis(ordered, "g[hi] = 0", density_method = "KDE")),
+    "Point hypotheses on factor level 'g[hi]'",
+    fixed = TRUE
+  )
+})

@@ -628,7 +628,21 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
   quantities <- hypothesis_quantities(fit)
 
   expect_true(all(c("point_test", "direction_test", "reason") %in% names(quantities)))
-  expect_equal(unique(quantities[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
+  # Levels of the mean-difference factor are linear combinations of the
+  # contrast coefficient, so their point hypotheses stop; the other
+  # quantities keep every point-test method.
+  factor_rows <- quantities[["term"]] == "Preregistered"
+  expect_equal(
+    unique(quantities[["point_test_methods"]][!factor_rows]),
+    "KDE, qCMDE, IWMDE"
+  )
+  expect_false(any(quantities[["point_test"]][factor_rows]))
+  expect_identical(unique(quantities[["point_test_methods"]][factor_rows]), "")
+  expect_true(all(grepl(
+    "Point hypotheses are not supported for levels",
+    quantities[["reason"]][factor_rows],
+    fixed = TRUE
+  )))
   expect_false(any(grepl("\\bnormal\\b", quantities[["point_test_methods"]])))
   expect_true(any(
     quantities[["alias"]] == "Preregistered" &
@@ -640,8 +654,22 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       quantities[["parameter"]] == "log_tau_Preregistered" &
       quantities[["component"]] == "scale"
   ))
-  expect_true(all(quantities[["point_test"]][quantities[["component"]] == "scale"]))
-  expect_false(any(nzchar(quantities[["reason"]][quantities[["component"]] == "scale"])))
+  scale_rows <- quantities[["component"]] == "scale" & !factor_rows
+  expect_true(all(quantities[["point_test"]][scale_rows]))
+  expect_false(any(nzchar(quantities[["reason"]][scale_rows])))
+  for (parameter in c("mu_Preregistered", "log_tau_Preregistered")) {
+    expect_error(
+      suppressWarnings(hypothesis(
+        fit,
+        paste0(parameter, "[Pre-Registered] = 0"),
+        density_method = "KDE",
+        n_samples      = 1000
+      )),
+      "Point hypotheses on factor level",
+      fixed = TRUE,
+      info  = parameter
+    )
+  }
 
   expect_error(
     hypothesis(
