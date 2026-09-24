@@ -90,6 +90,52 @@
 - accepts BayesTools conditional-normal-mixture prior-ordinate metadata while
   retaining the exact structural-classification requirement. Numerical
   integration accuracy remains separate diagnostic information.
+- selects factor levels by their labels in point hypotheses and factor-cell
+  plots. BayesTools now names levels by their labels (`mu_g[10]`) and keeps
+  JAGS coordinates as backend names, so treatment levels such as 5/10/20
+  stopped as "absent from the fitted coefficient transformation", and with
+  levels 1:4 a label could select the coordinate of another level. A level
+  maps to a fitted coordinate only when the contrast makes it a direct level
+  cell, and plots of every contrast draw the selected level.
+- explains that selectors of factor contrast coefficients (`g{1}`, the `{j}`
+  coefficients of mean-difference, orthonormal, and ordered factors) are not
+  supported in `hypothesis()` and `plot()` and names the level-label form such
+  as `g[5]`, instead of asking to refit the model. Point hypotheses on levels
+  that are linear combinations of the contrast coefficients stop with a
+  message naming the region and level-contrast hypotheses that remain
+  available. Brace labels of random-slope quantities, such as `tau(g{1})`,
+  are unaffected.
+- summarizes, tests, and plots original-scale random-effect correlations
+  `rho(...)` over their defined draws. A correlation is undefined in draws
+  where one of its standard deviations is zero; `summary_heterogeneity()`
+  stopped on such draws. Tables note the number of defined draws, the
+  footnotes carry the displayed `rho(...)` label, and the `as_draws()`
+  documentation states that the exported column contains `NA` in those draws.
+- supports region hypotheses on the original-scale correlation of scaled
+  `us()` random-slope blocks, such as `hypothesis(fit, "rho(intercept,x) > 0")`,
+  which failed because the prior draws lacked the deterministic standard
+  deviations the correlation depends on.
+- names repeated rows of hypothesis tables by statement, as BayesTools does
+  (`g1 (1)`, `g1 (3)`), also when the statements target several quantities.
+  Single-statement tables keep the plain label and table warnings follow their
+  rows; repeated rows were previously named `mu_group.1` or `g11`.
+- reports in `hypothesis_quantities()` which quantities accept point
+  hypotheses, consistently with `hypothesis()`. Factor terms with levels that
+  are linear combinations of the contrast coefficients or whose fitted
+  coefficient has no exact prior ordinate (mean-difference, orthonormal, and
+  ordered levels), and scalar coefficients whose induced original-scale prior
+  has no exact ordinate (e.g. an intercept combined with a Cauchy slope by
+  predictor standardization) report `point_test = FALSE` with a reason.
+- gives point hypotheses on a factor level fixed by the contrast (the
+  treatment reference level) the same reason under the default qCMDE and under
+  IWMDE as under KDE, instead of "linear weights are all zero". When
+  qCMDE/IWMDE are unavailable for a random-effect quantity, the message now
+  names the requested operation (e.g. point hypotheses rather than plots).
+- leaves the classification of structural parameters in convergence checks
+  to BayesTools. The post-fit and `update()` checks excluded a reference
+  weight named from the one-sided cut grid, which two-sided weight functions
+  do not monitor; convergence verdicts are unchanged, and the diagnostics now
+  list the reference weights as structural constants.
 ### Features
 - exposes `hypothesis_quantities()` for discovering testable quantities and
   `BF_hypothesis()` as the capitalized hypothesis Bayes-factor alias.
@@ -1198,8 +1244,9 @@
   ASTs, structural prior-ordinate classification, and exact induced formula-
   coefficient prior densities, structured random-effect component labels,
   consistent base posterior-overlay spike scaling, factor levels selected by
-  their labels with contrast coefficients labelled `{j}`, and declared
-  undefined original-scale correlation draws.
+  their labels with contrast coefficients labelled `{j}`, declared
+  undefined original-scale correlation draws, and prior draws carrying the
+  deterministic random-effect monitors.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
