@@ -1,5 +1,19 @@
 ## version 4.1.0 (IN PROGRESS)
 ### Fixes
+- places each qCMDE row's normalization range at its own conditional
+  quantiles at `normalization_prob`: in closed form where a Gaussian
+  likelihood kernel meets a normal prior, from a Gaussian tail bound with
+  another proper prior, and otherwise by extending the draw range until the
+  endpoint tail estimate meets the target. The setting now controls each
+  row's coverage instead of saturating at the range of the draws, and qCMDE
+  requires it below 1. Rows are normalized on a uniform grid and its nested
+  grid over that range instead of merged non-uniform refinement grids, so
+  their disagreement measures discretization alone. `density_diagnostics()`
+  reports the largest row truncation, whether it is exact, a bound or an
+  estimate, and the ordinate error bound t/(1 - t); with the grid change it
+  forms the qCMDE stability check. With no refinement sequence left, the
+  pilot-gate columns report that no line was stopped. IWMDE keeps its
+  draw-based normalization check.
 - retains failed qCMDE/IWMDE point computations in density diagnostics, with
   computed log ordinates and distinct underflow, overflow, arithmetic-failure,
   unexplained-zero and not-computed reasons. Marginal-means warnings retain the
@@ -375,10 +389,6 @@
   post-fit calls on a serially fitted model do not pick up on their own:
   `RoBMA.options(native_threads = )` is the lever for those calls, and a zplot
   panel that takes 33.5 s serially takes 22.2 s at eight threads.
-- reports the qCMDE pilot gate through `density_diagnostics()`, in the new
-  `pilot_gate_stopped` and `pilot_bulk_ess` columns, so a line whose refinement
-  was cut short says so and names the bulk effective sample size it stopped on.
-  Both were recorded internally and then dropped before any consumer saw them.
 - projects the retained contexts of a conditioned-random-effect zplot in
   batches instead of one certified projection per quasi-Monte Carlo node. Each
   node differs only in its context mean, and the native kernel already
@@ -437,10 +447,6 @@
   its mixture rows and reproduces the serial result exactly at any thread
   count, so the configured native threads now apply to the fitted-density
   curve.
-- stops refining a `qCMDE` normalization grid once the density line's effective
-  sample size is settled far below the estimator's acceptance gate, which the
-  refinement cannot change. The gate itself, its message and every accepted
-  line are unchanged.
 - uses BayesTools factor column-scale grids for allocation-derived component
   SDs on correlated random structures
 - reuses the fitted parameter-map runtime cache for RoBMA catalog metadata
