@@ -260,7 +260,7 @@ test_that("an extension stops at values the joint density cannot evaluate", {
                tolerance = 1e-12)
   expect_false(any(limited[["open"]]))
 
-  # A row that never decays stops at the extension limit.
+  # A row that never decays stops at the extension limit on each side.
   capped <- .iwmde_qcmde_extend_lattice(
     lattice          = lattice,
     estimate_rows    = 1L,
@@ -268,6 +268,32 @@ test_that("an extension stops at values the joint density cannot evaluate", {
     evaluate_inside  = flat,
     evaluate_outside = flat
   )
-  expect_identical(length(capped[["nodes"]][["z"]]),
-                   .iwmde_qcmde_extension_limit() * 10L + 1L)
+  limit <- .iwmde_qcmde_extension_limit()
+  expect_equal(range(capped[["nodes"]][["z"]]), c(-limit, 1 + limit),
+               tolerance = 1e-12)
+  expect_identical(length(capped[["nodes"]][["z"]]), (2L * limit + 1L) * 10L + 1L)
+})
+
+
+test_that("a Gaussian tail extends close to its target in few passes", {
+
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  normal    <- function(values) cbind(stats::dnorm(values, log = TRUE))
+  lattice   <- .iwmde_qcmde_lattice(c(-1, 1), 41L, transform)
+  target    <- 5e-7
+  result    <- .iwmde_qcmde_extend_lattice(
+    lattice          = lattice,
+    estimate_rows    = 1L,
+    target           = target,
+    evaluate_inside  = normal,
+    evaluate_outside = normal
+  )
+  ends <- range(result[["nodes"]][["z"]])
+  # The envelope overstates a Gaussian tail, so the true tails are below the
+  # target; the local quadratic keeps the overshoot within a few steps.
+  expect_lte(stats::pnorm(ends[[1L]]), target)
+  expect_lte(stats::pnorm(ends[[2L]], lower.tail = FALSE), target)
+  needed <- stats::qnorm(target, lower.tail = FALSE)
+  expect_lt(max(abs(ends) - needed), .3)
+  expect_lte(result[["passes"]], 4L)
 })

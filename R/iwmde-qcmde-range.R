@@ -478,10 +478,10 @@
 }
 
 
-# Largest number of nodes the extension of estimated rows may reach, relative
-# to the requested nodes; a row that has not decayed by then keeps its reported
+# How far, in widths of the initial range, each side may be extended for
+# estimated rows; a row that has not decayed by then keeps its reported
 # estimate.
-.iwmde_qcmde_extension_limit <- function() 8L
+.iwmde_qcmde_extension_limit <- function() 4L
 
 
 .iwmde_qcmde_extension_max_iterations <- function() 40L
@@ -504,7 +504,7 @@
   nodes[["log_q"]] <- log_q
   open     <- c(lower = TRUE, upper = TRUE)
   steps    <- c(lower = 0L, upper = 0L)
-  limit    <- .iwmde_qcmde_extension_limit() * (n_initial - 1L) + 1L
+  limit    <- .iwmde_qcmde_extension_limit() * (n_initial - 1L)
   n_passes <- 0L
 
   if (length(estimate_rows) == 0L) {
@@ -526,15 +526,20 @@
         next
       }
       n_nodes <- length(nodes[["index"]])
-      budget  <- limit - n_nodes
+      budget  <- limit - steps[[side]]
       if (budget <= 0L) {
         open[[side]] <- FALSE
         next
       }
-      slope    <- tails[[paste0(side, "_slope")]][failing]
-      distance <- log(estimate[failing] / target) / slope
-      k <- if (all(is.finite(distance) & distance > 0)) {
-        ceiling(max(distance) / lattice[["step"]])
+      distance <- .iwmde_qcmde_extension_distance(
+        log_density = log_density[, failing, drop = FALSE],
+        side        = side,
+        step        = lattice[["step"]],
+        excess      = log(estimate[failing] / target),
+        slope       = tails[[paste0(side, "_slope")]][failing]
+      )
+      k <- if (is.finite(distance)) {
+        ceiling(distance / lattice[["step"]])
       } else {
         n_nodes - 1L
       }
@@ -568,6 +573,38 @@
   }
 
   return(list(nodes = nodes, steps = steps, passes = n_passes, open = open))
+}
+
+
+# Distance beyond an end at which every failing row's tail estimate reaches
+# the target: `excess` is log(estimate / target). A log density that is
+# concave at the end (a Gaussian-like tail) follows its local quadratic, any
+# other decaying tail its exponential envelope; a row that does not decay
+# there has no distance (Inf). The next pass re-checks the estimate.
+.iwmde_qcmde_extension_distance <- function(log_density, side, step, excess,
+                                            slope) {
+
+  n     <- nrow(log_density)
+  inner <- if (identical(side, "lower")) seq_len(min(3L, n)) else
+    rev(seq.int(max(1L, n - 2L), n))
+  curvature <- if (length(inner) == 3L) {
+    -(log_density[inner[[1L]], ] - 2 * log_density[inner[[2L]], ] +
+        log_density[inner[[3L]], ]) / step^2
+  } else {
+    rep(NA_real_, ncol(log_density))
+  }
+  if (any(!is.finite(slope) | slope <= 0)) {
+    return(Inf)
+  }
+  distance <- excess / slope
+  concave  <- is.finite(curvature) & curvature > 0
+  if (any(concave)) {
+    edge_slope <- slope[concave] + curvature[concave] * step / 2
+    distance[concave] <- (sqrt(edge_slope^2 + 2 * curvature[concave] *
+      excess[concave]) - edge_slope) / curvature[concave]
+  }
+
+  return(max(distance))
 }
 
 

@@ -22,21 +22,31 @@ test_that("mixed-state uncertainty accepts the plan's logical active mass", {
   ), "Inconsistent active mass for IWMDE contributions.", fixed = TRUE)
 })
 
-test_that("two qCMDE grids retain their nonzero ordinate disagreement", {
+test_that("two nested qCMDE grids retain their nonzero ordinate disagreement", {
 
-  log_q <- matrix(0, nrow = 1L, ncol = 4L)
-  normalizers <- list(rep(0, 4L), rep(log(2), 4L))
-  selected <- .iwmde_qcmde_select_refinement(log_q, normalizers, 1, 4L)
-  final <- .iwmde_qcmde_density_from_normalizer(
-    log_q, normalizers[[selected[["final_index"]]]], 1, 4L
+  # A row narrower than the grid step, centred between two nodes: the node
+  # grid misses its peak and the nested grid does not.
+  z <- seq(-1, 1, length.out = 21L)
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, ...) {
+      matrix(stats::dnorm(values, .05, .03, log = TRUE), ncol = 1L)
+    },
+    .package = "RoBMA"
   )
-  validation <- .iwmde_qcmde_density_from_normalizer(
-    log_q, normalizers[[selected[["validation_index"]]]], 1, 4L
+  density <- .iwmde_density_grid(
+    context            = list(),
+    parameter          = "mu",
+    display_grid       = .05,
+    normalization_grid = list(x = z, z = z, log_jacobian = rep(0, length(z))),
+    transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
+    row_states         = list(list()),
+    active_mass        = 1,
+    replacement        = list(type = "scalar")
   )
-  expect_equal(final, .5)
-  expect_equal(validation, 1)
-  change <- .iwmde_qcmde_ordinate_change(final, validation)
-  expect_gt(change[["relative"]], .1)
+  expect_gt(density[["ordinate_relative_change"]], .1)
+  expect_gt(density[["max_normalizer_relative_change"]], .1)
+  expect_equal(density[["ordinate_relative_change"]],
+               abs(density[["validation_y"]] / density[["y"]] - 1))
 })
 
 test_that("ordinate-only qCMDE does not infer bulk mass from requested points", {
@@ -47,21 +57,24 @@ test_that("ordinate-only qCMDE does not infer bulk mass from requested points", 
     .iwmde_log_q_grid = function(context, parameter, values, ...) {
       matrix(stats::dnorm(values, log = TRUE), ncol = 1L)
     },
-    .iwmde_qcmde_refinement_pair_converged = function(...) FALSE,
-    .iwmde_qcmde_pilot_bulk_ess = function(...) stop("not a density grid"),
     .package = "RoBMA"
   )
-  grid <- list(x = c(-1, 0, 1), z = c(-1, 0, 1),
-               log_jacobian = rep(0, 3L), all_index = 1:3)
-  result <- .iwmde_qcmde_evaluate_grid_sequence(
-    context = list(), parameter = "mu", display_grid = c(0, 2, 50),
-    normalizer_plan = list(grid_sequence = rep(list(grid), 3L), all_grid = grid),
-    row_states = list(list(row_index = 1L)), replacement = list(),
-    estimator_rows = 1L, active_mass = 1, denominator = 1,
-    density_output = FALSE
-  )
+  z <- seq(-6, 6, length.out = 25L)
+  ordinate <- function(values) {
+    .iwmde_density_grid(
+      context = list(), parameter = "mu", display_grid = values,
+      normalization_grid = list(x = z, z = z, log_jacobian = rep(0, length(z))),
+      transform = .iwmde_parameter_transform(c(-Inf, Inf)),
+      row_states = list(list(row_index = 1L)), active_mass = 1,
+      replacement = list(), density_output = FALSE
+    )
+  }
+  result <- ordinate(c(0, 2, 50))
   expect_false(result[["pilot_gate_stopped"]])
-  expect_length(result[["log_normalizer_sequence"]], 3L)
+  expect_length(result[["pilot_bulk_ess"]], 0L)
+  # Requested values, however far out, do not move the normalization range.
+  expect_identical(result[["normalization_range"]],
+                   ordinate(0)[["normalization_range"]])
 })
 
 test_that("density mass remedies use reported row sampling uncertainty", {

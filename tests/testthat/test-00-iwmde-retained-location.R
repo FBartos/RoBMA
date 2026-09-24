@@ -96,18 +96,21 @@ test_that("row normalizers resolve narrow Gaussian kernels missed by a shared gr
     conditional_sd, tolerance = 1e-14)
 
   transform <- .iwmde_parameter_transform(c(-Inf, Inf))
-  grid <- .iwmde_qcmde_grid_from_z(seq(-.5, .5, length.out = 30L), transform)
-  plan <- .iwmde_qcmde_normalizer_plan(grid, transform)
+  z <- seq(-.5, .5, length.out = 30L)
+  grid <- list(x = z, z = z, log_jacobian = rep(0, length(z)))
   values <- c(conditional_mean, .2)
-  evaluation <- .iwmde_qcmde_evaluate_grid_sequence(list(), "target", values,
-    plan, states, list(type = "scalar"), 1:2, active_mass = 1, denominator = 2L)
-  for (normalizer in evaluation$log_normalizer_sequence) {
-    expect_equal(normalizer, expected_log_mass, tolerance = 1e-11)
+  evaluation <- .iwmde_qcmde_normalization_pass(list(), "target", values,
+    grid, transform, .999, states, list(type = "scalar"), 1:2)
+  for (name in c("initial", "nodes", "nested")) {
+    expect_equal(evaluation[[name]][["log_normalizer"]], expected_log_mass,
+      tolerance = 1e-11)
   }
+  # Rows normalized over their full support place no range of their own.
+  expect_equal(range(evaluation[["nested"]][["z"]]), range(z))
   expect_identical(evaluation$conditional_normalization$methods,
     rep("normal_product", 2L))
   density <- .iwmde_qcmde_density_from_normalizer(evaluation$log_q_display,
-    evaluation$log_normalizer_sequence[[1L]], active_mass = 1, denominator = 2L)
+    evaluation[["nested"]][["log_normalizer"]], active_mass = 1, denominator = 2L)
   expected <- rowMeans(vapply(seq_along(current), function(row) {
     stats::dnorm(values, conditional_mean[row], conditional_sd[row])
   }, numeric(length(values))))

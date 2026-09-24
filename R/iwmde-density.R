@@ -683,256 +683,6 @@
 }
 
 
-.iwmde_qcmde_evaluate_grid_sequence <- function(
-    context, parameter, display_grid, normalizer_plan, row_states,
-    replacement, estimator_rows, active_mass, denominator,
-    density_output = TRUE) {
-
-  grid_sequence <- normalizer_plan[["grid_sequence"]]
-  all_grid       <- normalizer_plan[["all_grid"]]
-  context[["normalizer_grid"]] <- .selection_normalizer_grid(context,
-    c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"))
-  context[["covariance_grid"]] <- .selection_covariance_grid(context,
-    c(display_grid, all_grid[["x"]]), vapply(row_states, `[[`, integer(1L), "row_index"),
-    row_states, replacement, parameter)
-  n_states       <- length(row_states)
-  log_q_all      <- matrix(
-    NA_real_,
-    nrow = length(all_grid[["x"]]),
-    ncol = n_states
-  )
-  evaluated      <- rep(FALSE, nrow(log_q_all))
-  log_q_sequence <- vector("list", length(grid_sequence))
-  log_normalizer_sequence <- vector("list", length(grid_sequence))
-  quadrature_changes <- numeric()
-  pilot_gate_stopped <- FALSE
-  pilot_bulk_ess     <- numeric()
-  log_q_display      <- NULL
-  last_index         <- 0L
-  conditional_rows <- which(vapply(row_states, function(state) {
-    !is.null(state[["conditioning_transform"]])
-  }, logical(1L)))
-  conditional_normalizers <- lapply(conditional_rows, function(row) {
-    tryCatch(.iwmde_retained_location_normalizer(row_states[[row]]), error = function(e) {
-      .iwmde_stop_construction_failure("q_grid_cmde", parameter, estimator_rows[[row]],
-        stage = "retained-location conditional normalization", detail = conditionMessage(e))
-    })
-  })
-  conditional_log_mass <- vapply(conditional_normalizers, `[[`, numeric(1L), "log_normalizer")
-  if (length(conditional_rows)) {
-    quadrature_changes <- vapply(conditional_normalizers, `[[`, numeric(1L), "relative_error")
-  }
-  ordinary_rows <- setdiff(seq_len(n_states), conditional_rows)
-
-  evaluate_values <- function(values) {
-
-    log_q <- tryCatch(
-      .iwmde_log_q_grid(
-        context     = context,
-        parameter   = parameter,
-        values      = values,
-        row_states  = row_states,
-        replacement = replacement
-      ),
-      error = function(e) {
-        if (inherits(e, "iwmde_construction_error")) {
-          stop(e)
-        }
-        .iwmde_stop_construction_failure(
-          estimator = "q_grid_cmde",
-          parameter = parameter,
-          rows      = estimator_rows,
-          stage     = "joint-density grid evaluation",
-          detail    = conditionMessage(e)
-        )
-      }
-    )
-    .iwmde_validate_log_grid(
-      log_q_grid = log_q,
-      estimator  = "q_grid_cmde",
-      parameter  = parameter,
-      rows       = estimator_rows,
-      n_values   = length(values),
-      stage      = "joint-density grid evaluation"
-    )
-
-    return(log_q)
-  }
-
-  for (index in seq_along(grid_sequence)) {
-    grid      <- grid_sequence[[index]]
-    grid_rows <- grid[["all_index"]]
-    new_rows  <- grid_rows[!evaluated[grid_rows]]
-    new_x     <- all_grid[["x"]][new_rows]
-    values    <- if (index == 1L) c(display_grid, new_x) else new_x
-
-    if (length(values) > 0L) {
-      log_q_new <- evaluate_values(values)
-      quadrature_change <- attr(
-        log_q_new,
-        "max_quadrature_relative_change",
-        exact = TRUE
-      )
-      if (is.numeric(quadrature_change) &&
-          length(quadrature_change) == 1L && !is.na(quadrature_change)) {
-        quadrature_changes <- c(quadrature_changes, quadrature_change)
-      }
-
-      if (index == 1L) {
-        display_rows <- seq_along(display_grid)
-        log_q_display <- log_q_new[display_rows, , drop = FALSE]
-        new_value_rows <- length(display_grid) + seq_along(new_rows)
-        log_q_all[new_rows, ] <- log_q_new[new_value_rows, , drop = FALSE]
-      } else {
-        log_q_all[new_rows, ] <- log_q_new
-      }
-      evaluated[new_rows] <- TRUE
-    }
-
-    log_q_sequence[[index]] <- log_q_all[grid_rows, , drop = FALSE]
-    log_normalizer_sequence[[index]] <- numeric(n_states)
-    if (length(ordinary_rows)) {
-      log_normalizer_sequence[[index]][ordinary_rows] <- .iwmde_log_trapz_columns(
-        x     = grid[["z"]],
-        log_y = log_q_sequence[[index]][, ordinary_rows, drop = FALSE] + grid[["log_jacobian"]]
-      )
-    }
-    log_normalizer_sequence[[index]][conditional_rows] <- conditional_log_mass
-    last_index <- index
-
-    if (index >= 3L && .iwmde_qcmde_refinement_pair_converged(
-      log_q_display          = log_q_display,
-      candidate_normalizer   = log_normalizer_sequence[[index - 1L]],
-      validation_normalizer  = log_normalizer_sequence[[index]],
-      active_mass            = active_mass,
-      denominator            = denominator
-    )) {
-      break
-    }
-    # A line whose row weights already put it far below the acceptance gate at
-    # two settled grids cannot be rescued by refining the normalizer further,
-    # and refining it is the expensive part. Two grids are kept either way, so
-    # the validation diagnostics still have a pair to compare.
-    pilot_bulk_ess <- c(pilot_bulk_ess, if (density_output) .iwmde_qcmde_pilot_bulk_ess(
-      display_grid   = display_grid,
-      log_q_display  = log_q_display,
-      log_normalizer = log_normalizer_sequence[[index]],
-      active_mass    = active_mass,
-      denominator    = denominator
-    ) else NA_real_)
-    if (index == 2L && .iwmde_qcmde_pilot_gate_hopeless(
-      bulk_ess       = pilot_bulk_ess,
-      estimator_rows = length(estimator_rows)
-    )) {
-      pilot_gate_stopped <- TRUE
-      last_index <- index
-      break
-    }
-  }
-
-  evaluated_sequence <- seq_len(last_index)
-  quadrature_change  <- if (length(quadrature_changes) > 0L) {
-    max(quadrature_changes)
-  } else {
-    NA_real_
-  }
-
-  return(list(
-    log_q_display           = log_q_display,
-    log_q_sequence          = log_q_sequence[evaluated_sequence],
-    log_normalizer_sequence = log_normalizer_sequence[evaluated_sequence],
-    conditional_normalization = list(rows = conditional_rows,
-      methods = vapply(conditional_normalizers, `[[`, character(1), "method")),
-    quadrature_change       = quadrature_change,
-    pilot_gate_stopped      = pilot_gate_stopped,
-    pilot_bulk_ess          = pilot_bulk_ess,
-    normalizer_interpolation = .selection_normalizer_grid_diagnostics(context[["normalizer_grid"]]),
-    covariance_interpolation = .selection_covariance_grid_diagnostics(context[["covariance_grid"]])
-  ))
-}
-
-
-# The per-row normalization range (see R/iwmde-qcmde-range.R) as a uniform
-# grid of the requested spacing over the extended range.
-.iwmde_qcmde_row_range_grid <- function(context, parameter, display_grid,
-                                        normalization_grid, transform,
-                                        normalization_prob, row_states,
-                                        replacement, estimator_rows) {
-
-  direct <- context
-  direct[["normalizer_grid"]] <- NULL
-  direct[["covariance_grid"]] <- NULL
-  evaluate <- function(values) {
-
-    log_q <- tryCatch(
-      .iwmde_log_q_grid(direct, parameter, values, row_states, replacement),
-      error = function(e) {
-        if (inherits(e, "iwmde_construction_error")) {
-          stop(e)
-        }
-        .iwmde_stop_construction_failure(
-          estimator = "q_grid_cmde",
-          parameter = parameter,
-          rows      = estimator_rows,
-          stage     = "joint-density grid evaluation",
-          detail    = conditionMessage(e)
-        )
-      }
-    )
-    .iwmde_validate_log_grid(
-      log_q_grid = log_q,
-      estimator  = "q_grid_cmde",
-      parameter  = parameter,
-      rows       = estimator_rows,
-      n_values   = length(values),
-      stage      = "joint-density grid evaluation"
-    )
-
-    return(log_q)
-  }
-
-  ordinary  <- .iwmde_qcmde_ordinary_rows(row_states)
-  kernel    <- attr(evaluate(display_grid), "gaussian_kernel", exact = TRUE)
-  laws      <- .iwmde_qcmde_row_laws(context, row_states, replacement, kernel,
-                                     rows = ordinary)
-  intervals <- .iwmde_qcmde_law_intervals(laws, normalization_prob)
-  laws      <- intervals[["laws"]]
-  z_range   <- .iwmde_qcmde_initial_range(
-    laws      = laws,
-    intervals = intervals[["intervals"]],
-    base_z    = range(normalization_grid[["z"]]),
-    transform = transform
-  )
-  lattice <- .iwmde_qcmde_lattice(z_range, length(normalization_grid[["z"]]),
-                                  transform)
-  nodes <- .iwmde_qcmde_extend_lattice(
-    lattice          = lattice,
-    estimate_rows    = which(laws[["kind"]] %in% "estimate"),
-    target           = (1 - normalization_prob) / 2,
-    evaluate_inside  = evaluate,
-    evaluate_outside = function(values) {
-      .iwmde_qcmde_try_log_q(direct, parameter, values, row_states,
-                             replacement)
-    }
-  )
-  if (is.null(nodes)) {
-    .iwmde_stop_construction_failure(
-      estimator = "q_grid_cmde",
-      parameter = parameter,
-      rows      = estimator_rows,
-      stage     = "conditional-density normalization",
-      detail    = "the normalization range has no valid grid"
-    )
-  }
-
-  return(list(
-    x            = nodes[["nodes"]][["x"]],
-    z            = nodes[["nodes"]][["z"]],
-    log_jacobian = nodes[["nodes"]][["log_jacobian"]]
-  ))
-}
-
-
 .iwmde_density_grid <- function(context, parameter, display_grid,
                                 normalization_grid, transform, row_states,
                                 active_mass, replacement,
@@ -960,7 +710,7 @@
       detail    = "candidate rows, estimator rows, and row states are inconsistent"
     )
   }
-  normalization_grid <- .iwmde_qcmde_row_range_grid(
+  evaluation <- .iwmde_qcmde_normalization_pass(
     context            = context,
     parameter          = parameter,
     display_grid       = display_grid,
@@ -971,47 +721,23 @@
     replacement        = replacement,
     estimator_rows     = estimator_rows
   )
-  normalizer_plan  <- .iwmde_qcmde_normalizer_plan(
-    normalization_grid = normalization_grid,
-    transform          = transform
+  log_q_display     <- evaluation[["log_q_display"]]
+  quadrature_change <- evaluation[["quadrature_change"]]
+  # The selected grid is the nested grid of nodes and midpoints, validated by
+  # the node grid over the same range. The pilot is the node grid over the
+  # initial range, before any extension.
+  normalizer_plan <- list(
+    pilot_grid         = evaluation[["initial"]],
+    final_grid         = evaluation[["nested"]],
+    validation_grid    = evaluation[["nodes"]],
+    n_refinement_steps = evaluation[["extension_passes"]]
   )
-  evaluation <- .iwmde_qcmde_evaluate_grid_sequence(
-    context          = context,
-    parameter        = parameter,
-    display_grid     = display_grid,
-    normalizer_plan  = normalizer_plan,
-    row_states       = row_states,
-    replacement      = replacement,
-    estimator_rows   = estimator_rows,
-    active_mass      = active_mass,
-    denominator      = n_candidate_rows,
-    density_output   = density_output
-  )
-  log_q_display           <- evaluation[["log_q_display"]]
-  log_q_sequence          <- evaluation[["log_q_sequence"]]
-  log_normalizer_sequence <- evaluation[["log_normalizer_sequence"]]
-  quadrature_change       <- evaluation[["quadrature_change"]]
-  normalizer_plan[["grid_sequence"]] <- normalizer_plan[["grid_sequence"]][
-    seq_along(log_q_sequence)
-  ]
-  refinement <- .iwmde_qcmde_select_refinement(
-    log_q_display           = log_q_display,
-    log_normalizer_sequence = log_normalizer_sequence,
-    active_mass             = active_mass,
-    denominator             = n_candidate_rows
-  )
-  normalizer_plan[["pilot_index"]] <- refinement[["pilot_index"]]
-  normalizer_plan[["final_index"]] <- refinement[["final_index"]]
-  normalizer_plan[["validation_index"]] <- refinement[["validation_index"]]
-  normalizer_plan[["n_refinement_steps"]] <- refinement[["n_refinement_steps"]]
-  pilot_grid      <- normalizer_plan[["grid_sequence"]][[refinement[["pilot_index"]]]]
-  final_grid      <- normalizer_plan[["grid_sequence"]][[refinement[["final_index"]]]]
-  log_q_initial   <- log_q_sequence[[refinement[["pilot_index"]]]]
-  log_q_final     <- log_q_sequence[[refinement[["final_index"]]]]
+  pilot_grid <- normalizer_plan[["pilot_grid"]]
+  final_grid <- normalizer_plan[["final_grid"]]
 
-  initial_log_normalizer <- log_normalizer_sequence[[refinement[["pilot_index"]]]]
-  final_log_normalizer   <- log_normalizer_sequence[[refinement[["final_index"]]]]
-  validation_log_normalizer <- log_normalizer_sequence[[refinement[["validation_index"]]]]
+  initial_log_normalizer    <- pilot_grid[["log_normalizer"]]
+  final_log_normalizer      <- final_grid[["log_normalizer"]]
+  validation_log_normalizer <- normalizer_plan[["validation_grid"]][["log_normalizer"]]
   initial_finite <- is.finite(initial_log_normalizer)
   final_finite   <- is.finite(final_log_normalizer)
   validation_finite <- is.finite(validation_log_normalizer)
@@ -1021,10 +747,7 @@
       parameter = parameter,
       rows      = estimator_rows[!final_finite],
       stage     = "conditional-density normalization",
-      detail    = paste0(
-        "no finite positive normalizer was obtained after ",
-        normalizer_plan[["n_refinement_steps"]], " refinement step(s)"
-      )
+      detail    = "no finite positive normalizer was obtained on the normalization grid"
     )
   }
   if (any(!validation_finite)) {
@@ -1091,7 +814,7 @@
     active_mass        = active_mass
   )
   norm_y_initial <- .iwmde_normalization_density(
-    log_q_norm         = log_q_initial,
+    log_q_norm         = pilot_grid[["log_q"]],
     log_normalizer     = log_normalizer,
     log_jacobian       = pilot_grid[["log_jacobian"]],
     normalization_grid = pilot_grid[["z"]],
@@ -1099,7 +822,7 @@
     denominator        = n_candidate_rows
   )
   norm_y_final <- .iwmde_normalization_density(
-    log_q_norm         = log_q_final,
+    log_q_norm         = final_grid[["log_q"]],
     log_normalizer     = log_normalizer,
     log_jacobian       = final_grid[["log_jacobian"]],
     normalization_grid = final_grid[["z"]],
@@ -1155,8 +878,10 @@
     conditional_normalization = evaluation[["conditional_normalization"]],
     normalizer_interpolation = evaluation[["normalizer_interpolation"]],
     covariance_interpolation = evaluation[["covariance_interpolation"]],
-    pilot_gate_stopped     = evaluation[["pilot_gate_stopped"]],
-    pilot_bulk_ess         = evaluation[["pilot_bulk_ess"]],
+    # The nested grids have no refinement sequence for a pilot gate to cut
+    # short.
+    pilot_gate_stopped     = FALSE,
+    pilot_bulk_ess         = numeric(),
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
     normalization_points              = length(final_grid[["x"]]),
