@@ -2000,6 +2000,11 @@ test_that("qCMDE fails when the validation normalizer is non-finite", {
         n_refinement_steps = 1L
       )
     },
+    # The range of this grid is given; the test isolates the refinement.
+    .iwmde_qcmde_row_range_grid = function(context, parameter, display_grid,
+                                           normalization_grid, ...) {
+      normalization_grid
+    },
     .package = "RoBMA"
   )
 
@@ -2039,6 +2044,11 @@ test_that("qCMDE uses refined normalizers and diagnoses pilot-grid impact", {
         nrow = length(values),
         ncol = length(row_states)
       )
+    },
+    # The range of this grid is given; the test isolates the refinement.
+    .iwmde_qcmde_row_range_grid = function(context, parameter, display_grid,
+                                           normalization_grid, ...) {
+      normalization_grid
     },
     .package = "RoBMA"
   )
@@ -3130,7 +3140,18 @@ test_that("negative-direction PET and PEESE location fast paths match flipped li
       nrow = length(values)
     )
 
+    # The route reports the Gaussian kernel it evaluated, which reproduces the
+    # explicit flipped likelihood around each row's current value.
+    kernel <- attr(fast, "gaussian_kernel", exact = TRUE)
+    attr(fast, "gaussian_kernel") <- NULL
     expect_equal(fast, reference, tolerance = 1e-12)
+    expect_identical(kernel[["prior_route"]], rep("generic", nrow(mu)))
+    delta <- outer(values, kernel[["current"]], "-")
+    baseline <- vapply(row_states, `[[`, numeric(1), "baseline_log_lik")
+    from_kernel <- rep(baseline, each = length(values)) +
+      rep(kernel[["linear"]], each = length(values)) * delta -
+      .5 * rep(kernel[["quadratic"]], each = length(values)) * delta^2
+    expect_equal(from_kernel, reference, tolerance = 1e-12)
   }
 })
 
@@ -4859,6 +4880,10 @@ test_that("known-V normal q-grid caches invariant spectral blocks", {
 
   expect_true(is.matrix(out))
   expect_equal(dim(out), c(length(grid), length(row_states)))
+  # The per-row Gaussian kernel does not depend on the evaluated values.
+  expect_identical(attr(reused, "gaussian_kernel", exact = TRUE),
+                   attr(out, "gaussian_kernel", exact = TRUE))
+  attr(reused, "gaussian_kernel") <- NULL
   expect_equal(reused, out[nrow(out):1L, , drop = FALSE], tolerance = 1e-12)
   expect_length(cached_keys, 1L)
   expect_identical(reused_keys, cached_keys)

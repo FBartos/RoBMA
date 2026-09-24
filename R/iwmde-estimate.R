@@ -676,7 +676,8 @@
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
       n_candidate_rows   = execution[["n_candidate_rows"]],
-      density_output     = identical(output, "density")
+      density_output     = identical(output, "density"),
+      normalization_prob = plan[["control"]][["normalization_prob"]]
     )
   } else {
     density <- .iwmde_density_iwmde(

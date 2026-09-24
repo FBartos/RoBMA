@@ -18,6 +18,9 @@
       out[, !transformed] <- ordinary
       change <- attr(ordinary, "max_quadrature_relative_change", exact = TRUE)
       if (!is.null(change)) attr(out, "max_quadrature_relative_change") <- change
+      kernel <- .iwmde_gaussian_kernel_assign(NULL, which(!transformed),
+        attr(ordinary, "gaussian_kernel", exact = TRUE), length(row_states))
+      if (!is.null(kernel)) attr(out, "gaussian_kernel") <- kernel
     }
     return(out)
   }
@@ -216,6 +219,7 @@
   out    <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
   groups <- .iwmde_row_state_groups(context, row_states)
   quadrature_change <- NA_real_
+  kernel <- NULL
 
   for (state_cols in groups) {
     group_states <- row_states[state_cols]
@@ -232,6 +236,12 @@
     }
 
     out[, state_cols] <- group_out
+    kernel <- .iwmde_gaussian_kernel_assign(
+      kernel  = kernel,
+      columns = state_cols,
+      value   = attr(group_out, "gaussian_kernel", exact = TRUE),
+      n       = length(row_states)
+    )
     group_quadrature_change <- attr(
       group_out,
       "max_quadrature_relative_change",
@@ -250,8 +260,35 @@
   if (is.finite(quadrature_change)) {
     attr(out, "max_quadrature_relative_change") <- quadrature_change
   }
+  if (!is.null(kernel)) {
+    attr(out, "gaussian_kernel") <- kernel
+  }
 
   return(out)
+}
+
+
+# Place one batch's Gaussian kernels (see
+# .iwmde_log_q_grid_normal_location_group()) at their columns of a wider
+# batch. Columns whose route reported no kernel stay missing.
+.iwmde_gaussian_kernel_assign <- function(kernel, columns, value, n) {
+
+  if (!is.list(value)) {
+    return(kernel)
+  }
+  if (is.null(kernel)) {
+    kernel <- list(
+      current     = rep(NA_real_, n),
+      linear      = rep(NA_real_, n),
+      quadratic   = rep(NA_real_, n),
+      prior_route = rep(NA_character_, n)
+    )
+  }
+  for (field in names(kernel)) {
+    kernel[[field]][columns] <- value[[field]]
+  }
+
+  return(kernel)
 }
 
 

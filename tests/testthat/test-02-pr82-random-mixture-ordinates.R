@@ -27,6 +27,22 @@ source(testthat::test_path("common-functions.R"))
        design = X, allocation = allocation)
 }
 
+# The exact conditional Normal law of the intercept in every row: the Gaussian
+# likelihood in the intercept times its Normal prior.
+.pr82_random_mixture_conditionals <- function(oracle, input, samples, rows,
+                                              prior_mean, prior_sd) {
+
+  x <- oracle[["design"]][, 1L]
+  out <- t(vapply(rows, function(row) {
+    precision_x <- solve(oracle[["covariance"]](row), x)
+    variance <- 1 / (1 / prior_sd^2 + sum(x * precision_x))
+    residual <- input[["data"]][["yi"]] - oracle[["design"]][, 2L] * samples[row, "mu_x"]
+    c(variance * (prior_mean / prior_sd^2 + sum(precision_x * residual)), sqrt(variance))
+  }, numeric(2L)))
+  colnames(out) <- c("mean", "sd")
+  out
+}
+
 test_that("random-allocation prior branches preserve Gaussian likelihood and prior ratios", {
 
   skip_if_missing_fits("BMA.mv_random_components")
@@ -63,6 +79,44 @@ test_that("random-allocation prior branches preserve Gaussian likelihood and pri
   }
 })
 
+test_that("qCMDE normalization classifies random-mixture rows as exact Normal laws", {
+
+  skip_if_missing_fits("BMA.mv_random_components")
+  object <- load_fit("BMA.mv_random_components")
+  input <- load_info("BMA.mv_random_components")
+  context <- .iwmde_context(object)
+  samples <- context[["posterior_samples"]]
+  oracle <- .pr82_random_mixture_oracle(object, input, samples)
+  plan <- .iwmde_plan(context, "mu_intercept", "qCMDE",
+    list(samples = 20L, n_points = 20L), outputs = "ordinate", values = .1)
+  states <- plan[["rows"]][["row_states"]]
+  rows <- plan[["rows"]][["estimator_rows"]]
+  log_q <- .iwmde_log_q_grid(context, "mu_intercept", .1, states,
+    plan[["replacement"]])
+  laws <- .iwmde_qcmde_row_laws(context, states, plan[["replacement"]],
+    attr(log_q, "gaussian_kernel", exact = TRUE))
+  prior <- .iwmde_focal_prior(context, "mu_intercept", samples[rows[[1L]], ])
+  conditionals <- .pr82_random_mixture_conditionals(oracle, input, samples, rows,
+    prior[["parameters"]][["mean"]], prior[["parameters"]][["sd"]])
+
+  # The package's Gaussian kernel with the Normal prior reproduces each row's
+  # conditional law computed from the full covariance.
+  expect_identical(laws[["kind"]], rep("exact", length(rows)))
+  expect_lt(max(abs(laws[["mean"]] - conditionals[, "mean"]) /
+    conditionals[, "sd"]), 1e-8)
+  expect_lt(max(abs(laws[["sd"]] / conditionals[, "sd"] - 1)), 1e-8)
+
+  # The qCMDE range is the union of the rows' central intervals: the X7
+  # reference for these rows at 1 - 1e-8 is [-0.56928, 0.77954].
+  intervals <- .iwmde_qcmde_law_intervals(laws, 1 - 1e-8)
+  union <- range(intervals[["intervals"]])
+  expect_equal(union, c(-0.56928, 0.77954), tolerance = 1e-4)
+  expect_equal(union, range(c(
+    conditionals[, "mean"] - stats::qnorm(1 - 5e-9) * conditionals[, "sd"],
+    conditionals[, "mean"] + stats::qnorm(1 - 5e-9) * conditionals[, "sd"]
+  )), tolerance = 1e-8)
+})
+
 test_that("public qCMDE random-mixture hypotheses match conditional Normal ordinates", {
 
   skip_if_missing_fits("BMA.mv_random_components")
@@ -76,14 +130,9 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
   prior <- .iwmde_focal_prior(context, "mu_intercept", samples[rows[[1L]], ])
   prior_mean <- prior[["parameters"]][["mean"]]
   prior_sd <- prior[["parameters"]][["sd"]]
-  x <- oracle[["design"]][, 1L]
-  expected <- vapply(rows, function(row) {
-    precision_x <- solve(oracle[["covariance"]](row), x)
-    variance <- 1 / (1 / prior_sd^2 + sum(x * precision_x))
-    residual <- input[["data"]][["yi"]] - oracle[["design"]][, 2L] * samples[row, "mu_x"]
-    mean <- variance * (prior_mean / prior_sd^2 + sum(precision_x * residual))
-    stats::dnorm(.1, mean, sqrt(variance))
-  }, numeric(1L))
+  conditionals <- .pr82_random_mixture_conditionals(oracle, input, samples, rows,
+    prior_mean, prior_sd)
+  expected <- stats::dnorm(.1, conditionals[, "mean"], conditionals[, "sd"])
   result <- hypothesis(object, "mu = 0.1", conditional = TRUE,
     standardized_coefficients = TRUE, density_method = "qCMDE",
     density_control = list(samples = 20L, n_points = 20L,

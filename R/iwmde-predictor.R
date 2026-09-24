@@ -640,8 +640,25 @@
   baseline <- vapply(row_states, function(state) {
     state[["baseline_log_lik"]]
   }, numeric(1))
-  .iwmde_normal_location_log_q_grid(values, basis[["current"]], baseline,
+  out <- .iwmde_normal_location_log_q_grid(values, basis[["current"]], baseline,
     likelihood_change, log_prior, normalizer_change)
+  if (is.null(normalizer_change)) {
+    # Without a weight function the likelihood factor of every row is exactly
+    # this Gaussian kernel in the target value. The qCMDE normalization range
+    # reads it, with the route of the prior factor, to place each row's
+    # conditional quantiles.
+    attr(out, "gaussian_kernel") <- list(
+      current     = as.numeric(basis[["current"]]),
+      linear      = as.numeric(likelihood_change[["linear"]]),
+      quadratic   = as.numeric(likelihood_change[["quadratic"]]),
+      prior_route = rep(
+        .iwmde_predictor_prior_route(row_states, replacement),
+        length(row_states)
+      )
+    )
+  }
+
+  return(out)
 }
 
 .iwmde_normal_location_log_q_grid <- function(values, current, baseline,
@@ -1406,22 +1423,9 @@
   G <- length(values)
   S <- length(row_states)
 
-  # Reading the flag directly costs no call per posterior row; a state that
-  # carries something other than one logical value falls back to the
-  # isTRUE() test, which is what decided such a state before.
-  delta_flags <- tryCatch(
-    vapply(row_states, `[[`, logical(1L), "use_focal_prior_delta"),
-    error = function(e) NULL
-  )
-  if (is.null(delta_flags)) {
-    delta_flags <- vapply(row_states, function(state) {
-      isTRUE(state[["use_focal_prior_delta"]])
-    }, logical(1))
-  }
-  use_delta <- !identical(replacement[["type"]], "linear") &&
-    isTRUE(all(delta_flags))
+  route <- .iwmde_predictor_prior_route(row_states, replacement)
 
-  if (use_delta) {
+  if (identical(route, "focal")) {
     focal_log_prior <- .iwmde_focal_log_prior_values(
       prior     = row_states[[1L]][["focal_prior"]],
       values    = values,
@@ -1449,7 +1453,7 @@
     return(out)
   }
 
-  if (identical(replacement[["type"]], "linear")) {
+  if (identical(route, "linear")) {
     out <- .iwmde_predictor_linear_log_prior_delta(
       context     = context,
       values      = values,
@@ -1488,6 +1492,36 @@
   )
 
   return(out)
+}
+
+
+# How a batch of row states evaluates its prior factor along the target:
+# "focal" moves one scalar coordinate under its own focal prior, "linear" moves
+# the coordinates of a linear target along their coefficients, and "generic"
+# rebuilds the full prior of every candidate row.
+.iwmde_predictor_prior_route <- function(row_states, replacement) {
+
+  if (identical(replacement[["type"]], "linear")) {
+    return("linear")
+  }
+
+  # Reading the flag directly costs no call per posterior row; a state that
+  # carries something other than one logical value falls back to the
+  # isTRUE() test, which is what decided such a state before.
+  delta_flags <- tryCatch(
+    vapply(row_states, `[[`, logical(1L), "use_focal_prior_delta"),
+    error = function(e) NULL
+  )
+  if (is.null(delta_flags)) {
+    delta_flags <- vapply(row_states, function(state) {
+      isTRUE(state[["use_focal_prior_delta"]])
+    }, logical(1))
+  }
+  if (isTRUE(all(delta_flags))) {
+    return("focal")
+  }
+
+  return("generic")
 }
 
 
