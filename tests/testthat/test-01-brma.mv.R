@@ -902,6 +902,10 @@ test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
     data   = dat,
     method = "ML"
   )
+  # test-02-iwmde-oracles.R checks the IWMDE ordinate against the exact
+  # conjugate posterior with a tolerance of qchisq(0.999, 2) / ESS, which
+  # needs at least 1,000 effective draws of mu (and of its squared deviation)
+  # to have power; 2 x 1,000 draws gave 830.
   fit_brma <- brma.mv(
     yi                        = yi,
     V                         = V,
@@ -910,7 +914,7 @@ test_that("brma.mv fits fixed-effect known-V model with random = NULL", {
     known_v_parameterization  = "block_mvn",
     measure                   = args[["measure"]],
     chains                    = args[["chains"]],
-    sample                    = args[["sample"]],
+    sample                    = 2500,
     burnin                    = args[["burnin"]],
     adapt                     = args[["adapt"]],
     seed                      = args[["seed"]],

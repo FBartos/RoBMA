@@ -172,38 +172,72 @@ test_that("known-V posterior ordinate and marginal likelihood are exact", {
     info = "known-V likelihood integrated over the prior"
   )
 
-  controls <- list(
-    qCMDE = list(
+  # qCMDE: mu is the only parameter, so its conditional density is the exact
+  # posterior and only grid error remains.
+  out <- .iwmde_oracle_point_estimate(
+    fit             = fit,
+    parameter       = "mu",
+    value           = 0,
+    density_method  = "qCMDE",
+    density_control = list(
       n_points             = 60,
       samples              = 40,
       normalization_points = 101,
       normalization_prob   = .9999
-    ),
-    IWMDE = list(
+    )
+  )
+  expect_equal(
+    log(out[["estimate"]][["posterior_ordinate"]][["ordinate"]]),
+    log(oracle_ordinate),
+    tolerance = 0.01,
+    info = "qCMDE must match the exact known-V ordinate"
+  )
+
+  # IWMDE with Chen's marginal normal weight w = N(m_hat, s_hat^2), fitted to
+  # the same n draws it averages over, estimates the ordinate at x as
+  # p(x) * R with R = mean_i[w(mu_i) / p(mu_i)] and p the exact N(m, s^2)
+  # posterior. With d = (m_hat - m) / s and g = s_hat^2 / s^2 - 1, a
+  # second-order expansion gives log R = d^2 + g^2 / 2 + O(ESS^-3/2). Since
+  # d ~ N(0, 1 / ESS_mean) and g ~ N(0, 2 / ESS_var), ESS_min * log R is
+  # approximately chi-square with 2 degrees of freedom, where ESS_min is the
+  # smaller of the effective sample sizes of the draws and of their squared
+  # deviations. The tolerance is its 1 - alpha quantile, qchisq(1 - alpha, 2)
+  # / ESS_min, with a false-failure probability alpha = 0.001 per run
+  # (simulated exceedance 0.0011-0.0012 at ESS >= 1000; the fixture keeps
+  # ESS_min >= 1000 so that the check has power).
+  samples  <- coda::as.mcmc.list(fit[["fit"]])[, "mu"]
+  mu_draws <- unlist(lapply(samples, as.numeric))
+  ess_min  <- min(
+    coda::effectiveSize(samples),
+    coda::effectiveSize(coda::as.mcmc.list(lapply(samples, function(chain) {
+      coda::mcmc((as.numeric(chain) - mean(mu_draws))^2)
+    })))
+  )
+  expect_gte(ess_min, 1000)
+
+  out <- .iwmde_oracle_point_estimate(
+    fit             = fit,
+    parameter       = "mu",
+    value           = 0,
+    density_method  = "IWMDE",
+    density_control = list(
       n_points             = 60,
-      samples              = 240,
+      samples              = length(mu_draws),
       normalization_points = 200,
       normalization_prob   = .9999
     )
   )
+  ordinate <- out[["estimate"]][["posterior_ordinate"]]
+  # The error model assumes the marginal normal weight fitted to all draws.
+  expect_identical(ordinate[["diagnostics"]][["weight_method"]], "chen_marginal_normal")
+  expect_identical(ordinate[["diagnostics"]][["n_estimator_rows"]], length(mu_draws))
 
-  for (density_method in names(controls)) {
-    out <- .iwmde_oracle_point_estimate(
-      fit             = fit,
-      parameter       = "mu",
-      value           = 0,
-      density_method  = density_method,
-      density_control = controls[[density_method]]
-    )
-    estimated_ordinate <- out[["estimate"]][["posterior_ordinate"]][["ordinate"]]
-
-    expect_equal(
-      log(estimated_ordinate),
-      log(oracle_ordinate),
-      tolerance = 0.01,
-      info = paste(density_method, "must match the exact known-V ordinate")
-    )
-  }
+  alpha <- 0.001
+  expect_lt(
+    abs(log(ordinate[["ordinate"]]) - log(oracle_ordinate)),
+    stats::qchisq(1 - alpha, df = 2) / ess_min,
+    label = "IWMDE log-ordinate error against the exact known-V ordinate"
+  )
 })
 
 
