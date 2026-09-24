@@ -63,6 +63,14 @@ test_that("model-averaging constructors stop for indicator-coded factor terms by
     .indicator_coded_message("orthonormal"),
     fixed = TRUE
   )
+  # explicitly requested mean-difference contrasts stop single-model fits too
+  expect_error(
+    do.call("brma", c(common, list(
+      mods = ~ g / x, set_contrast_factor_predictors = "meandif"
+    ))),
+    .indicator_coded_message("meandif"),
+    fixed = TRUE
+  )
   # scale formulas use the same default contrast
   expect_error(
     suppressWarnings(do.call("BMA.norm", c(common, list(
