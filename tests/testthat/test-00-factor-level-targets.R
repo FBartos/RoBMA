@@ -460,3 +460,42 @@ test_that("point hypotheses on the fixed reference level give the KDE reason for
     "data.frame"
   )
 })
+
+
+test_that("fixed reference-level statements keep the model-averaged KDE reason under qCMDE", {
+
+  skip_on_cran()
+  set.seed(1)
+  k    <- 48L
+  data <- data.frame(
+    g1  = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
+    sei = stats::runif(k, 0.1, 0.3)
+  )
+  data[["yi"]] <- stats::rnorm(
+    k, c(0, 0.2, 0.4)[as.integer(data[["g1"]])], data[["sei"]]
+  )
+  fit <- suppressWarnings(BMA.norm(
+    yi = yi, sei = sei, mods = ~ g1, data = data, measure = "SMD",
+    set_contrast_factor_predictors = "treatment",
+    chains = 1, sample = 1000, burnin = 200, adapt = 100,
+    seed = 1, silent = TRUE
+  ))
+
+  # For model-averaged fits the KDE reason names the inclusion Bayes factor.
+  # A call mixing the fixed reference level with another level evaluates the
+  # fixed-level statement before the qCMDE/IWMDE ordinates and must keep it.
+  message_of <- function(expr) tryCatch(suppressWarnings(expr), error = conditionMessage)
+  for (statement in list("g1[5] = 0", c("g1[5] = 0", "g1[10] = 0.1"),
+                         c("g1[10] = 0.1", "g1[5] = 0"))) {
+    info <- paste(statement, collapse = ", ")
+    kde  <- message_of(hypothesis(fit, statement, density_method = "KDE"))
+    expect_match(kde, "inclusion Bayes factor", fixed = TRUE, info = info)
+    for (method in c("qCMDE", "IWMDE")) {
+      expect_identical(
+        message_of(hypothesis(fit, statement, density_method = method)),
+        kde,
+        info = paste(info, method)
+      )
+    }
+  }
+})

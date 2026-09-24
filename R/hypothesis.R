@@ -542,6 +542,7 @@ hypothesis.brma <- function(object, hypothesis,
 
   if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
     .hypothesis_brma_check_fixed_level_points(
+      object       = object,
       posterior    = posterior,
       hypothesis   = hypothesis,
       parameter    = parameter,
@@ -592,23 +593,7 @@ hypothesis.brma <- function(object, hypothesis,
       }
     ),
     error = function(error) {
-
-      # A spike-and-slab component puts a declared point mass at the null, so
-      # the Savage-Dickey ratio is structurally unavailable rather than
-      # numerically rejected. Name the supported alternative.
-      text <- conditionMessage(error)
-      if (!inherits(object, "RoBMA") ||
-          !grepl("point mass", text, fixed = TRUE) ||
-          !grepl("null hypothesis value", text, fixed = TRUE)) {
-        stop(error)
-      }
-      stop(
-        text,
-        " This parameter has a null component, so its evidence against the ",
-        "null is the inclusion Bayes factor reported by 'summary()' and ",
-        "'summary_models()'.",
-        call. = FALSE
-      )
+      .hypothesis_brma_stop_point_mass(object, error)
     }
   )
 
@@ -1313,10 +1298,11 @@ hypothesis.brma <- function(object, hypothesis,
 
 # Point statements on a level fixed by the contrast involve no posterior
 # density: the level's declared atom decides them. Evaluate them through the
-# BayesTools route that handles declared atoms, so that a qCMDE/IWMDE call
-# reports the same reason as KDE instead of failing for lack of an ordinate.
+# KDE route of hypothesis.brma(), which handles declared atoms, so that a
+# qCMDE/IWMDE call reports the same reason as KDE instead of failing for lack
+# of an ordinate.
 .hypothesis_brma_check_fixed_level_points <- function(
-    posterior, hypothesis, parameter, fixed_levels, seed) {
+    object, posterior, hypothesis, parameter, fixed_levels, seed) {
 
   refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
@@ -1329,15 +1315,41 @@ hypothesis.brma <- function(object, hypothesis,
   if (length(statements) == 0L) {
     return(invisible(TRUE))
   }
-  BayesTools::hypothesis_BF(
-    posterior      = posterior,
-    hypothesis     = statements,
-    parameter      = parameter,
-    seed           = seed,
-    density_method = "KDE"
+  tryCatch(
+    BayesTools::hypothesis_BF(
+      posterior      = posterior,
+      hypothesis     = statements,
+      parameter      = parameter,
+      seed           = seed,
+      density_method = "KDE"
+    ),
+    error = function(error) {
+      .hypothesis_brma_stop_point_mass(object, error)
+    }
   )
 
   return(invisible(TRUE))
+}
+
+
+# A spike-and-slab component puts a declared point mass at the null, so the
+# Savage-Dickey ratio is structurally unavailable rather than numerically
+# rejected. Name the supported alternative; rethrow other errors unchanged.
+.hypothesis_brma_stop_point_mass <- function(object, error) {
+
+  text <- conditionMessage(error)
+  if (!inherits(object, "RoBMA") ||
+      !grepl("point mass", text, fixed = TRUE) ||
+      !grepl("null hypothesis value", text, fixed = TRUE)) {
+    stop(error)
+  }
+  stop(
+    text,
+    " This parameter has a null component, so its evidence against the ",
+    "null is the inclusion Bayes factor reported by 'summary()' and ",
+    "'summary_models()'.",
+    call. = FALSE
+  )
 }
 
 
