@@ -133,7 +133,8 @@ entries are \code{n_points} (default \code{100}), \code{samples}
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 (default \code{"adaptive"}), \code{normalization_points} (default
 \code{NULL}, resolved to \code{max(50, n_points)}), and
-\code{normalization_prob} (default \code{0.999}).
+\code{normalization_prob} (default \code{0.999}; see \code{\link[=hypothesis]{hypothesis()}} for the
+per-row truncation it permits).
 \code{integration_control} (default \code{NULL}) retains the fitted
 selection-integration settings. Supply a control created by
 \code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}} to change those settings for this

@@ -83,10 +83,15 @@
 #' is known: `"exact"` for rows whose Gaussian likelihood kernel meets a normal
 #' prior, `"bound"` for a Gaussian kernel with another proper prior, and
 #' `"estimate"` (from the exponential envelope of the tails at the range ends)
-#' otherwise; it reports the weakest status among the rows. Setting
-#' `normalization_prob` closer to 1 widens the range and lowers the truncation;
-#' increasing `normalization_points` refines the grid. The table also reports the
-#' stability and adaptive-quadrature warning/rejection thresholds.
+#' otherwise; it reports the weakest status among the rows. The range covers
+#' every row's central `normalization_prob` interval, so \eqn{t} is at most
+#' `1 - normalization_prob` (for estimated rows, as estimated) and
+#' `truncation_ordinate_bound` is at most
+#' `(1 - normalization_prob) / normalization_prob`, about 0.1 percent at the
+#' default `0.999`. Setting `normalization_prob` closer to 1 widens the range
+#' and lowers the truncation; increasing `normalization_points` refines the
+#' grid. The table also reports the stability and adaptive-quadrature
+#' warning/rejection thresholds.
 #'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an

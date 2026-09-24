@@ -30,9 +30,28 @@ test_that("public point underflow retains log evidence and diagnostic rows", {
     expect_true(is.na(record[["ess"]]))
     expect_match(conditionMessage(failure), "underflowed to zero", fixed = TRUE)
     expect_false(grepl("increas.*samples", conditionMessage(failure)))
-    # Deterministic qCMDE grid error; IWMDE additionally estimates its weight
-    # function from the fixed sample, so its log estimate has sampling error.
-    if (method == "qCMDE") expect_lt(abs(record[["log_ordinate"]] - exact_log_ordinate), 1e-3)
+    # IWMDE additionally estimates its weight function from the fixed sample,
+    # so its log estimate has sampling error and is not compared here.
+    if (method == "qCMDE") {
+      # Error model. Every row's conditional law is this Normal posterior, so
+      # the rows share one normalizer, contribute identical terms (no Monte
+      # Carlo error), and carry the same log error at every value: the reported
+      # truncation bound b = t / (1 - t) with t <= 1 - 0.999 (the default
+      # 'normalization_prob') adds at most log(1 + b), and the trapezoid error
+      # d is bounded by the nested-grid change c, log(1 + d) in
+      # [log(1 - c), -log(1 - c)]. The underflowed record keeps b but not c,
+      # so c comes from a finite ordinate of the same design.
+      companion <- density_diagnostics(hypothesis(fit, "mu = 0",
+        density_method = method, density_control = list(samples = 40L, n_points = 20L)))
+      bound  <- record[["truncation_ordinate_bound"]]
+      change <- companion[["ordinate_relative_change"]]
+      expect_identical(record[["normalization_truncation_status"]], "exact")
+      expect_lte(record[["normalization_truncation"]], (1 - .999) * (1 + 1e-9))
+      expect_equal(bound, companion[["truncation_ordinate_bound"]])
+      error <- record[["log_ordinate"]] - exact_log_ordinate
+      expect_lte(error, log1p(bound) - log1p(-change))
+      expect_gte(error, log1p(-change))
+    }
   }
   mixed <- .iwmde_estimate(.iwmde_context(fit), "mu", "qCMDE",
     list(samples = 40L, n_points = 20L), outputs = "ordinate", values = c(0, 10))

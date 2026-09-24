@@ -37,11 +37,37 @@ test_that("public density hypotheses and plots match conjugate Gaussian inferenc
     expect_true(all(diagnostics[["evaluated_rows"]] > 0L))
     expect_true(all(is.finite(result[["BF_error"]])))
 
-    # Allow four reported Monte Carlo SEs plus 0.1% deterministic quadrature
+    # Allow four reported Monte Carlo SEs plus the deterministic normalization
     # error. Explicit log/peak-scaled errors have the same meaning in every
     # testthat edition and do not become loose absolute density tolerances.
     relative_mcse <- result[["BF_error"]][[1L]] / 100
-    allowance <- 1e-3 + 4 * sqrt(log1p(relative_mcse^2))
+    monte_carlo <- 4 * sqrt(log1p(relative_mcse^2))
+    if (identical(method, "qCMDE")) {
+      # Error model. Every row's conditional law is this Normal posterior (the
+      # Normal prior's density is exact), so each row is an "exact" row. The
+      # normalization range covers its central 'normalization_prob' (default
+      # 0.999) interval, leaving it the reported truncation t <= 1 - 0.999.
+      # A normalizer missing the fraction t overstates the density by the
+      # factor 1 / (1 - t) = 1 + b with the reported bound b = t / (1 - t),
+      # and the trapezoid rule adds a relative error d with |d| at most the
+      # reported change c between the nested grids, which overstates the
+      # selected grid's error. The posterior ordinate is f (1 + b)(1 + d), so
+      # |log BF error| <= log(1 + b) - log(1 - c). Rows sharing one law share
+      # one normalizer, so the whole curve carries the same relative error,
+      # at most (1 + b)(1 + c) - 1 after peak scaling, and the plot's line
+      # with the same control uses the same range and grids.
+      bound  <- diagnostics[["truncation_ordinate_bound"]]
+      change <- diagnostics[["ordinate_relative_change"]]
+      expect_identical(diagnostics[["normalization_truncation_status"]], "exact")
+      expect_lte(diagnostics[["normalization_truncation"]], (1 - .999) * (1 + 1e-9))
+      expect_equal(bound, diagnostics[["normalization_truncation"]] /
+        (1 - diagnostics[["normalization_truncation"]]))
+      allowance <- log1p(bound) - log1p(-change) + monte_carlo
+      curve_allowance <- (1 + bound) * (1 + change) - 1 + monte_carlo
+    } else {
+      # IWMDE keeps its 0.1% deterministic normalization-mass allowance.
+      allowance <- curve_allowance <- 1e-3 + monte_carlo
+    }
     expect_lte(abs(log(attr(result, "raw_BF")[[1L]]) - log(oracle_bf)), allowance)
 
     plot <- plot(fit, parameter = "mu", density_method = method,
@@ -54,7 +80,7 @@ test_that("public density hypotheses and plots match conjugate Gaussian inferenc
     curve <- plot[["layers"]][[line]][["data"]]
     oracle <- stats::dnorm(curve[["x"]], posterior_mean, posterior_sd)
     expect_true(all(is.finite(curve[["y"]])))
-    expect_lte(max(abs(curve[["y"]] - oracle)) / max(oracle), allowance)
+    expect_lte(max(abs(curve[["y"]] - oracle)) / max(oracle), curve_allowance)
   }
 })
 

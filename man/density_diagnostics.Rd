@@ -132,10 +132,15 @@ this relative amount. \code{normalization_truncation_status} states how \eqn{t}
 is known: \code{"exact"} for rows whose Gaussian likelihood kernel meets a normal
 prior, \code{"bound"} for a Gaussian kernel with another proper prior, and
 \code{"estimate"} (from the exponential envelope of the tails at the range ends)
-otherwise; it reports the weakest status among the rows. Setting
-\code{normalization_prob} closer to 1 widens the range and lowers the truncation;
-increasing \code{normalization_points} refines the grid. The table also reports the
-stability and adaptive-quadrature warning/rejection thresholds.
+otherwise; it reports the weakest status among the rows. The range covers
+every row's central \code{normalization_prob} interval, so \eqn{t} is at most
+\code{1 - normalization_prob} (for estimated rows, as estimated) and
+\code{truncation_ordinate_bound} is at most
+\code{(1 - normalization_prob) / normalization_prob}, about 0.1 percent at the
+default \code{0.999}. Setting \code{normalization_prob} closer to 1 widens the range
+and lowers the truncation; increasing \code{normalization_points} refines the
+grid. The table also reports the stability and adaptive-quadrature
+warning/rejection thresholds.
 }
 \examples{
 \dontrun{

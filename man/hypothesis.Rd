@@ -126,10 +126,25 @@ census does not meet the target, obtain more posterior draws.
 \code{display_grid} is immaterial for point-only requests. qCMDE normalizes
 each posterior row's conditional density over a range covering at least its
 central \code{normalization_prob} mass, on \code{normalization_points} nodes
-and the nested grid of those nodes and their midpoints. Set
-\code{normalization_prob} closer to 1 to reduce the tail truncation, and
-increase \code{normalization_points} to reduce the discretization error that
-\code{\link[=density_diagnostics]{density_diagnostics()}} report. IWMDE checks its normalization mass on
+and the nested grid of those nodes and their midpoints. The mass of a row
+left outside the range, its truncation \eqn{t}, is therefore at most
+\code{1 - normalization_prob}: exactly computed for rows whose Gaussian
+likelihood kernel meets a normal prior, bounded for a Gaussian kernel with
+another proper scalar prior, and estimated from the tails (each tail
+extended until its estimate is at most \code{(1 - normalization_prob) / 2})
+otherwise. A row normalizer missing the fraction \eqn{t} overstates that
+row's density by the factor \eqn{1 / (1 - t)}, so the ordinate is
+overstated by at most \eqn{t / (1 - t)} for the largest row truncation,
+which is at most \code{(1 - normalization_prob) / normalization_prob}; at
+the default \code{0.999} that is about 0.1 percent, and it is attained when
+all rows share one conditional law. \code{\link[=density_diagnostics]{density_diagnostics()}} report the
+largest row truncation (\code{normalization_truncation}), how it is known
+(\code{normalization_truncation_status}), and this bound
+(\code{truncation_ordinate_bound}), together with the discretization change
+between the two nested grids (\code{ordinate_relative_change}). Set
+\code{normalization_prob} closer to 1 to reduce the truncation, and increase
+\code{normalization_points} to reduce the discretization. IWMDE checks its
+normalization mass on
 \code{normalization_points} points over the central \code{normalization_prob}
 quantile range of the target draws, widened by 10 percent on each side.
 A point ordinate warns at relative MCSE at least 5 percent,

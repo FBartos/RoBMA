@@ -79,7 +79,8 @@ marginal_means <- function(object, ...) {
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
 #' (default \code{"adaptive"}), \code{normalization_points} (default
 #' \code{NULL}, resolved to \code{max(50, n_points)}), and
-#' \code{normalization_prob} (default \code{0.999}).
+#' \code{normalization_prob} (default \code{0.999}; see [hypothesis()] for the
+#' per-row truncation it permits and the ordinate bound reported for it).
 #' \code{integration_control} (default \code{NULL}) retains the fitted
 #' selection-integration settings. Supply a control created by
 #' [set_selection_likelihood_control()] to change those settings for this
@@ -680,7 +681,8 @@ as.data.frame.summary.marginal_means.brma <- function(
 #' \code{display_grid} (default \code{"adaptive"}),
 #' \code{normalization_points} (default \code{NULL}, resolved to
 #' \code{max(50, n_points)}), and \code{normalization_prob} (default
-#' \code{0.999}). \code{integration_control} (default \code{NULL}) accepts
+#' \code{0.999}; see [hypothesis()] for the per-row truncation it permits).
+#' \code{integration_control} (default \code{NULL}) accepts
 #' [set_selection_likelihood_control()] settings for Gaussian selection models;
 #' see [marginal_means.brma()] for an example. The fitted object and posterior
 #' draws are unchanged. \code{samples} controls the fixed posterior-row budget for
