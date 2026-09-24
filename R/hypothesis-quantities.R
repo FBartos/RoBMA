@@ -264,7 +264,7 @@ hypothesis_quantities.brma <- function(object, ...) {
       "Point hypotheses are not supported for ",
       levels_text(members[["component"]][inexact]),
       ": the induced prior of ",
-      if (sum(inexact) > 1L) "their fitted coefficients has" else
+      if (sum(inexact) > 1L) "their fitted coefficients have" else
         "its fitted coefficient has",
       " no exact ordinate (as for the first increment of an ordered prior)."
     ),
