@@ -72,6 +72,10 @@ Every certification case has a hard one-hour limit shared by its cache
 preparation and verification phases. The phases execute in separate processes,
 so native fitting state cannot leak into post-fit verification. Certification
 has no total limit because cases can be selected or rerun independently.
+The runners start child R processes with `--vanilla`: they inherit the calling
+process's test controls, which a user or site `.Renviron` read again by the
+child would otherwise override (for example, redirecting an isolated
+`ROBMA_TEST_FILES_DIR` to the default cache).
 
 ## Test Organization
 

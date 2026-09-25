@@ -54,9 +54,17 @@ finish_profile <- function(status = 0L) {
 }
 
 
+# Child R processes start with '--vanilla': they inherit the environment of
+# this process, including its test controls (ROBMA_TEST_FILES_DIR,
+# ROBMA_TEST_SKIP_REFIT, ...), which user or site startup files read again by
+# the child would otherwise override (e.g. a user '.Renviron' redirecting an
+# isolated cache to the default one).
+.rscript_child_options <- "--vanilla"
+
+
 run_subprofile <- function(name, clean = FALSE) {
 
-  subprofile_args <- c(shQuote(script_path), name)
+  subprofile_args <- c(.rscript_child_options, shQuote(script_path), name)
   if (clean) {
     subprofile_args <- c(subprofile_args, "--clean")
   }
@@ -228,6 +236,7 @@ run_certification_phase <- function(name, phase, clean, timeout) {
     verify  = "verification"
   )
   phase_args <- c(
+    .rscript_child_options,
     script_path,
     "certification",
     paste0("--case-", phase, "-worker=", name)
