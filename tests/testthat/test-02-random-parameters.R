@@ -330,6 +330,36 @@ test_that("random point hypotheses follow quantity-specific policy", {
   }
 })
 
+test_that("random-effect variances are tested through their standard deviations", {
+
+  skip_if_missing_fits("BMA.mv_random_components")
+  fit <- load_fit("BMA.mv_random_components", validate = FALSE)
+  # 'tau2 = v^2' is 'tau = v' with the prior and posterior densities divided
+  # by the derivative 2 * v of the square map, so every density method gives
+  # the same Bayes factor for the gated SD and its variance.
+  value <- 0.06
+  for (method in c("KDE", "qCMDE", "IWMDE")) {
+    control <- if (!identical(method, "KDE")) list(n_points = 20L, samples = 50L)
+    run <- function(statement) {
+      suppressWarnings(hypothesis(
+        fit, statement, density_method = method, density_control = control,
+        columns = "all", seed = 1
+      ))
+    }
+    sd  <- run(paste0("`(mu) study: tau(intercept)` = ", value))
+    var <- run(paste0("`(mu) study: tau2(intercept)` = ", value^2))
+    expect_true(is.finite(attr(sd, "raw_BF")), info = method)
+    expect_equal(attr(var, "raw_BF"), attr(sd, "raw_BF"), tolerance = 1e-10,
+                 info = method)
+    expect_equal(as.numeric(var[["prior"]]),
+                 as.numeric(sd[["prior"]]) / (2 * value),
+                 tolerance = 1e-10, info = method)
+    expect_equal(as.numeric(var[["posterior"]]),
+                 as.numeric(sd[["posterior"]]) / (2 * value),
+                 tolerance = 1e-10, info = method)
+  }
+})
+
 test_that("random influence matches weighted scalar moment oracles", {
 
   skip_if_missing_fits("brma.mv_block_mvn_random_scale")
