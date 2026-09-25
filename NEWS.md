@@ -119,14 +119,24 @@
   as `g[5]`, instead of asking to refit the model. Point hypotheses on levels
   that are linear combinations of the contrast coefficients stop with a
   message naming the region and level-contrast hypotheses that remain
-  available. Brace labels of random-slope quantities, such as `tau(g{1})`,
-  are unaffected.
+  available. Treatment levels are their own coefficients: their `g{1}`
+  selectors stop with the BayesTools refusal of class
+  `BayesTools_selector_unavailable`, which names the level form (`g[10]`).
+  Brace labels of random-slope quantities, such as `tau(g{1})`, are
+  unaffected.
 - summarizes, tests, and plots original-scale random-effect correlations
   `rho(...)` over their defined draws. A correlation is undefined in draws
   where one of its standard deviations is zero; `summary_heterogeneity()`
   stopped on such draws. Tables note the number of defined draws, the
   footnotes carry the displayed `rho(...)` label, and the `as_draws()`
   documentation states that the exported column contains `NA` in those draws.
+- draws random-effect correlations with `prior = TRUE` from BayesTools prior
+  densities: fitted-scale LKJ correlations (`standardized_coefficients =
+  TRUE`) show their exact LKJ marginal prior, and correlations without an
+  exact prior density (original-scale correlations that combine the
+  correlation with the SDs of a scaled block) are drawn without the prior
+  curve and with a warning of class `BayesTools_prior_curve_unavailable`
+  instead of an error.
 - supports region hypotheses on the original-scale correlation of scaled
   `us()` random-slope blocks, such as `hypothesis(fit, "rho(intercept,x) > 0")`,
   which failed because the prior draws lacked the deterministic standard
@@ -634,6 +644,10 @@
 - labels scale-summary intercepts as `exp(intercept)` to make their existing
   SD scale explicit, identifies the targeted random-effect SD in `brma.mv()`
   scale rows, and clarifies that exponentiated slopes are SD multipliers.
+  Models with several scale formulas label the scale rows of inclusion tables
+  and `summary_models()` like the scale estimates, by the targeted SD
+  (`(Study: tau) x`), instead of the backend formula parameter
+  (`(log_tau_Study) x`, `Study_x`).
 - supports qCMDE/IWMDE density plots for shared-gate `BMA.mv()` aggregate SDs,
   component SDs, and variance proportions, preserving excluded zero branches
   and conditioning proportions on positive total heterogeneity. Random-effect
@@ -878,7 +892,9 @@
   names for its reference fits.
   A bare formula or unnamed one-entry list omits its redundant owner prefix, so
   names such as `rho(...)`, `tau_common`, and `tau2_mult(...)` work directly in
-  summaries, plots, density estimation, and hypotheses. Explicitly named
+  summaries, plots, density estimation, and hypotheses. The shared correlation
+  of `cs()` and `hcs()` blocks is also selected by the pairwise aliases of its
+  levels, such as `rho(outcome[a],outcome[b])`. Explicitly named
   one-entry lists and models with multiple blocks retain block-qualified names.
   Lists with two or more unnamed random components use `component 1`,
   `component 2`, and so on. Redundant owner-prefixed spellings for bare single
