@@ -325,17 +325,9 @@ lines.brma <- function(
     )
     density_sample_parameter <- parameter
     random_label <- attr(samples, "random_parameter_label", exact = TRUE)
-    if (prior && is.null(BayesTools::posterior_metadata(
-      samples[[parameter]],
-      "prior_density"
-    ))) {
-      stop(
-        "A prior-density overlay is unavailable for random-effect quantity '",
-        random_label, "' because its prior density is unavailable. Use ",
-        "'prior = FALSE'.",
-        call. = FALSE
-      )
-    }
+    # A quantity without a prior density (e.g. an original-scale correlation
+    # mixing SDs) is drawn without its prior curve by BayesTools, which warns
+    # with class 'BayesTools_prior_curve_unavailable'.
     if (.density_method_uses_precomputed(density_method)) {
       target <- .brma_random_parameter_density_target(
         x,

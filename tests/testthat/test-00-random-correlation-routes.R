@@ -5,10 +5,13 @@ context("Random-slope correlation routes")
 # SDs. Small single-chain fit; the expectations are identities on its draws.
 .random_correlation_cache <- new.env(parent = emptyenv())
 
-.random_correlation_fit <- function() {
+# 'heterogeneity' is NULL for the default allocation of the heterogeneity
+# over the block's SDs, or a prior_heterogeneity() specification.
+.random_correlation_fit <- function(heterogeneity = NULL) {
 
-  if (!is.null(.random_correlation_cache[["fit"]])) {
-    return(.random_correlation_cache[["fit"]])
+  key <- if (is.null(heterogeneity)) "fit" else "fit_direct"
+  if (!is.null(.random_correlation_cache[[key]])) {
+    return(.random_correlation_cache[[key]])
   }
 
   set.seed(2)
@@ -20,13 +23,15 @@ context("Random-slope correlation routes")
   dat[["yi"]] <- 0.2 + 0.1 * dat[["x"]] +
     stats::rnorm(10L, 0, 0.1)[as.integer(factor(dat[["study"]]))] +
     stats::rnorm(k, 0, 0.15)
-  fit <- suppressWarnings(brma.mv(
-    yi = yi, V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
+  args <- list(
+    yi = quote(yi), V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
     data = dat, measure = "GEN", prior_unit_information_sd = 1,
     chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
     silent = TRUE
-  ))
-  .random_correlation_cache[["fit"]] <- fit
+  )
+  args[["prior_heterogeneity"]] <- heterogeneity
+  fit <- suppressWarnings(do.call(brma.mv, args))
+  .random_correlation_cache[[key]] <- fit
 
   return(fit)
 }
@@ -176,6 +181,53 @@ test_that("summary footnotes follow the renamed random-effect rows", {
     )
   )
   expect_false(any(grepl("cor(intercept,x)", footnotes, fixed = TRUE)))
+})
+
+
+test_that("correlation plots draw the exact LKJ prior on the fitted scale", {
+
+  skip_on_cran()
+  fit <- .random_correlation_fit()
+
+  # The 2 x 2 block has an LKJ(1) prior: the fitted-scale correlation r has
+  # (r + 1) / 2 ~ Beta(1, 1), the density 1/2 on (-1, 1).
+  posterior_only <- plot(fit, parameter = "rho(intercept,x)",
+                         standardized_coefficients = TRUE, plot_type = "ggplot")
+  with_prior <- plot(fit, parameter = "rho(intercept,x)", prior = TRUE,
+                     standardized_coefficients = TRUE, plot_type = "ggplot")
+  posterior_layers <- ggplot2::ggplot_build(posterior_only)[["data"]]
+  layers <- ggplot2::ggplot_build(with_prior)[["data"]]
+  expect_length(layers, length(posterior_layers) + 1L)
+  prior_layer <- layers[[1L]]
+  interior    <- prior_layer[["x"]] > -1 & prior_layer[["x"]] < 1
+  expect_gt(sum(interior), 100L)
+  expect_equal(
+    prior_layer[["y"]][interior],
+    stats::dbeta((prior_layer[["x"]][interior] + 1) / 2, 1, 1) / 2,
+    tolerance = 1e-10
+  )
+})
+
+
+test_that("correlation plots without an exact prior density draw the posterior alone", {
+
+  skip_on_cran()
+  # Half-normal priors on the block's SDs: the original-scale correlation of
+  # the scaled block mixes the LKJ correlation with the SDs and has no exact
+  # prior density.
+  fit <- .random_correlation_fit(BayesTools::prior_random(
+    sd = BayesTools::prior("normal", list(0, .5), list(0, Inf))
+  ))
+  posterior_only <- plot(fit, parameter = "rho(intercept,x)", plot_type = "ggplot")
+  expect_warning(
+    with_prior <- plot(fit, parameter = "rho(intercept,x)", prior = TRUE,
+                       plot_type = "ggplot"),
+    class = "BayesTools_prior_curve_unavailable"
+  )
+  expect_identical(
+    ggplot2::ggplot_build(with_prior)[["data"]],
+    ggplot2::ggplot_build(posterior_only)[["data"]]
+  )
 })
 
 
