@@ -982,13 +982,9 @@ hypothesis.brma <- function(object, hypothesis,
     return(out)
   }
 
-  marginal <- BayesTools::marginal_posterior(
-    samples       = samples,
-    parameter     = parameter,
-    prior_samples = TRUE,
-    use_formula   = FALSE,
-    n_samples     = n_samples
-  )
+  # The BayesTools mixed posterior of the quantity is its marginal posterior:
+  # it carries the quantity's prior density, atoms and conditioning.
+  marginal <- samples[[parameter]]
   if (!precomputed || nrow(point_refs) == 0L) {
     out <- BayesTools::hypothesis_BF(
       posterior      = marginal,
