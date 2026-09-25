@@ -1220,6 +1220,11 @@
 - runs each certification case's fit sources and post-fit checks in one package
   load, removing redundant RoBMA/JAGS DLL reload cycles and their intermittent
   Windows teardown failure without skipping any selected tests
+- starts the child R processes of `tools/test-profile.R` (certification
+  preparation and verification, release subprofiles) and of
+  `tools/full-tests.R` with `--vanilla`, so they run with the calling process's
+  test controls: a user `.Renviron` read again by a child no longer redirects
+  an isolated `ROBMA_TEST_FILES_DIR` cache to the default one.
 - aligns the interactive `test_tests()` output with BayesTools: interactive
   runs default to testthat's progress reporter, while `reporter = "llm"`
   explicitly enables compact agent output. Profile subprocesses report their
