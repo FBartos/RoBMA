@@ -571,9 +571,13 @@
 
 # The posterior coordinates the known-V row SD values functions read: the
 # sampled coefficients of the scale formulas (structural coefficients are
-# evaluated from their point priors).
+# evaluated from their point priors). Objects without a fit (prior-only
+# objects) have no fitted coordinates; their inputs stay undeclared.
 .predict_known_v_tau_source_inputs <- function(fit, data) {
 
+  if (is.null(fit)) {
+    return(NULL)
+  }
   scale_parameters <- unique(vapply(
     .data_scale_component_specs(data),
     `[[`,

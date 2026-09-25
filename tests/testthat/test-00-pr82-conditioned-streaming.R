@@ -126,6 +126,10 @@ test_that("streaming preserves product-space branch indicators at chunk boundari
     list(setup[["priors"]][["outcome"]][["bias"]], alternative))
   indicators <- c(1, 2, 2, 1, 2)
   setup[["posterior_samples"]] <- cbind(setup[["posterior_samples"]], bias_indicator = indicators)
+  # The fixed weights of the drawn branches come from the fit's 'omega' node.
+  fit <- coda::mcmc.list(coda::mcmc(setup[["posterior_samples"]]))
+  attr(fit, "prior_list") <- .create_fit_priors(setup[["data"]], setup[["priors"]])
+  setup[["fit"]] <- as_bayestools_fit(fit)
   context <- .selection_conditioned_sampling_context(setup)
   expect_equal(as.numeric(context[["omega"]][, 2L]), ifelse(indicators == 1, .4, .8), tolerance = 0)
   reference <- .selection_conditioned_sampling_state(setup)[["block_log_lik"]]

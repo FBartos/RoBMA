@@ -1112,11 +1112,11 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   ))
 }
 
-# Selection weights of the posterior draws: the monitored weights, or the
-# weights of the BayesTools 'omega' node evaluated from the draws (fixed weight
-# functions and fixed branches of bias mixtures are not monitored). RoBMA's
-# own 'sel_omega' weights of selection models without a step function are
-# fixed data.
+# Selection weights of the posterior draws: the monitored weights, the
+# constant weights of a single fixed weight function, or the weights of the
+# BayesTools 'omega' node evaluated from the draws for bias mixtures with fixed
+# branches (fixed weights are not monitored). RoBMA's own 'sel_omega' weights
+# of selection models without a step function are fixed data.
 .extract_selection_omega_samples <- function(posterior_samples, selection_spec,
                                              fit) {
 
@@ -1130,11 +1130,24 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     parameter = omega_name
   )
   if (is.null(omega) && identical(omega_name, "omega")) {
-    omega <- BayesTools::JAGS_evaluate_deterministic(
-      fit   = fit,
-      draws = posterior_samples,
-      nodes = "omega"
-    )
+    fixed_omega <- selection_spec[["fixed_omega"]]
+    omega <- if (is.matrix(fixed_omega) && nrow(fixed_omega) == 1L) {
+      # A single fixed weight function: its weights are constants of its
+      # prior.
+      matrix(
+        fixed_omega[1L, ],
+        nrow  = nrow(posterior_samples),
+        ncol  = ncol(fixed_omega),
+        byrow = TRUE
+      )
+    } else {
+      # Fixed branches of bias mixtures: the node selects each draw's branch.
+      BayesTools::JAGS_evaluate_deterministic(
+        fit   = fit,
+        draws = posterior_samples,
+        nodes = "omega"
+      )
+    }
   }
   if (!is.null(omega)) {
     if (ncol(omega) != selection_spec[["n_bins"]]) {
