@@ -285,7 +285,7 @@ selection_sampler_info <- function(clear = FALSE) {
 
 .selection_cache_build <- function() {
 
-  list(packages = BayesTools:::.JAGS_package_builds(c("RoBMA", "BayesTools")),
+  list(packages = BayesTools::JAGS_package_builds(c("RoBMA", "BayesTools")),
     R = R.version.string, platform = R.version[["platform"]],
     JAGS = as.character(rjags::jags.version()))
 }

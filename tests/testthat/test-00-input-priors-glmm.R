@@ -396,3 +396,37 @@ test_that("GLMM rejects malformed publication-bias priors centrally", {
     "Publication-bias priors are not supported for GLMM outcomes"
   )
 })
+
+
+test_that("GLMM estimate-level factor priors declare complete factor levels", {
+
+  for (outcome in c("bin", "pois")) {
+    object <- if (outcome == "bin") {
+      brma.glmm(
+        ai = ai, bi = bi, ci = ci, di = di,
+        data = test_data_bin, measure = "OR",
+        only_priors = TRUE
+      )
+    } else {
+      brma.glmm(
+        x1i = x1i, t1i = t1i, x2i = x2i, t2i = t2i,
+        data = test_data_pois, measure = "IRR",
+        only_priors = TRUE
+      )
+    }
+    fit_priors <- .create_fit_priors(object[["data"]], object[["priors"]])
+    K <- nrow(object[["data"]][["outcome"]])
+    for (name in c(if (outcome == "bin") "pi" else "phi", "theta")) {
+      expect_identical(
+        attr(fit_priors[[name]], "level_names"),
+        as.character(seq_len(K)),
+        info = paste(outcome, name)
+      )
+      expect_identical(
+        dim(attr(fit_priors[[name]], "factor_design")),
+        c(K, K),
+        info = paste(outcome, name)
+      )
+    }
+  }
+})

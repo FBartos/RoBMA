@@ -124,6 +124,8 @@
 }
 
 
+# qCMDE and IWMDE are RoBMA's precomputed posterior-density methods: their
+# densities and ordinates reach BayesTools as its 'precomputed' method.
 .density_method_uses_precomputed <- function(density_method, allow_normal = FALSE) {
 
   density_method <- .density_method_normalize(
@@ -131,7 +133,7 @@
     allow_normal   = allow_normal
   )
 
-  return(BayesTools::posterior_density_method_uses_precomputed(density_method))
+  return(density_method %in% c("qCMDE", "IWMDE"))
 }
 
 

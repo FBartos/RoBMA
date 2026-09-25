@@ -139,3 +139,11 @@ test_that("BayesTools refusals are matched by their condition class", {
     "'samples' does not contain all monitored parameters."
   )))
 })
+
+test_that("qCMDE and IWMDE are RoBMA's precomputed density methods", {
+
+  expect_true(.density_method_uses_precomputed("qCMDE"))
+  expect_true(.density_method_uses_precomputed("iwmde"))
+  expect_false(.density_method_uses_precomputed("KDE"))
+  expect_false(.density_method_uses_precomputed("normal", allow_normal = TRUE))
+})

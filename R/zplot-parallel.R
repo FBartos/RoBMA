@@ -11,29 +11,21 @@
     stop("Parallel zplot computation requires at least one posterior draw per worker.", call. = FALSE)
   }
   control <- .check_selection_likelihood_control(integration_control)
-  memory_options <- list(
-    RoBMA.known_v_covariance_max_bytes = .known_v_covariance_max_bytes(),
-    BayesTools.random_effects_memory_limit_bytes = BayesTools:::.bt_random_effect_memory_limit_bytes()
+  # RoBMA's memory option is validated in this process before any worker
+  # starts; the workers also receive the BayesTools options of the session.
+  worker_options <- list(
+    RoBMA.known_v_covariance_max_bytes = .known_v_covariance_max_bytes()
   )
   runtime_setup <- .selection_runtime_setup()
-  runtime_started <- FALSE
   message("Computing zplot densities using ", cores, " parallel workers.")
-  cluster <- parallel::makePSOCKcluster(cores, rscript_args = "--vanilla")
-  on.exit(BayesTools:::.JAGS_finish_runtime_setup(
-    if (runtime_started) runtime_setup else NULL, chains = cores, cl = cluster,
-    operation = "Parallel zplot density computation"), add = TRUE)
-  initialize <- function(paths, memory_options) {
-
-    .libPaths(paths)
-    options(memory_options)
-    NULL
-  }
-  environment(initialize) <- baseenv()
-  parallel::clusterCall(cluster, initialize, .libPaths(), memory_options)
-  BayesTools:::.JAGS_require_packages(c("BayesTools", "RoBMA"), cluster,
-    operation = "Parallel zplot density computation")
-  runtime_started <- TRUE
-  BayesTools:::.JAGS_run_runtime_setup(runtime_setup, chains = cores, cl = cluster)
+  cluster <- BayesTools::JAGS_runtime_cluster(
+    cores         = cores,
+    packages      = c("BayesTools", "RoBMA"),
+    runtime_setup = runtime_setup,
+    options       = worker_options,
+    operation     = "Parallel zplot density computation"
+  )
+  on.exit(BayesTools::JAGS_runtime_cluster_stop(cluster), add = TRUE)
 
   worker <- function(rows, object, posterior_samples, z_sequence,
                      conditioning_depth, integration_control) {

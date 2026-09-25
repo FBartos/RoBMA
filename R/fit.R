@@ -8,21 +8,31 @@
 
   # add levels to the baseline prior for outcomes
   if (.data_outcome_type(data) == "bin") {
-    # encode number of levels for the baserate and random-effects prior
-    attr(prior_list[["pi"]], "levels")    <- nrow(data[["outcome"]])
-    attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
+    # the baserate and random-effects priors have one level per estimate
+    prior_list[["pi"]] <- BayesTools::prior_factor_levels(
+      prior_list[["pi"]], nrow(data[["outcome"]])
+    )
+    prior_list[["theta"]] <- BayesTools::prior_factor_levels(
+      prior_list[["theta"]], nrow(data[["outcome"]])
+    )
   } else if (.data_outcome_type(data) == "pois") {
-    # encode number of levels for the baserate and random-effects prior
-    attr(prior_list[["phi"]], "levels")   <- nrow(data[["outcome"]])
-    attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
+    # the baserate and random-effects priors have one level per estimate
+    prior_list[["phi"]] <- BayesTools::prior_factor_levels(
+      prior_list[["phi"]], nrow(data[["outcome"]])
+    )
+    prior_list[["theta"]] <- BayesTools::prior_factor_levels(
+      prior_list[["theta"]], nrow(data[["outcome"]])
+    )
   }
   if (.data_outcome_type(data) == "norm" && !.is_data_random(data) &&
       (.selection_retains_estimate(data) ||
        (.selection_retains_sampling(data) && .selection_integrates_estimate(data)))) {
-    prior_list[["theta"]] <- BayesTools::prior_factor(
-      "normal", parameters = list(mean = 0, sd = 1), contrast = "independent"
+    prior_list[["theta"]] <- BayesTools::prior_factor_levels(
+      BayesTools::prior_factor(
+        "normal", parameters = list(mean = 0, sd = 1), contrast = "independent"
+      ),
+      nrow(data[["outcome"]])
     )
-    attr(prior_list[["theta"]], "levels") <- nrow(data[["outcome"]])
   }
 
   # add cluster-level indicators
@@ -32,9 +42,11 @@
       # Integrate contextual cluster effects before selection normalization.
       prior_list[["gamma"]] <- NULL
     } else {
-      # encode number of levels for the random-effects prior
-      attr(prior_list[["gamma"]], "levels") <-
+      # the random-effects prior has one level per cluster
+      prior_list[["gamma"]] <- BayesTools::prior_factor_levels(
+        prior_list[["gamma"]],
         length(unique(data[["outcome"]][["cluster"]]))
+      )
     }
   }
   # add known-V sampling dependency latent factors
@@ -46,12 +58,14 @@
     .data_known_v_rank(data)
   } else 0L
   if (sampling_rank > 0L) {
-    prior_list[["sampling_z"]] <- BayesTools::prior_factor(
-      "normal",
-      parameters = list("mean" = 0, "sd" = 1),
-      contrast   = "independent"
+    prior_list[["sampling_z"]] <- BayesTools::prior_factor_levels(
+      BayesTools::prior_factor(
+        "normal",
+        parameters = list("mean" = 0, "sd" = 1),
+        contrast   = "independent"
+      ),
+      sampling_rank
     )
-    attr(prior_list[["sampling_z"]], "levels") <- sampling_rank
   }
 
   ### deal with non-prior mixture distributions (bPET, bPEESE, and bselmodel)

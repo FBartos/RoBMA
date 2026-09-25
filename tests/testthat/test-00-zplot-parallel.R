@@ -97,6 +97,31 @@ test_that("parallel density chunks preserve rows, budgets, and cleanup", {
 })
 
 
+test_that("parallel zplot validates RoBMA's memory option before starting workers", {
+
+  withr::local_options(RoBMA.known_v_covariance_max_bytes = -1)
+  started <- FALSE
+  testthat::local_mocked_bindings(
+    makePSOCKcluster = function(...) {
+      started <<- TRUE
+      list()
+    },
+    .package = "parallel"
+  )
+  expect_error(
+    .zplot_selection_marginal_parallel(
+      object = list(fit = list()),
+      posterior_samples = matrix(c(1, 2, 3, 4), ncol = 1L),
+      z_sequence = 0, conditioning_depth = "marginal",
+      integration_control = set_selection_likelihood_control(), cores = 2L
+    ),
+    "'RoBMA.known_v_covariance_max_bytes' must be a single positive number",
+    fixed = TRUE
+  )
+  expect_false(started)
+})
+
+
 test_that("density dispatch thins once and keeps summaries and reference curves serial", {
 
   samples <- matrix(c(11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67), ncol = 1L)
