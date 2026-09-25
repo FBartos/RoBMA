@@ -92,13 +92,15 @@ test_that("factor-level point hypotheses use the level's own fitted coordinate",
 
   for (i in seq_len(nrow(cases))) {
     # Savage-Dickey ratio of the treatment coordinate: its normal prior
-    # density over the unbounded Gaussian KDE of its draws at the null. The
-    # comparison needs a null inside the KDE grid (levels 20 and 4 lie far
-    # from zero; their ordinates are extrapolated).
-    prior     <- fit[["priors"]][["mods"]][[cases[["term"]][i]]]
-    posterior <- stats::density(mcmc[, cases[["coordinate"]][i]])
-    height    <- stats::approx(posterior[["x"]], posterior[["y"]], xout = 0)[["y"]]
-    if (!is.na(height)) {
+    # density over the exact Gaussian kernel sum of its draws at the null
+    # (bandwidth bw.nrd0). The comparison needs a null within three
+    # bandwidths of the draws (levels 20 and 4 lie far from zero; their
+    # ordinates are kernel tails).
+    prior  <- fit[["priors"]][["mods"]][[cases[["term"]][i]]]
+    draws  <- mcmc[, cases[["coordinate"]][i]]
+    bw     <- stats::bw.nrd0(draws)
+    if (0 >= min(draws) - 3 * bw && 0 <= max(draws) + 3 * bw) {
+      height    <- mean(stats::dnorm(0, mean = draws, sd = bw))
       direct_BF <- stats::dnorm(
         0,
         prior[["parameters"]][["mean"]],
@@ -347,9 +349,9 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     )
   }
 
-  # Ordered coding: the first increment is a fitted coefficient, but its
-  # prior (the ordered total times its allocation) has no exact ordinate; the
-  # later level is a sum of increments. No level supports point hypotheses.
+  # Ordered coding: the first increment is a fitted coefficient whose prior
+  # (the ordered total times its allocation) has an exact ordinate; the later
+  # level is a sum of increments and does not support point hypotheses.
   set.seed(3)
   k    <- 48L
   data <- data.frame(
@@ -365,40 +367,28 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
   quantities <- hypothesis_quantities(ordered)
   g <- quantities[quantities[["alias"]] == "g", , drop = FALSE]
   expect_false(g[["point_test"]])
-  expect_identical(g[["point_test_methods"]], "")
+  expect_identical(g[["point_test_methods"]], "KDE, qCMDE, IWMDE")
   expect_match(
     g[["reason"]],
     "Point hypotheses are not supported for level 'g[hi]': it is a linear",
     fixed = TRUE
   )
-  expect_match(
-    g[["reason"]],
-    paste0(
-      "Point hypotheses are not supported for level 'g[mid]': the induced ",
-      "prior of its fitted coefficient has no exact ordinate"
-    ),
-    fixed = TRUE
-  )
+  expect_false(grepl("'g[mid]'", g[["reason"]], fixed = TRUE))
   expect_error(
     suppressWarnings(hypothesis(ordered, "g[hi] = 0", density_method = "KDE")),
     "Point hypotheses on factor level 'g[hi]'",
     fixed = TRUE
   )
-  # The stop names the level selector, not the backend coordinate 'mu_g[1]'.
   for (method in c("KDE", "qCMDE")) {
-    expect_error(
-      suppressWarnings(hypothesis(ordered, "g[mid] = 0.1", density_method = method)),
-      paste0(
-        "The induced prior ordinate for factor level 'g[mid]' is not exact ",
-        "enough for a point-null Bayes factor."
-      ),
-      fixed = TRUE,
-      info = method
+    result <- suppressWarnings(
+      hypothesis(ordered, "g[mid] = 0.1", density_method = method)
     )
+    expect_true(is.finite(attr(result, "raw_BF")), info = method)
   }
 
   # With numeric labels, the first increment's coordinate 'mu_g[1]' reads as
-  # the reference level '1': the stop names the level the hypothesis wrote.
+  # the reference level '1': hypotheses and stops name the level the
+  # hypothesis wrote.
   data[["g"]] <- factor(
     c("1", "2", "3")[as.integer(data[["g"]])],
     levels = c("1", "2", "3")
@@ -408,14 +398,19 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
     chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
   ))
-  message <- tryCatch(
-    suppressWarnings(hypothesis(numeric_labels, "g[2] = 0.1", density_method = "KDE")),
-    error = conditionMessage
+  expect_s3_class(
+    suppressWarnings(
+      hypothesis(numeric_labels, "g[2] = 0.1", density_method = "KDE")
+    ),
+    "data.frame"
   )
-  expect_identical(message, paste0(
-    "The induced prior ordinate for factor level 'g[2]' is not exact enough ",
-    "for a point-null Bayes factor."
-  ))
+  expect_error(
+    suppressWarnings(
+      hypothesis(numeric_labels, "g[3] = 0.1", density_method = "KDE")
+    ),
+    "Point hypotheses on factor level 'g[3]'",
+    fixed = TRUE
+  )
 })
 
 
@@ -616,13 +611,9 @@ test_that("point hypotheses on the fixed reference level give the KDE reason for
       )
     }
   }
-  expect_match(
-    tryCatch(
-      suppressWarnings(hypothesis(fit, "g1[5] = 0", density_method = "KDE")),
-      error = conditionMessage
-    ),
-    "declared point mass at the exact null hypothesis value",
-    fixed = TRUE
+  expect_error(
+    suppressWarnings(hypothesis(fit, "g1[5] = 0", density_method = "KDE")),
+    class = "BayesTools_point_mass_at_null"
   )
 
   # The other levels keep their qCMDE ordinates.
