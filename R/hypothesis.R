@@ -444,6 +444,19 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   sample_parameter <- .as_mixed_posteriors_parameters(object, parameter)
+  if (!is.null(coefficient_target) &&
+      !is.null(coefficient_target[["route"]][["weights"]])) {
+    # The target's prior density combines the priors of every coordinate it
+    # weights; their mixed posteriors carry the mixture components that
+    # BayesTools needs for the target's components.
+    sample_parameter <- unique(c(
+      sample_parameter,
+      .hypothesis_brma_target_prior_parameters(
+        object  = object,
+        weights = coefficient_target[["route"]][["weights"]]
+      )
+    ))
+  }
   samples <- .brma_as_mixed_posteriors(
     object           = object,
     parameters       = sample_parameter,
@@ -1474,6 +1487,36 @@ hypothesis.brma <- function(object, hypothesis,
   target_info[["prior_density"]] <- prior_density
   target_info[["parameter_spec"]] <- parameter_spec
   return(target_info)
+}
+
+
+# The fitted prior-list entries (formula terms) that own the coordinates a
+# formula coefficient target weights, from the coordinate table and the
+# formula name maps.
+.hypothesis_brma_target_prior_parameters <- function(object, weights) {
+
+  coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
+  rows <- match(names(weights), coordinates[["coordinate_name"]])
+  if (anyNA(rows)) {
+    stop(
+      "Fitted coordinate metadata of the hypothesis target are unavailable. ",
+      "Refit the model with the current RoBMA/BayesTools build.",
+      call. = FALSE
+    )
+  }
+  coordinates <- coordinates[rows, , drop = FALSE]
+
+  unique(unlist(lapply(
+    unique(coordinates[["formula_parameter"]]),
+    function(formula_parameter) {
+      name_map <- .fitted_formula_name_map(object, formula_parameter)
+      fixed    <- name_map[name_map[["kind"]] == "fixed", , drop = FALSE]
+      terms    <- coordinates[["term"]][
+        coordinates[["formula_parameter"]] == formula_parameter
+      ]
+      fixed[["jags_name"]][fixed[["term"]] %in% terms]
+    }
+  ), use.names = FALSE))
 }
 
 
