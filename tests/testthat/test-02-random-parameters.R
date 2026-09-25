@@ -530,25 +530,6 @@ test_that("random prior overlays and diagnostic labels are semantic", {
   }
 })
 
-test_that("Dirichlet allocation priors use their exact beta marginals", {
-
-  selected <- list(
-    spec         = list(quantity = "var_prop", allocation_index = 2L),
-    source_prior = BayesTools::prior(
-      "dirichlet",
-      parameters = list(alpha = c(2, 3, 5))
-    ),
-    prior        = NULL
-  )
-  prior <- .brma_random_parameter_exact_prior(selected)
-
-  expect_true(BayesTools::is.prior(prior))
-  expect_equal(
-    BayesTools::lpdf(prior, c(0.2, 0.4, 0.7)),
-    stats::dbeta(c(0.2, 0.4, 0.7), 3, 7, log = TRUE)
-  )
-})
-
 test_that("simplex density replacements preserve auxiliary-gamma coordinates", {
 
   source            <- "mu_allocation"
@@ -802,20 +783,25 @@ test_that("direct multivariate random quantities expose density targets", {
     "tau_total"
   )
 
+  # The two-component proportion's canonical prior is the Beta(1, 1) share
+  # marginal of its Dirichlet(1, 1) weights.
   samples <- .brma_random_parameter_mixed_posterior(
     fit,
-    "tau2_prop(esid_study)",
-    prior = TRUE
+    "tau2_prop(esid_study)"
   )
   parameter <- names(samples)[[1L]]
-  prior     <- attr(samples, "prior_list", exact = TRUE)[[parameter]]
-  expect_equal(BayesTools::lpdf(prior, c(0.2, 0.5, 0.8)), rep(0, 3L))
-  expect_null(BayesTools::posterior_metadata(samples[[parameter]], "prior_density"))
+  prior     <- BayesTools::posterior_metadata(samples[[parameter]], "prior_density")
+  expect_equal(
+    vapply(c(0.2, 0.5, 0.8), function(value) {
+      BayesTools::prior_density_ordinate(prior, value)[["log_density"]]
+    }, numeric(1)),
+    rep(0, 3L),
+    tolerance = 1e-10
+  )
 
   component_samples <- .brma_random_parameter_mixed_posterior(
     fit,
-    "study: tau(intercept)",
-    prior = TRUE
+    "study: tau(intercept)"
   )
   component_parameter <- names(component_samples)[[1L]]
   expect_s3_class(
@@ -928,20 +914,4 @@ test_that("random DFBETAS zero-variance handling is cellwise", {
   expect_match(attr(observed, "note"), "LOO posterior variance is zero")
 })
 
-test_that("bounded induced-prior densities are normalized and corrected", {
 
-  samples <- seq(0.0005, 0.9995, length.out = 2000L)
-  density <- .brma_random_parameter_prior_density(
-    samples = samples,
-    support = c(0, 1),
-    n_points = 2048L
-  )[["density"]]
-  integral <- sum(diff(density[["x"]]) *
-    (density[["y"]][-1L] + density[["y"]][-length(density[["y"]])]) / 2)
-  center <- which.min(abs(density[["x"]] - 0.5))
-
-  expect_equal(integral, 1, tolerance = 1e-12)
-  expect_gt(density[["y"]][1L] / density[["y"]][center], 0.8)
-  expect_gt(density[["y"]][length(density[["y"]])] /
-    density[["y"]][center], 0.8)
-})

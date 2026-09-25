@@ -828,108 +828,54 @@ hypothesis.brma <- function(object, hypothesis,
     density_method,
     allow_normal = TRUE
   )
+  if (conditional && precomputed) {
+    stop(
+      "Conditional random-effect hypotheses support ",
+      "'density_method = \"KDE\"' only.",
+      call. = FALSE
+    )
+  }
 
-  posterior <- .brma_random_parameter_select(
+  selected <- .brma_random_parameter_select(
     object                    = object,
     parameter                 = parameter,
     standardized_coefficients = standardized_coefficients
   )
-  prior <- .brma_random_parameter_select(
+  if (identical(selected[["spec"]][["status"]], "structural")) {
+    stop(
+      "Hypothesis tests are not defined for fixed random-effect quantity '",
+      selected[["entry"]][["term"]], "'.",
+      call. = FALSE
+    )
+  }
+  # The mixed posterior carries the catalog support, the canonical prior
+  # density of BayesTools, and the declared inclusion- and allocation-gate
+  # atoms; conditioning keeps the draws in the quantity's inclusion event.
+  samples <- .brma_random_parameter_mixed_posterior(
     object                    = object,
     parameter                 = parameter,
     standardized_coefficients = standardized_coefficients,
-    prior                     = TRUE,
-    n_prior_samples           = n_samples,
-    seed                      = seed
+    conditional               = conditional,
+    selected                  = selected
   )
-  posterior_values <- as.numeric(posterior[["samples"]][, 1L])
-  prior_values     <- as.numeric(prior[["samples"]][, 1L])
-  indicator <- .brma_random_parameter_inclusion_indicator(
-    object   = object,
-    selected = posterior
-  )
-  if (conditional) {
-    if (is.null(indicator)) {
-      stop(
-        "Conditional product-space hypotheses require a random-effect ",
-        "quantity owned by one independently gated component.",
-        call. = FALSE
-      )
-    }
-    if (precomputed) {
-      stop(
-        "Conditional random-effect hypotheses support ",
-        "'density_method = \"KDE\"' only.",
-        call. = FALSE
-      )
-    }
-    posterior_keep <- .conditional_parameter_rows(
-      object     = object,
-      parameters = indicator,
-      rule       = "OR"
-    )
-    prior_samples <- prior[["raw_samples"]]
-    if (!is.matrix(prior_samples) ||
-        !indicator %in% colnames(prior_samples)) {
-      stop(
-        "Conditional random-effect prior samples are missing inclusion ",
-        "indicator '", indicator, "'.",
-        call. = FALSE
-      )
-    }
-    prior_indicator <- prior_samples[, indicator]
-    if (any(!is.finite(prior_indicator) |
-            !prior_indicator %in% c(0, 1))) {
-      stop(
-        "Conditional random-effect prior inclusion indicator '", indicator,
-        "' is invalid.",
-        call. = FALSE
-      )
-    }
-    posterior_values <- posterior_values[posterior_keep]
-    prior_values     <- prior_values[prior_indicator == 1]
-    if (length(posterior_values) == 0L || length(prior_values) == 0L) {
-      stop("No samples remain after random-effect inclusion conditioning.",
-           call. = FALSE)
-    }
-  }
-  if (identical(posterior[["spec"]][["quantity"]], "var_prop")) {
-    posterior_values <- posterior_values[!is.na(posterior_values)]
-    prior_values     <- prior_values[!is.na(prior_values)]
-    if (length(posterior_values) == 0L || length(prior_values) == 0L) {
-      stop(
-        "Variance proportion '", posterior[["spec"]][["label"]],
-        "' is unavailable because no draw has positive realized allocation ",
-        "variance.",
-        call. = FALSE
-      )
-    }
-  }
-  # Quantities declared as possibly undefined are tested over their defined
-  # draws, and the table notes the share.
-  posterior_defined <- .brma_random_parameter_defined_draws(
-    posterior_values,
-    posterior[["samples"]],
-    posterior[["spec"]][["label"]]
-  )
-  prior_defined <- .brma_random_parameter_defined_draws(
-    prior_values,
-    prior[["samples"]],
-    posterior[["spec"]][["label"]]
+  prior_density <- BayesTools::posterior_metadata(
+    samples[[parameter]],
+    "prior_density"
   )
   defined_footnote <- .brma_random_parameter_defined_footnote(
-    label             = posterior[["spec"]][["label"]],
-    samples           = posterior[["samples"]],
-    posterior_defined = posterior_defined,
-    prior_defined     = prior_defined
+    label             = selected[["spec"]][["label"]],
+    samples           = samples[[parameter]],
+    posterior_defined = .brma_random_parameter_defined_share(
+      object,
+      samples[[parameter]]
+    )
   )
-  posterior_values <- posterior_values[posterior_defined]
-  prior_values     <- prior_values[prior_defined]
 
   point_refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
     allow_compound = TRUE
   )
+  target <- NULL
   if (nrow(point_refs) > 0L) {
     if (any(!point_refs[["direct"]])) {
       stop(
@@ -938,63 +884,35 @@ hypothesis.brma <- function(object, hypothesis,
         call. = FALSE
       )
     }
-    if (!conditional && !is.null(indicator) &&
-        posterior[["spec"]][["quantity"]] %in% c("sd", "var") &&
-        any(point_refs[["value"]] == 0)) {
-      stop(
-        "Point-null Bayes factors at 0 are unavailable for random-effect ",
-        "quantity '", posterior[["entry"]][["term"]], "' because zero is ",
-        "the declared random-exclusion atom. Use the Component Inclusion ",
-        "table from 'summary(object)' or 'summary_models(object)' to compare ",
-        "exclusion and inclusion.",
-        call. = FALSE
-      )
-    }
+    point_status <- .brma_random_parameter_point_status(
+      selected      = selected,
+      prior_density = prior_density,
+      values        = unique(point_refs[["value"]])
+    )
     zero_alternative <- if (any(point_refs[["value"]] == 0)) {
-      .brma_random_parameter_zero_boundary_alternative(object, posterior)
+      .brma_random_parameter_zero_boundary_alternative(object, selected)
     } else {
       NULL
     }
     if (!is.null(zero_alternative)) {
       stop(
         "Point-null Bayes factors are unavailable for allocation-derived ",
-        "random-effect quantity '", posterior[["spec"]][["label"]],
+        "random-effect quantity '", selected[["spec"]][["label"]],
         "' at 0 because zero is a nonregular product boundary of the common ",
         "scale and allocation weight. Test '", zero_alternative,
         "' to compare omission of this component.",
         call. = FALSE
       )
     }
-    allocation_gate_metadata <-
-      .brma_random_parameter_allocation_gate_metadata(posterior)
-    allocation_gate_prior <-
-      .brma_random_parameter_allocation_gate_prior(
-        object,
-        allocation_gate_metadata
-      )
-    if (!is.null(allocation_gate_prior) &&
-        nrow(allocation_gate_prior[["points"]]) > 0L) {
-      stop(
-        "Point-null Bayes factors are not available for random-effect ",
-        "quantity '", posterior[["spec"]][["label"]], "' because its ",
-        "realized allocation distribution contains structural point masses ",
-        "from allocation gates. Use a region or directional ",
-        "hypothesis, or the Component Inclusion table from ",
-        "'summary(object)' or 'summary_models(object)'.",
-        call. = FALSE
-      )
-    }
-    target <- if (precomputed) {
-      .brma_random_parameter_density_target(
+    if (precomputed) {
+      target <- .brma_random_parameter_density_target(
         object,
         parameter,
         operation = "point hypotheses"
       )
-    } else {
-      NULL
-    }
-    if (precomputed && is.null(target[["parameter"]])) {
-      stop(target[["reason"]], call. = FALSE)
+      if (is.null(target[["parameter"]])) {
+        stop(target[["reason"]], call. = FALSE)
+      }
     }
     if (precomputed && !is.null(target[["display_transform"]])) {
       source_values <- BayesTools::parameter_transform_inverse(
@@ -1011,7 +929,7 @@ hypothesis.brma <- function(object, hypothesis,
         value <- point_refs[["value"]][which(singular)[[1L]]]
         stop(
           "Point-null Bayes factors are unavailable for random-effect ",
-          "quantity '", posterior[["entry"]][["term"]], "' at ", value,
+          "quantity '", selected[["entry"]][["term"]], "' at ", value,
           " because its public transformation is singular at that support ",
           "boundary. Use the corresponding directly modeled scale or a ",
           "region hypothesis.",
@@ -1019,43 +937,58 @@ hypothesis.brma <- function(object, hypothesis,
         )
       }
     }
-    reason <- .brma_random_parameter_point_test_reason(
-      spec                  = posterior[["spec"]],
-      prior                 = posterior[["prior"]],
-      source_prior          = posterior[["source_prior"]],
-      derived               = precomputed,
-      allocation_gate_prior = allocation_gate_prior
-    )
-    if (nzchar(reason)) {
-      stop(reason, call. = FALSE)
-    }
-
+    .brma_random_parameter_check_point_status(selected, point_status)
     if (!precomputed) {
-      support <- .brma_random_parameter_support(posterior)
+      support <- .brma_random_parameter_support(selected)
       values <- point_refs[["value"]]
       at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
         (is.finite(support[2L]) & values >= support[2L])
       if (any(at_boundary)) {
         stop(
           "Point-null Bayes factors at the support boundary are not available ",
-          "for random-effect quantity '", posterior[["entry"]][["term"]], "'.",
+          "for random-effect quantity '", selected[["entry"]][["term"]], "'.",
           call. = FALSE
         )
       }
     }
   }
-  if (identical(posterior[["spec"]][["status"]], "structural")) {
-    stop(
-      "Hypothesis tests are not defined for fixed random-effect quantity '",
-      posterior[["entry"]][["term"]], "'.",
-      call. = FALSE
+
+  if (is.null(prior_density)) {
+    # Without a canonical prior density, region hypotheses take the prior
+    # probabilities from prior draws (point hypotheses stopped above).
+    out <- .hypothesis_brma_random_prior_draws(
+      object                    = object,
+      parameter                 = parameter,
+      selected                  = selected,
+      posterior                 = samples[[parameter]],
+      hypothesis                = hypothesis,
+      standardized_coefficients = standardized_coefficients,
+      conditional               = conditional,
+      logBF                     = logBF,
+      BF01                      = BF01,
+      seed                      = seed,
+      n_samples                 = n_samples,
+      columns                   = columns,
+      density_method            = if (precomputed) "KDE" else density_method
     )
+    defined_footnote <- attr(out, "defined_footnote", exact = TRUE)
+    attr(out, "defined_footnote") <- NULL
+    if (!is.null(defined_footnote)) {
+      attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
+    }
+    return(out)
   }
 
+  marginal <- BayesTools::marginal_posterior(
+    samples       = samples,
+    parameter     = parameter,
+    prior_samples = TRUE,
+    use_formula   = FALSE,
+    n_samples     = n_samples
+  )
   if (!precomputed || nrow(point_refs) == 0L) {
     out <- BayesTools::hypothesis_BF(
-      posterior      = posterior_values,
-      prior          = prior_values,
+      posterior      = marginal,
       hypothesis     = hypothesis,
       parameter      = parameter,
       logBF          = logBF,
@@ -1070,23 +1003,6 @@ hypothesis.brma <- function(object, hypothesis,
     return(out)
   }
 
-  samples <- .brma_random_parameter_mixed_posterior(
-    object                    = object,
-    parameter                 = parameter,
-    standardized_coefficients = standardized_coefficients,
-    prior                     = TRUE,
-    n_prior_samples           = n_samples,
-    seed                      = seed,
-    selected                  = posterior,
-    prior_selected            = prior
-  )
-  marginal <- BayesTools::marginal_posterior(
-    samples       = samples,
-    parameter     = parameter,
-    prior_samples = TRUE,
-    use_formula   = FALSE,
-    n_samples     = n_samples
-  )
   if (is.null(density_control[["normalization_points"]])) {
     density_control[["normalization_points"]] <- max(
       50L,
@@ -1130,6 +1046,57 @@ hypothesis.brma <- function(object, hypothesis,
     posterior = marginal,
     parameter = parameter
   )
+}
+
+
+# Region hypotheses on a random-effect quantity without a canonical prior
+# density: prior probabilities from the quantity's prior draws.
+.hypothesis_brma_random_prior_draws <- function(
+    object, parameter, selected, posterior, hypothesis,
+    standardized_coefficients, conditional, logBF, BF01, seed, n_samples,
+    columns, density_method) {
+
+  if (conditional) {
+    stop(
+      "Conditional hypotheses are unavailable for random-effect quantity '",
+      selected[["spec"]][["label"]], "' because its prior density is ",
+      "unavailable.",
+      call. = FALSE
+    )
+  }
+  prior <- .brma_random_parameter_select(
+    object                    = object,
+    parameter                 = parameter,
+    standardized_coefficients = standardized_coefficients,
+    prior                     = TRUE,
+    n_prior_samples           = n_samples,
+    seed                      = seed
+  )
+  prior_values  <- as.numeric(prior[["samples"]][, 1L])
+  prior_defined <- .brma_random_parameter_defined_draws(
+    prior_values,
+    prior[["samples"]],
+    selected[["spec"]][["label"]]
+  )
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = as.numeric(posterior),
+    prior          = prior_values[prior_defined],
+    hypothesis     = hypothesis,
+    parameter      = parameter,
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = density_method
+  )
+  attr(out, "defined_footnote") <- .brma_random_parameter_defined_footnote(
+    label             = selected[["spec"]][["label"]],
+    samples           = prior[["samples"]],
+    posterior_defined = .brma_random_parameter_defined_share(object, posterior),
+    prior_defined     = prior_defined
+  )
+  out
 }
 
 .hypothesis_brma_formula_coefficient_target <- function(

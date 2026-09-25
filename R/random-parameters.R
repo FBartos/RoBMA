@@ -836,176 +836,6 @@
 }
 
 
-.brma_random_parameter_allocation_gate_prior <- function(object, metadata) {
-
-  if (is.null(metadata)) {
-    return(NULL)
-  }
-  gate_probability <- function(indicator) {
-    .brma_random_parameter_inclusion_probability(object, indicator)
-  }
-  component_probability <- rep(
-    1,
-    length(metadata[["component_indicators"]])
-  )
-  for (index in which(!is.na(metadata[["component_indicators"]]))) {
-    component_probability[[index]] <- gate_probability(
-      metadata[["component_indicators"]][[index]]
-    )
-  }
-  parent_probability <- vapply(
-    metadata[["parent_indicators"]],
-    gate_probability,
-    numeric(1)
-  )
-  positive_component <- 1 - prod(1 - component_probability)
-
-  if (metadata[["quantity"]] %in% c("sd_total", "var_total")) {
-    continuous_mass <- prod(parent_probability) * positive_component
-    points <- if (continuous_mass < 1) {
-      data.frame(x = 0, p = 1 - continuous_mass)
-    } else {
-      data.frame(x = numeric(), p = numeric())
-    }
-    return(list(
-      continuous_mass = continuous_mass,
-      points           = points
-    ))
-  }
-  if (positive_component <= 0 || any(parent_probability == 0)) {
-    return(list(
-      continuous_mass = 0,
-      points           = data.frame(x = numeric(), p = numeric())
-    ))
-  }
-  index <- metadata[["index"]]
-  if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
-      index != as.integer(index) || index < 1L ||
-      index > length(component_probability)) {
-    stop("Variance-proportion gate metadata have no valid component index.",
-         call. = FALSE)
-  }
-  index <- as.integer(index)
-  other_probability <- component_probability[-index]
-  all_other_off <- prod(1 - other_probability)
-  target_probability <- component_probability[[index]]
-  point_zero <- (1 - target_probability) *
-    (1 - all_other_off) / positive_component
-  point_one <- target_probability * all_other_off / positive_component
-  points <- data.frame(
-    x = c(0, 1),
-    p = c(point_zero, point_one)
-  )
-  points <- points[points[["p"]] > 0, , drop = FALSE]
-
-  list(
-    continuous_mass = max(0, 1 - point_zero - point_one),
-    points           = points
-  )
-}
-
-
-.brma_random_parameter_inclusion_indicator <- function(object, selected) {
-
-  spec <- selected[["spec"]]
-  if (!spec[["quantity"]] %in% c("sd", "var")) {
-    return(NULL)
-  }
-  map  <- .random_component_inclusion_map(object)
-  aliases <- unique(c(
-    spec[["block"]],
-    if (identical(spec[["owner_type"]], "random_block")) {
-      spec[["owner_name"]]
-    } else {
-      spec[["random_component"]]
-    }
-  ))
-  aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
-  indicators <- unique(unlist(map[intersect(aliases, names(map))],
-                              use.names = FALSE))
-  if (length(indicators) == 1L) indicators else NULL
-}
-
-.brma_random_parameter_inclusion_probability <- function(object, indicator) {
-
-  if (is.null(indicator)) {
-    return(NULL)
-  }
-  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
-  prior      <- .random_allocation_inclusion_prior(
-    prior_list     = prior_list,
-    indicator_name = indicator,
-    required       = TRUE
-  )
-  if (!BayesTools::is.prior(prior)) {
-    stop("Random-effect inclusion prior metadata are malformed.", call. = FALSE)
-  }
-  probability <- mean(prior)
-  if (!is.numeric(probability) || length(probability) != 1L ||
-      !is.finite(probability) || probability < 0 || probability > 1) {
-    stop(
-      "Random-effect inclusion indicator '", indicator,
-      "' has an invalid prior probability.",
-      call. = FALSE
-    )
-  }
-
-  probability
-}
-
-.brma_random_parameter_exact_prior <- function(selected) {
-
-  type         <- selected[["spec"]][["quantity"]]
-  transform    <- selected[["spec"]][["source_transform"]]
-  source_prior <- selected[["source_prior"]]
-  if (type %in% c("sd", "sd_total", "sd_common", "cor", "sd_mult") &&
-      identical(transform, "identity") &&
-      !is.null(source_prior) && BayesTools::is.prior(source_prior)) {
-    return(source_prior)
-  }
-  if (identical(transform, "lkj2") &&
-      inherits(source_prior, "prior.simple") &&
-      identical(source_prior[["distribution"]], "beta") &&
-      identical(source_prior[["parameters"]][["alpha"]], 1) &&
-      identical(source_prior[["parameters"]][["beta"]], 1)) {
-    return(BayesTools::prior(
-      "uniform",
-      parameters = list(a = -1, b = 1)
-    ))
-  }
-  if (!identical(type, "var_prop")) {
-    return(NULL)
-  }
-
-  .brma_random_parameter_allocation_source_prior(selected)
-}
-
-.brma_random_parameter_allocation_source_prior <- function(selected) {
-
-  source_prior <- selected[["source_prior"]]
-  if (is.null(source_prior) ||
-      !inherits(source_prior, "prior.simplex") ||
-      !identical(source_prior[["distribution"]], "dirichlet")) {
-    return(NULL)
-  }
-
-  alpha <- source_prior[["parameters"]][["alpha"]]
-  index <- selected[["spec"]][["allocation_index"]]
-  if (!is.numeric(alpha) || any(!is.finite(alpha)) || any(alpha <= 0) ||
-      length(alpha) < 2L || !is.numeric(index) || length(index) != 1L ||
-      is.na(index) || index < 1L || index > length(alpha)) {
-    return(NULL)
-  }
-
-  BayesTools::prior(
-    "beta",
-    parameters = list(
-      alpha = alpha[[index]],
-      beta  = sum(alpha[-index])
-    )
-  )
-}
-
 # 'operation' names what the target is for in the reason returned when there
 # is none (e.g. "plots", "point hypotheses").
 .brma_random_parameter_density_target <- function(object, parameter,
@@ -1089,9 +919,7 @@
             auxiliary_columns    = auxiliary_columns,
             conditioning_exclude = columns,
             covariance_update    = covariance_update,
-            gate_metadata        = gate_metadata,
-            prior_density        =
-              .brma_random_parameter_allocation_source_prior(selected)
+            gate_metadata        = gate_metadata
           ),
           display_transform = allocation_transform
         ))
@@ -1340,40 +1168,146 @@
   as.numeric(support[["bounds"]])
 }
 
-.brma_random_parameter_point_test_reason <- function(
-    spec, prior = NULL, source_prior = NULL, derived = FALSE,
-    allocation_gate_prior = NULL) {
+# Point hypotheses on a random-effect quantity need an exact, regular prior
+# ordinate at each value under the BayesTools exactness rule
+# (prior_ordinate_status() of the canonical prior density). The status of the
+# values (NULL without a prior density); values at prior point masses
+# (inclusion and allocation gates, spike components) stop here.
+.brma_random_parameter_point_status <- function(selected, prior_density,
+                                                values) {
 
-  type   <- spec[["quantity"]]
-  source <- spec[["source_parameter"]]
-  label  <- spec[["label"]]
-  if (.brma_random_parameter_prior_has_atom(prior) ||
-      .brma_random_parameter_prior_has_atom(source_prior) ||
-      (!is.null(allocation_gate_prior) &&
-       nrow(allocation_gate_prior[["points"]]) > 0L)) {
-    return(paste0(
-      "Point-null Bayes factors are not available for random-effect quantity '",
-      label, "' because its induced prior/posterior contains a point mass. ",
-      "Use a region or directional hypothesis."
+  if (is.null(prior_density)) {
+    return(NULL)
+  }
+  label  <- selected[["spec"]][["label"]]
+  status <- BayesTools::prior_ordinate_status(
+    prior_density,
+    values,
+    labels = paste0(label, " = ", format(values, digits = 15L, trim = TRUE))
+  )
+  point_mass <- which(status[["condition"]] %in% "BayesTools_point_mass_at_null")
+  if (length(point_mass) > 0L) {
+    value <- format(status[["value"]][[point_mass[[1L]]]], digits = 15L,
+                    trim = TRUE)
+    stop(
+      "Point-null Bayes factors at ", value, " are unavailable for ",
+      "random-effect quantity '", label, "' because its prior has a point ",
+      "mass at ", value, ". Use a region or directional hypothesis; the ",
+      "Component Inclusion table from 'summary(object)' or ",
+      "'summary_models(object)' compares the exclusion and inclusion of gated ",
+      "components.",
+      call. = FALSE
+    )
+  }
+
+  status
+}
+
+
+# Stops for values without an exact, regular prior ordinate: without a prior
+# density, and with the class and message of the refusal of the BayesTools
+# exactness rule ('status' from .brma_random_parameter_point_status()).
+.brma_random_parameter_check_point_status <- function(selected, status) {
+
+  if (is.null(status)) {
+    stop(
+      "Point-null Bayes factors are unavailable for random-effect quantity '",
+      selected[["spec"]][["label"]], "' because its prior density is ",
+      "unavailable. Use a region or directional hypothesis.",
+      call. = FALSE
+    )
+  }
+  refused <- which(!status[["eligible"]])
+  if (length(refused) > 0L) {
+    # The class and message of the refusal of BayesTools' exactness rule.
+    stop(structure(
+      class = c(
+        status[["condition"]][[refused[[1L]]]],
+        "BayesTools_hypothesis_ordinate", "error", "condition"
+      ),
+      list(message = status[["reason"]][[refused[[1L]]]], call = NULL)
     ))
   }
-  if (identical(type, "cor") &&
-      (is.na(source) || !nzchar(source)) && !derived) {
+
+  invisible(status)
+}
+
+
+# Why point hypotheses on a random-effect quantity are unavailable ("" when
+# they are available at values that are not prior point masses): the
+# quantity needs a canonical prior density whose continuous part BayesTools
+# classifies exactly. The classification is taken at a structural interior
+# value of the quantity's support, since the support bounds are prior point
+# masses or support boundaries for most random-effect quantities.
+.brma_random_parameter_point_test_reason <- function(object, selection,
+                                                     label) {
+
+  prior_density <- BayesTools::parameter_prior_density(
+    object[["fit"]],
+    selection
+  )
+  if (is.null(prior_density)) {
     return(paste0(
-      "Point-null Bayes factors are not available for derived pairwise ",
-      "correlation '", label, "'."
+      "Point-null Bayes factors are unavailable for random-effect quantity '",
+      label, "' because its prior density is unavailable. Use a region or ",
+      "directional hypothesis."
     ))
   }
-  if (identical(type, "sd") &&
-      (is.na(source) || !nzchar(source)) && !derived) {
+  support <- selection[["quantities"]][["support"]][[1L]]
+  value   <- .brma_random_parameter_interior_value(support)
+  status  <- BayesTools::prior_ordinate_status(prior_density, value)
+  if (identical(status[["condition"]], "BayesTools_inexact_ordinate")) {
     return(paste0(
-      "Point-null Bayes factors are not available for derived component SD '",
-      label, "'."
+      "Point-null Bayes factors are unavailable for random-effect quantity '",
+      label, "' because its prior ordinate has no exact structural ",
+      "classification. Use a region or directional hypothesis."
     ))
   }
 
   ""
 }
+
+
+# A value inside the support 'support' (a posterior_support_attribute(), or
+# NULL for an unbounded support): the midpoint of a bounded support, one unit
+# inside a half-bounded support, and 0 otherwise.
+.brma_random_parameter_interior_value <- function(support) {
+
+  bounds <- if (is.null(support)) c(-Inf, Inf) else as.numeric(support[["bounds"]])
+  if (all(is.finite(bounds))) {
+    return(mean(bounds))
+  }
+  if (is.finite(bounds[[1L]])) {
+    return(bounds[[1L]] + 1)
+  }
+  if (is.finite(bounds[[2L]])) {
+    return(bounds[[2L]] - 1)
+  }
+
+  0
+}
+
+
+# The draws a random-effect mixed posterior summarizes: when BayesTools left
+# out the draws where the quantity is undefined, a mask of the retained share
+# of the fitted draws (for the footnote); NULL when every draw is used.
+.brma_random_parameter_defined_share <- function(object, values) {
+
+  if (is.null(BayesTools::posterior_metadata(values, "undefined_draws"))) {
+    return(NULL)
+  }
+  n_draws <- sum(vapply(
+    coda::as.mcmc.list(object[["fit"]]),
+    nrow,
+    integer(1)
+  ))
+  if (length(values) >= n_draws) {
+    return(NULL)
+  }
+
+  c(rep(TRUE, length(values)), rep(FALSE, n_draws - length(values)))
+}
+
 
 .brma_random_parameter_zero_boundary_alternative <- function(object,
                                                                selected) {
@@ -1431,126 +1365,16 @@
 }
 
 
-.brma_random_parameter_prior_has_atom <- function(prior) {
-
-  if (is.null(prior) || !BayesTools::is.prior(prior)) {
-    return(FALSE)
-  }
-  if (BayesTools::is.prior.point(prior)) {
-    return(TRUE)
-  }
-  if (BayesTools::is.prior.mixture(prior) ||
-      BayesTools::is.prior.spike_and_slab(prior)) {
-    return(any(vapply(
-      prior,
-      .brma_random_parameter_prior_has_atom,
-      logical(1)
-    )))
-  }
-
-  return(FALSE)
-}
-
-.brma_random_parameter_prior_density <- function(samples, support,
-                                                 n_points = 4096L,
-                                                 inclusion = NULL,
-                                                 inclusion_probability = NULL,
-                                                 continuous = NULL,
-                                                 point_masses = NULL) {
-
-  samples <- as.numeric(samples)
-  continuous_mass <- 1
-  points <- data.frame(x = numeric(), p = numeric())
-  if (!is.null(continuous)) {
-    continuous <- as.logical(continuous)
-    if (length(continuous) != length(samples) || anyNA(continuous) ||
-        is.null(point_masses) || !is.data.frame(point_masses) ||
-        !identical(names(point_masses), c("x", "p")) ||
-        any(!is.finite(point_masses[["x"]])) ||
-        any(!is.finite(point_masses[["p"]]) |
-            point_masses[["p"]] < 0 | point_masses[["p"]] > 1) ||
-        sum(point_masses[["p"]]) > 1 + sqrt(.Machine$double.eps)) {
-      stop("Random-effect structural prior-mass metadata are invalid.",
-           call. = FALSE)
-    }
-    points <- point_masses[point_masses[["p"]] > 0, , drop = FALSE]
-    continuous_mass <- max(0, 1 - sum(points[["p"]]))
-    samples <- samples[continuous]
-  } else if (!is.null(inclusion)) {
-    inclusion <- as.numeric(inclusion)
-    if (length(inclusion) != length(samples) ||
-        any(!is.finite(inclusion) | !inclusion %in% c(0, 1))) {
-      stop("Random-effect prior inclusion samples are invalid.",
-           call. = FALSE)
-    }
-    if (is.null(inclusion_probability)) {
-      continuous_mass <- mean(inclusion == 1)
-    } else {
-      continuous_mass <- as.numeric(inclusion_probability)
-      if (length(continuous_mass) != 1L || !is.finite(continuous_mass) ||
-          continuous_mass < 0 || continuous_mass > 1) {
-        stop("Random-effect prior inclusion probability is invalid.",
-             call. = FALSE)
-      }
-    }
-    point_mass       <- 1 - continuous_mass
-    samples          <- samples[inclusion == 1]
-    if (point_mass > 0) {
-      points <- data.frame(x = 0, p = point_mass)
-    }
-  }
-  samples <- samples[is.finite(samples)]
-  if (length(unique(samples)) < 2L) {
-    if (continuous_mass == 0 && nrow(points) > 0L) {
-      out <- list(
-        density = NULL,
-        points  = points,
-        n_grid  = 1L
-      )
-      class(out) <- c("prior_linear_density", "prior_density")
-      attr(out, "support") <- support
-      return(out)
-    }
-    return(NULL)
-  }
-
-  bandwidth <- stats::bw.nrd0(samples)
-  reflected <- samples
-  if (is.finite(support[1L])) {
-    reflected <- c(reflected, 2 * support[1L] - samples)
-  }
-  if (is.finite(support[2L])) {
-    reflected <- c(reflected, 2 * support[2L] - samples)
-  }
-  args <- list(x = reflected, n = n_points, bw = bandwidth)
-  if (is.finite(support[1L])) args[["from"]] <- support[1L]
-  if (is.finite(support[2L])) args[["to"]]   <- support[2L]
-  density <- do.call(stats::density, args)
-  integral <- sum(diff(density[["x"]]) *
-    (density[["y"]][-1L] + density[["y"]][-length(density[["y"]])]) / 2)
-  if (!is.finite(integral) || integral <= 0) {
-    return(NULL)
-  }
-  density[["y"]] <- density[["y"]] / integral
-  out <- list(
-    density = list(
-      x    = density[["x"]],
-      y    = density[["y"]],
-      mass = continuous_mass
-    ),
-    points  = points,
-    n_grid  = n_points
-  )
-  class(out) <- c("prior_linear_density", "prior_density")
-  attr(out, "support") <- support
-  out
-}
-
+# The mixed posterior of one random-effect quantity with the draw metadata
+# of BayesTools::parameter_mixed_posterior(): the catalog support, the
+# canonical prior density, the declared atoms (inclusion-gate and
+# allocation-gate point masses with masses from the gate states), undefined
+# draws and conditioning. 'conditional' conditions on the quantity's
+# inclusion event. Returned as the one-element list of as_mixed_posteriors()
+# named by the RoBMA parameter name.
 .brma_random_parameter_mixed_posterior <- function(
     object, parameter, standardized_coefficients = FALSE,
-    prior = FALSE, conditional = FALSE,
-    n_prior_samples = 10000L, seed = NULL,
-    selected = NULL, prior_selected = NULL) {
+    conditional = FALSE, selected = NULL) {
 
   if (is.null(selected)) {
     selected <- .brma_random_parameter_select(
@@ -1559,258 +1383,21 @@
       standardized_coefficients = standardized_coefficients
     )
   }
-  indicator <- .brma_random_parameter_inclusion_indicator(object, selected)
-  inclusion_probability <- .brma_random_parameter_inclusion_probability(
-    object    = object,
-    indicator = indicator
-  )
-  allocation_gate_metadata <-
-    .brma_random_parameter_allocation_gate_metadata(selected)
-  zero_gate <- !is.null(indicator) &&
-    selected[["spec"]][["quantity"]] %in% c("sd", "var")
-  if (conditional && is.null(indicator)) {
-    stop(
-      "Conditional product-space plots require a random-effect quantity ",
-      "owned by one independently gated component.",
-      call. = FALSE
-    )
+  fit <- object[["fit"]]
+  if (standardized_coefficients) {
+    attr(fit, "formula_scale") <- list()
   }
+  values <- BayesTools::parameter_mixed_posterior(
+    fit         = fit,
+    selection   = selected[["entry"]][["selection"]],
+    conditional = conditional
+  )
+  attr(values, "parameter") <- selected[["entry"]][["parameter"]]
 
-  raw_values <- unname(as.numeric(selected[["samples"]][, 1L]))
-  posterior_samples <- if (!is.null(indicator) ||
-                            !is.null(allocation_gate_metadata)) {
-    .get_posterior_samples(object[["fit"]])
-  } else {
-    NULL
-  }
-  allocation_gate_state <- .brma_random_parameter_allocation_gate_state(
-    allocation_gate_metadata,
-    posterior_samples
-  )
-  values <- raw_values
-  if (!is.null(allocation_gate_state)) {
-    values <- values[allocation_gate_state[["defined"]]]
-    if (length(values) == 0L) {
-      stop(
-        "Variance proportion '", selected[["spec"]][["label"]],
-        "' is unavailable because no posterior draw has positive realized ",
-        "allocation variance.",
-        call. = FALSE
-      )
-    }
-  }
-  posterior_inclusion <- NULL
-  if (!is.null(indicator)) {
-    if (!indicator %in% colnames(posterior_samples)) {
-      stop(
-        "Random-effect posterior samples are missing inclusion indicator '",
-        indicator, "'.",
-        call. = FALSE
-      )
-    }
-    posterior_inclusion <- posterior_samples[, indicator]
-    if (length(posterior_inclusion) != length(values) ||
-        any(!is.finite(posterior_inclusion) |
-            !posterior_inclusion %in% c(0, 1))) {
-      stop("Random-effect posterior inclusion samples are invalid.",
-           call. = FALSE)
-    }
-    if (conditional) {
-      values <- values[posterior_inclusion == 1]
-      posterior_inclusion <- posterior_inclusion[posterior_inclusion == 1]
-      if (length(values) == 0L) {
-        stop("No samples remain after random-effect inclusion conditioning.",
-             call. = FALSE)
-      }
-    }
-  }
-  # Quantities declared as possibly undefined keep their defined draws.
-  defined <- .brma_random_parameter_defined_draws(
-    values,
-    selected[["samples"]],
-    selected[["spec"]][["label"]]
-  )
-  values <- values[defined]
-  if (!is.null(posterior_inclusion)) {
-    posterior_inclusion <- posterior_inclusion[defined]
-  }
-  attr(values, "parameter")  <- selected[["entry"]][["parameter"]]
-  attr(values, "prior_list") <- BayesTools::prior_none()
-  support <- .brma_random_parameter_support(selected)
-  BayesTools::posterior_metadata(values, "support") <-
-    .brma_random_parameter_catalog_support(selected)
-  allocation_points <- NULL
-  if (!is.null(allocation_gate_state)) {
-    defined <- allocation_gate_state[["defined"]]
-    denominator <- sum(defined)
-    point_mass <- c(
-      sum(allocation_gate_state[["point_zero"]]) / denominator,
-      sum(allocation_gate_state[["point_one"]]) / denominator
-    )
-    allocation_points <- data.frame(
-      x    = c(0, 1),
-      mass = point_mass
-    )
-    allocation_points <- allocation_points[
-      allocation_points[["mass"]] > 0,
-      ,
-      drop = FALSE
-    ]
-  }
-  if (!is.null(allocation_gate_state)) {
-    BayesTools::posterior_metadata(values, "atoms") <-
-      BayesTools::posterior_atom_attribute(
-        point_masses = allocation_points,
-        source       = "random-effect allocation gates"
-      )
-  } else if (zero_gate && !conditional && any(posterior_inclusion == 0)) {
-    BayesTools::posterior_metadata(
-      values,
-      "atoms"
-    ) <- BayesTools::posterior_atom_attribute(
-      point_masses = data.frame(
-        x    = 0,
-        mass = mean(posterior_inclusion == 0)
-      ),
-      source = "random-effect inclusion gate"
-    )
-  } else if (!.brma_random_parameter_prior_has_atom(selected[["prior"]]) &&
-             !.brma_random_parameter_prior_has_atom(selected[["source_prior"]])) {
-    BayesTools::posterior_metadata(values, "atoms") <-
-      BayesTools::posterior_atom_attribute(
-        source = "RoBMA semantic random-effect prior"
-      )
-  }
-
-  gated_aggregate <- !is.null(allocation_gate_metadata)
-  target_prior <- if (prior && (zero_gate || gated_aggregate)) {
-    NULL
-  } else {
-    BayesTools::prior_none()
-  }
-  if (prior && !zero_gate && !gated_aggregate) {
-    target_prior <- .brma_random_parameter_exact_prior(selected)
-  }
-  if (prior && is.null(target_prior) && !standardized_coefficients &&
-      !zero_gate && (!gated_aggregate ||
-        identical(selected[["spec"]][["quantity"]], "var_prop"))) {
-    prior_density <- BayesTools::parameter_prior_density(
-      object[["fit"]],
-      selected[["entry"]][["selection"]]
-    )
-    if (!is.null(prior_density)) {
-      BayesTools::posterior_metadata(values, "prior_density") <- prior_density
-      target_prior <- BayesTools::prior_none()
-    }
-  }
-  if (prior && is.null(target_prior)) {
-    if (is.null(prior_selected)) {
-      prior_selected <- .brma_random_parameter_select(
-        object                    = object,
-        parameter                 = parameter,
-        standardized_coefficients = standardized_coefficients,
-        prior                     = TRUE,
-        n_prior_samples           = n_prior_samples,
-        seed                      = seed
-      )
-    }
-    prior_inclusion <- NULL
-    if (!is.null(indicator)) {
-      raw_samples <- prior_selected[["raw_samples"]]
-      if (!is.matrix(raw_samples) ||
-          !indicator %in% colnames(raw_samples)) {
-        stop(
-          "Random-effect prior samples are missing inclusion indicator '",
-          indicator, "'.",
-          call. = FALSE
-        )
-      }
-      prior_inclusion <- raw_samples[, indicator]
-      if (conditional) {
-        prior_values <- prior_selected[["samples"]][, 1L]
-        undefined    <- BayesTools::posterior_metadata(
-          prior_selected[["samples"]],
-          "undefined_draws"
-        )
-        prior_selected[["samples"]] <- matrix(
-          prior_values[prior_inclusion == 1],
-          ncol = 1L
-        )
-        BayesTools::posterior_metadata(
-          prior_selected[["samples"]],
-          "undefined_draws"
-        ) <- undefined
-        prior_inclusion <- NULL
-      }
-    }
-    prior_allocation_state <- .brma_random_parameter_allocation_gate_state(
-      allocation_gate_metadata,
-      prior_selected[["raw_samples"]]
-    )
-    prior_allocation <- .brma_random_parameter_allocation_gate_prior(
-      object,
-      allocation_gate_metadata
-    )
-    if (gated_aggregate &&
-        prior_allocation[["continuous_mass"]] == 0 &&
-        nrow(prior_allocation[["points"]]) == 0L) {
-      stop(
-        "Variance proportion '", selected[["spec"]][["label"]],
-        "' is unavailable because its prior assigns no probability to ",
-        "positive realized allocation variance.",
-        call. = FALSE
-      )
-    }
-    prior_values <- prior_selected[["samples"]][, 1L]
-    if (!zero_gate && !gated_aggregate) {
-      prior_values <- prior_values[.brma_random_parameter_defined_draws(
-        prior_values,
-        prior_selected[["samples"]],
-        selected[["spec"]][["label"]]
-      )]
-    }
-    prior_density <- .brma_random_parameter_prior_density(
-      prior_values,
-      support                 = support,
-      inclusion               = if (zero_gate) prior_inclusion else NULL,
-      inclusion_probability   = if (zero_gate) {
-        inclusion_probability
-      } else {
-        NULL
-      },
-      continuous              = if (gated_aggregate) {
-        prior_allocation_state[["continuous"]]
-      } else {
-        NULL
-      },
-      point_masses            = if (gated_aggregate) {
-        prior_allocation[["points"]]
-      } else {
-        NULL
-      }
-    )
-    if (is.null(prior_density)) {
-      stop(
-        "A prior-density overlay is not available for fixed random-effect ",
-        "quantity '", selected[["entry"]][["term"]], "'.",
-        call. = FALSE
-      )
-    }
-    BayesTools::posterior_metadata(values, "prior_density") <- prior_density
-    target_prior <- BayesTools::prior_none()
-  }
-  attr(values, "prior_list") <- target_prior
-
-  class(values) <- c(
-    "mixed_posteriors",
-    "mixed_posteriors.simple",
-    "marginal_posterior.simple",
-    "marginal_posterior"
-  )
   out <- list(values)
   names(out) <- selected[["entry"]][["parameter"]]
   attr(out, "prior_list") <- stats::setNames(
-    list(target_prior),
+    list(BayesTools::prior_none()),
     selected[["entry"]][["parameter"]]
   )
   attr(out, "random_parameter_label") <- selected[["spec"]][["label"]]

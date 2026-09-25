@@ -39,10 +39,6 @@ test_that("a random inclusion gate belongs only to its declared block", {
   for (quantity in c("tau", "tau2")) {
     study_parameter <- paste0("study: ", quantity)
     esid_parameter <- paste0("esid: ", quantity)
-    study <- .brma_random_parameter_select(object, study_parameter)
-    esid <- .brma_random_parameter_select(object, esid_parameter)
-    expect_identical(.brma_random_parameter_inclusion_indicator(object, study), gate)
-    expect_null(.brma_random_parameter_inclusion_indicator(object, esid))
 
     study_posterior <- .brma_random_parameter_mixed_posterior(object, study_parameter)[[1L]]
     esid_posterior <- .brma_random_parameter_mixed_posterior(object, esid_parameter)[[1L]]
@@ -56,9 +52,17 @@ test_that("a random inclusion gate belongs only to its declared block", {
     } else {
       samples[, sd_name]^2
     })
+
+    # Conditioning keeps the draws with the study gate on; the ungated esid
+    # block has no inclusion event.
+    study_conditional <- .brma_random_parameter_mixed_posterior(
+      object, study_parameter, conditional = TRUE
+    )[[1L]]
+    expect_length(study_conditional, 2L)
+    expect_true(BayesTools::posterior_atoms_free(study_conditional))
     expect_error(
       .brma_random_parameter_mixed_posterior(object, esid_parameter, conditional = TRUE),
-      "owned by one independently gated component"
+      "the quantity has no inclusion gate"
     )
   }
 })
@@ -66,24 +70,11 @@ test_that("a random inclusion gate belongs only to its declared block", {
 
 test_that("variance proportions require a possible positive parent allocation", {
 
-  gate_prior <- function(indicator, probability) {
-    prior <- BayesTools::prior("spike", list(location = probability))
-    attr(prior, "random_allocation_indicator") <- indicator
-    prior
-  }
-  fit <- structure(list(), prior_list = list(
-    parent = gate_prior("parent", 0),
-    child = gate_prior("child", .5)
-  ))
   metadata <- list(
     quantity = "var_prop", index = 1L,
     component_indicators = c("child", NA_character_),
     parent_indicators = "parent"
   )
-  prior <- .brma_random_parameter_allocation_gate_prior(list(fit = fit), metadata)
-  expect_equal(prior[["continuous_mass"]], 0)
-  expect_equal(nrow(prior[["points"]]), 0L)
-
   state <- .brma_random_parameter_allocation_gate_state(
     metadata, cbind(parent = c(0, 0), child = c(0, 1))
   )

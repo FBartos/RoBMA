@@ -8,13 +8,16 @@ test_that("gate-only allocations remain independently addressable", {
   ), second)
 })
 
-test_that("allocation prior gates reject missing and fractional component indices", {
+test_that("allocation gate states reject missing and fractional component indices", {
 
   for (index in list(NA_integer_, NULL, 0L, 3L, 1.5)) {
     metadata <- list(quantity = "var_prop", index = index,
                      component_indicators = c(NA_character_, NA_character_),
                      parent_indicators = character())
-    expect_error(.brma_random_parameter_allocation_gate_prior(list(), metadata),
+    expect_error(
+      .brma_random_parameter_allocation_gate_state(
+        metadata, matrix(numeric(), nrow = 2L, ncol = 0L)
+      ),
       "Variance-proportion gate metadata have no valid component index.", fixed = TRUE)
   }
 })

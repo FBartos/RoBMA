@@ -1,157 +1,160 @@
-test_that("random semantic point hypotheses reject structural atoms", {
+# A fitted-object stand-in with a gated total-variance allocation of a
+# half-normal SD over 'study' (inclusion gate with prior probability 0.5) and
+# 'esid' (ungated), Dirichlet(1, 1) shares, and synthetic draws.
+.gated_random_object <- function(n = 200L) {
 
-  source_prior <- BayesTools::prior_mixture(
-    prior_list = list(
-      BayesTools::prior("spike", parameters = list(location = 0.5)),
-      BayesTools::prior("beta", parameters = list(alpha = 1, beta = 1))
-    ),
-    is_null = c(TRUE, FALSE)
-  )
-  prior_values <- c(rep(0.5, 50), seq(0.51, 1, length.out = 50))
-  posterior_values <- c(rep(0.5, 25), seq(0.51, 1, length.out = 75))
-  expect_equal(mean(prior_values == 0.5), 0.50)
-  expect_equal(mean(posterior_values == 0.5), 0.25)
-
-  selected <- function(values) {
-    list(
-      entry = list(term = "variance proportion"),
-      spec = list(
-        quantity     = "var_prop",
-        source_parameter = "rho",
-        label            = "total: tau2_prop(study)"
-      ),
-      samples      = matrix(values, ncol = 1L),
-      prior        = BayesTools::prior("beta", list(alpha = 1, beta = 1)),
-      source_prior = source_prior
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag") +
+      random(1 | esid, name = "esid", covariance = "diag"),
+    parameter = "mu",
+    data = data.frame(study = factor(c("a", "a", "b", "b")), esid = factor(1:4)),
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(
+      sd = BayesTools::prior("gamma", list(2, 2)),
+      allocation = list(BayesTools::random_variance_allocation(
+        name = "split", terms = c(study = "study", esid = "esid"),
+        sd = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
+        inclusion = list(study = BayesTools::prior("spike", list(location = .5)))
+      ))
     )
-  }
-  testthat::local_mocked_bindings(
-    .brma_random_parameter_select = function(
-        object, parameter, standardized_coefficients, prior = FALSE, ...) {
-      if (prior) selected(prior_values) else selected(posterior_values)
-    },
-    .package = "RoBMA"
   )
+  share <- seq(0.02, 0.98, length.out = n)
+  samples <- cbind(
+    mu_intercept = rep(c(-0.1, 0.1), length.out = n),
+    mu__xRE_ALLOCx_split__allocation_sd = 0.3 + 0.4 * share,
+    "mu__xRE_ALLOCx_split__weight[1]" = share,
+    "mu__xRE_ALLOCx_split__weight[2]" = 1 - share,
+    mu__xRE_ALLOCx_split__include_study_indicator = rep(c(0, 1), length.out = n)
+  )
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "prior_list") <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = result[["formula_design"]])
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
 
-  point <- BayesTools::hypothesis_parse("theta = 0.5")
-  for (density_method in c("KDE", "normal")) {
-    expect_error(
-      .hypothesis_brma_random(
-        object                    = list(),
-        parameter                 = "theta",
-        hypothesis                = point,
-        standardized_coefficients = FALSE,
-        conditional               = FALSE,
-        logBF                     = FALSE,
-        BF01                      = FALSE,
-        seed                      = 1,
-        density_method            = density_method,
-        n_samples                 = 100,
-        columns                   = "default"
-      ),
-      "induced prior/posterior contains a point mass",
-      fixed = TRUE
-    )
-  }
+  structure(
+    list(fit = fit, data = structure(list(), random = TRUE)),
+    class = c("RoBMA", "brma.mv", "brma")
+  )
+}
 
-  region <- .hypothesis_brma_random(
-    object                    = list(),
-    parameter                 = "theta",
-    hypothesis                = BayesTools::hypothesis_parse(
-      "theta <= 0.75 vs theta > 0.75"
+.gated_random_hypothesis <- function(object, parameter, statement,
+                                     density_method = "KDE") {
+
+  .hypothesis_brma_random(
+    object                    = object,
+    parameter                 = parameter,
+    hypothesis                = BayesTools::hypothesis_rewrite(
+      BayesTools::hypothesis_parse(statement),
+      c(theta = parameter)
     ),
     standardized_coefficients = FALSE,
     conditional               = FALSE,
     logBF                     = FALSE,
     BF01                      = FALSE,
     seed                      = 1,
-    density_method            = "KDE",
-    n_samples                 = 100,
-    columns                   = "default"
+    density_method            = density_method,
+    n_samples                 = 1000L,
+    columns                   = "all"
   )
-  expect_s3_class(region, "BayesTools_hypothesis_BF")
-  expect_true(is.finite(attr(region, "raw_BF")))
-})
+}
 
 
-test_that("hypothesis discovery suppresses atomic random point routes", {
+test_that("gated random point hypotheses use the exact BayesTools prior densities", {
 
-  source_prior <- BayesTools::prior_mixture(
-    prior_list = list(
-      BayesTools::prior("spike", parameters = list(location = 0.5)),
-      BayesTools::prior("beta", parameters = list(alpha = 1, beta = 1))
-    ),
-    is_null = c(TRUE, FALSE)
-  )
-  fit <- list()
-  attr(fit, "prior_list") <- list(rho = source_prior)
-  object <- structure(list(fit = fit), class = "brma")
-  specs <- data.frame(
-    parameter         = "theta",
-    label             = "total: tau2_prop(study)",
-    quantity      = "var_prop",
-    formula_parameter = "tau",
-    block             = NA_character_,
-    grouping          = "study",
-    structure         = NA_character_,
-    allocation        = "total",
-    random_component  = "study",
-    source_type       = "identity",
-    source_parameter  = "rho",
-    source_prior_name = "rho",
-    source_transform  = "identity",
-    source_scale      = 1,
-    stringsAsFactors  = FALSE
-  )
-  specs[["display_transform"]] <- I(list(list(type = "identity")))
-  testthat::local_mocked_bindings(
-    .brma_parameter_catalog = function(object) {
-      data.frame(
-        alias      = "total: tau2_prop(study)",
-        parameter  = "theta",
-        component  = "random",
-        term       = "variance proportion",
-        stringsAsFactors = FALSE
-      )
-    },
-    .brma_parameter_catalog_metadata = function(object) list(entries = NULL),
-    .brma_random_parameter_bundle = function(object, ...) {
-      list(
-        samples = matrix(seq(0.1, 0.9, length.out = 20), ncol = 1L),
-        specs   = specs,
-        priors  = list(theta = BayesTools::prior(
-          "beta", list(alpha = 1, beta = 1)
-        ))
-      )
-    },
-    .package = "RoBMA"
-  )
-
-  out <- hypothesis_quantities(object)
-  expect_false(out[["point_test"]])
-  expect_identical(out[["point_test_methods"]], "")
-  expect_true(out[["direction_test"]])
-  expect_identical(out[["direction_test_methods"]], "KDE, normal")
-  expect_match(out[["reason"]], "induced prior/posterior contains a point mass")
-})
-
-
-test_that("realized allocation gates define aggregate and proportion atoms", {
-
-  gate_prior <- function(indicator, probability) {
-    out <- BayesTools::prior(
-      "spike",
-      parameters = list(location = probability)
-    )
-    attr(out, "random_allocation_indicator") <- indicator
-    out
+  object <- .gated_random_object()
+  # The study SD is T * gate * sqrt(w) with T ~ half-normal(0, 1),
+  # P(gate = 1) = 0.5 and w ~ Beta(1, 1): its continuous part at y is
+  # 0.5 * int_0^1 f_T(y / sqrt(s)) / sqrt(s) ds, and the variance density
+  # at y^2 is the SD density at y divided by 2 y.
+  sd_density <- function(y) {
+    0.5 * stats::integrate(
+      function(s) 2 * stats::dnorm(y / sqrt(s)) / sqrt(s),
+      lower = 0, upper = 1, rel.tol = 1e-12
+    )$value
   }
-  fit <- list()
-  attr(fit, "prior_list") <- list(
-    gate_study = gate_prior("gate_study", 0.5),
-    gate_drug  = gate_prior("gate_drug", 0.5)
+  cases <- list(
+    list(parameter = "(mu) study: tau(intercept)", value = 0.3,
+         prior = sd_density(0.3)),
+    list(parameter = "(mu) study: tau2(intercept)", value = 0.09,
+         prior = sd_density(0.3) / (2 * 0.3))
   )
-  object <- list(fit = fit)
+  for (case in cases) {
+    out <- .gated_random_hypothesis(
+      object, case[["parameter"]], paste("theta =", case[["value"]])
+    )
+    expect_equal(as.numeric(out[["prior"]]), case[["prior"]], tolerance = 1e-8,
+                 info = case[["parameter"]])
+
+    # The route is the BayesTools mixed posterior of the catalog quantity.
+    selection <- .brma_parameter_select_entry(
+      object, case[["parameter"]], component = "random"
+    )[["selection"]]
+    samples <- list(BayesTools::parameter_mixed_posterior(object[["fit"]], selection))
+    names(samples) <- "theta"
+    class(samples) <- c("as_mixed_posteriors", "mixed_posteriors", "list")
+    attr(samples, "prior_list") <- list(theta = BayesTools::prior_none())
+    direct <- BayesTools::hypothesis_BF(
+      posterior  = BayesTools::marginal_posterior(
+        samples, "theta", prior_samples = TRUE, use_formula = FALSE,
+        n_samples = 1000L
+      ),
+      hypothesis = paste("theta =", case[["value"]]),
+      parameter  = "theta",
+      seed       = 1
+    )
+    expect_equal(attr(out, "raw_BF"), attr(direct, "raw_BF"), tolerance = 1e-12,
+                 info = case[["parameter"]])
+  }
+})
+
+
+test_that("random point hypotheses refuse prior point masses and nonregular values", {
+
+  object <- .gated_random_object()
+  for (case in list(
+    list(parameter = "(mu) split: tau2_prop(study)", value = 0),
+    list(parameter = "(mu) split: tau2_prop(esid)", value = 1),
+    list(parameter = "(mu) study: tau2(intercept)", value = 0)
+  )) {
+    expect_error(
+      .gated_random_hypothesis(object, case[["parameter"]],
+                               paste("theta =", case[["value"]])),
+      paste0("because its prior has a point mass at ", case[["value"]], "."),
+      fixed = TRUE,
+      info = case[["parameter"]]
+    )
+  }
+  # Interior proportions are regular points of the continuous part.
+  expect_s3_class(
+    .gated_random_hypothesis(object, "(mu) split: tau2_prop(study)", "theta = 0.3"),
+    "BayesTools_hypothesis_BF"
+  )
+  # The ungated variance has an infinite prior ordinate at 0.
+  expect_error(
+    .gated_random_hypothesis(object, "(mu) esid: tau2(intercept)", "theta = 0"),
+    class = "BayesTools_infinite_ordinate"
+  )
+})
+
+
+test_that("hypothesis discovery lists point tests of gated random quantities", {
+
+  object <- .gated_random_object()
+  quantities <- hypothesis_quantities(object)
+  random <- quantities[quantities[["component"]] == "random", , drop = FALSE]
+
+  expect_gt(nrow(random), 0L)
+  expect_true(all(random[["point_test"]]))
+  expect_true(all(grepl("KDE", random[["point_test_methods"]], fixed = TRUE)))
+  expect_true(all(random[["reason"]] == ""))
+})
+
+
+test_that("realized allocation gates define aggregate and proportion states", {
+
   allocation <- list(
     scale          = "total_variance",
     n_targets      = 2L,
@@ -166,58 +169,29 @@ test_that("realized allocation gates define aggregate and proportion atoms", {
     gate_drug  = c(0, 0, 1, 1)
   )
 
-  total_selected <- list(
+  total_metadata <- .brma_random_parameter_allocation_gate_metadata(list(
     spec = list(quantity = "sd_total", allocation_index = NA_integer_),
     allocation_definition = allocation
-  )
-  total_metadata <-
-    .brma_random_parameter_allocation_gate_metadata(total_selected)
+  ))
   total_state <- .brma_random_parameter_allocation_gate_state(
     total_metadata,
     raw_samples
   )
-  total_prior <- .brma_random_parameter_allocation_gate_prior(
-    object,
-    total_metadata
-  )
   expect_identical(total_state[["point_zero"]], c(TRUE, FALSE, FALSE, FALSE))
   expect_identical(total_state[["continuous"]], c(FALSE, TRUE, TRUE, TRUE))
-  expect_equal(total_prior[["points"]], data.frame(x = 0, p = 0.25))
-  expect_equal(total_prior[["continuous_mass"]], 0.75)
 
   proportion_selected <- list(
     spec = list(quantity = "var_prop", allocation_index = 1L),
     allocation_definition = allocation
   )
-  proportion_metadata <-
-    .brma_random_parameter_allocation_gate_metadata(proportion_selected)
   proportion_state <- .brma_random_parameter_allocation_gate_state(
-    proportion_metadata,
+    .brma_random_parameter_allocation_gate_metadata(proportion_selected),
     raw_samples
-  )
-  proportion_prior <- .brma_random_parameter_allocation_gate_prior(
-    object,
-    proportion_metadata
   )
   expect_identical(proportion_state[["defined"]], c(FALSE, TRUE, TRUE, TRUE))
   expect_identical(proportion_state[["point_zero"]], c(FALSE, FALSE, TRUE, FALSE))
   expect_identical(proportion_state[["point_one"]], c(FALSE, TRUE, FALSE, FALSE))
   expect_identical(proportion_state[["continuous"]], c(FALSE, FALSE, FALSE, TRUE))
-  expect_equal(
-    proportion_prior[["points"]],
-    data.frame(x = c(0, 1), p = c(1 / 3, 1 / 3))
-  )
-  expect_equal(proportion_prior[["continuous_mass"]], 1 / 3)
-
-  reason <- .brma_random_parameter_point_test_reason(
-    spec = list(
-      quantity         = "var_prop",
-      source_parameter = NA_character_,
-      label            = "tau2_prop(study)"
-    ),
-    allocation_gate_prior = proportion_prior
-  )
-  expect_match(reason, "contains a point mass", fixed = TRUE)
 
   inherited_allocation <- allocation
   inherited_allocation[["inclusion"]] <- list()
@@ -226,38 +200,13 @@ test_that("realized allocation gates define aggregate and proportion atoms", {
   )
   inherited_selected <- proportion_selected
   inherited_selected[["allocation_definition"]] <- inherited_allocation
-  inherited_metadata <-
-    .brma_random_parameter_allocation_gate_metadata(inherited_selected)
   inherited_state <- .brma_random_parameter_allocation_gate_state(
-    inherited_metadata,
+    .brma_random_parameter_allocation_gate_metadata(inherited_selected),
     raw_samples
-  )
-  inherited_prior <- .brma_random_parameter_allocation_gate_prior(
-    object,
-    inherited_metadata
   )
   expect_identical(inherited_state[["defined"]], c(FALSE, TRUE, FALSE, TRUE))
   expect_identical(
     inherited_state[["continuous"]],
     inherited_state[["defined"]]
   )
-  expect_equal(nrow(inherited_prior[["points"]]), 0L)
-  expect_equal(inherited_prior[["continuous_mass"]], 1)
-})
-
-
-test_that("allocation prior density preserves structural boundary masses", {
-
-  samples <- c(0, 1, seq(0.01, 0.99, length.out = 2000L))
-  continuous <- c(FALSE, FALSE, rep(TRUE, 2000L))
-  density <- .brma_random_parameter_prior_density(
-    samples      = samples,
-    support      = c(0, 1),
-    continuous   = continuous,
-    point_masses = data.frame(x = c(0, 1), p = c(1 / 3, 1 / 3))
-  )
-
-  expect_s3_class(density, "prior_linear_density")
-  expect_equal(density[["points"]][["p"]], c(1 / 3, 1 / 3))
-  expect_equal(density[["density"]][["mass"]], 1 / 3)
 })

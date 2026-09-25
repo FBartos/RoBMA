@@ -130,7 +130,7 @@ test_that("shared-gate allocation grids use declared continuous covariance plans
   withr::local_seed(1)
   prior_seed <- .Random.seed
   prior_samples <- .brma_random_parameter_mixed_posterior(
-    list(fit = fit), "split: tau2_prop(study)", prior = TRUE,
+    list(fit = fit), "split: tau2_prop(study)",
     selected = selected
   )[[1L]]
   prior_density <- BayesTools::posterior_metadata(prior_samples, "prior_density")
@@ -709,7 +709,6 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   used_density_method <- NULL
   attachment_calls    <- 0L
   reused_selected     <- NULL
-  reused_prior        <- NULL
   semantic_prior_density <- BayesTools::prior(
     "uniform",
     list(a = 0, b = 1)
@@ -719,10 +718,8 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     .brma_random_parameter_density_target = function(...) {
       list(parameter = "rho[2]", parameter_spec = target_spec)
     },
-    .brma_random_parameter_mixed_posterior = function(
-        ..., selected = NULL, prior_selected = NULL) {
+    .brma_random_parameter_mixed_posterior = function(..., selected = NULL) {
       reused_selected <<- selected
-      reused_prior    <<- prior_selected
       values <- 1:3
       BayesTools::posterior_metadata(values, "prior_density") <- semantic_prior_density
       list(theta = values)
@@ -785,7 +782,6 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   expect_identical(attached_values, c(0.701406683025, 1))
   expect_identical(used_density_method, "precomputed")
   expect_identical(reused_selected, selected)
-  expect_identical(reused_prior, selected)
 })
 
 
@@ -804,6 +800,12 @@ test_that("semantic random point hypotheses reject singular display boundaries",
   )
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
+    .brma_random_parameter_mixed_posterior = function(...) {
+      values <- seq(0.01, 0.99, length.out = 100L)
+      BayesTools::posterior_metadata(values, "prior_density") <-
+        BayesTools::prior("gamma", list(shape = 2, rate = 2))
+      list(tau2_common = values)
+    },
     .brma_random_parameter_density_target = function(...) list(
       parameter         = "tau",
       parameter_spec    = list(type = "primitive"),
@@ -873,6 +875,12 @@ test_that("allocation-derived SD zero tests name the omission coordinate", {
   )
   testthat::local_mocked_bindings(
     .brma_random_parameter_select = function(...) selected,
+    .brma_random_parameter_mixed_posterior = function(...) {
+      values <- seq(.1, 1, length.out = 20L)
+      BayesTools::posterior_metadata(values, "prior_density") <-
+        BayesTools::prior("normal", list(0, 1), list(0, Inf))
+      list(theta = values)
+    },
     .package = "RoBMA"
   )
 

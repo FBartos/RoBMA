@@ -83,56 +83,29 @@ hypothesis_quantities.brma <- function(object, ...) {
     random_parameters <- unique(out[["parameter"]][is_random])
     random_routes <- lapply(random_parameters, function(parameter) {
 
-      i <- match(parameter, specs[["parameter"]])
-      spec         <- as.list(specs[i, , drop = FALSE])
-      source_prior <- .brma_random_parameter_source_prior(object, spec)
-      formula_design <- attr(
-        object[["fit"]],
-        "formula_design",
-        exact = TRUE
+      i     <- match(parameter, specs[["parameter"]])
+      entry <- .brma_parameter_select_entry(
+        object    = object,
+        parameter = parameter,
+        component = "random"
       )
-      allocation_definition <- .brma_random_parameter_design_allocation(
-        formula_design,
-        spec
-      )
-      spec[["allocation_index"]] <-
-        .brma_random_parameter_allocation_index(
-          spec,
-          allocation_definition
-        )
-      allocation_gate_metadata <-
-        .brma_random_parameter_allocation_gate_metadata(list(
-          spec                  = spec,
-          allocation_definition = allocation_definition
-        ))
-      allocation_gate_prior <-
-        .brma_random_parameter_allocation_gate_prior(
-          object,
-          allocation_gate_metadata
-      )
-      direct_reason <- .brma_random_parameter_point_test_reason(
-        spec                  = spec,
-        prior                 = bundle[["priors"]][[parameter]],
-        source_prior          = source_prior,
-        allocation_gate_prior = allocation_gate_prior
-      )
-      likelihood_reason <- .brma_random_parameter_point_test_reason(
-        spec                  = spec,
-        prior                 = bundle[["priors"]][[parameter]],
-        source_prior          = source_prior,
-        derived               = TRUE,
-        allocation_gate_prior = allocation_gate_prior
+      # Every method uses the canonical BayesTools prior density; values at
+      # its point masses are refused per value by hypothesis().
+      reason <- .brma_random_parameter_point_test_reason(
+        object    = object,
+        selection = entry[["selection"]],
+        label     = specs[["label"]][[i]]
       )
       point_methods <- .hypothesis_quantities_random_point_methods(
         parameter          = parameter,
         object             = object,
         methods            = likelihood_aware[["methods"]],
-        direct_allowed     = !nzchar(direct_reason),
-        likelihood_allowed = !nzchar(likelihood_reason)
+        direct_allowed     = !nzchar(reason),
+        likelihood_allowed = !nzchar(reason)
       )
       list(
         point_methods = point_methods,
-        reason        = if (nzchar(point_methods)) "" else direct_reason
+        reason        = if (nzchar(point_methods)) "" else reason
       )
     })
     names(random_routes) <- random_parameters

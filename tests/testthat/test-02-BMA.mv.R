@@ -249,24 +249,17 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
 
   total <- .brma_random_parameter_mixed_posterior(
     fit_bma_mv,
-    "tau_total",
-    prior           = TRUE,
-    n_prior_samples = 2000L,
-    seed            = 732L
+    "tau_total"
   )[[1L]]
   total_posterior_atoms <- BayesTools::posterior_metadata(total, "atoms")
   total_prior <- BayesTools::posterior_metadata(total, "prior_density")
   expect_equal(unname(total_posterior_atoms[["locations"]][, 1L]), 0)
   expect_equal(total_prior[["points"]][["x"]], 0)
   expect_equal(total_prior[["points"]][["p"]], 0.25)
-  expect_equal(total_prior[["density"]][["mass"]], 0.75)
 
   proportion <- .brma_random_parameter_mixed_posterior(
     fit_bma_mv,
-    "tau2_prop(study)",
-    prior           = TRUE,
-    n_prior_samples = 2000L,
-    seed            = 733L
+    "tau2_prop(study)"
   )[[1L]]
   proportion_posterior_atoms <- BayesTools::posterior_metadata(proportion, "atoms")
   proportion_prior <- BayesTools::posterior_metadata(proportion, "prior_density")
@@ -276,7 +269,6 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
   )
   expect_equal(proportion_prior[["points"]][["x"]], c(0, 1))
   expect_equal(proportion_prior[["points"]][["p"]], c(1 / 3, 1 / 3))
-  expect_equal(proportion_prior[["density"]][["mass"]], 1 / 3)
 
   expect_s3_class(
     plot(
@@ -297,6 +289,8 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
     "ggplot"
   )
 
+  # Point hypotheses at the gate atoms are refused; interior values use the
+  # continuous part of the exact prior density.
   for (parameter in c("tau_total", "tau2_prop(study)")) {
     expect_error(
       hypothesis(
@@ -304,9 +298,18 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
         paste0("`", parameter, "` = 0"),
         density_method = "KDE"
       ),
-      "realized allocation distribution contains structural point masses",
+      "because its prior has a point mass at 0.",
       fixed = TRUE,
       info = parameter
+    )
+    expect_s3_class(
+      suppressWarnings(hypothesis(
+        fit_bma_mv,
+        paste0("`", parameter, "` = 0.2"),
+        density_method = "KDE",
+        seed           = 1
+      )),
+      "BayesTools_hypothesis_BF"
     )
   }
 
@@ -319,7 +322,7 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
       "(mu) tau2_prop(observation)"
     )
   expect_true(any(gated))
-  expect_true(all(!quantities[["point_test"]][gated]))
+  expect_true(all(quantities[["point_test"]][gated]))
   expect_true(all(quantities[["direction_test"]][gated]))
 })
 
