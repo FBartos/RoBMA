@@ -407,14 +407,35 @@ test_that("brma.mv heterogeneity falls back to row-marginal random SDs", {
     nrow = 2,
     dimnames = list(NULL, "mu__xRE_ALLOCx_heterogeneity__allocation_sd")
   )
-  expect_error(
+  # The allocated SDs are the BayesTools nodes of a fit with this design; the
+  # allocation source alone does not determine them: the node evaluator names
+  # the missing allocation weights.
+  formula <- .object_bayestools_formula(
+    object    = object,
+    parameter = "mu",
+    source    = .fitted_formula_source(parameter = "mu", data = object[["data"]])
+  )
+  weights <- paste0("mu__xRE_ALLOCx_heterogeneity__weight[", 1:2, "]")
+  allocation_fit <- coda::mcmc.list(coda::mcmc(cbind(
+    allocation_samples,
+    matrix(.5, nrow = 2L, ncol = 2L, dimnames = list(NULL, weights))
+  )))
+  attr(allocation_fit, "prior_list")     <- formula[["prior_list"]]
+  attr(allocation_fit, "formula_design") <- list(mu = formula[["formula_design"]])
+  allocation_error <- tryCatch(
     .random_effect_term_sd_samples(
       term              = term,
       posterior_samples = allocation_samples,
-      K                 = nobs(object)
+      K                 = nobs(object),
+      sd_evaluator      = .marginalized_random_sd_evaluator(
+        as_bayestools_fit(allocation_fit),
+        list(term)
+      )
     ),
-    "missing posterior column"
+    error = identity
   )
+  expect_s3_class(allocation_error, "error")
+  expect_match(conditionMessage(allocation_error), weights[[1L]], fixed = TRUE)
 
   components <- .brma_mv_heterogeneity_components(
     object            = object,
