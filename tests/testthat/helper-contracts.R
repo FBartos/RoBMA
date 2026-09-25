@@ -222,3 +222,41 @@ with_draw_metadata <- function(x, ..., class = NULL) {
   }
   x
 }
+
+# The BayesTools::prior_ordinate_status() table of values whose prior
+# ordinates are regular and exactly classified (eligible point hypotheses).
+eligible_ordinate_status <- function(prior_density, values, labels = NULL) {
+
+  data.frame(
+    value               = values,
+    eligible            = TRUE,
+    condition           = NA_character_,
+    reason              = NA_character_,
+    continuous_behavior = "regular",
+    stringsAsFactors    = FALSE
+  )
+}
+
+# The 'targets' table (schema version 2) of a
+# BayesTools_formula_coefficient_transform fixture: each target's map type,
+# and the support of its map (positive for maps with an exp output).
+formula_transform_targets <- function(map_types, output_transforms) {
+
+  targets <- names(map_types)
+  out <- data.frame(
+    target            = targets,
+    structural_status = "dependent",
+    fixed_value       = NA_real_,
+    reason            = "",
+    map_type          = unname(map_types),
+    stringsAsFactors  = FALSE
+  )
+  out[["support"]] <- lapply(targets, function(target) {
+    if (identical(unname(output_transforms[target]), "exp")) {
+      c(0, Inf)
+    } else {
+      c(-Inf, Inf)
+    }
+  })
+  out
+}

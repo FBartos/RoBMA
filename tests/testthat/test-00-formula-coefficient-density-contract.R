@@ -11,9 +11,10 @@ test_that("conditional-normal ordinates retain exact structural classification",
   density <- BayesTools:::.prior_linear_combination_density(
     priors, c(a = 1, b = -1), n_grid = 512
   )
-  ordinate <- BayesTools::prior_density_ordinate(density, 0)
+  ordinate <- .iwmde_prior_ordinate_classifications(density, 0)[[1L]]
   expect_identical(ordinate$method, "conditional_normal_mixture")
   expect_true(ordinate$exact)
+  expect_true(ordinate$eligible)
   expect_false(ordinate$provenance$integration$exact)
   expect_identical(.iwmde_validate_prior_ordinate(ordinate, 0), ordinate)
   expect_length(.iwmde_ordinate_prior_warnings("mu_intercept", list(ordinate)), 0L)
@@ -36,10 +37,52 @@ test_that("conditional-normal ordinates retain exact structural classification",
 })
 
 
+test_that("IWMDE classifies prior ordinates of every route by eligibility", {
+
+  density <- BayesTools:::.prior_linear_combination_density(
+    list(
+      a = BayesTools::prior("cauchy", list(0, 1)),
+      b = BayesTools::prior("t", list(0, 1, 3))
+    ),
+    c(a = 1, b = 1),
+    n_grid = 256
+  )
+  # A route outside a fixed method vocabulary is classified by the BayesTools
+  # exactness rule.
+  ordinate <- .iwmde_prior_ordinate_classifications(density, 0.3)[[1L]]
+  expect_identical(ordinate$method, "convolution")
+  expect_true(ordinate$eligible)
+  expect_true(is.na(ordinate$condition))
+  expect_identical(.iwmde_validate_prior_ordinate(ordinate, 0.3), ordinate)
+  expect_length(.iwmde_ordinate_prior_warnings("mu_intercept", list(ordinate)), 0L)
+
+  # A regular ordinate that the rule refuses warns before estimation.
+  testthat::local_mocked_bindings(
+    prior_ordinate_status = function(prior_density, values, labels = NULL) {
+      out <- eligible_ordinate_status(prior_density, values)
+      out[["eligible"]]  <- FALSE
+      out[["condition"]] <- "BayesTools_inexact_ordinate"
+      out[["reason"]]    <- "Inexact."
+      out
+    },
+    .package = "BayesTools"
+  )
+  inexact <- .iwmde_prior_ordinate_classifications(density, 0.3)[[1L]]
+  expect_identical(inexact$behavior, "regular")
+  expect_false(inexact$eligible)
+  expect_identical(inexact$condition, "BayesTools_inexact_ordinate")
+  expect_match(
+    .iwmde_ordinate_prior_warnings("mu_intercept", list(inexact)),
+    "could not be classified from deterministic provenance",
+    fixed = TRUE
+  )
+})
+
+
 test_that("transformed coefficient hypotheses use exact structural weights", {
 
   transform <- list(
-    schema_version             = 1L,
+    schema_version             = 2L,
     formula_design_version     = 3L,
     parameter_map_version = 1L,
     parameter                  = "mu",
@@ -59,12 +102,9 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
       stringsAsFactors = FALSE
     ),
     sources = data.frame(),
-    targets = data.frame(
-      target            = c("mu_intercept", "mu_x"),
-      structural_status = "dependent",
-      fixed_value       = NA_real_,
-      reason            = "",
-      stringsAsFactors  = FALSE
+    targets = formula_transform_targets(
+      c(mu_intercept = "affine", mu_x = "affine"),
+      c(mu_intercept = "identity", mu_x = "identity")
     )
   )
   class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
@@ -86,9 +126,9 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
       observed_context <<- context
       density
     },
-    prior_density_ordinate = function(density, value) {
-      observed_values <<- c(observed_values, value)
-      list(behavior = "regular", exact = TRUE)
+    prior_ordinate_status = function(prior_density, values, labels = NULL) {
+      observed_values <<- c(observed_values, values)
+      eligible_ordinate_status(prior_density, values)
     },
     .package = "BayesTools"
   )
@@ -118,7 +158,7 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
 test_that("factor-level hypotheses resolve exact transformed coordinates", {
 
   transform <- list(
-    schema_version = 1L,
+    schema_version = 2L,
     target_scale   = "original",
     source_names   = "mu_alloc__xXx__ablat[1]",
     target_names   = "mu_alloc__xXx__ablat[1]",
@@ -135,6 +175,10 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
     ),
     output_transforms = stats::setNames(
       "identity", "mu_alloc__xXx__ablat[1]"
+    ),
+    targets = formula_transform_targets(
+      stats::setNames("affine", "mu_alloc__xXx__ablat[1]"),
+      stats::setNames("identity", "mu_alloc__xXx__ablat[1]")
     )
   )
   class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
@@ -266,7 +310,7 @@ test_that("factor-level hypotheses resolve exact transformed coordinates", {
 test_that("transformed coefficient plots use exact structural weights", {
 
   transform <- list(
-    schema_version = 1L,
+    schema_version = 2L,
     target_scale   = "original",
     source_names   = c("mu_intercept", "mu_x"),
     target_names   = c("mu_intercept", "mu_x"),
@@ -275,7 +319,11 @@ test_that("transformed coefficient plots use exact structural weights", {
       mu_x         = c(mu_intercept = 0, mu_x = 0.5)
     ),
     source_transforms = c(mu_intercept = "identity", mu_x = "identity"),
-    output_transforms = c(mu_intercept = "identity", mu_x = "identity")
+    output_transforms = c(mu_intercept = "identity", mu_x = "identity"),
+    targets = formula_transform_targets(
+      c(mu_intercept = "affine", mu_x = "affine"),
+      c(mu_intercept = "identity", mu_x = "identity")
+    )
   )
   class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
   testthat::local_mocked_bindings(
@@ -350,7 +398,11 @@ test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
         log_tau_intercept = "log",
         log_tau_x         = "identity"
       ),
-      output_transforms = c(log_tau_intercept = "exp")
+      output_transforms = c(log_tau_intercept = "exp"),
+      targets = formula_transform_targets(
+        c(log_tau_intercept = "exp_affine"),
+        c(log_tau_intercept = "exp")
+      )
     )
   )
   class(target[["transform"]]) <- c(
@@ -360,7 +412,7 @@ test_that("nonlinear joint coefficient transforms fail qCMDE/IWMDE closed", {
   density <- structure(list(sentinel = TRUE), class = "prior_linear_density")
   testthat::local_mocked_bindings(
     JAGS_formula_prior_density = function(...) density,
-    prior_density_ordinate = function(...) list(exact = TRUE),
+    prior_ordinate_status = eligible_ordinate_status,
     .package = "BayesTools"
   )
 
@@ -395,7 +447,11 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
       log_tau_intercept = "log",
       log_tau_x         = "identity"
     ),
-    output_transforms = c(log_tau_intercept = "exp")
+    output_transforms = c(log_tau_intercept = "exp"),
+    targets = formula_transform_targets(
+      c(log_tau_intercept = "exp_affine"),
+      c(log_tau_intercept = "exp")
+    )
   )
   class(transform) <- c(
     "BayesTools_formula_coefficient_transform",
@@ -422,7 +478,8 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     condition = list(
       conditional              = character(),
       condition_key            = "<averaged>",
-      resolved_condition_event = condition_event
+      resolved_condition_event = condition_event,
+      averaged                 = TRUE
     ),
     atoms     = atoms
   )
@@ -532,6 +589,22 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     unproven_samples[["log_tau_intercept"]],
     "condition"
   ) <- NULL
+  # Unconditioned draws are declared by 'averaged', not by the condition key.
+  keyed_samples <- samples
+  BayesTools::posterior_metadata(
+    keyed_samples[["log_tau_intercept"]],
+    "condition"
+  ) <- list(
+    conditional   = character(),
+    condition_key = "<averaged>",
+    averaged      = FALSE
+  )
+  expect_error(
+    .hypothesis_brma_exp_affine_certify(
+      keyed_samples, "log_tau_intercept", FALSE
+    ),
+    "structural evidence for an unconditional posterior"
+  )
   expect_error(
     .hypothesis_brma_exp_affine_certify(
       unproven_samples, "log_tau_intercept", FALSE
@@ -569,7 +642,7 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
 test_that("unit log-intercepts retain primitive qCMDE/IWMDE semantics", {
 
   transform <- list(
-    schema_version             = 1L,
+    schema_version             = 2L,
     formula_design_version     = 3L,
     parameter_map_version = 1L,
     parameter                  = "log_tau",
@@ -590,7 +663,10 @@ test_that("unit log-intercepts retain primitive qCMDE/IWMDE semantics", {
       stringsAsFactors = FALSE
     ),
     sources = data.frame(),
-    targets = data.frame()
+    targets = formula_transform_targets(
+      c(log_tau_intercept = "identity"),
+      c(log_tau_intercept = "exp")
+    )
   )
   class(transform) <- c(
     "BayesTools_formula_coefficient_transform",
@@ -615,9 +691,9 @@ test_that("unit log-intercepts retain primitive qCMDE/IWMDE semantics", {
   observed_values <- numeric()
   testthat::local_mocked_bindings(
     JAGS_formula_prior_density = function(...) density,
-    prior_density_ordinate = function(density, value) {
-      observed_values <<- c(observed_values, value)
-      list(exact = TRUE)
+    prior_ordinate_status = function(prior_density, values, labels = NULL) {
+      observed_values <<- c(observed_values, values)
+      eligible_ordinate_status(prior_density, values)
     },
     .package = "BayesTools"
   )
@@ -640,7 +716,7 @@ test_that("unit log-intercepts retain primitive qCMDE/IWMDE semantics", {
 test_that("log-intercept support applies on the standardized route", {
 
   transform <- list(
-    schema_version             = 1L,
+    schema_version             = 2L,
     formula_design_version     = 3L,
     parameter_map_version = 1L,
     parameter                  = "log_tau",
@@ -656,7 +732,10 @@ test_that("log-intercept support applies on the standardized route", {
     output_transforms = c(log_tau_intercept = "exp"),
     dependencies = data.frame(),
     sources = data.frame(),
-    targets = data.frame()
+    targets = formula_transform_targets(
+      c(log_tau_intercept = "identity"),
+      c(log_tau_intercept = "exp")
+    )
   )
   class(transform) <- c(
     "BayesTools_formula_coefficient_transform",

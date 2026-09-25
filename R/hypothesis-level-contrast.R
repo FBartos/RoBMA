@@ -9,7 +9,7 @@
       call. = FALSE
     )
   }
-  target <- BayesTools::hypothesis_level_contrast(
+  target <- BayesTools::hypothesis_linear_target(
     posterior  = posterior,
     hypothesis = hypothesis,
     parameter  = parameter

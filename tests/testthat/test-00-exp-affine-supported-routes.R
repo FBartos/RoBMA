@@ -19,7 +19,8 @@ exp_affine_test_samples <- function(mixture = FALSE) {
     condition = list(
       conditional              = character(),
       condition_key            = "<averaged>",
-      resolved_condition_event = condition_event
+      resolved_condition_event = condition_event,
+      averaged                 = TRUE
     ),
     atoms     = atoms
   )

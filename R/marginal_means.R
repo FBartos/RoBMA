@@ -383,11 +383,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
       silent          = TRUE,
       density_method  = "KDE"
     ),
-    error = function(error) {
-      if (!grepl("declared point mass at the exact null", conditionMessage(error),
-                 fixed = TRUE)) {
-        stop(error)
-      }
+    BayesTools_posterior_point_mass_at_null = function(error) {
       value <- NA_real_
       attr(value, "warnings") <- paste0(
         "The marginal mean is structurally fixed at the null hypothesis; ",

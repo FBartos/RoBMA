@@ -290,17 +290,16 @@ hypothesis_quantities.brma <- function(object, ...) {
   density <- BayesTools::JAGS_formula_prior_density(
     fit          = object[["fit"]],
     parameter    = formula_parameter,
-    target       = coordinate,
+    weights      = stats::setNames(1, coordinate),
     target_scale = "original"
   )
-  ordinate <- BayesTools::prior_density_ordinate(density, 0)
-  if (identical(ordinate[["behavior"]], "point_mass")) {
-    continuous <- ordinate[["provenance"]][["continuous_behavior"]]
-    return(is.character(continuous) && length(continuous) == 1L &&
-             continuous %in% c("regular", "zero", "infinite", "undefined"))
+  status <- BayesTools::prior_ordinate_status(density, 0)
+  if (identical(status[["condition"]], "BayesTools_point_mass_at_null")) {
+    return(status[["continuous_behavior"]] %in%
+             c("regular", "zero", "infinite", "undefined"))
   }
 
-  return(isTRUE(ordinate[["exact"]]))
+  return(!identical(status[["condition"]], "BayesTools_inexact_ordinate"))
 }
 
 

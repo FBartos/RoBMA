@@ -30,17 +30,20 @@ test_that("BF-free marginal means retain structurally fixed cells", {
 test_that("structurally fixed marginal cells have unavailable BFs", {
 
   posterior <- list(zero = .fixed_marginal_posterior())
+  refusal <- NULL
   testthat::local_mocked_bindings(
-    Savage_Dickey_BF = function(...) {
-      stop(
-        paste0(
-          "The posterior contains a declared point mass at the exact null ",
-          "hypothesis value. The ordinary Savage-Dickey density ratio is invalid."
-        ),
-        call. = FALSE
-      )
-    },
+    Savage_Dickey_BF = function(...) stop(refusal),
     .package = "BayesTools"
+  )
+
+  # BayesTools classes the refusal of a posterior point mass at the null; the
+  # class, not the message, marks the cell as structurally fixed.
+  refusal <- structure(
+    class = c(
+      "BayesTools_posterior_point_mass_at_null",
+      "BayesTools_hypothesis_ordinate", "error", "condition"
+    ),
+    list(message = "Reworded refusal.", call = NULL)
   )
   inference <- .marginal_means_inclusion_bf(
     posterior       = posterior,
@@ -53,6 +56,20 @@ test_that("structurally fixed marginal cells have unavailable BFs", {
   expect_match(
     attr(inference[["zero"]], "warnings", exact = TRUE),
     "structurally fixed"
+  )
+
+  refusal <- simpleError(paste0(
+    "The posterior contains a declared point mass at the exact null ",
+    "hypothesis value. The ordinary Savage-Dickey density ratio is invalid."
+  ))
+  expect_error(
+    .marginal_means_inclusion_bf(
+      posterior       = posterior,
+      null_hypothesis = 0,
+      compute         = TRUE
+    ),
+    "declared point mass at the exact null",
+    fixed = TRUE
   )
 })
 

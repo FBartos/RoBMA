@@ -441,14 +441,18 @@ test_that("formula coefficient messages name factor levels by their selector", {
   # parameter name.
   transform <- structure(
     list(
-      schema_version    = 1L,
+      schema_version    = 2L,
       target_scale      = "original",
       target_names      = "mu_g[1]",
       matrix            = matrix(
         1, 1L, 1L, dimnames = list("mu_g[1]", "mu_g[1]")
       ),
       source_transforms = c("mu_g[1]" = "log"),
-      output_transforms = list("mu_g[1]" = "identity")
+      output_transforms = list("mu_g[1]" = "identity"),
+      targets           = formula_transform_targets(
+        c("mu_g[1]" = "unsupported"),
+        c("mu_g[1]" = "identity")
+      )
     ),
     class = "BayesTools_formula_coefficient_transform"
   )
@@ -507,7 +511,15 @@ test_that("formula coefficient messages name factor levels by their selector", {
   exact <- TRUE
   testthat::local_mocked_bindings(
     JAGS_formula_prior_density = function(...) list(),
-    prior_density_ordinate     = function(...) list(exact = exact),
+    prior_ordinate_status      = function(prior_density, values, ...) {
+      out <- eligible_ordinate_status(prior_density, values)
+      if (!exact) {
+        out[["eligible"]]  <- FALSE
+        out[["condition"]] <- "BayesTools_inexact_ordinate"
+        out[["reason"]]    <- "Inexact."
+      }
+      out
+    },
     .package = "BayesTools"
   )
   prior_target <- .hypothesis_brma_formula_prior_target(
@@ -549,7 +561,7 @@ test_that("an ambiguous level resolution names the level selector", {
 
   testthat::local_mocked_bindings(
     JAGS_formula_coefficient_transform = function(...) structure(
-      list(schema_version = 1L),
+      list(schema_version = 2L),
       class = "BayesTools_formula_coefficient_transform"
     ),
     parameter_catalog = function(...) list(quantities = data.frame(

@@ -426,10 +426,11 @@
 }
 
 
+# BayesTools signals draws that miss monitored columns of a prior with a
+# classed condition.
 .iwmde_marglik_parameters_missing <- function(error) {
 
-  message <- conditionMessage(error)
-  return(startsWith(message, "'samples' does not contain all monitored "))
+  return(inherits(error, "BayesTools_missing_monitored_columns"))
 }
 
 

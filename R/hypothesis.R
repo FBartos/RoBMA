@@ -1153,7 +1153,7 @@ hypothesis.brma <- function(object, hypothesis,
     target_scale = "original"
   )
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["schema_version"]], 1L)) {
+      !identical(transform[["schema_version"]], 2L)) {
     stop(
       "Formula coefficient transformation metadata are unsupported. Refit ",
       "the model with the current BayesTools version.",
@@ -1202,7 +1202,7 @@ hypothesis.brma <- function(object, hypothesis,
     target_scale = "original"
   )
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["schema_version"]], 1L)) {
+      !identical(transform[["schema_version"]], 2L)) {
     stop(
       "Formula coefficient transformation metadata are unsupported. Refit ",
       "the model with the current BayesTools version.",
@@ -1271,12 +1271,15 @@ hypothesis.brma <- function(object, hypothesis,
         call. = FALSE
       )
     }
+    # The level's weights on the original-scale coefficients: a direct level
+    # cell is its one coordinate.
     target_info <- list(
       formula_parameter = formula_parameter,
       target            = target,
       target_i          = target_i,
       transform         = transform,
-      level_selector    = selector
+      level_selector    = selector,
+      level_weights     = stats::setNames(1, target)
     )
     target_info[["route"]] <-
       .hypothesis_brma_formula_transform_route(target_info)
@@ -1366,16 +1369,19 @@ hypothesis.brma <- function(object, hypothesis,
 # A spike-and-slab component puts a declared point mass at the null, so the
 # Savage-Dickey ratio is structurally unavailable rather than numerically
 # rejected. Name the supported alternative; rethrow other errors unchanged.
+# BayesTools signals prior and posterior point masses at the null with classed
+# conditions; they are matched by class, never by message.
 .hypothesis_brma_stop_point_mass <- function(object, error) {
 
-  text <- conditionMessage(error)
-  if (!inherits(object, "RoBMA") ||
-      !grepl("point mass", text, fixed = TRUE) ||
-      !grepl("null hypothesis value", text, fixed = TRUE)) {
+  point_mass <- inherits(error, c(
+    "BayesTools_point_mass_at_null",
+    "BayesTools_posterior_point_mass_at_null"
+  ))
+  if (!inherits(object, "RoBMA") || !point_mass) {
     stop(error)
   }
   stop(
-    text,
+    conditionMessage(error),
     " This parameter has a null component, so its evidence against the ",
     "null is the inclusion Bayes factor reported by 'summary()' and ",
     "'summary_models()'.",
@@ -1456,10 +1462,14 @@ hypothesis.brma <- function(object, hypothesis,
     target_info[["route"]] <-
       .hypothesis_brma_formula_transform_route(target_info)
   }
+  # Factor levels are weighted combinations of the original-scale
+  # coefficients; scalar coefficients are their own target.
+  level_weights <- target_info[["level_weights"]]
   prior_density <- BayesTools::JAGS_formula_prior_density(
     fit          = object[["fit"]],
     parameter    = target_info[["formula_parameter"]],
-    target       = target_info[["target"]],
+    target       = if (is.null(level_weights)) target_info[["target"]],
+    weights      = level_weights,
     target_scale = "original",
     context      = BayesTools::posterior_metadata(samples, "prior_context")
   )
@@ -1471,9 +1481,12 @@ hypothesis.brma <- function(object, hypothesis,
     )
     point_values <- refs[["value"]]
   }
-  for (value in point_values) {
-    ordinate <- BayesTools::prior_density_ordinate(prior_density, value)
-    if (!isTRUE(ordinate[["exact"]])) {
+  # The BayesTools exactness rule classifies each point value; a prior point
+  # mass or a zero, infinite or undefined ordinate stops in hypothesis_BF()
+  # with its classed condition.
+  if (length(point_values) > 0L) {
+    status <- BayesTools::prior_ordinate_status(prior_density, point_values)
+    if (any(status[["condition"]] %in% "BayesTools_inexact_ordinate")) {
       stop(
         "The induced prior ordinate for ",
         .hypothesis_brma_formula_target_description(target_info),
@@ -1507,6 +1520,9 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
+# The route of a formula coefficient target: its weights on the fitted
+# coordinates, and the map type and map support that BayesTools declares for
+# the target (identity, affine, exp_affine, or unsupported).
 .hypothesis_brma_formula_transform_route <- function(target_info) {
 
   transform <- target_info[["transform"]]
@@ -1538,40 +1554,28 @@ hypothesis.brma <- function(object, hypothesis,
       )
     ))
   }
-  source_transforms <- transform[["source_transforms"]][names(weights)]
-  output_transform  <- transform[["output_transforms"]][[target]]
-  unit_target <- length(weights) == 1L &&
-    identical(names(weights), target) &&
-    identical(unname(weights), 1)
-  ordinary_identity <- unit_target &&
-    identical(unname(source_transforms), "identity") &&
-    identical(output_transform, "identity")
-  log_identity <- unit_target &&
-    identical(unname(source_transforms), "log") &&
-    identical(output_transform, "exp")
-  if (ordinary_identity) {
-    return(list(type = "identity", weights = weights))
+  targets <- transform[["targets"]]
+  row     <- if (is.data.frame(targets) &&
+                 all(c("target", "map_type", "support") %in% names(targets))) {
+    match(target, targets[["target"]])
+  } else {
+    NA_integer_
   }
-  if (log_identity) {
+  if (is.na(row)) {
     return(list(
-      type    = "identity",
-      weights = weights,
-      support = c(0, Inf)
+      type   = "unsupported",
+      reason = paste0(
+        "The fitted coefficient transform for '", name,
+        "' lacks the certified structural metadata required for hypothesis testing."
+      )
     ))
   }
-  if (length(source_transforms) == length(weights) &&
-      !anyNA(source_transforms) && all(source_transforms == "identity") &&
-      identical(output_transform, "identity")) {
-    return(list(type = "affine", weights = weights))
-  }
-  if (length(source_transforms) == length(weights) &&
-      !anyNA(source_transforms) &&
-      all(source_transforms %in% c("identity", "log")) &&
-      identical(output_transform, "exp")) {
+  map_type <- targets[["map_type"]][[row]]
+  if (map_type %in% c("identity", "affine", "exp_affine")) {
     return(list(
-      type    = "exp_affine",
+      type    = map_type,
       weights = weights,
-      support = c(0, Inf)
+      support = targets[["support"]][[row]]
     ))
   }
 
@@ -1629,18 +1633,10 @@ hypothesis.brma <- function(object, hypothesis,
       call. = FALSE
     )
   }
-  condition          <- BayesTools::posterior_metadata(sample, "condition")
-  sample_conditional <- condition[["conditional"]]
-  condition_key      <- condition[["condition_key"]]
-  resolved_event     <- condition[["resolved_condition_event"]]
-  unconditional <- is.character(sample_conditional) &&
-    length(sample_conditional) == 0L &&
-    identical(condition_key, "<averaged>") &&
-    inherits(resolved_event, "BayesTools_condition_event") &&
-    is.character(resolved_event[["conditional"]]) &&
-    length(resolved_event[["conditional"]]) == 0L &&
-    identical(resolved_event[["condition_key"]], "<averaged>")
-  if (!unconditional) {
+  # BayesTools declares averaged (unconditioned) draws and atom-free draws in
+  # their metadata.
+  condition <- BayesTools::posterior_metadata(sample, "condition")
+  if (!isTRUE(condition[["averaged"]])) {
     stop(
       "Nonlinear fitted-scale KDE hypotheses require structural evidence for ",
       "an unconditional posterior.",
@@ -1648,14 +1644,7 @@ hypothesis.brma <- function(object, hypothesis,
     )
   }
 
-  atoms <- BayesTools::posterior_metadata(sample, "atoms")
-  atom_free <- inherits(atoms, "BayesTools_posterior_atoms") &&
-    isTRUE(atoms[["declared"]]) &&
-    is.matrix(atoms[["locations"]]) &&
-    nrow(atoms[["locations"]]) == 0L &&
-    is.numeric(atoms[["mass"]]) &&
-    length(atoms[["mass"]]) == 0L
-  if (!atom_free) {
+  if (!BayesTools::posterior_atoms_free(sample)) {
     stop(
       "Nonlinear fitted-scale KDE hypotheses require structural evidence that ",
       "the posterior is atom-free.",

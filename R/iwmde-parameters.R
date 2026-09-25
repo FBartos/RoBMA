@@ -1257,7 +1257,9 @@
 }
 
 
-# Classify each exact finite value once through the BayesTools contract.
+# Classify each exact finite value once through the BayesTools contract: the
+# prior ordinate and its point-hypothesis eligibility under the exactness rule
+# of BayesTools (prior_ordinate_status()).
 .iwmde_prior_ordinate_classifications <- function(prior_density, values) {
 
   values <- .iwmde_unique_ordinate_values(values)
@@ -1265,15 +1267,30 @@
     return(list())
   }
 
-  classifications <- lapply(unname(values), function(value) {
+  status <- if (is.null(prior_density)) {
+    NULL
+  } else {
+    BayesTools::prior_ordinate_status(prior_density, unname(values))
+  }
+  classifications <- lapply(seq_along(values), function(i) {
+    value  <- unname(values[[i]])
     result <- if (is.null(prior_density)) {
-      .iwmde_unknown_prior_ordinate(value)
+      c(
+        .iwmde_unknown_prior_ordinate(value),
+        list(eligible = FALSE, condition = "BayesTools_inexact_ordinate")
+      )
     } else {
-      BayesTools::prior_density_ordinate(prior_density, value)
+      c(
+        unclass(BayesTools::prior_density_ordinate(prior_density, value)),
+        list(
+          eligible  = status[["eligible"]][[i]],
+          condition = status[["condition"]][[i]]
+        )
+      )
     }
 
     .iwmde_validate_prior_ordinate(result, value)
-    unclass(result)
+    result
   })
   names(classifications) <- names(values)
 
@@ -1336,18 +1353,16 @@
 
 
 # Fail closed if the installed BayesTools ordinate schema is incompatible.
+# The ordinate's method names the BayesTools route and is not restricted;
+# eligibility comes from BayesTools::prior_ordinate_status().
 .iwmde_validate_prior_ordinate <- function(result, value) {
 
   fields <- c(
     "schema_version", "value", "behavior", "log_density", "point_mass",
-    "exact", "method", "reason", "provenance"
+    "exact", "method", "reason", "provenance", "eligible", "condition"
   )
   behaviors <- c(
     "regular", "zero", "infinite", "point_mass", "undefined", "unknown"
-  )
-  methods <- c(
-    "primitive", "point", "finite_mixture", "scalar_affine",
-    "linear_normal", "conditional_normal_mixture", "named_transform", "unsupported_provenance"
   )
   valid <- is.list(result) && identical(names(result), fields) &&
     identical(result[["schema_version"]], "1") &&
@@ -1363,10 +1378,14 @@
     is.logical(result[["exact"]]) && length(result[["exact"]]) == 1L &&
     !is.na(result[["exact"]]) &&
     is.character(result[["method"]]) && length(result[["method"]]) == 1L &&
-    !is.na(result[["method"]]) && result[["method"]] %in% methods &&
+    !is.na(result[["method"]]) &&
     (is.null(result[["reason"]]) ||
       (is.character(result[["reason"]]) && length(result[["reason"]]) == 1L)) &&
-    is.list(result[["provenance"]])
+    is.list(result[["provenance"]]) &&
+    isTRUE(result[["eligible"]]) == is.na(result[["condition"]]) &&
+    is.logical(result[["eligible"]]) && length(result[["eligible"]]) == 1L &&
+    !is.na(result[["eligible"]]) &&
+    is.character(result[["condition"]]) && length(result[["condition"]]) == 1L
   if (!isTRUE(valid)) {
     stop(
       "BayesTools returned an incompatible prior-density ordinate result.",
@@ -1378,7 +1397,9 @@
 }
 
 
-# Warn before estimation when the target prior ordinate is nonregular.
+# Warn before estimation when a point hypothesis at the value is not eligible
+# under the BayesTools exactness rule (a nonregular or unclassified target
+# prior ordinate).
 .iwmde_ordinate_prior_warnings <- function(parameter, prior_ordinates) {
 
   if (length(prior_ordinates) == 0L) {
@@ -1392,11 +1413,11 @@
     undefined  = "is undefined"
   )
   warnings <- unlist(lapply(prior_ordinates, function(ordinate) {
-    behavior <- ordinate[["behavior"]]
-    if (identical(behavior, "regular")) {
+    if (isTRUE(ordinate[["eligible"]])) {
       return(character())
     }
-    if (identical(behavior, "unknown")) {
+    behavior <- ordinate[["behavior"]]
+    if (!behavior %in% names(descriptions)) {
       return(paste0(
         "The qCMDE/IWMDE target prior density for '", parameter, "' at ",
         format(ordinate[["value"]], digits = 17L, trim = TRUE),
