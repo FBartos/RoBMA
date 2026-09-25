@@ -34,7 +34,10 @@ info          <- lazy_infos(marglik_names, validate = FALSE)
 
 test_that("bridge_sampler extracts raw bridge sampling objects", {
 
-  expect_gt(length(marglik_names), 0L)
+  # A certification case may activate only fits without marginal
+  # likelihoods (e.g. brma.mv fits).
+  skip_if(length(marglik_names) == 0L,
+          "The active fits have no marginal likelihoods.")
   for (name in marglik_names) {
     marglik  <- fits[[name]][["marglik"]]
     if (identical(marglik[["aggregation"]][["rule"]], "exact_zero_dimensional")) {
