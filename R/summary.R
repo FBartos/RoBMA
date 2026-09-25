@@ -636,10 +636,8 @@ print.brma <- function(x, ...) {
     return(estimates)
   }
 
-  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
-  rows       <- match(parameters, quantities[["canonical_name"]])
-  if (length(rows) != nrow(estimates) || anyNA(rows) ||
-      any(vapply(quantities[["label_parts"]][rows], is.null, logical(1)))) {
+  parts <- .summary_table_row_parts(object, parameters)
+  if (length(parts) != nrow(estimates)) {
     stop(
       "Scale summary rows have no catalog label parts. Refit the model with ",
       "the current RoBMA/BayesTools build.",
@@ -647,7 +645,7 @@ print.brma <- function(x, ...) {
     )
   }
   scale_names <- .summary_scale_display_names(object)
-  parts <- lapply(quantities[["label_parts"]][rows], function(parts) {
+  parts <- lapply(parts, function(parts) {
     formula_parameter <- parts[["formula_parameter"]]
     if (formula_parameter %in% names(scale_names)) {
       parts[["formula_parameter"]] <- scale_names[[formula_parameter]]
@@ -665,6 +663,49 @@ print.brma <- function(x, ...) {
   )
 
   estimates
+}
+
+# The label parts of estimates-table rows, identified by the rows' selectors
+# (the table's 'parameters'). BayesTools tables do not carry the parts of
+# their rows: a selector is a catalog canonical name or a catalog alias, and
+# a level row of a transformed contrast ('g[dif: b]') is the level's parts
+# rendered as a transformed level, which its selector identifies.
+.summary_table_row_parts <- function(object, parameters) {
+
+  catalog    <- BayesTools::parameter_catalog(object[["fit"]])
+  quantities <- catalog[["quantities"]]
+  aliases    <- catalog[["aliases"]]
+  rows       <- match(parameters, quantities[["canonical_name"]])
+  by_alias   <- is.na(rows)
+  rows[by_alias] <- match(
+    aliases[["quantity_id"]][match(parameters[by_alias], aliases[["alias"]])],
+    quantities[["quantity_id"]]
+  )
+
+  lapply(seq_along(parameters), function(i) {
+    parts <- if (is.na(rows[[i]])) NULL else quantities[["label_parts"]][[rows[[i]]]]
+    if (is.null(parts)) {
+      stop(
+        "Summary rows have no catalog label parts. Refit the model with ",
+        "the current RoBMA/BayesTools build.",
+        call. = FALSE
+      )
+    }
+    if (identical(BayesTools::parameter_labels(parts), parameters[[i]])) {
+      return(parts)
+    }
+    transformed <- parts
+    transformed[["selector"]]       <- ""
+    transformed[["transformation"]] <- "dif"
+    if (!identical(BayesTools::parameter_labels(transformed), parameters[[i]])) {
+      stop(
+        "Summary row '", parameters[[i]], "' does not match the label parts ",
+        "of its catalog quantity.",
+        call. = FALSE
+      )
+    }
+    transformed
+  })
 }
 
 # Random-effect rows are labelled by RoBMA's quantity names, rendered from the
