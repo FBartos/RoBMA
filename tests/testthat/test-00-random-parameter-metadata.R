@@ -152,6 +152,23 @@ test_that("RoBMA renders BayesTools random quantities by its I/O names", {
       "allocation: tau2_prop(study)", "tau_common"
     )
   )
+
+  # Aliases are the catalog aliases under RoBMA's vocabulary: without the
+  # formula prefix, and simplified with and without the prefix and the owner.
+  catalog <- BayesTools::parameter_catalog(shared_gate_random_object()[["fit"]])
+  study_sd <- catalog[["quantities"]][["quantity_id"]][
+    catalog[["quantities"]][["canonical_name"]] == "(mu) study: sd(intercept)"
+  ]
+  expect_identical(
+    .brma_random_parameter_io_aliases(catalog, study_sd),
+    data.frame(
+      alias      = c(
+        "study: tau(intercept)", "(mu) study: tau", "study: tau", "tau"
+      ),
+      simplified = c(FALSE, TRUE, TRUE, TRUE),
+      stringsAsFactors = FALSE
+    )
+  )
 })
 
 
