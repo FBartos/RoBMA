@@ -480,24 +480,32 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
              "identity"))
   expect_true(nonlinear_joint)
 
-  kde <- hypothesis(
-    fit,
-    "intercept = 0.2 vs intercept != 0.2",
-    component      = "scale",
-    density_method = "KDE",
-    n_samples = 1000L,
-    seed      = 31
-  )
-
-  expect_s3_class(kde, "BayesTools_hypothesis_BF")
-  for (method in c("qCMDE", "IWMDE")) {
+  # The exp(affine) target admits KDE only; qCMDE/IWMDE are refused by the
+  # plan's method refusal.
+  plan <- .hypothesis_plans(
+    fit, "intercept = 0.2 vs intercept != 0.2", component = "scale"
+  )[[1L]]
+  expect_identical(plan[["kind"]], "exp_affine")
+  for (method in c("qCMDE", "IWMDE", "normal")) {
+    expect_match(
+      plan[["method_refusals"]][[method]][["reason"]],
+      "supported only with density_method = 'KDE'",
+      fixed = TRUE,
+      info  = method
+    )
+  }
+  # Its certified prior density combines the log intercept with the scaled
+  # slope by a general numerical convolution without an exact ordinate, so
+  # point hypotheses are refused with the BayesTools class for every method;
+  # region hypotheses use the density with KDE.
+  for (method in c("KDE", "qCMDE", "IWMDE")) {
     expect_error(
       hypothesis(
         fit,
         "intercept = 0.2 vs intercept != 0.2",
         component       = "scale",
         density_method  = method,
-        density_control = list(
+        density_control = if (method != "KDE") list(
           n_points             = 30L,
           samples              = 40L,
           normalization_points = 40L
@@ -505,9 +513,21 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
         n_samples = 1000L,
         seed      = 32
       ),
-      "supported only with density_method = 'KDE'"
+      class = "BayesTools_inexact_ordinate",
+      info  = method
     )
   }
+  expect_s3_class(
+    hypothesis(
+      fit,
+      "intercept > 0.2",
+      component      = "scale",
+      density_method = "KDE",
+      n_samples      = 1000L,
+      seed           = 31
+    ),
+    "BayesTools_hypothesis_BF"
+  )
 })
 
 test_that("random prior overlays and diagnostic labels are semantic", {
