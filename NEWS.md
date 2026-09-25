@@ -765,10 +765,12 @@
   report the realized gated aggregate, including the all-off zero branch, and
   `tau2_prop(...)` reports active-component shares conditional on positive total
   heterogeneity. Density displays preserve the resulting structural zero/one
-  masses separately from continuous density, and point-null tests are disabled
-  for these gated aggregate quantities. Fitting, inclusion/model summaries,
-  prediction, LOO/WAIC, diagnostics, plots, hypotheses, posterior conversion,
-  and update methods use the same interfaces as existing BMA objects.
+  masses separately from continuous density. Point-null tests of these gated
+  aggregate quantities are refused at the structural zero/one masses and use
+  the continuous part of their exact BayesTools prior density at other values.
+  Fitting, inclusion/model summaries, prediction, LOO/WAIC, diagnostics, plots,
+  hypotheses, posterior conversion, and update methods use the same interfaces
+  as existing BMA objects.
 - adds a dedicated `loo-exact-refits` certification case that compares
   estimate-unit PSIS-LOO against five genuine one-observation-deleted refits
   of the Kearon US/HCS and Ishak HAR scenario models. The oracle averages each
@@ -1702,9 +1704,12 @@
   equalities are evaluated on the inverse log/affine scale, where the Jacobian
   cancels; nonpositive nulls, compound point expressions, and nonlinear
   qCMDE/IWMDE routes fail clearly.
-- rejects random-parameter point hypotheses when the declared transformed
-  prior contains an atom, while retaining coherent region and directional
-  hypotheses.
+- rejects random-parameter point hypotheses at values where the canonical
+  BayesTools prior density has an atom (inclusion and allocation gates, spike
+  components) or no exact, finite ordinate, while retaining coherent region and
+  directional hypotheses. Other values of gated SDs, variances, totals, and
+  variance proportions use the exact continuous prior density, for SDs and
+  variances alike.
 - rewrites vector hypothesis aliases independently while limiting point-null
   syntax to direct parameters and levels so product-space atoms and
   conditioning metadata cannot be discarded.
