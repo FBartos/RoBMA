@@ -237,6 +237,28 @@ test_that("logml returns scalar log marginal likelihood, can be applied to both 
 })
 
 
+test_that("add_marglik draws the bridge proposal with the fit's seed", {
+
+  skip_if_missing_fits("bcg_meta-analysis")
+
+  fit <- fits[["bcg_meta-analysis"]]
+  expect_false(is.null(fit[["fit_control"]][["seed"]]))
+  withr::local_preserve_seed()
+
+  # The caller's random-number stream is left unchanged ...
+  set.seed(11)
+  expected_next <- stats::runif(1L)
+  set.seed(11)
+  first <- add_marglik(fit)
+  expect_identical(stats::runif(1L), expected_next)
+
+  # ... and the marginal likelihood does not depend on it.
+  set.seed(12)
+  second <- add_marglik(fit)
+  expect_identical(logml(first), logml(second))
+})
+
+
 test_that("bf computes Bayes factor between two models, can be applied to both bridge and brma", {
 
   skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression"))
