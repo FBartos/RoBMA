@@ -1139,15 +1139,12 @@ test_that("marginal selection covariance batches preserve multilevel algebra", {
 
   expect_equal(observed, expected)
 
-  # The fixed weights are the draws' (monitored) selection weights.
+  # The prior-only object has no fit and its fixed weights are not monitored:
+  # they are the constant weights of its single fixed weight function.
   response_setup <- .predict_joint_selection_response_setup(
     context        = list(
       object             = object,
-      posterior_samples  = cbind(
-        matrix(0, nrow = 2L, ncol = 1L),
-        "omega[1]" = 1,
-        "omega[2]" = .5
-      ),
+      posterior_samples  = matrix(0, nrow = 2L, ncol = 1L),
       conditioning_depth = "marginal",
       new_data            = object[["data"]],
       known_V_new         = NULL,
