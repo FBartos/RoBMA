@@ -656,8 +656,8 @@
         "intercept",
         formula_parameter = "mu"
       )
+      # Formula intercepts have no multipliers (BayesTools rejects them).
       if (!is.null(intercept_prior) &&
-          is.null(attr(intercept_prior, "multiply_by")) &&
           intercept_name %in% colnames(posterior_samples)) {
         mu_samples <- matrix(
           posterior_samples[, intercept_name],

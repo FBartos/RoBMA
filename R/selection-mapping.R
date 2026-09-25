@@ -1112,7 +1112,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   ))
 }
 
-.extract_selection_omega_samples <- function(posterior_samples, selection_spec) {
+# Selection weights of the posterior draws: the monitored weights, or the
+# weights of the BayesTools 'omega' node evaluated from the draws (fixed weight
+# functions and fixed branches of bias mixtures are not monitored). RoBMA's
+# own 'sel_omega' weights of selection models without a step function are
+# fixed data.
+.extract_selection_omega_samples <- function(posterior_samples, selection_spec,
+                                             fit) {
 
   omega_name <- selection_spec[["jags_omega"]]
   if (is.null(omega_name) || !nzchar(omega_name)) {
@@ -1123,6 +1129,13 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     samples   = posterior_samples,
     parameter = omega_name
   )
+  if (is.null(omega) && identical(omega_name, "omega")) {
+    omega <- BayesTools::JAGS_evaluate_deterministic(
+      fit   = fit,
+      draws = posterior_samples,
+      nodes = "omega"
+    )
+  }
   if (!is.null(omega)) {
     if (ncol(omega) != selection_spec[["n_bins"]]) {
       stop(
@@ -1131,15 +1144,10 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
         call. = FALSE
       )
     }
+    colnames(omega) <- paste0(
+      omega_name, "[", seq_len(selection_spec[["n_bins"]]), "]"
+    )
     storage.mode(omega) <- "double"
-    return(omega)
-  }
-
-  omega <- .extract_selection_fixed_omega_samples(
-    posterior_samples = posterior_samples,
-    selection_spec    = selection_spec
-  )
-  if (!is.null(omega)) {
     return(omega)
   }
 
@@ -1168,55 +1176,6 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     "Missing posterior selection-weight columns for '", omega_name, "'.",
     call. = FALSE
   )
-}
-
-.extract_selection_fixed_omega_samples <- function(posterior_samples,
-                                                   selection_spec) {
-
-  fixed_omega <- selection_spec[["fixed_omega"]]
-  if (is.null(fixed_omega)) {
-    return(NULL)
-  }
-
-  fixed_omega <- as.matrix(fixed_omega)
-  if (ncol(fixed_omega) != selection_spec[["n_bins"]]) {
-    return(NULL)
-  }
-
-  if (nrow(fixed_omega) == 1L) {
-    omega <- matrix(
-      fixed_omega[1L, ],
-      nrow  = nrow(posterior_samples),
-      ncol  = selection_spec[["n_bins"]],
-      byrow = TRUE
-    )
-  } else {
-    if (!"bias_indicator" %in% colnames(posterior_samples)) {
-      return(NULL)
-    }
-    indicator <- .as_exact_model_indicator(
-      posterior_samples[, "bias_indicator"],
-      "bias_indicator"
-    )
-    if (any(indicator < 1L | indicator > nrow(fixed_omega))) {
-      return(NULL)
-    }
-    omega <- fixed_omega[indicator, , drop = FALSE]
-  }
-
-  if (any(!is.finite(omega))) {
-    return(NULL)
-  }
-
-  colnames(omega) <- paste0(
-    selection_spec[["jags_omega"]],
-    "[",
-    seq_len(selection_spec[["n_bins"]]),
-    "]"
-  )
-  storage.mode(omega) <- "double"
-
-  return(omega)
 }
 
 .extract_selection_alpha_samples <- function(posterior_samples, selection_spec) {
@@ -1361,7 +1320,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
   selection_context[["yi"]]             <- yi
   selection_context[["sei"]]            <- sei
   selection_context[["omega"]]          <- if (has_selection) {
-    .extract_selection_omega_samples(posterior_samples, selection_spec)
+    .extract_selection_omega_samples(posterior_samples, selection_spec, fit)
   } else matrix(1, S, selection_spec[["n_bins"]])
   selection_context[["alpha"]]          <- if (has_selection) {
     .extract_selection_alpha_samples(posterior_samples, selection_spec)

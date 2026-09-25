@@ -506,7 +506,8 @@
   formula_design[["random_effects"]] <- lapply(
     formula_design[["random_effects"]],
     .predict_known_v_random_term_with_tau_source_values,
-    values = values
+    values = values,
+    inputs = .predict_known_v_tau_source_inputs(object[["fit"]], data)
   )
 
   return(formula_design)
@@ -530,6 +531,8 @@
     force(source_name)
     function(parameters, data, n_rows) {
 
+      # 'parameters' holds the declared inputs: the sampled scale-formula
+      # coefficients (.predict_known_v_tau_source_inputs()).
       parameter_values <- unlist(parameters, use.names = TRUE)
       posterior_row    <- matrix(as.numeric(parameter_values), nrow = 1L)
       colnames(posterior_row) <- names(parameter_values)
@@ -563,6 +566,28 @@
   names(values) <- source_names
 
   return(values)
+}
+
+
+# The posterior coordinates the known-V row SD values functions read: the
+# sampled coefficients of the scale formulas (structural coefficients are
+# evaluated from their point priors).
+.predict_known_v_tau_source_inputs <- function(fit, data) {
+
+  scale_parameters <- unique(vapply(
+    .data_scale_component_specs(data),
+    `[[`,
+    character(1),
+    "parameter"
+  ))
+  coordinates <- BayesTools::parameter_coordinates(fit)
+  inputs <- coordinates[["monitor_name"]][
+    coordinates[["formula_parameter"]] %in% scale_parameters &
+      coordinates[["role"]] == "fixed_coefficient" &
+      coordinates[["monitor_status"]] == "sampled"
+  ]
+
+  unique(inputs)
 }
 
 
@@ -616,7 +641,8 @@
 }
 
 
-.predict_known_v_random_term_with_tau_source_values <- function(term, values) {
+.predict_known_v_random_term_with_tau_source_values <- function(term, values,
+                                                                inputs = NULL) {
 
   binding <- term[["sd_binding"]]
   if (is.null(binding)) {
@@ -625,7 +651,8 @@
 
   binding <- .predict_known_v_binding_with_tau_source_values(
     binding = binding,
-    values  = values
+    values  = values,
+    inputs  = inputs
   )
   term[["sd_binding"]] <- binding
 
@@ -633,12 +660,14 @@
 }
 
 
-.predict_known_v_binding_with_tau_source_values <- function(binding, values) {
+.predict_known_v_binding_with_tau_source_values <- function(binding, values,
+                                                            inputs = NULL) {
 
   if (!is.null(binding[["source"]])) {
     binding[["source"]] <- .predict_known_v_source_with_tau_values(
       source = binding[["source"]],
-      values = values
+      values = values,
+      inputs = inputs
     )
   }
 
@@ -646,7 +675,8 @@
     binding[["sources_by_column"]] <- lapply(
       binding[["sources_by_column"]],
       .predict_known_v_source_with_tau_values,
-      values = values
+      values = values,
+      inputs = inputs
     )
   }
 
@@ -655,7 +685,8 @@
       if (!is.null(allocation[["source"]])) {
         allocation[["source"]] <- .predict_known_v_source_with_tau_values(
           source = allocation[["source"]],
-          values = values
+          values = values,
+          inputs = inputs
         )
       }
       allocation
@@ -666,7 +697,8 @@
 }
 
 
-.predict_known_v_source_with_tau_values <- function(source, values) {
+.predict_known_v_source_with_tau_values <- function(source, values,
+                                                    inputs = NULL) {
 
   source_name <- source[["name"]]
   if (is.null(source) ||
@@ -683,7 +715,8 @@
     BayesTools::parameter_source(
       name   = source_name,
       shape  = "row",
-      values = values[[source_name]]
+      values = values[[source_name]],
+      inputs = inputs
     )
   )
 }

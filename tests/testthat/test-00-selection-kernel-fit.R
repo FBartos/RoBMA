@@ -912,7 +912,8 @@ test_that("selection omega extraction orders indexed posterior columns numerical
   posterior_samples <- cbind(posterior_samples, "omega[9]" = 31:33)
 
   selection_spec <- list(jags_omega = "omega", n_bins = 10L)
-  omega          <- .extract_selection_omega_samples(posterior_samples, selection_spec)
+  omega          <- .extract_selection_omega_samples(posterior_samples, selection_spec,
+                                                     fit = NULL)
 
   expect_equal(colnames(omega), paste0("omega[", 1:10, "]"))
   expect_equal(omega[, 1], posterior_samples[, "omega[1]"])
@@ -926,7 +927,8 @@ test_that("selection omega extraction orders indexed posterior columns numerical
     "omega[2]" = 201:203
   )
   selection_spec <- list(jags_omega = "custom.omega+beta", n_bins = 10L)
-  custom_omega   <- .extract_selection_omega_samples(custom_samples, selection_spec)
+  custom_omega   <- .extract_selection_omega_samples(custom_samples, selection_spec,
+                                                     fit = NULL)
 
   expect_equal(colnames(custom_omega), paste0("custom.omega+beta[", 1:10, "]"))
   expect_equal(custom_omega[, 2], custom_samples[, "custom.omega+beta[2]"])
@@ -934,7 +936,7 @@ test_that("selection omega extraction orders indexed posterior columns numerical
 
   missing_custom <- custom_samples[, grepl("^omega\\[", colnames(custom_samples)), drop = FALSE]
   expect_error(
-    .extract_selection_omega_samples(missing_custom, selection_spec),
+    .extract_selection_omega_samples(missing_custom, selection_spec, fit = NULL),
     "custom.omega\\+beta"
   )
 })
@@ -1852,28 +1854,39 @@ test_that("selected response RNG distinguishes impossible contexts from exhauste
 })
 
 
-test_that("fixed selection mixtures require exact branch indicators", {
+test_that("unmonitored selection weights come from the BayesTools omega node", {
 
-  selection_spec <- list(
-    fixed_omega = matrix(c(1, 0.5), ncol = 1L),
-    n_bins      = 1L,
-    jags_omega  = "omega"
+  # A bias mixture of two fixed weight functions: its weights are not
+  # monitored, and the omega node selects the branch of each draw.
+  bias <- BayesTools::prior_mixture(list(
+    BayesTools::prior_weightfunction(
+      "one-sided", steps = 0.05, weights = BayesTools::wf_fixed(c(1, 0.5))
+    ),
+    BayesTools::prior_weightfunction(
+      "one-sided", steps = 0.05, weights = BayesTools::wf_fixed(c(1, 1))
+    )
+  ), is_null = c(FALSE, TRUE))
+  samples <- cbind(mu = c(0.1, 0.2, 0.3), bias_indicator = c(1, 2, 1))
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "prior_list") <- list(
+    mu   = BayesTools::prior("normal", list(0, 1)),
+    bias = bias
   )
-  samples <- matrix(
-    c(1, 2),
-    ncol     = 1L,
-    dimnames = list(NULL, "bias_indicator")
-  )
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+  selection_spec <- list(n_bins = 2L, jags_omega = "omega")
 
   expect_equal(
-    .extract_selection_fixed_omega_samples(samples, selection_spec),
-    matrix(c(1, 0.5), ncol = 1L,
-           dimnames = list(NULL, "omega[1]"))
+    .extract_selection_omega_samples(samples, selection_spec, fit),
+    matrix(c(1, 1, 1, 0.5, 1, 0.5), ncol = 2L,
+           dimnames = list(NULL, c("omega[1]", "omega[2]")))
   )
 
-  samples[1L, 1L] <- 1 + .Machine$double.eps
+  samples[1L, "bias_indicator"] <- 1 + .Machine$double.eps
   expect_error(
-    .extract_selection_fixed_omega_samples(samples, selection_spec),
-    "integer-valued"
+    .extract_selection_omega_samples(samples, selection_spec, fit),
+    "indicator draws must index a mixture branch"
   )
 })
