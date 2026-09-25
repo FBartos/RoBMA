@@ -762,7 +762,10 @@
 
   location_priors <- attr(fit, "prior_list")
   if (is.null(location_priors)) {
-    location_priors <- priors[["location"]]
+    location_priors <- .formula_evaluation_prior_list(
+      prior_list = priors[["location"]],
+      parameter  = "mu"
+    )
   }
   if (is.null(location_priors)) {
     stop("Random-effect prediction requires location prior metadata.",
