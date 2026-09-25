@@ -223,6 +223,21 @@ with_draw_metadata <- function(x, ..., class = NULL) {
   x
 }
 
+# BayesTools label parts of a hand-built catalog quantity: the structured
+# parts from which BayesTools renders the quantity's labels, with the
+# quantity's canonical name as their selector.
+catalog_label_parts <- function(selector, components, formula_parameter = "",
+                                levels = character(), random = NULL) {
+
+  BayesTools:::.bt_label_parts(
+    components        = components,
+    formula_parameter = formula_parameter,
+    levels            = levels,
+    random            = random,
+    selector          = selector
+  )
+}
+
 # The BayesTools::prior_ordinate_status() table of values whose prior
 # ordinates are regular and exactly classified (eligible point hypotheses).
 eligible_ordinate_status <- function(prior_density, values, labels = NULL) {

@@ -111,11 +111,31 @@ test_that("random inclusion labels identify aggregate and component SDs", {
               "(mu) component: sd_total", "(mu) study:esid: sd",
               "(mu) study: sd")
   quantities <- data.frame(
-    canonical_name = labels, display_label = labels,
+    canonical_name = labels,
     role = c(rep("random_inclusion", 3), rep("random_sd", 4)),
     quantity = c(rep("inclusion", 3), "sd_total", "sd_total", "sd", "sd"),
     owner_name = c("", "", "", "", "component", "study:esid", "study")
   )
+  random_parts <- function(selector, owner, quantity, arguments = character()) {
+    catalog_label_parts(
+      selector, if (nzchar(owner)) owner else quantity, "mu",
+      random = list(
+        owner             = owner,
+        quantity          = quantity,
+        arguments         = arguments,
+        display_arguments = arguments
+      )
+    )
+  }
+  quantities[["label_parts"]] <- I(list(
+    random_parts(labels[[1L]], "", "inclusion"),
+    random_parts(labels[[2L]], "", "inclusion", "component"),
+    random_parts(labels[[3L]], "", "inclusion", "study:esid"),
+    random_parts(labels[[4L]], "", "sd_total"),
+    random_parts(labels[[5L]], "component", "sd_total"),
+    random_parts(labels[[6L]], "study:esid", "sd"),
+    random_parts(labels[[7L]], "study", "sd")
+  ))
   quantities[["extraction_key"]] <- I(list(
     list(source_parameter = "shared_gate"),
     list(source_parameter = "component_gate"),

@@ -141,9 +141,9 @@
     if (length(candidates) != 1L) {
       return(NA_character_)
     }
-    .brma_random_parameter_io_name(
-      sub("^\\([^)]*\\) ", "", quantities[["display_label"]][[candidates]]),
-      quantities[["quantity"]][[candidates]]
+    .brma_random_parameter_io_labels(
+      quantities[candidates, , drop = FALSE],
+      "label"
     )
   }, character(1))
 
@@ -191,9 +191,9 @@
     if (is.na(row)) {
       return(NA_character_)
     }
-    .brma_random_parameter_io_name(
-      sub("^\\([^)]*\\) ", "", quantities[["display_label"]][[row]]),
-      quantities[["quantity"]][[row]]
+    .brma_random_parameter_io_labels(
+      quantities[row, , drop = FALSE],
+      "label"
     )
   }, character(1))
 

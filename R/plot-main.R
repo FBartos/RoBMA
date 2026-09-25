@@ -407,7 +407,12 @@ lines.brma <- function(
   if (is.null(dots[["par_name"]])) {
     dots[["par_name"]] <- if (is_random) random_label else if (is_factor_cell) {
       parameter_entry[["selection"]][["quantities"]][["display_label"]]
-    } else .plot_parameter_label(parameter, plot_transform)
+    } else .plot_parameter_label(
+      parameter        = parameter,
+      effect_transform = plot_transform,
+      entry            = parameter_entry,
+      object           = x
+    )
   }
 
   # prepare the argument call
@@ -704,20 +709,14 @@ lines.brma <- function(
   expected_columns    <- colnames(plot_sample)
   density_columns     <- character()
 
+  # Each plotted column is the level cell of its label parts; its density is
+  # stored under the column name, which BayesTools matches for the column.
   for (column_i in seq_len(ncol(plot_sample))) {
-    column  <- colnames(plot_sample)[[column_i]]
-    aliases <- .plot_brma_factor_density_aliases(
-      parameter   = sample_parameter,
-      sample      = plot_sample,
-      sample_name = column,
-      level_i     = column_i
-    )
+    column <- colnames(plot_sample)[[column_i]]
     level  <- .plot_brma_factor_column_level(
-      parameter   = sample_parameter,
-      sample      = plot_sample,
-      column      = column,
-      column_i    = column_i,
-      level_names = names(display_posterior)
+      sample            = plot_sample,
+      column            = column,
+      display_posterior = display_posterior
     )
     if (is.null(level) ||
         !level %in% names(raw_posterior) ||
@@ -755,7 +754,7 @@ lines.brma <- function(
       ),
       metadata       = .iwmde_posterior_metadata(
         samples   = raw_posterior[[level]],
-        parameter = aliases,
+        parameter = column,
         level     = level
       ),
       cache          = estimate_cache
@@ -775,11 +774,7 @@ lines.brma <- function(
       plotted_samples   = as.numeric(plot_sample[, column_i])
     )
     if (!is.null(posterior_density)) {
-      posterior_densities <- .plot_brma_add_posterior_density(
-        posterior_densities = posterior_densities,
-        aliases             = aliases,
-        posterior_density   = posterior_density
-      )
+      posterior_densities[[column]] <- posterior_density
       density_columns <- c(density_columns, column)
     }
   }
@@ -787,12 +782,6 @@ lines.brma <- function(
   if (length(diagnostics) == 0L && ncol(sample) == 1L) {
     column  <- colnames(sample)[[1L]]
     expected_columns <- column
-    aliases <- .plot_brma_factor_density_aliases(
-      parameter   = sample_parameter,
-      sample      = sample,
-      sample_name = column,
-      level_i     = 1L
-    )
     estimate <- .iwmde_estimate(
       context         = context,
       parameter       = parameter,
@@ -813,7 +802,7 @@ lines.brma <- function(
       ),
       metadata       = .iwmde_posterior_metadata(
         samples   = sample,
-        parameter = aliases
+        parameter = column
       ),
       cache          = estimate_cache
     )
@@ -829,11 +818,7 @@ lines.brma <- function(
         plotted_samples   = as.numeric(sample[, 1L])
       )
       if (!is.null(posterior_density)) {
-        posterior_densities <- .plot_brma_add_posterior_density(
-          posterior_densities = posterior_densities,
-          aliases             = aliases,
-          posterior_density   = posterior_density
-        )
+        posterior_densities[[column]] <- posterior_density
         density_columns <- c(density_columns, column)
       }
     }
@@ -891,18 +876,6 @@ lines.brma <- function(
 }
 
 
-.plot_brma_add_posterior_density <- function(posterior_densities, aliases,
-                                             posterior_density) {
-
-  aliases <- unique(aliases[!is.na(aliases) & nzchar(aliases)])
-  for (alias in aliases) {
-    posterior_densities[[alias]] <- posterior_density
-  }
-
-  return(posterior_densities)
-}
-
-
 .plot_brma_factor_density_complete <- function(density_columns, expected_columns) {
 
   density_columns <- unique(as.character(density_columns))
@@ -919,133 +892,33 @@ lines.brma <- function(
 }
 
 
-.plot_brma_factor_column_level <- function(parameter, sample, column, column_i,
-                                           level_names) {
+# The marginal posterior of the level cell that a plotted factor column
+# holds: the element whose label parts name the same level of every factor.
+.plot_brma_factor_column_level <- function(sample, column, display_posterior) {
 
-  aliases <- .plot_brma_factor_density_aliases(
-    parameter   = parameter,
-    sample      = sample,
-    sample_name = column,
-    level_i     = column_i
-  )
-  bracket_matches <- regmatches(
-    column,
-    gregexpr("\\[[^]]+\\]", column)
-  )[[1]]
-  bracket_aliases <- gsub("^\\[|\\]$", "", bracket_matches)
-  sample_level_names <- attr(sample, "level_names", exact = TRUE)
-  if (is.list(sample_level_names) &&
-      length(bracket_aliases) == length(sample_level_names)) {
-    aliases <- c(
-      aliases,
-      .plot_brma_factor_named_cell_alias(
-        level_names = sample_level_names,
-        values      = bracket_aliases
-      )
-    )
-    aliases <- c(
-      aliases,
-      .plot_brma_factor_named_cell_alias(
-        level_names = sample_level_names,
-        values      = .plot_brma_factor_display_aliases(bracket_aliases)
-      )
-    )
+  quantities <- BayesTools::posterior_metadata(sample, "quantities")
+  row        <- match(column, quantities[["column"]])
+  if (is.na(row)) {
+    return(NULL)
   }
-
-  level <- intersect(level_names, aliases)
-  if (length(level) != 1L) {
+  cell <- quantities[["label_parts"]][[row]][["levels"]]
+  if (length(cell) == 0L) {
     return(NULL)
   }
 
-  return(level)
-}
-
-
-.plot_brma_factor_density_aliases <- function(parameter, sample, sample_name,
-                                             level_i) {
-
-  aliases <- sample_name
-  bracket_matches <- regmatches(
-    sample_name,
-    gregexpr("\\[[^]]+\\]", sample_name)
-  )[[1]]
-  bracket_aliases <- gsub("^\\[|\\]$", "", bracket_matches)
-  if (length(bracket_aliases) > 0L) {
-    aliases <- c(
-      aliases,
-      bracket_aliases,
-      paste0(parameter, "[", bracket_aliases, "]")
+  matches <- vapply(display_posterior, function(level_samples) {
+    level_quantities <- BayesTools::posterior_metadata(
+      level_samples,
+      "quantities"
     )
-  }
-  if (length(bracket_aliases) > 1L) {
-    cell_alias <- paste0(bracket_aliases, collapse = ", ")
-    aliases <- c(aliases, cell_alias, paste0(parameter, "[", cell_alias, "]"))
-  }
-
-  level_names <- attr(sample, "level_names", exact = TRUE)
-  if (is.list(level_names)) {
-    level_names <- .plot_brma_factor_cell_labels(level_names)
-  }
-  if (length(level_names) == ncol(sample)) {
-    aliases <- c(
-      aliases,
-      level_names[[level_i]],
-      paste0(parameter, "[", level_names[[level_i]], "]")
-    )
+    length(level_quantities[["label_parts"]]) == 1L &&
+      identical(level_quantities[["label_parts"]][[1L]][["levels"]], cell)
+  }, logical(1))
+  if (sum(matches) != 1L) {
+    return(NULL)
   }
 
-  factor_cell_names <- attr(sample, "factor_cell_names", exact = TRUE)
-  if (length(factor_cell_names) == ncol(sample)) {
-    aliases <- c(
-      aliases,
-      factor_cell_names[[level_i]],
-      paste0(parameter, "[", factor_cell_names[[level_i]], "]")
-    )
-  }
-
-  aliases <- unique(as.character(aliases))
-  aliases <- aliases[!is.na(aliases) & nzchar(aliases)]
-
-  return(aliases)
-}
-
-
-.plot_brma_factor_cell_labels <- function(level_names) {
-
-  if (!is.list(level_names)) {
-    return(level_names)
-  }
-
-  cells <- expand.grid(
-    level_names,
-    KEEP.OUT.ATTRS   = FALSE,
-    stringsAsFactors = FALSE
-  )
-  labels <- apply(cells, 1L, function(x) {
-    paste0(names(level_names), "=", as.character(x), collapse = ", ")
-  })
-
-  return(labels)
-}
-
-
-.plot_brma_factor_named_cell_alias <- function(level_names, values) {
-
-  values <- as.character(values)
-  if (length(values) != length(level_names)) {
-    return(character())
-  }
-
-  return(paste0(names(level_names), "=", values, collapse = ", "))
-}
-
-
-.plot_brma_factor_display_aliases <- function(values) {
-
-  values <- as.character(values)
-  values <- sub("^dif: ", "", values)
-
-  return(values)
+  return(names(display_posterior)[matches])
 }
 
 
@@ -1207,20 +1080,26 @@ lines.brma <- function(
 # coefficient 'mu_g{j}') takes that coordinate's name; other columns keep
 # theirs. All columns are renamed at once, since a level label can equal the
 # name of another level's coordinate.
-.plot_brma_factor_cell_coordinate_columns <- function(object, columns) {
+# The fitted coordinates that mixed-posterior columns of a factor term hold:
+# the sole dependency, with unit weight, of each column's draw metadata. Other
+# columns (combinations of coordinates) name no coordinate.
+.plot_brma_factor_cell_coordinate_columns <- function(samples) {
 
-  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
-  rows       <- match(columns, quantities[["canonical_name"]])
-  mapped     <- columns
-  for (i in which(!is.na(rows))) {
-    coordinate <- .brma_catalog_key_coordinate(
-      quantities[["extraction_key"]][[rows[[i]]]]
-    )
-    if (!is.null(coordinate)) {
-      mapped[[i]] <- coordinate
-    }
+  quantities <- BayesTools::posterior_metadata(samples, "quantities")
+  rows       <- match(colnames(samples), quantities[["column"]])
+  if (anyNA(rows)) {
+    stop("Selected factor-cell source coordinates are unavailable.", call. = FALSE)
   }
-  if (anyDuplicated(mapped)) {
+  mapped <- vapply(rows, function(row) {
+    dependencies <- quantities[["dependencies"]][[row]]
+    weights      <- quantities[["weights"]][[row]]
+    if (length(dependencies) == 1L && identical(unname(as.numeric(weights)), 1)) {
+      dependencies
+    } else {
+      NA_character_
+    }
+  }, character(1))
+  if (anyDuplicated(mapped[!is.na(mapped)])) {
     stop("Selected factor-cell source coordinates are ambiguous.", call. = FALSE)
   }
 
@@ -1286,39 +1165,20 @@ lines.brma <- function(
   ))) {
     stop("Selected factor-cell posterior and prior are unavailable.", call. = FALSE)
   }
-  source_samples <- as.matrix(displayed[[parent]])
-  if (ncol(source_samples) == 1L && length(key[["dependencies"]]) == 1L) {
-    coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
-    sources <- coordinates[["coordinate_name"]][
-      coordinates[["role"]] == "fixed_coefficient" &
-        coordinates[["formula_parameter"]] == entry[["formula_parameter"]] &
-        coordinates[["term"]] == entry[["term"]] & !coordinates[["internal"]]
-    ]
-    # A one-dimensional contrast prior may name its sole mixed column with
-    # '[1]' even when the fitted source is scalar. The compiled term owns it.
-    if (length(sources) == 1L && identical(sources, key[["dependencies"]])) {
-      colnames(source_samples) <- sources
-    }
-  }
-  # Mixed columns carry level labels (treatment/independent cells) or
-  # coefficient labels '<parameter>{j}' (mean-difference, orthonormal, ordered
-  # increments); the cell's extraction key names fitted coordinates.
-  colnames(source_samples) <- .plot_brma_factor_cell_coordinate_columns(
-    object  = object,
-    columns = colnames(source_samples)
+  # The mixed columns hold the fitted coordinates that the cell's extraction
+  # key combines (their draw metadata name them).
+  coordinate_columns <- .plot_brma_factor_cell_coordinate_columns(
+    displayed[[parent]]
   )
-  # Recover source coordinates that no mixed column names only from exact
-  # unit-weight marginal metadata.
-  for (dependency in setdiff(key[["dependencies"]], colnames(source_samples))) {
-    unit <- stats::setNames(1, dependency)
-    source_cells <- which(vapply(raw_marginal, same_weights, logical(1L), target = unit))
-    if (!length(source_cells)) {
-      stop("Selected factor-cell source coordinates are unavailable.", call. = FALSE)
-    }
-    source <- marginal[[names(raw_marginal)[source_cells[[1L]]]]]
-    source_samples <- cbind(source_samples, as.numeric(source))
-    colnames(source_samples)[ncol(source_samples)] <- dependency
+  if (!all(key[["dependencies"]] %in% coordinate_columns)) {
+    stop("Selected factor-cell source coordinates are unavailable.", call. = FALSE)
   }
+  source_samples <- as.matrix(displayed[[parent]])[
+    ,
+    !is.na(coordinate_columns),
+    drop = FALSE
+  ]
+  colnames(source_samples) <- coordinate_columns[!is.na(coordinate_columns)]
   draws <- BayesTools::parameter_draws(object[["fit"]], selection,
     model_samples = source_samples)
   if (nrow(as.matrix(draws)) != length(value)) {

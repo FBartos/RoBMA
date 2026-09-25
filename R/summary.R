@@ -235,13 +235,15 @@ summary.brma       <- function(
       footnotes              = scale_footnotes
     )
   )
-  estimates_scale             <- .summary_scale_repair_row_labels(
-    estimates = estimates_scale_pair[["estimates"]],
-    object    = object
+  estimates_scale             <- .summary_scale_row_labels(
+    estimates      = estimates_scale_pair[["estimates"]],
+    object         = object,
+    formula_prefix = scale_formula_prefix
   )
-  estimates_scale_conditional <- .summary_scale_repair_row_labels(
-    estimates = estimates_scale_pair[["conditional"]],
-    object    = object
+  estimates_scale_conditional <- .summary_scale_row_labels(
+    estimates      = estimates_scale_pair[["conditional"]],
+    object         = object,
+    formula_prefix = scale_formula_prefix
   )
 
   ### provide publication bias estimates
@@ -624,29 +626,50 @@ print.brma <- function(x, ...) {
   )
 }
 
-.summary_scale_repair_row_labels <- function(estimates, object) {
+# Scale rows are labelled from their label parts, with the scale formula shown
+# by its display name and the intercept, which log-intercept scale formulas
+# sample as the baseline SD, as 'exp(intercept)'.
+.summary_scale_row_labels <- function(estimates, object, formula_prefix) {
 
+  parameters <- attr(estimates, "parameters", exact = TRUE)
   if (length(estimates) == 0L || is.null(rownames(estimates))) {
     return(estimates)
   }
 
-  scale_names <- .summary_scale_display_names(object)
-  for (parameter in names(scale_names)) {
-    rownames(estimates) <- sub(
-      pattern     = paste0("^\\(", parameter, "\\)"),
-      replacement = paste0("(", scale_names[[parameter]], ")"),
-      x           = rownames(estimates)
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  rows       <- match(parameters, quantities[["canonical_name"]])
+  if (length(rows) != nrow(estimates) || anyNA(rows) ||
+      any(vapply(quantities[["label_parts"]][rows], is.null, logical(1)))) {
+    stop(
+      "Scale summary rows have no catalog label parts. Refit the model with ",
+      "the current RoBMA/BayesTools build.",
+      call. = FALSE
     )
   }
-  rownames(estimates) <- sub(
-    pattern     = "(^|\\) )intercept$",
-    replacement = "\\1exp(intercept)",
-    x           = rownames(estimates)
+  scale_names <- .summary_scale_display_names(object)
+  parts <- lapply(quantities[["label_parts"]][rows], function(parts) {
+    formula_parameter <- parts[["formula_parameter"]]
+    if (formula_parameter %in% names(scale_names)) {
+      parts[["formula_parameter"]] <- scale_names[[formula_parameter]]
+    }
+    if (identical(parts[["components"]], "intercept") &&
+        length(parts[["levels"]]) == 0L) {
+      parts[["transformation"]] <- "exp"
+    }
+    parts
+  })
+  rownames(estimates) <- BayesTools::parameter_labels(
+    parts,
+    style          = "table",
+    formula_prefix = formula_prefix
   )
 
   estimates
 }
 
+# Random-effect rows are labelled by RoBMA's quantity names, rendered from the
+# label parts of their catalog quantities as BayesTools renders the rows
+# (without the formula prefix, simplified).
 .summary_random_repair_parameter_names <- function(estimates, object) {
 
   parameters <- attr(estimates, "parameters", exact = TRUE)
@@ -662,15 +685,12 @@ print.brma <- function(x, ...) {
     return(estimates)
   }
 
-  matched_rows <- rows[matched]
-  old_rows     <- rownames(estimates)[matched]
-  rownames(estimates)[matched] <- .brma_random_parameter_io_names(
-    rownames(estimates)[matched],
-    quantities[["quantity"]][matched_rows]
-  )
+  selected <- quantities[rows[matched], , drop = FALSE]
+  old_rows <- rownames(estimates)[matched]
+  new_rows <- .brma_random_parameter_io_labels(selected, "label")
+  rownames(estimates)[matched] <- new_rows
   # Row footnotes are keyed and prefixed by their row label: rename them with
   # their rows.
-  new_rows  <- rownames(estimates)[matched]
   footnotes <- attr(estimates, "footnotes", exact = TRUE)
   footnote_rows <- match(names(footnotes), old_rows)
   for (i in which(!is.na(footnote_rows))) {
@@ -687,20 +707,8 @@ print.brma <- function(x, ...) {
   if (any(!is.na(footnote_rows))) {
     attr(estimates, "footnotes") <- footnotes
   }
-  parameters[matched] <- .brma_random_parameter_io_names(
-    parameters[matched],
-    quantities[["quantity"]][matched_rows]
-  )
+  parameters[matched] <- .brma_random_parameter_io_labels(selected, "selector")
   attr(estimates, "parameters") <- parameters
-
-  display_rows <- attr(estimates, "rownames", exact = TRUE)
-  if (is.character(display_rows) && length(display_rows) == nrow(estimates)) {
-    display_rows[matched] <- .brma_random_parameter_io_names(
-      display_rows[matched],
-      quantities[["quantity"]][matched_rows]
-    )
-    attr(estimates, "rownames") <- display_rows
-  }
 
   estimates
 }
@@ -912,6 +920,7 @@ print.brma <- function(x, ...) {
   parameters <- attr(inclusion, "parameters")
   parameter_roles <- attr(inclusion, "parameter_roles", exact = TRUE)
   row_labels <- rownames(inclusion)
+  row_terms  <- .summary_formula_prior_terms(object, parameters)
 
   core_map <- c(
     mu                = "Effect",
@@ -926,15 +935,22 @@ print.brma <- function(x, ...) {
   random_indices      <- which(parameter_roles == "random_inclusion")
   random_slab_indices <- which(parameter_roles == "random_slab")
 
-  mods_indices <- grep("^mu_", parameters)
-  mods_indices <- mods_indices[parameters[mods_indices] != "mu_intercept"]
+  mods_indices <- which(
+    row_terms[["formula_parameter"]] == "mu" &
+      !row_terms[["term"]] %in% c("", "intercept")
+  )
   mods_indices <- setdiff(
     mods_indices,
     c(random_indices, random_slab_indices)
   )
 
-  scale_indices <- grep("^log_tau_", parameters)
-  scale_indices <- scale_indices[parameters[scale_indices] != "log_tau_intercept"]
+  scale_indices <- which(
+    row_terms[["formula_parameter"]] %in%
+      .summary_scale_formula_parameters(object) &
+      nzchar(row_terms[["term"]]) &
+      !(row_terms[["formula_parameter"]] == "log_tau" &
+          row_terms[["term"]] == "intercept")
+  )
   scale_indices <- setdiff(
     scale_indices,
     c(random_indices, random_slab_indices)
@@ -950,8 +966,10 @@ print.brma <- function(x, ...) {
     inclusion_mods = .summary.inclusion_subtable(
       table      = inclusion,
       indices    = mods_indices,
-      row_labels = .summary_parameter_label(
-        sub("^\\(mu\\) ", "", row_labels[mods_indices])
+      row_labels = .summary_formula_term_label(
+        object,
+        row_terms[["formula_parameter"]][mods_indices],
+        row_terms[["term"]][mods_indices]
       ),
       title      = if (.is_scale(object)) {
         "Location Inclusion"
@@ -962,8 +980,10 @@ print.brma <- function(x, ...) {
     inclusion_scale = .summary.inclusion_subtable(
       table      = inclusion,
       indices    = scale_indices,
-      row_labels = .summary_parameter_label(
-        sub("^\\(log_tau\\) ", "", row_labels[scale_indices])
+      row_labels = .summary_formula_term_label(
+        object,
+        row_terms[["formula_parameter"]][scale_indices],
+        row_terms[["term"]][scale_indices]
       ),
       title      = "Scale Inclusion"
     ),
@@ -982,12 +1002,13 @@ print.brma <- function(x, ...) {
   return(output)
 }
 
+# Random-effect inclusion rows are labelled by the SD they include, or by the
+# component their gate includes (the arguments of its label parts).
 .summary_random_inclusion_labels <- function(object, parameters, labels) {
 
   if (length(parameters) == 0L) {
     return(labels)
   }
-  labels     <- sub("^.*inclusion\\((.*)\\)$", "\\1", labels)
   quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
   keys       <- quantities[["extraction_key"]]
   sd_names   <- .random_inclusion_sd_names(object)
@@ -1000,10 +1021,62 @@ print.brma <- function(x, ...) {
     source <- keys[[gate]][["source_parameter"]]
     if (length(source) == 1L && !is.na(source) && source %in% names(sd_names)) {
       labels[[i]] <- sd_names[[source]]
+    } else {
+      labels[[i]] <- paste(
+        quantities[["label_parts"]][[gate]][["random"]][["arguments"]],
+        collapse = ","
+      )
     }
   }
 
-  .summary_parameter_label(labels)
+  labels
+}
+
+
+# The formula parameter and formula-syntax term of fitted prior-list entries
+# that are fixed formula coefficients ("" for other entries), from the fitted
+# formula name maps.
+.summary_formula_prior_terms <- function(object, parameters) {
+
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  formula_parameters <- vapply(parameters, function(parameter) {
+    formula_parameter <- if (parameter %in% names(prior_list)) {
+      attr(prior_list[[parameter]], "parameter", exact = TRUE)
+    }
+    if (is.character(formula_parameter) && length(formula_parameter) == 1L &&
+        !is.na(formula_parameter)) formula_parameter else ""
+  }, character(1), USE.NAMES = FALSE)
+  terms <- rep("", length(parameters))
+  for (formula_parameter in setdiff(unique(formula_parameters), "")) {
+    name_map <- .fitted_formula_name_map(object, formula_parameter, required = FALSE)
+    fixed    <- name_map[name_map[["kind"]] == "fixed", , drop = FALSE]
+    rows     <- which(formula_parameters == formula_parameter)
+    matched  <- fixed[["term"]][match(parameters[rows], fixed[["jags_name"]])]
+    terms[rows] <- ifelse(is.na(matched), "", matched)
+  }
+  formula_parameters[!nzchar(terms)] <- ""
+
+  data.frame(
+    parameter         = parameters,
+    formula_parameter = formula_parameters,
+    term              = terms,
+    stringsAsFactors  = FALSE
+  )
+}
+
+
+# Summary label of a formula term: the term, prefixed by the display name of
+# its scale formula when the model has several scale formulas.
+.summary_formula_term_label <- function(object, formula_parameter, term) {
+
+  scale_names <- .summary_scale_display_names(object)
+  prefixed    <- length(scale_names) > 1L &
+    formula_parameter %in% names(scale_names)
+  term[prefixed] <- paste0(
+    "(", scale_names[formula_parameter[prefixed]], ") ", term[prefixed]
+  )
+
+  term
 }
 
 .summary_estimates_diagnostic_columns <- function(include_mcmc_diagnostics) {
@@ -1022,12 +1095,6 @@ print.brma <- function(x, ...) {
   }
 
   return("none")
-}
-
-# Convert internal interaction separators back to formula syntax.
-.summary_parameter_label <- function(label) {
-
-  return(gsub("__xXx__", ":", label, fixed = TRUE))
 }
 
 # Create a labelled BayesTools inclusion subtable.

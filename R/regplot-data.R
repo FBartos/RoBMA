@@ -203,7 +203,7 @@
   term_labels <- unlist(lapply(designs, function(design) {
     terms <- design[["model_terms"]]
     terms <- terms[terms != "intercept"]
-    .formula_design_display_names(terms)
+    .formula_design_term_labels(design, terms)
   }), use.names = FALSE)
   term_labels <- unique(term_labels)
   term_labels <- term_labels[grepl(":", term_labels, fixed = TRUE)]

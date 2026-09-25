@@ -389,9 +389,18 @@
   return(coordinate)
 }
 
+# Catalog quantities that are factor contrast coefficients ('g{1}'): their
+# label parts name a contrast coefficient rather than a level cell.
+.brma_catalog_contrast_coefficient <- function(quantities) {
+
+  vapply(quantities[["label_parts"]], function(parts) {
+    !is.null(parts) && !is.na(parts[["coefficient"]])
+  }, logical(1))
+}
+
 # Contrast coefficients '<term>{j}' of mean-difference, orthonormal, and
-# ordered factors are factor-level catalog quantities that no RoBMA entry
-# covers: RoBMA addresses factor terms through their level labels.
+# ordered factors are catalog quantities that no RoBMA entry covers: RoBMA
+# addresses factor terms through their level labels.
 .brma_contrast_coefficient_quantities <- function(metadata, quantity_ids) {
 
   quantities <- metadata[["catalog"]][["quantities"]]
@@ -411,8 +420,9 @@
   factor_level <- vapply(rows[["extraction_key"]], function(key) {
     is.list(key) && identical(key[["type"]], "factor_level")
   }, logical(1))
+  coefficient <- .brma_catalog_contrast_coefficient(rows)
 
-  return(rows[factor_level & !covered, , drop = FALSE])
+  return(rows[(factor_level | coefficient) & !covered, , drop = FALSE])
 }
 
 # The public label of a factor term and the labels of its non-structural
@@ -703,12 +713,14 @@
         }
       }
       entry_aliases <- unique(entry_aliases)
+      # The term's coefficients, or the level cells of a factor term (its
+      # contrast coefficients are no level cells).
       coordinate_rows <- which(
         public &
           quantities[["formula_parameter"]] == formula_parameter &
           quantities[["role"]] == "fixed_coefficient" &
-          sub("\\[.*$", "", quantities[["canonical_name"]]) ==
-            map_row[["jags_name"]]
+          quantities[["term"]] == term &
+          !.brma_catalog_contrast_coefficient(quantities)
       )
       if (length(coordinate_rows) == 0L) {
         stop(
@@ -755,19 +767,13 @@
     )
     for (row in rows) {
       quantity <- as.list(quantities[row, , drop = FALSE])
-      base_aliases <- catalog[["aliases"]][
-        catalog[["aliases"]][["quantity_id"]] == quantity[["quantity_id"]],
-        ,
-        drop = FALSE
-      ]
-      parameter <- .brma_random_parameter_io_name(
-        quantity[["canonical_name"]],
-        quantity[["quantity"]]
+      # RoBMA selects random-effect quantities by its own quantity names,
+      # rendered from the catalog label parts.
+      parameter  <- .brma_random_parameter_io_labels(
+        quantities[row, , drop = FALSE],
+        "selector"
       )
-      entry_aliases <- .brma_random_parameter_io_names(
-        c(quantity[["canonical_name"]], base_aliases[["alias"]]),
-        rep(quantity[["quantity"]], nrow(base_aliases) + 1L)
-      )
+      io_aliases <- .brma_random_parameter_io_aliases(quantity)
       add_entry(
         quantity          = quantity,
         parameter         = parameter,
@@ -775,11 +781,8 @@
         term              = parameter,
         source            = "random",
         formula_parameter = quantity[["formula_parameter"]],
-        entry_aliases     = entry_aliases,
-        entry_alias_simplified = c(
-          FALSE,
-          base_aliases[["simplified"]]
-        )
+        entry_aliases     = c(parameter, io_aliases[["alias"]]),
+        entry_alias_simplified = c(FALSE, io_aliases[["simplified"]])
       )
     }
   }
@@ -940,9 +943,11 @@
     formula_parameter = map_row[["formula_parameter"]],
     term              = map_row[["term"]]
   )))
-  # A coefficient group has no scalar support of its own.
+  # A coefficient group has no scalar support of its own; its display label
+  # is RoBMA's term label.
   out[["support"]]     <- I(list(NULL))
   out[["definedness"]] <- "always"
+  out[["label_parts"]] <- I(list(NULL))
   out <- out[, names(catalog[["quantities"]]), drop = FALSE]
   return(out)
 }
@@ -1002,9 +1007,10 @@
     parameter    = parameter
   )))
   # The publication-bias component mixes several priors; its support is not
-  # declared here.
+  # declared here, and its display label is the component name.
   out[["support"]]     <- I(list(NULL))
   out[["definedness"]] <- "always"
+  out[["label_parts"]] <- I(list(NULL))
   out <- out[, names(catalog[["quantities"]]), drop = FALSE]
   return(out)
 }
@@ -1346,7 +1352,10 @@
   )
 }
 
-.plot_parameter_label <- function(parameter, effect_transform = NULL) {
+# Axis label of a plotted parameter. Formula coefficients are labelled by the
+# formula term of their catalog entry.
+.plot_parameter_label <- function(parameter, effect_transform = NULL,
+                                  entry = NULL, object = NULL) {
 
   if (.is_effect_location_parameter(parameter)) {
     if (.effect_output_active(effect_transform)) {
@@ -1356,11 +1365,14 @@
     return("Effect Size")
   }
 
-  if (grepl("^mu_", parameter)) {
-    label <- paste0(
-      "Effect Size: ",
-      .summary_parameter_label(sub("^mu_", "", parameter))
-    )
+  formula_parameter <- entry[["formula_parameter"]]
+  if (!is.character(formula_parameter) || length(formula_parameter) != 1L ||
+      is.na(formula_parameter)) {
+    formula_parameter <- ""
+  }
+
+  if (identical(formula_parameter, "mu")) {
+    label <- paste0("Effect Size: ", entry[["term"]])
     if (.effect_output_active(effect_transform)) {
       label <- paste0(label, " (", effect_transform[["label"]], ")")
     }
@@ -1375,10 +1387,11 @@
     return(label)
   }
 
-  if (grepl("^log_tau_", parameter)) {
+  if (nzchar(formula_parameter) && !is.null(object) &&
+      formula_parameter %in% .summary_scale_formula_parameters(object)) {
     label <- paste0(
       "Heterogeneity: ",
-      .summary_parameter_label(sub("^log_tau_", "", parameter))
+      .summary_formula_term_label(object, formula_parameter, entry[["term"]])
     )
     if (.effect_output_active(effect_transform)) {
       label <- paste0(label, " (", effect_transform[["label"]], ")")
@@ -1732,7 +1745,8 @@
     return(NULL)
   }
 
-  parameter <- gsub(":", "__xXx__", selected[["label"]], fixed = TRUE)
+  # The formula columns are named as BayesTools names formula terms.
+  parameter <- BayesTools::JAGS_parameter_names(selected[["label"]])
   if (!parameter %in% formula_info[["column_names"]]) {
     return(NULL)
   }
@@ -1792,8 +1806,9 @@
     return(NULL)
   }
 
-  formula_scale <- list(design[["formula_scale"]])
-  names(formula_scale) <- parameter
+  # The formula scaling that carries the fitted design transforms the
+  # coefficients to the original predictor scale.
+  formula_scale <- .object_formula_scale(object, parameter)
 
   return(list(
     prior_list    = design[["prior_list"]],

@@ -935,25 +935,41 @@ test_that("brma.mv validates random formula edge cases", {
     c(log_tau_Study_effects = "Study effects: tau",
       log_tau_X_effects = "X effects: tau")
   )
-  scale_table <- data.frame(
-    Mean      = c(0.5, -0.3),
-    row.names = c("intercept", "x")
-  )
-  expect_identical(
-    rownames(.summary_scale_repair_row_labels(
-      scale_table, plain_nested_scale_random
-    )),
-    c("exp(intercept)", "x")
-  )
-  rownames(scale_table) <- paste0("(log_tau) ", rownames(scale_table))
-  scale_summary <- .summary_scale_repair_row_labels(
-    scale_table, plain_nested_scale_random
-  )
-  expect_identical(
-    rownames(scale_summary),
-    c("(tau_total) exp(intercept)", "(tau_total) x")
-  )
-  expect_identical(scale_summary[["Mean"]], c(0.5, -0.3))
+  # Scale rows are rendered from the label parts of their catalog quantities
+  # (the table's 'parameters'), with the scale formula's display name.
+  local({
+    scale_table <- data.frame(
+      Mean      = c(0.5, -0.3),
+      row.names = c("(log_tau) intercept", "(log_tau) x")
+    )
+    attr(scale_table, "parameters") <- c("log_tau_intercept", "log_tau_x")
+    scale_quantities <- data.frame(
+      canonical_name   = c("log_tau_x", "log_tau_intercept"),
+      stringsAsFactors = FALSE
+    )
+    scale_quantities[["label_parts"]] <- I(list(
+      catalog_label_parts("log_tau_x", "x", "log_tau"),
+      catalog_label_parts("log_tau_intercept", "intercept", "log_tau")
+    ))
+    testthat::local_mocked_bindings(
+      parameter_catalog = function(...) list(quantities = scale_quantities),
+      .package = "BayesTools"
+    )
+    expect_identical(
+      rownames(.summary_scale_row_labels(
+        scale_table, plain_nested_scale_random, formula_prefix = FALSE
+      )),
+      c("exp(intercept)", "x")
+    )
+    scale_summary <- .summary_scale_row_labels(
+      scale_table, plain_nested_scale_random, formula_prefix = TRUE
+    )
+    expect_identical(
+      rownames(scale_summary),
+      c("(tau_total) exp(intercept)", "(tau_total) x")
+    )
+    expect_identical(scale_summary[["Mean"]], c(0.5, -0.3))
+  })
   expect_identical(
     .summary_scale_footnotes(plain_nested_scale_random),
     paste0(

@@ -5,7 +5,7 @@ context("BayesTools parameter catalog contract")
 
   quantity <- function(canonical_name, namespace, role,
                        formula_parameter = "", term = "", component = "",
-                       display_label = canonical_name, status = "sampled",
+                       label_parts = NULL, status = "sampled",
                        fixed_value = NA_real_, extraction_key = NULL,
                        owner_type = "",
                        owner_name = "", quantity_name = "",
@@ -24,7 +24,7 @@ context("BayesTools parameter catalog contract")
       formula_parameter = formula_parameter,
       term              = term,
       component         = component,
-      display_label     = display_label,
+      label_parts       = label_parts,
       display_scale     = "original",
       status            = status,
       fixed_value       = fixed_value,
@@ -36,29 +36,47 @@ context("BayesTools parameter catalog contract")
       extraction_key    = extraction_key
     )
   }
+  level_parts <- function(selector, level) {
+    catalog_label_parts(selector, "f", "mu", levels = c(f = level))
+  }
   quantities <- do.call(rbind, list(
-    quantity("mu_x", "mu", "fixed_coefficient", "mu", "x", "mu_x"),
+    quantity(
+      "mu_x", "mu", "fixed_coefficient", "mu", "x", "mu_x",
+      catalog_label_parts("mu_x", "x", "mu")
+    ),
     quantity(
       "mu_f[1]", "mu", "fixed_coefficient", "mu", "f", "A",
-      "(mu) f[A]"
+      level_parts("mu_f[1]", "A")
     ),
     quantity(
       "mu_f[2]", "mu", "fixed_coefficient", "mu", "f", "B",
-      "(mu) f[B]"
+      level_parts("mu_f[2]", "B")
     ),
     quantity(
       "mu_f[dif: C]", "mu", "fixed_coefficient", "mu", "f", "C",
-      "(mu) f[C]", "structural", 0,
+      level_parts("mu_f[dif: C]", "C"), "structural", 0,
       list(type = "factor_level", dependencies = character(), weights = numeric())
     ),
     quantity(
       "log_tau_x", "log_tau", "fixed_coefficient", "log_tau", "x",
-      "log_tau_x"
+      "log_tau_x", catalog_label_parts("log_tau_x", "x", "log_tau")
     ),
-    quantity("PET", "model", "parameter"),
+    quantity(
+      "PET", "model", "parameter",
+      label_parts = catalog_label_parts("PET", "PET")
+    ),
     quantity(
       "random_sd_study_intercept", "mu", "random_sd", "mu", "intercept",
-      "intercept", "(mu) study: sd",
+      "intercept",
+      catalog_label_parts(
+        "random_sd_study_intercept", "intercept", "mu",
+        random = list(
+          owner             = "study",
+          quantity          = "sd",
+          arguments         = "intercept",
+          display_arguments = character()
+        )
+      ),
       owner_type    = "random_block",
       owner_name    = "study",
       quantity_name = "sd",
@@ -69,8 +87,14 @@ context("BayesTools parameter catalog contract")
       "random_cor_study_group", "mu", "random_correlation",
       formula_parameter = "mu",
       term              = "study",
-      display_label     = paste0(
-        "(mu) cor(group[sensitivity],group[specificity])"
+      label_parts       = catalog_label_parts(
+        "random_cor_study_group", "study", "mu",
+        random = list(
+          owner             = "",
+          quantity          = "cor",
+          arguments         = c("group[sensitivity]", "group[specificity]"),
+          display_arguments = c("group[sensitivity]", "group[specificity]")
+        )
       ),
       owner_type        = "random_block",
       owner_name        = "study",
@@ -262,9 +286,11 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     hypothesis = random_hypothesis,
     component  = "random"
   )
+  # RoBMA names random-effect quantities by rendering their label parts with
+  # its quantity names.
   expect_identical(
     selected_random_hypothesis[["parameter"]],
-    "random_cor_study_group"
+    "(mu) rho(group[sensitivity],group[specificity])"
   )
   expect_error(
     BayesTools::hypothesis_parse(

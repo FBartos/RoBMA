@@ -316,7 +316,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
     aliases <- parameter
     if (!is.null(term) && nzchar(term)) {
-      aliases <- c(aliases, term, .formula_design_display_names(term))
+      aliases <- c(aliases, term)
     }
     rows[[length(rows) + 1L]] <- data.frame(
       alias      = unique(aliases),

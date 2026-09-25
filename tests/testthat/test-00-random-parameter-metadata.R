@@ -18,6 +18,23 @@ make_random_metadata_prior <- function(
 }
 
 
+# Label parts of a random-effect quantity '(mu) <owner>: <quantity>(<args>)'.
+random_metadata_parts <- function(selector, owner, quantity,
+                                  arguments = character(),
+                                  display_arguments = arguments) {
+
+  catalog_label_parts(
+    selector, if (nzchar(owner)) owner else quantity, "mu",
+    random = list(
+      owner             = owner,
+      quantity          = quantity,
+      arguments         = arguments,
+      display_arguments = display_arguments
+    )
+  )
+}
+
+
 make_random_metadata_catalog <- function(summaries, mappings) {
 
   quantities <- lapply(seq_along(summaries), function(i) {
@@ -27,6 +44,12 @@ make_random_metadata_catalog <- function(summaries, mappings) {
       namespace = "mu",
       role = mapping[["role"]],
       formula_parameter = "mu",
+      label_parts = random_metadata_parts(
+        names(summaries)[i],
+        mapping[["owner_name"]],
+        mapping[["quantity"]],
+        mapping[["arguments"]]
+      ),
       owner_type = mapping[["owner_type"]],
       owner_name = mapping[["owner_name"]],
       quantity = mapping[["quantity"]],
@@ -79,7 +102,7 @@ test_that("the random semantic interface exposes every public quantity", {
 })
 
 
-test_that("RoBMA maps BayesTools random quantities at its I/O boundary", {
+test_that("RoBMA renders BayesTools random quantities by its I/O names", {
 
   expect_identical(
     .brma_random_parameter_io_quantity_map(),
@@ -96,17 +119,47 @@ test_that("RoBMA maps BayesTools random quantities at its I/O boundary", {
       var_mult   = "tau2_mult"
     )
   )
-  expect_identical(
-    .brma_random_parameter_io_names(
-      c(
-        "(mu) study: sd(intercept)", "var_total", "cor(a,b)",
-        "allocation: var_prop(study)", "sd_common"
-      ),
-      c("sd", "var_total", "cor", "var_prop", "sd_common")
+  quantities <- data.frame(
+    canonical_name = c(
+      "(mu) study: sd(intercept)", "(mu) var_total", "(mu) cor(a,b)",
+      "(mu) allocation: var_prop(study)", "(mu) sd_common"
     ),
+    stringsAsFactors = FALSE
+  )
+  quantities[["label_parts"]] <- I(list(
+    random_metadata_parts(
+      "(mu) study: sd(intercept)", "study", "sd", "intercept", character()
+    ),
+    random_metadata_parts("(mu) var_total", "", "var_total"),
+    random_metadata_parts("(mu) cor(a,b)", "", "cor", c("a", "b")),
+    random_metadata_parts(
+      "(mu) allocation: var_prop(study)", "allocation", "var_prop", "study"
+    ),
+    random_metadata_parts("(mu) sd_common", "", "sd_common")
+  ))
+
+  expect_identical(
+    .brma_random_parameter_io_labels(quantities, "selector"),
     c(
-      "(mu) study: tau(intercept)", "tau2_total", "rho(a,b)",
+      "(mu) study: tau(intercept)", "(mu) tau2_total", "(mu) rho(a,b)",
+      "(mu) allocation: tau2_prop(study)", "(mu) tau_common"
+    )
+  )
+  expect_identical(
+    .brma_random_parameter_io_labels(quantities, "label"),
+    c(
+      "study: tau", "tau2_total", "rho(a,b)",
       "allocation: tau2_prop(study)", "tau_common"
+    )
+  )
+  expect_identical(
+    .brma_random_parameter_io_aliases(as.list(quantities[1L, , drop = FALSE])),
+    data.frame(
+      alias      = c(
+        "study: tau(intercept)", "(mu) study: tau", "study: tau", "tau"
+      ),
+      simplified = c(FALSE, TRUE, TRUE, TRUE),
+      stringsAsFactors = FALSE
     )
   )
 })
@@ -185,6 +238,10 @@ test_that("random summary rows use the RoBMA I/O map", {
     role           = c("random_sd", "random_correlation"),
     quantity       = c("sd", "cor")
   )
+  quantities[["label_parts"]] <- I(list(
+    random_metadata_parts("(mu) sd", "", "sd"),
+    random_metadata_parts("(mu) cor(a,b)", "", "cor", c("a", "b"))
+  ))
   testthat::local_mocked_bindings(
     parameter_catalog = function(...) list(quantities = quantities),
     .package = "BayesTools"

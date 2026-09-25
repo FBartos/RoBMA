@@ -10,6 +10,7 @@ test_that("fitted hypotheses resolve and rewrite the structured AST", {
     formula_parameter = "mu",
     term              = "x",
     component         = "mods",
+    label_parts       = catalog_label_parts("mu_x", "x", "mu"),
     display_scale     = "original",
     status            = "sampled",
     extraction_key    = list(

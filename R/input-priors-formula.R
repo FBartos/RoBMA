@@ -79,12 +79,9 @@
 
   model_terms      <- formula_design[["model_terms"]]
   model_terms_type <- formula_design[["model_terms_type"]]
-  explicit_prior_names <- gsub(
-    ":", "__xXx__", explicit_prior_names, fixed = TRUE
-  )
   default_factor_terms <- model_terms[
     model_terms_type == "factor" &
-      !model_terms %in% explicit_prior_names
+      !.formula_design_term_labels(formula_design) %in% explicit_prior_names
   ]
   if (length(default_factor_terms) == 0L) {
     return(invisible(FALSE))
@@ -317,12 +314,23 @@
     parameter            = parameter,
     contrast             = attr(data, "set_contrast_factor_predictors")
   )
+  # The assigned priors are named by their formula terms (the name map of the
+  # formula relates the coefficient names to the terms).
   prior_list <- formula_result[["prior_list"]]
-  names(prior_list) <- BayesTools::format_parameter_names(
-    parameters         = names(prior_list),
-    formula_parameters = formula_parameter,
-    formula_prefix     = FALSE
-  )
+  name_map   <- formula_result[["formula_design"]][["name_map"]]
+  terms      <- name_map[["term"]][
+    match(names(prior_list), name_map[["jags_name"]])
+  ]
+  if (anyNA(terms) || !all(name_map[["kind"]][
+    match(names(prior_list), name_map[["jags_name"]])
+  ] == "fixed")) {
+    stop(
+      "The priors assigned to the '", parameter, "' formula do not all ",
+      "belong to its formula terms.",
+      call. = FALSE
+    )
+  }
+  names(prior_list) <- terms
 
   return(prior_list)
 }

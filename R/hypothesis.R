@@ -291,19 +291,9 @@ hypothesis.brma <- function(object, hypothesis,
          call. = FALSE)
   }
   parameter_metadata <- .brma_parameter_catalog_metadata(object)
-  hypothesis <- tryCatch(
-    BayesTools::hypothesis_parse(
-      hypothesis = hypothesis,
-      catalog    = parameter_metadata[["catalog"]],
-      simplify_names = TRUE
-    ),
-    error = function(error) {
-      .hypothesis_brma_check_coefficient_selector(
-        hypothesis = hypothesis,
-        metadata   = parameter_metadata
-      )
-      stop(error)
-    }
+  hypothesis <- .hypothesis_brma_ast(
+    hypothesis = hypothesis,
+    catalog    = parameter_metadata[["catalog"]]
   )
   requested_point_refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,

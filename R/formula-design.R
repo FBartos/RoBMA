@@ -131,12 +131,56 @@
     object, parameter, source,
     random_effects_compile = .object_formula_random_effects_compile(object, source)) {
 
+  .object_bayestools_formula(
+    object                 = object,
+    parameter              = parameter,
+    source                 = source,
+    random_effects_compile = random_effects_compile
+  )[["formula_design"]]
+}
+
+
+# The formula scaling of a formula parameter that carries its fitted design,
+# as original-scale transformations require: the fit's scaling, or for
+# prior-only objects the scaling of the formula that BayesTools::JAGS_formula()
+# builds from the object's data and priors. NULL without a scaling.
+.object_formula_scale <- function(object, parameter) {
+
+  if (!is.null(object[["fit"]])) {
+    return(attr(object[["fit"]], "formula_scale", exact = TRUE)[parameter])
+  }
+  source <- .fitted_formula_source(
+    parameter = parameter,
+    data      = object[["data"]]
+  )
+  if (is.null(source) || is.null(object[["priors"]][[source]])) {
+    return(NULL)
+  }
+  formula_scale <- .object_bayestools_formula(
+    object    = object,
+    parameter = parameter,
+    source    = source
+  )[["formula_scale"]]
+  if (is.null(formula_scale)) {
+    return(NULL)
+  }
+
+  stats::setNames(list(formula_scale), parameter)
+}
+
+
+# BayesTools::JAGS_formula() output of a formula parameter of an object
+# without a fitted JAGS object.
+.object_bayestools_formula <- function(
+    object, parameter, source,
+    random_effects_compile = .object_formula_random_effects_compile(object, source)) {
+
   if (identical(source, "scale")) {
     scale_spec <- .fitted_scale_spec(
       data      = object[["data"]],
       parameter = parameter
     )
-    formula_design <- BayesTools::JAGS_formula(
+    output <- BayesTools::JAGS_formula(
       formula       = .create_fit_scale_formula(scale_spec[["formula"]]),
       parameter     = parameter,
       data          = scale_spec[["data"]],
@@ -145,12 +189,12 @@
         parameter = parameter
       ),
       formula_scale = .data_standardize_continuous_predictors(object[["data"]])
-    )[["formula_design"]]
+    )
 
-    return(formula_design)
+    return(output)
   }
 
-  formula_design <- BayesTools::JAGS_formula(
+  output <- BayesTools::JAGS_formula(
     formula       = .create_fit_formula_list(
       data      = object[["data"]],
       parameter = source
@@ -170,9 +214,9 @@
       source = source
     ),
     random_effects_compile = random_effects_compile
-  )[["formula_design"]]
+  )
 
-  return(formula_design)
+  return(output)
 }
 
 .object_formula_prior_random <- function(object, source) {
@@ -211,7 +255,6 @@
   column_names <- colnames(model_matrix)
   assign       <- attr(model_matrix, "assign")
   term_labels  <- attr(terms, "term.labels")
-  term_labels  <- gsub(":", "__xXx__", term_labels, fixed = TRUE)
 
   if (is.null(assign)) {
     assign <- seq_len(ncol(model_matrix)) - 1L
@@ -231,12 +274,26 @@
     predictors
   )
 
-  model_terms <- term_labels
+  # Model terms are named as BayesTools names formula coefficients; the
+  # formula-syntax labels are kept alongside, as the formula name map keeps
+  # them for fitted designs.
+  term_factors      <- attr(terms, "factors")
+  term_components   <- lapply(term_labels, function(label) {
+    rownames(term_factors)[term_factors[, label] > 0L]
+  })
+  model_term_labels <- term_labels
   if (isTRUE(attr(terms, "intercept") == 1L)) {
-    model_terms <- c("intercept", model_terms)
+    model_term_labels <- c("intercept", model_term_labels)
+    term_components   <- c(list(character()), term_components)
   }
+  model_terms      <- BayesTools::JAGS_parameter_names(model_term_labels)
   model_terms_type <- stats::setNames(
-    vapply(model_terms, .formula_design_term_type, character(1), predictor_types = predictor_types),
+    vapply(
+      term_components,
+      .formula_design_term_type,
+      character(1),
+      predictor_types = predictor_types
+    ),
     model_terms
   )
 
@@ -256,6 +313,7 @@
     predictors        = predictors,
     predictor_types   = predictor_types,
     model_terms       = model_terms,
+    model_term_labels = model_term_labels,
     model_terms_type  = model_terms_type,
     prior_list        = NULL,
     formula_scale     = NULL,
@@ -283,19 +341,39 @@
 }
 
 
-# Classify a formula term from the predictor types.
-.formula_design_term_type <- function(term, predictor_types) {
+# Classify a formula term from the predictor types of its variables (none for
+# the intercept).
+.formula_design_term_type <- function(components, predictor_types) {
 
-  if (identical(term, "intercept")) {
-    return("continuous")
-  }
-
-  components <- unlist(strsplit(term, "__xXx__", fixed = TRUE), use.names = FALSE)
   if (any(predictor_types[components] == "factor", na.rm = TRUE)) {
     return("factor")
   }
 
   return("continuous")
+}
+
+
+# Formula-syntax labels ('x:g') of model terms of a formula design, from the
+# formula name map of the design (data-only designs keep the labels
+# themselves).
+.formula_design_term_labels <- function(design,
+                                        terms = design[["model_terms"]]) {
+
+  labels <- design[["model_term_labels"]]
+  if (is.null(labels)) {
+    name_map <- design[["name_map"]]
+    labels   <- name_map[["term"]][name_map[["kind"]] == "fixed"]
+  }
+  if (length(labels) != length(design[["model_terms"]])) {
+    stop(
+      "Formula design metadata of '", design[["parameter"]], "' do not label ",
+      "its model terms. Refit the model with the current RoBMA/BayesTools ",
+      "build.",
+      call. = FALSE
+    )
+  }
+
+  return(labels[match(terms, design[["model_terms"]])])
 }
 
 
@@ -369,7 +447,7 @@
     terms <- terms[terms != "intercept"]
   }
   if (display) {
-    terms <- .formula_design_display_names(terms)
+    terms <- .formula_design_term_labels(design, terms)
   }
 
   return(terms)
@@ -472,17 +550,11 @@
     return(NULL)
   }
 
+  # The raw column names are the model-matrix names in formula syntax.
   return(stats::setNames(
-    .formula_design_display_names(design[["raw_column_names"]]),
+    design[["raw_column_names"]],
     design[["column_names"]]
   ))
-}
-
-
-# Convert BayesTools' JAGS-safe interaction separator to formula syntax.
-.formula_design_display_names <- function(x) {
-
-  return(gsub("__xXx__", ":", x, fixed = TRUE))
 }
 
 

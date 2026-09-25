@@ -209,7 +209,7 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
     BayesTools::ensemble_estimates_table,
     c(
       list(
-        samples    = asplit(object, 2),
+        samples    = .brma_samples_columns(object),
         parameters = colnames(object),
         probs      = probs,
         title      = attr(object, "title")
@@ -221,7 +221,7 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
   prediction_samples <- attr(object, "prediction_samples", exact = TRUE)
   if (!is.null(prediction_samples)) {
     prediction_table <- BayesTools::ensemble_estimates_table(
-      samples    = asplit(prediction_samples, 2),
+      samples    = .brma_samples_columns(prediction_samples),
       parameters = colnames(object),
       probs      = probs,
       title      = attr(object, "title")
@@ -241,8 +241,19 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
 
   class(summary_table) <- c("summary.brma_samples", class(summary_table))
   attr(summary_table, "component") <- .brma_samples_component(object)
- 
+
   return(summary_table)
+}
+
+
+# The columns of posterior samples as a named list of plain numeric vectors,
+# the form BayesTools::ensemble_estimates_table() summarizes.
+.brma_samples_columns <- function(samples) {
+
+  stats::setNames(
+    lapply(seq_len(ncol(samples)), function(i) as.numeric(samples[, i])),
+    colnames(samples)
+  )
 }
 
 

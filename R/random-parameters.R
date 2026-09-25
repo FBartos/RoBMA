@@ -26,47 +26,74 @@
 }
 
 
-.brma_random_parameter_io_name <- function(label, quantity) {
+# Label parts of random-effect catalog quantities under RoBMA's quantity names
+# (tau for sd, rho for cor, ...).
+.brma_random_parameter_io_parts <- function(label_parts) {
 
-  if (!is.character(label) || length(label) != 1L || is.na(label) ||
-      !is.character(quantity) || length(quantity) != 1L || is.na(quantity)) {
-    return(label)
-  }
-  replacement <- .brma_random_parameter_io_quantity(quantity)
-  if (identical(replacement, quantity)) {
-    return(label)
-  }
-
-  call_prefix <- paste0(quantity, "(")
-  if (grepl(call_prefix, label, fixed = TRUE)) {
-    return(sub(
-      pattern     = call_prefix,
-      replacement = paste0(replacement, "("),
-      x           = label,
-      fixed       = TRUE
-    ))
-  }
-  if (endsWith(label, quantity)) {
-    return(paste0(
-      substr(label, 1L, nchar(label) - nchar(quantity)),
-      replacement
-    ))
-  }
-
-  label
+  lapply(label_parts, function(parts) {
+    if (is.null(parts) || is.null(parts[["random"]])) {
+      stop(
+        "Random-effect catalog quantities have no random-effect label parts. ",
+        "Refit the model with the current RoBMA/BayesTools build.",
+        call. = FALSE
+      )
+    }
+    parts[["random"]][["quantity"]] <- .brma_random_parameter_io_quantity(
+      parts[["random"]][["quantity"]]
+    )
+    parts
+  })
 }
 
 
-.brma_random_parameter_io_names <- function(labels, quantities) {
+# RoBMA names of random-effect catalog quantities, rendered from their label
+# parts: the selector ('(mu) study: tau(intercept)') or the label, displayed
+# without the formula prefix ('study: tau').
+.brma_random_parameter_io_labels <- function(quantities,
+                                             type = c("selector", "label")) {
 
-  if (length(labels) != length(quantities)) {
-    stop("Random-effect names and quantities have different lengths.",
-         call. = FALSE)
+  type <- match.arg(type)
+  if (nrow(quantities) == 0L) {
+    return(character())
   }
 
-  vapply(seq_along(labels), function(i) {
-    .brma_random_parameter_io_name(labels[[i]], quantities[[i]])
-  }, character(1))
+  BayesTools::parameter_labels(
+    .brma_random_parameter_io_parts(quantities[["label_parts"]]),
+    style          = "table",
+    formula_prefix = identical(type, "selector"),
+    simplify       = identical(type, "label")
+  )
+}
+
+
+# Aliases of one random-effect catalog quantity under RoBMA's quantity names,
+# rendered from its label parts in the forms of the BayesTools catalog
+# aliases: without the formula prefix, and simplified with and without the
+# prefix and the owner (simplified aliases require simplify_names = TRUE).
+.brma_random_parameter_io_aliases <- function(quantity) {
+
+  parts <- .brma_random_parameter_io_parts(quantity[["label_parts"]])[[1L]]
+  without_owner <- parts
+  without_owner[["random"]][["owner"]] <- ""
+  render <- function(parts, formula_prefix, simplify) {
+    BayesTools::parameter_labels(
+      parts,
+      style          = "table",
+      formula_prefix = formula_prefix,
+      simplify       = simplify
+    )
+  }
+
+  data.frame(
+    alias      = c(
+      render(parts, FALSE, FALSE),
+      render(parts, TRUE, TRUE),
+      render(parts, FALSE, TRUE),
+      render(without_owner, FALSE, TRUE)
+    ),
+    simplified = c(FALSE, TRUE, TRUE, TRUE),
+    stringsAsFactors = FALSE
+  )
 }
 
 .brma_random_parameter_supported_quantities <- function() {
@@ -295,10 +322,7 @@
     )
   })
   samples <- do.call(cbind, lapply(draws, as.matrix))
-  parameter_names <- .brma_random_parameter_io_names(
-    quantities[["canonical_name"]],
-    quantities[["quantity"]]
-  )
+  parameter_names <- .brma_random_parameter_io_labels(quantities, "selector")
   colnames(samples) <- parameter_names
   # Quantities that can be undefined in some draws (original-scale
   # correlations with a zero SD) keep parameter_draws()' declaration, by
@@ -343,14 +367,8 @@
     is.logical(value) && length(value) == 1L && !is.na(value) && value
   }
   specs <- data.frame(
-    parameter          = .brma_random_parameter_io_names(
-      quantities[["canonical_name"]],
-      quantities[["quantity"]]
-    ),
-    label              = .brma_random_parameter_io_names(
-      sub("^\\([^)]*\\) ", "", quantities[["display_label"]]),
-      quantities[["quantity"]]
-    ),
+    parameter          = .brma_random_parameter_io_labels(quantities, "selector"),
+    label              = .brma_random_parameter_io_labels(quantities, "label"),
     formula_parameter  = quantities[["formula_parameter"]],
     block              = vapply(keys, key_string, character(1), field = "random_block"),
     grouping           = "",
@@ -521,7 +539,6 @@
 
 .brma_random_parameter_normalize_components <- function(components, term) {
 
-  components <- gsub("__xXx__", ":", components, fixed = TRUE)
   components[components == "sd"]          <- "shared"
   components[components == "(Intercept)"] <- "intercept"
 
@@ -1072,12 +1089,14 @@
   if (is.null(components)) {
     return(NA_integer_)
   }
+  # The SD leaf components are named as BayesTools names formula terms.
   components <- .brma_random_parameter_normalize_components(
     unname(components),
     term
   )
   matches <- which(
-    !is.na(components) & components == spec[["random_component"]]
+    !is.na(components) &
+      components == BayesTools::JAGS_parameter_names(spec[["random_component"]])
   )
 
   if (length(matches) == 1L) as.integer(matches) else NA_integer_

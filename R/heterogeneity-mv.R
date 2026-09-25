@@ -518,9 +518,9 @@
       model_samples = posterior_samples
     )
     block <- selected[["extraction_key"]][[i]][["random_block"]]
-    label <- .brma_mv_random_quantity_display_label(
-      selected[["display_label"]][i],
-      selected[["quantity"]][i]
+    label <- .brma_random_parameter_io_labels(
+      selected[i, , drop = FALSE],
+      "label"
     )
     out[[block]][[label]] <- .brma_mv_catalog_draw_values(draws)
   }
@@ -768,9 +768,9 @@
         if (length(values) == 0L) {
           stop(
             "Heterogeneity-variance proportion '",
-            .brma_mv_random_quantity_display_label(
-              selected[["display_label"]][i],
-              selected[["quantity"]][i]
+            .brma_random_parameter_io_labels(
+              selected[i, , drop = FALSE],
+              "label"
             ),
             "' is unavailable because no posterior draw has positive ",
             "realized allocation variance.",
@@ -780,10 +780,7 @@
       }
       values
     })
-    names(samples_list) <- .brma_random_parameter_io_names(
-      sub("^\\([^)]*\\) ", "", selected[["display_label"]]),
-      selected[["quantity"]]
-    )
+    names(samples_list) <- .brma_random_parameter_io_labels(selected, "label")
 
     name <- .brma_mv_allocation_summary_name(
       allocation     = allocation,
@@ -819,14 +816,6 @@
   return(out)
 }
 
-
-.brma_mv_random_quantity_display_label <- function(label, quantity) {
-
-  .brma_random_parameter_io_name(
-    sub("^\\([^)]*\\) ", "", label),
-    quantity
-  )
-}
 
 
 .brma_mv_resolve_sd_component_allocation <- function(allocation,

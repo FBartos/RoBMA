@@ -320,6 +320,30 @@
   sources
 }
 
+# The variables of each model term of a compiled random-effect term (none for
+# the intercept), from the term's formula.
+.random_term_model_term_variables <- function(term) {
+
+  formula_terms <- stats::terms(term[["term_formula"]])
+  factors       <- attr(formula_terms, "factors")
+  variables     <- lapply(attr(formula_terms, "term.labels"), function(label) {
+    rownames(factors)[factors[, label] > 0L]
+  })
+  if ("intercept" %in% term[["model_terms"]]) {
+    variables <- c(list(character()), variables)
+  }
+  if (length(variables) != length(term[["model_terms"]])) {
+    stop(
+      "Random-effect term metadata of '", term[["block_name"]], "' do not ",
+      "match its formula.",
+      call. = FALSE
+    )
+  }
+
+  return(variables)
+}
+
+
 .warn_inherited_independent_random_overspecification <- function(
     formula_design, prior_random) {
 
@@ -352,12 +376,8 @@
     model_terms_type <- term[["model_terms_type"]]
     affected_terms <- model_terms[
       model_terms_type == "factor" &
-        vapply(model_terms, function(model_term) {
-          components <- unlist(
-            strsplit(model_term, "__xXx__|:", perl = TRUE),
-            use.names = FALSE
-          )
-          any(components %in% inherited_independent)
+        vapply(.random_term_model_term_variables(term), function(variables) {
+          any(variables %in% inherited_independent)
         }, logical(1))
     ]
     if (length(affected_terms) == 0L) {

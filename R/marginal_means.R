@@ -836,7 +836,7 @@ lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
 .marginal_means_terms <- function(formula) {
 
   if (inherits(formula, "BayesTools_formula_design")) {
-    terms <- .formula_design_display_names(formula[["model_terms"]])
+    terms <- .formula_design_term_labels(formula)
   } else {
     formula_terms <- stats::terms(formula)
     terms         <- c(

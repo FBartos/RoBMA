@@ -178,17 +178,21 @@ as.data.frame.summary_models.RoBMA <- function(
     parameter  = effect_parameter
   )
 
-  location_parameters <- grep("^mu_", names(prior_list), value = TRUE)
-  location_parameters <- location_parameters[location_parameters != "mu_intercept"]
-  location_parameters <- setdiff(
-    location_parameters,
-    .random_slab_prior_parameters(prior_list)
-  )
-  for (parameter in location_parameters) {
-    component <- paste0(
-      "Location: ",
-      .summary_parameter_label(sub("^mu_", "", parameter))
-    )
+  prior_terms <- .summary_formula_prior_terms(object, names(prior_list))
+  prior_terms <- prior_terms[
+    !prior_terms[["parameter"]] %in% .random_slab_prior_parameters(prior_list),
+    ,
+    drop = FALSE
+  ]
+  location_terms <- prior_terms[
+    prior_terms[["formula_parameter"]] == "mu" &
+      !prior_terms[["term"]] %in% c("", "intercept"),
+    ,
+    drop = FALSE
+  ]
+  for (i in seq_len(nrow(location_terms))) {
+    parameter <- location_terms[["parameter"]][[i]]
+    component <- paste0("Location: ", location_terms[["term"]][[i]])
     components <- .summary_models_add_component(
       components = components,
       prior_list = prior_list,
@@ -209,16 +213,24 @@ as.data.frame.summary_models.RoBMA <- function(
     prior_list = prior_list
   )
 
-  scale_parameters <- grep("^log_tau_", names(prior_list), value = TRUE)
-  scale_parameters <- scale_parameters[scale_parameters != "log_tau_intercept"]
-  scale_parameters <- setdiff(
-    scale_parameters,
-    .random_slab_prior_parameters(prior_list)
-  )
-  for (parameter in scale_parameters) {
+  scale_terms <- prior_terms[
+    prior_terms[["formula_parameter"]] %in%
+      .summary_scale_formula_parameters(object) &
+      nzchar(prior_terms[["term"]]) &
+      !(prior_terms[["formula_parameter"]] == "log_tau" &
+          prior_terms[["term"]] == "intercept"),
+    ,
+    drop = FALSE
+  ]
+  for (i in seq_len(nrow(scale_terms))) {
+    parameter <- scale_terms[["parameter"]][[i]]
     component <- paste0(
       "Scale: ",
-      .summary_parameter_label(sub("^log_tau_", "", parameter))
+      .summary_formula_term_label(
+        object,
+        scale_terms[["formula_parameter"]][[i]],
+        scale_terms[["term"]][[i]]
+      )
     )
     components <- .summary_models_add_component(
       components = components,
