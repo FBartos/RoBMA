@@ -575,15 +575,6 @@
   return(samples)
 }
 
-.transform_effect_vector <- function(samples, effect_transform) {
-
-  if (!.effect_output_active(effect_transform)) {
-    return(samples)
-  }
-
-  return(effect_transform[["transformation"]][["fun"]](samples))
-}
-
 .new_effect_brma_samples <- function(samples, n_chains, n_iter, title,
                                      component = "location",
                                      probs = c(.025, .975), data = NULL,
@@ -614,6 +605,9 @@
   ))
 }
 
+# Stored marginal posteriors are transformed with their draw metadata
+# (supports, atoms, prior and posterior densities); their inference stays on
+# the fitted scale.
 .transform_marginal_samples_effect <- function(samples, effect_transform) {
 
   if (!.effect_output_active(effect_transform)) {
@@ -621,27 +615,11 @@
   }
 
   for (parameter in names(samples)) {
-    samples[[parameter]] <- .transform_marginal_posterior_effect(
-      samples          = samples[[parameter]],
-      effect_transform = effect_transform
+    samples[[parameter]] <- BayesTools::posterior_transform(
+      x              = samples[[parameter]],
+      transformation = effect_transform[["transformation"]]
     )
   }
-
-  return(samples)
-}
-
-.transform_marginal_posterior_effect <- function(samples, effect_transform) {
-
-  sample_attributes <- attributes(samples)
-
-  for (i in seq_along(samples)) {
-    samples[[i]] <- .transform_effect_vector(
-      samples           = samples[[i]],
-      effect_transform  = effect_transform
-    )
-  }
-
-  attributes(samples) <- sample_attributes
 
   return(samples)
 }

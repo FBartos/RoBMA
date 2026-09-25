@@ -11,7 +11,7 @@ expect_effect_transform_matches_metafor <- function(input_measure, output_measur
     input_measure  = input_measure,
     output_measure = output_measure
   )
-  actual <- .transform_effect_vector(values, info)
+  actual <- info[["transformation"]][["fun"]](values)
 
   expect_equal(
     actual,
@@ -216,7 +216,7 @@ test_that("EXP is explicit for log-scale ratio output", {
   )
 
   expect_equal(
-    .transform_effect_vector(log_values, info),
+    info[["transformation"]][["fun"]](log_values),
     metafor::transf.exp.int(log_values, targs = list(tau2 = 0))
   )
   expect_equal(info[["label"]], "odds ratio")
@@ -252,7 +252,7 @@ test_that("non-core measures are not converted across measures", {
     transform     = "EXP"
   )
   expect_equal(
-    .transform_effect_vector(c(0, log(2)), info),
+    info[["transformation"]][["fun"]](c(0, log(2))),
     metafor::transf.exp.int(c(0, log(2)), targs = list(tau2 = 0))
   )
 })
@@ -533,9 +533,17 @@ test_that("transformed brma_samples preserve posterior draw integration", {
   expect_equal(as.numeric(draws[, "mu"]), c(1, 2, 3))
 })
 
-test_that("marginal posterior samples are transformed without losing metadata", {
+test_that("marginal posterior samples are transformed with their metadata", {
 
-  marginal_sample <- list(intercept = c(0, log(2)))
+  level <- structure(
+    c(0, 0, log(2), log(4)),
+    class = c("marginal_posterior.simple", "marginal_posterior")
+  )
+  BayesTools::posterior_metadata(level, "support") <-
+    BayesTools::posterior_support_attribute(c(-Inf, Inf), points = 0)
+  BayesTools::posterior_metadata(level, "atoms") <-
+    BayesTools::posterior_atom_attribute(data.frame(x = 0, mass = 0.5))
+  marginal_sample <- list(intercept = level)
   class(marginal_sample) <- c("marginal_posterior.formula", "marginal_posterior")
   attr(marginal_sample, "formula_parameter") <- "mu"
 
@@ -549,8 +557,23 @@ test_that("marginal posterior samples are transformed without losing metadata", 
     samples          = samples,
     effect_transform = info
   )
+  transformed <- out[["mu_intercept"]][["intercept"]]
 
   expect_s3_class(out[["mu_intercept"]], "marginal_posterior.formula")
   expect_equal(attr(out[["mu_intercept"]], "formula_parameter"), "mu")
-  expect_equal(out[["mu_intercept"]][["intercept"]], c(1, 2))
+  expect_equal(as.numeric(transformed), c(1, 1, 2, 4))
+  # The declared point mass moves with the draws: exp(0) = 1 keeps mass 0.5.
+  atoms <- BayesTools::posterior_metadata(transformed, "atoms")
+  expect_equal(as.numeric(atoms[["locations"]]), 1)
+  expect_equal(atoms[["mass"]], 0.5)
+  expect_identical(
+    BayesTools::posterior_metadata(transformed, "output_transformations"),
+    "custom"
+  )
+  # Inactive transformations return the stored marginals unchanged.
+  identity <- .effect_output_setup_measure(input_measure = "OR")
+  expect_identical(
+    .transform_marginal_samples_effect(samples, identity),
+    samples
+  )
 })
