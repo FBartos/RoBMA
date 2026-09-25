@@ -799,14 +799,24 @@ test_that("implicit exp-affine equality preserves the Bayes factor orientation",
 
     original <- BayesTools::hypothesis_parse(statement)
     transformed <- .hypothesis_brma_exp_affine_log_hypothesis(original)
-    out <- BayesTools::hypothesis_BF(
-      posterior      = posterior,
-      prior          = prior,
-      hypothesis     = transformed,
-      parameter      = parameter,
-      seed           = 1,
-      density_method = "KDE"
+    # Draw-only priors have no structural prior density: BayesTools warns
+    # that the point ordinate is estimated from the prior draws.
+    warned <- FALSE
+    out <- withCallingHandlers(
+      BayesTools::hypothesis_BF(
+        posterior      = posterior,
+        prior          = prior,
+        hypothesis     = transformed,
+        parameter      = parameter,
+        seed           = 1,
+        density_method = "KDE"
+      ),
+      BayesTools_inexact_ordinate = function(warning) {
+        warned <<- TRUE
+        invokeRestart("muffleWarning")
+      }
     )
+    expect_true(warned, info = statement)
     .hypothesis_brma_restore_hypothesis_labels(
       out        = out,
       hypothesis = original
