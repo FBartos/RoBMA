@@ -626,18 +626,20 @@ print.brma <- function(x, ...) {
   )
 }
 
-# Scale rows are labelled from their label parts, with the scale formula shown
-# by its display name and the intercept, which log-intercept scale formulas
-# sample as the baseline SD, as 'exp(intercept)'.
+# Scale rows are labelled from the label parts of the table rows (the
+# 'quantities' attribute of BayesTools estimates tables), with the scale
+# formula shown by its display name and the intercept, which log-intercept
+# scale formulas sample as the baseline SD, as 'exp(intercept)'.
 .summary_scale_row_labels <- function(estimates, object, formula_prefix) {
 
-  parameters <- attr(estimates, "parameters", exact = TRUE)
   if (length(estimates) == 0L || is.null(rownames(estimates))) {
     return(estimates)
   }
 
-  parts <- .summary_table_row_parts(object, parameters)
-  if (length(parts) != nrow(estimates)) {
+  quantities <- attr(estimates, "quantities", exact = TRUE)
+  rows       <- match(rownames(estimates), quantities[["row"]])
+  parts      <- quantities[["label_parts"]][rows]
+  if (anyNA(rows) || any(vapply(parts, is.null, logical(1)))) {
     stop(
       "Scale summary rows have no catalog label parts. Refit the model with ",
       "the current RoBMA/BayesTools build.",
@@ -652,60 +654,20 @@ print.brma <- function(x, ...) {
     }
     if (identical(parts[["components"]], "intercept") &&
         length(parts[["levels"]]) == 0L) {
-      parts[["transformation"]] <- "exp"
+      parts[["transformation"]][[1L]] <- "exp"
     }
     parts
   })
-  rownames(estimates) <- BayesTools::parameter_labels(
+  labels <- BayesTools::parameter_labels(
     parts,
     style          = "table",
     formula_prefix = formula_prefix
   )
+  quantities[["row"]][rows] <- labels
+  rownames(estimates)       <- labels
+  attr(estimates, "quantities") <- quantities
 
   estimates
-}
-
-# The label parts of estimates-table rows, identified by the rows' selectors
-# (the table's 'parameters'). BayesTools tables do not carry the parts of
-# their rows: a selector is a catalog canonical name or a catalog alias, and
-# a level row of a transformed contrast ('g[dif: b]') is the level's parts
-# rendered as a transformed level, which its selector identifies.
-.summary_table_row_parts <- function(object, parameters) {
-
-  catalog    <- BayesTools::parameter_catalog(object[["fit"]])
-  quantities <- catalog[["quantities"]]
-  aliases    <- catalog[["aliases"]]
-  rows       <- match(parameters, quantities[["canonical_name"]])
-  by_alias   <- is.na(rows)
-  rows[by_alias] <- match(
-    aliases[["quantity_id"]][match(parameters[by_alias], aliases[["alias"]])],
-    quantities[["quantity_id"]]
-  )
-
-  lapply(seq_along(parameters), function(i) {
-    parts <- if (is.na(rows[[i]])) NULL else quantities[["label_parts"]][[rows[[i]]]]
-    if (is.null(parts)) {
-      stop(
-        "Summary rows have no catalog label parts. Refit the model with ",
-        "the current RoBMA/BayesTools build.",
-        call. = FALSE
-      )
-    }
-    if (identical(BayesTools::parameter_labels(parts), parameters[[i]])) {
-      return(parts)
-    }
-    transformed <- parts
-    transformed[["selector"]]       <- ""
-    transformed[["transformation"]] <- "dif"
-    if (!identical(BayesTools::parameter_labels(transformed), parameters[[i]])) {
-      stop(
-        "Summary row '", parameters[[i]], "' does not match the label parts ",
-        "of its catalog quantity.",
-        call. = FALSE
-      )
-    }
-    transformed
-  })
 }
 
 # Random-effect rows are labelled by RoBMA's quantity names, rendered from the

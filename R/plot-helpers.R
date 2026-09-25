@@ -773,7 +773,10 @@
         quantities[row, , drop = FALSE],
         "selector"
       )
-      io_aliases <- .brma_random_parameter_io_aliases(quantity)
+      io_aliases <- .brma_random_parameter_io_aliases(
+        catalog     = catalog,
+        quantity_id = quantity[["quantity_id"]]
+      )
       add_entry(
         quantity          = quantity,
         parameter         = parameter,

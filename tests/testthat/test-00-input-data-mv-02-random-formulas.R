@@ -935,40 +935,58 @@ test_that("brma.mv validates random formula edge cases", {
     c(log_tau_Study_effects = "Study effects: tau",
       log_tau_X_effects = "X effects: tau")
   )
-  # Scale rows are rendered from the label parts of their catalog quantities
-  # (the table's 'parameters'), with the scale formula's display name.
+  # Scale rows are rendered from the label parts of the table rows (the
+  # 'quantities' attribute of BayesTools estimates tables), with the scale
+  # formula's display name.
   local({
+    # The third row is a transformed level of a mean-difference factor.
+    rows <- c("(log_tau) intercept", "(log_tau) x", "(log_tau) g[dif: b]")
     scale_table <- data.frame(
-      Mean      = c(0.5, -0.3),
-      row.names = c("(log_tau) intercept", "(log_tau) x")
+      Mean      = c(0.5, -0.3, 0.1),
+      row.names = rows
     )
-    attr(scale_table, "parameters") <- c("log_tau_intercept", "log_tau_x")
     scale_quantities <- data.frame(
-      canonical_name   = c("log_tau_x", "log_tau_intercept"),
+      row              = rows,
+      quantity_id      = c("q_intercept", "q_x", "q_g_b"),
       stringsAsFactors = FALSE
     )
     scale_quantities[["label_parts"]] <- I(list(
+      catalog_label_parts("log_tau_intercept", "intercept", "log_tau"),
       catalog_label_parts("log_tau_x", "x", "log_tau"),
-      catalog_label_parts("log_tau_intercept", "intercept", "log_tau")
+      BayesTools:::.bt_label_parts(
+        components        = "g",
+        formula_parameter = "log_tau",
+        levels            = c(g = "b"),
+        transformation    = "dif"
+      )
     ))
-    testthat::local_mocked_bindings(
-      parameter_catalog = function(...) list(quantities = scale_quantities),
-      .package = "BayesTools"
-    )
+    attr(scale_table, "quantities") <- scale_quantities
     expect_identical(
       rownames(.summary_scale_row_labels(
         scale_table, plain_nested_scale_random, formula_prefix = FALSE
       )),
-      c("exp(intercept)", "x")
+      c("exp(intercept)", "x", "g[dif: b]")
     )
     scale_summary <- .summary_scale_row_labels(
       scale_table, plain_nested_scale_random, formula_prefix = TRUE
     )
     expect_identical(
       rownames(scale_summary),
-      c("(tau_total) exp(intercept)", "(tau_total) x")
+      c("(tau_total) exp(intercept)", "(tau_total) x", "(tau_total) g[dif: b]")
     )
-    expect_identical(scale_summary[["Mean"]], c(0.5, -0.3))
+    expect_identical(
+      attr(scale_summary, "quantities")[["row"]],
+      rownames(scale_summary)
+    )
+    expect_identical(scale_summary[["Mean"]], c(0.5, -0.3, 0.1))
+    # Rows without label parts are refused.
+    attr(scale_table, "quantities") <- NULL
+    expect_error(
+      .summary_scale_row_labels(scale_table, plain_nested_scale_random,
+                                formula_prefix = FALSE),
+      "Scale summary rows have no catalog label parts.",
+      fixed = TRUE
+    )
   })
   expect_identical(
     .summary_scale_footnotes(plain_nested_scale_random),

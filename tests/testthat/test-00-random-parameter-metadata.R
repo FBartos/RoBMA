@@ -152,16 +152,52 @@ test_that("RoBMA renders BayesTools random quantities by its I/O names", {
       "allocation: tau2_prop(study)", "tau_common"
     )
   )
-  expect_identical(
-    .brma_random_parameter_io_aliases(as.list(quantities[1L, , drop = FALSE])),
-    data.frame(
-      alias      = c(
-        "study: tau(intercept)", "(mu) study: tau", "study: tau", "tau"
-      ),
-      simplified = c(FALSE, TRUE, TRUE, TRUE),
-      stringsAsFactors = FALSE
+})
+
+
+test_that("cs() correlations are selectable by their pairwise aliases", {
+
+  # A cs() block over the three levels of 'out': one shared correlation with
+  # a pairwise alias for every pair of levels.
+  dat    <- data.frame(study = factor(rep(c("a", "b", "c", "d"), each = 3L)),
+                       out   = factor(rep(c("x", "y", "z"), 4L)))
+  result <- BayesTools::JAGS_formula(
+    formula      = ~ 1 + random(out | study, name = "study", covariance = "cs"),
+    parameter    = "mu",
+    data         = dat,
+    prior_list   = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(
+      sd = BayesTools::prior("gamma", list(2, 2))
     )
   )
+  names   <- unique(c("mu_intercept", names(result[["prior_list"]])))
+  fit     <- coda::mcmc.list(coda::mcmc(
+    matrix(0.1, 10L, length(names), dimnames = list(NULL, names))
+  ))
+  attr(fit, "prior_list")     <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = result[["formula_design"]])
+  object <- structure(
+    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
+    class = c("RoBMA", "brma.mv", "brma")
+  )
+  catalog    <- BayesTools::parameter_catalog(object[["fit"]])
+  quantities <- catalog[["quantities"]]
+  correlation <- quantities[["quantity_id"]][
+    quantities[["quantity"]] == "cor" & !quantities[["internal"]]
+  ]
+  pairs <- c("rho(out[x],out[y])", "rho(out[x],out[z])", "rho(out[y],out[z])")
+
+  aliases <- .brma_random_parameter_io_aliases(catalog, correlation)
+  expect_identical(
+    aliases[["alias"]],
+    c("rho", paste0("(mu) ", pairs), pairs, "(mu) rho", "rho")
+  )
+  expect_identical(aliases[["simplified"]], rep(c(FALSE, TRUE), c(7L, 2L)))
+
+  for (pair in c(pairs, paste0("(mu) ", pairs[[2L]]))) {
+    entry <- .brma_parameter_select_entry(object, pair, component = "random")
+    expect_identical(entry[["quantity_id"]], correlation, info = pair)
+  }
 })
 
 

@@ -66,32 +66,22 @@
 }
 
 
-# Aliases of one random-effect catalog quantity under RoBMA's quantity names,
-# rendered from its label parts in the forms of the BayesTools catalog
-# aliases: without the formula prefix, and simplified with and without the
-# prefix and the owner (simplified aliases require simplify_names = TRUE).
-.brma_random_parameter_io_aliases <- function(quantity) {
+# Aliases of one random-effect catalog quantity under RoBMA's quantity names:
+# the quantity's catalog aliases rendered from their label parts under RoBMA's
+# vocabulary (including the pairwise aliases of the shared correlation of cs()
+# and hcs() blocks), with their simplification flags.
+.brma_random_parameter_io_aliases <- function(catalog, quantity_id) {
 
-  parts <- .brma_random_parameter_io_parts(quantity[["label_parts"]])[[1L]]
-  without_owner <- parts
-  without_owner[["random"]][["owner"]] <- ""
-  render <- function(parts, formula_prefix, simplify) {
-    BayesTools::parameter_labels(
-      parts,
-      style          = "table",
-      formula_prefix = formula_prefix,
-      simplify       = simplify
-    )
-  }
+  aliases <- catalog[["aliases"]]
+  aliases <- aliases[aliases[["quantity_id"]] == quantity_id, , drop = FALSE]
 
   data.frame(
-    alias      = c(
-      render(parts, FALSE, FALSE),
-      render(parts, TRUE, TRUE),
-      render(parts, FALSE, TRUE),
-      render(without_owner, FALSE, TRUE)
+    alias      = BayesTools::parameter_labels(
+      aliases,
+      style      = "table",
+      vocabulary = .brma_random_parameter_io_quantity_map()
     ),
-    simplified = c(FALSE, TRUE, TRUE, TRUE),
+    simplified = aliases[["simplified"]],
     stringsAsFactors = FALSE
   )
 }
