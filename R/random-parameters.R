@@ -704,153 +704,21 @@
 }
 
 
-.brma_random_parameter_allocation_gate_metadata <- function(selected) {
+# The catalog selection of a random-effect quantity whose variance-allocation
+# inclusion gates put it on atoms, as BayesTools::parameter_gate_states()
+# declares them (IWMDE targets read the per-draw states through
+# .iwmde_gate_states()); NULL for quantities without allocation gates. The
+# point components of mixture and spike-and-slab priors, whose states carry
+# prior atoms, are no allocation gates.
+.brma_random_parameter_gate_selection <- function(object, selected) {
 
-  allocation <- selected[["allocation_definition"]]
-  quantity   <- selected[["spec"]][["quantity"]]
-  if (is.null(allocation) ||
-      !identical(allocation[["scale"]], "total_variance") ||
-      !quantity %in% c("sd_total", "var_total", "var_prop")) {
+  selection <- selected[["entry"]][["selection"]]
+  states    <- BayesTools::parameter_gate_states(object[["fit"]], selection)
+  if (is.null(states) || !is.null(states[["prior_atoms"]])) {
     return(NULL)
   }
-  n_targets <- allocation[["n_targets"]]
-  if (!is.numeric(n_targets) || length(n_targets) != 1L ||
-      is.na(n_targets) || n_targets != as.integer(n_targets) ||
-      n_targets < 1L) {
-    stop("Random-effect allocation gate metadata have no valid target count.",
-         call. = FALSE)
-  }
-  n_targets <- as.integer(n_targets)
-  component_indicators <- rep(NA_character_, n_targets)
-  inclusion <- allocation[["inclusion"]]
-  if (is.null(inclusion)) {
-    inclusion <- list()
-  }
-  for (record in inclusion) {
-    index     <- record[["index"]]
-    indicator <- record[["indicator_name"]]
-    if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
-        index != as.integer(index) || index < 1L || index > n_targets ||
-        !is.character(indicator) || length(indicator) != 1L ||
-        is.na(indicator) || !nzchar(indicator)) {
-      stop("Random-effect allocation gate metadata are malformed.",
-           call. = FALSE)
-    }
-    component_indicators[[as.integer(index)]] <- indicator
-  }
-  parent_factors <- allocation[["parent_factors"]]
-  if (is.null(parent_factors)) {
-    parent_factors <- list()
-  }
-  parent_indicators <- vapply(parent_factors, function(factor) {
-    indicator <- factor[["inclusion_name"]]
-    if (is.null(indicator)) {
-      return(NA_character_)
-    }
-    if (!is.character(indicator) || length(indicator) != 1L ||
-        is.na(indicator) || !nzchar(indicator)) {
-      stop("Random-effect parent-gate metadata are malformed.",
-           call. = FALSE)
-    }
-    indicator
-  }, character(1))
-  parent_indicators <- unique(parent_indicators[!is.na(parent_indicators)])
-  indicators <- c(
-    component_indicators[!is.na(component_indicators)],
-    parent_indicators
-  )
-  if (length(indicators) == 0L) {
-    return(NULL)
-  }
-  if (anyDuplicated(indicators)) {
-    stop("Random-effect allocation gate metadata contain duplicate indicators.",
-         call. = FALSE)
-  }
 
-  list(
-    quantity             = quantity,
-    index                = selected[["spec"]][["allocation_index"]],
-    component_indicators = component_indicators,
-    parent_indicators    = parent_indicators
-  )
-}
-
-
-.brma_random_parameter_allocation_gate_state <- function(metadata,
-                                                          raw_samples) {
-
-  if (is.null(metadata)) {
-    return(NULL)
-  }
-  if (!is.matrix(raw_samples)) {
-    stop("Random-effect allocation gate samples are unavailable.",
-         call. = FALSE)
-  }
-  n_draws <- nrow(raw_samples)
-  component_active <- matrix(
-    1,
-    nrow = n_draws,
-    ncol = length(metadata[["component_indicators"]])
-  )
-  read_gate <- function(indicator) {
-    if (!indicator %in% colnames(raw_samples)) {
-      stop(
-        "Random-effect allocation samples are missing inclusion indicator '",
-        indicator, "'.",
-        call. = FALSE
-      )
-    }
-    gate <- raw_samples[, indicator]
-    if (any(!is.finite(gate) | !gate %in% c(0, 1))) {
-      stop(
-        "Random-effect allocation inclusion indicator '", indicator,
-        "' is invalid.",
-        call. = FALSE
-      )
-    }
-    as.logical(gate)
-  }
-  for (index in which(!is.na(metadata[["component_indicators"]]))) {
-    component_active[, index] <- read_gate(
-      metadata[["component_indicators"]][[index]]
-    )
-  }
-  parent_active <- rep(TRUE, n_draws)
-  for (indicator in metadata[["parent_indicators"]]) {
-    parent_active <- parent_active & read_gate(indicator)
-  }
-  positive_total <- parent_active & rowSums(component_active) > 0L
-
-  if (metadata[["quantity"]] %in% c("sd_total", "var_total")) {
-    return(list(
-      defined    = rep(TRUE, n_draws),
-      continuous = positive_total,
-      point_zero = !positive_total,
-      point_one  = rep(FALSE, n_draws)
-    ))
-  }
-
-  index <- metadata[["index"]]
-  if (!is.numeric(index) || length(index) != 1L || is.na(index) ||
-      index != as.integer(index) || index < 1L ||
-      index > ncol(component_active)) {
-    stop("Variance-proportion gate metadata have no valid component index.",
-         call. = FALSE)
-  }
-  index         <- as.integer(index)
-  target_active <- component_active[, index]
-  other_active <- if (ncol(component_active) == 1L) {
-    rep(FALSE, n_draws)
-  } else {
-    rowSums(component_active[, -index, drop = FALSE]) > 0L
-  }
-
-  list(
-    defined    = positive_total,
-    continuous = positive_total & target_active & other_active,
-    point_zero = positive_total & !target_active,
-    point_one  = positive_total & target_active & !other_active
-  )
+  selection
 }
 
 
@@ -874,12 +742,12 @@
   )
   display_transform <- selected[["spec"]][["display_transform"]]
   allocation <- selected[["allocation_definition"]]
-  gate_metadata <- .brma_random_parameter_allocation_gate_metadata(selected)
   shared_gate_proportion <- identical(type, "var_prop") &&
-    !is.null(gate_metadata) && length(allocation[["inclusion"]]) == 0L &&
+    length(allocation[["inclusion"]]) == 0L &&
     is.character(allocation[["weight_name"]]) &&
     length(allocation[["weight_name"]]) == 1L &&
-    !is.na(allocation[["weight_name"]]) && nzchar(allocation[["weight_name"]])
+    !is.na(allocation[["weight_name"]]) && nzchar(allocation[["weight_name"]]) &&
+    !is.null(.brma_random_parameter_gate_selection(object, selected))
   if (shared_gate_proportion) {
     source            <- allocation[["weight_name"]]
     source_type       <- "identity"
@@ -937,7 +805,12 @@
             auxiliary_columns    = auxiliary_columns,
             conditioning_exclude = columns,
             covariance_update    = covariance_update,
-            gate_metadata        = gate_metadata
+            # Among the simplex targets only variance proportions have
+            # allocation gates (multipliers of mean-variance allocations
+            # have none).
+            gate_selection       = if (identical(type, "var_prop")) {
+              .brma_random_parameter_gate_selection(object, selected)
+            }
           ),
           display_transform = allocation_transform
         ))
@@ -1013,11 +886,9 @@
   }
 
   indicators <- unique(unlist(lapply(factors, `[[`, "inclusion_name")))
-  gate_metadata <- if (length(indicators) > 0L) list(
-    quantity             = "sd_total",
-    component_indicators = NA_character_,
-    parent_indicators    = indicators
-  ) else NULL
+  gate_selection <- if (length(indicators) > 0L) {
+    .brma_random_parameter_gate_selection(object, selected)
+  }
   # Inclusion gates determine atoms; continuous rows retain the fitted weights.
   factors <- lapply(factors, function(factor) {
 
@@ -1058,7 +929,7 @@
         target_columns       = source_parameter,
         conditioning_exclude = conditioning_exclude,
         covariance_update    = covariance_update,
-        gate_metadata        = gate_metadata
+        gate_selection       = gate_selection
       )
     ))
   }
@@ -1090,7 +961,7 @@
       auxiliary_columns    = auxiliary_columns,
       conditioning_exclude = conditioning_exclude,
       covariance_update    = covariance_update,
-      gate_metadata        = gate_metadata
+      gate_selection       = gate_selection
     )
   ))
 }

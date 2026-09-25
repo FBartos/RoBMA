@@ -1,63 +1,6 @@
-# A fitted-object stand-in with the BayesTools fit contract: a root allocation
-# of a gamma SD to one gated component (inclusion gate with prior probability
-# 0.5), split by a child allocation over the blocks 'study' and 'esid' with
-# Dirichlet(1, 1) shares, and synthetic draws: SD 1:4, gate (0, 1, 0, 1) and
-# shares (.25, .75).
-.shared_gate_random_object <- function() {
-
-  mods <- data.frame(study = factor(c("a", "a", "b", "b")),
-                     esid = factor(1:4))
-  result <- BayesTools::JAGS_formula(
-    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag") +
-      random(1 | esid, name = "esid", covariance = "diag"),
-    parameter = "mu",
-    data = mods,
-    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
-    prior_random = BayesTools::prior_random(allocation = list(
-      BayesTools::random_variance_allocation(
-        name = "root", terms = c(component = "component_gated"),
-        sd = BayesTools::prior("gamma", list(2, 2)),
-        inclusion = list(component = BayesTools::prior("spike", list(location = .5)))
-      ),
-      BayesTools::random_variance_allocation(
-        name = "split", terms = c(study = "study", esid = "esid"),
-        parent = BayesTools::allocation_ref("root", "component"),
-        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
-      )
-    ))
-  )
-  design <- result[["formula_design"]]
-  root   <- design[["random_allocations"]][["root"]]
-  weight <- design[["random_allocations"]][["split"]][["weight_name"]]
-  samples <- cbind(
-    mu_intercept = c(.1, .2, .3, .4),
-    tau          = 1:4,
-    gate         = c(0, 1, 0, 1),
-    w1           = .25,
-    w2           = .75,
-    eta1         = 1,
-    eta2         = 3
-  )
-  colnames(samples) <- c(
-    "mu_intercept", root[["source_node"]],
-    root[["inclusion"]][["component"]][["indicator_name"]],
-    paste0(weight, "[", 1:2, "]"),
-    .iwmde_simplex_auxiliary_columns(weight, 2L)
-  )
-  fit <- coda::mcmc.list(coda::mcmc(samples))
-  attr(fit, "prior_list")     <- result[["prior_list"]]
-  attr(fit, "formula_design") <- list(mu = design)
-
-  structure(
-    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
-    class = c("RoBMA", "brma.mv", "brma")
-  )
-}
-
-
 test_that("shared random inclusion preserves SD atoms and defined proportions", {
 
-  object  <- .shared_gate_random_object()
+  object  <- shared_gate_random_object()
   samples <- as.matrix(object[["fit"]][[1L]])
   context <- list(
     object            = object,
@@ -90,10 +33,12 @@ test_that("shared random inclusion preserves SD atoms and defined proportions", 
     } else {
       expect_equal(component[["point_masses"]], data.frame(x = 0, mass = .5))
     }
-    expect_identical(.iwmde_plan_parameter_spec(spec)[["gate_metadata"]],
-                     spec[["gate_metadata"]])
+    # The shared gate of the root allocation puts every quantity on atoms.
+    expect_false(is.null(spec[["gate_selection"]]), info = quantity)
+    expect_identical(.iwmde_plan_parameter_spec(spec)[["gate_selection"]],
+                     spec[["gate_selection"]])
     ungated <- spec
-    ungated[["gate_metadata"]] <- NULL
+    ungated[["gate_selection"]] <- NULL
     expect_false(identical(.iwmde_target_key(target[["parameter"]], spec),
                            .iwmde_target_key(target[["parameter"]], ungated)))
   }
@@ -618,7 +563,7 @@ test_that("allocated SDs of scalar sources are the BayesTools nodes of the fit",
 
 test_that("IWMDE SD synchronization recomputes the BayesTools SD nodes", {
 
-  object  <- .shared_gate_random_object()
+  object  <- shared_gate_random_object()
   samples <- as.matrix(object[["fit"]][[1L]])
   source  <- colnames(samples)[[2L]]
   weights <- colnames(samples)[4:5]

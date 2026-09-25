@@ -70,13 +70,19 @@ test_that("a random inclusion gate belongs only to its declared block", {
 
 test_that("variance proportions require a possible positive parent allocation", {
 
-  metadata <- list(
-    quantity = "var_prop", index = 1L,
-    component_indicators = c("child", NA_character_),
-    parent_indicators = "parent"
+  # Parent (root) gate (0, 0, 1, 1) and child study gate (0, 1, 0, 1): the
+  # study share is defined only where the parent allocation is included,
+  # also where the child gate is on.
+  object  <- shared_gate_random_object(
+    root_gate  = c(0, 0, 1, 1),
+    study_gate = c(0, 1, 0, 1)
   )
-  state <- .brma_random_parameter_allocation_gate_state(
-    metadata, cbind(parent = c(0, 0), child = c(0, 1))
+  selected <- .brma_random_parameter_select(object, "(mu) split: tau2_prop(study)")
+  state <- .iwmde_gate_states(
+    list(object = object, posterior_samples = as.matrix(object[["fit"]][[1L]])),
+    list(gate_selection = .brma_random_parameter_gate_selection(object, selected))
   )
-  expect_false(any(state[["defined"]]))
+  expect_identical(state[["defined"]], c(FALSE, FALSE, TRUE, TRUE))
+  expect_identical(state[["point_zero"]], c(FALSE, FALSE, TRUE, FALSE))
+  expect_identical(state[["continuous"]], c(FALSE, FALSE, FALSE, TRUE))
 })

@@ -294,9 +294,7 @@
     values <- .iwmde_parameter_column_values(context, samples, parameter)
   }
 
-  gates <- .brma_random_parameter_allocation_gate_state(
-    parameter_spec[["gate_metadata"]], samples
-  )
+  gates <- .iwmde_gate_states(context, parameter_spec)
   if (!is.null(gates)) {
     values[gates[["point_zero"]]] <- 0
     values[gates[["point_one"]]]  <- 1
@@ -304,6 +302,36 @@
   }
 
   return(values)
+}
+
+
+# Per-draw states of the variance-allocation inclusion gates of a random-effect
+# target ('gate_selection', .brma_random_parameter_gate_selection()) from
+# BayesTools::parameter_gate_states() on the context's draws: whether the
+# quantity is defined, on its continuous part, or on its atom at zero or one.
+# NULL for targets without allocation gates.
+.iwmde_gate_states <- function(context, parameter_spec) {
+
+  selection <- parameter_spec[["gate_selection"]]
+  if (is.null(selection)) {
+    return(NULL)
+  }
+  states <- BayesTools::parameter_gate_states(
+    fit       = context[["object"]][["fit"]],
+    selection = selection,
+    draws     = context[["posterior_samples"]]
+  )
+  if (is.null(states)) {
+    stop("Random-effect allocation gate states are unavailable.", call. = FALSE)
+  }
+  atom <- states[["atom"]]
+
+  return(list(
+    defined    = states[["defined"]],
+    continuous = states[["continuous"]] %in% TRUE,
+    point_zero = !is.na(atom) & atom == 0,
+    point_one  = !is.na(atom) & atom == 1
+  ))
 }
 
 
@@ -545,11 +573,9 @@
   samples <- context[["posterior_samples"]]
   n       <- nrow(samples)
 
-  gates <- .brma_random_parameter_allocation_gate_state(
-    parameter_spec[["gate_metadata"]], samples
-  )
+  gates <- .iwmde_gate_states(context, parameter_spec)
   if (!is.null(gates)) {
-    parameter_spec[["gate_metadata"]] <- NULL
+    parameter_spec[["gate_selection"]] <- NULL
     component <- .iwmde_parameter_components(context, parameter, parameter_spec)
     component[["active"]] <- component[["active"]] & gates[["continuous"]]
     component[["point_location"]][gates[["point_zero"]]] <- 0
@@ -683,9 +709,7 @@
 
   n           <- nrow(context[["posterior_samples"]])
   conditional <- parameter_spec[["conditional"]]
-  gates <- .brma_random_parameter_allocation_gate_state(
-    parameter_spec[["gate_metadata"]], context[["posterior_samples"]]
-  )
+  gates <- .iwmde_gate_states(context, parameter_spec)
   defined <- if (is.null(gates)) rep(TRUE, n) else gates[["defined"]]
   if (is.null(conditional) || length(conditional) == 0L) {
     return(defined)

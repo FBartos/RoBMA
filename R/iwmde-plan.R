@@ -366,7 +366,7 @@
     "factor_columns",
     "auxiliary_columns", "conditioning_exclude", "conditional",
     "conditional_rule", "condition_key", "covariance_update", "status",
-    "reason", "gate_metadata"
+    "reason", "gate_selection"
   )
 
   return(parameter_spec[intersect(fields, names(parameter_spec))])

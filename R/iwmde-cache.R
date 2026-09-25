@@ -87,9 +87,10 @@
       paste0("direction:", names(direction), "=", .iwmde_key_number(direction)),
       paste0("chart:", parameter_spec[["conditioning_chart"]]))
   }
-  if (!is.null(parameter_spec[["gate_metadata"]])) {
+  if (!is.null(parameter_spec[["gate_selection"]])) {
     structure_key <- c(structure_key, .iwmde_hash(
-      "random_inclusion", parameter_spec[["gate_metadata"]]
+      "random_inclusion",
+      parameter_spec[["gate_selection"]][["quantities"]][["quantity_id"]]
     ))
   }
 

@@ -234,6 +234,73 @@ as_bayestools_fit <- function(fit) {
   BayesTools:::.bt_attach_fit_contract(fit)
 }
 
+# A fitted-object stand-in with the BayesTools fit contract: a root allocation
+# of a gamma SD to one gated component (inclusion gate with prior probability
+# 0.5), split by a child allocation over the blocks 'study' and 'esid' with
+# Dirichlet(1, 1) shares, and synthetic draws: SD 1:4, root gate
+# 'root_gate', and shares (.25, .75). With 'study_gate' the child allocation
+# also has an inclusion gate on 'study' with these draws.
+shared_gate_random_object <- function(root_gate = c(0, 1, 0, 1),
+                                      study_gate = NULL) {
+
+  mods <- data.frame(study = factor(c("a", "a", "b", "b")),
+                     esid = factor(1:4))
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag") +
+      random(1 | esid, name = "esid", covariance = "diag"),
+    parameter = "mu",
+    data = mods,
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(allocation = list(
+      BayesTools::random_variance_allocation(
+        name = "root", terms = c(component = "component_gated"),
+        sd = BayesTools::prior("gamma", list(2, 2)),
+        inclusion = list(component = BayesTools::prior("spike", list(location = .5)))
+      ),
+      BayesTools::random_variance_allocation(
+        name = "split", terms = c(study = "study", esid = "esid"),
+        parent = BayesTools::allocation_ref("root", "component"),
+        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1))),
+        inclusion = if (!is.null(study_gate)) {
+          list(study = BayesTools::prior("spike", list(location = .5)))
+        }
+      )
+    ))
+  )
+  design <- result[["formula_design"]]
+  root   <- design[["random_allocations"]][["root"]]
+  split  <- design[["random_allocations"]][["split"]]
+  weight <- split[["weight_name"]]
+  samples <- cbind(
+    mu_intercept = c(.1, .2, .3, .4),
+    tau          = 1:4,
+    gate         = root_gate,
+    w1           = .25,
+    w2           = .75,
+    eta1         = 1,
+    eta2         = 3
+  )
+  colnames(samples) <- c(
+    "mu_intercept", root[["source_node"]],
+    root[["inclusion"]][["component"]][["indicator_name"]],
+    paste0(weight, "[", 1:2, "]"),
+    paste0("prior_par_eta_", weight, "[", 1:2, "]")
+  )
+  if (!is.null(study_gate)) {
+    samples <- cbind(samples, study_gate)
+    colnames(samples)[ncol(samples)] <-
+      split[["inclusion"]][["study"]][["indicator_name"]]
+  }
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  attr(fit, "prior_list")     <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = design)
+
+  structure(
+    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
+    class = c("RoBMA", "brma.mv", "brma")
+  )
+}
+
 # A fitted-object stand-in with the BayesTools fit contract whose 'mu'
 # formula has a diag block 'g' (intercept and slope of 'x') with an
 # SD-component allocation 'gc': a half-normal SD split by Dirichlet(1, 2)

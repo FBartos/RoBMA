@@ -155,58 +155,38 @@ test_that("hypothesis discovery lists point tests of gated random quantities", {
 
 test_that("realized allocation gates define aggregate and proportion states", {
 
-  allocation <- list(
-    scale          = "total_variance",
-    n_targets      = 2L,
-    inclusion      = list(
-      list(index = 1L, indicator_name = "gate_study"),
-      list(index = 2L, indicator_name = "gate_drug")
-    ),
-    parent_factors = list()
-  )
-  raw_samples <- cbind(
-    gate_study = c(0, 1, 0, 1),
-    gate_drug  = c(0, 0, 1, 1)
-  )
+  # The study share is gated (gate 0, 1, 0, 1); the esid share is not.
+  object  <- .gated_random_object(n = 4L)
+  samples <- as.matrix(object[["fit"]][[1L]])
+  gate    <- samples[, "mu__xRE_ALLOCx_split__include_study_indicator"] == 1
+  context <- list(object = object, posterior_samples = samples)
+  states  <- function(parameter) {
+    selected  <- .brma_random_parameter_select(object, parameter)
+    selection <- .brma_random_parameter_gate_selection(object, selected)
+    expect_false(is.null(selection), info = parameter)
+    .iwmde_gate_states(context, list(gate_selection = selection))
+  }
 
-  total_metadata <- .brma_random_parameter_allocation_gate_metadata(list(
-    spec = list(quantity = "sd_total", allocation_index = NA_integer_),
-    allocation_definition = allocation
-  ))
-  total_state <- .brma_random_parameter_allocation_gate_state(
-    total_metadata,
-    raw_samples
-  )
-  expect_identical(total_state[["point_zero"]], c(TRUE, FALSE, FALSE, FALSE))
-  expect_identical(total_state[["continuous"]], c(FALSE, TRUE, TRUE, TRUE))
+  # The ungated esid share keeps the total positive in every draw.
+  total <- states("(mu) split: tau_total")
+  expect_identical(total[["defined"]], rep(TRUE, 4L))
+  expect_identical(total[["continuous"]], rep(TRUE, 4L))
+  expect_identical(total[["point_zero"]], rep(FALSE, 4L))
 
-  proportion_selected <- list(
-    spec = list(quantity = "var_prop", allocation_index = 1L),
-    allocation_definition = allocation
-  )
-  proportion_state <- .brma_random_parameter_allocation_gate_state(
-    .brma_random_parameter_allocation_gate_metadata(proportion_selected),
-    raw_samples
-  )
-  expect_identical(proportion_state[["defined"]], c(FALSE, TRUE, TRUE, TRUE))
-  expect_identical(proportion_state[["point_zero"]], c(FALSE, FALSE, TRUE, FALSE))
-  expect_identical(proportion_state[["point_one"]], c(FALSE, TRUE, FALSE, FALSE))
-  expect_identical(proportion_state[["continuous"]], c(FALSE, FALSE, FALSE, TRUE))
+  study <- states("(mu) split: tau2_prop(study)")
+  expect_identical(study[["defined"]], rep(TRUE, 4L))
+  expect_identical(study[["point_zero"]], !gate)
+  expect_identical(study[["point_one"]], rep(FALSE, 4L))
+  expect_identical(study[["continuous"]], gate)
 
-  inherited_allocation <- allocation
-  inherited_allocation[["inclusion"]] <- list()
-  inherited_allocation[["parent_factors"]] <- list(
-    list(inclusion_name = "gate_study")
-  )
-  inherited_selected <- proportion_selected
-  inherited_selected[["allocation_definition"]] <- inherited_allocation
-  inherited_state <- .brma_random_parameter_allocation_gate_state(
-    .brma_random_parameter_allocation_gate_metadata(inherited_selected),
-    raw_samples
-  )
-  expect_identical(inherited_state[["defined"]], c(FALSE, TRUE, FALSE, TRUE))
-  expect_identical(
-    inherited_state[["continuous"]],
-    inherited_state[["defined"]]
-  )
+  esid <- states("(mu) split: tau2_prop(esid)")
+  expect_identical(esid[["point_zero"]], rep(FALSE, 4L))
+  expect_identical(esid[["point_one"]], !gate)
+  expect_identical(esid[["continuous"]], gate)
+
+  # The allocation chain of the esid SD has no gate: it is continuous in
+  # every draw.
+  esid_sd <- states("(mu) esid: tau(intercept)")
+  expect_identical(esid_sd[["continuous"]], rep(TRUE, 4L))
+  expect_identical(esid_sd[["point_zero"]], rep(FALSE, 4L))
 })
