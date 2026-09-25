@@ -702,6 +702,40 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+# The plan of a random-effect statement built from a mocked selection and
+# mixed posterior; 'values' are the posterior draws with the prior density
+# 'prior_density' of the quantity.
+.random_component_plan <- function(statement, selected, values, prior_density,
+                                   object = list(), captured = NULL) {
+
+  BayesTools::posterior_metadata(values, "prior_density") <- prior_density
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select = function(...) selected,
+    .brma_random_parameter_mixed_posterior = function(..., selected = NULL) {
+      if (is.environment(captured)) {
+        captured[["selected"]] <- selected
+      }
+      list(theta = values)
+    },
+    .brma_random_parameter_support = function(...) c(0, Inf),
+    .brma_random_parameter_sd_pair = function(...) NULL,
+    .package = "RoBMA"
+  )
+  ast  <- BayesTools::hypothesis_parse(statement)
+  plan <- .hypothesis_plan_new(
+    statement = ast,
+    hypothesis = ast,
+    parameter = "theta",
+    label     = "theta",
+    component = "random",
+    selected  = list(entry = selected[["entry"]])
+  )
+  plan <- .hypothesis_plan_random(plan, object, .hypothesis_plan_cache())
+
+  .hypothesis_plan_finish(plan, object)
+}
+
+
 test_that("semantic random qCMDE hypotheses use the plotting density target", {
 
   selected <- list(
@@ -709,16 +743,10 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     spec = list(
       quantity     = "var_prop",
       source_parameter = "rho",
-      label            = "tau2_prop(study)"
-    ),
-    samples      = matrix(seq(0.01, 0.99, length.out = 100L), ncol = 1L),
-    prior        = BayesTools::prior("beta", list(alpha = 1, beta = 1)),
-    source_prior = BayesTools::prior(
-      "dirichlet",
-      list(alpha = c(1, 1))
+      label            = "tau2_prop(study)",
+      status           = "sampled"
     )
   )
-  attached_values <- numeric()
   target_spec <- list(
     type                 = "simplex_pair",
     parameter            = "rho",
@@ -728,30 +756,45 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     auxiliary_columns    = paste0("rho_eta[", 1:2, "]"),
     conditioning_exclude = paste0("rho[", 1:2, "]")
   )
-  used_density_method <- NULL
-  attachment_calls    <- 0L
-  reused_selected     <- NULL
-  semantic_prior_density <- BayesTools::prior(
-    "uniform",
-    list(a = 0, b = 1)
-  )
+  semantic_prior_density <- BayesTools::prior("uniform", list(a = 0, b = 1))
+  captured <- new.env(parent = emptyenv())
   testthat::local_mocked_bindings(
-    .brma_random_parameter_select = function(...) selected,
     .brma_random_parameter_density_target = function(...) {
       list(parameter = "rho[2]", parameter_spec = target_spec)
     },
-    .brma_random_parameter_mixed_posterior = function(..., selected = NULL) {
-      reused_selected <<- selected
-      values <- 1:3
-      BayesTools::posterior_metadata(values, "prior_density") <- semantic_prior_density
-      list(theta = values)
-    },
+    .package = "RoBMA"
+  )
+  statements <- c(
+    "theta != 0.701406683025 vs theta = 0.701406683025",
+    "theta != 0.9 vs theta = 0.9"
+  )
+  plans <- lapply(statements, function(statement) {
+    .random_component_plan(
+      statement     = statement,
+      selected      = selected,
+      values        = seq(0.01, 0.99, length.out = 100L),
+      prior_density = semantic_prior_density,
+      captured      = captured
+    )
+  })
+  # The plan evaluates the quantity through its own mixed posterior with the
+  # selection it resolved once.
+  expect_identical(captured[["selected"]], selected)
+  for (plan in plans) {
+    expect_null(.hypothesis_plan_status(plan, "qCMDE"))
+    expect_identical(plan[["density_target"]][["parameter_spec"]], target_spec)
+  }
+
+  attached_values     <- numeric()
+  attachment_calls    <- 0L
+  used_density_method <- NULL
+  testthat::local_mocked_bindings(
+    .iwmde_check_point_ordinate_supported = function(...) invisible(TRUE),
     .iwmde_context = function(...) list(),
-    .iwmde_estimate_cache = function(...) new.env(parent = emptyenv()),
     .hypothesis_brma_attach_iwmde_scalar = function(
         posterior, raw_posterior, value, parameter, parameter_spec, ...) {
       attachment_calls <<- attachment_calls + 1L
-      attached_values <<- c(attached_values, value)
+      attached_values  <<- c(attached_values, value)
       expect_identical(parameter, "rho[2]")
       expect_identical(parameter_spec, target_spec)
       expect_identical(
@@ -764,10 +807,9 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     .package = "RoBMA"
   )
   testthat::local_mocked_bindings(
-    marginal_posterior = function(...) seq(0.01, 0.99, length.out = 100L),
     hypothesis_BF = function(..., density_method) {
       used_density_method <<- density_method
-      structure(data.frame(BF = 1), class = c(
+      structure(data.frame(BF = c(1, 1)), class = c(
         "BayesTools_hypothesis_BF",
         "data.frame"
       ))
@@ -775,35 +817,28 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
     .package = "BayesTools"
   )
 
-  out <- .hypothesis_brma_random(
-    object                    = list(),
-    parameter                 = "theta",
-    hypothesis                = BayesTools::hypothesis_parse(c(
-      "theta != 0.701406683025 vs theta = 0.701406683025",
-      "theta != 1 vs theta = 1"
-    )),
-    standardized_coefficients = FALSE,
-    conditional               = FALSE,
-    logBF                     = FALSE,
-    BF01                      = FALSE,
-    seed                      = 1,
-    density_method            = "qCMDE",
-    density_control           = list(
+  out <- .hypothesis_plan_execute_random(
+    plans           = plans,
+    hypothesis      = .hypothesis_plan_group_ast(plans, "hypothesis"),
+    object          = list(),
+    logBF           = FALSE,
+    BF01            = FALSE,
+    seed            = 1,
+    density_method  = "qCMDE",
+    density_control = list(
       n_points             = 20L,
       samples              = 50L,
       target_relative_mcse = 0.05,
       normalization_points = 50L,
       normalization_prob   = 0.999
     ),
-    n_samples = 100L,
-    columns   = "default"
+    columns         = "default"
   )
 
   expect_s3_class(out, "BayesTools_hypothesis_BF")
   expect_identical(attachment_calls, 1L)
-  expect_identical(attached_values, c(0.701406683025, 1))
+  expect_identical(attached_values, c(0.701406683025, 0.9))
   expect_identical(used_density_method, "precomputed")
-  expect_identical(reused_selected, selected)
 })
 
 
@@ -814,20 +849,11 @@ test_that("semantic random point hypotheses reject singular display boundaries",
     spec = list(
       quantity         = "var_common",
       source_parameter = "tau",
-      label            = "tau2_common"
-    ),
-    samples      = matrix(seq(0.01, 0.99, length.out = 100L), ncol = 1L),
-    prior        = NULL,
-    source_prior = BayesTools::prior("uniform", list(a = 0, b = 1))
+      label            = "tau2_common",
+      status           = "sampled"
+    )
   )
   testthat::local_mocked_bindings(
-    .brma_random_parameter_select = function(...) selected,
-    .brma_random_parameter_mixed_posterior = function(...) {
-      values <- seq(0.01, 0.99, length.out = 100L)
-      BayesTools::posterior_metadata(values, "prior_density") <-
-        BayesTools::prior("gamma", list(shape = 2, rate = 2))
-      list(tau2_common = values)
-    },
     .brma_random_parameter_density_target = function(...) list(
       parameter         = "tau",
       parameter_spec    = list(type = "primitive"),
@@ -835,27 +861,24 @@ test_that("semantic random point hypotheses reject singular display boundaries",
     ),
     .package = "RoBMA"
   )
-
-  expect_error(
-    .hypothesis_brma_random(
-      object                    = list(),
-      parameter                 = "tau2_common",
-      hypothesis                = BayesTools::hypothesis_parse(
-        "tau2_common = 0"
-      ),
-      standardized_coefficients = FALSE,
-      conditional               = FALSE,
-      logBF                     = FALSE,
-      BF01                      = FALSE,
-      seed                      = 1,
-      density_method            = "qCMDE",
-      density_control           = list(),
-      n_samples                 = 100L,
-      columns                   = "default"
-    ),
-    "public transformation is singular at that support boundary",
-    fixed = TRUE
+  # The prior ordinate at 0 is regular (Beta(1, 1)); the square display
+  # transform of the qCMDE/IWMDE source is singular there.
+  plan <- .random_component_plan(
+    statement     = "theta = 0",
+    selected      = selected,
+    values        = seq(0.01, 0.99, length.out = 100L),
+    prior_density = BayesTools::prior("beta", list(alpha = 1, beta = 1))
   )
+  expect_null(.hypothesis_plan_status(plan, "KDE"))
+  for (method in c("qCMDE", "IWMDE")) {
+    refusal <- .hypothesis_plan_status(plan, method)
+    expect_match(
+      refusal[["reason"]],
+      "public transformation is singular at that support boundary",
+      fixed = TRUE
+    )
+    expect_identical(refusal[["class"]][[1L]], "RoBMA_hypothesis_target")
+  }
 })
 
 
@@ -889,46 +912,40 @@ test_that("allocation-derived SD zero tests name the omission coordinate", {
       formula_parameter  = "mu",
       block              = "study",
       grouping           = "study_id",
-      random_component   = "intercept"
-    ),
-    samples      = matrix(seq(.1, 1, length.out = 20L), ncol = 1L),
-    prior        = NULL,
-    source_prior = NULL
+      random_component   = "intercept",
+      status             = "sampled"
+    )
   )
   testthat::local_mocked_bindings(
-    .brma_random_parameter_select = function(...) selected,
-    .brma_random_parameter_mixed_posterior = function(...) {
-      values <- seq(.1, 1, length.out = 20L)
-      BayesTools::posterior_metadata(values, "prior_density") <-
-        BayesTools::prior("normal", list(0, 1), list(0, Inf))
-      list(theta = values)
-    },
+    .brma_random_parameter_density_target = function(...) list(reason = "none"),
     .package = "RoBMA"
   )
+  # A half-normal prior has a regular one-sided ordinate at 0: zero is not a
+  # prior point mass but the product boundary of the allocation.
+  refusal_at_zero <- function(object) {
+    plan <- .random_component_plan(
+      statement     = "theta = 0",
+      selected      = selected,
+      values        = seq(.1, 1, length.out = 20L),
+      prior_density = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
+      object        = object
+    )
+    refusal <- .hypothesis_plan_status(plan, "qCMDE")
+    expect_identical(refusal, .hypothesis_plan_status(plan, "KDE"))
+    expect_identical(refusal[["class"]][[1L]], "RoBMA_hypothesis_target")
+    expect_true(refusal[["value_specific"]])
+    refusal[["reason"]]
+  }
 
-  expect_error(
-    .hypothesis_brma_random(
-      object                    = object,
-      parameter                 = "theta",
-      hypothesis                = BayesTools::hypothesis_parse("theta = 0"),
-      standardized_coefficients = FALSE,
-      conditional               = FALSE,
-      logBF                     = FALSE,
-      BF01                      = FALSE,
-      seed                      = 1,
-      density_method            = "qCMDE",
-      density_control           = list(),
-      n_samples                 = 100L,
-      columns                   = "default"
-    ),
+  expect_identical(
+    refusal_at_zero(object),
     paste0(
       "Point-null Bayes factors are unavailable for allocation-derived ",
       "random-effect quantity 'study: tau' at 0 because zero is a ",
       "nonregular product boundary of the common scale and allocation ",
       "weight. Test 'tau2_prop(study) = 0' to compare omission of this ",
       "component."
-    ),
-    fixed = TRUE
+    )
   )
 
   mean_design <- formula_design
@@ -936,29 +953,15 @@ test_that("allocation-derived SD zero tests name the omission coordinate", {
     "allocations"
   ]][[1L]][["scale"]] <- "mean_variance"
   mean_object <- list(fit = structure(list(), formula_design = mean_design))
-  expect_error(
-    .hypothesis_brma_random(
-      object                    = mean_object,
-      parameter                 = "theta",
-      hypothesis                = BayesTools::hypothesis_parse("theta = 0"),
-      standardized_coefficients = FALSE,
-      conditional               = FALSE,
-      logBF                     = FALSE,
-      BF01                      = FALSE,
-      seed                      = 1,
-      density_method            = "qCMDE",
-      density_control           = list(),
-      n_samples                 = 100L,
-      columns                   = "default"
-    ),
+  expect_identical(
+    refusal_at_zero(mean_object),
     paste0(
       "Point-null Bayes factors are unavailable for allocation-derived ",
       "random-effect quantity 'study: tau' at 0 because zero is a ",
       "nonregular product boundary of the common scale and allocation ",
       "weight. Test 'tau2_mult(study) = 0' to compare omission of this ",
       "component."
-    ),
-    fixed = TRUE
+    )
   )
 })
 
@@ -1050,17 +1053,17 @@ test_that("separate random targets share one hypothesis result", {
     "tau_total = 0",
     "`tau2_prop(study)` != 1 vs `tau2_prop(study)` = 1"
   ))
-  selections <- list(
-    list(component = "random", parameter = "rho[2]"),
-    list(component = "random", parameter = "tau"),
-    list(component = "random", parameter = "rho[2]")
-  )
+  groups <- c("random\rrho[2]", "random\rtau", "random\rrho[2]")
   calls <- list()
   testthat::local_mocked_bindings(
-    hypothesis.brma = function(object, hypothesis, ...) {
+    .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
+    .hypothesis_plans = function(...) {
+      lapply(groups, function(group) list(group = group, methods = list()))
+    },
+    .hypothesis_plan_execute = function(plans, ...) {
 
-      n <- length(hypothesis)
-      is_allocation <- grepl("tau2_prop", hypothesis[[1L]], fixed = TRUE)
+      n <- length(plans)
+      is_allocation <- identical(plans[[1L]][["group"]], groups[[1L]])
       out <- BayesTools::hypothesis_BF(
         posterior  = if (is_allocation) {
           seq(-1, 2, length.out = 101L)
@@ -1076,7 +1079,7 @@ test_that("separate random targets share one hypothesis result", {
         rownames(out)
       )
       calls[[length(calls) + 1L]] <<- list(
-        hypothesis = hypothesis,
+        hypothesis = plans,
         result     = out
       )
       out
@@ -1084,20 +1087,11 @@ test_that("separate random targets share one hypothesis result", {
     .package = "RoBMA"
   )
 
-  out <- .hypothesis_brma_multiple_parameters(
-    object                    = list(),
-    hypothesis                = hypothesis,
-    selections                = selections,
-    standardized_coefficients = FALSE,
-    conditional               = FALSE,
-    conditional_omitted       = TRUE,
-    logBF                     = FALSE,
-    BF01                      = FALSE,
-    seed                      = 1,
-    density_method            = "qCMDE",
-    density_control           = list(),
-    n_samples                 = 100L,
-    columns                   = "default"
+  out <- hypothesis.brma(
+    object         = structure(list(fit = list(TRUE)), class = "brma"),
+    hypothesis     = BayesTools::hypothesis_render(hypothesis),
+    density_method = "KDE",
+    seed           = 1
   )
 
   expect_length(calls, 2L)

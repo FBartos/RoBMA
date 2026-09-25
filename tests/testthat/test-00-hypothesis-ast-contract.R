@@ -168,44 +168,25 @@ test_that("point-null references must be direct", {
 })
 
 
-test_that("only cross-level point contrasts bypass the direct guard", {
+test_that("only linear combinations of factor levels bypass the direct guard", {
 
-  contrast <- BayesTools::hypothesis_parse(paste(
-    "mu_alloc[random] < mu_alloc[systematic] vs",
-    "mu_alloc[random] = mu_alloc[systematic]"
-  ))
-  expect_true(.hypothesis_brma_level_contrast_candidate(
-    contrast,
-    parameter = "mu_alloc"
-  ))
-  expect_false(.hypothesis_brma_level_contrast_candidate(
-    BayesTools::hypothesis_parse("2 * mu = 0"),
-    parameter = "mu"
-  ))
-  expect_false(.hypothesis_brma_level_contrast_candidate(
-    BayesTools::hypothesis_parse("mu_alloc[random] + 0 = 0"),
-    parameter = "mu_alloc"
-  ))
-  expect_false(.hypothesis_brma_level_contrast_candidate(
-    BayesTools::hypothesis_parse(
-      "mu_alloc[random] = other_alloc[systematic]"
-    ),
-    parameter = "mu_alloc"
-  ))
-
-  expect_error(
-    .hypothesis_brma_level_contrast_BF(
-      object          = structure(list(), class = c("RoBMA", "brma")),
-      posterior       = NULL,
-      hypothesis      = contrast,
-      parameter       = "mu_alloc",
-      density_method  = "KDE",
-      density_control = NULL,
-      logBF           = FALSE,
-      BF01            = FALSE,
-      seed            = NULL,
-      columns         = NULL
-    ),
-    "only for a single fitted model"
+  plan_of <- function(statement) {
+    ast <- BayesTools::hypothesis_parse(statement)
+    .hypothesis_plan_new(
+      statement = ast, hypothesis = ast, parameter = "mu", label = "mu",
+      component = "mods"
+    )
+  }
+  # Scalar parameters need a direct point reference; factor levels are
+  # linear targets whose combinations BayesTools compiles
+  # (.hypothesis_plan_linear()).
+  refusal <- .hypothesis_plan_direct_refusal(plan_of("2 * mu = 0"))
+  expect_identical(
+    refusal[["class"]],
+    c("RoBMA_hypothesis_statement", "RoBMA_hypothesis_unavailable")
   )
+  expect_match(refusal[["reason"]], "direct parameter or level reference", fixed = TRUE)
+  expect_null(.hypothesis_plan_direct_refusal(plan_of("mu = 0")))
+  expect_null(.hypothesis_plan_direct_refusal(plan_of("mu > 0")))
 })
+

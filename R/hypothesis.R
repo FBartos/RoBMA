@@ -124,15 +124,21 @@ hypothesis.default <- function(object, ...) {
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
 #' terms used in multiple model components. The random component supports
-#' interval and directional hypotheses for semantic standard deviation,
-#' correlation, and allocation quantities. Point-null hypotheses require a
-#' direct parameter or level reference. Certified \code{exp(affine)}
-#' fitted-scale hypotheses are available with KDE only for atom-free,
-#' unconditional scalar targets. Realized gated allocation totals and
-#' proportions can contain structural point masses and therefore support only
-#' interval and directional hypotheses; variance proportions condition on
-#' positive realized total heterogeneity. Publication-bias parameters are not
-#' supported.
+#' point, interval, and directional hypotheses for semantic standard
+#' deviation, variance, correlation, and allocation quantities. Point-null
+#' hypotheses require a direct parameter reference, a factor level, or a
+#' linear combination of the levels of one factor term (for example
+#' \code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
+#' random-effect variance are evaluated through its standard deviation, so
+#' that both give the same Bayes factor; such statements cannot be combined
+#' with region statements. Certified \code{exp(affine)} fitted-scale
+#' hypotheses are available with KDE only for atom-free, unconditional scalar
+#' targets. Values at a prior point mass (for example, gated components at
+#' 0) have no Savage-Dickey Bayes factor; the Component Inclusion table
+#' compares the exclusion and inclusion of gated components. Point nulls at
+#' an exact support boundary (for example, a variance proportion at 0) use
+#' the one-sided prior ordinate when BayesTools classifies it as exact,
+#' finite, and positive. Publication-bias parameters are not supported.
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -140,7 +146,9 @@ hypothesis.default <- function(object, ...) {
 #' omitted and the selected parameter has both null and alternative components,
 #' a warning notes that the full ensemble is used. Pass \code{FALSE} explicitly
 #' to retain that test without the warning, or \code{TRUE} to test only models
-#' where the parameter is active.
+#' where the parameter is active. Point hypotheses on linear combinations of
+#' factor levels of model-averaged objects require \code{conditional = TRUE}:
+#' the levels share the null component of the averaged prior.
 #' @param logBF whether to display the Bayes factor on the log scale.
 #' @param BF01 whether to display the inverse Bayes factor.
 #' @param seed optional seed used by BayesTools for sampled prior quantities.
@@ -155,7 +163,7 @@ hypothesis.default <- function(object, ...) {
 #' kernel density estimate. \code{"normal"} uses the
 #' BayesTools normal approximation for point-null hypotheses on fitted
 #' \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
-#' likelihood-aware posterior ordinates for direct point-null hypotheses and
+#' likelihood-aware posterior ordinates for point-null hypotheses and
 #' propagate their \code{BF_error} estimates printed as \code{error\%(BF)}.
 #' \code{BF_error} is a Monte Carlo diagnostic for the computed posterior
 #' ordinate, not a complete standard error. For a subsampled mixed posterior it
@@ -172,16 +180,30 @@ hypothesis.default <- function(object, ...) {
 #' \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 #' the stored source model. Matching is case-insensitive. qCMDE/IWMDE ordinates
 #' use the exact fitted-to-original structural coefficient map and induced
-#' prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps.
-#' For nonlinear joint maps, such as an exponentiated intercept that also
-#' depends on varying slopes, KDE point and directional hypotheses are available
-#' only when structural metadata certifies an atom-free, unconditional scalar
-#' target and the point is inside the open transformed support. Alternatively,
-#' use \code{standardized_coefficients = TRUE}. Atom-free pairwise contrasts
-#' across levels of one single-model factor are supported. Certified
-#' \code{exp(affine)} point equalities are evaluated on
-#' the inverse log/affine scale, where the prior and posterior Jacobians cancel;
-#' calls mixing point and region statements must be evaluated separately.
+#' prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps:
+#' coefficients, factor levels of every contrast, and linear combinations of
+#' levels. For nonlinear joint maps, such as an exponentiated intercept that
+#' also depends on varying slopes, KDE point and directional hypotheses are
+#' available only when structural metadata certifies an atom-free,
+#' unconditional scalar target and the point is inside the open transformed
+#' support. Alternatively, use \code{standardized_coefficients = TRUE}.
+#'
+#' Every statement is planned before it is evaluated: the plan records the
+#' tested target (its weights on the fitted coefficients, its BayesTools
+#' prior density and declared atoms), the classification of each point value
+#' by \code{BayesTools::prior_ordinate_status()}, and whether each density
+#' method can evaluate it; [hypothesis_quantities()] renders the same plans.
+#' A point hypothesis whose prior ordinate is not exact, finite, and regular
+#' stops with the BayesTools condition class (for example
+#' \code{BayesTools_point_mass_at_null}, \code{BayesTools_infinite_ordinate},
+#' or \code{BayesTools_inexact_ordinate}). Other refusals have the class
+#' \code{RoBMA_hypothesis_unavailable} and one of
+#' \code{RoBMA_hypothesis_fixed} (the quantity is fixed by the fitted model),
+#' \code{RoBMA_hypothesis_target} (no supported target or prior density),
+#' \code{RoBMA_hypothesis_method} (the density method is unavailable for the
+#' target), or \code{RoBMA_hypothesis_statement} (the form of the statement
+#' is unsupported); linear combinations that BayesTools cannot certify keep
+#' the class \code{BayesTools_linear_target_unavailable}.
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
 #' posterior-row sample size, default \code{500} for qCMDE and \code{1000} for
@@ -295,398 +317,530 @@ hypothesis.brma <- function(object, hypothesis,
     hypothesis = hypothesis,
     catalog    = parameter_metadata[["catalog"]]
   )
-  requested_point_refs <- BayesTools::hypothesis_parse_point_reference(
-    hypothesis     = hypothesis,
-    allow_compound = TRUE
+
+  # Every statement is planned before any is evaluated; a statement the
+  # requested method cannot evaluate stops with its plan's refusal.
+  plans <- .hypothesis_plans(
+    object       = object,
+    hypothesis   = hypothesis,
+    component    = component,
+    standardized = standardized_coefficients,
+    conditional  = conditional,
+    metadata     = parameter_metadata,
+    n_samples    = n_samples
   )
-  if (.density_method_uses_precomputed(
-      density_method,
-      allow_normal = TRUE
-    ) && nrow(requested_point_refs) > 0L) {
-    .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()")
-  }
-  display_hypothesis <- hypothesis
-  statement_selections <- .hypothesis_brma_select_statements(
-    object     = object,
-    hypothesis = hypothesis,
-    component  = component,
-    metadata   = parameter_metadata
-  )
-  statement_keys <- vapply(statement_selections, function(selection) {
-    paste(selection[["component"]], selection[["parameter"]], sep = "\r")
-  }, character(1))
-  if (length(unique(statement_keys)) > 1L) {
-    return(.hypothesis_brma_multiple_parameters(
-      object                    = object,
-      hypothesis                = display_hypothesis,
-      selections                = statement_selections,
-      standardized_coefficients = standardized_coefficients,
-      conditional               = conditional,
-      conditional_omitted       = conditional_omitted,
-      logBF                     = logBF,
-      BF01                      = BF01,
-      seed                      = seed,
-      density_method            = density_method,
-      density_control           = density_control,
-      n_samples                 = n_samples,
-      columns                   = columns
-    ))
-  }
-  selected <- .hypothesis_brma_select_parameter(
-    object     = object,
-    hypothesis = hypothesis,
-    component  = component,
-    metadata   = parameter_metadata
-  )
-  parameter <- selected[["parameter"]]
-  parameter_label <- .hypothesis_brma_alias_label(
-    aliases   = selected[["aliases"]],
-    parameter = parameter
-  )
-  .hypothesis_brma_check_supported_component(selected[["component"]])
-  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
-  if (conditional_omitted && .is_RoBMA(object) &&
-      parameter %in% names(prior_list) &&
-      BayesTools::is.prior.mixture(prior_list[[parameter]])) {
-    prior_components <- attr(
-      prior_list[[parameter]],
-      "components",
-      exact = TRUE
-    )
-    if (any(prior_components == "null") &&
-        any(prior_components == "alternative")) {
-      warning(
-        "Model-averaged coefficient test: this hypothesis uses the full ",
-        "ensemble for ", parameter, ", including models where ",
-        parameter, " is fixed by its null component. To test the ",
-        "hypothesis only within models where ", parameter,
-        " is active, use conditional = TRUE.",
-        call. = FALSE
-      )
-    }
-  }
-  hypothesis <- .hypothesis_brma_rewrite(
-    hypothesis = hypothesis,
-    aliases    = selected[["aliases"]],
-    parameter  = parameter
-  )
-  level_contrast <- .hypothesis_brma_level_contrast_candidate(
-    hypothesis = hypothesis,
-    parameter  = parameter
-  )
-  point_refs <- .hypothesis_brma_point_refs(
-    hypothesis     = hypothesis,
-    parameter      = parameter,
-    require_direct = !level_contrast
-  )
-  # Point statements on a level fixed by the contrast need no posterior
-  # ordinate: the level's declared atom decides them.
-  fixed_point_levels <- .hypothesis_brma_fixed_point_levels(
-    object     = object,
-    selected   = selected,
-    point_refs = point_refs
-  )
-  only_fixed_points <- nrow(point_refs) > 0L &&
-    all(!is.na(point_refs[["level"]]) &
-          point_refs[["level"]] %in% fixed_point_levels)
-  if (.density_method_uses_precomputed(
-      density_method,
-      allow_normal = TRUE
-    ) && (nrow(requested_point_refs) == 0L || only_fixed_points)) {
-    density_method <- "KDE"
-  }
-  coefficient_target <- .hypothesis_brma_formula_coefficient_target(
-    object   = object,
-    selected = selected
-  )
-  coefficient_level_targets <-
-    .hypothesis_brma_formula_coefficient_level_targets(
-      object     = object,
-      selected   = selected,
-      point_refs = point_refs
-    )
-  if (!is.null(coefficient_target)) {
-    coefficient_target[["route"]] <-
-      .hypothesis_brma_formula_transform_route(coefficient_target)
-    .hypothesis_brma_check_formula_point_support(
-      point_refs  = point_refs,
-      target_info = coefficient_target
-    )
-    if (standardized_coefficients) {
-      coefficient_target <- NULL
-    }
-  }
-  if (standardized_coefficients) {
-    coefficient_level_targets <- list()
+  for (plan in plans) {
+    .hypothesis_plan_check(plan, density_method)
   }
 
-  if (identical(selected[["component"]], "random")) {
-    out <- .hypothesis_brma_random(
-      object                    = object,
-      parameter                 = parameter,
-      hypothesis                = hypothesis,
-      standardized_coefficients = standardized_coefficients,
-      conditional               = conditional,
-      logBF                     = logBF,
-      BF01                      = BF01,
-      seed                      = seed,
-      density_method            = density_method,
-      density_control           = density_control,
-      n_samples                 = n_samples,
-      columns                   = columns,
-      parameter_label           = parameter_label
-    )
-    return(.hypothesis_brma_restore_hypothesis_labels(
-      out             = out,
-      hypothesis      = display_hypothesis,
-      parameter_label = parameter_label
-    ))
-  }
-
-  sample_parameter <- .as_mixed_posteriors_parameters(object, parameter)
-  if (!is.null(coefficient_target) &&
-      !is.null(coefficient_target[["route"]][["weights"]])) {
-    # The target's prior density combines the priors of every coordinate it
-    # weights; their mixed posteriors carry the mixture components that
-    # BayesTools needs for the target's components.
-    sample_parameter <- unique(c(
-      sample_parameter,
-      .hypothesis_brma_target_prior_parameters(
-        object  = object,
-        weights = coefficient_target[["route"]][["weights"]]
-      )
-    ))
-  }
-  samples <- .brma_as_mixed_posteriors(
-    object           = object,
-    parameters       = sample_parameter,
-    conditional      = if (conditional) parameter else NULL,
-    conditional_rule = "AND",
-    transform_scaled = !standardized_coefficients,
-    n_prior_samples  = n_samples
-  )
-  if (!is.null(coefficient_target) &&
-      identical(coefficient_target[["route"]][["type"]], "unsupported")) {
-    stop(coefficient_target[["route"]][["reason"]], call. = FALSE)
-  }
-  if (!is.null(coefficient_target) &&
-      identical(coefficient_target[["route"]][["type"]], "exp_affine")) {
-    if (!identical(density_method, "KDE")) {
-      stop(
-        "The requested nonlinear fitted-scale hypothesis for '",
-        parameter, "' is supported only with density_method = 'KDE'. ",
-        "qCMDE/IWMDE ordinates support only direct parameter or level point ",
-        "hypotheses with an exact linear fitted-scale map.",
-        call. = FALSE
-      )
-    }
-    out <- .hypothesis_brma_exp_affine_kde(
-      object      = object,
-      samples     = samples,
-      hypothesis  = hypothesis,
-      parameter   = parameter,
-      target_info = coefficient_target,
-      conditional = conditional,
-      logBF       = logBF,
-      BF01        = BF01,
-      seed        = seed,
-      n_samples   = n_samples,
-      columns     = columns
-    )
-    return(.hypothesis_brma_restore_hypothesis_labels(
-      out             = out,
-      hypothesis      = display_hypothesis,
-      parameter_label = parameter_label
-    ))
-  }
-  if (!is.null(coefficient_target)) {
-    coefficient_target <- .hypothesis_brma_formula_prior_target(
-      object      = object,
-      samples     = samples,
-      hypothesis  = hypothesis,
-      target_info = coefficient_target
-    )
-    prior_densities <- BayesTools::posterior_metadata(samples, "prior_densities")
-    prior_densities[[parameter]] <- coefficient_target[["prior_density"]]
-    BayesTools::posterior_metadata(samples, "prior_densities") <- prior_densities
-  }
-  for (level in names(coefficient_level_targets)) {
-    coefficient_level_targets[[level]] <-
-      .hypothesis_brma_formula_prior_target(
-        object       = object,
-        samples      = samples,
-        hypothesis   = hypothesis,
-        target_info  = coefficient_level_targets[[level]],
-        point_values = point_refs[["value"]][
-          !is.na(point_refs[["level"]]) &
-            point_refs[["level"]] == level
-        ],
-        force_linear = TRUE
-      )
-  }
-  density_sample_parameter <- .plot_brma_density_sample_parameter(
-    samples          = samples,
-    parameter        = parameter,
-    sample_parameter = sample_parameter
-  )
-  posterior <- BayesTools::marginal_posterior(
-    samples       = samples,
-    parameter     = density_sample_parameter,
-    prior_samples = TRUE,
-    use_formula   = FALSE,
-    n_samples     = n_samples
-  )
-  if (!is.null(coefficient_target)) {
-    BayesTools::posterior_metadata(
-      posterior,
-      "prior_density"
-    ) <- coefficient_target[["prior_density"]]
-  }
-  for (level in names(coefficient_level_targets)) {
-    if (is.list(posterior) && level %in% names(posterior)) {
-      BayesTools::posterior_metadata(posterior[[level]], "prior_density") <-
-        coefficient_level_targets[[level]][["prior_density"]]
-    }
-  }
-
-  if (level_contrast) {
-    out <- .hypothesis_brma_level_contrast_BF(
-      object                    = object,
-      posterior                 = posterior,
-      hypothesis                = hypothesis,
-      parameter                 = parameter,
-      standardized_coefficients = standardized_coefficients,
-      density_method            = density_method,
-      density_control           = density_control,
-      logBF                     = logBF,
-      BF01                      = BF01,
-      seed                      = seed,
-      columns                   = columns
-    )
-    return(.hypothesis_brma_restore_hypothesis_labels(
-      out             = out,
-      hypothesis      = display_hypothesis,
-      parameter_label = parameter_label
-    ))
-  }
-
-  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-    .hypothesis_brma_check_fixed_level_points(
-      object       = object,
-      posterior    = posterior,
-      hypothesis   = hypothesis,
-      parameter    = parameter,
-      fixed_levels = fixed_point_levels,
-      seed         = seed
-    )
-    posterior <- .hypothesis_brma_attach_iwmde(
-      object                   = object,
-      posterior                = posterior,
-      parameter                = parameter,
-      parameter_label          = parameter_label,
-      hypothesis               = hypothesis,
-      conditional              = if (conditional) parameter else NULL,
-      n_points                 = density_control[["n_points"]],
-      samples                  = density_control[["samples"]],
-      target_relative_mcse     = density_control[["target_relative_mcse"]],
-      normalization_points     = density_control[["normalization_points"]],
-      normalization_prob       = density_control[["normalization_prob"]],
-      integration_control      = density_control[["integration_control"]],
-      density_method           = density_method,
-      n_samples                = n_samples,
-      parameter_spec           = if (is.null(coefficient_target)) {
-        NULL
-      } else {
-        coefficient_target[["parameter_spec"]]
-      },
-      level_parameter_specs    = lapply(
-        coefficient_level_targets,
-        `[[`,
-        "parameter_spec"
-      )
-    )
-  }
-
-  out <- tryCatch(
-    BayesTools::hypothesis_BF(
-      posterior      = posterior,
-      hypothesis     = hypothesis,
-      parameter      = parameter,
-      logBF          = logBF,
-      BF01           = BF01,
-      seed           = seed,
-      columns        = columns,
-      density_method = if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-        "precomputed"
-      } else {
-        density_method
-      }
-    ),
-    error = function(error) {
-      .hypothesis_brma_stop_point_mass(object, error)
-    }
-  )
-
-  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
-    out <- .hypothesis_brma_append_iwmde_warnings(
-      table     = out,
-      posterior = posterior
-    )
-  }
-
-  out <- .hypothesis_brma_restore_hypothesis_labels(
-    out             = out,
-    hypothesis      = display_hypothesis,
-    parameter_label = parameter_label
-  )
-
-  return(out)
-}
-
-
-.hypothesis_brma_multiple_parameters <- function(
-    object, hypothesis, selections, standardized_coefficients, conditional,
-    conditional_omitted, logBF, BF01, seed, density_method, density_control,
-    n_samples, columns) {
-
-  components <- vapply(selections, `[[`, character(1), "component")
-  parameters <- vapply(selections, `[[`, character(1), "parameter")
-  keys       <- paste(components, parameters, sep = "\r")
-  group_keys <- unique(keys)
-  groups     <- lapply(group_keys, function(key) which(keys == key))
-  statements <- BayesTools::hypothesis_render(hypothesis)
-
-  for (component in unique(components)) {
-    .hypothesis_brma_check_supported_component(component)
-  }
-
+  keys   <- vapply(plans, `[[`, character(1), "group")
+  groups <- lapply(unique(keys), function(key) which(keys == key))
   results <- lapply(groups, function(rows) {
-
-    arguments <- list(
-      object                    = object,
-      hypothesis                = unname(statements[rows]),
-      component                 = components[[rows[[1L]]]],
-      standardized_coefficients = standardized_coefficients,
-      logBF                     = logBF,
-      BF01                      = BF01,
-      seed                      = seed,
-      density_method            = density_method,
-      density_control           = density_control,
-      n_samples                 = n_samples,
-      columns                   = columns
+    .hypothesis_plan_execute(
+      plans               = plans[rows],
+      object              = object,
+      conditional_omitted = conditional_omitted,
+      logBF               = logBF,
+      BF01                = BF01,
+      seed                = seed,
+      density_method      = density_method,
+      density_control     = density_control,
+      columns             = columns
     )
-    if (!conditional_omitted) {
-      arguments[["conditional"]] <- conditional
-    }
-
-    do.call(hypothesis.brma, arguments)
   })
+  if (length(results) == 1L) {
+    return(results[[1L]])
+  }
 
   .hypothesis_brma_bind_parameter_results(
     results    = results,
     groups     = groups,
     hypothesis = hypothesis
   )
+}
+
+
+# The statements of the plans of one group as one hypothesis AST: the
+# statements as written ('field' "statement") or rewritten onto the tested
+# parameter ("hypothesis").
+.hypothesis_plan_group_ast <- function(plans, field) {
+
+  ast <- plans[[1L]][[field]]
+  ast[["statements"]] <- unlist(lapply(plans, function(plan) {
+    plan[[field]][["statements"]]
+  }), recursive = FALSE)
+
+  ast
+}
+
+
+# Evaluates the statements of one group of plans, which share one route and
+# one tested target, and restores the labels the statements were written in.
+.hypothesis_plan_execute <- function(plans, object, conditional_omitted, logBF,
+                                     BF01, seed, density_method,
+                                     density_control, columns) {
+
+  plan       <- plans[[1L]]
+  display    <- .hypothesis_plan_group_ast(plans, "statement")
+  hypothesis <- .hypothesis_plan_group_ast(plans, "hypothesis")
+  if (conditional_omitted) {
+    .hypothesis_brma_warn_model_averaged(object, plan[["parameter"]])
+  }
+  arguments <- list(
+    plans           = plans,
+    hypothesis      = hypothesis,
+    object          = object,
+    logBF           = logBF,
+    BF01            = BF01,
+    seed            = seed,
+    density_method  = density_method,
+    density_control = density_control,
+    columns         = columns
+  )
+  out <- switch(
+    plan[["route"]],
+    scalar      = do.call(.hypothesis_plan_execute_scalar, arguments),
+    levels      = do.call(.hypothesis_plan_execute_levels, arguments),
+    combination = do.call(.hypothesis_plan_execute_combination, arguments),
+    random      = do.call(.hypothesis_plan_execute_random, arguments),
+    stop("Internal error: unknown hypothesis route.", call. = FALSE)
+  )
+
+  .hypothesis_brma_restore_hypothesis_labels(
+    out             = out,
+    hypothesis      = display,
+    parameter_label = plan[["label"]]
+  )
+}
+
+
+# A model-averaged coefficient test on the full ensemble includes the models
+# in which the coefficient is fixed by its null component.
+.hypothesis_brma_warn_model_averaged <- function(object, parameter) {
+
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  if (!.is_RoBMA(object) || !parameter %in% names(prior_list) ||
+      !BayesTools::is.prior.mixture(prior_list[[parameter]])) {
+    return(invisible(FALSE))
+  }
+  prior_components <- attr(prior_list[[parameter]], "components", exact = TRUE)
+  if (any(prior_components == "null") &&
+      any(prior_components == "alternative")) {
+    warning(
+      "Model-averaged coefficient test: this hypothesis uses the full ",
+      "ensemble for ", parameter, ", including models where ",
+      parameter, " is fixed by its null component. To test the ",
+      "hypothesis only within models where ", parameter,
+      " is active, use conditional = TRUE.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+# The method a group is evaluated with: qCMDE/IWMDE ordinates only for point
+# statements (region statements are method-free and use the BayesTools
+# route).
+.hypothesis_plan_execution_method <- function(plans, density_method) {
+
+  point <- any(vapply(plans, `[[`, logical(1), "point"))
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE)) {
+    return(if (point) "precomputed" else "KDE")
+  }
+
+  density_method
+}
+
+
+.hypothesis_plan_targets <- function(plans) {
+
+  unlist(lapply(plans, `[[`, "targets"), recursive = FALSE)
+}
+
+
+.hypothesis_plan_density_control <- function(density_control) {
+
+  if (is.null(density_control[["normalization_points"]])) {
+    density_control[["normalization_points"]] <- max(
+      50L,
+      density_control[["n_points"]]
+    )
+  }
+
+  density_control
+}
+
+
+# Attaches the qCMDE/IWMDE ordinates of scalar point values to a posterior.
+.hypothesis_plan_attach_scalar <- function(object, posterior, parameter,
+                                           parameter_label, values, spec,
+                                           conditional, density_method,
+                                           density_control,
+                                           display_transform = NULL) {
+
+  density_control <- .hypothesis_plan_density_control(density_control)
+  .iwmde_check_point_ordinate_supported(object, density_method)
+  posterior <- .hypothesis_brma_keep_requested_ordinates(
+    posterior  = posterior,
+    point_refs = data.frame(level = NA_character_, value = values)
+  )
+  context <- .iwmde_context(object, density_control[["integration_control"]])
+
+  .hypothesis_brma_attach_iwmde_scalar(
+    posterior            = posterior,
+    raw_posterior        = posterior,
+    context              = context,
+    estimate_cache       = .iwmde_estimate_cache(),
+    parameter            = parameter,
+    parameter_label      = parameter_label,
+    value                = unique(values),
+    conditional          = conditional,
+    n_points             = density_control[["n_points"]],
+    samples              = density_control[["samples"]],
+    target_relative_mcse = density_control[["target_relative_mcse"]],
+    normalization_points = density_control[["normalization_points"]],
+    normalization_prob   = density_control[["normalization_prob"]],
+    integration_control  = density_control[["integration_control"]],
+    density_method       = density_method,
+    parameter_spec       = spec,
+    display_transform    = display_transform
+  )
+}
+
+
+.hypothesis_plan_execute_scalar <- function(plans, hypothesis, object, logBF,
+                                            BF01, seed, density_method,
+                                            density_control, columns) {
+
+  plan      <- plans[[1L]]
+  posterior <- plan[["draws"]][["posterior"]]
+  method    <- .hypothesis_plan_execution_method(plans, density_method)
+  if (identical(method, "precomputed")) {
+    targets   <- .hypothesis_plan_targets(plans)
+    posterior <- .hypothesis_plan_attach_scalar(
+      object          = object,
+      posterior       = posterior,
+      parameter       = plan[["parameter"]],
+      parameter_label = plan[["label"]],
+      values          = vapply(targets, `[[`, numeric(1), "value"),
+      spec            = targets[[1L]][["spec"]],
+      conditional     = if (plan[["conditional"]]) plan[["parameter"]],
+      density_method  = density_method,
+      density_control = density_control
+    )
+  }
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = posterior,
+    hypothesis     = hypothesis,
+    parameter      = plan[["parameter"]],
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = method
+  )
+  if (identical(method, "precomputed")) {
+    out <- .hypothesis_brma_append_iwmde_warnings(
+      table     = out,
+      posterior = posterior
+    )
+  }
+
+  out
+}
+
+
+# Statements on the marginal posterior of a factor term: each point value of
+# a level gets the level's planned prior density and, for qCMDE/IWMDE, its
+# ordinate of the level's linear target.
+.hypothesis_plan_execute_levels <- function(plans, hypothesis, object, logBF,
+                                            BF01, seed, density_method,
+                                            density_control, columns) {
+
+  plan      <- plans[[1L]]
+  posterior <- plan[["draws"]][["posterior"]]
+  targets   <- .hypothesis_plan_targets(plans)
+  for (target in targets) {
+    BayesTools::posterior_metadata(posterior[[target[["level"]]]], "prior_density") <-
+      target[["prior_density"]]
+  }
+  method <- .hypothesis_plan_execution_method(plans, density_method)
+  if (identical(method, "precomputed")) {
+    density_control <- .hypothesis_plan_density_control(density_control)
+    .iwmde_check_point_ordinate_supported(object, density_method)
+    refs <- unique(data.frame(
+      level = vapply(targets, function(target) target[["level"]], character(1)),
+      value = vapply(targets, `[[`, numeric(1), "value"),
+      stringsAsFactors = FALSE
+    ))
+    posterior <- .hypothesis_brma_keep_requested_ordinates(posterior, refs)
+    context        <- .iwmde_context(object, density_control[["integration_control"]])
+    estimate_cache <- .iwmde_estimate_cache()
+    for (i in seq_len(nrow(refs))) {
+      target <- targets[[which(
+        vapply(targets, function(target) target[["level"]], character(1)) ==
+          refs[["level"]][[i]]
+      )[[1L]]]]
+      posterior <- .hypothesis_brma_attach_iwmde_level(
+        posterior            = posterior,
+        raw_posterior        = posterior,
+        context              = context,
+        estimate_cache       = estimate_cache,
+        parameter            = plan[["parameter"]],
+        level                = refs[["level"]][[i]],
+        value                = refs[["value"]][[i]],
+        conditional          = if (plan[["conditional"]]) plan[["parameter"]],
+        n_points             = density_control[["n_points"]],
+        samples              = density_control[["samples"]],
+        target_relative_mcse = density_control[["target_relative_mcse"]],
+        normalization_points = density_control[["normalization_points"]],
+        normalization_prob   = density_control[["normalization_prob"]],
+        integration_control  = density_control[["integration_control"]],
+        density_method       = density_method,
+        parameter_spec       = target[["spec"]]
+      )
+    }
+  }
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = posterior,
+    hypothesis     = hypothesis,
+    parameter      = plan[["parameter"]],
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = method
+  )
+  if (identical(method, "precomputed")) {
+    out <- .hypothesis_brma_append_iwmde_warnings(
+      table     = out,
+      posterior = posterior
+    )
+  }
+
+  out
+}
+
+
+# Statements on one linear combination of the levels of a factor term,
+# evaluated on the scalar linear target (level contrasts, derived linear
+# expressions).
+.hypothesis_plan_execute_combination <- function(plans, hypothesis, object,
+                                                 logBF, BF01, seed,
+                                                 density_method,
+                                                 density_control, columns) {
+
+  plan   <- plans[[1L]]
+  target <- if (length(plans) == 1L) {
+    plan[["linear_target"]]
+  } else {
+    combined <- BayesTools::hypothesis_linear_target(
+      posterior  = plan[["draws"]][["posterior"]],
+      hypothesis = hypothesis,
+      parameter  = plan[["parameter"]]
+    )
+    BayesTools::posterior_metadata(combined[["posterior"]], "prior_density") <-
+      BayesTools::posterior_metadata(plan[["linear_target"]][["posterior"]], "prior_density")
+    combined
+  }
+  method <- .hypothesis_plan_execution_method(plans, density_method)
+  if (identical(method, "precomputed")) {
+    targets <- .hypothesis_plan_targets(plans)
+    target[["posterior"]] <- .hypothesis_plan_attach_scalar(
+      object          = object,
+      posterior       = target[["posterior"]],
+      parameter       = target[["parameter"]],
+      parameter_label = plan[["label"]],
+      values          = vapply(targets, `[[`, numeric(1), "value"),
+      spec            = targets[[1L]][["spec"]],
+      conditional     = .iwmde_first_nonempty_condition(
+        BayesTools::posterior_metadata(target[["posterior"]], "condition"),
+        c("effective_conditional", "conditional")
+      ),
+      density_method  = density_method,
+      density_control = density_control
+    )
+  }
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = target[["posterior"]],
+    hypothesis     = target[["hypothesis"]],
+    parameter      = target[["parameter"]],
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = method
+  )
+  if (identical(method, "precomputed")) {
+    out <- .hypothesis_brma_append_iwmde_warnings(
+      table     = out,
+      posterior = target[["posterior"]]
+    )
+  }
+  # One linear target: row i is statement i.
+  .hypothesis_brma_set_row_names(
+    out       = out,
+    row_names = .hypothesis_brma_row_names(
+      labels     = rep(plan[["parameter"]], nrow(out)),
+      statements = seq_len(nrow(out))
+    )
+  )
+}
+
+
+# Statements on a random-effect quantity, evaluated on its BayesTools mixed
+# posterior. Point statements on a variance are evaluated through its
+# standard deviation (square-root values); the table then shows the variance
+# statements and densities.
+.hypothesis_plan_execute_random <- function(plans, hypothesis, object, logBF,
+                                            BF01, seed, density_method,
+                                            density_control, columns) {
+
+  plan      <- plans[[1L]]
+  parameter <- plan[["parameter"]]
+  samples   <- plan[["draws"]][["samples"]]
+  selected  <- plan[["random"]]
+  defined_footnote <- .brma_random_parameter_defined_footnote(
+    label             = selected[["spec"]][["label"]],
+    samples           = samples[[parameter]],
+    posterior_defined = .brma_random_parameter_defined_share(
+      object,
+      samples[[parameter]]
+    )
+  )
+  method <- .hypothesis_plan_execution_method(plans, density_method)
+
+  if (isTRUE(plan[["prior_draws"]])) {
+    # Without a prior density with deterministic provenance, region
+    # hypotheses take the prior probabilities from prior draws (the plans
+    # refused point hypotheses).
+    return(.hypothesis_brma_random_prior_draws(
+      object                    = object,
+      parameter                 = parameter,
+      selected                  = selected,
+      posterior                 = samples[[parameter]],
+      hypothesis                = hypothesis,
+      standardized_coefficients = plan[["standardized"]],
+      logBF                     = logBF,
+      BF01                      = BF01,
+      seed                      = seed,
+      n_samples                 = plan[["n_samples"]],
+      columns                   = columns,
+      density_method            = method
+    ))
+  }
+
+  evaluation <- plan[["evaluation"]]
+  through_sd <- !is.null(evaluation[["parameter"]])
+  evaluated  <- if (through_sd) evaluation[["parameter"]] else parameter
+  marginal   <- if (through_sd) {
+    evaluation[["samples"]][[evaluated]]
+  } else {
+    samples[[parameter]]
+  }
+  statements <- if (through_sd) {
+    .hypothesis_plan_sd_hypothesis(hypothesis, evaluated)
+  } else {
+    hypothesis
+  }
+  if (identical(method, "precomputed")) {
+    target   <- plan[["density_target"]]
+    values   <- vapply(.hypothesis_plan_targets(plans), `[[`, numeric(1), "value")
+    marginal <- .hypothesis_plan_attach_scalar(
+      object            = object,
+      posterior         = marginal,
+      parameter         = target[["parameter"]],
+      parameter_label   = plan[["label"]],
+      values            = if (through_sd) sqrt(values) else values,
+      spec              = target[["parameter_spec"]],
+      conditional       = NULL,
+      density_method    = density_method,
+      density_control   = density_control,
+      display_transform = target[["display_transform"]]
+    )
+  }
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = marginal,
+    hypothesis     = statements,
+    parameter      = evaluated,
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = method
+  )
+  if (identical(method, "precomputed")) {
+    out <- .hypothesis_brma_append_iwmde_warnings(
+      table     = out,
+      posterior = marginal,
+      parameter = evaluated
+    )
+  }
+  if (through_sd) {
+    out <- .hypothesis_plan_sd_restore(out, hypothesis)
+  }
+  if (!is.null(defined_footnote)) {
+    attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
+  }
+
+  out
+}
+
+
+# Point statements on a variance written on its standard deviation 'sd':
+# each point side's value is replaced by its square root.
+.hypothesis_plan_sd_hypothesis <- function(hypothesis, sd) {
+
+  statements <- vapply(hypothesis[["statements"]], function(statement) {
+
+    sides <- vapply(c("left", "right"), function(side_name) {
+      side <- statement[[side_name]]
+      operator <- switch(
+        side[["type"]],
+        point     = "=",
+        not_point = "!=",
+        stop("Internal error: expected a point statement on a variance.",
+             call. = FALSE)
+      )
+      paste("theta", operator, sprintf("%.17g", sqrt(side[["value"]])))
+    }, character(1))
+    if (isTRUE(statement[["explicit"]])) {
+      paste(sides[[1L]], "vs", sides[[2L]])
+    } else {
+      sides[[1L]]
+    }
+  }, character(1))
+
+  BayesTools::hypothesis_rewrite(
+    BayesTools::hypothesis_parse(unname(statements)),
+    c(theta = sd)
+  )
+}
+
+
+# The table of variance point statements evaluated through the standard
+# deviation: the variance statements, and the prior and posterior densities
+# on the variance scale (divided by the derivative 2 * sd of the square).
+.hypothesis_plan_sd_restore <- function(out, hypothesis) {
+
+  values <- vapply(hypothesis[["statements"]], function(statement) {
+    statement[["left"]][["value"]]
+  }, numeric(1))
+  if (nrow(out) != length(values)) {
+    stop("Internal error: variance point rows are misaligned.", call. = FALSE)
+  }
+  for (column in intersect(c("prior", "posterior"), names(out))) {
+    out[[column]] <- out[[column]] / (2 * sqrt(values))
+  }
+  attr(out, "hypothesis_ast") <- hypothesis
+
+  out
 }
 
 
@@ -822,247 +976,14 @@ hypothesis.brma <- function(object, hypothesis,
   return(out)
 }
 
-.hypothesis_brma_random <- function(
-    object, parameter, hypothesis, standardized_coefficients,
-    conditional, logBF, BF01, seed, density_method, density_control = NULL,
-    n_samples, columns, parameter_label = parameter) {
-
-  precomputed <- .density_method_uses_precomputed(
-    density_method,
-    allow_normal = TRUE
-  )
-  if (conditional && precomputed) {
-    stop(
-      "Conditional random-effect hypotheses support ",
-      "'density_method = \"KDE\"' only.",
-      call. = FALSE
-    )
-  }
-
-  selected <- .brma_random_parameter_select(
-    object                    = object,
-    parameter                 = parameter,
-    standardized_coefficients = standardized_coefficients
-  )
-  if (identical(selected[["spec"]][["status"]], "structural")) {
-    stop(
-      "Hypothesis tests are not defined for fixed random-effect quantity '",
-      selected[["entry"]][["term"]], "'.",
-      call. = FALSE
-    )
-  }
-  # The mixed posterior carries the catalog support, the canonical prior
-  # density of BayesTools, and the declared inclusion- and allocation-gate
-  # atoms; conditioning keeps the draws in the quantity's inclusion event.
-  samples <- .brma_random_parameter_mixed_posterior(
-    object                    = object,
-    parameter                 = parameter,
-    standardized_coefficients = standardized_coefficients,
-    conditional               = conditional,
-    selected                  = selected
-  )
-  prior_density <- BayesTools::posterior_metadata(
-    samples[[parameter]],
-    "prior_density"
-  )
-  defined_footnote <- .brma_random_parameter_defined_footnote(
-    label             = selected[["spec"]][["label"]],
-    samples           = samples[[parameter]],
-    posterior_defined = .brma_random_parameter_defined_share(
-      object,
-      samples[[parameter]]
-    )
-  )
-
-  point_refs <- BayesTools::hypothesis_parse_point_reference(
-    hypothesis     = hypothesis,
-    allow_compound = TRUE
-  )
-  target <- NULL
-  if (nrow(point_refs) > 0L) {
-    if (any(!point_refs[["direct"]])) {
-      stop(
-        "Point-null tests for random-effect quantities require a direct scalar ",
-        "parameter reference.",
-        call. = FALSE
-      )
-    }
-    point_status <- .brma_random_parameter_point_status(
-      selected      = selected,
-      prior_density = prior_density,
-      values        = unique(point_refs[["value"]])
-    )
-    zero_alternative <- if (any(point_refs[["value"]] == 0)) {
-      .brma_random_parameter_zero_boundary_alternative(object, selected)
-    } else {
-      NULL
-    }
-    if (!is.null(zero_alternative)) {
-      stop(
-        "Point-null Bayes factors are unavailable for allocation-derived ",
-        "random-effect quantity '", selected[["spec"]][["label"]],
-        "' at 0 because zero is a nonregular product boundary of the common ",
-        "scale and allocation weight. Test '", zero_alternative,
-        "' to compare omission of this component.",
-        call. = FALSE
-      )
-    }
-    if (precomputed) {
-      target <- .brma_random_parameter_density_target(
-        object,
-        parameter,
-        operation = "point hypotheses"
-      )
-      if (is.null(target[["parameter"]])) {
-        stop(target[["reason"]], call. = FALSE)
-      }
-    }
-    if (precomputed && !is.null(target[["display_transform"]])) {
-      source_values <- BayesTools::parameter_transform_inverse(
-        point_refs[["value"]],
-        target[["display_transform"]]
-      )
-      jacobian <- BayesTools::parameter_transform_jacobian(
-        source_values,
-        target[["display_transform"]]
-      )
-      singular <- !is.finite(source_values) | !is.finite(jacobian) |
-        jacobian <= 0
-      if (any(singular)) {
-        value <- point_refs[["value"]][which(singular)[[1L]]]
-        stop(
-          "Point-null Bayes factors are unavailable for random-effect ",
-          "quantity '", selected[["entry"]][["term"]], "' at ", value,
-          " because its public transformation is singular at that support ",
-          "boundary. Use the corresponding directly modeled scale or a ",
-          "region hypothesis.",
-          call. = FALSE
-        )
-      }
-    }
-    .brma_random_parameter_check_point_status(selected, point_status)
-    if (!precomputed) {
-      support <- .brma_random_parameter_support(selected)
-      values <- point_refs[["value"]]
-      at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
-        (is.finite(support[2L]) & values >= support[2L])
-      if (any(at_boundary)) {
-        stop(
-          "Point-null Bayes factors at the support boundary are not available ",
-          "for random-effect quantity '", selected[["entry"]][["term"]], "'.",
-          call. = FALSE
-        )
-      }
-    }
-  }
-
-  if (is.null(prior_density)) {
-    # Without a canonical prior density, region hypotheses take the prior
-    # probabilities from prior draws (point hypotheses stopped above).
-    out <- .hypothesis_brma_random_prior_draws(
-      object                    = object,
-      parameter                 = parameter,
-      selected                  = selected,
-      posterior                 = samples[[parameter]],
-      hypothesis                = hypothesis,
-      standardized_coefficients = standardized_coefficients,
-      conditional               = conditional,
-      logBF                     = logBF,
-      BF01                      = BF01,
-      seed                      = seed,
-      n_samples                 = n_samples,
-      columns                   = columns,
-      density_method            = if (precomputed) "KDE" else density_method
-    )
-    defined_footnote <- attr(out, "defined_footnote", exact = TRUE)
-    attr(out, "defined_footnote") <- NULL
-    if (!is.null(defined_footnote)) {
-      attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
-    }
-    return(out)
-  }
-
-  # The BayesTools mixed posterior of the quantity is its marginal posterior:
-  # it carries the quantity's prior density, atoms and conditioning.
-  marginal <- samples[[parameter]]
-  if (!precomputed || nrow(point_refs) == 0L) {
-    out <- BayesTools::hypothesis_BF(
-      posterior      = marginal,
-      hypothesis     = hypothesis,
-      parameter      = parameter,
-      logBF          = logBF,
-      BF01           = BF01,
-      seed           = seed,
-      columns        = columns,
-      density_method = if (precomputed) "KDE" else density_method
-    )
-    if (!is.null(defined_footnote)) {
-      attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
-    }
-    return(out)
-  }
-
-  if (is.null(density_control[["normalization_points"]])) {
-    density_control[["normalization_points"]] <- max(
-      50L,
-      density_control[["n_points"]]
-    )
-  }
-  context        <- .iwmde_context(object, density_control[["integration_control"]])
-  estimate_cache <- .iwmde_estimate_cache()
-  marginal <- .hypothesis_brma_attach_iwmde_scalar(
-    posterior                = marginal,
-    raw_posterior            = samples[[parameter]],
-    context                  = context,
-    estimate_cache           = estimate_cache,
-    parameter                = target[["parameter"]],
-    parameter_label          = parameter_label,
-    value                    = unique(point_refs[["value"]]),
-    conditional              = NULL,
-    n_points                 = density_control[["n_points"]],
-    samples                  = density_control[["samples"]],
-    target_relative_mcse     = density_control[["target_relative_mcse"]],
-    normalization_points     = density_control[["normalization_points"]],
-    normalization_prob       = density_control[["normalization_prob"]],
-    integration_control      = density_control[["integration_control"]],
-    density_method           = density_method,
-    parameter_spec           = target[["parameter_spec"]],
-    display_transform        = target[["display_transform"]]
-  )
-
-  out <- BayesTools::hypothesis_BF(
-    posterior      = marginal,
-    hypothesis     = hypothesis,
-    parameter      = parameter,
-    logBF          = logBF,
-    BF01           = BF01,
-    seed           = seed,
-    columns        = columns,
-    density_method = "precomputed"
-  )
-  .hypothesis_brma_append_iwmde_warnings(
-    table     = out,
-    posterior = marginal,
-    parameter = parameter
-  )
-}
-
 
 # Region hypotheses on a random-effect quantity without a canonical prior
 # density: prior probabilities from the quantity's prior draws.
 .hypothesis_brma_random_prior_draws <- function(
     object, parameter, selected, posterior, hypothesis,
-    standardized_coefficients, conditional, logBF, BF01, seed, n_samples,
+    standardized_coefficients, logBF, BF01, seed, n_samples,
     columns, density_method) {
 
-  if (conditional) {
-    stop(
-      "Conditional hypotheses are unavailable for random-effect quantity '",
-      selected[["spec"]][["label"]], "' because its prior density is ",
-      "unavailable.",
-      call. = FALSE
-    )
-  }
   prior <- .brma_random_parameter_select(
     object                    = object,
     parameter                 = parameter,
@@ -1089,14 +1010,19 @@ hypothesis.brma <- function(object, hypothesis,
     columns        = columns,
     density_method = density_method
   )
-  attr(out, "defined_footnote") <- .brma_random_parameter_defined_footnote(
+  footnote <- .brma_random_parameter_defined_footnote(
     label             = selected[["spec"]][["label"]],
     samples           = prior[["samples"]],
     posterior_defined = .brma_random_parameter_defined_share(object, posterior),
     prior_defined     = prior_defined
   )
+  if (!is.null(footnote)) {
+    attr(out, "footnotes") <- c(attr(out, "footnotes"), footnote)
+  }
+
   out
 }
+
 
 .hypothesis_brma_formula_coefficient_target <- function(
     object, selected) {
@@ -1145,347 +1071,6 @@ hypothesis.brma <- function(object, hypothesis,
 }
 
 
-.hypothesis_brma_formula_coefficient_level_targets <- function(
-    object, selected, point_refs) {
-
-  entry  <- selected[["entry"]]
-  levels <- unique(point_refs[["level"]][!is.na(point_refs[["level"]])])
-  if (selected[["component"]] %in% c("random", "bias") ||
-      is.null(entry) ||
-      !identical(entry[["role"]], "formula_coefficient_group") ||
-      length(levels) == 0L) {
-    return(list())
-  }
-
-  formula_parameter <- entry[["formula_parameter"]]
-  if (is.null(formula_parameter) || length(formula_parameter) != 1L ||
-      is.na(formula_parameter) || !nzchar(formula_parameter)) {
-    return(list())
-  }
-  transform <- BayesTools::JAGS_formula_coefficient_transform(
-    fit          = object[["fit"]],
-    parameter    = formula_parameter,
-    target_scale = "original"
-  )
-  if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["schema_version"]], 2L)) {
-    stop(
-      "Formula coefficient transformation metadata are unsupported. Refit ",
-      "the model with the current BayesTools version.",
-      call. = FALSE
-    )
-  }
-
-  occurrences <- selected[["resolution"]][["occurrences"]]
-  quantities  <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
-  term_label  <- .hypothesis_brma_alias_label(
-    selected[["aliases"]],
-    selected[["parameter"]]
-  )
-  out <- lapply(levels, function(level) {
-    # Messages name the level by its selector, never by its backend
-    # coordinate: with levels 1:4, coordinate 'mu_g[2]' is level 3.
-    selector <- paste0(term_label, "[", level, "]")
-    level_occurrences <- occurrences[
-      !is.na(occurrences[["level"]]) & occurrences[["level"]] == level,
-      ,
-      drop = FALSE
-    ]
-    level_name <- unique(level_occurrences[["canonical_name"]])
-    if (length(level_name) != 1L) {
-      stop(
-        "Factor level '", selector, "' is ambiguous in the fitted parameter ",
-        "catalog.",
-        call. = FALSE
-      )
-    }
-    quantity <- quantities[
-      quantities[["quantity_id"]] %in%
-        unique(level_occurrences[["quantity_id"]]),
-      ,
-      drop = FALSE
-    ]
-    # Canonical level names are level labels, never coordinates: a level is a
-    # fitted coefficient only when it is structurally one coordinate (a direct
-    # level cell), never by a unit design row of mean-difference or
-    # orthonormal coding.
-    target <- if (nrow(quantity) == 1L) {
-      .brma_catalog_level_coordinate(quantity, quantities)
-    }
-    target_i <- if (is.null(target)) {
-      NA_integer_
-    } else {
-      match(target, transform[["target_names"]])
-    }
-    if (is.na(target_i)) {
-      if (.hypothesis_brma_level_quantity_fixed(quantity)) {
-        return(NULL)
-      }
-      key <- if (nrow(quantity) == 1L) quantity[["extraction_key"]][[1L]]
-      if (is.null(target) && is.list(key) &&
-          identical(key[["type"]], "factor_level") &&
-          length(key[["dependencies"]]) > 0L) {
-        .hypothesis_brma_stop_combined_level(
-          selected   = selected,
-          quantities = quantities,
-          level      = level
-        )
-      }
-      stop(
-        "Resolved formula coefficient '", level_name,
-        "' is absent from the fitted coefficient transformation.",
-        call. = FALSE
-      )
-    }
-    # The level's weights on the original-scale coefficients: a direct level
-    # cell is its one coordinate.
-    target_info <- list(
-      formula_parameter = formula_parameter,
-      target            = target,
-      target_i          = target_i,
-      transform         = transform,
-      level_selector    = selector,
-      level_weights     = stats::setNames(1, target)
-    )
-    target_info[["route"]] <-
-      .hypothesis_brma_formula_transform_route(target_info)
-    target_info
-  })
-  names(out) <- levels
-  out <- out[!vapply(out, is.null, logical(1))]
-
-  return(out)
-}
-
-
-# A level quantity fixed by the contrast (the treatment reference level).
-.hypothesis_brma_level_quantity_fixed <- function(quantity) {
-
-  nrow(quantity) == 1L &&
-    (quantity[["status"]] %in% c("fixed", "structural") ||
-       is.finite(quantity[["fixed_value"]]))
-}
-
-
-# Levels of the selected factor term that point hypotheses reference and that
-# the contrast fixes (the treatment reference level).
-.hypothesis_brma_fixed_point_levels <- function(object, selected, point_refs) {
-
-  entry  <- selected[["entry"]]
-  levels <- unique(point_refs[["level"]][!is.na(point_refs[["level"]])])
-  if (length(levels) == 0L || is.null(entry) ||
-      selected[["component"]] %in% c("random", "bias") ||
-      !identical(entry[["role"]], "formula_coefficient_group")) {
-    return(character())
-  }
-
-  occurrences <- selected[["resolution"]][["occurrences"]]
-  quantities  <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
-  fixed <- vapply(levels, function(level) {
-    ids <- occurrences[["quantity_id"]][
-      !is.na(occurrences[["level"]]) & occurrences[["level"]] == level
-    ]
-    .hypothesis_brma_level_quantity_fixed(quantities[
-      quantities[["quantity_id"]] %in% unique(ids),
-      ,
-      drop = FALSE
-    ])
-  }, logical(1))
-
-  return(levels[fixed])
-}
-
-
-# Point statements on a level fixed by the contrast involve no posterior
-# density: the level's declared atom decides them. Evaluate them through the
-# KDE route of hypothesis.brma(), which handles declared atoms, so that a
-# qCMDE/IWMDE call reports the same reason as KDE instead of failing for lack
-# of an ordinate.
-.hypothesis_brma_check_fixed_level_points <- function(
-    object, posterior, hypothesis, parameter, fixed_levels, seed) {
-
-  refs <- BayesTools::hypothesis_parse_point_reference(
-    hypothesis     = hypothesis,
-    allow_compound = TRUE
-  )
-  statements <- unique(refs[["hypothesis"]][
-    refs[["direct"]] & refs[["parameter"]] == parameter &
-      !is.na(refs[["level"]]) & refs[["level"]] %in% fixed_levels
-  ])
-  if (length(statements) == 0L) {
-    return(invisible(TRUE))
-  }
-  tryCatch(
-    BayesTools::hypothesis_BF(
-      posterior      = posterior,
-      hypothesis     = statements,
-      parameter      = parameter,
-      seed           = seed,
-      density_method = "KDE"
-    ),
-    error = function(error) {
-      .hypothesis_brma_stop_point_mass(object, error)
-    }
-  )
-
-  return(invisible(TRUE))
-}
-
-
-# A spike-and-slab component puts a declared point mass at the null, so the
-# Savage-Dickey ratio is structurally unavailable rather than numerically
-# rejected. Name the supported alternative; rethrow other errors unchanged.
-# BayesTools signals prior and posterior point masses at the null with classed
-# conditions; they are matched by class, never by message.
-.hypothesis_brma_stop_point_mass <- function(object, error) {
-
-  point_mass <- inherits(error, c(
-    "BayesTools_point_mass_at_null",
-    "BayesTools_posterior_point_mass_at_null"
-  ))
-  if (!inherits(object, "RoBMA") || !point_mass) {
-    stop(error)
-  }
-  stop(
-    conditionMessage(error),
-    " This parameter has a null component, so its evidence against the ",
-    "null is the inclusion Bayes factor reported by 'summary()' and ",
-    "'summary_models()'.",
-    call. = FALSE
-  )
-}
-
-
-# A factor level that is not structurally one fitted coordinate (levels of
-# mean-difference and orthonormal coding, ordered levels beyond the first
-# increment) has no fitted coefficient whose prior ordinate a point hypothesis
-# could use.
-.hypothesis_brma_stop_combined_level <- function(selected, quantities, level) {
-
-  label    <- .hypothesis_brma_alias_label(
-    selected[["aliases"]],
-    selected[["parameter"]]
-  )
-  selector <- paste0(label, "[", level, "]")
-  members  <- unlist(
-    selected[["entry"]][["member_quantity_ids"]],
-    use.names = FALSE
-  )
-  others   <- setdiff(
-    quantities[["component"]][quantities[["quantity_id"]] %in% members],
-    level
-  )
-
-  stop(
-    "Point hypotheses on factor level '", selector, "' are not supported: ",
-    "the level is a linear combination of the fitted contrast coefficients ",
-    "(mean-difference, orthonormal, or ordered contrasts), not a fitted ",
-    "coefficient itself, and point hypotheses on a single level require a ",
-    "level fitted as its own coefficient (treatment or independent ",
-    "contrasts). Test the level with a region hypothesis such as '",
-    selector, " > 0'",
-    if (length(others) > 0L) {
-      paste0(" or a level contrast such as '", selector, " = ", label, "[",
-             others[[1L]], "]'")
-    },
-    ".",
-    call. = FALSE
-  )
-}
-
-
-# How messages name a formula coefficient target: a factor level by its
-# selector (e.g. 'g[10]'), never by the backend coordinate that the target
-# holds; a scalar coefficient by its parameter name.
-.hypothesis_brma_formula_target_name <- function(target_info) {
-
-  if (!is.null(target_info[["level_selector"]])) {
-    return(target_info[["level_selector"]])
-  }
-
-  return(target_info[["target"]])
-}
-
-
-.hypothesis_brma_formula_target_description <- function(target_info) {
-
-  paste0(
-    if (is.null(target_info[["level_selector"]])) {
-      "transformed coefficient"
-    } else {
-      "factor level"
-    },
-    " '", .hypothesis_brma_formula_target_name(target_info), "'"
-  )
-}
-
-
-.hypothesis_brma_formula_prior_target <- function(
-    object, samples, hypothesis, target_info, point_values = NULL,
-    force_linear = FALSE) {
-
-  if (is.null(target_info[["route"]])) {
-    target_info[["route"]] <-
-      .hypothesis_brma_formula_transform_route(target_info)
-  }
-  # Factor levels are weighted combinations of the original-scale
-  # coefficients; scalar coefficients are their own target.
-  level_weights <- target_info[["level_weights"]]
-  prior_density <- BayesTools::JAGS_formula_prior_density(
-    fit          = object[["fit"]],
-    parameter    = target_info[["formula_parameter"]],
-    target       = if (is.null(level_weights)) target_info[["target"]],
-    weights      = level_weights,
-    target_scale = "original",
-    context      = BayesTools::posterior_metadata(samples, "prior_context")
-  )
-  if (is.null(point_values)) {
-    refs <- .hypothesis_brma_point_refs(
-      hypothesis,
-      target_info[["target"]],
-      require_direct = FALSE
-    )
-    point_values <- refs[["value"]]
-  }
-  # The BayesTools exactness rule classifies each point value; a prior point
-  # mass or a zero, infinite or undefined ordinate stops in hypothesis_BF()
-  # with its classed condition.
-  if (length(point_values) > 0L) {
-    status <- BayesTools::prior_ordinate_status(prior_density, point_values)
-    if (any(status[["condition"]] %in% "BayesTools_inexact_ordinate")) {
-      stop(
-        "The induced prior ordinate for ",
-        .hypothesis_brma_formula_target_description(target_info),
-        " is not exact enough for a point-null Bayes factor.",
-        call. = FALSE
-      )
-    }
-  }
-
-  route   <- target_info[["route"]]
-  weights <- route[["weights"]]
-  parameter_spec <- if (identical(route[["type"]], "identity") &&
-                        !force_linear) {
-    list(type = "primitive", prior_density = prior_density)
-  } else if (route[["type"]] %in% c("identity", "affine")) {
-    list(type = "linear", weights = weights, prior_density = prior_density)
-  } else {
-    list(
-      type   = "unsupported_formula_transform",
-      reason = paste0(
-        "qCMDE/IWMDE does not support the fitted nonlinear joint transform ",
-        "for '", .hypothesis_brma_formula_target_name(target_info), "'. Use ",
-        "density_method = 'KDE' or standardized_coefficients = TRUE."
-      )
-    )
-  }
-
-  target_info[["prior_density"]] <- prior_density
-  target_info[["parameter_spec"]] <- parameter_spec
-  return(target_info)
-}
-
-
 # The fitted prior-list entries (formula terms) that own the coordinates a
 # formula coefficient target weights, from the coordinate table and the
 # formula name maps.
@@ -1513,324 +1098,6 @@ hypothesis.brma <- function(object, hypothesis,
       fixed[["jags_name"]][fixed[["term"]] %in% terms]
     }
   ), use.names = FALSE))
-}
-
-
-# The route of a formula coefficient target: its weights on the fitted
-# coordinates, and the map type and map support that BayesTools declares for
-# the target (identity, affine, exp_affine, or unsupported).
-.hypothesis_brma_formula_transform_route <- function(target_info) {
-
-  transform <- target_info[["transform"]]
-  target    <- target_info[["target"]]
-  name      <- .hypothesis_brma_formula_target_name(target_info)
-  if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["target_scale"]], "original")) {
-    return(list(
-      type   = "unsupported",
-      reason = paste0(
-        "The fitted coefficient transform for '", name,
-        "' lacks the certified structural metadata required for hypothesis testing."
-      )
-    ))
-  }
-
-  target_i <- target_info[["target_i"]]
-  weights  <- stats::setNames(
-    as.numeric(transform[["matrix"]][target_i, , drop = FALSE]),
-    colnames(transform[["matrix"]])
-  )
-  weights  <- weights[weights != 0]
-  if (length(weights) == 0L) {
-    return(list(
-      type   = "unsupported",
-      reason = paste0(
-        "The fitted coefficient '", name,
-        "' is structurally fixed and has no posterior hypothesis route."
-      )
-    ))
-  }
-  targets <- transform[["targets"]]
-  row     <- if (is.data.frame(targets) &&
-                 all(c("target", "map_type", "support") %in% names(targets))) {
-    match(target, targets[["target"]])
-  } else {
-    NA_integer_
-  }
-  if (is.na(row)) {
-    return(list(
-      type   = "unsupported",
-      reason = paste0(
-        "The fitted coefficient transform for '", name,
-        "' lacks the certified structural metadata required for hypothesis testing."
-      )
-    ))
-  }
-  map_type <- targets[["map_type"]][[row]]
-  if (map_type %in% c("identity", "affine", "exp_affine")) {
-    return(list(
-      type    = map_type,
-      weights = weights,
-      support = targets[["support"]][[row]]
-    ))
-  }
-
-  list(
-    type   = "unsupported",
-    reason = paste0(
-      "The fitted nonlinear joint coefficient transform for '", name,
-      "' is not supported by hypothesis()."
-    )
-  )
-}
-
-
-.hypothesis_brma_check_formula_point_support <- function(point_refs,
-                                                         target_info) {
-
-  support <- target_info[["route"]][["support"]]
-  if (nrow(point_refs) == 0L || is.null(support)) {
-    return(invisible(TRUE))
-  }
-  values <- point_refs[["value"]]
-  outside_or_boundary <-
-    !is.finite(values) |
-    (is.finite(support[[1L]]) & values <= support[[1L]]) |
-    (is.finite(support[[2L]]) & values >= support[[2L]])
-  if (any(outside_or_boundary)) {
-    stop(
-      "Point-null value ", values[which(outside_or_boundary)[[1L]]],
-      " is outside or on the boundary of the open support for ",
-      .hypothesis_brma_formula_target_description(target_info), ".",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
-}
-
-
-.hypothesis_brma_exp_affine_certify <- function(samples, target,
-                                                conditional) {
-
-  if (isTRUE(conditional)) {
-    stop(
-      "Nonlinear fitted-scale KDE hypotheses are unavailable for conditional ",
-      "product-space posteriors.",
-      call. = FALSE
-    )
-  }
-  sample <- samples[[target]]
-  if (is.null(sample) ||
-      !inherits(sample, "mixed_posteriors.simple")) {
-    stop(
-      "Nonlinear fitted-scale KDE hypotheses require a certified scalar ",
-      "mixed posterior.",
-      call. = FALSE
-    )
-  }
-  # BayesTools declares averaged (unconditioned) draws and atom-free draws in
-  # their metadata.
-  condition <- BayesTools::posterior_metadata(sample, "condition")
-  if (!isTRUE(condition[["averaged"]])) {
-    stop(
-      "Nonlinear fitted-scale KDE hypotheses require structural evidence for ",
-      "an unconditional posterior.",
-      call. = FALSE
-    )
-  }
-
-  if (!BayesTools::posterior_atoms_free(sample)) {
-    stop(
-      "Nonlinear fitted-scale KDE hypotheses require structural evidence that ",
-      "the posterior is atom-free.",
-      call. = FALSE
-    )
-  }
-
-  prior_densities <- BayesTools::posterior_metadata(samples, "prior_densities")
-  prior_density   <- prior_densities[[target]]
-  prior_points    <- prior_density[["points"]]
-  prior_atom_free <- inherits(prior_density, "prior_density") &&
-    is.data.frame(prior_points) &&
-    all(c("x", "p") %in% names(prior_points)) &&
-    nrow(prior_points) == 0L
-  if (!prior_atom_free) {
-    stop(
-      "Nonlinear fitted-scale KDE hypotheses require structural evidence that ",
-      "the prior is atom-free.",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
-}
-
-
-.hypothesis_brma_exp_affine_kde <- function(
-    object, samples, hypothesis, parameter, target_info, conditional, logBF,
-    BF01, seed, n_samples, columns) {
-
-  if (is.null(target_info) ||
-      !identical(target_info[["route"]][["type"]], "exp_affine")) {
-    stop("Internal error: the exp(affine) hypothesis route was not certified.",
-         call. = FALSE)
-  }
-  target <- target_info[["target"]]
-  .hypothesis_brma_exp_affine_certify(
-    samples     = samples,
-    target      = target,
-    conditional = conditional
-  )
-  route_kind <- .hypothesis_brma_exp_affine_route_kind(hypothesis)
-  if (!target %in% names(samples)) {
-    stop("Transformed posterior draws for '", target, "' are unavailable.",
-         call. = FALSE)
-  }
-  prior <- BayesTools::transform_prior_samples(
-    fit       = object[["fit"]],
-    n_samples = n_samples,
-    seed      = seed
-  )
-  if (is.null(colnames(prior)) || !target %in% colnames(prior)) {
-    stop("Transformed prior draws for '", target, "' are unavailable.",
-         call. = FALSE)
-  }
-
-  posterior_values <- as.numeric(samples[[target]])
-  prior_values     <- as.numeric(prior[, target])
-  if (length(posterior_values) < 2L || length(prior_values) < 2L ||
-      any(!is.finite(posterior_values)) || any(!is.finite(prior_values))) {
-    stop("Finite transformed prior and posterior draws are required for '",
-         target, "'.", call. = FALSE)
-  }
-  original_hypothesis <- hypothesis
-  if (identical(route_kind, "point")) {
-    if (any(posterior_values <= 0) || any(prior_values <= 0)) {
-      stop(
-        "Positive transformed prior and posterior draws are required for ",
-        "exp(affine) point hypotheses.",
-        call. = FALSE
-      )
-    }
-    posterior_values <- log(posterior_values)
-    prior_values     <- log(prior_values)
-    hypothesis <- .hypothesis_brma_exp_affine_log_hypothesis(
-      hypothesis = hypothesis
-    )
-  }
-  posterior <- stats::setNames(data.frame(posterior_values), parameter)
-  prior     <- stats::setNames(data.frame(prior_values), parameter)
-
-  out <- BayesTools::hypothesis_BF(
-    posterior      = posterior,
-    prior          = prior,
-    hypothesis     = hypothesis,
-    parameter      = parameter,
-    logBF          = logBF,
-    BF01           = BF01,
-    seed           = seed,
-    columns        = columns,
-    density_method = "KDE"
-  )
-  if (identical(route_kind, "point")) {
-    out <- .hypothesis_brma_restore_hypothesis_labels(
-      out        = out,
-      hypothesis = original_hypothesis
-    )
-    out <- .hypothesis_brma_exp_affine_restore_density_scale(
-      out        = out,
-      hypothesis = original_hypothesis
-    )
-  }
-
-  return(out)
-}
-
-
-.hypothesis_brma_exp_affine_restore_density_scale <- function(
-    out, hypothesis) {
-
-  density_columns <- intersect(c("prior", "posterior"), names(out))
-  if (length(density_columns) == 0L) {
-    return(out)
-  }
-  points <- vapply(hypothesis[["statements"]], function(statement) {
-
-    values <- vapply(c("left", "right"), function(side_name) {
-      statement[[side_name]][["value"]]
-    }, numeric(1))
-    if (!isTRUE(all.equal(values[[1L]], values[[2L]])) ||
-        !is.finite(values[[1L]]) || values[[1L]] <= 0) {
-      stop(
-        "Internal error: exp(affine) point-density scales are invalid.",
-        call. = FALSE
-      )
-    }
-
-    values[[1L]]
-  }, numeric(1))
-  if (nrow(out) != length(points)) {
-    stop("Internal error: transformed density rows are misaligned.",
-         call. = FALSE)
-  }
-  for (column in density_columns) {
-    out[[column]] <- out[[column]] / points
-  }
-
-  return(out)
-}
-
-
-.hypothesis_brma_exp_affine_route_kind <- function(hypothesis) {
-
-  statements <- hypothesis[["statements"]]
-  side_types <- unlist(lapply(statements, function(statement) {
-    c(statement[["left"]][["type"]], statement[["right"]][["type"]])
-  }), use.names = FALSE)
-  point_side <- side_types %in% c("point", "not_point")
-  if (any(point_side) && any(!point_side)) {
-    stop(
-      "exp(affine) hypotheses cannot mix point and region statements. ",
-      "Evaluate point and directional hypotheses in separate calls.",
-      call. = FALSE
-    )
-  }
-
-  if (any(point_side)) "point" else "region"
-}
-
-
-.hypothesis_brma_exp_affine_log_hypothesis <- function(hypothesis) {
-
-  statements <- hypothesis[["statements"]]
-  transformed <- vapply(statements, function(statement) {
-
-    sides <- lapply(c("left", "right"), function(side_name) {
-      side <- statement[[side_name]]
-      operator <- switch(
-        side[["type"]],
-        point     = "=",
-        not_point = "!=",
-        stop("Internal error: expected a direct point statement.",
-             call. = FALSE)
-      )
-      expression <- side[["expression"]][["source"]]
-      if (!is.character(expression) || length(expression) != 1L ||
-          !nzchar(expression)) {
-        stop("Internal error: direct point expression source is unavailable.",
-             call. = FALSE)
-      }
-      paste(expression, operator, sprintf("%.17g", log(side[["value"]])))
-    })
-    if (isTRUE(statement[["explicit"]])) {
-      paste(sides[[1L]], "vs", sides[[2L]])
-    } else {
-      sides[[1L]]
-    }
-  }, character(1))
-
-  BayesTools::hypothesis_parse(transformed)
 }
 
 

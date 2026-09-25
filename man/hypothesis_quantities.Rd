@@ -18,10 +18,33 @@ hypothesis_quantities(object, ...)
 \item{...}{unused.}
 }
 \value{
-A data frame of available quantities, components, aliases, and
-method-level test eligibility notes.
+A data frame with the columns \code{alias}, \code{parameter},
+\code{component}, \code{term}, \code{bracket} (the level selector of factor
+terms), \code{point_test}, \code{direction_test}, \code{contrast_test}
+(\code{NA} for quantities without levels), \code{point_test_methods},
+\code{contrast_test_methods}, and \code{reason} (the refusals of the
+rendered statements).
 }
 \description{
 Lists parameter names and aliases accepted by
-\code{hypothesis()} for a fitted object.
+\code{hypothesis()} for a fitted object, with the tests that
+\code{hypothesis()} runs on each of them.
+}
+\details{
+The eligibility columns render the plans that \code{hypothesis()}
+executes (see the details of \code{\link[=hypothesis]{hypothesis()}}) for the statements
+\code{<q> = <null>} (point tests), \code{<q> > <null>} (directional and
+interval tests), and, for factor terms, \code{<level> = <other level>}
+(level contrasts) of every quantity \code{q}. The null value is 0; when 0
+is a prior point mass, a support boundary without a regular prior
+ordinate, or outside the support (for example, a gated random-effect
+standard deviation or a variance proportion), the point test is rendered
+at an interior value of the support instead (the midpoint of a bounded
+support, one unit inside a half-bounded support, and 1 otherwise): point
+hypotheses at such values follow the per-value rules of
+\code{hypothesis()}. A factor term lists the point-test methods available
+for all of its levels that the contrast does not fix, and the
+contrast-test methods available for all pairs of its levels. Region tests
+do not use a density method. The normal approximation is a rough check
+and is not listed.
 }

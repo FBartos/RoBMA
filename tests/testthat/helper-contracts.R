@@ -440,3 +440,115 @@ formula_transform_targets <- function(map_types, output_transforms) {
   })
   out
 }
+
+# A fitted-object stand-in with a gated total-variance allocation of a
+# half-normal SD over 'study' (inclusion gate with prior probability 0.5) and
+# 'esid' (ungated), Dirichlet(1, 1) shares, and synthetic draws.
+gated_random_object <- function(n = 200L) {
+
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag") +
+      random(1 | esid, name = "esid", covariance = "diag"),
+    parameter = "mu",
+    data = data.frame(study = factor(c("a", "a", "b", "b")), esid = factor(1:4)),
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(
+      sd = BayesTools::prior("gamma", list(2, 2)),
+      allocation = list(BayesTools::random_variance_allocation(
+        name = "split", terms = c(study = "study", esid = "esid"),
+        sd = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
+        inclusion = list(study = BayesTools::prior("spike", list(location = .5)))
+      ))
+    )
+  )
+  share <- seq(0.02, 0.98, length.out = n)
+  samples <- cbind(
+    mu_intercept = rep(c(-0.1, 0.1), length.out = n),
+    mu__xRE_ALLOCx_split__allocation_sd = 0.3 + 0.4 * share,
+    "mu__xRE_ALLOCx_split__weight[1]" = share,
+    "mu__xRE_ALLOCx_split__weight[2]" = 1 - share,
+    mu__xRE_ALLOCx_split__include_study_indicator = rep(c(0, 1), length.out = n)
+  )
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  attr(fit, "prior_list") <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = result[["formula_design"]])
+
+  structure(
+    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
+    class = c("RoBMA", "brma.mv", "brma")
+  )
+}
+
+# A fitted-object stand-in with one ungated random-intercept SD with prior
+# 'prior' and constant draws 0.2 (a sampled quantity whose retained draws
+# happen to be constant, or a structural one for a spike prior).
+single_sd_random_object <- function(prior) {
+
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag"),
+    parameter = "mu",
+    data = data.frame(study = factor(c("a", "a", "b", "b"))),
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(sd = prior)
+  )
+  sd_name <- result[["formula_design"]][["random_effects"]][[1L]][["sd_parameter_names"]]
+  samples <- cbind(mu_intercept = seq(-.2, .2, length.out = 20L), sd = .2)
+  colnames(samples)[2L] <- sd_name
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  attr(fit, "prior_list") <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = result[["formula_design"]])
+
+  structure(list(
+    fit  = as_bayestools_fit(fit),
+    data = structure(list(), random = TRUE)
+  ), class = c("brma.mv", "brma"))
+}
+
+# A fitted-object stand-in with a nested variance allocation: a gamma SD
+# allocated over the blocks 'study' and 'drug', and the study share split
+# over the intercept and slope SD components of 'study'. The study
+# components multiply two Dirichlet shares: BayesTools gives them a
+# plotting density whose ordinates are not structurally exact. All draws are
+# 0.5.
+nested_allocation_random_object <- function() {
+
+  data <- data.frame(
+    study = factor(c("s1", "s1", "s2", "s2")),
+    drug  = factor(c("a", "b", "a", "b")),
+    x     = c(-1, 0, 1, 2)
+  )
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 + x | study, name = "study", covariance = "diag") +
+      random(1 | drug, name = "drug", covariance = "diag"),
+    parameter = "mu",
+    data = data,
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(
+      root = BayesTools::random_variance_allocation(
+        name = "root", terms = c(study = "study", drug = "drug"),
+        sd = BayesTools::prior("gamma", list(2, 2))
+      ),
+      split = BayesTools::random_variance_allocation(
+        name = "split", terms = "study", target = "sd_component",
+        parent = BayesTools::allocation_ref("root", "study")
+      )
+    )
+  )
+  prior_list <- result[["prior_list"]]
+  columns <- unique(unlist(lapply(names(prior_list), function(parameter) {
+    BayesTools:::.prior_linear_prior_columns(parameter, prior_list[[parameter]])
+  })))
+  samples <- matrix(.5, 4L, length(columns), dimnames = list(NULL, columns))
+  # A runjags-like fit, so that prior draws can replace its draws.
+  fit <- structure(
+    list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = 4L),
+    class = c("runjags", "list")
+  )
+  attr(fit, "prior_list") <- prior_list
+  attr(fit, "formula_design") <- list(mu = result[["formula_design"]])
+
+  structure(
+    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
+    class = c("brma.mv", "brma")
+  )
+}

@@ -110,27 +110,6 @@
 }
 
 
-.hypothesis_brma_select_statements <- function(object, hypothesis,
-                                               component, metadata = NULL) {
-
-  if (is.null(metadata)) {
-    metadata <- .brma_parameter_catalog_metadata(object)
-  }
-
-  statements <- BayesTools::hypothesis_render(
-    .hypothesis_brma_ast(hypothesis, metadata[["catalog"]])
-  )
-  lapply(statements, function(statement) {
-    .hypothesis_brma_select_parameter(
-      object     = object,
-      hypothesis = .hypothesis_brma_ast(statement, metadata[["catalog"]]),
-      component  = component,
-      metadata   = metadata
-    )
-  })
-}
-
-
 .hypothesis_brma_stop_multiple_parameters <- function(entries) {
 
   stop(

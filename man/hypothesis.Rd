@@ -70,7 +70,7 @@ for fitted \code{brma} objects. \code{"KDE"} uses the standard BayesTools
 kernel density estimate. \code{"normal"} uses the
 BayesTools normal approximation for point-null hypotheses on fitted
 \code{brma} objects. \code{"qCMDE"} and \code{"IWMDE"} attach RoBMA
-likelihood-aware posterior ordinates for direct point-null hypotheses and
+likelihood-aware posterior ordinates for point-null hypotheses and
 propagate their \code{BF_error} estimates printed as \code{error\%(BF)}.
 \code{BF_error} is a Monte Carlo diagnostic for the computed posterior
 ordinate, not a complete standard error. For a subsampled mixed posterior it
@@ -87,16 +87,30 @@ default \code{NULL} reuses the density method stored by
 \code{"qCMDE"} and \code{"IWMDE"} compute missing point-null ordinates from
 the stored source model. Matching is case-insensitive. qCMDE/IWMDE ordinates
 use the exact fitted-to-original structural coefficient map and induced
-prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps.
-For nonlinear joint maps, such as an exponentiated intercept that also
-depends on varying slopes, KDE point and directional hypotheses are available
-only when structural metadata certifies an atom-free, unconditional scalar
-target and the point is inside the open transformed support. Alternatively,
-use \code{standardized_coefficients = TRUE}. Atom-free pairwise contrasts
-across levels of one single-model factor are supported. Certified
-\code{exp(affine)} point equalities are evaluated on
-the inverse log/affine scale, where the prior and posterior Jacobians cancel;
-calls mixing point and region statements must be evaluated separately.}
+prior density stored by BayesTools. qCMDE/IWMDE supports exact linear maps:
+coefficients, factor levels of every contrast, and linear combinations of
+levels. For nonlinear joint maps, such as an exponentiated intercept that
+also depends on varying slopes, KDE point and directional hypotheses are
+available only when structural metadata certifies an atom-free,
+unconditional scalar target and the point is inside the open transformed
+support. Alternatively, use \code{standardized_coefficients = TRUE}.
+
+Every statement is planned before it is evaluated: the plan records the
+tested target (its weights on the fitted coefficients, its BayesTools
+prior density and declared atoms), the classification of each point value
+by \code{BayesTools::prior_ordinate_status()}, and whether each density
+method can evaluate it; \code{\link[=hypothesis_quantities]{hypothesis_quantities()}} renders the same plans.
+A point hypothesis whose prior ordinate is not exact, finite, and regular
+stops with the BayesTools condition class (for example
+\code{BayesTools_point_mass_at_null}, \code{BayesTools_infinite_ordinate},
+or \code{BayesTools_inexact_ordinate}). Other refusals have the class
+\code{RoBMA_hypothesis_unavailable} and one of
+\code{RoBMA_hypothesis_fixed} (the quantity is fixed by the fitted model),
+\code{RoBMA_hypothesis_target} (no supported target or prior density),
+\code{RoBMA_hypothesis_method} (the density method is unavailable for the
+target), or \code{RoBMA_hypothesis_statement} (the form of the statement
+is unsupported); linear combinations that BayesTools cannot certify keep
+the class \code{BayesTools_linear_target_unavailable}.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
@@ -170,15 +184,21 @@ diagnostics rather than probabilities for all hypothesis types.}
 infers the component when possible. Use \code{"mods"} (alias
 \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
 terms used in multiple model components. The random component supports
-interval and directional hypotheses for semantic standard deviation,
-correlation, and allocation quantities. Point-null hypotheses require a
-direct parameter or level reference. Certified \code{exp(affine)}
-fitted-scale hypotheses are available with KDE only for atom-free,
-unconditional scalar targets. Realized gated allocation totals and
-proportions can contain structural point masses and therefore support only
-interval and directional hypotheses; variance proportions condition on
-positive realized total heterogeneity. Publication-bias parameters are not
-supported.}
+point, interval, and directional hypotheses for semantic standard
+deviation, variance, correlation, and allocation quantities. Point-null
+hypotheses require a direct parameter reference, a factor level, or a
+linear combination of the levels of one factor term (for example
+\code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
+random-effect variance are evaluated through its standard deviation, so
+that both give the same Bayes factor; such statements cannot be combined
+with region statements. Certified \code{exp(affine)} fitted-scale
+hypotheses are available with KDE only for atom-free, unconditional scalar
+targets. Values at a prior point mass (for example, gated components at
+0) have no Savage-Dickey Bayes factor; the Component Inclusion table
+compares the exclusion and inclusion of gated components. Point nulls at
+an exact support boundary (for example, a variance proportion at 0) use
+the one-sided prior ordinate when BayesTools classifies it as exact,
+finite, and positive. Publication-bias parameters are not supported.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}
@@ -188,7 +208,9 @@ model-averaging objects. Defaults to \code{FALSE}. When this argument is
 omitted and the selected parameter has both null and alternative components,
 a warning notes that the full ensemble is used. Pass \code{FALSE} explicitly
 to retain that test without the warning, or \code{TRUE} to test only models
-where the parameter is active.}
+where the parameter is active. Point hypotheses on linear combinations of
+factor levels of model-averaged objects require \code{conditional = TRUE}:
+the levels share the null component of the averaged prior.}
 
 \item{n_samples}{number of prior samples/grid points used by BayesTools for
 deterministic marginal prior densities.}
@@ -210,7 +232,9 @@ Model-averaged point-null hypotheses use alternative-conditioned draws to
 avoid null atoms in averaged marginals. For model-averaged objects,
 hypotheses that mix point and region events, and point hypotheses spanning
 multiple factor levels, are not supported. Single-model hypotheses use one
-common averaged posterior and may combine these events.
+common averaged posterior and may combine these events. Point hypotheses
+require the exact prior ordinate that BayesTools attaches to the marginal
+mean, as for fitted objects.
 
 For a continuous focal parameter \eqn{\theta}, nuisance parameters
 \eqn{\xi}, and an unnormalized joint posterior kernel

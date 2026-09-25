@@ -14,6 +14,9 @@ context("Point-test eligibility of scalar formula coefficients")
 #   components put a point mass at 0, and point hypotheses elsewhere use the
 #   continuous part, which is exact per component for the default normal
 #   priors and for Cauchy alternatives.
+# A quantity whose prior ordinate BayesTools does not classify exactly (the
+# SD components of nested variance allocations) is covered by
+# test-00-hypothesis-plan.R.
 .scalar_eligibility_cache <- new.env(parent = emptyenv())
 
 .scalar_eligibility_fits <- function() {

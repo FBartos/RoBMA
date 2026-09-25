@@ -608,7 +608,7 @@ lines.brma <- function(
   if (standardized_coefficients) {
     return(NULL)
   }
-  target <- .hypothesis_brma_formula_coefficient_target(
+  route <- .brma_formula_coefficient_route(
     object = object,
     selected = list(
       parameter = parameter,
@@ -616,10 +616,9 @@ lines.brma <- function(
       entry     = parameter_entry
     )
   )
-  if (is.null(target)) {
+  if (is.null(route)) {
     return(NULL)
   }
-  route <- .hypothesis_brma_formula_transform_route(target)
   if (identical(route[["type"]], "identity")) {
     return(list(type = "primitive"))
   }

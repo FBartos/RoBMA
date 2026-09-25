@@ -90,18 +90,17 @@ test_that("hypothesis warns only for omitted conditioning on null-component ense
     "the hypothesis only within models where mu is active, use conditional = TRUE."
   )
 
+  statement <- BayesTools::hypothesis_parse("mu > 0")
   testthat::local_mocked_bindings(
     .brma_parameter_catalog_metadata = .mock_hypothesis_mu_catalog_metadata,
-    .hypothesis_brma_select_parameter = function(...) {
-      list(
-        parameter = "mu",
-        aliases   = list(mu = "mu"),
-        component = "outcome",
-        entry     = list()
-      )
+    .hypothesis_plans = function(...) {
+      list(list(
+        parameter = "mu", label = "mu", route = "scalar",
+        group = "scalar\rmu", methods = list(),
+        statement = statement, hypothesis = statement
+      ))
     },
-    .hypothesis_brma_formula_coefficient_target = function(...) NULL,
-    .brma_as_mixed_posteriors = function(...) {
+    .hypothesis_plan_execute_scalar = function(...) {
       stop("downstream sentinel", call. = FALSE)
     },
     .package = "RoBMA"
@@ -198,26 +197,31 @@ test_that("qCMDE factor point guards use display aliases", {
     ),
     "alloc\\[level\\] = 0"
   )
-  expect_error(
-    .hypothesis_marginal_means_attach_iwmde(
-      object = list(
-        density_method = "qCMDE",
-        source_object  = structure(
-          list(fit = list()),
-          class = c("RoBMA", "brma")
-        ),
-        inference      = list(
-          conditional = list(mu_alloc = list(random = 0, systematic = 1))
-        )
-      ),
-      parameter       = "mu_alloc",
-      parameter_label = "alloc",
-      hypothesis      = "mu_alloc = 0",
-      density_method  = "qCMDE",
-      density_control = NULL
-    ),
-    "alloc\\[level\\] = 0"
+  level <- function(value) with_draw_metadata(
+    value,
+    class         = c("marginal_posterior.simple", "marginal_posterior"),
+    prior_density = BayesTools::prior("normal", list(0, 1)),
+    atoms         = BayesTools::posterior_atom_attribute()
   )
+  means  <- list(mu_alloc = list(random = level(0), systematic = level(1)))
+  object <- structure(list(
+    density_method = "qCMDE",
+    source_object  = structure(
+      list(fit = list(fitted = TRUE)),
+      class = c("RoBMA", "brma")
+    ),
+    term_map  = data.frame(term = "alloc", parameter = "mu_alloc"),
+    inference = list(averaged = means, conditional = means)
+  ), class = "marginal_means.brma")
+  plan <- .hypothesis_plan_marginal_means(object, "alloc = 0")
+  expect_null(.hypothesis_plan_status(plan, "KDE"))
+  for (method in c("qCMDE", "IWMDE")) {
+    expect_match(
+      .hypothesis_plan_status(plan, method)[["reason"]],
+      "alloc\\[level\\] = 0",
+      info = method
+    )
+  }
 })
 
 
@@ -266,19 +270,16 @@ test_that("qCMDE scalar rejection uses the public parameter label", {
 
 test_that("hypothesis defaults to qCMDE and guards unsupported random formulas", {
 
-  object <- .mock_random_non_known_v_brma_mv()
-  testthat::local_mocked_bindings(
-    .brma_parameter_catalog_metadata = .mock_hypothesis_mu_catalog_metadata,
-    .package = "RoBMA"
-  )
+  object <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))
 
   expect_error(
     hypothesis.brma(
       object,
-      "mu = 0",
+      "mu_intercept = 0",
       density_control = list(n_points = 20, samples = 20)
     ),
-    "qCMDE/IWMDE hypothesis\\(\\).*random-formula"
+    "random-formula",
+    class = "RoBMA_hypothesis_method"
   )
 })
 
@@ -557,26 +558,20 @@ test_that("hypothesis alias rewriting preserves trailing level-reference backtic
 
 test_that("hypothesis quantities do not advertise normal point tests", {
 
-  testthat::local_mocked_bindings(
-    .brma_parameter_catalog = function(object) {
+  skip_on_cran()
+  skip_if_missing_fits("dat.lehmann2018-3PSM")
+  fit <- load_fit("dat.lehmann2018-3PSM")
 
-      data.frame(
-        alias      = c("mu", "tau", "omega"),
-        parameter  = c("mu", "tau", "omega"),
-        component  = c("mods", "scale", "bias"),
-        term       = c("mu", "tau", "omega"),
-        stringsAsFactors = FALSE,
-        check.names = FALSE
-      )
-    },
-    .package = "RoBMA"
-  )
-
-  quantities <- hypothesis_quantities(structure(list(), class = "brma"))
+  quantities <- hypothesis_quantities(fit)
 
   expect_false(any(quantities[["component"]] == "bias"))
   expect_equal(unique(quantities[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
   expect_false(any(grepl("\\bnormal\\b", quantities[["point_test_methods"]])))
+  # The normal approximation is available but not listed.
+  expect_s3_class(
+    suppressWarnings(hypothesis(fit, "mu = 0.1", density_method = "normal")),
+    "BayesTools_hypothesis_BF"
+  )
 })
 
 
@@ -636,19 +631,28 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
   fit <- load_fit("dat.lehmann2018_RoBMA_3lvl_mods_scale")
   quantities <- hypothesis_quantities(fit)
 
-  expect_true(all(c("point_test", "direction_test", "reason") %in% names(quantities)))
-  # Levels of the mean-difference factor are linear combinations of the
-  # contrast coefficient, so their point hypotheses stop; the other
-  # quantities keep every point-test method.
+  expect_true(all(c("point_test", "direction_test", "contrast_test", "reason") %in%
+                    names(quantities)))
+  # The levels of the model-averaged mean-difference factor have a point
+  # mass at 0 (the null component), and BayesTools does not classify their
+  # continuous prior ordinates exactly; their unconditional contrasts have
+  # an atom at 0. The other quantities keep every point-test method.
   factor_rows <- quantities[["term"]] == "Preregistered"
   expect_equal(
     unique(quantities[["point_test_methods"]][!factor_rows]),
     "KDE, qCMDE, IWMDE"
   )
   expect_false(any(quantities[["point_test"]][factor_rows]))
+  expect_false(any(quantities[["contrast_test"]][factor_rows]))
+  expect_true(all(quantities[["direction_test"]][factor_rows]))
   expect_identical(unique(quantities[["point_test_methods"]][factor_rows]), "")
   expect_true(all(grepl(
-    "Point hypotheses are not supported for levels",
+    "no exact structural classification",
+    quantities[["reason"]][factor_rows],
+    fixed = TRUE
+  )))
+  expect_true(all(grepl(
+    "test the combination within the models that include the term with conditional = TRUE",
     quantities[["reason"]][factor_rows],
     fixed = TRUE
   )))
@@ -674,11 +678,31 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
         density_method = "KDE",
         n_samples      = 1000
       )),
-      "Point hypotheses on factor level",
+      "inclusion Bayes factor",
       fixed = TRUE,
+      class = "BayesTools_point_mass_at_null",
+      info  = parameter
+    )
+    expect_error(
+      suppressWarnings(hypothesis(
+        fit,
+        paste0(parameter, "[Pre-Registered] = 0.1"),
+        density_method = "KDE",
+        n_samples      = 1000
+      )),
+      class = "BayesTools_inexact_ordinate",
       info  = parameter
     )
   }
+  # Within the models that include the term, the level contrast is defined.
+  contrast <- suppressWarnings(hypothesis(
+    fit,
+    "mu_Preregistered[Pre-Registered] = mu_Preregistered[Not Pre-Registered]",
+    density_method = "KDE",
+    n_samples      = 1000,
+    conditional    = TRUE
+  ))
+  expect_true(is.finite(attr(contrast, "raw_BF")))
 
   expect_error(
     hypothesis(
@@ -1541,6 +1565,8 @@ test_that("marginal means hypotheses select averaged or conditioned marginals", 
       class = c("marginal_posterior.simple", "numeric"),
       marker = label
     )
+    BayesTools::posterior_metadata(level, "prior_density") <-
+      BayesTools::prior("normal", list(0, 1))
     out <- structure(
       list(alternate = level),
       class     = c("marginal_posterior.factor", "list"),
@@ -1669,13 +1695,31 @@ test_that("marginal means routes level-contrast KDE through the certified target
   class(object) <- "marginal_means.brma"
 
   captured <- NULL
+  used     <- NULL
+  target_posterior <- with_draw_metadata(
+    seq(-1.5, 0.5, length.out = 20),
+    class         = c("marginal_posterior.simple", "marginal_posterior"),
+    prior_density = BayesTools::prior("normal", list(0, sqrt(2)))
+  )
   testthat::local_mocked_bindings(
-    .hypothesis_brma_level_contrast_BF = function(...) {
-
-      captured <<- list(...)
-      return("ok")
+    hypothesis_linear_target = function(posterior, hypothesis, parameter) {
+      captured <<- list(posterior = posterior, hypothesis = hypothesis,
+                        parameter = parameter)
+      list(
+        posterior  = target_posterior,
+        hypothesis = BayesTools::hypothesis_rewrite(
+          BayesTools::hypothesis_parse("theta < 0 vs theta = 0"),
+          c(theta = "contrast")
+        ),
+        parameter  = "contrast",
+        weights    = c(random = 1, alternate = -1)
+      )
     },
-    .package = "RoBMA"
+    hypothesis_BF = function(posterior, density_method, ...) {
+      used <<- list(posterior = posterior, density_method = density_method)
+      data.frame(BF = 1)
+    },
+    .package = "BayesTools"
   )
 
   out <- hypothesis(
@@ -1687,10 +1731,12 @@ test_that("marginal means routes level-contrast KDE through the certified target
     density_method = "KDE"
   )
 
-  expect_equal(out, "ok")
-  expect_identical(captured[["density_method"]], "KDE")
+  expect_identical(out[["BF"]], 1)
   expect_identical(captured[["posterior"]], level_posterior)
+  expect_identical(captured[["parameter"]], "mu_alloc")
   expect_s3_class(captured[["hypothesis"]], "BayesTools_hypothesis_ast")
+  expect_identical(used[["density_method"]], "KDE")
+  expect_identical(used[["posterior"]], target_posterior)
 })
 
 
@@ -1951,26 +1997,31 @@ test_that("certified exp-affine KDE respects its open support", {
   }
   fit <- load_fit(fit_name, validate = FALSE)
 
-  point <- hypothesis(
-    fit,
-    "log_tau_intercept = 0.2",
-    component      = "scale",
-    density_method = "KDE",
-    n_samples      = 500,
-    seed           = 1
+  # The original-scale heterogeneity intercept combines the truncated-normal
+  # log intercept with the scaled slope: its certified prior density is a
+  # general numerical convolution without an exact ordinate, so point tests
+  # are refused with the BayesTools class; region tests use the density.
+  expect_error(
+    hypothesis(
+      fit,
+      "log_tau_intercept = 0.2",
+      component      = "scale",
+      density_method = "KDE",
+      n_samples      = 500,
+      seed           = 1
+    ),
+    class = "BayesTools_inexact_ordinate"
   )
-  direction <- hypothesis(
+  direction <- expect_silent(hypothesis(
     fit,
     "log_tau_intercept > 0.2",
     component      = "scale",
     density_method = "KDE",
     n_samples      = 500,
     seed           = 1
-  )
+  ))
 
-  expect_s3_class(point, "BayesTools_hypothesis_BF")
   expect_s3_class(direction, "BayesTools_hypothesis_BF")
-  expect_true(is.finite(attr(point, "raw_BF")))
   expect_true(is.finite(attr(direction, "raw_BF")))
   expect_error(
     hypothesis(

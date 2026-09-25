@@ -116,10 +116,8 @@
 - explains that selectors of factor contrast coefficients (`g{1}`, the `{j}`
   coefficients of mean-difference, orthonormal, and ordered factors) are not
   supported in `hypothesis()` and `plot()` and names the level-label form such
-  as `g[5]`, instead of asking to refit the model. Point hypotheses on levels
-  that are linear combinations of the contrast coefficients stop with a
-  message naming the region and level-contrast hypotheses that remain
-  available. Treatment levels are their own coefficients: their `g{1}`
+  as `g[5]`, instead of asking to refit the model. Treatment levels are their
+  own coefficients: their `g{1}`
   selectors stop with the BayesTools refusal of class
   `BayesTools_selector_unavailable`, which names the level form (`g[10]`).
   Brace labels of random-slope quantities, such as `tau(g{1})`, are
@@ -145,19 +143,50 @@
   (`g1 (1)`, `g1 (3)`), also when the statements target several quantities.
   Single-statement tables keep the plain label and table warnings follow their
   rows; repeated rows were previously named `mu_group.1` or `g11`.
-- reports in `hypothesis_quantities()` which quantities accept point
-  hypotheses, consistently with `hypothesis()`. Factor terms with levels that
-  are linear combinations of the contrast coefficients or whose fitted
-  coefficient has no exact prior ordinate (mean-difference, orthonormal, and
-  ordered levels), and scalar coefficients whose induced original-scale prior
-  has no exact ordinate (e.g. an intercept combined by predictor
-  standardization with a Cauchy slope or with a model-averaged slope) report
-  `point_test = FALSE` with a reason.
-- gives point hypotheses on a factor level fixed by the contrast (the
-  treatment reference level) the same reason under the default qCMDE and under
-  IWMDE as under KDE, instead of "linear weights are all zero". When
-  qCMDE/IWMDE are unavailable for a random-effect quantity, the message now
-  names the requested operation (e.g. point hypotheses rather than plots).
+- plans every hypothesis statement once: the plan records the tested target
+  (its weights on the fitted coefficients, its BayesTools prior density and
+  declared atoms), classifies each point value with
+  `BayesTools::prior_ordinate_status()`, and states whether KDE, qCMDE, IWMDE,
+  and the normal approximation can evaluate it. `hypothesis()`,
+  `hypothesis()` on marginal means, and `hypothesis_quantities()` execute or
+  render these plans only, so a quantity listed as testable is tested, and a
+  refused statement stops with the same reason for every call. Refusals keep
+  the BayesTools condition classes (e.g. `BayesTools_point_mass_at_null`,
+  `BayesTools_infinite_ordinate`, `BayesTools_inexact_ordinate`,
+  `BayesTools_linear_target_unavailable`); RoBMA's own refusals have the class
+  `RoBMA_hypothesis_unavailable` with `RoBMA_hypothesis_fixed`,
+  `RoBMA_hypothesis_target`, `RoBMA_hypothesis_method`, or
+  `RoBMA_hypothesis_statement`. Marginal-means point hypotheses now require
+  the exact prior ordinate as well.
+- enables point hypotheses on factor levels of every contrast: levels of
+  mean-difference, orthonormal, and ordered factors are linear targets of the
+  fitted coefficients with their exact BayesTools prior densities, as
+  treatment and independent levels are. Level contrasts and other linear
+  combinations of the levels of one term (`g[a] = g[b]`, `2 * g[a] = 0.1`) are
+  evaluated as one linear target, including in model-averaged objects with
+  `conditional = TRUE` (the unconditional combination has an atom at 0 and is
+  refused with its class). Ordered levels whose Dirichlet share gives an
+  infinite prior ordinate at 0 (e.g. `g[b] = g[a]` for the first of several
+  increments) stop with `BayesTools_infinite_ordinate` instead of an adaptive
+  non-convergence or a finite grid value, and `g[hi] = 0` and
+  `g[hi] = g[lo]` of a two-level ordered factor give the same Bayes factor.
+- reports in `hypothesis_quantities()` the plans of `<q> = <null>`,
+  `<q> > <null>`, and, for factor terms, `<level> = <other level>`: the new
+  columns `contrast_test` and `contrast_test_methods` list the level
+  contrasts, `reason` the refusals of these statements, and the
+  `direction_test_methods` column is removed (region tests use no density
+  method). Point tests are rendered at 0, or at an interior value where 0 is
+  a prior point mass or a support boundary without a regular ordinate.
+  Structural status comes from the parameter catalog only: marginal means
+  with constant draws are no longer reported as fixed, and a marginal mean is
+  fixed when its declared atoms carry all its mass.
+- refuses every statement on a factor level fixed by the contrast (the
+  treatment reference level) with one reason and the class
+  `RoBMA_hypothesis_fixed`, whatever the density method, instead of a
+  point-mass or zero-prior-mass error that depended on the statement.
+  Contrasts with the reference level remain available. When qCMDE/IWMDE are
+  unavailable for a random-effect quantity, the message names the requested
+  operation (e.g. point hypotheses rather than plots).
 - leaves the classification of structural parameters in convergence checks
   to BayesTools. The post-fit and `update()` checks excluded a reference
   weight named from the one-sided cut grid, which two-sided weight functions
@@ -1724,16 +1753,28 @@
 - rejects ambiguous marginal-means hypothesis aliases instead of silently
   resolving a canonical name to a different moderator coefficient.
 - evaluates certified `exp(affine)` formula-coefficient hypotheses under KDE
-  only for structurally atom-free, unconditional scalar targets. Point
-  equalities are evaluated on the inverse log/affine scale, where the Jacobian
-  cancels; nonpositive nulls, compound point expressions, and nonlinear
-  qCMDE/IWMDE routes fail clearly.
+  only for structurally atom-free, unconditional scalar targets, on the
+  target's own scale with the certified BayesTools prior density of the fitted
+  coefficient transform (no prior draws). Point hypotheses need its exact
+  ordinate; a general numerical convolution (for example a truncated-normal
+  log intercept combined with a scaled slope) is refused with
+  `BayesTools_inexact_ordinate`. Nonpositive nulls, compound point
+  expressions, and nonlinear qCMDE/IWMDE routes fail clearly.
 - rejects random-parameter point hypotheses at values where the canonical
   BayesTools prior density has an atom (inclusion and allocation gates, spike
   components) or no exact, finite ordinate, while retaining coherent region and
   directional hypotheses. Other values of gated SDs, variances, totals, and
   variance proportions use the exact continuous prior density, for SDs and
-  variances alike.
+  variances alike, with every density method: a variance point hypothesis is
+  evaluated through its standard deviation with the square display
+  transform, so `tau2 = v^2` and `tau = v` give the same Bayes factor (at a
+  variance of 0 the variance is evaluated on its own draws). Point nulls at an
+  exact support boundary, such as `tau2_prop(study) = 0`, use the one-sided
+  prior ordinate when BayesTools classifies it as exact, finite, and
+  positive, with qCMDE/IWMDE and with KDE's boundary-reflected kernel.
+  Quantities whose prior density has no deterministic provenance (the SD
+  components of nested allocations) take region prior probabilities from
+  prior draws.
 - rewrites vector hypothesis aliases independently while limiting point-null
   syntax to direct parameters and levels so product-space atoms and
   conditioning metadata cannot be discarded.

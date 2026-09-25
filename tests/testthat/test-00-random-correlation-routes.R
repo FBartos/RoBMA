@@ -237,18 +237,25 @@ test_that("qCMDE/IWMDE stops for the correlation name the requested operation", 
   fit <- .random_correlation_fit()
 
   # The scaled block's original-scale correlation has no scalar source
-  # coordinate for a qCMDE/IWMDE ordinate.
-  for (method in c("qCMDE", "IWMDE")) {
+  # coordinate for a qCMDE/IWMDE ordinate; the refusal names the operation.
+  expect_identical(
+    .brma_random_parameter_density_target(
+      fit, "rho(intercept,x)", operation = "point hypotheses"
+    )[["reason"]],
+    paste0(
+      "qCMDE/IWMDE point hypotheses are not available for random-effect ",
+      "quantity 'rho(intercept,x)' because it has no supported scalar ",
+      "random-component coordinate. Use density_method = 'KDE'."
+    )
+  )
+  # Point hypotheses on it are refused for every method by its plan (its
+  # original-scale prior density or its scalar coordinate is unavailable).
+  for (method in c("KDE", "qCMDE", "IWMDE")) {
     expect_error(
       suppressWarnings(hypothesis(
         fit, "rho(intercept,x) = 0", density_method = method, seed = 1
       )),
-      paste0(
-        "qCMDE/IWMDE point hypotheses are not available for random-effect ",
-        "quantity 'rho(intercept,x)' because it has no supported scalar ",
-        "random-component coordinate. Use density_method = 'KDE'."
-      ),
-      fixed = TRUE,
+      class = "RoBMA_hypothesis_target",
       info  = method
     )
   }

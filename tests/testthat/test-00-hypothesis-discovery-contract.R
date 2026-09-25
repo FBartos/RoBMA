@@ -1,96 +1,73 @@
-test_that("hypothesis discovery reports fitted transform routes", {
+test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability", {
 
-  direct_entry <- list(
-    role              = "fixed_coefficient",
-    status            = "estimated",
-    fixed_value       = NA_real_,
-    formula_parameter = NA_character_
-  )
-  direct <- .hypothesis_quantities_brma_route(
-    object = structure(list(), class = c("brma.glmm", "brma")),
-    row    = data.frame(parameter = "mu", component = "mods"),
-    entry  = direct_entry
-  )
-  expect_identical(direct[["point_test_methods"]], "KDE, qCMDE")
-  expect_false(direct[["bracket"]])
+  # A point plan whose targets are eligible: every method is available up to
+  # the capability of the fitted model.
+  plan <- list(point = TRUE, refusal = NULL, targets = list(), method_refusals = list())
+  glmm <- structure(list(), class = c("brma.glmm", "brma"))
+  plan <- .hypothesis_plan_finish(plan, glmm)
+  capability <- .iwmde_capability(object = glmm, density_method = "IWMDE")
+
+  expect_null(.hypothesis_plan_status(plan, "KDE"))
+  expect_null(.hypothesis_plan_status(plan, "qCMDE"))
+  expect_null(.hypothesis_plan_status(plan, "normal"))
   expect_identical(
-    direct[["reason"]],
-    .iwmde_capability(
-      object         = structure(list(), class = c("brma.glmm", "brma")),
-      density_method = "IWMDE"
-    )[["reason"]]
+    .hypothesis_plan_status(plan, "IWMDE"),
+    list(
+      reason = capability[["reason"]],
+      class  = c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable")
+    )
   )
+  expect_error(
+    .hypothesis_plan_check(plan, "IWMDE"),
+    capability[["reason"]],
+    fixed = TRUE,
+    class = "RoBMA_hypothesis_method"
+  )
+  rendered <- .hypothesis_quantities_render_plans(
+    list(point = list(plan), region = list(plan), contrast = NULL),
+    bracket = FALSE
+  )
+  expect_identical(rendered[["point_test_methods"]], "KDE, qCMDE")
+  expect_identical(rendered[["reason"]], capability[["reason"]])
+  expect_true(is.na(rendered[["contrast_test"]]))
 
-  grouped_entry <- direct_entry
-  grouped_entry[["role"]] <- "formula_coefficient_group"
-  grouped <- .hypothesis_quantities_brma_route(
-    object = structure(list(), class = "brma"),
-    row    = data.frame(parameter = "mu_group", component = "mods"),
-    entry  = grouped_entry
+  # A refusal of the whole plan (a fixed quantity) applies to point and
+  # region statements and every method.
+  fixed <- .hypothesis_plan_finish(
+    list(point = FALSE, refusal = .hypothesis_plan_fixed_refusal("mu"),
+         targets = list(), method_refusals = list()),
+    glmm
   )
-  expect_true(grouped[["bracket"]])
-
-  transformed_entry <- direct_entry
-  transformed_entry[["formula_parameter"]] <- "log_tau"
-  testthat::local_mocked_bindings(
-    .hypothesis_brma_formula_coefficient_target = function(...) list(),
-    .hypothesis_brma_formula_transform_route = function(target) {
-      list(type = "exp_affine")
-    },
-    .package = "RoBMA"
+  rendered <- .hypothesis_quantities_render_plans(
+    list(point = list(fixed), region = list(fixed), contrast = NULL),
+    bracket = FALSE
   )
-  transformed <- .hypothesis_quantities_brma_route(
-    object = structure(list(), class = "brma"),
-    row    = data.frame(parameter = "log_tau_x", component = "scale"),
-    entry  = transformed_entry
-  )
-  expect_identical(transformed[["point_test_methods"]], "KDE")
-  expect_identical(transformed[["direction_test_methods"]], "KDE")
-  expect_match(transformed[["reason"]], "atom-free, unconditional")
-
-  fixed_entry <- direct_entry
-  fixed_entry[["status"]]      <- "fixed"
-  fixed_entry[["fixed_value"]] <- 0
-  fixed <- .hypothesis_quantities_brma_route(
-    object = structure(list(), class = "brma"),
-    row    = data.frame(parameter = "mu", component = "mods"),
-    entry  = fixed_entry
-  )
-  expect_false(fixed[["point_test"]])
-  expect_false(fixed[["direction_test"]])
+  expect_false(rendered[["point_test"]])
+  expect_false(rendered[["direction_test"]])
+  expect_identical(rendered[["point_test_methods"]], "")
+  expect_match(rendered[["reason"]], "fixed by the fitted model", fixed = TRUE)
 })
 
 
 test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
 
-  data <- structure(list(), random = TRUE)
-  object <- structure(
-    list(data = data),
-    class = c("brma.mv", "brma")
-  )
-  testthat::local_mocked_bindings(
-    .brma_parameter_catalog = function(object) {
-
-      data.frame(
-        alias      = "mu",
-        parameter = "mu",
-        component = "mods",
-        term       = "intercept",
-        stringsAsFactors = FALSE
-      )
-    },
-    .package = "RoBMA"
-  )
-
+  object <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))
   capability <- .iwmde_capability(
     object         = object,
     density_method = "qCMDE"
   )
   out <- hypothesis_quantities(object)
+  intercept <- out[out[["parameter"]] == "mu_intercept", , drop = FALSE]
 
   expect_false(capability[["available"]])
-  expect_identical(out[["point_test_methods"]], "KDE")
-  expect_identical(out[["reason"]], capability[["reason"]])
+  expect_identical(unique(intercept[["point_test_methods"]]), "KDE")
+  expect_identical(unique(intercept[["reason"]]), capability[["reason"]])
+  expect_error(
+    hypothesis(object, "mu_intercept = 0", density_method = "qCMDE"),
+    capability[["reason"]],
+    fixed = TRUE,
+    class = "RoBMA_hypothesis_method"
+  )
   expect_error(
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()"),
     capability[["reason"]],
@@ -106,85 +83,99 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
   expect_invisible(
     .check_iwmde_available(known_v_object, "qCMDE/IWMDE hypothesis()")
   )
+
+  # Objects without a fit cannot be tested.
+  unfitted <- hypothesis_quantities(structure(list(), class = "brma"))
+  expect_false(any(unfitted[["point_test"]]))
+  expect_identical(unique(unfitted[["reason"]]), "'hypothesis' requires a fitted brma object.")
 })
 
 
 test_that("random discovery uses the authoritative likelihood-aware target", {
 
-  object <- structure(list(), class = "brma")
+  object <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))
+  attr(object[["data"]], "known_V") <- TRUE
+  parameter <- "(mu) tau(intercept)"
+  plan_of <- function() .hypothesis_plans(object, paste0("`", parameter, "` = 0.3"))[[1L]]
+
   testthat::local_mocked_bindings(
-    .brma_random_parameter_density_target = function(object, parameter) {
-      if (identical(parameter, "direct")) {
-        return(list(parameter = "rho_raw"))
-      }
+    .brma_random_parameter_density_target = function(object, parameter, ...) {
       list(reason = "unsupported")
     },
     .package = "RoBMA"
   )
+  unsupported <- plan_of()
+  expect_null(.hypothesis_plan_status(unsupported, "KDE"))
+  for (method in c("qCMDE", "IWMDE")) {
+    expect_identical(
+      .hypothesis_plan_status(unsupported, method),
+      list(reason = "unsupported",
+           class  = c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable"))
+    )
+  }
 
-  expect_identical(
-    .hypothesis_quantities_random_point_methods(
-      parameter = "direct",
-      object    = object,
-      methods   = c("qCMDE", "IWMDE")
-    ),
-    "KDE, qCMDE, IWMDE"
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_density_target = function(object, parameter, ...) {
+      list(parameter = "rho_raw", parameter_spec = list(type = "primitive"))
+    },
+    .package = "RoBMA"
   )
-  expect_identical(
-    .hypothesis_quantities_random_point_methods(
-      parameter = "derived",
-      object    = object,
-      methods   = c("qCMDE", "IWMDE")
-    ),
-    "KDE"
-  )
-  expect_identical(
-    .hypothesis_quantities_random_point_methods(
-      parameter          = "direct",
-      object             = object,
-      methods            = c("qCMDE", "IWMDE"),
-      direct_allowed     = c(direct = FALSE),
-      likelihood_allowed = c(direct = TRUE)
-    ),
-    "qCMDE, IWMDE"
-  )
-  expect_identical(
-    .hypothesis_quantities_random_point_methods(
-      parameter          = "derived",
-      object             = object,
-      methods            = c("qCMDE", "IWMDE"),
-      direct_allowed     = c(derived = FALSE),
-      likelihood_allowed = c(derived = TRUE)
-    ),
-    ""
-  )
+  supported <- plan_of()
+  for (method in c("KDE", "qCMDE", "IWMDE")) {
+    expect_null(.hypothesis_plan_status(supported, method), info = method)
+  }
 })
+
+
+# A marginal mean of a fixture: draws with an exact normal prior density and
+# declared atoms (none, or a point mass carrying all mass for a fixed mean).
+.discovery_marginal_mean <- function(values, fixed = FALSE) {
+
+  with_draw_metadata(
+    values,
+    class         = c("marginal_posterior.simple", "marginal_posterior"),
+    prior_density = BayesTools::prior("normal", list(0, 1)),
+    atoms         = if (fixed) {
+      BayesTools::posterior_atom_attribute(point_masses = data.frame(x = 0, mass = 1))
+    } else {
+      BayesTools::posterior_atom_attribute()
+    }
+  )
+}
+
+
+.discovery_marginal_object <- function(term_map, means, source_object) {
+
+  structure(list(
+    term_map      = term_map,
+    inference     = list(averaged = means, conditional = means),
+    source_object = source_object
+  ), class = "marginal_means.brma")
+}
 
 
 test_that("marginal discovery shares its source-model IWMDE capability", {
 
-  data <- structure(list(), random = TRUE)
   source_object <- structure(
-    list(data = data),
+    list(data = structure(list(), random = TRUE)),
     class = c("brma.mv", "brma")
   )
-  object <- structure(list(
-    term_map = data.frame(
-      term      = "intercept",
-      parameter = "mu_intercept"
-    ),
-    inference = list(conditional = list(
-      mu_intercept = c(-1, 0, 1)
-    )),
+  object <- .discovery_marginal_object(
+    term_map      = data.frame(term = "intercept", parameter = "mu_intercept"),
+    means         = list(mu_intercept = .discovery_marginal_mean(c(-1, 0, 1))),
     source_object = source_object
-  ), class = "marginal_means.brma")
-
-  capability <- .iwmde_capability(
-    object         = source_object,
-    density_method = "IWMDE"
   )
+
   out <- hypothesis_quantities(object)
 
+  # A source object without a fit cannot compute qCMDE/IWMDE ordinates.
+  expect_identical(out[["point_test_methods"]], "KDE")
+  expect_match(out[["reason"]], "does not contain the source fitted brma", fixed = TRUE)
+
+  source_object[["fit"]] <- list(fitted = TRUE)
+  object[["source_object"]] <- source_object
+  out <- hypothesis_quantities(object)
+  capability <- .iwmde_capability(object = source_object, density_method = "IWMDE")
   expect_identical(out[["point_test_methods"]], "KDE")
   expect_identical(out[["reason"]], capability[["reason"]])
 })
@@ -192,17 +183,20 @@ test_that("marginal discovery shares its source-model IWMDE capability", {
 
 test_that("marginal-means discovery reports selectable levels", {
 
-  object <- structure(list(
+  object <- .discovery_marginal_object(
     term_map = data.frame(
       term      = c("intercept", "group"),
       parameter = c("mu_intercept", "mu_group")
     ),
-    inference = list(conditional = list(
-      mu_intercept = c(-1, 0, 1),
-      mu_group     = list(a = c(-1, 0), b = c(0, 1))
-    )),
-    source_object = structure(list(), class = c("brma.glmm", "brma"))
-  ), class = "marginal_means.brma")
+    means = list(
+      mu_intercept = .discovery_marginal_mean(c(-1, 0, 1)),
+      mu_group     = list(
+        a = .discovery_marginal_mean(c(-1, 0)),
+        b = .discovery_marginal_mean(c(0, 1))
+      )
+    ),
+    source_object = structure(list(fit = list(fitted = TRUE)), class = c("brma.glmm", "brma"))
+  )
 
   out <- hypothesis_quantities(object)
   scalar <- out[out[["parameter"]] == "mu_intercept", , drop = FALSE]
@@ -211,21 +205,20 @@ test_that("marginal-means discovery reports selectable levels", {
   expect_true(all(is.na(scalar[["bracket"]])))
   expect_identical(grouped[["bracket"]], c("mu_group[a]", "mu_group[b]"))
   expect_identical(unique(out[["point_test_methods"]]), "KDE, qCMDE")
+  expect_true(is.na(scalar[["contrast_test"]]))
+  expect_identical(grouped[["contrast_test"]], c(FALSE, FALSE))
 })
 
 
 test_that("marginal-means discovery rejects a fixed no-intercept scalar", {
 
-  object <- structure(list(
-    term_map = data.frame(
-      term      = "intercept",
-      parameter = "mu_intercept"
-    ),
-    inference = list(conditional = list(
-      mu_intercept = list(intercept = matrix(0, nrow = 1L, ncol = 20L))
+  object <- .discovery_marginal_object(
+    term_map = data.frame(term = "intercept", parameter = "mu_intercept"),
+    means    = list(mu_intercept = list(
+      intercept = .discovery_marginal_mean(rep(0, 20L), fixed = TRUE)
     )),
-    source_object = structure(list(), class = "brma")
-  ), class = "marginal_means.brma")
+    source_object = structure(list(fit = list(fitted = TRUE)), class = "brma")
+  )
 
   out <- hypothesis_quantities(object)
 
@@ -233,27 +226,27 @@ test_that("marginal-means discovery rejects a fixed no-intercept scalar", {
   expect_false(out[["point_test"]])
   expect_false(out[["direction_test"]])
   expect_identical(out[["point_test_methods"]], "")
-  expect_identical(out[["direction_test_methods"]], "")
   expect_match(out[["reason"]], "fixed by the fitted model")
+  expect_error(
+    hypothesis(object, "mu_intercept[intercept] > 0"),
+    class = "RoBMA_hypothesis_fixed"
+  )
 })
 
 
 test_that("marginal-means discovery keeps sampled siblings of a fixed level", {
 
-  object <- structure(list(
-    term_map = data.frame(
-      term      = "x",
-      parameter = "mu_x"
-    ),
-    inference = list(conditional = list(
-      mu_x = list(
-        `-1SD` = c(-1, -2, -3),
-        `0SD`  = c(0, 0, 0),
-        `1SD`  = c(1, 2, 3)
-      )
+  # The fixed level is declared by its atoms, not by constant draws: the
+  # sampled levels' constant draws do not fix them.
+  object <- .discovery_marginal_object(
+    term_map = data.frame(term = "x", parameter = "mu_x"),
+    means    = list(mu_x = list(
+      `-1SD` = .discovery_marginal_mean(c(-1, -2, -3)),
+      `0SD`  = .discovery_marginal_mean(c(0, 0, 0), fixed = TRUE),
+      `1SD`  = .discovery_marginal_mean(c(1, 1, 1))
     )),
-    source_object = structure(list(), class = "brma")
-  ), class = "marginal_means.brma")
+    source_object = structure(list(fit = list(fitted = TRUE)), class = "brma")
+  )
 
   out <- hypothesis_quantities(object)
   fixed <- out[["bracket"]] == "mu_x[0SD]"

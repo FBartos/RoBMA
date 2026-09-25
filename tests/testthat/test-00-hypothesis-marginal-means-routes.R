@@ -1,16 +1,19 @@
 .marginal_means_route_test_parameter <- function(a, b, condition_keys = NULL) {
 
+  # Each level is one N(0, 1) coefficient of the joint prior context.
   levels <- list(
     A = with_draw_metadata(
       a,
       class          = c("marginal_posterior.simple", "numeric"),
       linear_weights = c(a = 1, b = 0),
+      prior_density  = BayesTools::prior("normal", list(mean = 0, sd = 1)),
       atoms          = BayesTools::posterior_atom_attribute()
     ),
     B = with_draw_metadata(
       b,
       class          = c("marginal_posterior.simple", "numeric"),
       linear_weights = c(a = 0, b = 1),
+      prior_density  = BayesTools::prior("normal", list(mean = 0, sd = 1)),
       atoms          = BayesTools::posterior_atom_attribute()
     )
   )

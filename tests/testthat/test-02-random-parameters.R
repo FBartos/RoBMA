@@ -74,18 +74,14 @@ test_that("random catalog matches summaries across structures", {
       bundle[["specs"]][["parameter"]],
       unique(random_quantity[["parameter"]])
     )
-    fixed <- vapply(seq_len(ncol(bundle[["samples"]])), function(i) {
-      diff(range(bundle[["samples"]][, i])) <= sqrt(.Machine$double.eps)
-    }, logical(1))
+    # Region tests are available for every quantity that the catalog does
+    # not declare structurally fixed; they use no density method.
+    fixed <- bundle[["specs"]][["status"]] == "structural"
     names(fixed) <- bundle[["specs"]][["parameter"]]
     expected_direction <- unname(!fixed[random_quantity[["parameter"]]])
     expect_equal(random_quantity[["direction_test"]], expected_direction,
                  info = name)
-    expect_equal(
-      random_quantity[["direction_test_methods"]][expected_direction],
-      rep("KDE, normal", sum(expected_direction)),
-      info = name
-    )
+    expect_false("direction_test_methods" %in% names(random_quantity))
   }
 })
 
@@ -289,15 +285,36 @@ test_that("random point hypotheses follow quantity-specific policy", {
 
   if ("brma.mv_block_mvn_random_scale" %in% fit_names) {
     fit_alloc <- load_fit("brma.mv_block_mvn_random_scale", validate = FALSE)
-    expect_error(
-      hypothesis(
-        fit_alloc,
-        .random_parameter_hypothesis(
-          "tau2_prop(study)", "=", 0, ">"
-        ),
-        component = "random", n_samples = 1000, seed = 24
+    # The variance proportion at its lower bound: the one-sided Dirichlet
+    # share ordinate is exact, finite, and positive, so the boundary point
+    # null has a Savage-Dickey Bayes factor with one-sided densities.
+    boundary <- hypothesis(
+      fit_alloc,
+      .random_parameter_hypothesis(
+        "tau2_prop(study)", "=", 0, ">"
       ),
-      "support boundary"
+      component = "random", n_samples = 1000, seed = 24
+    )
+    expect_true(is.finite(attr(boundary, "raw_BF")))
+    # The qCMDE ordinate at the bound is continuous with the ordinates inside
+    # the support: its jump from the ordinate at 0.005 is no larger than the
+    # change over the next 0.005 plus four combined Monte Carlo standard
+    # errors (BF_error is the relative error of the ordinate).
+    ordinates <- lapply(c(0, 0.005, 0.01), function(value) {
+      out <- hypothesis(
+        fit_alloc,
+        paste0("`tau2_prop(study)` = ", value),
+        component = "random", n_samples = 1000, seed = 24, columns = "all"
+      )
+      c(ordinate = as.numeric(out[["posterior"]]),
+        mcse     = as.numeric(out[["posterior"]]) * as.numeric(out[["BF_error"]]) / 100)
+    })
+    ordinate <- vapply(ordinates, `[[`, numeric(1), "ordinate")
+    mcse     <- vapply(ordinates, `[[`, numeric(1), "mcse")
+    expect_true(all(is.finite(ordinate) & ordinate > 0))
+    expect_lte(
+      abs(ordinate[[1L]] - ordinate[[2L]]),
+      abs(ordinate[[3L]] - ordinate[[2L]]) + 4 * sqrt(mcse[[1L]]^2 + mcse[[2L]]^2)
     )
     expect_s3_class(
       hypothesis(

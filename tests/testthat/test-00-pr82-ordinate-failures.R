@@ -194,6 +194,7 @@ test_that("public marginal-means hypotheses distinguish unavailable point comput
 
   sample <- with_draw_metadata(seq(-1, 1, length.out = 40L),
     class = c("marginal_posterior.simple", "numeric"), linear_weights = c(mu = 1),
+    prior_density = BayesTools::prior("normal", list(0, 1)),
     atoms = BayesTools::posterior_atom_attribute())
   levels <- structure(list(A = sample), class = c("marginal_posterior.factor", "marginal_posterior", "list"),
     parameter = "mu_alloc")

@@ -40,39 +40,15 @@ context("Factor-level hypothesis targets and plots")
 }
 
 
-# The coefficient transformation target that hypothesis() pairs with a level,
-# resolved through the same steps as hypothesis.brma().
-.factor_level_prior_target <- function(fit, hypothesis) {
+# The weights on the fitted coordinates of the level target that hypothesis()
+# plans for a point statement on one level.
+.factor_level_target_weights <- function(fit, hypothesis) {
 
-  metadata <- .brma_parameter_catalog_metadata(fit)
-  parsed   <- BayesTools::hypothesis_parse(
-    hypothesis,
-    catalog        = metadata[["catalog"]],
-    simplify_names = TRUE
-  )
-  selected <- .hypothesis_brma_select_parameter(
-    object     = fit,
-    hypothesis = parsed,
-    component  = "auto",
-    metadata   = metadata
-  )
-  rewritten <- .hypothesis_brma_rewrite(
-    hypothesis = parsed,
-    aliases    = selected[["aliases"]],
-    parameter  = selected[["parameter"]]
-  )
-  point_refs <- .hypothesis_brma_point_refs(
-    hypothesis     = rewritten,
-    parameter      = selected[["parameter"]],
-    require_direct = TRUE
-  )
-  targets <- .hypothesis_brma_formula_coefficient_level_targets(
-    object     = fit,
-    selected   = selected,
-    point_refs = point_refs
-  )
+  plan <- .hypothesis_plans(fit, hypothesis)[[1L]]
+  expect_identical(plan[["kind"]], "linear")
+  expect_identical(plan[["route"]], "levels")
 
-  return(vapply(targets, `[[`, character(1), "target"))
+  plan[["targets"]][[1L]][["spec"]][["weights"]]
 }
 
 
@@ -116,22 +92,23 @@ test_that("factor-level point hypotheses use the level's own fitted coordinate",
       compared <- c(compared, cases[["hypothesis"]][i])
     }
     expect_identical(
-      .factor_level_prior_target(fit, cases[["hypothesis"]][i]),
-      stats::setNames(cases[["coordinate"]][i], cases[["level"]][i])
+      .factor_level_target_weights(fit, cases[["hypothesis"]][i]),
+      stats::setNames(1, cases[["coordinate"]][i])
     )
   }
   expect_identical(compared, c("g1[10] = 0", "g2[2] = 0", "g2[3] = 0"))
 })
 
 
-test_that("mean-difference level point hypotheses stop without a single coordinate", {
+test_that("mean-difference level point hypotheses are linear targets of the contrast coordinates", {
 
   skip_on_cran()
   fit <- .factor_level_target_fits()[["meandif"]]
 
   # The first of four mean-difference levels has the design row (0, 1, 0) in
   # floating point: its extraction key is one coordinate with unit weight, the
-  # coordinate of the contrast coefficient g2{2}. It is still not a level cell.
+  # coordinate of the contrast coefficient g2{2}. It is still a level: its
+  # target is the design row, as for the other levels.
   quantities <- BayesTools::parameter_catalog(fit[["fit"]])[["quantities"]]
   unit_key   <- quantities[["extraction_key"]][[
     which(quantities[["canonical_name"]] == "mu_g2[1]")
@@ -144,28 +121,25 @@ test_that("mean-difference level point hypotheses stop without a single coordina
   }
 
   cases <- list(
-    c(hypothesis = "g1[10] = 0", level = "g1[10]", other = "g1[5]"),
-    c(hypothesis = "g2[2] = 0",  level = "g2[2]",  other = "g2[1]"),
-    c(hypothesis = "g2[1] = 0",  level = "g2[1]",  other = "g2[2]")
+    list(hypothesis = "g1[10] = 0", term = "g1", level = 2L, n_levels = 3L),
+    list(hypothesis = "g2[2] = 0",  term = "g2", level = 2L, n_levels = 4L),
+    list(hypothesis = "g2[1] = 0",  term = "g2", level = 1L, n_levels = 4L)
   )
   for (case in cases) {
-    expect_error(
-      suppressWarnings(hypothesis(fit, case[["hypothesis"]], density_method = "KDE")),
-      paste0(
-        "Point hypotheses on factor level '", case[["level"]], "' are not ",
-        "supported: the level is a linear combination of the fitted contrast ",
-        "coefficients (mean-difference, orthonormal, or ordered contrasts), ",
-        "not a fitted coefficient itself, and point hypotheses on a single ",
-        "level require a level fitted as its own coefficient (treatment or ",
-        "independent contrasts). Test the level with a region hypothesis such ",
-        "as '", case[["level"]], " > 0' or a level contrast such as '",
-        case[["level"]], " = ", case[["other"]], "'."
-      ),
-      fixed = TRUE,
+    contrast <- BayesTools::contr.meandif(case[["n_levels"]])[case[["level"]], ]
+    expected <- stats::setNames(
+      contrast,
+      paste0("mu_", case[["term"]], "[", seq_along(contrast), "]")
+    )
+    expect_equal(
+      .factor_level_target_weights(fit, case[["hypothesis"]]),
+      expected[expected != 0],
+      tolerance = 1e-12,
       info = case[["hypothesis"]]
     )
+    result <- suppressWarnings(hypothesis(fit, case[["hypothesis"]], density_method = "KDE"))
+    expect_true(is.finite(attr(result, "raw_BF")), info = case[["hypothesis"]])
   }
-  # The alternatives the message names are available.
   region   <- suppressWarnings(hypothesis(fit, "g1[10] > 0", density_method = "KDE"))
   contrast <- suppressWarnings(hypothesis(fit, "g1[10] = g1[5]", density_method = "KDE"))
   expect_true(is.finite(attr(region, "raw_BF")))
@@ -317,47 +291,42 @@ test_that("repeated hypothesis rows are numbered by statement", {
 })
 
 
-test_that("hypothesis_quantities reports point tests only for fitted level coefficients", {
+test_that("hypothesis_quantities reports point and contrast tests for the levels of every contrast", {
 
   skip_on_cran()
   fits <- .factor_level_target_fits()
 
-  # Treatment levels are fitted coefficients (the reference level is fixed).
+  # Treatment levels are fitted coefficients (the reference level is fixed
+  # and not tested itself); contrasts with it are defined.
   treatment <- hypothesis_quantities(fits[["treatment"]])
   treatment <- treatment[treatment[["term"]] %in% c("g1", "g2"), , drop = FALSE]
   expect_true(all(treatment[["point_test"]]))
+  expect_true(all(treatment[["contrast_test"]]))
   expect_identical(unique(treatment[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
   expect_false(any(nzchar(treatment[["reason"]])))
 
   # Mean-difference levels are linear combinations of the contrast
-  # coefficients; hypothesis() stops their point hypotheses.
+  # coefficients with exact prior ordinates.
   meandif <- hypothesis_quantities(fits[["meandif"]])
   g1 <- meandif[meandif[["alias"]] == "g1", , drop = FALSE]
-  expect_false(g1[["point_test"]])
+  expect_true(g1[["point_test"]])
   expect_true(g1[["direction_test"]])
-  expect_identical(g1[["point_test_methods"]], "")
-  expect_identical(g1[["reason"]], paste0(
-    "Point hypotheses are not supported for levels 'g1[5]', 'g1[10]', ",
-    "'g1[20]': each is a linear combination of the fitted contrast ",
-    "coefficients (mean-difference, orthonormal, or ordered contrasts), not ",
-    "a fitted coefficient itself. Region hypotheses and level contrasts are ",
-    "available for all levels."
-  ))
-  expect_false(any(meandif[["point_test"]][meandif[["term"]] == "g2"]))
+  expect_true(g1[["contrast_test"]])
+  expect_identical(g1[["point_test_methods"]], "KDE, qCMDE, IWMDE")
+  expect_identical(g1[["contrast_test_methods"]], "KDE, qCMDE, IWMDE")
+  expect_identical(g1[["reason"]], "")
   for (level in c("5", "10", "20")) {
-    expect_error(
-      suppressWarnings(hypothesis(
-        fits[["meandif"]], paste0("g1[", level, "] = 0"), density_method = "KDE"
-      )),
-      "Point hypotheses on factor level",
-      fixed = TRUE,
-      info = level
-    )
+    result <- suppressWarnings(hypothesis(
+      fits[["meandif"]], paste0("g1[", level, "] = 0"), density_method = "KDE"
+    ))
+    expect_true(is.finite(attr(result, "raw_BF")), info = level)
   }
 
-  # Ordered coding: the first increment is a fitted coefficient whose prior
-  # (the ordered total times its allocation) has an exact ordinate; the later
-  # level is a sum of increments and does not support point hypotheses.
+  # Ordered coding: level 'mid' is the ordered total times a Dirichlet(1, 1)
+  # share and 'hi' the total itself. The share has a log singularity at 0,
+  # so the ordinate of 'mid' at 0 (and of the contrasts of adjacent levels)
+  # is infinite; 'hi' has the normal ordinate of the total. Point tests of
+  # 'mid' off 0 are exact.
   set.seed(3)
   k    <- 48L
   data <- data.frame(
@@ -372,29 +341,29 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
   ))
   quantities <- hypothesis_quantities(ordered)
   g <- quantities[quantities[["alias"]] == "g", , drop = FALSE]
-  expect_false(g[["point_test"]])
+  expect_true(g[["point_test"]])
   expect_identical(g[["point_test_methods"]], "KDE, qCMDE, IWMDE")
+  expect_false(g[["contrast_test"]])
   expect_match(
     g[["reason"]],
-    "Point hypotheses are not supported for level 'g[hi]': it is a linear",
+    "Prior density at point hypothesis 'mu_g[lo] - mu_g[mid] = 0' is infinite",
     fixed = TRUE
   )
-  expect_false(grepl("'g[mid]'", g[["reason"]], fixed = TRUE))
   expect_error(
-    suppressWarnings(hypothesis(ordered, "g[hi] = 0", density_method = "KDE")),
-    "Point hypotheses on factor level 'g[hi]'",
-    fixed = TRUE
+    suppressWarnings(hypothesis(ordered, "g[mid] = 0", density_method = "KDE")),
+    class = "BayesTools_infinite_ordinate"
   )
   for (method in c("KDE", "qCMDE")) {
-    result <- suppressWarnings(
-      hypothesis(ordered, "g[mid] = 0.1", density_method = method)
-    )
-    expect_true(is.finite(attr(result, "raw_BF")), info = method)
+    for (statement in c("g[mid] = 0.1", "g[hi] = 0")) {
+      result <- suppressWarnings(
+        hypothesis(ordered, statement, density_method = method)
+      )
+      expect_true(is.finite(attr(result, "raw_BF")), info = paste(statement, method))
+    }
   }
 
   # With numeric labels, the first increment's coordinate 'mu_g[1]' reads as
-  # the reference level '1': hypotheses and stops name the level the
-  # hypothesis wrote.
+  # the reference level '1': hypotheses name the level the hypothesis wrote.
   data[["g"]] <- factor(
     c("1", "2", "3")[as.integer(data[["g"]])],
     levels = c("1", "2", "3")
@@ -404,192 +373,124 @@ test_that("hypothesis_quantities reports point tests only for fitted level coeff
     prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
     chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
   ))
-  expect_s3_class(
-    suppressWarnings(
-      hypothesis(numeric_labels, "g[2] = 0.1", density_method = "KDE")
-    ),
-    "data.frame"
-  )
+  for (statement in c("g[2] = 0.1", "g[3] = 0.1")) {
+    expect_s3_class(
+      suppressWarnings(hypothesis(numeric_labels, statement, density_method = "KDE")),
+      "data.frame"
+    )
+  }
   expect_error(
-    suppressWarnings(
-      hypothesis(numeric_labels, "g[3] = 0.1", density_method = "KDE")
-    ),
-    "Point hypotheses on factor level 'g[3]'",
+    suppressWarnings(hypothesis(numeric_labels, "g[1] = 0.1", density_method = "KDE")),
+    "The quantity 'g[1]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
     fixed = TRUE
   )
 })
 
 
-test_that("formula coefficient messages name factor levels by their selector", {
+test_that("formula coefficient routes follow the fitted coefficient transform", {
 
-  # A level target holds its backend coordinate ('mu_g[1]' for level '2');
-  # messages name the level selector instead. Scalar targets keep their
-  # parameter name.
+  # The route of an original-scale coefficient is the map type and support
+  # that BayesTools declares, and the coefficient's row of the transform
+  # matrix on the fitted coordinates.
   transform <- structure(
     list(
       schema_version    = 2L,
       target_scale      = "original",
-      target_names      = "mu_g[1]",
-      matrix            = matrix(
-        1, 1L, 1L, dimnames = list("mu_g[1]", "mu_g[1]")
+      target_names      = c("mu_x", "log_tau_intercept"),
+      matrix            = rbind(
+        mu_x              = c(mu_x = 0.5, log_tau_intercept = 0),
+        log_tau_intercept = c(mu_x = 0, log_tau_intercept = 1)
       ),
-      source_transforms = c("mu_g[1]" = "log"),
-      output_transforms = list("mu_g[1]" = "identity"),
+      source_transforms = c(mu_x = "identity", log_tau_intercept = "log"),
+      output_transforms = list(mu_x = "identity", log_tau_intercept = "exp"),
       targets           = formula_transform_targets(
-        c("mu_g[1]" = "unsupported"),
-        c("mu_g[1]" = "identity")
+        c(mu_x = "affine", log_tau_intercept = "exp_affine"),
+        c(mu_x = "identity", log_tau_intercept = "exp")
       )
     ),
     class = "BayesTools_formula_coefficient_transform"
   )
-  level  <- list(
-    formula_parameter = "mu",
-    target            = "mu_g[1]",
-    target_i          = 1L,
-    transform         = transform,
-    level_selector    = "g[2]"
-  )
-  scalar <- level[setdiff(names(level), "level_selector")]
-
-  expect_identical(
-    .hypothesis_brma_formula_transform_route(level)[["reason"]],
-    "The fitted nonlinear joint coefficient transform for 'g[2]' is not supported by hypothesis()."
-  )
-  expect_identical(
-    .hypothesis_brma_formula_transform_route(scalar)[["reason"]],
-    "The fitted nonlinear joint coefficient transform for 'mu_g[1]' is not supported by hypothesis()."
-  )
-  fixed <- level
-  fixed[["transform"]][["matrix"]][1L, 1L] <- 0
-  expect_identical(
-    .hypothesis_brma_formula_transform_route(fixed)[["reason"]],
-    "The fitted coefficient 'g[2]' is structurally fixed and has no posterior hypothesis route."
-  )
-  uncertified <- level
-  uncertified[["transform"]][["target_scale"]] <- "fitted"
-  expect_identical(
-    .hypothesis_brma_formula_transform_route(uncertified)[["reason"]],
-    paste0(
-      "The fitted coefficient transform for 'g[2]' lacks the certified ",
-      "structural metadata required for hypothesis testing."
-    )
-  )
-
-  supported <- level
-  supported[["route"]] <- list(type = "exp_affine", support = c(0, Inf))
-  expect_error(
-    .hypothesis_brma_check_formula_point_support(
-      data.frame(value = 0), supported
-    ),
-    "open support for factor level 'g[2]'.",
-    fixed = TRUE
-  )
-  scalar_supported <- supported[setdiff(names(supported), "level_selector")]
-  expect_error(
-    .hypothesis_brma_check_formula_point_support(
-      data.frame(value = 0), scalar_supported
-    ),
-    "open support for transformed coefficient 'mu_g[1]'.",
-    fixed = TRUE
-  )
-
-  # The prior-ordinate stop and the qCMDE/IWMDE transform reason.
-  exact <- TRUE
   testthat::local_mocked_bindings(
-    JAGS_formula_prior_density = function(...) list(),
-    prior_ordinate_status      = function(prior_density, values, ...) {
-      out <- eligible_ordinate_status(prior_density, values)
-      if (!exact) {
-        out[["eligible"]]  <- FALSE
-        out[["condition"]] <- "BayesTools_inexact_ordinate"
-        out[["reason"]]    <- "Inexact."
-      }
-      out
-    },
+    JAGS_formula_coefficient_transform = function(...) transform,
     .package = "BayesTools"
   )
-  prior_target <- .hypothesis_brma_formula_prior_target(
-    object       = list(fit = NULL),
-    samples      = list(),
-    hypothesis   = NULL,
-    target_info  = supported,
-    point_values = 0.1,
-    force_linear = TRUE
+  route <- function(parameter) {
+    .brma_formula_coefficient_route(
+      object   = list(fit = structure(list(), class = "BayesTools_fit")),
+      selected = list(
+        parameter = parameter,
+        component = "mods",
+        entry     = list(formula_parameter = "mu", role = "fixed_coefficient")
+      )
+    )
+  }
+
+  affine <- route("mu_x")
+  expect_identical(affine[["type"]], "affine")
+  expect_identical(affine[["weights"]], c(mu_x = 0.5))
+  expect_identical(affine[["support"]], c(-Inf, Inf))
+  exp_affine <- route("log_tau_intercept")
+  expect_identical(exp_affine[["type"]], "exp_affine")
+  expect_identical(exp_affine[["support"]], c(0, Inf))
+
+  transform[["targets"]][["map_type"]][[1L]] <- "unsupported"
+  expect_identical(
+    route("mu_x")[["reason"]],
+    "The fitted nonlinear joint coefficient transform for 'mu_x' is not supported by hypothesis()."
+  )
+  transform[["matrix"]]["mu_x", "mu_x"] <- 0
+  expect_identical(
+    route("mu_x")[["reason"]],
+    "The fitted coefficient 'mu_x' is structurally fixed and has no posterior hypothesis route."
+  )
+
+  # Point values outside the open support of a transformed coefficient are
+  # refused, naming the coefficient.
+  refusal <- .hypothesis_plan_support_refusal(
+    0, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
   )
   expect_identical(
-    prior_target[["parameter_spec"]][["reason"]],
+    refusal[["reason"]],
     paste0(
-      "qCMDE/IWMDE does not support the fitted nonlinear joint transform ",
-      "for 'g[2]'. Use density_method = 'KDE' or ",
-      "standardized_coefficients = TRUE."
+      "Point-null value 0 is outside or on the boundary of the open support ",
+      "for transformed coefficient 'log_tau_intercept'."
     )
   )
-  exact <- FALSE
+  expect_identical(refusal[["class"]], c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable"))
+  expect_null(.hypothesis_plan_support_refusal(
+    0.5, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
+  ))
+})
+
+
+test_that("level refusals name the level by its selector", {
+
+  skip_on_cran()
+  fit <- .factor_level_target_fits()[["treatment"]]
+
   expect_error(
-    .hypothesis_brma_formula_prior_target(
-      object       = list(fit = NULL),
-      samples      = list(),
-      hypothesis   = NULL,
-      target_info  = supported,
-      point_values = 0.1,
-      force_linear = TRUE
-    ),
-    paste0(
-      "The induced prior ordinate for factor level 'g[2]' is not exact ",
-      "enough for a point-null Bayes factor."
-    ),
-    fixed = TRUE
+    suppressWarnings(hypothesis(fit, "g1[7] = 0", density_method = "KDE")),
+    class = "BayesTools_parameter_not_found"
+  )
+  refusal <- tryCatch(
+    suppressWarnings(hypothesis(fit, "g1[5] > 0", density_method = "KDE")),
+    error = function(error) error
+  )
+  expect_s3_class(refusal, "RoBMA_hypothesis_fixed")
+  expect_identical(
+    conditionMessage(refusal),
+    "The quantity 'g1[5]' is fixed by the fitted model; posterior hypothesis tests are undefined."
   )
 })
 
 
-test_that("an ambiguous level resolution names the level selector", {
-
-  testthat::local_mocked_bindings(
-    JAGS_formula_coefficient_transform = function(...) structure(
-      list(schema_version = 2L),
-      class = "BayesTools_formula_coefficient_transform"
-    ),
-    parameter_catalog = function(...) list(quantities = data.frame(
-      quantity_id = character(), stringsAsFactors = FALSE
-    )),
-    .package = "BayesTools"
-  )
-  selected <- list(
-    parameter  = "mu_g",
-    component  = "mods",
-    aliases    = list(g = "mu_g", mu_g = "mu_g"),
-    entry      = list(
-      role              = "formula_coefficient_group",
-      formula_parameter = "mu"
-    ),
-    resolution = list(occurrences = data.frame(
-      level          = c("2", "2"),
-      canonical_name = c("mu_g[2]", "mu_h[2]"),
-      quantity_id    = c("q1", "q2"),
-      stringsAsFactors = FALSE
-    ))
-  )
-  expect_error(
-    .hypothesis_brma_formula_coefficient_level_targets(
-      object     = list(fit = NULL),
-      selected   = selected,
-      point_refs = data.frame(level = "2", value = 0.1, stringsAsFactors = FALSE)
-    ),
-    "Factor level 'g[2]' is ambiguous in the fitted parameter catalog.",
-    fixed = TRUE
-  )
-})
-
-
-test_that("point hypotheses on the fixed reference level give the KDE reason for every method", {
+test_that("point hypotheses on the fixed reference level give one reason for every method", {
 
   skip_on_cran()
   fit <- .factor_level_target_fits()[["treatment"]]
 
   # The treatment reference level g1[5] is fixed at 0 by the contrast: its
-  # declared atom decides point statements on it, whatever the density
-  # method, and no qCMDE/IWMDE ordinate enters.
+  # plan refuses every statement on it, whatever the density method.
   statements <- list(
     "g1[5] = 0",
     "g1[5] = 0.1",
@@ -601,7 +502,11 @@ test_that("point hypotheses on the fixed reference level give the KDE reason for
       suppressWarnings(hypothesis(fit, statement, density_method = "KDE")),
       error = conditionMessage
     )
-    expect_type(kde, "character")
+    expect_identical(
+      kde,
+      "The quantity 'g1[5]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
+      info = info
+    )
     expect_error(
       suppressWarnings(hypothesis(fit, statement)),
       kde,
@@ -619,18 +524,23 @@ test_that("point hypotheses on the fixed reference level give the KDE reason for
   }
   expect_error(
     suppressWarnings(hypothesis(fit, "g1[5] = 0", density_method = "KDE")),
-    class = "BayesTools_point_mass_at_null"
+    class = "RoBMA_hypothesis_fixed"
   )
 
-  # The other levels keep their qCMDE ordinates.
+  # The other levels keep their qCMDE ordinates, and contrasts with the
+  # reference level are defined.
   expect_s3_class(
     suppressWarnings(hypothesis(fit, c("g1[10] = 0", "g1[20] = 0"), seed = 1)),
+    "data.frame"
+  )
+  expect_s3_class(
+    suppressWarnings(hypothesis(fit, "g1[10] = g1[5]", density_method = "KDE")),
     "data.frame"
   )
 })
 
 
-test_that("fixed reference-level statements keep the model-averaged KDE reason under qCMDE", {
+test_that("fixed reference-level statements keep one reason under qCMDE for model-averaged fits", {
 
   skip_on_cran()
   set.seed(1)
@@ -649,15 +559,18 @@ test_that("fixed reference-level statements keep the model-averaged KDE reason u
     seed = 1, silent = TRUE
   ))
 
-  # For model-averaged fits the KDE reason names the inclusion Bayes factor.
-  # A call mixing the fixed reference level with another level evaluates the
-  # fixed-level statement before the qCMDE/IWMDE ordinates and must keep it.
+  # A call mixing the fixed reference level with another level is refused by
+  # the fixed level's plan before any qCMDE/IWMDE ordinate is computed.
   message_of <- function(expr) tryCatch(suppressWarnings(expr), error = conditionMessage)
   for (statement in list("g1[5] = 0", c("g1[5] = 0", "g1[10] = 0.1"),
                          c("g1[10] = 0.1", "g1[5] = 0"))) {
     info <- paste(statement, collapse = ", ")
     kde  <- message_of(hypothesis(fit, statement, density_method = "KDE"))
-    expect_match(kde, "inclusion Bayes factor", fixed = TRUE, info = info)
+    expect_identical(
+      kde,
+      "The quantity 'g1[5]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
+      info = info
+    )
     for (method in c("qCMDE", "IWMDE")) {
       expect_identical(
         message_of(hypothesis(fit, statement, density_method = method)),
@@ -666,4 +579,11 @@ test_that("fixed reference-level statements keep the model-averaged KDE reason u
       )
     }
   }
+  # A sampled level at its null atom names the inclusion Bayes factor.
+  expect_error(
+    suppressWarnings(hypothesis(fit, "g1[10] = 0", density_method = "KDE")),
+    "inclusion Bayes factor",
+    fixed = TRUE,
+    class = "BayesTools_point_mass_at_null"
+  )
 })

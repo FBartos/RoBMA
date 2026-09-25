@@ -10,7 +10,9 @@
 #' avoid null atoms in averaged marginals. For model-averaged objects,
 #' hypotheses that mix point and region events, and point hypotheses spanning
 #' multiple factor levels, are not supported. Single-model hypotheses use one
-#' common averaged posterior and may combine these events.
+#' common averaged posterior and may combine these events. Point hypotheses
+#' require the exact prior ordinate that BayesTools attaches to the marginal
+#' mean, as for fitted objects.
 #'
 #' @export
 hypothesis.marginal_means.brma <- function(object, hypothesis,
@@ -40,61 +42,35 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     parameter  = parameter
   )
   parameter <- selected[["parameter"]]
-  parameter_label <- .hypothesis_brma_alias_label(
-    aliases   = selected[["aliases"]],
-    parameter = parameter
-  )
-  hypothesis <- .hypothesis_brma_rewrite(
-    hypothesis = hypothesis,
-    aliases    = selected[["aliases"]],
-    parameter  = parameter
-  )
-  route <- .hypothesis_marginal_means_route(
-    object     = object,
-    hypothesis = hypothesis,
-    parameter  = parameter
-  )
-  level_contrast <- .hypothesis_brma_level_contrast_candidate(
-    hypothesis = hypothesis,
-    parameter  = parameter
-  )
+  density_method <- .marginal_means_density_method(object, density_method)
 
-  density_method           <- .marginal_means_density_method(
-    object,
-    density_method
-  )
-  requested_density_method <- density_method
-  estimated_ordinate        <- density_method %in% c("qCMDE", "IWMDE") &&
-    (level_contrast || nrow(.hypothesis_brma_point_refs(
-      hypothesis     = hypothesis,
-      parameter      = parameter,
-      require_direct = !level_contrast
-    )) > 0L)
-  precomputed_density       <- estimated_ordinate
-  if (precomputed_density) {
-    density_control <- .hypothesis_marginal_means_density_control(
-      object          = object,
-      density_method  = density_method,
-      density_control = density_control
+  plans <- lapply(BayesTools::hypothesis_render(hypothesis), function(statement) {
+    .hypothesis_plan_marginal_means(
+      object    = object,
+      statement = statement,
+      parameter = parameter
     )
-    if (is.null(density_control[["normalization_points"]])) {
-      density_control[["normalization_points"]] <- max(
-        50L,
-        density_control[["n_points"]]
-      )
-    }
-    if (!level_contrast) {
-      object <- .hypothesis_marginal_means_attach_iwmde(
+  })
+  for (plan in plans) {
+    .hypothesis_plan_check(plan, density_method)
+  }
+  # The statements of one model-averaged request share one posterior
+  # conditioning (point statements the alternative-conditioned one).
+  .hypothesis_marginal_means_route(
+    object     = object,
+    hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis"),
+    parameter  = parameter
+  )
+  point       <- any(vapply(plans, `[[`, logical(1), "point"))
+  precomputed <- density_method %in% c("qCMDE", "IWMDE") && point
+  if (precomputed) {
+    density_control <- .hypothesis_plan_density_control(
+      .hypothesis_marginal_means_density_control(
         object          = object,
-        parameter       = parameter,
-        parameter_label = parameter_label,
-        hypothesis      = hypothesis,
-        inference_type  = route[["inference_type"]],
         density_method  = density_method,
         density_control = density_control
       )
-    }
-    density_method <- "precomputed"
+    )
   } else if (!is.null(density_control)) {
     if (density_method %in% c("qCMDE", "IWMDE")) {
       .density_control_normalize(
@@ -108,33 +84,111 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     }
   }
 
-  if (!estimated_ordinate && density_method %in% c("qCMDE", "IWMDE")) {
-    density_method <- "KDE"
-  }
-
-  inference <- object[["inference"]]
-  if (is.null(inference[[route[["inference_type"]]]])) {
-    stop(
-      "'marginal_means' object does not contain ",
-      route[["inference_type"]], " marginal means.",
-      call. = FALSE
-    )
-  }
-  if (level_contrast) {
-    return(.hypothesis_brma_level_contrast_BF(
-      object          = object[["source_object"]],
-      posterior       = inference[[route[["inference_type"]]]][[parameter]],
-      hypothesis      = hypothesis,
-      parameter       = parameter,
-      density_method  = requested_density_method,
-      density_control = density_control,
+  keys   <- vapply(plans, `[[`, character(1), "group")
+  groups <- lapply(unique(keys), function(key) which(keys == key))
+  results <- lapply(groups, function(rows) {
+    .hypothesis_plan_execute_marginal_means(
+      plans           = plans[rows],
+      object          = object,
       logBF           = logBF,
       BF01            = BF01,
       seed            = seed,
+      density_method  = if (precomputed) density_method else "KDE",
+      density_control = density_control,
       columns         = columns
+    )
+  })
+  if (length(results) == 1L) {
+    return(results[[1L]])
+  }
+
+  .hypothesis_brma_bind_parameter_results(
+    results    = results,
+    groups     = groups,
+    hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis")
+  )
+}
+
+
+# Evaluates one group of marginal-means plans: statements on the marginal
+# means of one parameter, or on one linear combination of its levels.
+.hypothesis_plan_execute_marginal_means <- function(plans, object, logBF, BF01,
+                                                    seed, density_method,
+                                                    density_control, columns) {
+
+  plan        <- plans[[1L]]
+  parameter   <- plan[["parameter"]]
+  hypothesis  <- .hypothesis_plan_group_ast(plans, "hypothesis")
+  precomputed <- density_method %in% c("qCMDE", "IWMDE") &&
+    any(vapply(plans, `[[`, logical(1), "point"))
+
+  if (identical(plan[["route"]], "combination")) {
+    target <- if (length(plans) == 1L) {
+      plan[["linear_target"]]
+    } else {
+      BayesTools::hypothesis_linear_target(
+        posterior  = plan[["draws"]][["posterior"]],
+        hypothesis = hypothesis,
+        parameter  = parameter
+      )
+    }
+    if (precomputed) {
+      targets <- .hypothesis_plan_targets(plans)
+      target[["posterior"]] <- .hypothesis_plan_attach_scalar(
+        object          = object[["source_object"]],
+        posterior       = target[["posterior"]],
+        parameter       = target[["parameter"]],
+        parameter_label = parameter,
+        values          = vapply(targets, `[[`, numeric(1), "value"),
+        spec            = targets[[1L]][["spec"]],
+        conditional     = .iwmde_first_nonempty_condition(
+          BayesTools::posterior_metadata(target[["posterior"]], "condition"),
+          c("effective_conditional", "conditional")
+        ),
+        density_method  = density_method,
+        density_control = density_control
+      )
+    }
+    out <- BayesTools::hypothesis_BF(
+      posterior      = target[["posterior"]],
+      hypothesis     = target[["hypothesis"]],
+      parameter      = target[["parameter"]],
+      logBF          = logBF,
+      BF01           = BF01,
+      seed           = seed,
+      columns        = columns,
+      density_method = if (precomputed) "precomputed" else density_method
+    )
+    if (precomputed) {
+      out <- .hypothesis_brma_append_iwmde_warnings(
+        table     = out,
+        posterior = target[["posterior"]]
+      )
+    }
+    # One linear target: row i is statement i.
+    return(.hypothesis_brma_set_row_names(
+      out       = out,
+      row_names = .hypothesis_brma_row_names(
+        labels     = rep(parameter, nrow(out)),
+        statements = seq_len(nrow(out))
+      )
     ))
   }
-  inference[["conditional"]] <- inference[[route[["inference_type"]]]]
+
+  inference_type <- plan[["inference_type"]]
+  if (precomputed) {
+    object <- .hypothesis_marginal_means_attach_iwmde(
+      object          = object,
+      parameter       = parameter,
+      parameter_label = plan[["label"]],
+      hypothesis      = hypothesis,
+      inference_type  = inference_type,
+      density_method  = density_method,
+      density_control = density_control
+    )
+  }
+  inference <- object[["inference"]]
+  inference[["conditional"]] <- inference[[inference_type]]
   class(inference) <- unique(c(class(inference), "marginal_inference"))
 
   out <- BayesTools::hypothesis_BF(
@@ -145,17 +199,16 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     BF01           = BF01,
     seed           = seed,
     columns        = columns,
-    density_method = density_method
+    density_method = if (precomputed) "precomputed" else density_method
   )
-
-  if (precomputed_density) {
+  if (precomputed) {
     out <- .hypothesis_brma_append_iwmde_warnings(
       table     = out,
       posterior = inference[["conditional"]][[parameter]]
     )
   }
 
-  return(out)
+  out
 }
 
 
@@ -364,25 +417,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     point_refs = point_refs
   )
 
-  .hypothesis_marginal_means_check_point_refs(
-    object          = object,
-    parameter       = parameter,
-    parameter_label = parameter_label,
-    point_refs      = point_refs,
-    inference_type  = inference_type
-  )
-
   source_object <- object[["source_object"]]
-  if (is.null(source_object) ||
-      !inherits(source_object, "brma") ||
-      is.null(source_object[["fit"]])) {
-    stop(
-      "The marginal-means object does not contain the source fitted brma ",
-      "object needed to compute ", density_method, " ordinates.",
-      call. = FALSE
-    )
-  }
-  .check_iwmde_available(source_object, "qCMDE/IWMDE marginal-means hypothesis()")
   .iwmde_check_point_ordinate_supported(
     source_object,
     density_method
@@ -429,31 +464,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   point_refs[["level"]][missing_level] <- level
 
   return(point_refs)
-}
-
-
-.hypothesis_marginal_means_check_point_refs <- function(
-    object, parameter, parameter_label, point_refs, inference_type) {
-
-  samples <- object[["inference"]][[inference_type]][[parameter]]
-  for (i in seq_len(nrow(point_refs))) {
-    ref <- point_refs[i, , drop = FALSE]
-    if (is.na(ref[["level"]]) && is.list(samples)) {
-      stop(
-        "qCMDE/IWMDE point hypotheses for marginal-means factor ",
-        "parameters must specify a level, e.g. '", parameter_label,
-        "[level] = ", ref[["value"]], "'.",
-        call. = FALSE
-      )
-    }
-    if (!is.na(ref[["level"]]) &&
-        (!is.list(samples) || !ref[["level"]] %in% names(samples))) {
-      stop("Hypothesis references unknown level '", ref[["level"]],
-           "' for parameter '", parameter, "'.", call. = FALSE)
-    }
-  }
-
-  invisible(TRUE)
 }
 
 

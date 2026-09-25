@@ -1,13 +1,35 @@
 #' @title Available Hypothesis Quantities
 #'
 #' @description Lists parameter names and aliases accepted by
-#' \code{hypothesis()} for a fitted object.
+#' \code{hypothesis()} for a fitted object, with the tests that
+#' \code{hypothesis()} runs on each of them.
 #'
 #' @param object a fitted \code{brma} or \code{marginal_means.brma} object.
 #' @param ... unused.
 #'
-#' @return A data frame of available quantities, components, aliases, and
-#' method-level test eligibility notes.
+#' @details The eligibility columns render the plans that \code{hypothesis()}
+#' executes (see the details of [hypothesis()]) for the statements
+#' \code{<q> = <null>} (point tests), \code{<q> > <null>} (directional and
+#' interval tests), and, for factor terms, \code{<level> = <other level>}
+#' (level contrasts) of every quantity \code{q}. The null value is 0; when 0
+#' is a prior point mass, a support boundary without a regular prior
+#' ordinate, or outside the support (for example, a gated random-effect
+#' standard deviation or a variance proportion), the point test is rendered
+#' at an interior value of the support instead (the midpoint of a bounded
+#' support, one unit inside a half-bounded support, and 1 otherwise): point
+#' hypotheses at such values follow the per-value rules of
+#' \code{hypothesis()}. A factor term lists the point-test methods available
+#' for all of its levels that the contrast does not fix, and the
+#' contrast-test methods available for all pairs of its levels. Region tests
+#' do not use a density method. The normal approximation is a rough check
+#' and is not listed.
+#'
+#' @return A data frame with the columns \code{alias}, \code{parameter},
+#' \code{component}, \code{term}, \code{bracket} (the level selector of factor
+#' terms), \code{point_test}, \code{direction_test}, \code{contrast_test}
+#' (\code{NA} for quantities without levels), \code{point_test_methods},
+#' \code{contrast_test_methods}, and \code{reason} (the refusals of the
+#' rendered statements).
 #'
 #' @export
 hypothesis_quantities <- function(object, ...) {
@@ -27,373 +49,262 @@ hypothesis_quantities.brma <- function(object, ...) {
   )
   catalog <- .brma_parameter_catalog(object)
   catalog <- catalog[catalog[["component"]] != "bias", , drop = FALSE]
-  out <- catalog[, c("alias", "parameter", "component", "term"), drop = FALSE]
-  metadata <- if (!is.null(object[["fit"]])) {
-    .brma_parameter_catalog_metadata(object)[["entries"]]
-  } else {
-    NULL
-  }
+  out  <- catalog[, c("alias", "parameter", "component", "term"), drop = FALSE]
   keys <- if ("quantity_id" %in% names(catalog)) {
     catalog[["quantity_id"]]
   } else {
     paste(catalog[["parameter"]], catalog[["component"]], sep = "\r")
   }
   unique_rows <- match(unique(keys), keys)
-  routes <- lapply(unique_rows, function(i) {
 
-    entry <- if (is.null(metadata) ||
-                 !"quantity_id" %in% names(catalog)) {
-      NULL
-    } else {
-      entry_i <- match(catalog[["quantity_id"]][[i]], metadata[["quantity_id"]])
-      if (is.na(entry_i)) NULL else as.list(metadata[entry_i, , drop = FALSE])
-    }
-    .hypothesis_quantities_brma_route(
-      object = object,
-      row    = catalog[i, , drop = FALSE],
-      entry  = entry
-    )
-  })
-  routes <- routes[match(keys, unique(keys))]
-  out[["bracket"]] <- vapply(seq_along(routes), function(i) {
-
-    if (routes[[i]][["bracket"]]) {
-      paste0(out[["parameter"]][[i]], "[level]")
-    } else {
-      NA_character_
-    }
-  }, character(1))
-  out[["point_test"]] <- vapply(routes, `[[`, logical(1), "point_test")
-  out[["direction_test"]] <- vapply(
-    routes, `[[`, logical(1), "direction_test"
-  )
-  out[["point_test_methods"]] <- vapply(
-    routes, `[[`, character(1), "point_test_methods"
-  )
-  out[["direction_test_methods"]] <- vapply(
-    routes, `[[`, character(1), "direction_test_methods"
-  )
-  out[["reason"]] <- vapply(routes, `[[`, character(1), "reason")
-  is_random <- out[["component"]] == "random"
-  if (any(is_random)) {
-    bundle <- .brma_random_parameter_bundle(object)
-    specs  <- bundle[["specs"]]
-    index <- match(out[["parameter"]][is_random], specs[["parameter"]])
-    likelihood_aware <- .hypothesis_quantities_iwmde_capability(object)
-    random_parameters <- unique(out[["parameter"]][is_random])
-    random_routes <- lapply(random_parameters, function(parameter) {
-
-      i     <- match(parameter, specs[["parameter"]])
-      entry <- .brma_parameter_select_entry(
-        object    = object,
-        parameter = parameter,
-        component = "random"
-      )
-      # Every method uses the canonical BayesTools prior density; values at
-      # its point masses are refused per value by hypothesis().
-      reason <- .brma_random_parameter_point_test_reason(
-        object    = object,
-        selection = entry[["selection"]],
-        label     = specs[["label"]][[i]]
-      )
-      point_methods <- .hypothesis_quantities_random_point_methods(
-        parameter          = parameter,
-        object             = object,
-        methods            = likelihood_aware[["methods"]],
-        direct_allowed     = !nzchar(reason),
-        likelihood_allowed = !nzchar(reason)
-      )
-      list(
-        point_methods = point_methods,
-        reason        = if (nzchar(point_methods)) "" else reason
+  if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0L) {
+    # hypothesis() requires a fitted object.
+    rows <- lapply(unique_rows, function(i) {
+      .hypothesis_quantities_row(
+        reason = "'hypothesis' requires a fitted brma object."
       )
     })
-    names(random_routes) <- random_parameters
-    out[["bracket"]][is_random]                <- NA_character_
-    point_methods <- vapply(
-      random_routes[out[["parameter"]][is_random]],
-      `[[`,
-      character(1),
-      "point_methods"
-    )
-    out[["point_test"]][is_random]             <- nzchar(point_methods)
-    out[["point_test_methods"]][is_random]     <- point_methods
-    out[["direction_test_methods"]][is_random] <- "KDE, normal"
-    out[["reason"]][is_random] <- vapply(
-      random_routes[out[["parameter"]][is_random]],
-      `[[`,
-      character(1),
-      "reason"
-    )
-
-    # Constant retained draws do not make a sampled quantity structurally fixed.
-    fixed <- vapply(index, function(i) {
-      identical(specs[["status"]][[i]], "structural")
-    }, logical(1))
-    random_rows <- which(is_random)
-    if (any(fixed)) {
-      fixed_rows <- random_rows[fixed]
-      out[["point_test"]][fixed_rows]             <- FALSE
-      out[["direction_test"]][fixed_rows]         <- FALSE
-      out[["point_test_methods"]][fixed_rows]     <- ""
-      out[["direction_test_methods"]][fixed_rows] <- ""
-      out[["reason"]][fixed_rows] <- paste0(
-        ifelse(nzchar(out[["reason"]][fixed_rows]),
-               paste0(out[["reason"]][fixed_rows], " "), ""),
-        "The quantity is fixed by the fitted model; posterior hypothesis tests are undefined."
+  } else {
+    metadata <- .brma_parameter_catalog_metadata(object)
+    entries  <- metadata[["entries"]]
+    cache    <- .hypothesis_plan_cache()
+    rows <- lapply(unique_rows, function(i) {
+      entry <- as.list(entries[
+        match(catalog[["quantity_id"]][[i]], entries[["quantity_id"]]),
+        setdiff(names(entries), "aliases"),
+        drop = FALSE
+      ])
+      .hypothesis_quantities_render(
+        object   = object,
+        entry    = entry,
+        metadata = metadata,
+        cache    = cache
       )
-    }
+    })
   }
+  rows <- do.call(rbind, rows)[match(keys, unique(keys)), , drop = FALSE]
+  out  <- cbind(out, rows)
+  out[["bracket"]] <- ifelse(
+    out[["bracket"]],
+    paste0(out[["parameter"]], "[level]"),
+    NA_character_
+  )
+  out <- out[, c(
+    "alias", "parameter", "component", "term", "bracket", "point_test",
+    "direction_test", "contrast_test", "point_test_methods",
+    "contrast_test_methods", "reason"
+  ), drop = FALSE]
   rownames(out) <- NULL
+
   return(out)
 }
 
 
-.hypothesis_quantities_random_point_methods <- function(
-    parameter, object, methods, direct_allowed = TRUE,
-    likelihood_allowed = TRUE) {
+# One row of eligibility columns.
+.hypothesis_quantities_row <- function(bracket = FALSE, point_test = FALSE,
+                                       direction_test = FALSE,
+                                       contrast_test = NA,
+                                       point_test_methods = "",
+                                       contrast_test_methods = NA_character_,
+                                       reason = "") {
 
-  target <- tryCatch(
-    .brma_random_parameter_density_target(object, parameter),
-    error = function(error) NULL
+  data.frame(
+    bracket               = bracket,
+    point_test            = point_test,
+    direction_test        = direction_test,
+    contrast_test         = contrast_test,
+    point_test_methods    = point_test_methods,
+    contrast_test_methods = contrast_test_methods,
+    reason                = reason,
+    stringsAsFactors      = FALSE
   )
-  supported <- is.list(target) &&
-    is.character(target[["parameter"]]) &&
-    length(target[["parameter"]]) == 1L &&
-    !is.na(target[["parameter"]]) && nzchar(target[["parameter"]])
+}
 
-  paste(c(
-    if (isTRUE(unname(direct_allowed))) "KDE" else character(),
-    if (supported && isTRUE(unname(likelihood_allowed))) {
-      methods
+
+# The rendered statements of a catalog entry and their plans. Statements
+# name the quantity by its displayed label within the entry's component
+# (random-effect quantities by their selector).
+.hypothesis_quantities_plans <- function(object, entry, metadata, cache) {
+
+  # Statements are planned as hypothesis() plans them.
+  plan_of <- function(statement) {
+    .hypothesis_plans(
+      object     = object,
+      hypothesis = statement,
+      component  = entry[["component"]],
+      metadata   = metadata,
+      cache      = cache
+    )[[1L]]
+  }
+  # Factor terms are named by their parameter: their level references are
+  # resolved across components.
+  root <- entry[["parameter"]]
+  if (!identical(entry[["component"]], "random") &&
+      !identical(entry[["role"]], "formula_coefficient_group")) {
+    aliases <- metadata[["entries"]][["aliases"]][[
+      match(entry[["quantity_id"]], metadata[["entries"]][["quantity_id"]])
+    ]]
+    aliases <- as.list(stats::setNames(rep(root, length(aliases)), aliases))
+    root    <- .hypothesis_brma_alias_label(aliases, entry[["parameter"]])
+  }
+  reference <- function(level = NULL) {
+    if (is.null(level)) {
+      return(paste0("`", root, "`"))
+    }
+    paste0("`", root, "[", level, "]`")
+  }
+
+  if (!identical(entry[["role"]], "formula_coefficient_group")) {
+    point <- .hypothesis_quantities_point_plan(plan_of, reference())
+    return(list(
+      point    = list(point),
+      region   = list(plan_of(paste0(
+        reference(), " > ", .hypothesis_quantities_region_value(point)
+      ))),
+      contrast = NULL
+    ))
+  }
+
+  levels <- .hypothesis_plan_term_levels(metadata, entry)
+  tested <- levels[["level"]][!levels[["fixed"]]]
+  point  <- lapply(tested, function(level) {
+    .hypothesis_quantities_point_plan(plan_of, reference(level))
+  })
+  region <- lapply(seq_along(tested), function(i) {
+    plan_of(paste0(
+      reference(tested[[i]]), " > ",
+      .hypothesis_quantities_region_value(point[[i]])
+    ))
+  })
+  pairs <- if (nrow(levels) > 1L) utils::combn(levels[["level"]], 2L) else NULL
+  contrast <- lapply(seq_len(NCOL(pairs)), function(i) {
+    plan_of(paste0(reference(pairs[1L, i]), " = ", reference(pairs[2L, i])))
+  })
+
+  list(point = point, region = region, contrast = contrast)
+}
+
+
+# The plan of '<q> = 0', or of '<q> = <interior value>' when the value 0
+# itself is refused (a prior point mass, a support boundary without a
+# regular prior ordinate, or a value outside the support): the statement
+# rendered for a quantity's point tests.
+.hypothesis_quantities_point_plan <- function(plan_of, reference) {
+
+  plan    <- plan_of(paste0(reference, " = 0"))
+  refusal <- .hypothesis_plan_status(plan, "KDE")
+  if (!is.null(refusal) && isTRUE(refusal[["value_specific"]])) {
+    value <- .hypothesis_quantities_interior_value(plan[["support"]])
+    plan  <- plan_of(paste0(reference, " = ", format(value, digits = 15L)))
+    plan[["null_value"]] <- value
+    return(plan)
+  }
+  plan[["null_value"]] <- 0
+
+  plan
+}
+
+
+# The value of the rendered region statement '<q> > <value>': the null value
+# of the point statement, or an interior value when that null value is a
+# support bound (a region beyond a bound has no complementary prior mass).
+.hypothesis_quantities_region_value <- function(point) {
+
+  value   <- point[["null_value"]]
+  support <- point[["support"]]
+  if (!is.null(support) && (value <= support[[1L]] || value >= support[[2L]])) {
+    value <- .hypothesis_quantities_interior_value(support)
+  }
+
+  format(value, digits = 15L)
+}
+
+
+# A value inside the support bounds 'support' (c(lower, upper), or NULL for
+# an unbounded support): the midpoint of a bounded support, one unit inside a
+# half-bounded support, and 1 otherwise.
+.hypothesis_quantities_interior_value <- function(support) {
+
+  bounds <- if (is.null(support)) c(-Inf, Inf) else as.numeric(support)
+  if (all(is.finite(bounds))) {
+    return(mean(bounds))
+  }
+  if (is.finite(bounds[[1L]])) {
+    return(bounds[[1L]] + 1)
+  }
+  if (is.finite(bounds[[2L]])) {
+    return(bounds[[2L]] - 1)
+  }
+
+  1
+}
+
+
+.hypothesis_quantities_render <- function(object, entry, metadata, cache) {
+
+  plans <- .hypothesis_quantities_plans(object, entry, metadata, cache)
+  .hypothesis_quantities_render_plans(
+    plans   = plans,
+    bracket = identical(entry[["role"]], "formula_coefficient_group")
+  )
+}
+
+
+# The eligibility columns of the plans of one quantity: the methods that
+# evaluate every point (contrast) plan, whether every region plan runs, and
+# the distinct refusals of the plans.
+.hypothesis_quantities_render_plans <- function(plans, bracket) {
+
+  advertised <- .hypothesis_plan_advertised_methods()
+  methods_of <- function(plans) {
+    if (length(plans) == 0L) {
+      return(character())
+    }
+    advertised[vapply(advertised, function(method) {
+      all(vapply(plans, function(plan) {
+        is.null(.hypothesis_plan_status(plan, method))
+      }, logical(1)))
+    }, logical(1))]
+  }
+  point_methods    <- methods_of(plans[["point"]])
+  contrast_methods <- if (is.null(plans[["contrast"]])) {
+    NULL
+  } else {
+    methods_of(plans[["contrast"]])
+  }
+  direction_test <- length(plans[["region"]]) > 0L && all(vapply(
+    plans[["region"]],
+    function(plan) is.null(.hypothesis_plan_status(plan, "KDE")),
+    logical(1)
+  ))
+  reasons <- unlist(lapply(
+    c(plans[["point"]], plans[["region"]], plans[["contrast"]]),
+    function(plan) {
+      vapply(advertised, function(method) {
+        refusal <- .hypothesis_plan_status(plan, method)
+        if (is.null(refusal)) NA_character_ else refusal[["reason"]]
+      }, character(1))
+    }
+  ), use.names = FALSE)
+  reasons <- unique(reasons[!is.na(reasons)])
+
+  .hypothesis_quantities_row(
+    bracket               = bracket,
+    point_test            = length(point_methods) > 0L,
+    direction_test        = direction_test,
+    contrast_test         = if (is.null(contrast_methods)) {
+      NA
     } else {
-      character()
-    }
-  ), collapse = ", ")
-}
-
-
-# Point hypotheses on a factor level need the level to be a fitted coefficient
-# itself (a direct level cell) whose induced prior has an exact ordinate.
-# hypothesis() stops point hypotheses on levels that are linear combinations
-# of the contrast coefficients (mean-difference and orthonormal levels,
-# ordered levels beyond the first increment) and on levels whose fitted
-# coefficient has no exact prior ordinate (the first increment of an ordered
-# prior, a product of the ordered total and its allocation). Structural
-# levels (the treatment reference) are fixed and not counted.
-.hypothesis_quantities_factor_point_support <- function(object, entry, out) {
-
-  metadata   <- .brma_parameter_catalog_metadata(object)
-  quantities <- metadata[["catalog"]][["quantities"]]
-  members    <- quantities[
-    quantities[["quantity_id"]] %in%
-      unlist(entry[["member_quantity_ids"]], use.names = FALSE),
-    ,
-    drop = FALSE
-  ]
-  structural <- members[["status"]] %in% c("fixed", "structural") |
-    is.finite(members[["fixed_value"]])
-  members <- members[!structural, , drop = FALSE]
-  if (nrow(members) == 0L) {
-    return(out)
-  }
-  coordinates <- lapply(seq_len(nrow(members)), function(i) {
-    .brma_catalog_level_coordinate(members[i, , drop = FALSE], quantities)
-  })
-  combined <- vapply(coordinates, is.null, logical(1))
-  inexact  <- !combined
-  inexact[!combined] <- !vapply(
-    coordinates[!combined],
-    .hypothesis_quantities_exact_level_ordinate,
-    logical(1),
-    object            = object,
-    formula_parameter = entry[["formula_parameter"]]
+      length(contrast_methods) > 0L
+    },
+    point_test_methods    = paste(point_methods, collapse = ", "),
+    contrast_test_methods = if (is.null(contrast_methods)) {
+      NA_character_
+    } else {
+      paste(contrast_methods, collapse = ", ")
+    },
+    reason                = paste(reasons, collapse = " ")
   )
-  if (!any(combined | inexact)) {
-    return(out)
-  }
-
-  label <- .brma_factor_term_selectors(metadata, entry)[["label"]]
-  levels_text <- function(levels) {
-    paste0(
-      "level", if (length(levels) > 1L) "s", " ",
-      paste0("'", label, "[", levels, "]'", collapse = ", ")
-    )
-  }
-  out[["point_test"]] <- FALSE
-  if (all(combined | inexact)) {
-    out[["point_test_methods"]] <- ""
-  }
-  out[["reason"]] <- paste(c(
-    if (any(combined)) paste0(
-      "Point hypotheses are not supported for ",
-      levels_text(members[["component"]][combined]),
-      if (sum(combined) > 1L) ": each is" else ": it is",
-      " a linear combination of the fitted contrast coefficients ",
-      "(mean-difference, orthonormal, or ordered contrasts), not a fitted ",
-      "coefficient itself."
-    ),
-    if (any(inexact)) paste0(
-      "Point hypotheses are not supported for ",
-      levels_text(members[["component"]][inexact]),
-      ": the induced prior of ",
-      if (sum(inexact) > 1L) "their fitted coefficients have" else
-        "its fitted coefficient has",
-      " no exact ordinate (as for the first increment of an ordered prior)."
-    ),
-    "Region hypotheses and level contrasts are available for all levels."
-  ), collapse = " ")
-
-  return(out)
-}
-
-
-# Whether hypothesis() accepts a point hypothesis on a fitted formula
-# coordinate (a factor level or a scalar coefficient): its induced
-# original-scale prior needs an exact ordinate
-# (.hypothesis_brma_formula_prior_target()). The classification follows from
-# the prior's provenance; it is taken at the usual null value 0. A point mass
-# there (the null components of a model-averaged prior) makes the ordinate at
-# 0 exact by itself, while point hypotheses elsewhere use the continuous part,
-# whose classification BayesTools records with the atom ('unknown' when it
-# has no exact ordinate).
-.hypothesis_quantities_exact_level_ordinate <- function(coordinate, object,
-                                                        formula_parameter) {
-
-  density <- BayesTools::JAGS_formula_prior_density(
-    fit          = object[["fit"]],
-    parameter    = formula_parameter,
-    weights      = stats::setNames(1, coordinate),
-    target_scale = "original"
-  )
-  status <- BayesTools::prior_ordinate_status(density, 0)
-  if (identical(status[["condition"]], "BayesTools_point_mass_at_null")) {
-    return(status[["continuous_behavior"]] %in%
-             c("regular", "zero", "infinite", "undefined"))
-  }
-
-  return(!identical(status[["condition"]], "BayesTools_inexact_ordinate"))
-}
-
-
-.hypothesis_quantities_brma_route <- function(object, row, entry = NULL) {
-
-  likelihood_aware <- .hypothesis_quantities_iwmde_capability(object)
-  point_methods     <- c("KDE", likelihood_aware[["methods"]])
-  out <- list(
-    bracket               = !is.null(entry) &&
-      identical(entry[["role"]], "formula_coefficient_group"),
-    point_test             = TRUE,
-    direction_test         = TRUE,
-    point_test_methods     = paste(point_methods, collapse = ", "),
-    direction_test_methods = "KDE, normal",
-    reason                 = likelihood_aware[["reason"]]
-  )
-
-  fixed_value <- if (is.null(entry)) NULL else entry[["fixed_value"]]
-  fixed <- !is.null(entry) && (
-    identical(entry[["status"]], "fixed") ||
-      (length(fixed_value) == 1L && is.finite(fixed_value))
-  )
-  if (fixed) {
-    out[["point_test"]]             <- FALSE
-    out[["direction_test"]]         <- FALSE
-    out[["point_test_methods"]]     <- ""
-    out[["direction_test_methods"]] <- ""
-    out[["reason"]] <- paste0(
-      "The quantity is fixed by the fitted model; posterior hypothesis ",
-      "tests are undefined."
-    )
-    return(out)
-  }
-  if (!is.null(entry) &&
-      identical(entry[["role"]], "formula_coefficient_group") &&
-      !is.null(object[["fit"]])) {
-    out <- .hypothesis_quantities_factor_point_support(object, entry, out)
-  }
-  formula_parameter <- if (is.null(entry)) NULL else entry[["formula_parameter"]]
-  if (is.null(entry) || identical(row[["component"]], "random") ||
-      identical(entry[["role"]], "formula_coefficient_group") ||
-      length(formula_parameter) != 1L || is.na(formula_parameter) ||
-      !nzchar(formula_parameter)) {
-    return(out)
-  }
-
-  selected <- list(
-    parameter = row[["parameter"]],
-    component = row[["component"]],
-    entry     = entry
-  )
-  target <- .hypothesis_brma_formula_coefficient_target(
-    object   = object,
-    selected = selected
-  )
-  if (is.null(target)) {
-    return(out)
-  }
-  route <- .hypothesis_brma_formula_transform_route(target)
-  if (route[["type"]] %in% c("identity", "affine")) {
-    # hypothesis() tests points on the coefficient's induced original-scale
-    # prior only where that prior has an exact ordinate (for example, not
-    # when the predictor scaling combines it with a Cauchy slope).
-    exact <- .hypothesis_quantities_exact_level_ordinate(
-      coordinate        = target[["target"]],
-      object            = object,
-      formula_parameter = formula_parameter
-    )
-    if (!exact) {
-      out[["point_test"]]         <- FALSE
-      out[["point_test_methods"]] <- ""
-      out[["reason"]] <- paste0(
-        "Point hypotheses are not supported for '", row[["parameter"]],
-        "': its induced prior on the original scale has no exact ordinate. ",
-        "Point hypotheses on the fitted-scale coefficient are available with ",
-        "standardized_coefficients = TRUE."
-      )
-    }
-    return(out)
-  }
-  if (identical(route[["type"]], "exp_affine")) {
-    out[["point_test_methods"]]     <- "KDE"
-    out[["direction_test_methods"]] <- "KDE"
-    out[["reason"]] <- paste0(
-      "KDE requires runtime structural certification of an atom-free, ",
-      "unconditional scalar target."
-    )
-    return(out)
-  }
-
-  out[["point_test"]]             <- FALSE
-  out[["direction_test"]]         <- FALSE
-  out[["point_test_methods"]]     <- ""
-  out[["direction_test_methods"]] <- ""
-  out[["reason"]]                 <- route[["reason"]]
-  return(out)
-}
-
-
-.hypothesis_quantities_iwmde_capability <- function(object) {
-
-  methods      <- c("qCMDE", "IWMDE")
-  capabilities <- lapply(methods, function(density_method) {
-
-    .iwmde_capability(
-      object         = object,
-      density_method = density_method
-    )
-  })
-  available <- vapply(capabilities, `[[`, logical(1), "available")
-  reasons   <- unique(vapply(
-    capabilities[!available],
-    `[[`,
-    character(1),
-    "reason"
-  ))
-
-  return(list(
-    methods = methods[available],
-    reason  = paste(reasons, collapse = " ")
-  ))
 }
 
 
@@ -406,68 +317,51 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     allowed = character(),
     caller  = "hypothesis_quantities()"
   )
-  term_map    <- object[["term_map"]]
-  conditional <- object[["inference"]][["conditional"]]
-  rows        <- list()
-  samples     <- list()
-  row_i       <- 0L
+  term_map <- object[["term_map"]]
+  averaged <- object[["inference"]][["averaged"]]
+  if (is.null(averaged)) {
+    averaged <- object[["inference"]][["conditional"]]
+  }
+  rows  <- list()
+  cache <- .hypothesis_plan_cache()
   for (i in seq_len(nrow(term_map))) {
 
-    parameter_samples <- conditional[[term_map[["parameter"]][[i]]]]
-    if (is.list(parameter_samples)) {
-      level_names <- names(parameter_samples)
-      if (is.null(level_names) || length(level_names) != length(parameter_samples) ||
+    parameter <- term_map[["parameter"]][[i]]
+    levels    <- if (is.list(averaged[[parameter]])) {
+      level_names <- names(averaged[[parameter]])
+      if (is.null(level_names) ||
+          length(level_names) != length(averaged[[parameter]]) ||
           any(!nzchar(level_names))) {
         stop(
           "Grouped marginal means must have non-empty level names.",
           call. = FALSE
         )
       }
-      for (level_i in seq_along(parameter_samples)) {
-        row_i <- row_i + 1L
-        rows[[row_i]] <- .hypothesis_quantities_marginal_row(
-          term_map[i, , drop = FALSE],
-          level = level_names[[level_i]]
-        )
-        samples[[row_i]] <- parameter_samples[[level_i]]
-      }
+      level_names
     } else {
-      row_i <- row_i + 1L
-      rows[[row_i]] <- .hypothesis_quantities_marginal_row(
-        term_map[i, , drop = FALSE]
+      list(NULL)
+    }
+    for (level in levels) {
+      rows[[length(rows) + 1L]] <- cbind(
+        .hypothesis_quantities_marginal_row(term_map[i, , drop = FALSE], level),
+        .hypothesis_quantities_marginal_render(
+          object    = object,
+          parameter = parameter,
+          level     = level,
+          levels    = if (is.null(level)) NULL else unlist(levels),
+          cache     = cache
+        )
       )
-      samples[[row_i]] <- parameter_samples
     }
   }
   out <- do.call(rbind, rows)
-  likelihood_aware <- .hypothesis_quantities_iwmde_capability(
-    object[["source_object"]]
-  )
-  out <- .hypothesis_quantities_add_eligibility(
-    out,
-    point_test_methods = paste(
-      c("KDE", likelihood_aware[["methods"]]),
-      collapse = ", "
-    )
-  )
-  out[["reason"]] <- likelihood_aware[["reason"]]
-  out[["direction_test_methods"]] <- "KDE"
-  for (i in seq_len(nrow(out))) {
-    values <- as.numeric(samples[[i]])
-    values <- values[is.finite(values)]
-    fixed <- length(values) > 0L && all(values == values[[1L]])
-    if (fixed) {
-      out[["point_test"]][[i]]             <- FALSE
-      out[["direction_test"]][[i]]         <- FALSE
-      out[["point_test_methods"]][[i]]     <- ""
-      out[["direction_test_methods"]][[i]] <- ""
-      out[["reason"]][[i]] <- paste0(
-        "The quantity is fixed by the fitted model; posterior hypothesis ",
-        "tests are undefined."
-      )
-    }
-  }
+  out <- out[, c(
+    "alias", "parameter", "component", "term", "bracket", "point_test",
+    "direction_test", "contrast_test", "point_test_methods",
+    "contrast_test_methods", "reason"
+  ), drop = FALSE]
   rownames(out) <- NULL
+
   return(out)
 }
 
@@ -491,13 +385,40 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
 }
 
 
-.hypothesis_quantities_add_eligibility <- function(out, point_test_methods) {
+# The plans of one marginal mean (a level of a factor term, or a scalar
+# term): its point and region statements and its contrasts with the other
+# levels.
+.hypothesis_quantities_marginal_render <- function(object, parameter, level,
+                                                   levels, cache) {
 
-  out[["point_test"]]             <- TRUE
-  out[["direction_test"]]         <- TRUE
-  out[["point_test_methods"]]     <- point_test_methods
-  out[["direction_test_methods"]] <- "KDE, qCMDE, IWMDE"
-  out[["reason"]]                 <- ""
+  plan_of <- function(statement) {
+    .hypothesis_plan_marginal_means(
+      object    = object,
+      statement = statement,
+      parameter = parameter,
+      cache     = cache
+    )
+  }
+  reference <- function(level) {
+    if (is.null(level)) {
+      return(paste0("`", parameter, "`"))
+    }
+    paste0("`", parameter, "[", level, "]`")
+  }
+  point  <- .hypothesis_quantities_point_plan(plan_of, reference(level))
+  plans  <- list(
+    point    = list(point),
+    region   = list(plan_of(paste0(
+      reference(level), " > ", .hypothesis_quantities_region_value(point)
+    ))),
+    contrast = if (!is.null(level) && length(levels) > 1L) {
+      lapply(setdiff(levels, level), function(other) {
+        plan_of(paste0(reference(level), " = ", reference(other)))
+      })
+    }
+  )
+  out <- .hypothesis_quantities_render_plans(plans, bracket = FALSE)
+  out[["bracket"]] <- NULL
 
-  return(out)
+  out
 }
