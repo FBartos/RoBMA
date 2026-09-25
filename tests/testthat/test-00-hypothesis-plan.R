@@ -78,6 +78,13 @@ context("Hypothesis plans: one eligibility source for hypothesis() and hypothesi
     chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 1,
     silent = TRUE
   ))
+  # A RoBMA ensemble with publication-bias components; its bias rows are not
+  # hypothesis targets.
+  fits[["robma_mixture"]] <- suppressWarnings(RoBMA(
+    yi = yi, sei = sei, mods = ~ g1, data = factors, measure = "SMD",
+    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 1,
+    silent = TRUE
+  ))
   .plan_fit_cache[["fits"]] <- fits
 
   return(fits)
