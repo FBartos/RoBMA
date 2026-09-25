@@ -450,6 +450,41 @@ test_that("random-parameter support is the catalog's declared support", {
 })
 
 
+test_that("random-effect diagnostics bound densities by the catalog's plotting limits", {
+
+  # A component SD allocated from a scale prior that is bounded above: the
+  # catalog declares its hull [0, Inf) as plotting limits (exact = FALSE),
+  # which bound the diagnostic density but no hypothesis.
+  quantities <- data.frame(quantity_id = "q", stringsAsFactors = FALSE)
+  quantities[["support"]] <- I(list(
+    BayesTools::posterior_support_attribute(c(0, Inf), exact = FALSE)
+  ))
+  selected <- list(
+    entry   = list(
+      parameter = "(mu) study: tau(intercept)",
+      selection = list(quantities = quantities)
+    ),
+    spec    = list(label = "study: tau"),
+    samples = matrix(c(0.1, 0.2), ncol = 1L)
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select           = function(...) selected,
+    .brma_random_parameter_fit_with_samples = function(fit, samples) list(),
+    .package = "RoBMA"
+  )
+
+  diagnostic <- .brma_random_parameter_diagnostic_fit(
+    list(fit = list()),
+    "(mu) study: tau(intercept)"
+  )
+  prior <- attr(diagnostic[["fit"]], "prior_list")[[diagnostic[["parameter"]]]]
+  expect_equal(unlist(prior[["truncation"]]), c(lower = 0, upper = Inf))
+
+  expect_equal(.brma_random_parameter_support(selected), c(-Inf, Inf))
+  expect_equal(.brma_random_parameter_support(selected, limits = TRUE), c(0, Inf))
+})
+
+
 test_that("independent factor coefficients retain separate plot levels", {
 
   group <- matrix(rnorm(20), ncol = 2L)

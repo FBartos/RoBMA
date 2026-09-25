@@ -587,7 +587,8 @@
     standardized_coefficients = standardized_coefficients,
     chains                    = TRUE
   )
-  support <- .brma_random_parameter_support(selected)
+  # The diagnostic density is bounded by the catalog's plotting limits.
+  support <- .brma_random_parameter_support(selected, limits = TRUE)
   diagnostic_prior <- BayesTools::prior(
     distribution = "normal",
     parameters   = list(mean = 0, sd = 1),
@@ -1176,11 +1177,13 @@
 }
 
 # Bounds of the exact catalog support of a selected random-effect quantity;
-# unbounded when the catalog declares no exact support.
-.brma_random_parameter_support <- function(selected) {
+# unbounded when the catalog declares no exact support. With 'limits', the
+# bounds of a support declared only as plotting limits (not exact) are
+# returned as well: they bound plotted densities but exclude no hypothesis.
+.brma_random_parameter_support <- function(selected, limits = FALSE) {
 
   support <- .brma_random_parameter_catalog_support(selected)
-  if (is.null(support) || !isTRUE(support[["exact"]])) {
+  if (is.null(support) || !(isTRUE(support[["exact"]]) || isTRUE(limits))) {
     return(c(-Inf, Inf))
   }
 
