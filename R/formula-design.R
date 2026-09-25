@@ -359,6 +359,9 @@
 .formula_design_term_labels <- function(design,
                                         terms = design[["model_terms"]]) {
 
+  if (length(terms) == 0L) {
+    return(character())
+  }
   labels <- design[["model_term_labels"]]
   if (is.null(labels)) {
     name_map <- design[["name_map"]]

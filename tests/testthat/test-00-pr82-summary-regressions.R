@@ -7,6 +7,17 @@ test_that("unpaired random inclusion gates retain usable labels", {
   quantities$extraction_key <- I(list(
     list(source_parameter = "missing"), list(), list(source_parameter = "paired")
   ))
+  quantities$label_parts <- I(lapply(c("a", "b", "c"), function(component) {
+    catalog_label_parts(
+      paste0("inclusion(", component, ")"), component,
+      random = list(
+        owner             = "",
+        quantity          = "inclusion",
+        arguments         = component,
+        display_arguments = component
+      )
+    )
+  }))
   local_mocked_bindings(
     parameter_catalog = function(...) list(quantities = quantities),
     .package = "BayesTools"

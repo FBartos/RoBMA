@@ -71,7 +71,7 @@ test_that("empty resolved hypothesis quantities fail with a metadata message", {
     .package = "RoBMA"
   )
   expect_error(.hypothesis_brma_select_parameter(
-    list(), "mu = 0", "auto", list(catalog = list(), entries = data.frame())
+    list(), "mu = 0", "auto", list(catalog = NULL, entries = data.frame())
   ), paste0("Resolved hypothesis metadata are unavailable. Refit the model with ",
             "the current RoBMA/BayesTools build."), fixed = TRUE)
 })
