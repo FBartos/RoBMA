@@ -237,7 +237,7 @@
   identical to all 17 digits - and the scenario fingerprints are unchanged,
   while `fit_posterior_tau` takes 10.1 s where it took 13.2 s and 0.57 GB where
   it took 1.78 GB. The log-coordinate verdict this route reads arrives with
-  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.124): an older BayesTools
+  BayesTools 0.3.1.116 (included in the current minimum, 0.3.1.125): an older BayesTools
   would report the logged intercept as non-affine and silently leave the line
   on the generic evaluator.
 - draws outcome-mode `funnel()` and `bfunnel()` contours for correlated known-`V`
@@ -1248,7 +1248,7 @@
   `RoBMA.options(default_lograte.sd = ...)` option controls this standard
   deviation. This intentionally changes default Poisson GLMM fits and makes
   prior informativeness invariant to the exposure-time unit.
-- requires BayesTools 0.3.1.124 and R 4.3.0 for the multivariate random-effect
+- requires BayesTools 0.3.1.125 and R 4.3.0 for the multivariate random-effect
   backend, point-prior monitoring, exact zero-dimensional marginal likelihoods,
   scalable diagonal marginal variances, versioned fitted-formula identities,
   deterministic draw geometry, metadata-only parameter catalogs, hypothesis
@@ -1259,8 +1259,11 @@
   undefined original-scale correlation draws, prior draws carrying the
   deterministic random-effect monitors, one validated metadata container on
   posterior draws, exact allocated random-effect prior densities, classed
-  hypothesis conditions, the deterministic-node registry, exported runtime
-  cluster helpers, and catalog-rendered parameter labels.
+  hypothesis conditions, the deterministic-node registry and its prepared
+  evaluators, exported runtime cluster helpers, catalog-rendered parameter
+  labels, metadata-preserving posterior transformations, structural posterior
+  atoms and gate states, exact LKJ marginal correlation priors, and label parts
+  of estimates-table rows and catalog aliases.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
