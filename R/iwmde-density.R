@@ -8,11 +8,11 @@
   if (length(rows) > 1L && .is_data_joint_selection(context[["data"]]) &&
       .iwmde_context_uses_local_likelihood(context)) {
     # Reuse the joint batch evaluator only for the baseline likelihood. Local
-    # parameters, priors and row diagnostics are still assembled below.
-    rng_kind <- RNGkind()
-    has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-    if (has_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-    tryCatch({
+    # parameters, priors and row diagnostics are still assembled below. A
+    # diagnostic or unavailable batch leaves the affected rows uncached;
+    # scalar evaluation emits the original condition without consuming RNG
+    # or duplicating warnings from this speculative calculation.
+    .with_preserved_rng(initialize = FALSE, tryCatch({
       likelihood_mode <- .iwmde_likelihood_mode(parameter, parameter_spec, context)
       state_scope     <- .iwmde_state_scope(parameter, parameter_spec, context)
       active_keys     <- .iwmde_active_keys(context)[rows]
@@ -44,17 +44,7 @@
                  envir = context[["likelihood_cache"]])
         }
       }
-    }, error = function(e) NULL, warning = function(w) NULL, finally = {
-      # A diagnostic or unavailable batch leaves the affected rows uncached;
-      # scalar evaluation emits the original condition without consuming RNG
-      # or duplicating warnings from this speculative calculation.
-      do.call(RNGkind, as.list(rng_kind))
-      if (has_seed) {
-        assign(".Random.seed", old_seed, envir = .GlobalEnv)
-      } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-        rm(".Random.seed", envir = .GlobalEnv)
-      }
-    })
+    }, error = function(e) NULL, warning = function(w) NULL))
   }
 
   lapply(rows, function(row) {

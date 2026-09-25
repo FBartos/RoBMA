@@ -423,8 +423,7 @@ test_that("brma.mv heterogeneity falls back to row-marginal random SDs", {
 
   formula_fit <- .posterior_formula_fit(
     fit               = object[["fit"]],
-    posterior_samples = posterior_samples,
-    formula_design    = TRUE
+    posterior_samples = posterior_samples
   )
   attr(formula_fit, "formula_design") <- list(mu = formula_design)
   random_vcov <- BayesTools::random_effects_marginal_vcov(

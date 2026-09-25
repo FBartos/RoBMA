@@ -933,7 +933,7 @@ test_that("IWMDE scalar latent random effects match formula reconstruction", {
     predictor_cache = new.env(parent = emptyenv())
   )
 
-  formula_priors <- .repair_formula_prior_list(
+  formula_priors <- .formula_evaluation_prior_list(
     prior_list = priors[["location"]],
     parameter  = "mu"
   )
@@ -953,11 +953,7 @@ test_that("IWMDE scalar latent random effects match formula reconstruction", {
     posterior_samples = samples
   )
   formula_mu <- t(BayesTools::JAGS_evaluate_formula(
-    fit            = .posterior_formula_fit(
-      fit               = object[["fit"]],
-      posterior_samples = samples,
-      formula_design    = FALSE
-    ),
+    fit            = .posterior_formula_fit(object[["fit"]], samples),
     formula        = stats::as.formula("~ 1"),
     parameter      = "mu",
     data           = data.frame(row.names = seq_len(nrow(dat))),

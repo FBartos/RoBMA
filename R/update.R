@@ -224,18 +224,9 @@ update.brma <- function(
     stop("'object' does not contain a fitted model to check.", call. = FALSE)
   }
 
-  prior_list <- attr(fit, "prior_list")
-  if (is.null(prior_list)) {
-    prior_list <- .create_fit_priors(
-      data   = object[["data"]],
-      priors = object[["priors"]]
-    )
-  }
-
-  # BayesTools classifies structural parameters from the prior list.
+  # BayesTools classifies parameters by the fit's coordinate roles.
   check_fit <- BayesTools::JAGS_check_convergence(
-    fit            = fit,
-    prior_list     = prior_list,
+    fit                  = fit,
     max_Rhat             = object[["convergence_checks"]][["max_Rhat"]],
     min_ESS              = object[["convergence_checks"]][["min_ESS"]],
     max_error            = object[["convergence_checks"]][["max_error"]],

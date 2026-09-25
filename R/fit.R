@@ -827,9 +827,9 @@
     has_posterior <- TRUE
     # BayesTools classifies structural parameters (reference and fixed
     # publication weights, point priors) from the prior list.
+    # BayesTools classifies parameters by the fit's coordinate roles.
     check_fit     <- BayesTools::JAGS_check_convergence(
-      fit            = fit,
-      prior_list     = attr(fit, "prior_list"),
+      fit                  = fit,
       max_Rhat             = convergence_checks[["max_Rhat"]],
       min_ESS              = convergence_checks[["min_ESS"]],
       max_error            = convergence_checks[["max_error"]],

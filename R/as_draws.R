@@ -270,7 +270,6 @@ NULL
   category[endsWith(variable_base, "_xRE_CORx_lkj_u")] <- "random_correlation_coordinate"
   category[endsWith(variable_base, "_xRE_CORx_lkj_cpc")] <- "random_correlation_coordinate"
   category[startsWith(variable_base, "prior_par_eta_")] <- "prior_parameterization"
-  category[startsWith(variable_base, "inv_")] <- "transformed_prior"
   category[variable_base %in% .brma_spike_and_slab_auxiliary_bases(x)] <-
     "spike_and_slab_latent"
   category[variable_base %in% c(

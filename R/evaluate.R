@@ -348,11 +348,11 @@
 # ---------------------------------------------------------------------------- #
 #
 # Build a BayesTools::JAGS_evaluate_formula() input from already selected
-# posterior rows while preserving formula scaling metadata from the JAGS fit.
+# posterior rows while preserving the fitted formula scaling and design of the
+# JAGS fit.
 #
 # ---------------------------------------------------------------------------- #
-.posterior_formula_fit <- function(fit, posterior_samples,
-                                   formula_design = TRUE) {
+.posterior_formula_fit <- function(fit, posterior_samples) {
 
   formula_fit <- if (inherits(posterior_samples, "mcmc")) {
     posterior_samples
@@ -360,14 +360,31 @@
     coda::as.mcmc(as.matrix(posterior_samples))
   }
 
-  attr(formula_fit, "formula_scale") <- attr(fit, "formula_scale")
-  if (isTRUE(formula_design)) {
-    attr(formula_fit, "formula_design") <- attr(fit, "formula_design")
-  } else {
-    attr(formula_fit, "formula_design") <- NULL
-  }
+  attr(formula_fit, "formula_scale")  <- attr(fit, "formula_scale")
+  attr(formula_fit, "formula_design") <- attr(fit, "formula_design")
 
   return(formula_fit)
+}
+
+
+# Formula priors of 'parameter' as BayesTools::JAGS_evaluate_formula() takes
+# them: with their formula metadata, and named by their fitted coefficients
+# (e.g. 'mu_intercept', 'log_tau_x').
+.formula_evaluation_prior_list <- function(prior_list, parameter) {
+
+  prior_list <- .repair_formula_prior_list(
+    prior_list = prior_list,
+    parameter  = parameter
+  )
+  if (length(prior_list) == 0L) {
+    return(prior_list)
+  }
+  names(prior_list) <- BayesTools::JAGS_parameter_names(
+    names(prior_list),
+    formula_parameter = parameter
+  )
+
+  return(prior_list)
 }
 
 
@@ -378,7 +395,7 @@
 .evaluate.brma.log_tau <- function(fit, scale_data, scale_formula,
                                     scale_priors, posterior_samples) {
 
-  scale_priors <- .repair_formula_prior_list(
+  scale_priors <- .formula_evaluation_prior_list(
     prior_list = scale_priors,
     parameter  = "log_tau"
   )
@@ -616,7 +633,7 @@
   ### compute base mu samples
   if (is_mods) {
 
-    mods_priors <- .repair_formula_prior_list(
+    mods_priors <- .formula_evaluation_prior_list(
       prior_list = mods_priors,
       parameter  = "mu"
     )
@@ -647,15 +664,15 @@
 
     } else {
 
-      formula_priors  <- .repair_formula_prior_list(
+      formula_priors  <- .formula_evaluation_prior_list(
         prior_list = mods_priors,
         parameter  = "mu"
       )
-      intercept_prior <- formula_priors[["intercept"]]
       intercept_name  <- BayesTools::JAGS_parameter_names(
         "intercept",
         formula_parameter = "mu"
       )
+      intercept_prior <- formula_priors[[intercept_name]]
       # Formula intercepts have no multipliers (BayesTools rejects them).
       if (!is.null(intercept_prior) &&
           intercept_name %in% colnames(posterior_samples)) {
@@ -667,11 +684,7 @@
       } else {
         location_data <- data.frame(row.names = seq_len(K))
         mu_samples <- t(BayesTools::JAGS_evaluate_formula(
-          fit            = .posterior_formula_fit(
-            fit               = fit,
-            posterior_samples = posterior_samples,
-            formula_design    = FALSE
-          ),
+          fit            = .posterior_formula_fit(fit, posterior_samples),
           formula        = stats::as.formula("~ 1"),
           parameter      = "mu",
           data           = location_data,
@@ -787,8 +800,7 @@
 
   formula_fit <- .posterior_formula_fit(
     fit               = fit,
-    posterior_samples = posterior_samples,
-    formula_design    = TRUE
+    posterior_samples = posterior_samples
   )
   attr(formula_fit, "formula_design") <- list(mu = formula_design)
 
@@ -1252,7 +1264,7 @@
   scale_specs       <- .data_scale_component_specs(data)
   scale_samples     <- lapply(scale_specs, function(scale_spec) {
 
-    scale_priors <- .repair_formula_prior_list(
+    scale_priors <- .formula_evaluation_prior_list(
       prior_list = .create_fit_scale_formula_prior_list(
         priors    = priors,
         parameter = scale_spec[["parameter"]]
@@ -1260,11 +1272,7 @@
       parameter  = scale_spec[["parameter"]]
     )
     log_scale_samples <- t(BayesTools::JAGS_evaluate_formula(
-      fit            = .posterior_formula_fit(
-        fit               = fit,
-        posterior_samples = posterior_samples,
-        formula_design    = FALSE
-      ),
+      fit            = .posterior_formula_fit(fit, posterior_samples),
       formula        = .create_fit_scale_formula(scale_spec[["formula"]]),
       parameter      = scale_spec[["parameter"]],
       data           = scale_spec[["data"]],

@@ -88,8 +88,7 @@
   )
   formula_fit <- .posterior_formula_fit(
     fit               = object[["fit"]],
-    posterior_samples = posterior_samples,
-    formula_design    = TRUE
+    posterior_samples = posterior_samples
   )
   attr(formula_fit, "formula_design") <- list(mu = formula_design)
 
@@ -154,8 +153,7 @@
       inputs <- structural[["inputs"]]
       inputs[["formula_fit"]] <- .posterior_formula_fit(
         fit               = object[["fit"]],
-        posterior_samples = posterior_samples,
-        formula_design    = TRUE
+        posterior_samples = posterior_samples
       )
       attr(inputs[["formula_fit"]], "formula_design") <-
         list(mu = inputs[["formula_design"]])

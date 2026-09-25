@@ -189,17 +189,8 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     on.exit(.native_threads_configure(previous_threads), add = TRUE)
   }
 
-  rng_kind <- RNGkind()
-  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  if (has_seed) old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  on.exit({
-    do.call(RNGkind, as.list(rng_kind))
-    if (has_seed) {
-      assign(".Random.seed", old_seed, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-      rm(".Random.seed", envir = .GlobalEnv)
-    }
-  }, add = TRUE)
+  rng_state <- .rng_state()
+  on.exit(.rng_state_restore(rng_state), add = TRUE)
   RNGkind("Mersenne-Twister", "Inversion", "Rejection")
   set.seed(seed)
 

@@ -125,27 +125,44 @@ RoBMA.options    <- function(...) {
 }
 
 
-# Evaluate 'expr' without leaving a trace in the caller's random-number
-# stream: the RNG kind and '.Random.seed' are put back afterwards.
-.with_preserved_rng <- function(expr) {
+# The state of R's random-number stream: the RNG kind and '.Random.seed'
+# (NULL before the stream is initialized).
+.rng_state <- function() {
 
-  rng_kind <- RNGkind()
-  has_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  if (has_seed) {
-    old_seed <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
-  } else {
-    # A read-only stochastic summary must also be repeatable before the caller
-    # has initialized R's RNG stream.
+  list(
+    kind = RNGkind(),
+    seed = if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+    }
+  )
+}
+
+
+# Put back a state recorded by .rng_state().
+.rng_state_restore <- function(state) {
+
+  do.call(RNGkind, as.list(state[["kind"]]))
+  if (!is.null(state[["seed"]])) {
+    assign(".Random.seed", state[["seed"]], envir = .GlobalEnv)
+  } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+    rm(".Random.seed", envir = .GlobalEnv)
+  }
+
+  invisible(NULL)
+}
+
+
+# Evaluate 'expr' without leaving a trace in the caller's random-number
+# stream: the RNG kind and '.Random.seed' are put back afterwards. With
+# 'initialize', a stream the caller has not initialized is seeded first, so
+# that read-only stochastic summaries are repeatable.
+.with_preserved_rng <- function(expr, initialize = TRUE) {
+
+  state <- .rng_state()
+  on.exit(.rng_state_restore(state), add = TRUE)
+  if (initialize && is.null(state[["seed"]])) {
     set.seed(1L)
   }
-  on.exit({
-    do.call(RNGkind, as.list(rng_kind))
-    if (has_seed) {
-      assign(".Random.seed", old_seed, envir = .GlobalEnv)
-    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
-      rm(".Random.seed", envir = .GlobalEnv)
-    }
-  }, add = TRUE)
 
   expr
 }

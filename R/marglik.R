@@ -269,6 +269,9 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     maxiter                             = maxiter,
     silent                              = silent,
     cores                               = cores,
+    # The bridge proposal draws follow the fit's seed and leave the caller's
+    # random-number stream unchanged (NULL draws from the caller's stream).
+    seed                                = object[["fit_control"]][["seed"]],
     packages                            = .marglik_bridge_packages(fit, cores),
     # additional arguments passed to .log_posterior via ...
     is_scale                 = .is_data_scale(data),

@@ -828,8 +828,7 @@ test_that("marginalized newdata estimate draws match sampled random covariance",
 
   formula_fit <- .posterior_formula_fit(
     fit               = sampled[["fit"]],
-    posterior_samples = posterior_samples,
-    formula_design    = TRUE
+    posterior_samples = posterior_samples
   )
   attr(formula_fit, "formula_design") <- list(mu = sampled_design)
   location_priors <- attr(sampled[["fit"]], "prior_list")

@@ -84,9 +84,9 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   expect_identical(forwarded[["autofit_control"]], object[["autofit_control"]])
   expect_false("seed" %in% names(forwarded))
   expect_true(result[["has_posterior"]])
-  # BayesTools classifies structural parameters from the fit's prior list;
-  # RoBMA excludes no parameters by name.
-  expect_identical(checked[["prior_list"]], attr(stored_fit, "prior_list"))
+  # BayesTools classifies parameters by the fit's coordinate roles; RoBMA
+  # passes no prior list and excludes no parameters by name.
+  expect_false("prior_list" %in% names(checked))
   expect_false("add_parameters" %in% names(checked))
 })
 

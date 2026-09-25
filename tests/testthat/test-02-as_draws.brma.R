@@ -158,7 +158,6 @@ test_that("auxiliary catalog separates backend state from model parameters", {
     "mu__xREx__study_xRE_CORx_lkj_cpc[1]",
     "mu__xREx__study_xRE_CORx_R[1,1]",
     "prior_par_eta_mu__xRE_ALLOCx_total__weight[1]",
-    "inv_tau",
     "eta[1]",
     "log_omega[1]",
     "alpha",
@@ -184,7 +183,7 @@ test_that("auxiliary catalog separates backend state from model parameters", {
 
   expect_equal(
     catalog[["variable"]],
-    variables[c(3:9, 11:16, 21:22)]
+    variables[c(3:9, 11:15, 20:21)]
   )
   expect_false("tau_indicator" %in% catalog[["variable"]])
   expect_false("mu__xREx__study_xRE_CORx_R[1,1]" %in% catalog[["variable"]])

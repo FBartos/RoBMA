@@ -252,14 +252,6 @@ print.interpret.brma <- function(x, ...) {
 
 .interpret_records_standard <- function(sources, plan) {
 
-  if (!exists("interpret_records", envir = asNamespace("BayesTools"),
-              inherits = FALSE)) {
-    stop(
-      "'interpret' requires a BayesTools version with interpret_records().",
-      call. = FALSE
-    )
-  }
-
   return(BayesTools::interpret_records(
     sources = sources,
     plan    = plan,

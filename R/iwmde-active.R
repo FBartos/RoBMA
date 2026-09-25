@@ -682,7 +682,7 @@
   return(list(
     formula    = .create_fit_formula_list(data = data, parameter = source),
     data       = .create_fit_formula_data_list(data = data, parameter = source),
-    prior_list = .repair_formula_prior_list(
+    prior_list = .formula_evaluation_prior_list(
       prior_list = .create_fit_formula_prior_list(
         priors    = priors,
         parameter = source
