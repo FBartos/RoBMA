@@ -538,6 +538,23 @@ test_that("matched sampled and marginalized effects have equivalent scores", {
     fit_brma <- suppressWarnings(add_loo(fits[[name]]))
     suppressWarnings(add_waic(fit_brma))
   })
+  # Both representations score each estimate conditionally on the other
+  # estimate of its known-V dependency block: their pointwise
+  # log-likelihoods equal the analytic conditional normal density at every
+  # draw. Their elpd estimates differ by Monte Carlo error only (SD 0.32 of
+  # the LOO difference over 12 seeds at 2 x 120 draws), which no fixed
+  # tolerance on the difference of two fits bounds.
+  data <- info[["brma.mv_block_mvn_random_sampled"]]
+  for (name in names(representation_fits)) {
+    pointwise <- log_lik(representation_fits[[name]])
+    reference <- known_v_pair_conditional_log_lik(
+      representation_fits[[name]], data[["data"]][["yi"]], data[["V"]]
+    )
+    expect_identical(dim(pointwise), dim(reference), info = name)
+    expect_lt(max(abs(as.numeric(pointwise) - as.numeric(reference))), 1e-12,
+              label = name)
+  }
+
   loo_comparison <- suppressWarnings(do.call(
     loo_compare,
     unname(lapply(representation_fits, loo))
@@ -546,15 +563,8 @@ test_that("matched sampled and marginalized effects have equivalent scores", {
     loo_compare,
     unname(lapply(representation_fits, waic))
   ))
-
-  expect_lt(
-    abs(loo_comparison[2L, "elpd_diff"]),
-    0.25
-  )
-  expect_lt(
-    abs(waic_comparison[2L, "elpd_diff"]),
-    0.25
-  )
+  expect_true(all(is.finite(loo_comparison)))
+  expect_true(all(is.finite(waic_comparison)))
 })
 
 test_that("marginalized normal score equals the sampled-effect convolution", {

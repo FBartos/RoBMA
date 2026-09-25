@@ -290,6 +290,19 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   expect_identical(sampled_target[["random_effect_representation"]], "sampled")
   expect_identical(sampled_target[["latent_effect_handling"]], "integrated")
 
+  # Both representations target the log score of each estimate conditional
+  # on the other estimate of its known-V dependency block; each pointwise
+  # log-likelihood equals this analytic density at every draw
+  # (known_v_pair_conditional_log_lik()). The elpd estimates of the two fits
+  # then differ by Monte Carlo error only (SD 0.32 of the LOO difference over
+  # 12 seeds at 2 x 120 draws), so their difference is not compared.
+  for (fit in list(fit_block_random, fit_block_random_sampled)) {
+    pointwise <- log_lik(fit)
+    reference <- known_v_pair_conditional_log_lik(fit, dat[["yi"]], V)
+    expect_identical(dim(pointwise), dim(reference))
+    expect_lt(max(abs(as.numeric(pointwise) - as.numeric(reference))), 1e-12)
+  }
+
   loo_comparison <- loo_compare(
     fit_block_random,
     fit_block_random_sampled
@@ -300,14 +313,6 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   )
   expect_true(all(is.finite(loo_comparison)))
   expect_true(all(is.finite(waic_comparison)))
-  expect_lt(
-    abs(loo_comparison[2L, "elpd_diff"]),
-    0.25
-  )
-  expect_lt(
-    abs(waic_comparison[2L, "elpd_diff"]),
-    0.25
-  )
 
   fit_block_random_sampled_cache <- fit_block_random_sampled
   fit_block_random_sampled_cache[["waic"]] <- NULL
@@ -370,7 +375,7 @@ test_that("brma.mv fits extended known-V backend smoke models", {
   expect_match(known_R_syntax, "_xRE_GROUP_Zx", fixed = TRUE)
   expect_identical(
     rownames(known_R_summary[["estimates_random"]]),
-    "sd"
+    "tau"
   )
   fit_known_R <- suppressWarnings(add_loo(fit_known_R))
   expect_s3_class(fit_known_R[["loo"]][["estimate"]], "loo")

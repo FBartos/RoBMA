@@ -234,6 +234,31 @@ as_bayestools_fit <- function(fit) {
   BayesTools:::.bt_attach_fit_contract(fit)
 }
 
+# The pointwise log-likelihood that known-V fits with an estimate-level random
+# intercept target: the log score of each estimate conditional on the other
+# estimate of its 2 x 2 known-V dependency block,
+#   y_i | y_j ~ N(mu + S_ij / S_jj (y_j - mu), S_ii - S_ij^2 / S_jj)
+# with S = V + tau^2 I, evaluated analytically at every draw of 'fit' (draws
+# x estimates; 'tau' is the estimate-level SD 'sd_name').
+known_v_pair_conditional_log_lik <- function(fit, yi, V,
+                                             sd_name = "mu__xREx__estimate_intercept") {
+
+  draws <- as.matrix(coda::as.mcmc.list(fit[["fit"]]))
+  vapply(seq_len(nrow(V)), function(i) {
+    j <- setdiff(which(V[i, ] != 0), i)
+    vapply(seq_len(nrow(draws)), function(s) {
+      mu    <- draws[s, "mu_intercept"]
+      Sigma <- V + diag(draws[s, sd_name]^2, nrow(V))
+      stats::dnorm(
+        yi[[i]],
+        mean = mu + Sigma[i, j] / Sigma[j, j] * (yi[[j]] - mu),
+        sd   = sqrt(Sigma[i, i] - Sigma[i, j]^2 / Sigma[j, j]),
+        log  = TRUE
+      )
+    }, numeric(1))
+  }, numeric(nrow(draws)))
+}
+
 # A fitted-object stand-in with the BayesTools fit contract: a root allocation
 # of a gamma SD to one gated component (inclusion gate with prior probability
 # 0.5), split by a child allocation over the blocks 'study' and 'esid' with
