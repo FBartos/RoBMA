@@ -1534,10 +1534,12 @@ test_that("same-sample diagnostics warn without suppressing finite ordinates", {
   posterior_ordinate[["diagnostics"]][["normalization_relative_error"]] <- NA_real_
   expect_false(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
 
-  qcmde_ordinate <- list(
-    value       = 0,
-    ordinate    = .4,
-    diagnostics = list(
+  qcmde_ordinate <- as_posterior_ordinate(list(
+    value          = 0,
+    ordinate       = .4,
+    method         = "q_grid_cmde",
+    density_method = "qCMDE",
+    diagnostics    = list(
       estimator              = "q_grid_cmde",
       relative_mcse          = .1,
       finite_terms           = 60,
@@ -1550,7 +1552,7 @@ test_that("same-sample diagnostics warn without suppressing finite ordinates", {
       max_normalizer_relative_change = 0,
       normalization_range    = c(-1, 1)
     )
-  )
+  ))
   expect_true(.iwmde_posterior_ordinate_supports_bf(qcmde_ordinate))
   qcmde_ordinate[["diagnostics"]][["ordinate_relative_change"]] <- .30
   expect_false(.iwmde_posterior_ordinate_supports_bf(qcmde_ordinate))
