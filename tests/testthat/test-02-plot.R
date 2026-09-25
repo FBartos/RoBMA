@@ -9,12 +9,15 @@ source(testthat::test_path("helper-iwmde.R"))
 test_that("plot.brma clears stale posterior density before qCMDE attach", {
 
   samples <- list(mu = stats::rnorm(20))
-  attr(samples[["mu"]], "posterior_density") <- list(
+  BayesTools::posterior_metadata(samples[["mu"]], "posterior_density") <- list(
     x      = seq(-1, 1, length.out = 5),
     y      = rep(.5, 5),
     method = "q_grid_cmde"
   )
-  attr(samples[["mu"]], "posterior_densities") <- list(mu = list(
+  BayesTools::posterior_metadata(
+    samples[["mu"]],
+    "posterior_densities"
+  ) <- list(mu = list(
     x      = seq(-1, 1, length.out = 5),
     y      = rep(.5, 5),
     method = "q_grid_cmde"
@@ -25,8 +28,8 @@ test_that("plot.brma clears stale posterior density before qCMDE attach", {
     sample_parameter = "mu"
   )
 
-  expect_null(attr(samples[["mu"]], "posterior_density", exact = TRUE))
-  expect_null(attr(samples[["mu"]], "posterior_densities", exact = TRUE))
+  expect_null(BayesTools::posterior_metadata(samples[["mu"]], "posterior_density"))
+  expect_null(BayesTools::posterior_metadata(samples[["mu"]], "posterior_densities"))
 })
 
 
@@ -58,10 +61,9 @@ test_that("plot.brma qCMDE supports marginalized random SDs", {
     density_method  = "qCMDE",
     density_control = list(n_points = 20, samples = 20)
   )
-  posterior_density <- attr(
+  posterior_density <- BayesTools::posterior_metadata(
     captured[["samples"]][[captured[["parameter"]]]],
-    "posterior_density",
-    exact = TRUE
+    "posterior_density"
   )
 
   expect_s3_class(out, "mock_plot")
@@ -381,7 +383,10 @@ test_that("plot.brma uses KDE by default", {
 
   expect_s3_class(out, "mock_plot")
   expect_equal(captured[["dots"]][["density_method"]], "KDE")
-  expect_null(attr(captured[["samples"]][["mu"]], "posterior_density"))
+  expect_null(BayesTools::posterior_metadata(
+    captured[["samples"]][["mu"]],
+    "posterior_density"
+  ))
 })
 
 
@@ -405,7 +410,10 @@ test_that("plot.brma forwards attached qCMDE posterior density", {
     density_control    = list(n_points = 20, samples = 20)
   )
 
-  posterior_density <- attr(captured[["samples"]][["mu"]], "posterior_density")
+  posterior_density <- BayesTools::posterior_metadata(
+    captured[["samples"]][["mu"]],
+    "posterior_density"
+  )
 
   expect_s3_class(out, "mock_plot")
   expect_equal(captured[["parameter"]], "mu")
@@ -437,7 +445,10 @@ test_that("plot.brma forwards attached IWMDE posterior density", {
     density_control    = list(n_points = 20, samples = 50)
   )
 
-  posterior_density <- attr(captured[["samples"]][["mu"]], "posterior_density")
+  posterior_density <- BayesTools::posterior_metadata(
+    captured[["samples"]][["mu"]],
+    "posterior_density"
+  )
 
   expect_s3_class(out, "mock_plot")
   expect_equal(captured[["parameter"]], "mu")
@@ -499,7 +510,10 @@ test_that("plot.brma forwards qCMDE density on the fitted coefficient scale", {
   )
 
   plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
-  posterior_density <- attr(plotted_samples, "posterior_density")
+  posterior_density <- BayesTools::posterior_metadata(
+    plotted_samples,
+    "posterior_density"
+  )
 
   expect_equal(captured[["dots"]][["density_method"]], "precomputed")
   expect_null(posterior_density[["diagnostics"]][["plot_scale_transform"]])
@@ -539,7 +553,10 @@ test_that("plot.brma uses exact original-scale coefficient targets", {
   )
 
   plotted_samples   <- captured[["samples"]][[captured[["parameter"]]]]
-  posterior_density <- attr(plotted_samples, "posterior_density")
+  posterior_density <- BayesTools::posterior_metadata(
+    plotted_samples,
+    "posterior_density"
+  )
 
   expect_s3_class(out, "mock_plot")
   expect_identical(captured_parameter_spec[["type"]], "linear")
@@ -587,7 +604,7 @@ test_that("plot.brma forwards attached qCMDE/IWMDE densities for factor terms", 
       NA
     )
 
-    posterior_densities <- attr(
+    posterior_densities <- BayesTools::posterior_metadata(
       captured[["samples"]][[captured[["parameter"]]]],
       "posterior_densities"
     )
@@ -640,7 +657,7 @@ test_that("plot.brma forwards qCMDE/IWMDE densities for single-column factor ter
     )
 
     sample              <- captured[["samples"]][[captured[["parameter"]]]]
-    posterior_densities <- attr(sample, "posterior_densities")
+    posterior_densities <- BayesTools::posterior_metadata(sample, "posterior_densities")
 
     expect_s3_class(out, "mock_plot")
     expect_equal(captured[["dots"]][["density_method"]], "precomputed")
@@ -657,7 +674,8 @@ test_that("plot.brma forwards qCMDE/IWMDE densities for single-column factor ter
         }
         return(as.character(key))
       }, character(1)))
-      expect_true(attr(sample, "condition_key", exact = TRUE) %in% condition_keys)
+      condition <- BayesTools::posterior_metadata(sample, "condition")
+      expect_true(condition[["condition_key"]] %in% condition_keys)
     }
     expect_factor_precomputed_densities(captured, case[["method"]])
   }
@@ -763,10 +781,9 @@ test_that("plot.brma forwards attached qCMDE density for PET and PEESE parameter
 
     expect_identical(captured[["parameter"]], case[["parameter"]])
     expect_true(case[["parameter"]] %in% names(captured[["samples"]]))
-    posterior_density <- attr(
+    posterior_density <- BayesTools::posterior_metadata(
       captured[["samples"]][[case[["parameter"]]]],
-      "posterior_density",
-      exact = TRUE
+      "posterior_density"
     )
 
     expect_s3_class(out, "mock_plot")

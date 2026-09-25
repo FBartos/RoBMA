@@ -254,8 +254,8 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
     n_prior_samples = 2000L,
     seed            = 732L
   )[[1L]]
-  total_posterior_atoms <- attr(total, "posterior_atoms", exact = TRUE)
-  total_prior <- attr(total, "prior_density", exact = TRUE)
+  total_posterior_atoms <- BayesTools::posterior_metadata(total, "atoms")
+  total_prior <- BayesTools::posterior_metadata(total, "prior_density")
   expect_equal(unname(total_posterior_atoms[["locations"]][, 1L]), 0)
   expect_equal(total_prior[["points"]][["x"]], 0)
   expect_equal(total_prior[["points"]][["p"]], 0.25)
@@ -268,12 +268,8 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
     n_prior_samples = 2000L,
     seed            = 733L
   )[[1L]]
-  proportion_posterior_atoms <- attr(
-    proportion,
-    "posterior_atoms",
-    exact = TRUE
-  )
-  proportion_prior <- attr(proportion, "prior_density", exact = TRUE)
+  proportion_posterior_atoms <- BayesTools::posterior_metadata(proportion, "atoms")
+  proportion_prior <- BayesTools::posterior_metadata(proportion, "prior_density")
   expect_equal(
     unname(proportion_posterior_atoms[["locations"]][, 1L]),
     c(0, 1)

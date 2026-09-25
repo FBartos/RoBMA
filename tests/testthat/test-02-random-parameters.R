@@ -810,7 +810,7 @@ test_that("direct multivariate random quantities expose density targets", {
   parameter <- names(samples)[[1L]]
   prior     <- attr(samples, "prior_list", exact = TRUE)[[parameter]]
   expect_equal(BayesTools::lpdf(prior, c(0.2, 0.5, 0.8)), rep(0, 3L))
-  expect_null(attr(samples[[parameter]], "prior_density", exact = TRUE))
+  expect_null(BayesTools::posterior_metadata(samples[[parameter]], "prior_density"))
 
   component_samples <- .brma_random_parameter_mixed_posterior(
     fit,
@@ -819,10 +819,9 @@ test_that("direct multivariate random quantities expose density targets", {
   )
   component_parameter <- names(component_samples)[[1L]]
   expect_s3_class(
-    attr(
+    BayesTools::posterior_metadata(
       component_samples[[component_parameter]],
-      "prior_density",
-      exact = TRUE
+      "prior_density"
     ),
     "prior_linear_density"
   )

@@ -364,62 +364,31 @@ test_that("random extraction avoids redundant catalog and dependency work", {
 })
 
 
-test_that("random-parameter metadata preserves semantic support", {
+test_that("random-parameter support is the catalog's declared support", {
 
-  simplex <- BayesTools::prior(
-    "dirichlet",
-    parameters = list(alpha = c(1, 1))
-  )
-  expect_equal(
-    .brma_random_parameter_support(list(quantity = "var_prop"),
-                                   source_prior = simplex),
-    c(0, 1)
-  )
+  selected <- function(support) {
+    quantities <- data.frame(quantity_id = "q", stringsAsFactors = FALSE)
+    quantities[["support"]] <- I(list(support))
+    list(entry = list(
+      parameter = "study: tau",
+      selection = list(quantities = quantities)
+    ))
+  }
 
-  expect_equal(
-    .brma_random_parameter_support(
-      list(quantity = "sd_mult"),
-      allocation = list(scale = "mean_variance", n_targets = 4L)
-    ),
-    c(0, 2)
-  )
-  expect_equal(
-    .brma_random_parameter_support(
-      list(quantity = "sd_mult"),
-      allocation = list(scale = "total_variance", n_targets = 4L)
-    ),
-    c(0, 1)
-  )
-  expect_equal(
-    .brma_random_parameter_support(list(quantity = "sd_mult")),
-    c(0, Inf)
-  )
-})
+  exact <- BayesTools::posterior_support_attribute(c(0, 2))
+  expect_identical(.brma_random_parameter_catalog_support(selected(exact)), exact)
+  expect_equal(.brma_random_parameter_support(selected(exact)), c(0, 2))
 
+  # Plotting limits and underivable supports claim no exact bounds.
+  limits <- BayesTools::posterior_support_attribute(c(0, 2), exact = FALSE)
+  expect_equal(.brma_random_parameter_support(selected(limits)), c(-Inf, Inf))
+  expect_null(.brma_random_parameter_catalog_support(selected(NULL)))
+  expect_equal(.brma_random_parameter_support(selected(NULL)), c(-Inf, Inf))
 
-test_that("random-parameter support consumes BayesTools transform descriptors", {
-
-  beta <- BayesTools::prior("beta", list(alpha = 1, beta = 1))
-  expect_equal(
-    .brma_random_parameter_support(
-      list(
-        quantity = "cor",
-        display_transform = list(type = "affine", offset = -1, scale = 2)
-      ),
-      source_prior = beta
-    ),
-    c(-1, 1)
-  )
-  uniform_z <- BayesTools::prior("uniform", list(a = -1, b = 1))
-  expect_equal(
-    .brma_random_parameter_support(
-      list(
-        quantity = "cor",
-        display_transform = list(type = "tanh")
-      ),
-      source_prior = uniform_z
-    ),
-    tanh(c(-1, 1))
+  expect_error(
+    .brma_random_parameter_support(list(entry = list(parameter = "study: tau"))),
+    "Random-effect quantity 'study: tau' has no catalog support metadata.",
+    fixed = TRUE
   )
 })
 

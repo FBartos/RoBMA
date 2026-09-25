@@ -206,3 +206,19 @@ expect_summary_heterogeneity_structure <- function(heterogeneity, expected_rows,
     info = paste0("summary_heterogeneity H2 bounds for '", name, "'")
   )
 }
+
+# Posterior draws carrying BayesTools draw metadata. 'x' gets the class
+# 'class' (when given) and each field of '...' through
+# BayesTools::posterior_metadata(); conditioning fields go into the 'condition'
+# list.
+with_draw_metadata <- function(x, ..., class = NULL) {
+
+  if (!is.null(class)) {
+    class(x) <- class
+  }
+  fields <- list(...)
+  for (field in names(fields)) {
+    BayesTools::posterior_metadata(x, field) <- fields[[field]]
+  }
+  x
+}

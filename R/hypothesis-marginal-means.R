@@ -514,7 +514,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   } else {
     paste0(parameter, "[", level, "]")
   }
-  existing <- attr(sample, "posterior_ordinate", exact = TRUE)
+  existing <- BayesTools::posterior_metadata(sample, "posterior_ordinate")
 
   specs <- .iwmde_marginal_means_specs(
     marginal_means_object = object,
@@ -578,7 +578,10 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     )
   }
 
-  attr(sample, "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
+  BayesTools::posterior_metadata(
+    sample,
+    "posterior_ordinate"
+  ) <- BayesTools::posterior_ordinate_append(
     existing = existing,
     ordinate = ordinate
   )

@@ -899,3 +899,30 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   return(invisible(TRUE))
 }
+
+# New posterior draws of the same quantity as the BayesTools draws 'draws',
+# holding 'values' instead: the class and the public draw metadata of 'draws'
+# are carried over. Replacing the values of the draws in place would leave
+# metadata describing the old values, which BayesTools rejects as stale.
+.brma_draws_with_values <- function(draws, values) {
+
+  fields <- c(
+    "support", "atoms", "undefined_draws", "prior_density", "prior_densities",
+    "prior_context", "condition", "linear_weights", "quantities"
+  )
+  metadata <- stats::setNames(lapply(fields, function(field) {
+    BayesTools::posterior_metadata(draws, field)
+  }), fields)
+  if (length(values) != length(draws)) {
+    stop("Replacement draws differ in length from the draws they replace.",
+         call. = FALSE)
+  }
+
+  out <- as.numeric(values)
+  class(out) <- class(draws)
+  for (field in fields[!vapply(metadata, is.null, logical(1))]) {
+    BayesTools::posterior_metadata(out, field) <- metadata[[field]]
+  }
+
+  return(out)
+}

@@ -536,9 +536,9 @@
 .brma_mv_catalog_draw_values <- function(draws) {
 
   values    <- as.numeric(draws[[1L]][, 1L])
-  undefined <- attr(draws, "undefined_draws", exact = TRUE)
+  undefined <- BayesTools::posterior_metadata(draws, "undefined_draws")
   if (!is.null(undefined)) {
-    attr(values, "undefined_draws") <- unname(undefined[[1L]])
+    BayesTools::posterior_metadata(values, "undefined_draws") <- unname(undefined[[1L]])
   }
 
   return(values)

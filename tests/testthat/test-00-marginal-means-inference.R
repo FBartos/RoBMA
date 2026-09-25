@@ -7,9 +7,8 @@ context("Marginal-means inference")
     rep(value, n),
     class = c("marginal_posterior", "numeric")
   )
-  attr(posterior, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
-    data.frame(x = value, mass = 1)
-  )
+  BayesTools::posterior_metadata(posterior, "atoms") <-
+    BayesTools::posterior_atom_attribute(data.frame(x = value, mass = 1))
   return(posterior)
 }
 
@@ -84,7 +83,7 @@ test_that("interaction marginals condition on every contributing coefficient", {
   colnames(cell_weights) <- parameters
   marginal <- lapply(seq_len(nrow(cell_weights)), function(i) {
 
-    structure(
+    with_draw_metadata(
       numeric(20),
       linear_weights = cell_weights[i, ]
     )

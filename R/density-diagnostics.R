@@ -199,10 +199,7 @@ density_diagnostics.default <- function(object, ...) {
 
 .iwmde_collect_ordinate_density_diagnostics <- function(ordinate) {
 
-  posterior <- numeric()
-  attr(posterior, "posterior_ordinate") <- ordinate
-
-  return(.iwmde_collect_public_density_diagnostics(posterior))
+  return(.iwmde_public_density_diagnostic_rows(ordinate))
 }
 
 
@@ -235,16 +232,36 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
 
 .iwmde_collect_public_density_diagnostics <- function(posterior) {
 
-  entries <- .iwmde_posterior_ordinate_entries(
-    attr(posterior, "posterior_ordinate", exact = TRUE)
-  )
-  rows <- lapply(entries, .iwmde_public_density_diagnostic_row)
+  rows <- list(.iwmde_public_density_diagnostic_rows(
+    BayesTools::posterior_metadata(posterior, "posterior_ordinate")
+  ))
 
   if (is.list(posterior)) {
     child_rows <- lapply(posterior, .iwmde_collect_public_density_diagnostics)
     child_rows <- child_rows[vapply(child_rows, nrow, integer(1)) > 0L]
     rows       <- c(rows, child_rows)
   }
+  rows <- rows[vapply(rows, nrow, integer(1)) > 0L]
+  if (length(rows) == 0L) {
+    return(.iwmde_empty_public_density_diagnostics())
+  }
+
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
+
+  return(out)
+}
+
+
+# Public density-diagnostic rows of one posterior-ordinate record (a single
+# ordinate or a container of several).
+.iwmde_public_density_diagnostic_rows <- function(ordinate) {
+
+  rows <- lapply(
+    .iwmde_posterior_ordinate_entries(ordinate),
+    .iwmde_public_density_diagnostic_row
+  )
   rows <- rows[vapply(rows, nrow, integer(1)) > 0L]
   if (length(rows) == 0L) {
     return(.iwmde_empty_public_density_diagnostics())

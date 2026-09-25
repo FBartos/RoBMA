@@ -543,8 +543,10 @@ lines.brma <- function(
       )
     }
     if (!is.null(posterior_density)) {
-      attr(samples[[sample_parameter]], "posterior_density") <-
+      samples[[sample_parameter]] <- .iwmde_attach_posterior_density(
+        samples[[sample_parameter]],
         posterior_density
+      )
     }
   }
 
@@ -632,8 +634,14 @@ lines.brma <- function(
 .plot_brma_clear_posterior_density <- function(samples, sample_parameter) {
 
   if (!is.null(samples[[sample_parameter]])) {
-    attr(samples[[sample_parameter]], "posterior_density")   <- NULL
-    attr(samples[[sample_parameter]], "posterior_densities") <- NULL
+    BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_density"
+    ) <- NULL
+    BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_densities"
+    ) <- NULL
   }
 
   return(samples)
@@ -707,7 +715,10 @@ lines.brma <- function(
       next
     }
 
-    weights        <- attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
+    weights        <- BayesTools::posterior_metadata(
+      raw_posterior[[level]],
+      "linear_weights"
+    )
     linear_weights <- .iwmde_linear_weights(weights)
     if (is.null(linear_weights) || length(linear_weights) == 0L) {
       next
@@ -822,11 +833,23 @@ lines.brma <- function(
     attr(samples, "iwmde_diagnostics") <- diagnostics
   }
   if (.plot_brma_factor_density_complete(density_columns, expected_columns)) {
-    attr(samples[[sample_parameter]], "posterior_density")   <- NULL
-    attr(samples[[sample_parameter]], "posterior_densities") <- posterior_densities
+    BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_density"
+    ) <- NULL
+    BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_densities"
+    ) <- posterior_densities
   } else {
-    attr(samples[[sample_parameter]], "posterior_density")   <- NULL
-    attr(samples[[sample_parameter]], "posterior_densities") <- NULL
+    BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_density"
+    ) <- NULL
+    BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_densities"
+    ) <- NULL
   }
 
   return(samples)
@@ -1064,8 +1087,14 @@ lines.brma <- function(
   }
 
   return(
-    !is.null(attr(samples[[sample_parameter]], "posterior_density")) ||
-      length(attr(samples[[sample_parameter]], "posterior_densities")) > 0L
+    !is.null(BayesTools::posterior_metadata(
+      samples[[sample_parameter]],
+      "posterior_density"
+    )) ||
+      length(BayesTools::posterior_metadata(
+        samples[[sample_parameter]],
+        "posterior_densities"
+      )) > 0L
   )
 }
 
@@ -1214,7 +1243,10 @@ lines.brma <- function(
   )
   same_weights <- function(sample, target = weights) {
 
-    candidate <- .iwmde_linear_weights(attr(sample, "linear_weights", exact = TRUE))
+    candidate <- .iwmde_linear_weights(BayesTools::posterior_metadata(
+      sample,
+      "linear_weights"
+    ))
     !is.null(candidate) && identical(unname(candidate[order(names(candidate))]),
       unname(target[order(names(target))])) && setequal(names(candidate), names(target))
   }
@@ -1238,7 +1270,10 @@ lines.brma <- function(
     )
   }
   value <- marginal[[level]]
-  if (!is.numeric(value) || is.null(attr(value, "prior_density", exact = TRUE))) {
+  if (!is.numeric(value) || is.null(BayesTools::posterior_metadata(
+    value,
+    "prior_density"
+  ))) {
     stop("Selected factor-cell posterior and prior are unavailable.", call. = FALSE)
   }
   source_samples <- as.matrix(displayed[[parent]])
@@ -1279,7 +1314,7 @@ lines.brma <- function(
   if (nrow(as.matrix(draws)) != length(value)) {
     stop("Selected factor-cell draws have inconsistent row metadata.", call. = FALSE)
   }
-  value[] <- as.numeric(as.matrix(draws))
+  value <- .brma_draws_with_values(value, as.numeric(as.matrix(draws)))
   attr(value, "parameter") <- entry[["parameter"]]
   attr(value, "level_name") <- level
   class(value) <- unique(c(class(value), "marginal_posterior"))

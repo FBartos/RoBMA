@@ -416,7 +416,10 @@ test_that("undefined original-scale correlations are summarized over defined dra
   undefined <- .brma_mv_correlation_sample_lists(fit, modified)[["study"]][[label]]
   expect_true(all(!is.na(reference)))
   expect_identical(which(is.na(undefined)), 3:4)
-  expect_identical(attr(undefined, "undefined_draws"), "correlation")
+  expect_identical(BayesTools::posterior_metadata(
+    undefined,
+    "undefined_draws"
+  ), "correlation")
 
   probs     <- c(.025, .975)
   result    <- summary_heterogeneity(fit, probs = probs, .posterior_samples = modified)

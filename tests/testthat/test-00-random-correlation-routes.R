@@ -132,7 +132,7 @@ test_that("correlation hypotheses use the defined draws of a declared quantity",
   selected <- .brma_random_parameter_select(fit, "rho(intercept,x)")
   expect_identical(which(is.na(selected[["samples"]][, 1L])), 3:4)
   expect_identical(
-    attr(selected[["samples"]], "undefined_draws"),
+    BayesTools::posterior_metadata(selected[["samples"]], "undefined_draws"),
     stats::setNames("correlation", colnames(selected[["samples"]]))
   )
 

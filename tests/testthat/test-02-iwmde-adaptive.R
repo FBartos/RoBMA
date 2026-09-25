@@ -420,7 +420,7 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     source_fingerprint = list(draws = "hash")
   )
   posterior <- stats::setNames(1:10, paste0("draw", 1:10))
-  attr(posterior, "posterior_ordinate") <- ordinate
+  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- ordinate
   table <- structure(
     data.frame(BF = 1, row.names = "mu = 0"),
     class = c("BayesTools_hypothesis_BF", "data.frame")

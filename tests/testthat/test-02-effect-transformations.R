@@ -420,8 +420,8 @@ test_that("precomputed posterior densities use EXP plot Jacobian", {
       "normal",
       parameters = list(mean = 0, sd = 1)
     ))
-    attr(sample_with_density, "models_ind") <- rep(1L, length(sample_with_density))
-    attr(sample_with_density, "posterior_density") <-
+    sample_with_density <- .iwmde_attach_posterior_density(
+      sample_with_density,
       BayesTools::posterior_density_attribute(
         x              = raw_x,
         y              = raw_y,
@@ -430,6 +430,7 @@ test_that("precomputed posterior densities use EXP plot Jacobian", {
         diagnostics    = list(estimator = density_methods[[density_method]][["method"]]),
         point_masses   = data.frame(x = point_mass_x, mass = .2)
       )
+    )
 
     plot_data <- plot_data_samples_simple(
       samples                  = list(mu = sample_with_density),
@@ -475,8 +476,8 @@ test_that("precomputed posterior densities use LOG plot Jacobian", {
     "normal",
     parameters = list(mean = 0, sd = 1)
   ))
-  attr(sample_with_density, "models_ind") <- rep(1L, length(sample_with_density))
-  attr(sample_with_density, "posterior_density") <-
+  sample_with_density <- .iwmde_attach_posterior_density(
+    sample_with_density,
     BayesTools::posterior_density_attribute(
       x              = raw_x,
       y              = raw_y,
@@ -484,6 +485,7 @@ test_that("precomputed posterior densities use LOG plot Jacobian", {
       density_method = "qCMDE",
       point_masses   = data.frame(x = point_mass_x, mass = .2)
     )
+  )
 
   plot_data <- plot_data_samples_simple(
     samples                  = list(log_tau_intercept = sample_with_density),

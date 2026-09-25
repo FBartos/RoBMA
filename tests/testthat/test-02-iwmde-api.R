@@ -1834,7 +1834,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   bf <- .iwmde_bf_append_warning(1, iwmde_warn)
   expect_true(any(grepl("IWMDE.*6%", attr(bf, "warnings"))))
 
-  posterior <- structure(
+  posterior <- with_draw_metadata(
     stats::rnorm(20),
     posterior_ordinate = qcmde_warn
   )
@@ -1845,24 +1845,21 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   )
   expect_true(any(grepl("qCMDE.*ordinate.*3%", attr(table, "warnings"))))
 
-  multi_ordinate <- list(
-    status    = "ok",
-    ordinates = list(
-      list(
-        value       = 0,
-        ordinate    = 1,
-        diagnostics = list(warning = "warning for zero"),
-        parameter   = "theta"
-      ),
-      list(
-        value       = 1,
-        ordinate    = 1,
-        diagnostics = list(warning = "warning for one"),
-        parameter   = "theta"
-      )
+  warning_ordinate <- function(value, warning, ...) {
+    BayesTools::posterior_ordinate_attribute(
+      value          = value,
+      ordinate       = 1,
+      method         = "q_grid_cmde",
+      density_method = "qCMDE",
+      diagnostics    = list(warning = warning),
+      ...
     )
+  }
+  multi_ordinate <- BayesTools::posterior_ordinate_append(
+    warning_ordinate(0, "warning for zero", parameter = "theta"),
+    warning_ordinate(1, "warning for one", parameter = "theta")
   )
-  posterior <- structure(
+  posterior <- with_draw_metadata(
     stats::rnorm(20),
     posterior_ordinate = multi_ordinate
   )
@@ -1905,24 +1902,16 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
   )
 
   factor_posterior <- list(
-    a = structure(
+    a = with_draw_metadata(
       stats::rnorm(20),
-      posterior_ordinate = list(
-        value       = 0,
-        ordinate    = 1,
-        diagnostics = list(warning = "warning for a"),
-        parameter   = "mu",
-        level       = "a"
+      posterior_ordinate = warning_ordinate(
+        0, "warning for a", parameter = "mu", level = "a"
       )
     ),
-    b = structure(
+    b = with_draw_metadata(
       stats::rnorm(20),
-      posterior_ordinate = list(
-        value       = 0,
-        ordinate    = 1,
-        diagnostics = list(warning = "warning for b"),
-        parameter   = "mu",
-        level       = "b"
+      posterior_ordinate = warning_ordinate(
+        0, "warning for b", parameter = "mu", level = "b"
       )
     )
   )
@@ -2588,18 +2577,20 @@ test_that("IWMDE marginal-mean specs preserve child condition metadata", {
     class = "prior_density_context"
   )
   prior_density <- BayesTools:::.prior_linear_density_point(0)
-  samples <- structure(
+  samples <- with_draw_metadata(
     stats::rnorm(20),
-    linear_weights              = c(mu_intercept = 1, mu_alloc = 1),
-    conditional                 = "stale_parent_condition",
-    conditional_rule            = "AND",
-    effective_conditional       = c("mu_intercept", "mu_alloc"),
-    effective_conditional_rule  = "OR",
-    condition_key               = condition_key,
-    condition_event             = condition_event,
-    resolved_condition_event    = condition_event,
-    prior_density_context       = prior_density_context,
-    prior_density               = prior_density
+    linear_weights = c(mu_intercept = 1, mu_alloc = 1),
+    condition      = list(
+      conditional                = "stale_parent_condition",
+      conditional_rule           = "AND",
+      effective_conditional      = c("mu_intercept", "mu_alloc"),
+      effective_conditional_rule = "OR",
+      condition_key              = condition_key,
+      condition_event            = condition_event,
+      resolved_condition_event   = condition_event
+    ),
+    prior_context  = prior_density_context,
+    prior_density  = prior_density
   )
   marginal_means_object <- list(
     inference        = list(
@@ -2637,9 +2628,11 @@ test_that("IWMDE marginal-mean specs preserve child condition metadata", {
   )
 
   stale_samples <- samples
-  attr(stale_samples, "effective_conditional") <- NULL
-  attr(stale_samples, "effective_conditional_rule") <- NULL
-  attr(stale_samples, "condition_key") <- NULL
+  condition <- BayesTools::posterior_metadata(stale_samples, "condition")
+  condition[c(
+    "effective_conditional", "effective_conditional_rule", "condition_key"
+  )] <- NULL
+  BayesTools::posterior_metadata(stale_samples, "condition") <- condition
   marginal_means_object[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]] <- stale_samples
 
   expect_error(

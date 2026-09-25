@@ -46,8 +46,8 @@ test_that("a random inclusion gate belongs only to its declared block", {
 
     study_posterior <- .brma_random_parameter_mixed_posterior(object, study_parameter)[[1L]]
     esid_posterior <- .brma_random_parameter_mixed_posterior(object, esid_parameter)[[1L]]
-    study_atoms <- attr(study_posterior, "posterior_atoms", exact = TRUE)
-    esid_atoms <- attr(esid_posterior, "posterior_atoms", exact = TRUE)
+    study_atoms <- BayesTools::posterior_metadata(study_posterior, "atoms")
+    esid_atoms <- BayesTools::posterior_metadata(esid_posterior, "atoms")
     expect_equal(as.numeric(study_atoms[["locations"]]), 0)
     expect_equal(study_atoms[["mass"]], .5)
     expect_length(esid_atoms[["mass"]], 0L)

@@ -1,22 +1,24 @@
 .marginal_means_route_test_parameter <- function(a, b, condition_keys = NULL) {
 
   levels <- list(
-    A = structure(
+    A = with_draw_metadata(
       a,
-      class           = c("marginal_posterior.simple", "numeric"),
-      linear_weights  = c(a = 1, b = 0),
-      posterior_atoms = BayesTools::posterior_atom_attribute()
+      class          = c("marginal_posterior.simple", "numeric"),
+      linear_weights = c(a = 1, b = 0),
+      atoms          = BayesTools::posterior_atom_attribute()
     ),
-    B = structure(
+    B = with_draw_metadata(
       b,
-      class           = c("marginal_posterior.simple", "numeric"),
-      linear_weights  = c(a = 0, b = 1),
-      posterior_atoms = BayesTools::posterior_atom_attribute()
+      class          = c("marginal_posterior.simple", "numeric"),
+      linear_weights = c(a = 0, b = 1),
+      atoms          = BayesTools::posterior_atom_attribute()
     )
   )
   if (!is.null(condition_keys)) {
-    attr(levels[["A"]], "condition_key") <- condition_keys[[1L]]
-    attr(levels[["B"]], "condition_key") <- condition_keys[[2L]]
+    BayesTools::posterior_metadata(levels[["A"]], "condition") <-
+      list(condition_key = condition_keys[[1L]])
+    BayesTools::posterior_metadata(levels[["B"]], "condition") <-
+      list(condition_key = condition_keys[[2L]])
   }
   class(levels) <- c(
     "marginal_posterior.factor",
@@ -24,14 +26,15 @@
     "list"
   )
   attr(levels, "parameter") <- "mu_alloc"
-  attr(levels, "prior_density_context") <- BayesTools:::.prior_density_context(
-    prior_list = list(
-      a = BayesTools::prior("normal", list(mean = 0, sd = 1)),
-      b = BayesTools::prior("normal", list(mean = 0, sd = 1))
-    ),
-    column_names = c("a", "b"),
-    n_grid       = 128
-  )
+  BayesTools::posterior_metadata(levels, "prior_context") <-
+    BayesTools:::.prior_density_context(
+      prior_list = list(
+        a = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+        b = BayesTools::prior("normal", list(mean = 0, sd = 1))
+      ),
+      column_names = c("a", "b"),
+      n_grid       = 128
+    )
 
   return(levels)
 }
@@ -218,12 +221,16 @@ test_that("cross-level point densities ignore child-level ordinates", {
   ))
 
   levels <- object[["inference"]][["averaged"]][["mu_alloc"]]
-  attr(levels[["A"]], "posterior_ordinate") <- list(
-    value = 0, ordinate = 1e-12, method = "bogus-child-A"
-  )
-  attr(levels[["B"]], "posterior_ordinate") <- list(
-    value = 0, ordinate = 1e12, method = "bogus-child-B"
-  )
+  BayesTools::posterior_metadata(levels[["A"]], "posterior_ordinate") <-
+    BayesTools::posterior_ordinate_attribute(
+      value = 0, ordinate = 1e-12, method = "bogus-child-A",
+      density_method = "qCMDE"
+    )
+  BayesTools::posterior_metadata(levels[["B"]], "posterior_ordinate") <-
+    BayesTools::posterior_ordinate_attribute(
+      value = 0, ordinate = 1e12, method = "bogus-child-B",
+      density_method = "qCMDE"
+    )
   object[["inference"]][["averaged"]][["mu_alloc"]] <- levels
   perturbed <- suppressWarnings(hypothesis(
     object,

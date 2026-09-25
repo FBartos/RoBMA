@@ -65,11 +65,16 @@ smoke_samples <- test_profile_value(250L, 1000L)
   for (type in c("averaged", "conditional")) {
     for (level in names(emm[["inference"]][[type]][["mu_alloc"]])) {
       sample <- emm[["inference"]][[type]][["mu_alloc"]][[level]]
-      attr(sample, "linear_weights") <- c(mu_intercept = 1, mu_alloc = 1)
+      BayesTools::posterior_metadata(
+        sample,
+        "linear_weights"
+      ) <- c(mu_intercept = 1, mu_alloc = 1)
       if (identical(type, "conditional")) {
-        attr(sample, "effective_conditional") <- c("mu_intercept", "mu_alloc")
-        attr(sample, "effective_conditional_rule") <- "OR"
-        attr(sample, "condition_key") <- "OR\r2\rmu_alloc\rmu_intercept"
+        BayesTools::posterior_metadata(sample, "condition") <- list(
+          effective_conditional      = c("mu_intercept", "mu_alloc"),
+          effective_conditional_rule = "OR",
+          condition_key              = "OR\r2\rmu_alloc\rmu_intercept"
+        )
       }
       emm[["inference"]][[type]][["mu_alloc"]][[level]] <- sample
     }
@@ -381,25 +386,25 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
     c("averaged", "conditional")
   )
   expect_equal(
-    attr(
+    BayesTools::posterior_metadata(
       out[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
       "posterior_density"
     )[["marginal_type"]],
     "averaged"
   )
-  expect_null(attr(
+  expect_null(BayesTools::posterior_metadata(
     out[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   ))
   expect_equal(
-    attr(
+    BayesTools::posterior_metadata(
       out[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
       "posterior_ordinate"
     )[["marginal_type"]],
     "conditional"
   )
   expect_equal(
-    attr(
+    BayesTools::posterior_metadata(
       refreshed[["conditional"]][["mu_alloc"]][["alternate"]],
       "posterior_ordinate"
     )[["marginal_type"]],
@@ -452,7 +457,7 @@ test_that("marginal_means plot inherits and can override the stored density meth
     diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
     point_masses   = data.frame(x = numeric(), mass = numeric())
   )
-  attr(
+  BayesTools::posterior_metadata(
     emm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   ) <- density
@@ -476,7 +481,10 @@ test_that("marginal_means plot inherits and can override the stored density meth
   expect_equal(captured[["parameter"]], "mu_alloc")
   expect_equal(captured[["dots"]][["density_method"]], "precomputed")
   expect_identical(
-    attr(captured[["samples"]][["mu_alloc"]][["alternate"]], "posterior_density"),
+    BayesTools::posterior_metadata(
+      captured[["samples"]][["mu_alloc"]][["alternate"]],
+      "posterior_density"
+    ),
     density
   )
 
@@ -511,7 +519,7 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
     diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
     point_masses   = data.frame(x = numeric(), mass = numeric())
   )
-  attr(
+  BayesTools::posterior_metadata(
     emm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   ) <- density
@@ -549,7 +557,7 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
         include_ordinates = include_ordinates
       )
       for (level in levels) {
-        attr(
+        BayesTools::posterior_metadata(
           marginal_means_object[["inference"]][[type]][["mu_alloc"]][[level]],
           "posterior_density"
         ) <- density_for(level)
@@ -587,10 +595,9 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
   expect_true(all(vapply(
     levels,
     function(level) {
-      posterior_density <- attr(
+      posterior_density <- BayesTools::posterior_metadata(
         captured[["samples"]][["mu_alloc"]][[level]],
-        "posterior_density",
-        exact = TRUE
+        "posterior_density"
       )
       identical(
         posterior_density[["iwmde_provenance"]][["request_key"]],
@@ -624,14 +631,17 @@ test_that("marginal_means plot density coverage requires provenance", {
   for (level in levels) {
     density <- qcmde_density
     density[["iwmde_provenance"]] <- provenance[[level]]
-    attr(samples[[level]], "posterior_density") <- density
+    BayesTools::posterior_metadata(samples[[level]], "posterior_density") <- density
   }
 
   expect_equal(
     .marginal_means_missing_posterior_density_levels(samples, provenance),
     character()
   )
-  attr(samples[["random"]], "posterior_density") <- qcmde_density
+  BayesTools::posterior_metadata(
+    samples[["random"]],
+    "posterior_density"
+  ) <- qcmde_density
   expect_equal(
     .marginal_means_missing_posterior_density_levels(samples, provenance),
     "random"
@@ -642,7 +652,10 @@ test_that("marginal_means plot density coverage requires provenance", {
     density_method = "qCMDE",
     method         = "q_grid_cmde"
   )
-  attr(samples[["systematic"]], "posterior_density") <- stale_density
+  BayesTools::posterior_metadata(
+    samples[["systematic"]],
+    "posterior_density"
+  ) <- stale_density
   expect_equal(
     .marginal_means_missing_posterior_density_levels(samples, provenance),
     c("random", "systematic")
@@ -690,8 +703,14 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
     random     = stats::rnorm(50),
     systematic = stats::rnorm(50)
   )
-  attr(posterior[["alternate"]], "posterior_ordinate") <- ordinate_for(provenance)
-  attr(posterior[["random"]], "posterior_ordinate")    <- ordinate_for(stale_provenance)
+  BayesTools::posterior_metadata(
+    posterior[["alternate"]],
+    "posterior_ordinate"
+  ) <- ordinate_for(provenance)
+  BayesTools::posterior_metadata(
+    posterior[["random"]],
+    "posterior_ordinate"
+  ) <- ordinate_for(stale_provenance)
 
   testthat::local_mocked_bindings(
     Savage_Dickey_BF = function(posterior, null_hypothesis,
@@ -766,7 +785,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
   iwmde_density[["diagnostics"]]    <-
     .marginal_means_iwmde_density_diagnostics("iwmde")
   for (level in levels) {
-    attr(
+    BayesTools::posterior_metadata(
       emm[["inference"]][["averaged"]][["mu_alloc"]][[level]],
       "posterior_density"
     ) <- qcmde_density
@@ -797,7 +816,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
       for (level in levels) {
         density <- iwmde_density
         density[["iwmde_provenance"]] <- provenance[[level]]
-        attr(
+        BayesTools::posterior_metadata(
           marginal_means_object[["inference"]][[type]][["mu_alloc"]][[level]],
           "posterior_density"
         ) <- density
@@ -837,7 +856,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
     captured[["samples"]][["mu_alloc"]],
     function(sample) {
       identical(
-        attr(sample, "posterior_density", exact = TRUE)[["density_method"]],
+        BayesTools::posterior_metadata(sample, "posterior_density")[["density_method"]],
         "IWMDE"
       )
     },
@@ -1109,11 +1128,11 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
     "density_settings", "ordinate_settings"
   ))
 
-  averaged_density <- attr(
+  averaged_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   )
-  conditional_density <- attr(
+  conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   )
@@ -1125,13 +1144,13 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
   expect_true(all(is.finite(averaged_density[["y"]])))
   expect_true(all(averaged_density[["y"]] >= 0))
   expect_equal(
-    attr(
+    BayesTools::posterior_metadata(
       mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
       "posterior_ordinate"
     )[["value"]],
     mm[["null_hypothesis"]]
   )
-  expect_false(is.null(attr(
+  expect_false(is.null(BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "prior_density"
   )))
@@ -1225,19 +1244,19 @@ test_that("marginal_means restricts qCMDE precomputation targets", {
     density_control = list(n_points = 20, samples = 20)
   )
 
-  averaged_density <- attr(
+  averaged_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["averaged"]][["mu_Preregistered"]][["Not Pre-Registered"]],
     "posterior_density"
   )
-  conditional_density <- attr(
+  conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_Preregistered"]][["Not Pre-Registered"]],
     "posterior_density"
   )
-  skipped_density <- attr(
+  skipped_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_Preregistered"]][["Pre-Registered"]],
     "posterior_density"
   )
-  skipped_ordinate <- attr(
+  skipped_ordinate <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_Preregistered"]][["Pre-Registered"]],
     "posterior_ordinate"
   )
@@ -1275,15 +1294,15 @@ test_that("marginal_means computes BF ordinates when density target is averaged"
     density_control = list(n_points = 20, samples = 20)
   )
 
-  averaged_density <- attr(
+  averaged_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   )
-  conditional_density <- attr(
+  conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   )
-  conditional_ordinate <- attr(
+  conditional_ordinate <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_ordinate"
   )
@@ -1317,11 +1336,11 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
     density_control  = list(n_points = 20, samples = 20)
   )
 
-  conditional_density <- attr(
+  conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   )
-  conditional_ordinate <- attr(
+  conditional_ordinate <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_ordinate"
   )
@@ -1354,7 +1373,7 @@ test_that("marginal_means skips qCMDE ordinates when BFs are hidden", {
     density_control   = list(n_points = 20, samples = 20)
   )
 
-  posterior_ordinate <- attr(
+  posterior_ordinate <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_ordinate"
   )
@@ -1388,7 +1407,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     density_control   = density_control
   )
 
-  conditional_density <- attr(
+  conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
   )
@@ -1403,7 +1422,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
   expect_equal(conditional_density[["density_method"]], "IWMDE")
   expect_equal(conditional_density[["diagnostics"]][["estimator"]], "iwmde")
   expect_equal(
-    attr(
+    BayesTools::posterior_metadata(
       mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
       "posterior_ordinate"
     )[["method"]],
@@ -1412,7 +1431,7 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
   posterior <- mm[["inference"]][["conditional"]][["mu_alloc"]]
   valid <- vapply(posterior, function(sample) {
     .iwmde_posterior_ordinate_supports_bf(
-      attr(sample, "posterior_ordinate", exact = TRUE)
+      BayesTools::posterior_metadata(sample, "posterior_ordinate")
     )
   }, logical(1))
   bf_posterior <- .marginal_means_bf_posterior(posterior[valid])

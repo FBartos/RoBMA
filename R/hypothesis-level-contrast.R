@@ -53,15 +53,11 @@
     parameter_spec <- list(
       type          = "linear",
       weights       = target[["weights"]],
-      prior_density = attr(
-        target_posterior,
-        "prior_density",
-        exact = TRUE
-      )
+      prior_density = BayesTools::posterior_metadata(target_posterior, "prior_density")
     )
     estimate_cache <- .iwmde_estimate_cache()
-    conditional <- .iwmde_first_nonempty_attr(
-      target_posterior,
+    conditional <- .iwmde_first_nonempty_condition(
+      BayesTools::posterior_metadata(target_posterior, "condition"),
       c("effective_conditional", "conditional")
     )
     context <- .iwmde_context(

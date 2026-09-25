@@ -133,7 +133,7 @@ test_that("shared-gate allocation grids use declared continuous covariance plans
     list(fit = fit), "split: tau2_prop(study)", prior = TRUE,
     selected = selected
   )[[1L]]
-  prior_density <- attr(prior_samples, "prior_density", exact = TRUE)
+  prior_density <- BayesTools::posterior_metadata(prior_samples, "prior_density")
   expect_s3_class(prior_density, "prior_linear_density")
   expect_equal(vapply(c(0, .5, 1), function(value) {
     BayesTools::prior_density_ordinate(prior_density, value)$log_density
@@ -724,7 +724,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
       reused_selected <<- selected
       reused_prior    <<- prior_selected
       values <- 1:3
-      attr(values, "prior_density") <- semantic_prior_density
+      BayesTools::posterior_metadata(values, "prior_density") <- semantic_prior_density
       list(theta = values)
     },
     .iwmde_context = function(...) list(),
@@ -736,7 +736,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
       expect_identical(parameter, "rho[2]")
       expect_identical(parameter_spec, target_spec)
       expect_identical(
-        attr(raw_posterior, "prior_density", exact = TRUE),
+        BayesTools::posterior_metadata(raw_posterior, "prior_density"),
         semantic_prior_density
       )
       posterior

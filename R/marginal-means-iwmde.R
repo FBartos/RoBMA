@@ -298,9 +298,15 @@
     }
 
     if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "posterior_density") <- estimate[["posterior_density"]]
+      samples[[level]] <- .iwmde_attach_posterior_density(
+        samples[[level]],
+        estimate[["posterior_density"]]
+      )
     } else {
-      attr(samples, "posterior_density") <- estimate[["posterior_density"]]
+      samples <- .iwmde_attach_posterior_density(
+        samples,
+        estimate[["posterior_density"]]
+      )
     }
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples
   }
@@ -328,10 +334,15 @@
 
     if (is.list(samples) && !is.null(samples[[level]])) {
       attr(samples[[level]], "ordinate_failures") <- estimate[["ordinate_failures"]]
-      if (!is.null(ordinate)) attr(samples[[level]], "posterior_ordinate") <- ordinate
+      if (!is.null(ordinate)) {
+        BayesTools::posterior_metadata(samples[[level]], "posterior_ordinate") <-
+          ordinate
+      }
     } else {
       attr(samples, "ordinate_failures") <- estimate[["ordinate_failures"]]
-      if (!is.null(ordinate)) attr(samples, "posterior_ordinate") <- ordinate
+      if (!is.null(ordinate)) {
+        BayesTools::posterior_metadata(samples, "posterior_ordinate") <- ordinate
+      }
     }
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples
   }
@@ -509,8 +520,10 @@
   names(out) <- names(posterior)
   valid <- vapply(names(posterior), function(level) {
     .iwmde_posterior_ordinate_matches_request(
-      posterior_ordinate = attr(posterior[[level]], "posterior_ordinate",
-                                exact = TRUE),
+      posterior_ordinate = BayesTools::posterior_metadata(
+        posterior[[level]],
+        "posterior_ordinate"
+      ),
       value              = null_hypothesis,
       provenance         = provenance[[level]]
     )
@@ -519,7 +532,7 @@
     for (i in seq_along(out)) {
       out[[i]] <- .marginal_means_unavailable_bf_scalar(
         .marginal_means_iwmde_bf_warning(
-          attr(posterior[[i]], "posterior_ordinate", exact = TRUE),
+          BayesTools::posterior_metadata(posterior[[i]], "posterior_ordinate"),
           default = warning,
           failure_records = attr(posterior[[i]], "ordinate_failures", exact = TRUE),
           value = null_hypothesis
@@ -543,13 +556,15 @@
     if (isTRUE(valid[[i]])) {
       out[[i]] <- .iwmde_bf_append_warning(
         bf                 = bf[[names(out)[[i]]]],
-        posterior_ordinate = attr(posterior[[i]], "posterior_ordinate",
-                                  exact = TRUE)
+        posterior_ordinate = BayesTools::posterior_metadata(
+          posterior[[i]],
+          "posterior_ordinate"
+        )
       )
     } else {
       out[[i]] <- .marginal_means_unavailable_bf_scalar(
         .marginal_means_iwmde_bf_warning(
-          attr(posterior[[i]], "posterior_ordinate", exact = TRUE),
+          BayesTools::posterior_metadata(posterior[[i]], "posterior_ordinate"),
           default = warning,
           failure_records = attr(posterior[[i]], "ordinate_failures", exact = TRUE),
           value = null_hypothesis
@@ -567,13 +582,13 @@
                                             warning) {
 
   if (!.iwmde_posterior_ordinate_matches_request(
-    posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
+    posterior_ordinate = BayesTools::posterior_metadata(posterior, "posterior_ordinate"),
     value              = null_hypothesis,
     provenance         = provenance
   )) {
     return(.marginal_means_unavailable_bf_scalar(
       .marginal_means_iwmde_bf_warning(
-        attr(posterior, "posterior_ordinate", exact = TRUE),
+        BayesTools::posterior_metadata(posterior, "posterior_ordinate"),
         default = warning,
         failure_records = attr(posterior, "ordinate_failures", exact = TRUE),
         value = null_hypothesis
@@ -592,7 +607,7 @@
 
   .iwmde_bf_append_warning(
     bf                 = bf,
-    posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE)
+    posterior_ordinate = BayesTools::posterior_metadata(posterior, "posterior_ordinate")
   )
 }
 
@@ -646,7 +661,7 @@
 
 .marginal_means_posterior_density_matches <- function(samples, provenance) {
 
-  density <- attr(samples, "posterior_density", exact = TRUE)
+  density <- BayesTools::posterior_metadata(samples, "posterior_density")
   .iwmde_posterior_density_matches_request(
     posterior_density = density,
     provenance        = provenance
@@ -891,21 +906,27 @@
 .marginal_means_bf_posterior <- function(samples) {
 
   if (!is.list(samples)) {
-    if (!.iwmde_posterior_ordinate_supports_bf(attr(samples, "posterior_ordinate"))) {
-      attr(samples, "posterior_ordinate") <- NULL
-      attr(samples, "posterior_density") <- NULL
-    }
-    return(samples)
+    return(.marginal_means_bf_posterior_one(samples))
   }
 
   for (i in seq_along(samples)) {
-    if (!.iwmde_posterior_ordinate_supports_bf(attr(samples[[i]], "posterior_ordinate"))) {
-      attr(samples[[i]], "posterior_ordinate") <- NULL
-      attr(samples[[i]], "posterior_density") <- NULL
-    }
+    samples[[i]] <- .marginal_means_bf_posterior_one(samples[[i]])
   }
 
   return(samples)
+}
+
+
+# Drop a stored density and ordinate that cannot support a Bayes factor.
+.marginal_means_bf_posterior_one <- function(sample) {
+
+  ordinate <- BayesTools::posterior_metadata(sample, "posterior_ordinate")
+  if (!.iwmde_posterior_ordinate_supports_bf(ordinate)) {
+    BayesTools::posterior_metadata(sample, "posterior_ordinate") <- NULL
+    BayesTools::posterior_metadata(sample, "posterior_density") <- NULL
+  }
+
+  return(sample)
 }
 
 
@@ -984,8 +1005,8 @@
           label     = label,
           parameter = parameter_name,
           level     = level,
-          weights   = attr(level_sample, "linear_weights"),
-          prior_density = attr(level_sample, "prior_density", exact = TRUE)
+          weights   = BayesTools::posterior_metadata(level_sample, "linear_weights"),
+          prior_density = BayesTools::posterior_metadata(level_sample, "prior_density")
         ),
         condition_metadata,
         list(

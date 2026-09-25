@@ -72,15 +72,16 @@
                                             include_prior_density_context = FALSE,
                                             require_child_condition = FALSE) {
 
-  conditional <- .iwmde_first_nonempty_attr(
-    samples,
+  condition   <- BayesTools::posterior_metadata(samples, "condition")
+  conditional <- .iwmde_first_nonempty_condition(
+    condition,
     c("effective_conditional", "conditional")
   )
-  conditional_rule <- .iwmde_first_nonempty_attr(
-    samples,
+  conditional_rule <- .iwmde_first_nonempty_condition(
+    condition,
     c("effective_conditional_rule", "conditional_rule")
   )
-  condition_key <- attr(samples, "condition_key", exact = TRUE)
+  condition_key <- condition[["condition_key"]]
 
   if (isTRUE(require_child_condition) &&
       (is.null(conditional) || is.null(conditional_rule) || is.null(condition_key))) {
@@ -94,14 +95,13 @@
     conditional              = conditional,
     conditional_rule         = conditional_rule,
     condition_key            = condition_key,
-    condition_event          = attr(samples, "condition_event", exact = TRUE),
-    resolved_condition_event = attr(samples, "resolved_condition_event", exact = TRUE)
+    condition_event          = condition[["condition_event"]],
+    resolved_condition_event = condition[["resolved_condition_event"]]
   )
   if (isTRUE(include_prior_density_context)) {
-    metadata[["prior_density_context"]] <- attr(
+    metadata[["prior_density_context"]] <- BayesTools::posterior_metadata(
       samples,
-      "prior_density_context",
-      exact = TRUE
+      "prior_context"
     )
   }
   metadata <- metadata[!vapply(metadata, is.null, logical(1))]
@@ -110,10 +110,11 @@
 }
 
 
-.iwmde_first_nonempty_attr <- function(x, names) {
+# The first non-empty element of the 'condition' draw metadata among 'names'.
+.iwmde_first_nonempty_condition <- function(condition, names) {
 
   for (name in names) {
-    value <- attr(x, name, exact = TRUE)
+    value <- condition[[name]]
     if (!is.null(value) && length(value) > 0L) {
       return(value)
     }
@@ -145,6 +146,29 @@
   }
 
   return("iwmde")
+}
+
+
+# Attaches a qCMDE/IWMDE posterior density to scalar posterior draws. The
+# density's point masses describe its measure for precomputed plots, but
+# posterior atoms are declared only in the draws' 'atoms' metadata, so the
+# density's declared point masses are declared there as well.
+.iwmde_attach_posterior_density <- function(samples, posterior_density) {
+
+  BayesTools::posterior_metadata(samples, "posterior_density") <-
+    posterior_density
+  if (is.null(posterior_density) ||
+      !isTRUE(posterior_density[["point_masses_declared"]])) {
+    return(samples)
+  }
+  point_masses <- posterior_density[["point_masses"]]
+  BayesTools::posterior_metadata(samples, "atoms") <-
+    BayesTools::posterior_atom_attribute(
+      point_masses = if (NROW(point_masses) > 0L) point_masses else NULL,
+      source       = "RoBMA qCMDE/IWMDE density"
+    )
+
+  return(samples)
 }
 
 

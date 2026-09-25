@@ -101,22 +101,22 @@
 
   if (!is.list(posterior)) {
     values <- point_refs[["value"]][is.na(point_refs[["level"]])]
-    attr(posterior, "posterior_ordinate") <-
+    BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
       .iwmde_posterior_ordinate_keep_values(
-        attr(posterior, "posterior_ordinate", exact = TRUE),
+        BayesTools::posterior_metadata(posterior, "posterior_ordinate"),
         values
       )
     return(posterior)
   }
 
-  attr(posterior, "posterior_ordinate") <- NULL
+  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- NULL
   for (level in names(posterior)) {
     values <- point_refs[["value"]][
       !is.na(point_refs[["level"]]) & point_refs[["level"]] == level
     ]
-    attr(posterior[[level]], "posterior_ordinate") <-
+    BayesTools::posterior_metadata(posterior[[level]], "posterior_ordinate") <-
       .iwmde_posterior_ordinate_keep_values(
-        attr(posterior[[level]], "posterior_ordinate", exact = TRUE),
+        BayesTools::posterior_metadata(posterior[[level]], "posterior_ordinate"),
         values
       )
   }
@@ -154,13 +154,12 @@
   if (is.null(parameter_spec)) {
     parameter_spec <- list(
       type          = "primitive",
-      prior_density = attr(raw_posterior, "prior_density", exact = TRUE)
+      prior_density = BayesTools::posterior_metadata(raw_posterior, "prior_density")
     )
   } else if (is.null(parameter_spec[["prior_density"]])) {
-    parameter_spec[["prior_density"]] <- attr(
+    parameter_spec[["prior_density"]] <- BayesTools::posterior_metadata(
       raw_posterior,
-      "prior_density",
-      exact = TRUE
+      "prior_density"
     )
   }
   parameter_spec[["conditional"]]      <- conditional
@@ -254,10 +253,13 @@
     }
 
     existing <- .iwmde_posterior_ordinate_drop_value(
-      posterior_ordinate = attr(posterior, "posterior_ordinate", exact = TRUE),
+      posterior_ordinate = BayesTools::posterior_metadata(
+        posterior,
+        "posterior_ordinate"
+      ),
       value              = requested_value
     )
-    attr(posterior, "posterior_ordinate") <-
+    BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
       BayesTools::posterior_ordinate_append(
         existing = existing,
         ordinate = ordinate
@@ -415,7 +417,7 @@
   }
 
   weights <- if (is.null(parameter_spec)) {
-    attr(raw_posterior[[level]], "linear_weights", exact = TRUE)
+    BayesTools::posterior_metadata(raw_posterior[[level]], "linear_weights")
   } else {
     parameter_spec[["weights"]]
   }
@@ -447,15 +449,17 @@
     parameter_spec <- list(
       type          = "linear",
       weights       = weights,
-      prior_density = attr(
+      prior_density = BayesTools::posterior_metadata(
         raw_posterior[[level]],
-        "prior_density",
-        exact = TRUE
+        "prior_density"
       )
     )
   }
   parameter_spec[["conditional"]] <- if (is.null(conditional)) {
-    attr(raw_posterior[[level]], "effective_conditional", exact = TRUE)
+    BayesTools::posterior_metadata(
+      raw_posterior[[level]],
+      "condition"
+    )[["effective_conditional"]]
   } else {
     conditional
   }
@@ -501,11 +505,16 @@
   }
 
   existing <- .iwmde_posterior_ordinate_drop_value(
-    posterior_ordinate = attr(posterior[[level]], "posterior_ordinate",
-                              exact = TRUE),
+    posterior_ordinate = BayesTools::posterior_metadata(
+      posterior[[level]],
+      "posterior_ordinate"
+    ),
     value              = value
   )
-  attr(posterior[[level]], "posterior_ordinate") <- BayesTools::posterior_ordinate_append(
+  BayesTools::posterior_metadata(
+    posterior[[level]],
+    "posterior_ordinate"
+  ) <- BayesTools::posterior_ordinate_append(
     existing = existing,
     ordinate = ordinate
   )
@@ -776,7 +785,7 @@
 .iwmde_collect_posterior_ordinate_warning_records <- function(posterior) {
 
   records <- .iwmde_posterior_ordinate_warning_records(
-    attr(posterior, "posterior_ordinate", exact = TRUE)
+    BayesTools::posterior_metadata(posterior, "posterior_ordinate")
   )
   if (is.list(posterior)) {
     child_records <- lapply(posterior, function(sample) {

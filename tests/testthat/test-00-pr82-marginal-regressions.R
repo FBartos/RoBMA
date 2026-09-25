@@ -10,8 +10,10 @@ test_that("marginal means retain rejected ordinate diagnostics", {
     list(a = list(diagnostics = list(ordinate = list(status = "ok")),
                   rejected_posterior_ordinate = ordinate))
   )
-  attached <- attr(result[["inference"]][["conditional"]][["mu"]][["a"]],
-                   "posterior_ordinate", exact = TRUE)
+  attached <- BayesTools::posterior_metadata(
+    result[["inference"]][["conditional"]][["mu"]][["a"]],
+    "posterior_ordinate"
+  )
   expect_identical(attached, ordinate)
   expect_match(.marginal_means_iwmde_bf_warning(attached),
                "was rejected by diagnostics", fixed = TRUE)

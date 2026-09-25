@@ -940,6 +940,9 @@
     formula_parameter = map_row[["formula_parameter"]],
     term              = map_row[["term"]]
   )))
+  # A coefficient group has no scalar support of its own.
+  out[["support"]]     <- I(list(NULL))
+  out[["definedness"]] <- "always"
   out <- out[, names(catalog[["quantities"]]), drop = FALSE]
   return(out)
 }
@@ -998,6 +1001,10 @@
     dependencies = "bias",
     parameter    = parameter
   )))
+  # The publication-bias component mixes several priors; its support is not
+  # declared here.
+  out[["support"]]     <- I(list(NULL))
+  out[["definedness"]] <- "always"
   out <- out[, names(catalog[["quantities"]]), drop = FALSE]
   return(out)
 }

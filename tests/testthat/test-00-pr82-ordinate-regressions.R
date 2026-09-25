@@ -237,8 +237,8 @@ test_that("computed ordinates with coincident displayed diagnostics retain rows"
     diagnostics = list(estimator = "iwmde", normalization_relative_error = 0),
     parameter = "mu"
   )
-  posterior <- list(structure(1:3, posterior_ordinate = entry(1)),
-                    structure(2:4, posterior_ordinate = entry(2)))
+  posterior <- list(with_draw_metadata(1:3, posterior_ordinate = entry(1)),
+                    with_draw_metadata(2:4, posterior_ordinate = entry(2)))
   diagnostics <- .iwmde_collect_public_density_diagnostics(posterior)
   expect_equal(nrow(diagnostics), 2L)
   expect_identical(diagnostics[["parameter"]], c("mu", "mu"))

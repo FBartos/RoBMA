@@ -77,7 +77,7 @@ test_that("transformed coefficient hypotheses use exact structural weights", {
     entry     = list(formula_parameter = "mu")
   )
   context <- structure(list(sentinel = TRUE), class = "prior_density_context")
-  samples <- structure(list(), prior_density_context = context)
+  samples <- with_draw_metadata(list(), prior_context = context)
   observed_context <- NULL
   observed_values  <- numeric()
   testthat::local_mocked_bindings(
@@ -413,28 +413,23 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     families         = list(),
     condition_key    = "<averaged>"
   ), class = "BayesTools_condition_event")
-  atoms <- structure(list(
-    declared               = TRUE,
-    locations              = matrix(
-      numeric(), nrow = 0L, ncol = 1L,
-      dimnames = list(NULL, "log_tau_intercept")
-    ),
-    mass                   = numeric(),
-    source                 = "single_model_structure",
-    component_probabilities = 1
-  ), class = c("BayesTools_posterior_atoms", "list"))
-  posterior <- structure(
+  atoms <- BayesTools::posterior_atom_attribute(
+    source = "single_model_structure"
+  )
+  posterior <- with_draw_metadata(
     c(.15, .25, .35),
-    class                    = c("mixed_posteriors.simple", "mixed_posteriors"),
-    conditional              = character(),
-    condition_key            = "<averaged>",
-    resolved_condition_event = condition_event,
-    posterior_atoms          = atoms
+    class     = c("mixed_posteriors.simple", "mixed_posteriors"),
+    condition = list(
+      conditional              = character(),
+      condition_key            = "<averaged>",
+      resolved_condition_event = condition_event
+    ),
+    atoms     = atoms
   )
   prior_density <- structure(list(
     points = data.frame(x = numeric(), p = numeric())
   ), class = c("prior_linear_density", "prior_density"))
-  samples <- structure(
+  samples <- with_draw_metadata(
     list(log_tau_intercept = posterior),
     prior_densities = list(log_tau_intercept = prior_density)
   )
@@ -520,14 +515,12 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
   )
 
   atomic_samples <- samples
-  atomic_atoms <- atoms
-  atomic_atoms[["locations"]] <- matrix(
-    0, nrow = 1L, ncol = 1L,
-    dimnames = list("location", "log_tau_intercept")
+  BayesTools::posterior_metadata(
+    atomic_samples[["log_tau_intercept"]],
+    "atoms"
+  ) <- BayesTools::posterior_atom_attribute(
+    point_masses = data.frame(x = 0, mass = 0.25)
   )
-  atomic_atoms[["mass"]] <- 0.25
-  attr(atomic_samples[["log_tau_intercept"]], "posterior_atoms") <-
-    atomic_atoms
   expect_error(
     .hypothesis_brma_exp_affine_certify(
       atomic_samples, "log_tau_intercept", FALSE
@@ -535,10 +528,9 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     "posterior is atom-free"
   )
   unproven_samples <- samples
-  attr(unproven_samples[["log_tau_intercept"]], "conditional") <- NULL
-  attr(
+  BayesTools::posterior_metadata(
     unproven_samples[["log_tau_intercept"]],
-    "resolved_condition_event"
+    "condition"
   ) <- NULL
   expect_error(
     .hypothesis_brma_exp_affine_certify(
@@ -547,7 +539,7 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     "structural evidence for an unconditional posterior"
   )
   atomic_prior_samples <- samples
-  attr(atomic_prior_samples, "prior_densities")[[
+  BayesTools::posterior_metadata(atomic_prior_samples, "prior_densities")[[
     "log_tau_intercept"
   ]][["points"]] <- data.frame(x = 0, p = 0.25)
   expect_error(

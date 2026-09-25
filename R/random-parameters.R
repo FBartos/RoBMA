@@ -147,11 +147,8 @@
   })
 
   samples <- coda::mcmc.list(semantic_chains)
-  attr(samples, "undefined_draws") <- attr(
-    extracted[[1L]][["samples"]],
-    "undefined_draws",
-    exact = TRUE
-  )
+  BayesTools::posterior_metadata(samples, "undefined_draws") <-
+    BayesTools::posterior_metadata(extracted[[1L]][["samples"]], "undefined_draws")
 
   list(
     samples = samples,
@@ -161,7 +158,7 @@
 }
 
 # Draws of a quantity declared as possibly undefined (an original-scale
-# correlation with a zero SD; attribute 'undefined_draws' of the extracted
+# correlation with a zero SD; 'undefined_draws' metadata of the extracted
 # samples) are left out where the quantity is undefined. Any other missing
 # draw is an error. Returns the mask of defined draws.
 .brma_random_parameter_defined_draws <- function(values, samples, label) {
@@ -170,7 +167,7 @@
   if (all(defined)) {
     return(defined)
   }
-  if (is.null(attr(samples, "undefined_draws", exact = TRUE))) {
+  if (is.null(BayesTools::posterior_metadata(samples, "undefined_draws"))) {
     stop(
       "The draws of random-effect quantity '", label, "' contain missing ",
       "values. Missing draws are accepted only for quantities declared as ",
@@ -206,7 +203,7 @@
   if (length(parts) == 0L) {
     return(NULL)
   }
-  reason <- attr(samples, "undefined_draws", exact = TRUE)
+  reason <- BayesTools::posterior_metadata(samples, "undefined_draws")
   condition <- if (identical(unname(reason[[1L]]), "correlation")) {
     "where the correlation is defined, i.e. both SDs are positive."
   } else {
@@ -307,14 +304,14 @@
   # correlations with a zero SD) keep parameter_draws()' declaration, by
   # column, so that consumers accept only these missing draws.
   undefined <- unlist(lapply(seq_along(draws), function(i) {
-    declared <- attr(draws[[i]], "undefined_draws", exact = TRUE)
+    declared <- BayesTools::posterior_metadata(draws[[i]], "undefined_draws")
     if (is.null(declared)) {
       return(NULL)
     }
     stats::setNames(unname(declared[[1L]]), parameter_names[[i]])
   }))
   if (length(undefined) > 0L) {
-    attr(samples, "undefined_draws") <- undefined
+    BayesTools::posterior_metadata(samples, "undefined_draws") <- undefined
   }
   specs  <- .brma_random_parameter_specs(quantities)
   specs[["display_transform"]] <- I(lapply(selections, function(selection) {
@@ -573,11 +570,7 @@
     standardized_coefficients = standardized_coefficients,
     chains                    = TRUE
   )
-  support <- .brma_random_parameter_support(
-    selected[["spec"]],
-    selected[["source_prior"]],
-    selected[["allocation_definition"]]
-  )
+  support <- .brma_random_parameter_support(selected)
   diagnostic_prior <- BayesTools::prior(
     distribution = "normal",
     parameters   = list(mean = 0, sd = 1),
@@ -645,9 +638,10 @@
   )
 
   samples <- bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
-  undefined <- attr(bundle[["samples"]], "undefined_draws", exact = TRUE)
+  undefined <- BayesTools::posterior_metadata(bundle[["samples"]], "undefined_draws")
   if (entry[["parameter"]] %in% names(undefined)) {
-    attr(samples, "undefined_draws") <- undefined[entry[["parameter"]]]
+    BayesTools::posterior_metadata(samples, "undefined_draws") <-
+      undefined[entry[["parameter"]]]
   }
 
   list(
@@ -1315,75 +1309,35 @@
   unique(exclusions)
 }
 
-.brma_random_parameter_support <- function(spec, source_prior = NULL,
-                                           allocation = NULL) {
+# Exact support of a selected random-effect quantity as declared by the
+# parameter catalog (derived by BayesTools from prior provenance), or NULL
+# when the catalog cannot derive it.
+.brma_random_parameter_catalog_support <- function(selected) {
 
-  type <- spec[["quantity"]]
-  support <- if (type %in% c(
-    "sd", "var", "sd_total", "var_total", "sd_common", "var_common"
-  )) {
-    c(0, Inf)
-  } else if (identical(type, "sd_mult")) {
-    scale <- if (is.null(allocation)) NULL else allocation[["scale"]]
-    if (is.null(allocation)) {
-      c(0, Inf)
-    } else if (identical(scale, "mean_variance")) {
-      n_targets <- allocation[["n_targets"]]
-      if (!is.numeric(n_targets) || length(n_targets) != 1L ||
-          is.na(n_targets) || n_targets < 1) {
-        stop(
-          "SD-multiplier metadata are missing a valid allocation target count.",
-          call. = FALSE
-        )
-      }
-      c(0, sqrt(n_targets))
-    } else if (identical(scale, "total_variance")) {
-      c(0, 1)
-    } else {
-      stop(
-        "SD-multiplier metadata are missing a canonical allocation scale.",
-        call. = FALSE
-      )
-    }
-  } else if (identical(type, "cor")) {
-    c(-1, 1)
-  } else if (identical(type, "var_prop")) {
-    c(0, 1)
-  } else if (identical(type, "var_mult")) {
-    upper <- if (is.null(allocation[["n_targets"]])) Inf else
-      as.numeric(allocation[["n_targets"]])
-    c(0, upper)
-  } else {
-    c(-Inf, Inf)
+  quantities <- selected[["entry"]][["selection"]][["quantities"]]
+  if (!is.data.frame(quantities) || nrow(quantities) != 1L ||
+      !"support" %in% names(quantities)) {
+    stop(
+      "Random-effect quantity '", selected[["entry"]][["parameter"]],
+      "' has no catalog support metadata. Refit the model with the current ",
+      "BayesTools version.",
+      call. = FALSE
+    )
   }
 
-  if (!is.null(source_prior) && !is.null(source_prior[["truncation"]])) {
-    truncation <- source_prior[["truncation"]]
-    lower      <- truncation[["lower"]]
-    upper      <- truncation[["upper"]]
-    if (length(lower) == 1L && length(upper) == 1L) {
-      transform <- spec[["display_transform"]]
-      if (is.null(transform) ||
-          (identical(transform[["type"]], "square") && lower < 0)) {
-        return(support)
-      }
-      transformed <- BayesTools::parameter_transform_forward(
-        c(lower, upper),
-        transform
-      )
-      if (anyNA(transformed)) {
-        return(support)
-      }
-      lower <- min(transformed)
-      upper <- max(transformed)
-      support <- c(
-        max(support[1L], as.numeric(lower)),
-        min(support[2L], as.numeric(upper))
-      )
-    }
+  quantities[["support"]][[1L]]
+}
+
+# Bounds of the exact catalog support of a selected random-effect quantity;
+# unbounded when the catalog declares no exact support.
+.brma_random_parameter_support <- function(selected) {
+
+  support <- .brma_random_parameter_catalog_support(selected)
+  if (is.null(support) || !isTRUE(support[["exact"]])) {
+    return(c(-Inf, Inf))
   }
 
-  support
+  as.numeric(support[["bounds"]])
 }
 
 .brma_random_parameter_point_test_reason <- function(
@@ -1680,25 +1634,11 @@
   if (!is.null(posterior_inclusion)) {
     posterior_inclusion <- posterior_inclusion[defined]
   }
-  attr(values, "sample_ind") <- FALSE
-  attr(values, "models_ind") <- rep(1, length(values))
   attr(values, "parameter")  <- selected[["entry"]][["parameter"]]
   attr(values, "prior_list") <- BayesTools::prior_none()
-  support <- .brma_random_parameter_support(
-    selected[["spec"]],
-    selected[["source_prior"]],
-    selected[["allocation_definition"]]
-  )
-  attr(values, "posterior_support") <- structure(
-    list(
-      bounds = support,
-      points = numeric(),
-      exact  = TRUE,
-      source = "model",
-      type   = "interval"
-    ),
-    class = c("BayesTools_posterior_support", "list")
-  )
+  support <- .brma_random_parameter_support(selected)
+  BayesTools::posterior_metadata(values, "support") <-
+    .brma_random_parameter_catalog_support(selected)
   allocation_points <- NULL
   if (!is.null(allocation_gate_state)) {
     defined <- allocation_gate_state[["defined"]]
@@ -1718,12 +1658,16 @@
     ]
   }
   if (!is.null(allocation_gate_state)) {
-    attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
-      point_masses = allocation_points,
-      source       = "random-effect allocation gates"
-    )
+    BayesTools::posterior_metadata(values, "atoms") <-
+      BayesTools::posterior_atom_attribute(
+        point_masses = allocation_points,
+        source       = "random-effect allocation gates"
+      )
   } else if (zero_gate && !conditional && any(posterior_inclusion == 0)) {
-    attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
+    BayesTools::posterior_metadata(
+      values,
+      "atoms"
+    ) <- BayesTools::posterior_atom_attribute(
       point_masses = data.frame(
         x    = 0,
         mass = mean(posterior_inclusion == 0)
@@ -1732,9 +1676,10 @@
     )
   } else if (!.brma_random_parameter_prior_has_atom(selected[["prior"]]) &&
              !.brma_random_parameter_prior_has_atom(selected[["source_prior"]])) {
-    attr(values, "posterior_atoms") <- BayesTools::posterior_atom_attribute(
-      source = "RoBMA semantic random-effect prior"
-    )
+    BayesTools::posterior_metadata(values, "atoms") <-
+      BayesTools::posterior_atom_attribute(
+        source = "RoBMA semantic random-effect prior"
+      )
   }
 
   gated_aggregate <- !is.null(allocation_gate_metadata)
@@ -1754,7 +1699,7 @@
       selected[["entry"]][["selection"]]
     )
     if (!is.null(prior_density)) {
-      attr(values, "prior_density") <- prior_density
+      BayesTools::posterior_metadata(values, "prior_density") <- prior_density
       target_prior <- BayesTools::prior_none()
     }
   }
@@ -1783,16 +1728,18 @@
       prior_inclusion <- raw_samples[, indicator]
       if (conditional) {
         prior_values <- prior_selected[["samples"]][, 1L]
-        undefined    <- attr(
+        undefined    <- BayesTools::posterior_metadata(
           prior_selected[["samples"]],
-          "undefined_draws",
-          exact = TRUE
+          "undefined_draws"
         )
         prior_selected[["samples"]] <- matrix(
           prior_values[prior_inclusion == 1],
           ncol = 1L
         )
-        attr(prior_selected[["samples"]], "undefined_draws") <- undefined
+        BayesTools::posterior_metadata(
+          prior_selected[["samples"]],
+          "undefined_draws"
+        ) <- undefined
         prior_inclusion <- NULL
       }
     }
@@ -1849,7 +1796,7 @@
         call. = FALSE
       )
     }
-    attr(values, "prior_density") <- prior_density
+    BayesTools::posterior_metadata(values, "prior_density") <- prior_density
     target_prior <- BayesTools::prior_none()
   }
   attr(values, "prior_list") <- target_prior

@@ -364,7 +364,12 @@ test_that("indexed factor plots retain semantic cells without cached fits", {
     .plot_brma_attach_iwmde = function(object, samples, parameter,
         sample_parameter, parameter_spec, ...) {
       attached <<- list(parameter = parameter, spec = parameter_spec)
-      attr(samples[[sample_parameter]], "posterior_density") <- list(test_sentinel = TRUE)
+      BayesTools::posterior_metadata(
+        samples[[sample_parameter]],
+        "posterior_density"
+      ) <- BayesTools::posterior_density_attribute(
+        x = c(-1, 1), y = c(.5, .5), method = "test", density_method = "qCMDE"
+      )
       samples
     }, .package = "RoBMA")
   testthat::local_mocked_bindings(
@@ -400,7 +405,7 @@ test_that("indexed factor plots retain semantic cells without cached fits", {
       sample <- rendered$samples[[entry$parameter]]
       expect_identical(attr(sample, "level_name", exact = TRUE), level)
       expect_equal(as.numeric(sample), as.numeric(expected), tolerance = 1e-14)
-      prior <- attr(sample, "prior_density", exact = TRUE)
+      prior <- BayesTools::posterior_metadata(sample, "prior_density")
       expect_s3_class(prior, "prior_linear_density")
       if (manual_weight == 0) {
         expect_null(attached)

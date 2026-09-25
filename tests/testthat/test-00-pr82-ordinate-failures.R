@@ -146,7 +146,7 @@ test_that("marginal means retain target-specific unavailable reasons", {
   attached <- .marginal_means_attach_iwmde_ordinate_type(object, "conditional",
     list(a = list(parameter = "mu", level = "a")), list(a = estimate))
   posterior <- attached[["inference"]][["conditional"]][["mu"]][["a"]]
-  expect_null(attr(posterior, "posterior_ordinate", exact = TRUE))
+  expect_null(BayesTools::posterior_metadata(posterior, "posterior_ordinate"))
   failure <- attr(posterior, "ordinate_failures", exact = TRUE)
   expect_identical(failure[["numerical_status"]], "underflow")
   bf <- .marginal_means_iwmde_bf_scalar(posterior, 3, NULL, "qCMDE", "Unavailable.")
@@ -172,7 +172,10 @@ test_that("multi-level marginal means keep each failure beside valid Bayes facto
   ordinate <- BayesTools::posterior_ordinate_attribute(3, 1, "q_grid_cmde", "qCMDE",
     diagnostics = list(estimator = "q_grid_cmde", ordinate_relative_change = 0),
     iwmde_provenance = provenance)
-  posterior <- c(list(good = structure(1:3, posterior_ordinate = ordinate)), bad)
+  posterior <- c(
+    list(good = with_draw_metadata(1:3, posterior_ordinate = ordinate)),
+    bad
+  )
   calls <- 0L
   testthat::local_mocked_bindings(Savage_Dickey_BF = function(posterior, ...) {
     calls <<- calls + 1L
@@ -189,9 +192,9 @@ test_that("multi-level marginal means keep each failure beside valid Bayes facto
 
 test_that("public marginal-means hypotheses distinguish unavailable point computations", {
 
-  sample <- structure(seq(-1, 1, length.out = 40L),
+  sample <- with_draw_metadata(seq(-1, 1, length.out = 40L),
     class = c("marginal_posterior.simple", "numeric"), linear_weights = c(mu = 1),
-    posterior_atoms = BayesTools::posterior_atom_attribute())
+    atoms = BayesTools::posterior_atom_attribute())
   levels <- structure(list(A = sample), class = c("marginal_posterior.factor", "marginal_posterior", "list"),
     parameter = "mu_alloc")
   object <- structure(list(

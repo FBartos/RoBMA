@@ -98,8 +98,8 @@ test_that("marginal means retain genuine qCMDE curves and usable point ordinates
   cells <- means[["inference"]][["conditional"]][["mu_alloc"]]
   expect_named(cells, c("alternate", "random", "systematic"))
   for (level in names(cells)) {
-    curve <- attr(cells[[level]], "posterior_density", exact = TRUE)
-    ordinate <- attr(cells[[level]], "posterior_ordinate", exact = TRUE)
+    curve <- BayesTools::posterior_metadata(cells[[level]], "posterior_density")
+    ordinate <- BayesTools::posterior_metadata(cells[[level]], "posterior_ordinate")
     expect_identical(curve[["density_method"]], "qCMDE", info = level)
     expect_identical(curve[["status"]], "ok", info = level)
     expect_length(curve[["x"]], 40L)
@@ -119,7 +119,7 @@ test_that("marginal means retain genuine qCMDE curves and usable point ordinates
   expect_true(inherits(treatment, "prior.treatment"))
   prior_mean <- intercept[["parameters"]][["mean"]] + treatment[["parameters"]][["mean"]]
   prior_sd <- sqrt(intercept[["parameters"]][["sd"]]^2 + treatment[["parameters"]][["sd"]]^2)
-  ordinate <- attr(cells[["random"]], "posterior_ordinate", exact = TRUE)
+  ordinate <- BayesTools::posterior_metadata(cells[["random"]], "posterior_ordinate")
   expected_bf <- stats::dnorm(0, prior_mean, prior_sd) / ordinate[["ordinate"]]
   result <- hypothesis(means, "alloc[random] = 0", columns = "all")
   expect_lt(abs(log(attr(result, "raw_BF")[[1L]] / expected_bf)), 1e-3)

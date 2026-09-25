@@ -1035,7 +1035,7 @@ lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
 
   counts <- vapply(samples_parameter, function(sample) {
 
-    prior_density <- attr(sample, "prior_density")
+    prior_density <- BayesTools::posterior_metadata(sample, "prior_density")
     if (is.null(prior_density)) {
       return(1L)
     }

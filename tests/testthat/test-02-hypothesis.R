@@ -326,10 +326,10 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
   )
   posterior <- stats::rnorm(50)
   attr(posterior, "parameter") <- "mu"
-  attr(posterior, "posterior_ordinate") <- stale
+  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- stale
   raw_posterior <- as.numeric(posterior)
   prior_density <- BayesTools:::.prior_linear_density_point(0)
-  attr(raw_posterior, "prior_density") <- prior_density
+  BayesTools::posterior_metadata(raw_posterior, "prior_density") <- prior_density
   captured_parameter_spec <- NULL
 
   testthat::local_mocked_bindings(
@@ -362,7 +362,7 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
   )
 
   entries <- .iwmde_posterior_ordinate_entries(
-    attr(out, "posterior_ordinate", exact = TRUE)
+    BayesTools::posterior_metadata(out, "posterior_ordinate")
   )
   expect_length(entries, 1L)
   expect_equal(entries[[1L]][["iwmde_provenance"]][["request_key"]], "fresh")
@@ -395,7 +395,7 @@ test_that("transformed point attachment retains the exact requested value", {
   class(ordinate) <- c("BayesTools_posterior_ordinate", "list")
   posterior     <- stats::rnorm(50)
   raw_posterior <- as.numeric(posterior)
-  attr(raw_posterior, "prior_density") <-
+  BayesTools::posterior_metadata(raw_posterior, "prior_density") <-
     BayesTools:::.prior_linear_density_point(0)
 
   testthat::local_mocked_bindings(
@@ -426,7 +426,7 @@ test_that("transformed point attachment retains the exact requested value", {
     density_method       = "qCMDE",
     display_transform    = list(type = "square")
   )
-  attached <- attr(out, "posterior_ordinate", exact = TRUE)
+  attached <- BayesTools::posterior_metadata(out, "posterior_ordinate")
 
   expect_identical(attached[["value"]], requested)
   expect_equal(attached[["evaluation_value"]], requested)
@@ -457,11 +457,11 @@ test_that("factor-level ordinates use exact displayed-scale specifications", {
   )
   posterior     <- list(random = c(2, 4, 6))
   raw_posterior <- list(random = c(1, 2, 3))
-  attr(raw_posterior[["random"]], "linear_weights") <-
+  BayesTools::posterior_metadata(raw_posterior[["random"]], "linear_weights") <-
     c(mu_interaction = 1)
   raw_prior     <- BayesTools:::.prior_linear_density_point(0)
   display_prior <- BayesTools:::.prior_linear_density_point(0)
-  attr(raw_posterior[["random"]], "prior_density") <- raw_prior
+  BayesTools::posterior_metadata(raw_posterior[["random"]], "prior_density") <- raw_prior
   captured_parameter_spec <- NULL
   testthat::local_mocked_bindings(
     .iwmde_estimate = function(..., parameter_spec) {
@@ -505,7 +505,10 @@ test_that("factor-level ordinates use exact displayed-scale specifications", {
     display_prior
   )
   expect_identical(
-    attr(out[["random"]], "posterior_ordinate")[["iwmde_provenance"]][["request_key"]],
+    BayesTools::posterior_metadata(
+      out[["random"]],
+      "posterior_ordinate"
+    )[["iwmde_provenance"]][["request_key"]],
     "display-scale"
   )
   expect_error(
@@ -1190,16 +1193,18 @@ test_that("marginal means hypothesis wrapper resolves aliases and guards qCMDE",
 test_that("marginal means qCMDE hypotheses compute missing ordinates on demand", {
 
   condition_key <- "OR\r2\rmu_alloc\rmu_intercept"
-  sample <- structure(
+  sample <- with_draw_metadata(
     stats::rnorm(40),
-    linear_weights             = c(mu_intercept = 1, mu_alloc = 1),
-    prior_density              = BayesTools::prior(
+    linear_weights = c(mu_intercept = 1, mu_alloc = 1),
+    prior_density  = BayesTools::prior(
       "normal",
       parameters = list(mean = 0, sd = 1)
     ),
-    effective_conditional      = c("mu_intercept", "mu_alloc"),
-    effective_conditional_rule = "OR",
-    condition_key              = condition_key
+    condition      = list(
+      effective_conditional      = c("mu_intercept", "mu_alloc"),
+      effective_conditional_rule = "OR",
+      condition_key              = condition_key
+    )
   )
   inference <- structure(
     list(
@@ -1309,10 +1314,9 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     )
   )
 
-  ordinate <- attr(
+  ordinate <- BayesTools::posterior_metadata(
     captured[["posterior"]][["conditional"]][["mu_alloc"]][["alternate"]],
-    "posterior_ordinate",
-    exact = TRUE
+    "posterior_ordinate"
   )
 
   expect_equal(as.character(out), "ok")
@@ -1333,16 +1337,18 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
       normalization_points = 20
     )
   )
-  sample <- structure(
+  sample <- with_draw_metadata(
     stats::rnorm(40),
-    linear_weights             = c(mu_intercept = 1, mu_alloc = 1),
-    prior_density              = BayesTools::prior(
+    linear_weights = c(mu_intercept = 1, mu_alloc = 1),
+    prior_density  = BayesTools::prior(
       "normal",
       parameters = list(mean = 0, sd = 1)
     ),
-    effective_conditional      = c("mu_intercept", "mu_alloc"),
-    effective_conditional_rule = "OR",
-    condition_key              = condition_key
+    condition      = list(
+      effective_conditional      = c("mu_intercept", "mu_alloc"),
+      effective_conditional_rule = "OR",
+      condition_key              = condition_key
+    )
   )
   make_object <- function(sample) {
 
@@ -1479,7 +1485,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
   )
 
   compatible_sample <- sample
-  attr(compatible_sample, "posterior_ordinate") <- compatible
+  BayesTools::posterior_metadata(compatible_sample, "posterior_ordinate") <- compatible
   reused <- .hypothesis_marginal_means_attach_iwmde(
     object          = make_object(compatible_sample),
     parameter       = "mu_alloc",
@@ -1488,17 +1494,19 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
     density_method  = "qCMDE",
     density_control = density_control
   )
-  reused_ordinate <- attr(
+  reused_ordinate <- BayesTools::posterior_metadata(
     reused[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
-    "posterior_ordinate",
-    exact = TRUE
+    "posterior_ordinate"
   )
 
   expect_equal(calls, 0L)
   expect_equal(reused_ordinate[["ordinate"]], 2)
 
   incompatible_sample <- sample
-  attr(incompatible_sample, "posterior_ordinate") <- incompatible
+  BayesTools::posterior_metadata(
+    incompatible_sample,
+    "posterior_ordinate"
+  ) <- incompatible
   recomputed <- .hypothesis_marginal_means_attach_iwmde(
     object          = make_object(incompatible_sample),
     parameter       = "mu_alloc",
@@ -1507,10 +1515,9 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
     density_method  = "qCMDE",
     density_control = density_control
   )
-  recomputed_ordinate <- attr(
+  recomputed_ordinate <- BayesTools::posterior_metadata(
     recomputed[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
-    "posterior_ordinate",
-    exact = TRUE
+    "posterior_ordinate"
   )
 
   expect_equal(calls, 1L)

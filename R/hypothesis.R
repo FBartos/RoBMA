@@ -503,9 +503,9 @@ hypothesis.brma <- function(object, hypothesis,
       hypothesis  = hypothesis,
       target_info = coefficient_target
     )
-    prior_densities <- attr(samples, "prior_densities", exact = TRUE)
+    prior_densities <- BayesTools::posterior_metadata(samples, "prior_densities")
     prior_densities[[parameter]] <- coefficient_target[["prior_density"]]
-    attr(samples, "prior_densities") <- prior_densities
+    BayesTools::posterior_metadata(samples, "prior_densities") <- prior_densities
   }
   for (level in names(coefficient_level_targets)) {
     coefficient_level_targets[[level]] <-
@@ -534,11 +534,14 @@ hypothesis.brma <- function(object, hypothesis,
     n_samples     = n_samples
   )
   if (!is.null(coefficient_target)) {
-    attr(posterior, "prior_density") <- coefficient_target[["prior_density"]]
+    BayesTools::posterior_metadata(
+      posterior,
+      "prior_density"
+    ) <- coefficient_target[["prior_density"]]
   }
   for (level in names(coefficient_level_targets)) {
     if (is.list(posterior) && level %in% names(posterior)) {
-      attr(posterior[[level]], "prior_density") <-
+      BayesTools::posterior_metadata(posterior[[level]], "prior_density") <-
         coefficient_level_targets[[level]][["prior_density"]]
     }
   }
@@ -1028,11 +1031,7 @@ hypothesis.brma <- function(object, hypothesis,
     }
 
     if (!precomputed) {
-      support <- .brma_random_parameter_support(
-        posterior[["spec"]],
-        posterior[["source_prior"]],
-        posterior[["allocation_definition"]]
-      )
+      support <- .brma_random_parameter_support(posterior)
       values <- point_refs[["value"]]
       at_boundary <- (is.finite(support[1L]) & values <= support[1L]) |
         (is.finite(support[2L]) & values >= support[2L])
@@ -1462,7 +1461,7 @@ hypothesis.brma <- function(object, hypothesis,
     parameter    = target_info[["formula_parameter"]],
     target       = target_info[["target"]],
     target_scale = "original",
-    context      = attr(samples, "prior_density_context", exact = TRUE)
+    context      = BayesTools::posterior_metadata(samples, "prior_context")
   )
   if (is.null(point_values)) {
     refs <- .hypothesis_brma_point_refs(
@@ -1630,9 +1629,10 @@ hypothesis.brma <- function(object, hypothesis,
       call. = FALSE
     )
   }
-  sample_conditional <- attr(sample, "conditional", exact = TRUE)
-  condition_key      <- attr(sample, "condition_key", exact = TRUE)
-  resolved_event     <- attr(sample, "resolved_condition_event", exact = TRUE)
+  condition          <- BayesTools::posterior_metadata(sample, "condition")
+  sample_conditional <- condition[["conditional"]]
+  condition_key      <- condition[["condition_key"]]
+  resolved_event     <- condition[["resolved_condition_event"]]
   unconditional <- is.character(sample_conditional) &&
     length(sample_conditional) == 0L &&
     identical(condition_key, "<averaged>") &&
@@ -1648,7 +1648,7 @@ hypothesis.brma <- function(object, hypothesis,
     )
   }
 
-  atoms <- attr(sample, "posterior_atoms", exact = TRUE)
+  atoms <- BayesTools::posterior_metadata(sample, "atoms")
   atom_free <- inherits(atoms, "BayesTools_posterior_atoms") &&
     isTRUE(atoms[["declared"]]) &&
     is.matrix(atoms[["locations"]]) &&
@@ -1663,7 +1663,7 @@ hypothesis.brma <- function(object, hypothesis,
     )
   }
 
-  prior_densities <- attr(samples, "prior_densities", exact = TRUE)
+  prior_densities <- BayesTools::posterior_metadata(samples, "prior_densities")
   prior_density   <- prior_densities[[target]]
   prior_points    <- prior_density[["points"]]
   prior_atom_free <- inherits(prior_density, "prior_density") &&
