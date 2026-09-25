@@ -33,6 +33,9 @@ smoke_samples <- test_profile_value(250L, 1000L)
     random     = stats::qnorm(p, mean = -0.20, sd = 0.25),
     systematic = stats::qnorm(p, mean =  0.20, sd = 0.30)
   )
+  # Marginal posteriors declare their (absent) posterior atoms.
+  levels <- lapply(levels, with_draw_metadata,
+                   atoms = BayesTools::posterior_atom_attribute())
   class(levels) <- c("marginal_posterior.factor", "marginal_posterior")
 
   samples   <- list(mu_alloc = levels)
@@ -331,23 +334,28 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
       if (identical(outputs, "density")) {
         return(list(
           diagnostics       = list(density = diagnostic),
-          posterior_density = list(
+          posterior_density = as_posterior_density(list(
+            x              = c(-1, 1),
+            y              = c(.5, .5),
+            method         = .density_method_iwmde_estimator(density_method),
             density_method = density_method,
             marginal_type  = parameter_spec[["marginal_type"]],
             diagnostics    = .marginal_means_iwmde_density_diagnostics(
               .density_method_iwmde_estimator(density_method)
             )
-          )
+          ))
         ))
       }
 
       return(list(
         diagnostics        = list(ordinate = diagnostic),
-        posterior_ordinate = list(
-          density_method = density_method,
+        posterior_ordinate = as_posterior_ordinate(list(
           value          = values,
+          ordinate       = rep(.5, length(values)),
+          method         = .density_method_iwmde_estimator(density_method),
+          density_method = density_method,
           marginal_type  = parameter_spec[["marginal_type"]]
-        )
+        ))
       ))
     },
     .marginal_means_refresh_iwmde_bf = function(inference, parameters,
@@ -460,7 +468,7 @@ test_that("marginal_means plot inherits and can override the stored density meth
   BayesTools::posterior_metadata(
     emm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
-  ) <- density
+  ) <- as_posterior_density(density)
 
   captured <- NULL
   testthat::local_mocked_bindings(
@@ -485,7 +493,7 @@ test_that("marginal_means plot inherits and can override the stored density meth
       captured[["samples"]][["mu_alloc"]][["alternate"]],
       "posterior_density"
     ),
-    density
+    as_posterior_density(density)
   )
 
   plot(
@@ -522,10 +530,10 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
   BayesTools::posterior_metadata(
     emm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
-  ) <- density
+  ) <- as_posterior_density(density)
   density_for <- function(level) {
     density[["iwmde_provenance"]] <- provenance[[level]]
-    return(density)
+    return(as_posterior_density(density))
   }
 
   attached <- NULL
@@ -631,7 +639,8 @@ test_that("marginal_means plot density coverage requires provenance", {
   for (level in levels) {
     density <- qcmde_density
     density[["iwmde_provenance"]] <- provenance[[level]]
-    BayesTools::posterior_metadata(samples[[level]], "posterior_density") <- density
+    BayesTools::posterior_metadata(samples[[level]], "posterior_density") <-
+      as_posterior_density(density)
   }
 
   expect_equal(
@@ -641,7 +650,7 @@ test_that("marginal_means plot density coverage requires provenance", {
   BayesTools::posterior_metadata(
     samples[["random"]],
     "posterior_density"
-  ) <- qcmde_density
+  ) <- as_posterior_density(qcmde_density)
   expect_equal(
     .marginal_means_missing_posterior_density_levels(samples, provenance),
     "random"
@@ -655,7 +664,7 @@ test_that("marginal_means plot density coverage requires provenance", {
   BayesTools::posterior_metadata(
     samples[["systematic"]],
     "posterior_density"
-  ) <- stale_density
+  ) <- as_posterior_density(stale_density)
   expect_equal(
     .marginal_means_missing_posterior_density_levels(samples, provenance),
     c("random", "systematic")
@@ -688,7 +697,7 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
   stale_provenance <- provenance
   stale_provenance[["request_key"]] <- "stale"
   ordinate_for <- function(provenance) {
-    list(
+    as_posterior_ordinate(list(
       value            = 0,
       ordinate         = 1,
       evaluation_value = 0,
@@ -696,7 +705,7 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
       density_method   = "qCMDE",
       diagnostics      = diagnostics,
       iwmde_provenance = provenance
-    )
+    ))
   }
   posterior <- list(
     alternate  = stats::rnorm(50),
@@ -788,7 +797,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
     BayesTools::posterior_metadata(
       emm[["inference"]][["averaged"]][["mu_alloc"]][[level]],
       "posterior_density"
-    ) <- qcmde_density
+    ) <- as_posterior_density(qcmde_density)
   }
 
   attached <- NULL
@@ -819,7 +828,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
         BayesTools::posterior_metadata(
           marginal_means_object[["inference"]][[type]][["mu_alloc"]][[level]],
           "posterior_density"
-        ) <- density
+        ) <- as_posterior_density(density)
       }
 
       return(marginal_means_object)
@@ -1478,10 +1487,12 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
 
 test_that("same-sample diagnostics warn without suppressing finite ordinates", {
 
-  posterior_ordinate <- list(
-    value       = 0,
-    ordinate    = .4,
-    diagnostics = list(
+  posterior_ordinate <- as_posterior_ordinate(list(
+    value          = 0,
+    ordinate       = .4,
+    method         = "iwmde",
+    density_method = "IWMDE",
+    diagnostics    = list(
       estimator           = "iwmde",
       relative_mcse       = 2,
       finite_terms        = 20,
@@ -1492,7 +1503,7 @@ test_that("same-sample diagnostics warn without suppressing finite ordinates", {
       normalization_relative_error = 0,
       normalization_mass_ratio = 1
     )
-  )
+  ))
 
   expect_true(.iwmde_posterior_ordinate_supports_bf(posterior_ordinate))
   expect_match(

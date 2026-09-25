@@ -310,7 +310,7 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     support_grid_normalization_integral = 1,
     ordinate_relative_change  = 0
   )
-  stale <- list(
+  stale <- BayesTools::posterior_ordinate_attribute(
     value            = 0,
     ordinate         = 1,
     method           = "q_grid_cmde",
@@ -318,11 +318,17 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     diagnostics      = diagnostics,
     iwmde_provenance = list(request_key = "stale")
   )
-  fresh <- stale
-  fresh[["parameter"]] <- "mu_source"
-  fresh[["iwmde_provenance"]] <- list(
-    request_key = "fresh",
-    target      = list(parameter = "mu_source")
+  fresh <- BayesTools::posterior_ordinate_attribute(
+    value            = 0,
+    ordinate         = 1,
+    method           = "q_grid_cmde",
+    density_method   = "qCMDE",
+    diagnostics      = diagnostics,
+    parameter        = "mu_source",
+    iwmde_provenance = list(
+      request_key = "fresh",
+      target      = list(parameter = "mu_source")
+    )
   )
   posterior <- stats::rnorm(50)
   attr(posterior, "parameter") <- "mu"
@@ -447,7 +453,7 @@ test_that("factor-level ordinates use exact displayed-scale specifications", {
     support_grid_normalization_integral = 1,
     ordinate_relative_change  = 0
   )
-  ordinate <- list(
+  ordinate <- BayesTools::posterior_ordinate_attribute(
     value            = 0,
     ordinate         = 1,
     method           = "q_grid_cmde",
@@ -1921,7 +1927,8 @@ test_that("compound point nulls cannot bypass declared atoms", {
       n_samples      = 200,
       conditional    = FALSE
     ),
-    "declared point mass"
+    "This parameter has a null component, so its evidence against the null is the inclusion Bayes factor",
+    fixed = TRUE
   )
   expect_error(
     hypothesis(

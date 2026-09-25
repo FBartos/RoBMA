@@ -234,6 +234,21 @@ as_bayestools_fit <- function(fit) {
   BayesTools:::.bt_attach_fit_contract(fit)
 }
 
+# BayesTools posterior density and ordinate metadata built from the fields
+# of a hand-written fixture list through the BayesTools constructors (the
+# only accepted form); a 'status' field is the constructors' own.
+as_posterior_density <- function(fields) {
+
+  fields[["status"]] <- NULL
+  do.call(BayesTools::posterior_density_attribute, fields)
+}
+
+as_posterior_ordinate <- function(fields) {
+
+  fields[["status"]] <- NULL
+  do.call(BayesTools::posterior_ordinate_attribute, fields)
+}
+
 # BayesTools label parts of a hand-built catalog quantity: the structured
 # parts from which BayesTools renders the quantity's labels, with the
 # quantity's canonical name as their selector.

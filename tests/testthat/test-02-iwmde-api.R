@@ -1139,7 +1139,10 @@ test_that("IWMDE prepares compact prior ordinates idempotently", {
   testthat::local_mocked_bindings(
     .iwmde_prior_ordinate_classifications = function(...) {
       n_classifications <<- n_classifications + 1L
-      ordinate <- list(.iwmde_unknown_prior_ordinate(0))
+      ordinate <- list(c(
+        .iwmde_unknown_prior_ordinate(0),
+        list(eligible = FALSE, condition = "BayesTools_inexact_ordinate")
+      ))
       names(ordinate) <- .iwmde_key_number(0)
       ordinate
     },

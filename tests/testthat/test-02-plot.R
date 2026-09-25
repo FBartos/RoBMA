@@ -9,19 +9,17 @@ source(testthat::test_path("helper-iwmde.R"))
 test_that("plot.brma clears stale posterior density before qCMDE attach", {
 
   samples <- list(mu = stats::rnorm(20))
-  BayesTools::posterior_metadata(samples[["mu"]], "posterior_density") <- list(
-    x      = seq(-1, 1, length.out = 5),
-    y      = rep(.5, 5),
-    method = "q_grid_cmde"
+  density <- BayesTools::posterior_density_attribute(
+    x              = seq(-1, 1, length.out = 5),
+    y              = rep(.5, 5),
+    method         = "q_grid_cmde",
+    density_method = "qCMDE"
   )
+  BayesTools::posterior_metadata(samples[["mu"]], "posterior_density") <- density
   BayesTools::posterior_metadata(
     samples[["mu"]],
     "posterior_densities"
-  ) <- list(mu = list(
-    x      = seq(-1, 1, length.out = 5),
-    y      = rep(.5, 5),
-    method = "q_grid_cmde"
-  ))
+  ) <- list(mu = density)
 
   samples <- .plot_brma_clear_posterior_density(
     samples          = samples,
