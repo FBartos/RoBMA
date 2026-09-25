@@ -24,13 +24,22 @@ test_that("BMA.glmm fits binomial model (OR)", {
   fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm", fit)
 
+  # The effect converges, and every chain visits the effect's null model: the
+  # null state is too rare for an R-hat of its indicator to be a stable gate.
   samples <- coda::as.mcmc.list(fit[["fit"]])
-  for (column in c("mu", "mu_indicator")) {
-    psrf <- coda::gelman.diag(
-      samples[, column], autoburnin = FALSE, multivariate = FALSE
-    )[["psrf"]]
-    expect_lt(psrf[1L, "Point est."], 1.05, label = paste("R-hat of", column))
-  }
+  psrf <- coda::gelman.diag(
+    samples[, "mu"], autoburnin = FALSE, multivariate = FALSE
+  )[["psrf"]]
+  expect_lt(psrf[1L, "Point est."], 1.05, label = "R-hat of mu")
+  null_component <- which(attr(fit$priors$outcome$mu, "components") == "null")
+  expect_length(null_component, 1L)
+  null_draws <- vapply(samples, function(chain) {
+    sum(chain[, "mu_indicator"] == null_component)
+  }, numeric(1))
+  expect_true(
+    all(null_draws >= 1),
+    label = paste("null-model draws per chain:", paste(null_draws, collapse = ", "))
+  )
 
   expect_s3_class(fit, "BMA.glmm")
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$mu))

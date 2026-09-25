@@ -223,6 +223,17 @@ with_draw_metadata <- function(x, ..., class = NULL) {
   x
 }
 
+# A hand-built fit ('fit' holds its draws and carries its 'prior_list'
+# attribute) with the BayesTools fit contract: its parameter map, draw
+# geometry and contract, as JAGS_fit() attaches them.
+as_bayestools_fit <- function(fit) {
+
+  class(fit) <- unique(c("BayesTools_fit", class(fit)))
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  BayesTools:::.bt_attach_fit_contract(fit)
+}
+
 # BayesTools label parts of a hand-built catalog quantity: the structured
 # parts from which BayesTools renders the quantity's labels, with the
 # quantity's canonical name as their selector.

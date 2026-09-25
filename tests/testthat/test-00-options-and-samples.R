@@ -189,6 +189,7 @@ test_that("targeted convergence controls retain product-space indicator checks",
     BayesTools::prior("normal", list(0, 1)),
     prior_inclusion = BayesTools::prior("beta", list(1, 1))
   ))
+  fit <- as_bayestools_fit(fit)
 
   checked <- RoBMA:::.recheck_brma_fit(list(
     fit    = fit,
@@ -232,6 +233,7 @@ test_that("convergence rechecks leave structural weights to BayesTools", {
     mu    = BayesTools::prior("normal", list(0, 1)),
     omega = weightfunction
   )
+  fit <- as_bayestools_fit(fit)
 
   checked <- RoBMA:::.recheck_brma_fit(list(
     fit    = fit,
