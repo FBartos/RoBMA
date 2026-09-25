@@ -201,12 +201,18 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
     fixed = TRUE
   )
 
-  # Treatment levels are the coefficients: the fitted catalog has no
-  # coefficient quantity, so the selector does not parse against it.
-  expect_error(
+  # Treatment levels are the coefficients: BayesTools refuses the contrast
+  # selector of a level coordinate and names its level form.
+  refusal <- tryCatch(
     suppressWarnings(hypothesis(fits[["treatment"]], "g1{1} = 0", density_method = "KDE")),
-    "Could not parse hypothesis expression 'g1{1}'.",
-    fixed = TRUE
+    BayesTools_selector_unavailable = function(condition) condition
+  )
+  expect_s3_class(refusal, "BayesTools_selector_unavailable")
+  expect_identical(refusal[["selector"]], "g1{1}")
+  expect_identical(refusal[["level"]], "g1[10]")
+  expect_error(
+    plot(fits[["treatment"]], parameter = "g1{1}", plot_type = "ggplot"),
+    class = "BayesTools_selector_unavailable"
   )
 
   # Random-slope quantities such as 'tau(g1{3})' are no fixed contrast
