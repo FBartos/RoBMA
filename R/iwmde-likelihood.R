@@ -263,7 +263,13 @@
     cluster_effects_marginalized = joint_selection &&
       !.selection_retains_other_random(context[["data"]]),
     sampling_latent_marginalized = joint_selection &&
-      !.selection_retains_sampling(context[["data"]])
+      !.selection_retains_sampling(context[["data"]]),
+    sd_evaluator                 = .iwmde_deterministic_evaluator(
+      context = context,
+      nodes   = .marginalized_random_sd_nodes(
+        .data_marginalized_random_effects(context[["data"]])
+      )
+    )
   )
   return(.iwmde_scalar_log_density(log_lik))
 }

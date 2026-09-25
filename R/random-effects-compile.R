@@ -676,9 +676,13 @@
 }
 
 
+# 'sd_evaluator' is the prepared evaluator of the allocated SD nodes of the
+# terms (.marginalized_random_sd_evaluator()), needed when a term's SDs are
+# allocated from a scalar source and are not a single monitored column.
 .evaluate_marginalized_random_variance <- function(data, posterior_samples,
                                                    K = nrow(data[["outcome"]]),
-                                                   source_samples = NULL) {
+                                                   source_samples = NULL,
+                                                   sd_evaluator = NULL) {
 
   posterior_samples <- as.matrix(posterior_samples)
   terms             <- .data_marginalized_random_effects(data)
@@ -695,7 +699,8 @@
       posterior_samples = posterior_samples,
       K                 = K,
       source_samples    = source_samples,
-      fitted_K          = fitted_K
+      fitted_K          = fitted_K,
+      sd_evaluator      = sd_evaluator
     )
 
     term_variance <- .marginalized_random_effect_variance_samples(
@@ -929,10 +934,11 @@
 
 .marginalized_random_effect_sd_samples <- function(term, posterior_samples, K,
                                                   source_samples = NULL,
-                                                  fitted_K = K) {
+                                                  fitted_K = K,
+                                                  sd_evaluator = NULL) {
 
   parameter <- term[["sd_parameter_names"]]
-  if (length(parameter) == 1L && !is.na(parameter) && nzchar(parameter)) {
+  if (.marginalized_random_effect_sd_monitored(term)) {
     return(.extract_scalar_posterior_samples(
       posterior_samples = posterior_samples,
       parameter         = parameter
@@ -946,7 +952,8 @@
       posterior_samples = posterior_samples,
       K                 = K,
       source_samples    = source_samples,
-      fitted_K          = fitted_K
+      fitted_K          = fitted_K,
+      sd_evaluator      = sd_evaluator
     ))
   }
 
@@ -990,14 +997,101 @@
 }
 
 
+# Whether the SD of a random-effect term is one monitored column.
+.marginalized_random_effect_sd_monitored <- function(term) {
+
+  parameter <- term[["sd_parameter_names"]]
+  length(parameter) == 1L && !is.na(parameter) && nzchar(parameter)
+}
+
+
+# The BayesTools deterministic nodes of the allocated SDs of a random-effect
+# term, one per column of the term (the block SD, or the SD component of each
+# column); NULL for terms without an allocation from a scalar source.
+# BayesTools defines no SD node for blocks with a row-indexed SD source.
+.marginalized_random_effect_allocated_sd_nodes <- function(term) {
+
+  if (!.marginalized_random_effect_has_allocation(term)) {
+    return(NULL)
+  }
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  if (!identical(allocation[["source"]][["shape"]], "scalar")) {
+    return(NULL)
+  }
+  nodes <- if (identical(allocation[["target"]], "sd_component")) {
+    allocation[["leaf_names"]][allocation[["leaf_index_by_column"]]]
+  } else {
+    unique(term[["sd_parameter_names"]])
+  }
+  if (length(nodes) == 0L || anyNA(nodes) || !all(nzchar(nodes))) {
+    stop(
+      "Allocated random-effect SD nodes of block '", term[["block_name"]],
+      "' are unavailable. Refit the model with the current RoBMA/BayesTools ",
+      "build.",
+      call. = FALSE
+    )
+  }
+
+  nodes
+}
+
+
+# The allocated SD nodes of 'terms'. With 'monitored = FALSE' only terms whose
+# SD is not one monitored column count: the terms whose SDs
+# .marginalized_random_effect_sd_samples() evaluates.
+.marginalized_random_sd_nodes <- function(terms, monitored = FALSE) {
+
+  if (!monitored) {
+    terms <- Filter(
+      function(term) !.marginalized_random_effect_sd_monitored(term),
+      terms
+    )
+  }
+
+  unique(unlist(
+    lapply(terms, .marginalized_random_effect_allocated_sd_nodes),
+    use.names = FALSE
+  ))
+}
+
+
+# The prepared BayesTools evaluator (JAGS_deterministic_evaluator()) of the
+# allocated SD nodes of 'terms' (.marginalized_random_sd_nodes()). NULL without
+# such nodes or without a fit.
+.marginalized_random_sd_evaluator <- function(fit, terms, monitored = FALSE) {
+
+  nodes <- .marginalized_random_sd_nodes(terms, monitored = monitored)
+  if (is.null(fit) || length(nodes) == 0L) {
+    return(NULL)
+  }
+
+  BayesTools::JAGS_deterministic_evaluator(fit, nodes = nodes)
+}
+
+
 .marginalized_random_effect_allocated_sd_samples <- function(term,
                                                              posterior_samples,
                                                              K,
                                                              source_samples = NULL,
-                                                             fitted_K = K) {
+                                                             fitted_K = K,
+                                                             sd_evaluator = NULL) {
 
   binding    <- term[["sd_binding"]]
   allocation <- binding[["allocations"]][[1L]]
+  nodes      <- .marginalized_random_effect_allocated_sd_nodes(term)
+  if (!is.null(nodes)) {
+    return(.marginalized_random_effect_allocated_sd_node_samples(
+      term              = term,
+      nodes             = nodes,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples,
+      sd_evaluator      = sd_evaluator
+    ))
+  }
+
+  # A row-indexed SD source (the rows of a scale regression) has no
+  # BayesTools SD node: the allocation factors scale the source rows.
   base <- .random_sd_source_samples(
     source            = allocation[["source"]],
     posterior_samples = posterior_samples,
@@ -1005,38 +1099,12 @@
     source_samples    = source_samples,
     fitted_K          = fitted_K
   )
-
-  leaf_index <- allocation[["leaf_index_by_column"]]
   if (identical(allocation[["target"]], "sd_component") &&
-      length(leaf_index) > 1L) {
-    if (ncol(base) != 1L) {
-      stop(
-        "Cannot recycle a non-scalar random-effect SD source over component allocations.",
-        call. = FALSE
-      )
-    }
-    allocated <- matrix(
-      base[, 1L],
-      nrow = nrow(base),
-      ncol = length(leaf_index)
+      length(allocation[["leaf_index_by_column"]]) > 1L) {
+    stop(
+      "Cannot recycle a non-scalar random-effect SD source over component allocations.",
+      call. = FALSE
     )
-    for (column in seq_along(leaf_index)) {
-      factors <- .marginalized_random_effect_allocation_factors(
-        term,
-        column = column
-      )
-      for (factor in factors) {
-        multiplier <- .random_allocation_factor_samples(
-          factor            = factor,
-          posterior_samples = posterior_samples
-        )
-        allocated[, column] <- .recycle_rows(
-          allocated[, column, drop = FALSE],
-          multiplier
-        )
-      }
-    }
-    return(allocated)
   }
 
   factors <- .marginalized_random_effect_allocation_factors(term)
@@ -1049,6 +1117,55 @@
   }
 
   return(base)
+}
+
+
+# Allocated SDs from a scalar source: the BayesTools nodes 'nodes' evaluated
+# on the draws (with the source replaced by its external samples when given).
+.marginalized_random_effect_allocated_sd_node_samples <- function(
+    term, nodes, posterior_samples, K, source_samples, sd_evaluator) {
+
+  if (!is.function(sd_evaluator)) {
+    stop(
+      "Allocated random-effect SDs of block '", term[["block_name"]],
+      "' are evaluated from the deterministic nodes of the fitted model, ",
+      "which are unavailable without a fit.",
+      call. = FALSE
+    )
+  }
+
+  draws  <- as.matrix(posterior_samples)
+  source <- term[["sd_binding"]][["allocations"]][[1L]][["source"]][["name"]]
+  if (!is.null(source_samples) && source %in% names(source_samples)) {
+    external <- .validate_random_sd_source_samples(
+      samples = source_samples[[source]],
+      name    = source,
+      S       = nrow(draws),
+      K       = K
+    )
+    if (ncol(external) != 1L) {
+      stop(
+        "External samples of the scalar SD source '", source,
+        "' must have one column.",
+        call. = FALSE
+      )
+    }
+    draws <- draws[, colnames(draws) != source, drop = FALSE]
+    draws <- cbind(draws, stats::setNames(external[, 1L], NULL))
+    colnames(draws)[ncol(draws)] <- source
+  }
+
+  values <- sd_evaluator(draws)
+  missing <- setdiff(nodes, colnames(values))
+  if (length(missing) > 0L) {
+    stop(
+      "The deterministic-node evaluator does not evaluate the allocated SD ",
+      "node(s) ", paste0("'", missing, "'", collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+
+  unname(values[, nodes, drop = FALSE])
 }
 
 

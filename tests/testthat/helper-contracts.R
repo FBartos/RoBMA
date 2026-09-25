@@ -234,6 +234,53 @@ as_bayestools_fit <- function(fit) {
   BayesTools:::.bt_attach_fit_contract(fit)
 }
 
+# A fitted-object stand-in with the BayesTools fit contract whose 'mu'
+# formula has a diag block 'g' (intercept and slope of 'x') with an
+# SD-component allocation 'gc': a half-normal SD split by Dirichlet(1, 2)
+# weights on the mean-variance scale, so each component SD is the source SD
+# times sqrt(2 * weight). 'draws' maps the roles "source", "weight" (two
+# columns) and "eta" (two columns; optional) to their values.
+sd_component_allocation_object <- function(draws) {
+
+  result <- BayesTools::JAGS_formula(
+    formula      = ~ 1 + random(1 + x | g, name = "g", covariance = "diag"),
+    parameter    = "mu",
+    data         = data.frame(g = factor(c("a", "a", "b", "b")),
+                              x = c(-1, 0, 1, 2)),
+    prior_list   = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(allocation = list(
+      BayesTools::random_variance_allocation(
+        name = "gc", terms = "g", target = "sd_component",
+        scale = "mean_variance",
+        sd = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
+        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 2)))
+      )
+    ))
+  )
+  design     <- result[["formula_design"]]
+  allocation <- design[["random_effects"]][[1L]][["sd_binding"]][["allocations"]][[1L]]
+  weight     <- allocation[["weight_name"]]
+  samples    <- cbind(
+    mu_intercept = 0,
+    draws[["source"]],
+    draws[["weight"]],
+    draws[["eta"]]
+  )
+  colnames(samples) <- c(
+    "mu_intercept", allocation[["source"]][["name"]],
+    paste0(weight, "[", 1:2, "]"),
+    if (!is.null(draws[["eta"]])) paste0("prior_par_eta_", weight, "[", 1:2, "]")
+  )
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  attr(fit, "prior_list")     <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = design)
+
+  structure(
+    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
+    class = c("RoBMA", "brma.mv", "brma")
+  )
+}
+
 # BayesTools posterior density and ordinate metadata built from the fields
 # of a hand-written fixture list through the BayesTools constructors (the
 # only accepted form); a 'status' field is the constructors' own.

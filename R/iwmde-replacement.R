@@ -985,8 +985,9 @@
   } else if (identical(replacement[["type"]], "random_component_sd")) {
     target     <- values[grid_index]
     multiplier <- .iwmde_random_component_sd_multiplier(
+      context,
       samples,
-      replacement[["factors"]]
+      replacement
     )
     source     <- replacement[["source_parameter"]]
     valid      <- is.finite(target) & target >= 0 &
@@ -1084,8 +1085,9 @@
   if (identical(replacement[["type"]], "random_component_sd")) {
     row <- state[["row"]]
     multiplier <- .iwmde_random_component_sd_multiplier(
+      context,
       matrix(row, nrow = 1L, dimnames = list(NULL, names(row))),
-      replacement[["factors"]]
+      replacement
     )
     source <- replacement[["source_parameter"]]
     if (!is.finite(value) || value < 0 || !is.finite(multiplier) ||
@@ -1120,63 +1122,73 @@
 }
 
 
+# Allocated random-effect SDs that are columns of the samples and depend on
+# replaced coordinates are recomputed by the BayesTools 'random_sd' nodes of
+# the fit. Rows whose recomputed SDs are not finite and non-negative are
+# invalid.
 .iwmde_sync_random_allocation_sd_matrix <- function(context, samples,
                                                      parameters) {
 
   samples <- as.matrix(samples)
   valid   <- rep(TRUE, nrow(samples))
-  object  <- context[["object"]]
-  if (length(parameters) == 0L || is.null(object) ||
+  if (length(parameters) == 0L || is.null(context[["object"]][["fit"]]) ||
       is.null(context[["data"]]) || !.is_data_random(context[["data"]])) {
     return(list(samples = samples, valid = valid))
   }
 
-  design <- .fitted_formula_design(object, "mu", required = FALSE)
-  terms  <- design[["random_effects"]]
-  if (length(terms) == 0L) {
+  nodes <- .iwmde_random_sd_sync_nodes(
+    context    = context,
+    parameters = parameters,
+    columns    = colnames(samples)
+  )
+  if (length(nodes) == 0L) {
     return(list(samples = samples, valid = valid))
   }
 
-  K <- nrow(context[["data"]][["outcome"]])
-  for (term in terms) {
-    if (!.marginalized_random_effect_has_allocation(term)) {
-      next
-    }
-
-    dependencies <- .iwmde_random_allocation_sd_dependencies(term)
-    if (length(intersect(parameters, dependencies)) == 0L) {
-      next
-    }
-
-    derived <- .marginalized_random_effect_allocated_sd_samples(
-      term              = term,
-      posterior_samples = samples,
-      K                 = K
-    )
-    columns <- .iwmde_random_allocation_sd_columns(
-      term      = term,
-      samples   = samples,
-      n_columns = ncol(derived)
-    )
-    if (length(columns) == 0L) {
-      next
-    }
-    if (length(columns) != ncol(derived) || anyNA(columns)) {
-      stop(
-        "Cannot synchronize allocation-derived random-effect SD columns for ",
-        "block '", term[["block_name"]], "'.",
-        call. = FALSE
-      )
-    }
-
-    finite <- rowSums(!is.finite(derived) | derived < 0) == 0L
-    valid  <- valid & finite
-    if (any(finite)) {
-      samples[finite, columns] <- derived[finite, , drop = FALSE]
-    }
+  evaluate <- .iwmde_deterministic_evaluator(context, nodes)
+  derived  <- evaluate(samples)[, nodes, drop = FALSE]
+  finite   <- rowSums(!is.finite(derived) | derived < 0) == 0L
+  valid    <- valid & finite
+  if (any(finite)) {
+    samples[finite, nodes] <- derived[finite, , drop = FALSE]
   }
 
   return(list(samples = samples, valid = valid))
+}
+
+
+# The 'random_sd' nodes of the fit that are columns of the samples and depend
+# on any of 'parameters'.
+.iwmde_random_sd_sync_nodes <- function(context, parameters, columns) {
+
+  table <- .iwmde_deterministic_nodes(context)
+  table <- table[table[["family"]] == "random_sd", , drop = FALSE]
+  if (nrow(table) == 0L) {
+    return(character())
+  }
+  stale <- vapply(table[["dependencies"]], function(dependencies) {
+    any(parameters %in% dependencies)
+  }, logical(1))
+
+  nodes <- table[["node"]][stale]
+  nodes[nodes %in% columns]
+}
+
+
+# The deterministic nodes of the fitted model (JAGS_deterministic_nodes()),
+# resolved once per context.
+.iwmde_deterministic_nodes <- function(context) {
+
+  cache <- context[["evaluator_cache"]]
+  if (is.environment(cache) && !is.null(cache[[".nodes"]])) {
+    return(cache[[".nodes"]])
+  }
+  table <- BayesTools::JAGS_deterministic_nodes(context[["object"]][["fit"]])
+  if (is.environment(cache)) {
+    cache[[".nodes"]] <- table
+  }
+
+  return(table)
 }
 
 
@@ -1215,57 +1227,6 @@
     row        = synced[["row"]],
     parameters = parameters
   )
-}
-
-
-.iwmde_random_allocation_sd_dependencies <- function(term) {
-
-  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
-  source     <- allocation[["source"]][["name"]]
-  factors    <- .marginalized_random_effect_allocation_factors(
-    term,
-    all = TRUE
-  )
-  factor_columns <- unlist(lapply(
-    factors,
-    .random_allocation_factor_parameter_columns
-  ), use.names = FALSE)
-
-  dependencies <- unique(c(source, factor_columns))
-
-  dependencies[!is.na(dependencies) & nzchar(dependencies)]
-}
-
-
-.iwmde_random_allocation_sd_columns <- function(term, samples, n_columns) {
-
-  parameters <- unique(term[["sd_parameter_names"]])
-  parameters <- parameters[!is.na(parameters) & nzchar(parameters)]
-  if (length(parameters) == n_columns &&
-      all(parameters %in% colnames(samples))) {
-    return(parameters)
-  }
-  if (length(parameters) == 1L && n_columns > 1L) {
-    indexed <- paste0(parameters, "[", seq_len(n_columns), "]")
-    if (all(indexed %in% colnames(samples))) {
-      return(indexed)
-    }
-  }
-
-  present <- parameters[parameters %in% colnames(samples)]
-  indexed_present <- if (length(parameters) == 1L) {
-    colnames(samples)[BayesTools::JAGS_indexed_parameter_columns(
-      columns   = colnames(samples),
-      parameter = parameters
-    )]
-  } else {
-    character()
-  }
-  if (length(c(present, indexed_present)) > 0L) {
-    return(NA_character_)
-  }
-
-  character()
 }
 
 
@@ -1687,6 +1648,8 @@
     return(finish(list(
       type              = "random_component_sd",
       source_parameter  = parameter_spec[["source_parameter"]],
+      node              = parameter_spec[["node"]],
+      gate_columns      = parameter_spec[["gate_columns"]],
       factors           = parameter_spec[["factors"]],
       target_columns    = parameter_spec[["target_columns"]],
       factor_columns    = parameter_spec[["factor_columns"]],

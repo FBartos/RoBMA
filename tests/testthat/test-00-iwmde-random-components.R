@@ -1,57 +1,80 @@
+# A fitted-object stand-in with the BayesTools fit contract: a root allocation
+# of a gamma SD to one gated component (inclusion gate with prior probability
+# 0.5), split by a child allocation over the blocks 'study' and 'esid' with
+# Dirichlet(1, 1) shares, and synthetic draws: SD 1:4, gate (0, 1, 0, 1) and
+# shares (.25, .75).
+.shared_gate_random_object <- function() {
+
+  mods <- data.frame(study = factor(c("a", "a", "b", "b")),
+                     esid = factor(1:4))
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag") +
+      random(1 | esid, name = "esid", covariance = "diag"),
+    parameter = "mu",
+    data = mods,
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(allocation = list(
+      BayesTools::random_variance_allocation(
+        name = "root", terms = c(component = "component_gated"),
+        sd = BayesTools::prior("gamma", list(2, 2)),
+        inclusion = list(component = BayesTools::prior("spike", list(location = .5)))
+      ),
+      BayesTools::random_variance_allocation(
+        name = "split", terms = c(study = "study", esid = "esid"),
+        parent = BayesTools::allocation_ref("root", "component"),
+        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
+      )
+    ))
+  )
+  design <- result[["formula_design"]]
+  root   <- design[["random_allocations"]][["root"]]
+  weight <- design[["random_allocations"]][["split"]][["weight_name"]]
+  samples <- cbind(
+    mu_intercept = c(.1, .2, .3, .4),
+    tau          = 1:4,
+    gate         = c(0, 1, 0, 1),
+    w1           = .25,
+    w2           = .75,
+    eta1         = 1,
+    eta2         = 3
+  )
+  colnames(samples) <- c(
+    "mu_intercept", root[["source_node"]],
+    root[["inclusion"]][["component"]][["indicator_name"]],
+    paste0(weight, "[", 1:2, "]"),
+    .iwmde_simplex_auxiliary_columns(weight, 2L)
+  )
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  attr(fit, "prior_list")     <- result[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = design)
+
+  structure(
+    list(fit = as_bayestools_fit(fit), data = structure(list(), random = TRUE)),
+    class = c("RoBMA", "brma.mv", "brma")
+  )
+}
+
+
 test_that("shared random inclusion preserves SD atoms and defined proportions", {
 
-  samples <- cbind(tau = 1:4, gate = c(0, 1, 0, 1),
-                   `weight[1]` = .25, `weight[2]` = .75,
-                   `prior_par_eta_weight[1]` = 1,
-                   `prior_par_eta_weight[2]` = 3)
-  gate <- list(weight_name = NULL, index = NA_integer_,
-               scale = "total_variance", n_targets = 1L,
-               inclusion_name = "gate")
-  weight <- list(weight_name = "weight", index = 1L,
-                 scale = "total_variance", n_targets = 2L)
-  allocation <- list(
-    source = list(name = "tau", shape = "scalar"),
-    scale = "total_variance", target = "block", n_targets = 2L,
-    weight_name = "weight", inclusion = list(),
-    parent_factors = list(gate), factors = list(gate, weight)
+  object  <- .shared_gate_random_object()
+  samples <- as.matrix(object[["fit"]][[1L]])
+  context <- list(
+    object            = object,
+    posterior_samples = samples,
+    flat_prior_list   = list(),
+    evaluator_cache   = new.env(parent = emptyenv())
   )
-  term <- list(
-    block_name = "study", sd_component_terms = "intercept",
-    sd_binding = list(true_allocation = TRUE, allocations = list(allocation))
+  # SD 1:4 times the gate (0, 1, 0, 1); the study SD also times sqrt(.25),
+  # and the study share .25 is undefined where the gate is off.
+  expected <- list(
+    "(mu) split: tau_total"        = c(0, 2, 0, 4),
+    "(mu) study: tau(intercept)"   = c(0, 1, 0, 2),
+    "(mu) split: tau2_prop(study)" = c(NA, .25, NA, .25)
   )
-  fit <- structure(list(), prior_list = list(
-    weight = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
-  ), formula_design = list(mu = list(parameter = "mu", random_effects = list(term))))
-  selected <- list(
-    spec = list(source_type = "composite", source_parameter = "",
-                source_transform = "identity", quantity = "sd_total",
-                evaluator = "allocation_sd", formula_parameter = "mu",
-                block = "study", random_component = "intercept",
-                allocation_derived = TRUE, allocation_index = 1L),
-    allocation_definition = allocation
-  )
-  testthat::local_mocked_bindings(
-    .brma_random_parameter_select = function(...) selected,
-    .get_posterior_samples = function(...) samples,
-    .package = "RoBMA"
-  )
-  testthat::local_mocked_bindings(
-    random_effects_marginal_update_plan = function(...) list(family = "unsupported"),
-    .package = "BayesTools"
-  )
-  context <- list(posterior_samples = samples, flat_prior_list = list())
-  expected <- list(sd_total = c(0, 2, 0, 4), sd = c(0, 1, 0, 2),
-                   var_prop = c(NA, .25, NA, .25))
 
   for (quantity in names(expected)) {
-    selected[["spec"]][["quantity"]] <- quantity
-    selected[["spec"]][["evaluator"]] <- switch(
-      quantity, sd_total = "allocation_sd", sd = "sd", var_prop = "allocation"
-    )
-    selected[["spec"]][["source_transform"]] <- if (quantity == "var_prop") {
-      "var_prop"
-    } else "identity"
-    target <- .brma_random_parameter_density_target(list(fit = fit), quantity)
+    target <- .brma_random_parameter_density_target(object, quantity)
     expect_null(target[["reason"]], info = quantity)
     spec <- .iwmde_parameter_spec(context, target[["parameter"]], target[["parameter_spec"]])
     expect_identical(spec[["status"]], "ok")
@@ -59,9 +82,10 @@ test_that("shared random inclusion preserves SD atoms and defined proportions", 
                  expected[[quantity]], info = quantity)
     component <- .iwmde_parameter_components(context, target[["parameter"]], spec)
     expect_identical(component[["active"]], c(FALSE, TRUE, FALSE, TRUE))
+    proportion <- grepl("tau2_prop", quantity, fixed = TRUE)
     expect_identical(.iwmde_parameter_condition_rows(context, spec),
-                     if (quantity == "var_prop") c(FALSE, TRUE, FALSE, TRUE) else rep(TRUE, 4))
-    if (quantity == "var_prop") {
+                     if (proportion) c(FALSE, TRUE, FALSE, TRUE) else rep(TRUE, 4))
+    if (proportion) {
       expect_equal(nrow(component[["point_masses"]]), 0L)
     } else {
       expect_equal(component[["point_masses"]], data.frame(x = 0, mass = .5))
@@ -73,7 +97,19 @@ test_that("shared random inclusion preserves SD atoms and defined proportions", 
     expect_false(identical(.iwmde_target_key(target[["parameter"]], spec),
                            .iwmde_target_key(target[["parameter"]], ungated)))
   }
+
+  # The study SD is the root SD times its allocation chain: the IWMDE target
+  # replaces the root SD through the multiplier of the BayesTools node with
+  # the chain's gate set to one.
+  target <- .brma_random_parameter_density_target(object, "(mu) study: tau(intercept)")
+  spec   <- target[["parameter_spec"]]
+  expect_identical(spec[["type"]], "random_component_sd")
+  expect_identical(spec[["node"]], "mu__xREx__study_intercept")
+  expect_identical(spec[["gate_columns"]], colnames(samples)[[3L]])
+  expect_equal(.iwmde_random_component_sd_multiplier(context, samples, spec),
+               rep(sqrt(.25), 4L), tolerance = 1e-15)
 })
+
 
 test_that("shared-gate allocation grids use declared continuous covariance plans", {
 
@@ -527,50 +563,91 @@ test_that("retained selection baselines preserve local states and scalar diagnos
   }
 })
 
-test_that("component allocations apply their own leaf weights", {
+test_that("allocated SDs of scalar sources are the BayesTools nodes of the fit", {
 
-  posterior <- cbind(
-    tau    = c(.8, 1.2),
-    `weight[1]` = c(.25, .4),
-    `weight[2]` = c(.75, .6)
-  )
-  term <- list(
-    block_name = "study",
-    sd_binding = list(
-      true_allocation = TRUE,
-      allocations = list(list(
-        target               = "sd_component",
-        source               = list(name = "tau", shape = "scalar"),
-        parent_factors       = list(),
-        weight_name          = "weight",
-        scale                = "mean_variance",
-        n_targets            = 2L,
-        leaf_index_by_column = 1:2
-      ))
-    )
-  )
+  # Each component SD of the 'gc' allocation is the source SD times
+  # sqrt(2 * weight).
+  object <- sd_component_allocation_object(list(
+    source = c(.5, .8, 1.2),
+    weight = cbind(c(.25, .5, .9), c(.75, .5, .1))
+  ))
+  fit        <- object[["fit"]]
+  term       <- attr(fit, "formula_design")[["mu"]][["random_effects"]][[1L]]
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  source     <- allocation[["source"]][["name"]]
+  weights    <- paste0(allocation[["weight_name"]], "[", 1:2, "]")
+  samples    <- as.matrix(fit[[1L]])[, c(source, weights)]
 
+  nodes <- .marginalized_random_effect_allocated_sd_nodes(term)
+  expect_identical(nodes, c("mu__xREx__g_intercept", "mu__xREx__g_x"))
+  evaluator <- .marginalized_random_sd_evaluator(fit, list(term))
   actual <- .marginalized_random_effect_allocated_sd_samples(
-    term,
-    posterior,
-    K = 2L
+    term, samples, K = 4L, sd_evaluator = evaluator
+  )
+  expect_equal(actual, unname(samples[, source] * sqrt(2 * samples[, weights])),
+               tolerance = 1e-15)
+  expect_equal(
+    .marginalized_random_effect_sd_samples(term, samples, K = 4L,
+                                           sd_evaluator = evaluator),
+    actual
   )
 
+  # External samples of the scalar source replace its draws.
+  external <- stats::setNames(list(matrix(2, nrow = 3L, ncol = 1L)), source)
   expect_equal(
-    unname(actual),
-    unname(posterior[, "tau"] *
-      sqrt(2 * posterior[, paste0("weight[", 1:2, "]")]))
-  )
-  expect_equal(
-    vapply(
-      .marginalized_random_effect_allocation_factors(term, all = TRUE),
-      `[[`,
-      integer(1),
-      "index"
+    .marginalized_random_effect_allocated_sd_samples(
+      term, samples, K = 4L, source_samples = external, sd_evaluator = evaluator
     ),
-    1:2
+    unname(2 * sqrt(2 * samples[, weights])),
+    tolerance = 1e-15
   )
+
+  # Without the fit's evaluator the allocated SDs are unavailable.
+  expect_error(
+    .marginalized_random_effect_allocated_sd_samples(term, samples, K = 4L),
+    paste0(
+      "Allocated random-effect SDs of block 'g' are evaluated from the ",
+      "deterministic nodes of the fitted model, which are unavailable without ",
+      "a fit."
+    ),
+    fixed = TRUE
+  )
+  expect_null(.marginalized_random_sd_evaluator(NULL, list(term)))
 })
+
+
+test_that("IWMDE SD synchronization recomputes the BayesTools SD nodes", {
+
+  object  <- .shared_gate_random_object()
+  samples <- as.matrix(object[["fit"]][[1L]])
+  source  <- colnames(samples)[[2L]]
+  weights <- colnames(samples)[4:5]
+  sds     <- c("mu__xREx__study_intercept", "mu__xREx__esid_intercept")
+  samples <- cbind(samples, matrix(9, nrow = 4L, ncol = 2L,
+                                   dimnames = list(NULL, sds)))
+  context <- list(
+    object          = object,
+    data            = structure(list(), random = TRUE),
+    evaluator_cache = new.env(parent = emptyenv())
+  )
+
+  # SD 1:4 times the gate (0, 1, 0, 1) times sqrt(.25) and sqrt(.75).
+  synced <- .iwmde_sync_random_allocation_sd_matrix(context, samples, source)
+  expect_identical(synced[["valid"]], rep(TRUE, 4L))
+  expect_equal(unname(synced[["samples"]][, sds]),
+               outer(1:4 * c(0, 1, 0, 1), sqrt(c(.25, .75))), tolerance = 1e-15)
+
+  samples[, weights[[1L]]] <- .4
+  samples[, weights[[2L]]] <- .6
+  synced <- .iwmde_sync_random_allocation_sd_matrix(context, samples, weights)
+  expect_equal(unname(synced[["samples"]][, sds]),
+               outer(1:4 * c(0, 1, 0, 1), sqrt(c(.4, .6))), tolerance = 1e-15)
+
+  # Coordinates the SDs do not depend on leave the samples unchanged.
+  unchanged <- .iwmde_sync_random_allocation_sd_matrix(context, samples, "mu_intercept")
+  expect_identical(unchanged[["samples"]], samples)
+})
+
 
 test_that("semantic density transformations apply their Jacobians", {
 

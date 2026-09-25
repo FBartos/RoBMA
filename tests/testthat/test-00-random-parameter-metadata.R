@@ -715,7 +715,8 @@ test_that("allocated component SD targets use declared catalog provenance", {
     weight_name          = "weight",
     scale                = "mean_variance",
     n_targets            = 2L,
-    leaf_index_by_column = 1:2
+    leaf_index_by_column = 1:2,
+    leaf_names           = c("mu__xREx__study_a", "mu__xREx__study_b")
   )
   term <- list(
     block_name         = "study",
@@ -767,6 +768,7 @@ test_that("allocated component SD targets use declared catalog provenance", {
     target[["parameter_spec"]][["factor_columns"]],
     "weight[1]"
   )
+  expect_identical(target[["parameter_spec"]][["node"]], "mu__xREx__study_a")
 
   selected[["spec"]][["allocation_derived"]] <- FALSE
   unsupported <- .brma_random_parameter_density_target(

@@ -125,7 +125,7 @@
       ))
     }
     multiplier <- tryCatch(
-      .iwmde_random_component_sd_multiplier(samples, factors),
+      .iwmde_random_component_sd_multiplier(context, samples, parameter_spec),
       error = function(error) NULL
     )
     if (is.null(multiplier) || any(!is.finite(multiplier) | multiplier <= 0)) {
@@ -283,8 +283,9 @@
   }
   if (identical(parameter_spec[["type"]], "random_component_sd")) {
     multiplier <- .iwmde_random_component_sd_multiplier(
+      context,
       samples,
-      parameter_spec[["factors"]]
+      parameter_spec
     )
 
     values <- as.numeric(samples[, parameter_spec[["source_parameter"]]]) *
@@ -306,37 +307,32 @@
 }
 
 
-.iwmde_random_component_sd_multiplier <- function(samples, factors) {
+# The multiplier of an allocated random-component SD over its source: the
+# BayesTools node of the component SD ('spec$node') evaluated with the source
+# and the inclusion gates of its allocation chain set to one. The gates put
+# the component on its atoms, which the gate states of the target handle; the
+# multiplier of the continuous part is the product of the allocation weights.
+.iwmde_random_component_sd_multiplier <- function(context, samples, spec) {
 
-  factors <- .iwmde_random_component_sd_factors(factors)
-  if (is.null(factors)) {
-    stop("Allocated random-component SD factors are invalid.", call. = FALSE)
-  }
-
-  multiplier <- rep(1, nrow(samples))
-  for (factor in factors) {
-    column <- paste0(
-      factor[["weight_name"]],
-      "[", factor[["index"]], "]"
+  node     <- spec[["node"]]
+  evaluate <- .iwmde_deterministic_evaluator(context, node)
+  if (is.null(evaluate)) {
+    stop(
+      "Allocated random-component SD multipliers need the deterministic ",
+      "nodes of the fitted model.",
+      call. = FALSE
     )
-    if (!column %in% colnames(samples)) {
-      stop(
-        "Allocated random-component SD factor column is missing: ",
-        column,
-        call. = FALSE
-      )
-    }
-    weight <- as.numeric(samples[, column])
-    if (identical(factor[["scale"]], "mean_variance")) {
-      weight <- factor[["n_targets"]] * weight
-    }
-    if (any(!is.finite(weight) | weight < 0)) {
-      stop("Allocated random-component SD weights are invalid.", call. = FALSE)
-    }
-    multiplier <- multiplier * sqrt(weight)
   }
 
-  return(multiplier)
+  samples <- as.matrix(samples)
+  unit    <- unique(c(spec[["source_parameter"]], spec[["gate_columns"]]))
+  draws   <- cbind(
+    samples[, !colnames(samples) %in% unit, drop = FALSE],
+    matrix(1, nrow = nrow(samples), ncol = length(unit),
+           dimnames = list(NULL, unit))
+  )
+
+  return(as.numeric(evaluate(draws)[, node]))
 }
 
 

@@ -1407,6 +1407,10 @@
   fallback_blocks <- character()
   fallback_errors <- list()
   names(out)      <- block_names
+  sd_evaluator    <- .marginalized_random_sd_evaluator(
+    fit   = object[["fit"]],
+    terms = terms[pure_intercepts]
+  )
 
   for (i in seq_along(terms)) {
     term <- terms[[i]]
@@ -1416,7 +1420,8 @@
           term              = term,
           posterior_samples = posterior_samples,
           K                 = K,
-          source_samples    = source_samples
+          source_samples    = source_samples,
+          sd_evaluator      = sd_evaluator
         ),
         error = identity
       )
@@ -1523,13 +1528,15 @@
 
 
 .random_effect_term_sd_samples <- function(term, posterior_samples, K,
-                                           source_samples = NULL) {
+                                           source_samples = NULL,
+                                           sd_evaluator = NULL) {
 
   sd_samples <- .marginalized_random_effect_sd_samples(
     term              = term,
     posterior_samples = posterior_samples,
     K                 = K,
-    source_samples    = source_samples
+    source_samples    = source_samples,
+    sd_evaluator      = sd_evaluator
   )
   variance <- .marginalized_random_effect_variance_samples(
     term       = term,

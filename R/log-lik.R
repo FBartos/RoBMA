@@ -712,7 +712,11 @@
         data              = data,
         posterior_samples = posterior_samples,
         K                 = K,
-        source_samples    = marginalized_random_source_samples
+        source_samples    = marginalized_random_source_samples,
+        sd_evaluator      = .marginalized_random_sd_evaluator(
+          fit   = fit,
+          terms = .data_marginalized_random_effects(data)
+        )
       ))
     }
     list(

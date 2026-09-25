@@ -2866,6 +2866,40 @@ test_that("IWMDE active omega does not truncate unexpected omega lengths", {
   expect_length(omega, 2L)
 })
 
+test_that("IWMDE active omega evaluates unmonitored weights by the omega node of the fit", {
+
+  # A fixed two-sided weight function is not monitored: its 'omega' node
+  # mirrors the weights onto the global one-sided bins (0, .025, .975, 1).
+  fit <- coda::mcmc.list(coda::mcmc(cbind(mu = c(.1, .2))))
+  attr(fit, "prior_list") <- list(
+    mu    = BayesTools::prior("normal", list(0, 1)),
+    omega = BayesTools::prior_weightfunction(
+      "two-sided", .05, BayesTools::wf_fixed(c(1, .5))
+    )
+  )
+  spec    <- list(n_bins = 3L, p_cuts = c(0, .025, .975, 1), jags_omega = "omega")
+  context <- list(
+    object          = list(fit = as_bayestools_fit(fit)),
+    selection_spec  = spec,
+    evaluator_cache = new.env(parent = emptyenv())
+  )
+  active_setup <- list(selection_spec = spec, priors = list())
+
+  expect_equal(
+    .iwmde_active_omega(context, row = c(mu = .1), active_setup),
+    c(1, .5, 1)
+  )
+  # Monitored weights are read from the row.
+  expect_equal(
+    .iwmde_active_omega(
+      context,
+      row = c(mu = .1, "omega[1]" = 1, "omega[2]" = .3, "omega[3]" = 1),
+      active_setup
+    ),
+    c(1, .3, 1)
+  )
+})
+
 test_that("IWMDE active omega fails closed when weights are unavailable", {
 
   context <- list(

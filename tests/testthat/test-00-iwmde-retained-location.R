@@ -217,7 +217,7 @@ test_that("the fixed information gate retains ordinary rows and records its cond
   ordinary_calls <- list()
   testthat::local_mocked_bindings(
     .iwmde_retained_location_plan = function(...) metadata,
-    .random_effect_term_sd_samples = function(term, posterior_samples, K) {
+    .random_effect_term_sd_samples = function(term, posterior_samples, K, ...) {
       matrix(posterior_samples[, "sd"], nrow(posterior_samples), K)
     },
     .evaluate.brma.random_effects = function(..., posterior_samples) {

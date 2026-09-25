@@ -346,6 +346,10 @@
     data              = data,
     posterior_samples = posterior_samples
   )
+  sd_evaluator <- .marginalized_random_sd_evaluator(
+    fit   = object[["fit"]],
+    terms = marginalized_terms
+  )
   marginalized_variance <- matrix(0, nrow = S, ncol = K)
   for (term in marginalized_terms) {
     sd_samples <- .marginalized_random_effect_sd_samples(
@@ -353,7 +357,8 @@
       posterior_samples = posterior_samples,
       K                 = K,
       source_samples    = source_samples,
-      fitted_K          = K
+      fitted_K          = K,
+      sd_evaluator      = sd_evaluator
     )
     marginalized_variance <- marginalized_variance +
       .marginalized_random_effect_variance_samples(
@@ -398,6 +403,10 @@
   )
   draws    <- matrix(0, nrow = S, ncol = K)
   fitted_K <- nrow(object[["data"]][["outcome"]])
+  sd_evaluator <- .marginalized_random_sd_evaluator(
+    fit   = object[["fit"]],
+    terms = terms
+  )
 
   for (term in terms) {
     sd_samples <- .marginalized_random_effect_sd_samples(
@@ -405,7 +414,8 @@
       posterior_samples = posterior_samples,
       K                 = K,
       source_samples    = source_samples,
-      fitted_K          = fitted_K
+      fitted_K          = fitted_K,
+      sd_evaluator      = sd_evaluator
     )
     term_variance <- .marginalized_random_effect_variance_samples(
       term       = term,

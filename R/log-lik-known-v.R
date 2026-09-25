@@ -1497,7 +1497,11 @@
       data              = data,
       posterior_samples = posterior_samples,
       K                 = K,
-      source_samples    = setup[["marginalized_random_source_samples"]]
+      source_samples    = setup[["marginalized_random_source_samples"]],
+      sd_evaluator      = .marginalized_random_sd_evaluator(
+        fit   = setup[["fit"]],
+        terms = .data_marginalized_random_effects(data)
+      )
     )
   } else {
     setup[["tau_within"]]^2

@@ -795,7 +795,11 @@
   return(.evaluate_marginalized_random_variance(
     data              = x[["data"]],
     posterior_samples = posterior_samples,
-    K                 = K
+    K                 = K,
+    sd_evaluator      = .marginalized_random_sd_evaluator(
+      fit   = x[["fit"]],
+      terms = .data_marginalized_random_effects(x[["data"]])
+    )
   ))
 }
 

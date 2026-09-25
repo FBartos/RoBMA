@@ -495,6 +495,11 @@
 }
 
 
+# The selection weights of a row on the active bins: the monitored weights, or
+# the BayesTools 'omega' node of the fit evaluated on the row (fixed weight
+# functions and fixed branches of bias mixtures are not monitored), collapsed
+# from the global onto the active bins. RoBMA's own fixed selection weights
+# without a weight-function prior are fit data.
 .iwmde_active_omega <- function(context, row, active_setup) {
 
   active_spec <- active_setup[["selection_spec"]]
@@ -506,12 +511,12 @@
     row       = row,
     parameter = active_spec[["jags_omega"]]
   ))
-  if (length(omega) == 0L) {
-    fixed_omega <- .iwmde_fixed_weightfunction_omega(
-      active_setup[["priors"]][["outcome"]][["bias"]]
-    )
-    if (length(fixed_omega) > 0L) {
-      return(.iwmde_validate_omega(fixed_omega, active_spec[["n_bins"]]))
+  if (length(omega) == 0L && identical(active_spec[["jags_omega"]], "omega")) {
+    evaluate <- .iwmde_deterministic_evaluator(context, "omega")
+    if (!is.null(evaluate)) {
+      omega <- as.numeric(evaluate(
+        matrix(row, nrow = 1L, dimnames = list(NULL, names(row)))
+      )[1L, ])
     }
   }
   if (length(omega) == 0L) {
@@ -552,20 +557,6 @@
   }
 
   return(identical(as.numeric(x), as.numeric(y)))
-}
-
-
-.iwmde_fixed_weightfunction_omega <- function(prior) {
-
-  if (is.null(prior) || !BayesTools::is.prior.weightfunction(prior)) {
-    return(numeric())
-  }
-  weights <- prior[["weights"]]
-  if (is.null(weights) || !identical(weights[["type"]], "fixed")) {
-    return(numeric())
-  }
-
-  return(as.numeric(weights[["omega"]]))
 }
 
 

@@ -644,6 +644,17 @@ test_that("allocation replacements synchronize derived random-effect SDs", {
     nrow = 1L,
     dimnames = list(NULL, c(source, weights, components))
   )
+  # The SDs are recomputed by the BayesTools nodes of the fit: the prior-only
+  # object gets a fit with its BayesTools formula and these draws.
+  formula <- .object_bayestools_formula(
+    object    = object,
+    parameter = "mu",
+    source    = .fitted_formula_source(parameter = "mu", data = object[["data"]])
+  )
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  attr(fit, "prior_list")     <- formula[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = formula[["formula_design"]])
+  object[["fit"]] <- as_bayestools_fit(fit)
   context <- list(object = object, data = object[["data"]])
 
   synced <- .iwmde_sync_random_allocation_sd_matrix(
@@ -671,33 +682,28 @@ test_that("allocation replacements synchronize derived random-effect SDs", {
 
 test_that("allocated component SD targets retain their replacement structure", {
 
-  source  <- "mu_total_sd"
-  weight  <- "mu_allocation"
-  columns <- c(
-    source,
-    paste0(weight, "[", 1:2, "]"),
-    .iwmde_simplex_auxiliary_columns(weight, 2L)
-  )
-  samples <- matrix(
-    c(0.8, 0.25, 0.75, 1, 3),
-    nrow = 1L,
-    dimnames = list(NULL, columns)
-  )
+  object <- sd_component_allocation_object(list(
+    source = 0.8,
+    weight = cbind(0.25, 0.75),
+    eta    = cbind(1, 3)
+  ))
+  samples    <- as.matrix(object[["fit"]][[1L]])
+  term       <- attr(object[["fit"]], "formula_design")[["mu"]][["random_effects"]][[1L]]
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  source     <- allocation[["source"]][["name"]]
+  weight     <- allocation[["weight_name"]]
   context <- list(
+    object            = object,
     posterior_samples = samples,
     indicator_names   = character(),
-    flat_prior_list   = stats::setNames(
-      list(BayesTools::prior(
-        "dirichlet",
-        parameters = list(alpha = c(1, 1))
-      )),
-      weight
-    ),
-    selection_spec = NULL
+    flat_prior_list   = attr(object[["fit"]], "prior_list"),
+    selection_spec    = NULL,
+    evaluator_cache   = new.env(parent = emptyenv())
   )
   input_spec <- list(
     type                 = "random_component_sd",
     source_parameter     = source,
+    node                 = "mu__xREx__g_intercept",
     factors              = list(list(
       weight_name = weight,
       index       = 1L,
@@ -722,14 +728,15 @@ test_that("allocated component SD targets retain their replacement structure", {
     0.8 * sqrt(2 * 0.25)
   )
   expect_equal(replaced[["row"]][[source]], 0.7 / sqrt(2 * 0.25))
+  # The target's source and the excluded second weight are not conditioned on.
   expect_equal(
     .iwmde_chen_conditioning_columns(context, source, spec),
-    paste0(weight, "[1]")
+    c("mu_intercept", paste0(weight, "[1]"))
   )
   expect_named(
     .iwmde_plan_parameter_spec(spec),
     c(
-      "type", "source_parameter", "factors", "target_columns",
+      "type", "source_parameter", "node", "factors", "target_columns",
       "factor_columns", "auxiliary_columns", "conditioning_exclude", "status"
     )
   )

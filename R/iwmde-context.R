@@ -49,7 +49,8 @@
     likelihood_cache   = new.env(parent = emptyenv()),
     prior_cache        = new.env(parent = emptyenv()),
     row_cache          = new.env(parent = emptyenv()),
-    predictor_cache    = new.env(parent = emptyenv())
+    predictor_cache    = new.env(parent = emptyenv()),
+    evaluator_cache    = new.env(parent = emptyenv())
   )
 
   class(context) <- "iwmde_context"
@@ -177,7 +178,8 @@
     "likelihood_cache",
     "prior_cache",
     "row_cache",
-    "predictor_cache"
+    "predictor_cache",
+    "evaluator_cache"
   )
   for (cache_name in cache_names) {
     if (reset || !is.environment(context[[cache_name]])) {
@@ -205,6 +207,31 @@
   }
 
   return(context)
+}
+
+
+# The prepared BayesTools evaluator of the deterministic nodes 'nodes' of the
+# fitted model (JAGS_deterministic_evaluator()), resolved once per context and
+# node set. NULL without a fit or without nodes.
+.iwmde_deterministic_evaluator <- function(context, nodes) {
+
+  fit   <- context[["object"]][["fit"]]
+  nodes <- unique(nodes)
+  if (is.null(fit) || length(nodes) == 0L) {
+    return(NULL)
+  }
+
+  cache <- context[["evaluator_cache"]]
+  key   <- paste(nodes, collapse = "|")
+  if (is.environment(cache) && !is.null(cache[[key]])) {
+    return(cache[[key]])
+  }
+  evaluator <- BayesTools::JAGS_deterministic_evaluator(fit, nodes = nodes)
+  if (is.environment(cache)) {
+    cache[[key]] <- evaluator
+  }
+
+  return(evaluator)
 }
 
 

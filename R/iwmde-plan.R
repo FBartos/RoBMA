@@ -362,7 +362,8 @@
 
   fields <- c(
     "type", "parameter", "weights", "direction", "conditioning_chart", "index", "n_targets",
-    "source_parameter", "factors", "target_columns", "factor_columns",
+    "source_parameter", "node", "gate_columns", "factors", "target_columns",
+    "factor_columns",
     "auxiliary_columns", "conditioning_exclude", "conditional",
     "conditional_rule", "condition_key", "covariance_update", "status",
     "reason", "gate_metadata"

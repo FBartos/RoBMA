@@ -544,6 +544,7 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
   sd_component_allocation[["weight_name"]]          <- "mu__xRE_ALLOCx_leaf__weight"
   sd_component_allocation[["scale"]]                <- "mean_variance"
   sd_component_allocation[["n_targets"]]            <- 3L
+  sd_component_allocation[["leaf_names"]]           <- "mu__xREx__leaf_1"
   sd_component_binding[["allocations"]][[1L]]       <- sd_component_allocation
   sd_component_term[["sd_parameter_names"]]         <- NA_character_
   sd_component_term[["sd_binding"]]                 <- sd_component_binding
@@ -579,10 +580,21 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
     bridge_context = sd_component_context
   )
   sd_component_variance   <- 0.50^2 * 0.25 * 0.40 * (3 * 0.20)
+  # The allocated SD is the BayesTools node of the fitted model; this
+  # hand-built allocation has no fit, so a stand-in evaluator returns the node
+  # (source times its allocation chain) from the bridge row.
+  sd_component_evaluator <- function(draws) {
+
+    sd <- draws[, sd_component_allocation[["source"]][["name"]]] *
+      sqrt(apply(draws[, names(parent_nodes), drop = FALSE], 1L, prod)) *
+      sqrt(3 * draws[, paste0(sd_component_allocation[["weight_name"]], "[1]")])
+    matrix(sd, ncol = 1L, dimnames = list(NULL, "mu__xREx__leaf_1"))
+  }
   expect_equal(
     .evaluate_marginalized_random_variance(
       data              = sd_component_block[["data"]],
-      posterior_samples = sd_component_posterior
+      posterior_samples = sd_component_posterior,
+      sd_evaluator      = sd_component_evaluator
     ),
     matrix(sd_component_variance, nrow = 1L, ncol = 4L)
   )
@@ -606,7 +618,8 @@ test_that("brma.mv known-V bridge log posterior matches exact normal targets", {
       effect_direction           = "positive",
       outcome_type               = "norm",
       model_data                 = sd_component_block[["data"]],
-      bridge_context             = sd_component_context
+      bridge_context             = sd_component_context,
+      sd_evaluator               = sd_component_evaluator
     ),
     sd_component_expected,
     tolerance = 1e-10

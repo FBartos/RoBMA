@@ -984,6 +984,8 @@
       return(NULL)
     }
     factors <- allocation[["parent_factors"]]
+    # The allocation's source: the consumed parent component it splits.
+    node    <- allocation[["source_node"]]
   } else if (identical(spec[["evaluator"]], "sd") &&
              isTRUE(spec[["allocation_derived"]])) {
     term <- .brma_random_parameter_design_term(formula_design, spec)
@@ -996,6 +998,11 @@
       return(NULL)
     }
     factors <- .marginalized_random_effect_allocation_factors(term, column = column)
+    nodes   <- tryCatch(
+      .marginalized_random_effect_allocated_sd_nodes(term),
+      error = function(error) NULL
+    )
+    node    <- if (length(nodes) == 1L) nodes else nodes[column]
   } else {
     return(NULL)
   }
@@ -1062,12 +1069,21 @@
       factor[["n_targets"]]
     )
   }), use.names = FALSE))
+  if (!is.character(node) || length(node) != 1L || is.na(node) ||
+      !nzchar(node)) {
+    return(NULL)
+  }
 
+  # 'node' is the BayesTools node of the component SD and 'gate_columns' the
+  # inclusion gates of its allocation chain; they define the multiplier of
+  # the source (.iwmde_random_component_sd_multiplier()).
   return(list(
     parameter      = source_parameter,
     parameter_spec = list(
       type                 = "random_component_sd",
       source_parameter     = source_parameter,
+      node                 = node,
+      gate_columns         = indicators,
       factors              = factors,
       target_columns       = source_parameter,
       factor_columns       = factor_columns,

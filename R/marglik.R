@@ -237,6 +237,17 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   } else {
     FALSE
   }
+  # Allocated random-effect SDs that no compiled plan reads from bridge nodes
+  # are evaluated per bridge row by one prepared deterministic-node evaluator.
+  sd_evaluator <- if (is.null(marginalized_variance_plan) &&
+                      !bridge_setup[["fixed_zero_random"]]) {
+    .marginalized_random_sd_evaluator(
+      fit   = fit,
+      terms = .data_marginalized_random_effects(data)
+    )
+  } else {
+    NULL
+  }
   covariance_plan_cache <- new.env(parent = emptyenv())
   joint_selection <- .is_data_joint_selection(data)
   sampling_conditioned_plan <- .marglik_conditioned_sampling_plan(data)
@@ -283,6 +294,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     known_V                  = known_V,
     known_v_backend          = known_v_backend,
     marginalized_variance_plan = marginalized_variance_plan,
+    sd_evaluator             = sd_evaluator,
     is_PET                   = .is_priors_PET(priors),
     is_PEESE                 = .is_priors_PEESE(priors),
     is_weightfunction        = .is_priors_weightfunction(priors),
@@ -1085,7 +1097,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     selection_static = NULL, bridge_sample_cache = NULL,
     selection_fit = NULL, selection_priors = NULL,
     sampling_conditioned = NULL,
-    sampling_conditioned_plan = NULL) {
+    sampling_conditioned_plan = NULL, sd_evaluator = NULL) {
 
   ### extract number of observations
   K <- data[["K"]]
@@ -1249,6 +1261,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         sampling_latent_marginalized = sampling_latent_marginalized,
         covariance_plan_cache    = covariance_plan_cache,
         bridge_sample_cache      = bridge_sample_cache,
+        sd_evaluator             = sd_evaluator,
         mu_samples               = mu_samples,
         tau_within_samples       = tau_within_samples,
         is_random                = is_random,
@@ -1750,7 +1763,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
                                           mu_samples, tau_within_samples,
                                           is_random, is_weightfunction,
                                           effect_direction, K,
-                                          bridge_sample_cache = NULL) {
+                                          bridge_sample_cache = NULL,
+                                          sd_evaluator = NULL) {
 
   extra_variance <- .marglik_known_v_extra_variance(
     parameters         = parameters,
@@ -1761,7 +1775,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     tau_within_samples = tau_within_samples,
     is_random          = is_random,
     K                  = K,
-    bridge_sample_cache = bridge_sample_cache
+    bridge_sample_cache = bridge_sample_cache,
+    sd_evaluator       = sd_evaluator
   )
   tau_within <- sqrt(extra_variance)
   marginal_random_covariance <- .marglik_bridge_random_covariance(
@@ -2632,7 +2647,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
                                             tau_within_samples, is_random, K,
                                             fixed_zero_random = FALSE,
                                             marginalized_variance_plan = NULL,
-                                            bridge_sample_cache = NULL) {
+                                            bridge_sample_cache = NULL,
+                                            sd_evaluator = NULL) {
 
   extra_variance <- if (isTRUE(fixed_zero_random)) {
     matrix(0, nrow = 1L, ncol = K)
@@ -2661,7 +2677,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         data           = model_data,
         bridge_context = bridge_context,
         K              = K
-      )
+      ),
+      sd_evaluator      = sd_evaluator
     )
   } else {
     tau_within_samples^2

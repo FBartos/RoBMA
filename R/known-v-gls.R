@@ -195,6 +195,10 @@
             data              = data,
             priors            = object[["priors"]],
             posterior_samples = posterior_samples
+          ),
+          sd_evaluator      = .marginalized_random_sd_evaluator(
+            fit   = object[["fit"]],
+            terms = .data_marginalized_random_effects(data)
           )
         )
       }

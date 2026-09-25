@@ -159,7 +159,15 @@
   sampling_information <- sum(forwardsolve(t(root), rep(1, K))^2)
   information_cap <- S * sampling_information
   if (!is.finite(information_cap) || information_cap <= 0) return(NULL)
-  sd <- .random_effect_term_sd_samples(metadata[["term"]], samples, K)
+  sd <- .random_effect_term_sd_samples(
+    term              = metadata[["term"]],
+    posterior_samples = samples,
+    K                 = K,
+    sd_evaluator      = .iwmde_deterministic_evaluator(
+      context = context,
+      nodes   = .marginalized_random_sd_nodes(list(metadata[["term"]]))
+    )
+  )
   sd <- .expand_brma_mv_heterogeneity_samples(sd, S, K)
   if (any(!is.finite(sd)) || any(sd < 0)) {
     stop("Retained-location prior standard deviations are invalid.", call. = FALSE)
