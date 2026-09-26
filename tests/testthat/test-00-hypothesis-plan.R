@@ -411,6 +411,96 @@ test_that("levels of a factor alias shared by the location and scale formulas re
 })
 
 
+test_that("statements that do not match 'component' are component mismatches at every entry point", {
+
+  skip_on_cran()
+  fit <- .plan_fits()[["location_scale"]]
+  mismatch <- c("RoBMA_hypothesis_statement", "RoBMA_component_mismatch",
+                "error", "condition")
+  # A reference of one parameter of another component, references of
+  # parameters of other components, and a level alias of several parameters
+  # none of which belongs to the component.
+  cases <- list(
+    list(statement = "mu_g1[10] = 0.1",            component = "scale",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'mods' but 'component' was set to 'scale'.")),
+    list(statement = "mu_g1[10] = log_tau_g1[10]", component = "random",
+         message   = "The hypothesis does not resolve to component = 'random'."),
+    list(statement = "g1[10] = 0.1",               component = "random",
+         message   = "The hypothesis does not resolve to component = 'random'.")
+  )
+  for (case in cases) {
+    error <- tryCatch(
+      hypothesis(fit, case[["statement"]], component = case[["component"]],
+                 density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), mismatch, info = case[["statement"]])
+    expect_identical(conditionMessage(error), case[["message"]], info = case[["statement"]])
+  }
+  # plot() and the prior functions raise the same cause without the
+  # hypothesis class.
+  calls <- list(
+    "plot()"        = function() plot(fit, parameter_mods = "g1", component = "scale"),
+    "plot_prior()"  = function() plot_prior(fit, parameter_mods = "g1", component = "scale"),
+    "print_prior()" = function() print_prior(fit, parameter_scale = "g1", component = "mods")
+  )
+  for (name in names(calls)) {
+    error <- tryCatch(calls[[name]](), error = identity)
+    expect_identical(
+      class(error), c("RoBMA_component_mismatch", "error", "condition"),
+      info = name
+    )
+  }
+})
+
+
+test_that("publication-bias parameters are refused as hypothesis targets", {
+
+  skip_on_cran()
+  fit   <- .plan_fits()[["robma_mixture"]]
+  error <- tryCatch(
+    hypothesis(fit, "PET = 0", density_method = "KDE"),
+    error = identity
+  )
+  expect_identical(
+    class(error),
+    c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable", "error",
+      "condition")
+  )
+  expect_identical(
+    conditionMessage(error),
+    "Hypothesis tests for publication-bias parameters are not supported."
+  )
+})
+
+
+test_that("unresolved references have the same classes on fits and marginal means", {
+
+  skip_on_cran()
+  fit   <- .two_scale_fit()
+  means <- marginal_means(fit, density_method = "KDE")
+  # An unknown name: BayesTools' class on the fit, and on marginal means the
+  # statement class followed by the same BayesTools classes.
+  on_fit <- tryCatch(hypothesis(fit, "foo = 0", density_method = "KDE"), error = identity)
+  on_means <- tryCatch(hypothesis(means, "foo > 0"), error = identity)
+  expect_identical(
+    class(on_fit),
+    c("BayesTools_parameter_not_found", "BayesTools_parameter_resolution_error",
+      "error", "condition")
+  )
+  expect_identical(
+    class(on_means),
+    c("RoBMA_hypothesis_statement", class(on_fit))
+  )
+  # A statement without references.
+  expect_identical(
+    class(tryCatch(hypothesis(means, "1 > 0"), error = identity)),
+    c("RoBMA_hypothesis_statement", "error", "condition")
+  )
+})
+
+
 test_that("statements on every level of a term with a fixed level are refused as fixed", {
 
   skip_on_cran()

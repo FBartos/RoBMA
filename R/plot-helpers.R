@@ -124,18 +124,33 @@
 }
 
 .parameter_component_check_compatible <- function(component, selected_component,
-                                                  argument) {
+                                                  argument, class = NULL) {
 
   if (!identical(component, "auto") &&
       !identical(component, selected_component)) {
-    stop(
-      "The '", argument, "' argument selects component = '", selected_component,
-      "' but 'component' was set to '", component, "'.",
-      call. = FALSE
+    .stop_component_mismatch(
+      paste0(
+        "The '", argument, "' argument selects component = '",
+        selected_component, "' but 'component' was set to '", component, "'."
+      ),
+      class = class
     )
   }
 
   return(invisible(TRUE))
+}
+
+
+# A selection whose component differs from the requested 'component': the
+# error of class "RoBMA_component_mismatch" at every entry point (plot(),
+# the prior functions, hypothesis()); 'class' prefixes the classes of the
+# entry point (hypothesis() adds "RoBMA_hypothesis_statement").
+.stop_component_mismatch <- function(message, class = NULL) {
+
+  stop(structure(
+    class = c(class, "RoBMA_component_mismatch", "error", "condition"),
+    list(message = message, call = NULL)
+  ))
 }
 .brma_parameter_default <- function(component, object) {
 
@@ -492,12 +507,16 @@
     paste0("their labels, such as '", example, "'")
   }
 
+  # hypothesis(): a statement to restate on factor levels
+  # ("RoBMA_hypothesis_statement").
   if (hypothesis) {
-    stop(
-      "Hypotheses on factor contrast coefficients such as '", selector,
-      "' are not supported. State them on factor levels by ", example, ".",
-      call. = FALSE
-    )
+    .hypothesis_stop(list(
+      reason = paste0(
+        "Hypotheses on factor contrast coefficients such as '", selector,
+        "' are not supported. State them on factor levels by ", example, "."
+      ),
+      class  = "RoBMA_hypothesis_statement"
+    ))
   }
   stop(
     "Factor contrast coefficients such as '", selector, "' cannot be ",

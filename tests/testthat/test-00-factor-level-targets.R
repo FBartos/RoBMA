@@ -153,6 +153,7 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
   fits <- .factor_level_target_fits()
 
   # Mean-difference coefficients are catalog quantities without RoBMA entries.
+  # hypothesis() refuses them as a statement to restate on levels.
   for (selector in c("g1{1} = 0", "g1{1} > 0", "(mu) g1{1} = 0", "mu_g1{1} = 0")) {
     expect_error(
       suppressWarnings(hypothesis(fits[["meandif"]], selector, density_method = "KDE")),
@@ -164,16 +165,29 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
       fixed = TRUE,
       info = selector
     )
+    error <- tryCatch(
+      suppressWarnings(hypothesis(fits[["meandif"]], selector, density_method = "KDE")),
+      error = identity
+    )
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_statement", "error", "condition"),
+      info = selector
+    )
   }
-  expect_error(
+  error <- tryCatch(
     plot(fits[["meandif"]], parameter = "g1{1}", plot_type = "ggplot"),
+    error = identity
+  )
+  expect_identical(
+    conditionMessage(error),
     paste0(
       "Factor contrast coefficients such as 'g1{1}' cannot be selected. ",
       "Select factor levels by their labels, such as 'g1[5]', or the whole ",
       "term 'g1'."
-    ),
-    fixed = TRUE
+    )
   )
+  expect_false(inherits(error, "RoBMA_hypothesis_statement"))
 
   # Treatment levels are the coefficients: BayesTools refuses the contrast
   # selector of a level coordinate and names its level form.

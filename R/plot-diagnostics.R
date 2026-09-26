@@ -20,7 +20,9 @@
 #'   \code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
 #'   disambiguate terms used in multiple model components. The random component
 #'   selects semantic standard deviation, correlation, and allocation parameters
-#'   from `brma.mv()` random formulas.
+#'   from `brma.mv()` random formulas. A \code{parameter_mods} or
+#'   \code{parameter_scale} selection with another \code{component} stops with
+#'   an error of class `RoBMA_component_mismatch`.
 #' @param type diagnostic plot type. Convenience wrappers set a type-specific
 #'   default but still forward this argument to \code{plot_diagnostic.brma()}.
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2

@@ -97,7 +97,9 @@ infers the component when possible. Use \code{"mods"} (alias
 \code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
 disambiguate terms used in multiple model components. The random component
 selects semantic standard deviation, correlation, and allocation parameters
-from \code{brma.mv()} random formulas.}
+from \code{brma.mv()} random formulas. A \code{parameter_mods} or
+\code{parameter_scale} selection with another \code{component} stops with
+an error of class \code{RoBMA_component_mismatch}.}
 }
 \value{
 \code{plot_diagnostic} returns the object returned by

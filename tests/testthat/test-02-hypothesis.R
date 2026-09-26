@@ -916,7 +916,8 @@ test_that("hypothesis does not advertise or test publication-bias parameters", {
       density_method = "KDE",
       n_samples      = 1000
     ),
-    "publication-bias parameters are not supported"
+    "publication-bias parameters are not supported",
+    class = "RoBMA_hypothesis_target"
   )
 })
 

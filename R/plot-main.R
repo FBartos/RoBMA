@@ -25,7 +25,9 @@
 #' \code{"location"}), \code{"scale"}, \code{"random"}, or \code{"bias"} to
 #' disambiguate terms used in multiple model components. The random component
 #' selects semantic standard deviation, correlation, and allocation parameters
-#' from `brma.mv()` random formulas.
+#' from `brma.mv()` random formulas. A \code{parameter_mods} or
+#' \code{parameter_scale} selection with another \code{component} stops with
+#' an error of class `RoBMA_component_mismatch`.
 #' @param plot_type whether to use a base plot \code{"base"}
 #' or ggplot2 \code{"ggplot"} for plotting. Defaults to
 #' \code{"base"}.

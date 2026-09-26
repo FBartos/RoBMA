@@ -135,6 +135,37 @@ test_that("marginal-means aliases never silently resolve collisions", {
   )
   expect_identical(intercept[["parameter"]], "mu_intercept")
   expect_identical(moderator[["parameter"]], "mu_mu")
+
+  # References that resolve to no marginal-means parameter are statement
+  # errors; an unknown name also has the classes with which the fitted-model
+  # path refuses it (BayesTools_parameter_not_found).
+  error <- tryCatch(
+    .hypothesis_marginal_means_select_parameter(
+      object, BayesTools::hypothesis_parse("1 > 0"), NULL
+    ),
+    error = identity
+  )
+  expect_identical(class(error), c("RoBMA_hypothesis_statement", "error", "condition"))
+  expect_identical(
+    conditionMessage(error),
+    "Hypothesis must reference a marginal-means parameter."
+  )
+  error <- tryCatch(
+    .hypothesis_marginal_means_select_parameter(
+      object, BayesTools::hypothesis_parse("foo > 0"), NULL
+    ),
+    error = identity
+  )
+  expect_identical(
+    class(error),
+    c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+      "BayesTools_parameter_resolution_error", "error", "condition")
+  )
+  expect_match(
+    conditionMessage(error),
+    "Could not infer a marginal-means parameter from the hypothesis.",
+    fixed = TRUE
+  )
 })
 
 

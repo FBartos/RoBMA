@@ -103,7 +103,72 @@ test_that("empty resolved hypothesis quantities fail with a metadata message", {
   expect_error(.hypothesis_brma_select_parameter(
     list(), "mu = 0", "auto", list(catalog = NULL, entries = data.frame())
   ), paste0("Resolved hypothesis metadata are unavailable. Refit the model with ",
-            "the current RoBMA/BayesTools build."), fixed = TRUE)
+            "the current RoBMA/BayesTools build."), fixed = TRUE,
+  class = "RoBMA_refit_required")
+})
+
+test_that("stale fitted metadata of hypothesis targets require a refit", {
+
+  # Every hypothesis() stop on missing or unsupported fitted metadata has
+  # the one class "RoBMA_refit_required".
+  refit <- c("RoBMA_refit_required", "error", "condition")
+  selected <- list(
+    parameter = "mu_x",
+    component = "mods",
+    entry     = list(formula_parameter = "mu", role = "fixed_coefficient")
+  )
+  transform <- structure(
+    list(schema_version = 1L, target_names = "mu_x"),
+    class = "BayesTools_formula_coefficient_transform"
+  )
+  testthat::local_mocked_bindings(
+    JAGS_formula_coefficient_transform = function(...) transform,
+    parameter_coordinates = function(...) data.frame(
+      coordinate_name = "mu_z", formula_parameter = "mu", term = "z"
+    ),
+    .package = "BayesTools"
+  )
+  # A coefficient transform of an unsupported schema.
+  error <- tryCatch(
+    .hypothesis_brma_formula_coefficient_target(list(fit = list()), selected),
+    error = identity
+  )
+  expect_identical(class(error), refit)
+  expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
+  # A resolved coefficient absent from the fitted transform.
+  transform[["schema_version"]] <- 2L
+  transform[["target_names"]]   <- "mu_z"
+  error <- tryCatch(
+    .hypothesis_brma_formula_coefficient_target(list(fit = list()), selected),
+    error = identity
+  )
+  expect_identical(class(error), refit)
+  # Weights on coordinates absent from the fitted coordinate table.
+  error <- tryCatch(
+    .hypothesis_brma_target_prior_parameters(list(fit = list()), c(mu_x = 1)),
+    error = identity
+  )
+  expect_identical(class(error), refit)
+  expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
+  # A factor level without fitted linear weights: the plan's target refusal
+  # also has the class.
+  testthat::local_mocked_bindings(
+    .iwmde_linear_weights = function(...) numeric(),
+    .package = "RoBMA"
+  )
+  target <- .hypothesis_plan_level_target(
+    plan   = list(draws = list(posterior = list(a = NULL)), label = "g"),
+    object = NULL,
+    level  = "a",
+    value  = 0,
+    label  = "g[a]"
+  )
+  expect_identical(
+    target[["refusal"]][["class"]],
+    c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+      "RoBMA_refit_required")
+  )
+  expect_match(target[["refusal"]][["reason"]], "Refit the model", fixed = TRUE)
 })
 
 test_that("BayesTools refusals are matched by their condition class", {

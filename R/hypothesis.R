@@ -135,7 +135,10 @@ hypothesis.default <- function(object, ...) {
 #' BayesTools refuses with the class \code{BayesTools_parameter_ambiguous}
 #' (for example the contrast coefficient \code{"g{1}"} of a factor term in
 #' the location and the scale formula) has these classes too, before its
-#' BayesTools classes. The random component supports
+#' BayesTools classes. A statement whose parameters belong to another
+#' component than \code{component} stops with the classes
+#' \code{RoBMA_hypothesis_statement} and \code{RoBMA_component_mismatch}
+#' (the class of a component mismatch in [plot.brma()]). The random component supports
 #' point, interval, and directional hypotheses for semantic standard
 #' deviation, variance, correlation, and allocation quantities. Point-null
 #' hypotheses require a direct parameter reference, a factor level, or a
@@ -153,7 +156,7 @@ hypothesis.default <- function(object, ...) {
 #' components. Point nulls at an exact support boundary (for example, a
 #' variance proportion at 0) use the one-sided prior ordinate when BayesTools
 #' classifies it as exact, finite, and positive. Publication-bias parameters
-#' are not supported.
+#' are not supported (class \code{RoBMA_hypothesis_target}).
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -233,6 +236,22 @@ hypothesis.default <- function(object, ...) {
 #' quantities without a supported scalar random-component coordinate), and
 #' \code{RoBMA_density_method_original_scale} (original-scale coefficients
 #' whose fitted map is nonlinear, such as \code{exp(affine)} targets).
+#'
+#' Statements that need to be restated, or an argument that needs to change,
+#' stop with the class \code{RoBMA_hypothesis_statement} without
+#' \code{RoBMA_hypothesis_unavailable}: ambiguous references
+#' (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
+#' parameters of another component (\code{RoBMA_component_mismatch}), factor
+#' contrast coefficients such as \code{"g{1}"} (state the hypothesis on
+#' factor levels), and marginal-means statements that reference no
+#' marginal-means parameter; an unknown name there also has the classes
+#' \code{BayesTools_parameter_not_found} and
+#' \code{BayesTools_parameter_resolution_error}, with which BayesTools
+#' refuses an unknown name on fitted objects. Missing or unsupported fitted
+#' metadata of the tested target (the resolved references, the coefficient
+#' transform, the fitted coordinates, or the linear weights of a factor level;
+#' a fit of an older RoBMA/BayesTools build) stop with the class
+#' \code{RoBMA_refit_required}: refit the model.
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
 #' posterior-row sample size, default \code{500} for qCMDE and \code{1000} for
@@ -1228,19 +1247,17 @@ hypothesis.brma <- function(object, hypothesis,
   )
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
       !identical(transform[["schema_version"]], 2L)) {
-    stop(
+    .stop_refit_required(
       "Formula coefficient transformation metadata are unsupported. Refit ",
-      "the model with the current BayesTools version.",
-      call. = FALSE
+      "the model with the current BayesTools version."
     )
   }
   target <- selected[["parameter"]]
   target_i <- match(target, transform[["target_names"]])
   if (is.na(target_i)) {
-    stop(
+    .stop_refit_required(
       "Resolved formula coefficient '", target,
-      "' is absent from the fitted coefficient transformation.",
-      call. = FALSE
+      "' is absent from the fitted coefficient transformation."
     )
   }
 
@@ -1261,10 +1278,9 @@ hypothesis.brma <- function(object, hypothesis,
   coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
   rows <- match(names(weights), coordinates[["coordinate_name"]])
   if (anyNA(rows)) {
-    stop(
+    .stop_refit_required(
       "Fitted coordinate metadata of the hypothesis target are unavailable. ",
-      "Refit the model with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "Refit the model with the current RoBMA/BayesTools build."
     )
   }
   coordinates <- coordinates[rows, , drop = FALSE]

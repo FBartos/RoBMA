@@ -72,7 +72,9 @@ and \code{"IRR"}.}
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
 \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-terms used in multiple prior components.}
+terms used in multiple prior components. A \code{parameter_mods} or
+\code{parameter_scale} selection with another \code{component} stops with
+an error of class \code{RoBMA_component_mismatch}.}
 }
 \value{
 \code{plot_prior} returns either \code{NULL} invisibly if

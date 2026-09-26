@@ -24,7 +24,9 @@
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-#' terms used in multiple prior components.
+#' terms used in multiple prior components. A \code{parameter_mods} or
+#' \code{parameter_scale} selection with another \code{component} stops with
+#' an error of class \code{RoBMA_component_mismatch}.
 #' @param standardized_coefficients whether to plot moderator and scale-regression
 #' priors on the standardized predictor scale. Defaults to \code{TRUE}, which
 #' shows the priors as specified. Set to \code{FALSE} to transform them to the
@@ -258,7 +260,9 @@ plot.only_priors.brma <- function(x, ...) {
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
-#' terms used in multiple prior components.
+#' terms used in multiple prior components. A \code{parameter_mods} or
+#' \code{parameter_scale} selection with another \code{component} stops with
+#' an error of class \code{RoBMA_component_mismatch}.
 #' @param ... additional arguments passed to the prior printing method. Use
 #' \code{silent = TRUE} for programmatic inspection without console output.
 #'

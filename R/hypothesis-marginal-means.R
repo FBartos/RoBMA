@@ -4,7 +4,11 @@
 #' the hypothesis expression. Without it, an alias or statement that names
 #' several marginal-means parameters stops with an error of class
 #' \code{RoBMA_hypothesis_ambiguous}, with the parent class
-#' \code{RoBMA_hypothesis_statement}.
+#' \code{RoBMA_hypothesis_statement}. A statement that references no
+#' marginal-means parameter stops with the class
+#' \code{RoBMA_hypothesis_statement}; for an unknown name also with
+#' \code{BayesTools_parameter_not_found} and
+#' \code{BayesTools_parameter_resolution_error}, as on fitted objects.
 #' @details Marginal-means hypotheses are specified on the fitted
 #' linear-predictor scale. Display transformations stored by
 #' \code{marginal_means()} do not transform hypothesis constants. Single-model
@@ -245,11 +249,16 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     return(list(parameter = selected, aliases = aliases))
   }
 
+  # References that name no marginal-means parameter are statement errors
+  # ("RoBMA_hypothesis_statement"); an unknown name also has the classes with
+  # which the fitted-model path refuses it (BayesTools_parameter_not_found).
   roots <- .hypothesis_brma_symbol_roots(hypothesis)
   roots <- unique(roots[nzchar(roots)])
   if (length(roots) == 0L) {
-    stop("Hypothesis must reference a marginal-means parameter.",
-         call. = FALSE)
+    .hypothesis_stop(list(
+      reason = "Hypothesis must reference a marginal-means parameter.",
+      class  = "RoBMA_hypothesis_statement"
+    ))
   }
 
   matches <- lapply(roots, function(root) {
@@ -290,13 +299,23 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     ))
   }
 
-  stop(
-    "Could not infer a marginal-means parameter from the hypothesis. ",
-    "Available quantities are: ",
-    paste0("'", sort(unique(alias_catalog[["alias"]])), "'", collapse = ", "),
-    ".",
-    call. = FALSE
-  )
+  # The fields of BayesTools' condition: the unresolved alias and the
+  # available ones.
+  available <- sort(unique(alias_catalog[["alias"]]))
+  stop(structure(
+    class = c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+              "BayesTools_parameter_resolution_error", "error", "condition"),
+    list(
+      message   = paste0(
+        "Could not infer a marginal-means parameter from the hypothesis. ",
+        "Available quantities are: ",
+        paste0("'", available, "'", collapse = ", "), "."
+      ),
+      call      = NULL,
+      alias     = roots[[1L]],
+      available = available
+    )
+  ))
 }
 
 

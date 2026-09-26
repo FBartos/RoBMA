@@ -86,12 +86,13 @@
         coefficient = coefficients[1L, , drop = FALSE]
       )
     }
-    stop(
+    .stop_refit_required(
       "Resolved hypothesis metadata are unavailable. Refit the model with ",
-      "the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "the current RoBMA/BayesTools build."
     )
   }
+  # A statement whose parameters do not belong to the requested component is
+  # a component mismatch of the statement, as for plot() selections.
   if (!identical(component, "auto")) {
     compatible <- entries[["component"]] == component
     if (!any(compatible)) {
@@ -100,12 +101,13 @@
         .parameter_component_check_compatible(
           component          = component,
           selected_component = selected_components,
-          argument           = "hypothesis"
+          argument           = "hypothesis",
+          class              = "RoBMA_hypothesis_statement"
         )
       }
-      stop(
-        "The hypothesis does not resolve to component = '", component, "'.",
-        call. = FALSE
+      .stop_component_mismatch(
+        paste0("The hypothesis does not resolve to component = '", component, "'."),
+        class = "RoBMA_hypothesis_statement"
       )
     }
     entries <- entries[compatible, , drop = FALSE]
@@ -163,9 +165,9 @@
   }
   selected <- candidates[candidates[["component"]] == component, , drop = FALSE]
   if (nrow(selected) == 0L) {
-    stop(
-      "The hypothesis does not resolve to component = '", component, "'.",
-      call. = FALSE
+    .stop_component_mismatch(
+      paste0("The hypothesis does not resolve to component = '", component, "'."),
+      class = "RoBMA_hypothesis_statement"
     )
   }
   if (nrow(selected) != 1L) {
@@ -186,11 +188,15 @@
 }
 
 
+# Publication-bias parameters are no hypothesis targets
+# ("RoBMA_hypothesis_target").
 .hypothesis_brma_check_supported_component <- function(component) {
 
   if (identical(component, "bias")) {
-    stop("Hypothesis tests for publication-bias parameters are not supported.",
-         call. = FALSE)
+    .hypothesis_stop(.hypothesis_refusal(
+      "Hypothesis tests for publication-bias parameters are not supported.",
+      "target"
+    ))
   }
 
   invisible(TRUE)
