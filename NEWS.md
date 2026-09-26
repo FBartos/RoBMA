@@ -1,5 +1,10 @@
 ## version 4.1.0 (IN PROGRESS)
 ### Fixes
+- standardizes continuous predictors, as fitting does, when the moderator and
+  scale formulas of `only_priors = TRUE` objects are evaluated on supplied
+  draws. These prior-only evaluations used the raw predictor values, so scale
+  formulas with standardized continuous predictors gave wrong heterogeneity
+  and moderator formulas gave wrong predictions.
 - places each qCMDE row's normalization range at its own conditional
   quantiles at `normalization_prob`: in closed form where a Gaussian
   likelihood kernel meets a normal prior, from a Gaussian tail bound with
