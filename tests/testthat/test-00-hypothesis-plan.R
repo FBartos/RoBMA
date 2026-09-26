@@ -511,6 +511,122 @@ test_that("statements that do not match 'component' are component mismatches at 
 })
 
 
+test_that("BayesTools resolution errors that escape planning are statement errors", {
+
+  skip_on_cran()
+  fit <- .plan_fits()[["location_scale"]]
+  # The factor alias 'g1' of the location and the scale formula next to a
+  # name that is unknown within an explicit 'component' (a name of the
+  # other component, or a display label): the statement is resolved without
+  # 'component', where the shared alias is ambiguous, so it stops with
+  # BayesTools' refusal of its first unresolved reference (its message,
+  # classes, and fields) after the statement class.
+  ambiguous <- c("RoBMA_hypothesis_statement", "BayesTools_parameter_ambiguous",
+                 "BayesTools_parameter_resolution_error", "error", "condition")
+  cases <- list(
+    list(statement = "g1 > log_tau_intercept",  component = "mods"),
+    list(statement = "g1 > mu_intercept",       component = "scale"),
+    list(statement = "g1 > `(mu) intercept`",   component = "mods")
+  )
+  for (case in cases) {
+    error <- tryCatch(
+      hypothesis(fit, case[["statement"]], component = case[["component"]],
+                 density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), ambiguous, info = case[["statement"]])
+    expect_identical(
+      conditionMessage(error),
+      paste0("Parameter alias 'g1' is ambiguous; use 'namespace' or ",
+             "'component' to select one quantity."),
+      info = case[["statement"]]
+    )
+    expect_identical(error[["alias"]], "g1", info = case[["statement"]])
+    expect_true(is.data.frame(error[["candidates"]]), info = case[["statement"]])
+  }
+  # The other component's name first, or a level of the shared alias (which
+  # resolves within the component's term): the name is the unknown name.
+  for (statement in c("log_tau_intercept < g1", "g1[10] > log_tau_intercept")) {
+    error <- tryCatch(
+      hypothesis(fit, statement, component = "mods", density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), c(.hypothesis_not_found_class(), "error", "condition"),
+                     info = statement)
+    expect_identical(error[["alias"]], "log_tau_intercept", info = statement)
+  }
+
+  # A level of a factor term next to the whole term resolves to one
+  # parameter; BayesTools refuses the whole term only when it evaluates the
+  # statement on the levels, which is a statement error too.
+  error <- tryCatch(
+    hypothesis(fit, "g1[10] > mu_g1", component = "mods", density_method = "KDE"),
+    error = identity
+  )
+  expect_identical(class(error), c(.hypothesis_not_found_class(), "error", "condition"))
+  expect_identical(
+    conditionMessage(error),
+    "Hypothesis expression references unknown quantity 'mu_g1'."
+  )
+  expect_identical(error[["alias"]], "mu_g1")
+
+  # Any BayesTools resolution error that escapes the planning or the
+  # evaluation, on fitted objects and on marginal means, keeps its message,
+  # classes, and fields after the statement class; a statement error keeps
+  # its classes.
+  means <- marginal_means(.plan_fits()[["treatment"]], density_method = "KDE")
+  calls <- list(
+    fit   = function() hypothesis(fit, "mu_intercept > 0", density_method = "KDE"),
+    means = function() hypothesis(means, "g1[10] > 0")
+  )
+  unresolved <- structure(
+    class = c("BayesTools_parameter_other", "BayesTools_parameter_resolution_error",
+              "error", "condition"),
+    list(message = "Unresolved reference.", call = NULL, alias = "z")
+  )
+  ambiguous_statement <- structure(
+    class = c(.hypothesis_ambiguous_class(), "BayesTools_parameter_ambiguous",
+              "BayesTools_parameter_resolution_error", "error", "condition"),
+    list(message = "Ambiguous reference.", call = NULL)
+  )
+  check_routes <- function(stage) {
+    for (route in names(calls)) {
+      info <- paste(stage, route)
+      refusal <<- unresolved
+      error <- tryCatch(calls[[route]](), error = identity)
+      expect_identical(
+        class(error),
+        c("RoBMA_hypothesis_statement", "BayesTools_parameter_other",
+          "BayesTools_parameter_resolution_error", "error", "condition"),
+        info = info
+      )
+      expect_identical(conditionMessage(error), "Unresolved reference.", info = info)
+      expect_identical(error[["alias"]], "z", info = info)
+      refusal <<- ambiguous_statement
+      error <- tryCatch(calls[[route]](), error = identity)
+      expect_identical(class(error), class(ambiguous_statement), info = info)
+    }
+  }
+  refusal <- NULL
+  local({
+    testthat::local_mocked_bindings(
+      .hypothesis_plan                = function(...) stop(refusal),
+      .hypothesis_plan_marginal_means = function(...) stop(refusal),
+      .package = "RoBMA"
+    )
+    check_routes("planning")
+  })
+  local({
+    testthat::local_mocked_bindings(
+      .hypothesis_plan_execute                = function(...) stop(refusal),
+      .hypothesis_plan_execute_marginal_means = function(...) stop(refusal),
+      .package = "RoBMA"
+    )
+    check_routes("evaluation")
+  })
+})
+
+
 test_that("publication-bias parameters are refused as hypothesis targets", {
 
   skip_on_cran()

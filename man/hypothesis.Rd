@@ -164,7 +164,15 @@ level also has the classes
 \code{BayesTools_parameter_resolution_error}, with which BayesTools
 refuses it (on fitted objects and in linear combinations of
 marginal-means levels, the BayesTools condition itself with its fields
-\code{alias} and \code{available}). Missing or unsupported fitted
+\code{alias} and \code{available}). Every other refusal of a statement's
+references by BayesTools (class
+\code{BayesTools_parameter_resolution_error}) stops \code{hypothesis()}
+too, on fitted objects and on marginal means, as the BayesTools condition
+with its classes and fields after \code{RoBMA_hypothesis_statement}, also
+when BayesTools raises it only when it evaluates the statement (for
+example the whole factor term next to one of its levels,
+\code{"g[a] > mu_g"}, as an unknown quantity).
+Missing or unsupported fitted
 metadata of the tested target (a parameter catalog without RoBMA
 parameters, the coefficient transform, the fitted coordinates, or the
 linear weights of a factor level; a fit of an older RoBMA/BayesTools build)
@@ -258,7 +266,20 @@ outside \code{component} next to references of \code{component} (with or
 without factor levels, e.g. \code{"log_tau_g[a] > mu_g[a]"} with
 \code{component = "mods"}), stops with the classes
 \code{RoBMA_hypothesis_statement} and \code{RoBMA_component_mismatch}
-(the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The display labels
+(the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The exception is
+the alias of a factor term of both the location and the scale formula
+(for example \code{g} for \code{mods = ~ g, scale = ~ g}) next to a name
+that is unknown within \code{component}, such as a name of the other
+component or a display label (for example \code{"g > log_tau_intercept"}
+with \code{component = "mods"}): the statement is resolved without
+\code{component}, where the alias is ambiguous, and stops with
+\code{RoBMA_hypothesis_statement} followed by the classes of the
+BayesTools refusal of its first unresolved reference, the ambiguity of the
+alias (\code{BayesTools_parameter_ambiguous}, without
+\code{RoBMA_hypothesis_ambiguous}, as \code{component} is set already) or
+the unknown name (\code{BayesTools_parameter_not_found}, for example in
+\code{"log_tau_intercept < g"} or, with a level of the alias, in
+\code{"g[a] > log_tau_intercept"}). The display labels
 of the summary tables (for example \code{"(mu) intercept"},
 \code{"exp(intercept)"}, or \code{"(mu) g[a]"}) name the parameters they
 label, with and without \code{component}. The random

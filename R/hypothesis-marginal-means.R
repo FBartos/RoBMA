@@ -46,79 +46,83 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     caller  = "hypothesis.marginal_means()"
   )
 
-  hypothesis <- BayesTools::hypothesis_parse(hypothesis)
-  selected <- .hypothesis_marginal_means_select_parameter(
-    object     = object,
-    hypothesis = hypothesis,
-    parameter  = parameter
-  )
-  parameter <- selected[["parameter"]]
-  density_method <- .marginal_means_density_method(object, density_method)
-
-  plans <- lapply(BayesTools::hypothesis_render(hypothesis), function(statement) {
-    .hypothesis_plan_marginal_means(
+  # Every statement is planned before any is evaluated. The planning and the
+  # evaluation have the catch point of the fitted-object method for
+  # BayesTools' refusals of the statements' references.
+  .hypothesis_catch_statement_resolution({
+    hypothesis <- BayesTools::hypothesis_parse(hypothesis)
+    selected <- .hypothesis_marginal_means_select_parameter(
+      object     = object,
+      hypothesis = hypothesis,
+      parameter  = parameter
+    )
+    parameter <- selected[["parameter"]]
+    density_method <- .marginal_means_density_method(object, density_method)
+    plans <- lapply(BayesTools::hypothesis_render(hypothesis), function(statement) {
+      .hypothesis_plan_marginal_means(
+        object    = object,
+        statement = statement,
+        parameter = parameter
+      )
+    })
+    for (plan in plans) {
+      .hypothesis_plan_check(plan, density_method)
+    }
+    refusal <- .hypothesis_plan_marginal_means_request_refusal(
+      plans     = plans,
       object    = object,
-      statement = statement,
       parameter = parameter
     )
-  })
-  for (plan in plans) {
-    .hypothesis_plan_check(plan, density_method)
-  }
-  refusal <- .hypothesis_plan_marginal_means_request_refusal(
-    plans     = plans,
-    object    = object,
-    parameter = parameter
-  )
-  if (!is.null(refusal)) {
-    .hypothesis_stop(refusal)
-  }
-  point       <- any(vapply(plans, `[[`, logical(1), "point"))
-  precomputed <- density_method %in% c("qCMDE", "IWMDE") && point
-  if (precomputed) {
-    density_control <- .hypothesis_plan_density_control(
-      .hypothesis_marginal_means_density_control(
-        object          = object,
-        density_method  = density_method,
-        density_control = density_control
-      )
-    )
-  } else if (!is.null(density_control)) {
-    if (density_method %in% c("qCMDE", "IWMDE")) {
-      .density_control_normalize(
-        density_method  = density_method,
-        density_control = density_control,
-        purpose         = "ordinate"
-      )
-    } else {
-      stop("'density_control' is only used when 'density_method' is ",
-           "'qCMDE' or 'IWMDE'.", call. = FALSE)
+    if (!is.null(refusal)) {
+      .hypothesis_stop(refusal)
     }
-  }
+    point       <- any(vapply(plans, `[[`, logical(1), "point"))
+    precomputed <- density_method %in% c("qCMDE", "IWMDE") && point
+    if (precomputed) {
+      density_control <- .hypothesis_plan_density_control(
+        .hypothesis_marginal_means_density_control(
+          object          = object,
+          density_method  = density_method,
+          density_control = density_control
+        )
+      )
+    } else if (!is.null(density_control)) {
+      if (density_method %in% c("qCMDE", "IWMDE")) {
+        .density_control_normalize(
+          density_method  = density_method,
+          density_control = density_control,
+          purpose         = "ordinate"
+        )
+      } else {
+        stop("'density_control' is only used when 'density_method' is ",
+             "'qCMDE' or 'IWMDE'.", call. = FALSE)
+      }
+    }
 
-  keys   <- vapply(plans, `[[`, character(1), "group")
-  groups <- lapply(unique(keys), function(key) which(keys == key))
-  results <- lapply(groups, function(rows) {
-    .hypothesis_plan_execute_marginal_means(
-      plans           = plans[rows],
-      object          = object,
-      logBF           = logBF,
-      BF01            = BF01,
-      seed            = seed,
-      density_method  = if (precomputed) density_method else "KDE",
-      density_control = density_control,
-      columns         = columns
-    )
+    keys   <- vapply(plans, `[[`, character(1), "group")
+    groups <- lapply(unique(keys), function(key) which(keys == key))
+    results <- lapply(groups, function(rows) {
+      .hypothesis_plan_execute_marginal_means(
+        plans           = plans[rows],
+        object          = object,
+        logBF           = logBF,
+        BF01            = BF01,
+        seed            = seed,
+        density_method  = if (precomputed) density_method else "KDE",
+        density_control = density_control,
+        columns         = columns
+      )
+    })
+    if (length(results) == 1L) {
+      results[[1L]]
+    } else {
+      .hypothesis_brma_bind_parameter_results(
+        results    = results,
+        groups     = groups,
+        hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis")
+      )
+    }
   })
-  if (length(results) == 1L) {
-    return(results[[1L]])
-  }
-
-  .hypothesis_brma_bind_parameter_results(
-    results    = results,
-    groups     = groups,
-    hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis")
-  )
 }
 
 

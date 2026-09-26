@@ -418,9 +418,33 @@
 
 # Re-raises a BayesTools refusal of a hypothesis statement (its message,
 # classes, and fields) as a statement error, with "RoBMA_hypothesis_statement"
-# before its classes.
+# before its classes; a condition that is a statement error already (e.g. an
+# ambiguous statement, "RoBMA_hypothesis_ambiguous") stops unchanged.
 .hypothesis_stop_statement_condition <- function(condition) {
 
-  class(condition) <- unique(c("RoBMA_hypothesis_statement", class(condition)))
+  if (!inherits(condition, "RoBMA_hypothesis_statement")) {
+    class(condition) <- c("RoBMA_hypothesis_statement", class(condition))
+  }
   stop(condition)
+}
+
+
+# The one catch point of hypothesis() for BayesTools' refusals of the
+# statements' references, around the planning and the evaluation of the
+# statements (on fitted objects and on marginal means): every resolution
+# error of BayesTools ("BayesTools_parameter_resolution_error", e.g. an
+# ambiguous alias, "BayesTools_parameter_ambiguous", or an unknown name, also
+# one that BayesTools raises only when it evaluates a planned statement, such
+# as a level of a factor term next to the whole term) stops as a statement
+# error, with its message, classes, and fields after
+# "RoBMA_hypothesis_statement" (.hypothesis_stop_statement_condition()).
+# The component checks of the planning run first: a statement whose
+# mismatch with an explicit 'component' they detect stops with
+# "RoBMA_component_mismatch".
+.hypothesis_catch_statement_resolution <- function(expr) {
+
+  tryCatch(
+    expr,
+    BayesTools_parameter_resolution_error = .hypothesis_stop_statement_condition
+  )
 }

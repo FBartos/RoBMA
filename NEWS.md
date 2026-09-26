@@ -442,10 +442,24 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     means alike), ambiguous references
     (`RoBMA_hypothesis_ambiguous`; set `component`, or `parameter` for
     marginal means), and references to parameters of another component
-    (`RoBMA_component_mismatch`). With an explicit `component`, a name known
-    only outside it, or a display label next to another component's name,
-    is a component mismatch, also in statements with factor levels (e.g.,
-    `"log_tau_g[a] > mu_g[a]"` with `component = "mods"`).
+    (`RoBMA_component_mismatch`). Every other refusal of a statement's
+    references by BayesTools (`BayesTools_parameter_resolution_error`) also
+    stops with `RoBMA_hypothesis_statement` before its classes and with its
+    fields, on fitted models and marginal means, also when BayesTools raises
+    it only when it evaluates the statement (e.g., the whole factor term
+    next to one of its levels, `"g[a] > mu_g"`). With an explicit
+    `component`, a name known only outside it, or a display label next to
+    another component's name, is a component mismatch, also in statements
+    with factor levels (e.g., `"log_tau_g[a] > mu_g[a]"` with
+    `component = "mods"`). The exception is the alias of a factor term
+    of both the location and the scale formula next to a name unknown
+    within `component`, such as another component's name or a display
+    label (e.g., `"g > log_tau_intercept"` with `component = "mods"`): the
+    statement stops with `RoBMA_hypothesis_statement` and the BayesTools
+    refusal of its first unresolved reference, the ambiguity of the alias
+    (`BayesTools_parameter_ambiguous`) or the unknown name
+    (`BayesTools_parameter_not_found`, e.g., for
+    `"g[a] > log_tau_intercept"`).
   - `hypothesis()` warns when a parameter with null and alternative
     components is tested on the full product-space ensemble because
     `conditional` was omitted; set `conditional = FALSE` to keep that test
