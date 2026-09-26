@@ -141,15 +141,26 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     instead of plugging the posterior mean heterogeneity into one covariance
     matrix.
   - estimate-unit LOO and WAIC of Gaussian models are deletion-conditioned
-    scores with every local Gaussian random effect integrated, so sampled,
-    marginalized, and mixed random-effect parameterizations share one
-    estimand; LOO-PIT and studentized residuals use the matching conditional
-    distribution.
+    scores, p(y_i | y_{-i}, theta), with every local Gaussian random effect
+    integrated: an estimate of a multilevel model is scored given the other
+    estimates of its cluster, where 4.0.0 conditioned on the sampled cluster
+    effects. Sampled, marginalized, and mixed random-effect
+    parameterizations share one estimand; LOO-PIT and studentized residuals
+    use the matching conditional distribution.
   - marginal-means Bayes factors follow the Savage-Dickey rules of
     BayesTools 0.3.1 (see also Fixes): a null hypothesis outside the
-    posterior draws gives a finite Bayes factor instead of `Inf`, and a
-    marginal mean structurally fixed at the null hypothesis has an `NA`
-    Bayes factor with a note among the table's warnings.
+    posterior draws gives a finite Bayes factor instead of `Inf`; a marginal
+    mean structurally fixed at the null hypothesis has an `NA` Bayes factor
+    with a note among the table's warnings (4.0.0 reported the density ratio
+    with a warning that it is likely invalid); and a prior density at the
+    null that is zero (a null outside the prior support), infinite, or
+    without an exact value stops `marginal_means()` with the BayesTools class
+    (`BayesTools_zero_ordinate`, `BayesTools_infinite_ordinate`, or
+    `BayesTools_inexact_ordinate`) instead of reporting a Bayes factor.
+  - `ranef()` of multilevel models returns the cluster-level effects with one
+    column per cluster by default (`u_cluster[<cluster>]`); 4.0.0 returned
+    one column per estimate (`u_cluster[<cluster>|<estimate>]`), which
+    `expand = TRUE` keeps.
 - labels, tables, and posterior draws:
   - `as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`,
     `as_draws_matrix()`, and `as_draws_rvars()` of fitted models return the
@@ -170,9 +181,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     summaries, stored coefficients, marginal means, plots, density
     estimates, and hypotheses whenever moderators are present;
     intercept-only models keep it.
-  - printed summaries and inference tables no longer describe the
-    selection-model configuration; the settings remain in the summary
-    objects.
 
 ### Features
 - multivariate and multilevel models with known sampling covariance:
@@ -256,11 +264,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     columns named after their SD with an `_indicator` suffix (e.g.,
     `study: tau_indicator`, and `tau_total_indicator` for the component of an
     allocation-SD prior).
-  - `ranef()` returns a flat list keyed by canonical block names and gains
-    `component`, `simplify`, and metafor-compatible `expand` (one column per
-    unique grouping-level contribution by default, `expand = TRUE` for
-    observation-aligned output); nested blocks are listed in metafor's
-    outer-to-inner order. `pooled_heterogeneity()` gains `component`.
+  - `ranef()` gains `component`, `simplify`, and metafor-compatible `expand`
+    (one column per unique grouping-level contribution by default,
+    `expand = TRUE` for observation-aligned output); for `brma.mv()`
+    random-formula models it returns a flat list keyed by canonical block
+    names, with nested blocks in metafor's outer-to-inner order.
+    `pooled_heterogeneity()` gains `component`.
   - `plot()` of random-effect quantities (with `component = "random"`)
     draws exact BayesTools prior densities: the LKJ marginal of fitted-scale
     correlations, Beta marginals of Dirichlet allocation fractions, and the
@@ -514,6 +523,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     zero-dimensional models are exact (with no bridge object, which
     `bridge_sampler()` states), and constant log-likelihood columns get
     exact uniform LOO importance ratios with zero Pareto-k.
+  - `pooled_effect()` adds prediction intervals (`PI` columns) for one new
+    true effect at the average design, with the heterogeneity of
+    `pooled_heterogeneity()`, drawn without advancing the caller's
+    random-number stream.
   - `hatvalues()`, `residuals()`, `rstandard()`, `qqnorm()`, and `vif()`
     gain `max_samples`, and `dfbetas()` and `covratio()` gain `component`
     and `parameter`.
@@ -614,9 +627,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   prediction grid, derive the matching standard error or variance, and use
   pointwise precision in the sampling intervals.
 - `pooled_heterogeneity()` is evaluated at the average expanded scale and
-  random design, and `pooled_effect()` gains the corresponding
-  prediction-interval columns; `summary_heterogeneity()` keeps the
-  within-draw RMS over the observed design.
+  random design; `summary_heterogeneity()` keeps the within-draw RMS over
+  the observed design.
 - cluster-level selection-model likelihood integrals are certified by
   successive 7-, 15-, and 31-node quadrature rules and fail explicitly when
   the requested accuracy is not established, instead of using heuristic
@@ -637,9 +649,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   current data, cluster membership, and fitted target before reuse, with
   versioned outcome fingerprints independent of R's serialization format,
   and ranked comparison tables keep the model names.
-- `pooled_effect()` prediction intervals and `regplot()` leave the caller's
-  random-number stream unchanged.
-- weight-function plots show their p-value axes correctly; diagnostic plots
+- `plot_weightfunction()` marks the observed p-values in the convention of
+  the weight function: two-sided weight functions show two-sided p-values,
+  where 4.0.0 marked one-sided p-values on their axis. Diagnostic plots
   respect their limits and clipping, and radial plots draw high-confidence
   intervals.
 - transformed posterior and marginal-means plots take `xlim` on the
