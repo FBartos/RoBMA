@@ -221,6 +221,12 @@ test_that("qCMDE factor point guards use display aliases", {
       "alloc\\[level\\] = 0",
       info = method
     )
+    # The same method refusal as for the factor terms of fitted objects.
+    expect_identical(
+      .hypothesis_plan_status(plan, method)[["class"]][[1L]],
+      "RoBMA_hypothesis_method",
+      info = method
+    )
   }
 })
 

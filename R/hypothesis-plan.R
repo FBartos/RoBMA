@@ -1802,7 +1802,7 @@
         "qCMDE/IWMDE point hypotheses for marginal-means factor parameters ",
         "must specify a level, e.g. '", plan[["label"]], "[level] = ",
         refs[["value"]][is.na(refs[["level"]])][[1L]], "'."
-      ), "statement")
+      ))
     )
   }
   plan[["targets"]] <- unlist(lapply(seq_len(nrow(refs)), function(i) {
