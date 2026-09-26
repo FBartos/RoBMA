@@ -101,7 +101,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - fits with a given `seed` give different draws than 4.0.0: BayesTools
     derives each chain's JAGS seed from `seed` through R's random-number
     generator instead of `seed + chain`, and samples two-bin cumulative
-    weight-function priors through their exact Beta marginal.
+    weight-function priors through their exact Beta marginal. Seeded fitting
+    no longer resets R's global random-number stream to a state determined
+    by `seed` (BayesTools restores the caller's `.Random.seed` and
+    `RNGkind()`); code that relied on that reset must set its own seed.
   - `predict()` has one two-axis contract for ordinary, multilevel,
     multivariate, and GLMM models: `type` selects fixed terms, latent
     effects, or observed responses, and the new `conditioning_depth` selects
