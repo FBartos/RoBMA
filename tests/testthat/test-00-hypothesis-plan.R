@@ -882,13 +882,10 @@ test_that("unresolved references have the same classes on fits and marginal mean
       info = statement
     )
   }
-  # A statement without references: on marginal means RoBMA's statement
-  # error; on the fit BayesTools' refusal (with the classes BayesTools gives
-  # it) after the statement class.
-  expect_identical(
-    class(tryCatch(hypothesis(means, "1 > 0"), error = identity)),
-    c("RoBMA_hypothesis_statement", "error", "condition")
-  )
+  # A statement without references: on the fit BayesTools' refusal (with the
+  # classes BayesTools gives it) after the statement class; on marginal
+  # means RoBMA's statement error with the same classes, also with
+  # 'parameter' and next to a statement with references.
   metadata <- .brma_parameter_catalog_metadata(fit)
   refusal  <- tryCatch(
     BayesTools::hypothesis_resolve(
@@ -900,18 +897,39 @@ test_that("unresolved references have the same classes on fits and marginal mean
     conditionMessage(refusal),
     "The hypothesis contains no parameter symbols to resolve."
   )
-  for (component in c("auto", "scale")) {
-    error <- tryCatch(
-      hypothesis(fit, "1 > 0", component = component, density_method = "KDE"),
-      error = identity
-    )
-    expect_identical(
-      class(error),
-      unique(c("RoBMA_hypothesis_statement", class(refusal))),
-      info = component
-    )
-    expect_identical(conditionMessage(error), conditionMessage(refusal),
-                     info = component)
+  no_parameters <- unique(c("RoBMA_hypothesis_statement", class(refusal)))
+  expect_identical(
+    no_parameters,
+    c("RoBMA_hypothesis_statement", "BayesTools_hypothesis_no_parameters",
+      "BayesTools_parameter_resolution_error", "error", "condition")
+  )
+  on_fit <- list(
+    auto   = tryCatch(hypothesis(fit, "1 > 0", density_method = "KDE"),
+                      error = identity),
+    scale  = tryCatch(hypothesis(fit, "1 > 0", component = "scale",
+                                 density_method = "KDE"),
+                      error = identity),
+    beside = tryCatch(hypothesis(fit, c("g[u] > 0", "1 > 0"),
+                                 density_method = "KDE"),
+                      error = identity)
+  )
+  for (name in names(on_fit)) {
+    expect_identical(class(on_fit[[name]]), no_parameters, info = name)
+    expect_identical(conditionMessage(on_fit[[name]]), conditionMessage(refusal),
+                     info = name)
+  }
+  on_means <- list(
+    plain     = tryCatch(hypothesis(means, "1 > 0"), error = identity),
+    parameter = tryCatch(hypothesis(means, "1 > 0", parameter = "g"),
+                         error = identity),
+    beside    = tryCatch(hypothesis(means, c("g[u] > 0", "1 > 0")),
+                         error = identity)
+  )
+  for (name in names(on_means)) {
+    expect_identical(class(on_means[[name]]), no_parameters, info = name)
+    expect_identical(conditionMessage(on_means[[name]]),
+                     "Hypothesis must reference a marginal-means parameter.",
+                     info = name)
   }
 })
 

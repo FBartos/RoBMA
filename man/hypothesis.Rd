@@ -62,8 +62,12 @@ several marginal-means parameters stops with an error of class
 \code{RoBMA_hypothesis_ambiguous}, with the parent class
 \code{RoBMA_hypothesis_statement}. A statement that references no
 marginal-means parameter stops with the class
-\code{RoBMA_hypothesis_statement}; for an unknown name, or an unknown level
-of a factor term, also with \code{BayesTools_parameter_not_found} and
+\code{RoBMA_hypothesis_statement}; for a statement without parameter
+symbols (for example \code{"1 > 0"}, also with \code{parameter}) also with
+\code{BayesTools_hypothesis_no_parameters} and
+\code{BayesTools_parameter_resolution_error}, and for an unknown name, or
+an unknown level of a factor term, also with
+\code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, as on fitted objects.}
 
 \item{logBF}{whether to display the Bayes factor on the log scale.}
@@ -150,10 +154,11 @@ factor levels; a selector of a coefficient that is a level, such as
 \code{"g{1}"} of a treatment factor, also has the classes of the
 BayesTools refusal \code{BayesTools_selector_unavailable}, which names the
 level), references to unknown names or factor levels, and
-statements that reference no parameter (on fitted objects followed by the
-classes of the BayesTools refusal of such a statement,
+statements that reference no parameter (followed by the classes of the
+BayesTools refusal of such a statement,
 \code{BayesTools_hypothesis_no_parameters} and
-\code{BayesTools_parameter_resolution_error}). An unknown name or
+\code{BayesTools_parameter_resolution_error}, on fitted objects and on
+marginal means). An unknown name or
 level also has the classes
 \code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, with which BayesTools

@@ -6,8 +6,12 @@
 #' \code{RoBMA_hypothesis_ambiguous}, with the parent class
 #' \code{RoBMA_hypothesis_statement}. A statement that references no
 #' marginal-means parameter stops with the class
-#' \code{RoBMA_hypothesis_statement}; for an unknown name, or an unknown level
-#' of a factor term, also with \code{BayesTools_parameter_not_found} and
+#' \code{RoBMA_hypothesis_statement}; for a statement without parameter
+#' symbols (for example \code{"1 > 0"}, also with \code{parameter}) also with
+#' \code{BayesTools_hypothesis_no_parameters} and
+#' \code{BayesTools_parameter_resolution_error}, and for an unknown name, or
+#' an unknown level of a factor term, also with
+#' \code{BayesTools_parameter_not_found} and
 #' \code{BayesTools_parameter_resolution_error}, as on fitted objects.
 #' @details Marginal-means hypotheses are specified on the fitted
 #' linear-predictor scale. Display transformations stored by
@@ -242,23 +246,29 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 .hypothesis_marginal_means_select_parameter <- function(object, hypothesis,
                                                          parameter) {
 
-  alias_catalog <- .hypothesis_marginal_means_alias_catalog(object)
-  if (!is.null(parameter)) {
-    selected <- .marginal_means_select_parameter(object, parameter)[["parameter"]]
-    aliases <- .hypothesis_marginal_means_aliases(alias_catalog, selected)
-    return(list(parameter = selected, aliases = aliases))
-  }
-
   # References that name no marginal-means parameter are statement errors
-  # ("RoBMA_hypothesis_statement"); an unknown name has the classes with which
-  # the fitted-model path refuses it (.hypothesis_not_found_class()).
+  # ("RoBMA_hypothesis_statement"), with the classes with which the
+  # fitted-model path refuses them: a statement without parameter symbols
+  # (also with 'parameter') has the classes of BayesTools' refusal
+  # "BayesTools_hypothesis_no_parameters" and its parent
+  # "BayesTools_parameter_resolution_error"; an unknown name has those of
+  # .hypothesis_not_found_class().
   roots <- .hypothesis_brma_symbol_roots(hypothesis)
   roots <- unique(roots[nzchar(roots)])
   if (length(roots) == 0L) {
     .hypothesis_stop(list(
       reason = "Hypothesis must reference a marginal-means parameter.",
-      class  = "RoBMA_hypothesis_statement"
+      class  = c("RoBMA_hypothesis_statement",
+                 "BayesTools_hypothesis_no_parameters",
+                 "BayesTools_parameter_resolution_error")
     ))
+  }
+
+  alias_catalog <- .hypothesis_marginal_means_alias_catalog(object)
+  if (!is.null(parameter)) {
+    selected <- .marginal_means_select_parameter(object, parameter)[["parameter"]]
+    aliases <- .hypothesis_marginal_means_aliases(alias_catalog, selected)
+    return(list(parameter = selected, aliases = aliases))
   }
 
   matches <- lapply(roots, function(root) {
