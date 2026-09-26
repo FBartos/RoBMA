@@ -934,14 +934,15 @@
     return(plan)
   }
   # A statement tests a level the contrast fixes (the treatment reference
-  # level) when it states a point on it directly, states points on the whole
-  # term, or references no other level; linear combinations and comparisons
-  # with other levels remain defined.
+  # level) when it states a point on it directly, references the whole term
+  # (a point or region event on every level jointly), or references no other
+  # level; linear combinations and comparisons with other levels remain
+  # defined.
   fixed_levels <- levels[["level"]][levels[["fixed"]]]
   refs         <- plan[["refs"]]
   tested       <- unique(c(
     refs[["level"]][refs[["direct"]] & !is.na(refs[["level"]])],
-    if (whole_term && plan[["point"]]) levels[["level"]],
+    if (whole_term) levels[["level"]],
     if (length(referenced) > 0L && all(referenced %in% fixed_levels)) referenced
   ))
   fixed <- intersect(tested, fixed_levels)

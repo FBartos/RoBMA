@@ -206,6 +206,34 @@ test_that("factor levels of every contrast have point tests and level contrasts"
 })
 
 
+test_that("statements on every level of a term with a fixed level are refused as fixed", {
+
+  skip_on_cran()
+  fits <- .plan_fits()
+  # A whole-term point or region event includes the treatment reference level,
+  # which the contrast fixes at 0 (its region prior mass is 0).
+  for (statement in c("g1 = 0", "g1 > 0")) {
+    expect_error(
+      suppressWarnings(hypothesis(fits[["treatment"]], statement, density_method = "KDE")),
+      "The quantity 'g1[5]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
+      fixed = TRUE,
+      class = "RoBMA_hypothesis_fixed",
+      info  = statement
+    )
+  }
+  # Comparisons with the other levels remain defined, and a term without a
+  # fixed level keeps its whole-term region test.
+  expect_s3_class(
+    suppressWarnings(hypothesis(fits[["treatment"]], "g1[10] > g1[5]", density_method = "KDE")),
+    "BayesTools_hypothesis_BF"
+  )
+  expect_s3_class(
+    suppressWarnings(hypothesis(fits[["meandif"]], "g1 > 0", density_method = "KDE", seed = 1)),
+    "BayesTools_hypothesis_BF"
+  )
+})
+
+
 test_that("mean-difference level point hypotheses follow the exact Savage-Dickey computation", {
 
   skip_on_cran()
