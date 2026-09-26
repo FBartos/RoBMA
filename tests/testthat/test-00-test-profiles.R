@@ -485,6 +485,79 @@ test_that("certification case fit filters select their source files", {
 })
 
 
+test_that("certification case verification filters select their intended files", {
+
+  # The stems testthat matches filters against. Each case verifies exactly
+  # these files: the exact deletion refits of '03-loo-exact-refits' run only
+  # in their dedicated case, and '02-predict-mv' only in the multivariate
+  # cases, although their stems extend '03-loo' and '02-predict'.
+  test_stems <- sub("^test[-_]?", "", sub("\\.[Rr]$", "", list.files(
+    testthat::test_path(),
+    pattern = "^test.*\\.[Rr]$"
+  )))
+  summaries <- c("02-summary", "02-summary_heterogeneity", "02-summary_models")
+  plots     <- c("02-plot", "02-plot-bias-mixture", "02-plot-conditional")
+  multivariate <- c(
+    "02-brma-mv-metafor", "02-brma-mv-visual-diagnostics", "02-forest",
+    "02-funnel", "02-heterogeneity-mv", "02-hypothesis", "02-influence",
+    "02-marginal_means", plots, "02-predict-mv", "02-qqnorm",
+    "02-random-parameters", "02-regplot", "02-residuals", summaries,
+    "02-vif", "03-bridgesampling", "03-loo", "03-zplot"
+  )
+  expected <- list(
+    "numerical-kernels" = c(
+      "00-covariance-factorization", "00-known-v-joint-loglik",
+      paste0("00-selection-kernel-", c("fit", "native", "plots", "step", "threads")),
+      "00-selection-probability-numerics", "02-distributions", "02-glmm-aghq"
+    ),
+    "normal-models" = c(
+      "02-dfbetas", "02-forest", "02-funnel", "02-hatvalues", "02-influence",
+      "02-iwmde-fast-paths", "02-marginal_means", plots, "02-predict",
+      "02-qqnorm", "02-radial", "02-regplot", "02-residuals", summaries,
+      "02-vif", "03-bridgesampling", "03-loo", "03-zplot"
+    ),
+    "glmm-models" = c(
+      "02-dfbetas", "02-distributions", "02-forest", "02-funnel",
+      "02-glmm-aghq", "02-hatvalues", "02-influence", "02-iwmde-fast-paths",
+      "02-iwmde-glmm-local", "02-marginal_means", "02-predict", "02-qqnorm",
+      "02-residuals", summaries, "02-vif", "03-bridgesampling", "03-loo"
+    ),
+    "multivariate-core"             = multivariate,
+    "loo-exact-refits"              = "03-loo-exact-refits",
+    "selection-recovery-marg"       = "03-selection-recovery-marg",
+    "selection-recovery-cond"       = "03-selection-recovery-cond",
+    "multivariate-extended"         = c(multivariate, "02-iwmde-api"),
+    "multivariate-singular"         = multivariate,
+    "multivariate-parity-cs"        = multivariate,
+    "multivariate-parity-nested"    = multivariate,
+    "multivariate-parity-har"       = multivariate,
+    "multivariate-parity-treatment" = multivariate,
+    "iwmde-qcmde" = c(
+      "02-hypothesis",
+      paste0("02-iwmde-", c(
+        "adaptive", "api", "bound-rows", "chen-boundary-preflight",
+        "fallbacks", "fast-paths", "glmm-local", "known-v-tau-fast-path",
+        "normal-predictor-grid", "oracles", "provenance", "scalar-baseline",
+        "selection-predictor-route", "target-weights"
+      )),
+      "02-marginal_means", "02-random-parameters", "03-bridgesampling",
+      "03-loo"
+    )
+  )
+
+  expect_identical(names(expected), certification_case_names())
+  for (name in certification_case_names()) {
+    test_filter <- certification_case(name)[["test_filter"]]
+    expect_true(all(expected[[name]] %in% test_stems), info = name)
+    expect_identical(
+      sort(test_stems[grepl(test_filter, test_stems)]),
+      sort(expected[[name]]),
+      info = name
+    )
+  }
+})
+
+
 test_that("fit-source prerequisites may use inactive cached fits", {
 
   helper_env    <- environment(skip_if_missing_fits)

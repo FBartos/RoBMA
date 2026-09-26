@@ -249,12 +249,18 @@ validate_standard_evidence <- function(results) {
 
 certification_cases <- function() {
 
-  multivariate_filter <- paste0(
+  # testthat matches a verification filter against the file stems; each
+  # filter is anchored so that it selects whole stems only: '03-loo' does not
+  # also select '03-loo-exact-refits', nor 'predict' '02-predict-mv'. File
+  # families are selected by explicit wildcards ('plot.*').
+  anchored <- function(...) paste0("^(", paste0(...), ")$")
+  multivariate_tests <- paste0(
     "02-(brma-mv.*|forest|funnel|",
     "heterogeneity-mv|hypothesis|influence|marginal_means|plot.*|",
     "predict-mv|qqnorm|random-parameters|regplot|residuals|summary.*|vif)|",
     "03-(bridgesampling|loo|zplot)"
   )
+  multivariate_filter <- anchored(multivariate_tests)
 
   list(
     "numerical-kernels" = list(
@@ -263,7 +269,7 @@ certification_cases <- function() {
         "quadrature oracles."
       ),
       fit_sources = character(),
-      test_filter = paste0(
+      test_filter = anchored(
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics)|",
         "02-(distributions|glmm-aghq)"
@@ -287,7 +293,7 @@ certification_cases <- function() {
         "test-01-RoBMA.R",
         "test-01-vif-parity.R"
       ),
-      test_filter = paste0(
+      test_filter = anchored(
         "02-(dfbetas|forest|funnel|hatvalues|influence|iwmde-fast-paths|marginal_means|",
         "plot.*|predict|qqnorm|radial|regplot|residuals|summary.*|vif)|",
         "03-(bridgesampling|loo|zplot)"
@@ -309,7 +315,7 @@ certification_cases <- function() {
         "test-01-brma.glmm.R",
         "test-01-BMA.glmm.R"
       ),
-      test_filter = paste0(
+      test_filter = anchored(
         "02-(dfbetas|distributions|forest|funnel|glmm-aghq|hatvalues|",
         "influence|iwmde-fast-paths|iwmde-glmm-local|marginal_means|predict|",
         "qqnorm|residuals|summary.*|vif)|",
@@ -351,7 +357,7 @@ certification_cases <- function() {
         "refits of Kearon US/HCS and Ishak HAR scenario models."
       ),
       fit_sources = character(),
-      test_filter = "03-loo-exact-refits",
+      test_filter = anchored("03-loo-exact-refits"),
       required_tests = .required_tests(
         "test-03-loo-exact-refits.R",
         "scenario-model PSIS LOO agrees with five exact deletion refits"
@@ -363,7 +369,7 @@ certification_cases <- function() {
         "and dense V; fixed/nested parameter recovery and a dense posterior oracle."
       ),
       fit_sources = character(),
-      test_filter = "^03-selection-recovery-marg$",
+      test_filter = anchored("03-selection-recovery-marg"),
       required_tests = .required_tests(
         "test-03-selection-recovery-marg.R",
         c(
@@ -378,7 +384,7 @@ certification_cases <- function() {
         "and dense V; fixed/nested parameter recovery and a dense posterior oracle."
       ),
       fit_sources = character(),
-      test_filter = "^03-selection-recovery-cond$",
+      test_filter = anchored("03-selection-recovery-cond"),
       required_tests = .required_tests(
         "test-03-selection-recovery-cond.R",
         c(
@@ -409,7 +415,7 @@ certification_cases <- function() {
         "brma.mv_block_mvn_mods",
         "brma.mv_block_mvn_random_mods_scale"
       ),
-      test_filter = paste(multivariate_filter, "02-iwmde-api", sep = "|"),
+      test_filter = anchored(multivariate_tests, "|02-iwmde-api"),
       required_tests = rbind(
         .required_tests(
           "test-03-loo.R",
@@ -503,7 +509,7 @@ certification_cases <- function() {
         "iwmde_known_v_tau_full",
         "iwmde_known_v_tau_null"
       ),
-      test_filter = paste0(
+      test_filter = anchored(
         "02-(hypothesis|iwmde.*|marginal_means|random-parameters)|",
         "03-(bridgesampling|loo)"
       ),
