@@ -1615,6 +1615,78 @@ test_that("brma.mv supports partial random scale with sampled random component",
 })
 
 
+test_that("brma.mv formula syntaxes end with complete lines after a marginalized component", {
+
+  # Known V, two random components, and a scale formula for one of them: the
+  # unscaled 'effect' component is marginalized, so the location formula ends
+  # with the assignment of its standard deviation, and the scale formula of
+  # 'study' follows it. BayesTools::JAGS_fit() joins the formula syntaxes of
+  # 'formula_list' in their order, so each must end with a complete line.
+  # With BayesTools 0.3.1.127 the assignment and the first loop of the scale
+  # formula were fused into one line that JAGS could not parse (the live fit
+  # is in test-01-brma.mv-partial-scale.R).
+  dat <- data.frame(
+    yi     = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05),
+    study  = rep(c("s1", "s2", "s3"), each = 2L),
+    effect = rep(c("a", "b"), 3L),
+    x      = c(0, 1, 0, 1, 0, 1)
+  )
+  V <- kronecker(diag(3L), matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L))
+
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = list(study = ~ 1 | study, effect = ~ 1 | study:effect),
+    scale                     = list(study = ~ x),
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  design <- .fitted_formula_design(object, "mu", required = TRUE)
+  compile_modes <- stats::setNames(
+    vapply(design[["random_effects"]], `[[`, character(1), "compile_mode"),
+    vapply(design[["random_effects"]], `[[`, character(1), "block_name")
+  )
+  expect_identical(
+    compile_modes[c("study", "effect")],
+    c(study = "sampled", effect = "marginalized")
+  )
+
+  formula_args <- .create_jags_formula_args(
+    data   = object[["data"]],
+    priors = object[["priors"]]
+  )
+  expect_identical(names(formula_args[["formula_list"]]), c("mu", "log_tau_study"))
+  syntaxes <- vapply(names(formula_args[["formula_list"]]), function(parameter) {
+    BayesTools::JAGS_formula(
+      formula                = formula_args[["formula_list"]][[parameter]],
+      parameter              = parameter,
+      data                   = formula_args[["formula_data_list"]][[parameter]],
+      prior_list             = formula_args[["formula_prior_list"]][[parameter]],
+      formula_scale          = formula_args[["formula_scale_list"]][[parameter]],
+      prior_random           = formula_args[["formula_random_prior_list"]][[parameter]],
+      random_effects_compile = formula_args[["formula_random_effects_compile_list"]][[parameter]]
+    )[["formula_syntax"]]
+  }, character(1))
+  for (parameter in names(syntaxes)) {
+    expect_match(syntaxes[[parameter]], "\n$", info = parameter)
+  }
+
+  # Every line of the joined formula syntaxes is one statement, a loop head,
+  # or a closing brace.
+  lines <- strsplit(paste0(syntaxes, collapse = ""), "\n", fixed = TRUE)[[1L]]
+  lines <- trimws(lines[nzchar(trimws(lines))])
+  complete <- grepl("^for\\([^{}]*\\)\\{$", lines) | lines == "}" |
+    grepl("^[^{}=~<]+(=|<-|~)[^{}]+$", lines)
+  expect_true(all(complete), info = paste(lines[!complete], collapse = "\n"))
+  sd_line <- which(lines == "mu__xREx__effect_xRE_STDx[1] = mu__xREx__effect_intercept")
+  expect_length(sd_line, 1L)
+  expect_identical(lines[sd_line + 1L], "for(i in 1:N_log_tau_study){")
+})
+
+
 test_that("brma.mv marginalized random scale applies allocation weights", {
 
   dat <- data.frame(
