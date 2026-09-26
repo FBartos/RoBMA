@@ -582,9 +582,10 @@
 # The posterior coordinates the known-V row SD values functions read, by
 # source: the sampled coefficients of the scale formulas, which each values
 # function evaluates (structural coefficients are evaluated from their point
-# priors). For an object without a fit (a prior-only object evaluated on
-# supplied draws) these are the coefficients of its scale designs whose
-# priors are not point priors.
+# priors), as the draws name them (a factor term's coefficients are the
+# coordinates '<coefficient>[k]', not its monitored node). For an object
+# without a fit (a prior-only object evaluated on supplied draws) these are
+# the coefficients of its scale designs whose priors are not point priors.
 .predict_known_v_tau_source_inputs <- function(object, data) {
 
   scale_parameters <- unique(vapply(
@@ -595,7 +596,7 @@
   ))
   if (!is.null(object[["fit"]])) {
     coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
-    inputs <- coordinates[["monitor_name"]][
+    inputs <- coordinates[["coordinate_name"]][
       coordinates[["formula_parameter"]] %in% scale_parameters &
         coordinates[["role"]] == "fixed_coefficient" &
         coordinates[["monitor_status"]] == "sampled"
