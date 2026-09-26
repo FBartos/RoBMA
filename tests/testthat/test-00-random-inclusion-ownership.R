@@ -86,3 +86,27 @@ test_that("variance proportions require a possible positive parent allocation", 
   expect_identical(state[["point_zero"]], c(FALSE, FALSE, TRUE, FALSE))
   expect_identical(state[["continuous"]], c(FALSE, FALSE, FALSE, TRUE))
 })
+
+
+test_that("conditional random-effect plots refuse qCMDE/IWMDE with the density-method classes", {
+
+  # A known-V stand-in passes the qCMDE/IWMDE capability check of the model;
+  # its conditional random-effect plots are KDE-only.
+  object <- shared_gate_random_object()
+  attr(object[["data"]], "known_V") <- TRUE
+  attr(object[["data"]], "measure") <- "GEN"
+  expect_true(.iwmde_capability(
+    object = object, density_method = "IWMDE"
+  )[["available"]])
+  for (method in c("qCMDE", "IWMDE")) {
+    for (class in c("RoBMA_density_method_conditional_random",
+                    "RoBMA_density_method_unavailable")) {
+      expect_error(
+        plot(object, "study: tau", component = "random", conditional = TRUE,
+             density_method = method, plot_type = "ggplot"),
+        class = class,
+        info  = method
+      )
+    }
+  }
+})

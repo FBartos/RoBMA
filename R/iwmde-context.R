@@ -145,14 +145,18 @@
 }
 
 
-# A qCMDE/IWMDE capability refusal: its reason and the classes of the
-# condition it stops with (.iwmde_stop_unavailable()). The class
+# A qCMDE/IWMDE refusal: its reason and the classes of the condition it
+# stops with (.iwmde_stop_unavailable()). The class
 # "RoBMA_density_method_<type>" names the cause and the parent class
 # "RoBMA_density_method_unavailable" (.iwmde_unavailable_class()) the
-# family: "random_unknown_v" (brma.mv() random-formula models without known
-# V), "scale_components" (component-specific scale formulas), and "glmm"
-# (IWMDE for binomial and Poisson GLMMs). hypothesis() refuses the same
-# causes with its own classes followed by these classes.
+# family. The capability refusals of the fitted model are
+# "random_unknown_v" (brma.mv() random-formula models without known V),
+# "scale_components" (component-specific scale formulas), and "glmm" (IWMDE
+# for binomial and Poisson GLMMs); hypothesis() refuses these causes with
+# its own classes followed by these classes. plot() also refuses
+# "conditional_random" (conditional random-effect plots) and
+# "original_scale" (an original-scale factor cell that is no linear
+# combination of its fitted coordinates).
 .iwmde_unavailable <- function(reason, type) {
 
   list(

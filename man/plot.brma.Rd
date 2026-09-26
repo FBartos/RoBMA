@@ -194,7 +194,12 @@ before any density is estimated with an error of class
 \code{RoBMA_density_method_random_unknown_v} (\code{brma.mv()} random-formula models
 without known \code{V}), \code{RoBMA_density_method_scale_components}
 (component-specific scale formulas), or \code{RoBMA_density_method_glmm} (IWMDE
-for binomial and Poisson GLMMs).
+for binomial and Poisson GLMMs). Requests that are unavailable for the
+plotted quantity stop with the same parent class and
+\code{RoBMA_density_method_conditional_random} (conditional random-effect plots,
+which are KDE-only) or \code{RoBMA_density_method_original_scale} (a factor
+cell whose original-scale value is not a linear combination of its fitted
+coefficients; use \code{standardized_coefficients = TRUE}).
 
 A returned qCMDE/IWMDE estimate that fails the density availability
 checks raises a \code{RoBMA_density_plot_error} identifying the plotted parameter.

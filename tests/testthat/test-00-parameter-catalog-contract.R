@@ -454,4 +454,34 @@ test_that("indexed factor plots retain semantic cells without cached fits", {
     expect_identical(rendered$parameter, fixture$factor_name)
     expect_s3_class(rendered$samples[[fixture$factor_name]], "mixed_posteriors.factor")
   }
+
+  # On the original scale, qCMDE/IWMDE evaluate a factor cell as a linear
+  # combination of its fitted coordinates. When the fitted coefficient
+  # transform maps them nonlinearly (an exp output or a log source), the
+  # cell needs 'standardized_coefficients = TRUE'.
+  object <- make_object("treatment", letters[1:3])$object
+  real_transform <- BayesTools::JAGS_formula_coefficient_transform
+  nonlinear <- c(output_transforms = "exp", source_transforms = "log")
+  for (field in names(nonlinear)) {
+    testthat::with_mocked_bindings(
+      JAGS_formula_coefficient_transform = function(...) {
+        transform <- real_transform(...)
+        cells     <- grepl("group", names(transform[[field]]), fixed = TRUE)
+        transform[[field]][cells] <- nonlinear[[field]]
+        transform
+      },
+      .package = "BayesTools",
+      code = for (method in c("qCMDE", "IWMDE")) {
+        for (class in c("RoBMA_density_method_original_scale",
+                        "RoBMA_density_method_unavailable")) {
+          expect_error(
+            plot(object, "group[b]", component = "mods",
+                 density_method = method, plot_type = "ggplot"),
+            class = class,
+            info  = paste(field, method)
+          )
+        }
+      }
+    )
+  }
 })

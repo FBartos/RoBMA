@@ -144,7 +144,12 @@
 #' `RoBMA_density_method_random_unknown_v` (`brma.mv()` random-formula models
 #' without known `V`), `RoBMA_density_method_scale_components`
 #' (component-specific scale formulas), or `RoBMA_density_method_glmm` (IWMDE
-#' for binomial and Poisson GLMMs).
+#' for binomial and Poisson GLMMs). Requests that are unavailable for the
+#' plotted quantity stop with the same parent class and
+#' `RoBMA_density_method_conditional_random` (conditional random-effect plots,
+#' which are KDE-only) or `RoBMA_density_method_original_scale` (a factor
+#' cell whose original-scale value is not a linear combination of its fitted
+#' coefficients; use `standardized_coefficients = TRUE`).
 #'
 #' A returned qCMDE/IWMDE estimate that fails the density availability
 #' checks raises a `RoBMA_density_plot_error` identifying the plotted parameter.
@@ -322,8 +327,10 @@ lines.brma <- function(
     }
   } else if (is_random) {
     if (conditional && .density_method_uses_precomputed(density_method)) {
-      stop("Conditional random-effect plots support 'density_method = \"KDE\"' only.",
-           call. = FALSE)
+      .iwmde_stop_unavailable(.iwmde_unavailable(
+        reason = "Conditional random-effect plots support 'density_method = \"KDE\"' only.",
+        type   = "conditional_random"
+      ))
     }
     sample_parameter <- parameter
     samples <- .brma_random_parameter_mixed_posterior(
@@ -1204,21 +1211,25 @@ lines.brma <- function(
   class(value) <- unique(c(class(value), "marginal_posterior"))
   structural <- !length(weights)
   if (precomputed && !standardized_coefficients && !structural) {
+    # qCMDE/IWMDE evaluate the original-scale cell as a linear combination
+    # of fitted coordinates on their own scale.
+    original_scale <- .iwmde_unavailable(
+      reason = "qCMDE/IWMDE for this factor cell requires 'standardized_coefficients = TRUE'.",
+      type   = "original_scale"
+    )
     transform <- BayesTools::JAGS_formula_coefficient_transform(
       object[["fit"]], entry[["formula_parameter"]], target_scale = "original"
     )
     targets <- match(names(weights), transform[["target_names"]])
     if (anyNA(targets) ||
         any(transform[["output_transforms"]][names(weights)] != "identity")) {
-      stop("qCMDE/IWMDE for this factor cell requires 'standardized_coefficients = TRUE'.",
-        call. = FALSE)
+      .iwmde_stop_unavailable(original_scale)
     }
     matrix <- transform[["matrix"]][targets, , drop = FALSE]
     weights <- stats::setNames(as.numeric(crossprod(weights, matrix)), colnames(matrix))
     weights <- .iwmde_linear_weights(weights)
     if (any(transform[["source_transforms"]][names(weights)] != "identity")) {
-      stop("qCMDE/IWMDE for this factor cell requires 'standardized_coefficients = TRUE'.",
-        call. = FALSE)
+      .iwmde_stop_unavailable(original_scale)
     }
   }
   samples <- stats::setNames(list(value), entry[["parameter"]])
