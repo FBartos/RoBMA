@@ -640,23 +640,17 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
   expect_true(all(c("point_test", "direction_test", "contrast_test", "reason") %in%
                     names(quantities)))
   # The levels of the model-averaged mean-difference factor have a point
-  # mass at 0 (the null component), and BayesTools does not classify their
-  # continuous prior ordinates exactly; their unconditional contrasts have
-  # an atom at 0. The other quantities keep every point-test method.
+  # mass at 0 (the null component) and, away from 0, the exact ordinate of
+  # the mixture of their factor priors, so they have point tests with every
+  # method; their unconditional contrasts have an atom at 0.
   factor_rows <- quantities[["term"]] == "Preregistered"
   expect_equal(
-    unique(quantities[["point_test_methods"]][!factor_rows]),
+    unique(quantities[["point_test_methods"]]),
     "KDE, qCMDE, IWMDE"
   )
-  expect_false(any(quantities[["point_test"]][factor_rows]))
+  expect_true(all(quantities[["point_test"]][factor_rows]))
   expect_false(any(quantities[["contrast_test"]][factor_rows]))
   expect_true(all(quantities[["direction_test"]][factor_rows]))
-  expect_identical(unique(quantities[["point_test_methods"]][factor_rows]), "")
-  expect_true(all(grepl(
-    "no exact structural classification",
-    quantities[["reason"]][factor_rows],
-    fixed = TRUE
-  )))
   expect_true(all(grepl(
     "test the combination within the models that include the term with conditional = TRUE",
     quantities[["reason"]][factor_rows],
@@ -689,16 +683,55 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       class = "BayesTools_point_mass_at_null",
       info  = parameter
     )
-    expect_error(
-      suppressWarnings(hypothesis(
-        fit,
-        paste0(parameter, "[Pre-Registered] = 0.1"),
-        density_method = "KDE",
-        n_samples      = 1000
-      )),
-      class = "BayesTools_inexact_ordinate",
-      info  = parameter
+  }
+  # Away from 0, the level's prior ordinate is that of the mixture of its
+  # factor priors: the level [Pre-Registered] is the mean-difference
+  # coordinate itself (its contrast row is 1), so its ordinate is
+  # (1/2) * dnorm(x, 0, sd) with the alternative's sd. The KDE posterior
+  # ordinate is the continuous mass (the nonzero draws of the models with the
+  # term) times the Gaussian kernel sum of those draws.
+  mcmc <- as.matrix(fit[["fit"]][["mcmc"]])
+  for (case in list(
+    list(parameter = "mu_Preregistered", component = "mods", value = -0.1),
+    list(parameter = "log_tau_Preregistered", component = "scale", value = -0.5)
+  )) {
+    prior <- fit[["priors"]][[case[["component"]]]][["Preregistered"]]
+    expect_identical(attr(prior, "components"), c("null", "alternative"))
+    expect_identical(prior[[2L]][["distribution"]], "mnormal")
+    expect_equal(attr(prior, "prior_weights"), c(1, 1))
+    expect_equal(BayesTools::contr.meandif(2)[2L, 1L], 1)
+    draws     <- unname(mcmc[, case[["parameter"]]])
+    included  <- draws[draws != 0]
+    reference <- list(
+      prior     = 0.5 * stats::dnorm(case[["value"]], 0, prior[[2L]][["parameters"]][["sd"]]),
+      posterior = length(included) / length(draws) * mean(stats::dnorm(
+        case[["value"]], included, stats::bw.nrd0(included)
+      ))
     )
+    statement <- paste0(case[["parameter"]], "[Pre-Registered] = ", case[["value"]])
+    kde <- suppressWarnings(hypothesis(
+      fit,
+      statement,
+      density_method = "KDE",
+      n_samples      = 1000,
+      columns        = "all"
+    ))
+    expect_equal(as.numeric(kde[["prior"]]), reference[["prior"]], tolerance = 1e-10,
+                 info = statement)
+    expect_equal(as.numeric(kde[["posterior"]]), reference[["posterior"]], tolerance = 1e-12,
+                 info = statement)
+    expect_equal(attr(kde, "raw_BF"), reference[["prior"]] / reference[["posterior"]],
+                 tolerance = 1e-10, info = statement)
+    qcmde <- suppressWarnings(hypothesis(
+      fit,
+      statement,
+      density_method  = "qCMDE",
+      density_control = list(n_points = 20, samples = 50),
+      columns         = "all"
+    ))
+    expect_equal(as.numeric(qcmde[["prior"]]), reference[["prior"]], tolerance = 1e-10,
+                 info = statement)
+    expect_true(is.finite(attr(qcmde, "raw_BF")), info = statement)
   }
   # Within the models that include the term, the level contrast is defined.
   contrast <- suppressWarnings(hypothesis(

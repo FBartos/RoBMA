@@ -166,15 +166,19 @@
 - enables point hypotheses on factor levels of every contrast: levels of
   mean-difference, orthonormal, and ordered factors are linear targets of the
   fitted coefficients with their exact BayesTools prior densities, as
-  treatment and independent levels are. Level contrasts and other linear
-  combinations of the levels of one term (`g[a] = g[b]`, `2 * g[a] = 0.1`) are
-  evaluated as one linear target, including in model-averaged objects with
-  `conditional = TRUE` (the unconditional combination has an atom at 0 and is
-  refused with its class). Ordered levels whose Dirichlet share gives an
-  infinite prior ordinate at 0 (e.g. `g[b] = g[a]` for the first of several
-  increments) stop with `BayesTools_infinite_ordinate` instead of an adaptive
-  non-convergence or a finite grid value, and `g[hi] = 0` and
-  `g[hi] = g[lo]` of a two-level ordered factor give the same Bayes factor.
+  treatment and independent levels are. In model-averaged objects (RoBMA and
+  BMA ensembles) a level off its null atom has the exact ordinate of the
+  mixture of its factor priors, also when its contrast row has one nonzero
+  coefficient (e.g. a two-level mean-difference factor). Level contrasts and
+  other linear combinations of the levels of one term (`g[a] = g[b]`,
+  `2 * g[a] = 0.1`) are evaluated as one linear target, including in
+  model-averaged objects with `conditional = TRUE` (the unconditional
+  combination has an atom at 0 and is refused with its class). Ordered levels
+  whose Dirichlet share gives an infinite prior ordinate at 0 (e.g.
+  `g[b] = g[a]` for the first of several increments) stop with
+  `BayesTools_infinite_ordinate` instead of an adaptive non-convergence or a
+  finite grid value, and `g[hi] = 0` and `g[hi] = g[lo]` of a two-level
+  ordered factor give the same Bayes factor.
 - reports in `hypothesis_quantities()` the plans of `<q> = <null>`,
   `<q> > <null>`, and, for factor terms, `<level> = <other level>`: the new
   columns `contrast_test` and `contrast_test_methods` list the level

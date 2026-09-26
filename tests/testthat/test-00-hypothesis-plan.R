@@ -487,3 +487,60 @@ test_that("level contrasts of model-averaged factors condition on the included t
   level <- suppressWarnings(hypothesis(fit, "g1[10] = 0.1", density_method = "KDE"))
   expect_true(is.finite(attr(level, "raw_BF")))
 })
+
+
+test_that("levels of model-averaged mean-difference factors have exact point tests", {
+
+  skip_on_cran()
+  fits <- .plan_fits()
+  # The prior of 'g1' mixes a null spike and mNormal(0, sd) with equal
+  # weights. A mean-difference level is its contrast row times the
+  # coordinates; the rows of contr.meandif(3) have unit norm, so every level
+  # has the continuous prior ordinate (1/2) * dnorm(x, 0, sd) off its atom at
+  # 0. The level '5' is a single coordinate (row (0, 1)), '10' and '20'
+  # combine both. The KDE posterior ordinate is the continuous mass (the
+  # nonzero level draws, from the models with the term) times the Gaussian
+  # kernel sum of those draws.
+  design <- BayesTools::contr.meandif(3)
+  cases  <- data.frame(level = c("5", "10", "20"), row = 1:3, value = c(-0.2, 0.05, 0.15),
+                       stringsAsFactors = FALSE)
+  for (name in c("model_averaged", "robma_mixture")) {
+    fit   <- fits[[name]]
+    prior <- fit[["priors"]][["mods"]][["g1"]]
+    expect_identical(attr(prior, "components"), c("null", "alternative"), info = name)
+    expect_equal(attr(prior, "prior_weights"), c(1, 1), info = name)
+    sd   <- prior[[2L]][["parameters"]][["sd"]]
+    mcmc <- as.matrix(fit[["fit"]][["mcmc"]])
+    quantities <- hypothesis_quantities(fit)
+    rows <- quantities[quantities[["term"]] %in% "g1", , drop = FALSE]
+    expect_true(all(rows[["point_test"]]), info = name)
+    expect_identical(unique(rows[["point_test_methods"]]), "KDE, qCMDE, IWMDE", info = name)
+    expect_false(any(rows[["contrast_test"]]), info = name)
+    for (i in seq_len(nrow(cases))) {
+      statement <- paste0("g1[", cases[["level"]][[i]], "] = ", cases[["value"]][[i]])
+      info      <- paste(name, statement)
+      draws    <- as.numeric(mcmc[, c("mu_g1[1]", "mu_g1[2]")] %*% design[cases[["row"]][[i]], ])
+      included <- draws[draws != 0]
+      prior_ordinate <- 0.5 * stats::dnorm(cases[["value"]][[i]], 0,
+                                           sd * sqrt(sum(design[cases[["row"]][[i]], ]^2)))
+      posterior_ordinate <- length(included) / length(draws) * mean(stats::dnorm(
+        cases[["value"]][[i]], included, stats::bw.nrd0(included)
+      ))
+      kde <- suppressWarnings(hypothesis(fit, statement, density_method = "KDE",
+                                         columns = "all"))
+      expect_equal(as.numeric(kde[["prior"]]), prior_ordinate, tolerance = 1e-10, info = info)
+      expect_equal(as.numeric(kde[["posterior"]]), posterior_ordinate, tolerance = 1e-10,
+                   info = info)
+      expect_equal(attr(kde, "raw_BF"), prior_ordinate / posterior_ordinate,
+                   tolerance = 1e-10, info = info)
+    }
+    # qCMDE uses the same exact prior ordinate for the single-coordinate level.
+    qcmde <- suppressWarnings(hypothesis(
+      fit, "g1[5] = -0.2", density_method = "qCMDE", columns = "all", seed = 1,
+      density_control = list(n_points = 20, samples = 50)
+    ))
+    expect_equal(as.numeric(qcmde[["prior"]]), 0.5 * stats::dnorm(-0.2, 0, sd),
+                 tolerance = 1e-10, info = name)
+    expect_true(is.finite(attr(qcmde, "raw_BF")), info = name)
+  }
+})
