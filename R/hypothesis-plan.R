@@ -1266,11 +1266,7 @@
         "the models that include the term with conditional = TRUE."
       )
     }
-    plan[["refusal"]] <- if (inherits(target, "RoBMA_hypothesis_statement")) {
-      .hypothesis_refusal(reason, "statement")
-    } else {
-      .hypothesis_refusal_from_condition(target, reason)
-    }
+    plan[["refusal"]] <- .hypothesis_refusal_from_condition(target, reason)
     plan[["group"]] <- paste("combination", plan[["parameter"]], sep = "\r")
     return(plan)
   }
@@ -1915,11 +1911,19 @@
 # The condition with which BayesTools::hypothesis_linear_target() refuses a
 # statement: its unclassed errors refuse the form of the statement (e.g. a
 # nonlinear expression of the levels), which is restated
-# ("RoBMA_hypothesis_statement"); classed BayesTools conditions (linear
-# targets BayesTools cannot certify, "BayesTools_linear_target_unavailable",
-# or refusals of the fitted metadata) keep their classes.
+# ("RoBMA_hypothesis_statement"); an unknown level (a BayesTools resolution
+# error such as "BayesTools_parameter_not_found") is a statement error with
+# BayesTools' classes, as at the other entry points
+# (.hypothesis_not_found_class()); other classed BayesTools conditions
+# (linear targets BayesTools cannot certify,
+# "BayesTools_linear_target_unavailable", or refusals of the fitted
+# metadata) keep their classes.
 .hypothesis_linear_target_condition <- function(condition) {
 
+  if (inherits(condition, "BayesTools_parameter_resolution_error")) {
+    class(condition) <- unique(c("RoBMA_hypothesis_statement", class(condition)))
+    return(condition)
+  }
   if (any(startsWith(class(condition), "BayesTools_"))) {
     return(condition)
   }
@@ -1944,11 +1948,7 @@
     error = .hypothesis_linear_target_condition
   )
   if (inherits(target, "condition")) {
-    plan[["refusal"]] <- if (inherits(target, "RoBMA_hypothesis_statement")) {
-      .hypothesis_refusal(conditionMessage(target), "statement")
-    } else {
-      .hypothesis_refusal_from_condition(target)
-    }
+    plan[["refusal"]] <- .hypothesis_refusal_from_condition(target)
     return(plan)
   }
   weights <- .iwmde_linear_weights(target[["weights"]])

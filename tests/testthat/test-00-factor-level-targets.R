@@ -527,20 +527,31 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
 test_that("linear-target refusals of BayesTools keep their classes", {
 
   skip_on_cran()
-  fit <- .factor_level_target_fits()[["meandif"]]
+  fit   <- .factor_level_target_fits()[["meandif"]]
+  means <- suppressWarnings(marginal_means(fit, density_method = "KDE"))
   # An unclassed refusal of the statement's form is a statement to restate;
   # a classed BayesTools condition (here stale draw metadata) keeps its
-  # classes instead of being taken for a statement error.
+  # classes instead of being taken for a statement error. An unknown level
+  # (BayesTools' resolution error) is a statement error with BayesTools'
+  # classes, as at the other entry points of hypothesis().
   refusals <- list(
     unclassed = simpleError("A linear target must be a linear combination."),
     classed   = structure(
       class = c("BayesTools_stale_metadata", "error", "condition"),
       list(message = "Draw metadata are stale.", call = NULL)
+    ),
+    not_found = structure(
+      class = c("BayesTools_parameter_not_found",
+                "BayesTools_parameter_resolution_error", "error", "condition"),
+      list(message = "Hypothesis references unknown level '99' for parameter 'mu_g1'.",
+           call = NULL, alias = "mu_g1[99]", available = "mu_g1[5]")
     )
   )
   expected <- list(
     unclassed = "RoBMA_hypothesis_statement",
-    classed   = "BayesTools_stale_metadata"
+    classed   = "BayesTools_stale_metadata",
+    not_found = c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+                  "BayesTools_parameter_resolution_error")
   )
   for (name in names(refusals)) {
     testthat::local_mocked_bindings(
@@ -554,6 +565,10 @@ test_that("linear-target refusals of BayesTools keep their classes", {
       plan[["refusal"]][["reason"]], conditionMessage(refusals[[name]]),
       info = name
     )
+    # The marginal-means combination route refuses with the same classes.
+    error <- tryCatch(hypothesis(means, "g1[10] = g1[20]"), error = identity)
+    expect_identical(class(error), c(expected[[name]], "error", "condition"), info = name)
+    expect_identical(conditionMessage(error), conditionMessage(refusals[[name]]), info = name)
   }
 })
 
