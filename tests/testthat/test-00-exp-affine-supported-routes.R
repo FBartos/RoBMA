@@ -59,13 +59,14 @@ test_that("atom-free averaged exp-affine posteriors are certified", {
 
 test_that("exp-affine targets are tested on their own scale with the certified prior density", {
 
-  sample  <- exp_affine_test_sample()
   density <- exp_affine_test_prior_density()
-  target  <- .hypothesis_plan_exp_affine_posterior(
-    sample        = sample,
+  # The target's marginal posterior (BayesTools::marginal_posterior() in the
+  # plan): its draws with the prior density and the exact support of the map.
+  target  <- with_draw_metadata(
+    c(.15, .25, .35),
+    class         = c("marginal_posterior.simple", "marginal_posterior"),
     prior_density = density,
-    support       = c(0, Inf),
-    parameter     = "log_tau_intercept"
+    support       = BayesTools::posterior_support_attribute(c(0, Inf))
   )
   captured <- NULL
   testthat::local_mocked_bindings(

@@ -2024,6 +2024,39 @@ test_that("certified exp-affine KDE respects its open support", {
   expect_equal(as.numeric(point[["posterior"]]), reference[["posterior"]], tolerance = 1e-12)
   expect_equal(attr(point, "raw_BF"), reference[["prior"]] / reference[["posterior"]],
                tolerance = 1e-10)
+  # The plan tests the BayesTools marginal posterior of the target: the
+  # fitted draws of the intercept with the exact support of the map, atom-free
+  # and unconditional, and the prior density of the fitted coefficient
+  # transform (JAGS_formula_prior_density() in the same prior context).
+  plan <- .hypothesis_plans(
+    fit, "log_tau_intercept = 0.2", component = "scale", n_samples = 500
+  )[[1L]]
+  posterior <- plan[["draws"]][["posterior"]]
+  expect_identical(plan[["kind"]], "exp_affine")
+  expect_s3_class(posterior, "marginal_posterior.simple")
+  expect_equal(as.numeric(posterior), reference[["draws"]], tolerance = 1e-12)
+  expect_identical(
+    BayesTools::posterior_metadata(posterior, "support")[["bounds"]],
+    c(0, Inf)
+  )
+  expect_true(BayesTools::posterior_metadata(posterior, "support")[["exact"]])
+  expect_true(BayesTools::posterior_atoms_free(posterior))
+  expect_true(BayesTools::posterior_metadata(posterior, "condition")[["averaged"]])
+  transform_density <- BayesTools::JAGS_formula_prior_density(
+    fit          = fit[["fit"]],
+    parameter    = "log_tau",
+    target       = "log_tau_intercept",
+    target_scale = "original",
+    context      = BayesTools::posterior_metadata(plan[["draws"]][["samples"]], "prior_context")
+  )
+  for (value in c(0.05, 0.2, 1, 3)) {
+    expect_equal(
+      BayesTools::prior_density_ordinate(plan[["prior_density"]], value)[["log_density"]],
+      BayesTools::prior_density_ordinate(transform_density, value)[["log_density"]],
+      tolerance = 1e-12,
+      info      = value
+    )
+  }
   # hypothesis_quantities() renders the same plan: a KDE-only point test.
   quantities <- hypothesis_quantities(fit)
   intercept  <- quantities[quantities[["parameter"]] == "log_tau_intercept" &

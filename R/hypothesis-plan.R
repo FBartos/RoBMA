@@ -753,12 +753,6 @@
   if (!is.null(plan[["refusal"]])) {
     return(plan)
   }
-  draws[["posterior"]] <- .hypothesis_plan_exp_affine_posterior(
-    sample        = draws[["samples"]][[target]],
-    prior_density = draws[["prior_density"]],
-    support       = route[["support"]],
-    parameter     = plan[["parameter"]]
-  )
 
   plan[["draws"]]         <- draws
   plan[["route_info"]]    <- route
@@ -793,8 +787,11 @@
 
 
 # The mixed posteriors of an exp(affine) target and of the parameters owning
-# the fitted coordinates its prior combines, and the target's prior density
-# on its original scale (BayesTools::JAGS_formula_prior_density()).
+# the fitted coordinates its prior combines, and the target's marginal
+# posterior on its original scale (BayesTools::marginal_posterior()): its
+# draws with the prior density of the fitted coefficient transform, the exact
+# support of the map, and the declared atoms and conditioning of the mixed
+# posterior.
 .hypothesis_plan_exp_affine_draws <- function(plan, object, route, cache) {
 
   parameter        <- plan[["parameter"]]
@@ -812,44 +809,21 @@
         transform_scaled = TRUE,
         n_prior_samples  = plan[["n_samples"]]
       )
+      posterior <- BayesTools::marginal_posterior(
+        samples       = samples,
+        parameter     = route[["target"]],
+        prior_samples = TRUE,
+        use_formula   = FALSE,
+        n_samples     = plan[["n_samples"]]
+      )
 
       list(
         samples       = samples,
-        prior_density = BayesTools::JAGS_formula_prior_density(
-          fit          = object[["fit"]],
-          parameter    = route[["formula_parameter"]],
-          target       = route[["target"]],
-          target_scale = "original",
-          context      = BayesTools::posterior_metadata(samples, "prior_context")
-        )
+        posterior     = posterior,
+        prior_density = BayesTools::posterior_metadata(posterior, "prior_density")
       )
     }
   )
-}
-
-
-# The marginal posterior of a certified exp(affine) target: its draws with
-# the target's prior density, the exact support of the map, and the declared
-# atoms and conditioning of its mixed posterior. (BayesTools builds no
-# marginal posterior of an original-scale target with log-intercept scaling
-# from the joint prior context.)
-.hypothesis_plan_exp_affine_posterior <- function(sample, prior_density,
-                                                  support, parameter) {
-
-  posterior <- structure(
-    as.numeric(sample),
-    class = c("marginal_posterior.simple", "marginal_posterior")
-  )
-  attr(posterior, "parameter") <- parameter
-  BayesTools::posterior_metadata(posterior, "prior_density") <- prior_density
-  BayesTools::posterior_metadata(posterior, "support") <-
-    BayesTools::posterior_support_attribute(as.numeric(support))
-  BayesTools::posterior_metadata(posterior, "atoms") <-
-    BayesTools::posterior_metadata(sample, "atoms")
-  BayesTools::posterior_metadata(posterior, "condition") <-
-    BayesTools::posterior_metadata(sample, "condition")
-
-  posterior
 }
 
 

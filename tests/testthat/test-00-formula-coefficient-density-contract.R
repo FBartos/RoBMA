@@ -212,29 +212,9 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
   ), class = c("prior_linear_density", "prior_density"))
 
   expect_null(.hypothesis_plan_exp_affine_certify(posterior, prior_density))
-
-  # The exp(affine) target is tested on its own scale: its marginal posterior
-  # carries the certified prior density, the exact support of the map, and
-  # the atoms and conditioning of its mixed posterior.
-  target <- .hypothesis_plan_exp_affine_posterior(
-    sample        = posterior,
-    prior_density = prior_density,
-    support       = c(0, Inf),
-    parameter     = "log_tau_intercept"
-  )
-  expect_s3_class(target, "marginal_posterior")
-  expect_equal(as.numeric(target), c(.15, .25, .35))
-  expect_identical(
-    BayesTools::posterior_metadata(target, "prior_density"),
-    prior_density
-  )
-  expect_identical(
-    BayesTools::posterior_metadata(target, "support")[["bounds"]],
-    c(0, Inf)
-  )
-  expect_true(BayesTools::posterior_metadata(target, "support")[["exact"]])
-  expect_true(BayesTools::posterior_atoms_free(target))
-  expect_true(BayesTools::posterior_metadata(target, "condition")[["averaged"]])
+  # The marginal posterior of a certified target is BayesTools'
+  # (test-02-hypothesis.R, "certified exp-affine KDE respects its open
+  # support").
 
   refusal <- function(sample, density = prior_density) {
     out <- .hypothesis_plan_exp_affine_certify(sample, density)
