@@ -584,7 +584,10 @@ test_that("catalog quantities without a RoBMA parameter are refused as targets, 
     .hypothesis_brma_select_parameter(fit, "mu_g1 > 0", "auto", metadata),
     error = identity
   )
-  expect_identical(class(error), c("RoBMA_refit_required", "error", "condition"))
+  expect_identical(
+    class(error),
+    c("RoBMA_refit_required", "BayesTools_refit_required", "error", "condition")
+  )
   expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
 })
 

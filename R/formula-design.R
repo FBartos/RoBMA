@@ -7,15 +7,34 @@
 # ============================================================================ #
 
 
+# Every RoBMA error that asks for a refit: fitted metadata that a method
+# needs are missing or unsupported (a fit of an older RoBMA/BayesTools
+# build). Its class "RoBMA_refit_required" has the parent
+# "BayesTools_refit_required", the class of every refit request of
+# BayesTools, so that callers match one class for a stale fit. The message is
+# built from '...' as stop() builds it. A source test checks that no other
+# call raises a message that asks for a refit.
+.stop_refit_required <- function(...) {
+
+  message <- paste(unlist(lapply(list(...), as.character)), collapse = "")
+  stop(structure(
+    class = c("RoBMA_refit_required", "BayesTools_refit_required", "error",
+              "condition"),
+    list(message = message, call = NULL)
+  ))
+}
+
+
 # Validate the versioned BayesTools metadata consumed by a fitted-object path.
+# BayesTools refuses a stale fit with its own refit error
+# ("BayesTools_refit_required").
 .brma_validate_fit_contract <- function(object, requires) {
 
   fit <- if (inherits(object, "BayesTools_fit")) object else object[["fit"]]
   if (is.null(fit) || !inherits(fit, "BayesTools_fit")) {
-    stop(
+    .stop_refit_required(
       "Current BayesTools fitted metadata are unavailable. Refit the model ",
-      "with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "with the current RoBMA/BayesTools build."
     )
   }
 
@@ -50,10 +69,9 @@
   )
   name_map <- BayesTools::JAGS_formula_name_map(object[["fit"]], parameter)
   if (is.null(name_map) && required) {
-    stop(
+    .stop_refit_required(
       "Fitted formula name-map metadata for parameter '", parameter,
-      "' are missing. Refit the model with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "' are missing. Refit the model with the current RoBMA/BayesTools build."
     )
   }
 
@@ -76,10 +94,9 @@
   }
 
   if (is.null(design) && required) {
-    stop(
+    .stop_refit_required(
       "Fitted formula design metadata for parameter '", parameter,
-      "' is missing. Refit the model with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "' is missing. Refit the model with the current RoBMA/BayesTools build."
     )
   }
 
@@ -502,11 +519,10 @@
     labels   <- name_map[["term"]][name_map[["kind"]] == "fixed"]
   }
   if (length(labels) != length(design[["model_terms"]])) {
-    stop(
+    .stop_refit_required(
       "Formula design metadata of '", design[["parameter"]], "' do not label ",
       "its model terms. Refit the model with the current RoBMA/BayesTools ",
-      "build.",
-      call. = FALSE
+      "build."
     )
   }
 

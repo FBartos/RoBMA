@@ -32,10 +32,9 @@
 
   lapply(label_parts, function(parts) {
     if (is.null(parts) || is.null(parts[["random"]])) {
-      stop(
+      .stop_refit_required(
         "Random-effect catalog quantities have no random-effect label parts. ",
-        "Refit the model with the current RoBMA/BayesTools build.",
-        call. = FALSE
+        "Refit the model with the current RoBMA/BayesTools build."
       )
     }
     parts[["random"]][["quantity"]] <- .brma_random_parameter_io_quantity(
@@ -1045,11 +1044,10 @@
   quantities <- selected[["entry"]][["selection"]][["quantities"]]
   if (!is.data.frame(quantities) || nrow(quantities) != 1L ||
       !"support" %in% names(quantities)) {
-    stop(
+    .stop_refit_required(
       "Random-effect quantity '", selected[["entry"]][["parameter"]],
       "' has no catalog support metadata. Refit the model with the current ",
-      "BayesTools version.",
-      call. = FALSE
+      "BayesTools version."
     )
   }
 

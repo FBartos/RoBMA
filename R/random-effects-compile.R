@@ -1024,11 +1024,10 @@
     unique(term[["sd_parameter_names"]])
   }
   if (length(nodes) == 0L || anyNA(nodes) || !all(nzchar(nodes))) {
-    stop(
+    .stop_refit_required(
       "Allocated random-effect SD nodes of block '", term[["block_name"]],
       "' are unavailable. Refit the model with the current RoBMA/BayesTools ",
-      "build.",
-      call. = FALSE
+      "build."
     )
   }
 

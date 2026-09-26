@@ -143,26 +143,6 @@
 }
 
 
-# Fitted metadata that a hypothesis needs are missing or unsupported (a fit
-# of an older RoBMA/BayesTools build): the error of class
-# "RoBMA_refit_required" (.refit_required_class()), whose message asks for
-# a refit. BayesTools refuses such fits with unclassed errors, so the class
-# has no BayesTools parent.
-.stop_refit_required <- function(...) {
-
-  stop(structure(
-    class = c(.refit_required_class(), "error", "condition"),
-    list(message = paste0(...), call = NULL)
-  ))
-}
-
-
-.refit_required_class <- function() {
-
-  "RoBMA_refit_required"
-}
-
-
 # The status of a density method in a plan: NULL when the method evaluates
 # the statement, otherwise its refusal.
 .hypothesis_plan_status <- function(plan, method) {
@@ -1199,23 +1179,12 @@
     BayesTools::posterior_metadata(sample, "linear_weights")
   )
   if (length(weights) == 0L) {
-    # Missing fitted metadata: the target refusal also requires a refit.
-    refusal <- .hypothesis_refusal(
-      paste0(
-        "The linear weights of factor level '", plan[["label"]], "[", level,
-        "]' on the fitted coefficients are unavailable. Refit the model ",
-        "with the current RoBMA/BayesTools build."
-      ),
-      "target"
+    # Fitted metadata of an older build, not a refusal of the target.
+    .stop_refit_required(
+      "The linear weights of factor level '", plan[["label"]], "[", level,
+      "]' on the fitted coefficients are unavailable. Refit the model ",
+      "with the current RoBMA/BayesTools build."
     )
-    refusal[["class"]] <- c(refusal[["class"]], .refit_required_class())
-    return(.hypothesis_plan_target(
-      value         = value,
-      label         = label,
-      level         = level,
-      prior_density = NULL,
-      refusal       = refusal
-    ))
   }
   density <- .hypothesis_plan_linear_density(
     plan    = plan,

@@ -110,8 +110,10 @@ test_that("empty resolved hypothesis quantities fail with a metadata message", {
 test_that("stale fitted metadata of hypothesis targets require a refit", {
 
   # Every hypothesis() stop on missing or unsupported fitted metadata has
-  # the one class "RoBMA_refit_required".
-  refit <- c("RoBMA_refit_required", "error", "condition")
+  # the class "RoBMA_refit_required" with its parent
+  # "BayesTools_refit_required", and no other class.
+  refit <- c("RoBMA_refit_required", "BayesTools_refit_required",
+             "error", "condition")
   selected <- list(
     parameter = "mu_x",
     component = "mods",
@@ -150,25 +152,31 @@ test_that("stale fitted metadata of hypothesis targets require a refit", {
   )
   expect_identical(class(error), refit)
   expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
-  # A factor level without fitted linear weights: the plan's target refusal
-  # also has the class.
+  # A factor level without fitted linear weights is stale fitted metadata,
+  # not a target refusal of a current fit.
   testthat::local_mocked_bindings(
     .iwmde_linear_weights = function(...) numeric(),
     .package = "RoBMA"
   )
-  target <- .hypothesis_plan_level_target(
-    plan   = list(draws = list(posterior = list(a = NULL)), label = "g"),
-    object = NULL,
-    level  = "a",
-    value  = 0,
-    label  = "g[a]"
+  error <- tryCatch(
+    .hypothesis_plan_level_target(
+      plan   = list(draws = list(posterior = list(a = NULL)), label = "g"),
+      object = NULL,
+      level  = "a",
+      value  = 0,
+      label  = "g[a]"
+    ),
+    error = identity
   )
+  expect_identical(class(error), refit)
   expect_identical(
-    target[["refusal"]][["class"]],
-    c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
-      "RoBMA_refit_required")
+    conditionMessage(error),
+    paste0(
+      "The linear weights of factor level 'g[a]' on the fitted coefficients ",
+      "are unavailable. Refit the model with the current RoBMA/BayesTools ",
+      "build."
+    )
   )
-  expect_match(target[["refusal"]][["reason"]], "Refit the model", fixed = TRUE)
 })
 
 test_that("BayesTools refusals are matched by their condition class", {

@@ -640,10 +640,9 @@ print.brma <- function(x, ...) {
   rows       <- match(rownames(estimates), quantities[["row"]])
   parts      <- quantities[["label_parts"]][rows]
   if (anyNA(rows) || any(vapply(parts, is.null, logical(1)))) {
-    stop(
+    .stop_refit_required(
       "Scale summary rows have no catalog label parts. Refit the model with ",
-      "the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "the current RoBMA/BayesTools build."
     )
   }
   scale_names <- .summary_scale_display_names(object)

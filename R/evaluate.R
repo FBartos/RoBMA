@@ -37,10 +37,11 @@
     return(posterior_samples)
   }
   # the formula designs of an object without a fit (.object_formula_fit())
-  # hold no draws
+  # hold no draws; such an object (e.g. fitted with 'only_priors = TRUE') is
+  # no stale fit, so this is no refit request
   if (is.null(fit) || inherits(fit, "brma_formula_designs")) {
     stop(
-      "Posterior samples are required for this operation; refit the model ",
+      "Posterior samples are required for this operation; fit the model ",
       "or supply '.posterior_samples'.",
       call. = FALSE
     )

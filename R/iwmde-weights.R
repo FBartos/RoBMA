@@ -803,10 +803,9 @@
     }
     expected <- paste0(parameter, "[", seq_along(alpha), "]")
     if (!all(expected %in% sample_columns)) {
-      stop(
+      .stop_refit_required(
         "Simplex conditioning coordinates are missing for '", parameter,
-        "'. Refit the model with the current RoBMA/BayesTools build.",
-        call. = FALSE
+        "'. Refit the model with the current RoBMA/BayesTools build."
       )
     }
 

@@ -347,10 +347,9 @@
         hypothesis  = FALSE
       )
     }
-    stop(
+    .stop_refit_required(
       "Resolved parameter metadata are unavailable. Refit the model with the ",
-      "current RoBMA/BayesTools build.",
-      call. = FALSE
+      "current RoBMA/BayesTools build."
     )
   }
   out <- as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE])
@@ -742,12 +741,11 @@
           !.brma_catalog_contrast_coefficient(quantities)
       )
       if (length(coordinate_rows) == 0L) {
-        stop(
+        .stop_refit_required(
           "Fitted coefficient metadata for formula parameter '",
           formula_parameter, "' and term '", term,
           "' are incomplete. Refit the model with the current ",
-          "RoBMA/BayesTools build.",
-          call. = FALSE
+          "RoBMA/BayesTools build."
         )
       }
       if (length(coordinate_rows) == 1L) {
@@ -815,11 +813,10 @@
       public & quantities[["canonical_name"]] == parameter
     )
     if (length(quantity_rows) > 1L) {
-      stop(
+      .stop_refit_required(
         "Fitted publication-bias metadata for '", parameter,
         "' are ambiguous. Refit the model with the current ",
-        "RoBMA/BayesTools build.",
-        call. = FALSE
+        "RoBMA/BayesTools build."
       )
     }
     if (length(quantity_rows) == 1L) {
@@ -915,10 +912,9 @@
   fitted_scale  <- unique(coordinates[["fitted_scale"]])
   display_scale <- unique(coordinates[["display_scale"]])
   if (length(fitted_scale) != 1L || length(display_scale) != 1L) {
-    stop(
+    .stop_refit_required(
       "Grouped formula coefficient coordinates have inconsistent scale ",
-      "metadata. Refit the model with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "metadata. Refit the model with the current RoBMA/BayesTools build."
     )
   }
   dependencies <- unique(unlist(lapply(
@@ -927,10 +923,9 @@
   ), use.names = FALSE))
   if (!is.character(dependencies) || length(dependencies) == 0L ||
       anyNA(dependencies) || any(!nzchar(dependencies))) {
-    stop(
+    .stop_refit_required(
       "Grouped formula coefficient cells have invalid BayesTools extraction ",
-      "metadata. Refit the model with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "metadata. Refit the model with the current RoBMA/BayesTools build."
     )
   }
 

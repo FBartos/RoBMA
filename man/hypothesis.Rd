@@ -160,7 +160,9 @@ fields \code{alias} and \code{available}). Missing or unsupported fitted
 metadata of the tested target (a parameter catalog without RoBMA
 parameters, the coefficient transform, the fitted coordinates, or the
 linear weights of a factor level; a fit of an older RoBMA/BayesTools build)
-stop with the class \code{RoBMA_refit_required}: refit the model.}
+stop with the class \code{RoBMA_refit_required}: refit the model. Its parent
+\code{BayesTools_refit_required} is the class of every error of RoBMA and
+BayesTools that asks for a refit.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
