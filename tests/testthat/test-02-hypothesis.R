@@ -922,6 +922,48 @@ test_that("hypothesis does not advertise or test publication-bias parameters", {
 })
 
 
+test_that("catalog quantities without a RoBMA parameter are target refusals on cached fits", {
+
+  skip_on_cran()
+  skip_if_missing_fits(c("RoBMA.mv_marg_product_space", "konstantopoulos2011_3lvl"))
+
+  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+              "error", "condition")
+  unavailable <- function(name) {
+    paste0(
+      "Hypothesis tests are unavailable for '", name, "'. Use ",
+      "hypothesis_quantities() to list the quantities that hypothesis() tests."
+    )
+  }
+  bias <- "Hypothesis tests for publication-bias parameters are not supported."
+  # Refitting cannot help: these quantities of current fits have no RoBMA
+  # parameter. Publication-bias quantities have the publication-bias refusal.
+  cases <- list(
+    list(fit = "RoBMA.mv_marg_product_space", statement = "`omega[0,0.025]` = 0.5",
+         message = bias),
+    list(fit = "RoBMA.mv_marg_product_space", statement = "bias_indicator > 0.5",
+         message = bias),
+    list(fit = "RoBMA.mv_marg_product_space", statement = "mu_x_indicator > 0.5",
+         message = unavailable("mu_x_indicator")),
+    list(fit = "RoBMA.mv_marg_product_space", statement = "`inclusion(study)` > 0.5",
+         message = unavailable("inclusion(study)")),
+    list(fit = "konstantopoulos2011_3lvl", statement = "gamma[1] > 0",
+         message = unavailable("gamma[1]"))
+  )
+  for (case in cases) {
+    fit   <- load_fit(case[["fit"]])
+    error <- tryCatch(
+      hypothesis(fit, case[["statement"]], density_method = "KDE",
+                 n_samples = 1000),
+      error = identity
+    )
+    info <- paste(case[["fit"]], case[["statement"]])
+    expect_identical(class(error), target, info = info)
+    expect_identical(conditionMessage(error), case[["message"]], info = info)
+  }
+})
+
+
 test_that("hypothesis default output is compact and attaches table warnings", {
 
   prior     <- data.frame(theta = c(-2, -1, 0, 1))

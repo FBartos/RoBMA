@@ -144,10 +144,10 @@ marginal-means parameter; an unknown name there also has the classes
 \code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, with which BayesTools
 refuses an unknown name on fitted objects. Missing or unsupported fitted
-metadata of the tested target (the resolved references, the coefficient
-transform, the fitted coordinates, or the linear weights of a factor level;
-a fit of an older RoBMA/BayesTools build) stop with the class
-\code{RoBMA_refit_required}: refit the model.}
+metadata of the tested target (a parameter catalog without RoBMA
+parameters, the coefficient transform, the fitted coordinates, or the
+linear weights of a factor level; a fit of an older RoBMA/BayesTools build)
+stop with the class \code{RoBMA_refit_required}: refit the model.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
@@ -249,7 +249,14 @@ Component Inclusion table compares the exclusion and inclusion of gated
 components. Point nulls at an exact support boundary (for example, a
 variance proportion at 0) use the one-sided prior ordinate when BayesTools
 classifies it as exact, finite, and positive. Publication-bias parameters
-are not supported (class \code{RoBMA_hypothesis_target}).}
+are not supported (class \code{RoBMA_hypothesis_target}), including the
+quantities of the publication-bias prior such as the weight-function
+coordinates \code{"omega[0,0.025]"} and \code{"bias_indicator"}. Other
+quantities of the fitted model that are no tested model parameter, such as
+inclusion indicators (\code{"mu_x_indicator"}), the component inclusions
+of variance allocations (\code{"inclusion(study)"}), or latent cluster
+effects, are refused with the class \code{RoBMA_hypothesis_target} as
+well; \code{\link[=hypothesis_quantities]{hypothesis_quantities()}} lists the tested quantities.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}

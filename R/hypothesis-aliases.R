@@ -62,7 +62,18 @@
       stop(error)
     }
   )
+  # A parameter catalog without RoBMA entries is metadata of an older build.
+  if (NROW(metadata[["entries"]]) == 0L) {
+    .stop_refit_required(
+      "Resolved hypothesis metadata are unavailable. Refit the model with ",
+      "the current RoBMA/BayesTools build."
+    )
+  }
   quantity_ids <- unique(resolved[["occurrences"]][["quantity_id"]])
+  if (length(quantity_ids) == 0L) {
+    stop("Internal error: the hypothesis resolved to no catalog quantities.",
+         call. = FALSE)
+  }
   entries <- .brma_parameter_catalog_entries_for_quantities(
     entries      = metadata[["entries"]],
     quantity_ids = quantity_ids
@@ -75,20 +86,12 @@
         logical(1)
       ))
   }, logical(1))
-  if (length(quantity_ids) == 0L || !all(covered) || nrow(entries) == 0L) {
-    coefficients <- .brma_contrast_coefficient_quantities(
-      metadata, quantity_ids[!covered]
-    )
-    if (nrow(coefficients) > 0L) {
-      .brma_stop_contrast_coefficient(
-        metadata    = metadata,
-        selector    = coefficients[["canonical_name"]][[1L]],
-        coefficient = coefficients[1L, , drop = FALSE]
-      )
-    }
-    .stop_refit_required(
-      "Resolved hypothesis metadata are unavailable. Refit the model with ",
-      "the current RoBMA/BayesTools build."
+  if (!all(covered)) {
+    .hypothesis_brma_stop_uncovered(
+      object     = object,
+      metadata   = metadata,
+      resolution = resolved,
+      uncovered  = quantity_ids[!covered]
     )
   }
   # A statement whose parameters do not belong to the requested component is
@@ -127,6 +130,80 @@
     entry      = as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE]),
     resolution = resolved
   ))
+}
+
+
+# Resolved catalog quantities without a RoBMA parameter entry ('uncovered',
+# quantity ids of 'resolution') are no hypothesis targets of a current fit,
+# so a refit cannot help: contrast coefficients of formula factor terms are
+# statements to restate on factor levels ("RoBMA_hypothesis_statement");
+# quantities of the publication-bias prior (e.g. the weight-function
+# coordinates 'omega[1]' and the mixture indicator 'bias_indicator') have the
+# publication-bias refusal; other quantities (e.g. inclusion indicators,
+# 'inclusion(<component>)' of variance allocations, and latent cluster
+# effects) are refused as targets ("RoBMA_hypothesis_target"), named as the
+# statement references them.
+.hypothesis_brma_stop_uncovered <- function(object, metadata, resolution,
+                                            uncovered) {
+
+  coefficients <- .brma_contrast_coefficient_quantities(metadata, uncovered)
+  coefficients <- coefficients[
+    nzchar(coefficients[["formula_parameter"]]), , drop = FALSE
+  ]
+  if (nrow(coefficients) > 0L) {
+    .brma_stop_contrast_coefficient(
+      metadata    = metadata,
+      selector    = coefficients[["canonical_name"]][[1L]],
+      coefficient = coefficients[1L, , drop = FALSE]
+    )
+  }
+  bias <- .hypothesis_brma_bias_quantity_ids(object, metadata, uncovered)
+  if (length(bias) > 0L) {
+    .hypothesis_brma_check_supported_component("bias")
+  }
+  occurrences <- resolution[["occurrences"]]
+  symbol      <- occurrences[["symbol"]][
+    match(uncovered[[1L]], occurrences[["quantity_id"]])
+  ]
+
+  .hypothesis_stop(.hypothesis_refusal(
+    paste0(
+      "Hypothesis tests are unavailable for '", symbol, "'. Use ",
+      "hypothesis_quantities() to list the quantities that hypothesis() tests."
+    ),
+    "target"
+  ))
+}
+
+
+# The catalog quantities among 'quantity_ids' of the publication-bias prior:
+# those whose fitted coordinates are all nodes that BayesTools monitors for
+# that prior (BayesTools::JAGS_to_monitor(), e.g. 'omega', 'bias_indicator',
+# 'PET', and 'PEESE').
+.hypothesis_brma_bias_quantity_ids <- function(object, metadata,
+                                               quantity_ids) {
+
+  prior <- object[["priors"]][["outcome"]][["bias"]]
+  if (is.null(prior) || length(quantity_ids) == 0L) {
+    return(character())
+  }
+  monitors    <- BayesTools::JAGS_to_monitor(list(bias = prior))
+  coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
+  bias_coordinates <- coordinates[["coordinate_name"]][
+    coordinates[["monitor_name"]] %in% monitors
+  ]
+  quantities  <- metadata[["catalog"]][["quantities"]]
+  rows        <- quantities[
+    quantities[["quantity_id"]] %in% quantity_ids,
+    ,
+    drop = FALSE
+  ]
+  bias <- vapply(rows[["extraction_key"]], function(key) {
+    dependencies <- if (is.list(key)) key[["dependencies"]]
+    length(dependencies) > 0L && all(dependencies %in% bias_coordinates)
+  }, logical(1))
+
+  rows[["quantity_id"]][bias]
 }
 
 

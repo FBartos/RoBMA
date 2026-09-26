@@ -475,6 +475,64 @@ test_that("publication-bias parameters are refused as hypothesis targets", {
 })
 
 
+test_that("catalog quantities without a RoBMA parameter are refused as targets, not as stale fits", {
+
+  skip_on_cran()
+  fit    <- .plan_fits()[["robma_mixture"]]
+  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+              "error", "condition")
+  # Quantities of the publication-bias prior (weight-function coordinates by
+  # their interval or index, and the mixture indicator) have the
+  # publication-bias refusal.
+  for (statement in c("`omega[0,0.025]` > 0.5", "omega[6] > 0.5",
+                      "bias_indicator > 0.5")) {
+    error <- tryCatch(
+      hypothesis(fit, statement, density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), target, info = statement)
+    expect_identical(
+      conditionMessage(error),
+      "Hypothesis tests for publication-bias parameters are not supported.",
+      info = statement
+    )
+  }
+  # Other quantities without a RoBMA parameter (the inclusion indicators of
+  # model-averaged parameters) are refused as targets, named as the
+  # statement references them.
+  cases <- c(
+    "mu_g1_indicator > 0.5"     = "mu_g1_indicator",
+    "`(mu) g1_indicator` > 0.5" = "(mu) g1_indicator",
+    "tau_indicator = 0.5"       = "tau_indicator"
+  )
+  for (statement in names(cases)) {
+    error <- tryCatch(
+      hypothesis(fit, statement, density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), target, info = statement)
+    expect_identical(
+      conditionMessage(error),
+      paste0(
+        "Hypothesis tests are unavailable for '", cases[[statement]], "'. ",
+        "Use hypothesis_quantities() to list the quantities that ",
+        "hypothesis() tests."
+      ),
+      info = statement
+    )
+  }
+  # Only a parameter catalog without any RoBMA entries needs a refit.
+  metadata <- .brma_parameter_catalog_metadata(fit)
+  metadata[["entries"]] <- metadata[["entries"]][0L, , drop = FALSE]
+  error <- tryCatch(
+    .hypothesis_brma_select_parameter(fit, "mu_g1 > 0", "auto", metadata),
+    error = identity
+  )
+  expect_identical(class(error), c("RoBMA_refit_required", "error", "condition"))
+  expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
+})
+
+
 test_that("unresolved references have the same classes on fits and marginal means", {
 
   skip_on_cran()
