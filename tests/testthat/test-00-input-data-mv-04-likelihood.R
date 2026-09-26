@@ -44,6 +44,8 @@ test_that("bridge random-scale sources reuse evaluated fixed formulas", {
   random_term <- attr(patched_fit, "formula_design")[["mu"]][["random_effects"]][[1L]]
   source <- random_term[["sd_binding"]][["source"]][["source"]]
   expect_true(is.function(source[["values"]]))
+  # the source reads the evaluated scale formula of its parameter
+  expect_identical(source[["inputs"]], "log_tau")
   expect_equal(
     source[["values"]](
       data       = dat,
@@ -91,16 +93,127 @@ test_that("batched scale sources preserve random covariance and fitted draws", {
     object            = object,
     posterior_samples = posterior
   )
-  # A single shared standard-normal effect has covariance tau %*% t(tau).
+  # A single shared standard-normal effect has covariance tau %*% t(tau),
+  # with log(tau) = log(0.1) + log(2) x and x standardized as in the fit.
+  x_std <- (dat[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  tau   <- 0.1 * 2^x_std
   expect_equal(
     BayesTools::random_effects_marginal_factor_product(
       factors, vectors = diag(2)
     ),
-    tcrossprod(c(0.1, 0.2)),
+    tcrossprod(tau),
     tolerance = 1e-12
   )
   expect_identical(object, before)
   expect_identical(colnames(posterior), "mu_intercept")
+  # structural (point-prior) coefficients are not read from the draws
+  expect_identical(
+    .predict_known_v_tau_source_inputs(object, object[["data"]]),
+    list(tau = character())
+  )
+})
+
+
+test_that("prior-only known-V row SD sources read the sampled scale coefficients", {
+
+  dat <- data.frame(
+    yi  = c(0.10, 0.20, -0.10, 0.05),
+    obs = factor(c("e1", "e2", "e3", "e4")),
+    x   = c(0, 1, 3, 2),
+    g   = factor(c("a", "b", "c", "a"))
+  )
+  V      <- diag(c(0.04, 0.09, 0.05, 0.06))
+  object <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = ~ 1 | obs,
+    scale                     = ~ x,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  expect_identical(
+    .predict_known_v_tau_source_inputs(object, object[["data"]]),
+    list(tau = c("log_tau_intercept", "log_tau_x"))
+  )
+
+  # The BayesTools covariance evaluates the row SDs per draw through the
+  # values functions, which receive only their declared inputs. One effect
+  # per estimate: the covariance is diag(tau^2), with
+  # log(tau) = log(intercept) + b x and x standardized as in the fit.
+  draws <- cbind(
+    mu_intercept      = c(0.1, -0.2),
+    log_tau_intercept = c(0.3, 0.5),
+    log_tau_x         = c(0.8, -0.4)
+  )
+  x_std <- (dat[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  tau   <- draws[, "log_tau_intercept"] *
+    exp(outer(draws[, "log_tau_x"], x_std))
+  vcov  <- .brma_mv_random_effects_marginal_vcov(
+    object            = object,
+    posterior_samples = draws
+  )
+  for (draw in seq_len(nrow(draws))) {
+    expect_equal(
+      unname(vcov[["samples"]][draw, , ]),
+      diag(tau[draw, ]^2),
+      tolerance = 1e-12
+    )
+  }
+
+  # Factor coefficients are read as their coordinates.
+  factor_object <- brma.mv(
+    yi                        = yi,
+    V                         = V,
+    random                    = ~ 1 | obs,
+    scale                     = ~ x + g,
+    data                      = dat,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  inputs <- .predict_known_v_tau_source_inputs(
+    factor_object,
+    factor_object[["data"]]
+  )
+  expect_identical(
+    inputs,
+    list(tau = c("log_tau_intercept", "log_tau_x", "log_tau_g[1]", "log_tau_g[2]"))
+  )
+  factor_draws <- cbind(
+    mu_intercept      = 0.1,
+    log_tau_intercept = 0.3,
+    log_tau_x         = 0.8,
+    "log_tau_g[1]"    = -0.2,
+    "log_tau_g[2]"    = 0.4
+  )
+  factor_vcov <- .brma_mv_random_effects_marginal_vcov(
+    object            = factor_object,
+    posterior_samples = factor_draws
+  )
+  factor_tau <- .evaluate.brma.scale_terms(
+    fit               = .object_formula_fit(factor_object),
+    data              = factor_object[["data"]],
+    priors            = factor_object[["priors"]],
+    posterior_samples = factor_draws
+  )
+  expect_equal(
+    unname(factor_vcov[["samples"]][1L, , ]),
+    diag(as.numeric(factor_tau)^2),
+    tolerance = 1e-12
+  )
+  # BayesTools reads every declared coordinate.
+  for (coordinate in inputs[["tau"]]) {
+    expect_error(.brma_mv_random_effects_marginal_vcov(
+      object            = factor_object,
+      posterior_samples = factor_draws[
+        ,
+        colnames(factor_draws) != coordinate,
+        drop = FALSE
+      ]
+    ))
+  }
 })
 
 

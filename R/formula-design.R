@@ -175,12 +175,32 @@
     object, parameter, source,
     random_effects_compile = .object_formula_random_effects_compile(object, source)) {
 
+  output <- do.call(
+    BayesTools::JAGS_formula,
+    .object_bayestools_formula_args(
+      object                 = object,
+      parameter              = parameter,
+      source                 = source,
+      random_effects_compile = random_effects_compile
+    )
+  )
+
+  return(output)
+}
+
+
+# The BayesTools::JAGS_formula() arguments of a formula parameter of an
+# object: its formula, data and priors as fitting passes them.
+.object_bayestools_formula_args <- function(
+    object, parameter, source,
+    random_effects_compile = .object_formula_random_effects_compile(object, source)) {
+
   if (identical(source, "scale")) {
     scale_spec <- .fitted_scale_spec(
       data      = object[["data"]],
       parameter = parameter
     )
-    output <- BayesTools::JAGS_formula(
+    args <- list(
       formula       = .create_fit_scale_formula(scale_spec[["formula"]]),
       parameter     = parameter,
       data          = scale_spec[["data"]],
@@ -191,10 +211,10 @@
       formula_scale = .data_standardize_continuous_predictors(object[["data"]])
     )
 
-    return(output)
+    return(args)
   }
 
-  output <- BayesTools::JAGS_formula(
+  args <- list(
     formula       = .create_fit_formula_list(
       data      = object[["data"]],
       parameter = source
@@ -216,7 +236,121 @@
     random_effects_compile = random_effects_compile
   )
 
-  return(output)
+  return(args)
+}
+
+
+# The fit through which the formulas of 'object' are evaluated on draws
+# (BayesTools::JAGS_evaluate_formula(), see .posterior_formula_fit()): the
+# JAGS fit, or for an object without one (e.g. an only_priors object
+# evaluated on prior draws supplied as '.posterior_samples') the formula
+# designs and scaling that fitting builds from the object's data and priors,
+# which BayesTools::JAGS_formula_draws() builds with the same arguments
+# (.object_bayestools_formula_args()). The designs carry no draws: they
+# depend on the draws only through the parameter names that formula
+# expressions read, and are built on the names of the formulas' fitted
+# coefficients.
+.object_formula_fit <- function(object) {
+
+  if (!is.null(object[["fit"]])) {
+    return(object[["fit"]])
+  }
+
+  data       <- object[["data"]]
+  parameters <- c(
+    if (.is_data_mods(data) || .is_data_random(data)) "mu",
+    if (.is_data_scale(data)) .data_scale_formula_parameters(data)
+  )
+  formula_args <- lapply(parameters, function(parameter) {
+    source <- .fitted_formula_source(parameter = parameter, data = data)
+    if (is.null(object[["priors"]][[source]])) {
+      return(NULL)
+    }
+    .object_bayestools_formula_args(
+      object    = object,
+      parameter = parameter,
+      source    = source
+    )
+  })
+  formula_args <- formula_args[!vapply(formula_args, is.null, logical(1))]
+  if (length(formula_args) == 0L) {
+    stop(
+      "Formula evaluation requires the formula priors of the model.",
+      call. = FALSE
+    )
+  }
+
+  coefficients <- unique(unlist(lapply(formula_args, function(args) {
+    BayesTools::JAGS_parameter_names(
+      names(args[["prior_list"]]),
+      formula_parameter = args[["parameter"]]
+    )
+  }), use.names = FALSE))
+  draws <- matrix(
+    0,
+    nrow     = 1L,
+    ncol     = length(coefficients),
+    dimnames = list(NULL, coefficients)
+  )
+  for (args in formula_args) {
+    draws <- do.call(
+      BayesTools::JAGS_formula_draws,
+      c(list(draws = draws), args)
+    )
+  }
+
+  return(structure(
+    list(),
+    formula_design = attr(draws, "formula_design", exact = TRUE),
+    formula_scale  = attr(draws, "formula_scale", exact = TRUE),
+    class          = "brma_formula_designs"
+  ))
+}
+
+
+# The posterior coordinates of the fixed coefficients of a formula design
+# that BayesTools::JAGS_evaluate_formula() reads from draws: the fixed
+# name-map rows whose priors are not point priors (point priors are evaluated
+# from their values), a factor term with several coefficients (design
+# columns) as the coordinates '<coefficient>[k]'.
+.formula_design_sampled_coefficients <- function(design) {
+
+  if (is.null(design)) {
+    return(character())
+  }
+  parameter <- design[["parameter"]]
+  name_map  <- design[["name_map"]]
+  fixed     <- name_map[
+    name_map[["kind"]] == "fixed" &
+      name_map[["formula_parameter"]] == parameter,
+    ,
+    drop = FALSE
+  ]
+  model_terms   <- design[["model_terms"]]
+  has_intercept <- attr(design[["terms"]], "intercept") == 1
+  n_columns     <- tabulate(
+    design[["assign"]] + as.integer(has_intercept),
+    nbins = length(model_terms)
+  )
+  names(n_columns) <- BayesTools::JAGS_parameter_names(
+    model_terms,
+    formula_parameter = parameter
+  )
+
+  out <- lapply(fixed[["jags_name"]], function(coefficient) {
+    prior <- design[["prior_list"]][[coefficient]]
+    if (is.null(prior) || BayesTools::is.prior.point(prior)) {
+      return(character())
+    }
+    if (identical(unname(design[["model_terms_type"]][
+          match(coefficient, names(n_columns))
+        ]), "factor") && n_columns[[coefficient]] > 1L) {
+      return(paste0(coefficient, "[", seq_len(n_columns[[coefficient]]), "]"))
+    }
+    coefficient
+  })
+
+  return(unlist(out, use.names = FALSE))
 }
 
 .object_formula_prior_random <- function(object, source) {

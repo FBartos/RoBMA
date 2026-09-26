@@ -953,7 +953,7 @@ test_that("IWMDE scalar latent random effects match formula reconstruction", {
     posterior_samples = samples
   )
   formula_mu <- t(BayesTools::JAGS_evaluate_formula(
-    fit            = .posterior_formula_fit(object[["fit"]], samples),
+    fit            = .posterior_formula_fit(.object_formula_fit(object), samples),
     formula        = stats::as.formula("~ 1"),
     parameter      = "mu",
     data           = data.frame(row.names = seq_len(nrow(dat))),

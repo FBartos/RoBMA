@@ -599,15 +599,23 @@ test_that("semantic density transformations apply their Jacobians", {
   source_x <- c(-.5, 0, .5)
   density <- list(
     x = source_x,
-    y = c(.2, .4, .2),
-    point_masses = data.frame(x = .25, mass = .1)
+    y = c(.2, .4, .2)
   )
   transform <- list(type = "tanh")
   actual <- .plot_brma_transform_iwmde_density(density, transform)
 
   expect_equal(actual[["x"]], tanh(source_x))
   expect_equal(actual[["y"]], density[["y"]] / (1 - tanh(source_x)^2))
-  expect_equal(actual[["point_masses"]][["x"]], tanh(.25))
+  # the point masses of the estimate move to their display locations, masses
+  # unchanged
+  point_masses <- .plot_brma_transform_iwmde_point_masses(
+    data.frame(x = .25, mass = .1),
+    transform
+  )
+  expect_equal(point_masses, data.frame(x = tanh(.25), mass = .1))
+  empty <- data.frame(x = numeric(), mass = numeric())
+  expect_identical(.plot_brma_transform_iwmde_point_masses(empty, transform), empty)
+  expect_null(.plot_brma_transform_iwmde_point_masses(NULL, transform))
 
   ordinate <- list(
     value            = .5,
@@ -626,6 +634,63 @@ test_that("semantic density transformations apply their Jacobians", {
   expect_equal(transformed[["ordinate"]], .3 / jacobian)
   expect_equal(transformed[["diagnostics"]][["mcse"]], .03 / jacobian)
   expect_equal(transformed[["diagnostics"]][["relative_mcse"]], .1)
+})
+
+test_that("qCMDE/IWMDE point masses are atoms of the draws, not of the density", {
+
+  diagnostic <- list(
+    status       = "ok",
+    point_masses = data.frame(x = 0, mass = .25),
+    iwmde        = list(
+      x         = c(.1, .3, .5),
+      y         = c(.5, 1, .5),
+      estimator = "q_grid_cmde"
+    ),
+    diagnostics  = .mock_iwmde_good_diagnostics(
+      estimator = "q_grid_cmde",
+      rows      = 500L
+    )
+  )
+  # The density is the continuous part of the estimate.
+  density <- .iwmde_posterior_density_attribute(
+    diagnostic     = diagnostic,
+    density_method = "qCMDE"
+  )
+  expect_s3_class(density, "BayesTools_posterior_density")
+  expect_false("point_masses" %in% names(density))
+
+  draws <- structure(
+    c(0, .2, .3, .4),
+    class = c("marginal_posterior.simple", "marginal_posterior")
+  )
+  attached <- .iwmde_attach_posterior_density(
+    draws,
+    density,
+    point_masses = diagnostic[["point_masses"]]
+  )
+  expect_identical(
+    BayesTools::posterior_metadata(attached, "posterior_density"),
+    density
+  )
+  expect_identical(
+    BayesTools::posterior_metadata(attached, "atoms"),
+    BayesTools::posterior_atom_attribute(
+      point_masses = data.frame(x = 0, mass = .25),
+      source       = "RoBMA qCMDE/IWMDE density"
+    )
+  )
+  expect_false(BayesTools::posterior_atoms_free(attached))
+
+  # An empty table declares the draws atom-free; without a table the draws
+  # keep their own atom declaration.
+  atom_free <- .iwmde_attach_posterior_density(
+    draws,
+    density,
+    point_masses = data.frame(x = numeric(), mass = numeric())
+  )
+  expect_true(BayesTools::posterior_atoms_free(atom_free))
+  undeclared <- .iwmde_attach_posterior_density(draws, density)
+  expect_null(BayesTools::posterior_metadata(undeclared, "atoms"))
 })
 
 test_that("diagonal allocation grid equals the full marginal covariance", {

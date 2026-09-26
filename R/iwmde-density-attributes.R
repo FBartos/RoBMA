@@ -152,18 +152,18 @@
 
 
 # Attaches a qCMDE/IWMDE posterior density to scalar posterior draws. The
-# density's point masses describe its measure for precomputed plots, but
-# posterior atoms are declared only in the draws' 'atoms' metadata, so the
-# density's declared point masses are declared there as well.
-.iwmde_attach_posterior_density <- function(samples, posterior_density) {
+# density is the continuous part of the estimated measure; its point masses
+# ('point_masses', the density diagnostic's table, on the scale of the
+# density; NULL when the estimate declares none) are declared as the draws'
+# 'atoms' metadata, the only source of posterior point masses.
+.iwmde_attach_posterior_density <- function(samples, posterior_density,
+                                            point_masses = NULL) {
 
   BayesTools::posterior_metadata(samples, "posterior_density") <-
     posterior_density
-  if (is.null(posterior_density) ||
-      !isTRUE(posterior_density[["point_masses_declared"]])) {
+  if (is.null(posterior_density) || is.null(point_masses)) {
     return(samples)
   }
-  point_masses <- posterior_density[["point_masses"]]
   BayesTools::posterior_metadata(samples, "atoms") <-
     BayesTools::posterior_atom_attribute(
       point_masses = if (NROW(point_masses) > 0L) point_masses else NULL,
@@ -207,7 +207,6 @@
       method         = density[["estimator"]],
       density_method = .density_method_normalize(density_method),
       diagnostics    = diagnostics,
-      point_masses   = diagnostic[["point_masses"]],
       iwmde_provenance = provenance
     ),
     metadata

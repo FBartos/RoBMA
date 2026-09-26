@@ -427,9 +427,9 @@ test_that("precomputed posterior densities use EXP plot Jacobian", {
         y              = raw_y,
         method         = density_methods[[density_method]][["method"]],
         density_method = density_method,
-        diagnostics    = list(estimator = density_methods[[density_method]][["method"]]),
-        point_masses   = data.frame(x = point_mass_x, mass = .2)
-      )
+        diagnostics    = list(estimator = density_methods[[density_method]][["method"]])
+      ),
+      point_masses = data.frame(x = point_mass_x, mass = .2)
     )
 
     plot_data <- plot_data_samples_simple(
@@ -482,9 +482,9 @@ test_that("precomputed posterior densities use LOG plot Jacobian", {
       x              = raw_x,
       y              = raw_y,
       method         = "q_grid_cmde",
-      density_method = "qCMDE",
-      point_masses   = data.frame(x = point_mass_x, mass = .2)
-    )
+      density_method = "qCMDE"
+    ),
+    point_masses = data.frame(x = point_mass_x, mass = .2)
   )
 
   plot_data <- plot_data_samples_simple(

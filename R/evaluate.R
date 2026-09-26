@@ -36,7 +36,9 @@
   if (!is.null(posterior_samples)) {
     return(posterior_samples)
   }
-  if (is.null(fit)) {
+  # the formula designs of an object without a fit (.object_formula_fit())
+  # hold no draws
+  if (is.null(fit) || inherits(fit, "brma_formula_designs")) {
     stop(
       "Posterior samples are required for this operation; refit the model ",
       "or supply '.posterior_samples'.",
@@ -349,7 +351,8 @@
 #
 # Build a BayesTools::JAGS_evaluate_formula() input from already selected
 # posterior rows while preserving the fitted formula scaling and design of the
-# JAGS fit.
+# JAGS fit ('fit' is the JAGS fit or, for an object without one, the formula
+# designs of .object_formula_fit()).
 #
 # ---------------------------------------------------------------------------- #
 .posterior_formula_fit <- function(fit, posterior_samples) {

@@ -678,7 +678,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   K                 <- context[["K"]]
 
   mu_samples <- .evaluate.brma.mu(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     outcome_data      = context[["outcome_data"]],
     mods_data         = new_data[["mods"]],
     mods_formula      = if (context[["is_mods"]]) {
@@ -725,7 +725,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   new_data <- context[["new_data"]]
   priors   <- context[["priors"]]
   result   <- .evaluate.brma.tau(
-    fit               = context[["object"]][["fit"]],
+    fit               = .object_formula_fit(context[["object"]]),
     scale_data        = new_data[["scale"]],
     scale_formula     = if (context[["is_scale"]]) {
       .create_fit_formula_list(data = new_data, "scale")
@@ -863,7 +863,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   tau_between_samples <- scale_state[["between"]]
 
   fixed_mu <- .evaluate.brma.mu(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     outcome_data      = outcome_data,
     mods_data         = new_data[["mods"]],
     mods_formula      = if (is_mods) {

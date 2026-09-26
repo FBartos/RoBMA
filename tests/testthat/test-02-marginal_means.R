@@ -462,8 +462,7 @@ test_that("marginal_means plot inherits and can override the stored density meth
     y              = rep(.5, 5),
     density_method = "qCMDE",
     method         = "q_grid_cmde",
-    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
-    point_masses   = data.frame(x = numeric(), mass = numeric())
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde")
   )
   BayesTools::posterior_metadata(
     emm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
@@ -524,8 +523,7 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
     y              = rep(.5, 5),
     density_method = "qCMDE",
     method         = "q_grid_cmde",
-    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
-    point_masses   = data.frame(x = numeric(), mass = numeric())
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde")
   )
   BayesTools::posterior_metadata(
     emm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
@@ -785,8 +783,7 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
     y              = rep(.5, 5),
     density_method = "qCMDE",
     method         = "q_grid_cmde",
-    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde"),
-    point_masses   = data.frame(x = numeric(), mass = numeric())
+    diagnostics    = .marginal_means_iwmde_density_diagnostics("q_grid_cmde")
   )
   iwmde_density <- qcmde_density
   iwmde_density[["density_method"]] <- "IWMDE"

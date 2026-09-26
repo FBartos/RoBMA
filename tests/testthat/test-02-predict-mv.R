@@ -89,12 +89,11 @@ test_that("brma.mv newdata uses fitted continuous-predictor scaling metadata", {
     quiet              = TRUE,
     .posterior_samples = posterior_samples
   )
-  expected <- cbind(
-    posterior_samples[, "mu_intercept"] + 10 * posterior_samples[, "mu_x"],
-    posterior_samples[, "mu_intercept"] + 20 * posterior_samples[, "mu_x"],
-    posterior_samples[, "mu_intercept"] + 30 * posterior_samples[, "mu_x"],
-    posterior_samples[, "mu_intercept"] + 40 * posterior_samples[, "mu_x"]
-  )
+  # The coefficient multiplies x standardized by the mean and SD of the
+  # fitted data (20 and 10), as in the fitted design.
+  new_x    <- (newdata[["x"]] - 20) / 10
+  expected <- outer(posterior_samples[, "mu_intercept"], rep(1, 4L)) +
+    outer(posterior_samples[, "mu_x"], new_x)
 
   expect_equal(unname(as.matrix(prediction)), expected, tolerance = 1e-12)
   expect_equal(
@@ -1813,8 +1812,9 @@ test_that("scale-bound random slopes use row-effective prediction SDs", {
     w = c(0, 1)
   )
   new_x <- (newdata[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  new_w <- (newdata[["w"]] - mean(dat[["w"]])) / stats::sd(dat[["w"]])
   expected <- matrix(
-    0.20 * exp(log(2) * newdata[["w"]]) * abs(new_x),
+    0.20 * exp(log(2) * new_w) * abs(new_x),
     nrow = 1L
   )
 

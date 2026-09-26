@@ -124,7 +124,7 @@
 
   if (!.is_random(object)) {
     tau_result <- .evaluate.brma.pooled_tau(
-      fit               = object[["fit"]],
+      fit               = .object_formula_fit(object),
       scale_data        = object[["data"]][["scale"]],
       scale_formula     = if (.is_scale(object)) {
         .create_fit_formula_list(data = object[["data"]], "scale")
@@ -1349,7 +1349,7 @@
   }
 
   tau_result <- .evaluate.brma.tau(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     scale_data        = object[["data"]][["scale"]],
     scale_formula     = if (.is_scale(object)) {
       .create_fit_formula_list(data = object[["data"]], "scale")
@@ -1561,7 +1561,7 @@
   }
 
   scale_samples <- .evaluate.brma.scale_terms(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     data              = data,
     priors            = object[["priors"]],
     posterior_samples = posterior_samples,

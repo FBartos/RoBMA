@@ -371,7 +371,7 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     dots[[".posterior_samples"]]
   )
   mu_samples <- .evaluate.brma.mu(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     outcome_data      = data[["outcome"]],
     mods_data         = data[["mods"]],
     mods_formula      = if (.is_mods(object)) {
@@ -614,7 +614,7 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
   }
 
   tau_result <- .evaluate.brma.pooled_tau(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     scale_data        = object[["data"]][["scale"]],
     scale_formula     = if (.is_scale(object)) {
       .create_fit_formula_list(data = object[["data"]], "scale")

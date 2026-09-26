@@ -39,8 +39,11 @@ test_that("random-slope regplot variance replays its prediction grid", {
   )
   grid_data <- data.frame(x = c(0, 1))
 
-  tau <- rbind(c(0.20, 0.20), c(0.30, 0.60))
+  # x is standardized by its fitted mean and SD in the scale formula
+  # (log(tau) = log(intercept) + b z) and in the random-slope design.
   z   <- (grid_data[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  tau <- posterior_samples[, "log_tau_intercept"] *
+    exp(outer(posterior_samples[, "log_tau_x"], z))
   allocation <- rbind(c(0.50, 1.50), c(0.80, 1.20))
   expected <- tau * sqrt(
     allocation[, 1L] + tcrossprod(allocation[, 2L], z^2)

@@ -735,10 +735,9 @@ test_that("plot.brma forwards fitted-scale densities under BayesTools aliases", 
 test_that("plot.brma drops qCMDE density when sample scales differ", {
 
   posterior_density <- list(
-    x            = seq(-1, 1, length.out = 20),
-    y            = stats::dnorm(seq(-1, 1, length.out = 20)),
-    diagnostics  = list(),
-    point_masses = data.frame(x = numeric(), mass = numeric())
+    x           = seq(-1, 1, length.out = 20),
+    y           = stats::dnorm(seq(-1, 1, length.out = 20)),
+    diagnostics = list()
   )
 
   out <- .plot_brma_align_iwmde_density(

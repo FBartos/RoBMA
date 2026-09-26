@@ -686,7 +686,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   # BayesTools has already evaluated the fixed scale formulas for this draw.
-  # Reuse those outputs instead of rebuilding their designs inside each source.
+  # Reuse those outputs instead of rebuilding their designs inside each source:
+  # each source reads the evaluated formula of its scale parameter.
   specs  <- .data_scale_component_specs(data)
   values <- lapply(specs, function(spec) {
 
@@ -696,11 +697,13 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       exp(parameters[[parameter]])
     }
   })
-  names(values) <- vapply(specs, `[[`, character(1), "source")
+  inputs <- lapply(specs, `[[`, "parameter")
+  names(values) <- names(inputs) <- vapply(specs, `[[`, character(1), "source")
   mu_design[["random_effects"]] <- lapply(
     mu_design[["random_effects"]],
     .predict_known_v_random_term_with_tau_source_values,
-    values = values
+    values = values,
+    inputs = inputs
   )
   formula_design[["mu"]] <- mu_design
   attr(fit, "formula_design") <- formula_design

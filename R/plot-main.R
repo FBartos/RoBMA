@@ -536,9 +536,14 @@ lines.brma <- function(
   if (identical(diagnostic[["status"]], "ok") &&
       !is.null(estimate[["posterior_density"]])) {
     posterior_density <- estimate[["posterior_density"]]
+    point_masses      <- diagnostic[["point_masses"]]
     if (!is.null(display_transform)) {
       posterior_density <- .plot_brma_transform_iwmde_density(
         posterior_density,
+        display_transform
+      )
+      point_masses <- .plot_brma_transform_iwmde_point_masses(
+        point_masses,
         display_transform
       )
     }
@@ -552,7 +557,8 @@ lines.brma <- function(
     if (!is.null(posterior_density)) {
       samples[[sample_parameter]] <- .iwmde_attach_posterior_density(
         samples[[sample_parameter]],
-        posterior_density
+        posterior_density,
+        point_masses = point_masses
       )
     }
   }
@@ -580,15 +586,6 @@ lines.brma <- function(
     display_transform
   )
   posterior_density[["y"]] <- posterior_density[["y"]] / jacobian
-  point_masses <- posterior_density[["point_masses"]]
-  if (is.data.frame(point_masses) && nrow(point_masses) > 0L &&
-      "x" %in% names(point_masses)) {
-    point_masses[["x"]] <- BayesTools::parameter_transform_forward(
-      point_masses[["x"]],
-      display_transform
-    )
-    posterior_density[["point_masses"]] <- point_masses
-  }
   if (is.unsorted(posterior_density[["x"]])) {
     order <- order(posterior_density[["x"]])
     posterior_density[["x"]] <- posterior_density[["x"]][order]
@@ -599,6 +596,23 @@ lines.brma <- function(
     stop("Unsupported qCMDE/IWMDE display transform.", call. = FALSE)
   }
   posterior_density
+}
+
+
+# The point masses of a qCMDE/IWMDE estimate (a table with 'x' and 'mass')
+# at their display-scale locations.
+.plot_brma_transform_iwmde_point_masses <- function(
+    point_masses, display_transform) {
+
+  if (is.data.frame(point_masses) && nrow(point_masses) > 0L &&
+      "x" %in% names(point_masses)) {
+    point_masses[["x"]] <- BayesTools::parameter_transform_forward(
+      point_masses[["x"]],
+      display_transform
+    )
+  }
+
+  return(point_masses)
 }
 
 

@@ -248,3 +248,62 @@ test_that("pooled heterogeneity evaluates the average scale design", {
   )
   expect_false(isTRUE(all.equal(unname(expected), unname(rms))))
 })
+
+
+test_that("prior-only scale formulas evaluate the fitted standardization", {
+
+  # Objects without a fit evaluate their formulas through the designs that
+  # fitting builds, which standardize continuous predictors. The design-less
+  # evaluation used before read the raw predictor: for these draws its tau
+  # was off by factors 0.58 to 2.07.
+  dat <- data.frame(
+    yi = c(-0.2, 0.1, 0.4),
+    vi = c(0.04, 0.04, 0.04),
+    x  = c(-1, 0, 2)
+  )
+  object <- brma(
+    yi                        = yi,
+    vi                        = vi,
+    data                      = dat,
+    scale                     = ~ x,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- cbind(
+    mu                = c(0.1, 0.2),
+    log_tau_intercept = c(0.2, 0.5),
+    log_tau_x         = c(0.8, -0.6)
+  )
+
+  # The scale formula has a log(intercept): log(tau) = log(intercept) + b x,
+  # with x standardized by its mean and SD in the data.
+  x_std    <- (dat[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  expected <- exp(
+    outer(log(posterior_samples[, "log_tau_intercept"]), rep(1, 3L)) +
+      outer(posterior_samples[, "log_tau_x"], x_std)
+  )
+  row_tau <- predict(
+    object,
+    type               = "terms.scale",
+    quiet              = TRUE,
+    .posterior_samples = posterior_samples
+  )
+  expect_equal(unname(as.matrix(row_tau)), expected, tolerance = 1e-12)
+  expect_equal(
+    expected[1L, ],
+    c(0.0994863170669, 0.1679628886922, 0.4787549728007),
+    tolerance = 1e-12
+  )
+
+  # The average standardized predictor is 0: the pooled tau is the intercept.
+  pooled <- pooled_heterogeneity(
+    object,
+    .posterior_samples = posterior_samples
+  )
+  expect_equal(
+    unname(as.matrix(pooled))[, 1L],
+    unname(posterior_samples[, "log_tau_intercept"]),
+    tolerance = 1e-12
+  )
+})

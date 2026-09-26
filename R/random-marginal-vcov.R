@@ -174,7 +174,7 @@
     # Reconstruct row sources once for the full batch. With explicit columns,
     # BayesTools can use its batched factor path instead of per-draw callbacks.
     scale_samples <- .evaluate.brma.scale_terms(
-      fit               = object[["fit"]],
+      fit               = .object_formula_fit(object),
       data              = data,
       priors            = object[["priors"]],
       posterior_samples = posterior_samples,

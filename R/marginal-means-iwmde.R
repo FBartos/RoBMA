@@ -300,12 +300,14 @@
     if (is.list(samples) && !is.null(samples[[level]])) {
       samples[[level]] <- .iwmde_attach_posterior_density(
         samples[[level]],
-        estimate[["posterior_density"]]
+        estimate[["posterior_density"]],
+        point_masses = diagnostic[["point_masses"]]
       )
     } else {
       samples <- .iwmde_attach_posterior_density(
         samples,
-        estimate[["posterior_density"]]
+        estimate[["posterior_density"]],
+        point_masses = diagnostic[["point_masses"]]
       )
     }
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples

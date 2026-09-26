@@ -517,7 +517,7 @@
     formula_design[["random_effects"]],
     .predict_known_v_random_term_with_tau_source_values,
     values = values,
-    inputs = .predict_known_v_tau_source_inputs(object[["fit"]], data)
+    inputs = .predict_known_v_tau_source_inputs(object, data)
   )
 
   return(formula_design)
@@ -527,7 +527,7 @@
 .predict_known_v_tau_source_values_function <- function(
     object, data, pooled = FALSE) {
 
-  fit          <- object[["fit"]]
+  fit          <- .object_formula_fit(object)
   model_data   <- data
   priors       <- object[["priors"]]
   source_names <- unname(.data_scale_formula_sources(model_data))
@@ -579,29 +579,38 @@
 }
 
 
-# The posterior coordinates the known-V row SD values functions read: the
-# sampled coefficients of the scale formulas (structural coefficients are
-# evaluated from their point priors). Objects without a fit (prior-only
-# objects) have no fitted coordinates; their inputs stay undeclared.
-.predict_known_v_tau_source_inputs <- function(fit, data) {
+# The posterior coordinates the known-V row SD values functions read, by
+# source: the sampled coefficients of the scale formulas, which each values
+# function evaluates (structural coefficients are evaluated from their point
+# priors). For an object without a fit (a prior-only object evaluated on
+# supplied draws) these are the coefficients of its scale designs whose
+# priors are not point priors.
+.predict_known_v_tau_source_inputs <- function(object, data) {
 
-  if (is.null(fit)) {
-    return(NULL)
-  }
   scale_parameters <- unique(vapply(
     .data_scale_component_specs(data),
     `[[`,
     character(1),
     "parameter"
   ))
-  coordinates <- BayesTools::parameter_coordinates(fit)
-  inputs <- coordinates[["monitor_name"]][
-    coordinates[["formula_parameter"]] %in% scale_parameters &
-      coordinates[["role"]] == "fixed_coefficient" &
-      coordinates[["monitor_status"]] == "sampled"
-  ]
+  if (!is.null(object[["fit"]])) {
+    coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
+    inputs <- coordinates[["monitor_name"]][
+      coordinates[["formula_parameter"]] %in% scale_parameters &
+        coordinates[["role"]] == "fixed_coefficient" &
+        coordinates[["monitor_status"]] == "sampled"
+    ]
+  } else {
+    designs <- attr(.object_formula_fit(object), "formula_design", exact = TRUE)
+    inputs  <- unlist(
+      lapply(designs[scale_parameters], .formula_design_sampled_coefficients),
+      use.names = FALSE
+    )
+  }
+  inputs       <- as.character(unique(inputs))
+  source_names <- unname(.data_scale_formula_sources(data))
 
-  unique(inputs)
+  stats::setNames(rep(list(inputs), length(source_names)), source_names)
 }
 
 
@@ -655,6 +664,8 @@
 }
 
 
+# 'values' and 'inputs' are lists keyed by the source names: the values
+# function of each source and the posterior coordinates it reads.
 .predict_known_v_random_term_with_tau_source_values <- function(term, values,
                                                                 inputs = NULL) {
 
@@ -730,7 +741,7 @@
       name   = source_name,
       shape  = "row",
       values = values[[source_name]],
-      inputs = inputs
+      inputs = if (!is.null(values[[source_name]])) inputs[[source_name]]
     )
   )
 }
@@ -748,7 +759,7 @@
     return(NULL)
   }
   .predict_known_v_scale_source_samples(
-    fit               = object[["fit"]],
+    fit               = .object_formula_fit(object),
     data              = data,
     priors            = object[["priors"]],
     posterior_samples = posterior_samples,
