@@ -602,24 +602,27 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
 
 # Every alias hypothesis_quantities() lists names its row's quantity: the
 # plan of '<alias> = 0' with the row's component, which hypothesis()
-# executes, is the plan of that quantity.
+# executes, is the plan of that quantity. The alias of a factor term (a row
+# with a 'bracket') also names each of its levels: the plan of
+# '<alias>[<level>] = 0' with the row's component resolves the level of the
+# row's quantity.
 .expect_aliases_resolve <- function(object, quantities, info,
                                     metadata = .brma_parameter_catalog_metadata(object),
                                     cache = .hypothesis_plan_cache()) {
 
-  for (i in seq_len(nrow(quantities))) {
-    row  <- quantities[i, , drop = FALSE]
-    plan <- tryCatch(
+  plan_of <- function(reference, component) {
+    tryCatch(
       .hypothesis_plans(
         object     = object,
-        hypothesis = paste0("`", row[["alias"]], "` = 0"),
-        component  = row[["component"]],
+        hypothesis = paste0("`", reference, "` = 0"),
+        component  = component,
         metadata   = metadata,
         cache      = cache
       )[[1L]],
       error = function(error) error
     )
-    case <- paste(info, row[["component"]], row[["alias"]])
+  }
+  expect_plan <- function(plan, row, case) {
     expect_false(inherits(plan, "error"), info = paste(
       case, if (inherits(plan, "error")) conditionMessage(plan)
     ))
@@ -629,6 +632,37 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
         c(row[["parameter"]], row[["component"]]),
         info = case
       )
+    }
+    !inherits(plan, "error")
+  }
+  entries <- metadata[["entries"]]
+
+  for (i in seq_len(nrow(quantities))) {
+    row  <- quantities[i, , drop = FALSE]
+    case <- paste(info, row[["component"]], row[["alias"]])
+    expect_plan(plan_of(row[["alias"]], row[["component"]]), row, case)
+    if (is.na(row[["bracket"]])) {
+      next
+    }
+    entry <- entries[entries[["parameter"]] == row[["parameter"]] &
+                       entries[["component"]] == row[["component"]], ,
+                     drop = FALSE]
+    levels <- .hypothesis_plan_term_levels(
+      metadata,
+      as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE])
+    )
+    expect_gt(nrow(levels), 0L)
+    for (j in seq_len(nrow(levels))) {
+      level      <- levels[["level"]][[j]]
+      level_case <- paste0(case, "[", level, "]")
+      plan <- plan_of(paste0(row[["alias"]], "[", level, "]"), row[["component"]])
+      if (expect_plan(plan, row, level_case)) {
+        expect_identical(
+          unique(plan[["selected"]][["resolution"]][["occurrences"]][["quantity_id"]]),
+          levels[["quantity_id"]][[j]],
+          info = level_case
+        )
+      }
     }
   }
 

@@ -10,7 +10,8 @@ context("Hypothesis plans: one eligibility source for hypothesis() and hypothesi
   if (!is.null(.plan_fit_cache[["fits"]])) {
     return(.plan_fit_cache[["fits"]])
   }
-  fit <- function(data, mods, prior_mods = NULL, contrast = "treatment") {
+  fit <- function(data, mods, prior_mods = NULL, contrast = "treatment",
+                  scale = NULL) {
     arguments <- list(
       yi = quote(yi), sei = quote(sei), mods = mods, data = data,
       measure = "SMD", set_contrast_factor_predictors = contrast,
@@ -19,6 +20,9 @@ context("Hypothesis plans: one eligibility source for hypothesis() and hypothesi
     )
     if (!is.null(prior_mods)) {
       arguments[["prior_mods"]] <- prior_mods
+    }
+    if (!is.null(scale)) {
+      arguments[["scale"]] <- scale
     }
     suppressWarnings(do.call(brma, arguments))
   }
@@ -73,6 +77,11 @@ context("Hypothesis plans: one eligibility source for hypothesis() and hypothesi
   )
   scaled[["yi"]] <- stats::rnorm(k, 0.1 * scaled[["x"]], scaled[["sei"]])
   fits[["scaled_interaction"]] <- fit(data = scaled, mods = ~ x * g)
+  # A factor term in the location and the scale formula: its alias 'g1'
+  # names a quantity of each component.
+  fits[["location_scale"]] <- fit(
+    data = factors, mods = ~ g1, scale = ~ g1, contrast = "meandif"
+  )
   fits[["model_averaged"]] <- suppressWarnings(BMA.norm(
     yi = yi, sei = sei, mods = ~ g1, data = factors, measure = "SMD",
     chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 1,
@@ -255,6 +264,41 @@ test_that("factor levels of every contrast have point tests and level contrasts"
     expect_identical(unique(terms[["contrast_test_methods"]]), "KDE, qCMDE, IWMDE", info = name)
     expect_identical(unique(terms[["reason"]]), "", info = name)
   }
+})
+
+
+test_that("levels of a factor alias shared by the location and scale formulas resolve with 'component'", {
+
+  skip_on_cran()
+  fit <- .plan_fits()[["location_scale"]]
+  # 'g1' names the location term 'mu_g1' and the scale term 'log_tau_g1'.
+  # With 'component', a level reference 'g1[<level>]' is the level of that
+  # component's term: the statement gives the result of the same statement
+  # with the parameter name.
+  cases <- list(
+    list(component = "mods",     parameter = "mu_g1"),
+    list(component = "location", parameter = "mu_g1"),
+    list(component = "scale",    parameter = "log_tau_g1")
+  )
+  for (case in cases) {
+    for (statement in c("g1[10] = 0.1", "g1[10] = g1[5]", "g1[20] > 0.1")) {
+      info    <- paste(case[["component"]], statement)
+      aliased <- suppressWarnings(hypothesis(
+        fit, statement, component = case[["component"]],
+        density_method = "KDE", seed = 1
+      ))
+      named   <- suppressWarnings(hypothesis(
+        fit, gsub("g1[", paste0(case[["parameter"]], "["), statement, fixed = TRUE),
+        density_method = "KDE", seed = 1
+      ))
+      expect_identical(attr(aliased, "raw_BF"), attr(named, "raw_BF"), info = info)
+      expect_true(all(is.finite(attr(aliased, "raw_BF"))), info = info)
+    }
+  }
+  # Without 'component', the level reference names a level of both terms and
+  # stays ambiguous (the same statement resolves with 'component' above).
+  expect_error(suppressWarnings(hypothesis(fit, "g1[10] = 0.1", density_method = "KDE")))
+  expect_error(.hypothesis_brma_select_parameter(fit, "g1[10] = 0.1", component = "auto"))
 })
 
 

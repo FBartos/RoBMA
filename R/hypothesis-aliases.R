@@ -38,6 +38,20 @@
         ))
       }
       candidates <- ambiguity[["candidates"]]
+      namespace  <- .hypothesis_brma_component_namespace(
+        candidates = candidates,
+        quantities = error[["candidates"]],
+        component  = component
+      )
+      if (!is.null(namespace)) {
+        return(BayesTools::hypothesis_resolve(
+          ast       = ast,
+          catalog   = metadata[["catalog"]],
+          namespace = namespace,
+          component = resolver_component,
+          simplify_names = TRUE
+        ))
+      }
       if (length(unique(candidates[["parameter"]])) > 1L) {
         .hypothesis_brma_stop_multiple_parameters(candidates)
       }
@@ -118,6 +132,48 @@
     "). Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
     call. = FALSE
   )
+}
+
+
+# Level references are resolved without the requested component: the catalog
+# component of a level quantity is its level. When a level reference names
+# levels of several parameters (e.g. the alias of a factor term of both the
+# location and the scale formula), an explicit component restricts them to
+# its own parameter, as the resolver restricts unleveled references: the
+# namespace of that parameter's candidate quantities, in which the
+# hypothesis is resolved again. NULL when the component is "auto" or does not
+# select one parameter with one namespace; stops when no candidate belongs to
+# the component. 'candidates' are the catalog entries of the ambiguous
+# quantities 'quantities'.
+.hypothesis_brma_component_namespace <- function(candidates, quantities,
+                                                 component) {
+
+  if (identical(component, "auto") ||
+      length(unique(candidates[["parameter"]])) < 2L) {
+    return(NULL)
+  }
+  selected <- candidates[candidates[["component"]] == component, , drop = FALSE]
+  if (nrow(selected) == 0L) {
+    stop(
+      "The hypothesis does not resolve to component = '", component, "'.",
+      call. = FALSE
+    )
+  }
+  if (nrow(selected) != 1L) {
+    return(NULL)
+  }
+  members   <- c(
+    selected[["quantity_id"]],
+    unlist(selected[["member_quantity_ids"]], use.names = FALSE)
+  )
+  namespace <- unique(quantities[["namespace"]][
+    quantities[["quantity_id"]] %in% members
+  ])
+  if (length(namespace) != 1L) {
+    return(NULL)
+  }
+
+  namespace
 }
 
 

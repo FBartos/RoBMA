@@ -722,6 +722,19 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
                  info = statement)
     expect_equal(attr(kde, "raw_BF"), reference[["prior"]] / reference[["posterior"]],
                  tolerance = 1e-10, info = statement)
+    # The factor alias shared by both formulas names the same level when the
+    # component is set.
+    aliased <- suppressWarnings(hypothesis(
+      fit,
+      paste0("Preregistered[Pre-Registered] = ", case[["value"]]),
+      component      = case[["component"]],
+      density_method = "KDE",
+      n_samples      = 1000,
+      columns        = "all"
+    ))
+    expect_identical(attr(aliased, "raw_BF"), attr(kde, "raw_BF"), info = statement)
+    expect_identical(aliased[["prior"]], kde[["prior"]], info = statement)
+    expect_identical(aliased[["posterior"]], kde[["posterior"]], info = statement)
     qcmde <- suppressWarnings(hypothesis(
       fit,
       statement,
@@ -742,6 +755,18 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
     conditional    = TRUE
   ))
   expect_true(is.finite(attr(contrast, "raw_BF")))
+  aliased_contrast <- suppressWarnings(hypothesis(
+    fit,
+    "Preregistered[Pre-Registered] = Preregistered[Not Pre-Registered]",
+    component      = "mods",
+    density_method = "KDE",
+    n_samples      = 1000,
+    conditional    = TRUE
+  ))
+  expect_identical(attr(aliased_contrast, "raw_BF"), attr(contrast, "raw_BF"))
+  # Every listed alias, and every level of the factor alias, names its row's
+  # quantity with the row's component.
+  .expect_aliases_resolve(fit, quantities, info = "lehmann location-scale")
 
   expect_error(
     hypothesis(
@@ -752,6 +777,14 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
     ),
     "multiple model parameters"
   )
+  # Without 'component', a level of the shared factor alias stays ambiguous
+  # (the same statement resolves with 'component' above).
+  expect_error(suppressWarnings(hypothesis(
+    fit,
+    "Preregistered[Pre-Registered] = -0.1",
+    density_method = "KDE",
+    n_samples      = 1000
+  )))
 
   expect_warning(
     bf_mods <- hypothesis(
