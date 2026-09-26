@@ -107,6 +107,53 @@ test_that("empty resolved hypothesis quantities fail with a metadata message", {
   class = "RoBMA_refit_required")
 })
 
+test_that("BayesTools resolution refusals are statement errors by their class", {
+
+  metadata <- list(catalog = NULL, entries = data.frame())
+  select   <- function(hypothesis) {
+    tryCatch(
+      .hypothesis_brma_select_parameter(list(), hypothesis, "auto", metadata),
+      error = identity
+    )
+  }
+  resolution <- function(class, ...) {
+    structure(
+      class = c(class, "BayesTools_parameter_resolution_error", "error",
+                "condition"),
+      list(message = "The statement was refused.", call = NULL, ...)
+    )
+  }
+  # A statement without parameter symbols and a level of another component
+  # are statement errors by their BayesTools class, with BayesTools' message
+  # and fields, whatever the statement's form.
+  refusals <- list(
+    no_parameters      = resolution("BayesTools_hypothesis_no_parameters"),
+    component_mismatch = resolution(
+      "BayesTools_hypothesis_component_mismatch",
+      symbol = "mu_g[a]", component = "mods"
+    )
+  )
+  for (name in names(refusals)) {
+    testthat::local_mocked_bindings(
+      hypothesis_resolve = function(...) stop(refusals[[name]]),
+      .package = "BayesTools"
+    )
+    expected <- refusals[[name]]
+    class(expected) <- c("RoBMA_hypothesis_statement", class(expected))
+    for (statement in c("1 > 0", "mu = 0")) {
+      expect_identical(select(statement), expected,
+                       info = paste(name, statement))
+    }
+  }
+  # Other errors of the resolution are no statement refusals.
+  unclassed <- simpleError("The resolution failed.")
+  testthat::local_mocked_bindings(
+    hypothesis_resolve = function(...) stop(unclassed),
+    .package = "BayesTools"
+  )
+  expect_identical(select("1 > 0"), unclassed)
+})
+
 test_that("stale fitted metadata of hypothesis targets require a refit", {
 
   # Every hypothesis() stop on missing or unsupported fitted metadata has

@@ -125,11 +125,16 @@
 }
 
 
+# The refusal of a condition: its message (or 'reason'), its classes, and
+# its other fields (e.g. BayesTools' 'alias' and 'available'), with which
+# .hypothesis_stop() raises it.
 .hypothesis_refusal_from_condition <- function(condition, reason = NULL) {
 
+  fields <- unclass(condition)
   list(
     reason = if (is.null(reason)) conditionMessage(condition) else reason,
-    class  = setdiff(class(condition), c("error", "condition"))
+    class  = setdiff(class(condition), c("error", "condition")),
+    fields = fields[setdiff(names(fields), c("message", "call"))]
   )
 }
 
@@ -138,7 +143,7 @@
 
   stop(structure(
     class = c(refusal[["class"]], "error", "condition"),
-    list(message = refusal[["reason"]], call = NULL)
+    c(list(message = refusal[["reason"]], call = NULL), refusal[["fields"]])
   ))
 }
 
@@ -1878,17 +1883,25 @@
 
 
 # The condition with which BayesTools::hypothesis_linear_target() refuses a
-# statement: its unclassed errors refuse the form of the statement (e.g. a
-# nonlinear expression of the levels), which is restated
-# ("RoBMA_hypothesis_statement"); an unknown level (a BayesTools resolution
-# error such as "BayesTools_parameter_not_found") is a statement error with
-# BayesTools' classes, as at the other entry points
+# statement, matched by its classes: a refit request of BayesTools
+# ("BayesTools_refit_required") is no refusal of the statement and stops
+# unconverted; BayesTools' refusals of the statement's references (its
+# resolution errors, "BayesTools_parameter_resolution_error": an unknown
+# level, "BayesTools_parameter_not_found", a statement without parameter
+# symbols, "BayesTools_hypothesis_no_parameters", or a level of another
+# component, "BayesTools_hypothesis_component_mismatch") are statement errors
+# with BayesTools' classes and fields, as at the other entry points
 # (.hypothesis_not_found_class()); other classed BayesTools conditions
 # (linear targets BayesTools cannot certify,
-# "BayesTools_linear_target_unavailable", or refusals of the fitted
-# metadata) keep their classes.
+# "BayesTools_linear_target_unavailable", or stale draw metadata) keep their
+# classes; its unclassed errors refuse the form of the statement (e.g. a
+# nonlinear expression of the levels), which is restated
+# ("RoBMA_hypothesis_statement").
 .hypothesis_linear_target_condition <- function(condition) {
 
+  if (inherits(condition, "BayesTools_refit_required")) {
+    stop(condition)
+  }
   if (inherits(condition, "BayesTools_parameter_resolution_error")) {
     class(condition) <- unique(c("RoBMA_hypothesis_statement", class(condition)))
     return(condition)

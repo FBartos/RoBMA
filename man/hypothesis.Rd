@@ -151,18 +151,22 @@ factor levels; a selector of a coefficient that is a level, such as
 BayesTools refusal \code{BayesTools_selector_unavailable}, which names the
 level), references to unknown names or factor levels, and
 statements that reference no parameter (on fitted objects followed by the
-classes of the BayesTools refusal of such a statement). An unknown name or
+classes of the BayesTools refusal of such a statement,
+\code{BayesTools_hypothesis_no_parameters} and
+\code{BayesTools_parameter_resolution_error}). An unknown name or
 level also has the classes
 \code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, with which BayesTools
-refuses it (on fitted objects, the BayesTools condition itself with its
-fields \code{alias} and \code{available}). Missing or unsupported fitted
+refuses it (on fitted objects and in linear combinations of
+marginal-means levels, the BayesTools condition itself with its fields
+\code{alias} and \code{available}). Missing or unsupported fitted
 metadata of the tested target (a parameter catalog without RoBMA
 parameters, the coefficient transform, the fitted coordinates, or the
 linear weights of a factor level; a fit of an older RoBMA/BayesTools build)
 stop with the class \code{RoBMA_refit_required}: refit the model. Its parent
 \code{BayesTools_refit_required} is the class of every error of RoBMA and
-BayesTools that asks for a refit.}
+BayesTools that asks for a refit; BayesTools' own refit errors stop
+\code{hypothesis()} unconverted.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} (the fixed

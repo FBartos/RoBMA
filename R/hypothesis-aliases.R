@@ -10,19 +10,6 @@
     ast,
     occurrences = TRUE
   )
-  # A statement without parameter references is a statement error:
-  # BayesTools' refusal, with the classes BayesTools gives it, after
-  # "RoBMA_hypothesis_statement".
-  if (nrow(occurrences) == 0L) {
-    tryCatch(
-      BayesTools::hypothesis_resolve(
-        ast            = ast,
-        catalog        = metadata[["catalog"]],
-        simplify_names = TRUE
-      ),
-      error = .hypothesis_stop_statement_condition
-    )
-  }
   resolver_component <- if (identical(component, "auto") ||
                             any(!is.na(occurrences[["level"]]))) {
     NULL
@@ -80,15 +67,19 @@
       }
     )
   }
-  # An unknown reference is a statement error: BayesTools' condition, with
-  # its classes and fields, after "RoBMA_hypothesis_statement". A reference
-  # that is unknown within an explicit 'component' but names quantities
-  # outside it is resolved without the component, so that the checks below
-  # refuse it as a component mismatch (or as the target it is), also next to
-  # references of the component ('outside'). A name that the component's
-  # aliases do not list but that resolves to a quantity of the component
-  # (e.g. its display label) stays unknown; a reference unknown in every
-  # component is the unknown name refused.
+  # BayesTools' refusals of the statement's references are statement errors:
+  # BayesTools' condition, with its classes and fields, after
+  # "RoBMA_hypothesis_statement" (a statement without parameter symbols,
+  # "BayesTools_hypothesis_no_parameters"; a level of another component,
+  # "BayesTools_hypothesis_component_mismatch"; a contrast selector of a
+  # level, "BayesTools_selector_unavailable"; an unknown reference). A
+  # reference that is unknown within an explicit 'component' but names
+  # quantities outside it is resolved without the component, so that the
+  # checks below refuse it as a component mismatch (or as the target it is),
+  # also next to references of the component ('outside'). A name that the
+  # component's aliases do not list but that resolves to a quantity of the
+  # component (e.g. its display label) stays unknown; a reference unknown in
+  # every component is the unknown name refused.
   outside  <- FALSE
   resolved <- tryCatch(
     resolve(resolver_component),
@@ -114,7 +105,9 @@
       }
       .hypothesis_stop_statement_condition(error)
     },
-    BayesTools_selector_unavailable = .hypothesis_stop_statement_condition
+    BayesTools_selector_unavailable          = .hypothesis_stop_statement_condition,
+    BayesTools_hypothesis_no_parameters      = .hypothesis_stop_statement_condition,
+    BayesTools_hypothesis_component_mismatch = .hypothesis_stop_statement_condition
   )
   # A parameter catalog without RoBMA entries is metadata of an older build.
   if (NROW(metadata[["entries"]]) == 0L) {

@@ -531,28 +531,53 @@ test_that("linear-target refusals of BayesTools keep their classes", {
   means <- suppressWarnings(marginal_means(fit, density_method = "KDE"))
   # An unclassed refusal of the statement's form is a statement to restate;
   # a classed BayesTools condition (here stale draw metadata) keeps its
-  # classes instead of being taken for a statement error. An unknown level
-  # (BayesTools' resolution error) is a statement error with BayesTools'
-  # classes, as at the other entry points of hypothesis().
+  # classes instead of being taken for a statement error. BayesTools'
+  # resolution errors (an unknown level, a statement without parameter
+  # symbols, a level of another component) are statement errors with
+  # BayesTools' classes and fields, as at the other entry points of
+  # hypothesis().
+  resolution <- function(class, message, ...) {
+    structure(
+      class = c(class, "BayesTools_parameter_resolution_error", "error",
+                "condition"),
+      list(message = message, call = NULL, ...)
+    )
+  }
   refusals <- list(
     unclassed = simpleError("A linear target must be a linear combination."),
     classed   = structure(
       class = c("BayesTools_stale_metadata", "error", "condition"),
       list(message = "Draw metadata are stale.", call = NULL)
     ),
-    not_found = structure(
-      class = c("BayesTools_parameter_not_found",
-                "BayesTools_parameter_resolution_error", "error", "condition"),
-      list(message = "Hypothesis references unknown level '99' for parameter 'mu_g1'.",
-           call = NULL, alias = "mu_g1[99]", available = "mu_g1[5]")
+    not_found = resolution(
+      "BayesTools_parameter_not_found",
+      "Hypothesis references unknown level '99' for parameter 'mu_g1'.",
+      alias = "mu_g1[99]", available = "mu_g1[5]"
+    ),
+    no_parameters = resolution(
+      "BayesTools_hypothesis_no_parameters",
+      "The hypothesis contains no parameter symbols to resolve."
+    ),
+    component_mismatch = resolution(
+      "BayesTools_hypothesis_component_mismatch",
+      "The level in hypothesis symbol 'g1[10]' does not match the requested catalog component 'mods'.",
+      symbol = "g1[10]", component = "mods"
     )
   )
+  statement <- function(condition) {
+    c("RoBMA_hypothesis_statement",
+      setdiff(class(condition), c("error", "condition")))
+  }
   expected <- list(
-    unclassed = "RoBMA_hypothesis_statement",
-    classed   = "BayesTools_stale_metadata",
-    not_found = c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
-                  "BayesTools_parameter_resolution_error")
+    unclassed          = "RoBMA_hypothesis_statement",
+    classed            = "BayesTools_stale_metadata",
+    not_found          = statement(refusals[["not_found"]]),
+    no_parameters      = statement(refusals[["no_parameters"]]),
+    component_mismatch = statement(refusals[["component_mismatch"]])
   )
+  fields <- function(condition) {
+    unclass(condition)[setdiff(names(condition), c("message", "call"))]
+  }
   for (name in names(refusals)) {
     testthat::local_mocked_bindings(
       hypothesis_linear_target = function(...) stop(refusals[[name]]),
@@ -565,10 +590,44 @@ test_that("linear-target refusals of BayesTools keep their classes", {
       plan[["refusal"]][["reason"]], conditionMessage(refusals[[name]]),
       info = name
     )
-    # The marginal-means combination route refuses with the same classes.
-    error <- tryCatch(hypothesis(means, "g1[10] = g1[20]"), error = identity)
-    expect_identical(class(error), c(expected[[name]], "error", "condition"), info = name)
-    expect_identical(conditionMessage(error), conditionMessage(refusals[[name]]), info = name)
+    # Both combination routes refuse with the same classes, message, and
+    # fields of the BayesTools condition.
+    errors <- list(
+      fit   = tryCatch(
+        hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),
+        error = identity
+      ),
+      means = tryCatch(hypothesis(means, "g1[10] = g1[20]"), error = identity)
+    )
+    for (route in names(errors)) {
+      info  <- paste(name, route)
+      error <- errors[[route]]
+      expect_identical(class(error), c(expected[[name]], "error", "condition"),
+                       info = info)
+      expect_identical(conditionMessage(error), conditionMessage(refusals[[name]]),
+                       info = info)
+      expect_identical(fields(error), fields(refusals[[name]]), info = info)
+    }
+  }
+
+  # A refit request of BayesTools is no refusal of the statement: it stops
+  # planning, unconverted, at both entry points.
+  refit <- structure(
+    class = c("BayesTools_refit_required", "error", "condition"),
+    list(message = "Fitted metadata are unsupported. Refit the model.",
+         call = NULL)
+  )
+  testthat::local_mocked_bindings(
+    hypothesis_linear_target = function(...) stop(refit),
+    .package = "BayesTools"
+  )
+  for (error in list(
+    tryCatch(.hypothesis_plans(fit, "g1[10] = g1[20]"), error = identity),
+    tryCatch(hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),
+             error = identity),
+    tryCatch(hypothesis(means, "g1[10] = g1[20]"), error = identity)
+  )) {
+    expect_identical(error, refit)
   }
 })
 
