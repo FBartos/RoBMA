@@ -36,6 +36,34 @@ context("Random-slope correlation routes")
   return(fit)
 }
 
+# The same scaled block under BMA.mv, whose default heterogeneity null gates
+# the block: a gate-only allocation, split over the block's SDs by an
+# sd_component child, multiplies every SD of the block. The data have no
+# study effects, so some draws switch the gate off.
+.random_correlation_gated_fit <- function() {
+
+  if (!is.null(.random_correlation_cache[["gated"]])) {
+    return(.random_correlation_cache[["gated"]])
+  }
+
+  set.seed(2)
+  k   <- 30L
+  dat <- data.frame(
+    study = rep(sprintf("s%02d", seq_len(10L)), each = 3L),
+    x     = stats::rnorm(k)
+  )
+  dat[["yi"]] <- 0.2 + 0.1 * dat[["x"]] + stats::rnorm(k, 0, 0.15)
+  fit <- suppressWarnings(BMA.mv(
+    yi = yi, V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
+    silent = TRUE
+  ))
+  .random_correlation_cache[["gated"]] <- fit
+
+  return(fit)
+}
+
 # Draws 3 and 4 allocate the whole block variance to the intercept: the SD
 # of the scaled slope is zero and the original-scale correlation undefined.
 .random_correlation_zero_sd_fit <- function() {
@@ -248,8 +276,10 @@ test_that("qCMDE/IWMDE stops for the correlation name the requested operation", 
       "random-component coordinate. Use density_method = 'KDE'."
     )
   )
-  # Point hypotheses on it are refused for every method by its plan (its
-  # original-scale prior density or its scalar coordinate is unavailable).
+  # Point hypotheses on it are refused for every method by its plan: the
+  # correlation is atom-free (see the next test), but the original-scale
+  # correlation of a scaled block mixes the LKJ correlation with the block's
+  # SDs and has no prior density, so the Savage-Dickey ratio is undefined.
   for (method in c("KDE", "qCMDE", "IWMDE")) {
     expect_error(
       suppressWarnings(hypothesis(
@@ -267,4 +297,89 @@ test_that("qCMDE/IWMDE stops for the correlation name the requested operation", 
     ),
     fixed = TRUE
   )
+})
+
+
+test_that("original-scale correlations of allocated blocks are atom-free and plot", {
+
+  skip_on_cran()
+  # BayesTools declares the original-scale correlation of an allocated us()
+  # block atom-free when no SD of the block has a point mass other than a
+  # gate that scales all of them: the ungated default allocation of brma.mv
+  # and the gated default allocation of BMA.mv. A draw with the gate off has
+  # all SDs 0 and an undefined correlation; the defined draws are
+  # continuous. The correlation has no prior density on the original scale.
+  fits <- list(
+    ungated = .random_correlation_fit(),
+    gated   = .random_correlation_gated_fit()
+  )
+  for (name in names(fits)) {
+    fit     <- fits[[name]]
+    samples <- .brma_random_parameter_mixed_posterior(
+      fit, "rho(intercept,x)"
+    )[[1L]]
+    expect_true(BayesTools::posterior_atoms_free(samples), info = name)
+    expect_null(
+      BayesTools::posterior_metadata(samples, "prior_density"),
+      info = name
+    )
+
+    # The defined draws are the draws with the gate on.
+    draws <- as.matrix(coda::as.mcmc(fit[["fit"]]))
+    gate  <- grep("include_component_1_indicator$", colnames(draws), value = TRUE)
+    expect_length(gate, if (identical(name, "gated")) 1L else 0L)
+    n_defined <- if (length(gate) == 0L) nrow(draws) else sum(draws[, gate] == 1)
+    expect_length(samples, n_defined)
+    expect_false(anyNA(samples), info = name)
+    if (identical(name, "gated")) {
+      expect_lt(n_defined, nrow(draws))
+    }
+
+    # Plots draw the posterior; without a prior density the prior curve is
+    # left out with a classed warning.
+    posterior_only <- plot(fit, parameter = "rho(intercept,x)", plot_type = "ggplot")
+    expect_warning(
+      with_prior <- plot(fit, parameter = "rho(intercept,x)", prior = TRUE,
+                         plot_type = "ggplot"),
+      class = "BayesTools_prior_curve_unavailable"
+    )
+    expect_identical(
+      ggplot2::ggplot_build(with_prior)[["data"]],
+      ggplot2::ggplot_build(posterior_only)[["data"]],
+      info = name
+    )
+
+    # Region hypotheses use the defined draws; point hypotheses are refused
+    # for every method, as hypothesis_quantities() renders.
+    region <- suppressWarnings(hypothesis(
+      fit, "rho(intercept,x) > 0", columns = "all", seed = 1
+    ))
+    expect_equal(
+      region[["posterior"]],
+      .random_correlation_odds(mean(as.numeric(samples) > 0)),
+      tolerance = 1e-12, info = name
+    )
+    for (method in c("KDE", "qCMDE", "IWMDE")) {
+      expect_error(
+        suppressWarnings(hypothesis(
+          fit, "rho(intercept,x) = 0", density_method = method, seed = 1
+        )),
+        class = "RoBMA_hypothesis_target",
+        info  = paste(name, method)
+      )
+    }
+    quantities <- hypothesis_quantities(fit)
+    row <- quantities[quantities[["alias"]] == "rho(intercept,x)", , drop = FALSE]
+    expect_identical(nrow(row), 1L)
+    expect_false(row[["point_test"]], info = name)
+    expect_true(row[["direction_test"]], info = name)
+
+    # On the fitted scale the correlation is the LKJ(1) correlation of the
+    # 2 x 2 block, uniform on (-1, 1): its exact prior ordinate is 1/2.
+    point <- suppressWarnings(hypothesis(
+      fit, "rho(intercept,x) = 0", density_method = "KDE", columns = "all",
+      seed = 1, standardized_coefficients = TRUE
+    ))
+    expect_equal(point[["prior"]], 0.5, tolerance = 1e-10, info = name)
+  }
 })
