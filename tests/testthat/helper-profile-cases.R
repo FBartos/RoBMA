@@ -579,9 +579,13 @@ certification_case_fit_filter <- function(name) {
     return(NULL)
   }
 
+  # testthat matches the filter against the file stems: each stem is matched
+  # whole and literally, so that '01-bselmodel' does not also select
+  # 'test-01-bselmodel.mv.R'.
   stems <- sub("^test-", "", sources)
   stems <- sub("\\.[Rr]$", "", stems)
-  paste(stems, collapse = "|")
+  stems <- gsub("([][{}()|^$.*+?\\\\])", "\\\\\\1", stems)
+  paste0("^(", paste(stems, collapse = "|"), ")$")
 }
 
 

@@ -455,6 +455,13 @@ test_that("active fit selection is explicit and fails closed", {
 
 test_that("certification case fit filters select their source files", {
 
+  # The stems testthat matches filters against: a filter must select the
+  # case's source files only, not also the files whose stems they prefix
+  # (e.g. '01-bselmodel.mv' for '01-bselmodel').
+  test_stems <- sub("^test[-_]?", "", sub("\\.[Rr]$", "", list.files(
+    testthat::test_path(),
+    pattern = "^test.*\\.[Rr]$"
+  )))
   for (name in certification_case_names()) {
     case       <- certification_case(name)
     fit_filter <- certification_case_fit_filter(name)
@@ -463,7 +470,11 @@ test_that("certification case fit filters select their source files", {
       expect_identical(certification_case_phases(name), "verify", info = name)
     } else {
       stems <- sub("^test-", "", sub("\\.[Rr]$", "", case[["fit_sources"]]))
-      expect_true(all(grepl(fit_filter, stems)), info = name)
+      expect_identical(
+        sort(test_stems[grepl(fit_filter, test_stems)]),
+        sort(stems),
+        info = name
+      )
       expect_identical(
         certification_case_phases(name),
         c("prepare", "verify"),
