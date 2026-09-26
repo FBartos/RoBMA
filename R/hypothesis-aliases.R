@@ -20,10 +20,7 @@
         catalog        = metadata[["catalog"]],
         simplify_names = TRUE
       ),
-      error = function(error) {
-        class(error) <- unique(c("RoBMA_hypothesis_statement", class(error)))
-        stop(error)
-      }
+      error = .hypothesis_stop_statement_condition
     )
   }
   resolver_component <- if (identical(component, "auto") ||
@@ -108,9 +105,9 @@
           return(unrestricted)
         }
       }
-      class(error) <- unique(c("RoBMA_hypothesis_statement", class(error)))
-      stop(error)
-    }
+      .hypothesis_stop_statement_condition(error)
+    },
+    BayesTools_selector_unavailable = .hypothesis_stop_statement_condition
   )
   # A parameter catalog without RoBMA entries is metadata of an older build.
   if (NROW(metadata[["entries"]]) == 0L) {
@@ -377,15 +374,31 @@
 
 # Hypotheses are parsed against the fitted parameter catalog, whose aliases
 # include every rendered table label, level cell and contrast coefficient
-# selector.
+# selector. A contrast-coefficient selector of a level coordinate (e.g.
+# 'g{1}' of a treatment factor), which BayesTools refuses naming the level
+# form, is a statement to restate on that level, as the selectors of
+# contrast coefficients are (.brma_stop_contrast_coefficient()).
 .hypothesis_brma_ast <- function(hypothesis, catalog = NULL) {
 
   if (inherits(hypothesis, "BayesTools_hypothesis_ast")) {
     return(hypothesis)
   }
-  return(BayesTools::hypothesis_parse(
-    hypothesis     = hypothesis,
-    catalog        = catalog,
-    simplify_names = !is.null(catalog)
+  return(tryCatch(
+    BayesTools::hypothesis_parse(
+      hypothesis     = hypothesis,
+      catalog        = catalog,
+      simplify_names = !is.null(catalog)
+    ),
+    BayesTools_selector_unavailable = .hypothesis_stop_statement_condition
   ))
+}
+
+
+# Re-raises a BayesTools refusal of a hypothesis statement (its message,
+# classes, and fields) as a statement error, with "RoBMA_hypothesis_statement"
+# before its classes.
+.hypothesis_stop_statement_condition <- function(condition) {
+
+  class(condition) <- unique(c("RoBMA_hypothesis_statement", class(condition)))
+  stop(condition)
 }

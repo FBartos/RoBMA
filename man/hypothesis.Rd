@@ -146,7 +146,10 @@ region events or span several levels, ambiguous references
 (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
 parameters of another component (\code{RoBMA_component_mismatch}), factor
 contrast coefficients such as \code{"g{1}"} (state the hypothesis on
-factor levels), references to unknown names or factor levels, and
+factor levels; a selector of a coefficient that is a level, such as
+\code{"g{1}"} of a treatment factor, also has the classes of the
+BayesTools refusal \code{BayesTools_selector_unavailable}, which names the
+level), references to unknown names or factor levels, and
 statements that reference no parameter (on fitted objects followed by the
 classes of the BayesTools refusal of such a statement). An unknown name or
 level also has the classes

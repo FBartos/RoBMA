@@ -1253,13 +1253,7 @@
       hypothesis = plan[["hypothesis"]],
       parameter  = plan[["parameter"]]
     ),
-    BayesTools_linear_target_unavailable = function(condition) condition,
-    error = function(condition) {
-      structure(
-        class = c("RoBMA_hypothesis_statement", "error", "condition"),
-        list(message = conditionMessage(condition), call = NULL)
-      )
-    }
+    error = .hypothesis_linear_target_condition
   )
   if (inherits(target, "condition")) {
     reason <- conditionMessage(target)
@@ -1918,6 +1912,25 @@
 }
 
 
+# The condition with which BayesTools::hypothesis_linear_target() refuses a
+# statement: its unclassed errors refuse the form of the statement (e.g. a
+# nonlinear expression of the levels), which is restated
+# ("RoBMA_hypothesis_statement"); classed BayesTools conditions (linear
+# targets BayesTools cannot certify, "BayesTools_linear_target_unavailable",
+# or refusals of the fitted metadata) keep their classes.
+.hypothesis_linear_target_condition <- function(condition) {
+
+  if (any(startsWith(class(condition), "BayesTools_"))) {
+    return(condition)
+  }
+
+  structure(
+    class = c("RoBMA_hypothesis_statement", "error", "condition"),
+    list(message = conditionMessage(condition), call = NULL)
+  )
+}
+
+
 .hypothesis_plan_marginal_combination <- function(plan) {
 
   plan[["route"]] <- "combination"
@@ -1928,13 +1941,7 @@
       hypothesis = plan[["hypothesis"]],
       parameter  = plan[["parameter"]]
     ),
-    BayesTools_linear_target_unavailable = function(condition) condition,
-    error = function(condition) {
-      structure(
-        class = c("RoBMA_hypothesis_statement", "error", "condition"),
-        list(message = conditionMessage(condition), call = NULL)
-      )
-    }
+    error = .hypothesis_linear_target_condition
   )
   if (inherits(target, "condition")) {
     plan[["refusal"]] <- if (inherits(target, "RoBMA_hypothesis_statement")) {

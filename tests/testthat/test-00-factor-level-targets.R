@@ -190,7 +190,9 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
   expect_false(inherits(error, "RoBMA_hypothesis_statement"))
 
   # Treatment levels are the coefficients: BayesTools refuses the contrast
-  # selector of a level coordinate and names its level form.
+  # selector of a level coordinate and names its level form. hypothesis()
+  # re-raises it as a statement to restate on that level, with its classes
+  # and fields; plot() keeps BayesTools' condition.
   refusal <- tryCatch(
     suppressWarnings(hypothesis(fits[["treatment"]], "g1{1} = 0", density_method = "KDE")),
     BayesTools_selector_unavailable = function(condition) condition
@@ -198,10 +200,26 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
   expect_s3_class(refusal, "BayesTools_selector_unavailable")
   expect_identical(refusal[["selector"]], "g1{1}")
   expect_identical(refusal[["level"]], "g1[10]")
-  expect_error(
-    plot(fits[["treatment"]], parameter = "g1{1}", plot_type = "ggplot"),
-    class = "BayesTools_selector_unavailable"
+  bayestools <- tryCatch(
+    BayesTools::hypothesis_parse(
+      "g1{1} = 0",
+      catalog        = .brma_parameter_catalog_metadata(fits[["treatment"]])[["catalog"]],
+      simplify_names = TRUE
+    ),
+    error = identity
   )
+  expect_s3_class(bayestools, "BayesTools_selector_unavailable")
+  expect_identical(
+    class(refusal),
+    c("RoBMA_hypothesis_statement", class(bayestools))
+  )
+  expect_identical(conditionMessage(refusal), conditionMessage(bayestools))
+  plotted <- tryCatch(
+    plot(fits[["treatment"]], parameter = "g1{1}", plot_type = "ggplot"),
+    error = identity
+  )
+  expect_s3_class(plotted, "BayesTools_selector_unavailable")
+  expect_false(inherits(plotted, "RoBMA_hypothesis_statement"))
 
   # Random-slope quantities such as 'tau(g1{3})' are no fixed contrast
   # coefficients: a parse error, not the coefficient message.
@@ -503,6 +521,40 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   expect_null(.hypothesis_plan_support_refusal(
     0.5, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
   ))
+})
+
+
+test_that("linear-target refusals of BayesTools keep their classes", {
+
+  skip_on_cran()
+  fit <- .factor_level_target_fits()[["meandif"]]
+  # An unclassed refusal of the statement's form is a statement to restate;
+  # a classed BayesTools condition (here stale draw metadata) keeps its
+  # classes instead of being taken for a statement error.
+  refusals <- list(
+    unclassed = simpleError("A linear target must be a linear combination."),
+    classed   = structure(
+      class = c("BayesTools_stale_metadata", "error", "condition"),
+      list(message = "Draw metadata are stale.", call = NULL)
+    )
+  )
+  expected <- list(
+    unclassed = "RoBMA_hypothesis_statement",
+    classed   = "BayesTools_stale_metadata"
+  )
+  for (name in names(refusals)) {
+    testthat::local_mocked_bindings(
+      hypothesis_linear_target = function(...) stop(refusals[[name]]),
+      .package = "BayesTools"
+    )
+    plan <- .hypothesis_plans(fit, "g1[10] = g1[20]")[[1L]]
+    expect_identical(plan[["route"]], "combination", info = name)
+    expect_identical(plan[["refusal"]][["class"]], expected[[name]], info = name)
+    expect_identical(
+      plan[["refusal"]][["reason"]], conditionMessage(refusals[[name]]),
+      info = name
+    )
+  }
 })
 
 
