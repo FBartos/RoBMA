@@ -719,14 +719,16 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
     "posterior_ordinate"
   ) <- ordinate_for(stale_provenance)
 
+  # Each level with a matching ordinate is evaluated on its own (only
+  # 'alternate' here).
   testthat::local_mocked_bindings(
     Savage_Dickey_BF = function(posterior, null_hypothesis,
                                 normal_approximation, silent,
                                 density_method) {
 
-      out <- as.list(seq_along(posterior))
-      names(out) <- names(posterior)
-      return(out)
+      expect_false(is.list(posterior))
+      expect_identical(density_method, "precomputed")
+      return(1)
     },
     .package = "BayesTools"
   )

@@ -25,7 +25,15 @@
 \item{null_hypothesis}{point null hypothesis used for inclusion Bayes
 factors, specified on the fitted linear-predictor scale. Defaults to
 \code{0}. This remains on the fitted scale when \code{output_measure} or
-\code{transform} changes the displayed scale.}
+\code{transform} changes the displayed scale. A marginal mean whose
+Savage-Dickey Bayes factor at the null hypothesis is undefined (BayesTools
+refuses it with a condition of class \code{BayesTools_hypothesis_ordinate}:
+the mean is structurally fixed at the null, or its prior density there is a
+point mass, zero (for example a null outside a truncated prior), infinite,
+undefined, or without an exact value) has an \code{NA} inclusion Bayes
+factor, whose reason the summary prints below the table; the other marginal
+means are computed. A point hypothesis on that mean with \code{\link[=hypothesis]{hypothesis()}}
+stops with the BayesTools class.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}

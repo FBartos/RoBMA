@@ -74,6 +74,151 @@ test_that("structurally fixed marginal cells have unavailable BFs", {
 })
 
 
+test_that("marginal means whose Savage-Dickey Bayes factor is refused have NA rows", {
+
+  # One row per refusal class of BayesTools' ordinate check, next to a row
+  # with a Bayes factor: each refused row has an NA Bayes factor with the
+  # reason of its class, and the other row is computed.
+  refusals <- c(
+    zero      = "BayesTools_zero_ordinate",
+    infinite  = "BayesTools_infinite_ordinate",
+    undefined = "BayesTools_undefined_ordinate",
+    inexact   = "BayesTools_inexact_ordinate",
+    mass      = "BayesTools_point_mass_at_null",
+    fixed     = "BayesTools_posterior_point_mass_at_null"
+  )
+  posterior <- lapply(seq_len(length(refusals) + 1L), function(i) {
+    structure(rep(i, 20L), class = c("marginal_posterior", "numeric"))
+  })
+  names(posterior) <- c(names(refusals), "computed")
+  testthat::local_mocked_bindings(
+    Savage_Dickey_BF = function(posterior, ...) {
+      i <- posterior[[1L]]
+      if (i > length(refusals)) {
+        return(structure(2.5, warnings = "A computed row."))
+      }
+      stop(structure(
+        class = c(refusals[[i]], "BayesTools_hypothesis_ordinate", "error", "condition"),
+        list(message = "Reworded refusal.", call = NULL)
+      ))
+    },
+    .package = "BayesTools"
+  )
+  inference <- .marginal_means_inclusion_bf(
+    posterior       = posterior,
+    null_hypothesis = 0,
+    compute         = TRUE
+  )
+
+  expect_named(inference, names(posterior))
+  expect_identical(inference[["computed"]], structure(2.5, warnings = "A computed row."))
+  reasons <- c(
+    zero      = paste0("The prior density of the marginal mean at the null ",
+                       "hypothesis is zero; its inclusion Bayes factor is undefined."),
+    infinite  = paste0("The prior density of the marginal mean at the null ",
+                       "hypothesis is infinite; its inclusion Bayes factor is undefined."),
+    undefined = paste0("The prior density of the marginal mean at the null ",
+                       "hypothesis is undefined; its inclusion Bayes factor is undefined."),
+    inexact   = paste0("The prior density of the marginal mean at the null ",
+                       "hypothesis has no exact value; its inclusion Bayes factor ",
+                       "is unavailable. Test a region hypothesis with 'hypothesis()' ",
+                       "instead."),
+    mass      = paste0("The prior of the marginal mean has a point mass at the ",
+                       "null hypothesis; its inclusion Bayes factor is undefined."),
+    fixed     = paste0("The marginal mean is structurally fixed at the null ",
+                       "hypothesis; its inclusion Bayes factor is undefined.")
+  )
+  for (row in names(refusals)) {
+    expect_true(is.na(inference[[row]]), info = row)
+    expect_identical(attr(inference[[row]], "warnings", exact = TRUE), reasons[[row]],
+                     info = row)
+  }
+
+  # qCMDE/IWMDE: each level with a precomputed ordinate is evaluated on its
+  # own, so a refused level does not stop the others.
+  ordinate <- BayesTools::posterior_ordinate_attribute(
+    0, 1, "q_grid_cmde", "qCMDE",
+    diagnostics = list(estimator = "q_grid_cmde", ordinate_relative_change = 0)
+  )
+  precomputed <- lapply(posterior[c("inexact", "computed")], function(level) {
+    BayesTools::posterior_metadata(level, "posterior_ordinate") <- ordinate
+    level
+  })
+  testthat::local_mocked_bindings(
+    .iwmde_posterior_ordinate_matches_request = function(...) TRUE,
+    .package = "RoBMA"
+  )
+  bf <- .marginal_means_iwmde_bf(precomputed, 0, density_method = "qCMDE")
+  expect_identical(as.numeric(bf[["computed"]]), 2.5)
+  expect_true(is.na(bf[["inexact"]]))
+  expect_identical(attr(bf[["inexact"]], "warnings", exact = TRUE), reasons[["inexact"]])
+  scalar <- .marginal_means_iwmde_bf(precomputed[["inexact"]], 0,
+                                     density_method = "qCMDE")
+  expect_true(is.na(scalar))
+  expect_identical(attr(scalar, "warnings", exact = TRUE), reasons[["inexact"]])
+})
+
+
+test_that("marginal_means() reports rows with a zero prior ordinate at the null as NA", {
+
+  skip_on_cran()
+  set.seed(3)
+  k    <- 30L
+  data <- data.frame(x = stats::rnorm(k), sei = stats::runif(k, 0.1, 0.3))
+  data[["yi"]] <- stats::rnorm(k, 0.3, data[["sei"]])
+  # The effect prior is truncated at 0: the intercept (and the mean at the
+  # mean of 'x') has a zero prior density at -0.5, the means at -1 and +1 SD
+  # of 'x' do not.
+  fit <- suppressWarnings(brma(
+    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
+    prior_effect = prior("normal", list(0, 1), truncation = list(0, Inf)),
+    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 1,
+    silent = TRUE
+  ))
+  means <- suppressWarnings(marginal_means(fit, null_hypothesis = -0.5, bf = TRUE))
+  inference <- means[["inference"]]
+  reason <- paste0("The prior density of the marginal mean at the null ",
+                   "hypothesis is zero; its inclusion Bayes factor is undefined.")
+  refused <- list(c("mu_intercept", "intercept"), c("mu_x", "0SD"))
+  computed <- list(c("mu_x", "-1SD"), c("mu_x", "1SD"))
+  bf_of <- function(cell) {
+    value <- inference[["inference"]][[cell[[1L]]]]
+    if (is.list(value)) value[[cell[[2L]]]] else value
+  }
+  for (cell in refused) {
+    info <- paste(cell, collapse = " ")
+    expect_true(is.na(bf_of(cell)), info = info)
+    expect_identical(attr(bf_of(cell), "warnings", exact = TRUE), reason, info = info)
+  }
+  # The other rows are BayesTools' Savage-Dickey Bayes factors of their own
+  # conditional marginal posteriors, as before.
+  for (cell in computed) {
+    posterior <- inference[["conditional"]][[cell[[1L]]]][[cell[[2L]]]]
+    class(posterior) <- unique(c(class(posterior), "marginal_posterior"))
+    expect_identical(
+      bf_of(cell),
+      BayesTools::Savage_Dickey_BF(posterior, null_hypothesis = -0.5,
+                                   silent = TRUE, density_method = "KDE"),
+      info = paste(cell, collapse = " ")
+    )
+  }
+
+  # The summary prints the reason after the row label; the data frame has NA.
+  table <- summary(means)
+  expect_true(all(c(paste0("intercept: ", reason), paste0("x[0SD]: ", reason)) %in%
+                    attr(table, "warnings")))
+  frame <- as.data.frame(means)
+  expect_identical(frame[["parameter"]], c("intercept", "x[-1SD]", "x[0SD]", "x[1SD]"))
+  expect_identical(is.na(frame[["inclusion_BF"]]), c(TRUE, FALSE, TRUE, FALSE))
+  expect_identical(as.numeric(frame[["inclusion_BF"]][c(2L, 4L)]),
+                   vapply(computed, function(cell) as.numeric(bf_of(cell)), numeric(1)))
+
+  # A point hypothesis on a refused mean stops with BayesTools' class.
+  expect_error(hypothesis(means, "intercept = -0.5"), class = "BayesTools_zero_ordinate")
+  expect_error(hypothesis(means, "x[0SD] = -0.5"), class = "BayesTools_zero_ordinate")
+})
+
+
 test_that("interaction marginals condition on every contributing coefficient", {
 
   terms <- c("intercept", "a", "b", "a:b")

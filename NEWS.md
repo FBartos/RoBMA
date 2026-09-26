@@ -152,14 +152,16 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     use the matching conditional distribution.
   - marginal-means Bayes factors follow the Savage-Dickey rules of
     BayesTools 0.3.1 (see also Fixes): a null hypothesis outside the
-    posterior draws gives a finite Bayes factor instead of `Inf`; a marginal
-    mean structurally fixed at the null hypothesis has an `NA` Bayes factor
-    with a note among the table's warnings (4.0.0 reported the density ratio
-    with a warning that it is likely invalid); and a prior density at the
-    null that is zero (a null outside the prior support), infinite, or
-    without an exact value stops `marginal_means()` with the BayesTools class
-    (`BayesTools_zero_ordinate`, `BayesTools_infinite_ordinate`, or
-    `BayesTools_inexact_ordinate`) instead of reporting a Bayes factor.
+    posterior draws gives a finite Bayes factor instead of `Inf`; and a
+    marginal mean structurally fixed at the null hypothesis, or whose prior
+    density at the null is a point mass, zero (a null outside the prior
+    support), infinite, undefined, or without an exact value, has an `NA`
+    Bayes factor with the reason among the table's warnings, while the other
+    marginal means are computed (4.0.0 reported the density ratio, with a
+    warning that it is likely invalid for a mean fixed at the null). A point
+    hypothesis on such a mean with `hypothesis()` stops with the BayesTools
+    class (e.g., `BayesTools_zero_ordinate` or
+    `BayesTools_inexact_ordinate`).
   - `ranef()` of multilevel models returns the cluster-level effects with one
     column per cluster by default (`u_cluster[<cluster>]`); 4.0.0 returned
     one column per estimate (`u_cluster[<cluster>|<estimate>]`), which

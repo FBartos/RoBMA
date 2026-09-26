@@ -544,25 +544,27 @@
     return(out)
   }
 
-  bf_posterior <- .marginal_means_bf_posterior(posterior[valid])
-  class(bf_posterior) <- class(posterior)
-  bf <- BayesTools::Savage_Dickey_BF(
-    posterior            = bf_posterior,
-    null_hypothesis      = null_hypothesis,
-    normal_approximation = FALSE,
-    silent               = TRUE,
-    density_method       = "precomputed"
-  )
-
+  # Each level with its own precomputed ordinate is evaluated on its own, so
+  # that a level whose Bayes factor BayesTools refuses (e.g. an inexact prior
+  # ordinate at the null) has an NA Bayes factor with the reason
+  # (.marginal_means_row_bf()) and the other levels are computed.
   for (i in seq_along(out)) {
     if (isTRUE(valid[[i]])) {
-      out[[i]] <- .iwmde_bf_append_warning(
-        bf                 = bf[[names(out)[[i]]]],
+      level <- .marginal_means_bf_posterior(posterior[[i]])
+      class(level) <- unique(c(class(level), "marginal_posterior"))
+      out[[i]] <- .marginal_means_row_bf(.iwmde_bf_append_warning(
+        bf                 = BayesTools::Savage_Dickey_BF(
+          posterior            = level,
+          null_hypothesis      = null_hypothesis,
+          normal_approximation = FALSE,
+          silent               = TRUE,
+          density_method       = "precomputed"
+        ),
         posterior_ordinate = BayesTools::posterior_metadata(
           posterior[[i]],
           "posterior_ordinate"
         )
-      )
+      ))
     } else {
       out[[i]] <- .marginal_means_unavailable_bf_scalar(
         .marginal_means_iwmde_bf_warning(
@@ -599,18 +601,16 @@
   }
 
   posterior <- .marginal_means_bf_posterior(posterior)
-  bf <- BayesTools::Savage_Dickey_BF(
-    posterior            = posterior,
-    null_hypothesis      = null_hypothesis,
-    normal_approximation = FALSE,
-    silent               = TRUE,
-    density_method       = "precomputed"
-  )
-
-  .iwmde_bf_append_warning(
-    bf                 = bf,
+  .marginal_means_row_bf(.iwmde_bf_append_warning(
+    bf                 = BayesTools::Savage_Dickey_BF(
+      posterior            = posterior,
+      null_hypothesis      = null_hypothesis,
+      normal_approximation = FALSE,
+      silent               = TRUE,
+      density_method       = "precomputed"
+    ),
     posterior_ordinate = BayesTools::posterior_metadata(posterior, "posterior_ordinate")
-  )
+  ))
 }
 
 

@@ -43,7 +43,15 @@ marginal_means <- function(object, ...) {
 #' @param null_hypothesis point null hypothesis used for inclusion Bayes
 #' factors, specified on the fitted linear-predictor scale. Defaults to
 #' \code{0}. This remains on the fitted scale when \code{output_measure} or
-#' \code{transform} changes the displayed scale.
+#' \code{transform} changes the displayed scale. A marginal mean whose
+#' Savage-Dickey Bayes factor at the null hypothesis is undefined (BayesTools
+#' refuses it with a condition of class \code{BayesTools_hypothesis_ordinate}:
+#' the mean is structurally fixed at the null, or its prior density there is a
+#' point mass, zero (for example a null outside a truncated prior), infinite,
+#' undefined, or without an exact value) has an \code{NA} inclusion Bayes
+#' factor, whose reason the summary prints below the table; the other marginal
+#' means are computed. A point hypothesis on that mean with [hypothesis()]
+#' stops with the BayesTools class.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
@@ -385,21 +393,75 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 
 .marginal_means_inclusion_bf_one <- function(posterior, null_hypothesis) {
 
+  .marginal_means_row_bf(BayesTools::Savage_Dickey_BF(
+    posterior       = posterior,
+    null_hypothesis = null_hypothesis,
+    silent          = TRUE,
+    density_method  = "KDE"
+  ))
+}
+
+
+# The inclusion Bayes factor of one marginal mean ('bf', evaluated here). A
+# marginal mean whose Savage-Dickey Bayes factor at the null is undefined
+# does not stop the table: BayesTools' refusals of the ordinates of a point
+# hypothesis (class "BayesTools_hypothesis_ordinate": a declared posterior
+# point mass at the null, "BayesTools_posterior_point_mass_at_null", i.e. a
+# mean structurally fixed at the null; a prior point mass, or a zero,
+# infinite, undefined, or inexact prior ordinate at the null, e.g.
+# "BayesTools_zero_ordinate" for a null outside a truncated prior) give that
+# row an NA Bayes factor with the reason of the refusal's class in its
+# "warnings" attribute, which summary tables print after the row's label;
+# the other rows are computed. A point hypothesis on that mean
+# (hypothesis()) stops with the class.
+.marginal_means_row_bf <- function(bf) {
+
   tryCatch(
-    BayesTools::Savage_Dickey_BF(
-      posterior       = posterior,
-      null_hypothesis = null_hypothesis,
-      silent          = TRUE,
-      density_method  = "KDE"
-    ),
-    BayesTools_posterior_point_mass_at_null = function(error) {
-      value <- NA_real_
-      attr(value, "warnings") <- paste0(
-        "The marginal mean is structurally fixed at the null hypothesis; ",
-        "its inclusion Bayes factor is undefined."
-      )
-      return(value)
+    bf,
+    error = function(condition) {
+      if (!inherits(condition, "BayesTools_hypothesis_ordinate")) {
+        stop(condition)
+      }
+      .marginal_means_unavailable_bf_scalar(.marginal_means_row_bf_reason(condition))
     }
+  )
+}
+
+
+# The reason for an NA inclusion Bayes factor, by the class of BayesTools'
+# refusal ('condition').
+.marginal_means_row_bf_reason <- function(condition) {
+
+  if (inherits(condition, "BayesTools_posterior_point_mass_at_null")) {
+    return(paste0(
+      "The marginal mean is structurally fixed at the null hypothesis; ",
+      "its inclusion Bayes factor is undefined."
+    ))
+  }
+  if (inherits(condition, "BayesTools_point_mass_at_null")) {
+    return(paste0(
+      "The prior of the marginal mean has a point mass at the null ",
+      "hypothesis; its inclusion Bayes factor is undefined."
+    ))
+  }
+  behavior <- c(
+    BayesTools_zero_ordinate      = "zero",
+    BayesTools_infinite_ordinate  = "infinite",
+    BayesTools_undefined_ordinate = "undefined"
+  )
+  known <- names(behavior)[vapply(names(behavior), inherits, logical(1),
+                                  x = condition)]
+  if (length(known) > 0L) {
+    return(paste0(
+      "The prior density of the marginal mean at the null hypothesis is ",
+      behavior[[known[[1L]]]], "; its inclusion Bayes factor is undefined."
+    ))
+  }
+
+  paste0(
+    "The prior density of the marginal mean at the null hypothesis has no ",
+    "exact value; its inclusion Bayes factor is unavailable. Test a region ",
+    "hypothesis with 'hypothesis()' instead."
   )
 }
 

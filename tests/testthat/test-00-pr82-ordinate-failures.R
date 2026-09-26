@@ -176,11 +176,13 @@ test_that("multi-level marginal means keep each failure beside valid Bayes facto
     list(good = with_draw_metadata(1:3, posterior_ordinate = ordinate)),
     bad
   )
+  # Each level with a matching ordinate ('good') is evaluated on its own.
   calls <- 0L
   testthat::local_mocked_bindings(Savage_Dickey_BF = function(posterior, ...) {
     calls <<- calls + 1L
-    expect_identical(names(posterior), "good")
-    list(good = 2)
+    expect_false(is.list(posterior))
+    expect_false(is.null(BayesTools::posterior_metadata(posterior, "posterior_ordinate")))
+    2
   }, .package = "BayesTools")
   mixed <- .marginal_means_iwmde_bf(posterior, 3,
     provenance = list(good = provenance), density_method = "qCMDE")
