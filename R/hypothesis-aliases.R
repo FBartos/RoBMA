@@ -372,7 +372,7 @@
   if (length(statements) == 1L) {
     roots   <- BayesTools::hypothesis_symbols(ast)
     mapping <- mapping[names(mapping) %in% roots]
-    return(BayesTools::hypothesis_rewrite(ast, mapping))
+    return(.hypothesis_brma_rewrite_statement(ast, mapping))
   }
 
   rewritten <- vapply(statements, function(statement) {
@@ -381,10 +381,46 @@
     roots <- BayesTools::hypothesis_symbols(statement_ast)
     statement_mapping <- mapping[names(mapping) %in% roots]
     BayesTools::hypothesis_render(
-      BayesTools::hypothesis_rewrite(statement_ast, statement_mapping)
+      .hypothesis_brma_rewrite_statement(statement_ast, statement_mapping)
     )
   }, character(1))
   return(BayesTools::hypothesis_parse(unname(rewritten)))
+}
+
+
+# Rewrites the roots of one statement ('ast') by 'mapping'. A statement that
+# names one quantity by several names (e.g. "intercept > mu_intercept", or
+# "mu > 0 & intercept < 1" on the location intercept) would map them onto one
+# symbol, which BayesTools::hypothesis_rewrite() refuses without a class (the
+# symbols (root, level) that 'mapping' makes equal): the statement is
+# restated with one name ("RoBMA_hypothesis_statement").
+.hypothesis_brma_rewrite_statement <- function(ast, mapping) {
+
+  symbols <- unique(BayesTools::hypothesis_symbols(ast, occurrences = TRUE)[
+    , c("parameter", "level"), drop = FALSE
+  ])
+  roots   <- symbols[["parameter"]]
+  mapped  <- roots %in% names(mapping)
+  roots[mapped] <- unname(mapping[roots[mapped]])
+  keys    <- paste(roots, symbols[["level"]], sep = "\r")
+  shared  <- keys %in% keys[duplicated(keys)]
+  if (any(shared)) {
+    names <- ifelse(
+      is.na(symbols[["level"]][shared]),
+      symbols[["parameter"]][shared],
+      paste0(symbols[["parameter"]][shared], "[", symbols[["level"]][shared], "]")
+    )
+    .hypothesis_stop(.hypothesis_refusal(
+      paste0(
+        "Hypothesis names one quantity by several names (",
+        paste0("'", names, "'", collapse = ", "), "). Use one of them ",
+        "throughout the statement."
+      ),
+      "statement"
+    ))
+  }
+
+  BayesTools::hypothesis_rewrite(ast, mapping)
 }
 
 

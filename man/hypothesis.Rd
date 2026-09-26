@@ -145,7 +145,9 @@ stop with the class \code{RoBMA_hypothesis_statement} without
 \code{RoBMA_hypothesis_unavailable}: point expressions that are no direct
 reference (for example \code{"2 * mu = 0"}), nonlinear expressions of
 factor levels, several point values of a random-effect variance in one
-statement, model-averaged marginal-means statements that mix point and
+statement, one quantity named by several names in one statement (for
+example \code{"mu > 0 & intercept < 1"} or \code{"g[a] > mu_g[a]"}; use
+one name), model-averaged marginal-means statements that mix point and
 region events or span several levels, ambiguous references
 (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
 parameters of another component (\code{RoBMA_component_mismatch}), factor

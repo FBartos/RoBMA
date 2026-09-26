@@ -432,9 +432,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - statements that have to be restated, or an argument that has to
     change, stop with `RoBMA_hypothesis_statement` without
     `RoBMA_hypothesis_unavailable`: unsupported point expressions (e.g.,
-    `2 * mu = 0`), nonlinear expressions of factor levels, factor contrast
-    coefficients such as `g{1}` (a selector of a coefficient that is a
-    level, such as `g{1}` of a treatment factor, also has the class
+    `2 * mu = 0`), nonlinear expressions of factor levels, one quantity
+    named by several names in one statement (e.g., `mu > 0 & intercept < 1`
+    or `g[a] > mu_g[a]`; use one name), factor contrast coefficients such
+    as `g{1}` (a selector of a coefficient that is a level, such as `g{1}`
+    of a treatment factor, also has the class
     `BayesTools_selector_unavailable`, which names the level form), unknown
     names and levels (also `BayesTools_parameter_not_found` and
     `BayesTools_parameter_resolution_error`, with the fields `alias` and

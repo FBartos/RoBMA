@@ -936,6 +936,23 @@ test_that("statement refusals of the plans are statement errors, not unavailable
         "evaluated through its standard deviation and must compare one ",
         "point value per statement."
       )
+    ),
+    # One quantity named by several names in one statement.
+    list(
+      object = fits[["treatment"]], component = "auto",
+      hypothesis = "mu_intercept > 0 & intercept < 1",
+      message = paste0(
+        "Hypothesis names one quantity by several names ('mu_intercept', ",
+        "'intercept'). Use one of them throughout the statement."
+      )
+    ),
+    list(
+      object = fits[["treatment"]], component = "mods",
+      hypothesis = "g1[10] > mu_g1[10]",
+      message = paste0(
+        "Hypothesis names one quantity by several names ('g1[10]', ",
+        "'mu_g1[10]'). Use one of them throughout the statement."
+      )
     )
   )
   for (case in cases) {
@@ -948,6 +965,21 @@ test_that("statement refusals of the plans are statement errors, not unavailable
     expect_identical(conditionMessage(error), case[["message"]],
                      info = case[["hypothesis"]])
   }
+  # The same on marginal means, whose intercept is also named 'mu'.
+  means <- marginal_means(fits[["treatment"]], density_method = "KDE")
+  error <- tryCatch(hypothesis(means, "mu > 0 & intercept < 1"), error = identity)
+  expect_identical(class(error), statement)
+  expect_identical(
+    conditionMessage(error),
+    paste0("Hypothesis names one quantity by several names ('mu', ",
+           "'intercept'). Use one of them throughout the statement.")
+  )
+  # Different levels of one term, and one name repeated, are one statement.
+  expect_s3_class(
+    suppressWarnings(hypothesis(fits[["treatment"]], "g1[10] > mu_g1[5]",
+                                density_method = "KDE", seed = 1)),
+    "BayesTools_hypothesis_BF"
+  )
 })
 
 
