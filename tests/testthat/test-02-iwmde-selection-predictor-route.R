@@ -197,13 +197,28 @@ test_that("all-singleton selection models take the predictor route", {
 
   # The fixtures that reach the route are data, not an assumption: record them
   # so a catalog change that removes them fails here instead of passing empty.
+  # A fixture family is required only when the profile case activates one of
+  # its fits (the 'iwmde-qcmde' certification case activates no RoBMA fit).
   expect_gt(length(checked), 0L)
-  expect_true(any(grepl("3PSM", checked)), info = paste(checked, collapse = ", "))
-  expect_true(any(grepl("RoBMA", checked)), info = paste(checked, collapse = ", "))
+  inactive <- character()
+  for (family in c("3PSM", "RoBMA")) {
+    if (!any(grepl(family, fit_names))) {
+      inactive <- c(inactive, family)
+      next
+    }
+    expect_true(any(grepl(family, checked)), info = paste(checked, collapse = ", "))
+  }
   if (length(declined) > 0L) {
     message(
       "Predictor batch declined (generic route retained): ",
       paste(declined, collapse = ", ")
     )
   }
+  skip_if(
+    length(inactive) > 0L,
+    paste0(
+      "No active ", paste(inactive, collapse = " or "),
+      " selection fixture in this profile case."
+    )
+  )
 })
