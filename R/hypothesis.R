@@ -130,15 +130,18 @@ hypothesis.default <- function(object, ...) {
 #' linear combination of the levels of one factor term (for example
 #' \code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
 #' random-effect variance are evaluated through its standard deviation, so
-#' that both give the same Bayes factor; such statements cannot be combined
-#' with region statements. Certified \code{exp(affine)} fitted-scale
-#' hypotheses are available with KDE only for atom-free, unconditional scalar
-#' targets. Values at a prior point mass (for example, gated components at
-#' 0) have no Savage-Dickey Bayes factor; the Component Inclusion table
-#' compares the exclusion and inclusion of gated components. Point nulls at
-#' an exact support boundary (for example, a variance proportion at 0) use
-#' the one-sided prior ordinate when BayesTools classifies it as exact,
-#' finite, and positive. Publication-bias parameters are not supported.
+#' that both give the same Bayes factor. A statement comparing such a point
+#' with a region of the variance (for example
+#' \code{"tau2 = 0.09 vs tau2 > 0.09"}) evaluates the point through the
+#' standard deviation and the region on the variance draws. Certified
+#' \code{exp(affine)} fitted-scale hypotheses are available with KDE only for
+#' atom-free, unconditional scalar targets. Values at a prior point mass (for
+#' example, gated components at 0) have no Savage-Dickey Bayes factor; the
+#' Component Inclusion table compares the exclusion and inclusion of gated
+#' components. Point nulls at an exact support boundary (for example, a
+#' variance proportion at 0) use the one-sided prior ordinate when BayesTools
+#' classifies it as exact, finite, and positive. Publication-bias parameters
+#' are not supported.
 #' @param standardized_coefficients whether moderator and scale coefficients
 #' are tested on the standardized predictor scale. Defaults to \code{FALSE}.
 #' @param conditional whether to use the conditional posterior for product-space
@@ -696,7 +699,9 @@ hypothesis.brma <- function(object, hypothesis,
 # Statements on a random-effect quantity, evaluated on its BayesTools mixed
 # posterior. Point statements on a variance are evaluated through its
 # standard deviation (square-root values); the table then shows the variance
-# statements and densities.
+# statements and densities. Statements comparing a variance point with a
+# region evaluate the point part through the standard deviation and the
+# region part on the variance draws.
 .hypothesis_plan_execute_random <- function(plans, hypothesis, object, logBF,
                                             BF01, seed, density_method,
                                             density_control, columns) {
@@ -735,28 +740,61 @@ hypothesis.brma <- function(object, hypothesis,
     ))
   }
 
-  evaluation <- plan[["evaluation"]]
-  through_sd <- !is.null(evaluation[["parameter"]])
-  evaluated  <- if (through_sd) evaluation[["parameter"]] else parameter
-  marginal   <- if (through_sd) {
-    evaluation[["samples"]][[evaluated]]
+  arguments <- list(
+    plan            = plan,
+    object          = object,
+    logBF           = logBF,
+    BF01            = BF01,
+    seed            = seed,
+    method          = method,
+    density_method  = density_method,
+    density_control = density_control,
+    columns         = columns
+  )
+  values <- vapply(.hypothesis_plan_targets(plans), `[[`, numeric(1), "value")
+  out <- if (is.null(plan[["evaluation"]][["parameter"]])) {
+    do.call(.hypothesis_plan_random_evaluate, c(arguments, list(
+      posterior  = samples[[parameter]],
+      parameter  = parameter,
+      hypothesis = hypothesis,
+      values     = values
+    )))
+  } else if (plan[["region"]]) {
+    do.call(.hypothesis_plan_random_sd_region, c(arguments, list(
+      posterior  = samples[[parameter]],
+      hypothesis = hypothesis,
+      values     = values
+    )))
   } else {
-    samples[[parameter]]
+    do.call(.hypothesis_plan_random_sd_points, c(arguments, list(
+      hypothesis = hypothesis,
+      values     = values
+    )))
   }
-  statements <- if (through_sd) {
-    .hypothesis_plan_sd_hypothesis(hypothesis, evaluated)
-  } else {
-    hypothesis
+  if (!is.null(defined_footnote)) {
+    attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
   }
+
+  out
+}
+
+
+# Statements on the marginal posterior 'posterior' of the random-effect
+# quantity 'parameter'. For qCMDE/IWMDE, the ordinates of the point values
+# 'values' of that quantity are attached first.
+.hypothesis_plan_random_evaluate <- function(plan, object, posterior, parameter,
+                                             hypothesis, values, logBF, BF01,
+                                             seed, method, density_method,
+                                             density_control, columns) {
+
   if (identical(method, "precomputed")) {
-    target   <- plan[["density_target"]]
-    values   <- vapply(.hypothesis_plan_targets(plans), `[[`, numeric(1), "value")
-    marginal <- .hypothesis_plan_attach_scalar(
+    target    <- plan[["density_target"]]
+    posterior <- .hypothesis_plan_attach_scalar(
       object            = object,
-      posterior         = marginal,
+      posterior         = posterior,
       parameter         = target[["parameter"]],
       parameter_label   = plan[["label"]],
-      values            = if (through_sd) sqrt(values) else values,
+      values            = values,
       spec              = target[["parameter_spec"]],
       conditional       = NULL,
       density_method    = density_method,
@@ -766,9 +804,9 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   out <- BayesTools::hypothesis_BF(
-    posterior      = marginal,
-    hypothesis     = statements,
-    parameter      = evaluated,
+    posterior      = posterior,
+    hypothesis     = hypothesis,
+    parameter      = parameter,
     logBF          = logBF,
     BF01           = BF01,
     seed           = seed,
@@ -778,16 +816,127 @@ hypothesis.brma <- function(object, hypothesis,
   if (identical(method, "precomputed")) {
     out <- .hypothesis_brma_append_iwmde_warnings(
       table     = out,
-      posterior = marginal,
-      parameter = evaluated
+      posterior = posterior,
+      parameter = parameter
     )
   }
-  if (through_sd) {
-    out <- .hypothesis_plan_sd_restore(out, hypothesis)
+
+  out
+}
+
+
+# Point statements on a variance, evaluated through its standard deviation:
+# the table shows the variance statements, and the prior and posterior
+# densities on the variance scale.
+.hypothesis_plan_random_sd_points <- function(plan, hypothesis, values, ...) {
+
+  evaluation <- plan[["evaluation"]]
+  out <- .hypothesis_plan_random_evaluate(
+    plan       = plan,
+    posterior  = evaluation[["samples"]][[evaluation[["parameter"]]]],
+    parameter  = evaluation[["parameter"]],
+    hypothesis = .hypothesis_plan_sd_hypothesis(hypothesis, evaluation[["parameter"]]),
+    values     = sqrt(values),
+    ...
+  )
+
+  .hypothesis_plan_sd_restore(out, hypothesis)
+}
+
+
+# Statements comparing a variance point with a region of the variance, e.g.
+# 'tau2 = 0.09 vs tau2 > 0.09' (one point value per statement, 'values').
+# Their Bayes factor is the point part, the point against the encompassing
+# model ('tau2 = 0.09 vs tau2 != 0.09', evaluated through the standard
+# deviation as a point statement), over the region part, the region against
+# the encompassing model (evaluated on the variance draws); the inverse with
+# the region on the left. BayesTools evaluates the statements on the variance
+# with a unit point part (a posterior ordinate equal to the prior ordinate,
+# carrying the Monte Carlo error of the point part, which BayesTools combines
+# with that of the region part); the point part then multiplies.
+.hypothesis_plan_random_sd_region <- function(plan, object, posterior,
+                                              hypothesis, values, logBF, BF01,
+                                              seed, method, density_method,
+                                              density_control, columns) {
+
+  if (length(values) != length(hypothesis[["statements"]])) {
+    stop("Internal error: variance point-region statements are misaligned.",
+         call. = FALSE)
   }
-  if (!is.null(defined_footnote)) {
-    attr(out, "footnotes") <- c(attr(out, "footnotes"), defined_footnote)
+  parameter <- plan[["parameter"]]
+  points    <- unique(values)
+  point     <- .hypothesis_plan_random_sd_points(
+    plan            = plan,
+    hypothesis      = BayesTools::hypothesis_rewrite(
+      BayesTools::hypothesis_parse(sprintf(
+        "theta = %.17g vs theta != %.17g", points, points
+      )),
+      c(theta = parameter)
+    ),
+    values          = points,
+    object          = object,
+    logBF           = FALSE,
+    BF01            = FALSE,
+    seed            = seed,
+    method          = method,
+    density_method  = density_method,
+    density_control = density_control,
+    columns         = "default"
+  )
+  unit_ordinate <- exp(vapply(points, function(value) {
+    BayesTools::prior_density_ordinate(
+      plan[["prior_density"]],
+      value
+    )[["log_density"]]
+  }, numeric(1)))
+  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
+    BayesTools::posterior_ordinate_attribute(
+      value          = points,
+      ordinate       = unit_ordinate,
+      method         = "unit point part",
+      density_method = density_method,
+      diagnostics    = list(BF_error_percent = as.numeric(point[["BF_error"]]))
+    )
+
+  out <- BayesTools::hypothesis_BF(
+    posterior      = posterior,
+    hypothesis     = hypothesis,
+    parameter      = parameter,
+    logBF          = logBF,
+    BF01           = BF01,
+    seed           = seed,
+    columns        = columns,
+    density_method = "precomputed"
+  )
+  point_index <- match(values, points)
+  point_BF    <- attr(point, "raw_BF", exact = TRUE)[point_index]
+  point_left  <- vapply(hypothesis[["statements"]], function(statement) {
+    identical(statement[["left"]][["type"]], "point")
+  }, logical(1))
+  raw_BF <- attr(out, "raw_BF", exact = TRUE)
+  raw_BF <- ifelse(point_left, raw_BF * point_BF, raw_BF / point_BF)
+  attr(out, "raw_BF") <- raw_BF
+  if ("BF" %in% names(out)) {
+    out[["BF"]] <- BayesTools::format_BF(raw_BF, logBF = logBF, BF01 = BF01)
   }
+
+  # The warnings and density diagnostics of the point parts, on the rows of
+  # their statements.
+  point_warnings <- attr(point, "warnings", exact = TRUE)
+  point_rows     <- match(names(point_warnings), rownames(point))
+  if (length(point_rows) != length(point_warnings)) {
+    point_rows <- rep(NA_integer_, length(point_warnings))
+  }
+  row_warnings <- unlist(lapply(seq_along(values), function(i) {
+    warnings <- as.character(point_warnings[point_rows %in% point_index[[i]]])
+    stats::setNames(warnings, rep(rownames(out)[[i]], length(warnings)))
+  }), use.names = TRUE)
+  attr(out, "warnings") <- .hypothesis_brma_unique_named_warnings(c(
+    attr(out, "warnings", exact = TRUE),
+    row_warnings,
+    point_warnings[is.na(point_rows)]
+  ))
+  attr(out, "density_diagnostics") <- attr(point, "density_diagnostics", exact = TRUE)
 
   out
 }

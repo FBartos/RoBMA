@@ -357,6 +357,21 @@ test_that("random-effect variances are tested through their standard deviations"
     expect_equal(as.numeric(var[["posterior"]]),
                  as.numeric(sd[["posterior"]]) / (2 * value),
                  tolerance = 1e-10, info = method)
+    # A variance point against a region: the point part (the point statement
+    # against its complement, through the SD) over the region part (the
+    # region against the encompassing model, on the variance draws), with
+    # their errors combined on the log scale.
+    tau2   <- "`(mu) study: tau2(intercept)`"
+    point  <- run(paste0(tau2, " = ", value^2, " vs ", tau2, " != ", value^2))
+    region <- run(paste0(tau2, " > ", value^2, " vs ", tau2, " >= 0"))
+    mixed  <- run(paste0(tau2, " = ", value^2, " vs ", tau2, " > ", value^2))
+    expect_equal(attr(mixed, "raw_BF"), attr(point, "raw_BF") / attr(region, "raw_BF"),
+                 tolerance = 1e-10, info = method)
+    expect_equal(
+      as.numeric(mixed[["BF_error"]]),
+      sqrt(as.numeric(point[["BF_error"]])^2 + as.numeric(region[["BF_error"]])^2),
+      tolerance = 1e-10, info = method
+    )
   }
 })
 

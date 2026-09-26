@@ -190,15 +190,18 @@ hypotheses require a direct parameter reference, a factor level, or a
 linear combination of the levels of one factor term (for example
 \code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
 random-effect variance are evaluated through its standard deviation, so
-that both give the same Bayes factor; such statements cannot be combined
-with region statements. Certified \code{exp(affine)} fitted-scale
-hypotheses are available with KDE only for atom-free, unconditional scalar
-targets. Values at a prior point mass (for example, gated components at
-0) have no Savage-Dickey Bayes factor; the Component Inclusion table
-compares the exclusion and inclusion of gated components. Point nulls at
-an exact support boundary (for example, a variance proportion at 0) use
-the one-sided prior ordinate when BayesTools classifies it as exact,
-finite, and positive. Publication-bias parameters are not supported.}
+that both give the same Bayes factor. A statement comparing such a point
+with a region of the variance (for example
+\code{"tau2 = 0.09 vs tau2 > 0.09"}) evaluates the point through the
+standard deviation and the region on the variance draws. Certified
+\code{exp(affine)} fitted-scale hypotheses are available with KDE only for
+atom-free, unconditional scalar targets. Values at a prior point mass (for
+example, gated components at 0) have no Savage-Dickey Bayes factor; the
+Component Inclusion table compares the exclusion and inclusion of gated
+components. Point nulls at an exact support boundary (for example, a
+variance proportion at 0) use the one-sided prior ordinate when BayesTools
+classifies it as exact, finite, and positive. Publication-bias parameters
+are not supported.}
 
 \item{standardized_coefficients}{whether moderator and scale coefficients
 are tested on the standardized predictor scale. Defaults to \code{FALSE}.}

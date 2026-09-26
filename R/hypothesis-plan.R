@@ -1252,9 +1252,11 @@
 
 # Random-effect quantities are tested on their BayesTools mixed posterior
 # (catalog support, declared inclusion- and allocation-gate atoms, exact
-# prior density). Point statements on a variance are evaluated through its
-# standard deviation with the square display transform, so that a variance
-# and its standard deviation give the same Bayes factor with every method.
+# prior density). Point statements on a variance, and the point parts of
+# statements comparing a variance point with a region, are evaluated through
+# its standard deviation with the square display transform, so that a
+# variance and its standard deviation give the same Bayes factor with every
+# method.
 .hypothesis_plan_random <- function(plan, object, cache) {
 
   parameter <- plan[["parameter"]]
@@ -1346,7 +1348,10 @@
   }
   plan[["evaluation"]] <- evaluation
   if (!is.null(evaluation[["parameter"]])) {
-    plan[["group"]] <- paste("random", parameter, "sd", sep = "\r")
+    plan[["group"]] <- paste(
+      "random", parameter, if (plan[["region"]]) "sd_region" else "sd",
+      sep = "\r"
+    )
   }
   zero_alternative <- if (any(refs[["value"]] == 0)) {
     .brma_random_parameter_zero_boundary_alternative(object, selected)
@@ -1408,8 +1413,9 @@
 # How point statements on a random-effect quantity are evaluated: variances
 # with a standard-deviation counterpart in the catalog are evaluated on the
 # standard deviation ('parameter', values mapped by the square root); other
-# quantities on themselves (NULL 'parameter'). Statements mixing point and
-# region sides are evaluated on the variance only as a whole.
+# quantities on themselves (NULL 'parameter'). Of a statement comparing a
+# variance point with a region, only the point part is evaluated on the
+# standard deviation; the region part is evaluated on the variance draws.
 .hypothesis_plan_random_evaluation <- function(plan, object, cache, selected) {
 
   pair <- .brma_random_parameter_sd_pair(object, selected)
@@ -1425,17 +1431,6 @@
         "Point hypotheses on random-effect variance '",
         selected[["spec"]][["label"]], "' are evaluated through its standard ",
         "deviation and must compare one point value per statement."
-      ),
-      "statement"
-    )))
-  }
-  if (plan[["region"]]) {
-    return(list(refusal = .hypothesis_refusal(
-      paste0(
-        "Point hypotheses on random-effect variance '",
-        selected[["spec"]][["label"]], "' are evaluated through its standard ",
-        "deviation and cannot be mixed with region statements. Evaluate point ",
-        "and directional hypotheses in separate calls."
       ),
       "statement"
     )))

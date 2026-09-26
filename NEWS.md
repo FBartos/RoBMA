@@ -1768,7 +1768,10 @@
   variances alike, with every density method: a variance point hypothesis is
   evaluated through its standard deviation with the square display
   transform, so `tau2 = v^2` and `tau = v` give the same Bayes factor (at a
-  variance of 0 the variance is evaluated on its own draws). Point nulls at an
+  variance of 0 the variance is evaluated on its own draws). A statement
+  comparing a variance point with a region, such as
+  `tau2 = 0.09 vs tau2 > 0.09`, evaluates the point part through the standard
+  deviation and the region part on the variance draws. Point nulls at an
   exact support boundary, such as `tau2_prop(study) = 0`, use the one-sided
   prior ordinate when BayesTools classifies it as exact, finite, and
   positive, with qCMDE/IWMDE and with KDE's boundary-reflected kernel.

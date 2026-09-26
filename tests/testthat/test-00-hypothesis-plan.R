@@ -357,11 +357,41 @@ test_that("a random-effect variance and its standard deviation give the same Bay
                  tolerance = 1e-12)
     expect_identical(var[["Null"]], paste0("(mu) study: tau2(intercept) = ", value^2))
   }
-  # A statement mixing point and region sides is evaluated as a whole.
-  expect_error(
-    hypothesis(object, "`(mu) study: tau2(intercept)` = 0.09 vs `(mu) study: tau2(intercept)` > 0.09",
-               density_method = "KDE"),
-    class = "RoBMA_hypothesis_statement"
+  # A statement comparing a variance point with a region has the Bayes factor
+  # of the point against the encompassing model (evaluated through the SD, as
+  # the point statement) over that of the region against the encompassing
+  # model (on the variance draws, as the region statement); the inverse with
+  # the region on the left.
+  tau2 <- "`(mu) study: tau2(intercept)`"
+  run <- function(statement) {
+    hypothesis(object, statement, density_method = "KDE", columns = "all", seed = 1)
+  }
+  point    <- run(paste0(tau2, " = 0.09 vs ", tau2, " != 0.09"))
+  region   <- run(paste0(tau2, " > 0.09 vs ", tau2, " >= 0"))
+  mixed    <- run(paste0(tau2, " = 0.09 vs ", tau2, " > 0.09"))
+  reversed <- run(paste0(tau2, " > 0.09 vs ", tau2, " = 0.09"))
+  expect_equal(attr(mixed, "raw_BF"), attr(point, "raw_BF") / attr(region, "raw_BF"),
+               tolerance = 1e-12)
+  expect_equal(attr(reversed, "raw_BF"), attr(region, "raw_BF") / attr(point, "raw_BF"),
+               tolerance = 1e-12)
+  expect_identical(mixed[["Alternative"]], "(mu) study: tau2(intercept) = 0.09")
+  expect_identical(mixed[["Null"]], "(mu) study: tau2(intercept) > 0.09")
+  expect_identical(mixed[["method"]], "transitive Savage-Dickey")
+  # The variance draws are the squared SD draws, so the statement equals the
+  # same statement on the SD.
+  sd_mixed <- run("`(mu) study: tau(intercept)` = 0.3 vs `(mu) study: tau(intercept)` > 0.3")
+  expect_equal(attr(mixed, "raw_BF"), attr(sd_mixed, "raw_BF"), tolerance = 1e-12)
+  # Mixed, point and region statements in one call keep their order.
+  combined <- run(c(
+    paste0(tau2, " > 0.09"),
+    paste0(tau2, " = 0.09 vs ", tau2, " > 0.09"),
+    paste0(tau2, " = 0.09")
+  ))
+  expect_equal(
+    attr(combined, "raw_BF"),
+    c(attr(run(paste0(tau2, " > 0.09")), "raw_BF"), attr(mixed, "raw_BF"),
+      1 / attr(point, "raw_BF")),
+    tolerance = 1e-12
   )
 })
 
