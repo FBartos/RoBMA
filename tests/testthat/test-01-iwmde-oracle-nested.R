@@ -47,7 +47,37 @@ test_that("nested models support IWMDE bridge oracles", {
     "brma.mv_block_mvn_random",
     "brma.mv_block_mvn_fixed_random_null"
   ), active_only = FALSE)
-  fit_known_v_full <- add_marglik(load_fit("brma.mv_block_mvn_random"))
+  # The full model is the known-V smoke model 'brma.mv_block_mvn_random'
+  # refitted with the null model's 2 x 2,500 draws: test-02-iwmde-oracles.R
+  # compares the qCMDE/IWMDE row census with the bridge Bayes factor, and the
+  # 2 x 120 smoke draws leave the IWMDE log ordinate a Monte Carlo error of
+  # about 0.09, as large as the comparison's hard limit.
+  known_v_info     <- load_info("brma.mv_block_mvn_random")
+  known_v_data     <- known_v_info[["data"]]
+  fit_known_v_full <- brma.mv(
+    yi                        = yi,
+    V                         = known_v_info[["V"]],
+    data                      = transform(
+      known_v_data,
+      estimate = seq_len(nrow(known_v_data))
+    ),
+    random                    = ~ 1 | estimate,
+    known_v_parameterization  = "block_mvn",
+    measure                   = "GEN",
+    chains                    = 2,
+    sample                    = 2500,
+    burnin                    = 500,
+    adapt                     = 500,
+    seed                      = 1,
+    silent                    = TRUE,
+    prior_unit_information_sd = 1,
+    convergence_checks        = set_convergence_checks(
+      max_Rhat = NULL,
+      min_ESS  = NULL
+    )
+  )
+  fit_known_v_full <- suppressWarnings(add_loo(fit_known_v_full))
+  fit_known_v_full <- add_marglik(fit_known_v_full)
   fit_known_v_null <- add_marglik(load_fit(
     "brma.mv_block_mvn_fixed_random_null"
   ))

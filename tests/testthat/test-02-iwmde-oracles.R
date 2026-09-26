@@ -310,6 +310,11 @@ test_that("qCMDE matches GLMM and both estimators match selection bridge factors
     } else {
       c("qCMDE", "IWMDE")
     }
+    # The selection estimators use the census of the 15,000 rows: from 2,000
+    # rows, the IWMDE log ordinate has a Monte Carlo error of about 0.07, too
+    # close to the hard limit of the bridge comparison.
+    samples <- if (identical(pair_name, "selection")) Inf else 2000
+    n_draws <- nrow(.get_posterior_samples(full[["fit"]]))
     for (density_method in density_methods) {
       result <- hypothesis(
         full,
@@ -318,7 +323,7 @@ test_that("qCMDE matches GLMM and both estimators match selection bridge factors
         density_method  = density_method,
         density_control = list(
           n_points             = 40,
-          samples              = 2000,
+          samples              = samples,
           normalization_points = 80
         ),
         n_samples = 1000
@@ -331,7 +336,10 @@ test_that("qCMDE matches GLMM and both estimators match selection bridge factors
         info = paste(pair_name, density_method)
       )
       diagnostics <- density_diagnostics(result)
-      expect_equal(diagnostics[["achieved_row_budget"]], 2000L)
+      expect_equal(
+        diagnostics[["achieved_row_budget"]],
+        as.integer(min(samples, n_draws))
+      )
       expect_equal(diagnostics[["status"]], "ok")
     }
   }
@@ -401,6 +409,12 @@ test_that("qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
   expect_lt(.iwmde_oracle_bridge_mcse(null), .05)
   expect_lt(.iwmde_oracle_bridge_mcse(full), .05)
 
+  # The estimators use the census of the full model's draws, which must be
+  # many enough (test-01-iwmde-oracle-nested.R) for the Monte Carlo error of
+  # the IWMDE log ordinate to stay well below the hard limit of the bridge
+  # comparison.
+  n_draws <- nrow(.get_posterior_samples(full[["fit"]]))
+  expect_gte(n_draws, 2000L)
   for (density_method in c("qCMDE", "IWMDE")) {
     result <- hypothesis(
       full,
@@ -410,7 +424,7 @@ test_that("qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
       density_method  = density_method,
       density_control = list(
         n_points             = 60,
-        samples              = 240,
+        samples              = Inf,
         normalization_points = 120,
         normalization_prob   = .9999
       ),
@@ -424,7 +438,7 @@ test_that("qCMDE and IWMDE match the known-V estimate SD boundary bridge factor"
       info = paste("known-V estimate SD boundary", density_method)
     )
     diagnostics <- density_diagnostics(result)
-    expect_equal(diagnostics[["achieved_row_budget"]], 240L)
+    expect_equal(diagnostics[["achieved_row_budget"]], n_draws)
     expect_equal(diagnostics[["status"]], "ok")
   }
 })
