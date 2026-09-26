@@ -1876,14 +1876,43 @@
   }
 
   # The formula scaling that carries the fitted design transforms the
-  # coefficients to the original predictor scale.
+  # coefficients to the original predictor scale; BayesTools transforms the
+  # fitted coefficient coordinates of that design.
   formula_scale <- .object_formula_scale(object, parameter)
 
   return(list(
     prior_list    = design[["prior_list"]],
-    column_names  = names(design[["prior_list"]]),
+    column_names  = .plot_prior_formula_coordinates(design),
     formula_scale = formula_scale
   ))
+}
+
+# The fitted coefficient coordinates of the fixed coefficients of a formula
+# design (point priors included): a term with one design column is its
+# coefficient, a term with several columns (e.g., a factor with three or
+# more levels) the coordinates '<coefficient>[k]'.
+.plot_prior_formula_coordinates <- function(design) {
+
+  model_terms   <- design[["model_terms"]]
+  has_intercept <- attr(design[["terms"]], "intercept") == 1
+  n_columns     <- tabulate(
+    design[["assign"]] + as.integer(has_intercept),
+    nbins = length(model_terms)
+  )
+  names(n_columns) <- BayesTools::JAGS_parameter_names(
+    model_terms,
+    formula_parameter = design[["parameter"]]
+  )
+
+  coordinates <- lapply(names(design[["prior_list"]]), function(coefficient) {
+    columns <- n_columns[coefficient]
+    if (!is.na(columns) && columns > 1L) {
+      return(paste0(coefficient, "[", seq_len(columns), "]"))
+    }
+    coefficient
+  })
+
+  return(unlist(coordinates, use.names = FALSE))
 }
 
 .use_plot_prior_list_dispatch <- function(prior) {

@@ -162,6 +162,75 @@ test_that("plot_prior selects moderator and scale priors", {
   )))
 })
 
+test_that("plot_prior shows original-scale coefficients next to multi-level factors", {
+
+  skip_on_cran()
+
+  # A factor with three levels has two fitted coefficient coordinates
+  # ('mu_mod_factor3[1]', 'mu_mod_factor3[2]'). The original-scale prior of
+  # the other coefficients goes through the fitted design: with the
+  # standardized predictor (x - m) / s, b_x = b_x_std / s and
+  # b_intercept = b_intercept_std - m / s * b_x_std.
+  factor_data <- data.frame(
+    effect      = c(0.10, 0.25, 0.15, 0.30, 0.05, 0.20),
+    std_err     = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03, 0.05)),
+    mod_cont    = c(1.5, 2.3, 1.8, 3.1, 0.9, 2.0),
+    mod_factor3 = factor(c("A", "B", "C", "A", "B", "C")),
+    stringsAsFactors = FALSE
+  )
+  m <- mean(factor_data[["mod_cont"]])
+  s <- stats::sd(factor_data[["mod_cont"]])
+
+  for (contrast in c("meandif", "treatment")) {
+    priors <- brma(
+      yi = effect, sei = std_err,
+      mods = ~ mod_factor3 + mod_cont,
+      data = factor_data, measure = "SMD",
+      set_contrast_factor_predictors = contrast,
+      only_priors = TRUE
+    )
+    prior_list <- .fitted_formula_design(priors, "mu")[["prior_list"]]
+    slope      <- prior_list[["mu_mod_cont"]]
+    intercept  <- prior_list[["mu_intercept"]]
+    expect_identical(slope[["distribution"]], "normal")
+    expect_identical(intercept[["distribution"]], "normal")
+
+    slope_plot <- plot_prior(
+      priors, parameter_mods = "mod_cont",
+      standardized_coefficients = FALSE, plot_type = "ggplot"
+    )
+    slope_data <- ggplot2::layer_data(slope_plot, 1)
+    expect_equal(
+      slope_data[["y"]],
+      stats::dnorm(
+        slope_data[["x"]],
+        mean = slope[["parameters"]][["mean"]] / s,
+        sd   = slope[["parameters"]][["sd"]] / s
+      ),
+      tolerance = 1e-10,
+      info      = contrast
+    )
+
+    intercept_plot <- plot_prior(
+      priors, parameter = "mu",
+      standardized_coefficients = FALSE, plot_type = "ggplot"
+    )
+    intercept_data <- ggplot2::layer_data(intercept_plot, 1)
+    expect_equal(
+      intercept_data[["y"]],
+      stats::dnorm(
+        intercept_data[["x"]],
+        mean = intercept[["parameters"]][["mean"]] -
+          m / s * slope[["parameters"]][["mean"]],
+        sd   = sqrt(intercept[["parameters"]][["sd"]]^2 +
+                      (m / s * slope[["parameters"]][["sd"]])^2)
+      ),
+      tolerance = 1e-10,
+      info      = contrast
+    )
+  }
+})
+
 test_that("plot_prior selects brma.mv location and component-scale priors", {
 
   skip_on_cran()
