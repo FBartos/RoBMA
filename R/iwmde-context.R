@@ -154,9 +154,12 @@
 # "scale_components" (component-specific scale formulas), and "glmm" (IWMDE
 # for binomial and Poisson GLMMs); hypothesis() refuses these causes with
 # its own classes followed by these classes. plot() also refuses
-# "conditional_random" (conditional random-effect plots) and
-# "original_scale" (an original-scale factor cell that is no linear
-# combination of its fitted coordinates).
+# "conditional_random" (conditional random-effect plots), "random_target"
+# (a random-effect quantity without a supported scalar random-component
+# coordinate), and "original_scale" (an original-scale coefficient or factor
+# cell that is no linear combination of its fitted coordinates, e.g. an
+# exp(affine) scale intercept); hypothesis() refuses the same causes with
+# its own classes followed by these classes as well.
 .iwmde_unavailable <- function(reason, type) {
 
   list(

@@ -221,7 +221,13 @@ hypothesis.default <- function(object, ...) {
 #' random-formula models without known \code{V}),
 #' \code{RoBMA_density_method_scale_components} (component-specific scale
 #' formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
-#' Poisson GLMMs).
+#' Poisson GLMMs). qCMDE/IWMDE refusals for a cause for which [plot.brma()]
+#' refuses these methods have its classes too:
+#' \code{RoBMA_density_method_conditional_random} (conditional random-effect
+#' statements), \code{RoBMA_density_method_random_target} (random-effect
+#' quantities without a supported scalar random-component coordinate), and
+#' \code{RoBMA_density_method_original_scale} (original-scale coefficients
+#' whose fitted map is nonlinear, such as \code{exp(affine)} targets).
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
 #' posterior-row sample size, default \code{500} for qCMDE and \code{1000} for

@@ -295,7 +295,12 @@ test_that("qCMDE/IWMDE stops for the correlation name the requested operation", 
       "qCMDE/IWMDE plots are not available for random-effect quantity ",
       "'rho(intercept,x)'"
     ),
-    fixed = TRUE
+    fixed = TRUE,
+    class = "RoBMA_density_method_random_target"
+  )
+  expect_error(
+    plot(fit, parameter = "rho(intercept,x)", density_method = "qCMDE"),
+    class = "RoBMA_density_method_unavailable"
   )
 })
 

@@ -821,14 +821,17 @@
     }
   }
 
-  return(list(
+  # No target: the qCMDE/IWMDE refusal ("RoBMA_density_method_random_target")
+  # that plot() stops with and hypothesis() appends to its own refusal.
+  return(.iwmde_unavailable(
     reason = paste0(
       "qCMDE/IWMDE ", operation, " are not available for random-effect ",
       "quantity '",
       selected[["spec"]][["label"]],
       "' because it has no supported scalar random-component coordinate. ",
       "Use density_method = 'KDE'."
-    )
+    ),
+    type   = "random_target"
   ))
 }
 

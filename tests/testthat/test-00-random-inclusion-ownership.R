@@ -108,5 +108,49 @@ test_that("conditional random-effect plots refuse qCMDE/IWMDE with the density-m
         info  = method
       )
     }
+    # hypothesis() refuses the same cause with its own classes followed by
+    # the density-method classes.
+    error <- tryCatch(
+      hypothesis(object, "`(mu) study: tau(intercept)` = 0.3",
+                 component = "random", conditional = TRUE,
+                 density_method = method, n_samples = 1000L, seed = 1),
+      error = identity
+    )
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+        "RoBMA_density_method_conditional_random",
+        "RoBMA_density_method_unavailable", "error", "condition"),
+      info = method
+    )
+  }
+})
+
+
+test_that("random-effect quantities without a scalar coordinate refuse qCMDE/IWMDE plots with the density-method classes", {
+
+  # The variance of a random component has no scalar random-component
+  # coordinate for a qCMDE/IWMDE density curve.
+  object <- shared_gate_random_object()
+  attr(object[["data"]], "known_V") <- TRUE
+  attr(object[["data"]], "measure") <- "GEN"
+  for (method in c("qCMDE", "IWMDE")) {
+    error <- tryCatch(
+      plot(object, "(mu) study: tau2(intercept)", component = "random",
+           density_method = method, plot_type = "ggplot"),
+      error = identity
+    )
+    expect_identical(
+      class(error),
+      c("RoBMA_density_method_random_target",
+        "RoBMA_density_method_unavailable", "error", "condition"),
+      info = method
+    )
+    expect_match(
+      conditionMessage(error),
+      "because it has no supported scalar random-component coordinate",
+      fixed = TRUE,
+      info  = method
+    )
   }
 })

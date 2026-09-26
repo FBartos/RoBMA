@@ -107,6 +107,30 @@ test_that("hypothesis discovery lists point tests of gated random quantities", {
   expect_true(all(grepl(capability[["reason"]], random[["reason"]], fixed = TRUE) |
                     grepl("no supported scalar random-component coordinate",
                           random[["reason"]], fixed = TRUE)))
+
+  # A quantity without a scalar random-component coordinate is refused with
+  # the hypothesis classes followed by the density-method classes of the
+  # same refusal by plot().
+  for (method in c("qCMDE", "IWMDE")) {
+    error <- tryCatch(
+      .gated_random_hypothesis(object, "(mu) split: tau2_prop(study)", 0.3,
+                               density_method = method),
+      error = identity
+    )
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+        "RoBMA_density_method_random_target",
+        "RoBMA_density_method_unavailable", "error", "condition"),
+      info = method
+    )
+    expect_match(
+      conditionMessage(error),
+      "because it has no supported scalar random-component coordinate",
+      fixed = TRUE,
+      info  = method
+    )
+  }
 })
 
 

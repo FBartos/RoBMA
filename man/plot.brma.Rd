@@ -197,9 +197,14 @@ without known \code{V}), \code{RoBMA_density_method_scale_components}
 for binomial and Poisson GLMMs). Requests that are unavailable for the
 plotted quantity stop with the same parent class and
 \code{RoBMA_density_method_conditional_random} (conditional random-effect plots,
-which are KDE-only) or \code{RoBMA_density_method_original_scale} (a factor
-cell whose original-scale value is not a linear combination of its fitted
-coefficients; use \code{standardized_coefficients = TRUE}).
+which are KDE-only), \code{RoBMA_density_method_random_target} (a random-effect
+quantity without a supported scalar random-component coordinate), or
+\code{RoBMA_density_method_original_scale} (a coefficient or factor cell whose
+original-scale value is not a linear combination of its fitted
+coefficients, such as the exponentiated intercept of a scale formula with
+standardized predictors; use \code{standardized_coefficients = TRUE}).
+\code{\link[=hypothesis]{hypothesis()}} refuses qCMDE/IWMDE for the same causes with these classes
+after its own.
 
 A returned qCMDE/IWMDE estimate that fails the density availability
 checks raises a \code{RoBMA_density_plot_error} identifying the plotted parameter.

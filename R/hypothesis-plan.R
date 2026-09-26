@@ -48,9 +48,12 @@
 # unsupported), and "ambiguous" (the statement names several parameters;
 # 'component' or, for marginal means, 'parameter' selects one). Method
 # refusals by the qCMDE/IWMDE capability of the fitted model
-# (.iwmde_capability()) also have the classes of that capability refusal:
+# (.iwmde_capability()), and the qCMDE/IWMDE refusals of the causes for
+# which plot() refuses these methods (conditional random-effect statements,
+# random-effect quantities without a scalar coordinate, nonlinear
+# original-scale coefficients), also have the classes of that refusal:
 # "RoBMA_density_method_<cause>" and the parent
-# "RoBMA_density_method_unavailable".
+# "RoBMA_density_method_unavailable" (.hypothesis_refusal_density_method()).
 .hypothesis_refusal <- function(reason, type = NULL, condition = NULL) {
 
   class <- if (!is.null(condition)) {
@@ -60,6 +63,22 @@
   }
 
   list(reason = reason, class = class)
+}
+
+
+# A hypothesis() refusal whose cause plot() (and, for the capability of the
+# fitted model, marginal_means()) refuses as a qCMDE/IWMDE request
+# ('unavailable', a refusal of .iwmde_unavailable() or .iwmde_capability()):
+# the refusal of 'type' with the reason of that refusal, followed by its
+# classes ("RoBMA_density_method_<cause>" and
+# "RoBMA_density_method_unavailable"), so that one cause has the same
+# classes at every entry point.
+.hypothesis_refusal_density_method <- function(unavailable, type = "method") {
+
+  refusal <- .hypothesis_refusal(unavailable[["reason"]], type)
+  refusal[["class"]] <- c(refusal[["class"]], unavailable[["class"]])
+
+  refusal
 }
 
 
@@ -364,9 +383,7 @@
     if (!capability[["available"]]) {
       # A capability refusal also has the classes of the capability refusal
       # outside hypothesis(): its cause and the parent class.
-      refusal <- .hypothesis_refusal(capability[["reason"]], "method")
-      refusal[["class"]] <- c(refusal[["class"]], capability[["class"]])
-      return(refusal)
+      return(.hypothesis_refusal_density_method(capability, "method"))
     }
   }
 
@@ -481,7 +498,10 @@
 # The route of an original-scale formula coefficient as BayesTools declares
 # it in the fitted coefficient transform: the map type (identity, affine,
 # exp_affine, or unsupported), the support of the map, and the target's
-# weights on the fitted coordinates. NULL for parameters that are no formula
+# weights on the fitted coordinates. An unsupported route has a reason and
+# its cause: "metadata" (the transform lacks the certified metadata),
+# "fixed" (the coefficient is structurally fixed), or "nonlinear" (a
+# nonlinear joint transform). NULL for parameters that are no formula
 # coefficients.
 .brma_formula_coefficient_route <- function(object, selected) {
 
@@ -507,7 +527,8 @@
       reason = paste0(
         "The fitted coefficient transform for '", target,
         "' lacks the certified structural metadata required for hypothesis testing."
-      )
+      ),
+      cause  = "metadata"
     )))
   }
   weights <- stats::setNames(
@@ -527,12 +548,14 @@
       "The fitted coefficient '", target,
       "' is structurally fixed and has no posterior hypothesis route."
     )
+    route[["cause"]]  <- "fixed"
   } else if (!map_type %in% c("identity", "affine", "exp_affine")) {
     route[["type"]]   <- "unsupported"
     route[["reason"]] <- paste0(
       "The fitted nonlinear joint coefficient transform for '", target,
       "' is not supported by hypothesis()."
     )
+    route[["cause"]]  <- "nonlinear"
   }
 
   route
@@ -776,19 +799,22 @@
     support       = route[["support"]],
     description   = paste0("transformed coefficient '", target, "'")
   )
-  refusal <- .hypothesis_refusal(
-    paste0(
-      "The requested nonlinear fitted-scale hypothesis for '",
-      plan[["parameter"]], "' is supported only with density_method = 'KDE'. ",
-      "qCMDE/IWMDE ordinates support only direct parameter or level point ",
-      "hypotheses with an exact linear fitted-scale map."
-    ),
+  reason <- paste0(
+    "The requested nonlinear fitted-scale hypothesis for '",
+    plan[["parameter"]], "' is supported only with density_method = 'KDE'. ",
+    "qCMDE/IWMDE ordinates support only direct parameter or level point ",
+    "hypotheses with an exact linear fitted-scale map."
+  )
+  # qCMDE/IWMDE are refused for the cause for which plot() refuses them
+  # ("original_scale"); the normal approximation is no qCMDE/IWMDE request.
+  precomputed <- .hypothesis_refusal_density_method(
+    .iwmde_unavailable(reason, "original_scale"),
     "method"
   )
   plan[["method_refusals"]] <- list(
-    qCMDE  = refusal,
-    IWMDE  = refusal,
-    normal = refusal
+    qCMDE  = precomputed,
+    IWMDE  = precomputed,
+    normal = .hypothesis_refusal(reason, "method")
   )
 
   plan
@@ -1475,16 +1501,26 @@
 # qCMDE/IWMDE refusals of a random-effect point statement: conditional
 # statements, quantities without a supported scalar random-component
 # coordinate, and values where the public transformation of that coordinate
-# is singular.
+# is singular. The first two are the causes for which plot() refuses
+# qCMDE/IWMDE ("conditional_random", "random_target"): their refusals also
+# have its classes.
 .hypothesis_plan_random_precomputed <- function(plan, object, evaluation,
                                                 label) {
 
   refused <- function(reason, type = "method") {
     list(refusals = .hypothesis_plan_precomputed_refusals(reason, type))
   }
+  refused_density_method <- function(unavailable, type) {
+    refusal <- .hypothesis_refusal_density_method(unavailable, type)
+    list(refusals = list(qCMDE = refusal, IWMDE = refusal))
+  }
   if (plan[["conditional"]]) {
-    return(refused(
-      "Conditional random-effect hypotheses support 'density_method = \"KDE\"' only."
+    return(refused_density_method(
+      .iwmde_unavailable(
+        "Conditional random-effect hypotheses support 'density_method = \"KDE\"' only.",
+        "conditional_random"
+      ),
+      "method"
     ))
   }
   parameter <- if (is.null(evaluation[["parameter"]])) {
@@ -1500,7 +1536,6 @@
   if (is.null(target[["parameter"]])) {
     # The refusal names the tested quantity (a variance rather than the
     # standard deviation it is evaluated through).
-    reason <- target[["reason"]]
     if (!identical(parameter, plan[["parameter"]])) {
       own <- .brma_random_parameter_density_target(
         object,
@@ -1508,10 +1543,10 @@
         operation = "point hypotheses"
       )
       if (!is.null(own[["reason"]])) {
-        reason <- own[["reason"]]
+        target[["reason"]] <- own[["reason"]]
       }
     }
-    return(refused(reason, "target"))
+    return(refused_density_method(target, "target"))
   }
   # Values outside the support are refused by their prior ordinates.
   values <- .hypothesis_plan_random_source_values(plan, evaluation)

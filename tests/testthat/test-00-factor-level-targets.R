@@ -425,24 +425,53 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
     )
   }
 
+  # The qCMDE/IWMDE parameter spec of a plotted original-scale coefficient:
+  # a nonlinear map is refused with the original-scale density-method
+  # classes; a structurally fixed coefficient is no density-method cause.
+  plot_spec <- function(parameter) {
+    tryCatch(
+      .plot_brma_formula_parameter_spec(
+        object          = list(fit = structure(list(), class = "BayesTools_fit")),
+        parameter       = parameter,
+        parameter_entry = list(
+          formula_parameter = "mu",
+          role              = "fixed_coefficient",
+          component         = "mods"
+        ),
+        standardized_coefficients = FALSE
+      ),
+      error = identity
+    )
+  }
+  original_scale <- c("RoBMA_density_method_original_scale",
+                      "RoBMA_density_method_unavailable", "error", "condition")
+
   affine <- route("mu_x")
   expect_identical(affine[["type"]], "affine")
   expect_identical(affine[["weights"]], c(mu_x = 0.5))
   expect_identical(affine[["support"]], c(-Inf, Inf))
+  expect_identical(plot_spec("mu_x"), list(type = "linear", weights = c(mu_x = 0.5)))
   exp_affine <- route("log_tau_intercept")
   expect_identical(exp_affine[["type"]], "exp_affine")
   expect_identical(exp_affine[["support"]], c(0, Inf))
+  expect_identical(class(plot_spec("log_tau_intercept")), original_scale)
 
   transform[["targets"]][["map_type"]][[1L]] <- "unsupported"
   expect_identical(
     route("mu_x")[["reason"]],
     "The fitted nonlinear joint coefficient transform for 'mu_x' is not supported by hypothesis()."
   )
+  error <- plot_spec("mu_x")
+  expect_identical(class(error), original_scale)
+  expect_identical(conditionMessage(error), route("mu_x")[["reason"]])
   transform[["matrix"]]["mu_x", "mu_x"] <- 0
   expect_identical(
     route("mu_x")[["reason"]],
     "The fitted coefficient 'mu_x' is structurally fixed and has no posterior hypothesis route."
   )
+  error <- plot_spec("mu_x")
+  expect_identical(conditionMessage(error), route("mu_x")[["reason"]])
+  expect_false(inherits(error, "RoBMA_density_method_unavailable"))
 
   # Point values outside the open support of a transformed coefficient are
   # refused, naming the coefficient.

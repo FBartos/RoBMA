@@ -228,9 +228,12 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
   parameter <- "(mu) tau(intercept)"
   plan_of <- function() .hypothesis_plans(object, paste0("`", parameter, "` = 0.3"))[[1L]]
 
+  # A quantity without a scalar random-component coordinate: the refusal
+  # of the density target (as plot() raises it) follows the hypothesis
+  # classes.
   testthat::local_mocked_bindings(
     .brma_random_parameter_density_target = function(object, parameter, ...) {
-      list(reason = "unsupported")
+      .iwmde_unavailable("unsupported", "random_target")
     },
     .package = "RoBMA"
   )
@@ -240,7 +243,9 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
     expect_identical(
       .hypothesis_plan_status(unsupported, method),
       list(reason = "unsupported",
-           class  = c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable"))
+           class  = c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+                      "RoBMA_density_method_random_target",
+                      "RoBMA_density_method_unavailable"))
     )
   }
 

@@ -147,9 +147,14 @@
 #' for binomial and Poisson GLMMs). Requests that are unavailable for the
 #' plotted quantity stop with the same parent class and
 #' `RoBMA_density_method_conditional_random` (conditional random-effect plots,
-#' which are KDE-only) or `RoBMA_density_method_original_scale` (a factor
-#' cell whose original-scale value is not a linear combination of its fitted
-#' coefficients; use `standardized_coefficients = TRUE`).
+#' which are KDE-only), `RoBMA_density_method_random_target` (a random-effect
+#' quantity without a supported scalar random-component coordinate), or
+#' `RoBMA_density_method_original_scale` (a coefficient or factor cell whose
+#' original-scale value is not a linear combination of its fitted
+#' coefficients, such as the exponentiated intercept of a scale formula with
+#' standardized predictors; use `standardized_coefficients = TRUE`).
+#' [hypothesis()] refuses qCMDE/IWMDE for the same causes with these classes
+#' after its own.
 #'
 #' A returned qCMDE/IWMDE estimate that fails the density availability
 #' checks raises a `RoBMA_density_plot_error` identifying the plotted parameter.
@@ -351,7 +356,7 @@ lines.brma <- function(
         operation = "plots"
       )
       if (is.null(target[["parameter"]])) {
-        stop(target[["reason"]], call. = FALSE)
+        .iwmde_stop_unavailable(target)
       }
       samples <- .plot_brma_attach_iwmde(
         object               = x,
@@ -655,15 +660,24 @@ lines.brma <- function(
   if (identical(route[["type"]], "affine")) {
     return(list(type = "linear", weights = route[["weights"]]))
   }
+  # A nonlinear map of the fitted coefficients (exp(affine) or an
+  # unsupported joint transform) is an original-scale refusal of qCMDE/IWMDE;
+  # stale metadata and structurally fixed coefficients are no density-method
+  # causes.
   if (!is.null(route[["reason"]])) {
+    if (identical(route[["cause"]], "nonlinear")) {
+      .iwmde_stop_unavailable(.iwmde_unavailable(route[["reason"]], "original_scale"))
+    }
     stop(route[["reason"]], call. = FALSE)
   }
-  stop(
-    "qCMDE/IWMDE does not support the fitted nonlinear joint transform for '",
-    parameter, "'. Use density_method = 'KDE' or ",
-    "standardized_coefficients = TRUE.",
-    call. = FALSE
-  )
+  .iwmde_stop_unavailable(.iwmde_unavailable(
+    reason = paste0(
+      "qCMDE/IWMDE does not support the fitted nonlinear joint transform for '",
+      parameter, "'. Use density_method = 'KDE' or ",
+      "standardized_coefficients = TRUE."
+    ),
+    type   = "original_scale"
+  ))
 }
 
 
