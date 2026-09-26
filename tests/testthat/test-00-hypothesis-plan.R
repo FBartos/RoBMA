@@ -110,12 +110,14 @@ test_that("hypothesis_quantities() renders the plans that hypothesis() executes"
 })
 
 
-test_that("hypothesis_quantities() names quantities with shared aliases by their selector", {
+# A small known-V fit with two scale formulas (one per random component).
+.two_scale_fit_cache <- new.env(parent = emptyenv())
 
-  skip_on_cran()
-  # Two scale formulas share the aliases 'intercept' and 'x' in the scale
-  # component, where hypothesis() refuses them as referring to several
-  # parameters; the location intercept keeps its alias 'intercept'.
+.two_scale_fit <- function() {
+
+  if (!is.null(.two_scale_fit_cache[["fit"]])) {
+    return(.two_scale_fit_cache[["fit"]])
+  }
   data <- data.frame(
     yi     = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05),
     study  = rep(c("s1", "s2", "s3"), each = 2L),
@@ -132,16 +134,29 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
     silent = TRUE,
     convergence_checks = set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)
   ))
+  .two_scale_fit_cache[["fit"]] <- fit
+
+  return(fit)
+}
+
+
+test_that("hypothesis_quantities() names quantities with shared aliases by their selector", {
+
+  skip_on_cran()
+  # Two scale formulas share the aliases 'intercept' and 'x' in the scale
+  # component, where hypothesis() refuses them as referring to several
+  # parameters; the location intercept keeps its alias 'intercept'.
+  fit <- .two_scale_fit()
 
   expect_error(
     hypothesis(fit, "intercept = 0.5", component = "scale"),
     "Hypothesis references multiple model parameters",
     fixed = TRUE
   )
-  # Admitted qCMDE/IWMDE statements are not run: the IWMDE context builds the
-  # inputs of a single scale formula only.
+  # qCMDE/IWMDE are refused for every quantity (several scale formulas), and
+  # every refused statement stops with its plan's refusal.
   quantities <- .expect_plans_consistent(
-    fit, info = "two scale formulas", run_precomputed = FALSE
+    fit, info = "two scale formulas", run_precomputed = TRUE
   )
   scale_rows <- quantities[["component"]] == "scale"
   expect_true(all(quantities[["point_test"]][scale_rows]))
@@ -167,6 +182,52 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
     roots[match(names(expected), entries[["parameter"]])],
     unname(expected)
   )
+})
+
+
+test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas", {
+
+  skip_on_cran()
+  fit    <- .two_scale_fit()
+  reason <- paste0(
+    "qCMDE/IWMDE density estimation is unavailable for models with ",
+    "several scale formulas. Use density_method = 'KDE'."
+  )
+  expect_identical(
+    .iwmde_capability(object = fit, density_method = "qCMDE"),
+    list(available = FALSE, reason = reason)
+  )
+
+  # The location intercept and the scale slopes list KDE only, with the
+  # reason; the scale intercepts were KDE-only before (exp(affine) targets).
+  quantities <- hypothesis_quantities(fit)
+  for (parameter in c("mu_intercept", "log_tau_study_x", "log_tau_effect_x")) {
+    rows <- quantities[quantities[["parameter"]] == parameter, , drop = FALSE]
+    expect_identical(unique(rows[["point_test_methods"]]), "KDE", info = parameter)
+    expect_match(unique(rows[["reason"]]), reason, fixed = TRUE, info = parameter)
+  }
+
+  # hypothesis() with its default method stops with the method refusal; KDE
+  # evaluates the same statement.
+  expect_error(
+    hypothesis(fit, "intercept = 0", component = "mods"),
+    reason,
+    fixed = TRUE,
+    class = "RoBMA_hypothesis_method"
+  )
+  expect_error(
+    hypothesis(fit, "log_tau_study_x = 0", component = "scale",
+               density_method = "IWMDE"),
+    reason,
+    fixed = TRUE,
+    class = "RoBMA_hypothesis_method"
+  )
+  kde <- suppressWarnings(hypothesis(
+    fit, "intercept = 0", component = "mods", density_method = "KDE"
+  ))
+  expect_true(is.finite(attr(kde, "raw_BF")))
+  # A context built without the capability check stops with the reason.
+  expect_error(.iwmde_context(fit), reason, fixed = TRUE)
 })
 
 

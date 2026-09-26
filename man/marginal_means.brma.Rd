@@ -102,7 +102,9 @@ whole-curve absolute MCSE safeguard relative to the density peak. Point
 ordinates retain separate numerical-stability gates; their sample precision,
 effective-sample-size, and contribution-concentration checks are warnings.
 qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
-random-formula models and for derived semantic random-effect quantities.}
+random-formula models, for \code{brma.mv()} models with component-specific
+scale formulas (a named \code{scale} list), and for derived semantic
+random-effect quantities.}
 
 \item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }

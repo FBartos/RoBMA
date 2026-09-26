@@ -56,7 +56,8 @@
 #' displayed separately from the continuous density; `tau2_prop(...)` is
 #' conditioned on positive realized total heterogeneity.
 #' qCMDE/IWMDE are not available for non-known-\code{V}
-#' \code{brma.mv()} random-formula models or
+#' \code{brma.mv()} random-formula models, \code{brma.mv()} models with
+#' component-specific scale formulas (a named \code{scale} list), or
 #' selection-weightfunction coordinates requiring joint replacement. IWMDE is
 #' also unavailable for binomial and Poisson GLMMs; use
 #' qCMDE for GLMM density plots. qCMDE/IWMDE densities are evaluated on the

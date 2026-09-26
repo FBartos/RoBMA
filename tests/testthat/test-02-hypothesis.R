@@ -806,11 +806,13 @@ test_that("hypothesis_quantities() renders the plans of fits with two scale form
   slopes <- c(top = "log_tau_study_x", bottom = "log_tau_effect_x")
   for (name in names(fit_names)) {
     fit <- load_fit(fit_names[[name]])
-    # Admitted qCMDE/IWMDE statements are not run: the IWMDE context builds
-    # the inputs of a single scale formula only.
+    # qCMDE/IWMDE are refused for every quantity (several scale formulas),
+    # and every refused statement stops with its plan's refusal.
     quantities <- .expect_plans_consistent(
-      fit, info = name, run_precomputed = FALSE
+      fit, info = name, run_precomputed = TRUE
     )
+    expect_false(any(grepl("qCMDE|IWMDE", quantities[["point_test_methods"]])),
+                 info = name)
     scale_rows <- quantities[["component"]] == "scale"
     expect_true(all(quantities[["point_test"]][scale_rows]), info = name)
     expect_true(all(quantities[["direction_test"]][scale_rows]), info = name)

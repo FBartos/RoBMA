@@ -91,6 +91,72 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
 })
 
 
+test_that("qCMDE/IWMDE are unavailable for component-specific scale formulas", {
+
+  # The IWMDE context evaluates one scale formula ('log_tau'): a named
+  # 'scale' list gives one formula ('log_tau_<component>') per random
+  # component, with one or several entries.
+  data <- data.frame(
+    yi     = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05),
+    study  = rep(c("s1", "s2", "s3"), each = 2L),
+    effect = rep(c("a", "b"), 3L),
+    x      = c(0, 1, 0, 1, 0, 1)
+  )
+  V <- kronecker(diag(3L), matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L))
+  prior_object <- function(random, scale) {
+    suppressWarnings(brma.mv(
+      yi = yi, V = V, data = data, measure = "GEN", random = random,
+      scale = scale, prior_unit_information_sd = 1, only_priors = TRUE
+    ))
+  }
+  objects <- list(
+    plain   = prior_object(list(study = ~ 1 | study), ~ x),
+    one     = prior_object(list(study = ~ 1 | study), list(study = ~ x)),
+    several = prior_object(
+      list(study = ~ 1 | study, effect = ~ 1 | study:effect),
+      list(study = ~ x, effect = ~ x)
+    )
+  )
+  reasons <- c(
+    one     = paste0(
+      "qCMDE/IWMDE density estimation is unavailable for models with a ",
+      "component-specific scale formula. Use density_method = 'KDE'."
+    ),
+    several = paste0(
+      "qCMDE/IWMDE density estimation is unavailable for models with ",
+      "several scale formulas. Use density_method = 'KDE'."
+    )
+  )
+
+  for (method in c("qCMDE", "IWMDE")) {
+    expect_true(.iwmde_capability(
+      object = objects[["plain"]], density_method = method
+    )[["available"]], info = method)
+    for (name in names(reasons)) {
+      expect_identical(
+        .iwmde_capability(object = objects[[name]], density_method = method),
+        list(available = FALSE, reason = reasons[[name]]),
+        info = paste(name, method)
+      )
+    }
+  }
+  # Every caller building the IWMDE context stops with the same reason, not
+  # with the error of evaluating a missing scale formula.
+  plain_inputs <- .iwmde_formula_inputs(
+    objects[["plain"]][["data"]], objects[["plain"]][["priors"]]
+  )
+  expect_s3_class(plain_inputs[["scale"]][["formula"]], "formula")
+  for (name in names(reasons)) {
+    expect_error(
+      .iwmde_formula_inputs(objects[[name]][["data"]], objects[[name]][["priors"]]),
+      reasons[[name]],
+      fixed = TRUE,
+      info  = name
+    )
+  }
+})
+
+
 test_that("random discovery uses the authoritative likelihood-aware target", {
 
   object <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))

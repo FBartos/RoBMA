@@ -45,6 +45,10 @@
 #' IWMDE is unavailable for GLMM density estimation because its
 #' high-dimensional conditional weights did not meet bridge-sampling
 #' certification. GLMM density curves and point-null hypotheses require qCMDE.
+#' qCMDE and IWMDE evaluate one scale formula: they are unavailable for
+#' \code{brma.mv()} models with component-specific scale formulas (a named
+#' \code{scale} list, e.g. one scale formula per random component), whose
+#' point-null hypotheses use \code{density_method = "KDE"}.
 #'
 #' For an unrestricted alternative against \eqn{\theta=\theta_0}, the
 #' Savage-Dickey identity \insertCite{dickey1971weighted,wagenmakers2010bayesian}{RoBMA}

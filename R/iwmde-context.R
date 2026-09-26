@@ -121,6 +121,10 @@
       )
     ))
   }
+  scale_reason <- .iwmde_scale_unavailable_reason(data)
+  if (!is.null(scale_reason)) {
+    return(list(available = FALSE, reason = scale_reason))
+  }
   if (!is.null(density_method)) {
     density_method <- .density_method_normalize(density_method)
     is_glmm        <- inherits(object, "brma.glmm") ||
@@ -138,6 +142,30 @@
   }
 
   return(list(available = TRUE, reason = ""))
+}
+
+
+# qCMDE/IWMDE evaluate the heterogeneity of one scale formula ('log_tau',
+# .iwmde_formula_inputs()); component-specific scale formulas (a named
+# 'scale' list of brma.mv(), one formula and 'log_tau_<component>' parameter
+# per random component or block) are unavailable. NULL when the scale
+# formula of 'data' is supported.
+.iwmde_scale_unavailable_reason <- function(data) {
+
+  if (is.null(data) || !.is_data_scale(data) ||
+      !inherits(data[["scale"]], "RoBMA_scale_components")) {
+    return(NULL)
+  }
+  formulas <- if (length(.data_scale_components(data)) > 1L) {
+    "several scale formulas"
+  } else {
+    "a component-specific scale formula"
+  }
+
+  paste0(
+    "qCMDE/IWMDE density estimation is unavailable for models with ",
+    formulas, ". Use density_method = 'KDE'."
+  )
 }
 
 
