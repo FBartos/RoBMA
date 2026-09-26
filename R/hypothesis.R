@@ -211,9 +211,14 @@ hypothesis.default <- function(object, ...) {
 #' target), or \code{RoBMA_hypothesis_statement} (the form of the statement
 #' is unsupported); linear combinations that BayesTools cannot certify keep
 #' the class \code{BayesTools_linear_target_unavailable}. A method refusal
-#' because the fitted model does not support qCMDE/IWMDE also has the class
-#' \code{RoBMA_density_method_unavailable}, the parent class of the refusals
-#' of these requests by [plot.brma()] and [marginal_means()].
+#' because the fitted model does not support qCMDE/IWMDE also has the classes
+#' of the refusals of these requests by [plot.brma()] and [marginal_means()]:
+#' \code{RoBMA_density_method_unavailable} and one class naming the cause,
+#' \code{RoBMA_density_method_random_unknown_v} (\code{brma.mv()}
+#' random-formula models without known \code{V}),
+#' \code{RoBMA_density_method_scale_components} (component-specific scale
+#' formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
+#' Poisson GLMMs).
 #' @param density_control named list of qCMDE/IWMDE tuning settings. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples} (the fixed
 #' posterior-row sample size, default \code{500} for qCMDE and \code{1000} for

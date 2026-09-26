@@ -46,7 +46,8 @@
 # supported target or prior density), "method" (the density method is
 # unavailable for the target), and "statement" (the statement's form is
 # unsupported). Method refusals by the qCMDE/IWMDE capability of the fitted
-# model (.iwmde_capability()) also have the class
+# model (.iwmde_capability()) also have the classes of that capability
+# refusal: "RoBMA_density_method_<cause>" and the parent
 # "RoBMA_density_method_unavailable".
 .hypothesis_refusal <- function(reason, type = NULL, condition = NULL) {
 
@@ -359,10 +360,10 @@
       density_method = method
     )
     if (!capability[["available"]]) {
-      # A capability refusal also has the parent class of the capability
-      # refusals outside hypothesis().
+      # A capability refusal also has the classes of the capability refusal
+      # outside hypothesis(): its cause and the parent class.
       refusal <- .hypothesis_refusal(capability[["reason"]], "method")
-      refusal[["class"]] <- c(refusal[["class"]], .iwmde_unavailable_class())
+      refusal[["class"]] <- c(refusal[["class"]], capability[["class"]])
       return(refusal)
     }
   }

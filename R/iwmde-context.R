@@ -152,7 +152,7 @@
 # family: "random_unknown_v" (brma.mv() random-formula models without known
 # V), "scale_components" (component-specific scale formulas), and "glmm"
 # (IWMDE for binomial and Poisson GLMMs). hypothesis() refuses the same
-# causes with its own classes and the parent class.
+# causes with its own classes followed by these classes.
 .iwmde_unavailable <- function(reason, type) {
 
   list(

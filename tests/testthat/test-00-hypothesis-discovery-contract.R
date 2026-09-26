@@ -15,12 +15,13 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
     c("RoBMA_density_method_glmm", "RoBMA_density_method_unavailable")
   )
   # A capability refusal keeps the hypothesis classes and also carries the
-  # parent class of the capability refusals.
+  # classes of the capability refusal: the cause and the parent class.
   expect_identical(
     .hypothesis_plan_status(plan, "IWMDE"),
     list(
       reason = capability[["reason"]],
       class  = c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+                 "RoBMA_density_method_glmm",
                  "RoBMA_density_method_unavailable")
     )
   )
@@ -30,10 +31,13 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
     fixed = TRUE,
     class = "RoBMA_hypothesis_method"
   )
-  expect_error(
-    .hypothesis_plan_check(plan, "IWMDE"),
-    class = "RoBMA_density_method_unavailable"
-  )
+  for (class in c("RoBMA_density_method_glmm",
+                  "RoBMA_density_method_unavailable")) {
+    expect_error(
+      .hypothesis_plan_check(plan, "IWMDE"),
+      class = class
+    )
+  }
   # Outside hypothesis(), the capability check stops with the classes of the
   # capability refusal.
   expect_error(
@@ -103,6 +107,10 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
     fixed = TRUE
   )
   for (class in classes) {
+    expect_error(
+      hypothesis(object, "mu_intercept = 0", density_method = "qCMDE"),
+      class = class
+    )
     expect_error(
       .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()"),
       class = class

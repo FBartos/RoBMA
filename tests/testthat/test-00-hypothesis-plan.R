@@ -292,6 +292,33 @@ test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas",
                density_control = control),
     class = "RoBMA_density_method_unavailable"
   )
+  # hypothesis() refusals, on the fit and on its marginal means, carry the
+  # classes of the capability refusal after their own: one cause has the same
+  # classes at every entry point.
+  refusal_classes <- c(
+    "RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable", classes,
+    "error", "condition"
+  )
+  for (method in c("qCMDE", "IWMDE")) {
+    refusals <- list(
+      fit   = tryCatch(
+        hypothesis(fit, "intercept = 0", component = "mods",
+                   density_method = method),
+        error = identity
+      ),
+      means = tryCatch(
+        hypothesis(means, "g[u] = 0", density_method = method,
+                   density_control = control),
+        error = identity
+      )
+    )
+    for (name in names(refusals)) {
+      expect_identical(
+        class(refusals[[name]]), refusal_classes,
+        info = paste(name, method)
+      )
+    }
+  }
 })
 
 
