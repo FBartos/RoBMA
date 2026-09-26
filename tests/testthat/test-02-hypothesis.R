@@ -2003,21 +2003,33 @@ test_that("certified exp-affine KDE respects its open support", {
   }
   fit <- load_fit(fit_name, validate = FALSE)
 
-  # The original-scale heterogeneity intercept combines the truncated-normal
-  # log intercept with the scaled slope: its certified prior density is a
-  # general numerical convolution without an exact ordinate, so point tests
-  # are refused with the BayesTools class; region tests use the density.
-  expect_error(
-    hypothesis(
-      fit,
-      "log_tau_intercept = 0.2",
-      component      = "scale",
-      density_method = "KDE",
-      n_samples      = 500,
-      seed           = 1
-    ),
-    class = "BayesTools_inexact_ordinate"
-  )
+  # The original-scale heterogeneity intercept is the truncated-normal fitted
+  # intercept (a log source) times the exp of the scaled slope's Gaussian
+  # part: its certified prior density is the exact scale product, so point
+  # tests run with KDE and equal the independent Savage-Dickey computation
+  # (prior ordinate by numerical integration over the slope prior, posterior
+  # ordinate the kernel sum of the fitted draws reflected at 0;
+  # helper-contracts.R). Region tests use the density.
+  point <- expect_silent(hypothesis(
+    fit,
+    "log_tau_intercept = 0.2",
+    component      = "scale",
+    density_method = "KDE",
+    n_samples      = 500,
+    seed           = 1,
+    columns        = "all"
+  ))
+  reference <- exp_affine_scale_intercept_reference(fit, slope = "ni100", value = 0.2)
+  expect_equal(as.numeric(point[["prior"]]), reference[["prior"]], tolerance = 1e-10)
+  expect_equal(as.numeric(point[["posterior"]]), reference[["posterior"]], tolerance = 1e-12)
+  expect_equal(attr(point, "raw_BF"), reference[["prior"]] / reference[["posterior"]],
+               tolerance = 1e-10)
+  # hypothesis_quantities() renders the same plan: a KDE-only point test.
+  quantities <- hypothesis_quantities(fit)
+  intercept  <- quantities[quantities[["parameter"]] == "log_tau_intercept" &
+                             quantities[["component"]] == "scale", , drop = FALSE]
+  expect_true(unique(intercept[["point_test"]]))
+  expect_identical(unique(intercept[["point_test_methods"]]), "KDE")
   direction <- expect_silent(hypothesis(
     fit,
     "log_tau_intercept > 0.2",

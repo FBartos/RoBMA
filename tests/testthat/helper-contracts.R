@@ -552,3 +552,50 @@ nested_allocation_random_object <- function() {
     class = c("brma.mv", "brma")
   )
 }
+
+# Independent Savage-Dickey ingredients of the original-scale heterogeneity
+# intercept of a log-intercept scale regression on one standardized
+# continuous predictor 'slope': tau_0 = b0 exp(-c b1), with the fitted
+# intercept b0 ~ Normal(m0, s0) truncated to [0, Inf), the fitted slope
+# b1 ~ Normal(m1, s1), and c = mean / sd of the predictor. The prior ordinate
+# at 'value' is the scale-product integral over the slope,
+#   f(y) = int f_b0(y exp(c t)) exp(c t) phi(t; m1, s1) dt,
+# by numerical integration over m1 +- 40 s1 in log space (relative tolerance
+# 1e-12); the posterior ordinate is the Gaussian kernel sum of the draws of
+# tau_0 (from the fitted MCMC columns) reflected at the support bound 0, with
+# bandwidth bw.nrd0.
+exp_affine_scale_intercept_reference <- function(fit, slope, value) {
+
+  priors  <- fit[["priors"]][["scale"]]
+  scaling <- attr(fit[["fit"]], "formula_scale")[["log_tau"]][[paste0("log_tau_", slope)]]
+  shift   <- scaling[["mean"]] / scaling[["sd"]]
+  b0 <- priors[["intercept"]]
+  b1 <- priors[[slope]]
+  stopifnot(
+    identical(b0[["distribution"]], "normal"),
+    identical(b0[["truncation"]][["lower"]], 0),
+    identical(b0[["truncation"]][["upper"]], Inf),
+    identical(b1[["distribution"]], "normal")
+  )
+  log_f_b0 <- function(u) {
+    stats::dnorm(u, b0[["parameters"]][["mean"]], b0[["parameters"]][["sd"]], log = TRUE) -
+      stats::pnorm(0, b0[["parameters"]][["mean"]], b0[["parameters"]][["sd"]],
+                   lower.tail = FALSE, log.p = TRUE)
+  }
+  limits <- b1[["parameters"]][["mean"]] + c(-40, 40) * b1[["parameters"]][["sd"]]
+  prior  <- stats::integrate(function(t) {
+    exp(log_f_b0(value * exp(shift * t)) + shift * t +
+          stats::dnorm(t, b1[["parameters"]][["mean"]], b1[["parameters"]][["sd"]], log = TRUE))
+  }, limits[[1L]], limits[[2L]], rel.tol = 1e-12, subdivisions = 1000L)[["value"]]
+  mcmc  <- as.matrix(fit[["fit"]][["mcmc"]])
+  draws <- unname(mcmc[, "log_tau_intercept"] * exp(-shift * mcmc[, paste0("log_tau_", slope)]))
+  bandwidth <- stats::bw.nrd0(draws)
+
+  list(
+    shift     = shift,
+    draws     = draws,
+    prior     = prior,
+    posterior = mean(stats::dnorm(value, draws, bandwidth) +
+                       stats::dnorm(value, -draws, bandwidth))
+  )
+}

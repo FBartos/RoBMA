@@ -515,7 +515,7 @@ test_that("IWMDE disables focal prior delta for sampled random SD rows", {
 })
 
 
-test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", {
+test_that("nonlinear transformed scale intercepts test points with KDE and fail qCMDE and IWMDE closed", {
 
   skip_if_missing_fits("brma.mv_block_mvn_random_scale")
   fit <- load_fit("brma.mv_block_mvn_random_scale", validate = FALSE)
@@ -554,18 +554,18 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
       info  = method
     )
   }
-  # Its certified prior density combines the log intercept with the scaled
-  # slope by a general numerical convolution without an exact ordinate, so
-  # point hypotheses are refused with the BayesTools class for every method;
-  # region hypotheses use the density with KDE.
-  for (method in c("KDE", "qCMDE", "IWMDE")) {
+  # Its certified prior density is exact: the original-scale intercept is the
+  # fitted intercept (a log source) times the exp of the Gaussian slope part,
+  # a scale product with an exact ordinate. Point hypotheses therefore run
+  # with KDE, and qCMDE/IWMDE stop with the plan's method refusal.
+  for (method in c("qCMDE", "IWMDE")) {
     expect_error(
       hypothesis(
         fit,
         "intercept = 0.2 vs intercept != 0.2",
         component       = "scale",
         density_method  = method,
-        density_control = if (method != "KDE") list(
+        density_control = list(
           n_points             = 30L,
           samples              = 40L,
           normalization_points = 40L
@@ -573,10 +573,35 @@ test_that("nonlinear transformed scale intercepts fail qCMDE and IWMDE closed", 
         n_samples = 1000L,
         seed      = 32
       ),
-      class = "BayesTools_inexact_ordinate",
+      "supported only with density_method = 'KDE'",
+      fixed = TRUE,
+      class = "RoBMA_hypothesis_method",
       info  = method
     )
   }
+  kde <- hypothesis(
+    fit,
+    "intercept = 0.2 vs intercept != 0.2",
+    component      = "scale",
+    density_method = "KDE",
+    n_samples      = 1000L,
+    seed           = 32,
+    columns        = "all"
+  )
+  # Independent Savage-Dickey: the prior ordinate by numerical integration of
+  # the scale product over the slope prior, and the posterior ordinate as the
+  # Gaussian kernel sum of the fitted draws of the intercept reflected at 0
+  # (helper-contracts.R); the transform's weight on the slope is the fitted
+  # standardization shift -mean(x) / sd(x).
+  reference <- exp_affine_scale_intercept_reference(fit, slope = "x", value = 0.2)
+  expect_equal(unname(plan[["weights"]][["log_tau_x"]]), -reference[["shift"]],
+               tolerance = 1e-12)
+  expect_equal(as.numeric(plan[["draws"]][["posterior"]]), reference[["draws"]],
+               tolerance = 1e-12)
+  expect_equal(as.numeric(kde[["prior"]]), reference[["prior"]], tolerance = 1e-10)
+  expect_equal(as.numeric(kde[["posterior"]]), reference[["posterior"]], tolerance = 1e-12)
+  expect_equal(attr(kde, "raw_BF"), reference[["posterior"]] / reference[["prior"]],
+               tolerance = 1e-10)
   expect_s3_class(
     hypothesis(
       fit,
