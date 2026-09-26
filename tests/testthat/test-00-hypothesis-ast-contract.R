@@ -104,8 +104,23 @@ test_that("marginal-means aliases never silently resolve collisions", {
 
   expect_error(
     .hypothesis_marginal_means_select_parameter(object, hypothesis, NULL),
-    "alias 'mu' is ambiguous.*Specify 'parameter'"
+    "alias 'mu' is ambiguous.*Specify 'parameter'",
+    class = "RoBMA_hypothesis_ambiguous"
   )
+  # Statements on several marginal-means parameters are ambiguous too; both
+  # have the classes of the ambiguous fitted-model references.
+  several <- BayesTools::hypothesis_parse(c("intercept > 0", "mu_mu > 0"))
+  for (class in c("RoBMA_hypothesis_ambiguous",
+                  "RoBMA_hypothesis_unavailable")) {
+    expect_error(
+      .hypothesis_marginal_means_select_parameter(object, hypothesis, NULL),
+      class = class
+    )
+    expect_error(
+      .hypothesis_marginal_means_select_parameter(object, several, NULL),
+      class = class
+    )
+  }
 
   intercept <- .hypothesis_marginal_means_select_parameter(
     object,

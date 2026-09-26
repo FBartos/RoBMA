@@ -162,7 +162,12 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
   expect_error(
     hypothesis(fit, "intercept = 0.5", component = "scale"),
     "Hypothesis references multiple model parameters",
-    fixed = TRUE
+    fixed = TRUE,
+    class = "RoBMA_hypothesis_ambiguous"
+  )
+  expect_error(
+    hypothesis(fit, "intercept = 0.5", component = "scale"),
+    class = "RoBMA_hypothesis_unavailable"
   )
   # qCMDE/IWMDE are refused for every quantity (several scale formulas), and
   # every refused statement stops with its plan's refusal.
@@ -368,8 +373,14 @@ test_that("levels of a factor alias shared by the location and scale formulas re
   }
   # Without 'component', the level reference names a level of both terms and
   # stays ambiguous (the same statement resolves with 'component' above).
-  expect_error(suppressWarnings(hypothesis(fit, "g1[10] = 0.1", density_method = "KDE")))
-  expect_error(.hypothesis_brma_select_parameter(fit, "g1[10] = 0.1", component = "auto"))
+  expect_error(
+    suppressWarnings(hypothesis(fit, "g1[10] = 0.1", density_method = "KDE")),
+    class = "RoBMA_hypothesis_ambiguous"
+  )
+  expect_error(
+    .hypothesis_brma_select_parameter(fit, "g1[10] = 0.1", component = "auto"),
+    class = "RoBMA_hypothesis_ambiguous"
+  )
 })
 
 

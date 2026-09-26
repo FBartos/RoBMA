@@ -57,7 +57,10 @@ Separate statements may reference different model parameters; each statement
 itself must resolve to one scalar model target.}
 
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
-the hypothesis expression.}
+the hypothesis expression. Without it, an alias or statement that names
+several marginal-means parameters stops with an error of class
+\code{RoBMA_hypothesis_ambiguous}, with the parent class
+\code{RoBMA_hypothesis_unavailable}.}
 
 \item{logBF}{whether to display the Bayes factor on the log scale.}
 
@@ -191,7 +194,10 @@ diagnostics rather than probabilities for all hypothesis types.}
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
 \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
-terms used in multiple model components. The random component supports
+terms used in multiple model components. A statement whose references
+still name several model parameters stops with an error of class
+\code{RoBMA_hypothesis_ambiguous}, with the parent class
+\code{RoBMA_hypothesis_unavailable}. The random component supports
 point, interval, and directional hypotheses for semantic standard
 deviation, variance, correlation, and allocation quantities. Point-null
 hypotheses require a direct parameter reference, a factor level, or a

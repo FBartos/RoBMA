@@ -124,14 +124,19 @@
 }
 
 
+# A statement whose references name several model parameters is ambiguous
+# ("RoBMA_hypothesis_ambiguous" with the parent of the hypothesis refusals,
+# .hypothesis_refusal()); 'component' selects one of them.
 .hypothesis_brma_stop_multiple_parameters <- function(entries) {
 
-  stop(
-    "Hypothesis references multiple model parameters (",
-    paste(unique(entries[["parameter"]]), collapse = ", "),
-    "). Set 'component' to 'mods'/'location', 'scale', or 'bias'.",
-    call. = FALSE
-  )
+  .hypothesis_stop(.hypothesis_refusal(
+    paste0(
+      "Hypothesis references multiple model parameters (",
+      paste(unique(entries[["parameter"]]), collapse = ", "),
+      "). Set 'component' to 'mods'/'location', 'scale', or 'bias'."
+    ),
+    "ambiguous"
+  ))
 }
 
 

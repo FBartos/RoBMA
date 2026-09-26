@@ -44,10 +44,12 @@
 # "RoBMA_hypothesis_<type>" with the parent "RoBMA_hypothesis_unavailable":
 # "fixed" (the quantity is fixed by the fitted model), "target" (no
 # supported target or prior density), "method" (the density method is
-# unavailable for the target), and "statement" (the statement's form is
-# unsupported). Method refusals by the qCMDE/IWMDE capability of the fitted
-# model (.iwmde_capability()) also have the classes of that capability
-# refusal: "RoBMA_density_method_<cause>" and the parent
+# unavailable for the target), "statement" (the statement's form is
+# unsupported), and "ambiguous" (the statement names several parameters;
+# 'component' or, for marginal means, 'parameter' selects one). Method
+# refusals by the qCMDE/IWMDE capability of the fitted model
+# (.iwmde_capability()) also have the classes of that capability refusal:
+# "RoBMA_density_method_<cause>" and the parent
 # "RoBMA_density_method_unavailable".
 .hypothesis_refusal <- function(reason, type = NULL, condition = NULL) {
 

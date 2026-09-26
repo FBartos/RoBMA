@@ -1,7 +1,10 @@
 #' @rdname hypothesis
 #'
 #' @param parameter optional marginal-means parameter/term used to disambiguate
-#' the hypothesis expression.
+#' the hypothesis expression. Without it, an alias or statement that names
+#' several marginal-means parameters stops with an error of class
+#' \code{RoBMA_hypothesis_ambiguous}, with the parent class
+#' \code{RoBMA_hypothesis_unavailable}.
 #' @details Marginal-means hypotheses are specified on the fitted
 #' linear-predictor scale. Display transformations stored by
 #' \code{marginal_means()} do not transform hypothesis constants. Single-model
@@ -253,15 +256,20 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
     unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
   })
+  # An alias or statement naming several parameters is ambiguous, as for
+  # fitted objects (.hypothesis_brma_stop_multiple_parameters()); 'parameter'
+  # selects one of them.
   ambiguous <- lengths(matches) > 1L
   if (any(ambiguous)) {
     root <- roots[ambiguous][[1L]]
-    stop(
-      "Marginal-means alias '", root, "' is ambiguous (",
-      paste(matches[[which(ambiguous)[[1L]]]], collapse = ", "),
-      "). Specify 'parameter' using an internal parameter name.",
-      call. = FALSE
-    )
+    .hypothesis_stop(.hypothesis_refusal(
+      paste0(
+        "Marginal-means alias '", root, "' is ambiguous (",
+        paste(matches[[which(ambiguous)[[1L]]]], collapse = ", "),
+        "). Specify 'parameter' using an internal parameter name."
+      ),
+      "ambiguous"
+    ))
   }
   known <- unlist(matches[lengths(matches) == 1L], use.names = FALSE)
   known <- unique(known)
@@ -272,12 +280,14 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   if (length(known) > 1L) {
-    stop(
-      "Hypothesis references multiple marginal-means parameters (",
-      paste(known, collapse = ", "),
-      "). Specify 'parameter'.",
-      call. = FALSE
-    )
+    .hypothesis_stop(.hypothesis_refusal(
+      paste0(
+        "Hypothesis references multiple marginal-means parameters (",
+        paste(known, collapse = ", "),
+        "). Specify 'parameter'."
+      ),
+      "ambiguous"
+    ))
   }
 
   stop(

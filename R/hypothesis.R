@@ -127,7 +127,10 @@ hypothesis.default <- function(object, ...) {
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
-#' terms used in multiple model components. The random component supports
+#' terms used in multiple model components. A statement whose references
+#' still name several model parameters stops with an error of class
+#' \code{RoBMA_hypothesis_ambiguous}, with the parent class
+#' \code{RoBMA_hypothesis_unavailable}. The random component supports
 #' point, interval, and directional hypotheses for semantic standard
 #' deviation, variance, correlation, and allocation quantities. Point-null
 #' hypotheses require a direct parameter reference, a factor level, or a

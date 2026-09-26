@@ -791,16 +791,20 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       density_method = "KDE",
       n_samples      = 1000
     ),
-    "multiple model parameters"
+    "multiple model parameters",
+    class = "RoBMA_hypothesis_ambiguous"
   )
   # Without 'component', a level of the shared factor alias stays ambiguous
   # (the same statement resolves with 'component' above).
-  expect_error(suppressWarnings(hypothesis(
-    fit,
-    "Preregistered[Pre-Registered] = -0.1",
-    density_method = "KDE",
-    n_samples      = 1000
-  )))
+  expect_error(
+    suppressWarnings(hypothesis(
+      fit,
+      "Preregistered[Pre-Registered] = -0.1",
+      density_method = "KDE",
+      n_samples      = 1000
+    )),
+    class = "RoBMA_hypothesis_ambiguous"
+  )
 
   expect_warning(
     bf_mods <- hypothesis(
