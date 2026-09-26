@@ -122,8 +122,7 @@ hypothesis_quantities.brma <- function(object, ...) {
 
 
 # The rendered statements of a catalog entry and their plans. Statements
-# name the quantity by its displayed label within the entry's component
-# (random-effect quantities by their selector).
+# name the quantity as .hypothesis_quantities_reference_root() does.
 .hypothesis_quantities_plans <- function(object, entry, metadata, cache) {
 
   # Statements are planned as hypothesis() plans them.
@@ -136,17 +135,7 @@ hypothesis_quantities.brma <- function(object, ...) {
       cache      = cache
     )[[1L]]
   }
-  # Factor terms are named by their parameter: their level references are
-  # resolved across components.
-  root <- entry[["parameter"]]
-  if (!identical(entry[["component"]], "random") &&
-      !identical(entry[["role"]], "formula_coefficient_group")) {
-    aliases <- metadata[["entries"]][["aliases"]][[
-      match(entry[["quantity_id"]], metadata[["entries"]][["quantity_id"]])
-    ]]
-    aliases <- as.list(stats::setNames(rep(root, length(aliases)), aliases))
-    root    <- .hypothesis_brma_alias_label(aliases, entry[["parameter"]])
-  }
+  root <- .hypothesis_quantities_reference_root(metadata, entry)
   reference <- function(level = NULL) {
     if (is.null(level)) {
       return(paste0("`", root, "`"))
@@ -182,6 +171,57 @@ hypothesis_quantities.brma <- function(object, ...) {
   })
 
   list(point = point, region = region, contrast = contrast)
+}
+
+
+# The name of a catalog entry's quantity in its rendered statements.
+# Random-effect quantities and factor terms are named by their parameter (the
+# level references of factor terms are resolved across components). Other
+# quantities are named by their displayed alias within the entry's component,
+# unless that alias also names another quantity of the component (e.g. the
+# 'intercept' of several scale formulas): such quantities are named by their
+# catalog selector.
+.hypothesis_quantities_reference_root <- function(metadata, entry) {
+
+  parameter <- entry[["parameter"]]
+  if (identical(entry[["component"]], "random") ||
+      identical(entry[["role"]], "formula_coefficient_group")) {
+    return(parameter)
+  }
+
+  entries <- metadata[["entries"]]
+  aliases <- entries[["aliases"]][[
+    match(entry[["quantity_id"]], entries[["quantity_id"]])
+  ]]
+  aliases <- as.list(stats::setNames(rep(parameter, length(aliases)), aliases))
+  label   <- .hypothesis_brma_alias_label(aliases, parameter)
+  # The alias is resolved as hypothesis() resolves the statements of the
+  # entry's component.
+  catalog      <- metadata[["catalog"]]
+  unique_label <- tryCatch(
+    identical(
+      BayesTools::parameter_catalog_resolve(
+        catalog        = catalog,
+        alias          = label,
+        component      = entry[["component"]],
+        simplify_names = TRUE
+      )[["quantity_id"]],
+      entry[["quantity_id"]]
+    ),
+    BayesTools_parameter_ambiguous = function(error) FALSE
+  )
+  if (unique_label) {
+    return(label)
+  }
+
+  quantities <- catalog[["quantities"]]
+  BayesTools::parameter_labels(
+    quantities[
+      match(entry[["quantity_id"]], quantities[["quantity_id"]]), ,
+      drop = FALSE
+    ],
+    style = "selector"
+  )
 }
 
 

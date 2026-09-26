@@ -599,3 +599,82 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
                        stats::dnorm(value, -draws, bandwidth))
   )
 }
+
+# hypothesis() evaluates a statement exactly when its plan admits the method,
+# and otherwise stops with the plan's refusal (its first class and message).
+# hypothesis_quantities() renders the same plans. qCMDE/IWMDE statements the
+# plans admit are evaluated for the first point and contrast statement of
+# each object ('run_precomputed'), with a small density budget.
+.expect_plans_consistent <- function(object, info, run_precomputed = TRUE) {
+
+  metadata   <- .brma_parameter_catalog_metadata(object)
+  quantities <- hypothesis_quantities(object)
+  cache      <- .hypothesis_plan_cache()
+  control    <- list(n_points = 20, samples = 50)
+  run <- function(statement, component, method) {
+    tryCatch(
+      suppressWarnings(hypothesis(
+        object, statement, component = component, density_method = method,
+        density_control = if (method %in% c("qCMDE", "IWMDE")) control,
+        seed = 1, n_samples = 500
+      )),
+      error = function(error) error
+    )
+  }
+  ran_precomputed <- character()
+  entries <- metadata[["entries"]]
+  entries <- entries[entries[["component"]] != "bias", , drop = FALSE]
+  for (i in seq_len(nrow(entries))) {
+    entry <- as.list(entries[i, setdiff(names(entries), "aliases"), drop = FALSE])
+    rows  <- quantities[quantities[["parameter"]] == entry[["parameter"]] &
+                          quantities[["component"]] == entry[["component"]], ,
+                        drop = FALSE]
+    plans <- .hypothesis_quantities_plans(object, entry, metadata, cache)
+    rendered <- .hypothesis_quantities_render_plans(
+      plans   = plans,
+      bracket = identical(entry[["role"]], "formula_coefficient_group")
+    )
+    row_info <- paste(info, entry[["parameter"]])
+    expect_gt(nrow(rows), 0L)
+    for (column in c("point_test", "direction_test", "contrast_test",
+                     "point_test_methods", "contrast_test_methods", "reason")) {
+      expect_identical(
+        unique(rows[[column]]), rendered[[column]],
+        info = paste(row_info, column)
+      )
+    }
+    for (type in c("point", "region", "contrast")) {
+      for (plan in plans[[type]]) {
+        statement <- BayesTools::hypothesis_render(plan[["statement"]])
+        for (method in .hypothesis_plan_advertised_methods()) {
+          refusal <- .hypothesis_plan_status(plan, method)
+          case    <- paste(row_info, statement, method)
+          precomputed <- method %in% c("qCMDE", "IWMDE")
+          if (is.null(refusal) && precomputed &&
+              (!run_precomputed || paste(type, method) %in% ran_precomputed ||
+                 identical(type, "region"))) {
+            next
+          }
+          out <- run(statement, entry[["component"]], method)
+          if (is.null(refusal)) {
+            # An admitted statement runs; qCMDE/IWMDE ordinates may still be
+            # rejected by their numerical diagnostics.
+            expect_false(
+              inherits(out, "error") &&
+                !(precomputed && inherits(out, "RoBMA_density_ordinate_error")),
+              info = paste(case, if (inherits(out, "error")) conditionMessage(out))
+            )
+            if (precomputed) {
+              ran_precomputed <- c(ran_precomputed, paste(type, method))
+            }
+          } else {
+            expect_s3_class(out, refusal[["class"]][[1L]])
+            expect_identical(conditionMessage(out), refusal[["reason"]], info = case)
+          }
+        }
+      }
+    }
+  }
+
+  invisible(quantities)
+}

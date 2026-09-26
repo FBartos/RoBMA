@@ -790,6 +790,55 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
 })
 
 
+test_that("hypothesis_quantities() renders the plans of fits with two scale formulas", {
+
+  skip_on_cran()
+  fit_names <- c(
+    top    = "brma.mv_block_mvn_3lvl_scale_top",
+    bottom = "brma.mv_block_mvn_3lvl_scale_bottom"
+  )
+  skip_if_missing_fits(fit_names)
+
+  # The scale formulas of both random levels have an intercept: the alias
+  # 'intercept' names two scale parameters, so their statements name each
+  # intercept by its selector. The slope 'x' of the one formula with a
+  # predictor keeps its alias.
+  slopes <- c(top = "log_tau_study_x", bottom = "log_tau_effect_x")
+  for (name in names(fit_names)) {
+    fit <- load_fit(fit_names[[name]])
+    # Admitted qCMDE/IWMDE statements are not run: the IWMDE context builds
+    # the inputs of a single scale formula only.
+    quantities <- .expect_plans_consistent(
+      fit, info = name, run_precomputed = FALSE
+    )
+    scale_rows <- quantities[["component"]] == "scale"
+    expect_true(all(quantities[["point_test"]][scale_rows]), info = name)
+    expect_true(all(quantities[["direction_test"]][scale_rows]), info = name)
+
+    metadata <- .brma_parameter_catalog_metadata(fit)
+    entries  <- metadata[["entries"]]
+    scale    <- entries[entries[["component"]] == "scale", , drop = FALSE]
+    roots    <- vapply(seq_len(nrow(scale)), function(i) {
+      .hypothesis_quantities_reference_root(
+        metadata,
+        as.list(scale[i, setdiff(names(scale), "aliases"), drop = FALSE])
+      )
+    }, character(1))
+    expected <- c(
+      log_tau_study_intercept  = "log_tau_study_intercept",
+      log_tau_effect_intercept = "log_tau_effect_intercept",
+      stats::setNames("x", slopes[[name]])
+    )
+    expect_setequal(scale[["parameter"]], names(expected))
+    expect_identical(
+      roots[match(names(expected), scale[["parameter"]])],
+      unname(expected),
+      info = name
+    )
+  }
+})
+
+
 test_that("hypothesis does not advertise or test publication-bias parameters", {
 
   skip_on_cran()
