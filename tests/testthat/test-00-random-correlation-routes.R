@@ -350,7 +350,8 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
     )
 
     # Region hypotheses use the defined draws; point hypotheses are refused
-    # for every method, as hypothesis_quantities() renders.
+    # for every method because the prior density is unavailable (not for an
+    # atom status), as hypothesis_quantities() renders.
     region <- suppressWarnings(hypothesis(
       fit, "rho(intercept,x) > 0", columns = "all", seed = 1
     ))
@@ -359,13 +360,18 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
       .random_correlation_odds(mean(as.numeric(samples) > 0)),
       tolerance = 1e-12, info = name
     )
+    no_prior_density <- "because its prior density is unavailable"
     for (method in c("KDE", "qCMDE", "IWMDE")) {
-      expect_error(
+      refusal <- tryCatch(
         suppressWarnings(hypothesis(
           fit, "rho(intercept,x) = 0", density_method = method, seed = 1
         )),
-        class = "RoBMA_hypothesis_target",
-        info  = paste(name, method)
+        error = function(e) e
+      )
+      expect_s3_class(refusal, "RoBMA_hypothesis_target")
+      expect_match(
+        conditionMessage(refusal), no_prior_density,
+        fixed = TRUE, info = paste(name, method)
       )
     }
     quantities <- hypothesis_quantities(fit)
@@ -373,6 +379,7 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
     expect_identical(nrow(row), 1L)
     expect_false(row[["point_test"]], info = name)
     expect_true(row[["direction_test"]], info = name)
+    expect_match(row[["reason"]], no_prior_density, fixed = TRUE, info = name)
 
     # On the fitted scale the correlation is the LKJ(1) correlation of the
     # 2 x 2 block, uniform on (-1, 1): its exact prior ordinate is 1/2.
