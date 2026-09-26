@@ -555,3 +555,40 @@ test_that("Wrappers suppress aggregation messages", {
   expect_silent(blup(fit_brma))
   expect_silent(true_effects(fit_brma))
 })
+
+
+test_that("objects without a fit evaluate formulas through the fitted designs", {
+
+  # An object without a fit (an only_priors object evaluated on supplied
+  # draws) evaluates its formulas through the designs that fitting builds
+  # from its data and priors: they equal the designs and the scaling that
+  # the fit stores.
+  names <- c(
+    "bcg_meta-regression3",
+    "bangertdrowns2004_location-scale",
+    "brma.mv_block_mvn_random",
+    "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+    "RoBMA.mv_marg_product_space",
+    "bcg_glmm_reg"
+  )
+  skip_if_missing_fits(names)
+  for (name in names) {
+    object        <- fits[[name]]
+    fitted_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+    fitted_scale  <- attr(object[["fit"]], "formula_scale", exact = TRUE)
+    parameters    <- names(fitted_design)
+    object[["fit"]] <- NULL
+    built <- .object_formula_fit(object)
+
+    expect_identical(
+      attr(built, "formula_design", exact = TRUE)[parameters],
+      fitted_design,
+      info = name
+    )
+    expect_identical(
+      attr(built, "formula_scale", exact = TRUE)[parameters],
+      fitted_scale[parameters],
+      info = name
+    )
+  }
+})
