@@ -1690,6 +1690,48 @@
 }
 
 
+# The refusal of a model-averaged marginal-means request as a whole, or NULL.
+# Its statements are evaluated on one posterior conditioning (point
+# statements on the alternative-conditioned marginal mean of one level,
+# region statements on the averaged marginal means), so a request cannot
+# combine point and region statements or point statements on several levels.
+.hypothesis_plan_marginal_means_request_refusal <- function(plans, object,
+                                                            parameter) {
+
+  model_averaged <- isTRUE(object[["model_averaged"]]) ||
+    inherits(object[["source_object"]], "RoBMA")
+  if (!model_averaged) {
+    return(NULL)
+  }
+  point <- vapply(plans, `[[`, logical(1), "point")
+  if (any(point) && !all(point)) {
+    return(.hypothesis_refusal(
+      paste0(
+        "A model-averaged marginal-means hypothesis request cannot mix ",
+        "point-null and region statements because they require different ",
+        "posterior conditioning."
+      ),
+      "statement"
+    ))
+  }
+  levels <- unique(.hypothesis_marginal_means_ast_levels(
+    hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis"),
+    parameter  = parameter
+  ))
+  if (all(point) && length(levels) > 1L) {
+    return(.hypothesis_refusal(
+      paste0(
+        "Point hypotheses spanning multiple marginal-means levels are not ",
+        "supported because the levels need not share one conditioning event."
+      ),
+      "statement"
+    ))
+  }
+
+  NULL
+}
+
+
 # A marginal mean the fitted model fixes: its declared atoms carry the whole
 # posterior mass.
 .hypothesis_plan_draws_fixed <- function(sample) {

@@ -54,13 +54,14 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   for (plan in plans) {
     .hypothesis_plan_check(plan, density_method)
   }
-  # The statements of one model-averaged request share one posterior
-  # conditioning (point statements the alternative-conditioned one).
-  .hypothesis_marginal_means_route(
-    object     = object,
-    hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis"),
-    parameter  = parameter
+  refusal <- .hypothesis_plan_marginal_means_request_refusal(
+    plans     = plans,
+    object    = object,
+    parameter = parameter
   )
+  if (!is.null(refusal)) {
+    .hypothesis_stop(refusal)
+  }
   point       <- any(vapply(plans, `[[`, logical(1), "point"))
   precomputed <- density_method %in% c("qCMDE", "IWMDE") && point
   if (precomputed) {
@@ -209,75 +210,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   out
-}
-
-
-.hypothesis_marginal_means_route <- function(object, hypothesis, parameter) {
-
-  model_averaged <- isTRUE(object[["model_averaged"]]) ||
-    inherits(object[["source_object"]], "RoBMA")
-  statement_routes <- vapply(
-    hypothesis[["statements"]],
-    function(statement) {
-
-      types <- c(
-        statement[["left"]][["type"]],
-        statement[["right"]][["type"]]
-      )
-      if (all(types == "region")) {
-        return("region")
-      }
-      if (all(types %in% c("point", "not_point"))) {
-        return("point")
-      }
-
-      if (model_averaged) {
-        stop(
-          "Model-averaged marginal-means hypotheses cannot mix point and ",
-          "region events because they require different posterior ",
-          "conditioning. Use a pure point-null or a pure region hypothesis.",
-          call. = FALSE
-        )
-      }
-      return("mixed")
-    },
-    character(1)
-  )
-  if (model_averaged && length(unique(statement_routes)) != 1L) {
-    stop(
-      "A model-averaged marginal-means hypothesis request cannot mix ",
-      "point-null and region statements because they require different ",
-      "posterior conditioning.",
-      call. = FALSE
-    )
-  }
-
-  route <- if (length(unique(statement_routes)) == 1L) {
-    statement_routes[[1L]]
-  } else {
-    "mixed"
-  }
-  if (model_averaged && identical(route, "point")) {
-    levels <- unique(.hypothesis_marginal_means_ast_levels(
-      hypothesis = hypothesis,
-      parameter  = parameter
-    ))
-    if (length(levels) > 1L) {
-      stop(
-        "Point hypotheses spanning multiple marginal-means levels are not ",
-        "supported because the levels need not share one conditioning event.",
-        call. = FALSE
-      )
-    }
-  }
-
-  inference_type <- if (model_averaged && identical(route, "point")) {
-    "conditional"
-  } else {
-    "averaged"
-  }
-
-  return(list(route = route, inference_type = inference_type))
 }
 
 

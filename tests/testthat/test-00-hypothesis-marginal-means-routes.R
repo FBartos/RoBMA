@@ -140,17 +140,27 @@ test_that("marginal-means point routes fail closed when events are incoherent", 
 
   object <- .marginal_means_route_test_object(model_averaged = TRUE)
 
+  # Refused within one statement by its plan, and across the statements of
+  # one request by the request's refusal; both with the statement class.
   expect_error(
     hypothesis(object, "alloc[A] = 0 vs alloc[A] > 0"),
-    "cannot mix point and region"
+    "cannot mix point and region",
+    class = "RoBMA_hypothesis_statement"
   )
   expect_error(
     hypothesis(object, "alloc[A] = 0 vs alloc[B] != 0"),
-    "spanning multiple marginal-means levels"
+    "spanning multiple marginal-means levels",
+    class = "RoBMA_hypothesis_statement"
   )
   expect_error(
     hypothesis(object, c("alloc[A] = 0", "alloc[A] > 0")),
-    "cannot mix point-null and region statements"
+    "cannot mix point-null and region statements",
+    class = "RoBMA_hypothesis_statement"
+  )
+  expect_error(
+    hypothesis(object, c("alloc[A] = 0", "alloc[B] = 0")),
+    "spanning multiple marginal-means levels",
+    class = "RoBMA_hypothesis_statement"
   )
 })
 
@@ -176,39 +186,25 @@ test_that("single-model point hypotheses use averaged marginal draws", {
 test_that("single-model marginal hypotheses share one averaged posterior", {
 
   object <- .marginal_means_route_test_object(model_averaged = FALSE)
+  plans <- function(statements) {
+    lapply(statements, function(statement) {
+      .hypothesis_plan_marginal_means(object, statement, parameter = "mu_alloc")
+    })
+  }
 
-  mixed <- .hypothesis_marginal_means_route(
-    object     = object,
-    hypothesis = BayesTools::hypothesis_parse(
-      "mu_alloc[A] > 0 vs mu_alloc[A] = 0"
-    ),
-    parameter  = "mu_alloc"
-  )
-  cross_level_point <- .hypothesis_marginal_means_route(
-    object     = object,
-    hypothesis = BayesTools::hypothesis_parse(
-      "mu_alloc[A] - mu_alloc[B] = 0"
-    ),
-    parameter  = "mu_alloc"
-  )
-  mixed_statements <- .hypothesis_marginal_means_route(
-    object     = object,
-    hypothesis = BayesTools::hypothesis_parse(c(
-      "mu_alloc[A] = 0",
-      "mu_alloc[A] > 0"
-    )),
-    parameter  = "mu_alloc"
-  )
+  mixed             <- plans("mu_alloc[A] > 0 vs mu_alloc[A] = 0")
+  cross_level_point <- plans("mu_alloc[A] - mu_alloc[B] = 0")
+  mixed_statements  <- plans(c("mu_alloc[A] = 0", "mu_alloc[A] > 0"))
 
-  expect_identical(mixed, list(route = "mixed", inference_type = "averaged"))
-  expect_identical(
-    cross_level_point,
-    list(route = "point", inference_type = "averaged")
-  )
-  expect_identical(
-    mixed_statements,
-    list(route = "mixed", inference_type = "averaged")
-  )
+  for (request in list(mixed, cross_level_point, mixed_statements)) {
+    for (plan in request) {
+      expect_identical(plan[["inference_type"]], "averaged")
+      expect_null(plan[["refusal"]])
+    }
+    expect_null(.hypothesis_plan_marginal_means_request_refusal(
+      plans = request, object = object, parameter = "mu_alloc"
+    ))
+  }
 })
 
 
