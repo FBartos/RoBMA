@@ -168,9 +168,11 @@
   fitted coefficients with their exact BayesTools prior densities, as
   treatment and independent levels are. In model-averaged objects (RoBMA and
   BMA ensembles) a level off its null atom has the exact ordinate of the
-  mixture of its factor priors, also when its contrast row has one nonzero
-  coefficient (e.g. a two-level mean-difference factor). Level contrasts and
-  other linear combinations of the levels of one term (`g[a] = g[b]`,
+  mixture of its (multivariate) normal factor priors, also when its contrast
+  row has one nonzero coefficient (e.g. a two-level mean-difference factor).
+  Levels of multivariate t factor priors have no exact ordinate and are
+  refused with `BayesTools_inexact_ordinate`. Level contrasts and other
+  linear combinations of the levels of one term (`g[a] = g[b]`,
   `2 * g[a] = 0.1`) are evaluated as one linear target, including in
   model-averaged objects with `conditional = TRUE` (the unconditional
   combination has an atom at 0 and is refused with its class). Ordered levels
@@ -1325,8 +1327,9 @@
   of estimates-table rows and catalog aliases, posterior point masses declared
   as draw atoms, declared inputs of source values functions, fitted formula
   designs without posterior draws, exact prior densities of truncated-normal
-  sums, of exponentiated log-intercept combinations and of coordinates of
-  factor-prior mixtures, and the prior-density provenance predicate.
+  sums, of exponentiated log-intercept combinations with normal slopes and of
+  coordinates of normal factor-prior mixtures, and the prior-density
+  provenance predicate.
 - requires loo 2.10.0 internally while preserving RoBMA's released numeric
   `compare.loo` matrix and printing contract.
 - removes transitional pre-release known-`V`, dense random-correlation, and
@@ -1770,8 +1773,9 @@
   target's own scale with the certified BayesTools prior density of the fitted
   coefficient transform (no prior draws). Point hypotheses need its exact
   ordinate: the original-scale intercept of a log-intercept scale regression
-  (the fitted intercept times the exponentiated slope part) has one, while
-  other general numerical convolutions are refused with
+  with normal slope priors (the fitted intercept times the lognormal
+  exponentiated slope part) has one, while other general numerical
+  convolutions (e.g. with Cauchy or t slope priors) are refused with
   `BayesTools_inexact_ordinate`. Nonpositive nulls, compound point
   expressions, and nonlinear qCMDE/IWMDE routes fail clearly.
 - rejects random-parameter point hypotheses at values where the canonical
