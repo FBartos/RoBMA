@@ -161,6 +161,17 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
   scale_rows <- quantities[["component"]] == "scale"
   expect_true(all(quantities[["point_test"]][scale_rows]))
   expect_true(all(quantities[["direction_test"]][scale_rows]))
+  # The shared aliases are not listed for the scale quantities; every listed
+  # alias names its own quantity (checked by .expect_plans_consistent()).
+  expect_false(any(quantities[["alias"]][scale_rows] %in% c("intercept", "x")))
+  expect_true("intercept" %in% quantities[["alias"]][
+    quantities[["parameter"]] == "mu_intercept"
+  ])
+  expect_setequal(
+    unique(quantities[["parameter"]][scale_rows]),
+    c("log_tau_study_intercept", "log_tau_study_x",
+      "log_tau_effect_intercept", "log_tau_effect_x")
+  )
 
   metadata <- .brma_parameter_catalog_metadata(fit)
   entries  <- metadata[["entries"]]

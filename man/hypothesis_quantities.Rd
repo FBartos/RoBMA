@@ -18,7 +18,11 @@ hypothesis_quantities(object, ...)
 \item{...}{unused.}
 }
 \value{
-A data frame with the columns \code{alias}, \code{parameter},
+A data frame with the columns \code{alias} (a name that
+\code{hypothesis()} resolves to the row's quantity with the row's
+\code{component}; a name shared by several quantities of a component, such
+as the \code{intercept} of several scale formulas, is not listed),
+\code{parameter},
 \code{component}, \code{term}, \code{bracket} (the level selector of factor
 terms), \code{point_test}, \code{direction_test}, \code{contrast_test}
 (\code{NA} for quantities without levels), \code{point_test_methods},

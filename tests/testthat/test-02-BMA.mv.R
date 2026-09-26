@@ -324,6 +324,14 @@ test_that("BMA.mv allocation densities preserve gate-defined atoms", {
   expect_true(any(gated))
   expect_true(all(quantities[["point_test"]][gated]))
   expect_true(all(quantities[["direction_test"]][gated]))
+  # 'tau' and 'tau2' name the SDs and variances of both random components,
+  # so they are not listed; every listed alias names its row's quantity.
+  random <- quantities[quantities[["component"]] == "random", , drop = FALSE]
+  expect_false(any(random[["alias"]] %in% c("tau", "tau2")))
+  expect_true(all(c(
+    "(mu) study: tau(intercept)", "(mu) observation: tau(intercept)"
+  ) %in% random[["parameter"]]))
+  .expect_aliases_resolve(fit_bma_mv, random, info = "BMA.mv random")
 })
 
 

@@ -813,6 +813,11 @@ test_that("hypothesis_quantities() renders the plans of fits with two scale form
     )
     expect_false(any(grepl("qCMDE|IWMDE", quantities[["point_test_methods"]])),
                  info = name)
+    # The alias 'intercept' of both scale intercepts is not listed; the slope
+    # keeps its alias 'x'.
+    scale_aliases <- quantities[["alias"]][quantities[["component"]] == "scale"]
+    expect_false("intercept" %in% scale_aliases, info = name)
+    expect_true("x" %in% scale_aliases, info = name)
     scale_rows <- quantities[["component"]] == "scale"
     expect_true(all(quantities[["point_test"]][scale_rows]), info = name)
     expect_true(all(quantities[["direction_test"]][scale_rows]), info = name)

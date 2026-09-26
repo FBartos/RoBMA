@@ -24,7 +24,11 @@
 #' do not use a density method. The normal approximation is a rough check
 #' and is not listed.
 #'
-#' @return A data frame with the columns \code{alias}, \code{parameter},
+#' @return A data frame with the columns \code{alias} (a name that
+#' \code{hypothesis()} resolves to the row's quantity with the row's
+#' \code{component}; a name shared by several quantities of a component, such
+#' as the \code{intercept} of several scale formulas, is not listed),
+#' \code{parameter},
 #' \code{component}, \code{term}, \code{bracket} (the level selector of factor
 #' terms), \code{point_test}, \code{direction_test}, \code{contrast_test}
 #' (\code{NA} for quantities without levels), \code{point_test_methods},
@@ -84,6 +88,19 @@ hypothesis_quantities.brma <- function(object, ...) {
   }
   rows <- do.call(rbind, rows)[match(keys, unique(keys)), , drop = FALSE]
   out  <- cbind(out, rows)
+  if (!is.null(object[["fit"]]) && length(object[["fit"]]) > 0L) {
+    # Only aliases that name their own quantity within its component, as
+    # hypothesis() resolves them; ambiguous aliases are not listed.
+    resolves <- vapply(seq_len(nrow(catalog)), function(i) {
+      .hypothesis_quantities_alias_resolves(
+        catalog     = metadata[["catalog"]],
+        alias       = catalog[["alias"]][[i]],
+        component   = catalog[["component"]][[i]],
+        quantity_id = catalog[["quantity_id"]][[i]]
+      )
+    }, logical(1))
+    out <- out[resolves, , drop = FALSE]
+  }
   out[["bracket"]] <- ifelse(
     out[["bracket"]],
     paste0(out[["parameter"]], "[level]"),
@@ -195,32 +212,44 @@ hypothesis_quantities.brma <- function(object, ...) {
   ]]
   aliases <- as.list(stats::setNames(rep(parameter, length(aliases)), aliases))
   label   <- .hypothesis_brma_alias_label(aliases, parameter)
-  # The alias is resolved as hypothesis() resolves the statements of the
-  # entry's component.
-  catalog      <- metadata[["catalog"]]
-  unique_label <- tryCatch(
-    identical(
-      BayesTools::parameter_catalog_resolve(
-        catalog        = catalog,
-        alias          = label,
-        component      = entry[["component"]],
-        simplify_names = TRUE
-      )[["quantity_id"]],
-      entry[["quantity_id"]]
-    ),
-    BayesTools_parameter_ambiguous = function(error) FALSE
-  )
-  if (unique_label) {
+  if (.hypothesis_quantities_alias_resolves(
+    catalog     = metadata[["catalog"]],
+    alias       = label,
+    component   = entry[["component"]],
+    quantity_id = entry[["quantity_id"]]
+  )) {
     return(label)
   }
 
-  quantities <- catalog[["quantities"]]
+  quantities <- metadata[["catalog"]][["quantities"]]
   BayesTools::parameter_labels(
     quantities[
       match(entry[["quantity_id"]], quantities[["quantity_id"]]), ,
       drop = FALSE
     ],
     style = "selector"
+  )
+}
+
+
+# Whether 'alias' names the quantity 'quantity_id' within 'component': the
+# resolution hypothesis() applies to the statements of that component. An
+# alias that also names another quantity of the component is ambiguous there
+# (e.g. the 'intercept' of several scale formulas).
+.hypothesis_quantities_alias_resolves <- function(catalog, alias, component,
+                                                  quantity_id) {
+
+  tryCatch(
+    identical(
+      BayesTools::parameter_catalog_resolve(
+        catalog        = catalog,
+        alias          = alias,
+        component      = component,
+        simplify_names = TRUE
+      )[["quantity_id"]],
+      quantity_id
+    ),
+    BayesTools_parameter_ambiguous = function(error) FALSE
   )
 }
 

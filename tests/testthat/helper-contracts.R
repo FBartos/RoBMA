@@ -600,16 +600,54 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
   )
 }
 
+# Every alias hypothesis_quantities() lists names its row's quantity: the
+# plan of '<alias> = 0' with the row's component, which hypothesis()
+# executes, is the plan of that quantity.
+.expect_aliases_resolve <- function(object, quantities, info,
+                                    metadata = .brma_parameter_catalog_metadata(object),
+                                    cache = .hypothesis_plan_cache()) {
+
+  for (i in seq_len(nrow(quantities))) {
+    row  <- quantities[i, , drop = FALSE]
+    plan <- tryCatch(
+      .hypothesis_plans(
+        object     = object,
+        hypothesis = paste0("`", row[["alias"]], "` = 0"),
+        component  = row[["component"]],
+        metadata   = metadata,
+        cache      = cache
+      )[[1L]],
+      error = function(error) error
+    )
+    case <- paste(info, row[["component"]], row[["alias"]])
+    expect_false(inherits(plan, "error"), info = paste(
+      case, if (inherits(plan, "error")) conditionMessage(plan)
+    ))
+    if (!inherits(plan, "error")) {
+      expect_identical(
+        c(plan[["parameter"]], plan[["component"]]),
+        c(row[["parameter"]], row[["component"]]),
+        info = case
+      )
+    }
+  }
+
+  invisible(quantities)
+}
+
+
 # hypothesis() evaluates a statement exactly when its plan admits the method,
 # and otherwise stops with the plan's refusal (its first class and message).
-# hypothesis_quantities() renders the same plans. qCMDE/IWMDE statements the
-# plans admit are evaluated for the first point and contrast statement of
-# each object ('run_precomputed'), with a small density budget.
+# hypothesis_quantities() renders the same plans, and lists aliases that name
+# their rows' quantities. qCMDE/IWMDE statements the plans admit are
+# evaluated for the first point and contrast statement of each object
+# ('run_precomputed'), with a small density budget.
 .expect_plans_consistent <- function(object, info, run_precomputed = TRUE) {
 
   metadata   <- .brma_parameter_catalog_metadata(object)
   quantities <- hypothesis_quantities(object)
   cache      <- .hypothesis_plan_cache()
+  .expect_aliases_resolve(object, quantities, info, metadata, cache)
   control    <- list(n_points = 20, samples = 50)
   run <- function(statement, component, method) {
     tryCatch(
