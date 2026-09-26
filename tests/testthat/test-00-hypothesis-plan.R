@@ -649,11 +649,37 @@ test_that("unresolved references have the same classes on fits and marginal mean
     conditionMessage(level_on_means),
     "Hypothesis references unknown level 'w' for parameter 'mu_g'."
   )
-  # A statement without references.
+  # A statement without references: on marginal means RoBMA's statement
+  # error; on the fit BayesTools' refusal (with the classes BayesTools gives
+  # it) after the statement class.
   expect_identical(
     class(tryCatch(hypothesis(means, "1 > 0"), error = identity)),
     c("RoBMA_hypothesis_statement", "error", "condition")
   )
+  metadata <- .brma_parameter_catalog_metadata(fit)
+  refusal  <- tryCatch(
+    BayesTools::hypothesis_resolve(
+      BayesTools::hypothesis_parse("1 > 0"), metadata[["catalog"]]
+    ),
+    error = identity
+  )
+  expect_identical(
+    conditionMessage(refusal),
+    "The hypothesis contains no parameter symbols to resolve."
+  )
+  for (component in c("auto", "scale")) {
+    error <- tryCatch(
+      hypothesis(fit, "1 > 0", component = component, density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(
+      class(error),
+      unique(c("RoBMA_hypothesis_statement", class(refusal))),
+      info = component
+    )
+    expect_identical(conditionMessage(error), conditionMessage(refusal),
+                     info = component)
+  }
 })
 
 

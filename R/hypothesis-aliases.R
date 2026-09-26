@@ -10,6 +10,22 @@
     ast,
     occurrences = TRUE
   )
+  # A statement without parameter references is a statement error:
+  # BayesTools' refusal, with the classes BayesTools gives it, after
+  # "RoBMA_hypothesis_statement".
+  if (nrow(occurrences) == 0L) {
+    tryCatch(
+      BayesTools::hypothesis_resolve(
+        ast            = ast,
+        catalog        = metadata[["catalog"]],
+        simplify_names = TRUE
+      ),
+      error = function(error) {
+        class(error) <- unique(c("RoBMA_hypothesis_statement", class(error)))
+        stop(error)
+      }
+    )
+  }
   resolver_component <- if (identical(component, "auto") ||
                             any(!is.na(occurrences[["level"]]))) {
     NULL

@@ -144,8 +144,9 @@ region events or span several levels, ambiguous references
 parameters of another component (\code{RoBMA_component_mismatch}), factor
 contrast coefficients such as \code{"g{1}"} (state the hypothesis on
 factor levels), references to unknown names or factor levels, and
-marginal-means statements that reference no marginal-means parameter. An
-unknown name or level also has the classes
+statements that reference no parameter (on fitted objects followed by the
+classes of the BayesTools refusal of such a statement). An unknown name or
+level also has the classes
 \code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, with which BayesTools
 refuses it (on fitted objects, the BayesTools condition itself with its
