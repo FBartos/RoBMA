@@ -57,6 +57,35 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
   expect_identical(rendered[["reason"]], capability[["reason"]])
   expect_true(is.na(rendered[["contrast_test"]]))
 
+  # The capability of the fitted model comes before the quantity's own
+  # refusal of the method, as in plot(); a method the model supports keeps
+  # the quantity's refusal.
+  own <- .hypothesis_refusal("The quantity refuses the method.", "method")
+  plan_own <- .hypothesis_plan_finish(
+    list(point = TRUE, refusal = NULL, targets = list(),
+         method_refusals = list(qCMDE = own, IWMDE = own)),
+    glmm
+  )
+  expect_identical(.hypothesis_plan_status(plan_own, "qCMDE"), own)
+  expect_identical(
+    .hypothesis_plan_status(plan_own, "IWMDE"),
+    .hypothesis_plan_status(plan, "IWMDE")
+  )
+  expect_null(.hypothesis_plan_status(plan_own, "KDE"))
+  # An object without the fitted model the method needs (a marginal-means
+  # object without its source fit) is refused before the capability.
+  missing_source <- .hypothesis_refusal("The source fit is missing.", "target")
+  plan_source <- .hypothesis_plan_finish(
+    list(point = TRUE, refusal = NULL, targets = list(),
+         method_refusals = list(qCMDE = own, IWMDE = own),
+         source_refusals = list(qCMDE = missing_source, IWMDE = missing_source)),
+    glmm
+  )
+  for (method in c("qCMDE", "IWMDE")) {
+    expect_identical(.hypothesis_plan_status(plan_source, method), missing_source,
+                     info = method)
+  }
+
   # A refusal of the whole plan (a fixed quantity) applies to point and
   # region statements and every method.
   fixed <- .hypothesis_plan_finish(
@@ -303,7 +332,9 @@ test_that("marginal discovery shares its source-model IWMDE capability", {
 
   out <- hypothesis_quantities(object)
 
-  # A source object without a fit cannot compute qCMDE/IWMDE ordinates.
+  # A source object without a fit cannot compute qCMDE/IWMDE ordinates; that
+  # refusal precedes the capability of the source model (a random-formula
+  # model without known V), as in the marginal-means plot().
   expect_identical(out[["point_test_methods"]], "KDE")
   expect_match(out[["reason"]], "does not contain the source fitted brma", fixed = TRUE)
 

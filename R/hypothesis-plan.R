@@ -413,9 +413,13 @@
 
 # The refusal of one density method: a refusal of the whole plan (fixed
 # quantities, unsupported targets and statements), then the refusals of the
-# point targets (their values), then the method's own refusal, then the
-# qCMDE/IWMDE capability of the fitted model. Region statements need no
-# density method.
+# point targets (their values), then the refusal of an object without the
+# fitted model the method needs (a marginal-means object without its source
+# fit), then the qCMDE/IWMDE capability of the fitted model, then the
+# quantity's own refusal of the method. The capability precedes the
+# quantity's refusal as in plot(), which checks it before selecting the
+# quantity, so that a qCMDE/IWMDE request with both causes reports the
+# capability at both entry points. Region statements need no density method.
 .hypothesis_plan_method_refusal <- function(plan, object, method) {
 
   if (!is.null(plan[["refusal"]])) {
@@ -430,8 +434,8 @@
       return(refusal)
     }
   }
-  if (!is.null(plan[["method_refusals"]][[method]])) {
-    return(plan[["method_refusals"]][[method]])
+  if (!is.null(plan[["source_refusals"]][[method]])) {
+    return(plan[["source_refusals"]][[method]])
   }
   if (method %in% c("qCMDE", "IWMDE")) {
     capability_object <- if (is.null(plan[["capability_object"]])) {
@@ -450,7 +454,7 @@
     }
   }
 
-  NULL
+  plan[["method_refusals"]][[method]]
 }
 
 
@@ -1737,16 +1741,15 @@
     "'normal' density_method is not supported for marginal-means hypotheses.",
     "method"
   ))
+  # Without its fitted source model, qCMDE/IWMDE are refused before that
+  # model's capability is checked, as the marginal-means plot() does.
   if (is.null(object[["source_object"]]) ||
       !inherits(object[["source_object"]], "brma") ||
       is.null(object[["source_object"]][["fit"]])) {
-    plan[["method_refusals"]] <- c(
-      plan[["method_refusals"]],
-      .hypothesis_plan_precomputed_refusals(paste0(
-        "The marginal-means object does not contain the source fitted brma ",
-        "object needed to compute qCMDE/IWMDE ordinates."
-      ), "target")
-    )
+    plan[["source_refusals"]] <- .hypothesis_plan_precomputed_refusals(paste0(
+      "The marginal-means object does not contain the source fitted brma ",
+      "object needed to compute qCMDE/IWMDE ordinates."
+    ), "target")
   }
 
   refs <- plan[["refs"]]

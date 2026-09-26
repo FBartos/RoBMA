@@ -108,12 +108,43 @@ test_that("hypothesis discovery lists point tests of gated random quantities", {
                     grepl("no supported scalar random-component coordinate",
                           random[["reason"]], fixed = TRUE)))
 
-  # A quantity without a scalar random-component coordinate is refused with
-  # the hypothesis classes followed by the density-method classes of the
-  # same refusal by plot().
+  # Without known V, the model's qCMDE/IWMDE capability refusal comes before
+  # the refusal of the quantity, as in plot(): one cause, the same classes.
   for (method in c("qCMDE", "IWMDE")) {
     error <- tryCatch(
       .gated_random_hypothesis(object, "(mu) split: tau2_prop(study)", 0.3,
+                               density_method = method),
+      error = identity
+    )
+    plotted <- tryCatch(
+      plot(object, "(mu) split: tau2_prop(study)", component = "random",
+           density_method = method, plot_type = "ggplot"),
+      error = identity
+    )
+    expect_identical(
+      class(plotted),
+      c("RoBMA_density_method_random_unknown_v",
+        "RoBMA_density_method_unavailable", "error", "condition"),
+      info = method
+    )
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+        class(plotted)),
+      info = method
+    )
+    expect_identical(conditionMessage(error), capability[["reason"]], info = method)
+  }
+
+  # A quantity without a scalar random-component coordinate is refused with
+  # the hypothesis classes followed by the density-method classes of the
+  # same refusal by plot() (a known-V model, which supports qCMDE/IWMDE).
+  known_v <- object
+  attr(known_v[["data"]], "known_V") <- TRUE
+  attr(known_v[["data"]], "measure") <- "GEN"
+  for (method in c("qCMDE", "IWMDE")) {
+    error <- tryCatch(
+      .gated_random_hypothesis(known_v, "(mu) split: tau2_prop(study)", 0.3,
                                density_method = method),
       error = identity
     )

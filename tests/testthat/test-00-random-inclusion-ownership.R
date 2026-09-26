@@ -124,6 +124,37 @@ test_that("conditional random-effect plots refuse qCMDE/IWMDE with the density-m
       info = method
     )
   }
+
+  # Without known V the model does not support qCMDE/IWMDE: both entry
+  # points report that cause first, not the conditional statement.
+  unknown_v  <- shared_gate_random_object()
+  capability <- .iwmde_capability(object = unknown_v, density_method = "qCMDE")
+  for (method in c("qCMDE", "IWMDE")) {
+    plotted <- tryCatch(
+      plot(unknown_v, "study: tau", component = "random", conditional = TRUE,
+           density_method = method, plot_type = "ggplot"),
+      error = identity
+    )
+    error <- tryCatch(
+      hypothesis(unknown_v, "`(mu) study: tau(intercept)` = 0.3",
+                 component = "random", conditional = TRUE,
+                 density_method = method, n_samples = 1000L, seed = 1),
+      error = identity
+    )
+    expect_identical(
+      class(plotted),
+      c("RoBMA_density_method_random_unknown_v",
+        "RoBMA_density_method_unavailable", "error", "condition"),
+      info = method
+    )
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+        class(plotted)),
+      info = method
+    )
+    expect_identical(conditionMessage(error), capability[["reason"]], info = method)
+  }
 })
 
 

@@ -244,7 +244,10 @@ hypothesis.default <- function(object, ...) {
 #' statements), \code{RoBMA_density_method_random_target} (random-effect
 #' quantities without a supported scalar random-component coordinate), and
 #' \code{RoBMA_density_method_original_scale} (original-scale coefficients
-#' whose fitted map is nonlinear, such as \code{exp(affine)} targets).
+#' whose fitted map is nonlinear, such as \code{exp(affine)} targets). As in
+#' [plot.brma()], the capability of the fitted model is checked before these
+#' causes and before other qCMDE/IWMDE refusals of the tested quantity: a
+#' request to which both apply stops with the capability refusal.
 #'
 #' Statements that need to be restated, or an argument that needs to change,
 #' stop with the class \code{RoBMA_hypothesis_statement} without
