@@ -73,13 +73,14 @@
   # "BayesTools_hypothesis_no_parameters"; a level of another component,
   # "BayesTools_hypothesis_component_mismatch"; a contrast selector of a
   # level, "BayesTools_selector_unavailable"; an unknown reference). A
-  # reference that is unknown within an explicit 'component' but names
-  # quantities outside it is resolved without the component, so that the
-  # checks below refuse it as a component mismatch (or as the target it is),
-  # also next to references of the component ('outside'). A name that the
-  # component's aliases do not list but that resolves to a quantity of the
-  # component (e.g. its display label) stays unknown; a reference unknown in
-  # every component is the unknown name refused.
+  # reference that is unknown within an explicit 'component' (whose aliases
+  # it is not) but names quantities without the component is resolved
+  # without it: a name of a quantity of the component (e.g. its display
+  # label, such as '(mu) intercept' for component = "mods") is accepted; a
+  # name known only outside the component ('outside') is refused by the
+  # checks below as a component mismatch (or as the target it is), also next
+  # to references of the component. A reference unknown in every component
+  # is the unknown name refused.
   outside  <- FALSE
   resolved <- tryCatch(
     resolve(resolver_component),
@@ -98,10 +99,8 @@
           entries      = metadata[["entries"]],
           quantity_ids = occurrences[["quantity_id"]][unknown]
         )
-        if (!any(own[["component"]] == component)) {
-          outside <<- TRUE
-          return(unrestricted)
-        }
+        outside <<- !any(own[["component"]] == component)
+        return(unrestricted)
       }
       .hypothesis_stop_statement_condition(error)
     },
@@ -171,9 +170,21 @@
   aliases <- as.list(rep(entry[["parameter"]], length(entry[["aliases"]][[1L]])))
   names(aliases) <- entry[["aliases"]][[1L]]
   aliases[[entry[["parameter"]]]] <- entry[["parameter"]]
+  # The roots with which the statement references the selected parameter:
+  # every resolved occurrence of its quantity or of its levels (its aliases,
+  # and display labels such as '(mu) intercept', 'exp(intercept)' or the
+  # root '(mu) g' of '(mu) g[a]'), which .hypothesis_brma_rewrite() maps to
+  # the parameter.
+  occurrences <- resolved[["occurrences"]]
+  own_ids     <- c(entry[["quantity_id"]],
+                   unlist(entry[["member_quantity_ids"]], use.names = FALSE))
+  roots       <- unique(occurrences[["parameter"]][
+    occurrences[["quantity_id"]] %in% own_ids
+  ])
   return(list(
     parameter  = entry[["parameter"]],
     aliases    = aliases,
+    roots      = roots,
     component  = entry[["component"]],
     entry      = as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE]),
     resolution = resolved
@@ -328,11 +339,19 @@
 }
 
 
-.hypothesis_brma_rewrite <- function(hypothesis, aliases, parameter) {
+# The statement written against 'parameter': the roots that name it (its
+# 'aliases', and the 'resolved_roots' of its quantities, which include
+# display labels that are no alias of the parameter) are rewritten to it.
+.hypothesis_brma_rewrite <- function(hypothesis, aliases, parameter,
+                                     resolved_roots = character()) {
 
   ast <- .hypothesis_brma_ast(hypothesis)
   mapping <- unlist(aliases, use.names = TRUE)
   mapping <- mapping[mapping == parameter & names(mapping) != mapping]
+  labels  <- setdiff(resolved_roots, c(names(mapping), parameter))
+  if (length(labels) > 0L) {
+    mapping <- c(mapping, stats::setNames(rep(parameter, length(labels)), labels))
+  }
   statements <- BayesTools::hypothesis_render(ast)
   if (length(statements) == 1L) {
     roots   <- BayesTools::hypothesis_symbols(ast)

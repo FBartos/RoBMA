@@ -664,6 +664,61 @@ test_that("the selection of plot() refuses catalog quantities without a RoBMA pa
 })
 
 
+test_that("display labels of parameters are evaluable with and without 'component'", {
+
+  skip_on_cran()
+  fit      <- .plan_fits()[["location_scale"]]
+  draws    <- do.call(rbind, lapply(fit[["fit"]][["mcmc"]], as.matrix))
+  metadata <- .brma_parameter_catalog_metadata(fit)
+  # The posterior draws of a catalog quantity from its declared extraction
+  # key: a fitted coordinate, or a factor level's linear weights on the
+  # fitted coordinates.
+  quantity_draws <- function(name) {
+    quantities <- metadata[["catalog"]][["quantities"]]
+    key <- quantities[["extraction_key"]][[match(name, quantities[["canonical_name"]])]]
+    weights <- if (is.null(key[["weights"]])) 1 else key[["weights"]]
+    drop(draws[, key[["dependencies"]], drop = FALSE] %*% weights)
+  }
+  # A display label (the location and the scale intercept, and a factor
+  # level) tests the parameter it labels.
+  cases <- list(
+    list(label = "(mu) intercept",      parameter = "mu_intercept", component = "mods"),
+    list(label = "(log_tau) intercept", parameter = "log_tau_intercept", component = "scale"),
+    list(label = "(mu) g1[10]",         parameter = "mu_g1[10]", component = "mods")
+  )
+  for (case in cases) {
+    values <- quantity_draws(case[["parameter"]])
+    value  <- signif(unname(stats::quantile(values, 0.3)), 6L)
+    inside <- mean(values > value)
+    reference <- hypothesis(
+      fit, paste0(case[["parameter"]], " > ", value),
+      density_method = "KDE", columns = "all", seed = 1
+    )
+    for (component in c("auto", case[["component"]])) {
+      info <- paste(case[["label"]], component)
+      out  <- hypothesis(
+        fit, paste0("`", case[["label"]], "` > ", value), component = component,
+        density_method = "KDE", columns = "all", seed = 1
+      )
+      # The posterior odds of the region are those of the labelled draws.
+      expect_equal(out[["posterior"]], inside / (1 - inside), tolerance = 1e-12,
+                   info = info)
+      for (column in c("BF", "prior", "posterior")) {
+        expect_identical(unclass(out[[column]]), unclass(reference[[column]]),
+                         info = paste(info, column))
+      }
+      expect_identical(out[["Alternative"]],
+                       paste0(case[["label"]], " > ", value), info = info)
+    }
+  }
+  # The labels of the scale factor term evaluate its levels too.
+  out <- hypothesis(fit, "`(log_tau) g1[10]` > 0", component = "scale",
+                    density_method = "KDE", columns = "all", seed = 1)
+  inside <- mean(quantity_draws("log_tau_g1[10]") > 0)
+  expect_equal(out[["posterior"]], inside / (1 - inside), tolerance = 1e-12)
+})
+
+
 test_that("statement refusals of the plans are statement errors, not unavailable tests", {
 
   skip_on_cran()

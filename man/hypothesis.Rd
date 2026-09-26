@@ -251,7 +251,10 @@ BayesTools classes. A statement whose parameters belong to another
 component than \code{component}, including a name that is known only
 outside \code{component}, stops with the classes
 \code{RoBMA_hypothesis_statement} and \code{RoBMA_component_mismatch}
-(the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The random
+(the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The display labels
+of the summary tables (for example \code{"(mu) intercept"},
+\code{"exp(intercept)"}, or \code{"(mu) g[a]"}) name the parameters they
+label, with and without \code{component}. The random
 component supports point, interval, and directional hypotheses for
 semantic standard deviation, variance, correlation, and allocation
 quantities. Point-null

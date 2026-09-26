@@ -249,7 +249,8 @@
     hypothesis   = .hypothesis_brma_rewrite(
       hypothesis = statement,
       aliases    = selected[["aliases"]],
-      parameter  = parameter
+      parameter  = parameter,
+      resolved_roots = selected[["roots"]]
     ),
     parameter    = parameter,
     label        = .hypothesis_brma_alias_label(selected[["aliases"]], parameter),

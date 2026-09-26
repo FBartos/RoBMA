@@ -964,6 +964,62 @@ test_that("catalog quantities without a RoBMA parameter are target refusals on c
 })
 
 
+test_that("display labels of the summary tables are evaluable on cached fits", {
+
+  skip_on_cran()
+  skip_if_missing_fits("bangertdrowns2004_location-scale")
+
+  fit      <- load_fit("bangertdrowns2004_location-scale")
+  draws    <- do.call(rbind, lapply(fit[["fit"]][["mcmc"]], as.matrix))
+  metadata <- .brma_parameter_catalog_metadata(fit)
+  quantity_draws <- function(name) {
+    quantities <- metadata[["catalog"]][["quantities"]]
+    key <- quantities[["extraction_key"]][[match(name, quantities[["canonical_name"]])]]
+    weights <- if (is.null(key[["weights"]])) 1 else key[["weights"]]
+    drop(draws[, key[["dependencies"]], drop = FALSE] %*% weights)
+  }
+  # The scale intercept samples the baseline heterogeneity SD, which the
+  # summary labels 'exp(intercept)'; the location rows are labelled
+  # '(mu) intercept' and '(mu) meta[1]'.
+  cases <- list(
+    list(label = "exp(intercept)",           parameter = "log_tau_intercept", component = "scale"),
+    list(label = "(log_tau) exp(intercept)", parameter = "log_tau_intercept", component = "scale"),
+    list(label = "(mu) intercept",           parameter = "mu_intercept",      component = "mods"),
+    list(label = "(mu) meta[1]",             parameter = "mu_meta[1]",        component = "mods")
+  )
+  test <- function(statement, component = "auto", standardized) {
+    hypothesis(fit, statement, component = component, density_method = "KDE",
+               standardized_coefficients = standardized, columns = "all",
+               seed = 1)
+  }
+  for (case in cases) {
+    values <- quantity_draws(case[["parameter"]])
+    value  <- signif(unname(stats::quantile(values, 0.4)), 6L)
+    inside <- mean(values > value)
+    for (standardized in c(TRUE, FALSE)) {
+      reference <- test(paste0(case[["parameter"]], " > ", value),
+                        standardized = standardized)
+      for (component in c("auto", case[["component"]])) {
+        info <- paste(case[["label"]], component, standardized)
+        out  <- test(paste0("`", case[["label"]], "` > ", value), component,
+                     standardized)
+        # On the fitted scale, the posterior odds of the region are those of
+        # the labelled coordinate's draws; on both scales the label tests its
+        # parameter.
+        if (standardized) {
+          expect_equal(out[["posterior"]], inside / (1 - inside),
+                       tolerance = 1e-12, info = info)
+        }
+        for (column in c("BF", "prior", "posterior")) {
+          expect_identical(unclass(out[[column]]), unclass(reference[[column]]),
+                           info = paste(info, column))
+        }
+      }
+    }
+  }
+})
+
+
 test_that("plot() refuses catalog quantities without a RoBMA parameter with the classes of hypothesis()", {
 
   skip_on_cran()
