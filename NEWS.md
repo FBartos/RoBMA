@@ -1765,8 +1765,9 @@
   only for structurally atom-free, unconditional scalar targets, on the
   target's own scale with the certified BayesTools prior density of the fitted
   coefficient transform (no prior draws). Point hypotheses need its exact
-  ordinate; a general numerical convolution (for example a truncated-normal
-  log intercept combined with a scaled slope) is refused with
+  ordinate: the original-scale intercept of a log-intercept scale regression
+  (the fitted intercept times the exponentiated slope part) has one, while
+  other general numerical convolutions are refused with
   `BayesTools_inexact_ordinate`. Nonpositive nulls, compound point
   expressions, and nonlinear qCMDE/IWMDE routes fail clearly.
 - rejects random-parameter point hypotheses at values where the canonical
