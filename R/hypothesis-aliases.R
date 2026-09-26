@@ -55,6 +55,10 @@
       if (length(unique(candidates[["parameter"]])) > 1L) {
         .hypothesis_brma_stop_multiple_parameters(candidates)
       }
+      # Candidates of no several model parameters (e.g. contrast
+      # coefficients without parameter entries): BayesTools' ambiguity, with
+      # the classes of an ambiguous statement first.
+      class(error) <- unique(c(.hypothesis_ambiguous_class(), class(error)))
       stop(error)
     }
   )
@@ -125,8 +129,8 @@
 
 
 # A statement whose references name several model parameters is ambiguous
-# ("RoBMA_hypothesis_ambiguous" with the parent of the hypothesis refusals,
-# .hypothesis_refusal()); 'component' selects one of them.
+# ("RoBMA_hypothesis_ambiguous" with the parent "RoBMA_hypothesis_statement",
+# .hypothesis_ambiguous_class()); 'component' selects one of them.
 .hypothesis_brma_stop_multiple_parameters <- function(entries) {
 
   .hypothesis_stop(.hypothesis_refusal(

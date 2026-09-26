@@ -130,7 +130,12 @@ hypothesis.default <- function(object, ...) {
 #' terms used in multiple model components. A statement whose references
 #' still name several model parameters stops with an error of class
 #' \code{RoBMA_hypothesis_ambiguous}, with the parent class
-#' \code{RoBMA_hypothesis_unavailable}. The random component supports
+#' \code{RoBMA_hypothesis_statement}: the statement or \code{component} needs
+#' to change, the test itself is not unavailable. An ambiguous reference that
+#' BayesTools refuses with the class \code{BayesTools_parameter_ambiguous}
+#' (for example the contrast coefficient \code{"g{1}"} of a factor term in
+#' the location and the scale formula) has these classes too, before its
+#' BayesTools classes. The random component supports
 #' point, interval, and directional hypotheses for semantic standard
 #' deviation, variance, correlation, and allocation quantities. Point-null
 #' hypotheses require a direct parameter reference, a factor level, or a

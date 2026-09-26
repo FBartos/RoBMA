@@ -165,9 +165,16 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
     fixed = TRUE,
     class = "RoBMA_hypothesis_ambiguous"
   )
-  expect_error(
+  # An ambiguous statement is a statement problem that 'component' resolves,
+  # not an unavailable test.
+  error <- tryCatch(
     hypothesis(fit, "intercept = 0.5", component = "scale"),
-    class = "RoBMA_hypothesis_unavailable"
+    error = identity
+  )
+  expect_identical(
+    class(error),
+    c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement", "error",
+      "condition")
   )
   # qCMDE/IWMDE are refused for every quantity (several scale formulas), and
   # every refused statement stops with its plan's refusal.
@@ -380,6 +387,26 @@ test_that("levels of a factor alias shared by the location and scale formulas re
   expect_error(
     .hypothesis_brma_select_parameter(fit, "g1[10] = 0.1", component = "auto"),
     class = "RoBMA_hypothesis_ambiguous"
+  )
+  # The contrast coefficient 'g1{1}' of both formulas: its quantities have
+  # no RoBMA parameter entries, so BayesTools' ambiguity is re-raised with
+  # its classes after the classes of the ambiguous references.
+  error <- tryCatch(
+    hypothesis(fit, "g1{1} = 0", density_method = "KDE"),
+    error = identity
+  )
+  expect_identical(
+    class(error),
+    c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement",
+      "BayesTools_parameter_ambiguous", "BayesTools_parameter_resolution_error",
+      "error", "condition")
+  )
+  expect_identical(
+    conditionMessage(error),
+    paste0(
+      "Parameter alias 'g1{1}' is ambiguous; use 'namespace' or 'component' ",
+      "to select one quantity."
+    )
   )
 })
 

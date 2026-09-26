@@ -44,10 +44,12 @@
 # "RoBMA_hypothesis_<type>" with the parent "RoBMA_hypothesis_unavailable":
 # "fixed" (the quantity is fixed by the fitted model), "target" (no
 # supported target or prior density), "method" (the density method is
-# unavailable for the target), "statement" (the statement's form is
-# unsupported), and "ambiguous" (the statement names several parameters;
-# 'component' or, for marginal means, 'parameter' selects one). Method
-# refusals by the qCMDE/IWMDE capability of the fitted model
+# unavailable for the target), and "statement" (the statement's form is
+# unsupported). "ambiguous" (the statement names several parameters;
+# 'component' or, for marginal means, 'parameter' selects one) is a
+# statement problem that an argument resolves, not an unavailable test: its
+# parent is "RoBMA_hypothesis_statement" (.hypothesis_ambiguous_class()).
+# Method refusals by the qCMDE/IWMDE capability of the fitted model
 # (.iwmde_capability()), and the qCMDE/IWMDE refusals of the causes for
 # which plot() refuses these methods (conditional random-effect statements,
 # random-effect quantities without a scalar coordinate, nonlinear
@@ -58,11 +60,21 @@
 
   class <- if (!is.null(condition)) {
     unique(condition)
+  } else if (identical(type, "ambiguous")) {
+    .hypothesis_ambiguous_class()
   } else {
     c(paste0("RoBMA_hypothesis_", type), "RoBMA_hypothesis_unavailable")
   }
 
   list(reason = reason, class = class)
+}
+
+
+# The classes of an ambiguous statement, at every entry point of
+# hypothesis(): its own class and the parent "RoBMA_hypothesis_statement".
+.hypothesis_ambiguous_class <- function() {
+
+  c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement")
 }
 
 

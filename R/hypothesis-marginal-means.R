@@ -4,7 +4,7 @@
 #' the hypothesis expression. Without it, an alias or statement that names
 #' several marginal-means parameters stops with an error of class
 #' \code{RoBMA_hypothesis_ambiguous}, with the parent class
-#' \code{RoBMA_hypothesis_unavailable}.
+#' \code{RoBMA_hypothesis_statement}.
 #' @details Marginal-means hypotheses are specified on the fitted
 #' linear-predictor scale. Display transformations stored by
 #' \code{marginal_means()} do not transform hypothesis constants. Single-model
