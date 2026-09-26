@@ -322,7 +322,7 @@
     density_method = density_method
   )
   if (!capability[["available"]]) {
-    stop(capability[["reason"]], call. = FALSE)
+    .iwmde_stop_unavailable(capability)
   }
 
   invisible(TRUE)
@@ -350,7 +350,7 @@
     density_method = density_method
   )
   if (!capability[["available"]]) {
-    stop(capability[["reason"]], call. = FALSE)
+    .iwmde_stop_unavailable(capability)
   }
 
   invisible(TRUE)

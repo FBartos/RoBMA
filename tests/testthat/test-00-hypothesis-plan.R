@@ -119,7 +119,8 @@ test_that("hypothesis_quantities() renders the plans that hypothesis() executes"
 })
 
 
-# A small known-V fit with two scale formulas (one per random component).
+# A small known-V fit with a factor moderator (for marginal means) and two
+# scale formulas (one per random component).
 .two_scale_fit_cache <- new.env(parent = emptyenv())
 
 .two_scale_fit <- function() {
@@ -131,11 +132,12 @@ test_that("hypothesis_quantities() renders the plans that hypothesis() executes"
     yi     = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05),
     study  = rep(c("s1", "s2", "s3"), each = 2L),
     effect = rep(c("a", "b"), 3L),
-    x      = c(0, 1, 0, 1, 0, 1)
+    x      = c(0, 1, 0, 1, 0, 1),
+    g      = factor(c("u", "v", "v", "u", "u", "v"))
   )
   V <- kronecker(diag(3L), matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L))
   fit <- suppressWarnings(brma.mv(
-    yi = yi, V = V, data = data, measure = "GEN",
+    yi = yi, V = V, data = data, measure = "GEN", mods = ~ g,
     random = list(study = ~ 1 | study, effect = ~ 1 | study:effect),
     scale  = list(study = ~ x, effect = ~ x),
     prior_unit_information_sd = 1,
@@ -192,6 +194,7 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
   }, character(1))
   expected <- c(
     mu_intercept             = "intercept",
+    mu_g                     = "mu_g",
     log_tau_study_intercept  = "log_tau_study_intercept",
     log_tau_study_x          = "log_tau_study_x",
     log_tau_effect_intercept = "log_tau_effect_intercept",
@@ -213,15 +216,17 @@ test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas",
     "qCMDE/IWMDE density estimation is unavailable for models with ",
     "several scale formulas. Use density_method = 'KDE'."
   )
+  classes <- c("RoBMA_density_method_scale_components",
+               "RoBMA_density_method_unavailable")
   expect_identical(
     .iwmde_capability(object = fit, density_method = "qCMDE"),
-    list(available = FALSE, reason = reason)
+    list(available = FALSE, reason = reason, class = classes)
   )
 
   # The location intercept and the scale slopes list KDE only, with the
   # reason; the scale intercepts were KDE-only before (exp(affine) targets).
   quantities <- hypothesis_quantities(fit)
-  for (parameter in c("mu_intercept", "log_tau_study_x", "log_tau_effect_x")) {
+  for (parameter in c("mu_intercept", "mu_g", "log_tau_study_x", "log_tau_effect_x")) {
     rows <- quantities[quantities[["parameter"]] == parameter, , drop = FALSE]
     expect_identical(unique(rows[["point_test_methods"]]), "KDE", info = parameter)
     expect_match(unique(rows[["reason"]]), reason, fixed = TRUE, info = parameter)
@@ -242,12 +247,51 @@ test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas",
     fixed = TRUE,
     class = "RoBMA_hypothesis_method"
   )
+  # The hypothesis() refusal also carries the parent class of the
+  # capability refusals.
+  expect_error(
+    hypothesis(fit, "intercept = 0", component = "mods"),
+    class = "RoBMA_density_method_unavailable"
+  )
   kde <- suppressWarnings(hypothesis(
     fit, "intercept = 0", component = "mods", density_method = "KDE"
   ))
   expect_true(is.finite(attr(kde, "raw_BF")))
   # A context built without the capability check stops with the reason.
   expect_error(.iwmde_context(fit), reason, fixed = TRUE)
+
+  # Outside hypothesis(), every qCMDE/IWMDE entry point stops with the
+  # classes of the capability refusal before any density is estimated.
+  means   <- marginal_means(fit, density_method = "KDE")
+  control <- list(n_points = 20, samples = 50)
+  calls   <- list(
+    "plot()"             = function(method) {
+      plot(fit, "g", density_method = method, density_control = control)
+    },
+    "marginal_means()"   = function(method) {
+      marginal_means(fit, density_method = method, density_control = control)
+    },
+    "marginal-means plot()" = function(method) {
+      plot(means, "g", density_method = method, density_control = control)
+    },
+    ".iwmde_context()"   = function(method) .iwmde_context(fit)
+  )
+  for (method in c("qCMDE", "IWMDE")) {
+    for (name in names(calls)) {
+      for (class in classes) {
+        expect_error(
+          suppressMessages(calls[[name]](method)),
+          class = class,
+          info  = paste(name, method)
+        )
+      }
+    }
+  }
+  expect_error(
+    hypothesis(means, "g[u] = 0", density_method = "qCMDE",
+               density_control = control),
+    class = "RoBMA_density_method_unavailable"
+  )
 })
 
 

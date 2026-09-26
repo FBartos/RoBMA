@@ -113,17 +113,17 @@
   }
   if (!is.null(data) && .is_data_random(data) &&
       !.is_data_known_v(data)) {
-    return(list(
-      available = FALSE,
-      reason    = paste0(
+    return(.iwmde_unavailable(
+      reason = paste0(
         "qCMDE/IWMDE is not implemented for brma.mv() random-formula ",
         "models without known V yet."
-      )
+      ),
+      type   = "random_unknown_v"
     ))
   }
-  scale_reason <- .iwmde_scale_unavailable_reason(data)
-  if (!is.null(scale_reason)) {
-    return(list(available = FALSE, reason = scale_reason))
+  scale_capability <- .iwmde_scale_capability(data)
+  if (!is.null(scale_capability)) {
+    return(scale_capability)
   }
   if (!is.null(density_method)) {
     density_method <- .density_method_normalize(density_method)
@@ -131,12 +131,12 @@
       (!is.null(data) &&
         isTRUE(.data_outcome_type(data) %in% c("bin", "pois")))
     if (is_glmm && identical(density_method, "IWMDE")) {
-      return(list(
-        available = FALSE,
-        reason    = paste0(
+      return(.iwmde_unavailable(
+        reason = paste0(
           "IWMDE density estimation is unavailable for binomial and ",
           "Poisson GLMMs. Use density_method = 'qCMDE'."
-        )
+        ),
+        type   = "glmm"
       ))
     }
   }
@@ -145,12 +145,55 @@
 }
 
 
+# A qCMDE/IWMDE capability refusal: its reason and the classes of the
+# condition it stops with (.iwmde_stop_unavailable()). The class
+# "RoBMA_density_method_<type>" names the cause and the parent class
+# "RoBMA_density_method_unavailable" (.iwmde_unavailable_class()) the
+# family: "random_unknown_v" (brma.mv() random-formula models without known
+# V), "scale_components" (component-specific scale formulas), and "glmm"
+# (IWMDE for binomial and Poisson GLMMs). hypothesis() refuses the same
+# causes with its own classes and the parent class.
+.iwmde_unavailable <- function(reason, type) {
+
+  list(
+    available = FALSE,
+    reason    = reason,
+    class     = c(
+      paste0("RoBMA_density_method_", type),
+      .iwmde_unavailable_class()
+    )
+  )
+}
+
+
+.iwmde_unavailable_class <- function() {
+
+  "RoBMA_density_method_unavailable"
+}
+
+
+# Stops with a capability refusal of .iwmde_capability(); 'caller' prefixes
+# its reason.
+.iwmde_stop_unavailable <- function(capability, caller = NULL) {
+
+  message <- capability[["reason"]]
+  if (!is.null(caller)) {
+    message <- paste0(caller, ": ", message)
+  }
+
+  stop(structure(
+    class = c(capability[["class"]], "error", "condition"),
+    list(message = message, call = NULL)
+  ))
+}
+
+
 # qCMDE/IWMDE evaluate the heterogeneity of one scale formula ('log_tau',
 # .iwmde_formula_inputs()); component-specific scale formulas (a named
 # 'scale' list of brma.mv(), one formula and 'log_tau_<component>' parameter
 # per random component or block) are unavailable. NULL when the scale
-# formula of 'data' is supported.
-.iwmde_scale_unavailable_reason <- function(data) {
+# formula of 'data' is supported, otherwise the capability refusal.
+.iwmde_scale_capability <- function(data) {
 
   if (is.null(data) || !.is_data_scale(data) ||
       !inherits(data[["scale"]], "RoBMA_scale_components")) {
@@ -162,9 +205,12 @@
     "a component-specific scale formula"
   }
 
-  paste0(
-    "qCMDE/IWMDE density estimation is unavailable for models with ",
-    formulas, ". Use density_method = 'KDE'."
+  .iwmde_unavailable(
+    reason = paste0(
+      "qCMDE/IWMDE density estimation is unavailable for models with ",
+      formulas, ". Use density_method = 'KDE'."
+    ),
+    type   = "scale_components"
   )
 }
 
@@ -173,7 +219,7 @@
 
   capability <- .iwmde_capability(object = object)
   if (!capability[["available"]]) {
-    stop(caller, ": ", capability[["reason"]], call. = FALSE)
+    .iwmde_stop_unavailable(capability, caller = caller)
   }
 
   return(invisible(TRUE))

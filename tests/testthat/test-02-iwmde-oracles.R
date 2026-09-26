@@ -362,7 +362,8 @@ test_that("GLMM IWMDE point Bayes factors are explicitly unsupported", {
       "mu = 0",
       density_method = "IWMDE"
     ),
-    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$",
+    class = "RoBMA_density_method_unavailable"
   )
 })
 

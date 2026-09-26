@@ -64,7 +64,10 @@ computation can be slow and is used only for the current plot call; precompute
 with \code{marginal_means(..., density_method = "qCMDE")} or
 \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
 plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
-but is more sensitive to its fitted conditional weights.}
+but is more sensitive to its fitted conditional weights. A qCMDE/IWMDE
+request that the source model does not support stops before any density is
+estimated with an error of class \code{RoBMA_density_method_unavailable}
+and the class naming its cause (see \code{\link[=marginal_means.brma]{marginal_means.brma()}}).}
 
 \item{density_control}{named list of qCMDE/IWMDE density-estimation settings.
 Supported entries are \code{n_points} (default \code{100}),

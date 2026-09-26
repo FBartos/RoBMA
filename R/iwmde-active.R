@@ -657,10 +657,10 @@
   }
   if (.is_data_scale(data)) {
     # The input of the one scale formula: every caller that reaches here
-    # without checking .iwmde_capability() stops with its reason.
-    scale_reason <- .iwmde_scale_unavailable_reason(data)
-    if (!is.null(scale_reason)) {
-      stop(scale_reason, call. = FALSE)
+    # without checking .iwmde_capability() stops with its refusal.
+    scale_capability <- .iwmde_scale_capability(data)
+    if (!is.null(scale_capability)) {
+      .iwmde_stop_unavailable(scale_capability)
     }
     out[["scale"]] <- .iwmde_formula_input(
       data      = data,

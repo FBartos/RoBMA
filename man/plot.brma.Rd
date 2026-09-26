@@ -188,6 +188,14 @@ ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 (and prior) distribution a brma object.
 }
 \details{
+A qCMDE/IWMDE request that the fitted model does not support stops
+before any density is estimated with an error of class
+\code{RoBMA_density_method_unavailable} and one class naming the cause:
+\code{RoBMA_density_method_random_unknown_v} (\code{brma.mv()} random-formula models
+without known \code{V}), \code{RoBMA_density_method_scale_components}
+(component-specific scale formulas), or \code{RoBMA_density_method_glmm} (IWMDE
+for binomial and Poisson GLMMs).
+
 A returned qCMDE/IWMDE estimate that fails the density availability
 checks raises a \code{RoBMA_density_plot_error} identifying the plotted parameter.
 Its \code{density_diagnostics} field contains the returned diagnostic records,

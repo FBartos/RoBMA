@@ -287,6 +287,14 @@ test_that("hypothesis defaults to qCMDE and guards unsupported random formulas",
     "random-formula",
     class = "RoBMA_hypothesis_method"
   )
+  expect_error(
+    hypothesis.brma(
+      object,
+      "mu_intercept = 0",
+      density_control = list(n_points = 20, samples = 20)
+    ),
+    class = "RoBMA_density_method_unavailable"
+  )
 })
 
 
@@ -296,7 +304,12 @@ test_that("GLMM IWMDE point Bayes factors fail certification upfront", {
 
   expect_error(
     .iwmde_check_point_ordinate_supported(object, "IWMDE"),
-    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$",
+    class = "RoBMA_density_method_glmm"
+  )
+  expect_error(
+    .iwmde_check_point_ordinate_supported(object, "IWMDE"),
+    class = "RoBMA_density_method_unavailable"
   )
   expect_invisible(
     .iwmde_check_point_ordinate_supported(object, "qCMDE")

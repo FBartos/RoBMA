@@ -106,7 +106,14 @@ marginal_means <- function(object, ...) {
 #' qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
 #' random-formula models, for \code{brma.mv()} models with component-specific
 #' scale formulas (a named \code{scale} list), and for derived semantic
-#' random-effect quantities.
+#' random-effect quantities. A qCMDE/IWMDE request that the fitted model does
+#' not support stops before any density is estimated with an error of class
+#' \code{RoBMA_density_method_unavailable} and one class naming the cause:
+#' \code{RoBMA_density_method_random_unknown_v} (\code{brma.mv()}
+#' random-formula models without known \code{V}),
+#' \code{RoBMA_density_method_scale_components} (component-specific scale
+#' formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
+#' Poisson GLMMs).
 #' @inheritParams predict.brma
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
@@ -670,7 +677,10 @@ as.data.frame.summary.marginal_means.brma <- function(
 #' with \code{marginal_means(..., density_method = "qCMDE")} or
 #' \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
 #' plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
-#' but is more sensitive to its fitted conditional weights.
+#' but is more sensitive to its fitted conditional weights. A qCMDE/IWMDE
+#' request that the source model does not support stops before any density is
+#' estimated with an error of class \code{RoBMA_density_method_unavailable}
+#' and the class naming its cause (see [marginal_means.brma()]).
 #' @param density_control named list of qCMDE/IWMDE density-estimation settings.
 #' Supported entries are \code{n_points} (default \code{100}),
 #' \code{samples} (default \code{500} for qCMDE and \code{1000} for IWMDE

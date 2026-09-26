@@ -11,10 +11,17 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
   expect_null(.hypothesis_plan_status(plan, "qCMDE"))
   expect_null(.hypothesis_plan_status(plan, "normal"))
   expect_identical(
+    capability[["class"]],
+    c("RoBMA_density_method_glmm", "RoBMA_density_method_unavailable")
+  )
+  # A capability refusal keeps the hypothesis classes and also carries the
+  # parent class of the capability refusals.
+  expect_identical(
     .hypothesis_plan_status(plan, "IWMDE"),
     list(
       reason = capability[["reason"]],
-      class  = c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable")
+      class  = c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+                 "RoBMA_density_method_unavailable")
     )
   )
   expect_error(
@@ -23,6 +30,21 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
     fixed = TRUE,
     class = "RoBMA_hypothesis_method"
   )
+  expect_error(
+    .hypothesis_plan_check(plan, "IWMDE"),
+    class = "RoBMA_density_method_unavailable"
+  )
+  # Outside hypothesis(), the capability check stops with the classes of the
+  # capability refusal.
+  expect_error(
+    .iwmde_check_density_method_supported(glmm, "IWMDE"),
+    class = "RoBMA_density_method_glmm"
+  )
+  expect_error(
+    .iwmde_check_density_method_supported(glmm, "IWMDE"),
+    class = "RoBMA_density_method_unavailable"
+  )
+  expect_invisible(.iwmde_check_density_method_supported(glmm, "qCMDE"))
   rendered <- .hypothesis_quantities_render_plans(
     list(point = list(plan), region = list(plan), contrast = NULL),
     bracket = FALSE
@@ -69,10 +91,31 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
     class = "RoBMA_hypothesis_method"
   )
   expect_error(
+    hypothesis(object, "mu_intercept = 0", density_method = "qCMDE"),
+    class = "RoBMA_density_method_unavailable"
+  )
+  classes <- c("RoBMA_density_method_random_unknown_v",
+               "RoBMA_density_method_unavailable")
+  expect_identical(capability[["class"]], classes)
+  expect_error(
     .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()"),
     capability[["reason"]],
     fixed = TRUE
   )
+  for (class in classes) {
+    expect_error(
+      .check_iwmde_available(object, "qCMDE/IWMDE hypothesis()"),
+      class = class
+    )
+    expect_error(
+      .iwmde_check_density_method_supported(object, "qCMDE"),
+      class = class
+    )
+    expect_error(
+      plot(object, "mu", density_method = "qCMDE"),
+      class = class
+    )
+  }
 
   known_v_object <- object
   attr(known_v_object[["data"]], "known_V") <- TRUE
@@ -135,7 +178,12 @@ test_that("qCMDE/IWMDE are unavailable for component-specific scale formulas", {
     for (name in names(reasons)) {
       expect_identical(
         .iwmde_capability(object = objects[[name]], density_method = method),
-        list(available = FALSE, reason = reasons[[name]]),
+        list(
+          available = FALSE,
+          reason    = reasons[[name]],
+          class     = c("RoBMA_density_method_scale_components",
+                        "RoBMA_density_method_unavailable")
+        ),
         info = paste(name, method)
       )
     }
@@ -153,6 +201,14 @@ test_that("qCMDE/IWMDE are unavailable for component-specific scale formulas", {
       fixed = TRUE,
       info  = name
     )
+    for (class in c("RoBMA_density_method_scale_components",
+                    "RoBMA_density_method_unavailable")) {
+      expect_error(
+        .iwmde_formula_inputs(objects[[name]][["data"]], objects[[name]][["priors"]]),
+        class = class,
+        info  = name
+      )
+    }
   }
 })
 

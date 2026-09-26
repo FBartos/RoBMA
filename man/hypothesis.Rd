@@ -110,7 +110,10 @@ or \code{BayesTools_inexact_ordinate}). Other refusals have the class
 \code{RoBMA_hypothesis_method} (the density method is unavailable for the
 target), or \code{RoBMA_hypothesis_statement} (the form of the statement
 is unsupported); linear combinations that BayesTools cannot certify keep
-the class \code{BayesTools_linear_target_unavailable}.}
+the class \code{BayesTools_linear_target_unavailable}. A method refusal
+because the fitted model does not support qCMDE/IWMDE also has the class
+\code{RoBMA_density_method_unavailable}, the parent class of the refusals
+of these requests by \code{\link[=plot.brma]{plot.brma()}} and \code{\link[=marginal_means]{marginal_means()}}.}
 
 \item{density_control}{named list of qCMDE/IWMDE tuning settings. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} (the fixed

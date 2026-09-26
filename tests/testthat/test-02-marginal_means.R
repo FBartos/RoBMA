@@ -999,7 +999,8 @@ test_that("GLMM IWMDE marginal means are rejected before estimation", {
       bf             = TRUE,
       n_samples      = 100
     ),
-    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$",
+    class = "RoBMA_density_method_glmm"
   )
 
   expect_error(
@@ -1010,8 +1011,25 @@ test_that("GLMM IWMDE marginal means are rejected before estimation", {
       bf              = FALSE,
       n_samples       = 100
     ),
-    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$"
+    "^IWMDE density estimation is unavailable for binomial and Poisson GLMMs\\. Use density_method = 'qCMDE'\\.$",
+    class = "RoBMA_density_method_glmm"
   )
+
+  # The fitted-model and marginal-means plots stop with the same classes
+  # before any density is estimated.
+  means <- marginal_means(fit, density_method = "KDE", n_samples = 100)
+  for (class in c("RoBMA_density_method_glmm", "RoBMA_density_method_unavailable")) {
+    expect_error(
+      plot(fit, "mu", density_method = "IWMDE",
+           density_control = list(n_points = 20, samples = 20)),
+      class = class
+    )
+    expect_error(
+      suppressMessages(plot(means, "intercept", density_method = "IWMDE",
+                            density_control = list(n_points = 20, samples = 20))),
+      class = class
+    )
+  }
 })
 
 

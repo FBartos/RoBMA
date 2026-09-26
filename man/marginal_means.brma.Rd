@@ -104,7 +104,14 @@ effective-sample-size, and contribution-concentration checks are warnings.
 qCMDE/IWMDE are unavailable for non-known-\code{V} \code{brma.mv()}
 random-formula models, for \code{brma.mv()} models with component-specific
 scale formulas (a named \code{scale} list), and for derived semantic
-random-effect quantities.}
+random-effect quantities. A qCMDE/IWMDE request that the fitted model does
+not support stops before any density is estimated with an error of class
+\code{RoBMA_density_method_unavailable} and one class naming the cause:
+\code{RoBMA_density_method_random_unknown_v} (\code{brma.mv()}
+random-formula models without known \code{V}),
+\code{RoBMA_density_method_scale_components} (component-specific scale
+formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
+Poisson GLMMs).}
 
 \item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
