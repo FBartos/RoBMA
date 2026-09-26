@@ -16,49 +16,83 @@
   } else {
     component
   }
+  # 'group_component' is the component with which an ambiguity between a
+  # factor term and its contrast coefficients is resolved to the term
+  # (.brma_parameter_catalog_group_ambiguity()).
+  resolve <- function(resolver_component, group_component = component) {
+    tryCatch(
+      BayesTools::hypothesis_resolve(
+        ast       = ast,
+        catalog   = metadata[["catalog"]],
+        component = resolver_component,
+        simplify_names = TRUE
+      ),
+      BayesTools_parameter_ambiguous = function(error) {
+        ambiguity <- .brma_parameter_catalog_group_ambiguity(
+          entries      = metadata[["entries"]],
+          quantity_ids = error[["candidates"]][["quantity_id"]],
+          component    = group_component
+        )
+        if (!is.null(ambiguity[["component"]])) {
+          return(BayesTools::hypothesis_resolve(
+            ast       = ast,
+            catalog   = metadata[["catalog"]],
+            component = ambiguity[["component"]],
+            simplify_names = TRUE
+          ))
+        }
+        candidates <- ambiguity[["candidates"]]
+        namespace  <- .hypothesis_brma_component_namespace(
+          candidates = candidates,
+          quantities = error[["candidates"]],
+          component  = component
+        )
+        if (!is.null(namespace)) {
+          return(BayesTools::hypothesis_resolve(
+            ast       = ast,
+            catalog   = metadata[["catalog"]],
+            namespace = namespace,
+            component = resolver_component,
+            simplify_names = TRUE
+          ))
+        }
+        if (length(unique(candidates[["parameter"]])) > 1L) {
+          .hypothesis_brma_stop_multiple_parameters(candidates)
+        }
+        # Candidates of no several model parameters (e.g. contrast
+        # coefficients without parameter entries): BayesTools' ambiguity,
+        # with the classes of an ambiguous statement first.
+        class(error) <- unique(c(.hypothesis_ambiguous_class(), class(error)))
+        stop(error)
+      }
+    )
+  }
+  # An unknown reference is a statement error: BayesTools' condition, with
+  # its classes and fields, after "RoBMA_hypothesis_statement". A reference
+  # that is unknown within an explicit 'component' but names quantities
+  # outside it is resolved without the component, so that the checks below
+  # refuse it as a component mismatch (or as the target it is). A name that
+  # the component's aliases do not list but that resolves to a quantity of
+  # the component (e.g. its display label) stays unknown.
   resolved <- tryCatch(
-    BayesTools::hypothesis_resolve(
-      ast       = ast,
-      catalog   = metadata[["catalog"]],
-      component = resolver_component,
-      simplify_names = TRUE
-    ),
-    BayesTools_parameter_ambiguous = function(error) {
-      ambiguity <- .brma_parameter_catalog_group_ambiguity(
-        entries      = metadata[["entries"]],
-        quantity_ids = error[["candidates"]][["quantity_id"]],
-        component    = component
-      )
-      if (!is.null(ambiguity[["component"]])) {
-        return(BayesTools::hypothesis_resolve(
-          ast       = ast,
-          catalog   = metadata[["catalog"]],
-          component = ambiguity[["component"]],
-          simplify_names = TRUE
-        ))
+    resolve(resolver_component),
+    BayesTools_parameter_not_found = function(error) {
+      if (!is.null(resolver_component) && NROW(metadata[["entries"]]) > 0L) {
+        unrestricted <- tryCatch(
+          resolve(NULL, group_component = "auto"),
+          BayesTools_parameter_not_found = function(condition) NULL
+        )
+        own <- if (!is.null(unrestricted)) {
+          .brma_parameter_catalog_entries_for_quantities(
+            entries      = metadata[["entries"]],
+            quantity_ids = unrestricted[["occurrences"]][["quantity_id"]]
+          )
+        }
+        if (!is.null(unrestricted) && !any(own[["component"]] == component)) {
+          return(unrestricted)
+        }
       }
-      candidates <- ambiguity[["candidates"]]
-      namespace  <- .hypothesis_brma_component_namespace(
-        candidates = candidates,
-        quantities = error[["candidates"]],
-        component  = component
-      )
-      if (!is.null(namespace)) {
-        return(BayesTools::hypothesis_resolve(
-          ast       = ast,
-          catalog   = metadata[["catalog"]],
-          namespace = namespace,
-          component = resolver_component,
-          simplify_names = TRUE
-        ))
-      }
-      if (length(unique(candidates[["parameter"]])) > 1L) {
-        .hypothesis_brma_stop_multiple_parameters(candidates)
-      }
-      # Candidates of no several model parameters (e.g. contrast
-      # coefficients without parameter entries): BayesTools' ambiguity, with
-      # the classes of an ambiguous statement first.
-      class(error) <- unique(c(.hypothesis_ambiguous_class(), class(error)))
+      class(error) <- unique(c("RoBMA_hypothesis_statement", class(error)))
       stop(error)
     }
   )

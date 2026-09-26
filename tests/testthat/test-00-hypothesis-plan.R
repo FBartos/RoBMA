@@ -427,6 +427,17 @@ test_that("statements that do not match 'component' are component mismatches at 
     list(statement = "mu_g1[10] = log_tau_g1[10]", component = "random",
          message   = "The hypothesis does not resolve to component = 'random'."),
     list(statement = "g1[10] = 0.1",               component = "random",
+         message   = "The hypothesis does not resolve to component = 'random'."),
+    # References without a level are resolved within 'component' first;
+    # names of another component's parameters (one, or several) are
+    # mismatches too, not unknown names.
+    list(statement = "mu_g1 > 0",                  component = "scale",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'mods' but 'component' was set to 'scale'.")),
+    list(statement = "log_tau_g1 > 0",             component = "mods",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'scale' but 'component' was set to 'mods'.")),
+    list(statement = "g1 > 0",                     component = "random",
          message   = "The hypothesis does not resolve to component = 'random'.")
   )
   for (case in cases) {
@@ -452,6 +463,20 @@ test_that("statements that do not match 'component' are component mismatches at 
       info = name
     )
   }
+
+  # The alias of a factor term of another component, which also names the
+  # term's contrast coefficients, is a mismatch too.
+  error <- tryCatch(
+    hypothesis(.plan_fits()[["meandif"]], "g1 > 0", component = "scale",
+               density_method = "KDE"),
+    error = identity
+  )
+  expect_identical(class(error), mismatch)
+  expect_identical(
+    conditionMessage(error),
+    paste0("The 'hypothesis' argument selects component = 'mods' but ",
+           "'component' was set to 'scale'.")
+  )
 })
 
 
@@ -596,18 +621,33 @@ test_that("unresolved references have the same classes on fits and marginal mean
   skip_on_cran()
   fit   <- .two_scale_fit()
   means <- marginal_means(fit, density_method = "KDE")
-  # An unknown name: BayesTools' class on the fit, and on marginal means the
-  # statement class followed by the same BayesTools classes.
+  not_found <- c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+                 "BayesTools_parameter_resolution_error", "error", "condition")
+  # An unknown name: the statement class followed by BayesTools' condition,
+  # whose message and fields the fit path keeps.
   on_fit <- tryCatch(hypothesis(fit, "foo = 0", density_method = "KDE"), error = identity)
   on_means <- tryCatch(hypothesis(means, "foo > 0"), error = identity)
+  expect_identical(class(on_fit), not_found)
+  expect_identical(class(on_means), not_found)
+  expect_identical(conditionMessage(on_fit), "No public parameter quantity matches 'foo'.")
+  expect_identical(on_fit[["alias"]], "foo")
+  expect_true("mu_intercept" %in% on_fit[["available"]])
+  # The same with an explicit component in which the name is unknown too.
   expect_identical(
-    class(on_fit),
-    c("BayesTools_parameter_not_found", "BayesTools_parameter_resolution_error",
-      "error", "condition")
+    class(tryCatch(
+      hypothesis(fit, "foo = 0", component = "mods", density_method = "KDE"),
+      error = identity
+    )),
+    not_found
   )
+  # An unknown level of a factor term.
+  level_on_fit   <- tryCatch(hypothesis(fit, "g[w] = 0", density_method = "KDE"), error = identity)
+  level_on_means <- tryCatch(hypothesis(means, "g[w] > 0"), error = identity)
+  expect_identical(class(level_on_fit), not_found)
+  expect_identical(class(level_on_means), not_found)
   expect_identical(
-    class(on_means),
-    c("RoBMA_hypothesis_statement", class(on_fit))
+    conditionMessage(level_on_means),
+    "Hypothesis references unknown level 'w' for parameter 'mu_g'."
   )
   # A statement without references.
   expect_identical(

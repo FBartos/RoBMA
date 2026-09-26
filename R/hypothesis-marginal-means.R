@@ -6,8 +6,8 @@
 #' \code{RoBMA_hypothesis_ambiguous}, with the parent class
 #' \code{RoBMA_hypothesis_statement}. A statement that references no
 #' marginal-means parameter stops with the class
-#' \code{RoBMA_hypothesis_statement}; for an unknown name also with
-#' \code{BayesTools_parameter_not_found} and
+#' \code{RoBMA_hypothesis_statement}; for an unknown name, or an unknown level
+#' of a factor term, also with \code{BayesTools_parameter_not_found} and
 #' \code{BayesTools_parameter_resolution_error}, as on fitted objects.
 #' @details Marginal-means hypotheses are specified on the fitted
 #' linear-predictor scale. Display transformations stored by
@@ -250,8 +250,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   }
 
   # References that name no marginal-means parameter are statement errors
-  # ("RoBMA_hypothesis_statement"); an unknown name also has the classes with
-  # which the fitted-model path refuses it (BayesTools_parameter_not_found).
+  # ("RoBMA_hypothesis_statement"); an unknown name has the classes with which
+  # the fitted-model path refuses it (.hypothesis_not_found_class()).
   roots <- .hypothesis_brma_symbol_roots(hypothesis)
   roots <- unique(roots[nzchar(roots)])
   if (length(roots) == 0L) {
@@ -303,8 +303,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   # available ones.
   available <- sort(unique(alias_catalog[["alias"]]))
   stop(structure(
-    class = c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
-              "BayesTools_parameter_resolution_error", "error", "condition"),
+    class = c(.hypothesis_not_found_class(), "error", "condition"),
     list(
       message   = paste0(
         "Could not infer a marginal-means parameter from the hypothesis. ",

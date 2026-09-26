@@ -98,6 +98,33 @@
 }
 
 
+# An unknown reference is a statement error with the classes with which
+# BayesTools refuses it ("BayesTools_parameter_not_found" and its parent
+# "BayesTools_parameter_resolution_error"), after "RoBMA_hypothesis_statement":
+# the classes of an unknown name or level at every entry point of
+# hypothesis().
+.hypothesis_not_found_class <- function() {
+
+  c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+    "BayesTools_parameter_resolution_error")
+}
+
+
+# The refusal of a statement that references an unknown level of a factor
+# term (the resolver refuses unknown levels of fitted terms first; marginal
+# means are refused by their plans).
+.hypothesis_unknown_level_refusal <- function(level, parameter) {
+
+  .hypothesis_refusal(
+    paste0(
+      "Hypothesis references unknown level '", level, "' for parameter '",
+      parameter, "'."
+    ),
+    condition = .hypothesis_not_found_class()
+  )
+}
+
+
 .hypothesis_refusal_from_condition <- function(condition, reason = NULL) {
 
   list(
@@ -966,12 +993,9 @@
   referenced <- referenced[!is.na(referenced)]
   unknown <- setdiff(referenced, levels[["level"]])
   if (length(unknown) > 0L) {
-    plan[["refusal"]] <- .hypothesis_refusal(
-      paste0(
-        "Hypothesis references unknown level '", unknown[[1L]],
-        "' for parameter '", plan[["label"]], "'."
-      ),
-      "statement"
+    plan[["refusal"]] <- .hypothesis_unknown_level_refusal(
+      level     = unknown[[1L]],
+      parameter = plan[["label"]]
     )
     return(plan)
   }
@@ -1812,12 +1836,9 @@
   referenced <- referenced[!is.na(referenced)]
   unknown <- setdiff(referenced, levels)
   if (length(unknown) > 0L) {
-    plan[["refusal"]] <- .hypothesis_refusal(
-      paste0(
-        "Hypothesis references unknown level '", unknown[[1L]],
-        "' for parameter '", parameter, "'."
-      ),
-      "statement"
+    plan[["refusal"]] <- .hypothesis_unknown_level_refusal(
+      level     = unknown[[1L]],
+      parameter = parameter
     )
     return(plan)
   }

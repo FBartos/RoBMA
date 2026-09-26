@@ -62,8 +62,8 @@ several marginal-means parameters stops with an error of class
 \code{RoBMA_hypothesis_ambiguous}, with the parent class
 \code{RoBMA_hypothesis_statement}. A statement that references no
 marginal-means parameter stops with the class
-\code{RoBMA_hypothesis_statement}; for an unknown name also with
-\code{BayesTools_parameter_not_found} and
+\code{RoBMA_hypothesis_statement}; for an unknown name, or an unknown level
+of a factor term, also with \code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, as on fitted objects.}
 
 \item{logBF}{whether to display the Bayes factor on the log scale.}
@@ -143,11 +143,13 @@ region events or span several levels, ambiguous references
 (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
 parameters of another component (\code{RoBMA_component_mismatch}), factor
 contrast coefficients such as \code{"g{1}"} (state the hypothesis on
-factor levels), and marginal-means statements that reference no
-marginal-means parameter; an unknown name there also has the classes
+factor levels), references to unknown names or factor levels, and
+marginal-means statements that reference no marginal-means parameter. An
+unknown name or level also has the classes
 \code{BayesTools_parameter_not_found} and
 \code{BayesTools_parameter_resolution_error}, with which BayesTools
-refuses an unknown name on fitted objects. Missing or unsupported fitted
+refuses it (on fitted objects, the BayesTools condition itself with its
+fields \code{alias} and \code{available}). Missing or unsupported fitted
 metadata of the tested target (a parameter catalog without RoBMA
 parameters, the coefficient transform, the fitted coordinates, or the
 linear weights of a factor level; a fit of an older RoBMA/BayesTools build)
@@ -233,11 +235,13 @@ BayesTools refuses with the class \code{BayesTools_parameter_ambiguous}
 (for example the contrast coefficient \code{"g{1}"} of a factor term in
 the location and the scale formula) has these classes too, before its
 BayesTools classes. A statement whose parameters belong to another
-component than \code{component} stops with the classes
+component than \code{component}, including a name that is known only
+outside \code{component}, stops with the classes
 \code{RoBMA_hypothesis_statement} and \code{RoBMA_component_mismatch}
-(the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The random component supports
-point, interval, and directional hypotheses for semantic standard
-deviation, variance, correlation, and allocation quantities. Point-null
+(the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The random
+component supports point, interval, and directional hypotheses for
+semantic standard deviation, variance, correlation, and allocation
+quantities. Point-null
 hypotheses require a direct parameter reference, a factor level, or a
 linear combination of the levels of one factor term (for example
 \code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
