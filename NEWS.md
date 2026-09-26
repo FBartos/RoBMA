@@ -174,9 +174,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `(mu) g[5]` mean the level labelled "5"), and contrast coefficients that
     are not a level (mean-difference, orthonormal, and ordered coefficients)
     are labelled `g{j}` in untransformed output.
-  - summary tables label the intercept of a scale formula `exp(intercept)`,
-    which makes its SD scale explicit, and describe exponentiated scale
-    slopes as multipliers of the SD.
+  - summary tables of `BMA()`/`BMA.norm()` and `RoBMA()` fits label the
+    intercept of a scale formula `exp(intercept)` (was `intercept`), as those
+    of the other constructors already did, which makes its SD scale
+    explicit; the table note describes exponentiated scale slopes as
+    multipliers of the SD.
   - a location intercept fixed at zero is omitted from meta-regression
     summaries, stored coefficients, marginal means, plots, density
     estimates, and hypotheses whenever moderators are present;
