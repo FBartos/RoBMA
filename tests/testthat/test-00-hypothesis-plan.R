@@ -325,6 +325,66 @@ test_that("mean-difference level point hypotheses follow the exact Savage-Dickey
 })
 
 
+test_that("levels of mean-difference multivariate t factors have exact point tests", {
+
+  skip_on_cran()
+  # The multivariate t prior mt(0, s^2 I, nu) of the mean-difference
+  # coordinates b of a factor. A level a' b is univariate
+  # t(0, s ||a||, nu) with the prior's degrees of freedom (BayesTools
+  # 0.3.1.127): its point hypotheses have that exact prior ordinate.
+  set.seed(1)
+  k <- 48L
+  data <- data.frame(
+    g1  = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
+    sei = stats::runif(k, 0.1, 0.3)
+  )
+  data[["yi"]] <- stats::rnorm(
+    k, c(0, 0.2, 0.4)[as.integer(data[["g1"]])], data[["sei"]]
+  )
+  fit <- suppressWarnings(brma(
+    yi = yi, sei = sei, mods = ~ g1, data = data, measure = "SMD",
+    set_contrast_factor_predictors = "meandif",
+    prior_mods = list(g1 = BayesTools::prior_factor(
+      "mt", list(location = 0, scale = 0.5, df = 3), contrast = "meandif"
+    )),
+    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 1,
+    silent = TRUE
+  ))
+  prior <- fit[["priors"]][["mods"]][["g1"]]
+  expect_identical(prior[["distribution"]], "mt")
+
+  quantities <- hypothesis_quantities(fit)
+  levels <- quantities[quantities[["term"]] == "g1", , drop = FALSE]
+  expect_true(all(levels[["point_test"]]))
+  expect_true(all(levels[["contrast_test"]]))
+  expect_identical(unique(levels[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
+  expect_identical(unique(levels[["reason"]]), "")
+
+  # The level '10' has the contrast row a of contr.meandif(3).
+  weights  <- BayesTools::contr.meandif(3)[2L, ]
+  scale    <- prior[["parameters"]][["scale"]] * sqrt(sum(weights^2))
+  df       <- prior[["parameters"]][["df"]]
+  expected <- stats::dt(0 / scale, df = df) / scale
+  catalog   <- BayesTools::parameter_catalog(fit[["fit"]])
+  selection <- BayesTools::parameter_catalog_resolve(catalog, alias = "mu_g1[10]")
+  ordinate  <- BayesTools::prior_density_ordinate(
+    BayesTools::parameter_prior_density(fit[["fit"]], selection), 0
+  )
+  expect_true(ordinate[["exact"]])
+  expect_equal(exp(ordinate[["log_density"]]), expected, tolerance = 1e-10)
+
+  # The KDE Bayes factor: that ordinate over the exact Gaussian kernel sum of
+  # the level draws at 0 (bandwidth bw.nrd0).
+  mcmc      <- as.matrix(fit[["fit"]][["mcmc"]])
+  draws     <- as.numeric(mcmc[, c("mu_g1[1]", "mu_g1[2]")] %*% weights)
+  kernel    <- stats::dnorm(0, mean = draws, sd = stats::bw.nrd0(draws))
+  kde <- suppressWarnings(hypothesis(fit, "g1[10] = 0", density_method = "KDE",
+                                     columns = "all"))
+  expect_equal(as.numeric(kde[["prior"]]), expected, tolerance = 1e-10)
+  expect_equal(attr(kde, "raw_BF"), expected / mean(kernel), tolerance = 1e-10)
+})
+
+
 test_that("a two-level ordered factor tests its level and the level contrast alike", {
 
   skip_on_cran()
