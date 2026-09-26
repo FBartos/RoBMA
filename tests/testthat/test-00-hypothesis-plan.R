@@ -819,6 +819,33 @@ test_that("unresolved references have the same classes on fits and marginal mean
     conditionMessage(level_on_means),
     "Hypothesis references unknown level 'w' for parameter 'mu_g'."
   )
+  # An unknown level in a linear combination of levels: on marginal means
+  # BayesTools' refusal of the linear target, on the fit BayesTools' refusal
+  # of the reference; both with the statement class, BayesTools' classes,
+  # and BayesTools' fields.
+  for (statement in c("g[u] - g[zz] = 0", "g[zz] = g[u]")) {
+    combination <- list(
+      fit   = tryCatch(hypothesis(fit, statement, density_method = "KDE"),
+                       error = identity),
+      means = tryCatch(hypothesis(means, statement), error = identity)
+    )
+    for (route in names(combination)) {
+      error <- combination[[route]]
+      info  <- paste(statement, route)
+      expect_identical(class(error), not_found, info = info)
+      expect_true(is.character(error[["alias"]]) && length(error[["alias"]]) > 0L,
+                  info = info)
+      expect_true(any(grepl("g", error[["alias"]], fixed = TRUE)), info = info)
+      expect_true(is.character(error[["available"]]) &&
+                    length(error[["available"]]) > 0L, info = info)
+    }
+    expect_identical(combination[["means"]][["alias"]], "mu_g[zz]", info = statement)
+    expect_identical(
+      conditionMessage(combination[["means"]]),
+      "Hypothesis references unknown level 'zz' for parameter 'mu_g'.",
+      info = statement
+    )
+  }
   # A statement without references: on marginal means RoBMA's statement
   # error; on the fit BayesTools' refusal (with the classes BayesTools gives
   # it) after the statement class.
