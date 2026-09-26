@@ -156,6 +156,45 @@ test_that("marginal means whose Savage-Dickey Bayes factor is refused have NA ro
                                      density_method = "qCMDE")
   expect_true(is.na(scalar))
   expect_identical(attr(scalar, "warnings", exact = TRUE), reasons[["inexact"]])
+
+  # Any other failure of a row's Bayes factor stops the table unchanged, on
+  # the KDE and on the qCMDE/IWMDE paths: only the ordinate refusals above
+  # give NA rows.
+  failures <- list(
+    simpleError("Another failure."),
+    structure(
+      class = c("BayesTools_refit_required", "error", "condition"),
+      list(message = "Refit the model.", call = NULL)
+    )
+  )
+  for (failure in failures) {
+    local({
+      testthat::local_mocked_bindings(
+        Savage_Dickey_BF = function(...) stop(failure),
+        .package = "BayesTools"
+      )
+      info <- class(failure)[[1L]]
+      expect_identical(
+        tryCatch(.marginal_means_inclusion_bf(posterior["computed"], 0, TRUE),
+                 error = identity),
+        failure,
+        info = info
+      )
+      expect_identical(
+        tryCatch(.marginal_means_iwmde_bf(precomputed, 0, density_method = "qCMDE"),
+                 error = identity),
+        failure,
+        info = info
+      )
+      expect_identical(
+        tryCatch(.marginal_means_iwmde_bf(precomputed[["computed"]], 0,
+                                          density_method = "qCMDE"),
+                 error = identity),
+        failure,
+        info = info
+      )
+    })
+  }
 })
 
 
