@@ -393,6 +393,18 @@ test_that("a random-effect variance and its standard deviation give the same Bay
       1 / attr(point, "raw_BF")),
     tolerance = 1e-12
   )
+  # Draws conditional on the inclusion of the gated component: the same
+  # identity on the conditional draws.
+  run_conditional <- function(statement) {
+    hypothesis(object, statement, density_method = "KDE", columns = "all",
+               seed = 1, conditional = TRUE)
+  }
+  expect_equal(
+    attr(run_conditional(paste0(tau2, " = 0.09 vs ", tau2, " > 0.09")), "raw_BF"),
+    attr(run_conditional(paste0(tau2, " = 0.09 vs ", tau2, " != 0.09")), "raw_BF") /
+      attr(run_conditional(paste0(tau2, " > 0.09 vs ", tau2, " >= 0")), "raw_BF"),
+    tolerance = 1e-12
+  )
 })
 
 

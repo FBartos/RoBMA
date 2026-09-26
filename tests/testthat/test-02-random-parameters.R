@@ -373,6 +373,21 @@ test_that("random-effect variances are tested through their standard deviations"
       tolerance = 1e-10, info = method
     )
   }
+  # Draws conditional on the inclusion of the gated SD (KDE, the method of
+  # conditional random-effect hypotheses): the conditional point part differs
+  # from the averaged one by the inclusion Bayes factor, and the identity holds
+  # on the conditional draws.
+  run_conditional <- function(statement) {
+    suppressWarnings(hypothesis(
+      fit, statement, density_method = "KDE", conditional = TRUE,
+      columns = "all", seed = 1
+    ))
+  }
+  point  <- run_conditional(paste0(tau2, " = ", value^2, " vs ", tau2, " != ", value^2))
+  region <- run_conditional(paste0(tau2, " > ", value^2, " vs ", tau2, " >= 0"))
+  mixed  <- run_conditional(paste0(tau2, " = ", value^2, " vs ", tau2, " > ", value^2))
+  expect_equal(attr(mixed, "raw_BF"), attr(point, "raw_BF") / attr(region, "raw_BF"),
+               tolerance = 1e-10)
 })
 
 test_that("random influence matches weighted scalar moment oracles", {

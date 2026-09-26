@@ -889,14 +889,21 @@ hypothesis.brma <- function(object, hypothesis,
       value
     )[["log_density"]]
   }, numeric(1)))
-  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
-    BayesTools::posterior_ordinate_attribute(
-      value          = points,
-      ordinate       = unit_ordinate,
-      method         = "unit point part",
-      density_method = density_method,
-      diagnostics    = list(BF_error_percent = as.numeric(point[["BF_error"]]))
+  # The unit part carries the conditioning of the draws, so that BayesTools
+  # matches it to conditional (product-space) draws.
+  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- do.call(
+    BayesTools::posterior_ordinate_attribute,
+    c(
+      list(
+        value          = points,
+        ordinate       = unit_ordinate,
+        method         = "unit point part",
+        density_method = density_method,
+        diagnostics    = list(BF_error_percent = as.numeric(point[["BF_error"]]))
+      ),
+      .iwmde_sample_condition_metadata(posterior)
     )
+  )
 
   out <- BayesTools::hypothesis_BF(
     posterior      = posterior,
