@@ -716,6 +716,42 @@ test_that("display labels of parameters are evaluable with and without 'componen
                     density_method = "KDE", columns = "all", seed = 1)
   inside <- mean(quantity_draws("log_tau_g1[10]") > 0)
   expect_equal(out[["posterior"]], inside / (1 - inside), tolerance = 1e-12)
+  # A display label of the component next to a name of another component's
+  # parameter is a component mismatch in either order, as a name known only
+  # outside the component is.
+  mismatch <- c("RoBMA_hypothesis_statement", "RoBMA_component_mismatch",
+                "error", "condition")
+  cases <- list(
+    list(component = "mods", other = "scale", statements = c(
+      "`(mu) intercept` > log_tau_intercept",
+      "log_tau_intercept < `(mu) intercept`",
+      "`(mu) intercept` > `(log_tau) intercept`",
+      "`(log_tau) intercept` < `(mu) intercept`"
+    )),
+    list(component = "scale", other = "mods", statements = c(
+      "`(log_tau) intercept` > mu_intercept",
+      "mu_intercept < `(log_tau) intercept`"
+    ))
+  )
+  for (case in cases) {
+    for (statement in case[["statements"]]) {
+      info  <- paste(case[["component"]], statement)
+      error <- tryCatch(
+        hypothesis(fit, statement, component = case[["component"]],
+                   density_method = "KDE"),
+        error = identity
+      )
+      expect_identical(class(error), mismatch, info = info)
+      expect_identical(
+        conditionMessage(error),
+        paste0(
+          "The 'hypothesis' argument selects component = '", case[["other"]],
+          "' but 'component' was set to '", case[["component"]], "'."
+        ),
+        info = info
+      )
+    }
+  }
 })
 
 

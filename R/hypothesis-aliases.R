@@ -79,8 +79,11 @@
   # label, such as '(mu) intercept' for component = "mods") is accepted; a
   # name known only outside the component ('outside') is refused by the
   # checks below as a component mismatch (or as the target it is), also next
-  # to references of the component. A reference unknown in every component
-  # is the unknown name refused.
+  # to references of the component. Every reference of the statement counts,
+  # not only the unknown name that BayesTools reports first, so that a
+  # display label of the component next to a name of another component is a
+  # mismatch in either order. A reference unknown in every component is the
+  # unknown name refused.
   outside  <- FALSE
   resolved <- tryCatch(
     resolve(resolver_component),
@@ -90,16 +93,18 @@
           resolve(NULL, group_component = "auto"),
           BayesTools_parameter_not_found = .hypothesis_stop_statement_condition
         )
-        occurrences <- unrestricted[["occurrences"]]
-        unknown     <- occurrences[["parameter"]] %in% error[["alias"]]
-        if (!any(unknown)) {
-          unknown <- rep(TRUE, nrow(occurrences))
-        }
-        own <- .brma_parameter_catalog_entries_for_quantities(
-          entries      = metadata[["entries"]],
-          quantity_ids = occurrences[["quantity_id"]][unknown]
+        inside <- vapply(
+          unrestricted[["occurrences"]][["quantity_id"]],
+          function(quantity_id) {
+            own <- .brma_parameter_catalog_entries_for_quantities(
+              entries      = metadata[["entries"]],
+              quantity_ids = quantity_id
+            )
+            any(own[["component"]] == component)
+          },
+          logical(1)
         )
-        outside <<- !any(own[["component"]] == component)
+        outside <<- !all(inside)
         return(unrestricted)
       }
       .hypothesis_stop_statement_condition(error)
