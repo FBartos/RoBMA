@@ -573,15 +573,12 @@
 }
 
 
-# Whether a prior density has deterministic provenance (BayesTools classifies
-# the ordinates of a density grid without provenance, which is used only for
-# plotting, by the method "unsupported_provenance").
-.hypothesis_plan_density_has_provenance <- function(prior_density, value) {
+# Whether BayesTools evaluates the region probabilities of a prior density
+# (BayesTools::prior_density_has_provenance()); a density without that
+# provenance, e.g. the plotting grid of a nested variance allocation, has none.
+.hypothesis_plan_density_has_provenance <- function(prior_density) {
 
-  !is.null(prior_density) && !identical(
-    BayesTools::prior_density_ordinate(prior_density, value)[["method"]],
-    "unsupported_provenance"
-  )
+  !is.null(prior_density) && BayesTools::prior_density_has_provenance(prior_density)
 }
 
 
@@ -1301,10 +1298,7 @@
   # Region probabilities need a prior density with deterministic provenance;
   # without one (no density, or a plotting grid such as the SD components of
   # nested allocations) they come from prior draws.
-  plan[["prior_draws"]] <- !.hypothesis_plan_density_has_provenance(
-    prior_density,
-    .hypothesis_quantities_interior_value(plan[["support"]])
-  )
+  plan[["prior_draws"]] <- !.hypothesis_plan_density_has_provenance(prior_density)
   if (plan[["prior_draws"]] && plan[["conditional"]]) {
     plan[["refusal"]] <- .hypothesis_refusal(
       paste0(

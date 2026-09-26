@@ -432,6 +432,40 @@ test_that("point hypotheses with an inexact prior ordinate are refused with its 
 })
 
 
+test_that("region prior probabilities come from prior draws only for densities without provenance", {
+
+  # The provenance signal is BayesTools::prior_density_has_provenance(): the
+  # plotting grid of a nested-allocation SD has none, so its region prior
+  # probabilities come from prior draws; the ungated SD has its exact prior.
+  nested <- .hypothesis_plans(
+    nested_allocation_random_object(), "`(mu) study: tau(x)` > 0.4"
+  )[[1L]]
+  expect_false(BayesTools::prior_density_has_provenance(nested[["prior_density"]]))
+  expect_true(nested[["prior_draws"]])
+  ungated <- .hypothesis_plans(
+    single_sd_random_object(BayesTools::prior("gamma", list(2, 2))),
+    "`(mu) tau(intercept)` > 0.4"
+  )[[1L]]
+  expect_false(ungated[["prior_draws"]])
+  # A combination without a structural ordinate route (three gamma terms) has
+  # provenance: BayesTools evaluates its region probabilities, although its
+  # ordinate method is "unsupported_provenance" like that of a grid without
+  # provenance. The method field does not route regions.
+  gammas <- BayesTools:::.prior_linear_combination_density(
+    list(
+      x = BayesTools::prior("gamma", list(2, 1)),
+      y = BayesTools::prior("gamma", list(2, 1)),
+      z = BayesTools::prior("gamma", list(2, 1))
+    ),
+    c(x = 1, y = 1, z = 1)
+  )
+  expect_identical(BayesTools::prior_density_ordinate(gammas, 6)[["method"]],
+                   "unsupported_provenance")
+  expect_true(.hypothesis_plan_density_has_provenance(gammas))
+  expect_false(.hypothesis_plan_density_has_provenance(NULL))
+})
+
+
 test_that("level contrasts of model-averaged factors condition on the included term", {
 
   skip_on_cran()
