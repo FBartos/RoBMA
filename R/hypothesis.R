@@ -221,16 +221,16 @@ hypothesis.default <- function(object, ...) {
 #' A point hypothesis whose prior ordinate is not exact, finite, and regular
 #' stops with the BayesTools condition class (for example
 #' \code{BayesTools_point_mass_at_null}, \code{BayesTools_infinite_ordinate},
-#' or \code{BayesTools_inexact_ordinate}). Other refusals have the class
-#' \code{RoBMA_hypothesis_unavailable} and one of
-#' \code{RoBMA_hypothesis_fixed} (the quantity is fixed by the fitted model),
-#' \code{RoBMA_hypothesis_target} (no supported target or prior density),
-#' \code{RoBMA_hypothesis_method} (the density method is unavailable for the
-#' target), or \code{RoBMA_hypothesis_statement} (the form of the statement
-#' is unsupported); linear combinations that BayesTools cannot certify keep
-#' the class \code{BayesTools_linear_target_unavailable}. A method refusal
-#' because the fitted model does not support qCMDE/IWMDE also has the classes
-#' of the refusals of these requests by [plot.brma()] and [marginal_means()]:
+#' or \code{BayesTools_inexact_ordinate}). Other refusals of a test that
+#' cannot be computed have the class \code{RoBMA_hypothesis_unavailable} and
+#' one of \code{RoBMA_hypothesis_fixed} (the quantity is fixed by the fitted
+#' model), \code{RoBMA_hypothesis_target} (no supported target or prior
+#' density), or \code{RoBMA_hypothesis_method} (the density method is
+#' unavailable for the target); linear combinations that BayesTools cannot
+#' certify keep the class \code{BayesTools_linear_target_unavailable}. A
+#' method refusal because the fitted model does not support qCMDE/IWMDE also
+#' has the classes of the refusals of these requests by [plot.brma()] and
+#' [marginal_means()]:
 #' \code{RoBMA_density_method_unavailable} and one class naming the cause,
 #' \code{RoBMA_density_method_random_unknown_v} (\code{brma.mv()}
 #' random-formula models without known \code{V}),
@@ -246,7 +246,11 @@ hypothesis.default <- function(object, ...) {
 #'
 #' Statements that need to be restated, or an argument that needs to change,
 #' stop with the class \code{RoBMA_hypothesis_statement} without
-#' \code{RoBMA_hypothesis_unavailable}: ambiguous references
+#' \code{RoBMA_hypothesis_unavailable}: point expressions that are no direct
+#' reference (for example \code{"2 * mu = 0"}), nonlinear expressions of
+#' factor levels, several point values of a random-effect variance in one
+#' statement, model-averaged marginal-means statements that mix point and
+#' region events or span several levels, ambiguous references
 #' (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
 #' parameters of another component (\code{RoBMA_component_mismatch}), factor
 #' contrast coefficients such as \code{"g{1}"} (state the hypothesis on

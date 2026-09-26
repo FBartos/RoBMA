@@ -162,6 +162,29 @@ test_that("marginal-means point routes fail closed when events are incoherent", 
     "spanning multiple marginal-means levels",
     class = "RoBMA_hypothesis_statement"
   )
+  # These are statements to restate, not unavailable tests: the statement
+  # class only, as for a nonlinear expression of the levels.
+  single <- .marginal_means_route_test_object(model_averaged = FALSE)
+  requests <- list(
+    list(object, "alloc[A] = 0 vs alloc[A] > 0"),
+    list(object, "alloc[A] = 0 vs alloc[B] != 0"),
+    list(object, c("alloc[A] = 0", "alloc[A] > 0")),
+    list(object, c("alloc[A] = 0", "alloc[B] = 0")),
+    list(single, "alloc[A] * alloc[B] = 0")
+  )
+  for (request in requests) {
+    error <- tryCatch(hypothesis(request[[1L]], request[[2L]]), error = identity)
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_statement", "error", "condition"),
+      info = paste(request[[2L]], collapse = "; ")
+    )
+  }
+  expect_error(
+    hypothesis(single, "alloc[A] * alloc[B] = 0"),
+    "A linear target must be a linear combination of levels of 'mu_alloc' and numbers.",
+    fixed = TRUE
+  )
 })
 
 

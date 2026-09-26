@@ -227,11 +227,10 @@ test_that("only linear combinations of factor levels bypass the direct guard", {
   # Scalar parameters need a direct point reference; factor levels are
   # linear targets whose combinations BayesTools compiles
   # (.hypothesis_plan_linear()).
+  # The statement has to be restated: a statement error, not an unavailable
+  # test.
   refusal <- .hypothesis_plan_direct_refusal(plan_of("2 * mu = 0"))
-  expect_identical(
-    refusal[["class"]],
-    c("RoBMA_hypothesis_statement", "RoBMA_hypothesis_unavailable")
-  )
+  expect_identical(refusal[["class"]], "RoBMA_hypothesis_statement")
   expect_match(refusal[["reason"]], "direct parameter or level reference", fixed = TRUE)
   expect_null(.hypothesis_plan_direct_refusal(plan_of("mu = 0")))
   expect_null(.hypothesis_plan_direct_refusal(plan_of("mu > 0")))

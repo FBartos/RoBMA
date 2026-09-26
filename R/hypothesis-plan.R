@@ -40,15 +40,17 @@
 
 # A refusal: the reason and the condition classes of the error a refused
 # statement stops with. BayesTools refusals keep their classes ('condition',
-# e.g. "BayesTools_point_mass_at_null"); RoBMA's own refusals have the class
-# "RoBMA_hypothesis_<type>" with the parent "RoBMA_hypothesis_unavailable":
-# "fixed" (the quantity is fixed by the fitted model), "target" (no
-# supported target or prior density), "method" (the density method is
-# unavailable for the target), and "statement" (the statement's form is
-# unsupported). "ambiguous" (the statement names several parameters;
-# 'component' or, for marginal means, 'parameter' selects one) is a
-# statement problem that an argument resolves, not an unavailable test: its
-# parent is "RoBMA_hypothesis_statement" (.hypothesis_ambiguous_class()).
+# e.g. "BayesTools_point_mass_at_null"). RoBMA's own refusals of a test that
+# cannot be computed have the class "RoBMA_hypothesis_<type>" with the
+# parent "RoBMA_hypothesis_unavailable": "fixed" (the quantity is fixed by
+# the fitted model), "target" (no supported target or prior density), and
+# "method" (the density method is unavailable for the target). A statement
+# that has to be restated, or an argument that has to change, is no
+# unavailable test: "statement" (the statement's form is unsupported) has
+# the class "RoBMA_hypothesis_statement" only, and "ambiguous" (the
+# statement names several parameters; 'component' or, for marginal means,
+# 'parameter' selects one) has it as its parent
+# (.hypothesis_ambiguous_class()).
 # Method refusals by the qCMDE/IWMDE capability of the fitted model
 # (.iwmde_capability()), and the qCMDE/IWMDE refusals of the causes for
 # which plot() refuses these methods (conditional random-effect statements,
@@ -62,6 +64,8 @@
     unique(condition)
   } else if (identical(type, "ambiguous")) {
     .hypothesis_ambiguous_class()
+  } else if (identical(type, "statement")) {
+    "RoBMA_hypothesis_statement"
   } else {
     c(paste0("RoBMA_hypothesis_", type), "RoBMA_hypothesis_unavailable")
   }

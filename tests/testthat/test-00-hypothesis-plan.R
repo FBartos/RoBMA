@@ -533,6 +533,64 @@ test_that("catalog quantities without a RoBMA parameter are refused as targets, 
 })
 
 
+test_that("statement refusals of the plans are statement errors, not unavailable tests", {
+
+  skip_on_cran()
+  fits      <- .plan_fits()
+  gated     <- gated_random_object()
+  statement <- c("RoBMA_hypothesis_statement", "error", "condition")
+  # Each statement has to be restated; the tests themselves are available.
+  cases <- list(
+    list(
+      object = fits[["treatment"]], component = "auto",
+      hypothesis = "2 * mu_intercept = 0",
+      message = paste0(
+        "Point-null hypotheses require a direct parameter or level ",
+        "reference; unsupported point expression in: '2 * mu_intercept = 0'."
+      )
+    ),
+    list(
+      object = fits[["meandif"]], component = "auto",
+      hypothesis = "mu_g1[10] * mu_g1[20] = 0",
+      message = paste0(
+        "A linear target must be a linear combination of levels of 'mu_g1' ",
+        "and numbers."
+      )
+    ),
+    list(
+      object = gated, component = "random",
+      hypothesis = "2 * `(mu) esid: tau(intercept)` = 0.3",
+      message = paste0(
+        "Point-null tests for random-effect quantities require a direct ",
+        "scalar parameter reference."
+      )
+    ),
+    list(
+      object = gated, component = "random",
+      hypothesis = paste0(
+        "`(mu) esid: tau2(intercept)` = 0.04 vs ",
+        "`(mu) esid: tau2(intercept)` = 0.09"
+      ),
+      message = paste0(
+        "Point hypotheses on random-effect variance 'esid: tau2' are ",
+        "evaluated through its standard deviation and must compare one ",
+        "point value per statement."
+      )
+    )
+  )
+  for (case in cases) {
+    error <- tryCatch(
+      hypothesis(case[["object"]], case[["hypothesis"]],
+                 component = case[["component"]], density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), statement, info = case[["hypothesis"]])
+    expect_identical(conditionMessage(error), case[["message"]],
+                     info = case[["hypothesis"]])
+  }
+})
+
+
 test_that("unresolved references have the same classes on fits and marginal means", {
 
   skip_on_cran()
