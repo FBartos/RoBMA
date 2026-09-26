@@ -254,7 +254,9 @@ BayesTools refuses with the class \code{BayesTools_parameter_ambiguous}
 the location and the scale formula) has these classes too, before its
 BayesTools classes. A statement whose parameters belong to another
 component than \code{component}, including a name that is known only
-outside \code{component}, stops with the classes
+outside \code{component} next to references of \code{component} (with or
+without factor levels, e.g. \code{"log_tau_g[a] > mu_g[a]"} with
+\code{component = "mods"}), stops with the classes
 \code{RoBMA_hypothesis_statement} and \code{RoBMA_component_mismatch}
 (the class of a component mismatch in \code{\link[=plot.brma]{plot.brma()}}). The display labels
 of the summary tables (for example \code{"(mu) intercept"},

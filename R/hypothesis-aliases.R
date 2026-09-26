@@ -84,6 +84,20 @@
   # display label of the component next to a name of another component is a
   # mismatch in either order. A reference unknown in every component is the
   # unknown name refused.
+  outside_component <- function(resolution) {
+    inside <- vapply(
+      resolution[["occurrences"]][["quantity_id"]],
+      function(quantity_id) {
+        own <- .brma_parameter_catalog_entries_for_quantities(
+          entries      = metadata[["entries"]],
+          quantity_ids = quantity_id
+        )
+        any(own[["component"]] == component)
+      },
+      logical(1)
+    )
+    !all(inside)
+  }
   outside  <- FALSE
   resolved <- tryCatch(
     resolve(resolver_component),
@@ -93,18 +107,7 @@
           resolve(NULL, group_component = "auto"),
           BayesTools_parameter_not_found = .hypothesis_stop_statement_condition
         )
-        inside <- vapply(
-          unrestricted[["occurrences"]][["quantity_id"]],
-          function(quantity_id) {
-            own <- .brma_parameter_catalog_entries_for_quantities(
-              entries      = metadata[["entries"]],
-              quantity_ids = quantity_id
-            )
-            any(own[["component"]] == component)
-          },
-          logical(1)
-        )
-        outside <<- !all(inside)
+        outside <<- outside_component(unrestricted)
         return(unrestricted)
       }
       .hypothesis_stop_statement_condition(error)
@@ -147,8 +150,16 @@
   }
   # A statement whose parameters do not belong to the requested component is
   # a component mismatch of the statement, as for plot() selections; so is a
-  # statement with a reference known only outside the component.
+  # statement with a reference known only outside the component. A statement
+  # with levels is resolved without the component (see 'resolver_component'),
+  # so each of its references is checked here the same way: a reference of
+  # another component's parameter next to one of the component (e.g.
+  # 'log_tau_g[a] > mu_g[a]' with component = "mods") is a mismatch, not a
+  # reference dropped when the entries are narrowed to the component.
   if (!identical(component, "auto")) {
+    if (is.null(resolver_component)) {
+      outside <- outside_component(resolved)
+    }
     compatible <- entries[["component"]] == component
     if (!any(compatible) || (outside && !all(compatible))) {
       selected_components <- unique(entries[["component"]][!compatible])

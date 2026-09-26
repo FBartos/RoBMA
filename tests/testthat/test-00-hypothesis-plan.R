@@ -447,6 +447,28 @@ test_that("statements that do not match 'component' are component mismatches at 
                             "'scale' but 'component' was set to 'mods'.")),
     list(statement = "mu_intercept > log_tau_intercept", component = "scale",
          message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'mods' but 'component' was set to 'scale'.")),
+    # Statements with levels are resolved without 'component'; a reference
+    # of another component's parameter next to one of the component is a
+    # mismatch too, in either order, and not a reference dropped before
+    # evaluation.
+    list(statement = "log_tau_g1[10] > mu_g1[10]", component = "mods",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'scale' but 'component' was set to 'mods'.")),
+    list(statement = "mu_g1[10] > log_tau_g1[10]", component = "mods",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'scale' but 'component' was set to 'mods'.")),
+    list(statement = "log_tau_g1[10] > mu_g1[10]", component = "scale",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'mods' but 'component' was set to 'scale'.")),
+    list(statement = "`(log_tau) g1[10]` > `(mu) g1[10]`", component = "mods",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'scale' but 'component' was set to 'mods'.")),
+    list(statement = "`(mu) g1[10]` > log_tau_intercept", component = "mods",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'scale' but 'component' was set to 'mods'.")),
+    list(statement = "`(mu) g1[10]` > log_tau_intercept", component = "scale",
+         message   = paste0("The 'hypothesis' argument selects component = ",
                             "'mods' but 'component' was set to 'scale'."))
   )
   for (case in cases) {
