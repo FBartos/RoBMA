@@ -438,7 +438,16 @@ test_that("statements that do not match 'component' are component mismatches at 
          message   = paste0("The 'hypothesis' argument selects component = ",
                             "'scale' but 'component' was set to 'mods'.")),
     list(statement = "g1 > 0",                     component = "random",
-         message   = "The hypothesis does not resolve to component = 'random'.")
+         message   = "The hypothesis does not resolve to component = 'random'."),
+    # A statement that also references a parameter of the component: the
+    # name of the other component's parameter is a mismatch too, not an
+    # unknown name.
+    list(statement = "mu_intercept > log_tau_intercept", component = "mods",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'scale' but 'component' was set to 'mods'.")),
+    list(statement = "mu_intercept > log_tau_intercept", component = "scale",
+         message   = paste0("The 'hypothesis' argument selects component = ",
+                            "'mods' but 'component' was set to 'scale'."))
   )
   for (case in cases) {
     error <- tryCatch(
@@ -546,6 +555,28 @@ test_that("catalog quantities without a RoBMA parameter are refused as targets, 
       info = statement
     )
   }
+  # The same next to a parameter of an explicit 'component', to which such a
+  # quantity does not belong.
+  cases <- c(
+    "mu_intercept > mu_g1_indicator" = "mu_g1_indicator",
+    "mu_g1_indicator < mu_intercept" = "mu_g1_indicator"
+  )
+  for (statement in names(cases)) {
+    error <- tryCatch(
+      hypothesis(fit, statement, component = "mods", density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(error), target, info = statement)
+    expect_identical(
+      conditionMessage(error),
+      paste0(
+        "Hypothesis tests are unavailable for '", cases[[statement]], "'. ",
+        "Use hypothesis_quantities() to list the quantities that ",
+        "hypothesis() tests."
+      ),
+      info = statement
+    )
+  }
   # Only a parameter catalog without any RoBMA entries needs a refit.
   metadata <- .brma_parameter_catalog_metadata(fit)
   metadata[["entries"]] <- metadata[["entries"]][0L, , drop = FALSE]
@@ -640,6 +671,15 @@ test_that("unresolved references have the same classes on fits and marginal mean
     )),
     not_found
   )
+  # Next to a name of another component's parameter, the unknown name is the
+  # one refused.
+  beside <- tryCatch(
+    hypothesis(fit, "mu_intercept > foo", component = "scale", density_method = "KDE"),
+    error = identity
+  )
+  expect_identical(class(beside), not_found)
+  expect_identical(conditionMessage(beside), "No public parameter quantity matches 'foo'.")
+  expect_identical(beside[["alias"]], "foo")
   # An unknown level of a factor term.
   level_on_fit   <- tryCatch(hypothesis(fit, "g[w] = 0", density_method = "KDE"), error = identity)
   level_on_means <- tryCatch(hypothesis(means, "g[w] > 0"), error = identity)

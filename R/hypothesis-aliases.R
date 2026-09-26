@@ -84,24 +84,31 @@
   # its classes and fields, after "RoBMA_hypothesis_statement". A reference
   # that is unknown within an explicit 'component' but names quantities
   # outside it is resolved without the component, so that the checks below
-  # refuse it as a component mismatch (or as the target it is). A name that
-  # the component's aliases do not list but that resolves to a quantity of
-  # the component (e.g. its display label) stays unknown.
+  # refuse it as a component mismatch (or as the target it is), also next to
+  # references of the component ('outside'). A name that the component's
+  # aliases do not list but that resolves to a quantity of the component
+  # (e.g. its display label) stays unknown; a reference unknown in every
+  # component is the unknown name refused.
+  outside  <- FALSE
   resolved <- tryCatch(
     resolve(resolver_component),
     BayesTools_parameter_not_found = function(error) {
       if (!is.null(resolver_component) && NROW(metadata[["entries"]]) > 0L) {
         unrestricted <- tryCatch(
           resolve(NULL, group_component = "auto"),
-          BayesTools_parameter_not_found = function(condition) NULL
+          BayesTools_parameter_not_found = .hypothesis_stop_statement_condition
         )
-        own <- if (!is.null(unrestricted)) {
-          .brma_parameter_catalog_entries_for_quantities(
-            entries      = metadata[["entries"]],
-            quantity_ids = unrestricted[["occurrences"]][["quantity_id"]]
-          )
+        occurrences <- unrestricted[["occurrences"]]
+        unknown     <- occurrences[["parameter"]] %in% error[["alias"]]
+        if (!any(unknown)) {
+          unknown <- rep(TRUE, nrow(occurrences))
         }
-        if (!is.null(unrestricted) && !any(own[["component"]] == component)) {
+        own <- .brma_parameter_catalog_entries_for_quantities(
+          entries      = metadata[["entries"]],
+          quantity_ids = occurrences[["quantity_id"]][unknown]
+        )
+        if (!any(own[["component"]] == component)) {
+          outside <<- TRUE
           return(unrestricted)
         }
       }
@@ -142,11 +149,12 @@
     )
   }
   # A statement whose parameters do not belong to the requested component is
-  # a component mismatch of the statement, as for plot() selections.
+  # a component mismatch of the statement, as for plot() selections; so is a
+  # statement with a reference known only outside the component.
   if (!identical(component, "auto")) {
     compatible <- entries[["component"]] == component
-    if (!any(compatible)) {
-      selected_components <- unique(entries[["component"]])
+    if (!any(compatible) || (outside && !all(compatible))) {
+      selected_components <- unique(entries[["component"]][!compatible])
       if (length(selected_components) == 1L) {
         .parameter_component_check_compatible(
           component          = component,
