@@ -51,7 +51,12 @@ models, \code{"PET"}, \code{"PEESE"}, and \code{"omega"} or
 \code{"weightfunction"} for selection models. Use \code{plot_pet_peese()}
 for PET/PEESE regression plots. Factor terms select all coefficient cells;
 use a semantic selector such as \code{"group[level]"} to plot one cell.
-Structural point masses are retained.}
+Structural point masses are retained. A quantity of the fitted model that
+is no model parameter (an inclusion indicator such as
+\code{"mu_x_indicator"}, \code{"bias_indicator"}, a weight-function
+coordinate such as \code{"omega[1]"}, or a latent cluster effect) stops
+with the classes \code{RoBMA_hypothesis_target} and
+\code{RoBMA_hypothesis_unavailable}, with which \code{\link[=hypothesis]{hypothesis()}} refuses it.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the

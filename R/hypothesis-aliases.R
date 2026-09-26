@@ -190,37 +190,23 @@
 # publication-bias refusal; other quantities (e.g. inclusion indicators,
 # 'inclusion(<component>)' of variance allocations, and latent cluster
 # effects) are refused as targets ("RoBMA_hypothesis_target"), named as the
-# statement references them.
+# statement references them (.brma_stop_uncovered_quantity(), which the
+# parameter selection of plot() shares).
 .hypothesis_brma_stop_uncovered <- function(object, metadata, resolution,
                                             uncovered) {
 
-  coefficients <- .brma_contrast_coefficient_quantities(metadata, uncovered)
-  coefficients <- coefficients[
-    nzchar(coefficients[["formula_parameter"]]), , drop = FALSE
-  ]
-  if (nrow(coefficients) > 0L) {
-    .brma_stop_contrast_coefficient(
-      metadata    = metadata,
-      selector    = coefficients[["canonical_name"]][[1L]],
-      coefficient = coefficients[1L, , drop = FALSE]
-    )
-  }
-  bias <- .hypothesis_brma_bias_quantity_ids(object, metadata, uncovered)
-  if (length(bias) > 0L) {
-    .hypothesis_brma_check_supported_component("bias")
-  }
   occurrences <- resolution[["occurrences"]]
   symbol      <- occurrences[["symbol"]][
     match(uncovered[[1L]], occurrences[["quantity_id"]])
   ]
 
-  .hypothesis_stop(.hypothesis_refusal(
-    paste0(
-      "Hypothesis tests are unavailable for '", symbol, "'. Use ",
-      "hypothesis_quantities() to list the quantities that hypothesis() tests."
-    ),
-    "target"
-  ))
+  .brma_stop_uncovered_quantity(
+    object       = object,
+    metadata     = metadata,
+    quantity_ids = uncovered,
+    symbol       = symbol,
+    hypothesis   = TRUE
+  )
 }
 
 

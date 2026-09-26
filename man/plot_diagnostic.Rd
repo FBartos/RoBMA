@@ -76,7 +76,11 @@ setup to \code{BayesTools::JAGS_diagnostics()}.}
 \item{parameter}{base parameter to plot. Defaults to \code{NULL}, which uses
 \code{"mu"} or the meta-regression intercept. Valid values include
 \code{"mu"}, \code{"tau"}, \code{"rho"}, \code{"PET"}, \code{"PEESE"},
-and \code{"omega"} or \code{"weightfunction"} when present.}
+and \code{"omega"} or \code{"weightfunction"} when present. A quantity
+of the fitted model that is no model parameter (e.g. an inclusion
+indicator or a weight-function coordinate such as \code{"omega[1]"})
+stops with the classes \code{RoBMA_hypothesis_target} and
+\code{RoBMA_hypothesis_unavailable}, as in \code{\link[=plot.brma]{plot.brma()}}.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}.}

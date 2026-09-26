@@ -336,20 +336,24 @@
     }
   }
   if (nrow(entry) != 1L) {
-    coefficients <- .brma_contrast_coefficient_quantities(
-      metadata, selection[["quantity_id"]]
-    )
-    if (nrow(coefficients) > 0L) {
-      .brma_stop_contrast_coefficient(
-        metadata    = metadata,
-        selector    = parameter,
-        coefficient = coefficients[1L, , drop = FALSE],
-        hypothesis  = FALSE
+    # A parameter catalog without RoBMA entries is metadata of an older build.
+    if (NROW(metadata[["entries"]]) == 0L) {
+      .stop_refit_required(
+        "Resolved parameter metadata are unavailable. Refit the model with the ",
+        "current RoBMA/BayesTools build."
       )
     }
-    .stop_refit_required(
-      "Resolved parameter metadata are unavailable. Refit the model with the ",
-      "current RoBMA/BayesTools build."
+    if (nrow(entry) > 1L) {
+      stop("Internal error: several RoBMA parameters cover the catalog ",
+           "quantity '", parameter, "'.", call. = FALSE)
+    }
+    .brma_stop_uncovered_quantity(
+      object       = object,
+      metadata     = metadata,
+      quantity_ids = selection[["quantity_id"]],
+      symbol       = parameter,
+      argument     = argument,
+      hypothesis   = FALSE
     )
   }
   out <- as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE])
@@ -414,7 +418,9 @@
 
 # Contrast coefficients '<term>{j}' of mean-difference, orthonormal, and
 # ordered factors are catalog quantities that no RoBMA entry covers: RoBMA
-# addresses factor terms through their level labels.
+# addresses factor terms through their level labels. Only coefficients of
+# formula factor terms (with a formula parameter) are contrast coefficients;
+# latent cluster effects such as 'gamma[1]' are none.
 .brma_contrast_coefficient_quantities <- function(metadata, quantity_ids) {
 
   quantities <- metadata[["catalog"]][["quantities"]]
@@ -435,8 +441,9 @@
     is.list(key) && identical(key[["type"]], "factor_level")
   }, logical(1))
   coefficient <- .brma_catalog_contrast_coefficient(rows)
+  formula     <- nzchar(rows[["formula_parameter"]])
 
-  return(rows[(factor_level | coefficient) & !covered, , drop = FALSE])
+  return(rows[(factor_level | coefficient) & formula & !covered, , drop = FALSE])
 }
 
 # The public label of a factor term and the labels of its non-structural
@@ -523,6 +530,51 @@
     if (!is.null(label)) paste0(", or the whole term '", label, "'"), ".",
     call. = FALSE
   )
+}
+
+# Stop for catalog quantities of a current fit that no RoBMA parameter entry
+# covers ('quantity_ids'; 'symbol' names the first as the request wrote it),
+# so that a refit cannot help: contrast coefficients of formula factor terms
+# have the contrast-coefficient stop (.brma_stop_contrast_coefficient());
+# other quantities (e.g. inclusion indicators, 'inclusion(<component>)' of
+# variance allocations, latent cluster effects, and the publication-bias
+# quantities 'omega[1]' and 'bias_indicator') are refused as targets, with a
+# message naming the quantity and, for one cause the same classes at every
+# entry point, the classes "RoBMA_hypothesis_target" and
+# "RoBMA_hypothesis_unavailable". hypothesis() refuses publication-bias
+# quantities by its publication-bias refusal; the parameter selection of
+# plot() and the prior functions refuses every quantity by the selecting
+# 'argument'.
+.brma_stop_uncovered_quantity <- function(object, metadata, quantity_ids,
+                                          symbol, argument = "parameter",
+                                          hypothesis = TRUE) {
+
+  coefficients <- .brma_contrast_coefficient_quantities(metadata, quantity_ids)
+  if (nrow(coefficients) > 0L) {
+    .brma_stop_contrast_coefficient(
+      metadata    = metadata,
+      selector    = if (hypothesis) coefficients[["canonical_name"]][[1L]] else symbol,
+      coefficient = coefficients[1L, , drop = FALSE],
+      hypothesis  = hypothesis
+    )
+  }
+  if (hypothesis) {
+    bias <- .hypothesis_brma_bias_quantity_ids(object, metadata, quantity_ids)
+    if (length(bias) > 0L) {
+      .hypothesis_brma_check_supported_component("bias")
+    }
+    reason <- paste0(
+      "Hypothesis tests are unavailable for '", symbol, "'. Use ",
+      "hypothesis_quantities() to list the quantities that hypothesis() tests."
+    )
+  } else {
+    reason <- paste0(
+      "The specified ", argument, " '", symbol, "' is unavailable: it is a ",
+      "quantity of the fitted model, not a model parameter."
+    )
+  }
+
+  .hypothesis_stop(.hypothesis_refusal(reason, "target"))
 }
 
 .brma_parameter_catalog <- function(object) {

@@ -964,6 +964,56 @@ test_that("catalog quantities without a RoBMA parameter are target refusals on c
 })
 
 
+test_that("plot() refuses catalog quantities without a RoBMA parameter with the classes of hypothesis()", {
+
+  skip_on_cran()
+  skip_if_missing_fits(c("RoBMA.mv_marg_product_space", "konstantopoulos2011_3lvl"))
+
+  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+              "error", "condition")
+  # One cause, the same classes at every entry point: a quantity of the
+  # current fit without a RoBMA parameter, named in the message.
+  cases <- list(
+    list(fit = "RoBMA.mv_marg_product_space", quantity = "omega[1]"),
+    list(fit = "RoBMA.mv_marg_product_space", quantity = "bias_indicator"),
+    list(fit = "RoBMA.mv_marg_product_space", quantity = "mu_x_indicator"),
+    list(fit = "RoBMA.mv_marg_product_space", quantity = "(mu) inclusion(study)"),
+    list(fit = "konstantopoulos2011_3lvl",    quantity = "gamma[1]")
+  )
+  for (case in cases) {
+    fit    <- load_fit(case[["fit"]])
+    info   <- paste(case[["fit"]], case[["quantity"]])
+    tested <- tryCatch(
+      hypothesis(fit, paste0("`", case[["quantity"]], "` > 0.5"),
+                 density_method = "KDE", n_samples = 1000),
+      error = identity
+    )
+    expect_identical(class(tested), target, info = info)
+    errors <- list(
+      plot        = tryCatch(plot(fit, case[["quantity"]]), error = identity),
+      plot_prior  = tryCatch(plot_prior(fit, parameter = case[["quantity"]]),
+                             error = identity),
+      print_prior = tryCatch(print_prior(fit, parameter = case[["quantity"]]),
+                             error = identity)
+    )
+    for (entry_point in names(errors)) {
+      error <- errors[[entry_point]]
+      expect_identical(class(error), class(tested),
+                       info = paste(info, entry_point))
+      expect_identical(
+        conditionMessage(error),
+        paste0(
+          "The specified parameter '", case[["quantity"]], "' is ",
+          "unavailable: it is a quantity of the fitted model, not a model ",
+          "parameter."
+        ),
+        info = paste(info, entry_point)
+      )
+    }
+  }
+})
+
+
 test_that("hypothesis default output is compact and attaches table warnings", {
 
   prior     <- data.frame(theta = c(-2, -1, 0, 1))

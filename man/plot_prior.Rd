@@ -43,7 +43,11 @@ and \code{"weightfunction"} = \code{"omega"}. \code{"bias"} plots only
 non-mixed or homogeneous bias priors; for mixed weightfunction and PET/PEESE
 mixtures use \code{"omega"}, \code{"PET"}, or \code{"PEESE"}. Moderator and
 scale terms can also be selected by name when unambiguous. A character vector
-requests multiple base parameters.}
+requests multiple base parameters. A quantity of the fitted model that is no
+model parameter (e.g. an inclusion indicator or a weight-function
+coordinate such as \code{"omega[1]"}) stops with the classes
+\code{RoBMA_hypothesis_target} and \code{RoBMA_hypothesis_unavailable}, as
+in \code{\link[=plot.brma]{plot.brma()}}.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the

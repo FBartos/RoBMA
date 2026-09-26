@@ -36,7 +36,11 @@ and \code{"weightfunction"} = \code{"omega"}. GLMM outcome priors
 scale terms can also be selected by name when unambiguous. For
 \code{brma.mv()} objects with random-effect formulas, \code{"random"} prints
 the structured random-effect prior specification. A character vector requests
-multiple base parameters.}
+multiple base parameters. A quantity of the fitted model that is no model
+parameter (e.g. an inclusion indicator or a weight-function coordinate such
+as \code{"omega[1]"}) stops with the classes
+\code{RoBMA_hypothesis_target} and \code{RoBMA_hypothesis_unavailable}, as
+in \code{\link[=plot.brma]{plot.brma()}}.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the

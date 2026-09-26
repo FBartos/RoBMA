@@ -592,6 +592,78 @@ test_that("catalog quantities without a RoBMA parameter are refused as targets, 
 })
 
 
+test_that("the selection of plot() refuses catalog quantities without a RoBMA parameter as hypothesis() does", {
+
+  skip_on_cran()
+  fit    <- .plan_fits()[["robma_mixture"]]
+  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+              "error", "condition")
+  unavailable <- function(argument, quantity) {
+    paste0(
+      "The specified ", argument, " '", quantity, "' is unavailable: it is a ",
+      "quantity of the fitted model, not a model parameter."
+    )
+  }
+  # The quantities that hypothesis() refuses as targets (publication-bias
+  # quantities and inclusion indicators): the same classes at every entry
+  # point of the parameter selection, with a message naming the quantity.
+  for (quantity in c("omega[0,0.025]", "omega[6]", "bias_indicator",
+                     "mu_g1_indicator", "(mu) g1_indicator", "tau_indicator")) {
+    tested <- tryCatch(
+      hypothesis(fit, paste0("`", quantity, "` > 0.5"), density_method = "KDE"),
+      error = identity
+    )
+    expect_identical(class(tested), target, info = quantity)
+    errors <- list(
+      select      = tryCatch(.brma_parameter_select_entry(fit, quantity),
+                             error = identity),
+      plot        = tryCatch(plot(fit, quantity), error = identity),
+      diagnostic  = tryCatch(plot_diagnostic(fit, quantity, type = "trace"),
+                             error = identity),
+      plot_prior  = tryCatch(plot_prior(fit, parameter = quantity), error = identity),
+      print_prior = tryCatch(print_prior(fit, parameter = quantity), error = identity)
+    )
+    for (entry_point in names(errors)) {
+      info <- paste(quantity, entry_point)
+      expect_identical(class(errors[[entry_point]]), class(tested), info = info)
+      expect_identical(conditionMessage(errors[[entry_point]]),
+                       unavailable("parameter", quantity), info = info)
+    }
+  }
+  # The message names the selecting argument.
+  error <- tryCatch(
+    .brma_parameter_select_entry(fit, "mu_g1_indicator", argument = "parameter_mods"),
+    error = identity
+  )
+  expect_identical(class(error), target)
+  expect_identical(conditionMessage(error),
+                   unavailable("parameter_mods", "mu_g1_indicator"))
+  # Only a parameter catalog without any RoBMA entries needs a refit.
+  metadata <- .brma_parameter_catalog_metadata(fit)
+  metadata[["entries"]] <- metadata[["entries"]][0L, , drop = FALSE]
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog_metadata = function(object) metadata,
+    .package = "RoBMA"
+  )
+  for (quantity in c("mu_g1", "mu_g1_indicator")) {
+    error <- tryCatch(.brma_parameter_select_entry(fit, quantity), error = identity)
+    expect_identical(
+      class(error),
+      c("RoBMA_refit_required", "BayesTools_refit_required", "error", "condition"),
+      info = quantity
+    )
+    expect_identical(
+      conditionMessage(error),
+      paste0(
+        "Resolved parameter metadata are unavailable. Refit the model with ",
+        "the current RoBMA/BayesTools build."
+      ),
+      info = quantity
+    )
+  }
+})
+
+
 test_that("statement refusals of the plans are statement errors, not unavailable tests", {
 
   skip_on_cran()
