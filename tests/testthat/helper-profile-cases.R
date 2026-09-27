@@ -291,7 +291,8 @@ certification_cases <- function() {
         "test-01-bselmodel.R",
         "test-01-BMA.norm.R",
         "test-01-RoBMA.R",
-        "test-01-vif-parity.R"
+        "test-01-vif-parity.R",
+        "test-01-iwmde-multilevel-selection.R"
       ),
       test_filter = anchored(
         "02-(dfbetas|forest|funnel|hatvalues|influence|iwmde-fast-paths|marginal_means|",

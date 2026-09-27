@@ -4005,7 +4005,9 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     "The exact multilevel scalar-vs-grid equivalence matrix is certification coverage."
   )
 
-  fit_name  <- "dat.lehmann2018_RoBMA_3lvl_mods_scale"
+  # A multilevel selection model integrating its random effects: every row
+  # likelihood is marginal and takes the location fast path.
+  fit_name  <- "dat.lehmann2018-3PSM_3lvl_mods_marginal"
   parameter <- "mu_Preregistered"
   .skip_if_missing_raw_fits(fit_name)
 

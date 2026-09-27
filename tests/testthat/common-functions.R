@@ -564,6 +564,24 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, iwmde_oracle_catalog)
 
+  iwmde_multilevel_catalog <- data.frame(
+    name          = "dat.lehmann2018-3PSM_3lvl_mods_marginal",
+    class         = "bselmodel",
+    family        = "norm",
+    source_file   = "test-01-iwmde-multilevel-selection.R",
+    has_metafor   = FALSE,
+    has_waic      = FALSE,
+    tier          = "extended",
+    has_loo       = TRUE,
+    has_marglik   = TRUE,
+    features      = I(list(c(
+      "normal", "selection", "multilevel", "mods", "iwmde",
+      "marginal_selection"
+    ))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, iwmde_multilevel_catalog)
+
   fixed_model_catalog <- data.frame(
     name = c(
       "fixed_null_brma",
