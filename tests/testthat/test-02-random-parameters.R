@@ -262,16 +262,31 @@ test_that("random point hypotheses follow quantity-specific policy", {
 
   if ("brma.mv_v14_ishak2007_har" %in% fit_names) {
     fit_har <- load_fit("brma.mv_v14_ishak2007_har", validate = FALSE)
-    expect_error(
-      hypothesis(
-        fit_har,
-        .random_parameter_hypothesis(
-          "tau(time[1])", "=", 0.2, "!="
-        ),
-        component = "random", n_samples = 1000, seed = 22
+    # The derived component SD tau(time[1]) = allocation SD * sqrt(4 * weight)
+    # has an exact prior ordinate, so its point hypothesis is eligible. The
+    # null 0.2 lies far below every posterior draw (all above 1.4): qCMDE
+    # returns an extreme Bayes factor whose relative precision target is
+    # missed while its conclusion is certain, and the attached diagnostics
+    # report the collapsed importance weights.
+    har <- hypothesis(
+      fit_har,
+      .random_parameter_hypothesis(
+        "tau(time[1])", "=", 0.2, "!="
       ),
-      "derived component SD"
+      component = "random", n_samples = 1000, seed = 22
     )
+    expect_s3_class(har, "BayesTools_hypothesis_BF")
+    expect_true(is.finite(har[["BF"]]) && har[["BF"]] < 1e-10)
+    har_diagnostics <- density_diagnostics(har)
+    expect_identical(nrow(har_diagnostics), 1L)
+    expect_false(har_diagnostics[["precision_target_met"]])
+    expect_true(har_diagnostics[["bf_grade_met"]])
+    expect_lt(har_diagnostics[["ess"]], har_diagnostics[["warning_min_ess"]])
+    expect_gt(
+      har_diagnostics[["max_weight_share"]],
+      har_diagnostics[["warning_max_weight_share"]]
+    )
+    expect_true(nzchar(har_diagnostics[["warnings"]]))
   }
 
   if ("brma.mv_v14_begg1989_study_treatment" %in% fit_names) {
