@@ -385,11 +385,14 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
     suppressWarnings(hypothesis(ordered, "g[mid] = 0", density_method = "KDE")),
     class = "BayesTools_infinite_ordinate"
   )
+  # A finite Bayes factor needs only a small qCMDE grid and row sample.
+  control <- list(n_points = 20, samples = 50)
   for (method in c("KDE", "qCMDE")) {
     for (statement in c("g[mid] = 0.1", "g[hi] = 0")) {
-      result <- suppressWarnings(
-        hypothesis(ordered, statement, density_method = method)
-      )
+      result <- suppressWarnings(hypothesis(
+        ordered, statement, density_method = method,
+        density_control = if (identical(method, "qCMDE")) control
+      ))
       expect_true(is.finite(attr(result, "raw_BF")), info = paste(statement, method))
     }
   }

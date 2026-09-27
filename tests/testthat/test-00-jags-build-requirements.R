@@ -105,13 +105,32 @@ test_that("configure accepts only JAGS 4.x from pkg-config and the headers", {
     stub
   }
 
+  # Every run asks R for the same compiler settings, starting R once per
+  # setting: a stub R answers from one query of the running installation.
+  r_home <- file.path(work, "r-home")
+  dir.create(file.path(r_home, "bin"), recursive = TRUE)
+  for (name in c("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS")) {
+    .jags_build_write_lf(
+      system2(file.path(R.home("bin"), "R"), c("CMD", "config", name),
+              stdout = TRUE),
+      file.path(r_home, paste0("config-", name))
+    )
+  }
+  .jags_build_write_lf(c(
+    "#!/bin/sh",
+    paste0("test \"$1 $2\" = \"CMD config\" && test -f \"", r_home,
+           "/config-$3\" || exit 1"),
+    paste0("cat \"", r_home, "/config-$3\"")
+  ), file.path(r_home, "bin", "R"))
+  Sys.chmod(file.path(r_home, "bin", "R"), mode = "0755")
+
   run_configure <- function(args = character(), stub = stub_none) {
 
     unlink(file.path(package_dir, "src", "Makevars"))
     path <- paste(stub, Sys.getenv("PATH"), sep = .Platform$path.sep)
     result <- .jags_build_run_tool(
       sh, c("./configure", args), package_dir,
-      c(.jags_build_env_unset(), LIBnn = "lib", PATH = path)
+      c(.jags_build_env_unset(), LIBnn = "lib", PATH = path, R_HOME = r_home)
     )
     result$makevars <- file.exists(file.path(package_dir, "src", "Makevars"))
     result

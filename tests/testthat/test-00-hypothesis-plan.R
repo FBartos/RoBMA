@@ -102,18 +102,37 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
+# hypothesis_quantities() of a plan fit, computed once per file: the matrix
+# test below stores the tables it checks, and later tests reuse them.
+.plan_quantities <- function(name) {
+
+  quantities <- .plan_fit_cache[["quantities"]]
+  if (is.null(quantities)) {
+    quantities <- list()
+  }
+  if (is.null(quantities[[name]])) {
+    quantities[[name]] <- hypothesis_quantities(.plan_fits()[[name]])
+    .plan_fit_cache[["quantities"]] <- quantities
+  }
+
+  return(quantities[[name]])
+}
+
+
 test_that("hypothesis_quantities() renders the plans that hypothesis() executes", {
 
   skip_on_cran()
-  fits <- .plan_fits()
+  fits       <- .plan_fits()
+  quantities <- list()
   # Every refusal is checked in both profiles. The qCMDE/IWMDE ordinates of
   # admitted statements are numerical computations; they run in the
   # certification profile (case 'iwmde-qcmde').
   for (name in names(fits)) {
-    .expect_plans_consistent(
+    quantities[[name]] <- .expect_plans_consistent(
       fits[[name]], info = name, run_precomputed = is_certification_profile()
     )
   }
+  .plan_fit_cache[["quantities"]] <- quantities
   fixtures <- list(
     gated     = gated_random_object(),
     ungated   = single_sd_random_object(BayesTools::prior("gamma", list(2, 2))),
@@ -344,9 +363,8 @@ test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas",
 test_that("factor levels of every contrast have point tests and level contrasts", {
 
   skip_on_cran()
-  fits <- .plan_fits()
   for (name in c("treatment", "meandif", "orthonormal", "independent")) {
-    quantities <- hypothesis_quantities(fits[[name]])
+    quantities <- .plan_quantities(name)
     terms <- quantities[quantities[["term"]] %in% c("g1", "g2"), , drop = FALSE]
     expect_true(all(terms[["point_test"]]), info = name)
     expect_true(all(terms[["contrast_test"]]), info = name)

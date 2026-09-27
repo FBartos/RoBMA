@@ -69,10 +69,16 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
 
   skip_on_cran()
   fits <- .scalar_eligibility_fits()
+  # Point tests are admitted or refused by the plan before any ordinate is
+  # computed, so a small qCMDE grid and row sample show that an admitted
+  # computation runs (the default budget took most of this file's time).
+  control <- list(n_points = 20, samples = 50)
 
+  fit_quantities <- list()
   for (fit_name in names(fits)) {
     fit        <- fits[[fit_name]]
     quantities <- hypothesis_quantities(fit)
+    fit_quantities[[fit_name]] <- quantities
     rows <- which(
       is.na(quantities[["bracket"]]) &
         quantities[["component"]] != "random" &
@@ -87,7 +93,9 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
         result <- tryCatch(
           suppressWarnings(hypothesis(
             fit, paste0(parameter, " = 0.1"),
-            density_method = method, n_samples = 2000, seed = 1
+            density_method  = method,
+            density_control = if (identical(method, "qCMDE")) control,
+            n_samples = 2000, seed = 1
           )),
           error = function(error) error
         )
@@ -100,7 +108,7 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
   }
 
   # A sum of Cauchy terms has an exact induced ordinate.
-  standardized <- hypothesis_quantities(fits[["standardized"]])
+  standardized <- fit_quantities[["standardized"]]
   intercept    <- standardized[standardized[["alias"]] == "mu_intercept", , drop = FALSE]
   expect_true(intercept[["point_test"]])
   expect_identical(intercept[["point_test_methods"]], "KDE, qCMDE, IWMDE")
@@ -115,7 +123,7 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
   )), "data.frame")
 
   # A normal intercept with a Cauchy slope has an exact induced ordinate.
-  convolution <- hypothesis_quantities(fits[["convolution"]])
+  convolution <- fit_quantities[["convolution"]]
   convolution <- convolution[convolution[["alias"]] == "mu_intercept", , drop = FALSE]
   expect_true(convolution[["point_test"]])
   expect_identical(convolution[["point_test_methods"]], "KDE, qCMDE, IWMDE")
@@ -126,7 +134,7 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
 
   # The continuous ordinate of a model-averaged intercept (next to its atom at
   # 0) is exact with Cauchy alternatives and with the default normal priors.
-  averaged <- hypothesis_quantities(fits[["averaged"]])
+  averaged <- fit_quantities[["averaged"]]
   averaged <- averaged[averaged[["alias"]] == "mu_intercept", , drop = FALSE]
   expect_true(averaged[["point_test"]])
   expect_identical(averaged[["point_test_methods"]], "KDE, qCMDE, IWMDE")
@@ -135,14 +143,14 @@ test_that("scalar point-test eligibility matches the hypotheses that run", {
     standardized_coefficients = TRUE, seed = 1
   )), "data.frame")
 
-  averaged_default <- hypothesis_quantities(fits[["averaged_default"]])
+  averaged_default <- fit_quantities[["averaged_default"]]
   averaged_default <- averaged_default[
     averaged_default[["alias"]] == "mu_intercept", , drop = FALSE
   ]
   expect_true(averaged_default[["point_test"]])
   expect_identical(averaged_default[["point_test_methods"]], "KDE, qCMDE, IWMDE")
 
-  raw <- hypothesis_quantities(fits[["raw"]])
+  raw <- fit_quantities[["raw"]]
   expect_true(all(raw[["point_test"]]))
   expect_identical(unique(raw[["point_test_methods"]]), "KDE, qCMDE, IWMDE")
 })
