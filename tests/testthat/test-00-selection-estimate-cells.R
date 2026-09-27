@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 .selection_estimate_cell_fixture <- function(
     model, group_covariance = NULL, covariance_input = "factor",
     selection_control = set_selection_likelihood_control(relative_tolerance = 1e-6)) {
@@ -221,6 +223,9 @@ test_that("all eight source cells preserve full-error selection and their source
 
 test_that("an estimate-level term preserves correlated known group covariance", {
 
+  skip_if_not_certification(
+    "The high-budget dense-route accuracy check runs in the numerical-kernels case."
+  )
   known_R <- matrix(c(1, .4, .4, 1), 2L,
                      dimnames = list(c("e1", "e2"), c("e1", "e2")))
   # Correlated known R takes the dense route. Increase its explicit point budget,

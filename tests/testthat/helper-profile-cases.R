@@ -271,7 +271,8 @@ certification_cases <- function() {
       fit_sources = character(),
       test_filter = anchored(
         "00-(covariance-factorization|known-v-joint-loglik|",
-        "selection-kernel.*|selection-probability-numerics)|",
+        "selection-kernel.*|selection-probability-numerics|",
+        "selection-factor-routing|selection-estimate-cells)|",
         "02-(distributions|glmm-aghq)"
       ),
       required_tests = .required_tests(
@@ -295,7 +296,8 @@ certification_cases <- function() {
         "test-01-iwmde-multilevel-selection.R"
       ),
       test_filter = anchored(
-        "02-(dfbetas|forest|funnel|hatvalues|influence|iwmde-fast-paths|marginal_means|",
+        "02-(dfbetas|forest|funnel|hatvalues|influence|iwmde-fast-paths|",
+        "iwmde-normal-predictor-grid|marginal_means|",
         "plot.*|predict|qqnorm|radial|regplot|residuals|summary.*|vif)|",
         "03-(bridgesampling|loo|zplot)"
       ),
@@ -511,6 +513,7 @@ certification_cases <- function() {
         "iwmde_known_v_tau_null"
       ),
       test_filter = anchored(
+        "00-hypothesis-plan|",
         "02-(hypothesis|iwmde.*|marginal_means|random-parameters)|",
         "03-(bridgesampling|loo)"
       ),

@@ -431,6 +431,9 @@ test_that("the log-tau intercept basis matches the generic formula evaluator", {
 
 test_that("the scale model's `tau` density line matches the generic evaluator", {
 
+  skip_if_not_certification(
+    "The generic-evaluator density-line comparison runs in the normal-models case."
+  )
   fit_names <- .normal_grid_fit_names()
   skip_if(length(fit_names) == 0L, "No cached normal fixtures are available.")
 

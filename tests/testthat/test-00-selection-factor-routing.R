@@ -1,4 +1,5 @@
 context("Joint selection certified factor routing")
+source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 
 .factor_selection_prior <- function(mode = "integrate", weight_rule = "product") {
@@ -826,6 +827,9 @@ test_that("bridge dense fallback reconstructs the exact required block", {
 
 test_that("native factor likelihood agrees with an independent MVN oracle", {
 
+  skip_if_not_certification(
+    "The MVN-oracle comparison runs in the numerical-kernels case."
+  )
   reference_loglik <- function(y, mu, covariance, sei, omega, z_lower,
                                z_upper, obs_bin, sign) {
     assignments <- expand.grid(rep(list(seq_along(omega)), length(y)))
@@ -1323,6 +1327,9 @@ test_that("latent fit data distinguish independent rows from rows without loadin
 
 test_that("forest supports above rank four integrate deterministically", {
 
+  skip_if_not_certification(
+    "The rank-five forest integration runs in the numerical-kernels case."
+  )
   # The nested rule expands one axis per tree level, so a forest support costs
   # `order^(depth + 1)` however many factors it carries. These blocks are what
   # exact recovery and declared cluster loadings produce above rank four.
@@ -1399,6 +1406,9 @@ test_that("forest supports above rank four integrate deterministically", {
 
 test_that("the factor node budget, not the rank, bounds the deterministic ladder", {
 
+  skip_if_not_certification(
+    "The deterministic-ladder budget check runs in the numerical-kernels case."
+  )
   K           <- 8L
   residual_sd <- rep(.35, K)
   mu          <- seq(-.25, .35, length.out = K)

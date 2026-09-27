@@ -1,5 +1,7 @@
 context("Hypothesis plans: one eligibility source for hypothesis() and hypothesis_quantities()")
 
+source(testthat::test_path("common-functions.R"))
+
 # Small single-chain fits: every expectation is either an identity on the
 # same posterior draws, an analytic prior ordinate, or a Monte Carlo
 # comparison with its error stated.
@@ -104,8 +106,13 @@ test_that("hypothesis_quantities() renders the plans that hypothesis() executes"
 
   skip_on_cran()
   fits <- .plan_fits()
+  # Every refusal is checked in both profiles. The qCMDE/IWMDE ordinates of
+  # admitted statements are numerical computations; they run in the
+  # certification profile (case 'iwmde-qcmde').
   for (name in names(fits)) {
-    .expect_plans_consistent(fits[[name]], info = name)
+    .expect_plans_consistent(
+      fits[[name]], info = name, run_precomputed = is_certification_profile()
+    )
   }
   fixtures <- list(
     gated     = gated_random_object(),

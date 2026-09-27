@@ -508,11 +508,13 @@ test_that("certification case verification filters select their intended files",
     "numerical-kernels" = c(
       "00-covariance-factorization", "00-known-v-joint-loglik",
       paste0("00-selection-kernel-", c("fit", "native", "plots", "step", "threads")),
-      "00-selection-probability-numerics", "02-distributions", "02-glmm-aghq"
+      "00-selection-probability-numerics", "00-selection-factor-routing",
+      "00-selection-estimate-cells", "02-distributions", "02-glmm-aghq"
     ),
     "normal-models" = c(
       "02-dfbetas", "02-forest", "02-funnel", "02-hatvalues", "02-influence",
-      "02-iwmde-fast-paths", "02-marginal_means", plots, "02-predict",
+      "02-iwmde-fast-paths", "02-iwmde-normal-predictor-grid",
+      "02-marginal_means", plots, "02-predict",
       "02-qqnorm", "02-radial", "02-regplot", "02-residuals", summaries,
       "02-vif", "03-bridgesampling", "03-loo", "03-zplot"
     ),
@@ -533,7 +535,7 @@ test_that("certification case verification filters select their intended files",
     "multivariate-parity-har"       = multivariate,
     "multivariate-parity-treatment" = multivariate,
     "iwmde-qcmde" = c(
-      "02-hypothesis",
+      "00-hypothesis-plan", "02-hypothesis",
       paste0("02-iwmde-", c(
         "adaptive", "api", "bound-rows", "chen-boundary-preflight",
         "fallbacks", "fast-paths", "glmm-local", "known-v-tau-fast-path",
