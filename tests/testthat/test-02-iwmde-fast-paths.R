@@ -4077,6 +4077,32 @@ test_that("multilevel weightfunction location fast path declines for joint selec
 })
 
 
+# The IWMDE dispatcher on one batch, counting the evaluations of the cluster
+# selected-normal location grid it asks for on the way.
+.iwmde_dispatch_counting_cluster_grid <- function(context, parameter, values,
+                                                  row_states, replacement) {
+
+  calls <- 0L
+  original <- .log_lik_cluster_selnorm_location_grid
+  testthat::local_mocked_bindings(
+    .log_lik_cluster_selnorm_location_grid = function(...) {
+      calls <<- calls + 1L
+      original(...)
+    },
+    .package = "RoBMA"
+  )
+  log_q <- .iwmde_log_q_grid(
+    context     = context,
+    parameter   = parameter,
+    values      = values,
+    row_states  = row_states,
+    replacement = replacement
+  )
+
+  return(list(log_q = log_q, cluster_grid_calls = calls))
+}
+
+
 test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   skip_if_not_certification(
@@ -4084,12 +4110,18 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
   )
 
   # A multilevel selection model integrating its random effects: every row
-  # likelihood is marginal and takes the location fast path.
+  # likelihood is marginal. Its fitted selection model is the joint model, so
+  # the cluster selected-normal location grid declines, and the dispatcher
+  # returns the scalar evaluation of the joint density.
   fit_name  <- "dat.lehmann2018-3PSM_3lvl_mods_marginal"
   parameter <- "mu_Preregistered"
   .skip_if_missing_raw_fits(fit_name)
 
   context <- .iwmde_context(load_fit(fit_name, validate = FALSE))
+
+  expect_true(.is_data_joint_selection(context[["data"]]))
+  expect_true(.is_data_multilevel(context[["data"]]))
+
   spec    <- .iwmde_parameter_spec(context, parameter, NULL)
   values  <- .iwmde_parameter_values(context, parameter, spec)
   finite  <- is.finite(values)
@@ -4143,11 +4175,11 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     setup       = setup
   )
 
+  # The rows are eligible for the location fast path in every other respect.
   expect_false(is.null(basis))
-
   expect_false(isTRUE(basis[["formula_mu"]]))
   expect_true(is.matrix(basis[["mu_basis"]]))
-  location_fast <- .iwmde_log_q_grid_normal_location_group(
+  expect_null(.iwmde_log_q_grid_normal_location_group(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
@@ -4155,9 +4187,112 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     replacement = replacement,
     setup       = setup,
     basis       = basis
+  ))
+
+  dispatched <- .iwmde_dispatch_counting_cluster_grid(
+    context     = context,
+    parameter   = parameter,
+    values      = grid_values,
+    row_states  = row_states,
+    replacement = replacement
   )
-  expect_true(is.matrix(location_fast))
-  fast <- .iwmde_log_q_grid_predictor_group(
+  scalar <- .iwmde_log_q_grid_scalar(
+    context     = context,
+    parameter   = parameter,
+    values      = grid_values,
+    row_states  = row_states,
+    replacement = replacement
+  )
+  log_q <- dispatched[["log_q"]]
+
+  expect_identical(dispatched[["cluster_grid_calls"]], 0L)
+  expect_true(is.matrix(log_q))
+  expect_equal(dim(log_q), dim(scalar))
+  expect_equal(is.finite(log_q), is.finite(scalar))
+  finite_terms <- is.finite(log_q) & is.finite(scalar)
+  expect_true(any(finite_terms))
+  expect_equal(log_q[finite_terms], scalar[finite_terms], tolerance = 1e-8)
+})
+
+
+test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster selection fits", {
+
+  skip_if_not_certification(
+    "This regression test fits a small multilevel selection model."
+  )
+  skip_if_not_installed("metadat")
+
+  # Studies that contribute one estimate each: every cluster is a singleton,
+  # so the joint selection plan has only singleton blocks and the dispatcher
+  # evaluates the batched predictor route. Integrating the cluster effects
+  # makes every row likelihood marginal, which that route requires. The
+  # cluster selected-normal location grid would evaluate the per-estimate
+  # selected normal instead of the fitted joint model.
+  data(dat.lehmann2018, package = "metadat", envir = environment())
+  citations <- table(dat.lehmann2018[["Full_Citation"]])
+  single    <- dat.lehmann2018[
+    dat.lehmann2018[["Full_Citation"]] %in% names(citations)[citations == 1L],
+  ]
+  fit <- bselmodel(
+    yi = yi, vi = vi, mods = ~ Preregistered, cluster = Full_Citation,
+    data = single, measure = "SMD",
+    selection = selection_model(other_random_effects = "integrate"),
+    chains = 2, sample = 500, burnin = 250, adapt = 250, seed = 1,
+    silent = TRUE,
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL, min_ESS = NULL, max_error = NULL, max_SD_error = NULL
+    )
+  )
+
+  expect_true(.is_data_joint_selection(fit[["data"]]))
+  expect_true(.is_data_multilevel(fit[["data"]]))
+  expect_identical(
+    unique(.data_selection_execution_plan(fit[["data"]])[["block_methods"]]),
+    "singleton"
+  )
+
+  context   <- .iwmde_context(fit)
+  parameter <- "mu_Preregistered"
+  spec      <- .iwmde_parameter_spec(context, parameter, NULL)
+  values    <- .iwmde_parameter_values(context, parameter, spec)
+  component <- .iwmde_parameter_components(context, parameter, spec)
+  active    <- component[["active"]] & is.finite(values)
+  rows      <- head(which(active), 3L)
+  row_states  <- .iwmde_row_states(context, rows, parameter, spec)
+  replacement <- .iwmde_replacement_spec(context, parameter, spec)
+
+  expect_length(row_states, 3L)
+  expect_identical(
+    vapply(row_states, `[[`, character(1), "likelihood_mode"),
+    rep("marginal", 3L)
+  )
+
+  # At each row's own value (delta 0) the dispatcher returns the row's
+  # baseline joint log density.
+  current <- vapply(row_states, function(state) {
+    state[["row"]][[parameter]]
+  }, numeric(1))
+  baseline <- vapply(row_states, `[[`, numeric(1), "baseline_log_q")
+  at_current <- .iwmde_dispatch_counting_cluster_grid(
+    context     = context,
+    parameter   = parameter,
+    values      = current,
+    row_states  = row_states,
+    replacement = replacement
+  )
+
+  expect_true(all(is.finite(baseline)))
+  expect_identical(at_current[["cluster_grid_calls"]], 0L)
+  expect_lt(max(abs(diag(at_current[["log_q"]]) - baseline)), 1e-8)
+
+  # On a grid of other values it returns the scalar joint log density.
+  grid_values <- as.numeric(stats::quantile(
+    values[active],
+    probs = c(.25, .50, .75),
+    names = FALSE,
+    type  = 8
+  ))
+  on_grid <- .iwmde_dispatch_counting_cluster_grid(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
@@ -4172,12 +4307,10 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     replacement = replacement
   )
 
-  expect_true(is.matrix(fast))
-  expect_equal(dim(fast), dim(scalar))
-  expect_equal(is.finite(fast), is.finite(scalar))
-  finite_terms <- is.finite(fast) & is.finite(scalar)
-  expect_true(any(finite_terms))
-  expect_equal(fast[finite_terms], scalar[finite_terms], tolerance = 1e-8)
+  expect_identical(on_grid[["cluster_grid_calls"]], 0L)
+  expect_identical(dim(on_grid[["log_q"]]), dim(scalar))
+  expect_true(all(is.finite(scalar)))
+  expect_lt(max(abs(on_grid[["log_q"]] - scalar)), 1e-8)
 })
 
 

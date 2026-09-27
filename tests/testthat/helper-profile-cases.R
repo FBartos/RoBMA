@@ -304,7 +304,10 @@ certification_cases <- function() {
       required_tests = rbind(
         .required_tests(
           "test-02-iwmde-fast-paths.R",
-          "multilevel weightfunction formula path matches scalar fallback"
+          c(
+            "multilevel weightfunction formula path matches scalar fallback",
+            "IWMDE dispatcher evaluates the joint density of singleton-cluster selection fits"
+          )
         ),
         .iwmde_fast_required_tests()
       )
