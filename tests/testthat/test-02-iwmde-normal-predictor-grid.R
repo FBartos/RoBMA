@@ -386,7 +386,8 @@ test_that("the log-tau intercept basis matches the generic formula evaluator", {
     list(
       x        = as.numeric(line[["posterior_density"]][["x"]]),
       y        = as.numeric(line[["posterior_density"]][["y"]]),
-      ordinate = as.numeric(point[["posterior_ordinate"]][["ordinate"]])
+      ordinate = as.numeric(point[["posterior_ordinate"]][["ordinate"]]),
+      density  = line[["diagnostics"]][["density"]]
     )
   }
 
@@ -439,6 +440,7 @@ test_that("the scale model's `tau` density line matches the generic evaluator", 
 
   parameter <- "log_tau_intercept"
   served    <- character()
+  rejected  <- character()
 
   for (fit_name in fit_names) {
     object <- tryCatch(load_fit(fit_name, validate = FALSE), error = function(e) NULL)
@@ -465,6 +467,26 @@ test_that("the scale model's `tau` density line matches the generic evaluator", 
     }
     batched <- estimates[["batched"]]
     generic <- estimates[["generic"]]
+
+    # A model-averaged scale model spreads the fixed 200 estimator rows over
+    # several active states, below the density minimum for such lines; the
+    # estimator then rejects the line on both routes and returns none, so there
+    # is no line to compare. Anything else that empties a line fails here.
+    if (length(batched[["y"]]) == 0L || length(generic[["y"]]) == 0L) {
+      for (route in list(batched, generic)) {
+        diagnostics <- route[["density"]][["diagnostics"]]
+        expect_length(route[["y"]], 0L)
+        expect_identical(route[["density"]][["status"]], "ok",
+                         info = paste0(label, ": rejected, not unavailable"))
+        expect_false(is.null(.iwmde_diagnostics_density_failure_reason(diagnostics)),
+                     info = paste0(label, ": rejected by diagnostics"))
+        expect_gt(diagnostics[["n_active_state_keys"]], 1)
+        expect_lt(diagnostics[["n_estimator_rows"]],
+                  .iwmde_density_min_estimator_rows())
+      }
+      rejected <- c(rejected, label)
+      next
+    }
 
     expect_identical(batched[["x"]], generic[["x"]],
                      info = paste0(label, ": display grid"))
@@ -494,6 +516,10 @@ test_that("the scale model's `tau` density line matches the generic evaluator", 
           "No cached scale-regression fixture carries a log-tau intercept basis.")
   cat("\n`tau` density line, batched vs generic:\n  ",
       paste(served, collapse = "\n  "), "\n", sep = "")
+  if (length(rejected)) {
+    cat("rejected by the density diagnostics on both routes:\n  ",
+        paste(rejected, collapse = "\n  "), "\n", sep = "")
+  }
 })
 
 
