@@ -164,10 +164,18 @@
   }
   fit <- withCallingHandlers(do.call(bselmodel.mv, args), warning = acknowledge)
   # Fitting does not compute the optional sensitivity comparison: request and
-  # store it explicitly, which also emits its notification.
+  # store it explicitly, which also emits its notification. Its results do
+  # not depend on the native thread count; one thread keeps its many small
+  # row batches from inheriting the parallel fit's 'max_cores' threads, which
+  # made each conditional comparison over ten times slower.
   if (!is.null(fit[["fit"]])) {
-    fit <- withCallingHandlers(add_selection_sensitivity_diagnostics(fit),
-                               warning = acknowledge)
+    previous_threads <- RoBMA.get_option("native_threads")
+    RoBMA.options(native_threads = 1L)
+    fit <- tryCatch(
+      withCallingHandlers(add_selection_sensitivity_diagnostics(fit),
+                          warning = acknowledge),
+      finally = RoBMA.options(native_threads = previous_threads)
+    )
   }
   expected <- character()
   diagnostic <- fit[["selection_sensitivity_diagnostics"]]
