@@ -791,6 +791,16 @@
                                                                  setup, basis,
                                                                  active_setup) {
 
+  # The cluster location grid evaluates the per-estimate selected normal
+  # inside the quadrature over the cluster effect: each estimate carries its
+  # own selection normalizer conditional on that effect. A fitted selection
+  # model is the joint model instead, which normalizes the selection event of
+  # the whole block, so this grid would evaluate a different likelihood.
+  # Declining keeps such rows on the generic evaluation of the joint model.
+  if (.is_data_joint_selection(context[["data"]])) {
+    return(NULL)
+  }
+
   selection_context <- .iwmde_selection_context_active_branch(
     context           = context,
     active_setup      = active_setup,

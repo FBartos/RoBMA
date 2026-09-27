@@ -3999,6 +3999,84 @@ test_that("multilevel weightfunction location fast path dispatches to cluster se
 })
 
 
+test_that("multilevel weightfunction location fast path declines for joint selection models", {
+
+  # The cluster selected-normal grid normalizes every estimate's selection
+  # conditional on the cluster effect. A fitted selection model is the joint
+  # model, which normalizes the selection event of the whole block, so its
+  # rows must keep the generic evaluation of the joint density.
+  data <- list(outcome = data.frame(yi = c(.10, .20), sei = c(.20, .25), cluster = 1:2))
+  attr(data, "outcome_type")     <- "norm"
+  attr(data, "effect_direction") <- "positive"
+  attr(data, "cluster")          <- TRUE
+  attr(data, "selection_model")  <- structure(
+    list(schema_version = 3L),
+    class = "RoBMA_selection_model"
+  )
+
+  values <- c(-.10, .30)
+  setup <- list(
+    yi                = c(.10, .20),
+    sei               = c(.20, .25),
+    mu                = matrix(c(.05, .10, .15, .20), nrow = 2L, byrow = TRUE),
+    tau_within        = matrix(.20, nrow = 2L, ncol = 2L),
+    tau_between       = matrix(.10, nrow = 2L, ncol = 2L),
+    cluster           = list(`1` = 1L, `2` = 2L),
+    posterior_samples = matrix(0, nrow = 2L, ncol = 1L)
+  )
+  basis <- list(
+    formula_mu      = FALSE,
+    formula_logtau  = FALSE,
+    scale_update    = "none",
+    log_tau_basis   = NULL,
+    mu_basis        = matrix(1, nrow = 2L, ncol = 2L),
+    current         = c(0, .10)
+  )
+  active_setup <- list(is_weightfunction = TRUE)
+  row_states <- lapply(seq_len(2L), function(row) {
+    list(row_index = row, active_setup = active_setup)
+  })
+  calls <- character()
+
+  testthat::local_mocked_bindings(
+    .iwmde_selection_context_active_branch = function(...) {
+      calls <<- c(calls, "selection context")
+      list(marker = TRUE)
+    },
+    .log_lik_cluster_selnorm_location_grid = function(...) {
+      calls <<- c(calls, "cluster selected-normal grid")
+      matrix(0, nrow = length(values), ncol = 2L)
+    },
+    .iwmde_predictor_log_prior = function(...) {
+      calls <<- c(calls, "log prior")
+      numeric(length(values) * 2L)
+    },
+    .package = "RoBMA"
+  )
+
+  expect_null(.iwmde_log_q_grid_normal_location_group(
+    context     = list(data = data),
+    parameter   = "mu",
+    values      = values,
+    row_states  = row_states,
+    replacement = list(type = "scalar"),
+    setup       = setup,
+    basis       = basis
+  ))
+  expect_null(.iwmde_log_q_grid_selnorm_multilevel_location_group(
+    context      = list(data = data),
+    parameter    = "mu",
+    values       = values,
+    row_states   = row_states,
+    replacement  = list(type = "scalar"),
+    setup        = setup,
+    basis        = basis,
+    active_setup = active_setup
+  ))
+  expect_identical(calls, character())
+})
+
+
 test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   skip_if_not_certification(
