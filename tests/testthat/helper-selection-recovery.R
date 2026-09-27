@@ -146,6 +146,13 @@
     "%. Retaining and integrating the specified contexts define different reporting models. ",
     "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications."
   )
+  # Conditioning on every source of a fixed-effects model retains each
+  # outcome, so the selection weights cancel (see the simulator).
+  cancel_message <- paste0(
+    "All applicable variation sources are set to 'condition'. ",
+    "Selection weights cancel, so the model uses the ordinary Gaussian likelihood ",
+    "without adjustment by the weight function."
+  )
   captured <- list()
   acknowledge <- function(condition) {
     message <- conditionMessage(condition)
@@ -154,6 +161,8 @@
                  message, nchar(sensitivity_prefix) + 1L,
                  nchar(message) - nchar(sensitivity_suffix)))) {
       "sensitivity"
+    } else if (identical(message, cancel_message)) {
+      "cancel"
     } else NULL
     # Only one complete expected condition is acknowledged. Duplicates and
     # every other warning retain their ordinary testthat diagnostic handling.
@@ -178,6 +187,9 @@
     )
   }
   expected <- character()
+  if (target == "cond" && !random) {
+    expected[["cancel"]] <- cancel_message
+  }
   diagnostic <- fit[["selection_sensitivity_diagnostics"]]
   if (!is.null(fit[["fit"]]) && is.null(diagnostic)) {
     expect_s3_class(diagnostic, "selection_sensitivity_diagnostics")
