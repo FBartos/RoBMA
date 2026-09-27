@@ -105,6 +105,10 @@ precision diagnostics lost to underflow/overflow are unavailable, not zero
 error or proof of convergence. Retaining a log estimate does not authorize a
 Bayes factor: the existing finite-positive ordinate requirement is unchanged.
 Legacy tables remain inspectable with unknown new fields set to \code{NA}.
+A hypothesis result without attached diagnostics, such as one whose point
+ordinates were estimated with \code{density_method = "KDE"} or one without a
+point hypothesis, stops with the class
+\code{RoBMA_density_diagnostics_unavailable}.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 below 100, the largest contribution share is at least 20 percent, or fewer

@@ -771,6 +771,11 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
     conditional    = TRUE
   ))
   expect_true(is.finite(attr(contrast, "raw_BF")))
+  # A KDE result carries no qCMDE/IWMDE density diagnostics.
+  expect_error(
+    density_diagnostics(contrast),
+    class = "RoBMA_density_diagnostics_unavailable"
+  )
   aliased_contrast <- suppressWarnings(hypothesis(
     fit,
     "Preregistered[Pre-Registered] = Preregistered[Not Pre-Registered]",

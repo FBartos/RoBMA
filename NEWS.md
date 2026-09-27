@@ -503,7 +503,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     bulk, and failed point computations are kept with their reason. The
     diagnostics never change the estimator's row sample. Estimation fails
     when a selected row lacks a valid normalizer, proposal density, or
-    finite contribution.
+    finite contribution. Results without attached diagnostics (KDE
+    ordinates, tests without a point hypothesis) stop with the class
+    `RoBMA_density_diagnostics_unavailable`.
   - supported targets are fitted coefficients and factor levels (on the
     displayed coefficient scale, through the exact fitted-to-original
     transform), marginal means, and the random-component quantities of

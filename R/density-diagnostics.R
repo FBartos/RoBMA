@@ -56,6 +56,10 @@
 #' error or proof of convergence. Retaining a log estimate does not authorize a
 #' Bayes factor: the existing finite-positive ordinate requirement is unchanged.
 #' Legacy tables remain inspectable with unknown new fields set to `NA`.
+#' A hypothesis result without attached diagnostics, such as one whose point
+#' ordinates were estimated with `density_method = "KDE"` or one without a
+#' point hypothesis, stops with the class
+#' `RoBMA_density_diagnostics_unavailable`.
 #'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 #' below 100, the largest contribution share is at least 20 percent, or fewer
@@ -212,8 +216,32 @@ density_diagnostics.BayesTools_hypothesis_BF <- function(object, ...) {
     caller  = "density_diagnostics()"
   )
   diagnostics <- attr(object, "density_diagnostics", exact = TRUE)
+  if (is.null(diagnostics)) {
+    .density_diagnostics_stop_unavailable()
+  }
 
   return(.density_diagnostics_validate(diagnostics))
+}
+
+
+# A hypothesis result carries density diagnostics only when a qCMDE/IWMDE
+# point ordinate was computed: KDE ordinates and tests without a point
+# hypothesis attach none.
+.density_diagnostics_stop_unavailable <- function() {
+
+  stop(structure(
+    list(
+      message = paste0(
+        "Density diagnostics are unavailable: the hypothesis result has no ",
+        "qCMDE/IWMDE point ordinate, as with 'density_method = \"KDE\"' or a ",
+        "test without a point hypothesis. For a point hypothesis, use ",
+        "'density_method = \"qCMDE\"' or 'density_method = \"IWMDE\"' in ",
+        "hypothesis()."
+      ),
+      call    = NULL
+    ),
+    class = c("RoBMA_density_diagnostics_unavailable", "error", "condition")
+  ))
 }
 
 

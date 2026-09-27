@@ -288,3 +288,23 @@ test_that("transformed hypotheses preserve early typed errors on the displayed s
   expect_identical(displayed[["evaluation_value"]], 4)
   expect_equal(displayed[["log_ordinate"]], -1000 - log(4), tolerance = 1e-14)
 })
+
+test_that("hypothesis results without attached diagnostics have none available", {
+
+  # KDE ordinates, and tests without a point hypothesis, attach no
+  # qCMDE/IWMDE density diagnostics to the hypothesis result.
+  result <- structure(
+    data.frame(Alternative = "mu = 0", Null = "mu != 0", BF = 1),
+    class = c("BayesTools_table", "BayesTools_hypothesis_BF", "data.frame")
+  )
+  expect_error(
+    density_diagnostics(result),
+    class = "RoBMA_density_diagnostics_unavailable"
+  )
+
+  # An attached table outside the public schema remains a different error.
+  attr(result, "density_diagnostics") <- data.frame(x = 1)
+  error <- tryCatch(density_diagnostics(result), error = identity)
+  expect_s3_class(error, "error")
+  expect_false(inherits(error, "RoBMA_density_diagnostics_unavailable"))
+})
