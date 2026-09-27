@@ -147,7 +147,7 @@
     "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications."
   )
   captured <- list()
-  fit <- withCallingHandlers(do.call(bselmodel.mv, args), warning = function(condition) {
+  acknowledge <- function(condition) {
     message <- conditionMessage(condition)
     kind <- if (startsWith(message, sensitivity_prefix) &&
                endsWith(message, sensitivity_suffix) && grepl("^[0-9]+\\.[0-9]$", substring(
@@ -161,7 +161,14 @@
       captured[[kind]] <<- condition
       invokeRestart("muffleWarning")
     }
-  })
+  }
+  fit <- withCallingHandlers(do.call(bselmodel.mv, args), warning = acknowledge)
+  # Fitting does not compute the optional sensitivity comparison: request and
+  # store it explicitly, which also emits its notification.
+  if (!is.null(fit[["fit"]])) {
+    fit <- withCallingHandlers(add_selection_sensitivity_diagnostics(fit),
+                               warning = acknowledge)
+  }
   expected <- character()
   diagnostic <- fit[["selection_sensitivity_diagnostics"]]
   if (!is.null(fit[["fit"]]) && is.null(diagnostic)) {
