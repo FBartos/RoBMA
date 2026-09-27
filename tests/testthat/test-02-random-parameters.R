@@ -34,6 +34,23 @@ source(testthat::test_path("common-functions.R"))
   )
 }
 
+# The label of the fit's one random-effect quantity of catalog type
+# 'quantity' (e.g. "cor" -> "rho" or "treatment: rho").
+.random_parameter_catalog_label <- function(fit, quantity) {
+
+  specs <- .brma_random_parameter_bundle(fit)[["specs"]]
+  label <- specs[["label"]][specs[["quantity"]] == quantity]
+  if (length(label) != 1L) {
+    stop(
+      "The fit has ", length(label), " random-effect catalog quantities of ",
+      "type '", quantity, "'; expected one.",
+      call. = FALSE
+    )
+  }
+
+  return(label)
+}
+
 .random_parameter_weights <- function(S, K) {
 
   positions <- seq_len(S)
@@ -262,13 +279,15 @@ test_that("random point hypotheses follow quantity-specific policy", {
       "brma.mv_v14_begg1989_study_treatment",
       validate = FALSE
     )
+    mixed_label      <- .random_parameter_catalog_label(fit_mixed, "cor")
     mixed_quantities <- hypothesis_quantities(fit_mixed)
     mixed_rho <- mixed_quantities[
-      mixed_quantities[["alias"]] == "treatment: cor" &
+      mixed_quantities[["alias"]] == mixed_label &
         mixed_quantities[["component"]] == "random",
       ,
       drop = FALSE
     ]
+    expect_identical(nrow(mixed_rho), 1L)
     expect_false(any(mixed_rho[["point_test"]]))
     expect_false(any(mixed_rho[["direction_test"]]))
     expect_true(all(grepl("fixed by the fitted model", mixed_rho[["reason"]],
@@ -276,10 +295,10 @@ test_that("random point hypotheses follow quantity-specific policy", {
     expect_error(
       hypothesis(
         fit_mixed,
-        .random_parameter_hypothesis("treatment: cor", "=", 0, "!="),
+        .random_parameter_hypothesis(mixed_label, "=", 0, "!="),
         component = "random", n_samples = 1000, seed = 23
       ),
-      "contains a point mass"
+      class = "RoBMA_hypothesis_fixed"
     )
   }
 
@@ -447,17 +466,18 @@ test_that("fixed and unavailable random influence targets are explicit", {
   fit     <- load_fit("brma.mv_v14_begg1989_study_treatment", validate = FALSE)
   bundle  <- .brma_random_parameter_bundle(fit)
   weights <- .random_parameter_weights(nrow(bundle[["samples"]]), nobs(fit))
+  label   <- .random_parameter_catalog_label(fit, "cor")
 
   dfb <- dfbetas(
     fit,
     component = "random",
-    parameter = "treatment: cor",
+    parameter = label,
     .weights  = weights
   )
   covr <- covratio(
     fit,
     component = "random",
-    parameter = "treatment: cor",
+    parameter = label,
     .weights  = weights
   )
   expect_true(all(is.nan(as.matrix(dfb))))
@@ -634,8 +654,8 @@ test_that("random prior overlays and diagnostic labels are semantic", {
     expect_s3_class(
       plot(
         fixed,
-        parameter = "treatment: cor", component = "random", prior = TRUE,
-        plot_type = "ggplot"
+        parameter = .random_parameter_catalog_label(fixed, "cor"),
+        component = "random", prior = TRUE, plot_type = "ggplot"
       ),
       "ggplot"
     )

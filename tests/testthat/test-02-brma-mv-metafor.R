@@ -58,6 +58,23 @@ info <- lazy_infos(c(mv_fixed_metafor_fit_name, mv_known_r_metafor_fit_name,
   heterogeneity[["estimates"]][row, "Mean"]
 }
 
+# The summary label of the fit's one random-effect quantity of catalog type
+# 'quantity' (e.g. "cor" -> "rho" or "treatment: rho").
+.mv_random_catalog_label <- function(name, quantity) {
+
+  specs <- .brma_random_parameter_bundle(fits[[name]])[["specs"]]
+  label <- specs[["label"]][specs[["quantity"]] == quantity]
+  if (length(label) != 1L) {
+    stop(
+      name, " has ", length(label), " random-effect catalog quantities of ",
+      "type '", quantity, "'; expected one.",
+      call. = FALSE
+    )
+  }
+
+  return(label)
+}
+
 .expect_close_abs <- function(observed, expected, tolerance, label) {
 
   expect_true(
@@ -299,7 +316,7 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_konstantopoulos2011_cs",
       component = "district",
-      row       = "sd",
+      row       = "tau",
       expected  = function(m) sqrt(m[["tau2"]]),
       tolerance = 0.05
     ),
@@ -313,14 +330,14 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "study",
-      row       = "sd",
+      row       = "tau",
       expected  = function(m) sqrt(m[["sigma2"]][[1]]),
       tolerance = 0.05
     ),
     list(
       name      = "brma.mv_v14_assink2016_nested",
       component = "esid_study",
-      row       = "sd",
+      row       = "tau",
       expected  = function(m) sqrt(m[["sigma2"]][[2]]),
       tolerance = 0.05
     ),
@@ -369,14 +386,14 @@ test_that("v14 brma.mv heterogeneity components match metafor references", {
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
       component = "study",
-      row       = "sd",
+      row       = "tau",
       expected  = function(m) sqrt(m[["sigma2"]][[1]]),
       tolerance = 0.06
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
       component = "treatment",
-      row       = "sd",
+      row       = "tau",
       expected  = function(m) sqrt(m[["tau2"]]),
       tolerance = 0.06
     )
@@ -454,19 +471,19 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
   cases <- list(
     list(
       name      = "brma.mv_v14_konstantopoulos2011_cs",
-      row       = "cor",
+      quantity  = "cor",
       expected  = function(m) m[["rho"]],
       tolerance = 0.12
     ),
     list(
       name      = "brma.mv_v14_ishak2007_har",
-      row       = "cor",
+      quantity  = "cor",
       expected  = function(m) m[["rho"]],
       tolerance = 0.12
     ),
     list(
       name      = "brma.mv_v14_begg1989_study_treatment",
-      row       = "treatment: cor",
+      quantity  = "cor",
       expected  = function(m) m[["rho"]],
       tolerance = 1e-12
     )
@@ -475,14 +492,15 @@ test_that("v14 brma.mv random-covariance parameters match metafor references", {
 
   for (case in cases) {
     name     <- case[["name"]]
-    observed <- .mv_summary_mean(name, "estimates_random", case[["row"]])
+    row      <- .mv_random_catalog_label(name, case[["quantity"]])
+    observed <- .mv_summary_mean(name, "estimates_random", row)
     expected <- case[["expected"]](.mv_metafor(name))
 
     .expect_close_abs(
       observed  = observed,
       expected  = expected,
       tolerance = case[["tolerance"]],
-      label     = paste(name, case[["row"]])
+      label     = paste(name, row)
     )
   }
 })
