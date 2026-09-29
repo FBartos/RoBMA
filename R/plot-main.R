@@ -161,7 +161,9 @@
 #' coefficients, such as the exponentiated intercept of a scale formula with
 #' standardized predictors; use `standardized_coefficients = TRUE`).
 #' [hypothesis()] refuses qCMDE/IWMDE for the same causes with these classes
-#' after its own.
+#' after its own. [plot_prior()] stops with `RoBMA_density_method_original_scale`
+#' for the prior of a term with several fitted coordinates whose original-scale
+#' coordinates the standardization changes (see there).
 #'
 #' A returned qCMDE/IWMDE estimate that fails the density availability
 #' checks raises a `RoBMA_density_plot_error` identifying the plotted parameter.

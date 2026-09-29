@@ -1817,6 +1817,8 @@
   # The formula columns are named as BayesTools names formula terms.
   parameter <- BayesTools::JAGS_parameter_names(selected[["label"]])
   if (!parameter %in% formula_info[["column_names"]]) {
+    # A term with several fitted coordinates is plotted as its fitted prior.
+    .plot_prior_check_coordinates_unchanged(formula_info, parameter, selected)
     return(NULL)
   }
 
@@ -1856,6 +1858,53 @@
   )
 
   return(plot)
+}
+
+# A term with several fitted coordinates ('<coefficient>[k]', e.g., a factor
+# with three or more levels) is plotted as its fitted prior. That is its
+# original-scale prior only when the standardization leaves every coordinate
+# unchanged (BayesTools::plot_transformed_prior() returns NULL for an identity
+# transform): a factor next to its interaction with a standardized predictor
+# is shifted by the interaction coordinates, and an interaction with a
+# standardized predictor is rescaled, so the original-scale coordinates are
+# not the fitted prior. Those requests stop with the original-scale
+# refusal of qCMDE/IWMDE requests (class "RoBMA_density_method_original_scale"
+# and its parent) instead of showing the standardized prior.
+.plot_prior_check_coordinates_unchanged <- function(
+    formula_info, parameter, selected) {
+
+  column_names <- formula_info[["column_names"]]
+  prefix       <- paste0(parameter, "[")
+  coordinates  <- column_names[
+    startsWith(column_names, prefix) &
+      grepl("^[0-9]+\\]$", substring(column_names, nchar(prefix) + 1L))
+  ]
+
+  for (coordinate in coordinates) {
+    transformed <- BayesTools::plot_transformed_prior(
+      prior_list    = formula_info[["prior_list"]],
+      column_names  = column_names,
+      formula_scale = formula_info[["formula_scale"]],
+      parameter     = coordinate,
+      n_points      = 2L,
+      plot_type     = "ggplot"
+    )
+    if (!is.null(transformed)) {
+      .iwmde_stop_unavailable(.iwmde_unavailable(
+        reason = paste0(
+          "The original-scale prior of '", selected[["term"]], "' is ",
+          "unavailable: the standardization of continuous predictors changes ",
+          "its fitted coordinates (for a factor, through its interaction ",
+          "with a standardized predictor). Use ",
+          "'standardized_coefficients = TRUE' to plot the prior on the ",
+          "standardized scale."
+        ),
+        type   = "original_scale"
+      ))
+    }
+  }
+
+  return(invisible(NULL))
 }
 
 .plot_prior_formula_info <- function(object, selected) {

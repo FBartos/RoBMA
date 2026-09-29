@@ -579,6 +579,17 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     which `hypothesis()` gives them too, and a `parameter_mods` or
     `parameter_scale` selection of another component with
     `RoBMA_component_mismatch`.
+  - `plot_prior(standardized_coefficients = FALSE)` stops for the prior of a
+    term with several fitted coordinates (a factor with three or more
+    levels) whose original-scale coordinates the standardization of
+    continuous predictors changes: a factor next to its interaction with a
+    standardized predictor, and that interaction term. The error has the
+    classes `RoBMA_density_method_original_scale` and
+    `RoBMA_density_method_unavailable` and points to
+    `standardized_coefficients = TRUE`; it replaces the standardized-scale
+    prior that was plotted silently. Terms whose coordinates are unchanged
+    (factors without such an interaction, factor-by-factor interactions) and
+    two-level factors plot as before.
   - `transform = "EXP"` applies to individual log-scale ratio
     meta-regression coefficients and to scale-regression coefficients (as
     multiplicative changes in heterogeneity), and `transform = "LOG"` to

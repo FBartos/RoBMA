@@ -231,6 +231,127 @@ test_that("plot_prior shows original-scale coefficients next to multi-level fact
   }
 })
 
+test_that("plot_prior refuses original-scale plots that would show the standardized prior", {
+
+  skip_on_cran()
+
+  # A factor with three or more levels has the fitted coordinates
+  # '<term>[k]'. Next to its interaction with a standardized predictor 'x', the
+  # original-scale factor coordinates are the fitted ones minus m / s times the
+  # interaction coordinates (m and s are the mean and sd of 'x'), and the
+  # interaction coordinates are rescaled by 1 / s; the prior of the term alone
+  # is then not its original-scale prior. It stops with the original-scale
+  # refusal instead of plotting the standardized prior. Terms whose coordinates
+  # the standardization leaves unchanged keep their plot.
+  interaction_data <- data.frame(
+    effect  = c(0.10, 0.25, 0.15, 0.30, 0.05, 0.20, 0.12, 0.40, 0.22, 0.18, 0.09, 0.31),
+    std_err = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03, 0.05, 0.04, 0.07, 0.05, 0.06, 0.04, 0.05)),
+    x       = c(1.5, 2.3, 1.8, 3.1, 0.9, 2.0, 4.2, 2.7, 3.3, 1.1, 2.9, 0.4),
+    f2      = factor(rep(c("x", "y"), 6)),
+    f3      = factor(rep(c("A", "B", "C"), 4)),
+    g3      = factor(rep(c("u", "v", "w"), each = 4)),
+    stringsAsFactors = FALSE
+  )
+  fit_priors <- function(fun, ...) {
+    suppressWarnings(fun(
+      yi = effect, sei = std_err, data = interaction_data, measure = "SMD",
+      only_priors = TRUE, ...
+    ))
+  }
+  unavailable_classes <- c(
+    "RoBMA_density_method_original_scale",
+    "RoBMA_density_method_unavailable",
+    "error", "condition"
+  )
+  unavailable_message <- function(term) {
+    paste0(
+      "The original-scale prior of '", term, "' is unavailable: the ",
+      "standardization of continuous predictors changes its fitted ",
+      "coordinates (for a factor, through its interaction with a ",
+      "standardized predictor). Use 'standardized_coefficients = TRUE' to ",
+      "plot the prior on the standardized scale."
+    )
+  }
+  expect_refused <- function(expr, term, info) {
+    error <- tryCatch(expr, error = identity)
+    expect_identical(class(error), unavailable_classes, info = info)
+    expect_identical(conditionMessage(error), unavailable_message(term), info = info)
+    expect_null(conditionCall(error), info = info)
+  }
+  original_plot <- function(priors, ...) {
+    plot_prior(priors, ..., standardized_coefficients = FALSE, plot_type = "ggplot")
+  }
+  standardized_plot <- function(priors, ...) {
+    plot_prior(priors, ..., standardized_coefficients = TRUE, plot_type = "ggplot")
+  }
+  layer_xy <- function(plot) {
+    ggplot2::layer_data(plot, 1)[c("x", "y")]
+  }
+
+  for (contrast in c("treatment", "meandif", "orthonormal")) {
+    # a factor interacted with a standardized predictor: the factor and the
+    # interaction term are refused on the original scale, the other terms are
+    # transformed as before
+    priors <- fit_priors(
+      brma, mods = ~ f3 * x, set_contrast_factor_predictors = contrast
+    )
+    expect_refused(original_plot(priors, parameter_mods = "f3"), "f3", contrast)
+    expect_refused(original_plot(priors, parameter = "f3"), "f3", contrast)
+    expect_refused(original_plot(priors, parameter_mods = "f3:x"), "f3:x", contrast)
+    .with_temp_plot_device(expect_refused(
+      plot_prior(priors, parameter_mods = "f3", standardized_coefficients = FALSE),
+      "f3", contrast
+    ))
+    expect_true(.is_ggplot(standardized_plot(priors, parameter_mods = "f3")), info = contrast)
+    expect_true(.is_ggplot(plot_prior(priors, parameter_mods = "f3", plot_type = "ggplot")), info = contrast)
+    expect_true(.is_ggplot(standardized_plot(priors, parameter_mods = "f3:x")), info = contrast)
+    expect_true(.is_ggplot(original_plot(priors, parameter_mods = "x")), info = contrast)
+    expect_true(.is_ggplot(original_plot(priors, parameter = "mu")), info = contrast)
+
+    # coordinates that the standardization leaves unchanged: the fitted prior
+    # is the original-scale prior and is plotted as before
+    unchanged <- list(
+      list(formula = ~ f3 + x,      terms = "f3"),
+      list(formula = ~ f3 * g3,     terms = c("f3", "f3:g3")),
+      list(formula = ~ f3 * g3 + x, terms = c("f3", "f3:g3"))
+    )
+    for (case in unchanged) {
+      priors <- fit_priors(
+        brma, mods = case[["formula"]], set_contrast_factor_predictors = contrast
+      )
+      for (term in case[["terms"]]) {
+        info     <- paste(contrast, deparse(case[["formula"]]), term)
+        original <- original_plot(priors, parameter_mods = term)
+        expect_true(.is_ggplot(original), info = info)
+        expect_equal(
+          layer_xy(original),
+          layer_xy(standardized_plot(priors, parameter_mods = term)),
+          info = info
+        )
+      }
+    }
+  }
+
+  # a factor with two levels is one coordinate and is transformed as before
+  priors <- fit_priors(brma, mods = ~ f2 * x)
+  two_level <- original_plot(priors, parameter_mods = "f2")
+  expect_true(.is_ggplot(two_level))
+  expect_false(isTRUE(all.equal(
+    layer_xy(two_level), layer_xy(standardized_plot(priors, parameter_mods = "f2"))
+  )))
+
+  # a scale formula and a model-averaged (mixture) prior follow the same rule
+  priors <- fit_priors(brma, scale = ~ f3 * x)
+  expect_refused(original_plot(priors, parameter_scale = "f3"), "f3", "scale")
+  expect_refused(original_plot(priors, parameter = "f3", component = "scale"), "f3", "scale")
+  priors <- fit_priors(brma, scale = ~ f3 + x)
+  expect_true(.is_ggplot(original_plot(priors, parameter_scale = "f3")))
+  priors <- fit_priors(BMA, mods = ~ f3 * x)
+  expect_refused(original_plot(priors, parameter = "f3"), "f3", "BMA")
+  priors <- fit_priors(BMA, mods = ~ f3 + x)
+  expect_true(.is_ggplot(original_plot(priors, parameter = "f3")))
+})
+
 test_that("plot_prior selects brma.mv location and component-scale priors", {
 
   skip_on_cran()

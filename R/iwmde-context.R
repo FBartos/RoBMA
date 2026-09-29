@@ -159,7 +159,10 @@
 # coordinate), and "original_scale" (an original-scale coefficient or factor
 # cell that is no linear combination of its fitted coordinates, e.g. an
 # exp(affine) scale intercept); hypothesis() refuses the same causes with
-# its own classes followed by these classes as well.
+# its own classes followed by these classes as well. plot_prior() refuses
+# "original_scale" for a term with several fitted coordinates whose
+# original-scale coordinates the standardization changes
+# (.plot_prior_check_coordinates_unchanged()).
 .iwmde_unavailable <- function(reason, type) {
 
   list(
