@@ -3977,6 +3977,39 @@ test_that("multilevel weightfunction location fast path declines for joint selec
 })
 
 
+# The IWMDE dispatcher on one batch, counting how often it falls back to the
+# generic sample-row evaluation and to the scalar (value, row) evaluation, so a
+# test can require that a batched route served the grid: a dispatcher that
+# fell back to the scalar reference would otherwise match it trivially.
+.iwmde_dispatch_counting_fallbacks <- function(context, parameter, values,
+                                               row_states, replacement) {
+
+  calls        <- c(from_samples = 0L, scalar = 0L)
+  from_samples <- .iwmde_log_q_grid_from_samples
+  scalar       <- .iwmde_log_q_grid_scalar
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid_from_samples = function(...) {
+      calls[["from_samples"]] <<- calls[["from_samples"]] + 1L
+      from_samples(...)
+    },
+    .iwmde_log_q_grid_scalar = function(...) {
+      calls[["scalar"]] <<- calls[["scalar"]] + 1L
+      scalar(...)
+    },
+    .package = "RoBMA"
+  )
+  log_q <- .iwmde_log_q_grid(
+    context     = context,
+    parameter   = parameter,
+    values      = values,
+    row_states  = row_states,
+    replacement = replacement
+  )
+
+  return(list(log_q = log_q, calls = calls))
+}
+
+
 test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   skip_if_not_certification(
@@ -3985,8 +4018,9 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   # A multilevel selection model integrating its random effects: every row
   # likelihood is marginal. Its fitted selection model is the joint model, so
-  # the location fast path declines, and the dispatcher returns the scalar
-  # evaluation of the joint density.
+  # the location fast path declines, and the dispatcher evaluates the joint
+  # density on its batched sample-row route, which must equal the scalar
+  # evaluation.
   fit_name  <- "dat.lehmann2018-3PSM_3lvl_mods_marginal"
   parameter <- "mu_Preregistered"
   .skip_if_missing_raw_fits(fit_name)
@@ -4063,13 +4097,18 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     basis       = basis
   ))
 
-  log_q <- .iwmde_log_q_grid(
+  # The dispatcher serves the grid from its batched sample-row route, never
+  # from the scalar fallback that is the reference below.
+  dispatched <- .iwmde_dispatch_counting_fallbacks(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
     row_states  = row_states,
     replacement = replacement
   )
+  log_q <- dispatched[["log_q"]]
+  expect_gt(dispatched[["calls"]][["from_samples"]], 0L)
+  expect_identical(dispatched[["calls"]][["scalar"]], 0L)
   scalar <- .iwmde_log_q_grid_scalar(
     context     = context,
     parameter   = parameter,
@@ -4145,7 +4184,9 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
     state[["row"]][[parameter]]
   }, numeric(1))
   baseline <- vapply(row_states, `[[`, numeric(1), "baseline_log_q")
-  at_current <- .iwmde_log_q_grid(
+  # The batched predictor route serves both grids: neither the generic
+  # sample-row evaluation nor the scalar fallback runs.
+  at_current <- .iwmde_dispatch_counting_fallbacks(
     context     = context,
     parameter   = parameter,
     values      = current,
@@ -4153,8 +4194,9 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
     replacement = replacement
   )
 
+  expect_identical(at_current[["calls"]], c(from_samples = 0L, scalar = 0L))
   expect_true(all(is.finite(baseline)))
-  expect_lt(max(abs(diag(at_current) - baseline)), 1e-8)
+  expect_lt(max(abs(diag(at_current[["log_q"]]) - baseline)), 1e-8)
 
   # On a grid of other values it returns the scalar joint log density.
   grid_values <- as.numeric(stats::quantile(
@@ -4163,13 +4205,16 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
     names = FALSE,
     type  = 8
   ))
-  on_grid <- .iwmde_log_q_grid(
+  dispatched <- .iwmde_dispatch_counting_fallbacks(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
     row_states  = row_states,
     replacement = replacement
   )
+  on_grid <- dispatched[["log_q"]]
+
+  expect_identical(dispatched[["calls"]], c(from_samples = 0L, scalar = 0L))
   scalar <- .iwmde_log_q_grid_scalar(
     context     = context,
     parameter   = parameter,
