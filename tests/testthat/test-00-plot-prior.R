@@ -247,6 +247,7 @@ test_that("plot_prior refuses original-scale plots that would show the standardi
     effect  = c(0.10, 0.25, 0.15, 0.30, 0.05, 0.20, 0.12, 0.40, 0.22, 0.18, 0.09, 0.31),
     std_err = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03, 0.05, 0.04, 0.07, 0.05, 0.06, 0.04, 0.05)),
     x       = c(1.5, 2.3, 1.8, 3.1, 0.9, 2.0, 4.2, 2.7, 3.3, 1.1, 2.9, 0.4),
+    z       = c(0.3, -0.2, 0.8, 0.1, -0.5, 0.4, 0.9, -0.1, 0.2, 0.6, -0.3, 0.7),
     f2      = factor(rep(c("x", "y"), 6)),
     f3      = factor(rep(c("A", "B", "C"), 4)),
     g3      = factor(rep(c("u", "v", "w"), each = 4)),
@@ -350,6 +351,43 @@ test_that("plot_prior refuses original-scale plots that would show the standardi
   expect_refused(original_plot(priors, parameter = "f3"), "f3", "BMA")
   priors <- fit_priors(BMA, mods = ~ f3 + x)
   expect_true(.is_ggplot(original_plot(priors, parameter = "f3")))
+
+  # further dependencies on standardized predictors (treatment contrasts):
+  # several standardized predictors in one interaction, and a factor-by-factor
+  # interaction inside a three-way term with a standardized predictor; the
+  # terms outside such interactions keep the fitted prior
+  further <- list(
+    list(formula = ~ f3 * x * z,       refused = c("f3", "f3:x", "f3:z", "f3:x:z"), unchanged = character()),
+    list(formula = ~ f3 + x * z,       refused = character(),                        unchanged = "f3"),
+    list(formula = ~ f3 * g3 * x,      refused = c("f3", "g3", "f3:g3", "f3:g3:x"),  unchanged = character()),
+    list(formula = ~ f3 * g3 + g3 * x, refused = c("g3", "g3:x"),                    unchanged = c("f3", "f3:g3"))
+  )
+  for (case in further) {
+    priors <- fit_priors(brma, mods = case[["formula"]])
+    for (term in case[["refused"]]) {
+      expect_refused(
+        original_plot(priors, parameter_mods = term), term,
+        paste(deparse(case[["formula"]]), term)
+      )
+    }
+    for (term in case[["unchanged"]]) {
+      info <- paste(deparse(case[["formula"]]), term)
+      expect_equal(
+        layer_xy(original_plot(priors, parameter_mods = term)),
+        layer_xy(standardized_plot(priors, parameter_mods = term)),
+        info = info
+      )
+    }
+  }
+
+  # a two-level factor with independent contrasts has two fitted coordinates
+  priors <- fit_priors(brma, mods = ~ f2 * x, set_contrast_factor_predictors = "independent")
+  expect_refused(original_plot(priors, parameter_mods = "f2"), "f2", "independent")
+  priors <- fit_priors(brma, mods = ~ f2 + x, set_contrast_factor_predictors = "independent")
+  expect_equal(
+    layer_xy(original_plot(priors, parameter_mods = "f2")),
+    layer_xy(standardized_plot(priors, parameter_mods = "f2"))
+  )
 })
 
 test_that("plot_prior selects brma.mv location and component-scale priors", {
