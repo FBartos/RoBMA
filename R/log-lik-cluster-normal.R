@@ -210,40 +210,27 @@
 # .log_lik_cluster_norm_quadrature
 # ---------------------------------------------------------------------------- #
 #
-# Gamma-quadrature cluster-unit likelihood for selected-normal models and
-# data-weighted normal models. Conditional on gamma, per-estimate likelihood
-# contributions factorize.
+# Gamma-quadrature cluster-unit likelihood for data-weighted normal models.
+# Conditional on gamma, per-estimate likelihood contributions factorize.
+# Selection models use the joint selection likelihood instead.
 #
 # ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm_quadrature <- function(setup, yi, sei,
-                                             is_weightfunction,
-                                             selection_context = NULL,
-                                             n_gamma = NULL) {
+.log_lik_cluster_norm_quadrature <- function(setup, yi, sei, n_gamma = NULL) {
 
-  if (.has_native_norm_cluster_quadrature(selection = is_weightfunction)) {
+  if (.has_native_norm_cluster_quadrature()) {
     return(.log_lik_cluster_norm_quadrature_native(
-      setup             = setup,
-      yi                = yi,
-      sei               = sei,
-      is_weightfunction = is_weightfunction,
-      selection_context = selection_context,
-      n_gamma           = n_gamma
+      setup   = setup,
+      yi      = yi,
+      sei     = sei,
+      n_gamma = n_gamma
     ))
-  }
-  if (is_weightfunction) {
-    stop(
-      "Certified selected-normal cluster quadrature requires the native RoBMA kernel.",
-      call. = FALSE
-    )
   }
 
   return(.log_lik_cluster_norm_quadrature_r(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = is_weightfunction,
-    selection_context = selection_context,
-    n_gamma           = n_gamma
+    setup   = setup,
+    yi      = yi,
+    sei     = sei,
+    n_gamma = n_gamma
   ))
 }
 
@@ -253,64 +240,19 @@
 # .log_lik_cluster_norm_quadrature_native
 # ---------------------------------------------------------------------------- #
 #
-# Native batched implementation for normal and selected-normal cluster
-# likelihoods.
+# Native batched implementation of the normal cluster likelihood.
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_cluster_norm_quadrature_native <- function(setup, yi, sei,
-                                                    is_weightfunction,
-                                                    selection_context = NULL,
                                                     n_gamma = NULL) {
 
-  gh      <- if (is_weightfunction) {
-    .selnorm_cluster_quadrature_rules()
-  } else {
-    n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
-    .gauss_hermite_nodes(n_gamma)
-  }
+  n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
+  gh      <- .gauss_hermite_nodes(n_gamma)
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
   weights <- if (is.null(setup[["weights"]])) {
     NULL
   } else {
     .native_numeric_vector(setup[["weights"]])
-  }
-
-  if (is_weightfunction) {
-    if (is.null(selection_context)) {
-      stop("Selection context is required for selected-normal cluster likelihood.",
-           call. = FALSE)
-    }
-    native_static <- BayesTools::selection_native_static_args(selection_context)
-
-    return(.Call(
-      "RoBMA_selnorm_cluster_loglik",
-      .native_numeric_vector(yi),
-      .native_numeric_vector(sei),
-      .native_numeric_matrix(setup[["mu"]]),
-      .native_numeric_matrix(setup[["tau_within"]]),
-      .native_numeric_matrix(setup[["tau_between"]]),
-      cluster[["index"]],
-      cluster[["size"]],
-      weights,
-      .native_numeric_vector(gh[["nodes"]]),
-      .native_numeric_vector(gh[["log_weights"]]),
-      .native_numeric_matrix(selection_context[["omega"]]),
-      .native_numeric_vector(selection_context[["alpha"]]),
-      .native_integer_vector(selection_context[["phack_kind"]]),
-      .native_integer_vector(selection_context[["kernel_mode"]]),
-      native_static[["z_lower"]],
-      native_static[["z_upper"]],
-      .native_integer_vector(selection_context[["obs_bin"]]),
-      native_static[["sign"]],
-      native_static[["phack_q"]],
-      native_static[["phack_z_source"]],
-      native_static[["phack_z_dest"]],
-      native_static[["segment_bounds"]],
-      native_static[["segment_step_bin"]],
-      native_static[["segment_phack_region"]],
-      native_static[["telescope_probabilities"]],
-      PACKAGE = "RoBMA"
-    ))
   }
 
   return(.Call(
@@ -331,73 +273,24 @@
 
 
 .log_lik_cluster_norm_quadrature_sum <- function(setup, yi, sei,
-                                                 is_weightfunction,
-                                                 selection_context = NULL,
                                                  n_gamma = NULL) {
 
-  if (!.has_native_norm_loglik_row_sum(
-    selection = is_weightfunction,
-    cluster   = TRUE
-  )) {
+  if (!.has_native_norm_cluster_quadrature(row_sum = TRUE)) {
     return(rowSums(.log_lik_cluster_norm_quadrature(
-      setup             = setup,
-      yi                = yi,
-      sei               = sei,
-      is_weightfunction = is_weightfunction,
-      selection_context = selection_context,
-      n_gamma           = n_gamma
+      setup   = setup,
+      yi      = yi,
+      sei     = sei,
+      n_gamma = n_gamma
     )))
   }
 
-  gh      <- if (is_weightfunction) {
-    .selnorm_cluster_quadrature_rules()
-  } else {
-    n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
-    .gauss_hermite_nodes(n_gamma)
-  }
+  n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
+  gh      <- .gauss_hermite_nodes(n_gamma)
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
   weights <- if (is.null(setup[["weights"]])) {
     NULL
   } else {
     .native_numeric_vector(setup[["weights"]])
-  }
-
-  if (is_weightfunction) {
-    if (is.null(selection_context)) {
-      stop("Selection context is required for selected-normal cluster likelihood.",
-           call. = FALSE)
-    }
-    native_static <- BayesTools::selection_native_static_args(selection_context)
-
-    return(.Call(
-      "RoBMA_selnorm_cluster_loglik_row_sum",
-      .native_numeric_vector(yi),
-      .native_numeric_vector(sei),
-      .native_numeric_matrix(setup[["mu"]]),
-      .native_numeric_matrix(setup[["tau_within"]]),
-      .native_numeric_matrix(setup[["tau_between"]]),
-      cluster[["index"]],
-      cluster[["size"]],
-      weights,
-      .native_numeric_vector(gh[["nodes"]]),
-      .native_numeric_vector(gh[["log_weights"]]),
-      .native_numeric_matrix(selection_context[["omega"]]),
-      .native_numeric_vector(selection_context[["alpha"]]),
-      .native_integer_vector(selection_context[["phack_kind"]]),
-      .native_integer_vector(selection_context[["kernel_mode"]]),
-      native_static[["z_lower"]],
-      native_static[["z_upper"]],
-      .native_integer_vector(selection_context[["obs_bin"]]),
-      native_static[["sign"]],
-      native_static[["phack_q"]],
-      native_static[["phack_z_source"]],
-      native_static[["phack_z_dest"]],
-      native_static[["segment_bounds"]],
-      native_static[["segment_step_bin"]],
-      native_static[["segment_phack_region"]],
-      native_static[["telescope_probabilities"]],
-      PACKAGE = "RoBMA"
-    ))
   }
 
   return(.Call(
@@ -417,73 +310,15 @@
 }
 
 
-.log_lik_cluster_selnorm_location_grid <- function(setup, yi, sei, basis,
-                                                   current, values,
-                                                   selection_context) {
-
-  if (!.has_native_selnorm_cluster_location_grid()) {
-    return(NULL)
-  }
-  if (is.null(selection_context)) {
-    return(NULL)
-  }
-
-  gh      <- .selnorm_cluster_quadrature_rules()
-  cluster <- .cluster_indices_flatten(setup[["cluster"]])
-  native_static <- BayesTools::selection_native_static_args(selection_context)
-  weights <- if (is.null(setup[["weights"]])) {
-    NULL
-  } else {
-    .native_numeric_vector(setup[["weights"]])
-  }
-
-  return(.Call(
-    "RoBMA_selnorm_cluster_location_grid",
-    .native_numeric_vector(yi),
-    .native_numeric_vector(sei),
-    .native_numeric_matrix(setup[["mu"]]),
-    .native_numeric_matrix(basis),
-    .native_numeric_vector(current),
-    .native_numeric_vector(values),
-    .native_numeric_matrix(setup[["tau_within"]]),
-    .native_numeric_matrix(setup[["tau_between"]]),
-    cluster[["index"]],
-    cluster[["size"]],
-    weights,
-    .native_numeric_vector(gh[["nodes"]]),
-    .native_numeric_vector(gh[["log_weights"]]),
-    .native_numeric_matrix(selection_context[["omega"]]),
-    .native_numeric_vector(selection_context[["alpha"]]),
-    .native_integer_vector(selection_context[["phack_kind"]]),
-    .native_integer_vector(selection_context[["kernel_mode"]]),
-    native_static[["z_lower"]],
-    native_static[["z_upper"]],
-    .native_integer_vector(selection_context[["obs_bin"]]),
-    native_static[["sign"]],
-    native_static[["phack_q"]],
-    native_static[["phack_z_source"]],
-    native_static[["phack_z_dest"]],
-    native_static[["segment_bounds"]],
-    native_static[["segment_step_bin"]],
-    native_static[["segment_phack_region"]],
-    native_static[["telescope_probabilities"]],
-    PACKAGE = "RoBMA"
-  ))
-}
-
-
 
 # ---------------------------------------------------------------------------- #
 # .log_lik_cluster_norm_quadrature_r
 # ---------------------------------------------------------------------------- #
 #
-# R-composed reference implementation for normal and selected-normal cluster
-# likelihoods.
+# R-composed reference implementation of the normal cluster likelihood.
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_cluster_norm_quadrature_r <- function(setup, yi, sei,
-                                               is_weightfunction,
-                                               selection_context = NULL,
                                                n_gamma = NULL) {
 
   n_gamma         <- .log_lik_cluster_norm_n_gamma(n_gamma)
@@ -495,19 +330,11 @@
   max_cells       <- 2e6
 
   for (g in seq_along(cluster_indices)) {
-    idx                 <- cluster_indices[[g]]
-    m                   <- length(idx)
-    log_terms           <- matrix(NA_real_, nrow = S, ncol = length(gh[["nodes"]]))
-    node_step           <- max(1L, floor(max_cells / max(S * m, 1L)))
-    node_step           <- min(node_step, length(gh[["nodes"]]))
-    selection_context_g <- if (is_weightfunction) {
-      BayesTools::selection_context_subset_observations(
-        context = selection_context,
-        idx     = idx
-      )
-    } else {
-      NULL
-    }
+    idx       <- cluster_indices[[g]]
+    m         <- length(idx)
+    log_terms <- matrix(NA_real_, nrow = S, ncol = length(gh[["nodes"]]))
+    node_step <- max(1L, floor(max_cells / max(S * m, 1L)))
+    node_step <- min(node_step, length(gh[["nodes"]]))
 
     for (start in seq(1L, length(gh[["nodes"]]), by = node_step)) {
       node_rows <- start:min(start + node_step - 1L, length(gh[["nodes"]]))
@@ -519,27 +346,12 @@
         gh[["nodes"]][node_rows][node_index] *
         setup[["tau_between"]][row_index, idx, drop = FALSE]
 
-      point_log_lik <- if (is_weightfunction) {
-        context_idx <- BayesTools::selection_context_subset_rows(
-          context = selection_context_g,
-          rows    = row_index
-        )
-
-        .outcome_pdf.selnorm(
-          yi                = yi[idx],
-          mu_samples        = mu_node,
-          tau_within        = setup[["tau_within"]][row_index, idx, drop = FALSE],
-          sei               = sei[idx],
-          selection_context = context_idx
-        )
-      } else {
-        .outcome_pdf.norm(
-          yi         = yi[idx],
-          mu_samples = mu_node,
-          tau_within = setup[["tau_within"]][row_index, idx, drop = FALSE],
-          sei        = sei[idx]
-        )
-      }
+      point_log_lik <- .outcome_pdf.norm(
+        yi         = yi[idx],
+        mu_samples = mu_node,
+        tau_within = setup[["tau_within"]][row_index, idx, drop = FALSE],
+        sei        = sei[idx]
+      )
       point_log_lik <- .apply_log_lik_weights(point_log_lik, setup[["weights"]][idx])
       log_terms[, node_rows] <- matrix(
         rowSums(point_log_lik),
@@ -567,16 +379,4 @@
     return(as.integer(n_gamma))
   }
   return(.get_cluster_likelihood_n_gamma())
-}
-
-
-.selnorm_cluster_quadrature_rules <- function() {
-
-  orders <- c(7L, 15L, 31L)
-  rules  <- lapply(orders, .gauss_hermite_nodes)
-
-  return(list(
-    nodes       = unlist(lapply(rules, `[[`, "nodes"), use.names = FALSE),
-    log_weights = unlist(lapply(rules, `[[`, "log_weights"), use.names = FALSE)
-  ))
 }

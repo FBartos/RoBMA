@@ -5,10 +5,51 @@ test_that("normal cluster quadrature fallback resolves its omitted order", {
     weights = c(2, 0.5))
   local_mocked_bindings(.has_native_norm_cluster_quadrature = function(...) FALSE,
                         .package = "RoBMA")
-  actual <- .log_lik_cluster_norm_quadrature(setup, c(0.1, -0.3), c(0.3, 0.4), FALSE)
+  actual <- .log_lik_cluster_norm_quadrature(setup, c(0.1, -0.3), c(0.3, 0.4))
   expected <- sum(dnorm(c(0.1, -0.3), 0, sqrt(c(0.3, 0.4)^2 + 0.2^2),
                         log = TRUE) * c(2, 0.5))
   expect_equal(actual, matrix(expected, 2L, 1L), tolerance = 1e-12)
+})
+
+test_that("cluster-unit likelihoods of selection models never reach the normal kernels", {
+
+  # A selection setup carries the fitted joint selection model, which the
+  # dispatchers evaluate first. Without it the normal cluster kernels would
+  # silently ignore the selection.
+  calls <- 0L
+  sentinel <- matrix(0, 1L, 1L)
+  local_mocked_bindings(
+    .log_lik_cluster_norm_quadrature     = function(...) {
+      calls <<- calls + 1L
+      sentinel
+    },
+    .log_lik_cluster_norm_quadrature_sum = function(...) {
+      calls <<- calls + 1L
+      sentinel
+    },
+    .package = "RoBMA"
+  )
+  setup <- function(is_weightfunction) {
+    list(
+      outcome_type      = "norm",
+      is_weightfunction = is_weightfunction,
+      effect_direction  = "positive",
+      yi                = 0.1,
+      sei               = 0.2,
+      weights           = 1,
+      data              = list()
+    )
+  }
+
+  # The same weighted setup without selection reaches the normal quadrature ...
+  expect_identical(.log_lik_cluster_from_setup(setup(FALSE)), sentinel)
+  expect_identical(.log_lik_cluster_sum_from_setup(setup(FALSE)), sentinel)
+  expect_identical(calls, 2L)
+
+  # ... and with selection it stops before either kernel.
+  expect_error(.log_lik_cluster_from_setup(setup(TRUE)))
+  expect_error(.log_lik_cluster_sum_from_setup(setup(TRUE)))
+  expect_identical(calls, 2L)
 })
 
 test_that("selection deletion rejects a nonfinite full event density", {

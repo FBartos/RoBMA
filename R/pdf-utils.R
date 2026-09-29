@@ -159,13 +159,15 @@
 
 
 
-.has_native_norm_cluster_quadrature <- function(selection = FALSE) {
+.has_native_norm_cluster_quadrature <- function(row_sum = FALSE) {
 
-  if (isTRUE(selection)) {
-    return(is.loaded("RoBMA_selnorm_cluster_loglik", PACKAGE = "RoBMA"))
+  symbol <- if (isTRUE(row_sum)) {
+    "RoBMA_norm_cluster_loglik_row_sum"
+  } else {
+    "RoBMA_norm_cluster_loglik"
   }
 
-  return(is.loaded("RoBMA_norm_cluster_loglik", PACKAGE = "RoBMA"))
+  return(is.loaded(symbol, PACKAGE = "RoBMA"))
 }
 
 
@@ -181,27 +183,13 @@
 }
 
 
-.has_native_norm_loglik_row_sum <- function(selection = FALSE,
-                                            cluster = FALSE) {
-
-  if (isTRUE(cluster)) {
-    if (isTRUE(selection)) {
-      return(is.loaded("RoBMA_selnorm_cluster_loglik_row_sum", PACKAGE = "RoBMA"))
-    }
-    return(is.loaded("RoBMA_norm_cluster_loglik_row_sum", PACKAGE = "RoBMA"))
-  }
+.has_native_norm_loglik_row_sum <- function(selection = FALSE) {
 
   if (isTRUE(selection)) {
     return(is.loaded("RoBMA_selnorm_kernel_loglik_row_sum", PACKAGE = "RoBMA"))
   }
 
   return(is.loaded("RoBMA_norm_loglik_row_sum", PACKAGE = "RoBMA"))
-}
-
-
-.has_native_selnorm_cluster_location_grid <- function() {
-
-  return(is.loaded("RoBMA_selnorm_cluster_location_grid", PACKAGE = "RoBMA"))
 }
 
 

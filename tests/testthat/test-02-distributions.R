@@ -232,11 +232,10 @@ test_that("analytic normal cluster likelihood agrees with unweighted quadrature"
     vi    = sei^2
   )
   quadrature <- .log_lik_cluster_norm_quadrature_r(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = FALSE,
-    n_gamma           = 61L
+    setup   = setup,
+    yi      = yi,
+    sei     = sei,
+    n_gamma = 61L
   )
 
   expect_equal(quadrature, analytic, tolerance = 1e-8)
@@ -289,7 +288,7 @@ test_that("native coercion helpers preserve matrix and vector shapes", {
 
 test_that("native normal cluster likelihood matches R quadrature", {
 
-  skip_if_not(.has_native_norm_cluster_quadrature(selection = FALSE))
+  skip_if_not(.has_native_norm_cluster_quadrature())
 
   set.seed(20260514)
   S <- 4
@@ -306,113 +305,28 @@ test_that("native normal cluster likelihood matches R quadrature", {
   sei <- c(.10, .12, .08, .20, .15)
 
   native <- .log_lik_cluster_norm_quadrature_native(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = FALSE,
-    n_gamma           = 5
+    setup   = setup,
+    yi      = yi,
+    sei     = sei,
+    n_gamma = 5
   )
   ref <- .log_lik_cluster_norm_quadrature_r(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = FALSE,
-    n_gamma           = 5
+    setup   = setup,
+    yi      = yi,
+    sei     = sei,
+    n_gamma = 5
   )
 
   expect_equal(native, ref, tolerance = 1e-12)
   expect_equal(
     .log_lik_cluster_norm_quadrature_sum(
-      setup             = setup,
-      yi                = yi,
-      sei               = sei,
-      is_weightfunction = FALSE,
-      n_gamma           = 5
+      setup   = setup,
+      yi      = yi,
+      sei     = sei,
+      n_gamma = 5
     ),
     rowSums(ref),
     tolerance = 1e-12
-  )
-})
-
-test_that("native selected-normal cluster likelihood matches high-order R quadrature", {
-
-  withr::local_seed(20260922)
-  skip_if_not(.has_native_norm_cluster_quadrature(selection = TRUE))
-
-  prior <- BayesTools::prior_weightfunction(
-    side    = "one-sided",
-    steps   = c(.025, .05),
-    weights = BayesTools::wf_fixed(c(1, .5, .25))
-  )
-  yi  <- c(.02, .15, -.05, .30, .08)
-  sei <- c(.10, .12, .08, .20, .15)
-  spec <- .selection_spec(
-    priors           = list(outcome = list(bias = prior)),
-    yi               = yi,
-    sei              = sei,
-    effect_direction = "positive"
-  )
-
-  S <- 4
-  K <- length(yi)
-  setup <- list(
-    S           = S,
-    mu          = matrix(c(
-      -.05, .00, .05, .10, .15,
-       .02, .08, .12, .18, .22,
-      -.10, .04, .09, .13, .19,
-       .05, .10, .15, .20, .25
-    ), nrow = S, byrow = TRUE),
-    tau_within  = matrix(runif(S * K, .04, .22), nrow = S, ncol = K),
-    tau_between = matrix(runif(S * K, .02, .18), nrow = S, ncol = K),
-    cluster     = list(a = c(1L, 3L), b = c(2L, 4L, 5L)),
-    weights     = c(1, .5, 1.25, 2, .75)
-  )
-  selection_context <- spec
-  selection_context[["omega"]] <- matrix(c(
-    1, .5, .25,
-    1, .7, .40,
-    1, .4, .20,
-    1, .8, .35
-  ), nrow = S, byrow = TRUE)
-  selection_context[["alpha"]]       <- rep(0, S)
-  selection_context[["phack_kind"]]  <- rep(0L, S)
-  selection_context[["kernel_mode"]] <- c(
-    SELKERNEL_STEP,
-    SELKERNEL_NORMAL,
-    SELKERNEL_STEP,
-    SELKERNEL_STEP
-  )
-
-  native <- .log_lik_cluster_norm_quadrature_native(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = TRUE,
-    selection_context = selection_context,
-    n_gamma           = 5
-  )
-  ref <- .log_lik_cluster_norm_quadrature_r(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    is_weightfunction = TRUE,
-    selection_context = selection_context,
-    n_gamma           = 61
-  )
-
-  expect_equal(native, ref, tolerance = 1e-3)
-  expect_equal(
-    .log_lik_cluster_norm_quadrature_sum(
-      setup             = setup,
-      yi                = yi,
-      sei               = sei,
-      is_weightfunction = TRUE,
-      selection_context = selection_context,
-      n_gamma           = 5
-    ),
-    rowSums(ref),
-    tolerance = 1e-3
   )
 })
 
@@ -819,9 +733,9 @@ test_that("native GLMM row-sum kernels match matrix likelihoods", {
 test_that("native log-sum-exp kernels propagate bad quadrature nodes", {
 
   skip_if_not(.has_native_glmm("bin"))
-  skip_if_not(.has_native_norm_cluster_quadrature(selection = FALSE))
+  skip_if_not(.has_native_norm_cluster_quadrature())
 
-  binom_out <- .Call(
+  binom_out <-.Call(
     "RoBMA_glmm_binom_marginal_loglik",
     .native_integer_vector(3L),
     .native_integer_vector(2L),

@@ -80,7 +80,7 @@
 .outcome_pdf_sum.norm <- function(yi, mu_samples, tau_within, sei,
                                   weights = NULL) {
 
-  if (.has_native_norm_loglik_row_sum(selection = FALSE, cluster = FALSE)) {
+  if (.has_native_norm_loglik_row_sum(selection = FALSE)) {
     weights_arg <- if (is.null(weights)) NULL else .native_numeric_vector(weights)
     return(.Call(
       "RoBMA_norm_loglik_row_sum",

@@ -1,4 +1,4 @@
-context("Multilevel selection model for the IWMDE location fast path")
+context("Multilevel selection model for the IWMDE dispatcher")
 
 source(testthat::test_path("common-functions.R"))
 
@@ -10,13 +10,13 @@ skip_refit_if_cached("iwmde-multilevel-selection")
 test_that("multilevel selection models integrating their random effects fit", {
 
   skip_if_not_certification(
-    "This fit certifies the IWMDE multilevel weightfunction location fast path."
+    "This fit certifies the IWMDE dispatcher on a multilevel selection model."
   )
   # The default selection model conditions on the cluster random effects, so
   # IWMDE evaluates their local conditional likelihood. Integrating them
-  # makes every row's likelihood marginal: formula coefficients then take
-  # the multilevel selected-normal location fast path, which
-  # test-02-iwmde-fast-paths.R compares with the scalar evaluation.
+  # makes every row's likelihood marginal: IWMDE then evaluates the joint
+  # selection density of these rows, which test-02-iwmde-fast-paths.R compares
+  # with the scalar evaluation.
   data(dat.lehmann2018, package = "metadat")
   fit <- bselmodel(
     yi = yi, vi = vi, mods = ~ Preregistered, cluster = Full_Citation,

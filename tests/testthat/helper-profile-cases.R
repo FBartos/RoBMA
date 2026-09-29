@@ -85,8 +85,6 @@ required_native_test_symbols <- function() {
     )),
     "RoBMA_norm_predictor_grid_loglik",
     "RoBMA_norm_cluster_analytic_loglik",
-    "RoBMA_selnorm_cluster_loglik",
-    "RoBMA_selnorm_cluster_location_grid",
     "RoBMA_selnorm_sampling_conditioned_batch",
     "RoBMA_selnorm_sampling_deletion_loglik_batch",
     "RoBMA_selnorm_gaussian_event_mass_batch",

@@ -2,6 +2,23 @@
 # Cluster-Unit Log-Likelihood Dispatch
 # ============================================================================ #
 
+# Selection models are always fitted with the joint selection model, which the
+# dispatchers below evaluate before reaching the normal cluster kernels. A
+# selection setup without it would silently drop the selection.
+.check_cluster_selection_is_joint <- function(is_weightfunction) {
+
+  if (isTRUE(is_weightfunction)) {
+    stop(
+      "Cluster-unit likelihoods of selection models require the fitted joint ",
+      "selection model.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
 .log_lik_cluster_from_setup <- function(setup) {
 
   outcome_type      <- setup[["outcome_type"]]
@@ -35,8 +52,9 @@
     return(.selection_joint_deletion_loglik_from_setup(setup, cluster_blocks))
   }
 
-  if (outcome_type == "norm" && !is_weightfunction &&
-      is.null(setup[["weights"]])) {
+  .check_cluster_selection_is_joint(is_weightfunction)
+
+  if (outcome_type == "norm" && is.null(setup[["weights"]])) {
     if (setup[["effect_direction"]] == "negative") {
       cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
       yi                    <- -yi
@@ -50,29 +68,15 @@
   }
 
   if (outcome_type == "norm") {
-    if (setup[["effect_direction"]] == "negative" && !is_weightfunction) {
+    if (setup[["effect_direction"]] == "negative") {
       cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
       yi                    <- -yi
     }
 
-    selection_context <- if (is_weightfunction) {
-      .selection_context_from_parts(
-        fit                  = setup[["fit"]],
-        data                 = setup[["data"]],
-        priors               = setup[["priors"]],
-        posterior_samples    = setup[["posterior_samples"]],
-        effect_direction     = setup[["effect_direction"]]
-      )
-    } else {
-      NULL
-    }
-
     return(.log_lik_cluster_norm_quadrature(
-      setup             = cluster_setup,
-      yi                = yi,
-      sei               = sei,
-      is_weightfunction = is_weightfunction,
-      selection_context = selection_context
+      setup = cluster_setup,
+      yi    = yi,
+      sei   = sei
     ))
   }
 
@@ -374,8 +378,9 @@
     return(.selection_joint_loglik_from_setup(setup))
   }
 
-  if (outcome_type == "norm" && !is_weightfunction &&
-      is.null(setup[["weights"]])) {
+  .check_cluster_selection_is_joint(is_weightfunction)
+
+  if (outcome_type == "norm" && is.null(setup[["weights"]])) {
     if (setup[["effect_direction"]] == "negative") {
       cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
       yi                    <- -yi
@@ -389,29 +394,15 @@
   }
 
   if (outcome_type == "norm") {
-    if (setup[["effect_direction"]] == "negative" && !is_weightfunction) {
+    if (setup[["effect_direction"]] == "negative") {
       cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
       yi                    <- -yi
     }
 
-    selection_context <- if (is_weightfunction) {
-      .selection_context_from_parts(
-        fit                  = setup[["fit"]],
-        data                 = setup[["data"]],
-        priors               = setup[["priors"]],
-        posterior_samples    = setup[["posterior_samples"]],
-        effect_direction     = setup[["effect_direction"]]
-      )
-    } else {
-      NULL
-    }
-
     return(.log_lik_cluster_norm_quadrature_sum(
-      setup             = cluster_setup,
-      yi                = yi,
-      sei               = sei,
-      is_weightfunction = is_weightfunction,
-      selection_context = selection_context
+      setup = cluster_setup,
+      yi    = yi,
+      sei   = sei
     ))
   }
 

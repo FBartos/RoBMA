@@ -586,16 +586,10 @@
     return(NULL)
   }
   if (is_weightfunction && .is_data_multilevel(context[["data"]])) {
-    return(.iwmde_log_q_grid_selnorm_multilevel_location_group(
-      context      = context,
-      parameter    = parameter,
-      values       = values,
-      row_states   = row_states,
-      replacement  = replacement,
-      setup        = setup,
-      basis        = basis,
-      active_setup = active_setup
-    ))
+    # A fitted multilevel selection model is the joint model, which normalizes
+    # the selection event of a whole block; no per-row location change is
+    # available for it. Its rows keep the generic evaluation of the joint density.
+    return(NULL)
   }
 
   likelihood_change <- .iwmde_normal_location_likelihood_change_cached(
@@ -780,86 +774,6 @@
   assign(key, likelihood_change, envir = cache)
 
   return(likelihood_change)
-}
-
-
-.iwmde_log_q_grid_selnorm_multilevel_location_group <- function(context,
-                                                                 parameter,
-                                                                 values,
-                                                                 row_states,
-                                                                 replacement,
-                                                                 setup, basis,
-                                                                 active_setup) {
-
-  # The cluster location grid evaluates the per-estimate selected normal
-  # inside the quadrature over the cluster effect: each estimate carries its
-  # own selection normalizer conditional on that effect. A fitted selection
-  # model is the joint model instead, which normalizes the selection event of
-  # the whole block, so this grid would evaluate a different likelihood.
-  # Declining keeps such rows on the generic evaluation of the joint model.
-  if (.is_data_joint_selection(context[["data"]])) {
-    return(NULL)
-  }
-
-  selection_context <- .iwmde_selection_context_active_branch(
-    context           = context,
-    active_setup      = active_setup,
-    posterior_samples = setup[["posterior_samples"]]
-  )
-  if (is.null(selection_context)) {
-    return(NULL)
-  }
-
-  log_prior <- .iwmde_predictor_log_prior(
-    context     = context,
-    parameter   = parameter,
-    values      = values,
-    row_states  = row_states,
-    replacement = replacement
-  )
-  if (is.null(log_prior) ||
-      length(log_prior) != length(values) * length(row_states)) {
-    return(NULL)
-  }
-
-  log_lik <- .log_lik_cluster_selnorm_location_grid(
-    setup             = setup,
-    yi                = setup[["yi"]],
-    sei               = setup[["sei"]],
-    basis             = basis[["mu_basis"]],
-    current           = basis[["current"]],
-    values            = values,
-    selection_context = selection_context
-  )
-  if (!is.matrix(log_lik) ||
-      nrow(log_lik) != length(values) ||
-      ncol(log_lik) != length(row_states)) {
-    return(NULL)
-  }
-  quadrature_change <- attr(
-    log_lik,
-    "quadrature_relative_change",
-    exact = TRUE
-  )
-
-  G          <- length(values)
-  S          <- length(row_states)
-  row_index  <- rep(seq_len(S), each = G)
-  grid_index <- rep(seq_len(G), times = S)
-  delta      <- values[grid_index] - basis[["current"]][row_index]
-  log_q      <- as.vector(log_lik) + log_prior
-  log_q[!is.finite(delta)] <- -Inf
-  out <- matrix(log_q, nrow = G, ncol = S)
-  if (!is.null(quadrature_change)) {
-    quadrature_change <- suppressWarnings(as.numeric(quadrature_change))
-    quadrature_change <- quadrature_change[is.finite(quadrature_change)]
-    if (length(quadrature_change) > 0L) {
-      attr(out, "max_quadrature_relative_change") <-
-        max(quadrature_change)
-    }
-  }
-
-  return(out)
 }
 
 

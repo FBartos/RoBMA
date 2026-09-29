@@ -3914,97 +3914,11 @@ test_that("selected-normal location changes preserve sampling thresholds", {
 })
 
 
-test_that("multilevel weightfunction location fast path dispatches to cluster selected-normal grid", {
-
-  yi  <- c(.10, .20)
-  sei <- c(.20, .25)
-  data <- list(outcome = data.frame(yi = yi, sei = sei, cluster = c(1L, 1L)))
-  attr(data, "outcome_type")     <- "norm"
-  attr(data, "effect_direction") <- "positive"
-  attr(data, "cluster")          <- TRUE
-
-  values <- c(-.10, .30)
-  setup <- list(
-    yi                = yi,
-    sei               = sei,
-    mu                = matrix(c(.05, .10, .15, .20), nrow = 2L, byrow = TRUE),
-    tau_within        = matrix(.20, nrow = 2L, ncol = 2L),
-    tau_between       = matrix(.10, nrow = 2L, ncol = 2L),
-    cluster           = list(`1` = 1:2),
-    posterior_samples = matrix(0, nrow = 2L, ncol = 1L)
-  )
-  basis <- list(
-    formula_mu      = FALSE,
-    formula_logtau  = FALSE,
-    scale_update    = "none",
-    log_tau_basis   = NULL,
-    mu_basis        = matrix(1, nrow = 2L, ncol = 2L),
-    current         = c(0, .10)
-  )
-  row_states <- lapply(seq_len(2L), function(row) {
-    list(
-      row_index    = row,
-      active_setup = list(is_weightfunction = TRUE)
-    )
-  })
-  log_lik <- matrix(c(1, 2, 3, 4), nrow = length(values))
-  log_prior <- c(.1, .2, .3, .4)
-  captured <- NULL
-
-  testthat::local_mocked_bindings(
-    .iwmde_selection_context_active_branch = function(context, active_setup,
-                                                      posterior_samples) {
-
-      list(marker = TRUE)
-    },
-    .log_lik_cluster_selnorm_location_grid = function(setup, yi, sei, basis,
-                                                      current, values,
-                                                      selection_context) {
-
-      captured <<- list(
-        yi                = yi,
-        sei               = sei,
-        basis             = basis,
-        current           = current,
-        values            = values,
-        selection_context = selection_context
-      )
-      log_lik
-    },
-    .iwmde_predictor_log_prior = function(context, parameter, values,
-                                          row_states, replacement) {
-
-      log_prior
-    },
-    .package = "RoBMA"
-  )
-
-  fast <- .iwmde_log_q_grid_normal_location_group(
-    context     = list(data = data),
-    parameter   = "mu",
-    values      = values,
-    row_states  = row_states,
-    replacement = list(type = "scalar"),
-    setup       = setup,
-    basis       = basis
-  )
-
-  expect_equal(fast, log_lik + matrix(log_prior, nrow = length(values)))
-  expect_equal(captured[["yi"]], yi)
-  expect_equal(captured[["sei"]], sei)
-  expect_equal(captured[["basis"]], basis[["mu_basis"]])
-  expect_equal(captured[["current"]], basis[["current"]])
-  expect_equal(captured[["values"]], values)
-  expect_true(isTRUE(captured[["selection_context"]][["marker"]]))
-})
-
-
 test_that("multilevel weightfunction location fast path declines for joint selection models", {
 
-  # The cluster selected-normal grid normalizes every estimate's selection
-  # conditional on the cluster effect. A fitted selection model is the joint
-  # model, which normalizes the selection event of the whole block, so its
-  # rows must keep the generic evaluation of the joint density.
+  # A fitted selection model is the joint model, which normalizes the
+  # selection event of the whole block, so its rows must keep the generic
+  # evaluation of the joint density.
   data <- list(outcome = data.frame(yi = c(.10, .20), sei = c(.20, .25), cluster = 1:2))
   attr(data, "outcome_type")     <- "norm"
   attr(data, "effect_direction") <- "positive"
@@ -4043,10 +3957,6 @@ test_that("multilevel weightfunction location fast path declines for joint selec
       calls <<- c(calls, "selection context")
       list(marker = TRUE)
     },
-    .log_lik_cluster_selnorm_location_grid = function(...) {
-      calls <<- c(calls, "cluster selected-normal grid")
-      matrix(0, nrow = length(values), ncol = 2L)
-    },
     .iwmde_predictor_log_prior = function(...) {
       calls <<- c(calls, "log prior")
       numeric(length(values) * 2L)
@@ -4063,44 +3973,8 @@ test_that("multilevel weightfunction location fast path declines for joint selec
     setup       = setup,
     basis       = basis
   ))
-  expect_null(.iwmde_log_q_grid_selnorm_multilevel_location_group(
-    context      = list(data = data),
-    parameter    = "mu",
-    values       = values,
-    row_states   = row_states,
-    replacement  = list(type = "scalar"),
-    setup        = setup,
-    basis        = basis,
-    active_setup = active_setup
-  ))
   expect_identical(calls, character())
 })
-
-
-# The IWMDE dispatcher on one batch, counting the evaluations of the cluster
-# selected-normal location grid it asks for on the way.
-.iwmde_dispatch_counting_cluster_grid <- function(context, parameter, values,
-                                                  row_states, replacement) {
-
-  calls <- 0L
-  original <- .log_lik_cluster_selnorm_location_grid
-  testthat::local_mocked_bindings(
-    .log_lik_cluster_selnorm_location_grid = function(...) {
-      calls <<- calls + 1L
-      original(...)
-    },
-    .package = "RoBMA"
-  )
-  log_q <- .iwmde_log_q_grid(
-    context     = context,
-    parameter   = parameter,
-    values      = values,
-    row_states  = row_states,
-    replacement = replacement
-  )
-
-  return(list(log_q = log_q, cluster_grid_calls = calls))
-}
 
 
 test_that("multilevel weightfunction formula path matches scalar fallback", {
@@ -4111,8 +3985,8 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
 
   # A multilevel selection model integrating its random effects: every row
   # likelihood is marginal. Its fitted selection model is the joint model, so
-  # the cluster selected-normal location grid declines, and the dispatcher
-  # returns the scalar evaluation of the joint density.
+  # the location fast path declines, and the dispatcher returns the scalar
+  # evaluation of the joint density.
   fit_name  <- "dat.lehmann2018-3PSM_3lvl_mods_marginal"
   parameter <- "mu_Preregistered"
   .skip_if_missing_raw_fits(fit_name)
@@ -4189,7 +4063,7 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     basis       = basis
   ))
 
-  dispatched <- .iwmde_dispatch_counting_cluster_grid(
+  log_q <- .iwmde_log_q_grid(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
@@ -4203,9 +4077,7 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
     row_states  = row_states,
     replacement = replacement
   )
-  log_q <- dispatched[["log_q"]]
 
-  expect_identical(dispatched[["cluster_grid_calls"]], 0L)
   expect_true(is.matrix(log_q))
   expect_equal(dim(log_q), dim(scalar))
   expect_equal(is.finite(log_q), is.finite(scalar))
@@ -4225,9 +4097,9 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
   # Studies that contribute one estimate each: every cluster is a singleton,
   # so the joint selection plan has only singleton blocks and the dispatcher
   # evaluates the batched predictor route. Integrating the cluster effects
-  # makes every row likelihood marginal, which that route requires. The
-  # cluster selected-normal location grid would evaluate the per-estimate
-  # selected normal instead of the fitted joint model.
+  # makes every row likelihood marginal, which that route requires. A
+  # per-estimate selected normal would be a different likelihood than the
+  # fitted joint model.
   data(dat.lehmann2018, package = "metadat", envir = environment())
   citations <- table(dat.lehmann2018[["Full_Citation"]])
   single    <- dat.lehmann2018[
@@ -4273,7 +4145,7 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
     state[["row"]][[parameter]]
   }, numeric(1))
   baseline <- vapply(row_states, `[[`, numeric(1), "baseline_log_q")
-  at_current <- .iwmde_dispatch_counting_cluster_grid(
+  at_current <- .iwmde_log_q_grid(
     context     = context,
     parameter   = parameter,
     values      = current,
@@ -4282,8 +4154,7 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
   )
 
   expect_true(all(is.finite(baseline)))
-  expect_identical(at_current[["cluster_grid_calls"]], 0L)
-  expect_lt(max(abs(diag(at_current[["log_q"]]) - baseline)), 1e-8)
+  expect_lt(max(abs(diag(at_current) - baseline)), 1e-8)
 
   # On a grid of other values it returns the scalar joint log density.
   grid_values <- as.numeric(stats::quantile(
@@ -4292,7 +4163,7 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
     names = FALSE,
     type  = 8
   ))
-  on_grid <- .iwmde_dispatch_counting_cluster_grid(
+  on_grid <- .iwmde_log_q_grid(
     context     = context,
     parameter   = parameter,
     values      = grid_values,
@@ -4307,113 +4178,9 @@ test_that("IWMDE dispatcher evaluates the joint density of singleton-cluster sel
     replacement = replacement
   )
 
-  expect_identical(on_grid[["cluster_grid_calls"]], 0L)
-  expect_identical(dim(on_grid[["log_q"]]), dim(scalar))
+  expect_identical(dim(on_grid), dim(scalar))
   expect_true(all(is.finite(scalar)))
-  expect_lt(max(abs(on_grid[["log_q"]] - scalar)), 1e-8)
-})
-
-
-test_that("negative-direction multilevel selected-normal location grid matches quadrature reference", {
-
-  skip_if_not(.has_native_selnorm_cluster_location_grid())
-
-  prior <- BayesTools::prior_weightfunction(
-    side    = "one-sided",
-    steps   = c(.025, .05),
-    weights = BayesTools::wf_fixed(c(1, .65, .30))
-  )
-  yi  <- c(.12, -.18, .31, -.05)
-  sei <- c(.20, .28, .24, .18)
-  selection_context <- .selection_spec(
-    priors           = list(outcome = list(bias = prior)),
-    yi               = yi,
-    sei              = sei,
-    effect_direction = "negative"
-  )
-
-  expect_equal(selection_context[["sign"]], -1L)
-
-  S <- 2L
-  K <- length(yi)
-  setup <- list(
-    S           = S,
-    mu          = matrix(c(
-       .05, .08, .12, .16,
-      -.04, .02, .09, .13
-    ), nrow = S, byrow = TRUE),
-    tau_within  = matrix(c(
-      .09, .11, .13, .15,
-      .08, .10, .12, .14
-    ), nrow = S, byrow = TRUE),
-    tau_between = matrix(c(
-      .05, .07, .09, .11,
-      .04, .06, .08, .10
-    ), nrow = S, byrow = TRUE),
-    cluster     = list(a = c(1L, 3L), b = c(2L, 4L)),
-    weights     = NULL
-  )
-  selection_context[["omega"]] <- matrix(c(
-    1, .65, .30,
-    1, .55, .25
-  ), nrow = S, byrow = TRUE)
-  selection_context[["alpha"]]       <- rep(0, S)
-  selection_context[["phack_kind"]]  <- rep(0L, S)
-  selection_context[["kernel_mode"]] <- rep(SELKERNEL_STEP, S)
-
-  basis <- matrix(c(
-     .04, -.03, .05, -.02,
-    -.02,  .06, .01,  .04
-  ), nrow = S, byrow = TRUE)
-  current <- c(-.10, .15)
-  values  <- c(-.20, .05, .30)
-  n_gamma <- 11L
-
-  fast <- .log_lik_cluster_selnorm_location_grid(
-    setup             = setup,
-    yi                = yi,
-    sei               = sei,
-    basis             = basis,
-    current           = current,
-    values            = values,
-    selection_context = selection_context
-  )
-  reference <- matrix(NA_real_, nrow = length(values), ncol = S)
-  for (s in seq_len(S)) {
-    context_s <- BayesTools::selection_context_subset_rows(
-      context = selection_context,
-      rows    = s
-    )
-    for (g in seq_along(values)) {
-      candidate_setup <- setup
-      delta <- values[[g]] - current[[s]]
-      candidate_setup[["S"]] <- 1L
-      candidate_setup[["mu"]] <- setup[["mu"]][s, , drop = FALSE] +
-        basis[s, , drop = FALSE] * delta
-      candidate_setup[["tau_within"]]  <- setup[["tau_within"]][s, , drop = FALSE]
-      candidate_setup[["tau_between"]] <- setup[["tau_between"]][s, , drop = FALSE]
-      reference[g, s] <- sum(.log_lik_cluster_norm_quadrature_r(
-        setup             = candidate_setup,
-        yi                = yi,
-        sei               = sei,
-        is_weightfunction = TRUE,
-        selection_context = context_s,
-        n_gamma           = n_gamma
-      ))
-    }
-  }
-
-  expect_true(is.matrix(fast))
-  expect_equal(dim(fast), dim(reference))
-  quadrature_change <- attr(fast, "quadrature_relative_change", exact = TRUE)
-  quadrature_order <- attr(fast, "quadrature_order", exact = TRUE)
-  expect_equal(dim(quadrature_change), dim(fast))
-  expect_true(all(is.finite(quadrature_change)))
-  expect_equal(dim(quadrature_order), dim(fast))
-  expect_true(all(quadrature_order %in% c(15L, 31L)))
-  attr(fast, "quadrature_relative_change") <- NULL
-  attr(fast, "quadrature_order") <- NULL
-  expect_equal(fast, reference, tolerance = 1e-7)
+  expect_lt(max(abs(on_grid - scalar)), 1e-8)
 })
 
 
