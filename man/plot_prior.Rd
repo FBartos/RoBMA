@@ -99,17 +99,19 @@ meta-regression intercept). For base plots, the probability mapping created
 by \code{plot_prior()} is reused by subsequent posterior
 \code{lines.brma()} calls, including overlays from other fitted objects.
 
-A term with several fitted coordinates (a factor with three or more levels)
-has an original-scale prior only when the standardization of continuous
+A term with several fitted coordinates (a factor with three or more levels
+or with independent contrasts, and the interactions of such a factor) has
+an original-scale prior only when the standardization of continuous
 predictors leaves its coordinates unchanged. With
 \code{standardized_coefficients = FALSE}, the prior of such a term whose
-coordinates the standardization changes (a factor next to its interaction
-with a standardized predictor, and that interaction term) stops with an
-error of class \code{RoBMA_density_method_original_scale} and its parent
+coordinates the standardization changes (a factor or factor-by-factor
+interaction next to its interaction with a standardized predictor, and that
+interaction term) stops with an error of class
+\code{RoBMA_density_method_original_scale} and its parent
 \code{RoBMA_density_method_unavailable}; use
-\code{standardized_coefficients = TRUE}. The other terms (including
-factors without such an interaction and factor-by-factor interactions) are
-plotted as before.
+\code{standardized_coefficients = TRUE}. The other terms (including factors
+and factor-by-factor interactions without an interaction with a
+standardized predictor) are plotted as before.
 }
 \examples{
 \dontrun{
