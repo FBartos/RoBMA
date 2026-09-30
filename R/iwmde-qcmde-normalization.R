@@ -13,6 +13,16 @@
 #      it; and
 #   4. evaluates the midpoints of the final lattice.
 #
+# When no row can report a kernel every row is an estimate row, the range is the
+# draws-based one, and the display values, the nodes and the midpoints of the
+# initial lattice are one call of the joint density (which evaluates each value
+# independently of the others in its call, so the values are those of separate
+# calls). Contexts with call-owned interpolation grids keep the display values
+# alone in the first call, because the grids place their anchors by it, and
+# declare the nodes, the midpoints and a reserve of extension steps on each
+# side as their queries, so that the extension the tails need is requested from
+# the grids too.
+#
 # The nodes and midpoints form the selected nested grid (2N - 1 points); the
 # node grid over the same range validates it. The two differ only in their
 # spacing, so their disagreement measures discretization alone, and it
@@ -83,10 +93,13 @@
   }
   # Interpolation grids of fixed selection normalizers and covariance sweeps
   # answer exactly the values they are built for; values outside that set are
-  # evaluated directly.
+  # evaluated directly. The set holds the display values, the nodes and
+  # midpoints of the lattice, and a reserve of extension steps on each side
+  # (.iwmde_qcmde_extension_reserve()) for the extension the tails need.
   direct <- context
   direct[["normalizer_grid"]] <- NULL
   direct[["covariance_grid"]] <- NULL
+  reserve <- .iwmde_qcmde_extension_reserve(n_points)
   with_grids <- function(values) {
 
     out <- context
@@ -101,7 +114,7 @@
 
     .iwmde_qcmde_lattice_points(
       lattice,
-      seq(0, lattice[["n_initial"]] - 1L, by = .5)
+      seq(-reserve, lattice[["n_initial"]] - 1L + reserve, by = .5)
     )[["x"]]
   }
   uses_grids <- function(evaluation_context) {
@@ -110,11 +123,44 @@
       !is.null(evaluation_context[["covariance_grid"]])
   }
 
-  # 1. Display values, and the rows' Gaussian kernels.
+  # 1. Display values, and the rows' Gaussian kernels. When no row can report a
+  # kernel, every row is an estimate row: the range is the draws-based one, the
+  # nodes of its lattice and the midpoints between them are known before the
+  # display values are evaluated, and all go in one call. Call-owned grids place
+  # their anchors by the values of their first request, so a context that uses
+  # them keeps the display values alone in it.
   base_lattice  <- .iwmde_qcmde_lattice(base_z, n_points, transform)
   grid_context  <- with_grids(c(display_grid, planned_values(base_lattice)))
-  log_q_display <- evaluate(grid_context, display_grid)
-  kernel        <- attr(log_q_display, "gaussian_kernel", exact = TRUE)
+  log_q_display <- NULL
+  initial_log_q <- NULL
+  initial_midpoints <- NULL
+  if (!uses_grids(grid_context) &&
+      .iwmde_qcmde_estimate_only(context, row_states, ordinary_rows)) {
+    base_nodes     <- .iwmde_qcmde_lattice_points(base_lattice,
+                                                  seq.int(0L, n_points - 1L))
+    base_midpoints <- .iwmde_qcmde_lattice_points(base_lattice,
+                                                  seq.int(0L, n_points - 2L) + .5)
+    if (all(base_nodes[["valid"]]) && !any(diff(base_nodes[["z"]]) <= 0) &&
+        all(base_midpoints[["valid"]])) {
+      joint <- evaluate(
+        grid_context,
+        c(display_grid, base_nodes[["x"]], base_midpoints[["x"]])
+      )
+      n_display     <- length(display_grid)
+      log_q_display <- joint[seq_len(n_display), , drop = FALSE]
+      initial_log_q <- joint[n_display + seq_len(n_points), , drop = FALSE]
+      initial_midpoints <- list(
+        x     = base_midpoints[["x"]],
+        log_q = joint[n_display + n_points + seq_len(n_points - 1L), ,
+                      drop = FALSE]
+      )
+      kernel <- attr(joint, "gaussian_kernel", exact = TRUE)
+    }
+  }
+  if (is.null(log_q_display)) {
+    log_q_display <- evaluate(grid_context, display_grid)
+    kernel        <- attr(log_q_display, "gaussian_kernel", exact = TRUE)
+  }
 
   # 2. The range: the rows' conditional quantiles.
   laws <- .iwmde_qcmde_row_laws(
@@ -133,25 +179,60 @@
     transform = transform
   )
   lattice <- .iwmde_qcmde_lattice(z_range, n_points, transform)
-  if (!identical(z_range, base_z) && uses_grids(grid_context)) {
-    grid_context  <- with_grids(c(display_grid, planned_values(lattice)))
-    log_q_display <- evaluate(grid_context, display_grid)
+  if (!identical(z_range, base_z)) {
+    # The nodes and midpoints evaluated ahead belong to the draws-based range.
+    initial_log_q     <- NULL
+    initial_midpoints <- NULL
+    if (uses_grids(grid_context)) {
+      grid_context  <- with_grids(c(display_grid, planned_values(lattice)))
+      log_q_display <- evaluate(grid_context, display_grid)
+    }
   }
+  reserved <- if (uses_grids(grid_context)) planned_values(lattice) else numeric()
 
-  # 3. Nodes, extended where estimated rows need it.
+  # 3. Nodes, extended where estimated rows need it. The extension values in
+  # the reserve are requests of the call-owned grids; the rest (and every value
+  # without grids) is evaluated directly, and values the joint density cannot
+  # evaluate are left missing, which ends the extension there.
+  evaluate_directly <- function(values) {
+
+    log_q <- .iwmde_qcmde_try_log_q(direct, parameter, values, row_states,
+                                    replacement)
+    if (!is.null(log_q)) {
+      record_quadrature(log_q)
+    }
+    log_q
+  }
+  evaluate_extension <- function(values) {
+
+    inside <- values %in% reserved
+    if (!any(inside)) {
+      return(evaluate_directly(values))
+    }
+    out <- matrix(NA_real_, length(values), n_states)
+    requested <- tryCatch(evaluate(grid_context, values[inside]),
+                          error = function(e) NULL)
+    if (is.null(requested)) {
+      inside <- rep(FALSE, length(values))
+    } else {
+      out[inside, ] <- requested
+    }
+    if (any(!inside)) {
+      other <- evaluate_directly(values[!inside])
+      if (!is.null(other)) {
+        out[!inside, ] <- other
+      }
+    }
+
+    out
+  }
   extension <- .iwmde_qcmde_extend_lattice(
     lattice          = lattice,
     estimate_rows    = which(laws[["kind"]] %in% "estimate"),
     target           = (1 - normalization_prob) / 2,
     evaluate_inside  = function(values) evaluate(grid_context, values),
-    evaluate_outside = function(values) {
-      log_q <- .iwmde_qcmde_try_log_q(direct, parameter, values, row_states,
-                                      replacement)
-      if (!is.null(log_q)) {
-        record_quadrature(log_q)
-      }
-      log_q
-    }
+    evaluate_outside = evaluate_extension,
+    initial_log_q    = initial_log_q
   )
   if (is.null(extension)) {
     .iwmde_stop_construction_failure(
@@ -176,15 +257,39 @@
       detail    = "the nested validation grid has an unrepresentable value"
     )
   }
-  planned  <- midpoint_index < n_points - 1L & midpoint_index > 0
   midpoints[["log_q"]] <- matrix(NA_real_, length(midpoint_index), n_states)
+  ahead <- if (is.null(initial_midpoints)) {
+    rep(NA_integer_, length(midpoint_index))
+  } else {
+    match(midpoints[["x"]], initial_midpoints[["x"]])
+  }
+  if (any(!is.na(ahead))) {
+    midpoints[["log_q"]][!is.na(ahead), ] <-
+      initial_midpoints[["log_q"]][ahead[!is.na(ahead)], , drop = FALSE]
+  }
+  # The midpoints of the initial lattice are requests of the call-owned grids.
+  # The midpoints beyond it are too while their nodes were in the reserve, and
+  # a request of the grid that fails there is evaluated without it, like the
+  # extension nodes; every other midpoint is evaluated directly.
+  inner     <- midpoint_index > 0 & midpoint_index < n_points - 1L
+  in_grid   <- is.na(ahead) & midpoints[["x"]] %in% reserved
+  planned   <- in_grid & inner
+  band      <- in_grid & !inner
+  remaining <- is.na(ahead) & !in_grid
   if (any(planned)) {
     midpoints[["log_q"]][planned, ] <- evaluate(grid_context,
                                                 midpoints[["x"]][planned])
   }
-  if (any(!planned)) {
-    midpoints[["log_q"]][!planned, ] <- evaluate(direct,
-                                                 midpoints[["x"]][!planned])
+  if (any(band)) {
+    values <- midpoints[["x"]][band]
+    midpoints[["log_q"]][band, ] <- tryCatch(
+      evaluate(grid_context, values),
+      error = function(e) evaluate(direct, values)
+    )
+  }
+  if (any(remaining)) {
+    midpoints[["log_q"]][remaining, ] <- evaluate(direct,
+                                                  midpoints[["x"]][remaining])
   }
 
   initial <- nodes[["index"]] >= 0 & nodes[["index"]] <= n_points - 1L
@@ -238,6 +343,40 @@
       grid_context[["covariance_grid"]]
     )
   ))
+}
+
+
+# Steps of the lattice, on each side, that the call-owned grids reserve for the
+# extension of estimated rows: one slice of the initial range, which is what a
+# side with an undecided row first evaluates and where the tails of the usual
+# rows end.
+.iwmde_qcmde_extension_reserve <- function(n_points) {
+
+  return(as.integer(max(1L, ceiling((n_points - 1L) / 8))))
+}
+
+
+# Whether no row of the batch can report a Gaussian kernel, so that every
+# ordinary row is an estimate row. Only the normal-location routes of rows
+# without a weight function report one; a fitted binomial or Poisson model, or
+# a normal model whose rows all carry a weight function, reports none. An
+# unknown model reports nothing certain.
+.iwmde_qcmde_estimate_only <- function(context, row_states, rows) {
+
+  data <- context[["data"]]
+  if (is.null(data) || length(rows) == 0L) {
+    return(FALSE)
+  }
+  if (.data_outcome_type(data) %in% c("bin", "pois")) {
+    return(TRUE)
+  }
+  if (!identical(.data_outcome_type(data), "norm")) {
+    return(FALSE)
+  }
+
+  return(all(vapply(row_states[rows], function(state) {
+    isTRUE(state[["active_setup"]][["is_weightfunction"]])
+  }, logical(1L))))
 }
 
 

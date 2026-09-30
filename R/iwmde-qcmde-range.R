@@ -576,9 +576,11 @@
 
 # Evaluate the nodes of the initial lattice and extend its sides until every
 # estimated row's tail estimate is below `target` on both sides.
-# `evaluate_inside()` evaluates values of the planned lattice;
-# `evaluate_outside()` evaluates new values and returns NULL when they cannot be
-# evaluated, which closes that side.
+# `evaluate_inside()` evaluates values of the planned lattice, unless the caller
+# already evaluated them (`initial_log_q`, one row per node); `evaluate_outside()`
+# evaluates new values and returns NULL when they cannot be evaluated, which
+# closes that side; it may return rows of missing values for the values it could
+# not evaluate, which end the extension there.
 #
 # Each side grows by lattice steps, in as few evaluations as the rows allow: the
 # tails of rows that decay at the end predict the distance the side needs
@@ -590,14 +592,19 @@
 # beyond it were evaluated in the same call and are dropped, and the next pass
 # re-checks every row against the new grid.
 .iwmde_qcmde_extend_lattice <- function(lattice, estimate_rows, target,
-                                        evaluate_inside, evaluate_outside) {
+                                        evaluate_inside, evaluate_outside,
+                                        initial_log_q = NULL) {
 
   n_initial <- lattice[["n_initial"]]
   nodes     <- .iwmde_qcmde_lattice_points(lattice, seq.int(0L, n_initial - 1L))
   if (!all(nodes[["valid"]]) || any(diff(nodes[["z"]]) <= 0)) {
     return(NULL)
   }
-  log_q <- evaluate_inside(nodes[["x"]])
+  log_q <- if (is.null(initial_log_q)) {
+    evaluate_inside(nodes[["x"]])
+  } else {
+    initial_log_q
+  }
   nodes[["log_q"]] <- log_q
   open     <- c(lower = TRUE, upper = TRUE)
   steps    <- c(lower = 0L, upper = 0L)
