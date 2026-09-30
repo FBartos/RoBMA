@@ -349,6 +349,251 @@ test_that("a Gaussian tail extends close to its target in few passes", {
 })
 
 
+.qcmde_flat_tail_rows <- function(half_width = 3, scale = .5, gaussian = TRUE) {
+
+  # Row 1 is Gaussian. Row 2 is flat on (-half_width, half_width) with Laplace
+  # tails outside, so it does not decay at the ends of a range inside the flat
+  # part and has no predicted distance there.
+  function(values) {
+    flat <- -pmax(0, abs(values) - half_width) / scale
+    if (gaussian) cbind(stats::dnorm(values, log = TRUE), flat) else cbind(flat)
+  }
+}
+
+
+# The plain-R reference of the extension: the smallest symmetric extension of
+# [-1, 1], in steps of .1, at which the tail estimate q(b) / |slope| / (trapezoid
+# normalizer) of every row meets the target at both ends.
+.qcmde_symmetric_extension_needed <- function(rows, target, max_steps = 100L) {
+
+  worst <- vapply(0:max_steps, function(steps) {
+    z           <- seq(-1 - .1 * steps, 1 + .1 * steps, by = .1)
+    log_density <- rows(z)
+    n           <- length(z)
+    max(vapply(seq_len(ncol(log_density)), function(row) {
+      y      <- exp(log_density[, row])
+      area   <- sum(diff(z) * (y[-1L] + y[-n]) / 2)
+      slopes <- c((log_density[2L, row] - log_density[1L, row]) / .1,
+                  (log_density[n - 1L, row] - log_density[n, row]) / .1)
+      max(ifelse(slopes > 0, c(y[1L], y[n]) / slopes / area, Inf))
+    }, numeric(1)))
+  }, numeric(1))
+
+  min(which(worst <= target)) - 1L
+}
+
+
+test_that("a row that does not decay at the initial end extends the grid only as far as its tail needs", {
+
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  rows      <- .qcmde_flat_tail_rows()
+  evaluated <- list()
+  evaluate  <- function(values) {
+    evaluated[[length(evaluated) + 1L]] <<- values
+    rows(values)
+  }
+  lattice <- .iwmde_qcmde_lattice(c(-1, 1), 21L, transform)
+  target  <- 1e-6
+  needed  <- .qcmde_symmetric_extension_needed(rows, target)
+  # The flat row needs the extension to leave its flat part: more than three
+  # widths of the initial range, near the limit of four.
+  expect_gt(needed, 60L)
+  expect_lt(needed, 80L)
+
+  result <- .iwmde_qcmde_extend_lattice(
+    lattice          = lattice,
+    estimate_rows    = 1:2,
+    target           = target,
+    evaluate_inside  = evaluate,
+    evaluate_outside = evaluate
+  )
+  nodes <- result[["nodes"]]
+  # Each side stops within one step of the smallest extension that meets the
+  # target, and short of the extension limit that a jump by the width of the
+  # grid would have overshot.
+  expect_lte(abs(result[["steps"]][["lower"]] - needed), 1L)
+  expect_lte(abs(result[["steps"]][["upper"]] - needed), 1L)
+  expect_true(all(result[["open"]]))
+  expect_equal(diff(range(nodes[["z"]])), .1 * (20L + sum(result[["steps"]])),
+               tolerance = 1e-12)
+  log_density <- nodes[["log_q"]] + nodes[["log_jacobian"]]
+  tails <- .iwmde_qcmde_tail_estimates(
+    nodes[["z"]], log_density,
+    .iwmde_log_trapz_columns(nodes[["z"]], log_density)
+  )
+  expect_lte(max(tails[["lower"]], tails[["upper"]]), target)
+
+  # No value is evaluated twice, and every kept node was evaluated; the values
+  # of a slice beyond the step that meets the target are dropped.
+  values  <- unlist(evaluated, use.names = FALSE)
+  expect_length(unique(values), length(values))
+  expect_true(all(nodes[["x"]] %in% values))
+  expect_lt(length(values) - length(nodes[["x"]]), 21L)
+})
+
+
+test_that("a side whose rows do not decay grows its slices from an eighth of the range", {
+
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  rows      <- .qcmde_flat_tail_rows(gaussian = FALSE)
+  evaluated <- list()
+  evaluate  <- function(values) {
+    evaluated[[length(evaluated) + 1L]] <<- values
+    rows(values)
+  }
+  lattice <- .iwmde_qcmde_lattice(c(-1, 1), 21L, transform)
+  target  <- 1e-6
+  needed  <- .qcmde_symmetric_extension_needed(rows, target)
+
+  result <- .iwmde_qcmde_extend_lattice(
+    lattice          = lattice,
+    estimate_rows    = 1L,
+    target           = target,
+    evaluate_inside  = evaluate,
+    evaluate_outside = evaluate
+  )
+  expect_lte(abs(result[["steps"]][["lower"]] - needed), 1L)
+  expect_lte(abs(result[["steps"]][["upper"]] - needed), 1L)
+
+  # The calls of one side (every second call after the initial nodes): a slice
+  # of ceiling(20 / 8) = 3 steps, then the steps already taken until the row
+  # leaves its flat part (after 24 steps the end is at 3.4), and then the
+  # predicted distance of the decaying tail, one step beyond the need at most.
+  sizes <- vapply(evaluated, length, integer(1))
+  expect_identical(sizes[[1L]], 21L)
+  lower <- sizes[seq(2L, length(sizes), by = 2L)]
+  expect_identical(lower[1:4], c(3L, 3L, 6L, 12L))
+  expect_identical(length(lower), 5L)
+  expect_gte(lower[[5L]], needed - 24L)
+  expect_lte(lower[[5L]] - (needed - 24L), 2L)
+})
+
+
+test_that("a flat tail reaches the extension limit in a few calls", {
+
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  flat      <- function(values) cbind(rep(0, length(values)))
+  calls     <- 0L
+  lattice   <- .iwmde_qcmde_lattice(c(0, 1), 41L, transform)
+  result <- .iwmde_qcmde_extend_lattice(
+    lattice          = lattice,
+    estimate_rows    = 1L,
+    target           = 1e-3,
+    evaluate_inside  = flat,
+    evaluate_outside = function(values) {
+      calls <<- calls + 1L
+      flat(values)
+    }
+  )
+  limit <- .iwmde_qcmde_extension_limit()
+  expect_identical(unname(result[["steps"]]), rep(limit * 40L, 2L))
+  # Slices of 5, 5, 10, 20, 40 and 80 steps reach the limit of 160 steps.
+  expect_identical(calls, 2L * 6L)
+})
+
+
+test_that("the slice of an extension follows the predicted distance and the growth of an undecided side", {
+
+  size <- function(distance, undecided, taken = 0L, n_nodes = 101L,
+                   budget = 400L) {
+    .iwmde_qcmde_extension_size(
+      distance  = list(distance = distance, undecided = undecided),
+      step      = .1,
+      n_initial = 101L,
+      taken     = taken,
+      n_nodes   = n_nodes,
+      budget    = budget
+    )
+  }
+  # A side whose failing rows all decay takes their predicted distance.
+  expect_identical(size(.72, FALSE), 8L)
+  expect_identical(size(0, FALSE), 1L)
+  # An undecided side takes an eighth of the range, doubling with the steps taken.
+  expect_identical(size(0, TRUE), 13L)
+  expect_identical(size(0, TRUE, taken = 13L), 13L)
+  expect_identical(size(0, TRUE, taken = 52L), 52L)
+  # Never beyond the width of the current grid or the remaining budget.
+  expect_identical(size(30, TRUE), 100L)
+  expect_identical(size(0, TRUE, taken = 300L, n_nodes = 401L), 300L)
+  expect_identical(size(0, TRUE, taken = 300L, budget = 40L), 40L)
+  expect_identical(size(Inf, FALSE, n_nodes = 21L), 20L)
+
+  # The distance of a mixed side comes from its decaying rows alone.
+  log_density <- cbind(-abs(seq(-1, 1, length.out = 5L)) / .5,
+                       rep(0, 5L))
+  distance <- .iwmde_qcmde_extension_distance(
+    log_density = log_density,
+    side        = "upper",
+    step        = .5,
+    excess      = c(log(1e3), Inf),
+    slope       = c(2, 0)
+  )
+  expect_true(distance[["undecided"]])
+  expect_equal(distance[["distance"]], log(1e3) / 2, tolerance = 1e-12)
+  none <- .iwmde_qcmde_extension_distance(log_density[, 2L, drop = FALSE],
+                                          "upper", .5, Inf, 0)
+  expect_identical(none, list(distance = 0, undecided = TRUE))
+})
+
+
+test_that("the prefix of an extension is the shortest run that meets the target", {
+
+  # A Laplace row with unit rate on [-2, 2] (the normalizer is about 2).
+  z       <- seq(-2, 2, by = .5)
+  laplace <- function(values) cbind(-abs(values))
+  nodes   <- list(
+    index        = seq_along(z) - 1L,
+    x            = z,
+    z            = z,
+    log_jacobian = rep(0, length(z)),
+    log_q        = laplace(z)
+  )
+  run <- function(values, index) {
+    list(index = index, x = values, z = values,
+         log_jacobian = rep(0, length(values)), log_q = laplace(values))
+  }
+  upper  <- run(2 + .5 * seq_len(12L), max(nodes[["index"]]) + seq_len(12L))
+  lower  <- run(-2 - .5 * rev(seq_len(12L)),
+                min(nodes[["index"]]) - rev(seq_len(12L)))
+  log_normalizer <- .iwmde_log_trapz_columns(z, laplace(z))
+  target <- 1e-3
+  prefix <- .iwmde_qcmde_extension_prefix(nodes, upper, "upper", 1L,
+                                          log_normalizer, target)
+  expect_true(prefix[["met"]])
+
+  # The plain-R reference: extend one node at a time and test the definition,
+  # the density at the end over its slope and the trapezoid normalizer.
+  reference <- function(n) {
+    grid <- seq(-2, 2 + .5 * n, by = .5)
+    y    <- exp(-abs(grid))
+    area <- sum(diff(grid) * (y[-1L] + y[-length(y)]) / 2)
+    y[[length(y)]] / 1 / area
+  }
+  first <- min(which(vapply(1:12, reference, numeric(1)) <= target))
+  expect_identical(prefix[["n"]], first)
+  expect_lt(prefix[["n"]], 12L)
+
+  # A target no run reaches keeps the whole extension and reports it.
+  none <- .iwmde_qcmde_extension_prefix(nodes, upper, "upper", 1L,
+                                        log_normalizer, 1e-12)
+  expect_false(none[["met"]])
+  expect_identical(none[["n"]], 12L)
+
+  # The lower side of the symmetric row reads its run from the end nearest the
+  # grid and gives the same prefix.
+  expect_identical(
+    .iwmde_qcmde_extension_prefix(nodes, lower, "lower", 1L, log_normalizer,
+                                  target),
+    prefix
+  )
+  kept <- .iwmde_qcmde_subset_extension(lower, seq.int(12L - prefix[["n"]] + 1L,
+                                                       12L))
+  expect_identical(kept[["index"]], min(nodes[["index"]]) -
+    rev(seq_len(prefix[["n"]])))
+  expect_identical(nrow(kept[["log_q"]]), prefix[["n"]])
+})
+
+
 test_that("IWMDE keeps the draws-based range for its normalization-mass check", {
 
   # IWMDE integrates the marginal density to check its weights, so the range

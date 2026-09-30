@@ -523,6 +523,27 @@
 }
 
 
+# The tail estimate q(b) / |d log q / dz| of one end of a grid: `edge` and
+# `inner` are the log densities at the end and at its inner neighbour, `width`
+# the step between them, and `log_normalizer` the row's grid normalizer, all
+# vectors over rows. A row whose density does not decrease towards the end has
+# no estimate (Inf), a row that vanishes there has none to make (0), and a row
+# without a finite normalizer is left out (NA).
+.iwmde_qcmde_side_tail <- function(edge, inner, width, log_normalizer) {
+
+  log_normalizer <- rep_len(log_normalizer, length(edge))
+  slope          <- (inner - edge) / width
+  estimate       <- rep(Inf, length(edge))
+  estimate[edge == -Inf] <- 0
+  decaying <- is.finite(edge) & is.finite(slope) & slope > 0
+  estimate[decaying] <- exp(edge[decaying] - log_normalizer[decaying]) /
+    slope[decaying]
+  estimate[!is.finite(log_normalizer)] <- NA_real_
+
+  return(list(estimate = estimate, slope = slope))
+}
+
+
 # Per-row tail estimates at the two ends of a grid: q(b) / |d log q / dz| with
 # the slope of the end step, relative to the row's grid normalizer. A row whose
 # density does not decrease towards an end has no estimate there (Inf).
@@ -535,15 +556,9 @@
     edge  <- log_density[ends[[side]][[1L]], ]
     inner <- log_density[ends[[side]][[2L]], ]
     width <- abs(z[ends[[side]][[2L]]] - z[ends[[side]][[1L]]])
-    slope <- (inner - edge) / width
-    estimate <- rep(Inf, length(edge))
-    estimate[edge == -Inf] <- 0
-    decaying <- is.finite(edge) & is.finite(slope) & slope > 0
-    estimate[decaying] <- exp(edge[decaying] - log_normalizer[decaying]) /
-      slope[decaying]
-    estimate[!is.finite(log_normalizer)] <- NA_real_
-    out[[side]]                  <- estimate
-    out[[paste0(side, "_slope")]] <- slope
+    tail  <- .iwmde_qcmde_side_tail(edge, inner, width, log_normalizer)
+    out[[side]]                   <- tail[["estimate"]]
+    out[[paste0(side, "_slope")]] <- tail[["slope"]]
   }
 
   return(out)
@@ -559,11 +574,21 @@
 .iwmde_qcmde_extension_max_iterations <- function() 40L
 
 
-# Evaluate the nodes of the initial lattice and extend its sides, one lattice
-# step at a time, until every estimated row's tail estimate is below `target`
-# on both sides. `evaluate_inside()` evaluates values of the planned lattice;
-# `evaluate_outside()` evaluates new values and returns NULL when they cannot
-# be evaluated, which closes that side.
+# Evaluate the nodes of the initial lattice and extend its sides until every
+# estimated row's tail estimate is below `target` on both sides.
+# `evaluate_inside()` evaluates values of the planned lattice;
+# `evaluate_outside()` evaluates new values and returns NULL when they cannot be
+# evaluated, which closes that side.
+#
+# Each side grows by lattice steps, in as few evaluations as the rows allow: the
+# tails of rows that decay at the end predict the distance the side needs
+# (.iwmde_qcmde_extension_distance()), and a row that does not decay there has
+# no prediction, so a side with such a row is extended by a slice of the
+# initial range that grows with the steps already taken. Whatever the size of
+# the slice, the side keeps only the shortest run of new nodes at which the rows
+# that failed meet the target (.iwmde_qcmde_extension_prefix()); the nodes
+# beyond it were evaluated in the same call and are dropped, and the next pass
+# re-checks every row against the new grid.
 .iwmde_qcmde_extend_lattice <- function(lattice, estimate_rows, target,
                                         evaluate_inside, evaluate_outside) {
 
@@ -593,8 +618,8 @@
     added <- FALSE
     for (side in c("lower", "upper")) {
       estimate <- tails[[side]]
-      failing  <- !is.na(estimate) & estimate > target
-      if (!open[[side]] || !any(failing)) {
+      failing  <- which(!is.na(estimate) & estimate > target)
+      if (!open[[side]] || length(failing) == 0L) {
         next
       }
       n_nodes <- length(nodes[["index"]])
@@ -603,19 +628,20 @@
         open[[side]] <- FALSE
         next
       }
-      distance <- .iwmde_qcmde_extension_distance(
-        log_density = log_density[, failing, drop = FALSE],
-        side        = side,
-        step        = lattice[["step"]],
-        excess      = log(estimate[failing] / target),
-        slope       = tails[[paste0(side, "_slope")]][failing]
+      k <- .iwmde_qcmde_extension_size(
+        distance  = .iwmde_qcmde_extension_distance(
+          log_density = log_density[, failing, drop = FALSE],
+          side        = side,
+          step        = lattice[["step"]],
+          excess      = log(estimate[failing] / target),
+          slope       = tails[[paste0(side, "_slope")]][failing]
+        ),
+        step      = lattice[["step"]],
+        n_initial = n_initial,
+        taken     = steps[[side]],
+        n_nodes   = n_nodes,
+        budget    = budget
       )
-      k <- if (is.finite(distance)) {
-        ceiling(distance / lattice[["step"]])
-      } else {
-        n_nodes - 1L
-      }
-      k <- as.integer(max(1L, min(k, n_nodes - 1L, budget)))
       index <- if (identical(side, "lower")) {
         min(nodes[["index"]]) - rev(seq_len(k))
       } else {
@@ -623,11 +649,29 @@
       }
       extension <- .iwmde_qcmde_side_extension(lattice, index, side,
                                                evaluate_outside)
-      if (length(extension[["index"]]) < k) {
+      n_valid <- length(extension[["index"]])
+      if (n_valid == 0L) {
+        open[[side]] <- FALSE
+        next
+      }
+      prefix <- .iwmde_qcmde_extension_prefix(
+        nodes          = nodes,
+        extension      = extension,
+        side           = side,
+        rows           = estimate_rows[failing],
+        log_normalizer = log_normalizer[failing],
+        target         = target
+      )
+      if (n_valid < k && !prefix[["met"]]) {
         open[[side]] <- FALSE
       }
-      if (length(extension[["index"]]) == 0L) {
-        next
+      if (prefix[["n"]] < n_valid) {
+        kept <- if (identical(side, "lower")) {
+          seq.int(n_valid - prefix[["n"]] + 1L, n_valid)
+        } else {
+          seq_len(prefix[["n"]])
+        }
+        extension <- .iwmde_qcmde_subset_extension(extension, kept)
       }
       extended <- .iwmde_qcmde_bind_nodes(nodes, extension, side)
       if (any(diff(extended[["z"]]) <= 0)) {
@@ -648,15 +692,21 @@
 }
 
 
-# Distance beyond an end at which every failing row's tail estimate reaches
+# Distance beyond an end at which every failing row that decays there reaches
 # the target: `excess` is log(estimate / target). A log density that is
 # concave at the end (a Gaussian-like tail) follows its local quadratic, any
-# other decaying tail its exponential envelope; a row that does not decay
-# there has no distance (Inf). The next pass re-checks the estimate.
+# other decaying tail its exponential envelope. A row that does not decay at
+# the end has no distance; `undecided` reports whether a failing row has none.
+# The next pass re-checks the estimates.
 .iwmde_qcmde_extension_distance <- function(log_density, side, step, excess,
                                             slope) {
 
-  n     <- nrow(log_density)
+  n         <- nrow(log_density)
+  decaying  <- is.finite(slope) & slope > 0
+  undecided <- any(!decaying)
+  if (!any(decaying)) {
+    return(list(distance = 0, undecided = undecided))
+  }
   inner <- if (identical(side, "lower")) seq_len(min(3L, n)) else
     rev(seq.int(max(1L, n - 2L), n))
   curvature <- if (length(inner) == 3L) {
@@ -665,18 +715,98 @@
   } else {
     rep(NA_real_, ncol(log_density))
   }
-  if (any(!is.finite(slope) | slope <= 0)) {
-    return(Inf)
-  }
-  distance <- excess / slope
-  concave  <- is.finite(curvature) & curvature > 0
+  curvature <- curvature[decaying]
+  excess    <- excess[decaying]
+  slope     <- slope[decaying]
+  distance  <- excess / slope
+  concave   <- is.finite(curvature) & curvature > 0
   if (any(concave)) {
     edge_slope <- slope[concave] + curvature[concave] * step / 2
     distance[concave] <- (sqrt(edge_slope^2 + 2 * curvature[concave] *
       excess[concave]) - edge_slope) / curvature[concave]
   }
+  distance <- distance[is.finite(distance)]
 
-  return(max(distance))
+  return(list(distance = if (length(distance) > 0L) max(distance) else 0,
+              undecided = undecided || length(distance) == 0L))
+}
+
+
+# Lattice steps to evaluate at once on one side: the predicted distance of the
+# rows that decay at the end, and at least one slice of the initial range for a
+# side with a row that does not, growing with the steps already taken so that a
+# tail that never decays reaches the limit in a few calls. Never beyond the
+# width of the current grid or the remaining budget.
+.iwmde_qcmde_extension_size <- function(distance, step, n_initial, taken,
+                                        n_nodes, budget) {
+
+  predicted <- if (distance[["distance"]] > 0) {
+    ceiling(distance[["distance"]] / step)
+  } else {
+    0
+  }
+  if (!is.finite(predicted)) {
+    predicted <- n_nodes - 1L
+  }
+  size <- if (isTRUE(distance[["undecided"]])) {
+    slice <- max(1L, ceiling((n_initial - 1L) / 8))
+    max(predicted, slice, taken)
+  } else {
+    max(1L, predicted)
+  }
+
+  return(as.integer(max(1L, min(size, n_nodes - 1L, budget))))
+}
+
+
+# The shortest run of the new nodes `extension` (from
+# .iwmde_qcmde_side_extension(), ascending in the lattice index) at which every
+# row in `rows` meets the target. The rows are the ones that failed at the
+# current end; the normalizer of each grows with the trapezoids of the nodes
+# it adds. `met` is FALSE when even the whole extension does not do it.
+.iwmde_qcmde_extension_prefix <- function(nodes, extension, side, rows,
+                                          log_normalizer, target) {
+
+  n_new   <- length(extension[["index"]])
+  outward <- if (identical(side, "lower")) rev(seq_len(n_new)) else
+    seq_len(n_new)
+  edge    <- if (identical(side, "lower")) 1L else length(nodes[["index"]])
+  previous_log_density <- nodes[["log_q"]][edge, rows] +
+    nodes[["log_jacobian"]][[edge]]
+  previous_z      <- nodes[["z"]][[edge]]
+  previous_height <- exp(previous_log_density - log_normalizer)
+  area            <- rep(1, length(rows))
+
+  for (j in seq_len(n_new)) {
+    node        <- outward[[j]]
+    log_density <- extension[["log_q"]][node, rows] +
+      extension[["log_jacobian"]][[node]]
+    width  <- abs(extension[["z"]][[node]] - previous_z)
+    height <- exp(log_density - log_normalizer)
+    # Areas in units of the normalizer of the grid without the new nodes.
+    area <- area + width * (previous_height + height) / 2
+    tail <- .iwmde_qcmde_side_tail(log_density, previous_log_density, width,
+                                   log_normalizer + log(area))
+    if (all(is.na(tail[["estimate"]]) | tail[["estimate"]] <= target)) {
+      return(list(n = j, met = TRUE))
+    }
+    previous_log_density <- log_density
+    previous_z           <- extension[["z"]][[node]]
+    previous_height      <- height
+  }
+
+  return(list(n = n_new, met = FALSE))
+}
+
+
+.iwmde_qcmde_subset_extension <- function(extension, keep) {
+
+  for (field in c("index", "x", "z", "log_jacobian")) {
+    extension[[field]] <- extension[[field]][keep]
+  }
+  extension[["log_q"]] <- extension[["log_q"]][keep, , drop = FALSE]
+
+  return(extension)
 }
 
 
