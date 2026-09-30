@@ -365,9 +365,11 @@
 # evaluated again. The keys are content hashes (the fit's draws, data and priors
 # among them), so entries of different fits never meet. The cache is an
 # environment of the package: it never travels with a saved fit, leaves with the
-# session, and is dropped when the package code is reloaded, so a development
-# session never reads a normalization the previous code computed. It is bounded
-# by the entries it holds and their size.
+# session, and is dropped when the package code is reloaded. It is also emptied
+# when it is used under another BayesTools namespace than the one it was filled
+# under (.session_caches_check_code()), so a development session never reads a
+# normalization the previous code of either package computed. It is bounded by
+# the entries it holds and their size.
 
 
 .iwmde_qcmde_normalization_cache <- new.env(parent = emptyenv())
@@ -384,7 +386,32 @@
 # The cache of a fitted model's normalizations: the environment of the package.
 .iwmde_qcmde_cache_env <- function(context) {
 
+  .session_caches_check_code()
+
   .iwmde_qcmde_normalization_cache
+}
+
+
+# The BayesTools namespace the session caches (the normalizations above and the
+# hypothesis plans, .hypothesis_plan_registry) were filled under.
+.session_caches_code <- new.env(parent = emptyenv())
+
+
+# Empty the session caches when BayesTools has been reloaded since they were
+# filled. Their entries are computed with the code of both packages: a reload of
+# RoBMA replaces the caches with its namespace, a development reload of
+# BayesTools does not, and would otherwise leave entries its previous code
+# computed.
+.session_caches_check_code <- function() {
+
+  namespace <- asNamespace("BayesTools")
+  if (!identical(.session_caches_code[["BayesTools"]], namespace)) {
+    .iwmde_qcmde_cache_clear()
+    .hypothesis_plan_cache_clear()
+    assign("BayesTools", namespace, envir = .session_caches_code)
+  }
+
+  invisible(NULL)
 }
 
 

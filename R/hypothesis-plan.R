@@ -176,8 +176,9 @@
 # object never reads them; an object that cannot be hashed gets a cache of its
 # own call only. The caches are environments of the package, so they never
 # travel with a saved fit, leave with the session, and are dropped when the
-# package code is reloaded. Each is bounded by its entries and their size, and
-# the package keeps the caches of a few objects, the oldest out.
+# code of either package is reloaded (.session_caches_check_code()). Each is
+# bounded by its entries and their size, and the package keeps the caches of a
+# few objects, the oldest out.
 .hypothesis_plan_registry <- new.env(parent = emptyenv())
 
 
@@ -206,6 +207,7 @@
   if (is.null(key)) {
     return(NULL)
   }
+  .session_caches_check_code()
   registry <- .hypothesis_plan_registry
   if (!exists(key, envir = registry, inherits = FALSE)) {
     cache <- new.env(parent = emptyenv())

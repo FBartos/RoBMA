@@ -375,3 +375,32 @@ test_that("the cache is cleared for a test that replaces what a normalization is
   .iwmde_qcmde_cache_clear()
   expect_length(ls(env, all.names = TRUE), 0L)
 })
+
+
+test_that("the session caches are emptied when BayesTools was reloaded since they were filled", {
+
+  withr::defer({
+    .iwmde_qcmde_cache_clear()
+    .hypothesis_plan_cache_clear()
+  })
+  env   <- .iwmde_qcmde_cache_env(list())
+  plans <- .hypothesis_plan_cache(list(a = 1))
+  assign("entry", 1, envir = env)
+  # Under the namespace they were filled under, the entries stay.
+  expect_identical(.iwmde_qcmde_cache_env(list()), env)
+  expect_true(exists("entry", envir = env, inherits = FALSE))
+  expect_identical(.hypothesis_plan_cache(list(a = 1)), plans)
+
+  # A reload of BayesTools creates another namespace; the record of another one
+  # stands for it here. The next use of either cache empties both.
+  assign("BayesTools", new.env(parent = emptyenv()), envir = .session_caches_code)
+  expect_identical(.iwmde_qcmde_cache_env(list()), env)
+  expect_false(exists("entry", envir = env, inherits = FALSE))
+  expect_false(identical(.hypothesis_plan_cache(list(a = 1)), plans))
+  expect_identical(.session_caches_code[["BayesTools"]], asNamespace("BayesTools"))
+
+  assign("entry", 1, envir = env)
+  assign("BayesTools", new.env(parent = emptyenv()), envir = .session_caches_code)
+  .hypothesis_plan_cache(list(a = 1))
+  expect_false(exists("entry", envir = env, inherits = FALSE))
+})
