@@ -234,7 +234,8 @@ test_that("the key of a normalization names the fit, target, rows and control, a
     )
     .iwmde_plan_normalization_cache(context, plan, plan[["grids"]][["display_grid"]])
   }
-  first  <- .iwmde_context(load_fit(fit_names[[1L]], validate = FALSE))
+  fit    <- load_fit(fit_names[[1L]], validate = FALSE)
+  first  <- .iwmde_context(fit)
   second <- .iwmde_context(load_fit(fit_names[[2L]], validate = FALSE))
   base   <- key(first)
 
@@ -243,6 +244,14 @@ test_that("the key of a normalization names the fit, target, rows and control, a
   expect_identical(key(first, -.3)[["key"]], base[["key"]])
   # Another fit, another target of the fit, and another control are others.
   expect_false(identical(key(second)[["key"]], base[["key"]]))
+  # So is a fit with the same draws, data and priors whose fit carries another
+  # prior list, which the joint density reads.
+  prior_list <- attr(fit[["fit"]], "prior_list")
+  location   <- intersect(c("mu", "mu_intercept"), names(prior_list))[[1L]]
+  attr(fit[["fit"]], "prior_list")[[location]] <- BayesTools::prior("normal", list(0, .3))
+  other_prior <- .iwmde_context(fit)
+  expect_identical(other_prior[["source_fingerprint"]], first[["source_fingerprint"]])
+  expect_false(identical(key(other_prior)[["key"]], base[["key"]]))
   scale <- intersect(c("tau", "log_tau_intercept"),
                      colnames(first[["posterior_samples"]]))
   if (length(scale) > 0L) {

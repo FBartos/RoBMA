@@ -430,9 +430,11 @@
 # The cache, the key of the normalization a plan executes, and whether the key
 # holds the display values, for `.iwmde_density_grid()`; NULL when the
 # normalization is not cached. The key names everything the normalization
-# depends on: the fit's content, the target and its conditioning, the rows, the
-# replacement, the range and its chart, the control, and the memory bound of
-# the call-owned grids. Contexts with
+# depends on: the fit's content (the whole object, whose fit also carries the
+# prior list and formula metadata the joint density reads, next to the draws,
+# data and priors of the source fingerprint), the target and its conditioning,
+# the rows, the replacement, the range and its chart, the control, and the
+# memory bound of the call-owned grids. Contexts with
 # call-owned interpolation grids also place the display values in the grids'
 # queries, so the key holds them and the cached entry keeps their density.
 .iwmde_plan_normalization_cache <- function(context, plan, display_grid) {
@@ -449,6 +451,7 @@
     schema_version     = .iwmde_schema_version(),
     algorithm_version  = .iwmde_algorithm_version(),
     source_fingerprint = plan[["source_fingerprint"]],
+    object             = .iwmde_hash("iwmde_object", context[["object"]]),
     parameter          = plan[["target"]][["parameter"]],
     target_key         = plan[["target"]][["target_key"]],
     execution_spec     = plan[["execution_spec"]],
