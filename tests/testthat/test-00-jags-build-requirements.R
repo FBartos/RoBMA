@@ -1,4 +1,5 @@
 context("JAGS 4.x build requirements")
+source(testthat::test_path("common-functions.R"))
 
 # RoBMA's JAGS module implements the JAGS 4 module interface only. These tests
 # run the build scripts of a source checkout against fake JAGS installations:
@@ -60,6 +61,12 @@ context("JAGS 4.x build requirements")
 test_that("configure accepts only JAGS 4.x from pkg-config and the headers", {
 
   skip_on_cran()
+  # Every run starts `sh ./configure` (about ten seconds each under Windows), so
+  # the runs belong to the numerical-kernels case; the pure-R checks below stay
+  # in the standard profile.
+  skip_if_not_certification(
+    "The POSIX configure runs are part of the numerical-kernels case."
+  )
   configure_file <- .jags_build_repository_file("configure")
   makevars_file  <- .jags_build_repository_file("src", "Makevars.in")
   skip_if_not(

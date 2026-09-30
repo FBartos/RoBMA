@@ -509,7 +509,8 @@ test_that("certification case verification filters select their intended files",
       "00-covariance-factorization", "00-known-v-joint-loglik",
       paste0("00-selection-kernel-", c("fit", "native", "plots", "step", "threads")),
       "00-selection-probability-numerics", "00-selection-factor-routing",
-      "00-selection-estimate-cells", "02-distributions", "02-glmm-aghq"
+      "00-selection-estimate-cells", "00-jags-build-requirements",
+      "02-distributions", "02-glmm-aghq"
     ),
     "normal-models" = c(
       "02-dfbetas", "02-forest", "02-funnel", "02-hatvalues", "02-influence",

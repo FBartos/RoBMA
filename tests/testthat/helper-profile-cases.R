@@ -270,7 +270,8 @@ certification_cases <- function() {
       test_filter = anchored(
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics|",
-        "selection-factor-routing|selection-estimate-cells)|",
+        "selection-factor-routing|selection-estimate-cells|",
+        "jags-build-requirements)|",
         "02-(distributions|glmm-aghq)"
       ),
       required_tests = .required_tests(
