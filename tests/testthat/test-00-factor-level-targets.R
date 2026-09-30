@@ -581,11 +581,14 @@ test_that("linear-target refusals of BayesTools keep their classes", {
   fields <- function(condition) {
     unclass(condition)[setdiff(names(condition), c("message", "call"))]
   }
+  # The plans are built with the mocked function, so none of them is kept.
+  withr::defer(.hypothesis_plan_cache_clear())
   for (name in names(refusals)) {
     testthat::local_mocked_bindings(
       hypothesis_linear_target = function(...) stop(refusals[[name]]),
       .package = "BayesTools"
     )
+    .hypothesis_plan_cache_clear()
     plan <- .hypothesis_plans(fit, "g1[10] = g1[20]")[[1L]]
     expect_identical(plan[["route"]], "combination", info = name)
     expect_identical(plan[["refusal"]][["class"]], expected[[name]], info = name)
@@ -624,6 +627,7 @@ test_that("linear-target refusals of BayesTools keep their classes", {
     hypothesis_linear_target = function(...) stop(refit),
     .package = "BayesTools"
   )
+  .hypothesis_plan_cache_clear()
   for (error in list(
     tryCatch(.hypothesis_plans(fit, "g1[10] = g1[20]"), error = identity),
     tryCatch(hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),

@@ -58,11 +58,13 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     )
     parameter <- selected[["parameter"]]
     density_method <- .marginal_means_density_method(object, density_method)
+    cache <- .hypothesis_plan_cache(object)
     plans <- lapply(BayesTools::hypothesis_render(hypothesis), function(statement) {
       .hypothesis_plan_marginal_means(
         object    = object,
         statement = statement,
-        parameter = parameter
+        parameter = parameter,
+        cache     = cache
       )
     })
     for (plan in plans) {

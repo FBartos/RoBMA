@@ -71,7 +71,7 @@ hypothesis_quantities.brma <- function(object, ...) {
   } else {
     metadata <- .brma_parameter_catalog_metadata(object)
     entries  <- metadata[["entries"]]
-    cache    <- .hypothesis_plan_cache()
+    cache    <- .hypothesis_plan_cache(object)
     rows <- lapply(unique_rows, function(i) {
       entry <- as.list(entries[
         match(catalog[["quantity_id"]][[i]], entries[["quantity_id"]]),
@@ -392,7 +392,7 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     averaged <- object[["inference"]][["conditional"]]
   }
   rows  <- list()
-  cache <- .hypothesis_plan_cache()
+  cache <- .hypothesis_plan_cache(object)
   for (i in seq_len(nrow(term_map))) {
 
     parameter <- term_map[["parameter"]][[i]]

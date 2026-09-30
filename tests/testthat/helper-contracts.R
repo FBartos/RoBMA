@@ -608,7 +608,7 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
 # row's quantity.
 .expect_aliases_resolve <- function(object, quantities, info,
                                     metadata = .brma_parameter_catalog_metadata(object),
-                                    cache = .hypothesis_plan_cache()) {
+                                    cache = .hypothesis_plan_cache(object)) {
 
   plan_of <- function(reference, component) {
     tryCatch(
@@ -680,7 +680,7 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
 
   metadata   <- .brma_parameter_catalog_metadata(object)
   quantities <- hypothesis_quantities(object)
-  cache      <- .hypothesis_plan_cache()
+  cache      <- .hypothesis_plan_cache(object)
   .expect_aliases_resolve(object, quantities, info, metadata, cache)
   control    <- list(n_points = 20, samples = 50)
   run <- function(statement, component, method) {

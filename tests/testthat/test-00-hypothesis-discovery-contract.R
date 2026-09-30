@@ -255,7 +255,12 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
   object <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))
   attr(object[["data"]], "known_V") <- TRUE
   parameter <- "(mu) tau(intercept)"
-  plan_of <- function() .hypothesis_plans(object, paste0("`", parameter, "` = 0.3"))[[1L]]
+  # The plans are built with the mocked density target, so none is kept.
+  plan_of <- function() {
+    .hypothesis_plan_cache_clear()
+    .hypothesis_plans(object, paste0("`", parameter, "` = 0.3"))[[1L]]
+  }
+  withr::defer(.hypothesis_plan_cache_clear())
 
   # A quantity without a scalar random-component coordinate: the refusal
   # of the density target (as plot() raises it) follows the hypothesis

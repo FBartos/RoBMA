@@ -167,11 +167,71 @@
 }
 
 
-# A cache shared by the plans of one call: mixed posteriors, marginal
-# posteriors, and random-effect selections are built once per target.
-.hypothesis_plan_cache <- function() {
+# The cache of the plans of a fitted (or marginal-means) object: mixed
+# posteriors, marginal posteriors, random-effect selections, and the plans of
+# the statements themselves are built once per object and kept for the session,
+# whichever of hypothesis(), hypothesis_quantities() and the marginal-means
+# methods asks for them again. An object is identified by the hash of its whole
+# content (draws, data, priors and everything else the plans read), so another
+# object never reads them; an object that cannot be hashed gets a cache of its
+# own call only. The caches are environments of the package, so they never
+# travel with a saved fit, leave with the session, and are dropped when the
+# package code is reloaded. Each is bounded by its entries and their size, and
+# the package keeps the caches of a few objects, the oldest out.
+.hypothesis_plan_registry <- new.env(parent = emptyenv())
 
-  new.env(parent = emptyenv())
+
+# Objects whose caches are kept.
+.hypothesis_plan_registry_limit <- function() 4L
+
+
+# Entries, and bytes, kept per object.
+.hypothesis_plan_cache_limit <- function() 256L
+
+
+.hypothesis_plan_cache_max_bytes <- function() 256 * 1024^2
+
+
+.hypothesis_plan_cache <- function(object = NULL) {
+
+  cache <- if (!is.null(object)) .hypothesis_plan_object_cache(object)
+
+  if (is.null(cache)) new.env(parent = emptyenv()) else cache
+}
+
+
+.hypothesis_plan_object_cache <- function(object) {
+
+  key <- tryCatch(rlang::hash(object), error = function(e) NULL)
+  if (is.null(key)) {
+    return(NULL)
+  }
+  registry <- .hypothesis_plan_registry
+  if (!exists(key, envir = registry, inherits = FALSE)) {
+    cache <- new.env(parent = emptyenv())
+    assign(".bounded", TRUE, envir = cache)
+    order <- c(setdiff(registry[[".order"]], key), key)
+    assign(key, cache, envir = registry)
+    if (length(order) > .hypothesis_plan_registry_limit()) {
+      evicted <- order[seq_len(length(order) - .hypothesis_plan_registry_limit())]
+      rm(list = evicted, envir = registry)
+      order <- setdiff(order, evicted)
+    }
+    assign(".order", order, envir = registry)
+  }
+
+  get(key, envir = registry, inherits = FALSE)
+}
+
+
+# Drop the caches of every object. A test that replaces a function the plans
+# are built with, between two plans of one statement, drops them too.
+.hypothesis_plan_cache_clear <- function() {
+
+  rm(list = ls(.hypothesis_plan_registry, all.names = TRUE),
+     envir = .hypothesis_plan_registry)
+
+  invisible(NULL)
 }
 
 
@@ -180,11 +240,42 @@
   if (is.null(cache)) {
     return(compute())
   }
-  if (!exists(key, envir = cache, inherits = FALSE)) {
-    assign(key, compute(), envir = cache)
+  if (exists(key, envir = cache, inherits = FALSE)) {
+    return(get(key, envir = cache, inherits = FALSE))
   }
+  value <- compute()
+  .hypothesis_plan_cache_set(cache, key, value)
 
-  get(key, envir = cache, inherits = FALSE)
+  value
+}
+
+
+# Keep `value` under `key`. A bounded cache drops its oldest entries beyond its
+# entry and size bounds, and keeps no entry above the size bound: that value is
+# computed again the next time it is asked for.
+.hypothesis_plan_cache_set <- function(cache, key, value) {
+
+  if (!isTRUE(cache[[".bounded"]])) {
+    assign(key, value, envir = cache)
+    return(invisible(TRUE))
+  }
+  size <- as.numeric(utils::object.size(value))
+  if (size > .hypothesis_plan_cache_max_bytes()) {
+    return(invisible(FALSE))
+  }
+  order <- c(setdiff(cache[[".order"]], key), key)
+  sizes <- cache[[".sizes"]]
+  sizes <- c(sizes[setdiff(names(sizes), key)], stats::setNames(size, key))
+  assign(key, value, envir = cache)
+  while (length(order) > .hypothesis_plan_cache_limit() ||
+         sum(sizes[order]) > .hypothesis_plan_cache_max_bytes()) {
+    rm(list = order[[1L]], envir = cache)
+    order <- order[-1L]
+  }
+  assign(".order", order, envir = cache)
+  assign(".sizes", sizes[order], envir = cache)
+
+  invisible(TRUE)
 }
 
 
@@ -196,24 +287,35 @@
 .hypothesis_plans <- function(object, hypothesis, component = "auto",
                               standardized = FALSE, conditional = FALSE,
                               metadata = NULL, n_samples = 10000L,
-                              cache = .hypothesis_plan_cache()) {
+                              cache = .hypothesis_plan_cache(object)) {
 
   if (is.null(metadata)) {
     metadata <- .brma_parameter_catalog_metadata(object)
   }
   ast        <- .hypothesis_brma_ast(hypothesis, metadata[["catalog"]])
   statements <- BayesTools::hypothesis_render(ast)
+  # A plan is a function of its statement and arguments (and of the object and
+  # its metadata, which the cache is of).
+  arguments  <- rlang::hash(list(
+    component, standardized, conditional, as.numeric(n_samples), metadata
+  ))
 
   lapply(statements, function(statement) {
-    .hypothesis_plan(
-      object       = object,
-      statement    = statement,
-      component    = component,
-      standardized = standardized,
-      conditional  = conditional,
-      metadata     = metadata,
-      n_samples    = n_samples,
-      cache        = cache
+    .hypothesis_plan_cached(
+      cache,
+      paste("plan", arguments, rlang::hash(statement), sep = "\r"),
+      function() {
+        .hypothesis_plan(
+          object       = object,
+          statement    = statement,
+          component    = component,
+          standardized = standardized,
+          conditional  = conditional,
+          metadata     = metadata,
+          n_samples    = n_samples,
+          cache        = cache
+        )
+      }
     )
   })
 }
@@ -1633,6 +1735,19 @@
 # from the stored source model.
 .hypothesis_plan_marginal_means <- function(object, statement,
                                             parameter = NULL, cache = NULL) {
+
+  .hypothesis_plan_cached(
+    cache,
+    paste("marginal_means", rlang::hash(list(statement, parameter)), sep = "\r"),
+    function() {
+      .hypothesis_plan_marginal_means_build(object, statement, parameter)
+    }
+  )
+}
+
+
+.hypothesis_plan_marginal_means_build <- function(object, statement,
+                                                  parameter = NULL) {
 
   if (!inherits(statement, "BayesTools_hypothesis_ast")) {
     statement <- BayesTools::hypothesis_parse(statement)

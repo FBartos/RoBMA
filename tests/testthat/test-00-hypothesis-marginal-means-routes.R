@@ -302,3 +302,58 @@ test_that("hypothesis labels retain expanded factor levels", {
   )
   expect_identical(attr(restored, "hypothesis_ast", exact = TRUE), display)
 })
+
+
+test_that("the plans of a marginal-means object are built once and shared by its methods", {
+
+  .hypothesis_plan_cache_clear()
+  withr::defer(.hypothesis_plan_cache_clear())
+  object   <- .marginal_means_route_test_object(model_averaged = FALSE)
+  original <- .hypothesis_plan_marginal_means_build
+  builds   <- 0L
+  testthat::local_mocked_bindings(
+    .hypothesis_plan_marginal_means_build = function(...) {
+      builds <<- builds + 1L
+      original(...)
+    },
+    .package = "RoBMA"
+  )
+
+  first  <- hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913)
+  expect_identical(builds, 1L)
+  again  <- hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913)
+  expect_identical(builds, 1L)
+  expect_identical(again, first)
+  # Another statement is another plan; the parameter the statement selects, or
+  # names, is what the plan is of.
+  hypothesis(object, "alloc[A] > 0", columns = "all", seed = 913)
+  expect_identical(builds, 2L)
+  hypothesis(object, "alloc[A] > 0", parameter = "mu_alloc", columns = "all",
+             seed = 913)
+  expect_identical(builds, 2L)
+  hypothesis(object, "alloc[B] > 0", columns = "all", seed = 913)
+  expect_identical(builds, 3L)
+  # hypothesis_quantities() plans the statements of every level, and plans them
+  # once for the next call.
+  quantities <- hypothesis_quantities(object)
+  after      <- builds
+  expect_gt(after, 3L)
+  expect_identical(hypothesis_quantities(object), quantities)
+  expect_identical(builds, after)
+  # Another object, even one that differs in a label only, has plans of its own.
+  perturbed <- object
+  perturbed[["term_map"]][["label"]] <- "another label"
+  hypothesis(perturbed, "alloc[A] > alloc[B]", columns = "all", seed = 913)
+  expect_identical(builds, after + 1L)
+
+  # The plans of the cache are those of a call without one.
+  testthat::local_mocked_bindings(
+    .hypothesis_plan_cache = function(object = NULL) new.env(parent = emptyenv()),
+    .package = "RoBMA"
+  )
+  expect_identical(
+    hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913),
+    first
+  )
+  expect_identical(hypothesis_quantities(object), quantities)
+})
