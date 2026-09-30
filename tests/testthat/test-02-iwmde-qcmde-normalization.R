@@ -161,7 +161,7 @@ test_that("a cached normalization gives the statements the results of the uncach
     passes <- 0L
     run <- function(cache) {
       passes <<- 0L
-      rm(list = ls(env, all.names = TRUE), envir = env)
+      .iwmde_qcmde_cache_clear()
       testthat::with_mocked_bindings(
         {
           results <- lapply(statements, function(statement) {

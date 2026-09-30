@@ -365,3 +365,13 @@ test_that("the largest of the quadrature changes reported is kept, and none is N
   expect_identical(.iwmde_qcmde_max_change(c(NA_real_, NA_real_)), NA_real_)
   expect_identical(.iwmde_qcmde_max_change(NULL), NA_real_)
 })
+
+
+test_that("the cache is cleared for a test that replaces what a normalization is computed with", {
+
+  env <- .iwmde_qcmde_cache_env(list())
+  assign("entry", 1, envir = env)
+  assign(".order", "entry", envir = env)
+  .iwmde_qcmde_cache_clear()
+  expect_length(ls(env, all.names = TRUE), 0L)
+})

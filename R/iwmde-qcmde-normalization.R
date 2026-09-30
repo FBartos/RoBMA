@@ -388,6 +388,18 @@
 }
 
 
+# Drop every cached normalization. A test that replaces a function the
+# normalization is computed with, between two requests on one fit, drops them
+# too.
+.iwmde_qcmde_cache_clear <- function() {
+
+  rm(list = ls(.iwmde_qcmde_normalization_cache, all.names = TRUE),
+     envir = .iwmde_qcmde_normalization_cache)
+
+  invisible(NULL)
+}
+
+
 # The cache, the key of the normalization a plan executes, and whether the key
 # holds the display values, for `.iwmde_density_grid()`; NULL when the
 # normalization is not cached. The key names everything the normalization
