@@ -10,7 +10,7 @@ source(testthat::test_path("common-functions.R"))
     c("dat.lehmann2018_RoBMA_mods", "konstantopoulos2011_3lvl",
       "dat.lehmann2018-3PSM"),
     list_fits()
-  ), 2L)
+  ), 1L)
 }
 
 

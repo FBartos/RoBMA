@@ -151,6 +151,8 @@ test_that("a cached normalization gives the statements the results of the uncach
 
   original   <- .iwmde_qcmde_normalization_pass
   statements <- c("mu = 0", "mu = 0.15", "mu = -0.05")
+  # A small density budget: the identity of the paths does not depend on it.
+  control    <- list(samples = 100, n_points = 20)
   for (fit_name in fit_names) {
     fit     <- load_fit(fit_name, validate = FALSE)
     context <- .iwmde_context(fit)
@@ -163,7 +165,8 @@ test_that("a cached normalization gives the statements the results of the uncach
       testthat::with_mocked_bindings(
         {
           results <- lapply(statements, function(statement) {
-            hypothesis(fit, statement, density_method = "qCMDE")
+            hypothesis(fit, statement, density_method = "qCMDE",
+                       density_control = control)
           })
           # The density curve has the display grid of a plot and the row budget
           # of a density, so its normalization is its own; a second request for
@@ -173,7 +176,7 @@ test_that("a cached normalization gives the statements the results of the uncach
               context         = .iwmde_context(fit),
               parameter       = "mu",
               density_method  = "qCMDE",
-              density_control = NULL,
+              density_control = control,
               outputs         = "density"
             )[["density"]]
           }
