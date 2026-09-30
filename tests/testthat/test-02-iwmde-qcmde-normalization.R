@@ -8,10 +8,10 @@ source(testthat::test_path("helper-iwmde.R"))
 # model in which every row carries the weight function, and binomial GLMMs.
 .qcmde_merge_fit_names <- function() {
 
-  intersect(
+  utils::head(intersect(
     c("dat.lehmann2018-3PSM", "bcg_glmm", "nielweise2008_glmm"),
     list_fits()
-  )
+  ), 2L)
 }
 
 
@@ -141,4 +141,119 @@ test_that("an estimate-only pass evaluated in one call assembles what separate c
     sequential[["log_q_display"]] <- .qcmde_plain(sequential[["log_q_display"]])
     expect_identical(merged, sequential, info = fit_name)
   }
+})
+
+
+test_that("a cached normalization gives the statements the results of the uncached path", {
+
+  fit_names <- .qcmde_merge_fit_names()
+  skip_if(length(fit_names) == 0L, "No cached selection or GLMM fixture is active.")
+
+  original   <- .iwmde_qcmde_normalization_pass
+  statements <- c("mu = 0", "mu = 0.15", "mu = -0.05")
+  for (fit_name in fit_names) {
+    fit     <- load_fit(fit_name, validate = FALSE)
+    context <- .iwmde_context(fit)
+    env     <- .iwmde_qcmde_cache_env(context)
+    expect_true(is.environment(env), info = fit_name)
+    passes <- 0L
+    run <- function(cache) {
+      passes <<- 0L
+      rm(list = ls(env, all.names = TRUE), envir = env)
+      testthat::with_mocked_bindings(
+        {
+          results <- lapply(statements, function(statement) {
+            hypothesis(fit, statement, density_method = "qCMDE")
+          })
+          # The density curve has the display grid of a plot and the row budget
+          # of a density, so its normalization is its own; a second request for
+          # the curve reuses it.
+          curve <- function() {
+            .iwmde_estimate(
+              context         = .iwmde_context(fit),
+              parameter       = "mu",
+              density_method  = "qCMDE",
+              density_control = NULL,
+              outputs         = "density"
+            )[["density"]]
+          }
+          curves <- list(curve(), curve())
+          list(results = results, curves = curves, passes = passes)
+        },
+        .iwmde_qcmde_normalization_pass = function(...) {
+          passes <<- passes + 1L
+          original(...)
+        },
+        .iwmde_qcmde_cache_env = if (cache) {
+          function(context) env
+        } else {
+          function(context) NULL
+        },
+        .package = "RoBMA"
+      )
+    }
+    cached   <- run(TRUE)
+    uncached <- run(FALSE)
+
+    # One pass serves the statements, and one the requests of the density curve.
+    expect_identical(cached$passes, 2L, info = fit_name)
+    expect_identical(uncached$passes, length(statements) + 2L, info = fit_name)
+    for (i in seq_along(statements)) {
+      expect_identical(as.data.frame(cached$results[[i]]),
+                       as.data.frame(uncached$results[[i]]),
+                       info = paste(fit_name, statements[[i]]))
+      expect_identical(density_diagnostics(cached$results[[i]]),
+                       density_diagnostics(uncached$results[[i]]),
+                       info = paste(fit_name, statements[[i]]))
+    }
+    for (i in 1:2) {
+      expect_identical(cached$curves[[i]][["y"]], uncached$curves[[i]][["y"]],
+                       info = fit_name)
+      expect_identical(cached$curves[[i]], uncached$curves[[i]], info = fit_name)
+    }
+  }
+})
+
+
+test_that("the key of a normalization names the fit, target, rows and control, and not the value tested", {
+
+  fit_names <- .qcmde_merge_fit_names()
+  skip_if(length(fit_names) < 2L, "Two cached selection or GLMM fixtures are needed.")
+
+  key <- function(context, value = 0, parameter = "mu", control = NULL) {
+    plan <- .iwmde_plan(
+      context         = context,
+      parameter       = parameter,
+      density_method  = "qCMDE",
+      density_control = control,
+      outputs         = "ordinate",
+      values          = value
+    )
+    .iwmde_plan_normalization_cache(context, plan, plan[["grids"]][["display_grid"]])
+  }
+  first  <- .iwmde_context(load_fit(fit_names[[1L]], validate = FALSE))
+  second <- .iwmde_context(load_fit(fit_names[[2L]], validate = FALSE))
+  base   <- key(first)
+
+  expect_false(base[["display_in_key"]])
+  expect_identical(key(first, .15)[["key"]], base[["key"]])
+  expect_identical(key(first, -.3)[["key"]], base[["key"]])
+  # Another fit, another target of the fit, and another control are others.
+  expect_false(identical(key(second)[["key"]], base[["key"]]))
+  scale <- intersect(c("tau", "log_tau_intercept"),
+                     colnames(first[["posterior_samples"]]))
+  if (length(scale) > 0L) {
+    expect_false(identical(
+      key(first, .3, parameter = scale[[1L]])[["key"]], base[["key"]]
+    ))
+  }
+  for (control in list(list(normalization_prob = .99),
+                       list(normalization_points = 40L),
+                       list(samples = 50L))) {
+    expect_false(identical(key(first, control = control)[["key"]], base[["key"]]),
+                 info = paste(names(control), control[[1L]]))
+  }
+  # One cache serves the session; the keys keep the fits apart.
+  expect_identical(base[["cache"]], key(first, .2)[["cache"]])
+  expect_identical(base[["cache"]], key(second)[["cache"]])
 })

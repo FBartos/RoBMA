@@ -677,7 +677,10 @@
       replacement        = plan[["replacement"]],
       n_candidate_rows   = execution[["n_candidate_rows"]],
       density_output     = identical(output, "density"),
-      normalization_prob = plan[["control"]][["normalization_prob"]]
+      normalization_prob = plan[["control"]][["normalization_prob"]],
+      normalization_cache = .iwmde_plan_normalization_cache(
+        context, plan, display_grid
+      )
     )
   } else {
     density <- .iwmde_density_iwmde(

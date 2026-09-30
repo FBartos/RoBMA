@@ -686,7 +686,8 @@
                                 density_output = TRUE,
                                 normalization_prob =
                                   .density_control_normalize("qCMDE")[[
-                                    "normalization_prob"]]) {
+                                    "normalization_prob"]],
+                                normalization_cache = NULL) {
 
   n_input_rows     <- length(row_states)
   n_candidate_rows <- as.integer(n_candidate_rows[[1L]])
@@ -700,7 +701,12 @@
       detail    = "candidate rows, estimator rows, and row states are inconsistent"
     )
   }
-  evaluation <- .iwmde_qcmde_normalization_pass(
+  # The normalization that does not depend on the display values: the selected
+  # grid is the nested grid of nodes and midpoints, validated by the node grid
+  # over the same range; the pilot is the node grid over the initial range,
+  # before any extension. A cached normalization evaluates the display values
+  # alone.
+  normalization <- .iwmde_qcmde_normalization(
     context            = context,
     parameter          = parameter,
     display_grid       = display_grid,
@@ -709,46 +715,21 @@
     normalization_prob = normalization_prob,
     row_states         = row_states,
     replacement        = replacement,
-    estimator_rows     = estimator_rows
+    estimator_rows     = estimator_rows,
+    active_mass        = active_mass,
+    n_candidate_rows   = n_candidate_rows,
+    cache              = normalization_cache
   )
-  log_q_display     <- evaluation[["log_q_display"]]
-  quadrature_change <- evaluation[["quadrature_change"]]
-  # The selected grid is the nested grid of nodes and midpoints, validated by
-  # the node grid over the same range. The pilot is the node grid over the
-  # initial range, before any extension.
-  normalizer_plan <- list(
-    pilot_grid         = evaluation[["initial"]],
-    final_grid         = evaluation[["nested"]],
-    validation_grid    = evaluation[["nodes"]],
-    n_refinement_steps = evaluation[["extension_passes"]]
-  )
-  pilot_grid <- normalizer_plan[["pilot_grid"]]
-  final_grid <- normalizer_plan[["final_grid"]]
+  log_q_display     <- normalization[["log_q_display"]]
+  normalized        <- normalization[["summary"]]
+  quadrature_change <- normalization[["quadrature_change"]]
 
-  initial_log_normalizer    <- pilot_grid[["log_normalizer"]]
-  final_log_normalizer      <- final_grid[["log_normalizer"]]
-  validation_log_normalizer <- normalizer_plan[["validation_grid"]][["log_normalizer"]]
-  initial_finite <- is.finite(initial_log_normalizer)
-  final_finite   <- is.finite(final_log_normalizer)
+  initial_log_normalizer    <- normalized[["pilot_log_normalizer"]]
+  final_log_normalizer      <- normalized[["log_normalizer"]]
+  validation_log_normalizer <- normalized[["validation_log_normalizer"]]
+  initial_finite    <- is.finite(initial_log_normalizer)
+  final_finite      <- is.finite(final_log_normalizer)
   validation_finite <- is.finite(validation_log_normalizer)
-  if (any(!final_finite)) {
-    .iwmde_stop_construction_failure(
-      estimator = "q_grid_cmde",
-      parameter = parameter,
-      rows      = estimator_rows[!final_finite],
-      stage     = "conditional-density normalization",
-      detail    = "no finite positive normalizer was obtained on the normalization grid"
-    )
-  }
-  if (any(!validation_finite)) {
-    .iwmde_stop_construction_failure(
-      estimator = "q_grid_cmde",
-      parameter = parameter,
-      rows      = estimator_rows[!validation_finite],
-      stage     = "conditional-density normalization validation",
-      detail    = "the validation grid did not produce a finite positive normalizer"
-    )
-  }
   pilot_y        <- .iwmde_qcmde_pilot_density(
     log_q_display  = log_q_display,
     log_normalizer = initial_log_normalizer,
@@ -803,22 +784,9 @@
     active_mass_error  = density_terms[["active_mass_error"]],
     active_mass        = active_mass
   )
-  norm_y_initial <- .iwmde_normalization_density(
-    log_q_norm         = pilot_grid[["log_q"]],
-    log_normalizer     = log_normalizer,
-    log_jacobian       = pilot_grid[["log_jacobian"]],
-    normalization_grid = pilot_grid[["z"]],
-    active_mass        = active_mass,
-    denominator        = n_candidate_rows
-  )
-  norm_y_final <- .iwmde_normalization_density(
-    log_q_norm         = final_grid[["log_q"]],
-    log_normalizer     = log_normalizer,
-    log_jacobian       = final_grid[["log_jacobian"]],
-    normalization_grid = final_grid[["z"]],
-    active_mass        = active_mass,
-    denominator        = n_candidate_rows
-  )
+  pilot_normalization_integral <- normalized[["pilot_normalization_integral"]]
+  final_normalization_integral <- normalized[["final_normalization_integral"]]
+  truncation                   <- normalized[["truncation"]]
   ordinate_change <- .iwmde_qcmde_ordinate_change(
     pilot_y = y,
     final_y = validation_y
@@ -827,20 +795,6 @@
     pilot_y = pilot_y,
     final_y = y
   )
-  pilot_normalization_integral <- .iwmde_trapz(
-    pilot_grid[["z"]],
-    norm_y_initial
-  )
-  final_normalization_integral <- .iwmde_trapz(
-    final_grid[["z"]],
-    norm_y_final
-  )
-  truncation <- .iwmde_qcmde_truncation_summary(.iwmde_qcmde_row_truncation(
-    laws      = evaluation[["laws"]],
-    log_mass  = evaluation[["log_mass"]],
-    x_range   = range(final_grid[["x"]]),
-    estimates = .iwmde_qcmde_grid_tail_estimates(final_grid)
-  ))
 
   return(list(
     x                      = display_grid,
@@ -871,19 +825,19 @@
     mcmc_uncertainty_reason  = mcse_data[["uncertainty_reason"]],
     log_normalizer         = log_normalizer,
     pilot_log_normalizer   = initial_log_normalizer,
-    conditional_normalization = evaluation[["conditional_normalization"]],
-    normalizer_interpolation = evaluation[["normalizer_interpolation"]],
-    covariance_interpolation = evaluation[["covariance_interpolation"]],
+    conditional_normalization = normalized[["conditional_normalization"]],
+    normalizer_interpolation = normalized[["normalizer_interpolation"]],
+    covariance_interpolation = normalized[["covariance_interpolation"]],
     # The nested grids have no refinement sequence for a pilot gate to cut
     # short.
     pilot_gate_stopped     = FALSE,
     pilot_bulk_ess         = numeric(),
     n_candidate_rows       = n_candidate_rows,
     n_evaluated_rows       = n_input_rows,
-    normalization_points              = length(final_grid[["x"]]),
-    normalization_range               = range(final_grid[["x"]]),
-    normalization_initial_points      = length(pilot_grid[["x"]]),
-    normalization_initial_range       = range(pilot_grid[["x"]]),
+    normalization_points              = normalized[["normalization_points"]],
+    normalization_range               = normalized[["normalization_range"]],
+    normalization_initial_points      = normalized[["normalization_initial_points"]],
+    normalization_initial_range       = normalized[["normalization_initial_range"]],
     pilot_normalization_integral      = pilot_normalization_integral,
     final_normalization_integral      = final_normalization_integral,
     normalization_relative_error      = abs(
@@ -904,11 +858,11 @@
     max_quadrature_relative_change    = quadrature_change,
     p95_normalizer_relative_change    = normalizer_change[["p95"]],
     median_normalizer_relative_change = normalizer_change[["median"]],
-    normalization_refined_points      = length(final_grid[["x"]]),
-    normalization_refined_range       = range(final_grid[["x"]]),
+    normalization_refined_points      = normalized[["normalization_points"]],
+    normalization_refined_range       = normalized[["normalization_range"]],
     n_rescued_normalizer              = sum(!initial_finite & final_finite),
     n_initial_dropped_normalizer      = sum(!initial_finite),
-    n_refinement_steps                = normalizer_plan[["n_refinement_steps"]],
+    n_refinement_steps                = normalized[["n_refinement_steps"]],
     integral_mcse                     = integral_mcse[["mcse"]],
     integral_relative_mcse            = integral_mcse[["relative_mcse"]],
     batch_size                        = mcse_data[["batch_size"]],

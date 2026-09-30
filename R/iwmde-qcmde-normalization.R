@@ -59,37 +59,10 @@
   }
   evaluate <- function(evaluation_context, values) {
 
-    log_q <- tryCatch(
-      .iwmde_log_q_grid(
-        context     = evaluation_context,
-        parameter   = parameter,
-        values      = values,
-        row_states  = row_states,
-        replacement = replacement
-      ),
-      error = function(e) {
-        if (inherits(e, "iwmde_construction_error")) {
-          stop(e)
-        }
-        .iwmde_stop_construction_failure(
-          estimator = "q_grid_cmde",
-          parameter = parameter,
-          rows      = estimator_rows,
-          stage     = "joint-density grid evaluation",
-          detail    = conditionMessage(e)
-        )
-      }
-    )
-    .iwmde_validate_log_grid(
-      log_q_grid = log_q,
-      estimator  = "q_grid_cmde",
-      parameter  = parameter,
-      rows       = estimator_rows,
-      n_values   = length(values),
-      stage      = "joint-density grid evaluation"
-    )
-
-    return(record_quadrature(log_q))
+    return(record_quadrature(.iwmde_qcmde_evaluate_grid(
+      evaluation_context, parameter, values, row_states, replacement,
+      estimator_rows
+    )))
   }
   # Interpolation grids of fixed selection normalizers and covariance sweeps
   # answer exactly the values they are built for; values outside that set are
@@ -377,6 +350,304 @@
   return(all(vapply(row_states[rows], function(state) {
     isTRUE(state[["active_setup"]][["is_weightfunction"]])
   }, logical(1L))))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# Session cache of the statement-independent normalization
+# ---------------------------------------------------------------------------- #
+#
+# The normalization of a fitted model's rows (the pass above and what
+# .iwmde_density_grid() derives from its grids without the display values)
+# depends on the fit, the target and the control, not on the value a statement
+# tests. Repeated calls on one fit and target, such as the statements of a
+# hypothesis test made one at a time, reuse it; only the display values are
+# evaluated again. The keys are content hashes (the fit's draws, data and priors
+# among them), so entries of different fits never meet. The cache is an
+# environment of the package: it never travels with a saved fit, leaves with the
+# session, and is dropped when the package code is reloaded, so a development
+# session never reads a normalization the previous code computed. It is bounded
+# by the entries it holds and their size.
+
+
+.iwmde_qcmde_normalization_cache <- new.env(parent = emptyenv())
+
+
+# Entries kept, oldest first out.
+.iwmde_qcmde_cache_limit <- function() 8L
+
+
+# The largest entry, in bytes, that is kept; a larger one is recomputed.
+.iwmde_qcmde_cache_max_bytes <- function() 64 * 1024^2
+
+
+# The cache of a fitted model's normalizations: the environment of the package.
+.iwmde_qcmde_cache_env <- function(context) {
+
+  .iwmde_qcmde_normalization_cache
+}
+
+
+# The cache, the key of the normalization a plan executes, and whether the key
+# holds the display values, for `.iwmde_density_grid()`; NULL when the
+# normalization is not cached. The key names everything the normalization
+# depends on: the fit's content, the target and its conditioning, the rows, the
+# replacement, the range and its chart, the control, and the memory bound of
+# the call-owned grids. Contexts with
+# call-owned interpolation grids also place the display values in the grids'
+# queries, so the key holds them and the cached entry keeps their density.
+.iwmde_plan_normalization_cache <- function(context, plan, display_grid) {
+
+  cache <- .iwmde_qcmde_cache_env(context)
+  if (is.null(cache) || !identical(plan[["method"]], "q_grid_cmde")) {
+    return(NULL)
+  }
+  # The call-owned grids exist for known-V joint selection models only.
+  display_in_key <- .is_data_joint_selection(context[["data"]]) &&
+    .is_data_known_v(context[["data"]])
+  control <- plan[["control"]]
+  key <- .iwmde_hash("iwmde_qcmde_normalization", .iwmde_compact_nulls(list(
+    schema_version     = .iwmde_schema_version(),
+    algorithm_version  = .iwmde_algorithm_version(),
+    source_fingerprint = plan[["source_fingerprint"]],
+    parameter          = plan[["target"]][["parameter"]],
+    target_key         = plan[["target"]][["target_key"]],
+    execution_spec     = plan[["execution_spec"]],
+    control            = .iwmde_density_control_provenance(control),
+    row_budget         = plan[["row_budget"]],
+    rows               = .iwmde_plan_rows_provenance(plan),
+    estimator_rows     = plan[["rows"]][["estimator_rows"]],
+    replacement        = .iwmde_hash("iwmde_replacement", plan[["replacement"]]),
+    support            = plan[["support"]][["support"]],
+    transform          = plan[["support"]][["transform"]],
+    normalization_grid = .iwmde_hash(
+      "iwmde_normalization_grid",
+      plan[["grids"]][["normalization_grid"]]
+    ),
+    covariance_bytes   = .known_v_covariance_max_bytes(),
+    display            = if (display_in_key) {
+      .iwmde_hash("iwmde_display_grid", display_grid)
+    }
+  )))
+
+  list(cache = cache, key = key, display_in_key = display_in_key)
+}
+
+
+.iwmde_qcmde_cache_get <- function(cache) {
+
+  if (is.null(cache) || !exists(cache[["key"]], envir = cache[["cache"]],
+                                inherits = FALSE)) {
+    return(NULL)
+  }
+
+  get(cache[["key"]], envir = cache[["cache"]], inherits = FALSE)
+}
+
+
+.iwmde_qcmde_cache_set <- function(cache, value) {
+
+  if (is.null(cache) ||
+      as.numeric(utils::object.size(value)) > .iwmde_qcmde_cache_max_bytes()) {
+    return(invisible(FALSE))
+  }
+  env   <- cache[["cache"]]
+  order <- c(setdiff(env[[".order"]], cache[["key"]]), cache[["key"]])
+  assign(cache[["key"]], value, envir = env)
+  if (length(order) > .iwmde_qcmde_cache_limit()) {
+    evicted <- order[seq_len(length(order) - .iwmde_qcmde_cache_limit())]
+    rm(list = evicted, envir = env)
+    order <- setdiff(order, evicted)
+  }
+  assign(".order", order, envir = env)
+
+  invisible(TRUE)
+}
+
+
+# Evaluate values of the joint density of the rows, as a normalization pass
+# does: a failure is a construction failure of the target, and the values are
+# validated.
+.iwmde_qcmde_evaluate_grid <- function(context, parameter, values, row_states,
+                                       replacement, estimator_rows) {
+
+  log_q <- tryCatch(
+    .iwmde_log_q_grid(
+      context     = context,
+      parameter   = parameter,
+      values      = values,
+      row_states  = row_states,
+      replacement = replacement
+    ),
+    error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) {
+        stop(e)
+      }
+      .iwmde_stop_construction_failure(
+        estimator = "q_grid_cmde",
+        parameter = parameter,
+        rows      = estimator_rows,
+        stage     = "joint-density grid evaluation",
+        detail    = conditionMessage(e)
+      )
+    }
+  )
+  .iwmde_validate_log_grid(
+    log_q_grid = log_q,
+    estimator  = "q_grid_cmde",
+    parameter  = parameter,
+    rows       = estimator_rows,
+    n_values   = length(values),
+    stage      = "joint-density grid evaluation"
+  )
+
+  return(log_q)
+}
+
+
+# The largest of the quadrature changes reported, NA when none was.
+.iwmde_qcmde_max_change <- function(changes) {
+
+  changes <- changes[!is.na(changes)]
+
+  if (length(changes) > 0L) max(changes) else NA_real_
+}
+
+
+# What of a normalization pass does not depend on the display values: the
+# normalizers of the three grids, the normalization integrals of the pilot and
+# the selected grid, the row truncation, and the descriptions of the grids.
+# The checks that a normalizer is finite are the pass's own, so an entry is only
+# built from a pass that passed them.
+.iwmde_qcmde_normalization_summary <- function(pass, parameter, estimator_rows,
+                                               active_mass, n_candidate_rows) {
+
+  pilot_grid      <- pass[["initial"]]
+  final_grid      <- pass[["nested"]]
+  validation_grid <- pass[["nodes"]]
+  final_log_normalizer      <- final_grid[["log_normalizer"]]
+  validation_log_normalizer <- validation_grid[["log_normalizer"]]
+  final_finite      <- is.finite(final_log_normalizer)
+  validation_finite <- is.finite(validation_log_normalizer)
+  if (any(!final_finite)) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows[!final_finite],
+      stage     = "conditional-density normalization",
+      detail    = "no finite positive normalizer was obtained on the normalization grid"
+    )
+  }
+  if (any(!validation_finite)) {
+    .iwmde_stop_construction_failure(
+      estimator = "q_grid_cmde",
+      parameter = parameter,
+      rows      = estimator_rows[!validation_finite],
+      stage     = "conditional-density normalization validation",
+      detail    = "the validation grid did not produce a finite positive normalizer"
+    )
+  }
+  norm_y_initial <- .iwmde_normalization_density(
+    log_q_norm         = pilot_grid[["log_q"]],
+    log_normalizer     = final_log_normalizer,
+    log_jacobian       = pilot_grid[["log_jacobian"]],
+    normalization_grid = pilot_grid[["z"]],
+    active_mass        = active_mass,
+    denominator        = n_candidate_rows
+  )
+  norm_y_final <- .iwmde_normalization_density(
+    log_q_norm         = final_grid[["log_q"]],
+    log_normalizer     = final_log_normalizer,
+    log_jacobian       = final_grid[["log_jacobian"]],
+    normalization_grid = final_grid[["z"]],
+    active_mass        = active_mass,
+    denominator        = n_candidate_rows
+  )
+  truncation <- .iwmde_qcmde_truncation_summary(.iwmde_qcmde_row_truncation(
+    laws      = pass[["laws"]],
+    log_mass  = pass[["log_mass"]],
+    x_range   = range(final_grid[["x"]]),
+    estimates = .iwmde_qcmde_grid_tail_estimates(final_grid)
+  ))
+
+  list(
+    pilot_log_normalizer         = pilot_grid[["log_normalizer"]],
+    log_normalizer               = final_log_normalizer,
+    validation_log_normalizer    = validation_log_normalizer,
+    pilot_normalization_integral = .iwmde_trapz(pilot_grid[["z"]], norm_y_initial),
+    final_normalization_integral = .iwmde_trapz(final_grid[["z"]], norm_y_final),
+    truncation                   = truncation,
+    normalization_points         = length(final_grid[["x"]]),
+    normalization_range          = range(final_grid[["x"]]),
+    normalization_initial_points = length(pilot_grid[["x"]]),
+    normalization_initial_range  = range(pilot_grid[["x"]]),
+    conditional_normalization    = pass[["conditional_normalization"]],
+    normalizer_interpolation     = pass[["normalizer_interpolation"]],
+    covariance_interpolation     = pass[["covariance_interpolation"]],
+    quadrature_change            = pass[["quadrature_change"]],
+    n_refinement_steps           = pass[["extension_passes"]]
+  )
+}
+
+
+# The normalization of a set of rows for a display grid: the display values and
+# the summary. A cached summary is reused, evaluating only the display values
+# (or, where they are part of the key, taking their density from the entry);
+# otherwise the pass runs and, when it is cacheable, its summary is kept.
+.iwmde_qcmde_normalization <- function(context, parameter, display_grid,
+                                       normalization_grid, transform,
+                                       normalization_prob, row_states,
+                                       replacement, estimator_rows,
+                                       active_mass, n_candidate_rows,
+                                       cache = NULL) {
+
+  entry <- .iwmde_qcmde_cache_get(cache)
+  if (!is.null(entry)) {
+    log_q_display     <- entry[["log_q_display"]]
+    quadrature_change <- entry[["summary"]][["quadrature_change"]]
+    if (is.null(log_q_display)) {
+      evaluated <- .iwmde_qcmde_evaluate_grid(
+        context, parameter, display_grid, row_states, replacement,
+        estimator_rows
+      )
+      quadrature_change <- .iwmde_qcmde_max_change(c(
+        quadrature_change,
+        attr(evaluated, "max_quadrature_relative_change", exact = TRUE)
+      ))
+      log_q_display <- matrix(as.numeric(evaluated), nrow(evaluated),
+                              ncol(evaluated))
+    }
+
+    return(list(log_q_display = log_q_display, summary = entry[["summary"]],
+                quadrature_change = quadrature_change))
+  }
+
+  pass <- .iwmde_qcmde_normalization_pass(
+    context            = context,
+    parameter          = parameter,
+    display_grid       = display_grid,
+    normalization_grid = normalization_grid,
+    transform          = transform,
+    normalization_prob = normalization_prob,
+    row_states         = row_states,
+    replacement        = replacement,
+    estimator_rows     = estimator_rows
+  )
+  summary <- .iwmde_qcmde_normalization_summary(
+    pass, parameter, estimator_rows, active_mass, n_candidate_rows
+  )
+  # The display values as a plain matrix: the evaluations that carry them
+  # differ in the attributes they leave on it, which nothing reads.
+  log_q_display <- pass[["log_q_display"]]
+  log_q_display <- matrix(as.numeric(log_q_display), nrow(log_q_display),
+                          ncol(log_q_display))
+  .iwmde_qcmde_cache_set(cache, list(
+    summary       = summary,
+    log_q_display = if (isTRUE(cache[["display_in_key"]])) log_q_display
+  ))
+
+  list(log_q_display = log_q_display, summary = summary,
+       quadrature_change = summary[["quadrature_change"]])
 }
 
 

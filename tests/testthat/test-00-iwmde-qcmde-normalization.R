@@ -227,3 +227,141 @@ test_that("only batches whose rows cannot report a Gaussian kernel are estimate-
   expect_false(.iwmde_qcmde_estimate_only(
     list(data = data("other")), list(state(TRUE)), 1L))
 })
+
+
+# ---------------------------------------------------------------------------- #
+# Session cache of the normalization
+# ---------------------------------------------------------------------------- #
+
+# The normalization of the analytic rows for one display grid, with the pass
+# counted, and an optional cache entry `key` in `env`.
+.qcmde_cached_normalization <- function(display_grid, env, key = "entry",
+                                        display_in_key = FALSE,
+                                        rows = .qcmde_pass_rows,
+                                        .env = parent.frame()) {
+
+  values <- seq(-6, 6, length.out = 25L)
+  state  <- new.env()
+  state$passes <- 0L
+  state$calls  <- 0L
+  original <- .iwmde_qcmde_normalization_pass
+  testthat::local_mocked_bindings(
+    .iwmde_log_q_grid = function(context, parameter, values, row_states,
+                                 replacement) {
+      state$calls <- state$calls + 1L
+      out <- rows(values)
+      attr(out, "max_quadrature_relative_change") <- .001
+      out
+    },
+    .iwmde_qcmde_normalization_pass = function(...) {
+      state$passes <- state$passes + 1L
+      original(...)
+    },
+    .package = "RoBMA",
+    .env     = .env
+  )
+  out <- .iwmde_qcmde_normalization(
+    context            = list(),
+    parameter          = "mu",
+    display_grid       = display_grid,
+    normalization_grid = list(x = values, z = values,
+                              log_jacobian = rep(0, length(values))),
+    transform          = .iwmde_parameter_transform(c(-Inf, Inf)),
+    normalization_prob = .999,
+    row_states         = list(list(), list()),
+    replacement        = list(type = "scalar"),
+    estimator_rows     = 1:2,
+    active_mass        = 1,
+    n_candidate_rows   = 2L,
+    cache              = if (!is.null(env)) {
+      list(cache = env, key = key, display_in_key = display_in_key)
+    }
+  )
+  out$passes <- state$passes
+  out$calls  <- state$calls
+
+  out
+}
+
+
+test_that("a cached normalization is built once and evaluates only the display values again", {
+
+  env <- new.env()
+  first  <- .qcmde_cached_normalization(-.33, env)
+  second <- .qcmde_cached_normalization(1.97, env)
+  fresh  <- .qcmde_cached_normalization(1.97, NULL)
+
+  expect_identical(first$passes, 1L)
+  expect_identical(fresh$passes, 1L)
+  # The second request evaluates its display value and nothing else.
+  expect_identical(second$passes, 0L)
+  expect_identical(second$calls, 1L)
+  # Its values are those of the uncached path, bit for bit.
+  expect_identical(second$log_q_display, fresh$log_q_display)
+  expect_identical(second$summary, fresh$summary)
+  expect_identical(second$quadrature_change, fresh$quadrature_change)
+  expect_identical(first$summary, fresh$summary)
+  expect_identical(sort(setdiff(ls(env, all.names = TRUE), ".order")), "entry")
+})
+
+
+test_that("a normalization keyed by its display values is reused for the same values only", {
+
+  env <- new.env()
+  key <- function(display) paste0("display-", paste(display, collapse = "-"))
+  run <- function(display) {
+    .qcmde_cached_normalization(display, env, key = key(display),
+                                display_in_key = TRUE)
+  }
+  first  <- run(c(-.33, 1.97))
+  again  <- run(c(-.33, 1.97))
+  other  <- run(c(-.33, 1.5))
+
+  expect_identical(first$passes, 1L)
+  # The same display values need no evaluation at all.
+  expect_identical(again$passes, 0L)
+  expect_identical(again$calls, 0L)
+  expect_identical(again$log_q_display, first$log_q_display)
+  expect_identical(again$summary, first$summary)
+  expect_identical(other$passes, 1L)
+  expect_identical(length(setdiff(ls(env, all.names = TRUE), ".order")), 2L)
+})
+
+
+test_that("the cache keeps a bounded number of entries and no entry above its size", {
+
+  env   <- new.env()
+  limit <- .iwmde_qcmde_cache_limit()
+  for (i in seq_len(limit + 3L)) {
+    cache <- list(cache = env, key = paste0("entry-", i))
+    expect_true(.iwmde_qcmde_cache_set(cache, list(value = i)))
+  }
+  kept <- setdiff(ls(env, all.names = TRUE), ".order")
+  expect_length(kept, limit)
+  # The oldest entries are the ones dropped.
+  expect_identical(sort(kept), sort(paste0("entry-", 4:(limit + 3L))))
+  expect_null(.iwmde_qcmde_cache_get(list(cache = env, key = "entry-1")))
+  expect_identical(.iwmde_qcmde_cache_get(list(cache = env, key = "entry-4")),
+                   list(value = 4L))
+  # Setting a key again replaces it without dropping another.
+  .iwmde_qcmde_cache_set(list(cache = env, key = "entry-5"), list(value = 0))
+  expect_length(setdiff(ls(env, all.names = TRUE), ".order"), limit)
+
+  testthat::local_mocked_bindings(
+    .iwmde_qcmde_cache_max_bytes = function() 100,
+    .package = "RoBMA"
+  )
+  expect_false(.iwmde_qcmde_cache_set(list(cache = env, key = "large"),
+                                      list(value = numeric(1000L))))
+  expect_null(.iwmde_qcmde_cache_get(list(cache = env, key = "large")))
+  expect_false(.iwmde_qcmde_cache_set(NULL, list(value = 1)))
+  expect_null(.iwmde_qcmde_cache_get(NULL))
+})
+
+
+test_that("the largest of the quadrature changes reported is kept, and none is NA", {
+
+  expect_identical(.iwmde_qcmde_max_change(c(NA, .01, .002)), .01)
+  expect_identical(.iwmde_qcmde_max_change(c(NA_real_, NA_real_)), NA_real_)
+  expect_identical(.iwmde_qcmde_max_change(NULL), NA_real_)
+})
