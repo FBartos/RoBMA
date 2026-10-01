@@ -760,6 +760,132 @@ test_that("cached fits do not require timing metadata", {
 })
 
 
+test_that("scenario_fit stops at a cached RoBMA fit the current build refuses", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  counter <- 0L
+  # Fits of earlier builds: an outdated parameter-map schema version, no fit
+  # contract at all, and a RoBMA object without its BayesTools fit.
+  outdated_map <- function() {
+
+    counter <<- counter + 1L
+    object   <- shared_gate_random_object()
+    contract <- attr(object[["fit"]], "fit_contract")
+    contract[["parameter_map_version"]] <- 0L
+    attr(object[["fit"]], "fit_contract") <- contract
+    object
+  }
+  no_contract <- function() {
+
+    counter <<- counter + 1L
+    object  <- shared_gate_random_object()
+    attr(object[["fit"]], "fit_contract") <- NULL
+    object
+  }
+  no_fit <- function() {
+
+    counter <<- counter + 1L
+    structure(list(), class = c("BMA.norm", "RoBMA", "brma"))
+  }
+
+  # Fitting stores the object without the check; only a later load checks it.
+  scenario_start("unit", root = root, create_missing = TRUE)
+  scenario_fit("outdated-map", outdated_map())
+  scenario_fit("no-contract", no_contract())
+  scenario_fit("no-fit", no_fit())
+  expect_identical(counter, 3L)
+
+  scenario_start("unit", root = root)
+  reached <- FALSE
+  error <- tryCatch(
+    {
+      scenario_fit("outdated-map", outdated_map())
+      reached <- TRUE
+    },
+    error = identity
+  )
+  expect_false(reached)
+  expect_s3_class(error, "RoBMA_scenario_stale_cache")
+  expect_s3_class(error, "BayesTools_refit_required")
+  expect_s3_class(error, "error")
+  expect_identical(error[["scenario"]], "unit")
+  expect_identical(error[["fit"]], "outdated-map")
+  expect_match(
+    conditionMessage(error),
+    "Cached scenario fit 'outdated-map' of scenario 'unit' is stale.",
+    fixed = TRUE
+  )
+  expect_match(conditionMessage(error), "'parameter_map' metadata", fixed = TRUE)
+  expect_match(
+    conditionMessage(error),
+    "test_scenarios(filter = \"unit\", refit = TRUE)",
+    fixed = TRUE
+  )
+  expect_match(
+    conditionMessage(error),
+    "tools/test-scenario.R unit --refit",
+    fixed = TRUE
+  )
+  expect_identical(counter, 3L)
+  expect_identical(.scenario_cached_fit_names(), character())
+
+  error <- tryCatch(
+    scenario_fit("no-contract", no_contract()),
+    error = identity
+  )
+  expect_s3_class(error, "RoBMA_scenario_stale_cache")
+  expect_s3_class(error, "BayesTools_refit_required")
+  expect_match(conditionMessage(error), "schema contract", fixed = TRUE)
+
+  # The parent condition of every RoBMA refit request is kept.
+  error <- tryCatch(scenario_fit("no-fit", no_fit()), error = identity)
+  expect_s3_class(error, "RoBMA_scenario_stale_cache")
+  expect_s3_class(error, "RoBMA_refit_required")
+  expect_s3_class(error, "BayesTools_refit_required")
+  expect_identical(counter, 3L)
+
+  # Refitting skips the check and replaces the cached fit.
+  scenario_start("unit", root = root, refit = TRUE)
+  scenario_fit("outdated-map", outdated_map())
+  expect_identical(counter, 4L)
+})
+
+
+test_that("scenario_fit loads current RoBMA fits and other cached objects", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  counter <- 0L
+  current_fit <- function() {
+
+    counter <<- counter + 1L
+    shared_gate_random_object()
+  }
+  # A metafor reference fit has no BayesTools metadata and is not checked.
+  reference_fit <- function() {
+
+    counter <<- counter + 1L
+    structure(list(value = 1), class = c("rma.uni", "rma"))
+  }
+
+  scenario_start("unit", root = root, create_missing = TRUE)
+  first_current   <- scenario_fit("current", current_fit())
+  first_reference <- scenario_fit("reference", reference_fit())
+  expect_identical(counter, 2L)
+
+  scenario_start("unit", root = root)
+  second_current   <- scenario_fit("current", current_fit())
+  second_reference <- scenario_fit("reference", reference_fit())
+
+  expect_identical(counter, 2L)
+  expect_s3_class(second_current, "RoBMA")
+  expect_equal(second_current, first_current)
+  expect_identical(second_reference, first_reference)
+  expect_identical(.scenario_cached_fit_names(), c("current", "reference"))
+})
+
+
 test_that("scenario timings backfill and retain the fastest baseline", {
 
   root <- .scenario_test_root()

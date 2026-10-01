@@ -112,6 +112,18 @@ R-managed memory, and runtime provenance of the fitting block. Cache hits do not
 contribute historical performance measurements or RDS loading performance;
 refit a model when its fit performance should be assessed.
 
+A fit call that has not changed can still leave a stale cache, for example a fit
+saved before the current fitted-object metadata existed. When a cached RoBMA fit
+is loaded, `scenario_fit()` applies the check that every RoBMA method applies to
+a fit before reading its metadata and stops at once, naming the scenario, the
+fit, the reason, and the remedy, with an error of class
+`RoBMA_scenario_stale_cache` (it also carries the refit-required classes of the
+check, such as `BayesTools_refit_required`). Refit the scenario with
+`test_scenarios(filter = "<scenario>", refit = TRUE)` or
+`Rscript tools/test-scenario.R <scenario> --refit`; refitting skips the check.
+Objects that are not RoBMA fits, such as `metafor` reference fits, are not
+checked.
+
 `scenario_text()` automatically prints a visible returned value into its locked
 output, so summary and table calls do not need an explicit `print()`. Message
 conditions emitted while evaluating the expression, such as fitting progress,

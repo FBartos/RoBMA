@@ -41,6 +41,15 @@ relationships easy to inspect.
   potentially stale. During an authorized current-results refresh, refit the
   affected models when needed, retaining old caches and the reason for
   replacement. Otherwise consult the maintainer before regenerating them.
+- `scenario_fit()` checks every cached RoBMA fit when it loads it, with the
+  check RoBMA methods apply before reading fitted metadata, and stops at once
+  with an error of class `RoBMA_scenario_stale_cache` (also carrying the
+  refit-required classes of the check) when the current RoBMA/BayesTools build
+  refuses the fit as stale. The message names the scenario, the fit, the
+  reason, and the remedy: `test_scenarios(filter = "<scenario>", refit = TRUE)`
+  or `tools/test-scenario.R <scenario> --refit`. Refitting skips the check.
+  Objects that are not RoBMA fits, such as `metafor` reference fits, are not
+  checked.
 - `cache_version` is optional. Use or increment it only to invalidate one fit
   after an in-scope package-internal fitting change that leaves the fitting
   expression unchanged.

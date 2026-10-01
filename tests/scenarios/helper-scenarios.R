@@ -210,7 +210,9 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
 }
 
 
-# Load an existing cached fit only when its fitting call still matches.
+# Load an existing cached fit only when its fitting call still matches; a fit
+# that the current build refuses as stale stops with an error of class
+# "RoBMA_scenario_stale_cache" (the check is skipped when refitting).
 # Otherwise evaluate the expression and replace the fit and call cache.
 scenario_fit <- function(name, code, cache_version = NULL) {
 
@@ -252,6 +254,7 @@ scenario_fit <- function(name, code, cache_version = NULL) {
         )
       }
     )
+    .scenario_check_cached_fit(name, fit)
     .scenario_mark_cached_fit(name)
     return(fit)
   }
@@ -296,6 +299,63 @@ scenario_fit <- function(name, code, cache_version = NULL) {
   )
 
   return(fit)
+}
+
+
+# Refuse a cached RoBMA fit that the current RoBMA/BayesTools build treats as
+# stale. The cache key is the fitting call, so a fit saved under an earlier
+# fitted-object contract would otherwise load and fail in the middle of a block,
+# where the first method reads its fitted metadata. The check is the one every
+# RoBMA method applies before it reads fitted metadata, over every component of
+# the BayesTools fit contract, followed by the validation of the persisted
+# parameter map; both stop with a "BayesTools_refit_required" condition, whose
+# classes the error keeps. Objects that are not RoBMA fits, such as the metafor
+# reference fits, carry no such metadata and are not checked.
+.scenario_check_cached_fit <- function(name, fit) {
+
+  if (!inherits(fit, c("brma", "RoBMA"))) {
+    return(invisible(fit))
+  }
+
+  components <- sub(
+    "_version$", "",
+    setdiff(
+      BayesTools::JAGS_fit_contract_schema()[["field"]],
+      "schema_version"
+    )
+  )
+  refusal <- tryCatch(
+    {
+      RoBMA:::.brma_validate_fit_contract(fit, requires = components)
+      BayesTools::parameter_map(fit[["fit"]])
+      NULL
+    },
+    BayesTools_refit_required = function(condition) condition
+  )
+  if (is.null(refusal)) {
+    return(invisible(fit))
+  }
+
+  scenario <- .scenario_config()[["name"]]
+  stop(structure(
+    class = c(
+      "RoBMA_scenario_stale_cache",
+      setdiff(class(refusal), c("error", "condition")),
+      "error", "condition"
+    ),
+    list(
+      message  = paste0(
+        "Cached scenario fit '", name, "' of scenario '", scenario,
+        "' is stale. Reason: ", conditionMessage(refusal),
+        " Remedy: test_scenarios(filter = \"", scenario,
+        "\", refit = TRUE) or tools/test-scenario.R ", scenario, " --refit."
+      ),
+      call     = NULL,
+      scenario = scenario,
+      fit      = name,
+      reason   = conditionMessage(refusal)
+    )
+  ))
 }
 
 
