@@ -1014,17 +1014,18 @@ test_that("scenario timings below three quarters of a second are not assessed", 
 })
 
 
-test_that("scenario timing warnings tolerate 25% per call and 15% on average", {
+test_that("scenario timing warnings tolerate 25% and 0.5 s per call and 15% on average", {
 
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
-  # Run 'scenario' with the named timings 'current' after a baseline of 10 s
-  # per call, and return the warning text ("" without one).
-  run_timings <- function(scenario, current) {
+  # Run 'scenario' with the named timings 'current' after the per-call
+  # 'baseline' (recycled), and return the warning text ("" without one).
+  run_timings <- function(scenario, current, baseline = 10) {
 
+    baseline <- rep_len(baseline, length(current))
     scenario_start(scenario, root = root)
     for (i in seq_along(current)) {
-      .scenario_register_timing("text", names(current)[[i]], 10)
+      .scenario_register_timing("text", names(current)[[i]], baseline[[i]])
     }
     expect_no_warning(.scenario_finalize_timing())
 
@@ -1050,6 +1051,31 @@ test_that("scenario timing warnings tolerate 25% per call and 15% on average", {
   above <- run_timings("call-above", c(a = 12.6, b = 10))
   expect_match(above, "+2.6 s (+26%; 10.0 s -> 12.6 s) text/a", fixed = TRUE)
   expect_false(grepl("average timing regression", above, fixed = TRUE))
+
+  # Per call, the increase must also reach half a second: 0.8 s -> 1.05 s is
+  # 31% but only 0.25 s slower and is tolerated; 1.5 s -> 2.0 s (exactly
+  # 0.5 s) and 2.0 s -> 2.6 s are reported. Two unchanged calls keep the mean
+  # change within the average tolerance.
+  expect_identical(
+    run_timings(
+      "absolute-below", c(a = 1.05, b = 10, c = 10), baseline = c(0.8, 10, 10)
+    ),
+    ""
+  )
+  absolute_at <- run_timings(
+    "absolute-at", c(a = 2, b = 10, c = 10), baseline = c(1.5, 10, 10)
+  )
+  expect_match(
+    absolute_at, "+0.5 s (+33%; 1.5 s -> 2.0 s) text/a", fixed = TRUE
+  )
+  expect_false(grepl("average timing regression", absolute_at, fixed = TRUE))
+  absolute_above <- run_timings(
+    "absolute-above", c(a = 2.6, b = 10, c = 10), baseline = c(2, 10, 10)
+  )
+  expect_match(
+    absolute_above, "+0.6 s (+30%; 2.0 s -> 2.6 s) text/a", fixed = TRUE
+  )
+  expect_false(grepl("average timing regression", absolute_above, fixed = TRUE))
 
   # Average: a mean change up to 15% is tolerated, more is reported. No single
   # call exceeds 25%.

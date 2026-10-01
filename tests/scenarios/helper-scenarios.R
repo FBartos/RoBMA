@@ -984,8 +984,11 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   matched      <- match(current_key, baseline_key)
   assessable   <- current[["elapsed"]] >= 0.75
   comparable   <- !is.na(matched) & assessable
+  # A call regresses when it is more than 25% and at least half a second
+  # slower than its baseline; smaller differences are load noise.
   regressed <- comparable &
-    current[["elapsed"]] > 1.25 * baseline[["elapsed"]][matched]
+    current[["elapsed"]] > 1.25 * baseline[["elapsed"]][matched] &
+    current[["elapsed"]] - baseline[["elapsed"]][matched] >= 0.5
   for (i in which(regressed)) {
     old <- baseline[["elapsed"]][matched[[i]]]
     new <- current[["elapsed"]][[i]]

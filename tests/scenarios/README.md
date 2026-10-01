@@ -146,16 +146,16 @@ comparison retains `<name>.new.svg`. `scenario_text()` and `scenario_plot()`
 each reset the random seed to 1 before evaluating an artifact.
 
 Timing comparison is deferred until the complete scenario file finishes. One
-warning reports every call more than 25% slower than its baseline and an
-unweighted mean percentage regression across calls greater than 15%; smaller
-differences are load noise. Per-call warnings start with the absolute change,
-followed by the percentage and old and new wall times, then the timed-part name.
-Increases greater than two seconds are highlighted in red. Seconds are shown to
-one decimal place and percentages as whole numbers. Calls measured below 0.75
-seconds are retained but excluded from regression warnings. Every successful run
-automatically adds missing timing rows and replaces each existing time or memory
-metric only when it improves. This also happens while a scenario is executed
-line by line in an interactive session.
+warning reports every call more than 25% and at least 0.5 seconds slower than
+its baseline and an unweighted mean percentage regression across calls greater
+than 15%; smaller differences are load noise. Per-call warnings start with the
+absolute change, followed by the percentage and old and new wall times, then the
+timed-part name. Increases greater than two seconds are highlighted in red.
+Seconds are shown to one decimal place and percentages as whole numbers. Calls
+measured below 0.75 seconds are retained but excluded from regression warnings.
+Every successful run automatically adds missing timing rows and replaces each
+existing time or memory metric only when it improves. This also happens while a
+scenario is executed line by line in an interactive session.
 
 The `memory_gb` column records the peak reported by R's resettable garbage
 collector and excludes external-process memory. A call warns when it exceeds
