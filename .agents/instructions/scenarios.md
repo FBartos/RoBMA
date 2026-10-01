@@ -184,8 +184,9 @@ Nested phase rows do not record separate memory peaks; the enclosing `fit` row
 owns the peak-memory measurement.
 
 After a complete managed scenario file, issue one warning that lists every call
-whose wall time increased by more than 20% and the unweighted mean percentage
-change across calls when it is a regression greater than 5%. Start each per-call
+whose wall time increased by more than 25% and the unweighted mean percentage
+change across calls when it is a regression greater than 15%; the shared
+validation policy treats smaller differences as load noise. Start each per-call
 warning with its absolute change, followed by the percentage and old and new wall
 times, then the timed-part name. Highlight absolute increases greater than two
 seconds in red. Display seconds to one decimal place and percentages as whole

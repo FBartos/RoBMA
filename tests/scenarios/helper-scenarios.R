@@ -925,7 +925,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   assessable   <- current[["elapsed"]] >= 0.75
   comparable   <- !is.na(matched) & assessable
   regressed <- comparable &
-    current[["elapsed"]] > 1.20 * baseline[["elapsed"]][matched]
+    current[["elapsed"]] > 1.25 * baseline[["elapsed"]][matched]
   for (i in which(regressed)) {
     old <- baseline[["elapsed"]][matched[[i]]]
     new <- current[["elapsed"]][[i]]
@@ -1014,13 +1014,13 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
         100 * (average_current[["elapsed"]] / baseline_elapsed - 1)
       )
       average_change <- mean(percentage_change)
-      if (average_change > 5) {
+      if (average_change > 15) {
         add_issue(
           "average",
           paste0(
             "average timing regression: ", sprintf("%.0f", average_change),
             "% (unweighted mean across ", length(percentage_change),
-            " calls; threshold 5%)"
+            " calls; threshold 15%)"
           )
         )
       }

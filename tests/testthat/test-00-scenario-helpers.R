@@ -774,17 +774,17 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], 10)
 
   scenario_start("unit", root = root)
-  .scenario_register_timing("fit", "model", 12.1)
+  .scenario_register_timing("fit", "model", 12.6)
   .scenario_register_timing("text", "summary", 10)
   expect_warning(
     .scenario_finalize_timing(),
-    "+2.1 s (+21%; 10.0 s -> 12.1 s) fit/model",
+    "+2.6 s (+26%; 10.0 s -> 12.6 s) fit/model",
     fixed = TRUE
   )
   backfilled <- .scenario_read_timings(timing_path)
   expect_equal(backfilled[["elapsed"]], c(10, 10))
   expect_equal(
-    .scenario_read_timings(last_run_path)[["elapsed"]], c(12.1, 10)
+    .scenario_read_timings(last_run_path)[["elapsed"]], c(12.6, 10)
   )
 
   scenario_start("unit", root = root)
@@ -796,7 +796,7 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(8, 8))
 
   scenario_start("unit", root = root)
-  .scenario_register_timing("fit", "model", 10)
+  .scenario_register_timing("fit", "model", 11.2)
   .scenario_register_timing("text", "summary", 8)
   warning_message <- character()
   withCallingHandlers(
@@ -809,28 +809,29 @@ test_that("scenario timings backfill and retain the fastest baseline", {
   )
   expect_match(
     warning_message,
-    "+2.0 s (+25%; 8.0 s -> 10.0 s) fit/model",
+    "+3.2 s (+40%; 8.0 s -> 11.2 s) fit/model",
     fixed = TRUE
   )
-  expect_match(warning_message, "average timing regression: 12%", fixed = TRUE)
+  expect_match(warning_message, "average timing regression: 20%", fixed = TRUE)
   retained <- .scenario_read_timings(timing_path)
   expect_equal(retained[["elapsed"]], c(8, 8))
-  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(10, 8))
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(11.2, 8))
 
   scenario_start("unit", root = root, update_timings = TRUE)
-  .scenario_register_timing("fit", "model", 10)
+  .scenario_register_timing("fit", "model", 11.2)
   .scenario_register_timing("text", "summary", 8)
   expect_warning(
     .scenario_finalize_timing(),
-    "average timing regression: 12%"
+    "average timing regression: 20%"
   )
   accepted <- .scenario_read_timings(timing_path)
-  expect_equal(accepted[["elapsed"]], c(10, 8))
-  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(10, 8))
+  expect_equal(accepted[["elapsed"]], c(11.2, 8))
+  expect_equal(.scenario_read_timings(last_run_path)[["elapsed"]], c(11.2, 8))
 
+  # No single call exceeds 25%, but the unweighted mean exceeds 15%.
   scenario_start("unit", root = root)
-  .scenario_register_timing("fit", "model", 10)
-  .scenario_register_timing("text", "summary", 9.6)
+  .scenario_register_timing("fit", "model", 13.8)
+  .scenario_register_timing("text", "summary", 9.8)
   warning_message <- character()
   withCallingHandlers(
     .scenario_finalize_timing(),
@@ -840,16 +841,18 @@ test_that("scenario timings backfill and retain the fastest baseline", {
       invokeRestart("muffleWarning")
     }
   )
-  expect_match(warning_message, "average timing regression: 10%", fixed = TRUE)
-  expect_false(grepl("text/summary:", warning_message, fixed = TRUE))
+  expect_match(warning_message, "average timing regression: 23%", fixed = TRUE)
+  expect_false(grepl("fit/model", warning_message, fixed = TRUE))
+  expect_false(grepl("text/summary", warning_message, fixed = TRUE))
 
+  # Slower calls whose mean stays within the 15% load noise do not warn.
   scenario_start("unit", root = root)
-  .scenario_register_timing("fit", "model", 10.4)
-  .scenario_register_timing("text", "summary", 8.4)
+  .scenario_register_timing("fit", "model", 12.8)
+  .scenario_register_timing("text", "summary", 9)
   expect_no_warning(.scenario_finalize_timing())
-  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], c(10, 8))
+  expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], c(11.2, 8))
   expect_equal(
-    .scenario_read_timings(last_run_path)[["elapsed"]], c(10.4, 8.4)
+    .scenario_read_timings(last_run_path)[["elapsed"]], c(12.8, 9)
   )
 })
 
@@ -885,6 +888,53 @@ test_that("scenario timings below three quarters of a second are not assessed", 
 })
 
 
+test_that("scenario timing warnings tolerate 25% per call and 15% on average", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  # Run 'scenario' with the named timings 'current' after a baseline of 10 s
+  # per call, and return the warning text ("" without one).
+  run_timings <- function(scenario, current) {
+
+    scenario_start(scenario, root = root)
+    for (i in seq_along(current)) {
+      .scenario_register_timing("text", names(current)[[i]], 10)
+    }
+    expect_no_warning(.scenario_finalize_timing())
+
+    scenario_start(scenario, root = root)
+    for (i in seq_along(current)) {
+      .scenario_register_timing("text", names(current)[[i]], current[[i]])
+    }
+    text <- ""
+    withCallingHandlers(
+      .scenario_finalize_timing(),
+      warning = function(warning) {
+
+        text <<- conditionMessage(warning)
+        invokeRestart("muffleWarning")
+      }
+    )
+    return(text)
+  }
+
+  # Per call: exactly 1.25 times the baseline is tolerated, more is reported.
+  # The mean of 25% and 0% is 12.5%, within the average tolerance.
+  expect_identical(run_timings("call-at", c(a = 12.5, b = 10)), "")
+  above <- run_timings("call-above", c(a = 12.6, b = 10))
+  expect_match(above, "+2.6 s (+26%; 10.0 s -> 12.6 s) text/a", fixed = TRUE)
+  expect_false(grepl("average timing regression", above, fixed = TRUE))
+
+  # Average: a mean change up to 15% is tolerated, more is reported. No single
+  # call exceeds 25%.
+  expect_identical(run_timings("average-below", c(a = 11.4)), "")
+  over <- run_timings("average-above", c(a = 11.6))
+  expect_match(over, "average timing regression: 16%", fixed = TRUE)
+  expect_match(over, "threshold 15%", fixed = TRUE)
+  expect_false(grepl("text/a", over, fixed = TRUE))
+})
+
+
 test_that("split fit timing averages exclude the redundant total", {
 
   root <- .scenario_test_root()
@@ -899,9 +949,9 @@ test_that("split fit timing averages exclude the redundant total", {
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "model", 18)
-  .scenario_register_timing("fit_model", "model", 5.5)
-  .scenario_register_timing("fit_loo", "model", 3.3)
-  .scenario_register_timing("fit_marglik", "model", 4.4)
+  .scenario_register_timing("fit_model", "model", 6)
+  .scenario_register_timing("fit_loo", "model", 3.6)
+  .scenario_register_timing("fit_marglik", "model", 4.8)
   warning_message <- character()
   withCallingHandlers(
     .scenario_finalize_timing(),
@@ -917,8 +967,9 @@ test_that("split fit timing averages exclude the redundant total", {
     "+6.0 s (+50%; 12.0 s -> 18.0 s) fit/model",
     fixed = TRUE
   )
-  expect_match(warning_message, "average timing regression: 10%", fixed = TRUE)
+  expect_match(warning_message, "average timing regression: 20%", fixed = TRUE)
   expect_match(warning_message, "unweighted mean across 3 calls", fixed = TRUE)
+  expect_match(warning_message, "threshold 15%", fixed = TRUE)
 })
 
 
@@ -996,12 +1047,12 @@ test_that("large absolute scenario timing regressions are highlighted in red", {
 
   scenario_start("unit", root = root)
   .scenario_register_timing("fit", "large", 10)
-  .scenario_register_timing("fit", "boundary", 8)
+  .scenario_register_timing("fit", "boundary", 7)
   expect_no_warning(.scenario_finalize_timing())
 
   scenario_start("unit", root = root)
-  .scenario_register_timing("fit", "large", 12.1)
-  .scenario_register_timing("fit", "boundary", 10)
+  .scenario_register_timing("fit", "large", 12.6)
+  .scenario_register_timing("fit", "boundary", 9)
   warning_message <- character()
   withCallingHandlers(
     .scenario_finalize_timing(),
@@ -1014,17 +1065,17 @@ test_that("large absolute scenario timing regressions are highlighted in red", {
 
   expect_match(
     warning_message,
-    cli::col_red("+2.1 s (+21%; 10.0 s -> 12.1 s) fit/large"),
+    cli::col_red("+2.6 s (+26%; 10.0 s -> 12.6 s) fit/large"),
     fixed = TRUE
   )
   expect_false(grepl(
-    cli::col_red("+2.0 s (+25%; 8.0 s -> 10.0 s) fit/boundary"),
+    cli::col_red("+2.0 s (+29%; 7.0 s -> 9.0 s) fit/boundary"),
     warning_message,
     fixed = TRUE
   ))
   expect_match(
     warning_message,
-    "+2.0 s (+25%; 8.0 s -> 10.0 s) fit/boundary",
+    "+2.0 s (+29%; 7.0 s -> 9.0 s) fit/boundary",
     fixed = TRUE
   )
 })
