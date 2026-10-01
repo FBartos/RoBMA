@@ -1371,6 +1371,11 @@
       n_levels <- length(attr(samples[[parameter]], "level_names"))
     } else if (isTRUE(attr(samples[[parameter]], "treatment"))) {
       n_levels <- length(attr(samples[[parameter]], "level_names")) - 1
+    } else if (isTRUE(attr(samples[[parameter]], "ordered"))) {
+      # ordered terms are plotted as their level effects, without the levels
+      # that the contrast design fixes at zero
+      design   <- attr(samples[[parameter]], "factor_design")
+      n_levels <- if (is.null(design)) 1 else sum(rowSums(as.matrix(design) != 0) > 0)
     } else {
       n_levels <- 1
     }

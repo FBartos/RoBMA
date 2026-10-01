@@ -193,6 +193,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - re-exports BayesTools' `prior_ordered()` next to `prior_factor()`, so
   ordered-factor moderators can be given a prior directly
   (`prior_mods = list(x_ord = prior_ordered(prior("normal", list(0, 1))))`).
+  Summaries, `coef()`, and the diagnostics built on them report the level
+  effects of an ordered moderator (`x_ord[b]`, `x_ord[c]`), without the zero
+  reference level and without the total effect, which equals the last
+  level; posterior plots draw each level in its own colour.
 - multivariate and multilevel models with known sampling covariance:
   - adds `brma.mv()`, normal-likelihood meta-analysis with a known sampling
     covariance matrix `V` (latent, whitened, and block-MVN backends through
