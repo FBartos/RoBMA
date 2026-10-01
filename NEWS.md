@@ -411,7 +411,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     transformation has a singular Jacobian at the requested value fail with
     a structural explanation. SD components of nested allocations, which
     have no exact prior density, take region prior probabilities from prior
-    draws and refuse point tests; original-scale correlations of scaled
+    draws and refuse point tests. The totals of nested allocations (e.g.,
+    `tau_total` and `tau2_total` of `random = ~ 1 | study / esid`) have an
+    exact prior, an atom at 0 plus the gated scale prior: their plots draw
+    the prior curve and atom, point tests away from 0 use the exact ordinate,
+    and `tau_total = 0` stops with `BayesTools_point_mass_at_null`.
+    Original-scale correlations of scaled
     `us()` blocks support region hypotheses (e.g.,
     `"rho(intercept,x) > 0"`) over their defined draws.
   - refusals are classed conditions. Tests that cannot be computed have the
