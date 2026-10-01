@@ -1412,6 +1412,22 @@ test_that("point hypotheses with an inexact prior ordinate are refused with its 
                                 seed = 1, n_samples = 1000)),
     "BayesTools_hypothesis_BF"
   )
+  # The totals of the same nested allocation are the SD of the root times one
+  # parent share: their prior density is exact (BayesTools 0.3.1.131), so their
+  # point tests are available; only the totals with two or more independent
+  # shares would be refused like the component SDs above.
+  totals <- quantities[quantities[["parameter"]] %in%
+                         c("(mu) split: tau_total", "(mu) split: tau2_total"), ,
+                       drop = FALSE]
+  expect_setequal(unique(totals[["parameter"]]),
+                  c("(mu) split: tau_total", "(mu) split: tau2_total"))
+  expect_true(all(totals[["point_test"]]))
+  expect_true(all(totals[["direction_test"]]))
+  expect_s3_class(
+    suppressWarnings(hypothesis(object, "`(mu) split: tau_total` = 0.4", density_method = "KDE",
+                                seed = 1, n_samples = 1000)),
+    "BayesTools_hypothesis_BF"
+  )
 })
 
 
