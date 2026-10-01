@@ -2,9 +2,12 @@
 % Please edit documentation in R/summary_heterogeneity.R
 \name{summary_heterogeneity.brma}
 \alias{summary_heterogeneity.brma}
+\alias{print.summary_heterogeneity.brma_list}
 \title{Summary of Heterogeneity for brma Objects}
 \usage{
-\method{summary_heterogeneity}{brma}(object, probs = c(0.025, 0.975), ...)
+\method{summary_heterogeneity}{brma}(object, probs = c(0.025, 0.975), component = "all", ...)
+
+\method{print}{summary_heterogeneity.brma_list}(x, ...)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -12,13 +15,23 @@
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
+\item{component}{heterogeneity component to return for \code{brma.mv()}
+models. Defaults to \code{"all"}. Use \code{"total"} for the
+variance-additive total heterogeneity. Random-formula allocation nodes can
+be selected by their displayed name, such as \code{"study/esid"}.}
+
 \item{...}{additional arguments (currently ignored)}
+
+\item{x}{a \code{summary_heterogeneity.brma_list} object}
 }
 \value{
 A list of class \code{summary_heterogeneity.brma} containing:
 \itemize{
 \item \code{estimates}: A \code{BayesTools_table} with heterogeneity statistics
+\item \code{component}: The public heterogeneity-component name
 }
+For decomposed \code{brma.mv()} models with multiple selected components,
+a named list of such summary objects is returned.
 }
 \description{
 Computes the absolute heterogeneity (tau, tau^2) and
@@ -54,6 +67,46 @@ The I^2 and H^2 statistics are computed following the metafor package
 implementation, using the "typical" sampling variance formula from
 \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 the partitioned I^2 follows the approach described in the metafor documentation.
+
+For \code{brma.mv()} models, the method reports \code{tau} and \code{tau2}
+for each selected random-effect component. A genuine variance-additive
+aggregate is reported as \code{tau_total} and \code{tau2_total}; a
+mean-variance allocation scale is reported as \code{tau_common} and
+\code{tau2_common}. These RoBMA I/O names map to BayesTools' general
+random-effect names without changing the fitted quantities. Formula-random
+summaries are present only when a
+\code{random} formula is declared.
+Public random-effect correlations (\code{rho}) are included in their component's
+table,
+including homogeneous structures such as \code{ar()}, \code{cs()}, and
+\code{car()}. A variance-additive total across multiple components has no
+single correlation parameter and reports only its total SD and variance.
+When a known group covariance \eqn{R} is supplied, \code{tau} is the fitted
+base multiplier of that covariance kernel. It need not equal every row's
+marginal standard deviation when \eqn{\mathrm{diag}(R)} is not one.
+Row-specific marginal standard deviations remain available from
+\code{predict(type = "terms.scale")} and in covariance-based prediction and
+diagnostics.
+Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
+known-V covariance structures. For \code{component = "total"}, independent
+component variances are summed before reporting \code{tau2_total};
+\code{tau_total} is the square root of this variance draw.
+When a random-formula model uses a shared total-SD plus variance-allocation
+node, \code{component = "all"} also includes an allocation-node table with
+the appropriate aggregate SD and variance plus
+\code{tau2_prop(<block>)} rows. For gated allocations, the aggregate is the
+realized model-averaged total and includes the all-off zero branch;
+proportions are realized shares conditional on positive total variance.
+For nested formulas
+such as \code{random = ~ 1 | study / esid}, this table is displayed under
+the user-facing path \code{"study/esid"}.
+For heterogeneous structured random effects, such as
+\code{random = ~ har(time | study)}, the allocation table reports
+the exhaustive semantic allocation family: aggregate SD and variance,
+level-specific component SDs and variances, correlations, SD multipliers, and
+variance multipliers. A redundant block owner is omitted for a bare formula or
+unnamed one-entry list and retained for explicitly named one-entry lists and
+multiple components.
 }
 \examples{
 \dontrun{

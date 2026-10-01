@@ -1,0 +1,4 @@
+                 [,1]
+fit_brma_cluster    1
+fit_brma            0
+fit_brma_fixed      0

@@ -1,0 +1,4 @@
+                 loo
+BMA_cluster 136.2702
+BMA.mv_diag 136.2686
+BMA.mv      129.8336

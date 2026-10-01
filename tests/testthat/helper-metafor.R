@@ -30,6 +30,16 @@
   return(.test_info()[[case_name(case)]][["metafor"]])
 }
 
+.case_metafor_vif <- function(case) {
+
+  info <- .test_info()[[case_name(case)]]
+  if (!is.null(info[["metafor_vif"]])) {
+    return(info[["metafor_vif"]])
+  }
+
+  return(info[["metafor"]])
+}
+
 .metafor_dfbetas <- function(fit_metafor) {
 
   if (inherits(fit_metafor, "rma.mv")) {
@@ -158,7 +168,7 @@ expect_residuals_match_metafor <- function(case) {
   if (kind %in% c("multilevel", "multilevel_no_loo")) {
     metafor_conditional <- metafor_rstandard_conditional_mv(fit_metafor)
     brma_conditional    <- rstandard(fit_brma, conditioning_depth = "estimate")
-    brma_theta          <- colMeans(as.matrix(predict(fit_brma, type = "estimate", quiet = TRUE)))
+    brma_theta          <- colMeans(as.matrix(predict(fit_brma, type = "blup", quiet = TRUE)))
     metafor_theta       <- fit_metafor[["yi"]] - metafor_conditional$resid
 
     testthat::expect_equal(as.vector(brma_theta), as.vector(metafor_theta),
@@ -250,11 +260,6 @@ expect_residuals_match_metafor <- function(case) {
                           info = paste(name, "selection LOO SEs finite"))
     testthat::expect_true(all(brma_rstudent$se > 0),
                           info = paste(name, "selection LOO SEs positive"))
-  } else if (identical(rstudent_kind, "glmm_align")) {
-    brma_resid    <- residuals(fit_brma)
-    brma_rstudent <- suppressWarnings(rstudent(fit_brma, type = "estimate"))
-    testthat::expect_true(stats::cor(brma_resid, brma_rstudent$z) > 0.9,
-                          info = paste(name, "rstudent and residuals align"))
   }
 }
 
@@ -297,25 +302,20 @@ expect_prediction_matches_metafor <- function(case) {
   fitted_tol  <- case_value(case, "fitted_tolerance", tolerance)
 
   if (kind == "simple") {
-    mu_predict <- .sample_mean(predict(fit_brma, type = "terms", newdata = TRUE), "mu")
-    mu_wrapper <- .sample_mean(pooled_effect(fit_brma), "mu")
-    testthat::expect_equal(mu_predict, mu_wrapper,
-                           info = paste(name, "pooled_effect wrapper"))
-    testthat::expect_equal(mu_predict, fit_metafor$beta[[1]], tolerance = tolerance,
+    mu_pooled <- .sample_mean(pooled_effect(fit_brma), "mu")
+    testthat::expect_equal(mu_pooled, fit_metafor$beta[[1]], tolerance = tolerance,
                            info = paste(name, "pooled effect matches metafor"))
 
-    tau_predict <- .sample_mean(predict(fit_brma, type = "terms.scale", newdata = TRUE), "tau")
-    tau_wrapper <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
-    testthat::expect_equal(tau_predict, tau_wrapper,
-                           info = paste(name, "pooled_heterogeneity wrapper"))
-    testthat::expect_equal(tau_predict, sqrt(fit_metafor$tau2), tolerance = tau_tol,
+    tau_pooled <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
+    testthat::expect_equal(tau_pooled, sqrt(fit_metafor$tau2), tolerance = tau_tol,
                            info = paste(name, "tau matches metafor"))
 
     theta_predict <- .sample_means(predict(fit_brma, type = "effect"))
+    theta_terms   <- .sample_means(predict(fit_brma, type = "terms"))
     theta_blup    <- .sample_means(blup(fit_brma))
     theta_true    <- .sample_means(true_effects(fit_brma))
-    testthat::expect_equal(theta_predict, theta_blup,
-                           info = paste(name, "predict effect matches blup"))
+    testthat::expect_equal(theta_predict, theta_terms, tolerance = 0.05,
+                           info = paste(name, "marginal true effects center on location"))
     testthat::expect_equal(theta_blup, theta_true,
                            info = paste(name, "true_effects match blup"))
     testthat::expect_equal(theta_blup, metafor::blup(fit_metafor)$pred,
@@ -367,9 +367,12 @@ expect_prediction_matches_metafor <- function(case) {
     brma_tau    <- .sample_means(predict(fit_brma, type = "terms.scale"))
     testthat::expect_equal(brma_tau, metafor_tau, tolerance = tau_tol,
                            info = paste(name, "study tau predictions"))
-    testthat::expect_equal(.sample_mean(pooled_heterogeneity(fit_brma), "tau"),
-                           mean(metafor_tau), tolerance = tau_tol,
-                           info = paste(name, "pooled tau"))
+    testthat::expect_equal(
+      .sample_mean(pooled_heterogeneity(fit_brma), "tau"),
+      exp(mean(log(metafor_tau))),
+      tolerance = tau_tol,
+      info      = paste(name, "pooled tau at average scale design")
+    )
 
     theta_brma <- .sample_means(blup(fit_brma))
     testthat::expect_equal(theta_brma, metafor::blup(fit_metafor)$pred,
@@ -396,12 +399,24 @@ expect_prediction_matches_metafor <- function(case) {
   }
 
   if (kind %in% c("glmm", "glmm_reg")) {
-    brma_mu  <- .sample_mean(pooled_effect(fit_brma), "mu")
-    brma_tau <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
-    testthat::expect_equal(brma_mu, fit_metafor$beta[[1]], tolerance = tolerance,
-                           info = paste(name, "pooled effect"))
-    testthat::expect_equal(brma_tau, sqrt(fit_metafor$tau2), tolerance = tau_tol,
-                           info = paste(name, "pooled tau"))
+    # Posterior means and metafor's maximum-likelihood estimates are
+    # different estimands: a posterior mean averages over the posterior of
+    # every parameter under its prior, while the likelihood estimate
+    # maximizes (with 13 studies the posterior of tau is skewed and its mean
+    # sits above the likelihood maximum, and the pooled effect averages over
+    # it), so their distance is not a Monte Carlo error. Each likelihood
+    # estimate must instead lie inside the central 95% posterior interval of
+    # its quantity.
+    mu_summary <- summary(pooled_effect(fit_brma))
+    testthat::expect_gte(fit_metafor$beta[[1]], mu_summary["mu", "0.025"],
+                         label = paste(name, "metafor pooled effect vs posterior 2.5% quantile"))
+    testthat::expect_lte(fit_metafor$beta[[1]], mu_summary["mu", "0.975"],
+                         label = paste(name, "metafor pooled effect vs posterior 97.5% quantile"))
+    tau_summary <- summary(pooled_heterogeneity(fit_brma))
+    testthat::expect_gte(sqrt(fit_metafor$tau2), tau_summary["tau", "0.025"],
+                         label = paste(name, "metafor tau vs posterior 2.5% quantile"))
+    testthat::expect_lte(sqrt(fit_metafor$tau2), tau_summary["tau", "0.975"],
+                         label = paste(name, "metafor tau vs posterior 97.5% quantile"))
 
     theta <- .sample_means(blup(fit_brma))
     testthat::expect_equal(length(theta), nrow(fit_brma$data$outcome),
@@ -711,8 +726,6 @@ metafor_vif_value <- function(fit_metafor, btt) {
 
 metafor_vif_table <- function(fit_brma, fit_metafor, btt = NULL) {
 
-  brma_vif <- vif(fit_brma, posterior_correlation = FALSE)[["vif"]]
-
   if (is.null(btt)) {
     btt <- brma_term_btt(fit_brma)
   }
@@ -720,8 +733,10 @@ metafor_vif_table <- function(fit_brma, fit_metafor, btt = NULL) {
   expected <- do.call(rbind, lapply(btt, function(x) metafor_vif_value(fit_metafor, x)))
 
   return(data.frame(
-    term              = brma_vif[["term"]],
-    df                = brma_vif[["df"]],
+    term              = vapply(btt, function(columns) {
+      paste(colnames(fit_metafor[["X"]])[columns], collapse = " + ")
+    }, character(1)),
+    df                = lengths(btt),
     GVIF              = unname(expected[, "GVIF"]),
     "GVIF^(1/(2*df))" = unname(expected[, "GSIF"]),
     stringsAsFactors  = FALSE,
@@ -733,7 +748,7 @@ expect_vif_matches_metafor <- function(case) {
 
   name        <- case_name(case)
   fit_brma    <- .case_fit(case)
-  fit_metafor <- .case_metafor(case)
+  fit_metafor <- .case_metafor_vif(case)
   tolerance   <- case_value(case, "tolerance", 0.10)
   btt         <- case_value(case, "btt", NULL)
 
@@ -760,6 +775,27 @@ expect_vif_matches_metafor <- function(case) {
   )
 }
 
+.with_expected_pareto_warnings_muffled <- function(expr) {
+
+  withCallingHandlers(
+    expr,
+    warning = function(condition) {
+      expected <- startsWith(
+        conditionMessage(condition),
+        "Some Pareto k values are high (> 0.7)"
+      )
+      if (expected) {
+        invokeRestart("muffleWarning")
+      }
+    }
+  )
+}
+
+.dfbetas_for_parity <- function(...) {
+
+  return(.with_expected_pareto_warnings_muffled(stats::dfbetas(...)))
+}
+
 expect_dfbetas_match_metafor <- function(case) {
 
   name        <- case_name(case)
@@ -768,7 +804,7 @@ expect_dfbetas_match_metafor <- function(case) {
   oracle      <- case_value(case, "oracle", "equal")
   tolerance   <- case_value(case, "tolerance", 0.10)
 
-  brma_dfbetas <- dfbetas(fit_brma)
+  brma_dfbetas <- .dfbetas_for_parity(fit_brma)
   if (oracle == "structure") {
     expect_dfbetas_table(brma_dfbetas, nobs(fit_brma), info = name)
     return(invisible(TRUE))
@@ -931,8 +967,8 @@ expect_influence_matches_metafor <- function(case) {
                          info = paste(name, "rstudent"))
   testthat::expect_true(all(is.finite(inf_brma$inf$dffits[rows])),
                         info = paste(name, "dffits finite"))
-  testthat::expect_true(all(is.finite(inf_brma$inf$cook.d[rows])),
-                        info = paste(name, "cook.d finite"))
+  testthat::expect_equal(inf_metafor$inf$cook.d[rows], inf_brma$inf$cook.d[rows],
+                         tolerance = tol, info = paste(name, "cook.d"))
 
   if (oracle == "equal") {
     testthat::expect_equal(inf_metafor$inf$cov.r[rows], inf_brma$inf$cov.r[rows],

@@ -1,0 +1,15 @@
+
+Bayesian Multilevel Random-Effects Selection Model (k = 100, clusters = 17)
+
+Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.344 0.120 0.106 0.345 0.574     0.00485          0.041  615 1.017
+tau 0.536 0.070 0.420 0.530 0.690     0.00211          0.030 1130 1.001
+rho 0.617 0.103 0.406 0.623 0.799     0.00300          0.029 1170 1.002
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,1] 0.576 0.178 0.272 0.563 0.938     0.00302          0.017 3485 1.001
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

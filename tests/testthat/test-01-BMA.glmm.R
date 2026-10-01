@@ -10,14 +10,36 @@ skip_refit_if_cached("BMA.glmm")
 test_that("BMA.glmm fits binomial model (OR)", {
   data(dat.bcg, package = "metadat")
 
+  # The chains leave the effect's null model only rarely and stay there for
+  # hundreds of iterations (posterior null probability about 0.015), so short
+  # chains can sit in one model and misstate the inclusion Bayes factor.
+  # 160,000 iterations per chain, thinned to 1,000 draws, let every chain visit
+  # both models.
   fit <- BMA.glmm(
     ai = tpos, bi = tneg, ci = cpos, di = cneg,
     data = dat.bcg, measure = "OR",
-    chains = 2, sample = 1000, burnin = 500, adapt = 500,
+    chains = 3, sample = 1000, burnin = 2000, adapt = 500, thin = 160,
     seed = 1, silent = TRUE
   )
   fit <- suppressWarnings(add_loo(fit))
   save_fit("bcg_BMA.glmm", fit)
+
+  # The effect converges, and every chain visits the effect's null model: the
+  # null state is too rare for an R-hat of its indicator to be a stable gate.
+  samples <- coda::as.mcmc.list(fit[["fit"]])
+  psrf <- coda::gelman.diag(
+    samples[, "mu"], autoburnin = FALSE, multivariate = FALSE
+  )[["psrf"]]
+  expect_lt(psrf[1L, "Point est."], 1.05, label = "R-hat of mu")
+  null_component <- which(attr(fit$priors$outcome$mu, "components") == "null")
+  expect_length(null_component, 1L)
+  null_draws <- vapply(samples, function(chain) {
+    sum(chain[, "mu_indicator"] == null_component)
+  }, numeric(1))
+  expect_true(
+    all(null_draws >= 1),
+    label = paste("null-model draws per chain:", paste(null_draws, collapse = ", "))
+  )
 
   expect_s3_class(fit, "BMA.glmm")
   expect_true(BayesTools::is.prior.mixture(fit$priors$outcome$mu))
@@ -27,6 +49,8 @@ test_that("BMA.glmm fits binomial model (OR)", {
 })
 
 test_that("BMA.glmm fits Poisson model (IRR)", {
+
+  skip_if_fit_not_active("nielweise2008_BMA.glmm")
   data(dat.nielweise2008, package = "metadat")
 
   fit <- BMA.glmm(
@@ -47,6 +71,8 @@ test_that("BMA.glmm fits Poisson model (IRR)", {
 
 
 test_that("BMA.glmm handles custom priors", {
+
+  skip_if_fit_not_active("bcg_BMA.glmm_custom")
   data(dat.bcg, package = "metadat")
 
   fit <- BMA.glmm(
@@ -68,6 +94,8 @@ test_that("BMA.glmm handles custom priors", {
 })
 
 test_that("BMA.glmm handles 3lvl location-scale meta-regression", {
+
+  skip_if_fit_not_active("bcg_BMA.glmm_3lvl_location_scale")
   data(dat.bcg, package = "metadat")
 
   fit <- BMA.glmm(

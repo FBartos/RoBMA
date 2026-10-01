@@ -19,6 +19,7 @@
   xlab,
   ylab,
   plot_type = "base",
+  max_samples = Inf,
   ...
 )
 }
@@ -28,8 +29,8 @@
 \item{type}{the type of standardized residuals to use. Options are:
 \itemize{
 \item \code{"rstudent"} (alias: \code{"LOO-PIT"}; default): Leave-one-out
-probability integral transform residuals. Works for all model types
-including GLMMs and selection models. This is the recommended type for
+probability integral transform residuals. Works for normal outcome
+models, including selection models. This is the recommended type for
 Bayesian models as it properly accounts for estimation uncertainty and
 leverage. Note: requires that loo has been computed (see
 \code{\link{add_loo}}).
@@ -76,6 +77,10 @@ Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
 
+\item{max_samples}{maximum posterior draws used to compute known-\code{V}
+internally standardized residuals. Defaults to \code{Inf}. Finite values
+select draws deterministically and are ignored for other residual types.}
+
 \item{...}{additional graphical arguments to customize the plot appearance:
 \describe{
 \item{pch}{point symbol (default: 21, filled circle)}
@@ -117,11 +122,14 @@ under a correctly specified model. Each point represents one estimate,
 plotted at coordinates \eqn{(\Phi^{-1}(p_i), z_{(i)})} where
 \eqn{p_i} are the plotting positions and \eqn{z_{(i)}} are the sorted
 standardized residuals.
+Each retained input row contributes one point, irrespective of its likelihood
+weight. Weights affect fitting and the residual calculation; they do not
+replicate points or multiply residual values in this plot.
 
 The default residual type is \code{"rstudent"} (LOO-PIT), which differs
 from \code{metafor::qqnorm} (which defaults to \code{"rstandard"}).
-LOO-PIT residuals are preferred because they are available for all model
-types (including GLMMs and selection models) and properly account for
+LOO-PIT residuals are preferred for normal outcome models because they
+properly account for
 estimation uncertainty via leave-one-out cross-validation.
 
 The confidence envelope is computed in closed form from the distribution of
@@ -132,9 +140,15 @@ with \eqn{\Phi^{-1}}. When \code{smooth = TRUE}, bounds are smoothed using
 Friedman's SuperSmoother. When \code{bonferroni = TRUE}, the confidence
 level is adjusted for simultaneous inference across all \eqn{k} comparisons.
 
-For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
-approximate effect-size scale used by \code{loo}; they are not exact
-count-scale PIT diagnostics.
+For correlated known-\code{V} \code{brma.mv()} \code{"rstandard"} residuals,
+this envelope remains an independent order-statistic reference band. It is
+descriptive and does not model residual correlation induced by known sampling
+covariance.
+
+Q-Q residual plots are not available for binomial or Poisson GLMMs. Their
+fitted predictive distributions are discrete, so a randomized, mid-P, or
+other discrete PIT convention must be chosen before a normal Q-Q diagnostic
+is defined.
 }
 \examples{
 \dontrun{

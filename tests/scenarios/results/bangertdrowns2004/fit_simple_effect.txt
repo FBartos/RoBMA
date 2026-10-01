@@ -1,0 +1,5 @@
+
+Pooled Effect Size
+    Mean Median 0.025 0.975 PI 0.025 PI 0.975
+mu 0.220  0.218 0.129 0.316   -0.262    0.693
+

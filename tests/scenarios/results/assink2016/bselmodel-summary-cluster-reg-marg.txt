@@ -1,0 +1,27 @@
+
+Bayesian Multilevel Mixed-Effect Selection Model (k = 100, clusters = 17)
+Random effects (from random): integrate. Integrated before normalization; selection can reweight its population mixing law.
+Sampling context (from V): integrate. Context absent; condition and integrate coincide.
+Random sources: cluster (contextual variation).
+Independent estimate-level and residual variation are integrated before normalization.
+Selection weights: Product of estimate weights.
+Publication groups: requested automatic; resolved 17 groups from cluster.
+Sampling structure: full sampling covariance integration; input vi/sei.
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.482 0.065 0.373 0.475 0.629     0.00107          0.017 3669 1.000
+rho 0.596 0.108 0.376 0.600 0.796     0.00172          0.016 3978 1.000
+
+Meta-Regression
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept        -0.330 0.218 -0.767 -0.331 0.099     0.00612          0.028 1274 1.000
+deltype[general]  0.531 0.155  0.215  0.534 0.829     0.00396          0.026 1528 1.000
+deltype[overt]    0.275 0.171 -0.072  0.276 0.606     0.00355          0.021 2340 1.001
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,1] 0.665 0.137 0.406 0.663 0.937     0.00305          0.022 2028 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

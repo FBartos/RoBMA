@@ -5,13 +5,13 @@
 # Variance Inflation Factor (VIF) and Generalized VIF (GVIF) for brma objects.
 #
 # Two complementary diagnostics for multicollinearity:
-# 1. Classical VIF/GVIF from cov2cor(vcov) (matches metafor)
+# 1. Posterior-averaged working VIF/GVIF from cov2cor(vcov)
 # 2. Posterior correlation of regression coefficients (Bayesian diagnostic)
 #
-# VIF is computed from the correlation matrix of the coefficient
-# variance-covariance matrix: vcov = (X'WX)^{-1}. For simple models, W uses
-# diag(weight_i/(vi + tau^2)); scale and multilevel models average this
-# coefficient covariance over posterior heterogeneity draws.
+# VIF is computed from the correlation matrix of the posterior mean coefficient
+# variance-covariance matrix: vcov = mean_s((X'W_sX)^{-1}). brma.mv known-V
+# models use the full supplied sampling covariance plus any marginal
+# heterogeneity or formula random-effect covariance in each posterior draw.
 #
 # GVIF formula (Fox & Monette, 1992, for multi-df terms):
 #   GVIF = det(R_11) * det(R_22) / det(R)
@@ -61,16 +61,21 @@ vif <- function(object, ...) {
 #' @param posterior_correlation logical; whether to also compute and return
 #' the posterior correlation matrix of regression coefficients. Defaults
 #' to \code{TRUE}.
+#' @param max_samples maximum posterior draws used for known-\code{V}
+#' \code{brma.mv()} marginal GLS covariance computations. Defaults to
+#' \code{Inf}. Finite values deterministically thin draws across posterior row
+#' order.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
 #' VIF is computed from the correlation matrix derived from the
-#' coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
-#' meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
-#' with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
-#' and multilevel models, the coefficient covariance is averaged across
-#' posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
-#' and block-structured multilevel covariance where applicable.
+#' coefficient variance-covariance matrix. The package computes
+#' \eqn{\mathrm{E}[(X'W_sX)^{-1} \mid y]} by averaging coefficient covariance
+#' across posterior heterogeneity draws. Standard models use
+#' \eqn{W_s = \mathrm{diag}(w_i/(v_i + \tau_s^2))}; scale and multilevel models
+#' use observation-specific \eqn{\tau_{is}} and block-structured multilevel
+#' covariance where applicable. Averaging occurs before conversion to a
+#' correlation matrix and computation of VIF/GVIF.
 #'
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
@@ -84,11 +89,27 @@ vif <- function(object, ...) {
 #'
 #' When \code{posterior_correlation = TRUE}, the function also returns the
 #' posterior correlation matrix of the regression coefficients. This
-#' Bayesian diagnostic complements VIF: while VIF diagnoses the
-#' \emph{potential} for collinearity problems (a data property), the
-#' posterior correlation shows the \emph{realized} identification
-#' given the data and priors. Informative priors can mitigate
-#' collinearity, reducing posterior correlations even when VIF is high.
+#' Bayesian diagnostic complements VIF: VIF summarizes collinearity under the
+#' posterior distribution of the marginal working covariance, whereas the
+#' posterior correlation shows the realized joint identification of the
+#' coefficients given the data and priors. Unlike a fixed-covariance design
+#' VIF, posterior-averaged VIF can therefore depend on the outcome and the
+#' heterogeneity prior. Informative coefficient priors can also reduce posterior
+#' correlations even when VIF is high.
+#'
+#' Data-only objects created with \code{only_data = TRUE} are rejected because
+#' VIF depends on fitted heterogeneity information, not just the parsed data.
+#'
+#' For \code{brma.mv()} known-\code{V} models, VIF is computed from the full
+#' marginal GLS covariance. Formula random effects are marginalized through
+#' BayesTools' random-effect covariance metadata rather than treated as
+#' conditioned fitted effects.
+#'
+#' For generalized linear mixed models, this is a working effect-size-scale
+#' diagnostic based on the fitted model's approximate sampling variances. It is
+#' not a VIF derived directly from the binomial or Poisson information matrix.
+#' When the marginal covariance is fixed, the calculation reduces to the
+#' conventional fixed-covariance VIF used by \pkg{metafor}.
 #'
 #' @return An object of class \code{vif.brma} containing:
 #' \item{vif}{A data frame with columns \code{term}, \code{df}, \code{GVIF},
@@ -128,17 +149,25 @@ vif <- function(object, ...) {
 #'
 #' @seealso [regplot()], [summary.brma()]
 #' @exportS3Method
-vif.brma <- function(object, posterior_correlation = TRUE, ...) {
+vif.brma <- function(object, posterior_correlation = TRUE,
+                     max_samples = Inf, ...) {
 
   BayesTools::check_bool(posterior_correlation, "posterior_correlation")
+  max_samples <- .normalize_max_samples(max_samples, "max_samples")
 
   # require moderators
+  if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
+    stop("VIF is not available for data-only objects.", call. = FALSE)
+  }
+  if (is.null(object[["fit"]])) {
+    stop("VIF is available only for fitted objects.", call. = FALSE)
+  }
   if (!.is_mods(object)) {
     stop("VIF is only meaningful for models with moderators (meta-regression).", call. = FALSE)
   }
 
   # compute VIF from vcov correlation matrix
-  vif_df <- .compute_vif(object)
+  vif_df <- .compute_vif(object, max_samples = max_samples)
 
   # posterior correlation of regression coefficients
   post_cor <- NULL
@@ -150,6 +179,12 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
     vif                  = vif_df,
     posterior_correlation = post_cor
   )
+  if (!is.null(attr(vif_df, "known_v_diagnostic"))) {
+    output <- .known_v_attach_diagnostic_metadata(
+      output,
+      attr(vif_df, "known_v_diagnostic")
+    )
+  }
 
   class(output) <- "vif.brma"
 
@@ -161,21 +196,54 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 # .compute_vif
 # ---------------------------------------------------------------------------- #
 #
-# Compute VIF/GVIF from cov2cor(solve(X'WX)). Simple models use the posterior
-# mean tau plug-in. Scale and multilevel models average solve(X'WX) over
-# posterior heterogeneity draws so observation-specific and block covariances
-# are preserved.
+# Compute VIF/GVIF after averaging solve(X'WX) over posterior heterogeneity
+# draws so scalar, observation-specific, and block covariances share one
+# package-wide estimand.
 #
 # @param object brma object with moderators
 #
 # @return data frame with columns: term, df, GVIF, GVIF^(1/(2*df))
 #
 # ---------------------------------------------------------------------------- #
-.compute_vif <- function(object) {
+.compute_vif <- function(object, max_samples = Inf) {
 
   # extract model matrix
   X      <- .get_model_matrix(object)
   assign <- attr(X, "assign")
+
+  if (inherits(object, "brma.mv")) {
+    vcov <- .vif_vcov_brma_mv(
+      object      = object,
+      X           = X,
+      max_samples = max_samples
+    )
+  } else {
+    vcov <- .vif_vcov_brma(object, X)
+  }
+  known_v_metadata <- attr(vcov, "known_v_diagnostic")
+
+  vif_df <- .vif_table_from_vcov(
+    vcov   = vcov,
+    assign = assign,
+    object = object,
+    X      = X
+  )
+  if (!is.null(known_v_metadata)) {
+    vif_df <- .known_v_attach_diagnostic_metadata(vif_df, known_v_metadata)
+  }
+
+  return(vif_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_brma
+# ---------------------------------------------------------------------------- #
+#
+# Coefficient covariance for standard brma objects.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_brma <- function(object, X) {
 
   # extract sampling variances
   vi      <- .outcome_data_vi(object)
@@ -183,27 +251,26 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   K       <- length(vi)
 
   # extract posterior heterogeneity
-  # for simple models: use summary["tau", "Mean"] to preserve metafor-style VIF
-  # for scale/multilevel models: use full posterior tau matrices
   is_scale      <- .is_scale(object)
   is_multilevel <- .is_multilevel(object)
+  tau_K         <- if (!is_scale && !is_multilevel) 1L else K
 
-  if (!is_scale && !is_multilevel) {
-    tau_within_samples  <- matrix(object[["summary"]]["tau", "Mean"], nrow = 1, ncol = K)
-    tau_between_samples <- matrix(0, nrow = 1, ncol = K)
-  } else {
-    tau_result <- .evaluate.brma.tau(
-      fit           = object[["fit"]],
-      scale_data    = object[["data"]][["scale"]],
-      scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
-      scale_priors  = object[["priors"]][["scale"]],
-      is_scale      = is_scale,
-      is_multilevel = is_multilevel,
-      K             = K
-    )
-    tau_within_samples  <- tau_result[["tau_within"]]
-    tau_between_samples <- tau_result[["tau_between"]]
-  }
+  tau_result <- .evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (is_scale) .create_fit_formula_list(
+      data = object[["data"]],
+      "scale"
+    ) else NULL,
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = is_scale,
+    is_multilevel     = is_multilevel,
+    K                 = tau_K,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  )
+  tau_within_samples  <- tau_result[["tau_within"]]
+  tau_between_samples <- tau_result[["tau_between"]]
 
   # compute posterior-averaged vcov = (X'WX)^{-1} using meta-analytic weights
   vcov <- .vif_vcov_from_tau_samples(
@@ -214,6 +281,60 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
     tau_between_samples = tau_between_samples,
     cluster             = if (is_multilevel) object[["data"]][["outcome"]][["cluster"]] else NULL
   )
+
+  return(vcov)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_brma_mv
+# ---------------------------------------------------------------------------- #
+#
+# Coefficient covariance for brma.mv() known-V models. This is a marginal GLS
+# design diagnostic: sampled and marginalized formula random effects contribute
+# through ZGZ', not through fitted random-effect means.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_brma_mv <- function(object, X, max_samples = Inf) {
+
+  if (!.is_data_known_v(object[["data"]])) {
+    stop("VIF for brma.mv() requires known-V covariance metadata.",
+         call. = FALSE)
+  }
+  if (!identical(.outcome_type(object), "norm")) {
+    stop("VIF for brma.mv() is available only for normal outcome models.",
+         call. = FALSE)
+  }
+
+  sample_info <- .known_v_diagnostic_posterior_samples(
+    object      = object,
+    max_samples = max_samples,
+    caller      = "known-V VIF diagnostics"
+  )
+  known_V <- .data_known_v_data(object[["data"]])
+  vcov <- .vif_vcov_from_factor_plan(
+    object            = object,
+    X                 = X,
+    posterior_samples = sample_info[["posterior_samples"]],
+    known_V           = known_V
+  )
+  vcov <- .known_v_attach_diagnostic_metadata(
+    vcov,
+    .known_v_diagnostic_metadata(sample_info = sample_info)
+  )
+
+  return(vcov)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_table_from_vcov
+# ---------------------------------------------------------------------------- #
+#
+# Compute GVIF/GVIF-adjusted table from the fixed-effect covariance.
+#
+# ---------------------------------------------------------------------------- #
+.vif_table_from_vcov <- function(vcov, assign, object, X) {
 
   # identify and remove intercept (assign == 0)
   has_intercept <- 0 %in% assign
@@ -286,6 +407,88 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 
 
 # ---------------------------------------------------------------------------- #
+# .vif_vcov_from_covariance_samples
+# ---------------------------------------------------------------------------- #
+#
+# Compute mean_s solve(X' M_s^{-1} X) from full marginal covariance samples.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_from_covariance_samples <- function(X, covariance_samples,
+                                              average = TRUE) {
+
+  K <- nrow(X)
+  P <- ncol(X)
+
+  if (length(dim(covariance_samples)) != 3L ||
+      dim(covariance_samples)[2L] != K ||
+      dim(covariance_samples)[3L] != K) {
+    stop("VIF covariance samples must have dimensions draw x row x row.",
+         call. = FALSE)
+  }
+
+  S        <- dim(covariance_samples)[1L]
+  vcov_sum <- matrix(0, nrow = P, ncol = P)
+
+  for (s in seq_len(S)) {
+    covariance <- covariance_samples[s, , , drop = FALSE]
+    covariance <- matrix(covariance, nrow = K, ncol = K)
+    factorization   <- .covariance_factorization(covariance)
+    chol_covariance <- .covariance_cholesky(factorization, "VIF marginal covariance")
+    if (is.null(chol_covariance)) {
+      stop("VIF marginal covariance is not positive definite.",
+           call. = FALSE)
+    }
+
+    W <- chol2inv(chol_covariance)
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+      crossprod(X, W %*% X),
+      rank = attr(X, "rank")
+    )
+  }
+
+  vcov <- if (average) vcov_sum / S else vcov_sum
+  if (!is.null(colnames(X))) {
+    dimnames(vcov) <- list(colnames(X), colnames(X))
+  }
+
+  return(vcov)
+}
+
+
+.vif_vcov_from_factor_plan <- function(object, X, posterior_samples, known_V) {
+
+  S <- nrow(posterior_samples)
+  K <- nrow(X)
+  P <- ncol(X)
+  plan_data <- .known_v_marginal_factor_plan(
+    object            = object,
+    posterior_samples = posterior_samples,
+    known_V           = known_V
+  )
+  precision_X <- .known_v_covariance_plan_precision_rhs_batch(
+    plan_data = plan_data,
+    rhs       = X
+  )
+
+  vcov_sum <- matrix(0, nrow = P, ncol = P)
+  for (s in seq_len(S)) {
+    W_X <- matrix(precision_X[s, , ], nrow = K, ncol = P)
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+      crossprod(X, W_X),
+      rank = attr(X, "rank")
+    )
+  }
+
+  vcov <- vcov_sum / S
+  if (!is.null(colnames(X))) {
+    dimnames(vcov) <- list(colnames(X), colnames(X))
+  }
+
+  return(vcov)
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .vif_vcov_from_tau_samples
 # ---------------------------------------------------------------------------- #
 #
@@ -295,8 +498,8 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 # @param X design matrix.
 # @param vi sampling variances.
 # @param weights likelihood weights.
-# @param tau_within_samples S x K matrix of estimate-level heterogeneity SDs.
-# @param tau_between_samples optional S x K matrix of cluster-level SDs.
+# @param tau_within_samples S x 1 or S x K matrix of estimate-level SDs.
+# @param tau_between_samples optional S x 1 or S x K matrix of cluster-level SDs.
 # @param cluster optional cluster identifiers for multilevel block covariance.
 #
 # @return posterior mean of solve(X'WX).
@@ -312,7 +515,11 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   tau_within_samples <- .vif_tau_matrix(tau_within_samples, K, "tau_within_samples")
 
   if (is.null(tau_between_samples)) {
-    tau_between_samples <- matrix(0, nrow = nrow(tau_within_samples), ncol = K)
+    tau_between_samples <- matrix(
+      0,
+      nrow = nrow(tau_within_samples),
+      ncol = ncol(tau_within_samples)
+    )
   } else {
     tau_between_samples <- .vif_tau_matrix(tau_between_samples, K, "tau_between_samples")
   }
@@ -331,15 +538,23 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   vcov_sum <- matrix(0, nrow = P, ncol = P)
 
   for (s in seq_len(S)) {
-    diagonal_s <- (vi + tau_within_samples[s, ]^2) / weights
+    tau_within_s  <- tau_within_samples[s, ]
+    tau_between_s <- tau_between_samples[s, ]
+    if (!is.null(cluster) && length(tau_between_s) == 1L) {
+      tau_between_s <- rep(tau_between_s, K)
+    }
+    diagonal_s    <- (vi + tau_within_s^2) / weights
     WX <- .hat_apply_precision(
       x             = X,
       diagonal      = diagonal_s,
-      rank_one      = if (!is.null(cluster)) tau_between_samples[s, ] else NULL,
+      rank_one      = if (!is.null(cluster)) tau_between_s else NULL,
       block_indices = block_indices
     )
 
-    vcov_sum <- vcov_sum + .hat_solve_crossprod(crossprod(X, WX))
+    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+      crossprod(X, WX),
+      rank = attr(X, "rank")
+    )
   }
 
   vcov <- vcov_sum / S
@@ -355,7 +570,7 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 # .vif_tau_matrix
 # ---------------------------------------------------------------------------- #
 #
-# Normalize heterogeneity input to an S x K matrix.
+# Normalize heterogeneity input to a compact S x 1 or row-specific S x K matrix.
 #
 # ---------------------------------------------------------------------------- #
 .vif_tau_matrix <- function(x, K, name) {
@@ -373,12 +588,8 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
 
   x <- as.matrix(x)
 
-  if (ncol(x) == 1L && K > 1L) {
-    x <- matrix(x[, 1], nrow = nrow(x), ncol = K)
-  }
-
-  if (ncol(x) != K) {
-    stop("'", name, "' must have K columns.", call. = FALSE)
+  if (!ncol(x) %in% c(1L, K)) {
+    stop("'", name, "' must have one or K columns.", call. = FALSE)
   }
 
   return(x)
@@ -403,13 +614,18 @@ vif.brma <- function(object, posterior_correlation = TRUE, ...) {
   # keep_formulas = "mu" extracts all mu-formula coefficients
   # return_samples = TRUE returns S x P matrix instead of summary
   samples_mat <- as.matrix(BayesTools::JAGS_estimates_table(
-    fit                = object[["fit"]],
-    keep_formulas      = "mu",
-    remove_diagnostics = TRUE,
-    transform_factors  = TRUE,
-    transform_scaled   = TRUE,
-    return_samples     = TRUE
+    fit                    = object[["fit"]],
+    keep_formulas          = "mu",
+    random_effects_summary = "none",
+    remove_diagnostics     = TRUE,
+    transform_factors      = TRUE,
+    transform_scaled       = TRUE,
+    return_samples         = TRUE
   ))
+  samples_mat <- .diagnostic_fixed_location_coefficient_samples(
+    samples_mat,
+    require_mu_columns = TRUE
+  )
 
   # need at least 2 coefficients for correlation
   if (ncol(samples_mat) < 2) {
@@ -462,4 +678,59 @@ print.vif.brma <- function(x, digits = 3, ...) {
   cat("\n")
 
   return(invisible(x))
+}
+
+
+#' @title Convert VIF Results to a Data Frame
+#'
+#' @description Converts every table displayed by a \code{vif.brma} object to
+#' one component-aware long data frame.
+#'
+#' @param x a \code{vif.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.vif.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  vif_table <- x[["vif"]]
+  vif_parameter <- vif_table[["term"]]
+  if (all(vif_table[["df"]] == 1)) {
+    vif_table <- data.frame(
+      VIF         = vif_table[["GVIF"]],
+      check.names = FALSE
+    )
+  } else {
+    vif_table[["term"]] <- NULL
+  }
+  tables <- list(.output_table_as_long_data_frame(
+    table            = vif_table,
+    component        = "vif",
+    parameter        = vif_parameter,
+    stringsAsFactors = stringsAsFactors
+  ))
+
+  if (!is.null(x[["posterior_correlation"]])) {
+    posterior_correlation <- x[["posterior_correlation"]]
+    tables[[length(tables) + 1L]] <- .output_table_as_long_data_frame(
+      table            = posterior_correlation,
+      component        = "posterior correlation",
+      parameter        = rownames(posterior_correlation),
+      stringsAsFactors = stringsAsFactors
+    )
+  }
+
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
 }

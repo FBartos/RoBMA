@@ -15,8 +15,9 @@
 \item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
-A matrix of class \code{"compare.loo"} as returned by
-\code{\link[loo]{loo_compare}}.
+A numeric matrix of class \code{"compare.loo.brma"}, which also
+inherits from \code{"compare.loo"}. The matrix retains the comparison
+columns and printing contract returned by loo versions before 2.10.0.
 }
 \description{
 Compare multiple brma models using LOO-PSIS cross-validation.
@@ -28,10 +29,15 @@ predictive performance (ELPD).
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected
-out-of-sample predictive performance. This evaluates how well models predict
-\emph{new} observations, not how well they fit the observed data.
+predictive performance for the documented deletion target, not in-sample
+fit. For dependent estimates, deleting one estimate may retain other
+observations from its fitted dependency block; this is not new-group
+prediction.
 RoBMA rejects comparisons with different outcome targets/data, \code{unit},
-or implied \code{conditioning_depth}.
+or retained context. The same compatibility key is applied
+separately to LOO and WAIC; the two criteria cannot be mixed in one
+comparison table. Sampled versus marginalized local-effect provenance does
+not by itself block comparison.
 }
 \examples{
 \dontrun{

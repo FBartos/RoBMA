@@ -4,10 +4,14 @@
 \alias{hatvalues.brma}
 \title{Hat Values for brma Objects}
 \usage{
-\method{hatvalues}{brma}(model, ...)
+\method{hatvalues}{brma}(model, max_samples = Inf, ...)
 }
 \arguments{
 \item{model}{a fitted brma object}
+
+\item{max_samples}{maximum posterior draws used for known-\code{V}
+\code{brma.mv()} marginal covariance computations. Defaults to \code{Inf}.
+Finite values deterministically thin draws across posterior row order.}
 
 \item{...}{additional arguments (currently ignored)}
 }
@@ -26,10 +30,15 @@ is uncertain, so the hat matrix depends on the posterior samples of \eqn{\tau^2}
 
 This function computes the diagonal elements of the hat matrix:
 \deqn{h_i = (X (X^T W X)^{-1} X^T W)_{ii}}
-where \eqn{W} is the weight matrix inverse to the marginal variance matrix.
+where \eqn{W} is the fitted precision matrix. Without additional likelihood
+weights it is the inverse marginal covariance; likelihood weights modify
+estimation precision without redefining the original outcome covariance
+used to standardize residuals.
 
 The hat matrix is computed for each posterior draw and then averaged over
 draws, matching the vector output shape used by \code{metafor}.
+For known-\code{V} \code{brma.mv()} random-formula models, leverages use the
+marginal GLS covariance \eqn{V + ZGZ'}.
 
 This method is available only for normal outcome models without
 weightfunction selection.

@@ -1,0 +1,404 @@
+#' @title Bayesian Meta-Analysis With Known Sampling Covariance
+#'
+#' @description Fits normal-likelihood Bayesian meta-analytic models with a
+#' known working variance-covariance matrix `V`. The interface supports
+#' location moderators, BayesTools random-effect formulas using
+#' [random-effect formula structure tags][random_effect_formula_tags], and
+#' `brma.mv()`-specific known-`V` backends.
+#'
+#' @inheritParams brma
+#' @inheritParams data_input
+#' @inheritParams prior_specification
+#' @inheritParams fitting_specification
+#' @param random Optional BayesTools random-effect formula or list of formulas.
+#' Omission or \code{NULL} means a fixed-effect model with no implicit
+#' heterogeneity term. Known sampling covariance \code{V} remains unchanged.
+#' Declare \code{random} before supplying heterogeneity priors or scale formulas.
+#' @param R optional known random-effect group covariance/correlation matrix,
+#' or a named list of matrices. Matrix row and column names identify grouping
+#' levels. This is distinct from the known sampling covariance `V`.
+#' @param Rscale scaling applied to each supplied `R` matrix before fitting.
+#' Supported values are `"cor"`, `"none"`, `"cor0"`, `"cov0"`, with
+#' metafor-compatible aliases `TRUE`, `FALSE`, `0`, `1`, `2`, and `3`.
+#'
+#' @details
+#' `brma.mv()` represents known sampling dependence through a latent `D + BB'`
+#' decomposition of `V` (`known_v_parameterization = "latent"`), through an
+#' eigen-rotated likelihood (`known_v_parameterization = "whitened"`), or
+#' through an exact native block multivariate-normal likelihood
+#' (`known_v_parameterization = "block_mvn"`). The default
+#' `known_v_parameterization = "auto"` chooses the whitened backend whenever the
+#' extra diagonal variance is scalar, otherwise chooses block-MVN when the
+#' largest dense covariance block is at or below the configured feasibility
+#' threshold, and falls back to the latent backend for large blocks. The automatic
+#' block-MVN threshold defaults to 128 rows per covariance block and can be
+#' changed with `options(RoBMA.known_v_block_mvn_max_block_size = value)`, where
+#' `value` is a positive integer or `Inf`.
+#' Covariance inputs retain their symmetric representation. Numerical
+#' positive-semidefinite checks use standardized correlations so small marginal
+#' variances are not mistaken for null directions. At a numerically singular
+#' boundary, the computational factor uses the existing eigensolver roundoff
+#' tolerance; sampling, whitening, and conditional calculations share its
+#' support. This numerical rule is separate from the selection model's
+#' condition/integrate source choices. Exact rank-one dependency
+#' blocks are represented by one latent sampling factor, including when another
+#' backend was requested, so correlations of one and any separate positive
+#' diagonal variance retain their mathematical structure.
+#' Singular positive-semidefinite `V` matrices are supported only when
+#' integrated conditional variance is structurally positive on every retained
+#' null direction. This can come from strictly positive heterogeneity or a
+#' supported marginalized random-effect variance. The check is performed after
+#' formulas and priors are compiled. Sampled random effects change the
+#' conditional mean and therefore do not regularize the likelihood covariance.
+#' For the block-MVN backend, a fixed point regularizer must also be large
+#' enough to make each block numerically positive definite at double precision;
+#' ineffective fixed values fail during preflight rather than inside JAGS.
+#' The latent known-`V` backend is unavailable for other singular `V` matrices;
+#' use `"auto"`, `"whitened"`, or `"block_mvn"`. Unsupported configurations
+#' fail before fitting rather than invoking a degenerate-normal likelihood.
+#' As a convenience for diagonal known-`V` inputs, `brma.mv()` also accepts
+#' named `vi` or `sei` arguments when `V` is omitted; these are converted to
+#' `diag(vi)` or `diag(sei^2)`. Do not supply `V` together with `vi` or `sei`.
+#'
+#' Omitted or NULL `random` declares no random-effects structure. No implicit
+#' `tau` or heterogeneity mixture is added. Do not supply `prior_heterogeneity`
+#' or `prior_heterogeneity_null` without `random`, even as NULL or a zero prior;
+#' omit these irrelevant arguments instead. Scale formulas also require an
+#' explicit random structure. This rule applies to all .mv constructors;
+#' specialized univariate models retain their usual implicit heterogeneity and
+#' clustered `tau`/`rho`/`I2` behavior.
+#'
+#' The `random` argument uses BayesTools
+#' [random-effect formula structure tags][random_effect_formula_tags].
+#' Plain `(expr | group)` syntax creates an unstructured random-coefficient
+#' block, and `expr || group` creates a diagonal block. Therefore
+#' `~ 1 | study`, `~ 1 + x | study`, and nested forms such as
+#' `~ 1 | study/effect` are supported. The explicit `us()` / `un()`, `diag()`,
+#' and `id()` tags use the same coefficient-formula semantics. The structured
+#' `cs()` / `hcs()`, `ar1()` / `ar()` / `har()`, and `car()` tags instead own
+#' their index basis; see the linked tag documentation before specifying factor
+#' slopes or index variables.
+#' BayesTools stores fully explicit canonical random-effect names of the form
+#' `(formula) owner: quantity(arguments)`. RoBMA uses their simplified display
+#' aliases through RoBMA's meta-analytic naming map consistently in summaries,
+#' plotting, density estimation, hypotheses, and posterior draws. A sole random
+#' intercept drops its redundant argument, so a bare block is displayed and
+#' accepted as `tau`, while an explicitly named block is `study: tau`; the
+#' unique shorthand `tau` is also accepted. A non-intercept coefficient remains
+#' explicit, for example `study: tau(x)`. Bare formulas and
+#' unnamed one-entry lists omit a redundant owner; explicitly named one-entry
+#' lists retain it, and missing names in longer lists become `component 1`,
+#' `component 2`, and so on. Allocation names include `tau_total`, `tau_common`,
+#' and `tau2_prop(study)`. BayesTools retains its general `sd`/`var`/`cor`
+#' vocabulary internally; none of these public RoBMA names expose backend
+#' coordinates.
+#' The optional `R` argument supplies known covariance or correlation matrices
+#' across random-effect grouping levels, following `metafor::rma.mv()` naming.
+#' `R` is separate from the known sampling covariance `V`: `V` describes
+#' sampling-error dependence between estimates, while `R` describes the
+#' latent group-axis covariance of random intercepts. Current `R` support is
+#' limited to random-intercept blocks. `Rscale` controls how each supplied
+#' `R` matrix is scaled before fitting and accepts
+#' `"cor"`, `"none"`, `"cor0"`, `"cov0"`, plus metafor-compatible aliases
+#' `TRUE`/`1` for `"cor"`, `FALSE`/`0` for `"none"`, `2` for `"cor0"`,
+#' and `3` for `"cov0"`.
+#' In non-selection Gaussian models with `random`, shared sampled
+#' random-effect blocks enter the conditional mean through BayesTools. A
+#' supported one-to-one random-intercept block is automatically integrated into
+#' the likelihood variance. Other terms remain sampled with their full
+#' covariance. With a single top-level random component, `scale`
+#' models the row-wise total random-effect SD consumed by that component. A
+#' named list of `scale` formulas can instead target top-level random components
+#' or concrete random-effect blocks. Block names and grouping labels are
+#' accepted, and the terminal grouping variable is an alias for an unambiguous
+#' nested block; for example, `scale = list(esid = ~ x)` targets the `esid`
+#' block in `random = ~ 1 | study / esid`. Untargeted blocks retain their
+#' ordinary SD priors. Component names can be ordinary text; RoBMA normalizes
+#' them internally for JAGS. A single `scale` formula is rejected for multiple
+#' top-level random components because the target is ambiguous. In model-
+#' averaged models, block-specific scales inside one grouped component require
+#' the blocks to be supplied as separately named `random` entries so their
+#' inclusion gates remain well-defined.
+#' When `scale` is a named list, `prior_scale` must either be omitted or use the
+#' same named-list shape with one prior list per scale component, using the
+#' same user-facing names. Post-fit scale predictions for random-formula
+#' models keep these component scales separate rather than collapsing them into
+#' one total \eqn{\tau}.
+#' In non-selection Gaussian models, a supported random-intercept block that
+#' maps one-to-one to estimates
+#' is automatically compiled as a marginalized variance component
+#' instead of sampled latent coefficients. This preserves estimate-level
+#' heterogeneity semantics while keeping shared higher-level random effects
+#' conditional. For known `R`, this automatic marginalization is available only
+#' when BayesTools validates a one-column random-intercept block whose
+#' `Z K Z'` row-space contribution is diagonal and one-to-one with the fitted
+#' rows; RoBMA then adds the BayesTools-prepared row multiplier to the known-`V`
+#' extra variance. Other known-`R` blocks remain sampled or are rejected by
+#' BayesTools validation. Slopes and other unsupported variance forms remain
+#' sampled. Multiple declared terms with one grouping level per estimate are
+#' rejected, regardless of their coefficient basis or known group covariance.
+#'
+#' The implementation intentionally omits the `weights` and `cluster` arguments
+#' from `metafor::rma.mv()`. Use `random` for multilevel structures.
+#' Estimate-unit `log_lik()`, `add_loo()`, `add_waic()`, `residuals()`, and
+#' `rstudent()` are available for known-`V` models. Bridge-sampling marginal
+#' likelihoods via `add_marglik()` are available for fitted single-model
+#' known-`V` objects. `rstandard()` is available for known-`V` models at
+#' supported estimate and marginal conditioning depths.
+#'
+#' @section Diagnostic target semantics:
+#' The main `brma.mv()` post-fit methods intentionally use different targets:
+#' \itemize{
+#'   \item `log_lik(unit = "estimate")`, `add_loo()`/`loo()`,
+#'     `add_waic()`/`waic()`, and `rstudent()` use estimate-unit log-score
+#'     targets. When known `V` induces dependence, these contributions are
+#'     Schur-complement conditionals \eqn{p(y_i \mid y_{-i}, \theta)} within
+#'     dependency blocks. They are existing-estimate diagnostics, not
+#'     independent new-estimate prediction targets.
+#'     When known random-effect covariance `R` is supplied, sampled random
+#'     effects remain conditioned in these estimate-depth targets. The known
+#'     `R` matrix shapes the posterior and prior for those random effects, but
+#'     it is not added again as a marginal \eqn{ZGZ'} covariance term. Supported
+#'     known-`R` blocks compiled as marginalized instead enter through the
+#'     diagonal extra variance term \eqn{\tau^2 r_i} prepared by BayesTools.
+#'   \item `dfbetas()` and `covratio()` use estimate-unit PSIS weights. With
+#'     correlated known `V`, their interpretation is parameter influence under
+#'     conditional estimate deletion, not independent-study deletion.
+#'   \item `add_marglik()`/`bridge_sampler()` uses the full fitted likelihood
+#'     corresponding to the selected known-`V` backend. It does not use the
+#'     estimate-wise conditional target from LOO/WAIC. During bridge evaluation,
+#'     sampled Gaussian location random effects are integrated exactly as
+#'     \eqn{ZGZ'} while retaining every covariance parameter and prior; fitted
+#'     diagonal marginalized blocks remain in the row variance. Selection
+#'     likelihoods instead preserve the normalization boundary declared by
+#'     [selection_model()]: retained contextual sources remain outside the
+#'     normalizer and integrated sources enter the conditional covariance.
+#'   \item `hatvalues()`, marginal `rstandard()`, and `vif()` use a marginal
+#'     GLS covariance target based on `V + ZGZ'`, where formula random effects
+#'     are marginalized through the BayesTools covariance metadata.
+#'   \item `dffits()` and `cooks.distance()` use fixed-location fitted-value
+#'     influence targets. Cluster/block LOO is deferred for `brma.mv()` because
+#'     its deletion target is a joint dependency block, not an independent row.
+#' }
+#' Without `random`, the model estimates no heterogeneity. Explicit
+#' random-formula models report component-specific standard deviation,
+#' correlation and allocation summaries. A single homogeneous random component
+#' uses the RoBMA names `tau` and `tau2`.
+#' `summary_heterogeneity(component = ...)` describes component heterogeneity
+#' over the observed design, whereas `pooled_heterogeneity(component = ...)`
+#' evaluates absolute component heterogeneity at the average expanded random
+#' design. Both report the fitted heterogeneity scale without fixed known-`R`
+#' group covariance multipliers; row-specific scale prediction and covariance
+#' consumers retain the full known `R`. General known-`V` models do not report
+#' scalar I2/H2.
+#'
+#' @return A fitted object of class `c("brma.mv", "brma.norm", "brma")`.
+#' The advanced internal `only_data = TRUE` path returns checked data before
+#' prior validation and random-effect marginalization decisions; use
+#' `only_priors = TRUE` when inspecting the compiled random-effect structure.
+#'
+#' @examples \dontrun{
+#' V <- matrix(c(0.04, 0.01, 0.01, 0.09), 2, 2)
+#' fit <- brma.mv(
+#'   yi                        = c(0.10, 0.20),
+#'   V                         = V,
+#'   measure                   = "GEN",
+#'   prior_unit_information_sd = 1,
+#'   seed                      = 1,
+#'   silent                    = TRUE
+#' )
+#' summary(fit)
+#' }
+#'
+#' @seealso \code{\link{random_effect_formula_tags}},
+#'   \code{\link{random_effect_prior_specification}}, [brma()],
+#'   [BMA.mv()], [RoBMA.mv()], [bPET.mv()], [bPEESE.mv()], [bselmodel.mv()],
+#'   [summary.brma()], [predict.brma()]
+#'
+#' @export
+brma.mv <- function(
+    # input specification
+    yi, V, ni,
+    mods, scale, random,
+    R = NULL, Rscale = "cor",
+    data, slab, subset,
+    measure,
+
+    # prior specification
+    prior_effect, prior_heterogeneity, prior_mods, prior_scale,
+    standardize_continuous_predictors = TRUE,
+    set_contrast_factor_predictors = "treatment",
+    prior_unit_information_sd, rescale_priors = 1,
+    prior_informed_field, prior_informed_subfield,
+
+    # MCMC fitting settings
+    known_v_parameterization = "auto",
+    sample = 5000, burnin = 2000, adapt = 500,
+    chains = 3, thin = 1, parallel = FALSE,
+    autofit = FALSE, autofit_control = set_autofit_control(),
+    convergence_checks = set_convergence_checks(),
+
+    # additional settings
+    seed = NULL, silent, ...,
+    vi = NULL, sei = NULL
+    ) {
+
+  initialized <- .initialize_mv_object(
+    matched_call_unevaluated            = match.call(expand.dots = FALSE),
+    matched_call                        = match.call(),
+    envir                               = parent.frame(),
+    caller                              = "brma.mv()",
+    object_class                        = c("brma.mv", "brma.norm", "brma"),
+    dots                                = list(...),
+    missing_measure                     = missing(measure),
+    measure                             = measure,
+    R                                   = R,
+    Rscale                              = Rscale,
+    standardize_continuous_predictors   = standardize_continuous_predictors,
+    set_contrast_factor_predictors      = set_contrast_factor_predictors,
+    known_v_parameterization            = known_v_parameterization,
+    sample                              = sample,
+    burnin                              = burnin,
+    adapt                               = adapt,
+    chains                              = chains,
+    thin                                = thin,
+    parallel                            = parallel,
+    autofit                             = autofit,
+    autofit_control                     = autofit_control,
+    convergence_checks                  = convergence_checks,
+    seed                                = seed,
+    silent                              = silent
+  )
+  object <- initialized[["object"]]
+  dots   <- initialized[["dots"]]
+  if (isTRUE(dots[["only_data"]])) {
+    return(object)
+  }
+
+  object$priors <- .check_and_list_priors.brma(
+    prior_effect                   = prior_effect,
+    prior_heterogeneity            = prior_heterogeneity,
+    prior_mods                     = prior_mods,
+    prior_scale                    = prior_scale,
+    rescale_priors                 = rescale_priors,
+    prior_unit_information_sd      = prior_unit_information_sd,
+    prior_informed_field           = prior_informed_field,
+    prior_informed_subfield        = prior_informed_subfield,
+    data                           = object[["data"]]
+  )
+
+  .finalize_mv_object(
+    object                     = object,
+    only_priors                = isTRUE(dots[["only_priors"]])
+  )
+}
+
+
+.initialize_mv_object <- function(
+    matched_call_unevaluated, matched_call, envir, caller, object_class,
+    dots, missing_measure, measure,
+    R, Rscale,
+    standardize_continuous_predictors, set_contrast_factor_predictors,
+    known_v_parameterization,
+    sample, burnin, adapt, chains, thin, parallel,
+    autofit, autofit_control, convergence_checks,
+    seed, silent, effect_direction = "positive") {
+
+  .brma_mv_reject_unsupported_dots(
+    matched_call_unevaluated,
+    caller = caller
+  )
+  if (isTRUE(missing_measure) && !isTRUE(dots[["only_data"]])) {
+    .stop_missing_measure(caller)
+  }
+  if (isTRUE(missing_measure)) {
+    measure <- "GEN"
+  }
+
+  known_v_parameterization <- match.arg(
+    known_v_parameterization,
+    c("auto", "latent", "whitened", "block_mvn")
+  )
+  # 'R' is only meaningful alongside a random-effect term. Check that first so
+  # the actionable message wins over the per-matrix validation below.
+  if (!is.null(R) && is.na(match("random", names(matched_call)))) {
+    stop("'R' requires a 'random' formula.", call. = FALSE)
+  }
+  random_group_covariance <- .brma_mv_make_group_covariance(
+    R      = R,
+    Rscale = Rscale
+  )
+  dots <- .validate_constructor_dots(
+    dots   = dots,
+    caller = caller
+  )
+
+  object <- .createObject(
+    dots  = dots,
+    class = object_class,
+    chains = chains, adapt = adapt, burnin = burnin, sample = sample,
+    thin = thin, autofit = autofit, parallel = parallel, silent = silent,
+    seed = seed, autofit_control = autofit_control,
+    convergence_checks = convergence_checks
+  )
+  object[["data"]] <- .check_and_list_data(
+    .call                              = matched_call,
+    .envir                             = envir,
+    class                              = "mv",
+    set_contrast_factor_predictors    = set_contrast_factor_predictors,
+    standardize_continuous_predictors = standardize_continuous_predictors,
+    effect_direction                  = effect_direction,
+    measure                           = measure,
+    random_group_covariance            = random_group_covariance,
+    known_v_parameterization            = known_v_parameterization,
+    selection_binding                  = !isTRUE(dots[["only_data"]]) &&
+      any(c("bselmodel", "RoBMA") %in% object_class)
+  )
+
+  list(object = object, dots = dots)
+}
+
+.brma_mv_reject_unsupported_dots <- function(matched_call,
+                                             caller = "brma.mv()") {
+
+  dots <- matched_call[["..."]]
+  if (is.null(dots) || length(dots) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  unsupported <- intersect(
+    names(dots),
+    c(
+      "cluster", "weights", "prior_bias", "prior_PET", "prior_PEESE",
+      "model_type"
+    )
+  )
+  if (length(unsupported) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  messages <- c(
+    cluster = paste0(
+      "'cluster' is not supported in ", caller, "; use the dedicated ",
+      "'random' argument for multilevel structures."
+    ),
+    weights = paste0("'weights' are not supported in ", caller, "."),
+    prior_bias = paste0(
+      "Selection/publication-bias priors are not supported in ", caller, "."
+    ),
+    prior_PET = paste0(
+      "PET publication-bias priors are not supported in ", caller, "."
+    ),
+    prior_PEESE = paste0(
+      "PEESE publication-bias priors are not supported in ", caller, "."
+    ),
+    model_type = paste0(
+      "'model_type' is not supported in ", caller,
+      "; publication-bias model types are unavailable."
+    )
+  )
+  stop(
+    paste(unname(messages[unsupported]), collapse = " "),
+    call. = FALSE
+  )
+}

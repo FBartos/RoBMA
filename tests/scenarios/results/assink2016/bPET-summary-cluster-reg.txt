@@ -1,0 +1,18 @@
+
+Bayesian Multilevel Mixed-Effect PET Model (k = 100, clusters = 17)
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.453 0.067 0.340 0.446 0.603     0.00201          0.030 1145 1.003
+rho 0.616 0.114 0.381 0.623 0.821     0.00296          0.026 1511 1.003
+
+Meta-Regression
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept        -0.390 0.203 -0.777 -0.393 0.009     0.01236          0.061 271 1.003
+deltype[general]  0.505 0.155  0.205  0.506 0.806     0.00698          0.045 504 1.005
+deltype[overt]    0.281 0.170 -0.062  0.283 0.605     0.00553          0.032 970 1.001
+
+Publication Bias
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+PET 1.712 0.533 0.621 1.725 2.716     0.02312          0.043 531 1.005
+

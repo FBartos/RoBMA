@@ -38,12 +38,139 @@
   sei_mat <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
 
   # compute total SD: sqrt(tau^2 + se^2)
-  total_sd <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd <- .root_sum_squares(tau_within, sei_mat)
 
   # sample from N(mu, total_sd) for each cell
   # matrix(rnorm(S*K), S, K) * total_sd + mu is vectorized sampling
   # equivalent: for each s,k: y[s,k] ~ N(mu[s,k], total_sd[s,k])
   response_samples <- mu_samples + matrix(stats::rnorm(S * K), nrow = S, ncol = K) * total_sd
+
+  return(response_samples)
+}
+
+
+.outcome_rng.norm_known_v <- function(mu_samples, tau_within, known_V) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  sampling_noise      <- .known_v_sampling_noise(known_V, S = S, K = K)
+  heterogeneity_noise <- matrix(stats::rnorm(S * K), nrow = S, ncol = K) *
+    tau_within
+  response_samples    <- mu_samples + sampling_noise + heterogeneity_noise
+
+  return(response_samples)
+}
+
+
+# Draw known-V sampling noise without materializing a global covariance factor.
+.known_v_sampling_noise <- function(known_V, S, K) {
+
+  if (.known_v_nrow(known_V) != K) {
+    stop("Known-V covariance dimensions do not match prediction rows.",
+         call. = FALSE)
+  }
+
+  if (identical(.known_v_storage(known_V), "factor")) {
+    diagonal <- known_V[["factor_diagonal"]]
+    loading  <- known_V[["factor_loading"]]
+    sampling_noise <- sweep(
+      matrix(stats::rnorm(S * K), nrow = S, ncol = K),
+      MARGIN = 2L,
+      STATS  = sqrt(diagonal),
+      FUN    = "*"
+    )
+    if (ncol(loading) > 0L) {
+      sampling_noise <- sampling_noise +
+        matrix(
+          stats::rnorm(S * ncol(loading)),
+          nrow = S,
+          ncol = ncol(loading)
+        ) %*% t(loading)
+    }
+    return(sampling_noise)
+  }
+
+  sampling_noise <- matrix(0, nrow = S, ncol = K)
+  independent    <- .known_v_independent_indices(known_V)
+  if (length(independent) > 0L) {
+    independent_noise <- matrix(
+      stats::rnorm(S * length(independent)),
+      nrow = S,
+      ncol = length(independent)
+    )
+    sampling_noise[, independent] <- sweep(
+      independent_noise,
+      MARGIN = 2L,
+      STATS  = sqrt(.known_v_diagonal(known_V)[independent]),
+      FUN    = "*"
+    )
+  }
+
+  for (block in .known_v_correlated_blocks(known_V)) {
+    index  <- block[["index"]]
+    factor <- .known_v_sampling_factor(block[["covariance"]])
+    sampling_noise[, index] <- matrix(
+      stats::rnorm(S * length(index)),
+      nrow = S,
+      ncol = length(index)
+    ) %*% factor
+  }
+
+  return(sampling_noise)
+}
+
+
+.outcome_rng.norm_known_v_covariance <- function(mu_samples,
+                                                 covariance_samples) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+
+  fixed <- is.matrix(covariance_samples)
+  blocked <- .is_block_covariance(covariance_samples)
+  dimension <- if (blocked) {
+    .block_covariance_dim(covariance_samples)
+  } else {
+    dim(covariance_samples)
+  }
+  if ((fixed && !identical(dimension, c(K, K))) ||
+      (!fixed && (length(dimension) != 3L ||
+      dimension[1L] != S ||
+      dimension[2L] != K ||
+      dimension[3L] != K))) {
+    stop("Known-V response covariance samples have inconsistent dimensions.",
+         call. = FALSE)
+  }
+
+  sampling_factor <- function(covariance) {
+
+    factor <- .covariance_sampling_factor(.covariance_factorization(covariance))
+    if (is.null(factor)) {
+      stop("Known-V response covariance is not positive semidefinite.",
+           call. = FALSE)
+    }
+    factor
+  }
+  if (fixed) {
+    factor <- sampling_factor(covariance_samples)
+    return(mu_samples + matrix(stats::rnorm(S * K), S, K, byrow = TRUE) %*% factor)
+  }
+
+  response_samples <- mu_samples
+  for (s in seq_len(S)) {
+    # The assembled K x K matrix, not the blocks: this factorization of the
+    # whole matrix and of its blocks differ in the last bits.
+    covariance <- if (blocked) {
+      .block_covariance_dense(covariance_samples, s)
+    } else {
+      matrix(covariance_samples[s, , ], nrow = K, ncol = K)
+    }
+    factor <- sampling_factor(covariance)
+
+    response_samples[s, ] <- mu_samples[s, ] +
+      as.vector(stats::rnorm(K) %*% factor)
+  }
 
   return(response_samples)
 }
@@ -62,12 +189,13 @@
   S          <- nrow(mu_samples)
   K          <- ncol(mu_samples)
   sei_mat    <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
-  total_sd   <- sqrt(tau_within^2 + sei_mat^2)
+  total_sd   <- .root_sum_squares(tau_within, sei_mat)
+  selection_context <- BayesTools::selection_context_validate(
+    context   = selection_context,
+    n_samples = S,
+    required  = "use_normal"
+  )
   use_normal <- selection_context[["use_normal"]]
-
-  if (length(use_normal) == 1L) {
-    use_normal <- rep(use_normal, S)
-  }
 
   if (all(use_normal)) {
     return(.outcome_rng.norm(
@@ -93,7 +221,10 @@
       mean              = mu_samples[step_rows, , drop = FALSE],
       sd                = total_sd[step_rows, , drop = FALSE],
       sei               = sei,
-      selection_context = .selection_context_subset_rows(selection_context, step_rows)
+      selection_context = BayesTools::selection_context_subset_rows(
+        context = selection_context,
+        rows    = step_rows
+      )
     )
 
     return(out)
@@ -105,6 +236,127 @@
     sei               = sei,
     selection_context = selection_context
   ))
+}
+
+
+# Draw one finite-vector selected Gaussian response per posterior row. Best
+# selection uses one rejection event per publication group; product selection
+# can use independent conditional Gaussian blocks inside that event.
+.outcome_rng.selnorm_mvn <- function(
+    mu_samples, covariance_samples, sei, selection_context,
+    dependency_blocks, max_attempts = 100000L) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  # Either calling form: a dense draw x row x row array, or the block
+  # covariance the joint selection parts carry.
+  blocked <- .is_block_covariance(covariance_samples)
+  if (blocked) {
+    if (!identical(.block_covariance_dim(covariance_samples), c(S, K, K)) ||
+        !.block_covariance_all_finite(covariance_samples)) {
+      stop("Selected response covariance samples have invalid dimensions.",
+           call. = FALSE)
+    }
+  } else if (!identical(dim(covariance_samples), c(S, K, K)) ||
+             any(!is.finite(covariance_samples))) {
+    stop("Selected response covariance samples have invalid dimensions.",
+         call. = FALSE)
+  }
+  if (!is.numeric(sei) || length(sei) != K || anyNA(sei) ||
+      any(!is.finite(sei)) || any(sei <= 0)) {
+    stop("Selected response standard errors must be finite and positive.",
+         call. = FALSE)
+  }
+  BayesTools::check_int(
+    max_attempts,
+    "max_attempts",
+    lower = 1L,
+    check_length = 1L,
+    allow_NA = FALSE
+  )
+  selection_context <- BayesTools::selection_context_validate(
+    context   = selection_context,
+    n_samples = S,
+    required  = c("omega", "kernel_mode", "use_normal", "vector_rule")
+  )
+  if (any(!selection_context[["kernel_mode"]] %in%
+          c(SELKERNEL_NORMAL, SELKERNEL_STEP))) {
+    stop("Selected response simulation requires a step selection kernel.",
+         call. = FALSE)
+  }
+  omega <- selection_context[["omega"]]
+  if (any(!is.finite(omega)) || any(omega < 0)) {
+    stop("Selected response simulation requires nonnegative weights.",
+         call. = FALSE)
+  }
+  .known_v_validate_dependency_blocks(dependency_blocks, K)
+
+  p_cuts  <- .selection_assert_p_cuts(selection_context[["p_cuts"]])
+  z_lower <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)
+  z_upper <- c(Inf, z_lower[-length(z_lower)])
+  result <- .Call(
+    "RoBMA_selnorm_mnorm_step_rng_batch",
+    .native_numeric_matrix(mu_samples),
+    # The per-block calling form: the kernel reads only the blocks, so it
+    # neither receives nor scans the dense cube's cross-block zeros.
+    if (blocked) {
+      .block_covariance_native_parts(covariance_samples)
+    } else {
+      covariance_samples
+    },
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(omega),
+    .native_numeric_vector(z_lower),
+    .native_numeric_vector(z_upper),
+    .native_integer_vector(selection_context[["sign"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    dependency_blocks,
+    .native_integer_vector(max_attempts),
+    .native_integer_vector(selection_context[["vector_rule"]]),
+    PACKAGE = "RoBMA"
+  )
+  if (!is.list(result) ||
+      !identical(names(result), c(
+        "draws", "failure_code", "failure_size"
+      ))) {
+    stop("The selected response native kernel returned invalid output.",
+         call. = FALSE)
+  }
+  if (result[["failure_code"]] == 1L) {
+    stop("Selected response covariance is not positive semidefinite.",
+         call. = FALSE)
+  }
+  if (result[["failure_code"]] == 2L) {
+    stop(
+      "Selected response RNG was rejected by diagnostics: no ",
+      "proposal was accepted in ", max_attempts, " attempts for a ",
+      "dependency block of size ", result[["failure_size"]], ". Use ",
+      "'bias_adjusted = TRUE' to draw responses before selection.",
+      call. = FALSE
+    )
+  }
+  if (result[["failure_code"]] == 3L) {
+    stop("Selected response simulation requires a positive weight.",
+         call. = FALSE)
+  }
+  if (result[["failure_code"]] == 4L) {
+    stop("Selected response covariance must be symmetric.", call. = FALSE)
+  }
+  if (result[["failure_code"]] == 6L) {
+    stop(
+      "Selected response RNG was rejected by diagnostics: a Gaussian proposal was non-finite. ",
+      "Inspect the model inputs and posterior draws.",
+      call. = FALSE
+    )
+  }
+  if (result[["failure_code"]] != 0L ||
+      !identical(dim(result[["draws"]]), c(S, K)) ||
+      any(!is.finite(result[["draws"]]))) {
+    stop("The selected response native kernel returned invalid output.",
+         call. = FALSE)
+  }
+
+  return(result[["draws"]])
 }
 
 

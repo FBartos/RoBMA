@@ -21,13 +21,21 @@
 #' @details
 #' Cook's distance is computed as a PSIS leave-one-out deletion diagnostic. For
 #' each observation \eqn{i}, normalized PSIS weights estimate the fitted values
-#' under the leave-one-out posterior. The distance is the posterior Mahalanobis
-#' distance between the full-data and leave-one-out fitted-value vectors:
-#' \deqn{D_i = \frac{\Delta_i' V_\mu^+ \Delta_i}{P}}
+#' under the leave-one-out posterior. The distance is the squared posterior
+#' Mahalanobis distance between the full-data and leave-one-out fitted-value
+#' vectors:
+#' \deqn{D_i = \Delta_i' V_\mu^+ \Delta_i}
 #'
 #' where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
-#' generalized inverse of the full-posterior fitted-value covariance, and
-#' \eqn{P} is the rank of the fixed-effect model matrix.
+#' generalized inverse of the full-posterior fitted-value covariance. This is
+#' the unscaled, chi-square-based meta-analytic convention used by
+#' \insertCite{viechtbauer2010outlier;textual}{RoBMA}, rather than the
+#' rank-scaled, F-based convention used for standard linear models.
+#' For \code{brma.mv()} known-\code{V} models, Cook's distance uses
+#' estimate-unit PSIS weights. With correlated known-\code{V}, deletion is
+#' conditional estimate deletion and the reported fitted-value target is the
+#' fixed-location mean \eqn{\mu = X\beta}; sampled or marginalized random
+#' effects are not included in the reported fitted value.
 #'
 #' @return A numeric vector of Cook's distance values, one for each observation.
 #'
@@ -41,42 +49,54 @@
 #' }
 #' }
 #'
+#' @references
+#' \insertCite{viechtbauer2010outlier}{RoBMA}
+#'
 #' @seealso \code{\link{influence.brma}}, \code{\link{dffits.brma}}, \code{\link{hatvalues.brma}}
 #' @importFrom stats cooks.distance
 #' @exportS3Method
 cooks.distance.brma <- function(model, ...) {
 
-  # the function relies on hatvalues
-  # as such it is sensible only sensible for normal models
-  outcome_type       <- .outcome_type(model)
-  is_weightfunction  <- .is_weightfunction(model)
+  .check_fixed_location_influence_available(model, "cooks.distance")
 
-  if (outcome_type != "norm") {
-    stop("cooks.distance is only available for normal outcome models.", call. = FALSE)
-  }
-  if (is_weightfunction) {
-    stop("cooks.distance is not available for selection models (weightfunction).", call. = FALSE)
-  }
+  psis_context <- .diagnostic_psis_context(model)
+  .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
 
   fit_samples <- .influence_fit_samples(model)
-  weights     <- .diagnostic_psis_weights(model)
-  P           <- qr(.get_model_matrix(model))[["rank"]]
-  d_vec       <- .cooks.distance_internal(fit_samples, weights, P)
+  weights     <- psis_context[["psis_weights"]]
+  d_vec       <- .cooks.distance_internal(fit_samples, weights)
   d_vec       <- .diagnostic_set_names(d_vec, model)
+  if (inherits(model, "brma.mv")) {
+    d_vec <- .brma_mv_attach_target_metadata(d_vec, "cooks.distance()")
+  }
 
   return(d_vec)
 }
 
-.cooks.distance_internal <- function(fit_samples, weights, P) {
+.cooks.distance_internal <- function(fit_samples, weights, summary = NULL) {
 
-  summary <- .psis_fit_influence_summary(fit_samples, weights)
+  if (is.null(summary)) {
+    summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = weights,
+      fit_moments = "all",
+      variance    = "none"
+    )
+  }
+  variable <- summary[["variable"]]
+  if (!any(variable)) {
+    out <- rep(0, ncol(weights))
+    names(out) <- colnames(fit_samples)
+    return(out)
+  }
+
   delta   <- sweep(summary[["loo_fit"]], 2, summary[["full_fit"]], "-")
-  delta   <- -delta
+  delta   <- -delta[, variable, drop = FALSE]
 
-  vcov_fit <- stats::cov(fit_samples)
+  vcov_fit <- stats::cov(summary[["samples"]][, variable, drop = FALSE])
   vcov_inv <- .symmetric_ginv(vcov_fit)
 
-  d_vec <- rowSums((delta %*% vcov_inv) * delta) / max(P, 1L)
+  d_vec <- rowSums((delta %*% vcov_inv) * delta)
   names(d_vec) <- colnames(fit_samples)
 
   return(d_vec)
@@ -90,18 +110,25 @@ cooks.distance.brma <- function(model, ...) {
 # Generalized inverse for symmetric positive semi-definite covariance matrices.
 #
 # ---------------------------------------------------------------------------- #
-.symmetric_ginv <- function(x, tol = sqrt(.Machine$double.eps)) {
+.symmetric_ginv <- function(x) {
 
-  x   <- (x + t(x)) / 2
-  eig <- eigen(x, symmetric = TRUE)
+  x          <- (x + t(x)) / 2
+  components <- svd(x)
 
-  keep <- eig[["values"]] > max(abs(eig[["values"]]), 1) * tol
+  scale <- max(components[["d"]])
+  if (scale == 0) {
+    return(matrix(0, nrow = nrow(x), ncol = ncol(x)))
+  }
+
+  tolerance <- max(dim(x)) * .Machine$double.eps * scale
+  keep      <- components[["d"]] > tolerance
   if (!any(keep)) {
     return(matrix(0, nrow = nrow(x), ncol = ncol(x)))
   }
 
-  vectors <- eig[["vectors"]][, keep, drop = FALSE]
-  values  <- eig[["values"]][keep]
+  left   <- components[["u"]][, keep, drop = FALSE]
+  right  <- components[["v"]][, keep, drop = FALSE]
+  values <- components[["d"]][keep]
 
-  return(vectors %*% diag(1 / values, nrow = length(values)) %*% t(vectors))
+  return(right %*% diag(1 / values, nrow = length(values)) %*% t(left))
 }

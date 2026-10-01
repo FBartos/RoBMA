@@ -1,0 +1,4 @@
+  hypothesis   density_BF   marglik_BF
+1   rho != 0 3.515172e+00 3.527295e+00
+2   rho != 1 4.648523e+92 1.121182e+92
+3   tau != 0 1.474525e+99 1.318175e+99

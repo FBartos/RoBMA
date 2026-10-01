@@ -27,6 +27,9 @@
 
   outcome_type <- .outcome_type(object)
   outcome_data <- object[["data"]][["outcome"]]
+  if (length(outcome_type) != 1L || !outcome_type %in% c("norm", "bin", "pois")) {
+    stop("Outcome data have an unsupported or missing outcome type.", call. = FALSE)
+  }
 
   if (outcome_type == "norm") {
     # normal models: yi is directly available
@@ -85,6 +88,9 @@
 
   outcome_type <- .outcome_type(object)
   outcome_data <- object[["data"]][["outcome"]]
+  if (length(outcome_type) != 1L || !outcome_type %in% c("norm", "bin", "pois")) {
+    stop("Outcome data have an unsupported or missing outcome type.", call. = FALSE)
+  }
 
   if (outcome_type == "norm") {
     # normal models: sei is directly available
@@ -139,6 +145,25 @@
 .outcome_data_vi <- function(object) {
 
   return(.outcome_data_sei(object)^2)
+}
+
+
+.outcome_data_likelihood_sei <- function(object) {
+
+  if (.is_data_known_v(object[["data"]])) {
+    if ((.is_data_known_v_backend(object[["data"]], "whitened") ||
+         .is_data_known_v_backend(object[["data"]], "block_mvn")) &&
+        .data_known_v_correlated(object[["data"]])) {
+      stop(
+        "Original-scale pointwise likelihood standard errors are not available ",
+        "for correlated exact known-V models.",
+        call. = FALSE
+      )
+    }
+    return(.data_known_v_data(object[["data"]])[["residual_sei"]])
+  }
+
+  return(.outcome_data_sei(object))
 }
 
 

@@ -12,7 +12,8 @@
 \item{...}{additional arguments (currently not used).}
 }
 \value{
-An object of class \code{"bridge"} as returned by
+An object of class \code{"bridge"}, or \code{"bridge_list"} for
+repeated bridge estimates, as returned by
 \code{\link[bridgesampling]{bridge_sampler}}.
 }
 \description{
@@ -21,14 +22,19 @@ a brma model. The marginal likelihood must first be computed using
 \code{\link{add_marglik}}.
 }
 \details{
-This function extracts the bridge sampling object that was previously
-computed and stored using \code{\link{add_marglik}}. If the marginal
-likelihood has not been computed, an error is thrown.
+This function extracts the raw \pkg{bridgesampling} object underlying the
+marginal-likelihood result stored by \code{\link{add_marglik}}. If the
+marginal likelihood has not been computed, an error is thrown.
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
-and \code{RoBMA}) do not expose bridge-sampling marginal likelihoods.
+\code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose
+bridge-sampling marginal likelihoods.
 
-The returned object can be used for Bayesian model comparison via
-\code{\link{bf}} and \code{\link{post_prob}}.
+Fully fixed models can have a zero-dimensional marginal likelihood evaluated
+exactly. Such fits have no bridge-sampling object, so this method raises a
+\code{RoBMA_exact_marglik_no_bridge} error; use \code{\link{logml}} to
+retrieve their exact log marginal likelihood. For Bayesian model comparison,
+pass fitted \code{brma} objects directly to \code{\link{bf}} or
+\code{\link{post_prob}}.
 }
 \examples{
 \dontrun{

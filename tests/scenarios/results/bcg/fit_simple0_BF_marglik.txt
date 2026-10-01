@@ -1,0 +1,1 @@
+Bayes factor in favor of Model 1 over Model 2: 119977079257320243866860.00000

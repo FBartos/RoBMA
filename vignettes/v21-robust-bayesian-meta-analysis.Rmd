@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Robust Bayesian Meta-Analysis}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -139,7 +138,7 @@ summary_models(fit_RoBMA)
 ```
 
 The posterior model weights show which sub-models the data prefer within each component's mixture.
-The bias side of the ensemble concentrates posterior mass on PET (posterior probability $0.77$, individual inclusion BF $\approx 23$) with a smaller share on PEESE; the weight functions and the no-bias spike all receive negligible posterior weight.
+The bias side of the ensemble concentrates posterior mass on PET (posterior probability $0.68$, individual inclusion BF $\approx 15$), followed by PEESE (posterior probability $0.21$); the remaining bias components together account for about $0.10$.
 The `inclusion BF` column is the Bayes factor for that one sub-model against the rest of its mixture, so it does not need to agree with the component-level inclusion BF reported by `summary()`.
 
 `plot()` overlays the prior and the model-averaged posterior of any model parameter.

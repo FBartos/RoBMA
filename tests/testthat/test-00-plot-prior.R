@@ -1,5 +1,7 @@
 context("Prior plotting")
 
+source(testthat::test_path("helper-visuals.R"))
+
 test_data <- data.frame(
   effect     = c(0.10, 0.25, 0.15, 0.30, 0.05),
   std_err    = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03)),
@@ -34,6 +36,11 @@ test_data <- data.frame(
   range(x_values, finite = TRUE)
 }
 
+test_that("posterior plots accept secondary probability-axis controls", {
+
+  expect_true(all(c("ylim2", "ylab2") %in% .plot_dots_allowed()))
+})
+
 test_that("plot_prior plots outcome priors from only_priors objects", {
 
   skip_on_cran()
@@ -46,12 +53,29 @@ test_that("plot_prior plots outcome priors from only_priors objects", {
   expect_true(.is_ggplot(plot_prior(priors, parameter = "mu",  plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(priors, parameter = "tau", plot_type = "ggplot")))
 
+  probability_plot <- plot_prior(
+    priors,
+    parameter = "mu",
+    plot_type = "ggplot",
+    ylim      = c(0, 12.5),
+    ylim2     = c(0, 1)
+  )
+  expect_equal(attr(probability_plot, "scale_y2"), 15.4)
+
   plots <- plot_prior(priors, parameter = c("mu", "tau"), plot_type = "ggplot")
   expect_named(plots, c("mu", "tau"))
   expect_true(all(vapply(plots, .is_ggplot, logical(1))))
 
   .with_temp_plot_device(
     expect_silent(plot_prior(priors, parameter = "mu"))
+  )
+
+  expect_vdiffr_snapshot("plot_prior_outcome_base", function() {
+    plot_prior(priors, parameter = "mu")
+  })
+  expect_vdiffr_snapshot(
+    "plot_prior_outcome_ggplot",
+    plot_prior(priors, parameter = "mu", plot_type = "ggplot")
   )
 })
 
@@ -98,6 +122,11 @@ test_that("plot_prior selects moderator and scale priors", {
   expect_equal(.ggplot_x_range(default_plot), .ggplot_x_range(standardized_plot))
   expect_gt(diff(.ggplot_x_range(raw_plot)), diff(.ggplot_x_range(standardized_plot)))
 
+  expect_vdiffr_snapshot(
+    "plot_prior_moderator_standardized",
+    standardized_plot
+  )
+
   scale_priors <- suppressWarnings(BMA(
     yi = effect, sei = std_err,
     scale = ~ scale_var,
@@ -105,8 +134,485 @@ test_that("plot_prior selects moderator and scale priors", {
   ))
 
   expect_true(.is_ggplot(plot_prior(scale_priors, parameter = "tau", plot_type = "ggplot")))
+  expect_true(.is_ggplot(plot_prior(scale_priors, component = "scale", plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(scale_priors, parameter_scale = "scale_var", plot_type = "ggplot")))
   expect_true(.is_ggplot(plot_prior(scale_priors, parameter_scale = "scale_var", standardized_coefficients = FALSE, plot_type = "ggplot")))
+
+  both_priors <- suppressWarnings(BMA(
+    yi = effect, sei = std_err,
+    mods = ~ scale_var, scale = ~ scale_var,
+    data = test_data, measure = "SMD", only_priors = TRUE
+  ))
+
+  expect_error(
+    plot_prior(both_priors, parameter = "scale_var", plot_type = "ggplot"),
+    regexp = "component"
+  )
+  expect_true(.is_ggplot(plot_prior(
+    both_priors, parameter = "scale_var", component = "mods",
+    plot_type = "ggplot"
+  )))
+  expect_true(.is_ggplot(plot_prior(
+    both_priors, parameter = "scale_var", component = "location",
+    plot_type = "ggplot"
+  )))
+  expect_true(.is_ggplot(plot_prior(
+    both_priors, parameter = "scale_var", component = "scale",
+    plot_type = "ggplot"
+  )))
+})
+
+test_that("plot_prior shows original-scale coefficients next to multi-level factors", {
+
+  skip_on_cran()
+
+  # A factor with three levels has two fitted coefficient coordinates
+  # ('mu_mod_factor3[1]', 'mu_mod_factor3[2]'). The original-scale prior of
+  # the other coefficients goes through the fitted design: with the
+  # standardized predictor (x - m) / s, b_x = b_x_std / s and
+  # b_intercept = b_intercept_std - m / s * b_x_std.
+  factor_data <- data.frame(
+    effect      = c(0.10, 0.25, 0.15, 0.30, 0.05, 0.20),
+    std_err     = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03, 0.05)),
+    mod_cont    = c(1.5, 2.3, 1.8, 3.1, 0.9, 2.0),
+    mod_factor3 = factor(c("A", "B", "C", "A", "B", "C")),
+    stringsAsFactors = FALSE
+  )
+  m <- mean(factor_data[["mod_cont"]])
+  s <- stats::sd(factor_data[["mod_cont"]])
+
+  for (contrast in c("meandif", "treatment")) {
+    priors <- brma(
+      yi = effect, sei = std_err,
+      mods = ~ mod_factor3 + mod_cont,
+      data = factor_data, measure = "SMD",
+      set_contrast_factor_predictors = contrast,
+      only_priors = TRUE
+    )
+    prior_list <- .fitted_formula_design(priors, "mu")[["prior_list"]]
+    slope      <- prior_list[["mu_mod_cont"]]
+    intercept  <- prior_list[["mu_intercept"]]
+    expect_identical(slope[["distribution"]], "normal")
+    expect_identical(intercept[["distribution"]], "normal")
+
+    slope_plot <- plot_prior(
+      priors, parameter_mods = "mod_cont",
+      standardized_coefficients = FALSE, plot_type = "ggplot"
+    )
+    slope_data <- ggplot2::layer_data(slope_plot, 1)
+    expect_equal(
+      slope_data[["y"]],
+      stats::dnorm(
+        slope_data[["x"]],
+        mean = slope[["parameters"]][["mean"]] / s,
+        sd   = slope[["parameters"]][["sd"]] / s
+      ),
+      tolerance = 1e-10,
+      info      = contrast
+    )
+
+    intercept_plot <- plot_prior(
+      priors, parameter = "mu",
+      standardized_coefficients = FALSE, plot_type = "ggplot"
+    )
+    intercept_data <- ggplot2::layer_data(intercept_plot, 1)
+    expect_equal(
+      intercept_data[["y"]],
+      stats::dnorm(
+        intercept_data[["x"]],
+        mean = intercept[["parameters"]][["mean"]] -
+          m / s * slope[["parameters"]][["mean"]],
+        sd   = sqrt(intercept[["parameters"]][["sd"]]^2 +
+                      (m / s * slope[["parameters"]][["sd"]])^2)
+      ),
+      tolerance = 1e-10,
+      info      = contrast
+    )
+  }
+})
+
+test_that("plot_prior refuses original-scale plots that would show the standardized prior", {
+
+  skip_on_cran()
+
+  # A factor with three or more levels has the fitted coordinates
+  # '<term>[k]'. Next to its interaction with a standardized predictor 'x', the
+  # original-scale factor coordinates are the fitted ones minus m / s times the
+  # interaction coordinates (m and s are the mean and sd of 'x'), and the
+  # interaction coordinates are rescaled by 1 / s; the prior of the term alone
+  # is then not its original-scale prior. It stops with the original-scale
+  # refusal instead of plotting the standardized prior. Terms whose coordinates
+  # the standardization leaves unchanged keep their plot.
+  interaction_data <- data.frame(
+    effect  = c(0.10, 0.25, 0.15, 0.30, 0.05, 0.20, 0.12, 0.40, 0.22, 0.18, 0.09, 0.31),
+    std_err = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03, 0.05, 0.04, 0.07, 0.05, 0.06, 0.04, 0.05)),
+    x       = c(1.5, 2.3, 1.8, 3.1, 0.9, 2.0, 4.2, 2.7, 3.3, 1.1, 2.9, 0.4),
+    z       = c(0.3, -0.2, 0.8, 0.1, -0.5, 0.4, 0.9, -0.1, 0.2, 0.6, -0.3, 0.7),
+    f2      = factor(rep(c("x", "y"), 6)),
+    f3      = factor(rep(c("A", "B", "C"), 4)),
+    g3      = factor(rep(c("u", "v", "w"), each = 4)),
+    stringsAsFactors = FALSE
+  )
+  fit_priors <- function(fun, ...) {
+    suppressWarnings(fun(
+      yi = effect, sei = std_err, data = interaction_data, measure = "SMD",
+      only_priors = TRUE, ...
+    ))
+  }
+  unavailable_classes <- c(
+    "RoBMA_density_method_original_scale",
+    "RoBMA_density_method_unavailable",
+    "error", "condition"
+  )
+  unavailable_message <- function(term) {
+    paste0(
+      "The original-scale prior of '", term, "' is unavailable: the ",
+      "standardization of continuous predictors changes its fitted ",
+      "coordinates (for a factor, through its interaction with a ",
+      "standardized predictor). Use 'standardized_coefficients = TRUE' to ",
+      "plot the prior on the standardized scale."
+    )
+  }
+  expect_refused <- function(expr, term, info) {
+    error <- tryCatch(expr, error = identity)
+    expect_identical(class(error), unavailable_classes, info = info)
+    expect_identical(conditionMessage(error), unavailable_message(term), info = info)
+    expect_null(conditionCall(error), info = info)
+  }
+  original_plot <- function(priors, ...) {
+    plot_prior(priors, ..., standardized_coefficients = FALSE, plot_type = "ggplot")
+  }
+  standardized_plot <- function(priors, ...) {
+    plot_prior(priors, ..., standardized_coefficients = TRUE, plot_type = "ggplot")
+  }
+  layer_xy <- function(plot) {
+    ggplot2::layer_data(plot, 1)[c("x", "y")]
+  }
+
+  for (contrast in c("treatment", "meandif", "orthonormal")) {
+    # a factor interacted with a standardized predictor: the factor and the
+    # interaction term are refused on the original scale, the other terms are
+    # transformed as before
+    priors <- fit_priors(
+      brma, mods = ~ f3 * x, set_contrast_factor_predictors = contrast
+    )
+    expect_refused(original_plot(priors, parameter_mods = "f3"), "f3", contrast)
+    expect_refused(original_plot(priors, parameter = "f3"), "f3", contrast)
+    expect_refused(original_plot(priors, parameter_mods = "f3:x"), "f3:x", contrast)
+    .with_temp_plot_device(expect_refused(
+      plot_prior(priors, parameter_mods = "f3", standardized_coefficients = FALSE),
+      "f3", contrast
+    ))
+    expect_true(.is_ggplot(standardized_plot(priors, parameter_mods = "f3")), info = contrast)
+    expect_true(.is_ggplot(plot_prior(priors, parameter_mods = "f3", plot_type = "ggplot")), info = contrast)
+    expect_true(.is_ggplot(standardized_plot(priors, parameter_mods = "f3:x")), info = contrast)
+    expect_true(.is_ggplot(original_plot(priors, parameter_mods = "x")), info = contrast)
+    expect_true(.is_ggplot(original_plot(priors, parameter = "mu")), info = contrast)
+
+    # coordinates that the standardization leaves unchanged: the fitted prior
+    # is the original-scale prior and is plotted as before
+    unchanged <- list(
+      list(formula = ~ f3 + x,      terms = "f3"),
+      list(formula = ~ f3 * g3,     terms = c("f3", "f3:g3")),
+      list(formula = ~ f3 * g3 + x, terms = c("f3", "f3:g3"))
+    )
+    for (case in unchanged) {
+      priors <- fit_priors(
+        brma, mods = case[["formula"]], set_contrast_factor_predictors = contrast
+      )
+      for (term in case[["terms"]]) {
+        info     <- paste(contrast, deparse(case[["formula"]]), term)
+        original <- original_plot(priors, parameter_mods = term)
+        expect_true(.is_ggplot(original), info = info)
+        expect_equal(
+          layer_xy(original),
+          layer_xy(standardized_plot(priors, parameter_mods = term)),
+          info = info
+        )
+      }
+    }
+  }
+
+  # a factor with two levels is one coordinate and is transformed as before
+  priors <- fit_priors(brma, mods = ~ f2 * x)
+  two_level <- original_plot(priors, parameter_mods = "f2")
+  expect_true(.is_ggplot(two_level))
+  expect_false(isTRUE(all.equal(
+    layer_xy(two_level), layer_xy(standardized_plot(priors, parameter_mods = "f2"))
+  )))
+
+  # a scale formula and a model-averaged (mixture) prior follow the same rule
+  priors <- fit_priors(brma, scale = ~ f3 * x)
+  expect_refused(original_plot(priors, parameter_scale = "f3"), "f3", "scale")
+  expect_refused(original_plot(priors, parameter = "f3", component = "scale"), "f3", "scale")
+  priors <- fit_priors(brma, scale = ~ f3 + x)
+  expect_true(.is_ggplot(original_plot(priors, parameter_scale = "f3")))
+  priors <- fit_priors(BMA, mods = ~ f3 * x)
+  expect_refused(original_plot(priors, parameter = "f3"), "f3", "BMA")
+  priors <- fit_priors(BMA, mods = ~ f3 + x)
+  expect_true(.is_ggplot(original_plot(priors, parameter = "f3")))
+
+  # further dependencies on standardized predictors (treatment contrasts):
+  # several standardized predictors in one interaction, and a factor-by-factor
+  # interaction inside a three-way term with a standardized predictor; the
+  # terms outside such interactions keep the fitted prior
+  further <- list(
+    list(formula = ~ f3 * x * z,       refused = c("f3", "f3:x", "f3:z", "f3:x:z"), unchanged = character()),
+    list(formula = ~ f3 + x * z,       refused = character(),                        unchanged = "f3"),
+    list(formula = ~ f3 * g3 * x,      refused = c("f3", "g3", "f3:g3", "f3:g3:x"),  unchanged = character()),
+    list(formula = ~ f3 * g3 + g3 * x, refused = c("g3", "g3:x"),                    unchanged = c("f3", "f3:g3"))
+  )
+  for (case in further) {
+    priors <- fit_priors(brma, mods = case[["formula"]])
+    for (term in case[["refused"]]) {
+      expect_refused(
+        original_plot(priors, parameter_mods = term), term,
+        paste(deparse(case[["formula"]]), term)
+      )
+    }
+    for (term in case[["unchanged"]]) {
+      info <- paste(deparse(case[["formula"]]), term)
+      expect_equal(
+        layer_xy(original_plot(priors, parameter_mods = term)),
+        layer_xy(standardized_plot(priors, parameter_mods = term)),
+        info = info
+      )
+    }
+  }
+
+  # a two-level factor with independent contrasts has two fitted coordinates
+  priors <- fit_priors(brma, mods = ~ f2 * x, set_contrast_factor_predictors = "independent")
+  expect_refused(original_plot(priors, parameter_mods = "f2"), "f2", "independent")
+  priors <- fit_priors(brma, mods = ~ f2 + x, set_contrast_factor_predictors = "independent")
+  expect_equal(
+    layer_xy(original_plot(priors, parameter_mods = "f2")),
+    layer_xy(standardized_plot(priors, parameter_mods = "f2"))
+  )
+})
+
+test_that("plot_prior selects brma.mv location and component-scale priors", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect    = test_data[["effect"]],
+    std_err   = test_data[["std_err"]],
+    mod_cont  = test_data[["mod_cont"]],
+    scale_var = test_data[["scale_var"]],
+    study     = c("s1", "s1", "s2", "s2", "s3"),
+    site      = c("a", "b", "a", "b", "a"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    mods                      = ~ mod_cont,
+    random                    = list(study = ~ 1 | study, site = ~ 1 | site),
+    scale                     = list(study = ~ scale_var, site = ~ scale_var),
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  catalog <- .brma_parameter_catalog(mv_priors)
+  expect_equal(
+    nrow(.brma_random_parameter_bundle(mv_priors)[["specs"]]),
+    0L
+  )
+  expect_true(any(
+    catalog[["parameter"]] == "mu_mod_cont" &
+      catalog[["source"]] == "location"
+  ))
+  expect_true(any(
+    catalog[["parameter"]] == "log_tau_study_scale_var" &
+      catalog[["formula_parameter"]] == "log_tau_study"
+  ))
+
+  expect_true(BayesTools::is.prior(print_prior(
+    mv_priors, parameter = "mod_cont", component = "location", silent = TRUE
+  )))
+  expect_true(BayesTools::is.prior(print_prior(
+    mv_priors,
+    parameter = "log_tau_study_scale_var",
+    component = "scale",
+    silent    = TRUE
+  )))
+  expect_error(
+    print_prior(mv_priors, parameter = "scale_var", component = "scale", silent = TRUE),
+    "ambiguous"
+  )
+  expect_error(
+    print_prior(mv_priors, component = "scale", silent = TRUE),
+    "component-specific scale"
+  )
+
+  selected <- print_prior(mv_priors, silent = TRUE)
+  expect_true("mu_mod_cont" %in% names(selected))
+  expect_true("log_tau_study_scale_var" %in% names(selected))
+  expect_true("log_tau_site_scale_var" %in% names(selected))
+  expect_s3_class(selected[["random"]], "prior_random")
+  expect_s3_class(
+    print_prior(mv_priors, parameter = "random", silent = TRUE),
+    "prior_random"
+  )
+  selected_random <- print_prior(
+    mv_priors,
+    parameter = c("mod_cont", "random"),
+    silent    = TRUE
+  )
+  expect_true(BayesTools::is.prior(selected_random[["mod_cont"]]))
+  expect_s3_class(selected_random[["random"]], "prior_random")
+  expect_error(
+    print_prior(mv_priors, parameter = "random", component = "scale", silent = TRUE),
+    "not available"
+  )
+  expect_error(
+    print_prior(mv_priors, parameter = "random", component = "nope", silent = TRUE),
+    "should be one of"
+  )
+
+  expect_true(.is_ggplot(plot_prior(
+    mv_priors,
+    parameter                 = "mod_cont",
+    component                 = "location",
+    standardized_coefficients = FALSE,
+    plot_type                 = "ggplot"
+  )))
+  expect_true(.is_ggplot(plot_prior(
+    mv_priors,
+    parameter                 = "log_tau_study_scale_var",
+    component                 = "scale",
+    standardized_coefficients = FALSE,
+    plot_type                 = "ggplot"
+  )))
+})
+
+test_that("print_prior respects regular terms named random", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect  = test_data[["effect"]],
+    std_err = test_data[["std_err"]],
+    random  = test_data[["mod_cont"]],
+    study   = c("s1", "s1", "s2", "s2", "s3"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    mods                      = ~ random,
+    random                    = ~ 1 | study,
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  auto_selected <- print_prior(mv_priors, parameter = "random", silent = TRUE)
+  mods_selected <- print_prior(
+    mv_priors,
+    parameter = "random", component = "mods",
+    silent    = TRUE
+  )
+
+  expect_true(BayesTools::is.prior(auto_selected))
+  expect_true(BayesTools::is.prior(mods_selected))
+  expect_false(inherits(auto_selected, "prior_random"))
+  expect_false(inherits(mods_selected, "prior_random"))
+  expect_s3_class(
+    print_prior(mv_priors, parameter = "mu_random", silent = TRUE),
+    "prior"
+  )
+  expect_error(
+    print_prior(mv_priors, parameter = "random", component = "scale", silent = TRUE),
+    "not available"
+  )
+  expect_true(.is_ggplot(plot_prior(
+    mv_priors,
+    parameter = "random", component = "mods",
+    plot_type = "ggplot"
+  )))
+})
+
+test_that("plot_prior omits absent scalar scale priors for random brma.mv", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect  = test_data[["effect"]],
+    std_err = test_data[["std_err"]],
+    study   = c("s1", "s1", "s2", "s2", "s3"),
+    site    = c("a", "b", "a", "b", "a"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    random                    = list(study = ~ 1 | study, site = ~ 1 | site),
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+
+  catalog <- .brma_parameter_catalog(mv_priors)
+  expect_false("tau" %in% catalog[["parameter"]])
+
+  selected <- print_prior(mv_priors, silent = TRUE)
+  expect_true("mu_intercept" %in% names(selected))
+  expect_false("tau" %in% names(selected))
+  expect_s3_class(selected[["random"]], "prior_random")
+  full_printed <- capture.output(print_prior(mv_priors))
+  expect_true("random:" %in% full_printed)
+  expect_error(
+    print_prior(mv_priors, component = "scale", silent = TRUE),
+    "does not contain scale priors"
+  )
+})
+
+test_that("print_prior prints a fitted random specification only once", {
+
+  skip_on_cran()
+
+  mv_data <- data.frame(
+    effect  = test_data[["effect"]],
+    std_err = test_data[["std_err"]],
+    study   = c("s1", "s1", "s2", "s2", "s3"),
+    stringsAsFactors = FALSE
+  )
+
+  mv_priors <- brma.mv(
+    yi                        = effect,
+    V                         = diag(std_err^2),
+    random                    = ~ 1 | study,
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  catalog <- .brma_parameter_catalog(mv_priors)
+  random_entries <- catalog[rep(1L, 2L), , drop = FALSE]
+  random_entries[["alias"]] <-
+    c("(mu) tau(intercept)", "tau(intercept)")
+  random_entries[["parameter"]]         <- "(mu) tau(intercept)"
+  random_entries[["component"]]         <- "random"
+  random_entries[["term"]]              <- "(mu) tau(intercept)"
+  random_entries[["source"]]            <- "random"
+  random_entries[["formula_parameter"]] <- "mu"
+  catalog <- rbind(catalog, random_entries)
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog = function(object) catalog,
+    .package                = "RoBMA"
+  )
+
+  selected <- print_prior(mv_priors, silent = TRUE)
+  expect_s3_class(selected[["random"]], "prior_random")
+  expect_false("(mu) tau(intercept)" %in% names(selected))
 })
 
 test_that("plot_prior supports direct prior objects", {
@@ -131,6 +637,19 @@ test_that("print_prior prints selected priors", {
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "mu", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter_mods = "mod_cont", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "mod_factor", silent = TRUE)))
+
+  both_priors <- suppressWarnings(BMA(
+    yi = effect, sei = std_err,
+    mods = ~ scale_var, scale = ~ scale_var,
+    data = test_data, measure = "SMD", only_priors = TRUE
+  ))
+  expect_true(BayesTools::is.prior(print_prior(
+    both_priors, parameter = "scale_var", component = "scale",
+    silent = TRUE
+  )))
+  expect_true(BayesTools::is.prior(print_prior(
+    both_priors, component = "scale", silent = TRUE
+  )))
 
   full_output <- capture.output(full_selected <- print_prior(priors, silent = TRUE))
   expect_identical(full_output, character(0))
@@ -181,6 +700,8 @@ test_that("plot_prior handles publication-bias prior components", {
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "bias",  silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "omega", silent = TRUE)))
   expect_true(BayesTools::is.prior(print_prior(priors, parameter = "PET",   silent = TRUE)))
+
+  expect_vdiffr_snapshot("plot_prior_selection_omega", omega_plot)
 })
 
 test_that("only_priors objects print and plot via prior methods", {
@@ -202,4 +723,22 @@ test_that("only_priors objects print and plot via prior methods", {
     expect_silent(plot(priors))
   )
   expect_true(.is_ggplot(plot(priors, plot_type = "ggplot")))
+})
+
+
+test_that("summary returns the priors of an only_priors object", {
+
+  skip_on_cran()
+
+  priors <- BMA(
+    yi = effect, sei = std_err, data = test_data,
+    measure = "SMD", only_priors = TRUE
+  )
+
+  # No posterior exists, so summary() reports the resolved priors instead of
+  # failing inside the BayesTools fit accessors.
+  summarized <- summary(priors)
+
+  expect_identical(summarized, priors[["priors"]])
+  expect_true(length(summarized) > 0L)
 })

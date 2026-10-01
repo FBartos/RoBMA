@@ -1,0 +1,4 @@
+                      bridge KDE        qCMDE       normal
+without known R 1.573794e+22 Inf 1.567256e+22 1.767629e+23
+with known R    2.210911e+22 Inf 2.330184e+22 1.183340e+24
+with corr R     1.329277e+28 Inf 9.713377e+27 1.799748e+29

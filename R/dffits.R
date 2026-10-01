@@ -34,10 +34,15 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' This targets deletion influence on fitted values directly. It does not use
 #' LOO-PIT residuals, which are predictive outlier diagnostics rather than
 #' fitted-value deletion diagnostics.
+#' For \code{brma.mv()} known-\code{V} models, DFFITS uses estimate-unit PSIS
+#' weights. With correlated known-\code{V}, deletion is conditional estimate
+#' deletion and the reported fitted-value target is the fixed-location mean
+#' \eqn{\mu = X\beta}; sampled or marginalized random effects are not included
+#' in the reported fitted value.
 #'
 #' Estimate-unit LOO must first be computed with
 #' \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
-#' posterior SD of a fitted value is near zero, the corresponding DFFITS value
+#' posterior SD of a fitted value is zero, the corresponding DFFITS value
 #' is returned as \code{NA}.
 #'
 #' @return A named numeric vector of DFFITS values, one for each observation.
@@ -57,33 +62,51 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' @exportS3Method
 dffits.brma <- function(model, ...) {
 
-    # the function relies on the normal-normal hat matrix
-    outcome_type      <- .outcome_type(model)
-    is_weightfunction <- .is_weightfunction(model)
+  .check_fixed_location_influence_available(model, "dffits")
 
-    if (outcome_type != "norm") {
-      stop("dffits is only available for normal outcome models.", call. = FALSE)
-    }
-    if (is_weightfunction) {
-      stop("dffits is not available for selection models (weightfunction).", call. = FALSE)
-    }
+  psis_context <- .diagnostic_psis_context(model)
+  .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
 
-    fit_samples <- .influence_fit_samples(model)
-    weights     <- .diagnostic_psis_weights(model)
-    dffits_vec  <- .dffits_internal(fit_samples, weights)
-    dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
+  fit_samples <- .influence_fit_samples(model)
+  weights     <- psis_context[["psis_weights"]]
+  dffits_vec  <- .dffits_internal(fit_samples, weights)
+  dffits_vec  <- .diagnostic_set_names(dffits_vec, model)
+  if (inherits(model, "brma.mv")) {
+    dffits_vec <- .brma_mv_attach_target_metadata(dffits_vec, "dffits()")
+  }
 
-    return(dffits_vec)
+  return(dffits_vec)
 }
 
-.dffits_internal <- function(fit_samples, weights) {
+.dffits_internal <- function(fit_samples, weights, summary = NULL) {
 
-  summary <- .psis_fit_influence_summary(fit_samples, weights)
+  if (ncol(as.matrix(fit_samples)) != ncol(as.matrix(weights))) {
+    stop("'fit_samples' and 'weights' must have the same number of columns.",
+         call. = FALSE)
+  }
 
-  delta <- summary[["full_fit"]] - diag(summary[["loo_fit"]])
-  se    <- sqrt(diag(summary[["loo_var"]]))
-  out   <- delta / se
-  out[se <= sqrt(.Machine$double.eps)] <- NA_real_
+  if (is.null(summary)) {
+    summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = weights,
+      fit_moments = "matching",
+      variance    = "matching"
+    )
+  }
+
+  loo_fit <- summary[["loo_fit"]]
+  if (is.matrix(loo_fit)) {
+    loo_fit <- diag(loo_fit)
+  }
+  loo_var <- summary[["loo_var"]]
+  if (is.matrix(loo_var)) {
+    loo_var <- diag(loo_var)
+  }
+  delta <- summary[["full_fit"]] - loo_fit
+  se    <- sqrt(loo_var)
+  out   <- rep(NA_real_, length(se))
+  valid <- se > 0
+  out[valid] <- delta[valid] / se[valid]
 
   names(out) <- colnames(fit_samples)
 
@@ -111,14 +134,15 @@ dffits.brma <- function(model, ...) {
     outcome_data      = data[["outcome"]],
     mods_data         = data[["mods"]],
     mods_formula      = if (.is_mods(model)) .create_fit_formula_list(data = data, "mods") else NULL,
-    mods_priors       = priors[["mods"]],
+    mods_priors       = if (.is_random(model)) priors[["location"]] else priors[["mods"]],
     is_mods           = .is_mods(model),
     is_PET            = .is_PET(model),
     is_PEESE          = .is_PEESE(model),
     effect_direction  = .effect_direction(model),
     bias_adjusted     = FALSE,
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    priors            = priors
   )
 
   colnames(fit_samples) <- .get_estimate_labels(model)
@@ -128,34 +152,141 @@ dffits.brma <- function(model, ...) {
 
 
 # ---------------------------------------------------------------------------- #
-# .psis_fit_influence_summary
+# .influence_sample_coordinates
 # ---------------------------------------------------------------------------- #
 #
-# Full and PSIS leave-one-out fitted-value moments.
+# Express posterior samples in dimensionless, affine-standardized coordinates.
+# This keeps standardized influence diagnostics invariant to parameter units
+# and avoids underflow for small but non-zero posterior variation.
 #
 # ---------------------------------------------------------------------------- #
-.psis_fit_influence_summary <- function(fit_samples, weights) {
+.influence_sample_coordinates <- function(samples) {
 
-  if (!is.matrix(fit_samples)) {
-    fit_samples <- as.matrix(fit_samples)
+  if (!is.matrix(samples)) {
+    samples <- as.matrix(samples)
   }
-  if (!is.matrix(weights)) {
-    weights <- as.matrix(weights)
-  }
-  if (nrow(fit_samples) != nrow(weights) ||
-      ncol(fit_samples) != ncol(weights)) {
-    stop("'fit_samples' and 'weights' must have the same dimensions.",
+  if (nrow(samples) == 0L || ncol(samples) == 0L || any(!is.finite(samples))) {
+    stop("'samples' must be a non-empty matrix of finite values.",
          call. = FALSE)
   }
 
-  full_fit <- colMeans(fit_samples)
-  loo_fit  <- crossprod(weights, fit_samples)
-  loo_m2   <- crossprod(weights, fit_samples^2)
-  loo_var  <- pmax(loo_m2 - loo_fit^2, 0)
+  origin  <- samples[1L, ]
+  shifted <- sweep(samples, 2, origin, "-")
+  if (any(!is.finite(shifted))) {
+    stop("The posterior sample range exceeds finite arithmetic.",
+         call. = FALSE)
+  }
+
+  scale    <- apply(abs(shifted), 2, max)
+  variable <- scale > 0
+  shifted[, variable] <- sweep(
+    shifted[, variable, drop = FALSE],
+    2,
+    scale[variable],
+    "/"
+  )
+  shifted[, !variable] <- 0
 
   return(list(
-    full_fit = full_fit,
-    loo_fit  = loo_fit,
-    loo_var  = loo_var
+    samples  = shifted,
+    origin   = origin,
+    scale    = scale,
+    variable = variable
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .influence_normalize_weights
+# ---------------------------------------------------------------------------- #
+#
+# Validate and normalize observation-specific importance weights.
+#
+# ---------------------------------------------------------------------------- #
+.influence_normalize_weights <- function(weights, n_samples) {
+
+  if (!is.matrix(weights)) {
+    weights <- as.matrix(weights)
+  }
+  if (nrow(weights) != n_samples || ncol(weights) == 0L ||
+      any(!is.finite(weights)) || any(weights < 0)) {
+    stop("'weights' must be a non-negative finite matrix with one row per sample.",
+         call. = FALSE)
+  }
+
+  weight_sums <- colSums(weights)
+  if (any(!is.finite(weight_sums)) || any(weight_sums <= 0)) {
+    stop("Each column of 'weights' must have a positive finite sum.",
+         call. = FALSE)
+  }
+
+  return(sweep(weights, 2, weight_sums, "/"))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .psis_influence_summary
+# ---------------------------------------------------------------------------- #
+#
+# Full and PSIS leave-one-out moments in affine-standardized coordinates.
+#
+# ---------------------------------------------------------------------------- #
+.psis_influence_summary <- function(
+    samples, weights, fit_moments = c("all", "matching"),
+    variance = c("all", "matching", "none")) {
+
+  fit_moments <- match.arg(fit_moments)
+  variance    <- match.arg(variance)
+  coordinates <- .influence_sample_coordinates(samples)
+  samples     <- coordinates[["samples"]]
+  weights     <- .influence_normalize_weights(weights, nrow(samples))
+  matching <- ncol(samples) == ncol(weights)
+  if ((fit_moments == "matching" || variance == "matching") && !matching) {
+    stop(
+      "Matching PSIS influence moments require the same number of sample and weight columns.",
+      call. = FALSE
+    )
+  }
+  if (fit_moments == "matching" && variance == "all") {
+    stop(
+      "All PSIS influence variances require all leave-one-out fit moments.",
+      call. = FALSE
+    )
+  }
+
+  full_fit <- colMeans(samples)
+  loo_fit <- if (fit_moments == "all") {
+    crossprod(weights, samples)
+  } else {
+    colSums(weights * samples)
+  }
+  loo_var <- NULL
+  if (variance == "matching") {
+    matching_fit <- if (is.matrix(loo_fit)) diag(loo_fit) else loo_fit
+    centered     <- sweep(samples, 2L, matching_fit, "-")
+    loo_var      <- colSums(weights * centered^2)
+  } else if (variance == "all") {
+    loo_var <- matrix(
+      0,
+      nrow     = ncol(weights),
+      ncol     = ncol(samples),
+      dimnames = list(colnames(weights), colnames(samples))
+    )
+    for (j in seq_len(ncol(samples))) {
+      centered     <- outer(samples[, j], loo_fit[, j], "-")
+      loo_var[, j] <- colSums(weights * centered^2)
+    }
+  }
+
+  return(list(
+    full_fit    = full_fit,
+    loo_fit     = loo_fit,
+    loo_var     = loo_var,
+    samples     = samples,
+    origin      = coordinates[["origin"]],
+    scale       = coordinates[["scale"]],
+    variable    = coordinates[["variable"]],
+    fit_moments = fit_moments,
+    variance    = variance
   ))
 }

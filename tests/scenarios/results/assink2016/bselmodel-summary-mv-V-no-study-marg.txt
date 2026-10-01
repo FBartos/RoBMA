@@ -1,0 +1,24 @@
+
+Bayesian Multivariate Random-Effects Selection Model (k = 100)
+Random effects (from random): integrate. Context absent; condition and integrate coincide.
+Sampling context (from V): integrate. Integrated before normalization; selection can reweight its population mixing law.
+Random sources: study_esid (independent estimate variation).
+Independent estimate-level and residual variation are integrated before normalization.
+Selection weights: Product of estimate weights.
+Publication groups: requested automatic; resolved 17 groups from vcalc2.
+Sampling structure: full sampling covariance integration; input vcalc2.
+
+Location
+    Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu 0.127 0.089 -0.047 0.127 0.299     0.00159          0.018 3159 1.001
+
+Random
+    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd 0.395 0.036 0.329 0.393 0.472     0.00038          0.011 8969 1.000
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
+omega[0.025,1] 0.511 0.107 0.325 0.504 0.742     0.00189          0.018 3219 1.001
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

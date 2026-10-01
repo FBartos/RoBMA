@@ -8,6 +8,7 @@
 #' @inheritParams RoBMA_prior_specification
 #' @inheritParams prior_specification
 #' @inheritParams fitting_specification
+#' @inheritParams bselmodel
 #'
 #' @details
 #' `RoBMA()` uses product-space Bayesian model averaging. Inclusion Bayes
@@ -22,6 +23,16 @@
 #'
 #' `RoBMA()` uses normal/effect-size input (`yi` with `vi` or `sei`). Raw-count
 #' GLMM model averaging is provided by `BMA.glmm()`.
+#'
+#' `selection` configures every generated default weightfunction. Its default
+#' integrates estimate-level random effects and the complete sampling error,
+#' and conditions on other random effects. Explicit priors retain their nested
+#' [selection_model()] settings. Active selection branches must share the same
+#' conditioning choices. Only `weight_rule = "best"` branches require and must
+#' share a publication partition. Product branches ignore `group`; an ensemble
+#' without `"best"` needs no publication groups and accepts `group = NULL`.
+#' Branches can differ in weight-height priors, bins, and `weight_rule`.
+#' These fixed model choices do not introduce new inclusion parameters.
 #'
 #' Product-space objects support predictive comparison with `add_loo()` and
 #' `add_waic()`. Bridge-sampling marginal likelihood via `add_marglik()` is
@@ -50,8 +61,8 @@
 #' }
 #' }
 #'
-#' @seealso [publication_bias_prior_specification], [BMA()], [brma()],
-#' [bselmodel()], [bPET()], [bPEESE()], [summary.brma()], [plot.brma()]
+#' @seealso [publication_bias_prior_specification], [RoBMA.mv()], [BMA()],
+#' [brma()], [bselmodel()], [bPET()], [bPEESE()], [summary.brma()], [plot.brma()]
 #' @export
 RoBMA <- function(
   # input specification
@@ -69,6 +80,10 @@ RoBMA <- function(
   prior_informed_field, prior_informed_subfield,
   model_type = "PSMA",
 
+  # selection likelihood
+  selection = BayesTools::selection_model(),
+  selection_control = set_selection_likelihood_control(),
+
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
   chains = 3, thin = 1, parallel = FALSE,
@@ -76,7 +91,9 @@ RoBMA <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent = TRUE, ...) {
+  seed = NULL, silent, ...) {
+
+  BayesTools::check_selection_model(selection, name = "selection")
 
   ### create the output object
   dots            <- list(...)
@@ -101,7 +118,8 @@ RoBMA <- function(
     .call = match.call(), .envir = parent.frame(), class = "norm",
     set_contrast_factor_predictors = set_contrast_factor_predictors,
     standardize_continuous_predictors = standardize_continuous_predictors,
-    effect_direction = effect_direction, measure = measure)
+    effect_direction = effect_direction, measure = measure,
+    selection_binding = !isTRUE(dots[["only_data"]]))
   if (isTRUE(dots[["only_data"]]))
     return(object)
 
@@ -119,17 +137,17 @@ RoBMA <- function(
     prior_unit_information_sd         = prior_unit_information_sd,
     prior_informed_field              = prior_informed_field,
     prior_informed_subfield           = prior_informed_subfield,
-    data = object[["data"]], model_type = model_type)
-  if (isTRUE(dots[["only_priors"]]))
-    return(.set_only_priors_class(object))
-
-  ### fit the model
-  object$fit <- .fit(object)
-
-  ### store simple summary & coefficients
-  object$summary       <- .object_summary(object)
-  object$coefficients  <- .object_coefficients(object)
-  object               <- .autocompute_brma(object)
-
-  return(object)
+    data = object[["data"]], model_type = model_type,
+    weightfunction_model = selection)
+  object <- .prepare_selection_model_object(object)
+  if (.is_priors_weightfunction(object[["priors"]])) {
+    object <- .prepare_selection_likelihood_object(
+      object            = object,
+      selection_control = selection_control
+    )
+  }
+  .fit_and_finalize_object(
+    object,
+    only_priors = isTRUE(dots[["only_priors"]])
+  )
 }

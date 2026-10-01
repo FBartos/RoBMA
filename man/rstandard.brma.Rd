@@ -4,7 +4,13 @@
 \alias{rstandard.brma}
 \title{Internally Standardized Residuals for brma Objects}
 \usage{
-\method{rstandard}{brma}(model, unit = "estimate", conditioning_depth = "marginal", ...)
+\method{rstandard}{brma}(
+  model,
+  unit = "estimate",
+  conditioning_depth = "marginal",
+  max_samples = Inf,
+  ...
+)
 }
 \arguments{
 \item{model}{a fitted brma object.}
@@ -22,6 +28,10 @@ i.e., deviations of the observed effect sizes from the best linear
 unbiased predictions of the estimate-specific true effects (observed - theta).
 }}
 
+\item{max_samples}{maximum posterior draws used for known-\code{V}
+\code{brma.mv()} marginal covariance computations. Defaults to \code{Inf}.
+Finite values deterministically thin draws across posterior row order.}
+
 \item{...}{additional arguments (currently ignored)}
 }
 \value{
@@ -34,27 +44,40 @@ A data frame with columns:
 }
 \description{
 Computes internally standardized residuals from a fitted brma
-object using the hat matrix. Returns a data frame with raw residuals,
-standard errors, and standardized residuals (z-values). Available for normal
-outcome models only.
+object using the hat matrix or the corresponding known-\code{V} GLS/BLUP
+projection. Returns a data frame with raw residuals, standard errors, and
+standardized residuals (z-values). Available for normal outcome models only.
 }
 \details{
 This function returns a data frame with three columns matching the output
 of \code{metafor::rstandard}:
 \itemize{
-\item \code{resid}: Raw residuals (observed - fitted values)
+\item \code{resid}: GLS projection residuals \eqn{(I - H) y}, so that the
+residual and its standard error come from the same projection. These are
+not the posterior-mean residuals returned by
+\code{residuals(type = "outcome")}, which subtract the posterior mean of
+the fitted values and therefore carry the prior's shrinkage; the two
+agree as the effect prior becomes diffuse.
 \item \code{se}: Standard errors of the residuals
-\item \code{z}: Standardized residuals (resid / se)
+\item \code{z}: Posterior mean of draw-wise standardized residuals
 }
 
-Internally standardized residuals divide the observed residuals by their
-corresponding standard errors computed using the hat matrix. For a correctly
-specified model, these residuals should approximately follow a standard
-normal distribution.
+Internally standardized residuals are computed draw by draw by dividing the
+observed residual by its corresponding residual standard error from the hat
+matrix. The returned \code{z} column is the posterior mean of those draw-wise
+ratios, so it is not generally equal to the displayed \code{resid / se}
+summaries. For correlated known-\code{V} models, marginal residuals use the
+GLS residual covariance and estimate-depth residuals use the BLUP-style
+sampling residual projection. For a correctly specified model, these
+residuals should approximately follow a standard normal distribution.
 
 This function is only available for normal outcome models without selection
-(weightfunction) bias adjustment. For other model types, use
-\code{\link{rstudent.brma}} which uses LOO-PIT.
+(weightfunction) bias adjustment. Selection models can use
+\code{\link{rstudent.brma}}, which uses LOO-PIT. Internally standardized
+residuals are unavailable for binomial and Poisson GLMMs because no
+count-likelihood standardization has been implemented. Use
+\code{residuals(type = "outcome")} only when a descriptive raw
+effect-size-scale residual is appropriate.
 }
 \examples{
 \dontrun{

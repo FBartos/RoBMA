@@ -26,7 +26,7 @@ for_each_case(prediction_newdata_metafor_cases(), function(case) {
   })
 })
 
-test_that("Predictions for equivalent interaction parameterizations match", {
+test_that("Predictions of equivalent interaction parameterizations agree", {
 
   model_names <- c("bcg_meta-regression4", "bcg_meta-regression4b")
   skip_if_missing_fits(model_names)
@@ -34,11 +34,33 @@ test_that("Predictions for equivalent interaction parameterizations match", {
   fit_brma1 <- fits[["bcg_meta-regression4"]]
   fit_brma2 <- fits[["bcg_meta-regression4b"]]
 
-  expect_equal(
-    .sample_means(predict(fit_brma1, type = "terms")),
-    .sample_means(predict(fit_brma2, type = "terms")),
-    tolerance = 0.15,
-    info      = "per-study predictions match"
+  # The treatment (4) and mean-difference (4b) fits code the same design but
+  # put different priors on the effects, so their per-study predictions
+  # legitimately differ (by up to about 0.2 on the log risk ratio scale).
+  # Each fit's predictions must equal its own coefficient draws times its
+  # fitted design, draw by draw, and the two fits must agree up to posterior
+  # uncertainty: their 95% prediction intervals overlap for every study.
+  coefficients <- c(
+    "mu_intercept", "mu_alloc[1]", "mu_alloc[2]", "mu_year_before1969",
+    "mu_alloc__xXx__year_before1969[1]", "mu_alloc__xXx__year_before1969[2]"
+  )
+  intervals <- lapply(list(fit_brma1, fit_brma2), function(fit) {
+    design <- .fitted_formula_design(fit, "mu", required = TRUE)
+    expect_identical(as.integer(design[["assign"]]), c(0L, 1L, 1L, 2L, 3L, 3L))
+    draws      <- .get_posterior_samples(fit[["fit"]])[, coefficients]
+    prediction <- predict(fit, type = "terms")
+    expect_equal(
+      unname(unclass(as.matrix(prediction))),
+      unname(draws %*% t(design[["model_matrix"]])),
+      tolerance = 1e-12,
+      info      = "predictions are the coefficient draws times the design"
+    )
+    summary(prediction)[, c("0.025", "0.975")]
+  })
+  expect_true(
+    all(pmax(intervals[[1]][, "0.025"], intervals[[2]][, "0.025"]) <=
+          pmin(intervals[[1]][, "0.975"], intervals[[2]][, "0.975"])),
+    info = "95% prediction intervals of the two parameterizations overlap"
   )
   expect_equal(
     .sample_mean(pooled_effect(fit_brma1), "mu"),
@@ -89,6 +111,7 @@ test_that("Newdata prediction preserves duplicate rows and rejects novel factor 
 
   expect_error(
     predict(fit_factor, newdata = newdata_factor, type = "terms", quiet = TRUE),
+    regexp = "level",
     info = "novel factor levels are rejected"
   )
 })
@@ -153,6 +176,47 @@ test_that("Wrapper functions have correct interface", {
                info = "true_effects are identical to blup")
 })
 
+
+test_that("predict preserves the released positional type argument", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+
+  set.seed(481)
+  positional <- predict(fit_brma, NULL, "response")
+  set.seed(481)
+  named <- predict(fit_brma, newdata = NULL, type = "response")
+
+  expect_identical(names(formals(predict.brma))[3L], "type")
+  expect_equal(positional, named, tolerance = 0)
+})
+
+
+test_that("pooled_effect aggregates fitted-design location draws directly", {
+
+  name <- "bcg_meta-regression"
+  skip_if_missing_fits(name)
+
+  fit_brma <- fits[[name]]
+  terms <- predict(
+    fit_brma,
+    type          = "terms",
+    bias_adjusted = TRUE,
+    quiet         = TRUE
+  )
+  pooled   <- pooled_effect(fit_brma)
+  expected <- matrix(rowMeans(as.matrix(terms)), ncol = 1L)
+  expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
+
+  testthat::local_mocked_bindings(
+    predict.brma = function(...) stop("pooled_effect used predict.brma"),
+    .package = "RoBMA"
+  )
+  expect_silent(pooled_effect(fit_brma))
+})
+
 test_that("fitted returns in-sample posterior means", {
 
   model_names <- c(
@@ -215,6 +279,10 @@ test_that("fitted returns in-sample posterior means", {
                info = "component all returns location and scale")
   expect_equal(unname(fitted_all[["location"]]), unname(fitted(fit_scale)),
                tolerance = 1e-12)
+  expect_equal(unname(fitted(fit_scale, component = "mods")),
+               unname(fitted(fit_scale)),
+               tolerance = 1e-12,
+               info = "component mods aliases location fitted values")
   expect_equal(unname(fitted_all[["scale"]]), unname(fitted_scale),
                tolerance = 1e-12)
 
@@ -255,30 +323,24 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       object     = fit_brma,
       parameters = .conditional_effect_parameters(fit_brma)
     )
+    set.seed(247)
     pooled_effect_averaged <- pooled_effect(fit_brma)
+    set.seed(247)
     pooled_effect_cond     <- expect_silent(
       pooled_effect(fit_brma, conditional = TRUE)
     )
-    pooled_effect_predict  <- expect_silent(
+    pooled_effect_terms <- expect_silent(
       predict(
         fit_brma,
-        newdata       = TRUE,
         type          = "terms",
         bias_adjusted = TRUE,
         conditional   = TRUE,
         quiet         = TRUE
       )
     )
-    expect_message(
-      predict(
-        fit_brma,
-        newdata       = TRUE,
-        type          = "terms",
-        bias_adjusted = TRUE,
-        conditional   = TRUE,
-        quiet         = FALSE
-      ),
-      "flattened"
+    pooled_effect_expected <- matrix(
+      rowMeans(as.matrix(pooled_effect_terms)),
+      ncol = 1L
     )
 
     expect_equal(
@@ -287,9 +349,18 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       info = paste(name, "pooled_effect conditional rows")
     )
     expect_equal(
+      unname(attr(pooled_effect_cond, "prediction_samples")),
+      unname(attr(pooled_effect_averaged, "prediction_samples")[
+        effect_rows,
+        ,
+        drop = FALSE
+      ]),
+      info = paste(name, "pooled prediction conditional rows")
+    )
+    expect_equal(
       unname(as.matrix(pooled_effect_cond)),
-      unname(as.matrix(pooled_effect_predict)),
-      info = paste(name, "pooled_effect matches conditional predict")
+      unname(pooled_effect_expected),
+      info = paste(name, "pooled_effect matches fitted-design row mean")
     )
     expect_match(attr(pooled_effect_cond, "title"), "Conditional")
   }
@@ -311,19 +382,17 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   pooled_het_cond     <- expect_silent(
     pooled_heterogeneity(fit_brma, conditional = TRUE)
   )
-  pooled_het_predict  <- expect_silent(
-    predict(
-      fit_brma,
-      newdata     = TRUE,
-      type        = "terms.scale",
-      conditional = TRUE,
-      quiet       = TRUE
-    )
-  )
+  expect_silent(predict(
+    fit_brma,
+    newdata     = NULL,
+    type        = "terms.scale",
+    conditional = TRUE,
+    quiet       = TRUE
+  ))
   expect_message(
     predict(
       fit_brma,
-      newdata     = TRUE,
+      newdata     = NULL,
       type        = "terms.scale",
       conditional = TRUE,
       quiet       = FALSE
@@ -338,8 +407,15 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
   )
   expect_equal(
     unname(as.matrix(pooled_het_cond)),
-    unname(as.matrix(pooled_het_predict)),
-    info = "pooled_heterogeneity matches conditional predict"
+    unname(.pooled_heterogeneity_total_samples(
+      object            = fit_brma,
+      posterior_samples = .get_posterior_samples(fit_brma[["fit"]])[
+        heterogeneity_rows,
+        ,
+        drop = FALSE
+      ]
+    )),
+    info = "pooled_heterogeneity matches conditional average scale design"
   )
   expect_equal(
     unname(summary(pooled_het_cond)["tau", "Mean"]),
@@ -380,25 +456,23 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
     expect_brma_samples_matrix(response, n_studies, paste(name, "response"))
 
     pooled <- pooled_effect(fit_brma)
-    pooled_predict <- predict(
+    pooled_terms <- predict(
       fit_brma,
-      newdata       = TRUE,
       type          = "terms",
       bias_adjusted = TRUE,
       quiet         = TRUE
     )
+    pooled_expected <- matrix(rowMeans(as.matrix(pooled_terms)), ncol = 1L)
     expect_brma_samples_matrix(pooled, 1, paste(name, "pooled_effect"))
-    expect_equal(unname(as.matrix(pooled)), unname(as.matrix(pooled_predict)))
+    expect_equal(unname(as.matrix(pooled)), unname(pooled_expected))
 
     pooled_het <- pooled_heterogeneity(fit_brma)
-    pooled_het_predict <- predict(
-      fit_brma,
-      newdata = TRUE,
-      type    = "terms.scale",
-      quiet   = TRUE
+    pooled_het_expected <- matrix(
+      sqrt(rowMeans(as.matrix(scale)^2)),
+      ncol = 1L
     )
     expect_brma_samples_matrix(pooled_het, 1, paste(name, "pooled_heterogeneity"))
-    expect_equal(unname(as.matrix(pooled_het)), unname(as.matrix(pooled_het_predict)))
+    expect_equal(unname(as.matrix(pooled_het)), unname(pooled_het_expected))
 
     blup_samples <- blup(fit_brma)
     true_samples <- true_effects(fit_brma)
@@ -412,6 +486,17 @@ test_that("Model-averaged predictions cover BMA.norm, BMA.glmm, and RoBMA", {
       unname(as.matrix(ranef_samples)),
       unname(as.matrix(blup_samples) - as.matrix(terms))
     )
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "total"))),
+      unname(as.matrix(ranef_samples))
+    )
+    ranef_list <- ranef(fit_brma, simplify = FALSE)
+    expect_type(ranef_list, "list")
+    expect_equal(names(ranef_list), "estimate")
+    expect_equal(
+      unname(as.matrix(ranef_list[["estimate"]])),
+      unname(as.matrix(ranef_samples))
+    )
   }
 })
 
@@ -424,14 +509,38 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
   skip_if_missing_fits(product_names)
 
   for (name in product_names) {
-    fit_brma  <- fits[[name]]
-    n_studies <- nobs(fit_brma)
-    out       <- ranef(fit_brma)
+    fit_brma   <- fits[[name]]
+    n_studies  <- nobs(fit_brma)
+    out        <- ranef(fit_brma, expand = TRUE)
+    unique_out <- ranef(fit_brma)
 
     expect_type(out, "list")
     expect_equal(names(out), c("cluster", "estimate"), info = name)
     expect_brma_samples_matrix(out[["cluster"]], n_studies, paste(name, "cluster ranef"))
     expect_brma_samples_matrix(out[["estimate"]], n_studies, paste(name, "estimate ranef"))
+    expect_type(unique_out, "list")
+    expect_equal(names(unique_out), c("cluster", "estimate"), info = name)
+    expect_equal(
+      ncol(unique_out[["cluster"]]),
+      length(unique(fit_brma[["data"]][["outcome"]][["cluster"]])),
+      info = paste(name, "unique cluster ranef")
+    )
+    expect_equal(ncol(unique_out[["estimate"]]), n_studies, info = name)
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "cluster", expand = TRUE))),
+      unname(as.matrix(out[["cluster"]])),
+      info = paste(name, "component cluster")
+    )
+    expect_equal(
+      unname(as.matrix(ranef(fit_brma, component = "total", expand = TRUE))),
+      unname(as.matrix(out[["cluster"]]) + as.matrix(out[["estimate"]])),
+      info = paste(name, "component total")
+    )
+    expect_error(
+      ranef(fit_brma, component = "total"),
+      "expand = TRUE",
+      fixed = TRUE
+    )
   }
 })
 
@@ -445,4 +554,41 @@ test_that("Wrappers suppress aggregation messages", {
   expect_silent(pooled_heterogeneity(fit_brma))
   expect_silent(blup(fit_brma))
   expect_silent(true_effects(fit_brma))
+})
+
+
+test_that("objects without a fit evaluate formulas through the fitted designs", {
+
+  # An object without a fit (an only_priors object evaluated on supplied
+  # draws) evaluates its formulas through the designs that fitting builds
+  # from its data and priors: they equal the designs and the scaling that
+  # the fit stores.
+  names <- c(
+    "bcg_meta-regression3",
+    "bangertdrowns2004_location-scale",
+    "brma.mv_block_mvn_random",
+    "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+    "RoBMA.mv_marg_product_space",
+    "bcg_glmm_reg"
+  )
+  skip_if_missing_fits(names)
+  for (name in names) {
+    object        <- fits[[name]]
+    fitted_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+    fitted_scale  <- attr(object[["fit"]], "formula_scale", exact = TRUE)
+    parameters    <- names(fitted_design)
+    object[["fit"]] <- NULL
+    built <- .object_formula_fit(object)
+
+    expect_identical(
+      attr(built, "formula_design", exact = TRUE)[parameters],
+      fitted_design,
+      info = name
+    )
+    expect_identical(
+      attr(built, "formula_scale", exact = TRUE)[parameters],
+      fitted_scale[parameters],
+      info = name
+    )
+  }
 })

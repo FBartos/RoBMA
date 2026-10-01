@@ -1,0 +1,4 @@
+mu:
+  Normal(0, 1)
+tau:
+  Normal(0, 0.5)[0, Inf]

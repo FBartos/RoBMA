@@ -1,0 +1,10 @@
+         Alternative:                 Null:      BF error%(BF)
+ deltype[general] = 0 deltype[general] != 0   0.124     12.755
+ deltype[general] = 0  deltype[general] > 0   0.064     12.780
+ deltype[general] > 0  deltype[general] < 0 104.359      8.707
+[0;31mqCMDE relative MCSE is 12.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 12.8%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 8.56%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 8.56%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
+[0;31mqCMDE effective sample size is 58.1[0m
+[0;31mqCMDE effective sample size is 58.1[0m

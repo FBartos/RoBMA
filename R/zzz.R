@@ -1,15 +1,19 @@
 #' @importFrom graphics hist lines
-#' @importFrom stats coef cooks.distance dfbetas fitted hatvalues influence logLik model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update vcov
-#' @importFrom utils capture.output getS3method
+#' @importFrom Matrix Cholesky
+#' @importFrom stats AIC BIC coef cooks.distance dfbetas fitted hatvalues influence model.matrix nobs plogis predict qlogis qqnorm residuals rstandard rstudent terms update
+#' @importFrom utils capture.output getFromNamespace getS3method tail
 NULL
+
+# The Matrix import loads the registered CHOLMOD C-callables used by r-known-v.
 
 .onLoad <- function(libname, pkgname) {
 
+  RoBMA.private[["selection_runtime_loading"]] <- TRUE
+  RoBMA.private[["selection_runtime_initialized"]] <- FALSE
+  on.exit(RoBMA.private[["selection_runtime_loading"]] <- FALSE, add = TRUE)
   requireNamespace("BayesTools")
   requireNamespace("runjags")
   requireNamespace("mvtnorm")
-
-  .check_bayestools_forward_api()
 
   RoBMA.private$RoBMA_version   <- utils::packageDescription(pkgname, fields = "Version")
   RoBMA.private$module_location <- .RoBMA_module_location(libname, pkgname)
@@ -28,7 +32,12 @@ NULL
       do.call("RoBMA.options", args = setopts)
     }
   }
+  .native_threads_configure(RoBMA.private[["native_threads"]])
 
+  if (.selection_runtime_available()) {
+    .selection_runtime_configure(.selection_runtime_settings(capacity_bytes = 0))
+    RoBMA.private[["selection_runtime_initialized"]] <- FALSE
+  }
   .check_max_cores()
   .register_posterior_methods()
   .register_loo_methods()
@@ -40,67 +49,6 @@ NULL
     "Welcome to RoBMA ", utils::packageVersion(pkgname), ".\n",
     "See `vignette('v00-introduction', package = 'RoBMA')` for introduction to the package."
   ))
-}
-
-.check_bayestools_forward_api <- function() {
-
-  required <- c(
-    "formula_add_intercept",
-    "plot_transformed_prior",
-    "JAGS_formula_design"
-  )
-  missing <- required[!vapply(
-    required,
-    function(x) exists(x, envir = asNamespace("BayesTools"), inherits = FALSE),
-    logical(1)
-  )]
-
-  posterior_plot_args         <- names(formals(BayesTools::plot_posterior))
-  marginal_plot_args          <- names(formals(BayesTools::plot_marginal))
-  missing_posterior_plot_args <- setdiff(
-    c("data", "show_data", "dots_data"),
-    posterior_plot_args
-  )
-  missing_marginal_plot_args  <- setdiff(
-    c("legend", "legend_title", "legend_labels", "legend_position"),
-    marginal_plot_args
-  )
-
-  if (length(missing) > 0 ||
-      length(missing_posterior_plot_args) > 0 ||
-      length(missing_marginal_plot_args) > 0) {
-    details <- character(0)
-    if (length(missing) > 0) {
-      details <- c(details, paste0("missing functions: ", paste(missing, collapse = ", ")))
-    }
-    if (length(missing_posterior_plot_args) > 0) {
-      details <- c(
-        details,
-        paste0(
-          "BayesTools::plot_posterior() missing arguments: ",
-          paste(missing_posterior_plot_args, collapse = ", ")
-        )
-      )
-    }
-    if (length(missing_marginal_plot_args) > 0) {
-      details <- c(
-        details,
-        paste0(
-          "BayesTools::plot_marginal() missing arguments: ",
-          paste(missing_marginal_plot_args, collapse = ", ")
-        )
-      )
-    }
-
-    stop(
-      "RoBMA requires a BayesTools build with the forward APIs (",
-      paste(details, collapse = "; "),
-      ").",
-      call. = FALSE
-    )
-  }
-
-  invisible(TRUE)
 }
 
 .onUnload <- function(libpath) {
@@ -189,7 +137,7 @@ NULL
     if (warn) {
       warning(
         "RoBMA JAGS module was not found in the installed package library. ",
-        "Model fitting requires this module; reinstall RoBMA after installing JAGS >= 4.3.1.",
+        "Model fitting requires this module; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported).",
         call. = FALSE
       )
     }
@@ -206,7 +154,7 @@ NULL
   if (!loaded && warn) {
     message <- paste0(
       "RoBMA JAGS module failed to load from '", path, "'. ",
-      "Model fitting requires this module; reinstall RoBMA after installing JAGS >= 4.3.1."
+      "Model fitting requires this module; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported)."
     )
     if (!is.null(load_error)) {
       message <- paste0(message, " rjags error: ", load_error)
@@ -245,7 +193,7 @@ NULL
   if (!isTRUE(loaded) && warn) {
     message <- paste0(
       "RoBMA native routines failed to load from the package DLL. ",
-      "Compiled likelihood helpers will be unavailable; reinstall RoBMA after installing JAGS >= 4.3.1."
+      "Compiled likelihood helpers will be unavailable; reinstall RoBMA after installing JAGS 4.x (>= 4.3.1; JAGS 5 is not supported)."
     )
     if (!is.null(load_error)) {
       message <- paste0(message, " R loader error: ", load_error)
@@ -259,6 +207,8 @@ NULL
 .check_RoBMA_native_routines <- function(pkgname = "RoBMA", warn = TRUE) {
 
   required_symbols <- c(
+    "RoBMA_selnorm_cache_control",
+    "RoBMA_selnorm_sampler_control",
     "RoBMA_selnorm_kernel_loglik_matrix",
     "RoBMA_glmm_binom_marginal_loglik",
     "RoBMA_glmm_pois_marginal_loglik"

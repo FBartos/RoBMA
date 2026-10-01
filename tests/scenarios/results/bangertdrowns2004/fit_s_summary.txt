@@ -1,0 +1,13 @@
+
+Bayesian Location-Scale Model (k = 48)
+
+Common Estimates
+    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu 0.173 0.052 0.079 0.169 0.283     0.00066          0.013 6219 1.000
+
+Scale
+                 Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+exp(intercept)  0.352 0.126  0.146  0.338 0.637     0.00178          0.014 5005 1.000
+ni100          -0.294 0.241 -0.820 -0.275 0.130     0.00379          0.016 4045 1.000
+exp(intercept) is the baseline heterogeneity SD (tau), already exponentiated. Other coefficients are changes in log(SD); exp(coefficient) is an SD multiplier.
+

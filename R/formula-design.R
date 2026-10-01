@@ -7,13 +7,86 @@
 # ============================================================================ #
 
 
+# Every RoBMA error that asks for a refit: fitted metadata that a method
+# needs are missing or unsupported (a fit of an older RoBMA/BayesTools
+# build). Its class "RoBMA_refit_required" has the parent
+# "BayesTools_refit_required", the class of every refit request of
+# BayesTools, so that callers match one class for a stale fit. The message is
+# built from '...' as stop() builds it. A source test checks that no other
+# call raises a message that asks for a refit.
+.stop_refit_required <- function(...) {
+
+  message <- paste(unlist(lapply(list(...), as.character)), collapse = "")
+  stop(structure(
+    class = c("RoBMA_refit_required", "BayesTools_refit_required", "error",
+              "condition"),
+    list(message = message, call = NULL)
+  ))
+}
+
+
+# Validate the versioned BayesTools metadata consumed by a fitted-object path.
+# BayesTools refuses a stale fit with its own refit error
+# ("BayesTools_refit_required").
+.brma_validate_fit_contract <- function(object, requires) {
+
+  fit <- if (inherits(object, "BayesTools_fit")) object else object[["fit"]]
+  if (is.null(fit) || !inherits(fit, "BayesTools_fit")) {
+    .stop_refit_required(
+      "Current BayesTools fitted metadata are unavailable. Refit the model ",
+      "with the current RoBMA/BayesTools build."
+    )
+  }
+
+  BayesTools::JAGS_validate_fit_contract(fit, requires = requires)
+  return(invisible(TRUE))
+}
+
+
+# Return the persisted semantic-to-backend map for one fitted formula.
+.fitted_formula_name_map <- function(object, parameter, required = TRUE) {
+
+  if (is.null(object[["fit"]])) {
+    if (required) {
+      stop(
+        "Fitted formula name-map metadata for parameter '", parameter,
+        "' are unavailable. Fit the model before requesting fitted ",
+        "parameter identities.",
+        call. = FALSE
+      )
+    }
+    return(NULL)
+  }
+
+  .brma_validate_fit_contract(
+    object,
+    requires = c(
+      "name_encoding",
+      "formula_name_map",
+      "formula_design",
+      "parameter_map"
+    )
+  )
+  name_map <- BayesTools::JAGS_formula_name_map(object[["fit"]], parameter)
+  if (is.null(name_map) && required) {
+    .stop_refit_required(
+      "Fitted formula name-map metadata for parameter '", parameter,
+      "' are missing. Refit the model with the current RoBMA/BayesTools build."
+    )
+  }
+
+  return(name_map)
+}
+
+
 # Return the BayesTools formula design for a brma formula parameter.
 .fitted_formula_design <- function(object, parameter, required = TRUE) {
 
   design <- NULL
 
   if (!is.null(object[["fit"]])) {
-    design <- BayesTools::JAGS_formula_design(object[["fit"]], parameter)
+    designs <- BayesTools::JAGS_formula_design(object[["fit"]])
+    design  <- designs[[parameter]]
   }
 
   if (is.null(design)) {
@@ -21,10 +94,9 @@
   }
 
   if (is.null(design) && required) {
-    stop(
+    .stop_refit_required(
       "Fitted formula design metadata for parameter '", parameter,
-      "' is missing. Refit the model with the current RoBMA/BayesTools build.",
-      call. = FALSE
+      "' is missing. Refit the model with the current RoBMA/BayesTools build."
     )
   }
 
@@ -39,7 +111,10 @@
     return(object[["formula_design"]][[parameter]])
   }
 
-  source <- .fitted_formula_source(parameter)
+  source <- .fitted_formula_source(
+    parameter = parameter,
+    data      = object[["data"]]
+  )
   if (is.null(source) ||
       is.null(object[["data"]]) ||
       is.null(object[["data"]][[source]])) {
@@ -55,6 +130,10 @@
     ))
   }
 
+  if (source == "location" && .is_data_random(object[["data"]])) {
+    return(NULL)
+  }
+
   return(.object_data_formula_design(
     object    = object,
     parameter = parameter,
@@ -65,17 +144,239 @@
 
 # Reconstruct BayesTools formula design for objects that store data and priors
 # but do not have a fitted JAGS object, e.g. only_priors objects.
-.object_bayestools_formula_design <- function(object, parameter, source) {
+.object_bayestools_formula_design <- function(
+    object, parameter, source,
+    random_effects_compile = .object_formula_random_effects_compile(object, source)) {
 
-  formula_design <- BayesTools::JAGS_formula(
-    formula       = .create_fit_formula_list(data = object[["data"]], parameter = source),
-    parameter     = parameter,
-    data          = .create_fit_formula_data_list(data = object[["data"]], parameter = source),
-    prior_list    = .create_fit_formula_prior_list(priors = object[["priors"]], parameter = source),
-    formula_scale = .data_standardize_continuous_predictors(object[["data"]])
+  .object_bayestools_formula(
+    object                 = object,
+    parameter              = parameter,
+    source                 = source,
+    random_effects_compile = random_effects_compile
   )[["formula_design"]]
+}
 
-  return(formula_design)
+
+# The formula scaling of a formula parameter that carries its fitted design,
+# as original-scale transformations require: the fit's scaling, or for
+# prior-only objects the scaling of the formula that BayesTools::JAGS_formula()
+# builds from the object's data and priors. NULL without a scaling.
+.object_formula_scale <- function(object, parameter) {
+
+  if (!is.null(object[["fit"]])) {
+    return(attr(object[["fit"]], "formula_scale", exact = TRUE)[parameter])
+  }
+  source <- .fitted_formula_source(
+    parameter = parameter,
+    data      = object[["data"]]
+  )
+  if (is.null(source) || is.null(object[["priors"]][[source]])) {
+    return(NULL)
+  }
+  formula_scale <- .object_bayestools_formula(
+    object    = object,
+    parameter = parameter,
+    source    = source
+  )[["formula_scale"]]
+  if (is.null(formula_scale)) {
+    return(NULL)
+  }
+
+  stats::setNames(list(formula_scale), parameter)
+}
+
+
+# BayesTools::JAGS_formula() output of a formula parameter of an object
+# without a fitted JAGS object.
+.object_bayestools_formula <- function(
+    object, parameter, source,
+    random_effects_compile = .object_formula_random_effects_compile(object, source)) {
+
+  output <- do.call(
+    BayesTools::JAGS_formula,
+    .object_bayestools_formula_args(
+      object                 = object,
+      parameter              = parameter,
+      source                 = source,
+      random_effects_compile = random_effects_compile
+    )
+  )
+
+  return(output)
+}
+
+
+# The BayesTools::JAGS_formula() arguments of a formula parameter of an
+# object: its formula, data and priors as fitting passes them.
+.object_bayestools_formula_args <- function(
+    object, parameter, source,
+    random_effects_compile = .object_formula_random_effects_compile(object, source)) {
+
+  if (identical(source, "scale")) {
+    scale_spec <- .fitted_scale_spec(
+      data      = object[["data"]],
+      parameter = parameter
+    )
+    args <- list(
+      formula       = .create_fit_scale_formula(scale_spec[["formula"]]),
+      parameter     = parameter,
+      data          = scale_spec[["data"]],
+      prior_list    = .create_fit_scale_formula_prior_list(
+        priors    = object[["priors"]],
+        parameter = parameter
+      ),
+      formula_scale = .data_standardize_continuous_predictors(object[["data"]])
+    )
+
+    return(args)
+  }
+
+  args <- list(
+    formula       = .create_fit_formula_list(
+      data      = object[["data"]],
+      parameter = source
+    ),
+    parameter     = parameter,
+    data          = .create_fit_formula_data_list(
+      data      = object[["data"]],
+      parameter = source
+    ),
+    prior_list    = .create_fit_formula_prior_list(
+      priors    = object[["priors"]],
+      parameter = source
+    ),
+    formula_scale = .data_standardize_continuous_predictors(object[["data"]]),
+    prior_random  = .object_formula_prior_random(
+      object = object,
+      source = source
+    ),
+    random_effects_compile = random_effects_compile
+  )
+
+  return(args)
+}
+
+
+# The fit through which the formulas of 'object' are evaluated on draws
+# (BayesTools::JAGS_evaluate_formula(), see .posterior_formula_fit()): the
+# JAGS fit, or for an object without one (e.g. an only_priors object
+# evaluated on prior draws supplied as '.posterior_samples') the formula
+# designs and scaling that fitting builds from the object's data and priors,
+# which BayesTools::JAGS_formula_draws() builds with the same arguments
+# (.object_bayestools_formula_args()). The designs carry no draws: they
+# depend on the draws only through the parameter names that formula
+# expressions read, and are built on the names of the formulas' fitted
+# coefficients.
+.object_formula_fit <- function(object) {
+
+  if (!is.null(object[["fit"]])) {
+    return(object[["fit"]])
+  }
+
+  data       <- object[["data"]]
+  parameters <- c(
+    if (.is_data_mods(data) || .is_data_random(data)) "mu",
+    if (.is_data_scale(data)) .data_scale_formula_parameters(data)
+  )
+  formula_args <- lapply(parameters, function(parameter) {
+    source <- .fitted_formula_source(parameter = parameter, data = data)
+    if (is.null(object[["priors"]][[source]])) {
+      return(NULL)
+    }
+    .object_bayestools_formula_args(
+      object    = object,
+      parameter = parameter,
+      source    = source
+    )
+  })
+  formula_args <- formula_args[!vapply(formula_args, is.null, logical(1))]
+  if (length(formula_args) == 0L) {
+    stop(
+      "Formula evaluation requires the formula priors of the model.",
+      call. = FALSE
+    )
+  }
+
+  coefficients <- unique(unlist(lapply(formula_args, function(args) {
+    BayesTools::JAGS_parameter_names(
+      names(args[["prior_list"]]),
+      formula_parameter = args[["parameter"]]
+    )
+  }), use.names = FALSE))
+  draws <- matrix(
+    0,
+    nrow     = 1L,
+    ncol     = length(coefficients),
+    dimnames = list(NULL, coefficients)
+  )
+  for (args in formula_args) {
+    draws <- do.call(
+      BayesTools::JAGS_formula_draws,
+      c(list(draws = draws), args)
+    )
+  }
+
+  return(structure(
+    list(),
+    formula_design = attr(draws, "formula_design", exact = TRUE),
+    formula_scale  = attr(draws, "formula_scale", exact = TRUE),
+    class          = "brma_formula_designs"
+  ))
+}
+
+
+# The posterior coordinates of the fixed coefficients of a formula design
+# that BayesTools::JAGS_evaluate_formula() reads from draws: the fixed
+# name-map rows whose priors are not point priors (point priors are evaluated
+# from their values), a factor term with several coefficients (design
+# columns) as the coordinates '<coefficient>[k]'.
+.formula_design_sampled_coefficients <- function(design) {
+
+  if (is.null(design)) {
+    return(character())
+  }
+  parameter <- design[["parameter"]]
+  name_map  <- design[["name_map"]]
+  fixed     <- name_map[
+    name_map[["kind"]] == "fixed" &
+      name_map[["formula_parameter"]] == parameter,
+    ,
+    drop = FALSE
+  ]
+  model_terms   <- design[["model_terms"]]
+  has_intercept <- attr(design[["terms"]], "intercept") == 1
+  n_columns     <- tabulate(
+    design[["assign"]] + as.integer(has_intercept),
+    nbins = length(model_terms)
+  )
+  names(n_columns) <- BayesTools::JAGS_parameter_names(
+    model_terms,
+    formula_parameter = parameter
+  )
+
+  out <- lapply(fixed[["jags_name"]], function(coefficient) {
+    prior <- design[["prior_list"]][[coefficient]]
+    if (is.null(prior) || BayesTools::is.prior.point(prior)) {
+      return(character())
+    }
+    if (identical(unname(design[["model_terms_type"]][
+          match(coefficient, names(n_columns))
+        ]), "factor") && n_columns[[coefficient]] > 1L) {
+      return(paste0(coefficient, "[", seq_len(n_columns[[coefficient]]), "]"))
+    }
+    coefficient
+  })
+
+  return(unlist(out, use.names = FALSE))
+}
+
+.object_formula_prior_random <- function(object, source) {
+
+  if (source != "location" || !.is_data_random(object[["data"]])) {
+    return(NULL)
+  }
+
+  return(object[["priors"]][["random"]])
 }
 
 
@@ -83,9 +384,19 @@
 # not have priors, so BayesTools::JAGS_formula() cannot be used.
 .object_data_formula_design <- function(object, parameter, source) {
 
-  formula <- .create_fit_formula_list(data = object[["data"]], parameter = source)
-  data    <- object[["data"]][[source]]
-  terms   <- attr(data, "terms")
+  if (identical(source, "scale")) {
+    scale_spec <- .fitted_scale_spec(
+      data      = object[["data"]],
+      parameter = parameter
+    )
+    formula <- .create_fit_scale_formula(scale_spec[["formula"]])
+    data    <- scale_spec[["data"]]
+  } else {
+    formula <- .create_fit_formula_list(data = object[["data"]], parameter = source)
+    data    <- object[["data"]][[source]]
+  }
+
+  terms <- attr(data, "terms")
 
   if (is.null(terms)) {
     terms <- stats::terms(formula, data = data)
@@ -95,7 +406,6 @@
   column_names <- colnames(model_matrix)
   assign       <- attr(model_matrix, "assign")
   term_labels  <- attr(terms, "term.labels")
-  term_labels  <- gsub(":", "__xXx__", term_labels, fixed = TRUE)
 
   if (is.null(assign)) {
     assign <- seq_len(ncol(model_matrix)) - 1L
@@ -115,37 +425,52 @@
     predictors
   )
 
-  model_terms <- term_labels
+  # Model terms are named as BayesTools names formula coefficients; the
+  # formula-syntax labels are kept alongside, as the formula name map keeps
+  # them for fitted designs.
+  term_factors      <- attr(terms, "factors")
+  term_components   <- lapply(term_labels, function(label) {
+    rownames(term_factors)[term_factors[, label] > 0L]
+  })
+  model_term_labels <- term_labels
   if (isTRUE(attr(terms, "intercept") == 1L)) {
-    model_terms <- c("intercept", model_terms)
+    model_term_labels <- c("intercept", model_term_labels)
+    term_components   <- c(list(character()), term_components)
   }
+  model_terms      <- BayesTools::JAGS_parameter_names(model_term_labels)
   model_terms_type <- stats::setNames(
-    vapply(model_terms, .formula_design_term_type, character(1), predictor_types = predictor_types),
+    vapply(
+      term_components,
+      .formula_design_term_type,
+      character(1),
+      predictor_types = predictor_types
+    ),
     model_terms
   )
 
   xlevels <- lapply(data[vapply(data, is.factor, logical(1))], levels)
 
   design <- list(
-    parameter        = parameter,
-    formula          = formula,
-    model_frame      = data,
-    model_matrix     = model_matrix,
-    column_names     = column_names,
-    raw_column_names = column_names,
-    assign           = assign,
-    terms            = terms,
-    contrasts        = attr(model_matrix, "contrasts"),
-    xlevels          = xlevels,
-    predictors       = predictors,
-    predictor_types  = predictor_types,
-    model_terms      = model_terms,
-    model_terms_type = model_terms_type,
-    prior_list       = NULL,
-    formula_scale    = NULL,
-    rank             = qr_x[["rank"]],
-    qr_pivot         = qr_x[["pivot"]],
-    aliased          = aliased,
+    parameter         = parameter,
+    formula           = formula,
+    model_frame       = data,
+    model_matrix      = model_matrix,
+    column_names      = column_names,
+    raw_column_names  = column_names,
+    assign            = assign,
+    terms             = terms,
+    contrasts         = attr(model_matrix, "contrasts"),
+    xlevels           = xlevels,
+    predictors        = predictors,
+    predictor_types   = predictor_types,
+    model_terms       = model_terms,
+    model_term_labels = model_term_labels,
+    model_terms_type  = model_terms_type,
+    prior_list        = NULL,
+    formula_scale     = NULL,
+    rank              = qr_x[["rank"]],
+    qr_pivot          = qr_x[["pivot"]],
+    aliased           = aliased,
     transformed_terms = list(),
     random_effects    = list(),
     jags_data_names   = list()
@@ -167,14 +492,10 @@
 }
 
 
-# Classify a formula term from the predictor types.
-.formula_design_term_type <- function(term, predictor_types) {
+# Classify a formula term from the predictor types of its variables (none for
+# the intercept).
+.formula_design_term_type <- function(components, predictor_types) {
 
-  if (identical(term, "intercept")) {
-    return("continuous")
-  }
-
-  components <- unlist(strsplit(term, "__xXx__", fixed = TRUE), use.names = FALSE)
   if (any(predictor_types[components] == "factor", na.rm = TRUE)) {
     return("factor")
   }
@@ -183,15 +504,51 @@
 }
 
 
-# Map a BayesTools formula parameter to the RoBMA data/prior source.
-.fitted_formula_source <- function(parameter) {
+# Formula-syntax labels ('x:g') of model terms of a formula design, from the
+# formula name map of the design (data-only designs keep the labels
+# themselves).
+.formula_design_term_labels <- function(design,
+                                        terms = design[["model_terms"]]) {
 
-  switch(
-    parameter,
-    "mu"      = "mods",
-    "log_tau" = "scale",
-    NULL
-  )
+  if (length(terms) == 0L) {
+    return(character())
+  }
+  labels <- design[["model_term_labels"]]
+  if (is.null(labels)) {
+    name_map <- design[["name_map"]]
+    labels   <- name_map[["term"]][name_map[["kind"]] == "fixed"]
+  }
+  if (length(labels) != length(design[["model_terms"]])) {
+    .stop_refit_required(
+      "Formula design metadata of '", design[["parameter"]], "' do not label ",
+      "its model terms. Refit the model with the current RoBMA/BayesTools ",
+      "build."
+    )
+  }
+
+  return(labels[match(terms, design[["model_terms"]])])
+}
+
+
+# Map a BayesTools formula parameter to the RoBMA data/prior source.
+.fitted_formula_source <- function(parameter, data = NULL) {
+
+  if (identical(parameter, "mu")) {
+    return(if (!is.null(data) && .is_data_random(data)) {
+      "location"
+    } else {
+      "mods"
+    })
+  }
+  if (identical(parameter, "log_tau")) {
+    return("scale")
+  }
+  if (!is.null(data) && .is_data_scale(data) &&
+      parameter %in% .data_scale_formula_parameters(data)) {
+    return("scale")
+  }
+
+  NULL
 }
 
 
@@ -200,9 +557,26 @@
 
   switch(
     source,
-    "mods"  = "mu",
-    "scale" = "log_tau",
+    "mods"     = "mu",
+    "location" = "mu",
+    "scale"    = "log_tau",
     source
+  )
+}
+
+.fitted_scale_spec <- function(data, parameter) {
+
+  specs <- .data_scale_component_specs(data)
+  for (scale_spec in specs) {
+    if (identical(scale_spec[["parameter"]], parameter)) {
+      return(scale_spec)
+    }
+  }
+
+  stop(
+    "Scale formula design metadata for parameter '", parameter,
+    "' is missing.",
+    call. = FALSE
   )
 }
 
@@ -226,10 +600,76 @@
     terms <- terms[terms != "intercept"]
   }
   if (display) {
-    terms <- .formula_design_display_names(terms)
+    terms <- .formula_design_term_labels(design, terms)
   }
 
   return(terms)
+}
+
+
+# Return whether the user-facing fitted formula contains an intercept.
+.fitted_formula_has_intercept <- function(object, parameter, required = TRUE) {
+
+  design <- .fitted_formula_design(
+    object    = object,
+    parameter = parameter,
+    required  = required
+  )
+  if (is.null(design)) {
+    return(FALSE)
+  }
+
+  source_terms <- attr(design[["source_data"]], "terms", exact = TRUE)
+  if (!is.null(source_terms)) {
+    return(identical(attr(source_terms, "intercept", exact = TRUE), 1L))
+  }
+
+  "intercept" %in% design[["model_terms"]]
+}
+
+
+# Return whether a fixed-zero location intercept should be omitted publicly.
+# Keep an intercept-only model visible even when its prior is a point at zero.
+.location_omit_fixed_zero_intercept <- function(object) {
+
+  if (!.is_mods(object)) {
+    return(FALSE)
+  }
+
+  moderator_terms <- .fitted_formula_terms(
+    object            = object,
+    parameter         = "mu",
+    include_intercept = FALSE,
+    display           = FALSE,
+    required          = FALSE
+  )
+  if (length(moderator_terms) == 0L) {
+    return(FALSE)
+  }
+
+  source          <- if (.is_random(object)) "location" else "mods"
+  intercept_prior <- object[["priors"]][[source]][["intercept"]]
+  if (is.null(intercept_prior) && !is.null(object[["fit"]])) {
+    prior_list      <- attr(object[["fit"]], "prior_list", exact = TRUE)
+    intercept_prior <- prior_list[["mu_intercept"]]
+  }
+
+  !is.null(intercept_prior) &&
+    BayesTools::is.prior.point(intercept_prior) &&
+    identical(as.numeric(mean(intercept_prior)), 0)
+}
+
+
+# Use the ordinary meta-analysis label for an intercept-only multivariate
+# location model. The underlying formula term remains "intercept".
+.location_repair_intercept_labels <- function(labels, object) {
+
+  if (!inherits(object, "brma.mv") || .is_mods(object)) {
+    return(labels)
+  }
+
+  labels[labels %in% c("intercept", "(mu) intercept")] <- "mu"
+  return(labels)
 }
 
 
@@ -263,17 +703,11 @@
     return(NULL)
   }
 
+  # The raw column names are the model-matrix names in formula syntax.
   return(stats::setNames(
-    .formula_design_display_names(design[["raw_column_names"]]),
+    design[["raw_column_names"]],
     design[["column_names"]]
   ))
-}
-
-
-# Convert BayesTools' JAGS-safe interaction separator to formula syntax.
-.formula_design_display_names <- function(x) {
-
-  return(gsub("__xXx__", ":", x, fixed = TRUE))
 }
 
 
@@ -318,7 +752,7 @@
 
   if (is_PET || is_PEESE) {
     outcome_data <- object[["data"]][["outcome"]]
-    direction    <- if (.effect_direction(object) == "negative") -1 else 1
+    effect_direction <- .effect_direction(object)
     assign       <- attr(X, "assign")
     raw_colnames <- attr(X, "raw_colnames")
     aliased      <- attr(X, "aliased")
@@ -326,22 +760,24 @@
     if (is.null(assign)) {
       assign <- seq_len(ncol(X)) - 1L
     }
-    next_assign  <- max(assign) + 1L
+    next_assign  <- max(c(0L, assign)) + 1L
 
-    if (is_PET) {
-      X            <- cbind(X, PET = direction * outcome_data[["sei"]])
+    bias_parameters <- c(if (is_PET) "PET", if (is_PEESE) "PEESE")
+    for (parameter in bias_parameters) {
+      predictor <- .bias_regression_predictor(
+        sei              = outcome_data[["sei"]],
+        parameter        = parameter,
+        effect_direction = effect_direction
+      )
+      X <- cbind(X, predictor)
+      colnames(X)[ncol(X)] <- parameter
       assign       <- c(assign, next_assign)
-      raw_colnames <- c(raw_colnames, PET = "PET")
-      aliased      <- c(aliased, PET = FALSE)
-      term_labels  <- c(term_labels, "PET")
-      next_assign  <- next_assign + 1L
-    }
-    if (is_PEESE) {
-      X            <- cbind(X, PEESE = direction * outcome_data[["sei"]]^2)
-      assign       <- c(assign, next_assign)
-      raw_colnames <- c(raw_colnames, PEESE = "PEESE")
-      aliased      <- c(aliased, PEESE = FALSE)
-      term_labels  <- c(term_labels, "PEESE")
+      raw_colnames <- c(
+        raw_colnames,
+        stats::setNames(parameter, parameter)
+      )
+      aliased      <- c(aliased, stats::setNames(FALSE, parameter))
+      term_labels  <- c(term_labels, parameter)
       next_assign  <- next_assign + 1L
     }
 

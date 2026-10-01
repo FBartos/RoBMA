@@ -2,6 +2,54 @@ context("Cached fit catalog")
 
 source(testthat::test_path("common-functions.R"))
 
+test_that("GLMM test settings preserve full certification draws", {
+
+  old_profile <- Sys.getenv("ROBMA_TEST_PROFILE", unset = NA_character_)
+  on.exit({
+    if (is.na(old_profile)) {
+      Sys.unsetenv("ROBMA_TEST_PROFILE")
+    } else {
+      Sys.setenv(ROBMA_TEST_PROFILE = old_profile)
+    }
+  })
+
+  Sys.setenv(ROBMA_TEST_PROFILE = "standard")
+  standard <- test_glmm_fit_settings()
+  Sys.setenv(ROBMA_TEST_PROFILE = "certification")
+  certification <- test_glmm_fit_settings()
+
+  expect_identical(standard, list(
+    chains = 3L,
+    sample = 1500L,
+    burnin = 500L,
+    adapt  = 500L
+  ))
+  expect_identical(certification, list(
+    chains = 3L,
+    sample = 5000L,
+    burnin = 2000L,
+    adapt  = 500L
+  ))
+})
+
+test_that("test cache roots isolate profiles", {
+
+  cache_root    <- tempfile("robma-profile-cache-")
+  standard      <- .test_profile_cache_dir(cache_root, "standard")
+  certification <- .test_profile_cache_dir(cache_root, "certification")
+
+  expect_identical(basename(standard), "standard")
+  expect_identical(basename(certification), "certification")
+  expect_identical(dirname(standard), dirname(certification))
+
+  named_root <- file.path(cache_root, "standard")
+  expect_identical(
+    .test_profile_cache_dir(named_root, "certification"),
+    file.path(normalizePath(named_root, winslash = "/", mustWork = FALSE),
+              "certification")
+  )
+})
+
 .collect_save_fit_calls <- function(expr, source_file) {
 
   out <- data.frame(
@@ -93,21 +141,82 @@ source(testthat::test_path("common-functions.R"))
 
 .valid_metadata_for_catalog_entry <- function(name) {
 
-  entry <- fit_catalog_entry(name)
+  entry    <- fit_catalog_entry(name)
+  versions <- fit_cache_versions()
 
   return(list(
-    version            = FIT_CACHE_VERSION,
-    name               = name,
-    saved_at           = "synthetic",
-    fit_class          = entry[["class"]],
-    source_file        = entry[["source_file"]],
-    source_file_md5    = source_file_md5(entry[["source_file"]]),
-    package_source_md5 = package_source_md5(),
-    has_loo            = entry[["has_loo"]],
-    has_waic           = entry[["has_waic"]],
-    has_marglik        = entry[["has_marglik"]],
-    has_metafor_info   = entry[["has_metafor"]]
+    schema_version                 = FIT_CACHE_SCHEMA_VERSION,
+    name                           = name,
+    saved_at                       = "synthetic",
+    robma_version                  = versions[["robma_version"]],
+    bayestools_version             = versions[["bayestools_version"]],
+    r_version                      = versions[["r_version"]],
+    jags_version                   = versions[["jags_version"]],
+    fit_class                      = entry[["class"]],
+    source_file                    = entry[["source_file"]],
+    source_file_md5                = source_file_md5(entry[["source_file"]]),
+    package_source_md5             = package_source_md5(),
+    bayestools_backend_fingerprint = bayestools_backend_fingerprint(),
+    has_loo                        = entry[["has_loo"]],
+    has_waic                       = entry[["has_waic"]],
+    has_marglik                    = entry[["has_marglik"]],
+    has_metafor_info               = entry[["has_metafor"]]
   ))
+}
+
+.with_temp_fit_cache <- function(code) {
+
+  old_test_files_dir    <- test_files_dir
+  old_temp_fits_dir     <- temp_fits_dir
+  old_temp_info_dir     <- temp_info_dir
+  old_temp_metadata_dir <- temp_metadata_dir
+  old_temp_temp_dir     <- temp_temp_dir
+  old_env               <- Sys.getenv("ROBMA_TEST_FILES_DIR", unset = NA_character_)
+  old_fit_names         <- ls(envir = .fit_object_cache)
+  old_info_names        <- ls(envir = .info_object_cache)
+  old_fit_cache         <- mget(old_fit_names, envir = .fit_object_cache, inherits = FALSE)
+  old_info_cache        <- mget(old_info_names, envir = .info_object_cache, inherits = FALSE)
+
+  cache_root <- tempfile("robma-fit-cache-")
+  dir.create(cache_root, recursive = TRUE)
+
+  test_files_dir <<- normalizePath(cache_root, winslash = "/", mustWork = TRUE)
+  temp_fits_dir     <<- file.path(test_files_dir, "fits")
+  temp_info_dir     <<- file.path(test_files_dir, "info")
+  temp_metadata_dir <<- file.path(test_files_dir, "metadata")
+  temp_temp_dir     <<- file.path(test_files_dir, "temp")
+  dir.create(temp_fits_dir, recursive = TRUE)
+  dir.create(temp_info_dir, recursive = TRUE)
+  dir.create(temp_metadata_dir, recursive = TRUE)
+  dir.create(temp_temp_dir, recursive = TRUE)
+
+  .clear_fit_object_cache()
+  .clear_info_object_cache()
+  Sys.setenv(ROBMA_TEST_FILES_DIR = test_files_dir)
+
+  on.exit({
+    test_files_dir <<- old_test_files_dir
+    temp_fits_dir <<- old_temp_fits_dir
+    temp_info_dir <<- old_temp_info_dir
+    temp_metadata_dir <<- old_temp_metadata_dir
+    temp_temp_dir <<- old_temp_temp_dir
+    .clear_fit_object_cache()
+    .clear_info_object_cache()
+    if (length(old_fit_cache) > 0L) {
+      list2env(old_fit_cache, envir = .fit_object_cache)
+    }
+    if (length(old_info_cache) > 0L) {
+      list2env(old_info_cache, envir = .info_object_cache)
+    }
+    if (is.na(old_env)) {
+      Sys.unsetenv("ROBMA_TEST_FILES_DIR")
+    } else {
+      Sys.setenv(ROBMA_TEST_FILES_DIR = old_env)
+    }
+    unlink(cache_root, recursive = TRUE)
+  }, add = TRUE)
+
+  force(code)
 }
 
 
@@ -121,17 +230,47 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
 
   expect_equal(anyDuplicated(source_files), 0L)
   expect_true(all(c(
+    "R/brma-mv-known-r.R",
+    "R/covariance-factorization.R",
     "R/fit.R",
+    "R/formula-design.R",
+    "R/glmm-aghq.R",
     "R/input-data.R",
     "R/input-object.R",
     "R/input-priors.R",
+    "R/input-priors-assignment.R",
+    "R/input-priors-check-list.R",
+    "R/input-priors-documentation.R",
+    "R/input-priors-formula.R",
+    "R/input-priors-heterogeneity-allocation.R",
+    "R/jags-formula-args.R",
+    "R/known-v-preflight.R",
+    "R/known-v-representation.R",
+    "R/random-effects-compile.R",
     "R/selection-mapping.R",
     "R/marglik.R",
     "R/loo.R",
+    "src/Makevars.in",
+    "src/Makevars.ucrt",
+    "src/Makevars.win",
     "src/RoBMA.cc",
     "src/distributions/DWN.cc",
+    "src/glmm-aghq.cc",
+    "src/glmm-aghq.h",
+    "src/r-native-api.h",
+    "src/r-native-boundary.h",
     "src/r-glmm.cc",
-    "src/r-selnorm.cc"
+    "src/r-selnorm.cc",
+    "src/r-selnorm-common.cc.inc",
+    "src/r-selnorm-funnel-zcurve.cc.inc",
+    "src/r-selnorm-kernel.cc.inc",
+    "src/r-selnorm-loglik.cc.inc",
+    "src/selnorm/selnorm-api.cc.inc",
+    "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-parallel.h",
+    "src/selnorm/selnorm-phack.cc.inc",
+    "src/selnorm/selnorm-probability.cc.inc",
+    "src/selnorm/selnorm-step.cc.inc"
   ) %in% source_files))
   expect_false(any(c(
     "DESCRIPTION",
@@ -143,6 +282,52 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/summary.R",
     "src/r-regplot.cc"
   ) %in% source_files))
+})
+
+test_that("in-memory fit caches are synchronized with save and clean", {
+
+  skip_on_cran()
+
+  .with_temp_fit_cache({
+    name <- "bcg_meta-analysis"
+
+    old_fit <- .fake_fit_for_catalog_entry(name)
+    old_fit[["cache_marker"]] <- "old"
+    old_info <- .fake_info_for_catalog_entry(name)
+    old_info[["cache_marker"]] <- "old"
+
+    new_fit <- .fake_fit_for_catalog_entry(name)
+    new_fit[["cache_marker"]] <- "new"
+    new_info <- .fake_info_for_catalog_entry(name)
+    new_info[["cache_marker"]] <- "new"
+
+    save_fit(name, old_fit, old_info)
+    expect_identical(load_fit(name)[["cache_marker"]], "old")
+    expect_identical(load_info(name)[["cache_marker"]], "old")
+
+    save_fit(name, new_fit, new_info)
+    expect_identical(load_fit(name)[["cache_marker"]], "new")
+    expect_identical(load_info(name)[["cache_marker"]], "new")
+
+    clean_cached_fits(name)
+    expect_false(exists(name, envir = .fit_object_cache, inherits = FALSE))
+    expect_false(exists(name, envir = .info_object_cache, inherits = FALSE))
+
+    fit_names <- c("bcg_meta-analysis", "bcg_meta-regression")
+    for (fit_name in fit_names) {
+      save_fit(
+        fit_name,
+        .fake_fit_for_catalog_entry(fit_name),
+        .fake_info_for_catalog_entry(fit_name)
+      )
+    }
+    clean_cached_fits(fit_names)
+    expect_false(any(file.exists(vapply(
+      fit_names,
+      function(fit_name) fit_cache_paths(fit_name)[["fit"]],
+      character(1)
+    ))))
+  })
 })
 
 test_that("cache source hash requires a complete source root", {
@@ -157,6 +342,73 @@ test_that("cache source hash requires a complete source root", {
     .fit_cache_source_files(package_root = package_root, relative = TRUE),
     character()
   )
+})
+
+test_that("package source hash refreshes after source edits", {
+
+  real_root    <- .fit_cache_source_root()
+  source_files <- .fit_cache_source_files(package_root = real_root, relative = TRUE)
+  skip_if_not(
+    length(source_files) > 0L,
+    "Complete package R/src source tree is not available under source-build checks."
+  )
+
+  package_root <- tempfile("robma-complete-source-")
+  dir.create(package_root, recursive = TRUE)
+  on.exit(unlink(package_root, recursive = TRUE), add = TRUE)
+
+  for (source_file in source_files) {
+    from <- file.path(real_root, source_file)
+    to   <- file.path(package_root, source_file)
+    dir.create(dirname(to), recursive = TRUE, showWarnings = FALSE)
+    file.copy(from, to, overwrite = TRUE)
+  }
+
+  old_cache_names <- ls(envir = .package_source_md5_cache)
+  old_cache       <- mget(old_cache_names, envir = .package_source_md5_cache,
+                          inherits = FALSE)
+  on.exit({
+    .clear_package_source_md5_cache()
+    if (length(old_cache) > 0L) {
+      list2env(old_cache, envir = .package_source_md5_cache)
+    }
+  }, add = TRUE)
+
+  .clear_package_source_md5_cache()
+  assign(
+    "source_root",
+    normalizePath(package_root, winslash = "/", mustWork = TRUE),
+    envir = .package_source_md5_cache
+  )
+
+  hash_before <- package_source_md5()
+  fit_file    <- file.path(package_root, "R", "fit.R")
+
+  writeLines(
+    c(readLines(fit_file, warn = FALSE), "# cache hash refresh probe"),
+    fit_file,
+    useBytes = TRUE
+  )
+  expect_identical(package_source_md5(), hash_before)
+
+  writeLines(
+    c(readLines(fit_file, warn = FALSE), ".robma_cache_hash_probe <- 1"),
+    fit_file,
+    useBytes = TRUE
+  )
+  expect_false(identical(package_source_md5(), hash_before))
+
+  for (header in c("src/r-native-api.h", "src/r-native-boundary.h",
+                   "src/selnorm/selnorm-parallel.h")) {
+    before_header_edit <- package_source_md5()
+    header_path <- file.path(package_root, header)
+    writeLines(
+      c(readLines(header_path, warn = FALSE), "#define ROBMA_NATIVE_CACHE_TEST 1"),
+      header_path,
+      useBytes = TRUE
+    )
+    expect_false(identical(package_source_md5(), before_header_edit), info = header)
+  }
 })
 
 test_that("R source hashes ignore comments and formatting", {
@@ -200,14 +452,31 @@ test_that("fit catalog is internally consistent", {
                info = "fit catalog names must be unique")
   expect_true(all(file.exists(testthat::test_path(catalog[["source_file"]]))),
               info = "all catalog source files must exist")
-  expect_true(all(catalog[["has_loo"]]),
-              info = "all cached test fits include pre-computed LOO")
+  no_loo_fits <- c(
+    "brma.mv_block_mvn_random_mods_scale",
+    "nielweise2008_glmm_effect_null",
+    "dat.lehmann2018-3PSM_effect_null"
+  )
+  expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
+               info = "selected brma.mv cache fixtures omit pre-computed LOO")
   expect_true(all(!catalog[["has_waic"]]),
               info = "WAIC is not pre-computed for cached test fits")
-  expect_true(all(!catalog[catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "RoBMA"), "has_marglik"]),
+  expect_true(all(!catalog[catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv"), "has_marglik"]),
               info = "product-space model averaging fits must not cache marginal likelihoods")
-  expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "RoBMA"), "has_marglik"]),
-              info = "single-model cached fits include marginal likelihoods")
+  v14_marglik_fits <- c(
+    "brma.mv_v14_konstantopoulos2011_cs",
+    "brma.mv_v14_assink2016_nested",
+    "brma.mv_v14_ishak2007_har",
+    "brma.mv_v14_begg1989_study_treatment",
+    "iwmde_known_v_tau_full",
+    "iwmde_known_v_tau_null",
+    "fixed_nonzero_brma_mv"
+  )
+  expect_equal(catalog[["name"]][catalog[["class"]] == "brma.mv" & catalog[["has_marglik"]]],
+               v14_marglik_fits,
+               info = "selected brma.mv cache fixtures pre-compute marginal likelihoods")
+  expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv", "brma.mv"), "has_marglik"]),
+              info = "implemented single-model cached fits include marginal likelihoods")
   expect_true(all(catalog[catalog[["class"]] %in% c("brma.glmm", "BMA.glmm"), "family"] == "glmm"),
               info = "GLMM classes must be tagged as glmm family")
   expect_true(all(catalog[!catalog[["class"]] %in% c("brma.glmm", "BMA.glmm"), "family"] == "norm"),
@@ -216,6 +485,58 @@ test_that("fit catalog is internally consistent", {
                info = "each catalog row must have feature tags")
   expect_true(all(vapply(catalog[["features"]], length, integer(1)) > 0L),
               info = "feature tags cannot be empty")
+  expect_setequal(unique(catalog[["profile"]]), TEST_PROFILES)
+  expect_setequal(
+    catalog[["name"]][catalog[["profile"]] == "standard"],
+    c(
+      "bcg_meta-analysis",
+      "bcg_meta-regression",
+      "bcg_meta-regression2",
+      "bcg_meta-regression2b",
+      "bcg_meta-regression3",
+      "bcg_meta-regression3b",
+      "bcg_meta-regression4",
+      "bcg_meta-regression4b",
+      "bangertdrowns2004_location-scale",
+      "konstantopoulos2011_3lvl",
+      "konstantopoulos2011_3lvl2",
+      "bcg_glmm",
+      "bcg_glmm_reg",
+      "nielweise2008_glmm",
+      "dat.lehmann2018-PET",
+      "dat.lehmann2018-PEESE",
+      "dat.lehmann2018-3PSM",
+      "dat.lehmann2018_BMA.norm",
+      "dat.lehmann2018_BMA.norm_mods",
+      "bcg_BMA.glmm",
+      "dat.lehmann2018_RoBMA",
+      "dat.lehmann2018_RoBMA_mods",
+      "dat.lehmann2018_RoBMA_mods2",
+      "dat.lehmann2018_RoBMA_3lvl_mods_scale",
+      "BMA.mv_random_components",
+      "RoBMA.mv_marg_product_space",
+      "bselmodel.mv_marg_random",
+      "bPET.mv_random",
+      "bPEESE.mv_random",
+      "brma.mv_latent",
+      "brma.mv_whitened",
+      "brma.mv_block_mvn",
+      "brma.mv_block_mvn_fixed_random_null",
+      "brma.mv_block_mvn_random",
+      "vif_parity_brma",
+      "vif_parity_brma_mv",
+      "fixed_null_brma",
+      "fixed_nonzero_brma",
+      "fixed_nonzero_brma_mv",
+      "fixed_null_brma_glmm",
+      "fixed_null_brma_glmm_pois",
+      "fixed_null_bPET",
+      "fixed_null_bPEESE",
+      "fixed_null_bselmodel"
+    )
+  )
+  expect_true(all(active_fit_catalog()[["profile"]] %in%
+                    if (is_certification_profile()) TEST_PROFILES else "standard"))
 })
 
 test_that("fit catalog mirrors test-01 save_fit calls", {
@@ -235,6 +556,26 @@ test_that("fit catalog mirrors test-01 save_fit calls", {
                info = "catalog source_file must match the test-01 file calling save_fit()")
 })
 
+test_that("BayesTools cache fingerprint fails closed", {
+
+  fingerprint <- BayesTools::fit_backend_fingerprint()
+  expect_identical(bayestools_backend_fingerprint(), fingerprint)
+
+  invalid_values <- list(NULL, NA_character_, "", "not-a-fingerprint", 1)
+  for (value in invalid_values) {
+    expect_error(
+      bayestools_backend_fingerprint(value = value),
+      "unavailable or invalid",
+      fixed = TRUE
+    )
+    expect_identical(
+      bayestools_backend_fingerprint(required = FALSE, value = value),
+      NA_character_
+    )
+  }
+})
+
+
 test_that("cache validation rejects corrupted synthetic metadata", {
 
   name     <- "bcg_meta-analysis"
@@ -253,6 +594,161 @@ test_that("cache validation rejects corrupted synthetic metadata", {
     ),
     character(),
     info = "valid synthetic metadata passes without cache files"
+  )
+  expect_identical(names(metadata), FIT_CACHE_METADATA_FIELDS)
+  expect_identical(
+    metadata[["robma_version"]],
+    as.character(utils::packageVersion("RoBMA"))
+  )
+  expect_identical(
+    metadata[["bayestools_version"]],
+    as.character(utils::packageVersion("BayesTools"))
+  )
+  expect_identical(
+    metadata[["r_version"]],
+    paste(R.version$major, R.version$minor, sep = ".")
+  )
+  expect_true(
+    is.na(metadata[["jags_version"]]) || nzchar(metadata[["jags_version"]])
+  )
+
+  invalid_metadata <- validate_cached_fit(
+    name        = name,
+    fit         = fit,
+    info        = info,
+    metadata    = "not-a-list",
+    check_files = FALSE,
+    deep        = TRUE
+  )
+  expect_true("metadata must be a list" %in% invalid_metadata)
+
+  stale_schema <- metadata
+  stale_schema[["schema_version"]] <- FIT_CACHE_SCHEMA_VERSION + 1L
+  expect_true(
+    "cache schema changed" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = stale_schema,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  missing_schema <- metadata
+  missing_schema[["schema_version"]] <- NULL
+  missing_schema_problems <- validate_cached_fit(
+    name        = name,
+    fit         = fit,
+    info        = info,
+    metadata    = missing_schema,
+    check_files = FALSE,
+    deep        = TRUE
+  )
+  expect_true("cache metadata fields changed" %in% missing_schema_problems)
+  expect_true("cache schema changed" %in% missing_schema_problems)
+
+  version_messages <- c(
+    robma_version      = "RoBMA version changed",
+    bayestools_version = "BayesTools version changed",
+    r_version          = "R version changed",
+    jags_version       = "JAGS version changed"
+  )
+  for (field in names(version_messages)) {
+    stale_version <- metadata
+    stale_version[[field]] <- "stale-version"
+    expect_true(
+      unname(version_messages[[field]]) %in% validate_cached_fit(
+        name         = name,
+        fit          = fit,
+        info         = info,
+        metadata     = stale_version,
+        check_source = FALSE,
+        check_files  = FALSE,
+        deep         = TRUE
+      ),
+      info = field
+    )
+  }
+
+  unexpected_field <- metadata
+  unexpected_field[["obsolete"]] <- TRUE
+  expect_true(
+    "cache metadata fields changed" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = unexpected_field,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  stale_name <- metadata
+  stale_name[["name"]] <- "wrong-name"
+  expect_true(
+    "metadata name mismatch" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = stale_name,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  stale_source_file <- metadata
+  stale_source_file[["source_file"]] <- "test-01-wrong.R"
+  expect_true(
+    "metadata source file mismatch" %in% validate_cached_fit(
+      name        = name,
+      fit         = fit,
+      info        = info,
+      metadata    = stale_source_file,
+      check_files = FALSE,
+      deep        = TRUE
+    )
+  )
+
+  unavailable_backend <- validate_cached_fit(
+    name                   = name,
+    fit                    = fit,
+    info                   = info,
+    metadata               = metadata,
+    check_files            = FALSE,
+    deep                   = TRUE,
+    bayestools_fingerprint = NA_character_
+  )
+  expect_true(
+    "BayesTools backend fingerprint unavailable" %in% unavailable_backend
+  )
+
+  unavailable_source_validator <- validate_cached_fit
+  environment(unavailable_source_validator) <- list2env(
+    list(source_file_md5 = function(...) NA_character_),
+    parent = environment(validate_cached_fit)
+  )
+  unavailable_source <- unavailable_source_validator(
+    name = name, metadata = metadata, check_files = FALSE
+  )
+  expect_true("source file fingerprint unavailable" %in% unavailable_source)
+  unavailable_package <- validate_cached_fit(
+    name = name, metadata = metadata, check_files = FALSE,
+    package_md5 = NA_character_
+  )
+  expect_true("cache source fingerprint unavailable" %in% unavailable_package)
+
+  malformed_backend <- validate_cached_fit(
+    name                   = name,
+    fit                    = fit,
+    info                   = info,
+    metadata               = metadata,
+    check_files            = FALSE,
+    deep                   = TRUE,
+    bayestools_fingerprint = "malformed"
+  )
+  expect_true(
+    "BayesTools backend fingerprint unavailable" %in% malformed_backend
   )
 
   stale_source <- metadata
@@ -282,6 +778,36 @@ test_that("cache validation rejects corrupted synthetic metadata", {
         deep        = TRUE
       ),
       info = "cache source hash is enforced"
+    )
+  }
+
+  stale_bayestools <- metadata
+  stale_bayestools[["bayestools_backend_fingerprint"]] <- "not-current"
+  if (!is.na(BayesTools::fit_backend_fingerprint())) {
+    expect_true(
+      "BayesTools backend changed" %in% validate_cached_fit(
+        name        = name,
+        fit         = fit,
+        info        = info,
+        metadata    = stale_bayestools,
+        check_files = FALSE,
+        deep        = TRUE
+      ),
+      info = "BayesTools backend fingerprint is enforced"
+    )
+
+    missing_bayestools <- metadata
+    missing_bayestools[["bayestools_backend_fingerprint"]] <- NULL
+    expect_true(
+      "BayesTools backend changed" %in% validate_cached_fit(
+        name        = name,
+        fit         = fit,
+        info        = info,
+        metadata    = missing_bayestools,
+        check_files = FALSE,
+        deep        = TRUE
+      ),
+      info = "missing BayesTools backend fingerprint is rejected"
     )
   }
 
@@ -343,9 +869,12 @@ test_that("cached fits are catalogued and valid", {
 
   catalog_names <- fit_catalog()[["name"]]
   uncatalogued  <- setdiff(cached_names, catalog_names)
+  inactive      <- setdiff(cached_names, active_fit_catalog()[["name"]])
 
   expect_equal(uncatalogued, character(),
                info = "all cached fits must be listed in fit_catalog()")
+  expect_equal(inactive, character(),
+               info = "the active cache must not contain fits from another profile")
 
   problems <- lapply(cached_names, validate_cached_fit, deep = TRUE)
   names(problems) <- cached_names

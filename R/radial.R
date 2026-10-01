@@ -5,8 +5,8 @@
 # Radial (Galbraith) plot functions for brma objects.
 #
 # The radial plot displays effect sizes on a transformed scale where:
-# - x-axis: precision (1/sqrt(vi + tau^2))
-# - z-axis: standardized effect (yi/sqrt(vi + tau^2))
+# - x-axis: precision (1/sqrt(vi + tau_i^2))
+# - z-axis: standardized effect (yi/sqrt(vi + tau_i^2))
 #
 # A line from the origin through any point has slope equal to the
 # observed effect size. An arc on the right side maps z-values back
@@ -82,19 +82,28 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' standard error into a point in precision-standardized space:
 #'
 #' \itemize{
-#'   \item x-axis: precision = \eqn{1/\sqrt{v_i + \hat{\tau}^2}}
-#'   \item z-axis: standardized effect = \eqn{y_i/\sqrt{v_i + \hat{\tau}^2}}
+#'   \item x-axis: precision = \eqn{1/\sqrt{v_i + \hat{\tau}_i^2}}
+#'   \item z-axis: standardized effect = \eqn{y_i/\sqrt{v_i + \hat{\tau}_i^2}}
 #' }
+#' For ordinary and specialized multilevel models, the marginal heterogeneity
+#' is common and \eqn{\hat{\tau}_i = \hat{\tau}}. Random-formula models use
+#' each row's marginal random-effect standard deviation. Known sampling
+#' covariance uses its diagonal for \eqn{v_i}; plotted points can therefore be
+#' dependent.
 #'
-#' Under the random-effects model, studies consistent with the pooled effect
-#' should fall within the sloped parallelogram confidence band around the
-#' pooled-effect line. The arc on the right side allows reading individual
-#' effect sizes by projecting from the origin through a point to the arc; when
-#' \code{center = TRUE}, the plotted slope is relative to the pooled effect.
+#' For a single normal model, the sloped parallelogram is the usual marginal
+#' Gaussian reference band around the pooled-effect line. For GLMMs it is a
+#' continuity-corrected effect-size approximation; for selection, PET/PEESE,
+#' and product-space models it remains a bias-adjusted posterior-mean reference
+#' rather than an exact envelope of the fitted observation law. The arc on the
+#' right side allows reading individual effect sizes by projecting from the
+#' origin through a point to the arc; when \code{center = TRUE}, the plotted
+#' slope is relative to the pooled effect.
 #'
-#' This function requires an intercept-only model; radial plots are not
-#' meaningful for meta-regression or location-scale models where the
-#' pooled effect varies across studies.
+#' This function requires an intercept-only model without scale regression or
+#' likelihood weights. Likelihood-weighted fits do not have a single radial
+#' precision target because the observational variance and power-likelihood
+#' information scales differ.
 #'
 #' \code{galbraith()} is a same-argument alias for \code{radial()}.
 #'
@@ -142,6 +151,11 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
                         atz, aty, steps = 7, level = 95, digits = 2,
                         transf, targs, plot_type = "base", ...) {
 
+  previous_threads <- .native_threads_configure(.resolve_native_threads(x))
+  if (!is.null(previous_threads)) {
+    on.exit(.native_threads_configure(previous_threads), add = TRUE)
+  }
+
   # input validation
   BayesTools::check_bool(center, "center")
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
@@ -166,6 +180,12 @@ radial.brma <- function(x, center = FALSE, xlim, zlim, xlab, zlab,
   }
   if (.is_scale(x)) {
     stop("Radial plots cannot be drawn for models with scale regression.", call. = FALSE)
+  }
+  if (.is_weights(x)) {
+    stop(
+      "Radial plots are not available for likelihood-weighted models.",
+      call. = FALSE
+    )
   }
 
   # set up graphical arguments with defaults
@@ -249,7 +269,6 @@ galbraith.brma <- function(x, ...) {
   # get observed effect sizes and variances
   yi <- .outcome_data_yi(x)
   vi <- .outcome_data_vi(x)
-  K  <- length(yi)
 
   # confidence level
   alpha  <- 1 - level / 100
@@ -258,24 +277,22 @@ galbraith.brma <- function(x, ...) {
 
   # get pooled effect estimate
   mu_samples <- pooled_effect(x, probs = probs)
-  mu_summary <- summary(mu_samples)
-  beta       <- mu_summary["mu", "Mean"]
-  ci.lb      <- mu_summary["mu", as.character(probs[1])]
-  ci.ub      <- mu_summary["mu", as.character(probs[2])]
+  mu_draws   <- as.matrix(mu_samples)[, "mu"]
+  beta       <- mean(mu_draws)
+  mu_ci      <- stats::quantile(mu_draws, probs = probs, names = FALSE)
+  ci.lb      <- mu_ci[1L]
+  ci.ub      <- mu_ci[2L]
 
-  # get heterogeneity estimate
-  tau_samples <- pooled_heterogeneity(x)
-  tau_summary <- summary(tau_samples)
-  tau         <- tau_summary["tau", "Mean"]
-  tau2        <- tau^2
+  # Use each row's marginal heterogeneity. This is the released common scalar
+  # for ordinary models and a row-specific scale for random-formula designs.
+  tau  <- .get_radial_tau_rows(x)
+  tau2 <- tau^2
+  row_specific_tau <- !all(tau == tau[[1L]])
 
   # compute precision and standardized values
   wi <- vi + tau2
   xi <- 1 / sqrt(wi)
   zi <- yi / sqrt(wi)
-
-  # save uncentered yi for arc label computation
-  yi.c <- yi
 
   # arc range tracking (on original scale before centering)
   if (is.null(aty)) {
@@ -314,16 +331,28 @@ galbraith.brma <- function(x, ...) {
 
   # ---- axis labels ----
   if (is.null(xlab)) {
-    xlab <- expression(x[i] == 1 / sqrt(v[i] + tau^2))
+    xlab <- if (row_specific_tau) {
+      expression(x[i] == 1 / sqrt(v[i] + tau[i]^2))
+    } else {
+      expression(x[i] == 1 / sqrt(v[i] + tau^2))
+    }
   }
 
   # zlab: fraction expression for base R mtext, simpler for ggplot
   zlab_auto <- is.null(zlab)
   if (zlab_auto) {
     if (center) {
-      zlab <- expression(z[i] == frac(y[i] - hat(mu), sqrt(v[i] + tau^2)))
+      zlab <- if (row_specific_tau) {
+        expression(z[i] == frac(y[i] - hat(mu), sqrt(v[i] + tau[i]^2)))
+      } else {
+        expression(z[i] == frac(y[i] - hat(mu), sqrt(v[i] + tau^2)))
+      }
     } else {
-      zlab <- expression(z[i] == frac(y[i], sqrt(v[i] + tau^2)))
+      zlab <- if (row_specific_tau) {
+        expression(z[i] == frac(y[i], sqrt(v[i] + tau[i]^2)))
+      } else {
+        expression(z[i] == frac(y[i], sqrt(v[i] + tau^2)))
+      }
     }
   }
 
@@ -415,7 +444,7 @@ galbraith.brma <- function(x, ...) {
 
   # CI arc
   ci_values    <- c(ci.lb_plot, beta_plot, ci.ub_plot)
-  ci_arc_slopes <- seq(ci.lb_plot, ci.ub_plot, length.out = ceiling(arc_res / 4))
+  ci_arc_slopes <- seq(ci.lb_plot, ci.ub_plot, length.out = max(2L, ceiling(arc_res / 4)))
   ci_arc_theta  <- atan(ci_arc_slopes)
   df_ci_arc <- data.frame(
     x = ci.xpos * cos(ci_arc_theta),
@@ -508,7 +537,6 @@ galbraith.brma <- function(x, ...) {
   zlab       <- data$zlab
   zlab_auto  <- data$zlab_auto
   atz        <- data$atz
-  xaxismax   <- data$xaxismax
 
   # raw arc parameters (recomputed with aspect ratio below)
   aty        <- data$aty
@@ -650,7 +678,7 @@ galbraith.brma <- function(x, ...) {
 
   # ---- CI arc line ----
   ci_arc_slopes <- seq(ci_values[1], ci_values[3],
-                       length.out = ceiling(arc_res / 4))
+                       length.out = max(2L, ceiling(arc_res / 4)))
   ci_arc_xi     <- .arc_x(ci.xpos, ci_arc_slopes)
   ci_arc_zi     <- .arc_z(ci.xpos, ci_arc_slopes)
 
@@ -776,7 +804,7 @@ galbraith.brma <- function(x, ...) {
 
   # ---- CI arc line ----
   ci_arc_slopes <- seq(ci_values[1], ci_values[3],
-                       length.out = ceiling(arc_res / 4))
+                       length.out = max(2L, ceiling(arc_res / 4)))
   df_ci_arc <- data.frame(
     x = .arc_x(ci.xpos, ci_arc_slopes),
     z = .arc_z(ci.xpos, ci_arc_slopes)

@@ -1,0 +1,15 @@
+
+Bayesian Multivariate Mixed-Effect Model (k = 100)
+
+Common Estimates
+                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau_total             0.518 0.072 0.399 0.510 0.678     0.00215          0.030 1141 1.006
+tau2_prop(esid_study) 0.350 0.103 0.169 0.343 0.569     0.00253          0.025 1681 1.001
+tau2_prop(study)      0.650 0.103 0.431 0.657 0.831     0.00253          0.025 1681 1.001
+
+Meta-Regression
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept        -0.034 0.179 -0.392 -0.033 0.317     0.00938          0.052  370 1.011
+deltype[general]  0.501 0.156  0.190  0.503 0.806     0.00672          0.043  542 1.005
+deltype[overt]    0.276 0.173 -0.067  0.276 0.614     0.00521          0.030 1100 1.002
+

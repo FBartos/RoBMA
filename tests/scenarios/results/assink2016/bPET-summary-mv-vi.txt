@@ -1,0 +1,14 @@
+
+Bayesian Multivariate Random-Effects PET Model (k = 100)
+
+Estimates
+                       Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu                    0.069 0.149 -0.225 0.069 0.360     0.00642          0.043  544 1.004
+tau_total             0.479 0.063  0.371 0.473 0.616     0.00161          0.025 1564 1.001
+tau2_prop(esid_study) 0.456 0.114  0.246 0.453 0.684     0.00263          0.023 1883 1.000
+tau2_prop(study)      0.544 0.114  0.316 0.547 0.754     0.00263          0.023 1883 1.000
+
+Publication Bias
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+PET 1.690 0.545 0.595 1.696 2.759     0.02286          0.042 571 1.003
+

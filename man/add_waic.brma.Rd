@@ -31,6 +31,17 @@ observations.
 In most cases, LOO-PSIS (via \code{\link{add_loo}}) is preferred over WAIC
 because it provides better estimates and includes diagnostics (Pareto k
 values) that indicate when the approximation may be unreliable.
+
+For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
+estimate-unit WAIC uses the same integrated conditional log-likelihood matrix
+as estimate-unit LOO, \eqn{p(y_i \mid y_{-i}, \theta)}. Estimate deletion
+retains the fitted grouping and dependency structure.
+
+For \code{brma.mv()} models with known random-effect group covariance
+\code{R}, the known \code{R} matrix and fitted random-effect covariance enter
+through BayesTools' metadata-defined marginal \eqn{ZGZ'} covariance. The same
+four-field comparison policy applies across sampled, marginalized, and mixed
+local-effect representations.
 }
 \seealso{
 \code{\link{waic.brma}}, \code{\link{add_loo}}, \code{\link[loo]{waic}}

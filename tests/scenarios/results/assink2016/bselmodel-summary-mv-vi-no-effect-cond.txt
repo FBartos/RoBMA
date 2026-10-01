@@ -1,0 +1,25 @@
+
+Bayesian Multivariate Random-Effects Selection Model (k = 100)
+Random effects (from random): condition. Normalized separately at each retained context; its original population mixing law is preserved.
+Sampling context (from V): condition. Context absent; condition and integrate coincide.
+Random sources: study (contextual variation).
+Conditioned contexts remain unknown and estimated; their posteriors can update with the data.
+Independent estimate-level and residual variation are integrated before normalization.
+Selection weights: Product of estimate weights.
+Publication groups: requested 'study'; resolved 17 groups from explicit.
+Sampling structure: independent sampling errors; input matrix; policy version 1; 0 contextual factors.
+
+Location
+    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+mu 0.333 0.110 0.123 0.330 0.557     0.00361          0.033 932 1.002
+
+Random
+    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+sd 0.429 0.084 0.293 0.420 0.620     0.00170          0.020 2460 1.001
+
+Publication Bias
+                Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA    NA    NA
+omega[0.025,1] 0.245 0.109 0.096 0.223 0.516     0.00062          0.006 31213 1.000
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

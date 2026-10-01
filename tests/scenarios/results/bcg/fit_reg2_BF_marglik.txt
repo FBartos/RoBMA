@@ -1,0 +1,4 @@
+             bf       log  
+BF_minus0    44.2407  FALSE
+BF_plus0     2.272888 FALSE
+BF_minusplus 19.46454 FALSE

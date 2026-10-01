@@ -24,8 +24,8 @@
 
 #' @title Summary of Heterogeneity
 #'
-#' @description Computes the absolute heterogeneity (tau, tau^2) and
-#' relative measures of heterogeneity (I^2, H^2) for a fitted model.
+#' @description Computes method-specific absolute and relative heterogeneity
+#' summaries for a fitted model.
 #'
 #' @param object a fitted model object
 #' @param ... additional arguments passed to methods
@@ -52,6 +52,10 @@ summary_heterogeneity <- function(object, ...) {
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
+#' @param component heterogeneity component to return for \code{brma.mv()}
+#' models. Defaults to \code{"all"}. Use \code{"total"} for the
+#' variance-additive total heterogeneity. Random-formula allocation nodes can
+#' be selected by their displayed name, such as \code{"study/esid"}.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
@@ -85,10 +89,53 @@ summary_heterogeneity <- function(object, ...) {
 #' \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 #' the partitioned I^2 follows the approach described in the metafor documentation.
 #'
+#' For \code{brma.mv()} models, the method reports \code{tau} and \code{tau2}
+#' for each selected random-effect component. A genuine variance-additive
+#' aggregate is reported as \code{tau_total} and \code{tau2_total}; a
+#' mean-variance allocation scale is reported as \code{tau_common} and
+#' \code{tau2_common}. These RoBMA I/O names map to BayesTools' general
+#' random-effect names without changing the fitted quantities. Formula-random
+#' summaries are present only when a
+#' \code{random} formula is declared.
+#' Public random-effect correlations (`rho`) are included in their component's
+#' table,
+#' including homogeneous structures such as \code{ar()}, \code{cs()}, and
+#' \code{car()}. A variance-additive total across multiple components has no
+#' single correlation parameter and reports only its total SD and variance.
+#' When a known group covariance \eqn{R} is supplied, \code{tau} is the fitted
+#' base multiplier of that covariance kernel. It need not equal every row's
+#' marginal standard deviation when \eqn{\mathrm{diag}(R)} is not one.
+#' Row-specific marginal standard deviations remain available from
+#' \code{predict(type = "terms.scale")} and in covariance-based prediction and
+#' diagnostics.
+#' Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
+#' known-V covariance structures. For \code{component = "total"}, independent
+#' component variances are summed before reporting \code{tau2_total};
+#' \code{tau_total} is the square root of this variance draw.
+#' When a random-formula model uses a shared total-SD plus variance-allocation
+#' node, \code{component = "all"} also includes an allocation-node table with
+#' the appropriate aggregate SD and variance plus
+#' \code{tau2_prop(<block>)} rows. For gated allocations, the aggregate is the
+#' realized model-averaged total and includes the all-off zero branch;
+#' proportions are realized shares conditional on positive total variance.
+#' For nested formulas
+#' such as \code{random = ~ 1 | study / esid}, this table is displayed under
+#' the user-facing path \code{"study/esid"}.
+#' For heterogeneous structured random effects, such as
+#' \code{random = ~ har(time | study)}, the allocation table reports
+#' the exhaustive semantic allocation family: aggregate SD and variance,
+#' level-specific component SDs and variances, correlations, SD multipliers, and
+#' variance multipliers. A redundant block owner is omitted for a bare formula or
+#' unnamed one-entry list and retained for explicitly named one-entry lists and
+#' multiple components.
+#'
 #' @return A list of class \code{summary_heterogeneity.brma} containing:
 #' \itemize{
 #'   \item \code{estimates}: A \code{BayesTools_table} with heterogeneity statistics
+#'   \item \code{component}: The public heterogeneity-component name
 #' }
+#' For decomposed \code{brma.mv()} models with multiple selected components,
+#' a named list of such summary objects is returned.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -111,10 +158,23 @@ summary_heterogeneity <- function(object, ...) {
 #'
 #' @seealso [pooled_heterogeneity()], [summary.brma()]
 #' @export
-summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
+summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
+                                       component = "all", ...) {
 
   # input validation
   BayesTools::check_real(probs, "probs", allow_NULL = TRUE, check_length = 0)
+  if (inherits(object, "brma.mv")) {
+    return(
+      .summary_heterogeneity_brma_mv(
+        object    = object,
+        probs     = probs,
+        component = component,
+        ...
+      )
+    )
+  }
+
+  .check_univariate_heterogeneity_component(component)
 
   # extract model characteristics
   is_multilevel <- .is_multilevel(object)
@@ -145,13 +205,15 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
 
   samples_list <- .summary_heterogeneity_samples(
     tau_within_samples  = tau_result[["tau_within"]],
     tau_between_samples = tau_result[["tau_between"]],
-    rho_samples         = if (is_multilevel) posterior_samples[, "rho"] else NULL,
+    rho_samples         = if (is_multilevel) tau_result[["rho"]] else NULL,
     v_tilde             = v_tilde,
     is_multilevel       = is_multilevel
   )
@@ -166,7 +228,8 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
 
   # create output object
   output <- list(
-    estimates = estimates
+    estimates = estimates,
+    component = "location"
   )
 
   class(output) <- "summary_heterogeneity.brma"
@@ -201,12 +264,6 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
   if (!is.numeric(v_tilde) || length(v_tilde) != 1 || !is.finite(v_tilde) || v_tilde <= 0) {
     stop("'v_tilde' must be a positive finite number.", call. = FALSE)
   }
-  if (is_multilevel && !is.null(rho_samples) &&
-      (!is.numeric(rho_samples) || length(rho_samples) != nrow(tau_within_samples))) {
-    stop("'rho_samples' must be a numeric vector matching posterior sample rows.",
-         call. = FALSE)
-  }
-
   sigma2_within_matrix  <- tau_within_samples^2
   sigma2_between_matrix <- tau_between_samples^2
   sigma2_total_matrix   <- sigma2_within_matrix + sigma2_between_matrix
@@ -225,9 +282,16 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975), ...) {
     I2_within  <- rowMeans(100 * sigma2_within_matrix / denominator_matrix)
     I2_between <- rowMeans(100 * sigma2_between_matrix / denominator_matrix)
     if (is.null(rho_samples)) {
-      rho_samples <- ifelse(sigma2_total > 0, sigma2_between / sigma2_total, 0)
+      rho_samples <- rep(NA_real_, length(sigma2_total))
+      identified  <- sigma2_total > 0
+      rho_samples[identified] <- sigma2_between[identified] /
+        sigma2_total[identified]
     } else {
-      rho_samples <- pmin(pmax(rho_samples, 0), 1)
+      rho_samples <- .resolve_heterogeneity_allocation(
+        rho       = rho_samples,
+        n_samples = nrow(tau_within_samples),
+        context   = "Heterogeneity summary"
+      )
     }
 
     return(list(
@@ -275,4 +339,90 @@ print.summary_heterogeneity.brma <- function(x, ...) {
   cat("\n")
 
   return(invisible(x))
+}
+
+
+#' @rdname summary_heterogeneity.brma
+#' @param x a \code{summary_heterogeneity.brma_list} object
+#' @export
+print.summary_heterogeneity.brma_list <- function(x, ...) {
+
+  cat("\n")
+  for (i in seq_along(x)) {
+    print(x[[i]][["estimates"]])
+    cat("\n")
+  }
+
+  return(invisible(x))
+}
+
+
+#' @title Convert Heterogeneity Summaries to Data Frames
+#'
+#' @description Converts heterogeneity summaries to plain long data frames with
+#' leading \code{component} and \code{parameter} columns. A multi-component
+#' result can instead be returned as a named list with
+#' \code{format = "list"}.
+#'
+#' @param x a \code{summary_heterogeneity.brma} or
+#' \code{summary_heterogeneity.brma_list} object.
+#' @param row.names \code{NULL} or a character vector giving the row names for
+#' the result. Custom row names are unsupported when \code{format = "list"}.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param format for multi-component results, whether to return one
+#' \code{"long"} data frame or a named \code{"list"} of data frames.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame}, or a named list of data frames when
+#' \code{format = "list"}.
+#'
+#' @export
+as.data.frame.summary_heterogeneity.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  component <- x[["component"]]
+  if (!is.character(component) || length(component) != 1L ||
+      is.na(component) || !nzchar(component)) {
+    component <- "location"
+  }
+  output <- .output_table_as_long_data_frame(
+    table            = x[["estimates"]],
+    component        = component,
+    row.names        = row.names,
+    optional         = optional,
+    stringsAsFactors = stringsAsFactors
+  )
+
+  return(output)
+}
+
+
+#' @rdname as.data.frame.summary_heterogeneity.brma
+#' @export
+as.data.frame.summary_heterogeneity.brma_list <- function(
+    x, row.names = NULL, optional = FALSE, format = c("long", "list"),
+    stringsAsFactors = FALSE, ...) {
+
+  format <- match.arg(format)
+  tables <- lapply(names(x), function(component) {
+    value <- x[[component]]
+    value[["component"]] <- component
+    as.data.frame(value, stringsAsFactors = stringsAsFactors)
+  })
+  names(tables) <- names(x)
+  if (identical(format, "list")) {
+    if (!is.null(row.names)) {
+      stop("'row.names' is unsupported when format = 'list'.", call. = FALSE)
+    }
+    return(tables)
+  }
+
+  output <- .output_bind_long_data_frames(
+    tables    = unname(tables),
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
 }
