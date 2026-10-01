@@ -264,7 +264,7 @@ testthat::test_that("Bem BMA models", {
     lines(fit_RoBMA, "mu", col = "blue", conditional = TRUE)
     # fails on ESS
     # lines(fit_RoBMA, "mu", density_method = "qCMDE", lty = 2, col = "blue", density_control = list(samples = Inf), conditional = TRUE)
-    lines(fit_RoBMA_con, "mu", density_method = "qCMDE", lty = 3, col = "blue", density_control = list(samples = 2000))
+    lines(fit_RoBMA_con, "mu", density_method = "qCMDE", lty = 3, col = "blue", density_control = list(samples = 3000))
   })
 
   ### bias specific plots ----
