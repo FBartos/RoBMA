@@ -3,18 +3,18 @@ Bayesian Multilevel Mixed-Effect Selection Model (k = 100, clusters = 17)
 
 Common Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau 0.519 0.076 0.393 0.511 0.689     0.00247          0.033  936 1.002
-rho 0.674 0.101 0.460 0.682 0.849     0.00296          0.029 1181 1.003
+tau 0.520 0.077 0.398 0.511 0.702     0.00257          0.034  927 1.014
+rho 0.671 0.100 0.463 0.676 0.848     0.00293          0.029 1161 1.004
 
 Meta-Regression
                    Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-intercept        -0.097 0.182 -0.477 -0.094 0.257     0.01182          0.065 233 1.034
-deltype[general]  0.495 0.155  0.192  0.495 0.793     0.00832          0.054 357 1.020
-deltype[overt]    0.265 0.169 -0.069  0.263 0.595     0.00642          0.038 721 1.011
+intercept        -0.071 0.189 -0.456 -0.061 0.274     0.01258          0.066 235 1.015
+deltype[general]  0.473 0.161  0.163  0.467 0.799     0.00873          0.054 345 1.008
+deltype[overt]    0.247 0.174 -0.091  0.246 0.587     0.00679          0.039 655 1.003
 
 Publication Bias
                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,1] 0.585 0.178 0.278 0.572 0.949     0.00279          0.016 4086 1.001
+omega[0.025,1] 0.581 0.179 0.274 0.567 0.951     0.00280          0.016 4061 1.001
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 

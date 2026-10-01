@@ -1,2 +1,2 @@
             fit_brma       fit_brma_study fit_brma_observation 
-               0.769                0.000                0.231 
+                0.77                 0.00                 0.23 

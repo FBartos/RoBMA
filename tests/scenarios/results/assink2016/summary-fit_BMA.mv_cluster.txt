@@ -3,12 +3,12 @@ Bayesian Model-Averaged Multilevel Random-Effects Model (k = 100, clusters = 17)
 
 Component Inclusion
               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect              0.500       0.961       24.554               34.600
+Effect              0.500       0.976       40.551               63.685
 Heterogeneity       0.500       1.000   >14999.000                   NA
 
 Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-mu  0.398 0.142 0.000 0.410 0.645     0.00643          0.045  519 1.012
-tau 0.549 0.077 0.425 0.541 0.728     0.00257          0.033  955 1.007
-rho 0.611 0.108 0.390 0.615 0.804     0.00296          0.027 1326 1.004
+mu  0.411 0.134 0.070 0.419 0.656     0.00537          0.040  734 1.015
+tau 0.545 0.073 0.424 0.537 0.712     0.00235          0.032 1102 1.006
+rho 0.607 0.104 0.395 0.612 0.797     0.00270          0.026 1493 1.001
 

@@ -3,17 +3,17 @@ Bayesian Multivariate Mixed-Effect PET Model (k = 100)
 
 Common Estimates
                        Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-tau_total             0.455 0.068 0.344 0.447 0.608     0.00196          0.029 1236 1.002
-tau2_prop(esid_study) 0.381 0.116 0.177 0.373 0.624     0.00303          0.026 1494 1.003
-tau2_prop(study)      0.619 0.116 0.376 0.627 0.823     0.00303          0.026 1494 1.003
+tau_total             0.455 0.069 0.341 0.448 0.609     0.00205          0.030 1134 1.003
+tau2_prop(esid_study) 0.379 0.114 0.176 0.374 0.617     0.00283          0.025 1679 1.002
+tau2_prop(study)      0.621 0.114 0.383 0.626 0.824     0.00283          0.025 1679 1.002
 
 Meta-Regression
-                   Mean    SD  0.025    0.5  0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-intercept        -0.413 0.202 -0.788 -0.419 -0.014     0.01213          0.060 281 1.021
-deltype[general]  0.511 0.156  0.198  0.515  0.804     0.00734          0.047 478 1.013
-deltype[overt]    0.284 0.168 -0.049  0.285  0.603     0.00576          0.034 890 1.007
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept        -0.391 0.210 -0.801 -0.393 0.034     0.01357          0.064 258 1.014
+deltype[general]  0.511 0.154  0.214  0.511 0.813     0.00699          0.045 488 1.003
+deltype[overt]    0.286 0.170 -0.051  0.288 0.619     0.00568          0.033 908 1.002
 
 Publication Bias
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-PET 1.782 0.522 0.759 1.781 2.805     0.02287          0.044 527 1.004
+PET 1.692 0.547 0.598 1.706 2.750     0.02466          0.045 495 1.005
 

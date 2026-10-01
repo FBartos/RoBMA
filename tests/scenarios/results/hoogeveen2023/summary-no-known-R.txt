@@ -3,6 +3,6 @@ Bayesian Multivariate Random-Effects Model (k = 98)
 
 Estimates
      Mean    SD 0.025   0.5 0.975
-mu  0.120 0.012 0.098 0.120 0.143
+mu  0.120 0.011 0.098 0.120 0.142
 tau 0.040 0.003 0.035 0.040 0.046
 

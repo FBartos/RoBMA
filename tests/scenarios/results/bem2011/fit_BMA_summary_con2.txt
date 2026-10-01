@@ -3,16 +3,17 @@ Bayesian Model-Averaged Random-Effects Model (k = 9)
 
 Component Inclusion
               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-Effect              0.500       1.000   >14999.000                   NA
-Heterogeneity       0.500       0.141        0.164                3.391
+Effect              0.500       1.000     3749.000               95.796
+Heterogeneity       0.500       0.147        0.173                3.521
+[0;31mBayes factor MC error for mu is based on only 4 posterior samples from the less frequent model.[0m
 
 Estimates
      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-mu  0.196 0.032 0.133 0.196 0.259     0.00026          0.008 15000 1.000
-tau 0.007 0.021 0.000 0.000 0.078     0.00021          0.010 10445 1.000
+mu  0.196 0.032 0.133 0.196 0.259     0.00027          0.008 14718 1.000
+tau 0.007 0.023 0.000 0.000 0.079     0.00024          0.011  8795 1.001
 
 Conditional Estimates
      Mean    SD 0.025   0.5 0.975
 mu  0.196 0.032 0.133 0.196 0.259
-tau 0.046 0.038 0.002 0.038 0.140
+tau 0.047 0.040 0.002 0.038 0.145
 

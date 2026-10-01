@@ -3,6 +3,6 @@ Bayesian Multivariate Random-Effects Model (k = 186)
 
 Estimates
             Mean    SD 0.025   0.5 0.975
-mu         0.177 0.035 0.110 0.176 0.247
-study: tau 0.188 0.034 0.132 0.185 0.264
+mu         0.176 0.034 0.111 0.175 0.249
+study: tau 0.188 0.033 0.132 0.185 0.260
 

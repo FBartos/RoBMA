@@ -1,15 +1,15 @@
 
 Heterogeneity Estimates (study):
                                              Mean Median  0.025 0.975
-tau_common                                  0.722  0.701  0.421 1.136
-tau2_common                                 0.555  0.492  0.177 1.290
-tau(group[sensitivity])                     0.685  0.663  0.373 1.121
-tau(group[specificity])                     0.731  0.699  0.295 1.350
-tau2(group[sensitivity])                    0.505  0.440  0.139 1.257
-tau2(group[specificity])                    0.606  0.489  0.087 1.823
-rho(group[sensitivity],group[specificity]) -0.324 -0.359 -0.923 0.478
-tau_mult(group[sensitivity])                0.964  0.977  0.561 1.303
-tau_mult(group[specificity])                0.997  1.023  0.549 1.298
-tau2_mult(group[sensitivity])               0.968  0.954  0.315 1.698
-tau2_mult(group[specificity])               1.032  1.046  0.302 1.685
+tau_common                                  0.724  0.704  0.417 1.157
+tau2_common                                 0.560  0.496  0.174 1.339
+tau(group[sensitivity])                     0.691  0.670  0.376 1.139
+tau(group[specificity])                     0.728  0.697  0.290 1.354
+tau2(group[sensitivity])                    0.516  0.449  0.141 1.298
+tau2(group[specificity])                    0.604  0.485  0.084 1.834
+rho(group[sensitivity],group[specificity]) -0.341 -0.383 -0.923 0.448
+tau_mult(group[sensitivity])                0.970  0.984  0.566 1.305
+tau_mult(group[specificity])                0.991  1.016  0.544 1.296
+tau2_mult(group[sensitivity])               0.978  0.968  0.321 1.704
+tau2_mult(group[specificity])               1.022  1.032  0.296 1.679
 

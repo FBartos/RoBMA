@@ -1,2 +1,2 @@
- Alternative:  Null:          BF error%(BF)
-      mu != 0 mu = 0 1.20065e+23      0.063
+ Alternative:  Null:           BF error%(BF)
+      mu != 0 mu = 0 1.200319e+23      0.039

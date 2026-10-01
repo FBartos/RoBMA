@@ -6,7 +6,7 @@ Individual Models
  Spike(0)             Included           Excluded       0.125       0.000        0.000                   NA
  Normal(0, 0.71)      Included           Excluded       0.125       0.000        0.000                   NA
  Spike(0)             Excluded           Included       0.125       0.000        0.000                   NA
- Normal(0, 0.71)      Excluded           Included       0.125       0.072        0.540               15.920
- Spike(0)             Included           Included       0.125       0.011        0.079               35.068
- Normal(0, 0.71)      Included           Included       0.125       0.917       77.609               14.402
+ Normal(0, 0.71)      Excluded           Included       0.125       0.066        0.493               13.553
+ Spike(0)             Included           Included       0.125       0.017        0.118               27.267
+ Normal(0, 0.71)      Included           Included       0.125       0.918       78.089               11.547
 
