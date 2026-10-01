@@ -190,6 +190,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     intercept-only models keep it.
 
 ### Features
+- re-exports BayesTools' `prior_ordered()` next to `prior_factor()`, so
+  ordered-factor moderators can be given a prior directly
+  (`prior_mods = list(x_ord = prior_ordered(prior("normal", list(0, 1))))`).
 - multivariate and multilevel models with known sampling covariance:
   - adds `brma.mv()`, normal-likelihood meta-analysis with a known sampling
     covariance matrix `V` (latent, whitened, and block-MVN backends through

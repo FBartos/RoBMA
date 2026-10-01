@@ -119,6 +119,7 @@ reference:
   - prior
   - prior_none
   - prior_factor
+  - prior_ordered
   - prior_informed
   - prior_PET
   - prior_PEESE

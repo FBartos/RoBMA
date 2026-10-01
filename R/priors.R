@@ -55,6 +55,36 @@ prior_none <- BayesTools::prior_none
 #' @export
 prior_factor <- BayesTools::prior_factor
 
+#' @title Ordered Factor Prior
+#'
+#' @description Create priors on ordered factor effects by separating a scalar
+#' total effect from its allocation across ordered-level increments.
+#'
+#' @inheritParams prior
+#' @param total scalar prior for the total effect from the first to the last
+#' ordered level.
+#' @param allocation allocation prior or fixed split. \code{NULL} creates a
+#' late-bound flat Dirichlet allocation with dimension determined by the formula
+#' term. Numeric vectors specify fixed splits. Dirichlet priors specify random
+#' allocations. For terms with multiple ordered factors, use a named list.
+#' @param contrast ordered contrast. \code{"cumulative"} uses
+#' \code{nlevels(f) - 1} increments and sets the first level effect to zero.
+#' \code{"cumulative_levels"} uses \code{nlevels(f)} increments and gives the
+#' first level a non-zero allocation share.
+#' @param id optional allocation-sharing id. For terms with multiple ordered
+#' factors, use a named character vector.
+#'
+#' @details This is RoBMA's re-export of \code{BayesTools::prior_ordered()}.
+#' Spike-and-slab or mixture behavior belongs on \code{total}, e.g.,
+#' \code{prior_ordered(prior_spike_and_slab(...))}.
+#'
+#' @return An object inheriting from \code{prior}.
+#'
+#' @seealso \code{\link{prior_factor}}
+#'
+#' @export
+prior_ordered <- BayesTools::prior_ordered
+
 #' @title PET Prior
 #'
 #' @description Create PET publication-bias regression priors.
