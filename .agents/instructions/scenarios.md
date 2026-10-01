@@ -160,7 +160,9 @@ path so an early scenario failure cannot bypass cached candidates.
 Non-interactive runs never prompt or accept changes.
 
 Scenario runs report committed text and SVG artifacts that are no longer
-referenced by the scenario. Never delete an orphan automatically.
+referenced by the scenario. Never delete an orphan automatically. The runners
+restore locked snapshots that testthat removes when a block stops before
+reaching its figure and name them in a message; candidates are not protected.
 
 ## Performance Timings
 

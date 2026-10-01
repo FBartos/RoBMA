@@ -2225,3 +2225,252 @@ test_that("selected scenario files share one reporter lifecycle", {
   expect_identical(finalized, c("alpha:TRUE", "beta:TRUE"))
   expect_identical(orphans, c("test-alpha.R", "test-beta.R"))
 })
+
+
+.scenario_test_bytes <- function(path) {
+
+  return(readBin(path, what = "raw", n = file.size(path)))
+}
+
+
+# Run the scenario files as the plural runner does, with testthat's cleanup of
+# unannounced snapshots enabled (it is skipped on CI) and without the timing
+# and orphan bookkeeping, which needs real scenarios.
+.scenario_test_run_files <- function(paths) {
+
+  helper_env   <- environment(.scenario_test_files)
+  old_finalize <- get(
+    ".scenario_finalize_timing", envir = helper_env, inherits = FALSE
+  )
+  old_orphans  <- get(
+    ".scenario_report_orphans", envir = helper_env, inherits = FALSE
+  )
+  old_ci       <- Sys.getenv("CI", unset = NA_character_)
+  on.exit({
+    assign(".scenario_finalize_timing", old_finalize, envir = helper_env)
+    assign(".scenario_report_orphans", old_orphans, envir = helper_env)
+    if (is.na(old_ci)) {
+      Sys.unsetenv("CI")
+    } else {
+      Sys.setenv(CI = old_ci)
+    }
+  }, add = TRUE)
+  assign(
+    ".scenario_finalize_timing",
+    function(scenario, allow_update) invisible(NULL),
+    envir = helper_env
+  )
+  assign(
+    ".scenario_report_orphans",
+    function(path) invisible(character()),
+    envir = helper_env
+  )
+  Sys.setenv(CI = "false")
+
+  result   <- NULL
+  messages <- testthat::capture_messages(capture.output(
+    result <- .scenario_test_files(
+      paths,
+      reporter        = "progress",
+      stop_on_failure = FALSE
+    )
+  ))
+  kept <- grep(
+    "^Locked scenario snapshots not reached in this run were kept:",
+    messages,
+    value = TRUE
+  )
+
+  return(list(
+    results = as.data.frame(result),
+    kept    = if (length(kept) == 0L) {
+      character()
+    } else {
+      sub("^- ", "", strsplit(sub("\n$", "", kept), "\n")[[1L]][-1L])
+    }
+  ))
+}
+
+
+test_that("locked snapshot guard restores only the files a run removed", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  snapshots <- file.path(root, "_snaps")
+  write_snapshot <- function(file, text) {
+
+    .scenario_write_lines(text, file.path(snapshots, file))
+  }
+  write_snapshot("alpha/kept.svg", "kept")
+  write_snapshot("alpha/rewritten.svg", "old")
+  write_snapshot("alpha/removed.svg", "removed")
+  write_snapshot("alpha/stale.new.svg", "candidate")
+  write_snapshot("beta/removed.svg", "removed too")
+  removed_bytes <- list(
+    alpha = .scenario_test_bytes(file.path(snapshots, "alpha", "removed.svg")),
+    beta  = .scenario_test_bytes(file.path(snapshots, "beta", "removed.svg"))
+  )
+
+  restore <- .scenario_keep_locked_snapshots(root)
+  # What testthat's cleanup does to files nothing announced, plus an accepted
+  # update of a reached figure.
+  unlink(file.path(snapshots, "alpha", "removed.svg"))
+  unlink(file.path(snapshots, "alpha", "stale.new.svg"))
+  unlink(file.path(snapshots, "beta"), recursive = TRUE)
+  write_snapshot("alpha/rewritten.svg", "new")
+
+  messages <- testthat::capture_messages(restored <- restore())
+
+  expect_identical(restored, c("alpha/removed.svg", "beta/removed.svg"))
+  expect_length(messages, 1L)
+  expect_identical(
+    strsplit(sub("\n$", "", messages), "\n")[[1L]],
+    c(
+      "Locked scenario snapshots not reached in this run were kept:",
+      "- alpha/removed.svg",
+      "- beta/removed.svg"
+    )
+  )
+  expect_identical(
+    .scenario_test_bytes(file.path(snapshots, "alpha", "removed.svg")),
+    removed_bytes[["alpha"]]
+  )
+  expect_identical(
+    .scenario_test_bytes(file.path(snapshots, "beta", "removed.svg")),
+    removed_bytes[["beta"]]
+  )
+  expect_false(file.exists(file.path(snapshots, "alpha", "stale.new.svg")))
+  expect_identical(
+    readLines(file.path(snapshots, "alpha", "rewritten.svg"), warn = FALSE),
+    "new"
+  )
+  expect_identical(
+    readLines(file.path(snapshots, "alpha", "kept.svg"), warn = FALSE),
+    "kept"
+  )
+
+  # The guard acts once, and a root without snapshots needs no restoring.
+  unlink(file.path(snapshots, "alpha", "kept.svg"))
+  expect_no_message(expect_identical(restore(), character()))
+  expect_false(file.exists(file.path(snapshots, "alpha", "kept.svg")))
+  expect_no_message(expect_identical(
+    .scenario_keep_locked_snapshots(file.path(root, "empty"))(),
+    character()
+  ))
+})
+
+
+test_that("scenario runs keep locked snapshots after a block stops early", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  .scenario_write_lines(
+    c(
+      "testthat::test_that(\"alpha\", {",
+      "  stop(\"stops before its figure\")",
+      "})"
+    ),
+    file.path(root, "test-alpha.R")
+  )
+  .scenario_write_lines(
+    "testthat::test_that(\"beta\", testthat::succeed())",
+    file.path(root, "test-beta.R")
+  )
+  paths <- stats::setNames(
+    file.path(root, c("test-alpha.R", "test-beta.R")),
+    c("alpha", "beta")
+  )
+  # The orphan is no longer referenced by its scenario; "retired" has no
+  # scenario file left. Neither is deleted by a run.
+  locked <- c(
+    "alpha/figure.svg", "alpha/orphan.svg", "beta/figure.svg",
+    "retired/figure.svg"
+  )
+  for (file in locked) {
+    .scenario_write_lines(
+      c("<svg>", file, as.character(runif(3))),
+      file.path(root, "_snaps", file)
+    )
+  }
+  expected <- lapply(
+    file.path(root, "_snaps", locked), .scenario_test_bytes
+  )
+
+  run <- .scenario_test_run_files(paths)
+
+  expect_true(any(run[["results"]][["error"]]))
+  expect_setequal(run[["kept"]], locked)
+  for (i in seq_along(locked)) {
+    path <- file.path(root, "_snaps", locked[[i]])
+    expect_true(file.exists(path), info = locked[[i]])
+    expect_identical(.scenario_test_bytes(path), expected[[i]])
+  }
+})
+
+
+test_that("scenario runs keep locked figures and still write candidates", {
+
+  skip_if_not_installed("vdiffr")
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  scenario_line <- function(name) {
+
+    paste0("scenario_start(\"", name, "\", root = ", deparse(root), ")")
+  }
+  .scenario_write_lines(
+    c(
+      scenario_line("alpha"),
+      "testthat::test_that(\"alpha\", {",
+      "  stop(\"stops before its figure\")",
+      "  scenario_plot(\"figure\", graphics::plot(1:3, 1:3))",
+      "})"
+    ),
+    file.path(root, "test-alpha.R")
+  )
+  .scenario_write_lines(
+    c(
+      scenario_line("beta"),
+      "testthat::test_that(\"beta\", {",
+      "  scenario_plot(\"figure\", graphics::plot(1:4, 1:4))",
+      "})"
+    ),
+    file.path(root, "test-beta.R")
+  )
+  paths <- stats::setNames(
+    file.path(root, c("test-alpha.R", "test-beta.R")),
+    c("alpha", "beta")
+  )
+  locked <- c("alpha/figure.svg", "alpha/orphan.svg", "beta/figure.svg")
+  for (file in locked) {
+    dir.create(
+      dirname(file.path(root, "_snaps", file)),
+      recursive = TRUE, showWarnings = FALSE
+    )
+    .write_canonical_svg(
+      function() graphics::plot(1:3, 1:3),
+      file.path(root, "_snaps", file),
+      "figure"
+    )
+  }
+  expected <- lapply(
+    file.path(root, "_snaps", locked), .scenario_test_bytes
+  )
+
+  run <- .scenario_test_run_files(paths)
+
+  # alpha stopped before its figure; beta reached a changed one.
+  expect_identical(
+    sort(unique(run[["results"]][["file"]][run[["results"]][["error"]]])),
+    "test-alpha.R"
+  )
+  expect_true(any(run[["results"]][["failed"]] > 0L))
+  expect_setequal(run[["kept"]], c("alpha/figure.svg", "alpha/orphan.svg"))
+  for (i in seq_along(locked)) {
+    path <- file.path(root, "_snaps", locked[[i]])
+    expect_true(file.exists(path), info = locked[[i]])
+    expect_identical(.scenario_test_bytes(path), expected[[i]])
+  }
+  candidate <- file.path(root, "_snaps", "beta", "figure.new.svg")
+  expect_true(file.exists(candidate))
+  expect_false(identical(.scenario_test_bytes(candidate), expected[[3L]]))
+})

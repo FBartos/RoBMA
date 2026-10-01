@@ -170,4 +170,6 @@ such as `par(mar = ...)` do not leak into subsequent plots. Base graphics
 overlay mode is reset before and after each drawn block, preventing one scenario
 figure from being drawn over the previous figure. Scenario runs report locked
 text or SVG artifacts that are no longer referenced by the scenario; they never
-delete them automatically.
+delete them automatically. testthat removes snapshots that a run did not reach,
+for example the figures after a block that stopped early; the runners restore
+those locked snapshots and name them in a message.

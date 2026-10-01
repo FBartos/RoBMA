@@ -91,25 +91,29 @@ source(file.path(project_root, "tools", "optimized-dll.R"))
 ensure_optimized_dll(project_root, quiet = TRUE)
 pkgload::load_all(quiet = TRUE, debug = FALSE)
 
-for (name in requested) {
-  path      <- scenario_files[match(name, scenario_names)]
-  completed <- FALSE
-  message("Running scenario '", name, "'.")
-  tryCatch(
-    {
-      result <- testthat::test_file(
-        path,
-        reporter        = "llm",
-        package         = "RoBMA",
-        load_package    = "none",
-        stop_on_failure = TRUE
-      )
-      completed <- TRUE
-      result
-    },
-    finally = {
-      .scenario_finalize_timing(name, allow_update = completed)
-      .scenario_report_orphans(path)
-    }
-  )
-}
+restore_snapshots <- .scenario_keep_locked_snapshots(scenario_dir)
+tryCatch(
+  for (name in requested) {
+    path      <- scenario_files[match(name, scenario_names)]
+    completed <- FALSE
+    message("Running scenario '", name, "'.")
+    tryCatch(
+      {
+        result <- testthat::test_file(
+          path,
+          reporter        = "llm",
+          package         = "RoBMA",
+          load_package    = "none",
+          stop_on_failure = TRUE
+        )
+        completed <- TRUE
+        result
+      },
+      finally = {
+        .scenario_finalize_timing(name, allow_update = completed)
+        .scenario_report_orphans(path)
+      }
+    )
+  },
+  finally = restore_snapshots()
+)

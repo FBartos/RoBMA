@@ -2484,6 +2484,57 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
 }
 
 
+# Once every test file of the directory has run, testthat deletes each
+# `_snaps/` file that no test announced, and vdiffr announces a figure only
+# when its block reaches the comparison. A block that stops early (stale
+# cached fits, a skip) would therefore delete the locked figures after it.
+# Record the locked snapshots before a run; the returned function restores the
+# recorded files testthat removed and names them. Files the run rewrote
+# (accepted updates) stay as written, candidates are not protected, and
+# deliberate removal stays manual.
+.scenario_keep_locked_snapshots <- function(root) {
+
+  snapshot_root <- file.path(root, "_snaps")
+  locked        <- list.files(snapshot_root, recursive = TRUE)
+  locked        <- locked[!grepl("[.]new[.][^./]+$", locked)]
+  backup_root   <- tempfile("robma-locked-snapshots-")
+  for (file in locked) {
+    .scenario_copy_file(
+      file.path(snapshot_root, file),
+      file.path(backup_root, file),
+      "snapshot backup"
+    )
+  }
+  restored <- FALSE
+
+  return(function() {
+
+    if (restored) {
+      return(invisible(character()))
+    }
+    restored <<- TRUE
+    on.exit(unlink(backup_root, recursive = TRUE), add = TRUE)
+
+    removed <- locked[!file.exists(file.path(snapshot_root, locked))]
+    for (file in removed) {
+      .scenario_copy_file(
+        file.path(backup_root, file),
+        file.path(snapshot_root, file),
+        "locked snapshot"
+      )
+    }
+    if (length(removed) > 0L) {
+      message(
+        "Locked scenario snapshots not reached in this run were kept:\n- ",
+        paste(removed, collapse = "\n- ")
+      )
+    }
+
+    return(invisible(removed))
+  })
+}
+
+
 .scenario_list_files <- function(root = .scenario_helpers_dir) {
 
   files <- list.files(
@@ -2575,6 +2626,7 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
     paste(gsub(".", "\\.", names(paths), fixed = TRUE), collapse = "|"),
     ")$"
   )
+  restore_snapshots <- .scenario_keep_locked_snapshots(root)
 
   return(tryCatch(
     testthat::test_dir(
@@ -2586,6 +2638,7 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
       stop_on_failure = stop_on_failure
     ),
     finally = {
+      restore_snapshots()
       if (exists("config", envir = .scenario_state, inherits = FALSE)) {
         scenario <- .scenario_config()[["name"]]
         pending  <- match(scenario, names(paths))
