@@ -199,6 +199,14 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   level; posterior plots draw each level in its own colour.
   Prior overlays use the corresponding level colours and dashed lines unless
   the user supplies prior styles.
+  The six `as_draws()` converters export fitted totals and normalized sampled
+  allocation shares by default, including shares on zero-total and
+  excluded-spike draws; `include_auxiliary = TRUE` also retains raw increments
+  and eligible total auxiliaries. Fixed totals appear for every slice and fixed
+  allocations add no share columns. Nested total indicators and inclusion
+  probabilities remain available; internal Gamma primitives and backend anchors
+  remain private. Allocation labels stay scalar in `as_draws_rvars()`, while
+  ordinary vector indices are preserved.
 - multivariate and multilevel models with known sampling covariance:
   - adds `brma.mv()`, normal-likelihood meta-analysis with a known sampling
     covariance matrix `V` (latent, whitened, and block-MVN backends through

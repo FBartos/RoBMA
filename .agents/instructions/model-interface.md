@@ -48,6 +48,21 @@ keyed by `coordinate_name`; `parameter_catalog()` exposes semantic quantities
 keyed by `canonical_name`. Resolve public selectors through the catalog and
 obtain draws through `parameter_draws()`.
 
+Ordered `as_draws()` exports consume `JAGS_ordered_parameter_spec()` source
+coordinates and sampled-parameter labels. Read only declared sampled or
+structural sources in one targeted materialization, separately from the public
+draw schema. Export fitted totals and Gamma-normalized sampled shares, including
+zero-total states; never recover shares from increments. Omit deterministic
+increments and nested total components by default, retaining declared event
+indicators and inclusion probabilities. Auxiliary exports retain raw increments
+without exposing unrelated internals. For rvars, map only declared allocation
+labels through reversible opaque scalar names; preserve ordinary vector indices.
+Entirely fixed numeric-point terms with no available sources reuse the public
+chain solely for row count. Guard that exception with declared point totals,
+no total event node and fixed allocations; never substitute for missing
+stochastic, discrete, mixture or expression sources. A named input-only row
+column may supply geometry when the public chain has zero coordinates.
+
 Internal LKJ primitives, compact scalar-correlation coordinates, allocation
 weights, and covariance-construction dependencies remain coordinate-only.
 Monitoring them does not make them public aliases or allow them through

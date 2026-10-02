@@ -72,6 +72,33 @@
 #' such as `tau_total_indicator`, records which mixture component allocated the
 #' total standard deviation and therefore takes one value per component,
 #' matching the order of that prior's components.
+#' Ordered predictor terms return their fitted totals and normalized sampled
+#' allocation shares by default, replacing their deterministic increment
+#' coordinates. Shares are normalized from the sampled Gamma primitives and
+#' remain defined when a total is zero or its inclusion event is off. Totals
+#' with point priors are exact constants for every fitted slice; fixed
+#' allocations do not create share columns. The labels come from the fitted
+#' BayesTools ordered specification, including reached factor levels and
+#' interaction slices. These quantities remain on the fitted predictor scale.
+#' Ordered-total mixture indicators and inclusion probabilities remain
+#' available, while nested slab and pseudo-prior coordinates are omitted.
+#' With \code{include_auxiliary = TRUE}, raw ordered increments and eligible
+#' total auxiliaries are also retained. Internal Gamma coordinates are never
+#' exported. \code{as_draws_rvars()} preserves allocation labels as scalar
+#' random variables and keeps ordinary vector and multi-slice total indices.
+#' If an ordered sampled parameter conflicts with an existing fitted column,
+#' conversion stops with classes \code{RoBMA_ordered_draws_conflict} and
+#' \code{RoBMA_ordered_draws_unavailable}, with the message
+#' \code{Ordered sampled parameter '<name>' conflicts with existing fitted draws. Refit the model with the current RoBMA/BayesTools build.}
+#' Missing required ordered sources stop with
+#' \code{RoBMA_ordered_draws_unavailable} and
+#' \code{BayesTools_ordered_coordinates_unavailable}; when no declared source
+#' is available, the message is
+#' \code{Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build.}
+#' Entirely fixed numeric-point terms need only the existing chain row count
+#' to materialize their declared totals.
+#' Both RoBMA ordered refit errors also inherit \code{RoBMA_refit_required}
+#' and \code{BayesTools_refit_required}.
 #' Structural point-prior coordinates are returned as exact constant columns,
 #' with chain timing taken from the fitted draw geometry. Private backend
 #' anchors are never exposed. Use `include_auxiliary = TRUE` to skip RoBMA
@@ -122,18 +149,123 @@ NULL
     requires = c("parameter_map", "draw_geometry")
   )
   mcmc_list <- BayesTools::JAGS_materialize_draws(x[["fit"]])
-  if (include_auxiliary) {
-    if (.is_random(x)) {
-      return(.brma_replace_random_coordinates(x, mcmc_list))
-    }
+  if (!include_auxiliary) {
+    mcmc_list <- .brma_filter_auxiliary_variables(x, mcmc_list)
+  }
+  if (.is_random(x)) {
+    mcmc_list <- .brma_replace_random_coordinates(x, mcmc_list)
+  }
+  return(.brma_replace_ordered_coordinates(x, mcmc_list, include_auxiliary))
+}
+
+
+# Fitted totals and sampled allocation shares are supplied by BayesTools. The
+# separate source read is restricted to declared, available ordered sources.
+.brma_replace_ordered_coordinates <- function(x, mcmc_list, include_auxiliary) {
+
+  specs <- BayesTools::JAGS_ordered_parameter_spec(x[["fit"]])
+  if (length(specs) == 0L) {
     return(mcmc_list)
   }
-
-  mcmc_list <- .brma_filter_auxiliary_variables(x, mcmc_list)
-  if (.is_random(x)) {
-    return(.brma_replace_random_coordinates(x, mcmc_list))
+  coordinates <- BayesTools::parameter_coordinates(x[["fit"]])
+  candidates <- unique(unlist(lapply(specs, function(spec) {
+    c(spec[["source_coordinates"]], spec[["total_auxiliary_coordinates"]])
+  }), use.names = FALSE))
+  available <- coordinates[["coordinate_name"]][
+    coordinates[["monitor_status"]] %in% c("sampled", "structural")
+  ]
+  source_coordinates <- intersect(candidates, available)
+  fixed_only <- all(vapply(specs, function(spec) {
+    prior <- spec[["total_prior"]]
+    location <- prior[["parameters"]][["location"]]
+    BayesTools::is.prior.point(prior) && is.numeric(location) &&
+      length(location) == 1L && is.finite(location) &&
+      is.null(spec[["total_node"]]) &&
+      all(vapply(spec[["allocations"]], function(allocation) {
+        identical(allocation[["spec"]][["type"]], "fixed")
+      }, logical(1)))
+  }, logical(1)))
+  empty_fixed_source <- length(source_coordinates) == 0L && fixed_only
+  if (length(source_coordinates) == 0L && !fixed_only) {
+    tryCatch(
+      .stop_refit_required(
+        "Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build."
+      ),
+      RoBMA_refit_required = function(error) {
+        class(error) <- c("RoBMA_ordered_draws_unavailable",
+          "BayesTools_ordered_coordinates_unavailable", "BayesTools_ordered_unavailable", class(error))
+        stop(error)
+      }
+    )
   }
-  return(mcmc_list)
+  sources <- if (empty_fixed_source) mcmc_list else {
+    BayesTools::JAGS_materialize_draws(
+      x[["fit"]], parameters = source_coordinates, include_internal = TRUE
+    )
+  }
+  if (length(sources) != length(mcmc_list)) {
+    stop("Ordered source draws disagree with the fitted chain count.", call. = FALSE)
+  }
+
+  omitted <- if (include_auxiliary) character() else unique(unlist(
+    lapply(specs, function(spec) {
+      components <- spec[["total_node"]][["spec"]][["components"]]
+      component_coordinates <- unlist(lapply(components, function(component) {
+        component[["coordinates"]]
+      }), use.names = FALSE)
+      c(spec[["coefficient_names"]], component_coordinates)
+    }), use.names = FALSE
+  ))
+  allocation_names <- character()
+  chains <- lapply(seq_along(mcmc_list), function(chain_i) {
+    chain  <- mcmc_list[[chain_i]]
+    source <- sources[[chain_i]]
+    if (nrow(chain) != nrow(source) ||
+        !identical(coda::mcpar(chain), coda::mcpar(source))) {
+      stop("Ordered source draws disagree with the fitted draw geometry.", call. = FALSE)
+    }
+    # Only declared numeric-point/fixed terms need no sources. The public
+    # chain supplies row count; for a zero-coordinate chain, an input-only
+    # named column avoids coda/BayesTools' empty-column coercion restriction.
+    source_draws <- if (empty_fixed_source && ncol(source) == 0L) {
+      matrix(0, nrow = nrow(source), ncol = 1L,
+        dimnames = list(NULL, "RoBMAorderedRowCount"))
+    } else source
+    resolved <- BayesTools::JAGS_ordered_parameter_spec(x[["fit"]], draws = source_draws)
+    values <- if (ncol(chain) == 0L) {
+      matrix(numeric(), nrow = nrow(chain), ncol = 0L)
+    } else as.matrix(chain)[, !colnames(chain) %in% omitted, drop = FALSE]
+    for (spec in resolved) {
+      sampled <- spec[["sampled_parameters"]]
+      additions <- sampled[["values"]]
+      if (nrow(additions) != nrow(values)) {
+        stop("Ordered sampled parameters disagree with the fitted row count.", call. = FALSE)
+      }
+      allocation_names <<- unique(c(allocation_names, sampled[["allocation_names"]]))
+      for (name in colnames(additions)) {
+        if (name %in% colnames(values)) {
+          if (!identical(as.numeric(values[, name]), as.numeric(additions[, name]))) {
+            tryCatch(
+              .stop_refit_required("Ordered sampled parameter '", name,
+                "' conflicts with existing fitted draws. Refit the model with the current RoBMA/BayesTools build."),
+              RoBMA_refit_required = function(error) {
+                class(error) <- c("RoBMA_ordered_draws_conflict",
+                  "RoBMA_ordered_draws_unavailable", class(error))
+                stop(error)
+              }
+            )
+          }
+        } else {
+          values <- cbind(values, additions[, name, drop = FALSE])
+        }
+      }
+    }
+    mcpar <- coda::mcpar(chain)
+    coda::mcmc(values, start = mcpar[[1L]], end = mcpar[[2L]], thin = mcpar[[3L]])
+  })
+  result <- coda::mcmc.list(chains)
+  attr(result, "ordered_allocation_names") <- allocation_names
+  return(result)
 }
 
 
@@ -543,5 +675,23 @@ as_draws_rvars.brma <- function(x, include_auxiliary = FALSE, ...) {
     include_auxiliary = include_auxiliary
   )
 
-  return(posterior::as_draws_rvars(mcmc.list, ...))
+  allocation_names <- attr(mcmc.list, "ordered_allocation_names", exact = TRUE)
+  if (length(allocation_names) == 0L) {
+    return(posterior::as_draws_rvars(mcmc.list, ...))
+  }
+  variables <- colnames(mcmc.list[[1L]])
+  opaque <- character(length(allocation_names))
+  for (i in seq_along(opaque)) {
+    candidate <- paste0("RoBMAorderedAllocation", i)
+    while (any(startsWith(variables, candidate)) || candidate %in% opaque) {
+      candidate <- paste0(candidate, "x")
+    }
+    opaque[[i]] <- candidate
+  }
+  for (chain_i in seq_along(mcmc.list)) {
+    colnames(mcmc.list[[chain_i]])[match(allocation_names, variables)] <- opaque
+  }
+  draws <- posterior::as_draws_rvars(mcmc.list, ...)
+  replacements <- stats::setNames(as.list(opaque), allocation_names)
+  return(do.call(posterior::rename_variables, c(list(draws), replacements)))
 }

@@ -24,6 +24,7 @@ test_that("brma draw conversion delegates structural geometry to BayesTools", {
       checked <<- requires
       invisible(TRUE)
     },
+    JAGS_ordered_parameter_spec = function(...) list(),
     JAGS_materialize_draws = function(fit, parameters = NULL,
                                       include_internal = FALSE) {
       include_internal <<- include_internal
@@ -59,6 +60,7 @@ test_that("zero-coordinate fits retain draws and chain timing", {
   object <- structure(list(fit = fit), class = "brma")
   testthat::local_mocked_bindings(
     JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    JAGS_ordered_parameter_spec = function(...) list(),
     JAGS_materialize_draws = function(...) materialized,
     .package = "BayesTools"
   )
@@ -71,4 +73,57 @@ test_that("zero-coordinate fits retain draws and chain timing", {
   expect_identical(posterior::ndraws(draws), 4L)
   expect_identical(posterior::nchains(draws), 1L)
   expect_length(posterior::variables(draws), 0L)
+})
+
+
+test_that("ordered extraction has one restricted source read and preserves chain geometry", {
+
+  values <- matrix(c(1, 99, 2, 98, 3, 97), 3, byrow = TRUE,
+    dimnames = list(NULL, c("total", "increment")))
+  main <- coda::mcmc.list(coda::mcmc(values, start = 7, thin = 3))
+  source <- coda::mcmc.list(coda::mcmc(cbind(total = 1:3, gamma = c(.2, .3, .4)),
+    start = 7, thin = 3))
+  fit <- structure(list(sentinel = TRUE), class = "BayesTools_fit")
+  attr(fit, "prior_list") <- list()
+  object <- structure(list(fit = fit), class = "brma")
+  calls <- list()
+  conflict <- FALSE
+  testthat::local_mocked_bindings(
+    JAGS_validate_fit_contract = function(...) invisible(TRUE),
+    parameter_coordinates = function(...) data.frame(
+      coordinate_name = c("total", "gamma", "optional"),
+      monitor_status = c("sampled", "sampled", "unmonitored")),
+    JAGS_materialize_draws = function(fit, parameters = NULL, include_internal = FALSE) {
+      calls[[length(calls) + 1L]] <<- list(parameters = parameters, internal = include_internal)
+      if (include_internal) source else main
+    },
+    JAGS_ordered_parameter_spec = function(fit, draws = NULL) {
+      spec <- list(coefficient_names = "increment",
+        source_coordinates = c("total", "gamma", "optional"),
+        total_auxiliary_coordinates = character())
+      if (!is.null(draws)) {
+        spec[["sampled_parameters"]] <- list(
+          values = cbind(total = as.numeric(draws[, "total"]) + as.integer(conflict),
+            share = as.numeric(draws[, "gamma"])), allocation_names = "share")
+      }
+      list(term = spec)
+    }, .package = "BayesTools"
+  )
+  extracted <- .brma_to_mcmc.list(object)
+  expect_identical(calls, list(list(parameters = NULL, internal = FALSE),
+    list(parameters = c("total", "gamma"), internal = TRUE)))
+  expect_identical(colnames(extracted[[1L]]), c("total", "share"))
+  expect_identical(as.numeric(extracted[[1L]][, "share"]), c(.2, .3, .4))
+  expect_identical(coda::mcpar(extracted[[1L]]), c(7, 13, 3))
+  conflict <- TRUE
+  error <- tryCatch(.brma_to_mcmc.list(object), error = identity)
+  expect_s3_class(error, "RoBMA_ordered_draws_conflict")
+  expect_s3_class(error, "BayesTools_refit_required")
+  expect_identical(conditionMessage(error), paste0(
+    "Ordered sampled parameter 'total' conflicts with existing fitted draws. ",
+    "Refit the model with the current RoBMA/BayesTools build."))
+  conflict <- FALSE
+  source <- coda::mcmc.list(coda::mcmc(as.matrix(source[[1L]]), start = 8, thin = 3))
+  expect_error(.brma_to_mcmc.list(object),
+    "Ordered source draws disagree with the fitted draw geometry.", fixed = TRUE)
 })

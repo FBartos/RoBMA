@@ -17,3 +17,19 @@ test_that("generic brma_samples draws preserve chains and iteration identity", {
   expect_identical(posterior::nchains(flat), 2L)
   expect_identical(as.numeric(flat[, "a"]), c(1, 2, 10, 20))
 })
+
+
+test_that("non-brma draw conversion retains posterior generic dispatch", {
+
+  values <- matrix(seq_len(24), 8, dimnames = list(NULL,
+    c("scalar", "ordinary[1]", "ordinary[2]")))
+  input <- coda::mcmc.list(coda::mcmc(values, start = 5, thin = 3),
+    coda::mcmc(values + 100, start = 5, thin = 3))
+  for (generic in c("as_draws", "as_draws_array", "as_draws_df",
+      "as_draws_list", "as_draws_matrix", "as_draws_rvars")) {
+    actual <- getExportedValue("RoBMA", generic)(input)
+    expected <- getExportedValue("posterior", generic)(input)
+    expect_identical(class(actual), class(expected))
+    expect_identical(posterior::as_draws_array(actual), posterior::as_draws_array(expected))
+  }
+})
