@@ -62,6 +62,11 @@ chain solely for row count. Guard that exception with declared point totals,
 no total event node and fixed allocations; never substitute for missing
 stochastic, discrete, mixture or expression sources. A named input-only row
 column may supply geometry when the public chain has zero coordinates.
+Missing required ordered sources, including partial source loss, raise
+`RoBMA_ordered_draws_unavailable`, `BayesTools_ordered_coordinates_unavailable`
+and `BayesTools_ordered_unavailable` through the shared refit helper, retaining
+`RoBMA_refit_required` and `BayesTools_refit_required` with the supported refit
+message.
 
 Internal LKJ primitives, compact scalar-correlation coordinates, allocation
 weights, and covariance-construction dependencies remain coordinate-only.

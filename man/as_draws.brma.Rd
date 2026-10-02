@@ -138,8 +138,8 @@ conversion stops with classes \code{RoBMA_ordered_draws_conflict} and
 \code{Ordered sampled parameter '<name>' conflicts with existing fitted draws. Refit the model with the current RoBMA/BayesTools build.}
 Missing required ordered sources stop with
 \code{RoBMA_ordered_draws_unavailable} and
-\code{BayesTools_ordered_coordinates_unavailable}; when no declared source
-is available, the message is
+\code{BayesTools_ordered_coordinates_unavailable}, with parent class
+\code{BayesTools_ordered_unavailable} and the message
 \code{Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build.}
 Entirely fixed numeric-point terms need only the existing chain row count
 to materialize their declared totals.

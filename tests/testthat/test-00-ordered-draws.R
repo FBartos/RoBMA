@@ -127,12 +127,22 @@ test_that("missing stochastic sources never use the fixed row-count fallback", {
   for (ordered in list(
       BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1))),
       BayesTools::prior_ordered(BayesTools::prior("point", list(2.5))),
-      BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)), allocation = c(.25, .75)))) {
+      BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)), allocation = c(.25, .75)),
+      BayesTools::prior_ordered(BayesTools::prior("bernoulli", list(.5)), allocation = c(.25, .75)),
+      BayesTools::prior_ordered(BayesTools::prior("point", list(expression(mu_intercept))),
+        allocation = c(.25, .75)),
+      BayesTools::prior_ordered(BayesTools::prior_mixture(list(
+        BayesTools::prior("point", list(0)), BayesTools::prior("point", list(2.5)))),
+        allocation = c(.25, .75)),
+      BayesTools::prior_ordered(BayesTools::prior_spike_and_slab(
+        BayesTools::prior("point", list(2.5)), BayesTools::prior("point", list(.5))),
+        allocation = c(.25, .75)))) {
     object <- .ordered_draws_fixture(priors = list(f = ordered),
       columns = list(`mu_f[1]` = 99, `mu_f[2]` = 98))
     error <- tryCatch(.brma_to_mcmc.list(object), error = identity)
-    expect_s3_class(error, "BayesTools_ordered_coordinates_unavailable")
-    expect_s3_class(error, "BayesTools_refit_required")
+    expect_identical(class(error), c("RoBMA_ordered_draws_unavailable",
+      "BayesTools_ordered_coordinates_unavailable", "BayesTools_ordered_unavailable",
+      "RoBMA_refit_required", "BayesTools_refit_required", "error", "condition"))
     expect_identical(conditionMessage(error), paste0("Ordered source draws are unavailable. ",
       "Refit the model with the current RoBMA/BayesTools build."))
   }
@@ -182,7 +192,12 @@ test_that("nested spike total auxiliaries retain their declared event and inclus
     rep(c(0, 2, 0), 4))
   columns[["prior_par_eta_mu_f_ordered_alloc_f_1[1]"]] <- NULL
   missing <- .ordered_draws_fixture(priors = list(f = ordered), columns = columns)
-  expect_error(.brma_to_mcmc.list(missing), class = "BayesTools_ordered_coordinates_unavailable")
+  error <- tryCatch(.brma_to_mcmc.list(missing), error = identity)
+  expect_identical(class(error), c("RoBMA_ordered_draws_unavailable",
+    "BayesTools_ordered_coordinates_unavailable", "BayesTools_ordered_unavailable",
+    "RoBMA_refit_required", "BayesTools_refit_required", "error", "condition"))
+  expect_identical(conditionMessage(error), paste0("Ordered source draws are unavailable. ",
+    "Refit the model with the current RoBMA/BayesTools build."))
 })
 
 

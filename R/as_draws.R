@@ -92,8 +92,8 @@
 #' \code{Ordered sampled parameter '<name>' conflicts with existing fitted draws. Refit the model with the current RoBMA/BayesTools build.}
 #' Missing required ordered sources stop with
 #' \code{RoBMA_ordered_draws_unavailable} and
-#' \code{BayesTools_ordered_coordinates_unavailable}; when no declared source
-#' is available, the message is
+#' \code{BayesTools_ordered_coordinates_unavailable}, with parent class
+#' \code{BayesTools_ordered_unavailable} and the message
 #' \code{Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build.}
 #' Entirely fixed numeric-point terms need only the existing chain row count
 #' to materialize their declared totals.
@@ -231,7 +231,21 @@ NULL
       matrix(0, nrow = nrow(source), ncol = 1L,
         dimnames = list(NULL, "RoBMAorderedRowCount"))
     } else source
-    resolved <- BayesTools::JAGS_ordered_parameter_spec(x[["fit"]], draws = source_draws)
+    resolved <- tryCatch(
+      BayesTools::JAGS_ordered_parameter_spec(x[["fit"]], draws = source_draws),
+      BayesTools_ordered_coordinates_unavailable = function(error) {
+        tryCatch(
+          .stop_refit_required(
+            "Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build."
+          ),
+          RoBMA_refit_required = function(error) {
+            class(error) <- c("RoBMA_ordered_draws_unavailable",
+              "BayesTools_ordered_coordinates_unavailable", "BayesTools_ordered_unavailable", class(error))
+            stop(error)
+          }
+        )
+      }
+    )
     values <- if (ncol(chain) == 0L) {
       matrix(numeric(), nrow = nrow(chain), ncol = 0L)
     } else as.matrix(chain)[, !colnames(chain) %in% omitted, drop = FALSE]

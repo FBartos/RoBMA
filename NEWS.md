@@ -208,6 +208,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   probabilities remain available; internal Gamma primitives and backend anchors
   remain private. Allocation labels stay scalar in `as_draws_rvars()`, while
   ordinary vector indices are preserved.
+  Missing required ordered source draws, including partial source loss, stop
+  with `RoBMA_ordered_draws_unavailable`,
+  `BayesTools_ordered_coordinates_unavailable`, and
+  `BayesTools_ordered_unavailable`, retaining both refit-required parent classes
+  and the supported instruction to refit with the current RoBMA/BayesTools build.
 - multivariate and multilevel models with known sampling covariance:
   - adds `brma.mv()`, normal-likelihood meta-analysis with a known sampling
     covariance matrix `V` (latent, whitened, and block-MVN backends through
