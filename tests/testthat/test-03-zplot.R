@@ -175,8 +175,9 @@ test_that("zplot density bands are Harrell-Davis quantiles at the requested prob
 
   # The density draws and the bounds built from them are recorded at the
   # data function that both the vectorized path of lines() and the paired
-  # path of plot() call, so that the references use exactly the draws of the
-  # band and the probabilities that reached it.
+  # path of plot() call (plot() reaches the vectorized path through lines()
+  # unless it draws both curves), so that the references use exactly the
+  # draws of the band and the probabilities that reached it.
   recorded     <- list()
   real_density <- .zplot_density_data
   testthat::local_mocked_bindings(
@@ -221,6 +222,27 @@ test_that("zplot density bands are Harrell-Davis quantiles at the requested prob
   expect_length(recorded, 2L)
   expect_bands(recorded[[1L]], "plot(), fitted")
   expect_bands(recorded[[2L]], "plot(), extrapolated")
+
+  # one curve through lines(): the default fitted curve, and the extrapolated
+  # curve alone
+  single_curves <- list(
+    "plot(), fitted only"       = c(fit = TRUE,  extrapolation = FALSE),
+    "plot(), extrapolated only" = c(fit = FALSE, extrapolation = TRUE)
+  )
+  for (label in names(single_curves)) {
+    curves   <- single_curves[[label]]
+    recorded <- list()
+    .with_temp_plot_device(.test_plot_zplot(
+      zp,
+      plot_fit           = curves[["fit"]],
+      plot_extrapolation = curves[["extrapolation"]],
+      plot_thresholds    = FALSE,
+      probs              = probs,
+      max_samples        = zplot_smoke_samples
+    ))
+    expect_length(recorded, 1L)
+    expect_bands(recorded[[1L]], label)
+  }
 })
 
 test_that("zplot allows descriptive known-V brma.mv displays", {
