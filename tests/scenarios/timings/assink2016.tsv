@@ -244,7 +244,7 @@ time	ranef_bselmodel.mv_V_cond	0.490000000	1.450000	4.6.0	Windows/x86_64-w64-min
 time	ranef_bselmodel_cluster_cond	0.360000000	1.455859	4.6.0	Windows/x86_64-w64-mingw32
 text	bma-vs-marglik	0.080000000	0.739844	4.6.0	Windows/x86_64-w64-mingw32
 text	bPEESE-mu-bayes-factor-comparison	0.000000000	0.358203	4.6.0	Windows/x86_64-w64-mingw32
-text	bPET-compare-mv-V-logml	0.030000000	0.543066	4.6.0	Windows/x86_64-w64-mingw32
+text	bPET-compare-mv-V-logml	0.010000000	0.543066	4.6.0	Windows/x86_64-w64-mingw32
 text	bPET-compare-mv-V-loo	0.010000000	0.545801	4.6.0	Windows/x86_64-w64-mingw32
 text	bPET-compare-mv-vi-logml	0.000000000	0.523438	4.6.0	Windows/x86_64-w64-mingw32
 text	bPET-compare-mv-vi-loo	0.010000000	0.531152	4.6.0	Windows/x86_64-w64-mingw32
@@ -328,7 +328,7 @@ text	bselmodel-summary-simple-cond	0.170000000	0.741895	4.6.0	Windows/x86_64-w64
 text	comapre-diag-logml	0.010000000	0.615039	4.6.0	Windows/x86_64-w64-mingw32
 text	comapre-diag-loo	0.040000000	0.636719	4.6.0	Windows/x86_64-w64-mingw32
 text	comapre-logml	0.030000000	0.621680	4.6.0	Windows/x86_64-w64-mingw32
-text	comapre-loo	0.030000000	0.624414	4.6.0	Windows/x86_64-w64-mingw32
+text	comapre-loo	0.010000000	0.624414	4.6.0	Windows/x86_64-w64-mingw32
 text	comapre-uni-logml	0.000000000	0.599219	4.6.0	Windows/x86_64-w64-mingw32
 text	comapre-uni-loo	0.000000000	0.604199	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_mods	0.000000000	0.622949	4.6.0	Windows/x86_64-w64-mingw32
@@ -425,7 +425,7 @@ plot	bPET-zplot-mv-V	2.530000000	0.991309	4.6.0	Windows/x86_64-w64-mingw32
 plot	bPET-zplot-reg	2.580000000	1.037109	4.6.0	Windows/x86_64-w64-mingw32
 plot	bselmodel-blup-mv-V-vi-cond	0.810000000	1.469824	4.6.0	Windows/x86_64-w64-mingw32
 plot	bselmodel-blup-mv-vi-cond	0.680000000	1.477051	4.6.0	Windows/x86_64-w64-mingw32
-plot	bselmodel-funnel-mv-V-cond	255.790000000	2.216309	4.6.0	Windows/x86_64-w64-mingw32
+plot	bselmodel-funnel-mv-V-cond	249.140000000	2.216309	4.6.0	Windows/x86_64-w64-mingw32
 plot	bselmodel-funnel-reg-cond	4.950000000	1.711426	4.6.0	Windows/x86_64-w64-mingw32
 plot	bselmodel-marginal-diagnostics-mv-V-cond	9.410000000	1.568164	4.6.0	Windows/x86_64-w64-mingw32
 plot	bselmodel-marginal-diagnostics-mv-vi-cond	9.290000000	1.595117	4.6.0	Windows/x86_64-w64-mingw32
@@ -455,13 +455,13 @@ plot	funnel_brma_mv	1.750000000	1.324902	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_brma_mv_reg	1.030000000	1.335742	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_means_plot	0.510000000	0.850098	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-fit_RoBMA_mv_cond	380.120000000	6.905957	4.6.0	Windows/x86_64-w64-mingw32
-plot	posterior-fit_RoBMA_mv_diag_cond	24.820000000	1.647168	4.6.0	Windows/x86_64-w64-mingw32
+plot	posterior-fit_RoBMA_mv_diag_cond	24.820000000	1.490723	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_BMA_mv	1.870000000	1.334863	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_brma_mv	0.930000000	1.330566	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_brma_mv_reg	0.970000000	1.336328	4.6.0	Windows/x86_64-w64-mingw32
 plot	ranef_mv	0.090000000	0.799902	4.6.0	Windows/x86_64-w64-mingw32
 plot	ranef_mv_diag	0.180000000	0.911719	4.6.0	Windows/x86_64-w64-mingw32
-plot	RoBMA-blup-2	0.730000000	1.439941	4.6.0	Windows/x86_64-w64-mingw32
+plot	RoBMA-blup-2	0.730000000	1.363965	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-blup-mv-V-cond-vs-diag	0.890000000	1.043262	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-funnel-mv-V-cond	0.320000000	0.944629	4.6.0	Windows/x86_64-w64-mingw32
 plot	RoBMA-qqnorm-mv-V-cond	7.380000000	1.135254	4.6.0	Windows/x86_64-w64-mingw32

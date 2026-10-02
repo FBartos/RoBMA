@@ -37,7 +37,7 @@ plot	diagnostics-known-R	18.340000000	0.810742	4.6.0	Windows/x86_64-w64-mingw32
 plot	diagnostics-no-known-R	17.940000000	0.813379	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel	6.950000000	0.781738	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-mu	0.940000000	0.670996	4.6.0	Windows/x86_64-w64-mingw32
-plot	posterior-tau	4.840000000	0.674219	4.6.0	Windows/x86_64-w64-mingw32
+plot	posterior-tau	4.630000000	0.674219	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	2.390000000	0.771387	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-effects	7.520000000	0.737598	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	0.570000000	0.813379	4.6.0	Windows/x86_64-w64-mingw32

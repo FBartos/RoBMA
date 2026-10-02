@@ -47,7 +47,7 @@ fit_marglik	fit_PET_null_0	1.090000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_PET_null_0.25	1.130000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_simple	0.880000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_3PSM_IWMDE	32.920000000	1.404394	4.6.0	Windows/x86_64-w64-mingw32
-time	BFs_3PSM_normal	0.050000000	0.572852	4.6.0	Windows/x86_64-w64-mingw32
+time	BFs_3PSM_normal	0.040000000	0.572852	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_3PSM_qCMDE	52.000000000	2.229395	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_PET_IWMDE	0.580000000	1.092188	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_PET_normal	0.040000000	0.559668	4.6.0	Windows/x86_64-w64-mingw32
@@ -72,7 +72,7 @@ text	fit_RoBMA_summary_con2	2.470000000	0.684375	4.6.0	Windows/x86_64-w64-mingw3
 text	fit_RoBMA_summary_models	0.390000000	0.691406	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_summary	0.090000000	0.401953	4.6.0	Windows/x86_64-w64-mingw32
 text	mu_BF_3PSM_uncertainty	0.050000000	0.461133	4.6.0	Windows/x86_64-w64-mingw32
-plot	bfunnel_3PSM	2.820000000	0.611231	4.6.0	Windows/x86_64-w64-mingw32
+plot	bfunnel_3PSM	2.760000000	0.611231	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_PET	1.680000000	0.604297	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_simple	1.590000000	0.618848	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_average_posterior_mu	1.780000000	0.887402	4.6.0	Windows/x86_64-w64-mingw32
