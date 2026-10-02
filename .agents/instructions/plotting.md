@@ -62,6 +62,16 @@ absolute density and normalization errors through the positive outer weights;
 include their effects on MCSE and refinement changes before checking the outer
 curve's peak. Standalone point contexts retain their relative-error requirement.
 
+## Credible Bands
+
+Pointwise credible bands of a curve over a grid (the continuous `regplot()`
+band and the `zplot()` density bands) are Harrell-Davis quantiles of the
+posterior draws, `BayesTools::harrell_davis_quantile()`, so that they are
+smooth along the grid. Scalar intervals (categorical `regplot()` levels),
+prediction and sampling intervals (posterior predictive mixture quantiles), and
+step bands keep their own estimators; document the estimator where a band is
+described.
+
 ## API and Verification
 
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.

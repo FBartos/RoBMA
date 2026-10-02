@@ -617,6 +617,21 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - `radial()` supports `brma.mv()` models (with row-marginal
     heterogeneity); its bands for non-Gaussian and publication-bias models
     are documented as descriptive reference bands.
+  - the credible bands of `regplot()` for continuous moderators and of the
+    density lines of `zplot()` (`plot()` and `lines()` of zplot objects) are
+    pointwise Harrell-Davis quantiles of the posterior draws
+    (`BayesTools::harrell_davis_quantile()`, through BayesTools 0.3.1) instead
+    of empirical quantiles. They estimate the same quantiles but attenuate the
+    kinks of the empirical quantile along the moderator or the z grid and, in
+    simulations of smooth curves, are about as accurate. The bands remain
+    pointwise, and every draw contributes, so that below roughly 200 draws
+    they can differ much from the empirical quantiles. The posterior-mean
+    lines, the intervals of categorical moderators, and the prediction and
+    sampling intervals of `regplot()` (quantiles of the posterior predictive
+    mixture) are unchanged.
+  - `plot_pet_peese()` draws the posterior median and credible band of the
+    PET-PEESE line from Harrell-Davis quantiles of the draws of the line, as
+    BayesTools 0.3.1 computes them; the prior lines are unchanged.
 - summaries and output:
   - `as.data.frame()` and `data.frame()` convert the printable results
     (model and heterogeneity summaries, posterior, prediction, and pooled
