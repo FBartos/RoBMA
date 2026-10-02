@@ -125,11 +125,16 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' smooth the kinks that the empirical quantiles show along the moderator. The
 #' bands remain pointwise, and, because every draw contributes, they can
 #' differ visibly from the empirical quantiles when few draws are used
-#' (\code{max_samples} below a few hundred). The credible intervals of
-#' categorical moderators use the empirical quantiles of the draws of each
-#' level. Prediction and sampling intervals are quantiles of a different
-#' distribution, the posterior predictive mixture over the draws, and are
-#' computed by a different estimator (mixture quantiles, not Harrell-Davis
+#' (\code{max_samples} below a few hundred). Near the edge of a point mass in the
+#' draws (e.g., draws of models that fix the plotted quantity in a
+#' model-averaged posterior) the band blends the point mass and the remaining
+#' draws, and extreme probabilities (e.g., \code{level = 99.9}) are not
+#' estimated more accurately than by the empirical quantiles; see
+#' [BayesTools::harrell_davis_quantile()] for these caveats. The credible
+#' intervals of categorical moderators use the empirical quantiles of the draws
+#' of each level. Prediction and sampling intervals are quantiles of a
+#' different distribution, the posterior predictive mixture over the draws, and
+#' are computed by a different estimator (mixture quantiles, not Harrell-Davis
 #' quantiles of the draws).
 #'
 #' Prediction intervals marginalize newly realized random effects. Sampling

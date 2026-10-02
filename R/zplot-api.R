@@ -526,7 +526,12 @@ print.zplot_brma <- function(x, ...) {
 #' empirical quantiles of the draws but smooth the kinks that the empirical
 #' quantiles show along z. The bands remain pointwise, and, because every draw
 #' contributes, they can differ visibly from the empirical quantiles when few
-#' draws are used (\code{max_samples} below a few hundred).
+#' draws are used (\code{max_samples} below a few hundred). Near the edge of a
+#' point mass in the draws (e.g., draws of models that fix the plotted quantity
+#' in a model-averaged posterior) the band blends the point mass and the
+#' remaining draws, and extreme probabilities (e.g., \code{probs = c(.0005, .9995)})
+#' are not estimated more accurately than by the empirical quantiles; see
+#' [BayesTools::harrell_davis_quantile()] for these caveats.
 #'
 #' The plot can display two density curves:
 #' \describe{
@@ -992,7 +997,12 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' empirical quantiles of the draws but smooth the kinks that the empirical
 #' quantiles show along z. The bands remain pointwise, and, because every draw
 #' contributes, they can differ visibly from the empirical quantiles when few
-#' draws are used (\code{max_samples} below a few hundred).
+#' draws are used (\code{max_samples} below a few hundred). Near the edge of a
+#' point mass in the draws (e.g., draws of models that fix the plotted quantity
+#' in a model-averaged posterior) the band blends the point mass and the
+#' remaining draws, and extreme probabilities (e.g., \code{probs = c(.0005, .9995)})
+#' are not estimated more accurately than by the empirical quantiles; see
+#' [BayesTools::harrell_davis_quantile()] for these caveats.
 #'
 #' When \code{extrapolate = FALSE}, the density includes all bias adjustments
 #' (PET/PEESE regression, selection weights) representing the fitted model.
