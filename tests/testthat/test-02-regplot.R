@@ -582,6 +582,67 @@ test_that("Regression plot data and argument validation are stable", {
   )
 })
 
+test_that("Regression plot credible bands are Harrell-Davis quantiles for continuous moderators", {
+
+  # The draws of the mean prediction are recorded as the plot data function
+  # receives them, so that the references use exactly the draws of the band.
+  real_predict <- predict.brma
+  draws        <- NULL
+  testthat::local_mocked_bindings(
+    predict.brma = function(...) {
+      out    <- real_predict(...)
+      draws <<- as.matrix(out)
+      out
+    },
+    .package = "RoBMA"
+  )
+
+  level <- 95
+  alpha <- (100 - level) / 100
+  probs <- c(alpha / 2, 1 - alpha / 2)
+  harrell_davis <- function(p) {
+    vapply(seq_len(ncol(draws)), function(j) {
+      BayesTools::harrell_davis_quantile(draws[, j], p)
+    }, numeric(1L))
+  }
+  empirical <- function(p) {
+    apply(draws, 2L, stats::quantile, probs = p, names = FALSE)
+  }
+
+  # continuous moderator: Harrell-Davis quantiles of the draws of each grid
+  # point on the model scale, in the first half of the polygon of the band
+  fit_brma     <- fits[["bcg_meta-regression"]]
+  regplot_data <- .test_regplot(fit_brma, mod = "year", level = level, as_data = TRUE)
+  n_grid       <- ncol(draws)
+  expect_equal(n_grid, 101L)
+  expect_equal(regplot_data[["ci"]][["lower"]][seq_len(n_grid)], harrell_davis(probs[1L]),
+               tolerance = 1e-12)
+  expect_equal(regplot_data[["ci"]][["upper"]][seq_len(n_grid)], harrell_davis(probs[2L]),
+               tolerance = 1e-12)
+  expect_gt(
+    max(abs(regplot_data[["ci"]][["lower"]][seq_len(n_grid)] - empirical(probs[1L]))),
+    0
+  )
+  expect_equal(regplot_data[["pred"]][["y"]], colMeans(draws), tolerance = 1e-12,
+               check.attributes = FALSE)
+
+  # the monotone transformation is applied to the endpoints, not to the draws
+  regplot_exp <- .test_regplot(fit_brma, mod = "year", level = level, transf = exp,
+                               as_data = TRUE)
+  expect_equal(regplot_exp[["ci"]][["lower"]][seq_len(n_grid)], exp(harrell_davis(probs[1L])),
+               tolerance = 1e-12)
+  expect_equal(regplot_exp[["ci"]][["upper"]][seq_len(n_grid)], exp(harrell_davis(probs[2L])),
+               tolerance = 1e-12)
+
+  # categorical moderator: empirical quantiles of the draws of each level
+  fit_categorical  <- fits[["bcg_meta-regression2"]]
+  regplot_category <- .test_regplot(fit_categorical, mod = "alloc", level = level, as_data = TRUE)
+  expect_equal(regplot_category[["ci"]][["lower"]], empirical(probs[1L]), tolerance = 1e-12,
+               check.attributes = FALSE)
+  expect_equal(regplot_category[["ci"]][["upper"]], empirical(probs[2L]), tolerance = 1e-12,
+               check.attributes = FALSE)
+})
+
 test_that("Regression plot transforms effect-size data", {
 
   skip_if_not_full_visuals("Transformation regplot snapshots are gallery coverage.")

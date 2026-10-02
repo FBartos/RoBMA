@@ -964,8 +964,16 @@
   }
 
   pred_mean  <- colMeans(pred_samples)
-  pred_lower <- apply(pred_samples, 2, stats::quantile, probs = probs[1], names = FALSE)
-  pred_upper <- apply(pred_samples, 2, stats::quantile, probs = probs[2], names = FALSE)
+  if (mod_type == "continuous") {
+    # smooth pointwise band along the moderator: Harrell-Davis quantiles of the
+    # posterior draws of each grid point (categorical levels are scalar intervals)
+    pred_bounds <- BayesTools::harrell_davis_quantile(pred_samples, probs[1:2])
+    pred_lower  <- pred_bounds[1L, ]
+    pred_upper  <- pred_bounds[2L, ]
+  } else {
+    pred_lower <- apply(pred_samples, 2, stats::quantile, probs = probs[1], names = FALSE)
+    pred_upper <- apply(pred_samples, 2, stats::quantile, probs = probs[2], names = FALSE)
+  }
 
   if (pi || si) {
     if (inherits(x, "brma.mv") && .is_random(x)) {

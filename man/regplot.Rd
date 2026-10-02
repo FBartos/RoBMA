@@ -44,7 +44,8 @@ If multiple moderators are present, this argument is required.}
 
 \item{pred}{logical; whether to show the prediction line. Defaults to \code{TRUE}.}
 
-\item{ci}{logical; whether to show credible interval bands. Defaults to \code{TRUE}.}
+\item{ci}{logical; whether to show credible interval bands. Defaults to \code{TRUE}.
+See Details for the quantile estimator of the bands.}
 
 \item{pi}{logical; whether to show prediction interval bands. Defaults to \code{FALSE}.}
 
@@ -177,6 +178,23 @@ are computed at each factor level with optional jittering of points.
 A moderator that appears only in the scale formula produces a constant mean
 prediction while prediction and sampling intervals reflect its effect on
 heterogeneity.
+
+The credible interval band of a continuous moderator (\code{ci = TRUE}) is
+formed by pointwise Harrell-Davis quantiles (at the probabilities implied by
+\code{level}) of the posterior draws of the mean prediction at each grid
+value; they are computed by \code{\link[BayesTools:harrell_davis_quantile]{BayesTools::harrell_davis_quantile()}} on the
+model scale, before \code{transf} is applied. The Harrell-Davis quantiles
+estimate the same quantiles as the empirical quantiles of the draws but
+smooth the kinks that the empirical quantiles show along the moderator. The
+bands remain pointwise, and, because every draw contributes, they can
+differ visibly from the empirical quantiles when few draws are used
+(\code{max_samples} below a few hundred). The credible intervals of
+categorical moderators use the empirical quantiles of the draws of each
+level. Prediction and sampling intervals are quantiles of a different
+distribution, the posterior predictive mixture over the draws, and are
+computed by a different estimator (mixture quantiles, not Harrell-Davis
+quantiles of the draws).
+
 Prediction intervals marginalize newly realized random effects. Sampling
 intervals use the corresponding marginal response distribution by also
 adding representative sampling error; evaluating a fitted moderator value
