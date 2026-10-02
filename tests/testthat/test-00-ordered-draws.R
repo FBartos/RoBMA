@@ -186,12 +186,74 @@ test_that("nested spike total auxiliaries retain their declared event and inclus
   expect_identical(as.numeric(extracted[[1L]][, "mu_f_ordered_total_inclusion"]), rep(c(.2, .4, .6), 4))
   expect_true("mu_f_ordered_total_variable" %in%
     colnames(.brma_to_mcmc.list(object, include_auxiliary = TRUE)[[1L]]))
+  # A cell fixture must also have coherent semantic increments; the export
+  # fixture above deliberately makes them unrelated to its source primitives.
+  cell_columns <- columns
+  cell_columns[["mu_f[1]"]] <- c(0, 1, 0)
+  cell_columns[["mu_f[2]"]] <- c(0, 1, 0)
+  cell_object <- .ordered_draws_fixture(priors = list(f = ordered), columns = cell_columns)
+  catalog <- BayesTools::parameter_catalog(cell_object[["fit"]])
+  quantities <- catalog[["quantities"]]
+  middle <- which(vapply(quantities[["extraction_key"]], function(key) {
+    identical(key[["type"]], "factor_level") &&
+      identical(key[["dependencies"]], "mu_f[1]") &&
+      identical(as.numeric(key[["weights"]]), 1)
+  }, logical(1)))
+  expect_length(middle, 1L)
+  parameter <- quantities[["canonical_name"]][middle]
+  selection <- BayesTools::parameter_catalog_resolve(catalog, parameter)
+  entry <- list(parent_parameter = "mu_f", parameter = parameter,
+    formula_parameter = "mu", selection = selection)
+  marginal_posterior <- BayesTools::marginal_posterior
+  selected_marginal <- NULL
+  display_transform <- FALSE
+  marginal_calls <- 0L
+  testthat::local_mocked_bindings(marginal_posterior = function(...) {
+    marginal_calls <<- marginal_calls + 1L
+    selected_marginal <<- marginal_posterior(...)
+    if (display_transform && marginal_calls == 2L) {
+      selected_marginal <<- lapply(selected_marginal, BayesTools::posterior_transform,
+        transformation = "exp")
+    }
+    selected_marginal
+  }, .package = "BayesTools")
+  for (conditional in c(FALSE, TRUE)) {
+    cell <- .plot_brma_factor_cell_samples(cell_object, entry, FALSE, conditional, FALSE)
+    value <- cell[["samples"]][[1L]]
+    expected <- selected_marginal[[attr(value, "level_name", exact = TRUE)]]
+    expect_identical(as.numeric(value), as.numeric(expected))
+    expect_identical(attr(value, "bayestools_meta", exact = TRUE),
+      attr(expected, "bayestools_meta", exact = TRUE))
+    expect_length(value, if (conditional) 8L else 24L)
+    expect_identical(BayesTools::posterior_metadata(value, "condition")[["averaged"]],
+      !conditional)
+    expect_identical(BayesTools::posterior_metadata(value, "atoms"),
+      BayesTools::posterior_metadata(expected, "atoms"))
+    if (conditional) expect_identical(as.numeric(value), rep(1, 8L))
+  }
+  # A controlled display supplier changes the semantic values after the raw
+  # catalog-weight match. The helper must retain that transformed, conditioned
+  # marginal even though its source contrast columns still have fitted values.
+  display_transform <- TRUE
+  marginal_calls <- 0L
+  displayed <- .plot_brma_factor_cell_samples(cell_object, entry, FALSE, TRUE, FALSE)
+  value <- displayed[["samples"]][[1L]]
+  expected <- selected_marginal[[attr(value, "level_name", exact = TRUE)]]
+  expect_identical(as.numeric(value), rep(exp(1), 8L))
+  expect_identical(attr(value, "bayestools_meta", exact = TRUE),
+    attr(expected, "bayestools_meta", exact = TRUE))
+  expect_identical(BayesTools::posterior_metadata(value, "output_transformations"),
+    BayesTools::posterior_metadata(expected, "output_transformations"))
+  expect_false(BayesTools::posterior_metadata(value, "condition")[["averaged"]])
+  display_transform <- FALSE
   columns[["mu_f_ordered_total_variable"]] <- NULL
   snapshot <- .ordered_draws_fixture(priors = list(f = ordered), columns = columns)
   expect_identical(as.numeric(.brma_to_mcmc.list(snapshot)[[1L]][, "mu_f_ordered_total"]),
     rep(c(0, 2, 0), 4))
   columns[["prior_par_eta_mu_f_ordered_alloc_f_1[1]"]] <- NULL
   missing <- .ordered_draws_fixture(priors = list(f = ordered), columns = columns)
+  expect_error(.plot_brma_factor_cell_samples(missing, entry, FALSE, FALSE, FALSE),
+    class = "BayesTools_ordered_coordinates_unavailable")
   error <- tryCatch(.brma_to_mcmc.list(missing), error = identity)
   expect_identical(class(error), c("RoBMA_ordered_draws_unavailable",
     "BayesTools_ordered_coordinates_unavailable", "BayesTools_ordered_unavailable",

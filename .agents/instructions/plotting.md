@@ -32,6 +32,11 @@ with the selected specs' coefficient names. Leave
 unspecified prior line colors and types to BayesTools' matched level styles;
 preserve explicit user styles and ordinary targets' existing defaults.
 
+For an ordered factor cell, retain the semantic marginal selected by its exact
+catalog extraction weights, including its prior and aligned draw metadata.
+Displayed contrast columns alone are not primitive ordered source draws; do not
+re-evaluate that marginal through `parameter_draws()` on those columns.
+
 Use `.outcome_data_yi()`, `.outcome_data_sei()`,
 `.outcome_data_vi()`, and `.outcome_data_weights()` instead of direct fitted
 object access.

@@ -200,6 +200,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   Prior overlays use the corresponding level colours and dashed lines unless
   the user supplies prior styles. Prior-style metadata checks apply only to
   selected ordered terms, leaving unrelated stale ordered terms unqueried.
+  Single ordered-level plots retain the semantic marginal's draws and prior
+  metadata, including original-scale and conditional row alignment.
   The six `as_draws()` converters export fitted totals and normalized sampled
   allocation shares by default, including shares on zero-total and
   excluded-spike draws; `include_auxiliary = TRUE` also retains raw increments

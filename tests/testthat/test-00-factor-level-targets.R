@@ -397,6 +397,66 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
     }
   }
 
+  # The semantic marginal evaluates ordered totals and allocations before the
+  # cell helper selects it. Preserve that value and its complete draw metadata,
+  # including conditioning, instead of re-reading displayed contrast columns.
+  marginal_posterior <- BayesTools::marginal_posterior
+  selected_marginal <- NULL
+  testthat::local_mocked_bindings(
+    marginal_posterior = function(...) {
+      selected_marginal <<- marginal_posterior(...)
+      selected_marginal
+    },
+    .package = "BayesTools"
+  )
+  testthat::local_mocked_bindings(
+    .brma_draws_with_values = function(...) {
+      stop("Ordered cells must retain their semantic marginal values.")
+    },
+    .package = "RoBMA"
+  )
+  for (selector in c("g[lo]", "g[mid]", "g[hi]")) {
+    entry <- .brma_parameter_select_entry(ordered, selector, allow_factor_cells = TRUE)
+    expected <- as.numeric(as.matrix(BayesTools::parameter_draws(
+      ordered[["fit"]], entry[["selection"]]
+    )))
+    for (standardized in c(FALSE, TRUE)) {
+      cell <- .plot_brma_factor_cell_samples(
+        ordered, entry, standardized, conditional = FALSE, precomputed = FALSE
+      )
+      value <- cell[["samples"]][[1L]]
+      marginal_value <- selected_marginal[[attr(value, "level_name", exact = TRUE)]]
+      expect_identical(as.numeric(value), as.numeric(marginal_value))
+      expect_identical(attr(value, "bayestools_meta", exact = TRUE),
+        attr(marginal_value, "bayestools_meta", exact = TRUE))
+      for (field in c("atoms", "prior_density", "condition", "linear_weights")) {
+        expect_identical(BayesTools::posterior_metadata(value, field),
+          BayesTools::posterior_metadata(marginal_value, field), info = field)
+      }
+      expect_identical(as.numeric(value), expected)
+      expect_identical(cell[["structural"]], identical(selector, "g[lo]"))
+      if (cell[["structural"]]) {
+        expect_identical(BayesTools::posterior_metadata(value, "atoms")[["mass"]], 1)
+      }
+    }
+  }
+  grDevices::pdf(NULL)
+  tryCatch({
+    for (selector in c("g", "g[mid]", "g[hi]")) {
+      expect_null(plot(ordered, parameter = selector, prior = TRUE,
+        density_method = "KDE", plot_type = "base"))
+      plotted <- plot(ordered, parameter = selector, prior = TRUE,
+        density_method = "KDE", plot_type = "ggplot")
+      expect_s3_class(plotted, "ggplot")
+    }
+  }, finally = grDevices::dev.off())
+  expect_error(.plot_brma_factor_cell_samples(ordered, entry, FALSE, TRUE, FALSE),
+    "The parameter 'mu_g' is not a conditional parameter.", fixed = TRUE)
+  entry <- .brma_parameter_select_entry(ordered, "g[mid]", allow_factor_cells = TRUE)
+  expect_error(BayesTools::parameter_draws(ordered[["fit"]], entry[["selection"]],
+    model_samples = as.matrix(ordered[["fit"]][["mcmc"]])[, "mu_g[1]", drop = FALSE]),
+    class = "BayesTools_ordered_coordinates_unavailable")
+
   # With numeric labels, the first increment's coordinate 'mu_g[1]' reads as
   # the reference level '1': hypotheses name the level the hypothesis wrote.
   data[["g"]] <- factor(
@@ -419,6 +479,12 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
     "The quantity 'g[1]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
     fixed = TRUE
   )
+  for (selector in c("g[1]", "g[2]", "g[3]")) {
+    entry <- .brma_parameter_select_entry(numeric_labels, selector, allow_factor_cells = TRUE)
+    cell <- .plot_brma_factor_cell_samples(numeric_labels, entry, FALSE, FALSE, FALSE)
+    expect_identical(as.numeric(cell[["samples"]][[1L]]),
+      as.numeric(as.matrix(BayesTools::parameter_draws(numeric_labels[["fit"]], entry[["selection"]]))))
+  }
 })
 
 

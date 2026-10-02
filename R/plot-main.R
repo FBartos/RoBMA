@@ -19,6 +19,8 @@
 #' coordinate such as \code{"omega[1]"}, or a latent cluster effect) stops
 #' with the classes \code{RoBMA_hypothesis_target} and
 #' \code{RoBMA_hypothesis_unavailable}, with which [hypothesis()] refuses it.
+#' Ordered level cells retain their semantic marginal draws and prior metadata
+#' on the requested predictor scale, including conditional row alignment.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -1226,18 +1228,23 @@ lines.brma <- function(
   if (!all(key[["dependencies"]] %in% coordinate_columns)) {
     stop("Selected factor-cell source coordinates are unavailable.", call. = FALSE)
   }
-  source_samples <- as.matrix(displayed[[parent]])[
-    ,
-    !is.na(coordinate_columns),
-    drop = FALSE
-  ]
-  colnames(source_samples) <- coordinate_columns[!is.na(coordinate_columns)]
-  draws <- BayesTools::parameter_draws(object[["fit"]], selection,
-    model_samples = source_samples)
-  if (nrow(as.matrix(draws)) != length(value)) {
-    stop("Selected factor-cell draws have inconsistent row metadata.", call. = FALSE)
+  # Ordered marginals already evaluate the semantic cell from its retained
+  # total/allocation sources. Keep its aligned values and metadata rather than
+  # treating the displayed contrast columns as primitive ordered draws.
+  if (!.plot_brma_ordered_target(object, entry)) {
+    source_samples <- as.matrix(displayed[[parent]])[
+      ,
+      !is.na(coordinate_columns),
+      drop = FALSE
+    ]
+    colnames(source_samples) <- coordinate_columns[!is.na(coordinate_columns)]
+    draws <- BayesTools::parameter_draws(object[["fit"]], selection,
+      model_samples = source_samples)
+    if (nrow(as.matrix(draws)) != length(value)) {
+      stop("Selected factor-cell draws have inconsistent row metadata.", call. = FALSE)
+    }
+    value <- .brma_draws_with_values(value, as.numeric(as.matrix(draws)))
   }
-  value <- .brma_draws_with_values(value, as.numeric(as.matrix(draws)))
   attr(value, "parameter") <- entry[["parameter"]]
   attr(value, "level_name") <- level
   class(value) <- unique(c(class(value), "marginal_posterior"))
