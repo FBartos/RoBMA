@@ -197,6 +197,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   effects of an ordered moderator (`x_ord[b]`, `x_ord[c]`), without the zero
   reference level and without the total effect, which equals the last
   level; posterior plots draw each level in its own colour.
+  Prior overlays use the corresponding level colours and dashed lines unless
+  the user supplies prior styles.
 - multivariate and multilevel models with known sampling covariance:
   - adds `brma.mv()`, normal-likelihood meta-analysis with a known sampling
     covariance matrix `V` (latent, whitened, and block-MVN backends through

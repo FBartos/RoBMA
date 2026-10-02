@@ -116,6 +116,10 @@
 #' \code{lty}, \code{col}, and \code{col.fill}, to adjust
 #' the line thickness, line type, line color, and fill color
 #' of the prior distribution respectively.
+#' For ordered predictor targets, omitted line colors and types are selected
+#' by BayesTools to match each posterior level's color with a dashed prior
+#' curve. Explicit \code{col}, \code{lty}, or \code{linetype} values take
+#' precedence; the ordinary prior defaults are retained for other targets.
 #' @inheritParams predict.brma
 #' @param ... list of additional graphical arguments
 #' to be passed to the plotting function. Supported arguments
@@ -425,7 +429,10 @@ lines.brma <- function(
   ### set up plotting arguments
   n_levels   <- .get_samples_n_levels(samples, parameter)
   dots       <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))
-  dots_prior <- .set_dots_prior(dots_prior)
+  dots_prior <- .set_dots_prior(
+    dots_prior,
+    ordered = isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
+  )
   if (is.null(dots[["par_name"]])) {
     dots[["par_name"]] <- if (is_random) random_label else if (is_factor_cell) {
       parameter_entry[["selection"]][["quantities"]][["display_label"]]

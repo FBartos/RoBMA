@@ -1335,16 +1335,37 @@
 
   return(colors[seq_len(n_levels)])
 }
-.set_dots_prior       <- function(dots_prior) {
+.plot_brma_ordered_target <- function(object, entry) {
+
+  specs <- BayesTools::JAGS_ordered_parameter_spec(object[["fit"]])
+  if (length(specs) == 0L) {
+    return(FALSE)
+  }
+  quantities <- entry[["selection"]][["quantities"]]
+  if (length(entry[["member_quantity_ids"]]) > 0L) {
+    catalog <- .brma_parameter_catalog_metadata(object)[["catalog"]][["quantities"]]
+    quantities <- rbind(quantities, catalog[
+      catalog[["quantity_id"]] %in% unlist(entry[["member_quantity_ids"]], use.names = FALSE),
+      , drop = FALSE
+    ])
+  }
+  dependencies <- unique(unlist(lapply(quantities[["extraction_key"]], function(key) {
+    key[["dependencies"]]
+  }), use.names = FALSE))
+  coefficients <- unlist(lapply(specs, `[[`, "coefficient_names"), use.names = FALSE)
+  return(any(dependencies %in% coefficients))
+}
+
+.set_dots_prior       <- function(dots_prior, ordered = FALSE) {
 
   if (is.null(dots_prior)) {
     dots_prior <- list()
   }
 
-  if (is.null(dots_prior[["col"]])) {
+  if (!ordered && is.null(dots_prior[["col"]])) {
     dots_prior[["col"]]      <- "grey60"
   }
-  if (is.null(dots_prior[["lty"]])) {
+  if (!ordered && is.null(dots_prior[["lty"]])) {
     dots_prior[["lty"]]      <- 1
   }
   if (is.null(dots_prior[["col.fill"]])) {
