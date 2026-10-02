@@ -17,37 +17,95 @@ test_that("ordered priors leave matched styles to BayesTools and retain explicit
 
 test_that("ordered style selection uses declared coefficient dependencies", {
 
-  quantity <- function(dependencies) {
-    result <- data.frame(quantity_id = "target")
+  quantity <- function(dependencies, term = "f") {
+    result <- data.frame(quantity_id = "target", term = term, formula_parameter = "mu")
     result[["extraction_key"]] <- I(list(list(type = "factor_level", dependencies = dependencies)))
     result
   }
-  testthat::local_mocked_bindings(JAGS_ordered_parameter_spec = function(...) {
-    list(ordered = list(coefficient_names = c("ordered[1]", "ordered[2]")))
+  owners <- "mu_f"
+  calls <- 0L
+  testthat::local_mocked_bindings(JAGS_ordered_parameter_spec = function(fit, parameters) {
+    calls <<- calls + 1L
+    expect_identical(parameters, owners)
+    list(f = list(coefficient_names = c("mu_f[1]", "mu_f[2]")),
+      h = list(coefficient_names = c("mu_h[1]", "mu_h[2]")))
   }, .package = "BayesTools")
-  object <- list(fit = list())
-  for (dependencies in list("ordered[1]", c("ordinary", "ordered[2]"))) {
+  fit <- list()
+  ordered <- BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))
+  attr(fit, "prior_list") <- list(mu_f = ordered, mu_h = ordered,
+    mu_x = BayesTools::prior("normal", list(0, 1)))
+  object <- list(fit = fit)
+  for (dependencies in list("mu_f[1]", c("mu_x", "mu_f[2]"))) {
     entry <- list(selection = list(quantities = quantity(dependencies)))
     expect_true(.plot_brma_ordered_target(object, entry))
   }
-  entry <- list(selection = list(quantities = quantity("ordinary")))
+  entry <- list(selection = list(quantities = quantity("mu_x", term = "x")))
   expect_false(.plot_brma_ordered_target(object, entry))
-  entry <- list(selection = list(quantities = quantity(character())), member_quantity_ids = "parent")
-  parent <- quantity(c("ordered[1]", "ordered[2]"))
-  parent[["quantity_id"]] <- "parent"
+  expect_identical(calls, 2L)
+  malformed <- quantity("mu_f[1]")
+  malformed[["formula_parameter"]] <- NULL
+  expect_false(.plot_brma_ordered_target(object, list(selection = list(quantities = malformed))))
+  expect_identical(calls, 2L)
+  entry <- list(selection = list(quantities = quantity(character(), term = "")),
+    member_quantity_ids = c("parent_f", "parent_h"))
+  parent <- rbind(quantity(c("mu_f[1]", "mu_f[2]")), quantity("mu_h[1]", term = "h"))
+  parent[["quantity_id"]] <- c("parent_f", "parent_h")
   local_mocked_bindings(.brma_parameter_catalog_metadata = function(...) {
     list(catalog = list(quantities = parent))
   }, .package = "RoBMA")
+  owners <- c("mu_f", "mu_h")
   expect_true(.plot_brma_ordered_target(object, entry))
+  expect_identical(calls, 3L)
+})
+
+
+test_that("ordered plot ownership validates only selected bound terms", {
+
+  normal <- BayesTools::prior("normal", list(0, 1))
+  ordered <- BayesTools::prior_ordered(normal)
+  data <- data.frame(f = base::ordered(c("base", "middle", "high", "base")),
+    h = base::ordered(c("base", "middle", "high", "base")), x = seq_len(4))
+  compiled <- BayesTools::JAGS_formula(~ f + h + x, "mu", data,
+    list(intercept = normal, f = ordered, h = ordered, x = normal))
+  columns <- c("mu_intercept", "mu_f[1]", "mu_f[2]", "mu_h[1]", "mu_h[2]", "mu_x")
+  values <- matrix(1, 4L, length(columns), dimnames = list(NULL, columns))
+  fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(values)), sample = 4L),
+    class = c("runjags", "BayesTools_fit", "list"))
+  attr(fit, "prior_list") <- compiled[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
+  attr(fit, "parameter_map") <- BayesTools:::.bt_build_parameter_map(
+    columns = columns, prior_list = compiled[["prior_list"]],
+    formula_design = list(mu = compiled[["formula_design"]]))
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+  quantities <- BayesTools::parameter_catalog(fit)[["quantities"]]
+  priors <- attr(fit, "prior_list", exact = TRUE)
+  metadata <- attr(priors[["mu_h"]], "ordered_metadata", exact = TRUE)
+  metadata[["numeric_literals"]] <- NULL
+  attr(priors[["mu_h"]], "ordered_metadata") <- metadata
+  attr(fit, "prior_list") <- priors
+  object <- list(fit = fit)
+
+  entry <- function(term) {
+    list(selection = list(quantities = quantities[quantities[["term"]] == term, , drop = FALSE]))
+  }
+  expect_false(.plot_brma_ordered_target(object, entry("x")))
+  expect_true(.plot_brma_ordered_target(object, entry("f")))
+  error <- tryCatch(.plot_brma_ordered_target(object, entry("h")), error = identity)
+  expect_s3_class(error, "BayesTools_ordered_metadata_unavailable")
+  expect_s3_class(error, "BayesTools_refit_required")
 })
 
 
 test_that("plot dispatch forwards matched ordered styles and ordinary prior defaults", {
 
-  quantities <- data.frame(quantity_id = "target")
-  quantities[["extraction_key"]] <- I(list(list(dependencies = "ordered[1]")))
+  quantities <- data.frame(quantity_id = "target", term = "f", formula_parameter = "mu")
+  quantities[["extraction_key"]] <- I(list(list(dependencies = "mu_f[1]")))
   entry <- list(component = "mods", selection = list(quantities = quantities))
-  object <- structure(list(fit = list()), class = "brma")
+  fit <- list()
+  attr(fit, "prior_list") <- list(mu_f = BayesTools::prior_ordered(
+    BayesTools::prior("normal", list(0, 1))), mu_x = BayesTools::prior("normal", list(0, 1)))
+  object <- structure(list(fit = fit), class = "brma")
   captured <- NULL
   local_mocked_bindings(
     .check_and_select_plot_parameter = function(...) "selected",
@@ -59,8 +117,9 @@ test_that("plot dispatch forwards matched ordered styles and ordinary prior defa
     .package = "RoBMA"
   )
   local_mocked_bindings(
-    JAGS_ordered_parameter_spec = function(...) {
-      list(ordered = list(coefficient_names = "ordered[1]"))
+    JAGS_ordered_parameter_spec = function(fit, parameters) {
+      expect_identical(parameters, "mu_f")
+      list(ordered = list(coefficient_names = "mu_f[1]"))
     },
     plot_posterior = function(...) {
       captured <<- list(...)
@@ -72,7 +131,8 @@ test_that("plot dispatch forwards matched ordered styles and ordinary prior defa
   custom <- list(col = "blue", linetype = "dotdash", col.fill = "white")
   plot(object, prior = TRUE, dots_prior = custom, par_name = "selected")
   expect_identical(captured[["dots_prior"]], custom)
-  entry[["selection"]][["quantities"]][["extraction_key"]] <- I(list(list(dependencies = "ordinary")))
+  entry[["selection"]][["quantities"]][["term"]] <- "x"
+  entry[["selection"]][["quantities"]][["extraction_key"]] <- I(list(list(dependencies = "mu_x")))
   plot(object, prior = TRUE, par_name = "selected")
   expect_identical(captured[["dots_prior"]],
     list(col = "grey60", lty = 1, col.fill = "#B3B3B34C"))

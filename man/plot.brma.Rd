@@ -106,7 +106,9 @@ of the prior distribution respectively.
 For ordered predictor targets, omitted line colors and types are selected
 by BayesTools to match each posterior level's color with a dashed prior
 curve. Explicit \code{col}, \code{lty}, or \code{linetype} values take
-precedence; the ordinary prior defaults are retained for other targets.}
+precedence; the ordinary prior defaults are retained for other targets.
+Ordered metadata validation is restricted to the selected terms, including
+selected group members; unrelated ordered terms do not affect prior styles.}
 
 \item{density_method}{posterior density method. \code{"KDE"} uses the
 standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA

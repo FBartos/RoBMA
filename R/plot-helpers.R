@@ -1337,10 +1337,6 @@
 }
 .plot_brma_ordered_target <- function(object, entry) {
 
-  specs <- BayesTools::JAGS_ordered_parameter_spec(object[["fit"]])
-  if (length(specs) == 0L) {
-    return(FALSE)
-  }
   quantities <- entry[["selection"]][["quantities"]]
   if (length(entry[["member_quantity_ids"]]) > 0L) {
     catalog <- .brma_parameter_catalog_metadata(object)[["catalog"]][["quantities"]]
@@ -1349,6 +1345,25 @@
       , drop = FALSE
     ])
   }
+  if (!all(c("term", "formula_parameter") %in% names(quantities))) {
+    return(FALSE)
+  }
+  owners <- unique(unlist(lapply(seq_len(nrow(quantities)), function(i) {
+    term <- quantities[["term"]][[i]]
+    formula_parameter <- quantities[["formula_parameter"]][[i]]
+    if (is.null(term) || is.na(term) || !nzchar(term) ||
+        is.null(formula_parameter) || is.na(formula_parameter) || !nzchar(formula_parameter)) {
+      return(character())
+    }
+    BayesTools::JAGS_parameter_names(term, formula_parameter = formula_parameter)
+  }), use.names = FALSE))
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  ordered_parameters <- names(prior_list)[vapply(prior_list, BayesTools::is.prior.ordered, logical(1))]
+  owners <- intersect(owners, ordered_parameters)
+  if (length(owners) == 0L) {
+    return(FALSE)
+  }
+  specs <- BayesTools::JAGS_ordered_parameter_spec(object[["fit"]], parameters = owners)
   dependencies <- unique(unlist(lapply(quantities[["extraction_key"]], function(key) {
     key[["dependencies"]]
   }), use.names = FALSE))

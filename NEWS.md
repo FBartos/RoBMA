@@ -198,7 +198,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   reference level and without the total effect, which equals the last
   level; posterior plots draw each level in its own colour.
   Prior overlays use the corresponding level colours and dashed lines unless
-  the user supplies prior styles.
+  the user supplies prior styles. Prior-style metadata checks apply only to
+  selected ordered terms, leaving unrelated stale ordered terms unqueried.
   The six `as_draws()` converters export fitted totals and normalized sampled
   allocation shares by default, including shares on zero-total and
   excluded-spike draws; `include_auxiliary = TRUE` also retains raw increments

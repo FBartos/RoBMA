@@ -23,8 +23,12 @@ Normalize defaults shared by both backends once, in the dispatcher or a focused
 options helper. Render semantic layers in the same order in both backends;
 backend-specific styling must not change the represented quantities.
 
-For ordered semantic targets, identify ordered ownership from persisted catalog
-dependencies and `JAGS_ordered_parameter_spec()` coefficient names. Leave
+For ordered semantic targets, derive owners from selected catalog quantities'
+`term` and `formula_parameter`, including group members, with
+`JAGS_parameter_names()`. Intersect them with declared ordered priors before
+requesting only those owners from `JAGS_ordered_parameter_spec()`; ordinary
+targets do not request ordered metadata. Compare persisted catalog dependencies
+with the selected specs' coefficient names. Leave
 unspecified prior line colors and types to BayesTools' matched level styles;
 preserve explicit user styles and ordinary targets' existing defaults.
 
