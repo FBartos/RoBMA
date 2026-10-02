@@ -29,7 +29,9 @@
 \item{plot_type}{graphics system: \code{"base"} or \code{"ggplot"}.
 Defaults to \code{"base"}.}
 
-\item{probs}{quantiles for credible intervals. Defaults to \code{c(.025, .975)}.}
+\item{probs}{quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
+The bands are pointwise Harrell-Davis quantiles of the posterior density draws
+(see Details).}
 
 \item{max_samples}{maximum posterior samples for density.
 Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
@@ -85,6 +87,16 @@ Adds model-implied density lines to an existing zplot.
 \details{
 The density uses the \code{conditioning_depth} stored by
 \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+
+The line is the posterior mean of the density at each z value, and its
+credible band (\code{plot_ci = TRUE}, or \code{y_lCI} and \code{y_uCI} of the
+returned data) is formed by pointwise Harrell-Davis quantiles of the posterior
+density draws at the probabilities \code{probs}, computed by
+\code{\link[BayesTools:harrell_davis_quantile]{BayesTools::harrell_davis_quantile()}}. They estimate the same quantiles as the
+empirical quantiles of the draws but smooth the kinks that the empirical
+quantiles show along z. The bands remain pointwise, and, because every draw
+contributes, they can differ visibly from the empirical quantiles when few
+draws are used (\code{max_samples} below a few hundred).
 
 When \code{extrapolate = FALSE}, the density includes all bias adjustments
 (PET/PEESE regression, selection weights) representing the fitted model.

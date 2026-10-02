@@ -480,6 +480,8 @@ print.zplot_brma <- function(x, ...) {
 #' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
+#' The bands are pointwise Harrell-Davis quantiles of the posterior density draws
+#' (see Details).
 #' @param max_samples maximum posterior samples for density estimation.
 #' Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
 #' Use \code{Inf} to use all posterior samples. This plotting budget does not
@@ -516,6 +518,15 @@ print.zplot_brma <- function(x, ...) {
 #' @details
 #' All model-implied curves use the \code{conditioning_depth} stored by
 #' \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+#'
+#' The curves are posterior means of the density at each z value. Their credible
+#' bands (\code{plot_ci = TRUE}) are pointwise Harrell-Davis quantiles of the
+#' posterior density draws at the probabilities \code{probs}, computed by
+#' [BayesTools::harrell_davis_quantile()]. They estimate the same quantiles as the
+#' empirical quantiles of the draws but smooth the kinks that the empirical
+#' quantiles show along z. The bands remain pointwise, and, because every draw
+#' contributes, they can differ visibly from the empirical quantiles when few
+#' draws are used (\code{max_samples} below a few hundred).
 #'
 #' The plot can display two density curves:
 #' \describe{
@@ -923,15 +934,13 @@ hist.zplot_brma <- function(x, plot_type = "base",
 
 .zplot_density_data <- function(z_sequence, z_density, probs) {
 
-  # One sorted pass per column: stats::quantile() evaluates each probability
-  # independently, so asking for both returns the two numbers the two separate
-  # passes returned. apply() then labels its two rows with the probabilities,
-  # where one pass per probability named its result after the columns of
-  # `z_density` alone; a single-column grid would otherwise carry a probability
-  # label into the row names of the returned data frame, and an empty grid would
-  # not give a matrix at all. Both are restored by naming the result here.
-  bounds <- matrix(apply(z_density, 2, stats::quantile, probs = probs[1:2]),
-                   nrow = 2L, dimnames = list(NULL, colnames(z_density)))
+  # Pointwise Harrell-Davis quantiles of the density draws of every grid point,
+  # both bounds in one call (BayesTools::harrell_davis_quantile() builds its
+  # weights once for all columns). The result keeps the column names of
+  # `z_density` and has no probability labels (the default `names = FALSE`), so
+  # a single-column grid carries no probability label into the row names of the
+  # returned data frame, and an empty grid still gives a matrix.
+  bounds <- BayesTools::harrell_davis_quantile(z_density, probs[1:2])
 
   return(data.frame(
     x     = z_sequence,
@@ -954,6 +963,8 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' @param plot_type graphics system: \code{"base"} or \code{"ggplot"}.
 #' Defaults to \code{"base"}.
 #' @param probs quantiles for credible intervals. Defaults to \code{c(.025, .975)}.
+#' The bands are pointwise Harrell-Davis quantiles of the posterior density draws
+#' (see Details).
 #' @param max_samples maximum posterior samples for density.
 #' Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
 #' Use \code{Inf} to use all posterior samples. This plotting budget does not
@@ -972,6 +983,16 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' @details
 #' The density uses the \code{conditioning_depth} stored by
 #' \code{as_zplot()}. Recreate the zplot object to change the predictive target.
+#'
+#' The line is the posterior mean of the density at each z value, and its
+#' credible band (\code{plot_ci = TRUE}, or \code{y_lCI} and \code{y_uCI} of the
+#' returned data) is formed by pointwise Harrell-Davis quantiles of the posterior
+#' density draws at the probabilities \code{probs}, computed by
+#' [BayesTools::harrell_davis_quantile()]. They estimate the same quantiles as the
+#' empirical quantiles of the draws but smooth the kinks that the empirical
+#' quantiles show along z. The bands remain pointwise, and, because every draw
+#' contributes, they can differ visibly from the empirical quantiles when few
+#' draws are used (\code{max_samples} below a few hundred).
 #'
 #' When \code{extrapolate = FALSE}, the density includes all bias adjustments
 #' (PET/PEESE regression, selection weights) representing the fitted model.

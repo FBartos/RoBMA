@@ -94,20 +94,31 @@ test_that("zplot displays only the fitted curve unless extrapolation is requeste
 })
 
 
-test_that("the credible band is the one two separate quantile passes returned", {
+test_that("the credible band is the Harrell-Davis quantiles of the draws of each grid point", {
 
-  # `probs` reaches this helper already checked as two probabilities; one pass
-  # per probability is what the band used to be built from, including the names
-  # it gave the result, and `length.out` lets a caller ask for a grid of one
-  # point or of none at all.
+  # `probs` reaches this helper already checked as two probabilities, and
+  # `length.out` lets a caller ask for a grid of one point or of none at all.
+  # The reference applies BayesTools::harrell_davis_quantile() to one grid
+  # point and one probability at a time, as the vector method of the helper
+  # (its matrix method is the one under test) and keeps the names the data
+  # frame takes from a named grid.
   probs <- c(.025, .975)
   reference <- function(z_sequence, z_density) {
+
+    band <- function(p) {
+      stats::setNames(
+        vapply(seq_len(ncol(z_density)), function(j) {
+          BayesTools::harrell_davis_quantile(z_density[, j], p)
+        }, numeric(1L)),
+        colnames(z_density)
+      )
+    }
 
     data.frame(
       x     = z_sequence,
       y     = colMeans(z_density),
-      y_lCI = apply(z_density, 2, stats::quantile, probs = probs[[1L]]),
-      y_uCI = apply(z_density, 2, stats::quantile, probs = probs[[2L]])
+      y_lCI = band(probs[[1L]]),
+      y_uCI = band(probs[[2L]])
     )
   }
 
@@ -134,4 +145,21 @@ test_that("the credible band is the one two separate quantile passes returned", 
       info = label
     )
   }
+
+  # the bounds are not the empirical quantiles: they smooth the kinks of the
+  # empirical quantile along the grid
+  z_density <- grids[["many points"]]
+  empirical <- apply(z_density, 2L, stats::quantile, probs = probs[[1L]], names = FALSE)
+  expect_gt(
+    max(abs(.zplot_density_data(seq_len(13L), z_density, probs)[["y_lCI"]] - empirical)),
+    0
+  )
+
+  # an exact value that does not rely on the helper: with three draws and
+  # p = .5 the weights are (7, 13, 7) / 27, so that the draws (0, 1, 10) give
+  # (13 + 70) / 27
+  exact <- .zplot_density_data(1, matrix(c(0, 1, 10), ncol = 1L), c(.5, .5))
+  expect_equal(exact[["y_lCI"]], 83 / 27, tolerance = 1e-14)
+  expect_equal(exact[["y_uCI"]], 83 / 27, tolerance = 1e-14)
+  expect_equal(exact[["y"]], 11 / 3, tolerance = 1e-14)
 })
