@@ -597,9 +597,6 @@ test_that("Regression plot credible bands are Harrell-Davis quantiles for contin
     .package = "RoBMA"
   )
 
-  level <- 95
-  alpha <- (100 - level) / 100
-  probs <- c(alpha / 2, 1 - alpha / 2)
   harrell_davis <- function(p) {
     vapply(seq_len(ncol(draws)), function(j) {
       BayesTools::harrell_davis_quantile(draws[, j], p)
@@ -609,38 +606,47 @@ test_that("Regression plot credible bands are Harrell-Davis quantiles for contin
     apply(draws, 2L, stats::quantile, probs = p, names = FALSE)
   }
 
-  # continuous moderator: Harrell-Davis quantiles of the draws of each grid
-  # point on the model scale, in the first half of the polygon of the band
-  fit_brma     <- fits[["bcg_meta-regression"]]
-  regplot_data <- .test_regplot(fit_brma, mod = "year", level = level, as_data = TRUE)
-  n_grid       <- ncol(draws)
-  expect_equal(n_grid, 101L)
-  expect_equal(regplot_data[["ci"]][["lower"]][seq_len(n_grid)], harrell_davis(probs[1L]),
-               tolerance = 1e-12)
-  expect_equal(regplot_data[["ci"]][["upper"]][seq_len(n_grid)], harrell_davis(probs[2L]),
-               tolerance = 1e-12)
-  expect_gt(
-    max(abs(regplot_data[["ci"]][["lower"]][seq_len(n_grid)] - empirical(probs[1L]))),
-    0
-  )
-  expect_equal(regplot_data[["pred"]][["y"]], colMeans(draws), tolerance = 1e-12,
-               check.attributes = FALSE)
+  fit_brma        <- fits[["bcg_meta-regression"]]
+  fit_categorical <- fits[["bcg_meta-regression2"]]
 
-  # the monotone transformation is applied to the endpoints, not to the draws
-  regplot_exp <- .test_regplot(fit_brma, mod = "year", level = level, transf = exp,
-                               as_data = TRUE)
-  expect_equal(regplot_exp[["ci"]][["lower"]][seq_len(n_grid)], exp(harrell_davis(probs[1L])),
-               tolerance = 1e-12)
-  expect_equal(regplot_exp[["ci"]][["upper"]][seq_len(n_grid)], exp(harrell_davis(probs[2L])),
-               tolerance = 1e-12)
+  # the default level and a narrower one: the probabilities follow `level`
+  for (level in c(95, 80)) {
+    alpha <- (100 - level) / 100
+    probs <- c(alpha / 2, 1 - alpha / 2)
+    label <- paste0("level = ", level)
 
-  # categorical moderator: empirical quantiles of the draws of each level
-  fit_categorical  <- fits[["bcg_meta-regression2"]]
-  regplot_category <- .test_regplot(fit_categorical, mod = "alloc", level = level, as_data = TRUE)
-  expect_equal(regplot_category[["ci"]][["lower"]], empirical(probs[1L]), tolerance = 1e-12,
-               check.attributes = FALSE)
-  expect_equal(regplot_category[["ci"]][["upper"]], empirical(probs[2L]), tolerance = 1e-12,
-               check.attributes = FALSE)
+    # continuous moderator: Harrell-Davis quantiles of the draws of each grid
+    # point on the model scale, in the first half of the polygon of the band
+    regplot_data <- .test_regplot(fit_brma, mod = "year", level = level, as_data = TRUE)
+    n_grid       <- ncol(draws)
+    expect_equal(n_grid, 101L, info = label)
+    expect_equal(regplot_data[["ci"]][["lower"]][seq_len(n_grid)], harrell_davis(probs[1L]),
+                 tolerance = 1e-12, info = label)
+    expect_equal(regplot_data[["ci"]][["upper"]][seq_len(n_grid)], harrell_davis(probs[2L]),
+                 tolerance = 1e-12, info = label)
+    expect_gt(
+      max(abs(regplot_data[["ci"]][["lower"]][seq_len(n_grid)] - empirical(probs[1L]))),
+      0
+    )
+    expect_equal(regplot_data[["pred"]][["y"]], colMeans(draws), tolerance = 1e-12,
+                 check.attributes = FALSE, info = label)
+
+    # the monotone transformation is applied to the endpoints, not to the draws
+    regplot_exp <- .test_regplot(fit_brma, mod = "year", level = level, transf = exp,
+                                 as_data = TRUE)
+    expect_equal(regplot_exp[["ci"]][["lower"]][seq_len(n_grid)], exp(harrell_davis(probs[1L])),
+                 tolerance = 1e-12, info = label)
+    expect_equal(regplot_exp[["ci"]][["upper"]][seq_len(n_grid)], exp(harrell_davis(probs[2L])),
+                 tolerance = 1e-12, info = label)
+
+    # categorical moderator: empirical quantiles of the draws of each level
+    regplot_category <- .test_regplot(fit_categorical, mod = "alloc", level = level,
+                                      as_data = TRUE)
+    expect_equal(regplot_category[["ci"]][["lower"]], empirical(probs[1L]), tolerance = 1e-12,
+                 check.attributes = FALSE, info = label)
+    expect_equal(regplot_category[["ci"]][["upper"]], empirical(probs[2L]), tolerance = 1e-12,
+                 check.attributes = FALSE, info = label)
+  }
 })
 
 test_that("Regression plot transforms effect-size data", {

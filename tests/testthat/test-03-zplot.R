@@ -165,6 +165,64 @@ test_that("zplot creates reusable objects and plots directly", {
   )))
 })
 
+test_that("zplot density bands are Harrell-Davis quantiles at the requested probabilities", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+
+  zp    <- .test_as_zplot(fits[[name]], max_samples = zplot_smoke_samples)
+  probs <- c(.1, .8)
+
+  # The density draws and the bounds built from them are recorded at the
+  # data function that both the vectorized path of lines() and the paired
+  # path of plot() call, so that the references use exactly the draws of the
+  # band and the probabilities that reached it.
+  recorded     <- list()
+  real_density <- .zplot_density_data
+  testthat::local_mocked_bindings(
+    .zplot_density_data = function(z_sequence, z_density, probs) {
+      out <- real_density(z_sequence, z_density, probs)
+      recorded[[length(recorded) + 1L]] <<- list(draws = z_density, probs = probs, bands = out)
+      out
+    },
+    .package = "RoBMA"
+  )
+  harrell_davis <- function(draws, p) {
+    vapply(seq_len(ncol(draws)), function(j) {
+      BayesTools::harrell_davis_quantile(draws[, j], p)
+    }, numeric(1L))
+  }
+  expect_bands <- function(record, label) {
+    expect_equal(record[["probs"]], probs, info = label)
+    expect_equal(record[["bands"]][["y_lCI"]], harrell_davis(record[["draws"]], probs[[1L]]),
+                 tolerance = 1e-12, info = label)
+    expect_equal(record[["bands"]][["y_uCI"]], harrell_davis(record[["draws"]], probs[[2L]]),
+                 tolerance = 1e-12, info = label)
+    expect_equal(record[["bands"]][["y"]], colMeans(record[["draws"]]), tolerance = 1e-12,
+                 info = label)
+  }
+
+  # vectorized path: one density matrix
+  density <- .test_lines_zplot(zp, as_data = TRUE, probs = probs,
+                               max_samples = zplot_smoke_samples)
+  expect_length(recorded, 1L)
+  expect_bands(recorded[[1L]], "lines()")
+  expect_identical(density, recorded[[1L]][["bands"]])
+
+  # paired path: the fitted and the extrapolated density matrices
+  recorded <- list()
+  .with_temp_plot_device(.test_plot_zplot(
+    zp,
+    plot_extrapolation = TRUE,
+    plot_thresholds    = FALSE,
+    probs              = probs,
+    max_samples        = zplot_smoke_samples
+  ))
+  expect_length(recorded, 2L)
+  expect_bands(recorded[[1L]], "plot(), fitted")
+  expect_bands(recorded[[2L]], "plot(), extrapolated")
+})
+
 test_that("zplot allows descriptive known-V brma.mv displays", {
 
   name <- "brma.mv_block_mvn"
