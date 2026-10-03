@@ -892,7 +892,7 @@
       return("")
     }
     reason <- .iwmde_diagnostics_density_failure_reason(
-      diagnostic[["diagnostics"]]
+      diagnostic[["diagnostics"]], has_diagnostics_field = FALSE
     )
     if (is.null(reason) || length(reason) != 1L || is.na(reason)) {
       return("")

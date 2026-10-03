@@ -170,8 +170,10 @@ test_that("short ordered contribution sequences retain ESS without inventing MCM
         control_execution <- .iwmde_plan_row_execution(context, control)
         control_result <- .iwmde_execute_plan_estimator(context, control, output, control_execution)
         expect_identical(control_result[["mcmc_uncertainty_status"]], if (length(rows) == 4L) "unavailable" else "available")
-        if (length(rows) == 4L) expect_true(all(is.na(control_result[["ess"]]))) else
-          expect_true(all(is.finite(control_result[["mcse"]])))
+        for (field in c("mcse", "relative_mcse", "log_mcse", "ess")) {
+          if (length(rows) == 4L) expect_true(all(is.na(control_result[[field]]))) else
+            expect_true(all(is.finite(control_result[[field]])))
+        }
       }
     }
   }
@@ -183,6 +185,65 @@ test_that("short ordered contribution sequences retain ESS without inventing MCM
   missing <- .iwmde_batch_mcse(contributions)
   expect_identical(missing[["uncertainty_scope"]], "unavailable_missing_selected_chain")
   expect_true(all(is.na(missing[["ess"]])))
+})
+
+
+test_that("consistent conditioned chains retain actual active-mass uncertainty", {
+
+  for (chain_length in c(4L, 8L, 16L)) {
+    conditioned_rows <- seq_len(2L * chain_length)
+    conditioned_chain_id <- rep(1:2, each = chain_length)
+    for (all_active in c(FALSE, TRUE)) {
+      active_per_chain <- if (all_active || chain_length == 4L) chain_length else
+        as.integer(3L * chain_length / 4L)
+      active_rows <- c(seq_len(active_per_chain), chain_length + seq_len(active_per_chain))
+      selected_per_chain <- max(4L, as.integer(chain_length / 2L))
+      selected_rows <- c(seq_len(selected_per_chain), chain_length + seq_len(selected_per_chain))
+      active_mass <- length(active_rows) / length(conditioned_rows)
+      values <- rbind(seq(.2, 1.3, length.out = length(selected_rows)),
+        seq(1.7, .4, length.out = length(selected_rows)))
+      aggregate <- .iwmde_density_aggregate(log(values), active_mass, length(selected_rows),
+        contribution_rows = selected_rows, sampling_population_rows = active_rows,
+        chain_id = conditioned_chain_id[selected_rows], expected_chain_ids = 1:2,
+        conditioned_rows = conditioned_rows, conditioned_chain_id = conditioned_chain_id)
+      expect_true(all(selected_rows %in% active_rows))
+      expect_true(all(active_rows %in% conditioned_rows))
+      expect_true(all(table(factor(conditioned_chain_id[selected_rows], levels = 1:2)) >= 4L))
+      expect_true(all(apply(aggregate[["contributions"]], 1L, function(row) length(unique(row)) > 1L)))
+      active <- .iwmde_batch_mcse(aggregate[["contributions"]])
+      expect_identical(active[["uncertainty_status"]], "available")
+      expect_true(all(is.finite(c(active[["mcse"]], active[["relative_mcse"]], active[["ess"]]))))
+      mass <- .iwmde_active_mass_mcse(active_rows, conditioned_rows, conditioned_chain_id, 1:2, active_mass)
+      expect_identical(aggregate[["active_mass_error"]], mass)
+      expect_identical(mass[["uncertainty_status"]], "available")
+      expect_true(all(is.finite(c(mass[["mcse"]], mass[["relative_mcse"]]))))
+      if (all_active || chain_length == 4L) expect_identical(mass[["mcse"]], 0)
+      primary <- .iwmde_mixture_mcse(aggregate[["contributions"]],
+        aggregate[["mcmc_contributions"]], mass, active_mass)
+      expect_identical(primary[["uncertainty_status"]], "available")
+      expect_true(all(is.finite(c(primary[["mcse"]], primary[["relative_mcse"]], primary[["ess"]]))))
+      expect_identical(primary[["active_mass_mcse"]], mass[["mcse"]])
+      expect_null(primary[["uncertainty_reason"]])
+    }
+  }
+  conditioned_rows <- 1:16
+  conditioned_chain_id <- rep(1:2, each = 8L)
+  active_rows <- seq(1L, 16L, by = 2L)
+  selected_rows <- active_rows[1:4]
+  active_mass <- length(active_rows) / length(conditioned_rows)
+  aggregate <- .iwmde_density_aggregate(log(rbind(c(.2, .4, .7, 1.1), c(1.3, .9, .5, .3))),
+    active_mass, length(selected_rows), contribution_rows = selected_rows,
+    sampling_population_rows = active_rows, chain_id = conditioned_chain_id[selected_rows],
+    expected_chain_ids = 1:2, conditioned_rows = conditioned_rows,
+    conditioned_chain_id = conditioned_chain_id)
+  expect_identical(aggregate[["active_mass_error"]][["uncertainty_status"]], "available")
+  missing <- .iwmde_batch_mcse(aggregate[["contributions"]])
+  expect_identical(missing[["uncertainty_scope"]], "unavailable_missing_selected_chain")
+  primary <- .iwmde_mixture_mcse(aggregate[["contributions"]], aggregate[["mcmc_contributions"]],
+    aggregate[["active_mass_error"]], active_mass)
+  expect_identical(primary[["uncertainty_status"]], "unavailable")
+  for (field in c("mcse", "relative_mcse", "ess")) expect_true(all(is.na(primary[[field]])))
+  expect_match(primary[["uncertainty_reason"]], "no rows from fitted chain.*2")
 })
 
 
@@ -986,6 +1047,9 @@ test_that("ordered partial uncertainty survives result assembly and public consu
       expect_identical(attr(mixed, "footnotes"), attr(rejected_rows, "footnotes"))
       expect_null(attr(mixed, "type", exact = TRUE))
       expect_identical(mixed[["requested_value"]], unlist(lapply(frames, `[[`, "requested_value"), use.names = FALSE))
+      for (field in names(finite_row)) {
+        expect_identical(mixed[[field]], c(frames[[1L]][[field]], frames[[2L]][[field]]))
+      }
       expect_match(paste(capture.output(print(mixed)), collapse = " "), "Ordered MCMC uncertainty is partial")
       for (converted in list(as.data.frame(mixed), data.frame(mixed))) {
         expect_identical(names(converted), names(mixed))
@@ -1074,6 +1138,36 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     expect_match(unavailable_curve[["reason"]], "MCMC uncertainty is unavailable")
     expect_identical(.iwmde_density_sample_rejection_action(curve_diagnostic[["diagnostics"]]),
       "Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'")
+    expected_plain_reason <- paste0(
+      "density MCMC uncertainty is unavailable for some evaluation values. ",
+      "For a plot set 'density_method = \"KDE\"'")
+    expect_identical(.iwmde_diagnostics_density_failure_reason(curve_diagnostic[["diagnostics"]],
+      has_diagnostics_field = FALSE), expected_plain_reason)
+    # Controlled consumer coverage with the actually produced partial record;
+    # this does not establish a public ordered-partial marginal-means route.
+    marginal_samples <- with_draw_metadata(as.numeric(curve_plan[["rows"]][["samples"]]),
+      linear_weights = parameter_spec[["weights"]])
+    marginal_object <- list(
+      inference = list(averaged = list(mu_f = list(mid = marginal_samples))),
+      parameters = "mu_f",
+      term_map = data.frame(term = "f", parameter = "mu_f", label = "f", stringsAsFactors = FALSE),
+      density_diagnostics = list(averaged = list(`f: mid` = curve_diagnostic)))
+    expect_identical(.marginal_means_iwmde_density_rejection_reasons(marginal_object,
+      selected = list(term = "f"), type = "averaged", levels = "mid"), expected_plain_reason)
+    ordinary_diagnostics <- curve_diagnostic[["diagnostics"]]
+    ordinary_diagnostics[["internal_method"]] <- "ordinary"
+    for (all_rows in c(TRUE, FALSE)) {
+      ordinary_diagnostics[["all_rows_used"]] <- all_rows
+      ordinary_diagnostics[["sampling_fraction"]] <- if (all_rows) 1 else .5
+      expected_action <- if (all_rows) "Try fitting the model with more posterior draws" else
+        "Try a larger 'samples' value in the 'density_control' argument"
+      for (has_field in c(TRUE, FALSE)) {
+        expect_identical(.iwmde_density_sample_rejection_action(ordinary_diagnostics,
+          has_diagnostics_field = has_field), expected_action)
+      }
+      expect_identical(.iwmde_diagnostics_density_failure_reason(ordinary_diagnostics,
+        has_diagnostics_field = FALSE), .iwmde_diagnostics_density_failure_reason(ordinary_diagnostics))
+    }
     plot_error <- .plot_brma_iwmde_unavailable_error(samples, method, "cell")
     expect_s3_class(plot_error, "RoBMA_density_plot_error")
     expect_identical(conditionMessage(plot_error), paste0(method,

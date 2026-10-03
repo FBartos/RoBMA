@@ -94,7 +94,8 @@
 }
 
 
-.iwmde_diagnostics_density_failure_reason <- function(diagnostics) {
+.iwmde_diagnostics_density_failure_reason <- function(diagnostics,
+                                                      has_diagnostics_field = TRUE) {
 
   if (is.null(diagnostics) || !is.list(diagnostics)) {
     return("missing qCMDE/IWMDE density diagnostics")
@@ -115,7 +116,8 @@
     return(paste0(
       reason,
       ". ",
-      .iwmde_density_sample_rejection_action(density_diagnostics)
+      .iwmde_density_sample_rejection_action(density_diagnostics,
+        has_diagnostics_field = has_diagnostics_field)
     ))
   }
 
@@ -386,11 +388,15 @@
 }
 
 
-.iwmde_density_sample_rejection_action <- function(diagnostics) {
+.iwmde_density_sample_rejection_action <- function(diagnostics,
+                                                   has_diagnostics_field = TRUE) {
 
   if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
       "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
       identical(diagnostics[["mcmc_uncertainty_status"]], "partial")) {
+    if (!has_diagnostics_field) {
+      return("For a plot set 'density_method = \"KDE\"'")
+    }
     return("Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'")
   }
 

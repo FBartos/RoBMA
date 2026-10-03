@@ -114,9 +114,8 @@
 #' their MCMC error and ESS stay unavailable while other evaluations retain
 #' their metrics. A printed table footnote reports the `partial` uncertainty
 #' status and its reason; the original selected-row scope stays in its column.
-#' With fewer than four contribution rows, finite importance ESS can remain
-#' available even though all MCMC errors are unavailable. Such curves fail the MCMC
-#' availability gate, and an affected point cannot meet its precision target.
+#' Such curves fail the MCMC availability gate, and an affected point cannot
+#' meet its precision target.
 #' If every evaluation is affected, the full unavailable scope is retained.
 #' A finite log MCSE whose absolute value underflows remains a separate
 #' representation limitation.

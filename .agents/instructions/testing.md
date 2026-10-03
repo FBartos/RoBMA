@@ -202,3 +202,6 @@ ratio envelopes retain producer, reference and floating errors including their
 product terms. Ordered short-row tests explicitly restrict an internal valid
 plan population; the public planner's 20-continuous-row minimum stays unchanged.
 Missing MCMC error with finite importance ESS remains partial uncertainty.
+The ordered-result NA masks also reject malformed available-status all-NA
+uncertainty. When the active branch has enough batches in each required fitted
+chain, the complete conditioned indicator includes those same active rows.

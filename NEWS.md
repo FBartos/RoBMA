@@ -532,9 +532,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     retain the partial uncertainty reason as a table footnote; unsupported
     dependency certificates recommend inspecting diagnostics or KDE for plots.
     Rejected-ordinate and combined hypothesis tables preserve that footnote in
-    either row order. Short contribution sequences retain calculable importance
-    ESS when MCMC errors are unavailable, without claiming precision. Plot errors
-    direct inspection to the returned condition's `density_diagnostics` field.
+    either row order. Parameter plot errors direct inspection to the returned
+    condition's `density_diagnostics` field.
     Absolute MCSE underflow is recognized from its finite log value, including
     when the density itself remains nonzero and subnormal. Block prior eligibility
     applies to actual block components; continuous point-total components keep
