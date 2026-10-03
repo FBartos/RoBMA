@@ -387,6 +387,7 @@
 .iwmde_plan_baseline_contract <- function(context, plan, candidate_rows,
                                           candidate_values) {
 
+  if (identical(plan[["execution_spec"]][["type"]], "ordered")) context[["ordered_requested_method"]] <- plan[["method"]]
   row_states <- if (identical(plan[["execution_spec"]][["type"]], "ordered")) {
     .iwmde_new_row_states(lapply(candidate_rows, function(row) {
       .iwmde_ordered_row_state(context, plan[["execution_spec"]], row)

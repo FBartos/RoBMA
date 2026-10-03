@@ -128,3 +128,161 @@ test_that("new source diagnostics preserve legacy table inspection", {
   expect_identical(names(restored), names(template))
   expect_identical(vapply(restored, typeof, character(1)), vapply(template, typeof, character(1)))
 })
+
+
+test_that("Gamma completion agrees with independent full-support physical references", {
+
+  # These exact binary inputs were integrated as positive physical kernels at
+  # 80/105 digits, with different splits and an explicit infinite tail. They
+  # include both shapes, rates .03/7, A=1e-8/1/1e8, K=12/240 and zero scores.
+  references <- utils::read.csv(test_path("fixtures", "ordered-gamma-completion.csv"))
+  expect_identical(nrow(references), 152L)
+  for (i in seq_len(nrow(references))) {
+    row <- references[i, ]
+    block <- .ordered_block_fixture(BayesTools::prior("gamma", list(row$shape, row$rate)))
+    block[["gaussian"]] <- list(A = row$A, H = row$H, C = row$C)
+    context <- list(data = list(outcome = data.frame(yi = numeric(row$K))))
+    result <- .iwmde_ordered_block_inner(context, block, 0)
+    expect_identical(result[["method"]], "completed_gamma_source")
+    completion <- result[["completion"]]
+    expect_lte(abs(result[["log_value"]] - row$log_reference), completion[["prospective_floor"]])
+    expect_identical(block[["counts"]][["max_log_scale"]], completion[["max_log_scale"]])
+    expect_identical(block[["counts"]][["gamma_completion"]][["scale_updates"]], 1L)
+    expect_lte(completion[["prospective_floor"]], log1p(.025 / 16))
+  }
+})
+
+
+test_that("Gamma completion uses supplied effective priors and preserves constant provenance", {
+
+  for (shape in c(2, 3)) for (rate in c(.03, 7)) {
+    block <- .ordered_block_fixture(BayesTools::prior("gamma", list(shape, rate)), alpha = 1, beta = 2)
+    result <- .iwmde_ordered_block_numerator(NULL, block, "share")
+    reference <- stats::integrate(function(total) stats::dgamma(total, shape, rate = rate) / total *
+      exp(-.7 + .3 * total - total^2) * 2 / 2.5, 0, Inf, rel.tol = 1e-11, abs.tol = 0)
+    floor <- result[["completion"]][["prospective_floor"]]
+    expect_lte(abs(exp(result[["log_value"]]) - reference[["value"]]),
+      reference[["abs.error"]] + exp(result[["log_value"]]) * expm1(floor))
+    expect_identical(result[["relative_error"]], 0)
+    expect_identical(result[["method"]], "unshifted_gamma_inverse_supplier")
+    expect_identical(result[["completion"]][["effective_prior"]][["parameters"]],
+      BayesTools::prior("gamma", list(shape - 1, rate))[["parameters"]])
+    expect_identical(block[["counts"]][["gamma_completion"]][["method"]], "completed_gamma_source")
+  }
+  block <- .ordered_block_fixture(BayesTools::prior("gamma", list(2, 7)))
+  block[["gaussian"]] <- list(A = 0, H = 0, C = 1000)
+  result <- .iwmde_ordered_block_inner(NULL, block, 0)
+  expect_identical(result[["method"]], "declared_constant_source")
+  expect_identical(result[["log_value"]], 1000)
+  expect_identical(block[["counts"]][["max_log_scale"]], 1)
+  expect_null(block[["counts"]][["gamma_completion"]])
+  block[["source_state"]] <- list()
+  expect_identical(.iwmde_ordered_block_inner(NULL, block, 0)[["method"]], "declared_constant_source")
+  expect_null(block[["counts"]][["gamma_completion"]])
+  block[["gaussian"]][["H"]] <- 1
+  expect_error(.iwmde_ordered_block_inner(NULL, block, 0), class = "RoBMA_ordered_inner_geometry_unresolved")
+})
+
+
+test_that("Gamma completion scope and rejected scales preserve the original CDF dispatcher", {
+
+  make_block <- function(A = 1, H = 1, prior = BayesTools::prior("gamma", list(1, 1))) {
+    block <- .ordered_block_fixture(prior)
+    block[["gaussian"]] <- list(A = A, H = H, C = 0)
+    block
+  }
+  context <- list(data = list(outcome = data.frame(yi = numeric(12))))
+  for (reason in c("source_state", "selected", "invalid_geometry", "dynamic_prior", "truncated_prior", "shape_outside_scope")) {
+    block <- make_block()
+    probability <- block[["normal_probability"]]
+    if (reason == "source_state") block[["source_state"]] <- list()
+    if (reason == "selected") block[["selected"]] <- TRUE
+    if (reason == "invalid_geometry") block[["gaussian"]] <- NULL
+    if (reason == "dynamic_prior") probability[["prior"]][["parameters"]][["rate"]] <- expression(exp(tau))
+    if (reason == "truncated_prior") probability <- .iwmde_ordered_probability_prior(
+      BayesTools::prior("gamma", list(1, 1), truncation = list(0, 10)))
+    if (reason == "shape_outside_scope") probability <- .iwmde_ordered_probability_prior(BayesTools::prior("gamma", list(3, 1)))
+    result <- .iwmde_ordered_gamma_completion(context, block, 0, probability)
+    expect_false(result[["eligible"]])
+    expect_identical(result[["reason"]], reason)
+    expect_identical(block[["counts"]][["max_log_scale"]], 1)
+  }
+  dynamic <- BayesTools::prior("gamma", list(2, 1))
+  dynamic[["parameters"]][["rate"]] <- expression(exp(tau))
+  expect_error(.iwmde_ordered_probability_prior(dynamic), class = "RoBMA_ordered_proper_cdf_prior")
+  rejected <- make_block(H = 100001)
+  candidate <- .iwmde_ordered_gamma_completion(context, rejected, 0, rejected[["normal_probability"]])
+  expect_identical(candidate[["reason"]], "prospective_floor")
+  actual <- .iwmde_ordered_block_inner(context, rejected, 0)
+  baseline <- make_block(H = 100001)
+  original_completion <- .iwmde_ordered_gamma_completion
+  local_mocked_bindings(.iwmde_ordered_gamma_completion = function(...) {
+    out <- original_completion(...)
+    out[["eligible"]] <- FALSE
+    out[["reason"]] <- "forced_original_cdf"
+    out
+  }, .package = "RoBMA")
+  original <- .iwmde_ordered_block_inner(context, baseline, 0)
+  fields <- c("log_value", "log_error", "log_exterior", "relative_error", "components",
+    "fine_panels", "refinements", "coalesced_cuts", "method")
+  expect_identical(actual[fields], original[fields])
+  expect_identical(as.numeric(actual[["cuts"]]), as.numeric(original[["cuts"]]))
+  expect_identical(as.numeric(actual[["fine_cuts"]]), as.numeric(original[["fine_cuts"]]))
+  expect_identical(actual[["guard"]][c("constant", "log_lower", "log_upper", "fraction", "center", "width", "radius", "trace")],
+    original[["guard"]][c("constant", "log_lower", "log_upper", "fraction", "center", "width", "radius", "trace")])
+  expect_identical(rejected[["counts"]][["max_log_scale"]], baseline[["counts"]][["max_log_scale"]])
+  expect_lt(rejected[["counts"]][["max_log_scale"]], candidate[["max_log_scale"]])
+  expect_identical(rejected[["counts"]][["gamma_completion"]][["fallback_reasons"]], c(prospective_floor = 1L))
+  failure_block <- make_block(.01, 7 - .8, BayesTools::prior("gamma", list(2, 7)))
+  expect_error(.iwmde_ordered_block_inner(context, failure_block, 0), class = "RoBMA_ordered_panel_budget_exceeded")
+})
+
+
+test_that("Gamma rows can mix exact completions and CDF nodes on one share partition", {
+
+  block <- .ordered_block_fixture(BayesTools::prior("gamma", list(2, 7)))
+  block[["gaussian"]] <- list(A = 1, H = c(-.9, 1), C = 0)
+  context <- list(data = list(outcome = data.frame(yi = numeric(12))))
+  shares <- c(0, .5, 1)
+  results <- lapply(shares, function(share) .iwmde_ordered_block_inner(context, block, share))
+  expect_identical(vapply(results, `[[`, character(1), "method"),
+    c("proper_cdf_source", "completed_gamma_source", "completed_gamma_source"))
+  for (i in seq_along(shares)) {
+    H <- -.9 + shares[[i]]
+    reference <- stats::integrate(function(total) stats::dgamma(total, 2, rate = 7) *
+      exp(H * total - .5 * total^2), 0, Inf, rel.tol = 1e-11, abs.tol = 0)
+    reported <- results[[i]][["relative_error"]]
+    if (is.null(reported)) reported <- expm1(results[[i]][["completion"]][["prospective_floor"]])
+    expect_lte(abs(exp(results[[i]][["log_value"]]) - reference[["value"]]),
+      reference[["abs.error"]] + reported * exp(results[[i]][["log_value"]]))
+  }
+  expect_identical(block[["counts"]][["gamma_completion"]][["accepted"]], 2L)
+  expect_identical(block[["counts"]][["gamma_completion"]][["fallback"]], 1L)
+  near <- .ordered_block_fixture(BayesTools::prior("gamma", list(1, 1)))
+  near[["gaussian"]] <- list(A = 1, H = 90001, C = 0)
+  expect_identical(.iwmde_ordered_block_inner(context, near, 0)[["method"]], "completed_gamma_source")
+  near[["gaussian"]][["H"]] <- 100001
+  expect_identical(.iwmde_ordered_block_inner(context, near, 0)[["method"]], "proper_cdf_source")
+})
+
+
+test_that("proper-CDF block denominators retain general Gamma and truncated Normal support", {
+
+  for (prior in list(BayesTools::prior("gamma", list(3, 1)),
+    BayesTools::prior("normal", list(.3, 1.2), truncation = list(-.5, 1.4)))) {
+    block <- .ordered_block_fixture(prior)
+    actual <- .iwmde_ordered_block_denominator(NULL, block)
+    support <- .iwmde_prior_support(prior)
+    reference <- stats::integrate(function(share) vapply(share, function(s) {
+      stats::integrate(function(total) exp(-.7 + (.3 + .8 * s) * total -
+        .5 * (2 + 10 * s^2) * total^2 + BayesTools::lpdf(prior, total)),
+        support[[1L]], support[[2L]], rel.tol = 1e-10, abs.tol = 0)[["value"]] * stats::dbeta(s, 3, 1)
+    }, numeric(1)), 0, 1, rel.tol = 1e-9, abs.tol = 0)
+    expect_lte(abs(exp(actual[["log_value"]]) - reference[["value"]]),
+      reference[["abs.error"]] + actual[["relative_error"]] * exp(actual[["log_value"]]))
+    if (prior[["distribution"]] == "gamma") {
+      expect_identical(block[["counts"]][["gamma_completion"]][["accepted"]], 0L)
+      expect_gt(block[["counts"]][["gamma_completion"]][["fallback_reasons"]][["shape_outside_scope"]], 0L)
+    }
+  }
+})

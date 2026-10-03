@@ -250,6 +250,8 @@
   estimator_label <- if (identical(estimator, "q_grid_cmde") ||
                          identical(estimator, "qCMDE")) {
     "qCMDE"
+  } else if (is.null(estimator) || identical(estimator, "ordered_source_conditional_cmde")) {
+    "Ordered density"
   } else {
     "IWMDE"
   }

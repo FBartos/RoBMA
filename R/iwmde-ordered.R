@@ -194,6 +194,13 @@
     }
     distribution <- component[["distribution"]]
     support <- .iwmde_prior_support(component)
+    shape <- component[["parameters"]][["shape"]]
+    if (isTRUE(descriptor[["pure"]]) && distribution == "gamma" && support[[1L]] == 0 && is.finite(support[[2L]]) &&
+        descriptor[["alpha"]] == 1 && is.numeric(shape) && length(shape) == 1L &&
+        shape > 1 && shape <= 4 && (!descriptor[["shifted"]] || descriptor[["shift_support"]][[1L]] == 0)) {
+      return(list(status = "capability", cause = "truncated_gamma_inverse_supplier",
+        detail = "the finite-upper-truncated Gamma share supplier has no supplied inverse-prior block route"))
+    }
     if (descriptor[["shifted"]]) {
       shifts <- descriptor[["shift_support"]]
       if (distribution == "normal" && all(is.infinite(support)) && descriptor[["alpha"]] > 1) {
@@ -360,6 +367,20 @@
   unavailable <- function(cause, detail) list(available = FALSE, cause = cause, detail = detail)
   if (all(vapply(row_states, function(state) identical(state[["ordered_chart"]][["kind"]], "ordinary"), logical(1)))) {
     return(list(available = TRUE, kind = "existing_ordinary_pivot"))
+  }
+  block_point <- identical(parameter_spec[["ordered_point_plan"]][["status"]], "block")
+  if (block_point && (.is_data_random(context[["data"]]) || .is_data_multilevel(context[["data"]]))) {
+    return(unavailable("covariance_certificate", "the offset block requires the supplied invariant diagonal Gaussian covariance"))
+  }
+  if (block_point) {
+    descriptor <- parameter_spec[["ordered_point_plan"]][["descriptor"]]
+    spec <- parameter_spec[["ordered_specs"]][[descriptor[["term"]]]]
+    supported <- vapply(row_states, function(state) {
+      prior <- .iwmde_ordered_total_component(spec, state[["row"]])[["prior"]]
+      prior[["distribution"]] %in% c("normal", "gamma") && !.iwmde_retained_location_dynamic_prior(prior)
+    }, logical(1))
+    if (!all(supported)) return(unavailable("offset_block_capability_unavailable",
+      "the source prior is outside the supplied Gaussian block implementation"))
   }
   if (!identical(.data_outcome_type(context[["data"]]), "norm") ||
       .iwmde_context_uses_local_likelihood(context) || .is_data_known_v(context[["data"]]) ||
@@ -688,7 +709,7 @@
     if (!source %in% names(row)) .iwmde_ordered_refit()
     slope <- projection[["total_contraction_weights"]][[term[["parameter"]]]][row_index, term[["slice"]]]
     if (!is.finite(slope) || slope == 0) {
-      .iwmde_stop_construction_failure("ordered_source_conditional_cmde", parameter, row_index,
+      .iwmde_stop_construction_failure(context[["ordered_requested_method"]], parameter, row_index,
         "source-chart construction", "the continuous source slope is zero or unrepresentable")
     }
     return(list(kind = "total", source = source, total = spec[["total_names"]][[term[["slice"]]]],
@@ -744,7 +765,7 @@
     chart <- list(kind = "pair", indices = indices, h = h)
   }
   if (!is.finite(slope) || slope == 0 || !is.finite(current)) {
-    .iwmde_stop_construction_failure("ordered_source_conditional_cmde", parameter_spec[["parameter"]],
+    .iwmde_stop_construction_failure(context[["ordered_requested_method"]], parameter_spec[["parameter"]],
       row_index, "source-chart construction", "the continuous source slope is zero or unrepresentable")
   }
   descriptor <- .iwmde_ordered_offset_descriptor(context, parameter_spec)
@@ -851,7 +872,10 @@
   replaced <- .iwmde_ordered_replace_source(context, state, values)
   out <- rep(-Inf, length(values))
   valid <- replaced[["valid"]]
-  if (!any(valid)) return(out)
+  if (!any(valid)) {
+    attr(out, "max_accumulated_logterm") <- numeric(length(values))
+    return(out)
+  }
   samples <- replaced[["samples"]][valid, , drop = FALSE]
   unit <- if (.is_data_multilevel(context[["data"]])) "cluster" else "estimate"
   likelihood <- if (isTRUE(.data_outcome_type(context[["data"]]) %in% c("bin", "pois")) &&
@@ -1019,13 +1043,6 @@
     support <- .iwmde_prior_support(prior)
     transform <- .iwmde_parameter_transform(support)
     current <- vapply(states, function(state) state[["ordered_chart"]][["current"]], numeric(1))
-    starts <- c(current, BayesTools::quant(prior, c(.005, .995)))
-    grid <- .iwmde_normalization_grid(starts, numeric(), support, transform,
-      control[["normalization_points"]], control[["normalization_prob"]])
-    if (is.null(grid)) {
-      .iwmde_stop_construction_failure("ordered_source_conditional_cmde", parameter, rows,
-        "source normalization grid", "the source support has no representable normalization grid")
-    }
     masses <- lapply(states, .iwmde_ordered_normal_source_mass)
     analytic <- all(!vapply(masses, is.null, logical(1)))
     certified <- if (!analytic) lapply(states, function(state) .iwmde_ordered_source_normalizer(context, state)) else NULL
@@ -1041,6 +1058,13 @@
       exterior <- vapply(masses, `[[`, numeric(1), "exterior_relative_error")
       summary <- list(normalization_range = support, normalization_points = 0L)
     } else {
+      starts <- c(current, BayesTools::quant(prior, c(.005, .995)))
+      grid <- .iwmde_normalization_grid(starts, numeric(), support, transform,
+        control[["normalization_points"]], control[["normalization_prob"]])
+      if (is.null(grid)) {
+        .iwmde_stop_construction_failure(context[["ordered_requested_method"]], parameter, rows,
+          "source normalization grid", "the source support has no representable normalization grid")
+      }
       normalization <- .iwmde_qcmde_normalization(context, parameter,
         display_grid = numeric(), normalization_grid = grid, transform = transform,
         normalization_prob = control[["normalization_prob"]], row_states = states,
@@ -1099,7 +1123,7 @@
     }
   }
   if (anyNA(log_terms) || any(log_terms == Inf)) {
-    .iwmde_stop_construction_failure("ordered_source_conditional_cmde", parameter,
+    .iwmde_stop_construction_failure(context[["ordered_requested_method"]], parameter,
       vapply(row_states, `[[`, integer(1), "row_index"), "normalized contribution validation",
       "the ordered log-term producer returned an undefined or infinite contribution")
   }
@@ -1153,6 +1177,7 @@
 .iwmde_ordered_density <- function(context, plan, execution, display_grid,
                                     density_output) {
 
+  context[["ordered_requested_method"]] <- plan[["method"]]
   offset <- plan[["execution_spec"]][["ordered_point_plan"]]
   certificate <- .iwmde_ordered_point_certificate(context, plan[["execution_spec"]], execution[["row_states"]])
   omitted <- list()
@@ -1216,7 +1241,7 @@
   zero_variance <- is.finite(uncertainty[["mcse"]]) & uncertainty[["mcse"]] == 0 & !structural_zero
   if (any(zero_variance) && !constant) {
     for (field in c("mcse", "relative_mcse", "active_branch_mcse", "active_branch_relative_mcse",
-      "active_mass_component_mcse", "ess")) uncertainty[[field]] <- rep(NA_real_, length(display_grid))
+      "active_mass_component_mcse", "ess")) uncertainty[[field]][zero_variance] <- NA_real_
     uncertainty[["uncertainty_scope"]] <- "unavailable_insufficient_chain_batches"
     uncertainty[["uncertainty_status"]] <- "unavailable"
     uncertainty[["uncertainty_reason"]] <- "zero empirical contribution variance lacks a declared dependency certificate"

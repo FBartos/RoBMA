@@ -426,7 +426,8 @@
   spec <- parameter_spec[["ordered_specs"]][[descriptor[["term"]]]]
   component <- .iwmde_ordered_total_component(spec, state[["row"]])
   prior <- component[["prior"]]
-  if (!prior[["distribution"]] %in% c("normal", "gamma") || .is_data_known_v(context[["data"]]) ||
+  if (!prior[["distribution"]] %in% c("normal", "gamma") || .iwmde_retained_location_dynamic_prior(prior) ||
+      .is_data_known_v(context[["data"]]) ||
       .is_data_random(context[["data"]]) || .is_data_multilevel(context[["data"]])) {
     .iwmde_ordered_stop(parameter_spec[["parameter"]], "offset_block_capability_unavailable",
       "the source prior or covariance is outside the supplied Gaussian block implementation")
@@ -442,8 +443,6 @@
   block[["counts"]][["inner_calls"]] <- 0L
   block[["counts"]][["outer_nodes"]] <- 0L
   block[["counts"]][["maximum_chunk"]] <- 0L
-  allocation_chart <- stats::setNames(list(list(kind = "group", J = descriptor[["J"]])), chart[["key"]])
-  block[["kernel"]] <- BayesTools::JAGS_ordered_density_kernel(lapply(state[["ordered_specs"]], `[[`, "prior"), allocation_chart)
   anchor_total <- BayesTools::quant(prior, .5)
   anchor <- .iwmde_ordered_block_samples(context, block, anchor_total, .5)
   setup <- .iwmde_log_lik_posterior_setup_active_branch(context, anchor, state[["active_setup"]], "estimate")
@@ -508,8 +507,6 @@
   block[["setup"]] <- setup
   block[["variance"]] <- variance
   block[["weights"]] <- weights
-  block[["prior_constant"]] <- state[["prior_evaluator"]](anchor) + block[["kernel"]](anchor) -
-    BayesTools::lpdf(prior, anchor_total) - BayesTools::lpdf(block[["beta"]], .5)
   block[["selected"]] <- isTRUE(state[["active_setup"]][["is_weightfunction"]])
   block[["log_correction_lower"]] <- block[["log_correction_upper"]] <- 0
   if (block[["selected"]]) {
@@ -571,10 +568,9 @@
     mu <- matrix(block[["mu0"]], count, length(block[["mu0"]]), byrow = TRUE) +
       outer(share[take], block[["mu_c"]]) + outer(total[take], block[["mu_a"]]) +
       outer(total[take] * share[take], block[["mu_b"]])
-    samples <- .iwmde_ordered_block_samples(context, block, total[take], share[take])
     # The fixed positive singleton selection route has an invariant observation
-    # factor and covariance. Replay remains complete; the original native
-    # normalizer evaluates every moved predictor without recompiling its setup.
+    # factor and covariance. The declared bilinear predictor and original native
+    # normalizer evaluate every source node without recompiling its setup.
     selection_context <- block[["selection_context"]]
     if (nrow(selection_context[["omega"]]) == 1L && count > 1L) {
       selection_context[["omega"]] <- matrix(rep(selection_context[["omega"]][1L, ], each = count), nrow = count)
@@ -871,6 +867,121 @@
 }
 
 
+.iwmde_ordered_gamma_completion <- function(context, block, share, prior) {
+
+  result <- list(eligible = FALSE, reason = "unresolved", method = "proper_cdf_source",
+    effective_prior = prior[["prior"]], z = NA_real_, condition = NA_real_,
+    max_log_scale = NA_real_, prospective_floor = NA_real_)
+  fallback <- function(reason) {
+    result[["reason"]] <- reason
+    result
+  }
+  if (!is.null(block[["source_state"]])) return(fallback("source_state"))
+  if (!identical(block[["selected"]], FALSE)) return(fallback("selected"))
+  supplied <- prior[["prior"]]
+  if (!identical(supplied[["distribution"]], "gamma")) return(fallback("source_family"))
+  if (.iwmde_retained_location_dynamic_prior(supplied)) return(fallback("dynamic_prior"))
+  if (!identical(prior[["support"]], c(0, Inf)) ||
+      !identical(.iwmde_prior_support(supplied), c(0, Inf))) return(fallback("truncated_prior"))
+  shape <- supplied[["parameters"]][["shape"]]
+  rate <- supplied[["parameters"]][["rate"]]
+  if (!is.numeric(shape) || length(shape) != 1L || !is.finite(shape) ||
+      !shape %in% c(1, 2)) return(fallback("shape_outside_scope"))
+  if (!is.numeric(rate) || length(rate) != 1L || !is.finite(rate) || rate <= 0) return(fallback("invalid_rate"))
+  polynomial <- block[["gaussian"]]
+  if (!all(c("A", "H", "C") %in% names(polynomial)) ||
+      !all(vapply(polynomial[c("A", "H", "C")], function(value)
+        is.numeric(value) && length(value) > 0L && all(is.finite(value)), logical(1)))) return(fallback("invalid_geometry"))
+  A <- .iwmde_ordered_poly_value(polynomial[["A"]], share)
+  H <- .iwmde_ordered_poly_value(polynomial[["H"]], share)
+  C <- .iwmde_ordered_poly_value(polynomial[["C"]], share)
+  if (length(A) != 1L || length(H) != 1L || length(C) != 1L ||
+      any(!is.finite(c(A, H, C))) || A < 0) return(fallback("invalid_geometry"))
+  if (A == 0) return(fallback("existing_zero_precision_guard"))
+  beta <- H - rate
+  z <- beta / sqrt(A)
+  result[["z"]] <- z
+  if (any(!is.finite(c(beta, z, log(A))))) return(fallback("required_log_unrepresentable"))
+  # Reject before the cancellation-prone log Mills-ratio subtraction.
+  if (z < 0 && !(z^2 < 63.5)) return(fallback("stable_negative_bound"))
+  log_phi <- stats::dnorm(z, log = TRUE)
+  log_Phi <- stats::pnorm(z, log.p = TRUE)
+  if (any(!is.finite(c(log_phi, log_Phi)))) return(fallback("required_log_unrepresentable"))
+  condition <- 1
+  subtraction <- NA_real_
+  if (z < 0) {
+    u <- log(-z) + log_Phi - log_phi
+    subtraction <- -expm1(u)
+    if (!is.finite(u) || !is.finite(subtraction) || subtraction <= 0) return(fallback("nonpositive_subtraction"))
+    condition <- (1 + exp(u)) / subtraction
+  }
+  result[["condition"]] <- condition
+  if (!is.finite(condition) || condition > 128) return(fallback("condition_over_128"))
+  log_I <- if (shape == 1) {
+    .5 * log(2 * pi) - .5 * log(A) + .5 * z^2 + log_Phi
+  } else if (z < 0) {
+    -log(A) + log(subtraction)
+  } else if (z == 0) {
+    -log(A)
+  } else {
+    term <- log(z) + log_Phi - log_phi
+    big <- max(0, term)
+    -log(A) + big + log(exp(-big) + exp(term - big))
+  }
+  log_mass <- C + shape * log(rate) - lgamma(shape) + log_I
+  result[["log_mass"]] <- log_mass
+  if (any(!is.finite(c(log_I, log_mass)))) return(fallback("result_unrepresentable"))
+  t_bound <- abs(beta) / A + sqrt(shape) / sqrt(A)
+  scales <- c(constant = 1, C = abs(C), mean = (abs(H) + rate) * t_bound,
+    condition = if (z < 0) condition * (1 + abs(log(-z)) + abs(log_Phi) + abs(log_phi)) else
+      if (z == 0) 1 + abs(log_Phi) + abs(log_phi) else 1 + z^2 / 2 + abs(log_Phi),
+    log_A = abs(log(A)), log_rate = shape * abs(log(rate)), log_gamma = abs(lgamma(shape)),
+    log_I = abs(log_I), log_mass = abs(log_mass), quadratic = .5 * (sqrt(A) * t_bound)^2)
+  n_observations <- nrow(context[["data"]][["outcome"]])
+  if (is.null(n_observations)) n_observations <- 1L
+  result[["t_bound"]] <- t_bound
+  result[["scales"]] <- scales
+  result[["max_log_scale"]] <- max(scales)
+  result[["prospective_floor"]] <- 64 * .Machine$double.eps * max(1L, n_observations) * max(scales)
+  if (any(!is.finite(c(t_bound, scales, result[["prospective_floor"]])))) return(fallback("scale_unrepresentable"))
+  if (result[["prospective_floor"]] > log1p(.025 / 16)) return(fallback("prospective_floor"))
+  result[["eligible"]] <- TRUE
+  result[["reason"]] <- "completion"
+  result[["method"]] <- "completed_gamma_source"
+  result
+}
+
+
+.iwmde_ordered_gamma_record <- function(block, completion) {
+
+  ledger <- block[["counts"]][["gamma_completion"]]
+  if (is.null(ledger)) ledger <- list(method = "completed_gamma_source", accepted = 0L, fallback = 0L,
+    fallback_reasons = integer(), effective_priors = list(), z_range = c(Inf, -Inf),
+    condition_range = c(Inf, -Inf), max_log_scale = 0, max_prospective_floor = 0,
+    scale_updates = 0L, max_scales = numeric())
+  prior <- completion[["effective_prior"]]
+  if (!any(vapply(ledger[["effective_priors"]], identical, logical(1), prior))) {
+    ledger[["effective_priors"]][[length(ledger[["effective_priors"]]) + 1L]] <- prior
+  }
+  if (completion[["eligible"]]) {
+    ledger[["accepted"]] <- ledger[["accepted"]] + 1L
+    ledger[["z_range"]] <- range(ledger[["z_range"]], completion[["z"]], finite = TRUE)
+    ledger[["condition_range"]] <- range(ledger[["condition_range"]], completion[["condition"]], finite = TRUE)
+    ledger[["max_log_scale"]] <- max(ledger[["max_log_scale"]], completion[["max_log_scale"]])
+    ledger[["max_prospective_floor"]] <- max(ledger[["max_prospective_floor"]], completion[["prospective_floor"]])
+    ledger[["max_scales"]] <- if (!length(ledger[["max_scales"]])) completion[["scales"]] else
+      pmax(ledger[["max_scales"]], completion[["scales"]])
+    ledger[["scale_updates"]] <- ledger[["scale_updates"]] + 1L
+  } else {
+    ledger[["fallback"]] <- ledger[["fallback"]] + 1L
+    reason <- completion[["reason"]]
+    previous <- ledger[["fallback_reasons"]][reason]
+    ledger[["fallback_reasons"]][reason] <- if (is.na(previous)) 1L else previous + 1L
+  }
+  block[["counts"]][["gamma_completion"]] <- ledger
+}
+
+
 .iwmde_ordered_block_inner <- function(context, block, share, order = NULL,
                                       prior = block[["normal_probability"]]) {
 
@@ -893,6 +1004,19 @@
     block[["counts"]][["max_log_scale"]] <- max(block[["counts"]][["max_log_scale"]], completion[["max_log_scale"]], abs(actual), abs(correction))
     return(list(log_value = value, log_error = -Inf, log_exterior = tail,
       fine_panels = 0L, method = "completed_gaussian_gh", order = order))
+  }
+  gaussian_A <- block[["gaussian"]][["A"]]
+  zero_precision <- is.numeric(gaussian_A) && length(gaussian_A) > 0L &&
+    length(share) == 1L && is.finite(.iwmde_ordered_poly_value(gaussian_A, share)) &&
+    .iwmde_ordered_poly_value(gaussian_A, share) == 0
+  if (identical(prior[["prior"]][["distribution"]], "gamma") && !zero_precision) {
+    completion <- .iwmde_ordered_gamma_completion(context, block, share, prior)
+    if (!identical(completion[["reason"]], "existing_zero_precision_guard")) .iwmde_ordered_gamma_record(block, completion)
+    if (completion[["eligible"]]) {
+      block[["counts"]][["max_log_scale"]] <- max(block[["counts"]][["max_log_scale"]], completion[["max_log_scale"]])
+      return(list(log_value = completion[["log_mass"]], log_error = -Inf, log_exterior = -Inf,
+        fine_panels = 0L, method = "completed_gamma_source", completion = completion))
+    }
   }
   guard <- .iwmde_ordered_inner_guard(block, share, prior)
   if (guard[["constant"]]) {

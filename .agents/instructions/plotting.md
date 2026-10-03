@@ -54,6 +54,14 @@ exact offset bits, per-row 0.025 numerical gate and separate atom measure.
 Unknown suppliers or missing population precision certificates remain explicit
 point capabilities; density curves omit only classified exact unavailable
 points and retain their reasons. Keep log/scaled contributions under underflow.
+Block capabilities must match the invariant diagonal Gaussian geometry and its
+literal Normal/Gamma prior scope. Finite-upper Gamma share inverse suppliers
+with no validated route are classified before denominator work. Unselected,
+source-state-free blocks may complete literal untruncated Gamma shape 1/2
+masses only within the score/conditioning and prospective arithmetic reserve;
+retain effective-prior, method and fallback evidence in the row counts. Rejected
+completion scales never enter the existing CDF floating-error ledger. Selected
+blocks retain the original native selection correction at every source node.
 
 Use `.outcome_data_yi()`, `.outcome_data_sei()`,
 `.outcome_data_vi()`, and `.outcome_data_weights()` instead of direct fitted

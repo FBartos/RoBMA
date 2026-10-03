@@ -54,7 +54,7 @@
 #' case-insensitive. Ordered effects use the same normalized conditional-source
 #' estimator for both methods, with their respective posterior-row budgets.
 #' Exact regular ordered offsets that need a finite supplier integral use a
-#' positive conditional block; infinite or uncertified offsets are omitted
+#' positive conditional block; offsets classified as nonfinite or unsupported are omitted
 #' only at that exact value from a density curve. Point hypotheses retain their
 #' structural or precision refusal. For semantic random-effect quantities, qCMDE/IWMDE support
 #' direct scalar fitted sources, allocated component SDs backed by a scalar

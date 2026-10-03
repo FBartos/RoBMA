@@ -510,13 +510,24 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     sources, replay all shared consumers, and count the original ordered priors
     once. Both methods use normalized conditional-source contributions with
     the original 500/1000-row defaults. Finite regular exact offsets use positive
-    supplier blocks; exact infinite or uncertified offsets are omitted from
-    density curves and retain their refusal in explicit point hypotheses.
+    supplier blocks; exact offsets classified as nonfinite or unsupported are
+    omitted from density curves and retain their refusal in explicit point hypotheses.
     Complete per-row numerical error must be at most 0.025. Diagnostics retain
     the source/block method and proofs separately from chain MCSE and row-sampling
     error, including finite log ordinates when the displayed density underflows.
     Declared zero reference cells keep their atom and no longer prevent whole
     factor precomputed densities from being attached.
+    Unselected Gaussian blocks complete literal untruncated Gamma shape 1/2
+    inner masses when the stable score, conditioning and arithmetic-reserve
+    checks pass; other nodes retain the existing proper-CDF route and diagnostics.
+    Effective inverse-prior shapes and completion/fallback counts remain in the
+    row proofs. Selected blocks avoid an unused candidate materialization while
+    retaining the complete native selection normalizer at every source node.
+    Offset capabilities now match the supplied block covariance/prior scope,
+    including an early refusal for unsupported finite-upper Gamma inverse
+    suppliers. Uncertified zero empirical variance affects uncertainty only
+    at its own evaluation, and generic table thresholds remain separate from
+    the ordered per-row 0.025 numerical limit.
   - adds likelihood-aware qCMDE and IWMDE estimates of posterior densities
     and point ordinates through `density_method` (`"KDE"`, `"qCMDE"`, or
     `"IWMDE"`) and `density_control` in `plot()`, `lines()`,

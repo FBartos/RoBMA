@@ -513,3 +513,159 @@ test_that("ordered plans execute requested methods with common rows and retain u
     expect_true(is.na(density[["mcse"]][[2L]]))
   }
 })
+
+
+test_that("offset certificates match the supplied block covariance and prior scope", {
+
+  fixture <- .ordered_target_fixture()
+  context <- fixture[["context"]]
+  context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  target <- .iwmde_ordered_target_spec(context, "cell", list(type = "linear",
+    weights = stats::setNames(c(1, 1), spec[["coefficient_names"]][1:2])))
+  state <- list(row = context[["evaluator_cache"]][[target[["ordered_source_key"]]]][1L, ],
+    ordered_chart = .iwmde_ordered_row_chart(context, target, 1L), source_gaussian = list(quadratic = 1),
+    active_setup = list())
+  expect_identical(target[["ordered_point_plan"]][["status"]], "block")
+  expect_true(.iwmde_ordered_point_certificate(context, target, list(state))[["available"]])
+  for (flag in c("random", "cluster", "known_V")) {
+    scoped <- context
+    attr(scoped[["data"]], flag) <- TRUE
+    certificate <- .iwmde_ordered_point_certificate(scoped, target, list(state))
+    expect_false(certificate[["available"]])
+    expect_identical(certificate[["cause"]], "covariance_certificate")
+    ordinary <- state
+    ordinary[["ordered_chart"]][["kind"]] <- "ordinary"
+    expect_true(.iwmde_ordered_point_certificate(scoped, target, list(ordinary))[["available"]])
+  }
+  target[["ordered_specs"]][[1L]][["total_prior"]] <- BayesTools::prior("beta", list(2, 1))
+  expect_identical(.iwmde_ordered_point_certificate(context, target, list(state))[["cause"]],
+    "offset_block_capability_unavailable")
+})
+
+
+test_that("finite-upper Gamma inverse suppliers fail early and curves retain finite neighbors", {
+
+  fixture <- .ordered_target_fixture(total = BayesTools::prior("gamma", list(2, 1), truncation = list(0, 10)))
+  context <- fixture[["context"]]
+  context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  parameter_spec <- list(type = "linear", weights = stats::setNames(1, spec[["coefficient_names"]][[1L]]))
+  target <- .iwmde_ordered_target_spec(context, "cell", parameter_spec)
+  expect_identical(target[["ordered_point_plan"]][["status"]], "capability")
+  expect_identical(target[["ordered_point_plan"]][["cause"]], "truncated_gamma_inverse_supplier")
+  evaluated <- NULL
+  local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
+    .iwmde_active_setup = function(...) list(),
+    .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(...) 0,
+    .iwmde_ordered_point_certificate = function(...) list(available = TRUE),
+    .iwmde_ordered_block_geometry = function(...) stop("unsupported offset ran a denominator"),
+    .iwmde_ordered_log_terms = function(context, parameter_spec, row_states, evaluation_values, control) {
+      evaluated <<- evaluation_values
+      list(log_terms = matrix(-1, length(evaluation_values), length(row_states)),
+        proofs = lapply(row_states, function(state) list(ratio_relative_error = 0,
+          numerator_relative_error = 0, denominator_relative_error = 0, exterior_relative_error = 0,
+          floating_relative_error = 0, error_status = "exact", source_grid_points = 0L,
+          source_grid = c(0, 10), log_normalizer = 0, normalizer = list(method = "declared_fixture"),
+          candidate_rows = state[["row_index"]])),
+        internal_method = "ordered_source_conditional_cmde", working_distribution = "normalized_conditional_source",
+        normalization_basis = "source_chart")
+    }, .package = "RoBMA")
+  plan <- .iwmde_plan(context, "cell", "qCMDE", list(samples = 20L), outputs = "ordinate",
+    values = 0, parameter_spec = parameter_spec)
+  execution <- .iwmde_plan_row_execution(context, plan)
+  expect_error(.iwmde_ordered_density(context, plan, execution, 0, FALSE),
+    class = "RoBMA_ordered_truncated_gamma_inverse_supplier")
+  curve <- .iwmde_ordered_density(context, plan, execution, c(0, .1, .2), TRUE)
+  expect_identical(evaluated, c(.1, .2))
+  expect_identical(curve[["x"]], c(.1, .2))
+  expect_identical(curve[["omitted_ordered_points"]][[1L]][["cause"]], "truncated_gamma_inverse_supplier")
+})
+
+
+test_that("all-invalid source chunks retain a full arithmetic-scale vector", {
+
+  state <- list(prior_evaluator = function(samples) rep(0, nrow(samples)),
+    ordered_kernel = function(samples) rep(0, nrow(samples)))
+  local_mocked_bindings(.iwmde_ordered_replace_source = function(context, state, values) {
+    valid <- values > 0
+    list(samples = matrix(values, ncol = 1L), valid = valid)
+  }, .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(context, samples, ...) samples[, 1L],
+    .package = "RoBMA")
+  values <- c(rep(-1, 1024L), seq_len(25L), rep(-1, 1024L))
+  result <- .iwmde_ordered_log_q_source(list(), state, values)
+  scale <- attr(result, "max_accumulated_logterm", exact = TRUE)
+  expect_length(scale, length(values))
+  expect_identical(scale[values < 0], rep(0, sum(values < 0)))
+  expect_identical(scale[values > 0], values[values > 0])
+  state[["prior_evaluator"]] <- function(samples) rep(-Inf, nrow(samples))
+  nonrepresentable <- .iwmde_ordered_log_q_source(list(), state, 1)
+  expect_identical(attr(nonrepresentable, "max_accumulated_logterm", exact = TRUE), Inf)
+})
+
+
+test_that("construction failures use requested or neutral ordered method labels", {
+
+  for (method in c("qCMDE", "IWMDE", "ordered_source_conditional_cmde")) {
+    failure <- tryCatch(.iwmde_stop_construction_failure(method, "cell", 1L, "source chart", "unrepresentable"), error = identity)
+    label <- if (method == "ordered_source_conditional_cmde") "Ordered density" else method
+    expect_identical(conditionMessage(failure), paste0(label,
+      " construction failed for target 'cell' at posterior row 1 during source chart: unrepresentable."))
+  }
+})
+
+
+test_that("uncertified zero variance affects only its evaluation", {
+
+  fixture <- .ordered_target_fixture()
+  context <- fixture[["context"]]
+  context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  parameter_spec <- list(type = "linear", weights = stats::setNames(c(1, 1), spec[["coefficient_names"]][1:2]))
+  local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
+    .iwmde_active_setup = function(...) list(),
+    .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(...) 0,
+    .iwmde_ordered_point_certificate = function(...) list(available = TRUE),
+    .iwmde_ordered_constant_certificate = function(...) FALSE,
+    .iwmde_ordered_log_terms = function(context, parameter_spec, row_states, evaluation_values, control) {
+      n <- length(row_states)
+      list(log_terms = rbind(rep(-1, n), log(seq_len(n) / n), log(rev(seq_len(n)) / (n + 1))),
+        proofs = lapply(row_states, function(state) list(ratio_relative_error = 0,
+          numerator_relative_error = 0, denominator_relative_error = 0, exterior_relative_error = 0,
+          floating_relative_error = 0, error_status = "exact", source_grid_points = 0L,
+          source_grid = c(-Inf, Inf), log_normalizer = 0, normalizer = list(method = "declared_fixture"),
+          candidate_rows = state[["row_index"]])),
+        internal_method = "ordered_source_conditional_cmde", working_distribution = "normalized_conditional_source",
+        normalization_basis = "source_chart")
+    }, .package = "RoBMA")
+  plan <- .iwmde_plan(context, "cell", "qCMDE", list(samples = 20L), outputs = "ordinate",
+    values = .1, parameter_spec = parameter_spec)
+  execution <- .iwmde_plan_row_execution(context, plan)
+  result <- .iwmde_ordered_density(context, plan, execution, c(-.2, -.1, .1), TRUE)
+  expect_true(is.na(result[["mcse"]][[1L]]))
+  expect_true(all(is.finite(result[["mcse"]][2:3])))
+  expect_true(all(is.finite(result[["ess"]][2:3])))
+  expect_identical(result[["mcmc_uncertainty_scope"]], "unavailable_insufficient_chain_batches")
+})
+
+
+test_that("analytic source normalizers bypass an unused normalization grid", {
+
+  prior <- BayesTools::prior("normal", list(0, 1))
+  state <- list(row_index = 1L, ordered_chart = list(kind = "total", source = "total",
+    prior = prior, current = .2, slope = 1, offset = 0),
+    source_gaussian = list(quadratic = 2, linear = -.4, selected = FALSE),
+    baseline_log_q = stats::dnorm(.2, log = TRUE) - .2^2)
+  local_mocked_bindings(.iwmde_normalization_grid = function(...) stop("unused grid constructed"),
+    .iwmde_ordered_log_q_source = function(context, state, values) {
+      result <- stats::dnorm(values, log = TRUE) - values^2
+      attr(result, "max_accumulated_logterm") <- abs(result)
+      result
+    }, .package = "RoBMA")
+  result <- .iwmde_ordered_log_terms(list(data = list(outcome = data.frame(yi = 0))),
+    list(parameter = "cell"), list(state), c(-.1, .1), .iwmde_density_control_resolve("qCMDE", NULL, "ordinate"))
+  expect_equal(as.numeric(result[["log_terms"]]), stats::dnorm(c(-.1, .1), 0, 1 / sqrt(3), log = TRUE), tolerance = 1e-14)
+  expect_identical(result[["proofs"]][[1L]][["source_grid_points"]], 0L)
+})

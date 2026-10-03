@@ -106,8 +106,10 @@
 #' `ordered_error_status` preserves its estimated error status. Block numerator
 #' and denominator errors, maximum quadrature order/panel count, and actual
 #' native normalizer node count are reported in the `block_*` columns. Exact
-#' infinite or uncertified offsets are excluded only from density curves;
+#' offsets classified as nonfinite or unsupported are excluded only from density curves;
 #' explicit point requests retain their structural or precision refusal.
+#' The ordered per-row limit of 0.025 is separate from the generic stability
+#' warning/rejection thresholds reported in this table.
 #'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an
