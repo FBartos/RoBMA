@@ -659,6 +659,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- known-covariance conditional Gaussian scores standardize before squaring and
+  separate log constants, preserving finite scores at extreme representable scales.
 - retained known sampling covariance uses its accepted compact factor, keeping
   positive underflow-scale directions and the accepted semidefinite support rank.
 - integer sampling-factor loadings normalize to double storage, sharing their

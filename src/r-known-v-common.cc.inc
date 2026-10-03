@@ -243,10 +243,10 @@ bool store_conditional_output(
 
   if (output.log_density != nullptr) {
     const double log_two_pi = 1.837877066409345483560659472811;
+    const double z = precision_residual / std::sqrt(precision_diagonal);
     output.log_density[index] = 0.5 * (
-      std::log(precision_diagonal) - log_two_pi -
-      precision_residual * precision_residual / precision_diagonal
-    );
+      std::log(precision_diagonal) - log_two_pi
+    ) - 0.5 * z * z;
   }
   if (output.residual != nullptr) {
     output.residual[index] = precision_residual / precision_diagonal;

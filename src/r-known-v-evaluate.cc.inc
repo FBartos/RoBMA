@@ -363,30 +363,6 @@ bool diagonal_low_rank_conditional_values(
     residual[static_cast<size_t>(observation)] =
       plan.y[static_cast<size_t>(global)] - mean[global];
   }
-  if (rank == 0) {
-    const double two_pi = 6.283185307179586476925286766559;
-    for (int observation = 0; observation < size; ++observation) {
-      const double variance = diagonal[static_cast<size_t>(observation)];
-      const double value = residual[static_cast<size_t>(observation)];
-      const int global = block.index[static_cast<size_t>(observation)];
-      if (output.log_density != nullptr) {
-        output.log_density[global] = -0.5 * (
-          std::log(two_pi * variance) + value * value / variance
-        );
-      }
-      if (output.residual != nullptr) {
-        output.residual[global] = value;
-      }
-      if (output.variance != nullptr) {
-        output.variance[global] = variance;
-      }
-      if (output.precision_residual != nullptr) {
-        output.precision_residual[global] = value / variance;
-      }
-    }
-    return true;
-  }
-
   double *U = fill_low_rank_factor(plan, block, factors);
   bool sparse = false;
   bool factored = false;
@@ -667,10 +643,11 @@ void plan_conditional_values(
       }
       const int global = block.index.front();
       if (output.log_density != nullptr) {
-        const double two_pi = 6.283185307179586476925286766559;
+        const double log_two_pi = 1.837877066409345483560659472811;
+        const double z = value / std::sqrt(variance);
         output.log_density[global] = -0.5 * (
-          std::log(two_pi * variance) + value * value / variance
-        );
+          log_two_pi + std::log(variance)
+        ) - 0.5 * z * z;
       }
       if (output.residual != nullptr) {
         output.residual[global] = value;
