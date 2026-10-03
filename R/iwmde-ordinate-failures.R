@@ -71,6 +71,12 @@
     fields <- startsWith(names(raw), "bf_")
     names(normalized)[fields] <- substring(names(raw)[fields], 4L)
     normalized[["estimator"]] <- plan[["method"]]
+    if (!is.null(plan[["control"]][["samples"]])) {
+      normalized[["requested_samples"]] <- plan[["control"]][["samples"]]
+    }
+    if (!is.null(plan[["control"]][["target_relative_mcse"]])) {
+      normalized[["target_relative_mcse"]] <- plan[["control"]][["target_relative_mcse"]]
+    }
     normalized[["prior_ordinates"]] <- .iwmde_prior_ordinates_select(plan[["prior_ordinates"]], value)
     normalized[["ordinate_warnings"]] <- .iwmde_ordinate_prior_warnings(
       plan[["target"]][["parameter"]], normalized[["prior_ordinates"]]

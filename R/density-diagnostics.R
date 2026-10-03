@@ -425,8 +425,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     ),
     target_relative_mcse = .iwmde_public_numeric_any(
       diagnostics,
-      "target_relative_mcse",
-      default = .05
+      "target_relative_mcse"
     ),
     stability_warning_threshold = stability_warning,
     stability_rejection_threshold = stability_rejection,
