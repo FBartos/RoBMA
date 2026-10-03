@@ -265,6 +265,11 @@
   }
   if (!scalar_character(density[["mcmc_uncertainty_scope"]]) ||
       !scalar_character(density[["mcmc_uncertainty_status"]]) ||
+      !density[["mcmc_uncertainty_scope"]] %in% c(
+        "selected_continuous_rows_only", "selected_active_rows_with_mass_bound",
+        "full_conditioned_rows", "declared_constant_conditional_contribution",
+        "unavailable_missing_selected_chain", "unavailable_insufficient_chain_batches") ||
+      !density[["mcmc_uncertainty_status"]] %in% c("available", "partial", "unavailable") ||
       !(is.null(density[["mcmc_uncertainty_reason"]]) ||
         scalar_character(density[["mcmc_uncertainty_reason"]])) ||
       (!is.null(density[["internal_method"]]) && !scalar_character(density[["internal_method"]])) ||
@@ -279,9 +284,7 @@
     isTRUE(density[["internal_method"]] %in% c("ordered_source_conditional_cmde",
       "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde"))
   partial_ordered <- ordered_source && identical(density[["mcmc_uncertainty_status"]], "partial") &&
-    is.character(density[["mcmc_uncertainty_reason"]]) &&
-    length(density[["mcmc_uncertainty_reason"]]) == 1L &&
-    !is.na(density[["mcmc_uncertainty_reason"]]) && nzchar(density[["mcmc_uncertainty_reason"]]) &&
+    scalar_character(density[["mcmc_uncertainty_reason"]]) &&
     isTRUE(density[["mcmc_uncertainty_scope"]] %in% c("selected_continuous_rows_only",
       "selected_active_rows_with_mass_bound", "full_conditioned_rows"))
   ess <- density[["ess"]]
@@ -335,21 +338,7 @@
         "selected_continuous_rows_batch_means",
         "full_conditioned_chain_batch_means",
         "worst_correlation_delta_upper_bound"
-      ) ||
-      !density[["mcmc_uncertainty_scope"]] %in% c(
-        "selected_continuous_rows_only",
-        "selected_active_rows_with_mass_bound",
-        "full_conditioned_rows",
-        "declared_constant_conditional_contribution",
-        "unavailable_missing_selected_chain",
-        "unavailable_insufficient_chain_batches"
-      ) ||
-      !density[["mcmc_uncertainty_status"]] %in%
-        c("available", "partial", "unavailable") ||
-      !(is.null(density[["mcmc_uncertainty_reason"]]) ||
-        (is.character(density[["mcmc_uncertainty_reason"]]) &&
-         length(density[["mcmc_uncertainty_reason"]]) == 1L &&
-         nzchar(density[["mcmc_uncertainty_reason"]])))) {
+      )) {
     stop("Internal IWMDE density result has invalid uncertainty metadata.",
          call. = FALSE)
   }
@@ -437,7 +426,13 @@
       !identical(as.character(density[["estimator"]]), estimator)) {
     stop("Internal IWMDE density result changed estimator.", call. = FALSE)
   }
-  if (!unavailable_ess && (anyNA(ess) || partial_ordered &&
+  # Short contribution sequences can estimate importance ESS without enough
+  # rows or batches to estimate MCMC error. Preserve that producer state.
+  missing_mcmc_error <- partial_ordered && all(is.finite(ess)) &&
+    all(is.na(density[["mcse"]])) && all(is.na(density[["relative_mcse"]])) &&
+    is.numeric(density[["log_mcse"]]) && length(density[["log_mcse"]]) == n_values &&
+    !any(is.nan(density[["log_mcse"]])) && all(is.na(density[["log_mcse"]]))
+  if (!unavailable_ess && !missing_mcmc_error && (anyNA(ess) || ordered_source &&
       (anyNA(density[["mcse"]]) || anyNA(density[["relative_mcse"]])))) {
     # A representable log MCSE can outlive its absolute floating-point value.
     # That existing underflow declaration is separate from missing uncertainty.

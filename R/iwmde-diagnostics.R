@@ -391,7 +391,7 @@
   if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
       "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
       identical(diagnostics[["mcmc_uncertainty_status"]], "partial")) {
-    return("Inspect 'density_diagnostics()'; for a plot set 'density_method = \"KDE\"'")
+    return("Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'")
   }
 
   if (isTRUE(diagnostics[["all_rows_used"]]) ||

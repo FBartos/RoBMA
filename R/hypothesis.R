@@ -1229,7 +1229,7 @@ hypothesis.brma <- function(object, hypothesis,
     logical(1)
   )]
   if (length(diagnostics) > 0L) {
-    attr(out, "density_diagnostics") <- do.call(rbind, diagnostics)
+    attr(out, "density_diagnostics") <- .iwmde_bind_density_diagnostics(diagnostics)
   } else {
     attr(out, "density_diagnostics") <- NULL
   }

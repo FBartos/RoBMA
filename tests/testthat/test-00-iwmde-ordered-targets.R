@@ -66,6 +66,126 @@ context("Ordered primitive conditional density targets")
 }
 
 
+test_that("short ordered contribution sequences retain ESS without inventing MCMC errors", {
+
+  fixture <- .ordered_target_fixture()
+  context <- fixture[["context"]]
+  draws <- context[["posterior_samples"]]
+  fit <- fixture[["fit"]]
+  fit[["mcmc"]] <- coda::mcmc.list(coda::mcmc(draws[1:20, , drop = FALSE]),
+    coda::mcmc(draws[21:40, , drop = FALSE]))
+  fit[["sample"]] <- 20L
+  fit <- BayesTools:::.bt_attach_fit_contract(BayesTools:::.bt_attach_draw_geometry(fit))
+  context[["object"]][["fit"]] <- fit
+  context[["chain_id"]] <- rep(1:2, each = 20L)
+  context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
+  context <- .iwmde_context_ensure_caches(context, reset = TRUE)
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fit)[[1L]]
+  local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
+    .iwmde_active_setup = function(...) list(),
+    .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(context, posterior_samples, ...) {
+      stats::dnorm(.3, posterior_samples[, spec[["coefficient_names"]][[1L]]], .4, log = TRUE)
+    }, .is_data_multilevel = function(...) FALSE, .is_data_joint_selection = function(...) FALSE,
+    .iwmde_ordered_point_certificate = function(...) list(available = TRUE), .package = "RoBMA")
+  parameter_spec <- list(type = "linear", weights = stats::setNames(-2.5, spec[["coefficient_names"]][[1L]]))
+  selected <- c(2L, 18L, 38L)
+  for (method in c("qCMDE", "IWMDE")) {
+    for (output in c("ordinate", "density")) {
+      plan <- .iwmde_plan(context, "cell", method, list(samples = 20L, normalization_points = 100L),
+        outputs = output, values = if (output == "ordinate") c(.03, .1, .2) else NULL,
+        parameter_spec = parameter_spec)
+      expect_identical(plan[["status"]], "ok")
+      if (output == "density") plan[["grids"]][["display_grid"]] <- c(.03, .1, .2)
+      values <- .iwmde_parameter_values(context, "cell", plan[["execution_spec"]])
+      restrict <- function(plan, rows) {
+        finite_rows <- seq_len(40L) %in% rows
+        baseline <- .iwmde_plan_baseline_contract(context, plan, rows, values[rows])
+        component <- .iwmde_restrict_parameter_component(
+          .iwmde_parameter_components(context, "cell", plan[["execution_spec"]]), finite_rows)
+        plan[["rows"]] <- .iwmde_plan_rows(values, finite_rows, component,
+          continuous_rows = rows, candidate_rows = rows, candidate_values = values[rows],
+          continuous_values = values[rows], baseline_contract = baseline,
+          chain_coverage = .iwmde_plan_chain_coverage(context, rows))
+        plan
+      }
+      # The public planner requires >=20 continuous rows. This explicitly
+      # restricted internal population proves producer/schema robustness only.
+      plan <- restrict(plan, selected)
+      execution <- .iwmde_plan_row_execution(context, plan)
+      expect_identical(execution[["chain_id"]], c(1L, 1L, 2L))
+      expect_identical(execution[["expected_chain_ids"]], 1:2)
+      result <- .iwmde_execute_plan_estimator(context, plan, output, execution)
+      expect_identical(result[["n_evaluated_rows"]], 3L)
+      expect_identical(result[["n_batches"]], 0L)
+      expect_true(all(apply(result[["scaled_contributions"]], 1L, function(row) length(unique(row)) > 1L)))
+      for (field in c("mcse", "relative_mcse", "log_mcse")) expect_true(all(is.na(result[[field]])))
+      expect_true(all(is.finite(result[["ess"]]) & result[["ess"]] >= 0 &
+        result[["ess"]] <= result[["finite_terms"]]))
+      expect_identical(result[["mcmc_uncertainty_status"]], "partial")
+      expect_identical(result[["mcmc_uncertainty_scope"]], "selected_continuous_rows_only")
+      expect_identical(result[["mcmc_uncertainty_reason"]], "fewer than four MCMC contribution rows")
+      expect_identical(.iwmde_new_density_result(result)[["ess"]], result[["ess"]])
+      diagnostic <- .iwmde_plan_diagnostic_result(plan, output, execution, result)
+      if (output == "ordinate") {
+        point <- .iwmde_select_ordinate_diagnostic(diagnostic, .1)
+        ordinate <- .iwmde_posterior_ordinate_attribute(point, method,
+          metadata = list(parameter = "cell"), density_control = plan[["control"]])
+        expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
+        design <- .iwmde_ordinate_sampling_design(ordinate, plan[["control"]], 40L, 3L)
+        expect_false(design[["precision_target_met"]])
+        expect_false(design[["target_met"]])
+        public <- .iwmde_public_density_diagnostic_rows(ordinate)
+        expect_true(is.finite(public[["ess"]]))
+        expect_match(paste(capture.output(print(public)), collapse = " "), "fewer than four MCMC contribution rows")
+      } else {
+        expect_identical(.iwmde_diagnostics_density_failure_reason(diagnostic[["diagnostics"]]),
+          "density plot-scale MCSE is NA. Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'")
+        expect_null(.iwmde_posterior_density_attribute(diagnostic, method,
+          metadata = list(parameter = "cell"), density_control = plan[["control"]]))
+        samples <- structure(as.numeric(plan[["rows"]][["samples"]]), iwmde_diagnostics = list(diagnostic))
+        plot_error <- .plot_brma_iwmde_unavailable_error(samples, method, "cell")
+        expect_s3_class(plot_error, "RoBMA_density_plot_error")
+        expect_identical(plot_error[["density_diagnostics"]][[1L]][["diagnostics"]][["min_ess"]], min(result[["ess"]]))
+      }
+      for (field in c("mcse", "relative_mcse", "log_mcse")) {
+        invalid <- result
+        invalid[[field]][[1L]] <- 0
+        expect_error(.iwmde_new_density_result(invalid), "inconsistent partial uncertainty")
+        for (value in c(NaN, Inf)) {
+          invalid[[field]][[1L]] <- value
+          expect_error(.iwmde_new_density_result(invalid), "invalid|inconsistent partial uncertainty")
+        }
+      }
+      for (field in c("mcmc_uncertainty_status", "mcmc_uncertainty_reason")) {
+        invalid <- result
+        invalid[field] <- list(if (field == "mcmc_uncertainty_status") "available" else NULL)
+        expect_error(.iwmde_new_density_result(invalid), "inconsistent partial uncertainty")
+      }
+      invalid <- result
+      invalid[["ess"]][[1L]] <- result[["finite_terms"]][[1L]] + 1
+      expect_error(.iwmde_new_density_result(invalid), "invalid effective sample sizes")
+      for (rows in list(c(2L, 18L, 22L, 38L), c(2L, 6L, 12L, 18L, 22L, 26L, 32L, 38L))) {
+        control <- restrict(plan, rows)
+        control_execution <- .iwmde_plan_row_execution(context, control)
+        control_result <- .iwmde_execute_plan_estimator(context, control, output, control_execution)
+        expect_identical(control_result[["mcmc_uncertainty_status"]], if (length(rows) == 4L) "unavailable" else "available")
+        if (length(rows) == 4L) expect_true(all(is.na(control_result[["ess"]]))) else
+          expect_true(all(is.finite(control_result[["mcse"]])))
+      }
+    }
+  }
+  contributions <- rbind(c(1, 2, 4), c(3, 1, 5))
+  attr(contributions, "chain_id") <- c(1L, 1L, 2L)
+  attr(contributions, "expected_chain_ids") <- 1:2
+  expect_identical(.iwmde_batch_mcse(contributions)[["uncertainty_status"]], "partial")
+  attr(contributions, "chain_id") <- rep(1L, 3L)
+  missing <- .iwmde_batch_mcse(contributions)
+  expect_identical(missing[["uncertainty_scope"]], "unavailable_missing_selected_chain")
+  expect_true(all(is.na(missing[["ess"]])))
+})
+
+
 test_that("mixture and spike sources mutate real mapped primitives and replay stale totals", {
 
   priors <- list(BayesTools::prior_mixture(list(BayesTools::prior("normal", list(.3, 1)),
@@ -761,6 +881,8 @@ test_that("ordered partial uncertainty survives result assembly and public consu
   spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
   parameter_spec <- list(type = "linear", weights = stats::setNames(c(1, 1), spec[["coefficient_names"]][1:2]))
   all_constant <- FALSE
+  first_constant <- TRUE
+  first_log_scale <- -1
   second_log_scale <- NULL
   local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
     .iwmde_active_setup = function(...) list(),
@@ -771,7 +893,8 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     .iwmde_ordered_log_terms = function(context, parameter_spec, row_states, evaluation_values, control) {
       n <- length(row_states)
       terms <- if (all_constant) matrix(-1, length(evaluation_values), n) else
-        rbind(rep(-1, n), if (is.null(second_log_scale)) log(seq_len(n) / n) else
+        rbind(if (first_constant) rep(first_log_scale, n) else log((seq_len(n) + 1L) / (n + 1L)),
+          if (is.null(second_log_scale)) log(seq_len(n) / n) else
           second_log_scale + log1p(seq_len(n) / 1e5), log(rev(seq_len(n)) / (n + 1)))
       list(log_terms = terms,
         proofs = lapply(row_states, function(state) list(ratio_relative_error = 0,
@@ -830,6 +953,69 @@ test_that("ordered partial uncertainty survives result assembly and public consu
       expect_identical(frame[["ess"]], public[["ess"]])
       expect_identical(frame[["ordinate"]], public[["ordinate"]])
     }
+    # The finite partial point remains numerically accepted under the ordinary
+    # BF policy. Use actual ordinary-scale underflow to exercise rejection.
+    expect_length(estimate[["ordinate_failures"]][["ordinate"]], 0L)
+    first_log_scale <- -900
+    rejected <- .iwmde_estimate_fixed_ordinate(context, "cell", method, list(samples = 20L),
+      values = c(-.2, -.1, .1), parameter_spec = parameter_spec, metadata = list(parameter = "cell"))
+    rejection <- tryCatch(.iwmde_stop_ordinate_unavailable("Fixture ordinate is unavailable", rejected), error = identity)
+    rejected_rows <- density_diagnostics(rejection)
+    expect_s3_class(rejected_rows, "BayesTools_table")
+    expect_identical(rejected_rows[["numerical_status"]], "underflow")
+    expect_match(paste(capture.output(print(rejected_rows)), collapse = " "),
+      "Ordered MCMC uncertainty is partial: zero empirical contribution variance lacks a declared dependency certificate")
+    first_constant <- FALSE
+    ordinary <- .iwmde_estimate_fixed_ordinate(context, "cell", method, list(samples = 20L),
+      values = c(-.2, -.1, .1), parameter_spec = parameter_spec, metadata = list(parameter = "cell"))
+    ordinary_rows <- .iwmde_public_density_diagnostic_rows(ordinary[["posterior_ordinate"]])
+    expect_identical(class(ordinary_rows), c("RoBMA_density_diagnostics", "data.frame"))
+    expect_null(attr(ordinary_rows, "footnotes", exact = TRUE))
+    finite_row <- ordinary_rows[2L, , drop = FALSE]
+    expect_true(all(is.finite(c(finite_row[["ordinate"]], finite_row[["relative_mcse"]], finite_row[["ess"]]))))
+    make_bf <- function(label, diagnostics) {
+      out <- data.frame(BF = 1.125, row.names = label)
+      class(out) <- c("BayesTools_hypothesis_BF", "BayesTools_table", "data.frame")
+      attr(out, "raw_BF") <- 1.125
+      attr(out, "hypothesis_ast") <- structure(list(statements = list(list())), class = "BayesTools_hypothesis_ast")
+      attr(out, "density_diagnostics") <- diagnostics
+      out
+    }
+    for (frames in list(list(rejected_rows, finite_row), list(finite_row, rejected_rows))) {
+      mixed <- .iwmde_bind_density_diagnostics(frames)
+      expect_identical(attr(mixed, "footnotes"), attr(rejected_rows, "footnotes"))
+      expect_null(attr(mixed, "type", exact = TRUE))
+      expect_identical(mixed[["requested_value"]], unlist(lapply(frames, `[[`, "requested_value"), use.names = FALSE))
+      expect_match(paste(capture.output(print(mixed)), collapse = " "), "Ordered MCMC uncertainty is partial")
+      for (converted in list(as.data.frame(mixed), data.frame(mixed))) {
+        expect_identical(names(converted), names(mixed))
+        for (field in names(mixed)) expect_identical(converted[[field]], mixed[[field]])
+      }
+      subset <- mixed[2:1, c("ordinate", "relative_mcse", "ess"), drop = FALSE]
+      expect_identical(attr(subset, "footnotes"), attr(mixed, "footnotes"))
+      expect_identical(subset[["ordinate"]], mixed[["ordinate"]][2:1])
+      combined <- .hypothesis_brma_bind_parameter_results(
+        list(make_bf("one", frames[[1L]]), make_bf("two", frames[[2L]])), list(1L, 2L),
+        structure(list(statements = list(list(), list())), class = "BayesTools_hypothesis_ast"))
+      expect_identical(density_diagnostics(combined)[["ordinate"]], mixed[["ordinate"]])
+      expect_identical(attr(density_diagnostics(combined), "footnotes"), attr(mixed, "footnotes"))
+      expect_match(paste(capture.output(print(density_diagnostics(combined))), collapse = " "),
+        "Ordered MCMC uncertainty is partial")
+    }
+    expect_identical(attr(.iwmde_bind_density_diagnostics(list(rejected_rows, rejected_rows)), "footnotes"),
+      attr(rejected_rows, "footnotes"))
+    empty <- .iwmde_empty_public_density_diagnostics()
+    attr(empty, "footnotes") <- c("Existing empty-frame note.", attr(rejected_rows, "footnotes"))
+    expect_identical(attr(.iwmde_bind_density_diagnostics(list(finite_row, rejected_rows, empty)), "footnotes"),
+      c(attr(rejected_rows, "footnotes"), "Existing empty-frame note."))
+    numerical_error <- tryCatch(.iwmde_stop_ordinate_numerical_failure(c(0, .525), c(-900, log(.525)),
+      values = c(-.2, -.1), finite_terms = c(20, 20), max_weight_share = c(.05, .1)), error = identity)
+    enriched <- tryCatch(.iwmde_enrich_ordinate_error(numerical_error, rejected[["plan"]], context, "cell",
+      method, rejected[["plan"]][["control"]], c(-.2, -.1), metadata = list(parameter = "cell")), error = identity)
+    expect_identical(density_diagnostics(enriched)[["numerical_status"]], c("underflow", "finite"))
+    expect_identical(class(density_diagnostics(enriched)), c("RoBMA_density_diagnostics", "data.frame"))
+    first_constant <- TRUE
+    first_log_scale <- -1
     available <- .iwmde_select_ordinate_diagnostic(diagnostic, -.1)
     available <- .iwmde_posterior_ordinate_attribute(available, method, density_control = plan[["control"]],
       metadata = list(parameter = "cell"), allow_rejected = TRUE)
@@ -887,7 +1073,13 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     expect_true(unavailable_curve[["rejected"]])
     expect_match(unavailable_curve[["reason"]], "MCMC uncertainty is unavailable")
     expect_identical(.iwmde_density_sample_rejection_action(curve_diagnostic[["diagnostics"]]),
-      "Inspect 'density_diagnostics()'; for a plot set 'density_method = \"KDE\"'")
+      "Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'")
+    plot_error <- .plot_brma_iwmde_unavailable_error(samples, method, "cell")
+    expect_s3_class(plot_error, "RoBMA_density_plot_error")
+    expect_identical(conditionMessage(plot_error), paste0(method,
+      " density for 'cell' was rejected by diagnostics: density MCMC uncertainty is unavailable for some evaluation values. ",
+      "Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'."))
+    expect_identical(plot_error[["density_diagnostics"]][[1L]][["diagnostics"]], curve_diagnostic[["diagnostics"]])
     for (scale in c(-740, -900)) {
       second_log_scale <- scale
       represented <- .iwmde_execute_plan_estimator(context, curve_plan, "density", curve_execution)

@@ -197,3 +197,8 @@ global integration accuracy or chain calibration. It loads
 the existing development DLL with `compile = FALSE`, records native/dependency
 identity, and verifies that input fit hashes remain unchanged. This is
 correctness evidence; it does not certify a new native build's performance.
+The physical N/D/reference guards name the fixture, original row and quantity;
+ratio envelopes retain producer, reference and floating errors including their
+product terms. Ordered short-row tests explicitly restrict an internal valid
+plan population; the public planner's 20-continuous-row minimum stays unchanged.
+Missing MCMC error with finite importance ESS remains partial uncertainty.

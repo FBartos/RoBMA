@@ -113,7 +113,9 @@
 #' When only some ordered evaluations lack certified contribution variation,
 #' their MCMC error and ESS stay unavailable while other evaluations retain
 #' their metrics. A printed table footnote reports the `partial` uncertainty
-#' status and its reason, preserving the original selected-row scope. Such curves fail the MCMC
+#' status and its reason; the original selected-row scope stays in its column.
+#' With fewer than four contribution rows, finite importance ESS can remain
+#' available even though all MCMC errors are unavailable. Such curves fail the MCMC
 #' availability gate, and an affected point cannot meet its precision target.
 #' If every evaluation is affected, the full unavailable scope is retained.
 #' A finite log MCSE whose absolute value underflows remains a separate
@@ -299,16 +301,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     return(.iwmde_empty_public_density_diagnostics())
   }
 
-  out <- do.call(rbind, rows)
-  rownames(out) <- NULL
-  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
-  footnotes <- unique(unlist(lapply(rows, attr, which = "footnotes", exact = TRUE)))
-  if (length(footnotes)) {
-    attr(out, "footnotes") <- footnotes
-    class(out) <- c("RoBMA_density_diagnostics", "BayesTools_table", "data.frame")
-  }
-
-  return(out)
+  return(.iwmde_bind_density_diagnostics(rows))
 }
 
 
@@ -325,14 +318,22 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     return(.iwmde_empty_public_density_diagnostics())
   }
 
+  return(.iwmde_bind_density_diagnostics(rows))
+}
+
+
+# Base row binding retains only the first frame's table attributes. Merge the
+# existing notes before binding, including notes on later or empty frames.
+.iwmde_bind_density_diagnostics <- function(rows) {
+
+  if (is.data.frame(rows)) rows <- list(rows)
+  if (!length(rows)) return(.iwmde_empty_public_density_diagnostics())
+  footnotes <- unique(unlist(lapply(rows, attr, which = "footnotes", exact = TRUE)))
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
-  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
-  footnotes <- unique(unlist(lapply(rows, attr, which = "footnotes", exact = TRUE)))
-  if (length(footnotes)) {
-    attr(out, "footnotes") <- footnotes
-    class(out) <- c("RoBMA_density_diagnostics", "BayesTools_table", "data.frame")
-  }
+  attr(out, "footnotes") <- if (length(footnotes)) footnotes else NULL
+  class(out) <- c("RoBMA_density_diagnostics",
+    if (length(footnotes)) "BayesTools_table", "data.frame")
 
   return(out)
 }

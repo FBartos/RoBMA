@@ -165,7 +165,9 @@ warning/rejection thresholds reported in this table.
 When only some ordered evaluations lack certified contribution variation,
 their MCMC error and ESS stay unavailable while other evaluations retain
 their metrics. A printed table footnote reports the \code{partial} uncertainty
-status and its reason, preserving the original selected-row scope. Such curves fail the MCMC
+status and its reason; the original selected-row scope stays in its column.
+With fewer than four contribution rows, finite importance ESS can remain
+available even though all MCMC errors are unavailable. Such curves fail the MCMC
 availability gate, and an affected point cannot meet its precision target.
 If every evaluation is affected, the full unavailable scope is retained.
 A finite log MCSE whose absolute value underflows remains a separate

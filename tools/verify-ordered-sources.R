@@ -28,11 +28,15 @@ print(lapply(c("BayesTools", "RoBMA"), function(package) {
 }))
 records <- list()
 physical_blocks <- list()
-physical_block_reference <- function(fit, context, target, state, proof) {
+physical_block_reference <- function(fit, context, target, state, proof, fixture_name) {
   # The public projection tensor and allocation metadata determine the physical
   # coordinates. No completed Gaussian geometry, production block likelihood,
   # GH rule or probability/CDF-panel formula enters this reference.
   specs <- BayesTools::JAGS_ordered_parameter_spec(fit[["fit"]])
+  guard <- function(valid, quantity) {
+    if (!isTRUE(valid)) stop("Physical block reference for fixture '", fixture_name,
+      "', row ", state[["row_index"]], ", ", quantity, " failed.", call. = FALSE)
+  }
   row <- state[["row"]]
   original <- matrix(row, 1L, dimnames = list(NULL, names(row)))
   projection <- BayesTools::JAGS_ordered_parameter_spec(fit[["fit"]],
@@ -94,14 +98,15 @@ physical_block_reference <- function(fit, context, target, state, proof) {
     value <- stats::integrate(function(T) exp(likelihood(T, S) +
       BayesTools::lpdf(prior, T) - scale_D), support[[1L]], support[[2L]],
       subdivisions = 1000L, rel.tol = 1e-9, abs.tol = 1e-11)
-    stopifnot(is.finite(value[["value"]]), value[["value"]] > 0,
-      is.finite(value[["abs.error"]]))
+    guard(is.finite(value[["value"]]) && value[["value"]] > 0 &&
+      is.finite(value[["abs.error"]]), "inner denominator value/error")
     maximum_inner_error <<- max(maximum_inner_error, value[["abs.error"]])
     value[["value"]]
   }, numeric(1))
   denominator <- stats::integrate(function(S) stats::dbeta(S, a, b) * inner(S),
     0, 1, subdivisions = 1000L, rel.tol = 1e-9, abs.tol = 1e-11)
-  stopifnot(is.finite(denominator[["value"]]), denominator[["value"]] > 0)
+  guard(is.finite(denominator[["value"]]) && denominator[["value"]] > 0 &&
+    is.finite(denominator[["abs.error"]]), "denominator value/error")
   reference_D_error <- (denominator[["abs.error"]] + maximum_inner_error) / denominator[["value"]]
   log_D <- log(denominator[["value"]]) + scale_D
   scale_N <- proof[["numerator"]][["log_value"]]
@@ -118,8 +123,8 @@ physical_block_reference <- function(fit, context, target, state, proof) {
       stats::dbeta(S, a, b, log = TRUE) - log(S) - log(abs(slope)) - scale_N),
       0, 1, subdivisions = 1000L, rel.tol = 1e-9, abs.tol = 1e-11)
   }
-  stopifnot(is.finite(numerator[["value"]]), numerator[["value"]] > 0,
-    is.finite(numerator[["abs.error"]]))
+  guard(is.finite(numerator[["value"]]) && numerator[["value"]] > 0 &&
+    is.finite(numerator[["abs.error"]]), "numerator value/error")
   reference_N_error <- numerator[["abs.error"]] / numerator[["value"]]
   log_N <- log(numerator[["value"]]) + scale_N
   difference_N <- abs(expm1(proof[["numerator"]][["log_value"]] - log_N))
@@ -130,15 +135,21 @@ physical_block_reference <- function(fit, context, target, state, proof) {
     max(1, abs(c(log_N, log_D)), proof[["counts"]][["max_log_scale"]])
   allowance_N <- proof[["numerator_relative_error"]] + reference_N_error + expm1(floating)
   allowance_D <- proof[["denominator_relative_error"]] + reference_D_error + expm1(floating)
+  guard(is.finite(reference_D_error) && reference_D_error < 1,
+    "reference denominator relative error")
   reference_ratio_error <- (1 + reference_N_error) / (1 - reference_D_error) - 1
-  allowance_ratio <- proof[["ratio_relative_error"]] + reference_ratio_error + expm1(floating)
-  stopifnot(reference_D_error < 1, difference_N <= allowance_N,
-    difference_D <= allowance_D, difference_ratio <= allowance_ratio)
+  allowance_ratio <- (1 + proof[["ratio_relative_error"]]) *
+    (1 + reference_ratio_error) * (1 + expm1(floating)) - 1
+  guard(difference_N <= allowance_N, "numerator discrepancy/envelope")
+  guard(difference_D <= allowance_D, "denominator discrepancy/envelope")
+  guard(difference_ratio <= allowance_ratio, "ratio discrepancy/envelope")
   data.frame(row = state[["row_index"]], a = a, b = b, slope = slope,
     log_N = log_N, log_D = log_D, difference_N = difference_N, allowance_N = allowance_N,
     difference_D = difference_D, allowance_D = allowance_D,
     difference_ratio = difference_ratio, allowance_ratio = allowance_ratio,
-    reference_N_error = reference_N_error, reference_D_error = reference_D_error)
+    reference_N_error = reference_N_error, reference_D_error = reference_D_error,
+    producer_ratio_error = proof[["ratio_relative_error"]],
+    reference_ratio_error = reference_ratio_error, floating_ratio_error = expm1(floating))
 }
 for (name in required) {
   fit <- readRDS(fixtures[[name]])
@@ -206,7 +217,7 @@ for (name in required) {
         proof[["ratio_relative_error"]] <= .025)
     }
     for (i in seq_along(states)) {
-      reference <- physical_block_reference(fit, context, target, states[[i]], produced[["proofs"]][[i]])
+      reference <- physical_block_reference(fit, context, target, states[[i]], produced[["proofs"]][[i]], name)
       reference <- cbind(fixture = name, reference)
       print(reference)
       physical_blocks[[paste(name, i)]] <- reference
