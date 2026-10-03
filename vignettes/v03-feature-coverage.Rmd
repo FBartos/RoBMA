@@ -123,7 +123,7 @@ reference_links <- c(
   "wf_cumulative()"                      = "../reference/prior_weightfunction.html",
   "wf_fixed()"                           = "../reference/prior_weightfunction.html",
   "wf_independent()"                     = "../reference/prior_weightfunction.html",
-  "metafor::forest()"                    = "../reference/forest.brma.html",
+  "metafor::forest()"                    = "../reference/forest.html",
   "baujat()"                             = "https://wviechtb.github.io/metafor/reference/baujat.html",
   "gosh()"                               = "https://wviechtb.github.io/metafor/reference/gosh.html",
   "labbe()"                              = "https://wviechtb.github.io/metafor/reference/labbe.html"
