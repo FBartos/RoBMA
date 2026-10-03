@@ -81,6 +81,14 @@
     prior_ordinates     = prior_ordinates,
     ordinate_warnings   = ordinate_warnings
   )
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    point <- parameter_spec[["ordered_point_plan"]]
+    only_block <- !is.null(point) && identical(point[["status"]], "block") &&
+      length(values) > 0L && all(values == point[["value"]]) && identical(outputs, "ordinate")
+    plan[["internal_method"]] <- if (only_block) "ordered_offset_block_cmde" else "ordered_source_conditional_cmde"
+    plan[["working_distribution"]] <- "normalized_conditional_source"
+    plan[["normalization_basis"]] <- if (only_block) "ordered_offset_block" else "source_chart"
+  }
   plan <- .iwmde_plan_prepare_contract(context, plan)
   plan <- .iwmde_new_plan(plan)
   plan[["plan_key"]] <- .iwmde_hash("iwmde_plan", .iwmde_plan_key_payload(plan))
@@ -311,7 +319,7 @@
     )
   }
 
-  normalization_grid <- .iwmde_normalization_grid(
+  normalization_grid <- if (identical(parameter_spec[["type"]], "ordered")) NULL else .iwmde_normalization_grid(
     values               = continuous_values,
     display_grid         = numeric(),
     support              = support,
@@ -360,7 +368,10 @@
 # Retain only fields used to execute or identify a plan.
 .iwmde_plan_parameter_spec <- function(parameter_spec) {
 
+  .iwmde_require_target_type(parameter_spec)
+
   fields <- c(
+    "ordered_specs", "ordered_projection", "ordered_source_key", "ordered_point_plan",
     "type", "parameter", "weights", "direction", "conditioning_chart", "index", "n_targets",
     "source_parameter", "node", "gate_columns", "factors", "target_columns",
     "factor_columns",
@@ -376,7 +387,11 @@
 .iwmde_plan_baseline_contract <- function(context, plan, candidate_rows,
                                           candidate_values) {
 
-  row_states <- tryCatch(
+  row_states <- if (identical(plan[["execution_spec"]][["type"]], "ordered")) {
+    .iwmde_new_row_states(lapply(candidate_rows, function(row) {
+      .iwmde_ordered_row_state(context, plan[["execution_spec"]], row)
+    }))
+  } else tryCatch(
     .iwmde_retained_location_row_states(context, plan, candidate_rows),
     error = function(e) {
       if (inherits(e, "iwmde_construction_error")) stop(e)
@@ -585,7 +600,10 @@
 
 .iwmde_plan_execution_spec <- function(parameter_spec) {
 
+  .iwmde_require_target_type(parameter_spec)
+
   keep <- c(
+    "ordered_specs", "ordered_projection", "ordered_source_key", "ordered_point_plan",
     "type",
     "parameter",
     "weights",
@@ -616,6 +634,8 @@
 
 .iwmde_plan_target <- function(parameter, parameter_spec, metadata, target_key) {
 
+  .iwmde_require_target_type(parameter_spec)
+
   target <- list(
     type                 = parameter_spec[["type"]],
     parameter            = parameter,
@@ -631,8 +651,11 @@
     conditioning_exclude = parameter_spec[["conditioning_exclude"]],
     metadata             = .iwmde_target_provenance(metadata)
   )
-  if (identical(parameter_spec[["type"]], "linear")) {
+  if (isTRUE(parameter_spec[["type"]] %in% c("linear", "ordered"))) {
     target[["weights"]] <- .iwmde_plan_weights(parameter_spec[["weights"]])
+  }
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    target[["ordered_recipes"]] <- .iwmde_hash("ordered_recipes", parameter_spec[["ordered_specs"]])
   }
   if (!is.null(parameter_spec[["direction"]])) {
     target[["direction"]] <- .iwmde_plan_weights(parameter_spec[["direction"]])
@@ -675,6 +698,11 @@
     row_budget         = plan[["row_budget"]],
     method             = plan[["method"]],
     density_method     = plan[["density_method"]],
+    internal_method    = plan[["internal_method"]],
+    working_distribution = plan[["working_distribution"]],
+    normalization_basis = plan[["normalization_basis"]],
+    ordered_execution = if (identical(plan[["execution_spec"]][["type"]], "ordered"))
+      .iwmde_hash("ordered_execution", plan[["execution_spec"]]) else NULL,
     status             = plan[["status"]],
     reason             = plan[["reason"]],
     rows               = .iwmde_plan_rows_provenance(plan),
@@ -733,7 +761,9 @@
     plan_key            = plan[["plan_key"]],
     density_method      = plan[["density_method"]],
     method              = plan[["method"]],
-    internal_method     = plan[["method"]],
+    internal_method     = if (is.null(plan[["internal_method"]])) plan[["method"]] else plan[["internal_method"]],
+    working_distribution = plan[["working_distribution"]],
+    normalization_basis = plan[["normalization_basis"]],
     density_control     = .iwmde_density_control_provenance(plan[["control"]]),
     row_budget          = plan[["row_budget"]],
     target              = plan[["target"]],

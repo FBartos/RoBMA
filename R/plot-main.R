@@ -51,7 +51,12 @@
 #' Chen-style moment-matched IWMDE densities. qCMDE is preferred when its
 #' additional normalization cost is acceptable; IWMDE can be faster but is
 #' more sensitive to its fitted conditional weights. Matching is
-#' case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
+#' case-insensitive. Ordered effects use the same normalized conditional-source
+#' estimator for both methods, with their respective posterior-row budgets.
+#' Exact regular ordered offsets that need a finite supplier integral use a
+#' positive conditional block; infinite or uncertified offsets are omitted
+#' only at that exact value from a density curve. Point hypotheses retain their
+#' structural or precision refusal. For semantic random-effect quantities, qCMDE/IWMDE support
 #' direct scalar fitted sources, allocated component SDs backed by a scalar
 #' aggregate (`tau_total` or `tau_common`), and allocation proportions or
 #' multipliers
@@ -799,6 +804,9 @@ lines.brma <- function(
     )
     linear_weights <- .iwmde_linear_weights(weights)
     if (is.null(linear_weights) || length(linear_weights) == 0L) {
+      if (.plot_brma_declared_zero_cell(raw_posterior[[level]], weights)) {
+        density_columns <- c(density_columns, column)
+      }
       next
     }
 
@@ -958,6 +966,16 @@ lines.brma <- function(
   }
 
   return(setequal(density_columns, expected_columns))
+}
+
+
+.plot_brma_declared_zero_cell <- function(samples, weights) {
+
+  if (!is.numeric(weights) || !length(weights) || any(!is.finite(weights)) || any(weights != 0)) return(FALSE)
+  atoms <- BayesTools::posterior_metadata(samples, "atoms")
+  inherits(atoms, "BayesTools_posterior_atoms") && isTRUE(atoms[["declared"]]) &&
+    length(atoms[["mass"]]) > 0L && sum(atoms[["mass"]]) == 1 &&
+    length(atoms[["locations"]]) > 0L && all(atoms[["locations"]] == 0)
 }
 
 

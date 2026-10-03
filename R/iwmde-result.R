@@ -10,7 +10,7 @@
 
 .iwmde_algorithm_version <- function() {
 
-  return("24")
+  return("25")
 }
 
 
@@ -147,7 +147,6 @@
     attribute         = attribute,
     density_method    = density_method,
     method            = method,
-    internal_method   = method,
     density_control   = .iwmde_density_control_provenance(density_control),
     target            = .iwmde_target_provenance(metadata),
     target_key        = target_key,
@@ -162,6 +161,7 @@
   request <- .iwmde_compact_nulls(request)
 
   request[["request_key"]] <- .iwmde_hash("iwmde_request", request)
+  request[["internal_method"]] <- method
   if (!is.null(plan_key)) {
     request[["plan_key"]] <- plan_key
   }
@@ -218,6 +218,9 @@
     }
   }
   diagnostics <- diagnostic[["diagnostics"]]
+  for (field in c("internal_method", "working_distribution", "normalization_basis")) {
+    if (!is.null(diagnostics[[field]])) provenance[[field]] <- diagnostics[[field]]
+  }
   bf_grade <- if (identical(attribute[[1L]], "ordinate") &&
                   is.list(diagnostics)) {
     is.null(.iwmde_diagnostics_bf_failure_reason(diagnostics))

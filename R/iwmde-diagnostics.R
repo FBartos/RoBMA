@@ -911,6 +911,14 @@
 .iwmde_diagnostics_stability_description <- function(diagnostics, estimator,
                                                      error) {
 
+  internal <- diagnostics[["internal_method"]]
+  if (!is.null(internal) && internal %in% c("ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) {
+    return(paste0(" block integration error is ", trimws(.iwmde_percent(error)), " (estimated)"))
+  }
+  if (identical(internal, "ordered_source_conditional_cmde")) {
+    return(paste0(" source integration error is ", trimws(.iwmde_percent(error)), " (estimated)"))
+  }
+
   if (!identical(estimator, "q_grid_cmde")) {
     return(paste0(
       " normalization mass differs from active posterior mass by ",

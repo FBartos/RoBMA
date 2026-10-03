@@ -26,7 +26,10 @@ fixed-sampling state, policy thresholds, weight fallbacks, status, and
 warnings.
 
 The exact columns, in order, are \code{schema_version}, \code{algorithm_version},
-\code{source_fingerprint}, \code{estimator}, \code{density_method}, \code{parameter}, \code{level},
+\code{source_fingerprint}, \code{estimator}, \code{internal_method}, \code{working_distribution},
+\code{normalization_basis}, \code{ordered_error_status}, \code{block_numerator_relative_error},
+\code{block_denominator_relative_error}, \code{block_max_order}, \code{block_max_panels},
+\code{block_native_nodes}, \code{density_method}, \code{parameter}, \code{level},
 \code{requested_value}, \code{evaluation_value}, \code{requested_samples},
 \code{achieved_row_budget}, \code{eligible_rows},
 \code{evaluated_rows}, \code{finite_terms}, \code{active_mass}, \code{relative_mcse},
@@ -145,6 +148,18 @@ default \code{0.999}. Setting \code{normalization_prob} closer to 1 widens the r
 and lowers the truncation; increasing \code{normalization_points} refines the
 grid. The table also reports the stability and adaptive-quadrature
 warning/rejection thresholds.
+
+Ordered effects use normalized conditional-source contributions for both
+requested methods. Regular exact offsets can use a positive total/share
+block. The complete numerical ratio error must be at most 0.025 for every
+evaluated row, separately from the MCMC precision diagnostics. The columns
+\code{internal_method}, \code{working_distribution}, and \code{normalization_basis} identify
+this computation while \code{estimator} retains the requested method.
+\code{ordered_error_status} preserves its estimated error status. Block numerator
+and denominator errors, maximum quadrature order/panel count, and actual
+native normalizer node count are reported in the \code{block_*} columns. Exact
+infinite or uncertified offsets are excluded only from density curves;
+explicit point requests retain their structural or precision refusal.
 }
 \examples{
 \dontrun{

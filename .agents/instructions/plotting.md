@@ -42,6 +42,19 @@ catalog extraction weights, including its prior and aligned draw metadata.
 Displayed contrast columns alone are not primitive ordered source draws; do not
 re-evaluate that marginal through `parameter_draws()` on those columns.
 
+Ordered qCMDE/IWMDE inference uses the public primitive projection and source
+recipes. Both requested methods normalize the same complete conditional source
+kernel, with their original row budgets. Supplier/population classification
+precedes chart selection and uses declared support and prior provenance.
+Regular offsets with finite first but uncertified fourth reciprocal moments
+use a positive block. Normalize source and block rows separately, replace only
+the exact offset rows in the common contribution matrix, then aggregate and
+compute chain/FPC uncertainty once. Preserve the strict sample alignment gate,
+exact offset bits, per-row 0.025 numerical gate and separate atom measure.
+Unknown suppliers or missing population precision certificates remain explicit
+point capabilities; density curves omit only classified exact unavailable
+points and retain their reasons. Keep log/scaled contributions under underflow.
+
 Use `.outcome_data_yi()`, `.outcome_data_sei()`,
 `.outcome_data_vi()`, and `.outcome_data_weights()` instead of direct fitted
 object access.

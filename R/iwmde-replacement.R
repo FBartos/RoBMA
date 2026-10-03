@@ -1614,6 +1614,14 @@
 .iwmde_replacement_spec <- function(context, parameter,
                                     parameter_spec = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    return(list(type = "ordered", weights = parameter_spec[["weights"]],
+      ordered_source_key = parameter_spec[["ordered_source_key"]],
+      ordered_specs = parameter_spec[["ordered_specs"]],
+      internal_method = "ordered_source_conditional_cmde",
+      working_distribution = "normalized_conditional_source", normalization_basis = "source_chart"))
+  }
   finish <- function(replacement) {
 
     covariance_update <- parameter_spec[["covariance_update"]]

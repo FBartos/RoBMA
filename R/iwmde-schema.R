@@ -312,6 +312,7 @@
         "selected_continuous_rows_only",
         "selected_active_rows_with_mass_bound",
         "full_conditioned_rows",
+        "declared_constant_conditional_contribution",
         "unavailable_missing_selected_chain",
         "unavailable_insufficient_chain_batches"
       ) ||
@@ -407,6 +408,33 @@
   if (!is.null(estimator) &&
       !identical(as.character(density[["estimator"]]), estimator)) {
     stop("Internal IWMDE density result changed estimator.", call. = FALSE)
+  }
+  if (!is.null(density[["normalization_basis"]]) && density[["normalization_basis"]] %in%
+      c("source_chart", "ordered_offset_block", "source_chart_with_offset_block")) {
+    .iwmde_validate_required_fields(density, c("internal_method", "working_distribution",
+      "ordered_proofs", "contribution_log_scale", "scaled_contributions", "log_mcse", "underflow"),
+      "ordered source density result")
+    if (!density[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+        "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde") ||
+        !identical(density[["working_distribution"]], "normalized_conditional_source") ||
+        length(density[["ordered_proofs"]]) != density[["n_evaluated_rows"]] ||
+        length(density[["contribution_log_scale"]]) != n_values ||
+        length(density[["log_mcse"]]) != n_values ||
+        !is.logical(density[["underflow"]]) || length(density[["underflow"]]) != n_values ||
+        !is.matrix(density[["scaled_contributions"]]) ||
+        !identical(dim(density[["scaled_contributions"]]), c(n_values, as.integer(density[["n_evaluated_rows"]])))) {
+      stop("Internal ordered source density result has invalid normalization metadata.", call. = FALSE)
+    }
+    for (proof in density[["ordered_proofs"]]) {
+      fields <- c("numerator_relative_error", "denominator_relative_error", "ratio_relative_error",
+        "exterior_relative_error", "floating_relative_error")
+      if (!all(vapply(proof[fields], function(value) is.numeric(value) && length(value) == 1L &&
+          is.finite(value) && value >= 0, logical(1))) || proof[["ratio_relative_error"]] > .025 ||
+          !proof[["error_status"]] %in% c("exact", "bound", "estimate")) {
+        stop("Internal ordered source density result has an invalid source proof.", call. = FALSE)
+      }
+    }
+    return(invisible(density))
   }
   estimator_fields <- if (identical(density[["estimator"]], "q_grid_cmde")) {
     c(

@@ -506,6 +506,17 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `g1 (3)`), keep the plain label for single statements, and print the
     public labels of the tested quantities.
 - posterior densities and point ordinates (qCMDE and IWMDE):
+  - ordered effects now condition on their fitted total or grouped/pair share
+    sources, replay all shared consumers, and count the original ordered priors
+    once. Both methods use normalized conditional-source contributions with
+    the original 500/1000-row defaults. Finite regular exact offsets use positive
+    supplier blocks; exact infinite or uncertified offsets are omitted from
+    density curves and retain their refusal in explicit point hypotheses.
+    Complete per-row numerical error must be at most 0.025. Diagnostics retain
+    the source/block method and proofs separately from chain MCSE and row-sampling
+    error, including finite log ordinates when the displayed density underflows.
+    Declared zero reference cells keep their atom and no longer prevent whole
+    factor precomputed densities from being attached.
   - adds likelihood-aware qCMDE and IWMDE estimates of posterior densities
     and point ordinates through `density_method` (`"KDE"`, `"qCMDE"`, or
     `"IWMDE"`) and `density_control` in `plot()`, `lines()`,

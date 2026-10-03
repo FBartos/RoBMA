@@ -7,6 +7,7 @@
                             parameter_spec = NULL, metadata = NULL,
                             cache = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
   # Likelihood-aware densities inherit the fitted model's parallel setup for
   # their independent posterior rows; an explicit option overrides it. The
   # previous budget comes back on exit.
@@ -578,7 +579,7 @@
     baseline_log_q   = rows[["baseline_log_q"]],
     n_candidate_rows = rows[["n_denominator_rows"]]
   )
-  if (identical(plan[["method"]], "iwmde")) {
+  if (identical(plan[["method"]], "iwmde") && !identical(plan[["execution_spec"]][["type"]], "ordered")) {
     out[["proposal_weight"]] <- .iwmde_plan_proposal_weight(
       context         = context,
       plan            = plan,
@@ -653,7 +654,9 @@
     NULL
   }
 
-  if (identical(plan[["method"]], "q_grid_cmde")) {
+  if (identical(plan[["execution_spec"]][["type"]], "ordered")) {
+    density <- .iwmde_ordered_density(context, plan, execution, display_grid, identical(output, "density"))
+  } else if (identical(plan[["method"]], "q_grid_cmde")) {
     if (is.null(plan[["grids"]][["normalization_grid"]])) {
       return(.iwmde_unsupported(
         plan[["target"]][["parameter"]],
@@ -762,8 +765,27 @@
     tail_probabilities = plan[["grids"]][["tail_probabilities"]],
     tail_values        = plan[["grids"]][["tail_values"]]
   )
+  block_proofs <- density[["ordered_block_subplan"]]
+  block_max <- function(field, default = NA_real_) {
+    if (!length(block_proofs)) return(default)
+    values <- unlist(lapply(block_proofs, `[[`, field), use.names = FALSE)
+    if (!length(values)) default else max(values)
+  }
 
   diagnostics <- list(
+    internal_method = density[["internal_method"]], working_distribution = density[["working_distribution"]],
+    normalization_basis = density[["normalization_basis"]], ordered_proofs = density[["ordered_proofs"]],
+    ordered_source_subplan = density[["ordered_source_subplan"]], ordered_block_subplan = density[["ordered_block_subplan"]],
+    ordered_point_plan = density[["ordered_point_plan"]], ordered_point_certificate = density[["ordered_point_certificate"]],
+    omitted_ordered_points = density[["omitted_ordered_points"]],
+    ordered_error_status = if (length(density[["ordered_proofs"]])) "estimate" else NULL,
+    block_numerator_relative_error = block_max("numerator_relative_error"),
+    block_denominator_relative_error = block_max("denominator_relative_error"),
+    block_max_order = block_max("orders", 0L), block_max_panels = block_max("panels", 0L),
+    block_native_nodes = if (length(block_proofs)) sum(vapply(block_proofs, function(proof)
+      if (is.null(proof[["counts"]][["native_nodes"]])) 0 else proof[["counts"]][["native_nodes"]], numeric(1))) else NA_real_,
+    contribution_log_scale = density[["contribution_log_scale"]], log_mcse = density[["log_mcse"]],
+    underflow = density[["underflow"]], joint_integral_proof = density[["joint_integral_proof"]],
     target_relative_mcse         = plan[["control"]][["target_relative_mcse"]],
     all_rows_used                = isTRUE(density[["sampling_fraction"]] == 1),
     integral                    = plot_integral,

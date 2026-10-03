@@ -76,6 +76,11 @@
   with_grids <- function(values) {
 
     out <- context
+    if (identical(replacement[["type"]], "ordered_source")) {
+      out[["normalizer_grid"]] <- NULL
+      out[["covariance_grid"]] <- NULL
+      return(out)
+    }
     out[["normalizer_grid"]] <- .selection_normalizer_grid(out, values,
       vapply(row_states, `[[`, integer(1L), "row_index"))
     out[["covariance_grid"]] <- .selection_covariance_grid(out, values,
@@ -643,6 +648,7 @@
                                        active_mass, n_candidate_rows,
                                        cache = NULL) {
 
+  .iwmde_require_target_type(replacement, replacement = TRUE)
   entry <- .iwmde_qcmde_cache_get(cache)
   if (!is.null(entry)) {
     log_q_display     <- entry[["log_q_display"]]

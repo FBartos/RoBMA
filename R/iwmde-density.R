@@ -329,6 +329,7 @@
 .iwmde_likelihood_mode <- function(parameter, parameter_spec = NULL,
                                    context = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
   if (.iwmde_context_uses_local_likelihood(context)) {
     return("conditional")
   }

@@ -97,6 +97,18 @@
 #' grid. The table also reports the stability and adaptive-quadrature
 #' warning/rejection thresholds.
 #'
+#' Ordered effects use normalized conditional-source contributions for both
+#' requested methods. Regular exact offsets can use a positive total/share
+#' block. The complete numerical ratio error must be at most 0.025 for every
+#' evaluated row, separately from the MCMC precision diagnostics. The columns
+#' `internal_method`, `working_distribution`, and `normalization_basis` identify
+#' this computation while `estimator` retains the requested method.
+#' `ordered_error_status` preserves its estimated error status. Block numerator
+#' and denominator errors, maximum quadrature order/panel count, and actual
+#' native normalizer node count are reported in the `block_*` columns. Exact
+#' infinite or uncertified offsets are excluded only from density curves;
+#' explicit point requests retain their structural or precision refusal.
+#'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an
 #'   `RoBMA_density_ordinate_error` caught from a failed or rejected point-ordinate
@@ -114,7 +126,10 @@
 #' warnings.
 #'
 #' The exact columns, in order, are `schema_version`, `algorithm_version`,
-#' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
+#' `source_fingerprint`, `estimator`, `internal_method`, `working_distribution`,
+#' `normalization_basis`, `ordered_error_status`, `block_numerator_relative_error`,
+#' `block_denominator_relative_error`, `block_max_order`, `block_max_panels`,
+#' `block_native_nodes`, `density_method`, `parameter`, `level`,
 #' `requested_value`, `evaluation_value`, `requested_samples`,
 #' `achieved_row_budget`, `eligible_rows`,
 #' `evaluated_rows`, `finite_terms`, `active_mass`, `relative_mcse`,
@@ -328,6 +343,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   } else {
     "ordinate_error_bound"
   }
+  if (!is.null(diagnostics[["internal_method"]]) && diagnostics[["internal_method"]] %in%
+      c("ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) stability_metric <- "block_integration_error"
+  if (identical(diagnostics[["internal_method"]], "ordered_source_conditional_cmde")) stability_metric <- "source_integration_error"
   stability_error <- .iwmde_diagnostics_stability_relative_error(
     diagnostics = diagnostics,
     estimator   = estimator
@@ -344,6 +362,15 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     ),
     source_fingerprint = .iwmde_public_source_fingerprint(provenance),
     estimator = estimator,
+    internal_method = .iwmde_public_character(diagnostics[["internal_method"]]),
+    working_distribution = .iwmde_public_character(diagnostics[["working_distribution"]]),
+    normalization_basis = .iwmde_public_character(diagnostics[["normalization_basis"]]),
+    ordered_error_status = .iwmde_public_character(diagnostics[["ordered_error_status"]]),
+    block_numerator_relative_error = .iwmde_public_numeric(diagnostics[["block_numerator_relative_error"]]),
+    block_denominator_relative_error = .iwmde_public_numeric(diagnostics[["block_denominator_relative_error"]]),
+    block_max_order = .iwmde_public_integer_any(diagnostics, "block_max_order"),
+    block_max_panels = .iwmde_public_integer_any(diagnostics, "block_max_panels"),
+    block_native_nodes = .iwmde_public_numeric(diagnostics[["block_native_nodes"]]),
     density_method = .iwmde_public_character(entry[["density_method"]]),
     parameter = .iwmde_public_character(entry[["parameter"]]),
     level = .iwmde_public_character(entry[["level"]]),
@@ -471,6 +498,10 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   out <- data.frame(
     schema_version = character(), algorithm_version = character(),
     source_fingerprint = character(), estimator = character(),
+    internal_method = character(), working_distribution = character(), normalization_basis = character(),
+    ordered_error_status = character(), block_numerator_relative_error = numeric(),
+    block_denominator_relative_error = numeric(), block_max_order = integer(), block_max_panels = integer(),
+    block_native_nodes = numeric(),
     density_method = character(), parameter = character(), level = character(),
     requested_value = numeric(), evaluation_value = numeric(),
     requested_samples = numeric(), achieved_row_budget = integer(),
@@ -517,7 +548,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   template <- .iwmde_empty_public_density_diagnostics()
   added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason",
              "normalization_truncation", "normalization_truncation_status",
-             "truncation_ordinate_bound")
+             "truncation_ordinate_bound", "internal_method", "working_distribution",
+             "normalization_basis", "ordered_error_status", "block_numerator_relative_error",
+             "block_denominator_relative_error", "block_max_order", "block_max_panels", "block_native_nodes")
   if (inherits(diagnostics, "RoBMA_density_diagnostics") &&
       is.data.frame(diagnostics) &&
       !identical(names(diagnostics), names(template)) &&

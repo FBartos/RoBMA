@@ -70,7 +70,10 @@ separate precomputed posterior ordinates at \code{null_hypothesis}; these
 ordinates do not alter the plotting grid. qCMDE is preferred when its
 additional normalization cost is acceptable; IWMDE can be faster but is
 more sensitive to its fitted conditional weights. Matching is
-case-insensitive. When an ordinate is used for a Bayes factor,
+case-insensitive. Ordered effects use normalized conditional-source
+contributions for both methods, with their respective row budgets; regular
+exact offsets can require positive conditional blocks. Their numerical
+proof is reported separately from the chain MCSE. When an ordinate is used for a Bayes factor,
 \code{BF_error} is a conditional Monte Carlo error estimate. It excludes
 uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
 the conditional weight function. Use \code{density_diagnostics()} on a
