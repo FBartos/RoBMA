@@ -449,16 +449,12 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
         density_method = "KDE", plot_type = "ggplot")
       expect_s3_class(plotted, "ggplot")
       layers <- ggplot2::ggplot_build(plotted)[["data"]]
-      if (identical(selector, "g[hi]")) {
+      if (selector %in% c("g[mid]", "g[hi]")) {
         expect_length(layers, 2L)
         expect_identical(unique(layers[[1L]][["colour"]]), "black")
         expect_identical(unique(layers[[1L]][["linetype"]]), 2)
         expect_identical(unique(layers[[2L]][["colour"]]), "black")
         expect_identical(unique(layers[[2L]][["linetype"]]), 1)
-      } else if (identical(selector, "g[mid]")) {
-        expect_length(layers, 1L)
-        expect_identical(unique(layers[[1L]][["colour"]]), "black")
-        expect_identical(unique(layers[[1L]][["linetype"]]), 1)
       }
     }
     styles <- list(
