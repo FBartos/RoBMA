@@ -89,4 +89,3 @@ test_that("rank-zero dense covariance scores and ordinary controls preserve thei
   expect_equal(as.numeric(actual$summary$residual), c(1, -.5), tolerance = 1e-14)
   expect_equal(as.numeric(actual$summary$variance), rep(.75, 2L), tolerance = 1e-14)
 })
-
