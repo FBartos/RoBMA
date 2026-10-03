@@ -213,3 +213,119 @@ test_that("single and exact marginal likelihood comparisons retain their contrac
   expect_error(bf(first, different), "same outcome data", fixed = TRUE)
   expect_error(post_prob(first, different), "same outcome data", fixed = TRUE)
 })
+
+test_that("finite model weights retain likelihood-compensated small probabilities", {
+
+  weights <- c(1e-300, 1e300)
+  # Actual binary input references evaluated at 100-digit precision.
+  reference <- c(9.7213220602525587e-9, 1.3156378855174478e-9,
+    9.7213220602525587e-9)
+  for (repetitions in c(1L, 3L)) {
+    first <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(
+      .bridge_repetition_test_raw(c(1400, 1402, 1400)[seq_len(repetitions)])))
+    second <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(
+      .bridge_repetition_test_raw(rep(0, repetitions))))
+    actual <- post_prob(first, second, prior_prob = weights,
+      model_names = c("same", "same"))
+    small <- if (repetitions == 1L) actual[2L] else actual[, 2L]
+    expect_true(all(abs(small / reference[seq_len(repetitions)] - 1) <= 1e-10))
+    expect_equal(as.numeric(actual), c(1 - reference[seq_len(repetitions)],
+      reference[seq_len(repetitions)]), tolerance = 1e-14)
+    if (repetitions == 1L) {
+      expect_identical(names(actual), c("same", "same"))
+      expect_equal(sum(actual), 1, tolerance = 1e-14)
+    } else {
+      expect_identical(dim(actual), c(3L, 2L))
+      expect_identical(colnames(actual), c("same", "same.1"))
+      expect_equal(rowSums(actual), rep(1, repetitions), tolerance = 1e-14)
+    }
+  }
+})
+
+test_that("common extreme log likelihoods preserve normalized model probabilities", {
+
+  for (repetitions in c(1L, 3L)) {
+    fit <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(
+      .bridge_repetition_test_raw(rep(1e308, repetitions))))
+    expect_warning(actual <- post_prob(fit, fit, prior_prob = c(1, 3)), NA)
+    expect_equal(as.numeric(actual), rep(c(.25, .75), each = repetitions),
+      tolerance = 1e-14)
+    if (repetitions == 1L) {
+      expect_identical(names(actual), c("fit", "fit"))
+      expect_equal(sum(actual), 1, tolerance = 1e-14)
+    } else {
+      expect_identical(colnames(actual), c("fit", "fit.1"))
+      expect_equal(rowSums(actual), rep(1, repetitions), tolerance = 1e-14)
+    }
+  }
+})
+
+test_that("finite log model probabilities retain zero and extreme input contracts", {
+
+  expect_warning(integer <- .post_prob_from_logml(
+    c(-2147483647L, 2147483647L)), NA)
+  expect_equal(integer, c(0, 1), tolerance = 1e-14)
+  expect_equal(.post_prob_from_logml(c(1e308, 0), c(0, 1)), c(0, 1))
+  expect_equal(.post_prob_from_logml(c(-1.7e308, 1.7e308)), c(0, 1))
+  expect_equal(.post_prob_from_logml(c(0, 0), c(1e-300, 1e300)), c(0, 1))
+  expect_equal(.post_prob_from_logml(c(0, 0)), c(.5, .5), tolerance = 1e-14)
+  smallest <- .Machine$double.xmin * .Machine$double.eps
+  compensated <- .post_prob_from_logml(c(740, 0), c(smallest, 1))
+  expect_lte(abs(compensated[1L] / .011657587869975697 - 1), 1e-10)
+  expect_equal(sum(compensated), 1, tolerance = 1e-14)
+  expect_identical(names(.post_prob_from_logml(c(0, 0), c(1, 3),
+    model_names = c("A", "A"))), c("A", "A"))
+})
+
+test_that("legacy nonfinite repeated comparisons delegate upstream contracts", {
+
+  capture <- function(expression) {
+    warnings <- character()
+    value <- tryCatch(withCallingHandlers(expression, warning = function(warning) {
+      warnings <<- c(warnings, conditionMessage(warning))
+      invokeRestart("muffleWarning")
+    }), error = identity)
+    list(value = value, warnings = warnings)
+  }
+  weights <- c(1, 3)
+  # Independent legacy normalization, deliberately not the repaired helper.
+  normalized <- weights / max(weights)
+  normalized <- normalized / sum(normalized)
+  for (bad in c(NA_real_, NaN, Inf, -Inf)) {
+    for (position in c(1L, 2L)) {
+      for (model in c(1L, 2L)) {
+        values <- list(c(-2, -1, 0), c(0, 1, 2))
+        values[[model]][position] <- bad
+        fits <- lapply(values, function(value) {
+          .bridge_repetition_test_fit(.bridge_repetition_test_raw(value))
+        })
+        actual <- capture(post_prob(fits[[1L]], fits[[2L]], prior_prob = weights,
+          model_names = c("A", "A")))
+        expected <- capture(t(vapply(seq_len(3L), function(row) {
+          bridgesampling::post_prob(vapply(values, "[[", numeric(1), row),
+            prior_prob = normalized, model_names = c("A", "A"))
+        }, numeric(2L))))
+        expect_identical(actual$warnings, expected$warnings)
+        expect_identical(dim(actual$value), dim(expected$value))
+        expect_identical(colnames(actual$value), c("A", "A.1"))
+        expect_identical(is.na(actual$value), is.na(expected$value))
+        expect_identical(is.nan(actual$value), is.nan(expected$value))
+        expect_identical(actual$value[position, ], expected$value[position, ])
+        expect_equal(actual$value[-position, , drop = FALSE],
+          expected$value[-position, , drop = FALSE], tolerance = 1e-14)
+      }
+    }
+  }
+  for (position in c(1L, 2L)) {
+    values <- c(-1, 0, 1)
+    values[position] <- Inf
+    fit <- .bridge_repetition_test_fit(.bridge_repetition_test_raw(values))
+    actual <- capture(post_prob(fit, fit, prior_prob = weights))
+    expected <- capture(bridgesampling::post_prob(c(Inf, Inf),
+      prior_prob = normalized, model_names = c("fit", "fit.1")))
+    expect_s3_class(actual$value, "error")
+    expect_identical(class(actual$value), class(expected$value))
+    expect_identical(conditionMessage(actual$value), conditionMessage(expected$value))
+    expect_identical(actual$warnings, expected$warnings)
+  }
+})

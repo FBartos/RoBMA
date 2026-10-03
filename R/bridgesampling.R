@@ -59,11 +59,24 @@ bridgesampling::bayes_factor
     stop("At least two log marginal likelihoods are required.", call. = FALSE)
   }
 
-  prior_prob <- .post_prob_normalize_prior(prior_prob, length(logml))
+  prior_prob <- .post_prob_validate_prior_weights(prior_prob, length(logml))
   .post_prob_check_names(model_names, length(logml))
 
-  log_posterior <- logml + log(prior_prob)
-  posterior     <- exp(log_posterior - .log_sum_exp(log_posterior))
+  logml       <- as.numeric(logml)
+  active      <- prior_prob > 0
+  maximum     <- max(prior_prob)
+  ratio       <- prior_prob / maximum
+  log_weights <- rep(-Inf, length(logml))
+  normal      <- active & ratio >= .Machine$double.xmin
+  log_weights[normal] <- log(ratio[normal])
+  fallback <- active & !normal
+  log_weights[fallback] <- log(prior_prob[fallback]) - log(maximum)
+
+  center <- max(logml[active])
+  scores <- log_weights
+  scores[active] <- (logml[active] - center) + log_weights[active]
+  scaled    <- exp(scores - max(scores))
+  posterior <- scaled / sum(scaled)
 
   if (!is.null(model_names)) {
     names(posterior) <- model_names
@@ -72,10 +85,10 @@ bridgesampling::bayes_factor
   return(posterior)
 }
 
-.post_prob_normalize_prior <- function(prior_prob, n_models) {
+.post_prob_validate_prior_weights <- function(prior_prob, n_models) {
 
   if (is.null(prior_prob)) {
-    prior_prob <- rep(1 / n_models, n_models)
+    prior_prob <- rep(1, n_models)
   } else {
     BayesTools::check_real(prior_prob, "prior_prob", lower = 0, check_length = 0, allow_NA = FALSE)
     if (any(!is.finite(prior_prob))) {
@@ -88,10 +101,15 @@ bridgesampling::bayes_factor
     if (maximum <= 0) {
       stop("'prior_prob' must contain at least one positive value.", call. = FALSE)
     }
-    prior_prob <- prior_prob / maximum
-    prior_prob <- prior_prob / sum(prior_prob)
   }
   return(prior_prob)
+}
+
+.post_prob_normalize_prior <- function(prior_prob, n_models) {
+
+  prior_prob <- .post_prob_validate_prior_weights(prior_prob, n_models)
+  prior_prob <- prior_prob / max(prior_prob)
+  return(prior_prob / sum(prior_prob))
 }
 
 .post_prob_check_names <- function(model_names, n_models) {
@@ -355,7 +373,9 @@ logml.brma <- function(x, ...) {
 #' @param prior_prob numeric vector with prior model probabilities or weights.
 #' Values must be finite, nonnegative, have the same length as the retained
 #' models, and have a positive total. If omitted, a uniform prior is used.
-#' Supplied values are normalized internally.
+#' Finite comparisons combine the original weights with marginal likelihoods
+#' in log space and normalize the resulting probabilities. An exactly zero
+#' prior weight excludes that model.
 #' @param model_names character vector with model names. If \code{NULL}
 #' (the default), names will be derived from deparsing the call.
 #'
@@ -370,11 +390,12 @@ logml.brma <- function(x, ...) {
 #' If any model contains repeated bridge estimates, comparisons retain those
 #' repetitions regardless of model order. Models with fewer repetitions are
 #' recycled to the largest repetition count with a warning, following
-#' \pkg{bridgesampling}. Prior weights are normalized before each comparison.
+#' \pkg{bridgesampling}.
 #' A stored explicit non-finite-repetition drop policy is honored; otherwise
 #' standardized marginal-likelihood results must be finite. Legacy raw
 #' \code{"bridge_list"} results retain non-finite repetitions and use upstream
-#' missing-value propagation and warnings.
+#' comparison behavior through \pkg{bridgesampling}, with normalized prior
+#' probabilities and its missing-value propagation, warnings, and errors.
 #'
 #' @return A named numeric vector with posterior model probabilities for single
 #' estimates, or a repetition-by-model numeric matrix when any model has repeated
@@ -432,15 +453,20 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
   comparisons <- lapply(models, .brma_comparison_logml)
   logml_values <- lapply(comparisons, "[[", "logml")
   if (any(vapply(comparisons, "[[", logical(1), "repeated"))) {
-    prior_prob <- .post_prob_normalize_prior(prior_prob, length(models))
+    prior_prob <- .post_prob_validate_prior_weights(prior_prob, length(models))
     .post_prob_check_names(model_names, length(models))
+    model_names <- make.unique(as.character(model_names))
     logml_values <- .brma_recycle_logml(logml_values)
     posterior <- vapply(seq_along(logml_values[[1L]]), function(repetition) {
 
-      bridgesampling::post_prob(
-        vapply(logml_values, "[[", numeric(1), repetition),
-        prior_prob = prior_prob, model_names = model_names
-      )
+      logml <- vapply(logml_values, "[[", numeric(1), repetition)
+      if (all(is.finite(logml))) {
+        return(.post_prob_from_logml(logml, prior_prob = prior_prob,
+          model_names = model_names))
+      }
+      return(bridgesampling::post_prob(logml,
+        prior_prob = .post_prob_normalize_prior(prior_prob, length(models)),
+        model_names = model_names))
     }, numeric(length(models)))
     return(t(posterior))
   }

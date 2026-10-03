@@ -670,8 +670,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - declares testthat >= 3.3.2 for the test helpers' LLM reporter.
 - interactive test-profile children inherit library, cache, and thread controls
   without rereading R startup files.
-- posterior model probabilities safely normalize large finite prior weights
-  without overflowing their sum.
+- posterior model probabilities combine original finite prior weights with
+  marginal likelihoods in log space, preserving likelihood-compensated tiny
+  weights and normalization for very large common log marginal likelihoods
+  and prior weights whose sum overflows, in scalar and repeated comparisons.
 - prediction abbreviations retain the same conditioning target and conflicting
   depth validation as their full names, including `"b"` for `"blup"`.
 - nested posterior sample exports retain heterogeneous prediction-interval

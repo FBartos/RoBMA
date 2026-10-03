@@ -14,7 +14,9 @@
 \item{prior_prob}{numeric vector with prior model probabilities or weights.
 Values must be finite, nonnegative, have the same length as the retained
 models, and have a positive total. If omitted, a uniform prior is used.
-Supplied values are normalized internally.}
+Finite comparisons combine the original weights with marginal likelihoods
+in log space and normalize the resulting probabilities. An exactly zero
+prior weight excludes that model.}
 
 \item{model_names}{character vector with model names. If \code{NULL}
 (the default), names will be derived from deparsing the call.}
@@ -39,11 +41,12 @@ structure and are not part of the outcome-data identity.
 If any model contains repeated bridge estimates, comparisons retain those
 repetitions regardless of model order. Models with fewer repetitions are
 recycled to the largest repetition count with a warning, following
-\pkg{bridgesampling}. Prior weights are normalized before each comparison.
+\pkg{bridgesampling}.
 A stored explicit non-finite-repetition drop policy is honored; otherwise
 standardized marginal-likelihood results must be finite. Legacy raw
 \code{"bridge_list"} results retain non-finite repetitions and use upstream
-missing-value propagation and warnings.
+comparison behavior through \pkg{bridgesampling}, with normalized prior
+probabilities and its missing-value propagation, warnings, and errors.
 }
 \examples{
 \dontrun{
