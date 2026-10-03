@@ -588,7 +588,7 @@ as.data.frame.brma_samples_list <- function(
     ))
   }
 
-  return(do.call(rbind, tables))
+  return(.output_bind_long_data_frames(tables))
 }
 
 

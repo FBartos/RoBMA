@@ -1,6 +1,4 @@
 ## version 4.1.0 (IN PROGRESS)
-- prediction abbreviations retain the same conditioning target and conflicting
-  depth validation as their full names, including `"b"` for `"blup"`.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
@@ -661,6 +659,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- prediction abbreviations retain the same conditioning target and conflicting
+  depth validation as their full names, including `"b"` for `"blup"`.
+- nested posterior sample exports retain heterogeneous prediction-interval
+  columns, filling unavailable intervals with `NA`.
 - marginal-means Bayes factors use the exact Gaussian kernel sum at the null
   hypothesis (bandwidth `bw.nrd0()` of the continuous draws) as the
   posterior ordinate, through BayesTools 0.3.1. The 512-point grid estimate
