@@ -659,6 +659,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- integer sampling-factor loadings normalize to double storage, sharing their
+  identity and native known-covariance behavior with equivalent double inputs.
 - displayed qCMDE/IWMDE ordinate diagnostics transform the active-mass density
   MCSE component into the same units as the total and active-branch MCSEs.
 - qCMDE/IWMDE sampling controls accept large finite integer counts without

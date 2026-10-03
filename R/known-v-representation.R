@@ -75,6 +75,7 @@ known_v_factor <- function(diagonal, loading) {
       call. = FALSE
     )
   }
+  storage.mode(loading) <- "double"
   total_diagonal <- as.numeric(diagonal) + rowSums(loading^2)
   if (any(!is.finite(total_diagonal))) {
     stop("The declared sampling covariance must contain finite variances.",
