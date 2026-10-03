@@ -30,9 +30,10 @@ requesting only those owners from `JAGS_ordered_parameter_spec()`; ordinary
 targets do not request ordered metadata. Compare persisted catalog dependencies
 with the selected specs' coefficient names. Leave
 unspecified whole-factor prior line colors and types to BayesTools' matched
-level styles. For selected ordered cells, resolve the scalar posterior color
+level styles. For selected ordered cells with `prior = TRUE`, resolve the scalar posterior color
 (`col`, then `color`, then `colour`) and use it for an unspecified prior color
-with a dashed line. Explicit prior colors and types, including aliases, win;
+with a dashed line. In this scope, normalize prior color aliases with priority
+`col`, `color`, then `colour`. Explicit prior colors and types, including aliases, win;
 `linetype` takes precedence over `lty` in both backends. Preserve ordinary
 targets' existing defaults.
 

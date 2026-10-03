@@ -15,6 +15,27 @@ test_that("ordered priors leave matched styles to BayesTools and retain explicit
 })
 
 
+test_that("selected ordered prior styles resolve scalar defaults and alias conflicts", {
+
+  expect_identical(.set_dots_prior(NULL, ordered = TRUE, posterior_col = "purple"),
+    list(col = "purple", lty = 2, col.fill = "#B3B3B34C"))
+  aliases <- list(color = "blue", colour = "red", lty = 1, linetype = "dotted")
+  expect_identical(.set_dots_prior(aliases, ordered = TRUE, posterior_col = "purple"),
+    list(color = "blue", colour = "red", lty = "dotted", linetype = "dotted",
+      col = "blue", col.fill = "#B3B3B34C"))
+  explicit <- list(col = "green", color = "blue", colour = "red", lty = 1,
+    linetype = "dotdash")
+  expected <- explicit
+  expected[["lty"]] <- "dotdash"
+  expected[["col.fill"]] <- "#B3B3B34C"
+  expect_identical(.set_dots_prior(explicit, ordered = TRUE, posterior_col = "purple"),
+    expected)
+  expect_identical(.set_dots_prior(list(colour = "red"), ordered = TRUE,
+    posterior_col = "purple"), list(colour = "red", col = "red", lty = 2,
+    col.fill = "#B3B3B34C"))
+})
+
+
 test_that("ordered style selection uses declared coefficient dependencies", {
 
   quantity <- function(dependencies, term = "f") {

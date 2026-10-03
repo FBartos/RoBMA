@@ -120,7 +120,9 @@
 #' of the prior distribution respectively.
 #' For ordered predictor targets, omitted line colors and types match each
 #' posterior level's color with a dashed prior curve, including selected cells.
-#' Selected cells also accept \code{color}/\code{colour} aliases for \code{col}.
+#' For selected ordered cells with \code{prior = TRUE}, \code{color}/\code{colour}
+#' aliases resolve to \code{col}, with priority \code{col}, \code{color}, then
+#' \code{colour}; \code{linetype} takes precedence over \code{lty} in both renderers.
 #' Explicit \code{col}, \code{lty}, or \code{linetype} values take
 #' precedence; the ordinary prior defaults are retained for other targets.
 #' Ordered metadata validation is restricted to the selected terms, including

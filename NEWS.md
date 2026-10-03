@@ -202,8 +202,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   selected ordered terms, leaving unrelated stale ordered terms unqueried.
   Single ordered-level plots retain the semantic marginal's draws and prior
   metadata, including original-scale and conditional row alignment. Their
-  prior curves match the scalar posterior color with a dashed line; explicit
-  color and line-type aliases retain precedence in both renderers.
+  prior curves match the scalar posterior color with a dashed line. For selected
+  ordered cells with `prior = TRUE`, explicit color aliases resolve with priority
+  `col`, `color`, then `colour`, and `linetype` overrides `lty` in both renderers.
   The six `as_draws()` converters export fitted totals and normalized sampled
   allocation shares by default, including shares on zero-total and
   excluded-spike draws; `include_auxiliary = TRUE` also retains raw increments
