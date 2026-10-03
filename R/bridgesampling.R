@@ -84,9 +84,11 @@ bridgesampling::bayes_factor
     if (length(prior_prob) != n_models) {
       stop("'prior_prob' must have the same length as the number of models.", call. = FALSE)
     }
-    if (sum(prior_prob) <= 0) {
+    maximum <- max(prior_prob)
+    if (maximum <= 0) {
       stop("'prior_prob' must contain at least one positive value.", call. = FALSE)
     }
+    prior_prob <- prior_prob / maximum
     prior_prob <- prior_prob / sum(prior_prob)
   }
   return(prior_prob)

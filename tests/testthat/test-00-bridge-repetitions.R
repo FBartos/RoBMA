@@ -22,6 +22,43 @@
   )
 }
 
+test_that("public posterior model probabilities normalize finite prior weights safely", {
+
+  controls <- list(c(1e308, 1e308), c(1e308, 5e307), c(1e-300, 2e-300),
+    c(0, 1), c(1, 3), c(1e100, 3e100))
+  probabilities <- list(c(.5, .5), c(2 / 3, 1 / 3), c(1 / 3, 2 / 3),
+    c(0, 1), c(.25, .75), c(.25, .75))
+  for (repetitions in c(1L, 3L)) {
+    fit <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(
+      .bridge_repetition_test_raw(rep(0, repetitions))))
+    for (i in seq_along(controls)) {
+      actual <- post_prob(fit, fit, prior_prob = controls[[i]],
+        model_names = c("A", "B"))
+      expect_equal(as.numeric(actual), rep(probabilities[[i]], each = repetitions),
+        tolerance = 1e-14)
+      expect_true(all(is.finite(actual)))
+      if (repetitions == 1L) {
+        expect_identical(names(actual), c("A", "B"))
+      } else {
+        expect_identical(colnames(actual), c("A", "B"))
+        expect_equal(rowSums(actual), rep(1, repetitions), tolerance = 1e-14)
+      }
+    }
+    for (invalid in list(c(0, 0), c(1, Inf), 1)) {
+      expected <- if (length(invalid) == 1L) {
+        "'prior_prob' must have the same length as the number of models."
+      } else if (any(!is.finite(invalid))) {
+        "'prior_prob' must contain only finite values."
+      } else "'prior_prob' must contain at least one positive value."
+      error <- tryCatch(post_prob(fit, fit, prior_prob = invalid), error = identity)
+      expect_s3_class(error, "error")
+      expect_identical(conditionMessage(error), expected)
+    }
+  }
+  expect_identical(names(.post_prob_normalize_prior(c(A = 1e308, B = 1e308), 2L)),
+    c("A", "B"))
+})
+
 test_that("real bridge repetitions survive extraction and model comparisons", {
 
   withr::local_seed(360)

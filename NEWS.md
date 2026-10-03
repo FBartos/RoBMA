@@ -659,6 +659,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- posterior model probabilities safely normalize large finite prior weights
+  without overflowing their sum.
 - prediction abbreviations retain the same conditioning target and conflicting
   depth validation as their full names, including `"b"` for `"blup"`.
 - nested posterior sample exports retain heterogeneous prediction-interval
