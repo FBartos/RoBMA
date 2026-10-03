@@ -659,6 +659,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- declares testthat >= 3.3.2 for the test helpers' LLM reporter.
 - interactive test-profile children inherit library, cache, and thread controls
   without rereading R startup files.
 - posterior model probabilities safely normalize large finite prior weights
