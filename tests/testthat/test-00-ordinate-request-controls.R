@@ -77,3 +77,36 @@ test_that("successful ordinate requests retain their sampling controls", {
   expect_identical(actual$status, "ok")
   expect_true(actual$bf_grade_met)
 })
+
+test_that("sampling budgets accept large real counts and reject invalid types clearly", {
+
+  for (samples in list(20L, 70, 3e9, Inf)) {
+    expect_warning(control <- .density_control_normalize("IWMDE", list(samples = samples)), NA)
+    expect_equal(control$samples, samples)
+  }
+  invalid <- list(NULL, numeric(), c(20, 30), NA_real_, NaN, -Inf, -20, 0, 19,
+    20.25, "20", "Inf", TRUE, list(20), factor("20"), 20 + 0i, 20 + 1i)
+  for (samples in invalid) {
+    expect_warning(error <- tryCatch(.iwmde_check_samples(samples), error = identity), NA)
+    expect_s3_class(error, "error")
+    expect_identical(if (inherits(error, "error")) conditionMessage(error) else NA_character_,
+      "'density_control$samples' must be an integer at least 20 or Inf.")
+  }
+})
+
+test_that("large requested row budgets use the existing finite candidate population", {
+
+  context <- .iwmde_context(.ordinate_control_test_object(80L))
+  testthat::local_mocked_bindings(.nested_srs_rows = function(...) {
+    stop("The census route must not allocate a sampled row budget.")
+  }, .package = "RoBMA")
+  for (samples in c(3e9, Inf)) {
+    expect_warning(plan <- .iwmde_plan(context, "mu", "qCMDE",
+      list(samples = samples, target_relative_mcse = .01),
+      outputs = "ordinate", values = 0), NA)
+    expect_identical(plan$status, "ok")
+    expect_equal(plan$row_budget, samples)
+    expect_identical(plan$rows$candidate_rows, seq_len(80L))
+    expect_identical(plan$rows$n_candidate_rows, 80L)
+  }
+})

@@ -659,6 +659,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- qCMDE/IWMDE sampling controls accept large finite integer counts without
+  integer-range coercion and reject invalid types with the control's message.
 - unavailable posterior-ordinate diagnostics retain normalized sampling and
   precision requests; genuinely missing historical controls remain `NA`.
 - declares testthat >= 3.3.2 for the test helpers' LLM reporter.

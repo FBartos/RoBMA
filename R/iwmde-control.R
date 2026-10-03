@@ -162,10 +162,11 @@
 
 .iwmde_check_samples <- function(samples) {
 
-  if (length(samples) != 1L || is.na(samples) ||
-      (!is.finite(samples) && !identical(as.numeric(samples), Inf)) ||
+  if (!is.numeric(samples) ||
+      length(samples) != 1L || is.na(samples) ||
+      (!is.finite(samples) && samples != Inf) ||
       (is.finite(samples) &&
-       (samples < 20 || samples != as.integer(samples)))) {
+       (samples < 20 || samples != trunc(samples)))) {
     stop(
       "'density_control$samples' must be an integer at least 20 or Inf.",
       call. = FALSE
