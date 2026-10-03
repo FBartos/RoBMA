@@ -39,6 +39,59 @@ test_that("fit-cache source catalog references the current source tree", {
   expect_identical(missing, character())
 })
 
+test_that("interactive profile children preserve inherited controls and libraries", {
+
+  runner_path <- testthat::test_path("..", "..", ".dev", "test-tests.R")
+  skip_if_not(file.exists(runner_path), "Requires a source checkout.")
+  runner_env <- new.env(parent = globalenv())
+  source(runner_path, local = runner_env)
+  probe_root <- tempfile("robma-child-startup-")
+  dir.create(file.path(probe_root, "tools"), recursive = TRUE)
+  on.exit(unlink(probe_root, recursive = TRUE), add = TRUE)
+  result_path <- file.path(probe_root, "result.rds")
+  startup_path <- file.path(probe_root, "own-Renviron")
+  empty_path <- file.path(probe_root, "own-empty")
+  writeLines(character(), empty_path)
+  inherited_cache <- file.path(probe_root, "inherited-cache")
+  writeLines(c(paste0("ROBMA_TEST_FILES_DIR=", shQuote(file.path(probe_root, "startup-cache"))),
+    "OMP_NUM_THREADS=7"), startup_path)
+  writeLines(c(
+    "saveRDS(list(cache = Sys.getenv('ROBMA_TEST_FILES_DIR'),",
+    "  threads = Sys.getenv('OMP_NUM_THREADS'),",
+    "  skip_refit = Sys.getenv('ROBMA_TEST_SKIP_REFIT'),",
+    "  bayestools = normalizePath(find.package('BayesTools'), winslash = '/'),",
+    "  args = commandArgs(trailingOnly = TRUE)),",
+    "  Sys.getenv('ROBMA_CHILD_PROBE_RESULT'))"
+  ), file.path(probe_root, "tools", "test-profile.R"))
+  child_libraries <- paste(.libPaths(), collapse = .Platform$path.sep)
+  withr::local_envvar(c(R_ENVIRON = empty_path, R_ENVIRON_USER = startup_path,
+    R_PROFILE = empty_path, R_PROFILE_USER = empty_path,
+    R_LIBS = child_libraries, R_LIBS_USER = child_libraries,
+    ROBMA_TEST_FILES_DIR = inherited_cache, ROBMA_TEST_SKIP_REFIT = "TRUE",
+    OMP_NUM_THREADS = "1", ROBMA_CHILD_PROBE_RESULT = result_path))
+  runner_env$.robma_test_project_root <- probe_root
+  runner_env$.robma_test_rscript <- function() {
+    file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  }
+  command_args <- NULL
+  runner_env$system2 <- function(command, args) {
+    command_args <<- args
+    base::system2(command, args = args,
+      stdout = file.path(probe_root, "stdout.log"),
+      stderr = file.path(probe_root, "stderr.log"))
+  }
+  runner_env$.run_robma_test_profile("standard", clean = TRUE, filter = "a filter")
+  actual <- readRDS(result_path)
+  expect_identical(actual$cache, inherited_cache)
+  expect_identical(actual$threads, "1")
+  expect_identical(actual$skip_refit, "TRUE")
+  expect_identical(actual$bayestools,
+    normalizePath(find.package("BayesTools"), winslash = "/"))
+  expect_identical(actual$args, c("standard", "--clean", "a filter"))
+  expect_identical(command_args[[1L]], "--vanilla")
+  expect_identical(readLines(file.path(probe_root, "stderr.log")), character())
+})
+
 
 test_that("quiet LLM reporter counts skips without printing each reason", {
 

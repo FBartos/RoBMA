@@ -82,7 +82,7 @@ source(
     "tools",
     "test-profile.R"
   )
-  arguments <- c(shQuote(profile_script), profile)
+  arguments <- c("--vanilla", shQuote(profile_script), profile)
   if (clean) {
     arguments <- c(arguments, "--clean")
   }
