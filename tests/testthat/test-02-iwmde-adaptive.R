@@ -431,6 +431,10 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
   expect_identical(class(out), c("RoBMA_density_diagnostics", "data.frame"))
   expect_named(out, c(
     "schema_version", "algorithm_version", "source_fingerprint", "estimator",
+    "internal_method", "working_distribution", "normalization_basis",
+    "ordered_error_status", "block_numerator_relative_error",
+    "block_denominator_relative_error", "block_max_order", "block_max_panels",
+    "block_native_nodes",
     "density_method", "parameter", "level", "requested_value",
     "evaluation_value", "requested_samples", "achieved_row_budget",
     "eligible_rows",
