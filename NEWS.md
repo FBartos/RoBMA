@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- prediction abbreviations retain the same conditioning target and conflicting
+  depth validation as their full names, including `"b"` for `"blup"`.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:

@@ -339,9 +339,9 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     caller  = "predict.brma()"
   )
 
-  requested_type <- type
   type <- match.arg(type, c("terms", "marginal", "cluster", "estimate", "effect", "blup",
                             "response", "outcome", "terms.scale"))
+  requested_type <- type
   type <- switch(type,
     "marginal" = "terms",
     "effect"   = "estimate",
