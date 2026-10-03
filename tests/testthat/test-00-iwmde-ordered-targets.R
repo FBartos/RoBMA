@@ -541,6 +541,117 @@ test_that("offset certificates match the supplied block covariance and prior sco
   target[["ordered_specs"]][[1L]][["total_prior"]] <- BayesTools::prior("beta", list(2, 1))
   expect_identical(.iwmde_ordered_point_certificate(context, target, list(state))[["cause"]],
     "offset_block_capability_unavailable")
+  expect_error(.iwmde_ordered_block_geometry(context, target, state),
+    class = "RoBMA_ordered_offset_block_capability_unavailable")
+})
+
+
+test_that("point-total mixture rows share one normalized block aggregate", {
+
+  # Condition on the declared within-group ratio r_J=(1/2,1/2). Integrating
+  # T and S physically gives proper component evidence and posterior weights.
+  # The component weights below make the two posterior branches equally likely.
+  Q <- function(share) 10 / 2^2 * (1 + 1.25 * share^2)
+  point_Z <- stats::integrate(function(share) stats::dbeta(share, 3, 1) * exp(-Q(share) / 2),
+    0, 1, rel.tol = 1e-11)
+  normal_Z <- stats::integrate(function(share) stats::dbeta(share, 3, 1) / sqrt(1 + Q(share)),
+    0, 1, rel.tol = 1e-11)
+  prior_weights <- c(1 / point_Z[["value"]], 1 / normal_Z[["value"]])
+  prior_weights <- prior_weights / sum(prior_weights)
+  total <- BayesTools::prior_mixture(list(BayesTools::prior("point", list(1), prior_weights = prior_weights[[1L]]),
+    BayesTools::prior("normal", list(0, 1), prior_weights = prior_weights[[2L]])))
+  fixture <- .ordered_target_fixture(total = total,
+    allocation = BayesTools::prior("dirichlet", list(c(1.5, 1.5, 1))))
+  context <- fixture[["context"]]
+  context[["data"]] <- structure(list(outcome = data.frame(yi = rep(0, 40L), sei = rep(2, 40L))), outcome_type = "norm")
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  gamma <- spec[["allocations"]][[1L]][["gamma_coordinates"]]
+  draws <- context[["posterior_samples"]]
+  draws[, gamma[1:2]] <- rowSums(draws[, gamma[1:2]]) / 2
+  draws <- .iwmde_ordered_replay(context, draws, list(mu_f = spec))
+  context[["posterior_samples"]] <- draws
+  context[["object"]][["fit"]][["mcmc"]][[1L]] <- coda::mcmc(draws)
+  design <- outer(as.integer(fixture[["data"]][["f"]]), 1:3, ">")
+  setup <- function(context, samples, ...) list(mu = samples[, spec[["coefficient_names"]], drop = FALSE] %*% t(design),
+    yi = rep(0, 40L), sei = rep(2, 40L), tau_within = matrix(0, nrow(samples), 40L),
+    effect_direction = "positive", priors = list(outcome = list()))
+  local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
+    .iwmde_active_setup = function(...) list(priors = list(outcome = list())),
+    .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
+    .iwmde_log_lik_posterior_setup_active_branch = setup,
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(context, samples, ...) {
+      mu <- setup(context, samples)[["mu"]]
+      rowSums(stats::dnorm(mu, 0, 2, log = TRUE))
+    }, .package = "RoBMA")
+  parameter_spec <- list(type = "linear", weights = stats::setNames(c(1, 1), spec[["coefficient_names"]][1:2]))
+  posterior_weights <- prior_weights * c(point_Z[["value"]], normal_Z[["value"]])
+  posterior_weights <- posterior_weights / sum(posterior_weights)
+  expect_equal(posterior_weights, c(.5, .5), tolerance = 1e-14)
+  numerator <- stats::dnorm(0) * 3 / 2
+  prior_ordinate <- prior_weights[[2L]] * numerator
+  posterior_ordinate <- posterior_weights[[2L]] * numerator / normal_Z[["value"]]
+  for (method in c("qCMDE", "IWMDE")) {
+    plan <- .iwmde_plan(context, "cell", method, list(samples = 20L), outputs = "ordinate",
+      values = 0, parameter_spec = parameter_spec)
+    expect_identical(plan[["execution_spec"]][["ordered_point_plan"]][["status"]], "block")
+    expect_identical(vapply(plan[["execution_spec"]][["ordered_point_plan"]][["component_statuses"]], `[[`, character(1), "status"),
+      c("zero", "block"))
+    expect_identical(plan[["rows"]][["point_mass_total"]], 0)
+    expect_identical(plan[["rows"]][["active_mass"]], 1)
+    execution <- .iwmde_plan_row_execution(context, plan)
+    result <- .iwmde_execute_plan_estimator(context, plan, "ordinate", execution)
+    expect_true(result[["ordered_point_certificate"]][["available"]])
+    components <- vapply(execution[["row_states"]], function(state)
+      .iwmde_ordered_total_component(spec, state[["row"]])[["component"]], integer(1))
+    expect_identical(result[["finite_terms"]], as.numeric(sum(components == 2L)))
+    expect_identical(result[["n_evaluated_rows"]], 20L)
+    expect_identical(result[["sampling_fraction"]], .5)
+    expect_identical(attr(result[["scaled_contributions"]], "contribution_rows", exact = TRUE), execution[["active_rows"]])
+    expect_identical(attr(result[["scaled_contributions"]], "chain_id", exact = TRUE), execution[["chain_id"]])
+    expect_identical(vapply(result[["ordered_proofs"]], `[[`, integer(1), "candidate_rows"), execution[["active_rows"]])
+    zero <- components == 1L
+    expect_identical(as.numeric(result[["scaled_contributions"]][, zero]), rep(0, sum(zero)))
+    expect_true(all(vapply(result[["ordered_proofs"]][zero], function(proof)
+      proof[["normalizer"]][["method"]] == "declared_zero_component_limit", logical(1))))
+    block <- result[["ordered_proofs"]][[which(!zero)[[1L]]]]
+    L0 <- 40 * stats::dnorm(0, 0, 2, log = TRUE)
+    expect_lte(abs(exp(block[["log_normalizer"]] - L0) - normal_Z[["value"]]),
+      normal_Z[["abs.error"]] + block[["denominator_relative_error"]] * normal_Z[["value"]])
+    selected_weight <- mean(components == 2L)
+    expected <- selected_weight * numerator / normal_Z[["value"]]
+    expect_lte(abs(result[["y"]] - expected), expected * result[["normalization_relative_error"]] +
+      normal_Z[["abs.error"]] / normal_Z[["value"]] * expected)
+    expect_lte(abs(result[["y"]] - posterior_ordinate), 4 * result[["sampling_mcse"]] +
+      posterior_ordinate * result[["normalization_relative_error"]])
+    expect_true(is.finite(prior_ordinate) && prior_ordinate > 0)
+  }
+})
+
+
+test_that("raw components in mixed block plans retain their conditional source route", {
+
+  total <- BayesTools::prior_mixture(list(BayesTools::prior("point", list(1)), BayesTools::prior("gamma", list(2, 1))))
+  fixture <- .ordered_target_fixture(total = total)
+  context <- fixture[["context"]]
+  context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  target <- .iwmde_ordered_target_spec(context, "cell", list(type = "linear",
+    weights = stats::setNames(1, spec[["coefficient_names"]][[1L]])))
+  expect_identical(vapply(target[["ordered_point_plan"]][["component_statuses"]], `[[`, character(1), "status"), c("raw", "block"))
+  rows <- context[["evaluator_cache"]][[target[["ordered_source_key"]]]]
+  states <- lapply(1:2, function(row) list(row = rows[row, ], row_index = row,
+    ordered_chart = .iwmde_ordered_row_chart(context, target, row),
+    source_gaussian = list(quadratic = 1), active_setup = list()))
+  expect_true(.iwmde_ordered_point_certificate(context, target, states)[["available"]])
+  called <- integer()
+  local_mocked_bindings(.iwmde_ordered_log_terms = function(context, parameter_spec, row_states, ...) {
+    called <<- vapply(row_states, `[[`, integer(1), "row_index")
+    list(log_terms = matrix(log(2), 1L, 1L), proofs = list(list(normalizer = list(method = "raw_fixture"))))
+  }, .iwmde_ordered_block_geometry = function(...) stop("raw component reached block geometry"), .package = "RoBMA")
+  result <- .iwmde_ordered_block_log_terms(context, target, states[1L], target[["ordered_point_plan"]])
+  expect_identical(called, 1L)
+  expect_identical(result[["log_terms"]], matrix(log(2), 1L, 1L))
+  expect_identical(result[["proofs"]][[1L]][["normalizer"]][["method"]], "raw_fixture")
 })
 
 
@@ -616,7 +727,7 @@ test_that("construction failures use requested or neutral ordered method labels"
 })
 
 
-test_that("uncertified zero variance affects only its evaluation", {
+test_that("requested method reaches source-chart failures through actual plans", {
 
   fixture <- .ordered_target_fixture()
   context <- fixture[["context"]]
@@ -627,11 +738,37 @@ test_that("uncertified zero variance affects only its evaluation", {
     .iwmde_active_setup = function(...) list(),
     .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
     .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(...) 0,
+    .package = "RoBMA")
+  parameter_spec <- .iwmde_ordered_target_spec(context, "cell", parameter_spec)
+  parameter_spec[["ordered_projection"]][["total_contraction_weights"]][["mu_f"]][, ] <- 0
+  for (method in c("qCMDE", "IWMDE")) {
+    failure <- tryCatch(.iwmde_plan(context, "cell", method, list(samples = 20L), outputs = "ordinate",
+      values = .1, parameter_spec = parameter_spec), error = identity)
+    expect_s3_class(failure, "iwmde_construction_error")
+    expect_match(conditionMessage(failure), paste0("^", method, " construction failed for target 'cell'.*source-chart construction"))
+  }
+})
+
+
+test_that("ordered partial uncertainty survives result assembly and public consumers", {
+
+  fixture <- .ordered_target_fixture()
+  context <- fixture[["context"]]
+  context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  parameter_spec <- list(type = "linear", weights = stats::setNames(c(1, 1), spec[["coefficient_names"]][1:2]))
+  all_constant <- FALSE
+  local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
+    .iwmde_active_setup = function(...) list(),
+    .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch = function(...) 0,
     .iwmde_ordered_point_certificate = function(...) list(available = TRUE),
     .iwmde_ordered_constant_certificate = function(...) FALSE,
     .iwmde_ordered_log_terms = function(context, parameter_spec, row_states, evaluation_values, control) {
       n <- length(row_states)
-      list(log_terms = rbind(rep(-1, n), log(seq_len(n) / n), log(rev(seq_len(n)) / (n + 1))),
+      terms <- if (all_constant) matrix(-1, length(evaluation_values), n) else
+        rbind(rep(-1, n), log(seq_len(n) / n), log(rev(seq_len(n)) / (n + 1)))
+      list(log_terms = terms,
         proofs = lapply(row_states, function(state) list(ratio_relative_error = 0,
           numerator_relative_error = 0, denominator_relative_error = 0, exterior_relative_error = 0,
           floating_relative_error = 0, error_status = "exact", source_grid_points = 0L,
@@ -640,14 +777,91 @@ test_that("uncertified zero variance affects only its evaluation", {
         internal_method = "ordered_source_conditional_cmde", working_distribution = "normalized_conditional_source",
         normalization_basis = "source_chart")
     }, .package = "RoBMA")
-  plan <- .iwmde_plan(context, "cell", "qCMDE", list(samples = 20L), outputs = "ordinate",
-    values = .1, parameter_spec = parameter_spec)
-  execution <- .iwmde_plan_row_execution(context, plan)
-  result <- .iwmde_ordered_density(context, plan, execution, c(-.2, -.1, .1), TRUE)
-  expect_true(is.na(result[["mcse"]][[1L]]))
-  expect_true(all(is.finite(result[["mcse"]][2:3])))
-  expect_true(all(is.finite(result[["ess"]][2:3])))
-  expect_identical(result[["mcmc_uncertainty_scope"]], "unavailable_insufficient_chain_batches")
+  for (method in c("qCMDE", "IWMDE")) {
+    all_constant <- FALSE
+    plan <- .iwmde_plan(context, "cell", method, list(samples = 20L), outputs = "ordinate",
+      values = c(-.2, -.1, .1), parameter_spec = parameter_spec)
+    execution <- .iwmde_plan_row_execution(context, plan)
+    result <- .iwmde_execute_plan_estimator(context, plan, "ordinate", execution)
+    expect_true(is.na(result[["mcse"]][[1L]]))
+    expect_true(all(is.finite(result[["mcse"]][2:3])))
+    expect_true(all(is.finite(result[["ess"]][2:3])))
+    expect_identical(result[["mcmc_uncertainty_scope"]], "selected_continuous_rows_only")
+    expect_identical(result[["mcmc_uncertainty_status"]], "partial")
+    expect_identical(result[["mcmc_uncertainty_reason"]],
+      "zero empirical contribution variance lacks a declared dependency certificate")
+    expect_identical(is.na(result[["mcse"]]), is.na(result[["relative_mcse"]]))
+    expect_identical(is.na(result[["mcse"]]), is.na(result[["ess"]]))
+    diagnostic <- .iwmde_plan_diagnostic_result(plan, "ordinate", execution, result)
+    expect_match(.iwmde_diagnostics_density_sample_failure_reason(diagnostic[["diagnostics"]]),
+      "MCMC uncertainty is unavailable")
+    selected <- .iwmde_select_ordinate_diagnostic(diagnostic, -.2)
+    ordinate <- .iwmde_posterior_ordinate_attribute(selected, method, density_control = plan[["control"]],
+      metadata = list(parameter = "cell"), allow_rejected = TRUE)
+    expect_true(is.na(ordinate[["diagnostics"]][["relative_mcse"]]))
+    design <- .iwmde_ordinate_sampling_design(ordinate, plan[["control"]], 40L, 20L)
+    expect_false(design[["precision_target_met"]])
+    expect_false(design[["target_met"]])
+    estimate <- .iwmde_estimate_fixed_ordinate(context, "cell", method, list(samples = 20L),
+      values = c(-.2, -.1, .1), parameter_spec = parameter_spec, metadata = list(parameter = "cell"))
+    entries <- c(.iwmde_posterior_ordinate_entries(estimate[["posterior_ordinate"]]),
+      .iwmde_posterior_ordinate_entries(estimate[["rejected_posterior_ordinate"]]))
+    ordinate <- entries[[which(vapply(entries, function(entry) entry[["value"]] == -.2, logical(1)))]]
+    expect_false(ordinate[["diagnostics"]][["precision_target_met"]])
+    expect_match(paste(.iwmde_posterior_ordinate_warnings(ordinate), collapse = " "),
+      "MCSE.*unavailable")
+    rows <- .iwmde_public_density_diagnostic_rows(ordinate)
+    condition <- structure(list(density_diagnostics = rows), class = "RoBMA_density_ordinate_error")
+    public <- density_diagnostics(condition)
+    expect_true(is.na(public[["relative_mcse"]]))
+    expect_true(is.na(public[["ess"]]))
+    expect_identical(public[["mcmc_uncertainty_scope"]], "selected_continuous_rows_only")
+    available <- .iwmde_select_ordinate_diagnostic(diagnostic, -.1)
+    available <- .iwmde_posterior_ordinate_attribute(available, method, density_control = plan[["control"]],
+      metadata = list(parameter = "cell"), allow_rejected = TRUE)
+    expect_identical(available[["diagnostics"]][["relative_mcse"]], result[["relative_mcse"]][[2L]])
+    expect_identical(available[["diagnostics"]][["ess"]], result[["ess"]][[2L]])
+    underflow <- result
+    underflow[["y"]][[2L]] <- 0
+    underflow[["log_y"]][[2L]] <- -900
+    underflow[["mcse"]][[2L]] <- NA_real_
+    underflow[["log_mcse"]][[2L]] <- -950
+    underflow[["underflow"]][[2L]] <- TRUE
+    expect_identical(.iwmde_new_density_result(underflow)[["relative_mcse"]], result[["relative_mcse"]])
+    zero_plan <- plan
+    zero_plan[["execution_spec"]][["ordered_point_plan"]][["status"]] <- "zero"
+    zero_plan[["execution_spec"]][["ordered_point_plan"]][["value"]] <- -.1
+    zero_result <- .iwmde_execute_plan_estimator(context, zero_plan, "ordinate", execution)
+    expect_identical(zero_result[["log_y"]][[2L]], -Inf)
+    expect_identical(zero_result[["mcse"]][[2L]], 0)
+    expect_identical(zero_result[["ess"]][[2L]], 0)
+    expect_true(is.na(zero_result[["relative_mcse"]][[2L]]))
+    expect_identical(zero_result[["mcmc_uncertainty_status"]], "partial")
+    for (field in c("mcse", "relative_mcse", "ess")) {
+      invalid <- result
+      invalid[[field]][[2L]] <- Inf
+      expect_error(.iwmde_new_density_result(invalid), "invalid")
+      invalid[[field]][[2L]] <- NaN
+      expect_error(.iwmde_new_density_result(invalid), "invalid")
+      invalid <- result
+      invalid[[field]][[1L]] <- 1
+      expect_error(.iwmde_new_density_result(invalid), "inconsistent partial uncertainty")
+    }
+    for (field in c("mcmc_uncertainty_status", "mcmc_uncertainty_scope", "mcmc_uncertainty_reason", "internal_method")) {
+      invalid <- result
+      invalid[field] <- list(switch(field, mcmc_uncertainty_status = "available",
+        mcmc_uncertainty_scope = "unavailable_insufficient_chain_batches",
+        mcmc_uncertainty_reason = NULL, internal_method = "ordinary"))
+      expect_error(.iwmde_new_density_result(invalid), "invalid effective sample sizes")
+    }
+    all_constant <- TRUE
+    unavailable <- .iwmde_execute_plan_estimator(context, plan, "ordinate", execution)
+    expect_true(all(is.na(unavailable[["mcse"]])))
+    expect_true(all(is.na(unavailable[["relative_mcse"]])))
+    expect_true(all(is.na(unavailable[["ess"]])))
+    expect_identical(unavailable[["mcmc_uncertainty_scope"]], "unavailable_insufficient_chain_batches")
+    expect_identical(unavailable[["mcmc_uncertainty_status"]], "unavailable")
+  }
 })
 
 

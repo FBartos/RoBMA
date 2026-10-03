@@ -526,8 +526,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     Offset capabilities now match the supplied block covariance/prior scope,
     including an early refusal for unsupported finite-upper Gamma inverse
     suppliers. Uncertified zero empirical variance affects uncertainty only
-    at its own evaluation, and generic table thresholds remain separate from
-    the ordered per-row 0.025 numerical limit.
+    at its own evaluation: mixed availability retains the selected-row scope
+    with partial status and an explicit reason, and missing uncertainty cannot
+    pass curve availability or point precision gates. Block prior eligibility
+    applies to actual block components; continuous point-total components keep
+    their zero or conditional-source contributions in the common row aggregate.
+    Generic table thresholds remain separate from the ordered per-row 0.025
+    numerical limit.
   - adds likelihood-aware qCMDE and IWMDE estimates of posterior densities
     and point ordinates through `density_method` (`"KDE"`, `"qCMDE"`, or
     `"IWMDE"`) and `density_control` in `plot()`, `lines()`,

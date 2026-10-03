@@ -110,6 +110,14 @@
 #' explicit point requests retain their structural or precision refusal.
 #' The ordered per-row limit of 0.025 is separate from the generic stability
 #' warning/rejection thresholds reported in this table.
+#' When only some ordered evaluations lack certified contribution variation,
+#' their MCMC error and ESS stay unavailable while other evaluations retain
+#' their metrics. The internal uncertainty status is `partial` with the original
+#' selected-row scope and an explicit reason. Such curves fail the MCMC
+#' availability gate, and an affected point cannot meet its precision target.
+#' If every evaluation is affected, the full unavailable scope is retained.
+#' A finite log MCSE whose absolute value underflows remains a separate
+#' representation limitation.
 #'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an

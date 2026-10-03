@@ -240,6 +240,13 @@
 
 .iwmde_diagnostics_density_sample_failure_reason <- function(diagnostics) {
 
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
+      identical(diagnostics[["mcmc_uncertainty_status"]], "partial") &&
+      !is.finite(.iwmde_diagnostic_scalar(diagnostics, "min_ess"))) {
+    return("density MCMC uncertainty is unavailable for some evaluation values")
+  }
+
   estimator_rows <- .iwmde_diagnostic_scalar_any(
     diagnostics,
     c("n_estimator_rows", "n_evaluated_rows")

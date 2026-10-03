@@ -178,3 +178,15 @@ regeneration workflow.
 Run focused tests after each meaningful change. Before handoff, run the standard
 profile when the change scope warrants it. State exactly what ran, what did not,
 and why.
+
+`tools/verify-ordered-sources.R <manifest.rds>` is focused deeper verification
+for the original two-chain, 4000-row, twelve-study ordered fixtures. The RDS
+contains a named character vector of existing fit paths (`normal`, `gamma`,
+`selected`, `shared`). Reuse owner-managed fits and `ROBMA_TEST_FILES_DIR` for
+external cache control; the script never fits, refreshes or writes a cache.
+It compares source normalizers and supplier numerators against physical
+original-kernel integrals, genuine selected/shared predictors against complete
+replay, and complete row proofs against their numerical envelopes. It loads
+the existing development DLL with `compile = FALSE`, records native/dependency
+identity, and verifies that input fit hashes remain unchanged. This is
+correctness evidence; it does not certify a new native build's performance.

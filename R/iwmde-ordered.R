@@ -376,7 +376,10 @@
     descriptor <- parameter_spec[["ordered_point_plan"]][["descriptor"]]
     spec <- parameter_spec[["ordered_specs"]][[descriptor[["term"]]]]
     supported <- vapply(row_states, function(state) {
-      prior <- .iwmde_ordered_total_component(spec, state[["row"]])[["prior"]]
+      component <- .iwmde_ordered_total_component(spec, state[["row"]])
+      statuses <- parameter_spec[["ordered_point_plan"]][["component_statuses"]]
+      if (length(statuses) && !identical(statuses[[component[["component"]]]][["status"]], "block")) return(TRUE)
+      prior <- component[["prior"]]
       prior[["distribution"]] %in% c("normal", "gamma") && !.iwmde_retained_location_dynamic_prior(prior)
     }, logical(1))
     if (!all(supported)) return(unavailable("offset_block_capability_unavailable",
@@ -1242,8 +1245,10 @@
   if (any(zero_variance) && !constant) {
     for (field in c("mcse", "relative_mcse", "active_branch_mcse", "active_branch_relative_mcse",
       "active_mass_component_mcse", "ess")) uncertainty[[field]][zero_variance] <- NA_real_
-    uncertainty[["uncertainty_scope"]] <- "unavailable_insufficient_chain_batches"
-    uncertainty[["uncertainty_status"]] <- "unavailable"
+    if (all(is.na(uncertainty[["ess"]]))) {
+      uncertainty[["uncertainty_scope"]] <- "unavailable_insufficient_chain_batches"
+      uncertainty[["uncertainty_status"]] <- "unavailable"
+    } else uncertainty[["uncertainty_status"]] <- "partial"
     uncertainty[["uncertainty_reason"]] <- "zero empirical contribution variance lacks a declared dependency certificate"
   }
   if (constant) {

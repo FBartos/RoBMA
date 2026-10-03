@@ -62,6 +62,12 @@ masses only within the score/conditioning and prospective arithmetic reserve;
 retain effective-prior, method and fallback evidence in the row counts. Rejected
 completion scales never enter the existing CDF floating-error ledger. Selected
 blocks retain the original native selection correction at every source node.
+Apply block prior-family eligibility only to resolved block components; raw,
+zero and atomic components keep their existing routes. Missing MCMC uncertainty
+at some ordered evaluations retains the original selected-row scope with partial
+status and reason. Preserve available per-value metrics, reject incomplete
+curve availability, and keep affected point precision flags false. Distinguish
+these missing metrics from finite log MCSE with absolute representation underflow.
 
 Use `.outcome_data_yi()`, `.outcome_data_sei()`,
 `.outcome_data_vi()`, and `.outcome_data_weights()` instead of direct fitted

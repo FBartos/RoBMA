@@ -982,6 +982,18 @@
 }
 
 
+.iwmde_ordered_block_counts <- function(block) {
+
+  counts <- as.list(block[["counts"]])
+  completion <- counts[["gamma_completion"]]
+  if (!is.null(completion) && completion[["accepted"]] == 0L) {
+    completion[["z_range"]] <- completion[["condition_range"]] <- c(NA_real_, NA_real_)
+    counts[["gamma_completion"]] <- completion
+  }
+  counts
+}
+
+
 .iwmde_ordered_block_inner <- function(context, block, share, order = NULL,
                                       prior = block[["normal_probability"]]) {
 
@@ -1192,7 +1204,7 @@
     attempts[[length(attempts)]][["outer_failure"]] <- try_integral[["proof"]]
   }
   .iwmde_ordered_numeric_stop("inner_ladder_exhausted", "the selected source ladder exhausted order 1023 without two passing changes and a complete .025 ratio envelope",
-    list(orders = orders, attempts = attempts, guard = guard, counts = as.list(block[["counts"]])))
+    list(orders = orders, attempts = attempts, guard = guard, counts = .iwmde_ordered_block_counts(block)))
 }
 
 
@@ -1343,7 +1355,7 @@
       source_support = .iwmde_prior_support(block[["prior"]]), source_grid = c(NA_real_, NA_real_),
       source_grid_points = 0L, normalizer = list(method = "positive_ordered_offset_block"),
       supplier = row_plan[["supplier"]], value = point_plan[["value"]], value_key = point_plan[["value_key"]],
-      counts = as.list(block[["counts"]]), numerator = numerator, denominator = denominator)
+      counts = .iwmde_ordered_block_counts(block), numerator = numerator, denominator = denominator)
     if (!is.finite(ratio) || ratio > .025) {
       .iwmde_ordered_numeric_stop("block_integration_error", "the complete block integration error exceeds .025", proof)
     }

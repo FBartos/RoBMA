@@ -266,6 +266,37 @@ test_that("Gamma rows can mix exact completions and CDF nodes on one share parti
 })
 
 
+test_that("huge negative Gamma scores retain the stable guard and original typed fallback", {
+
+  block <- .ordered_block_fixture(BayesTools::prior("gamma", list(2, 3)))
+  block[["gaussian"]] <- list(A = 1e-16, H = 0, C = 0)
+  context <- list(data = list(outcome = data.frame(yi = numeric(12))))
+  completion <- .iwmde_ordered_gamma_completion(context, block, 0, block[["normal_probability"]])
+  expect_identical(completion[["z"]], -3e8)
+  expect_identical(completion[["reason"]], "stable_negative_bound")
+  expect_true(is.na(completion[["condition"]]))
+  actual <- tryCatch(.iwmde_ordered_block_inner(context, block, 0), error = identity)
+  expect_identical(block[["counts"]][["gamma_completion"]][["fallback_reasons"]], c(stable_negative_bound = 1L))
+  expect_identical(block[["counts"]][["gamma_completion"]][["accepted"]], 0L)
+  expect_identical(block[["counts"]][["gamma_completion"]][["z_range"]], c(Inf, -Inf))
+  presented <- .iwmde_ordered_block_counts(block)[["gamma_completion"]]
+  expect_identical(presented[["z_range"]], c(NA_real_, NA_real_))
+  expect_identical(presented[["condition_range"]], c(NA_real_, NA_real_))
+  baseline <- .ordered_block_fixture(BayesTools::prior("gamma", list(2, 3)))
+  baseline[["gaussian"]] <- block[["gaussian"]]
+  local_mocked_bindings(.iwmde_ordered_gamma_completion = function(...) {
+    completion[["reason"]] <- "forced_original_cdf"
+    completion
+  }, .package = "RoBMA")
+  original <- tryCatch(.iwmde_ordered_block_inner(context, baseline, 0), error = identity)
+  expect_identical(actual[["method"]], "proper_cdf_source")
+  expect_identical(actual[c("log_value", "log_error", "log_exterior", "relative_error", "components",
+    "fine_panels", "refinements", "coalesced_cuts", "method")], original[c("log_value", "log_error",
+    "log_exterior", "relative_error", "components", "fine_panels", "refinements", "coalesced_cuts", "method")])
+  expect_identical(block[["counts"]][["max_log_scale"]], baseline[["counts"]][["max_log_scale"]])
+})
+
+
 test_that("proper-CDF block denominators retain general Gamma and truncated Normal support", {
 
   for (prior in list(BayesTools::prior("gamma", list(3, 1)),
