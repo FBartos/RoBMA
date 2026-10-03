@@ -207,7 +207,7 @@
   }
   density_fields <- intersect(
     c(
-      "mcse", "active_branch_mcse", "sampling_mcse",
+      "mcse", "active_branch_mcse", "active_mass_component_mcse", "sampling_mcse",
       "pilot_ordinate", "validation_ordinate"
     ),
     names(diagnostics)
