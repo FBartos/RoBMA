@@ -134,6 +134,7 @@ test_that("whole sampling covariance is independent of the Gaussian backend", {
   })
   structures <- lapply(resolved, .known_v_check_selection_structure)
   for (sampling in structures) {
+    expect_identical(sampling$rank, 2L)
     expect_identical(sampling$residual_variance, numeric(2L))
     expect_equal(tcrossprod(sampling$latent_blocks[[1L]]$B),
       V, tolerance = 1e-14)
@@ -159,8 +160,23 @@ test_that("whole sampling covariance is independent of the Gaussian backend", {
   expect_warning(resolved <- .known_v_resolve_selection_structure(integrated), NA)
   sampling <- .known_v_check_selection_structure(resolved)
   expect_identical(sampling$residual_variance, numeric(3L))
+  expect_identical(sampling$rank, 2L)
   expect_equal(tcrossprod(sampling$latent_blocks[[1L]]$B), singular,
     tolerance = 1e-14)
+})
+
+test_that("declared zero loading retains independent sampling coordinates", {
+
+  input <- known_v_factor(c(.04, .09), matrix(0, 2L, 1L))
+  sampling <- .known_v_check_selection_structure(.known_v_resolve_selection_structure(
+    .known_v_prepare(input, c(TRUE, TRUE), "auto")))
+  expect_identical(sampling$rank, 2L)
+  expect_identical(sampling$residual_variance, numeric(2L))
+  retained <- matrix(0, 2L, sampling$rank)
+  for (block in sampling$latent_blocks) {
+    retained[block$index, seq.int(block$z_start, block$z_end)] <- block$B
+  }
+  expect_equal(tcrossprod(retained), diag(c(.04, .09)), tolerance = 1e-15)
 })
 
 

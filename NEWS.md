@@ -659,6 +659,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- retained known sampling covariance uses its accepted compact factor, keeping
+  positive underflow-scale directions and the accepted semidefinite support rank.
 - integer sampling-factor loadings normalize to double storage, sharing their
   identity and native known-covariance behavior with equivalent double inputs.
 - displayed qCMDE/IWMDE ordinate diagnostics transform the active-mass density

@@ -49,6 +49,28 @@ test_that("sampling keeps the accepted full-rank factor without requiring Choles
   expect_true(all(actual[, 2L] != 0))
 })
 
+test_that("retained sampling keeps every accepted underflow-scale direction", {
+
+  covariance <- .covariance_underflow_fixture()
+  accepted <- .covariance_factorization(covariance)$sampling_factor
+  known_V <- .known_v_prepare(covariance, c(TRUE, TRUE), "block_mvn",
+    warn_singular = FALSE)
+  resolved <- .known_v_resolve_selection_structure(known_V)
+  sampling <- .known_v_check_selection_structure(resolved)
+  block <- sampling$latent_blocks[[1L]]
+  expect_identical(sampling$rank, 2L)
+  expect_identical(block$rank, 2L)
+  expect_identical(dim(block$B), c(2L, 2L))
+  expect_identical(block$z_start, 1L)
+  expect_identical(block$z_end, 2L)
+  expect_equal(block$B, unname(t(accepted)), tolerance = 0)
+  expect_true(all(colSums(abs(block$B)) > 0))
+  expect_true(sum(abs(block$B[2L, ])) > 0)
+  expect_identical(sampling$residual_variance, numeric(2L))
+  expect_identical(sampling$source_ids, "sampling_error")
+  expect_identical(sampling$provenance$policy, "whole_sampling_error")
+})
+
 test_that("likelihood and projection boundaries identify unavailable Cholesky factors", {
 
   covariance <- .covariance_underflow_fixture()

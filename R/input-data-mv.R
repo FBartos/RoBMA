@@ -778,20 +778,12 @@
       B <- cbind(diagonal_loading, loading)
     } else {
       covariance <- blocks[[b]][["covariance"]]
-      if (all(covariance == 0)) {
-        B <- matrix(0, length(rows), 0L)
-      } else {
-        root <- tryCatch(chol(covariance), error = function(e) NULL)
-        if (is.null(root)) {
-          # Pivoted Cholesky handles an already validated PSD covariance.
-          # tol = 0 preserves positive pivots rather than dropping small SDs.
-          root <- suppressWarnings(chol(covariance, pivot = TRUE, tol = 0))
-          rank <- attr(root, "rank")
-          B    <- t(root[seq_len(rank), order(attr(root, "pivot")), drop = FALSE])
-        } else {
-          B <- t(root)
-        }
+      factorization <- .covariance_factorization(covariance)
+      root <- factorization[["sampling_factor"]]
+      if (is.null(root)) {
+        stop("Known-V sampling covariance is not positive semidefinite.", call. = FALSE)
       }
+      B <- t(root)
     }
     rank <- ncol(B)
     blocks[[b]] <- list(
