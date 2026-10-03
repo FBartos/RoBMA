@@ -286,10 +286,7 @@ SEXP norm_cluster_accumulate(const NormClusterArgs &args)
           const int cell = s + args.S * k;
           const double mu_node = args.mu[cell] +
             gamma_j * args.tau_between[cell];
-          const double sd = std::sqrt(
-            args.tau_within[cell] * args.tau_within[cell] +
-              args.sei[k] * args.sei[k]
-          );
+          const double sd = std::hypot(args.tau_within[cell], args.sei[k]);
 
           cluster_terms[s + args.S * j] += norm_cluster_cell_loglik(
             args, k, mu_node, sd
@@ -338,10 +335,7 @@ SEXP norm_cluster_accumulate_row_sum(const NormClusterArgs &args)
           const int cell = s + args.S * k;
           const double mu_node = args.mu[cell] +
             gamma_j * args.tau_between[cell];
-          const double sd = std::sqrt(
-            args.tau_within[cell] * args.tau_within[cell] +
-              args.sei[k] * args.sei[k]
-          );
+          const double sd = std::hypot(args.tau_within[cell], args.sei[k]);
 
           cluster_terms[s + args.S * j] += norm_cluster_cell_loglik(
             args, k, mu_node, sd

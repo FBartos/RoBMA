@@ -6,7 +6,7 @@ namespace {
 inline double norm_predictor_cell(double yi, double mu, double tau, double sei,
                                   double weight)
 {
-  const double sd = std::sqrt(tau * tau + sei * sei);
+  const double sd = std::hypot(tau, sei);
   return weight * Rf_dnorm4(yi, mu, sd, 1);
 }
 
@@ -264,7 +264,7 @@ extern "C" SEXP RoBMA_norm_loglik_row_sum(
     double row_sum = 0.0;
     for (int k = 0; k < K; ++k) {
       const int cell = s + S * k;
-      const double sd = std::sqrt(tau_p[cell] * tau_p[cell] + sei_p[k] * sei_p[k]);
+      const double sd = std::hypot(tau_p[cell], sei_p[k]);
       const double weight = weights_p == 0 ? 1.0 : weights_p[k];
       row_sum += weight * Rf_dnorm4(yi_p[k], mu_p[cell], sd, 1);
     }
