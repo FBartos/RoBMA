@@ -112,8 +112,8 @@
 #' warning/rejection thresholds reported in this table.
 #' When only some ordered evaluations lack certified contribution variation,
 #' their MCMC error and ESS stay unavailable while other evaluations retain
-#' their metrics. The internal uncertainty status is `partial` with the original
-#' selected-row scope and an explicit reason. Such curves fail the MCMC
+#' their metrics. A printed table footnote reports the `partial` uncertainty
+#' status and its reason, preserving the original selected-row scope. Such curves fail the MCMC
 #' availability gate, and an affected point cannot meet its precision target.
 #' If every evaluation is affected, the full unavailable scope is retained.
 #' A finite log MCSE whose absolute value underflows remains a separate
@@ -302,6 +302,11 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
   class(out) <- c("RoBMA_density_diagnostics", "data.frame")
+  footnotes <- unique(unlist(lapply(rows, attr, which = "footnotes", exact = TRUE)))
+  if (length(footnotes)) {
+    attr(out, "footnotes") <- footnotes
+    class(out) <- c("RoBMA_density_diagnostics", "BayesTools_table", "data.frame")
+  }
 
   return(out)
 }
@@ -323,6 +328,11 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
   class(out) <- c("RoBMA_density_diagnostics", "data.frame")
+  footnotes <- unique(unlist(lapply(rows, attr, which = "footnotes", exact = TRUE)))
+  if (length(footnotes)) {
+    attr(out, "footnotes") <- footnotes
+    class(out) <- c("RoBMA_density_diagnostics", "BayesTools_table", "data.frame")
+  }
 
   return(out)
 }
@@ -363,7 +373,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   stability_warning <- .iwmde_bf_mass_warning_tolerance(estimator)
   stability_rejection <- .iwmde_bf_mass_fail_tolerance(estimator)
 
-  data.frame(
+  out <- data.frame(
     schema_version = .iwmde_public_character(
       provenance[["schema_version"]]
     ),
@@ -500,6 +510,14 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     warnings = paste(warnings, collapse = " | "),
     stringsAsFactors = FALSE
   )
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
+      identical(diagnostics[["mcmc_uncertainty_status"]], "partial")) {
+    attr(out, "footnotes") <- paste0("Ordered MCMC uncertainty is partial: ",
+      diagnostics[["mcmc_uncertainty_reason"]], ".")
+  }
+
+  return(out)
 }
 
 

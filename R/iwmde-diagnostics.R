@@ -388,6 +388,12 @@
 
 .iwmde_density_sample_rejection_action <- function(diagnostics) {
 
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
+      identical(diagnostics[["mcmc_uncertainty_status"]], "partial")) {
+    return("Inspect 'density_diagnostics()'; for a plot set 'density_method = \"KDE\"'")
+  }
+
   if (isTRUE(diagnostics[["all_rows_used"]]) ||
       isTRUE(diagnostics[["sampling_fraction"]] == 1)) {
     return("Try fitting the model with more posterior draws")

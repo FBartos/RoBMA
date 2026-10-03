@@ -182,11 +182,18 @@ and why.
 `tools/verify-ordered-sources.R <manifest.rds>` is focused deeper verification
 for the original two-chain, 4000-row, twelve-study ordered fixtures. The RDS
 contains a named character vector of existing fit paths (`normal`, `gamma`,
-`selected`, `shared`). Reuse owner-managed fits and `ROBMA_TEST_FILES_DIR` for
-external cache control; the script never fits, refreshes or writes a cache.
+`selected`, `shared`). The manifest selects owner-managed existing fits wherever
+they reside; `ROBMA_TEST_FILES_DIR` is printed context only and does not control
+these paths. The script never fits, refreshes or writes a cache.
 It compares source normalizers and supplier numerators against physical
 original-kernel integrals, genuine selected/shared predictors against complete
-replay, and complete row proofs against their numerical envelopes. It loads
+replay, and twelve production N/D ratio arithmetic proofs against their reported
+envelopes. On original rows 1/1990/4000 it also independently integrates both
+physical block N and D, and compares their ratio using the complete original
+likelihood on replayed T/S coordinates, public group alphas and declared total
+priors. Shared allocations are varied once across their consumers. These
+selective references carry estimated quadrature errors; they do not establish
+global integration accuracy or chain calibration. It loads
 the existing development DLL with `compile = FALSE`, records native/dependency
 identity, and verifies that input fit hashes remain unchanged. This is
 correctness evidence; it does not certify a new native build's performance.

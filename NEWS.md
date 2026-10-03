@@ -528,7 +528,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     suppliers. Uncertified zero empirical variance affects uncertainty only
     at its own evaluation: mixed availability retains the selected-row scope
     with partial status and an explicit reason, and missing uncertainty cannot
-    pass curve availability or point precision gates. Block prior eligibility
+    pass curve availability or point precision gates. Printed density diagnostics
+    retain the partial uncertainty reason as a table footnote; unsupported
+    dependency certificates recommend inspecting diagnostics or KDE for plots.
+    Absolute MCSE underflow is recognized from its finite log value, including
+    when the density itself remains nonzero and subnormal. Block prior eligibility
     applies to actual block components; continuous point-total components keep
     their zero or conditional-source contributions in the common row aggregate.
     Generic table thresholds remain separate from the ordered per-row 0.025

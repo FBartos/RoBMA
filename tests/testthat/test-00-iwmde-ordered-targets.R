@@ -590,7 +590,9 @@ test_that("point-total mixture rows share one normalized block aggregate", {
   numerator <- stats::dnorm(0) * 3 / 2
   prior_ordinate <- prior_weights[[2L]] * numerator
   posterior_ordinate <- posterior_weights[[2L]] * numerator / normal_Z[["value"]]
+  withr::defer(.iwmde_qcmde_cache_clear())
   for (method in c("qCMDE", "IWMDE")) {
+    .iwmde_qcmde_cache_clear()
     plan <- .iwmde_plan(context, "cell", method, list(samples = 20L), outputs = "ordinate",
       values = 0, parameter_spec = parameter_spec)
     expect_identical(plan[["execution_spec"]][["ordered_point_plan"]][["status"]], "block")
@@ -614,6 +616,7 @@ test_that("point-total mixture rows share one normalized block aggregate", {
     expect_true(all(vapply(result[["ordered_proofs"]][zero], function(proof)
       proof[["normalizer"]][["method"]] == "declared_zero_component_limit", logical(1))))
     block <- result[["ordered_proofs"]][[which(!zero)[[1L]]]]
+    expect_false(isTRUE(block[["normalizer_cache_reused"]]))
     L0 <- 40 * stats::dnorm(0, 0, 2, log = TRUE)
     expect_lte(abs(exp(block[["log_normalizer"]] - L0) - normal_Z[["value"]]),
       normal_Z[["abs.error"]] + block[["denominator_relative_error"]] * normal_Z[["value"]])
@@ -758,6 +761,7 @@ test_that("ordered partial uncertainty survives result assembly and public consu
   spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
   parameter_spec <- list(type = "linear", weights = stats::setNames(c(1, 1), spec[["coefficient_names"]][1:2]))
   all_constant <- FALSE
+  second_log_scale <- NULL
   local_mocked_bindings(.iwmde_active_keys = function(...) rep("one", 40L),
     .iwmde_active_setup = function(...) list(),
     .iwmde_active_flat_prior_list = function(...) context[["flat_prior_list"]],
@@ -767,7 +771,8 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     .iwmde_ordered_log_terms = function(context, parameter_spec, row_states, evaluation_values, control) {
       n <- length(row_states)
       terms <- if (all_constant) matrix(-1, length(evaluation_values), n) else
-        rbind(rep(-1, n), log(seq_len(n) / n), log(rev(seq_len(n)) / (n + 1)))
+        rbind(rep(-1, n), if (is.null(second_log_scale)) log(seq_len(n) / n) else
+          second_log_scale + log1p(seq_len(n) / 1e5), log(rev(seq_len(n)) / (n + 1)))
       list(log_terms = terms,
         proofs = lapply(row_states, function(state) list(ratio_relative_error = 0,
           numerator_relative_error = 0, denominator_relative_error = 0, exterior_relative_error = 0,
@@ -802,6 +807,8 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     design <- .iwmde_ordinate_sampling_design(ordinate, plan[["control"]], 40L, 20L)
     expect_false(design[["precision_target_met"]])
     expect_false(design[["target_met"]])
+    expect_identical(result[["sampling_mcse"]][[1L]], 0)
+    expect_identical(result[["sampling_relative_mcse"]][[1L]], 0)
     estimate <- .iwmde_estimate_fixed_ordinate(context, "cell", method, list(samples = 20L),
       values = c(-.2, -.1, .1), parameter_spec = parameter_spec, metadata = list(parameter = "cell"))
     entries <- c(.iwmde_posterior_ordinate_entries(estimate[["posterior_ordinate"]]),
@@ -816,6 +823,13 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     expect_true(is.na(public[["relative_mcse"]]))
     expect_true(is.na(public[["ess"]]))
     expect_identical(public[["mcmc_uncertainty_scope"]], "selected_continuous_rows_only")
+    expect_match(paste(capture.output(print(public)), collapse = " "),
+      "Ordered MCMC uncertainty is partial: zero empirical contribution variance lacks a declared dependency certificate")
+    for (frame in list(as.data.frame(public), data.frame(public))) {
+      expect_identical(frame[["relative_mcse"]], public[["relative_mcse"]])
+      expect_identical(frame[["ess"]], public[["ess"]])
+      expect_identical(frame[["ordinate"]], public[["ordinate"]])
+    }
     available <- .iwmde_select_ordinate_diagnostic(diagnostic, -.1)
     available <- .iwmde_posterior_ordinate_attribute(available, method, density_control = plan[["control"]],
       metadata = list(parameter = "cell"), allow_rejected = TRUE)
@@ -828,6 +842,65 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     underflow[["log_mcse"]][[2L]] <- -950
     underflow[["underflow"]][[2L]] <- TRUE
     expect_identical(.iwmde_new_density_result(underflow)[["relative_mcse"]], result[["relative_mcse"]])
+    subnormal <- underflow
+    subnormal[["y"]][[2L]] <- exp(-740)
+    subnormal[["log_y"]][[2L]] <- -740
+    subnormal[["underflow"]][[2L]] <- FALSE
+    expect_gt(subnormal[["y"]][[2L]], 0)
+    expect_identical(.iwmde_new_density_result(subnormal)[["ess"]], result[["ess"]])
+    malformed <- subnormal
+    malformed[["log_mcse"]][[2L]] <- -700
+    expect_gt(exp(malformed[["log_mcse"]][[2L]]), 0)
+    expect_error(.iwmde_new_density_result(malformed), "inconsistent partial uncertainty")
+    for (field in c("mcmc_uncertainty_scope", "mcmc_uncertainty_status", "mcmc_uncertainty_reason", "internal_method")) {
+      for (value in list(character(), NA_character_, c("one", "two"))) {
+        invalid <- result
+        invalid[field] <- list(value)
+        expect_error(.iwmde_new_density_result(invalid), "invalid uncertainty metadata")
+      }
+    }
+    invalid <- result
+    invalid["mcmc_uncertainty_scope"] <- list(NULL)
+    expect_error(.iwmde_new_density_result(invalid), "invalid uncertainty metadata")
+    invalid <- result
+    invalid["internal_method"] <- list(NULL)
+    expect_error(.iwmde_new_density_result(invalid), "invalid uncertainty metadata")
+    invalid <- result
+    invalid[["mcmc_uncertainty_scope"]] <- NULL
+    expect_error(.iwmde_new_density_result(invalid), "missing required field")
+    # Execute the actual density-output assembly and the curve consumers.
+    curve_plan <- .iwmde_plan(context, "cell", method,
+      list(samples = 20L), outputs = "density", parameter_spec = parameter_spec)
+    curve_plan[["grids"]][["display_grid"]] <- c(-.2, -.1, .1)
+    curve_execution <- .iwmde_plan_row_execution(context, curve_plan)
+    curve_result <- .iwmde_execute_plan_estimator(context, curve_plan, "density", curve_execution)
+    curve_diagnostic <- .iwmde_plan_diagnostic_result(curve_plan, "density", curve_execution, curve_result)
+    expect_identical(curve_result[["mcmc_uncertainty_status"]], "partial")
+    expect_identical(curve_result[["mcse"]][2:3], result[["mcse"]][2:3])
+    expect_identical(curve_result[["ess"]][2:3], result[["ess"]][2:3])
+    expect_match(.iwmde_diagnostics_density_failure_reason(curve_diagnostic[["diagnostics"]]),
+      "MCMC uncertainty is unavailable")
+    expect_null(.iwmde_posterior_density_attribute(curve_diagnostic, method,
+      metadata = list(parameter = "cell"), density_control = curve_plan[["control"]]))
+    samples <- structure(as.numeric(curve_plan[["rows"]][["samples"]]), iwmde_diagnostics = list(curve_diagnostic))
+    unavailable_curve <- .plot_brma_iwmde_unavailable_reason(samples)
+    expect_true(unavailable_curve[["rejected"]])
+    expect_match(unavailable_curve[["reason"]], "MCMC uncertainty is unavailable")
+    expect_identical(.iwmde_density_sample_rejection_action(curve_diagnostic[["diagnostics"]]),
+      "Inspect 'density_diagnostics()'; for a plot set 'density_method = \"KDE\"'")
+    for (scale in c(-740, -900)) {
+      second_log_scale <- scale
+      represented <- .iwmde_execute_plan_estimator(context, curve_plan, "density", curve_execution)
+      expect_identical(represented[["mcmc_uncertainty_status"]], "partial")
+      expect_true(is.na(represented[["mcse"]][[2L]]))
+      expect_true(is.finite(represented[["log_mcse"]][[2L]]))
+      expect_identical(exp(represented[["log_mcse"]][[2L]]), 0)
+      expect_true(is.finite(represented[["relative_mcse"]][[2L]]))
+      expect_true(is.finite(represented[["ess"]][[2L]]))
+      if (scale == -740) expect_gt(represented[["y"]][[2L]], 0) else expect_identical(represented[["y"]][[2L]], 0)
+      expect_identical(represented[["underflow"]][[2L]], scale == -900)
+    }
+    second_log_scale <- NULL
     zero_plan <- plan
     zero_plan[["execution_spec"]][["ordered_point_plan"]][["status"]] <- "zero"
     zero_plan[["execution_spec"]][["ordered_point_plan"]][["value"]] <- -.1
@@ -852,7 +925,7 @@ test_that("ordered partial uncertainty survives result assembly and public consu
       invalid[field] <- list(switch(field, mcmc_uncertainty_status = "available",
         mcmc_uncertainty_scope = "unavailable_insufficient_chain_batches",
         mcmc_uncertainty_reason = NULL, internal_method = "ordinary"))
-      expect_error(.iwmde_new_density_result(invalid), "invalid effective sample sizes")
+      expect_error(.iwmde_new_density_result(invalid), "invalid (effective sample sizes|uncertainty metadata)")
     }
     all_constant <- TRUE
     unavailable <- .iwmde_execute_plan_estimator(context, plan, "ordinate", execution)

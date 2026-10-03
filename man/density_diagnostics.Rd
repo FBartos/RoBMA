@@ -164,8 +164,8 @@ The ordered per-row limit of 0.025 is separate from the generic stability
 warning/rejection thresholds reported in this table.
 When only some ordered evaluations lack certified contribution variation,
 their MCMC error and ESS stay unavailable while other evaluations retain
-their metrics. The internal uncertainty status is \code{partial} with the original
-selected-row scope and an explicit reason. Such curves fail the MCMC
+their metrics. A printed table footnote reports the \code{partial} uncertainty
+status and its reason, preserving the original selected-row scope. Such curves fail the MCMC
 availability gate, and an affected point cannot meet its precision target.
 If every evaluation is affected, the full unavailable scope is retained.
 A finite log MCSE whose absolute value underflows remains a separate
