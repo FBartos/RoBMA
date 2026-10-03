@@ -1371,10 +1371,25 @@
   return(any(dependencies %in% coefficients))
 }
 
-.set_dots_prior       <- function(dots_prior, ordered = FALSE) {
+.set_dots_prior       <- function(dots_prior, ordered = FALSE, posterior_col = NULL) {
 
   if (is.null(dots_prior)) {
     dots_prior <- list()
+  }
+
+  if (ordered && !is.null(posterior_col)) {
+    if (is.null(dots_prior[["col"]])) {
+      dots_prior[["col"]] <- if (!is.null(dots_prior[["color"]])) {
+        dots_prior[["color"]]
+      } else if (!is.null(dots_prior[["colour"]])) {
+        dots_prior[["colour"]]
+      } else posterior_col
+    }
+    if (!is.null(dots_prior[["linetype"]])) {
+      dots_prior[["lty"]] <- dots_prior[["linetype"]]
+    } else if (is.null(dots_prior[["lty"]])) {
+      dots_prior[["lty"]] <- 2
+    }
   }
 
   if (!ordered && is.null(dots_prior[["col"]])) {

@@ -448,6 +448,41 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
       plotted <- plot(ordered, parameter = selector, prior = TRUE,
         density_method = "KDE", plot_type = "ggplot")
       expect_s3_class(plotted, "ggplot")
+      layers <- ggplot2::ggplot_build(plotted)[["data"]]
+      if (identical(selector, "g[hi]")) {
+        expect_length(layers, 2L)
+        expect_identical(unique(layers[[1L]][["colour"]]), "black")
+        expect_identical(unique(layers[[1L]][["linetype"]]), 2)
+        expect_identical(unique(layers[[2L]][["colour"]]), "black")
+        expect_identical(unique(layers[[2L]][["linetype"]]), 1)
+      } else if (identical(selector, "g[mid]")) {
+        expect_length(layers, 1L)
+        expect_identical(unique(layers[[1L]][["colour"]]), "black")
+        expect_identical(unique(layers[[1L]][["linetype"]]), 1)
+      }
+    }
+    styles <- list(
+      list(posterior = list(col = "purple"), prior = NULL, color = "purple", lty = 2),
+      list(posterior = list(color = "green4"), prior = NULL, color = "green4", lty = 2),
+      list(posterior = list(colour = "blue"), prior = NULL, color = "blue", lty = 2),
+      list(posterior = list(col = "purple", color = "green4", colour = "blue"),
+        prior = list(col = "red", color = "blue", lty = 3), color = "red", lty = 3),
+      list(posterior = list(), prior = list(color = "red", colour = "blue", linetype = "dotted"),
+        color = "red", lty = "dotted"),
+      list(posterior = list(), prior = list(colour = "red", lty = 3, linetype = "dotdash"),
+        color = "red", lty = "dotdash")
+    )
+    for (style in styles) {
+      plotted <- do.call(plot, c(list(x = ordered, parameter = "g[hi]",
+        prior = TRUE, density_method = "KDE", plot_type = "ggplot",
+        dots_prior = style[["prior"]]), style[["posterior"]]))
+      layers <- ggplot2::ggplot_build(plotted)[["data"]]
+      expect_identical(unique(layers[[1L]][["colour"]]), style[["color"]])
+      expect_identical(unique(layers[[1L]][["linetype"]]), style[["lty"]])
+      expect_identical(unique(layers[[2L]][["colour"]]),
+        if (!length(style[["posterior"]])) "black" else if (is.null(style[["prior"]])) {
+          style[["color"]]
+        } else "purple")
     }
   }, finally = grDevices::dev.off())
   expect_error(.plot_brma_factor_cell_samples(ordered, entry, FALSE, TRUE, FALSE),

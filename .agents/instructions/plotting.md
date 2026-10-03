@@ -29,8 +29,12 @@ For ordered semantic targets, derive owners from selected catalog quantities'
 requesting only those owners from `JAGS_ordered_parameter_spec()`; ordinary
 targets do not request ordered metadata. Compare persisted catalog dependencies
 with the selected specs' coefficient names. Leave
-unspecified prior line colors and types to BayesTools' matched level styles;
-preserve explicit user styles and ordinary targets' existing defaults.
+unspecified whole-factor prior line colors and types to BayesTools' matched
+level styles. For selected ordered cells, resolve the scalar posterior color
+(`col`, then `color`, then `colour`) and use it for an unspecified prior color
+with a dashed line. Explicit prior colors and types, including aliases, win;
+`linetype` takes precedence over `lty` in both backends. Preserve ordinary
+targets' existing defaults.
 
 For an ordered factor cell, retain the semantic marginal selected by its exact
 catalog extraction weights, including its prior and aligned draw metadata.

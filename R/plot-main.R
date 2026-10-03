@@ -118,9 +118,10 @@
 #' \code{lty}, \code{col}, and \code{col.fill}, to adjust
 #' the line thickness, line type, line color, and fill color
 #' of the prior distribution respectively.
-#' For ordered predictor targets, omitted line colors and types are selected
-#' by BayesTools to match each posterior level's color with a dashed prior
-#' curve. Explicit \code{col}, \code{lty}, or \code{linetype} values take
+#' For ordered predictor targets, omitted line colors and types match each
+#' posterior level's color with a dashed prior curve, including selected cells.
+#' Selected cells also accept \code{color}/\code{colour} aliases for \code{col}.
+#' Explicit \code{col}, \code{lty}, or \code{linetype} values take
 #' precedence; the ordinary prior defaults are retained for other targets.
 #' Ordered metadata validation is restricted to the selected terms, including
 #' selected group members; unrelated ordered terms do not affect prior styles.
@@ -431,11 +432,22 @@ lines.brma <- function(
   }
 
   ### set up plotting arguments
+  ordered_target <- isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
+  ordered_cell <- ordered_target && is_factor_cell
+  if (ordered_cell) {
+    if (is.null(dots_raw[["col"]])) {
+      dots_raw[["col"]] <- if (!is.null(dots_raw[["color"]])) {
+        dots_raw[["color"]]
+      } else dots_raw[["colour"]]
+    }
+    if (!is.null(dots_raw[["linetype"]])) dots_raw[["lty"]] <- dots_raw[["linetype"]]
+  }
   n_levels   <- .get_samples_n_levels(samples, parameter)
   dots       <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))
   dots_prior <- .set_dots_prior(
     dots_prior,
-    ordered = isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
+    ordered = ordered_target,
+    posterior_col = if (ordered_cell) dots[["col"]]
   )
   if (is.null(dots[["par_name"]])) {
     dots[["par_name"]] <- if (is_random) random_label else if (is_factor_cell) {

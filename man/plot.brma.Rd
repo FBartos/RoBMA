@@ -105,9 +105,10 @@ distribution. Supported arguments are \code{lwd},
 \code{lty}, \code{col}, and \code{col.fill}, to adjust
 the line thickness, line type, line color, and fill color
 of the prior distribution respectively.
-For ordered predictor targets, omitted line colors and types are selected
-by BayesTools to match each posterior level's color with a dashed prior
-curve. Explicit \code{col}, \code{lty}, or \code{linetype} values take
+For ordered predictor targets, omitted line colors and types match each
+posterior level's color with a dashed prior curve, including selected cells.
+Selected cells also accept \code{color}/\code{colour} aliases for \code{col}.
+Explicit \code{col}, \code{lty}, or \code{linetype} values take
 precedence; the ordinary prior defaults are retained for other targets.
 Ordered metadata validation is restricted to the selected terms, including
 selected group members; unrelated ordered terms do not affect prior styles.}
