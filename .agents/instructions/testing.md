@@ -205,3 +205,9 @@ Missing MCMC error with finite importance ESS remains partial uncertainty.
 The ordered-result NA masks also reject malformed available-status all-NA
 uncertainty. When the active branch has enough batches in each required fitted
 chain, the complete conditioned indicator includes those same active rows.
+Ordered fixed-positive singleton step-selection blocks may reduce normalizer
+columns only after exact persisted data/design equality and bit-exact current
+mean, variance and complete selection-input checks. The Gaussian core, observed
+constant, original row/power identities and full-observation error budgets stay
+unchanged. Algorithm 27 row proofs retain the partition, source, prior and
+control identities; earlier algorithm 26 results remain historical evidence.

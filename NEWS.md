@@ -523,6 +523,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     Effective inverse-prior shapes and completion/fallback counts remain in the
     row proofs. Selected blocks avoid an unused candidate materialization while
     retaining the complete native selection normalizer at every source node.
+    Certified independent fixed-positive step-selection blocks evaluate exact
+    repeated observation patterns once per source node, retaining the full
+    Gaussian likelihood, original observation powers and numerical budgets.
+    Row proofs record the exact partition and input identities; algorithm 27
+    keeps these results separate from earlier normalization caches.
     Offset capabilities now match the supplied block covariance/prior scope,
     including an early refusal for unsupported finite-upper Gamma inverse
     suppliers. Uncertified zero empirical variance affects uncertainty only

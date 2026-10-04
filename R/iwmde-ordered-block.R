@@ -416,7 +416,107 @@
 }
 
 
-.iwmde_ordered_block_geometry <- function(context, parameter_spec, state) {
+.iwmde_ordered_selection_partition <- function(context, parameter_spec, state) {
+
+  data <- context[["data"]]
+  if (!isTRUE(state[["active_setup"]][["is_weightfunction"]]) ||
+      .is_data_scale(data) || .is_data_random(data) || .is_data_multilevel(data) ||
+      .is_data_known_v(data) || .iwmde_context_uses_local_likelihood(context)) return(NULL)
+  certificate <- context[["ordered_point_certificate"]]
+  if (is.null(certificate)) certificate <- .iwmde_ordered_point_certificate(context, parameter_spec, list(state))
+  if (!isTRUE(certificate[["available"]]) ||
+      !identical(certificate[["kind"]], "independent_numeric_gaussian_core")) return(NULL)
+  selection <- state[["active_setup"]][["priors"]][["outcome"]][["bias"]]
+  if (!BayesTools::is.prior.weightfunction(selection) ||
+      !identical(selection[["weights"]][["type"]], "fixed") ||
+      !is.numeric(selection[["weights"]][["omega"]]) ||
+      any(!is.finite(selection[["weights"]][["omega"]])) ||
+      any(selection[["weights"]][["omega"]] <= 0)) return(NULL)
+  plan <- .data_selection_execution_plan(data)
+  model <- .data_selection_model(data)
+  branches <- model[["branches"]][model[["active_branches"]]]
+  K <- nrow(data[["outcome"]])
+  if (!length(plan[["block_methods"]]) || any(plan[["block_methods"]] != "singleton") ||
+      length(plan[["dependent_blocks"]]) || any(plan[["block_sizes"]] != 1L) ||
+      length(plan[["sampling"]][["diagonal"]]) != K ||
+      !is.matrix(plan[["sampling"]][["loading"]]) || ncol(plan[["sampling"]][["loading"]]) != 0L ||
+      !length(branches) || !all(vapply(branches, function(branch) identical(branch[["weight_rule"]], "product"), logical(1))) ||
+      .selection_retains_sampling(data) || .selection_retains_any_random(data)) return(NULL)
+  design <- BayesTools::JAGS_formula_design(context[["object"]][["fit"]], parameter = "mu")
+  if (!is.matrix(design[["model_matrix"]]) || nrow(design[["model_matrix"]]) != K ||
+      !is.null(design[["formula_scale"]]) || length(design[["transformed_terms"]]) ||
+      length(design[["expression_specs"]]) || length(design[["expression_data"]]) ||
+      length(design[["random_effects"]]) || length(design[["random_allocations"]])) return(NULL)
+  selection_spec <- .selection_spec(state[["active_setup"]][["priors"]], data[["outcome"]][["yi"]],
+    data[["outcome"]][["sei"]], .data_effect_direction(data), signed_data = FALSE)
+  if (is.null(selection_spec) || !identical(selection_spec[["mode"]], "step") ||
+      isTRUE(selection_spec[["has_phack"]])) return(NULL)
+  # Row labels and powers remain original identities. Equality uses every
+  # persisted observation and mean-operator input, with exact serialized bits.
+  row_inputs <- list(outcome = data[["outcome"]][setdiff(names(data[["outcome"]]), c("slab", "weights"))],
+    mods = data[["mods"]], location = data[["location"]], model_frame = design[["model_frame"]],
+    source_data = design[["source_data"]], model_matrix = design[["model_matrix"]],
+    sampling_variance = plan[["sampling"]][["diagonal"]], obs_bin = selection_spec[["obs_bin"]])
+  if (!all(vapply(row_inputs, function(x) {
+    is.null(x) || if (is.data.frame(x) || is.matrix(x)) nrow(x) == K else length(x) == K
+  }, logical(1)))) return(NULL)
+  row_value <- function(x, i) {
+    if (is.null(x)) return(NULL)
+    if (is.data.frame(x)) return(lapply(x, function(column) unname(column[i])))
+    if (is.matrix(x)) return(unname(x[i, , drop = TRUE]))
+    unname(x[i])
+  }
+  rows <- lapply(seq_len(K), function(i) serialize(lapply(row_inputs, row_value, i = i), NULL, version = 2L))
+  keys <- vapply(rows, rlang::hash, character(1))
+  representatives <- which(!duplicated(keys))
+  group_index <- match(keys, keys[representatives])
+  # A hash selects candidates only; the original bytes prove equality.
+  if (length(representatives) == K || !all(vapply(seq_len(K), function(i) {
+    identical(rows[[i]], rows[[representatives[group_index[[i]]]]])
+  }, logical(1)))) return(NULL)
+  list(original_indices = seq_len(K), group_index = group_index,
+    representatives = representatives, multiplicity = tabulate(group_index, length(representatives)),
+    selection_spec = selection_spec, certificate = certificate,
+    structure_identity = .iwmde_hash("ordered_selection_structure", list(data = data, design = design,
+      model = model, plan = plan, selection = selection, recipes = parameter_spec[["ordered_specs"]])))
+}
+
+
+.iwmde_ordered_selection_grouping <- function(block, partition) {
+
+  if (is.null(partition)) return(NULL)
+  representatives <- partition[["representatives"]]
+  group_index <- partition[["group_index"]]
+  exact <- function(x) is.numeric(x) && length(x) == length(group_index) &&
+    identical(serialize(unname(x), NULL, version = 2L),
+      serialize(unname(x[representatives][group_index]), NULL, version = 2L))
+  fields <- c("mu0", "mu_a", "mu_b", "mu_c", "variance", "selection_sei")
+  if (!all(vapply(block[fields], exact, logical(1))) || !exact(block[["setup"]][["yi"]])) return(NULL)
+  selection_context <- block[["selection_context"]]
+  expected <- partition[["selection_spec"]]
+  fixed_fields <- setdiff(names(expected), "native_cache")
+  if (!identical(serialize(selection_context[fixed_fields], NULL, version = 2L),
+      serialize(expected[fixed_fields], NULL, version = 2L)) ||
+      !exact(selection_context[["obs_bin"]]) || !exact(selection_context[["sei"]]) ||
+      !exact(selection_context[["yi"]]) || !identical(as.numeric(selection_context[["omega"]]),
+        .selection_fixed_omega_branch(block[["state"]][["active_setup"]][["priors"]][["outcome"]][["bias"]], expected[["p_cuts"]])) ||
+      !identical(selection_context[["alpha"]], 0) || !identical(selection_context[["phack_kind"]], 0L) ||
+      any(selection_context[["kernel_mode"]] != SELKERNEL_STEP)) return(NULL)
+  powers <- vapply(seq_along(representatives), function(group) sum(block[["weights"]][group_index == group]), numeric(1))
+  map <- partition[c("original_indices", "group_index", "representatives", "multiplicity", "structure_identity", "certificate")]
+  map[["original_powers"]] <- block[["weights"]]
+  map[["powers"]] <- powers
+  map[["group_count"]] <- length(representatives)
+  map[["map_hash"]] <- .iwmde_hash("ordered_selection_partition", map)
+  map[["input_identity"]] <- .iwmde_hash("ordered_selection_inputs", list(
+    means = block[fields], yi = block[["setup"]][["yi"]],
+    selection = selection_context[setdiff(names(selection_context), "native_cache")]))
+  map
+}
+
+
+.iwmde_ordered_block_geometry <- function(context, parameter_spec, state,
+                                         observation_partition = .iwmde_ordered_selection_partition(context, parameter_spec, state)) {
 
   point <- parameter_spec[["ordered_point_plan"]]
   descriptor <- point[["descriptor"]]
@@ -526,6 +626,11 @@
     block[["log_correction_lower"]] <- observed_constant - sum(weights) * log(max(omega))
     block[["log_correction_upper"]] <- observed_constant - sum(weights) * log(min(omega))
     block[["counts"]][["native_nodes"]] <- 2L
+    grouping <- .iwmde_ordered_selection_grouping(block, observation_partition)
+    block[["selection_grouping"]] <- grouping
+    if (!is.null(grouping)) {
+      block[["normalizer_context"]] <- BayesTools::selection_context_subset_observations(selection_context, grouping[["representatives"]])
+    }
   }
   block[["normal"]] <- .iwmde_qcmde_normal_prior_parameters(prior)
   block[["normal_probability"]] <- .iwmde_ordered_probability_prior(prior)
@@ -561,25 +666,29 @@
       BayesTools::lpdf(block[["prior"]], total))
   }
   if (!block[["selected"]]) return(.iwmde_ordered_block_gaussian_log(block, total, share))
+  grouping <- block[["selection_grouping"]]
+  representatives <- if (is.null(grouping)) seq_along(block[["mu0"]]) else grouping[["representatives"]]
+  powers <- if (is.null(grouping)) block[["weights"]] else grouping[["powers"]]
+  selection_context_base <- if (is.null(grouping)) block[["selection_context"]] else block[["normalizer_context"]]
   out <- numeric(n)
   for (start in seq.int(1L, n, by = 1024L)) {
     take <- seq.int(start, min(n, start + 1023L))
     count <- length(take)
-    mu <- matrix(block[["mu0"]], count, length(block[["mu0"]]), byrow = TRUE) +
-      outer(share[take], block[["mu_c"]]) + outer(total[take], block[["mu_a"]]) +
-      outer(total[take] * share[take], block[["mu_b"]])
+    mu <- matrix(block[["mu0"]][representatives], count, length(representatives), byrow = TRUE) +
+      outer(share[take], block[["mu_c"]][representatives]) + outer(total[take], block[["mu_a"]][representatives]) +
+      outer(total[take] * share[take], block[["mu_b"]][representatives])
     # The fixed positive singleton selection route has an invariant observation
     # factor and covariance. The declared bilinear predictor and original native
     # normalizer evaluate every source node without recompiling its setup.
-    selection_context <- block[["selection_context"]]
+    selection_context <- selection_context_base
     if (nrow(selection_context[["omega"]]) == 1L && count > 1L) {
       selection_context[["omega"]] <- matrix(rep(selection_context[["omega"]][1L, ], each = count), nrow = count)
     }
     log_norm <- .selection_step_log_norm_matrix(mu,
-      matrix(rep(sqrt(block[["variance"]]), each = count), nrow = count),
-      block[["selection_sei"]], selection_context)
+      matrix(rep(sqrt(block[["variance"]][representatives]), each = count), nrow = count),
+      block[["selection_sei"]][representatives], selection_context)
     out[take] <- .iwmde_ordered_block_gaussian_log(block, total[take], share[take]) +
-      block[["selection_observed_constant"]] - as.numeric(log_norm %*% block[["weights"]])
+      block[["selection_observed_constant"]] - as.numeric(log_norm %*% powers)
     block[["counts"]][["native_nodes"]] <- block[["counts"]][["native_nodes"]] + count
     block[["counts"]][["maximum_chunk"]] <- max(block[["counts"]][["maximum_chunk"]], count)
   }
@@ -1289,6 +1398,13 @@
   proofs <- vector("list", n)
   n_observations <- nrow(context[["data"]][["outcome"]])
   if (is.null(n_observations)) n_observations <- 1L
+  active_keys <- vapply(row_states, function(state) {
+    key <- state[["active_key"]]
+    if (is.null(key)) "" else key
+  }, character(1))
+  partition <- if (all(nzchar(active_keys)) && length(unique(active_keys)) == 1L) {
+    .iwmde_ordered_selection_partition(context, parameter_spec, row_states[[1L]])
+  } else NULL
   for (i in seq_len(n)) {
     row_plan <- point_plan
     if (length(point_plan[["component_statuses"]])) {
@@ -1313,13 +1429,14 @@
         next
       }
     }
+    block <- .iwmde_ordered_block_geometry(context, parameter_spec, row_states[[i]], observation_partition = partition)
     cache <- list(cache = .iwmde_qcmde_cache_env(context), key = .iwmde_hash("ordered_normalized_block_row", list(
       algorithm = .iwmde_algorithm_version(), source = .iwmde_source_fingerprint(context),
       weights = parameter_spec[["weights"]], recipes = parameter_spec[["ordered_specs"]],
       point_plan = point_plan, row = row_states[[i]][["row"]], active = row_states[[i]][["active_key"]],
       chart = row_states[[i]][["ordered_chart"]], internal_method = "ordered_offset_block_cmde",
       working_distribution = "normalized_conditional_source", normalization_basis = "ordered_offset_block",
-      integration_control = context[["integration_control"]])))
+      integration_control = context[["integration_control"]], selection_grouping = block[["selection_grouping"]])))
     if (is.null(cache[["cache"]])) cache <- NULL
     cached <- .iwmde_qcmde_cache_get(cache)
     if (!is.null(cached)) {
@@ -1328,7 +1445,6 @@
       proofs[[i]][["normalizer_cache_reused"]] <- TRUE
       next
     }
-    block <- .iwmde_ordered_block_geometry(context, parameter_spec, row_states[[i]])
     block[["counts"]][["max_log_scale"]] <- 1
     denominator <- tryCatch(.iwmde_ordered_block_denominator(context, block), error = function(error) {
       error[["proof"]][["candidate_row"]] <- row_states[[i]][["row_index"]]
@@ -1355,7 +1471,10 @@
       source_support = .iwmde_prior_support(block[["prior"]]), source_grid = c(NA_real_, NA_real_),
       source_grid_points = 0L, normalizer = list(method = "positive_ordered_offset_block"),
       supplier = row_plan[["supplier"]], value = point_plan[["value"]], value_key = point_plan[["value_key"]],
-      counts = .iwmde_ordered_block_counts(block), numerator = numerator, denominator = denominator)
+      counts = .iwmde_ordered_block_counts(block), selection_grouping = block[["selection_grouping"]],
+      source_identity = .iwmde_source_fingerprint(context), prior_identity = .iwmde_hash("ordered_block_priors", list(block[["prior"]], block[["beta"]])),
+      control_identity = .iwmde_hash("ordered_block_controls", list(control, context[["integration_control"]], n_observations)),
+      numerator = numerator, denominator = denominator)
     if (!is.finite(ratio) || ratio > .025) {
       .iwmde_ordered_numeric_stop("block_integration_error", "the complete block integration error exceeds .025", proof)
     }

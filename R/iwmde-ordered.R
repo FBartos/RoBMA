@@ -1183,6 +1183,7 @@
   context[["ordered_requested_method"]] <- plan[["method"]]
   offset <- plan[["execution_spec"]][["ordered_point_plan"]]
   certificate <- .iwmde_ordered_point_certificate(context, plan[["execution_spec"]], execution[["row_states"]])
+  context[["ordered_point_certificate"]] <- certificate
   omitted <- list()
   exact <- if (is.null(offset)) logical(length(display_grid)) else display_grid == offset[["value"]]
   unavailable_block <- any(exact) && identical(offset[["status"]], "block") && !certificate[["available"]]

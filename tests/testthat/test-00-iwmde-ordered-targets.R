@@ -1,9 +1,9 @@
 context("Ordered primitive conditional density targets")
 
 .ordered_target_fixture <- function(total = BayesTools::prior("normal", list(0, 1)),
-                                     allocation = NULL, shared = FALSE, total_shared = NULL) {
+                                     allocation = NULL, shared = FALSE, total_shared = NULL, data = NULL) {
 
-  data <- data.frame(f = base::ordered(rep(c("lo", "mid", "hi", "top"), 10L),
+  if (is.null(data)) data <- data.frame(f = base::ordered(rep(c("lo", "mid", "hi", "top"), 10L),
     levels = c("lo", "mid", "hi", "top")), x = seq(-1, 1, length.out = 40L))
   normal <- BayesTools::prior("normal", list(0, 1))
   ordered <- BayesTools::prior_ordered(total, allocation = allocation,
@@ -724,6 +724,112 @@ test_that("offset certificates match the supplied block covariance and prior sco
     "offset_block_capability_unavailable")
   expect_error(.iwmde_ordered_block_geometry(context, target, state),
     class = "RoBMA_ordered_offset_block_capability_unavailable")
+})
+
+
+test_that("exact ordered selection grouping preserves powers and the complete likelihood", {
+
+  dat <- data.frame(f = base::ordered(rep(c("lo", "mid", "hi", "top"), 10L), levels = c("lo", "mid", "hi", "top")))
+  fixture <- .ordered_target_fixture(data = dat)
+  dat[["yi"]] <- rep(c(-.1, .1, .2, .3), 10L)
+  dat[["sei"]] <- rep(c(.2, .3, .25, .35), 10L)
+  prior_bias <- BayesTools::prior_weightfunction("one-sided", c(.025, .05), BayesTools::wf_fixed(c(1, 3, .2)))
+  object <- bselmodel(yi = yi, sei = sei, mods = ~f, data = dat, measure = "SMD", only_priors = TRUE,
+    prior_effect = BayesTools::prior("point", list(0)), prior_bias = prior_bias,
+    prior_mods = list(f = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))))
+  context <- fixture[["context"]]
+  context[["data"]] <- object[["data"]]
+  context[["ordered_point_certificate"]] <- list(available = TRUE, kind = "independent_numeric_gaussian_core")
+  state <- list(active_setup = list(is_weightfunction = TRUE, priors = object[["priors"]]))
+  target <- list(ordered_specs = BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]]))
+  partition <- .iwmde_ordered_selection_partition(context, target, state)
+  expect_identical(partition[["representatives"]], 1:4)
+  expect_identical(partition[["group_index"]], rep(1:4, 10L))
+  expect_identical(partition[["multiplicity"]], rep(10L, 4L))
+  selection_context <- partition[["selection_spec"]]
+  selection_context[["omega"]] <- matrix(.selection_fixed_omega_branch(prior_bias, selection_context[["p_cuts"]]), 1L)
+  selection_context[["alpha"]] <- 0
+  selection_context[["phack_kind"]] <- 0L
+  selection_context[["yi"]] <- dat[["yi"]]
+  selection_context[["sei"]] <- dat[["sei"]]
+  selection_context <- BayesTools::selection_context_validate(selection_context, n_samples = 1L)
+  block <- list(state = state, setup = list(yi = dat[["yi"]]), selected = TRUE,
+    mu0 = rep(c(.03, .04, .05, .06), 10L), mu_a = rep(c(0, 1, 1, 1), 10L),
+    mu_b = rep(c(0, 0, 1, 1), 10L), mu_c = rep(c(0, .1, .2, .3), 10L),
+    variance = .1^2 + dat[["sei"]]^2, selection_sei = dat[["sei"]],
+    weights = rep(c(1, 3, .2), length.out = 40L), selection_context = selection_context)
+  grouping <- .iwmde_ordered_selection_grouping(block, partition)
+  expect_identical(grouping[["original_powers"]], block[["weights"]])
+  expect_identical(grouping[["powers"]], vapply(1:4, function(g) sum(block[["weights"]][seq(g, 40L, 4L)]), numeric(1)))
+  expect_identical(grouping[["original_indices"]], 1:40)
+  expect_identical(grouping[["group_count"]], 4L)
+  block[["selection_grouping"]] <- grouping
+  block[["normalizer_context"]] <- BayesTools::selection_context_subset_observations(selection_context, 1:4)
+  block[["counts"]] <- new.env(parent = emptyenv())
+  for (name in c("candidate_rows", "native_nodes", "maximum_chunk")) block[["counts"]][[name]] <- 0L
+  powers <- block[["weights"]] / block[["variance"]]
+  residual <- dat[["yi"]] - block[["mu0"]]
+  block[["gaussian"]] <- list(
+    A = c(sum(powers * block[["mu_a"]]^2), 2 * sum(powers * block[["mu_a"]] * block[["mu_b"]]), sum(powers * block[["mu_b"]]^2)),
+    H = c(sum(powers * residual * block[["mu_a"]]), sum(powers * (residual * block[["mu_b"]] - block[["mu_c"]] * block[["mu_a"]])),
+      -sum(powers * block[["mu_c"]] * block[["mu_b"]])),
+    C = c(sum(block[["weights"]] * stats::dnorm(dat[["yi"]], block[["mu0"]], sqrt(block[["variance"]]), log = TRUE)),
+      sum(powers * residual * block[["mu_c"]]), -.5 * sum(powers * block[["mu_c"]]^2)))
+  block[["selection_observed_constant"]] <- sum(block[["weights"]] * log(selection_context[["omega"]][1L, selection_context[["obs_bin"]]]))
+  candidates <- expand.grid(total = c(-.4, 0, .7), share = c(0, .5, 1))
+  mu <- matrix(block[["mu0"]], 9L, 40L, byrow = TRUE) + outer(candidates[["total"]], block[["mu_a"]]) +
+    outer(candidates[["total"]] * candidates[["share"]], block[["mu_b"]]) + outer(candidates[["share"]], block[["mu_c"]])
+  reference <- rowSums(.test_step_reference(dat[["yi"]], mu, matrix(sqrt(block[["variance"]]), 9L, 40L, byrow = TRUE),
+    dat[["sei"]], selection_context[["omega"]][rep(1L, 9L), , drop = FALSE], selection_context, block[["weights"]]))
+  actual <- .iwmde_ordered_block_log_likelihood(context, block, candidates[["total"]], candidates[["share"]])
+  floor <- 64 * .Machine$double.eps * 40 * pmax(1, abs(reference), abs(actual))
+  expect_true(all(abs(actual - reference) <= floor))
+  expect_identical(block[["counts"]][["native_nodes"]], 9L)
+  for (field in c("mu0", "mu_a", "mu_b", "mu_c", "variance", "selection_sei")) {
+    changed <- block
+    changed[[field]][[5L]] <- changed[[field]][[5L]] + .Machine$double.eps
+    expect_null(.iwmde_ordered_selection_grouping(changed, partition))
+  }
+  changed <- block
+  changed[["mu_a"]][c(1L, 5L)] <- c(0, -0)
+  expect_null(.iwmde_ordered_selection_grouping(changed, partition))
+  for (field in c("z_lower", "omega", "alpha", "obs_bin")) {
+    changed <- block
+    changed[["selection_context"]][[field]][[1L]] <- changed[["selection_context"]][[field]][[1L]] + .1
+    expect_null(.iwmde_ordered_selection_grouping(changed, partition))
+  }
+  changed <- context
+  changed[["data"]][["outcome"]][["yi"]][[5L]] <- changed[["data"]][["outcome"]][["yi"]][[5L]] + .Machine$double.eps
+  expect_identical(length(.iwmde_ordered_selection_partition(changed, target, state)[["representatives"]]), 5L)
+  for (flag in c("scale", "random", "cluster", "known_V")) {
+    changed <- context
+    attr(changed[["data"]], flag) <- TRUE
+    expect_null(.iwmde_ordered_selection_partition(changed, target, state))
+  }
+  changed <- context
+  changed[["ordered_point_certificate"]][["kind"]] <- "existing_ordinary_pivot"
+  expect_null(.iwmde_ordered_selection_partition(changed, target, state))
+  changed <- state
+  changed[["active_setup"]][["priors"]][["outcome"]][["bias"]][["weights"]][["omega"]][[2L]] <- 0
+  expect_null(.iwmde_ordered_selection_partition(context, target, changed))
+  full_target <- .iwmde_ordered_target_spec(context, "cell", list(type = "linear",
+    weights = stats::setNames(c(1, 1), target[["ordered_specs"]][[1L]][["coefficient_names"]][1:2])))
+  changed[["row"]] <- context[["posterior_samples"]][1L, ]
+  changed[["ordered_chart"]] <- .iwmde_ordered_row_chart(context, full_target, 1L)
+  changed[["source_gaussian"]] <- list(quadratic = 1)
+  refusal <- .iwmde_ordered_point_certificate(context, full_target, list(changed))
+  expect_false(refusal[["available"]])
+  expect_identical(refusal[["cause"]], "selection_precision")
+  changed <- context
+  attr(changed[["data"]], "selection_model")[["known_sampling_variance"]] <- "condition"
+  expect_null(.iwmde_ordered_selection_partition(changed, target, state))
+  design <- BayesTools::JAGS_formula_design(fixture[["fit"]], "mu")
+  local_mocked_bindings(JAGS_formula_design = function(...) design, .package = "BayesTools")
+  for (field in c("transformed_terms", "expression_specs", "expression_data", "random_effects")) {
+    design[[field]] <- list(unsupported = TRUE)
+    expect_null(.iwmde_ordered_selection_partition(context, target, state))
+    design[[field]] <- list()
+  }
 })
 
 
