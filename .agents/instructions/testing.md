@@ -226,11 +226,16 @@ alternate inputs exercise the portable perturbation bound. All original nodes,
 allowances and discriminating witnesses remain pinned. Actual unselected and
 truncated Normal source contexts retain nuisance priors once and both prior
 and posterior support masses. Their physical-integral and independent MP
-comparisons include endpoint standardization, both log-CDF difference
-representations, exp/subtraction conditioning and reference-coordinate rounding.
+comparisons include endpoint standardization, the same selected tail as the
+shared production mass helper, exp/subtraction conditioning and reference-coordinate rounding.
 The named finite-range libm allowance is engineering evidence, not a universal
 pnorm accuracy theorem; the tight source case pins the complete allowance below
-1e-9. Original conditioned-node allowances remain unchanged.
+1e-9. Original conditioned-node allowances remain unchanged. Replay inputs also
+obey a-priori 64-operation affine-mean and variance caps before the adaptive
+conditioning relation; large deliberate perturbations fail those caps.
+Normal source floating diagnostics retain interval conditioning separately
+from residual arithmetic; far-tail source cases compare to independent physical
+and MP/Arb references without accepting a rounded complementary probability.
 Contradictory structural selection metadata
 raises the density-method unavailable family; quantitative failures retain
 their numerical diagnostics family. Row proofs retain the partition, source,

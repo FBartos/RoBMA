@@ -27,6 +27,9 @@
 
 .ordered_gaussian_rounding_bound <- function(reference, weights, variance, mean, sd, selection = NULL) {
 
+  caps <- .ordered_gaussian_replay_caps(reference, mean, sd)
+  expect_true(all(caps[["mean_deviation"]] <= caps[["mean_cap"]]))
+  expect_true(all(caps[["variance_deviation"]] <= caps[["variance_cap"]]))
   eps <- .Machine$double.eps
   # Four eps cover subtraction, absolute value, radius addition and the outward
   # multiplication. The exact rational means are independently enclosed in the
@@ -64,6 +67,31 @@
 }
 
 
+.ordered_gaussian_replay_caps <- function(reference, mean, sd) {
+
+  input <- reference[["inputs"]]
+  n <- nrow(mean)
+  k <- ncol(mean)
+  stopifnot(k %in% c(3L, 90L), n == length(reference[["total"]]), identical(dim(mean), dim(sd)))
+  if (!is.null(input[["basis"]])) stopifnot(identical(dim(input[["basis"]]), c(k, 3L)))
+  eps <- .Machine$double.eps
+  outward <- 1 + 16 * eps
+  total <- reference[["total"]]
+  share <- reference[["share"]]
+  scale <- matrix(abs(input[["mu0"]]) + abs(share * input[["mu_c"]]), n, k, byrow = TRUE) +
+    outer(abs(total), abs(input[["mu_a"]])) + outer(abs(total * share), abs(input[["mu_b"]]))
+  deviation <- (abs(mean - reference[["declared_mean"]]) + reference[["declared_mean_radius"]]) * outward
+  variance <- matrix(input[["variance"]], n, k, byrow = TRUE)
+  squared_sd <- sd^2
+  # These fixtures normalize three Gammas, form three coefficients and use
+  # short predictor dot products (<32 rounded operations). The conservative
+  # 64-operation caps are independent of likelihood outputs and adaptive bounds.
+  list(mean_deviation = deviation, mean_cap = 64 * eps * scale * outward,
+    variance_deviation = (abs(squared_sd - variance) + eps * squared_sd) * outward,
+    variance_cap = 64 * eps * variance * outward)
+}
+
+
 # Finite-range arithmetic accounting for the literal Normal source tests.
 # The named eight-eps relative log-CDF allowance is an ordinary libm allowance, not a
 # rigorous enclosure of arbitrary pnorm implementations or extreme inputs.
@@ -87,7 +115,7 @@
   }, numeric(1))
   cdf_perturbation <- maximum_pdf * perturbation
   candidates <- list()
-  for (tail in c("left", "right")) {
+  for (tail in if (z[[1L]] > 0) "right" else "left") {
     logs <- stats::pnorm(endpoints, mean, sd, lower.tail = tail == "left", log.p = TRUE)
     order <- if (tail == "left") c(2L, 1L) else c(1L, 2L)
     log_x <- logs[[order[[1L]]]]

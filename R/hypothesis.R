@@ -37,6 +37,8 @@
 #' conditional weights. The normal approximation is useful as a rough check for
 #' near-normal interior ordinates; it is not a validation reference for skewed
 #' tails, bounded parameters, or one-sided support boundaries.
+#' Selected weightfunction models near zero cumulative ordered effects can take
+#' more than 10 minutes with qCMDE or IWMDE.
 #' qCMDE is the default for fitted \code{brma} objects. Use \code{"KDE"},
 #' \code{"normal"}, or \code{"IWMDE"} explicitly to select another route.
 #' For binomial and Poisson GLMMs, the nuisance state includes the sampled

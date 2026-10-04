@@ -1057,16 +1057,24 @@
     mean, 1 / sqrt(precision))
   original_mass <- .iwmde_log_normal_interval_prob(normal[["lower"]], normal[["upper"]],
     normal[["mean"]], normal[["sd"]])
-  list(log_normalizer = log_mass + posterior_mass - original_mass,
-    residual_log_mass = log_mass, posterior_interval_log_mass = posterior_mass,
-    original_prior_interval_log_mass = original_mass, method = "completed_gaussian_source",
-    max_log_scale = max(1, abs(log_L), abs(log_mass), abs(posterior_mass), abs(original_mass),
+  mean_scale <- abs(current) + (abs(kernel[["linear"]]) +
+    (abs(normal[["mean"]]) + abs(current)) / normal[["sd"]]^2) / precision
+  residual_log_scale <- max(1, abs(log_L), abs(log_mass), abs(posterior_mass), abs(original_mass),
       residual_scale, .5 * ((mean - normal[["mean"]]) / normal[["sd"]])^2,
       abs(.5 * log(normal[["sd"]]^2 * precision)),
       if (is.null(context) || !.iwmde_ordered_source_residual_available(context, state))
         c(abs(kernel[["linear"]] * (mean - current)), abs(.5 * A * (mean - current)^2)) else
         (abs(current) + (abs(kernel[["linear"]]) + (abs(normal[["mean"]]) + abs(current)) / normal[["sd"]]^2) / precision) *
-          abs(mean - normal[["mean"]]) / normal[["sd"]]^2))
+          abs(mean - normal[["mean"]]) / normal[["sd"]]^2)
+  prior_scale <- .iwmde_normal_interval_conditioning_scale(normal[["lower"]], normal[["upper"]],
+    normal[["mean"]], normal[["sd"]])
+  posterior_scale <- .iwmde_normal_interval_conditioning_scale(normal[["lower"]], normal[["upper"]],
+    mean, 1 / sqrt(precision), mean_scale)
+  list(log_normalizer = log_mass + posterior_mass - original_mass,
+    residual_log_mass = log_mass, posterior_interval_log_mass = posterior_mass,
+    original_prior_interval_log_mass = original_mass, method = "completed_gaussian_source",
+    residual_log_scale = residual_log_scale,
+    max_log_scale = max(residual_log_scale, prior_scale, posterior_scale))
 }
 
 

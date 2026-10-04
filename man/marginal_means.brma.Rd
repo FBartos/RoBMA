@@ -70,7 +70,9 @@ separate precomputed posterior ordinates at \code{null_hypothesis}; these
 ordinates do not alter the plotting grid. qCMDE is preferred when its
 additional normalization cost is acceptable; IWMDE can be faster but is
 more sensitive to its fitted conditional weights. Matching is
-case-insensitive. Ordered effects use normalized conditional-source
+case-insensitive. Selected weightfunction models near zero cumulative ordered
+effects can take more than 10 minutes with qCMDE or IWMDE. Ordered effects use
+normalized conditional-source
 contributions for both methods, with their respective row budgets; regular
 exact offsets can require positive conditional blocks. Their numerical
 proof is reported separately from the chain MCSE. When an ordinate is used for a Bayes factor,

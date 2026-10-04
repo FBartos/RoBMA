@@ -53,6 +53,8 @@
 #' more sensitive to its fitted conditional weights. Matching is
 #' case-insensitive. Ordered effects use the same normalized conditional-source
 #' estimator for both methods, with their respective posterior-row budgets.
+#' Selected weightfunction models near zero cumulative ordered effects can take
+#' more than 10 minutes with qCMDE or IWMDE.
 #' Exact regular ordered offsets that need a finite supplier integral use a
 #' positive conditional block; offsets classified as nonfinite or unsupported are omitted
 #' only at that exact value from a density curve. Point hypotheses retain their

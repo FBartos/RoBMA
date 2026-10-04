@@ -505,24 +505,38 @@
     return(-Inf)
   }
 
-  log_cdf_upper <- stats::pnorm(upper, mean = mean, sd = sd, log.p = TRUE)
-  log_cdf_lower <- stats::pnorm(lower, mean = mean, sd = sd, log.p = TRUE)
-  log_left      <- .iwmde_logspace_subtract(log_cdf_upper, log_cdf_lower)
-
-  log_tail_lower <- stats::pnorm(
-    lower, mean = mean, sd = sd, lower.tail = FALSE, log.p = TRUE
-  )
-  log_tail_upper <- stats::pnorm(
-    upper, mean = mean, sd = sd, lower.tail = FALSE, log.p = TRUE
-  )
-  log_right <- .iwmde_logspace_subtract(log_tail_lower, log_tail_upper)
-  candidates <- c(log_left, log_right)
-  candidates <- candidates[is.finite(candidates)]
-  if (length(candidates) == 0L) {
+  log_mass <- .iwmde_qcmde_log_normal_mass(lower, upper, mean, sd)
+  if (!is.finite(log_mass)) {
     return(-Inf)
   }
+  return(log_mass)
+}
 
-  return(max(candidates))
+
+.iwmde_normal_interval_conditioning_scale <- function(lower, upper, mean, sd, mean_scale = abs(mean)) {
+
+  if (!is.finite(mean) || !is.finite(sd) || sd <= 0 || is.na(lower) || is.na(upper) || lower >= upper ||
+      !is.finite(mean_scale) || mean_scale < 0) return(Inf)
+  if (identical(c(lower, upper), c(-Inf, Inf))) return(0)
+  log_mass <- .iwmde_qcmde_log_normal_mass(lower, upper, mean, sd)
+  if (!is.finite(log_mass)) return(Inf)
+  endpoints <- c(lower, upper)
+  z <- (endpoints - mean) / sd
+  finite <- is.finite(endpoints)
+  sensitivity <- sum(exp(stats::dnorm(z[finite], log = TRUE) - log_mass) *
+    ((abs(endpoints[finite]) + mean_scale) / sd + abs(z[finite])))
+  right <- z[[1L]] > 0
+  log_probability <- stats::pnorm(z, lower.tail = !right, log.p = TRUE)
+  order <- if (right) c(1L, 2L) else c(2L, 1L)
+  log_x <- log_probability[[order[[1L]]]]
+  log_y <- log_probability[[order[[2L]]]]
+  delta <- log_y - log_x
+  gap <- -expm1(delta)
+  ratio <- exp(delta)
+  operation_scale <- if (!is.finite(log_y)) abs(log_x) else
+    (abs(log_x) + ratio * abs(log_y) + ratio * (abs(log_x) + abs(log_y)) + ratio) / gap
+  if (any(!is.finite(c(sensitivity, operation_scale)))) return(Inf)
+  max(1, sensitivity, operation_scale)
 }
 
 

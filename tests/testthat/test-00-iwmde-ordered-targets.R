@@ -1412,6 +1412,7 @@ test_that("one-ulp alternate replay inputs retain the portable conditioning rela
     for (alternate in reference[["alternate_inputs"]]) {
       node <- alternate[["node"]]
       point <- reference
+      point[["total"]] <- reference[["total"]][node]
       for (field in c("declared_mean", "declared_mean_radius", "replay_mean", "replay_sd")) {
         point[[field]] <- point[[field]][node, , drop = FALSE]
       }
@@ -1437,6 +1438,13 @@ test_that("one-ulp alternate replay inputs retain the portable conditioning rela
       expect_lte(alternate[["actual_shift"]], alternate[["analytic_bound"]])
       expect_lte(alternate[["analytic_bound"]], bound)
       expect_lte(abs(evaluated - reference[["declared"]][[node]]), bound + allowance)
+      changed_mean <- mean
+      changed_mean[[length(changed_mean)]] <- changed_mean[[length(changed_mean)]] + .001
+      changed_sd <- sd * 1.01
+      expect_true(any(.ordered_gaussian_replay_caps(point, changed_mean, sd)[["mean_deviation"]] >
+        .ordered_gaussian_replay_caps(point, changed_mean, sd)[["mean_cap"]]))
+      expect_true(any(.ordered_gaussian_replay_caps(point, mean, changed_sd)[["variance_deviation"]] >
+        .ordered_gaussian_replay_caps(point, mean, changed_sd)[["variance_cap"]]))
     }
   }
 })
@@ -1523,6 +1531,7 @@ test_that("actual unselected source completion retains nuisance and truncation m
   cases <- list(list(mean = 0, sd = 1, lower = -Inf, upper = Inf, current = .2),
     list(mean = .3, sd = 1.2, lower = .999, upper = .9995, current = .99925))
   names(cases) <- c("untruncated", "tight-truncated")
+  cases[["tail-upper-0.9992"]] <- list(mean = 0, sd = 1, lower = -Inf, upper = .9992, current = .999)
   references <- readRDS(testthat::test_path("fixtures", "ordered-normal-source-reference.rds"))
   for (name in names(cases)) {
     case <- cases[[name]]
@@ -1592,7 +1601,7 @@ test_that("actual unselected source completion retains nuisance and truncation m
       coordinate_error <- delta_total * derivative + .5 * precision * delta_total^2
     }
     residual_error <- 64 * .Machine$double.eps * nrow(dat) *
-      max(1, actual[["max_log_scale"]], abs(expected), abs(actual[["log_normalizer"]]))
+      max(1, actual[["residual_log_scale"]], abs(expected), abs(actual[["log_normalizer"]]))
     producer_error <- prior_interval[["log_error"]] + completed_interval[["log_error"]] + residual_error
     reference_error <- coordinate_error + reference[["abs.error"]] / reference[["value"]] +
       original_log_error + residual_error
@@ -1603,6 +1612,10 @@ test_that("actual unselected source completion retains nuisance and truncation m
     allowance <- sum(terms)
     expect_lte(abs(actual[["log_normalizer"]] - expected), allowance)
     expect_lte(abs(actual[["log_normalizer"]] - oracle[["source"]]), producer_error)
+    floating_floor <- 64 * .Machine$double.eps * nrow(dat) * actual[["max_log_scale"]]
+    expect_lte(abs(actual[["log_normalizer"]] - oracle[["source"]]), floating_floor)
+    expect_true(is.finite(floating_floor))
+    expect_lt(floating_floor, .025)
     expect_lte(abs(expected - oracle[["source"]]), reference_error)
     expect_lte(abs(actual[["posterior_interval_log_mass"]] - oracle[["posterior_mass"]]),
       completed_interval[["log_error"]] + residual_error)
@@ -1619,7 +1632,7 @@ test_that("actual unselected source completion retains nuisance and truncation m
       BayesTools::lpdf(prior, state[["ordered_chart"]][["current"]])
     expect_lte(abs(nuisance - prior_constant), 64 * .Machine$double.eps * max(1, abs(prior_constant)))
     if (is.finite(case[["upper"]])) {
-      expect_lt(allowance, 1e-9)
+      if (identical(name, "tight-truncated")) expect_lt(allowance, 1e-9)
       expect_gt(center, case[["upper"]])
       expect_false(any(.iwmde_ordered_replace_source(context, state, center)[["valid"]]))
       expect_lt(actual[["posterior_interval_log_mass"]], 0)

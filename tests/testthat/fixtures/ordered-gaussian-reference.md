@@ -47,12 +47,24 @@ inputs without fitting a model or manufacturing a certificate. No math-tool
 dependency is needed at runtime or during tests.
 
 The companion `ordered-normal-source-reference.rds` retains the exact original
-ordinary and (.999,.9995) truncated literal Normal source cases, data and
-primitive Gamma inputs, with independent 120-digit source/prior/posterior-mass
-and nuisance constants. The source comparison accounts for both probability
-difference representations, endpoint standardization, the finite-range relative
+ordinary and (.999,.9995) truncated literal Normal source cases, plus the
+independently checked (-Inf,.9992) far-tail case, data and
+primitive Gamma inputs, with independent MP100/Arb384 or MP120
+source/prior/posterior-mass and nuisance constants. The source comparison
+accounts for the selected-tail representation, endpoint standardization, the finite-range relative
 log-CDF libm allowance, exp/subtraction amplification and physical-reference
 coordinate rounding. Producer and physical reference are independently checked
 against the source constant. These arithmetic allowances are development
 verification, not rigorous libm enclosures; the tight complete bound remains
 below 1e-9. They do not alter any of the original 257 node allowances.
+
+Actual replay inputs additionally obey fixed affine-mean/variance operation
+caps before the adaptive relation is calculated. The finite fixtures use three
+Gamma coordinates and short predictor dot products; 64 rounded operations is
+conservative for this scope, and deliberate larger perturbations fail the caps.
+The independent `normal-tail-reference.rds` preserves all 32 exact interval
+controls and 14 complete edge/error/shape records from the MP100/Arb384 probe.
+Original complementary-CDF failures remain recorded; the scalar source helper
+now reuses the existing tail-selecting block helper. Source diagnostics include
+interval conditioning separately from residual arithmetic, preserving the
+existing numerical error budget and making the far-tail rounding floor explicit.

@@ -67,7 +67,9 @@ marginal_means <- function(object, ...) {
 #' ordinates do not alter the plotting grid. qCMDE is preferred when its
 #' additional normalization cost is acceptable; IWMDE can be faster but is
 #' more sensitive to its fitted conditional weights. Matching is
-#' case-insensitive. Ordered effects use normalized conditional-source
+#' case-insensitive. Selected weightfunction models near zero cumulative ordered
+#' effects can take more than 10 minutes with qCMDE or IWMDE. Ordered effects use
+#' normalized conditional-source
 #' contributions for both methods, with their respective row budgets; regular
 #' exact offsets can require positive conditional blocks. Their numerical
 #' proof is reported separately from the chain MCSE. When an ordinate is used for a Bayes factor,
@@ -743,6 +745,8 @@ as.data.frame.summary.marginal_means.brma <- function(
 #' \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
 #' plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
 #' but is more sensitive to its fitted conditional weights. A qCMDE/IWMDE
+#' calculation for selected weightfunction models near zero cumulative ordered
+#' effects can take more than 10 minutes. A qCMDE/IWMDE
 #' request that the source model does not support stops before any density is
 #' estimated with an error of class \code{RoBMA_density_method_unavailable}
 #' and the class naming its cause (see [marginal_means.brma()]).
