@@ -526,7 +526,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     Certified independent fixed-positive step-selection blocks evaluate exact
     repeated observation patterns once per source node, retaining the full
     Gaussian likelihood, original observation powers and numerical budgets.
-    Row proofs record the exact partition and input identities; algorithm 27
+    Gaussian block likelihoods use centered residuals and direct source
+    precisions, including at Normal completion, to avoid cancellation near
+    a fitted mean. Eligible fixed-positive step-selection blocks obtain the
+    observed factor directly from the original bins and powers in both block
+    and source normalization. Original priors, conditioning and error gates
+    are retained; severely conditioned input arithmetic remains explicit.
+    Row proofs record the exact partition and input identities; algorithm 28
     keeps these results separate from earlier normalization caches.
     Offset capabilities now match the supplied block covariance/prior scope,
     including an early refusal for unsupported finite-upper Gamma inverse

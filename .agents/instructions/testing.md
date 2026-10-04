@@ -209,5 +209,17 @@ Ordered fixed-positive singleton step-selection blocks may reduce normalizer
 columns only after exact persisted data/design equality and bit-exact current
 mean, variance and complete selection-input checks. The Gaussian core, observed
 constant, original row/power identities and full-observation error budgets stay
-unchanged. Algorithm 27 row proofs retain the partition, source, prior and
-control identities; earlier algorithm 26 results remain historical evidence.
+unchanged. Gaussian evaluation and Normal completion use direct per-share
+precision and centered residuals from all original observations. The actual
+fixed-positive singleton product step context must match its declared weights,
+bins and source routing before either normalization route uses the direct
+observed factor. Source completion replays its Gaussian predictor and retains
+the original nuisance-prior constant and both truncation masses. Stationary
+polynomial roots, guards and Gamma completion retain their existing formulas.
+Conditioned node tests preserve exact original IEEE inputs and compare against
+independent declared-model constants at the original output-scale allowance.
+Full replay is checked separately against its rounded mean/SD target; measured
+mean and variance perturbation bounds explain discrepancies from the declared
+target without redefining the model or enlarging that allowance.
+Algorithm 28 row proofs retain the partition, source, prior and control
+identities; earlier algorithm 27 results remain historical evidence.

@@ -300,6 +300,12 @@
   block <- list(source_state = state, prior = prior, normal = .iwmde_qcmde_normal_prior_parameters(prior),
     normal_probability = .iwmde_ordered_probability_prior(prior), gaussian = list(A = A, H = H, C = C),
     counts = counts, selected = gaussian[["selected"]], log_correction_lower = 0, log_correction_upper = 0)
+  if (.iwmde_ordered_source_residual_available(context, state)) {
+    block[["gaussian_anchor"]] <- list(A = A, t_ref = current, H_ref = gaussian[["linear"]],
+      C_ref = gaussian_L + prior_constant, piece_scale = abs(prior_constant) + abs(gaussian_L),
+      evaluate = function(value) .iwmde_ordered_source_gaussian_log(context, state, value, prior_constant))
+    counts[["max_log_scale"]] <- max(1, abs(prior_constant), abs(gaussian_L))
+  }
   if (block[["selected"]]) {
     selection <- state[["active_setup"]][["priors"]][["outcome"]][["bias"]]
     if (!BayesTools::is.prior.weightfunction(selection) || !identical(selection[["weights"]][["type"]], "fixed") ||
@@ -308,7 +314,8 @@
     if (is.null(selection_context) || any(selection_context[["kernel_mode"]] != SELKERNEL_STEP)) return(NULL)
     norm <- .selection_step_log_norm_matrix(setup[["mu"]], matrix(sqrt(variance), 1L), setup[["selection_sei"]], selection_context)
     selected_L <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context, replayed, state[["active_setup"]], unit)
-    observed <- selected_L - gaussian_L + sum(weights * norm)
+    observed <- .iwmde_ordered_selection_observed_constant(context, state, setup, selection_context)
+    if (is.null(observed)) observed <- selected_L - gaussian_L + sum(weights * norm)
     omega <- selection[["weights"]][["omega"]]
     block[["log_correction_lower"]] <- observed - sum(weights) * log(max(omega))
     block[["log_correction_upper"]] <- observed - sum(weights) * log(min(omega))
@@ -984,22 +991,66 @@
   if (is.null(change) || length(change[["linear"]]) != 1L || length(change[["quadratic"]]) != 1L ||
       any(!is.finite(c(change[["linear"]], change[["quadratic"]]))) || change[["quadratic"]] < 0) return(NULL)
   c(change, list(selected = isTRUE(state[["active_setup"]][["is_weightfunction"]]),
-    directions = directions, basis = basis[["basis"]]))
+    directions = directions, basis = basis[["basis"]], mean = as.numeric(setup[["mu"]])))
 }
 
 
-.iwmde_ordered_normal_source_mass <- function(state) {
+.iwmde_ordered_source_residual_available <- function(context, state) {
+
+  data <- context[["data"]]
+  !is.null(state[["source_gaussian"]][["basis"]]) && !is.null(data) &&
+    identical(.data_outcome_type(data), "norm") && !.is_data_random(data) &&
+    !.is_data_multilevel(data) && !.is_data_known_v(data) && !.iwmde_context_uses_local_likelihood(context)
+}
+
+
+.iwmde_ordered_source_gaussian_log <- function(context, state, values, prior_constant) {
+
+  replaced <- .iwmde_ordered_replace_source(context, state, values)
+  samples <- replaced[["samples"]]
+  # Gaussian completion can have its unconstrained mean outside a truncated
+  # Normal prior. Replay its polynomial predictor there; the two prior masses
+  # still integrate only over the declared support.
+  if (!all(replaced[["valid"]])) samples <- .iwmde_ordered_replay(context, samples, state[["ordered_specs"]])
+  setup <- .iwmde_log_lik_posterior_setup_active_branch(context, samples, state[["active_setup"]], "estimate")
+  mean <- setup[["mu"]]
+  variance <- setup[["tau_within"]]^2 + matrix(setup[["sei"]]^2, nrow(mean), ncol(mean), byrow = TRUE)
+  weights <- if (is.null(setup[["weights"]])) rep(1, ncol(mean)) else setup[["weights"]]
+  pieces <- sweep(stats::dnorm(matrix(setup[["yi"]], nrow(mean), ncol(mean), byrow = TRUE),
+    mean, sqrt(variance), log = TRUE), 2L, weights, "*")
+  kernel <- state[["source_gaussian"]]
+  mean_scale <- matrix(abs(kernel[["mean"]]), nrow(mean), ncol(mean), byrow = TRUE) +
+    outer(abs(values) + abs(state[["ordered_chart"]][["current"]]), abs(as.numeric(kernel[["basis"]])))
+  scales <- vapply(seq_len(nrow(mean)), function(i) {
+    residual_block <- list(setup = setup, weights = weights, variance = variance[i, ])
+    .iwmde_ordered_gaussian_residual_scale(residual_block, mean[i, ], mean_scale[i, ])
+  }, numeric(1))
+  list(value = rowSums(pieces) + prior_constant,
+    max_log_scale = pmax(1, rowSums(abs(pieces)), abs(prior_constant), scales))
+}
+
+
+.iwmde_ordered_normal_source_mass <- function(state, context = NULL) {
 
   kernel <- state[["source_gaussian"]]
   normal <- .iwmde_qcmde_normal_prior_parameters(state[["ordered_chart"]][["prior"]])
   if (is.null(kernel) || kernel[["selected"]] || is.null(normal)) return(NULL)
   current <- state[["ordered_chart"]][["current"]]
   A <- kernel[["quadratic"]]
-  H <- kernel[["linear"]] + A * current
   precision <- A + 1 / normal[["sd"]]^2
-  mean <- (H + normal[["mean"]] / normal[["sd"]]^2) / precision
+  mean <- current + (kernel[["linear"]] + (normal[["mean"]] - current) / normal[["sd"]]^2) / precision
   baseline <- state[["baseline_log_q"]] - BayesTools::lpdf(state[["ordered_chart"]][["prior"]], current)
   log_L <- baseline + kernel[["linear"]] * (mean - current) - .5 * A * (mean - current)^2
+  residual_scale <- 0
+  if (!is.null(context) && .iwmde_ordered_source_residual_available(context, state)) {
+    row <- matrix(state[["row"]], 1L, dimnames = list(NULL, names(state[["row"]])))
+    replayed <- .iwmde_ordered_replay(context, row, state[["ordered_specs"]])
+    prior_constant <- state[["prior_evaluator"]](replayed) + state[["ordered_kernel"]](replayed) -
+      BayesTools::lpdf(state[["ordered_chart"]][["prior"]], current)
+    evaluated <- .iwmde_ordered_source_gaussian_log(context, state, mean, prior_constant)
+    log_L <- evaluated[["value"]]
+    residual_scale <- evaluated[["max_log_scale"]]
+  }
   log_mass <- log_L - .5 * ((mean - normal[["mean"]]) / normal[["sd"]])^2 -
     .5 * log(normal[["sd"]]^2 * precision)
   posterior_mass <- .iwmde_log_normal_interval_prob(normal[["lower"]], normal[["upper"]],
@@ -1010,7 +1061,12 @@
     residual_log_mass = log_mass, posterior_interval_log_mass = posterior_mass,
     original_prior_interval_log_mass = original_mass, method = "completed_gaussian_source",
     max_log_scale = max(1, abs(log_L), abs(log_mass), abs(posterior_mass), abs(original_mass),
-      abs(kernel[["linear"]] * (mean - current)), abs(.5 * A * (mean - current)^2)))
+      residual_scale, .5 * ((mean - normal[["mean"]]) / normal[["sd"]])^2,
+      abs(.5 * log(normal[["sd"]]^2 * precision)),
+      if (is.null(context) || !.iwmde_ordered_source_residual_available(context, state))
+        c(abs(kernel[["linear"]] * (mean - current)), abs(.5 * A * (mean - current)^2)) else
+        (abs(current) + (abs(kernel[["linear"]]) + (abs(normal[["mean"]]) + abs(current)) / normal[["sd"]]^2) / precision) *
+          abs(mean - normal[["mean"]]) / normal[["sd"]]^2))
 }
 
 
@@ -1046,7 +1102,7 @@
     support <- .iwmde_prior_support(prior)
     transform <- .iwmde_parameter_transform(support)
     current <- vapply(states, function(state) state[["ordered_chart"]][["current"]], numeric(1))
-    masses <- lapply(states, .iwmde_ordered_normal_source_mass)
+    masses <- lapply(states, .iwmde_ordered_normal_source_mass, context = context)
     analytic <- all(!vapply(masses, is.null, logical(1)))
     certified <- if (!analytic) lapply(states, function(state) .iwmde_ordered_source_normalizer(context, state)) else NULL
     source_inner <- !analytic && all(!vapply(certified, is.null, logical(1)))

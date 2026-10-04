@@ -1348,3 +1348,144 @@ test_that("analytic source normalizers bypass an unused normalization grid", {
   expect_equal(as.numeric(result[["log_terms"]]), stats::dnorm(c(-.1, .1), 0, 1 / sqrt(3), log = TRUE), tolerance = 1e-14)
   expect_identical(result[["proofs"]][[1L]][["source_grid_points"]], 0L)
 })
+
+
+.ordered_narrow_gaussian_fixture <- function(repetitions = 1L, selected = FALSE, direction = "positive") {
+
+  sign <- if (direction == "negative") -1 else 1
+  dat <- data.frame(f = base::ordered(rep(c("lo", "mid", "top"), repetitions),
+    levels = c("lo", "mid", "hi", "top")),
+    yi = sign * rep(c(0, 1e-4, 1), repetitions), sei = rep(c(1e-4, 1e-6, 1e-4), repetitions))
+  allocation <- BayesTools::prior("dirichlet", list(c(2, 2, 1)))
+  fixture <- .ordered_target_fixture(data = dat, allocation = allocation)
+  priors <- list(intercept = BayesTools::prior("point", list(0)),
+    f = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)), allocation = allocation))
+  arguments <- list(yi = dat[["yi"]], sei = dat[["sei"]], mods = ~f, data = dat, measure = "SMD",
+    only_priors = TRUE, prior_effect = BayesTools::prior("point", list(0)),
+    prior_heterogeneity = BayesTools::prior("point", list(0)), prior_mods = priors)
+  if (selected) {
+    arguments[["effect_direction"]] <- direction
+    arguments[["prior_bias"]] <- BayesTools::prior_weightfunction("one-sided", c(.025, .05), BayesTools::wf_fixed(c(1, .7, .3)))
+  }
+  object <- do.call(if (selected) bselmodel else brma, arguments)
+  context <- fixture[["context"]]
+  object[["fit"]] <- fixture[["fit"]]
+  context[["object"]] <- object
+  context[["data"]] <- object[["data"]]
+  context[["priors"]] <- object[["priors"]]
+  context[["posterior_samples"]] <- cbind(context[["posterior_samples"]], tau = 0)
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
+  context[["posterior_samples"]][1L, spec[["total_names"]]] <- sign * .2
+  context[["posterior_samples"]][1L, spec[["allocations"]][[1L]][["gamma_coordinates"]]] <- c(1e-4, .5 * (1 - 1e-4), .5 * (1 - 1e-4))
+  context[["posterior_samples"]] <- .iwmde_ordered_replay(context, context[["posterior_samples"]], list(mu_f = spec))
+  context[["object"]][["fit"]][["mcmc"]][[1L]] <- coda::mcmc(context[["posterior_samples"]])
+  context <- .iwmde_context_ensure_caches(context, reset = TRUE)
+  target <- .iwmde_ordered_target_spec(context, "cell", list(type = "linear",
+    weights = stats::setNames(1, spec[["coefficient_names"]][[1L]])))
+  state <- .iwmde_ordered_row_state(context, target, 1L)
+  list(context = context, target = target, state = state, data = dat,
+    block = .iwmde_ordered_block_geometry(context, target, state))
+}
+
+
+test_that("near-fit ordered Gaussian and observed step factors match full original replay", {
+
+  grid <- expand.grid(total = c(-1, 0, 1), share = c(1e-6, 1e-4, .001, .5, 1))
+  for (selected in c(FALSE, TRUE)) for (repetitions in c(1L, 30L)) for (direction in c("positive", "negative")) {
+    fixture <- .ordered_narrow_gaussian_fixture(repetitions, selected, direction)
+    context <- fixture[["context"]]
+    block <- fixture[["block"]]
+    state <- fixture[["state"]]
+    samples <- .iwmde_ordered_block_samples(context, block, grid[["total"]], grid[["share"]])
+    original <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context, samples, state[["active_setup"]], "estimate")
+    actual <- .iwmde_ordered_block_log_likelihood(context, block, grid[["total"]], grid[["share"]])
+    allowance <- 64 * .Machine$double.eps * nrow(fixture[["data"]]) * pmax(1, abs(original), abs(actual))
+    expect_true(all(abs(actual - original) <= allowance))
+    if (selected) {
+      selection <- block[["selection_context"]]
+      observed <- sum(block[["weights"]] * log(selection[["omega"]][1L, selection[["obs_bin"]]]))
+      expect_identical(block[["selection_observed_constant"]], observed)
+      expect_identical(.iwmde_ordered_selection_observed_constant(context, state, block[["setup"]], selection), observed)
+      for (field in c("omega", "obs_bin", "alpha", "phack_kind", "kernel_mode")) {
+        changed <- selection
+        changed[[field]][[1L]] <- changed[[field]][[1L]] + 1
+        expect_error(.iwmde_ordered_selection_observed_constant(context, state, block[["setup"]], changed),
+          class = "RoBMA_ordered_selection_route")
+      }
+      changed <- block[["setup"]]
+      changed[["selection_sei"]][[1L]] <- 2 * changed[["selection_sei"]][[1L]]
+      expect_error(.iwmde_ordered_selection_observed_constant(context, state, changed, selection),
+        class = "RoBMA_ordered_selection_route")
+    }
+    case <- paste(if (selected) "selected" else "normal", repetitions, direction, sep = "-")
+    node_reference <- .ordered_gaussian_reference(case)
+    .ordered_gaussian_reference_inputs(node_reference, block)
+    expect_identical(node_reference[["share"]], 1e-4)
+    expect_identical(block[["prior"]], node_reference[["prior"]])
+    expect_identical(context[["priors"]], node_reference[["priors"]])
+    expect_identical(fixture[["data"]], node_reference[["data"]])
+    expect_identical(block[["chart"]][names(node_reference[["chart"]])], node_reference[["chart"]])
+    nodes <- node_reference[["total"]]
+    node_samples <- .iwmde_ordered_block_samples(context, block, nodes, 1e-4)
+    expect_identical(node_samples[, block[["chart"]][["gamma_coordinates"]], drop = FALSE], node_reference[["gamma"]])
+    node_original <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context, node_samples, state[["active_setup"]], "estimate")
+    node_actual <- .iwmde_ordered_block_log_likelihood(context, block, nodes, 1e-4)
+    h_original <- node_original + stats::dnorm(nodes, log = TRUE)
+    h_actual <- node_actual + BayesTools::lpdf(block[["prior"]], nodes)
+    node_allowance <- 64 * .Machine$double.eps * nrow(fixture[["data"]]) * pmax(1, abs(h_original), abs(h_actual))
+    expect_identical(node_allowance, node_reference[["allowance"]])
+    expect_true(all(abs(h_actual - node_reference[["declared"]]) <= node_allowance))
+    expect_true(all(abs(h_original - node_reference[["rounded_replay"]]) <= node_allowance))
+    replay_setup <- .iwmde_log_lik_posterior_setup_active_branch(context, node_samples, state[["active_setup"]], "estimate")
+    replay_sd <- .root_sum_squares(replay_setup[["tau_within"]],
+      matrix(replay_setup[["sei"]], length(nodes), nrow(fixture[["data"]]), byrow = TRUE))
+    expect_identical(unname(replay_setup[["mu"]]), node_reference[["replay_mean"]])
+    expect_identical(unname(replay_sd), node_reference[["replay_sd"]])
+    selection_fields <- names(node_reference[["selection"]])
+    selection <- if (selected) block[["selection_context"]] else NULL
+    if (selected) expect_identical(selection[selection_fields], node_reference[["selection"]])
+    rounding_bound <- .ordered_gaussian_rounding_bound(node_reference, block[["weights"]], block[["variance"]], selection)
+    expect_true(all(abs(rounding_bound - node_reference[["forward_bound"]]) <=
+      64 * .Machine$double.eps * nrow(fixture[["data"]]) * node_reference[["forward_bound"]]))
+    expect_true(all(abs(h_original - node_reference[["declared"]]) <= rounding_bound + node_allowance))
+  }
+})
+
+
+test_that("actual selected source normalizers retain the anchored prior constant", {
+
+  for (repetitions in c(1L, 30L)) {
+    fixture <- .ordered_narrow_gaussian_fixture(repetitions, selected = TRUE)
+    context <- fixture[["context"]]
+    state <- fixture[["state"]]
+    dat <- fixture[["data"]]
+    selection <- fixture[["block"]][["selection_context"]]
+    eta <- state[["row"]][state[["ordered_specs"]][[1L]][["allocations"]][[1L]][["gamma_coordinates"]]]
+    # Retained primitive Gamma priors are counted once, independently of the
+    # repeated outcome rows and of the focal total's Normal density.
+    prior_constant <- sum(stats::dgamma(eta, shape = c(2, 2, 1), rate = 1, log = TRUE))
+    share <- eta[[1L]] / sum(eta)
+    source <- function(total) {
+      mu <- outer(total, rep(c(0, share, 1), repetitions))
+      sd <- matrix(dat[["sei"]], length(total), nrow(dat), byrow = TRUE)
+      rowSums(.test_step_reference(dat[["yi"]], mu, sd, dat[["sei"]],
+        selection[["omega"]][rep(1L, length(total)), , drop = FALSE], selection)) +
+        stats::dnorm(total, log = TRUE) + prior_constant
+    }
+    # Independently complete the physical residual quadratic solely to choose
+    # a coordinate for the full original selected-density integral.
+    precision <- repetitions * (share^2 / 1e-12 + 1 / 1e-8) + 1
+    center <- repetitions * (share * 1e-4 / 1e-12 + 1 / 1e-8) / precision
+    sd <- 1 / sqrt(precision)
+    anchor <- source(center)
+    reference <- stats::integrate(function(z) exp(source(center + sd * z) - anchor),
+      -Inf, Inf, rel.tol = 1e-9, abs.tol = 1e-11, subdivisions = 1000L)
+    expected <- anchor + log(sd) + log(reference[["value"]])
+    actual <- .iwmde_ordered_source_normalizer(context, state)
+    expect_identical(actual[["method"]], "completed_gaussian_gh")
+    allowance <- reference[["abs.error"]] / reference[["value"]] +
+      64 * .Machine$double.eps * nrow(dat) * max(1, abs(expected), abs(actual[["log_normalizer"]]))
+    expect_lte(abs(actual[["log_normalizer"]] - expected), allowance)
+    expect_identical(reference[["message"]], "OK")
+  }
+})

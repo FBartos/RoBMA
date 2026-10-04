@@ -515,6 +515,55 @@
 }
 
 
+.iwmde_ordered_selection_observed_constant <- function(context, state, setup, selection_context) {
+
+  data <- context[["data"]]
+  selection <- state[["active_setup"]][["priors"]][["outcome"]][["bias"]]
+  if (!BayesTools::is.prior.weightfunction(selection) ||
+      !identical(selection[["weights"]][["type"]], "fixed") ||
+      !is.numeric(selection[["weights"]][["omega"]]) ||
+      any(!is.finite(selection[["weights"]][["omega"]])) || any(selection[["weights"]][["omega"]] <= 0) ||
+      .is_data_random(data) || .is_data_multilevel(data) || .is_data_known_v(data) ||
+      .iwmde_context_uses_local_likelihood(context) ||
+      .selection_retains_sampling(data) || .selection_retains_any_random(data)) return(NULL)
+  plan <- .data_selection_execution_plan(data)
+  model <- .data_selection_model(data)
+  branches <- model[["branches"]][model[["active_branches"]]]
+  K <- length(setup[["yi"]])
+  if (!length(plan[["block_methods"]]) || any(plan[["block_methods"]] != "singleton") ||
+      length(plan[["dependent_blocks"]]) || any(plan[["block_sizes"]] != 1L) ||
+      length(plan[["sampling"]][["diagonal"]]) != K ||
+      !is.matrix(plan[["sampling"]][["loading"]]) || ncol(plan[["sampling"]][["loading"]]) != 0L ||
+      !length(branches) || !all(vapply(branches, function(branch) identical(branch[["weight_rule"]], "product"), logical(1)))) return(NULL)
+  expected <- .selection_spec(state[["active_setup"]][["priors"]], setup[["yi"]],
+    setup[["selection_sei"]], .data_effect_direction(data), signed_data = FALSE)
+  if (is.null(expected) || !identical(expected[["mode"]], "step") || isTRUE(expected[["has_phack"]])) return(NULL)
+  fields <- setdiff(names(expected), "native_cache")
+  omega <- as.numeric(selection_context[["omega"]])
+  if (!identical(serialize(selection_context[fields], NULL, version = 2L),
+      serialize(expected[fields], NULL, version = 2L)) ||
+      !identical(omega, .selection_fixed_omega_branch(selection, expected[["p_cuts"]])) ||
+      any(!is.finite(omega)) || any(omega <= 0) ||
+      !identical(selection_context[["alpha"]], 0) || !identical(selection_context[["phack_kind"]], 0L) ||
+      any(selection_context[["kernel_mode"]] != SELKERNEL_STEP) ||
+      !identical(as.numeric(selection_context[["yi"]]), as.numeric(setup[["yi"]])) ||
+      !identical(as.numeric(selection_context[["sei"]]), as.numeric(setup[["selection_sei"]])) ||
+      !identical(as.numeric(setup[["sei"]]), as.numeric(setup[["selection_sei"]])) ||
+      !is.matrix(setup[["mu"]]) || nrow(setup[["mu"]]) != 1L || ncol(setup[["mu"]]) != K ||
+      any(!is.finite(setup[["mu"]]))) {
+    .iwmde_ordered_numeric_stop("selection_route", "the fixed step-selection inputs do not match their declared context")
+  }
+  # On this declared route .outcome_pdf_sum.selnorm() uses the same mean and
+  # total SD for numerator and normalization; retained-source routes are excluded.
+  sd <- .root_sum_squares(setup[["tau_within"]], matrix(setup[["sei"]], 1L))
+  if (length(sd) != K || any(!is.finite(sd)) || any(sd <= 0)) {
+    .iwmde_ordered_numeric_stop("selection_route", "the fixed step-selection covariance is unrepresentable")
+  }
+  weights <- if (is.null(setup[["weights"]])) rep(1, K) else setup[["weights"]]
+  sum(weights * log(omega[selection_context[["obs_bin"]]]))
+}
+
+
 .iwmde_ordered_block_geometry <- function(context, parameter_spec, state,
                                          observation_partition = .iwmde_ordered_selection_partition(context, parameter_spec, state)) {
 
@@ -618,7 +667,8 @@
       setup[["selection_sei"]], selection_context)
     original_L <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context, anchor, state[["active_setup"]], "estimate")
     gaussian_L <- sum(weights * stats::dnorm(setup[["yi"]], as.numeric(setup[["mu"]]), sqrt(variance), log = TRUE))
-    observed_constant <- original_L - gaussian_L + sum(weights * log_norm)
+    observed_constant <- .iwmde_ordered_selection_observed_constant(context, state, setup, selection_context)
+    if (is.null(observed_constant)) observed_constant <- original_L - gaussian_L + sum(weights * log_norm)
     block[["selection_context"]] <- selection_context
     block[["selection_sei"]] <- setup[["selection_sei"]]
     block[["selection_observed_constant"]] <- observed_constant
@@ -646,12 +696,95 @@
 }
 
 
+.iwmde_ordered_gaussian_descriptor <- function(block, share) {
+
+  anchor <- block[["gaussian_anchor"]]
+  if (!is.null(anchor)) return(anchor)
+  # Polynomial-only descriptions retain their established geometry. Production
+  # bilinear blocks carry the complete original observations below.
+  if (is.null(block[["setup"]])) {
+    polynomial <- block[["gaussian"]]
+    return(list(A = .iwmde_ordered_poly_value(polynomial[["A"]], share), t_ref = 0,
+      H_ref = .iwmde_ordered_poly_value(polynomial[["H"]], share),
+      C_ref = .iwmde_ordered_poly_value(polynomial[["C"]], share)))
+  }
+  a <- block[["mu0"]] + share * block[["mu_c"]]
+  b <- block[["mu_a"]] + share * block[["mu_b"]]
+  yi <- block[["setup"]][["yi"]]
+  p <- block[["weights"]]
+  v <- block[["variance"]]
+  A <- sum(p * b^2 / v)
+  H <- sum(p * b * (yi - a) / v)
+  if (!is.finite(A) || A < 0 || !is.finite(H) ||
+      (A == 0 && any(p > 0 & b != 0))) {
+    .iwmde_ordered_numeric_stop("gaussian_completion_unrepresentable", "the Gaussian reference precision is unrepresentable",
+      list(share = share, A = A, H = H))
+  }
+  t_ref <- if (A > 0) H / A else 0
+  mean_ref <- a + b * t_ref
+  residual <- yi - mean_ref
+  H_ref <- sum(p * b * residual / v)
+  pieces <- p * stats::dnorm(yi, mean_ref, sqrt(v), log = TRUE)
+  C_ref <- sum(pieces)
+  if (any(!is.finite(c(t_ref, mean_ref, H_ref, C_ref)))) {
+    .iwmde_ordered_numeric_stop("gaussian_completion_unrepresentable", "the Gaussian reference is unrepresentable",
+      list(share = share, A = A, H = H, t_ref = t_ref, H_ref = H_ref, C_ref = C_ref))
+  }
+  list(A = A, t_ref = t_ref, H_ref = H_ref, C_ref = C_ref, a = a, b = b,
+    piece_scale = sum(abs(pieces)), residual_scale = .iwmde_ordered_gaussian_residual_scale(block, mean_ref,
+      abs(block[["mu0"]]) + abs(share * block[["mu_c"]]) + abs(b * t_ref)))
+}
+
+
+.iwmde_ordered_gaussian_residual_scale <- function(block, mean, mean_scale) {
+
+  yi <- block[["setup"]][["yi"]]
+  residual <- yi - mean
+  epsilon <- 64 * .Machine$double.eps * length(block[["weights"]])
+  sum(block[["weights"]] * (abs(residual) * (abs(yi) + mean_scale) / block[["variance"]] +
+    epsilon * (abs(yi) + mean_scale)^2 / block[["variance"]]))
+}
+
+
+.iwmde_ordered_gaussian_descriptors <- function(block, share) {
+
+  keys <- .iwmde_key_number(share)
+  # Descriptors reuse only identical IEEE source values within this call.
+  keys[share == 0 & 1 / share < 0] <- "-0"
+  representatives <- which(!duplicated(keys))
+  list(descriptors = lapply(share[representatives], function(s) .iwmde_ordered_gaussian_descriptor(block, s)),
+    index = match(keys, keys[representatives]))
+}
+
+
 .iwmde_ordered_block_gaussian_log <- function(block, total, share) {
 
-  polynomial <- block[["gaussian"]]
-  .iwmde_ordered_poly_value(polynomial[["C"]], share) +
-    .iwmde_ordered_poly_value(polynomial[["H"]], share) * total -
-    .5 * .iwmde_ordered_poly_value(polynomial[["A"]], share) * total^2
+  n <- max(length(total), length(share))
+  total <- rep_len(total, n)
+  share <- rep_len(share, n)
+  parts <- .iwmde_ordered_gaussian_descriptors(block, share)
+  out <- numeric(n)
+  scale <- 1
+  for (i in seq_along(parts[["descriptors"]])) {
+    descriptor <- parts[["descriptors"]][[i]]
+    take <- which(parts[["index"]] == i)
+    if (!is.null(descriptor[["evaluate"]])) {
+      evaluated <- descriptor[["evaluate"]](total[take])
+      out[take] <- evaluated[["value"]]
+      scale <- max(scale, evaluated[["max_log_scale"]])
+      next
+    }
+    delta <- total[take] - descriptor[["t_ref"]]
+    linear <- descriptor[["H_ref"]] * delta
+    quadratic <- .5 * descriptor[["A"]] * delta^2
+    out[take] <- descriptor[["C_ref"]] + linear - quadratic
+    scale <- max(scale, abs(out[take]), abs(linear), abs(quadratic),
+      descriptor[["piece_scale"]], descriptor[["residual_scale"]])
+  }
+  if (!is.null(block[["counts"]]) && (!is.null(block[["setup"]]) || !is.null(block[["gaussian_anchor"]]))) {
+    block[["counts"]][["max_log_scale"]] <- max(block[["counts"]][["max_log_scale"]], scale)
+  }
+  out
 }
 
 
@@ -699,16 +832,36 @@
 .iwmde_ordered_normal_completion <- function(block, share) {
 
   normal <- block[["normal"]]
-  polynomial <- block[["gaussian"]]
-  A <- .iwmde_ordered_poly_value(polynomial[["A"]], share)
-  H <- .iwmde_ordered_poly_value(polynomial[["H"]], share)
-  C <- .iwmde_ordered_poly_value(polynomial[["C"]], share)
+  parts <- .iwmde_ordered_gaussian_descriptors(block, share)
+  descriptors <- parts[["descriptors"]][parts[["index"]]]
+  A <- vapply(descriptors, `[[`, numeric(1), "A")
+  t_ref <- vapply(descriptors, `[[`, numeric(1), "t_ref")
+  H_ref <- vapply(descriptors, `[[`, numeric(1), "H_ref")
   precision <- A + 1 / normal[["sd"]]^2
-  mean <- (H + normal[["mean"]] / normal[["sd"]]^2) / precision
+  mean <- t_ref + (H_ref + (normal[["mean"]] - t_ref) / normal[["sd"]]^2) / precision
   sd <- 1 / sqrt(precision)
-  log_L <- C + H * mean - .5 * A * mean^2
-  residual <- log_L - .5 * ((mean - normal[["mean"]]) / normal[["sd"]])^2 -
-    .5 * log(normal[["sd"]]^2 * precision)
+  scales <- numeric(length(share))
+  log_L <- vapply(seq_along(share), function(i) {
+    descriptor <- descriptors[[i]]
+    if (!is.null(descriptor[["evaluate"]])) {
+      evaluated <- descriptor[["evaluate"]](mean[[i]])
+      scales[[i]] <<- evaluated[["max_log_scale"]]
+      return(evaluated[["value"]])
+    }
+    if (!is.null(descriptor[["a"]])) {
+      mu <- descriptor[["a"]] + descriptor[["b"]] * mean[[i]]
+      pieces <- block[["weights"]] * stats::dnorm(block[["setup"]][["yi"]], mu, sqrt(block[["variance"]]), log = TRUE)
+      scales[[i]] <<- max(sum(abs(pieces)), .iwmde_ordered_gaussian_residual_scale(block, mu,
+        abs(block[["mu0"]]) + abs(share[[i]] * block[["mu_c"]]) + abs(descriptor[["b"]] * mean[[i]])))
+      return(sum(pieces))
+    }
+    delta <- mean[[i]] - descriptor[["t_ref"]]
+    scales[[i]] <<- max(abs(descriptor[["H_ref"]] * delta), abs(.5 * descriptor[["A"]] * delta^2))
+    descriptor[["C_ref"]] + descriptor[["H_ref"]] * delta - .5 * descriptor[["A"]] * delta^2
+  }, numeric(1))
+  prior_square <- .5 * ((mean - normal[["mean"]]) / normal[["sd"]])^2
+  log_precision <- .5 * log(normal[["sd"]]^2 * precision)
+  residual <- log_L - prior_square - log_precision
   posterior_mass <- .iwmde_qcmde_log_normal_mass(normal[["lower"]], normal[["upper"]], mean, sd)
   original_mass <- .iwmde_qcmde_log_normal_mass(normal[["lower"]], normal[["upper"]], normal[["mean"]], normal[["sd"]])
   log_mass <- residual + posterior_mass - original_mass
@@ -721,7 +874,9 @@
     residual_log_mass = residual, posterior_interval_log_mass = posterior_mass,
     original_prior_interval_log_mass = original_mass,
     max_log_scale = pmax(1, abs(log_L), abs(residual), abs(posterior_mass), abs(original_mass),
-      abs(H * mean), abs(.5 * A * mean^2)))
+      scales, prior_square, abs(log_precision),
+      (abs(t_ref) + (abs(H_ref) + (abs(normal[["mean"]]) + abs(t_ref)) / normal[["sd"]]^2) / precision) *
+        abs(mean - normal[["mean"]]) / normal[["sd"]]^2))
 }
 
 
@@ -742,7 +897,7 @@
   if (!normal_mass && moving_constant) {
     roots <- .iwmde_ordered_poly_roots(.iwmde_ordered_poly_derivative(c))
     points <- if (nrow(roots[["roots"]])) rowMeans(roots[["roots"]]) else numeric()
-    profile <- function(s) .iwmde_ordered_poly_value(c, s)
+    profile <- function(s) .iwmde_ordered_block_gaussian_log(block, 0, s)
     first <- function(s) .iwmde_ordered_poly_value(.iwmde_ordered_poly_derivative(c), s)
     second <- function(s) .iwmde_ordered_poly_value(.iwmde_ordered_poly_derivative(.iwmde_ordered_poly_derivative(c)), s)
     polynomial <- .iwmde_ordered_poly_derivative(c)
@@ -785,13 +940,12 @@
       }
     }
     profile <- function(s) {
-      rr <- .iwmde_ordered_poly_value(r, s)
-      hh <- .iwmde_ordered_poly_value(h, s)
-      cc <- .iwmde_ordered_poly_value(c, s)
-      if (normal_mass) return(cc - .5 * log(rr) + hh^2 / (2 * rr))
-      mode <- hh / rr
+      if (normal_mass) return(.iwmde_ordered_normal_completion(block, s)[["log_mass"]])
+      parts <- .iwmde_ordered_gaussian_descriptors(block, s)
+      descriptors <- parts[["descriptors"]][parts[["index"]]]
+      mode <- vapply(descriptors, function(d) d[["t_ref"]] + d[["H_ref"]] / d[["A"]], numeric(1))
       source <- pmax(support[[1L]], pmin(support[[2L]], mode))
-      cc + hh * source - .5 * rr * source^2
+      .iwmde_ordered_block_gaussian_log(block, source, s)
     }
     first <- function(s) {
       rr <- .iwmde_ordered_poly_value(r, s)
@@ -1337,6 +1491,8 @@
     prior <- .iwmde_ordered_probability_prior(shifted)
     numerator_block <- block
     numerator_block[["normal"]] <- NULL
+    numerator_block[["mu0"]] <- block[["mu0"]] + zero_total * block[["mu_a"]]
+    numerator_block[["mu_c"]] <- block[["mu_c"]] + zero_total * block[["mu_b"]]
     numerator_block[["mu_a"]] <- numerator_block[["mu_b"]] <- 0
     numerator_block[["gaussian"]] <- list(A = 0, H = 0,
       C = .iwmde_ordered_poly_add(block[["gaussian"]][["C"]], zero_total * block[["gaussian"]][["H"]],

@@ -15,6 +15,77 @@
 }
 
 
+test_that("direct Gaussian completion agrees with physical residuals near share boundaries", {
+
+  shares <- c(2^-40, 1 - 2^-40, 1)
+  for (i in seq_along(shares)) {
+    share <- shares[[i]]
+    node_reference <- .ordered_gaussian_reference(paste0("boundary-", i))
+    expect_identical(share, node_reference[["share"]])
+    block <- .ordered_block_fixture(BayesTools::prior("normal", list(0, 2^40)))
+    block[["mu0"]] <- block[["mu_c"]] <- c(0, 0, 0)
+    block[["mu_a"]] <- rep(1, 3L)
+    block[["mu_b"]] <- rep(-1, 3L)
+    block[["setup"]] <- list(yi = rep(1, 3L))
+    block[["variance"]] <- rep(1e-8, 3L)
+    block[["weights"]] <- c(1, 2, .5)
+    information <- sum(block[["weights"]]) / 1e-8
+    block[["gaussian"]] <- list(A = information * c(1, -2, 1), H = information * c(1, -1),
+      C = sum(block[["weights"]] * stats::dnorm(1, 0, 1e-4, log = TRUE)))
+    b <- 1 - share
+    precision <- sum(block[["weights"]]) * b^2 / 1e-8 + 2^-80
+    center <- sum(block[["weights"]]) * b / 1e-8 / precision
+    sd <- 1 / sqrt(precision)
+    original <- function(total) {
+      vapply(total, function(t) sum(block[["weights"]] * stats::dnorm(1, b * t, 1e-4, log = TRUE)), numeric(1))
+    }
+    actual <- .iwmde_ordered_normal_completion(block, share)
+    expected <- original(center) - .5 * (center / 2^40)^2 - .5 * log(2^80 * precision)
+    floor <- 64 * .Machine$double.eps * 3 * max(1, abs(expected), abs(actual[["log_mass"]]))
+    expect_lte(abs(actual[["log_mass"]] - expected), floor)
+    expect_lte(abs(actual[["sd"]] - sd), 64 * .Machine$double.eps * sd)
+    .ordered_gaussian_reference_inputs(node_reference, block)
+    grid <- node_reference[["total"]]
+    evaluated <- .iwmde_ordered_block_gaussian_log(block, grid, share)
+    replayed <- original(grid)
+    node_allowance <- 64 * .Machine$double.eps * 3 * pmax(1, abs(replayed), abs(evaluated))
+    expect_identical(node_allowance, node_reference[["allowance"]])
+    expect_true(all(abs(evaluated - node_reference[["declared"]]) <= node_allowance))
+    expect_true(all(abs(replayed - node_reference[["rounded_replay"]]) <= node_allowance))
+    expect_identical(outer(grid, rep(b, 3L)), node_reference[["replay_mean"]])
+    expect_identical(matrix(1e-4, 3L, 3L), node_reference[["replay_sd"]])
+    rounding_bound <- .ordered_gaussian_rounding_bound(node_reference, block[["weights"]], block[["variance"]])
+    expect_true(all(abs(rounding_bound - node_reference[["forward_bound"]]) <=
+      64 * .Machine$double.eps * 3 * node_reference[["forward_bound"]]))
+    expect_true(all(abs(replayed - node_reference[["declared"]]) <= rounding_bound + node_allowance))
+    if (share < 1) {
+      anchor <- original(center) + stats::dnorm(center, 0, 2^40, log = TRUE)
+      reference <- stats::integrate(function(z) exp(original(center + sd * z) +
+        stats::dnorm(center + sd * z, 0, 2^40, log = TRUE) - anchor), -Inf, Inf, rel.tol = 1e-10, abs.tol = 0)
+      expect_lte(abs(actual[["log_mass"]] - anchor - log(sd) - log(reference[["value"]])),
+        reference[["abs.error"]] / reference[["value"]] + floor)
+    }
+    changed <- block
+    changed[["setup"]][["yi"]] <- rep(2, 3L)
+    expect_equal(.iwmde_ordered_block_gaussian_log(changed, 0, share),
+      sum(block[["weights"]] * stats::dnorm(2, 0, 1e-4, log = TRUE)), tolerance = 0)
+  }
+})
+
+
+test_that("positive unrepresentable Gaussian precision is not treated as constant", {
+
+  block <- .ordered_block_fixture()
+  block[["setup"]] <- list(yi = 1)
+  block[["variance"]] <- block[["weights"]] <- 1
+  block[["mu0"]] <- block[["mu_c"]] <- block[["mu_b"]] <- 0
+  for (basis in c(1e-200, 1e200)) {
+    block[["mu_a"]] <- basis
+    expect_error(.iwmde_ordered_normal_completion(block, .5), class = "RoBMA_ordered_gaussian_completion_unrepresentable")
+  }
+})
+
+
 test_that("block Gaussian completion includes residual and original truncation masses", {
 
   block <- .ordered_block_fixture(BayesTools::prior("normal", list(.3, 1.2), truncation = list(-.5, 1.4)))
