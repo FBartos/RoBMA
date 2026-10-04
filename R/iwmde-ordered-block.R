@@ -551,7 +551,8 @@
       !identical(as.numeric(setup[["sei"]]), as.numeric(setup[["selection_sei"]])) ||
       !is.matrix(setup[["mu"]]) || nrow(setup[["mu"]]) != 1L || ncol(setup[["mu"]]) != K ||
       any(!is.finite(setup[["mu"]]))) {
-    .iwmde_ordered_numeric_stop("selection_route", "the fixed step-selection inputs do not match their declared context")
+    .iwmde_ordered_stop(state[["ordered_chart"]][["source"]], "selection_route",
+      "the fixed step-selection inputs do not match their declared context")
   }
   # On this declared route .outcome_pdf_sum.selnorm() uses the same mean and
   # total SD for numerator and normalization; retained-source routes are excluded.

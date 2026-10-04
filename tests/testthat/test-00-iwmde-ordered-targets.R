@@ -1350,16 +1350,17 @@ test_that("analytic source normalizers bypass an unused normalization grid", {
 })
 
 
-.ordered_narrow_gaussian_fixture <- function(repetitions = 1L, selected = FALSE, direction = "positive") {
+.ordered_narrow_gaussian_fixture <- function(repetitions = 1L, selected = FALSE, direction = "positive",
+                                             total = BayesTools::prior("normal", list(0, 1)), current = .2) {
 
   sign <- if (direction == "negative") -1 else 1
   dat <- data.frame(f = base::ordered(rep(c("lo", "mid", "top"), repetitions),
     levels = c("lo", "mid", "hi", "top")),
     yi = sign * rep(c(0, 1e-4, 1), repetitions), sei = rep(c(1e-4, 1e-6, 1e-4), repetitions))
   allocation <- BayesTools::prior("dirichlet", list(c(2, 2, 1)))
-  fixture <- .ordered_target_fixture(data = dat, allocation = allocation)
+  fixture <- .ordered_target_fixture(total = total, data = dat, allocation = allocation)
   priors <- list(intercept = BayesTools::prior("point", list(0)),
-    f = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)), allocation = allocation))
+    f = BayesTools::prior_ordered(total, allocation = allocation))
   arguments <- list(yi = dat[["yi"]], sei = dat[["sei"]], mods = ~f, data = dat, measure = "SMD",
     only_priors = TRUE, prior_effect = BayesTools::prior("point", list(0)),
     prior_heterogeneity = BayesTools::prior("point", list(0)), prior_mods = priors)
@@ -1375,7 +1376,7 @@ test_that("analytic source normalizers bypass an unused normalization grid", {
   context[["priors"]] <- object[["priors"]]
   context[["posterior_samples"]] <- cbind(context[["posterior_samples"]], tau = 0)
   spec <- BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]])[[1L]]
-  context[["posterior_samples"]][1L, spec[["total_names"]]] <- sign * .2
+  context[["posterior_samples"]][1L, spec[["total_names"]]] <- sign * current
   context[["posterior_samples"]][1L, spec[["allocations"]][[1L]][["gamma_coordinates"]]] <- c(1e-4, .5 * (1 - 1e-4), .5 * (1 - 1e-4))
   context[["posterior_samples"]] <- .iwmde_ordered_replay(context, context[["posterior_samples"]], list(mu_f = spec))
   context[["object"]][["fit"]][["mcmc"]][[1L]] <- coda::mcmc(context[["posterior_samples"]])
@@ -1386,6 +1387,59 @@ test_that("analytic source normalizers bypass an unused normalization grid", {
   list(context = context, target = target, state = state, data = dat,
     block = .iwmde_ordered_block_geometry(context, target, state))
 }
+
+
+test_that("conditioned Gaussian references retain every original node and witness", {
+
+  references <- readRDS(testthat::test_path("fixtures", "ordered-gaussian-reference.rds"))
+  cases <- c("normal-1-positive", "normal-1-negative", "normal-30-positive", "normal-30-negative",
+    "selected-1-positive", "selected-1-negative", "selected-30-positive", "selected-30-negative",
+    "boundary-1", "boundary-2", "boundary-3")
+  expect_identical(sort(names(references)), sort(cases))
+  expect_identical(unname(vapply(references[cases], function(x) length(x[["total"]]), integer(1))),
+    c(rep(31L, 8L), rep(3L, 3L)))
+  witnesses <- vapply(references, function(x) sum(abs(x[["rounded_replay"]] - x[["declared"]]) > x[["allowance"]]), integer(1))
+  expect_identical(sum(witnesses), 38L)
+  expect_identical(sum(witnesses[startsWith(names(witnesses), "boundary-")]), 2L)
+})
+
+
+test_that("one-ulp alternate replay inputs retain the portable conditioning relation", {
+
+  for (case in c("normal-1-positive", "selected-1-positive", "boundary-1")) {
+    reference <- .ordered_gaussian_reference(case)
+    expect_length(reference[["alternate_inputs"]], 4L)
+    for (alternate in reference[["alternate_inputs"]]) {
+      node <- alternate[["node"]]
+      point <- reference
+      for (field in c("declared_mean", "declared_mean_radius", "replay_mean", "replay_sd")) {
+        point[[field]] <- point[[field]][node, , drop = FALSE]
+      }
+      mean <- alternate[["mean"]]
+      sd <- alternate[["sd"]]
+      expect_false(.ordered_gaussian_replay_matches(point, mean, sd))
+      input <- reference[["inputs"]]
+      weights <- input[["powers"]]
+      selection <- reference[["selection"]]
+      if (is.null(selection)) {
+        evaluated <- sum(weights * stats::dnorm(input[["yi"]], mean, sd, log = TRUE))
+      } else {
+        selection[["n_bins"]] <- length(selection[["z_lower"]])
+        evaluated <- sum(.test_step_reference(input[["yi"]], mean, sd, input[["selection_sei"]],
+          selection[["omega"]], selection, weights))
+      }
+      if (!startsWith(case, "boundary-")) evaluated <- evaluated + stats::dnorm(reference[["total"]][[node]], log = TRUE)
+      allowance <- reference[["allowance"]][[node]]
+      expect_lte(abs(evaluated - alternate[["oracle"]]), allowance)
+      bound <- .ordered_gaussian_rounding_bound(point, weights, input[["variance"]], mean, sd, selection)
+      # The MP120 shift and analytic perturbation proof are independent of this
+      # double-precision bound and the replay's arithmetic.
+      expect_lte(alternate[["actual_shift"]], alternate[["analytic_bound"]])
+      expect_lte(alternate[["analytic_bound"]], bound)
+      expect_lte(abs(evaluated - reference[["declared"]][[node]]), bound + allowance)
+    }
+  }
+})
 
 
 test_that("near-fit ordered Gaussian and observed step factors match full original replay", {
@@ -1409,13 +1463,23 @@ test_that("near-fit ordered Gaussian and observed step factors match full origin
       for (field in c("omega", "obs_bin", "alpha", "phack_kind", "kernel_mode")) {
         changed <- selection
         changed[[field]][[1L]] <- changed[[field]][[1L]] + 1
-        expect_error(.iwmde_ordered_selection_observed_constant(context, state, block[["setup"]], changed),
-          class = "RoBMA_ordered_selection_route")
+        error <- tryCatch(.iwmde_ordered_selection_observed_constant(context, state, block[["setup"]], changed), error = identity)
+        expect_identical(class(error)[[1L]], "RoBMA_ordered_selection_route")
+        expect_s3_class(error, "RoBMA_density_method_unavailable")
+        expect_false(inherits(error, "iwmde_ordinate_numerical_error"))
       }
       changed <- block[["setup"]]
       changed[["selection_sei"]][[1L]] <- 2 * changed[["selection_sei"]][[1L]]
-      expect_error(.iwmde_ordered_selection_observed_constant(context, state, changed, selection),
-        class = "RoBMA_ordered_selection_route")
+      error <- tryCatch(.iwmde_ordered_selection_observed_constant(context, state, changed, selection), error = identity)
+      expect_identical(class(error)[[1L]], "RoBMA_ordered_selection_route")
+      expect_s3_class(error, "RoBMA_density_method_unavailable")
+      expect_false(inherits(error, "iwmde_ordinate_numerical_error"))
+      changed <- block[["setup"]]
+      changed[["tau_within"]][[1L]] <- Inf
+      error <- tryCatch(.iwmde_ordered_selection_observed_constant(context, state, changed, selection), error = identity)
+      expect_identical(class(error)[[1L]], "RoBMA_ordered_selection_route")
+      expect_s3_class(error, "iwmde_ordinate_numerical_error")
+      expect_false(inherits(error, "RoBMA_density_method_unavailable"))
     }
     case <- paste(if (selected) "selected" else "normal", repetitions, direction, sep = "-")
     node_reference <- .ordered_gaussian_reference(case)
@@ -1426,28 +1490,141 @@ test_that("near-fit ordered Gaussian and observed step factors match full origin
     expect_identical(fixture[["data"]], node_reference[["data"]])
     expect_identical(block[["chart"]][names(node_reference[["chart"]])], node_reference[["chart"]])
     nodes <- node_reference[["total"]]
+    expect_length(nodes, 31L)
     node_samples <- .iwmde_ordered_block_samples(context, block, nodes, 1e-4)
     expect_identical(node_samples[, block[["chart"]][["gamma_coordinates"]], drop = FALSE], node_reference[["gamma"]])
     node_original <- .iwmde_log_lik_from_posterior_samples_sum_active_branch(context, node_samples, state[["active_setup"]], "estimate")
     node_actual <- .iwmde_ordered_block_log_likelihood(context, block, nodes, 1e-4)
     h_original <- node_original + stats::dnorm(nodes, log = TRUE)
     h_actual <- node_actual + BayesTools::lpdf(block[["prior"]], nodes)
-    node_allowance <- 64 * .Machine$double.eps * nrow(fixture[["data"]]) * pmax(1, abs(h_original), abs(h_actual))
-    expect_identical(node_allowance, node_reference[["allowance"]])
+    node_allowance <- node_reference[["allowance"]]
     expect_true(all(abs(h_actual - node_reference[["declared"]]) <= node_allowance))
-    expect_true(all(abs(h_original - node_reference[["rounded_replay"]]) <= node_allowance))
     replay_setup <- .iwmde_log_lik_posterior_setup_active_branch(context, node_samples, state[["active_setup"]], "estimate")
     replay_sd <- .root_sum_squares(replay_setup[["tau_within"]],
       matrix(replay_setup[["sei"]], length(nodes), nrow(fixture[["data"]]), byrow = TRUE))
-    expect_identical(unname(replay_setup[["mu"]]), node_reference[["replay_mean"]])
-    expect_identical(unname(replay_sd), node_reference[["replay_sd"]])
+    if (.ordered_gaussian_replay_matches(node_reference, replay_setup[["mu"]], replay_sd)) {
+      expect_true(all(abs(h_original - node_reference[["rounded_replay"]]) <= node_allowance))
+    }
     selection_fields <- names(node_reference[["selection"]])
     selection <- if (selected) block[["selection_context"]] else NULL
     if (selected) expect_identical(selection[selection_fields], node_reference[["selection"]])
-    rounding_bound <- .ordered_gaussian_rounding_bound(node_reference, block[["weights"]], block[["variance"]], selection)
-    expect_true(all(abs(rounding_bound - node_reference[["forward_bound"]]) <=
-      64 * .Machine$double.eps * nrow(fixture[["data"]]) * node_reference[["forward_bound"]]))
+    rounding_bound <- .ordered_gaussian_rounding_bound(node_reference, block[["weights"]], block[["variance"]],
+      replay_setup[["mu"]], replay_sd, selection)
+    if (.ordered_gaussian_replay_matches(node_reference, replay_setup[["mu"]], replay_sd)) {
+      expect_true(all(node_reference[["forward_bound"]] <= rounding_bound))
+    }
     expect_true(all(abs(h_original - node_reference[["declared"]]) <= rounding_bound + node_allowance))
+  }
+})
+
+
+test_that("actual unselected source completion retains nuisance and truncation masses", {
+
+  cases <- list(list(mean = 0, sd = 1, lower = -Inf, upper = Inf, current = .2),
+    list(mean = .3, sd = 1.2, lower = .999, upper = .9995, current = .99925))
+  names(cases) <- c("untruncated", "tight-truncated")
+  references <- readRDS(testthat::test_path("fixtures", "ordered-normal-source-reference.rds"))
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    oracle <- references[[name]]
+    expect_identical(case, oracle[["case"]])
+    prior <- BayesTools::prior("normal", list(case[["mean"]], case[["sd"]]),
+      truncation = list(case[["lower"]], case[["upper"]]))
+    fixture <- .ordered_narrow_gaussian_fixture(total = prior, current = case[["current"]])
+    context <- fixture[["context"]]
+    state <- fixture[["state"]]
+    dat <- fixture[["data"]]
+    expect_identical(dat, oracle[["data"]])
+    expect_identical(dat[["yi"]], oracle[["yi"]])
+    expect_identical(dat[["sei"]], oracle[["sei"]])
+    expect_false(state[["source_gaussian"]][["selected"]])
+    expect_true(.iwmde_ordered_source_residual_available(context, state))
+    expect_identical(state[["ordered_chart"]][["prior"]], prior)
+    expect_identical(prior, oracle[["prior"]])
+    expect_identical(state[["ordered_chart"]][["kind"]], "total")
+    expect_identical(state[["ordered_chart"]][["current"]], case[["current"]])
+    eta <- state[["row"]][state[["ordered_specs"]][[1L]][["allocations"]][[1L]][["gamma_coordinates"]]]
+    expect_identical(unname(eta), oracle[["eta"]])
+    share <- eta[[1L]] / sum(eta)
+    prior_constant <- sum(stats::dgamma(eta, shape = c(2, 2, 1), rate = 1, log = TRUE))
+    expect_lte(abs(prior_constant - oracle[["nuisance"]]),
+      64 * .Machine$double.eps * max(1, abs(oracle[["nuisance"]])))
+    original_reference <- stats::integrate(function(total) stats::dnorm(total, case[["mean"]], case[["sd"]]),
+      case[["lower"]], case[["upper"]], rel.tol = 1e-12, abs.tol = 0)
+    original_mass <- original_reference[["value"]]
+    original_log_error <- -log1p(-original_reference[["abs.error"]] / original_mass)
+    source <- function(total) {
+      mu <- outer(total, c(0, share, 1))
+      rowSums(stats::dnorm(matrix(dat[["yi"]], length(total), nrow(dat), byrow = TRUE),
+        mu, matrix(dat[["sei"]], length(total), nrow(dat), byrow = TRUE), log = TRUE)) +
+        stats::dnorm(total, case[["mean"]], case[["sd"]], log = TRUE) - log(original_mass) + prior_constant
+    }
+    precision <- share^2 / 1e-12 + 1 / 1e-8 + 1 / case[["sd"]]^2
+    center <- (share * 1e-4 / 1e-12 + 1 / 1e-8 + case[["mean"]] / case[["sd"]]^2) / precision
+    sd <- 1 / sqrt(precision)
+    anchor_point <- if (is.finite(case[["upper"]])) case[["upper"]] else center
+    anchor <- source(anchor_point)
+    reference <- stats::integrate(function(z) exp(source(center + sd * z) - anchor),
+      (case[["lower"]] - center) / sd, (case[["upper"]] - center) / sd,
+      rel.tol = 1e-10, abs.tol = 0, subdivisions = 1000L)
+    expected <- anchor + log(sd) + log(reference[["value"]])
+    actual <- .iwmde_ordered_normal_source_mass(state, context)
+    expect_identical(actual[["method"]], "completed_gaussian_source")
+    expect_identical(reference[["message"]], "OK")
+    prior_interval <- .ordered_normal_interval_arithmetic_allowance(case[["lower"]], case[["upper"]],
+      case[["mean"]], case[["sd"]])
+    # Account for the actual completed interval's inputs, without requiring
+    # derived means or BLAS predictor values to match a captured platform.
+    kernel <- state[["source_gaussian"]]
+    completed_precision <- kernel[["quadratic"]] + 1 / case[["sd"]]^2
+    completed_mean <- case[["current"]] +
+      (kernel[["linear"]] + (case[["mean"]] - case[["current"]]) / case[["sd"]]^2) / completed_precision
+    completed_interval <- .ordered_normal_interval_arithmetic_allowance(case[["lower"]], case[["upper"]],
+      completed_mean, 1 / sqrt(completed_precision))
+    coordinate_error <- 0
+    if (is.finite(case[["lower"]]) && is.finite(case[["upper"]])) {
+      gamma2 <- 2 * .Machine$double.eps / (1 - 2 * .Machine$double.eps)
+      delta_total <- gamma2 * (abs(center) + max(abs(case[["lower"]] - center), abs(case[["upper"]] - center)))
+      basis <- c(0, share, 1)
+      derivative <- sum(abs(basis) * pmax(abs(dat[["yi"]] - basis * case[["lower"]]),
+        abs(dat[["yi"]] - basis * case[["upper"]])) / dat[["sei"]]^2) +
+        max(abs(case[["lower"]] - case[["mean"]]), abs(case[["upper"]] - case[["mean"]])) / case[["sd"]]^2
+      coordinate_error <- delta_total * derivative + .5 * precision * delta_total^2
+    }
+    residual_error <- 64 * .Machine$double.eps * nrow(dat) *
+      max(1, actual[["max_log_scale"]], abs(expected), abs(actual[["log_normalizer"]]))
+    producer_error <- prior_interval[["log_error"]] + completed_interval[["log_error"]] + residual_error
+    reference_error <- coordinate_error + reference[["abs.error"]] / reference[["value"]] +
+      original_log_error + residual_error
+    terms <- c(prior_interval = prior_interval[["log_error"]], completed_interval = completed_interval[["log_error"]],
+      reference_coordinate = coordinate_error, quadrature = reference[["abs.error"]] / reference[["value"]],
+      prior_integral = original_log_error, residual = residual_error)
+    expect_true(all(is.finite(terms) & terms >= 0))
+    allowance <- sum(terms)
+    expect_lte(abs(actual[["log_normalizer"]] - expected), allowance)
+    expect_lte(abs(actual[["log_normalizer"]] - oracle[["source"]]), producer_error)
+    expect_lte(abs(expected - oracle[["source"]]), reference_error)
+    expect_lte(abs(actual[["posterior_interval_log_mass"]] - oracle[["posterior_mass"]]),
+      completed_interval[["log_error"]] + residual_error)
+    prior_residual_error <- 64 * .Machine$double.eps * max(1, abs(log(original_mass)))
+    expect_lte(abs(actual[["original_prior_interval_log_mass"]] - log(original_mass)),
+      prior_interval[["log_error"]] + original_log_error + prior_residual_error)
+    expect_lte(abs(actual[["original_prior_interval_log_mass"]] - oracle[["prior_mass"]]),
+      prior_interval[["log_error"]] + prior_residual_error)
+    expect_lte(abs(log(original_mass) - oracle[["prior_mass"]]), original_log_error + prior_residual_error)
+    expect_identical(original_reference[["message"]], "OK")
+    row <- matrix(state[["row"]], 1L, dimnames = list(NULL, names(state[["row"]])))
+    replayed <- .iwmde_ordered_replay(context, row, state[["ordered_specs"]])
+    nuisance <- state[["prior_evaluator"]](replayed) + state[["ordered_kernel"]](replayed) -
+      BayesTools::lpdf(prior, state[["ordered_chart"]][["current"]])
+    expect_lte(abs(nuisance - prior_constant), 64 * .Machine$double.eps * max(1, abs(prior_constant)))
+    if (is.finite(case[["upper"]])) {
+      expect_lt(allowance, 1e-9)
+      expect_gt(center, case[["upper"]])
+      expect_false(any(.iwmde_ordered_replace_source(context, state, center)[["valid"]]))
+      expect_lt(actual[["posterior_interval_log_mass"]], 0)
+      expect_lt(actual[["original_prior_interval_log_mass"]], 0)
+    }
   }
 })
 

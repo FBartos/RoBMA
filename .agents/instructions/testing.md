@@ -207,10 +207,11 @@ uncertainty. When the active branch has enough batches in each required fitted
 chain, the complete conditioned indicator includes those same active rows.
 Ordered fixed-positive singleton step-selection blocks may reduce normalizer
 columns only after exact persisted data/design equality and bit-exact current
-mean, variance and complete selection-input checks. The Gaussian core, observed
-constant, original row/power identities and full-observation error budgets stay
-unchanged. Gaussian evaluation and Normal completion use direct per-share
-precision and centered residuals from all original observations. The actual
+mean, variance and complete selection-input checks. The Gaussian law and
+estimand, original row/power identities and full-observation error budgets are
+preserved while their arithmetic is improved. Gaussian evaluation and Normal
+completion use direct per-share precision and centered residuals from all
+original observations. The actual
 fixed-positive singleton product step context must match its declared weights,
 bins and source routing before either normalization route uses the direct
 observed factor. Source completion replays its Gaussian predictor and retains
@@ -218,8 +219,19 @@ the original nuisance-prior constant and both truncation masses. Stationary
 polynomial roots, guards and Gamma completion retain their existing formulas.
 Conditioned node tests preserve exact original IEEE inputs and compare against
 independent declared-model constants at the original output-scale allowance.
-Full replay is checked separately against its rounded mean/SD target; measured
-mean and variance perturbation bounds explain discrepancies from the declared
-target without redefining the model or enlarging that allowance.
-Algorithm 28 row proofs retain the partition, source, prior and control
-identities; earlier algorithm 27 results remain historical evidence.
+Full replay is always related to that target through its actual mean/SD inputs
+and independently certified declared-mean enclosures. Captured rounded-input
+oracle comparisons additionally run when those replay inputs match; one-ulp
+alternate inputs exercise the portable perturbation bound. All original nodes,
+allowances and discriminating witnesses remain pinned. Actual unselected and
+truncated Normal source contexts retain nuisance priors once and both prior
+and posterior support masses. Their physical-integral and independent MP
+comparisons include endpoint standardization, both log-CDF difference
+representations, exp/subtraction conditioning and reference-coordinate rounding.
+The named finite-range libm allowance is engineering evidence, not a universal
+pnorm accuracy theorem; the tight source case pins the complete allowance below
+1e-9. Original conditioned-node allowances remain unchanged.
+Contradictory structural selection metadata
+raises the density-method unavailable family; quantitative failures retain
+their numerical diagnostics family. Row proofs retain the partition, source,
+prior and control identities.

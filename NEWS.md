@@ -532,6 +532,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     observed factor directly from the original bins and powers in both block
     and source normalization. Original priors, conditioning and error gates
     are retained; severely conditioned input arithmetic remains explicit.
+    Evaluation can remain slow for selected models near zero cumulative
+    ordered effects; the existing diagnostic and error controls are preserved.
     Row proofs record the exact partition and input identities; algorithm 28
     keeps these results separate from earlier normalization caches.
     Offset capabilities now match the supplied block covariance/prior scope,
