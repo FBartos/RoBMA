@@ -2,10 +2,11 @@
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.149 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.150 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
-    BayesTools >= 0.3.1.149 is required for the fitted ordered source metadata,
-    conditional kernels and ordered prior-curve semantics used by this release.
+    BayesTools >= 0.3.1.150 is required for the fitted ordered source metadata,
+    conditional kernels, ordered prior-curve semantics and exact prior-style
+    lookup used by this release.
   - requires JAGS 4.x (>= 4.3.1, < 5.0.0). The RoBMA JAGS module implements
     the JAGS 4 module interface and does not compile against JAGS 5.
     Installation stops with a message naming the reported version when
@@ -731,6 +732,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- Normal interval regression tests preserve error classes, values and warnings
+  across localized base-R messages.
 - ordered block integration uses reliable namespace lookup for polynomial trimming.
 - marginal-means Bayes factors use the exact Gaussian kernel sum at the null
   hypothesis (bandwidth `bw.nrd0()` of the continuous draws) as the

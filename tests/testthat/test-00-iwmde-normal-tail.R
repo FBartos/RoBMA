@@ -40,6 +40,17 @@ test_that("scalar Normal interval edge and shape behavior remains unchanged", {
       error = if (inherits(value, "captured_error")) unclass(value) else NULL, warnings = warnings)
   }
   for (name in names(reference[["inputs"]])) {
-    expect_identical(capture(reference[["inputs"]][[name]]), reference[["results"]][[name]][["original"]])
+    actual <- capture(reference[["inputs"]][[name]])
+    expected <- reference[["results"]][[name]][["original"]]
+    if (is.null(expected[["error"]])) {
+      expect_identical(actual, expected)
+    } else {
+      # Base-R condition wording is localized by gettext; preserve the error
+      # behavior and family without prescribing the captured English text.
+      expect_false(is.null(actual[["error"]]))
+      expect_null(actual[["value"]])
+      expect_identical(actual[["error"]][["class"]], expected[["error"]][["class"]])
+      expect_identical(actual[["warnings"]], expected[["warnings"]])
+    }
   }
 })
