@@ -714,6 +714,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- ordered block integration uses reliable namespace lookup for polynomial trimming.
 - marginal-means Bayes factors use the exact Gaussian kernel sum at the null
   hypothesis (bandwidth `bw.nrd0()` of the continuous draws) as the
   posterior ordinate, through BayesTools 0.3.1. The 512-point grid estimate

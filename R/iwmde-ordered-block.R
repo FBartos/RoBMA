@@ -11,7 +11,7 @@
 
 .iwmde_ordered_poly_trim <- function(p) {
 
-  while (length(p) > 1L && tail(p, 1L) == 0) p <- head(p, -1L)
+  while (length(p) > 1L && tail(p, 1L) == 0) p <- utils::head(p, -1L)
   p
 }
 
