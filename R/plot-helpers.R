@@ -1942,7 +1942,6 @@
       column_names  = column_names,
       formula_scale = formula_info[["formula_scale"]],
       parameter     = coordinate,
-      n_points      = 2L,
       plot_type     = "ggplot"
     )
     if (!is.null(transformed)) {
@@ -1986,7 +1985,8 @@
   formula_scale <- .object_formula_scale(object, parameter)
 
   return(list(
-    prior_list    = design[["prior_list"]],
+    prior_list    = if(!is.null(object[["fit"]])) attr(object[["fit"]], "prior_list", exact = TRUE) else
+      c(design[["prior_list"]], .create_fit_priors(object[["data"]], object[["priors"]])),
     column_names  = .plot_prior_formula_coordinates(design),
     formula_scale = formula_scale
   ))

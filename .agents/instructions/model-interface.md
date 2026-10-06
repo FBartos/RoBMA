@@ -10,6 +10,17 @@ available, consult its `jags-formula.md` guide for the detailed shared contract.
 RoBMA consumes the resolved column counts, bases, levels, covariance ownership,
 and labels. Do not introduce a separate parser or reconstruct a basis with
 `stats::model.matrix()`, fixed formulas, or posterior draws.
+Formula-design 6, unscale-design 2 and coefficient-transform 3 require refitting
+older formats. Select active targets/recipes before finite C access. Dynamic
+numeric targets use original fitted state; prior laws use public BayesTools APIs.
+Static qCMDE/IWMDE refuse state-dependent raw maps or stochastic formula products.
+Declared measure_unavailable entries use BayesTools_formula_measure_unavailable;
+metadata/program/numeric failures propagate. linear_weight_space distinguishes
+coefficient recipes from fitted formula_contribution rows. Constant products fold
+once into raw fitted weights; contribution weights never pass through C/A again.
+Fitted and prior-only plots supply full ordinary multiplier laws. Current compiler
+copies complete only through supported public prior/plot entry points; empty
+scaling intentionally selects fitted coordinates.
 
 Factor contrasts belong to `prior_factor()` and stored metadata, independently
 of intercept syntax. Thus `mods = ~ 0 + group` with an independent factor

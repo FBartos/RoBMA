@@ -1,10 +1,12 @@
 ## version 4.1.0 (IN PROGRESS)
+- formula adapters accept BayesTools coefficient-transform 3 and preserve original fitted multiplier states for original-scale corrections. Unsupported measures remain typed refusals; qCMDE/IWMDE require certified static projections. Prior plots and no-fit carriers supply complete ordinary multiplier priors, while empty scaling intentionally selects fitted coordinates.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.150 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.166 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
-    BayesTools >= 0.3.1.150 is required for the fitted ordered source metadata,
+    BayesTools >= 0.3.1.166 is required for fitted declaration ownership and
+    coefficient/contribution measure metadata, the fitted ordered source metadata,
     conditional kernels, ordered prior-curve semantics and exact prior-style
     lookup used by this release.
   - requires JAGS 4.x (>= 4.3.1, < 5.0.0). The RoBMA JAGS module implements

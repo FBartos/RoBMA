@@ -309,6 +309,7 @@
     ncol     = length(coefficients),
     dimnames = list(NULL, coefficients)
   )
+  attr(draws, "prior_list") <- .create_fit_priors(object[["data"]], object[["priors"]])
   for (args in formula_args) {
     draws <- do.call(
       BayesTools::JAGS_formula_draws,

@@ -933,6 +933,10 @@ lines.brma <- function(
 .plot_brma_iwmde_parameter_spec <- function(samples, conditional, type,
                                            weights = NULL) {
 
+  if(identical(type, "linear") && !is.null(weights)){
+    raw_weights <- .iwmde_linear_weights(weights)
+    if(!is.null(raw_weights)) weights <- .brma_fitted_linear_weights(samples, raw_weights)
+  }
   condition_metadata <- .iwmde_sample_condition_metadata(samples)
   if (!is.null(conditional)) {
     condition_metadata[["conditional"]]      <- conditional
@@ -1228,7 +1232,12 @@ lines.brma <- function(
     !is.null(candidate) && identical(unname(candidate[order(names(candidate))]),
       unname(target[order(names(target))])) && setequal(names(candidate), names(target))
   }
-  matches <- which(vapply(raw_marginal, same_weights, logical(1L)))
+  matches <- if(!length(key[["dependencies"]])){
+    which(vapply(raw_marginal, function(sample){
+      quantities <- BayesTools::posterior_metadata(sample, "quantities")
+      !is.null(quantities) && entry[["quantity_id"]] %in% quantities[["quantity_id"]]
+    }, logical(1)))
+  }else which(vapply(raw_marginal, same_weights, logical(1L)))
   if (!length(matches)) {
     stop("Selected factor-cell prior metadata do not match its fitted extraction weights.",
       call. = FALSE)
@@ -1248,6 +1257,9 @@ lines.brma <- function(
     )
   }
   value <- marginal[[level]]
+  .brma_formula_measure_check(value, "prior_density")
+  .brma_formula_measure_check(value, "atoms")
+  .brma_linear_weight_space(value)
   if (!is.numeric(value) || is.null(BayesTools::posterior_metadata(
     value,
     "prior_density"
@@ -1265,7 +1277,7 @@ lines.brma <- function(
   # Ordered marginals already evaluate the semantic cell from its retained
   # total/allocation sources. Keep its aligned values and metadata rather than
   # treating the displayed contrast columns as primitive ordered draws.
-  if (!.plot_brma_ordered_target(object, entry)) {
+  if (!.plot_brma_ordered_target(object, entry) && length(key[["dependencies"]]) > 0L) {
     source_samples <- as.matrix(displayed[[parent]])[
       ,
       !is.na(coordinate_columns),
@@ -1282,7 +1294,10 @@ lines.brma <- function(
   attr(value, "parameter") <- entry[["parameter"]]
   attr(value, "level_name") <- level
   class(value) <- unique(c(class(value), "marginal_posterior"))
-  structural <- !length(weights)
+  prior_density <- BayesTools::posterior_metadata(value, "prior_density")
+  points <- prior_density[["points"]]
+  structural <- is.data.frame(points) && nrow(points) == 1L && isTRUE(points[["p"]] == 1) &&
+    is.null(prior_density[["density"]])
   if (precomputed && !standardized_coefficients && !structural) {
     # qCMDE/IWMDE evaluate the original-scale cell as a linear combination
     # of fitted coordinates on their own scale.
@@ -1299,6 +1314,7 @@ lines.brma <- function(
       .iwmde_stop_unavailable(original_scale)
     }
     matrix <- transform[["matrix"]][targets, , drop = FALSE]
+    if(any(!is.finite(matrix))) .iwmde_stop_unavailable(original_scale)
     weights <- stats::setNames(as.numeric(crossprod(weights, matrix)), colnames(matrix))
     weights <- .iwmde_linear_weights(weights)
     if (any(transform[["source_transforms"]][names(weights)] != "identity")) {

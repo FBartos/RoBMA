@@ -526,7 +526,7 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   # matrix on the fitted coordinates.
   transform <- structure(
     list(
-      schema_version    = 2L,
+      schema_version    = 3L,
       target_scale      = "original",
       target_names      = c("mu_x", "log_tau_intercept"),
       matrix            = rbind(

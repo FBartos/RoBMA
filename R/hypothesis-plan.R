@@ -688,31 +688,26 @@
       cause  = "metadata"
     )))
   }
-  weights <- stats::setNames(
-    as.numeric(transform[["matrix"]][target_info[["target_i"]], , drop = FALSE]),
-    colnames(transform[["matrix"]])
-  )
-  weights  <- weights[weights != 0]
   map_type <- targets[["map_type"]][[row]]
-  route <- c(target_info, list(
-    type    = map_type,
-    weights = weights,
-    support = targets[["support"]][[row]]
-  ))
-  if (length(weights) == 0L) {
-    route[["type"]]   <- "unsupported"
-    route[["reason"]] <- paste0(
-      "The fitted coefficient '", target,
-      "' is structurally fixed and has no posterior hypothesis route."
-    )
-    route[["cause"]]  <- "fixed"
-  } else if (!map_type %in% c("identity", "affine", "exp_affine")) {
-    route[["type"]]   <- "unsupported"
-    route[["reason"]] <- paste0(
-      "The fitted nonlinear joint coefficient transform for '", target,
-      "' is not supported by hypothesis()."
-    )
-    route[["cause"]]  <- "nonlinear"
+  dynamic <- identical(map_type, "state_dependent")
+  weights <- if(dynamic) stats::setNames(numeric(), character()) else
+    stats::setNames(as.numeric(transform[["matrix"]][target_info[["target_i"]], , drop = FALSE]),
+      colnames(transform[["matrix"]]))
+  weights <- weights[weights != 0]
+  state_sources <- transform[["state_dependencies"]][["source"]][
+    transform[["state_dependencies"]][["target"]] == target]
+  route <- c(target_info, list(type = map_type, weights = weights,
+    state_sources = stats::setNames(rep(1, length(state_sources)), state_sources),
+    support = targets[["support"]][[row]]))
+  if(identical(targets[["structural_status"]][[row]], "structural")){
+    route[["type"]] <- "unsupported"
+    route[["reason"]] <- paste0("The fitted coefficient '", target, "' is structurally fixed and has no posterior hypothesis route.")
+    route[["cause"]] <- "fixed"
+  }else if(!map_type %in% c("identity", "affine", "exp_affine", "state_dependent")){
+    route[["type"]] <- "unsupported"
+    route[["reason"]] <- paste0("The fitted nonlinear joint coefficient transform for '", target,
+      "' is not supported by hypothesis().")
+    route[["cause"]] <- "nonlinear"
   }
 
   route
@@ -787,6 +782,66 @@
   as.numeric(support[["bounds"]])
 }
 
+.brma_formula_measure_check <- function(sample, measure) {
+
+  unavailable <- BayesTools::posterior_metadata(sample, "measure_unavailable")
+  if(is.null(unavailable)) return(invisible(TRUE))
+  entries <- unavailable[unavailable[["measure"]] == measure, , drop = FALSE]
+  if(!nrow(entries)) return(invisible(TRUE))
+  entry <- entries[1L, , drop = FALSE]
+  child <- if(identical(measure, "prior_density")) "BayesTools_formula_prior_density_unavailable" else
+    paste0("BayesTools_formula_", measure, "_unavailable")
+  stop(errorCondition(paste0("Formula ", measure, " for '", entry[["column"]],
+    "' is unavailable: ", entry[["reason"]], "."), call = NULL,
+    class = c(child, "BayesTools_formula_measure_unavailable"),
+    target = entry[["column"]], reason = entry[["reason"]]))
+}
+
+.brma_linear_weight_space <- function(sample) {
+
+  weights <- BayesTools::posterior_metadata(sample, "linear_weights")
+  if(is.null(weights)) return(NULL)
+  space <- BayesTools::posterior_metadata(sample, "linear_weight_space")
+  if(!is.character(space) || length(space) != 1L || is.na(space) ||
+     !space %in% c("coefficient", "formula_contribution")) .stop_refit_required(
+    "Stored linear weights have no supported coordinate space. Recreate the posterior with the current RoBMA/BayesTools build.")
+  context <- BayesTools::posterior_metadata(sample, "prior_context")
+  if(length(context[["transforms"]]) && (!identical(context[["schema_version"]], 1L) ||
+     any(vapply(context[["transforms"]], function(transform){
+       !identical(transform[["descriptor"]][["schema_version"]], 3L)
+     }, logical(1))))) .stop_refit_required(
+       "Stored formula context has unsupported transformation metadata. Recreate the posterior with the current RoBMA/BayesTools build.")
+  if(identical(space, "formula_contribution") &&
+     (length(context[["formula_scale"]]) || length(context[["transforms"]]))) .stop_refit_required(
+       "Formula contribution weights cannot be remapped through coefficient scaling. Recreate the posterior with the current RoBMA/BayesTools build.")
+  space
+}
+
+# Only declared constant products have one raw fitted linear projection.
+.brma_fitted_linear_weights <- function(sample, weights) {
+
+  .brma_formula_measure_check(sample, "prior_density")
+  space <- .brma_linear_weight_space(sample)
+  if(!identical(space, "formula_contribution")) return(weights)
+  context <- BayesTools::posterior_metadata(sample, "prior_context")
+  priors <- context[["prior_list"]]
+  out <- weights
+  for(owner in names(priors)){
+    columns <- names(out)[names(out) == owner | startsWith(names(out), paste0(owner, "["))]
+    columns <- columns[out[columns] != 0]
+    if(!length(columns)) next
+    multiplier <- attr(priors[[owner]], "multiply_by", exact = TRUE)
+    if(is.null(multiplier)) next
+    if(!is.numeric(multiplier) || length(multiplier) != 1L || !is.finite(multiplier)){
+      .iwmde_stop_unavailable(.iwmde_unavailable(
+        "qCMDE/IWMDE are unavailable for stochastic formula contribution products. Use density_method = 'KDE'.",
+        "original_scale"))
+    }
+    out[columns] <- out[columns] * multiplier
+  }
+  out[out != 0]
+}
+
 
 # ---------------------------------------------------------------------------- #
 # Scalar and exp(affine) targets
@@ -798,7 +853,10 @@
   plan[["kind"]]  <- "scalar"
   plan[["route"]] <- "scalar"
   plan[["group"]] <- paste("scalar", plan[["parameter"]], sep = "\r")
-  if (.hypothesis_plan_quantity_fixed(entry[["status"]], entry[["fixed_value"]])) {
+  route <- if(!plan[["standardized"]]) .brma_formula_coefficient_route(object, plan[["selected"]])
+  fixed <- if(is.null(route)) .hypothesis_plan_quantity_fixed(entry[["status"]], entry[["fixed_value"]]) else
+    identical(route[["cause"]], "fixed")
+  if(fixed){
     plan[["refusal"]] <- .hypothesis_plan_fixed_refusal(plan[["label"]])
     return(plan)
   }
@@ -807,14 +865,12 @@
     return(plan)
   }
 
-  route <- if (!plan[["standardized"]]) {
-    .brma_formula_coefficient_route(object, plan[["selected"]])
-  }
   if (identical(route[["type"]], "unsupported")) {
     plan[["refusal"]] <- .hypothesis_refusal(route[["reason"]], "target")
     return(plan)
   }
-  if (identical(route[["type"]], "exp_affine")) {
+  if (!is.null(route) && identical(route[["transform"]][["output_transforms"]][[route[["target"]]]], "exp") &&
+      !identical(route[["type"]], "identity")) {
     return(.hypothesis_plan_exp_affine(plan, object, route, cache))
   }
 
@@ -834,7 +890,8 @@
     object           = object,
     cache            = cache,
     extra_parameters = if (!is.null(route)) {
-      .hypothesis_brma_target_prior_parameters(object, route[["weights"]])
+      .hypothesis_brma_target_prior_parameters(object,
+        if(identical(route[["type"]], "state_dependent")) route[["state_sources"]] else route[["weights"]])
     } else {
       character()
     },
@@ -845,7 +902,10 @@
   spec <- if (is.null(route) || identical(route[["type"]], "identity")) {
     list(type = "primitive", prior_density = prior_density)
   } else {
-    list(type = "linear", weights = route[["weights"]], prior_density = prior_density)
+    list(type = if(identical(route[["type"]], "state_dependent")) "unsupported_formula_transform" else "linear",
+      weights = route[["weights"]], prior_density = prior_density,
+      reason = if(identical(route[["type"]], "state_dependent"))
+        "qCMDE/IWMDE are unavailable for state-dependent original coefficients. Use density_method = 'KDE'.")
   }
   plan[["draws"]]         <- draws
   plan[["route_info"]]    <- route
@@ -869,6 +929,12 @@
     support       = route[["support"]],
     description   = paste0("transformed coefficient '", plan[["parameter"]], "'")
   )
+  if(identical(route[["type"]], "state_dependent")){
+    refusal <- .hypothesis_refusal_density_method(.iwmde_unavailable(
+      "qCMDE/IWMDE are unavailable for a state-dependent original coefficient map. Use density_method = 'KDE'.",
+      "original_scale"), "method")
+    plan[["method_refusals"]] <- list(qCMDE = refusal, IWMDE = refusal)
+  }
   if (length(plan[["targets"]]) > 0L &&
       is.list(draws[["posterior"]])) {
     plan[["method_refusals"]] <- .hypothesis_plan_precomputed_refusals(paste0(
@@ -989,7 +1055,8 @@
   parameter        <- plan[["parameter"]]
   sample_parameter <- unique(c(
     .as_mixed_posteriors_parameters(object, parameter),
-    .hypothesis_brma_target_prior_parameters(object, route[["weights"]])
+    .hypothesis_brma_target_prior_parameters(object,
+        if(identical(route[["type"]], "state_dependent")) route[["state_sources"]] else route[["weights"]])
   ))
   .hypothesis_plan_cached(
     cache,
@@ -1230,9 +1297,12 @@
     target_scale = "original"
   )
   term_coordinates <- intersect(coordinates, rownames(transform[["matrix"]]))
-  dependencies <- colnames(transform[["matrix"]])[
-    colSums(abs(transform[["matrix"]][term_coordinates, , drop = FALSE])) > 0
-  ]
+  static <- term_coordinates[transform[["targets"]][["map_type"]][
+    match(term_coordinates, transform[["targets"]][["target"]])] != "state_dependent"]
+  dependencies <- if(length(static)) colnames(transform[["matrix"]])[
+    colSums(abs(transform[["matrix"]][static, , drop = FALSE])) > 0] else character()
+  dependencies <- union(dependencies, transform[["state_dependencies"]][["source"]][
+    transform[["state_dependencies"]][["target"]] %in% term_coordinates])
 
   list(
     original          = TRUE,
@@ -1261,10 +1331,10 @@
     return(list(prior_density = density, weights = weights))
   }
   matrix <- scale[["transform"]][["matrix"]]
-  fitted <- drop(
-    matrix(weights, nrow = 1L) %*% matrix[names(weights), , drop = FALSE]
-  )
-  names(fitted) <- colnames(matrix)
+  selected <- matrix[names(weights), , drop = FALSE]
+  static <- all(is.finite(selected))
+  fitted <- if(static) drop(matrix(weights, nrow = 1L) %*% selected) else numeric()
+  if(static) names(fitted) <- colnames(matrix)
 
   list(
     prior_density = BayesTools::JAGS_formula_prior_density(
@@ -1277,14 +1347,26 @@
         "prior_context"
       )
     ),
-    weights = fitted[fitted != 0]
+    weights = fitted[fitted != 0], static = static
   )
 }
 
 
 .hypothesis_plan_level_target <- function(plan, object, level, value, label) {
 
+  tryCatch(.hypothesis_plan_level_target_available(plan, object, level, value, label),
+    BayesTools_formula_measure_unavailable = function(condition){
+      .hypothesis_plan_target(value = value, label = label, level = level, prior_density = NULL,
+        refusal = .hypothesis_refusal_from_condition(condition))
+    })
+}
+
+.hypothesis_plan_level_target_available <- function(plan, object, level, value, label) {
+
   sample  <- plan[["draws"]][["posterior"]][[level]]
+  .brma_formula_measure_check(sample, "prior_density")
+  .brma_formula_measure_check(sample, "atoms")
+  .brma_linear_weight_space(sample)
   weights <- .iwmde_linear_weights(
     BayesTools::posterior_metadata(sample, "linear_weights")
   )
@@ -1309,9 +1391,11 @@
     prior_density = density[["prior_density"]],
     atoms         = BayesTools::posterior_metadata(sample, "atoms"),
     spec          = list(
-      type          = "linear",
+      type          = if(isFALSE(density[["static"]])) "unsupported_formula_transform" else "linear",
       weights       = density[["weights"]],
-      prior_density = density[["prior_density"]]
+      prior_density = density[["prior_density"]],
+      reason        = if(isFALSE(density[["static"]]))
+        "qCMDE/IWMDE are unavailable for state-dependent original coefficients. Use density_method = 'KDE'."
     )
   )
   target[["point_mass_reason"]] <- .hypothesis_plan_point_mass_reason(object)
@@ -2024,9 +2108,11 @@
     class(condition) <- unique(c("RoBMA_hypothesis_statement", class(condition)))
     return(condition)
   }
-  if (any(startsWith(class(condition), "BayesTools_"))) {
+  if (inherits(condition, "BayesTools_formula_measure_unavailable") ||
+      inherits(condition, "BayesTools_linear_target_unavailable")) {
     return(condition)
   }
+  if (any(startsWith(class(condition), "BayesTools_"))) stop(condition)
 
   structure(
     class = c("RoBMA_hypothesis_statement", "error", "condition"),

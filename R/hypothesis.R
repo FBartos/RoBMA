@@ -1309,7 +1309,7 @@ hypothesis.brma <- function(object, hypothesis,
     target_scale = "original"
   )
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["schema_version"]], 2L)) {
+      !identical(transform[["schema_version"]], 3L)) {
     .stop_refit_required(
       "Formula coefficient transformation metadata are unsupported. Refit ",
       "the model with the current BayesTools version."
@@ -1348,17 +1348,20 @@ hypothesis.brma <- function(object, hypothesis,
   }
   coordinates <- coordinates[rows, , drop = FALSE]
 
-  unique(unlist(lapply(
-    unique(coordinates[["formula_parameter"]]),
+  ordinary <- is.na(coordinates[["formula_parameter"]]) | !nzchar(coordinates[["formula_parameter"]])
+  ordinary_owners <- intersect(coordinates[["monitor_name"]][ordinary], names(attr(object[["fit"]], "prior_list", exact = TRUE)))
+  formula_coordinates <- coordinates[!ordinary, , drop = FALSE]
+  union(ordinary_owners, unique(unlist(lapply(
+    unique(formula_coordinates[["formula_parameter"]]),
     function(formula_parameter) {
       name_map <- .fitted_formula_name_map(object, formula_parameter)
       fixed    <- name_map[name_map[["kind"]] == "fixed", , drop = FALSE]
-      terms    <- coordinates[["term"]][
-        coordinates[["formula_parameter"]] == formula_parameter
+      terms    <- formula_coordinates[["term"]][
+        formula_coordinates[["formula_parameter"]] == formula_parameter
       ]
       fixed[["jags_name"]][fixed[["term"]] %in% terms]
     }
-  ), use.names = FALSE))
+  ), use.names = FALSE)))
 }
 
 
