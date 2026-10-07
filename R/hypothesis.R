@@ -1032,10 +1032,12 @@ hypothesis.brma <- function(object, hypothesis,
   raw_log_BF <- raw_log_BF + ifelse(point_left, point_log_BF, -point_log_BF)
   attr(out, "raw_log_BF") <- raw_log_BF
   attr(out, "raw_BF") <- exp(raw_log_BF)
+  numerical_diagnostics <- attr(point, "numerical_diagnostics", exact = TRUE)[point_index]
+  attr(out, "numerical_diagnostics") <- numerical_diagnostics
   if ("BF" %in% names(out)) {
     out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
       raw_log_BF, logBF = logBF, BF01 = BF01,
-      diagnostics = attr(out, "numerical_diagnostics", exact = TRUE))
+      diagnostics = numerical_diagnostics)
   }
 
   # The warnings and density diagnostics of the point parts, on the rows of
@@ -1104,6 +1106,20 @@ hypothesis.brma <- function(object, hypothesis,
   }
   for (column in intersect(c("prior", "posterior"), names(out))) {
     out[[column]] <- out[[column]] / (2 * sqrt(values))
+  }
+  diagnostics <- attr(out, "numerical_diagnostics", exact = TRUE)
+  if(length(diagnostics) == length(values)){
+    for(i in seq_along(values)){
+      jacobian <- -log(2 * sqrt(values[[i]]))
+      diagnostics[[i]]$log_prior_height <- diagnostics[[i]]$log_prior_height + jacobian
+      diagnostics[[i]]$log_posterior_height <- diagnostics[[i]]$log_posterior_height + jacobian
+      diagnostics[[i]]$log_jacobian <- diagnostics[[i]]$log_jacobian + jacobian
+      diagnostics[[i]]$requested_value <- values[[i]]
+      diagnostics[[i]]$evaluation_scale <- "sd"
+      diagnostics[[i]]$requested_scale <- "variance"
+    }
+    attr(out, "numerical_diagnostics") <- diagnostics
+    if("BF" %in% names(out)) attr(out[["BF"]], "numerical_diagnostics") <- diagnostics
   }
   attr(out, "hypothesis_ast") <- hypothesis
 

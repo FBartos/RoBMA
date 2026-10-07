@@ -59,3 +59,27 @@ test_that("declared numerical measure causes preserve detail through the RoBMA r
   expect_s3_class(condition, "BayesTools_formula_prior_density_unavailable")
   expect_false(inherits(condition, "BayesTools_formula_measure_unavailable"))
 })
+test_that("variance point-region diagnostics align actual repeated point producers", {
+
+  object <- gated_random_object()
+  tau2 <- "`(mu) study: tau2(intercept)`"
+  points <- c(.09, .16, .09)
+  run <- function(statement) hypothesis(object, statement, density_method = "KDE", columns = "all", seed = 1, logBF = TRUE)
+  direct <- run(sprintf("%s = %.17g vs %s != %.17g", tau2, points, tau2, points))
+  expected <- attr(direct, "numerical_diagnostics")
+  for(reverse in c(FALSE, TRUE)){
+    statements <- if(reverse) sprintf("%s > %.17g vs %s = %.17g", tau2, points, tau2, points) else
+      sprintf("%s = %.17g vs %s > %.17g", tau2, points, tau2, points)
+    mixed <- run(statements)
+    expect_identical(attr(mixed, "numerical_diagnostics"), expected)
+    expect_identical(attr(mixed$BF, "numerical_diagnostics"), expected)
+    expect_length(attr(mixed, "prior_numerical_diagnostics"), length(points))
+  }
+  for(i in seq_along(points)){
+    diagnostic <- expected[[i]]
+    expect_equal(diagnostic$log_prior_height, log(direct$prior[i]), tolerance = 1e-12)
+    expect_equal(diagnostic$log_posterior_height, log(direct$posterior[i]), tolerance = 1e-12)
+    expect_identical(diagnostic$requested_value, points[i])
+    expect_equal(diagnostic$evaluation_value, sqrt(points[i]), tolerance = 1e-14)
+  }
+})
