@@ -147,12 +147,13 @@
       block_sei <- predictive[["sei"]][observations]
       streamed_rows <- seq_len(S)
       # Preparation has validated every posterior row and admitted only active
-      # STEP/product selection. The projection consumes these four row fields
-      # and the immutable native specification; full context reconstruction is
-      # needed only by its generic fallback.
-      projection_context <- list(use_normal = FALSE,
-        kernel_mode = SELKERNEL_STEP, vector_rule = 0L,
-        omega = NULL, native_cache = block_context[["native_cache"]])
+      # STEP/product selection. Retain the validated immutable native bounds
+      # and identities used by the public static getter.
+      projection_context <- block_context
+      projection_context[["use_normal"]] <- FALSE
+      projection_context[["kernel_mode"]] <- SELKERNEL_STEP
+      projection_context[["vector_rule"]] <- 0L
+      projection_context[["omega"]] <- NULL
       for (draw in streamed_rows) {
         lower_draw <- lower[draw, ]
         covariance <- matrix(0, k, k)
