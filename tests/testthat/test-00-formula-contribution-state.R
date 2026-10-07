@@ -57,3 +57,39 @@ test_that("formula contribution weights fold constants and refuse stochastic pro
     class = "BayesTools_formula_prior_density_unavailable")
   expect_silent(.brma_formula_measure_check(sample, "atoms"))
 })
+
+test_that("public contribution combinations fold constants once for both ordinate methods", {
+
+  skip_on_cran()
+  data <- data.frame(g = factor(rep(c("A", "B"), 3)),
+    yi = c(-.2, .3, 0, .4, .1, .2), sei = rep(.5, 6))
+  for(multiplier in list(2, 1, "tau")){
+    slope <- BayesTools::prior_factor("normal", list(0, 1), contrast = "treatment")
+    attr(slope, "multiply_by") <- multiplier
+    fit <- expect_warning(brma(yi = yi, sei = sei, mods = ~ g, data = data, measure = "GEN",
+      prior_effect = BayesTools::prior("normal", list(0, 1)), prior_mods = list(g = slope),
+      prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
+      chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE),
+      "Only one chain was run", fixed = TRUE)
+    means <- marginal_means(fit, bf = FALSE)
+    plan <- .hypothesis_plan_marginal_means_build(means, "g[B] - g[A] = 0.1")
+    spec <- plan$targets[[1L]]$spec
+    if(is.numeric(multiplier)){
+      expect_equal(as.numeric(spec$weights), multiplier, tolerance = 1e-14)
+      for(method in c("qCMDE", "IWMDE")){
+        result <- hypothesis(means, "g[B] - g[A] = 0.1", density_method = method, seed = 19, logBF = TRUE)
+        expect_true(is.finite(as.numeric(result$BF)))
+        expect_true(length(attr(result, "raw_log_BF")) == 1L)
+      }
+    }else{
+      expect_identical(spec$type, "unsupported_formula_transform")
+      for(method in c("qCMDE", "IWMDE")){
+        expect_error(hypothesis(means, "g[B] - g[A] = 0.1", density_method = method),
+          class = "RoBMA_density_method_original_scale")
+      }
+      expect_true(is.finite(as.numeric(hypothesis(means,
+        "g[B] - g[A] = 0.1", density_method = "KDE")$BF)))
+    }
+  }
+})
+

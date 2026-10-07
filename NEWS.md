@@ -1,11 +1,12 @@
 ## version 4.1.0 (IN PROGRESS)
+- hypothesis contribution combinations fold constant multipliers once and retain typed qCMDE/IWMDE refusals for stochastic products and dynamic original maps. Log ordinates and aligned BF diagnostics survive transitive/group binding; plain exports omit hidden carriers.
 - formula adapters accept BayesTools coefficient-transform 3 and preserve original fitted multiplier states for original-scale corrections. Unsupported measures remain typed refusals; qCMDE/IWMDE require certified static projections. Prior plots and no-fit carriers supply complete ordinary multiplier priors, while empty scaling intentionally selects fitted coordinates.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.166 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.169 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
-    BayesTools >= 0.3.1.166 is required for fitted declaration ownership and
+    BayesTools >= 0.3.1.169 is required for hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,
     conditional kernels, ordered prior-curve semantics and exact prior-style
     lookup used by this release.
@@ -1191,3 +1192,4 @@ Please notice that this is a major release that breaks backwards compatibility.
 
 ### Notable changes:
 - the way how the seed is set before model fitting (the simulation study will not be reproducible with the new version of the package)
+

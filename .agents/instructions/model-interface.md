@@ -154,3 +154,11 @@ arguments through 4.x. Reserve `type` for output or prediction kind.
 
 If shared implementation, documentation, and tests conflict, repair the
 BayesTools-owned behavior there; avoid downstream compatibility workarounds.
+
+
+Contribution-space hypothesis combination specs fold known constant multipliers
+once into fitted weights; coefficient-space specs retain their existing units.
+Stochastic contribution products and dynamic original combinations retain the
+typed static qCMDE/IWMDE refusal and row reason. Point/transitive/group consumers
+transport producer log ordinates and canonical logs with aligned diagnostics;
+plain exports strip hidden column carriers.

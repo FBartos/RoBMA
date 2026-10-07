@@ -991,20 +991,20 @@ hypothesis.brma <- function(object, hypothesis,
     density_control = density_control,
     columns         = "default"
   )
-  unit_ordinate <- exp(vapply(points, function(value) {
+  unit_log_ordinate <- vapply(points, function(value) {
     BayesTools::prior_density_ordinate(
       plan[["prior_density"]],
       value
     )[["log_density"]]
-  }, numeric(1)))
+  }, numeric(1))
   # The unit part carries the conditioning of the draws, so that BayesTools
   # matches it to conditional (product-space) draws.
   BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- do.call(
-    BayesTools::posterior_ordinate_attribute,
+    utils::getFromNamespace(".posterior_log_ordinate_attribute", "BayesTools"),
     c(
       list(
         value          = points,
-        ordinate       = unit_ordinate,
+        log_ordinate   = unit_log_ordinate,
         method         = "unit point part",
         density_method = density_method,
         diagnostics    = list(BF_error_percent = as.numeric(point[["BF_error"]]))
@@ -1024,15 +1024,18 @@ hypothesis.brma <- function(object, hypothesis,
     density_method = "precomputed"
   )
   point_index <- match(values, points)
-  point_BF    <- attr(point, "raw_BF", exact = TRUE)[point_index]
+  point_log_BF <- attr(point, "raw_log_BF", exact = TRUE)[point_index]
   point_left  <- vapply(hypothesis[["statements"]], function(statement) {
     identical(statement[["left"]][["type"]], "point")
   }, logical(1))
-  raw_BF <- attr(out, "raw_BF", exact = TRUE)
-  raw_BF <- ifelse(point_left, raw_BF * point_BF, raw_BF / point_BF)
-  attr(out, "raw_BF") <- raw_BF
+  raw_log_BF <- attr(out, "raw_log_BF", exact = TRUE)
+  raw_log_BF <- raw_log_BF + ifelse(point_left, point_log_BF, -point_log_BF)
+  attr(out, "raw_log_BF") <- raw_log_BF
+  attr(out, "raw_BF") <- exp(raw_log_BF)
   if ("BF" %in% names(out)) {
-    out[["BF"]] <- BayesTools::format_BF(raw_BF, logBF = logBF, BF01 = BF01)
+    out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
+      raw_log_BF, logBF = logBF, BF01 = BF01,
+      diagnostics = attr(out, "numerical_diagnostics", exact = TRUE))
   }
 
   # The warnings and density diagnostics of the point parts, on the rows of
@@ -1177,6 +1180,16 @@ hypothesis.brma <- function(object, hypothesis,
          call. = FALSE)
   }
 
+  row_log_BF <- unlist(lapply(results, function(result){
+    logs <- attr(result, "raw_log_BF", exact = TRUE)
+    if(is.null(logs)) log(attr(result, "raw_BF", exact = TRUE)) else logs
+  }), use.names = FALSE)
+  row_diagnostics <- lapply(c("numerical_diagnostics", "prior_numerical_diagnostics"), function(attribute){
+    unlist(lapply(results, function(result){
+      diagnostics <- attr(result, attribute, exact = TRUE)
+      if(length(diagnostics) == nrow(result)) diagnostics else rep(list(NULL), nrow(result))
+    }), recursive = FALSE)
+  })
   warnings <- list()
   row_offset <- 0L
   for (i in seq_along(results)) {
@@ -1203,6 +1216,13 @@ hypothesis.brma <- function(object, hypothesis,
 
   out <- out[restore_order, , drop = FALSE]
   attr(out, "raw_BF")         <- raw_BF[restore_order]
+  attr(out, "raw_log_BF") <- row_log_BF[restore_order]
+  attr(out, "numerical_diagnostics") <- row_diagnostics[[1L]][restore_order]
+  attr(out, "prior_numerical_diagnostics") <- row_diagnostics[[2L]][restore_order]
+  out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
+    row_log_BF[restore_order], logBF = attr(results[[1L]]$BF, "logBF"),
+    BF01 = attr(results[[1L]]$BF, "BF01"), bound_operator = bound_operator[restore_order],
+    diagnostics = row_diagnostics[[1L]][restore_order])
   attr(out, "hypothesis_ast") <- hypothesis
   warnings <- .hypothesis_brma_unique_named_warnings(
     unlist(warnings, use.names = TRUE)

@@ -420,6 +420,11 @@ as.data.frame.brma_samples_list <- function(
 
   if (is.data.frame(x)) {
     class(x) <- "data.frame"
+    for(column in names(x)){
+      if(inherits(x[[column]], "BayesTools_BF")){
+        x[[column]] <- utils::getFromNamespace(".BF_carrier_drop", "BayesTools")(x[[column]])
+      }
+    }
     return(x)
   }
 
@@ -509,6 +514,10 @@ as.data.frame.brma_samples_list <- function(
 
 .output_bind_bf_attributes <- function(output, sources, row_counts) {
 
+  # Plain exports retain their visible BF values and existing bound metadata.
+  # A first-row carrier left behind by rbind cannot describe the bound column.
+  for(attribute in c("canonical_log_BF", "producer_values", "carrier_logBF",
+                     "carrier_BF01", "numerical_diagnostics")) attr(output, attribute) <- NULL
   has_bounds <- vapply(sources, function(source) {
     !is.null(attr(source, "bound_operator", exact = TRUE))
   }, logical(1L))
@@ -530,7 +539,7 @@ as.data.frame.brma_samples_list <- function(
     )
   })
   attr(output, "bound_operator") <- unlist(bounds, use.names = FALSE)
-  if (any(is_bf)) {
+  if (any(!is.na(attr(output, "bound_operator", exact = TRUE)))) {
     class(output) <- unique(c("BayesTools_BF", class(output)))
   }
   return(output)

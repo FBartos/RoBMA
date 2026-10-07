@@ -437,6 +437,9 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 # refusal ('condition').
 .marginal_means_row_bf_reason <- function(condition) {
 
+  if (inherits(condition, "BayesTools_hypothesis_numerical_unavailable")) {
+    return(conditionMessage(condition))
+  }
   if (inherits(condition, "BayesTools_posterior_point_mass_at_null")) {
     return(paste0(
       "The marginal mean is structurally fixed at the null hypothesis; ",

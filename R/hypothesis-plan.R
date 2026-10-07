@@ -788,13 +788,9 @@
   if(is.null(unavailable)) return(invisible(TRUE))
   entries <- unavailable[unavailable[["measure"]] == measure, , drop = FALSE]
   if(!nrow(entries)) return(invisible(TRUE))
-  entry <- entries[1L, , drop = FALSE]
-  child <- if(identical(measure, "prior_density")) "BayesTools_formula_prior_density_unavailable" else
-    paste0("BayesTools_formula_", measure, "_unavailable")
-  stop(errorCondition(paste0("Formula ", measure, " for '", entry[["column"]],
-    "' is unavailable: ", entry[["reason"]], "."), call = NULL,
-    class = c(child, "BayesTools_formula_measure_unavailable"),
-    target = entry[["column"]], reason = entry[["reason"]]))
+  utils::getFromNamespace(".bt_formula_measure_check", "BayesTools")(
+    sample, measure, column = entries[["column"]])
+
 }
 
 .brma_linear_weight_space <- function(sample) {
@@ -1323,9 +1319,16 @@
 # A linear target's prior density and its weights on the fitted coordinates
 # from its weights 'weights' on the coefficients of its posterior (original
 # coefficients on the original scale, fitted coordinates otherwise).
-.hypothesis_plan_linear_density <- function(plan, object, weights, density) {
+.hypothesis_plan_linear_density <- function(plan, object, weights, density, sample = NULL) {
 
   weights <- weights[weights != 0]
+  if(!is.null(sample) && identical(.brma_linear_weight_space(sample), "formula_contribution")){
+    folded <- tryCatch(.brma_fitted_linear_weights(sample, weights),
+      RoBMA_density_method_unavailable = function(condition) condition)
+    if(inherits(folded, "condition")) return(list(prior_density = density,
+      weights = numeric(), static = FALSE, reason = conditionMessage(folded)))
+    return(list(prior_density = density, weights = folded, static = TRUE))
+  }
   scale   <- plan[["scale"]]
   if (!isTRUE(scale[["original"]])) {
     return(list(prior_density = density, weights = weights))
@@ -1382,7 +1385,8 @@
     plan    = plan,
     object  = object,
     weights = weights,
-    density = BayesTools::posterior_metadata(sample, "prior_density")
+    density = BayesTools::posterior_metadata(sample, "prior_density"),
+    sample = sample
   )
   target <- .hypothesis_plan_target(
     value         = value,
@@ -1408,6 +1412,17 @@
 # target of BayesTools, which certifies the target's structural atom-freeness
 # and joint prior context (classed refusals otherwise).
 .hypothesis_plan_combination <- function(plan, object) {
+
+  tryCatch(.hypothesis_plan_combination_available(plan, object),
+    BayesTools_formula_measure_unavailable = function(condition){
+      plan$route <- "combination"
+      plan$group <- paste("combination", plan$parameter, sep = "\r")
+      plan$refusal <- .hypothesis_refusal_from_condition(condition)
+      plan
+    })
+}
+
+.hypothesis_plan_combination_available <- function(plan, object) {
 
   plan[["route"]] <- "combination"
   target <- tryCatch(
@@ -1438,7 +1453,8 @@
     plan    = plan,
     object  = object,
     weights = weights,
-    density = BayesTools::posterior_metadata(target[["posterior"]], "prior_density")
+    density = BayesTools::posterior_metadata(target[["posterior"]], "prior_density"),
+    sample = target[["posterior"]]
   )
   BayesTools::posterior_metadata(target[["posterior"]], "prior_density") <-
     density[["prior_density"]]
@@ -1454,9 +1470,10 @@
     allow_compound = TRUE
   )
   spec <- list(
-    type          = "linear",
-    weights       = density[["weights"]],
-    prior_density = density[["prior_density"]]
+    type = if(isFALSE(density$static)) "unsupported_formula_transform" else "linear",
+    weights = density$weights, prior_density = density$prior_density,
+    reason = if(isFALSE(density$static)) if(is.null(density$reason))
+      "qCMDE/IWMDE are unavailable for state-dependent original coefficients. Use density_method = 'KDE'." else density$reason
   )
   plan[["targets"]] <- lapply(seq_len(nrow(refs)), function(i) {
     .hypothesis_plan_target(
@@ -2096,7 +2113,8 @@
 # (.hypothesis_not_found_class()); other classed BayesTools conditions
 # (linear targets BayesTools cannot certify,
 # "BayesTools_linear_target_unavailable", or stale draw metadata) keep their
-# classes; its unclassed errors refuse the form of the statement (e.g. a
+# classes. Declared measure refusals are handled narrowly; metadata and
+# program errors propagate. Its unclassed grammar errors refuse a statement (e.g. a
 # nonlinear expression of the levels), which is restated
 # ("RoBMA_hypothesis_statement").
 .hypothesis_linear_target_condition <- function(condition) {
@@ -2123,6 +2141,17 @@
 
 .hypothesis_plan_marginal_combination <- function(plan) {
 
+  tryCatch(.hypothesis_plan_marginal_combination_available(plan),
+    BayesTools_formula_measure_unavailable = function(condition){
+      plan$route <- "combination"
+      plan$group <- paste("combination", plan$parameter, sep = "\r")
+      plan$refusal <- .hypothesis_refusal_from_condition(condition)
+      plan
+    })
+}
+
+.hypothesis_plan_marginal_combination_available <- function(plan) {
+
   plan[["route"]] <- "combination"
   plan[["group"]] <- paste("combination", plan[["parameter"]], sep = "\r")
   target <- tryCatch(
@@ -2139,6 +2168,11 @@
   }
   weights <- .iwmde_linear_weights(target[["weights"]])
   density <- BayesTools::posterior_metadata(target[["posterior"]], "prior_density")
+  fitted <- tryCatch(.brma_fitted_linear_weights(target$posterior, weights),
+    RoBMA_density_method_unavailable = function(condition) condition)
+  spec <- if(inherits(fitted, "condition")) list(type = "unsupported_formula_transform",
+    weights = numeric(), prior_density = density, reason = conditionMessage(fitted)) else
+    list(type = "linear", weights = fitted, prior_density = density)
   plan[["linear_target"]] <- target
   plan[["group"]] <- paste(
     "combination", plan[["parameter"]],
@@ -2155,11 +2189,7 @@
       label         = .hypothesis_plan_side_label(plan, refs[["side"]][[i]]),
       prior_density = density,
       atoms         = BayesTools::posterior_metadata(target[["posterior"]], "atoms"),
-      spec          = list(
-        type          = "linear",
-        weights       = weights,
-        prior_density = density
-      )
+      spec          = spec
     )
   })
 
