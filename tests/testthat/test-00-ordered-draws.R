@@ -26,12 +26,18 @@ context("Ordered fitted-source draw exports")
   })
   fit <- structure(list(mcmc = coda::mcmc.list(chains), sample = 12L),
     class = c("runjags", "BayesTools_fit", "list"))
+  # Promote this declared compiler recipe to the fitted owner, as the current
+  # source-complete test builders do; no primitive declaration is reconstructed.
+  design <- compiled[["formula_design"]]
+  scale <- BayesTools:::.bt_formula_scale_finalize(design$formula_scale, design,
+    prior_list = compiled[["prior_list"]], owner_scope = "fit")
+  design <- BayesTools:::.bt_formula_point_finalize(design,
+    compiled[["prior_list"]], design$source_data, parameter_names = colnames(values))
+  design$formula_scale <- scale
   attr(fit, "prior_list") <- compiled[["prior_list"]]
-  attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
-  attr(fit, "parameter_map") <- BayesTools:::.bt_build_parameter_map(
-    columns = colnames(values), prior_list = compiled[["prior_list"]],
-    formula_design = list(mu = compiled[["formula_design"]])
-  )
+  attr(fit, "formula_design") <- list(mu = design)
+  attr(fit, "formula_scale") <- list(mu = scale)
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
   fit <- BayesTools:::.bt_attach_draw_geometry(fit)
   fit <- BayesTools:::.bt_attach_fit_contract(fit)
   structure(list(fit = fit), class = "brma")
