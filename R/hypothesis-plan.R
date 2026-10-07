@@ -845,6 +845,18 @@
 
 .hypothesis_plan_scalar <- function(plan, object, cache) {
 
+  plan[["kind"]] <- "scalar"
+  plan[["route"]] <- "scalar"
+  plan[["group"]] <- paste("scalar", plan[["parameter"]], sep = "\r")
+  tryCatch(.hypothesis_plan_scalar_available(plan, object, cache),
+    BayesTools_formula_measure_unavailable = function(condition){
+      plan[["refusal"]] <- .hypothesis_refusal_from_condition(condition)
+      plan
+    })
+}
+
+.hypothesis_plan_scalar_available <- function(plan, object, cache) {
+
   entry <- plan[["selected"]][["entry"]]
   plan[["kind"]]  <- "scalar"
   plan[["route"]] <- "scalar"
@@ -982,6 +994,18 @@
 # unconditional target, with the prior density of the fitted coefficient
 # transform.
 .hypothesis_plan_exp_affine <- function(plan, object, route, cache) {
+
+  plan[["kind"]] <- "exp_affine"
+  plan[["route"]] <- "scalar"
+  plan[["group"]] <- paste("scalar", plan[["parameter"]], sep = "\r")
+  tryCatch(.hypothesis_plan_exp_affine_available(plan, object, route, cache),
+    BayesTools_formula_measure_unavailable = function(condition){
+      plan[["refusal"]] <- .hypothesis_refusal_from_condition(condition)
+      plan
+    })
+}
+
+.hypothesis_plan_exp_affine_available <- function(plan, object, route, cache) {
 
   plan[["kind"]]  <- "exp_affine"
   plan[["route"]] <- "scalar"

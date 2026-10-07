@@ -93,3 +93,49 @@ test_that("public contribution combinations fold constants once for both ordinat
   }
 })
 
+test_that("scalar discovery retains declared refusal rows and usable sibling quantities", {
+
+  skip_on_cran()
+  slope <- BayesTools::prior("normal", list(0, 1))
+  attr(slope, "multiply_by") <- "tau"
+  data <- data.frame(x = c(10, 20, 30), y = c(0, 1, 2), yi = c(.1, .2, .3), sei = .5)
+  object <- expect_warning(brma(yi = yi, sei = sei, mods = ~ x * y, data = data, measure = "GEN",
+    prior_effect = BayesTools::prior("normal", list(0, 1)),
+    prior_mods = list(x = slope, y = BayesTools::prior("normal", list(0, 1)), `x:y` = BayesTools::prior("normal", list(0, 1))),
+    prior_heterogeneity = BayesTools::prior("normal", list(0, 1), list(lower = 0)),
+    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE),
+    "Only one chain was run", fixed = TRUE)
+  transform <- BayesTools::JAGS_formula_coefficient_transform(object$fit, "mu")
+  expect_identical(transform$prior_recipes$mu_x$reason, "state_dependent_map")
+  values <- BayesTools::transform_scale_samples(object$fit)
+  expect_true(all(is.finite(values[, "mu_x"])))
+  quantities <- hypothesis_quantities(object)
+  refused <- quantities[quantities$parameter == "mu_x", ]
+  expect_true(nrow(refused) > 0L)
+  expect_false(any(refused$point_test | refused$direction_test))
+  expect_true(all(nzchar(refused$reason)))
+  sibling <- quantities[quantities$parameter == "tau", ]
+  expect_true(any(sibling$direction_test))
+  expect_error(hypothesis(object, "mu_x = 0", density_method = "KDE"), class = "BayesTools_formula_measure_unavailable")
+})
+
+test_that("scalar and exp-affine plans catch only declared measure refusal conditions", {
+
+  condition <- tryCatch(BayesTools:::.bt_formula_density_stop("Declared law unavailable.", reason = "numerical_scale_unavailable"), error = identity)
+  plan <- list(parameter = "mu_x", selected = list(entry = list()), standardized = FALSE)
+  for(exp in c(FALSE, TRUE)){
+    testthat::with_mocked_bindings({
+      result <- if(exp) .hypothesis_plan_exp_affine(plan, list(), list(), list()) else .hypothesis_plan_scalar(plan, list(), list())
+      expect_identical(result$refusal, .hypothesis_refusal_from_condition(condition))
+      expect_identical(result$kind, if(exp) "exp_affine" else "scalar")
+    }, .hypothesis_plan_scalar_available = function(...) stop(condition),
+       .hypothesis_plan_exp_affine_available = function(...) stop(condition))
+    for(class in c("BayesTools_refit_required", "BayesTools_formula_transform_unavailable", "simpleError")){
+      error <- structure(list(message = "Strict owner or programming failure.", call = NULL), class = c(class, "error", "condition"))
+      testthat::with_mocked_bindings({
+        expect_error(if(exp) .hypothesis_plan_exp_affine(plan, list(), list(), list()) else .hypothesis_plan_scalar(plan, list(), list()), class = class)
+      }, .hypothesis_plan_scalar_available = function(...) stop(error),
+         .hypothesis_plan_exp_affine_available = function(...) stop(error))
+    }
+  }
+})
