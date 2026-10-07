@@ -41,6 +41,10 @@ For an ordered factor cell, retain the semantic marginal selected by its exact
 catalog extraction weights, including its prior and aligned draw metadata.
 Displayed contrast columns alone are not primitive ordered source draws; do not
 re-evaluate that marginal through `parameter_draws()` on those columns.
+At an actual scalar backend-source to display-target mapping, label a stored
+qCMDE/IWMDE curve with the declared BayesTools plotted leaf and retain its source
+parameter as provenance. Explicit precomputed plots require a matching selected
+continuous curve; unavailable or wrong-target metadata cannot select KDE.
 
 Ordered qCMDE/IWMDE inference uses the public primitive projection and source
 recipes. Both requested methods normalize the same complete conditional source

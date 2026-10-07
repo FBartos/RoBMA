@@ -617,6 +617,10 @@ lines.brma <- function(
       )
     }
     if (!is.null(posterior_density)) {
+      # The estimate retains its backend target in provenance, while matching
+      # the actual BayesTools plotted semantic leaf at this boundary.
+      posterior_density[["source_parameter"]] <- posterior_density[["parameter"]]
+      posterior_density[["parameter"]] <- sample_parameter
       samples[[sample_parameter]] <- .iwmde_attach_posterior_density(
         samples[[sample_parameter]],
         posterior_density,
