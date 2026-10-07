@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- posterior value wrappers preserve BayesTools declared unavailable-measure diagnostics, including aligned model/log probability payloads, through replacement draws and hypothesis refusal conversion.
+- formula coordinate readers accept validated model and conditional context schema 2, while primitive context schema 1 and coefficient transformation descriptor schema 3 retain their separate requirements.
 - variance point-region results retain actual aligned point numerical diagnostics in variance units, including repeated points and reversed statements.
 - scalar and exponentiated-affine discovery plans retain declared unavailable-law reasons and usable siblings; requested hypotheses and missing-owner or programming failures remain strict.
 - selected and prior-only formula draw carriers retain complete prior declarations; numeric point helpers require finite scalar numeric locations and use BayesTools' owned formula replay.
@@ -7,7 +9,7 @@
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.171 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.172 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
     BayesTools >= 0.3.1.171 is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,

@@ -20,6 +20,9 @@ older formats. Select active targets/recipes before finite C access. Dynamic
 numeric targets use original fitted state; prior laws use public BayesTools APIs.
 Static qCMDE/IWMDE refuse state-dependent raw maps or stochastic formula products.
 Declared measure_unavailable entries use BayesTools_formula_measure_unavailable;
+Their optional structured model/log diagnostics survive replacement draw
+wrappers and hypothesis refusal conversion. Malformed metadata remains strict;
+RoBMA's empirical product-space model summaries retain their natural zero meaning.
 metadata/program/numeric failures propagate. linear_weight_space distinguishes
 coefficient recipes from fitted formula_contribution rows. Constant products fold
 once into raw fitted weights; contribution weights never pass through C/A again.
@@ -167,6 +170,8 @@ Stochastic contribution products and dynamic original combinations retain the
 typed static qCMDE/IWMDE refusal and row reason. Point/transitive/group consumers
 transport producer log ordinates and canonical logs with aligned diagnostics;
 plain exports strip hidden column carriers.
+Model and conditional prior contexts use schema 2 with validated model log owners;
+primitive contexts use schema 1. Coefficient transformation descriptors remain schema 3.
 Variance point numerical diagnostics retain SD evaluation provenance and apply
 the common Jacobian to requested variance log heights. Point-region results
 reuse the actual point producer's diagnostics in statement order. Scalar and

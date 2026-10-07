@@ -802,7 +802,9 @@
      !space %in% c("coefficient", "formula_contribution")) .stop_refit_required(
     "Stored linear weights have no supported coordinate space. Recreate the posterior with the current RoBMA/BayesTools build.")
   context <- BayesTools::posterior_metadata(sample, "prior_context")
-  if(length(context[["transforms"]]) && (!identical(context[["schema_version"]], 1L) ||
+  context_schema <- if(inherits(context, "prior_density_model_mixture_context") ||
+    inherits(context, "prior_density_conditional_context")) 2L else 1L
+  if(length(context[["transforms"]]) && (!identical(context[["schema_version"]], context_schema) ||
      any(vapply(context[["transforms"]], function(transform){
        !identical(transform[["descriptor"]][["schema_version"]], 3L)
      }, logical(1))))) .stop_refit_required(

@@ -925,7 +925,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
 
   fields <- c(
     "support", "atoms", "undefined_draws", "prior_density", "prior_densities",
-    "prior_context", "condition", "linear_weights", "quantities"
+    "prior_context", "condition", "linear_weights", "quantities", "measure_unavailable"
   )
   metadata <- stats::setNames(lapply(fields, function(field) {
     BayesTools::posterior_metadata(draws, field)
