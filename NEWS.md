@@ -1,13 +1,15 @@
 ## version 4.1.0 (IN PROGRESS)
+- variance point-region results retain actual aligned point numerical diagnostics in variance units, including repeated points and reversed statements.
+- scalar and exponentiated-affine discovery plans retain declared unavailable-law reasons and usable siblings; requested hypotheses and missing-owner or programming failures remain strict.
 - selected and prior-only formula draw carriers retain complete prior declarations; numeric point helpers require finite scalar numeric locations and use BayesTools' owned formula replay.
 - hypothesis contribution combinations fold constant multipliers once and retain typed qCMDE/IWMDE refusals for stochastic products and dynamic original maps. Log ordinates and aligned BF diagnostics survive transitive/group binding; plain exports omit hidden carriers.
 - formula adapters accept BayesTools coefficient-transform 3 and preserve original fitted multiplier states for original-scale corrections. Unsupported measures remain typed refusals; qCMDE/IWMDE require certified static projections. Prior plots and no-fit carriers supply complete ordinary multiplier priors, while empty scaling intentionally selects fitted coordinates.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.170 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.171 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
-    BayesTools >= 0.3.1.170 is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
+    BayesTools >= 0.3.1.171 is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,
     conditional kernels, ordered prior-curve semantics and exact prior-style
     lookup used by this release.

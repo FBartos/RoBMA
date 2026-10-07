@@ -167,3 +167,8 @@ Stochastic contribution products and dynamic original combinations retain the
 typed static qCMDE/IWMDE refusal and row reason. Point/transitive/group consumers
 transport producer log ordinates and canonical logs with aligned diagnostics;
 plain exports strip hidden column carriers.
+Variance point numerical diagnostics retain SD evaluation provenance and apply
+the common Jacobian to requested variance log heights. Point-region results
+reuse the actual point producer's diagnostics in statement order. Scalar and
+exp-affine discovery catches only declared formula-measure refusals; requested
+hypotheses, missing owners, refit conditions and programming errors stay strict.
