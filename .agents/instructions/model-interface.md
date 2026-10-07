@@ -5,6 +5,11 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Selected and prior-only formula draw carriers retain the actual full prior
+declarations with the BayesTools design and scaling. Numeric point readers
+require a finite numeric scalar; expression points use BayesTools' owned
+monitor/replay route and do not become numeric constants by their wrapper.
+
 BayesTools owns formula semantics and compiled metadata. When its source is
 available, consult its `jags-formula.md` guide for the detailed shared contract.
 RoBMA consumes the resolved column counts, bases, levels, covariance ownership,

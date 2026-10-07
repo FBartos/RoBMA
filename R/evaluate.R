@@ -57,7 +57,7 @@
   }
 
   value <- prior[["parameters"]][["location"]]
-  if (length(value) == 1L && is.finite(value)) {
+  if (is.numeric(value) && is.null(dim(value)) && length(value) == 1L && is.finite(value)) {
     return(as.numeric(value))
   }
 
@@ -366,6 +366,7 @@
 
   attr(formula_fit, "formula_scale")  <- attr(fit, "formula_scale")
   attr(formula_fit, "formula_design") <- attr(fit, "formula_design")
+  attr(formula_fit, "prior_list")     <- attr(fit, "prior_list")
 
   return(formula_fit)
 }

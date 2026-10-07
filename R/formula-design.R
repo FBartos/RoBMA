@@ -321,6 +321,7 @@
     list(),
     formula_design = attr(draws, "formula_design", exact = TRUE),
     formula_scale  = attr(draws, "formula_scale", exact = TRUE),
+    prior_list     = attr(draws, "prior_list", exact = TRUE),
     class          = "brma_formula_designs"
   ))
 }
