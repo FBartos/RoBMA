@@ -515,16 +515,31 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     fit_formula_args[["formula_list"]][["mu"]]
   )
 
-  fixed_design <- BayesTools::JAGS_formula(
+  fixed_formula_output <- BayesTools::JAGS_formula(
     formula       = fixed_formula,
     parameter     = "mu",
     data          = fit_formula_args[["formula_data_list"]][["mu"]],
     prior_list    = fit_formula_args[["formula_prior_list"]][["mu"]],
     formula_scale = fit_formula_args[["formula_scale_list"]][["mu"]]
-  )[["formula_design"]]
+  )
+  fixed_priors <- c(fixed_formula_output[["prior_list"]], fit_priors)
+  model_data <- .create_fit_data(data = object[["data"]], priors = object[["priors"]])
+  fixed_design <- BayesTools:::.bt_formula_point_finalize(
+    fixed_formula_output[["formula_design"]], fixed_priors,
+    fit_formula_args[["formula_data_list"]][["mu"]], model_data,
+    parameter_names = BayesTools::JAGS_parameter_names(fit)
+  )
+  fixed_scale <- BayesTools:::.bt_formula_scale_finalize(
+    fixed_formula_output[["formula_scale"]], fixed_design,
+    prior_list = fixed_priors, model_data = model_data, owner_scope = "fit"
+  )
+  fixed_design[["formula_scale"]] <- fixed_scale
 
   formula_design[["mu"]] <- fixed_design
   attr(fit, "formula_design") <- formula_design
+  formula_scale <- attr(fit, "formula_scale", exact = TRUE)
+  formula_scale[["mu"]] <- fixed_scale
+  attr(fit, "formula_scale") <- formula_scale
 
   return(list(
     fit               = fit,
