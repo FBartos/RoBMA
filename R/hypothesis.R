@@ -814,7 +814,8 @@ hypothesis.brma <- function(object, hypothesis,
                                             BF01, seed, density_method,
                                             density_control, columns) {
 
-  plan      <- plans[[1L]]
+  point_plans <- plans[vapply(plans, `[[`, logical(1), "point")]
+  plan      <- if(length(point_plans)) point_plans[[1L]] else plans[[1L]]
   parameter <- plan[["parameter"]]
   samples   <- plan[["draws"]][["samples"]]
   selected  <- plan[["random"]]
