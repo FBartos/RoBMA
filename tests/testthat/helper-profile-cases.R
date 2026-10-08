@@ -159,8 +159,10 @@ standard_required_tests <- function() {
 
   rbind(
     .hypothesis_plan_required_tests(),
-    .required_tests("test-00-marginal-means-inference.R",
-      "declared unavailable marginal measures retain valid sibling BFs and late KDE requests"),
+    .required_tests("test-00-marginal-means-inference.R", c(
+      "marginal_means() reports rows with a zero prior ordinate at the null as NA",
+      "declared unavailable marginal measures retain valid sibling BFs and late KDE requests"
+    )),
     .required_tests("test-00-selection-kernel-step.R", c(
       "step selected-normal kernel matches an independent p-bin reference",
       "step normalizers retain central and extreme one-sided tails",

@@ -468,7 +468,9 @@ test_that("fit catalog is internally consistent", {
     "hypothesis_plan_model_averaged",
     "hypothesis_plan_robma_mixture",
     "hypothesis_plan_two_scale",
-    "hypothesis_plan_meandif_mt"
+    "hypothesis_plan_meandif_mt",
+    "marginal_means_expression",
+    "marginal_means_zero_ordinate"
   )
   expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
                info = "selected brma.mv cache fixtures omit pre-computed LOO")
@@ -498,7 +500,9 @@ test_that("fit catalog is internally consistent", {
     "hypothesis_plan_ordered_4",
     "hypothesis_plan_scaled_interaction",
     "hypothesis_plan_location_scale",
-    "hypothesis_plan_meandif_mt"
+    "hypothesis_plan_meandif_mt",
+    "marginal_means_expression",
+    "marginal_means_zero_ordinate"
   )
   expect_true(all(!catalog[catalog[["name"]] %in% no_marglik_single_fits, "has_marglik"]))
   expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv", "brma.mv") &
@@ -529,6 +533,8 @@ test_that("fit catalog is internally consistent", {
       "hypothesis_plan_robma_mixture",
       "hypothesis_plan_two_scale",
       "hypothesis_plan_meandif_mt",
+      "marginal_means_expression",
+      "marginal_means_zero_ordinate",
       "bcg_meta-analysis",
       "bcg_meta-regression",
       "bcg_meta-regression2",

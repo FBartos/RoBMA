@@ -739,6 +739,11 @@ fit_catalog <- function() {
   expression_catalog$name <- "marginal_means_expression"
   expression_catalog$features <- I(list(c("normal", "factor_mods", "ordered", "expression_total", "marginal_means")))
   catalog <- rbind(catalog, expression_catalog)
+  zero_ordinate_catalog <- hypothesis_plan_catalog[1L, , drop = FALSE]
+  zero_ordinate_catalog$name <- "marginal_means_zero_ordinate"
+  zero_ordinate_catalog$source_file <- "test-01-marginal-means-zero-ordinate.R"
+  zero_ordinate_catalog$features <- I(list(c("normal", "continuous_mods", "truncated_effect", "marginal_means")))
+  catalog <- rbind(catalog, zero_ordinate_catalog)
 
   return(catalog)
 }
