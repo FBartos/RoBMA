@@ -19,6 +19,30 @@ source(testthat::test_path("common-functions.R"))
   return(fits)
 }
 
+test_that("repeated expanded factor hypotheses retain original statement positions", {
+  skip_on_cran()
+  fit <- .plan_fits()[["meandif"]]
+  original <- serialize(fit, NULL, version = 2)
+  call <- function(statements) hypothesis(fit, statements, density_method = "KDE",
+    columns = "all", seed = 1, standardized_coefficients = TRUE)
+  first <- call("g1 > 0")
+  middle <- call("mu > 0")
+  combined <- call(c("g1 > 0", "mu > 0", "g1 > 0"))
+  repeated <- call(c("g1 > 0", "g1 > 0"))
+  expect_identical(rownames(combined), c(paste0(rownames(first), " (1)"),
+    rownames(middle), paste0(rownames(first), " (3)")))
+  expect_identical(rownames(repeated), c(paste0(rownames(first), " (1)"), paste0(rownames(first), " (2)")))
+  for(attribute in c("raw_BF", "raw_log_BF", "numerical_diagnostics", "prior_numerical_diagnostics")){
+    expected <- c(attr(first, attribute, exact = TRUE), attr(middle, attribute, exact = TRUE),
+      attr(first, attribute, exact = TRUE))
+    expect_identical(attr(combined, attribute, exact = TRUE), expected)
+    expect_identical(attr(repeated, attribute, exact = TRUE), rep(attr(first, attribute, exact = TRUE), 2L))
+  }
+  expect_identical(as.numeric(combined$BF), c(as.numeric(first$BF), as.numeric(middle$BF), as.numeric(first$BF)))
+  expect_identical(attr(combined$BF, "canonical_log_BF"), attr(combined, "raw_log_BF"))
+  expect_identical(serialize(fit, NULL, version = 2), original)
+})
+
 
 # hypothesis_quantities() of a plan fit, computed once per file: the matrix
 # test below stores the tables it checks, and later tests reuse them.

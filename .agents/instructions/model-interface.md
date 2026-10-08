@@ -5,6 +5,10 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Expanded hypothesis results retain positional statement identity in the
+producer's uniform statement-major quantity loop. Identical statement text
+does not merge repeated statement numbers or row-owned diagnostics.
+
 Selected and prior-only formula draw carriers retain the actual full prior
 declarations with the BayesTools design and scaling. Numeric point readers
 require a finite numeric scalar; expression points use BayesTools' owned

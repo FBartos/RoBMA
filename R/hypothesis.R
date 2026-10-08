@@ -1434,18 +1434,6 @@ hypothesis.brma <- function(object, hypothesis,
          call. = FALSE)
   }
 
-  transformed_left  <- vapply(
-    transformed_statements,
-    result_label,
-    side_name = "left",
-    character(1)
-  )
-  transformed_right <- vapply(
-    transformed_statements,
-    result_label,
-    side_name = "right",
-    character(1)
-  )
   display_left       <- vapply(
     statements,
     result_label,
@@ -1458,25 +1446,15 @@ hypothesis.brma <- function(object, hypothesis,
     side_name = "right",
     character(1)
   )
-  if (nrow(out) == length(statements)) {
-    statement_i <- seq_along(statements)
-  } else if (length(statements) == 1L) {
-    statement_i <- rep(1L, nrow(out))
-  } else if (all(c("Alternative", "Null") %in% names(out))) {
-    transformed_key <- paste(transformed_left, transformed_right, sep = "\r")
-    output_key      <- paste(out[["Alternative"]], out[["Null"]], sep = "\r")
-    statement_i     <- match(output_key, transformed_key)
-  } else if ("Alternative" %in% names(out)) {
-    statement_i <- match(out[["Alternative"]], transformed_left)
-  } else if ("Null" %in% names(out)) {
-    statement_i <- match(out[["Null"]], transformed_right)
-  } else {
-    statement_i <- rep(NA_integer_, nrow(out))
-  }
-  if (anyNA(statement_i)) {
+  quantities_per_statement <- nrow(out) / length(statements)
+  if (!is.finite(quantities_per_statement) || quantities_per_statement < 1L ||
+      quantities_per_statement != floor(quantities_per_statement)) {
     stop("Internal error: transformed hypothesis result rows are misaligned.",
          call. = FALSE)
   }
+  # BayesTools expands one common quantity list in statement-major order.
+  # Equal statement text still denotes separate original statement positions.
+  statement_i <- rep(seq_along(statements), each = quantities_per_statement)
   if ("Alternative" %in% names(out)) {
     out[["Alternative"]] <- display_left[statement_i]
   }
