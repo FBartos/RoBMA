@@ -988,6 +988,7 @@ lines.brma <- function(
   if (!is.numeric(weights) || !length(weights) || any(!is.finite(weights)) || any(weights != 0)) return(FALSE)
   atoms <- BayesTools::posterior_metadata(samples, "atoms")
   inherits(atoms, "BayesTools_posterior_atoms") && isTRUE(atoms[["declared"]]) &&
+    !isFALSE(atoms[["joint_declared"]]) &&
     length(atoms[["mass"]]) > 0L && sum(atoms[["mass"]]) == 1 &&
     length(atoms[["locations"]]) > 0L && all(atoms[["locations"]] == 0)
 }

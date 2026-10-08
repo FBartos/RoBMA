@@ -2020,7 +2020,7 @@
 
   atoms <- BayesTools::posterior_metadata(sample, "atoms")
   mass  <- atoms[["mass"]]
-  isTRUE(atoms[["declared"]]) && length(mass) > 0L &&
+  isTRUE(atoms[["declared"]]) && !isFALSE(atoms[["joint_declared"]]) && length(mass) > 0L &&
     abs(sum(mass) - 1) <= sqrt(.Machine[["double.eps"]])
 }
 
