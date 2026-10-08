@@ -444,7 +444,7 @@
       .selection_retains_sampling(data) || .selection_retains_any_random(data)) return(NULL)
   design <- BayesTools::JAGS_formula_design(context[["object"]][["fit"]], parameter = "mu")
   if (!is.matrix(design[["model_matrix"]]) || nrow(design[["model_matrix"]]) != K ||
-      !is.null(design[["formula_scale"]]) || length(design[["transformed_terms"]]) ||
+      length(design[["formula_scale"]]) > 0L || length(design[["transformed_terms"]]) ||
       length(design[["expression_specs"]]) || length(design[["expression_data"]]) ||
       length(design[["random_effects"]]) || length(design[["random_allocations"]])) return(NULL)
   selection_spec <- .selection_spec(state[["active_setup"]][["priors"]], data[["outcome"]][["yi"]],

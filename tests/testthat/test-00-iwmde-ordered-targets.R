@@ -56,7 +56,13 @@ context("Ordered primitive conditional density targets")
   fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(draws)), sample = 40L),
     class = c("runjags", "BayesTools_fit", "list"))
   attr(fit, "prior_list") <- compiled[["prior_list"]]
+  compiled[["formula_design"]] <- BayesTools:::.bt_formula_point_finalize(
+    compiled[["formula_design"]], compiled[["prior_list"]], data, parameter_names = colnames(draws))
+  compiled[["formula_scale"]] <- BayesTools:::.bt_formula_scale_finalize(
+    compiled[["formula_scale"]], compiled[["formula_design"]], compiled[["prior_list"]], owner_scope = "fit")
+  compiled[["formula_design"]][["formula_scale"]] <- compiled[["formula_scale"]]
   attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
+  attr(fit, "formula_scale") <- list(mu = compiled[["formula_scale"]])
   attr(fit, "parameter_map") <- BayesTools:::.bt_build_parameter_map(colnames(draws),
     prior_list = compiled[["prior_list"]], formula_design = list(mu = compiled[["formula_design"]]))
   fit <- BayesTools:::.bt_attach_fit_contract(BayesTools:::.bt_attach_draw_geometry(fit))
@@ -743,9 +749,17 @@ test_that("exact ordered selection grouping preserves powers and the complete li
   state <- list(active_setup = list(is_weightfunction = TRUE, priors = object[["priors"]]))
   target <- list(ordered_specs = BayesTools::JAGS_ordered_parameter_spec(fixture[["fit"]]))
   partition <- .iwmde_ordered_selection_partition(context, target, state)
+  expect_identical(length(BayesTools::JAGS_formula_design(fixture[["fit"]], parameter = "mu")[["formula_scale"]]), 0L)
+  expect_true(isTRUE(attr(BayesTools::JAGS_formula_design(fixture[["fit"]], parameter = "mu")[["formula_scale"]],
+    "unscale_design")[["complete"]]))
   expect_identical(partition[["representatives"]], 1:4)
   expect_identical(partition[["group_index"]], rep(1:4, 10L))
   expect_identical(partition[["multiplicity"]], rep(10L, 4L))
+  scaled <- context
+  scaled_design <- attr(scaled[["object"]][["fit"]], "formula_design")
+  scaled_design$mu$formula_scale[["mu_x"]] <- list(mean = 0, sd = 1)
+  attr(scaled[["object"]][["fit"]], "formula_design") <- scaled_design
+  expect_null(.iwmde_ordered_selection_partition(scaled, target, state))
   selection_context <- partition[["selection_spec"]]
   selection_context[["omega"]] <- matrix(.selection_fixed_omega_branch(prior_bias, selection_context[["p_cuts"]]), 1L)
   selection_context[["alpha"]] <- 0
@@ -1141,9 +1155,10 @@ test_that("ordered partial uncertainty survives result assembly and public consu
     finite_row <- ordinary_rows[2L, , drop = FALSE]
     expect_true(all(is.finite(c(finite_row[["ordinate"]], finite_row[["relative_mcse"]], finite_row[["ess"]]))))
     make_bf <- function(label, diagnostics) {
-      out <- data.frame(BF = 1.125, row.names = label)
+      out <- data.frame(BF = BayesTools::format_BF(1.125, logBF = FALSE, BF01 = FALSE), row.names = label)
       class(out) <- c("BayesTools_hypothesis_BF", "BayesTools_table", "data.frame")
       attr(out, "raw_BF") <- 1.125
+      attr(out, "raw_log_BF") <- log(1.125)
       attr(out, "hypothesis_ast") <- structure(list(statements = list(list())), class = "BayesTools_hypothesis_ast")
       attr(out, "density_diagnostics") <- diagnostics
       out
