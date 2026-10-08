@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- hypothesis groups retain every expanded factor row, select their point metadata and density method locally, and preserve declared OR conditions through scalar attachment. Stochastic contribution measures are refused during method planning, while fixed whole-term marginal cells retain their structural refusal.
+- ordered total inclusion participates in marginal conditioning. Single-model default density curves request averaged targets; conditional point ordinates retain their existing behavior. Direct atom predicates respect explicit joint-law availability.
 - fixed-zero random-effect marginal likelihoods finalize the locally rebuilt fixed formula declarations and scale while retaining the original sampler coordinates.
 - scalar PET and PEESE plots attach qCMDE/IWMDE densities and atoms to their declared scalar view. Streamed zplot projections retain validated native static bounds; exact ordered selection partitions admit finalized empty scaling metadata.
 - posterior value wrappers preserve BayesTools declared unavailable-measure diagnostics, including aligned model/log probability payloads, through replacement draws and hypothesis refusal conversion.
