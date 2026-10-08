@@ -104,6 +104,12 @@ test_that("ordered global totals participate in marginal inclusion conditioning"
   expect_lt(length(conditional), length(means$inference$averaged$mu_g1[[3L]]))
 })
 
+test_that("single-model default curves request only averaged targets", {
+  expect_identical(.marginal_means_precompute_type(NULL, FALSE), "averaged")
+  expect_identical(.marginal_means_precompute_type(NULL, TRUE), c("averaged", "conditional"))
+  expect_error(.marginal_means_precompute_type("conditional", FALSE))
+})
+
 test_that("declared stochastic contribution refusals are planned for levels and combinations", {
   skip_on_cran()
   data <- data.frame(g = factor(rep(c("A", "B"), 3L)), yi = c(-.2, .3, 0, .4, .1, .2), sei = rep(.5, 6L))

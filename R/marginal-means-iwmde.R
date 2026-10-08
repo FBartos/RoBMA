@@ -5,7 +5,7 @@
 .marginal_means_precompute_type <- function(type, model_averaged) {
 
   if (is.null(type)) {
-    return(c("averaged", "conditional"))
+    return(if(isTRUE(model_averaged)) c("averaged", "conditional") else "averaged")
   }
 
   BayesTools::check_char(type, "type", check_length = 0, allow_NA = FALSE)
