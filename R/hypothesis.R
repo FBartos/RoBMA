@@ -1166,8 +1166,10 @@ hypothesis.brma <- function(object, hypothesis,
     statements <- .hypothesis_brma_result_statements(result)
     if (is.null(statements)) -1L else length(statements)
   }, integer(1))
+  quantities_per_statement <- result_sizes / group_sizes
   if (!all(valid_results) ||
-      !identical(group_sizes, result_sizes) ||
+      any(group_sizes <= 0L) || any(!is.finite(quantities_per_statement)) ||
+      any(quantities_per_statement < 1L | quantities_per_statement != floor(quantities_per_statement)) ||
       !identical(group_sizes, result_statement_sizes) ||
       sum(group_sizes) != n_statements || !all(same_columns)) {
     stop("Internal error: hypothesis parameter-group results are misaligned.",
@@ -1175,7 +1177,9 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   out <- do.call(rbind, results)
-  concatenated_rows <- unlist(groups, use.names = FALSE)
+  concatenated_rows <- unlist(Map(function(group, count) rep(group, each = count),
+    groups, quantities_per_statement), use.names = FALSE)
+  n_rows <- sum(result_sizes)
   restore_order     <- order(concatenated_rows)
   # Row names as in BayesTools::hypothesis_BF(): rows of several statements on
   # one quantity carry their statement number in the full hypothesis, not the
@@ -1191,7 +1195,7 @@ hypothesis.brma <- function(object, hypothesis,
   raw_BF <- unlist(lapply(results, function(result) {
     attr(result, "raw_BF", exact = TRUE)
   }), use.names = FALSE)
-  if (length(raw_BF) != n_statements) {
+  if (length(raw_BF) != n_rows) {
     stop("Internal error: hypothesis parameter-group metadata are misaligned.",
          call. = FALSE)
   }
@@ -1229,6 +1233,9 @@ hypothesis.brma <- function(object, hypothesis,
     }
     rep_len(as.character(operator), nrow(result))
   }), use.names = FALSE)
+  source_bound_operator <- if(isTRUE(attr(results[[1L]]$BF, "BF01"))){
+    utils::getFromNamespace(".invert_BF_bound_operator", "BayesTools")(bound_operator)
+  }else bound_operator
 
   out <- out[restore_order, , drop = FALSE]
   attr(out, "raw_BF")         <- raw_BF[restore_order]
@@ -1237,7 +1244,7 @@ hypothesis.brma <- function(object, hypothesis,
   attr(out, "prior_numerical_diagnostics") <- row_diagnostics[[2L]][restore_order]
   out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
     row_log_BF[restore_order], logBF = attr(results[[1L]]$BF, "logBF"),
-    BF01 = attr(results[[1L]]$BF, "BF01"), bound_operator = bound_operator[restore_order],
+    BF01 = attr(results[[1L]]$BF, "BF01"), bound_operator = source_bound_operator[restore_order],
     diagnostics = row_diagnostics[[1L]][restore_order])
   attr(out, "hypothesis_ast") <- hypothesis
   warnings <- .hypothesis_brma_unique_named_warnings(
