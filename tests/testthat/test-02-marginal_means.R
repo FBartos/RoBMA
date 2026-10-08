@@ -1164,7 +1164,7 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
   )
 
   expect_equal(averaged_density[["status"]], "ok")
-  expect_equal(conditional_density[["status"]], "ok")
+  expect_null(conditional_density)
   expect_equal(averaged_density[["density_method"]], "qCMDE")
   expect_true(all(is.finite(averaged_density[["x"]])))
   expect_true(all(is.finite(averaged_density[["y"]])))

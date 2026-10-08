@@ -96,10 +96,13 @@ test_that("marginal means retain genuine qCMDE curves and usable point ordinates
   means <- marginal_means(fit, parameter = "alloc", bf = TRUE,
     n_samples = 250L, density_method = "qCMDE", density_control = list(n_points = 40L))
   cells <- means[["inference"]][["conditional"]][["mu_alloc"]]
+  averaged_cells <- means[["inference"]][["averaged"]][["mu_alloc"]]
   expect_named(cells, c("alternate", "random", "systematic"))
+  expect_named(averaged_cells, names(cells))
   for (level in names(cells)) {
-    curve <- BayesTools::posterior_metadata(cells[[level]], "posterior_density")
+    curve <- BayesTools::posterior_metadata(averaged_cells[[level]], "posterior_density")
     ordinate <- BayesTools::posterior_metadata(cells[[level]], "posterior_ordinate")
+    expect_null(BayesTools::posterior_metadata(cells[[level]], "posterior_density"))
     expect_identical(curve[["density_method"]], "qCMDE", info = level)
     expect_identical(curve[["status"]], "ok", info = level)
     expect_length(curve[["x"]], 40L)
