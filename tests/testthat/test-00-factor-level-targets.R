@@ -597,6 +597,8 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   expect_identical(class(error), original_scale)
   expect_identical(conditionMessage(error), route("mu_x")[["reason"]])
   transform[["matrix"]]["mu_x", "mu_x"] <- 0
+  transform[["targets"]][["structural_status"]][[1L]] <- "structural"
+  transform[["targets"]][["fixed_value"]][[1L]] <- 0
   expect_identical(
     route("mu_x")[["reason"]],
     "The fitted coefficient 'mu_x' is structurally fixed and has no posterior hypothesis route."
@@ -686,6 +688,18 @@ test_that("linear-target refusals of BayesTools keep their classes", {
       .package = "BayesTools"
     )
     .hypothesis_plan_cache_clear()
+    if (name == "classed") {
+      for (read in list(
+          function() .hypothesis_plans(fit, "g1[10] = g1[20]"),
+          function() hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),
+          function() hypothesis(means, "g1[10] = g1[20]"))) {
+        condition <- expect_error(read(), "Draw metadata are stale.", fixed = TRUE,
+          class = "BayesTools_stale_metadata")
+        expect_identical(class(condition), class(refusals[[name]]))
+        expect_null(conditionCall(condition))
+      }
+      next
+    }
     plan <- .hypothesis_plans(fit, "g1[10] = g1[20]")[[1L]]
     expect_identical(plan[["route"]], "combination", info = name)
     expect_identical(plan[["refusal"]][["class"]], expected[[name]], info = name)
