@@ -436,7 +436,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
                                  "BayesTools_formula_measure_unavailable"))) {
         stop(condition)
       }
-      .marginal_means_unavailable_bf_scalar(.marginal_means_row_bf_reason(condition))
+      .marginal_means_unavailable_bf_scalar(.marginal_means_row_bf_reason(condition), condition)
     }
   )
 }

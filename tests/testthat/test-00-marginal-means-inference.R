@@ -426,6 +426,8 @@ test_that("declared unavailable marginal measures retain valid sibling BFs and l
       "prior_density", name), error = identity)
     expect_s3_class(original_condition, "BayesTools_formula_measure_unavailable")
     expect_identical(attr(bf[[name]], "warnings", exact = TRUE), conditionMessage(original_condition))
+    expect_identical(attr(bf[[name]], "numerical_diagnostics", exact = TRUE), original_condition)
+    expect_identical(attr(bf[[name]], "posterior_density_source", exact = TRUE), "measure_unavailable")
     expect_identical(BayesTools::posterior_metadata(direct$inference$conditional$mu_g[[name]], "measure_unavailable"),
       original_metadata[[name]])
     statement <- paste0("g[", name, "] = 0")
@@ -436,6 +438,16 @@ test_that("declared unavailable marginal measures retain valid sibling BFs and l
     expect_identical(conditionMessage(refusal), conditionMessage(original_refusal))
   }
   expect_error(.marginal_means_row_bf(stop("Program failure.", call. = FALSE)), "Program failure.", fixed = TRUE)
+  table <- summary(direct, bf = TRUE)
+  row_diagnostics <- attr(table, "numerical_diagnostics", exact = TRUE)
+  expect_length(row_diagnostics, nrow(table))
+  for(name in c("mid", "hi")){
+    original_condition <- attr(bf[[name]], "numerical_diagnostics", exact = TRUE)
+    expect_identical(sum(vapply(row_diagnostics, identical, logical(1), original_condition)), 1L)
+  }
+  bf_column <- which(attr(table, "type") == "inclusion_BF")
+  expect_length(bf_column, 1L)
+  expect_identical(attr(table[[bf_column]], "numerical_diagnostics", exact = TRUE), row_diagnostics)
   expect_identical(summary(stored, bf = TRUE), summary(direct, bf = TRUE))
   expect_identical(summary(stored), ordinary)
   testthat::local_mocked_bindings(.marginal_means_inclusion_bf = function(...) stop("Recomputed an existing BF."), .package = "RoBMA")

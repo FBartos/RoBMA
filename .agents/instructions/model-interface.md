@@ -6,7 +6,8 @@ parameter metadata, summaries, selectors, and public result interfaces.
 ## Formula ownership
 
 Marginal-means BF rows localize declared BayesTools formula-measure and
-ordinate refusals to NA with the original measure reason. Missing-source,
+ordinate refusals to NA with the original measure reason, structured condition
+diagnostics, and matching unavailable posterior-density source. Missing-source,
 refit, other transform, invalid-context and programming errors remain strict.
 An explicit late KDE summary BF request computes skipped BFs from stored
 conditional cells at the stored null; existing computed results are retained.
@@ -31,9 +32,9 @@ numeric targets use original fitted state; prior laws use public BayesTools APIs
 Static qCMDE/IWMDE refuse state-dependent raw maps or stochastic formula products.
 Declared measure_unavailable entries use BayesTools_formula_measure_unavailable;
 Their optional structured model/log diagnostics survive replacement draw
-wrappers and hypothesis refusal conversion. Malformed metadata remains strict;
-RoBMA's empirical product-space model summaries retain their natural zero meaning.
-metadata/program/numeric failures propagate. linear_weight_space distinguishes
+wrappers and hypothesis refusal conversion. Malformed metadata, refit,
+programming and other numerical failures remain strict. RoBMA's empirical
+product-space model summaries retain their natural zero meaning. linear_weight_space distinguishes
 coefficient recipes from fitted formula_contribution rows. Constant products fold
 once into raw fitted weights; contribution weights never pass through C/A again.
 Fitted and prior-only plots supply full ordinary multiplier laws. Current compiler

@@ -653,10 +653,15 @@
 }
 
 
-.marginal_means_unavailable_bf_scalar <- function(warning) {
+.marginal_means_unavailable_bf_scalar <- function(warning, condition = NULL) {
 
   out <- NA_real_
   attr(out, "warnings") <- warning
+  if(!is.null(condition)){
+    attr(out, "numerical_diagnostics") <- condition
+    attr(out, "posterior_density_source") <- if(inherits(condition, "BayesTools_formula_measure_unavailable"))
+      "measure_unavailable" else "numerical_unavailable"
+  }
   return(out)
 }
 
