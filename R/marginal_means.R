@@ -966,6 +966,10 @@ lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
     return(FALSE)
   }
 
+  if(BayesTools::is.prior.ordered(prior)){
+    return(.marginal_means_prior_is_conditional(prior[["total"]]))
+  }
+
   if (BayesTools::is.prior.spike_and_slab(prior)) {
     return(TRUE)
   }

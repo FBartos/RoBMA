@@ -90,6 +90,20 @@ test_that("derived public OR targets carry their effective declaration to scalar
   expect_gt(sum(expected_rows), sum(.iwmde_parameter_condition_rows(captured$context, and)))
 })
 
+test_that("ordered global totals participate in marginal inclusion conditioning", {
+  skip_on_cran()
+  fit <- .carrier_integration_fits()$gated
+  prior <- attr(fit$fit, "prior_list")$mu_g1
+  expect_true(.marginal_means_prior_is_conditional(prior))
+  expect_false(.marginal_means_prior_is_conditional(BayesTools::prior_ordered(BayesTools::prior("gamma", list(2, 2)))))
+  means <- marginal_means(fit, bf = FALSE)
+  conditional <- means$inference$conditional$mu_g1[[3L]]
+  condition <- BayesTools::posterior_metadata(conditional, "condition")
+  expect_identical(condition$effective_conditional, "mu_g1")
+  expect_false(condition$averaged)
+  expect_lt(length(conditional), length(means$inference$averaged$mu_g1[[3L]]))
+})
+
 test_that("declared stochastic contribution refusals are planned for levels and combinations", {
   skip_on_cran()
   data <- data.frame(g = factor(rep(c("A", "B"), 3L)), yi = c(-.2, .3, 0, .4, .1, .2), sei = rep(.5, 6L))
