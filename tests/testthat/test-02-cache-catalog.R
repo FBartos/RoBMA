@@ -455,7 +455,20 @@ test_that("fit catalog is internally consistent", {
   no_loo_fits <- c(
     "brma.mv_block_mvn_random_mods_scale",
     "nielweise2008_glmm_effect_null",
-    "dat.lehmann2018-3PSM_effect_null"
+    "dat.lehmann2018-3PSM_effect_null",
+    "hypothesis_plan_treatment",
+    "hypothesis_plan_meandif",
+    "hypothesis_plan_orthonormal",
+    "hypothesis_plan_independent",
+    "hypothesis_plan_ordered_2",
+    "hypothesis_plan_ordered_3",
+    "hypothesis_plan_ordered_4",
+    "hypothesis_plan_scaled_interaction",
+    "hypothesis_plan_location_scale",
+    "hypothesis_plan_model_averaged",
+    "hypothesis_plan_robma_mixture",
+    "hypothesis_plan_two_scale",
+    "hypothesis_plan_meandif_mt"
   )
   expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
                info = "selected brma.mv cache fixtures omit pre-computed LOO")
@@ -475,7 +488,21 @@ test_that("fit catalog is internally consistent", {
   expect_equal(catalog[["name"]][catalog[["class"]] == "brma.mv" & catalog[["has_marglik"]]],
                v14_marglik_fits,
                info = "selected brma.mv cache fixtures pre-compute marginal likelihoods")
-  expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv", "brma.mv"), "has_marglik"]),
+  no_marglik_single_fits <- c(
+    "hypothesis_plan_treatment",
+    "hypothesis_plan_meandif",
+    "hypothesis_plan_orthonormal",
+    "hypothesis_plan_independent",
+    "hypothesis_plan_ordered_2",
+    "hypothesis_plan_ordered_3",
+    "hypothesis_plan_ordered_4",
+    "hypothesis_plan_scaled_interaction",
+    "hypothesis_plan_location_scale",
+    "hypothesis_plan_meandif_mt"
+  )
+  expect_true(all(!catalog[catalog[["name"]] %in% no_marglik_single_fits, "has_marglik"]))
+  expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv", "brma.mv") &
+                           !catalog[["name"]] %in% no_marglik_single_fits, "has_marglik"]),
               info = "implemented single-model cached fits include marginal likelihoods")
   expect_true(all(catalog[catalog[["class"]] %in% c("brma.glmm", "BMA.glmm"), "family"] == "glmm"),
               info = "GLMM classes must be tagged as glmm family")
@@ -489,6 +516,19 @@ test_that("fit catalog is internally consistent", {
   expect_setequal(
     catalog[["name"]][catalog[["profile"]] == "standard"],
     c(
+      "hypothesis_plan_treatment",
+      "hypothesis_plan_meandif",
+      "hypothesis_plan_orthonormal",
+      "hypothesis_plan_independent",
+      "hypothesis_plan_ordered_2",
+      "hypothesis_plan_ordered_3",
+      "hypothesis_plan_ordered_4",
+      "hypothesis_plan_scaled_interaction",
+      "hypothesis_plan_location_scale",
+      "hypothesis_plan_model_averaged",
+      "hypothesis_plan_robma_mixture",
+      "hypothesis_plan_two_scale",
+      "hypothesis_plan_meandif_mt",
       "bcg_meta-analysis",
       "bcg_meta-regression",
       "bcg_meta-regression2",

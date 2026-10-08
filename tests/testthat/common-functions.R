@@ -242,6 +242,26 @@ skip_if_no_vdiffr_snapshots <- function() {
 # HELPER FUNCTIONS: Cached Fit Catalog
 # ============================================================================ #
 
+hypothesis_plan_fit_names <- function() {
+
+  return(c(
+    treatment = "hypothesis_plan_treatment",
+    meandif = "hypothesis_plan_meandif",
+    orthonormal = "hypothesis_plan_orthonormal",
+    independent = "hypothesis_plan_independent",
+    ordered_2 = "hypothesis_plan_ordered_2",
+    ordered_3 = "hypothesis_plan_ordered_3",
+    ordered_4 = "hypothesis_plan_ordered_4",
+    scaled_interaction = "hypothesis_plan_scaled_interaction",
+    location_scale = "hypothesis_plan_location_scale",
+    model_averaged = "hypothesis_plan_model_averaged",
+    robma_mixture = "hypothesis_plan_robma_mixture",
+    two_scale = "hypothesis_plan_two_scale",
+    meandif_mt = "hypothesis_plan_meandif_mt"
+  ))
+}
+
+
 fit_catalog <- function() {
 
   catalog <- data.frame(
@@ -671,6 +691,50 @@ fit_catalog <- function() {
     "fixed_null_bPEESE",
     "fixed_null_bselmodel"
   )] <- "standard"
+
+  hypothesis_plan_catalog <- data.frame(
+    name = unname(hypothesis_plan_fit_names()),
+    class = c(
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "BMA.norm",
+      "RoBMA",
+      "brma.mv",
+      "brma.norm"
+    ),
+    family = "norm",
+    source_file = "test-01-hypothesis-plan.R",
+    has_metafor = FALSE,
+    has_loo = FALSE,
+    has_waic = FALSE,
+    has_marglik = FALSE,
+    tier = "core",
+    features = I(list(
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods", "ordered"),
+      c("hypothesis_plan", "normal", "factor_mods", "ordered"),
+      c("hypothesis_plan", "normal", "factor_mods", "ordered"),
+      c("hypothesis_plan", "normal", "factor_mods", "interaction"),
+      c("hypothesis_plan", "normal", "factor_mods", "scale"),
+      c("hypothesis_plan", "normal", "factor_mods", "product_space"),
+      c("hypothesis_plan", "normal", "factor_mods", "product_space", "selection"),
+      c("hypothesis_plan", "normal", "factor_mods", "known_v", "multilevel", "scale"),
+      c("hypothesis_plan", "normal", "factor_mods", "multivariate_t")
+    )),
+    profile = "standard",
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, hypothesis_plan_catalog)
 
   return(catalog)
 }

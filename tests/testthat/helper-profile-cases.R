@@ -125,9 +125,40 @@ validate_native_test_symbols <- function(
 }
 
 
+.hypothesis_plan_required_tests <- function() {
+
+  .required_tests("test-00-hypothesis-plan.R", c(
+    "hypothesis_quantities() renders the plans that hypothesis() executes",
+    "hypothesis_quantities() names quantities with shared aliases by their selector",
+    "qCMDE/IWMDE point hypotheses are refused for several scale formulas",
+    "factor levels of every contrast have point tests and level contrasts",
+    "levels of a factor alias shared by the location and scale formulas resolve with 'component'",
+    "statements that do not match 'component' are component mismatches at every entry point",
+    "BayesTools resolution errors that escape planning are statement errors",
+    "publication-bias parameters are refused as hypothesis targets",
+    "catalog quantities without a RoBMA parameter are refused as targets, not as stale fits",
+    "the selection of plot() refuses catalog quantities without a RoBMA parameter as hypothesis() does",
+    "display labels of parameters are evaluable with and without 'component'",
+    "statement refusals of the plans are statement errors, not unavailable tests",
+    "unresolved references have the same classes on fits and marginal means",
+    "statements on every level of a term with a fixed level are refused as fixed",
+    "mean-difference level point hypotheses follow the exact Savage-Dickey computation",
+    "levels of mean-difference multivariate t factors have exact point tests",
+    "a two-level ordered factor tests its level and the level contrast alike",
+    "ordered levels with a Beta share have an infinite prior ordinate at zero",
+    "a random-effect variance and its standard deviation give the same Bayes factor",
+    "point hypotheses with an inexact prior ordinate are refused with its class",
+    "region prior probabilities come from prior draws only for densities without provenance",
+    "level contrasts of model-averaged factors condition on the included term",
+    "levels of model-averaged mean-difference factors have exact point tests"
+  ))
+}
+
+
 standard_required_tests <- function() {
 
   rbind(
+    .hypothesis_plan_required_tests(),
     .required_tests("test-00-selection-kernel-step.R", c(
       "step selected-normal kernel matches an independent p-bin reference",
       "step normalizers retain central and extreme one-sided tails",
@@ -496,12 +527,26 @@ certification_cases <- function() {
         "oracles."
       ),
       fit_sources = c(
+        "test-01-hypothesis-plan.R",
         "test-01-brma.glmm.R",
         "test-01-bselmodel.R",
         "test-01-brma.mv.R",
         "test-01-iwmde-oracle-nested.R"
       ),
       fit_names = c(
+        "hypothesis_plan_treatment",
+        "hypothesis_plan_meandif",
+        "hypothesis_plan_orthonormal",
+        "hypothesis_plan_independent",
+        "hypothesis_plan_ordered_2",
+        "hypothesis_plan_ordered_3",
+        "hypothesis_plan_ordered_4",
+        "hypothesis_plan_scaled_interaction",
+        "hypothesis_plan_location_scale",
+        "hypothesis_plan_model_averaged",
+        "hypothesis_plan_robma_mixture",
+        "hypothesis_plan_two_scale",
+        "hypothesis_plan_meandif_mt",
         "brma.mv_latent",
         "brma.mv_whitened",
         "brma.mv_block_mvn",
@@ -520,6 +565,7 @@ certification_cases <- function() {
         "03-(bridgesampling|loo)"
       ),
       required_tests = rbind(
+        .hypothesis_plan_required_tests(),
         .required_tests(
           "test-02-iwmde-oracles.R",
           c(
