@@ -46,6 +46,21 @@ test_that("expanded public factor groups retain every statement-major result row
   expect_null(attr(plain$BF, "canonical_log_BF"))
 })
 
+test_that("point and region marginal groups select their own execution method", {
+  skip_on_cran()
+  means <- marginal_means(.carrier_integration_fits()$ordinary, bf = FALSE)
+  statements <- c("g1[10] - g1[20] = 0", "g1[10] > 0")
+  for(method in c("qCMDE", "IWMDE")){
+    separate <- lapply(statements, function(statement) hypothesis(means, statement, density_method = method, columns = "all", seed = 1))
+    combined <- hypothesis(means, statements, density_method = method, columns = "all", seed = 1)
+    reversed <- hypothesis(means, rev(statements), density_method = method, columns = "all", seed = 1)
+    expected <- unlist(lapply(separate, function(result) attr(result, "raw_log_BF")), use.names = FALSE)
+    expect_equal(attr(combined, "raw_log_BF"), expected, tolerance = 1e-12)
+    expect_equal(attr(reversed, "raw_log_BF"), rev(expected), tolerance = 1e-12)
+    expect_length(attr(combined, "numerical_diagnostics"), 2L)
+  }
+})
+
 test_that("random groups select point-owned attachment metadata independently of order", {
   # Existing compiled stand-in: routing only. The saved actual known-V fit
   # separately verifies this public path; the estimator is not executed here.
