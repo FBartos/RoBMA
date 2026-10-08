@@ -6,6 +6,9 @@ source(testthat::test_path("common-functions.R"))
 test_that("hypothesis plan fits are prepared for cached post-fit tests", {
 
   skip_on_cran()
+  if (!any(unname(hypothesis_plan_fit_names()) %in% active_fit_catalog()$name)) {
+    skip("No hypothesis-plan fits are active.")
+  }
   skip_refit_if_cached("hypothesis-plan")
   keys <- hypothesis_plan_fit_names()
   refit <- is_true_env("ROBMA_TEST_FORCE_REFIT") ||
@@ -211,4 +214,20 @@ test_that("hypothesis plan fits are prepared for cached post-fit tests", {
   for (key in keys) {
     expect_identical(validate_cached_fit(key, deep = TRUE), character())
   }
+})
+test_that("expression marginal means fit is prepared for cached post-fit tests", {
+
+  skip_on_cran()
+  skip_if_fit_not_active("marginal_means_expression")
+  skip_refit_if_cached("marginal_means_expression")
+  data <- data.frame(g = ordered(rep(c("lo", "mid", "hi"), 2L), levels = c("lo", "mid", "hi")),
+    yi = c(-.2, .3, 0, .4, .1, .2), sei = rep(.5, 6L))
+  fit <- suppressWarnings(brma(yi = yi, sei = sei, mods = ~ g, data = data, measure = "GEN",
+    prior_effect = BayesTools::prior("normal", list(0, 1)),
+    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("point", list(expression(mu_intercept))),
+      allocation = c(.25, .75))),
+    prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
+    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE))
+  save_fit("marginal_means_expression", fit)
+  expect_true(is_cached_fit_valid("marginal_means_expression"))
 })

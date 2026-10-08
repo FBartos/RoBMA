@@ -52,6 +52,9 @@ marginal_means <- function(object, ...) {
 #' factor, whose reason the summary prints below the table; the other marginal
 #' means are computed. A point hypothesis on that mean with [hypothesis()]
 #' stops with the BayesTools class.
+#' Declared unavailable formula measures (class
+#' \code{BayesTools_formula_measure_unavailable}) likewise give an \code{NA}
+#' row with the original reason, while available siblings are computed.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
@@ -417,14 +420,18 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 # "BayesTools_zero_ordinate" for a null outside a truncated prior) give that
 # row an NA Bayes factor with the reason of the refusal's class in its
 # "warnings" attribute, which summary tables print after the row's label;
-# the other rows are computed. A point hypothesis on that mean
+# the other rows are computed. Declared formula-measure unavailability
+# (class "BayesTools_formula_measure_unavailable") retains its original
+# condition message as the row's reason. Other failures propagate unchanged.
+# A point hypothesis on that mean
 # (hypothesis()) stops with the class.
 .marginal_means_row_bf <- function(bf) {
 
   tryCatch(
     bf,
     error = function(condition) {
-      if (!inherits(condition, "BayesTools_hypothesis_ordinate")) {
+      if (!inherits(condition, c("BayesTools_hypothesis_ordinate",
+                                 "BayesTools_formula_measure_unavailable"))) {
         stop(condition)
       }
       .marginal_means_unavailable_bf_scalar(.marginal_means_row_bf_reason(condition))
@@ -437,6 +444,9 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 # refusal ('condition').
 .marginal_means_row_bf_reason <- function(condition) {
 
+  if (inherits(condition, "BayesTools_formula_measure_unavailable")) {
+    return(conditionMessage(condition))
+  }
   if (inherits(condition, "BayesTools_hypothesis_numerical_unavailable")) {
     return(conditionMessage(condition))
   }

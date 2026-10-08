@@ -5,6 +5,10 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Marginal-means BF rows localize declared BayesTools formula-measure and
+ordinate refusals to NA with the original measure reason. Missing-source,
+refit, other transform, invalid-context and programming errors remain strict.
+
 Expanded hypothesis results retain positional statement identity in the
 producer's uniform statement-major quantity loop. Identical statement text
 does not merge repeated statement numbers or row-owned diagnostics.

@@ -33,7 +33,10 @@ point mass, zero (for example a null outside a truncated prior), infinite,
 undefined, or without an exact value) has an \code{NA} inclusion Bayes
 factor, whose reason the summary prints below the table; the other marginal
 means are computed. A point hypothesis on that mean with \code{\link[=hypothesis]{hypothesis()}}
-stops with the BayesTools class.}
+stops with the BayesTools class.
+Declared unavailable formula measures (class
+\code{BayesTools_formula_measure_unavailable}) likewise give an \code{NA}
+row with the original reason, while available siblings are computed.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}
@@ -53,7 +56,8 @@ and \code{"IRR"}.}
 summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects. With qCMDE/IWMDE, setting
 \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
-can still compute requested ordinates on demand.}
+can still compute requested ordinates on demand.
+}
 
 \item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
 density precomputation to a marginal-means parameter, output type, or factor

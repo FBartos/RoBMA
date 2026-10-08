@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- marginal means retain available sibling Bayes factors when a declared formula measure is unavailable; refused rows keep the original reason.
 - repeated expanded factor hypotheses retain their original statement numbers, canonical BF logs and row diagnostics through parameter-group binding.
 - hypothesis groups retain every expanded factor row, select their point metadata and density method locally, and preserve declared OR conditions through scalar attachment. Stochastic contribution measures are refused during method planning, while fixed whole-term marginal cells retain their structural refusal.
 - ordered total inclusion participates in marginal conditioning. Single-model default density curves request averaged targets; conditional point ordinates retain their existing behavior. Direct atom predicates respect explicit joint-law availability.

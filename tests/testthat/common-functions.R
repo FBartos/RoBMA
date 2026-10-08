@@ -735,6 +735,10 @@ fit_catalog <- function() {
     stringsAsFactors = FALSE
   )
   catalog <- rbind(catalog, hypothesis_plan_catalog)
+  expression_catalog <- hypothesis_plan_catalog[1L, , drop = FALSE]
+  expression_catalog$name <- "marginal_means_expression"
+  expression_catalog$features <- I(list(c("normal", "factor_mods", "ordered", "expression_total", "marginal_means")))
+  catalog <- rbind(catalog, expression_catalog)
 
   return(catalog)
 }
