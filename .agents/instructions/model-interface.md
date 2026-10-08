@@ -185,6 +185,10 @@ Model and conditional prior contexts use schema 2 with validated model log owner
 primitive contexts use schema 1. Coefficient transformation descriptors remain schema 3.
 Variance point numerical diagnostics retain SD evaluation provenance and apply
 the common Jacobian to requested variance log heights. Point-region results
-reuse the actual point producer's diagnostics in statement order. Scalar and
+reuse the actual point producer's diagnostics in statement order. Variance
+unit-part composition detects only the admitted real point logBF -Inf together
+with its directional unit infinity before arithmetic. It retains canonical NA
+and the existing undefined warning for that numerical-zero pair, preserving
+independent region-prior diagnostics and legitimate boundary infinities. Scalar and
 exp-affine discovery catches only declared formula-measure refusals; requested
 hypotheses, missing owners, refit conditions and programming errors stay strict.

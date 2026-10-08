@@ -962,7 +962,8 @@ hypothesis.brma <- function(object, hypothesis,
 # the region on the left. BayesTools evaluates the statements on the variance
 # with a unit point part (a posterior ordinate equal to the prior ordinate,
 # carrying the Monte Carlo error of the point part, which BayesTools combines
-# with that of the region part); the point part then multiplies.
+# with that of the region part). The real point part is composed only after
+# detecting the admitted numerical-zero point/region pair, as BayesTools does.
 .hypothesis_plan_random_sd_region <- function(plan, object, posterior,
                                               hypothesis, values, logBF, BF01,
                                               seed, method, density_method,
@@ -1029,8 +1030,15 @@ hypothesis.brma <- function(object, hypothesis,
   point_left  <- vapply(hypothesis[["statements"]], function(statement) {
     identical(statement[["left"]][["type"]], "point")
   }, logical(1))
-  raw_log_BF <- attr(out, "raw_log_BF", exact = TRUE)
-  raw_log_BF <- raw_log_BF + ifelse(point_left, point_log_BF, -point_log_BF)
+  unit_log_BF <- attr(out, "raw_log_BF", exact = TRUE)
+  # Here the accepted real point sign certifies its numerical zero ordinate;
+  # the unit part's directional infinity certifies zero posterior region mass.
+  # Finite-log natural underflow and pre-existing NA results do not match.
+  undefined <- !is.na(point_log_BF) & point_log_BF == -Inf &
+    !is.na(unit_log_BF) & unit_log_BF == ifelse(point_left, Inf, -Inf)
+  raw_log_BF <- rep(NA_real_, length(unit_log_BF))
+  raw_log_BF[!undefined] <- unit_log_BF[!undefined] +
+    ifelse(point_left[!undefined], point_log_BF[!undefined], -point_log_BF[!undefined])
   attr(out, "raw_log_BF") <- raw_log_BF
   attr(out, "raw_BF") <- exp(raw_log_BF)
   numerical_diagnostics <- attr(point, "numerical_diagnostics", exact = TRUE)[point_index]
@@ -1039,6 +1047,19 @@ hypothesis.brma <- function(object, hypothesis,
     out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
       raw_log_BF, logBF = logBF, BF01 = BF01,
       diagnostics = numerical_diagnostics)
+  }
+
+  if(any(undefined)){
+    warnings <- attr(out, "warnings", exact = TRUE)
+    rows <- rownames(out)[undefined]
+    matched <- names(warnings) %in% rows
+    warnings[matched] <- trimws(gsub(
+      "Posterior region mass is zero; reported BF is boundary-valued.", "",
+      warnings[matched], fixed = TRUE))
+    warnings <- warnings[nzchar(warnings)]
+    attr(out, "warnings") <- c(warnings, stats::setNames(rep(
+      "The posterior point ordinate and region mass are both numerically zero; transitive BF is undefined.",
+      length(rows)), rows))
   }
 
   # The warnings and density diagnostics of the point parts, on the rows of

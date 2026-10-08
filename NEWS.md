@@ -1,6 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
 - marginal means retain available sibling Bayes factors when a declared formula measure is unavailable; refused rows keep the original reason. Explicit late KDE summaries compute skipped Bayes factors from the stored conditional cells and null hypothesis.
 * Preserve structured allowed refusal diagnostics for unavailable marginal-means Bayes-factor rows.
+* Report equivalent SD and variance point/region numerical-zero comparisons as canonical undefined Bayes factors with aligned diagnostics and warnings.
 - repeated expanded factor hypotheses retain their original statement numbers, canonical BF logs and row diagnostics through parameter-group binding.
 - hypothesis groups retain every expanded factor row, select their point metadata and density method locally, and preserve declared OR conditions through scalar attachment. Stochastic contribution measures are refused during method planning, while fixed whole-term marginal cells retain their structural refusal.
 - ordered total inclusion participates in marginal conditioning. Single-model default density curves request averaged targets; conditional point ordinates retain their existing behavior. Direct atom predicates respect explicit joint-law availability.

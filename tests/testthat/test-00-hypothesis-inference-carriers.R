@@ -83,3 +83,95 @@ test_that("variance point-region diagnostics align actual repeated point produce
     expect_equal(diagnostic$evaluation_value, sqrt(points[i]), tolerance = 1e-14)
   }
 })
+
+
+test_that("equivalent SD and variance zero-point zero-region BFs are canonical undefined", {
+
+  object <- gated_random_object()
+  sd <- "`(mu) study: tau(intercept)`"
+  variance <- "`(mu) study: tau2(intercept)`"
+  for(reverse in c(FALSE, TRUE)){
+    statement <- function(name, value){
+      if(reverse) sprintf("%s > %.17g vs %s = %.17g", name, value, name, value) else
+        sprintf("%s = %.17g vs %s > %.17g", name, value, name, value)
+    }
+    sd_result <- hypothesis(object, statement(sd, 10), density_method = "KDE", columns = "all", seed = 1)
+    var_result <- hypothesis(object, statement(variance, 100), density_method = "KDE", columns = "all", seed = 1)
+    expect_identical(attr(var_result, "raw_log_BF"), attr(sd_result, "raw_log_BF"))
+    expect_identical(attr(var_result, "raw_log_BF"), NA_real_)
+    expect_false(any(is.nan(attr(var_result, "raw_log_BF"))))
+    expect_true(any(grepl("both numerically zero; transitive BF is undefined",
+      attr(var_result, "warnings"), fixed = TRUE)))
+    expect_identical(as.numeric(update(var_result, logBF = TRUE)$BF), NA_real_)
+    expect_identical(as.numeric(update(var_result, BF01 = TRUE)$BF), NA_real_)
+    expect_identical(attr(var_result[1L, , drop = FALSE], "raw_log_BF"), NA_real_)
+  }
+})
+
+test_that("single and gated variance composition retains indexed diagnostics and valid boundaries", {
+
+  objects <- list(gated = gated_random_object(),
+    single = single_sd_random_object(BayesTools::prior("gamma", list(2, 2))))
+  undefined_message <- "The posterior point ordinate and region mass are both numerically zero; transitive BF is undefined."
+  boundary_message <- "Posterior region mass is zero; reported BF is boundary-valued."
+  cuts <- c(10, .3, 3, 10)
+  for(name in names(objects)){
+    object <- objects[[name]]
+    original <- serialize(object, NULL, version = 2)
+    sd <- if(name == "gated") "`(mu) study: tau(intercept)`" else "`(mu) tau(intercept)`"
+    variance <- if(name == "gated") "`(mu) study: tau2(intercept)`" else "`(mu) tau2(intercept)`"
+    run <- function(statements, ...) hypothesis(object, statements,
+      density_method = "KDE", columns = "all", seed = 1, ...)
+    real_point <- run(sprintf("%s = %.17g vs %s != %.17g", variance, cuts^2, variance, cuts^2))
+    point_diagnostics <- attr(real_point, "numerical_diagnostics")
+    for(reverse in c(FALSE, TRUE)){
+      statement <- function(parameter, values){
+        if(reverse) sprintf("%s > %.17g vs %s = %.17g", parameter, values, parameter, values) else
+          sprintf("%s = %.17g vs %s > %.17g", parameter, values, parameter, values)
+      }
+      sd_result <- run(statement(sd, cuts))
+      var_result <- run(statement(variance, cuts^2))
+      logs <- attr(var_result, "raw_log_BF")
+      expect_identical(logs[c(1L, 4L)], rep(NA_real_, 2L))
+      expect_equal(logs, attr(sd_result, "raw_log_BF"), tolerance = 1e-12)
+      expect_true(is.infinite(logs[[3L]]))
+      expect_identical(sign(logs[[3L]]), if(reverse) -1 else 1)
+      expect_identical(attr(var_result, "numerical_diagnostics"), point_diagnostics)
+      expect_identical(attr(var_result$BF, "numerical_diagnostics"), point_diagnostics)
+      prior_diagnostics <- attr(var_result, "prior_numerical_diagnostics")
+      expect_length(prior_diagnostics, length(cuts))
+      expect_true(all(vapply(prior_diagnostics, Negate(is.null), logical(1))))
+      warnings <- attr(var_result, "warnings")
+      for(row in rownames(var_result)[c(1L, 4L)]){
+        selected <- warnings[names(warnings) == row]
+        expect_true(any(grepl(undefined_message, selected, fixed = TRUE)))
+        expect_false(any(grepl(boundary_message, selected, fixed = TRUE)))
+      }
+      expect_true(any(grepl(boundary_message,
+        warnings[names(warnings) == rownames(var_result)[[3L]]], fixed = TRUE)))
+      for(logBF in c(FALSE, TRUE)) for(BF01 in c(FALSE, TRUE)){
+        viewed <- update(var_result, logBF = logBF, BF01 = BF01)
+        expect_identical(attr(viewed, "raw_log_BF"), logs)
+        expect_identical(attr(viewed$BF, "canonical_log_BF"), logs)
+        expect_identical(as.numeric(viewed$BF)[c(1L, 4L)], rep(NA_real_, 2L))
+        expect_identical(attr(update(viewed, logBF = FALSE, BF01 = FALSE), "raw_log_BF"), logs)
+      }
+      order <- c(4L, 2L, 1L, 3L, 2L)
+      subset <- var_result[order, c("BF", "BF_error"), drop = FALSE]
+      expect_identical(attr(subset, "raw_log_BF"), logs[order])
+      expect_identical(attr(subset$BF, "numerical_diagnostics"), point_diagnostics[order])
+      without_bf <- var_result[order, "BF_error", drop = FALSE]
+      expect_null(attr(without_bf, "raw_BF"))
+      expect_null(attr(without_bf, "raw_log_BF"))
+      expect_identical(attr(without_bf, "numerical_diagnostics"), point_diagnostics[order])
+      expect_identical(attr(without_bf, "prior_numerical_diagnostics"), prior_diagnostics[order])
+      for(i in c(1L, 4L)){
+        expect_identical(point_diagnostics[[i]]$log_posterior_height, -Inf)
+        expect_true(is.finite(point_diagnostics[[i]]$log_prior_height))
+        expect_identical(point_diagnostics[[i]]$evaluation_value, cuts[[i]])
+        expect_identical(point_diagnostics[[i]]$requested_value, cuts[[i]]^2)
+      }
+    }
+    expect_identical(serialize(object, NULL, version = 2), original)
+  }
+})
