@@ -23,6 +23,19 @@
   fits
 }
 
+test_that("public no-intercept moderator means use the fitted contrast basis", {
+  skip_on_cran()
+  fits <- .carrier_integration_fits()
+  for(name in c("treatment", "meandif")){
+    fit <- fits[[name]]
+    means <- marginal_means(fit, bf = FALSE)
+    prediction <- BayesTools::JAGS_predict_formula(fit$fit, "mu",
+      data = data.frame(g1 = factor(c(5, 10, 20), levels = c(5, 10, 20))), formula_target = "fixed")
+    for(i in seq_len(3L)) expect_equal(as.numeric(means$inference$averaged$mu_g1[[i]]),
+      unname(prediction$value[i, ]), tolerance = 1e-12)
+  }
+})
+
 test_that("whole marginal-means regions retain structural fixed-cell refusal", {
   skip_on_cran()
   means <- marginal_means(.carrier_integration_fits()$nonzero, bf = FALSE)
