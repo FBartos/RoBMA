@@ -23,6 +23,15 @@
   fits
 }
 
+test_that("whole marginal-means regions retain structural fixed-cell refusal", {
+  skip_on_cran()
+  means <- marginal_means(.carrier_integration_fits()$nonzero, bf = FALSE)
+  expect_error(hypothesis(means, "g1 > 0", density_method = "KDE"), class = "RoBMA_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1[5] > 0", density_method = "KDE"), class = "RoBMA_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1 = 0", density_method = "KDE"), class = "RoBMA_hypothesis_fixed")
+  expect_s3_class(hypothesis(means, "g1[10] > 0", density_method = "KDE"), "BayesTools_hypothesis_BF")
+})
+
 test_that("expanded public factor groups retain every statement-major result row", {
   skip_on_cran()
   fit <- .carrier_integration_fits()$ordinary

@@ -2068,7 +2068,7 @@
   sample_of <- function(level) {
     if (is.na(level)) posterior else posterior[[level]]
   }
-  tested <- if (length(referenced) > 0L) referenced else if (!is.list(posterior)) NA_character_
+  tested <- if (length(referenced) > 0L) referenced else if (is.list(posterior)) levels else NA_character_
   fixed  <- tested[vapply(tested, function(level) {
     .hypothesis_plan_draws_fixed(sample_of(level))
   }, logical(1))]
