@@ -63,8 +63,18 @@
       "prior_density"
     )
   }
-  parameter_spec[["conditional"]]      <- conditional
-  parameter_spec[["conditional_rule"]] <- "AND"
+  condition <- .iwmde_sample_condition_metadata(raw_posterior)
+  if(length(conditional) > 0L && length(condition[["conditional"]]) > 0L &&
+     !setequal(conditional, condition[["conditional"]])){
+    stop("The scalar ordinate condition does not match its posterior declaration. Recompute the posterior for the requested condition.", call. = FALSE)
+  }
+  for(field in c("conditional", "conditional_rule", "condition_key", "condition_event", "resolved_condition_event")) parameter_spec[[field]] <- NULL
+  parameter_spec[["conditional"]] <- conditional
+  complete_condition <- length(condition[["conditional"]]) > 0L &&
+    length(condition[["conditional_rule"]]) > 0L && length(condition[["condition_key"]]) > 0L
+  if(length(conditional) > 0L && complete_condition){
+    for(field in names(condition)) parameter_spec[[field]] <- condition[[field]]
+  }else if(length(conditional) > 0L) parameter_spec[["conditional_rule"]] <- "AND"
   source_value <- if (is.null(display_transform)) {
     value
   } else {

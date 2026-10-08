@@ -61,6 +61,26 @@ test_that("point and region marginal groups select their own execution method", 
   }
 })
 
+test_that("derived public OR targets carry their effective declaration to scalar attachment", {
+  skip_on_cran()
+  means <- marginal_means(.carrier_integration_fits()$averaged, bf = FALSE)
+  plan <- .hypothesis_plan_marginal_means(means, "2 * g1[10] = 0")
+  declared <- .iwmde_sample_condition_metadata(plan$linear_target$posterior)
+  expect_identical(declared$conditional_rule, "OR")
+  expect_length(declared$conditional, 2L)
+  captured <- NULL
+  local_mocked_bindings(.iwmde_estimate = function(context, parameter_spec, ...){
+    captured <<- list(context = context, spec = parameter_spec)
+    stop("Captured actual public scalar attach", call. = FALSE)
+  }, .package = "RoBMA")
+  expect_error(hypothesis(means, "2 * g1[10] = 0", density_method = "qCMDE", seed = 1), "Captured actual public scalar attach", fixed = TRUE)
+  for(field in names(declared)) expect_identical(captured$spec[[field]], declared[[field]])
+  expected_rows <- .iwmde_parameter_condition_rows(captured$context, declared)
+  expect_identical(.iwmde_parameter_condition_rows(captured$context, captured$spec), expected_rows)
+  and <- declared; and$conditional_rule <- "AND"
+  expect_gt(sum(expected_rows), sum(.iwmde_parameter_condition_rows(captured$context, and)))
+})
+
 test_that("random groups select point-owned attachment metadata independently of order", {
   # Existing compiled stand-in: routing only. The saved actual known-V fit
   # separately verifies this public path; the estimator is not executed here.
