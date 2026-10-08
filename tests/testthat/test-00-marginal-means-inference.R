@@ -420,11 +420,12 @@ test_that("only coefficients with inclusion indicators are conditional candidate
   )
   expect_identical(partial_list[["mu_a"]], "mu_a")
 })
-test_that("declared unavailable marginal measures retain valid sibling BFs", {
+test_that("declared unavailable marginal measures retain valid sibling BFs and late KDE requests", {
 
   skip_on_cran()
   fit <- load_fit("marginal_means_expression")
   stored <- marginal_means(fit, bf = FALSE, density_method = "KDE")
+  ordinary <- summary(stored)
   cells <- stored$inference$conditional$mu_g
   original_metadata <- lapply(cells, function(cell) BayesTools::posterior_metadata(cell, "measure_unavailable"))
   valid <- .marginal_means_inclusion_bf(cells["lo"], 0, TRUE)$lo
@@ -447,5 +448,8 @@ test_that("declared unavailable marginal measures retain valid sibling BFs", {
     expect_identical(conditionMessage(refusal), conditionMessage(original_refusal))
   }
   expect_error(.marginal_means_row_bf(stop("Program failure.", call. = FALSE)), "Program failure.", fixed = TRUE)
-
+  expect_identical(summary(stored, bf = TRUE), summary(direct, bf = TRUE))
+  expect_identical(summary(stored), ordinary)
+  testthat::local_mocked_bindings(.marginal_means_inclusion_bf = function(...) stop("Recomputed an existing BF."), .package = "RoBMA")
+  expect_identical(summary(direct, bf = TRUE), summary(direct, bf = TRUE))
 })

@@ -34,7 +34,9 @@ Defaults to \code{FALSE}.}
 \code{FALSE}.}
 
 \item{bf}{whether to show inclusion Bayes factors. Defaults to the setting
-stored by \code{marginal_means()}.}
+stored by \code{marginal_means()}.
+An explicit \code{TRUE} computes previously skipped KDE Bayes factors from
+the stored conditional posteriors at the stored null hypothesis.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.
 Defaults to the fitted measure. Supported conversions are among \code{"SMD"},

@@ -62,6 +62,8 @@ marginal_means <- function(object, ...) {
 #' for single-model \code{brma} objects. With qCMDE/IWMDE, setting
 #' \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
 #' can still compute requested ordinates on demand.
+#' With KDE, \code{summary(..., bf = TRUE)} computes previously skipped
+#' inclusion Bayes factors from the stored conditional marginal posteriors.
 #' @param density_method posterior density method. \code{"KDE"} uses the
 #' standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
@@ -529,6 +531,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 #' \code{FALSE}.
 #' @param bf whether to show inclusion Bayes factors. Defaults to the setting
 #' stored by \code{marginal_means()}.
+#' An explicit \code{TRUE} computes previously skipped KDE Bayes factors from
+#' the stored conditional posteriors at the stored null hypothesis.
 #' @inheritParams predict.brma
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
@@ -580,6 +584,17 @@ summary.marginal_means.brma <- function(object, type = NULL,
     },
     object               = object
   )
+  if (isTRUE(bf) && identical(object[["bf"]], FALSE) &&
+      identical(object[["density_method"]], "KDE")) {
+    parameters <- intersect(object[["parameters"]],
+      names(inference_object[["conditional"]]))
+    for (parameter in parameters) {
+      inference_object[["inference"]][[parameter]] <- .marginal_means_inclusion_bf(
+        inference_object[["conditional"]][[parameter]],
+        object[["null_hypothesis"]], compute = TRUE
+      )
+    }
+  }
   samples    <- .transform_marginal_samples_effect(
     samples          = inference_object[[type]],
     effect_transform = effect_transform

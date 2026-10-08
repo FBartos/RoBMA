@@ -57,7 +57,8 @@ summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects. With qCMDE/IWMDE, setting
 \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
 can still compute requested ordinates on demand.
-}
+With KDE, \code{summary(..., bf = TRUE)} computes previously skipped
+inclusion Bayes factors from the stored conditional marginal posteriors.}
 
 \item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
 density precomputation to a marginal-means parameter, output type, or factor
