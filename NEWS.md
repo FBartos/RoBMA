@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- fixed-zero random-effect marginal likelihoods finalize the locally rebuilt fixed formula declarations and scale while retaining the original sampler coordinates.
+- scalar PET and PEESE plots attach qCMDE/IWMDE densities and atoms to their declared scalar view. Streamed zplot projections retain validated native static bounds; exact ordered selection partitions admit finalized empty scaling metadata.
 - posterior value wrappers preserve BayesTools declared unavailable-measure diagnostics, including aligned model/log probability payloads, through replacement draws and hypothesis refusal conversion.
 - formula coordinate readers accept validated model and conditional context schema 2, while primitive context schema 1 and coefficient transformation descriptor schema 3 retain their separate requirements.
 - scalar qCMDE/IWMDE plot curves retain their backend source parameter in provenance and declare the actual BayesTools display target for precomputed matching.
@@ -1198,4 +1200,3 @@ Please notice that this is a major release that breaks backwards compatibility.
 
 ### Notable changes:
 - the way how the seed is set before model fitting (the simulation study will not be reproducible with the new version of the package)
-
