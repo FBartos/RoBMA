@@ -81,6 +81,34 @@ test_that("derived public OR targets carry their effective declaration to scalar
   expect_gt(sum(expected_rows), sum(.iwmde_parameter_condition_rows(captured$context, and)))
 })
 
+test_that("declared stochastic contribution refusals are planned for levels and combinations", {
+  skip_on_cran()
+  data <- data.frame(g = factor(rep(c("A", "B"), 3L)), yi = c(-.2, .3, 0, .4, .1, .2), sei = rep(.5, 6L))
+  for(multiplier in list(2, "tau")){
+    slope <- BayesTools::prior_factor("normal", list(0, 1), contrast = "treatment")
+    attr(slope, "multiply_by") <- multiplier
+    fit <- expect_warning(brma(yi = yi, sei = sei, mods = ~g, data = data, measure = "GEN",
+      prior_effect = BayesTools::prior("normal", list(0, 1)), prior_mods = list(g = slope),
+      prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
+      chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE), "Only one chain was run", fixed = TRUE)
+    means <- marginal_means(fit, bf = FALSE)
+    for(statement in c("g[B] = 0.1", "g[B] - g[A] = 0.1")){
+      plan <- .hypothesis_plan_marginal_means(means, statement)
+      expect_null(plan$methods$KDE)
+      if(is.numeric(multiplier)){
+        expect_null(plan$methods$qCMDE)
+        expect_null(plan$methods$IWMDE)
+      }else{
+        for(method in c("qCMDE", "IWMDE")){
+          expect_match(plan$methods[[method]]$reason, "stochastic formula contribution products", fixed = TRUE)
+          expect_true("RoBMA_density_method_original_scale" %in% plan$methods[[method]]$class)
+          expect_error(hypothesis(means, statement, density_method = method), class = "RoBMA_hypothesis_method")
+        }
+      }
+    }
+  }
+})
+
 test_that("random groups select point-owned attachment metadata independently of order", {
   # Existing compiled stand-in: routing only. The saved actual known-V fit
   # separately verifies this public path; the estimator is not executed here.

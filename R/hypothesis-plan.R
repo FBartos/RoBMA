@@ -492,6 +492,17 @@
 
 .hypothesis_plan_finish <- function(plan, object) {
 
+  unsupported <- Filter(function(target){
+    identical(target[["spec"]][["type"]], "unsupported_formula_transform")
+  }, plan[["targets"]])
+  if(length(unsupported)){
+    reason <- unsupported[[1L]][["spec"]][["reason"]]
+    refusal <- .hypothesis_refusal_density_method(.iwmde_unavailable(reason, "original_scale"))
+    refusals <- list(qCMDE = refusal, IWMDE = refusal)
+    for(method in names(refusals)){
+      if(is.null(plan[["method_refusals"]][[method]])) plan[["method_refusals"]][[method]] <- refusals[[method]]
+    }
+  }
   methods <- .hypothesis_plan_methods()
   plan[["methods"]] <- stats::setNames(lapply(methods, function(method) {
     .hypothesis_plan_method_refusal(plan, object, method)
@@ -1424,8 +1435,8 @@
       type          = if(isFALSE(density[["static"]])) "unsupported_formula_transform" else "linear",
       weights       = density[["weights"]],
       prior_density = density[["prior_density"]],
-      reason        = if(isFALSE(density[["static"]]))
-        "qCMDE/IWMDE are unavailable for state-dependent original coefficients. Use density_method = 'KDE'."
+      reason        = if(isFALSE(density[["static"]])) if(is.null(density[["reason"]]))
+        "qCMDE/IWMDE are unavailable for state-dependent original coefficients. Use density_method = 'KDE'." else density[["reason"]]
     )
   )
   target[["point_mass_reason"]] <- .hypothesis_plan_point_mass_reason(object)
@@ -2084,6 +2095,7 @@
       ))
     )
   }
+  method_refusals <- plan[["method_refusals"]]
   plan[["targets"]] <- unlist(lapply(seq_len(nrow(refs)), function(i) {
     ref_levels <- if (is.na(refs[["level"]][[i]]) && is.list(posterior)) {
       levels
@@ -2094,6 +2106,21 @@
     lapply(ref_levels, function(level) {
       sample  <- sample_of(level)
       density <- BayesTools::posterior_metadata(sample, "prior_density")
+      if(plan[["point"]]){
+        weights <- .iwmde_linear_weights(BayesTools::posterior_metadata(sample, "linear_weights"))
+        if(length(weights)){
+          available <- tryCatch(.brma_fitted_linear_weights(sample, weights),
+            RoBMA_density_method_unavailable = function(condition) condition,
+            BayesTools_formula_measure_unavailable = function(condition) condition)
+          if(inherits(available, "condition")){
+            refusal <- .hypothesis_refusal_from_condition(available)
+            refusal[["class"]] <- unique(c(.hypothesis_refusal(conditionMessage(available), "method")[["class"]], refusal[["class"]]))
+            for(method in c("qCMDE", "IWMDE")){
+              if(is.null(method_refusals[[method]])) method_refusals[[method]] <<- refusal
+            }
+          }
+        }
+      }
       .hypothesis_plan_target(
         value         = refs[["value"]][[i]],
         label         = label,
@@ -2118,6 +2145,7 @@
     })
   }), recursive = FALSE)
   if (length(plan[["targets"]]) > 0L) {
+    plan[["method_refusals"]] <- method_refusals
     plan[["support"]] <- .hypothesis_plan_support_bounds(
       sample_of(plan[["targets"]][[1L]][["level"]])
     )
