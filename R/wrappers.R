@@ -1357,8 +1357,13 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     if (expand) {
       colnames(total) <- paste0("u[", labels[seq_len(ncol(total))], "]")
     } else {
-      prefix <- paste0("u_", names(components)[[1L]])
-      colnames(total) <- paste0("u", substring(colnames(total), nchar(prefix) + 1L))
+      # Only names carrying the block prefix (u_<block>[label]) are stripped;
+      # names that are already u[label] stay as they are.
+      prefix   <- paste0("u_", names(components)[[1L]])
+      prefixed <- startsWith(colnames(total), prefix)
+      colnames(total)[prefixed] <- paste0(
+        "u", substring(colnames(total)[prefixed], nchar(prefix) + 1L)
+      )
     }
     return(.new_brma_samples(
       samples   = total,
