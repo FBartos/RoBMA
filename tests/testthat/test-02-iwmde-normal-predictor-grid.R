@@ -316,6 +316,47 @@ test_that("dependent Student-t focal coordinates retain the joint prior on both 
 })
 
 
+test_that("ordered nuisance priors use the same numerical kernel on scalar and grid rows", {
+
+  fit_name <- "lane_carrier_gated"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name)
+  context <- .iwmde_context(object)
+  indicator <- "mu_g1_ordered_total_indicator"
+  keys <- .iwmde_active_keys(context)
+  expect_identical(.iwmde_active_keys_matrix(context, context[["posterior_samples"]]), keys)
+  rows <- vapply(c(0, 1), function(value) {
+    which(context[["posterior_samples"]][, indicator] == value)[[1L]]
+  }, integer(1))
+  for (row in rows) {
+    expect_identical(.iwmde_active_key(context, context[["posterior_samples"]][row, ]), keys[[row]])
+    expect_identical(.iwmde_active_keys_matrix(context, context[["posterior_samples"]][row, , drop = FALSE]), keys[row])
+  }
+  for (value in c(-1, .5, NA_real_)) {
+    row <- context[["posterior_samples"]][rows[[1L]], ]
+    row[[indicator]] <- value
+    if (is.finite(value) && value == trunc(value)) {
+      expect_identical(.iwmde_active_key(context, row), paste0(indicator, "=-1"))
+      expect_identical(.iwmde_active_keys_matrix(context, matrix(row, nrow = 1L,
+        dimnames = list(NULL, names(row)))), paste0(indicator, "=-1"))
+    } else {
+      expect_error(.iwmde_active_key(context, row))
+      expect_error(.iwmde_active_keys_matrix(context, matrix(row, nrow = 1L,
+        dimnames = list(NULL, names(row)))))
+    }
+    prior <- attr(object[["fit"]], "prior_list")[["mu_g1"]]
+    kernel <- BayesTools::JAGS_ordered_density_kernel(list(mu_g1 = prior))
+    expect_error(kernel(matrix(row, nrow = 1L, dimnames = list(NULL, names(row)))),
+      class = "BayesTools_ordered_invalid_state")
+  }
+  mixture <- BayesTools::prior_mixture(list(BayesTools::prior("normal", list(0, 1)), BayesTools::prior("normal", list(1, 1))))
+  for (value in c(-1, 0, 3)) {
+    expect_error(.iwmde_select_prior_component(mixture, c(indicator = value), "indicator"),
+      "outside the available prior components", fixed = TRUE)
+  }
+})
+
+
 test_that("the native normal candidate grid matches the candidate route", {
 
   fit_names <- .normal_grid_fit_names()

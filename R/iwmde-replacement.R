@@ -823,13 +823,9 @@
       return(rep(paste(name, "NA", sep = "="), nrow(samples)))
     }
 
-    # The whole column is validated and converted at once; the checks and their
-    # messages are the ones .iwmde_indicator_index() applies per value.
+    # Cache identities use the same exact integer validation as the full
+    # posterior keys; component selection validates its declared range.
     index <- .as_exact_model_indicator(samples[, name], name)
-    if (any(index < 1L)) {
-      stop("'", name, "' is outside the available prior components.",
-           call. = FALSE)
-    }
 
     paste(name, index, sep = "=")
   })
