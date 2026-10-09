@@ -44,12 +44,16 @@ A declaration is not required to reach the factor routes. Dependency blocks
 whose correlation is constant on nested partitions of their rows, which is
 what compound symmetry and nested \code{\link[metafor:vcalc]{metafor::vcalc()}} \code{type}/\code{obs}
 structures produce, are recognized from an ordinary matrix and represented
-exactly as \eqn{\mathrm{diag}(d) + U U^\mathsf{T}}. The recovered
-representation must reproduce the supplied entries to working precision;
-blocks that do not, such as autoregressive \code{phi} or shared-control
-structures, keep the general route with the supplied entries. \code{V} remains
-the stored covariance either way. Use \code{known_v_factor()} to declare a
-factor that cannot be recovered from the matrix, or to name its sources.
+exactly as \eqn{\mathrm{diag}(d) + U U^\mathsf{T}}. Other blocks that are
+exactly a diagonal plus a few loading columns, such as covariance from
+overlapping samples, shared control arms, or partially shared raters, are
+recovered by a minimum-rank search that stops at the kernel rank cap and at
+the Ledermann bound. The recovered representation must reproduce the
+supplied entries to working precision; blocks that do not, such as
+autoregressive \code{phi} structures, keep the general route with the supplied
+entries. \code{V} remains the stored covariance either way. Use
+\code{known_v_factor()} to declare a factor that cannot be recovered from the
+matrix, or to name its sources.
 
 Matrix inputs use base R's numerical symmetry tolerance. Accepted matrices
 are stored symmetrically by averaging corresponding off-diagonal entries,

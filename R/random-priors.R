@@ -152,6 +152,16 @@
 #' prior. Unsupported centered configurations are rejected; `"auto"` can fall
 #' back to noncentering.
 #'
+#' A named `random_block()` may instead request `"mean_centered"` for a sampled
+#' scalar random intercept; the top-level `parameterization` does not accept it
+#' and `"auto"` never selects it. It samples the group locations around the
+#' compiled contribution of the fixed intercept, so the original effect, SD,
+#' allocation, and correlation priors are unchanged. At most one block per
+#' formula may take the intercept. The mode needs the positive SD coordinates of
+#' centered blocks and is rejected for marginalized blocks, random slopes, known
+#' between-group covariance, and selection models in which the block is
+#' integrated rather than retained in the selection normalizer.
+#'
 #' @param ... named `random_block()` overrides and, optionally,
 #'   `random_variance_allocation()` objects. Override names must match resolved
 #'   block names.
@@ -175,7 +185,9 @@
 #'   two routes cannot be combined.
 #' @param parameterization requested sampled representation:
 #'   `"noncentered"`, `"centered"`, or `"auto"`. The top-level value is
-#'   inherited by blocks whose `random_block()` value is `NULL`.
+#'   inherited by blocks whose `random_block()` value is `NULL`. A named
+#'   `random_block()` can additionally request `"mean_centered"`; see the
+#'   details.
 #' @param terms in `random_block()`, an optional named list of term-specific SD
 #'   overrides. Each entry is an SD prior or `random_block(sd = ...)`, and its
 #'   name must match a resolved term such as `"intercept"` or a slope label. In

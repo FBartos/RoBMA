@@ -103,7 +103,9 @@ two routes cannot be combined.}
 
 \item{parameterization}{requested sampled representation:
 \code{"noncentered"}, \code{"centered"}, or \code{"auto"}. The top-level value is
-inherited by blocks whose \code{random_block()} value is \code{NULL}.}
+inherited by blocks whose \code{random_block()} value is \code{NULL}. A named
+\code{random_block()} can additionally request \code{"mean_centered"}; see the
+details.}
 
 \item{terms}{in \code{random_block()}, an optional named list of term-specific SD
 overrides. Each entry is an SD prior or \code{random_block(sd = ...)}, and its
@@ -367,6 +369,16 @@ realized group coefficients, and \code{"auto"} asks BayesTools to choose from th
 resolved design. It does not change any SD, allocation, or correlation
 prior. Unsupported centered configurations are rejected; \code{"auto"} can fall
 back to noncentering.
+
+A named \code{random_block()} may instead request \code{"mean_centered"} for a sampled
+scalar random intercept; the top-level \code{parameterization} does not accept it
+and \code{"auto"} never selects it. It samples the group locations around the
+compiled contribution of the fixed intercept, so the original effect, SD,
+allocation, and correlation priors are unchanged. At most one block per
+formula may take the intercept. The mode needs the positive SD coordinates of
+centered blocks and is rejected for marginalized blocks, random slopes, known
+between-group covariance, and selection models in which the block is
+integrated rather than retained in the selection normalizer.
 }
 }
 \examples{
