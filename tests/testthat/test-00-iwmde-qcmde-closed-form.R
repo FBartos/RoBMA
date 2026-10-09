@@ -326,8 +326,12 @@ test_that("rows without an exact law, a reported log prior or a kernel keep the 
 })
 
 
-test_that("the ordered-source caller normalizes its exact rows in closed form too", {
+test_that("the pass treats the ordered-source replacement like any other for rows whose route reports their log prior", {
 
+  # The ordered-source producer reports no log prior (its exact rows are
+  # normalized by its own source normalizer before a pass), so none of its
+  # rows is eligible in practice; the pass itself makes no exception for the
+  # replacement.
   rows <- .cf_rows()[c("wide", "bounded")]
   pass <- .cf_pass(rows, replacement = list(type = "ordered_source"))[["pass"]]
 
