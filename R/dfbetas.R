@@ -25,11 +25,13 @@
 #' (for the effect size and meta-regression coefficients). The other options are
 #' \code{"scale"} (for the heterogeneity and scale-regression coefficients) and
 #' \code{"bias"} (for omega, PET, and PEESE publication-bias parameters).
-#' @param standardized_coefficients whether to show standardized meta-regression coefficients.
-#' Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
-#' coefficients are returned for the intercept and continuous predictors. These coefficients
-#' correspond to the standardized scale on which prior distributions are specified by default
-#' (i.e., `standardize_continuous_predictors = TRUE`).
+#' @param standardized_coefficients whether to show standardized meta-regression
+#' and scale-regression coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
+#' standardized coefficients are returned for the intercept and continuous predictors of
+#' the location (\code{type = "mods"}) and scale (\code{type = "scale"}) formulas. These
+#' coefficients correspond to the standardized scale on which prior distributions are
+#' specified by default (i.e., `standardize_continuous_predictors = TRUE`). Otherwise,
+#' the coefficients are returned on the original scale of the predictors.
 #' @param transform_factors whether to transform factors to their original names.
 #' Defaults to \code{TRUE}.
 #' @param return_loo_estimates whether to return the leave-one-out coefficient
@@ -142,6 +144,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
         random_effects_summary = "none",
         remove_diagnostics     = TRUE,
         transform_factors      = transform_factors,
+        transform_scaled       = !standardized_coefficients,
         return_samples         = TRUE
       )
     } else {

@@ -23,11 +23,13 @@
 \code{"scale"} (for the heterogeneity and scale-regression coefficients) and
 \code{"bias"} (for omega, PET, and PEESE publication-bias parameters).}
 
-\item{standardized_coefficients}{whether to show standardized meta-regression coefficients.
-Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
-coefficients are returned for the intercept and continuous predictors. These coefficients
-correspond to the standardized scale on which prior distributions are specified by default
-(i.e., \code{standardize_continuous_predictors = TRUE}).}
+\item{standardized_coefficients}{whether to show standardized meta-regression
+and scale-regression coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
+standardized coefficients are returned for the intercept and continuous predictors of
+the location (\code{type = "mods"}) and scale (\code{type = "scale"}) formulas. These
+coefficients correspond to the standardized scale on which prior distributions are
+specified by default (i.e., \code{standardize_continuous_predictors = TRUE}). Otherwise,
+the coefficients are returned on the original scale of the predictors.}
 
 \item{transform_factors}{whether to transform factors to their original names.
 Defaults to \code{TRUE}.}

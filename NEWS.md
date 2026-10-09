@@ -765,6 +765,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- scale `dfbetas()` (`type = "scale"`) follows `standardized_coefficients`
+  like the location coefficients: by default (`standardized_coefficients =
+  FALSE`) the scale coefficients of standardized predictors are returned on the
+  original scale, with the intercept as `exp(intercept)`; the previous default
+  output, which ignored the argument, equals `standardized_coefficients =
+  TRUE`.
 - `as.data.frame()` of an object created with `only_data = TRUE` or
   `only_priors = TRUE` stops with the classed error `RoBMA_unfitted_object`
   (family class `RoBMA_unsupported_request`) instead of silently returning an

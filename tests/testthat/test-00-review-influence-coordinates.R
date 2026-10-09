@@ -185,3 +185,62 @@ test_that("VIF omits a fixed-zero intercept from the posterior correlation", {
   draws <- as.matrix(coda::as.mcmc.list(object[["fit"]]))[, 1:3]
   expect_equal(unname(correlation), unname(stats::cor(draws)), tolerance = 1e-12)
 })
+
+
+test_that("scale DFBETAS follow standardized_coefficients like location DFBETAS", {
+
+  n    <- 100L
+  data <- data.frame(yi = seq(-.1, .2, length.out = 6), sei = .1, x = 1:6)
+  object <- brma(
+    yi = yi, sei = sei, mods = ~ x, scale = ~ x, data = data, measure = "GEN",
+    prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+    prior_mods = list(x = BayesTools::prior("normal", list(mean = 0, sd = 1))),
+    prior_scale = list(x = BayesTools::prior("normal", list(mean = 0, sd = 1))),
+    prior_heterogeneity = BayesTools::prior(
+      "normal", list(mean = 0, sd = 1), truncation = list(lower = 0, upper = Inf)
+    ),
+    standardize_continuous_predictors = TRUE, only_priors = TRUE, silent = TRUE
+  )
+  setup <- review_compile_object(object)
+  withr::local_seed(6123)
+  samples <- cbind(
+    stats::rnorm(n) + .2, stats::rnorm(n) + .3,
+    exp(stats::rnorm(n, -2, .2)), stats::rnorm(n) + .4
+  )
+  colnames(samples) <- c(
+    review_coefficient_name(setup, "intercept"), review_coefficient_name(setup, "x"),
+    review_coefficient_name(setup, "intercept", "log_tau"),
+    review_coefficient_name(setup, "x", "log_tau")
+  )
+  object  <- review_attach_replay(setup, samples)
+  weights <- matrix(stats::runif(n * 6L), nrow = n, ncol = 6L)
+  weights <- sweep(weights, 2L, colSums(weights), "/")
+
+  # leave-one-out means of the scale coefficients: the fitted intercept b0 and
+  # slope b1 of tau = b0 exp(b1 z), z = (x - m) / s, give tau0 = b0 exp(-b1 m / s)
+  # and b1 / s on the original scale
+  center  <- mean(data[["x"]])
+  scale   <- stats::sd(data[["x"]])
+  b0      <- samples[, 3L]
+  b1      <- samples[, 4L]
+  loo <- function(draws) unname(crossprod(weights, draws))
+
+  standardized <- dfbetas(object, type = "scale", .weights = weights,
+                          return_loo_estimates = TRUE,
+                          standardized_coefficients = TRUE)
+  original     <- dfbetas(object, type = "scale", .weights = weights,
+                          return_loo_estimates = TRUE,
+                          standardized_coefficients = FALSE)
+
+  expect_equal(unname(as.matrix(standardized)), loo(cbind(b0, b1)), tolerance = 1e-10)
+  expect_equal(unname(as.matrix(original)),
+               loo(cbind(b0 * exp(-b1 * center / scale), b1 / scale)),
+               tolerance = 1e-10)
+  expect_false(isTRUE(all.equal(standardized, original, check.attributes = FALSE)))
+  # the default is the original scale, as for the location coefficients
+  expect_identical(
+    dfbetas(object, type = "scale", .weights = weights, return_loo_estimates = TRUE),
+    original
+  )
+})
