@@ -57,6 +57,50 @@ test_that("truncated-normal intervals and masses match mpmath references", {
 })
 
 
+test_that("narrow normal intervals keep their mass", {
+
+  # The difference of two tail probabilities returned 3.7% too much mass for
+  # the interval (0, 1e-15) of a normal with sd 1 / sqrt(3). References:
+  # 80-digit mpmath evaluation of the normal distribution function on the
+  # double inputs.
+  cases <- list(
+    list(lower = 0, upper = 1e-15, mean = 0, sd = 1 / sqrt(3),
+         expected = -34.908408783781303),
+    list(lower = 0, upper = 1e-15, mean = .3, sd = 1 / sqrt(3),
+         expected = -35.043408783781303),
+    list(lower = -1e-15, upper = 1e-15, mean = 0, sd = 1,
+         expected = -34.764567747555413),
+    list(lower = 40, upper = 40 + 1e-9, mean = 0, sd = 1,
+         expected = -821.64220786013034),
+    list(lower = 2.5, upper = 2.5 + 1e-12, mean = 0, sd = 1,
+         expected = -31.674870752503553),
+    list(lower = .1, upper = .1 + 1e-14, mean = .1, sd = 1e-3,
+         expected = -26.246786228294524),
+    # intervals that are not narrow keep the tail difference
+    list(lower = 40, upper = 41, mean = 0, sd = 1,
+         expected = -804.60844201375379),
+    list(lower = 0, upper = .3, mean = 0, sd = 1,
+         expected = -2.1378215958179828),
+    list(lower = -1, upper = 1e-15, mean = 0, sd = 1,
+         expected = -1.0748623268620702)
+  )
+  for (case in cases) {
+    actual <- .iwmde_qcmde_log_normal_mass(case$lower, case$upper, case$mean,
+                                           case$sd)
+    expect_lt(abs(actual - case$expected), 1e-13 * max(1, abs(case$expected)),
+      label = paste("(", case$lower, ",", case$upper, ")"))
+  }
+  # all together, as the vectorized callers pass them
+  expect_equal(
+    .iwmde_qcmde_log_normal_mass(
+      vapply(cases, `[[`, numeric(1), "lower"),
+      vapply(cases, `[[`, numeric(1), "upper"),
+      vapply(cases, `[[`, numeric(1), "mean"),
+      vapply(cases, `[[`, numeric(1), "sd")),
+    vapply(cases, `[[`, numeric(1), "expected"), tolerance = 1e-13)
+})
+
+
 test_that("a Gaussian kernel with a normal prior is an exact truncated normal", {
 
   prior  <- BayesTools::prior("normal", list(mean = .2, sd = .5),

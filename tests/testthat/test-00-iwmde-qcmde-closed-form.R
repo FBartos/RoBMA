@@ -193,6 +193,37 @@ test_that("exact Normal rows are normalized by their closed-form mass on every g
 })
 
 
+test_that("a truncation narrower than the sd of its normal keeps its closed-form normalizer", {
+
+  # The effect prior normal(0, 1) truncated to [0, 1e-15] and two unit
+  # observations at 0: the row is a normal with the sd 1 / sqrt(3) on an
+  # interval of 1.7e-15 sds, and its ordinate is 1e15 up to 1e-16. The log mass
+  # of the interval from the difference of two distribution function values was
+  # 3.7% off (the ordinate 1.0373e15). Reference: 60-digit mpmath quadrature of
+  # exp(l) over [0, 1e-15] for the log density l of the row.
+  prior   <- BayesTools::prior("normal", list(mean = 0, sd = 1),
+                               truncation = list(lower = 0, upper = 1e-15))
+  current <- 5e-16
+  kernel  <- list(current = current, linear = -2 * current, quadratic = 2,
+                  prior_route = "focal", baseline = 0)
+  states  <- list(list(focal_prior = prior, use_focal_prior_delta = TRUE))
+  laws    <- .iwmde_qcmde_row_laws(list(), states, list(type = "scalar"), kernel)
+  expect_identical(laws[["kind"]], "exact")
+
+  x         <- c(0, current, 1e-15)
+  log_prior <- matrix(stats::dnorm(x, log = TRUE), ncol = 1L)
+  delta     <- x - current
+  grid      <- list(x = x, log_q = matrix(
+    kernel[["linear"]] * delta - delta^2 + log_prior[, 1L], ncol = 1L))
+  closed <- .iwmde_qcmde_closed_form_rows(laws, kernel, grid, log_prior, 1L,
+    .iwmde_parameter_transform(c(-Inf, Inf)))
+  expect_identical(closed[["rows"]], 1L)
+  expect_lt(abs(closed[["log_normalizer"]] + 35.457714928115358), 1e-12)
+  expect_equal(exp(grid[["log_q"]][2L, 1L] - closed[["log_normalizer"]]),
+    999999999999999.92, tolerance = 1e-12)
+})
+
+
 test_that("closed-form rows leave no truncation and report their analytic mass in the range", {
 
   rows    <- .cf_rows()[c("wide", "truncated", "bounded")]

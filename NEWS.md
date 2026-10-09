@@ -885,6 +885,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   returned an ordinate 5821 times too large now agrees with the exact mixture
   of the conditional normals, and its truncation is zero. Other rows keep the
   lattice normalizer; the nested-grid ordinate change they report estimates
+  their discretization error and is not a bound. The mass of an interval that
+  is narrow against the hazard of the normal's tail (a truncation of 1e-15
+  around a normal of standard deviation 0.58, whose ordinate was 3.7% too large)
+  is integrated over the interval instead of taken from a difference of
+  distribution function values. Cached qCMDE normalizations are recomputed
+  (`.iwmde_algorithm_version()` 30).
   their discretization error and is not a bound. Cached qCMDE ordinates are
   recomputed after the update.
 - IWMDE of a bounded linear target (a contrast or sum of coefficients whose

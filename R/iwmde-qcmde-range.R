@@ -228,27 +228,54 @@
 
 # Probability that a normal variable falls in (lower, upper), on the log scale,
 # taken from the tail on the interval's side of the mean. Vectorized.
+#
+# The difference of two tail probabilities loses its digits once the interval
+# is narrow against the hazard of the tail, 1 - P(b) / P(a) < 0.1: the log mass
+# of (0, 1e-15) of a standard-deviation-0.58 normal was 3.7% off. Those
+# intervals use the 16-node Gauss-Legendre rule on the interval scaled to
+# (0, 1) (the log density varies by less than 0.11 across them, which the rule
+# integrates to rounding); its width is the difference of the bounds divided by
+# the sd, not of the rounded standardized bounds.
 .iwmde_qcmde_log_normal_mass <- function(lower, upper, mean, sd) {
 
   n     <- max(length(lower), length(upper), length(mean), length(sd))
   lower <- rep_len(lower, n)
   upper <- rep_len(upper, n)
-  a     <- (lower - rep_len(mean, n)) / rep_len(sd, n)
-  b     <- (upper - rep_len(mean, n)) / rep_len(sd, n)
+  mean  <- rep_len(mean, n)
+  sd    <- rep_len(sd, n)
+  a     <- (lower - mean) / sd
+  b     <- (upper - mean) / sd
   out   <- rep(-Inf, n)
   valid <- !is.na(a) & !is.na(b) & a < b
+  # bounds that differ but whose standardized values rounded together
+  merged <- !valid & !is.na(a) & !is.na(b) & a == b & lower < upper &
+    is.finite(a)
+  narrow <- merged
 
   right <- valid & a > 0
   if (any(right)) {
     log_a <- stats::pnorm(a[right], lower.tail = FALSE, log.p = TRUE)
     log_b <- stats::pnorm(b[right], lower.tail = FALSE, log.p = TRUE)
-    out[right] <- log_a + log1p(-exp(log_b - log_a))
+    out[right]    <- log_a + log1p(-exp(log_b - log_a))
+    narrow[right] <- -expm1(log_b - log_a) < 0.1
   }
   left <- valid & !right
   if (any(left)) {
     log_a <- stats::pnorm(a[left], log.p = TRUE)
     log_b <- stats::pnorm(b[left], log.p = TRUE)
-    out[left] <- log_b + log1p(-exp(log_a - log_b))
+    out[left]    <- log_b + log1p(-exp(log_a - log_b))
+    narrow[left] <- -expm1(log_a - log_b) < 0.1
+  }
+  narrow <- narrow & !is.na(narrow)
+  if (any(narrow)) {
+    rule  <- .gauss_legendre_nodes(16L)
+    width <- (upper[narrow] - lower[narrow]) / sd[narrow]
+    z     <- a[narrow] + outer(width, rule[["nodes"]])
+    terms <- matrix(rule[["log_weights"]], nrow = sum(narrow), ncol = 16L,
+                    byrow = TRUE) - z^2 / 2
+    top   <- apply(terms, 1L, max)
+    out[narrow] <- log(width) + top + log(rowSums(exp(terms - top))) -
+      log(2 * pi) / 2
   }
 
   return(out)
