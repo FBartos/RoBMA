@@ -155,12 +155,12 @@
 #'     Schur-complement conditionals \eqn{p(y_i \mid y_{-i}, \theta)} within
 #'     dependency blocks. They are existing-estimate diagnostics, not
 #'     independent new-estimate prediction targets.
-#'     When known random-effect covariance `R` is supplied, sampled random
-#'     effects remain conditioned in these estimate-depth targets. The known
-#'     `R` matrix shapes the posterior and prior for those random effects, but
-#'     it is not added again as a marginal \eqn{ZGZ'} covariance term. Supported
-#'     known-`R` blocks compiled as marginalized instead enter through the
-#'     diagonal extra variance term \eqn{\tau^2 r_i} prepared by BayesTools.
+#'     Every local Gaussian random effect is integrated, so the target is the
+#'     same whether the fitting parameterization sampled or marginalized the
+#'     effect. When known random-effect covariance `R` is supplied, the known
+#'     `R` matrix and the fitted random-effect covariance enter the marginal
+#'     \eqn{ZGZ'} covariance of the Schur conditional through BayesTools'
+#'     compiled random-effect metadata.
 #'   \item `dfbetas()` and `covratio()` use estimate-unit PSIS weights. With
 #'     correlated known `V`, their interpretation is parameter influence under
 #'     conditional estimate deletion, not independent-study deletion.

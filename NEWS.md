@@ -171,7 +171,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     estimates of its cluster, where 4.0.0 conditioned on the sampled cluster
     effects. Sampled, marginalized, and mixed random-effect
     parameterizations share one estimand; LOO-PIT and studentized residuals
-    use the matching conditional distribution.
+    use the matching conditional distribution. Models with non-unit
+    likelihood `weights` keep conditioning on their sampled local effects.
   - marginal-means Bayes factors follow the Savage-Dickey rules of
     BayesTools 0.3.1 (see also Fixes): a null hypothesis outside the
     posterior draws gives a finite Bayes factor instead of `Inf`; and a

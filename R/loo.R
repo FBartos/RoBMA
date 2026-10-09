@@ -83,6 +83,10 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
 #' deleting one estimate retains the other estimates in its cluster or random-
 #' effect block; it does not represent prediction for a wholly new group.
+#' Gaussian models with non-unit likelihood \code{weights} are the exception:
+#' they score the powered row densities given the sampled local effects
+#' (\code{latent_effect_handling = "sampled"} in the target metadata) instead
+#' of integrating them.
 #'
 #' For \code{brma.mv()} models with known random-effect group covariance
 #' \code{R}, the known \code{R} matrix and fitted random-effect covariance enter
@@ -562,7 +566,9 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
 #' estimate-unit WAIC uses the same integrated conditional log-likelihood matrix
 #' as estimate-unit LOO, \eqn{p(y_i \mid y_{-i}, \theta)}. Estimate deletion
-#' retains the fitted grouping and dependency structure.
+#' retains the fitted grouping and dependency structure. As for LOO, Gaussian
+#' models with non-unit likelihood \code{weights} score the powered row
+#' densities given the sampled local effects instead of integrating them.
 #'
 #' For \code{brma.mv()} models with known random-effect group covariance
 #' \code{R}, the known \code{R} matrix and fitted random-effect covariance enter

@@ -65,6 +65,10 @@ estimate-unit LOO integrates Gaussian local effects and uses
 \eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
 deleting one estimate retains the other estimates in its cluster or random-
 effect block; it does not represent prediction for a wholly new group.
+Gaussian models with non-unit likelihood \code{weights} are the exception:
+they score the powered row densities given the sampled local effects
+(\code{latent_effect_handling = "sampled"} in the target metadata) instead
+of integrating them.
 
 For \code{brma.mv()} models with known random-effect group covariance
 \code{R}, the known \code{R} matrix and fitted random-effect covariance enter
