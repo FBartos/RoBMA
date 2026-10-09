@@ -1114,7 +1114,6 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/selection-normalizer-grid.R",
     "R/unit_level.R",
     "R/utilities.R",
-    "R/zplot-compute.R",
     "R/zzz.R"
   )
   src_files <- c(

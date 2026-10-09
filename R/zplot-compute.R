@@ -1058,51 +1058,6 @@
 }
 
 
-# Refine only rows rejected by the existing Gaussian-event MCSE criterion.
-# compute(plan, rows) returns row vectors, with NULL selecting the initial batch.
-.selection_joint_checked_event <- function(compute, execution_plan, subject, remedy) {
-
-  plan <- execution_plan
-  current <- compute(plan, NULL)
-  S <- length(current[["relative_mcse"]])
-  result <- current
-  active <- seq_len(S)
-  repeat {
-    if (!is.list(current) || !length(current) || !S ||
-        any(vapply(current, function(value) {
-          !is.numeric(value) || !is.null(dim(value)) || length(value) != length(active)
-        }, logical(1)))) {
-      stop("Gaussian selection event results are inconsistent.", call. = FALSE)
-    }
-    for (name in names(current)) result[[name]][active] <- current[[name]]
-    quadrature_error <- current[["relative_quadrature_error"]]
-    failed_quadrature <- which(!is.finite(quadrature_error) |
-      quadrature_error > plan[["relative_tolerance"]])
-    if (length(failed_quadrature)) {
-      stop(subject, " was rejected by diagnostics: relative quadrature error was ",
-        format(quadrature_error[failed_quadrature[[1L]]], digits = 4),
-        ". Inspect the integration diagnostics.", call. = FALSE)
-    }
-    error <- current[["relative_mcse"]]
-    failed <- which(!is.finite(error) | error > plan[["relative_tolerance"]])
-    if (!length(failed)) return(result)
-    if (plan[["points_per_scramble"]] >= plan[["max_points_per_scramble"]]) {
-      stop(subject, " was rejected by diagnostics: relative integration MCSE was ",
-        format(error[failed[[1L]]], digits = 4), ". ", remedy, call. = FALSE)
-    }
-    active <- active[failed]
-    plan[["points_per_scramble"]] <- min(
-      2L * plan[["points_per_scramble"]], plan[["max_points_per_scramble"]]
-    )
-    design_names <- names(plan[["designs"]])
-    if (length(design_names)) {
-      plan[["designs"]] <- plan[["designs"]][!grepl("^[0-9]+$", design_names)]
-    }
-    current <- compute(plan, active)
-  }
-}
-
-
 # EDR and extrapolated curves need the joint normalizer, but no selected
 # threshold or density projection. Reuse the likelihood's certified routes.
 .zplot_normalizer_block <- function(

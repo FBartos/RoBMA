@@ -242,7 +242,6 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/random-marginal-vcov.R",
     "R/selection-cache.R",
     "R/selection-normalizer-grid.R",
-    "R/zplot-compute.R",
     "src/glmm-binomial-loglik.h",
     "src/samplers/CoarseCorrectedSlice.cc",
     "src/samplers/CoarseCorrectedSlice.h",
@@ -310,6 +309,7 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/random-priors.R",
     "R/regplot-data.R",
     "R/zplot-api.R",
+    "R/zplot-compute.R",
     "src/plot-root.h",
     "src/r-native-probe.cc.inc"
   ) %in% source_files))
@@ -464,7 +464,8 @@ test_that("package source hash refreshes after source edits", {
   }
 
   # A post-fit-only source is outside the hash, wherever it is edited
-  for (post_fit in c("R/forest.R", "R/zplot-api.R", "src/r-regplot.cc")) {
+  for (post_fit in c("R/forest.R", "R/zplot-api.R", "R/zplot-compute.R",
+                   "src/r-regplot.cc")) {
     before_edit <- package_source_md5()
     post_fit_path <- file.path(package_root, post_fit)
     dir.create(dirname(post_fit_path), recursive = TRUE, showWarnings = FALSE)
