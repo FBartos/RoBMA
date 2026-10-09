@@ -478,17 +478,53 @@
   component_by_block <- stats::setNames(components, block_names)
   expected_sources   <- .assign_prior.random_scale_source_names(data)
 
+  # The source of a block is the one keyed by the block itself (a scale model
+  # with a random target) and otherwise the one keyed by its component label.
+  expected_by_block  <- lapply(stats::setNames(nm = names(component_by_block)), function(block) {
+    if (block %in% names(expected_sources)) {
+      return(expected_sources[[block]])
+    }
+    component <- component_by_block[[block]]
+    if (component %in% names(expected_sources)) {
+      return(expected_sources[[component]])
+    }
+    NULL
+  })
+
+  # a source expected by another block cannot be bound to this one
   for (term in formula_design[["random_effects"]]) {
-    block     <- term[["block_name"]]
+    block <- term[["block_name"]]
     if (is.null(block) || !block %in% names(component_by_block)) {
       stop("Random-effect scale metadata contain an unknown block.", call. = FALSE)
     }
-    component <- component_by_block[[block]]
-    expected  <- if (component %in% names(expected_sources)) {
-      expected_sources[[component]]
-    } else {
-      NULL
+    source <- term[["sd_binding"]][["source"]]
+    if (!inherits(source, "random_sd_source") ||
+        identical(source[["name"]], expected_by_block[[block]])) {
+      next
     }
+    owners <- setdiff(names(expected_by_block)[vapply(
+      expected_by_block, function(owner_source) {
+        isTRUE(owner_source == source[["name"]])
+      }, logical(1)
+    )], block)
+    if (length(owners) > 0L) {
+      stop(structure(
+        class = c("RoBMA_prior_scale_source_target", "error", "condition"),
+        list(message = paste0(
+          "Row-shaped SD source '", source[["name"]], "' belongs to the ",
+          "random block '", owners[[1L]], "' targeted by 'scale' but is ",
+          "bound to the random block '", block, "' in ",
+          "'prior_heterogeneity = BayesTools::prior_random(...)'. Bind it ",
+          "to '", owners[[1L]], "'."
+        ), call = NULL)
+      ))
+    }
+  }
+
+  for (term in formula_design[["random_effects"]]) {
+    block     <- term[["block_name"]]
+    component <- component_by_block[[block]]
+    expected  <- expected_by_block[[block]]
     if (is.null(expected)) {
       next
     }

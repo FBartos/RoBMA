@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- a row-shaped scale SD source bound to a random block other than the one
+  targeted by its `scale` model (`scale = list(esid = ~ x)`) is refused with
+  the classed error `RoBMA_prior_scale_source_target` naming both blocks; the
+  expected source of a block is now looked up by the block itself before its
+  component label.
 - known random-effect covariance `R` accepts every random-intercept syntax of
   R's formula semantics (`(0 + 1 | id)`, `(1 - 0 | id)`, ...) like `(1 | id)`,
   instead of classifying the term by the literal expression `1`; random slopes

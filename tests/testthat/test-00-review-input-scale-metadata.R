@@ -9,3 +9,60 @@ test_that("missing random scale-block metadata has a targeted error", {
   expect_error(.validate_prior_random_scale_sources(object[["data"]], design),
                "^Random-effect scale metadata contain an unknown block\\.$")
 })
+
+test_that("a row-shaped scale source must be bound to its targeted random block", {
+
+  dat <- data.frame(
+    yi = c(.1, .2, .3, .4), sei = rep(.2, 4),
+    study = factor(c("a", "a", "b", "b")), esid = factor(1:4), x = c(0, 0, 1, 1)
+  )
+  point <- BayesTools::prior("point", list(.3))
+  source <- BayesTools::random_sd_source("tau_esid_study", shape = "row")
+  construct <- function(...) {
+    brma.mv(
+      yi = yi, sei = sei, random = ~ 1 | study / esid, scale = list(esid = ~ x),
+      data = dat, measure = "GEN", prior_unit_information_sd = 1,
+      only_priors = TRUE, silent = TRUE, ...
+    )
+  }
+  bound_source <- function(object) {
+    design <- .fitted_formula_design(object, "mu", required = TRUE)
+    blocks <- vapply(design[["random_effects"]], `[[`, character(1), "block_name")
+    stats::setNames(lapply(design[["random_effects"]], function(term) {
+      term[["sd_binding"]][["source"]][["name"]]
+    }), blocks)
+  }
+
+  # the source of the 'esid' scale model belongs to its block, not to 'study'
+  wrong <- BayesTools::prior_random(
+    study      = BayesTools::random_block(sd_source = source),
+    esid_study = BayesTools::random_block(sd = point)
+  )
+  error <- tryCatch(construct(prior_heterogeneity = wrong), error = identity)
+  expect_s3_class(error, "RoBMA_prior_scale_source_target")
+  if (inherits(error, "error")) {
+    expect_match(conditionMessage(error), "'study'", fixed = TRUE)
+    expect_match(conditionMessage(error), "'esid_study'", fixed = TRUE)
+  }
+  swapped <- BayesTools::prior_random(
+    study      = BayesTools::random_block(sd_source = source),
+    esid_study = BayesTools::random_block(
+      sd_source = BayesTools::random_sd_source("tau_study", shape = "row")
+    )
+  )
+  expect_error(construct(prior_heterogeneity = swapped))
+
+  # the targeted block keeps its source and the untargeted block its SD prior
+  correct <- BayesTools::prior_random(
+    study      = BayesTools::random_block(sd = point),
+    esid_study = BayesTools::random_block(sd_source = source)
+  )
+  bound <- bound_source(construct(prior_heterogeneity = correct))
+  expect_null(bound[["study"]])
+  expect_identical(bound[["esid_study"]], "tau_esid_study")
+
+  # the default prior binds the same block
+  bound <- bound_source(construct())
+  expect_null(bound[["study"]])
+  expect_identical(bound[["esid_study"]], "tau_esid_study")
+})
