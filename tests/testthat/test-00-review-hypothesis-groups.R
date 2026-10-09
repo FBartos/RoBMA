@@ -57,3 +57,44 @@ test_that("different level expressions with equal fitted weights are separate gr
   .review_expect_combined_equals_single(marginal_means(two), exact_pair,
                                         "two levels, marginal means")
 })
+
+# The group key of a level combination reads the level coefficients of a
+# statement side from this unexported BayesTools helper
+# (.hypothesis_plan_combination_group). A rename or a changed return value
+# there must fail here, with the reason, instead of in every grouped call.
+test_that("the BayesTools linear-target side helper the group key uses is unchanged", {
+
+  side_function <- tryCatch(
+    utils::getFromNamespace(".hypothesis_linear_target_side", "BayesTools"),
+    error = identity
+  )
+  expect_true(
+    is.function(side_function),
+    info = paste(
+      "BayesTools:::.hypothesis_linear_target_side is gone; RoBMA's",
+      ".hypothesis_plan_combination_group() depends on it."
+    )
+  )
+  if (!is.function(side_function)) {
+    return(invisible(NULL))
+  }
+
+  coefficients <- function(statement) {
+    hypothesis <- BayesTools::hypothesis_parse(statement)
+    side <- side_function(hypothesis[["statements"]][[1L]][["left"]], "g")
+    expect_true(
+      is.list(side) && "coefficients" %in% names(side),
+      info = paste("no 'coefficients' returned for", statement)
+    )
+    side[["coefficients"]]
+  }
+  difference <- coefficients("g[A] - g[B] = 0.1")
+  expect_true(is.numeric(difference) && !is.null(names(difference)))
+  expect_identical(names(difference), c("A", "B"))
+  expect_equal(unname(difference[["A"]]), -unname(difference[["B"]]))
+  # the key does not depend on the threshold, and differs between expressions
+  expect_identical(coefficients("g[A] - g[B] = 0.2"), difference)
+  weighted <- coefficients("2 * g[A] + g[C] = 0.1")
+  expect_identical(names(weighted), c("A", "C"))
+  expect_equal(unname(weighted[["A"]]), 2 * unname(weighted[["C"]]))
+})
