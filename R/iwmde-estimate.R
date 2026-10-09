@@ -84,6 +84,27 @@
 }
 
 
+# A density-only estimate for a public route that has no ordinate to report
+# (plot(), marginal_means()): the construction failure of the estimate is
+# re-signalled with the public class "RoBMA_density_construction_error" (in
+# front of its own classes) and the remedy of estimating the density from the
+# posterior draws.
+.iwmde_estimate_density <- function(...) {
+
+  tryCatch(
+    .iwmde_estimate(...),
+    iwmde_construction_error = function(condition) {
+      condition[["message"]] <- paste0(
+        sub("[.]+$", "", condition[["message"]]), ". Use density_method = 'KDE' ",
+        "to estimate this density from the posterior draws."
+      )
+      class(condition) <- c("RoBMA_density_construction_error", class(condition))
+      stop(condition)
+    }
+  )
+}
+
+
 .iwmde_estimate_fixed_ordinate <- function(
     context, parameter, density_method, density_control, values,
     parameter_spec = NULL, metadata = NULL, cache = NULL,

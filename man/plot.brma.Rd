@@ -227,7 +227,10 @@ quantity without a supported scalar random-component coordinate), or
 \code{RoBMA_density_method_original_scale} (a coefficient or factor cell whose
 original-scale value is not a linear combination of its fitted
 coefficients, such as the exponentiated intercept of a scale formula with
-standardized predictors; use \code{standardized_coefficients = TRUE}).
+standardized predictors; use \code{standardized_coefficients = TRUE}). A density
+whose construction fails stops with an error of class
+\code{RoBMA_density_construction_error}; use \code{density_method = "KDE"} to estimate
+it from the posterior draws.
 \code{\link[=hypothesis]{hypothesis()}} refuses qCMDE/IWMDE for the same causes with these classes
 after its own. \code{\link[=plot_prior]{plot_prior()}} stops with \code{RoBMA_density_method_original_scale}
 for the prior of a term with several fitted coordinates whose original-scale

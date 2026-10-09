@@ -142,7 +142,7 @@
     specs <- specs_by_type[[current_type]]
 
     estimates <- lapply(specs, function(spec) {
-      .iwmde_estimate(
+      .iwmde_estimate_density(
         context         = density_context,
         parameter       = spec[["label"]],
         density_method  = density_method,

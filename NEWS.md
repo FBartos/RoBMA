@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- plot and marginal-means densities whose qCMDE/IWMDE construction fails stop
+  with the public error class `RoBMA_density_construction_error` (the internal
+  `iwmde_construction_error` class is kept) and the remedy to use
+  `density_method = "KDE"`; hypothesis ordinate failures keep
+  `RoBMA_density_ordinate_error`.
 - marginal means built with `bf = FALSE` and a later `summary(bf = TRUE)`
   request with `density_method = "qCMDE"` or `"IWMDE"` keep `NA` Bayes factors
   but name the actual reason, that the posterior ordinates were not computed,

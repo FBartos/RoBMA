@@ -131,7 +131,9 @@ marginal_means <- function(object, ...) {
 #' random-formula models without known \code{V}),
 #' \code{RoBMA_density_method_scale_components} (component-specific scale
 #' formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
-#' Poisson GLMMs).
+#' Poisson GLMMs). A density whose construction fails stops with an error of
+#' class \code{RoBMA_density_construction_error}; use
+#' \code{density_method = "KDE"} to estimate it from the posterior draws.
 #' @inheritParams predict.brma
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'

@@ -177,7 +177,10 @@
 #' `RoBMA_density_method_original_scale` (a coefficient or factor cell whose
 #' original-scale value is not a linear combination of its fitted
 #' coefficients, such as the exponentiated intercept of a scale formula with
-#' standardized predictors; use `standardized_coefficients = TRUE`).
+#' standardized predictors; use `standardized_coefficients = TRUE`). A density
+#' whose construction fails stops with an error of class
+#' `RoBMA_density_construction_error`; use `density_method = "KDE"` to estimate
+#' it from the posterior draws.
 #' [hypothesis()] refuses qCMDE/IWMDE for the same causes with these classes
 #' after its own. [plot_prior()] stops with `RoBMA_density_method_original_scale`
 #' for the prior of a term with several fitted coordinates whose original-scale
@@ -577,7 +580,7 @@ lines.brma <- function(
   parameter_spec[["conditional"]]      <- conditional
   parameter_spec[["conditional_rule"]] <- "AND"
 
-  estimate <- .iwmde_estimate(
+  estimate <- .iwmde_estimate_density(
     context         = context,
     parameter       = parameter,
     density_method  = density_method,
@@ -821,7 +824,7 @@ lines.brma <- function(
       next
     }
 
-    estimate <- .iwmde_estimate(
+    estimate <- .iwmde_estimate_density(
       context         = context,
       parameter       = column,
       density_method  = density_method,
@@ -870,7 +873,7 @@ lines.brma <- function(
   if (length(diagnostics) == 0L && ncol(sample) == 1L) {
     column  <- colnames(sample)[[1L]]
     expected_columns <- column
-    estimate <- .iwmde_estimate(
+    estimate <- .iwmde_estimate_density(
       context         = context,
       parameter       = parameter,
       density_method  = density_method,
