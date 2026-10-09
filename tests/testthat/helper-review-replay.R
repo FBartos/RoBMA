@@ -13,7 +13,9 @@ review_compile_object <- function(object) {
       parameter     = parameter,
       data          = args[["formula_data_list"]][[parameter]],
       prior_list    = args[["formula_prior_list"]][[parameter]],
-      formula_scale = args[["formula_scale_list"]][[parameter]]
+      formula_scale = args[["formula_scale_list"]][[parameter]],
+      prior_random  = args[["formula_random_prior_list"]][[parameter]],
+      random_effects_compile = args[["formula_random_effects_compile_list"]][[parameter]]
     )
   })
   names(compiled) <- names(args[["formula_list"]])
@@ -109,4 +111,12 @@ review_factor_replay <- function(levels, contrast, variable_intercept = TRUE,
   colnames(samples)[p + 1L] <- review_coefficient_name(setup, "intercept")
 
   review_attach_replay(setup, samples)
+}
+
+# The coefficient columns that the sampler reports for a list of priors.
+review_prior_columns <- function(priors) {
+
+  unique(unlist(lapply(names(priors), function(parameter) {
+    BayesTools:::.prior_linear_prior_columns(parameter, priors[[parameter]])
+  })))
 }

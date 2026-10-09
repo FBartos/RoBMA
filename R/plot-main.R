@@ -380,7 +380,8 @@ lines.brma <- function(
       target <- .brma_random_parameter_density_target(
         x,
         parameter,
-        operation = "plots"
+        operation                 = "plots",
+        standardized_coefficients = standardized_coefficients
       )
       if (is.null(target[["parameter"]])) {
         .iwmde_stop_unavailable(target)

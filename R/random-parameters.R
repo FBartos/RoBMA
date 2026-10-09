@@ -714,9 +714,12 @@
 # 'operation' names what the target is for in the reason returned when there
 # is none (e.g. "plots", "point hypotheses").
 .brma_random_parameter_density_target <- function(object, parameter,
-                                                  operation = "densities") {
+                                                  operation = "densities",
+                                                  standardized_coefficients = FALSE) {
 
-  selected  <- .brma_random_parameter_select(object, parameter)
+  selected  <- .brma_random_parameter_select(
+    object, parameter, standardized_coefficients = standardized_coefficients
+  )
   covariance_update <- BayesTools::random_effects_marginal_update_plan(
     object[["fit"]],
     selected[["entry"]][["selection"]]

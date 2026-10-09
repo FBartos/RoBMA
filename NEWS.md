@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- qCMDE/IWMDE density targets of random-effect SD quantities (`hypothesis()`
+  point statements and `plot()`) are built on the requested coefficient scale:
+  with `standardized_coefficients = TRUE` the target ordinates agree with the
+  standardized mixed posterior instead of applying the original-scale display
+  transformation to standardized draws.
 - `covratio()` of location coefficients uses the fitted factor coordinates
   instead of the transformed factor levels, whose covariance is singular for
   mean-difference and orthonormal coding; the ratios are finite instead of

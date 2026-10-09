@@ -1805,7 +1805,8 @@
   target <- .brma_random_parameter_density_target(
     object,
     parameter,
-    operation = "point hypotheses"
+    operation                 = "point hypotheses",
+    standardized_coefficients = plan[["standardized"]]
   )
   if (is.null(target[["parameter"]])) {
     # The refusal names the tested quantity (a variance rather than the
@@ -1814,7 +1815,8 @@
       own <- .brma_random_parameter_density_target(
         object,
         plan[["parameter"]],
-        operation = "point hypotheses"
+        operation                 = "point hypotheses",
+        standardized_coefficients = plan[["standardized"]]
       )
       if (!is.null(own[["reason"]])) {
         target[["reason"]] <- own[["reason"]]
