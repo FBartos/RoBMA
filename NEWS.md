@@ -874,6 +874,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   and LOO) score the same selected-normal law as the unweighted model and
   multiply the scores by the weights; retained estimate effects are no longer
   combined with the within-estimate variance a second time.
+- LOO-PIT tails, predictive moments and the estimate-unit CDF of weighted
+  joint-selection models use the selected-normal law of the unweighted model
+  instead of an unselected Gaussian or a second within-estimate variance;
+  weights do not enter the law.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

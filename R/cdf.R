@@ -306,6 +306,13 @@
     )
   }
 
+  if (.setup_weighted_joint_selection(setup)) {
+    return(.cdf_lik_estimate.brma(
+      object,
+      setup = .setup_without_likelihood_weights(setup)
+    ))
+  }
+
   yi                <- setup[["yi"]]
   sei               <- setup[["sei"]]
   K                 <- setup[["K"]]

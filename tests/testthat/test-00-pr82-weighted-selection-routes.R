@@ -74,3 +74,34 @@ test_that("uniform powers of two multiply the selected-normal scores", {
   expect_equal(unname(.log_lik_estimate_from_setup(fixture[["setup"]])),
                2 * reference[["score"]], tolerance = 1e-12)
 })
+
+test_that("weighted joint-selection LOO tails, CDF and moments follow the selected law", {
+
+  for (mode in c("condition", "integrate")) {
+    fixture   <- .weighted_selection_fixture(mode, weights = c(2, .5, 3))
+    reference <- .weighted_selection_reference(fixture, mode)
+    setup     <- fixture[["setup"]]
+
+    # The law, its tails and its CDF do not depend on the powers.
+    tails <- .loo_predictive_log_tails_estimate(setup)
+    expect_equal(unname(exp(tails[["log_lower"]])), reference[["cdf"]], tolerance = 1e-12)
+    expect_equal(unname(exp(tails[["log_upper"]])), 1 - reference[["cdf"]],
+                 tolerance = 1e-12)
+    cdf <- .cdf_lik_estimate.brma(fixture[["object"]], setup = setup)
+    expect_equal(unname(cdf), reference[["cdf"]], tolerance = 1e-12)
+
+    # Predictive moments are those of the unweighted law.
+    unweighted   <- .weighted_selection_fixture(mode)
+    psis_weights <- matrix(1 / 2, 2L, 3L)
+    expect_equal(
+      .loo_predictive_moments_estimate(
+        fixture[["object"]], setup, psis_object = NULL, psis_weights = psis_weights
+      ),
+      .loo_predictive_moments_estimate(
+        unweighted[["object"]], unweighted[["setup"]], psis_object = NULL,
+        psis_weights = psis_weights
+      ),
+      tolerance = 1e-12
+    )
+  }
+})

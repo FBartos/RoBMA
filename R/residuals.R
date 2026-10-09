@@ -898,6 +898,16 @@ rstudent.brma <- function(model, unit = "estimate",
     )
   }
 
+  if (.setup_weighted_joint_selection(setup)) {
+    return(.loo_predictive_moments_estimate(
+      object             = object,
+      setup              = .setup_without_likelihood_weights(setup),
+      psis_object        = psis_object,
+      psis_weights       = psis_weights,
+      predictive_summary = predictive_summary
+    ))
+  }
+
   if (.estimate_normal_target_uses_covariance_backend(
       setup[["data"]], setup[["priors"]])) {
     if (is.null(predictive_summary)) {
@@ -1080,6 +1090,13 @@ rstudent.brma <- function(model, unit = "estimate",
       "because a discrete PIT convention has not been defined.",
       call. = FALSE
     )
+  }
+
+  if (.setup_weighted_joint_selection(setup)) {
+    return(.loo_predictive_log_tails_estimate(
+      .setup_without_likelihood_weights(setup),
+      predictive_summary = predictive_summary
+    ))
   }
 
   if (.estimate_normal_target_uses_covariance_backend(
