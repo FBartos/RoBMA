@@ -16,6 +16,8 @@ test_that("as.data.frame refuses objects without a fitted model", {
 
   for (object in list(data_only, priors_only)) {
     expect_error(as.data.frame(object), class = "RoBMA_unfitted_object")
+    # the family class of the requests that an object cannot serve
+    expect_error(as.data.frame(object), class = "RoBMA_unsupported_request")
   }
   # summary() keeps returning the data or the priors
   expect_identical(summary(data_only), data_only[["data"]])

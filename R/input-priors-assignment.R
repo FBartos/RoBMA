@@ -509,7 +509,8 @@
     )], block)
     if (length(owners) > 0L) {
       stop(structure(
-        class = c("RoBMA_prior_scale_source_target", "error", "condition"),
+        class = c("RoBMA_prior_scale_source_target", "RoBMA_prior_error",
+                  "error", "condition"),
         list(message = paste0(
           "Row-shaped SD source '", source[["name"]], "' belongs to the ",
           "random block '", owners[[1L]], "' targeted by 'scale' but is ",

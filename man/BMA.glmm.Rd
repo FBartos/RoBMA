@@ -129,7 +129,9 @@ heterogeneity component(s).}
 \item{prior_mods}{prior distribution(s) for alternative moderator
 components. A single prior applies to all terms; a named list can specify
 term-specific components. This argument can be specified only when \code{mods} is
-specified.}
+specified. For a formula without an intercept (\code{~ 0 + x}), an \code{intercept}
+entry other than a point prior at zero stops with an error of class
+\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify

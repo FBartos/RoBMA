@@ -25,7 +25,11 @@
 #' @param prior_mods prior distribution for the moderators (\eqn{\beta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' priors. If omitted or `NULL`, default priors are used. This argument can be
-#' specified only when `mods` is specified.
+#' specified only when `mods` is specified. A formula without an intercept
+#' (`~ 0 + x`) fixes the location intercept at zero, so an `intercept` entry of
+#' the list is accepted only as a point prior at zero; any other `intercept`
+#' prior stops with an error of class `RoBMA_prior_intercept_conflict` (also of
+#' class `RoBMA_prior_error`).
 #' @param prior_scale prior distribution for the scale (\eqn{\delta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' priors. If omitted or `NULL`, default priors are used. This argument can be
@@ -222,7 +226,11 @@ NULL
 #' defaults; an ordinary positive prior distribution replaces the base or
 #' aggregate random-effect SD prior while retaining automatic allocation and correlation
 #' defaults; and a \code{\link{prior_random}} object supplies partial or
-#' complete random-effect settings as described below.
+#' complete random-effect settings as described below. With a `scale` model,
+#' the row-shaped SD source of a random block must be bound to the block that
+#' its `scale` model targets; a source bound to another block stops with an
+#' error of class `RoBMA_prior_scale_source_target` (also of class
+#' `RoBMA_prior_error`).
 #' @param scale an optional formula or named list of formulas specifying
 #' location-scale predictors. With random-effect formulas, `scale` models the
 #' row-wise total random-effect standard deviation consumed by a random-effect
@@ -612,7 +620,9 @@ NULL
 #' @param prior_mods prior distribution(s) for alternative moderator
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `mods` is
-#' specified.
+#' specified. For a formula without an intercept (`~ 0 + x`), an `intercept`
+#' entry other than a point prior at zero stops with an error of class
+#' `RoBMA_prior_intercept_conflict` (also of class `RoBMA_prior_error`).
 #' @param prior_scale prior distribution(s) for alternative scale-regression
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `scale`

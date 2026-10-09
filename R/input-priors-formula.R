@@ -168,7 +168,8 @@
       if (!BayesTools::is.prior.point(explicit_intercept) ||
           !isTRUE(mean(explicit_intercept) == 0)) {
         stop(structure(
-          class = c("RoBMA_prior_intercept_conflict", "error", "condition"),
+          class = c("RoBMA_prior_intercept_conflict", "RoBMA_prior_error",
+                    "error", "condition"),
           list(message = paste0(
             "The 'intercept' prior in 'prior_", parameter, "' contradicts the ",
             "formula '", paste(deparse(attr(data[[parameter]], "formula")), collapse = " "),

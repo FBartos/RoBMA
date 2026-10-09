@@ -677,17 +677,14 @@
 }
 
 
-# Return whether the location intercept is a coefficient on the display scale
-# (the original scale unless 'transform_scaled' is FALSE): a formula intercept
-# unless it is a hidden fixed zero, and the structural zero of a formula
-# without intercept when its original-scale value is nonzero, i.e., when a
-# scaled continuous predictor has a nonzero persisted center.
-.location_intercept_available <- function(object, transform_scaled = TRUE,
-                                          required = TRUE) {
+# Return whether the location intercept is a coefficient on the original
+# scale: a formula intercept unless it is a hidden fixed zero, and the
+# structural zero of a formula without intercept when its original-scale value
+# is nonzero, i.e., when a scaled continuous predictor has a nonzero persisted
+# center.
+.location_intercept_available <- function(object, required = TRUE) {
 
-  hidden <- .location_omit_fixed_zero_intercept(
-    object, transform_scaled = transform_scaled
-  )
+  hidden <- .location_omit_fixed_zero_intercept(object)
   if (.fitted_formula_has_intercept(object, "mu", required = required)) {
     return(!hidden)
   }

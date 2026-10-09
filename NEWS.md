@@ -767,8 +767,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 ### Fixes
 - `as.data.frame()` of an object created with `only_data = TRUE` or
   `only_priors = TRUE` stops with the classed error `RoBMA_unfitted_object`
-  instead of silently returning an empty data frame; `summary()` of these
-  objects is unchanged.
+  (family class `RoBMA_unsupported_request`) instead of silently returning an
+  empty data frame; `summary()` of these objects is unchanged.
 - plot and marginal-means densities whose qCMDE/IWMDE construction fails stop
   with the public error class `RoBMA_density_construction_error` and the remedy
   to use `density_method = "KDE"`; hypothesis ordinate failures keep
@@ -819,9 +819,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   original-scale rule, also for a formula without an intercept (`~ 0 + x`).
 - a row-shaped scale SD source bound to a random block other than the one
   targeted by its `scale` model (`scale = list(esid = ~ x)`) is refused with
-  the classed error `RoBMA_prior_scale_source_target` naming both blocks; the
-  expected source of a block is now looked up by the block itself before its
-  component label.
+  the classed error `RoBMA_prior_scale_source_target` (family class
+  `RoBMA_prior_error`) naming both blocks; the expected source of a block is
+  now looked up by the block itself before its component label.
 - known random-effect covariance `R` accepts every random-intercept syntax of
   R's formula semantics (`(0 + 1 | id)`, `(1 - 0 | id)`, ...) like `(1 | id)`,
   instead of classifying the term by the literal expression `1`; random slopes
@@ -829,8 +829,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - an explicit `intercept` entry in `prior_mods` no longer overrides the
   structural zero intercept of a formula without an intercept (`~ 0 + x`):
   only a point prior at 0 is accepted, any other prior stops with the classed
-  error `RoBMA_prior_intercept_conflict` in `brma()`, the other model
-  constructors, and `RoBMA()`.
+  error `RoBMA_prior_intercept_conflict` (family class `RoBMA_prior_error`) in
+  `brma()`, the other model constructors, and `RoBMA()`.
 - marginalized known-covariance prediction identifies a random-effect group by
   the exact tuple of its grouping values, as BayesTools does for sampled random
   effects, so distinct tuples whose values contain the `:` separator or print
@@ -1058,11 +1058,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - default (unique-level) `ranef()` of `brma.mv()` random-formula models and of
   the cluster component of clustered models with a `scale` formula (normal,
   GLMM, and weight-function models, including `RoBMA()` ensembles) stops with
-  an error of class `RoBMA_ranef_expand_required` when the random-effect
-  standard deviation varies across the rows mapped to one returned output cell
-  (a group, or a group and indicator level; judged from the scale design, not
-  from draws), instead of silently reporting the first row of each cell; use
-  `expand = TRUE`. Only the components that are returned are judged:
+  an error of class `RoBMA_ranef_expand_required` (family class
+  `RoBMA_unsupported_request`) when the random-effect standard deviation varies
+  across the rows mapped to one returned output cell (a group, or a group and
+  indicator level; judged from the scale design, not from draws), instead of
+  silently reporting the first row of each cell; use `expand = TRUE`. Only the components that are returned are judged:
   `component = "estimate"` of a clustered model and a block name of a
   multivariate model whose own scale is constant within its cells return their
   output, while `"all"` and `"total"` need every block. Scale designs that are

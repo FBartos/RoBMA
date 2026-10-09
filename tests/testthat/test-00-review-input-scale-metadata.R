@@ -40,6 +40,7 @@ test_that("a row-shaped scale source must be bound to its targeted random block"
   )
   error <- tryCatch(construct(prior_heterogeneity = wrong), error = identity)
   expect_s3_class(error, "RoBMA_prior_scale_source_target")
+  expect_s3_class(error, "RoBMA_prior_error")
   if (inherits(error, "error")) {
     expect_match(conditionMessage(error), "'study'", fixed = TRUE)
     expect_match(conditionMessage(error), "'esid_study'", fixed = TRUE)

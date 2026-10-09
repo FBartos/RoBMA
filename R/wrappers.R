@@ -904,7 +904,8 @@ ranef <- function(object, ...) {
 #' (also for the cluster component of a clustered model with a \code{scale}
 #' formula, whether normal, GLMM, or with a weight function), the unique-level
 #' output is refused with an error of class
-#' \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Only the
+#' \code{RoBMA_ranef_expand_required} (also of class
+#' \code{RoBMA_unsupported_request}); use \code{expand = TRUE}. Only the
 #' components that are returned are judged: \code{component = "estimate"} of a
 #' clustered model and a block name whose own scale does not vary are returned,
 #' whereas \code{"all"} and \code{"total"} include every block. Summed
@@ -1514,7 +1515,8 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
   message <- paste(unlist(lapply(list(...), as.character)), collapse = "")
   stop(structure(
-    class = c("RoBMA_ranef_expand_required", "error", "condition"),
+    class = c("RoBMA_ranef_expand_required", "RoBMA_unsupported_request",
+              "error", "condition"),
     list(message = message, call = NULL)
   ))
 }

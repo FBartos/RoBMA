@@ -15,7 +15,11 @@ In random-formula \code{\link{brma.mv}} models, omission constructs all
 defaults; an ordinary positive prior distribution replaces the base or
 aggregate random-effect SD prior while retaining automatic allocation and correlation
 defaults; and a \code{\link{prior_random}} object supplies partial or
-complete random-effect settings as described below.}
+complete random-effect settings as described below. With a \code{scale} model,
+the row-shaped SD source of a random block must be bound to the block that
+its \code{scale} model targets; a source bound to another block stops with an
+error of class \code{RoBMA_prior_scale_source_target} (also of class
+\code{RoBMA_prior_error}).}
 
 \item{scale}{an optional formula or named list of formulas specifying
 location-scale predictors. With random-effect formulas, \code{scale} models the

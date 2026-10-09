@@ -117,7 +117,11 @@ complete \code{\link{prior_random}} object; see
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
 priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{mods} is specified.}
+specified only when \code{mods} is specified. A formula without an intercept
+(\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
+the list is accepted only as a point prior at zero; any other \code{intercept}
+prior stops with an error of class \code{RoBMA_prior_intercept_conflict} (also of
+class \code{RoBMA_prior_error}).}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific

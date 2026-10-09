@@ -1512,18 +1512,12 @@
 .brma_mv_random_term_is_pure_intercept <- function(term) {
 
   if (.random_effect_term_has_known_group_covariance(term) ||
-      .marginalized_random_effect_has_row_multiplier(term)) {
+      .marginalized_random_effect_has_row_multiplier(term) ||
+      !inherits(term[["term_formula"]], "formula")) {
     return(FALSE)
   }
 
-  term_formula <- term[["term_formula"]]
-  if (!inherits(term_formula, "formula")) {
-    return(FALSE)
-  }
-  formula_terms <- stats::terms(term_formula)
-
-  identical(attr(formula_terms, "intercept"), 1L) &&
-    length(attr(formula_terms, "term.labels")) == 0L
+  return(.random_effect_term_is_intercept_only(term))
 }
 
 

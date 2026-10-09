@@ -73,6 +73,11 @@ test_that("an explicit intercept prior cannot override a structural zero interce
       construct(constructor, ~ 0 + x, nonzero),
       class = "RoBMA_prior_intercept_conflict"
     )
+    # the family class of the prior-input errors
+    expect_error(
+      construct(constructor, ~ 0 + x, nonzero),
+      class = "RoBMA_prior_error"
+    )
     # a point prior at zero repeats the structural zero
     control <- construct(constructor, ~ 0 + x, NULL)
     for (intercept in list(BayesTools::prior("spike", list(0)),

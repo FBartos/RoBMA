@@ -280,6 +280,11 @@ test_that("the clustered unique-level refusal is judged only for returned compon
       class = "RoBMA_ranef_expand_required", info = component
     )
   }
+  # the family class of the requests that an object cannot serve
+  expect_error(
+    ranef(object, .posterior_samples = samples),
+    class = "RoBMA_unsupported_request"
+  )
   expect_error(
     ranef(object, component = "unknown", .posterior_samples = samples),
     "Unknown random-effect component", fixed = TRUE
