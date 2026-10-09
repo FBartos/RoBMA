@@ -173,7 +173,8 @@
 # projection is formed directly, so no explained quadratic is subtracted from
 # the total, and no square of a scale is formed before it is needed. A cluster
 # with a non-finite value or a non-positive sd gives NA; a result beyond the
-# representable range is -Inf.
+# representable range, including an implied latent value residual / loading
+# that overflows, is -Inf.
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_cluster_norm_stable <- function(residual, sd, loading, weights = NULL,
@@ -231,6 +232,10 @@
 
     informative <- !failed & is.finite(log_beta)
     value[informative] <- latent[informative]
+    # A quotient r / loading beyond the double range (finite inputs, a tiny
+    # loading) leaves the implied latent value, and so the result,
+    # unrepresentable: -Inf, never NA.
+    value[informative & !is.finite(rho)] <- -Inf
   }
 
   return(value)

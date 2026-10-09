@@ -3830,6 +3830,8 @@ int cpp_selnorm_factor_box_rng(
 // their sums stay far from overflow); otherwise b_i is carried on the log scale
 // (log beta = max log b_i, omega_i = power_i exp(2 (log b_i - log beta)),
 // log P = 2 log beta + log W), which never overflows before the result does.
+// Invalid rows give NaN; a result beyond the representable range, including
+// an implied latent value r / loading that overflows, is -Inf.
 double cpp_gaussian_latent_loglik(
     int n, const double *residual, const double *sd, const double *loading,
     const double *power, double *work)
@@ -3930,6 +3932,10 @@ double cpp_gaussian_latent_loglik(
       correction += omega * (residual[i] / loading[i] - implied);
     }
     implied += correction / information;
+    // A quotient r / loading beyond the double range (finite inputs, a tiny
+    // loading) leaves the implied latent value, and so the result,
+    // unrepresentable: -Inf, never NaN.
+    if (!std::isfinite(implied)) return -infinity;
 
     const double log_information = 2.0 * log_beta + std::log(information);
     log_a = log_information > 0.0 ?

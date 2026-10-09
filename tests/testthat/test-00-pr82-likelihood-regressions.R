@@ -313,3 +313,52 @@ test_that("deletion fallback preserves coordinates resolved by the fast path", {
     list(S = 1L, K = 2L, yi = c(0, 0), mu = matrix(c(2, 3), 1L)), "mean")
   expect_identical(out$mean, matrix(c(5, 3), 1L))
 })
+
+test_that("an overflowing implied latent value gives -Inf from every cluster route", {
+
+  # A residual of 1e308 against a loading of +-1e-100 (or a larger one): the
+  # implied latent value residual / loading is beyond the double range, and so
+  # is the density (the squared standardized residual alone is 1e616).
+  for (loading in c(1e-100, -1e-100, 1e-50, -1e-20)) {
+    info  <- paste("loading", loading)
+    setup <- .cluster_norm_dispatch_setup(1e308, 1, 0, loading)
+    minus <- matrix(-Inf, 1L, 1L)
+    expect_identical(.log_lik_cluster_from_setup(setup), minus, info = info)
+    expect_identical(.log_lik_cluster_sum_from_setup(setup), -Inf, info = info)
+    expect_identical(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei),
+      minus, info = info)
+    expect_identical(.log_lik_cluster_norm_stable(1e308, 1, loading), -Inf,
+      info = info)
+    if (.has_native_norm_cluster_analytic()) {
+      native <- .log_lik_cluster_norm_analytic_native(setup, setup$yi, setup$sei)
+      expect_identical(as.numeric(native), -Inf, info = info)
+      native_sum <- .log_lik_cluster_norm_analytic_native(
+        setup, setup$yi, setup$sei, row_sum = TRUE
+      )
+      expect_identical(as.numeric(native_sum), -Inf, info = info)
+    }
+  }
+
+  # The overflowing row spoils only its own cluster; an ordinary cluster, and
+  # an overflowing row next to a loaded row with a finite quotient, are
+  # evaluated as before.
+  setup <- .cluster_norm_dispatch_setup(c(1e308, .1, 1e308, .2), rep(1, 4L), 0,
+    c(1e-100, .5, 1e-100, .4))
+  setup$cluster <- list(1L, 2L, 3:4)
+  evaluated <- .log_lik_cluster_from_setup(setup)
+  reference <- .log_lik_cluster_norm_stable(.1, 1, .5)
+  expect_identical(evaluated[, 1L], -Inf)
+  expect_equal(evaluated[, 2L], reference, tolerance = 1e-14)
+  expect_identical(evaluated[, 3L], -Inf)
+  expect_identical(
+    .log_lik_cluster_norm_stable(
+      c(1e308, .1, 1e308, .2), rep(1, 4L), c(1e-100, .5, 1e-100, .4),
+      group = c(1L, 2L, 3L, 3L)
+    ),
+    c(-Inf, reference, -Inf)
+  )
+
+  # Invalid inputs are still NA, not -Inf.
+  expect_identical(.log_lik_cluster_norm_stable(NA_real_, 1, .5), NA_real_)
+  expect_identical(.log_lik_cluster_norm_stable(.1, 0, .5), NA_real_)
+})

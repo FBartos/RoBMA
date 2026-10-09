@@ -143,7 +143,9 @@ double norm_cluster_analytic_loglik(const NormClusterAnalyticArgs &args, int s,
     cluster_n, rows.residual.data(), rows.sd.data(), rows.loading.data(),
     args.weights == 0 ? nullptr : rows.power.data(), rows.work.data()
   );
-  return std::isfinite(out) ? out : NA_REAL;
+  // An unrepresentable result is -Inf; only an invalid row gives NA.
+  return (std::isfinite(out) || out == -std::numeric_limits<double>::infinity()) ?
+    out : NA_REAL;
 }
 
 int norm_cluster_max_size(const NormClusterAnalyticArgs &args)
