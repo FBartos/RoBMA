@@ -213,8 +213,11 @@ each posterior row's conditional density over a range covering at least its
 central \code{normalization_prob} mass, on \code{normalization_points} nodes
 and the nested grid of those nodes and their midpoints. The mass of a row
 left outside the range, its truncation \eqn{t}, is therefore at most
-\code{1 - normalization_prob}: exactly computed for rows whose Gaussian
-likelihood kernel meets a normal prior, bounded for a Gaussian kernel with
+\code{1 - normalization_prob}: zero for rows whose Gaussian likelihood
+kernel meets a normal prior and whose evaluated values are those of the
+resulting truncated normal (their normalizer is its closed-form mass, so no
+lattice decides it), exactly computed for such rows that keep the lattice
+normalizer, bounded for a Gaussian kernel with
 another proper scalar prior, and estimated from the tails (each tail
 extended until its estimate is at most \code{(1 - normalization_prob) / 2})
 otherwise. A row normalizer missing the fraction \eqn{t} overstates that
@@ -225,8 +228,9 @@ the default \code{0.999} that is about 0.1 percent, and it is attained when
 all rows share one conditional law. \code{\link[=density_diagnostics]{density_diagnostics()}} report the
 largest row truncation (\code{normalization_truncation}), how it is known
 (\code{normalization_truncation_status}), and this bound
-(\code{truncation_ordinate_bound}), together with the discretization change
-between the two nested grids (\code{ordinate_relative_change}). Set
+(\code{truncation_ordinate_bound}), together with the change between the
+two nested grids (\code{ordinate_relative_change}), which estimates the
+discretization error of the lattice normalizers and is not a bound. Set
 \code{normalization_prob} closer to 1 to reduce the truncation, and increase
 \code{normalization_points} to reduce the discretization. IWMDE checks its
 normalization mass on

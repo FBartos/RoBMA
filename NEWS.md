@@ -860,6 +860,17 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   omitted the diagonal term, is removed (the interpolation of fixed-covariance
   normalizers along location sweeps is unchanged); the quadrature plans
   and budgets of the direct evaluation are unchanged.
+- qCMDE normalizes a row whose Gaussian likelihood kernel meets a normal prior
+  by the closed-form mass of its truncated normal, once the prior factor the
+  density route reports is the declared normal's up to a constant on the whole
+  lattice, instead of recovering the normalizer from lattice points. A row
+  narrower than the lattice step (or far from the others) no longer gets a
+  normalizer from tail values: the 499-narrow-rows-plus-one-broad-row case that
+  returned an ordinate 5821 times too large now agrees with the exact mixture
+  of the conditional normals, and its truncation is zero. Other rows keep the
+  lattice normalizer; the nested-grid ordinate change they report estimates
+  their discretization error and is not a bound. Cached qCMDE normalizations
+  are recomputed (`.iwmde_algorithm_version()` 30).
 - `predict()` stops and names a variable of the moderator or scale formula
   (or of a random-effect formula) that `newdata` lacks. 4.0.0 filled missing
   outcome-named columns (`yi`, `sei`, `ai`, `ci`, `n1i`, `n2i`, ...) with

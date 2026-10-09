@@ -47,7 +47,8 @@
     upper  = rep(NA_real_, n),
     center = rep(NA_real_, n),
     scale  = rep(NA_real_, n),
-    prior  = vector("list", n)
+    prior  = vector("list", n),
+    form   = vector("list", n)
   )
   laws[["kind"]][setdiff(seq_len(n), rows)] <- NA_character_
   if (!is.list(kernel) || length(rows) == 0L) {
@@ -96,6 +97,9 @@
       laws[["sd"]][[row]]    <- sd
       laws[["lower"]][[row]] <- form[["lower"]]
       laws[["upper"]][[row]] <- form[["upper"]]
+      # The Gaussian factors of the prior, which the closed-form normalizer
+      # of an exact row evaluates (R/iwmde-qcmde-closed-form.R).
+      laws[["form"]][[row]]  <- form
     } else if (identical(form[["kind"]], "proper")) {
       laws[["kind"]][[row]]   <- "bound"
       laws[["center"]][[row]] <- center

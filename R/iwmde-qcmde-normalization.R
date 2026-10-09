@@ -2,7 +2,9 @@
 # qCMDE Normalization
 # ============================================================================ #
 #
-# Every qCMDE row is normalized by the trapezoid rule on the chart z. One pass
+# Every qCMDE row is normalized by the trapezoid rule on the chart z, except
+# the exact Normal rows of R/iwmde-qcmde-closed-form.R, which have a
+# closed-form normalizer. One pass
 #
 #   1. evaluates the display values, which also reports each row's Gaussian
 #      likelihood kernel when the likelihood route has one;
@@ -25,9 +27,12 @@
 #
 # The nodes and midpoints form the selected nested grid (2N - 1 points); the
 # node grid over the same range validates it. The two differ only in their
-# spacing, so their disagreement measures discretization alone, and it
-# overstates the error of the finer selected grid. The mass the range leaves
-# out of each row is reported separately as truncation.
+# spacing, so their disagreement estimates the discretization error of the
+# lattice normalizers. It is an estimate, not a bound: a row narrower than a
+# lattice step can escape both grids alike, and the closed form exists for the
+# exact Normal rows because of it. A row normalized in closed form has the same
+# normalizer on every grid and no truncation. The mass the range leaves out of
+# each other row is reported separately as truncation.
 
 .iwmde_qcmde_normalization_pass <- function(context, parameter, display_grid,
                                             normalization_grid, transform,
@@ -57,12 +62,40 @@
 
     invisible(log_q)
   }
+  # The log prior that a Gaussian-kernel route reports with its values, by
+  # value, for the rows named in `priors$columns` once the rows' laws are known
+  # (all rows before). The closed-form normalization of exact rows checks it on
+  # the final lattice.
+  priors <- new.env(parent = emptyenv())
+  priors$columns   <- NULL
+  priors$x         <- numeric()
+  priors$log_prior <- NULL
+  record_prior <- function(values, log_q) {
+
+    log_prior <- attr(log_q, "gaussian_kernel", exact = TRUE)[["log_prior"]]
+    if (is.matrix(log_prior) && nrow(log_prior) == length(values)) {
+      if (!is.null(priors$columns)) {
+        log_prior <- log_prior[, priors$columns, drop = FALSE]
+      }
+      priors$x <- c(priors$x, values)
+      priors$log_prior <- if (is.null(priors$log_prior)) {
+        log_prior
+      } else {
+        rbind(priors$log_prior, log_prior)
+      }
+    }
+
+    invisible(log_q)
+  }
   evaluate <- function(evaluation_context, values) {
 
-    return(record_quadrature(.iwmde_qcmde_evaluate_grid(
+    log_q <- record_quadrature(.iwmde_qcmde_evaluate_grid(
       evaluation_context, parameter, values, row_states, replacement,
       estimator_rows
-    )))
+    ))
+    record_prior(values, log_q)
+
+    return(log_q)
   }
   # The interpolation grid of a fixed selection normalizer answers exactly the
   # values it is built for; values outside that set are evaluated directly. The
@@ -144,6 +177,10 @@
   )
   intervals <- .iwmde_qcmde_law_intervals(laws, normalization_prob)
   laws      <- intervals[["laws"]]
+  priors$columns <- which(laws[["kind"]] %in% "exact")
+  if (!is.null(priors$log_prior)) {
+    priors$log_prior <- priors$log_prior[, priors$columns, drop = FALSE]
+  }
   z_range   <- .iwmde_qcmde_initial_range(
     laws      = laws,
     intervals = intervals[["intervals"]],
@@ -172,6 +209,7 @@
                                     replacement)
     if (!is.null(log_q)) {
       record_quadrature(log_q)
+      record_prior(values, log_q)
     }
     log_q
   }
@@ -279,16 +317,32 @@
       detail    = "the nested validation grid is not increasing"
     )
   }
+  # Exact Normal rows whose evaluated values the closed form reproduces have
+  # the same analytic normalizer on every grid; the others are integrated on the
+  # lattice.
+  position <- match(grids[["nested"]][["x"]], priors$x)
+  closed <- .iwmde_qcmde_closed_form_rows(
+    laws      = laws,
+    kernel    = kernel,
+    grid      = grids[["nested"]],
+    prior     = if (!is.null(priors$log_prior) && !anyNA(position)) {
+      priors$log_prior[position, , drop = FALSE]
+    },
+    columns   = priors$columns,
+    transform = transform
+  )
+  lattice_rows <- setdiff(ordinary_rows, closed[["rows"]])
   for (name in names(grids)) {
     log_normalizer <- numeric(n_states)
-    if (length(ordinary_rows) > 0L) {
-      log_normalizer[ordinary_rows] <- .iwmde_log_trapz_columns(
+    if (length(lattice_rows) > 0L) {
+      log_normalizer[lattice_rows] <- .iwmde_log_trapz_columns(
         x     = grids[[name]][["z"]],
-        log_y = grids[[name]][["log_q"]][, ordinary_rows, drop = FALSE] +
+        log_y = grids[[name]][["log_q"]][, lattice_rows, drop = FALSE] +
           grids[[name]][["log_jacobian"]]
       )
     }
     log_normalizer[conditional_rows] <- conditional_log_mass
+    log_normalizer[closed[["rows"]]] <- closed[["log_normalizer"]]
     grids[[name]][["log_normalizer"]] <- log_normalizer
   }
 
@@ -298,6 +352,7 @@
     nodes             = grids[["nodes"]],
     nested            = grids[["nested"]],
     laws              = laws,
+    closed_form       = closed,
     log_mass          = intervals[["log_mass"]],
     extension_steps   = extension[["steps"]],
     extension_passes  = extension[["passes"]],
@@ -585,35 +640,53 @@
       detail    = "the validation grid did not produce a finite positive normalizer"
     )
   }
+  # The normalization integral of the rows with a closed-form normalizer is
+  # their analytic mass within the grid's range; the lattice integrates the
+  # others. The rows normalized in closed form leave no truncation: their
+  # normalizer is the mass of their whole support.
+  closed  <- pass[["closed_form"]]
+  lattice <- if (length(closed[["rows"]]) > 0L) {
+    -closed[["rows"]]
+  } else {
+    seq_len(ncol(final_grid[["log_q"]]))
+  }
   norm_y_initial <- .iwmde_normalization_density(
-    log_q_norm         = pilot_grid[["log_q"]],
-    log_normalizer     = final_log_normalizer,
+    log_q_norm         = pilot_grid[["log_q"]][, lattice, drop = FALSE],
+    log_normalizer     = final_log_normalizer[lattice],
     log_jacobian       = pilot_grid[["log_jacobian"]],
     normalization_grid = pilot_grid[["z"]],
     active_mass        = active_mass,
     denominator        = n_candidate_rows
   )
   norm_y_final <- .iwmde_normalization_density(
-    log_q_norm         = final_grid[["log_q"]],
-    log_normalizer     = final_log_normalizer,
+    log_q_norm         = final_grid[["log_q"]][, lattice, drop = FALSE],
+    log_normalizer     = final_log_normalizer[lattice],
     log_jacobian       = final_grid[["log_jacobian"]],
     normalization_grid = final_grid[["z"]],
     active_mass        = active_mass,
     denominator        = n_candidate_rows
   )
-  truncation <- .iwmde_qcmde_truncation_summary(.iwmde_qcmde_row_truncation(
+  closed_mass <- function(grid) {
+    active_mass * sum(.iwmde_qcmde_closed_form_range_mass(closed,
+      range(grid[["x"]]))) / n_candidate_rows
+  }
+  truncation <- .iwmde_qcmde_row_truncation(
     laws      = pass[["laws"]],
     log_mass  = pass[["log_mass"]],
     x_range   = range(final_grid[["x"]]),
     estimates = .iwmde_qcmde_grid_tail_estimates(final_grid)
-  ))
+  )
+  truncation[["value"]][closed[["rows"]]] <- 0
+  truncation <- .iwmde_qcmde_truncation_summary(truncation)
 
   list(
     pilot_log_normalizer         = pilot_grid[["log_normalizer"]],
     log_normalizer               = final_log_normalizer,
     validation_log_normalizer    = validation_log_normalizer,
-    pilot_normalization_integral = .iwmde_trapz(pilot_grid[["z"]], norm_y_initial),
-    final_normalization_integral = .iwmde_trapz(final_grid[["z"]], norm_y_final),
+    pilot_normalization_integral = .iwmde_trapz(pilot_grid[["z"]], norm_y_initial) +
+      closed_mass(pilot_grid),
+    final_normalization_integral = .iwmde_trapz(final_grid[["z"]], norm_y_final) +
+      closed_mass(final_grid),
     truncation                   = truncation,
     normalization_points         = length(final_grid[["x"]]),
     normalization_range          = range(final_grid[["x"]]),

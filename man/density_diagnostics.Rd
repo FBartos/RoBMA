@@ -130,8 +130,13 @@ policy check is identified by \code{stability_metric}: qCMDE checks its posterio
 ordinate error bound (\code{ordinate_error_bound}), whereas IWMDE checks
 normalization mass. The qCMDE bound adds two parts. \code{ordinate_relative_change}
 is the ordinate's movement between the selected normalization grid and the
-coarser nested grid over the same range, which measures discretization and
-overstates the error of the selected grid. \code{truncation_ordinate_bound} is
+coarser nested grid over the same range. It estimates the discretization
+error of the lattice normalizers; it is an estimate, not a bound, because a
+row narrower than the lattice step can escape both grids alike. Rows whose
+Gaussian likelihood kernel meets a normal prior are normalized by the
+closed-form mass of their support when their evaluated values are those of
+that closed form: their normalizer is the same on every grid, so they add no
+discretization change and no truncation. \code{truncation_ordinate_bound} is
 \eqn{t / (1 - t)} for the largest fraction \eqn{t} of any row's conditional
 mass outside the normalization range (\code{normalization_truncation}): a row
 normalizer missing that fraction overstates the row's density by at most

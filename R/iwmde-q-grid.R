@@ -275,7 +275,7 @@
 
 # Place one batch's Gaussian kernels (see
 # .iwmde_log_q_grid_normal_location_group()) at their columns of a wider
-# batch. Columns whose route reported no kernel stay missing.
+# batch. Columns whose route reported no kernel, or no log prior, stay missing.
 .iwmde_gaussian_kernel_assign <- function(kernel, columns, value, n) {
 
   if (!is.list(value)) {
@@ -286,11 +286,21 @@
       current     = rep(NA_real_, n),
       linear      = rep(NA_real_, n),
       quadratic   = rep(NA_real_, n),
-      prior_route = rep(NA_character_, n)
+      prior_route = rep(NA_character_, n),
+      baseline    = rep(NA_real_, n)
     )
   }
-  for (field in names(kernel)) {
-    kernel[[field]][columns] <- value[[field]]
+  for (field in setdiff(names(kernel), "log_prior")) {
+    if (!is.null(value[[field]])) {
+      kernel[[field]][columns] <- value[[field]]
+    }
+  }
+  log_prior <- value[["log_prior"]]
+  if (is.matrix(log_prior)) {
+    if (is.null(kernel[["log_prior"]])) {
+      kernel[["log_prior"]] <- matrix(NA_real_, nrow(log_prior), n)
+    }
+    kernel[["log_prior"]][, columns] <- log_prior
   }
 
   return(kernel)

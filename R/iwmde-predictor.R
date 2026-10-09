@@ -640,9 +640,11 @@
     likelihood_change, log_prior, normalizer_change)
   if (is.null(normalizer_change)) {
     # Without a weight function the likelihood factor of every row is exactly
-    # this Gaussian kernel in the target value. The qCMDE normalization range
-    # reads it, with the route of the prior factor, to place each row's
-    # conditional quantiles.
+    # this Gaussian kernel in the target value, from its level at the current
+    # value (`baseline`), and the prior factor is the log prior the values were
+    # evaluated with. The qCMDE normalization reads them, with the route of the
+    # prior factor, to place each row's conditional quantiles and to normalize
+    # a row whose prior factor is a normal in closed form.
     attr(out, "gaussian_kernel") <- list(
       current     = as.numeric(basis[["current"]]),
       linear      = as.numeric(likelihood_change[["linear"]]),
@@ -650,7 +652,10 @@
       prior_route = rep(
         .iwmde_predictor_prior_route(row_states, replacement),
         length(row_states)
-      )
+      ),
+      baseline    = as.numeric(baseline),
+      log_prior   = matrix(log_prior, nrow = length(values),
+                           ncol = length(row_states))
     )
   }
 
