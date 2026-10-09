@@ -125,6 +125,73 @@ test_that("powered cluster likelihood agrees with numerical integration and the 
   expect_equal(evaluated, expected, tolerance = 1e-12)
 })
 
+test_that("the native plain-arithmetic branch of the cluster integral agrees with the log-scale form", {
+
+  # Every loading, sd and loading / sd of these clusters lies in [1e-100, 1e100],
+  # so the native kernel forms the latent information with plain arithmetic; the
+  # R helper evaluates the same completed square on the log scale.
+  set.seed(20261010)
+  S <- 4L
+  G <- 150L
+  sizes <- sample.int(5L, G, replace = TRUE)
+  K <- sum(sizes)
+  cluster <- split(seq_len(K), rep(seq_len(G), sizes))
+  scale <- function(n, low, high) exp(stats::runif(n, log(low), log(high)))
+  setup <- list(
+    S           = S,
+    mu          = matrix(stats::rnorm(S * K, 0, .3), S, K),
+    tau_within  = matrix(scale(S * K, 1e-8, 1), S, K) *
+      matrix(stats::rbinom(S * K, 1L, .5), S, K),
+    tau_between = matrix(scale(S * K, 1e-8, 5), S, K) *
+      matrix(stats::rbinom(S * K, 1L, .85), S, K),
+    cluster     = cluster,
+    weights     = sample(c(0, .5, 1, 2, 3), K, replace = TRUE, prob = c(.1, .2, .4, .2, .1))
+  )
+  yi  <- stats::rnorm(K, 0, .3)
+  sei <- scale(K, 1e-8, 2)
+
+  native <- .log_lik_cluster_norm_analytic_native(setup, yi, sei)
+  log_form <- .log_lik_cluster_norm_analytic_r(setup, yi, sei)
+  expect_true(all(is.finite(native)))
+  expect_lte(max(abs(native - log_form) / pmax(abs(log_form), 1)), 1e-14)
+  expect_lte(max(abs(
+    .log_lik_cluster_norm_analytic_native(setup, yi, sei, row_sum = TRUE) -
+      rowSums(log_form)) / pmax(abs(rowSums(log_form)), 1)), 1e-14)
+})
+
+test_that("cluster integrals at the edge of the plain-arithmetic range match mpmath", {
+
+  # Rows (.3, -.2) with sd s, powers (1, 2) and a common loading. The ratio
+  # |loading| / sd, the loading or the sd just outside [1e-100, 1e100] sends the
+  # native kernel to the log-scale form, and b = 1e160 cannot be formed in plain
+  # arithmetic at all. Reference values: 120-digit mpmath.
+  cases <- list(
+    list(tau = 1e100, s = 1, expected = -233.6479643766859748),
+    list(tau = 1e-100, s = 1, expected = -2.841815599614018225),
+    list(tau = 1e-50, s = 1e50, expected = -348.1445795487208708),
+    list(tau = 1e50, s = 1e-50, expected = -8.333333333333333333e98),
+    list(tau = 1.1e100, s = 1, expected = -233.7432745564902997),
+    list(tau = 9e-101, s = 1, expected = -2.841815599614018225),
+    list(tau = 1e101, s = 1e50, expected = -466.1257254357512556),
+    list(tau = 1e100, s = .5, expected = -232.5116700155660842),
+    list(tau = 1e-50, s = 1e51, expected = -355.0523348277030079),
+    list(tau = 10, s = 1e101, expected = -700.4400987768098605),
+    list(tau = 1e80, s = 1e-80, expected = -8.333333333333333333e158)
+  )
+  for (case in cases) {
+    setup <- list(S = 1L, mu = matrix(0, 1L, 2L), tau_within = matrix(0, 1L, 2L),
+      tau_between = matrix(case$tau, 1L, 2L), cluster = list(1:2),
+      weights = c(1, 2))
+    sei <- rep(case$s, 2L)
+    expect_equal(.log_lik_cluster_norm_analytic_native(setup, c(.3, -.2), sei),
+      matrix(case$expected, 1L, 1L), tolerance = 1e-13,
+      info = paste("tau", case$tau, "sd", case$s))
+    expect_equal(.log_lik_cluster_norm_analytic_r(setup, c(.3, -.2), sei),
+      matrix(case$expected, 1L, 1L), tolerance = 1e-13,
+      info = paste("tau", case$tau, "sd", case$s))
+  }
+})
+
 test_that("normal cluster likelihood refuses invalid rows without a substituted value", {
 
   setup <- .cluster_norm_dispatch_setup(c(.1, .2), c(.1, .1), 0, 1,
