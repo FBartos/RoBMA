@@ -281,6 +281,55 @@ test_that("the tight GLS residual variance has no cancellation", {
 })
 
 
+test_that("the tight GLS residual variance forms no K x K identity per draw", {
+
+  # An indicator column for row 1 (a singleton level) makes row 1 a tight row
+  # in every draw. The directions e_1 - H_1 are K values; a K x K identity per
+  # draw (32 MB at K = 2000) must not be allocated for them.
+  K <- 2000L
+  S <- 3L
+  sampling <- diag(K)
+  plan_data <- list(
+    sampling_covariance      = sampling,
+    random_covariance_plans  = list(),
+    random_covariance_states = rep(list(list()), S),
+    block_indices            = list(seq_len(K)),
+    extra_variances          = matrix(0, S, K),
+    covariance_diagonal      = matrix(1, S, K)
+  )
+  recorded <- list()
+  testthat::local_mocked_bindings(
+    .known_v_marginal_factor_plan = function(...) plan_data,
+    .known_v_factor_quadratic = function(plan_data, draw, vectors) {
+      recorded[[draw]] <<- vectors
+      rep(0, ncol(vectors))
+    },
+    .package = "RoBMA"
+  )
+  X <- cbind(1, c(1, rep(0, K - 1L)))
+  attr(X, "rank") <- 2L
+  before <- gc(reset = TRUE)
+  projection <- .known_v_factor_gls_projection_batch(
+    object = list(), posterior_samples = matrix(0, S, 1L), known_V = list(),
+    X = X, y = rep(0, K), return_se = TRUE
+  )
+  growth <- gc()["Vcells", 6L] - before["Vcells", 2L]
+  expect_lt(growth, 8)
+
+  # With W = I the hat column of row 1 is X (X'X)^-1 x_1 = e_1, so the
+  # direction e_1 - H_1 vanishes up to rounding.
+  hat_column <- as.numeric(X %*% solve(crossprod(X), X[1L, ]))
+  expected <- -hat_column
+  expected[1L] <- expected[1L] + 1
+  expect_length(recorded, S)
+  for (draw in seq_len(S)) {
+    expect_identical(dim(recorded[[draw]]), c(K, 1L))
+    expect_lt(max(abs(as.numeric(recorded[[draw]]) - expected)), 1e-12)
+  }
+  expect_equal(projection$H_diag[1L, 1L], 1, tolerance = 1e-12)
+})
+
+
 test_that("the factor-form residual variance matches the dense projection", {
 
   # Group and known-group effects, a row-scaled factor and a dense sampling

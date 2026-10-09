@@ -454,8 +454,10 @@
       variance_s <- diagonal_s - rowSums(X_cov * X)
       tight      <- which(!(variance_s >= 1e-6 * diagonal_s))
       if (length(tight)) {
-        directions <- diag(1, nrow = K)[, tight, drop = FALSE] -
-          t(X_cov[tight, , drop = FALSE] %*% t(W_X))
+        # e_i - H_i for the tight rows i, without forming the K x K identity
+        directions <- -t(X_cov[tight, , drop = FALSE] %*% t(W_X))
+        unit <- cbind(tight, seq_along(tight))
+        directions[unit] <- directions[unit] + 1
         variance_s[tight] <- .known_v_factor_quadratic(
           plan_data = plan_data,
           draw      = s,
