@@ -199,6 +199,123 @@ test_that("normal-grid fixtures apply structural eligibility before row preparat
 }
 
 
+test_that("dependent Student-t focal coordinates retain the joint prior on both row routes", {
+
+  fit_name <- "hypothesis_plan_meandif_mt"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name)
+  context <- .iwmde_context(object)
+  coordinates <- c("mu_g1[1]", "mu_g1[2]")
+  prior <- attr(object[["fit"]], "prior_list")[["mu_g1"]]
+  expect_identical(prior[["distribution"]], "mt")
+  expect_true(is.na(prior[["parameters"]][["K"]]))
+  expect_identical(ncol(attr(prior, "factor_design")), 2L)
+
+  for (parameter in coordinates) {
+    spec <- .iwmde_parameter_spec(context, parameter, NULL)
+    nuisance <- setdiff(coordinates, parameter)
+    nuisance_values <- context[["posterior_samples"]][, nuisance]
+    rows <- unique(c(which.min(abs(nuisance_values)), which.max(abs(nuisance_values))))
+    expect_length(rows, 2L)
+    scalar <- .iwmde_row_states(context, rows, parameter, spec)
+    grouped <- .iwmde_row_states_grouped_marginal(context, rows, parameter, spec)
+    expect_length(grouped, 2L)
+    for (states in list(scalar, grouped)) {
+      for (state in states) {
+        expect_true(is.finite(state[["baseline_log_q"]]))
+        expect_identical(state[["focal_prior"]], prior)
+        expect_false(state[["use_focal_prior_delta"]])
+        expect_identical(state[["baseline_focal_log_prior"]], NA_real_)
+      }
+    }
+    expect_equal(vapply(scalar, `[[`, numeric(1), "baseline_log_q"),
+      vapply(grouped, `[[`, numeric(1), "baseline_log_q"), tolerance = 1e-12)
+    values <- c(-.6, 0, .4, 1)
+    replacement <- .iwmde_replacement_spec(context, parameter, spec)
+    routes <- lapply(list(scalar, grouped), function(states) {
+      inputs <- list(values = values, row_states = states, replacement = replacement)
+      production <- .iwmde_log_q_grid_predictor_batch(context, parameter, values, states, replacement)
+      # The ordinary location optimization answers before the native-grid
+      # dispatcher. Exercise its two existing alternatives on the same
+      # declared affine basis without changing either guard.
+      both <- local({
+        testthat::local_mocked_bindings(
+          .iwmde_log_q_grid_normal_location_group = function(...) NULL,
+          .package = "RoBMA"
+        )
+        .normal_grid_both_routes(context, parameter, inputs)
+      })
+      expect_gt(both[["served"]], 0L)
+      .expect_normal_grid_agreement(both, parameter)
+      direct <- vapply(states, function(state) {
+        vapply(values, function(value) .iwmde_log_q_replacement(
+          context, state, parameter, value, replacement), numeric(1))
+      }, numeric(length(values)))
+      expect_identical(is.finite(both[["native"]]), is.finite(direct))
+      expect_identical(both[["native"]] == -Inf, direct == -Inf)
+      finite <- is.finite(direct)
+      expect_lt(max(abs(both[["native"]][finite] - direct[finite])), 1e-10)
+      expect_identical(is.finite(production), is.finite(direct))
+      expect_lt(max(abs(production[finite] - direct[finite])), 1e-10)
+      expect_identical(is.finite(production), is.finite(both[["candidates"]]))
+      expect_lt(max(abs(production[finite] - both[["candidates"]][finite])), 1e-10)
+      both[["native"]]
+    })
+    expect_identical(is.finite(routes[[1L]]), is.finite(routes[[2L]]))
+    finite <- is.finite(routes[[1L]])
+    expect_lt(max(abs(routes[[1L]][finite] - routes[[2L]][finite])), 1e-10)
+
+    # A vector t has dependent coordinates even with diagonal scale. The
+    # conditional ratio at each actual nuisance row must use the joint law.
+    joint_ratios <- marginal_ratios <- numeric(length(scalar))
+    for (i in seq_along(scalar)) {
+      state <- scalar[[i]]
+      before <- matrix(state[["row"]], nrow = 1L,
+        dimnames = list(NULL, names(state[["row"]])))
+      after <- before
+      after[, parameter] <- 1
+      direct_joint <- function(samples) mvtnorm::dmvt(samples[, coordinates, drop = FALSE],
+        delta = rep(0, 2L), sigma = diag(.5^2, 2L), df = 3, type = "shifted", log = TRUE)
+      joint_ratios[[i]] <- direct_joint(after) - direct_joint(before)
+      observed <- state[["prior_evaluator"]](after) - state[["prior_evaluator"]](before)
+      expect_lt(abs(observed - joint_ratios[[i]]), 1e-12)
+      marginal_ratios[[i]] <- stats::dt(1 / .5, df = 3, log = TRUE) -
+        stats::dt(before[, parameter] / .5, df = 3, log = TRUE)
+    }
+    expect_gt(max(abs(joint_ratios - marginal_ratios)), 1e-5)
+  }
+
+  # This default native-positive scale batch carries the unchanged full vector
+  # prior and exercises a finite value outside the nonnegative SD support.
+  tau_spec <- .iwmde_parameter_spec(context, "tau", NULL)
+  tau_states <- .iwmde_row_states(context, 1:2, "tau", tau_spec)
+  tau_values <- c(-1, 0, .05, .2, .6)
+  tau_replacement <- .iwmde_replacement_spec(context, "tau", tau_spec)
+  tau_routes <- .normal_grid_both_routes(context, "tau", list(values = tau_values,
+    row_states = tau_states, replacement = tau_replacement))
+  expect_gt(tau_routes[["served"]], 0L)
+  .expect_normal_grid_agreement(tau_routes, "dependent Student-t nuisance / tau")
+  valid_tau <- tau_values >= 0
+  tau_direct <- vapply(tau_states, function(state) vapply(tau_values[valid_tau],
+    function(value) .iwmde_log_q_replacement(context, state, "tau", value, tau_replacement),
+    numeric(1)), numeric(sum(valid_tau)))
+  native_valid_tau <- tau_routes[["native"]][valid_tau, , drop = FALSE]
+  expect_identical(native_valid_tau == -Inf, tau_direct == -Inf)
+  expect_true(all(tau_routes[["native"]][1L, ] == -Inf))
+  finite <- is.finite(tau_direct)
+  expect_lt(max(abs(native_valid_tau[finite] - tau_direct[finite])), 1e-10)
+  expect_error(.iwmde_log_q_replacement(context, tau_states[[1L]], "tau", -1, tau_replacement),
+    "must be a finite, non-negative numeric matrix.", fixed = TRUE)
+
+  spec <- .iwmde_parameter_spec(context, "mu_intercept", NULL)
+  for (states in list(.iwmde_row_states(context, 1:2, "mu_intercept", spec),
+                     .iwmde_row_states_grouped_marginal(context, 1:2, "mu_intercept", spec))) {
+    expect_true(all(vapply(states, `[[`, logical(1), "use_focal_prior_delta")))
+    expect_true(all(is.finite(vapply(states, `[[`, numeric(1), "baseline_focal_log_prior"))))
+  }
+})
+
+
 test_that("the native normal candidate grid matches the candidate route", {
 
   fit_names <- .normal_grid_fit_names()

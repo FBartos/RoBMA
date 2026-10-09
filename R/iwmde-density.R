@@ -172,15 +172,18 @@
           as.numeric(value)
         }, numeric(1))
       }
-      baseline_focal_log_prior <- .iwmde_focal_log_prior_values(
-        prior     = focal_prior,
-        values    = focal_values,
-        parameter = parameter
-      )
       use_focal_prior_delta_base <-
         !.iwmde_parameter_is_eta(parameter) &&
         !controls_random_sd &&
         .iwmde_can_use_focal_prior_delta(focal_prior)
+      baseline_focal_log_prior <- rep(NA_real_, length(group))
+      if (use_focal_prior_delta_base) {
+        baseline_focal_log_prior <- .iwmde_focal_log_prior_values(
+          prior     = focal_prior,
+          values    = focal_values,
+          parameter = parameter
+        )
+      }
       use_focal_prior_delta <-
         rep(use_focal_prior_delta_base, length(group)) &
         is.finite(baseline_focal_log_prior)
@@ -517,14 +520,22 @@
   )[[1L]]
   if (is_primitive) {
     focal_prior <- .iwmde_focal_prior(context, parameter, base_state[["row"]])
-    baseline_focal_log_prior <- .iwmde_focal_log_prior(
-      prior     = focal_prior,
-      value     = base_state[["row"]][[parameter]],
-      parameter = parameter
-    )
+    use_focal_prior_delta <-
+      !.iwmde_parameter_is_eta(parameter) &&
+      !.iwmde_parameter_controls_sampled_random_sd(context, parameter) &&
+      .iwmde_can_use_focal_prior_delta(focal_prior)
+    baseline_focal_log_prior <- NA_real_
+    if (use_focal_prior_delta) {
+      baseline_focal_log_prior <- .iwmde_focal_log_prior(
+        prior     = focal_prior,
+        value     = base_state[["row"]][[parameter]],
+        parameter = parameter
+      )
+    }
   } else {
     focal_prior              <- NULL
     baseline_focal_log_prior <- NA_real_
+    use_focal_prior_delta    <- FALSE
   }
   baseline_log_lik <- .iwmde_baseline_log_likelihood(
     context         = context,
@@ -544,11 +555,8 @@
   base_state[["baseline_log_prior"]]       <- log_prior
   base_state[["focal_prior"]]              <- focal_prior
   base_state[["baseline_focal_log_prior"]] <- baseline_focal_log_prior
-  base_state[["use_focal_prior_delta"]]        <- is_primitive &&
-    !.iwmde_parameter_is_eta(parameter) &&
-    !.iwmde_parameter_controls_sampled_random_sd(context, parameter) &&
-    is.finite(baseline_focal_log_prior) &&
-    .iwmde_can_use_focal_prior_delta(focal_prior)
+  base_state[["use_focal_prior_delta"]]        <- use_focal_prior_delta &&
+    is.finite(baseline_focal_log_prior)
   base_state[["baseline_log_q"]]               <- baseline_log_q
   base_state[["likelihood_mode"]]              <- likelihood_mode
   base_state[["state_scope"]]                  <- state_scope
