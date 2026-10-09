@@ -348,7 +348,10 @@ hypothesis.default <- function(object, ...) {
 #' normalizer, bounded for a Gaussian kernel with
 #' another proper scalar prior, and estimated from the tails (each tail
 #' extended until its estimate is at most \code{(1 - normalization_prob) / 2})
-#' otherwise. A row normalizer missing the fraction \eqn{t} overstates that
+#' otherwise. The tail extension has a limit, ends at values the joint density
+#' cannot evaluate, and cannot help a tail that does not decay, so the
+#' estimate for such a row can exceed that target and the bound below with it.
+#' A row normalizer missing the fraction \eqn{t} overstates that
 #' row's density by the factor \eqn{1 / (1 - t)}, so the ordinate is
 #' overstated by at most \eqn{t / (1 - t)} for the largest row truncation,
 #' which is at most \code{(1 - normalization_prob) / normalization_prob}; at

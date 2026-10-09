@@ -29,8 +29,12 @@
 #' delta upper bound on the unconditional density scale. It is suitable as a
 #' descriptive precision diagnostic but does not certify the unobserved
 #' full-mixture covariance, so `bf_grade_met` remains false.
-#' `sampling_relative_mcse` separately reports the exact finite-population
-#' simple-random-sampling component conditional on the fitted rows. It is not
+#' `sampling_relative_mcse` separately reports the finite-population
+#' simple-random-sampling component conditional on the fitted rows
+#' (`sampling_uncertainty_type = "finite_population_srswor"`). The sampling
+#' design is exact, but the standard error is an estimate: the usual
+#' without-replacement formula applied to the sample variance of the selected
+#' contributions, and zero when every eligible row is used. It is not
 #' added to the selected-row sequence MCSE, which already describes the actual
 #' selected estimator sequence.
 #'
@@ -72,8 +76,15 @@
 #'
 #' qCMDE's full method diagnostics distinguish `pilot_normalization_integral`
 #' from `final_normalization_integral`; IWMDE uses
-#' `support_grid_normalization_integral`. This compact accessor reports their
-#' common normalization check as `normalization_relative_error`. The active
+#' `support_grid_normalization_integral`. This compact accessor reports the
+#' relative difference of the final integral from the active mass as
+#' `normalization_relative_error`. For qCMDE it is a bookkeeping check, not a
+#' discretization error: rows normalized on the lattice are normalized by the
+#' same trapezoid rule, on the same grid, that integrates them, so they sum to
+#' the active mass up to roundoff by construction, and rows normalized in
+#' closed form contribute their analytic mass within the range. The
+#' discretization and truncation errors of the lattice normalizers are reported
+#' by `ordinate_relative_change` and `truncation_ordinate_bound`. The active
 #' policy check is identified by `stability_metric`: qCMDE checks its posterior
 #' ordinate error bound (`ordinate_error_bound`), whereas IWMDE checks
 #' normalization mass. The qCMDE bound adds two parts. `ordinate_relative_change`
@@ -94,10 +105,14 @@
 #' `"estimate"` (from the exponential envelope of the tails at the range ends)
 #' otherwise; it reports the weakest status among the rows. The range covers
 #' every row's central `normalization_prob` interval, so \eqn{t} is at most
-#' `1 - normalization_prob` (for estimated rows, as estimated) and
-#' `truncation_ordinate_bound` is at most
+#' `1 - normalization_prob` (for estimated rows, as estimated once their
+#' extension reaches its target) and `truncation_ordinate_bound` is at most
 #' `(1 - normalization_prob) / normalization_prob`, about 0.1 percent at the
-#' default `0.999`. Setting `normalization_prob` closer to 1 widens the range
+#' default `0.999`. The extension of an estimated row stops at its limit (four
+#' initial range widths per side and 40 passes), at a value the joint density
+#' cannot evaluate, or for a tail that does not decay; the reported
+#' `normalization_truncation` and `truncation_ordinate_bound` can then exceed
+#' these values. Setting `normalization_prob` closer to 1 widens the range
 #' and lowers the truncation; increasing `normalization_points` refines the
 #' grid. The table also reports the stability and adaptive-quadrature
 #' warning/rejection thresholds.
