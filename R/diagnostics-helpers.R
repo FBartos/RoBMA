@@ -108,9 +108,19 @@
                                                    transform_factors = TRUE) {
 
   if (.is_mods(model) || .is_random(model)) {
+    # a fixed-zero intercept is not a parameter of the posterior; the table
+    # would otherwise append it as a constant (or dependent) column (as summary)
+    remove_parameters <- if (.location_omit_fixed_zero_intercept(
+      model, transform_scaled = !standardized_coefficients
+    )) {
+      "mu_intercept"
+    } else {
+      NULL
+    }
     samples <- BayesTools::JAGS_estimates_table(
       fit                    = model[["fit"]],
       keep_formulas          = "mu",
+      remove_parameters      = remove_parameters,
       random_effects_summary = "none",
       remove_diagnostics     = TRUE,
       transform_factors      = transform_factors,
