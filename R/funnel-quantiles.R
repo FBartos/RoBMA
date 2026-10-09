@@ -97,14 +97,21 @@
   )
   common <- all(.equal_within_double_roundoff(tau, reference))
 
+  # A selected target also needs one common split of the total into integrated
+  # and conditioned sources: the same total can be split differently by row.
+  sources <- .funnel_selection_source_variances(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+  if (!is.null(sources)) {
+    common <- common && sources[["common"]]
+  }
+
   return(list(
     common            = common,
     posterior_samples = posterior_samples,
     tau                = if (common) tau[, 1L] else NULL,
-    sources           = .funnel_selection_source_variances(
-      object            = object,
-      posterior_samples = posterior_samples
-    )
+    sources           = sources
   ))
 }
 
@@ -200,12 +207,20 @@
     }
   }
 
+  # The split is common when every row has the same integrated and conditioned
+  # variance (to the tolerance of the total heterogeneity). Only then does one
+  # row stand for all of them.
+  common <- all(.equal_within_double_roundoff(
+    integrated, matrix(integrated[, 1L], nrow = S, ncol = K)
+  )) && all(.equal_within_double_roundoff(
+    conditioned, matrix(conditioned[, 1L], nrow = S, ncol = K)
+  ))
+
   return(list(
-    integrated       = integrated[, 1L],
-    conditioned      = conditioned[, 1L],
+    integrated       = if (common) integrated[, 1L] else NULL,
+    conditioned      = if (common) conditioned[, 1L] else NULL,
     retains_sampling = .selection_retains_sampling(data),
-    common           = all(integrated == integrated[, 1L]) &&
-      all(conditioned == conditioned[, 1L])
+    common           = common
   ))
 }
 

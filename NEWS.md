@@ -899,6 +899,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   `bias_adjusted = TRUE` remove the declared bias offset from the observation
   before the BLUP, so they equal `yi` minus the `predict(type = "blup",
   bias_adjusted = TRUE)` means.
+- outcome funnels of selected multivariate models need one common split of the
+  total heterogeneity into integrated and conditioned sources: when the split
+  differs between rows, `funnel()` plots the residual funnel and
+  `bfunnel()`/explicit outcome mode refuse, instead of using the first row's
+  split for all rows.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry
