@@ -1723,9 +1723,11 @@ skip_if_no_fits <- function() {
 
 skip_if_missing_fits <- function(names, active_only = TRUE) {
 
+  # Validate only the requested fits; every other cached fit is irrelevant to
+  # this skip decision and validating all of them dominated cached test time.
   missing <- setdiff(
     names,
-    list_fits(validate = TRUE, active_only = active_only)
+    list_fits(name = names, validate = TRUE, active_only = active_only)
   )
   if (length(missing) > 0) {
     if (exists(".announce_existing_visual_snapshots", mode = "function")) {

@@ -1006,7 +1006,10 @@ test_that("cached fits are catalogued and valid", {
   expect_equal(inactive, character(),
                info = "the active cache must not contain fits from another profile")
 
-  problems <- lapply(cached_names, validate_cached_fit, deep = TRUE)
+  # One package-source fingerprint serves the whole batch, as in list_fits().
+  package_md5 <- package_source_md5()
+  problems <- lapply(cached_names, validate_cached_fit, deep = TRUE,
+                     package_md5 = package_md5)
   names(problems) <- cached_names
   problems <- problems[lengths(problems) > 0]
   problem_text <- if (length(problems) == 0) {
