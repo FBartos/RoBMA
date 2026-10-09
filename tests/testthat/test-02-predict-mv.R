@@ -1222,13 +1222,15 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   name <- "brma.mv_block_mvn_random_scale"
   skip_if_missing_fits(name)
 
-  fit_brma   <- fits[[name]]
-  out        <- ranef(fit_brma, expand = TRUE)
-  unique_out <- ranef(fit_brma)
+  fit_brma <- fits[[name]]
+  out      <- ranef(fit_brma, expand = TRUE)
 
   expect_type(out, "list")
   expect_named(out, c("effect_study", "study"))
-  expect_named(unique_out, names(out))
+  # The common scale (`scale = ~ x`) varies across the rows of a study, so the
+  # unique-level output of the study block is refused instead of keeping the
+  # first row of each study.
+  expect_error(ranef(fit_brma), class = "RoBMA_ranef_expand_required")
   for (component in c("effect_study", "study")) {
     expect_brma_samples_matrix(
       out[[component]],
@@ -1241,7 +1243,7 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   estimate <- as.matrix(predict(fit_brma, type = "blup", quiet = TRUE))
   total    <- Reduce(`+`, lapply(out, as.matrix))
   total_component <- ranef(fit_brma, component = "total", expand = TRUE)
-  study_component <- ranef(fit_brma, component = "study")
+  study_component <- ranef(fit_brma, component = "study", expand = TRUE)
 
   expect_equal(
     unname(total),
@@ -1255,7 +1257,7 @@ test_that("random-formula brma.mv ranef decomposes random blocks", {
   )
   expect_equal(
     unname(as.matrix(study_component)),
-    unname(as.matrix(unique_out[["study"]])),
+    unname(as.matrix(out[["study"]])),
     tolerance = 1e-12
   )
   expect_error(

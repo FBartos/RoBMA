@@ -897,10 +897,14 @@ ranef <- function(object, ...) {
 #' block names; no additional location layer or component-name prefix is added.
 #' Unique-level output is available when a block's contribution is constant
 #' within each grouping level or observed grouping-level and indicator-
-#' coefficient combination. Other random slopes and row-varying random-effect
-#' scales generally require \code{expand = TRUE}. Summed \code{component =
-#' "total"} output across multiple blocks also requires \code{expand = TRUE}
-#' because different blocks need not share grouping levels.
+#' coefficient combination. Other random slopes generally require
+#' \code{expand = TRUE}. When the random-effect standard deviation of a block
+#' varies across the rows of a grouping level through a \code{scale} formula
+#' (also for the cluster component of a clustered \code{brma()} model with a
+#' \code{scale} formula), the unique-level output is refused with an error of
+#' class \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Summed
+#' \code{component = "total"} output across multiple blocks also requires
+#' \code{expand = TRUE} because different blocks need not share grouping levels.
 #'
 #' @return A \code{brma_samples} object for a single selected/simplified
 #' component, or a named list of \code{brma_samples} objects for decomposed
@@ -1159,6 +1163,15 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     cluster_levels         <- unique(cluster)
     cluster_level_map      <- match(cluster, cluster_levels)
     cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
+    if (.is_scale(object) && .ranef_scale_design_varies_within_groups(
+        object, .data_scale_formula_parameters(object[["data"]]),
+        cluster_level_map)) {
+      .stop_ranef_expand_required(
+        "Unique-level random effects are unavailable for the cluster ",
+        "component because the 'scale' design varies across the rows of a ",
+        "cluster. Use 'expand = TRUE'."
+      )
+    }
     components[["cluster"]] <- .ranef_unique_level_samples(
       samples      = components[["cluster"]],
       group_map    = cluster_level_map,
@@ -1295,6 +1308,14 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     } else {
       term     <- random_terms[[block]]
       metadata <- .ranef_unique_level_term(term, block)
+      if (.ranef_block_sd_varies_within_groups(
+          object, term, metadata[["group_map"]])) {
+        .stop_ranef_expand_required(
+          "Unique-level random effects are unavailable for random-effect ",
+          "block '", block, "' because its standard deviation varies across ",
+          "the rows of a grouping level. Use 'expand = TRUE'."
+        )
+      }
       mat <- .ranef_unique_level_samples(
         samples      = mat,
         group_map    = metadata[["group_map"]],
@@ -1444,6 +1465,82 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     group_map    = match(group_map, which(keep)),
     group_levels = group_levels[keep]
   ))
+}
+
+
+# Unique-level output keeps one row per group. It is refused with an error of
+# class "RoBMA_ranef_expand_required" whenever the random-effect SD varies
+# across the rows of a group, because the first row would silently stand for
+# all of them.
+.stop_ranef_expand_required <- function(...) {
+
+  message <- paste(unlist(lapply(list(...), as.character)), collapse = "")
+  stop(structure(
+    class = c("RoBMA_ranef_expand_required", "error", "condition"),
+    list(message = message, call = NULL)
+  ))
+}
+
+
+# The design rows of the scale parameters that feed a block's row-shaped SD
+# sources (structural metadata; posterior draws are never consulted).
+.ranef_block_sd_varies_within_groups <- function(object, term, group_map) {
+
+  binding <- term[["sd_binding"]]
+  sources <- c(
+    list(binding[["source"]]),
+    if (is.list(binding[["sources_by_column"]])) binding[["sources_by_column"]],
+    if (is.list(binding[["allocations"]])) lapply(binding[["allocations"]], `[[`, "source")
+  )
+  is_row <- vapply(sources, function(source) {
+    !is.null(source) && identical(source[["shape"]], "row")
+  }, logical(1L))
+  if (!any(is_row)) {
+    return(FALSE)
+  }
+
+  # Row-shaped sources are the scale components; an unmapped source cannot be
+  # inspected and is refused.
+  specs       <- .data_scale_component_specs(object[["data"]])
+  parameters  <- stats::setNames(
+    vapply(specs, `[[`, character(1L), "parameter"),
+    vapply(specs, `[[`, character(1L), "source")
+  )
+  source_names <- unique(vapply(sources[is_row], `[[`, character(1L), "name"))
+  mapped       <- parameters[source_names]
+  if (anyNA(mapped)) {
+    return(anyDuplicated(as.integer(group_map)) > 0L)
+  }
+
+  return(.ranef_scale_design_varies_within_groups(
+    object, unname(mapped), group_map
+  ))
+}
+
+
+# TRUE when the design of any listed scale parameter differs (exactly) between
+# the rows of one group, or cannot be inspected for a group with several rows.
+.ranef_scale_design_varies_within_groups <- function(object, parameters,
+                                                      group_map) {
+
+  group_map <- as.integer(group_map)
+  first     <- match(group_map, group_map)
+  if (all(first == seq_along(group_map))) {
+    return(FALSE)
+  }
+
+  for (parameter in parameters) {
+    design <- .fitted_formula_design(object, parameter, required = FALSE)
+    rows   <- design[["model_matrix"]]
+    if (!is.matrix(rows) || nrow(rows) != length(group_map)) {
+      return(TRUE)
+    }
+    if (any(rows != rows[first, , drop = FALSE])) {
+      return(TRUE)
+    }
+  }
+
+  return(FALSE)
 }
 
 

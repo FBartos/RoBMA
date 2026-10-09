@@ -884,6 +884,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - default (unique-level) `ranef()` of `brma.mv()` random-formula models skips
   declared grouping levels that own no fitted rows instead of stopping with an
   internal error.
+- default (unique-level) `ranef()` of `brma.mv()` random-formula models and of
+  the cluster component of clustered `brma()` models with a `scale` formula
+  stops with an error of class `RoBMA_ranef_expand_required` when the
+  random-effect standard deviation varies across the rows of a group (judged
+  from the scale design, not from draws), instead of silently reporting the
+  first row of each group; use `expand = TRUE`. Constant-within-group scale
+  designs keep the unique-level output.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

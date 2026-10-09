@@ -84,10 +84,14 @@ Multiple blocks are returned in one flat list under their canonical fitted
 block names; no additional location layer or component-name prefix is added.
 Unique-level output is available when a block's contribution is constant
 within each grouping level or observed grouping-level and indicator-
-coefficient combination. Other random slopes and row-varying random-effect
-scales generally require \code{expand = TRUE}. Summed \code{component =
-"total"} output across multiple blocks also requires \code{expand = TRUE}
-because different blocks need not share grouping levels.
+coefficient combination. Other random slopes generally require
+\code{expand = TRUE}. When the random-effect standard deviation of a block
+varies across the rows of a grouping level through a \code{scale} formula
+(also for the cluster component of a clustered \code{brma()} model with a
+\code{scale} formula), the unique-level output is refused with an error of
+class \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Summed
+\code{component = "total"} output across multiple blocks also requires
+\code{expand = TRUE} because different blocks need not share grouping levels.
 }
 \examples{
 \dontrun{
