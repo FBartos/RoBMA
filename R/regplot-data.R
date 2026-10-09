@@ -742,65 +742,96 @@
     )
   }
 
-  new_data_prepared <- .prepare_newdata(
-    object  = x,
-    newdata = newdata,
-    type    = "estimate"
-  )
-  tau_result <- .evaluate.brma.tau(
-    fit               = x[["fit"]],
-    scale_data        = new_data_prepared[["scale"]],
-    scale_formula     = .create_fit_formula_list(data = new_data_prepared, "scale"),
-    scale_priors      = x[["priors"]][["scale"]],
-    is_scale          = TRUE,
-    is_multilevel     = FALSE,
-    K                 = nrow(newdata),
-    posterior_samples = posterior_samples
+  # Every declared block contributes its own variance once; the total is not
+  # the heterogeneity of one common scale component.
+  design <- .fitted_formula_design(x, "mu", required = TRUE)
+  variance <- .regplot_mv_block_variance_samples(
+    x                 = x,
+    newdata           = newdata,
+    posterior_samples = posterior_samples,
+    terms             = design[["random_effects"]]
   )
 
-  return(tau_result[["tau_total"]])
+  return(.regplot_variance_sd(variance, "Combined random-effect variance"))
 }
 
 
 .regplot_mv_marginalized_variance_samples <- function(x, newdata,
                                                       posterior_samples) {
 
+  return(.regplot_mv_block_variance_samples(
+    x                 = x,
+    newdata           = newdata,
+    posterior_samples = posterior_samples,
+    terms             = .data_marginalized_random_effects(x[["data"]])
+  ))
+}
+
+
+# The summed variance of the given random-effect terms on the plotting grid.
+# Each term contributes the variance its declared SD gives (row-indexed scale
+# sources evaluated on the prepared grid, allocation factors applied), the
+# evaluators the predictions use for the same terms.
+.regplot_mv_block_variance_samples <- function(x, newdata, posterior_samples,
+                                               terms) {
+
   S        <- nrow(posterior_samples)
   K        <- nrow(newdata)
   variance <- matrix(0, nrow = S, ncol = K)
 
-  if (!.data_has_marginalized_random_effects(x[["data"]])) {
+  if (length(terms) == 0L) {
     return(variance)
   }
 
+  source_samples <- NULL
   if (.is_scale(x)) {
-    new_data_prepared <- .prepare_newdata(
-      object  = x,
-      newdata = newdata,
-      type    = "estimate"
+    location_data <- .regplot_add_random_prediction_columns(x, newdata)
+    prepared      <- .prepare_newdata(
+      object         = x,
+      newdata        = location_data,
+      type           = "estimate",
+      include_random = TRUE
     )
-    tau_result <- .evaluate.brma.tau(
-      fit               = x[["fit"]],
-      scale_data        = new_data_prepared[["scale"]],
-      scale_formula     = .create_fit_formula_list(data = new_data_prepared, "scale"),
-      scale_priors      = x[["priors"]][["scale"]],
-      is_scale          = TRUE,
-      is_multilevel     = FALSE,
-      K                 = K,
-      posterior_samples = posterior_samples
-    )
-    return(tau_result[["tau_total"]]^2)
+    source_names <- unique(unlist(lapply(terms, function(term) {
+      vapply(
+        Filter(function(source) identical(source[["shape"]], "row"),
+               .predict_known_v_marginalized_sd_sources(term)),
+        `[[`, character(1L), "name"
+      )
+    }), use.names = FALSE))
+    if (length(source_names) > 0L) {
+      source_samples <- .predict_known_v_scale_source_samples(
+        fit               = .object_formula_fit(x),
+        data              = prepared,
+        priors            = x[["priors"]],
+        posterior_samples = posterior_samples,
+        source_names      = source_names
+      )
+    }
   }
 
-  return(.evaluate_marginalized_random_variance(
-    data              = x[["data"]],
-    posterior_samples = posterior_samples,
-    K                 = K,
-    sd_evaluator      = .marginalized_random_sd_evaluator(
-      fit   = x[["fit"]],
-      terms = .data_marginalized_random_effects(x[["data"]])
+  fitted_K     <- nrow(x[["data"]][["outcome"]])
+  sd_evaluator <- .marginalized_random_sd_evaluator(
+    fit   = x[["fit"]],
+    terms = terms
+  )
+  for (term in terms) {
+    sd_samples <- .marginalized_random_effect_sd_samples(
+      term              = term,
+      posterior_samples = posterior_samples,
+      K                 = K,
+      source_samples    = source_samples,
+      fitted_K          = fitted_K,
+      sd_evaluator      = sd_evaluator
     )
-  ))
+    variance <- variance + .marginalized_random_effect_variance_samples(
+      term       = term,
+      sd_samples = sd_samples,
+      K          = K
+    )
+  }
+
+  return(variance)
 }
 
 

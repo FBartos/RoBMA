@@ -904,6 +904,14 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   differs between rows, `funnel()` plots the residual funnel and
   `bfunnel()`/explicit outcome mode refuse, instead of using the first row's
   split for all rows.
+- `regplot()` prediction and sampling bands of `brma.mv()` random-formula
+  models with a `scale` formula add each marginalized random-effect block's own
+  declared variance on the prediction grid (row-indexed scale sources
+  evaluated with the random prediction columns, allocation shares applied)
+  instead of the whole total heterogeneity, so a common-scale model no longer
+  counts its allocated variance twice and component-specific scales
+  (`scale = list(block = ~x)`) no longer stop with a missing `random` formula;
+  the pointwise fallback sums the same block-owned variances.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

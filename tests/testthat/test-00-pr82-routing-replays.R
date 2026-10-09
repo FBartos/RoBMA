@@ -1,7 +1,8 @@
 # Attach a synthetic posterior to a constructor-only object: compile its
 # formulas, then finalize the fit through the BayesTools fit contract. The
-# draws are given by 'samples'; without them every column of the compiled
-# priors is set to zero (point priors to their value).
+# draws are the matrix 'samples', or the result of calling 'samples' on the
+# default draws (every column of the compiled priors zero, point priors at their
+# value); without 'samples', the default draws.
 .replay_object <- function(object, samples = NULL) {
 
   args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
@@ -20,16 +21,17 @@
   priors <- list()
   for (item in compiled) priors <- c(priors, item[["prior_list"]])
 
-  if (is.null(samples)) {
+  if (is.null(samples) || is.function(samples)) {
     columns <- unique(unlist(lapply(names(priors), function(parameter) {
       BayesTools:::.prior_linear_prior_columns(parameter, priors[[parameter]])
     })))
-    samples <- matrix(0, 2L, length(columns), dimnames = list(NULL, columns))
+    defaults <- matrix(0, 2L, length(columns), dimnames = list(NULL, columns))
     for (name in names(priors)) {
       if (BayesTools::is.prior.point(priors[[name]])) {
-        samples[, name] <- mean(priors[[name]])
+        defaults[, name] <- mean(priors[[name]])
       }
     }
+    samples <- if (is.function(samples)) samples(defaults) else defaults
   }
 
   fit <- structure(
@@ -100,4 +102,99 @@ test_that("a selected outcome funnel needs one common source split", {
   expect_equal(common[["sources"]][["integrated"]], c(1, 1), tolerance = 1e-12)
   expect_equal(common[["sources"]][["conditioned"]], c(1, 1), tolerance = 1e-12)
   expect_equal(common[["tau"]], rep(sqrt(2), 2L), tolerance = 1e-12)
+})
+
+
+# Nested random intercepts, `study` (sampled) and `esid_study` (marginalized),
+# with draws from `draws`, a function of the default draws.
+.regplot_nested_replay <- function(scale, draws) {
+
+  dat <- data.frame(
+    yi = c(.1, .2, .3, .4), study = factor(c("a", "a", "b", "b")),
+    esid = factor(1:4), x = c(0, 1, 0, 1)
+  )
+  object <- brma.mv(
+    yi = yi, V = rep(.04, 4L), random = ~ 1 | study / esid, scale = scale,
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE
+  )
+  replay <- .replay_object(object, draws)
+  replay[["dat"]] <- dat
+  replay
+}
+
+# The regplot grid, standardized by the fitted predictor as the scale
+# regression sees it.
+.regplot_grid <- function(dat) {
+
+  grid <- data.frame(x = c(-1, .5, 2))
+  list(
+    newdata = grid,
+    z       = (grid[["x"]] - mean(dat[["x"]])) / stats::sd(dat[["x"]])
+  )
+}
+
+test_that("regplot counts the allocated variance of a common scale once", {
+
+  replay <- .regplot_nested_replay(~ x, function(draws) {
+    draws[, "mu__xRE_ALLOCx_heterogeneity__weight[1]"] <- .2
+    draws[, "mu__xRE_ALLOCx_heterogeneity__weight[2]"] <- .8
+    draws[, "log_tau_intercept"] <- c(.5, .8)
+    draws[, "log_tau_x"]         <- c(.4, -.3)
+    draws
+  })
+  object  <- replay[["object"]]
+  samples <- replay[["samples"]]
+  grid    <- .regplot_grid(replay[["dat"]])
+  tau     <- samples[, "log_tau_intercept"] * exp(outer(samples[, "log_tau_x"], grid[["z"]]))
+
+  # The marginalized block owns its allocation share; the sampled block the rest.
+  marginalized <- .regplot_mv_marginalized_variance_samples(
+    object, grid[["newdata"]], samples
+  )
+  expect_equal(unname(marginalized), .2 * tau^2, tolerance = 1e-12)
+  total <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
+  expect_equal(unname(total^2), unname(tau^2), tolerance = 1e-12)
+
+  # The pointwise fallback sums the same block-owned variances.
+  testthat::local_mocked_bindings(
+    .brma_mv_random_effects_marginal_vcov = function(...) {
+      stop("JAGS_bridgesampling() row-indexed external SD source 'tau'.", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+  fallback <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
+  expect_equal(unname(fallback^2), unname(tau^2), tolerance = 1e-12)
+})
+
+test_that("regplot evaluates a component-specific scale on the prediction grid", {
+
+  replay <- .regplot_nested_replay(list(esid = ~ x), function(draws) {
+    draws[, "mu__xREx__study_intercept"]    <- c(.3, .6)
+    draws[, "log_tau_esid_study_intercept"] <- c(.5, .8)
+    draws[, "log_tau_esid_study_x"]         <- c(.4, -.3)
+    draws
+  })
+  object  <- replay[["object"]]
+  samples <- replay[["samples"]]
+  grid    <- .regplot_grid(replay[["dat"]])
+  tau_esid <- samples[, "log_tau_esid_study_intercept"] *
+    exp(outer(samples[, "log_tau_esid_study_x"], grid[["z"]]))
+  study_variance <- matrix(samples[, "mu__xREx__study_intercept"]^2, 2L, 3L)
+
+  marginalized <- .regplot_mv_marginalized_variance_samples(
+    object, grid[["newdata"]], samples
+  )
+  expect_equal(unname(marginalized), unname(tau_esid^2), tolerance = 1e-12)
+  total <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
+  expect_equal(unname(total^2), unname(study_variance + tau_esid^2), tolerance = 1e-12)
+
+  testthat::local_mocked_bindings(
+    .brma_mv_random_effects_marginal_vcov = function(...) {
+      stop("JAGS_bridgesampling() row-indexed external SD source 'tau'.", call. = FALSE)
+    },
+    .package = "RoBMA"
+  )
+  fallback <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
+  expect_equal(unname(fallback^2), unname(study_variance + tau_esid^2), tolerance = 1e-12)
 })
