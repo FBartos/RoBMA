@@ -3996,7 +3996,6 @@ double cpp_selnorm_factor_step_lpdf(
   std::vector<double> system(static_cast<std::size_t>(rank * rank), 0.0);
   std::vector<double> score(static_cast<std::size_t>(rank), 0.0);
   double log_det = 0.0;
-  double diagonal_quadratic = 0.0;
   for (int i = 0; i < dimension; ++i) {
     if (!(residual_sd[i] > 0.0) || !std::isfinite(residual_sd[i]) ||
         !std::isfinite(x[i]) || !std::isfinite(mean[i])) {
@@ -4006,7 +4005,6 @@ double cpp_selnorm_factor_step_lpdf(
     inverse_variance[i] = inverse;
     log_det += 2.0 * std::log(residual_sd[i]);
     const double residual = x[i] - mean[i];
-    diagonal_quadratic += residual * residual * inverse;
     for (int factor = 0; factor < rank; ++factor) {
       const double coefficient = loading[i + dimension * factor];
       if (!std::isfinite(coefficient)) return negative_infinity;
@@ -4042,10 +4040,27 @@ double cpp_selnorm_factor_step_lpdf(
     }
     solved_score[row] /= cholesky[row + rank * row];
   }
-  double correction = vector_dot(solved_score, solved_score);
+  // The latent posterior mean m solves A m = U' S^-1 r with A = L L'; the
+  // numerator is the residual quadratic at m plus m'm, so nothing is
+  // subtracted from the total quadratic.
+  std::vector<double> latent_mean = solved_score;
+  for (int row = rank - 1; row >= 0; --row) {
+    for (int column = row + 1; column < rank; ++column) {
+      latent_mean[row] -= cholesky[column + rank * row] * latent_mean[column];
+    }
+    latent_mean[row] /= cholesky[row + rank * row];
+  }
+  double quadratic = vector_dot(latent_mean, latent_mean);
+  for (int i = 0; i < dimension; ++i) {
+    double fitted = 0.0;
+    for (int factor = 0; factor < rank; ++factor) {
+      fitted += loading[i + dimension * factor] * latent_mean[factor];
+    }
+    const double standardized = (x[i] - mean[i] - fitted) / residual_sd[i];
+    quadratic += standardized * standardized;
+  }
   double log_density = -0.5 * (
-    static_cast<double>(dimension) * log_two_pi + log_det +
-    diagonal_quadratic - correction
+    static_cast<double>(dimension) * log_two_pi + log_det + quadratic
   );
   if (kernel_mode == SELKERNEL_NORMAL) {
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
@@ -4417,7 +4432,6 @@ double cpp_selnorm_cluster_step_lpdf(
     int vector_rule)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
-  const double log_two_pi = std::log(6.283185307179586476925286766559);
   *relative_mcse = 0.0;
   *relative_change = 0.0;
   if (log_normalizer_out != nullptr) {
@@ -4452,28 +4466,24 @@ double cpp_selnorm_cluster_step_lpdf(
   selection.trusted_step_partition = true;
   selection.telescope_probabilities = telescope_probabilities;
 
-  double log_det = 0.0;
-  double denominator = 1.0;
-  double score = 0.0;
-  double diagonal_quadratic = 0.0;
+  // The Gaussian numerator is the stable one-factor integral: the residual
+  // after the latent projection is formed directly, never as a difference of
+  // the total and the explained quadratic.
+  std::vector<double> numerator_work(static_cast<std::size_t>(2 * dimension));
+  double *residual_values = numerator_work.data();
+  double *latent_work = residual_values + dimension;
   for (int i = 0; i < dimension; ++i) {
     if (!(residual_sd[i] > 0.0) || !std::isfinite(residual_sd[i]) ||
         !std::isfinite(loading[i]) || !std::isfinite(x[i]) ||
         !std::isfinite(mean[i]) || !(selection_se[i] > 0.0) ||
         !std::isfinite(selection_se[i]) || obs_bin[i] < 1 ||
         obs_bin[i] > n_bins) return negative_infinity;
-    const double variance = residual_sd[i] * residual_sd[i];
-    const double residual = x[i] - mean[i];
-    log_det += std::log(variance);
-    denominator += loading[i] * loading[i] / variance;
-    score += loading[i] * residual / variance;
-    diagonal_quadratic += residual * residual / variance;
+    residual_values[i] = x[i] - mean[i];
   }
-  const double quadratic = diagonal_quadratic - score * score / denominator;
-  double log_density = -0.5 * (
-    static_cast<double>(dimension) * log_two_pi + log_det +
-    std::log(denominator) + quadratic
+  double log_density = cpp_gaussian_latent_loglik(
+    dimension, residual_values, residual_sd, loading, nullptr, latent_work
   );
+  if (std::isnan(log_density)) return negative_infinity;
   if (kernel_mode == SELKERNEL_NORMAL) {
     if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
     return log_density;

@@ -162,3 +162,43 @@ test_that("recovered Assink tree blocks reach the deterministic factor route", {
     expect_true(is.finite(result[["log_density"]][[1L]]))
   }
 })
+
+
+test_that("the factor Gaussian numerator subtracts no explained quadratic", {
+
+  # Two latent factors load on rows (1, 2) and row 3. With the residual
+  # variance d the covariance eigenvalues are d, 2 + d and 1 + d on the
+  # directions (1, -1, 0), (1, 1, 0) and (0, 0, 1), and the residual (1, 1, 1)
+  # has no component on the first. Subtracting the explained quadratic from the
+  # total returned -256 for d = 2^-60 against the value 16.69.
+  yi      <- c(1, 1, 1)
+  sei     <- c(1, 1, 1)
+  loading <- cbind(c(1, 1, 0), c(0, 0, 1))
+  prior   <- BayesTools::prior_weightfunction("one-sided", steps = c(.025, .05),
+    weights = BayesTools::wf_fixed(c(1, .7, .35)))
+  context <- .selection_spec(priors = list(outcome = list(bias = prior)),
+    yi = yi, sei = sei, effect_direction = "positive", signed_data = FALSE)
+  context[["omega"]]        <- matrix(c(1, .7, .35), nrow = 1L)
+  context[["kernel_mode"]]  <- 0L
+  context[["vector_rule"]]  <- 0L
+  context[["native_cache"]] <- new.env(parent = emptyenv())
+  plan <- .selection_joint_execution_plan(
+    row_blocks = list(1:3), block_methods = "factor", factor_ranks = 2L,
+    selection_control = set_selection_likelihood_control(),
+    sampling = NULL, sampling_factor_blocks = NULL, random_covariance = NULL)
+
+  for (e in c(30, 20, 10)) {
+    d <- 2^(-2 * e)
+    observed <- .selection_joint_factor_loglik_block(
+      yi = yi, means = matrix(0, 1L, 3L), residual_sd = matrix(2^-e, 1L, 3L),
+      loading = matrix(as.numeric(loading), 1L, 6L), sei = sei,
+      selection_context = context, execution_plan = plan, block_index = 1L,
+      return_normalizer = TRUE)
+    reference <- -1.5 * log(2 * pi) -
+      .5 * (log(d) + log(2 + d) + log(1 + d) + 2 / (2 + d) + 1 / (1 + d))
+    expect_equal(observed$log_density[[1L]], reference, tolerance = 1e-13)
+  }
+  expect_equal(-1.5 * log(2 * pi) - .5 * (log(2^-60) + log(2 + 2^-60) +
+    log(1 + 2^-60) + 2 / (2 + 2^-60) + 1 / (1 + 2^-60)),
+    16.691026226904366, tolerance = 1e-15)
+})

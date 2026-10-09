@@ -298,3 +298,50 @@ test_that("diagonal block-list V retains generic factor routing", {
     "diagonal_factor"
   )
 })
+
+
+test_that("the rank-one Gaussian numerator subtracts no explained quadratic", {
+
+  # Two rows share the unit latent loading 1 and the residual sd 2^-30, so the
+  # covariance eigenvalues are d = 2^-60 and 2 + d; the residual (1, 1) lies
+  # along the loading. In the normal-kernel mode the density is the numerator.
+  # Subtracting the explained quadratic from the total returned 18.61.
+  spec <- .selection_spec(
+    list(outcome = list(bias = BayesTools::prior_weightfunction(
+      "one-sided", .025, BayesTools::wf_fixed(c(1, .5))))),
+    c(1, 1), c(1, 1), effect_direction = "positive", signed_data = FALSE
+  )
+  spec$omega       <- matrix(c(1, .5), 1L)
+  spec$kernel_mode <- 0L
+  spec$vector_rule <- 0L
+  plan <- .selection_joint_execution_plan(
+    row_blocks = list(1:2), block_methods = "rank_one", factor_ranks = 1L,
+    selection_control = set_selection_likelihood_control(), sampling = NULL,
+    sampling_factor_blocks = NULL, random_covariance = NULL
+  )
+  evaluate <- function(loading) {
+    .selection_joint_cluster_loglik_block(
+      yi = c(1, 1), means = matrix(0, 1L, 2L),
+      residual_sd = matrix(2^-30, 1L, 2L), loading = loading, sei = c(1, 1),
+      selection_context = spec, execution_plan = plan, return_normalizer = TRUE
+    )
+  }
+  d <- 2^-60
+  reference <- -log(2 * pi) - .5 * (log(d) + log(2 + d) + 2 / (2 + d))
+  expect_equal(reference, 18.10996476010904, tolerance = 1e-15)
+  observed <- evaluate(matrix(1, 1L, 2L))
+  expect_equal(observed$log_density, reference, tolerance = 1e-14)
+  expect_identical(as.numeric(observed$log_normalizer), 0)
+
+  # Row-specific loadings against the dense Gaussian density at a moderate scale.
+  residual_sd <- c(.3, .5)
+  loading <- c(.7, -.4)
+  dense <- mvtnorm::dmvnorm(c(1, 1), c(0, 0),
+    diag(residual_sd^2) + tcrossprod(loading), log = TRUE)
+  moderate <- .selection_joint_cluster_loglik_block(
+    yi = c(1, 1), means = matrix(0, 1L, 2L), residual_sd = matrix(residual_sd, 1L),
+    loading = matrix(loading, 1L), sei = c(1, 1), selection_context = spec,
+    execution_plan = plan, return_normalizer = TRUE
+  )
+  expect_equal(moderate$log_density, dense, tolerance = 1e-12)
+})

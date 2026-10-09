@@ -988,6 +988,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   group effect instead of subtracting the explained quadratic from the total,
   keeping the density for precise, aligned residuals (errors of up to 1 at a
   sampling variance of 1e-16).
+- the Gaussian numerators of the rank-one and factor selected-normal kernels
+  (also evaluated inside the JAGS distributions) take the residual quadratic at
+  the latent posterior mean plus its squared norm instead of subtracting the
+  explained quadratic from the total, which lost the density for precise rows
+  aligned with the latent loading (error 0.5 for a rank-one pair at a residual
+  sd of 2^-30, and -256 against 16.69 for a two-factor block at 2^-30).
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection
