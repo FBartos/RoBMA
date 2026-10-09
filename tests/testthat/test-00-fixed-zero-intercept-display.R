@@ -343,3 +343,38 @@ test_that("parameter discovery lists the original-scale fixed-zero intercept", {
   expect_true("mu_intercept" %in% .brma_parameter_catalog_unfitted(off_center)[["parameter"]])
   expect_false("mu_intercept" %in% .brma_parameter_catalog_unfitted(centered)[["parameter"]])
 })
+
+test_that("catalogs and selectors offer the original-scale intercept of '~ 0 + x'", {
+
+  centered <- .fixed_zero_scaled_object(c(-2.5, -1.5, -0.5, 0.5, 1.5, 2.5))
+  unscaled <- .fixed_zero_scaled_object(1:6, standardize = FALSE)
+  aliases  <- function(object) .brma_parameter_catalog(object)[["alias"]]
+
+  # the formula has no intercept, but the standardized fit has the original-scale
+  # intercept -b * 3.5 / sd(1:6) of its off-center predictor
+  off_center <- .fixed_zero_scaled_object(1:6)
+  expect_true("intercept" %in% aliases(off_center))
+  expect_identical(
+    .brma_parameter_select_entry(off_center, "intercept", component = "mods")[["parameter"]],
+    "mu_intercept"
+  )
+  for (object in list(centered, unscaled)) {
+    expect_false("intercept" %in% aliases(object))
+    expect_error(.brma_parameter_select_entry(object, "intercept", component = "mods"))
+  }
+
+  n <- 100L
+  setup <- review_compile_object(off_center)
+  samples <- cbind(stats::qnorm((seq_len(n) - .5) / n) + .3, 0, .1)
+  colnames(samples) <- c(
+    review_coefficient_name(setup, "x"),
+    review_coefficient_name(setup, "intercept"), "tau"
+  )
+  fitted <- review_attach_replay(setup, samples)
+  expect_true("intercept" %in% aliases(fitted))
+  expect_identical(
+    .brma_parameter_select_entry(fitted, "intercept", component = "mods")[["parameter"]],
+    "mu_intercept"
+  )
+  expect_true("mu_intercept" %in% hypothesis_quantities(fitted)[["parameter"]])
+})

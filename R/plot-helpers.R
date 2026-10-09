@@ -744,13 +744,14 @@
     formula_design <- BayesTools::JAGS_formula_design(
       object[["fit"]], formula_parameter
     )
-    omit_location_intercept <-
-      identical(formula_parameter, "mu") &&
-      .location_omit_fixed_zero_intercept(object)
-    if (!is.null(formula_design) &&
-        (!.fitted_formula_has_intercept(
-          object, formula_parameter, required = TRUE
-        ) || omit_location_intercept)) {
+    has_intercept <- function() {
+      if (identical(formula_parameter, "mu")) {
+        .location_intercept_available(object)
+      } else {
+        .fitted_formula_has_intercept(object, formula_parameter, required = TRUE)
+      }
+    }
+    if (!is.null(formula_design) && !has_intercept()) {
       fixed_rows <- fixed_rows[
         fixed_rows[["term"]] != "intercept",
         ,
@@ -1115,8 +1116,7 @@
 
   if (.is_mods(object) || .is_random(object)) {
     location_source <- if (.is_random(object)) "location" else "mods"
-    if (.fitted_formula_has_intercept(object, "mu", required = FALSE) &&
-        !.location_omit_fixed_zero_intercept(object)) {
+    if (.location_intercept_available(object, required = FALSE)) {
       add("mu_intercept", "mods", "intercept",
           c("mu_intercept", "mu", "intercept"),
           source = location_source, formula_parameter = "mu")

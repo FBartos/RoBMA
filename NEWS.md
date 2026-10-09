@@ -790,7 +790,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   only where it is zero: coefficient summaries on the original scale show the
   intercept `-b * center / sd` whenever a scaled continuous predictor has a
   nonzero center, while the standardized display (`standardized_coefficients =
-  TRUE`) omits the fixed zero.
+  TRUE`) omits the fixed zero. Parameter discovery and selectors follow the
+  original-scale rule, also for a formula without an intercept (`~ 0 + x`).
 - a row-shaped scale SD source bound to a random block other than the one
   targeted by its `scale` model (`scale = list(esid = ~ x)`) is refused with
   the classed error `RoBMA_prior_scale_source_target` naming both blocks; the
