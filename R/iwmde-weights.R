@@ -167,20 +167,45 @@
     rows           = weight_rows,
     parameter_spec = parameter_spec
   )
-  active_keys  <- .iwmde_chen_support_keys(active_supports)
-  weight_keys  <- .iwmde_chen_support_keys(weight_supports)
+  # A target whose support varies from row to row (the linear route: it is the
+  # interval along which the other coordinates stay in their own supports) has
+  # a proposal for every row, so each row is standardized by its own bounds and
+  # the rows are partitioned by which bounds are finite. A fit on the raw values
+  # of draw-dependent supports would be a fit on a mixture of supports: no
+  # proposal would integrate to one on any row's support. Elsewhere a support is
+  # constant within a partition of equal bounds, and is used as it is.
+  standardized <- identical(parameter_spec[["type"]], "linear")
+  if (standardized) {
+    active_chart <- .iwmde_chen_standardize(active_values, active_supports)
+    weight_chart <- .iwmde_chen_standardize(weight_values, weight_supports)
+    active_keys  <- active_chart[["key"]]
+    weight_keys  <- weight_chart[["key"]]
+  } else {
+    active_keys  <- .iwmde_chen_support_keys(active_supports)
+    weight_keys  <- .iwmde_chen_support_keys(weight_supports)
+  }
   out          <- rep(-Inf, length(active_values))
   methods      <- character()
   partitions   <- list()
 
-  for (key in unique(active_keys)) {
+  for (key in unique(active_keys[!is.na(active_keys)])) {
     active_index <- which(active_keys == key)
     weight_index <- which(weight_keys == key)
     if (length(active_index) == 0L || length(weight_index) == 0L) {
       next
     }
 
-    row_support <- active_supports[active_index[1L], ]
+    if (standardized) {
+      row_support   <- .iwmde_chen_standard_support(key)
+      row_active    <- active_chart[["value"]][active_index]
+      row_weight    <- weight_chart[["value"]][weight_index]
+      log_jacobian  <- active_chart[["log_jacobian"]][active_index]
+    } else {
+      row_support   <- active_supports[active_index[1L], ]
+      row_active    <- active_values[active_index]
+      row_weight    <- weight_values[weight_index]
+      log_jacobian  <- 0
+    }
     if (!.iwmde_chen_valid_support(row_support)) {
       next
     }
@@ -191,13 +216,13 @@
           parameter      = parameter,
           parameter_spec = parameter_spec,
           active_rows    = active_rows[active_index],
-          active_values  = active_values[active_index],
+          active_values  = row_active,
           weight_rows    = weight_rows[weight_index],
-          weight_values  = weight_values[weight_index]
+          weight_values  = row_weight
         ),
         fallback      = .iwmde_chen_marginal_normal_log_weight(
-          active_values = active_values[active_index],
-          weight_values = weight_values[weight_index]
+          active_values = row_active,
+          weight_values = row_weight
         ),
         fallback_from = "chen_conditional_normal"
       )
@@ -208,28 +233,28 @@
           parameter      = parameter,
           parameter_spec = parameter_spec,
           active_rows    = active_rows[active_index],
-          active_values  = active_values[active_index],
+          active_values  = row_active,
           weight_rows    = weight_rows[weight_index],
-          weight_values  = weight_values[weight_index],
+          weight_values  = row_weight,
           support        = row_support
         ),
         fallback      = .iwmde_chen_beta_log_weight(
-          active_values = active_values[active_index],
-          weight_values = weight_values[weight_index],
+          active_values = row_active,
+          weight_values = row_weight,
           support       = row_support
         ),
         fallback_from = "chen_logit_conditional_normal"
       )
     } else {
       weight <- .iwmde_chen_gamma_log_weight_single(
-        active_values = active_values[active_index],
-        weight_values = weight_values[weight_index],
+        active_values = row_active,
+        weight_values = row_weight,
         support       = row_support
       )
     }
     weight <- .iwmde_chen_weight_fallback_fields(weight)
 
-    out[active_index] <- weight[["log_weight"]]
+    out[active_index] <- weight[["log_weight"]] + log_jacobian
     methods <- c(methods, weight[["method"]])
     partitions[[length(partitions) + 1L]] <- list(
       key             = key,
@@ -340,6 +365,50 @@
     length(support) == 2L &&
       !any(is.na(support)) &&
       support[1] < support[2]
+  )
+}
+
+
+# Standardize values by the bounds of their own row: the unit interval when
+# both are finite (log Jacobian -log(upper - lower)), the distance from the
+# finite bound when one is (Jacobian 1), and the value itself when none is. A
+# row with missing or empty bounds has no key and is left without a weight. The
+# key is the pattern of finite bounds.
+.iwmde_chen_standardize <- function(values, supports) {
+
+  lower <- supports[, 1L]
+  upper <- supports[, 2L]
+  valid <- !is.na(lower) & !is.na(upper) & lower < upper
+  both  <- valid & is.finite(lower) & is.finite(upper)
+  low   <- valid & is.finite(lower) & !is.finite(upper)
+  high  <- valid & !is.finite(lower) & is.finite(upper)
+  none  <- valid & !is.finite(lower) & !is.finite(upper)
+  key   <- rep(NA_character_, length(values))
+  key[both] <- "both"
+  key[low]  <- "lower"
+  key[high] <- "upper"
+  key[none] <- "none"
+  value <- rep(NA_real_, length(values))
+  value[both] <- (values[both] - lower[both]) / (upper[both] - lower[both])
+  value[low]  <- values[low] - lower[low]
+  value[high] <- upper[high] - values[high]
+  value[none] <- values[none]
+  log_jacobian <- rep(0, length(values))
+  log_jacobian[both] <- -log(upper[both] - lower[both])
+
+  list(key = unname(key), value = unname(value),
+       log_jacobian = unname(log_jacobian))
+}
+
+
+# The support of the standardized values of a partition.
+.iwmde_chen_standard_support <- function(key) {
+
+  switch(key,
+    both  = c(0, 1),
+    lower = c(0, Inf),
+    upper = c(0, Inf),
+    none  = c(-Inf, Inf)
   )
 }
 

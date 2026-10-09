@@ -871,6 +871,14 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   lattice normalizer; the nested-grid ordinate change they report estimates
   their discretization error and is not a bound. Cached qCMDE normalizations
   are recomputed (`.iwmde_algorithm_version()` 30).
+- IWMDE of a bounded linear target (a contrast or sum of coefficients whose
+  support differs from draw to draw) standardizes every row by its own bounds
+  before the Chen proposal is fitted, and partitions the rows by which bounds
+  are finite, so that every row's proposal integrates to one on its own support.
+  The proposal was fitted to a mixture of supports with one partition per
+  distinct pair of bounds: it was zero at all 40 rows of a two-uniform sum, and
+  the public IWMDE of `g[B] - g[C]` for a factor failed for every row. Targets
+  with a support shared by the rows of a partition keep their proposals.
 - `predict()` stops and names a variable of the moderator or scale formula
   (or of a random-effect formula) that `newdata` lacks. 4.0.0 filled missing
   outcome-named columns (`yi`, `sei`, `ai`, `ci`, `n1i`, `n2i`, ...) with
