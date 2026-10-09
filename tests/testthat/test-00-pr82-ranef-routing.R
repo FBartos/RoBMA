@@ -17,21 +17,18 @@ test_that("two-level total random effects keep the estimate names", {
   expect_identical(colnames(expanded), colnames(estimate))
 })
 
-.ranef_routing_mv <- function(scale = NULL, drop_unused = FALSE) {
+.ranef_routing_mv <- function() {
 
   dat <- data.frame(
     yi = c(.1, .2, .3, .4), vi = c(.04, .05, .04, .05),
     id = factor(c("a", "a", "b", "b"), levels = c("a", "b", "unused")),
     x  = c(0, 1, 0, 1)
   )
-  if (drop_unused) dat[["id"]] <- droplevels(dat[["id"]])
-  args <- list(
-    yi = quote(yi), V = quote(vi), data = dat, random = ~1 | id,
+  object <- brma.mv(
+    yi = yi, V = vi, data = dat, random = ~1 | id,
     known_v_parameterization = "block_mvn", measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
   )
-  if (!is.null(scale)) args[["scale"]] <- scale
-  object <- do.call(brma.mv, args)
   design <- .fitted_formula_design(object, "mu", required = TRUE)
   term   <- design[["random_effects"]][[1L]]
   list(object = object, term = term)

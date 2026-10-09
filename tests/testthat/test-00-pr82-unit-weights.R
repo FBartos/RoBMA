@@ -1,5 +1,4 @@
-.unit_weights_selection_object <- function(weights = NULL, sampling = "integrate",
-                                           rule = "best") {
+.unit_weights_selection_object <- function(weights = NULL) {
 
   dat <- data.frame(yi = c(.1, .2, .3, .4), sei = rep(.2, 4L),
                     study = factor(c("a", "a", "b", "b")))
@@ -12,7 +11,7 @@
     prior_bias = BayesTools::prior_weightfunction(
       "one-sided", .025, BayesTools::wf_fixed(c(1, .2)),
       model = BayesTools::selection_model(
-        group = "study", weight_rule = rule, known_sampling_variance = sampling
+        group = "study", weight_rule = "best", known_sampling_variance = "integrate"
       )
     )
   )
