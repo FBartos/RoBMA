@@ -28,17 +28,15 @@
 
 
 # The log density of the Gaussian factors of a prior form at `x`, -Inf outside
-# its support when `support` is TRUE.
-.iwmde_qcmde_closed_form_log_prior <- function(x, form, support = TRUE) {
+# its support.
+.iwmde_qcmde_closed_form_log_prior <- function(x, form) {
 
   out <- numeric(length(x))
   for (j in seq_along(form[["mean"]])) {
     out <- out + stats::dnorm(x, form[["mean"]][[j]], form[["sd"]][[j]],
                               log = TRUE)
   }
-  if (isTRUE(support)) {
-    out[x < form[["lower"]] | x > form[["upper"]]] <- -Inf
-  }
+  out[x < form[["lower"]] | x > form[["upper"]]] <- -Inf
 
   return(out)
 }
@@ -114,7 +112,7 @@
   }
   support <- c(transform[["lower"]], transform[["upper"]])
 
-  for (row in intersect(exact, columns)) {
+  for (row in exact) {
     form      <- laws[["form"]][[row]]
     current   <- kernel[["current"]][[row]]
     linear    <- kernel[["linear"]][[row]]
