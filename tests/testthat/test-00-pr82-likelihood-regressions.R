@@ -213,6 +213,48 @@ test_that("normal cluster likelihood refuses invalid rows without a substituted 
   expect_identical(value[3L], 0)
 })
 
+test_that("a native cluster cell that is not finite is evaluated again alone", {
+
+  skip_if_not(.has_native_norm_cluster_analytic())
+
+  # Three draws and two clusters (row 1, rows 2 and 3). In the second draw the
+  # residual of row 1 is 1e308 against an sd of 1 and a loading of 1e-100: its
+  # density (-5e615) is not representable, so the native kernel gives -Inf for
+  # that cell and only that cell is evaluated again by the R helper.
+  setup <- list(
+    S           = 3L,
+    mu          = rbind(c(1e308, 0, 0), c(0, 0, 0), c(1e308, 0, 0)),
+    tau_within  = matrix(0, 3L, 3L),
+    tau_between = matrix(c(1e-100, 1e-300, 1e100), 3L, 3L, byrow = TRUE),
+    cluster     = list(1L, 2:3),
+    weights     = NULL
+  )
+  yi  <- c(1e308, .3, .2)
+  sei <- rep(1, 3L)
+  # -log(2 pi) / 2 for a residual of 0; 400-digit mpmath for the second cluster
+  expected <- cbind(c(-.91893853320467267, -Inf, -.91893853320467267),
+                    -232.1413863658139)
+
+  calls <- integer()
+  stable <- .log_lik_cluster_norm_stable
+  local_mocked_bindings(
+    .log_lik_cluster_norm_stable = function(residual, ...) {
+      calls <<- c(calls, length(residual))
+      stable(residual, ...)
+    },
+    .package = "RoBMA"
+  )
+  expect_equal(.log_lik_cluster_norm_analytic(setup, yi, sei), expected,
+    tolerance = 1e-14)
+  expect_identical(calls, 1L)
+
+  # The row sums evaluate again only the draw whose sum is not finite.
+  calls <- integer()
+  expect_equal(.log_lik_cluster_norm_analytic_sum(setup, yi, sei),
+    rowSums(expected), tolerance = 1e-14)
+  expect_identical(calls, 3L)
+})
+
 test_that("normal cluster R reference integrates weighted rows without the native kernel", {
 
   setup <- list(S = 2L, cluster = list(1:2), mu = matrix(0, 2L, 2L),

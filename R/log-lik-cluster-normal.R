@@ -23,9 +23,18 @@
       sei     = sei,
       row_sum = FALSE
     )
-    if (all(is.finite(native))) {
+    cells <- !is.finite(native)
+    if (!any(cells)) {
       return(native)
     }
+    # Only the cells the native kernel could not give are evaluated again.
+    native[cells] <- .log_lik_cluster_norm_analytic_r(
+      setup = setup,
+      yi    = yi,
+      sei   = sei,
+      cells = cells
+    )[cells]
+    return(native)
   }
 
   return(.log_lik_cluster_norm_analytic_r(
@@ -45,9 +54,23 @@
       sei     = sei,
       row_sum = TRUE
     )
-    if (all(is.finite(native))) {
+    draws <- !is.finite(native)
+    if (!any(draws)) {
       return(native)
     }
+    # Only the draws whose sum the native kernel could not give are evaluated
+    # again, over all their clusters.
+    cells <- matrix(draws, nrow = length(native),
+                    ncol = length(setup[["cluster"]]))
+    log_lik <- .log_lik_cluster_norm_analytic_r(
+      setup = setup,
+      yi    = yi,
+      sei   = sei,
+      cells = cells
+    )
+    native[draws] <- .rowSums(log_lik[draws, , drop = FALSE],
+                              sum(draws), ncol(log_lik))
+    return(native)
   }
 
   log_lik <- .log_lik_cluster_norm_analytic_r(
@@ -121,7 +144,9 @@
 
 
 
-.log_lik_cluster_norm_analytic_r <- function(setup, yi, sei) {
+# `cells` is NULL for every draw and cluster, or a logical S x G matrix naming
+# the cells to evaluate; the others stay NA.
+.log_lik_cluster_norm_analytic_r <- function(setup, yi, sei, cells = NULL) {
 
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
   rows    <- cluster[["index"]]
@@ -129,14 +154,22 @@
   weights <- setup[["weights"]][rows]
   S       <- setup[["S"]]
   log_lik <- matrix(NA_real_, nrow = S, ncol = length(cluster[["size"]]))
+  draws   <- if (is.null(cells)) {
+    seq_len(S)
+  } else {
+    which(.rowSums(cells, S, ncol(cells)) > 0L)
+  }
 
-  for (s in seq_len(S)) {
-    log_lik[s, ] <- .log_lik_cluster_norm_stable(
-      residual = yi[rows] - setup[["mu"]][s, rows],
-      sd       = .root_sum_squares(sei[rows], setup[["tau_within"]][s, rows]),
-      loading  = setup[["tau_between"]][s, rows],
-      weights  = weights,
-      group    = group
+  for (s in draws) {
+    keep <- if (is.null(cells)) rep.int(TRUE, length(rows)) else cells[s, group]
+    ids  <- unique(group[keep])
+    log_lik[s, ids] <- .log_lik_cluster_norm_stable(
+      residual = yi[rows[keep]] - setup[["mu"]][s, rows[keep]],
+      sd       = .root_sum_squares(sei[rows[keep]],
+                                   setup[["tau_within"]][s, rows[keep]]),
+      loading  = setup[["tau_between"]][s, rows[keep]],
+      weights  = weights[keep],
+      group    = match(group[keep], ids)
     )
   }
 
