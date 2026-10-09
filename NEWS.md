@@ -1082,6 +1082,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   counts its allocated variance twice and component-specific scales
   (`scale = list(block = ~x)`) no longer stop with a missing `random` formula;
   the pointwise fallback sums the same block-owned variances.
+- `funnel(as_data = TRUE)` points of LOO-PIT residuals carry the deletion
+  `unit` and `retained_context` of the estimate-unit LOO target instead of an
+  unused `conditioning_depth` label, and the selection-deletion integration
+  errors of `log_lik()` and LOO name `selection_control` as a setting of the
+  fit.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

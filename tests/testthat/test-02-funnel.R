@@ -66,6 +66,43 @@ test_that("LOO-PIT funnels project normalized residuals by predictive scale", {
   )
   expect_equal(rstudent_alias[["points"]], loo_pit[["points"]])
   expect_identical(loo_pit[["xlab"]], "LOO-PIT Residual")
+
+  # The points carry the estimate-unit LOO target (deletion unit and retained
+  # context), not the unused default conditioning depth.
+  expect_identical(
+    names(loo_pit[["points"]]), c("x", "y", "unit", "retained_context")
+  )
+  expect_identical(loo_pit[["points"]][["unit"]], rep("estimate", 2L))
+  expect_identical(
+    loo_pit[["points"]][["retained_context"]], rep("remaining_data", 2L)
+  )
+})
+
+
+test_that("non-LOO residual funnels record their conditioning depth", {
+
+  testthat::local_mocked_bindings(
+    rstandard.brma = function(model, unit = "estimate",
+                              conditioning_depth = "marginal", ...) {
+      data.frame(resid = c(.1, -.2), se = c(.4, .8), z = c(.25, -.25))
+    },
+    .package = "RoBMA"
+  )
+
+  standardized <- .funnel_data_residual(
+    x                  = list(),
+    type               = "rstandard",
+    unit               = "estimate",
+    conditioning_depth = "cluster",
+    dots               = .set_dots_funnel(list())
+  )
+
+  expect_identical(
+    names(standardized[["points"]]), c("x", "y", "unit", "conditioning_depth")
+  )
+  expect_identical(
+    standardized[["points"]][["conditioning_depth"]], rep("cluster", 2L)
+  )
 })
 
 

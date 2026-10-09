@@ -816,7 +816,7 @@
   tolerance <- plan[["relative_tolerance"]]
   subdivisions <- as.integer(max(1, floor(plan[["max_points_per_scramble"]] / 21)))
   remedy <- paste0("Increase 'max_points_per_scramble' in ",
-                   "'selection_control = set_selection_likelihood_control()'.")
+                   "'selection_control = set_selection_likelihood_control()' when fitting.")
   ordinary_covariance <- state[["total_covariance"]]
   for (draw in seq_len(S)) {
     if (!any(vapply(out, function(value) anyNA(value[draw, ]), logical(1L)))) next

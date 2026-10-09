@@ -274,13 +274,21 @@
     y = range(se_range)
   )
 
-  # create output data structures
+  # create output data structures. LOO-PIT residuals are the estimate-unit LOO
+  # target: it is described by its deletion unit and retained context, and the
+  # conditioning depth does not enter it (the two axes are not equated).
   df_points <- data.frame(
-    x                  = res,
-    y                  = se,
-    unit               = rep(unit, K),
-    conditioning_depth = rep(conditioning_depth, K)
+    x    = res,
+    y    = se,
+    unit = rep(unit, K)
   )
+  if (type == "LOO-PIT" || type == "rstudent") {
+    df_points[["retained_context"]] <- rep(
+      .selection_deletion_retained_context(x[["data"]], x[["priors"]]), K
+    )
+  } else {
+    df_points[["conditioning_depth"]] <- rep(conditioning_depth, K)
+  }
   if (exists("res_obj") && is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
     df_points[["cluster"]]     <- res_obj[["cluster"]]
     df_points[["n_estimates"]] <- res_obj[["n_estimates"]]

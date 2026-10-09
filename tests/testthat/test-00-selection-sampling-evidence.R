@@ -468,7 +468,7 @@ test_that("conditioned-sampling deletion distinguishes deterministic and failed 
   error <- tryCatch(.selection_joint_estimate_targets(setup, "log_density"), error = identity)
   expect_identical(conditionMessage(error), paste0(
     "Selection estimate deletion was rejected by diagnostics: relative integration error was 1. ",
-    "Increase 'max_points_per_scramble' in 'selection_control = set_selection_likelihood_control()'."
+    "Increase 'max_points_per_scramble' in 'selection_control = set_selection_likelihood_control()' when fitting."
   ))
   expect_null(conditionCall(error))
 })

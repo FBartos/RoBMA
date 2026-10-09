@@ -342,7 +342,7 @@
         if (points >= plan[["max_points_per_scramble"]]) {
           stop(paste0("Selection deletion was rejected by diagnostics: relative integration error was ",
                       format(relative_error, digits = 4), ". Increase 'max_points_per_scramble' in ",
-                      "'selection_control = set_selection_likelihood_control()'."), call. = FALSE)
+                      "'selection_control = set_selection_likelihood_control()' when fitting."), call. = FALSE)
         }
         previous <- log_ratio
         points <- min(2L * points, plan[["max_points_per_scramble"]])
