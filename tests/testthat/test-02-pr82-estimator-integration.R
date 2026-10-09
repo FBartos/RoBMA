@@ -68,6 +68,13 @@ test_that("public density hypotheses and plots match conjugate Gaussian inferenc
       # IWMDE keeps its 0.1% deterministic normalization-mass allowance.
       allowance <- curve_allowance <- 1e-3 + monte_carlo
     }
+    # Floating-point floor. Exact rows report no truncation and no grid change,
+    # which can leave an allowance below the rounding error (about 4e-16) of
+    # the compared densities: the log Bayes factor is judged to a few ulps of
+    # itself (or of 1), the peak-scaled curve to a few ulps.
+    rounding        <- 64 * .Machine$double.eps
+    allowance       <- max(allowance, rounding * max(1, abs(log(oracle_bf))))
+    curve_allowance <- max(curve_allowance, rounding)
     expect_lte(abs(log(attr(result, "raw_BF")[[1L]]) - log(oracle_bf)), allowance)
 
     plot <- plot(fit, parameter = "mu", density_method = method,

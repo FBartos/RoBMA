@@ -4839,9 +4839,24 @@ test_that("known-V normal q-grid caches invariant spectral blocks", {
 
   expect_true(is.matrix(out))
   expect_equal(dim(out), c(length(grid), length(row_states)))
-  # The per-row Gaussian kernel does not depend on the evaluated values.
-  expect_identical(attr(reused, "gaussian_kernel", exact = TRUE),
-                   attr(out, "gaussian_kernel", exact = TRUE))
+  # The per-row Gaussian kernel coefficients do not depend on the evaluated
+  # values. Its grid-indexed log prior follows the grid: on the reversed grid it
+  # is the forward one with its grid rows reversed.
+  kernel_out    <- attr(out, "gaussian_kernel", exact = TRUE)
+  kernel_reused <- attr(reused, "gaussian_kernel", exact = TRUE)
+  expect_setequal(names(kernel_reused), names(kernel_out))
+  for (field in setdiff(names(kernel_out), "log_prior")) {
+    expect_identical(kernel_reused[[field]], kernel_out[[field]], info = field)
+  }
+  expect_identical(is.matrix(kernel_reused[["log_prior"]]),
+                   is.matrix(kernel_out[["log_prior"]]))
+  if (is.matrix(kernel_out[["log_prior"]])) {
+    expect_equal(
+      kernel_reused[["log_prior"]],
+      kernel_out[["log_prior"]][nrow(kernel_out[["log_prior"]]):1L, , drop = FALSE],
+      tolerance = 1e-12
+    )
+  }
   attr(reused, "gaussian_kernel") <- NULL
   expect_equal(reused, out[nrow(out):1L, , drop = FALSE], tolerance = 1e-12)
   expect_length(cached_keys, 1L)

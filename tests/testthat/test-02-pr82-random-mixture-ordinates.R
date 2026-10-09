@@ -161,13 +161,15 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
   expect_gte(error, -diagnostic[["ordinate_relative_change"]])
   expect_lt(abs(error), 1e-6)
 
-  # The coverage is what 'normalization_prob' sets: a lower probability leaves
-  # more truncation, moves the ordinate, and stays within its reported bound.
+  # Every row here is an exact Normal law (checked above), whose normalizer is
+  # the closed-form mass of its truncated law: a lower 'normalization_prob'
+  # leaves no truncation and does not move the ordinate, which stays within its
+  # reported bound. A positive truncation needs rows that are not exact.
   loose <- ordinate(.99)
   loose_diagnostic <- density_diagnostics(loose)
   loose_error <- loose[["posterior"]] / mean(expected) - 1
-  expect_gt(loose_diagnostic[["normalization_truncation"]], 1e-4)
-  expect_gt(loose_error, 1e-5)
+  expect_equal(loose_diagnostic[["normalization_truncation"]], 0)
+  expect_lt(abs(loose_error), 1e-6)
   expect_lte(loose_error, loose_diagnostic[["truncation_ordinate_bound"]] +
     loose_diagnostic[["ordinate_relative_change"]])
   # The public prior height uses BayesTools' shared linear-density interpolation
