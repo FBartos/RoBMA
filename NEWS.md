@@ -984,6 +984,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   each cluster with the stable closed-form integral of the cluster effect instead
   of subtracting the explained quadratic from the total, which lost the density
   by cancellation when the cluster rows were precise and aligned.
+- group-IID variance grids of known-covariance blocks complete the square in the
+  group effect instead of subtracting the explained quadratic from the total,
+  keeping the density for precise, aligned residuals (errors of up to 1 at a
+  sampling variance of 1e-16).
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection

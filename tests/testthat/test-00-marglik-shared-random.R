@@ -598,6 +598,49 @@ test_that("group-IID variance grid equals full-covariance likelihoods", {
   expect_equal(actual, expected, tolerance = 2e-12)
 })
 
+test_that("group-IID variance grid keeps the density for aligned precise residuals", {
+
+  grid_loglik <- function(y, sampling_covariance, group_variances,
+                          diagonal_variance) {
+
+    .marglik_covariance_plan_group_iid_variance_grid_loglik(
+      cache               = new.env(parent = emptyenv()),
+      y                   = y,
+      means               = rbind(rep(0, length(y))),
+      sampling_covariance = sampling_covariance,
+      block_indices       = list(seq_along(y)),
+      group_variances     = matrix(group_variances, ncol = 1L),
+      diagonal_variances  = matrix(diagonal_variance, length(group_variances), 1L)
+    )[, 1L]
+  }
+  g <- c(.5, 1, 2)
+
+  # The sampling variance d of two rows and a group effect of variance g give
+  # the eigenvalues d and d + 2 g; the residual (1, 1) lies along the group
+  # loading. Subtracting the explained quadratic from the total returned
+  # errors of 1, 0.5 and 0.25 at d = 1e-16.
+  d <- 1e-16
+  closed_form <- -.5 * (2 * log(2 * pi) + log(d) + log(d + 2 * g) +
+    2 / (d + 2 * g))
+  expect_equal(grid_loglik(c(1, 1), diag(d, 2L), g, 0), closed_form,
+    tolerance = 1e-14)
+
+  # A diagonal variance e adds to every eigenvalue of the sampling block
+  # (here a = 5e-17 + e and b = 2 + e): det = a b + g (a + b) and the quadratic
+  # is (a + b) / det, both without subtraction.
+  e <- 5e-17
+  a <- 5e-17 + e
+  b <- 2 + e
+  det <- a * b + g * (a + b)
+  closed_form <- -.5 * (2 * log(2 * pi) + log(det) + (a + b) / det)
+  expect_equal(grid_loglik(c(1, 1), diag(c(5e-17, 2)), g, e), closed_form,
+    tolerance = 1e-14)
+
+  # Without a group effect the grid is the base Gaussian quadratic.
+  expect_equal(grid_loglik(c(1, 1), diag(d, 2L), 0, 0),
+    -.5 * (2 * log(2 * pi) + 2 * log(d) + 2 / d), tolerance = 1e-14)
+})
+
 test_that("group-IID variance grids preserve residuals after dense fallback", {
 
   y <- c(0.3, -0.2)

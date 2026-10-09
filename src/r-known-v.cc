@@ -384,7 +384,6 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
           const double transformed =
             transformed_residual[static_cast<size_t>(eigen)];
           log_determinant += std::log(variance);
-          quadratic += transformed * transformed / variance;
           group_precision += loading * loading / variance;
           group_residual += loading * transformed / variance;
         }
@@ -412,9 +411,22 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
             size, covariance.data(), dense_residual.data()
           );
         } else {
-          log_determinant += std::log(update);
-          quadratic -= group_variance * group_residual * group_residual /
-            update;
+          // Complete the square in the group effect with prior variance g: its
+          // posterior mean is m = g s / (1 + g p), the quadratic is the
+          // residual quadratic at m plus m^2 / g = m s / (1 + g p), and the
+          // determinant gains log(1 + g p). Nothing is subtracted from the
+          // total quadratic.
+          const double latent_mean = group_variance * group_residual / update;
+          for (int eigen = 0; eigen < size; ++eigen) {
+            const double variance =
+              eigenvalues[static_cast<size_t>(eigen)] + diagonal_variance;
+            const double completed =
+              transformed_residual[static_cast<size_t>(eigen)] -
+              group_loading[static_cast<size_t>(eigen)] * latent_mean;
+            quadratic += completed * completed / variance;
+          }
+          quadratic += latent_mean * group_residual / update;
+          log_determinant += std::log1p(group_variance * group_precision);
           block_log_likelihood = -0.5 * (
             static_cast<double>(size) * log_two_pi +
             log_determinant + quadratic
