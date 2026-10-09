@@ -285,8 +285,16 @@
 .log_lik_cluster_norm_standardized <- function(z, b, w, g, n_group) {
 
   information <- .group_sum(w * b * b, g, n_group)
-  latent      <- .group_sum(w * b * z, g, n_group) / (1 + information)
+  total       <- 1 + information
+  latent      <- .group_sum(w * b * z, g, n_group) / total
   e           <- z - b * latent[g]
+
+  # One correction step on the residual: the latent location is the root of
+  # sum(w b e) - m = 0.
+  step <- (.group_sum(w * b * e, g, n_group) - latent) / total
+  step[!is.finite(step)] <- 0
+  e      <- e - b * step[g]
+  latent <- latent + step
 
   return(list(
     log_a     = log1p(information),
@@ -305,8 +313,10 @@
   scale <- 2^floor(log2(top))
   p     <- w * (bottom[g] / s)^2
   a     <- t / scale[g]
-  denom <- (bottom / scale)^2 + .group_sum(p * a * a, g, n_group)
-  numer <- .group_sum(p * a * r, g, n_group)
+  f     <- p * a
+  prior <- (bottom / scale)^2
+  denom <- prior + .group_sum(f * a, g, n_group)
+  numer <- .group_sum(f * r, g, n_group)
   log_k <- numeric(n_group)
 
   # A denominator or a numerator term that underflows is carried with a common
@@ -327,24 +337,37 @@
     log_x <- log_w + log_a - log_c[g_s]
     slow_denom <- exp(log_0 - log_c) +
       .group_sum(exp(log_t - log_c[g_s]), g_s, n_group)
+    slow_f     <- ifelse(t_s != 0, sign(t_s) * exp(log_x), 0)
     slow_term  <- ifelse(
       r_s == 0, 0, ifelse(
         log_x > 700, sign(t_s) * sign(r_s) * exp(log_x + log(abs(r_s))),
-        sign(t_s) * exp(log_x) * r_s
+        slow_f * r_s
       )
     )
     slow_numer <- .group_sum(slow_term, g_s, n_group)
     denom[slow] <- slow_denom[slow]
     numer[slow] <- slow_numer[slow]
+    prior[slow] <- exp(log_0 - log_c)[slow]
     log_k[slow] <- log_c[slow]
+    f[rows]     <- slow_f
   }
 
+  # The shift a * center of every row; loading * center / scale equals it and
+  # does not underflow with a.
+  shift <- function(center) {
+    ifelse(t == 0, 0, ifelse(abs(a) >= 1e-290, a * center[g],
+                             t * (center / scale)[g]))
+  }
   center <- numer / denom
+  d      <- r - shift(center)
+
+  # One correction step on the residual: the location is the root of
+  # sum(f d) - prior * center = 0.
+  step <- (.group_sum(f * d, g, n_group) - prior * center) / denom
+  step[!is.finite(step)] <- 0
+  d      <- (d - shift(step)) / s
+  center <- center + step
   latent <- center / scale
-  # loading * latent equals a * center, and does not underflow with a
-  shift  <- ifelse(t == 0, 0, ifelse(abs(a) >= 1e-290, a * center[g],
-                                     t * latent[g]))
-  d      <- (r - shift) / s
 
   return(list(
     log_a     = 2 * (log(scale) - log(bottom)) + log_k + log(denom),

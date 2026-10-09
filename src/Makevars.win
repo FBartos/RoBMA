@@ -137,7 +137,7 @@ R_KNOWN_V_INC = r-known-v-common.cc.inc \
 				r-known-v-structured.cc.inc \
 				r-known-v-evaluate.cc.inc
 
-r-known-v.o: $(R_KNOWN_V_INC)
+r-known-v.o: $(R_KNOWN_V_INC) selnorm/selnorm-mv.h
 
 R_SELNORM_INC = r-selnorm-common.cc.inc \
 				r-selnorm-funnel-common.cc.inc \

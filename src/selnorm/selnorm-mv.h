@@ -145,7 +145,7 @@ double cpp_selnorm_mnorm_step_lpdf(
 // quotient by a loading is formed: the form is evaluated in standardized units
 // when no loading exceeds the smallest sd and in raw units scaled by the
 // largest loading otherwise (see the definition). `work` is optional scratch
-// of n values. Returns NaN for an invalid input (non-finite value, non-positive
+// of 2 n values. Returns NaN for an invalid input (non-finite value, non-positive
 // sd, negative power) and -Inf when the result is not representable.
 double cpp_gaussian_latent_loglik(
   int n,

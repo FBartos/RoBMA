@@ -34,7 +34,7 @@ struct NormClusterRows {
       sd(static_cast<size_t>(capacity)),
       loading(static_cast<size_t>(capacity)),
       power(static_cast<size_t>(capacity)),
-      work(static_cast<size_t>(capacity)) {}
+      work(static_cast<size_t>(2 * capacity)) {}
 };
 
 void validate_cluster_common_data(SEXP yi, SEXP sampling, const char *sampling_name,

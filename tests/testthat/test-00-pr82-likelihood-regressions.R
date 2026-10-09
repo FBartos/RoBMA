@@ -442,6 +442,14 @@ test_that("the cluster integral keeps aligned residuals, standardized overflow a
       weights = c(1, 2, 3), expected = 1141.5072679066598),
     list(yi = c(3, -9, 6), sei = rep(1e-120, 3L), tau_between = c(1, -3, 2),
       weights = c(1, 1, 2), expected = 819.30969346608967),
+    # identical rows whose residual is a fractional multiple of the loading:
+    # the rounding of the latent location cancels to second order only
+    list(yi = rep(.7, 2L), sei = rep(1e-20, 2L), tau_between = rep(sqrt(.3), 2L),
+      expected = 43.652570938687897),
+    list(yi = rep(.7, 3L), sei = rep(1e-30, 3L), tau_between = rep(sqrt(.2), 3L),
+      expected = 134.42870279191172),
+    list(yi = rep(.7, 3L), sei = rep(1e-30, 3L), tau_between = rep(sqrt(.2), 3L),
+      weights = c(2, .5, 1), expected = 168.43093458030644),
     # residual / sd overflows although the density is representable
     list(yi = 1e200, sei = 1e-150, tau_between = 1e200,
       expected = -461.93595713201381),

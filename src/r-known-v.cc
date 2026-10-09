@@ -19,6 +19,7 @@
 #endif
 
 #include "r-native-api.h"
+#include "selnorm/selnorm-mv.h"
 
 // Matrix may report CHOLMOD failures through R's error handler. Protect those
 // calls just like direct R API calls; plan finalizers use resolved free hooks.
@@ -304,9 +305,11 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
   std::vector<double> transformed_residual(max_block_size);
   std::vector<double> dense_residual(max_block_size);
   std::vector<double> covariance(max_block_size * max_block_size);
+  std::vector<double> factor_sd(max_block_size);
+  std::vector<double> factor_loading(max_block_size);
+  std::vector<double> factor_work(2 * max_block_size);
   const int lwork = std::max(1, 3 * static_cast<int>(max_block_size) - 1);
   std::vector<double> eigen_work(static_cast<size_t>(lwork));
-  const double log_two_pi = 1.837877066409345483560659472811;
 
   for (const BlockPlan &block : plan->blocks) {
     const int size = static_cast<int>(block.index.size());
@@ -368,10 +371,12 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
         const double diagonal_variance = diagonal_values[variance_index];
         const double group_variance = group_values[variance_index];
 
-        double log_determinant = 0.0;
-        double quadratic = 0.0;
-        double group_precision = 0.0;
-        double group_residual = 0.0;
+        // In the eigenbasis of the sampling block the covariance is diagonal
+        // plus the group effect: the unit-normal latent with the loadings
+        // sqrt(g) U'1 on the rows of standard deviation sqrt(lambda + d). The
+        // shared one-factor kernel forms the residual after the latent
+        // projection directly, so nothing is subtracted from a total quadratic.
+        const double group_scale = std::sqrt(group_variance);
         bool use_dense_reference = false;
         for (int eigen = 0; eigen < size; ++eigen) {
           const double variance =
@@ -380,19 +385,19 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
             use_dense_reference = true;
             break;
           }
-          const double loading = group_loading[static_cast<size_t>(eigen)];
-          const double transformed =
-            transformed_residual[static_cast<size_t>(eigen)];
-          log_determinant += std::log(variance);
-          group_precision += loading * loading / variance;
-          group_residual += loading * transformed / variance;
-        }
-        const double update = 1.0 + group_variance * group_precision;
-        if (!(update > 0.0) || !std::isfinite(update)) {
-          use_dense_reference = true;
+          factor_sd[static_cast<size_t>(eigen)] = std::sqrt(variance);
+          factor_loading[static_cast<size_t>(eigen)] =
+            group_scale * group_loading[static_cast<size_t>(eigen)];
         }
 
         double block_log_likelihood = 0.0;
+        if (!use_dense_reference) {
+          block_log_likelihood = cpp_gaussian_latent_loglik(
+            size, transformed_residual.data(), factor_sd.data(),
+            factor_loading.data(), nullptr, factor_work.data()
+          );
+          use_dense_reference = std::isnan(block_log_likelihood);
+        }
         if (use_dense_reference) {
           for (int column = 0; column < size; ++column) {
             for (int row = 0; row < size; ++row) {
@@ -409,27 +414,6 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
           );
           block_log_likelihood = cholesky_block_log_likelihood(
             size, covariance.data(), dense_residual.data()
-          );
-        } else {
-          // Complete the square in the group effect with prior variance g: its
-          // posterior mean is m = g s / (1 + g p), the quadratic is the
-          // residual quadratic at m plus m^2 / g = m s / (1 + g p), and the
-          // determinant gains log(1 + g p). Nothing is subtracted from the
-          // total quadratic.
-          const double latent_mean = group_variance * group_residual / update;
-          for (int eigen = 0; eigen < size; ++eigen) {
-            const double variance =
-              eigenvalues[static_cast<size_t>(eigen)] + diagonal_variance;
-            const double completed =
-              transformed_residual[static_cast<size_t>(eigen)] -
-              group_loading[static_cast<size_t>(eigen)] * latent_mean;
-            quadratic += completed * completed / variance;
-          }
-          quadratic += latent_mean * group_residual / update;
-          log_determinant += std::log1p(group_variance * group_precision);
-          block_log_likelihood = -0.5 * (
-            static_cast<double>(size) * log_two_pi +
-            log_determinant + quadratic
           );
         }
         REAL(out)[static_cast<size_t>(grid) +

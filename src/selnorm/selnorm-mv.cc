@@ -3825,7 +3825,9 @@ int cpp_selnorm_factor_box_rng(
 //   norm = sum(-power_i (log 2 pi + 2 log sd_i) / 2),
 // each row adding its own term, so that no sum overflows before its half.
 // The residual after the latent projection is formed directly, so nothing is
-// subtracted from an explained quadratic. With t = max |loading_i| and s_min =
+// subtracted from an explained quadratic, and m is refined by one correction
+// step on that residual (a residual along the loadings then cancels to second
+// order in the rounding, not to first). With t = max |loading_i| and s_min =
 // min sd_i over the rows of positive power the form is evaluated in the regime
 // where it neither overflows nor loses an aligned residual:
 //  * t = 0: the independent Gaussian densities.
@@ -3840,7 +3842,7 @@ int cpp_selnorm_factor_box_rng(
 //    is carried with a common log-scale factor in D and c.
 // No quotient by a loading is formed, and a scale is squared only after it is
 // divided by the one it is compared with. Rows with power 0 are omitted and
-// `work` (n values) may be null. Invalid rows give NaN; a result beyond the
+// `work` (2 n values) may be null. Invalid rows give NaN; a result beyond the
 // representable range is -Inf.
 double cpp_gaussian_latent_loglik(
     int n, const double *residual, const double *sd, const double *loading,
@@ -3851,9 +3853,11 @@ double cpp_gaussian_latent_loglik(
   const double log_two_pi = std::log(6.283185307179586476925286766559);
   std::vector<double> local_work;
   if (work == nullptr) {
-    local_work.resize(static_cast<std::size_t>(std::max(n, 1)));
+    local_work.resize(static_cast<std::size_t>(2 * std::max(n, 1)));
     work = local_work.data();
   }
+  double *first = work;
+  double *second = work + n;
   double norm = 0.0;
   double top = 0.0;
   double bottom = infinity;
@@ -3886,46 +3890,58 @@ double cpp_gaussian_latent_loglik(
 
   if (top <= bottom) {
     // Every |loading_i| / sd_i <= 1; an overflowing z_i is an unrepresentable
-    // quadratic.
+    // quadratic. first = z_i, second = b_i.
     double information = 0.0;
     double projection = 0.0;
     for (int i = 0; i < n; ++i) {
       const double weight = power == nullptr ? 1.0 : power[i];
       if (weight == 0.0) continue;
-      const double standardized = residual[i] / sd[i];
-      if (!std::isfinite(standardized)) return -infinity;
-      const double ratio = loading[i] / sd[i];
-      work[i] = standardized;
-      information += weight * ratio * ratio;
-      projection += weight * ratio * standardized;
+      first[i] = residual[i] / sd[i];
+      if (!std::isfinite(first[i])) return -infinity;
+      second[i] = loading[i] / sd[i];
+      information += weight * second[i] * second[i];
+      projection += weight * second[i] * first[i];
     }
-    const double latent = projection / (1.0 + information);
+    const double total = 1.0 + information;
+    double latent = projection / total;
+    double gradient = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0) continue;
+      gradient += weight * second[i] * (first[i] - second[i] * latent);
+    }
+    double step = (gradient - latent) / total;
+    if (!std::isfinite(step)) step = 0.0;
     double quadratic = 0.0;
     for (int i = 0; i < n; ++i) {
       const double weight = power == nullptr ? 1.0 : power[i];
       if (weight == 0.0) continue;
-      const double remainder = work[i] - loading[i] / sd[i] * latent;
+      const double remainder = (first[i] - second[i] * latent) -
+        second[i] * step;
       quadratic += weight * remainder * remainder;
     }
+    latent += step;
     quadratic += latent * latent;
     return norm - 0.5 * std::log1p(information) - 0.5 * quadratic;
   }
 
+  // first = a_i = loading_i / T, second = p_i a_i (or its scaled version).
   const double scale = std::ldexp(1.0, std::ilogb(top));
   const double ratio_zero = bottom / scale;
-  double denominator = ratio_zero * ratio_zero;
+  double prior = ratio_zero * ratio_zero;
+  double denominator = prior;
   double numerator = 0.0;
   bool underflow = false;
   for (int i = 0; i < n; ++i) {
     const double weight = power == nullptr ? 1.0 : power[i];
     if (weight == 0.0) continue;
     const double ratio = bottom / sd[i];
-    const double scaled = weight * (ratio * ratio) * (loading[i] / scale);
-    work[i] = loading[i] / scale;
-    denominator += scaled * work[i];
-    numerator += scaled * residual[i];
+    first[i] = loading[i] / scale;
+    second[i] = weight * (ratio * ratio) * first[i];
+    denominator += second[i] * first[i];
+    numerator += second[i] * residual[i];
     underflow = underflow || (loading[i] != 0.0 && residual[i] != 0.0 &&
-      !(std::fabs(scaled * residual[i]) >= 1e-290));
+      !(std::fabs(second[i] * residual[i]) >= 1e-290));
   }
   double log_factor = 0.0;
   if (!std::isfinite(denominator) || denominator < 1e-290 || underflow) {
@@ -3943,34 +3959,53 @@ double cpp_gaussian_latent_loglik(
         2.0 * (std::log(std::fabs(loading[i])) - log_scale);
       log_factor = std::max(log_factor, log_term);
     }
-    denominator = std::exp(log_zero - log_factor);
+    prior = std::exp(log_zero - log_factor);
+    denominator = prior;
     numerator = 0.0;
     for (int i = 0; i < n; ++i) {
       const double weight = power == nullptr ? 1.0 : power[i];
-      if (weight == 0.0 || loading[i] == 0.0) continue;
+      if (weight == 0.0 || loading[i] == 0.0) {
+        second[i] = 0.0;
+        continue;
+      }
       const double log_weight = std::log(weight) +
         2.0 * (log_bottom - std::log(sd[i]));
       const double log_ratio = std::log(std::fabs(loading[i])) - log_scale;
       denominator += std::exp(log_weight + 2.0 * log_ratio - log_factor);
       const double log_term = log_weight + log_ratio - log_factor;
+      second[i] = std::copysign(std::exp(log_term), loading[i]);
       numerator += log_term > 700.0 && residual[i] != 0.0 ?
         std::copysign(std::exp(log_term + std::log(std::fabs(residual[i]))),
           loading[i]) * std::copysign(1.0, residual[i]) :
-        std::copysign(std::exp(log_term), loading[i]) * residual[i];
+        second[i] * residual[i];
     }
   }
-  const double center = numerator / denominator;
-  const double latent = center / scale;
+  // The shift a_i c of row i; loading_i c / T equals it and does not
+  // underflow with a_i.
+  const auto shift = [&](int i, double center_value) {
+    return loading[i] == 0.0 ? 0.0 :
+      std::fabs(first[i]) >= 1e-290 ? first[i] * center_value :
+        loading[i] * (center_value / scale);
+  };
+  double center = numerator / denominator;
+  double gradient = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0) continue;
+    gradient += second[i] * (residual[i] - shift(i, center));
+  }
+  double step = (gradient - prior * center) / denominator;
+  if (!std::isfinite(step)) step = 0.0;
   double quadratic = 0.0;
   for (int i = 0; i < n; ++i) {
     const double weight = power == nullptr ? 1.0 : power[i];
     if (weight == 0.0) continue;
-    // loading_i * latent equals a_i * center, and does not underflow with a_i
-    const double shift = loading[i] == 0.0 ? 0.0 :
-      std::fabs(work[i]) >= 1e-290 ? work[i] * center : loading[i] * latent;
-    const double standardized = (residual[i] - shift) / sd[i];
+    const double standardized =
+      ((residual[i] - shift(i, center)) - shift(i, step)) / sd[i];
     quadratic += weight * standardized * standardized;
   }
+  center += step;
+  const double latent = center / scale;
   quadratic += latent * latent;
   const double log_a = 2.0 * (std::log(scale) - std::log(bottom)) +
     log_factor + std::log(denominator);
@@ -4543,7 +4578,7 @@ double cpp_selnorm_cluster_step_lpdf(
   // The Gaussian numerator is the stable one-factor integral: the residual
   // after the latent projection is formed directly, never as a difference of
   // the total and the explained quadratic.
-  std::vector<double> numerator_work(static_cast<std::size_t>(2 * dimension));
+  std::vector<double> numerator_work(static_cast<std::size_t>(3 * dimension));
   double *residual_values = numerator_work.data();
   double *latent_work = residual_values + dimension;
   for (int i = 0; i < dimension; ++i) {

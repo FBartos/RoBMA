@@ -641,6 +641,48 @@ test_that("group-IID variance grid keeps the density for aligned precise residua
     -.5 * (2 * log(2 * pi) + 2 * log(d) + 2 / d), tolerance = 1e-14)
 })
 
+test_that("group-IID variance grid keeps fractional aligned and overflowing residuals", {
+
+  # Rows of one sampling block that share the residual y, the sampling variance
+  # d and a group effect of variance g have the eigenvalues d (n - 1 times) and
+  # d + n g, and the residual lies along the group loading:
+  #   log L = -(n log(2 pi) + (n - 1) log(d) + log(d + n g) + n y^2 / (d + n g)) / 2.
+  # Reference values: 1500-digit mpmath evaluation of this closed form on the
+  # double inputs. A residual that is not a double multiple of the loading
+  # cannot be cancelled by rounding in the latent location alone (the grid
+  # returned -1.2326e8 for the first case) and g s overflowed for the second.
+  grid_loglik <- function(y, sampling_covariance, group_variance,
+                          diagonal_variance) {
+
+    .marglik_covariance_plan_group_iid_variance_grid_loglik(
+      cache               = new.env(parent = emptyenv()),
+      y                   = y,
+      means               = rbind(rep(0, length(y))),
+      sampling_covariance = sampling_covariance,
+      block_indices       = list(seq_along(y)),
+      group_variances     = matrix(group_variance, 1L, 1L),
+      diagonal_variances  = matrix(diagonal_variance, 1L, 1L)
+    )[1L, 1L]
+  }
+  cases <- list(
+    list(y = rep(.7, 2L), d = 1e-40, g = .3, expected = 43.652570938687897),
+    list(y = rep(.7, 3L), d = 1e-60, g = .2, expected = 134.42870279191172),
+    list(y = rep(.3, 4L), d = 1e-30, g = .45, expected = 99.546681719462305),
+    list(y = rep(1e200, 2L), d = 1, g = 1e200, expected = -4.9999999999999998e199)
+  )
+  for (case in cases) {
+    expect_equal(
+      grid_loglik(case$y, diag(case$d, length(case$y)), case$g, 0),
+      case$expected, tolerance = 1e-14,
+      info = paste("d", case$d, "g", case$g)
+    )
+  }
+
+  # The same sampling variance given as the diagonal variance of the grid.
+  expect_equal(grid_loglik(rep(.7, 2L), diag(0, 2L), .3, 1e-40),
+    43.652570938687897, tolerance = 1e-14)
+})
+
 test_that("group-IID variance grids preserve residuals after dense fallback", {
 
   y <- c(0.3, -0.2)

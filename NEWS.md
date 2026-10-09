@@ -1002,10 +1002,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   each cluster with the stable closed-form integral of the cluster effect instead
   of subtracting the explained quadratic from the total, which lost the density
   by cancellation when the cluster rows were precise and aligned.
-- group-IID variance grids of known-covariance blocks complete the square in the
-  group effect instead of subtracting the explained quadratic from the total,
-  keeping the density for precise, aligned residuals (errors of up to 1 at a
-  sampling variance of 1e-16).
+- group-IID variance grids of known-covariance blocks integrate the group effect
+  with the stable one-factor Gaussian integral of the cluster likelihoods
+  instead of subtracting the explained quadratic from the total, keeping the
+  density for precise, aligned residuals (errors of up to 1 at a sampling
+  variance of 1e-16, and of 1e8 for a fractional residual at 1e-40) and for
+  variances near the largest double.
 - the Gaussian numerators of the rank-one and factor selected-normal kernels
   (also evaluated inside the JAGS distributions) take the residual quadratic at
   the latent posterior mean plus its squared norm instead of subtracting the
