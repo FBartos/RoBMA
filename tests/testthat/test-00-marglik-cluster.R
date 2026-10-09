@@ -112,6 +112,21 @@ test_that("cluster bridge likelihood subtracts no explained quadratic", {
 })
 
 
+test_that("cluster bridge likelihood keeps a power near the largest double", {
+
+  # -w (log(2 pi) + 2 log(s)) / 2 for w = 1e308 is representable although
+  # w (log(2 pi) + 2 log(s)) is not; 1500-digit mpmath values.
+  for (loading in c(0, .5)) {
+    expect_equal(.marglik_cluster_norm_log_lik(
+      yi = 0, mu = 0, tau_within = 0, tau_between = loading, sei = 1.1,
+      cluster = 1L, weights = 1e308), -1.0142487130089977e+308, tolerance = 1e-14)
+    expect_equal(.marglik_cluster_norm_log_lik(
+      yi = 0, mu = 0, tau_within = 0, tau_between = loading, sei = .1,
+      cluster = 1L, weights = 1e308), 1.3836465597893729e+308, tolerance = 1e-14)
+  }
+})
+
+
 test_that("cluster bridge likelihood honors zero powers and row-specific loadings", {
 
   # One cluster of four rows with row-specific loadings (one of them zero) and

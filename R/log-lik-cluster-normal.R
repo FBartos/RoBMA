@@ -143,8 +143,6 @@
   return(log_lik)
 }
 
-
-
 # ---------------------------------------------------------------------------- #
 # .log_lik_cluster_norm_stable
 # ---------------------------------------------------------------------------- #
@@ -157,24 +155,32 @@
 # for the clusters named by `group` (integer ids 1..G; one value per cluster is
 # returned). The vectors hold one entry per estimate, `weights` is NULL for unit
 # powers, and entries with weight 0 are omitted. The loading is per estimate
-# (a scale model gives each estimate its own). With z_i = residual_i / sd_i and,
-# over the loaded entries (loading != 0), log b_i = log|loading_i| - log(sd_i)
-# on the log scale, log(beta) = max log(b_i) and q_i = sign(loading_i)
-# exp(log b_i - log(beta)) (q_i = 0 for an unloaded entry), omega_i = weight_i
-# q_i^2 and W = sum(omega_i), u = sum(weight_i q_i z_i) / W is the weighted
-# latent location after one correction step. With log P = 2 log(beta) +
-# log(W) and A = 1 + P, the Gaussian is completed in the unit-normal latent:
+# (a scale model gives each estimate its own). With z_i = residual_i / sd_i,
+# b_i = loading_i / sd_i, A = 1 + sum(weight_i b_i^2) and the weighted latent
+# location m = sum(weight_i b_i z_i) / A, the integral is
 #
-#   e_i = z_i - q_i u + q_i u / A,
 #   log L = -sum(weight (log(2 pi) + 2 log(sd))) / 2 - log(A) / 2
-#           - (sum(weight e_i^2) + (P u / (A beta))^2) / 2,
+#           - (sum(weight_i (z_i - b_i m)^2) + m^2) / 2.
 #
-# with e_i = z_i for an unloaded entry. No quotient by a loading is formed, so a
-# tiny loading cannot overflow the implied latent value, the residual after the
-# latent projection is formed directly (no explained quadratic is subtracted
-# from the total), and no square of a scale is formed before it is needed. A
-# cluster with a non-finite value or a non-positive sd gives NA; a result
-# beyond the representable range is -Inf.
+# The residual after the latent projection is formed directly, so no explained
+# quadratic is subtracted from a total, and the form is evaluated in the regime
+# where it neither overflows nor loses an exactly aligned residual. With
+# t = max|loading| and s_min = min(sd) over the active entries of a cluster:
+#
+#  * t <= s_min: every |b_i| <= 1 and the form above is evaluated as written.
+#  * t > s_min: the same form in raw units scaled by T, the power of two not
+#    above t (so that a_i = loading_i / T is exact), with
+#    p_i = weight_i (s_min / s_i)^2, D = (s_min / T)^2 + sum(p_i a_i^2),
+#    c = sum(p_i a_i residual_i) / D (= T m), d_i = residual_i - a_i c,
+#    log(A) = 2 (log(T) - log(s_min)) + log(D) and
+#    quadratic = sum(weight_i (d_i / s_i)^2) + (c / T)^2. A cluster whose D or
+#    whose numerator terms fall below 1e-290 carries a common log-scale factor
+#    in D and c.
+#  * t = 0: the independent Gaussian densities.
+#
+# No quotient by a loading is formed and a scale is squared only after it is
+# divided by the one it is compared with. A cluster with a non-finite value or a
+# non-positive sd gives NA; a result beyond the representable range is -Inf.
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_cluster_norm_stable <- function(residual, sd, loading, weights = NULL,
@@ -204,48 +210,113 @@
   w <- weights[use]
   g <- group[use]
 
-  norm  <- -0.5 * .group_sum(w * (log(2 * pi) + 2 * log(s)), g, n_group)
-  value <- norm - 0.5 * .group_sum(w * (r / s)^2, g, n_group)
+  z     <- r / s
+  norm  <- .group_sum(-0.5 * w * (log(2 * pi) + 2 * log(s)), g, n_group)
+  value <- norm - 0.5 * .group_sum(w * z * z, g, n_group)
   value[failed] <- NA_real_
 
-  loaded <- t != 0
-  if (any(loaded)) {
-    z        <- r / s
-    g_l      <- g[loaded]
-    log_b    <- log(abs(t[loaded])) - log(s[loaded])
-    log_beta <- .group_max(log_b, g_l, n_group)
-    # q_i = b_i / beta: the quotient of the direct ratios b_i = |loading_i| /
-    # sd_i while the largest one is a representable number (two roundings, so
-    # an aligned residual keeps its cancellation), the difference of the logs
-    # otherwise
-    b_direct <- abs(t[loaded]) / s[loaded]
-    b_max    <- .group_max(b_direct, g_l, n_group)
-    direct   <- is.finite(b_max) & b_max > 1e-290 & b_max < 1e290
-    q        <- numeric(length(r))
-    q[loaded] <- sign(t[loaded]) * ifelse(
-      direct[g_l], b_direct / b_max[g_l], exp(log_b - log_beta[g_l])
+  top    <- .group_max(abs(t), g, n_group)
+  bottom <- -.group_max(-s, g, n_group)
+  loaded <- top > 0
+  scaled <- loaded & top > bottom
+  plain  <- loaded & !scaled
+  if (any(plain)) {
+    overflow <- tabulate(g[!is.finite(z)], nbins = n_group) > 0L
+    rows     <- plain[g]
+    standard <- .log_lik_cluster_norm_standardized(
+      z = z[rows], b = t[rows] / s[rows], w = w[rows], g = g[rows],
+      n_group = n_group
     )
-    omega    <- w * q^2
-    total    <- .group_sum(omega, g, n_group)
-    wqz      <- w * q * z
-    u        <- .group_sum(wqz, g, n_group) / total
-    u        <- u + .group_sum(wqz - omega * u[g], g, n_group) / total
-
-    log_p     <- 2 * log_beta + log(total)
-    log_a     <- ifelse(log_p > 0, log_p + log1p(exp(-log_p)),
-                        log1p(exp(log_p)))
-    inverse_a <- exp(-log_a)
-    log_pi    <- log_p - log_a
-    latent_u2 <- ifelse(u == 0, 0, exp(2 * (log_pi + log(abs(u)) - log_beta)))
-    e         <- z - q * u[g] + q * u[g] * inverse_a[g]
-    latent <- norm - 0.5 * log_a -
-      0.5 * (.group_sum(w * e^2, g, n_group) + latent_u2)
-
-    informative <- !failed & is.finite(log_beta)
-    value[informative] <- latent[informative]
+    latent <- norm - 0.5 * standard[["log_a"]] - 0.5 * standard[["quadratic"]]
+    latent[overflow] <- -Inf
+    value[plain] <- latent[plain]
+  }
+  if (any(scaled)) {
+    rows   <- scaled[g]
+    raw    <- .log_lik_cluster_norm_scaled(
+      r = r[rows], s = s[rows], t = t[rows], w = w[rows], g = g[rows],
+      top = ifelse(scaled, top, 1), bottom = ifelse(scaled, bottom, 1),
+      groups = scaled, n_group = n_group
+    )
+    latent <- norm - 0.5 * raw[["log_a"]] - 0.5 * raw[["quadratic"]]
+    value[scaled] <- latent[scaled]
   }
 
   return(value)
+}
+
+
+# The cluster log determinant term and quadratic of the form above for
+# clusters whose loadings do not exceed their sds (|b| <= 1); the entries are
+# the rows of those clusters only.
+.log_lik_cluster_norm_standardized <- function(z, b, w, g, n_group) {
+
+  information <- .group_sum(w * b * b, g, n_group)
+  latent      <- .group_sum(w * b * z, g, n_group) / (1 + information)
+  e           <- z - b * latent[g]
+
+  return(list(
+    log_a     = log1p(information),
+    quadratic = .group_sum(w * e * e, g, n_group) + latent * latent
+  ))
+}
+
+
+# The same for clusters with a loading above their smallest sd (`bottom`), in
+# raw units scaled by the power of two not above the largest loading `top` (both
+# 1 outside `groups`); `groups` marks the clusters of the rows. The returned
+# log determinant term and quadratic are those of the form above.
+.log_lik_cluster_norm_scaled <- function(r, s, t, w, g, top, bottom, groups,
+                                         n_group) {
+
+  scale <- 2^floor(log2(top))
+  p     <- w * (bottom[g] / s)^2
+  a     <- t / scale[g]
+  denom <- (bottom / scale)^2 + .group_sum(p * a * a, g, n_group)
+  numer <- .group_sum(p * a * r, g, n_group)
+  log_k <- numeric(n_group)
+
+  # A denominator or a numerator term that underflows is carried with a common
+  # log-scale factor.
+  term  <- abs(p * a * r)
+  small <- tabulate(g[t != 0 & r != 0 & !(term >= 1e-290)], nbins = n_group) > 0L
+  slow  <- groups & (small | !(is.finite(denom) & denom >= 1e-290))
+  if (any(slow)) {
+    rows  <- slow[g]
+    g_s   <- g[rows]
+    t_s   <- t[rows]
+    r_s   <- r[rows]
+    log_w <- log(w[rows]) + 2 * (log(bottom[g_s]) - log(s[rows]))
+    log_a <- ifelse(t_s != 0, log(abs(t_s)) - log(scale[g_s]), -Inf)
+    log_0 <- 2 * (log(bottom) - log(scale))
+    log_t <- log_w + 2 * log_a
+    log_c <- pmax(log_0, .group_max(log_t, g_s, n_group))
+    log_x <- log_w + log_a - log_c[g_s]
+    slow_denom <- exp(log_0 - log_c) +
+      .group_sum(exp(log_t - log_c[g_s]), g_s, n_group)
+    slow_term  <- ifelse(
+      r_s == 0, 0, ifelse(
+        log_x > 700, sign(t_s) * sign(r_s) * exp(log_x + log(abs(r_s))),
+        sign(t_s) * exp(log_x) * r_s
+      )
+    )
+    slow_numer <- .group_sum(slow_term, g_s, n_group)
+    denom[slow] <- slow_denom[slow]
+    numer[slow] <- slow_numer[slow]
+    log_k[slow] <- log_c[slow]
+  }
+
+  center <- numer / denom
+  latent <- center / scale
+  # loading * latent equals a * center, and does not underflow with a
+  shift  <- ifelse(t == 0, 0, ifelse(abs(a) >= 1e-290, a * center[g],
+                                     t * latent[g]))
+  d      <- (r - shift) / s
+
+  return(list(
+    log_a     = 2 * (log(scale) - log(bottom)) + log_k + log(denom),
+    quadratic = .group_sum(w * d * d, g, n_group) + latent * latent
+  ))
 }
 
 

@@ -141,12 +141,12 @@ double cpp_selnorm_mnorm_step_lpdf(
 // the cluster likelihood with one shared unit-normal latent. Rows with power 0
 // are omitted, a null `power` means unit powers, and the loadings may be
 // signed. The residual after the weighted latent projection is formed
-// directly, so nothing is subtracted from an explained quadratic. The latent
-// information uses plain arithmetic while every loading, sd and loading / sd
-// lies in [1e-100, 1e100] and is carried on the log scale otherwise. `work` is
-// optional scratch of n values. Returns NaN for an invalid
-// input (non-finite value, non-positive sd, negative power) and -Inf when the
-// result is not representable.
+// directly, so nothing is subtracted from an explained quadratic, and no
+// quotient by a loading is formed: the form is evaluated in standardized units
+// when no loading exceeds the smallest sd and in raw units scaled by the
+// largest loading otherwise (see the definition). `work` is optional scratch
+// of n values. Returns NaN for an invalid input (non-finite value, non-positive
+// sd, negative power) and -Inf when the result is not representable.
 double cpp_gaussian_latent_loglik(
   int n,
   const double *residual,
