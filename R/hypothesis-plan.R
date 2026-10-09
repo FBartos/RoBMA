@@ -2078,6 +2078,7 @@
     occurrences = TRUE
   )
   referenced <- unique(occurrences[["level"]][occurrences[["parameter"]] == parameter])
+  whole_term <- any(is.na(referenced))
   referenced <- referenced[!is.na(referenced)]
   unknown <- setdiff(referenced, levels)
   if (length(unknown) > 0L) {
@@ -2090,10 +2091,25 @@
   sample_of <- function(level) {
     if (is.na(level)) posterior else posterior[[level]]
   }
-  tested <- if (length(referenced) > 0L) referenced else if (is.list(posterior)) levels else NA_character_
-  fixed  <- tested[vapply(tested, function(level) {
+  level_fixed <- function(level) {
     .hypothesis_plan_draws_fixed(sample_of(level))
-  }, logical(1))]
+  }
+  # As for the levels of a fitted factor (.hypothesis_plan_linear): a
+  # statement tests a fixed level when it states a point on it directly,
+  # references the whole term (an event on every level jointly), or
+  # references no other level; comparisons of a fixed level with other levels
+  # remain defined.
+  refs   <- plan[["refs"]]
+  tested <- if (is.list(posterior)) {
+    unique(c(
+      refs[["level"]][refs[["direct"]] & !is.na(refs[["level"]])],
+      if (whole_term || length(referenced) == 0L) levels,
+      if (length(referenced) > 0L && all(vapply(referenced, level_fixed, logical(1)))) referenced
+    ))
+  } else {
+    NA_character_
+  }
+  fixed  <- tested[vapply(tested, level_fixed, logical(1))]
   if (length(fixed) > 0L) {
     plan[["refusal"]] <- .hypothesis_plan_fixed_refusal(
       .hypothesis_plan_marginal_label(plan, fixed[[1L]])
@@ -2101,7 +2117,6 @@
     return(plan)
   }
 
-  refs <- plan[["refs"]]
   # A factor marginal mean with one level resolves statements without a
   # level to that level.
   if (is.list(posterior) && length(posterior) == 1L) {

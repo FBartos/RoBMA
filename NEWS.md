@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- `hypothesis()` on marginal means compares a fixed marginal mean (e.g., the
+  reference level of a treatment factor under a fixed-zero intercept) with
+  variable levels (`g[b] > g[a]`, `g[b] - g[a] > 0`) as on the fitted object;
+  direct tests of the fixed level and whole-term statements containing it keep
+  raising `RoBMA_hypothesis_fixed`.
 - `hypothesis()` groups statements on a factor in one call exactly when
   BayesTools accepts them as one linear target, i.e., by the level
   coefficients of the statements' own level expressions instead of their
