@@ -62,6 +62,17 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - the generic `as_draws()` of `brma_samples` objects returns a
     `draws_array`, so chain dimensions are explicit; `as_draws_matrix()`
     remains available and keeps its chain-count metadata.
+  - `as.data.frame()` and `data.frame()` of `brma_samples` objects return the
+    printable posterior-summary table (one long data frame) instead of the
+    draws, so code such as `as.data.frame(x)[, "mu"]` changes meaning; use
+    `as.matrix()` or `as_draws()` for the draws.
+  - LOO-PIT residuals of binomial and Poisson GLMMs stop because no discrete
+    PIT convention is defined: `rstudent()`, `residuals(type = "LOO-PIT")`,
+    the default `qqnorm()` (`type = "rstudent"`), and the residual-mode
+    `funnel()` (`type = "LOO-PIT"`) that models with predictors use. The
+    outcome-mode `funnel(type = "outcome")` of an intercept-only GLMM remains.
+  - `radial()` stops for likelihood-weighted fits, which have no single
+    radial precision target.
   - cluster-unit LOO and WAIC of binomial and Poisson GLMMs
     (`unit = "cluster"`) stop until certified nested adaptive quadrature is
     available; use `unit = "estimate"`.
@@ -144,8 +155,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `conditioning_depth = "marginal"`); `conditioning_depth = "cluster"`
     gives the target that 4.0.0 used for multilevel models, and
     `"estimate"` adds same-effect posterior prediction that integrates the
-    posterior uncertainty of each fitted latent effect. Fitted selection and
-    inverse-probability extrapolation apply at the selected depth.
+    posterior uncertainty of each fitted latent effect. Selection models
+    (fitted selection and inverse-probability extrapolation) support only the
+    marginal depth: a non-marginal `conditioning_depth` stops, so the 4.0.0
+    cluster target is not available for multilevel selection models.
   - `funnel()` draws plug-in contours: location and bias parameters at their
     within-model posterior means and heterogeneity at its root mean square
     SD, `sqrt(E(tau^2))`, with the contours of the complete joint models of
@@ -950,10 +963,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   binomial and Poisson responses as count samples without effect-size
   transformation metadata, and accept scalar JAGS nuisance-parameter names
   of models with one estimate.
-- cached LOO/WAIC results and marginal likelihoods are checked against the
-  current data, cluster membership, and fitted target before reuse, with
-  versioned outcome fingerprints independent of R's serialization format,
-  and ranked comparison tables keep the model names.
+- cached LOO/WAIC results are checked against the current data, cluster
+  membership, and fitted target before reuse, and `bf()` and `post_prob()`
+  compare the outcome fingerprints of the compared models (a stored marginal
+  likelihood is reused as stored, without a check against the current
+  object), with versioned outcome fingerprints independent of R's
+  serialization format, and ranked comparison tables keep the model names.
 - `plot_weightfunction()` marks the observed p-values in the convention of
   the weight function: two-sided weight functions show two-sided p-values,
   where 4.0.0 marked one-sided p-values on their axis. Diagnostic plots
