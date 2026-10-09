@@ -346,9 +346,8 @@ selection branches and a common publication partition across their \code{"best"}
 branches only. Product branches impose no grouping requirements; an ensemble
 without \code{"best"} accepts the default \code{group = NULL}. Bins, weight priors, and
 supported weight rules may differ across branches.
-Non-unit observation \code{weights} require
-\code{known_sampling_variance = "integrate"} and independent product factors.
-Unit weights are equivalent to omitting \code{weights}.
+Like the other \code{\link[=brma.mv]{brma.mv()}}-family constructors, \code{bselmodel.mv()} does not
+accept observation \code{weights}.
 
 Joint likelihoods, single-model bridge evidence, conditional-density
 estimation, selected prediction, latent summaries, and z-plots use this

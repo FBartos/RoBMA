@@ -1016,12 +1016,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   inputs before arithmetic and release their resources on R errors and
   interrupts; the build uses the C++ OpenMP compiler and linker flags and
   tracks all native header dependencies.
-- explicit unit `weights` (every weight exactly 1 on the analysed rows) are
-  normalized at data construction to the omitted-`weights` state, so they take
-  the omitted-weights routes everywhere (sampling-conditioned selection
-  backends, integrated `weight_rule = "best"` selection, the forest
-  `likelihood_weight` column and fit hashes); non-unit weights keep their
-  restrictions.
+- in the constructors that accept `weights`, explicit unit `weights` (every
+  weight exactly 1 on the analysed rows) are normalized at data construction
+  to the omitted-`weights` state, so they take the omitted-weights routes
+  (sampling-conditioned selection backends, integrated `weight_rule = "best"`
+  selection, the forest `likelihood_weight` column and fit hashes); non-unit
+  weights keep their restrictions. The `brma.mv()`-family constructors keep
+  rejecting `weights`.
 - pointwise log-likelihoods of weighted joint-selection models (`log_lik()`
   and LOO) score the same selected-normal law as the unweighted model and
   multiply the scores by the weights; retained estimate effects are no longer

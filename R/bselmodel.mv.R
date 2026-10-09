@@ -111,9 +111,8 @@
 #' branches only. Product branches impose no grouping requirements; an ensemble
 #' without `"best"` accepts the default `group = NULL`. Bins, weight priors, and
 #' supported weight rules may differ across branches.
-#' Non-unit observation `weights` require
-#' `known_sampling_variance = "integrate"` and independent product factors.
-#' Unit weights are equivalent to omitting `weights`.
+#' Like the other [brma.mv()]-family constructors, `bselmodel.mv()` does not
+#' accept observation `weights`.
 #'
 #' Joint likelihoods, single-model bridge evidence, conditional-density
 #' estimation, selected prediction, latent summaries, and z-plots use this
