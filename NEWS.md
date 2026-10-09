@@ -864,6 +864,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   inputs before arithmetic and release their resources on R errors and
   interrupts; the build uses the C++ OpenMP compiler and linker flags and
   tracks all native header dependencies.
+- explicit unit `weights` (every weight exactly 1 on the analysed rows) are
+  normalized at data construction to the omitted-`weights` state, so they take
+  the omitted-weights routes everywhere (sampling-conditioned selection
+  backends, integrated `weight_rule = "best"` selection, the forest
+  `likelihood_weight` column and fit hashes); non-unit weights keep their
+  restrictions.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

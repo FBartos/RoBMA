@@ -417,6 +417,15 @@ NULL
   .check_and_list_data.scale_validate_predictors(data_scale, skip_validation)
   data_scale <- .check_and_list_data.validate_scale_random(data_scale, data_random)
 
+  # Explicit unit weights are identical to omitting 'weights': normalize them
+  # on the final rows to the exact weights-absent state, so that every reader
+  # of the weights metadata, the backend routing and the cache keys behave as
+  # for omission.
+  if (weights_provided && all(data_outcome[["weights"]] == 1)) {
+    data_outcome[["weights"]] <- rep(NA, k_final)
+    weights_provided          <- FALSE
+  }
+
   # Generate default study labels if not provided (after NA dropping)
   if (!slab_provided) {
     data_outcome$slab <- paste0("Study ", seq_len(k_final))
