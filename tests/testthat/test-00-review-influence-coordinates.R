@@ -14,7 +14,7 @@ test_that("COVRATIO of a dependent factor-level parameterization uses the fitted
 
   observed <- suppressWarnings(covratio(object, .weights = weights))
   coordinates <- .diagnostic_location_parameter_samples(
-    object, transform_factors = FALSE
+    object, standardized_coefficients = TRUE, transform_factors = FALSE
   )
   expected <- .covratio_internal(coordinates, weights)
 
@@ -108,3 +108,55 @@ test_that("the influence diagnostics omit a fixed-zero intercept like the summar
   expect_null(attr(observed, "note"))
 })
 
+
+test_that("COVRATIO of a standardized model without intercept uses the fitted coordinates", {
+
+  # `~ 0 + x` with the standardized predictor x = 1:6: on the original scale
+  # the intercept is a linear function of the slope (-mean(x) / sd(x) times
+  # it), so the original-scale covariance is singular although the fitted
+  # slope has a valid variance
+  dat    <- data.frame(yi = seq(-.1, .2, length.out = 6), sei = .1, x = 1:6)
+  object <- brma(
+    yi = yi, sei = sei, mods = ~ 0 + x, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1,
+    prior_mods = list(x = BayesTools::prior("normal", list(mean = 0, sd = 1))),
+    prior_heterogeneity = BayesTools::prior("point", list(location = .1)),
+    standardize_continuous_predictors = TRUE,
+    only_priors = TRUE, silent = TRUE
+  )
+  setup <- review_compile_object(object)
+  n     <- 100L
+  slope <- stats::qnorm((seq_len(n) - .5) / n) + .3
+  samples <- cbind(slope, 0, .1)
+  colnames(samples) <- c(review_coefficient_name(setup, "x"),
+                         review_coefficient_name(setup, "intercept"), "tau")
+  object <- review_attach_replay(setup, samples)
+
+  # the original-scale coordinates are linearly dependent
+  original <- .diagnostic_location_parameter_samples(
+    object, transform_factors = FALSE
+  )
+  expect_identical(colnames(original), c("(mu) x", "(mu) intercept"))
+  expect_equal(qr(scale(original, center = TRUE, scale = FALSE))[["rank"]], 1L)
+
+  # with uniform weights every deletion leaves the posterior unchanged
+  weights  <- matrix(1 / n, nrow = n, ncol = 6L)
+  observed <- covratio(object, .weights = weights)
+  expect_equal(as.numeric(observed), rep(1, 6L), tolerance = 1e-12)
+  expect_null(attr(observed, "note"))
+
+  # one slope parameter: the ratio of the weighted (ML) variance of the slope
+  # to its equally weighted variance
+  weights[, 1L] <- stats::dnorm(slope, mean = .5, sd = .7)
+  weights[, 1L] <- weights[, 1L] / sum(weights[, 1L])
+  weighted_mean <- sum(weights[, 1L] * slope)
+  reference     <- sum(weights[, 1L] * (slope - weighted_mean)^2) /
+    mean((slope - mean(slope))^2)
+  observed <- covratio(object, .weights = weights)
+
+  # independent value: 0.333106352763284 (mpmath, 40 digits)
+  expect_equal(reference, 0.333106352763284, tolerance = 1e-12)
+  expect_equal(as.numeric(observed)[1L], reference, tolerance = 1e-12)
+  expect_equal(as.numeric(observed)[-1L], rep(1, 5L), tolerance = 1e-12)
+  expect_null(attr(observed, "note"))
+})

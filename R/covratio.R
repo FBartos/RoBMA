@@ -104,10 +104,14 @@ covratio.brma <- function(model, type = "mods", component = NULL,
 
   # We follow dfbetas logic here:
   if (component == "mods") {
-    # factor levels can be linearly dependent (e.g., mean-difference coding);
-    # the fitted coordinates are the independent parameters of the posterior
+    # factor levels can be linearly dependent (e.g., mean-difference coding)
+    # and so can the original-scale intercept and slopes of a standardized
+    # predictor; the fitted coordinates (standardized, uncontrasted) are the
+    # independent parameters of the posterior
     samples_table <- .diagnostic_location_parameter_samples(
-      model, transform_factors = FALSE
+      model,
+      standardized_coefficients = TRUE,
+      transform_factors         = FALSE
     )
   } else if (component == "scale") {
     if (is_scale) {

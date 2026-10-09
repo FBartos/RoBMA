@@ -804,9 +804,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   with `standardized_coefficients = TRUE` the target ordinates agree with the
   standardized mixed posterior instead of applying the original-scale display
   transformation to standardized draws.
-- `covratio()` of location coefficients uses the fitted factor coordinates
-  instead of the transformed factor levels, whose covariance is singular for
-  mean-difference and orthonormal coding; the ratios are finite instead of
+- `covratio()` of location coefficients uses the fitted coordinates (the
+  uncontrasted factor coordinates on the standardized scale) instead of the
+  transformed factor levels and the original-scale intercept, whose covariance
+  is singular for mean-difference and orthonormal coding and for a standardized
+  predictor without intercept (`~ 0 + x`); the ratios are finite instead of
   `NaN` (the determinant ratio is invariant to the affine map between
   coordinates and levels).
 - the structural-zero location intercept of a standardized model is hidden
