@@ -1493,7 +1493,7 @@ NULL
         call. = FALSE
       )
     }
-    if (!identical(term[["expr"]], 1)) {
+    if (!.random_effect_term_is_intercept_only(term)) {
       stop(
         "'R' currently supports random intercepts only; ",
         "random-effect block '", block, "' contains random slopes.",
@@ -1503,6 +1503,21 @@ NULL
   }
 
   invisible(TRUE)
+}
+
+# A random-effect predictor is a random intercept when R's formula semantics
+# give it an intercept and no other term, however the intercept is written
+# (1, 0 + 1, 1 - 0, ...).
+.random_effect_term_is_intercept_only <- function(term) {
+
+  term_formula <- term[["term_formula"]]
+  if (!inherits(term_formula, "formula")) {
+    term_formula <- stats::as.formula(call("~", term[["expr"]]), env = baseenv())
+  }
+  formula_terms <- stats::terms(term_formula)
+
+  return(identical(as.integer(attr(formula_terms, "intercept")), 1L) &&
+           length(attr(formula_terms, "term.labels")) == 0L)
 }
 
 .check_and_list_data.random_validate_formula_component <- function(random_effects,

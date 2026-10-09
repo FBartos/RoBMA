@@ -327,6 +327,46 @@ test_that("brma.mv rejects unsupported known R inputs", {
 })
 
 
+test_that("brma.mv known R accepts every random-intercept syntax of one formula", {
+
+  dat <- known_r_data()
+  K   <- known_r_kernel()
+  construct <- function(random) {
+    brma.mv(
+      yi                        = yi,
+      V                         = diag(0.01, nrow(dat)),
+      random                    = random,
+      R                         = K,
+      Rscale                    = "none",
+      data                      = dat,
+      measure                   = "GEN",
+      prior_unit_information_sd = 1,
+      only_priors               = TRUE
+    )
+  }
+  reference <- .fitted_formula_design(construct(~ 1 | id), "mu", required = TRUE)
+  reference <- reference[["random_effects"]][[1L]]
+
+  for (random in list(~ (0 + 1 | id), ~ (1 - 0 | id), ~ 0 + 1 | id,
+                      ~ id(1 | id))) {
+    design <- .fitted_formula_design(construct(random), "mu", required = TRUE)
+    term   <- design[["random_effects"]][[1L]]
+    info   <- paste(deparse(random), collapse = " ")
+
+    expect_equal(term[["model_matrix"]], reference[["model_matrix"]], info = info)
+    expect_equal(term[["group_covariance"]], reference[["group_covariance"]],
+                 info = info)
+  }
+
+  # random slopes stay refused, however the intercept is written
+  for (random in list(~ diag(0 + x | id), ~ (1 + x | id), ~ (x | id),
+                      ~ diag(1 + x | id))) {
+    expect_error(construct(random), "contains random slopes",
+                 info = paste(deparse(random), collapse = " "))
+  }
+})
+
+
 test_that("brma.mv delegates known R matching and level validation to BayesTools", {
 
   dat       <- known_r_data()
