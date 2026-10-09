@@ -522,6 +522,45 @@ test_that("plot quantile inversion returns the generalized inverse", {
 })
 
 
+test_that("native mixture quantiles resolve narrow components inside wide brackets", {
+
+  skip_if_not(.has_native_regplot_mixture())
+
+  quantile_at <- function(means, sds, weights, p) {
+    as.numeric(.Call("RoBMA_plot_normal_mixture_quantiles",
+      matrix(means, length(means), 1L), matrix(sds, length(means), 1L),
+      p, weights, PACKAGE = "RoBMA"))
+  }
+  weights <- c(.99, .01)
+
+  # Only the first component carries mass below the second, so the median of
+  # the mixture at p = .495 is the median of the first component, 0. A single
+  # tolerance of DBL_EPSILON times the 1e6 bracket returned 4.7e-11 at
+  # SD 1e-10, where the mixture CDF is 0.6746 instead of 0.495.
+  expect_lte(abs(quantile_at(c(0, 1e6), c(1e-10, 1e-10), weights, .495)), 1e-20)
+  expect_lte(abs(quantile_at(c(0, 1e6), c(1e-10, 1), weights, .495)), 1e-20)
+  # The bracket of 1e300 returned 2.2e284 (CDF 0.99 at the returned value).
+  expect_lte(abs(quantile_at(c(0, 1e300), c(1, 1), weights, .495)), 1e-15)
+  # Overlapping components keep their ordinary root.
+  expect_equal(quantile_at(c(0, 1), c(1, 1), c(.5, .5), .5), .5, tolerance = 1e-12)
+
+  # Random mixtures: the quantile equals the generalized inverse of the CDF
+  # (an R bisection on adjacent doubles) and sits at the crossing of p.
+  set.seed(20261009)
+  S <- 50L
+  for (probs in list(.025, .5, .975)) {
+    means <- stats::rnorm(S)
+    sds   <- stats::runif(S, .05, 2)
+    cdf   <- function(q) .regplot_normal_mixture_cdf(q, means, sds)
+    native <- quantile_at(means, sds, rep(1, S), probs)
+    expect_equal(native, .regplot_mixture_quantile(probs, means, sds, cdf, TRUE),
+      tolerance = 1e-10)
+    expect_gte(cdf(native), probs - 4e-16)
+    expect_lt(cdf(native - 1e-9), probs)
+  }
+})
+
+
 test_that("selected plot quantiles return the left edge of CDF plateaus", {
 
   spec      <- .test_two_sided_step_spec(0, 1)

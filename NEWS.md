@@ -998,6 +998,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   the Beta-function ratio as a sum of stable log-gamma increments, keeping the
   event and non-event counts for large beta shapes (the log-gamma subtraction
   returned 0 instead of -log(4) at shapes of 1e20).
+- regression-plot and funnel mixture quantiles resolve narrow components inside wide
+  brackets: the root is found with a tolerance on the scale of the narrowest
+  component and finished on adjacent doubles as the generalized inverse
+  inf{q : F(q) >= p} of the mixture CDF, instead of stopping on a tolerance set
+  by the whole bracket (a quantile at CDF 0.67 for the level 0.495).
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection

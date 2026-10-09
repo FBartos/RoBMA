@@ -8,26 +8,38 @@
 
 namespace RoBMA {
 
-inline double plot_root_tolerance(double lower, double upper, double step)
+// Smallest scale at which a root is resolved: DBL_EPSILON times the smallest
+// positive component sd, so a mixture of narrow components is resolved at the
+// width of its narrowest component rather than at the width of the bracket.
+inline double plot_root_absolute_tolerance(double sigma_min)
 {
-  const double tolerance_scale = std::max(
-    std::max(std::fabs(lower), std::fabs(upper)),
-    step
-  );
   return std::max(
     2 * std::numeric_limits<double>::denorm_min(),
-    DBL_EPSILON * tolerance_scale
+    DBL_EPSILON * sigma_min
   );
 }
 
+// Brent tolerance at the iterate `point`: 2 DBL_EPSILON |point| plus the
+// absolute tolerance. The same local scale sizes the warm-start bracket step.
+inline double plot_root_local_tolerance(double point, double absolute_tolerance)
+{
+  return 2 * DBL_EPSILON * std::fabs(point) + absolute_tolerance;
+}
+
+// Brent's method on the sign change of `function`. On return `*root_value` is
+// the function value at the returned point and `*bracket` / `*bracket_value`
+// the opposite end of the final bracket, so a caller can finish on adjacent
+// doubles with its own predicate.
 template <typename Function>
 double plot_brent_root(Function function,
                        double lower,
                        double upper,
                        double lower_value,
                        double upper_value,
-                       double tolerance,
-                       double *root_value = NULL)
+                       double absolute_tolerance,
+                       double *root_value = NULL,
+                       double *final_bracket = NULL,
+                       double *final_bracket_value = NULL)
 {
   double previous       = lower;
   double current        = upper;
@@ -58,13 +70,17 @@ double plot_brent_root(Function function,
       bracket_value  = old_current_value;
     }
 
-    const double delta = 0.5 * (
-      tolerance + 4 * DBL_EPSILON * std::fabs(current)
-    );
+    const double delta = plot_root_local_tolerance(current, absolute_tolerance);
     const double bisection_step = 0.5 * (bracket - current);
     if (current_value == 0 || std::fabs(bisection_step) < delta) {
       if (root_value != NULL) {
         *root_value = current_value;
+      }
+      if (final_bracket != NULL) {
+        *final_bracket = bracket;
+      }
+      if (final_bracket_value != NULL) {
+        *final_bracket_value = bracket_value;
       }
       return current;
     }

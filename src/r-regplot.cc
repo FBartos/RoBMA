@@ -563,6 +563,7 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
   double lower = INFINITY;
   double upper = -INFINITY;
   double step = 0;
+  double sigma_min = INFINITY;
 
   for (int s = 0; s < ctx.S; ++s) {
     if (ctx.weights[s] == 0) {
@@ -573,6 +574,9 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     lower = std::min(lower, ctx.mean[s] - 10 * ctx.sd[s]);
     upper = std::max(upper, ctx.mean[s] + 10 * ctx.sd[s]);
     step  = std::max(step, ctx.sd[s]);
+    if (ctx.sd[s] > 0) {
+      sigma_min = std::min(sigma_min, ctx.sd[s]);
+    }
   }
 
   if (all_zero_sd) {
@@ -596,9 +600,15 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     return floor;
   }
 
+  // Roots are resolved on the scale of the narrowest positive component.
+  const double absolute_tolerance = RoBMA::plot_root_absolute_tolerance(
+    sigma_min
+  );
   if (using_previous || using_floor) {
     step  = std::max(
-      RoBMA::plot_root_tolerance(global_lower, global_upper, global_step),
+      RoBMA::plot_root_local_tolerance(
+        using_previous ? previous : floor, absolute_tolerance
+      ),
       0.05 * global_step
     );
   }
@@ -672,19 +682,79 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
   }
 
   if (all_positive_sd && ctx.full_support) {
-    const double tolerance = RoBMA::plot_root_tolerance(
-      global_lower, global_upper, global_step
-    );
+    const double bracket_lower = lower;
+    const double bracket_lower_value = lower_value;
     double root_value = NA_REAL;
+    double opposite = NA_REAL;
+    double opposite_value = NA_REAL;
     const double root = RoBMA::plot_brent_root(
       [&ctx, p](double value) {
         return plot_mixture_cdf(value, ctx) - p;
       },
-      lower, upper, lower_value, upper_value, tolerance, &root_value
+      lower, upper, lower_value, upper_value, absolute_tolerance,
+      &root_value, &opposite, &opposite_value
     );
     if (std::isfinite(root)) {
-      *quantile_cdf = p + root_value;
-      return root;
+      // The quantile is the generalized inverse inf{q : F(q) >= p} of the
+      // computed CDF. Brent's final bracket is finished on adjacent doubles
+      // with that predicate; a bracket Brent did not leave (it stopped on an
+      // exact zero) is re-established around the root first.
+      double step_out = RoBMA::plot_root_local_tolerance(root, absolute_tolerance);
+      if (root_value >= 0) {
+        upper = root;
+        upper_value = root_value;
+        if (opposite < upper && opposite_value < 0) {
+          lower = opposite;
+          lower_value = opposite_value;
+        } else {
+          while (true) {
+            const double trial = upper - step_out;
+            if (!(trial > bracket_lower)) {
+              lower = bracket_lower;
+              lower_value = bracket_lower_value;
+              break;
+            }
+            const double trial_value = plot_mixture_cdf(trial, ctx) - p;
+            if (!std::isfinite(trial_value)) {
+              return NA_REAL;
+            }
+            if (trial_value < 0) {
+              lower = trial;
+              lower_value = trial_value;
+              break;
+            }
+            upper = trial;
+            upper_value = trial_value;
+            step_out *= 2;
+          }
+        }
+      } else {
+        lower = root;
+        lower_value = root_value;
+        if (opposite > lower && opposite_value >= 0) {
+          upper = opposite;
+          upper_value = opposite_value;
+        } else {
+          while (true) {
+            const double trial = lower + step_out;
+            if (!(trial < upper)) {
+              break;
+            }
+            const double trial_value = plot_mixture_cdf(trial, ctx) - p;
+            if (!std::isfinite(trial_value)) {
+              return NA_REAL;
+            }
+            if (trial_value >= 0) {
+              upper = trial;
+              upper_value = trial_value;
+              break;
+            }
+            lower = trial;
+            lower_value = trial_value;
+            step_out *= 2;
+          }
+        }
+      }
     }
   }
 
