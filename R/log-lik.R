@@ -446,6 +446,16 @@
   effect_direction    <- setup[["effect_direction"]]
   data_weights        <- setup[["weights"]]
 
+  if (.setup_weighted_joint_selection(setup)) {
+    return(.apply_log_lik_weights(
+      .log_lik_estimate_from_setup(
+        .setup_without_likelihood_weights(setup),
+        add_dependency_metadata = add_dependency_metadata
+      ),
+      data_weights
+    ))
+  }
+
   if (.estimate_normal_target_uses_covariance_backend(data, priors)) {
     return(.log_lik_normal_covariance_estimate_target_from_setup(
       setup                   = setup,

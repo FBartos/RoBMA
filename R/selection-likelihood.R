@@ -311,6 +311,30 @@ set_selection_likelihood_control <- function(
 }
 
 
+# Likelihood weights are powers of the log scores. They do not change the
+# observation law, its CDF or its tails, which are those of the same setup
+# without weights. Weighted joint-selection setups therefore evaluate the law
+# on a copy without weights and multiply only the pointwise log scores.
+.setup_weighted_joint_selection <- function(setup) {
+
+  identical(setup[["outcome_type"]], "norm") &&
+    !is.null(setup[["weights"]]) &&
+    .setup_uses_joint_selection_likelihood(setup)
+}
+
+
+.setup_without_likelihood_weights <- function(setup) {
+
+  data <- setup[["data"]]
+  attr(data, "weights")          <- FALSE
+  data[["outcome"]][["weights"]] <- rep(NA, nrow(data[["outcome"]]))
+  setup[["data"]]    <- data
+  setup[["weights"]] <- NULL
+
+  return(setup)
+}
+
+
 .data_selection_execution_plan <- function(data) {
 
   plan <- attr(data, "selection_execution_plan", exact = TRUE)
