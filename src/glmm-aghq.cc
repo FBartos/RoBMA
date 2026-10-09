@@ -726,6 +726,69 @@ SEXP make_result(SEXP value, const QuadratureDiagnostics &diagnostics,
 }
 
 
+// log(1 + t / z) for z, t > 0 without overflowing the ratio.
+inline double log1p_ratio(double t, double z)
+{
+  const double ratio = t / z;
+  if (std::isinf(ratio)) {
+    return std::log(t) - std::log(z) + std::log1p(z / t);
+  }
+  return std::log1p(ratio);
+}
+
+
+// log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0, evaluated as a
+// difference of the Stirling series so that no two large log-gamma values
+// are subtracted: the recurrence lifts z to at least 16, and with
+// r = t / z, L = log1p(r) and h(r) = ((1 + r) L - r) / r the series is
+//   t (log z + h) - L / 2 + sum_k c_k z^-(2k-1) expm1(-(2k-1) L),
+// the first omitted term being below 3617 / (122400 z^15) per log-gamma value
+// (a truncation bound, not a rounding bound). A non-finite or non-positive
+// argument gives NaN.
+double log_gamma_increment(double z, double t)
+{
+  if (!(z > 0.0) || !(t >= 0.0) || !std::isfinite(z) || !std::isfinite(t)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (t == 0.0) {
+    return 0.0;
+  }
+  static const double coefficients[7] = {
+    1.0 / 12.0, -1.0 / 360.0, 1.0 / 1260.0, -1.0 / 1680.0, 1.0 / 1188.0,
+    -691.0 / 360360.0, 1.0 / 156.0
+  };
+  double recurrence = 0.0;
+  while (z < 16.0) {
+    recurrence += log1p_ratio(t, z);
+    z += 1.0;
+  }
+  const double ratio     = t / z;
+  const double log_ratio = std::log1p(ratio);
+  double h;
+  if (ratio <= 0.01) {
+    h = 0.0;
+    double power = ratio;
+    for (int n = 1; n <= 12; ++n) {
+      const double term = power / (static_cast<double>(n) * (n + 1.0));
+      h += (n % 2 == 1) ? term : -term;
+      power *= ratio;
+    }
+  } else {
+    h = (1.0 + 1.0 / ratio) * log_ratio - 1.0;
+  }
+  const double inverse   = 1.0 / z;
+  const double inverse_2 = inverse * inverse;
+  double inverse_power   = inverse;
+  double series          = 0.0;
+  for (int k = 1; k <= 7; ++k) {
+    series += coefficients[k - 1] * inverse_power *
+      std::expm1(-(2.0 * k - 1.0) * log_ratio);
+    inverse_power *= inverse_2;
+  }
+  return t * (std::log(z) + h) - 0.5 * log_ratio + series - recurrence;
+}
+
+
 SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
                   SEXP mu_samples, SEXP tau_within, SEXP weights,
                   SEXP alpha, SEXP beta, SEXP nodes, SEXP log_weights,
@@ -820,12 +883,15 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
         const double nonevents  = problem.weight * (
           total - observed
         );
-        const double alpha_post = problem.alpha + events;
-        const double beta_post  = problem.beta + nonevents;
 
+        // log B(alpha + e, beta + n) - log B(alpha, beta) as the sum of
+        // log-gamma increments, which keeps the events and non-events when the
+        // shapes are large.
         result.value = problem.weight * problem.log_coefficient +
-          std::lgamma(alpha_post) + std::lgamma(beta_post) -
-          std::lgamma(alpha_post + beta_post) - problem.log_beta;
+          log_gamma_increment(problem.alpha, events) +
+          log_gamma_increment(problem.beta, nonevents) -
+          log_gamma_increment(problem.alpha + problem.beta,
+                              events + nonevents);
         if (!std::isfinite(result.value)) {
           Rf_error(
             "Exact powered beta-binomial value is nonfinite at sample %d, "

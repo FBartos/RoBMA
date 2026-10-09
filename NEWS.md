@@ -994,6 +994,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   explained quadratic from the total, which lost the density for precise rows
   aligned with the latent loading (error 0.5 for a rank-one pair at a residual
   sd of 2^-30, and -256 against 16.69 for a two-factor block at 2^-30).
+- the exact powered beta-binomial shortcut of binomial GLMM likelihoods evaluates
+  the Beta-function ratio as a sum of stable log-gamma increments, keeping the
+  event and non-event counts for large beta shapes (the log-gamma subtraction
+  returned 0 instead of -log(4) at shapes of 1e20).
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection

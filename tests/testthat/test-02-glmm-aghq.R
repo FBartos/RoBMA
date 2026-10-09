@@ -215,6 +215,61 @@ test_that("binomial AGHQ initializes extreme beta priors on the log-odds scale",
 })
 
 
+test_that("exact beta-binomial shortcut keeps event increments for large shapes", {
+
+  # One event and one non-event: the sequence probability is
+  # a / (a + b) * b / (a + b + 1). The ratio of Beta functions through
+  # log-gamma values of size 1e21 lost the increments (0 at the shape 1e20).
+  for (shapes in list(c(1e20, 1e20), c(1e16, 2e16), c(1e14, 1e14),
+                      c(1e12, 3e12), c(1e8, 1e8), c(30, 70))) {
+    out <- .glmm_binom_aghq(
+      1L, 0L, 1L, 1L, matrix(0), matrix(0), NULL,
+      c(alpha = shapes[[1L]], beta = shapes[[2L]])
+    )
+    a <- shapes[[1L]]
+    b <- shapes[[2L]]
+    expect_equal(out[["value"]][1L, 1L], log(a / (a + b)) + log(b / (a + b + 1)),
+      tolerance = 1e-12, info = paste("shapes", a, b))
+    expect_equal(out[["exact_count"]], 1L)
+  }
+})
+
+
+test_that("exact beta-binomial shortcut equals lbeta differences for moderate shapes", {
+
+  ai  <- c(3L, 0L, 12L)
+  ci  <- c(2L, 1L, 0L)
+  n1i <- c(10L, 4L, 40L)
+  n2i <- c(8L, 9L, 0L)
+  for (shapes in list(c(.7, 2.3), c(1e-3, .5), c(45.5, 3.25), c(2, 2))) {
+    for (weights in list(NULL, c(.5, 1.5, 2.5))) {
+      out <- .glmm_binom_aghq(ai, ci, n1i, n2i, matrix(0, 1L, 3L),
+        matrix(0, 1L, 3L), weights, c(alpha = shapes[[1L]], beta = shapes[[2L]]))
+      power <- if (is.null(weights)) rep(1, 3L) else weights
+      observed <- ai + ci
+      expected <- power * (lchoose(n1i, ai) + lchoose(n2i, ci)) +
+        lbeta(shapes[[1L]] + power * observed,
+              shapes[[2L]] + power * (n1i + n2i - observed)) -
+        lbeta(shapes[[1L]], shapes[[2L]])
+      expect_equal(out[["value"]][1L, ], expected, tolerance = 1e-12,
+        info = paste("shapes", shapes[[1L]], shapes[[2L]]))
+    }
+  }
+})
+
+
+test_that("exact beta-binomial shortcut is a normalized distribution", {
+
+  n <- 6L
+  for (shapes in list(c(.3, .7), c(1e12, 3e12), c(1e20, 1e20))) {
+    out <- .glmm_binom_aghq(0:n, rep(0L, n + 1L), rep(n, n + 1L),
+      rep(0L, n + 1L), matrix(0, 1L, n + 1L), matrix(0, 1L, n + 1L), NULL,
+      c(alpha = shapes[[1L]], beta = shapes[[2L]]))
+    expect_equal(sum(exp(out[["value"]][1L, ])), 1, tolerance = 1e-12)
+  }
+})
+
+
 test_that("exact beta-binomial shortcut rejects nonfinite powered values", {
 
   expect_error(
