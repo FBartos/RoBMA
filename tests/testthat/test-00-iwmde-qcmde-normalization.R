@@ -175,6 +175,11 @@ test_that("call-owned grids keep the display values alone in their first request
   # The grids assembled from the requests are those of the run without grids.
   expect_identical(.qcmde_pass_plain(with_grid[["pass"]]),
                    .qcmde_pass_plain(without_grid[["pass"]]))
+  # Only the fixed selection normalizers are interpolated: a pass reports no
+  # covariance-sweep interpolation, and its values are the direct evaluations.
+  expect_false("covariance_interpolation" %in% names(with_grid[["pass"]]))
+  expect_false("covariance_interpolation" %in%
+    names(.iwmde_qcmde_normalization_summary(with_grid[["pass"]], "mu", 1:2, 1, 2L)))
 })
 
 

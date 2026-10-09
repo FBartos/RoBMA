@@ -854,6 +854,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   posterior ordinate, through BayesTools 0.3.1. The 512-point grid estimate
   of 4.0.0 overestimated the posterior density at the null of long-tailed
   posteriors up to several-fold and so understated their Bayes factors.
+- qCMDE ordinates of known-V joint selection models evaluate every grid value of a
+  random-component SD sweep directly. The unreleased covariance-sweep
+  interpolation of the selection normalizers, whose sensitivity certificate
+  omitted the diagonal term, is removed (the interpolation of fixed-covariance
+  normalizers along location sweeps is unchanged); the quadrature plans
+  and budgets of the direct evaluation are unchanged.
 - `predict()` stops and names a variable of the moderator or scale formula
   (or of a random-effect formula) that `newdata` lacks. 4.0.0 filled missing
   outcome-named columns (`yi`, `sei`, `ai`, `ci`, `n1i`, `n2i`, ...) with

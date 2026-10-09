@@ -847,7 +847,6 @@
     max_quadrature_relative_change =
       density[["max_quadrature_relative_change"]],
     normalizer_interpolation = density[["normalizer_interpolation"]],
-    covariance_interpolation = density[["covariance_interpolation"]],
     pilot_gate_stopped          = density[["pilot_gate_stopped"]],
     pilot_bulk_ess              = density[["pilot_bulk_ess"]],
     p95_normalizer_relative_change =

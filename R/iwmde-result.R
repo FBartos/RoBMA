@@ -34,8 +34,8 @@
   # A typed object is left exactly as it is. Dropping its empty fields would
   # reshape it, and `lapply()` below returns a bare list, so recursing into one
   # silently removes its class: that is how the random-effect marginal update
-  # plans reached the covariance-sweep interpolation without the class its
-  # eligibility check looks for.
+  # plans reached the affine and factor update grids without the class their
+  # eligibility checks look for.
   if (!is.list(x) || !is.null(attr(x, "class", exact = TRUE))) {
     return(x)
   }

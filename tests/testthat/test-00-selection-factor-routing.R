@@ -785,10 +785,8 @@ test_that("bridge dense fallback reconstructs the exact required block", {
     },
     .selection_joint_dense_loglik_block = function(
         yi, means, covariance_lower, sei, selection_context,
-        execution_plan, block_size, normalizer_grid = NULL,
-        covariance_grid = NULL) {
+        execution_plan, block_size, normalizer_grid = NULL) {
       expect_null(normalizer_grid)
-      expect_null(covariance_grid)
       observed_lower <<- covariance_lower
       23
     },

@@ -17,11 +17,11 @@
 # draws-based one, and the display values, the nodes and the midpoints of the
 # initial lattice are one call of the joint density (which evaluates each value
 # independently of the others in its call, so the values are those of separate
-# calls). Contexts with call-owned interpolation grids keep the display values
-# alone in the first call, because the grids place their anchors by it, and
-# declare the nodes, the midpoints and a reserve of extension steps on each
-# side as their queries, so that the extension the tails need is requested from
-# the grids too.
+# calls). Contexts with a call-owned interpolation grid of the selection
+# normalizers keep the display values alone in the first call, because the grid
+# places its anchors by it, and declare the nodes, the midpoints and a reserve
+# of extension steps on each side as its queries, so that the extension the
+# tails need is requested from the grid too.
 #
 # The nodes and midpoints form the selected nested grid (2N - 1 points); the
 # node grid over the same range validates it. The two differ only in their
@@ -64,28 +64,23 @@
       estimator_rows
     )))
   }
-  # Interpolation grids of fixed selection normalizers and covariance sweeps
-  # answer exactly the values they are built for; values outside that set are
-  # evaluated directly. The set holds the display values, the nodes and
-  # midpoints of the lattice, and a reserve of extension steps on each side
-  # (.iwmde_qcmde_extension_reserve()) for the extension the tails need.
+  # The interpolation grid of a fixed selection normalizer answers exactly the
+  # values it is built for; values outside that set are evaluated directly. The
+  # set holds the display values, the nodes and midpoints of the lattice, and a
+  # reserve of extension steps on each side (.iwmde_qcmde_extension_reserve())
+  # for the extension the tails need.
   direct <- context
   direct[["normalizer_grid"]] <- NULL
-  direct[["covariance_grid"]] <- NULL
   reserve <- .iwmde_qcmde_extension_reserve(n_points)
   with_grids <- function(values) {
 
     out <- context
     if (identical(replacement[["type"]], "ordered_source")) {
       out[["normalizer_grid"]] <- NULL
-      out[["covariance_grid"]] <- NULL
       return(out)
     }
     out[["normalizer_grid"]] <- .selection_normalizer_grid(out, values,
       vapply(row_states, `[[`, integer(1L), "row_index"))
-    out[["covariance_grid"]] <- .selection_covariance_grid(out, values,
-      vapply(row_states, `[[`, integer(1L), "row_index"),
-      row_states, replacement, parameter)
     out
   }
   planned_values <- function(lattice) {
@@ -97,8 +92,7 @@
   }
   uses_grids <- function(evaluation_context) {
 
-    !is.null(evaluation_context[["normalizer_grid"]]) ||
-      !is.null(evaluation_context[["covariance_grid"]])
+    !is.null(evaluation_context[["normalizer_grid"]])
   }
 
   # 1. Display values, and the rows' Gaussian kernels. When no row can report a
@@ -316,9 +310,6 @@
     },
     normalizer_interpolation = .selection_normalizer_grid_diagnostics(
       grid_context[["normalizer_grid"]]
-    ),
-    covariance_interpolation = .selection_covariance_grid_diagnostics(
-      grid_context[["covariance_grid"]]
     )
   ))
 }
@@ -630,7 +621,6 @@
     normalization_initial_range  = range(pilot_grid[["x"]]),
     conditional_normalization    = pass[["conditional_normalization"]],
     normalizer_interpolation     = pass[["normalizer_interpolation"]],
-    covariance_interpolation     = pass[["covariance_interpolation"]],
     quadrature_change            = pass[["quadrature_change"]],
     n_refinement_steps           = pass[["extension_passes"]]
   )

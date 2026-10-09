@@ -53,7 +53,6 @@ test_that("ordinate-only qCMDE does not infer bulk mass from requested points", 
 
   testthat::local_mocked_bindings(
     .selection_normalizer_grid = function(...) NULL,
-    .selection_covariance_grid = function(...) NULL,
     .iwmde_log_q_grid = function(context, parameter, values, ...) {
       matrix(stats::dnorm(values, log = TRUE), ncol = 1L)
     },
@@ -105,18 +104,6 @@ test_that("scalar, indexed, and fallback replacements retain covariance plans", 
     expect_identical(replacement[["type"]], expected[[parameter]])
     expect_identical(replacement[["covariance_update"]], update)
   }
-})
-
-test_that("equal selection weights never reuse a varying Gaussian likelihood", {
-
-  base <- list(covariance = diag(2), coefficient = 0, direction = c(1, 1))
-  for (family in c("mean", "variance")) {
-    shared <- list(family = family, loading = matrix(1, 2, 1))
-    expect_null(.selection_covariance_grid_binding(shared, 1:2, base, c(1, 1)))
-  }
-  # With the selection weight cancelled, the remaining exact likelihood varies.
-  expect_false(isTRUE(all.equal(sum(dnorm(c(0, 0), 0, 1, log = TRUE)),
-                               sum(dnorm(c(0, 0), 1, 1, log = TRUE)))))
 })
 
 test_that("factor covariance grids require the replacement's coefficient scale", {

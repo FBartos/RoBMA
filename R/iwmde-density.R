@@ -838,7 +838,6 @@
     pilot_log_normalizer   = initial_log_normalizer,
     conditional_normalization = normalized[["conditional_normalization"]],
     normalizer_interpolation = normalized[["normalizer_interpolation"]],
-    covariance_interpolation = normalized[["covariance_interpolation"]],
     # The nested grids have no refinement sequence for a pilot gate to cut
     # short.
     pilot_gate_stopped     = FALSE,
