@@ -1,14 +1,164 @@
-test_that("normal cluster quadrature fallback resolves its omitted order", {
+.cluster_norm_dispatch_setup <- function(yi, sei, tau_within, tau_between,
+                                         weights = NULL, mu = 0,
+                                         effect_direction = "positive") {
+
+  K <- length(yi)
+  list(
+    outcome_type      = "norm",
+    is_weightfunction = FALSE,
+    effect_direction  = effect_direction,
+    data              = list(),
+    yi                = yi,
+    sei               = sei,
+    S                 = 1L,
+    K                 = K,
+    mu                = matrix(mu, 1L, K),
+    tau_within        = matrix(tau_within, 1L, K),
+    tau_between       = matrix(tau_between, 1L, K),
+    cluster           = list(seq_len(K)),
+    weights           = weights
+  )
+}
+
+test_that("powered normal cluster likelihood integrates the latent effect in closed form", {
+
+  # Reference values: 80-digit mpmath evaluation of
+  #   log int prod_i N(yi_i; mu_i + tau_i g, sd_i)^w_i N(g; 0, 1) dg
+  # through the completed square in the unit-normal latent.
+  cases <- list(
+    # a dominant latent effect against two precise rows; Gauss-Hermite on the
+    # prior scale returned -186.4 for the powers 2 and 2, -93.77 for 1 and 1
+    list(yi = c(.1, .1), sei = c(.01, .01), tau_within = 0, tau_between = 1,
+      weights = c(2, 2), expected = 9.441596869738760),
+    list(yi = c(.1, .1), sei = c(.01, .01), tau_within = 0, tau_between = 1,
+      weights = c(1, 1), expected = 2.415694779911253),
+    list(yi = c(.3, -.2, .5), sei = c(.1, .2, .05), tau_within = 0,
+      tau_between = .7, weights = c(.5, 1, 1.5), expected = -5.184067167560930),
+    # row-specific loadings (a scale model) and unequal powers
+    list(yi = c(.3, -.2, .5, .1), sei = c(.1, .2, .05, .3), tau_within = 0,
+      tau_between = c(.7, .35, 0, 1.4), weights = c(.5, 1, 1.5, 2),
+      expected = -73.95729500926897),
+    list(yi = c(.3, -.2, .5), sei = c(.1, .2, .05), tau_within = 0,
+      tau_between = c(.7, -.35, 1.4), weights = c(1, 1, 1),
+      expected = 0.5355236481055064),
+    list(yi = c(1e-3, 2e-3, -4e-3, 5e-4), sei = c(1e-6, 1e-3, 1e-9, 2e-5),
+      tau_within = 0, tau_between = c(3, 1e-4, 2e5, 0),
+      weights = c(1, 2, .5, 1), expected = -500364.4073559806),
+    # a unit information of 1e800 and a representable density
+    list(yi = 0, sei = 1e-200, tau_within = 0, tau_between = 1e200,
+      weights = 1, expected = -461.4359571320138),
+    # the same row next to a zero-power companion, which is omitted
+    list(yi = c(0, 7), sei = c(1e-200, 3), tau_within = 0,
+      tau_between = c(1e200, 2), weights = c(1, 0), expected = -461.4359571320138)
+  )
+  for (case in cases) {
+    setup <- do.call(.cluster_norm_dispatch_setup, case[names(case) != "expected"])
+    expected <- matrix(case$expected, 1L, 1L)
+    expect_equal(.log_lik_cluster_from_setup(setup), expected, tolerance = 1e-13)
+    expect_equal(.log_lik_cluster_sum_from_setup(setup), as.vector(expected),
+      tolerance = 1e-13)
+    expect_equal(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei),
+      expected, tolerance = 1e-13)
+  }
+
+  # A cluster without a positive power contributes nothing.
+  setup <- .cluster_norm_dispatch_setup(c(.1, .2), c(.1, .1), 0, 1,
+    weights = c(0, 0))
+  expect_identical(.log_lik_cluster_from_setup(setup), matrix(0, 1L, 1L))
+  expect_identical(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei),
+    matrix(0, 1L, 1L))
+})
+
+test_that("powered cluster likelihood agrees with numerical integration and the allocation grid", {
+
+  S <- 3L
+  K <- 5L
+  set.seed(20261009)
+  setup <- list(
+    S           = S,
+    mu          = matrix(rnorm(S * K, 0, .25), S, K),
+    tau_within  = matrix(runif(S * K, .03, .25), S, K),
+    tau_between = matrix(runif(S * K, .02, .20), S, K),
+    cluster     = list(a = c(1L, 3L), b = c(2L, 4L, 5L)),
+    weights     = c(1, .5, 1.25, 2, .75)
+  )
+  yi  <- c(.02, .15, -.05, .30, .08)
+  sei <- c(.10, .12, .08, .20, .15)
+
+  integrated <- matrix(NA_real_, S, length(setup$cluster))
+  for (s in seq_len(S)) {
+    for (g in seq_along(setup$cluster)) {
+      idx <- setup$cluster[[g]]
+      integrand <- function(gamma) {
+        vapply(gamma, function(value) {
+          exp(sum(setup$weights[idx] * stats::dnorm(yi[idx],
+            mean = setup$mu[s, idx] + value * setup$tau_between[s, idx],
+            sd = sqrt(sei[idx]^2 + setup$tau_within[s, idx]^2), log = TRUE))) *
+            stats::dnorm(value)
+        }, numeric(1))
+      }
+      integrated[s, g] <- log(stats::integrate(integrand, -Inf, Inf,
+        rel.tol = 1e-12, stop.on.error = TRUE)$value)
+    }
+  }
+  expect_equal(.log_lik_cluster_norm_analytic(setup, yi, sei), integrated,
+    tolerance = 1e-10)
+  expect_equal(.log_lik_cluster_norm_analytic_r(setup, yi, sei), integrated,
+    tolerance = 1e-10)
+  expect_equal(.log_lik_cluster_norm_analytic_sum(setup, yi, sei),
+    rowSums(integrated), tolerance = 1e-10)
+
+  # The allocation grid applies the powers to the same cluster integral.
+  grid <- list(S = S, mu = setup$mu, cluster = setup$cluster,
+    weights = setup$weights,
+    tau_total = matrix(runif(S * K, .1, .4), S, K))
+  rho <- c(0, .37, 1)
+  evaluated <- .log_lik_cluster_norm_analytic_rho_grid_sum(grid, yi, sei, rho)
+  expected <- vapply(seq_len(S), function(s) vapply(rho, function(value) {
+    allocation <- grid
+    allocation$S <- 1L
+    allocation$mu <- grid$mu[s, , drop = FALSE]
+    allocation$tau_within <- grid$tau_total[s, , drop = FALSE] * sqrt(1 - value)
+    allocation$tau_between <- grid$tau_total[s, , drop = FALSE] * sqrt(value)
+    sum(.log_lik_cluster_norm_analytic_r(allocation, yi, sei))
+  }, numeric(1)), numeric(length(rho)))
+  expect_equal(evaluated, expected, tolerance = 1e-12)
+})
+
+test_that("normal cluster likelihood refuses invalid rows without a substituted value", {
+
+  setup <- .cluster_norm_dispatch_setup(c(.1, .2), c(.1, .1), 0, 1,
+    weights = c(1, -1))
+  expect_true(is.na(.log_lik_cluster_norm_analytic_native(
+    setup, setup$yi, setup$sei)))
+  expect_true(is.na(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei)))
+  setup <- .cluster_norm_dispatch_setup(c(.1, NA), c(.1, .1), 0, 1)
+  expect_true(is.na(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei)))
+
+  # An invalid cluster does not spoil the others; a cluster without a positive
+  # power contributes nothing.
+  value <- .log_lik_cluster_norm_stable(residual = c(.1, NA, .3, .2),
+    sd = rep(.1, 4L), loading = rep(1, 4L), weights = c(1, 1, 1, 0),
+    group = c(1L, 1L, 2L, 3L))
+  expect_true(is.na(value[1L]))
+  expect_equal(value[2L], stats::dnorm(.3, sd = sqrt(.1^2 + 1), log = TRUE),
+    tolerance = 1e-14)
+  expect_identical(value[3L], 0)
+})
+
+test_that("normal cluster R reference integrates weighted rows without the native kernel", {
 
   setup <- list(S = 2L, cluster = list(1:2), mu = matrix(0, 2L, 2L),
     tau_within = matrix(0.2, 2L, 2L), tau_between = matrix(0, 2L, 2L),
     weights = c(2, 0.5))
-  local_mocked_bindings(.has_native_norm_cluster_quadrature = function(...) FALSE,
+  local_mocked_bindings(.has_native_norm_cluster_analytic = function(...) FALSE,
                         .package = "RoBMA")
-  actual <- .log_lik_cluster_norm_quadrature(setup, c(0.1, -0.3), c(0.3, 0.4))
+  actual <- .log_lik_cluster_norm_analytic(setup, c(0.1, -0.3), c(0.3, 0.4))
   expected <- sum(dnorm(c(0.1, -0.3), 0, sqrt(c(0.3, 0.4)^2 + 0.2^2),
                         log = TRUE) * c(2, 0.5))
   expect_equal(actual, matrix(expected, 2L, 1L), tolerance = 1e-12)
+  expect_equal(.log_lik_cluster_norm_analytic_sum(setup, c(0.1, -0.3),
+    c(0.3, 0.4)), rep(expected, 2L), tolerance = 1e-12)
 })
 
 test_that("cluster-unit likelihoods of selection models never reach the normal kernels", {
@@ -19,11 +169,11 @@ test_that("cluster-unit likelihoods of selection models never reach the normal k
   calls <- 0L
   sentinel <- matrix(0, 1L, 1L)
   local_mocked_bindings(
-    .log_lik_cluster_norm_quadrature     = function(...) {
+    .log_lik_cluster_norm_analytic     = function(...) {
       calls <<- calls + 1L
       sentinel
     },
-    .log_lik_cluster_norm_quadrature_sum = function(...) {
+    .log_lik_cluster_norm_analytic_sum = function(...) {
       calls <<- calls + 1L
       sentinel
     },
@@ -41,7 +191,7 @@ test_that("cluster-unit likelihoods of selection models never reach the normal k
     )
   }
 
-  # The same weighted setup without selection reaches the normal quadrature ...
+  # The same weighted setup without selection reaches the closed-form kernel ...
   expect_identical(.log_lik_cluster_from_setup(setup(FALSE)), sentinel)
   expect_identical(.log_lik_cluster_sum_from_setup(setup(FALSE)), sentinel)
   expect_identical(calls, 2L)
@@ -51,6 +201,7 @@ test_that("cluster-unit likelihoods of selection models never reach the normal k
   expect_error(.log_lik_cluster_sum_from_setup(setup(TRUE)))
   expect_identical(calls, 2L)
 })
+
 
 test_that("selection deletion rejects a nonfinite full event density", {
 

@@ -87,23 +87,23 @@ test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
     cluster     = list(single = 1L, pair = c(2L, 4L), triple = c(3L, 5L, 6L))
   )
   yi <- c(.04, .15, -.05, .30, .08, .18)
-  vi <- c(.10, .12, .08, .20, .15, .11)^2
+  sei <- c(.10, .12, .08, .20, .15, .11)
 
   analytic <- .log_lik_cluster_norm_analytic(
     setup = setup,
     yi    = yi,
-    vi    = vi
+    sei   = sei
   )
   analytic_r <- .log_lik_cluster_norm_analytic_r(
     setup = setup,
     yi    = yi,
-    vi    = vi
+    sei   = sei
   )
   oracle <- matrix(NA_real_, nrow = S, ncol = length(setup[["cluster"]]))
   for (s in seq_len(S)) {
     for (g in seq_along(setup[["cluster"]])) {
       idx        <- setup[["cluster"]][[g]]
-      diagonal   <- vi[idx] + setup[["tau_within"]][s, idx]^2
+      diagonal   <- sei[idx]^2 + setup[["tau_within"]][s, idx]^2
       covariance <- diag(diagonal, nrow = length(idx), ncol = length(idx)) +
         tcrossprod(setup[["tau_between"]][s, idx])
       oracle[s, g] <- mvtnorm::dmvnorm(
@@ -118,7 +118,7 @@ test_that("analytic normal cluster likelihood matches mvtnorm oracle", {
   expect_equal(analytic, oracle, tolerance = 1e-12)
   expect_equal(analytic, analytic_r, tolerance = 1e-12)
   expect_equal(
-    .log_lik_cluster_norm_analytic_sum(setup, yi, vi),
+    .log_lik_cluster_norm_analytic_sum(setup, yi, sei),
     rowSums(oracle),
     tolerance = 1e-12
   )
@@ -169,13 +169,13 @@ test_that("analytic rho-grid cluster likelihood matches mvtnorm oracle", {
                      triple = c(3L, 5L, 6L))
   )
   yi  <- c(.04, .15, -.05, .30, .08, .18)
-  vi  <- c(.10, .12, .08, .20, .15, .11)^2
+  sei <- c(.10, .12, .08, .20, .15, .11)
   rho <- c(0, .37, 1)
 
   analytic <- .log_lik_cluster_norm_analytic_rho_grid_sum(
     setup = setup,
     yi    = yi,
-    vi    = vi,
+    sei   = sei,
     rho   = rho
   )
   oracle <- matrix(NA_real_, nrow = length(rho), ncol = S)
@@ -185,7 +185,7 @@ test_that("analytic rho-grid cluster likelihood matches mvtnorm oracle", {
         tau_within  <- setup[["tau_total"]][s, idx] * sqrt(1 - rho[[r]])
         tau_between <- setup[["tau_total"]][s, idx] * sqrt(rho[[r]])
         covariance  <- diag(
-          vi[idx] + tau_within^2,
+          sei[idx]^2 + tau_within^2,
           nrow = length(idx), ncol = length(idx)
         ) + tcrossprod(tau_between)
 
@@ -203,7 +203,7 @@ test_that("analytic rho-grid cluster likelihood matches mvtnorm oracle", {
 })
 
 
-test_that("analytic normal cluster likelihood agrees with unweighted quadrature", {
+test_that("analytic normal cluster likelihood agrees with numerical integration of the latent effect", {
 
   S <- 2L
   setup <- list(
@@ -226,19 +226,35 @@ test_that("analytic normal cluster likelihood agrees with unweighted quadrature"
   yi  <- c(.02, .15, -.05, .30)
   sei <- c(.10, .12, .08, .20)
 
-  analytic <- .log_lik_cluster_norm_analytic(
-    setup = setup,
-    yi    = yi,
-    vi    = sei^2
-  )
-  quadrature <- .log_lik_cluster_norm_quadrature_r(
-    setup   = setup,
-    yi      = yi,
-    sei     = sei,
-    n_gamma = 61L
-  )
+  for (weights in list(NULL, c(1, .5, 2, 1.5))) {
+    setup[["weights"]] <- weights
+    power <- if (is.null(weights)) rep(1, length(yi)) else weights
+    integrated <- matrix(NA_real_, nrow = S, ncol = length(setup[["cluster"]]))
+    for (s in seq_len(S)) {
+      for (g in seq_along(setup[["cluster"]])) {
+        idx <- setup[["cluster"]][[g]]
+        integrand <- function(gamma) {
+          vapply(gamma, function(value) {
+            exp(sum(power[idx] * stats::dnorm(
+              yi[idx],
+              mean = setup[["mu"]][s, idx] + value * setup[["tau_between"]][s, idx],
+              sd   = sqrt(sei[idx]^2 + setup[["tau_within"]][s, idx]^2),
+              log  = TRUE
+            ))) * stats::dnorm(value)
+          }, numeric(1))
+        }
+        integrated[s, g] <- log(stats::integrate(
+          integrand, -Inf, Inf, rel.tol = 1e-12, stop.on.error = TRUE
+        )[["value"]])
+      }
+    }
+    analytic <- .log_lik_cluster_norm_analytic(setup = setup, yi = yi, sei = sei)
+    reference <- .log_lik_cluster_norm_analytic_r(setup = setup, yi = yi, sei = sei)
 
-  expect_equal(quadrature, analytic, tolerance = 1e-8)
+    expect_equal(analytic, integrated, tolerance = 1e-10)
+    expect_equal(reference, integrated, tolerance = 1e-10)
+    expect_equal(analytic, reference, tolerance = 1e-13)
+  }
 })
 
 
@@ -286,9 +302,10 @@ test_that("native coercion helpers preserve matrix and vector shapes", {
   expect_true(is.integer(.native_integer_vector(c(1, 2))))
 })
 
-test_that("native normal cluster likelihood matches R quadrature", {
+test_that("native weighted normal cluster likelihood matches the R reference", {
 
-  skip_if_not(.has_native_norm_cluster_quadrature())
+  skip_if_not(.has_native_norm_cluster_analytic())
+  skip_if_not(.has_native_norm_cluster_analytic(row_sum = TRUE))
 
   set.seed(20260514)
   S <- 4
@@ -304,27 +321,30 @@ test_that("native normal cluster likelihood matches R quadrature", {
   yi  <- c(.02, .15, -.05, .30, .08)
   sei <- c(.10, .12, .08, .20, .15)
 
-  native <- .log_lik_cluster_norm_quadrature_native(
-    setup   = setup,
-    yi      = yi,
-    sei     = sei,
-    n_gamma = 5
+  native <- .log_lik_cluster_norm_analytic_native(
+    setup = setup,
+    yi    = yi,
+    sei   = sei
   )
-  ref <- .log_lik_cluster_norm_quadrature_r(
-    setup   = setup,
-    yi      = yi,
-    sei     = sei,
-    n_gamma = 5
+  ref <- .log_lik_cluster_norm_analytic_r(
+    setup = setup,
+    yi    = yi,
+    sei   = sei
   )
 
   expect_equal(native, ref, tolerance = 1e-12)
   expect_equal(
-    .log_lik_cluster_norm_quadrature_sum(
+    .log_lik_cluster_norm_analytic_native(
       setup   = setup,
       yi      = yi,
       sei     = sei,
-      n_gamma = 5
+      row_sum = TRUE
     ),
+    rowSums(ref),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    .log_lik_cluster_norm_analytic_sum(setup = setup, yi = yi, sei = sei),
     rowSums(ref),
     tolerance = 1e-12
   )
@@ -730,10 +750,9 @@ test_that("native GLMM row-sum kernels match matrix likelihoods", {
   )
 })
 
-test_that("native log-sum-exp kernels propagate bad quadrature nodes", {
+test_that("native binomial log-sum-exp kernel propagates bad quadrature nodes", {
 
   skip_if_not(.has_native_glmm("bin"))
-  skip_if_not(.has_native_norm_cluster_quadrature())
 
   binom_out <-.Call(
     "RoBMA_glmm_binom_marginal_loglik",
@@ -751,22 +770,6 @@ test_that("native log-sum-exp kernels propagate bad quadrature nodes", {
     PACKAGE = "RoBMA"
   )
   expect_true(is.na(binom_out[1, 1]))
-
-  norm_out <- .Call(
-    "RoBMA_norm_cluster_loglik",
-    .native_numeric_vector(.1),
-    .native_numeric_vector(.2),
-    matrix(0, nrow = 1, ncol = 1),
-    matrix(.1, nrow = 1, ncol = 1),
-    matrix(.1, nrow = 1, ncol = 1),
-    .native_integer_vector(1L),
-    .native_integer_vector(1L),
-    NULL,
-    c(-1, 0, 1),
-    c(log(.3), NaN, log(.7)),
-    PACKAGE = "RoBMA"
-  )
-  expect_true(is.na(norm_out[1, 1]))
 })
 
 test_that("selection native static cache is reused and reset for subsets", {

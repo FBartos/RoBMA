@@ -721,7 +721,7 @@
     evaluated <- .log_lik_cluster_norm_analytic_rho_grid_sum(
       setup = setup,
       yi    = setup[["yi"]],
-      vi    = setup[["sei"]]^2,
+      sei   = setup[["sei"]],
       rho   = values[valid]
     )
     if (!is.matrix(evaluated) ||

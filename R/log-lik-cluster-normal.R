@@ -6,18 +6,21 @@
 # .log_lik_cluster_norm_analytic
 # ---------------------------------------------------------------------------- #
 #
-# Analytic cluster-unit likelihood for unweighted normal multilevel models
-# without selection. The normal cluster effect is integrated by the block
-# covariance.
+# Closed-form cluster-unit likelihood for normal multilevel models without
+# selection, weighted or not. The normal cluster effect is integrated in the
+# unit-normal latent by the stable form of .log_lik_cluster_norm_stable():
+# every row has the standard deviation sqrt(sei^2 + tau_within^2) and the
+# loading tau_between, and a row with likelihood power w contributes its
+# Gaussian density to the power w.
 #
 # ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm_analytic <- function(setup, yi, vi) {
+.log_lik_cluster_norm_analytic <- function(setup, yi, sei) {
 
   if (.has_native_norm_cluster_analytic()) {
     native <- .log_lik_cluster_norm_analytic_native(
       setup   = setup,
       yi      = yi,
-      vi      = vi,
+      sei     = sei,
       row_sum = FALSE
     )
     if (all(is.finite(native))) {
@@ -28,18 +31,18 @@
   return(.log_lik_cluster_norm_analytic_r(
     setup = setup,
     yi    = yi,
-    vi    = vi
+    sei   = sei
   ))
 }
 
 
-.log_lik_cluster_norm_analytic_sum <- function(setup, yi, vi) {
+.log_lik_cluster_norm_analytic_sum <- function(setup, yi, sei) {
 
   if (.has_native_norm_cluster_analytic(row_sum = TRUE)) {
     native <- .log_lik_cluster_norm_analytic_native(
       setup   = setup,
       yi      = yi,
-      vi      = vi,
+      sei     = sei,
       row_sum = TRUE
     )
     if (all(is.finite(native))) {
@@ -50,13 +53,13 @@
   log_lik <- .log_lik_cluster_norm_analytic_r(
     setup = setup,
     yi    = yi,
-    vi    = vi
+    sei   = sei
   )
   return(.rowSums(log_lik, nrow(log_lik), ncol(log_lik)))
 }
 
 
-.log_lik_cluster_norm_analytic_native <- function(setup, yi, vi,
+.log_lik_cluster_norm_analytic_native <- function(setup, yi, sei,
                                                    row_sum = FALSE) {
 
   cluster <- .cluster_indices_flatten(setup[["cluster"]])
@@ -69,18 +72,28 @@
   return(.Call(
     symbol,
     .native_numeric_vector(yi),
-    .native_numeric_vector(vi),
+    .native_numeric_vector(sei),
     .native_numeric_matrix(setup[["mu"]]),
     .native_numeric_matrix(setup[["tau_within"]]),
     .native_numeric_matrix(setup[["tau_between"]]),
     cluster[["index"]],
     cluster[["size"]],
+    .log_lik_cluster_norm_native_weights(setup),
     PACKAGE = "RoBMA"
   ))
 }
 
 
-.log_lik_cluster_norm_analytic_rho_grid_sum <- function(setup, yi, vi,
+.log_lik_cluster_norm_native_weights <- function(setup) {
+
+  if (is.null(setup[["weights"]])) {
+    return(NULL)
+  }
+  return(.native_numeric_vector(setup[["weights"]]))
+}
+
+
+.log_lik_cluster_norm_analytic_rho_grid_sum <- function(setup, yi, sei,
                                                          rho) {
 
   if (!is.loaded(
@@ -94,64 +107,37 @@
   return(.Call(
     "RoBMA_norm_cluster_analytic_rho_grid_loglik",
     .native_numeric_vector(yi),
-    .native_numeric_vector(vi),
+    .native_numeric_vector(sei),
     .native_numeric_matrix(setup[["mu"]]),
     .native_numeric_matrix(setup[["tau_total"]]),
     .native_numeric_vector(rho),
     cluster[["index"]],
     cluster[["size"]],
+    .log_lik_cluster_norm_native_weights(setup),
     PACKAGE = "RoBMA"
   ))
 }
 
 
-.log_lik_cluster_norm_analytic_r <- function(setup, yi, vi) {
 
-  cluster_indices <- setup[["cluster"]]
-  S               <- setup[["S"]]
-  log_lik         <- matrix(NA_real_, nrow = S, ncol = length(cluster_indices))
 
-  for (g in seq_along(cluster_indices)) {
-    idx       <- cluster_indices[[g]]
-    diagonal  <- sweep(setup[["tau_within"]][, idx, drop = FALSE]^2, 2L, vi[idx], "+")
-    rank_one  <- setup[["tau_between"]][, idx, drop = FALSE]
-    residual  <- matrix(yi[idx], nrow = S, ncol = length(idx), byrow = TRUE) -
-      setup[["mu"]][, idx, drop = FALSE]
-    valid     <- rowSums(!is.finite(diagonal) | diagonal <= 0) == 0L
+.log_lik_cluster_norm_analytic_r <- function(setup, yi, sei) {
 
-    if (any(valid)) {
-      inv_diag       <- 1 / diagonal[valid, , drop = FALSE]
-      rank_valid     <- rank_one[valid, , drop = FALSE]
-      residual_valid <- residual[valid, , drop = FALSE]
-      denom          <- 1 + rowSums(rank_valid^2 * inv_diag)
-      valid_rows     <- which(valid)
-      valid_denom    <- is.finite(denom) & denom > 0
+  cluster <- .cluster_indices_flatten(setup[["cluster"]])
+  rows    <- cluster[["index"]]
+  group   <- rep.int(seq_along(cluster[["size"]]), cluster[["size"]])
+  weights <- setup[["weights"]][rows]
+  S       <- setup[["S"]]
+  log_lik <- matrix(NA_real_, nrow = S, ncol = length(cluster[["size"]]))
 
-      if (any(valid_denom)) {
-        rows              <- valid_rows[valid_denom]
-        inv_use           <- inv_diag[valid_denom, , drop = FALSE]
-        rank_use          <- rank_valid[valid_denom, , drop = FALSE]
-        res_use           <- residual_valid[valid_denom, , drop = FALSE]
-        denom_use         <- denom[valid_denom]
-        log_det           <- rowSums(log(diagonal[rows, , drop = FALSE])) + log(denom_use)
-        projection        <- rowSums(rank_use * res_use * inv_use) / denom_use
-        adjusted_residual <- res_use -
-          sweep(rank_use, 1L, projection, "*")
-        quad              <- rowSums(adjusted_residual^2 * inv_use) + projection^2
-
-        log_lik[rows, g] <- -0.5 * (length(idx) * log(2 * pi) + log_det + quad)
-      }
-    }
-
-    fallback <- which(!is.finite(log_lik[, g]))
-    for (s in fallback) {
-      log_lik[s, g] <- .log_dmvnorm_diag_rank_one(
-        x        = yi[idx],
-        mean     = setup[["mu"]][s, idx],
-        diagonal = vi[idx] + setup[["tau_within"]][s, idx]^2,
-        rank_one = setup[["tau_between"]][s, idx]
-      )
-    }
+  for (s in seq_len(S)) {
+    log_lik[s, ] <- .log_lik_cluster_norm_stable(
+      residual = yi[rows] - setup[["mu"]][s, rows],
+      sd       = .root_sum_squares(sei[rows], setup[["tau_within"]][s, rows]),
+      loading  = setup[["tau_between"]][s, rows],
+      weights  = weights,
+      group    = group
+    )
   }
 
   return(log_lik)
@@ -160,223 +146,117 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .log_dmvnorm_diag_rank_one
+# .log_lik_cluster_norm_stable
 # ---------------------------------------------------------------------------- #
 #
-# Log-density for N(mean, diag(diagonal) + rank_one %*% t(rank_one)).
+# Log of the powered Gaussian cluster likelihood integrated over one shared
+# unit-normal latent g per cluster,
+#
+#   log int prod_i N(residual_i; loading_i * g, sd_i)^weight_i N(g; 0, 1) dg,
+#
+# for the clusters named by `group` (integer ids 1..G; one value per cluster is
+# returned). The vectors hold one entry per estimate, `weights` is NULL for unit
+# powers, and entries with weight 0 are omitted. The loading is per estimate
+# (a scale model gives each estimate its own). Over the loaded entries
+# (loading != 0), log b_i = log|loading_i| - log(sd_i) is carried on the log
+# scale with log(beta) = max log(b_i), omega_i = weight_i exp(2 (log b_i -
+# log(beta))), W = sum(omega_i), and rho is the omega-weighted mean of the
+# implied latent values residual_i / loading_i after one correction step. With
+# log P = 2 log(beta) + log(W) and A = 1 + P, the Gaussian is completed in the
+# unit-normal latent:
+#
+#   e_i = ((r_i - loading_i rho) + loading_i rho / A) / sd_i,
+#   log L = -sum(weight (log(2 pi) + 2 log(sd))) / 2 - log(A) / 2
+#           - (sum(weight e_i^2) + (P rho / A)^2) / 2,
+#
+# with e_i = r_i / sd_i for an unloaded entry. The residual after the latent
+# projection is formed directly, so no explained quadratic is subtracted from
+# the total, and no square of a scale is formed before it is needed. A cluster
+# with a non-finite value or a non-positive sd gives NA; a result beyond the
+# representable range is -Inf.
 #
 # ---------------------------------------------------------------------------- #
-.log_dmvnorm_diag_rank_one <- function(x, mean, diagonal, rank_one) {
+.log_lik_cluster_norm_stable <- function(residual, sd, loading, weights = NULL,
+                                         group = rep.int(1L, length(residual))) {
 
-  residual <- x - mean
-
-  if (!all(is.finite(diagonal)) || any(diagonal <= 0)) {
-    covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
-      tcrossprod(rank_one)
-    return(mvtnorm::dmvnorm(
-      x     = x,
-      mean  = mean,
-      sigma = covariance,
-      log   = TRUE
-    ))
+  n_group <- if (length(group)) max(group) else 0L
+  out     <- numeric(n_group)
+  if (is.null(weights)) {
+    weights <- rep.int(1, length(residual))
+  }
+  if (anyNA(weights) || any(!is.finite(weights)) || any(weights < 0)) {
+    return(rep(NA_real_, n_group))
   }
 
-  inv_diag <- 1 / diagonal
-  inv_rank <- rank_one * inv_diag
-  denom    <- 1 + sum(rank_one * inv_rank)
+  active  <- weights > 0
+  invalid <- active & (!is.finite(residual) | !is.finite(sd) | sd <= 0 |
+                         !is.finite(loading))
+  failed  <- tabulate(group[invalid], nbins = n_group) > 0L
+  use     <- active & !failed[group]
+  out[failed] <- NA_real_
+  if (!any(use)) {
+    return(out)
+  }
+  r <- residual[use]
+  s <- sd[use]
+  t <- loading[use]
+  w <- weights[use]
+  g <- group[use]
 
-  if (!is.finite(denom) || denom <= 0) {
-    covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
-      tcrossprod(rank_one)
-    return(mvtnorm::dmvnorm(
-      x     = x,
-      mean  = mean,
-      sigma = covariance,
-      log   = TRUE
-    ))
+  norm  <- -0.5 * .group_sum(w * (log(2 * pi) + 2 * log(s)), g, n_group)
+  value <- norm - 0.5 * .group_sum(w * (r / s)^2, g, n_group)
+  value[failed] <- NA_real_
+
+  loaded <- t != 0
+  if (any(loaded)) {
+    g_l      <- g[loaded]
+    log_b    <- log(abs(t[loaded])) - log(s[loaded])
+    log_beta <- .group_max(log_b, g_l, n_group)
+    omega    <- w[loaded] * exp(2 * (log_b - log_beta[g_l]))
+    total    <- .group_sum(omega, g_l, n_group)
+    implied  <- r[loaded] / t[loaded]
+    rho      <- .group_sum(omega * implied, g_l, n_group) / total
+    rho      <- rho + .group_sum(omega * (implied - rho[g_l]), g_l, n_group) / total
+
+    log_p     <- 2 * log_beta + log(total)
+    log_a     <- ifelse(log_p > 0, log_p + log1p(exp(-log_p)),
+                        log1p(exp(log_p)))
+    inverse_a <- exp(-log_a)
+    latent_rho <- exp(log_p - log_a) * rho
+    e <- r / s
+    e[loaded] <- ((r[loaded] - t[loaded] * rho[g_l]) +
+                    t[loaded] * rho[g_l] * inverse_a[g_l]) / s[loaded]
+    latent <- norm - 0.5 * log_a -
+      0.5 * (.group_sum(w * e^2, g, n_group) + latent_rho^2)
+
+    informative <- !failed & is.finite(log_beta)
+    value[informative] <- latent[informative]
   }
 
-  log_det            <- sum(log(diagonal)) + log(denom)
-  projection         <- sum(rank_one * residual * inv_diag) / denom
-  adjusted_residual  <- residual - projection * rank_one
-  quad               <- sum(adjusted_residual^2 * inv_diag) + projection^2
-
-  return(-0.5 * (length(x) * log(2 * pi) + log_det + quad))
+  return(value)
 }
 
 
+# Sums of x within the groups 1..n_group.
+.group_sum <- function(x, group, n_group) {
 
-# ---------------------------------------------------------------------------- #
-# .log_lik_cluster_norm_quadrature
-# ---------------------------------------------------------------------------- #
-#
-# Gamma-quadrature cluster-unit likelihood for data-weighted normal models.
-# Conditional on gamma, per-estimate likelihood contributions factorize.
-# Selection models use the joint selection likelihood instead.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm_quadrature <- function(setup, yi, sei, n_gamma = NULL) {
-
-  if (.has_native_norm_cluster_quadrature()) {
-    return(.log_lik_cluster_norm_quadrature_native(
-      setup   = setup,
-      yi      = yi,
-      sei     = sei,
-      n_gamma = n_gamma
-    ))
+  out <- numeric(n_group)
+  if (length(x)) {
+    sums <- rowsum(x, group, reorder = TRUE)
+    out[as.integer(rownames(sums))] <- sums[, 1L]
   }
-
-  return(.log_lik_cluster_norm_quadrature_r(
-    setup   = setup,
-    yi      = yi,
-    sei     = sei,
-    n_gamma = n_gamma
-  ))
+  return(out)
 }
 
 
+# Largest x within the groups 1..n_group; an empty group gives -Inf.
+.group_max <- function(x, group, n_group) {
 
-# ---------------------------------------------------------------------------- #
-# .log_lik_cluster_norm_quadrature_native
-# ---------------------------------------------------------------------------- #
-#
-# Native batched implementation of the normal cluster likelihood.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm_quadrature_native <- function(setup, yi, sei,
-                                                    n_gamma = NULL) {
-
-  n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
-  gh      <- .gauss_hermite_nodes(n_gamma)
-  cluster <- .cluster_indices_flatten(setup[["cluster"]])
-  weights <- if (is.null(setup[["weights"]])) {
-    NULL
-  } else {
-    .native_numeric_vector(setup[["weights"]])
+  out <- rep(-Inf, n_group)
+  if (length(x)) {
+    ordered <- order(group, -x)
+    first   <- !duplicated(group[ordered])
+    out[group[ordered][first]] <- x[ordered][first]
   }
-
-  return(.Call(
-    "RoBMA_norm_cluster_loglik",
-    .native_numeric_vector(yi),
-    .native_numeric_vector(sei),
-    .native_numeric_matrix(setup[["mu"]]),
-    .native_numeric_matrix(setup[["tau_within"]]),
-    .native_numeric_matrix(setup[["tau_between"]]),
-    cluster[["index"]],
-    cluster[["size"]],
-    weights,
-    .native_numeric_vector(gh[["nodes"]]),
-    .native_numeric_vector(gh[["log_weights"]]),
-    PACKAGE = "RoBMA"
-  ))
-}
-
-
-.log_lik_cluster_norm_quadrature_sum <- function(setup, yi, sei,
-                                                 n_gamma = NULL) {
-
-  if (!.has_native_norm_cluster_quadrature(row_sum = TRUE)) {
-    return(rowSums(.log_lik_cluster_norm_quadrature(
-      setup   = setup,
-      yi      = yi,
-      sei     = sei,
-      n_gamma = n_gamma
-    )))
-  }
-
-  n_gamma <- .log_lik_cluster_norm_n_gamma(n_gamma)
-  gh      <- .gauss_hermite_nodes(n_gamma)
-  cluster <- .cluster_indices_flatten(setup[["cluster"]])
-  weights <- if (is.null(setup[["weights"]])) {
-    NULL
-  } else {
-    .native_numeric_vector(setup[["weights"]])
-  }
-
-  return(.Call(
-    "RoBMA_norm_cluster_loglik_row_sum",
-    .native_numeric_vector(yi),
-    .native_numeric_vector(sei),
-    .native_numeric_matrix(setup[["mu"]]),
-    .native_numeric_matrix(setup[["tau_within"]]),
-    .native_numeric_matrix(setup[["tau_between"]]),
-    cluster[["index"]],
-    cluster[["size"]],
-    weights,
-    .native_numeric_vector(gh[["nodes"]]),
-    .native_numeric_vector(gh[["log_weights"]]),
-    PACKAGE = "RoBMA"
-  ))
-}
-
-
-
-# ---------------------------------------------------------------------------- #
-# .log_lik_cluster_norm_quadrature_r
-# ---------------------------------------------------------------------------- #
-#
-# R-composed reference implementation of the normal cluster likelihood.
-#
-# ---------------------------------------------------------------------------- #
-.log_lik_cluster_norm_quadrature_r <- function(setup, yi, sei,
-                                               n_gamma = NULL) {
-
-  n_gamma         <- .log_lik_cluster_norm_n_gamma(n_gamma)
-  gh              <- .gauss_hermite_nodes(n_gamma)
-  cluster_indices <- setup[["cluster"]]
-  S               <- setup[["S"]]
-  G               <- length(cluster_indices)
-  log_lik         <- matrix(NA_real_, nrow = S, ncol = G)
-  max_cells       <- 2e6
-
-  for (g in seq_along(cluster_indices)) {
-    idx       <- cluster_indices[[g]]
-    m         <- length(idx)
-    log_terms <- matrix(NA_real_, nrow = S, ncol = length(gh[["nodes"]]))
-    node_step <- max(1L, floor(max_cells / max(S * m, 1L)))
-    node_step <- min(node_step, length(gh[["nodes"]]))
-
-    for (start in seq(1L, length(gh[["nodes"]]), by = node_step)) {
-      node_rows <- start:min(start + node_step - 1L, length(gh[["nodes"]]))
-      B         <- length(node_rows)
-      row_index  <- rep(seq_len(S), times = B)
-      node_index <- rep(seq_len(B), each = S)
-
-      mu_node <- setup[["mu"]][row_index, idx, drop = FALSE] +
-        gh[["nodes"]][node_rows][node_index] *
-        setup[["tau_between"]][row_index, idx, drop = FALSE]
-
-      point_log_lik <- .outcome_pdf.norm(
-        yi         = yi[idx],
-        mu_samples = mu_node,
-        tau_within = setup[["tau_within"]][row_index, idx, drop = FALSE],
-        sei        = sei[idx]
-      )
-      point_log_lik <- .apply_log_lik_weights(point_log_lik, setup[["weights"]][idx])
-      log_terms[, node_rows] <- matrix(
-        rowSums(point_log_lik),
-        nrow = S,
-        ncol = B
-      ) + matrix(
-        gh[["log_weights"]][node_rows],
-        nrow  = S,
-        ncol  = B,
-        byrow = TRUE
-      )
-    }
-
-    log_lik[, g] <- .rowLogSumExps(log_terms)
-  }
-
-  return(log_lik)
-}
-
-
-.log_lik_cluster_norm_n_gamma <- function(n_gamma = NULL) {
-
-  if (!is.null(n_gamma)) {
-    BayesTools::check_int(n_gamma, "n_gamma", lower = 3)
-    return(as.integer(n_gamma))
-  }
-  return(.get_cluster_likelihood_n_gamma())
+  return(out)
 }

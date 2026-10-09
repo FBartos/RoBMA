@@ -3816,6 +3816,93 @@ int cpp_selnorm_factor_box_rng(
   return 0;
 }
 
+// Stable powered one-factor Gaussian integral with a per-row loading. Over the
+// loaded rows, b_i = |loading_i| / sd_i is carried on the log scale
+// (log beta = max log b_i), omega_i = power_i exp(2 (log b_i - log beta)) and
+// W = sum omega_i, and rho is the omega-weighted mean of the implied latent
+// values r_i / loading_i after one correction step. With A = 1 + P,
+// log P = 2 log beta + log W, the Gaussian is completed in the unit-normal
+// latent:
+//   e_i = ((r_i - loading_i rho) + loading_i rho / A) / sd_i,
+//   log L = -sum(power_i (log 2 pi + 2 log sd_i)) / 2 - log(A) / 2
+//           - (sum(power_i e_i^2) + (P rho / A)^2) / 2,
+// and an unloaded row keeps e_i = r_i / sd_i. `work` (n values) may be null.
+double cpp_gaussian_latent_loglik(
+    int n, const double *residual, const double *sd, const double *loading,
+    const double *power, double *work)
+{
+  const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+  const double infinity = std::numeric_limits<double>::infinity();
+  const double log_two_pi = std::log(6.283185307179586476925286766559);
+  std::vector<double> local_work;
+  if (work == nullptr) {
+    local_work.resize(static_cast<std::size_t>(std::max(n, 1)));
+    work = local_work.data();
+  }
+  double norm_sum = 0.0;
+  double plain_quadratic = 0.0;
+  double log_beta = -infinity;
+  int used = 0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (!(weight >= 0.0) || !std::isfinite(weight)) return not_a_number;
+    if (weight == 0.0) continue;
+    ++used;
+    if (!(sd[i] > 0.0) || !std::isfinite(sd[i]) ||
+        !std::isfinite(residual[i]) || !std::isfinite(loading[i])) {
+      return not_a_number;
+    }
+    const double log_sd = std::log(sd[i]);
+    norm_sum += weight * (log_two_pi + 2.0 * log_sd);
+    const double standardized = residual[i] / sd[i];
+    plain_quadratic += weight * standardized * standardized;
+    if (loading[i] != 0.0) {
+      work[i] = std::log(std::fabs(loading[i])) - log_sd;
+      log_beta = std::max(log_beta, work[i]);
+    }
+  }
+  if (used == 0) return 0.0;
+  const double norm = -0.5 * norm_sum;
+  if (log_beta == -infinity) return norm - 0.5 * plain_quadratic;
+
+  double information = 0.0;
+  double implied_sum = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0 || loading[i] == 0.0) continue;
+    const double omega = weight * std::exp(2.0 * (work[i] - log_beta));
+    information += omega;
+    implied_sum += omega * (residual[i] / loading[i]);
+  }
+  double implied = implied_sum / information;
+  double correction = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0 || loading[i] == 0.0) continue;
+    const double omega = weight * std::exp(2.0 * (work[i] - log_beta));
+    correction += omega * (residual[i] / loading[i] - implied);
+  }
+  implied += correction / information;
+
+  const double log_information = 2.0 * log_beta + std::log(information);
+  const double log_a = log_information > 0.0 ?
+    log_information + std::log1p(std::exp(-log_information)) :
+    std::log1p(std::exp(log_information));
+  const double inverse_a = std::exp(-log_a);
+  const double latent_mean = std::exp(log_information - log_a) * implied;
+  double quadratic = latent_mean * latent_mean;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0) continue;
+    const double standardized = loading[i] == 0.0 ?
+      residual[i] / sd[i] :
+      ((residual[i] - loading[i] * implied) +
+        loading[i] * implied * inverse_a) / sd[i];
+    quadratic += weight * standardized * standardized;
+  }
+  return norm - 0.5 * log_a - 0.5 * quadratic;
+}
+
 double cpp_selnorm_factor_step_lpdf(
     const double *x, const double *mean, const double *residual_sd,
     const double *declared_loading, int dimension, int declared_rank,

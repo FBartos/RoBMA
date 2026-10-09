@@ -61,9 +61,9 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' Other nuisance-prior families are rejected when the model input is validated.
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
-#' per cluster. For unweighted normal models without selection this uses the
-#' analytic cluster block covariance. Data-weighted normal models integrate
-#' the held-out cluster effect with Gauss-Hermite quadrature.
+#' per cluster. For normal models without selection, weighted or not, this uses
+#' the closed-form Gaussian integral over the held-out cluster effect, with the
+#' likelihood weights applied as powers of the row densities.
 #' Cluster-unit binomial and Poisson GLMM log-likelihoods are unavailable until
 #' certified nested adaptive quadrature is implemented; use
 #' \code{unit = "estimate"} for GLMMs.

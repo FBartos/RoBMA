@@ -974,6 +974,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   named as an unknown random-effect variable is.
 - fitted objects no longer keep the calling environment of their formulas,
   which could store unrelated workspace objects in saved fits.
+- normal cluster-unit log-likelihoods integrate the shared cluster effect in closed
+  form for weighted and unweighted rows, with the likelihood weights as powers of
+  the row densities. The stable one-factor form replaces prior-scale Gauss-Hermite
+  quadrature, which lost the density when the cluster effect dominated precise
+  rows. `cluster_likelihood.n_gamma` is still accepted and no longer affects
+  normal clusters.
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection

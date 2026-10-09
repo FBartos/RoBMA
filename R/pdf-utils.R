@@ -159,18 +159,6 @@
 
 
 
-.has_native_norm_cluster_quadrature <- function(row_sum = FALSE) {
-
-  symbol <- if (isTRUE(row_sum)) {
-    "RoBMA_norm_cluster_loglik_row_sum"
-  } else {
-    "RoBMA_norm_cluster_loglik"
-  }
-
-  return(is.loaded(symbol, PACKAGE = "RoBMA"))
-}
-
-
 .has_native_norm_cluster_analytic <- function(row_sum = FALSE) {
 
   symbol <- if (isTRUE(row_sum)) {
@@ -662,21 +650,6 @@
 }
 
 
-
-# ---------------------------------------------------------------------------- #
-# .get_cluster_likelihood_n_gamma
-# ---------------------------------------------------------------------------- #
-#
-# @return integer; number of Gauss-Hermite nodes for cluster likelihoods.
-#
-# ---------------------------------------------------------------------------- #
-.get_cluster_likelihood_n_gamma <- function() {
-
-  n_gamma <- RoBMA.get_option("cluster_likelihood.n_gamma")
-  BayesTools::check_int(n_gamma, "cluster_likelihood.n_gamma", lower = 3)
-
-  return(as.integer(n_gamma))
-}
 
 # ---------------------------------------------------------------------------- #
 # .selnorm_normal_upper_tail

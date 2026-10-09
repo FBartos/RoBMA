@@ -33,11 +33,10 @@ test_that("diagonal rank-one log density is stable for aligned residuals", {
       rank_one       = rank_one,
       residual_scale = residual_scale
     )
-    log_density     <- .log_dmvnorm_diag_rank_one(
-      x        = residual_scale * rank_one,
-      mean     = rep(0, length(rank_one)),
-      diagonal = rep(diagonal, length(rank_one)),
-      rank_one = rank_one
+    log_density     <- .log_lik_cluster_norm_stable(
+      residual = residual_scale * rank_one,
+      sd       = rep(sqrt(diagonal), length(rank_one)),
+      loading  = rank_one
     )
     quadratic       <- -2 * log_density -
       length(rank_one) * log(2 * pi) - oracle[["log_det"]]
@@ -81,7 +80,7 @@ test_that("vectorized cluster log density is stable for aligned residuals", {
   log_density <- as.vector(.log_lik_cluster_norm_analytic(
     setup = setup,
     yi    = rep(0, estimate_size),
-    vi    = rep(0, estimate_size)
+    sei   = rep(0, estimate_size)
   ))
   oracle <- lapply(seq_len(sample_size), function(i) {
     .aligned_rank_one_oracle(

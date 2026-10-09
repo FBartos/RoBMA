@@ -1,7 +1,8 @@
 .normal_scale_range_symbols <- function() {
 
   for (symbol in c("RoBMA_norm_loglik_row_sum", "RoBMA_norm_predictor_grid_loglik",
-    "RoBMA_norm_cluster_loglik", "RoBMA_norm_cluster_loglik_row_sum")) {
+    "RoBMA_norm_cluster_analytic_loglik",
+    "RoBMA_norm_cluster_analytic_loglik_row_sum")) {
     expect_s3_class(getNativeSymbolInfo(symbol, PACKAGE = "RoBMA"), "NativeSymbolInfo")
   }
 }
@@ -68,44 +69,56 @@ test_that("normal predictor grids keep admitted extreme candidates finite", {
     "'tau' must be absent when the grid replaces the scale itself.", fixed = TRUE)
 })
 
-test_that("normal cluster quadrature preserves a constant extreme-scale integrand", {
+test_that("normal cluster likelihood retains finite extreme scales and powers", {
 
   .normal_scale_range_symbols()
+  check <- function(setup, yi, sei, expected) {
+    cluster <- .cluster_indices_flatten(setup$cluster)
+    native_args <- list(yi, sei, setup$mu, setup$tau_within, setup$tau_between,
+      cluster$index, cluster$size, setup$weights)
+    matrix_value <- do.call(.Call, c(
+      "RoBMA_norm_cluster_analytic_loglik", native_args, PACKAGE = "RoBMA"))
+    row_sum <- do.call(.Call, c(
+      "RoBMA_norm_cluster_analytic_loglik_row_sum", native_args,
+      PACKAGE = "RoBMA"))
+    expect_true(all(is.finite(matrix_value)))
+    expect_true(all(is.finite(row_sum)))
+    expect_equal(matrix_value, expected, tolerance = 1e-14)
+    expect_equal(row_sum, rowSums(expected), tolerance = 1e-14)
+    expect_equal(.log_lik_cluster_norm_analytic(setup, yi, sei), expected,
+      tolerance = 1e-14)
+    expect_equal(.log_lik_cluster_norm_analytic_sum(setup, yi, sei),
+      rowSums(expected), tolerance = 1e-14)
+    expect_equal(.log_lik_cluster_norm_analytic_r(setup, yi, sei), expected,
+      tolerance = 1e-14)
+  }
   yi <- c(.1, -.2, .3)
   sei <- rep(1, 3L)
   setup <- list(S = 2L, mu = matrix(0, 2L, 3L),
     tau_within = matrix(1e200, 2L, 3L), tau_between = matrix(0, 2L, 3L),
     cluster = list(1:2, 3L), weights = rep(1, 3L))
-  # With tau_between = 0 the integrand is constant in every GH node;
-  # use the existing rule budget rather than tuning quadrature for this case.
-  gh <- .gauss_hermite_nodes(.log_lik_cluster_norm_n_gamma())
-  cluster <- .cluster_indices_flatten(setup$cluster)
+  # Without a latent loading the cluster density is the product of its rows.
   expected <- matrix(rep(c(sum(stats::dnorm(yi[1:2], sd = 1e200, log = TRUE)),
     stats::dnorm(yi[3L], sd = 1e200, log = TRUE)), each = setup$S), setup$S)
-  matrix_value <- .Call("RoBMA_norm_cluster_loglik", yi, sei, setup$mu,
-    setup$tau_within, setup$tau_between, cluster$index, cluster$size,
-    setup$weights, gh$nodes, gh$log_weights, PACKAGE = "RoBMA")
-  row_sum <- .Call("RoBMA_norm_cluster_loglik_row_sum", yi, sei, setup$mu,
-    setup$tau_within, setup$tau_between, cluster$index, cluster$size,
-    setup$weights, gh$nodes, gh$log_weights, PACKAGE = "RoBMA")
-  expect_true(all(is.finite(matrix_value)))
-  expect_true(all(is.finite(row_sum)))
-  expect_equal(matrix_value, expected, tolerance = 1e-14)
-  expect_equal(row_sum, rowSums(expected), tolerance = 1e-14)
-  expect_equal(.log_lik_cluster_norm_quadrature(setup, yi, sei), expected,
-    tolerance = 1e-14)
-  expect_equal(.log_lik_cluster_norm_quadrature_sum(setup, yi, sei),
-    rowSums(expected), tolerance = 1e-14)
+  check(setup, yi, sei, expected)
 
   setup$tau_within[,] <- .2
   setup$weights <- c(.5, 1, 1.5)
   reference <- setup$weights * stats::dnorm(yi, sd = sqrt(1 + .2^2), log = TRUE)
   expected <- matrix(rep(c(sum(reference[1:2]), reference[3L]), each = setup$S), setup$S)
-  expect_equal(.log_lik_cluster_norm_quadrature(setup, yi, sei), expected,
-    tolerance = 1e-14)
-  expect_equal(.log_lik_cluster_norm_quadrature_sum(setup, yi, sei),
-    rowSums(expected), tolerance = 1e-14)
+  check(setup, yi, sei, expected)
+
+  # A latent effect of 1e200 against a sampling SE of 1e-200: the information
+  # 1e800 is carried on the log scale; the closed form is
+  # -log(2 pi) / 2 - log(sd) - log(1 + (tau / sd)^2) / 2 at a zero residual.
+  singleton <- list(S = 1L, mu = matrix(0, 1L, 1L),
+    tau_within = matrix(0, 1L, 1L), tau_between = matrix(1e200, 1L, 1L),
+    cluster = list(1L), weights = 1)
+  expected <- -log(2 * pi) / 2 + 200 * log(10) - (800 * log(10)) / 2
+  expect_equal(expected, -461.43595713201381, tolerance = 1e-15)
+  check(singleton, 0, 1e-200, matrix(expected, 1L, 1L))
 })
+
 
 test_that("internal normal kernels retain continuous tiny positive total SD", {
 

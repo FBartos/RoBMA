@@ -54,26 +54,13 @@
 
   .check_cluster_selection_is_joint(is_weightfunction)
 
-  if (outcome_type == "norm" && is.null(setup[["weights"]])) {
-    if (setup[["effect_direction"]] == "negative") {
-      cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
-      yi                    <- -yi
-    }
-
-    return(.log_lik_cluster_norm_analytic(
-      setup = cluster_setup,
-      yi    = yi,
-      vi    = sei^2
-    ))
-  }
-
   if (outcome_type == "norm") {
     if (setup[["effect_direction"]] == "negative") {
       cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
       yi                    <- -yi
     }
 
-    return(.log_lik_cluster_norm_quadrature(
+    return(.log_lik_cluster_norm_analytic(
       setup = cluster_setup,
       yi    = yi,
       sei   = sei
@@ -380,26 +367,13 @@
 
   .check_cluster_selection_is_joint(is_weightfunction)
 
-  if (outcome_type == "norm" && is.null(setup[["weights"]])) {
-    if (setup[["effect_direction"]] == "negative") {
-      cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
-      yi                    <- -yi
-    }
-
-    return(.log_lik_cluster_norm_analytic_sum(
-      setup = cluster_setup,
-      yi    = yi,
-      vi    = sei^2
-    ))
-  }
-
   if (outcome_type == "norm") {
     if (setup[["effect_direction"]] == "negative") {
       cluster_setup[["mu"]] <- -cluster_setup[["mu"]]
       yi                    <- -yi
     }
 
-    return(.log_lik_cluster_norm_quadrature_sum(
+    return(.log_lik_cluster_norm_analytic_sum(
       setup = cluster_setup,
       yi    = yi,
       sei   = sei

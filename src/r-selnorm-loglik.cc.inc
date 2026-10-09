@@ -277,21 +277,22 @@ extern "C" SEXP RoBMA_norm_loglik_row_sum(
 }
 
 extern "C" SEXP RoBMA_norm_cluster_analytic_loglik(
-  SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
-  SEXP cluster_index, SEXP cluster_size)
+  SEXP yi, SEXP sei, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
+  SEXP cluster_index, SEXP cluster_size, SEXP weights)
 {
-  ROBMA_NATIVE_BEGIN(yi, vi, mu_samples, tau_within, tau_between, cluster_index, cluster_size)
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights)
   NormClusterAnalyticArgs args;
   validate_cluster_common_data(
-    yi, vi, "vi", mu_samples, tau_within, tau_between, cluster_index,
-    cluster_size, R_NilValue, &args.S, &args.K, &args.G
+    yi, sei, "sei", mu_samples, tau_within, tau_between, cluster_index,
+    cluster_size, weights, &args.S, &args.K, &args.G
   );
   args.yi            = REAL(yi);
-  args.vi            = REAL(vi);
+  args.sei           = REAL(sei);
   args.mu            = REAL(mu_samples);
   args.tau_within    = REAL(tau_within);
   args.tau_between   = REAL(tau_between);
   args.tau_total     = 0;
+  args.weights       = weights == R_NilValue ? 0 : REAL(weights);
   args.cluster_index = INTEGER(cluster_index);
   args.cluster_size  = INTEGER(cluster_size);
 
@@ -300,21 +301,22 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_loglik(
 }
 
 extern "C" SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(
-  SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
-  SEXP cluster_index, SEXP cluster_size)
+  SEXP yi, SEXP sei, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
+  SEXP cluster_index, SEXP cluster_size, SEXP weights)
 {
-  ROBMA_NATIVE_BEGIN(yi, vi, mu_samples, tau_within, tau_between, cluster_index, cluster_size)
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights)
   NormClusterAnalyticArgs args;
   validate_cluster_common_data(
-    yi, vi, "vi", mu_samples, tau_within, tau_between, cluster_index,
-    cluster_size, R_NilValue, &args.S, &args.K, &args.G
+    yi, sei, "sei", mu_samples, tau_within, tau_between, cluster_index,
+    cluster_size, weights, &args.S, &args.K, &args.G
   );
   args.yi            = REAL(yi);
-  args.vi            = REAL(vi);
+  args.sei           = REAL(sei);
   args.mu            = REAL(mu_samples);
   args.tau_within    = REAL(tau_within);
   args.tau_between   = REAL(tau_between);
   args.tau_total     = 0;
+  args.weights       = weights == R_NilValue ? 0 : REAL(weights);
   args.cluster_index = INTEGER(cluster_index);
   args.cluster_size  = INTEGER(cluster_size);
 
@@ -323,14 +325,14 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_loglik_row_sum(
 }
 
 extern "C" SEXP RoBMA_norm_cluster_analytic_rho_grid_loglik(
-  SEXP yi, SEXP vi, SEXP mu_samples, SEXP tau_total, SEXP rho,
-  SEXP cluster_index, SEXP cluster_size)
+  SEXP yi, SEXP sei, SEXP mu_samples, SEXP tau_total, SEXP rho,
+  SEXP cluster_index, SEXP cluster_size, SEXP weights)
 {
-  ROBMA_NATIVE_BEGIN(yi, vi, mu_samples, tau_total, rho, cluster_index, cluster_size)
+  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_total, rho, cluster_index, cluster_size, weights)
   NormClusterAnalyticArgs args;
   validate_cluster_common_data(
-    yi, vi, "vi", mu_samples, tau_total, tau_total, cluster_index,
-    cluster_size, R_NilValue, &args.S, &args.K, &args.G
+    yi, sei, "sei", mu_samples, tau_total, tau_total, cluster_index,
+    cluster_size, weights, &args.S, &args.K, &args.G
   );
   check_real(rho, "rho");
   const int n_rho = Rf_length(rho);
@@ -344,68 +346,15 @@ extern "C" SEXP RoBMA_norm_cluster_analytic_rho_grid_loglik(
     }
   }
   args.yi            = REAL(yi);
-  args.vi            = REAL(vi);
+  args.sei           = REAL(sei);
   args.mu            = REAL(mu_samples);
   args.tau_within    = 0;
   args.tau_between   = 0;
   args.tau_total     = REAL(tau_total);
+  args.weights       = weights == R_NilValue ? 0 : REAL(weights);
   args.cluster_index = INTEGER(cluster_index);
   args.cluster_size  = INTEGER(cluster_size);
 
   return norm_cluster_analytic_rho_grid_accumulate(args, rho_p, n_rho);
-  ROBMA_NATIVE_END
-}
-
-extern "C" SEXP RoBMA_norm_cluster_loglik(
-  SEXP yi, SEXP sei, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
-  SEXP cluster_index, SEXP cluster_size, SEXP weights, SEXP gamma_grid,
-  SEXP log_gamma_weights)
-{
-  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights)
-  NormClusterArgs args;
-  validate_cluster_common_norm(
-    yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
-    weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
-    &args.n_gamma
-  );
-  args.yi                = REAL(yi);
-  args.sei               = REAL(sei);
-  args.mu                = REAL(mu_samples);
-  args.tau_within        = REAL(tau_within);
-  args.tau_between       = REAL(tau_between);
-  args.cluster_index     = INTEGER(cluster_index);
-  args.cluster_size      = INTEGER(cluster_size);
-  args.weights           = weights == R_NilValue ? 0 : REAL(weights);
-  args.gamma             = REAL(gamma_grid);
-  args.log_gamma         = REAL(log_gamma_weights);
-
-  return norm_cluster_accumulate(args);
-  ROBMA_NATIVE_END
-}
-
-extern "C" SEXP RoBMA_norm_cluster_loglik_row_sum(
-  SEXP yi, SEXP sei, SEXP mu_samples, SEXP tau_within, SEXP tau_between,
-  SEXP cluster_index, SEXP cluster_size, SEXP weights, SEXP gamma_grid,
-  SEXP log_gamma_weights)
-{
-  ROBMA_NATIVE_BEGIN(yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size, weights, gamma_grid, log_gamma_weights)
-  NormClusterArgs args;
-  validate_cluster_common_norm(
-    yi, sei, mu_samples, tau_within, tau_between, cluster_index, cluster_size,
-    weights, gamma_grid, log_gamma_weights, &args.S, &args.K, &args.G,
-    &args.n_gamma
-  );
-  args.yi                = REAL(yi);
-  args.sei               = REAL(sei);
-  args.mu                = REAL(mu_samples);
-  args.tau_within        = REAL(tau_within);
-  args.tau_between       = REAL(tau_between);
-  args.cluster_index     = INTEGER(cluster_index);
-  args.cluster_size      = INTEGER(cluster_size);
-  args.weights           = weights == R_NilValue ? 0 : REAL(weights);
-  args.gamma             = REAL(gamma_grid);
-  args.log_gamma         = REAL(log_gamma_weights);
-
-  return norm_cluster_accumulate_row_sum(args);
   ROBMA_NATIVE_END
 }
