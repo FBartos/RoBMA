@@ -24,8 +24,12 @@
   rank_one_factor  <- if (!invalid_variance && size > 1L) .covariance_exact_rank_one_factor(covariance) else NULL
   cholesky         <- NULL
   sampling_factor  <- NULL
+  # The ratio of the largest to the smallest retained value of the correlation
+  # spectrum: the conditioning of the eigensolve that fixes the null space.
+  correlation_condition <- NA_real_
   if (!is.null(rank_one_factor)) {
     sampling_factor <- matrix(rank_one_factor, nrow = 1L)
+    correlation_condition <- 1
   }
 
   # Keep the raw values-only spectrum as a diagnostic. Rank and null-space
@@ -60,6 +64,10 @@
         }
         if (!invalid_variance) {
           keep <- which(spectral_values > 0)
+          if (length(keep) > 0L) {
+            correlation_condition <- max(spectral_values[keep]) /
+              min(spectral_values[keep])
+          }
           # A rounded Cholesky pivot can be positive for an exactly
           # dependent covariance. Establish support in correlation units
           # first; Cholesky chooses a factor only when all axes are retained.
@@ -107,6 +115,7 @@
       sampling_factor      = sampling_factor,
       eigenvalues          = values,
       spectral_values      = spectral_values,
+      correlation_condition = correlation_condition,
       eigenvectors         = vectors,
       singular             = !identical(status, "positive_definite"),
       status               = status

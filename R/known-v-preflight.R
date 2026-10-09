@@ -163,7 +163,10 @@
     return(invisible(TRUE))
   }
 
-  support     <- matrix(0, K, K)
+  # The integrated support is the Gram matrix of its generators, the columns of
+  # `support` below: the group-expanded design columns of the integrated random
+  # terms, or the indicators of the rows with integrated heterogeneity.
+  support     <- matrix(0, K, 0L)
   unavailable <- character()
   sources     <- character()
   if (.is_data_random(data)) {
@@ -174,30 +177,25 @@
     for (term in terms) {
       block <- term[["block_name"]]
       sources <- c(sources, block)
-      contribution <- .selection_random_term_integrated_support(
+      contribution <- .selection_random_term_integrated_generators(
         term, data, design[["prior_list"]], K
       )
       if (is.null(contribution)) {
         unavailable <- c(unavailable, block)
       } else {
-        support <- support + contribution
+        support <- cbind(support, contribution)
       }
     }
   } else if (.selection_integrates_estimate(data) ||
              (.selection_retains_sampling(data) && .selection_retains_estimate(data))) {
-    support <- diag(.brma_mv_regularized_variance_rows(object, K), K)
+    support <- diag(K)[, .brma_mv_regularized_variance_rows(object, K), drop = FALSE]
     sources <- "heterogeneity"
   }
 
   invalid <- Filter(function(rows) {
     covariance <- .covariance_factorization(sampling[rows, rows, drop = FALSE])
     if (.covariance_is_numerically_positive_definite(covariance)) return(FALSE)
-    null <- covariance[["eigenvectors"]][
-      , seq_len(nrow(covariance[["covariance"]])) > nrow(covariance[["sampling_factor"]]),
-      drop = FALSE
-    ]
-    projected <- crossprod(null, support[rows, rows, drop = FALSE] %*% null)
-    qr(projected, tol = sqrt(.Machine$double.eps))[["rank"]] < ncol(null)
+    !.known_v_nullspace_is_covered(covariance, support[rows, , drop = FALSE])
   }, singular)
   if (length(invalid) == 0L) {
     return(invisible(TRUE))
@@ -251,6 +249,44 @@
 # coefficient/group correlations preserve this space under positive scales.
 .selection_random_term_integrated_support <- function(term, data, prior_list, K) {
 
+  design <- .selection_random_term_integrated_design(term, data, prior_list, K)
+  if (is.null(design)) {
+    return(NULL)
+  }
+  X <- design[["X"]]
+  if (identical(design[["role"]], "estimate")) {
+    return(diag(rowSums(X != 0) > 0, K))
+  }
+  # A positive-definite known group kernel has the same column space as
+  # independent group coefficients. The compiler owns that definiteness check.
+  tcrossprod(X) * outer(term[["group_map"]], term[["group_map"]], `==`)
+}
+
+
+# The same support as generators, one column each: its Gram matrix is the
+# support. An estimate-level term contributes the indicators of its integrated
+# rows, any other term its design columns restricted to each group in turn.
+.selection_random_term_integrated_generators <- function(term, data, prior_list, K) {
+
+  design <- .selection_random_term_integrated_design(term, data, prior_list, K)
+  if (is.null(design)) {
+    return(NULL)
+  }
+  X <- design[["X"]]
+  if (identical(design[["role"]], "estimate")) {
+    return(diag(K)[, rowSums(X != 0) > 0, drop = FALSE])
+  }
+
+  do.call(cbind, lapply(unique(term[["group_map"]]), function(group) {
+    X * (term[["group_map"]] == group)
+  }))
+}
+
+
+# The design columns of a term that are guaranteed integrated variation: those
+# of rows whose scale is structurally positive. NULL when that is unresolved.
+.selection_random_term_integrated_design <- function(term, data, prior_list, K) {
+
   role <- BayesTools::random_effects_source_roles(list(term), K)[[1L]]
   X    <- term[["model_matrix"]]
   if (!.selection_random_correlation_has_full_support(term, prior_list)) {
@@ -295,12 +331,8 @@
     }
     X[!positive, column] <- 0
   }
-  if (identical(role, "estimate")) {
-    return(diag(rowSums(X != 0) > 0, K))
-  }
-  # A positive-definite known group kernel has the same column space as
-  # independent group coefficients. The compiler owns that definiteness check.
-  tcrossprod(X) * outer(term[["group_map"]], term[["group_map"]], `==`)
+
+  list(X = X, role = role)
 }
 
 
@@ -943,17 +975,50 @@
 
   factorization <- .covariance_factorization(covariance)
   if (.covariance_is_numerically_positive_definite(factorization)) return(TRUE)
-  null <- factorization[["eigenvectors"]][
-    , seq_len(nrow(covariance)) > nrow(factorization[["sampling_factor"]]),
-    drop = FALSE
-  ]
+
+  .known_v_nullspace_is_covered(
+    factorization,
+    diag(nrow(covariance))[, regularized_rows, drop = FALSE]
+  )
+}
+
+
+# Whether guaranteed integrated variation covers every direction of the null
+# space of a singular covariance. The variation is given by generators, the
+# columns of `generators` (indexed by the covariance's rows): its covariance is
+# their Gram matrix, and the null space is covered when the generators span it.
+#
+# The null basis N is the complement of the accepted factor, from the
+# eigensolve of the correlation matrix, and carries the error of that solve:
+# along the weakest retained axis it is off by about eps * lambda_1 / lambda_r
+# (the correlation spectrum, recorded as `correlation_condition`), along the
+# rest by eps. The generators are the support's factor, never its Gram matrix,
+# which squares their conditioning; columns are scaled to unit length and
+# exactly zero columns are dropped. The null space is covered when the smallest
+# singular value of N'X exceeds twice the basis error relative to the
+# generators' largest singular value, below which a direction is only rounding
+# noise of N.
+.known_v_nullspace_is_covered <- function(factorization, generators) {
+
+  K    <- nrow(factorization[["covariance"]])
+  rank <- nrow(factorization[["sampling_factor"]])
+  null <- factorization[["eigenvectors"]][, seq_len(K) > rank, drop = FALSE]
   if (ncol(null) == 0L) {
     return(TRUE)
   }
-  if (!any(regularized_rows)) {
+  generators <- generators[, colSums(generators != 0) > 0, drop = FALSE]
+  if (ncol(generators) < ncol(null)) {
     return(FALSE)
   }
+  generators <- sweep(generators, 2L, apply(abs(generators), 2L, max), "/")
+  generators <- sweep(generators, 2L, sqrt(colSums(generators^2)), "/")
 
-  qr(null[regularized_rows, , drop = FALSE], tol = sqrt(.Machine$double.eps))[["rank"]] ==
-    ncol(null)
+  condition <- factorization[["correlation_condition"]]
+  delta     <- if (is.finite(condition)) {
+    4 * K * .Machine$double.eps * condition
+  } else 0
+  covered   <- svd(crossprod(null, generators), nu = 0L, nv = 0L)[["d"]][[ncol(null)]]
+
+  covered > 2 * (delta + 4 * K * .Machine$double.eps) *
+    svd(generators, nu = 0L, nv = 0L)[["d"]][[1L]]
 }

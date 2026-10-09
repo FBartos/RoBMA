@@ -891,6 +891,16 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   {1, 3} beside {2, 4} was read back as blocks over {1, 2} and {3, 4}, which
   permuted the covariance of the retained model. Contiguous blocks keep their
   compact list.
+- the check that integrated random-effect variation covers every null direction
+  of a singular sampling covariance `V` (selection models with integrated
+  sources, and the singular-`V` regularization of known-V models) compares the
+  null basis with the factor of the integrated support, not with a QR rank of
+  its Gram matrix, and allows for the error of the null basis (the correlation
+  spectrum of `V`). Sources spanning the range of `V` (an integrated paper
+  intercept beside `V = v 11'`, an intercept and slope on `x` beside
+  `V = [1 x][1 x]'`) no longer pass for rounding noise in the null basis, and a
+  row-level regularization on the wrong row of a permuted block no longer
+  counts.
 - `predict()` stops and names a variable of the moderator or scale formula
   (or of a random-effect formula) that `newdata` lacks. 4.0.0 filled missing
   outcome-named columns (`yi`, `sei`, `ai`, `ci`, `n1i`, `n2i`, ...) with
