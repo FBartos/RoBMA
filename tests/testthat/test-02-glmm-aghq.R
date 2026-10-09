@@ -235,6 +235,30 @@ test_that("exact beta-binomial shortcut keeps event increments for large shapes"
 })
 
 
+test_that("exact beta-binomial shortcut keeps shapes whose sum overflows", {
+
+  # One event and one non-event again, with alpha + beta beyond the largest
+  # double (the sum overflowed to Inf and the shortcut stopped with the
+  # nonfinite-value error although the ratio is representable). 900-digit
+  # mpmath values of log(a / (a + b)) + log(b / (a + b + 1)).
+  cases <- list(
+    list(shapes = c(1e308, 1e308), expected = -1.3862943611198906),
+    list(shapes = c(1.5e308, 1.5e308), expected = -1.3862943611198906),
+    list(shapes = c(1.7e308, 1e307), expected = -2.9475301717361133),
+    list(shapes = c(1e307, 1.7e308), expected = -2.9475301717361133)
+  )
+  for (case in cases) {
+    out <- .glmm_binom_aghq(
+      1L, 0L, 1L, 1L, matrix(0), matrix(0), NULL,
+      c(alpha = case$shapes[[1L]], beta = case$shapes[[2L]])
+    )
+    expect_equal(out[["value"]][1L, 1L], case$expected, tolerance = 1e-12,
+      info = paste("shapes", case$shapes[[1L]], case$shapes[[2L]]))
+    expect_equal(out[["exact_count"]], 1L)
+  }
+})
+
+
 test_that("exact beta-binomial shortcut equals lbeta differences for moderate shapes", {
 
   ai  <- c(3L, 0L, 12L)

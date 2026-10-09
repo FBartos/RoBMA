@@ -737,32 +737,20 @@ inline double log1p_ratio(double t, double z)
 }
 
 
-// log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0, evaluated as a
-// difference of the Stirling series so that no two large log-gamma values
-// are subtracted: the recurrence lifts z to at least 16, and with
-// r = t / z, L = log1p(r) and h(r) = ((1 + r) L - r) / r the series is
+// log Gamma(z + t) - log Gamma(z) for z >= 16 and t > 0 given as r = t / z,
+// log z and 1 / z (so that a z beyond the largest double can be passed
+// without being formed): with L = log1p(r) and h(r) = ((1 + r) L - r) / r the
+// Stirling difference is
 //   t (log z + h) - L / 2 + sum_k c_k z^-(2k-1) expm1(-(2k-1) L),
 // the first omitted term being below 3617 / (122400 z^15) per log-gamma value
-// (a truncation bound, not a rounding bound). A non-finite or non-positive
-// argument gives NaN.
-double log_gamma_increment(double z, double t)
+// (a truncation bound, not a rounding bound).
+double log_gamma_increment_lifted(double t, double ratio, double log_z,
+                                  double inverse)
 {
-  if (!(z > 0.0) || !(t >= 0.0) || !std::isfinite(z) || !std::isfinite(t)) {
-    return std::numeric_limits<double>::quiet_NaN();
-  }
-  if (t == 0.0) {
-    return 0.0;
-  }
   static const double coefficients[7] = {
     1.0 / 12.0, -1.0 / 360.0, 1.0 / 1260.0, -1.0 / 1680.0, 1.0 / 1188.0,
     -691.0 / 360360.0, 1.0 / 156.0
   };
-  double recurrence = 0.0;
-  while (z < 16.0) {
-    recurrence += log1p_ratio(t, z);
-    z += 1.0;
-  }
-  const double ratio     = t / z;
   const double log_ratio = std::log1p(ratio);
   double h;
   if (ratio <= 0.01) {
@@ -776,7 +764,6 @@ double log_gamma_increment(double z, double t)
   } else {
     h = (1.0 + 1.0 / ratio) * log_ratio - 1.0;
   }
-  const double inverse   = 1.0 / z;
   const double inverse_2 = inverse * inverse;
   double inverse_power   = inverse;
   double series          = 0.0;
@@ -785,7 +772,56 @@ double log_gamma_increment(double z, double t)
       std::expm1(-(2.0 * k - 1.0) * log_ratio);
     inverse_power *= inverse_2;
   }
-  return t * (std::log(z) + h) - 0.5 * log_ratio + series - recurrence;
+  return t * (log_z + h) - 0.5 * log_ratio + series;
+}
+
+
+// log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0, evaluated as a
+// difference of the Stirling series so that no two large log-gamma values
+// are subtracted: the recurrence lifts z to at least 16. A non-finite or
+// non-positive argument gives NaN.
+double log_gamma_increment(double z, double t)
+{
+  if (!(z > 0.0) || !(t >= 0.0) || !std::isfinite(z) || !std::isfinite(t)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (t == 0.0) {
+    return 0.0;
+  }
+  double recurrence = 0.0;
+  while (z < 16.0) {
+    recurrence += log1p_ratio(t, z);
+    z += 1.0;
+  }
+  return log_gamma_increment_lifted(t, t / z, std::log(z), 1.0 / z) -
+    recurrence;
+}
+
+
+// log Gamma(a + b + t) - log Gamma(a + b) for a, b > 0 and t >= 0, without
+// forming a + b when it overflows: with hi >= lo, a + b = hi (1 + lo / hi),
+// log(a + b) = log(hi) + log1p(lo / hi), and no recurrence is needed because
+// the sum exceeds 16.
+double log_gamma_increment_sum(double a, double b, double t)
+{
+  const double sum = a + b;
+  if (std::isfinite(sum)) {
+    return log_gamma_increment(sum, t);
+  }
+  if (!(a > 0.0) || !(b > 0.0) || !(t >= 0.0) || !std::isfinite(a) ||
+      !std::isfinite(b) || !std::isfinite(t)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (t == 0.0) {
+    return 0.0;
+  }
+  const double high  = std::max(a, b);
+  const double low   = std::min(a, b);
+  const double scale = 1.0 + low / high;
+  return log_gamma_increment_lifted(
+    t, t / high / scale, std::log(high) + std::log1p(low / high),
+    1.0 / high / scale
+  );
 }
 
 
@@ -890,8 +926,8 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
         result.value = problem.weight * problem.log_coefficient +
           log_gamma_increment(problem.alpha, events) +
           log_gamma_increment(problem.beta, nonevents) -
-          log_gamma_increment(problem.alpha + problem.beta,
-                              events + nonevents);
+          log_gamma_increment_sum(problem.alpha, problem.beta,
+                                  events + nonevents);
         if (!std::isfinite(result.value)) {
           Rf_error(
             "Exact powered beta-binomial value is nonfinite at sample %d, "
