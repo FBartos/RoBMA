@@ -5,7 +5,7 @@ fit	fit_brma_mv_quality	5.940000000	1.639063	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_mv_quality_null	5.910000000	1.639063	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_mv_rcor	6.790000000	1.638965	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_mv_rcor_null	5.780000000	1.638965	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_brma_mv	1.780000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_brma_mv	1.610000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_mv_null	1.510000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_mv_quality	1.550000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_mv_quality_null	1.520000000	NA	4.6.0	Windows/x86_64-w64-mingw32
@@ -38,6 +38,6 @@ plot	diagnostics-no-known-R	17.940000000	0.813379	4.6.0	Windows/x86_64-w64-mingw
 plot	funnel	6.950000000	0.781738	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-mu	0.940000000	0.670996	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-tau	4.630000000	0.674219	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm	2.390000000	0.771387	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm	2.240000000	0.771387	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-effects	7.520000000	0.737598	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	0.570000000	0.813379	4.6.0	Windows/x86_64-w64-mingw32

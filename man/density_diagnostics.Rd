@@ -157,7 +157,7 @@ evaluated row, separately from the MCMC precision diagnostics. The columns
 this computation while \code{estimator} retains the requested method.
 \code{ordered_error_status} preserves its estimated error status. Block numerator
 and denominator errors, maximum quadrature order/panel count, and actual
-native normalizer node count are reported in the \code{block_*} columns. Exact
+native normalizer node count are reported in the \verb{block_*} columns. Exact
 offsets classified as nonfinite or unsupported are excluded only from density curves;
 explicit point requests retain their structural or precision refusal.
 The ordered per-row limit of 0.025 is separate from the generic stability

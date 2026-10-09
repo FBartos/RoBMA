@@ -630,24 +630,27 @@ testthat::test_that("BCG Meta-Regression", {
   )})
 
   ### ordinal predictor ---
-  # TODO: enable once fully implemented
-  # fit_reg1_ordered <- scenario_fit("fit_reg1_ordered", {
-  #   dat$alloc_ord <- ordered(dat$alloc, c("systematic", "alternate", "random"))
-  #   tmp <- brma(yi = yi, vi = vi, mods = ~ alloc_ord, data = dat, measure = "RR", prior_mods = list(alloc_ord = prior_ordered(prior("normal", list(0, 0.5)))))
-  #   tmp <- add_loo(tmp)
-  #   tmp <- add_marglik(tmp)
-  #   return(tmp)
-  # })
-  #
-  # scenario_text("fit_reg1_ordered_summary", summary(fit_reg1_ordered))
-  # scenario_text("fit_reg1_ordered_test",    bf(fit_reg1_ordered, fit_reg1))
-  #
-  # set.seed(1)
-  # scenario_plot("fit_reg1_ordered_posterior", {
-  #   plot(fit_reg1_ordered, "alloc_ord",  prior = TRUE)
-  #   lines(fit_reg1_ordered, "alloc_ord", density_method = "IWMDE", lty = 2)
-  #   lines(fit_reg1_ordered, "alloc_ord", density_method = "qCMDE", lty = 2)
-  # })
+  fit_reg1_ordered <- scenario_fit("fit_reg1_ordered", {
+    dat$alloc_ord <- ordered(dat$alloc, c("systematic", "alternate", "random"))
+    tmp <- brma(yi = yi, vi = vi, mods = ~ alloc_ord, data = dat, measure = "RR", prior_mods = list(alloc_ord = prior_ordered(prior("normal", list(0, 0.5)))))
+    tmp <- add_loo(tmp)
+    tmp <- add_marglik(tmp)
+    return(tmp)
+  })
 
+  scenario_text("fit_reg1_ordered_summary", summary(fit_reg1_ordered))
+  scenario_text("fit_reg1_ordered_test",    bf(fit_reg1_ordered, fit_reg1))
+
+  set.seed(1)
+  scenario_plot("fit_reg1_ordered_posterior", {
+    plot(fit_reg1_ordered, "alloc_ord",  prior = TRUE, ylim = c(0, 4), xlim = c(-1.5, 1.5))
+    lines(fit_reg1_ordered, "alloc_ord", density_method = "qCMDE", lty = 2, density_control = list(samples = 2000))
+  })
+
+  scenario_plot("fit_reg1_ordered_emm", {
+    fit_reg1_emm <- marginal_means(fit_reg1_ordered)
+    plot(fit_reg1_emm, "alloc_ord",  prior = TRUE)
+    lines(fit_reg1_emm, "alloc_ord", density_method = "qCMDE", lty = 2, density_control = list(samples = 2000))
+  })
 })
 
