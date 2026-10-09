@@ -84,3 +84,47 @@ test_that("random SD point hypotheses plan their density target on the statement
     )
   }
 })
+
+test_that("random SD plots build their density target on the plotted coefficient scale", {
+
+  replay <- .review_random_slope_replay()
+  object <- replay[["object"]]
+  # the replayed posterior is a fitted posterior, plotted by the posterior method
+  class(object) <- setdiff(class(object), "only_priors.brma")
+
+  for (standardized in c(FALSE, TRUE)) {
+    attached <- NULL
+    stop_after_attach <- function(...) {
+      stop(structure(
+        class = c("review_plot_target_built", "error", "condition"),
+        list(message = "plot target built", call = NULL)
+      ))
+    }
+    outcome <- testthat::with_mocked_bindings(
+      tryCatch(
+        plot(object, "tau", standardized_coefficients = standardized,
+             density_method = "qCMDE"),
+        review_plot_target_built = identity
+      ),
+      .iwmde_check_density_method_supported = function(...) invisible(NULL),
+      .plot_brma_attach_iwmde = function(object, samples, parameter,
+                                         display_transform = NULL, ...) {
+        attached <<- list(parameter = parameter, display_transform = display_transform)
+        stop_after_attach()
+      },
+      .package = "RoBMA"
+    )
+    info <- paste("standardized:", standardized)
+    expect_s3_class(outcome, "review_plot_target_built")
+    expect_false(is.null(attached), info = info)
+
+    # the target of the plot is the mixed posterior drawn on the plotted scale
+    plotted <- as.numeric(.brma_random_parameter_mixed_posterior(
+      object, "tau", standardized_coefficients = standardized
+    )[[1L]])
+    transformed <- BayesTools::parameter_transform_forward(
+      replay[["samples"]][, attached[["parameter"]]], attached[["display_transform"]]
+    )
+    expect_equal(as.numeric(transformed), plotted, tolerance = 1e-12, info = info)
+  }
+})
