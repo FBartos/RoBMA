@@ -2098,7 +2098,9 @@
   # statement tests a fixed level when it states a point on it directly,
   # references the whole term (an event on every level jointly), or
   # references no other level; comparisons of a fixed level with other levels
-  # remain defined.
+  # remain defined. Only direct references reach this route, so the level of
+  # every point target below is among the tested ones: a fixed marginal mean
+  # is refused here, before any target is built.
   refs   <- plan[["refs"]]
   tested <- if (is.list(posterior)) {
     unique(c(
@@ -2164,9 +2166,7 @@
         level         = level,
         prior_density = density,
         atoms         = BayesTools::posterior_metadata(sample, "atoms"),
-        refusal       = if (.hypothesis_plan_draws_fixed(sample)) {
-          .hypothesis_plan_fixed_refusal(.hypothesis_plan_marginal_label(plan, level))
-        } else if (is.null(density)) {
+        refusal       = if (is.null(density)) {
           .hypothesis_refusal(
             paste0(
               "The prior density of marginal mean '",
