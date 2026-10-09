@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- `covratio()` of location coefficients uses the fitted factor coordinates
+  instead of the transformed factor levels, whose covariance is singular for
+  mean-difference and orthonormal coding; the ratios are finite instead of
+  `NaN` (the determinant ratio is invariant to the affine map between
+  coordinates and levels).
 - the structural-zero location intercept of a standardized model is hidden
   only where it is zero: coefficient summaries on the original scale show the
   intercept `-b * center / sd` whenever a scaled continuous predictor has a

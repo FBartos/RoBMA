@@ -104,7 +104,11 @@ covratio.brma <- function(model, type = "mods", component = NULL,
 
   # We follow dfbetas logic here:
   if (component == "mods") {
-    samples_table <- .diagnostic_location_parameter_samples(model)
+    # factor levels can be linearly dependent (e.g., mean-difference coding);
+    # the fitted coordinates are the independent parameters of the posterior
+    samples_table <- .diagnostic_location_parameter_samples(
+      model, transform_factors = FALSE
+    )
   } else if (component == "scale") {
     if (is_scale) {
       # scale-regression: tau is modeled via log_tau formula
