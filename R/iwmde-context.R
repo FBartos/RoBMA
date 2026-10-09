@@ -323,8 +323,9 @@
 
 # The model-inclusion indicator columns of the posterior samples, as the fit
 # declares them: the indicator '<p>_indicator' of every parameter 'p' with a
-# mixture or spike-and-slab prior, the indicator of a spike-and-slab total of
-# an ordered-factor prior, 'bias_indicator' of a publication-bias
+# mixture or spike-and-slab prior, the indicator of a mixture total (which
+# includes a spike-and-slab total) of an ordered-factor prior, 'bias_indicator'
+# of a publication-bias
 # mixture, and the inclusion indicators of random-effect SDs that the
 # parameter coordinates declare, without the inclusion gates of random-effect
 # variance allocations. A declared formula coefficient is never an indicator,
@@ -340,10 +341,11 @@
   declares_indicator <- vapply(prior_list, function(prior) {
     BayesTools::is.prior.mixture(prior) || BayesTools::is.prior.spike_and_slab(prior)
   }, logical(1))
-  # the indicator of a spike-and-slab total of an ordered-factor prior
+  # the indicator of a mixture total (also spike-and-slab) of an ordered-factor
+  # prior
   has_ordered_total <- vapply(prior_list, function(prior) {
     BayesTools::is.prior.ordered(prior) &&
-      BayesTools::is.prior.spike_and_slab(prior[["total"]])
+      BayesTools::is.prior.mixture(prior[["total"]])
   }, logical(1))
   indicator_names <- c(
     paste0(names(prior_list)[declares_indicator], "_indicator"),

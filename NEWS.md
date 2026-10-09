@@ -796,9 +796,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   as a model-inclusion indicator: hypotheses on its coefficient, the intercept
   and non-linear targets such as `tau` run instead of stopping with an
   unsupported-column error. The inclusion indicators are those of the declared
-  mixture, spike-and-slab, and publication-bias priors, the spike-and-slab
-  totals of ordered-factor priors, and the declared random-effect inclusion
-  indicators; the replacement helpers read the context's indicator columns only.
+  mixture, spike-and-slab, and publication-bias priors, the mixture
+  (including spike-and-slab) totals of ordered-factor priors, and the declared
+  random-effect inclusion indicators; the replacement helpers read the
+  context's indicator columns only.
 - qCMDE/IWMDE density targets of random-effect SD quantities (`hypothesis()`
   point statements and `plot()`) are built on the requested coefficient scale:
   with `standardized_coefficients = TRUE` the target ordinates agree with the

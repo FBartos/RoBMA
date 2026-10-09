@@ -368,6 +368,34 @@ test_that("the indicator of a spike-and-slab ordered total is a model indicator"
 })
 
 
+test_that("the indicator of a general mixture ordered total is a model indicator", {
+
+  mixture <- BayesTools::prior_mixture(
+    list(BayesTools::prior("point", list(0)), BayesTools::prior("normal", list(0, 1))),
+    is_null = c(TRUE, FALSE)
+  )
+  fixture   <- .ordered_target_fixture(total = mixture)
+  context   <- fixture[["context"]]
+  samples   <- context[["posterior_samples"]]
+  indicator <- "mu_f_ordered_total_indicator"
+  expect_true(indicator %in% colnames(samples))
+  declared <- .iwmde_indicator_names(samples, context[["flat_prior_list"]])
+  expect_identical(declared, indicator)
+
+  # the active branch is identified by the component of the total ...
+  context[["indicator_names"]] <- declared
+  rows <- match(1:2, samples[, indicator])
+  keys <- vapply(rows, function(row) .iwmde_active_key(context, samples[row, ]),
+                 character(1))
+  expect_length(unique(keys), 2L)
+  expect_false(any(keys == "all"))
+  # ... and an indicator value that is no component is rejected
+  invalid <- samples[rows[[1L]], ]
+  invalid[[indicator]] <- .5
+  expect_error(.iwmde_active_key(context, invalid), "integer-valued", fixed = TRUE)
+})
+
+
 test_that("a zero focal point with a random shared affine total is not an atom", {
 
   spike <- BayesTools::prior_spike_and_slab(BayesTools::prior("normal", list(0, 1)))
