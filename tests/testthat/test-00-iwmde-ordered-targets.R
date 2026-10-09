@@ -344,6 +344,30 @@ test_that("a uniform Gamma multiplier gap admits shape one and preserves source 
 })
 
 
+test_that("the indicator of a spike-and-slab ordered total is a model indicator", {
+
+  spike <- BayesTools::prior_spike_and_slab(BayesTools::prior("normal", list(0, 1)))
+  fixture <- .ordered_target_fixture(total = spike)
+  samples <- fixture[["context"]][["posterior_samples"]]
+  priors  <- fixture[["context"]][["flat_prior_list"]]
+  indicator <- "mu_f_ordered_total_indicator"
+  expect_true(indicator %in% colnames(samples))
+
+  expect_identical(.iwmde_indicator_names(samples, priors), indicator)
+  # a continuous predictor that ends like an indicator is not one
+  samples <- cbind(samples, mu_treatment_indicator = seq_len(nrow(samples)) / 10)
+  priors[["mu_treatment_indicator"]] <- BayesTools::prior("normal", list(0, 1))
+  expect_identical(.iwmde_indicator_names(samples, priors), indicator)
+  # an ordered prior with an ordinary total has no indicator
+  plain <- .ordered_target_fixture()
+  expect_identical(
+    .iwmde_indicator_names(plain[["context"]][["posterior_samples"]],
+                           plain[["context"]][["flat_prior_list"]]),
+    character()
+  )
+})
+
+
 test_that("a zero focal point with a random shared affine total is not an atom", {
 
   spike <- BayesTools::prior_spike_and_slab(BayesTools::prior("normal", list(0, 1)))
