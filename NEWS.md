@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- an explicit `intercept` entry in `prior_mods` no longer overrides the
+  structural zero intercept of a formula without an intercept (`~ 0 + x`):
+  only a point prior at 0 is accepted, any other prior stops with the classed
+  error `RoBMA_prior_intercept_conflict` in `brma()`, the other model
+  constructors, and `RoBMA()`.
 - marginalized known-covariance prediction identifies a multi-variable
   random-effect group by the unambiguous tuple of its grouping values, so
   distinct tuples whose values contain the `:` separator no longer share one

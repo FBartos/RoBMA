@@ -135,8 +135,9 @@
     formula_parameter <- switch(parameter, "mods" = "mu", "scale" = "log_tau")
   }
 
-  if (parameter == "mods" &&
-      attr(stats::terms(attr(data[[parameter]], "formula")), "intercept") == 0) {
+  structural_zero_intercept <- parameter == "mods" &&
+    attr(stats::terms(attr(data[[parameter]], "formula")), "intercept") == 0
+  if (structural_zero_intercept) {
     prior_intercept <- BayesTools::prior("spike", parameters = list(0))
   }
 
@@ -160,7 +161,25 @@
   }
 
   if ("intercept" %in% names(prior_list)) {
-    prior_intercept          <- prior_list[["intercept"]]
+    if (structural_zero_intercept) {
+      # the formula declares the intercept as zero: only a point prior at zero
+      # repeats that declaration, any other prior would contradict it
+      explicit_intercept <- prior_list[["intercept"]]
+      if (!BayesTools::is.prior.point(explicit_intercept) ||
+          !isTRUE(mean(explicit_intercept) == 0)) {
+        stop(structure(
+          class = c("RoBMA_prior_intercept_conflict", "error", "condition"),
+          list(message = paste0(
+            "The 'intercept' prior in 'prior_", parameter, "' contradicts the ",
+            "formula '", paste(deparse(attr(data[[parameter]], "formula")), collapse = " "),
+            "', which has no intercept. Drop the 'intercept' prior or add an ",
+            "intercept to the formula."
+          ), call = NULL)
+        ))
+      }
+    } else {
+      prior_intercept <- prior_list[["intercept"]]
+    }
     prior_list[["intercept"]] <- NULL
   }
 

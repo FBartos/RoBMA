@@ -52,3 +52,42 @@ test_that("response-only zero intercepts survive random-formula compilation and 
   design <- .fitted_formula_design(object, "mu", required = TRUE)
   expect_equal(mean(design[["prior_list"]][["mu_intercept"]]), 0)
 })
+
+test_that("an explicit intercept prior cannot override a structural zero intercept", {
+
+  dat <- data.frame(yi = c(.1, .3, .2), x = c(1, 2, 4))
+  slope <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+  nonzero <- BayesTools::prior("normal", list(mean = 1, sd = 1))
+  construct <- function(constructor, formula, intercept) {
+    prior_mods <- list(x = slope)
+    if (!is.null(intercept)) prior_mods <- c(list(intercept = intercept), prior_mods)
+    constructor(
+      yi = yi, sei = rep(.2, 3), data = dat, mods = formula, measure = "SMD",
+      prior_mods = prior_mods, only_priors = TRUE
+    )
+  }
+
+  for (constructor in list(brma, RoBMA)) {
+    # the structural zero of '~ 0 + x' is not replaceable by a nonzero prior
+    expect_error(
+      construct(constructor, ~ 0 + x, nonzero),
+      class = "RoBMA_prior_intercept_conflict"
+    )
+    # a point prior at zero repeats the structural zero
+    control <- construct(constructor, ~ 0 + x, NULL)
+    for (intercept in list(BayesTools::prior("spike", list(0)),
+                           BayesTools::prior("point", list(0)))) {
+      accepted <- construct(constructor, ~ 0 + x, intercept)
+      expect_identical(accepted[["priors"]][["mods"]][["intercept"]],
+                       control[["priors"]][["mods"]][["intercept"]])
+      expect_equal(mean(accepted[["priors"]][["mods"]][["intercept"]]), 0)
+    }
+    # a formula with an intercept keeps accepting an explicit intercept prior
+    with_intercept <- construct(constructor, ~ x, nonzero)
+    expect_equal(mean(with_intercept[["priors"]][["mods"]][["intercept"]]), 1)
+  }
+  expect_error(
+    construct(brma, ~ 0 + x, BayesTools::prior("point", list(0.5))),
+    class = "RoBMA_prior_intercept_conflict"
+  )
+})
