@@ -14,7 +14,7 @@
     if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
       return(list(status = "unsupported", reason = "posterior column is missing"))
     }
-    if (.iwmde_parameter_is_indicator(parameter)) {
+    if (.iwmde_parameter_is_indicator(parameter, context)) {
       return(list(status = "unsupported", reason = "indicator columns are discrete"))
     }
     if (.iwmde_parameter_is_weightfunction_coordinate(
@@ -34,7 +34,7 @@
     if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
       return(list(status = "unsupported", reason = "posterior column is missing"))
     }
-    if (.iwmde_parameter_is_indicator(parameter)) {
+    if (.iwmde_parameter_is_indicator(parameter, context)) {
       return(list(status = "unsupported", reason = "indicator columns are discrete"))
     }
     if (.iwmde_parameter_is_weightfunction_coordinate(
@@ -183,7 +183,7 @@
 
   bad <- names(weights)[
     vapply(names(weights), function(name) {
-      .iwmde_parameter_is_indicator(name) ||
+      .iwmde_parameter_is_indicator(name, context) ||
         .iwmde_parameter_is_weightfunction_coordinate(
           parameter = name,
           context   = context
@@ -469,9 +469,14 @@
 }
 
 
-.iwmde_parameter_is_indicator <- function(parameter) {
+# Whether a posterior column is a model-inclusion indicator: it ends like one
+# and the fit does not declare it as a formula coefficient.
+.iwmde_parameter_is_indicator <- function(parameter, context = NULL) {
 
-  return(parameter == "bias_indicator" || grepl("(^|_)indicator$", parameter))
+  return(
+    (parameter == "bias_indicator" || grepl("(^|_)indicator$", parameter)) &&
+      !parameter %in% context[["coefficient_names"]]
+  )
 }
 
 

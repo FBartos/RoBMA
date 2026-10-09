@@ -2627,6 +2627,7 @@ test_that("IWMDE structural identities are exact", {
 test_that("IWMDE omega helpers use selection-specific JAGS names", {
 
   context <- list(
+    indicator_names = "bias_indicator",
     selection_spec = list(
       n_bins     = 4L,
       p_cuts     = c(0, .025, .05, .50, 1),
@@ -2777,6 +2778,7 @@ test_that("Chen conditioning uses independent fitted prior coordinates", {
 test_that("IWMDE omega localization renames same-cut active branches", {
 
   context <- list(
+    indicator_names = "bias_indicator",
     selection_spec = list(
       n_bins     = 2L,
       p_cuts     = c(0, .05, 1),
@@ -2954,8 +2956,9 @@ test_that("IWMDE selection context uses localized active-branch indicators", {
   attr(data, "effect_direction") <- "positive"
 
   context <- list(
-    object = list(fit = list()),
-    data   = data
+    object          = list(fit = list()),
+    data            = data,
+    indicator_names = "bias_indicator"
   )
   active_setup <- list(
     priors            = list(outcome = list(bias = prior)),

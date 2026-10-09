@@ -28,6 +28,7 @@
     )
   }
   flat_prior_list <- c(flat_prior_list, internal_priors)
+  coefficient_names <- .iwmde_declared_coefficient_names(object[["fit"]])
 
   context <- list(
     object            = object,
@@ -39,9 +40,11 @@
     selection_spec     = .iwmde_selection_spec(data, priors),
     formula_fit        = object[["fit"]],
     formula_inputs     = .iwmde_formula_inputs(data, priors),
+    coefficient_names  = coefficient_names,
     indicator_names    = .iwmde_indicator_names(
       posterior_samples,
-      prior_list = flat_prior_list
+      prior_list        = flat_prior_list,
+      coefficient_names = coefficient_names
     ),
     active_cache       = new.env(parent = emptyenv()),
     focal_prior_cache  = new.env(parent = emptyenv()),
@@ -319,7 +322,12 @@
 }
 
 
-.iwmde_indicator_names <- function(posterior_samples, prior_list = NULL) {
+# The model-inclusion indicator columns: the sampled indicators of mixture,
+# spike-and-slab and publication-bias priors, without the inclusion gates of
+# random-effect variance allocations and without declared coefficients, whose
+# names ('treatment_indicator') may end like an indicator's.
+.iwmde_indicator_names <- function(posterior_samples, prior_list = NULL,
+                                   coefficient_names = NULL) {
 
   indicator_names <- grep("(^|_)indicator$", colnames(posterior_samples), value = TRUE)
   indicator_names <- c(
@@ -335,5 +343,26 @@
     indicator_names <- setdiff(indicator_names, random_gate_names)
   }
 
-  return(indicator_names)
+  return(setdiff(indicator_names, coefficient_names))
+}
+
+
+# The coordinates that the fit declares as formula coefficients (role
+# "fixed_coefficient": the intercept, continuous predictors and factor levels
+# of the location and scale formulas), or NULL for a fit without current
+# parameter-map metadata.
+.iwmde_declared_coefficient_names <- function(fit) {
+
+  if (!inherits(fit, "BayesTools_fit")) {
+    return(NULL)
+  }
+  coordinates <- tryCatch(
+    BayesTools::parameter_coordinates(fit),
+    BayesTools_refit_required = function(condition) NULL
+  )
+  if (is.null(coordinates)) {
+    return(NULL)
+  }
+
+  return(coordinates[["coordinate_name"]][coordinates[["role"]] == "fixed_coefficient"])
 }

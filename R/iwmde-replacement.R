@@ -619,15 +619,7 @@
     return(samples)
   }
 
-  indicator_names <- context[["indicator_names"]]
-  if (is.null(indicator_names)) {
-    indicator_names <- grep("(^|_)indicator$", columns, value = TRUE)
-    indicator_names <- c(
-      indicator_names,
-      intersect("bias_indicator", columns)
-    )
-  }
-  indicator_names <- unique(indicator_names)
+  indicator_names <- unique(context[["indicator_names"]])
   indicator_names <- setdiff(indicator_names, active_setup[["preserved_indicators"]])
   indicator_names <- intersect(indicator_names, columns)
   if (length(indicator_names) == 0L) {
@@ -800,14 +792,6 @@
 .iwmde_active_keys_matrix <- function(context, samples) {
 
   indicator_names <- context[["indicator_names"]]
-  if (is.null(indicator_names)) {
-    indicator_names <- grep("(^|_)indicator$", colnames(samples), value = TRUE)
-    indicator_names <- c(
-      indicator_names,
-      intersect("bias_indicator", colnames(samples))
-    )
-    indicator_names <- unique(indicator_names)
-  }
 
   if (length(indicator_names) == 0L) {
     return(rep("all", nrow(samples)))
