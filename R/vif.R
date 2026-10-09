@@ -105,6 +105,15 @@ vif <- function(object, ...) {
 #' BayesTools' random-effect covariance metadata rather than treated as
 #' conditioned fitted effects.
 #'
+#' For known-\code{V} models, the VIF requires applying the inverse of the
+#' marginal covariance. A covariance that is too ill-conditioned for that (a
+#' reciprocal condition number of about \code{2e-10} or less in any posterior
+#' draw used) is unavailable: the call stops with an error of class
+#' \code{RoBMA_known_v_precision_unavailable}, whose parent class is
+#' \code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+#' The condition carries the draw positions (\code{rows}) and their
+#' \code{reciprocal_condition}.
+#'
 #' For generalized linear mixed models, this is a working effect-size-scale
 #' diagnostic based on the fitted model's approximate sampling variances. It is
 #' not a VIF derived directly from the binomial or Poisson information matrix.

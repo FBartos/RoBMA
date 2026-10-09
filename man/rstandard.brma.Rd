@@ -78,6 +78,15 @@ residuals are unavailable for binomial and Poisson GLMMs because no
 count-likelihood standardization has been implemented. Use
 \code{residuals(type = "outcome")} only when a descriptive raw
 effect-size-scale residual is appropriate.
+
+For known-\code{V} models, the standardized residuals require applying the
+inverse of the marginal covariance. A covariance that is too ill-conditioned
+for that (a reciprocal condition number of about \code{2e-10} or less in any
+posterior draw used) is unavailable: the call stops with an error of class
+\code{RoBMA_known_v_precision_unavailable}, whose parent class is
+\code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+The condition carries the draw positions (\code{rows}) and their
+\code{reciprocal_condition}.
 }
 \examples{
 \dontrun{

@@ -37,6 +37,16 @@ use conditional estimate deletion rather than independent-study deletion.
 Computes DFFITS, Cook's distance, COVRATIO, and other
 influence diagnostics for a fitted brma object.
 }
+\details{
+For known-\code{V} models, the hat values, DFFITS and Cook's distance require
+applying the inverse of the marginal covariance. A covariance that is too
+ill-conditioned for that (a reciprocal condition number of about \code{2e-10}
+or less in any posterior draw used) is unavailable: the call stops with an
+error of class \code{RoBMA_known_v_precision_unavailable}, whose parent class
+is \code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+The condition carries the draw positions (\code{rows}) and their
+\code{reciprocal_condition}.
+}
 \examples{
 \dontrun{
 if (requireNamespace("metadat", quietly = TRUE)) {

@@ -837,8 +837,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   alike (numeric values differing in the last bits) no longer share one
   new-effect draw; repeated tuples still share one.
 - the feature coverage vignette links forest plots to their generated reference topic.
-- native normal row sums, predictor grids, and cluster quadrature combine
-  Gaussian standard deviations without overflowing or underflowing their squares.
+- native normal row sums, predictor grids, and the closed-form cluster integral
+  combine Gaussian standard deviations without overflowing or underflowing their
+  squares.
 - known-covariance conditional Gaussian scores standardize before squaring and
   separate log constants, preserving finite scores at extreme representable scales.
 - retained known sampling covariance uses its accepted compact factor, keeping

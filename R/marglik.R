@@ -2628,8 +2628,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 
 # The precision application B^-1 (r - U c) of a nearly singular known
 # covariance is dominated by rounding. The native plan reports the reciprocal
-# condition number of each posterior row it declined to apply; the application
-# is then unavailable, never a rounded number.
+# condition number of each posterior draw it declined to apply; the application
+# is then unavailable, never a rounded number. The positions are those among the
+# draws of the request (the active draws when a caller applies the covariance
+# only to some), not row indices of the posterior samples.
 .known_v_precision_check_available <- function(unavailable) {
 
   rows <- which(!is.na(unavailable))
@@ -2644,9 +2646,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       message = paste0(
         "The precision application of the known covariance is unavailable: ",
         "the known sampling covariance with its random effects is too ",
-        "ill-conditioned at posterior row", if (length(rows) > 1L) "s", " ",
+        "ill-conditioned at draw", if (length(rows) > 1L) "s", " ",
         paste(utils::head(rows, 5L), collapse = ", "),
         if (length(rows) > 5L) paste0(" (and ", length(rows) - 5L, " more)"),
+        " among the posterior draws it was applied to",
         " (reciprocal condition number ",
         format(min(unavailable[rows]), digits = 3L), "). ",
         "Inspect the known covariance for near-singular rows."

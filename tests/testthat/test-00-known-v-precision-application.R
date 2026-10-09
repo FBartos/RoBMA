@@ -238,6 +238,9 @@ test_that("ill-conditioned precision applications are accurate or unavailable", 
       expect_s3_class(outcome, "error")
       expect_true(all(outcome$reciprocal_condition < 1e-9))
       expect_match(conditionMessage(outcome), "unavailable", fixed = TRUE)
+      # the positions are those among the draws the covariance was applied to
+      expect_match(conditionMessage(outcome),
+        "at draw 1 among the posterior draws it was applied to", fixed = TRUE)
       expect_false(identical(name, "1"), info = "the unit-scale case is applied")
     } else {
       scale <- max(abs(references[[name]]))

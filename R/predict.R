@@ -173,6 +173,15 @@
 #' \code{brma_mv_prediction_target} attribute recording the formula,
 #' random-effect, and response-generation target used.
 #'
+#' For known-\code{V} models, the conditional random-effect predictions require
+#' applying the inverse of the marginal covariance. A covariance that is too
+#' ill-conditioned for that (a reciprocal condition number of about \code{2e-10}
+#' or less in any posterior draw used) is unavailable: the call stops with an
+#' error of class \code{RoBMA_known_v_precision_unavailable}, whose parent class
+#' is \code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+#' The condition carries the draw positions (\code{rows}) and their
+#' \code{reciprocal_condition}.
+#'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&
 #'     requireNamespace("metafor", quietly = TRUE)) {
