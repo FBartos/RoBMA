@@ -899,7 +899,8 @@ ranef <- function(object, ...) {
 #' within each grouping level or observed grouping-level and indicator-
 #' coefficient combination. Other random slopes generally require
 #' \code{expand = TRUE}. When the random-effect standard deviation of a block
-#' varies across the rows of a grouping level through a \code{scale} formula
+#' varies across the rows of one returned cell (a grouping level, or a grouping
+#' level and indicator coefficient) through a \code{scale} formula
 #' (also for the cluster component of a clustered \code{brma()} model with a
 #' \code{scale} formula), the unique-level output is refused with an error of
 #' class \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Summed
@@ -1163,7 +1164,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     cluster_levels         <- unique(cluster)
     cluster_level_map      <- match(cluster, cluster_levels)
     cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
-    if (.is_scale(object) && .ranef_scale_design_varies_within_groups(
+    if (.is_scale(object) && .ranef_scale_design_varies_within_cells(
         object, .data_scale_formula_parameters(object[["data"]]),
         cluster_level_map)) {
       .stop_ranef_expand_required(
@@ -1322,7 +1323,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     } else {
       term     <- random_terms[[block]]
       metadata <- .ranef_unique_level_term(term, block)
-      if (.ranef_block_sd_varies_within_groups(
+      if (.ranef_block_sd_varies_within_cells(
           object, term, metadata[["group_map"]])) {
         .stop_ranef_expand_required(
           "Unique-level random effects are unavailable for random-effect ",
@@ -1498,10 +1499,11 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 }
 
 
-# Unique-level output keeps one row per group. It is refused with an error of
+# Unique-level output keeps one column per returned cell (a grouping level, or
+# a grouping level and indicator coefficient). It is refused with an error of
 # class "RoBMA_ranef_expand_required" whenever the random-effect SD varies
-# across the rows of a group, because the first row would silently stand for
-# all of them.
+# across the rows mapped to one returned cell, because the first row would
+# silently stand for all of them.
 .stop_ranef_expand_required <- function(...) {
 
   message <- paste(unlist(lapply(list(...), as.character)), collapse = "")
@@ -1512,9 +1514,11 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 }
 
 
-# The design rows of the scale parameters that feed a block's row-shaped SD
-# sources (structural metadata; posterior draws are never consulted).
-.ranef_block_sd_varies_within_groups <- function(object, term, group_map) {
+# Whether the design rows of the scale parameters that feed a block's
+# row-shaped SD sources differ among the rows mapped to one returned output cell
+# ('cell_map', as returned by .ranef_unique_level_term()). Structural metadata
+# only; posterior draws are never consulted.
+.ranef_block_sd_varies_within_cells <- function(object, term, cell_map) {
 
   binding <- term[["sd_binding"]]
   sources <- c(
@@ -1539,30 +1543,30 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   source_names <- unique(vapply(sources[is_row], `[[`, character(1L), "name"))
   mapped       <- parameters[source_names]
   if (anyNA(mapped)) {
-    return(anyDuplicated(as.integer(group_map)) > 0L)
+    return(anyDuplicated(as.integer(cell_map)) > 0L)
   }
 
-  return(.ranef_scale_design_varies_within_groups(
-    object, unname(mapped), group_map
+  return(.ranef_scale_design_varies_within_cells(
+    object, unname(mapped), cell_map
   ))
 }
 
 
 # TRUE when the design of any listed scale parameter differs (exactly) between
-# the rows of one group, or cannot be inspected for a group with several rows.
-.ranef_scale_design_varies_within_groups <- function(object, parameters,
-                                                      group_map) {
+# the rows of one cell, or cannot be inspected for a cell with several rows.
+.ranef_scale_design_varies_within_cells <- function(object, parameters,
+                                                    cell_map) {
 
-  group_map <- as.integer(group_map)
-  first     <- match(group_map, group_map)
-  if (all(first == seq_along(group_map))) {
+  cell_map <- as.integer(cell_map)
+  first    <- match(cell_map, cell_map)
+  if (all(first == seq_along(cell_map))) {
     return(FALSE)
   }
 
   for (parameter in parameters) {
     design <- .fitted_formula_design(object, parameter, required = FALSE)
     rows   <- design[["model_matrix"]]
-    if (!is.matrix(rows) || nrow(rows) != length(group_map)) {
+    if (!is.matrix(rows) || nrow(rows) != length(cell_map)) {
       return(TRUE)
     }
     if (any(rows != rows[first, , drop = FALSE])) {

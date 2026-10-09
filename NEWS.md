@@ -887,10 +887,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - default (unique-level) `ranef()` of `brma.mv()` random-formula models and of
   the cluster component of clustered `brma()` models with a `scale` formula
   stops with an error of class `RoBMA_ranef_expand_required` when the
-  random-effect standard deviation varies across the rows of a group (judged
-  from the scale design, not from draws), instead of silently reporting the
-  first row of each group; use `expand = TRUE`. Constant-within-group scale
-  designs keep the unique-level output.
+  random-effect standard deviation varies across the rows mapped to one
+  returned output cell (a group, or a group and indicator level; judged from
+  the scale design, not from draws), instead of silently reporting the first
+  row of each cell; use `expand = TRUE`. Scale designs that are constant
+  within every returned cell keep the unique-level output.
 - `ranef(conditional = TRUE)` of `brma.mv()` random-formula models with a
   location mixture prior no longer stops with a dimension error: the random
   decomposition is computed on all posterior rows and the conditional rows are

@@ -156,6 +156,64 @@ test_that("clustered unique random effects refuse a scale design that varies wit
                tolerance = 1e-12)
 })
 
+test_that("unique random effects are judged within the returned output cells", {
+
+  # One group whose rows alternate between the two levels of an indicator
+  # (compound-symmetric) term: the compiled group map is 1 1 1 1, the returned
+  # cells are (group, level) combinations.
+  dat <- data.frame(
+    yi = c(.1, .2, .3, .4), vi = c(.04, .05, .04, .05), id = factor(rep("a", 4L)),
+    g  = factor(c("u", "v", "u", "v")), x = c(0, 1, 0, 1), z = c(0, 0, 1, 1)
+  )
+  fixture <- function(predictor) {
+    object <- brma.mv(
+      yi = yi, V = vi, data = dat, random = ~ cs(g | id),
+      scale = stats::as.formula(paste("~", predictor)),
+      known_v_parameterization = "block_mvn", measure = "GEN",
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    )
+    samples <- matrix(
+      c(.05, .3, .2, log(2), .06, .5, .3, log(2)), 2L, byrow = TRUE,
+      dimnames = list(NULL, c("mu_intercept", "mu__xREx__id_rho",
+                              "log_tau_intercept", paste0("log_tau_", predictor)))
+    )
+    list(object = object, samples = samples)
+  }
+
+  # x is constant within each (group, level) cell: the default output works
+  # and carries the expanded contributions of the first row of each cell.
+  constant <- fixture("x")
+  term     <- .fitted_formula_design(constant$object, "mu")[["random_effects"]][[1L]]
+  cells    <- .ranef_unique_level_term(term, term[["block_name"]])[["group_map"]]
+  expect_identical(as.integer(term[["group_map"]]), rep(1L, 4L))
+  expect_identical(as.integer(cells), c(1L, 2L, 1L, 2L))
+  expect_true(.ranef_scale_design_varies_within_cells(
+    constant$object, "log_tau", term[["group_map"]]
+  ))
+  expect_false(.ranef_scale_design_varies_within_cells(
+    constant$object, "log_tau", cells
+  ))
+  unique_effects <- ranef(constant$object, .posterior_samples = constant$samples)
+  expanded       <- ranef(constant$object, expand = TRUE,
+                          .posterior_samples = constant$samples)
+  expect_identical(ncol(unique_effects), 2L)
+  expect_equal(unname(as.matrix(unique_effects)), unname(as.matrix(expanded))[, 1:2],
+               tolerance = 1e-12)
+  expect_equal(unname(as.matrix(expanded))[, 1L], unname(as.matrix(expanded))[, 3L],
+               tolerance = 1e-12)
+
+  # z changes within the first cell (rows 1 and 3): refused.
+  varying <- fixture("z")
+  expect_error(
+    ranef(varying$object, .posterior_samples = varying$samples),
+    class = "RoBMA_ranef_expand_required"
+  )
+  expect_identical(
+    ncol(ranef(varying$object, expand = TRUE, .posterior_samples = varying$samples)),
+    4L
+  )
+})
+
 test_that("a common scale is inspected per nested random-effect block", {
 
   dat <- data.frame(
@@ -180,7 +238,10 @@ test_that("a common scale is inspected per nested random-effect block", {
     terms <- .fitted_formula_design(object, "mu", required = TRUE)[["random_effects"]]
     stats::setNames(
       vapply(terms, function(term) {
-        .ranef_block_sd_varies_within_groups(object, term, term[["group_map"]])
+        .ranef_block_sd_varies_within_cells(
+          object, term,
+          .ranef_unique_level_term(term, term[["block_name"]])[["group_map"]]
+        )
       }, logical(1L)),
       vapply(terms, `[[`, character(1L), "block_name")
     )

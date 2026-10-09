@@ -86,7 +86,8 @@ Unique-level output is available when a block's contribution is constant
 within each grouping level or observed grouping-level and indicator-
 coefficient combination. Other random slopes generally require
 \code{expand = TRUE}. When the random-effect standard deviation of a block
-varies across the rows of a grouping level through a \code{scale} formula
+varies across the rows of one returned cell (a grouping level, or a grouping
+level and indicator coefficient) through a \code{scale} formula
 (also for the cluster component of a clustered \code{brma()} model with a
 \code{scale} formula), the unique-level output is refused with an error of
 class \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Summed
