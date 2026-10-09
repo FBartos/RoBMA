@@ -1335,16 +1335,67 @@
 
   return(colors[seq_len(n_levels)])
 }
-.set_dots_prior       <- function(dots_prior) {
+.plot_brma_ordered_target <- function(object, entry) {
+
+  quantities <- entry[["selection"]][["quantities"]]
+  if (length(entry[["member_quantity_ids"]]) > 0L) {
+    catalog <- .brma_parameter_catalog_metadata(object)[["catalog"]][["quantities"]]
+    quantities <- rbind(quantities, catalog[
+      catalog[["quantity_id"]] %in% unlist(entry[["member_quantity_ids"]], use.names = FALSE),
+      , drop = FALSE
+    ])
+  }
+  if (!all(c("term", "formula_parameter") %in% names(quantities))) {
+    return(FALSE)
+  }
+  owners <- unique(unlist(lapply(seq_len(nrow(quantities)), function(i) {
+    term <- quantities[["term"]][[i]]
+    formula_parameter <- quantities[["formula_parameter"]][[i]]
+    if (is.null(term) || is.na(term) || !nzchar(term) ||
+        is.null(formula_parameter) || is.na(formula_parameter) || !nzchar(formula_parameter)) {
+      return(character())
+    }
+    BayesTools::JAGS_parameter_names(term, formula_parameter = formula_parameter)
+  }), use.names = FALSE))
+  prior_list <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  ordered_parameters <- names(prior_list)[vapply(prior_list, BayesTools::is.prior.ordered, logical(1))]
+  owners <- intersect(owners, ordered_parameters)
+  if (length(owners) == 0L) {
+    return(FALSE)
+  }
+  specs <- BayesTools::JAGS_ordered_parameter_spec(object[["fit"]], parameters = owners)
+  dependencies <- unique(unlist(lapply(quantities[["extraction_key"]], function(key) {
+    key[["dependencies"]]
+  }), use.names = FALSE))
+  coefficients <- unlist(lapply(specs, `[[`, "coefficient_names"), use.names = FALSE)
+  return(any(dependencies %in% coefficients))
+}
+
+.set_dots_prior       <- function(dots_prior, ordered = FALSE, posterior_col = NULL) {
 
   if (is.null(dots_prior)) {
     dots_prior <- list()
   }
 
-  if (is.null(dots_prior[["col"]])) {
+  if (ordered && !is.null(posterior_col)) {
+    if (is.null(dots_prior[["col"]])) {
+      dots_prior[["col"]] <- if (!is.null(dots_prior[["color"]])) {
+        dots_prior[["color"]]
+      } else if (!is.null(dots_prior[["colour"]])) {
+        dots_prior[["colour"]]
+      } else posterior_col
+    }
+    if (!is.null(dots_prior[["linetype"]])) {
+      dots_prior[["lty"]] <- dots_prior[["linetype"]]
+    } else if (is.null(dots_prior[["lty"]])) {
+      dots_prior[["lty"]] <- 2
+    }
+  }
+
+  if (!ordered && is.null(dots_prior[["col"]])) {
     dots_prior[["col"]]      <- "grey60"
   }
-  if (is.null(dots_prior[["lty"]])) {
+  if (!ordered && is.null(dots_prior[["lty"]])) {
     dots_prior[["lty"]]      <- 1
   }
   if (is.null(dots_prior[["col.fill"]])) {
@@ -1891,7 +1942,6 @@
       column_names  = column_names,
       formula_scale = formula_info[["formula_scale"]],
       parameter     = coordinate,
-      n_points      = 2L,
       plot_type     = "ggplot"
     )
     if (!is.null(transformed)) {
@@ -1935,7 +1985,8 @@
   formula_scale <- .object_formula_scale(object, parameter)
 
   return(list(
-    prior_list    = design[["prior_list"]],
+    prior_list    = if(!is.null(object[["fit"]])) attr(object[["fit"]], "prior_list", exact = TRUE) else
+      c(design[["prior_list"]], .create_fit_priors(object[["data"]], object[["priors"]])),
     column_names  = .plot_prior_formula_coordinates(design),
     formula_scale = formula_scale
   ))

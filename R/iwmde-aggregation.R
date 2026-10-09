@@ -429,6 +429,7 @@
       )
     ))
   }
+  # Defensive: the preceding guard already requires >=2 batches per chain.
   if (n_batches < 2L) {
     return(list(
       mcse          = rep(NA_real_, nrow(contributions)),

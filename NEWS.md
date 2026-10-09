@@ -1,9 +1,31 @@
 ## version 4.1.0 (IN PROGRESS)
+- qCMDE/IWMDE retain the joint dependent factor prior without evaluating an unused scalar focal density.
+- numerical row priors use the existing ordered conditional kernel for ordered nuisance terms, preserving valid zero inclusion states and typed expression-total refusals.
+- marginal means retain available sibling Bayes factors when a declared formula measure is unavailable; refused rows keep the original reason. Explicit late KDE summaries compute skipped Bayes factors from the stored conditional cells and null hypothesis.
+* Preserve structured allowed refusal diagnostics for unavailable marginal-means Bayes-factor rows.
+* Report equivalent SD and variance point/region numerical-zero comparisons as canonical undefined Bayes factors with aligned diagnostics and warnings.
+- repeated expanded factor hypotheses retain their original statement numbers, canonical BF logs and row diagnostics through parameter-group binding.
+- hypothesis groups retain every expanded factor row, select their point metadata and density method locally, and preserve declared OR conditions through scalar attachment. Stochastic contribution measures are refused during method planning, while fixed whole-term marginal cells retain their structural refusal.
+- ordered total inclusion participates in marginal conditioning. Single-model default density curves request averaged targets; conditional point ordinates retain their existing behavior. Direct atom predicates respect explicit joint-law availability.
+- fixed-zero random-effect marginal likelihoods finalize the locally rebuilt fixed formula declarations and scale while retaining the original sampler coordinates.
+- scalar PET and PEESE plots attach qCMDE/IWMDE densities and atoms to their declared scalar view. Streamed zplot projections retain validated native static bounds; exact ordered selection partitions admit finalized empty scaling metadata.
+- posterior value wrappers preserve BayesTools declared unavailable-measure diagnostics, including aligned model/log probability payloads, through replacement draws and hypothesis refusal conversion.
+- formula coordinate readers accept validated model and conditional context schema 2, while primitive context schema 1 and coefficient transformation descriptor schema 3 retain their separate requirements.
+- scalar qCMDE/IWMDE plot curves retain their backend source parameter in provenance and declare the actual BayesTools display target for precomputed matching.
+- variance point-region results retain actual aligned point numerical diagnostics in variance units, including repeated points and reversed statements.
+- scalar and exponentiated-affine discovery plans retain declared unavailable-law reasons and usable siblings; requested hypotheses and missing-owner or programming failures remain strict.
+- selected and prior-only formula draw carriers retain complete prior declarations; numeric point helpers require finite scalar numeric locations and use BayesTools' owned formula replay.
+- hypothesis contribution combinations fold constant multipliers once and retain typed qCMDE/IWMDE refusals for stochastic products and dynamic original maps. Log ordinates and aligned BF diagnostics survive transitive/group binding; plain exports omit hidden carriers.
+- formula adapters accept BayesTools coefficient-transform 3 and preserve original fitted multiplier states for original-scale corrections. Unsupported measures remain typed refusals; qCMDE/IWMDE require certified static projections. Prior plots and no-fit carriers supply complete ordinary multiplier priors, while empty scaling intentionally selects fitted coordinates.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.173 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
+    BayesTools >= 0.3.1.171 is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
+    coefficient/contribution measure metadata, the fitted ordered source metadata,
+    conditional kernels, ordered prior-curve semantics and exact prior-style
+    lookup used by this release.
   - requires JAGS 4.x (>= 4.3.1, < 5.0.0). The RoBMA JAGS module implements
     the JAGS 4 module interface and does not compile against JAGS 5.
     Installation stops with a message naming the reported version when
@@ -197,6 +219,27 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   effects of an ordered moderator (`x_ord[b]`, `x_ord[c]`), without the zero
   reference level and without the total effect, which equals the last
   level; posterior plots draw each level in its own colour.
+  Prior overlays use the corresponding level colours and dashed lines unless
+  the user supplies prior styles. Prior-style metadata checks apply only to
+  selected ordered terms, leaving unrelated stale ordered terms unqueried.
+  Single ordered-level plots retain the semantic marginal's draws and prior
+  metadata, including original-scale and conditional row alignment. Their
+  prior curves match the scalar posterior color with a dashed line. For selected
+  ordered cells with `prior = TRUE`, explicit color aliases resolve with priority
+  `col`, `color`, then `colour`, and `linetype` overrides `lty` in both renderers.
+  The six `as_draws()` converters export fitted totals and normalized sampled
+  allocation shares by default, including shares on zero-total and
+  excluded-spike draws; `include_auxiliary = TRUE` also retains raw increments
+  and eligible total auxiliaries. Fixed totals appear for every slice and fixed
+  allocations add no share columns. Nested total indicators and inclusion
+  probabilities remain available; internal Gamma primitives and backend anchors
+  remain private. Allocation labels stay scalar in `as_draws_rvars()`, while
+  ordinary vector indices are preserved.
+  Missing required ordered source draws, including partial source loss, stop
+  with `RoBMA_ordered_draws_unavailable`,
+  `BayesTools_ordered_coordinates_unavailable`, and
+  `BayesTools_ordered_unavailable`, retaining both refit-required parent classes
+  and the supported instruction to refit with the current RoBMA/BayesTools build.
 - multivariate and multilevel models with known sampling covariance:
   - adds `brma.mv()`, normal-likelihood meta-analysis with a known sampling
     covariance matrix `V` (latent, whitened, and block-MVN backends through
@@ -485,6 +528,55 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `g1 (3)`), keep the plain label for single statements, and print the
     public labels of the tested quantities.
 - posterior densities and point ordinates (qCMDE and IWMDE):
+  - ordered effects now condition on their fitted total or grouped/pair share
+    sources, replay all shared consumers, and count the original ordered priors
+    once. Both methods use normalized conditional-source contributions with
+    the original 500/1000-row defaults. Finite regular exact offsets use positive
+    supplier blocks; exact offsets classified as nonfinite or unsupported are
+    omitted from density curves and retain their refusal in explicit point hypotheses.
+    Complete per-row numerical error must be at most 0.025. Diagnostics retain
+    the source/block method and proofs separately from chain MCSE and row-sampling
+    error, including finite log ordinates when the displayed density underflows.
+    Declared zero reference cells keep their atom and no longer prevent whole
+    factor precomputed densities from being attached.
+    Unselected Gaussian blocks complete literal untruncated Gamma shape 1/2
+    inner masses when the stable score, conditioning and arithmetic-reserve
+    checks pass; other nodes retain the existing proper-CDF route and diagnostics.
+    Effective inverse-prior shapes and completion/fallback counts remain in the
+    row proofs. Selected blocks avoid an unused candidate materialization while
+    retaining the complete native selection normalizer at every source node.
+    Certified independent fixed-positive step-selection blocks evaluate exact
+    repeated observation patterns once per source node, retaining the full
+    Gaussian likelihood, original observation powers and numerical budgets.
+    Gaussian block likelihoods use centered residuals and direct source
+    precisions, including at Normal completion, to avoid cancellation near
+    a fitted mean. Eligible fixed-positive step-selection blocks obtain the
+    observed factor directly from the original bins and powers in both block
+    and source normalization. Original priors, conditioning and error gates
+    are retained; severely conditioned input arithmetic remains explicit.
+    Evaluation can remain slow for selected models near zero cumulative
+    ordered effects; the existing diagnostic and error controls are preserved.
+    Normal source support masses use the shared tail-selecting helper, with
+    interval conditioning retained in floating diagnostics. Row proofs record
+    the exact partition and input identities; algorithm 29
+    keeps these results separate from earlier normalization caches.
+    Offset capabilities now match the supplied block covariance/prior scope,
+    including an early refusal for unsupported finite-upper Gamma inverse
+    suppliers. Uncertified zero empirical variance affects uncertainty only
+    at its own evaluation: mixed availability retains the selected-row scope
+    with partial status and an explicit reason, and missing uncertainty cannot
+    pass curve availability or point precision gates. Printed density diagnostics
+    retain the partial uncertainty reason as a table footnote; unsupported
+    dependency certificates recommend inspecting diagnostics or KDE for plots.
+    Rejected-ordinate and combined hypothesis tables preserve that footnote in
+    either row order. Parameter plot errors direct inspection to the returned
+    condition's `density_diagnostics` field.
+    Absolute MCSE underflow is recognized from its finite log value, including
+    when the density itself remains nonzero and subnormal. Block prior eligibility
+    applies to actual block components; continuous point-total components keep
+    their zero or conditional-source contributions in the common row aggregate.
+    Generic table thresholds remain separate from the ordered per-row 0.025
+    numerical limit.
   - adds likelihood-aware qCMDE and IWMDE estimates of posterior densities
     and point ordinates through `density_method` (`"KDE"`, `"qCMDE"`, or
     `"IWMDE"`) and `density_control` in `plot()`, `lines()`,
@@ -685,6 +777,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   depth validation as their full names, including `"b"` for `"blup"`.
 - nested posterior sample exports retain heterogeneous prediction-interval
   columns, filling unavailable intervals with `NA`.
+- Normal interval regression tests preserve error classes, values and warnings
+  across localized base-R messages.
+- ordered block integration uses reliable namespace lookup for polynomial trimming.
 - marginal-means Bayes factors use the exact Gaussian kernel sum at the null
   hypothesis (bandwidth `bw.nrd0()` of the continuous draws) as the
   posterior ordinate, through BayesTools 0.3.1. The 512-point grid estimate

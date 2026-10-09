@@ -5,6 +5,14 @@
 .iwmde_log_q_grid <- function(context, parameter, values, row_states,
                               replacement) {
 
+  .iwmde_require_target_type(replacement, replacement = TRUE)
+  if (identical(replacement[["type"]], "ordered_source")) {
+    return(.iwmde_ordered_source_grid(context, parameter, values, row_states))
+  }
+  if (identical(replacement[["type"]], "ordered")) {
+    .iwmde_ordered_stop(parameter, "chart_unavailable", "an ordered q-grid requires its declared source replacement recipe")
+  }
+
   transformed <- vapply(row_states, function(state) {
     !is.null(state[["conditioning_transform"]])
   }, logical(1L))

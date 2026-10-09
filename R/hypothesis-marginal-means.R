@@ -137,8 +137,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   plan        <- plans[[1L]]
   parameter   <- plan[["parameter"]]
   hypothesis  <- .hypothesis_plan_group_ast(plans, "hypothesis")
-  precomputed <- density_method %in% c("qCMDE", "IWMDE") &&
-    any(vapply(plans, `[[`, logical(1), "point"))
+  method      <- .hypothesis_plan_execution_method(plans, density_method)
+  precomputed <- identical(method, "precomputed")
 
   if (identical(plan[["route"]], "combination")) {
     target <- if (length(plans) == 1L) {
@@ -175,7 +175,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       BF01           = BF01,
       seed           = seed,
       columns        = columns,
-      density_method = if (precomputed) "precomputed" else density_method
+      density_method = method
     )
     if (precomputed) {
       out <- .hypothesis_brma_append_iwmde_warnings(
@@ -217,7 +217,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     BF01           = BF01,
     seed           = seed,
     columns        = columns,
-    density_method = if (precomputed) "precomputed" else density_method
+    density_method = method
   )
   if (precomputed) {
     out <- .hypothesis_brma_append_iwmde_warnings(

@@ -229,6 +229,24 @@ with_draw_metadata <- function(x, ..., class = NULL) {
 as_bayestools_fit <- function(fit) {
 
   class(fit) <- unique(c("BayesTools_fit", class(fit)))
+  designs <- attr(fit, "formula_design", exact = TRUE)
+  scales <- attr(fit, "formula_scale", exact = TRUE)
+  for(parameter in names(designs)){
+    design <- designs[[parameter]]
+    specification <- attr(design$formula_scale, "unscale_design", exact = TRUE)
+    if(!identical(specification$schema_version, 2L) ||
+       !identical(specification$owner_scope, "compiler") || !isFALSE(specification$complete)) next
+    scale <- scales[[parameter]]
+    if(is.null(scale)) scale <- design$formula_scale
+    scale <- BayesTools:::.bt_formula_scale_finalize(scale, design,
+      attr(fit, "prior_list", exact = TRUE), owner_scope = "fit")
+    designs[[parameter]]$formula_scale <- scale
+    scales[[parameter]] <- scale
+  }
+  if(length(designs)){
+    attr(fit, "formula_design") <- designs
+    attr(fit, "formula_scale") <- scales
+  }
   fit <- BayesTools:::.bt_attach_parameter_map(fit)
   fit <- BayesTools:::.bt_attach_draw_geometry(fit)
   BayesTools:::.bt_attach_fit_contract(fit)

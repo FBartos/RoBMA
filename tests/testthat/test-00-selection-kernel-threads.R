@@ -368,10 +368,6 @@ test_that("the row schedule keeps small batches serial and sizes large regions",
 
   skip_if_not(is.loaded("RoBMA_selnorm_row_schedule", PACKAGE = "RoBMA"))
 
-  previous <- RoBMA.get_option("native_threads")
-  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
-  RoBMA.options(native_threads = 31L)
-
   # Every shape below the threshold runs the entry point's own serial loop, so
   # no thread budget can make it slower than one thread.
   small <- list(
@@ -382,12 +378,6 @@ test_that("the row schedule keeps small batches serial and sizes large regions",
     c(rows = 64L, work = 20 * 5 * 4),   # 20 grid points
     c(rows = 16L, work = 20 * 12)       # zcurve grid, no bins
   )
-  for (shape in small) {
-    schedule <- .row_schedule(shape[["rows"]], shape[["work"]])
-    expect_identical(schedule[["threads"]], 1L,
-      info = paste("rows", shape[["rows"]], "work", shape[["work"]]))
-  }
-
   # The shapes the post-fit batches spend their time in do thread, and one
   # parallel region covers enough rows that the region overhead is amortized.
   large <- list(
@@ -396,8 +386,44 @@ test_that("the row schedule keeps small batches serial and sizes large regions",
     c(rows = 4000L, work = 20 * 48 * 4),
     c(rows = 20000L, work = 350 * 5)
   )
-  for (shape in large) {
-    schedule <- .row_schedule(shape[["rows"]], shape[["work"]])
+
+  # OpenMP reads its available thread cap during DLL initialization. Query
+  # schedules in a fresh two-thread worker even when this test process is serial.
+  schedules <- (function() {
+    withr::local_envvar(c(OMP_NUM_THREADS = "2"))
+    cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
+    on.exit(parallel::stopCluster(cluster), add = TRUE)
+    parallel::clusterCall(cluster, function(paths) .libPaths(paths), .libPaths())
+    parallel::clusterEvalQ(cluster, loadNamespace("RoBMA"))
+    parallel::clusterCall(cluster, function(small, large) {
+      row_schedule <- function(rows, work_per_row) {
+        .Call("RoBMA_selnorm_row_schedule", as.numeric(rows),
+              as.numeric(work_per_row), PACKAGE = "RoBMA")
+      }
+      query_shapes <- function(shapes) {
+        lapply(shapes, function(shape) row_schedule(shape[["rows"]], shape[["work"]]))
+      }
+      RoBMA::RoBMA.options(native_threads = 31L)
+      small_schedules <- query_shapes(small)
+      large_schedules <- query_shapes(large)
+      RoBMA::RoBMA.options(native_threads = 8L)
+      eight_schedule <- row_schedule(60000L, 48 * 4)
+      RoBMA::RoBMA.options(native_threads = 1L)
+      one_schedule <- row_schedule(60000L, 48 * 4)
+      list(small = small_schedules, large = large_schedules,
+           eight = eight_schedule, one = one_schedule)
+    }, small, large)[[1L]]
+  })()
+
+  for (i in seq_along(small)) {
+    shape <- small[[i]]
+    schedule <- schedules[["small"]][[i]]
+    expect_identical(schedule[["threads"]], 1L,
+      info = paste("rows", shape[["rows"]], "work", shape[["work"]]))
+  }
+  for (i in seq_along(large)) {
+    shape <- large[[i]]
+    schedule <- schedules[["large"]][[i]]
     expect_gt(schedule[["threads"]], 1L)
     expect_gte(schedule[["chunk_rows"]], schedule[["threads"]])
     # Either the region carries its full share of work or it covers the batch.
@@ -410,10 +436,8 @@ test_that("the row schedule keeps small batches serial and sizes large regions",
   }
 
   # A smaller budget is never exceeded, and one thread stays one thread.
-  RoBMA.options(native_threads = 8L)
-  expect_lte(.row_schedule(60000L, 48 * 4)[["threads"]], 8L)
-  RoBMA.options(native_threads = 1L)
-  expect_identical(.row_schedule(60000L, 48 * 4)[["threads"]], 1L)
+  expect_lte(schedules[["eight"]][["threads"]], 8L)
+  expect_identical(schedules[["one"]][["threads"]], 1L)
 })
 
 

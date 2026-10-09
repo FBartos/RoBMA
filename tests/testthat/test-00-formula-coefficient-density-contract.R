@@ -66,9 +66,9 @@ test_that("IWMDE classifies prior ordinates of every route by eligibility", {
 test_that("transformed coefficient routes use exact structural weights", {
 
   transform <- list(
-    schema_version             = 2L,
-    formula_design_version     = 3L,
-    parameter_map_version = 1L,
+    schema_version             = 3L,
+    formula_design_version     = 6L,
+    parameter_map_version = 10L,
     parameter                  = "mu",
     target_scale               = "original",
     source_names               = c("mu_intercept", "mu_x"),
@@ -117,7 +117,7 @@ test_that("transformed coefficient routes use exact structural weights", {
 test_that("transformed coefficient plots use exact structural weights", {
 
   transform <- list(
-    schema_version = 2L,
+    schema_version = 3L,
     target_scale   = "original",
     source_names   = c("mu_intercept", "mu_x"),
     target_names   = c("mu_intercept", "mu_x"),
@@ -251,9 +251,9 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
 test_that("unit log-intercepts are identity maps on their positive support", {
 
   transform <- list(
-    schema_version             = 2L,
-    formula_design_version     = 3L,
-    parameter_map_version = 1L,
+    schema_version             = 3L,
+    formula_design_version     = 6L,
+    parameter_map_version = 10L,
     parameter                  = "log_tau",
     target_scale               = "original",
     source_names               = "log_tau_intercept",

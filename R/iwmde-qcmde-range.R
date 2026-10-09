@@ -37,6 +37,7 @@
 .iwmde_qcmde_row_laws <- function(context, row_states, replacement, kernel,
                                   rows = seq_along(row_states)) {
 
+  .iwmde_require_target_type(replacement, replacement = TRUE)
   n    <- length(row_states)
   laws <- list(
     kind   = rep("estimate", n),

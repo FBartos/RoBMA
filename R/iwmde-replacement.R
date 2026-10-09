@@ -327,7 +327,7 @@
 
   samples   <- .resolve_fixed_prior_sample_columns(samples, prior_list)
   if (is.null(evaluator)) {
-    evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list)
+    evaluator <- .iwmde_numerical_prior_rows_evaluator(prior_list)
   }
   log_prior <- evaluator(samples)
   if (!is.numeric(log_prior) || length(log_prior) != nrow(samples) ||
@@ -358,13 +358,26 @@
     return(cached[["evaluator"]])
   }
 
-  evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list)
+  evaluator <- .iwmde_numerical_prior_rows_evaluator(prior_list)
   assign(
     key,
     list(prior_list = prior_list, evaluator = evaluator),
     envir = cache
   )
   return(evaluator)
+}
+
+
+.iwmde_numerical_prior_rows_evaluator <- function(prior_list) {
+
+  ordered <- vapply(prior_list, BayesTools::is.prior.ordered, logical(1))
+  if (any(ordered)) {
+    ordered_evaluator <- BayesTools::JAGS_ordered_density_kernel(prior_list[ordered])
+    generic_evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list[!ordered])
+    return(function(samples) ordered_evaluator(samples) + generic_evaluator(samples))
+  } else {
+    return(BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list))
+  }
 }
 
 
@@ -823,13 +836,9 @@
       return(rep(paste(name, "NA", sep = "="), nrow(samples)))
     }
 
-    # The whole column is validated and converted at once; the checks and their
-    # messages are the ones .iwmde_indicator_index() applies per value.
+    # Cache identities use the same exact integer validation as the full
+    # posterior keys; component selection validates its declared range.
     index <- .as_exact_model_indicator(samples[, name], name)
-    if (any(index < 1L)) {
-      stop("'", name, "' is outside the available prior components.",
-           call. = FALSE)
-    }
 
     paste(name, index, sep = "=")
   })
@@ -1614,6 +1623,14 @@
 .iwmde_replacement_spec <- function(context, parameter,
                                     parameter_spec = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    return(list(type = "ordered", weights = parameter_spec[["weights"]],
+      ordered_source_key = parameter_spec[["ordered_source_key"]],
+      ordered_specs = parameter_spec[["ordered_specs"]],
+      internal_method = "ordered_source_conditional_cmde",
+      working_distribution = "normalized_conditional_source", normalization_basis = "source_chart"))
+  }
   finish <- function(replacement) {
 
     covariance_update <- parameter_spec[["covariance_update"]]

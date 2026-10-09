@@ -5,11 +5,41 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Marginal-means BF rows localize declared BayesTools formula-measure and
+ordinate refusals to NA with the original measure reason, structured condition
+diagnostics, and matching unavailable posterior-density source. Missing-source,
+refit, other transform, invalid-context and programming errors remain strict.
+An explicit late KDE summary BF request computes skipped BFs from stored
+conditional cells at the stored null; existing computed results are retained.
+
+Expanded hypothesis results retain positional statement identity in the
+producer's uniform statement-major quantity loop. Identical statement text
+does not merge repeated statement numbers or row-owned diagnostics.
+
+Selected and prior-only formula draw carriers retain the actual full prior
+declarations with the BayesTools design and scaling. Numeric point readers
+require a finite numeric scalar; expression points use BayesTools' owned
+monitor/replay route and do not become numeric constants by their wrapper.
+
 BayesTools owns formula semantics and compiled metadata. When its source is
 available, consult its `jags-formula.md` guide for the detailed shared contract.
 RoBMA consumes the resolved column counts, bases, levels, covariance ownership,
 and labels. Do not introduce a separate parser or reconstruct a basis with
 `stats::model.matrix()`, fixed formulas, or posterior draws.
+Formula-design 6, unscale-design 2 and coefficient-transform 3 require refitting
+older formats. Select active targets/recipes before finite C access. Dynamic
+numeric targets use original fitted state; prior laws use public BayesTools APIs.
+Static qCMDE/IWMDE refuse state-dependent raw maps or stochastic formula products.
+Declared measure_unavailable entries use BayesTools_formula_measure_unavailable;
+Their optional structured model/log diagnostics survive replacement draw
+wrappers and hypothesis refusal conversion. Malformed metadata, refit,
+programming and other numerical failures remain strict. RoBMA's empirical
+product-space model summaries retain their natural zero meaning. linear_weight_space distinguishes
+coefficient recipes from fitted formula_contribution rows. Constant products fold
+once into raw fitted weights; contribution weights never pass through C/A again.
+Fitted and prior-only plots supply full ordinary multiplier laws. Current compiler
+copies complete only through supported public prior/plot entry points; empty
+scaling intentionally selects fitted coordinates.
 
 Factor contrasts belong to `prior_factor()` and stored metadata, independently
 of intercept syntax. Thus `mods = ~ 0 + group` with an independent factor
@@ -47,6 +77,26 @@ quantity, and alias tables. `parameter_coordinates()` exposes backend rows
 keyed by `coordinate_name`; `parameter_catalog()` exposes semantic quantities
 keyed by `canonical_name`. Resolve public selectors through the catalog and
 obtain draws through `parameter_draws()`.
+
+Ordered `as_draws()` exports consume `JAGS_ordered_parameter_spec()` source
+coordinates and sampled-parameter labels. Read only declared sampled or
+structural sources in one targeted materialization, separately from the public
+draw schema. Export fitted totals and Gamma-normalized sampled shares, including
+zero-total states; never recover shares from increments. Omit deterministic
+increments and nested total components by default, retaining declared event
+indicators and inclusion probabilities. Auxiliary exports retain raw increments
+without exposing unrelated internals. For rvars, map only declared allocation
+labels through reversible opaque scalar names; preserve ordinary vector indices.
+Entirely fixed numeric-point terms with no available sources reuse the public
+chain solely for row count. Guard that exception with declared point totals,
+no total event node and fixed allocations; never substitute for missing
+stochastic, discrete, mixture or expression sources. A named input-only row
+column may supply geometry when the public chain has zero coordinates.
+Missing required ordered sources, including partial source loss, raise
+`RoBMA_ordered_draws_unavailable`, `BayesTools_ordered_coordinates_unavailable`
+and `BayesTools_ordered_unavailable` through the shared refit helper, retaining
+`RoBMA_refit_required` and `BayesTools_refit_required` with the supported refit
+message.
 
 Internal LKJ primitives, compact scalar-correlation coordinates, allocation
 weights, and covariance-construction dependencies remain coordinate-only.
@@ -123,3 +173,22 @@ arguments through 4.x. Reserve `type` for output or prediction kind.
 
 If shared implementation, documentation, and tests conflict, repair the
 BayesTools-owned behavior there; avoid downstream compatibility workarounds.
+
+
+Contribution-space hypothesis combination specs fold known constant multipliers
+once into fitted weights; coefficient-space specs retain their existing units.
+Stochastic contribution products and dynamic original combinations retain the
+typed static qCMDE/IWMDE refusal and row reason. Point/transitive/group consumers
+transport producer log ordinates and canonical logs with aligned diagnostics;
+plain exports strip hidden column carriers.
+Model and conditional prior contexts use schema 2 with validated model log owners;
+primitive contexts use schema 1. Coefficient transformation descriptors remain schema 3.
+Variance point numerical diagnostics retain SD evaluation provenance and apply
+the common Jacobian to requested variance log heights. Point-region results
+reuse the actual point producer's diagnostics in statement order. Variance
+unit-part composition detects only the admitted real point logBF -Inf together
+with its directional unit infinity before arithmetic. It retains canonical NA
+and the existing undefined warning for that numerical-zero pair, preserving
+independent region-prior diagnostics and legitimate boundary infinities. Scalar and
+exp-affine discovery catches only declared formula-measure refusals; requested
+hypotheses, missing owners, refit conditions and programming errors stay strict.

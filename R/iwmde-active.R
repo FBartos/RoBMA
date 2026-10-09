@@ -47,7 +47,7 @@
 
   values <- vapply(indicator_names, function(name) {
     if (name %in% names(row)) {
-      as.character(.iwmde_indicator_index(row[[name]], name))
+      as.character(.as_exact_model_indicator(row[[name]], name, scalar = TRUE))
     } else {
       "NA"
     }

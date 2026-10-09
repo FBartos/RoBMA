@@ -623,7 +623,8 @@ test_that("fit-source prerequisites may use inactive cached fits", {
   on.exit(assign("list_fits", old_list_fits, envir = helper_env), add = TRUE)
   assign(
     "list_fits",
-    function(validate = TRUE, active_only = TRUE, ...) {
+    function(name, validate = TRUE, active_only = TRUE, ...) {
+      observed[["name"]]        <- name
       observed[["validate"]]    <- validate
       observed[["active_only"]] <- active_only
       "dependency"
@@ -632,6 +633,7 @@ test_that("fit-source prerequisites may use inactive cached fits", {
   )
 
   expect_no_error(skip_if_missing_fits("dependency", active_only = FALSE))
+  expect_identical(observed[["name"]], "dependency")
   expect_true(observed[["validate"]])
   expect_false(observed[["active_only"]])
 })

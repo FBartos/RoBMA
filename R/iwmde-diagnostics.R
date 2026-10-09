@@ -94,7 +94,8 @@
 }
 
 
-.iwmde_diagnostics_density_failure_reason <- function(diagnostics) {
+.iwmde_diagnostics_density_failure_reason <- function(diagnostics,
+                                                      has_diagnostics_field = TRUE) {
 
   if (is.null(diagnostics) || !is.list(diagnostics)) {
     return("missing qCMDE/IWMDE density diagnostics")
@@ -115,7 +116,8 @@
     return(paste0(
       reason,
       ". ",
-      .iwmde_density_sample_rejection_action(density_diagnostics)
+      .iwmde_density_sample_rejection_action(density_diagnostics,
+        has_diagnostics_field = has_diagnostics_field)
     ))
   }
 
@@ -239,6 +241,13 @@
 
 
 .iwmde_diagnostics_density_sample_failure_reason <- function(diagnostics) {
+
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
+      identical(diagnostics[["mcmc_uncertainty_status"]], "partial") &&
+      !is.finite(.iwmde_diagnostic_scalar(diagnostics, "min_ess"))) {
+    return("density MCMC uncertainty is unavailable for some evaluation values")
+  }
 
   estimator_rows <- .iwmde_diagnostic_scalar_any(
     diagnostics,
@@ -379,7 +388,17 @@
 }
 
 
-.iwmde_density_sample_rejection_action <- function(diagnostics) {
+.iwmde_density_sample_rejection_action <- function(diagnostics,
+                                                   has_diagnostics_field = TRUE) {
+
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
+      identical(diagnostics[["mcmc_uncertainty_status"]], "partial")) {
+    if (!has_diagnostics_field) {
+      return("For a plot set 'density_method = \"KDE\"'")
+    }
+    return("Inspect the returned condition's 'density_diagnostics' field; for a plot set 'density_method = \"KDE\"'")
+  }
 
   if (isTRUE(diagnostics[["all_rows_used"]]) ||
       isTRUE(diagnostics[["sampling_fraction"]] == 1)) {
@@ -910,6 +929,14 @@
 # The observed stability error in words, after the estimator label.
 .iwmde_diagnostics_stability_description <- function(diagnostics, estimator,
                                                      error) {
+
+  internal <- diagnostics[["internal_method"]]
+  if (!is.null(internal) && internal %in% c("ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) {
+    return(paste0(" block integration error is ", trimws(.iwmde_percent(error)), " (estimated)"))
+  }
+  if (identical(internal, "ordered_source_conditional_cmde")) {
+    return(paste0(" source integration error is ", trimws(.iwmde_percent(error)), " (estimated)"))
+  }
 
   if (!identical(estimator, "q_grid_cmde")) {
     return(paste0(

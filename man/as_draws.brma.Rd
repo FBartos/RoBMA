@@ -118,6 +118,33 @@ summary reports under \verb{Heterogeneity:}. An allocation-SD prior indicator,
 such as \code{tau_total_indicator}, records which mixture component allocated the
 total standard deviation and therefore takes one value per component,
 matching the order of that prior's components.
+Ordered predictor terms return their fitted totals and normalized sampled
+allocation shares by default, replacing their deterministic increment
+coordinates. Shares are normalized from the sampled Gamma primitives and
+remain defined when a total is zero or its inclusion event is off. Totals
+with point priors are exact constants for every fitted slice; fixed
+allocations do not create share columns. The labels come from the fitted
+BayesTools ordered specification, including reached factor levels and
+interaction slices. These quantities remain on the fitted predictor scale.
+Ordered-total mixture indicators and inclusion probabilities remain
+available, while nested slab and pseudo-prior coordinates are omitted.
+With \code{include_auxiliary = TRUE}, raw ordered increments and eligible
+total auxiliaries are also retained. Internal Gamma coordinates are never
+exported. \code{as_draws_rvars()} preserves allocation labels as scalar
+random variables and keeps ordinary vector and multi-slice total indices.
+If an ordered sampled parameter conflicts with an existing fitted column,
+conversion stops with classes \code{RoBMA_ordered_draws_conflict} and
+\code{RoBMA_ordered_draws_unavailable}, with the message
+\code{Ordered sampled parameter '<name>' conflicts with existing fitted draws. Refit the model with the current RoBMA/BayesTools build.}
+Missing required ordered sources stop with
+\code{RoBMA_ordered_draws_unavailable} and
+\code{BayesTools_ordered_coordinates_unavailable}, with parent class
+\code{BayesTools_ordered_unavailable} and the message
+\code{Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build.}
+Entirely fixed numeric-point terms need only the existing chain row count
+to materialize their declared totals.
+Both RoBMA ordered refit errors also inherit \code{RoBMA_refit_required}
+and \code{BayesTools_refit_required}.
 Structural point-prior coordinates are returned as exact constant columns,
 with chain timing taken from the fitted draw geometry. Private backend
 anchors are never exposed. Use \code{include_auxiliary = TRUE} to skip RoBMA

@@ -37,6 +37,8 @@
 #' conditional weights. The normal approximation is useful as a rough check for
 #' near-normal interior ordinates; it is not a validation reference for skewed
 #' tails, bounded parameters, or one-sided support boundaries.
+#' Selected weightfunction models near zero cumulative ordered effects can take
+#' more than 10 minutes with qCMDE or IWMDE.
 #' qCMDE is the default for fitted \code{brma} objects. Use \code{"KDE"},
 #' \code{"normal"}, or \code{"IWMDE"} explicitly to select another route.
 #' For binomial and Poisson GLMMs, the nuisance state includes the sampled
@@ -812,7 +814,8 @@ hypothesis.brma <- function(object, hypothesis,
                                             BF01, seed, density_method,
                                             density_control, columns) {
 
-  plan      <- plans[[1L]]
+  point_plans <- plans[vapply(plans, `[[`, logical(1), "point")]
+  plan      <- if(length(point_plans)) point_plans[[1L]] else plans[[1L]]
   parameter <- plan[["parameter"]]
   samples   <- plan[["draws"]][["samples"]]
   selected  <- plan[["random"]]
@@ -959,7 +962,8 @@ hypothesis.brma <- function(object, hypothesis,
 # the region on the left. BayesTools evaluates the statements on the variance
 # with a unit point part (a posterior ordinate equal to the prior ordinate,
 # carrying the Monte Carlo error of the point part, which BayesTools combines
-# with that of the region part); the point part then multiplies.
+# with that of the region part). The real point part is composed only after
+# detecting the admitted numerical-zero point/region pair, as BayesTools does.
 .hypothesis_plan_random_sd_region <- function(plan, object, posterior,
                                               hypothesis, values, logBF, BF01,
                                               seed, method, density_method,
@@ -989,20 +993,20 @@ hypothesis.brma <- function(object, hypothesis,
     density_control = density_control,
     columns         = "default"
   )
-  unit_ordinate <- exp(vapply(points, function(value) {
+  unit_log_ordinate <- vapply(points, function(value) {
     BayesTools::prior_density_ordinate(
       plan[["prior_density"]],
       value
     )[["log_density"]]
-  }, numeric(1)))
+  }, numeric(1))
   # The unit part carries the conditioning of the draws, so that BayesTools
   # matches it to conditional (product-space) draws.
   BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- do.call(
-    BayesTools::posterior_ordinate_attribute,
+    utils::getFromNamespace(".posterior_log_ordinate_attribute", "BayesTools"),
     c(
       list(
         value          = points,
-        ordinate       = unit_ordinate,
+        log_ordinate   = unit_log_ordinate,
         method         = "unit point part",
         density_method = density_method,
         diagnostics    = list(BF_error_percent = as.numeric(point[["BF_error"]]))
@@ -1022,15 +1026,40 @@ hypothesis.brma <- function(object, hypothesis,
     density_method = "precomputed"
   )
   point_index <- match(values, points)
-  point_BF    <- attr(point, "raw_BF", exact = TRUE)[point_index]
+  point_log_BF <- attr(point, "raw_log_BF", exact = TRUE)[point_index]
   point_left  <- vapply(hypothesis[["statements"]], function(statement) {
     identical(statement[["left"]][["type"]], "point")
   }, logical(1))
-  raw_BF <- attr(out, "raw_BF", exact = TRUE)
-  raw_BF <- ifelse(point_left, raw_BF * point_BF, raw_BF / point_BF)
-  attr(out, "raw_BF") <- raw_BF
+  unit_log_BF <- attr(out, "raw_log_BF", exact = TRUE)
+  # Here the accepted real point sign certifies its numerical zero ordinate;
+  # the unit part's directional infinity certifies zero posterior region mass.
+  # Finite-log natural underflow and pre-existing NA results do not match.
+  undefined <- !is.na(point_log_BF) & point_log_BF == -Inf &
+    !is.na(unit_log_BF) & unit_log_BF == ifelse(point_left, Inf, -Inf)
+  raw_log_BF <- rep(NA_real_, length(unit_log_BF))
+  raw_log_BF[!undefined] <- unit_log_BF[!undefined] +
+    ifelse(point_left[!undefined], point_log_BF[!undefined], -point_log_BF[!undefined])
+  attr(out, "raw_log_BF") <- raw_log_BF
+  attr(out, "raw_BF") <- exp(raw_log_BF)
+  numerical_diagnostics <- attr(point, "numerical_diagnostics", exact = TRUE)[point_index]
+  attr(out, "numerical_diagnostics") <- numerical_diagnostics
   if ("BF" %in% names(out)) {
-    out[["BF"]] <- BayesTools::format_BF(raw_BF, logBF = logBF, BF01 = BF01)
+    out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
+      raw_log_BF, logBF = logBF, BF01 = BF01,
+      diagnostics = numerical_diagnostics)
+  }
+
+  if(any(undefined)){
+    warnings <- attr(out, "warnings", exact = TRUE)
+    rows <- rownames(out)[undefined]
+    matched <- names(warnings) %in% rows
+    warnings[matched] <- trimws(gsub(
+      "Posterior region mass is zero; reported BF is boundary-valued.", "",
+      warnings[matched], fixed = TRUE))
+    warnings <- warnings[nzchar(warnings)]
+    attr(out, "warnings") <- c(warnings, stats::setNames(rep(
+      "The posterior point ordinate and region mass are both numerically zero; transitive BF is undefined.",
+      length(rows)), rows))
   }
 
   # The warnings and density diagnostics of the point parts, on the rows of
@@ -1100,6 +1129,20 @@ hypothesis.brma <- function(object, hypothesis,
   for (column in intersect(c("prior", "posterior"), names(out))) {
     out[[column]] <- out[[column]] / (2 * sqrt(values))
   }
+  diagnostics <- attr(out, "numerical_diagnostics", exact = TRUE)
+  if(length(diagnostics) == length(values)){
+    for(i in seq_along(values)){
+      jacobian <- -log(2 * sqrt(values[[i]]))
+      diagnostics[[i]]$log_prior_height <- diagnostics[[i]]$log_prior_height + jacobian
+      diagnostics[[i]]$log_posterior_height <- diagnostics[[i]]$log_posterior_height + jacobian
+      diagnostics[[i]]$log_jacobian <- diagnostics[[i]]$log_jacobian + jacobian
+      diagnostics[[i]]$requested_value <- values[[i]]
+      diagnostics[[i]]$evaluation_scale <- "sd"
+      diagnostics[[i]]$requested_scale <- "variance"
+    }
+    attr(out, "numerical_diagnostics") <- diagnostics
+    if("BF" %in% names(out)) attr(out[["BF"]], "numerical_diagnostics") <- diagnostics
+  }
   attr(out, "hypothesis_ast") <- hypothesis
 
   out
@@ -1145,8 +1188,10 @@ hypothesis.brma <- function(object, hypothesis,
     statements <- .hypothesis_brma_result_statements(result)
     if (is.null(statements)) -1L else length(statements)
   }, integer(1))
+  quantities_per_statement <- result_sizes / group_sizes
   if (!all(valid_results) ||
-      !identical(group_sizes, result_sizes) ||
+      any(group_sizes <= 0L) || any(!is.finite(quantities_per_statement)) ||
+      any(quantities_per_statement < 1L | quantities_per_statement != floor(quantities_per_statement)) ||
       !identical(group_sizes, result_statement_sizes) ||
       sum(group_sizes) != n_statements || !all(same_columns)) {
     stop("Internal error: hypothesis parameter-group results are misaligned.",
@@ -1154,7 +1199,9 @@ hypothesis.brma <- function(object, hypothesis,
   }
 
   out <- do.call(rbind, results)
-  concatenated_rows <- unlist(groups, use.names = FALSE)
+  concatenated_rows <- unlist(Map(function(group, count) rep(group, each = count),
+    groups, quantities_per_statement), use.names = FALSE)
+  n_rows <- sum(result_sizes)
   restore_order     <- order(concatenated_rows)
   # Row names as in BayesTools::hypothesis_BF(): rows of several statements on
   # one quantity carry their statement number in the full hypothesis, not the
@@ -1170,11 +1217,21 @@ hypothesis.brma <- function(object, hypothesis,
   raw_BF <- unlist(lapply(results, function(result) {
     attr(result, "raw_BF", exact = TRUE)
   }), use.names = FALSE)
-  if (length(raw_BF) != n_statements) {
+  if (length(raw_BF) != n_rows) {
     stop("Internal error: hypothesis parameter-group metadata are misaligned.",
          call. = FALSE)
   }
 
+  row_log_BF <- unlist(lapply(results, function(result){
+    logs <- attr(result, "raw_log_BF", exact = TRUE)
+    if(is.null(logs)) log(attr(result, "raw_BF", exact = TRUE)) else logs
+  }), use.names = FALSE)
+  row_diagnostics <- lapply(c("numerical_diagnostics", "prior_numerical_diagnostics"), function(attribute){
+    unlist(lapply(results, function(result){
+      diagnostics <- attr(result, attribute, exact = TRUE)
+      if(length(diagnostics) == nrow(result)) diagnostics else rep(list(NULL), nrow(result))
+    }), recursive = FALSE)
+  })
   warnings <- list()
   row_offset <- 0L
   for (i in seq_along(results)) {
@@ -1198,9 +1255,19 @@ hypothesis.brma <- function(object, hypothesis,
     }
     rep_len(as.character(operator), nrow(result))
   }), use.names = FALSE)
+  source_bound_operator <- if(isTRUE(attr(results[[1L]]$BF, "BF01"))){
+    utils::getFromNamespace(".invert_BF_bound_operator", "BayesTools")(bound_operator)
+  }else bound_operator
 
   out <- out[restore_order, , drop = FALSE]
   attr(out, "raw_BF")         <- raw_BF[restore_order]
+  attr(out, "raw_log_BF") <- row_log_BF[restore_order]
+  attr(out, "numerical_diagnostics") <- row_diagnostics[[1L]][restore_order]
+  attr(out, "prior_numerical_diagnostics") <- row_diagnostics[[2L]][restore_order]
+  out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
+    row_log_BF[restore_order], logBF = attr(results[[1L]]$BF, "logBF"),
+    BF01 = attr(results[[1L]]$BF, "BF01"), bound_operator = source_bound_operator[restore_order],
+    diagnostics = row_diagnostics[[1L]][restore_order])
   attr(out, "hypothesis_ast") <- hypothesis
   warnings <- .hypothesis_brma_unique_named_warnings(
     unlist(warnings, use.names = TRUE)
@@ -1229,7 +1296,7 @@ hypothesis.brma <- function(object, hypothesis,
     logical(1)
   )]
   if (length(diagnostics) > 0L) {
-    attr(out, "density_diagnostics") <- do.call(rbind, diagnostics)
+    attr(out, "density_diagnostics") <- .iwmde_bind_density_diagnostics(diagnostics)
   } else {
     attr(out, "density_diagnostics") <- NULL
   }
@@ -1307,7 +1374,7 @@ hypothesis.brma <- function(object, hypothesis,
     target_scale = "original"
   )
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["schema_version"]], 2L)) {
+      !identical(transform[["schema_version"]], 3L)) {
     .stop_refit_required(
       "Formula coefficient transformation metadata are unsupported. Refit ",
       "the model with the current BayesTools version."
@@ -1346,17 +1413,20 @@ hypothesis.brma <- function(object, hypothesis,
   }
   coordinates <- coordinates[rows, , drop = FALSE]
 
-  unique(unlist(lapply(
-    unique(coordinates[["formula_parameter"]]),
+  ordinary <- is.na(coordinates[["formula_parameter"]]) | !nzchar(coordinates[["formula_parameter"]])
+  ordinary_owners <- intersect(coordinates[["monitor_name"]][ordinary], names(attr(object[["fit"]], "prior_list", exact = TRUE)))
+  formula_coordinates <- coordinates[!ordinary, , drop = FALSE]
+  union(ordinary_owners, unique(unlist(lapply(
+    unique(formula_coordinates[["formula_parameter"]]),
     function(formula_parameter) {
       name_map <- .fitted_formula_name_map(object, formula_parameter)
       fixed    <- name_map[name_map[["kind"]] == "fixed", , drop = FALSE]
-      terms    <- coordinates[["term"]][
-        coordinates[["formula_parameter"]] == formula_parameter
+      terms    <- formula_coordinates[["term"]][
+        formula_coordinates[["formula_parameter"]] == formula_parameter
       ]
       fixed[["jags_name"]][fixed[["term"]] %in% terms]
     }
-  ), use.names = FALSE))
+  ), use.names = FALSE)))
 }
 
 
@@ -1385,18 +1455,6 @@ hypothesis.brma <- function(object, hypothesis,
          call. = FALSE)
   }
 
-  transformed_left  <- vapply(
-    transformed_statements,
-    result_label,
-    side_name = "left",
-    character(1)
-  )
-  transformed_right <- vapply(
-    transformed_statements,
-    result_label,
-    side_name = "right",
-    character(1)
-  )
   display_left       <- vapply(
     statements,
     result_label,
@@ -1409,25 +1467,15 @@ hypothesis.brma <- function(object, hypothesis,
     side_name = "right",
     character(1)
   )
-  if (nrow(out) == length(statements)) {
-    statement_i <- seq_along(statements)
-  } else if (length(statements) == 1L) {
-    statement_i <- rep(1L, nrow(out))
-  } else if (all(c("Alternative", "Null") %in% names(out))) {
-    transformed_key <- paste(transformed_left, transformed_right, sep = "\r")
-    output_key      <- paste(out[["Alternative"]], out[["Null"]], sep = "\r")
-    statement_i     <- match(output_key, transformed_key)
-  } else if ("Alternative" %in% names(out)) {
-    statement_i <- match(out[["Alternative"]], transformed_left)
-  } else if ("Null" %in% names(out)) {
-    statement_i <- match(out[["Null"]], transformed_right)
-  } else {
-    statement_i <- rep(NA_integer_, nrow(out))
-  }
-  if (anyNA(statement_i)) {
+  quantities_per_statement <- nrow(out) / length(statements)
+  if (!is.finite(quantities_per_statement) || quantities_per_statement < 1L ||
+      quantities_per_statement != floor(quantities_per_statement)) {
     stop("Internal error: transformed hypothesis result rows are misaligned.",
          call. = FALSE)
   }
+  # BayesTools expands one common quantity list in statement-major order.
+  # Equal statement text still denotes separate original statement positions.
+  statement_i <- rep(seq_along(statements), each = quantities_per_statement)
   if ("Alternative" %in% names(out)) {
     out[["Alternative"]] <- display_left[statement_i]
   }

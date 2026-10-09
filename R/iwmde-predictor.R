@@ -103,6 +103,8 @@
 .iwmde_predictor_update_basis <- function(context, parameter, row_states,
                                           replacement, setup) {
 
+  .iwmde_require_target_type(replacement, replacement = TRUE)
+  if (isTRUE(replacement[["type"]] %in% c("ordered", "ordered_source"))) return(NULL)
   if (identical(replacement[["type"]], "linear")) {
     return(.iwmde_predictor_linear_basis(
       context    = context,

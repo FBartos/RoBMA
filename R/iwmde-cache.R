@@ -64,6 +64,8 @@
 
 .iwmde_target_key <- function(parameter, parameter_spec) {
 
+  if (is.null(parameter_spec)) parameter_spec <- list(type = "primitive")
+  .iwmde_require_target_type(parameter_spec)
   condition_key <- .iwmde_parameter_condition_key(parameter_spec)
   structure_key <- unlist(lapply(c(
     target    = "target_columns",
@@ -94,7 +96,7 @@
     ))
   }
 
-  if (identical(parameter_spec[["type"]], "linear")) {
+  if (isTRUE(parameter_spec[["type"]] %in% c("linear", "ordered"))) {
     weights <- parameter_spec[["weights"]]
     weights <- weights[order(names(weights))]
     parts   <- paste0(
@@ -103,7 +105,7 @@
       .iwmde_key_number(weights)
     )
 
-    return(paste(c("linear", parts, structure_key, condition_key), collapse = "|"))
+    return(paste(c(parameter_spec[["type"]], parts, structure_key, condition_key), collapse = "|"))
   }
 
   if (identical(parameter_spec[["type"]], "simplex_pair")) {
@@ -151,7 +153,8 @@
     return(paste0("unsupported|", parameter))
   }
 
-  return(paste0("primitive|", parameter))
+  .iwmde_require_target_type(parameter_spec)
+  stop("Internal density target key is unavailable.", call. = FALSE)
 }
 
 

@@ -150,6 +150,11 @@
                                    active_rows, active_values, weight_rows,
                                    weight_values, support) {
 
+  .iwmde_require_target_type(parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    .iwmde_ordered_stop(parameter, "working_distribution_unavailable",
+      "the normalized conditional source uses its source normalizer directly")
+  }
   active_supports <- .iwmde_parameter_row_supports(
     context        = context,
     parameter      = parameter,

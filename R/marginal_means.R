@@ -52,6 +52,9 @@ marginal_means <- function(object, ...) {
 #' factor, whose reason the summary prints below the table; the other marginal
 #' means are computed. A point hypothesis on that mean with [hypothesis()]
 #' stops with the BayesTools class.
+#' Declared unavailable formula measures (class
+#' \code{BayesTools_formula_measure_unavailable}) likewise give an \code{NA}
+#' row with the original reason, while available siblings are computed.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
@@ -59,6 +62,8 @@ marginal_means <- function(object, ...) {
 #' for single-model \code{brma} objects. With qCMDE/IWMDE, setting
 #' \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
 #' can still compute requested ordinates on demand.
+#' With KDE, \code{summary(..., bf = TRUE)} computes previously skipped
+#' inclusion Bayes factors from the stored conditional marginal posteriors.
 #' @param density_method posterior density method. \code{"KDE"} uses the
 #' standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
 #' row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
@@ -67,7 +72,12 @@ marginal_means <- function(object, ...) {
 #' ordinates do not alter the plotting grid. qCMDE is preferred when its
 #' additional normalization cost is acceptable; IWMDE can be faster but is
 #' more sensitive to its fitted conditional weights. Matching is
-#' case-insensitive. When an ordinate is used for a Bayes factor,
+#' case-insensitive. Selected weightfunction models near zero cumulative ordered
+#' effects can take more than 10 minutes with qCMDE or IWMDE. Ordered effects use
+#' normalized conditional-source
+#' contributions for both methods, with their respective row budgets; regular
+#' exact offsets can require positive conditional blocks. Their numerical
+#' proof is reported separately from the chain MCSE. When an ordinate is used for a Bayes factor,
 #' \code{BF_error} is a conditional Monte Carlo error estimate. It excludes
 #' uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
 #' the conditional weight function. Use \code{density_diagnostics()} on a
@@ -412,17 +422,21 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 # "BayesTools_zero_ordinate" for a null outside a truncated prior) give that
 # row an NA Bayes factor with the reason of the refusal's class in its
 # "warnings" attribute, which summary tables print after the row's label;
-# the other rows are computed. A point hypothesis on that mean
+# the other rows are computed. Declared formula-measure unavailability
+# (class "BayesTools_formula_measure_unavailable") retains its original
+# condition message as the row's reason. Other failures propagate unchanged.
+# A point hypothesis on that mean
 # (hypothesis()) stops with the class.
 .marginal_means_row_bf <- function(bf) {
 
   tryCatch(
     bf,
     error = function(condition) {
-      if (!inherits(condition, "BayesTools_hypothesis_ordinate")) {
+      if (!inherits(condition, c("BayesTools_hypothesis_ordinate",
+                                 "BayesTools_formula_measure_unavailable"))) {
         stop(condition)
       }
-      .marginal_means_unavailable_bf_scalar(.marginal_means_row_bf_reason(condition))
+      .marginal_means_unavailable_bf_scalar(.marginal_means_row_bf_reason(condition), condition)
     }
   )
 }
@@ -432,6 +446,12 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 # refusal ('condition').
 .marginal_means_row_bf_reason <- function(condition) {
 
+  if (inherits(condition, "BayesTools_formula_measure_unavailable")) {
+    return(conditionMessage(condition))
+  }
+  if (inherits(condition, "BayesTools_hypothesis_numerical_unavailable")) {
+    return(conditionMessage(condition))
+  }
   if (inherits(condition, "BayesTools_posterior_point_mass_at_null")) {
     return(paste0(
       "The marginal mean is structurally fixed at the null hypothesis; ",
@@ -511,6 +531,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 #' \code{FALSE}.
 #' @param bf whether to show inclusion Bayes factors. Defaults to the setting
 #' stored by \code{marginal_means()}.
+#' An explicit \code{TRUE} computes previously skipped KDE Bayes factors from
+#' the stored conditional posteriors at the stored null hypothesis.
 #' @inheritParams predict.brma
 #' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
@@ -562,6 +584,17 @@ summary.marginal_means.brma <- function(object, type = NULL,
     },
     object               = object
   )
+  if (isTRUE(bf) && identical(object[["bf"]], FALSE) &&
+      identical(object[["density_method"]], "KDE")) {
+    parameters <- intersect(object[["parameters"]],
+      names(inference_object[["conditional"]]))
+    for (parameter in parameters) {
+      inference_object[["inference"]][[parameter]] <- .marginal_means_inclusion_bf(
+        inference_object[["conditional"]][[parameter]],
+        object[["null_hypothesis"]], compute = TRUE
+      )
+    }
+  }
   samples    <- .transform_marginal_samples_effect(
     samples          = inference_object[[type]],
     effect_transform = effect_transform
@@ -740,6 +773,8 @@ as.data.frame.summary.marginal_means.brma <- function(
 #' \code{marginal_means(..., density_method = "IWMDE")} to reuse densities across
 #' plots. Prefer qCMDE for likelihood-aware final results; IWMDE can be faster
 #' but is more sensitive to its fitted conditional weights. A qCMDE/IWMDE
+#' calculation for selected weightfunction models near zero cumulative ordered
+#' effects can take more than 10 minutes. A qCMDE/IWMDE
 #' request that the source model does not support stops before any density is
 #' estimated with an error of class \code{RoBMA_density_method_unavailable}
 #' and the class naming its cause (see [marginal_means.brma()]).
@@ -954,6 +989,10 @@ lines.marginal_means.brma <- function(x, parameter, prior = FALSE, ...) {
 
   if (is.null(prior)) {
     return(FALSE)
+  }
+
+  if(BayesTools::is.prior.ordered(prior)){
+    return(.marginal_means_prior_is_conditional(prior[["total"]]))
   }
 
   if (BayesTools::is.prior.spike_and_slab(prior)) {

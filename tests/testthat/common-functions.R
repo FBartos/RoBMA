@@ -242,6 +242,26 @@ skip_if_no_vdiffr_snapshots <- function() {
 # HELPER FUNCTIONS: Cached Fit Catalog
 # ============================================================================ #
 
+hypothesis_plan_fit_names <- function() {
+
+  return(c(
+    treatment = "hypothesis_plan_treatment",
+    meandif = "hypothesis_plan_meandif",
+    orthonormal = "hypothesis_plan_orthonormal",
+    independent = "hypothesis_plan_independent",
+    ordered_2 = "hypothesis_plan_ordered_2",
+    ordered_3 = "hypothesis_plan_ordered_3",
+    ordered_4 = "hypothesis_plan_ordered_4",
+    scaled_interaction = "hypothesis_plan_scaled_interaction",
+    location_scale = "hypothesis_plan_location_scale",
+    model_averaged = "hypothesis_plan_model_averaged",
+    robma_mixture = "hypothesis_plan_robma_mixture",
+    two_scale = "hypothesis_plan_two_scale",
+    meandif_mt = "hypothesis_plan_meandif_mt"
+  ))
+}
+
+
 fit_catalog <- function() {
 
   catalog <- data.frame(
@@ -671,6 +691,133 @@ fit_catalog <- function() {
     "fixed_null_bPEESE",
     "fixed_null_bselmodel"
   )] <- "standard"
+
+  hypothesis_plan_catalog <- data.frame(
+    name = unname(hypothesis_plan_fit_names()),
+    class = c(
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "brma.norm",
+      "BMA.norm",
+      "RoBMA",
+      "brma.mv",
+      "brma.norm"
+    ),
+    family = "norm",
+    source_file = "test-01-hypothesis-plan.R",
+    has_metafor = FALSE,
+    has_loo = FALSE,
+    has_waic = FALSE,
+    has_marglik = FALSE,
+    tier = "core",
+    features = I(list(
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods"),
+      c("hypothesis_plan", "normal", "factor_mods", "ordered"),
+      c("hypothesis_plan", "normal", "factor_mods", "ordered"),
+      c("hypothesis_plan", "normal", "factor_mods", "ordered"),
+      c("hypothesis_plan", "normal", "factor_mods", "interaction"),
+      c("hypothesis_plan", "normal", "factor_mods", "scale"),
+      c("hypothesis_plan", "normal", "factor_mods", "product_space"),
+      c("hypothesis_plan", "normal", "factor_mods", "product_space", "selection"),
+      c("hypothesis_plan", "normal", "factor_mods", "known_v", "multilevel", "scale"),
+      c("hypothesis_plan", "normal", "factor_mods", "multivariate_t")
+    )),
+    profile = "standard",
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, hypothesis_plan_catalog)
+  expression_catalog <- hypothesis_plan_catalog[1L, , drop = FALSE]
+  expression_catalog$name <- "marginal_means_expression"
+  expression_catalog$features <- I(list(c("normal", "factor_mods", "ordered", "expression_total", "marginal_means")))
+  catalog <- rbind(catalog, expression_catalog)
+  zero_ordinate_catalog <- hypothesis_plan_catalog[1L, , drop = FALSE]
+  zero_ordinate_catalog$name <- "marginal_means_zero_ordinate"
+  zero_ordinate_catalog$source_file <- "test-01-marginal-means-zero-ordinate.R"
+  zero_ordinate_catalog$features <- I(list(c("normal", "continuous_mods", "truncated_effect", "marginal_means")))
+  catalog <- rbind(catalog, zero_ordinate_catalog)
+
+  ordinary_lane_catalog <- data.frame(
+    name = c(
+      "lane_carrier_treatment",
+      "lane_carrier_meandif",
+      "lane_carrier_nonzero",
+      "lane_carrier_averaged",
+      "lane_carrier_ordinary",
+      "lane_carrier_gated",
+      "lane_contribution_constant2",
+      "lane_contribution_constant1",
+      "lane_contribution_tau",
+      "lane_contribution_point",
+      "lane_contribution_discovery",
+      "lane_exp_affine",
+      "lane_factor_averaged_reference",
+      "lane_factor_ordered_labels",
+      "lane_factor_numeric_labels",
+      "lane_scalar_standardized",
+      "lane_scalar_raw",
+      "lane_scalar_convolution",
+      "lane_scalar_averaged",
+      "lane_scalar_averaged_default",
+      "lane_known_v_factor_scale",
+      "lane_random_correlation",
+      "lane_random_correlation_direct",
+      "lane_random_correlation_gated",
+      "lane_nested_total",
+      "lane_selection_reference",
+      "lane_glmm_point_baserate",
+      "lane_glmm_boundary_beta",
+      "lane_glmm_truncated_beta",
+      "lane_glmm_truncated_lograte"
+    ),
+    class = c("brma.norm", "brma.norm", "brma.norm", "BMA.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "BMA.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "BMA.norm", "BMA.norm", "brma.mv", "brma.mv", "brma.mv", "BMA.mv", "BMA.mv", "bselmodel", "brma.glmm", "brma.glmm", "brma.glmm", "brma.glmm"),
+    family = c("norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "glmm", "glmm", "glmm", "glmm"),
+    source_file = "test-01-ordinary-lane-fixtures.R",
+    has_metafor = FALSE, has_loo = FALSE, has_waic = FALSE, has_marglik = FALSE,
+    tier = "core", profile = "standard",
+    features = I(list(
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "formula_contribution"),
+      c("ordinary_lane", "factor_mods", "formula_contribution"),
+      c("ordinary_lane", "factor_mods", "formula_contribution"),
+      c("ordinary_lane", "formula_contribution", "point"),
+      c("ordinary_lane", "formula_contribution", "interaction"),
+      c("ordinary_lane", "mods", "scale"),
+      c("ordinary_lane", "factor_mods", "product_space"),
+      c("ordinary_lane", "factor_mods", "ordered"),
+      c("ordinary_lane", "factor_mods", "ordered"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "known_v", "scale", "factor_mods"),
+      c("ordinary_lane", "known_v", "random_correlation"),
+      c("ordinary_lane", "known_v", "random_correlation", "direct_sd"),
+      c("ordinary_lane", "known_v", "random_correlation", "product_space"),
+      c("ordinary_lane", "known_v", "nested", "product_space"),
+      c("ordinary_lane", "selection", "structural_monitor"),
+      c("ordinary_lane", "binomial", "point_baserate"),
+      c("ordinary_lane", "binomial", "boundary_beta"),
+      c("ordinary_lane", "binomial", "truncated_nuisance"),
+      c("ordinary_lane", "Poisson", "truncated_nuisance")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, ordinary_lane_catalog)
 
   return(catalog)
 }
@@ -1140,7 +1287,9 @@ if (!is.environment(.package_source_md5_cache)) {
 
 .fit_cache_source_fingerprint <- function(package_root, source_files) {
 
-  info <- file.info(source_files)
+  # Only size and modification time enter the fingerprint; skipping the extra
+  # columns avoids reading every file's header on Windows.
+  info <- file.info(source_files, extra_cols = FALSE)
   paste(
     package_root,
     paste(source_files, info[["size"]], info[["mtime"]], sep = ":", collapse = "\n"),
@@ -1576,9 +1725,11 @@ skip_if_no_fits <- function() {
 
 skip_if_missing_fits <- function(names, active_only = TRUE) {
 
+  # Validate only the requested fits; every other cached fit is irrelevant to
+  # this skip decision and validating all of them dominated cached test time.
   missing <- setdiff(
     names,
-    list_fits(validate = TRUE, active_only = active_only)
+    list_fits(name = names, validate = TRUE, active_only = active_only)
   )
   if (length(missing) > 0) {
     if (exists(".announce_existing_visual_snapshots", mode = "function")) {

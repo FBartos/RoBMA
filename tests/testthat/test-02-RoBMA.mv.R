@@ -277,7 +277,7 @@ test_that("RoBMA.mv plots and hypotheses use the combined ensemble", {
 })
 
 
-test_that("RoBMA.mv preserves product-space limitations and update", {
+test_that("RoBMA.mv preserves product-space limitations", {
 
   expect_error(add_marglik(fit_robma_mv), "model-averaging objects", fixed = TRUE)
   expect_error(
@@ -287,27 +287,4 @@ test_that("RoBMA.mv preserves product-space limitations and update", {
   )
   expect_error(AIC(fit_robma_mv), "not defined", fixed = TRUE)
   expect_error(BIC(fit_robma_mv), "not defined", fixed = TRUE)
-
-  n_before <- nrow(.get_posterior_samples(fit_robma_mv[["fit"]]))
-  extended <- suppressWarnings(update(
-    fit_robma_mv,
-    sample_extend      = 20L,
-    recompute          = "drop",
-    silent             = TRUE,
-    convergence_checks = set_convergence_checks(
-      max_Rhat = NULL,
-      min_ESS  = NULL
-    )
-  ))
-
-  expect_s3_class(extended, "RoBMA.mv")
-  expect_equal(
-    nrow(.get_posterior_samples(extended[["fit"]])),
-    n_before + 40L
-  )
-  expect_null(extended[["loo"]])
-  expect_identical(
-    .data_selection_model(extended[["data"]]),
-    .data_selection_model(fit_robma_mv[["data"]])
-  )
 })

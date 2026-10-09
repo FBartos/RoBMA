@@ -6,7 +6,7 @@ fit	fit_s	3.970000000	1.540820	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_simple	2.390000000	1.151758	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_BMA	3.080000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_l	1.050000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_model	fit_ls	2.240000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_model	fit_ls	2.200000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_s	2.060000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_simple	1.000000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_BMA	0.440000000	NA	4.6.0	Windows/x86_64-w64-mingw32
@@ -41,12 +41,12 @@ text	fit_simple_effect	0.030000000	0.326367	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_heterogeneity	0.000000000	0.318945	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_summary	0.090000000	0.360547	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_slope_BF_comparison	2.440000000	0.544141	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit_BMA_funnel	0.320000000	0.499707	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_BMA_funnel	0.310000000	0.499707	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_posterior_mods	0.700000000	0.609082	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_posterior_mu	1.040000000	0.612500	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_posterior_scale	1.390000000	0.609180	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_posterior_tau	0.990000000	0.571973	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit_BMA_qqnorm	0.300000000	0.495020	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_BMA_qqnorm	0.280000000	0.495020	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_regplot	2.840000000	0.489160	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_l	2.860000000	0.562891	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_l_diagnostic_comparison	0.000000000	0.335059	4.6.0	Windows/x86_64-w64-mingw32

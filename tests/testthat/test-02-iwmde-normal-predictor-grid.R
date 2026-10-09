@@ -13,11 +13,34 @@ source(testthat::test_path("helper-iwmde.R"))
 # .iwmde_predictor_normal_grid_log_lik() makes the final decision.
 .normal_grid_fit_names <- function() {
 
-  unique(c(
+  fit_names <- unique(c(
     list_fits(class = c("brma", "BMA", "RoBMA", "NoBMA")),
     list_fits(family = "norm")
   ))
+  available <- vapply(fit_names, function(fit_name) {
+    object <- load_fit(fit_name, validate = FALSE)
+    .iwmde_capability(object = object)[["available"]]
+  }, logical(1))
+  return(fit_names[available])
 }
+
+
+test_that("normal-grid discovery preserves the declared component-scale refusal", {
+
+  fit_name <- "hypothesis_plan_two_scale"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name, validate = FALSE)
+  capability <- .iwmde_capability(object = object)
+
+  expect_false(capability[["available"]])
+  expect_identical(capability[["class"]], c(
+    "RoBMA_density_method_scale_components",
+    "RoBMA_density_method_unavailable"
+  ))
+  expect_match(capability[["reason"]], "several scale formulas", fixed = TRUE)
+  expect_error(.iwmde_context(object), class = "RoBMA_density_method_scale_components")
+  expect_false(fit_name %in% .normal_grid_fit_names())
+})
 
 
 # One location target, one moderator slope, the heterogeneity scale, and a
@@ -50,8 +73,12 @@ source(testthat::test_path("helper-iwmde.R"))
       .is_data_random(data) || .is_data_multilevel(data)) {
     return(NULL)
   }
-  spec <- .iwmde_parameter_spec(context, parameter, NULL)
+  spec <- tryCatch(.iwmde_parameter_spec(context, parameter, NULL),
+    BayesTools_ordered_expression_unavailable = function(e) NULL)
   if (is.null(spec) || !identical(spec[["status"]], "ok")) {
+    return(NULL)
+  }
+  if (spec[["type"]] %in% c("ordered", "ordered_source")) {
     return(NULL)
   }
   values <- .iwmde_parameter_values(context, parameter, spec)
@@ -63,9 +90,9 @@ source(testthat::test_path("helper-iwmde.R"))
   if (sum(active) < 2L) {
     return(NULL)
   }
-  row_states <- .iwmde_row_states(
+  row_states <- tryCatch(.iwmde_row_states(
     context, utils::head(which(active), n_rows), parameter, spec
-  )
+  ), BayesTools_ordered_expression_unavailable = function(e) NULL)
   if (is.null(row_states)) {
     return(NULL)
   }
@@ -176,6 +203,244 @@ test_that("normal-grid fixtures apply structural eligibility before row preparat
 }
 
 
+test_that("dependent Student-t focal coordinates retain the joint prior on both row routes", {
+
+  fit_name <- "hypothesis_plan_meandif_mt"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name)
+  context <- .iwmde_context(object)
+  coordinates <- c("mu_g1[1]", "mu_g1[2]")
+  prior <- attr(object[["fit"]], "prior_list")[["mu_g1"]]
+  expect_identical(prior[["distribution"]], "mt")
+  expect_true(is.na(prior[["parameters"]][["K"]]))
+  expect_identical(ncol(attr(prior, "factor_design")), 2L)
+
+  for (parameter in coordinates) {
+    spec <- .iwmde_parameter_spec(context, parameter, NULL)
+    nuisance <- setdiff(coordinates, parameter)
+    nuisance_values <- context[["posterior_samples"]][, nuisance]
+    rows <- unique(c(which.min(abs(nuisance_values)), which.max(abs(nuisance_values))))
+    expect_length(rows, 2L)
+    scalar <- .iwmde_row_states(context, rows, parameter, spec)
+    grouped <- .iwmde_row_states_grouped_marginal(context, rows, parameter, spec)
+    expect_length(grouped, 2L)
+    for (states in list(scalar, grouped)) {
+      for (state in states) {
+        expect_true(is.finite(state[["baseline_log_q"]]))
+        expect_identical(state[["focal_prior"]], prior)
+        expect_false(state[["use_focal_prior_delta"]])
+        expect_identical(state[["baseline_focal_log_prior"]], NA_real_)
+      }
+    }
+    expect_equal(vapply(scalar, `[[`, numeric(1), "baseline_log_q"),
+      vapply(grouped, `[[`, numeric(1), "baseline_log_q"), tolerance = 1e-12)
+    values <- c(-.6, 0, .4, 1)
+    replacement <- .iwmde_replacement_spec(context, parameter, spec)
+    routes <- lapply(list(scalar, grouped), function(states) {
+      inputs <- list(values = values, row_states = states, replacement = replacement)
+      production <- .iwmde_log_q_grid_predictor_batch(context, parameter, values, states, replacement)
+      # The ordinary location optimization answers before the native-grid
+      # dispatcher. Exercise its two existing alternatives on the same
+      # declared affine basis without changing either guard.
+      both <- local({
+        testthat::local_mocked_bindings(
+          .iwmde_log_q_grid_normal_location_group = function(...) NULL,
+          .package = "RoBMA"
+        )
+        .normal_grid_both_routes(context, parameter, inputs)
+      })
+      expect_gt(both[["served"]], 0L)
+      .expect_normal_grid_agreement(both, parameter)
+      direct <- vapply(states, function(state) {
+        vapply(values, function(value) .iwmde_log_q_replacement(
+          context, state, parameter, value, replacement), numeric(1))
+      }, numeric(length(values)))
+      expect_identical(is.finite(both[["native"]]), is.finite(direct))
+      expect_identical(both[["native"]] == -Inf, direct == -Inf)
+      finite <- is.finite(direct)
+      expect_lt(max(abs(both[["native"]][finite] - direct[finite])), 1e-10)
+      expect_identical(is.finite(production), is.finite(direct))
+      expect_lt(max(abs(production[finite] - direct[finite])), 1e-10)
+      expect_identical(is.finite(production), is.finite(both[["candidates"]]))
+      expect_lt(max(abs(production[finite] - both[["candidates"]][finite])), 1e-10)
+      both[["native"]]
+    })
+    expect_identical(is.finite(routes[[1L]]), is.finite(routes[[2L]]))
+    finite <- is.finite(routes[[1L]])
+    expect_lt(max(abs(routes[[1L]][finite] - routes[[2L]][finite])), 1e-10)
+
+    # A vector t has dependent coordinates even with diagonal scale. The
+    # conditional ratio at each actual nuisance row must use the joint law.
+    joint_ratios <- marginal_ratios <- numeric(length(scalar))
+    for (i in seq_along(scalar)) {
+      state <- scalar[[i]]
+      before <- matrix(state[["row"]], nrow = 1L,
+        dimnames = list(NULL, names(state[["row"]])))
+      after <- before
+      after[, parameter] <- 1
+      direct_joint <- function(samples) mvtnorm::dmvt(samples[, coordinates, drop = FALSE],
+        delta = rep(0, 2L), sigma = diag(.5^2, 2L), df = 3, type = "shifted", log = TRUE)
+      joint_ratios[[i]] <- direct_joint(after) - direct_joint(before)
+      observed <- state[["prior_evaluator"]](after) - state[["prior_evaluator"]](before)
+      expect_lt(abs(observed - joint_ratios[[i]]), 1e-12)
+      marginal_ratios[[i]] <- stats::dt(1 / .5, df = 3, log = TRUE) -
+        stats::dt(before[, parameter] / .5, df = 3, log = TRUE)
+    }
+    expect_gt(max(abs(joint_ratios - marginal_ratios)), 1e-5)
+  }
+
+  # This default native-positive scale batch carries the unchanged full vector
+  # prior and exercises a finite value outside the nonnegative SD support.
+  tau_spec <- .iwmde_parameter_spec(context, "tau", NULL)
+  tau_states <- .iwmde_row_states(context, 1:2, "tau", tau_spec)
+  tau_values <- c(-1, 0, .05, .2, .6)
+  tau_replacement <- .iwmde_replacement_spec(context, "tau", tau_spec)
+  tau_routes <- .normal_grid_both_routes(context, "tau", list(values = tau_values,
+    row_states = tau_states, replacement = tau_replacement))
+  expect_gt(tau_routes[["served"]], 0L)
+  .expect_normal_grid_agreement(tau_routes, "dependent Student-t nuisance / tau")
+  valid_tau <- tau_values >= 0
+  tau_direct <- vapply(tau_states, function(state) vapply(tau_values[valid_tau],
+    function(value) .iwmde_log_q_replacement(context, state, "tau", value, tau_replacement),
+    numeric(1)), numeric(sum(valid_tau)))
+  native_valid_tau <- tau_routes[["native"]][valid_tau, , drop = FALSE]
+  expect_identical(native_valid_tau == -Inf, tau_direct == -Inf)
+  expect_true(all(tau_routes[["native"]][1L, ] == -Inf))
+  finite <- is.finite(tau_direct)
+  expect_lt(max(abs(native_valid_tau[finite] - tau_direct[finite])), 1e-10)
+  expect_error(.iwmde_log_q_replacement(context, tau_states[[1L]], "tau", -1, tau_replacement),
+    "must be a finite, non-negative numeric matrix.", fixed = TRUE)
+
+  spec <- .iwmde_parameter_spec(context, "mu_intercept", NULL)
+  for (states in list(.iwmde_row_states(context, 1:2, "mu_intercept", spec),
+                     .iwmde_row_states_grouped_marginal(context, 1:2, "mu_intercept", spec))) {
+    expect_true(all(vapply(states, `[[`, logical(1), "use_focal_prior_delta")))
+    expect_true(all(is.finite(vapply(states, `[[`, numeric(1), "baseline_focal_log_prior"))))
+  }
+})
+
+
+test_that("ordered nuisance priors use the same numerical kernel on scalar and grid rows", {
+
+  fit_name <- "lane_carrier_gated"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name)
+  context <- .iwmde_context(object)
+  indicator <- "mu_g1_ordered_total_indicator"
+  keys <- .iwmde_active_keys(context)
+  expect_identical(.iwmde_active_keys_matrix(context, context[["posterior_samples"]]), keys)
+  rows <- vapply(c(0, 1), function(value) {
+    which(context[["posterior_samples"]][, indicator] == value)[[1L]]
+  }, integer(1))
+  for (row in rows) {
+    expect_identical(.iwmde_active_key(context, context[["posterior_samples"]][row, ]), keys[[row]])
+    expect_identical(.iwmde_active_keys_matrix(context, context[["posterior_samples"]][row, , drop = FALSE]), keys[row])
+  }
+  for (value in c(-1, .5, NA_real_)) {
+    row <- context[["posterior_samples"]][rows[[1L]], ]
+    row[[indicator]] <- value
+    if (is.finite(value) && value == trunc(value)) {
+      expect_identical(.iwmde_active_key(context, row), paste0(indicator, "=-1"))
+      expect_identical(.iwmde_active_keys_matrix(context, matrix(row, nrow = 1L,
+        dimnames = list(NULL, names(row)))), paste0(indicator, "=-1"))
+    } else {
+      expect_error(.iwmde_active_key(context, row))
+      expect_error(.iwmde_active_keys_matrix(context, matrix(row, nrow = 1L,
+        dimnames = list(NULL, names(row)))))
+    }
+    prior <- attr(object[["fit"]], "prior_list")[["mu_g1"]]
+    kernel <- BayesTools::JAGS_ordered_density_kernel(list(mu_g1 = prior))
+    expect_error(kernel(matrix(row, nrow = 1L, dimnames = list(NULL, names(row)))),
+      class = "BayesTools_ordered_invalid_state")
+  }
+  mixture <- BayesTools::prior_mixture(list(BayesTools::prior("normal", list(0, 1)), BayesTools::prior("normal", list(1, 1))))
+  for (value in c(-1, 0, 3)) {
+    expect_error(.iwmde_select_prior_component(mixture, c(indicator = value), "indicator"),
+      "outside the available prior components", fixed = TRUE)
+  }
+  parameter <- "tau"
+  spec <- .iwmde_parameter_spec(context, parameter, NULL)
+  states <- .iwmde_row_states(context, rows, parameter, spec)
+  grouped <- .iwmde_row_states_grouped_marginal(context, rows, parameter, spec)
+  expect_equal(vapply(states, `[[`, numeric(1), "baseline_log_q"),
+    vapply(grouped, `[[`, numeric(1), "baseline_log_q"), tolerance = 1e-12)
+  inputs <- list(values = c(.05, .2, .6, -1, 0), row_states = states,
+    replacement = .iwmde_replacement_spec(context, parameter, spec))
+  routes <- .normal_grid_both_routes(context, parameter, inputs)
+  expect_gt(routes[["served"]], 0L)
+  .expect_normal_grid_agreement(routes, "ordered nuisance / tau")
+  for (state in states) {
+    samples <- matrix(state[["row"]], nrow = 1L, dimnames = list(NULL, names(state[["row"]])))
+    observed <- .iwmde_log_prior_rows(samples, state[["prior_list"]])
+    expect_equal(observed, state[["baseline_log_prior"]], tolerance = 1e-12)
+    expect_equal(.iwmde_log_prior_row(state[["row"]], state[["prior_list"]]), observed[[1L]], tolerance = 1e-12)
+    expect_true(is.finite(state[["baseline_log_q"]]))
+    prior <- state[["prior_list"]][["mu_g1"]]
+    ordered <- BayesTools::JAGS_ordered_density_kernel(list(mu_g1 = prior))(samples)
+    total <- state[["row"]][["mu_g1_ordered_total"]]
+    expected_ordered <- if (state[["row"]][[indicator]] == 0) 0 else stats::dgamma(total, 2, rate = 2, log = TRUE)
+    expect_lt(abs(ordered - expected_ordered), 1e-12)
+    expect_lt(abs(observed - ordered - BayesTools::lpdf(state[["prior_list"]][["tau"]], samples[, "tau"])), 1e-12)
+    mean <- 1 + c(0, .25, 1)[as.integer(context[["data"]][["mods"]][["g1"]])] * total
+    yi <- .outcome_data_yi(object)
+    sei <- .outcome_data_sei(object)
+    for (value in inputs[["values"]][inputs[["values"]] > 0]) {
+      expected <- sum(stats::dnorm(yi, mean, sqrt(sei^2 + value^2), log = TRUE)) +
+        expected_ordered + BayesTools::lpdf(state[["prior_list"]][["tau"]], value)
+      actual <- .iwmde_log_q_replacement(context, state, parameter, value, inputs[["replacement"]])
+      expect_lt(abs(actual - expected), 1e-10)
+    }
+  }
+  g_spec <- .iwmde_parameter_spec(context, "mu_g1[20]", list(type = "linear",
+    weights = c(`mu_g1[1]` = 1, `mu_g1[2]` = 1)))
+  expect_identical(g_spec[["type"]], "ordered")
+  ordered_state <- .iwmde_ordered_row_state(context, g_spec, rows[[2L]])
+  expect_true(is.finite(ordered_state[["baseline_log_q"]]))
+  source <- ordered_state[["ordered_chart"]][["current"]]
+  expect_true(all(is.finite(.iwmde_ordered_log_q_source(context, ordered_state,
+    c(source / 2, source, source * 2)))))
+  components <- .iwmde_parameter_components(context, "mu_g1[20]", g_spec)
+  expect_identical(sum(components[["active"]]), 5L)
+  curve <- graphics::plot(object, parameter = "tau", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot")
+  expect_s3_class(curve, "ggplot")
+  curve_data <- ggplot2::ggplot_build(curve)$data[[1L]]
+  expect_true(any(is.finite(curve_data$y) & curve_data$y > 0))
+  expect_error(graphics::plot(object, parameter = "g1[20]", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot"), class = "RoBMA_density_plot_error")
+  expect_error(graphics::plot(object, parameter = "g1[20]", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot", conditional = TRUE),
+    "'conditional' plots are available only for RoBMA objects.", fixed = TRUE)
+})
+
+
+test_that("expression nuisance and selected cells retain their declared typed refusals", {
+
+  fit_name <- "marginal_means_expression"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name)
+  context <- .iwmde_context(object)
+  for (parameter in c("mu_intercept", "tau")) {
+    spec <- .iwmde_parameter_spec(context, parameter, NULL)
+    expect_error(.iwmde_row_states(context, 1:2, parameter, spec),
+      class = "BayesTools_ordered_expression_unavailable")
+    expect_null(.normal_grid_inputs(context, parameter))
+  }
+  for (parameter in c("intercept", "tau")) {
+    expect_error(graphics::plot(object, parameter = parameter, prior = FALSE,
+      density_method = "qCMDE", plot_type = "ggplot"),
+      class = "BayesTools_ordered_expression_unavailable")
+  }
+  expect_error(graphics::plot(object, parameter = "g[hi]", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot"),
+    class = "BayesTools_formula_prior_density_unavailable")
+  whole <- tryCatch(graphics::plot(object, parameter = "g", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot"), error = identity)
+  expect_true(inherits(whole, "BayesTools_ordered_expression_unavailable") ||
+    inherits(whole, "BayesTools_formula_measure_unavailable"))
+})
+
+
 test_that("the native normal candidate grid matches the candidate route", {
 
   fit_names <- .normal_grid_fit_names()
@@ -230,7 +495,7 @@ test_that("the native normal candidate grid matches the candidate route", {
   cat("\nnative normal candidate grid served:\n  ",
       paste(served, collapse = "\n  "), "\n", sep = "")
   if (length(declined)) {
-    cat("declined (candidate route retained):\n  ",
+    cat("native grid not observed (earlier or candidate route retained):\n  ",
         paste(declined, collapse = "\n  "), "\n", sep = "")
   }
 })

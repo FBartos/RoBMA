@@ -238,6 +238,20 @@
   }
 
   ordinate_diagnostics <- list(
+    internal_method = diagnostics[["internal_method"]],
+    working_distribution = diagnostics[["working_distribution"]],
+    normalization_basis = diagnostics[["normalization_basis"]],
+    ordered_error_status = diagnostics[["ordered_error_status"]],
+    block_numerator_relative_error = diagnostics[["block_numerator_relative_error"]],
+    block_denominator_relative_error = diagnostics[["block_denominator_relative_error"]],
+    block_max_order = diagnostics[["block_max_order"]], block_max_panels = diagnostics[["block_max_panels"]],
+    block_native_nodes = diagnostics[["block_native_nodes"]],
+    ordered_proofs = diagnostics[["ordered_proofs"]],
+    ordered_source_subplan = diagnostics[["ordered_source_subplan"]],
+    ordered_block_subplan = diagnostics[["ordered_block_subplan"]],
+    ordered_point_plan = diagnostics[["ordered_point_plan"]],
+    ordered_point_certificate = diagnostics[["ordered_point_certificate"]],
+    omitted_ordered_points = diagnostics[["omitted_ordered_points"]],
     log_ordinate                      = diagnostics[["bf_log_ordinate"]],
     evaluation_value                  = diagnostics[["bf_evaluation_value"]],
     mcse                              = diagnostics[["bf_mcse"]],

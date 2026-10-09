@@ -50,7 +50,7 @@
   }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "unsupported_formula_transform")) {
-    stop(parameter_spec[["reason"]], call. = FALSE)
+    .iwmde_stop_unavailable(.iwmde_unavailable(parameter_spec[["reason"]], "original_scale"))
   }
   if (is.null(parameter_spec)) {
     parameter_spec <- list(
@@ -63,8 +63,18 @@
       "prior_density"
     )
   }
-  parameter_spec[["conditional"]]      <- conditional
-  parameter_spec[["conditional_rule"]] <- "AND"
+  condition <- .iwmde_sample_condition_metadata(raw_posterior)
+  if(length(conditional) > 0L && length(condition[["conditional"]]) > 0L &&
+     !setequal(conditional, condition[["conditional"]])){
+    stop("The scalar ordinate condition does not match its posterior declaration. Recompute the posterior for the requested condition.", call. = FALSE)
+  }
+  for(field in c("conditional", "conditional_rule", "condition_key", "condition_event", "resolved_condition_event")) parameter_spec[[field]] <- NULL
+  parameter_spec[["conditional"]] <- conditional
+  complete_condition <- length(condition[["conditional"]]) > 0L &&
+    length(condition[["conditional_rule"]]) > 0L && length(condition[["condition_key"]]) > 0L
+  if(length(conditional) > 0L && complete_condition){
+    for(field in names(condition)) parameter_spec[[field]] <- condition[[field]]
+  }else if(length(conditional) > 0L) parameter_spec[["conditional_rule"]] <- "AND"
   source_value <- if (is.null(display_transform)) {
     value
   } else {
@@ -314,7 +324,7 @@
   }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "unsupported_formula_transform")) {
-    stop(parameter_spec[["reason"]], call. = FALSE)
+    .iwmde_stop_unavailable(.iwmde_unavailable(parameter_spec[["reason"]], "original_scale"))
   }
 
   weights <- if (is.null(parameter_spec)) {
@@ -323,6 +333,10 @@
     parameter_spec[["weights"]]
   }
   linear_weights <- .iwmde_linear_weights(weights)
+  if(is.null(parameter_spec) && !is.null(linear_weights)){
+    linear_weights <- .brma_fitted_linear_weights(raw_posterior[[level]], linear_weights)
+    weights <- linear_weights
+  }
   if (is.null(linear_weights) || length(linear_weights) == 0L) {
     reason <- if (is.null(linear_weights)) {
       "linear weights are unavailable"

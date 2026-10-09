@@ -33,7 +33,10 @@ point mass, zero (for example a null outside a truncated prior), infinite,
 undefined, or without an exact value) has an \code{NA} inclusion Bayes
 factor, whose reason the summary prints below the table; the other marginal
 means are computed. A point hypothesis on that mean with \code{\link[=hypothesis]{hypothesis()}}
-stops with the BayesTools class.}
+stops with the BayesTools class.
+Declared unavailable formula measures (class
+\code{BayesTools_formula_measure_unavailable}) likewise give an \code{NA}
+row with the original reason, while available siblings are computed.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}
@@ -53,7 +56,9 @@ and \code{"IRR"}.}
 summaries. Defaults to \code{TRUE} for RoBMA/BMA objects and \code{FALSE}
 for single-model \code{brma} objects. With qCMDE/IWMDE, setting
 \code{bf = FALSE} also skips point-ordinate precomputation; point hypotheses
-can still compute requested ordinates on demand.}
+can still compute requested ordinates on demand.
+With KDE, \code{summary(..., bf = TRUE)} computes previously skipped
+inclusion Bayes factors from the stored conditional marginal posteriors.}
 
 \item{parameter, type, levels}{optional selectors restricting qCMDE/IWMDE
 density precomputation to a marginal-means parameter, output type, or factor
@@ -70,7 +75,12 @@ separate precomputed posterior ordinates at \code{null_hypothesis}; these
 ordinates do not alter the plotting grid. qCMDE is preferred when its
 additional normalization cost is acceptable; IWMDE can be faster but is
 more sensitive to its fitted conditional weights. Matching is
-case-insensitive. When an ordinate is used for a Bayes factor,
+case-insensitive. Selected weightfunction models near zero cumulative ordered
+effects can take more than 10 minutes with qCMDE or IWMDE. Ordered effects use
+normalized conditional-source
+contributions for both methods, with their respective row budgets; regular
+exact offsets can require positive conditional blocks. Their numerical
+proof is reported separately from the chain MCSE. When an ordinate is used for a Bayes factor,
 \code{BF_error} is a conditional Monte Carlo error estimate. It excludes
 uncertainty in the prior ordinate and, for IWMDE, uncertainty from estimating
 the conditional weight function. Use \code{density_diagnostics()} on a

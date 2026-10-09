@@ -1,39 +1,16 @@
+source(testthat::test_path("common-functions.R"))
+
 context("Random-slope correlation routes")
 
 # A scaled us(1 + x | study) block: the original-scale intercept-slope
 # correlation is derived from the LKJ correlation and the allocation-derived
 # SDs. Small single-chain fit; the expectations are identities on its draws.
-.random_correlation_cache <- new.env(parent = emptyenv())
-
 # 'heterogeneity' is NULL for the default allocation of the heterogeneity
 # over the block's SDs, or a prior_heterogeneity() specification.
 .random_correlation_fit <- function(heterogeneity = NULL) {
 
-  key <- if (is.null(heterogeneity)) "fit" else "fit_direct"
-  if (!is.null(.random_correlation_cache[[key]])) {
-    return(.random_correlation_cache[[key]])
-  }
-
-  set.seed(2)
-  k   <- 30L
-  dat <- data.frame(
-    study = rep(sprintf("s%02d", seq_len(10L)), each = 3L),
-    x     = stats::rnorm(k)
-  )
-  dat[["yi"]] <- 0.2 + 0.1 * dat[["x"]] +
-    stats::rnorm(10L, 0, 0.1)[as.integer(factor(dat[["study"]]))] +
-    stats::rnorm(k, 0, 0.15)
-  args <- list(
-    yi = quote(yi), V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
-    data = dat, measure = "GEN", prior_unit_information_sd = 1,
-    chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
-    silent = TRUE
-  )
-  args[["prior_heterogeneity"]] <- heterogeneity
-  fit <- suppressWarnings(do.call(brma.mv, args))
-  .random_correlation_cache[[key]] <- fit
-
-  return(fit)
+  key <- if (is.null(heterogeneity)) "lane_random_correlation" else "lane_random_correlation_direct"
+  load_fit(key)
 }
 
 # The same scaled block under BMA.mv, whose default heterogeneity null gates
@@ -42,26 +19,7 @@ context("Random-slope correlation routes")
 # study effects, so some draws switch the gate off.
 .random_correlation_gated_fit <- function() {
 
-  if (!is.null(.random_correlation_cache[["gated"]])) {
-    return(.random_correlation_cache[["gated"]])
-  }
-
-  set.seed(2)
-  k   <- 30L
-  dat <- data.frame(
-    study = rep(sprintf("s%02d", seq_len(10L)), each = 3L),
-    x     = stats::rnorm(k)
-  )
-  dat[["yi"]] <- 0.2 + 0.1 * dat[["x"]] + stats::rnorm(k, 0, 0.15)
-  fit <- suppressWarnings(BMA.mv(
-    yi = yi, V = diag(rep(0.0225, k)), random = ~ us(1 + x | study),
-    data = dat, measure = "GEN", prior_unit_information_sd = 1,
-    chains = 1, sample = 300, burnin = 100, adapt = 100, seed = 1,
-    silent = TRUE
-  ))
-  .random_correlation_cache[["gated"]] <- fit
-
-  return(fit)
+  load_fit("lane_random_correlation_gated")
 }
 
 # Draws 3 and 4 allocate the whole block variance to the intercept: the SD

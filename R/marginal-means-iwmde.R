@@ -5,7 +5,7 @@
 .marginal_means_precompute_type <- function(type, model_averaged) {
 
   if (is.null(type)) {
-    return(c("averaged", "conditional"))
+    return(if(isTRUE(model_averaged)) c("averaged", "conditional") else "averaged")
   }
 
   BayesTools::check_char(type, "type", check_length = 0, allow_NA = FALSE)
@@ -653,10 +653,15 @@
 }
 
 
-.marginal_means_unavailable_bf_scalar <- function(warning) {
+.marginal_means_unavailable_bf_scalar <- function(warning, condition = NULL) {
 
   out <- NA_real_
   attr(out, "warnings") <- warning
+  if(!is.null(condition)){
+    attr(out, "numerical_diagnostics") <- condition
+    attr(out, "posterior_density_source") <- if(inherits(condition, "BayesTools_formula_measure_unavailable"))
+      "measure_unavailable" else "numerical_unavailable"
+  }
   return(out)
 }
 
@@ -892,7 +897,7 @@
       return("")
     }
     reason <- .iwmde_diagnostics_density_failure_reason(
-      diagnostic[["diagnostics"]]
+      diagnostic[["diagnostics"]], has_diagnostics_field = FALSE
     )
     if (is.null(reason) || length(reason) != 1L || is.na(reason)) {
       return("")

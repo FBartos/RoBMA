@@ -217,6 +217,7 @@ test_that("default draw extraction filters auxiliary variables only", {
   testthat::local_mocked_bindings(
     JAGS_validate_fit_contract = function(...) invisible(TRUE),
     JAGS_materialize_draws = function(...) materialized,
+    JAGS_ordered_parameter_spec = function(...) list(),
     .package = "BayesTools"
   )
 

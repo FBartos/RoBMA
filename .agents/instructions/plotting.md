@@ -23,6 +23,56 @@ Normalize defaults shared by both backends once, in the dispatcher or a focused
 options helper. Render semantic layers in the same order in both backends;
 backend-specific styling must not change the represented quantities.
 
+For ordered semantic targets, derive owners from selected catalog quantities'
+`term` and `formula_parameter`, including group members, with
+`JAGS_parameter_names()`. Intersect them with declared ordered priors before
+requesting only those owners from `JAGS_ordered_parameter_spec()`; ordinary
+targets do not request ordered metadata. Compare persisted catalog dependencies
+with the selected specs' coefficient names. Leave
+unspecified whole-factor prior line colors and types to BayesTools' matched
+level styles. For selected ordered cells with `prior = TRUE`, resolve the scalar posterior color
+(`col`, then `color`, then `colour`) and use it for an unspecified prior color
+with a dashed line. In this scope, normalize prior color aliases with priority
+`col`, `color`, then `colour`. Explicit prior colors and types, including aliases, win;
+`linetype` takes precedence over `lty` in both backends. Preserve ordinary
+targets' existing defaults.
+
+For an ordered factor cell, retain the semantic marginal selected by its exact
+catalog extraction weights, including its prior and aligned draw metadata.
+Displayed contrast columns alone are not primitive ordered source draws; do not
+re-evaluate that marginal through `parameter_draws()` on those columns.
+At an actual scalar backend-source to display-target mapping, label a stored
+qCMDE/IWMDE curve with the declared BayesTools plotted leaf and retain its source
+parameter as provenance. Explicit precomputed plots require a matching selected
+continuous curve; unavailable or wrong-target metadata cannot select KDE.
+
+Ordered qCMDE/IWMDE inference uses the public primitive projection and source
+recipes. Both requested methods normalize the same complete conditional source
+kernel, with their original row budgets. Supplier/population classification
+precedes chart selection and uses declared support and prior provenance.
+Regular offsets with finite first but uncertified fourth reciprocal moments
+use a positive block. Normalize source and block rows separately, replace only
+the exact offset rows in the common contribution matrix, then aggregate and
+compute chain/FPC uncertainty once. Preserve the strict sample alignment gate,
+exact offset bits, per-row 0.025 numerical gate and separate atom measure.
+Unknown suppliers or missing population precision certificates remain explicit
+point capabilities; density curves omit only classified exact unavailable
+points and retain their reasons. Keep log/scaled contributions under underflow.
+Block capabilities must match the invariant diagonal Gaussian geometry and its
+literal Normal/Gamma prior scope. Finite-upper Gamma share inverse suppliers
+with no validated route are classified before denominator work. Unselected,
+source-state-free blocks may complete literal untruncated Gamma shape 1/2
+masses only within the score/conditioning and prospective arithmetic reserve;
+retain effective-prior, method and fallback evidence in the row counts. Rejected
+completion scales never enter the existing CDF floating-error ledger. Selected
+blocks retain the original native selection correction at every source node.
+Apply block prior-family eligibility only to resolved block components; raw,
+zero and atomic components keep their existing routes. Missing MCMC uncertainty
+at some ordered evaluations retains the original selected-row scope with partial
+status and reason. Preserve available per-value metrics, reject incomplete
+curve availability, and keep affected point precision flags false. Distinguish
+these missing metrics from finite log MCSE with absolute representation underflow.
+
 Use `.outcome_data_yi()`, `.outcome_data_sei()`,
 `.outcome_data_vi()`, and `.outcome_data_weights()` instead of direct fitted
 object access.
@@ -73,6 +123,13 @@ step bands keep their own estimators; document the estimator where a band is
 described.
 
 ## API and Verification
+
+Ordinary qCMDE/IWMDE rows compose the existing numerical ordered-prior kernel
+with the remaining ordinary priors. Cache identities preserve exact inclusion
+indicators, including zero; selected components retain their strict validation.
+Dependent vector priors use their full joint density and leave unused scalar
+focal baselines unavailable. Ordered expression nuisance terms retain the
+existing typed ordered-expression refusal for the requested target.
 
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.
 Keep released plotting arguments working for the compatibility periods in

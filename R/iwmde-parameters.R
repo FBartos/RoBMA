@@ -4,6 +4,10 @@
 
 .iwmde_parameter_spec <- function(context, parameter, parameter_spec = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
+  parameter_spec <- .iwmde_ordered_target_spec(context, parameter, parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) return(parameter_spec)
+
   samples <- context[["posterior_samples"]]
 
   if (is.null(parameter_spec)) {
@@ -277,6 +281,10 @@
 
 .iwmde_parameter_values <- function(context, parameter, parameter_spec) {
 
+  .iwmde_require_target_type(parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    return(parameter_spec[["ordered_projection"]][["values"]])
+  }
   samples <- context[["posterior_samples"]]
   if (identical(parameter_spec[["type"]], "linear")) {
     return(.iwmde_linear_values(context, samples, parameter_spec[["weights"]]))
@@ -565,6 +573,10 @@
 .iwmde_parameter_components <- function(context, parameter,
                                         parameter_spec = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    return(.iwmde_ordered_components(parameter_spec))
+  }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "linear")) {
     return(.iwmde_linear_components(context, parameter_spec))
@@ -1076,6 +1088,11 @@
 .iwmde_parameter_row_supports <- function(context, parameter, rows,
                                           parameter_spec = NULL) {
 
+  .iwmde_require_target_type(parameter_spec)
+  if (identical(parameter_spec[["type"]], "ordered")) {
+    return(matrix(rep(.iwmde_ordered_support(context, parameter_spec), each = length(rows)),
+      nrow = length(rows), ncol = 2L))
+  }
   if (length(rows) == 0L) {
     return(matrix(numeric(), nrow = 0L, ncol = 2L))
   }

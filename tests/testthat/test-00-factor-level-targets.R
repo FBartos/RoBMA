@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 context("Factor-level hypothesis targets and plots")
 
 # Level labels are selectors, never JAGS coordinate positions. The labels
@@ -5,38 +7,12 @@ context("Factor-level hypothesis targets and plots")
 # the coordinate names of other levels (treatment level 3 is coordinate 2).
 # Small single-chain fits suffice: every expectation below is an identity on
 # the same posterior draws.
-.factor_level_target_cache <- new.env(parent = emptyenv())
-
 .factor_level_target_fits <- function() {
 
-  if (!is.null(.factor_level_target_cache[["fits"]])) {
-    return(.factor_level_target_cache[["fits"]])
-  }
-
-  set.seed(1)
-  k    <- 48L
-  data <- data.frame(
-    g1  = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
-    g2  = factor(rep(1:4, length.out = k)[sample.int(k)], levels = 1:4),
-    sei = stats::runif(k, 0.1, 0.3)
+  list(
+    treatment = load_fit("hypothesis_plan_treatment"),
+    meandif = load_fit("hypothesis_plan_meandif")
   )
-  data[["yi"]] <- stats::rnorm(
-    k,
-    c(0, 0.2, 0.4)[as.integer(data[["g1"]])] +
-      c(0, 0.1, 0.3, 0.5)[as.integer(data[["g2"]])],
-    data[["sei"]]
-  )
-  fits <- lapply(c(treatment = "treatment", meandif = "meandif"), function(contrast) {
-    suppressWarnings(brma(
-      yi = yi, sei = sei, mods = ~ g1 + g2, data = data, measure = "SMD",
-      set_contrast_factor_predictors = contrast,
-      chains = 1, sample = 1000, burnin = 200, adapt = 100,
-      seed = 1, silent = TRUE
-    ))
-  })
-  .factor_level_target_cache[["fits"]] <- fits
-
-  return(fits)
 }
 
 
@@ -359,18 +335,8 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
   # so the ordinate of 'mid' at 0 (and of the contrasts of adjacent levels)
   # is infinite; 'hi' has the normal ordinate of the total. Point tests of
   # 'mid' off 0 are exact.
-  set.seed(3)
-  k    <- 48L
-  data <- data.frame(
-    g   = factor(rep(c("lo", "mid", "hi"), length.out = k), levels = c("lo", "mid", "hi")),
-    sei = stats::runif(k, 0.1, 0.3)
-  )
-  data[["yi"]] <- stats::rnorm(k, c(0, 0.2, 0.3)[as.integer(data[["g"]])], data[["sei"]])
-  ordered <- suppressWarnings(brma(
-    yi = yi, sei = sei, mods = ~ g, data = data, measure = "SMD",
-    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
-    chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
-  ))
+  ordered <- load_fit("lane_factor_ordered_labels")
+  data <- load_info("lane_factor_ordered_labels")$data
   quantities <- hypothesis_quantities(ordered)
   g <- quantities[quantities[["alias"]] == "g", , drop = FALSE]
   expect_true(g[["point_test"]])
@@ -397,17 +363,100 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
     }
   }
 
+  # The semantic marginal evaluates ordered totals and allocations before the
+  # cell helper selects it. Preserve that value and its complete draw metadata,
+  # including conditioning, instead of re-reading displayed contrast columns.
+  marginal_posterior <- BayesTools::marginal_posterior
+  selected_marginal <- NULL
+  testthat::local_mocked_bindings(
+    marginal_posterior = function(...) {
+      selected_marginal <<- marginal_posterior(...)
+      selected_marginal
+    },
+    .package = "BayesTools"
+  )
+  testthat::local_mocked_bindings(
+    .brma_draws_with_values = function(...) {
+      stop("Ordered cells must retain their semantic marginal values.")
+    },
+    .package = "RoBMA"
+  )
+  for (selector in c("g[lo]", "g[mid]", "g[hi]")) {
+    entry <- .brma_parameter_select_entry(ordered, selector, allow_factor_cells = TRUE)
+    expected <- as.numeric(as.matrix(BayesTools::parameter_draws(
+      ordered[["fit"]], entry[["selection"]]
+    )))
+    for (standardized in c(FALSE, TRUE)) {
+      cell <- .plot_brma_factor_cell_samples(
+        ordered, entry, standardized, conditional = FALSE, precomputed = FALSE
+      )
+      value <- cell[["samples"]][[1L]]
+      marginal_value <- selected_marginal[[attr(value, "level_name", exact = TRUE)]]
+      expect_identical(as.numeric(value), as.numeric(marginal_value))
+      expect_identical(attr(value, "bayestools_meta", exact = TRUE),
+        attr(marginal_value, "bayestools_meta", exact = TRUE))
+      for (field in c("atoms", "prior_density", "condition", "linear_weights")) {
+        expect_identical(BayesTools::posterior_metadata(value, field),
+          BayesTools::posterior_metadata(marginal_value, field), info = field)
+      }
+      expect_identical(as.numeric(value), expected)
+      expect_identical(cell[["structural"]], identical(selector, "g[lo]"))
+      if (cell[["structural"]]) {
+        expect_identical(BayesTools::posterior_metadata(value, "atoms")[["mass"]], 1)
+      }
+    }
+  }
+  grDevices::pdf(NULL)
+  tryCatch({
+    for (selector in c("g", "g[mid]", "g[hi]")) {
+      expect_null(plot(ordered, parameter = selector, prior = TRUE,
+        density_method = "KDE", plot_type = "base"))
+      plotted <- plot(ordered, parameter = selector, prior = TRUE,
+        density_method = "KDE", plot_type = "ggplot")
+      expect_s3_class(plotted, "ggplot")
+      layers <- ggplot2::ggplot_build(plotted)[["data"]]
+      if (selector %in% c("g[mid]", "g[hi]")) {
+        expect_length(layers, 2L)
+        expect_identical(unique(layers[[1L]][["colour"]]), "black")
+        expect_identical(unique(layers[[1L]][["linetype"]]), 2)
+        expect_identical(unique(layers[[2L]][["colour"]]), "black")
+        expect_identical(unique(layers[[2L]][["linetype"]]), 1)
+      }
+    }
+    styles <- list(
+      list(posterior = list(col = "purple"), prior = NULL, color = "purple", lty = 2),
+      list(posterior = list(color = "green4"), prior = NULL, color = "green4", lty = 2),
+      list(posterior = list(colour = "blue"), prior = NULL, color = "blue", lty = 2),
+      list(posterior = list(col = "purple", color = "green4", colour = "blue"),
+        prior = list(col = "red", color = "blue", lty = 3), color = "red", lty = 3),
+      list(posterior = list(), prior = list(color = "red", colour = "blue", linetype = "dotted"),
+        color = "red", lty = "dotted"),
+      list(posterior = list(), prior = list(colour = "red", lty = 3, linetype = "dotdash"),
+        color = "red", lty = "dotdash")
+    )
+    for (style in styles) {
+      plotted <- do.call(plot, c(list(x = ordered, parameter = "g[hi]",
+        prior = TRUE, density_method = "KDE", plot_type = "ggplot",
+        dots_prior = style[["prior"]]), style[["posterior"]]))
+      layers <- ggplot2::ggplot_build(plotted)[["data"]]
+      expect_identical(unique(layers[[1L]][["colour"]]), style[["color"]])
+      expect_identical(unique(layers[[1L]][["linetype"]]), style[["lty"]])
+      expect_identical(unique(layers[[2L]][["colour"]]),
+        if (!length(style[["posterior"]])) "black" else if (is.null(style[["prior"]])) {
+          style[["color"]]
+        } else "purple")
+    }
+  }, finally = grDevices::dev.off())
+  expect_error(.plot_brma_factor_cell_samples(ordered, entry, FALSE, TRUE, FALSE),
+    "The parameter 'mu_g' is not a conditional parameter.", fixed = TRUE)
+  entry <- .brma_parameter_select_entry(ordered, "g[mid]", allow_factor_cells = TRUE)
+  expect_error(BayesTools::parameter_draws(ordered[["fit"]], entry[["selection"]],
+    model_samples = as.matrix(ordered[["fit"]][["mcmc"]])[, "mu_g[1]", drop = FALSE]),
+    class = "BayesTools_ordered_coordinates_unavailable")
+
   # With numeric labels, the first increment's coordinate 'mu_g[1]' reads as
   # the reference level '1': hypotheses name the level the hypothesis wrote.
-  data[["g"]] <- factor(
-    c("1", "2", "3")[as.integer(data[["g"]])],
-    levels = c("1", "2", "3")
-  )
-  numeric_labels <- suppressWarnings(brma(
-    yi = yi, sei = sei, mods = ~ g, data = data, measure = "SMD",
-    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
-    chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
-  ))
+  numeric_labels <- load_fit("lane_factor_numeric_labels")
   for (statement in c("g[2] = 0.1", "g[3] = 0.1")) {
     expect_s3_class(
       suppressWarnings(hypothesis(numeric_labels, statement, density_method = "KDE")),
@@ -419,6 +468,12 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
     "The quantity 'g[1]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
     fixed = TRUE
   )
+  for (selector in c("g[1]", "g[2]", "g[3]")) {
+    entry <- .brma_parameter_select_entry(numeric_labels, selector, allow_factor_cells = TRUE)
+    cell <- .plot_brma_factor_cell_samples(numeric_labels, entry, FALSE, FALSE, FALSE)
+    expect_identical(as.numeric(cell[["samples"]][[1L]]),
+      as.numeric(as.matrix(BayesTools::parameter_draws(numeric_labels[["fit"]], entry[["selection"]]))))
+  }
 })
 
 
@@ -429,7 +484,7 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   # matrix on the fitted coordinates.
   transform <- structure(
     list(
-      schema_version    = 2L,
+      schema_version    = 3L,
       target_scale      = "original",
       target_names      = c("mu_x", "log_tau_intercept"),
       matrix            = rbind(
@@ -500,6 +555,8 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   expect_identical(class(error), original_scale)
   expect_identical(conditionMessage(error), route("mu_x")[["reason"]])
   transform[["matrix"]]["mu_x", "mu_x"] <- 0
+  transform[["targets"]][["structural_status"]][[1L]] <- "structural"
+  transform[["targets"]][["fixed_value"]][[1L]] <- 0
   expect_identical(
     route("mu_x")[["reason"]],
     "The fitted coefficient 'mu_x' is structurally fixed and has no posterior hypothesis route."
@@ -589,6 +646,18 @@ test_that("linear-target refusals of BayesTools keep their classes", {
       .package = "BayesTools"
     )
     .hypothesis_plan_cache_clear()
+    if (name == "classed") {
+      for (read in list(
+          function() .hypothesis_plans(fit, "g1[10] = g1[20]"),
+          function() hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),
+          function() hypothesis(means, "g1[10] = g1[20]"))) {
+        condition <- expect_error(read(), "Draw metadata are stale.", fixed = TRUE,
+          class = "BayesTools_stale_metadata")
+        expect_identical(class(condition), class(refusals[[name]]))
+        expect_null(conditionCall(condition))
+      }
+      next
+    }
     plan <- .hypothesis_plans(fit, "g1[10] = g1[20]")[[1L]]
     expect_identical(plan[["route"]], "combination", info = name)
     expect_identical(plan[["refusal"]][["class"]], expected[[name]], info = name)
@@ -719,22 +788,7 @@ test_that("point hypotheses on the fixed reference level give one reason for eve
 test_that("fixed reference-level statements keep one reason under qCMDE for model-averaged fits", {
 
   skip_on_cran()
-  set.seed(1)
-  k    <- 48L
-  data <- data.frame(
-    g1  = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
-    sei = stats::runif(k, 0.1, 0.3)
-  )
-  data[["yi"]] <- stats::rnorm(
-    k, c(0, 0.2, 0.4)[as.integer(data[["g1"]])], data[["sei"]]
-  )
-  fit <- suppressWarnings(BMA.norm(
-    yi = yi, sei = sei, mods = ~ g1, data = data, measure = "SMD",
-    set_contrast_factor_predictors = "treatment",
-    chains = 1, sample = 1000, burnin = 200, adapt = 100,
-    seed = 1, silent = TRUE
-  ))
-
+  fit <- load_fit("lane_factor_averaged_reference")
   # A call mixing the fixed reference level with another level is refused by
   # the fixed level's plan before any qCMDE/IWMDE ordinate is computed.
   message_of <- function(expr) tryCatch(suppressWarnings(expr), error = conditionMessage)

@@ -19,6 +19,8 @@
 #' coordinate such as \code{"omega[1]"}, or a latent cluster effect) stops
 #' with the classes \code{RoBMA_hypothesis_target} and
 #' \code{RoBMA_hypothesis_unavailable}, with which [hypothesis()] refuses it.
+#' Ordered level cells retain their semantic marginal draws and prior metadata
+#' on the requested predictor scale, including conditional row alignment.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -49,7 +51,14 @@
 #' Chen-style moment-matched IWMDE densities. qCMDE is preferred when its
 #' additional normalization cost is acceptable; IWMDE can be faster but is
 #' more sensitive to its fitted conditional weights. Matching is
-#' case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
+#' case-insensitive. Ordered effects use the same normalized conditional-source
+#' estimator for both methods, with their respective posterior-row budgets.
+#' Selected weightfunction models near zero cumulative ordered effects can take
+#' more than 10 minutes with qCMDE or IWMDE.
+#' Exact regular ordered offsets that need a finite supplier integral use a
+#' positive conditional block; offsets classified as nonfinite or unsupported are omitted
+#' only at that exact value from a density curve. Point hypotheses retain their
+#' structural or precision refusal. For semantic random-effect quantities, qCMDE/IWMDE support
 #' direct scalar fitted sources, allocated component SDs backed by a scalar
 #' aggregate (`tau_total` or `tau_common`), and allocation proportions or
 #' multipliers
@@ -116,6 +125,15 @@
 #' \code{lty}, \code{col}, and \code{col.fill}, to adjust
 #' the line thickness, line type, line color, and fill color
 #' of the prior distribution respectively.
+#' For ordered predictor targets, omitted line colors and types match each
+#' posterior level's color with a dashed prior curve, including selected cells.
+#' For selected ordered cells with \code{prior = TRUE}, \code{color}/\code{colour}
+#' aliases resolve to \code{col}, with priority \code{col}, \code{color}, then
+#' \code{colour}; \code{linetype} takes precedence over \code{lty} in both renderers.
+#' Explicit \code{col}, \code{lty}, or \code{linetype} values take
+#' precedence; the ordinary prior defaults are retained for other targets.
+#' Ordered metadata validation is restricted to the selected terms, including
+#' selected group members; unrelated ordered terms do not affect prior styles.
 #' @inheritParams predict.brma
 #' @param ... list of additional graphical arguments
 #' to be passed to the plotting function. Supported arguments
@@ -392,6 +410,10 @@ lines.brma <- function(
       conditional      = if (conditional) parameter else NULL,
       transform_scaled = !standardized_coefficients
     )
+    if (parameter %in% c("PET", "PEESE") && identical(sample_parameter, "bias")) {
+      samples <- BayesTools:::.simplify_as_mixed_posterior_bias(samples, parameter)
+      sample_parameter <- parameter
+    }
     density_sample_parameter <- .plot_brma_density_sample_parameter(
       samples          = samples,
       parameter        = parameter,
@@ -423,9 +445,23 @@ lines.brma <- function(
   }
 
   ### set up plotting arguments
+  ordered_target <- isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
+  ordered_cell <- ordered_target && is_factor_cell
+  if (ordered_cell) {
+    if (is.null(dots_raw[["col"]])) {
+      dots_raw[["col"]] <- if (!is.null(dots_raw[["color"]])) {
+        dots_raw[["color"]]
+      } else dots_raw[["colour"]]
+    }
+    if (!is.null(dots_raw[["linetype"]])) dots_raw[["lty"]] <- dots_raw[["linetype"]]
+  }
   n_levels   <- .get_samples_n_levels(samples, parameter)
   dots       <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))
-  dots_prior <- .set_dots_prior(dots_prior)
+  dots_prior <- .set_dots_prior(
+    dots_prior,
+    ordered = ordered_target,
+    posterior_col = if (ordered_cell) dots[["col"]]
+  )
   if (is.null(dots[["par_name"]])) {
     dots[["par_name"]] <- if (is_random) random_label else if (is_factor_cell) {
       parameter_entry[["selection"]][["quantities"]][["display_label"]]
@@ -585,6 +621,10 @@ lines.brma <- function(
       )
     }
     if (!is.null(posterior_density)) {
+      # The estimate retains its backend target in provenance, while matching
+      # the actual BayesTools plotted semantic leaf at this boundary.
+      posterior_density[["source_parameter"]] <- posterior_density[["parameter"]]
+      posterior_density[["parameter"]] <- sample_parameter
       samples[[sample_parameter]] <- .iwmde_attach_posterior_density(
         samples[[sample_parameter]],
         posterior_density,
@@ -774,6 +814,9 @@ lines.brma <- function(
     )
     linear_weights <- .iwmde_linear_weights(weights)
     if (is.null(linear_weights) || length(linear_weights) == 0L) {
+      if (.plot_brma_declared_zero_cell(raw_posterior[[level]], weights)) {
+        density_columns <- c(density_columns, column)
+      }
       next
     }
 
@@ -898,6 +941,10 @@ lines.brma <- function(
 .plot_brma_iwmde_parameter_spec <- function(samples, conditional, type,
                                            weights = NULL) {
 
+  if(identical(type, "linear") && !is.null(weights)){
+    raw_weights <- .iwmde_linear_weights(weights)
+    if(!is.null(raw_weights)) weights <- .brma_fitted_linear_weights(samples, raw_weights)
+  }
   condition_metadata <- .iwmde_sample_condition_metadata(samples)
   if (!is.null(conditional)) {
     condition_metadata[["conditional"]]      <- conditional
@@ -933,6 +980,17 @@ lines.brma <- function(
   }
 
   return(setequal(density_columns, expected_columns))
+}
+
+
+.plot_brma_declared_zero_cell <- function(samples, weights) {
+
+  if (!is.numeric(weights) || !length(weights) || any(!is.finite(weights)) || any(weights != 0)) return(FALSE)
+  atoms <- BayesTools::posterior_metadata(samples, "atoms")
+  inherits(atoms, "BayesTools_posterior_atoms") && isTRUE(atoms[["declared"]]) &&
+    !isFALSE(atoms[["joint_declared"]]) &&
+    length(atoms[["mass"]]) > 0L && sum(atoms[["mass"]]) == 1 &&
+    length(atoms[["locations"]]) > 0L && all(atoms[["locations"]] == 0)
 }
 
 
@@ -1183,7 +1241,12 @@ lines.brma <- function(
     !is.null(candidate) && identical(unname(candidate[order(names(candidate))]),
       unname(target[order(names(target))])) && setequal(names(candidate), names(target))
   }
-  matches <- which(vapply(raw_marginal, same_weights, logical(1L)))
+  matches <- if(!length(key[["dependencies"]])){
+    which(vapply(raw_marginal, function(sample){
+      quantities <- BayesTools::posterior_metadata(sample, "quantities")
+      !is.null(quantities) && entry[["quantity_id"]] %in% quantities[["quantity_id"]]
+    }, logical(1)))
+  }else which(vapply(raw_marginal, same_weights, logical(1L)))
   if (!length(matches)) {
     stop("Selected factor-cell prior metadata do not match its fitted extraction weights.",
       call. = FALSE)
@@ -1203,6 +1266,9 @@ lines.brma <- function(
     )
   }
   value <- marginal[[level]]
+  .brma_formula_measure_check(value, "prior_density")
+  .brma_formula_measure_check(value, "atoms")
+  .brma_linear_weight_space(value)
   if (!is.numeric(value) || is.null(BayesTools::posterior_metadata(
     value,
     "prior_density"
@@ -1217,22 +1283,30 @@ lines.brma <- function(
   if (!all(key[["dependencies"]] %in% coordinate_columns)) {
     stop("Selected factor-cell source coordinates are unavailable.", call. = FALSE)
   }
-  source_samples <- as.matrix(displayed[[parent]])[
-    ,
-    !is.na(coordinate_columns),
-    drop = FALSE
-  ]
-  colnames(source_samples) <- coordinate_columns[!is.na(coordinate_columns)]
-  draws <- BayesTools::parameter_draws(object[["fit"]], selection,
-    model_samples = source_samples)
-  if (nrow(as.matrix(draws)) != length(value)) {
-    stop("Selected factor-cell draws have inconsistent row metadata.", call. = FALSE)
+  # Ordered marginals already evaluate the semantic cell from its retained
+  # total/allocation sources. Keep its aligned values and metadata rather than
+  # treating the displayed contrast columns as primitive ordered draws.
+  if (!.plot_brma_ordered_target(object, entry) && length(key[["dependencies"]]) > 0L) {
+    source_samples <- as.matrix(displayed[[parent]])[
+      ,
+      !is.na(coordinate_columns),
+      drop = FALSE
+    ]
+    colnames(source_samples) <- coordinate_columns[!is.na(coordinate_columns)]
+    draws <- BayesTools::parameter_draws(object[["fit"]], selection,
+      model_samples = source_samples)
+    if (nrow(as.matrix(draws)) != length(value)) {
+      stop("Selected factor-cell draws have inconsistent row metadata.", call. = FALSE)
+    }
+    value <- .brma_draws_with_values(value, as.numeric(as.matrix(draws)))
   }
-  value <- .brma_draws_with_values(value, as.numeric(as.matrix(draws)))
   attr(value, "parameter") <- entry[["parameter"]]
   attr(value, "level_name") <- level
   class(value) <- unique(c(class(value), "marginal_posterior"))
-  structural <- !length(weights)
+  prior_density <- BayesTools::posterior_metadata(value, "prior_density")
+  points <- prior_density[["points"]]
+  structural <- is.data.frame(points) && nrow(points) == 1L && isTRUE(points[["p"]] == 1) &&
+    is.null(prior_density[["density"]])
   if (precomputed && !standardized_coefficients && !structural) {
     # qCMDE/IWMDE evaluate the original-scale cell as a linear combination
     # of fitted coordinates on their own scale.
@@ -1249,6 +1323,7 @@ lines.brma <- function(
       .iwmde_stop_unavailable(original_scale)
     }
     matrix <- transform[["matrix"]][targets, , drop = FALSE]
+    if(any(!is.finite(matrix))) .iwmde_stop_unavailable(original_scale)
     weights <- stats::setNames(as.numeric(crossprod(weights, matrix)), colnames(matrix))
     weights <- .iwmde_linear_weights(weights)
     if (any(transform[["source_transforms"]][names(weights)] != "identity")) {

@@ -11,7 +11,7 @@ test_that("coefficient transform routes follow the declared BayesTools map type"
     testthat::local_mocked_bindings(
       JAGS_formula_coefficient_transform = function(...) {
         out <- transform(targets)
-        out[["schema_version"]] <- 2L
+        out[["schema_version"]] <- 3L
         out
       },
       .package = "BayesTools"
@@ -185,7 +185,7 @@ test_that("stale fitted metadata of hypothesis targets require a refit", {
   expect_identical(class(error), refit)
   expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
   # A resolved coefficient absent from the fitted transform.
-  transform[["schema_version"]] <- 2L
+  transform[["schema_version"]] <- 3L
   transform[["target_names"]]   <- "mu_z"
   error <- tryCatch(
     .hypothesis_brma_formula_coefficient_target(list(fit = list()), selected),

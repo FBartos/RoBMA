@@ -94,10 +94,7 @@
   })
   rows <- rows[!vapply(rows, is.null, logical(1L))]
   if (!length(rows)) return(.iwmde_empty_public_density_diagnostics())
-  out <- do.call(rbind, rows)
-  rownames(out) <- NULL
-  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
-  out
+  .iwmde_bind_density_diagnostics(rows)
 }
 
 
@@ -129,8 +126,7 @@
     entry[["failure_reason"]] <- "posterior ordinate did not satisfy the Bayes-factor requirements"
   }
   out <- .iwmde_public_density_diagnostic_row(entry)
-  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
-  out
+  .iwmde_bind_density_diagnostics(out)
 }
 
 
@@ -187,8 +183,7 @@
     }
     .iwmde_estimate_ordinate_failures(current_plan, diagnostic)
   })
-  error[["density_diagnostics"]] <- if (length(frames)) do.call(rbind, frames) else
-    .iwmde_empty_public_density_diagnostics()
+  error[["density_diagnostics"]] <- .iwmde_bind_density_diagnostics(frames)
   class(error) <- unique(c("RoBMA_density_ordinate_error", class(error)))
   stop(error)
 }

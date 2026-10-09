@@ -178,3 +178,65 @@ regeneration workflow.
 Run focused tests after each meaningful change. Before handoff, run the standard
 profile when the change scope warrants it. State exactly what ran, what did not,
 and why.
+
+`tools/verify-ordered-sources.R <manifest.rds>` is focused deeper verification
+for the original two-chain, 4000-row, twelve-study ordered fixtures. The RDS
+contains a named character vector of existing fit paths (`normal`, `gamma`,
+`selected`, `shared`). The manifest selects owner-managed existing fits wherever
+they reside; `ROBMA_TEST_FILES_DIR` is printed context only and does not control
+these paths. The script never fits, refreshes or writes a cache.
+It compares source normalizers and supplier numerators against physical
+original-kernel integrals, genuine selected/shared predictors against complete
+replay, and twelve production N/D ratio arithmetic proofs against their reported
+envelopes. On original rows 1/1990/4000 it also independently integrates both
+physical block N and D, and compares their ratio using the complete original
+likelihood on replayed T/S coordinates, public group alphas and declared total
+priors. Shared allocations are varied once across their consumers. These
+selective references carry estimated quadrature errors; they do not establish
+global integration accuracy or chain calibration. It loads
+the existing development DLL with `compile = FALSE`, records native/dependency
+identity, and verifies that input fit hashes remain unchanged. This is
+correctness evidence; it does not certify a new native build's performance.
+The physical N/D/reference guards name the fixture, original row and quantity;
+ratio envelopes retain producer, reference and floating errors including their
+product terms. Ordered short-row tests explicitly restrict an internal valid
+plan population; the public planner's 20-continuous-row minimum stays unchanged.
+Missing MCMC error with finite importance ESS remains partial uncertainty.
+The ordered-result NA masks also reject malformed available-status all-NA
+uncertainty. When the active branch has enough batches in each required fitted
+chain, the complete conditioned indicator includes those same active rows.
+Ordered fixed-positive singleton step-selection blocks may reduce normalizer
+columns only after exact persisted data/design equality and bit-exact current
+mean, variance and complete selection-input checks. The Gaussian law and
+estimand, original row/power identities and full-observation error budgets are
+preserved while their arithmetic is improved. Gaussian evaluation and Normal
+completion use direct per-share precision and centered residuals from all
+original observations. The actual
+fixed-positive singleton product step context must match its declared weights,
+bins and source routing before either normalization route uses the direct
+observed factor. Source completion replays its Gaussian predictor and retains
+the original nuisance-prior constant and both truncation masses. Stationary
+polynomial roots, guards and Gamma completion retain their existing formulas.
+Conditioned node tests preserve exact original IEEE inputs and compare against
+independent declared-model constants at the original output-scale allowance.
+Full replay is always related to that target through its actual mean/SD inputs
+and independently certified declared-mean enclosures. Captured rounded-input
+oracle comparisons additionally run when those replay inputs match; one-ulp
+alternate inputs exercise the portable perturbation bound. All original nodes,
+allowances and discriminating witnesses remain pinned. Actual unselected and
+truncated Normal source contexts retain nuisance priors once and both prior
+and posterior support masses. Their physical-integral and independent MP
+comparisons include endpoint standardization, the same selected tail as the
+shared production mass helper, exp/subtraction conditioning and reference-coordinate rounding.
+The named finite-range libm allowance is engineering evidence, not a universal
+pnorm accuracy theorem; the tight source case pins the complete allowance below
+1e-9. Original conditioned-node allowances remain unchanged. Replay inputs also
+obey a-priori 64-operation affine-mean and variance caps before the adaptive
+conditioning relation; large deliberate perturbations fail those caps.
+Normal source floating diagnostics retain interval conditioning separately
+from residual arithmetic; far-tail source cases compare to independent physical
+and MP/Arb references without accepting a rounded complementary probability.
+Contradictory structural selection metadata
+raises the density-method unavailable family; quantitative failures retain
+their numerical diagnostics family. Row proofs retain the partition, source,
+prior and control identities.

@@ -97,6 +97,29 @@
 #' grid. The table also reports the stability and adaptive-quadrature
 #' warning/rejection thresholds.
 #'
+#' Ordered effects use normalized conditional-source contributions for both
+#' requested methods. Regular exact offsets can use a positive total/share
+#' block. The complete numerical ratio error must be at most 0.025 for every
+#' evaluated row, separately from the MCMC precision diagnostics. The columns
+#' `internal_method`, `working_distribution`, and `normalization_basis` identify
+#' this computation while `estimator` retains the requested method.
+#' `ordered_error_status` preserves its estimated error status. Block numerator
+#' and denominator errors, maximum quadrature order/panel count, and actual
+#' native normalizer node count are reported in the `block_*` columns. Exact
+#' offsets classified as nonfinite or unsupported are excluded only from density curves;
+#' explicit point requests retain their structural or precision refusal.
+#' The ordered per-row limit of 0.025 is separate from the generic stability
+#' warning/rejection thresholds reported in this table.
+#' When only some ordered evaluations lack certified contribution variation,
+#' their MCMC error and ESS stay unavailable while other evaluations retain
+#' their metrics. A printed table footnote reports the `partial` uncertainty
+#' status and its reason; the original selected-row scope stays in its column.
+#' Such curves fail the MCMC availability gate, and an affected point cannot
+#' meet its precision target.
+#' If every evaluation is affected, the full unavailable scope is retained.
+#' A finite log MCSE whose absolute value underflows remains a separate
+#' representation limitation.
+#'
 #' @param object an object returned by [hypothesis()] with
 #'   `density_method = "qCMDE"` or `density_method = "IWMDE"`, or an
 #'   `RoBMA_density_ordinate_error` caught from a failed or rejected point-ordinate
@@ -114,7 +137,10 @@
 #' warnings.
 #'
 #' The exact columns, in order, are `schema_version`, `algorithm_version`,
-#' `source_fingerprint`, `estimator`, `density_method`, `parameter`, `level`,
+#' `source_fingerprint`, `estimator`, `internal_method`, `working_distribution`,
+#' `normalization_basis`, `ordered_error_status`, `block_numerator_relative_error`,
+#' `block_denominator_relative_error`, `block_max_order`, `block_max_panels`,
+#' `block_native_nodes`, `density_method`, `parameter`, `level`,
 #' `requested_value`, `evaluation_value`, `requested_samples`,
 #' `achieved_row_budget`, `eligible_rows`,
 #' `evaluated_rows`, `finite_terms`, `active_mass`, `relative_mcse`,
@@ -274,11 +300,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     return(.iwmde_empty_public_density_diagnostics())
   }
 
-  out <- do.call(rbind, rows)
-  rownames(out) <- NULL
-  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
-
-  return(out)
+  return(.iwmde_bind_density_diagnostics(rows))
 }
 
 
@@ -295,9 +317,22 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     return(.iwmde_empty_public_density_diagnostics())
   }
 
+  return(.iwmde_bind_density_diagnostics(rows))
+}
+
+
+# Base row binding retains only the first frame's table attributes. Merge the
+# existing notes before binding, including notes on later or empty frames.
+.iwmde_bind_density_diagnostics <- function(rows) {
+
+  if (is.data.frame(rows)) rows <- list(rows)
+  if (!length(rows)) return(.iwmde_empty_public_density_diagnostics())
+  footnotes <- unique(unlist(lapply(rows, attr, which = "footnotes", exact = TRUE)))
   out <- do.call(rbind, rows)
   rownames(out) <- NULL
-  class(out) <- c("RoBMA_density_diagnostics", "data.frame")
+  attr(out, "footnotes") <- if (length(footnotes)) footnotes else NULL
+  class(out) <- c("RoBMA_density_diagnostics",
+    if (length(footnotes)) "BayesTools_table", "data.frame")
 
   return(out)
 }
@@ -328,6 +363,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   } else {
     "ordinate_error_bound"
   }
+  if (!is.null(diagnostics[["internal_method"]]) && diagnostics[["internal_method"]] %in%
+      c("ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) stability_metric <- "block_integration_error"
+  if (identical(diagnostics[["internal_method"]], "ordered_source_conditional_cmde")) stability_metric <- "source_integration_error"
   stability_error <- .iwmde_diagnostics_stability_relative_error(
     diagnostics = diagnostics,
     estimator   = estimator
@@ -335,7 +373,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   stability_warning <- .iwmde_bf_mass_warning_tolerance(estimator)
   stability_rejection <- .iwmde_bf_mass_fail_tolerance(estimator)
 
-  data.frame(
+  out <- data.frame(
     schema_version = .iwmde_public_character(
       provenance[["schema_version"]]
     ),
@@ -344,6 +382,15 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     ),
     source_fingerprint = .iwmde_public_source_fingerprint(provenance),
     estimator = estimator,
+    internal_method = .iwmde_public_character(diagnostics[["internal_method"]]),
+    working_distribution = .iwmde_public_character(diagnostics[["working_distribution"]]),
+    normalization_basis = .iwmde_public_character(diagnostics[["normalization_basis"]]),
+    ordered_error_status = .iwmde_public_character(diagnostics[["ordered_error_status"]]),
+    block_numerator_relative_error = .iwmde_public_numeric(diagnostics[["block_numerator_relative_error"]]),
+    block_denominator_relative_error = .iwmde_public_numeric(diagnostics[["block_denominator_relative_error"]]),
+    block_max_order = .iwmde_public_integer_any(diagnostics, "block_max_order"),
+    block_max_panels = .iwmde_public_integer_any(diagnostics, "block_max_panels"),
+    block_native_nodes = .iwmde_public_numeric(diagnostics[["block_native_nodes"]]),
     density_method = .iwmde_public_character(entry[["density_method"]]),
     parameter = .iwmde_public_character(entry[["parameter"]]),
     level = .iwmde_public_character(entry[["level"]]),
@@ -462,6 +509,14 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     warnings = paste(warnings, collapse = " | "),
     stringsAsFactors = FALSE
   )
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) &&
+      identical(diagnostics[["mcmc_uncertainty_status"]], "partial")) {
+    attr(out, "footnotes") <- paste0("Ordered MCMC uncertainty is partial: ",
+      diagnostics[["mcmc_uncertainty_reason"]], ".")
+  }
+
+  return(out)
 }
 
 
@@ -470,6 +525,10 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   out <- data.frame(
     schema_version = character(), algorithm_version = character(),
     source_fingerprint = character(), estimator = character(),
+    internal_method = character(), working_distribution = character(), normalization_basis = character(),
+    ordered_error_status = character(), block_numerator_relative_error = numeric(),
+    block_denominator_relative_error = numeric(), block_max_order = integer(), block_max_panels = integer(),
+    block_native_nodes = numeric(),
     density_method = character(), parameter = character(), level = character(),
     requested_value = numeric(), evaluation_value = numeric(),
     requested_samples = numeric(), achieved_row_budget = integer(),
@@ -516,7 +575,9 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   template <- .iwmde_empty_public_density_diagnostics()
   added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason",
              "normalization_truncation", "normalization_truncation_status",
-             "truncation_ordinate_bound")
+             "truncation_ordinate_bound", "internal_method", "working_distribution",
+             "normalization_basis", "ordered_error_status", "block_numerator_relative_error",
+             "block_denominator_relative_error", "block_max_order", "block_max_panels", "block_native_nodes")
   if (inherits(diagnostics, "RoBMA_density_diagnostics") &&
       is.data.frame(diagnostics) &&
       !identical(names(diagnostics), names(template)) &&

@@ -5,6 +5,8 @@
 .iwmde_log_q_grid_known_v_random_factor <- function(
     context, parameter, values, row_states, replacement, active_setup) {
 
+  .iwmde_require_target_type(replacement, replacement = TRUE)
+  if (isTRUE(replacement[["type"]] %in% c("ordered", "ordered_source"))) return(NULL)
   update <- replacement[["covariance_update"]]
   coefficient_input <- if (identical(
     replacement[["type"]], "random_component_sd"

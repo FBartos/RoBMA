@@ -56,7 +56,9 @@ is no model parameter (an inclusion indicator such as
 \code{"mu_x_indicator"}, \code{"bias_indicator"}, a weight-function
 coordinate such as \code{"omega[1]"}, or a latent cluster effect) stops
 with the classes \code{RoBMA_hypothesis_target} and
-\code{RoBMA_hypothesis_unavailable}, with which \code{\link[=hypothesis]{hypothesis()}} refuses it.}
+\code{RoBMA_hypothesis_unavailable}, with which \code{\link[=hypothesis]{hypothesis()}} refuses it.
+Ordered level cells retain their semantic marginal draws and prior metadata
+on the requested predictor scale, including conditional row alignment.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the
@@ -102,7 +104,16 @@ to be passed to the plotting function of the prior
 distribution. Supported arguments are \code{lwd},
 \code{lty}, \code{col}, and \code{col.fill}, to adjust
 the line thickness, line type, line color, and fill color
-of the prior distribution respectively.}
+of the prior distribution respectively.
+For ordered predictor targets, omitted line colors and types match each
+posterior level's color with a dashed prior curve, including selected cells.
+For selected ordered cells with \code{prior = TRUE}, \code{color}/\code{colour}
+aliases resolve to \code{col}, with priority \code{col}, \code{color}, then
+\code{colour}; \code{linetype} takes precedence over \code{lty} in both renderers.
+Explicit \code{col}, \code{lty}, or \code{linetype} values take
+precedence; the ordinary prior defaults are retained for other targets.
+Ordered metadata validation is restricted to the selected terms, including
+selected group members; unrelated ordered terms do not affect prior styles.}
 
 \item{density_method}{posterior density method. \code{"KDE"} uses the
 standard BayesTools kernel density estimate. \code{"qCMDE"} attaches RoBMA
@@ -110,7 +121,14 @@ row-normalized q-grid conditional densities. \code{"IWMDE"} attaches
 Chen-style moment-matched IWMDE densities. qCMDE is preferred when its
 additional normalization cost is acceptable; IWMDE can be faster but is
 more sensitive to its fitted conditional weights. Matching is
-case-insensitive. For semantic random-effect quantities, qCMDE/IWMDE support
+case-insensitive. Ordered effects use the same normalized conditional-source
+estimator for both methods, with their respective posterior-row budgets.
+Selected weightfunction models near zero cumulative ordered effects can take
+more than 10 minutes with qCMDE or IWMDE.
+Exact regular ordered offsets that need a finite supplier integral use a
+positive conditional block; offsets classified as nonfinite or unsupported are omitted
+only at that exact value from a density curve. Point hypotheses retain their
+structural or precision refusal. For semantic random-effect quantities, qCMDE/IWMDE support
 direct scalar fitted sources, allocated component SDs backed by a scalar
 aggregate (\code{tau_total} or \code{tau_common}), and allocation proportions or
 multipliers

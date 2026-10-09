@@ -259,11 +259,42 @@
     stop("Internal IWMDE density result has invalid finite-term counts.",
          call. = FALSE)
   }
-  unavailable_ess <- all(is.na(density[["ess"]]))
-  invalid_available_ess <- any(!is.finite(density[["ess"]])) ||
-    any(density[["ess"]] < 0) ||
-    any(density[["ess"]] > finite_terms + sqrt(.Machine$double.eps))
-  if (!unavailable_ess && invalid_available_ess) {
+  scalar_character <- function(value) {
+
+    is.character(value) && length(value) == 1L && !is.na(value) && nzchar(value)
+  }
+  if (!scalar_character(density[["mcmc_uncertainty_scope"]]) ||
+      !scalar_character(density[["mcmc_uncertainty_status"]]) ||
+      !density[["mcmc_uncertainty_scope"]] %in% c(
+        "selected_continuous_rows_only", "selected_active_rows_with_mass_bound",
+        "full_conditioned_rows", "declared_constant_conditional_contribution",
+        "unavailable_missing_selected_chain", "unavailable_insufficient_chain_batches") ||
+      !density[["mcmc_uncertainty_status"]] %in% c("available", "partial", "unavailable") ||
+      !(is.null(density[["mcmc_uncertainty_reason"]]) ||
+        scalar_character(density[["mcmc_uncertainty_reason"]])) ||
+      (!is.null(density[["internal_method"]]) && !scalar_character(density[["internal_method"]])) ||
+      (!is.null(density[["normalization_basis"]]) && !scalar_character(density[["normalization_basis"]])) ||
+      (isTRUE(density[["normalization_basis"]] %in%
+        c("source_chart", "ordered_offset_block", "source_chart_with_offset_block")) &&
+        !scalar_character(density[["internal_method"]]))) {
+    stop("Internal IWMDE density result has invalid uncertainty metadata.", call. = FALSE)
+  }
+  ordered_source <- isTRUE(density[["normalization_basis"]] %in%
+    c("source_chart", "ordered_offset_block", "source_chart_with_offset_block")) &&
+    isTRUE(density[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde"))
+  partial_ordered <- ordered_source && identical(density[["mcmc_uncertainty_status"]], "partial") &&
+    scalar_character(density[["mcmc_uncertainty_reason"]]) &&
+    isTRUE(density[["mcmc_uncertainty_scope"]] %in% c("selected_continuous_rows_only",
+      "selected_active_rows_with_mass_bound", "full_conditioned_rows"))
+  ess <- density[["ess"]]
+  unavailable_ess <- all(is.na(ess))
+  available_ess <- !is.na(ess)
+  invalid_available_ess <- any(!is.finite(ess[available_ess])) ||
+    any(ess[available_ess] < 0) ||
+    any(ess[available_ess] > finite_terms[available_ess] + sqrt(.Machine$double.eps)) ||
+    (!unavailable_ess && anyNA(ess) && !partial_ordered)
+  if (any(is.nan(ess)) || invalid_available_ess) {
     stop("Internal IWMDE density result has invalid effective sample sizes.",
          call. = FALSE)
   }
@@ -275,7 +306,7 @@
   }
   nonnegative_or_na <- function(value) {
 
-    all(is.na(value) | (is.finite(value) & value >= 0))
+    !any(is.nan(value)) && all(is.na(value) | (is.finite(value) & value >= 0))
   }
   if (!nonnegative_or_na(density[["mcse"]]) ||
       !nonnegative_or_na(density[["relative_mcse"]]) ||
@@ -307,20 +338,7 @@
         "selected_continuous_rows_batch_means",
         "full_conditioned_chain_batch_means",
         "worst_correlation_delta_upper_bound"
-      ) ||
-      !density[["mcmc_uncertainty_scope"]] %in% c(
-        "selected_continuous_rows_only",
-        "selected_active_rows_with_mass_bound",
-        "full_conditioned_rows",
-        "unavailable_missing_selected_chain",
-        "unavailable_insufficient_chain_batches"
-      ) ||
-      !density[["mcmc_uncertainty_status"]] %in%
-        c("available", "partial", "unavailable") ||
-      !(is.null(density[["mcmc_uncertainty_reason"]]) ||
-        (is.character(density[["mcmc_uncertainty_reason"]]) &&
-         length(density[["mcmc_uncertainty_reason"]]) == 1L &&
-         nzchar(density[["mcmc_uncertainty_reason"]])))) {
+      )) {
     stop("Internal IWMDE density result has invalid uncertainty metadata.",
          call. = FALSE)
   }
@@ -407,6 +425,68 @@
   if (!is.null(estimator) &&
       !identical(as.character(density[["estimator"]]), estimator)) {
     stop("Internal IWMDE density result changed estimator.", call. = FALSE)
+  }
+  # Short contribution sequences can estimate importance ESS without enough
+  # rows or batches to estimate MCMC error. Preserve that producer state.
+  missing_mcmc_error <- partial_ordered && all(is.finite(ess)) &&
+    all(is.na(density[["mcse"]])) && all(is.na(density[["relative_mcse"]])) &&
+    is.numeric(density[["log_mcse"]]) && length(density[["log_mcse"]]) == n_values &&
+    !any(is.nan(density[["log_mcse"]])) && all(is.na(density[["log_mcse"]]))
+  if (!unavailable_ess && !missing_mcmc_error && (anyNA(ess) || ordered_source &&
+      (anyNA(density[["mcse"]]) || anyNA(density[["relative_mcse"]])))) {
+    # A representable log MCSE can outlive its absolute floating-point value.
+    # That existing underflow declaration is separate from missing uncertainty.
+    represented_underflow <- rep(FALSE, n_values)
+    if (is.numeric(density[["log_mcse"]]) && length(density[["log_mcse"]]) == n_values) {
+      represented_underflow <- is.na(density[["mcse"]]) &
+        is.finite(density[["log_mcse"]]) & exp(density[["log_mcse"]]) == 0 &
+        is.finite(density[["relative_mcse"]]) & density[["relative_mcse"]] >= 0 &
+        is.finite(ess) & ess >= 0
+    }
+    missing_mcse <- is.na(density[["mcse"]]) & !represented_underflow
+    point <- density[["ordered_point_plan"]]
+    evaluation_x <- if (is.null(density[["evaluation_x"]])) density[["x"]] else density[["evaluation_x"]]
+    declared_zero <- if (identical(point[["status"]], "zero")) evaluation_x == point[["value"]] else rep(FALSE, n_values)
+    missing_relative_mcse <- is.na(density[["relative_mcse"]]) & !declared_zero
+    if (!identical(is.na(ess), missing_relative_mcse) ||
+        !identical(is.na(ess), missing_mcse) ||
+        length(density[["log_mcse"]]) != n_values ||
+        any(is.nan(density[["log_mcse"]])) ||
+        !identical(is.na(ess), is.na(density[["log_mcse"]]))) {
+      stop("Internal ordered source density result has inconsistent partial uncertainty.", call. = FALSE)
+    }
+  }
+  if (!is.null(density[["normalization_basis"]]) && density[["normalization_basis"]] %in%
+      c("source_chart", "ordered_offset_block", "source_chart_with_offset_block")) {
+    .iwmde_validate_required_fields(density, c("internal_method", "working_distribution",
+      "ordered_proofs", "contribution_log_scale", "scaled_contributions", "log_mcse", "underflow"),
+      "ordered source density result")
+    if (!density[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+        "ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde") ||
+        !identical(density[["working_distribution"]], "normalized_conditional_source") ||
+        length(density[["ordered_proofs"]]) != density[["n_evaluated_rows"]] ||
+        length(density[["contribution_log_scale"]]) != n_values ||
+        length(density[["log_mcse"]]) != n_values ||
+        !is.logical(density[["underflow"]]) || length(density[["underflow"]]) != n_values ||
+        !is.matrix(density[["scaled_contributions"]]) ||
+        !identical(dim(density[["scaled_contributions"]]), c(n_values, as.integer(density[["n_evaluated_rows"]])))) {
+      stop("Internal ordered source density result has invalid normalization metadata.", call. = FALSE)
+    }
+    finite_log_missing_mcse <- is.na(density[["mcse"]]) & is.finite(density[["log_mcse"]])
+    if (any(finite_log_missing_mcse & (exp(density[["log_mcse"]]) != 0 |
+        !is.finite(density[["relative_mcse"]]) | !is.finite(ess)))) {
+      stop("Internal ordered source density result has invalid MCSE representation.", call. = FALSE)
+    }
+    for (proof in density[["ordered_proofs"]]) {
+      fields <- c("numerator_relative_error", "denominator_relative_error", "ratio_relative_error",
+        "exterior_relative_error", "floating_relative_error")
+      if (!all(vapply(proof[fields], function(value) is.numeric(value) && length(value) == 1L &&
+          is.finite(value) && value >= 0, logical(1))) || proof[["ratio_relative_error"]] > .025 ||
+          !proof[["error_status"]] %in% c("exact", "bound", "estimate")) {
+        stop("Internal ordered source density result has an invalid source proof.", call. = FALSE)
+      }
+    }
+    return(invisible(density))
   }
   estimator_fields <- if (identical(density[["estimator"]], "q_grid_cmde")) {
     c(
