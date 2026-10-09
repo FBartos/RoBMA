@@ -62,15 +62,23 @@ bridgesampling::bayes_factor
   prior_prob <- .post_prob_validate_prior_weights(prior_prob, length(logml))
   .post_prob_check_names(model_names, length(logml))
 
+  return(.post_prob_posterior(logml, prior_prob, model_names))
+}
+
+# Posterior model probabilities from finite log marginal likelihoods and
+# already validated prior weights (the repeated-estimate loop validates once).
+.post_prob_posterior <- function(logml, prior_prob, model_names = NULL) {
+
   logml       <- as.numeric(logml)
   active      <- prior_prob > 0
   maximum     <- max(prior_prob)
+  log_maximum <- log(maximum)
   ratio       <- prior_prob / maximum
   log_weights <- rep(-Inf, length(logml))
   normal      <- active & ratio >= .Machine$double.xmin
   log_weights[normal] <- log(ratio[normal])
   fallback <- active & !normal
-  log_weights[fallback] <- log(prior_prob[fallback]) - log(maximum)
+  log_weights[fallback] <- log(prior_prob[fallback]) - log_maximum
 
   center <- max(logml[active])
   scores <- log_weights
@@ -455,17 +463,16 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
   if (any(vapply(comparisons, "[[", logical(1), "repeated"))) {
     prior_prob <- .post_prob_validate_prior_weights(prior_prob, length(models))
     .post_prob_check_names(model_names, length(models))
-    model_names <- make.unique(as.character(model_names))
-    logml_values <- .brma_recycle_logml(logml_values)
+    model_names    <- make.unique(as.character(model_names))
+    fallback_prior <- .post_prob_normalize_prior(prior_prob, length(models))
+    logml_values   <- .brma_recycle_logml(logml_values)
     posterior <- vapply(seq_along(logml_values[[1L]]), function(repetition) {
 
       logml <- vapply(logml_values, "[[", numeric(1), repetition)
       if (all(is.finite(logml))) {
-        return(.post_prob_from_logml(logml, prior_prob = prior_prob,
-          model_names = model_names))
+        return(.post_prob_posterior(logml, prior_prob, model_names))
       }
-      return(bridgesampling::post_prob(logml,
-        prior_prob = .post_prob_normalize_prior(prior_prob, length(models)),
+      return(bridgesampling::post_prob(logml, prior_prob = fallback_prior,
         model_names = model_names))
     }, numeric(length(models)))
     return(t(posterior))
