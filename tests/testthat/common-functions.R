@@ -984,6 +984,22 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
   return(paste(deparse(expr, width.cutoff = 500L), collapse = "\n"))
 }
 
+# The shared GLMM fit settings (chains, draws, burn-in, adaptation) are read at
+# run time from test_glmm_fit_settings(); a generating file that references the
+# helper hashes the value it returns for the active profile, because the call
+# itself reads the same after a change of the settings.
+.source_hash_fit_settings <- function(references) {
+
+  if (!isTRUE(references)) {
+    return(character())
+  }
+
+  return(paste0(
+    "test_glmm_fit_settings() = ",
+    paste(deparse(test_glmm_fit_settings(), width.cutoff = 500L), collapse = " ")
+  ))
+}
+
 source_file_md5 <- function(source_file) {
 
   if (is.null(source_file) || is.na(source_file) || !nzchar(source_file)) {
@@ -998,15 +1014,18 @@ source_file_md5 <- function(source_file) {
   parsed <- try(parse(path), silent = TRUE)
   if (inherits(parsed, "try-error")) {
     lines <- readLines(path, warn = FALSE)
+    references <- any(grepl("test_glmm_fit_settings", lines, fixed = TRUE))
     lines <- sub("#.*$", "", lines)
     lines <- trimws(lines)
     lines <- lines[nzchar(lines)]
   } else {
+    references <- "test_glmm_fit_settings" %in% all.names(parsed)
     lines <- unlist(lapply(parsed, .source_hash_normalize_expr), use.names = FALSE)
     lines <- as.character(lines)
     lines <- trimws(lines)
     lines <- lines[nzchar(lines)]
   }
+  lines <- c(lines, .source_hash_fit_settings(references))
 
   normalized <- tempfile("robma-fit-source-", fileext = ".R")
   writeLines(lines, normalized, useBytes = TRUE)
@@ -1032,7 +1051,13 @@ if (!is.environment(.package_source_md5_cache)) {
 .fit_cache_required_source_files <- function() {
 
   # Keep this scoped to code that can change saved fit objects or cached fit
-  # extensions. Post-fit methods are tested against the cached objects.
+  # extensions: a file is listed when it executes while a model is constructed
+  # (constructors, data and prior preparation, JAGS model text, native code of
+  # the JAGS module and of the R-native routines they call), while the sampler
+  # runs, or while the LOO, WAIC, and marginal-likelihood results stored with
+  # a cached fit are computed. Post-fit methods (summaries, plots, predictions,
+  # hypotheses and densities, diagnostics) are tested against the cached
+  # objects and stay unlisted.
   r_files   <- c(
     "R/BMA.glmm.R",
     "R/BMA.mv.R",
@@ -1042,9 +1067,11 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/bPET-PEESE.mv.R",
     "R/bPEESE.R",
     "R/bPET.R",
+    "R/block-covariance.R",
     "R/brma.glmm.R",
     "R/brma.mv.R",
     "R/brma.norm.R",
+    "R/brma-mv-targets.R",
     "R/bselmodel.R",
     "R/bselmodel.mv.R",
     "R/brma-mv-known-r.R",
@@ -1063,6 +1090,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/input-priors-formula.R",
     "R/input-priors-heterogeneity-allocation.R",
     "R/jags-formula-args.R",
+    "R/known-v-gls.R",
     "R/known-v-preflight.R",
     "R/known-v-representation.R",
     "R/loo.R",
@@ -1075,12 +1103,18 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/pdf-outcome-glmm.R",
     "R/pdf-outcome-normal.R",
     "R/pdf-utils.R",
+    "R/predict-brma-mv.R",
     "R/priors.R",
     "R/random-effects-compile.R",
+    "R/random-inclusion.R",
+    "R/random-marginal-vcov.R",
+    "R/selection-cache.R",
     "R/selection-likelihood.R",
     "R/selection-mapping.R",
+    "R/selection-normalizer-grid.R",
     "R/unit_level.R",
     "R/utilities.R",
+    "R/zplot-compute.R",
     "R/zzz.R"
   )
   src_files <- c(
@@ -1114,6 +1148,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/distributions/DWP.h",
     "src/glmm-aghq.cc",
     "src/glmm-aghq.h",
+    "src/glmm-binomial-loglik.h",
     "src/r-native-api.h",
     "src/r-native-boundary.h",
     "src/r-glmm.cc",
@@ -1134,11 +1169,15 @@ if (!is.environment(.package_source_md5_cache)) {
     "src/r-selnorm-loglik.cc.inc",
     "src/r-selnorm-mv.cc.inc",
     "src/r-selnorm-sampling-conditioned.cc.inc",
+    "src/samplers/CoarseCorrectedSlice.cc",
+    "src/samplers/CoarseCorrectedSlice.h",
     "src/selnorm/selnorm.cc",
     "src/selnorm/selnorm-api.cc.inc",
     "src/selnorm/selnorm-boundary.cc.inc",
+    "src/selnorm/selnorm-cdf-table-data.h",
     "src/selnorm/selnorm-event.cc.inc",
     "src/selnorm/selnorm-fma.h",
+    "src/selnorm/selnorm-mixture-compression.h",
     "src/selnorm/selnorm-mv.cc",
     "src/selnorm/selnorm-mv.h",
     "src/selnorm/selnorm-parallel.h",

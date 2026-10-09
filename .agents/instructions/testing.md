@@ -99,7 +99,14 @@ Standard and certification caches are isolated below
 `ROBMA_TEST_FILES_DIR`, or under `tests/testthat/test_files/` by default.
 Cache validity includes RoBMA, BayesTools, R, and JAGS versions; the fitting
 test hash; cache-affecting RoBMA source; BayesTools' backend fingerprint; and
-required attached results.
+required attached results. A source file is cache-affecting when it executes
+while a model is constructed (constructors, data and prior preparation, JAGS
+model text, native code of the JAGS module and the R-native routines they
+call), while the sampler runs, or while the LOO, WAIC, and marginal-likelihood
+results stored with a fit are computed; the list is
+`.fit_cache_required_source_files()`, and post-fit methods stay out of it. A
+generating test file that reads `test_glmm_fit_settings()` hashes the settings
+it returns.
 
 Regenerate only affected fits with `refresh-standard` after fitting, prior/data
 input, native likelihood, or JAGS changes. Do not invalidate fits for unrelated

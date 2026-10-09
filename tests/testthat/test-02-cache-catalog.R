@@ -230,6 +230,25 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
 
   expect_equal(anyDuplicated(source_files), 0L)
   expect_true(all(c(
+    # fit-time and stored-result code that is easy to overlook: the selection
+    # runtime cache read by fit.R, the block covariance and known-V helpers of
+    # the stored LOO and marginal likelihood, the allocation-inclusion priors of
+    # the preflight, and the native sampler and tables of the JAGS module
+    "R/block-covariance.R",
+    "R/brma-mv-targets.R",
+    "R/known-v-gls.R",
+    "R/predict-brma-mv.R",
+    "R/random-inclusion.R",
+    "R/random-marginal-vcov.R",
+    "R/selection-cache.R",
+    "R/selection-normalizer-grid.R",
+    "R/zplot-compute.R",
+    "src/glmm-binomial-loglik.h",
+    "src/samplers/CoarseCorrectedSlice.cc",
+    "src/samplers/CoarseCorrectedSlice.h",
+    "src/selnorm/selnorm-cdf-table-data.h",
+    "src/selnorm/selnorm-mixture-compression.h",
+    "src/selnorm/selnorm-mv.cc",
     "R/brma-mv-known-r.R",
     "R/covariance-factorization.R",
     "R/fit.R",
@@ -280,7 +299,19 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     "R/plot.R",
     "R/predict.R",
     "R/summary.R",
-    "src/r-regplot.cc"
+    "src/r-regplot.cc",
+    # post-fit methods and plot or documentation carriers
+    "R/forest.R",
+    "R/hypothesis.R",
+    "R/hypothesis-plan.R",
+    "R/iwmde-estimate.R",
+    "R/marginal_means.R",
+    "R/random-effect-formula-tags.R",
+    "R/random-priors.R",
+    "R/regplot-data.R",
+    "R/zplot-api.R",
+    "src/plot-root.h",
+    "src/r-native-probe.cc.inc"
   ) %in% source_files))
 })
 
@@ -399,7 +430,11 @@ test_that("package source hash refreshes after source edits", {
   expect_false(identical(package_source_md5(), hash_before))
 
   for (header in c("src/r-native-api.h", "src/r-native-boundary.h",
-                   "src/selnorm/selnorm-parallel.h")) {
+                   "src/selnorm/selnorm-parallel.h",
+                   "src/glmm-binomial-loglik.h",
+                   "src/samplers/CoarseCorrectedSlice.h",
+                   "src/selnorm/selnorm-cdf-table-data.h",
+                   "src/selnorm/selnorm-mixture-compression.h")) {
     before_header_edit <- package_source_md5()
     header_path <- file.path(package_root, header)
     writeLines(
@@ -409,6 +444,77 @@ test_that("package source hash refreshes after source edits", {
     )
     expect_false(identical(package_source_md5(), before_header_edit), info = header)
   }
+
+  # R sources read while a model is constructed or its stored results are
+  # computed change the hash, a native source of the JAGS module as well
+  for (source_file in c("R/selection-cache.R", "R/block-covariance.R",
+                        "R/random-inclusion.R", "R/known-v-gls.R",
+                        "src/samplers/CoarseCorrectedSlice.cc")) {
+    before_edit <- package_source_md5()
+    source_path <- file.path(package_root, source_file)
+    probe <- if (startsWith(source_file, "R/")) {
+      ".robma_cache_hash_probe_added <- 1"
+    } else {
+      "int robma_cache_hash_probe_added = 1;"
+    }
+    writeLines(
+      c(readLines(source_path, warn = FALSE), probe), source_path, useBytes = TRUE
+    )
+    expect_false(identical(package_source_md5(), before_edit), info = source_file)
+  }
+
+  # A post-fit-only source is outside the hash, wherever it is edited
+  for (post_fit in c("R/forest.R", "R/zplot-api.R", "src/r-regplot.cc")) {
+    before_edit <- package_source_md5()
+    post_fit_path <- file.path(package_root, post_fit)
+    dir.create(dirname(post_fit_path), recursive = TRUE, showWarnings = FALSE)
+    file.copy(file.path(real_root, post_fit), post_fit_path, overwrite = TRUE)
+    probe <- if (startsWith(post_fit, "R/")) {
+      ".robma_post_fit_probe <- 1"
+    } else {
+      "int robma_post_fit_probe = 1;"
+    }
+    writeLines(
+      c(readLines(post_fit_path, warn = FALSE), probe), post_fit_path, useBytes = TRUE
+    )
+    expect_identical(package_source_md5(), before_edit, info = post_fit)
+  }
+})
+
+test_that("GLMM fit settings enter the hash of the files that read them", {
+
+  old_profile <- Sys.getenv("ROBMA_TEST_PROFILE", unset = NA_character_)
+  on.exit({
+    if (is.na(old_profile)) {
+      Sys.unsetenv("ROBMA_TEST_PROFILE")
+    } else {
+      Sys.setenv(ROBMA_TEST_PROFILE = old_profile)
+    }
+  })
+  hash_files <- function(profile) {
+
+    Sys.setenv(ROBMA_TEST_PROFILE = profile)
+    c(
+      glmm  = source_file_md5("test-01-brma.glmm.R"),
+      other = source_file_md5("test-01-brma.norm.R")
+    )
+  }
+
+  standard      <- hash_files("standard")
+  certification <- hash_files("certification")
+
+  # test-01-brma.glmm.R only calls test_glmm_fit_settings(); the draws it
+  # returns differ between the profiles
+  expect_false(identical(standard[["glmm"]], certification[["glmm"]]))
+  expect_identical(standard[["other"]], certification[["other"]])
+
+  # the value is hashed for a file that references the helper, not for others
+  Sys.setenv(ROBMA_TEST_PROFILE = "standard")
+  expect_identical(.source_hash_fit_settings(FALSE), character())
+  expect_identical(
+    .source_hash_fit_settings(TRUE),
+    "test_glmm_fit_settings() = list(chains = 3L, sample = 1500L, burnin = 500L, adapt = 500L)"
+  )
 })
 
 test_that("R source hashes ignore comments and formatting", {
