@@ -1427,6 +1427,26 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 }
 
 
+# Restrict a declared grouping factor to the levels that own fitted rows, in
+# declared order. A declared level without rows has no random effect to report.
+.ranef_observed_group_levels <- function(term) {
+
+  group_map    <- as.integer(term[["group_map"]])
+  group_levels <- as.character(term[["group_levels"]])
+  observed     <- term[["group_observed_levels"]]
+  keep <- if (is.null(observed)) {
+    seq_along(group_levels) %in% group_map
+  } else {
+    group_levels %in% as.character(observed)
+  }
+
+  return(list(
+    group_map    = match(group_map, which(keep)),
+    group_levels = group_levels[keep]
+  ))
+}
+
+
 # Resolve the unique random-effect cells represented by a fitted block.
 .ranef_unique_level_term <- function(term, block) {
 
@@ -1435,10 +1455,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     ncol(model_matrix) == 1L && all(is.finite(model_matrix)) &&
     all(model_matrix[, 1L] == 1)
   if (is_intercept) {
-    return(list(
-      group_map    = term[["group_map"]],
-      group_levels = term[["group_levels"]]
-    ))
+    return(.ranef_observed_group_levels(term))
   }
 
   is_indicator <- is.matrix(model_matrix) && is.numeric(model_matrix) &&

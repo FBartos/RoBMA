@@ -881,6 +881,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - `ranef(component = "total")` of ordinary two-level models returns the
   estimate names (`u[label]`) instead of collapsing every name to `u`; only
   names that carry a block prefix are stripped.
+- default (unique-level) `ranef()` of `brma.mv()` random-formula models skips
+  declared grouping levels that own no fitted rows instead of stopping with an
+  internal error.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry
