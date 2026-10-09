@@ -485,7 +485,12 @@
       if (any(vapply(parts, anyNA, logical(1)))) {
         return(NULL)
       }
-      return(do.call(paste, c(parts, sep = ":")))
+      # Length-prefixed components keep distinct value tuples distinct even
+      # when the values themselves contain the separator.
+      parts <- lapply(parts, function(part) {
+        paste0(nchar(part, type = "chars"), ":", part)
+      })
+      return(do.call(paste, c(parts, sep = "|")))
     }
   }
 
