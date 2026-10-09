@@ -31,12 +31,10 @@
     }
 
     lower[i] <- .regplot_mixture_quantile(
-      probs[1], mean_samples[, i], sd_samples[, i], cdf_fun,
-      full_support = TRUE
+      probs[1], mean_samples[, i], sd_samples[, i], cdf_fun
     )
     upper[i] <- .regplot_mixture_quantile(
-      probs[2], mean_samples[, i], sd_samples[, i], cdf_fun,
-      full_support = TRUE
+      probs[2], mean_samples[, i], sd_samples[, i], cdf_fun
     )
   }
 
@@ -58,10 +56,6 @@
 
   lower <- numeric(ncol(mean_samples))
   upper <- numeric(ncol(mean_samples))
-  full_support <- .test_selection_mixture_has_full_support(
-    selection_context = setup[["selection"]],
-    selected_rows      = setup[["is_weightfunction"]]
-  )
 
   for (i in seq_len(ncol(mean_samples))) {
     se_i <- if (length(se) == 1L) se else se[[i]]
@@ -77,12 +71,10 @@
     }
 
     lower[i] <- .regplot_mixture_quantile(
-      probs[1], mean_samples[, i], sd_samples[, i], cdf_fun,
-      full_support = full_support
+      probs[1], mean_samples[, i], sd_samples[, i], cdf_fun
     )
     upper[i] <- .regplot_mixture_quantile(
-      probs[2], mean_samples[, i], sd_samples[, i], cdf_fun,
-      full_support = full_support
+      probs[2], mean_samples[, i], sd_samples[, i], cdf_fun
     )
   }
 
@@ -97,7 +89,7 @@
 # Invert a posterior-mixture CDF.
 #
 # ---------------------------------------------------------------------------- #
-.regplot_mixture_quantile <- function(p, mean, sd, cdf_fun, full_support) {
+.regplot_mixture_quantile <- function(p, mean, sd, cdf_fun) {
 
   if (all(sd == 0)) {
     return(unname(stats::quantile(mean, probs = p, names = FALSE, type = 1)))

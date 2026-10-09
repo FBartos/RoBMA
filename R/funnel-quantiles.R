@@ -451,7 +451,7 @@
 # keeps its population law outside the selection normalization, and a cell with
 # no integrated variance has nothing left to select among: the selected normal
 # at a candidate location m is a point mass at m weighted by w(m) / w(m), so
-# under a step or normal-kernel weight function with every weight positive the
+# under a step weight function with every weight positive the
 # observed law is the retained Normal itself, at the conditioned spread. The
 # limit is continuous in the integrated SD, which an underflowed positive SD
 # approximates to O(sd). A weight function with a zero bin (a candidate in it is
@@ -474,8 +474,7 @@
   }
   positive <- rep_len(apply(omega > 0, 1L, all), S)
   mode     <- rep_len(selection[["kernel_mode"]], S)
-  rows     <- rows & positive & !is.na(mode) &
-    mode %in% c(SELKERNEL_NORMAL, SELKERNEL_STEP)
+  rows     <- rows & positive & mode %in% SELKERNEL_STEP
 
   return((integrated_sd == 0) & rows)
 }

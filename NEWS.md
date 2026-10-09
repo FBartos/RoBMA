@@ -898,8 +898,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   with a support shared by the rows of a partition keep their proposals.
 - selected funnel contours of a cell with no integrated variance (all spread
   in a retained source, such as retained sampling error) are the retained
-  Normal law of that cell when the weight function is a step or normal kernel
-  with every weight positive: the selection cancels. They were the atoms of a
+  Normal law of that cell when the weight function is a step function with
+  every weight positive: the selection cancels. They were the atoms of a
   401-node quadrature rule (the 97.5% contour at 1.88 standard errors with 94%
   coverage instead of 1.96 and 95%). Rows that keep their quadrature (a zero
   weight bin, p-hacking kernels) choose the rule from those rows only.

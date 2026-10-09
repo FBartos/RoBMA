@@ -553,11 +553,28 @@ test_that("native mixture quantiles resolve narrow components inside wide bracke
     sds   <- stats::runif(S, .05, 2)
     cdf   <- function(q) .regplot_normal_mixture_cdf(q, means, sds)
     native <- quantile_at(means, sds, rep(1, S), probs)
-    expect_equal(native, .regplot_mixture_quantile(probs, means, sds, cdf, TRUE),
+    expect_equal(native, .regplot_mixture_quantile(probs, means, sds, cdf),
       tolerance = 1e-10)
     expect_gte(cdf(native), probs - 4e-16)
     expect_lt(cdf(native - 1e-9), probs)
   }
+})
+
+
+test_that("the funnel reference resolves a narrow component inside a wide bracket", {
+
+  # 99 rows with a point-like component at 0 and one row 1e6 away: the .495
+  # quantile is the median of the narrow component, 0. A root finder with one
+  # tolerance for the whole bracket stops near 5e-11.
+  setup <- list(
+    mu                = c(rep(0, 99L), 1e6),
+    tau               = rep(1e-10, 100L),
+    PET               = rep(0, 100L),
+    PEESE             = rep(0, 100L),
+    is_weightfunction = rep(FALSE, 100L),
+    selection         = NULL
+  )
+  expect_lt(abs(.funnel_model_averaged_quantile(0, .495, setup, "positive")), 1e-20)
 })
 
 

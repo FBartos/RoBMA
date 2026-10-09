@@ -79,28 +79,10 @@
     step <- step * 2
   }
 
-  full_support <- .test_selection_mixture_has_full_support(
-    selection_context = setup[["selection"]],
-    selected_rows      = setup[["is_weightfunction"]]
-  )
-  if (all(spread > 0) && full_support) {
-    tolerance <- max(
-      .Machine$double.xmin,
-      .Machine$double.eps * max(abs(lower), abs(upper), step)
-    )
-    out <- tryCatch(
-      stats::uniroot(
-        obj_fun,
-        interval = c(lower, upper),
-        tol      = tolerance
-      )[["root"]],
-      error = function(e) NA_real_
-    )
-    if (is.finite(out)) {
-      return(out)
-    }
-  }
-
+  # The quantile is the generalized inverse inf{q : F(q) >= p} of the CDF, so
+  # the bracket is always finished on adjacent doubles. A root finder with one
+  # tolerance for the whole bracket cannot resolve a narrow component inside a
+  # wide bracket.
   return(.funnel_bracketed_quantile_precomputed(
     p        = p,
     lower    = lower,

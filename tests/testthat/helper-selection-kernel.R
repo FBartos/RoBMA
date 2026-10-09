@@ -147,17 +147,6 @@
   return(value)
 }
 
-.test_selection_mixture_has_full_support <- function(selection_context,
-                                                     selected_rows) {
-
-  if (is.null(selection_context) || any(!selected_rows)) {
-    return(TRUE)
-  }
-
-  omega <- selection_context[["omega"]][selected_rows, , drop = FALSE]
-  return(all(colSums(omega > 0) > 0))
-}
-
 .test_logspace_sub <- function(log_a, log_b) {
 
   if (is.infinite(log_b) && log_b < 0) {
