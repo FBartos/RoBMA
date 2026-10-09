@@ -236,10 +236,14 @@ test_that("cache source hash tracks only cache-affecting fitting sources", {
     # the preflight, and the native sampler and tables of the JAGS module
     "R/block-covariance.R",
     "R/brma-mv-targets.R",
+    "R/distributions.R",
     "R/known-v-gls.R",
+    "R/outcome-helpers.R",
+    "R/pdf.R",
     "R/predict-brma-mv.R",
     "R/random-inclusion.R",
     "R/random-marginal-vcov.R",
+    "R/rng.R",
     "R/selection-cache.R",
     "R/selection-normalizer-grid.R",
     "src/glmm-binomial-loglik.h",
@@ -449,6 +453,7 @@ test_that("package source hash refreshes after source edits", {
   # computed change the hash, a native source of the JAGS module as well
   for (source_file in c("R/selection-cache.R", "R/block-covariance.R",
                         "R/random-inclusion.R", "R/known-v-gls.R",
+                        "R/outcome-helpers.R", "R/rng.R",
                         "src/samplers/CoarseCorrectedSlice.cc")) {
     before_edit <- package_source_md5()
     source_path <- file.path(package_root, source_file)
