@@ -3,7 +3,8 @@
 # references below are 80-digit mpmath solutions of the dense systems.
 
 .precision_application <- function(y, sampling_covariance, plans, states,
-                                   block_indices = list(seq_along(y))) {
+                                   block_indices = list(seq_along(y)),
+                                   extra_variances = rep(0, length(y))) {
 
   .marglik_covariance_plan_precision_residual_batch(
     cache                    = new.env(parent = emptyenv()),
@@ -13,7 +14,7 @@
     random_covariance_plans  = plans,
     random_covariance_states = list(states),
     block_indices            = block_indices,
-    extra_variances          = matrix(0, 1L, length(y))
+    extra_variances          = matrix(extra_variances, 1L)
   )
 }
 
@@ -129,6 +130,73 @@ test_that("sparse latent systems of grouped effects keep tight sampling variance
     )
     expect_equal(as.numeric(observed), reference$value, tolerance = 1e-14,
       info = paste("d =", reference$d))
+  }
+})
+
+
+test_that("the condition gate does not depend on the scale of the covariance", {
+
+  # The sums of absolute entries that estimate the 1-norm overflow for entries
+  # near the largest double although the matrix is well conditioned (a
+  # reciprocal condition number of 0.12): the gate refused these as
+  # ill-conditioned. 900-digit mpmath solutions of (V + diag(e)) x = y.
+  sampling <- 6.3e307 * matrix(c(1, .8, .7, .8, 1, .75, .7, .75, 1), 3L)
+  extra <- c(1e307, 2e307, 3e307)
+  references <- list(
+    list(y = c(1, 2, 3), value = c(-1.6708740750427293e-308,
+      1.5994128945279828e-308, 3.2055192198165288e-308)),
+    list(y = c(1e300, 2e300, 3e300), value = c(-1.6708740750427294e-8,
+      1.5994128945279829e-8, 3.205519219816529e-8))
+  )
+  for (reference in references) {
+    observed <- .precision_application(reference$y, sampling, list(), list(),
+      extra_variances = extra)
+    expect_equal(as.numeric(observed), reference$value, tolerance = 1e-12)
+  }
+
+  # The latent system K = I + U'U of two columns U = 2^511 T, T = [1 1; 1 1; 1 0],
+  # has a condition number of 10 and column sums above the largest double (its
+  # entries are 1 + 3 2^1022 and 2^1023); M = I + U U' is not conditioned
+  # for the dense route. 900-digit mpmath solution of M x = (1, 2, 3).
+  model_matrix <- 2^511 * rbind(c(1, 1), c(1, 1), c(1, 0))
+  observed <- .precision_application(c(1, 2, 3), diag(3L),
+    list(.group_plan(model_matrix)), list(.identity_state(2L)))
+  expect_equal(as.numeric(observed), c(-.5, .5, 1.0012832363282406e-307),
+    tolerance = 1e-12)
+})
+
+
+test_that("block-base precision applications refuse ill-conditioned sampling blocks", {
+
+  # Two sampling blocks [[1, rho], [rho, 1]] and one group effect shared by the
+  # four rows, M = V + 1 1'. The base blocks have the reciprocal condition
+  # numbers about (1 - rho) / 2; the application was returned with no check on
+  # them, with norm-wise errors of 5.6e-8 (1 - rho = 1e-9), 5.6e-5 (1e-12) and
+  # 5.6e-4 (1e-13). References: 900-digit mpmath solutions of M x = y.
+  apply_blocks <- function(gap, y) {
+
+    rho <- 1 - gap
+    block <- matrix(c(1, rho, rho, 1), 2L)
+    sampling <- matrix(0, 4L, 4L)
+    sampling[1:2, 1:2] <- sampling[3:4, 3:4] <- block
+    .precision_application(y, sampling, list(.group_plan(matrix(1, 4L, 1L))),
+      list(.identity_state(1L)), block_indices = list(1:4))
+  }
+  expected <- list(
+    "1e-09" = list(ones = rep(0.16666666669444444, 4L),
+      split = c(0.33333333347222222, 0.33333333347222222,
+                -0.16666666677777777, -0.16666666677777777)))
+  for (case in c("ones", "split")) {
+    y <- if (case == "ones") rep(1, 4L) else c(1, 1, 0, 0)
+    observed <- apply_blocks(1e-9, y)
+    reference <- expected[["1e-09"]][[case]]
+    expect_lte(max(abs(observed - reference)) / max(abs(reference)), 1e-6)
+  }
+  for (gap in c(1e-11, 1e-12, 1e-13)) {
+    for (y in list(rep(1, 4L), c(1, 1, 0, 0))) {
+      expect_error(apply_blocks(gap, y),
+        class = "RoBMA_known_v_precision_unavailable")
+    }
   }
 })
 

@@ -187,38 +187,84 @@ void plan_location_quadratic_values(
 // stays below this limit.
 const double PRECISION_CONDITION_LIMIT = 1e-6;
 
-// 1-norm of a symmetric matrix stored in its lower triangle.
-double symmetric_lower_one_norm(const double *matrix, int n)
+// The condition number is invariant to the scale of the matrix, which the
+// estimate must be too: the sums of absolute entries of a matrix whose entries
+// are near the largest double overflow. The 1-norm is therefore formed on the
+// matrix divided by its largest absolute entry, and the Cholesky factor is
+// divided by the square root of that entry before it is used.
+struct ConditionScale {
+  double entry;
+  double one_norm;
+};
+
+// Largest absolute entry and 1-norm of the matrix divided by it, for a
+// symmetric matrix stored in its lower triangle. An empty matrix has the entry
+// 1 and the norm 0; a zero or non-finite matrix has no usable scale.
+ConditionScale symmetric_lower_condition_scale(const double *matrix, int n)
 {
+  ConditionScale out = {1.0, 0.0};
   if (n <= 0) {
-    return 0.0;
+    return out;
+  }
+  double entry = 0.0;
+  for (int column = 0; column < n; ++column) {
+    for (int row = column; row < n; ++row) {
+      const double value = std::abs(
+        matrix[static_cast<size_t>(row + n * column)]
+      );
+      if (!(value <= entry)) {
+        entry = value;
+      }
+    }
+  }
+  out.entry = entry;
+  if (!(entry > 0.0) || !std::isfinite(entry)) {
+    out.one_norm = std::numeric_limits<double>::quiet_NaN();
+    return out;
   }
   std::vector<double> sums(static_cast<size_t>(n), 0.0);
   for (int column = 0; column < n; ++column) {
     sums[static_cast<size_t>(column)] += std::abs(
       matrix[static_cast<size_t>(column + n * column)]
-    );
+    ) / entry;
     for (int row = column + 1; row < n; ++row) {
       const double value = std::abs(
         matrix[static_cast<size_t>(row + n * column)]
-      );
+      ) / entry;
       sums[static_cast<size_t>(column)] += value;
       sums[static_cast<size_t>(row)] += value;
     }
   }
-  return *std::max_element(sums.begin(), sums.end());
+  out.one_norm = *std::max_element(sums.begin(), sums.end());
+  return out;
 }
 
 // Reciprocal condition number (1-norm) from the Cholesky factor of a
-// symmetric positive definite matrix whose 1-norm is `matrix_norm`.
+// symmetric positive definite matrix with the given scale (the factor is
+// formed from the matrix whose scale was taken).
 bool cholesky_reciprocal_condition(
-    const double *factor, int n, double matrix_norm, double *reciprocal)
+    const double *factor, int n, const ConditionScale &scale,
+    double *reciprocal)
 {
+  *reciprocal = 0.0;
+  if (!(scale.entry > 0.0) || !std::isfinite(scale.entry) ||
+      !std::isfinite(scale.one_norm)) {
+    return false;
+  }
+  const double root = std::sqrt(scale.entry);
+  std::vector<double> scaled(static_cast<size_t>(n) * static_cast<size_t>(n));
+  for (int column = 0; column < n; ++column) {
+    for (int row = column; row < n; ++row) {
+      scaled[static_cast<size_t>(row + n * column)] =
+        factor[static_cast<size_t>(row + n * column)] / root;
+    }
+  }
   std::vector<double> work(static_cast<size_t>(3 * n));
   std::vector<int> integer_work(static_cast<size_t>(n));
+  double matrix_norm = scale.one_norm;
   int info = 0;
   F77_CALL(dpocon)(
-    "L", &n, factor, &n, &matrix_norm, reciprocal, work.data(),
+    "L", &n, scaled.data(), &n, &matrix_norm, reciprocal, work.data(),
     integer_work.data(), &info FCONE
   );
   return info == 0 && std::isfinite(*reciprocal);
@@ -356,7 +402,24 @@ RefinementStatus refine_precision_residual(
   return status;
 }
 
-// Applies B^-1 for the disconnected sampling blocks of a block-base plan.
+// Whether the sampling block with this covariance and Cholesky factor is well
+// enough conditioned to apply its inverse without a rounded number: the same
+// criterion as the dense covariance and the latent system.
+bool base_block_acceptable(
+    const double *covariance, const double *factor, int block_size)
+{
+  if (block_size <= 1) {
+    return true;
+  }
+  double reciprocal = 0.0;
+  return cholesky_reciprocal_condition(
+    factor, block_size,
+    symmetric_lower_condition_scale(covariance, block_size), &reciprocal
+  ) && precision_condition_acceptable(reciprocal);
+}
+
+// Applies B^-1 for the disconnected sampling blocks of a block-base plan. The
+// route is declined when a block of B is too ill-conditioned for that.
 struct BlockBasePrecision {
   const BlockPlan *block;
   std::vector<std::vector<double>> owned_factors;
@@ -382,6 +445,10 @@ struct BlockBasePrecision {
       }
       if (fixed_base) {
         factors[index] = sampling_block.factor.data();
+        if (!base_block_acceptable(
+            sampling_block.covariance.data(), factors[index], block_size)) {
+          return false;
+        }
         continue;
       }
       owned_factors[index] = sampling_block.covariance;
@@ -392,12 +459,22 @@ struct BlockBasePrecision {
         owned_factors[index][static_cast<size_t>(row + block_size * row)] +=
           extra[global];
       }
+      const ConditionScale scale = symmetric_lower_condition_scale(
+        owned_factors[index].data(), block_size
+      );
       int info = 0;
       F77_CALL(dpotrf)(
         "L", &block_size, owned_factors[index].data(), &block_size,
         &info FCONE
       );
       if (info != 0) {
+        return false;
+      }
+      double reciprocal = 0.0;
+      if (block_size > 1 && (
+          !cholesky_reciprocal_condition(
+            owned_factors[index].data(), block_size, scale, &reciprocal) ||
+          !precision_condition_acceptable(reciprocal))) {
         return false;
       }
       factors[index] = owned_factors[index].data();
@@ -449,8 +526,9 @@ bool factor_dense_latent_system(
     residual,
     U
   );
-  const double matrix_norm = reciprocal_condition == nullptr ? 0.0 :
-    symmetric_lower_one_norm(plan.small_matrix_work.data(), rank);
+  const ConditionScale scale = reciprocal_condition == nullptr ?
+    ConditionScale{1.0, 0.0} :
+    symmetric_lower_condition_scale(plan.small_matrix_work.data(), rank);
   int info = 0;
   F77_CALL(dpotrf)(
     "L",
@@ -463,7 +541,7 @@ bool factor_dense_latent_system(
     return false;
   }
   return reciprocal_condition == nullptr || cholesky_reciprocal_condition(
-    plan.small_matrix_work.data(), rank, matrix_norm, reciprocal_condition
+    plan.small_matrix_work.data(), rank, scale, reciprocal_condition
   );
 }
 
@@ -1091,8 +1169,9 @@ void plan_conditional_values(
     // requested precision residual is reported unavailable rather than
     // returned. Conditional-density outputs keep their existing evaluation.
     const bool apply_condition_gate = precision_residual_only(output);
-    const double covariance_norm = apply_condition_gate ?
-      symmetric_lower_one_norm(covariance, size) : 0.0;
+    const ConditionScale covariance_scale = apply_condition_gate ?
+      symmetric_lower_condition_scale(covariance, size) :
+      ConditionScale{1.0, 0.0};
     int info = 0;
     F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
     if (info != 0 && !(apply_condition_gate &&
@@ -1104,7 +1183,7 @@ void plan_conditional_values(
       // reciprocal condition number: it is as ill-conditioned as it gets.
       double reciprocal_condition = 0.0;
       if (info == 0 && !cholesky_reciprocal_condition(
-          covariance, size, covariance_norm, &reciprocal_condition)) {
+          covariance, size, covariance_scale, &reciprocal_condition)) {
         reciprocal_condition = 0.0;
       }
       if (info != 0 || !precision_condition_acceptable(reciprocal_condition)) {
