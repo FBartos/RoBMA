@@ -190,6 +190,9 @@ const double PRECISION_CONDITION_LIMIT = 1e-6;
 // 1-norm of a symmetric matrix stored in its lower triangle.
 double symmetric_lower_one_norm(const double *matrix, int n)
 {
+  if (n <= 0) {
+    return 0.0;
+  }
   std::vector<double> sums(static_cast<size_t>(n), 0.0);
   for (int column = 0; column < n; ++column) {
     sums[static_cast<size_t>(column)] += std::abs(
