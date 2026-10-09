@@ -751,6 +751,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- marginal means built with `bf = FALSE` and a later `summary(bf = TRUE)`
+  request with `density_method = "qCMDE"` or `"IWMDE"` keep `NA` Bayes factors
+  but name the actual reason, that the posterior ordinates were not computed,
+  and the supported call `marginal_means(object, bf = TRUE, density_method =
+  ...)`, instead of reporting failed diagnostics.
 - `hypothesis()` on marginal means compares a fixed marginal mean (e.g., the
   reference level of a treatment factor under a fixed-zero intercept) with
   variable levels (`g[b] > g[a]`, `g[b] - g[a] > 0`) as on the fitted object;

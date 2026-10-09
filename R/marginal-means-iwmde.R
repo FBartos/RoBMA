@@ -478,6 +478,14 @@
     return(inference)
   }
 
+  # An object built with 'bf = FALSE' has no posterior ordinates to report.
+  warning <- if (isFALSE(object[["density_settings"]][["include_ordinates"]]) ||
+                 isFALSE(object[["bf"]])) {
+    .marginal_means_iwmde_bf_not_computed_warning(density_method)
+  } else {
+    .marginal_means_iwmde_bf_warning()
+  }
+
   for (parameter in parameters) {
     posterior <- inference[["conditional"]][[parameter]]
     if (is.null(posterior)) {
@@ -493,7 +501,8 @@
       posterior       = posterior,
       null_hypothesis = null_hypothesis,
       provenance      = provenance,
-      density_method  = density_method
+      density_method  = density_method,
+      warning         = warning
     )
 
     inference[["inference"]][[parameter]] <- bf
@@ -649,6 +658,20 @@
     paste(reasons, collapse = "; "),
     ". ",
     "Savage-Dickey Bayes factor is not reported."
+  )
+}
+
+
+# The reason of a missing Bayes factor when the marginal means were built
+# without posterior ordinates ('bf = FALSE'), which a later request for the
+# Bayes factors cannot compute from the stored object.
+.marginal_means_iwmde_bf_not_computed_warning <- function(density_method) {
+
+  paste0(
+    "Posterior ordinates were not computed because the marginal means were ",
+    "built with 'bf = FALSE'; Savage-Dickey Bayes factors are not reported. ",
+    "Use marginal_means(object, bf = TRUE, density_method = \"", density_method,
+    "\")."
   )
 }
 
