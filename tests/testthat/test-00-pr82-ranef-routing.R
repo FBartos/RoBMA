@@ -191,3 +191,92 @@ test_that("a common scale is inspected per nested random-effect block", {
   expect_identical(blocks("x"), c(effect_study = FALSE, study = TRUE))
   expect_identical(blocks("g"), c(effect_study = FALSE, study = FALSE))
 })
+
+# A constructor-compiled BMA.mv object with a mixture location prior and a
+# synthetic posterior, finalized through the BayesTools fit contract.
+.ranef_conditional_fixture <- function() {
+
+  dat <- data.frame(yi = c(.1, .2, .3, .4), obs = factor(1:4),
+                    study = factor(c("a", "a", "b", "b")))
+  V <- matrix(c(.04, .01, 0, 0, .01, .05, 0, 0, 0, 0, .04, .012, 0, 0, .012, .05), 4L)
+  object <- BMA.mv(
+    yi = yi, V = V, random = ~ 1 | study, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, prior_effect = BayesTools::prior("normal", list(0, 1)),
+    prior_effect_null = BayesTools::prior("spike", list(0)),
+    known_v_parameterization = "block_mvn", only_priors = TRUE, silent = TRUE
+  )
+  args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+  compiled <- lapply(names(args[["formula_list"]]), function(parameter) {
+    BayesTools::JAGS_formula(
+      formula = args[["formula_list"]][[parameter]], parameter = parameter,
+      data = args[["formula_data_list"]][[parameter]],
+      prior_list = args[["formula_prior_list"]][[parameter]],
+      formula_scale = args[["formula_scale_list"]][[parameter]],
+      prior_random = args[["formula_random_prior_list"]][[parameter]],
+      random_effects_compile = args[["formula_random_effects_compile_list"]][[parameter]]
+    )
+  })
+  names(compiled) <- names(args[["formula_list"]])
+  design <- lapply(compiled, `[[`, "formula_design")
+  allocation <- design[["mu"]][["random_allocations"]][[1L]]
+  gate <- allocation[["inclusion"]][[1L]]
+  samples <- cbind(
+    mu_intercept = c(.1, .2, .3, .4), mu_intercept_indicator = c(1, 2, 1, 2),
+    sd = c(.3, .4, .5, .6), prob = .5, ind = 1
+  )
+  colnames(samples) <- c("mu_intercept", "mu_intercept_indicator",
+                         allocation[["source_node"]], gate[["prob_name"]],
+                         gate[["indicator_name"]])
+
+  priors <- list()
+  for (item in compiled) priors <- c(priors, item[["prior_list"]])
+  fit <- structure(
+    list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples)),
+    class = c("runjags", "list")
+  )
+  attr(fit, "formula_design") <- design
+  attr(fit, "formula_scale")  <- lapply(compiled, `[[`, "formula_scale")
+  attr(fit, "prior_list")     <- c(priors, .create_fit_priors(object[["data"]],
+                                                                object[["priors"]]))
+  object[["formula_design"]] <- design
+  object[["fit"]]            <- as_bayestools_fit(fit)
+  list(object = object, samples = samples)
+}
+
+test_that("conditional multivariate ranef selects posterior rows after the decomposition", {
+
+  fixture <- .ranef_conditional_fixture()
+  object  <- fixture[["object"]]
+  keep    <- .conditional_parameter_rows(
+    object, .conditional_effect_parameters(object), fixture[["samples"]], "OR"
+  )
+  expect_identical(keep, c(FALSE, TRUE, FALSE, TRUE))
+
+  unconditional <- ranef(object, simplify = FALSE, expand = TRUE,
+                         .posterior_samples = fixture[["samples"]])
+  conditional   <- ranef(object, simplify = FALSE, expand = TRUE, conditional = TRUE,
+                         .posterior_samples = fixture[["samples"]])
+  expect_named(conditional, names(unconditional))
+  for (block in names(unconditional)) {
+    expect_equal(
+      unname(as.matrix(conditional[[block]])),
+      unname(as.matrix(unconditional[[block]]))[keep, , drop = FALSE],
+      tolerance = 1e-12
+    )
+  }
+
+  # The unique-level and total routes select the same rows.
+  unique_effects <- ranef(object, conditional = TRUE, .posterior_samples = fixture[["samples"]])
+  expect_identical(nrow(as.matrix(unique_effects)), 2L)
+  total <- ranef(object, component = "total", expand = TRUE, conditional = TRUE,
+                 .posterior_samples = fixture[["samples"]])
+  expect_equal(
+    unname(as.matrix(total)),
+    unname(Reduce(`+`, lapply(unconditional, as.matrix)))[keep, , drop = FALSE],
+    tolerance = 1e-12
+  )
+  expect_error(
+    ranef(object, conditional = NA, .posterior_samples = fixture[["samples"]]),
+    "conditional"
+  )
+})

@@ -891,6 +891,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   from the scale design, not from draws), instead of silently reporting the
   first row of each group; use `expand = TRUE`. Constant-within-group scale
   designs keep the unique-level output.
+- `ranef(conditional = TRUE)` of `brma.mv()` random-formula models with a
+  location mixture prior no longer stops with a dimension error: the random
+  decomposition is computed on all posterior rows and the conditional rows are
+  selected last, as the prediction methods do.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

@@ -1245,6 +1245,20 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   )
   dots[[".posterior_samples"]] <- posterior_samples
 
+  # Terms, bias offsets and the random posterior are computed on every
+  # posterior row; the conditional row selection is applied to the
+  # decomposition last, as the prediction methods do.
+  conditional <- dots[["conditional"]]
+  if (is.null(conditional)) {
+    conditional <- FALSE
+  }
+  BayesTools::check_bool(conditional, "conditional")
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' predictions are available only for RoBMA objects.",
+         call. = FALSE)
+  }
+  dots[["conditional"]] <- NULL
+
   terms_samples <- do.call(
     predict.brma,
     c(
@@ -1334,6 +1348,22 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     )
   })
   names(out) <- names(components)
+
+  parameters <- if (conditional) {
+    .conditional_effect_parameters(object)
+  } else {
+    NULL
+  }
+  out <- .condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = parameters,
+    posterior_samples = posterior_samples,
+    quiet             = TRUE
+  )
+  n_chains <- attr(out[[1L]], "nchains")
+  n_iter   <- attr(out[[1L]], "niter")
 
   return(.select_ranef_components(
     components = out,
