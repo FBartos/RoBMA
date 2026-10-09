@@ -1287,7 +1287,9 @@ if (!is.environment(.package_source_md5_cache)) {
 
 .fit_cache_source_fingerprint <- function(package_root, source_files) {
 
-  info <- file.info(source_files)
+  # Only size and modification time enter the fingerprint; skipping the extra
+  # columns avoids reading every file's header on Windows.
+  info <- file.info(source_files, extra_cols = FALSE)
   paste(
     package_root,
     paste(source_files, info[["size"]], info[["mtime"]], sep = ":", collapse = "\n"),
