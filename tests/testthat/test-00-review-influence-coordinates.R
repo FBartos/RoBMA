@@ -160,3 +160,28 @@ test_that("COVRATIO of a standardized model without intercept uses the fitted co
   expect_equal(as.numeric(observed)[-1L], rep(1, 5L), tolerance = 1e-12)
   expect_null(attr(observed, "note"))
 })
+
+
+test_that("VIF omits a fixed-zero intercept from the posterior correlation", {
+
+  object <- .review_zero_intercept_factor_replay()
+  levels <- c("(mu) g[A]", "(mu) g[B]", "(mu) g[C]")
+
+  warnings <- character()
+  result   <- withCallingHandlers(
+    vif(object),
+    warning = function(condition) {
+      warnings <<- c(warnings, conditionMessage(condition))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_identical(warnings, character())
+
+  # the correlation of the three independent level draws
+  correlation <- result[["posterior_correlation"]]
+  expect_identical(rownames(correlation), levels)
+  expect_identical(colnames(correlation), levels)
+  expect_false(anyNA(correlation))
+  draws <- as.matrix(coda::as.mcmc.list(object[["fit"]]))[, 1:3]
+  expect_equal(unname(correlation), unname(stats::cor(draws)), tolerance = 1e-12)
+})

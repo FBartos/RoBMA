@@ -1093,11 +1093,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   unused `conditioning_depth` label, and the selection-deletion integration
   errors of `log_lik()` and LOO name `selection_control` as a setting of the
   fit.
-- `dfbetas()` and `influence()` of models whose location has a structural-zero
-  intercept (`mods = ~ 0 + g`) no longer report a constant `NaN` `(mu)
-  intercept` column with its zero-variance note: like `summary()`, the
-  diagnostics omit a fixed-zero intercept, so the columns are the coefficients
-  that the formula estimates.
+- `dfbetas()`, `influence()`, and the posterior correlation of `vif()` of
+  models whose location has a structural-zero intercept (`mods = ~ 0 + g`) no
+  longer report a constant `NaN` or `NA` `(mu) intercept` column (with a
+  zero-variance note or warning): like `summary()`, the diagnostics omit a
+  fixed-zero intercept, so the columns are the coefficients that the formula
+  estimates.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry
