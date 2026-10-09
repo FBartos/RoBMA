@@ -327,7 +327,7 @@
 
   samples   <- .resolve_fixed_prior_sample_columns(samples, prior_list)
   if (is.null(evaluator)) {
-    evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list)
+    evaluator <- .iwmde_numerical_prior_rows_evaluator(prior_list)
   }
   log_prior <- evaluator(samples)
   if (!is.numeric(log_prior) || length(log_prior) != nrow(samples) ||
@@ -358,13 +358,26 @@
     return(cached[["evaluator"]])
   }
 
-  evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list)
+  evaluator <- .iwmde_numerical_prior_rows_evaluator(prior_list)
   assign(
     key,
     list(prior_list = prior_list, evaluator = evaluator),
     envir = cache
   )
   return(evaluator)
+}
+
+
+.iwmde_numerical_prior_rows_evaluator <- function(prior_list) {
+
+  ordered <- vapply(prior_list, BayesTools::is.prior.ordered, logical(1))
+  if (any(ordered)) {
+    ordered_evaluator <- BayesTools::JAGS_ordered_density_kernel(prior_list[ordered])
+    generic_evaluator <- BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list[!ordered])
+    return(function(samples) ordered_evaluator(samples) + generic_evaluator(samples))
+  } else {
+    return(BayesTools::JAGS_marglik_priors_rows_evaluator(prior_list))
+  }
 }
 
 

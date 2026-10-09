@@ -124,6 +124,13 @@ described.
 
 ## API and Verification
 
+Ordinary qCMDE/IWMDE rows compose the existing numerical ordered-prior kernel
+with the remaining ordinary priors. Cache identities preserve exact inclusion
+indicators, including zero; selected components retain their strict validation.
+Dependent vector priors use their full joint density and leave unused scalar
+focal baselines unavailable. Ordered expression nuisance terms retain the
+existing typed ordered-expression refusal for the requested target.
+
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.
 Keep released plotting arguments working for the compatibility periods in
 [model-interface.md](model-interface.md).

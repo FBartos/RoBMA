@@ -384,7 +384,12 @@
     row        = row,
     prior_list = prior_list
   )
-  log_prior <- BayesTools::JAGS_marglik_priors(row, prior_list)
+  log_prior <- if (any(vapply(prior_list, BayesTools::is.prior.ordered, logical(1)))) {
+    samples <- matrix(as.numeric(row), nrow = 1L, dimnames = list(NULL, names(row)))
+    .iwmde_numerical_prior_rows_evaluator(prior_list)(samples)
+  } else {
+    BayesTools::JAGS_marglik_priors(row, prior_list)
+  }
   return(.iwmde_scalar_log_density(log_prior))
 }
 

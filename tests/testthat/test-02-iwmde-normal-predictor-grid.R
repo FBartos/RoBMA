@@ -354,6 +354,85 @@ test_that("ordered nuisance priors use the same numerical kernel on scalar and g
     expect_error(.iwmde_select_prior_component(mixture, c(indicator = value), "indicator"),
       "outside the available prior components", fixed = TRUE)
   }
+  parameter <- "tau"
+  spec <- .iwmde_parameter_spec(context, parameter, NULL)
+  states <- .iwmde_row_states(context, rows, parameter, spec)
+  grouped <- .iwmde_row_states_grouped_marginal(context, rows, parameter, spec)
+  expect_equal(vapply(states, `[[`, numeric(1), "baseline_log_q"),
+    vapply(grouped, `[[`, numeric(1), "baseline_log_q"), tolerance = 1e-12)
+  inputs <- list(values = c(.05, .2, .6, -1, 0), row_states = states,
+    replacement = .iwmde_replacement_spec(context, parameter, spec))
+  routes <- .normal_grid_both_routes(context, parameter, inputs)
+  expect_gt(routes[["served"]], 0L)
+  .expect_normal_grid_agreement(routes, "ordered nuisance / tau")
+  for (state in states) {
+    samples <- matrix(state[["row"]], nrow = 1L, dimnames = list(NULL, names(state[["row"]])))
+    observed <- .iwmde_log_prior_rows(samples, state[["prior_list"]])
+    expect_equal(observed, state[["baseline_log_prior"]], tolerance = 1e-12)
+    expect_equal(.iwmde_log_prior_row(state[["row"]], state[["prior_list"]]), observed[[1L]], tolerance = 1e-12)
+    expect_true(is.finite(state[["baseline_log_q"]]))
+    prior <- state[["prior_list"]][["mu_g1"]]
+    ordered <- BayesTools::JAGS_ordered_density_kernel(list(mu_g1 = prior))(samples)
+    total <- state[["row"]][["mu_g1_ordered_total"]]
+    expected_ordered <- if (state[["row"]][[indicator]] == 0) 0 else stats::dgamma(total, 2, rate = 2, log = TRUE)
+    expect_lt(abs(ordered - expected_ordered), 1e-12)
+    expect_lt(abs(observed - ordered - BayesTools::lpdf(state[["prior_list"]][["tau"]], samples[, "tau"])), 1e-12)
+    mean <- 1 + c(0, .25, 1)[as.integer(context[["data"]][["mods"]][["g1"]])] * total
+    yi <- .outcome_data_yi(object)
+    sei <- .outcome_data_sei(object)
+    for (value in inputs[["values"]][inputs[["values"]] > 0]) {
+      expected <- sum(stats::dnorm(yi, mean, sqrt(sei^2 + value^2), log = TRUE)) +
+        expected_ordered + BayesTools::lpdf(state[["prior_list"]][["tau"]], value)
+      actual <- .iwmde_log_q_replacement(context, state, parameter, value, inputs[["replacement"]])
+      expect_lt(abs(actual - expected), 1e-10)
+    }
+  }
+  g_spec <- .iwmde_parameter_spec(context, "mu_g1[20]", list(type = "linear",
+    weights = c(`mu_g1[1]` = 1, `mu_g1[2]` = 1)))
+  expect_identical(g_spec[["type"]], "ordered")
+  ordered_state <- .iwmde_ordered_row_state(context, g_spec, rows[[2L]])
+  expect_true(is.finite(ordered_state[["baseline_log_q"]]))
+  source <- ordered_state[["ordered_chart"]][["current"]]
+  expect_true(all(is.finite(.iwmde_ordered_log_q_source(context, ordered_state,
+    c(source / 2, source, source * 2)))))
+  components <- .iwmde_parameter_components(context, "mu_g1[20]", g_spec)
+  expect_identical(sum(components[["active"]]), 5L)
+  curve <- graphics::plot(object, parameter = "tau", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot")
+  expect_s3_class(curve, "ggplot")
+  curve_data <- ggplot2::ggplot_build(curve)$data[[1L]]
+  expect_true(any(is.finite(curve_data$y) & curve_data$y > 0))
+  expect_error(graphics::plot(object, parameter = "g1[20]", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot"), class = "RoBMA_density_plot_error")
+  expect_error(graphics::plot(object, parameter = "g1[20]", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot", conditional = TRUE),
+    "'conditional' plots are available only for RoBMA objects.", fixed = TRUE)
+})
+
+
+test_that("expression nuisance and selected cells retain their declared typed refusals", {
+
+  fit_name <- "marginal_means_expression"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name)
+  context <- .iwmde_context(object)
+  for (parameter in c("mu_intercept", "tau")) {
+    spec <- .iwmde_parameter_spec(context, parameter, NULL)
+    expect_error(.iwmde_row_states(context, 1:2, parameter, spec),
+      class = "BayesTools_ordered_expression_unavailable")
+  }
+  for (parameter in c("intercept", "tau")) {
+    expect_error(graphics::plot(object, parameter = parameter, prior = FALSE,
+      density_method = "qCMDE", plot_type = "ggplot"),
+      class = "BayesTools_ordered_expression_unavailable")
+  }
+  expect_error(graphics::plot(object, parameter = "g[hi]", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot"),
+    class = "BayesTools_formula_prior_density_unavailable")
+  whole <- tryCatch(graphics::plot(object, parameter = "g", prior = FALSE,
+    density_method = "qCMDE", plot_type = "ggplot"), error = identity)
+  expect_true(inherits(whole, "BayesTools_ordered_expression_unavailable") ||
+    inherits(whole, "BayesTools_formula_measure_unavailable"))
 })
 
 

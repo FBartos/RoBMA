@@ -1,5 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
 - qCMDE/IWMDE retain the joint dependent factor prior without evaluating an unused scalar focal density.
+- numerical row priors use the existing ordered conditional kernel for ordered nuisance terms, preserving valid zero inclusion states and typed expression-total refusals.
 - marginal means retain available sibling Bayes factors when a declared formula measure is unavailable; refused rows keep the original reason. Explicit late KDE summaries compute skipped Bayes factors from the stored conditional cells and null hypothesis.
 * Preserve structured allowed refusal diagnostics for unavailable marginal-means Bayes-factor rows.
 * Report equivalent SD and variance point/region numerical-zero comparisons as canonical undefined Bayes factors with aligned diagnostics and warnings.
