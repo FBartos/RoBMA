@@ -294,6 +294,31 @@ test_that("summaries show the original-scale intercept of a fixed-zero standardi
                tolerance = 1e-10)
 })
 
+test_that("marginal means of a fixed-zero standardized model stay on the fitted coordinates", {
+
+  n <- 100L
+  object <- .fixed_zero_scaled_object(1:6)
+  setup  <- review_compile_object(object)
+  slope  <- stats::qnorm((seq_len(n) - .5) / n) + .3
+  samples <- cbind(slope, 0, .1)
+  colnames(samples) <- c(
+    review_coefficient_name(setup, "x"),
+    review_coefficient_name(setup, "intercept"), "tau"
+  )
+  object <- review_attach_replay(setup, samples)
+
+  # off-center predictor, nonzero original-scale intercept: the marginal means
+  # are those of the structural-zero basis, without an intercept row
+  means <- marginal_means(object)
+  table <- `class<-`(summary(means), "data.frame")
+
+  expect_identical(means[["parameters"]], "mu_x")
+  expect_identical(attr(stats::terms(means[["formula"]]), "intercept"), 0L)
+  expect_identical(rownames(table), c("x[-1SD]", "x[0SD]", "x[1SD]"))
+  expect_equal(unname(table[, "Mean"]), c(-1, 0, 1) * mean(slope), tolerance = 1e-12)
+  expect_equal(unname(table[, "SD"]), c(1, 0, 1) * stats::sd(slope), tolerance = 1e-12)
+})
+
 test_that("marginal means keep dropping the structural fixed-zero intercept", {
 
   off_center <- .fixed_zero_scaled_object(1:6, mods = ~ x)
