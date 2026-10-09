@@ -85,12 +85,23 @@ test_that("a selected outcome funnel needs one common source split", {
     common <- .funnel_common_heterogeneity(replay[["object"]], replay[["samples"]])
     expect_false(common[["sources"]][["common"]])
     expect_false(common[["common"]])
+    expect_true(common[["total_common"]])
     expect_null(common[["tau"]])
+    # the refusal names the split, not study-specific heterogeneity
     expect_error(
       bfunnel(replay[["object"]], as_data = TRUE),
-      "outcome contours require one common marginal heterogeneity", fixed = TRUE
+      paste0("outcome contours require one common marginal heterogeneity ",
+             "distribution across studies. The total heterogeneity is common, ",
+             "but the split of its selected sources into integrated and ",
+             "conditioned parts varies across rows; use a LOO-PIT residual ",
+             "funnel"),
+      fixed = TRUE
     )
   }
+  expect_error(
+    .funnel_stop_no_common_heterogeneity("funnel()", list(total_common = FALSE)),
+    "This model has study-specific marginal heterogeneity", fixed = TRUE
+  )
 
   # A split that applies to every row keeps the outcome contour.
   dat[["x"]] <- 1

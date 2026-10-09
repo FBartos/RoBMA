@@ -295,7 +295,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
     common_heterogeneity <- .funnel_common_heterogeneity(x)
   }
   if (!is_residual && !common_heterogeneity[["common"]]) {
-    .funnel_stop_no_common_heterogeneity("funnel()")
+    .funnel_stop_no_common_heterogeneity("funnel()", common_heterogeneity)
   }
 
   # generate funnel data based on mode
@@ -414,7 +414,7 @@ bfunnel.brma <- function(x, sampling_heterogeneity = TRUE,
 
   common_heterogeneity <- .funnel_common_heterogeneity(x)
   if (!common_heterogeneity[["common"]]) {
-    .funnel_stop_no_common_heterogeneity("bfunnel()")
+    .funnel_stop_no_common_heterogeneity("bfunnel()", common_heterogeneity)
   }
 
   funnel_data <- .funnel_data_outcome(
@@ -440,12 +440,23 @@ bfunnel.brma <- function(x, sampling_heterogeneity = TRUE,
 }
 
 
-.funnel_stop_no_common_heterogeneity <- function(caller) {
+.funnel_stop_no_common_heterogeneity <- function(caller, heterogeneity = NULL) {
+
+  # the total can be common while the split of the selected sources into
+  # integrated and conditioned parts is not
+  reason <- if (isTRUE(heterogeneity[["total_common"]])) {
+    paste0(
+      "The total heterogeneity is common, but the split of its selected ",
+      "sources into integrated and conditioned parts varies across rows"
+    )
+  } else {
+    "This model has study-specific marginal heterogeneity"
+  }
 
   stop(
     "'", caller, "' outcome contours require one common marginal ",
-    "heterogeneity distribution across studies. This model has study-specific ",
-    "marginal heterogeneity; use a LOO-PIT residual funnel with 'funnel()'.",
+    "heterogeneity distribution across studies. ", reason, "; use a LOO-PIT ",
+    "residual funnel with 'funnel()'.",
     call. = FALSE
   )
 }

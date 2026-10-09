@@ -770,9 +770,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   instead of silently returning an empty data frame; `summary()` of these
   objects is unchanged.
 - plot and marginal-means densities whose qCMDE/IWMDE construction fails stop
-  with the public error class `RoBMA_density_construction_error` (the internal
-  `iwmde_construction_error` class is kept) and the remedy to use
-  `density_method = "KDE"`; hypothesis ordinate failures keep
+  with the public error class `RoBMA_density_construction_error` and the remedy
+  to use `density_method = "KDE"`; hypothesis ordinate failures keep
   `RoBMA_density_ordinate_error`.
 - marginal means built with `bf = FALSE` and a later `summary(bf = TRUE)`
   request with `density_method = "qCMDE"` or `"IWMDE"` keep `NA` Bayes factors
@@ -886,8 +885,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   returned an ordinate 5821 times too large now agrees with the exact mixture
   of the conditional normals, and its truncation is zero. Other rows keep the
   lattice normalizer; the nested-grid ordinate change they report estimates
-  their discretization error and is not a bound. Cached qCMDE normalizations
-  are recomputed (`.iwmde_algorithm_version()` 30).
+  their discretization error and is not a bound. Cached qCMDE ordinates are
+  recomputed after the update.
 - IWMDE of a bounded linear target (a contrast or sum of coefficients whose
   support differs from draw to draw) standardizes every row by its own bounds
   before the Chen proposal is fitted, and partitions the rows by which bounds

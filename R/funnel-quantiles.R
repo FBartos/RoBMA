@@ -95,7 +95,8 @@
     nrow = nrow(tau),
     ncol = ncol(tau)
   )
-  common <- all(.equal_within_double_roundoff(tau, reference))
+  total_common <- all(.equal_within_double_roundoff(tau, reference))
+  common       <- total_common
 
   # A selected target also needs one common split of the total into integrated
   # and conditioned sources: the same total can be split differently by row.
@@ -109,6 +110,7 @@
 
   return(list(
     common            = common,
+    total_common      = total_common,
     posterior_samples = posterior_samples,
     tau                = if (common) tau[, 1L] else NULL,
     sources           = sources
