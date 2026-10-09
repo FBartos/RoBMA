@@ -305,7 +305,24 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
       bias_adjusted     = bias_adjusted,
       posterior_samples = known_v_samples
     )
-    fitted_samples <- .known_v_estimate_blup_from_setup(setup)
+    # The declared PET/PEESE offset enters the observation, as in the BLUP
+    # prediction of the same target.
+    bias_offset <- NULL
+    if (bias_adjusted && (.is_PET(object) || .is_PEESE(object))) {
+      bias_offset <- .evaluate.brma.bias_offset(
+        fit               = object[["fit"]],
+        outcome_data      = object[["data"]][["outcome"]],
+        is_PET            = .is_PET(object),
+        is_PEESE          = .is_PEESE(object),
+        effect_direction  = .effect_direction(object),
+        K                 = setup[["K"]],
+        posterior_samples = setup[["posterior_samples"]],
+        priors            = object[["priors"]]
+      )
+    }
+    fitted_samples <- .known_v_estimate_blup_from_setup(
+      setup, bias_offset = bias_offset
+    )
   } else {
     pred_type <- switch(conditioning_depth,
       "marginal" = "terms",

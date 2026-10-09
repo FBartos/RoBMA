@@ -1595,15 +1595,16 @@
 # marginalized heterogeneity enters through `.known_v_extra_variance_from_setup()`.
 #
 # ---------------------------------------------------------------------------- #
-.known_v_estimate_blup_from_setup <- function(setup) {
+.known_v_estimate_blup_from_setup <- function(setup, bias_offset = NULL) {
 
   extra_variance <- .known_v_extra_variance_from_setup(setup)
 
   .evaluate.brma.known_v_blup.norm(
-    mu_samples = setup[["mu"]],
-    tau_within = sqrt(extra_variance),
-    yi         = setup[["yi"]],
-    known_V    = .data_known_v_data(setup[["data"]])
+    mu_samples  = setup[["mu"]],
+    tau_within  = sqrt(extra_variance),
+    yi          = setup[["yi"]],
+    known_V     = .data_known_v_data(setup[["data"]]),
+    bias_offset = bias_offset
   )
 }
 

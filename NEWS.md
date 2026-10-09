@@ -895,6 +895,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   location mixture prior no longer stops with a dimension error: the random
   decomposition is computed on all posterior rows and the conditional rows are
   selected last, as the prediction methods do.
+- estimate-depth `residuals()` of known-V PET/PEESE models with
+  `bias_adjusted = TRUE` remove the declared bias offset from the observation
+  before the BLUP, so they equal `yi` minus the `predict(type = "blup",
+  bias_adjusted = TRUE)` means.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry
