@@ -1,5 +1,5 @@
 # ============================================================================ #
-# IWMDE Parameter Diagnostic Orchestration
+# IWMDE Display-Grid and Diagnostic Label Helpers
 # ============================================================================ #
 
 .iwmde_normalize_display_grid <- function(display_grid) {

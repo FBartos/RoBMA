@@ -14,7 +14,9 @@
 #' structure that can be passed to \pkg{metafor}'s forest plotting functions.
 #'
 #' @param x a fitted brma object.
-#' @param level credible/confidence level in percent. Defaults to \code{95}.
+#' @param level credible/confidence level in percent, greater than 0 and less
+#'   than 100. A value below 1 is read as a proportion (\code{0.95} is 95
+#'   percent), so \code{1} means 1 percent. Defaults to \code{95}.
 #' @param addpred logical; whether to compute a marginal posterior prediction
 #'   interval for one new true effect. Defaults to \code{FALSE}.
 #' @param newdata optional one-row prediction design used when
@@ -274,7 +276,9 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #'   requests a moderator-specific prediction.
 #' @param row numeric row position for the pooled-effect summary polygon.
 #'   Defaults to \code{-1}.
-#' @param level credible/confidence level in percent. Defaults to \code{95}.
+#' @param level credible/confidence level in percent, greater than 0 and less
+#'   than 100. A value below 1 is read as a proportion (\code{0.95} is 95
+#'   percent), so \code{1} means 1 percent. Defaults to \code{95}.
 #' @param bias_adjusted logical; whether pooled and prediction summaries should
 #'   adjust for publication bias. Defaults to \code{TRUE}.
 #' @param conditional logical; whether to return conditional posterior

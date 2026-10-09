@@ -25,8 +25,8 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' publication bias adjustments and \code{sampling_bias = TRUE}, the
 #' sampling interval incorporates the expected distortion from the
 #' selection process.
-#' @param level numeric; credible/prediction interval level in percent.
-#' Defaults to \code{95}.
+#' @param level numeric; credible/prediction interval level in percent, from
+#' \code{50} to \code{99.9}. Defaults to \code{95}.
 #' @param at numeric vector; for continuous moderators, values at which to
 #' evaluate the prediction. If not specified, uses a sequence across the
 #' observed range.

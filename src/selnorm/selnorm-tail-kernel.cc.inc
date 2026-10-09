@@ -3,7 +3,8 @@
 // Included from selnorm-tail.h with SELNORM_TAIL_LANE naming the lane, inside a
 // namespace of its own. The AVX2 copy is included inside that header's target
 // region so the intrinsics inline there; both copies come from this one source,
-// so the two lanes evaluate the same expressions in the same order.
+// so the two lanes evaluate the same expressions in the same order (the fused
+// multiply-add of each lane may still round differently in the last bits).
 
 typedef SELNORM_TAIL_LANE Lane;
 typedef Lane::Value Value;

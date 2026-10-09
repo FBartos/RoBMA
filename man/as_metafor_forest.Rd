@@ -26,7 +26,9 @@ arguments are also stored in \code{addpoly_args}. This includes
 \pkg{metafor}'s auxiliary-column arguments \code{ilab},
 \code{ilab.lab}, \code{ilab.xpos}, and \code{ilab.pos}.}
 
-\item{level}{credible/confidence level in percent. Defaults to \code{95}.}
+\item{level}{credible/confidence level in percent, greater than 0 and less
+than 100. A value below 1 is read as a proportion (\code{0.95} is 95
+percent), so \code{1} means 1 percent. Defaults to \code{95}.}
 
 \item{addpred}{logical; whether to compute a marginal posterior prediction
 interval for one new true effect. Defaults to \code{FALSE}.}

@@ -41,8 +41,11 @@
 // dense argument grid, where this is in fact closer to the exact tail than the
 // library erfc is beyond about eight standard deviations.
 //
-// The scalar and AVX2 lanes include one kernel source, so a batch returns the
-// same values however it is dispatched on a given build.
+// The scalar and AVX2 lanes include one kernel source, so both evaluate the
+// same expressions in the same order. Their fused multiply-add differs: the
+// scalar lane rounds a product and a sum separately unless the build contracts
+// them, the AVX2 lane rounds once. A batch can therefore differ in the last
+// bits between lanes; the package tests assert relative agreement to 1e-14.
 
 namespace selnorm_tail {
 
@@ -314,12 +317,13 @@ inline void upper_tail_affine(const double *mean, std::size_t count,
   }
 #endif
   // std::fma here is deliberate, and is the one place the lane keeps it: the
-  // AVX2 region forms the same score with a fused multiply-add, so the two
-  // lanes agree bit for bit only if this one does too. Without hardware FMA it
-  // becomes a library call: 18.4 ns per value against 9.2 ns with -mfma, over
-  // 1e7 arguments at -O2 with the vector region forced off. That is the price
-  // of the agreement on such a build, and the lane is still ahead of the
-  // library erfc it replaces (23.0 ns in the same harness).
+  // AVX2 region forms the same score with a fused multiply-add, so this lane
+  // forms the score with the same single rounding (the kernel that follows
+  // can still differ in the last bits through Lane::fused). Without hardware
+  // FMA it becomes a library call: 18.4 ns per value against 9.2 ns with -mfma,
+  // over 1e7 arguments at -O2 with the vector region forced off. That is the
+  // price of the shared score on such a build, and the lane is still ahead of
+  // the library erfc it replaces (23.0 ns in the same harness).
   for (std::size_t index = 0; index < count; ++index) {
     out[index] = scalar_kernel::upper_tail(
       std::fma(-mean[index], inverse_sd, offset));

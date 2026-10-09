@@ -50,7 +50,7 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' }
 #' Only used when funnel is in residual mode.
 #' @param unit output unit for residual mode. Only \code{"estimate"} is
-#' implemented in this pass.
+#' currently implemented.
 #' @param conditioning_depth conditioning depth for non-LOO residual mode.
 #' Options are \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.
 #' Omit this argument for \code{type = "LOO-PIT"} (the default) or its
@@ -191,10 +191,11 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' \code{bfunnel.brma} return a list with the
 #' data used for plotting, including the plotted points, funnel polygons,
 #' plotting limits, labels, reference line, and outcome-funnel estimand. GLMM
-#' outcome-mode data also
+#' outcome-mode data of \code{funnel.brma} also
 #' contain an \code{approximation} record identifying the descriptive normal
 #' effect-size approximation and stating that it is not fitted discrete-
-#' likelihood coverage. Otherwise, it returns
+#' likelihood coverage (\code{bfunnel.brma} is available only for normal
+#' outcome models). Otherwise, it returns
 #' \code{NULL} invisibly if \code{plot_type = "base"} or a ggplot object if
 #' \code{plot_type = "ggplot"}.
 #'

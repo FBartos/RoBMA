@@ -1,5 +1,5 @@
 # ============================================================================ #
-# IWMDE Row States, Density Aggregation, and Chen Weights
+# IWMDE Row States and Density Estimator Assembly
 # ============================================================================ #
 
 .iwmde_row_states <- function(context, rows, parameter = NULL,

@@ -58,7 +58,9 @@ requests a moderator-specific prediction.}
 \item{row}{numeric row position for the pooled-effect summary polygon.
 Defaults to \code{-1}.}
 
-\item{level}{credible/confidence level in percent. Defaults to \code{95}.}
+\item{level}{credible/confidence level in percent, greater than 0 and less
+than 100. A value below 1 is read as a proportion (\code{0.95} is 95
+percent), so \code{1} means 1 percent. Defaults to \code{95}.}
 
 \item{bias_adjusted}{logical; whether pooled and prediction summaries should
 adjust for publication bias. Defaults to \code{TRUE}.}

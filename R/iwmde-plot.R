@@ -1,5 +1,5 @@
 # ============================================================================ #
-# IWMDE Plotting and Plot Data Helpers
+# IWMDE KDE, Histogram, and Trapezoid Helpers
 # ============================================================================ #
 
 .iwmde_kde <- function(values, xlim, n_points, mass = 1) {
