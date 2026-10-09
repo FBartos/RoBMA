@@ -751,6 +751,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- `hypothesis()` groups statements on a factor in one call exactly when
+  BayesTools accepts them as one linear target, i.e., by the level
+  coefficients of the statements' own level expressions instead of their
+  fitted-coordinate weights; statements such as `g[A] - g[B] = 0.1` and `2 *
+  g[A] + g[C] = 0.1`, whose different level expressions share the same
+  weights, are evaluated as separate groups on fitted and marginal-means
+  objects.
 - qCMDE/IWMDE no longer treat a continuous predictor or any other declared
   formula coefficient whose name ends in `_indicator` (`treatment_indicator`)
   as a model-inclusion indicator: hypotheses on its coefficient, the intercept

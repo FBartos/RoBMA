@@ -1459,6 +1459,30 @@
     })
 }
 
+# The group of a linear combination of factor levels: statements are
+# evaluated together exactly when BayesTools accepts them as one linear
+# target, i.e., when the level coefficients of their sides (scaled as
+# BayesTools scales them, in the statement's own level expression) are
+# identical. The fitted-coordinate weights of the target are not the key:
+# different level expressions can give the same weights.
+.hypothesis_plan_combination_group <- function(plan) {
+
+  hypothesis <- plan[["hypothesis"]]
+  if (!inherits(hypothesis, "BayesTools_hypothesis_ast")) {
+    hypothesis <- BayesTools::hypothesis_parse(hypothesis)
+  }
+  coefficients <- BayesTools:::.hypothesis_linear_target_side(
+    hypothesis[["statements"]][[1L]][["left"]], plan[["parameter"]]
+  )[["coefficients"]]
+
+  paste(
+    "combination", plan[["parameter"]],
+    rlang::hash(list(names(coefficients), sprintf("%a", coefficients))),
+    sep = "\r"
+  )
+}
+
+
 .hypothesis_plan_combination_available <- function(plan, object) {
 
   plan[["route"]] <- "combination"
@@ -1496,11 +1520,7 @@
   BayesTools::posterior_metadata(target[["posterior"]], "prior_density") <-
     density[["prior_density"]]
   plan[["linear_target"]] <- target
-  plan[["group"]] <- paste(
-    "combination", plan[["parameter"]],
-    paste(names(weights), format(weights, digits = 15L), collapse = ","),
-    sep = "\r"
-  )
+  plan[["group"]] <- .hypothesis_plan_combination_group(plan)
 
   refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = target[["hypothesis"]],
@@ -2230,11 +2250,7 @@
     weights = numeric(), prior_density = density, reason = conditionMessage(fitted)) else
     list(type = "linear", weights = fitted, prior_density = density)
   plan[["linear_target"]] <- target
-  plan[["group"]] <- paste(
-    "combination", plan[["parameter"]],
-    paste(names(weights), format(weights, digits = 15L), collapse = ","),
-    sep = "\r"
-  )
+  plan[["group"]] <- .hypothesis_plan_combination_group(plan)
   refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = target[["hypothesis"]],
     allow_compound = TRUE
