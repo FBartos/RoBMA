@@ -805,10 +805,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   only a point prior at 0 is accepted, any other prior stops with the classed
   error `RoBMA_prior_intercept_conflict` in `brma()`, the other model
   constructors, and `RoBMA()`.
-- marginalized known-covariance prediction identifies a multi-variable
-  random-effect group by the unambiguous tuple of its grouping values, so
-  distinct tuples whose values contain the `:` separator no longer share one
-  new-effect draw.
+- marginalized known-covariance prediction identifies a random-effect group by
+  the exact tuple of its grouping values, as BayesTools does for sampled random
+  effects, so distinct tuples whose values contain the `:` separator or print
+  alike (numeric values differing in the last bits) no longer share one
+  new-effect draw; repeated tuples still share one.
 - the feature coverage vignette links forest plots to their generated reference topic.
 - native normal row sums, predictor grids, and cluster quadrature combine
   Gaussian standard deviations without overflowing or underflowing their squares.
