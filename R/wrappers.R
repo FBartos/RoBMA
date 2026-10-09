@@ -901,9 +901,13 @@ ranef <- function(object, ...) {
 #' \code{expand = TRUE}. When the random-effect standard deviation of a block
 #' varies across the rows of one returned cell (a grouping level, or a grouping
 #' level and indicator coefficient) through a \code{scale} formula
-#' (also for the cluster component of a clustered \code{brma()} model with a
-#' \code{scale} formula), the unique-level output is refused with an error of
-#' class \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Summed
+#' (also for the cluster component of a clustered model with a \code{scale}
+#' formula, whether normal, GLMM, or with a weight function), the unique-level
+#' output is refused with an error of class
+#' \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Only the
+#' components that are returned are judged: \code{component = "estimate"} of a
+#' clustered model and a block name whose own scale does not vary are returned,
+#' whereas \code{"all"} and \code{"total"} include every block. Summed
 #' \code{component = "total"} output across multiple blocks also requires
 #' \code{expand = TRUE} because different blocks need not share grouping levels.
 #'
@@ -1058,6 +1062,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       cluster_levels         <- unique(cluster)
       cluster_level_map      <- match(cluster, cluster_levels)
       cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
+      .check_ranef_cluster_unique_level(object, component, cluster_level_map)
       cluster_ranef_mat <- .ranef_unique_level_samples(
         samples      = cluster_ranef_mat,
         group_map    = cluster_level_map,
@@ -1164,15 +1169,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     cluster_levels         <- unique(cluster)
     cluster_level_map      <- match(cluster, cluster_levels)
     cluster_level_labels <- .ranef_cluster_labels(object, cluster_levels)
-    if (.is_scale(object) && .ranef_scale_design_varies_within_cells(
-        object, .data_scale_formula_parameters(object[["data"]]),
-        cluster_level_map)) {
-      .stop_ranef_expand_required(
-        "Unique-level random effects are unavailable for the cluster ",
-        "component because the 'scale' design varies across the rows of a ",
-        "cluster. Use 'expand = TRUE'."
-      )
-    }
+    .check_ranef_cluster_unique_level(object, component, cluster_level_map)
     components[["cluster"]] <- .ranef_unique_level_samples(
       samples      = components[["cluster"]],
       group_map    = cluster_level_map,
@@ -1314,6 +1311,15 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   )
   names(random_terms) <- block_order
   block_order <- block_order[block_order %in% names(components)]
+
+  # Only the blocks that the requested component returns are converted to
+  # unique levels and judged; an unknown component is reported by the selection.
+  returned <- vapply(
+    block_order, .ranef_block_returned, logical(1L), component = component
+  )
+  if (any(returned)) {
+    block_order <- block_order[returned]
+  }
   components  <- components[block_order]
 
   out <- lapply(names(components), function(block) {
@@ -1511,6 +1517,38 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     class = c("RoBMA_ranef_expand_required", "error", "condition"),
     list(message = message, call = NULL)
   ))
+}
+
+
+# Whether 'component' returns the output of the block 'block': every block for
+# "all" and "total", the block itself for its name. The unique-level conversion
+# is judged only for returned blocks; an unknown component returns none.
+.ranef_block_returned <- function(block, component) {
+
+  if (is.null(component)) {
+    return(TRUE)
+  }
+
+  return(is.character(component) && length(component) == 1L &&
+           !is.na(component) && component %in% c("all", "total", block))
+}
+
+
+# Refuse the unique-level cluster output of a clustered model whose scale design
+# varies across the rows of a cluster, when the cluster component is returned.
+.check_ranef_cluster_unique_level <- function(object, component, cluster_map) {
+
+  if (.ranef_block_returned("cluster", component) && .is_scale(object) &&
+      .ranef_scale_design_varies_within_cells(
+        object, .data_scale_formula_parameters(object[["data"]]), cluster_map)) {
+    .stop_ranef_expand_required(
+      "Unique-level random effects are unavailable for the cluster ",
+      "component because the 'scale' design varies across the rows of a ",
+      "cluster. Use 'expand = TRUE'."
+    )
+  }
+
+  return(invisible(TRUE))
 }
 
 

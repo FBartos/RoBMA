@@ -250,6 +250,153 @@ test_that("a common scale is inspected per nested random-effect block", {
   expect_identical(blocks("g"), c(effect_study = FALSE, study = FALSE))
 })
 
+test_that("the clustered unique-level refusal is judged only for returned components", {
+
+  dat <- data.frame(
+    yi = c(.1, .2, .3, .4), sei = rep(.2, 4L), cl = c("a", "a", "b", "b"),
+    x = c(0, 1, 0, 1)
+  )
+
+  # the estimate component never collapses rows
+  object  <- brma(
+    yi = yi, sei = sei, cluster = cl, scale = ~ x, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+  )
+  samples <- rbind(c(.2, .8, .1, .5, .4, -.3), c(.3, .4, .2, .6, -.2, .5))
+  colnames(samples) <- c("log_tau_intercept", "log_tau_x", "mu", "rho",
+                         "gamma[1]", "gamma[2]")
+
+  estimate <- ranef(object, component = "estimate", .posterior_samples = samples)
+  expect_identical(ncol(estimate), 4L)
+  expect_equal(
+    unname(as.matrix(estimate)),
+    unname(as.matrix(ranef(object, component = "estimate", expand = TRUE,
+                           .posterior_samples = samples))),
+    tolerance = 1e-12
+  )
+  for (component in c("cluster", "all", "total")) {
+    expect_error(
+      ranef(object, component = component, .posterior_samples = samples),
+      class = "RoBMA_ranef_expand_required", info = component
+    )
+  }
+  expect_error(
+    ranef(object, component = "unknown", .posterior_samples = samples),
+    "Unknown random-effect component", fixed = TRUE
+  )
+})
+
+test_that("the nested unique-level refusal is judged only for returned blocks", {
+
+  # a singleton block is not refused because of the block of the study, whose
+  # scale varies
+  dat <- data.frame(
+    yi = c(.1, .2, .3, .4), sei = rep(.2, 4L), x = c(0, 1, 0, 1),
+    study = factor(c("a", "a", "b", "b")), esid = factor(1:4)
+  )
+  mv <- brma.mv(
+    yi = yi, V = sei^2, random = ~ 1 | study / esid, scale = list(study = ~ x),
+    data = dat, known_v_parameterization = "block_mvn", measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+  )
+  terms  <- .fitted_formula_design(mv, "mu", required = TRUE)[["random_effects"]]
+  blocks <- vapply(terms, `[[`, character(1L), "block_name")
+  expect_identical(sort(blocks), c("esid_study", "study"))
+  mv_samples <- cbind(
+    c(.1, .2), c(.2, .3), c(.2, .3), c(.8, .4)
+  )
+  colnames(mv_samples) <- c(
+    "mu", terms[[match("esid_study", blocks)]][["sd_parameter_names"]][[1L]],
+    "log_tau_study_intercept", "log_tau_study_x"
+  )
+
+  singleton <- ranef(mv, component = "esid_study", .posterior_samples = mv_samples)
+  expect_identical(ncol(singleton), 4L)
+  expect_equal(
+    unname(as.matrix(singleton)),
+    unname(as.matrix(ranef(mv, component = "esid_study", expand = TRUE,
+                           .posterior_samples = mv_samples))),
+    tolerance = 1e-12
+  )
+  for (component in c("study", "all", "total")) {
+    expect_error(
+      ranef(mv, component = component, .posterior_samples = mv_samples),
+      class = "RoBMA_ranef_expand_required", info = component
+    )
+  }
+})
+
+# A clustered GLMM (or weight-function) model takes the sampled-latent route of
+# ranef(), which has its own unique-level conversion of the cluster component.
+.ranef_routing_glmm <- function(predictor) {
+
+  dat <- data.frame(
+    ai = c(3, 5, 4, 6), ci = c(6, 8, 5, 9), n1i = rep(30, 4), n2i = rep(30, 4),
+    cl = c("a", "a", "b", "b"), x = c(0, 1, 0, 1), g = c(0, 0, 1, 1)
+  )
+  object <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i, measure = "OR", cluster = cl,
+    scale = stats::as.formula(paste("~", predictor)), data = dat,
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+  )
+  setup  <- review_compile_object(object)
+  priors <- list()
+  for (item in setup[["compiled"]]) priors <- c(priors, item[["prior_list"]])
+  priors <- c(priors, .create_fit_priors(object[["data"]], object[["priors"]]))
+  columns <- review_prior_columns(priors)
+  draws   <- matrix(0, 3L, length(columns), dimnames = list(NULL, columns))
+  for (name in intersect(names(priors), columns)) {
+    if (BayesTools::is.prior.point(priors[[name]])) {
+      draws[, name] <- mean(priors[[name]])
+    }
+  }
+  draws[, "log_tau_intercept"]            <- c(.5, .8, .6)
+  draws[, paste0("log_tau_", predictor)] <- c(.4, -.3, .1)
+  draws[, "rho"]                          <- c(.5, .4, .6)
+  draws[, "mu"]                           <- c(.1, .2, .15)
+  for (name in grep("^(gamma|theta)\\[", columns, value = TRUE)) {
+    draws[, name] <- c(.3, -.2, .1)
+  }
+
+  list(object = review_attach_replay(setup, draws), samples = draws)
+}
+
+test_that("the clustered GLMM route refuses a scale design that varies within a cluster", {
+
+  varying <- .ranef_routing_glmm("x")
+  expect_error(
+    ranef(varying$object, simplify = FALSE, .posterior_samples = varying$samples),
+    class = "RoBMA_ranef_expand_required"
+  )
+  expect_error(
+    ranef(varying$object, component = "cluster", .posterior_samples = varying$samples),
+    class = "RoBMA_ranef_expand_required"
+  )
+  expanded <- ranef(varying$object, simplify = FALSE, expand = TRUE,
+                    .posterior_samples = varying$samples)
+  expect_identical(ncol(expanded[["cluster"]]), 4L)
+  # the two studies of a cluster contribute differently: the first row cannot
+  # stand for the cluster
+  expect_gt(max(abs(expanded[["cluster"]][, 1L] - expanded[["cluster"]][, 2L])), .01)
+
+  # the estimate component is the same on both routes
+  estimate <- ranef(varying$object, component = "estimate",
+                    .posterior_samples = varying$samples)
+  expect_equal(
+    unname(as.matrix(estimate)),
+    unname(as.matrix(expanded[["estimate"]])),
+    tolerance = 1e-12
+  )
+
+  constant <- .ranef_routing_glmm("g")
+  unique   <- ranef(constant$object, simplify = FALSE, .posterior_samples = constant$samples)
+  expanded <- ranef(constant$object, simplify = FALSE, expand = TRUE,
+                    .posterior_samples = constant$samples)
+  expect_equal(unname(as.matrix(unique[["cluster"]])),
+               unname(as.matrix(expanded[["cluster"]]))[, c(1L, 3L)],
+               tolerance = 1e-12)
+})
+
 # A constructor-compiled BMA.mv object with a mixture location prior and a
 # synthetic posterior, finalized through the BayesTools fit contract.
 .ranef_conditional_fixture <- function() {

@@ -88,9 +88,13 @@ coefficient combination. Other random slopes generally require
 \code{expand = TRUE}. When the random-effect standard deviation of a block
 varies across the rows of one returned cell (a grouping level, or a grouping
 level and indicator coefficient) through a \code{scale} formula
-(also for the cluster component of a clustered \code{brma()} model with a
-\code{scale} formula), the unique-level output is refused with an error of
-class \code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Summed
+(also for the cluster component of a clustered model with a \code{scale}
+formula, whether normal, GLMM, or with a weight function), the unique-level
+output is refused with an error of class
+\code{RoBMA_ranef_expand_required}; use \code{expand = TRUE}. Only the
+components that are returned are judged: \code{component = "estimate"} of a
+clustered model and a block name whose own scale does not vary are returned,
+whereas \code{"all"} and \code{"total"} include every block. Summed
 \code{component = "total"} output across multiple blocks also requires
 \code{expand = TRUE} because different blocks need not share grouping levels.
 }
