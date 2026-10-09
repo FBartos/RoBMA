@@ -886,6 +886,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   401-node quadrature rule (the 97.5% contour at 1.88 standard errors with 94%
   coverage instead of 1.96 and 95%). Rows that keep their quadrature (a zero
   weight bin, p-hacking kernels) choose the rule from those rows only.
+- the known-V export of dependency blocks over interleaved rows is the full
+  covariance matrix instead of a list of contiguous blocks: a block of rows
+  {1, 3} beside {2, 4} was read back as blocks over {1, 2} and {3, 4}, which
+  permuted the covariance of the retained model. Contiguous blocks keep their
+  compact list.
 - `predict()` stops and names a variable of the moderator or scale formula
   (or of a random-effect formula) that `newdata` lacks. 4.0.0 filled missing
   outcome-named columns (`yi`, `sei`, `ai`, `ci`, `n1i`, `n2i`, ...) with

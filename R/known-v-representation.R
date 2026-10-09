@@ -1016,7 +1016,16 @@ known_v_factor <- function(diagonal, loading) {
     return(known_V[["V"]])
   }
 
-  lapply(.known_v_blocks(known_V), `[[`, "covariance")
+  blocks <- .known_v_blocks(known_V)
+  # A list of blocks is read as contiguous blocks in row order. Blocks over
+  # interleaved rows (and singleton rows between them) keep their layout only
+  # as the matrix.
+  if (!identical(as.integer(unlist(lapply(blocks, `[[`, "index"))),
+                 seq_len(.known_v_nrow(known_V)))) {
+    return(.known_v_materialize(known_V))
+  }
+
+  lapply(blocks, `[[`, "covariance")
 }
 
 .known_v_check_symmetric <- function(V_matrix, arg) {
