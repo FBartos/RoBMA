@@ -181,6 +181,252 @@ void plan_location_quadratic_values(
   *quadratic = quadratic_value;
 }
 
+// The precision application B^-1 (r - U c) is a difference of nearly equal
+// quantities when the covariance is tight. It is evaluated only while the
+// condition number of the system it is solved with, times the machine epsilon,
+// stays below this limit.
+const double PRECISION_CONDITION_LIMIT = 1e-6;
+
+// 1-norm of a symmetric matrix stored in its lower triangle.
+double symmetric_lower_one_norm(const double *matrix, int n)
+{
+  std::vector<double> sums(static_cast<size_t>(n), 0.0);
+  for (int column = 0; column < n; ++column) {
+    sums[static_cast<size_t>(column)] += std::abs(
+      matrix[static_cast<size_t>(column + n * column)]
+    );
+    for (int row = column + 1; row < n; ++row) {
+      const double value = std::abs(
+        matrix[static_cast<size_t>(row + n * column)]
+      );
+      sums[static_cast<size_t>(column)] += value;
+      sums[static_cast<size_t>(row)] += value;
+    }
+  }
+  return *std::max_element(sums.begin(), sums.end());
+}
+
+// Reciprocal condition number (1-norm) from the Cholesky factor of a
+// symmetric positive definite matrix whose 1-norm is `matrix_norm`.
+bool cholesky_reciprocal_condition(
+    const double *factor, int n, double matrix_norm, double *reciprocal)
+{
+  std::vector<double> work(static_cast<size_t>(3 * n));
+  std::vector<int> integer_work(static_cast<size_t>(n));
+  int info = 0;
+  F77_CALL(dpocon)(
+    "L", &n, factor, &n, &matrix_norm, reciprocal, work.data(),
+    integer_work.data(), &info FCONE
+  );
+  return info == 0 && std::isfinite(*reciprocal);
+}
+
+bool precision_condition_acceptable(double reciprocal)
+{
+  return reciprocal > std::numeric_limits<double>::epsilon() /
+    PRECISION_CONDITION_LIMIT;
+}
+
+// Error-free transformations for the compensated (Dot2) residual updates.
+inline void two_sum(double a, double b, double *sum, double *error)
+{
+  *sum = a + b;
+  const double virtual_b = *sum - a;
+  *error = (a - (*sum - virtual_b)) + (b - virtual_b);
+}
+
+// value - sum_k U[row + size * column_k] * c[column_k], accurate to the
+// working precision of the result rather than of the terms.
+double compensated_residual(
+    double value, int row, int size, const std::vector<int> &columns,
+    const double *U, const double *c)
+{
+  double sum = value;
+  double error = 0.0;
+  for (int column : columns) {
+    const double a = U[static_cast<size_t>(row + size * column)];
+    const double b = c[static_cast<size_t>(column)];
+    const double product = a * b;
+    const double product_error = std::fma(a, b, -product);
+    double next;
+    double next_error;
+    two_sum(sum, -product, &next, &next_error);
+    sum = next;
+    error += next_error - product_error;
+  }
+  return sum + error;
+}
+
+enum RefinementStatus {
+  REFINEMENT_CONVERGED,
+  REFINEMENT_ACCEPTED,
+  REFINEMENT_FAILED
+};
+
+// Iterative refinement of c = K^-1 U' B^-1 r, K = I + U' B^-1 U, that keeps
+// r_t = r - U c_t accurate with compensated arithmetic, so that the precision
+// residual B^-1 r_t does not inherit the cancellation of r - U c. With
+// g_t = U' B^-1 r_t - c_t and delta_t = K^-1 g_t, c_{t+1} = c_t + delta_t and
+// r_{t+1} = r_t - U delta_t. At most six corrections are taken; the iteration
+// stops when max|U delta_t| <= 64 eps max|r_{t+1}| (converged) or when the
+// correction stops halving (accepted at the current iterate). `c` holds c_0 on
+// entry and c_final on return, `r` receives r_final.
+template <typename ApplyBase, typename SolveLatent>
+RefinementStatus refine_precision_residual(
+    int size,
+    int rank,
+    const std::vector<std::vector<int>> &active_columns,
+    const double *U,
+    const double *raw_residual,
+    double *c,
+    double *r,
+    ApplyBase apply_base,
+    SolveLatent solve_latent)
+{
+  const double epsilon = std::numeric_limits<double>::epsilon();
+  std::vector<double> base_solution(static_cast<size_t>(size));
+  std::vector<double> correction(static_cast<size_t>(rank));
+  std::vector<double> update(static_cast<size_t>(size));
+  for (int row = 0; row < size; ++row) {
+    r[static_cast<size_t>(row)] = compensated_residual(
+      raw_residual[static_cast<size_t>(row)], row, size,
+      active_columns[static_cast<size_t>(row)], U, c
+    );
+    if (!std::isfinite(r[static_cast<size_t>(row)])) {
+      return REFINEMENT_FAILED;
+    }
+  }
+
+  double previous_norm = std::numeric_limits<double>::infinity();
+  RefinementStatus status = REFINEMENT_ACCEPTED;
+  for (int iteration = 0; iteration < 6; ++iteration) {
+    apply_base(r, base_solution.data());
+    for (int column = 0; column < rank; ++column) {
+      correction[static_cast<size_t>(column)] = -c[static_cast<size_t>(column)];
+    }
+    for (int row = 0; row < size; ++row) {
+      for (int column : active_columns[static_cast<size_t>(row)]) {
+        correction[static_cast<size_t>(column)] +=
+          U[static_cast<size_t>(row + size * column)] *
+          base_solution[static_cast<size_t>(row)];
+      }
+    }
+    if (!solve_latent(correction.data())) {
+      return REFINEMENT_FAILED;
+    }
+    double update_norm = 0.0;
+    for (int row = 0; row < size; ++row) {
+      double value = 0.0;
+      for (int column : active_columns[static_cast<size_t>(row)]) {
+        value += U[static_cast<size_t>(row + size * column)] *
+          correction[static_cast<size_t>(column)];
+      }
+      update[static_cast<size_t>(row)] = value;
+      update_norm = std::max(update_norm, std::abs(value));
+    }
+    if (!std::isfinite(update_norm)) {
+      return REFINEMENT_FAILED;
+    }
+    if (iteration > 0 && update_norm > 0.5 * previous_norm) {
+      break;
+    }
+    double residual_norm = 0.0;
+    for (int column = 0; column < rank; ++column) {
+      c[static_cast<size_t>(column)] += correction[static_cast<size_t>(column)];
+    }
+    for (int row = 0; row < size; ++row) {
+      r[static_cast<size_t>(row)] = compensated_residual(
+        r[static_cast<size_t>(row)], row, size,
+        active_columns[static_cast<size_t>(row)], U, correction.data()
+      );
+      residual_norm = std::max(residual_norm, std::abs(r[static_cast<size_t>(row)]));
+    }
+    if (!std::isfinite(residual_norm)) {
+      return REFINEMENT_FAILED;
+    }
+    previous_norm = update_norm;
+    if (update_norm <= 64.0 * epsilon * residual_norm) {
+      status = REFINEMENT_CONVERGED;
+      break;
+    }
+  }
+  return status;
+}
+
+// Applies B^-1 for the disconnected sampling blocks of a block-base plan.
+struct BlockBasePrecision {
+  const BlockPlan *block;
+  std::vector<std::vector<double>> owned_factors;
+  std::vector<const double *> factors;
+  std::vector<double> gathered;
+
+  bool prepare(const BlockPlan &target, const double *extra)
+  {
+    block = &target;
+    owned_factors.assign(target.sampling_blocks.size(), std::vector<double>());
+    factors.assign(target.sampling_blocks.size(), nullptr);
+    size_t largest = 0;
+    for (size_t index = 0; index < target.sampling_blocks.size(); ++index) {
+      const SamplingBlock &sampling_block = target.sampling_blocks[index];
+      const int block_size = static_cast<int>(sampling_block.local_rows.size());
+      largest = std::max(largest, sampling_block.local_rows.size());
+      bool fixed_base = sampling_block.factor_eligible;
+      for (int row = 0; row < block_size; ++row) {
+        const int global = target.index[static_cast<size_t>(
+          sampling_block.local_rows[static_cast<size_t>(row)]
+        )];
+        fixed_base = fixed_base && extra[global] == 0.0;
+      }
+      if (fixed_base) {
+        factors[index] = sampling_block.factor.data();
+        continue;
+      }
+      owned_factors[index] = sampling_block.covariance;
+      for (int row = 0; row < block_size; ++row) {
+        const int global = target.index[static_cast<size_t>(
+          sampling_block.local_rows[static_cast<size_t>(row)]
+        )];
+        owned_factors[index][static_cast<size_t>(row + block_size * row)] +=
+          extra[global];
+      }
+      int info = 0;
+      F77_CALL(dpotrf)(
+        "L", &block_size, owned_factors[index].data(), &block_size,
+        &info FCONE
+      );
+      if (info != 0) {
+        return false;
+      }
+      factors[index] = owned_factors[index].data();
+    }
+    gathered.resize(largest);
+    return true;
+  }
+
+  void apply(const double *x, double *z)
+  {
+    for (size_t index = 0; index < block->sampling_blocks.size(); ++index) {
+      const SamplingBlock &sampling_block = block->sampling_blocks[index];
+      const int block_size = static_cast<int>(sampling_block.local_rows.size());
+      for (int row = 0; row < block_size; ++row) {
+        gathered[static_cast<size_t>(row)] = x[
+          sampling_block.local_rows[static_cast<size_t>(row)]
+        ];
+      }
+      const int one = 1;
+      int info = 0;
+      F77_CALL(dpotrs)(
+        "L", &block_size, &one, factors[index], &block_size,
+        gathered.data(), &block_size, &info FCONE
+      );
+      for (int row = 0; row < block_size; ++row) {
+        z[sampling_block.local_rows[static_cast<size_t>(row)]] =
+          gathered[static_cast<size_t>(row)];
+      }
+    }
+  }
+};
+
 bool factor_dense_latent_system(
     CovariancePlan &plan,
     const std::vector<std::vector<int>> &active_columns,
@@ -188,7 +434,8 @@ bool factor_dense_latent_system(
     int rank,
     const double *diagonal,
     const double *residual,
-    const double *U)
+    const double *U,
+    double *reciprocal_condition = nullptr)
 {
   assemble_dense_latent_system(
     plan,
@@ -199,6 +446,8 @@ bool factor_dense_latent_system(
     residual,
     U
   );
+  const double matrix_norm = reciprocal_condition == nullptr ? 0.0 :
+    symmetric_lower_one_norm(plan.small_matrix_work.data(), rank);
   int info = 0;
   F77_CALL(dpotrf)(
     "L",
@@ -207,7 +456,12 @@ bool factor_dense_latent_system(
     &rank,
     &info FCONE
   );
-  return info == 0;
+  if (info != 0) {
+    return false;
+  }
+  return reciprocal_condition == nullptr || cholesky_reciprocal_condition(
+    plan.small_matrix_work.data(), rank, matrix_norm, reciprocal_condition
+  );
 }
 
 bool solve_latent_system(
@@ -378,7 +632,9 @@ bool diagonal_low_rank_conditional_values(
     );
     sparse = factored;
   }
+  const bool refine = precision_residual_only(output);
   if (!factored && block.low_rank_eligible) {
+    double reciprocal_condition = 1.0;
     factored = factor_dense_latent_system(
       plan,
       block.active_columns,
@@ -386,15 +642,22 @@ bool diagonal_low_rank_conditional_values(
       rank,
       diagonal,
       residual,
-      U
+      U,
+      refine ? &reciprocal_condition : nullptr
     );
     sparse = false;
+    if (factored && refine &&
+        !precision_condition_acceptable(reciprocal_condition)) {
+      // Decline the route: a tight, ill-conditioned latent system cannot give
+      // B^-1 (r - U c) without cancellation. The dense route decides.
+      return false;
+    }
   }
   if (!factored) {
     return false;
   }
 
-  const int n_rhs = precision_residual_only(output) ? 1 : size + 1;
+  const int n_rhs = refine ? 1 : size + 1;
   const size_t system_size = static_cast<size_t>(rank) *
     static_cast<size_t>(n_rhs);
   plan.conditional_rhs_work.resize(system_size);
@@ -432,6 +695,46 @@ bool diagonal_low_rank_conditional_values(
       systems
     )) {
     return false;
+  }
+
+  if (refine) {
+    // The precision residual is B^-1 (r - U c) for the refined latent c; the
+    // sparse latent factor carries no condition estimate, so its refinement
+    // must converge for the result to be accepted.
+    std::vector<double> latent(systems, systems + rank);
+    std::vector<double> final_residual(static_cast<size_t>(size));
+    const RefinementStatus status = refine_precision_residual(
+      size,
+      rank,
+      block.precision_active_columns,
+      U,
+      residual,
+      latent.data(),
+      final_residual.data(),
+      [diagonal, size](const double *x, double *z) {
+        for (int row = 0; row < size; ++row) {
+          z[row] = x[row] / diagonal[row];
+        }
+      },
+      [&plan, &block, rank, sparse](double *right_hand_side) {
+        return solve_latent_system(
+          plan, block, rank, 1, sparse, right_hand_side
+        );
+      }
+    );
+    if (status == REFINEMENT_FAILED ||
+        (sparse && status != REFINEMENT_CONVERGED)) {
+      return false;
+    }
+    for (int row = 0; row < size; ++row) {
+      const double value = final_residual[static_cast<size_t>(row)] /
+        diagonal[static_cast<size_t>(row)];
+      if (!std::isfinite(value)) {
+        return false;
+      }
+      output.precision_residual[block.index[static_cast<size_t>(row)]] = value;
+    }
+    return true;
   }
 
   plan.conditional_base_work.resize(
@@ -501,6 +804,16 @@ bool block_base_low_rank_conditional_values(
       plan.y[static_cast<size_t>(global)] - mean[global];
   }
 
+  // The preparation below whitens the residual and the loadings in place. The
+  // precision application keeps the raw values: refining r - U c needs them
+  // un-whitened, with the sampling covariance applied separately.
+  const bool refine = precision_residual_only(output);
+  std::vector<double> raw_residual;
+  std::vector<double> raw_loadings;
+  if (refine) {
+    raw_residual.assign(residual, residual + size);
+    raw_loadings.assign(U, U + static_cast<size_t>(size) * rank);
+  }
   for (const SamplingBlock &sampling_block : block.sampling_blocks) {
     if (!prepare_block_base_sampling_block(
         plan,
@@ -514,7 +827,7 @@ bool block_base_low_rank_conditional_values(
         nullptr,
         nullptr,
         base_precision_diagonal,
-        base_precision
+        refine ? nullptr : base_precision
       )) {
       return false;
     }
@@ -542,6 +855,7 @@ bool block_base_low_rank_conditional_values(
     sparse = factored;
   }
   if (!factored && block.block_base_eligible) {
+    double reciprocal_condition = 1.0;
     factored = factor_dense_latent_system(
       plan,
       block.sparse_factor_active_columns,
@@ -549,15 +863,20 @@ bool block_base_low_rank_conditional_values(
       rank,
       unit_diagonal,
       residual,
-      U
+      U,
+      refine ? &reciprocal_condition : nullptr
     );
     sparse = false;
+    if (factored && refine &&
+        !precision_condition_acceptable(reciprocal_condition)) {
+      return false;
+    }
   }
   if (!factored) {
     return false;
   }
 
-  const int n_rhs = precision_residual_only(output) ? 1 : size + 1;
+  const int n_rhs = refine ? 1 : size + 1;
   const size_t system_size = static_cast<size_t>(rank) *
     static_cast<size_t>(n_rhs);
   plan.conditional_rhs_work.resize(system_size);
@@ -594,6 +913,46 @@ bool block_base_low_rank_conditional_values(
       systems
     )) {
     return false;
+  }
+
+  if (refine) {
+    BlockBasePrecision base_precision_operator;
+    if (!base_precision_operator.prepare(block, extra)) {
+      return false;
+    }
+    std::vector<double> latent(systems, systems + rank);
+    std::vector<double> final_residual(static_cast<size_t>(size));
+    const RefinementStatus status = refine_precision_residual(
+      size,
+      rank,
+      block.precision_active_columns,
+      raw_loadings.data(),
+      raw_residual.data(),
+      latent.data(),
+      final_residual.data(),
+      [&base_precision_operator](const double *x, double *z) {
+        base_precision_operator.apply(x, z);
+      },
+      [&plan, &block, rank, sparse](double *right_hand_side) {
+        return solve_latent_system(
+          plan, block, rank, 1, sparse, right_hand_side
+        );
+      }
+    );
+    if (status == REFINEMENT_FAILED ||
+        (sparse && status != REFINEMENT_CONVERGED)) {
+      return false;
+    }
+    std::vector<double> applied(static_cast<size_t>(size));
+    base_precision_operator.apply(final_residual.data(), applied.data());
+    for (int row = 0; row < size; ++row) {
+      if (!std::isfinite(applied[static_cast<size_t>(row)])) {
+        return false;
+      }
+      output.precision_residual[block.index[static_cast<size_t>(row)]] =
+        applied[static_cast<size_t>(row)];
+    }
+    return true;
   }
 
   return finish_conditional_block(
@@ -724,10 +1083,44 @@ void plan_conditional_values(
       );
     }
 
+    // The precision application of a nearly singular covariance is dominated
+    // by rounding: unless the dense covariance is well enough conditioned, the
+    // requested precision residual is reported unavailable rather than
+    // returned. Conditional-density outputs keep their existing evaluation.
+    const bool apply_condition_gate = precision_residual_only(output);
+    const double covariance_norm = apply_condition_gate ?
+      symmetric_lower_one_norm(covariance, size) : 0.0;
     int info = 0;
     F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
-    if (info != 0) {
+    if (info != 0 && !(apply_condition_gate &&
+                       output.unavailable_condition != nullptr)) {
       Rf_error("Known-V conditional covariance is not positive definite.");
+    }
+    if (apply_condition_gate) {
+      // A covariance that is not numerically positive definite has no usable
+      // reciprocal condition number: it is as ill-conditioned as it gets.
+      double reciprocal_condition = 0.0;
+      if (info == 0 && !cholesky_reciprocal_condition(
+          covariance, size, covariance_norm, &reciprocal_condition)) {
+        reciprocal_condition = 0.0;
+      }
+      if (info != 0 || !precision_condition_acceptable(reciprocal_condition)) {
+        if (output.unavailable_condition == nullptr) {
+          Rf_error(
+            "Known-V precision application is unavailable for an "
+            "ill-conditioned covariance."
+          );
+        }
+        if (std::isnan(*output.unavailable_condition) ||
+            reciprocal_condition < *output.unavailable_condition) {
+          *output.unavailable_condition = reciprocal_condition;
+        }
+        for (int local = 0; local < size; ++local) {
+          output.precision_residual[block.index[static_cast<size_t>(local)]] =
+            std::numeric_limits<double>::quiet_NaN();
+        }
+        continue;
+      }
     }
     const int one = 1;
     F77_CALL(dpotrs)(

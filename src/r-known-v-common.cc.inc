@@ -219,6 +219,10 @@ struct ConditionalOutput {
   double *residual;
   double *variance;
   double *precision_residual;
+  // Optional, for precision-residual-only requests: receives the reciprocal
+  // condition number of a dense covariance too ill-conditioned for the
+  // precision application (the block is then left unevaluated).
+  double *unavailable_condition = nullptr;
 };
 
 bool precision_residual_only(const ConditionalOutput &output)

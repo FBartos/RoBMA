@@ -1003,6 +1003,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   component and finished on adjacent doubles as the generalized inverse
   inf{q : F(q) >= p} of the mixture CDF, instead of stopping on a tolerance set
   by the whole bracket (a quantile at CDF 0.67 for the level 0.495).
+- known-covariance precision applications (`hatvalues()`, `rstandard()`,
+  `influence()`, `vif()` and random-effect prediction) refine the low-rank latent
+  solve with compensated residuals instead of subtracting the explained part, and
+  report a covariance too ill-conditioned for the application as unavailable
+  (class `RoBMA_known_v_precision_unavailable`) instead of returning a rounded
+  number. The GLS residual variance of rows that the model nearly interpolates
+  uses the factor form of the covariance, keeping its standard errors.
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection

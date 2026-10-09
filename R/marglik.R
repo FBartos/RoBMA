@@ -2603,14 +2603,17 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     random_covariance_plans  = random_covariance_plans,
     block_indices            = block_indices
   )
-  precision_residual <- t(.Call(
+  applied <- .Call(
     "RoBMA_known_v_covariance_plan_precision_residual_batch",
     plan,
     t(means),
     random_covariance_states,
     t(extra_variances),
     PACKAGE = "RoBMA"
-  ))
+  )
+  .known_v_precision_check_available(attr(applied, "unavailable"))
+  attr(applied, "unavailable") <- NULL
+  precision_residual <- t(applied)
   expected_dimensions <- c(nrow(means), length(y))
   if (!is.numeric(precision_residual) ||
       !identical(dim(precision_residual), expected_dimensions) ||
@@ -2620,6 +2623,39 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   }
 
   return(precision_residual)
+}
+
+
+# The precision application B^-1 (r - U c) of a nearly singular known
+# covariance is dominated by rounding. The native plan reports the reciprocal
+# condition number of each posterior row it declined to apply; the application
+# is then unavailable, never a rounded number.
+.known_v_precision_check_available <- function(unavailable) {
+
+  rows <- which(!is.na(unavailable))
+  if (!length(rows)) {
+    return(invisible(TRUE))
+  }
+
+  stop(structure(
+    class = c("RoBMA_known_v_precision_unavailable",
+              "RoBMA_numerical_unavailable", "error", "condition"),
+    list(
+      message = paste0(
+        "The precision application of the known covariance is unavailable: ",
+        "the known sampling covariance with its random effects is too ",
+        "ill-conditioned at posterior row", if (length(rows) > 1L) "s", " ",
+        paste(utils::head(rows, 5L), collapse = ", "),
+        if (length(rows) > 5L) paste0(" (and ", length(rows) - 5L, " more)"),
+        " (reciprocal condition number ",
+        format(min(unavailable[rows]), digits = 3L), "). ",
+        "Inspect the known covariance for near-singular rows."
+      ),
+      call = NULL,
+      rows = rows,
+      reciprocal_condition = unavailable[rows]
+    )
+  ))
 }
 
 

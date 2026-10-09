@@ -672,6 +672,10 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
     extra_variances
   );
   SEXP output = PROTECT(allocate_plan_matrix(REALSXP, plan->n, draws));
+  // Per draw: the smallest reciprocal condition number of a covariance too
+  // ill-conditioned for the precision application, NA where all was applied.
+  SEXP unavailable = PROTECT(Rf_allocVector(REALSXP, draws));
+  std::fill(REAL(unavailable), REAL(unavailable) + draws, NA_REAL);
   const double *mean_values = REAL(means);
   const double *extra_values = REAL(extra_variances);
   for (int draw = 0; draw < draws; ++draw) {
@@ -683,7 +687,8 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
       nullptr,
       nullptr,
       nullptr,
-      REAL(output) + static_cast<size_t>(draw) * plan->n
+      REAL(output) + static_cast<size_t>(draw) * plan->n,
+      REAL(unavailable) + draw
     };
     plan_conditional_values(
       *plan,
@@ -693,7 +698,8 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_precision_residual_batch(
       destination
     );
   }
-  UNPROTECT(1);
+  Rf_setAttrib(output, Rf_install("unavailable"), unavailable);
+  UNPROTECT(2);
   return output;
   ROBMA_NATIVE_END
 }

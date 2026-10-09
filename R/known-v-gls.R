@@ -447,8 +447,22 @@
       residual_samples[s, ] <- y - as.vector(X %*% beta_hat)
     }
     if (return_se) {
-      residual_variance_samples[s, ] <-
-        plan_data[["covariance_diagonal"]][s, ] - rowSums(X_cov * X)
+      # M_ii - x_i' G^-1 x_i subtracts nearly equal numbers once the model all
+      # but interpolates a row. Such rows (below a millionth of M_ii) use the
+      # factor form ||(e_i - H_i) F||^2 instead, which has no cancellation.
+      diagonal_s <- plan_data[["covariance_diagonal"]][s, ]
+      variance_s <- diagonal_s - rowSums(X_cov * X)
+      tight      <- which(!(variance_s >= 1e-6 * diagonal_s))
+      if (length(tight)) {
+        directions <- diag(1, nrow = K)[, tight, drop = FALSE] -
+          t(X_cov[tight, , drop = FALSE] %*% t(W_X))
+        variance_s[tight] <- .known_v_factor_quadratic(
+          plan_data = plan_data,
+          draw      = s,
+          vectors   = directions
+        )
+      }
+      residual_variance_samples[s, ] <- variance_s
     }
   }
 
@@ -717,3 +731,45 @@
 }
 
 
+
+
+# ---------------------------------------------------------------------------- #
+# .known_v_factor_quadratic
+# ---------------------------------------------------------------------------- #
+#
+# w' M w for the columns w of `vectors`, with M the marginal covariance of
+# draw `draw` in the factor form M = V + diag(extra) + sum_f (B_f B_f') *
+# [same group], B_f = model_matrix %*% coefficient_factor: the random-effect
+# terms are sums of squares of group-aggregated loadings (a quadratic form in
+# the known group covariance for known groups), so the result has no
+# cancellation between a total and an explained part.
+#
+# ---------------------------------------------------------------------------- #
+.known_v_factor_quadratic <- function(plan_data, draw, vectors) {
+
+  value <- colSums(vectors * (plan_data[["sampling_covariance"]] %*% vectors)) +
+    colSums(vectors^2 * plan_data[["extra_variances"]][draw, ])
+  plans  <- plan_data[["random_covariance_plans"]]
+  states <- plan_data[["random_covariance_states"]][[draw]]
+  for (factor in seq_along(plans)) {
+    plan  <- plans[[factor]]
+    state <- states[[factor]]
+    basis <- plan[["model_matrix"]] %*% state[["coefficient_factor"]]
+    if (identical(plan[["type"]], "row_group")) {
+      basis <- basis * state[["row_scale"]]
+    }
+    group_map <- as.integer(plan[["group_map"]])
+    for (column in seq_len(ncol(vectors))) {
+      aggregated <- rowsum(vectors[, column] * basis, group_map, reorder = TRUE)
+      if (identical(plan[["type"]], "known_group")) {
+        groups     <- as.integer(rownames(aggregated))
+        covariance <- plan[["group_covariance"]][groups, groups, drop = FALSE]
+        value[column] <- value[column] + sum(aggregated * (covariance %*% aggregated))
+      } else {
+        value[column] <- value[column] + sum(aggregated^2)
+      }
+    }
+  }
+
+  return(value)
+}

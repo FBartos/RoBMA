@@ -12,7 +12,10 @@ residuals, marginal covariance diagnostics, or marginal likelihood.
   `retained_context`; do not equate these axes.
 - `log_lik()`, LOO, WAIC, and LOO-PIT use predictive log-score targets.
 - `hatvalues()` and `vif()` use the fitted GLS projection; Pearson and
-  standardized residual scaling use the marginal outcome covariance.
+  standardized residual scaling use the marginal outcome covariance. For
+  known-V models the projection applies the inverse marginal covariance; a
+  covariance too ill-conditioned for that application is unavailable (error
+  class `RoBMA_known_v_precision_unavailable`), never a rounded number.
 - `add_marglik()` and `bridge_sampler()` use the full joint fitted
   likelihood and prior, not a pointwise predictive score.
 
