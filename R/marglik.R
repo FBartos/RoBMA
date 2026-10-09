@@ -1896,8 +1896,9 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
          call. = FALSE)
   }
 
-  variance <- sei^2 + tau_within^2
-  if (anyNA(variance) || any(!is.finite(variance)) || any(variance <= 0)) {
+  # A row has the sd sqrt(sei^2 + tau_within^2), formed without squaring a scale.
+  if (!all(is.finite(sei)) || !all(is.finite(tau_within)) ||
+      any(pmax(abs(sei), abs(tau_within)) == 0)) {
     return(-Inf)
   }
   cluster <- as.integer(cluster)
@@ -1907,24 +1908,21 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
          call. = FALSE)
   }
 
-  residual  <- yi - mu
-  precision <- weights / variance
-  adjustment_precision <- 1 + as.numeric(rowsum(
-    precision * tau_between^2,
-    group   = cluster,
-    reorder = FALSE
+  # One posterior row of the cluster-unit likelihood: the stable one-factor
+  # integral of the cluster effect (native, with the R reference as fallback),
+  # in which no explained quadratic is subtracted from the total.
+  sum(.log_lik_cluster_norm_analytic_sum(
+    setup = list(
+      S           = 1L,
+      mu          = rbind(mu),
+      tau_within  = rbind(tau_within),
+      tau_between = rbind(tau_between),
+      cluster     = split(seq_len(K), cluster),
+      weights     = weights
+    ),
+    yi  = yi,
+    sei = sei
   ))
-  adjustment_score <- as.numeric(rowsum(
-    precision * tau_between * residual,
-    group   = cluster,
-    reorder = FALSE
-  ))
-
-  normalization <- -0.5 * sum(weights * (log(2 * pi) + log(variance)))
-  quadratic <- sum(precision * residual^2) -
-    sum(adjustment_score^2 / adjustment_precision)
-
-  normalization - 0.5 * sum(log(adjustment_precision)) - 0.5 * quadratic
 }
 
 

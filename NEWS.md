@@ -980,6 +980,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   quadrature, which lost the density when the cluster effect dominated precise
   rows. `cluster_likelihood.n_gamma` is still accepted and no longer affects
   normal clusters.
+- the bridge-sampling likelihood of cluster-marginalized normal models evaluates
+  each cluster with the stable closed-form integral of the cluster effect instead
+  of subtracting the explained quadratic from the total, which lost the density
+  by cancellation when the cluster rows were precise and aligned.
 - the RoBMA JAGS module is unregistered before its native objects are
   destroyed at process exit, preventing intermittent access violations on
   Windows; native kernels validate their counts, dimensions, and selection
