@@ -157,24 +157,24 @@
 # for the clusters named by `group` (integer ids 1..G; one value per cluster is
 # returned). The vectors hold one entry per estimate, `weights` is NULL for unit
 # powers, and entries with weight 0 are omitted. The loading is per estimate
-# (a scale model gives each estimate its own). Over the loaded entries
-# (loading != 0), log b_i = log|loading_i| - log(sd_i) is carried on the log
-# scale with log(beta) = max log(b_i), omega_i = weight_i exp(2 (log b_i -
-# log(beta))), W = sum(omega_i), and rho is the omega-weighted mean of the
-# implied latent values residual_i / loading_i after one correction step. With
-# log P = 2 log(beta) + log(W) and A = 1 + P, the Gaussian is completed in the
-# unit-normal latent:
+# (a scale model gives each estimate its own). With z_i = residual_i / sd_i and,
+# over the loaded entries (loading != 0), log b_i = log|loading_i| - log(sd_i)
+# on the log scale, log(beta) = max log(b_i) and q_i = sign(loading_i)
+# exp(log b_i - log(beta)) (q_i = 0 for an unloaded entry), omega_i = weight_i
+# q_i^2 and W = sum(omega_i), u = sum(weight_i q_i z_i) / W is the weighted
+# latent location after one correction step. With log P = 2 log(beta) +
+# log(W) and A = 1 + P, the Gaussian is completed in the unit-normal latent:
 #
-#   e_i = ((r_i - loading_i rho) + loading_i rho / A) / sd_i,
+#   e_i = z_i - q_i u + q_i u / A,
 #   log L = -sum(weight (log(2 pi) + 2 log(sd))) / 2 - log(A) / 2
-#           - (sum(weight e_i^2) + (P rho / A)^2) / 2,
+#           - (sum(weight e_i^2) + (P u / (A beta))^2) / 2,
 #
-# with e_i = r_i / sd_i for an unloaded entry. The residual after the latent
-# projection is formed directly, so no explained quadratic is subtracted from
-# the total, and no square of a scale is formed before it is needed. A cluster
-# with a non-finite value or a non-positive sd gives NA; a result beyond the
-# representable range, including an implied latent value residual / loading
-# that overflows, is -Inf.
+# with e_i = z_i for an unloaded entry. No quotient by a loading is formed, so a
+# tiny loading cannot overflow the implied latent value, the residual after the
+# latent projection is formed directly (no explained quadratic is subtracted
+# from the total), and no square of a scale is formed before it is needed. A
+# cluster with a non-finite value or a non-positive sd gives NA; a result
+# beyond the representable range is -Inf.
 #
 # ---------------------------------------------------------------------------- #
 .log_lik_cluster_norm_stable <- function(residual, sd, loading, weights = NULL,
@@ -210,32 +210,39 @@
 
   loaded <- t != 0
   if (any(loaded)) {
+    z        <- r / s
     g_l      <- g[loaded]
     log_b    <- log(abs(t[loaded])) - log(s[loaded])
     log_beta <- .group_max(log_b, g_l, n_group)
-    omega    <- w[loaded] * exp(2 * (log_b - log_beta[g_l]))
-    total    <- .group_sum(omega, g_l, n_group)
-    implied  <- r[loaded] / t[loaded]
-    rho      <- .group_sum(omega * implied, g_l, n_group) / total
-    rho      <- rho + .group_sum(omega * (implied - rho[g_l]), g_l, n_group) / total
+    # q_i = b_i / beta: the quotient of the direct ratios b_i = |loading_i| /
+    # sd_i while the largest one is a representable number (two roundings, so
+    # an aligned residual keeps its cancellation), the difference of the logs
+    # otherwise
+    b_direct <- abs(t[loaded]) / s[loaded]
+    b_max    <- .group_max(b_direct, g_l, n_group)
+    direct   <- is.finite(b_max) & b_max > 1e-290 & b_max < 1e290
+    q        <- numeric(length(r))
+    q[loaded] <- sign(t[loaded]) * ifelse(
+      direct[g_l], b_direct / b_max[g_l], exp(log_b - log_beta[g_l])
+    )
+    omega    <- w * q^2
+    total    <- .group_sum(omega, g, n_group)
+    wqz      <- w * q * z
+    u        <- .group_sum(wqz, g, n_group) / total
+    u        <- u + .group_sum(wqz - omega * u[g], g, n_group) / total
 
     log_p     <- 2 * log_beta + log(total)
     log_a     <- ifelse(log_p > 0, log_p + log1p(exp(-log_p)),
                         log1p(exp(log_p)))
     inverse_a <- exp(-log_a)
-    latent_rho <- exp(log_p - log_a) * rho
-    e <- r / s
-    e[loaded] <- ((r[loaded] - t[loaded] * rho[g_l]) +
-                    t[loaded] * rho[g_l] * inverse_a[g_l]) / s[loaded]
+    log_pi    <- log_p - log_a
+    latent_u2 <- ifelse(u == 0, 0, exp(2 * (log_pi + log(abs(u)) - log_beta)))
+    e         <- z - q * u[g] + q * u[g] * inverse_a[g]
     latent <- norm - 0.5 * log_a -
-      0.5 * (.group_sum(w * e^2, g, n_group) + latent_rho^2)
+      0.5 * (.group_sum(w * e^2, g, n_group) + latent_u2)
 
     informative <- !failed & is.finite(log_beta)
     value[informative] <- latent[informative]
-    # A quotient r / loading beyond the double range (finite inputs, a tiny
-    # loading) leaves the implied latent value, and so the result,
-    # unrepresentable: -Inf, never NA.
-    value[informative & !is.finite(rho)] <- -Inf
   }
 
   return(value)

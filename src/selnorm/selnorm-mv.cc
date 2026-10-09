@@ -3827,11 +3827,12 @@ int cpp_selnorm_factor_box_rng(
 // and an unloaded row keeps e_i = r_i / sd_i. `work` (n values) may be null.
 // When every loaded row has |loading|, sd and b = |loading| / sd in
 // [1e-100, 1e100], P, rho and A are formed with plain arithmetic (b^2 and
-// their sums stay far from overflow); otherwise b_i is carried on the log scale
-// (log beta = max log b_i, omega_i = power_i exp(2 (log b_i - log beta)),
-// log P = 2 log beta + log W), which never overflows before the result does.
-// Invalid rows give NaN; a result beyond the representable range, including
-// an implied latent value r / loading that overflows, is -Inf.
+// their sums stay far from overflow) and that result is used when finite;
+// otherwise the quotient-free log form below is evaluated: b_i is carried on
+// the log scale (log beta = max log b_i, q_i = sign(loading_i) exp(log b_i -
+// log beta)) and no quotient by a loading is formed, so the form never
+// overflows before the result does.
+// Invalid rows give NaN; a result beyond the representable range is -Inf.
 double cpp_gaussian_latent_loglik(
     int n, const double *residual, const double *sd, const double *loading,
     const double *power, double *work)
@@ -3879,11 +3880,8 @@ double cpp_gaussian_latent_loglik(
   const double norm = -0.5 * norm_sum;
   if (!loaded) return norm - 0.5 * plain_quadratic;
 
-  double log_a = 0.0;
-  double inverse_a = 0.0;
-  double latent_scale = 0.0;  // P / A, the weight of the implied latent mean
-  double implied = 0.0;
-  bool resolved = false;
+  // Plain arithmetic while every quantity stays in range; its result is used
+  // when it is finite, otherwise the quotient-free log form below decides.
   if (linear && std::isfinite(linear_information) && linear_information > 0.0) {
     double projection = 0.0;
     for (int i = 0; i < n; ++i) {
@@ -3891,7 +3889,7 @@ double cpp_gaussian_latent_loglik(
       if (weight == 0.0 || loading[i] == 0.0) continue;
       projection += work[i] * (residual[i] / loading[i]);
     }
-    implied = projection / linear_information;
+    double implied = projection / linear_information;
     double correction = 0.0;
     for (int i = 0; i < n; ++i) {
       const double weight = power == nullptr ? 1.0 : power[i];
@@ -3900,60 +3898,87 @@ double cpp_gaussian_latent_loglik(
     }
     implied += correction / linear_information;
     if (std::isfinite(implied)) {
-      log_a = std::log1p(linear_information);
-      inverse_a = 1.0 / (1.0 + linear_information);
-      latent_scale = linear_information * inverse_a;
-      resolved = true;
+      const double log_a = std::log1p(linear_information);
+      const double inverse_a = 1.0 / (1.0 + linear_information);
+      const double latent_mean = linear_information * inverse_a * implied;
+      double quadratic = latent_mean * latent_mean;
+      for (int i = 0; i < n; ++i) {
+        const double weight = power == nullptr ? 1.0 : power[i];
+        if (weight == 0.0) continue;
+        const double standardized = loading[i] == 0.0 ?
+          residual[i] / sd[i] :
+          ((residual[i] - loading[i] * implied) +
+            loading[i] * implied * inverse_a) / sd[i];
+        quadratic += weight * standardized * standardized;
+      }
+      const double value = norm - 0.5 * log_a - 0.5 * quadratic;
+      if (std::isfinite(value)) return value;
     }
   }
-  if (!resolved) {
-    double log_beta = -infinity;
-    for (int i = 0; i < n; ++i) {
-      const double weight = power == nullptr ? 1.0 : power[i];
-      if (weight == 0.0 || loading[i] == 0.0) continue;
-      work[i] = std::log(std::fabs(loading[i])) - std::log(sd[i]);
-      log_beta = std::max(log_beta, work[i]);
-    }
-    double information = 0.0;
-    double implied_sum = 0.0;
-    for (int i = 0; i < n; ++i) {
-      const double weight = power == nullptr ? 1.0 : power[i];
-      if (weight == 0.0 || loading[i] == 0.0) continue;
-      const double omega = weight * std::exp(2.0 * (work[i] - log_beta));
-      information += omega;
-      implied_sum += omega * (residual[i] / loading[i]);
-    }
-    implied = implied_sum / information;
-    double correction = 0.0;
-    for (int i = 0; i < n; ++i) {
-      const double weight = power == nullptr ? 1.0 : power[i];
-      if (weight == 0.0 || loading[i] == 0.0) continue;
-      const double omega = weight * std::exp(2.0 * (work[i] - log_beta));
-      correction += omega * (residual[i] / loading[i] - implied);
-    }
-    implied += correction / information;
-    // A quotient r / loading beyond the double range (finite inputs, a tiny
-    // loading) leaves the implied latent value, and so the result,
-    // unrepresentable: -Inf, never NaN.
-    if (!std::isfinite(implied)) return -infinity;
 
-    const double log_information = 2.0 * log_beta + std::log(information);
-    log_a = log_information > 0.0 ?
-      log_information + std::log1p(std::exp(-log_information)) :
-      std::log1p(std::exp(log_information));
-    inverse_a = std::exp(-log_a);
-    latent_scale = std::exp(log_information - log_a);
+  // Quotient-free log form. With z_i = r_i / sd_i, log b_i = log|loading_i| -
+  // log sd_i, log beta = max log b_i and q_i = sign(loading_i) b_i / beta
+  // (q_i = 0 for an unloaded row), omega_i = power_i q_i^2 and W = sum omega_i:
+  //   u = sum(power_i q_i z_i) / W, after one correction step,
+  //   P = beta^2 W, A = 1 + P, e_i = z_i - q_i u + q_i u / A,
+  //   log L = norm - log(A) / 2 - (sum(power_i e_i^2) + (P u / (A beta))^2) / 2.
+  // No quotient by a loading is formed, so a tiny loading cannot overflow the
+  // implied latent value; the result is -Inf only when the quadratic is.
+  double log_beta = -infinity;
+  double b_max = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0 || loading[i] == 0.0) continue;
+    work[i] = std::log(std::fabs(loading[i])) - std::log(sd[i]);
+    log_beta = std::max(log_beta, work[i]);
+    b_max = std::max(b_max, std::fabs(loading[i]) / sd[i]);
   }
+  // q_i = b_i / beta: the quotient of the direct ratios b_i = |loading_i| /
+  // sd_i while the largest one is a representable number (two roundings, so an
+  // aligned residual keeps its cancellation), the difference of the logs
+  // otherwise.
+  const bool direct_ratio = std::isfinite(b_max) && b_max > 1e-290 &&
+    b_max < 1e290;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0 || loading[i] == 0.0) continue;
+    work[i] = std::copysign(
+      direct_ratio ? std::fabs(loading[i]) / sd[i] / b_max :
+        std::exp(work[i] - log_beta),
+      loading[i]);
+  }
+  double information = 0.0;
+  double projection = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0 || loading[i] == 0.0) continue;
+    information += weight * work[i] * work[i];
+    projection += weight * work[i] * (residual[i] / sd[i]);
+  }
+  double latent = projection / information;
+  double correction = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0 || loading[i] == 0.0) continue;
+    correction += weight * work[i] * (residual[i] / sd[i]) -
+      weight * work[i] * work[i] * latent;
+  }
+  latent += correction / information;
 
-  const double latent_mean = latent_scale * implied;
-  double quadratic = latent_mean * latent_mean;
+  const double log_information = 2.0 * log_beta + std::log(information);
+  const double log_a = log_information > 0.0 ?
+    log_information + std::log1p(std::exp(-log_information)) :
+    std::log1p(std::exp(log_information));
+  const double inverse_a = std::exp(-log_a);
+  double quadratic = latent == 0.0 ? 0.0 :
+    std::exp(2.0 * ((log_information - log_a) + std::log(std::fabs(latent)) -
+      log_beta));
   for (int i = 0; i < n; ++i) {
     const double weight = power == nullptr ? 1.0 : power[i];
     if (weight == 0.0) continue;
     const double standardized = loading[i] == 0.0 ?
       residual[i] / sd[i] :
-      ((residual[i] - loading[i] * implied) +
-        loading[i] * implied * inverse_a) / sd[i];
+      residual[i] / sd[i] - work[i] * latent + work[i] * latent * inverse_a;
     quadratic += weight * standardized * standardized;
   }
   return norm - 0.5 * log_a - 0.5 * quadratic;

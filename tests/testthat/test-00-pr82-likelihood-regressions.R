@@ -314,48 +314,68 @@ test_that("deletion fallback preserves coordinates resolved by the fast path", {
   expect_identical(out$mean, matrix(c(5, 3), 1L))
 })
 
-test_that("an overflowing implied latent value gives -Inf from every cluster route", {
+test_that("the cluster integral forms no quotient by a loading", {
 
-  # A residual of 1e308 against a loading of +-1e-100 (or a larger one): the
-  # implied latent value residual / loading is beyond the double range, and so
-  # is the density (the squared standardized residual alone is 1e616).
-  for (loading in c(1e-100, -1e-100, 1e-50, -1e-20)) {
-    info  <- paste("loading", loading)
-    setup <- .cluster_norm_dispatch_setup(1e308, 1, 0, loading)
-    minus <- matrix(-Inf, 1L, 1L)
-    expect_identical(.log_lik_cluster_from_setup(setup), minus, info = info)
-    expect_identical(.log_lik_cluster_sum_from_setup(setup), -Inf, info = info)
-    expect_identical(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei),
-      minus, info = info)
-    expect_identical(.log_lik_cluster_norm_stable(1e308, 1, loading), -Inf,
-      info = info)
+  # References: 400-digit mpmath evaluation of
+  #   -sum(w (log(2 pi) + 2 log(s))) / 2 - log(A) / 2 - (C - B^2 / A) / 2
+  # with b = loading / s, z = residual / s, A = 1 + sum(w b^2), B = sum(w b z)
+  # and C = sum(w z^2). The residual divided by the loading overflows in every
+  # case below; the density does not, except in the last.
+  cases <- list(
+    # a standardized residual of 1e108 against a loading of +-1e-100
+    list(yi = 1e308, sei = 1e200, tau_between = 1e-100,
+      expected = -5.0000000000000004e+215),
+    list(yi = 1e308, sei = 1e200, tau_between = -1e-100,
+      expected = -5.0000000000000004e+215),
+    # a latent value pinned by a loading of 1e100 next to a loading of 1e-300
+    list(yi = c(.3, .2), sei = c(1, 1), tau_between = c(1e-300, 1e100),
+      expected = -232.1413863658139),
+    list(yi = c(.2, .3), sei = c(1, 1), tau_between = c(1e100, 1e-300),
+      expected = -232.1413863658139),
+    # exact value -5.0000000000000001e+615: not representable
+    list(yi = 1e308, sei = 1, tau_between = 1e-100, expected = -Inf),
+    list(yi = 1e308, sei = 1, tau_between = -1e-100, expected = -Inf),
+    list(yi = 1e308, sei = 1, tau_between = 1e-50, expected = -Inf)
+  )
+  for (i in seq_along(cases)) {
+    case  <- cases[[i]]
+    info  <- paste("case", i)
+    setup <- .cluster_norm_dispatch_setup(case$yi, case$sei, 0, case$tau_between)
+    expected <- matrix(case$expected, 1L, 1L)
+    agree <- function(observed, label) {
+      if (is.finite(case$expected)) {
+        expect_equal(observed, case$expected, tolerance = 1e-14,
+          info = paste(info, label))
+      } else {
+        expect_identical(observed, case$expected, info = paste(info, label))
+      }
+    }
+    agree(as.numeric(.log_lik_cluster_from_setup(setup)), "dispatch")
+    agree(.log_lik_cluster_sum_from_setup(setup), "sum")
+    agree(as.numeric(.log_lik_cluster_norm_analytic_r(setup, setup$yi, setup$sei)),
+      "R helper")
+    agree(.log_lik_cluster_norm_stable(case$yi, case$sei, case$tau_between), "stable")
     if (.has_native_norm_cluster_analytic()) {
-      native <- .log_lik_cluster_norm_analytic_native(setup, setup$yi, setup$sei)
-      expect_identical(as.numeric(native), -Inf, info = info)
-      native_sum <- .log_lik_cluster_norm_analytic_native(
-        setup, setup$yi, setup$sei, row_sum = TRUE
-      )
-      expect_identical(as.numeric(native_sum), -Inf, info = info)
+      agree(as.numeric(.log_lik_cluster_norm_analytic_native(
+        setup, setup$yi, setup$sei)), "native")
+      agree(as.numeric(.log_lik_cluster_norm_analytic_native(
+        setup, setup$yi, setup$sei, row_sum = TRUE)), "native row sum")
     }
   }
 
-  # The overflowing row spoils only its own cluster; an ordinary cluster, and
-  # an overflowing row next to a loaded row with a finite quotient, are
-  # evaluated as before.
-  setup <- .cluster_norm_dispatch_setup(c(1e308, .1, 1e308, .2), rep(1, 4L), 0,
-    c(1e-100, .5, 1e-100, .4))
-  setup$cluster <- list(1L, 2L, 3:4)
-  evaluated <- .log_lik_cluster_from_setup(setup)
-  reference <- .log_lik_cluster_norm_stable(.1, 1, .5)
-  expect_identical(evaluated[, 1L], -Inf)
-  expect_equal(evaluated[, 2L], reference, tolerance = 1e-14)
-  expect_identical(evaluated[, 3L], -Inf)
-  expect_identical(
+  # An unrepresentable cluster spoils only itself.
+  setup <- .cluster_norm_dispatch_setup(c(1e308, .3, .2), rep(1, 3L), 0,
+    c(1e-100, 1e-300, 1e100))
+  setup$cluster <- list(1L, 2:3)
+  expected <- c(-Inf, -232.1413863658139)
+  expect_equal(as.numeric(.log_lik_cluster_from_setup(setup)), expected,
+    tolerance = 1e-14)
+  expect_equal(
     .log_lik_cluster_norm_stable(
-      c(1e308, .1, 1e308, .2), rep(1, 4L), c(1e-100, .5, 1e-100, .4),
-      group = c(1L, 2L, 3L, 3L)
+      c(1e308, .3, .2), rep(1, 3L), c(1e-100, 1e-300, 1e100),
+      group = c(1L, 2L, 2L)
     ),
-    c(-Inf, reference, -Inf)
+    expected, tolerance = 1e-14
   )
 
   # Invalid inputs are still NA, not -Inf.
