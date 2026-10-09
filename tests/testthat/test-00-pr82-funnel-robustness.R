@@ -19,6 +19,10 @@ test_that("conditioned funnel quadrature retains zero-width mixture branches", {
 
   expect_identical(.funnel_conditioned_order(c(1, 0), c(0.1, 1)), 401L)
   expect_lt(.funnel_conditioned_order(c(1, 0), c(0.1, 0)), 401L)
+  # The finest rule is for cells that still need the quadrature: a zero
+  # integrated SD whose selection cancels is the retained Normal and is left
+  # out of the choice (test-00-funnel-zero-integrated.R).
+  expect_lt(.funnel_conditioned_order(1, 0.1), 401L)
 })
 
 test_that("funnel clipping handles singleton edges and rejects invalid coordinates", {

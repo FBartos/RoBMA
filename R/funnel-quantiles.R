@@ -406,29 +406,78 @@
     conditioned <- matrix(sqrt(sources[["conditioned"]]), nrow = S, ncol = L)
   }
 
-  expansion <- .funnel_conditioned_expansion(
-    location       = location,
-    integrated_sd  = integrated,
-    conditioned_sd = conditioned,
-    setup          = setup
-  )
-
-  quantiles <- .plot_mixture_quantiles_native(
-    mean_samples      = expansion[["mean"]],
-    sd_samples        = expansion[["sd"]],
-    se                = se_sequence,
-    probs             = c(0.025, 0.975, 0.5),
-    weights           = expansion[["weights"]],
-    selected_rows     = expansion[["selected_rows"]],
-    selection_context = expansion[["selection"]],
-    caller            = ".funnel_model_averaged_quantiles()"
-  )
+  # A cell whose integrated variance is zero has its selection cancel (see
+  # .funnel_conditioned_expansion()). The native mixture flags a row, not a cell,
+  # so the columns are inverted in groups with the same cancelling rows; without
+  # such a cell that is one group, and the call is the plain one.
+  cancelled <- .funnel_selection_cancelled_cells(integrated, setup)
+  pattern   <- apply(cancelled, 2L, function(column) {
+    paste(which(column), collapse = ",")
+  })
+  quantiles <- matrix(NA_real_, nrow = L, ncol = 3L)
+  for (columns in split(seq_len(L), match(pattern, unique(pattern)))) {
+    expansion <- .funnel_conditioned_expansion(
+      location       = location[, columns, drop = FALSE],
+      integrated_sd  = integrated[, columns, drop = FALSE],
+      conditioned_sd = conditioned[, columns, drop = FALSE],
+      setup          = setup,
+      cancelled      = cancelled[, columns[[1L]]]
+    )
+    quantiles[columns, ] <- .plot_mixture_quantiles_native(
+      mean_samples      = expansion[["mean"]],
+      sd_samples        = expansion[["sd"]],
+      se                = se_sequence[columns],
+      probs             = c(0.025, 0.975, 0.5),
+      weights           = expansion[["weights"]],
+      selected_rows     = expansion[["selected_rows"]],
+      selection_context = expansion[["selection"]],
+      caller            = ".funnel_model_averaged_quantiles()"
+    )
+  }
 
   return(list(
     lower = quantiles[, 1L],
     upper = quantiles[, 2L],
     mid   = quantiles[, 3L]
   ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_selection_cancelled_cells
+# ---------------------------------------------------------------------------- #
+#
+# The (row, standard error) cells whose selection cancels. A conditioned source
+# keeps its population law outside the selection normalization, and a cell with
+# no integrated variance has nothing left to select among: the selected normal
+# at a candidate location m is a point mass at m weighted by w(m) / w(m), so
+# under a step or normal-kernel weight function with every weight positive the
+# observed law is the retained Normal itself, at the conditioned spread. The
+# limit is continuous in the integrated SD, which an underflowed positive SD
+# approximates to O(sd). A weight function with a zero bin (a candidate in it is
+# never observed) or a p-hacking kernel keeps the selected route.
+#
+# @return logical matrix of the dimensions of `integrated_sd`.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_selection_cancelled_cells <- function(integrated_sd, setup) {
+
+  S         <- nrow(integrated_sd)
+  selection <- setup[["selection"]]
+  rows      <- rep_len(as.logical(setup[["is_weightfunction"]]), S)
+  if (is.null(selection) || !any(rows)) {
+    return(matrix(FALSE, nrow = S, ncol = ncol(integrated_sd)))
+  }
+  omega <- selection[["omega"]]
+  if (!is.matrix(omega) || !nrow(omega) %in% c(1L, S)) {
+    return(matrix(FALSE, nrow = S, ncol = ncol(integrated_sd)))
+  }
+  positive <- rep_len(apply(omega > 0, 1L, all), S)
+  mode     <- rep_len(selection[["kernel_mode"]], S)
+  rows     <- rows & positive & !is.na(mode) &
+    mode %in% c(SELKERNEL_NORMAL, SELKERNEL_STEP)
+
+  return((integrated_sd == 0) & rows)
 }
 
 
@@ -451,7 +500,8 @@
 #
 # ---------------------------------------------------------------------------- #
 .funnel_conditioned_expansion <- function(location, integrated_sd,
-                                          conditioned_sd, setup) {
+                                          conditioned_sd, setup,
+                                          cancelled = rep(FALSE, nrow(location))) {
 
   weights       <- .funnel_setup_weights(setup)
   selected_rows <- setup[["is_weightfunction"]]
@@ -467,31 +517,46 @@
     ))
   }
 
-  rule  <- .gauss_hermite_nodes(
-    .funnel_conditioned_order(integrated_sd, conditioned_sd)
-  )
-  node_weights <- rule[["weights"]] / sum(rule[["weights"]])
-  S     <- nrow(location)
-  index <- rep(seq_len(S), times = length(rule[["nodes"]]))
-  mean  <- location[index, , drop = FALSE] +
-    rep(rule[["nodes"]], each = S) * conditioned_sd[index, , drop = FALSE]
-  sd    <- integrated_sd[index, , drop = FALSE]
+  # The rows `cancelled` (the same in every column) are the retained Normal law
+  # at the total spread, one unselected component each: the offset is already
+  # integrated, so the quadrature is not needed. The rule is chosen from the
+  # rows that remain; a zero integrated SD among them keeps the finest rule.
+  S         <- nrow(location)
+  expanded  <- which(!cancelled)
+  retained  <- which(cancelled)
+  index     <- integer()
+  mean      <- location[0L, , drop = FALSE]
+  sd        <- mean
+  node_weight <- numeric()
+  if (length(expanded) > 0L) {
+    rule  <- .gauss_hermite_nodes(.funnel_conditioned_order(
+      integrated_sd[expanded, , drop = FALSE],
+      conditioned_sd[expanded, , drop = FALSE]
+    ))
+    node_weights <- rule[["weights"]] / sum(rule[["weights"]])
+    index <- rep(expanded, times = length(rule[["nodes"]]))
+    mean  <- location[index, , drop = FALSE] +
+      rep(rule[["nodes"]], each = length(expanded)) *
+      conditioned_sd[index, , drop = FALSE]
+    sd    <- integrated_sd[index, , drop = FALSE]
+    node_weight <- rep(node_weights, each = length(expanded))
 
-  # A row on a non-selection branch has no normalizer to condition, so its
-  # marginal is exactly Gaussian at the total spread. Keep it exact instead of
-  # rebuilding it from the quadrature.
-  normal <- !selected_rows[index]
-  if (any(normal)) {
-    mean[normal, ] <- location[index, , drop = FALSE][normal, , drop = FALSE]
-    sd[normal, ]   <- total_sd[index, , drop = FALSE][normal, , drop = FALSE]
+    # A row on a non-selection branch has no normalizer to condition, so its
+    # marginal is exactly Gaussian at the total spread. Keep it exact instead
+    # of rebuilding it from the quadrature.
+    normal <- !selected_rows[index]
+    if (any(normal)) {
+      mean[normal, ] <- location[index, , drop = FALSE][normal, , drop = FALSE]
+      sd[normal, ]   <- total_sd[index, , drop = FALSE][normal, , drop = FALSE]
+    }
   }
 
   return(list(
-    mean          = mean,
-    sd            = sd,
-    weights       = weights[index] * rep(node_weights, each = S),
-    selected_rows = selected_rows[index],
-    selection     = .funnel_expand_selection_context(selection, index)
+    mean          = rbind(mean, location[retained, , drop = FALSE]),
+    sd            = rbind(sd, total_sd[retained, , drop = FALSE]),
+    weights       = c(weights[index] * node_weight, weights[retained]),
+    selected_rows = c(selected_rows[index], rep(FALSE, length(retained))),
+    selection     = .funnel_expand_selection_context(selection, c(index, retained))
   ))
 }
 
