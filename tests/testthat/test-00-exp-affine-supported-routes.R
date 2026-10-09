@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 exp_affine_test_sample <- function(mixture = FALSE) {
 
   condition_event <- structure(list(
@@ -116,19 +118,7 @@ test_that("exp-affine targets are tested on their own scale with the certified p
 test_that("exp-affine coefficients refuse qCMDE/IWMDE with the original-scale classes", {
 
   skip_on_cran()
-  # The original-scale scale intercept of a scale formula with a standardized
-  # continuous predictor is an exp(affine) map of the fitted coefficients.
-  # plot() and hypothesis() refuse qCMDE/IWMDE for it with the same
-  # density-method classes; hypothesis() keeps its own classes first.
-  set.seed(1)
-  k   <- 30L
-  dat <- data.frame(x = stats::rnorm(k), sei = stats::runif(k, 0.1, 0.3))
-  dat[["yi"]] <- stats::rnorm(k, 0.2 + 0.1 * dat[["x"]], dat[["sei"]])
-  fit <- suppressWarnings(brma(
-    yi = yi, sei = sei, mods = ~ x, scale = ~ x, data = dat,
-    measure = "SMD", chains = 1, sample = 1000, burnin = 200, adapt = 100,
-    seed = 1, silent = TRUE
-  ))
+  fit <- load_fit("lane_exp_affine")
   plan <- .hypothesis_plans(fit, "intercept = 0.5", component = "scale")[[1L]]
   expect_identical(plan[["kind"]], "exp_affine")
 

@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 context("Selection kernel")
 skip_on_cran()
 
@@ -133,28 +135,7 @@ test_that("context-only conditional selection has no residual random variance no
 
 test_that("selection reference weights are structural convergence parameters", {
 
-  prior_bias <- BayesTools::prior_weightfunction(
-    side    = "one-sided",
-    steps   = c(.025, .05),
-    weights = BayesTools::wf_cumulative(c(1, 1, 1))
-  )
-
-  fit <- suppressWarnings(bselmodel(
-    yi                 = c(.1, .2, .3, .05, .25),
-    sei                = c(.1, .1, .1, .12, .08),
-    measure            = "SMD",
-    prior_bias         = prior_bias,
-    chains             = 2,
-    sample             = 200,
-    burnin             = 100,
-    adapt              = 100,
-    seed               = 1,
-    silent             = TRUE,
-    convergence_checks = set_convergence_checks(
-      max_Rhat = NULL, min_ESS = NULL, max_error = NULL, max_SD_error = NULL
-    )
-  ))
-
+  fit <- load_fit("lane_selection_reference")
   # BayesTools classifies the reference weight from the prior list: it is
   # reported as a structural constant, the other weights are assessed.
   diagnostics <- attr(fit[["fit"]][["converged"]], "diagnostics", exact = TRUE)

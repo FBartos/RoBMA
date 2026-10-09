@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 context("Point-test eligibility of scalar formula coefficients")
 
 # hypothesis_quantities() must list a point-test method for a scalar formula
@@ -17,51 +19,15 @@ context("Point-test eligibility of scalar formula coefficients")
 # A quantity whose prior ordinate BayesTools does not classify exactly (the
 # SD components of nested variance allocations) is covered by
 # test-00-hypothesis-plan.R.
-.scalar_eligibility_cache <- new.env(parent = emptyenv())
-
 .scalar_eligibility_fits <- function() {
 
-  if (!is.null(.scalar_eligibility_cache[["fits"]])) {
-    return(.scalar_eligibility_cache[["fits"]])
-  }
-
-  set.seed(1)
-  k    <- 40L
-  data <- data.frame(
-    x   = stats::rnorm(k, 1, 2),
-    sei = stats::runif(k, 0.1, 0.3)
+  list(
+    standardized = load_fit("lane_scalar_standardized"),
+    raw = load_fit("lane_scalar_raw"),
+    convolution = load_fit("lane_scalar_convolution"),
+    averaged = load_fit("lane_scalar_averaged"),
+    averaged_default = load_fit("lane_scalar_averaged_default")
   )
-  data[["yi"]] <- stats::rnorm(k, 0.1 * data[["x"]], data[["sei"]])
-  cauchy <- BayesTools::prior("cauchy", list(0, 0.5))
-  fits <- lapply(c(standardized = TRUE, raw = FALSE), function(standardize) {
-    suppressWarnings(brma(
-      yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
-      prior_effect = cauchy, prior_mods = list(x = cauchy),
-      standardize_continuous_predictors = standardize,
-      chains = 1, sample = 1000, burnin = 200, adapt = 100,
-      seed = 1, silent = TRUE
-    ))
-  })
-  fits[["convolution"]] <- suppressWarnings(brma(
-    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
-    prior_mods = list(x = cauchy),
-    chains = 1, sample = 1000, burnin = 200, adapt = 100,
-    seed = 1, silent = TRUE
-  ))
-  fits[["averaged"]] <- suppressWarnings(BMA.norm(
-    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
-    prior_effect = cauchy, prior_mods = list(x = cauchy),
-    chains = 1, sample = 1000, burnin = 200, adapt = 100,
-    seed = 1, silent = TRUE
-  ))
-  fits[["averaged_default"]] <- suppressWarnings(BMA.norm(
-    yi = yi, sei = sei, mods = ~ x, data = data, measure = "SMD",
-    chains = 1, sample = 1000, burnin = 200, adapt = 100,
-    seed = 1, silent = TRUE
-  ))
-  .scalar_eligibility_cache[["fits"]] <- fits
-
-  return(fits)
 }
 
 

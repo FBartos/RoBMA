@@ -13,11 +13,34 @@ source(testthat::test_path("helper-iwmde.R"))
 # .iwmde_predictor_normal_grid_log_lik() makes the final decision.
 .normal_grid_fit_names <- function() {
 
-  unique(c(
+  fit_names <- unique(c(
     list_fits(class = c("brma", "BMA", "RoBMA", "NoBMA")),
     list_fits(family = "norm")
   ))
+  available <- vapply(fit_names, function(fit_name) {
+    object <- load_fit(fit_name, validate = FALSE)
+    .iwmde_capability(object = object)[["available"]]
+  }, logical(1))
+  return(fit_names[available])
 }
+
+
+test_that("normal-grid discovery preserves the declared component-scale refusal", {
+
+  fit_name <- "hypothesis_plan_two_scale"
+  skip_if_missing_fits(fit_name)
+  object <- load_fit(fit_name, validate = FALSE)
+  capability <- .iwmde_capability(object = object)
+
+  expect_false(capability[["available"]])
+  expect_identical(capability[["class"]], c(
+    "RoBMA_density_method_scale_components",
+    "RoBMA_density_method_unavailable"
+  ))
+  expect_match(capability[["reason"]], "several scale formulas", fixed = TRUE)
+  expect_error(.iwmde_context(object), class = "RoBMA_density_method_scale_components")
+  expect_false(fit_name %in% .normal_grid_fit_names())
+})
 
 
 # One location target, one moderator slope, the heterogeneity scale, and a

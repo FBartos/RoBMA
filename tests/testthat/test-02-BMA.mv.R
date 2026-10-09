@@ -679,28 +679,3 @@ test_that("BMA.mv preserves established product-space limitations", {
 })
 
 
-test_that("BMA.mv fits can be extended without rebuilding the product space", {
-
-  n_before <- nrow(.get_posterior_samples(fit_bma_mv[["fit"]]))
-  extended <- suppressWarnings(update(
-    fit_bma_mv,
-    sample_extend     = 20L,
-    recompute         = "drop",
-    silent            = TRUE,
-    convergence_checks = set_convergence_checks(
-      max_Rhat = NULL,
-      min_ESS  = NULL
-    )
-  ))
-
-  expect_s3_class(extended, "BMA.mv")
-  expect_equal(
-    nrow(.get_posterior_samples(extended[["fit"]])),
-    n_before + 40L
-  )
-  expect_null(extended[["loo"]])
-  expect_length(
-    summary(extended, include_mcmc_diagnostics = FALSE)[["inclusion_random"]][["post_prob"]],
-    2L
-  )
-})

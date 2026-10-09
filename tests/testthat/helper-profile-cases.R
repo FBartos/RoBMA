@@ -159,6 +159,65 @@ standard_required_tests <- function() {
 
   rbind(
     .hypothesis_plan_required_tests(),
+    .required_tests("test-00-carrier-integration.R", c(
+      "public no-intercept moderator means use the fitted contrast basis",
+      "whole marginal-means regions retain structural fixed-cell refusal",
+      "expanded public factor groups retain every statement-major result row",
+      "point and region marginal groups select their own execution method",
+      "derived public OR targets carry their effective declaration to scalar attachment",
+      "ordered global totals participate in marginal inclusion conditioning",
+      "declared stochastic contribution refusals are planned for levels and combinations"
+    )),
+    .required_tests("test-00-formula-contribution-state.R", c(
+      "public contribution combinations fold constants once for both ordinate methods",
+      "actual brma coefficients and static-method routes use the compiled owner",
+      "scalar discovery retains declared refusal rows and usable sibling quantities"
+    )),
+    .required_tests("test-00-exp-affine-supported-routes.R", c(
+      "exp-affine coefficients refuse qCMDE/IWMDE with the original-scale classes"
+    )),
+    .required_tests("test-00-factor-level-targets.R", c(
+      "fixed reference-level statements keep one reason under qCMDE for model-averaged fits",
+      "factor-level point hypotheses use the level's own fitted coordinate",
+      "mean-difference level point hypotheses are linear targets of the contrast coordinates",
+      "contrast-coefficient selectors stop naming the level-label form",
+      "factor-cell plots draw the selected level for every contrast",
+      "repeated hypothesis rows are numbered by statement",
+      "hypothesis_quantities reports point and contrast tests for the levels of every contrast",
+      "linear-target refusals of BayesTools keep their classes",
+      "level refusals name the level by its selector",
+      "point hypotheses on the fixed reference level give one reason for every method"
+    )),
+    .required_tests("test-00-hypothesis-scalar-eligibility.R", c(
+      "scalar point-test eligibility matches the hypotheses that run"
+    )),
+    .required_tests("test-00-input-data-mv-04-likelihood.R", c(
+      "fitted known-V row SD sources read the coordinates of factor scale terms"
+    )),
+    .required_tests("test-00-random-correlation-routes.R", c(
+      "correlation hypotheses use the correlation draws",
+      "correlation hypotheses use the defined draws of a declared quantity",
+      "summary footnotes follow the renamed random-effect rows",
+      "correlation plots draw the exact LKJ prior on the fitted scale",
+      "correlation plots without an exact prior density draw the posterior alone",
+      "qCMDE/IWMDE stops for the correlation name the requested operation",
+      "original-scale correlations of allocated blocks are atom-free and plot"
+    )),
+    .required_tests("test-00-summary_heterogeneity.R", c(
+      "undefined original-scale correlations are summarized over defined draws"
+    )),
+    .required_tests("test-00-random-nested-total-prior.R", c(
+      "the total of a nested gated allocation has its exact prior curve and atom in plots",
+      "point hypotheses on the total of a nested gated allocation use its exact prior"
+    )),
+    .required_tests("test-00-selection-kernel-fit.R", c(
+      "selection reference weights are structural convergence parameters"
+    )),
+    .required_tests("test-02-glmm-aghq.R", c(
+      "a fitted point-baserate GLMM supports log-likelihood criteria",
+      "boundary-concentrated beta priors support likelihood criteria",
+      "fitted truncated-nuisance GLMMs support likelihood criteria"
+    )),
     .required_tests("test-00-marginal-means-inference.R", c(
       "marginal_means() reports rows with a zero prior ordinate at the null as NA",
       "declared unavailable marginal measures retain valid sibling BFs and late KDE requests"
@@ -301,7 +360,8 @@ certification_cases <- function() {
         "Independent selected-normal, known-V, distribution, and GLMM",
         "quadrature oracles."
       ),
-      fit_sources = character(),
+      fit_sources = "test-01-ordinary-lane-fixtures.R",
+      fit_names = c("lane_glmm_point_baserate", "lane_glmm_boundary_beta", "lane_glmm_truncated_beta", "lane_glmm_truncated_lograte", "lane_selection_reference"),
       test_filter = anchored(
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics|",
@@ -309,9 +369,16 @@ certification_cases <- function() {
         "jags-build-requirements)|",
         "02-(distributions|glmm-aghq)"
       ),
-      required_tests = .required_tests(
-        "test-00-covariance-factorization.R",
-        "covariance sampling factor preserves singular covariance"
+      required_tests = rbind(
+        .required_tests("test-00-covariance-factorization.R",
+          "covariance sampling factor preserves singular covariance"),
+        .required_tests("test-00-selection-kernel-fit.R",
+          "selection reference weights are structural convergence parameters"),
+        .required_tests("test-02-glmm-aghq.R", c(
+          "a fitted point-baserate GLMM supports log-likelihood criteria",
+          "boundary-concentrated beta priors support likelihood criteria",
+          "fitted truncated-nuisance GLMMs support likelihood criteria"
+        ))
       )
     ),
     "normal-models" = list(

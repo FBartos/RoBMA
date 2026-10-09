@@ -745,6 +745,80 @@ fit_catalog <- function() {
   zero_ordinate_catalog$features <- I(list(c("normal", "continuous_mods", "truncated_effect", "marginal_means")))
   catalog <- rbind(catalog, zero_ordinate_catalog)
 
+  ordinary_lane_catalog <- data.frame(
+    name = c(
+      "lane_carrier_treatment",
+      "lane_carrier_meandif",
+      "lane_carrier_nonzero",
+      "lane_carrier_averaged",
+      "lane_carrier_ordinary",
+      "lane_carrier_gated",
+      "lane_contribution_constant2",
+      "lane_contribution_constant1",
+      "lane_contribution_tau",
+      "lane_contribution_point",
+      "lane_contribution_discovery",
+      "lane_exp_affine",
+      "lane_factor_averaged_reference",
+      "lane_factor_ordered_labels",
+      "lane_factor_numeric_labels",
+      "lane_scalar_standardized",
+      "lane_scalar_raw",
+      "lane_scalar_convolution",
+      "lane_scalar_averaged",
+      "lane_scalar_averaged_default",
+      "lane_known_v_factor_scale",
+      "lane_random_correlation",
+      "lane_random_correlation_direct",
+      "lane_random_correlation_gated",
+      "lane_nested_total",
+      "lane_selection_reference",
+      "lane_glmm_point_baserate",
+      "lane_glmm_boundary_beta",
+      "lane_glmm_truncated_beta",
+      "lane_glmm_truncated_lograte"
+    ),
+    class = c("brma.norm", "brma.norm", "brma.norm", "BMA.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "BMA.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "brma.norm", "BMA.norm", "BMA.norm", "brma.mv", "brma.mv", "brma.mv", "BMA.mv", "BMA.mv", "bselmodel", "brma.glmm", "brma.glmm", "brma.glmm", "brma.glmm"),
+    family = c("norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "norm", "glmm", "glmm", "glmm", "glmm"),
+    source_file = "test-01-ordinary-lane-fixtures.R",
+    has_metafor = FALSE, has_loo = FALSE, has_waic = FALSE, has_marglik = FALSE,
+    tier = "core", profile = "standard",
+    features = I(list(
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "carrier"),
+      c("ordinary_lane", "factor_mods", "formula_contribution"),
+      c("ordinary_lane", "factor_mods", "formula_contribution"),
+      c("ordinary_lane", "factor_mods", "formula_contribution"),
+      c("ordinary_lane", "formula_contribution", "point"),
+      c("ordinary_lane", "formula_contribution", "interaction"),
+      c("ordinary_lane", "mods", "scale"),
+      c("ordinary_lane", "factor_mods", "product_space"),
+      c("ordinary_lane", "factor_mods", "ordered"),
+      c("ordinary_lane", "factor_mods", "ordered"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "scalar_eligibility", "mods"),
+      c("ordinary_lane", "known_v", "scale", "factor_mods"),
+      c("ordinary_lane", "known_v", "random_correlation"),
+      c("ordinary_lane", "known_v", "random_correlation", "direct_sd"),
+      c("ordinary_lane", "known_v", "random_correlation", "product_space"),
+      c("ordinary_lane", "known_v", "nested", "product_space"),
+      c("ordinary_lane", "selection", "structural_monitor"),
+      c("ordinary_lane", "binomial", "point_baserate"),
+      c("ordinary_lane", "binomial", "boundary_beta"),
+      c("ordinary_lane", "binomial", "truncated_nuisance"),
+      c("ordinary_lane", "Poisson", "truncated_nuisance")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, ordinary_lane_catalog)
+
   return(catalog)
 }
 

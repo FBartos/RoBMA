@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 context("Factor-level hypothesis targets and plots")
 
 # Level labels are selectors, never JAGS coordinate positions. The labels
@@ -5,38 +7,12 @@ context("Factor-level hypothesis targets and plots")
 # the coordinate names of other levels (treatment level 3 is coordinate 2).
 # Small single-chain fits suffice: every expectation below is an identity on
 # the same posterior draws.
-.factor_level_target_cache <- new.env(parent = emptyenv())
-
 .factor_level_target_fits <- function() {
 
-  if (!is.null(.factor_level_target_cache[["fits"]])) {
-    return(.factor_level_target_cache[["fits"]])
-  }
-
-  set.seed(1)
-  k    <- 48L
-  data <- data.frame(
-    g1  = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
-    g2  = factor(rep(1:4, length.out = k)[sample.int(k)], levels = 1:4),
-    sei = stats::runif(k, 0.1, 0.3)
+  list(
+    treatment = load_fit("hypothesis_plan_treatment"),
+    meandif = load_fit("hypothesis_plan_meandif")
   )
-  data[["yi"]] <- stats::rnorm(
-    k,
-    c(0, 0.2, 0.4)[as.integer(data[["g1"]])] +
-      c(0, 0.1, 0.3, 0.5)[as.integer(data[["g2"]])],
-    data[["sei"]]
-  )
-  fits <- lapply(c(treatment = "treatment", meandif = "meandif"), function(contrast) {
-    suppressWarnings(brma(
-      yi = yi, sei = sei, mods = ~ g1 + g2, data = data, measure = "SMD",
-      set_contrast_factor_predictors = contrast,
-      chains = 1, sample = 1000, burnin = 200, adapt = 100,
-      seed = 1, silent = TRUE
-    ))
-  })
-  .factor_level_target_cache[["fits"]] <- fits
-
-  return(fits)
 }
 
 
@@ -359,18 +335,8 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
   # so the ordinate of 'mid' at 0 (and of the contrasts of adjacent levels)
   # is infinite; 'hi' has the normal ordinate of the total. Point tests of
   # 'mid' off 0 are exact.
-  set.seed(3)
-  k    <- 48L
-  data <- data.frame(
-    g   = factor(rep(c("lo", "mid", "hi"), length.out = k), levels = c("lo", "mid", "hi")),
-    sei = stats::runif(k, 0.1, 0.3)
-  )
-  data[["yi"]] <- stats::rnorm(k, c(0, 0.2, 0.3)[as.integer(data[["g"]])], data[["sei"]])
-  ordered <- suppressWarnings(brma(
-    yi = yi, sei = sei, mods = ~ g, data = data, measure = "SMD",
-    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
-    chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
-  ))
+  ordered <- load_fit("lane_factor_ordered_labels")
+  data <- load_info("lane_factor_ordered_labels")$data
   quantities <- hypothesis_quantities(ordered)
   g <- quantities[quantities[["alias"]] == "g", , drop = FALSE]
   expect_true(g[["point_test"]])
@@ -490,15 +456,7 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
 
   # With numeric labels, the first increment's coordinate 'mu_g[1]' reads as
   # the reference level '1': hypotheses name the level the hypothesis wrote.
-  data[["g"]] <- factor(
-    c("1", "2", "3")[as.integer(data[["g"]])],
-    levels = c("1", "2", "3")
-  )
-  numeric_labels <- suppressWarnings(brma(
-    yi = yi, sei = sei, mods = ~ g, data = data, measure = "SMD",
-    prior_mods = list(g = BayesTools::prior_ordered(BayesTools::prior("normal", list(0, 1)))),
-    chains = 1, sample = 500, burnin = 100, adapt = 100, seed = 1, silent = TRUE
-  ))
+  numeric_labels <- load_fit("lane_factor_numeric_labels")
   for (statement in c("g[2] = 0.1", "g[3] = 0.1")) {
     expect_s3_class(
       suppressWarnings(hypothesis(numeric_labels, statement, density_method = "KDE")),
@@ -830,22 +788,7 @@ test_that("point hypotheses on the fixed reference level give one reason for eve
 test_that("fixed reference-level statements keep one reason under qCMDE for model-averaged fits", {
 
   skip_on_cran()
-  set.seed(1)
-  k    <- 48L
-  data <- data.frame(
-    g1  = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
-    sei = stats::runif(k, 0.1, 0.3)
-  )
-  data[["yi"]] <- stats::rnorm(
-    k, c(0, 0.2, 0.4)[as.integer(data[["g1"]])], data[["sei"]]
-  )
-  fit <- suppressWarnings(BMA.norm(
-    yi = yi, sei = sei, mods = ~ g1, data = data, measure = "SMD",
-    set_contrast_factor_predictors = "treatment",
-    chains = 1, sample = 1000, burnin = 200, adapt = 100,
-    seed = 1, silent = TRUE
-  ))
-
+  fit <- load_fit("lane_factor_averaged_reference")
   # A call mixing the fixed reference level with another level is refused by
   # the fixed level's plan before any qCMDE/IWMDE ordinate is computed.
   message_of <- function(expr) tryCatch(suppressWarnings(expr), error = conditionMessage)

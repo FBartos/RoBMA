@@ -68,3 +68,30 @@ test_that("BMA.mv fits a product space over fixed and random components", {
   expect_length(summary(fit)[["inclusion_random"]][["post_prob"]], 2L)
   expect_s3_class(fit[["loo"]][["estimate"]], "loo")
 })
+
+test_that("BMA.mv fits can be extended without rebuilding the product space", {
+
+  fit_bma_mv <- load_fit("BMA.mv_random_components")
+  n_before <- nrow(.get_posterior_samples(fit_bma_mv[["fit"]]))
+  extended <- suppressWarnings(update(
+    fit_bma_mv,
+    sample_extend     = 20L,
+    recompute         = "drop",
+    silent            = TRUE,
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL,
+      min_ESS  = NULL
+    )
+  ))
+
+  expect_s3_class(extended, "BMA.mv")
+  expect_equal(
+    nrow(.get_posterior_samples(extended[["fit"]])),
+    n_before + 40L
+  )
+  expect_null(extended[["loo"]])
+  expect_length(
+    summary(extended, include_mcmc_diagnostics = FALSE)[["inclusion_random"]][["post_prob"]],
+    2L
+  )
+})

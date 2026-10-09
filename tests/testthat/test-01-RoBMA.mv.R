@@ -95,3 +95,30 @@ test_that("RoBMA.mv fits the complete multivariate product space", {
   expect_length(summary(fit)[["inclusion_random"]][["post_prob"]], 2L)
   expect_s3_class(fit[["loo"]][["estimate"]], "loo")
 })
+
+test_that("RoBMA.mv fits can be extended without rebuilding the product space", {
+
+  fit_robma_mv <- load_fit("RoBMA.mv_marg_product_space")
+  n_before <- nrow(.get_posterior_samples(fit_robma_mv[["fit"]]))
+  extended <- suppressWarnings(update(
+    fit_robma_mv,
+    sample_extend      = 20L,
+    recompute          = "drop",
+    silent             = TRUE,
+    convergence_checks = set_convergence_checks(
+      max_Rhat = NULL,
+      min_ESS  = NULL
+    )
+  ))
+
+  expect_s3_class(extended, "RoBMA.mv")
+  expect_equal(
+    nrow(.get_posterior_samples(extended[["fit"]])),
+    n_before + 40L
+  )
+  expect_null(extended[["loo"]])
+  expect_identical(
+    .data_selection_model(extended[["data"]]),
+    .data_selection_model(fit_robma_mv[["data"]])
+  )
+})

@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 context("brma.mv known-V likelihood contracts")
 
 test_that("brma.mv known-V models pass bridge marginal likelihood availability", {
@@ -220,23 +222,9 @@ test_that("prior-only known-V row SD sources read the sampled scale coefficients
 test_that("fitted known-V row SD sources read the coordinates of factor scale terms", {
 
   skip_on_cran()
-  # A scale factor with two design columns is sampled as the coordinates
-  # 'log_tau_g[1]' and 'log_tau_g[2]' of the node 'log_tau_g'; the values
-  # functions read the coordinates, as the draws name them.
-  set.seed(3)
-  k   <- 12L
-  dat <- data.frame(
-    yi  = stats::rnorm(k, 0.2, 0.3),
-    obs = factor(sprintf("e%02d", seq_len(k))),
-    x   = stats::rnorm(k),
-    g   = factor(rep(c("a", "b", "c"), length.out = k))
-  )
-  fit <- suppressWarnings(brma.mv(
-    yi = yi, V = diag(rep(0.04, k)), random = ~ 1 | obs, scale = ~ x + g,
-    data = dat, measure = "GEN", prior_unit_information_sd = 1,
-    chains = 1, sample = 200, burnin = 100, adapt = 100, seed = 1,
-    silent = TRUE
-  ))
+  fit <- load_fit("lane_known_v_factor_scale")
+  dat <- load_info("lane_known_v_factor_scale")$data
+  k <- 12L
   draws <- as.matrix(coda::as.mcmc(fit[["fit"]]))[1:3, , drop = FALSE]
   inputs <- .predict_known_v_tau_source_inputs(fit, fit[["data"]])
   expect_identical(

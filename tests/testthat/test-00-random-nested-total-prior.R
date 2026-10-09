@@ -1,3 +1,5 @@
+source(testthat::test_path("common-functions.R"))
+
 # The total SD of a nested random structure under BMA.mv (random = ~ 1 | study
 # / esid, as in the Assink scenario) is T * gate: one inclusion gate on the
 # whole random part (a root allocation) and a Dirichlet split of the SD over
@@ -5,31 +7,9 @@
 # at 0 of the gate's exclusion probability plus the scale prior T scaled by the
 # gate's inclusion probability. Small single-chain fit; the expectations are
 # the exact prior of that structure, computed from the fit's own priors.
-.nested_total_cache <- new.env(parent = emptyenv())
-
 .nested_total_fit <- function() {
 
-  if (!is.null(.nested_total_cache[["fit"]])) {
-    return(.nested_total_cache[["fit"]])
-  }
-
-  set.seed(3)
-  k   <- 12L
-  dat <- data.frame(
-    study = factor(rep(sprintf("s%02d", seq_len(6L)), each = 2L)),
-    esid  = factor(seq_len(k))
-  )
-  dat[["yi"]] <- 0.2 + stats::rnorm(6L, 0, 0.12)[as.integer(dat[["study"]])] +
-    stats::rnorm(k, 0, 0.1)
-  fit <- suppressWarnings(BMA.mv(
-    yi = yi, V = diag(rep(0.0225, k)), random = ~ 1 | study / esid,
-    data = dat, measure = "GEN", prior_unit_information_sd = 1,
-    chains = 1, sample = 400, burnin = 150, adapt = 100, seed = 1,
-    silent = TRUE
-  ))
-  .nested_total_cache[["fit"]] <- fit
-
-  return(fit)
+  load_fit("lane_nested_total")
 }
 
 # The fit's own priors: the root allocation's scale prior T and the prior

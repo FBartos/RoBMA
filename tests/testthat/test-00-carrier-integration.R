@@ -1,26 +1,15 @@
-.carrier_integration_fit_cache <- new.env(parent = emptyenv())
+source(testthat::test_path("common-functions.R"))
 
 .carrier_integration_fits <- function(){
 
-  if(!is.null(.carrier_integration_fit_cache$fits)) return(.carrier_integration_fit_cache$fits)
-  set.seed(1)
-  k <- 48L
-  data <- data.frame(g1 = factor(rep(c(5, 10, 20), length.out = k), levels = c(5, 10, 20)),
-    g2 = factor(rep(1:4, length.out = k)[sample.int(k)], levels = 1:4), sei = stats::runif(k, .1, .3))
-  data$yi <- stats::rnorm(k, c(0, .2, .4)[as.integer(data$g1)] + c(0, .1, .3, .5)[as.integer(data$g2)], data$sei)
-  fit <- function(mods, contrast = "treatment", prior_effect = NULL, prior_mods = NULL, averaged = FALSE){
-    args <- list(yi = quote(yi), sei = quote(sei), mods = mods, data = data, measure = "SMD",
-      set_contrast_factor_predictors = contrast, chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 1, silent = TRUE)
-    if(!is.null(prior_effect)) args$prior_effect <- prior_effect
-    if(!is.null(prior_mods)) args$prior_mods <- prior_mods
-    expect_warning(do.call(if(averaged) BMA.norm else brma, args), "Only one chain was run", fixed = TRUE)
-  }
-  fits <- list(treatment = fit(~g1-1), meandif = fit(~g1-1, "meandif"),
-    nonzero = fit(~g1, prior_effect = BayesTools::prior("point", list(1))), averaged = fit(~g1, averaged = TRUE),
-    ordinary = fit(~g1, "meandif"), gated = fit(~g1, prior_effect = BayesTools::prior("point", list(1)),
-      prior_mods = list(g1 = BayesTools::prior_ordered(BayesTools::prior_spike_and_slab(BayesTools::prior("gamma", list(2, 2))), allocation = c(.25, .75)))))
-  .carrier_integration_fit_cache$fits <- fits
-  fits
+  list(
+    treatment = load_fit("lane_carrier_treatment"),
+    meandif = load_fit("lane_carrier_meandif"),
+    nonzero = load_fit("lane_carrier_nonzero"),
+    averaged = load_fit("lane_carrier_averaged"),
+    ordinary = load_fit("lane_carrier_ordinary"),
+    gated = load_fit("lane_carrier_gated")
+  )
 }
 
 test_that("public no-intercept moderator means use the fitted contrast basis", {
@@ -129,10 +118,7 @@ test_that("declared stochastic contribution refusals are planned for levels and 
   for(multiplier in list(2, "tau")){
     slope <- BayesTools::prior_factor("normal", list(0, 1), contrast = "treatment")
     attr(slope, "multiply_by") <- multiplier
-    fit <- expect_warning(brma(yi = yi, sei = sei, mods = ~g, data = data, measure = "GEN",
-      prior_effect = BayesTools::prior("normal", list(0, 1)), prior_mods = list(g = slope),
-      prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
-      chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE), "Only one chain was run", fixed = TRUE)
+    fit <- load_fit(if (is.numeric(multiplier)) "lane_contribution_constant2" else "lane_contribution_tau")
     means <- marginal_means(fit, bf = FALSE)
     for(statement in c("g[B] = 0.1", "g[B] - g[A] = 0.1")){
       plan <- .hypothesis_plan_marginal_means(means, statement)

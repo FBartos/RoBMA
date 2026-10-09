@@ -1,16 +1,11 @@
+source(testthat::test_path("common-functions.R"))
+
 context("Compiled coefficient and contribution state adapters")
 
 test_that("actual brma coefficients and static-method routes use the compiled owner", {
 
   skip_on_cran()
-  slope <- BayesTools::prior("point", list(2))
-  attr(slope, "multiply_by") <- "tau"
-  data <- data.frame(x = c(10, 20, 30), yi = c(5, 5, 5), sei = rep(1, 3))
-  fit <- expect_warning(brma(yi = yi, sei = sei, mods = ~ x, data = data, measure = "GEN",
-    prior_effect = BayesTools::prior("point", list(5)), prior_mods = list(x = slope),
-    prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
-    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE),
-    "Only one chain was run", fixed = TRUE)
+  fit <- load_fit("lane_contribution_point")
   draws <- as.matrix(coda::as.mcmc(fit$fit))
   original <- .brma_as_mixed_posteriors(fit, c("mu_intercept", "mu_x"), transform_scaled = TRUE)
   expect_equal(as.numeric(original$mu_intercept), 5 - 4 * draws[, "tau"], tolerance = 1e-12)
@@ -66,11 +61,8 @@ test_that("public contribution combinations fold constants once for both ordinat
   for(multiplier in list(2, 1, "tau")){
     slope <- BayesTools::prior_factor("normal", list(0, 1), contrast = "treatment")
     attr(slope, "multiply_by") <- multiplier
-    fit <- expect_warning(brma(yi = yi, sei = sei, mods = ~ g, data = data, measure = "GEN",
-      prior_effect = BayesTools::prior("normal", list(0, 1)), prior_mods = list(g = slope),
-      prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(lower = 0)),
-      chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE),
-      "Only one chain was run", fixed = TRUE)
+    key <- if (is.numeric(multiplier)) paste0("lane_contribution_constant", multiplier) else "lane_contribution_tau"
+    fit <- load_fit(key)
     means <- marginal_means(fit, bf = FALSE)
     plan <- .hypothesis_plan_marginal_means_build(means, "g[B] - g[A] = 0.1")
     spec <- plan$targets[[1L]]$spec
@@ -96,15 +88,7 @@ test_that("public contribution combinations fold constants once for both ordinat
 test_that("scalar discovery retains declared refusal rows and usable sibling quantities", {
 
   skip_on_cran()
-  slope <- BayesTools::prior("normal", list(0, 1))
-  attr(slope, "multiply_by") <- "tau"
-  data <- data.frame(x = c(10, 20, 30), y = c(0, 1, 2), yi = c(.1, .2, .3), sei = .5)
-  object <- expect_warning(brma(yi = yi, sei = sei, mods = ~ x * y, data = data, measure = "GEN",
-    prior_effect = BayesTools::prior("normal", list(0, 1)),
-    prior_mods = list(x = slope, y = BayesTools::prior("normal", list(0, 1)), `x:y` = BayesTools::prior("normal", list(0, 1))),
-    prior_heterogeneity = BayesTools::prior("normal", list(0, 1), list(lower = 0)),
-    chains = 1, sample = 1000, burnin = 200, adapt = 100, seed = 281, silent = TRUE),
-    "Only one chain was run", fixed = TRUE)
+  object <- load_fit("lane_contribution_discovery")
   transform <- BayesTools::JAGS_formula_coefficient_transform(object$fit, "mu")
   expect_identical(transform$prior_recipes$mu_x$reason, "state_dependent_map")
   values <- BayesTools::transform_scale_samples(object$fit)
