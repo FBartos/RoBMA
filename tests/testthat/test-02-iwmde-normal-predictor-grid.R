@@ -73,8 +73,12 @@ test_that("normal-grid discovery preserves the declared component-scale refusal"
       .is_data_random(data) || .is_data_multilevel(data)) {
     return(NULL)
   }
-  spec <- .iwmde_parameter_spec(context, parameter, NULL)
+  spec <- tryCatch(.iwmde_parameter_spec(context, parameter, NULL),
+    BayesTools_ordered_expression_unavailable = function(e) NULL)
   if (is.null(spec) || !identical(spec[["status"]], "ok")) {
+    return(NULL)
+  }
+  if (spec[["type"]] %in% c("ordered", "ordered_source")) {
     return(NULL)
   }
   values <- .iwmde_parameter_values(context, parameter, spec)
@@ -86,9 +90,9 @@ test_that("normal-grid discovery preserves the declared component-scale refusal"
   if (sum(active) < 2L) {
     return(NULL)
   }
-  row_states <- .iwmde_row_states(
+  row_states <- tryCatch(.iwmde_row_states(
     context, utils::head(which(active), n_rows), parameter, spec
-  )
+  ), BayesTools_ordered_expression_unavailable = function(e) NULL)
   if (is.null(row_states)) {
     return(NULL)
   }
@@ -420,6 +424,7 @@ test_that("expression nuisance and selected cells retain their declared typed re
     spec <- .iwmde_parameter_spec(context, parameter, NULL)
     expect_error(.iwmde_row_states(context, 1:2, parameter, spec),
       class = "BayesTools_ordered_expression_unavailable")
+    expect_null(.normal_grid_inputs(context, parameter))
   }
   for (parameter in c("intercept", "tau")) {
     expect_error(graphics::plot(object, parameter = parameter, prior = FALSE,
@@ -490,7 +495,7 @@ test_that("the native normal candidate grid matches the candidate route", {
   cat("\nnative normal candidate grid served:\n  ",
       paste(served, collapse = "\n  "), "\n", sep = "")
   if (length(declined)) {
-    cat("declined (candidate route retained):\n  ",
+    cat("native grid not observed (earlier or candidate route retained):\n  ",
         paste(declined, collapse = "\n  "), "\n", sep = "")
   }
 })
