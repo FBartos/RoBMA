@@ -632,7 +632,11 @@
 
 # Return whether a fixed-zero location intercept should be omitted publicly.
 # Keep an intercept-only model visible even when its prior is a point at zero.
-.location_omit_fixed_zero_intercept <- function(object) {
+# The fixed zero is the intercept of the fitted (standardized) coordinates. On
+# the original scale (transform_scaled = TRUE) the intercept of a model with a
+# scaled continuous predictor is -sum(b * center / sd) and is only omitted
+# when every persisted center is exactly zero.
+.location_omit_fixed_zero_intercept <- function(object, transform_scaled = TRUE) {
 
   if (!.is_mods(object)) {
     return(FALSE)
@@ -656,9 +660,20 @@
     intercept_prior <- prior_list[["mu_intercept"]]
   }
 
-  !is.null(intercept_prior) &&
+  fixed_zero <- !is.null(intercept_prior) &&
     BayesTools::is.prior.point(intercept_prior) &&
     identical(as.numeric(mean(intercept_prior)), 0)
+  if (!fixed_zero || !isTRUE(transform_scaled)) {
+    return(fixed_zero)
+  }
+
+  # original scale: the persisted centers of the scaled continuous predictors
+  formula_scale <- .object_formula_scale(object, "mu")[["mu"]]
+  centers       <- vapply(formula_scale, function(scaled) {
+    as.numeric(scaled[["mean"]])[1L]
+  }, numeric(1))
+
+  return(isTRUE(all(centers == 0)))
 }
 
 

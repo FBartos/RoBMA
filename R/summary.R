@@ -160,7 +160,9 @@ summary.brma       <- function(
 
   ### provide regression estimates for the effect size meta-regression
   location_remove_parameters <- if (
-    .location_omit_fixed_zero_intercept(object)
+    .location_omit_fixed_zero_intercept(
+      object, transform_scaled = !standardized_coefficients
+    )
   ) {
     "mu_intercept"
   } else {

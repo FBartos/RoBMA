@@ -131,7 +131,7 @@ test_that("summary routes omit the fixed-zero location intercept", {
   observed <- NULL
 
   testthat::local_mocked_bindings(
-    .location_omit_fixed_zero_intercept = function(object) TRUE,
+    .location_omit_fixed_zero_intercept = function(object, ...) TRUE,
     .summary_estimates_pair = function(
         enabled, object, probs, include_mcmc_diagnostics, is_robma,
         conditional, main_args, conditional_args = main_args) {
@@ -161,7 +161,7 @@ test_that("stored summaries omit the fixed-zero location intercept", {
 
   observed <- NULL
   testthat::local_mocked_bindings(
-    .location_omit_fixed_zero_intercept = function(object) TRUE,
+    .location_omit_fixed_zero_intercept = function(object, ...) TRUE,
     .package = "RoBMA"
   )
   testthat::local_mocked_bindings(
@@ -223,4 +223,98 @@ test_that("intercept-only multivariate location coefficients use mu", {
 
   no_mods[["coefficients"]] <- c("(mu) intercept" = 0, "(mu) sd" = 1)
   expect_identical(names(coef(no_mods)), c("mu", "(mu) sd"))
+})
+
+
+# A03: the fixed zero is the intercept of the standardized coordinates. The
+# original-scale intercept of a scaled predictor with center m and scale s is
+# -b * m / s.
+.fixed_zero_scaled_object <- function(x, standardize = TRUE, mods = ~ 0 + x) {
+
+  brma(
+    yi = yi, sei = sei, mods = mods,
+    data = data.frame(yi = seq(-.1, .2, length.out = 6), sei = .1, x = x),
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    prior_mods = list(x = BayesTools::prior("normal", list(mean = 0, sd = 1))),
+    prior_heterogeneity = BayesTools::prior("point", list(location = .1)),
+    standardize_continuous_predictors = standardize,
+    only_priors = TRUE, silent = TRUE
+  )
+}
+
+test_that("the fixed-zero intercept gate follows the display scale", {
+
+  off_center <- .fixed_zero_scaled_object(1:6)
+  centered   <- .fixed_zero_scaled_object(c(-2.5, -1.5, -0.5, 0.5, 1.5, 2.5))
+  unscaled   <- .fixed_zero_scaled_object(1:6, standardize = FALSE)
+
+  # a scaled predictor with a nonzero center hides a nonzero original-scale
+  # intercept; the standardized display has the fixed zero
+  expect_false(.location_omit_fixed_zero_intercept(off_center))
+  expect_false(.location_omit_fixed_zero_intercept(off_center, transform_scaled = TRUE))
+  expect_true(.location_omit_fixed_zero_intercept(off_center, transform_scaled = FALSE))
+  # centers exactly at zero, or no scaled predictor, keep the omission
+  for (object in list(centered, unscaled)) {
+    expect_true(.location_omit_fixed_zero_intercept(object))
+    expect_true(.location_omit_fixed_zero_intercept(object, transform_scaled = FALSE))
+  }
+})
+
+test_that("summaries show the original-scale intercept of a fixed-zero standardized model", {
+
+  n <- 100L
+  object <- .fixed_zero_scaled_object(1:6)
+  setup  <- review_compile_object(object)
+  slope  <- stats::qnorm((seq_len(n) - .5) / n) + .3
+  samples <- cbind(slope, 0, .1)
+  colnames(samples) <- c(
+    review_coefficient_name(setup, "x"),
+    review_coefficient_name(setup, "intercept"), "tau"
+  )
+  object <- review_attach_replay(setup, samples)
+  object[["summary"]]      <- .object_summary(object)
+  object[["coefficients"]] <- .object_coefficients(object)
+  expected <- -mean(slope) * mean(1:6) / stats::sd(1:6)
+
+  # stored summary and coefficients (original scale)
+  expect_true("(mu) intercept" %in% rownames(object[["summary"]]))
+  expect_equal(unname(object[["coefficients"]][["(mu) intercept"]]), expected,
+               tolerance = 1e-10)
+  expect_equal(unname(object[["coefficients"]][["(mu) x"]]),
+               mean(slope) / stats::sd(1:6), tolerance = 1e-10)
+  # public summary: original scale by default, the fixed zero when standardized
+  original     <- summary(object, include_mcmc_diagnostics = FALSE)
+  standardized <- summary(object, standardized_coefficients = TRUE,
+                          include_mcmc_diagnostics = FALSE)
+  expect_equal(original[["estimates_mods"]][["intercept", "Mean"]], expected,
+               tolerance = 1e-10)
+  expect_identical(rownames(standardized[["estimates_mods"]]), "x")
+  expect_equal(standardized[["estimates_mods"]][["x", "Mean"]], mean(slope),
+               tolerance = 1e-10)
+})
+
+test_that("marginal means keep dropping the structural fixed-zero intercept", {
+
+  off_center <- .fixed_zero_scaled_object(1:6, mods = ~ x)
+  setup <- .marginal_means_drop_fixed_zero_intercept(
+    object     = off_center,
+    formula    = ~ x,
+    terms      = c("intercept", "x"),
+    parameters = c("mu_intercept", "mu_x")
+  )
+
+  expect_identical(setup[["terms"]], "x")
+  expect_identical(setup[["parameters"]], "mu_x")
+  expect_identical(attr(stats::terms(setup[["formula"]]), "intercept"), 0L)
+})
+
+test_that("parameter discovery lists the original-scale fixed-zero intercept", {
+
+  off_center <- .fixed_zero_scaled_object(1:6, mods = ~ x)
+  centered   <- .fixed_zero_scaled_object(c(-2.5, -1.5, -0.5, 0.5, 1.5, 2.5),
+                                          mods = ~ x)
+
+  expect_true("mu_intercept" %in% .brma_parameter_catalog_unfitted(off_center)[["parameter"]])
+  expect_false("mu_intercept" %in% .brma_parameter_catalog_unfitted(centered)[["parameter"]])
 })

@@ -489,9 +489,11 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 .marginal_means_drop_fixed_zero_intercept <- function(object, formula, terms,
                                                        parameters) {
 
+  # marginal means are evaluated on the fitted (standardized) coordinates, whose
+  # fixed-zero intercept is structural
   intercept_index <- which(parameters == "mu_intercept")
   if (length(intercept_index) != 1L ||
-      !.location_omit_fixed_zero_intercept(object)) {
+      !.location_omit_fixed_zero_intercept(object, transform_scaled = FALSE)) {
     return(list(
       formula    = formula,
       terms      = terms,
