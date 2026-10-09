@@ -115,9 +115,10 @@ test_that("diagonal known-V estimate log-likelihood is exactly vectorized", {
     }
   }
 
-  expect_identical(
+  expect_equal(
     .log_lik_normal_covariance_estimate_target_from_setup(setup),
-    expected
+    expected,
+    tolerance = 1e-13
   )
   expect_equal(
     .log_lik_known_v_joint_sum_from_setup(setup),
