@@ -163,7 +163,8 @@ test_that("summary result families satisfy the output contract", {
     .package     = "RoBMA"
   )
   fit_frame <- .expect_output_data_frame(
-    structure(list(), class = "brma"),
+    structure(list(fit = structure(list(), class = "BayesTools_fit")),
+              class = "brma"),
     components = c("inclusion location", "location"),
     intervals  = TRUE
   )

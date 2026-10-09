@@ -751,6 +751,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- `as.data.frame()` of an object created with `only_data = TRUE` or
+  `only_priors = TRUE` stops with the classed error `RoBMA_unfitted_object`
+  instead of silently returning an empty data frame; `summary()` of these
+  objects is unchanged.
 - plot and marginal-means densities whose qCMDE/IWMDE construction fails stop
   with the public error class `RoBMA_density_construction_error` (the internal
   `iwmde_construction_error` class is kept) and the remedy to use

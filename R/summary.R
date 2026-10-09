@@ -411,10 +411,26 @@ print.summary.brma <- function(x, ...) {
 #' \code{summary.brma()}; otherwise unused.
 #'
 #' @return A plain \code{data.frame} containing all displayed summary rows.
+#' An object created with \code{only_data = TRUE} or \code{only_priors = TRUE}
+#' has no fitted model to export and stops with an error of class
+#' \code{RoBMA_unfitted_object}; \code{summary()} shows its data or priors.
 #'
 #' @export
 as.data.frame.brma <- function(
     x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  # the constructions that summary() returns as data or priors (see there)
+  if ((is.null(x[["priors"]]) && is.null(x[["fit"]])) ||
+      (inherits(x, "only_priors.brma") &&
+       !inherits(x[["fit"]], "BayesTools_fit"))) {
+    stop(structure(
+      class = c("RoBMA_unfitted_object", "error", "condition"),
+      list(message = paste0(
+        "An object created with 'only_data = TRUE' or 'only_priors = TRUE' has ",
+        "no fitted model to export. Use summary() to show its data or priors."
+      ), call = NULL)
+    ))
+  }
 
   output <- as.data.frame.summary.brma(
     x                = summary(x, ...),
