@@ -28,7 +28,7 @@
     )
   }
   flat_prior_list <- c(flat_prior_list, internal_priors)
-  coefficient_names <- .iwmde_declared_coefficient_names(object[["fit"]])
+  coordinates <- .iwmde_parameter_coordinates(object[["fit"]])
 
   context <- list(
     object            = object,
@@ -40,11 +40,10 @@
     selection_spec     = .iwmde_selection_spec(data, priors),
     formula_fit        = object[["fit"]],
     formula_inputs     = .iwmde_formula_inputs(data, priors),
-    coefficient_names  = coefficient_names,
     indicator_names    = .iwmde_indicator_names(
       posterior_samples,
-      prior_list        = flat_prior_list,
-      coefficient_names = coefficient_names
+      prior_list  = flat_prior_list,
+      coordinates = coordinates
     ),
     active_cache       = new.env(parent = emptyenv()),
     focal_prior_cache  = new.env(parent = emptyenv()),
@@ -322,47 +321,54 @@
 }
 
 
-# The model-inclusion indicator columns: the sampled indicators of mixture,
-# spike-and-slab and publication-bias priors, without the inclusion gates of
-# random-effect variance allocations and without declared coefficients, whose
-# names ('treatment_indicator') may end like an indicator's.
+# The model-inclusion indicator columns of the posterior samples, as the fit
+# declares them: the indicator '<p>_indicator' of every parameter 'p' with a
+# mixture or spike-and-slab prior, 'bias_indicator' of a publication-bias
+# mixture, and the inclusion indicators of random-effect SDs that the
+# parameter coordinates declare, without the inclusion gates of random-effect
+# variance allocations. A declared formula coefficient is never an indicator,
+# whatever its name ('treatment_indicator'). Without priors (a hand-built
+# context) no indicator is declared; such a context sets 'indicator_names'.
 .iwmde_indicator_names <- function(posterior_samples, prior_list = NULL,
-                                   coefficient_names = NULL) {
+                                   coordinates = NULL) {
 
-  indicator_names <- grep("(^|_)indicator$", colnames(posterior_samples), value = TRUE)
-  indicator_names <- c(
-    indicator_names,
-    intersect("bias_indicator", colnames(posterior_samples))
-  )
-  indicator_names <- unique(indicator_names)
-  if (!is.null(prior_list)) {
-    random_gate_names <- unique(unname(
-      .random_allocation_inclusion_indicators(prior_list)
-    ))
-    random_gate_names <- random_gate_names[nzchar(random_gate_names)]
-    indicator_names <- setdiff(indicator_names, random_gate_names)
+  if (is.null(prior_list)) {
+    return(character())
   }
 
-  return(setdiff(indicator_names, coefficient_names))
+  declares_indicator <- vapply(prior_list, function(prior) {
+    BayesTools::is.prior.mixture(prior) || BayesTools::is.prior.spike_and_slab(prior)
+  }, logical(1))
+  indicator_names <- c(
+    paste0(names(prior_list)[declares_indicator], "_indicator"),
+    if (any(vapply(prior_list, inherits, logical(1), what = "prior.bias_mixture"))) {
+      "bias_indicator"
+    },
+    coordinates[["coordinate_name"]][coordinates[["role"]] == "random_inclusion_indicator"]
+  )
+  random_gate_names <- unique(unname(
+    .random_allocation_inclusion_indicators(prior_list)
+  ))
+  indicator_names <- setdiff(
+    indicator_names,
+    c(random_gate_names[nzchar(random_gate_names)],
+      coordinates[["coordinate_name"]][coordinates[["role"]] == "fixed_coefficient"])
+  )
+
+  return(intersect(colnames(posterior_samples), indicator_names))
 }
 
 
-# The coordinates that the fit declares as formula coefficients (role
-# "fixed_coefficient": the intercept, continuous predictors and factor levels
-# of the location and scale formulas), or NULL for a fit without current
+# The parameter coordinates of a fit, or NULL for a fit without current
 # parameter-map metadata.
-.iwmde_declared_coefficient_names <- function(fit) {
+.iwmde_parameter_coordinates <- function(fit) {
 
   if (!inherits(fit, "BayesTools_fit")) {
     return(NULL)
   }
-  coordinates <- tryCatch(
+
+  tryCatch(
     BayesTools::parameter_coordinates(fit),
     BayesTools_refit_required = function(condition) NULL
   )
-  if (is.null(coordinates)) {
-    return(NULL)
-  }
-
-  return(coordinates[["coordinate_name"]][coordinates[["role"]] == "fixed_coefficient"])
 }

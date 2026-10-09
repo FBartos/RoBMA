@@ -61,16 +61,16 @@ test_that("a declared coefficient named like an indicator is no indicator", {
   tau_prior <- BayesTools::prior("normal", list(0, 1), truncation = list(0, Inf))
   context <- .iwmde_context(.review_predictor_replay("treatment_indicator", tau_prior))
 
-  expect_identical(context[["coefficient_names"]],
-                   c("mu_intercept", "mu_treatment_indicator"))
   expect_identical(context[["indicator_names"]], character())
-  expect_false(.iwmde_parameter_is_indicator("mu_treatment_indicator", context))
+  expect_false(.iwmde_parameter_is_indicator(
+    "mu_treatment_indicator", context[["indicator_names"]]
+  ))
   expect_identical(
     .iwmde_parameter_spec(context, "mu_treatment_indicator")[["status"]], "ok"
   )
 })
 
-test_that("model-inclusion indicators stay indicators beside a coefficient named like one", {
+test_that("inclusion indicators are those of the declared mixture priors", {
 
   dat <- data.frame(
     yi = c(.1, .2, .3, .4, .2, .1), sei = .2,
@@ -84,42 +84,62 @@ test_that("model-inclusion indicators stay indicators beside a coefficient named
   priors <- list()
   for (compiled in setup[["compiled"]]) priors <- c(priors, compiled[["prior_list"]])
   priors <- c(priors, .create_fit_priors(object[["data"]], object[["priors"]]))
-  columns <- c(
-    review_prior_columns(priors), "mu_x_indicator", "mu_treatment_indicator_indicator",
-    "tau_indicator", "bias_indicator"
+  indicators <- c(
+    "mu_x_indicator", "mu_treatment_indicator_indicator", "tau_indicator",
+    "bias_indicator"
   )
+  columns <- c(review_prior_columns(priors), indicators)
   samples <- matrix(.5, 20L, length(columns), dimnames = list(NULL, columns))
-  samples[, grep("_indicator$", columns)[-match("mu_treatment_indicator", columns, nomatch = 0L)]] <-
-    rep(c(1, 2), 10)
-  object <- review_attach_replay(setup, samples)
-  context <- .iwmde_context(object)
+  samples[, indicators] <- rep(c(1, 2), 10)
+  context <- .iwmde_context(review_attach_replay(setup, samples))
 
-  expect_true("mu_treatment_indicator" %in% context[["coefficient_names"]])
-  expect_setequal(
-    context[["indicator_names"]],
-    c("mu_x_indicator", "mu_treatment_indicator_indicator", "tau_indicator",
-      "bias_indicator")
-  )
-  for (name in context[["indicator_names"]]) {
-    expect_true(.iwmde_parameter_is_indicator(name, context), info = name)
+  # the coefficient 'mu_treatment_indicator' ends like an indicator, its
+  # inclusion indicator 'mu_treatment_indicator_indicator' is one
+  expect_setequal(context[["indicator_names"]], indicators)
+  for (name in indicators) {
+    expect_true(.iwmde_parameter_is_indicator(name, context[["indicator_names"]]),
+                info = name)
   }
-  expect_false(.iwmde_parameter_is_indicator("mu_treatment_indicator", context))
+  expect_false(.iwmde_parameter_is_indicator(
+    "mu_treatment_indicator", context[["indicator_names"]]
+  ))
 })
 
-test_that("contexts without parameter-map metadata keep the suffix rule", {
+test_that("indicator names follow the declared priors and coordinate roles", {
 
-  samples <- cbind(theta_indicator = c(1, 2), mu_treatment_indicator = c(.1, .2), tau = 1)
-
-  expect_identical(
-    .iwmde_indicator_names(samples),
-    c("theta_indicator", "mu_treatment_indicator")
+  mixture <- BayesTools::prior_mixture(
+    list(BayesTools::prior("spike", list(0)), BayesTools::prior("normal", list(0, 1))),
+    is_null = c(TRUE, FALSE)
   )
+  simple <- BayesTools::prior("normal", list(0, 1))
+  samples <- cbind(
+    theta_indicator = c(1, 2), gate_indicator = c(1, 2), sd_indicator = c(1, 2),
+    other_indicator = c(1, 2), tau = c(1, 1)
+  )
+
+  # only declared mixtures have an indicator; an undeclared column that ends
+  # like an indicator and a context without priors have none
   expect_identical(
-    .iwmde_indicator_names(samples, coefficient_names = "mu_treatment_indicator"),
+    .iwmde_indicator_names(samples, list(theta = mixture, tau = simple)),
     "theta_indicator"
   )
-  expect_true(.iwmde_parameter_is_indicator("theta_indicator", list(indicator_names = "theta_indicator")))
-  expect_true(.iwmde_parameter_is_indicator("bias_indicator", list()))
-  expect_false(.iwmde_parameter_is_indicator("tau", list()))
-  expect_null(.iwmde_declared_coefficient_names(list()))
+  expect_identical(.iwmde_indicator_names(samples), character())
+  # inclusion gates of random-effect variance allocations are no model indicators
+  gated <- structure(simple, random_allocation_indicator = "gate_indicator")
+  expect_identical(
+    .iwmde_indicator_names(samples, list(theta = mixture, gate = mixture, g = gated)),
+    "theta_indicator"
+  )
+  # declared coordinates: random-effect inclusion indicators count and a
+  # formula coefficient never does
+  coordinates <- data.frame(
+    coordinate_name = c("sd_indicator", "theta_indicator"),
+    role = c("random_inclusion_indicator", "fixed_coefficient"),
+    stringsAsFactors = FALSE
+  )
+  expect_identical(
+    .iwmde_indicator_names(samples, list(theta = mixture, tau = simple), coordinates),
+    "sd_indicator"
+  )
+  expect_null(.iwmde_parameter_coordinates(list()))
 })

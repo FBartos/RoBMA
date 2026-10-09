@@ -749,7 +749,6 @@
     !columns %in% target_columns &
       !columns %in% conditioning_exclude &
       !columns %in% context[["indicator_names"]] &
-      !vapply(columns, .iwmde_parameter_is_indicator, logical(1), context = context) &
       !vapply(columns, .iwmde_parameter_is_local_latent, logical(1)) &
       vapply(columns, function(column) {
         .iwmde_chen_is_global_conditioning_column(
@@ -827,7 +826,6 @@
   columns <- unique(c(columns, selection_columns))
   columns <- columns[
     !columns %in% context[["indicator_names"]] &
-      !vapply(columns, .iwmde_parameter_is_indicator, logical(1), context = context) &
       !vapply(columns, .iwmde_parameter_is_local_latent, logical(1))
   ]
   assign(key, columns, envir = cache)
