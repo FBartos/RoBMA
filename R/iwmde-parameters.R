@@ -14,7 +14,7 @@
     if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
       return(list(status = "unsupported", reason = "posterior column is missing"))
     }
-    if (.iwmde_parameter_is_indicator(parameter, context[["indicator_names"]])) {
+    if (.iwmde_parameter_is_indicator(parameter, .iwmde_discrete_columns(context))) {
       return(list(status = "unsupported", reason = "indicator columns are discrete"))
     }
     if (.iwmde_parameter_is_weightfunction_coordinate(
@@ -34,7 +34,7 @@
     if (!.iwmde_parameter_has_resolved_values(context, parameter)) {
       return(list(status = "unsupported", reason = "posterior column is missing"))
     }
-    if (.iwmde_parameter_is_indicator(parameter, context[["indicator_names"]])) {
+    if (.iwmde_parameter_is_indicator(parameter, .iwmde_discrete_columns(context))) {
       return(list(status = "unsupported", reason = "indicator columns are discrete"))
     }
     if (.iwmde_parameter_is_weightfunction_coordinate(
@@ -183,7 +183,7 @@
 
   bad <- names(weights)[
     vapply(names(weights), function(name) {
-      .iwmde_parameter_is_indicator(name, context[["indicator_names"]]) ||
+      .iwmde_parameter_is_indicator(name, .iwmde_discrete_columns(context)) ||
         .iwmde_parameter_is_weightfunction_coordinate(
           parameter = name,
           context   = context
@@ -469,11 +469,20 @@
 }
 
 
-# Whether a posterior column is one of the model-inclusion indicator columns
-# 'indicator_names' of a context.
+# Whether a posterior column is one of the discrete 'indicator_names'.
 .iwmde_parameter_is_indicator <- function(parameter, indicator_names) {
 
   return(parameter %in% indicator_names)
+}
+
+
+# The columns of a context that hold discrete states: its model-inclusion
+# indicators and the inclusion gates of random-effect variance allocations.
+.iwmde_discrete_columns <- function(context) {
+
+  gates <- unname(.random_allocation_inclusion_indicators(context[["flat_prior_list"]]))
+
+  return(union(context[["indicator_names"]], gates[nzchar(gates)]))
 }
 
 

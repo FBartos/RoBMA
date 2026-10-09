@@ -143,3 +143,15 @@ test_that("indicator names follow the declared priors and coordinate roles", {
   )
   expect_null(.iwmde_parameter_coordinates(list()))
 })
+
+test_that("inclusion gates of variance allocations stay discrete targets", {
+
+  # the gate is no model indicator, but its states are discrete all the same
+  context <- .iwmde_context(shared_gate_random_object(root_gate = c(0, 1, 0, 1)))
+  gate <- grep("include_component_indicator$", colnames(context[["posterior_samples"]]),
+               value = TRUE)
+
+  expect_length(gate, 1L)
+  expect_false(gate %in% context[["indicator_names"]])
+  expect_identical(.iwmde_parameter_spec(context, gate)[["status"]], "unsupported")
+})
