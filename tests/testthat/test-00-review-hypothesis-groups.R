@@ -130,40 +130,53 @@ test_that("marginal-means statements on several parameters equal the statements 
     means, c("g2[2] > g2[3]", "g1[10] > 0", g2_2), "regions and points"
   )
 
-  # qCMDE, the default density method of a fitted brma, gives the rows of the
-  # statements run alone as well, also for points on one parameter next to a
-  # region on another.
+  # The rows of the statements run alone, for every shape of request: the
+  # order of the parameters, a parameter repeated between others, and points
+  # on one parameter next to a region on another. The shapes are checked with
+  # KDE; the densities of the precomputed methods (the per-grid estimators are
+  # the cost of this test) are checked on the request that mixes points and a
+  # region, for qCMDE, the default density method of a fitted brma, and IWMDE.
   requests <- list(
     c(g1_10, g2_2),
     c(g2_2, g1_10, g1_20),
     c("g1[10] = 0.1", "g2[2] > 0", "g2[3] = 0.1")
   )
-  for (statements in requests) {
+  expect_rows_equal_alone <- function(statements, density_method) {
     combined <- hypothesis(
-      means, statements, density_method = "qCMDE", columns = "all", seed = 1
+      means, statements, density_method = density_method, columns = "all",
+      seed = 1
     )
     alone <- lapply(statements, function(statement) {
       hypothesis(
-        means, statement, density_method = "qCMDE", columns = "all", seed = 1
+        means, statement, density_method = density_method, columns = "all",
+        seed = 1
       )
     })
+    info <- paste(density_method, paste(statements, collapse = ", "))
     expect_identical(
       combined[["method"]],
-      unlist(lapply(alone, `[[`, "method"), use.names = FALSE)
+      unlist(lapply(alone, `[[`, "method"), use.names = FALSE),
+      info = info
     )
     for (column in c("prior", "posterior")) {
       expect_equal(
         combined[[column]],
         unlist(lapply(alone, `[[`, column), use.names = FALSE),
-        tolerance = 1e-12
+        tolerance = 1e-12, info = info
       )
     }
     expect_equal(
       attr(combined, "raw_log_BF"),
       unlist(lapply(alone, attr, "raw_log_BF"), use.names = FALSE),
-      tolerance = 1e-12
+      tolerance = 1e-12, info = info
     )
     expect_length(attr(combined, "numerical_diagnostics"), length(statements))
+  }
+  for (statements in requests) {
+    expect_rows_equal_alone(statements, "KDE")
+  }
+  for (density_method in c("qCMDE", "IWMDE")) {
+    expect_rows_equal_alone(requests[[3L]], density_method)
   }
 })
 
