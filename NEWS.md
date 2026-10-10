@@ -772,6 +772,14 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- `bf()`, `post_prob()`, `loo_compare()`, and `loo_model_weights()` compare an
+  ordinary fit with a `brma.mv()` fit of the same data whose known `V` has no
+  correlated block (`V = diag(sei^2)`); they used to refuse the pair as fitted
+  to different outcome data, because the outcome identity added a known-`V`
+  payload although the standard errors it hashes already define the target. A
+  `V` with correlated blocks remains a different target. LOO and WAIC results
+  that earlier development versions of 4.1 stored for a diagonal known `V`
+  carry the previous hash; recompute them with `add_loo()` or `add_waic()`.
 - `as_zplot()` and `zplot()` stop for a `significance_level` that is not
   positive. A zero z threshold (two-sided alpha 1) gave an expected discovery
   rate of 1 and an undefined Soric false discovery rate, so that `summary()`

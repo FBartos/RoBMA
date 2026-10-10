@@ -36,7 +36,10 @@ The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
 Non-\code{brma} objects in \code{...} are ignored with a warning. All retained
 models must be fitted to the same outcome target/data, including outcome type
 and, when present, likelihood weights. Cluster identifiers define model
-structure and are not part of the outcome-data identity.
+structure and are not part of the outcome-data identity. A known sampling
+covariance without correlated blocks (e.g., \code{V = diag(sei^2)} in
+\code{\link{brma.mv}}) is the outcome data of its standard errors, whereas a
+correlated \code{V} is a different target.
 
 If any model contains repeated bridge estimates, comparisons retain those
 repetitions regardless of model order. Models with fewer repetitions are

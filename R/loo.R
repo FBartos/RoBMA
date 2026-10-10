@@ -772,7 +772,10 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' observations from its fitted dependency block; this is not new-group
 #' prediction.
 #' RoBMA rejects comparisons with different outcome targets/data, \code{unit},
-#' or retained context. The same compatibility key is applied
+#' or retained context. A known sampling covariance without correlated blocks
+#' (e.g., \code{V = diag(sei^2)} in \code{\link{brma.mv}}) is the outcome data
+#' of its standard errors, whereas a correlated \code{V} is a different target.
+#' The same compatibility key is applied
 #' separately to LOO and WAIC; the two criteria cannot be mixed in one
 #' comparison table. Sampled versus marginalized local-effect provenance does
 #' not by itself block comparison.

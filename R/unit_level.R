@@ -174,19 +174,27 @@
     known_V <- .data_known_v_data(object[["data"]])
     blocks  <- .known_v_correlated_blocks(known_V)
     diagonal <- .normalize_hash_zero(.known_v_diagonal(known_V))
-    payload[["known_V"]] <- list(
-      version  = 2L,
-      K        = .known_v_nrow(known_V),
-      diagonal = unname(diagonal),
-      blocks   = lapply(blocks, function(block) {
-        list(
-          index      = unname(as.integer(block[["index"]])),
-          covariance = unname(.normalize_hash_zero(
-            as.numeric(block[["covariance"]])
-          ))
-        )
-      })
-    )
+    # A known V without correlated blocks whose diagonal is the squared
+    # standard errors is the ordinary data of those standard errors, which the
+    # outcome already hashes; only correlated structure (or a diagonal that
+    # differs from the standard errors) is a further identity of the target.
+    ordinary_equivalent <- length(blocks) == 0L &&
+      identical(unname(as.numeric(outcome_data[["sei"]])), sqrt(unname(diagonal)))
+    if (!ordinary_equivalent) {
+      payload[["known_V"]] <- list(
+        version  = 2L,
+        K        = .known_v_nrow(known_V),
+        diagonal = unname(diagonal),
+        blocks   = lapply(blocks, function(block) {
+          list(
+            index      = unname(as.integer(block[["index"]])),
+            covariance = unname(.normalize_hash_zero(
+              as.numeric(block[["covariance"]])
+            ))
+          )
+        })
+      )
+    }
   }
 
   hashes <- .Call("RoBMA_outcome_hash_raw", .outcome_hash_bytes(payload),
