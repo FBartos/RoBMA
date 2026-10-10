@@ -172,6 +172,79 @@ test_that("the condition gate does not depend on the scale of the covariance", {
 })
 
 
+test_that("the condition gate of 2 x 2 blocks uses the exact reciprocal condition number", {
+
+  # Blocks of order one and two have the 1-norm reciprocal condition number in
+  # closed form, det(M) / ||M||_1^2 (order one is the latent system of a single
+  # coefficient, tested above, whose value is 1). The gate refuses a block at or
+  # below eps / 1e-6, and reports the reciprocal condition number of the
+  # refused block, which is the exact value up to the rounding of its Cholesky
+  # factor (what the LAPACK estimate it replaced returned). The covariance is
+  # V + diag(extra) with unequal extra variances, which keeps the block on the
+  # dense route (equal ones are handled by the eigensystem of V).
+  threshold <- .Machine$double.eps / 1e-6
+  reciprocal_condition <- function(sampling, extra) {
+
+    outcome <- tryCatch(
+      .precision_application(c(1, 1), sampling, list(), list(),
+        extra_variances = extra),
+      RoBMA_known_v_precision_unavailable = function(condition) condition
+    )
+    if (inherits(outcome, "condition")) outcome$reciprocal_condition else NA_real_
+  }
+
+  # M = s diag(1, 1 / r): the reciprocal condition number is 1 / r exactly, for
+  # eigenvalue ratios r from 1 to 1e18 (10^9.64 and 10^9.67 straddle the gate,
+  # 1 / threshold = 10^9.65) and scales from 1e-12 to 1e12.
+  for (scale in c(1e-12, 1, 1e12)) {
+    for (exponent in c(0, 3, 6, 9, 9.64, 9.67, 10, 12, 14, 16, 18)) {
+      reciprocal <- 10^-exponent
+      observed <- reciprocal_condition(
+        scale * diag(c(1, reciprocal / 2), 2L), scale * c(0, reciprocal / 2)
+      )
+      info <- paste("scale", scale, "ratio 1e", exponent)
+      if (reciprocal > threshold) {
+        expect_true(is.na(observed), info = info)
+      } else {
+        expect_equal(observed, reciprocal, tolerance = 1e-12, info = info)
+      }
+    }
+  }
+
+  # M = s [[b^2 + delta, b], [b, 1]] and its permutation with b = 2^12: the
+  # entries are integers times a power of two, so det(M) = delta s^2 and
+  # ||M||_1 = (b^2 + delta + b) s are exact and the reciprocal condition number
+  # is delta / (b^2 + delta + b)^2. The Cholesky factor cancels
+  # l22^2 = 1 - b^2 / (b^2 + delta), a relative error of at most
+  # eps b^2 / delta in the reciprocal condition number. V is M less 2^-30 on
+  # the second diagonal entry (positive definite: delta > b^2 2^-30).
+  b <- 2^12
+  shift <- 2^-30
+  for (delta in c(1, 7, 100, 5000, 60000, 65000)) {
+    exact <- delta / (b^2 + delta + b)^2
+    for (scale in c(2^-40, 1, 2^40)) {
+      for (swap in c(FALSE, TRUE)) {
+        sampling <- matrix(c(b^2 + delta, b, b, 1 - shift), 2L)
+        extra <- c(0, shift)
+        if (swap) {
+          sampling <- sampling[2:1, 2:1]
+          extra <- extra[2:1]
+        }
+        observed <- reciprocal_condition(scale * sampling, scale * extra)
+        info <- paste("delta", delta, "scale", scale, "swapped", swap)
+        if (exact > threshold) {
+          expect_true(is.na(observed), info = info)
+        } else {
+          expect_equal(observed, exact,
+            tolerance = 16 * .Machine$double.eps * b^2 / delta + 1e-12,
+            info = info)
+        }
+      }
+    }
+  }
+})
+
+
 test_that("block-base precision applications refuse ill-conditioned sampling blocks", {
 
   # Two sampling blocks [[1, rho], [rho, 1]] and one group effect shared by the

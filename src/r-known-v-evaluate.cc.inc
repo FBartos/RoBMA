@@ -241,7 +241,10 @@ ConditionScale symmetric_lower_condition_scale(const double *matrix, int n)
 
 // Reciprocal condition number (1-norm) from the Cholesky factor of a
 // symmetric positive definite matrix with the given scale (the factor is
-// formed from the matrix whose scale was taken).
+// formed from the matrix whose scale was taken). Matrices of order one and two
+// have it in closed form, which is what the LAPACK estimate (dpocon) returns
+// for them (to rounding) at a fraction of the cost: the estimate was 61% of the
+// dense precision application of the 2 x 2 blocks of kearon1998.
 bool cholesky_reciprocal_condition(
     const double *factor, int n, const ConditionScale &scale,
     double *reciprocal)
@@ -252,6 +255,19 @@ bool cholesky_reciprocal_condition(
     return false;
   }
   const double root = std::sqrt(scale.entry);
+  if (n == 1) {
+    // The matrix divided by its largest entry is 1.
+    *reciprocal = 1.0;
+    return true;
+  }
+  if (n == 2) {
+    // The 1-norm of the inverse is ||M||_1 / det(M), so the reciprocal
+    // condition number is det(M) / ||M||_1^2 with det(M) = (l11 l22)^2, all on
+    // the scaled matrix.
+    const double product = (factor[0] / root) * (factor[3] / root);
+    *reciprocal = (product * product) / (scale.one_norm * scale.one_norm);
+    return std::isfinite(*reciprocal);
+  }
   std::vector<double> scaled(static_cast<size_t>(n) * static_cast<size_t>(n));
   for (int column = 0; column < n; ++column) {
     for (int row = column; row < n; ++row) {
