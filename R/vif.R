@@ -449,11 +449,14 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     posterior_samples <- posterior_samples[rows, , drop = FALSE]
   }
   known_V <- .data_known_v_data(object[["data"]])
-  vcov <- .vif_vcov_from_factor_plan(
-    object            = object,
-    X                 = X,
-    posterior_samples = posterior_samples,
-    known_V           = known_V
+  vcov <- .known_v_with_request_rows(
+    .vif_vcov_from_factor_plan(
+      object            = object,
+      X                 = X,
+      posterior_samples = posterior_samples,
+      known_V           = known_V
+    ),
+    rows = rows
   )
   vcov <- .known_v_attach_diagnostic_metadata(
     vcov,

@@ -530,19 +530,22 @@
   draw_class <- design_plan[["draw_class"]]
   present    <- sort(unique(draw_class))
   batch      <- function(design_class, rows = NULL) {
-    .known_v_factor_gls_projection_batch(
-      object            = object,
-      posterior_samples = if (is.null(rows)) {
-        posterior_samples
-      } else {
-        posterior_samples[rows, , drop = FALSE]
-      },
-      known_V           = known_V,
-      X                 = design_plan[["designs"]][[design_class]],
-      y                 = y,
-      return_full_H     = return_full_H,
-      return_se         = return_se,
-      return_resid      = return_resid
+    .known_v_with_request_rows(
+      .known_v_factor_gls_projection_batch(
+        object            = object,
+        posterior_samples = if (is.null(rows)) {
+          posterior_samples
+        } else {
+          posterior_samples[rows, , drop = FALSE]
+        },
+        known_V           = known_V,
+        X                 = design_plan[["designs"]][[design_class]],
+        y                 = y,
+        return_full_H     = return_full_H,
+        return_se         = return_se,
+        return_resid      = return_resid
+      ),
+      rows = rows
     )
   }
 
@@ -578,6 +581,40 @@
   }
 
   return(projection)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .known_v_with_request_rows
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate the known-V computation of one design class. It sees only the draws
+# of its class, so that an unavailable precision application names draws by
+# their positions among those. The diagnostic reports positions among the draws
+# of its request (the thinned draws when 'max_samples' was set): the condition
+# is raised again with the positions mapped through `rows`, the positions of
+# the class draws in the request, and the message rebuilt from them.
+#
+# @param expr the computation of the class draws.
+# @param rows positions of the class draws among the draws of the request, or
+#   NULL when the computation covers all of them.
+#
+# ---------------------------------------------------------------------------- #
+.known_v_with_request_rows <- function(expr, rows = NULL) {
+
+  if (is.null(rows)) {
+    return(expr)
+  }
+
+  tryCatch(
+    expr,
+    RoBMA_known_v_precision_unavailable = function(condition) {
+      positions   <- rows[condition[["rows"]]]
+      unavailable <- rep(NA_real_, max(positions))
+      unavailable[positions] <- condition[["reciprocal_condition"]]
+      .known_v_precision_check_available(unavailable)
+    }
+  )
 }
 
 
