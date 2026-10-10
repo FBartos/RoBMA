@@ -790,6 +790,68 @@ test_that("Fixed and scale formulas reject calls that cannot be replayed", {
 })
 
 
+test_that("Formulas accept '^' as R's crossing operator with a literal whole exponent", {
+
+  skip_on_cran()
+
+  dat <- data.frame(
+    yi = c(.1, .3, .2, .4, .0, .25), sei = rep(.2, 6),
+    x = c(1, 2, 4, 3, 5, 7), z = c(.5, -1, 2, 0, 1, -2)
+  )
+  construct <- function(yi = dat[["yi"]], ...) {
+    do.call(brma, c(
+      list(
+        yi = yi, sei = dat[["sei"]], data = dat, measure = "GEN",
+        prior_unit_information_sd = 1, only_priors = TRUE
+      ),
+      list(...)
+    ))
+  }
+  design <- function(object, parameter) {
+    design <- .fitted_formula_design(object, parameter, required = TRUE)
+    design[c("column_names", "raw_column_names", "model_terms", "model_matrix")]
+  }
+
+  # (x + z)^2 expands to x + z + x:z in the location, scale, and yi formulas
+  expanded <- construct(mods = ~ x + z + x:z, scale = ~ x + z + x:z)
+  crossed  <- construct(mods = ~ (x + z)^2, scale = ~ (x + z)^2)
+  for (parameter in c("mu", "log_tau")) {
+    expect_identical(
+      design(crossed, parameter)[["raw_column_names"]],
+      c("(Intercept)", "x", "z", "x:z")
+    )
+    expect_equal(design(crossed, parameter), design(expanded, parameter))
+  }
+  from_yi <- construct(yi ~ (x + z)^2)
+  expect_equal(design(from_yi, "mu"), design(expanded, "mu"))
+
+  # x^2 is the crossing of x with itself, not a quadratic term
+  linear <- construct(mods = ~ x)
+  powered <- construct(mods = ~ x + x^2)
+  expect_identical(design(powered, "mu")[["raw_column_names"]], c("(Intercept)", "x"))
+  expect_equal(design(powered, "mu"), design(linear, "mu"))
+
+  # other exponents fail with the RoBMA error instead of the base-R message
+  for (formula in list(~ x^0, ~ x^1, ~ x^1.5, ~ x^-1, ~ (x + z)^2.5, ~ x^power)) {
+    for (argument in c("mods", "scale")) {
+      error <- tryCatch(
+        do.call(construct, stats::setNames(list(formula), argument)),
+        error = function(condition) condition
+      )
+      expect_s3_class(error, "error")
+      expect_match(conditionMessage(error), "Unsupported power", fixed = TRUE)
+      expect_match(conditionMessage(error), paste0("in the '", argument, "' formula"), fixed = TRUE)
+      expect_false(grepl("invalid power", conditionMessage(error), fixed = TRUE))
+    }
+  }
+  expect_error(construct(yi ~ x^1.5), "Unsupported power.*'yi' formula")
+
+  # inline arithmetic powers stay unsupported
+  expect_error(construct(mods = ~ I(x^2)), "Unsupported call.*Precompute transformed predictors")
+  expect_error(construct(mods = ~ poly(x, 2)), "Unsupported call.*Precompute transformed predictors")
+})
+
+
 test_that("Mods accepts interaction terms in formula", {
 
   skip_on_cran()

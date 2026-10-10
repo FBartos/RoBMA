@@ -66,9 +66,12 @@ when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
 location moderators (meta-regressors). Formula input is evaluated in \code{data}
-and supports explicit columns and standard formula operators. Precompute
-transformed predictors as columns in \code{data}; inline calls such as \code{I()},
-\code{poly()}, spline constructors, and user functions are not supported.}
+and supports explicit columns and standard formula operators, including
+\code{^} as R's crossing operator with a literal whole exponent of at least 2:
+\code{(x + z)^2} expands to \code{x + z + x:z}, and \code{x^2} is not a quadratic term
+(\code{x + x^2} is \code{x}). Precompute transformed predictors, such as a squared
+predictor, as columns in \code{data}; inline calls such as \code{I()}, \code{poly()},
+spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in

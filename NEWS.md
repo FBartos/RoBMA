@@ -226,6 +226,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     intercept-only models keep it.
 
 ### Features
+- `mods`, `scale`, and `yi ~` formulas accept `^` as R's crossing operator
+  with a literal whole exponent of at least 2, as BayesTools' formulas do:
+  `(x + z)^2` expands to `x + z + x:z`. Powers are formula expansion, not
+  arithmetic: `x^2` is `x` rather than a quadratic term (precompute a squared
+  column), and `I()` and `poly()` stay unsupported. Other exponents (`x^0`,
+  `x^1`, `x^1.5`, `x^-1`, symbolic) stop with an error that names the formula
+  instead of the base-R "invalid power in formula" message.
 - re-exports BayesTools' `prior_ordered()` next to `prior_factor()`, so
   ordered-factor moderators can be given a prior directly
   (`prior_mods = list(x_ord = prior_ordered(prior("normal", list(0, 1))))`).

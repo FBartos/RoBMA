@@ -42,9 +42,12 @@
 #' when estimating the unit information standard deviation.
 #' @param mods an optional matrix, data.frame, or formula specifying
 #' location moderators (meta-regressors). Formula input is evaluated in `data`
-#' and supports explicit columns and standard formula operators. Precompute
-#' transformed predictors as columns in `data`; inline calls such as `I()`,
-#' `poly()`, spline constructors, and user functions are not supported.
+#' and supports explicit columns and standard formula operators, including
+#' `^` as R's crossing operator with a literal whole exponent of at least 2:
+#' `(x + z)^2` expands to `x + z + x:z`, and `x^2` is not a quadratic term
+#' (`x + x^2` is `x`). Precompute transformed predictors, such as a squared
+#' predictor, as columns in `data`; inline calls such as `I()`, `poly()`,
+#' spline constructors, and user functions are not supported.
 #' @param scale an optional matrix, data.frame, or formula specifying
 #' scale predictors for location-scale models. Formula input is evaluated in
 #' `data` and follows the same explicit-column formula grammar as `mods`.
@@ -547,7 +550,28 @@ NULL
         ""
       }
 
-      if (call_name %in% c("+", "-", "*", ":", "/", "^", "(")) {
+      # `^` is R's crossing operator: (x + z)^2 expands to x + z + x:z. Like
+      # BayesTools, accept only literal whole degrees; arithmetic powers must be
+      # precomputed as data columns.
+      if (identical(call_name, "^")) {
+        degree <- if (length(expression) == 3L) expression[[3L]] else NULL
+        if (!(is.numeric(degree) && length(degree) == 1L && is.finite(degree) &&
+              degree >= 2 && degree <= .Machine$integer.max &&
+              degree == floor(degree))) {
+          stop(
+            "Unsupported power '", paste(deparse(expression), collapse = " "),
+            "' in the '", name, "' formula. '^' is accepted only as R's ",
+            "crossing operator with a literal whole exponent of at least 2, ",
+            "e.g., (x + z)^2 for x + z + x:z. Precompute powers of a ",
+            "predictor as columns in 'data' and reference those columns by name.",
+            call. = FALSE
+          )
+        }
+        validate_expression(expression[[2L]])
+        return(invisible(TRUE))
+      }
+
+      if (call_name %in% c("+", "-", "*", ":", "/", "(")) {
         for (argument in as.list(expression)[-1L]) {
           validate_expression(argument)
         }
