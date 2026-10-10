@@ -552,9 +552,16 @@
     }
   }
 
+  # The expanded matrices are the largest objects of a model-averaged funnel
+  # (draws x nodes rows), so they are only copied when rows are retained.
+  if (length(retained) > 0L) {
+    mean <- rbind(mean, location[retained, , drop = FALSE])
+    sd   <- rbind(sd, total_sd[retained, , drop = FALSE])
+  }
+
   return(list(
-    mean          = rbind(mean, location[retained, , drop = FALSE]),
-    sd            = rbind(sd, total_sd[retained, , drop = FALSE]),
+    mean          = mean,
+    sd            = sd,
     weights       = c(weights[index] * node_weight, weights[retained]),
     selected_rows = c(selected_rows[index], rep(FALSE, length(retained))),
     selection     = .funnel_expand_selection_context(selection, c(index, retained))
