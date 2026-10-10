@@ -1,6 +1,6 @@
   Alternative:         Null:     BF error%(BF)
- ablat < -0.25     ablat = 0 47.124     12.068
- ablat > -0.25     ablat = 0  2.411     12.304
+ ablat < -0.25     ablat = 0 47.126     12.067
+ ablat > -0.25     ablat = 0  2.411     12.302
  ablat < -0.25 ablat > -0.25 19.545      2.688
 [0;31mqCMDE relative MCSE is 12.1%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
 [0;31mqCMDE relative MCSE is 12.1%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m

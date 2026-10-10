@@ -1,6 +1,6 @@
  Alternative:     Null:      BF error%(BF)
-    mu < -0.5    mu = 0 162.127     10.587
-    mu > -0.5    mu = 0  12.006     10.770
+    mu < -0.5    mu = 0 162.140     10.585
+    mu > -0.5    mu = 0  12.007     10.768
     mu < -0.5 mu > -0.5  13.504      2.337
 [0;31mqCMDE relative MCSE is 10.6%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
 [0;31mqCMDE relative MCSE is 10.6%. Higher precision can be obtained by increasing the number of evaluated posterior samples via the 'density_control' argument.[0m
