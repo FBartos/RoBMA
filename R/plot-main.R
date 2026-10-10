@@ -180,7 +180,9 @@
 #' standardized predictors; use `standardized_coefficients = TRUE`). A density
 #' whose construction fails stops with an error of class
 #' `RoBMA_density_construction_error`; use `density_method = "KDE"` to estimate
-#' it from the posterior draws.
+#' it from the posterior draws. A fitted chain with no eligible row of the
+#' target adds the class `RoBMA_density_chain_coverage`, and the message names
+#' longer chains and their convergence as the other remedy.
 #' [hypothesis()] refuses qCMDE/IWMDE for the same causes with these classes
 #' after its own. [plot_prior()] stops with `RoBMA_density_method_original_scale`
 #' for the prior of a term with several fitted coordinates whose original-scale

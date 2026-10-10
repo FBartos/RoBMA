@@ -772,6 +772,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- qCMDE/IWMDE targets for which a fitted chain has no eligible row (e.g., a
+  conditioned slab that one chain never visits) keep refusing, now with the
+  public class `RoBMA_density_chain_coverage` in front of the construction
+  classes (`hypothesis()` and the density routes add their own public class in
+  front of it) and a message that ends with the remedies: use
+  `density_method = "KDE"`, or run longer chains and check convergence.
 - `bf()`, `post_prob()`, `loo_compare()`, and `loo_model_weights()` compare an
   ordinary fit with a `brma.mv()` fit of the same data whose known `V` has no
   correlated block (`V = diag(sei^2)`); they used to refuse the pair as fitted

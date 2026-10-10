@@ -131,7 +131,10 @@ random-formula models without known \code{V}),
 formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
 Poisson GLMMs). A density whose construction fails stops with an error of
 class \code{RoBMA_density_construction_error}; use
-\code{density_method = "KDE"} to estimate it from the posterior draws.}
+\code{density_method = "KDE"} to estimate it from the posterior draws. A
+fitted chain with no eligible row of the target adds the class
+\code{RoBMA_density_chain_coverage}, and the message names longer chains and
+their convergence as the other remedy.}
 
 \item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }

@@ -34,13 +34,15 @@ review_coefficient_name <- function(setup, term, parameter = "mu") {
   out
 }
 
-# The object of 'setup' with 'samples' (draws x JAGS names) as its fitted
-# posterior, finalized through the BayesTools fit contract.
+# The object of 'setup' with 'samples' (draws x JAGS names; a list of such
+# matrices gives one chain each) as its fitted posterior, finalized through the
+# BayesTools fit contract.
 review_attach_replay <- function(setup, samples) {
 
   object <- setup[["object"]]
+  chains <- if (is.list(samples)) samples else list(samples)
   fit <- structure(
-    list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples)),
+    list(mcmc = coda::mcmc.list(lapply(chains, coda::mcmc)), sample = nrow(chains[[1L]])),
     class = c("BayesTools_fit", "runjags", "list")
   )
   attr(fit, "formula_design") <- object[["formula_design"]]

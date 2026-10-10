@@ -230,7 +230,13 @@
         "no eligible continuous row remains in fitted chain(s): ",
         paste(missing_chains, collapse = ", ")
       ),
-      chain_coverage = chain_coverage
+      chain_coverage  = chain_coverage,
+      condition_class = "RoBMA_density_chain_coverage",
+      remedy          = paste0(
+        "A chain that never visits the conditioned target signals poor mixing. ",
+        "Use density_method = 'KDE' to estimate the density from the posterior ",
+        "draws, or run longer chains and check convergence."
+      )
     )
   }
   if (length(continuous_rows) < 20L) {

@@ -138,7 +138,12 @@ quantities without a supported scalar random-component coordinate), and
 whose fitted map is nonlinear, such as \code{exp(affine)} targets). As in
 \code{\link[=plot.brma]{plot.brma()}}, the capability of the fitted model is checked before these
 causes and before other qCMDE/IWMDE refusals of the tested quantity: a
-request to which both apply stops with the capability refusal.
+request to which both apply stops with the capability refusal. A qCMDE/IWMDE
+ordinate that cannot be constructed stops with
+\code{RoBMA_density_ordinate_error}; when a fitted chain has no eligible row
+of the target, the error also has the class
+\code{RoBMA_density_chain_coverage} and its message names
+\code{density_method = "KDE"} and longer chains as remedies.
 
 Statements that need to be restated, or an argument that needs to change,
 stop with the class \code{RoBMA_hypothesis_statement} without

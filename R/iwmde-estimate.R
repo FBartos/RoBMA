@@ -94,10 +94,13 @@
   tryCatch(
     .iwmde_estimate(...),
     iwmde_construction_error = function(condition) {
-      condition[["message"]] <- paste0(
-        sub("[.]+$", "", condition[["message"]]), ". Use density_method = 'KDE' ",
-        "to estimate this density from the posterior draws."
-      )
+      # a failure that already names its remedy keeps its message
+      if (!inherits(condition, "RoBMA_density_chain_coverage")) {
+        condition[["message"]] <- paste0(
+          sub("[.]+$", "", condition[["message"]]), ". Use density_method = 'KDE' ",
+          "to estimate this density from the posterior draws."
+        )
+      }
       class(condition) <- c("RoBMA_density_construction_error", class(condition))
       stop(condition)
     }

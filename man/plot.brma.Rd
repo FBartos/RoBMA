@@ -230,7 +230,9 @@ coefficients, such as the exponentiated intercept of a scale formula with
 standardized predictors; use \code{standardized_coefficients = TRUE}). A density
 whose construction fails stops with an error of class
 \code{RoBMA_density_construction_error}; use \code{density_method = "KDE"} to estimate
-it from the posterior draws.
+it from the posterior draws. A fitted chain with no eligible row of the
+target adds the class \code{RoBMA_density_chain_coverage}, and the message names
+longer chains and their convergence as the other remedy.
 \code{\link[=hypothesis]{hypothesis()}} refuses qCMDE/IWMDE for the same causes with these classes
 after its own. \code{\link[=plot_prior]{plot_prior()}} stops with \code{RoBMA_density_method_original_scale}
 for the prior of a term with several fitted coordinates whose original-scale

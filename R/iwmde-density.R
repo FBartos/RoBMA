@@ -246,9 +246,13 @@
 }
 
 
+# `condition_class` is a more specific public class placed in front of the
+# construction-error classes; `remedy` closes the message with what to do.
 .iwmde_stop_construction_failure <- function(estimator, parameter, rows,
                                              stage, detail = NULL,
-                                             chain_coverage = NULL) {
+                                             chain_coverage = NULL,
+                                             condition_class = NULL,
+                                             remedy = NULL) {
 
   estimator_label <- if (identical(estimator, "q_grid_cmde") ||
                          identical(estimator, "qCMDE")) {
@@ -284,7 +288,8 @@
 
   message <- paste0(
     estimator_label, " construction failed for target '", parameter,
-    "' at ", row_text, " during ", stage, detail_text, "."
+    "' at ", row_text, " during ", stage, detail_text, ".",
+    if (!is.null(remedy)) paste0(" ", remedy)
   )
   condition <- structure(
     list(
@@ -297,7 +302,7 @@
       detail         = detail,
       chain_coverage = chain_coverage
     ),
-    class = c("iwmde_construction_error", "error", "condition")
+    class = c(condition_class, "iwmde_construction_error", "error", "condition")
   )
   stop(condition)
 }
