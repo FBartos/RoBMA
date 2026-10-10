@@ -1003,7 +1003,7 @@ test_that("an estimate one ulp below a p-value cut with a non-unit SE is assigne
   other <- .test_step_reference(yi, mu, sigma, sei, omega, neighbour)
   expect_gt(min(abs(native[, below] - other[, below])), .1)
 
-  # a fit assigns the same bins to its data: the tenth of ten estimates here
+  # a fit assigns the same bins to its data: the ninth of ten estimates here
   # (SE .29) is not significant, the others are far from the cut
   sei10 <- c(rep(.1, 8L), .29, .1)
   yi10  <- c(.05, .12, .2, .3, .1, .15, .22, .18, cut * .29, .25)
