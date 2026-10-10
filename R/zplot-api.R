@@ -16,8 +16,10 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #' that can be summarized and plotted to assess replicability.
 #'
 #' @param object a normal-outcome \code{brma} object.
-#' @param significance_level z-value threshold for significance. Defaults
-#' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
+#' @param significance_level positive z-value threshold for significance.
+#' Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). A threshold of
+#' zero (two-sided alpha = 1) is refused because the Soric false discovery
+#' rate is undefined there.
 #' @param max_samples maximum number of posterior samples for the EDR and
 #' missing-study summaries. Defaults to 10000. Use \code{Inf} to use all
 #' posterior samples. The density budget is supplied separately to
@@ -157,7 +159,7 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                           conditioning_depth = "marginal",
                           integration_control = set_selection_likelihood_control(), ...) {
 
-  BayesTools::check_real(significance_level, "significance_level", lower = 0)
+  BayesTools::check_real(significance_level, "significance_level", lower = 0, allow_bound = FALSE)
   max_samples        <- .normalize_max_samples(max_samples, "max_samples")
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
@@ -245,8 +247,10 @@ zplot <- function(object, ...) UseMethod("zplot")
 #'
 #' @param object a normal-outcome \code{brma} object, or a
 #' \code{zplot_brma} object.
-#' @param significance_level z-value threshold for significance. Defaults
-#' to \code{qnorm(0.975)} (two-sided alpha = 0.05).
+#' @param significance_level positive z-value threshold for significance.
+#' Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). A threshold of
+#' zero (two-sided alpha = 1) is refused because the Soric false discovery
+#' rate is undefined there.
 #' @param summary_max_samples maximum number of posterior samples used for the
 #' EDR and missing-study summaries stored in the generated zplot object.
 #' This is separate from the plot-density \code{max_samples} argument accepted

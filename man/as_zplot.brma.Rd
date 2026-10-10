@@ -17,8 +17,10 @@
 \arguments{
 \item{object}{a normal-outcome \code{brma} object.}
 
-\item{significance_level}{z-value threshold for significance. Defaults
-to \code{qnorm(0.975)} (two-sided alpha = 0.05).}
+\item{significance_level}{positive z-value threshold for significance.
+Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). A threshold of
+zero (two-sided alpha = 1) is refused because the Soric false discovery
+rate is undefined there.}
 
 \item{max_samples}{maximum number of posterior samples for the EDR and
 missing-study summaries. Defaults to 10000. Use \code{Inf} to use all

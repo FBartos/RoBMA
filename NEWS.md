@@ -772,6 +772,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stderr of parallel JAGS workers during fitting and extension.
 
 ### Fixes
+- `as_zplot()` and `zplot()` stop for a `significance_level` that is not
+  positive. A zero z threshold (two-sided alpha 1) gave an expected discovery
+  rate of 1 and an undefined Soric false discovery rate, so that `summary()`
+  and `print()` failed on the returned object; any positive threshold, however
+  small, is accepted.
 - scale `dfbetas()` (`type = "scale"`) follows `standardized_coefficients`
   like the location coefficients: by default (`standardized_coefficients =
   FALSE`) the scale coefficients of standardized predictors are returned on the
