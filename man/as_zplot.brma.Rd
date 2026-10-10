@@ -18,9 +18,13 @@
 \item{object}{a normal-outcome \code{brma} object.}
 
 \item{significance_level}{positive z-value threshold for significance.
-Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). A threshold of
-zero (two-sided alpha = 1) is refused because the Soric false discovery
-rate is undefined there.}
+Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). The threshold must
+be finite and its two-sided alpha,
+\code{2 * pnorm(significance_level, lower.tail = FALSE)}, strictly between 0
+and 1. Zero (alpha = 1), a threshold so small that its alpha rounds to 1
+(below about 1e-16), and one so large that its alpha underflows to 0 (above
+about 38.4) are refused because the Soric false discovery rate is undefined
+there.}
 
 \item{max_samples}{maximum number of posterior samples for the EDR and
 missing-study summaries. Defaults to 10000. Use \code{Inf} to use all

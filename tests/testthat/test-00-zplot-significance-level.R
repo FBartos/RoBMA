@@ -30,9 +30,35 @@ test_that("as_zplot requires a positive z threshold", {
     )
   }
 
-  # any positive z threshold is a valid reporting rule, including a tiny one
-  # whose two-sided alpha is still below 1
-  for (value in c(1e-8, .05, 1, stats::qnorm(.975))) {
+  # a threshold needs a two-sided alpha strictly between 0 and 1: NA and
+  # infinite values, thresholds so small that the alpha rounds to 1 (which
+  # constructed an object that failed in summary()) and so large that it
+  # underflows to 0 are refused with the same reason
+  for (value in c(NA, NaN, Inf, 1e-17, 1e-300, 39, 1e3)) {
+    for (call in list(
+      quote(as_zplot(fit, significance_level = value)),
+      quote(zplot(fit, significance_level = value))
+    )) {
+      expect_error(
+        eval(call), "'significance_level' (must be|argument cannot)",
+        info = format(value)
+      )
+    }
+  }
+  for (value in c(Inf, 1e-17, 39)) {
+    expect_error(
+      as_zplot(fit, significance_level = value),
+      "alpha, 2 * pnorm(significance_level, lower.tail = FALSE), is strictly between 0 and 1",
+      fixed = TRUE, info = format(value)
+    )
+  }
+  # the refusal is by the two-sided alpha itself
+  expect_identical(2 * stats::pnorm(1e-17, lower.tail = FALSE), 1)
+  expect_identical(2 * stats::pnorm(39, lower.tail = FALSE), 0)
+
+  # any z threshold whose two-sided alpha is strictly between 0 and 1 is a
+  # valid reporting rule, including a tiny one whose alpha is still below 1
+  for (value in c(1e-15, 1e-8, .05, 1, stats::qnorm(.975))) {
     zfit <- as_zplot(fit, significance_level = value, max_samples = 100)
     expect_s3_class(zfit, "zplot_brma")
     expect_identical(zfit[["zplot"]][["data"]][["significance_level"]], value)

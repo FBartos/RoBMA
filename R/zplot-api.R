@@ -17,9 +17,13 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #'
 #' @param object a normal-outcome \code{brma} object.
 #' @param significance_level positive z-value threshold for significance.
-#' Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). A threshold of
-#' zero (two-sided alpha = 1) is refused because the Soric false discovery
-#' rate is undefined there.
+#' Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). The threshold must
+#' be finite and its two-sided alpha,
+#' \code{2 * pnorm(significance_level, lower.tail = FALSE)}, strictly between 0
+#' and 1. Zero (alpha = 1), a threshold so small that its alpha rounds to 1
+#' (below about 1e-16), and one so large that its alpha underflows to 0 (above
+#' about 38.4) are refused because the Soric false discovery rate is undefined
+#' there.
 #' @param max_samples maximum number of posterior samples for the EDR and
 #' missing-study summaries. Defaults to 10000. Use \code{Inf} to use all
 #' posterior samples. The density budget is supplied separately to
@@ -159,7 +163,7 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                           conditioning_depth = "marginal",
                           integration_control = set_selection_likelihood_control(), ...) {
 
-  BayesTools::check_real(significance_level, "significance_level", lower = 0, allow_bound = FALSE)
+  .check_zplot_significance_level(significance_level)
   max_samples        <- .normalize_max_samples(max_samples, "max_samples")
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
@@ -248,9 +252,13 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' @param object a normal-outcome \code{brma} object, or a
 #' \code{zplot_brma} object.
 #' @param significance_level positive z-value threshold for significance.
-#' Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). A threshold of
-#' zero (two-sided alpha = 1) is refused because the Soric false discovery
-#' rate is undefined there.
+#' Defaults to \code{qnorm(0.975)} (two-sided alpha = 0.05). The threshold must
+#' be finite and its two-sided alpha,
+#' \code{2 * pnorm(significance_level, lower.tail = FALSE)}, strictly between 0
+#' and 1. Zero (alpha = 1), a threshold so small that its alpha rounds to 1
+#' (below about 1e-16), and one so large that its alpha underflows to 0 (above
+#' about 38.4) are refused because the Soric false discovery rate is undefined
+#' there.
 #' @param summary_max_samples maximum number of posterior samples used for the
 #' EDR and missing-study summaries stored in the generated zplot object.
 #' This is separate from the plot-density \code{max_samples} argument accepted
@@ -303,6 +311,37 @@ zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
 zplot.zplot_brma <- function(object, ...) {
 
   return(plot(object, ...))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .check_zplot_significance_level
+# ---------------------------------------------------------------------------- #
+#
+# The z threshold of a zplot needs a two-sided alpha strictly inside (0, 1):
+# the expected discovery rate and the Soric false discovery rate
+# (1 / EDR - 1) * alpha / (1 - alpha) are undefined at alpha = 1 (a zero or
+# numerically zero threshold) and degenerate at alpha = 0.
+#
+# ---------------------------------------------------------------------------- #
+.check_zplot_significance_level <- function(significance_level) {
+
+  BayesTools::check_real(
+    significance_level, "significance_level", lower = 0, allow_bound = FALSE,
+    allow_NA = FALSE
+  )
+
+  alpha <- 2 * stats::pnorm(significance_level, lower.tail = FALSE)
+  if (!is.finite(significance_level) || !(alpha > 0 && alpha < 1)) {
+    stop(
+      "The 'significance_level' must be a finite z threshold whose two-sided ",
+      "alpha, 2 * pnorm(significance_level, lower.tail = FALSE), is strictly ",
+      "between 0 and 1; the Soric false discovery rate is undefined otherwise.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
 }
 
 

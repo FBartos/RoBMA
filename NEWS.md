@@ -823,11 +823,14 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   `V` with correlated blocks remains a different target. LOO and WAIC results
   that earlier development versions of 4.1 stored for a diagonal known `V`
   carry the previous hash; recompute them with `add_loo()` or `add_waic()`.
-- `as_zplot()` and `zplot()` stop for a `significance_level` that is not
-  positive. A zero z threshold (two-sided alpha 1) gave an expected discovery
+- `as_zplot()` and `zplot()` stop for a `significance_level` that is missing,
+  infinite, not positive, or whose two-sided alpha
+  (`2 * pnorm(significance_level, lower.tail = FALSE)`) is not strictly between
+  0 and 1. A zero z threshold (two-sided alpha 1) gave an expected discovery
   rate of 1 and an undefined Soric false discovery rate, so that `summary()`
-  and `print()` failed on the returned object; any positive threshold, however
-  small, is accepted.
+  and `print()` failed on the returned object, as did thresholds below about
+  1e-16, whose alpha rounds to 1, and `NA` or `Inf`; a z threshold whose alpha
+  is below 1 (from about 1e-16 up to about 38.4) is accepted.
 - scale `dfbetas()` (`type = "scale"`) follows `standardized_coefficients`
   like the location coefficients: by default (`standardized_coefficients =
   FALSE`) the scale coefficients of standardized predictors are returned on the
