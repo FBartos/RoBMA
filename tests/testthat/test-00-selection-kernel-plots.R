@@ -544,8 +544,10 @@ test_that("native mixture quantiles resolve narrow components inside wide bracke
   # Overlapping components keep their ordinary root.
   expect_equal(quantile_at(c(0, 1), c(1, 1), c(.5, .5), .5), .5, tolerance = 1e-12)
 
-  # Random mixtures: the quantile equals the generalized inverse of the CDF
-  # (an R bisection on adjacent doubles) and sits at the crossing of p.
+  # Random mixtures: the quantile agrees with the generalized inverse of the CDF
+  # (an R bisection on adjacent doubles) to the root tolerance, and the CDF at
+  # it is p to rounding. The root is resolved to a tolerance on the local scale,
+  # not to adjacent doubles, so its CDF level is compared rather than its bits.
   set.seed(20261009)
   S <- 50L
   for (probs in list(.025, .5, .975)) {
@@ -555,7 +557,7 @@ test_that("native mixture quantiles resolve narrow components inside wide bracke
     native <- quantile_at(means, sds, rep(1, S), probs)
     expect_equal(native, .regplot_mixture_quantile(probs, means, sds, cdf),
       tolerance = 1e-10)
-    expect_gte(cdf(native), probs - 4e-16)
+    expect_lte(abs(cdf(native) - probs), 1e-15)
     expect_lt(cdf(native - 1e-9), probs)
   }
 })

@@ -26,10 +26,9 @@ inline double plot_root_local_tolerance(double point, double absolute_tolerance)
   return 2 * DBL_EPSILON * std::fabs(point) + absolute_tolerance;
 }
 
-// Brent's method on the sign change of `function`. On return `*root_value` is
-// the function value at the returned point and `*bracket` / `*bracket_value`
-// the opposite end of the final bracket, so a caller can finish on adjacent
-// doubles with its own predicate.
+// Brent's method on the sign change of `function`, resolved to the local
+// tolerance at the iterate (the root is not refined to adjacent doubles). On
+// return `*root_value` is the function value at the returned point.
 template <typename Function>
 double plot_brent_root(Function function,
                        double lower,
@@ -37,9 +36,7 @@ double plot_brent_root(Function function,
                        double lower_value,
                        double upper_value,
                        double absolute_tolerance,
-                       double *root_value = NULL,
-                       double *final_bracket = NULL,
-                       double *final_bracket_value = NULL)
+                       double *root_value = NULL)
 {
   double previous       = lower;
   double current        = upper;
@@ -75,12 +72,6 @@ double plot_brent_root(Function function,
     if (current_value == 0 || std::fabs(bisection_step) < delta) {
       if (root_value != NULL) {
         *root_value = current_value;
-      }
-      if (final_bracket != NULL) {
-        *final_bracket = bracket;
-      }
-      if (final_bracket_value != NULL) {
-        *final_bracket_value = bracket_value;
       }
       return current;
     }

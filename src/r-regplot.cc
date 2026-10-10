@@ -682,79 +682,19 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
   }
 
   if (all_positive_sd && ctx.full_support) {
-    const double bracket_lower = lower;
-    const double bracket_lower_value = lower_value;
+    // Brent's iterate on the sign-change bracket, resolved to a tolerance on
+    // the scale of the narrowest component (not to adjacent doubles).
     double root_value = NA_REAL;
-    double opposite = NA_REAL;
-    double opposite_value = NA_REAL;
     const double root = RoBMA::plot_brent_root(
       [&ctx, p](double value) {
         return plot_mixture_cdf(value, ctx) - p;
       },
       lower, upper, lower_value, upper_value, absolute_tolerance,
-      &root_value, &opposite, &opposite_value
+      &root_value
     );
     if (std::isfinite(root)) {
-      // The quantile is the generalized inverse inf{q : F(q) >= p} of the
-      // computed CDF. Brent's final bracket is finished on adjacent doubles
-      // with that predicate; a bracket Brent did not leave (it stopped on an
-      // exact zero) is re-established around the root first.
-      double step_out = RoBMA::plot_root_local_tolerance(root, absolute_tolerance);
-      if (root_value >= 0) {
-        upper = root;
-        upper_value = root_value;
-        if (opposite < upper && opposite_value < 0) {
-          lower = opposite;
-          lower_value = opposite_value;
-        } else {
-          while (true) {
-            const double trial = upper - step_out;
-            if (!(trial > bracket_lower)) {
-              lower = bracket_lower;
-              lower_value = bracket_lower_value;
-              break;
-            }
-            const double trial_value = plot_mixture_cdf(trial, ctx) - p;
-            if (!std::isfinite(trial_value)) {
-              return NA_REAL;
-            }
-            if (trial_value < 0) {
-              lower = trial;
-              lower_value = trial_value;
-              break;
-            }
-            upper = trial;
-            upper_value = trial_value;
-            step_out *= 2;
-          }
-        }
-      } else {
-        lower = root;
-        lower_value = root_value;
-        if (opposite > lower && opposite_value >= 0) {
-          upper = opposite;
-          upper_value = opposite_value;
-        } else {
-          while (true) {
-            const double trial = lower + step_out;
-            if (!(trial < upper)) {
-              break;
-            }
-            const double trial_value = plot_mixture_cdf(trial, ctx) - p;
-            if (!std::isfinite(trial_value)) {
-              return NA_REAL;
-            }
-            if (trial_value >= 0) {
-              upper = trial;
-              upper_value = trial_value;
-              break;
-            }
-            lower = trial;
-            lower_value = trial_value;
-            step_out *= 2;
-          }
-        }
-      }
+      *quantile_cdf = p + root_value;
+      return root;
     }
   }
 
