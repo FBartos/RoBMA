@@ -963,3 +963,62 @@ test_that("step selected-normal RNG handles signed extreme tail truncation", {
   expect_true(all(signed_z >= spec[["z_lower"]][1] - 1e-10))
   expect_true(all(out[, 1] < 0))
 })
+
+
+test_that("an estimate one ulp below a p-value cut with a non-unit SE is assigned the same bin by R and the kernel", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # 4.0.0 snapped p-values within 1e-12 of a cut onto it; the cuts now compare
+  # exactly, so that the product yi = cut * sei, whose quotient yi / sei rounds
+  # below the cut for some SEs (e.g., .29), lies in the next bin
+  cut   <- stats::qnorm(.025, lower.tail = FALSE)
+  sei   <- seq(.01, 2, by = .01)
+  yi    <- cut * sei
+  below <- yi / sei < cut
+  expect_gt(sum(below), 0L)
+  expect_true(below[29L])
+  expect_equal(sei[29L], .29, tolerance = 1e-12)
+  expect_true(all(yi[!below] / sei[!below] >= cut))
+
+  expected <- ifelse(below, 2L, 1L)
+  p_cuts   <- c(0, .025, .05, .5, 1)
+  expect_identical(.selection_obs_bin(yi, sei, p_cuts, sign = 1L), expected)
+  spec <- .test_step_spec(yi, sei)
+  expect_identical(as.integer(spec[["obs_bin"]]), expected)
+
+  # the kernel likelihood is that of the assigned bin, not of the neighbouring one
+  K      <- length(yi)
+  mu     <- matrix(.1, 1L, K)
+  sigma  <- matrix(.2, 1L, K)
+  omega  <- matrix(c(1, .7, .35, .2), 1L, 4L)
+  native <- .selnorm_kernel_loglik_matrix(
+    yi = yi, mu_num = mu, sigma_num = sigma, sei = sei,
+    omega = omega, selection_spec = spec
+  )
+  expect_equal(native, .test_step_reference(yi, mu, sigma, sei, omega, spec),
+               tolerance = 1e-12)
+  neighbour <- spec
+  neighbour[["obs_bin"]] <- ifelse(below, 1L, 2L)
+  other <- .test_step_reference(yi, mu, sigma, sei, omega, neighbour)
+  expect_gt(min(abs(native[, below] - other[, below])), .1)
+
+  # a fit assigns the same bins to its data: the tenth of ten estimates here
+  # (SE .29) is not significant, the others are far from the cut
+  sei10 <- c(rep(.1, 8L), .29, .1)
+  yi10  <- c(.05, .12, .2, .3, .1, .15, .22, .18, cut * .29, .25)
+  expect_lt(yi10[9L] / sei10[9L], cut)
+  object <- bselmodel(
+    yi = yi10, sei = sei10, measure = "GEN", prior_unit_information_sd = 1,
+    effect_direction = "positive", only_priors = TRUE, silent = TRUE,
+    prior_bias = BayesTools::prior_weightfunction(
+      "one-sided", steps = .025, weights = BayesTools::wf_cumulative(c(1, 1))
+    )
+  )
+  fit_data <- .create_fit_data(object[["data"]], object[["priors"]])
+  expect_identical(
+    as.integer(fit_data[["sel_joint_singleton_obs_bin"]]),
+    ifelse(yi10 / sei10 >= cut, 1L, 2L)
+  )
+  expect_identical(as.integer(fit_data[["sel_joint_singleton_obs_bin"]])[9L], 2L)
+})

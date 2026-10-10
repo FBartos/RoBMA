@@ -131,6 +131,18 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     reference and fixed weight-function bins) are reported as structural
     constants.
 - results:
+  - selection-model p-value cuts compare exactly: an estimate is in the more
+    significant bin when its one-sided z-score `sign * yi / sei` is at least
+    `qnorm(cut, lower.tail = FALSE)`, in the R bin assignment and in the
+    native likelihood. 4.0.0 first snapped every p-value within 1e-12 of a cut
+    onto the cut, which also moved estimates whose z-score rounds just below
+    the cut. For example, with the cut `.025`, `cut_z <- qnorm(.025,
+    lower.tail = FALSE)`, and `yi = cut_z * sei` at `sei = .29`, the z-score
+    `yi / sei` is one ulp below `cut_z`: the estimate is now in the
+    non-significant bin (as for 19 of the 200 standard errors `.01, .02, ..., 2`),
+    where 4.0.0 placed it in the significant bin. Refits of such data can
+    differ slightly from 4.0.0; with `sei = 1` the product is exact and the
+    bins agree.
   - fits with a given `seed` give different draws than 4.0.0: BayesTools
     derives each chain's JAGS seed from `seed` through R's random-number
     generator instead of `seed + chain`, and samples two-bin cumulative
