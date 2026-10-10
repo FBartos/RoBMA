@@ -81,12 +81,31 @@ test_that("an ordinary fit and an identical diagonal known-V fit compare", {
   # (eight estimates leave some importance weights heavy-tailed; the scores
   # compared are the same computation for both fits)
   add_loo_quietly <- function(object) suppressWarnings(add_loo(replay(object)))
-  loo_ordinary <- add_loo_quietly(ordinary)
-  loo_diagonal <- add_loo_quietly(diagonal)
+  loo_ordinary   <- add_loo_quietly(ordinary)
+  loo_diagonal   <- add_loo_quietly(diagonal)
+  loo_correlated <- add_loo_quietly(correlated)
   comparison   <- loo_compare(loo_ordinary, loo_diagonal)
   expect_equal(unname(comparison[, "elpd_diff"]), c(0, 0), tolerance = 1e-10)
   expect_error(
-    loo_compare(loo_ordinary, add_loo_quietly(correlated)),
+    loo_compare(loo_ordinary, loo_correlated),
+    "different data, unit, or retained-context targets"
+  )
+
+  # predictive model weights of the pair: identical pointwise scores give
+  # equal pseudo-BMA weights, and the stacking weights are a distribution over
+  # the two models; a correlated V is a different target
+  pseudobma <- loo_model_weights(
+    loo_ordinary, loo_diagonal, method = "pseudobma", BB = FALSE
+  )
+  expect_equal(as.numeric(pseudobma), c(.5, .5), tolerance = 1e-12)
+  expect_identical(
+    names(pseudobma), c("loo_ordinary", "loo_diagonal")
+  )
+  stacking <- loo_model_weights(loo_ordinary, loo_diagonal)
+  expect_equal(sum(stacking), 1, tolerance = 1e-12)
+  expect_true(all(stacking >= 0))
+  expect_error(
+    loo_model_weights(loo_ordinary, loo_correlated),
     "different data, unit, or retained-context targets"
   )
 })
