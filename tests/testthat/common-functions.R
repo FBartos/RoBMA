@@ -862,10 +862,10 @@ fit_catalog <- function() {
   return(catalog)
 }
 
-fit_catalog_entry <- function(name) {
+# `catalog` lets a caller that looks up many fits build the catalog once.
+fit_catalog_entry <- function(name, catalog = fit_catalog()) {
 
-  catalog <- fit_catalog()
-  index   <- match(name, catalog[["name"]])
+  index <- match(name, catalog[["name"]])
 
   if (is.na(index)) {
     return(NULL)
@@ -874,9 +874,8 @@ fit_catalog_entry <- function(name) {
   return(catalog[index, , drop = FALSE])
 }
 
-active_fit_catalog <- function() {
+active_fit_catalog <- function(catalog = fit_catalog()) {
 
-  catalog <- fit_catalog()
   if (!is_certification_profile()) {
     catalog <- catalog[catalog[["profile"]] == "standard", , drop = FALSE]
   }
@@ -938,9 +937,8 @@ catalog_group_fits <- function(name, active_only = TRUE) {
 }
 
 catalog_fits <- function(feature, class, family, has_metafor, has_loo,
-                         has_waic, has_marglik, tier) {
-
-  catalog <- fit_catalog()
+                         has_waic, has_marglik, tier,
+                         catalog = fit_catalog()) {
 
   if (!missing(feature) && !is.null(feature)) {
     catalog <- catalog[vapply(catalog[["features"]], function(x) all(feature %in% x), TRUE), , drop = FALSE]
@@ -1611,11 +1609,14 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
                                   bayestools_backend_fingerprint(
                                     required = FALSE
                                   ),
-                                package_md5 = NULL) {
+                                package_md5 = NULL, catalog = NULL) {
 
   messages <- character()
   paths    <- fit_cache_paths(name)
-  entry    <- fit_catalog_entry(name)
+  if (is.null(catalog)) {
+    catalog <- fit_catalog()
+  }
+  entry    <- fit_catalog_entry(name, catalog)
 
   if (check_files && !file.exists(paths[["fit"]]) && is.null(fit)) {
     messages <- c(messages, "fit file is missing")
@@ -1979,8 +1980,11 @@ list_fits <- function(name, feature, class, family, has_metafor, has_loo,
   files <- suppressWarnings(list.files(temp_fits_dir, pattern = "\\.RDS$"))
   files <- sub("\\.RDS$", "", files)
 
+  # One catalog per call: validating a fit looks its entry up in the catalog.
+  catalog <- fit_catalog()
+
   if (active_only) {
-    files <- intersect(files, active_fit_catalog()[["name"]])
+    files <- intersect(files, active_fit_catalog(catalog)[["name"]])
   }
 
   if (!missing(name)) {
@@ -1998,7 +2002,8 @@ list_fits <- function(name, feature, class, family, has_metafor, has_loo,
       has_loo     = if (!missing(has_loo)) has_loo else NULL,
       has_waic    = if (!missing(has_waic)) has_waic else NULL,
       has_marglik = if (!missing(has_marglik)) has_marglik else NULL,
-      tier        = if (!missing(tier)) tier else NULL
+      tier        = if (!missing(tier)) tier else NULL,
+      catalog     = catalog
     )
     files <- intersect(files, selected)
   }
@@ -2011,7 +2016,8 @@ list_fits <- function(name, feature, class, family, has_metafor, has_loo,
         length(validate_cached_fit(
           name        = name,
           deep        = deep,
-          package_md5 = package_md5
+          package_md5 = package_md5,
+          catalog     = catalog
         )) == 0L
       },
       logical(1)
