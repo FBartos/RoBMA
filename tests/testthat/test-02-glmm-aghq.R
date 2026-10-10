@@ -282,6 +282,60 @@ test_that("exact beta-binomial shortcut equals lbeta differences for moderate sh
 })
 
 
+test_that("exact beta-binomial shortcut keeps the log-gamma increments below 16", {
+
+  # Increments log Gamma(z + t) - log Gamma(z) with z < 16 (z = alpha, beta and
+  # alpha + beta: all six shape pairs have alpha + beta < 16) are the plain
+  # difference of two log-gamma values. Counts (a, c, n1, n2) and likelihood
+  # weights w give t = w (a + c) from 0.13 to 5000 and w (n1 + n2 - a - c) from
+  # 0.97 to 13000. 60-digit mpmath values of
+  #   w (log C(n1, a) + log C(n2, c)) + D(alpha, e) + D(beta, n - e) -
+  #   D(alpha + beta, n),  D(z, t) = lgamma(z + t) - lgamma(z),
+  # e = w (a + c), n = w (n1 + n2); compared per cell with an absolute
+  # tolerance of 1e-13 for values below 1 and a relative one above.
+  ai <- c(1L, 3L, 8L, 3L, 3L, 8L, 3L, 3L)
+  ci <- c(0L, 2L, 5L, 2L, 2L, 5L, 2L, 2L)
+  n1i <- c(1L, 10L, 60L, 10L, 10L, 60L, 10L, 10L)
+  n2i <- c(1L, 8L, 50L, 8L, 8L, 50L, 8L, 8L)
+  weights <- c(1, 1, 1, .5, 2.5, .01, 50, 1000)
+  cases <- list(
+    list(shapes = c(0.5, 0.5), value = c(
+      -2.0794415416798359283, -4.2025887170617863969, -6.3128805713994477185,
+      -2.6143108468821985218, -8.4242489408065669333, -0.59572108178606644264,
+      -129.40052109612378402, -2520.5890510424101252)),
+    list(shapes = c(1, 1), value = c(
+      -1.7917594692280550008, -3.8805323383367752382, -6.2969490466446527857,
+      -2.3092266074910831562, -8.090832744028430503, -0.49942413195023106158,
+      -129.05938752016674643, -2520.2475202181369027)),
+    list(shapes = c(2.5, 7.3), value = c(
+      -1.7577634397781997241, -3.0870022605110920958, -5.3748848887333106882,
+      -1.620961314612767903, -7.2123531844171271289, -0.13207092068295665132,
+      -128.11383179058469678, -2519.2982584250863632)),
+    list(shapes = c(0.01, 15.5), value = c(
+      -7.409781397183374506, -10.377787518691391299, -10.446505795696202998,
+      -8.0629461241824517361, -15.331089520943065029, -2.6982201646095804546,
+      -137.03395998320866366, -2528.2679688944615381)),
+    list(shapes = c(14, 1.5), value = c(
+      -2.4996779671083128661, -10.818985324643229082, -25.616185664127602963,
+      -7.2221976479569756632, -17.491831211851447491, -1.9325410176264752254,
+      -141.53357272390982945, -2532.9448118143548388)),
+    list(shapes = c(15.9, 0.05), value = c(
+      -5.829139827385117962, -17.443877587396626256, -35.071548364923925978,
+      -12.99010730939690261, -25.075248598703094999, -5.3115793696306189951,
+      -150.33448996348256676, -2541.8392555745124572))
+  )
+  for (case in cases) {
+    out <- .glmm_binom_aghq(ai, ci, n1i, n2i, matrix(0, 1L, 8L),
+      matrix(0, 1L, 8L), weights,
+      c(alpha = case$shapes[[1L]], beta = case$shapes[[2L]]))
+    expect_equal(out[["exact_count"]], 8L)
+    error <- abs(out[["value"]][1L, ] - case$value) / pmax(1, abs(case$value))
+    expect_lt(max(error), 1e-13,
+      label = paste("error at shapes", case$shapes[[1L]], case$shapes[[2L]]))
+  }
+})
+
+
 test_that("exact beta-binomial shortcut is a normalized distribution", {
 
   n <- 6L

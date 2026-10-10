@@ -726,17 +726,6 @@ SEXP make_result(SEXP value, const QuadratureDiagnostics &diagnostics,
 }
 
 
-// log(1 + t / z) for z, t > 0 without overflowing the ratio.
-inline double log1p_ratio(double t, double z)
-{
-  const double ratio = t / z;
-  if (std::isinf(ratio)) {
-    return std::log(t) - std::log(z) + std::log1p(z / t);
-  }
-  return std::log1p(ratio);
-}
-
-
 // log Gamma(z + t) - log Gamma(z) for z >= 16 and t > 0 given as r = t / z,
 // log z and 1 / z (so that a z beyond the largest double can be passed
 // without being formed): with L = log1p(r) and h(r) = ((1 + r) L - r) / r the
@@ -776,10 +765,12 @@ double log_gamma_increment_lifted(double t, double ratio, double log_z,
 }
 
 
-// log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0, evaluated as a
-// difference of the Stirling series so that no two large log-gamma values
-// are subtracted: the recurrence lifts z to at least 16. A non-finite or
-// non-positive argument gives NaN.
+// log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0. Below z = 16 it is the
+// plain difference of the two log-gamma values, whose absolute error is at
+// most about 1e-14 (it loses relative accuracy only for t << z, where the
+// increment itself is tiny); from z = 16 it is the Stirling-series difference
+// of log_gamma_increment_lifted, so that no two large log-gamma values are
+// subtracted. A non-finite or non-positive argument gives NaN.
 double log_gamma_increment(double z, double t)
 {
   if (!(z > 0.0) || !(t >= 0.0) || !std::isfinite(z) || !std::isfinite(t)) {
@@ -788,13 +779,10 @@ double log_gamma_increment(double z, double t)
   if (t == 0.0) {
     return 0.0;
   }
-  double recurrence = 0.0;
-  while (z < 16.0) {
-    recurrence += log1p_ratio(t, z);
-    z += 1.0;
+  if (z < 16.0) {
+    return std::lgamma(z + t) - std::lgamma(z);
   }
-  return log_gamma_increment_lifted(t, t / z, std::log(z), 1.0 / z) -
-    recurrence;
+  return log_gamma_increment_lifted(t, t / z, std::log(z), 1.0 / z);
 }
 
 
@@ -822,6 +810,29 @@ double log_gamma_increment_sum(double a, double b, double t)
     t, t / high / scale, std::log(high) + std::log1p(low / high),
     1.0 / high / scale
   );
+}
+
+
+// The exact (mu = tau = 0) value is kept out of line: inlined into the
+// per-cell loop of run_binomial it changed the placement of that loop and
+// slowed the adaptive quadrature sharing it by about a third (g++ 14, -O2),
+// although no cell of such a call reaches the exact branch.
+#if defined(__GNUC__) || defined(__clang__)
+#define ROBMA_GLMM_NOINLINE __attribute__((noinline))
+#else
+#define ROBMA_GLMM_NOINLINE
+#endif
+
+// log B(alpha + e, beta + n) - log B(alpha, beta) plus the powered binomial
+// coefficient, as the sum of log-gamma increments, which keeps the events and
+// non-events when the shapes are large.
+ROBMA_GLMM_NOINLINE double exact_beta_binomial_value(
+  const BinomialProblem &problem, double events, double nonevents)
+{
+  return problem.weight * problem.log_coefficient +
+    log_gamma_increment(problem.alpha, events) +
+    log_gamma_increment(problem.beta, nonevents) -
+    log_gamma_increment_sum(problem.alpha, problem.beta, events + nonevents);
 }
 
 
@@ -920,14 +931,7 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
           total - observed
         );
 
-        // log B(alpha + e, beta + n) - log B(alpha, beta) as the sum of
-        // log-gamma increments, which keeps the events and non-events when the
-        // shapes are large.
-        result.value = problem.weight * problem.log_coefficient +
-          log_gamma_increment(problem.alpha, events) +
-          log_gamma_increment(problem.beta, nonevents) -
-          log_gamma_increment_sum(problem.alpha, problem.beta,
-                                  events + nonevents);
+        result.value = exact_beta_binomial_value(problem, events, nonevents);
         if (!std::isfinite(result.value)) {
           Rf_error(
             "Exact powered beta-binomial value is nonfinite at sample %d, "
