@@ -560,6 +560,19 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - hypothesis tables name repeated rows by statement (`g1 (1)`,
     `g1 (3)`), keep the plain label for single statements, and print the
     public labels of the tested quantities.
+  - `hypothesis()` on `marginal_means()` results tests statements on the
+    marginal means of different parameters in one call (e.g.,
+    `c("g[a] > 0", "h[b] > 0")`): each statement is tested on the parameter
+    it names, and the rows, in the order of the statements, are those of the
+    statements tested alone. An explicit `parameter` applies to every
+    statement; a statement that refers to the marginal means of another
+    parameter stops with `RoBMA_hypothesis_parameter_mismatch` (parent
+    `RoBMA_hypothesis_statement`) naming the statement and both parameters.
+    A statement that names several parameters (`"g[a] > h[b]"`) stays
+    `RoBMA_hypothesis_ambiguous` and now states that one statement refers to
+    the marginal means of one parameter. Model-averaged objects still refuse
+    requests that mix point and region statements and requests with point
+    statements on more than one level, counted over all parameters.
 - posterior densities and point ordinates (qCMDE and IWMDE):
   - ordered effects now condition on their fitted total or grouped/pair share
     sources, replay all shared consumers, and count the original ordered priors

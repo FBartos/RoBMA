@@ -1,9 +1,21 @@
 #' @rdname hypothesis
 #'
 #' @param parameter optional marginal-means parameter/term used to disambiguate
-#' the hypothesis expression. Without it, an alias or statement that names
-#' several marginal-means parameters stops with an error of class
+#' the hypothesis expression. Without it, each statement is tested on the
+#' marginal means of the parameter it names, so that separate statements may
+#' refer to different parameters (for example
+#' \code{c("g[a] > 0", "h[b] > 0")}); the rows are those of the statements
+#' tested one at a time, in the order of the statements. One statement must
+#' refer to the marginal means of one parameter: a statement that names
+#' several (for example \code{"g[a] > h[b]"}), or an alias that names several
+#' parameters, stops with an error of class
 #' \code{RoBMA_hypothesis_ambiguous}, with the parent class
+#' \code{RoBMA_hypothesis_statement}; \code{parameter} selects the parameter
+#' of an ambiguous alias. With \code{parameter}, every statement is tested on
+#' that parameter, and a statement that refers to the marginal means of
+#' another parameter (also \code{"g[a] > h[b]"} with
+#' \code{parameter = "g"}) stops with an error of class
+#' \code{RoBMA_hypothesis_parameter_mismatch}, with the parent class
 #' \code{RoBMA_hypothesis_statement}. A statement that references no
 #' marginal-means parameter stops with the class
 #' \code{RoBMA_hypothesis_statement}; for a statement without parameter
@@ -20,10 +32,11 @@
 #' Model-averaged point-null hypotheses use alternative-conditioned draws to
 #' avoid null atoms in averaged marginals. For model-averaged objects,
 #' hypotheses that mix point and region events, and point hypotheses spanning
-#' multiple factor levels, are not supported. Single-model hypotheses use one
-#' common averaged posterior and may combine these events. Point hypotheses
-#' require the exact prior ordinate that BayesTools attaches to the marginal
-#' mean, as for fitted objects.
+#' multiple factor levels (of one parameter or of several), are not
+#' supported; region hypotheses may refer to several parameters.
+#' Single-model hypotheses use one common averaged posterior and may combine
+#' these events. Point hypotheses require the exact prior ordinate that
+#' BayesTools attaches to the marginal mean, as for fitted objects.
 #'
 #' @export
 hypothesis.marginal_means.brma <- function(object, hypothesis,
@@ -48,22 +61,25 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   # Every statement is planned before any is evaluated. The planning and the
   # evaluation have the catch point of the fitted-object method for
-  # BayesTools' refusals of the statements' references.
+  # BayesTools' refusals of the statements' references. Each statement is
+  # planned on the marginal means of the parameter it names (or of
+  # 'parameter'), so that statements on several parameters are tested in one
+  # call; the statements of a parameter are evaluated together, and the
+  # results are bound in the order of the statements.
   .hypothesis_catch_statement_resolution({
     hypothesis <- BayesTools::hypothesis_parse(hypothesis)
-    selected <- .hypothesis_marginal_means_select_parameter(
-      object     = object,
-      hypothesis = hypothesis,
-      parameter  = parameter
-    )
-    parameter <- selected[["parameter"]]
     density_method <- .marginal_means_density_method(object, density_method)
     cache <- .hypothesis_plan_cache(object)
     plans <- lapply(BayesTools::hypothesis_render(hypothesis), function(statement) {
+      selected <- .hypothesis_marginal_means_select_parameter(
+        object     = object,
+        hypothesis = BayesTools::hypothesis_parse(statement),
+        parameter  = parameter
+      )
       .hypothesis_plan_marginal_means(
         object    = object,
         statement = statement,
-        parameter = parameter,
+        parameter = selected[["parameter"]],
         cache     = cache
       )
     })
@@ -71,9 +87,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       .hypothesis_plan_check(plan, density_method)
     }
     refusal <- .hypothesis_plan_marginal_means_request_refusal(
-      plans     = plans,
-      object    = object,
-      parameter = parameter
+      plans  = plans,
+      object = object
     )
     if (!is.null(refusal)) {
       .hypothesis_stop(refusal)
@@ -273,6 +288,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   alias_catalog <- .hypothesis_marginal_means_alias_catalog(object)
   if (!is.null(parameter)) {
     selected <- .marginal_means_select_parameter(object, parameter)[["parameter"]]
+    .hypothesis_marginal_means_check_parameter(hypothesis, alias_catalog, selected)
     aliases <- .hypothesis_marginal_means_aliases(alias_catalog, selected)
     return(list(parameter = selected, aliases = aliases))
   }
@@ -281,9 +297,9 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
     unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
   })
-  # An alias or statement naming several parameters is ambiguous, as for
-  # fitted objects (.hypothesis_brma_stop_multiple_parameters()); 'parameter'
-  # selects one of them.
+  # An alias naming several parameters is ambiguous, as for fitted objects
+  # (.hypothesis_brma_stop_multiple_parameters()); 'parameter' selects one of
+  # them.
   ambiguous <- lengths(matches) > 1L
   if (any(ambiguous)) {
     root <- roots[ambiguous][[1L]]
@@ -304,12 +320,17 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     return(list(parameter = known, aliases = aliases))
   }
 
+  # A statement is tested on the marginal means of one parameter: hypotheses
+  # that name several parameters are tested by statement (the method resolves
+  # each statement on its own), and 'parameter' cannot resolve a statement
+  # that names several.
   if (length(known) > 1L) {
     .hypothesis_stop(.hypothesis_refusal(
       paste0(
         "Hypothesis references multiple marginal-means parameters (",
         paste(known, collapse = ", "),
-        "). Specify 'parameter'."
+        "), but one statement must refer to the marginal means of one ",
+        "parameter. Use separate statements for different parameters."
       ),
       "ambiguous"
     ))
@@ -331,6 +352,39 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       available = available
     )
   ))
+}
+
+
+# The refusal of a statement that names the marginal means of another
+# parameter than the 'selected' one: the roots of every statement of
+# 'hypothesis' that are aliases of marginal-means parameters must include the
+# selected one. A root that is no alias of any parameter is an unknown name,
+# which the planning refuses as at the other entry points.
+.hypothesis_marginal_means_check_parameter <- function(hypothesis, alias_catalog,
+                                                       selected) {
+
+  for (statement in BayesTools::hypothesis_render(hypothesis)) {
+    roots <- .hypothesis_brma_symbol_roots(BayesTools::hypothesis_parse(statement))
+    for (root in unique(roots[nzchar(roots)])) {
+      parameters <- unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
+      if (length(parameters) > 0L && !selected %in% parameters) {
+        refusal <- .hypothesis_refusal(
+          paste0(
+            "Statement '", statement, "' refers to the marginal means of '",
+            paste(parameters, collapse = "', '"), "', but 'parameter' selects '",
+            selected, "'. A statement must refer to the marginal means of one ",
+            "parameter; omit 'parameter' to test statements on different ",
+            "parameters in one call."
+          ),
+          "statement"
+        )
+        refusal[["class"]] <- c("RoBMA_hypothesis_parameter_mismatch", refusal[["class"]])
+        .hypothesis_stop(refusal)
+      }
+    }
+  }
+
+  invisible(NULL)
 }
 
 

@@ -53,13 +53,27 @@ object accepted by \code{BayesTools::hypothesis_BF()}.}
 \item{hypothesis}{character vector with scalar hypothesis statements. For
 \code{marginal_means.brma} objects, constants are specified on the fitted
 linear-predictor scale, even when the object stores a display transformation.
-Separate statements may reference different model parameters; each statement
-itself must resolve to one scalar model target.}
+Separate statements may reference different model parameters, also the
+marginal means of different parameters of \code{marginal_means.brma}
+objects (unless \code{parameter} is set); each statement itself must
+resolve to one scalar model target.}
 
 \item{parameter}{optional marginal-means parameter/term used to disambiguate
-the hypothesis expression. Without it, an alias or statement that names
-several marginal-means parameters stops with an error of class
+the hypothesis expression. Without it, each statement is tested on the
+marginal means of the parameter it names, so that separate statements may
+refer to different parameters (for example
+\code{c("g[a] > 0", "h[b] > 0")}); the rows are those of the statements
+tested one at a time, in the order of the statements. One statement must
+refer to the marginal means of one parameter: a statement that names
+several (for example \code{"g[a] > h[b]"}), or an alias that names several
+parameters, stops with an error of class
 \code{RoBMA_hypothesis_ambiguous}, with the parent class
+\code{RoBMA_hypothesis_statement}; \code{parameter} selects the parameter
+of an ambiguous alias. With \code{parameter}, every statement is tested on
+that parameter, and a statement that refers to the marginal means of
+another parameter (also \code{"g[a] > h[b]"} with
+\code{parameter = "g"}) stops with an error of class
+\code{RoBMA_hypothesis_parameter_mismatch}, with the parent class
 \code{RoBMA_hypothesis_statement}. A statement that references no
 marginal-means parameter stops with the class
 \code{RoBMA_hypothesis_statement}; for a statement without parameter
@@ -155,7 +169,9 @@ example \code{"mu > 0 & intercept < 1"} or \code{"g[a] > mu_g[a]"}; use
 one name), model-averaged marginal-means statements that mix point and
 region events or span several levels, ambiguous references
 (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
-parameters of another component (\code{RoBMA_component_mismatch}), factor
+parameters of another component (\code{RoBMA_component_mismatch}), marginal-means
+statements that refer to another parameter than \code{parameter}
+(\code{RoBMA_hypothesis_parameter_mismatch}), factor
 contrast coefficients such as \code{"g{1}"} (state the hypothesis on
 factor levels; a selector of a coefficient that is a level, such as
 \code{"g{1}"} of a treatment factor, also has the classes of the
@@ -355,10 +371,11 @@ hypotheses and model-averaged region hypotheses use averaged marginal draws.
 Model-averaged point-null hypotheses use alternative-conditioned draws to
 avoid null atoms in averaged marginals. For model-averaged objects,
 hypotheses that mix point and region events, and point hypotheses spanning
-multiple factor levels, are not supported. Single-model hypotheses use one
-common averaged posterior and may combine these events. Point hypotheses
-require the exact prior ordinate that BayesTools attaches to the marginal
-mean, as for fitted objects.
+multiple factor levels (of one parameter or of several), are not
+supported; region hypotheses may refer to several parameters.
+Single-model hypotheses use one common averaged posterior and may combine
+these events. Point hypotheses require the exact prior ordinate that
+BayesTools attaches to the marginal mean, as for fitted objects.
 
 For a continuous focal parameter \eqn{\theta}, nuisance parameters
 \eqn{\xi}, and an unnormalized joint posterior kernel

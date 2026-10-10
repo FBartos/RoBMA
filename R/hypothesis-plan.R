@@ -48,9 +48,9 @@
 # that has to be restated, or an argument that has to change, is no
 # unavailable test: "statement" (the statement's form is unsupported) has
 # the class "RoBMA_hypothesis_statement" only, and "ambiguous" (the
-# statement names several parameters; 'component' or, for marginal means,
-# 'parameter' selects one) has it as its parent
-# (.hypothesis_ambiguous_class()).
+# statement names several parameters; 'component' selects one, and for
+# marginal means an alias of several parameters is resolved by 'parameter')
+# has it as its parent (.hypothesis_ambiguous_class()).
 # Method refusals by the qCMDE/IWMDE capability of the fitted model
 # (.iwmde_capability()), and the qCMDE/IWMDE refusals of the causes for
 # which plot() refuses these methods (conditional random-effect statements,
@@ -2009,9 +2009,9 @@
 # Its statements are evaluated on one posterior conditioning (point
 # statements on the alternative-conditioned marginal mean of one level,
 # region statements on the averaged marginal means), so a request cannot
-# combine point and region statements or point statements on several levels.
-.hypothesis_plan_marginal_means_request_refusal <- function(plans, object,
-                                                            parameter) {
+# combine point and region statements or point statements on several levels,
+# whether the levels belong to one marginal-means parameter or to several.
+.hypothesis_plan_marginal_means_request_refusal <- function(plans, object) {
 
   model_averaged <- isTRUE(object[["model_averaged"]]) ||
     inherits(object[["source_object"]], "RoBMA")
@@ -2029,10 +2029,16 @@
       "statement"
     ))
   }
-  levels <- unique(.hypothesis_marginal_means_ast_levels(
-    hypothesis = .hypothesis_plan_group_ast(plans, "hypothesis"),
-    parameter  = parameter
-  ))
+  levels <- unique(unlist(lapply(plans, function(plan) {
+    levels <- .hypothesis_marginal_means_ast_levels(
+      hypothesis = plan[["hypothesis"]],
+      parameter  = plan[["parameter"]]
+    )
+    if (length(levels) == 0L) {
+      return(character())
+    }
+    paste(plan[["parameter"]], levels, sep = "\r")
+  })))
   if (all(point) && length(levels) > 1L) {
     return(.hypothesis_refusal(
       paste0(

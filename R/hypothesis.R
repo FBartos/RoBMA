@@ -124,8 +124,10 @@ hypothesis.default <- function(object, ...) {
 #' @param hypothesis character vector with scalar hypothesis statements. For
 #' \code{marginal_means.brma} objects, constants are specified on the fitted
 #' linear-predictor scale, even when the object stores a display transformation.
-#' Separate statements may reference different model parameters; each statement
-#' itself must resolve to one scalar model target.
+#' Separate statements may reference different model parameters, also the
+#' marginal means of different parameters of \code{marginal_means.brma}
+#' objects (unless \code{parameter} is set); each statement itself must
+#' resolve to one scalar model target.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
 #' \code{"location"}), \code{"scale"}, or \code{"random"} to disambiguate
@@ -284,7 +286,9 @@ hypothesis.default <- function(object, ...) {
 #' one name), model-averaged marginal-means statements that mix point and
 #' region events or span several levels, ambiguous references
 #' (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
-#' parameters of another component (\code{RoBMA_component_mismatch}), factor
+#' parameters of another component (\code{RoBMA_component_mismatch}), marginal-means
+#' statements that refer to another parameter than \code{parameter}
+#' (\code{RoBMA_hypothesis_parameter_mismatch}), factor
 #' contrast coefficients such as \code{"g{1}"} (state the hypothesis on
 #' factor levels; a selector of a coefficient that is a level, such as
 #' \code{"g{1}"} of a treatment factor, also has the classes of the

@@ -1,4 +1,5 @@
-.marginal_means_route_test_parameter <- function(a, b, condition_keys = NULL) {
+.marginal_means_route_test_parameter <- function(a, b, condition_keys = NULL,
+                                                 parameter = "mu_alloc") {
 
   # Each level is one N(0, 1) coefficient of the joint prior context.
   levels <- list(
@@ -28,7 +29,7 @@
     "marginal_posterior",
     "list"
   )
-  attr(levels, "parameter") <- "mu_alloc"
+  attr(levels, "parameter") <- parameter
   BayesTools::posterior_metadata(levels, "prior_context") <-
     BayesTools:::.prior_density_context(
       prior_list = list(
@@ -76,6 +77,39 @@
     source_object  = structure(list(), class = source_class)
   )
   class(object) <- "marginal_means.brma"
+
+  return(object)
+}
+
+
+# The object above with a second marginal-means parameter, 'other', that has
+# the same levels: 40% of the averaged draws of its level A lie above zero
+# (75% for 'alloc').
+.marginal_means_route_two_parameter_object <- function(model_averaged = TRUE) {
+
+  object <- .marginal_means_route_test_object(model_averaged = model_averaged)
+  object[["inference"]][["averaged"]][["mu_other"]] <-
+    .marginal_means_route_test_parameter(
+      a         = c(rep(1, 40), rep(-1, 60)),
+      b         = rep(0, 100),
+      parameter = "mu_other"
+    )
+  object[["inference"]][["conditional"]][["mu_other"]] <-
+    .marginal_means_route_test_parameter(
+      a              = rep(1, 100),
+      b              = rep(0, 100),
+      condition_keys = c("event-A", "event-B"),
+      parameter      = "mu_other"
+    )
+  object[["term_map"]] <- rbind(
+    object[["term_map"]],
+    data.frame(
+      term             = "other",
+      parameter        = "mu_other",
+      label            = "other",
+      stringsAsFactors = FALSE
+    )
+  )
 
   return(object)
 }
@@ -225,7 +259,7 @@ test_that("single-model marginal hypotheses share one averaged posterior", {
       expect_null(plan[["refusal"]])
     }
     expect_null(.hypothesis_plan_marginal_means_request_refusal(
-      plans = request, object = object, parameter = "mu_alloc"
+      plans = request, object = object
     ))
   }
 })
@@ -356,4 +390,189 @@ test_that("the plans of a marginal-means object are built once and shared by its
     first
   )
   expect_identical(hypothesis_quantities(object), quantities)
+})
+
+test_that("marginal-means statements on several parameters are tested in one call", {
+
+  .hypothesis_plan_cache_clear()
+  withr::defer(.hypothesis_plan_cache_clear())
+  call <- function(object, statements, ...) {
+    hypothesis(object, statements, columns = "all", seed = 913, ...)
+  }
+  original <- .hypothesis_plan_marginal_means_build
+  builds   <- 0L
+  testthat::local_mocked_bindings(
+    .hypothesis_plan_marginal_means_build = function(...) {
+      builds <<- builds + 1L
+      original(...)
+    },
+    .package = "RoBMA"
+  )
+
+  # Region statements are available to single-model and model-averaged
+  # objects. The posterior odds are the counts of the draws, 75% and 40%
+  # above zero.
+  for (model_averaged in c(FALSE, TRUE)) {
+    object <- .marginal_means_route_two_parameter_object(model_averaged)
+    forward <- call(object, c("alloc[A] > 0", "other[A] > 0"))
+    expect_identical(rownames(forward), c("mu_alloc", "mu_other"))
+    expect_equal(forward[["posterior"]], c(3, 2 / 3), tolerance = 1e-12)
+    alone <- list(
+      call(object, "alloc[A] > 0"),
+      call(object, "other[A] > 0")
+    )
+    for (column in c("prior", "posterior")) {
+      expect_equal(
+        forward[[column]],
+        c(alone[[1L]][[column]], alone[[2L]][[column]]),
+        tolerance = 1e-12
+      )
+    }
+    expect_equal(
+      attr(forward, "raw_log_BF"),
+      c(attr(alone[[1L]], "raw_log_BF"), attr(alone[[2L]], "raw_log_BF")),
+      tolerance = 1e-12
+    )
+
+    # The rows keep the order of the statements, and the statement numbers.
+    reversed <- call(object, c("other[A] > 0", "alloc[A] > 0"))
+    expect_identical(rownames(reversed), c("mu_other", "mu_alloc"))
+    expect_equal(reversed[["posterior"]], c(2 / 3, 3), tolerance = 1e-12)
+    mixed <- call(object, c("alloc[A] > 0", "other[A] > 0", "alloc[A] > -0.5"))
+    expect_identical(rownames(mixed), c("mu_alloc (1)", "mu_other", "mu_alloc (3)"))
+    expect_equal(mixed[["posterior"]][c(1L, 2L)], c(3, 2 / 3), tolerance = 1e-12)
+    expect_equal(
+      attr(mixed, "raw_log_BF")[[3L]],
+      attr(call(object, "alloc[A] > -0.5"), "raw_log_BF"),
+      tolerance = 1e-12
+    )
+  }
+
+  # The plans of a request are those of its statements, built for the
+  # parameter each statement names: a plan is shared with the call that names
+  # the parameter itself.
+  object <- .marginal_means_route_two_parameter_object(TRUE)
+  .hypothesis_plan_cache_clear()
+  builds <- 0L
+  call(object, c("alloc[A] > 0", "other[A] > 0"))
+  expect_identical(builds, 2L)
+  call(object, c("other[A] > 0", "alloc[A] > 0"))
+  expect_identical(builds, 2L)
+  call(object, "other[A] > 0", parameter = "mu_other")
+  expect_identical(builds, 2L)
+})
+
+
+test_that("a parameter that does not hold for a statement is refused with the statement and parameters", {
+
+  mismatch <- c(
+    "RoBMA_hypothesis_parameter_mismatch", "RoBMA_hypothesis_statement",
+    "error", "condition"
+  )
+  for (model_averaged in c(FALSE, TRUE)) {
+    object <- .marginal_means_route_two_parameter_object(model_averaged)
+    requests <- list(
+      list("other[A] > 0", "alloc"),
+      list("other[A] = 0", "mu_alloc"),
+      list(c("alloc[A] > 0", "other[A] > 0"), "alloc"),
+      list("alloc[A] > other[A]", "alloc"),
+      list("alloc[A] > 0", "other")
+    )
+    for (request in requests) {
+      error <- tryCatch(
+        hypothesis(object, request[[1L]], parameter = request[[2L]]),
+        error = identity
+      )
+      expect_identical(
+        class(error), mismatch,
+        info = paste(request[[1L]], request[[2L]])
+      )
+    }
+    error <- tryCatch(
+      hypothesis(object, c("alloc[A] > 0", "other[A] > 0"), parameter = "alloc"),
+      error = identity
+    )
+    expect_identical(
+      conditionMessage(error),
+      paste0(
+        "Statement '`other[A]` > 0' refers to the marginal means of ",
+        "'mu_other', but 'parameter' selects 'mu_alloc'. A statement must ",
+        "refer to the marginal means of one parameter; omit 'parameter' to ",
+        "test statements on different parameters in one call."
+      )
+    )
+    # Statements of the selected parameter are as before.
+    expect_identical(
+      hypothesis(object, "alloc[A] > 0", parameter = "alloc", seed = 913),
+      hypothesis(object, "alloc[A] > 0", seed = 913)
+    )
+  }
+})
+
+
+test_that("a statement on the marginal means of two parameters is refused without 'parameter' advice", {
+
+  for (model_averaged in c(FALSE, TRUE)) {
+    object <- .marginal_means_route_two_parameter_object(model_averaged)
+    for (statement in c("alloc[A] > other[A]", "alloc[A] > other[A] vs alloc[A] = other[A]")) {
+      error <- tryCatch(hypothesis(object, statement), error = identity)
+      expect_identical(
+        class(error),
+        c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement",
+          "error", "condition"),
+        info = statement
+      )
+      expect_match(
+        conditionMessage(error),
+        "references multiple marginal-means parameters (mu_alloc, mu_other), but one statement must refer to the marginal means of one parameter",
+        fixed = TRUE
+      )
+      expect_false(grepl("Specify 'parameter'", conditionMessage(error), fixed = TRUE))
+    }
+  }
+})
+
+
+test_that("model-averaged requests count point levels across parameters", {
+
+  object <- .marginal_means_route_two_parameter_object(model_averaged = TRUE)
+  single <- .marginal_means_route_two_parameter_object(model_averaged = FALSE)
+  refusal <- function(object, statements) {
+    plans <- lapply(statements, function(statement) {
+      .hypothesis_plan_marginal_means(object, statement)
+    })
+    .hypothesis_plan_marginal_means_request_refusal(plans = plans, object = object)
+  }
+
+  # The same level label of two parameters is two levels.
+  levels <- c("alloc[A] = 0", "other[A] = 0")
+  expect_identical(
+    refusal(object, levels)[["reason"]],
+    paste0(
+      "Point hypotheses spanning multiple marginal-means levels are not ",
+      "supported because the levels need not share one conditioning event."
+    )
+  )
+  expect_error(
+    hypothesis(object, levels),
+    "spanning multiple marginal-means levels",
+    class = "RoBMA_hypothesis_statement"
+  )
+  # One level of one parameter, and region statements on several parameters,
+  # are not refused; points and regions do not mix across parameters either.
+  expect_null(refusal(object, c("alloc[A] = 0", "alloc[A] = 0.5")))
+  expect_null(refusal(object, c("alloc[A] > 0", "other[A] > 0", "alloc[B] > 0")))
+  expect_identical(
+    refusal(object, c("alloc[A] = 0", "other[A] > 0"))[["class"]],
+    "RoBMA_hypothesis_statement"
+  )
+  expect_error(
+    hypothesis(object, c("alloc[A] = 0", "other[A] > 0")),
+    "cannot mix point-null and region statements",
+    class = "RoBMA_hypothesis_statement"
+  )
+  # Single-model objects use one averaged posterior for all of them.
+  for (statements in list(levels, c("alloc[A] = 0", "other[A] > 0"))) {
+    expect_null(refusal(single, statements))
+  }
 })
