@@ -23,6 +23,11 @@
 #'
 #' The hat matrix is computed for each posterior draw and then averaged over
 #' draws, matching the vector output shape used by `metafor`.
+#' The members of a \code{RoBMA()} ensemble can differ in their PET and PEESE
+#' terms; each draw then uses the design of the member it belongs to (the
+#' location columns plus the \code{PET} column of PET members or the
+#' \code{PEESE} column of PEESE members), and the reported leverage is the
+#' posterior mean over all draws.
 #' For known-\code{V} \code{brma.mv()} random-formula models, leverages use the
 #' marginal GLS covariance \eqn{V + ZGZ'}.
 #'

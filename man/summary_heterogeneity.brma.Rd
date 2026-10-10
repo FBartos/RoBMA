@@ -67,6 +67,9 @@ The I^2 and H^2 statistics are computed following the metafor package
 implementation, using the "typical" sampling variance formula from
 \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 the partitioned I^2 follows the approach described in the metafor documentation.
+For \code{RoBMA()} ensembles whose members differ in their PET and PEESE
+terms, each draw uses the typical sampling variance of its member's design
+(see \code{\link{hatvalues.brma}}).
 
 For \code{brma.mv()} models, the method reports \code{tau} and \code{tau2}
 for each selected random-effect component. A genuine variance-additive

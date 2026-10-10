@@ -88,6 +88,9 @@ summary_heterogeneity <- function(object, ...) {
 #' implementation, using the "typical" sampling variance formula from
 #' \insertCite{higgins2002quantifying;textual}{RoBMA}. For multilevel models,
 #' the partitioned I^2 follows the approach described in the metafor documentation.
+#' For \code{RoBMA()} ensembles whose members differ in their PET and PEESE
+#' terms, each draw uses the typical sampling variance of its member's design
+#' (see \code{\link{hatvalues.brma}}).
 #'
 #' For \code{brma.mv()} models, the method reports \code{tau} and \code{tau2}
 #' for each selected random-effect component. A genuine variance-additive
@@ -188,13 +191,16 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
   # following metafor formula (Higgins & Thompson, 2002, eq. 9)
   # using the generalized formula with projection matrix for meta-regression
   X <- .get_model_matrix(object)
-  p <- ncol(X)
-  W <- diag(1/vi, nrow = K)
-  P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
-
-  v_tilde <- (K - p) / sum(diag(P))
 
   posterior_samples <- .get_posterior_samples(object[["fit"]])
+
+  # the typical sampling variance depends on the design, which differs between
+  # the bias members of an ensemble (NULL: one design for every draw)
+  bias_classes <- .bias_design_classes(
+    object,
+    X                 = X,
+    posterior_samples = posterior_samples
+  )
 
   # extract tau samples using the evaluate helper
   tau_result <- .evaluate.brma.tau(
@@ -210,13 +216,48 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
     fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
 
-  samples_list <- .summary_heterogeneity_samples(
-    tau_within_samples  = tau_result[["tau_within"]],
-    tau_between_samples = tau_result[["tau_between"]],
-    rho_samples         = if (is_multilevel) tau_result[["rho"]] else NULL,
-    v_tilde             = v_tilde,
-    is_multilevel       = is_multilevel
-  )
+  if (is.null(bias_classes)) {
+    samples_list <- .summary_heterogeneity_samples(
+      tau_within_samples  = tau_result[["tau_within"]],
+      tau_between_samples = tau_result[["tau_between"]],
+      rho_samples         = if (is_multilevel) tau_result[["rho"]] else NULL,
+      v_tilde             = .heterogeneity_typical_variance(X, vi),
+      is_multilevel       = is_multilevel
+    )
+  } else {
+    samples_list <- NULL
+    for (design_class in which(bias_classes[["n_draws"]] > 0L)) {
+      rows <- which(bias_classes[["class"]] == design_class)
+      class_samples <- .summary_heterogeneity_samples(
+        tau_within_samples  = tau_result[["tau_within"]][rows, , drop = FALSE],
+        tau_between_samples = if (!is.null(tau_result[["tau_between"]])) {
+          tau_result[["tau_between"]][rows, , drop = FALSE]
+        },
+        rho_samples         = if (is_multilevel && !is.null(tau_result[["rho"]])) {
+          .resolve_heterogeneity_allocation(
+            rho       = tau_result[["rho"]],
+            n_samples = nrow(tau_result[["tau_within"]]),
+            context   = "Heterogeneity summary"
+          )[rows]
+        },
+        v_tilde             = .heterogeneity_typical_variance(
+          bias_classes[["designs"]][[design_class]],
+          vi
+        ),
+        is_multilevel       = is_multilevel
+      )
+      if (is.null(samples_list)) {
+        samples_list <- rep(
+          list(numeric(nrow(tau_result[["tau_within"]]))),
+          length(class_samples)
+        )
+        names(samples_list) <- names(class_samples)
+      }
+      for (name in names(class_samples)) {
+        samples_list[[name]][rows] <- class_samples[[name]]
+      }
+    }
+  }
 
   # generate summary table
   estimates <- BayesTools::ensemble_estimates_table(
@@ -235,6 +276,25 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
   class(output) <- "summary_heterogeneity.brma"
 
   return(output)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .heterogeneity_typical_variance
+# ---------------------------------------------------------------------------- #
+#
+# Typical sampling variance (Higgins & Thompson, 2002, eq. 9) of a design,
+# generalized to meta-regression with the projection matrix.
+#
+# ---------------------------------------------------------------------------- #
+.heterogeneity_typical_variance <- function(X, vi) {
+
+  K <- length(vi)
+  p <- ncol(X)
+  W <- diag(1/vi, nrow = K)
+  P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
+
+  return((K - p) / sum(diag(P)))
 }
 
 

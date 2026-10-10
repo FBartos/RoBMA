@@ -16,6 +16,10 @@ residuals, marginal covariance diagnostics, or marginal likelihood.
   known-V models the projection applies the inverse marginal covariance; a
   covariance too ill-conditioned for that application is unavailable (error
   class `RoBMA_known_v_precision_unavailable`), never a rounded number.
+  `RoBMA()` ensembles whose members differ in bias terms use, for each draw,
+  the design of the draw's member (location columns plus the PET or PEESE
+  column of PET or PEESE members; `R/bias-branch-design.R`), not one design
+  with both columns.
 - `add_marglik()` and `bridge_sampler()` use the full joint fitted
   likelihood and prior, not a pointwise predictive score.
 

@@ -71,6 +71,9 @@ GLS residual covariance and estimate-depth residuals use the BLUP-style
 sampling residual projection. For a correctly specified model, these
 residuals should approximately follow a standard normal distribution.
 
+For ensembles whose members differ in their PET and PEESE terms, each draw
+uses the design of its member, as described in \code{\link{hatvalues.brma}}.
+
 This function is only available for normal outcome models without selection
 (weightfunction) bias adjustment. Selection models can use
 \code{\link{rstudent.brma}}, which uses LOO-PIT. Internally standardized

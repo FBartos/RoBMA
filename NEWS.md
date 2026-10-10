@@ -1177,6 +1177,17 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   zero-variance note or warning): like `summary()`, the diagnostics omit a
   fixed-zero intercept, so the columns are the coefficients that the formula
   estimates.
+- `vif()`, `hatvalues()`, `rstandard()`, the `hat` column of `influence()`, and
+  `summary_heterogeneity()` of `RoBMA()` ensembles whose members differ in
+  their bias terms use, for each posterior draw, the design of the member the
+  draw belongs to (location columns plus the PET column of PET members or the
+  PEESE column of PEESE members; null and weight-function members add no bias
+  column), instead of one design with both bias columns. A location term's
+  GVIF is the draw-weighted mean over the member designs, and the PET and
+  PEESE terms report the GVIF of their own design (`NA` without draws of such
+  members). In a small PET/PEESE meta-regression the GVIF of `PET` and
+  `PEESE` falls from 51.6 to about 1.0, as in the single-component `bPET()`
+  and `bPEESE()` fits. Models with a single design are unchanged.
 
 ### Performance
 - saved fits are smaller: through BayesTools 0.3.1, fits no longer carry

@@ -46,6 +46,14 @@ correlation matrix and computation of VIF/GVIF.
 A VIF of 1 indicates no collinearity; values above 5 or 10 are
 commonly considered problematic.
 
+The members of a \code{RoBMA()} ensemble can differ in their bias terms (PET
+adds a \code{PET} column, PEESE a \code{PEESE} column, and the null and
+weight-function members add none), so each posterior draw uses the design of
+its member and the coefficient covariance is averaged within each design
+class. A location term reports the GVIF of the classes weighted by their
+share of the posterior draws; the \code{PET} and \code{PEESE} terms report
+the GVIF of their own class (\code{NA} when no draw belongs to it).
+
 For multi-column terms, such as factor contrasts,
 the Generalized VIF (GVIF) of \insertCite{fox1992generalized;textual}{RoBMA}
 is reported. GVIF captures the joint inflation for all coefficients

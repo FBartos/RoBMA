@@ -39,6 +39,10 @@
 #' use conditional estimate deletion rather than independent-study deletion.
 #'
 #' @details
+#' The \code{hat} column uses the design of each draw's member for ensembles
+#' whose members differ in their PET and PEESE terms, as described in
+#' \code{\link{hatvalues.brma}}.
+#'
 #' For known-\code{V} models, the hat values, DFFITS and Cook's distance require
 #' applying the inverse of the marginal covariance. A covariance that is too
 #' ill-conditioned for that (a reciprocal condition number of about \code{2e-10}

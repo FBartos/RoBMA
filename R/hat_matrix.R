@@ -15,6 +15,10 @@
 #
 # Computes hat matrix components for each posterior sample.
 #
+# Every draw uses the design of the bias member it belongs to when the members
+# of a RoBMA() ensemble differ in their PET / PEESE terms (.hat_design_plan()),
+# and the union design otherwise.
+#
 # Returns a list containing:
 # - H_diag: S x K matrix of hat matrix diagonals (leverages)
 # - H: S x K x K array of full hat matrices (only if return_full_H = TRUE)
@@ -87,6 +91,15 @@
 
   S <- nrow(tau_within_samples)
 
+  # design of each posterior draw: the union design, or the design of the
+  # draw's bias member for ensembles whose members differ in bias terms
+  design_plan <- .hat_design_plan(
+    object         = object,
+    X              = X,
+    S              = S,
+    with_zero_rows = return_se || return_resid
+  )
+
   # get cluster for multilevel structure
   ids <- NULL
   if (is_multilevel) {
@@ -103,11 +116,6 @@
   z_sum             <- if (return_se && return_resid && summarize) rep(0, K) else NULL
   M_diag_samples    <- matrix(0, nrow = S, ncol = K) # useful debug/checking
   I_K               <- diag(K)
-  zero_residual_rows <- if (return_se || return_resid) {
-    .hat_zero_residual_rows(X)
-  } else {
-    integer()
-  }
 
   # Pre-calculate indices for multilevel blocks to avoid repeating inside loop
   block_indices <- list()
@@ -116,6 +124,8 @@
   }
 
   for (s in seq_len(S)) {
+    X_s                 <- design_plan[["designs"]][[design_plan[["draw_class"]][s]]]
+    zero_residual_rows  <- design_plan[["zero_residual_rows"]][[design_plan[["draw_class"]][s]]]
     tau_w_s             <- tau_within_samples[s, ]
     tau_b_s             <- tau_between_samples[s, ]
     sampling_diagonal_s <- vi / weights
@@ -130,7 +140,7 @@
     M_diag_samples[s, ] <- M_diag_s
 
     WX <- .hat_apply_precision(
-      x             = X,
+      x             = X_s,
       diagonal      = diagonal_s,
       rank_one      = if (is_multilevel) tau_b_s else NULL,
       block_indices = block_indices
@@ -142,9 +152,9 @@
       block_indices = block_indices
     )
 
-    XtWX     <- crossprod(X, WX)
-    XtWX_inv <- .hat_solve_crossprod(XtWX, rank = attr(X, "rank"))
-    XB       <- X %*% XtWX_inv
+    XtWX     <- crossprod(X_s, WX)
+    XtWX_inv <- .hat_solve_crossprod(XtWX, rank = attr(X_s, "rank"))
+    XB       <- X_s %*% XtWX_inv
     variance_transform <- NULL
     if (return_se) {
       residual_projection <- I_K - XB %*% t(WX)
@@ -181,15 +191,15 @@
     H_diag_samples[s, ] <- rowSums(XB * WX)
 
     if (return_full_H) {
-      H_samples[s, , ] <- X %*% XtWX_inv %*% t(WX)
+      H_samples[s, , ] <- X_s %*% XtWX_inv %*% t(WX)
     }
 
     if (return_se || return_resid) {
       residual_s <- NULL
       se_s       <- NULL
 
-      beta_hat <- as.vector(XtWX_inv %*% crossprod(X, Wy))
-      residual <- yi - as.vector(X %*% beta_hat)
+      beta_hat <- as.vector(XtWX_inv %*% crossprod(X_s, Wy))
+      residual <- yi - as.vector(X_s %*% beta_hat)
 
       if (!is.null(variance_transform)) {
         residual <- as.vector(variance_transform %*% yi)
@@ -278,6 +288,55 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .hat_design_plan
+# ---------------------------------------------------------------------------- #
+#
+# Design used by each posterior draw. One design (the union design from
+# .get_model_matrix()) applies to every draw unless the members of a bias
+# ensemble differ in their bias terms (see .bias_design_classes()); then a draw
+# uses the design of its member's class.
+#
+# @param posterior_samples the posterior rows the diagnostic uses, or NULL for
+#   the full posterior.
+# @param S number of posterior draws the diagnostic uses.
+# @param with_zero_rows whether to find the rows that every projection fits
+#   exactly (only residual diagnostics need them).
+#
+# @return list with the class designs (`designs`), the design class of every
+#   draw (`draw_class`), and the exactly fitted rows of each design
+#   (`zero_residual_rows`).
+#
+# ---------------------------------------------------------------------------- #
+.hat_design_plan <- function(object, X, S, posterior_samples = NULL,
+                             with_zero_rows = FALSE) {
+
+  bias_classes <- .bias_design_classes(
+    object,
+    X                 = X,
+    posterior_samples = posterior_samples
+  )
+  designs    <- if (is.null(bias_classes)) list(X) else bias_classes[["designs"]]
+  draw_class <- if (is.null(bias_classes)) rep(1L, S) else bias_classes[["class"]]
+  if (length(draw_class) != S) {
+    stop("Design classes do not match the posterior draws.", call. = FALSE)
+  }
+
+  zero_residual_rows <- lapply(designs, function(design) {
+    if (is.null(design) || !with_zero_rows) {
+      return(integer())
+    }
+    return(.hat_zero_residual_rows(design))
+  })
+
+  return(list(
+    designs            = designs,
+    draw_class         = draw_class,
+    zero_residual_rows = zero_residual_rows
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .compute_known_v_hat_matrix_samples
 # ---------------------------------------------------------------------------- #
 #
@@ -302,11 +361,16 @@
   yi                 <- setup[["yi"]]
   S                  <- setup[["S"]]
   K                  <- setup[["K"]]
-  zero_residual_rows <- if (return_se || return_resid) {
-    .hat_zero_residual_rows(X)
-  } else {
-    integer()
-  }
+
+  # design of each (thinned) posterior draw, aligned with the rows of the
+  # posterior samples used below
+  design_plan <- .hat_design_plan(
+    object            = object,
+    X                 = X,
+    S                 = S,
+    posterior_samples = setup[["posterior_samples"]],
+    with_zero_rows    = return_se || return_resid
+  )
 
   if (conditioning_depth == "estimate") {
     extra_variance <- .known_v_extra_variance_from_setup(setup)
@@ -329,9 +393,11 @@
     }
 
     for (s in seq_len(S)) {
+      X_s                <- design_plan[["designs"]][[design_plan[["draw_class"]][s]]]
+      zero_residual_rows <- design_plan[["zero_residual_rows"]][[design_plan[["draw_class"]][s]]]
       y_offset  <- yi - offset_samples[s, ]
       projection <- .known_v_gls_projection_blocks(
-        X              = X,
+        X              = X_s,
         y              = y_offset,
         known_V        = known_V,
         extra_variance = extra_variance[s, ],
@@ -373,11 +439,11 @@
     }
 
   } else if (conditioning_depth == "marginal") {
-    projection <- .known_v_factor_gls_projection_batch(
+    projection <- .known_v_hat_projection_batch(
       object            = object,
       posterior_samples = setup[["posterior_samples"]],
       known_V           = known_V,
-      X                 = X,
+      design_plan       = design_plan,
       y                 = yi,
       return_full_H     = return_full_H,
       return_se         = return_se,
@@ -390,8 +456,7 @@
       H_samples <- projection[["H"]]
     }
     if (return_resid) {
-      residual <- projection[["residual"]]
-      residual[, zero_residual_rows] <- 0
+      residual <- .hat_zero_class_rows(projection[["residual"]], design_plan)
       if (summarize) {
         resid_sum <- colSums(residual)
       } else {
@@ -399,8 +464,10 @@
       }
     }
     if (return_se) {
-      residual_variance <- projection[["residual_variance"]]
-      residual_variance[, zero_residual_rows] <- 0
+      residual_variance <- .hat_zero_class_rows(
+        projection[["residual_variance"]],
+        design_plan
+      )
       se <- .hat_variance_sd(
         residual_variance,
         "Known-V marginal residual variance"
@@ -445,6 +512,89 @@
   )
 
   return(result)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .known_v_hat_projection_batch
+# ---------------------------------------------------------------------------- #
+#
+# Known-V marginal GLS projections of all draws. The draws of each design class
+# are projected together on the class design, then placed at their rows.
+#
+# ---------------------------------------------------------------------------- #
+.known_v_hat_projection_batch <- function(object, posterior_samples, known_V,
+                                          design_plan, y, return_full_H,
+                                          return_se, return_resid) {
+
+  draw_class <- design_plan[["draw_class"]]
+  present    <- sort(unique(draw_class))
+  batch      <- function(design_class, rows = NULL) {
+    .known_v_factor_gls_projection_batch(
+      object            = object,
+      posterior_samples = if (is.null(rows)) {
+        posterior_samples
+      } else {
+        posterior_samples[rows, , drop = FALSE]
+      },
+      known_V           = known_V,
+      X                 = design_plan[["designs"]][[design_class]],
+      y                 = y,
+      return_full_H     = return_full_H,
+      return_se         = return_se,
+      return_resid      = return_resid
+    )
+  }
+
+  if (length(present) == 1L) {
+    return(batch(present))
+  }
+
+  S <- length(draw_class)
+  K <- length(y)
+  projection <- list(
+    H_diag            = matrix(NA_real_, nrow = S, ncol = K),
+    M_diag            = matrix(NA_real_, nrow = S, ncol = K),
+    H                 = if (return_full_H) array(NA_real_, dim = c(S, K, K)),
+    residual          = if (return_resid) matrix(NA_real_, nrow = S, ncol = K),
+    residual_variance = if (return_se) matrix(NA_real_, nrow = S, ncol = K)
+  )
+  for (design_class in present) {
+    rows   <- which(draw_class == design_class)
+    result <- batch(design_class, rows)
+
+    projection[["H_diag"]][rows, ] <- result[["H_diag"]]
+    projection[["M_diag"]][rows, ] <- result[["M_diag"]]
+    if (return_full_H) {
+      projection[["H"]][rows, , ] <- result[["H"]]
+    }
+    if (return_resid) {
+      projection[["residual"]][rows, ] <- result[["residual"]]
+    }
+    if (return_se) {
+      projection[["residual_variance"]][rows, ] <- result[["residual_variance"]]
+    }
+    projection[["covariance_path"]] <- result[["covariance_path"]]
+  }
+
+  return(projection)
+}
+
+
+# Zero the rows that the design of each draw fits exactly (see
+# .hat_zero_residual_rows()) in an S x K matrix of residual quantities.
+.hat_zero_class_rows <- function(x, design_plan) {
+
+  zeroed <- x
+  for (design_class in seq_along(design_plan[["zero_residual_rows"]])) {
+    columns <- design_plan[["zero_residual_rows"]][[design_class]]
+    rows    <- which(design_plan[["draw_class"]] == design_class)
+    if (length(columns) > 0L && length(rows) > 0L) {
+      zeroed[rows, columns] <- 0
+    }
+  }
+
+  return(zeroed)
 }
 
 

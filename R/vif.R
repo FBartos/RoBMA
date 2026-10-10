@@ -80,6 +80,14 @@ vif <- function(object, ...) {
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
 #'
+#' The members of a \code{RoBMA()} ensemble can differ in their bias terms (PET
+#' adds a \code{PET} column, PEESE a \code{PEESE} column, and the null and
+#' weight-function members add none), so each posterior draw uses the design of
+#' its member and the coefficient covariance is averaged within each design
+#' class. A location term reports the GVIF of the classes weighted by their
+#' share of the posterior draws; the \code{PET} and \code{PEESE} terms report
+#' the GVIF of their own class (\code{NA} when no draw belongs to it).
+#'
 #' For multi-column terms, such as factor contrasts,
 #' the Generalized VIF (GVIF) of \insertCite{fox1992generalized;textual}{RoBMA}
 #' is reported. GVIF captures the joint inflation for all coefficients
@@ -220,28 +228,117 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   X      <- .get_model_matrix(object)
   assign <- attr(X, "assign")
 
-  if (inherits(object, "brma.mv")) {
-    vcov <- .vif_vcov_brma_mv(
-      object      = object,
-      X           = X,
-      max_samples = max_samples
+  is_known_v  <- inherits(object, "brma.mv")
+  sample_info <- if (is_known_v) .vif_known_v_sample_info(object, max_samples)
+
+  # design of each posterior draw; NULL when the matrix above applies to all
+  bias_classes <- .bias_design_classes(
+    object,
+    X                 = X,
+    posterior_samples = sample_info[["posterior_samples"]]
+  )
+
+  vcov_of <- function(design, rows = NULL) {
+    if (is_known_v) {
+      return(.vif_vcov_brma_mv(
+        object      = object,
+        X           = design,
+        sample_info = sample_info,
+        rows        = rows
+      ))
+    }
+    return(.vif_vcov_brma(object, design, rows = rows))
+  }
+
+  if (is.null(bias_classes)) {
+    vif_df <- .vif_table_from_vcov(
+      vcov   = vcov_of(X),
+      assign = assign,
+      object = object,
+      X      = X
     )
   } else {
-    vcov <- .vif_vcov_brma(object, X)
+    class_tables <- vector("list", 3L)
+    for (design_class in which(bias_classes[["n_draws"]] > 0L)) {
+      design <- bias_classes[["designs"]][[design_class]]
+      class_tables[[design_class]] <- .vif_table_from_vcov(
+        vcov   = vcov_of(
+          design,
+          rows = which(bias_classes[["class"]] == design_class)
+        ),
+        assign = attr(design, "assign"),
+        object = object,
+        X      = design
+      )
+    }
+    vif_df <- .vif_ensemble_table(
+      tables  = class_tables,
+      n_draws = bias_classes[["n_draws"]],
+      designs = bias_classes[["designs"]]
+    )
   }
-  known_v_metadata <- attr(vcov, "known_v_diagnostic")
-
-  vif_df <- .vif_table_from_vcov(
-    vcov   = vcov,
-    assign = assign,
-    object = object,
-    X      = X
-  )
-  if (!is.null(known_v_metadata)) {
-    vif_df <- .known_v_attach_diagnostic_metadata(vif_df, known_v_metadata)
+  if (is_known_v) {
+    vif_df <- .known_v_attach_diagnostic_metadata(
+      vif_df,
+      .known_v_diagnostic_metadata(sample_info = sample_info)
+    )
   }
 
   return(vif_df)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_ensemble_table
+# ---------------------------------------------------------------------------- #
+#
+# GVIF table of an ensemble whose members differ in their bias terms, from the
+# GVIF table of every design class with draws (see .bias_design_classes()). A
+# location term is shared by all classes and reports the draw-weighted mean of
+# its class GVIFs; the PET and PEESE terms belong to one class each and report
+# its GVIF, NA when no draw belongs to that class.
+#
+# @param tables list of three class tables (NULL for classes without draws).
+# @param n_draws number of draws of each class.
+# @param designs list of three class designs (NULL for classes without member).
+#
+# ---------------------------------------------------------------------------- #
+.vif_ensemble_table <- function(tables, n_draws, designs) {
+
+  present    <- which(n_draws > 0L)
+  share      <- n_draws[present] / sum(n_draws[present])
+  first      <- tables[[present[1L]]]
+  n_location <- nrow(first) - (present[1L] != 1L)
+  location   <- seq_len(n_location)
+
+  location_gvif <- Reduce(`+`, Map(
+    function(design_class, weight) {
+      weight * tables[[design_class]][["GVIF"]][location]
+    },
+    present,
+    share
+  ))
+
+  bias_classes <- setdiff(which(!vapply(designs, is.null, logical(1L))), 1L)
+  bias_gvif    <- vapply(bias_classes, function(design_class) {
+    if (is.null(tables[[design_class]])) {
+      return(NA_real_)
+    }
+    return(tables[[design_class]][["GVIF"]][n_location + 1L])
+  }, numeric(1L))
+
+  term <- c(first[["term"]][location], c(NA, "PET", "PEESE")[bias_classes])
+  df   <- c(first[["df"]][location], rep(1L, length(bias_classes)))
+  gvif <- c(location_gvif, bias_gvif)
+
+  return(data.frame(
+    term               = term,
+    df                 = df,
+    GVIF               = gvif,
+    "GVIF^(1/(2*df))"  = gvif^(1 / (2 * df)),
+    stringsAsFactors   = FALSE,
+    check.names        = FALSE
+  ))
 }
 
 
@@ -251,8 +348,10 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 #
 # Coefficient covariance for standard brma objects.
 #
+# @param rows optional posterior rows to average over (default: all draws).
+#
 # ---------------------------------------------------------------------------- #
-.vif_vcov_brma <- function(object, X) {
+.vif_vcov_brma <- function(object, X, rows = NULL) {
 
   # extract sampling variances
   vi      <- .outcome_data_vi(object)
@@ -280,6 +379,12 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
+  if (!is.null(rows)) {
+    tau_within_samples <- tau_within_samples[rows, , drop = FALSE]
+    if (!is.null(tau_between_samples)) {
+      tau_between_samples <- tau_between_samples[rows, , drop = FALSE]
+    }
+  }
 
   # compute posterior-averaged vcov = (X'WX)^{-1} using meta-analytic weights
   vcov <- .vif_vcov_from_tau_samples(
@@ -296,15 +401,13 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 
 
 # ---------------------------------------------------------------------------- #
-# .vif_vcov_brma_mv
+# .vif_known_v_sample_info
 # ---------------------------------------------------------------------------- #
 #
-# Coefficient covariance for brma.mv() known-V models. This is a marginal GLS
-# design diagnostic: sampled and marginalized formula random effects contribute
-# through ZGZ', not through fitted random-effect means.
+# Validate a brma.mv() VIF request and select (thin) the posterior draws.
 #
 # ---------------------------------------------------------------------------- #
-.vif_vcov_brma_mv <- function(object, X, max_samples = Inf) {
+.vif_known_v_sample_info <- function(object, max_samples = Inf) {
 
   if (!.is_data_known_v(object[["data"]])) {
     stop("VIF for brma.mv() requires known-V covariance metadata.",
@@ -315,16 +418,41 @@ vif.brma <- function(object, posterior_correlation = TRUE,
          call. = FALSE)
   }
 
-  sample_info <- .known_v_diagnostic_posterior_samples(
+  return(.known_v_diagnostic_posterior_samples(
     object      = object,
     max_samples = max_samples,
     caller      = "known-V VIF diagnostics"
-  )
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .vif_vcov_brma_mv
+# ---------------------------------------------------------------------------- #
+#
+# Coefficient covariance for brma.mv() known-V models. This is a marginal GLS
+# design diagnostic: sampled and marginalized formula random effects contribute
+# through ZGZ', not through fitted random-effect means.
+#
+# @param sample_info selected posterior draws (.vif_known_v_sample_info()).
+# @param rows optional rows of the selected draws to average over.
+#
+# ---------------------------------------------------------------------------- #
+.vif_vcov_brma_mv <- function(object, X, max_samples = Inf,
+                              sample_info = .vif_known_v_sample_info(
+                                object, max_samples
+                              ),
+                              rows = NULL) {
+
+  posterior_samples <- sample_info[["posterior_samples"]]
+  if (!is.null(rows)) {
+    posterior_samples <- posterior_samples[rows, , drop = FALSE]
+  }
   known_V <- .data_known_v_data(object[["data"]])
   vcov <- .vif_vcov_from_factor_plan(
     object            = object,
     X                 = X,
-    posterior_samples = sample_info[["posterior_samples"]],
+    posterior_samples = posterior_samples,
     known_V           = known_V
   )
   vcov <- .known_v_attach_diagnostic_metadata(
