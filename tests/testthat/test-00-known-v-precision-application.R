@@ -161,8 +161,14 @@ test_that("the condition gate does not depend on the scale of the covariance", {
   model_matrix <- 2^511 * rbind(c(1, 1), c(1, 1), c(1, 0))
   observed <- .precision_application(c(1, 2, 3), diag(3L),
     list(.group_plan(model_matrix)), list(.identity_state(2L)))
-  expect_equal(as.numeric(observed), c(-.5, .5, 1.0012832363282406e-307),
-    tolerance = 1e-12)
+  reference <- c(-.5, .5, 1.0012832363282406e-307)
+  expect_equal(as.numeric(observed)[1:2], reference[1:2], tolerance = 1e-12)
+  # The third component results from a cancellation of unit-size terms and is
+  # zero to double precision next to the others. A relative tolerance on the
+  # whole vector tolerates an error of 1e-12 there, so it is compared with its
+  # own absolute tolerance: the application returns 1e-30, whereas a loss of
+  # precision in the scaled latent system leaves errors of 1e-16 and above.
+  expect_lt(abs(observed[[3L]] - reference[[3L]]), 1e-20)
 })
 
 

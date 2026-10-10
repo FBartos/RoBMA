@@ -72,6 +72,15 @@ are extracted directly from the posterior samples.
 For multilevel (3-level) normal models, cluster-level effects are estimated
 jointly within cluster blocks and estimate-level effects are then shrunk
 conditional on those cluster effects.
+
+For known-\code{V} models, the conditional means require applying the
+inverse of the marginal covariance. A covariance that is too ill-conditioned
+for that (a reciprocal condition number of about \code{2e-10} or less in any
+posterior draw used) is unavailable: the call stops with an error of class
+\code{RoBMA_known_v_precision_unavailable}, whose parent class is
+\code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+The condition carries the draw positions (\code{rows}) and their
+\code{reciprocal_condition}.
 }
 \examples{
 \dontrun{
