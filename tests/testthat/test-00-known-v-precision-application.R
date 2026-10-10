@@ -471,6 +471,8 @@ test_that("rstandard keeps the tight GLS residual variance of a known-V factor",
   # standard error 0.00195 at d = 1e-10 (7.07e-6 expected). The residuals
   # themselves come from the intercept X'M^-1 y, whose sum cancels by a factor
   # 1 / d, so z is accurate to about 1e-16 / d.
+  old_max_cores <- RoBMA.get_option("max_cores")
+  on.exit(RoBMA.options(max_cores = old_max_cores), add = TRUE)
   RoBMA.options(max_cores = 1L)
   for (d in c(1e-6, 1e-10)) {
     object <- brma.mv(
