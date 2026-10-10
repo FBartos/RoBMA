@@ -108,3 +108,35 @@ test_that("the SD of a scale-modelled block keeps resolving to the scale interce
   expect_identical(printed[[1L]], "log_tau_intercept:")
   .random_prior_device(expect_null(plot_prior(fit, "tau")))
 })
+
+
+test_that("prior plots of random-effect selectors match their reviewed snapshots", {
+
+  skip_on_cran()
+  # a declared SD, its variance, and a share of a gated allocation (the prior
+  # law with its point masses at 0 and 1 on a second probability axis)
+  declared <- load_fit("brma.mv_block_mvn_random")
+  gated    <- load_fit("BMA.mv_random_components")
+
+  expect_vdiffr_snapshot("plot_prior_random_sd_base", function() {
+    plot_prior(declared, "tau")
+  })
+  expect_vdiffr_snapshot(
+    "plot_prior_random_sd_ggplot",
+    plot_prior(declared, "tau", plot_type = "ggplot")
+  )
+  expect_vdiffr_snapshot("plot_prior_random_tau2_base", function() {
+    plot_prior(declared, "tau2")
+  })
+  expect_vdiffr_snapshot(
+    "plot_prior_random_tau2_ggplot",
+    plot_prior(declared, "tau2", plot_type = "ggplot")
+  )
+  expect_vdiffr_snapshot("plot_prior_random_share_base", function() {
+    plot_prior(gated, "tau2_prop(study)")
+  })
+  expect_vdiffr_snapshot(
+    "plot_prior_random_share_ggplot",
+    plot_prior(gated, "tau2_prop(study)", plot_type = "ggplot")
+  )
+})
