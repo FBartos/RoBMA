@@ -329,6 +329,24 @@ test_that("the nested unique-level refusal is judged only for returned blocks", 
       class = "RoBMA_ranef_expand_required", info = component
     )
   }
+
+  # an unknown or malformed component is refused by the component selection,
+  # before any block is judged (the scale of the study block varies)
+  unknown <- tryCatch(
+    ranef(mv, component = "location", .posterior_samples = mv_samples),
+    error = identity
+  )
+  expect_s3_class(unknown, "error")
+  expect_match(
+    conditionMessage(unknown), "Unknown random-effect component 'location'",
+    fixed = TRUE
+  )
+  expect_match(conditionMessage(unknown), "esid_study, study, all, total", fixed = TRUE)
+  expect_false(inherits(unknown, "RoBMA_ranef_expand_required"))
+  expect_error(
+    ranef(mv, component = c("study", "esid_study"), .posterior_samples = mv_samples),
+    "'component' must be a single component name.", fixed = TRUE
+  )
 })
 
 # A clustered GLMM (or weight-function) model takes the sampled-latent route of

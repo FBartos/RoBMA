@@ -1323,13 +1323,25 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   block_order <- block_order[block_order %in% names(components)]
 
   # Only the blocks that the requested component returns are converted to
-  # unique levels and judged; an unknown component is reported by the selection.
+  # unique levels and judged. A component that returns no block is unknown (or
+  # malformed) and is refused by the selection before any block is judged.
   returned <- vapply(
     block_order, .ranef_block_returned, logical(1L), component = component
   )
-  if (any(returned)) {
-    block_order <- block_order[returned]
+  if (!any(returned)) {
+    return(.select_ranef_components(
+      components = components[block_order],
+      component  = component,
+      simplify   = simplify,
+      expand     = expand,
+      labels     = labels,
+      n_chains   = n_chains,
+      n_iter     = n_iter,
+      probs      = probs,
+      data       = data
+    ))
   }
+  block_order <- block_order[returned]
   components  <- components[block_order]
 
   out <- lapply(names(components), function(block) {
