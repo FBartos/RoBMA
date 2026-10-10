@@ -27,7 +27,8 @@
 #' \code{"intercept"} for the heterogeneity intercept in location-scale models.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
-#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+#' \code{"location"}), \code{"scale"}, \code{"bias"}, or \code{"random"}
+#' (the random-effect quantities of fitted objects) to disambiguate
 #' terms used in multiple prior components. A \code{parameter_mods} or
 #' \code{parameter_scale} selection with another \code{component} stops with
 #' an error of class \code{RoBMA_component_mismatch}.
@@ -49,6 +50,28 @@
 #' meta-regression intercept). For base plots, the probability mapping created
 #' by \code{plot_prior()} is reused by subsequent posterior
 #' \code{lines.brma()} calls, including overlays from other fitted objects.
+#'
+#' The random-effect quantities of fitted \code{brma.mv}, \code{BMA.mv}, and
+#' \code{RoBMA.mv} objects are selected by their names in \code{parameter},
+#' such as \code{"tau"}, \code{"tau_total"}, \code{"tau2"},
+#' \code{"tau2_prop(study)"}, or \code{"study: tau"} (\code{"tau"} stops as
+#' ambiguous when several blocks have an SD). A quantity that is one declared
+#' prior (the SD of a block, the total SD of a variance allocation, or a
+#' correlation with its own prior) shows that prior. Any other quantity
+#' (a variance, a share of the total variance, the SD of a component of an
+#' allocation, and the quantities of gated allocations) shows the prior law it
+#' follows from the declared priors, the density that \code{plot()} overlays
+#' with \code{prior = TRUE}, drawn without a posterior; point masses (for
+#' example of inclusion gates) are drawn as arrows. For these laws,
+#' \code{xlim}, \code{n_points}, \code{par_name}, and graphical arguments
+#' apply as for other priors, while \code{x_seq} and \code{x_range_quant}
+#' stop. A quantity without a prior density stops with the classes
+#' \code{RoBMA_hypothesis_target} and \code{RoBMA_hypothesis_unavailable}.
+#' \code{standardized_coefficients} selects the fitted (default) or the
+#' original predictor scale of these laws. Objects created with
+#' \code{only_priors = TRUE} have no fitted random-effect quantities; print
+#' their random-effect priors with
+#' \code{print_prior(x, parameter = "random")}.
 #'
 #' A term with several fitted coordinates (a factor with three or more levels
 #' or with independent contrasts, and the interactions of such a factor) has
@@ -162,7 +185,8 @@ plot_prior.brma <- function(
     parameter        = if (has_parameter) parameter else NULL,
     parameter_mods   = if (has_parameter_mods) parameter_mods else NULL,
     parameter_scale  = if (has_parameter_scale) parameter_scale else NULL,
-    component        = component
+    component        = component,
+    standardized_coefficients = standardized_coefficients
   )
   effect_transform <- .effect_output_setup(
     object         = x,
@@ -207,7 +231,13 @@ plot_prior.brma <- function(
     }
   }
 
-  if (BayesTools::is.prior.mixture(selected[["prior"]])) {
+  if (inherits(selected[["prior"]], "prior_linear_density")) {
+    plot <- .plot_prior_density_law(
+      law       = selected[["prior"]],
+      plot_type = plot_type,
+      dots      = dots
+    )
+  } else if (BayesTools::is.prior.mixture(selected[["prior"]])) {
     plot <- do.call(
       BayesTools::plot_prior_list,
       c(
@@ -268,12 +298,19 @@ plot.only_priors.brma <- function(x, ...) {
 #' \code{"pi"} and \code{"phi"} are available when present. Moderator and
 #' scale terms can also be selected by name when unambiguous. For
 #' \code{brma.mv()} objects with random-effect formulas, \code{"random"} prints
-#' the structured random-effect prior specification. A character vector requests
-#' multiple base parameters. A quantity of the fitted model that is no model
-#' parameter (e.g. an inclusion indicator or a weight-function coordinate such
-#' as \code{"omega[1]"}) stops with the classes
-#' \code{RoBMA_hypothesis_target} and \code{RoBMA_hypothesis_unavailable}, as
-#' in [plot.brma()].
+#' the structured random-effect prior specification, and the random-effect
+#' quantities of fitted objects (such as \code{"tau"}, \code{"tau_total"},
+#' \code{"tau2"}, \code{"tau2_prop(study)"}, or \code{"study: tau"}) print
+#' their declared prior, or, for a quantity that follows from several declared
+#' priors, one line giving the derivation (for example
+#' \code{tau2 = tau^2} or \code{study: tau = sigma_total * sqrt(w[1])}, in the
+#' notation of the \code{"random"} specification) followed by the declared
+#' priors it refers to. A quantity without a prior density stops as in
+#' [plot_prior()]. A character vector requests multiple base parameters. A
+#' quantity of the fitted model that is no model parameter (e.g. an inclusion
+#' indicator or a weight-function coordinate such as \code{"omega[1]"}) stops
+#' with the classes \code{RoBMA_hypothesis_target} and
+#' \code{RoBMA_hypothesis_unavailable}, as in [plot.brma()].
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.
@@ -282,14 +319,17 @@ plot.only_priors.brma <- function(x, ...) {
 #' \code{"intercept"} for the heterogeneity intercept in location-scale models.
 #' @param component parameter component. Defaults to \code{"auto"}, which
 #' infers the component when possible. Use \code{"mods"} (alias
-#' \code{"location"}), \code{"scale"}, or \code{"bias"} to disambiguate
+#' \code{"location"}), \code{"scale"}, \code{"bias"}, or \code{"random"}
+#' (the random-effect quantities of fitted objects) to disambiguate
 #' terms used in multiple prior components. A \code{parameter_mods} or
 #' \code{parameter_scale} selection with another \code{component} stops with
 #' an error of class \code{RoBMA_component_mismatch}.
 #' @param ... additional arguments passed to the prior printing method. Use
 #' \code{silent = TRUE} for programmatic inspection without console output.
 #'
-#' @return \code{print_prior} invisibly returns the selected prior distribution.
+#' @return \code{print_prior} invisibly returns the selected prior distribution
+#' (for a random-effect quantity that is not one declared prior, its prior
+#' density, a BayesTools \code{prior_linear_density}).
 #' If multiple parameters are requested, a named list of prior distributions is
 #' returned invisibly.
 #'
@@ -377,7 +417,7 @@ print_prior.brma <- function(
 
     priors <- lapply(selected, `[[`, "prior")
     for (i in seq_along(selected)) {
-      .print_prior_object(priors[[i]], label = selected[[i]][["label"]], ...)
+      .print_prior_selected(selected[[i]], ...)
     }
 
     return(invisible(priors))
@@ -392,7 +432,7 @@ print_prior.brma <- function(
     allow_mixed_bias = TRUE
   )
 
-  .print_prior_object(selected[["prior"]], label = selected[["label"]], ...)
+  .print_prior_selected(selected, ...)
 
   return(invisible(selected[["prior"]]))
 }

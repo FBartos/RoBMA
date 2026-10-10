@@ -210,6 +210,16 @@ standard_required_tests <- function() {
       "the total of a nested gated allocation has its exact prior curve and atom in plots",
       "point hypotheses on the total of a nested gated allocation use its exact prior"
     )),
+    .required_tests("test-00-plot-prior-random.R", c(
+      "plot_prior and print_prior show the declared prior of a random SD",
+      "plot_prior draws the prior of a variance as the square of the SD prior",
+      "random SD, total and share selectors of an allocation show their priors",
+      "random selectors of gated allocations show prior laws with their point masses",
+      "random selectors of a nested gated allocation derive from its allocation chain",
+      "random selectors without a prior density are refused with the target classes",
+      "the SD of a scale-modelled block keeps resolving to the scale intercept",
+      "only_priors objects point to the random-effect specification"
+    )),
     .required_tests("test-00-selection-kernel-fit.R", c(
       "selection reference weights are structural convergence parameters"
     )),

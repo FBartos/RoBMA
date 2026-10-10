@@ -369,6 +369,18 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     without the prior curve and with a warning of class
     `BayesTools_prior_curve_unavailable`. SD and variance multipliers accept
     `transform = "LOG"`.
+  - `plot_prior()` and `print_prior()` select the random-effect quantities of
+    fitted `brma.mv()`, `BMA.mv()`, and `RoBMA.mv()` objects (`"tau"`,
+    `"tau_total"`, `"tau2"`, `"tau2_prop(study)"`, `"study: tau"`, ...)
+    instead of stopping with "Unknown prior source 'random'". A quantity that
+    is one declared prior shows that prior. Any other quantity (variances,
+    shares of the total variance, the SDs of allocation components, and gated
+    allocations) shows the BayesTools prior density that `plot(prior = TRUE)`
+    overlays, with its point masses; `print_prior()` prints its derivation
+    from the declared priors and those priors. Quantities without a prior
+    density stop with the classes `RoBMA_hypothesis_target` and
+    `RoBMA_hypothesis_unavailable`, and `only_priors = TRUE` objects, which
+    have no fitted quantities, point to `print_prior(object, "random")`.
 - selection models:
   - `bselmodel()`, `RoBMA()`, `bselmodel.mv()`, and `RoBMA.mv()` fit
     conditional Gaussian vector selection models specified with

@@ -245,6 +245,10 @@
         "The specified ", argument, " '", parameter, "' is not available. ",
         "Available quantities are: ",
         .brma_parameter_available(catalog, component), ".",
+        if (.has_print_prior_random(object)) paste0(
+          " The random-effect priors of the object are printed by ",
+          "print_prior(object, parameter = \"random\")."
+        ),
         call. = FALSE
       )
     }
@@ -1539,7 +1543,8 @@
 
 .select_plot_prior_parameter <- function(
     object, parameter, parameter_mods, parameter_scale,
-    component = "auto", allow_mixed_bias = FALSE) {
+    component = "auto", allow_mixed_bias = FALSE,
+    standardized_coefficients = TRUE) {
 
   component <- .parameter_component_normalize(component)
   n_specified <- sum(!vapply(
@@ -1561,7 +1566,9 @@
       component = "mods",
       argument  = "parameter_mods"
     )
-    return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
+    return(.select_plot_prior_entry(
+      object, entry, allow_mixed_bias, standardized_coefficients
+    ))
   }
 
   if (!is.null(parameter_scale)) {
@@ -1573,7 +1580,9 @@
       component = "scale",
       argument  = "parameter_scale"
     )
-    return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
+    return(.select_plot_prior_entry(
+      object, entry, allow_mixed_bias, standardized_coefficients
+    ))
   }
 
   if (is.null(parameter)) {
@@ -1589,7 +1598,9 @@
     argument  = "parameter"
   )
 
-  return(.select_plot_prior_entry(object, entry, allow_mixed_bias))
+  return(.select_plot_prior_entry(
+    object, entry, allow_mixed_bias, standardized_coefficients
+  ))
 }
 
 .select_print_prior_parameter <- function(
@@ -1619,7 +1630,8 @@
   )
 }
 
-.select_plot_prior_entry <- function(object, entry, allow_mixed_bias = FALSE) {
+.select_plot_prior_entry <- function(object, entry, allow_mixed_bias = FALSE,
+                                     standardized_coefficients = TRUE) {
 
   priors            <- object[["priors"]]
   parameter         <- entry[["parameter"]]
@@ -1683,6 +1695,12 @@
       source            = source,
       term              = term,
       formula_parameter = formula_parameter
+    ))
+  }
+
+  if (identical(source, "random")) {
+    return(.select_plot_prior_random(
+      object, entry, standardized_coefficients
     ))
   }
 
@@ -1829,7 +1847,7 @@
   )
 }
 
-.print_prior_object <- function(x, label = NULL, ...) {
+.print_prior_object <- function(x, label = NULL, indent = "", ...) {
 
   dots <- list(...)
   silent <- isTRUE(dots[["silent"]])
@@ -1838,13 +1856,13 @@
   output <- do.call(print, c(list(x = x), dots))
 
   if (!silent) {
+    output <- paste(output, collapse = "\n")
+    output <- unlist(strsplit(output, "\n", fixed = TRUE), use.names = FALSE)
     if (!is.null(label)) {
-      output <- paste(output, collapse = "\n")
-      output <- unlist(strsplit(output, "\n", fixed = TRUE), use.names = FALSE)
       output <- paste0("  ", output)
-      output <- paste(output, collapse = "\n")
-      cat(label, ":\n", sep = "")
+      cat(indent, label, ":\n", sep = "")
     }
+    output <- paste(paste0(indent, output), collapse = "\n")
     cat(output, "\n", sep = "")
   }
 

@@ -629,20 +629,9 @@
   spec <- as.list(bundle[["specs"]][index, , drop = FALSE])
   spec[["display_transform"]] <-
     bundle[["specs"]][["display_transform"]][[index]]
-  formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
-  term <- .brma_random_parameter_design_term(formula_design, spec)
-  if (!is.null(term)) {
-    spec[["grouping"]] <- term[["group_label"]]
-    spec[["structure"]] <- term[["structure"]]
-  }
-  allocation_definition <- .brma_random_parameter_design_allocation(
-    formula_design,
-    spec
-  )
-  spec[["allocation_index"]] <- .brma_random_parameter_allocation_index(
-    spec,
-    allocation_definition
-  )
+  design <- .brma_random_parameter_design_spec(object, spec)
+  spec <- design[["spec"]]
+  allocation_definition <- design[["allocation_definition"]]
 
   samples <- bundle[["samples"]][, entry[["parameter"]], drop = FALSE]
   undefined <- BayesTools::posterior_metadata(bundle[["samples"]], "undefined_draws")
@@ -662,6 +651,33 @@
     ),
     allocation_definition = allocation_definition,
     raw_samples            = bundle[["raw_samples"]]
+  )
+}
+
+# The design metadata of a random-effect quantity ('spec' as a list): the
+# grouping and structure of its term, and the definition of its variance
+# allocation with the index of the quantity's component in it.
+.brma_random_parameter_design_spec <- function(object, spec) {
+
+  formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
+  term <- .brma_random_parameter_design_term(formula_design, spec)
+  if (!is.null(term)) {
+    spec[["grouping"]] <- term[["group_label"]]
+    spec[["structure"]] <- term[["structure"]]
+  }
+  allocation_definition <- .brma_random_parameter_design_allocation(
+    formula_design,
+    spec
+  )
+  spec[["allocation_index"]] <- .brma_random_parameter_allocation_index(
+    spec,
+    allocation_definition
+  )
+
+  list(
+    spec                  = spec,
+    term                  = term,
+    allocation_definition = allocation_definition
   )
 }
 
@@ -690,6 +706,23 @@
   }
 
   BayesTools::prior("beta", parameters = list(alpha = eta, beta = eta))
+}
+
+
+# The declared prior of a random-effect quantity that is exactly one declared
+# prior under the identity transform (an SD or total SD, or a correlation with
+# its own prior); NULL for any other quantity.
+.brma_random_parameter_declared_prior <- function(object, spec) {
+
+  source_scale <- spec[["source_scale"]]
+  identity <- identical(spec[["source_type"]], "identity") &&
+    identical(spec[["source_transform"]], "identity") &&
+    (is.na(source_scale) || source_scale == 1)
+  if (!identity) {
+    return(NULL)
+  }
+
+  .brma_random_parameter_source_prior(object, spec)
 }
 
 
