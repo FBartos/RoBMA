@@ -766,11 +766,12 @@ double log_gamma_increment_lifted(double t, double ratio, double log_z,
 
 
 // log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0. Below z = 16 it is the
-// plain difference of the two log-gamma values, whose absolute error is at
-// most about 1e-14 (it loses relative accuracy only for t << z, where the
-// increment itself is tiny); from z = 16 it is the Stirling-series difference
-// of log_gamma_increment_lifted, so that no two large log-gamma values are
-// subtracted. A non-finite or non-positive argument gives NaN.
+// plain difference of the two log-gamma values, whose error is a few ulp of
+// lgamma(z + t): the result keeps relative accuracy and loses it only for
+// t << z, where the increment itself is tiny; from z = 16 it is the
+// Stirling-series difference of log_gamma_increment_lifted, so that no two
+// large log-gamma values are subtracted. A non-finite or non-positive argument
+// gives NaN.
 double log_gamma_increment(double z, double t)
 {
   if (!(z > 0.0) || !(t >= 0.0) || !std::isfinite(z) || !std::isfinite(t)) {
