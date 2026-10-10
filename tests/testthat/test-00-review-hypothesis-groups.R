@@ -181,8 +181,7 @@ test_that("a marginal-means parameter is refused for statements of another param
     list("g2[2] > 0 vs g2[2] = 0", "g1"),
     list("g2[2] > 0", "g1"),
     list("g2 > 0", "mu_g1"),
-    list("g1[10] > 0", "g2"),
-    list("g1[10] > g2[2]", "g1")
+    list("g1[10] > 0", "g2")
   )
   for (request in requests) {
     error <- tryCatch(
@@ -214,6 +213,20 @@ test_that("a marginal-means parameter is refused for statements of another param
     fixed = TRUE
   )
 
+  # A statement that names both parameters is refused as it is without
+  # 'parameter' (omitting it would not help), under the mismatch class.
+  statement <- "g1[10] > g2[2]"
+  without <- tryCatch(hypothesis(means, statement), error = identity)
+  for (parameter in c("g1", "g2")) {
+    error <- tryCatch(
+      hypothesis(means, statement, parameter = parameter, seed = 1),
+      error = identity
+    )
+    expect_identical(class(error), mismatch, info = parameter)
+    expect_identical(conditionMessage(error), conditionMessage(without), info = parameter)
+    expect_false(grepl("omit 'parameter'", conditionMessage(error), fixed = TRUE))
+  }
+
   # The statements of the selected parameter, and unknown names, as before.
   statement <- "g1[10] > 0 vs g1[10] = 0"
   expect_identical(
@@ -227,6 +240,15 @@ test_that("a marginal-means parameter is refused for statements of another param
   expect_error(
     hypothesis(means, c("g1[10] > 0", "zz[10] > 0")),
     class = "BayesTools_parameter_not_found"
+  )
+  # the unknown name is the one named in the refusal
+  error <- tryCatch(
+    hypothesis(means, c("g1[10] > 0", "zz[10] > 0")), error = identity
+  )
+  expect_identical(error[["alias"]], "zz")
+  expect_match(
+    conditionMessage(error), "The name 'zz' is not a marginal-means quantity.",
+    fixed = TRUE
   )
 })
 

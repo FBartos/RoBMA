@@ -13,10 +13,11 @@
 #' \code{RoBMA_hypothesis_statement}; \code{parameter} selects the parameter
 #' of an ambiguous alias. With \code{parameter}, every statement is tested on
 #' that parameter, and a statement that refers to the marginal means of
-#' another parameter (also \code{"g[a] > h[b]"} with
-#' \code{parameter = "g"}) stops with an error of class
+#' another parameter stops with an error of class
 #' \code{RoBMA_hypothesis_parameter_mismatch}, with the parent class
-#' \code{RoBMA_hypothesis_statement}. A statement that references no
+#' \code{RoBMA_hypothesis_statement}; for a statement that names several
+#' parameters (\code{"g[a] > h[b]"} with \code{parameter = "g"}) its message
+#' is the one given without \code{parameter}. A statement that references no
 #' marginal-means parameter stops with the class
 #' \code{RoBMA_hypothesis_statement}; for a statement without parameter
 #' symbols (for example \code{"1 > 0"}, also with \code{parameter}) also with
@@ -31,9 +32,10 @@
 #' hypotheses and model-averaged region hypotheses use averaged marginal draws.
 #' Model-averaged point-null hypotheses use alternative-conditioned draws to
 #' avoid null atoms in averaged marginals. For model-averaged objects,
-#' hypotheses that mix point and region events, and point hypotheses spanning
-#' multiple factor levels (of one parameter or of several), are not
-#' supported; region hypotheses may refer to several parameters.
+#' hypotheses that mix point and region events, and point hypotheses on more
+#' than one marginal mean (several levels of a factor, or levels and scalar
+#' marginal means of one parameter or of several), are not supported; region
+#' hypotheses may refer to several parameters.
 #' Single-model hypotheses use one common averaged posterior and may combine
 #' these events. Point hypotheses require the exact prior ordinate that
 #' BayesTools attaches to the marginal mean, as for fitted objects.
@@ -326,12 +328,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   # that names several.
   if (length(known) > 1L) {
     .hypothesis_stop(.hypothesis_refusal(
-      paste0(
-        "Hypothesis references multiple marginal-means parameters (",
-        paste(known, collapse = ", "),
-        "), but one statement must refer to the marginal means of one ",
-        "parameter. Use separate statements for different parameters."
-      ),
+      .hypothesis_marginal_means_multiple_parameters_message(known),
       "ambiguous"
     ))
   }
@@ -344,6 +341,12 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     list(
       message   = paste0(
         "Could not infer a marginal-means parameter from the hypothesis. ",
+        if (length(roots) > 1L) {
+          paste0("The names ", paste0("'", roots, "'", collapse = ", "),
+                 " are not marginal-means quantities. ")
+        } else {
+          paste0("The name '", roots, "' is not a marginal-means quantity. ")
+        },
         "Available quantities are: ",
         paste0("'", available, "'", collapse = ", "), "."
       ),
@@ -352,6 +355,19 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
       available = available
     )
   ))
+}
+
+
+# The message of a statement that names the marginal means of several
+# parameters, with and without 'parameter'.
+.hypothesis_marginal_means_multiple_parameters_message <- function(parameters) {
+
+  paste0(
+    "Hypothesis references multiple marginal-means parameters (",
+    paste(parameters, collapse = ", "),
+    "), but one statement must refer to the marginal means of one ",
+    "parameter. Use separate statements for different parameters."
+  )
 }
 
 
@@ -365,7 +381,27 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   for (statement in BayesTools::hypothesis_render(hypothesis)) {
     roots <- .hypothesis_brma_symbol_roots(BayesTools::hypothesis_parse(statement))
-    for (root in unique(roots[nzchar(roots)])) {
+    roots <- unique(roots[nzchar(roots)])
+
+    # A statement that names the marginal means of several parameters has the
+    # refusal it has without 'parameter' (omitting 'parameter' does not help),
+    # with the class of the mismatch with the selected parameter.
+    named <- lapply(roots, function(root) {
+      unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
+    })
+    named <- named[lengths(named) > 0L]
+    if (length(named) > 1L && length(Reduce(intersect, named)) == 0L) {
+      refusal <- .hypothesis_refusal(
+        .hypothesis_marginal_means_multiple_parameters_message(
+          unique(unlist(named))
+        ),
+        "statement"
+      )
+      refusal[["class"]] <- c("RoBMA_hypothesis_parameter_mismatch", refusal[["class"]])
+      .hypothesis_stop(refusal)
+    }
+
+    for (root in roots) {
       parameters <- unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
       if (length(parameters) > 0L && !selected %in% parameters) {
         refusal <- .hypothesis_refusal(

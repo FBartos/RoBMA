@@ -115,6 +115,44 @@
 }
 
 
+# The object above with a scalar marginal mean, 'intercept': a parameter
+# without levels whose draws lie above zero in 60% of the averaged draws.
+.marginal_means_route_scalar_object <- function(model_averaged = TRUE) {
+
+  scalar <- function(x, condition_key = NULL) {
+    out <- with_draw_metadata(
+      x,
+      class          = c("marginal_posterior.simple", "numeric"),
+      linear_weights = c(a = 1),
+      prior_density  = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+      atoms          = BayesTools::posterior_atom_attribute()
+    )
+    if (!is.null(condition_key)) {
+      BayesTools::posterior_metadata(out, "condition") <-
+        list(condition_key = condition_key)
+    }
+    attr(out, "parameter") <- "mu_intercept"
+    out
+  }
+  object <- .marginal_means_route_two_parameter_object(model_averaged)
+  object[["inference"]][["averaged"]][["mu_intercept"]] <-
+    scalar(c(rep(0.2, 60), rep(-0.2, 40)))
+  object[["inference"]][["conditional"]][["mu_intercept"]] <-
+    scalar(rep(0.2, 100), "event-intercept")
+  object[["term_map"]] <- rbind(
+    object[["term_map"]],
+    data.frame(
+      term             = "intercept",
+      parameter        = "mu_intercept",
+      label            = "intercept",
+      stringsAsFactors = FALSE
+    )
+  )
+
+  return(object)
+}
+
+
 test_that("cross-level region hypotheses use direct averaged odds", {
 
   object <- .marginal_means_route_test_object(model_averaged = TRUE)
@@ -528,8 +566,65 @@ test_that("a statement on the marginal means of two parameters is refused withou
         fixed = TRUE
       )
       expect_false(grepl("Specify 'parameter'", conditionMessage(error), fixed = TRUE))
+
+      # With 'parameter' the statement still names two parameters, and
+      # omitting 'parameter' does not help: the message is the same, under
+      # the class of the mismatch with the selected parameter.
+      for (parameter in c("alloc", "mu_other")) {
+        selected <- tryCatch(
+          hypothesis(object, statement, parameter = parameter),
+          error = identity
+        )
+        expect_identical(
+          class(selected),
+          c("RoBMA_hypothesis_parameter_mismatch", "RoBMA_hypothesis_statement",
+            "error", "condition"),
+          info = paste(statement, parameter)
+        )
+        expect_identical(
+          conditionMessage(selected), conditionMessage(error),
+          info = paste(statement, parameter)
+        )
+        expect_false(grepl("omit 'parameter'", conditionMessage(selected), fixed = TRUE))
+      }
     }
   }
+})
+
+
+test_that("an unknown name in a marginal-means request is named in the refusal", {
+
+  object <- .marginal_means_route_two_parameter_object(model_averaged = FALSE)
+  for (statements in list(
+    "zz[A] > 0", c("alloc[A] > 0", "zz[A] > 0"), c("zz[A] > 0", "alloc[A] > 0")
+  )) {
+    error <- tryCatch(hypothesis(object, statements), error = identity)
+    expect_identical(
+      class(error),
+      c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+        "BayesTools_parameter_resolution_error", "error", "condition"),
+      info = paste(statements, collapse = " | ")
+    )
+    expect_identical(error[["alias"]], "zz")
+    expect_match(
+      conditionMessage(error), "The name 'zz' is not a marginal-means quantity.",
+      fixed = TRUE
+    )
+    expect_true(all(
+      c("alloc", "other", "mu_alloc", "mu_other") %in% error[["available"]]
+    ))
+    expect_false("zz" %in% error[["available"]])
+  }
+
+  # several unknown names of one statement are all named
+  error <- tryCatch(hypothesis(object, "yy[A] > zz[A]"), error = identity)
+  expect_identical(error[["alias"]], "yy")
+  expect_match(
+    conditionMessage(error),
+    "The names 'yy', 'zz' are not marginal-means quantities.",
+    fixed = TRUE
+  )
+  expect_s3_class(error, "BayesTools_parameter_not_found")
 })
 
 
@@ -575,4 +670,59 @@ test_that("model-averaged requests count point levels across parameters", {
   for (statements in list(levels, c("alloc[A] = 0", "other[A] > 0"))) {
     expect_null(refusal(single, statements))
   }
+})
+
+
+test_that("model-averaged requests count a scalar marginal mean as one point target", {
+
+  object <- .marginal_means_route_scalar_object(model_averaged = TRUE)
+  single <- .marginal_means_route_scalar_object(model_averaged = FALSE)
+  refusal <- function(object, statements) {
+    plans <- lapply(statements, function(statement) {
+      .hypothesis_plan_marginal_means(object, statement)
+    })
+    .hypothesis_plan_marginal_means_request_refusal(plans = plans, object = object)
+  }
+  reason <- paste0(
+    "Point hypotheses spanning multiple marginal-means levels are not ",
+    "supported because the levels need not share one conditioning event."
+  )
+
+  # Point statements on two different targets are refused whatever their
+  # kind: a scalar marginal mean and a level, two scalar marginal means, and
+  # (as before) two levels. The requests with the scalar marginal mean were
+  # accepted although both are point statements on two conditioning events.
+  requests <- list(
+    c("intercept = 0.2", "alloc[A] = 0.1"),
+    c("alloc[A] = 0.1", "intercept = 0.2"),
+    c("alloc[A] = 0.1", "other[A] = 0.1"),
+    c("alloc[A] = 0.1", "alloc[B] = 0.1")
+  )
+  for (statements in requests) {
+    expect_identical(
+      refusal(object, statements)[["reason"]], reason,
+      info = paste(statements, collapse = " | ")
+    )
+    expect_error(
+      hypothesis(object, statements, seed = 913),
+      "spanning multiple marginal-means levels",
+      class = "RoBMA_hypothesis_statement",
+      info = paste(statements, collapse = " | ")
+    )
+    expect_null(refusal(single, statements))
+  }
+
+  # One target is not refused however many statements state it, and region
+  # statements may name any parameters.
+  expect_null(refusal(object, "intercept = 0.2"))
+  expect_null(refusal(object, c("intercept = 0.2", "intercept = 0.3")))
+  expect_null(refusal(object, c("intercept > 0", "alloc[A] > 0", "other[A] > 0")))
+  out <- hypothesis(object, c("intercept = 0.2", "intercept = 0.3"), seed = 913)
+  expect_identical(
+    rownames(out), c("mu_intercept (1)", "mu_intercept (2)")
+  )
+  expect_identical(
+    refusal(object, c("intercept = 0.2", "alloc[A] > 0"))[["class"]],
+    "RoBMA_hypothesis_statement"
+  )
 })

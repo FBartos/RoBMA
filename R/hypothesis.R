@@ -284,7 +284,8 @@ hypothesis.default <- function(object, ...) {
 #' statement, one quantity named by several names in one statement (for
 #' example \code{"mu > 0 & intercept < 1"} or \code{"g[a] > mu_g[a]"}; use
 #' one name), model-averaged marginal-means statements that mix point and
-#' region events or span several levels, ambiguous references
+#' region events or span several marginal means (levels or scalar marginal
+#' means), ambiguous references
 #' (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
 #' parameters of another component (\code{RoBMA_component_mismatch}), marginal-means
 #' statements that refer to another parameter than \code{parameter}

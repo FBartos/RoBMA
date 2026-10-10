@@ -2009,8 +2009,10 @@
 # Its statements are evaluated on one posterior conditioning (point
 # statements on the alternative-conditioned marginal mean of one level,
 # region statements on the averaged marginal means), so a request cannot
-# combine point and region statements or point statements on several levels,
-# whether the levels belong to one marginal-means parameter or to several.
+# combine point and region statements or point statements on several
+# marginal means, whether the levels belong to one marginal-means parameter or
+# to several; the scalar marginal mean of a parameter without levels is one
+# target, counted as the pair (parameter, "").
 .hypothesis_plan_marginal_means_request_refusal <- function(plans, object) {
 
   model_averaged <- isTRUE(object[["model_averaged"]]) ||
@@ -2035,7 +2037,7 @@
       parameter  = plan[["parameter"]]
     )
     if (length(levels) == 0L) {
-      return(character())
+      levels <- ""
     }
     paste(plan[["parameter"]], levels, sep = "\r")
   })))

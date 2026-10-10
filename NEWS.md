@@ -581,10 +581,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     parameter stops with `RoBMA_hypothesis_parameter_mismatch` (parent
     `RoBMA_hypothesis_statement`) naming the statement and both parameters.
     A statement that names several parameters (`"g[a] > h[b]"`) stays
-    `RoBMA_hypothesis_ambiguous` and now states that one statement refers to
-    the marginal means of one parameter. Model-averaged objects still refuse
-    requests that mix point and region statements and requests with point
-    statements on more than one level, counted over all parameters.
+    `RoBMA_hypothesis_ambiguous` and states that one statement refers to the
+    marginal means of one parameter; with `parameter` it has the same message
+    under the mismatch class. A name that is no marginal-means quantity is
+    named in the refusal. Model-averaged objects still refuse requests that
+    mix point and region statements and requests with point statements on more
+    than one marginal mean (a factor level, or the scalar marginal mean of a
+    parameter), counted over all parameters.
 - posterior densities and point ordinates (qCMDE and IWMDE):
   - ordered effects now condition on their fitted total or grouped/pair share
     sources, replay all shared consumers, and count the original ordered priors

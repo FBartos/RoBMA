@@ -71,10 +71,11 @@ parameters, stops with an error of class
 \code{RoBMA_hypothesis_statement}; \code{parameter} selects the parameter
 of an ambiguous alias. With \code{parameter}, every statement is tested on
 that parameter, and a statement that refers to the marginal means of
-another parameter (also \code{"g[a] > h[b]"} with
-\code{parameter = "g"}) stops with an error of class
+another parameter stops with an error of class
 \code{RoBMA_hypothesis_parameter_mismatch}, with the parent class
-\code{RoBMA_hypothesis_statement}. A statement that references no
+\code{RoBMA_hypothesis_statement}; for a statement that names several
+parameters (\code{"g[a] > h[b]"} with \code{parameter = "g"}) its message
+is the one given without \code{parameter}. A statement that references no
 marginal-means parameter stops with the class
 \code{RoBMA_hypothesis_statement}; for a statement without parameter
 symbols (for example \code{"1 > 0"}, also with \code{parameter}) also with
@@ -167,7 +168,8 @@ factor levels, several point values of a random-effect variance in one
 statement, one quantity named by several names in one statement (for
 example \code{"mu > 0 & intercept < 1"} or \code{"g[a] > mu_g[a]"}; use
 one name), model-averaged marginal-means statements that mix point and
-region events or span several levels, ambiguous references
+region events or span several marginal means (levels or scalar marginal
+means), ambiguous references
 (\code{RoBMA_hypothesis_ambiguous}, see \code{component}), references to
 parameters of another component (\code{RoBMA_component_mismatch}), marginal-means
 statements that refer to another parameter than \code{parameter}
@@ -370,9 +372,10 @@ linear-predictor scale. Display transformations stored by
 hypotheses and model-averaged region hypotheses use averaged marginal draws.
 Model-averaged point-null hypotheses use alternative-conditioned draws to
 avoid null atoms in averaged marginals. For model-averaged objects,
-hypotheses that mix point and region events, and point hypotheses spanning
-multiple factor levels (of one parameter or of several), are not
-supported; region hypotheses may refer to several parameters.
+hypotheses that mix point and region events, and point hypotheses on more
+than one marginal mean (several levels of a factor, or levels and scalar
+marginal means of one parameter or of several), are not supported; region
+hypotheses may refer to several parameters.
 Single-model hypotheses use one common averaged posterior and may combine
 these events. Point hypotheses require the exact prior ordinate that
 BayesTools attaches to the marginal mean, as for fitted objects.
