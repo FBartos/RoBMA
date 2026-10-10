@@ -7,81 +7,6 @@ source(testthat::test_path("common-functions.R"))
 # law plot(prior = TRUE) overlays) without a posterior. The expectations are
 # analytic identities of the fits' own declared priors.
 
-# The layers of a built ggplot by geom: the curve and the point-mass arrows.
-.random_prior_layers <- function(plot) {
-
-  built <- ggplot2::ggplot_build(plot)[["data"]]
-  geoms <- vapply(plot[["layers"]], function(layer) {
-    class(layer[["geom"]])[[1L]]
-  }, character(1))
-
-  list(
-    curve  = built[[which(geoms == "GeomLine")[[1L]]]],
-    arrows = built[geoms == "GeomSegment"]
-  )
-}
-
-.random_prior_curve <- function(plot) {
-
-  curve <- .random_prior_layers(plot)[["curve"]]
-  curve[is.finite(curve[["y"]]) & curve[["y"]] > 0, c("x", "y")]
-}
-
-# The plotted curve equals the expected density at its plotted values, to a
-# relative error at every point.
-.expect_random_prior_curve <- function(curve, expected, tolerance, info = NULL,
-                                       minimum = 100L) {
-
-  expect_gt(nrow(curve), minimum)
-  error <- abs(curve[["y"]] - expected) / pmax(abs(expected), 1e-300)
-  expect_true(
-    max(error) < tolerance,
-    info = paste0(info, " maximum relative error ", signif(max(error), 3L))
-  )
-}
-
-.random_prior_device <- function(expr) {
-
-  file <- tempfile(fileext = ".png")
-  grDevices::png(filename = file)
-  on.exit({
-    grDevices::dev.off()
-    unlink(file)
-  }, add = TRUE)
-
-  force(expr)
-}
-
-# A fitted brma.mv with two named blocks whose total SD is split by a
-# Dirichlet(2, 3) allocation (the declared priors the expectations use).
-.random_prior_allocated_fit <- function() {
-
-  set.seed(4)
-  data <- data.frame(
-    study = rep(1:6, each = 2),
-    crit  = rep(c("a", "b"), 6),
-    sei   = stats::runif(12, 0.08, 0.30)
-  )
-  data[["yi"]] <- 0.3 + rep(stats::rnorm(6, 0, 0.15), each = 2) +
-    stats::rnorm(12, 0, data[["sei"]])
-  allocation <- BayesTools::random_variance_allocation(
-    name    = "heterogeneity",
-    terms   = c(Study = "Study", Crit = "Crit"),
-    sd      = BayesTools::prior("normal", list(0, 0.4), list(0, Inf)),
-    weights = BayesTools::prior("dirichlet", list(alpha = c(2, 3)))
-  )
-
-  suppressWarnings(brma.mv(
-    yi = yi, V = diag(data[["sei"]]^2), data = data, measure = "GEN",
-    random = list(Study = ~ 1 | study, Crit = ~ 1 | crit),
-    prior_heterogeneity = BayesTools::prior_random(allocation = list(allocation)),
-    prior_unit_information_sd = 1,
-    chains = 1, burnin = 300, adapt = 300, sample = 500, seed = 1,
-    silent = TRUE, parallel = FALSE
-  ))
-}
-
-
 test_that("plot_prior and print_prior show the declared prior of a random SD", {
 
   skip_on_cran()
@@ -126,7 +51,6 @@ test_that("plot_prior and print_prior show the declared prior of a random SD", {
     print_prior(fit, "random", silent = TRUE), "prior_random"
   )
 })
-
 
 test_that("plot_prior draws the prior of a variance as the square of the SD prior", {
 
@@ -180,95 +104,6 @@ test_that("plot_prior draws the prior of a variance as the square of the SD prio
   # the evaluation grid of a prior law is not selected by x_seq
   expect_error(plot_prior(fit, "tau2", x_seq = c(0.1, 0.2)), "x_seq")
 })
-
-
-test_that("random SD, total and share selectors of an allocation show their priors", {
-
-  skip_on_cran()
-  fit <- .random_prior_allocated_fit()
-  prior_list <- attr(fit[["fit"]], "prior_list")
-  total   <- prior_list[["mu__xRE_ALLOCx_heterogeneity__allocation_sd"]]
-  weights <- prior_list[["mu__xRE_ALLOCx_heterogeneity__weight"]]
-  alpha   <- weights[["parameters"]][["alpha"]]
-  expect_equal(alpha, c(2, 3))
-
-  # a block-less SD is ambiguous between the blocks
-  expect_error(plot_prior(fit, "tau"), class = "BayesTools_parameter_ambiguous")
-  expect_error(print_prior(fit, "tau"), class = "BayesTools_parameter_ambiguous")
-
-  # the total SD is the declared SD prior
-  curve <- .random_prior_curve(plot_prior(fit, "tau_total", plot_type = "ggplot"))
-  .expect_random_prior_curve(
-    curve, exp(BayesTools::lpdf(total, curve[["x"]])), 1e-8
-  )
-  printed <- capture.output(returned <- print_prior(fit, "tau_total"))
-  expect_identical(returned, total)
-  expect_true(all(paste0("  ", print(total, silent = TRUE)) %in% printed))
-
-  # the variance of the total is the square of the declared total SD
-  curve <- .random_prior_curve(plot_prior(fit, "tau2_total", plot_type = "ggplot"))
-  .expect_random_prior_curve(
-    curve,
-    exp(BayesTools::lpdf(total, sqrt(curve[["x"]]))) / (2 * sqrt(curve[["x"]])),
-    1e-6
-  )
-  printed <- capture.output(print_prior(fit, "tau2_total"))
-  expect_match(printed[[1L]], "tau2_total = tau_total^2", fixed = TRUE)
-  expect_true(all(paste0("    ", print(total, silent = TRUE)) %in% printed))
-
-  # the share of the total variance is the Beta marginal of the Dirichlet
-  # weights, whose derivation names the declared weights prior
-  for (component in 1:2) {
-    selector <- c("tau2_prop(Study)", "tau2_prop(Crit)")[[component]]
-    curve <- .random_prior_curve(plot_prior(fit, selector, plot_type = "ggplot"))
-    expect_gt(nrow(curve), 500L)
-    .expect_random_prior_curve(
-      curve,
-      stats::dbeta(curve[["x"]], alpha[[component]], sum(alpha) - alpha[[component]]),
-      1e-6, info = selector
-    )
-    printed <- capture.output(print_prior(fit, selector))
-    expect_match(
-      printed[[1L]],
-      paste0("w[", component, "], the share of the total variance of allocation 'heterogeneity'"),
-      fixed = TRUE
-    )
-    expect_true(all(paste0("    ", print(weights, silent = TRUE)) %in% printed))
-  }
-
-  # the SD of a component is the total SD times sqrt(w[k]): the plotted law
-  # reproduces the distribution function of draws simulated from the declared
-  # priors, within their Monte Carlo error
-  set.seed(1)
-  n_draws <- 2e5
-  draws   <- abs(stats::rnorm(n_draws, 0, 0.4)) *
-    sqrt(stats::rbeta(n_draws, alpha[[1L]], alpha[[2L]]))
-  curve   <- ggplot2::ggplot_build(
-    plot_prior(fit, "Study: tau", plot_type = "ggplot")
-  )[["data"]][[1L]]
-  curve   <- curve[is.finite(curve[["y"]]), c("x", "y")]
-  curve   <- curve[order(curve[["x"]]), ]
-  expect_gt(nrow(curve), 100L)
-  cumulative <- c(0, cumsum(
-    diff(curve[["x"]]) * (utils::head(curve[["y"]], -1L) + utils::tail(curve[["y"]], -1L)) / 2
-  ))
-  expect_equal(max(cumulative), 1, tolerance = 5e-3)
-  points <- unname(stats::quantile(draws, seq(0.1, 0.9, by = 0.2)))
-  from_curve <- stats::approx(curve[["x"]], cumulative, xout = points, ties = "ordered")[["y"]]
-  from_draws <- vapply(points, function(point) mean(draws <= point), numeric(1))
-  expect_lt(
-    max(abs(from_curve - from_draws) / sqrt(from_draws * (1 - from_draws) / n_draws)), 4
-  )
-
-  printed <- capture.output(returned <- print_prior(fit, "Study: tau"))
-  expect_match(printed[[1L]], "Study: tau = sigma_total * sqrt(w[1])", fixed = TRUE)
-  expect_true(all(paste0("    ", print(total, silent = TRUE)) %in% printed))
-  expect_true(all(paste0("    ", print(weights, silent = TRUE)) %in% printed))
-  printed <- capture.output(print_prior(fit, "Crit: tau2"))
-  expect_match(printed[[1L]], "Crit: tau2 = (sigma_total * sqrt(w[2]))^2", fixed = TRUE)
-  .random_prior_device(expect_null(plot_prior(fit, "Study: tau")))
-})
-
 
 test_that("random selectors of gated allocations show prior laws with their point masses", {
 
@@ -345,7 +180,6 @@ test_that("random selectors of gated allocations show prior laws with their poin
   .random_prior_device(expect_null(plot_prior(fit, "tau_total", xlim = c(0, 2))))
 })
 
-
 test_that("random selectors of a nested gated allocation derive from its allocation chain", {
 
   skip_on_cran()
@@ -391,7 +225,6 @@ test_that("random selectors of a nested gated allocation derive from its allocat
   expect_identical(grep(":$", printed, value = TRUE), "  w:")
 })
 
-
 test_that("random selectors without a prior density are refused with the target classes", {
 
   skip_on_cran()
@@ -423,37 +256,6 @@ test_that("random selectors without a prior density are refused with the target 
     100L
   )
 })
-
-
-test_that("the SD of a scale-modelled block keeps resolving to the scale intercept", {
-
-  skip_on_cran()
-  set.seed(2)
-  data <- data.frame(
-    study = rep(1:6, each = 2),
-    x     = stats::rnorm(12),
-    sei   = stats::runif(12, 0.08, 0.30)
-  )
-  data[["yi"]] <- 0.3 + rep(stats::rnorm(6, 0, 0.15), each = 2) +
-    stats::rnorm(12, 0, data[["sei"]])
-  fit <- suppressWarnings(brma.mv(
-    yi = yi, V = diag(data[["sei"]]^2), data = data, measure = "GEN",
-    random = ~ 1 | study, scale = ~ x, prior_unit_information_sd = 1,
-    chains = 1, burnin = 300, adapt = 300, sample = 500, seed = 1,
-    silent = TRUE, parallel = FALSE
-  ))
-
-  selected <- .select_plot_prior_parameter(
-    fit, "tau", NULL, NULL, component = "auto"
-  )
-  expect_identical(selected[["source"]], "scale")
-  expect_identical(selected[["label"]], "log_tau_intercept")
-  expect_true(BayesTools::is.prior(selected[["prior"]]))
-  printed <- capture.output(print_prior(fit, "tau"))
-  expect_identical(printed[[1L]], "log_tau_intercept:")
-  .random_prior_device(expect_null(plot_prior(fit, "tau")))
-})
-
 
 test_that("only_priors objects point to the random-effect specification", {
 

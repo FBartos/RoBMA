@@ -213,12 +213,38 @@ standard_required_tests <- function() {
     .required_tests("test-00-plot-prior-random.R", c(
       "plot_prior and print_prior show the declared prior of a random SD",
       "plot_prior draws the prior of a variance as the square of the SD prior",
-      "random SD, total and share selectors of an allocation show their priors",
       "random selectors of gated allocations show prior laws with their point masses",
       "random selectors of a nested gated allocation derive from its allocation chain",
       "random selectors without a prior density are refused with the target classes",
-      "the SD of a scale-modelled block keeps resolving to the scale intercept",
       "only_priors objects point to the random-effect specification"
+    )),
+    .required_tests("test-02-plot-prior-random.R", c(
+      "random SD, total and share selectors of an allocation show their priors",
+      "the SD of a scale-modelled block keeps resolving to the scale intercept"
+    )),
+    .required_tests("test-02-bias-branch-design.R", c(
+      "product-space VIF uses each member's design",
+      "product-space heterogeneity summaries use each member's design",
+      "hat-based diagnostics still refuse ensembles with weight-function members",
+      "known-V product-space hat values run on the design of each draw's member",
+      "known-V product-space VIF averages the draws of each design class",
+      "the ensemble has draws of every design class",
+      "hat values average the hat matrix of each draw's member design",
+      "a fitted single-bias model is one design",
+      "a single bias term keeps its own hat values",
+      "internally standardized residuals use each draw's member design",
+      "the hat column of influence() uses each draw's member design",
+      "VIF reports each member design's GVIF",
+      "VIF of a bias term without draws is unavailable",
+      "heterogeneity summaries use each member design's typical variance",
+      "every per-draw output equals the single-design output on its class rows",
+      "known-V hat values use each draw's member design",
+      "known-V hat values of thinned draws use the designs of the selected draws",
+      "known-V design classes follow the rows of the thinned posterior",
+      "known-V standardized residuals use each draw's member design",
+      "known-V VIF reports each member design's GVIF",
+      "every known-V per-draw output equals the single-design output on its class rows",
+      "intercept-only ensembles average the member designs' hat values"
     )),
     .required_tests("test-00-selection-kernel-fit.R", c(
       "selection reference weights are structural convergence parameters"

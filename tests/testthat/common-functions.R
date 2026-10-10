@@ -819,6 +819,46 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, ordinary_lane_catalog)
 
+  # ensembles whose members differ in their bias terms (PET / PEESE designs)
+  # and the fits of the random-effect prior plots
+  bias_branch_catalog <- data.frame(
+    name = c(
+      "bias_branch_PP_mods",
+      "bias_branch_PP_intercept",
+      "bias_branch_bPET_mods",
+      "bias_branch_known_v_ensemble"
+    ),
+    class = c("RoBMA", "RoBMA", "bPET", "RoBMA.mv"),
+    family = "norm",
+    source_file = "test-01-bias-branch-design.R",
+    has_metafor = FALSE, has_loo = c(TRUE, FALSE, FALSE, FALSE),
+    has_waic = FALSE, has_marglik = FALSE,
+    tier = "core", profile = "standard",
+    features = I(list(
+      c("RoBMA", "normal", "mods", "PET", "PEESE", "bias_branch"),
+      c("RoBMA", "normal", "PET", "PEESE", "bias_branch"),
+      c("bPET", "normal", "mods", "PET", "bias_branch"),
+      c("RoBMA.mv", "normal", "known_v", "mods", "PET", "PEESE", "bias_branch")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, bias_branch_catalog)
+
+  plot_prior_random_catalog <- data.frame(
+    name = c("plot_prior_random_allocated", "plot_prior_random_scale"),
+    class = "brma.mv",
+    family = "norm",
+    source_file = "test-01-plot-prior-random.R",
+    has_metafor = FALSE, has_loo = FALSE, has_waic = FALSE, has_marglik = FALSE,
+    tier = "core", profile = "standard",
+    features = I(list(
+      c("brma.mv", "normal", "known_v", "random", "allocation", "plot_prior"),
+      c("brma.mv", "normal", "known_v", "random", "scale", "plot_prior")
+    )),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, plot_prior_random_catalog)
+
   return(catalog)
 }
 
