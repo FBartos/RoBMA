@@ -1856,13 +1856,14 @@
   output <- do.call(print, c(list(x = x), dots))
 
   if (!silent) {
-    output <- paste(output, collapse = "\n")
-    output <- unlist(strsplit(output, "\n", fixed = TRUE), use.names = FALSE)
+    # a prior under its label is indented below it (and below `indent`); a
+    # prior without a label is printed as the text BayesTools gives it
     if (!is.null(label)) {
-      output <- paste0("  ", output)
+      output <- paste(output, collapse = "\n")
+      output <- unlist(strsplit(output, "\n", fixed = TRUE), use.names = FALSE)
+      output <- paste(paste0(indent, "  ", output), collapse = "\n")
       cat(indent, label, ":\n", sep = "")
     }
-    output <- paste(paste0(indent, output), collapse = "\n")
     cat(output, "\n", sep = "")
   }
 

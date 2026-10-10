@@ -742,3 +742,39 @@ test_that("summary returns the priors of an only_priors object", {
   expect_identical(summarized, priors[["priors"]])
   expect_true(length(summarized) > 0L)
 })
+
+test_that("print_prior of a prior object prints the text of the prior and one line break", {
+
+  mixture <- BayesTools::prior_mixture(
+    list(prior("normal", list(0, 1)), prior("spike", list(0))),
+    is_null = c(FALSE, TRUE)
+  )
+  text <- print(mixture, silent = TRUE)
+
+  # the printed text of a mixture ends with a line break of its own, so that
+  # a blank line follows it
+  lines <- capture.output(returned <- print_prior(mixture))
+  expect_identical(returned, mixture)
+  expect_identical(lines, capture.output(cat(text, "\n", sep = "")))
+  expect_identical(utils::tail(lines, 1L), "")
+  expect_identical(
+    lines[-length(lines)], unlist(strsplit(text, "\n", fixed = TRUE))
+  )
+
+  simple <- prior("normal", list(0, 1))
+  expect_identical(
+    capture.output(print_prior(simple)),
+    capture.output(cat(print(simple, silent = TRUE), "\n", sep = ""))
+  )
+  expect_identical(capture.output(print_prior(mixture, silent = TRUE)), character())
+
+  # under a label the prior is indented below it, and without a trailing
+  # blank line
+  labelled <- capture.output(.print_prior_object(mixture, label = "bias"))
+  expect_identical(
+    labelled,
+    c("bias:", paste0("  ", unlist(strsplit(text, "\n", fixed = TRUE))))
+  )
+  indented <- capture.output(.print_prior_object(simple, label = "tau", indent = "  "))
+  expect_identical(indented, c("  tau:", "    Normal(0, 1)"))
+})
