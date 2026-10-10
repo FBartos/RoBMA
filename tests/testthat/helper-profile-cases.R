@@ -218,7 +218,7 @@ standard_required_tests <- function() {
       "random selectors without a prior density are refused with the target classes",
       "only_priors objects point to the random-effect specification"
     )),
-    .required_tests("test-02-plot-prior-random.R", c(
+    .required_tests("test-02-random-prior-plots.R", c(
       "random SD, total and share selectors of an allocation show their priors",
       "the SD of a scale-modelled block keeps resolving to the scale intercept"
     )),

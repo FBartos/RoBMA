@@ -612,7 +612,12 @@ test_that("fit catalog is internally consistent", {
     "lane_glmm_point_baserate",
     "lane_glmm_boundary_beta",
     "lane_glmm_truncated_beta",
-    "lane_glmm_truncated_lograte"
+    "lane_glmm_truncated_lograte",
+    "bias_branch_PP_intercept",
+    "bias_branch_bPET_mods",
+    "bias_branch_known_v_ensemble",
+    "plot_prior_random_allocated",
+    "plot_prior_random_scale"
   )
   expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
                info = "selected brma.mv cache fixtures omit pre-computed LOO")
@@ -668,7 +673,8 @@ test_that("fit catalog is internally consistent", {
     "lane_glmm_point_baserate",
     "lane_glmm_boundary_beta",
     "lane_glmm_truncated_beta",
-    "lane_glmm_truncated_lograte"
+    "lane_glmm_truncated_lograte",
+    "bias_branch_bPET_mods"
   )
   expect_true(all(!catalog[catalog[["name"]] %in% no_marglik_single_fits, "has_marglik"]))
   expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv", "brma.mv") &
@@ -774,7 +780,13 @@ test_that("fit catalog is internally consistent", {
       "lane_glmm_point_baserate",
       "lane_glmm_boundary_beta",
       "lane_glmm_truncated_beta",
-      "lane_glmm_truncated_lograte"
+      "lane_glmm_truncated_lograte",
+      "bias_branch_PP_mods",
+      "bias_branch_PP_intercept",
+      "bias_branch_bPET_mods",
+      "bias_branch_known_v_ensemble",
+      "plot_prior_random_allocated",
+      "plot_prior_random_scale"
     )
   )
   expect_true(all(active_fit_catalog()[["profile"]] %in%

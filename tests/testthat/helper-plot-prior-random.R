@@ -1,6 +1,6 @@
 # Helpers of the tests of plot_prior() and print_prior() for the random-effect
 # selectors of fitted objects (test-00-plot-prior-random.R and
-# test-02-plot-prior-random.R).
+# test-02-random-prior-plots.R).
 
 # The layers of a built ggplot by geom: the curve and the point-mass arrows.
 .random_prior_layers <- function(plot) {
