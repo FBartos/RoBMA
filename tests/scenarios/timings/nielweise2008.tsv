@@ -11,7 +11,7 @@ fit_loo	fit_brma	13.240000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_brma_null	13.580000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma	1.490000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_null	1.410000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-time	BF_mu_1	0.060000000	0.386133	4.6.0	Windows/x86_64-w64-mingw32
+time	BF_mu_1	0.050000000	0.386133	4.6.0	Windows/x86_64-w64-mingw32
 time	BF_mu_2	0.530000000	0.537109	4.6.0	Windows/x86_64-w64-mingw32
 time	BF_mu_3	0.640000000	0.537207	4.6.0	Windows/x86_64-w64-mingw32
 text	bf-effect	0.000000000	0.302832	4.6.0	Windows/x86_64-w64-mingw32

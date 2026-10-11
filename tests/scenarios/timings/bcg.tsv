@@ -183,7 +183,7 @@ plot	fit_reg1_ordered_posterior	79.220000000	0.527051	4.6.0	Windows/x86_64-w64-m
 plot	fit_reg1_posterior_alloc	1.830000000	0.573926	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_reg1_posterior_alloc_exp	0.800000000	0.554785	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_reg1_posterior_mu	0.350000000	0.500098	4.6.0	Windows/x86_64-w64-mingw32
-plot	fit_reg1_posterior_tau	0.560000000	0.490918	4.6.0	Windows/x86_64-w64-mingw32
+plot	fit_reg1_posterior_tau	0.540000000	0.490918	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_reg1_regplot	0.010000000	0.340332	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_reg2_posterior_ablat	0.880000000	0.597461	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_reg2_regplot	0.060000000	0.504199	4.6.0	Windows/x86_64-w64-mingw32
