@@ -18,7 +18,8 @@ test_that("plot_prior and print_prior show the declared prior of a random SD", {
   curve <- .random_prior_curve(plot)
   expect_gt(nrow(curve), 500L)
   .expect_random_prior_curve(
-    curve, exp(BayesTools::lpdf(prior, curve[["x"]])), 1e-8
+    curve, exp(BayesTools::lpdf(prior, curve[["x"]])), 1e-8,
+    support = unlist(prior[["truncation"]])
   )
   expect_equal(
     .random_prior_curve(plot_prior(
@@ -34,7 +35,7 @@ test_that("plot_prior and print_prior show the declared prior of a random SD", {
   )
 
   # base plots run and return nothing
-  .random_prior_device(expect_null(plot_prior(fit, "tau")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau")))
 
   printed <- capture.output(returned <- print_prior(fit, "tau"))
   expect_identical(returned, prior)
@@ -67,7 +68,7 @@ test_that("plot_prior draws the prior of a variance as the square of the SD prio
     exp(BayesTools::lpdf(prior, sqrt(curve[["x"]]))) / (2 * sqrt(curve[["x"]])),
     1e-6
   )
-  .random_prior_device(expect_null(plot_prior(fit, "tau2")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau2")))
 
   # the derivation line and the declared source prior
   printed <- capture.output(returned <- print_prior(fit, "tau2"))
@@ -97,7 +98,7 @@ test_that("plot_prior draws the prior of a variance as the square of the SD prio
     paste(format(ggplot2::get_labs(limited)[["x"]]), collapse = ""),
     "variance", fixed = TRUE
   )
-  .random_prior_device(expect_null(
+  .with_temp_plot_device(expect_null(
     plot_prior(fit, "tau2", xlim = c(0.05, 0.4), n_points = 40, col = "red")
   ))
 
@@ -165,7 +166,9 @@ test_that("random selectors of gated allocations show prior laws with their poin
     c(0, 1)
   )
   curve <- .random_prior_curve(plot_prior(fit, "tau2_prop(study)", plot_type = "ggplot"))
-  expect_equal(curve[["y"]], rep(1 / 3, nrow(curve)), tolerance = 1e-6)
+  .expect_random_prior_curve(
+    curve, rep(1 / 3, nrow(curve)), 1e-6, support = c(0, 1)
+  )
 
   # a component SD is drawn the same way, with the gate priors in its derivation
   layers <- .random_prior_layers(plot_prior(fit, "study: tau", plot_type = "ggplot"))
@@ -176,8 +179,8 @@ test_that("random selectors of gated allocations show prior laws with their poin
     printed[[1L]], "study: tau = sigma_total * I_study * sqrt(w[1])", fixed = TRUE
   )
   expect_true(any(grepl("^  p_study:$", printed)))
-  .random_prior_device(expect_null(plot_prior(fit, "tau2_prop(study)")))
-  .random_prior_device(expect_null(plot_prior(fit, "tau_total", xlim = c(0, 2))))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau2_prop(study)")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau_total", xlim = c(0, 2))))
 })
 
 test_that("random selectors of a nested gated allocation derive from its allocation chain", {
@@ -198,8 +201,8 @@ test_that("random selectors of a nested gated allocation derive from its allocat
   plot <- plot_prior(fit, "tau_total", plot_type = "ggplot")
   curve <- .random_prior_curve(plot)
   .expect_random_prior_curve(
-    curve[curve[["x"]] > 0, ], included * exp(BayesTools::lpdf(total, curve[["x"]][curve[["x"]] > 0])),
-    1e-6
+    curve, included * exp(BayesTools::lpdf(total, curve[["x"]])),
+    1e-6, support = unlist(total[["truncation"]])
   )
   expect_length(.random_prior_layers(plot)[["arrows"]], 1L)
   printed <- capture.output(print_prior(fit, "tau_total"))
@@ -214,7 +217,7 @@ test_that("random selectors of a nested gated allocation derive from its allocat
   expect_identical(
     grep(":$", printed, value = TRUE), c("  sigma_total:", "  p_component_1:", "  w:")
   )
-  .random_prior_device(expect_null(plot_prior(fit, "esid_study: tau")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "esid_study: tau")))
 
   # a share of the split depends on the split weights alone
   printed <- capture.output(print_prior(fit, "tau2_prop(study)"))
@@ -250,7 +253,7 @@ test_that("random selectors without a prior density are refused with the target 
     plot_prior(fit, "rho(intercept,x)", standardized_coefficients = FALSE),
     "standardized_coefficients = TRUE", fixed = TRUE
   )
-  .random_prior_device(expect_null(plot_prior(fit, "rho(intercept,x)")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "rho(intercept,x)")))
   expect_gt(
     nrow(.random_prior_curve(plot_prior(fit, "rho(intercept,x)", plot_type = "ggplot"))),
     100L

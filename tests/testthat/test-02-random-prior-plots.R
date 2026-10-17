@@ -23,7 +23,8 @@ test_that("random SD, total and share selectors of an allocation show their prio
   # the total SD is the declared SD prior
   curve <- .random_prior_curve(plot_prior(fit, "tau_total", plot_type = "ggplot"))
   .expect_random_prior_curve(
-    curve, exp(BayesTools::lpdf(total, curve[["x"]])), 1e-8
+    curve, exp(BayesTools::lpdf(total, curve[["x"]])), 1e-8,
+    support = unlist(total[["truncation"]])
   )
   printed <- capture.output(returned <- print_prior(fit, "tau_total"))
   expect_identical(returned, total)
@@ -90,7 +91,7 @@ test_that("random SD, total and share selectors of an allocation show their prio
   expect_true(all(paste0("    ", print(weights, silent = TRUE)) %in% printed))
   printed <- capture.output(print_prior(fit, "Crit: tau2"))
   expect_match(printed[[1L]], "Crit: tau2 = (sigma_total * sqrt(w[2]))^2", fixed = TRUE)
-  .random_prior_device(expect_null(plot_prior(fit, "Study: tau")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "Study: tau")))
 })
 
 test_that("the SD of a scale-modelled block keeps resolving to the scale intercept", {
@@ -106,7 +107,7 @@ test_that("the SD of a scale-modelled block keeps resolving to the scale interce
   expect_true(BayesTools::is.prior(selected[["prior"]]))
   printed <- capture.output(print_prior(fit, "tau"))
   expect_identical(printed[[1L]], "log_tau_intercept:")
-  .random_prior_device(expect_null(plot_prior(fit, "tau")))
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau")))
 })
 
 

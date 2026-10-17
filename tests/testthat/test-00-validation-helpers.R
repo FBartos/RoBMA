@@ -1,0 +1,54 @@
+.expect_random_prior_rejected <- function(expr) {
+
+  reporter <- testthat::ListReporter$new()
+  testthat::with_reporter(reporter, {
+    reporter$start_file("random-prior-negative-control")
+    testthat::test_that("the supplied curve is rejected", force(expr))
+    reporter$end_file()
+  })
+  result <- as.data.frame(reporter$get_results())
+  expect_gt(sum(result[["failed"]]), 0L)
+  expect_false(any(result[["error"]] | result[["skipped"]]))
+}
+
+test_that("random prior comparisons retain and check every actual line ordinate", {
+
+  x <- seq_len(200L) / 201
+  reference <- rep(1 / 3, length(x))
+  line <- function(y) {
+    ggplot2::ggplot(data.frame(x = x, y = y), ggplot2::aes(x = x, y = y)) +
+      ggplot2::geom_line()
+  }
+  curve <- .random_prior_curve(line(reference))
+  expect_equal(curve, data.frame(x = x, y = reference))
+  .expect_random_prior_curve(curve, reference, 1e-6)
+  for (invalid in c(0, -1, NA_real_)) {
+    values <- reference
+    values[[50L]] <- invalid
+    curve <- .random_prior_curve(line(values))
+    expect_equal(nrow(curve), length(x))
+    .expect_random_prior_rejected(.expect_random_prior_curve(curve, reference, 1e-6))
+  }
+  .expect_random_prior_rejected(.expect_random_prior_curve(.random_prior_curve(line(rep(0, length(x)))), reference, 1e-6))
+  .expect_random_prior_rejected(.expect_random_prior_curve(curve, reference[-1L], 1e-6))
+  .expect_random_prior_rejected(.expect_random_prior_curve(curve[FALSE, ], numeric(), 1e-6))
+})
+
+test_that("random prior comparisons check declared boundaries and outside zeros", {
+
+  x <- c(-.1, 0, seq_len(200L) / 201, 1, 1.1)
+  expected <- stats::dbeta(x, 2, 3)
+  .expect_random_prior_curve(data.frame(x = x, y = expected), expected, 1e-6,
+    support = c(0, 1))
+  x <- c(0, 0, seq_len(200L) / 201, 1, 1)
+  y <- c(0, rep(1 / 3, length(x) - 2L), 0)
+  .expect_random_prior_curve(data.frame(x = x, y = y), rep(1 / 3, length(x)),
+    1e-6, support = c(0, 1))
+  y[[1L]] <- -1
+  .expect_random_prior_rejected(.expect_random_prior_curve(data.frame(x = x, y = y),
+    rep(1 / 3, length(x)), 1e-6, support = c(0, 1)))
+  x <- c(0, seq_len(200L) / 201)
+  expected <- stats::dbeta(x, .5, 2)
+  .expect_random_prior_curve(data.frame(x = x, y = expected), expected, 1e-6,
+    support = c(0, 1))
+})

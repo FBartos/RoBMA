@@ -19,30 +19,47 @@
 .random_prior_curve <- function(plot) {
 
   curve <- .random_prior_layers(plot)[["curve"]]
-  curve[is.finite(curve[["y"]]) & curve[["y"]] > 0, c("x", "y")]
+  curve[, c("x", "y")]
 }
 
 # The plotted curve equals the expected density at its plotted values, to a
 # relative error at every point.
 .expect_random_prior_curve <- function(curve, expected, tolerance, info = NULL,
-                                       minimum = 100L) {
+                                       minimum = 100L, support = NULL) {
 
   expect_gt(nrow(curve), minimum)
-  error <- abs(curve[["y"]] - expected) / pmax(abs(expected), 1e-300)
+  expect_gt(length(expected), 0L)
+  expect_length(expected, nrow(curve))
+  if (!nrow(curve) || length(expected) != nrow(curve)) {
+    return(invisible(FALSE))
+  }
+
+  # A renderer closes a density at a finite support edge with a duplicate x
+  # row. Its outside-facing row is zero; the other row retains the declared
+  # boundary density. Identify these rows from support and x, never observed y.
+  if (!is.null(support)) {
+    expect_length(support, 2L)
+    expect_true(all(!is.na(support)) && support[[1L]] < support[[2L]])
+    for (side in seq_len(2L)) {
+      boundary <- which(curve[["x"]] == support[[side]])
+      expect_lte(length(boundary), 2L)
+      if (length(boundary) == 2L) {
+        closure <- if (side == 1L) boundary[[1L]] else boundary[[2L]]
+        expected[[closure]] <- 0
+      }
+    }
+  }
+  singular <- is.infinite(expected) & expected > 0
+  expect_true(all(is.finite(expected) | singular))
+  if (any(singular)) {
+    expect_true(!is.null(support) && all(curve[["x"]][singular] %in% support))
+    expect_true(all(is.infinite(curve[["y"]][singular]) & curve[["y"]][singular] > 0))
+  }
+  regular <- !singular
+  expect_true(any(regular))
+  error <- abs(curve[["y"]][regular] - expected[regular]) / pmax(abs(expected[regular]), 1e-300)
   expect_true(
     max(error) < tolerance,
     info = paste0(info, " maximum relative error ", signif(max(error), 3L))
   )
-}
-
-.random_prior_device <- function(expr) {
-
-  file <- tempfile(fileext = ".png")
-  grDevices::png(filename = file)
-  on.exit({
-    grDevices::dev.off()
-    unlink(file)
-  }, add = TRUE)
-
-  force(expr)
 }
