@@ -50,6 +50,9 @@ Ordered qCMDE/IWMDE inference uses the public primitive projection and source
 recipes. Both requested methods normalize the same complete conditional source
 kernel, with their original row budgets. Supplier/population classification
 precedes chart selection and uses declared support and prior provenance.
+Fixed and nonzero Bernoulli totals distinguish regular signed interior
+contractions before endpoint exponents; uncertified interior limits remain typed
+capabilities and a genuinely zero total retains its atom.
 Regular offsets with finite first but uncertified fourth reciprocal moments
 use a positive block. Normalize source and block rows separately, replace only
 the exact offset rows in the common contribution matrix, then aggregate and

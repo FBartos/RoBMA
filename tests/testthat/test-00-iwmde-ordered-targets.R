@@ -703,6 +703,7 @@ test_that("source numerical ratio gate rejects .03 independently of generic thre
     .data_outcome_type = function(...) "norm", .is_data_joint_selection = function(...) FALSE,
     .iwmde_qcmde_normalization = function(...) list(summary = list(log_normalizer = 0,
       validation_log_normalizer = log(1.03), truncation = list(max = 0),
+      resolution = list(relative_error = 0),
       normalization_range = c(-3, 3), normalization_points = 100L)), .package = "RoBMA")
   state <- .iwmde_ordered_row_state(context, target, 1L)
   control <- .iwmde_density_control_resolve("qCMDE", list(normalization_points = 100L), "ordinate")
@@ -1034,6 +1035,7 @@ test_that("finite-upper Gamma inverse suppliers fail early and curves retain fin
         proofs = lapply(row_states, function(state) list(ratio_relative_error = 0,
           numerator_relative_error = 0, denominator_relative_error = 0, exterior_relative_error = 0,
           floating_relative_error = 0, error_status = "exact", source_grid_points = 0L,
+          lattice_resolution_relative_error = 0,
           source_grid = c(0, 10), log_normalizer = 0, normalizer = list(method = "declared_fixture"),
           candidate_rows = state[["row_index"]])),
         internal_method = "ordered_source_conditional_cmde", working_distribution = "normalized_conditional_source",
@@ -1134,6 +1136,7 @@ test_that("ordered partial uncertainty survives result assembly and public consu
           numerator_relative_error = 0, denominator_relative_error = 0, exterior_relative_error = 0,
           floating_relative_error = 0, error_status = "exact", source_grid_points = 0L,
           source_grid = c(-Inf, Inf), log_normalizer = 0, normalizer = list(method = "declared_fixture"),
+          lattice_resolution_relative_error = 0,
           candidate_rows = state[["row_index"]])),
         internal_method = "ordered_source_conditional_cmde", working_distribution = "normalized_conditional_source",
         normalization_basis = "source_chart")
@@ -1745,4 +1748,221 @@ test_that("actual selected source normalizers retain the anchored prior constant
     expect_lte(abs(actual[["log_normalizer"]] - expected), allowance)
     expect_identical(reference[["message"]], "OK")
   }
+})
+
+.ordered_review_compile_object <- function(object) {
+  args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+  compiled <- lapply(names(args[["formula_list"]]), function(parameter) {
+    BayesTools::JAGS_formula(
+      formula = args[["formula_list"]][[parameter]], parameter = parameter,
+      data = args[["formula_data_list"]][[parameter]],
+      prior_list = args[["formula_prior_list"]][[parameter]],
+      formula_scale = args[["formula_scale_list"]][[parameter]],
+      prior_random = args[["formula_random_prior_list"]][[parameter]],
+      random_effects_compile = args[["formula_random_effects_compile_list"]][[parameter]])
+  })
+  names(compiled) <- names(args[["formula_list"]])
+  object[["formula_design"]] <- lapply(compiled, `[[`, "formula_design")
+  list(object = object, compiled = compiled)
+}
+.ordered_review_attach_replay <- function(setup, samples) {
+  object <- setup[["object"]]
+  fit <- structure(list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = nrow(samples)),
+                   class = c("BayesTools_fit", "runjags", "list"))
+  attr(fit, "formula_design") <- object[["formula_design"]]
+  scale_info <- lapply(setup[["compiled"]], `[[`, "formula_scale")
+  if (any(lengths(scale_info) > 0L)) attr(fit, "formula_scale") <- scale_info
+  compiled_priors <- list()
+  for (compiled in setup[["compiled"]]) compiled_priors <- c(compiled_priors, compiled[["prior_list"]])
+  attr(fit, "prior_list") <- c(compiled_priors, .create_fit_priors(object[["data"]], object[["priors"]]))
+  designs <- attr(fit, "formula_design", exact = TRUE)
+  scales <- attr(fit, "formula_scale", exact = TRUE)
+  for (parameter in names(designs)) {
+    design <- designs[[parameter]]
+    specification <- attr(design$formula_scale, "unscale_design", exact = TRUE)
+    if (!identical(specification$schema_version, 2L) ||
+        !identical(specification$owner_scope, "compiler") || !isFALSE(specification$complete)) next
+    scale <- scales[[parameter]]
+    if (is.null(scale)) scale <- design$formula_scale
+    scale <- BayesTools:::.bt_formula_scale_finalize(scale, design,
+      attr(fit, "prior_list", exact = TRUE), owner_scope = "fit")
+    designs[[parameter]]$formula_scale <- scale
+    scales[[parameter]] <- scale
+  }
+  if (length(designs)) {
+    attr(fit, "formula_design") <- designs
+    attr(fit, "formula_scale") <- scales
+  }
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  object[["fit"]] <- BayesTools:::.bt_attach_fit_contract(fit)
+  object
+}
+.ordered_review_prior_columns <- function(priors) unique(unlist(lapply(names(priors), function(parameter) {
+  BayesTools:::.prior_linear_prior_columns(parameter, priors[[parameter]])
+})))
+
+.ordered_review_fixed_fixture <- function(total, alpha) {
+  dat <- data.frame(f = base::ordered(rep(c("lo", "mid", "hi", "top"), 10L),
+    levels = c("lo", "mid", "hi", "top")), x = seq(-1, 1, length.out = 40L))
+  dat$yi <- rep(c(.1, .3, .55, .8), 10L)
+  dat$sei <- 2
+  setup <- .ordered_review_compile_object(RoBMA::brma(yi = yi, sei = sei, mods = ~f, data = dat,
+    measure = "GEN", prior_effect = BayesTools::prior("point", list(0)),
+    prior_heterogeneity = BayesTools::prior("point", list(0)),
+    prior_mods = list(f = BayesTools::prior_ordered(BayesTools::prior("point", list(total)),
+      allocation = BayesTools::prior("dirichlet", list(alpha)))),
+    standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE))
+  compiled <- setup$compiled$mu
+  ordered <- compiled$prior_list[vapply(compiled$prior_list, BayesTools::is.prior.ordered, logical(1))]
+  stopifnot(length(ordered) == 1L)
+  source_spec <- BayesTools:::.bt_ordered_spec(names(ordered), ordered[[1L]])
+  all_priors <- c(compiled$prior_list, .create_fit_priors(setup$object$data, setup$object$priors))
+  columns <- unique(c(.ordered_review_prior_columns(all_priors), source_spec$total_names))
+  samples <- matrix(.5, 40L, length(columns), dimnames = list(NULL, columns))
+  for (name in names(all_priors)) if (BayesTools::is.prior.point(all_priors[[name]]) && name %in% columns)
+    samples[, name] <- all_priors[[name]]$parameters$location
+  samples[, source_spec$total_names] <- total
+  for (record in source_spec$allocations) {
+    eta <- cbind((seq_len(40L) + 10) / 10, (rev(seq_len(40L)) + 5) / 10,
+      (seq_len(40L) %% 7L + 2) / 10)
+    colnames(eta) <- record$gamma_coordinates
+    samples <- cbind(samples[, !colnames(samples) %in% colnames(eta), drop = FALSE], eta)
+  }
+  coefficients <- BayesTools:::.bt_deterministic_node_evaluate(
+    BayesTools:::.bt_dnode_ordered_coefficients(source_spec), BayesTools:::.bt_deterministic_lookup(samples))
+  samples <- cbind(samples[, !colnames(samples) %in% colnames(coefficients), drop = FALSE], coefficients)
+  compiled$formula_design <- BayesTools:::.bt_formula_point_finalize(
+    compiled$formula_design, compiled$prior_list, dat, parameter_names = colnames(samples))
+  compiled$formula_scale <- BayesTools:::.bt_formula_scale_finalize(
+    compiled$formula_scale, compiled$formula_design, all_priors, owner_scope = "fit")
+  compiled$formula_design$formula_scale <- compiled$formula_scale
+  setup$compiled$mu <- compiled
+  setup$object$formula_design$mu <- compiled$formula_design
+  object <- .ordered_review_attach_replay(setup, samples)
+  list(object = object, data = dat, context = .iwmde_context(object), source_spec = source_spec)
+}
+
+.ordered_review_target <- function(fixture, weights) {
+  input <- list(type = "linear", weights = setNames(weights, fixture$source_spec$coefficient_names))
+  list(input = input, target = .iwmde_ordered_target_spec(fixture$context, "cell", input))
+}
+.ordered_review_complete <- function(fixture, input, method, values, output) {
+  context <- fixture$context
+  plan <- .iwmde_plan(context, "cell", method, list(samples = nrow(context$posterior_samples),
+    normalization_points = 100L), outputs = output,
+    values = if (output == "ordinate") values else NULL, parameter_spec = input)
+  testthat::expect_identical(plan$status, "ok")
+  execution <- .iwmde_plan_row_execution(context, plan)
+  if (output == "ordinate") .iwmde_execute_plan_estimator(context, plan, output, execution) else
+    .iwmde_ordered_density(context, plan, execution, values, TRUE)
+}
+
+# Independent physical simplex integrals for the original fixed-total rows.
+# Neither the production chart, likelihood evaluator nor source normalizer
+# supplies the reference. Prior shapes and Gamma coordinate names are declared.
+.ordered_review_physical_reference <- function(fixture, row, weights, value, group = FALSE) {
+
+  spec <- fixture$source_spec
+  record <- spec[["allocations"]][[1L]]
+  alpha <- record[["spec"]][["alpha"]]
+  eta <- fixture$context[["posterior_samples"]][row, record[["gamma_coordinates"]]]
+  p <- eta / sum(eta)
+  total <- spec[["total_prior"]][["parameters"]][["location"]]
+  if (group) {
+    ratio <- p[2L] / sum(p[1:2])
+    physical <- function(s) c(s * (1 - ratio), s * ratio, 1 - s)
+    current <- sum(p[1:2])
+    shapes <- c(sum(alpha[1:2]), alpha[3L])
+    slope <- total * (weights[1L] * (1 - ratio) + weights[2L] * ratio - weights[3L])
+    offset <- total * weights[3L]
+  } else {
+    h <- sum(p[1:2])
+    physical <- function(s) c(h * s, h * (1 - s), p[3L])
+    current <- p[1L] / h
+    shapes <- alpha[1:2]
+    slope <- total * h * (weights[1L] - weights[2L])
+    offset <- total * (h * weights[2L] + p[3L] * weights[3L])
+  }
+  likelihood <- function(p) sum(stats::dnorm(fixture$data$yi,
+    c(0, cumsum(total * p))[as.integer(fixture$data$f)], fixture$data$sei, log = TRUE))
+  center <- likelihood(p)
+  integrand <- function(s) vapply(s, function(s) exp(likelihood(physical(s)) - center) *
+    stats::dbeta(s, shapes[1L], shapes[2L]), numeric(1))
+  integral <- stats::integrate(integrand, 0, 1, rel.tol = 1e-11, abs.tol = 0)
+  list(value = integrand((value - offset) / slope) / integral$value / abs(slope),
+    relative_error = integral$abs.error / integral$value)
+}
+
+testthat::test_that("regular signed fixed-total interior retains positive conditional contributions", {
+  fixture <- .ordered_review_fixed_fixture(2, c(1, 1, 1))
+  selected <- .ordered_review_target(fixture, c(-1, 0, 1))
+  target <- selected$target
+  testthat::expect_true(target$ordered_point_plan$descriptor$interior)
+  values <- c(-.05, 0, .05)
+  states <- lapply(c(1L, 18L, 39L), function(i) .iwmde_ordered_row_state(fixture$context, target, i))
+  control <- .iwmde_density_control_resolve("qCMDE", list(normalization_points = 100L), "ordinate")
+  raw <- .iwmde_ordered_log_terms(fixture$context, target, states, values, control)
+  testthat::expect_true(all(is.finite(raw$log_terms)))
+  references <- lapply(c(1L, 18L, 39L), function(row)
+    .ordered_review_physical_reference(fixture, row, c(-1, 0, 1), 0))
+  testthat::expect_equal(as.numeric(exp(raw$log_terms[2L, ])),
+    vapply(references, `[[`, numeric(1), "value"), tolerance = 1e-12)
+  for (method in c("qCMDE", "IWMDE")) {
+    point <- .ordered_review_complete(fixture, selected$input, method, 0, "ordinate")
+    density <- .ordered_review_complete(fixture, selected$input, method, values, "density")
+    testthat::expect_true(all(is.finite(point$log_y)))
+    testthat::expect_true(all(point$y > 0))
+    testthat::expect_false(any(point$structural_zero))
+    testthat::expect_true(all(is.finite(density$log_y)))
+    testthat::expect_true(all(density$y > 0))
+    testthat::expect_false(any(density$structural_zero))
+  }
+})
+
+.ordered_review_declared_fixture <- function(total, alpha) {
+  dat <- data.frame(f = ordered(rep(c("lo", "mid", "hi", "top"), 10L),
+    levels = c("lo", "mid", "hi", "top")), x = seq(-1, 1, length.out = 40L),
+    yi = rep(c(.1, .3, .55, .8), 10L), sei = 2)
+  allocation <- BayesTools::prior("dirichlet", list(alpha))
+  fixture <- .ordered_target_fixture(total, allocation, data = dat)
+  object <- RoBMA::brma(yi = yi, sei = sei, mods = ~f, data = dat, measure = "GEN",
+    prior_effect = BayesTools::prior("point", list(0)),
+    prior_heterogeneity = BayesTools::prior("point", list(0)),
+    prior_mods = list(f = BayesTools::prior_ordered(total, allocation)),
+    standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE)
+  object$fit <- fixture$fit
+  context <- fixture$context
+  context$object <- object; context$data <- object$data; context$priors <- object$priors
+  context$posterior_samples <- cbind(context$posterior_samples, tau = 0)
+  context$object$fit$mcmc[[1L]] <- coda::mcmc(context$posterior_samples)
+  context <- .iwmde_context_ensure_caches(context, reset = TRUE)
+  spec <- BayesTools::JAGS_ordered_parameter_spec(fixture$fit)[[1L]]
+  input <- list(type = "linear", weights = setNames(c(-1, 0, 1), spec$coefficient_names))
+  target <- .iwmde_ordered_target_spec(context, "cell", input)
+  list(context = context, target = target, input = input)
+}
+
+testthat::test_that("nonzero Bernoulli interior retains the regular conditional source", {
+  fixture <- .ordered_review_declared_fixture(BayesTools::prior("bernoulli", list(.5)), c(1, 1, 1))
+  testthat::expect_true(fixture$target$ordered_point_plan$descriptor$interior)
+  testthat::expect_identical(fixture$target$ordered_point_plan$status, "raw")
+  for (method in c("qCMDE", "IWMDE")) {
+    plan <- .iwmde_plan(fixture$context, "cell", method, list(samples = 40L, normalization_points = 100L),
+      outputs = "ordinate", values = 0, parameter_spec = fixture$input)
+    testthat::expect_identical(plan$status, "ok")
+    execution <- .iwmde_plan_row_execution(fixture$context, plan)
+    result <- .iwmde_execute_plan_estimator(fixture$context, plan, "ordinate", execution)
+    testthat::expect_true(all(result$y > 0))
+    testthat::expect_true(all(is.finite(result$log_y)))
+    testthat::expect_false(any(result$structural_zero))
+  }
+})
+
+testthat::test_that("uncertified interior limits stay capabilities while zero total stays atomic", {
+  fixture <- .ordered_review_declared_fixture(BayesTools::prior("point", list(2)), c(.25, .25, .25))
+  testthat::expect_true(fixture$target$ordered_point_plan$descriptor$interior)
+  testthat::expect_identical(fixture$target$ordered_point_plan$status, "capability")
+  zero <- .ordered_review_declared_fixture(BayesTools::prior("point", list(0)), c(1, 1, 1))
+  testthat::expect_identical(zero$target$ordered_point_plan$status, "atom")
 })

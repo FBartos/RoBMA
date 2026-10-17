@@ -178,6 +178,11 @@
         location <- location + shifts[[1L]]
       }
       if (location == 0) return(list(status = "atom"))
+      if (isTRUE(descriptor[["interior"]])) {
+        if (descriptor[["alpha"]] > 1) return(list(status = "raw", supplier = "share", exponent = Inf))
+        return(list(status = "capability", cause = "interior_zero_supplier",
+          detail = "the interior share limit has no supplied finite or nonfinite certificate"))
+      }
       if (descriptor[["alpha"]] < 1) return(list(status = "infinite", cause = "nonfinite_offset",
         detail = "the declared fixed-total share limit is infinite"))
       if (descriptor[["alpha"]] > 1) return(list(status = "zero", cause = "structural_zero_offset"))
@@ -187,6 +192,11 @@
       if (descriptor[["shifted"]]) return(list(status = "capability", cause = "shifted_discrete_supplier",
         detail = "the discrete focal total does not certify the affine projected component measure"))
       if (!is.finite(BayesTools::lpdf(component, 1))) return(list(status = "atom"))
+      if (isTRUE(descriptor[["interior"]])) {
+        if (descriptor[["alpha"]] > 1) return(list(status = "raw", supplier = "share", exponent = Inf))
+        return(list(status = "capability", cause = "interior_zero_supplier",
+          detail = "the interior share limit has no supplied finite or nonfinite certificate"))
+      }
       if (descriptor[["alpha"]] < 1) return(list(status = "infinite", cause = "nonfinite_offset",
         detail = "the declared nonzero Bernoulli share limit is infinite"))
       if (descriptor[["alpha"]] > 1) return(list(status = "zero", cause = "structural_zero_offset"))
