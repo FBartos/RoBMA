@@ -142,7 +142,14 @@ test_that("marginal prediction is independent of implicit versus explicit design
     .posterior_samples = posterior_samples
   )
 
-  expect_equal(implicit, explicit, tolerance = 0)
+  # The explicit new grid has unused outcome placeholders; all draws and other
+  # metadata must still agree exactly with the implicit marginal prediction.
+  expected <- implicit
+  expected_data <- attr(expected, "data")
+  expected_data[["outcome"]][["yi"]][] <- 0
+  expected_data[["outcome"]][["sei"]][] <- 0
+  attr(expected, "data") <- expected_data
+  expect_equal(expected, explicit, tolerance = 0)
   expect_error(
     predict(
       object,
