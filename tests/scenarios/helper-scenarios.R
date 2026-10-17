@@ -182,11 +182,6 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
   )
   assign("timings", .scenario_empty_timings(), envir = .scenario_state)
   assign("cached_fit_names", character(), envir = .scenario_state)
-  assign(
-    "timing_unavailable",
-    .scenario_empty_timing_unavailable(),
-    envir = .scenario_state
-  )
   assign("timing_warned", character(), envir = .scenario_state)
   assign("plot_names", character(), envir = .scenario_state)
 
@@ -521,17 +516,6 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     memory_gb = numeric(),
     r_version = character(),
     platform  = character(),
-    stringsAsFactors = FALSE
-  ))
-}
-
-
-.scenario_empty_timing_unavailable <- function() {
-
-  return(data.frame(
-    type   = character(),
-    name   = character(),
-    reason = character(),
     stringsAsFactors = FALSE
   ))
 }
@@ -962,9 +946,6 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
 
   current     <- .scenario_current_timings()
   baseline    <- get("timing_baseline", envir = .scenario_state, inherits = FALSE)
-  unavailable <- get(
-    "timing_unavailable", envir = .scenario_state, inherits = FALSE
-  )
   issues <- data.frame(
     id               = character(),
     text             = character(),
@@ -1042,19 +1023,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     add_issue(paste0("memory:", current_key[[i]]), text)
   }
 
-  if (final && nrow(unavailable) > 0L) {
-    for (i in seq_len(nrow(unavailable))) {
-      key <- paste(unavailable[["type"]][[i]], unavailable[["name"]][[i]],
-                   sep = "/")
-      add_issue(
-        paste0("unavailable:", key),
-        paste0(key, " timing is unavailable because ",
-               unavailable[["reason"]][[i]], ".")
-      )
-    }
-  }
-
-  observed_key <- c(current_key, .scenario_timing_key(unavailable))
+  observed_key <- current_key
   if (final && nrow(baseline) > 0L) {
     missing <- setdiff(expected_key, observed_key)
     if (length(missing) > 0L) {
@@ -1065,7 +1034,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     }
   }
 
-  same_entries <- length(expected_key) > 0L && nrow(unavailable) == 0L &&
+  same_entries <- length(expected_key) > 0L &&
     setequal(current_key, expected_key)
   if (final && same_entries) {
     split_fit_names <- current[["name"]][current[["type"]] == "fit_model"]
@@ -1224,14 +1193,6 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   keep    <- .scenario_timing_key(current) != .scenario_timing_key(row)
   current <- .scenario_order_timings(rbind(current[keep, , drop = FALSE], row))
   assign("timings", current, envir = .scenario_state)
-  unavailable <- get(
-    "timing_unavailable", envir = .scenario_state, inherits = FALSE
-  )
-  unavailable <- unavailable[
-    .scenario_timing_key(unavailable) != .scenario_timing_key(row),
-    , drop = FALSE
-  ]
-  assign("timing_unavailable", unavailable, envir = .scenario_state)
 
   config <- .scenario_config()
   if (config[["direct"]]) {
@@ -1259,37 +1220,8 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
 }
 
 
-.scenario_mark_timing_unavailable <- function(type, name, reason) {
-
-  type <- match.arg(type, .scenario_timing_types())
-  name <- .scenario_validate_name(name, type)
-  unavailable <- get(
-    "timing_unavailable", envir = .scenario_state, inherits = FALSE
-  )
-  row <- data.frame(
-    type = type, name = name, reason = reason, stringsAsFactors = FALSE
-  )
-  current <- .scenario_current_timings()
-  current <- current[
-    .scenario_timing_key(current) != .scenario_timing_key(row),
-    , drop = FALSE
-  ]
-  assign("timings", current, envir = .scenario_state)
-  keep <- .scenario_timing_key(unavailable) != .scenario_timing_key(row)
-  assign(
-    "timing_unavailable",
-    rbind(unavailable[keep, , drop = FALSE], row),
-    envir = .scenario_state
-  )
-  if (.scenario_config()[["direct"]]) {
-    .scenario_warn_timing_issues(.scenario_timing_issues(final = TRUE))
-  }
-
-  return(invisible(NULL))
-}
-
-
-.scenario_finalize_timing <- function(scenario = NULL, allow_update = TRUE) {
+.scenario_finalize_timing <- function(scenario = NULL, allow_update = TRUE,
+                                      completed = TRUE) {
 
   if (!exists("config", envir = .scenario_state, inherits = FALSE)) {
     return(invisible(NULL))
@@ -1299,12 +1231,6 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     return(invisible(NULL))
   }
   current <- .scenario_current_timings()
-  unavailable <- get(
-    "timing_unavailable", envir = .scenario_state, inherits = FALSE
-  )
-  if (nrow(current) == 0L && nrow(unavailable) == 0L) {
-    return(invisible(NULL))
-  }
 
   paths <- .scenario_timing_paths()
   issues <- .scenario_timing_issues(final = TRUE)
@@ -1315,8 +1241,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   )
   if (allow_update && nrow(current) > 0L) {
     existed <- file.exists(paths[["expected"]])
-    replace_all <- config[["update_timings"]] &&
-      nrow(unavailable) == 0L &&
+    replace_all <- completed && config[["update_timings"]] &&
       length(.scenario_cached_fit_names()) == 0L
     updated <- if (replace_all) {
       current
@@ -1338,7 +1263,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   } else if (config[["update_timings"]] && !allow_update) {
     warning(
       "Scenario timing baseline for '", config[["name"]],
-      "' was not updated because the scenario did not finish.",
+      "' was not updated because the scenario failed or did not complete.",
       call. = FALSE
     )
   }
@@ -2669,13 +2594,15 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
 
   root      <- unique(dirname(paths))
   finalized <- character()
-  finish <- function(path, failed) {
+  interrupted <- FALSE
+  finish <- function(path, failed, skipped = FALSE, completed = TRUE) {
 
     scenario <- names(paths)[match(basename(path), basename(paths))]
     finalized <<- c(finalized, scenario)
     .scenario_finalize_timing(
       scenario,
-      allow_update = !stop_on_failure || !failed
+      allow_update = !stop_on_failure || (!failed && !interrupted),
+      completed = completed && !failed && !skipped && !interrupted
     )
     .scenario_report_orphans(path)
     return(invisible(NULL))
@@ -2686,20 +2613,25 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
     public  = list(
       path   = NULL,
       failed = FALSE,
+      skipped = FALSE,
       start_file = function(filename) {
 
         self$path   <- file.path(root, basename(filename))
         self$failed <- FALSE
+        self$skipped <- FALSE
       },
       add_result = function(context, test, result) {
 
         if (inherits(result, c("expectation_failure", "expectation_error"))) {
           self$failed <- TRUE
         }
+        if (inherits(result, "expectation_skip")) {
+          self$skipped <- TRUE
+        }
       },
       end_file = function() {
 
-        finish(self$path, self$failed)
+        finish(self$path, self$failed, self$skipped)
       }
     )
   )
@@ -2715,25 +2647,33 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
   restore_snapshots <- .scenario_keep_locked_snapshots(root)
 
   return(tryCatch(
-    testthat::test_dir(
+    withCallingHandlers(testthat::test_dir(
       root,
       filter          = scenario_filter,
       reporter        = combined_reporter,
       package         = "RoBMA",
       load_package    = "none",
       stop_on_failure = stop_on_failure
-    ),
+    ), interrupt = function(condition) interrupted <<- TRUE),
     finally = {
       restore_snapshots()
       if (exists("config", envir = .scenario_state, inherits = FALSE)) {
         scenario <- .scenario_config()[["name"]]
         pending  <- match(scenario, names(paths))
         if (!is.na(pending) && !scenario %in% finalized) {
-          finish(paths[[pending]], failed = TRUE)
+          finish(paths[[pending]], failed = TRUE, completed = FALSE)
         }
       }
     }
   ))
+}
+
+
+.scenario_results_complete <- function(results) {
+
+  results <- as.data.frame(results)
+  return(nrow(results) > 0L &&
+    !any(results[["failed"]] > 0L | results[["error"]] | results[["skipped"]]))
 }
 
 

@@ -235,6 +235,11 @@ tightening precision. Output updates, regeneration, and refitting do not imply
 consent to a slower baseline. Compare against the old baseline before applying
 automatic or explicit updates. Record R version and platform as informational
 provenance without automatically invalidating the baseline.
+Only a completed run with no failed, errored, skipped, or interrupted tests may
+replace the entire timing baseline. Runs allowed to continue after failures
+merge their successful measurements and retain unmeasured rows; strict failed
+runs preserve the baseline. The last-run file always contains only actual
+successful measurements, including an empty table when none completed.
 
 Use `plot_scenario_times()` to draw horizontal elapsed-time boxplots from the
 committed baselines for one exact scenario or across scenarios. It classifies

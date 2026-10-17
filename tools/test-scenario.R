@@ -96,6 +96,7 @@ tryCatch(
   for (name in requested) {
     path      <- scenario_files[match(name, scenario_names)]
     completed <- FALSE
+    allow_update <- FALSE
     message("Running scenario '", name, "'.")
     tryCatch(
       {
@@ -106,11 +107,14 @@ tryCatch(
           load_package    = "none",
           stop_on_failure = TRUE
         )
-        completed <- TRUE
+        completed <- .scenario_results_complete(result)
+        results <- as.data.frame(result)
+        allow_update <- !any(results[["failed"]] > 0L | results[["error"]])
         result
       },
       finally = {
-        .scenario_finalize_timing(name, allow_update = completed)
+        .scenario_finalize_timing(name, allow_update = allow_update,
+                                  completed = completed)
         .scenario_report_orphans(path)
       }
     )

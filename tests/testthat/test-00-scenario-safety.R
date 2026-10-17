@@ -112,3 +112,111 @@ test_that("plot aliases fail before evaluating or writing a second artifact", {
   scenario_plot("a-b", graphics::plot(1:3))
   expect_true(file.exists(path))
 })
+
+
+.scenario_safety_timing_run <- function(outcome, strict = FALSE,
+                                        update_timings = TRUE) {
+
+  project <- tempfile("robma-scenario-run-safety-")
+  root <- file.path(project, "tests", "scenarios")
+  dir.create(root, recursive = TRUE)
+  dir.create(file.path(project, "tests", "testthat"))
+  file.copy(file.path(.scenario_helpers_dir, "helper-scenarios.R"), root)
+  file.copy(.scenario_visual_writer, file.path(project, "tests", "testthat"))
+  scenario_start("unit", root = root, show_output = FALSE)
+  provenance <- .scenario_timing_provenance()
+  baseline <- data.frame(
+    type = c("text", "time"), name = c("first", "obsolete"),
+    elapsed = c(8, 8), memory_gb = NA_real_,
+    r_version = provenance[["r_version"]], platform = provenance[["platform"]],
+    stringsAsFactors = FALSE
+  )
+  expected <- file.path(root, "timings", "unit.tsv")
+  .scenario_write_timings(baseline, expected)
+  before <- readBin(expected, "raw", n = file.size(expected))
+  action <- switch(outcome,
+    failure = 'testthat::expect_true(FALSE, info = "Deliberate synthetic scenario failure")',
+    skip = 'testthat::skip("Deliberate synthetic rendering skip")',
+    error = 'stop("Deliberate synthetic scenario error")',
+    interrupt = 'stop(structure(list(message = "Deliberate synthetic interruption"), class = c("interrupt", "condition")))',
+    success = 'testthat::succeed()'
+  )
+  .scenario_write_lines(c(
+    paste0('scenario_start("unit", root = ', deparse(root),
+           ', show_output = FALSE)'),
+    'testthat::test_that("synthetic scenario run status", {',
+    paste0('  .scenario_register_timing("text", "first", ',
+           if (update_timings) "9" else "7", ')'),
+    paste0("  ", action),
+    '})'
+  ), file.path(root, "test-unit.R"))
+  result <- NULL
+  error <- NULL
+  warnings <- character()
+  console <- capture.output(withCallingHandlers(
+    result <- tryCatch(
+      test_scenario(root = root, load_package = FALSE, reporter = "silent",
+                    update_timings = update_timings, stop_on_failure = strict),
+      error = function(e) { error <<- e; NULL },
+      interrupt = function(e) { error <<- e; NULL }
+    ),
+    warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  ))
+  return(list(
+    project = project, before = before,
+    after = readBin(expected, "raw", n = file.size(expected)),
+    baseline = .scenario_read_timings(expected),
+    last = .scenario_read_timings(.scenario_candidate_path(expected)),
+    result = if (is.null(result)) NULL else as.data.frame(result),
+    error = error, warnings = warnings, console = console
+  ))
+}
+
+
+test_that("failed and skipped managed runs merge without losing unmeasured timings", {
+
+  for (outcome in c("failure", "skip", "error", "interrupt")) {
+    run <- .scenario_safety_timing_run(outcome)
+    on.exit(unlink(run[["project"]], recursive = TRUE), add = TRUE)
+    expect_setequal(run[["baseline"]][["name"]], c("first", "obsolete"))
+    expect_equal(run[["baseline"]][["elapsed"]][
+      run[["baseline"]][["name"]] == "first"], 9, info = outcome)
+    expect_equal(run[["baseline"]][["elapsed"]][
+      run[["baseline"]][["name"]] == "obsolete"], 8, info = outcome)
+    expect_identical(run[["last"]][["name"]], "first", info = outcome)
+    expect_equal(run[["last"]][["elapsed"]], 9, info = outcome)
+    if (outcome == "failure") expect_equal(run[["result"]][["failed"]], 1L)
+    if (outcome == "skip") expect_true(run[["result"]][["skipped"]])
+    if (outcome == "error") expect_true(run[["result"]][["error"]])
+    if (outcome == "interrupt") expect_s3_class(run[["error"]], "interrupt")
+  }
+})
+
+
+test_that("strict failure preserves baseline and complete success may replace it", {
+
+  strict <- .scenario_safety_timing_run("failure", strict = TRUE)
+  on.exit(unlink(strict[["project"]], recursive = TRUE), add = TRUE)
+  expect_s3_class(strict[["error"]], "error")
+  expect_identical(strict[["after"]], strict[["before"]])
+  expect_identical(strict[["last"]][["name"]], "first")
+  expect_equal(strict[["last"]][["elapsed"]], 9)
+
+  complete <- .scenario_safety_timing_run("success")
+  on.exit(unlink(complete[["project"]], recursive = TRUE), add = TRUE)
+  expect_identical(complete[["baseline"]][["name"]], "first")
+  expect_equal(complete[["baseline"]][["elapsed"]], 9)
+  expect_equal(complete[["result"]][["failed"]], 0L)
+  expect_false(complete[["result"]][["skipped"]])
+
+  partial <- .scenario_safety_timing_run("success", update_timings = FALSE)
+  on.exit(unlink(partial[["project"]], recursive = TRUE), add = TRUE)
+  expect_setequal(partial[["baseline"]][["name"]], c("first", "obsolete"))
+  expect_equal(partial[["baseline"]][["elapsed"]][
+    partial[["baseline"]][["name"]] == "first"], 7)
+  expect_equal(partial[["baseline"]][["elapsed"]][
+    partial[["baseline"]][["name"]] == "obsolete"], 8)
+})

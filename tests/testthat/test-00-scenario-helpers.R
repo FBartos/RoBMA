@@ -2399,7 +2399,7 @@ test_that("selected scenario files share one reporter lifecycle", {
   orphans   <- character()
   assign(
     ".scenario_finalize_timing",
-    function(scenario, allow_update) {
+    function(scenario, allow_update, completed = TRUE) {
 
       finalized <<- c(finalized, paste(scenario, allow_update, sep = ":"))
       return(invisible(NULL))
@@ -2460,7 +2460,7 @@ test_that("selected scenario files share one reporter lifecycle", {
   }, add = TRUE)
   assign(
     ".scenario_finalize_timing",
-    function(scenario, allow_update) invisible(NULL),
+    function(scenario, allow_update, completed = TRUE) invisible(NULL),
     envir = helper_env
   )
   assign(
