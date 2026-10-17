@@ -189,6 +189,9 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
     normalization_initial_points      = 50L,
     normalization_initial_range       = c(-1, 1),
     normalization_mass_ratio          = 1,
+    # This deliberately idealized fixture declares exact normalization and
+    # zero resolution error; no numerical lattice is evaluated here.
+    max_lattice_resolution_relative_error = 0,
     max_ordinate_relative_change      = 0,
     max_normalizer_relative_change    = 0,
     p95_normalizer_relative_change    = 0,
@@ -250,6 +253,7 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
     bf_max_log_ratio                  = 0,
     bf_pilot_ordinate                 = .4,
     bf_validation_ordinate            = .4,
+    bf_lattice_resolution_relative_error = 0,
     bf_ordinate_relative_change       = 0,
     bf_ordinate_log_change            = 0,
     bf_pilot_ordinate_relative_change = 0,

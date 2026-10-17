@@ -2002,6 +2002,8 @@ test_that("qCMDE BF gate rejects validation movement despite perfect mass", {
     active_mass            = 1,
     normalization_mass_ratio = 1,
     ordinate_relative_change = .06,
+    # Isolate validation movement with a declared exact synthetic normalizer.
+    lattice_resolution_relative_error = 0,
     max_normalizer_relative_change = 0
   )
 

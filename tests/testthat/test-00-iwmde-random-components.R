@@ -1045,6 +1045,9 @@ test_that("batched ordinates retain value-specific diagnostics", {
     pilot_y                          = c(0.24, 0.48),
     validation_y                     = c(0.26, 0.52),
     ordinate_relative_change         = c(0.01, 0.02),
+    # Hand-constructed exact-normalizer fixture: isolate value-specific
+    # uncertainty from numerical lattice resolution.
+    lattice_resolution_relative_error = c(0, 0),
     ordinate_log_change              = c(0.01, 0.02),
     pilot_ordinate_relative_change   = c(0.01, 0.02),
     pilot_ordinate_log_change        = c(0.01, 0.02),
