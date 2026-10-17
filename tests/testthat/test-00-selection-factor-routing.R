@@ -1537,6 +1537,50 @@ test_that("best publication constructors retain the declared factor route", {
   expect_identical(.data_selection_model(object$data)$branches[[1L]]$weight_rule, "best")
 })
 
+test_that("exact compaction to rank one retains deterministic factor rules", {
+
+  K <- 4L
+  mean <- rep(.1, K)
+  sd <- rep(.12, K)
+  loading <- rep(.25, K)
+  sei <- c(.2, .25, .3, .15)
+  y <- c(.35, .1, .62, -.05)
+  cutoff <- 1.96
+  bins <- ifelse(y / sei >= cutoff, 1L, 2L)
+  factor_rule <- .selection_joint_factor_quadrature_rules()
+  cluster_rule <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  evaluate <- function(loadings, cluster = FALSE, rule = factor_rule, tolerance = 2e-5) {
+    rank <- ncol(loadings)
+    design <- BayesTools::selection_qmc_design(2L * rank, 1024L, 8L, seed = 1L)
+    .Call(if (cluster) "RoBMA_selnorm_cluster_step_loglik_batch" else "RoBMA_selnorm_factor_step_loglik_batch",
+      y, matrix(mean, 1L), matrix(sd, 1L), matrix(as.numeric(loadings), 1L), sei,
+      matrix(c(1, .4), 1L), c(cutoff, -Inf), c(Inf, cutoff), as.integer(bins),
+      1L, TRUE, 1L, rule$nodes, rule$log_weights, as.double(rule$orders), as.double(design),
+      64L, 1024L, 8L, tolerance, TRUE, 0L, PACKAGE = "RoBMA")
+  }
+  reference <- stats::integrate(function(u) vapply(u, function(node) stats::dnorm(node) *
+    prod(.4 + .6 * stats::pnorm((mean + loading * node - cutoff * sei) / sd)), numeric(1)),
+    -Inf, Inf, rel.tol = 1e-11, abs.tol = 1e-13)$value
+  covariance <- diag(sd^2) + tcrossprod(loading)
+  expected_density <- mvtnorm::dmvnorm(y, mean, covariance, log = TRUE) +
+    sum(log(c(1, .4)[bins])) - log(reference)
+  cluster <- evaluate(matrix(loading, K), TRUE, cluster_rule)
+  for (loadings in list(cbind(loading, 0), cbind(0, loading), cbind(loading, 1e-300))) {
+    actual <- evaluate(loadings)
+    expect_identical(actual$relative_mcse, 0)
+    expect_lte(actual$relative_change, 2e-5)
+    expect_equal(actual$log_normalizer, log(reference), tolerance = 1e-6)
+    expect_equal(actual$log_density, expected_density, tolerance = 1e-6)
+    expect_equal(actual$log_normalizer, cluster$log_normalizer, tolerance = 1e-6)
+  }
+  # Exhausted cluster rules pass a NULL/count-zero rule to the factor QMC
+  # fallback. It must not dereference or restart a nonexistent factor ladder.
+  coarse <- .selection_joint_cluster_quadrature_rules(c(3L, 5L))
+  fallback <- evaluate(matrix(loading, K), TRUE, coarse, tolerance = 1e-8)
+  expect_true(is.finite(fallback$log_normalizer))
+  expect_gt(fallback$relative_mcse, 0)
+})
+
 test_that("zero loading columns do not charge the budget on a non-forest support", {
 
   # Two supports that overlap without nesting are not a forest, so the nested

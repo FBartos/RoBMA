@@ -4211,7 +4211,7 @@ double cpp_selnorm_factor_step_lpdf(
 
   // The cluster evaluator enters at rank one only after its own unchanged
   // quadrature sequence rejects. Share the QMC fallback below in that case.
-  if (rank > 1) {
+  if (quadrature_rule_count >= 3) {
     int quadrature_offset = 0;
     int quadrature_order = static_cast<int>(quadrature_orders[0]);
     if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
