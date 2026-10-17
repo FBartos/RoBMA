@@ -216,6 +216,74 @@ test_that("exact z normalizers retain zero observed weights and normal branches"
 })
 
 
+test_that("nested forest projections precede an unaffordable tensor refusal", {
+
+  K <- 6L
+  loading <- matrix(0, K, K)
+  loading[, 1L] <- .3
+  for (column in 2:6) loading[column - 1L, column] <- .2
+  sd <- c(.8, .9, 1, 1.1, .85, .95)
+  mean <- c(-.2, .1, .3, .5, 0, .2)
+  sei <- c(.7, .8, 1, 1.2, .9, 1.1)
+  covariance <- diag(sd^2) + tcrossprod(loading)
+  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .2)))
+  selection <- .selection_spec(list(outcome = list(bias = prior)), rep(0, K), sei,
+    effect_direction = "positive", signed_data = FALSE)
+  selection$omega <- matrix(c(1, .2), 1L)
+  selection$alpha <- 0
+  selection$phack_kind <- 0L
+  selection$kernel_mode <- SELKERNEL_STEP
+  selection$vector_rule <- 0L
+  selection$use_normal <- FALSE
+  cutoff <- selection$z_lower[1L]
+  absorbed <- sqrt(sd^2 + rowSums(loading[, -1L]^2))
+  probability <- function(node) .2 + .8 * stats::pnorm((mean + .3 * node - cutoff * sei) / absorbed)
+  normalizer <- stats::integrate(function(u) vapply(u, function(node) {
+    stats::dnorm(node) * prod(probability(node))
+  }, numeric(1)), -Inf, Inf, rel.tol = 1e-11, abs.tol = 1e-13)$value
+  z <- c(.5, 2.5)
+  expected <- vapply(z, function(value) stats::integrate(function(u) vapply(u, function(node) {
+    p <- probability(node)
+    weight <- if (value >= cutoff) 1 else .2
+    stats::dnorm(node) * mean(sei * stats::dnorm(value * sei, mean + .3 * node, absorbed) *
+      weight * prod(p) / p) / normalizer
+  }, numeric(1)), -Inf, Inf, rel.tol = 1e-9, abs.tol = 1e-12)$value, numeric(1))
+  for (order in c(9L, 31L)) {
+    rule <- .gauss_hermite_nodes(order)
+    result <- .Call("RoBMA_selnorm_mnorm_zplot_batch", mean, matrix(mean, 1L),
+      matrix(covariance[lower.tri(covariance, diag = TRUE)], 1L), sei,
+      selection$omega, selection$z_lower, selection$z_upper, rep(1L, K), 1L, TRUE, 1L,
+      numeric(), order, 2L, 1e-6, z, FALSE,
+      list(matrix(sd, 1L), matrix(as.numeric(loading), 1L), rule$nodes, rule$log_weights, loading != 0),
+      0L, PACKAGE = "RoBMA")
+    expect_identical(result$relative_mcse, 0)
+    expect_equal(result$log_density, -log(normalizer), tolerance = 1e-8)
+    expect_equal(as.numeric(result$density), expected, tolerance = 1e-8)
+  }
+  # The actual R ladder must succeed at its unchanged accuracy without QMC.
+  testthat::local_mocked_bindings(selection_qmc_design = function(...) stop("QMC must not run."),
+    .package = "BayesTools")
+  result <- .zplot_joint_block(z, matrix(mean, 1L),
+    matrix(covariance[lower.tri(covariance, diag = TRUE)], 1L), sei, selection, FALSE,
+    set_selection_likelihood_control(relative_tolerance = 1e-6),
+    factors = list(residual_sd = matrix(sd, 1L), loading = matrix(as.numeric(loading), 1L),
+      loading_support = loading != 0))
+  expect_equal(as.numeric(result$density), expected, tolerance = 1e-6)
+  # Nonforest supports retain honest unavailability when no tensor fits.
+  cyclic <- matrix(0, K, K)
+  for (column in seq_len(K)) cyclic[c(column, column %% K + 1L), column] <- .2
+  rule <- .gauss_hermite_nodes(31L)
+  invalid_covariance <- diag(sd^2) + tcrossprod(cyclic)
+  declined <- .Call("RoBMA_selnorm_mnorm_zplot_batch", mean, matrix(mean, 1L),
+    matrix(invalid_covariance[lower.tri(invalid_covariance, diag = TRUE)], 1L), sei,
+    selection$omega, selection$z_lower, selection$z_upper, rep(1L, K), 1L, TRUE, 1L,
+    numeric(), 31L, 2L, 1e-6, z, FALSE,
+    list(matrix(sd, 1L), matrix(as.numeric(cyclic), 1L), rule$nodes, rule$log_weights, cyclic != 0),
+    0L, PACKAGE = "RoBMA")
+  expect_identical(declined$log_density, -Inf)
+  expect_identical(declined$relative_mcse, Inf)
+})
+
 test_that("declared factor projections match independent Gaussian rectangles", {
 
   cutoff <- stats::qnorm(.025, lower.tail = FALSE)

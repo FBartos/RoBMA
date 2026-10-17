@@ -4676,7 +4676,7 @@ double cpp_selnorm_mnorm_step_lpdf(
   const double two_pi = 6.283185307179586476925286766559;
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
-  if (dimension < 1 || n_bins < 1 || points < 1 || scrambles < 2) {
+  if (dimension < 1 || n_bins < 1 || scrambles < 2) {
     *relative_mcse = std::numeric_limits<double>::infinity();
     return negative_infinity;
   }
@@ -4911,13 +4911,19 @@ double cpp_selnorm_mnorm_step_lpdf(
     double log_normalizer = 0.0;
     FactorForestPlan forest;
     factor_forest_plan(factor_context, projection->loading_support, &forest);
-    if (factor_nested_rule_log_integral(
+    if (forest.valid &&
+        selnorm_factor_rule_affordable(projection->order, forest.max_depth + 1) &&
+        factor_nested_rule_log_integral(
           factor_context, forest, projection->nodes, projection->log_weights,
           0, projection->order, &log_normalizer, projection
         )) {
       *relative_mcse = 0.0;
       return -log_normalizer;
     }
+  }
+  if (points < 1) {
+    *relative_mcse = std::numeric_limits<double>::infinity();
+    return negative_infinity;
   }
   if (factor_rank && !quadrature) {
     for (int i = 0; i < factor_rank; ++i) proposal_factor[i + factor_rank * i] = 1.0;

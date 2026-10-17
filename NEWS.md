@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Affordable nested forest projections are attempted before the corresponding full tensor is declined by its node budget.
 - Best-p-value factor selection uses its own randomized integrand when product-only sparse quadrature is reached.
 - Selected-normal threshold probabilities use a stable central complement near unit mass, retaining the same selected normalizer and inverse weights.
 - Selected-normal log normalizers and RNG partitions retain remote lower-tail interval masses; numerical provenance invalidates saved precomputed ordinates from earlier evaluators.
