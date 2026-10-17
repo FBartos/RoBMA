@@ -1480,11 +1480,87 @@ fit_cache_versions <- function() {
 }
 
 
+# Bind discovery to the helper's actual checkout, including when a different
+# source root is tested in the same R process. Validation memoization stays live.
+.fit_cache_helper_root <- dirname(dirname(.common_functions_dir()))
+if (.fit_cache_source_tree_available(.fit_cache_helper_root) &&
+    !identical(.fit_cache_source_root(), .fit_cache_helper_root)) {
+  .clear_package_source_md5_cache()
+  assign("source_root", .fit_cache_helper_root, .package_source_md5_cache)
+}
+
+.fit_cache_generations <- getOption("RoBMA.test.producer_generations")
+if (!is.environment(.fit_cache_generations)) {
+  .fit_cache_generations <- new.env(parent = emptyenv())
+  options(RoBMA.test.producer_generations = .fit_cache_generations)
+}
+
+.fit_cache_loaded_product <- function() {
+
+  packages <- c("RoBMA", "BayesTools")
+  return(lapply(setNames(packages, packages), function(package) {
+    namespace <- asNamespace(package)
+    dll <- getLoadedDLLs()[[package]][["path"]]
+    list(namespace = namespace, dll = dll, dll_md5 = unname(tools::md5sum(dll)))
+  }))
+}
+
+# Call with force = TRUE only at an explicit runner/product-load lifecycle.
+# Re-sourcing a fit file's helpers must retain the original producer stamp.
+.fit_cache_generation_begin <- function(force = FALSE) {
+
+  root <- .fit_cache_source_root()
+  key <- if (is.na(root)) "<source unavailable>" else root
+  product <- .fit_cache_loaded_product()
+  previous <- if (exists(key, .fit_cache_generations, inherits = FALSE)) {
+    get(key, .fit_cache_generations, inherits = FALSE)
+  } else NULL
+  same_namespaces <- !is.null(previous) && all(vapply(names(product), function(package) {
+    identical(product[[package]][["namespace"]], previous$product[[package]][["namespace"]])
+  }, TRUE))
+  if (!force && same_namespaces) return(previous)
+
+  rm(list = ls(.fit_cache_versions_cache), envir = .fit_cache_versions_cache)
+  generation <- new.env(parent = emptyenv())
+  generation$product <- product
+  generation$versions <- fit_cache_versions()
+  generation$package_md5 <- package_source_md5()
+  generation$backend <- bayestools_backend_fingerprint(required = FALSE)
+  files <- unique(fit_catalog()[["source_file"]])
+  generation$builders <- setNames(vapply(files, source_file_md5, character(1)), files)
+  assign(key, generation, .fit_cache_generations)
+  return(generation)
+}
+
+.fit_cache_assert_producer <- function(name) {
+
+  generation <- .fit_cache_generation_begin()
+  entry <- fit_catalog_entry(name)
+  source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
+  source_md5 <- generation$builders[source_file]
+  valid <- length(source_md5) == 1L && !is.na(source_md5) &&
+    !is.na(generation$package_md5) && !is.na(generation$backend) &&
+    identical(unname(source_md5), source_file_md5(source_file)) &&
+    identical(generation$package_md5, package_source_md5()) &&
+    identical(generation$backend, bayestools_backend_fingerprint(required = FALSE)) &&
+    identical(generation$product, .fit_cache_loaded_product())
+  if (!valid) {
+    stop("Cached fit producer source or build changed. Reload the product and rerun the fit generation.",
+         call. = FALSE)
+  }
+  return(generation)
+}
+
+# Ordinary devtools testing reaches this initializer while sourcing the helper,
+# before any test-01 builder; a helper re-source retrieves the same generation.
+.fit_cache_generation_begin()
+
 fit_cache_metadata <- function(name, fit, info = NULL) {
 
   entry       <- fit_catalog_entry(name)
   source_file <- if (is.null(entry)) NA_character_ else entry[["source_file"]]
-  versions    <- fit_cache_versions()
+  generation  <- .fit_cache_generation_begin()
+  versions    <- generation$versions
 
   metadata <- list(
     schema_version                 = FIT_CACHE_SCHEMA_VERSION,
@@ -1496,9 +1572,9 @@ fit_cache_metadata <- function(name, fit, info = NULL) {
     jags_version                   = versions[["jags_version"]],
     fit_class                      = class(fit),
     source_file                    = source_file,
-    source_file_md5                = source_file_md5(source_file),
-    package_source_md5             = package_source_md5(),
-    bayestools_backend_fingerprint = bayestools_backend_fingerprint(),
+    source_file_md5                = unname(generation$builders[source_file]),
+    package_source_md5             = generation$package_md5,
+    bayestools_backend_fingerprint = generation$backend,
     has_loo                        = !is.null(fit[["loo"]]),
     has_waic                       = !is.null(fit[["waic"]]),
     has_marglik                    = !is.null(fit[["marglik"]]),
@@ -1880,6 +1956,7 @@ skip_refit_if_cached <- function(name) {
 # ============================================================================ #
 
 save_fit <- function(name, fit, info = NULL) {
+  .fit_cache_assert_producer(name)
   metadata <- fit_cache_metadata(name, fit, info)
   problems <- validate_cached_fit(
     name         = name,

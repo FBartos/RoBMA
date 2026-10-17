@@ -115,6 +115,15 @@ results stored with a fit are computed; the list is
 generating test file that reads `test_glmm_fit_settings()` hashes the settings
 it returns.
 
+Producer provenance is captured before builders run, once per source checkout
+and loaded-product generation. Re-sourcing `common-functions.R` retains that
+generation. The profile runner explicitly begins a generation after loading the
+product; ordinary devtools tests initialize it on their first helper source.
+Saving refuses changed package/build or builder fingerprints before writing any
+artifact: reload the product and rerun generation after editing those sources.
+This lifecycle cannot retroactively certify a manually loaded namespace whose
+sources were already stale before the helper initialized.
+
 Regenerate only affected fits with `refresh-standard` after fitting, prior/data
 input, native likelihood, or JAGS changes. Do not invalidate fits for unrelated
 plotting, summary, documentation, or post-fit changes.

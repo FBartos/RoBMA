@@ -111,6 +111,7 @@ run_tests <- function(filter = NULL) {
   source(file.path(project_root, "tools", "optimized-dll.R"))
   ensure_optimized_dll(project_root, quiet = TRUE)
   pkgload::load_all(project_root, compile = FALSE, helpers = FALSE, quiet = TRUE)
+  .fit_cache_generation_begin(force = TRUE)
   validate_native_test_symbols(registration_source = file.path(project_root, "src", "init.c"))
   results <- do.call(devtools::test, test_args)
   validate_test_results(results)

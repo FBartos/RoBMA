@@ -219,6 +219,98 @@ test_that("test cache roots isolate profiles", {
   force(code)
 }
 
+# Structural carriers exercise cache provenance, never posterior calculations.
+.with_cache_source_fixture <- function(code) {
+
+  real_root <- .fit_cache_source_root()
+  required  <- .fit_cache_source_files(package_root = real_root, relative = TRUE)
+  skip_if_not(length(required) > 0L, "Complete package source tree is unavailable.")
+  root <- tempfile("robma-producer-source-")
+  paths <- unique(c(required, "DESCRIPTION", "tests/testthat/common-functions.R",
+                    paste0("tests/testthat/", unique(fit_catalog()[["source_file"]]))))
+  for (path in paths) {
+    target <- file.path(root, path)
+    dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
+    stopifnot(file.copy(file.path(real_root, path), target))
+  }
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+
+  cache_names <- ls(envir = .package_source_md5_cache)
+  old_cache   <- mget(cache_names, envir = .package_source_md5_cache)
+  old_env     <- Sys.getenv("ROBMA_TEST_FILES_DIR", unset = NA_character_)
+  on.exit({
+    .clear_package_source_md5_cache()
+    if (length(old_cache) > 0L) list2env(old_cache, .package_source_md5_cache)
+    if (is.na(old_env)) Sys.unsetenv("ROBMA_TEST_FILES_DIR") else
+      Sys.setenv(ROBMA_TEST_FILES_DIR = old_env)
+  }, add = TRUE)
+  .clear_package_source_md5_cache()
+  Sys.setenv(ROBMA_TEST_FILES_DIR = file.path(root, "cache"))
+  testthat::local_test_directory(file.path(root, "tests/testthat"),
+                                 package = "RoBMA", .env = environment())
+  e <- new.env(parent = environment(.with_cache_source_fixture))
+  source(file.path(root, "tests/testthat/common-functions.R"), local = e)
+  for (name in c(".fake_fit_for_catalog_entry", ".fake_info_for_catalog_entry")) {
+    fun <- get(name)
+    environment(fun) <- e
+    assign(name, fun, e)
+  }
+  # The unchanged helper has no generation operation; initializing its actual
+  # metadata here retains a genuine A-init/B-edit baseline for the regression.
+  e$fit_cache_metadata("brma.mv_block_mvn_random",
+                        e$.fake_fit_for_catalog_entry("brma.mv_block_mvn_random"))
+  code(e, root)
+}
+
+test_that("producer generation refuses changed source before saving", {
+
+  skip_on_cran()
+  for (target in c("tests/testthat/test-01-brma.mv.R", "R/BMA.glmm.R")) {
+    .with_cache_source_fixture(function(e, root) {
+      name <- "brma.mv_block_mvn_random"
+      fit  <- e$.fake_fit_for_catalog_entry(name)
+      expect_true(e$save_fit(name, fit))
+      paths <- unlist(e$fit_cache_paths(name)[c("fit", "metadata")])
+      saved <- tools::md5sum(paths)
+      old_metadata <- e$load_fit_metadata(name)
+      path <- file.path(root, target)
+      cat("\n.cache_generation_marker <- 'B'\n", file = path, append = TRUE)
+      expect_error(e$save_fit(name, fit), "Reload.*rerun")
+      expect_identical(tools::md5sum(paths), saved)
+      expect_true(length(e$validate_cached_fit(name)) > 0L)
+      source(file.path(root, "tests/testthat/common-functions.R"), local = e)
+      expect_error(e$save_fit(name, fit), "Reload.*rerun")
+      expect_identical(tools::md5sum(paths), saved)
+      # Explicit new producer lifecycle is the only permitted recapture.
+      if (exists(".fit_cache_generation_begin", e, inherits = FALSE)) {
+        e$.fit_cache_generation_begin(force = TRUE)
+      }
+      expect_true(e$save_fit(name, fit))
+      expect_equal(e$validate_cached_fit(name, deep = TRUE), character())
+      changed_field <- if (startsWith(target, "R/")) "package_source_md5" else "source_file_md5"
+      expect_false(identical(e$load_fit_metadata(name)[[changed_field]],
+                             old_metadata[[changed_field]]))
+    })
+  }
+})
+
+test_that("producer generation captures all builders before later helper sources", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    first <- "brma.mv_block_mvn_random"
+    later <- "bcg_meta-analysis"
+    expect_true(e$save_fit(first, e$.fake_fit_for_catalog_entry(first)))
+    cat("\n.cache_later_builder_marker <- 'B'\n",
+        file = file.path(root, "tests/testthat/test-01-brma.norm.R"), append = TRUE)
+    source(file.path(root, "tests/testthat/common-functions.R"), local = e)
+    expect_error(e$save_fit(later, e$.fake_fit_for_catalog_entry(later),
+                            e$.fake_info_for_catalog_entry(later)), "Reload.*rerun")
+    expect_false(file.exists(e$fit_cache_paths(later)[["fit"]]))
+    expect_equal(e$validate_cached_fit(first), character())
+  })
+})
+
 
 test_that("cache source hash tracks only cache-affecting fitting sources", {
 
