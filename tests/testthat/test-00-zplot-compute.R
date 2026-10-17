@@ -575,6 +575,13 @@ test_that("latent density resolution follows population and conditional coordina
   constant <- .zplot_selnorm_density_matrix(c(-.1, 0, .1), matrix(0), matrix(.001), .7,
     selection, FALSE, latent_sd = matrix(.6), quadrature = rule)
   expect_identical(attr(constant, "selection_transition_resolved"), TRUE)
+  selection$omega <- matrix(c(1, .2), 1L)
+  aggregate <- .zplot_latent_mixture(c(-.5, 0, .5), matrix(.3), matrix(.8), matrix(.1), .7,
+    selection, FALSE, set_selection_likelihood_control(), fitted_only = TRUE)
+  expect_identical(names(aggregate), c("fitted", "extrapolated", "weights", "EDR"))
+  expect_identical(dim(aggregate$fitted), c(1L, 3L))
+  expect_null(attr(aggregate$fitted, "selection_transition_resolved", exact = TRUE))
+  expect_null(attr(aggregate$extrapolated, "selection_transition_resolved", exact = TRUE))
 })
 
 test_that("latent z densities cannot accept a missed narrow Gaussian kernel", {
