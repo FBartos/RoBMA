@@ -88,8 +88,12 @@ setwd(project_root)
 # Load the release-flag DLL, not pkgbuild's default -O0 debug build: the
 # timings this runner records are meant to describe the package users install.
 source(file.path(project_root, "tools", "optimized-dll.R"))
-ensure_optimized_dll(project_root, quiet = TRUE)
-pkgload::load_all(quiet = TRUE, debug = FALSE)
+preparation <- ensure_optimized_dll(project_root, quiet = TRUE)
+pkgload::load_all(project_root, quiet = TRUE, compile = FALSE,
+                 helpers = FALSE, debug = FALSE)
+message("Scenario package build: ",
+        if (identical(preparation, "debug")) "debug opt-out" else "release",
+        " (", preparation, ").")
 
 restore_snapshots <- .scenario_keep_locked_snapshots(scenario_dir)
 tryCatch(

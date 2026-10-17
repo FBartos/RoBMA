@@ -268,3 +268,52 @@ test_that("direct timing warnings compare with the immutable run-start baseline"
     expect_equal(last[["elapsed"]], current)
   }
 })
+
+
+test_that("default scenario loading prepares the release DLL without test helpers", {
+
+  package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
+  skip_if_not(file.exists(file.path(package_root, "tools/optimized-dll.R")),
+              "Developer release loader requires a source checkout.")
+  project <- tempfile("robma-interactive-loader-")
+  root <- file.path(project, "tests", "scenarios")
+  dir.create(root, recursive = TRUE)
+  dir.create(file.path(project, "tests", "testthat"))
+  dir.create(file.path(project, "R"))
+  dir.create(file.path(project, "tools"))
+  on.exit(unlink(project, recursive = TRUE), add = TRUE)
+  for (file in c("tools/optimized-dll.R", "tests/scenarios/helper-scenarios.R",
+                  "tests/testthat/helper-visual-writer.R")) {
+    file.copy(file.path(package_root, file), file.path(project, file))
+  }
+  writeLines(c("Package: RoBMA", "Version: 0.0.0.9000",
+               "Title: Synthetic Scenario Loader Fixture",
+               "Description: A minimal scenario loader fixture without native code.",
+               "Author: RoBMA tests", "Maintainer: RoBMA tests <tests@example.org>",
+               "License: MIT"), file.path(project, "DESCRIPTION"))
+  writeLines("export(fixture_marker)", file.path(project, "NAMESPACE"))
+  writeLines('fixture_marker <- function() TRUE', file.path(project, "R", "marker.R"))
+  writeLines('stop("PACKAGE TEST HELPERS MUST NOT LOAD")',
+             file.path(project, "tests/testthat/helper-must-not-load.R"))
+  writeLines(c(paste0('scenario_start("unit", root = ', deparse(root), ')'),
+               'testthat::test_that("synthetic loader smoke", testthat::succeed())'),
+             file.path(root, "test-unit.R"))
+  script <- file.path(project, "loader-smoke.R")
+  writeLines(c(paste0('source(', deparse(file.path(root, "helper-scenarios.R")), ')'),
+               paste0('result <- test_scenario(root = ', deparse(root), ', reporter = "silent")'),
+               'stopifnot(all(as.data.frame(result)$failed == 0L), !any(as.data.frame(result)$error))',
+               'cat("LOADED_NAMESPACE", getNamespaceInfo(asNamespace("RoBMA"), "path"), "\\n")'), script)
+  executable <- file.path(R.home("bin"),
+                          if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  withr::local_envvar(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
+  for (debug in c("FALSE", "TRUE")) {
+    withr::local_envvar(ROBMA_DEBUG_DLL = debug)
+    run <- processx::run(executable, c("--vanilla", script),
+                         error_on_status = FALSE, timeout = 60000)
+    cat("\nSynthetic scenario loader exit ", run$status, "\n", run$stdout, run$stderr, sep = "")
+    expect_equal(run$status, 0L)
+    expect_match(run$stdout, normalizePath(project, winslash = "/"), fixed = TRUE)
+    expect_match(run$stderr, if (debug == "TRUE") "debug opt-out" else "release", fixed = TRUE)
+    expect_false(grepl("PACKAGE TEST HELPERS MUST NOT LOAD", run$stderr, fixed = TRUE))
+  }
+})

@@ -82,10 +82,10 @@ if (flag("installed")) {
 } else {
   # Timings describe the release build, not pkgbuild's default -O0 debug DLL.
   source(file.path(main_root, "tools", "optimized-dll.R"))
-  ensure_optimized_dll(root, quiet = TRUE)
+  preparation <- ensure_optimized_dll(root, quiet = TRUE)
   pkgload::load_all(root, quiet = TRUE, compile = FALSE, helpers = FALSE,
                    debug = FALSE)
-  build <- "load_all release"
+  build <- if (identical(preparation, "debug")) "load_all debug opt-out" else "load_all release"
 }
 if (!is.null(threads)) RoBMA.options(native_threads = as.integer(threads))
 sha <- tryCatch(system2("git", c("-C", shQuote(root), "rev-parse", "--short", "HEAD"), stdout = TRUE),

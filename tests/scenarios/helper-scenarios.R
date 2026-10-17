@@ -2723,7 +2723,18 @@ test_scenario <- function(filter = NULL, reporter = "progress", refit = FALSE,
   )
 
   if (load_package) {
-    devtools::load_all(project_root, quiet = TRUE)
+    source(file.path(project_root, "tools", "optimized-dll.R"), local = TRUE)
+    preparation <- ensure_optimized_dll(project_root, quiet = TRUE)
+    if (identical(preparation, "unavailable")) {
+      stop("Release preparation requires the 'pkgbuild' package.", call. = FALSE)
+    }
+    pkgload::load_all(project_root, quiet = TRUE, compile = FALSE,
+                     helpers = FALSE, debug = FALSE)
+    build <- if (identical(preparation, "debug")) "debug opt-out" else "release"
+    dll <- getLoadedDLLs()[["RoBMA"]]
+    message("Scenario package build: ", build, " (", preparation,
+            "); source: ", project_root, "; DLL: ",
+            if (is.null(dll)) "unavailable" else dll[["path"]])
   }
 
   environment_names <- c(

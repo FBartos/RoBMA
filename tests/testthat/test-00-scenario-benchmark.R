@@ -4,6 +4,8 @@ context("Scenario benchmark preparation")
 .scenario_benchmark_fixture <- function(block, fits = list(needed = list(value = 7))) {
 
   package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
+  skip_if_not(file.exists(file.path(package_root, "tools/bench-scenario.R")),
+              "Developer benchmark requires a source checkout.")
   root <- tempfile("robma-bench-fixture-")
   dir.create(file.path(root, "tools"), recursive = TRUE)
   dir.create(file.path(root, "tests", "scenarios"), recursive = TRUE)
