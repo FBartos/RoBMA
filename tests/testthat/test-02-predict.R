@@ -20,6 +20,41 @@ for_each_case(prediction_metafor_cases(), function(case) {
   })
 })
 
+test_that("GLMM pooled-effect reference comparisons use the observed design", {
+
+  model_names <- c("bcg_glmm", "bcg_glmm_reg")
+  skip_if_missing_fits(model_names)
+  observe_reference <- function(case) {
+    observed <- numeric()
+    real_gte <- testthat::expect_gte
+    real_lte <- testthat::expect_lte
+    testthat::local_mocked_bindings(
+      expect_gte = function(object, expected, ..., label = NULL) {
+        if (grepl("metafor pooled effect", label, fixed = TRUE)) observed <<- c(observed, object)
+        real_gte(object, expected, ..., label = label)
+      },
+      expect_lte = function(object, expected, ..., label = NULL) {
+        if (grepl("metafor pooled effect", label, fixed = TRUE)) observed <<- c(observed, object)
+        real_lte(object, expected, ..., label = label)
+      }, .package = "testthat")
+    expect_prediction_matches_metafor(case)
+    observed
+  }
+  cases <- prediction_metafor_cases()
+  for (name in model_names) {
+    fit_metafor <- info[[name]][["metafor"]]
+    independent <- mean(drop(fit_metafor[["X"]] %*% fit_metafor[["beta"]]))
+    observed <- observe_reference(cases[cases[["name"]] == name, , drop = FALSE])
+    expect_length(observed, 2L)
+    expect_equal(observed, rep(independent, 2L), tolerance = 1e-12)
+    if (name == "bcg_glmm_reg") {
+      expect_gt(abs(independent - fit_metafor[["beta"]][[1L]]), sqrt(.Machine$double.eps))
+    } else {
+      expect_equal(independent, fit_metafor[["beta"]][[1L]], tolerance = 1e-12)
+    }
+  }
+})
+
 for_each_case(prediction_newdata_metafor_cases(), function(case) {
   test_that_case("Newdata predictions match metafor", case, {
     expect_newdata_prediction_matches_metafor(case)

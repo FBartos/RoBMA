@@ -407,10 +407,11 @@ expect_prediction_matches_metafor <- function(case) {
     # it), so their distance is not a Monte Carlo error. Each likelihood
     # estimate must instead lie inside the central 95% posterior interval of
     # its quantity.
+    metafor_mu <- mean(predict(fit_metafor)$pred)
     mu_summary <- summary(pooled_effect(fit_brma))
-    testthat::expect_gte(fit_metafor$beta[[1]], mu_summary["mu", "0.025"],
+    testthat::expect_gte(metafor_mu, mu_summary["mu", "0.025"],
                          label = paste(name, "metafor pooled effect vs posterior 2.5% quantile"))
-    testthat::expect_lte(fit_metafor$beta[[1]], mu_summary["mu", "0.975"],
+    testthat::expect_lte(metafor_mu, mu_summary["mu", "0.975"],
                          label = paste(name, "metafor pooled effect vs posterior 97.5% quantile"))
     tau_summary <- summary(pooled_heterogeneity(fit_brma))
     testthat::expect_gte(sqrt(fit_metafor$tau2), tau_summary["tau", "0.025"],
@@ -427,7 +428,7 @@ expect_prediction_matches_metafor <- function(case) {
   if (kind == "selection") {
     brma_mu  <- .sample_mean(pooled_effect(fit_brma), "mu")
     brma_tau <- .sample_mean(pooled_heterogeneity(fit_brma), "tau")
-    testthat::expect_equal(brma_mu, fit_metafor$beta[[1]], tolerance = tolerance,
+    testthat::expect_equal(brma_mu, mean(predict(fit_metafor)$pred), tolerance = tolerance,
                            info = paste(name, "pooled effect"))
     testthat::expect_equal(brma_tau, sqrt(fit_metafor$tau2), tolerance = tau_tol,
                            info = paste(name, "pooled tau"))
