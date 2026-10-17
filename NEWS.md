@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Admitted ordered share endpoints use the existing allocation group chart for unequal nonzero coefficients and preserve the exact declared affine offset.
 - Ordered fixed-total and nonzero Bernoulli interior contractions retain certified regular conditional densities instead of being classified by endpoint exponents; uncertified interior limits remain unavailable.
 - qCMDE diagnostics include an ordinate-share-weighted lattice-resolution error estimate, exposing under-resolved conditional rows to the existing stability gate while preserving exact normalizers.
 - Half-bounded IWMDE proposals use compact conditional normals on declared physical distances, normalize their actual endpoints, and retain certified zero contributions in the original row population.

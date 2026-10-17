@@ -1966,3 +1966,39 @@ testthat::test_that("uncertified interior limits stay capabilities while zero to
   zero <- .ordered_review_declared_fixture(BayesTools::prior("point", list(0)), c(1, 1, 1))
   testthat::expect_identical(zero$target$ordered_point_plan$status, "atom")
 })
+
+testthat::test_that("admitted nonpure share endpoints use the allocation group source", {
+  fixture <- .ordered_review_fixed_fixture(1, c(.5, .5, 1))
+  original_reference <- c(.39665640275463004, .46414550333288829, .66240827718740158)
+  for (sign in c(1, -1)) {
+    reference <- vapply(c(1L, 18L, 39L), function(row)
+      .ordered_review_physical_reference(fixture, row, sign * c(1, 2, 0), 0, group = TRUE)[["value"]], numeric(1))
+    expect_equal(reference, original_reference, tolerance = 1e-12)
+    selected <- .ordered_review_target(fixture, sign * c(1, 2, 0))
+    target <- selected$target
+    states <- lapply(c(1L, 18L, 39L), function(i) .iwmde_ordered_row_state(fixture$context, target, i))
+    for (state in states) {
+      chart <- state$ordered_chart
+      testthat::expect_identical(chart$kind, "group")
+      testthat::expect_identical(writeBin(unname(chart$offset), raw()),
+        writeBin(unname(target$ordered_point_plan$descriptor$offset), raw()))
+      testthat::expect_equal(.iwmde_prior_support(chart$prior), c(0, 1))
+      testthat::expect_equal(unname(unlist(chart$prior$parameters)), c(1, 1))
+    }
+    control <- .iwmde_density_control_resolve("qCMDE", list(normalization_points = 100L), "ordinate")
+    raw <- .iwmde_ordered_log_terms(fixture$context, target, states, 0, control)
+    testthat::expect_equal(as.numeric(exp(raw$log_terms)), reference, tolerance = 1e-11)
+    for (method in c("qCMDE", "IWMDE")) {
+      point <- tryCatch(.ordered_review_complete(fixture, selected$input, method, 0, "ordinate"), error = identity)
+      testthat::expect_false(inherits(point, "error"))
+      if (!inherits(point, "error")) {
+        testthat::expect_true(all(is.finite(point$log_y)))
+        testthat::expect_true(all(point$y > 0))
+        testthat::expect_false(any(point$structural_zero))
+      }
+      density <- .ordered_review_complete(fixture, selected$input, method, sort(sign * c(0, .05, .2)), "density")
+      testthat::expect_true(all(density$y > 0))
+      testthat::expect_false(any(density$structural_zero))
+    }
+  }
+})

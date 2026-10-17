@@ -701,7 +701,7 @@
     chart_component <- .iwmde_ordered_total_component(focal_spec, row)[["component"]]
     point_plan <- point_plan[["component_statuses"]][[chart_component]]
   }
-  if (!is.null(descriptor) && isTRUE(descriptor[["pure"]]) && identical(point_plan[["supplier"]], "share")) {
+  if (!is.null(descriptor) && !isTRUE(descriptor[["interior"]]) && identical(point_plan[["supplier"]], "share")) {
     return(.iwmde_ordered_allocation_chart(context, parameter_spec, projection, row, row_index,
       descriptor[["record"]], J = descriptor[["J"]], component = chart_component))
   }
@@ -789,7 +789,7 @@
       row_index, "source-chart construction", "the continuous source slope is zero or unrepresentable")
   }
   descriptor <- .iwmde_ordered_offset_descriptor(context, parameter_spec)
-  offset <- if (!is.null(descriptor) && descriptor[["pure"]] && identical(record[["key"]], descriptor[["record"]][["key"]]) &&
+  offset <- if (!is.null(descriptor) && !isTRUE(descriptor[["interior"]]) && identical(record[["key"]], descriptor[["record"]][["key"]]) &&
       !is.null(J) && identical(as.integer(J), as.integer(descriptor[["J"]]))) {
     descriptor[["offset"]]
   } else projection[["values"]][[row_index]] - slope * current
