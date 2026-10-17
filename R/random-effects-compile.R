@@ -760,6 +760,8 @@
 
 .marginalized_random_effect_row_multiplier <- function(term, K) {
 
+  # Callers must already establish fitted-row layout. These checks validate
+  # multiplier shape/support only; matching length cannot identify new rows.
   if (!.marginalized_random_effect_has_row_multiplier(term)) {
     return(NULL)
   }

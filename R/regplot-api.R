@@ -141,6 +141,10 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' intervals use the corresponding marginal response distribution by also
 #' adding representative sampling error; evaluating a fitted moderator value
 #' does not condition these bands on its fitted latent effect.
+#' For marginalized known-\code{R} random-effect blocks, \code{pi} and \code{si}
+#' are unavailable because the group-covariance multipliers belong to the fitted
+#' layout and \code{R_new} is unsupported. Use \code{pi = FALSE, si = FALSE}
+#' for the mean and credible-interval plot.
 #' For binomial and Poisson GLMMs, prediction intervals retain this latent-effect
 #' interpretation, but sampling intervals are only descriptive normal
 #' approximations on the derived effect-size scale. They are not intervals from

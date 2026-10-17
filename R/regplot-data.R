@@ -1007,6 +1007,16 @@
   }
 
   if (pi || si) {
+    if (inherits(x, "brma.mv") &&
+        .data_has_marginalized_known_group_covariance(x[["data"]])) {
+      stop(
+        "Prediction and sampling bands ('pi'/'si') are unavailable for ",
+        "marginalized known-R blocks because their row multipliers are tied ",
+        "to the fitted layout. Support for a supplied 'R_new' is deferred. ",
+        "Set 'pi = FALSE' and 'si = FALSE'.",
+        call. = FALSE
+      )
+    }
     if (inherits(x, "brma.mv") && .is_random(x)) {
       tau_total <- .regplot_mv_random_sd_samples(
         x                 = x,

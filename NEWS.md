@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- New-grid regression prediction and sampling bands consistently refuse marginalized known-R fitted-layout multipliers; mean and credible-interval plots remain available.
 - Explicit sampled mean-centered random effects remain sampled when automatic estimate-level marginalization is considered.
 - Prediction data parsing separates unused outcome fields from same-named predictors while retaining required response and PET/PEESE sampling inputs.
 - A single nested random-effect component accepts supported covariance and named random wrappers without admitting multiple ambiguous bare terms.
