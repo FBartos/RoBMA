@@ -33,14 +33,14 @@ context("Scenario benchmark preparation")
 }
 
 
-.scenario_benchmark_run <- function(root, args) {
+.scenario_benchmark_run <- function(root, args, target = root, installed = TRUE) {
 
   out <- tempfile("robma-bench-output-")
   executable <- file.path(R.home("bin"),
                           if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
   withr::local_envvar(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
   result <- processx::run(executable, c("--vanilla", file.path(root, "tools/bench-bootstrap.R"),
-                          "unit", "--installed", paste0("--root=", root),
+                          "unit", if (installed) "--installed", paste0("--root=", target),
                           paste0("--cache=", file.path(root, "cache")),
                           paste0("--out=", out), "--threads=1", args),
                           error_on_status = FALSE, timeout = 60000)
@@ -78,6 +78,63 @@ test_that("listing and filtering defer an irrelevant fit-list loop", {
   on.exit(unlink(dependent[["out"]], recursive = TRUE), add = TRUE)
   expect_equal(dependent[["status"]], 1L)
   expect_match(dependent[["stderr"]], "No cached fit 'missing'", fixed = TRUE)
+})
+
+
+test_that("benchmark workload and helpers belong to the driver tree", {
+
+  root <- .scenario_benchmark_fixture('scenario_text("chosen", print("MAIN WORKLOAD"))')
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  target <- tempfile("robma-helperless-target-")
+  dir.create(file.path(target, "R"), recursive = TRUE)
+  on.exit(unlink(target, recursive = TRUE), add = TRUE)
+  writeLines(c("Package: RoBMA", "Version: 0.0.0.9000",
+               "Title: Synthetic Benchmark Loader Fixture",
+               "Description: A minimal API-compatible loader fixture without native code.",
+               "Author: RoBMA tests", "Maintainer: RoBMA tests <tests@example.org>",
+               "License: MIT"), file.path(target, "DESCRIPTION"))
+  writeLines("export(RoBMA.options,RoBMA.get_option)", file.path(target, "NAMESPACE"))
+  writeLines(c('.state <- new.env(parent = emptyenv())', '.state$threads <- 1L',
+               'RoBMA.options <- function(native_threads) .state$threads <- native_threads',
+               'RoBMA.get_option <- function(name) .state$threads'), file.path(target, "R", "options.R"))
+  dir.create(file.path(target, "tests", "scenarios"), recursive = TRUE)
+  writeLines('stop("TARGET WORKLOAD MUST NOT RUN")',
+             file.path(target, "tests/scenarios/test-unit.R"))
+  run <- .scenario_benchmark_run(root, "--only=^chosen$", target = target,
+                                 installed = FALSE)
+  on.exit(unlink(run[["out"]], recursive = TRUE), add = TRUE)
+  expect_equal(run[["status"]], 0L)
+  text <- file.path(run[["out"]], "unit--chosen.txt")
+  expect_true(file.exists(text))
+  if (file.exists(text)) expect_identical(readLines(text), '[1] "MAIN WORKLOAD"')
+  expect_false(dir.exists(file.path(target, "tools")))
+
+  # A real incompatible target API must fail clearly, before artifact work.
+  writeLines(c('RoBMA.options <- function(native_threads) stop("TARGET API INCOMPATIBLE")',
+               'RoBMA.get_option <- function(name) 1L'),
+             file.path(target, "R", "options.R"))
+  incompatible <- .scenario_benchmark_run(root, "--only=^chosen$", target = target,
+                                          installed = FALSE)
+  on.exit(unlink(incompatible[["out"]], recursive = TRUE), add = TRUE)
+  expect_equal(incompatible[["status"]], 1L)
+  expect_match(incompatible[["stderr"]], "TARGET API INCOMPATIBLE", fixed = TRUE)
+})
+
+
+test_that("benchmark plots use the canonical scenario SVG renderer", {
+
+  skip_if_not_installed("vdiffr")
+  root <- .scenario_benchmark_fixture('scenario_plot("chosen", graphics::plot(1:3))')
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  run <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(run[["out"]], recursive = TRUE), add = TRUE)
+  expect_equal(run[["status"]], 0L)
+  env <- new.env(parent = globalenv())
+  source(file.path(root, "tests/testthat/helper-visual-writer.R"), local = env)
+  expected <- file.path(run[["out"]], "canonical-control.svg")
+  env$.write_canonical_svg(function() graphics::plot(1:3), expected, "chosen")
+  actual <- file.path(run[["out"]], "unit--chosen.svg")
+  expect_identical(unname(tools::md5sum(actual)), unname(tools::md5sum(expected)))
 })
 
 

@@ -292,8 +292,9 @@ artifact) and `--index=<from:to>` then runs a slice of that listing, which is ho
 a long scenario is split across processes. `--only` is a regular expression on
 artifact names, `--profile` adds an `Rprof` file and a `.prof.txt` summary,
 `--limit` caps one artifact's wall time, `--threads` sets
-`RoBMA.options(native_threads=)`, `--root` points at another RoBMA tree (the fit
-cache and committed timings still come from this one unless `--cache` says
+`RoBMA.options(native_threads=)`, `--root` points at another RoBMA tree (the
+driver's own scenario definitions, helpers, fit cache, and committed timings
+serve both comparison arms; `--cache` can select another fit cache
 otherwise), `--installed` benchmarks the installed package, and `--tag` labels
 the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run with
 each artifact's native share and top self-time functions;

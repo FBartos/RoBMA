@@ -81,9 +81,10 @@ if (flag("installed")) {
   build <- paste0("installed ", as.character(utils::packageVersion("RoBMA")))
 } else {
   # Timings describe the release build, not pkgbuild's default -O0 debug DLL.
-  source(file.path(root, "tools", "optimized-dll.R"))
+  source(file.path(main_root, "tools", "optimized-dll.R"))
   ensure_optimized_dll(root, quiet = TRUE)
-  pkgload::load_all(root, quiet = TRUE, debug = FALSE)
+  pkgload::load_all(root, quiet = TRUE, compile = FALSE, helpers = FALSE,
+                   debug = FALSE)
   build <- "load_all release"
 }
 if (!is.null(threads)) RoBMA.options(native_threads = as.integer(threads))
@@ -91,7 +92,7 @@ sha <- tryCatch(system2("git", c("-C", shQuote(root), "rev-parse", "--short", "H
                 error = function(e) NA_character_)
 
 bench_env <- new.env(parent = globalenv())
-sys.source(file.path(root, "tests", "scenarios", "helper-scenarios.R"), envir = bench_env,
+sys.source(file.path(main_root, "tests", "scenarios", "helper-scenarios.R"), envir = bench_env,
            chdir = TRUE)
 
 state <- new.env()
@@ -154,15 +155,16 @@ bench_run <- function(type, name, expr, env) {
   set.seed(1)
   if (type == "plot") {
     svg_file <- paste0(file_stub, ".svg")
-    grDevices::svg(svg_file, width = 10, height = 8)
   }
   if (profile) utils::Rprof(prof_file, interval = 0.02)
   started <- proc.time()[["elapsed"]]
   result <- tryCatch({
     if (is.finite(limit)) setTimeLimit(elapsed = limit, transient = TRUE)
     if (type == "plot") {
-      set.seed(1)
-      get(".scenario_evaluate_plot", bench_env)(expr, env, restore_par = FALSE)
+      get(".write_canonical_svg", bench_env)(function() {
+        set.seed(1)
+        get(".scenario_evaluate_plot", bench_env)(expr, env, restore_par = FALSE)
+      }, svg_file, name)
     } else if (type == "text") {
       old <- options(width = 150L)
       on.exit(options(old), add = TRUE)
@@ -183,8 +185,7 @@ bench_run <- function(type, name, expr, env) {
   setTimeLimit(elapsed = Inf)
   if (profile) utils::Rprof(NULL)
   if (type == "plot") {
-    grDevices::dev.off()
-    fingerprint <- unname(tools::md5sum(svg_file))
+    if (file.exists(svg_file)) fingerprint <- unname(tools::md5sum(svg_file))
   } else if (type == "text" && file.exists(paste0(file_stub, ".txt"))) {
     fingerprint <- unname(tools::md5sum(paste0(file_stub, ".txt")))
   } else if (type == "time" && status == "ok") {
@@ -371,7 +372,7 @@ run_block <- function(body, env) {
   }
 }
 
-file  <- file.path(root, "tests", "scenarios", paste0("test-", scenario, ".R"))
+file  <- file.path(main_root, "tests", "scenarios", paste0("test-", scenario, ".R"))
 exprs <- parse(file, keep.source = FALSE)
 for (e in exprs) {
   head <- call_head(e)
