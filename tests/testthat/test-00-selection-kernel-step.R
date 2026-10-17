@@ -1,6 +1,35 @@
 context("Selection kernel")
 skip_on_cran()
 
+test_that("declined telescoping uses stable log interval masses", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  for (direction in c("positive", "negative")) for (sei in c(1, .7)) {
+    sign <- if (direction == "positive") 1 else -1
+    prior <- BayesTools::prior_weightfunction("one-sided", c(.025, .05),
+      BayesTools::wf_fixed(c(1, 0, .5)))
+    spec <- .selection_spec(list(outcome = list(bias = prior)), 0, sei,
+      effect_direction = direction, signed_data = FALSE)
+    mean <- matrix(sign * 1.8 * sei, 3L)
+    sd <- matrix(c(.019, .02, .03) * sei)
+    omega <- matrix(rep(c(1, 0, .5), each = 3L), 3L)
+    expected <- .test_step_log_norm_reference(mean, sd, sei, omega, spec)
+    for (telescope in c(TRUE, FALSE)) {
+      spec$telescope_probabilities <- telescope
+      actual <- .selnorm_kernel_log_norm_matrix(mean, sd, sei, omega, spec)
+      expect_equal(actual, expected, tolerance = 1e-12)
+    }
+  }
+  prior <- BayesTools::prior_weightfunction("two-sided", .05,
+    BayesTools::wf_fixed(c(1, 1e-15)))
+  spec <- .selection_spec(list(outcome = list(bias = prior)), 0, 1,
+    effect_direction = "positive", signed_data = FALSE)
+  expected <- .test_step_log_norm_reference(matrix(0), matrix(.24), 1,
+    matrix(c(1, 1e-15, 1), 1L), spec)
+  expect_equal(.selnorm_kernel_log_norm_matrix(matrix(0), matrix(.24), 1,
+    matrix(c(1, 1e-15, 1), 1L), spec), expected, tolerance = 1e-12)
+})
+
 test_that("step selected-normal kernel matches an independent p-bin reference", {
 
   skip_if_not(.has_native_selnorm_kernel())

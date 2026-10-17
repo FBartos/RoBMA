@@ -277,13 +277,6 @@ double cpp_selnorm_step_log_norm(
       return std::log(normalizer);
     }
 
-    int n_groups = 0;
-    bool ok = false;
-    const double fallback = step_normalizer_trusted_partition(
-      omega, data, data.effect_sign * mean, sd, sei, omega_stride,
-      NULL, NULL, NULL, &n_groups, &ok
-    );
-    if (ok) return std::log(fallback);
   }
 
   return step_log_normalizer_score_space(

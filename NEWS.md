@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selected-normal log normalizers and RNG partitions retain remote lower-tail interval masses; numerical provenance invalidates saved precomputed ordinates from earlier evaluators.
 - Complete or structural-zero formula intercepts avoid constructing unused omitted effect defaults; genuinely missing priors and supplied input validation retain their requirements.
 - Complete formula-intercept overrides capture supplied global declarations before forcing their values, reject lost declarations, preserve actual random SD/inclusion consumers and strictly positive scale points, and avoid unused scale-intercept defaults.
 - Model-averaging constructors bind sole ordered term containers directly and report the total-owned mixture remedy before a separate term mixture is built.

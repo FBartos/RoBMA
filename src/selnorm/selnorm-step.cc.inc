@@ -49,10 +49,8 @@ double trusted_interval_prob(double lower, double upper, double mean,
     return 0;
   }
 
-  const double tail_lower = tail_at(lower, mean, sd);
-  const double tail_upper = tail_at(upper, mean, sd);
-  const double prob = tail_lower - tail_upper;
-  if (!(prob > 0) || prob > 1) {
+  const double prob = interval_prob(lower, upper, mean, sd);
+  if (!(prob > 0) || !std::isfinite(prob) || prob > 1) {
     *ok = false;
     return 0;
   }
