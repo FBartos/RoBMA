@@ -234,8 +234,102 @@ assign("scenario_plot", function(name, code) bench_run("plot", name, substitute(
 call_head <- function(x) if (is.call(x)) paste(deparse(x[[1L]]), collapse = "") else ""
 has_scenario_call <- function(x) any(c("scenario_time", "scenario_text", "scenario_plot") %in% all.names(x))
 
+fit_list_blocks <- function(statements) {
+  blocks <- list()
+  index <- 1L
+  initializer <- function(st) {
+    call_head(st) %in% c("<-", "=") && is.symbol(st[[2L]]) &&
+      call_head(st[[3L]]) == "list" && length(st[[3L]]) == 1L
+  }
+  while (index <= length(statements)) {
+    first <- index
+    outputs <- character()
+    while (index <= length(statements) && initializer(statements[[index]])) {
+      outputs <- c(outputs, as.character(statements[[index]][[2L]]))
+      index <- index + 1L
+    }
+    if (length(outputs) > 0L && index <= length(statements) &&
+        call_head(statements[[index]]) == "for" &&
+        "scenario_fit" %in% all.names(statements[[index]])) {
+      loop <- statements[[index]]
+      body <- if (call_head(loop[[4L]]) == "{") as.list(loop[[4L]])[-1L] else list(loop[[4L]])
+      valid_assignment <- function(st) {
+        if (!call_head(st) %in% c("<-", "=") ||
+            !call_head(st[[2L]]) %in% c("[", "[[") ||
+            !is.symbol(st[[2L]][[2L]]) ||
+            !as.character(st[[2L]][[2L]]) %in% outputs ||
+            call_head(st[[3L]]) != "scenario_fit") return(FALSE)
+        # The loop itself only constructs the declared lists. Cached fit code
+        # stays unevaluated, exactly as for an ordinary scalar fit assignment.
+        !"scenario_fit" %in% all.names(st[[2L]])
+      }
+      if (length(body) > 0L && all(vapply(body, valid_assignment, logical(1)))) {
+        index <- index + 1L
+        while (index <= length(statements)) {
+          st <- statements[[index]]
+          names_assignment <- call_head(st) %in% c("<-", "=") &&
+            call_head(st[[2L]]) == "names" && length(st[[2L]]) == 2L &&
+            is.symbol(st[[2L]][[2L]]) &&
+            as.character(st[[2L]][[2L]]) %in% outputs &&
+            !"scenario_fit" %in% all.names(st[[3L]])
+          if (!names_assignment) break
+          index <- index + 1L
+        }
+        blocks[[as.character(first)]] <- list(
+          last = index - 1L,
+          outputs = unique(c(outputs, as.character(loop[[2L]]))),
+          expr = as.call(c(list(as.name("{")), statements[first:(index - 1L)]))
+        )
+        next
+      }
+    }
+    # Preflight every statement before any selected artifact can read a fit.
+    # This is an explicit supported construction block, not an R interpreter.
+    index <- first
+    st <- statements[[index]]
+    scalar_fit <- call_head(st) %in% c("<-", "=") &&
+      is.symbol(st[[2L]]) && call_head(st[[3L]]) == "scenario_fit"
+    if ("scenario_fit" %in% all.names(st) && !scalar_fit) {
+      stop("Unsupported compound scenario_fit construction; use scalar fit assignments ",
+           "or list initializers followed by a fit-only for loop and names assignments.",
+           call. = FALSE)
+    }
+    index <- index + 1L
+  }
+  blocks
+}
+
+make_lazy_fit_lists <- function(block, env) {
+  force(block); force(env)
+  result <- NULL
+  evaluated <- FALSE
+  load <- function(output) {
+    if (!evaluated) {
+      eval(block$expr, env)
+      result <<- mget(block$outputs, envir = env, inherits = FALSE)
+      evaluated <<- TRUE
+    }
+    result[[output]]
+  }
+  for (output in block$outputs) {
+    local({ name <- output; make_lazy(name, NULL, env, loader = function() load(name)) })
+  }
+  invisible(NULL)
+}
+
 run_block <- function(body, env) {
-  for (st in as.list(body)[-1L]) {
+  statements <- as.list(body)[-1L]
+  blocks <- fit_list_blocks(statements)
+  skip <- integer()
+  for (index in seq_along(statements)) {
+    if (index %in% skip) next
+    block <- blocks[[as.character(index)]]
+    if (!is.null(block)) {
+      make_lazy_fit_lists(block, env)
+      skip <- seq.int(index, block$last)
+      next
+    }
+    st <- statements[[index]]
     head <- call_head(st)
     is_assign <- head %in% c("<-", "=") && is.symbol(st[[2L]])
     if (is_assign) {

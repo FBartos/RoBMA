@@ -298,6 +298,11 @@ otherwise), `--installed` benchmarks the installed package, and `--tag` labels
 the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run with
 each artifact's native share and top self-time functions;
 `tools/bench-prof-tree.R <file.Rprof>` prints the call tree of one artifact.
+Fit-list preparation supports contiguous empty-list initializers, a loop whose
+body only assigns `scenario_fit()` results into those lists, and subsequent
+`names()` assignments. The original block runs once when a selected artifact
+needs an output, retaining its lists, names, and loop binding. Unsupported
+compound fit construction fails before the benchmark reads any cache.
 
 Two rules make the numbers usable:
 
