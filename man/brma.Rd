@@ -98,11 +98,11 @@ standard deviation. GLMM raw-count constructors support only \code{"OR"} and
 \code{"IRR"} and default to \code{"OR"}.}
 
 \item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
-(the intercept). If omitted, a default prior is constructed. In single-model
+(the intercept). If omitted and consumed, a default prior is constructed. In single-model
 functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
-parameter. If omitted, a default prior is constructed. In single-model
+parameter. If omitted and consumed, a default prior is constructed. In single-model
 functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero. For
 \code{\link{brma.mv}} random-effect formulas, this can also be a partial or
 complete \code{\link{prior_random}} object; see

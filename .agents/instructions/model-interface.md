@@ -11,8 +11,10 @@ intercepts (including NULL/FALSE) and explicit global declarations left without
 a consumer by that override. Resolve supplied argument presence before defaults
 or omission filtering. Component scale retains actual global SD and inclusion/
 omission-gate consumers, including gate-only roots with local SD sources; unused
-scale-intercept defaults need no UISD. Scale intercepts retain the positive SD
-contract because their model uses log(intercept). Structural-zero mods retain
+scale-intercept defaults need no UISD. Complete or structural-zero location intercepts leave an
+omitted effect default unused; missing slope/global SD consumers retain UISD.
+Scale intercepts retain the positive SD contract because their model uses
+log(intercept). Structural-zero mods retain
 their existing point-zero validation and explicit-global compatibility.
 
 Ordered term containers pass through when they are the sole retained component.

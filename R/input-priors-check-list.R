@@ -389,12 +389,17 @@
     )
   }
 
-  prior_outcome[["mu"]] <- .assign_prior.simple(
+  prior_outcome[["mu"]] <- if (missing(prior_effect) &&
+      (intercepts[["effect_override"]] || intercepts[["structural_zero"]])) {
+    NULL
+  } else {
+    .assign_prior.simple(
       prior = prior_effect, parameter = "effect", measure = measure,
       data = data, prior_unit_information_sd = prior_unit_information_sd,
       prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
       rescale_priors = rescale_priors
     )
+  }
   if (is_fixed_mv) {
     prior_outcome[["tau"]] <- BayesTools::prior("spike", parameters = list(0))
   } else if (.is_data_scale(data) && !intercepts[["global_sd_consumed"]]) {
@@ -656,12 +661,23 @@
     model_average = TRUE, random_prior = is_random_prior_heterogeneity
   )
 
-  prior_outcome[["mu"]] <- .assign_prior.simple_mixture(
-    prior = prior_effect, prior_null = prior_effect_null, parameter = "effect", measure = measure,
-    data = data, prior_unit_information_sd = prior_unit_information_sd,
-    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
-    rescale_priors = rescale_priors
-  )
+  prior_outcome[["mu"]] <- if (missing(prior_effect) &&
+      (intercepts[["effect_override"]] || intercepts[["structural_zero"]])) {
+    .assign_prior.simple_mixture(
+      prior = prior_effect, prior_null = prior_effect_null, parameter = "effect", measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors, components_only = TRUE, default_required = FALSE
+    )
+    NULL
+  } else {
+    .assign_prior.simple_mixture(
+      prior = prior_effect, prior_null = prior_effect_null, parameter = "effect", measure = measure,
+      data = data, prior_unit_information_sd = prior_unit_information_sd,
+      prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+      rescale_priors = rescale_priors
+    )
+  }
   heterogeneity_args <- list(
     parameter      = "heterogeneity",
     measure        = measure,

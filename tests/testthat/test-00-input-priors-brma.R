@@ -1,5 +1,58 @@
 context("Prior input handling for brma.norm")
 
+test_that("complete and structural-zero intercepts do not build unused effect defaults", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4), x = c(-1, 0, 1, 2))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  zero <- BayesTools::prior("point", list(0))
+  for (constructor in c("brma", "brma.norm", "BMA", "BMA.norm")) for (structural_zero in c(FALSE, TRUE)) {
+    averaged <- startsWith(constructor, "BMA")
+    args <- list(yi = quote(yi), sei = quote(sei), mods = if (structural_zero) ~ 0 + x else ~ x,
+      data = dat, measure = "GEN", prior_mods = if (structural_zero) list(x = normal) else list(intercept = normal, x = normal),
+      prior_heterogeneity = zero, only_priors = TRUE, silent = TRUE)
+    if (averaged) args["prior_heterogeneity_null"] <- list(NULL)
+    create <- function(selected) do.call(getExportedValue("RoBMA", constructor), selected)
+    expect_silent(object <- create(args))
+    binding <- .create_jags_formula_args(object$data, object$priors)
+    expect_silent(compiled <- BayesTools::JAGS_formula(
+      formula = binding$formula_list$mu, parameter = "mu", data = binding$formula_data_list$mu,
+      prior_list = binding$formula_prior_list$mu, formula_scale = binding$formula_scale_list$mu
+    ))
+    intercept <- compiled$prior_list$mu_intercept
+    if (structural_zero) {
+      expect_true(BayesTools::is.prior.point(intercept))
+      expect_identical(intercept$parameters$location, 0)
+    } else {
+      expect_identical(intercept$distribution, "normal")
+      expect_identical(intercept$parameters, normal$parameters)
+    }
+    slope <- compiled$prior_list$mu_x
+    if (averaged) {
+      expect_identical(attr(slope, "components"), c("null", "alternative"))
+      expect_identical(slope[[2L]]$parameters, normal$parameters)
+    } else {
+      expect_identical(slope$parameters, normal$parameters)
+    }
+    invalid <- args
+    invalid$rescale_priors <- 0
+    expect_error(create(invalid), "'rescale_priors' must be higher than 0.", fixed = TRUE)
+    invalid <- args
+    invalid$prior_unit_information_sd <- 0
+    expect_error(create(invalid), "'prior_unit_information_sd' must be higher than 0.", fixed = TRUE)
+    missing_slope <- args
+    missing_slope$prior_mods <- if (structural_zero) list() else list(intercept = normal)
+    expect_error(create(missing_slope), "without known UISD", fixed = TRUE)
+    missing_heterogeneity <- args
+    missing_heterogeneity$prior_heterogeneity <- NULL
+    expect_error(create(missing_heterogeneity), "without known UISD", fixed = TRUE)
+  }
+  expect_silent(brma(yi = yi, sei = sei, mods = ~ 0 + x, data = dat, measure = "GEN",
+    prior_mods = list(intercept = zero, x = normal), prior_heterogeneity = zero, only_priors = TRUE, silent = TRUE))
+  expect_error(brma(yi = yi, sei = sei, mods = ~ 0 + x, data = dat, measure = "GEN",
+    prior_mods = list(intercept = normal, x = normal), prior_heterogeneity = zero, only_priors = TRUE, silent = TRUE),
+    "contradicts the formula", class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+})
+
 test_that("single user defaults convert only consumed scalar or factor fallbacks", {
 
   dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4),
