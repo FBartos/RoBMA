@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Independent physical integration tests cover shifted ordered-source numerators and ordinary/sharper selected two-dimensional block denominators, with their numerical error estimates retained.
 - Ordered constant-contribution uncertainty certificates require a single declared total slice; multiple slices retain ordinary uncertainty and its existing availability diagnostics.
 - Admitted ordered share endpoints use the existing allocation group chart for unequal nonzero coefficients and preserve the exact declared affine offset.
 - Ordered fixed-total and nonzero Bernoulli interior contractions retain certified regular conditional densities instead of being classified by endpoint exponents; uncertified interior limits remain unavailable.

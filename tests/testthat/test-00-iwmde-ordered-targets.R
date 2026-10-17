@@ -2108,3 +2108,211 @@ testthat::test_that("fixed allocations with multiple total slices do not certify
   states <- lapply(1:2, function(i) .iwmde_ordered_row_state(single$context, target, i))
   testthat::expect_true(.iwmde_ordered_constant_certificate(single$context, target, states))
 })
+
+.ordered_review_block_control <- list(rel.tol = 1e-10, abs.tol = 1e-12, subdivisions = 1000L)
+.ordered_review_block_case <- function(label, shared = FALSE, selected = FALSE, width = 1) {
+  dat <- data.frame(f = base::ordered(rep(c("lo", "mid", "hi", "top"), 10L),
+    levels = c("lo", "mid", "hi", "top")), x = seq(-1, 1, length.out = 40L))
+  dat$yi <- rep(c(-.1, .1, .2, .3), 10L)
+  dat$sei <- rep(c(.2, .3, .25, .35), 10L)
+  total <- BayesTools::prior("normal", list(0, width))
+  allocation <- BayesTools::prior("dirichlet", list(c(1.5, 1.5, 1)))
+  fixture <- .ordered_target_fixture(total = total, allocation = allocation, shared = shared, data = dat)
+  ordered <- BayesTools::prior_ordered(total, allocation = allocation, id = if (shared) "shared" else NULL)
+  prior_mods <- list(f = ordered)
+  if (shared) prior_mods <- c(prior_mods, list(x = BayesTools::prior("normal", list(0, 1)), `f:x` = ordered))
+  args <- list(yi = dat$yi, sei = dat$sei, mods = if (shared) ~f*x else ~f, data = dat, measure = "SMD",
+    only_priors = TRUE, prior_effect = BayesTools::prior("point", list(0)),
+    prior_heterogeneity = BayesTools::prior("point", list(0)), prior_mods = prior_mods,
+    standardize_continuous_predictors = FALSE)
+  if (selected) args$prior_bias <- BayesTools::prior_weightfunction("one-sided", c(.025, .05), BayesTools::wf_fixed(c(1, 3, .2)))
+  object <- do.call(if (selected) RoBMA::bselmodel else RoBMA::brma, args)
+  object$fit <- fixture$fit
+  context <- fixture$context
+  context$object <- object
+  context$data <- object$data
+  context$priors <- object$priors
+  context$posterior_samples <- cbind(context$posterior_samples, tau = 0)
+  context$object$fit$mcmc[[1L]] <- coda::mcmc(context$posterior_samples)
+  context <- .iwmde_context_ensure_caches(context, reset = TRUE)
+  specs <- BayesTools::JAGS_ordered_parameter_spec(fixture$fit)
+  weights <- setNames(-2.5, specs$mu_f$coefficient_names[[1L]])
+  if (shared) weights <- c(weights, setNames(-1.7, specs$mu_f__xXx__x$coefficient_names[[1L]]))
+  target <- .iwmde_ordered_target_spec(context, "affine", list(type = "linear", weights = weights))
+  stopifnot(target$status == "ok", target$ordered_point_plan$status == "block", target$ordered_point_plan$supplier == "total")
+  state <- .iwmde_ordered_row_state(context, target, 18L)
+  block <- .iwmde_ordered_block_geometry(context, target, state)
+  stopifnot(identical(block$selected, selected), isTRUE(block$descriptor$pure), block$descriptor$a == 1)
+  if (shared) stopifnot(block$shift != 0, !block$closed_total_numerator)
+  list(label = label, context = context, target = target, state = state, block = block, specs = specs,
+    data = dat, width = width, shared = shared, selected = selected)
+}
+
+.ordered_review_block_reference <- function(case) {
+  dat <- case$data
+  row <- case$state$row
+  descriptor <- case$target$ordered_point_plan$descriptor
+  record <- descriptor$record
+  J <- descriptor$J
+  K <- setdiff(seq_along(record$spec$alpha), J)
+  alpha <- sum(record$spec$alpha[J]); beta <- sum(record$spec$alpha[K])
+  gamma <- record$gamma_coordinates
+  r_J <- row[gamma[J]] / sum(row[gamma[J]])
+  r_K <- row[gamma[K]] / sum(row[gamma[K]])
+  source <- case$specs[[descriptor$term]]$total_names[[descriptor$slice]]
+  design <- BayesTools::JAGS_formula_design(case$context$object$fit, parameter = "mu")
+  stopifnot(identical(design$contrasts$f, "contr.ordered_cumulative"))
+  model_terms <- paste0("mu_", gsub(":", "__xXx__", design$model_terms, fixed = TRUE))
+  term_matrix <- function(term) {
+    i <- which(model_terms == term)
+    stopifnot(length(i) == 1L)
+    design$model_matrix[, design$assign == i - 1L, drop = FALSE]
+  }
+  matrices <- lapply(names(case$specs), term_matrix)
+  names(matrices) <- names(case$specs)
+  baseline <- rep(0, nrow(dat))
+  if (case$shared) baseline <- as.numeric(term_matrix("mu_x")) * row[["mu_x"]]
+  mean_physical <- function(total, share) {
+    n <- max(length(total), length(share))
+    total <- rep_len(total, n); share <- rep_len(share, n)
+    p <- matrix(0, n, length(gamma))
+    p[, J] <- outer(share, r_J)
+    p[, K] <- outer(1 - share, r_K)
+    mu <- matrix(baseline, n, nrow(dat), byrow = TRUE)
+    for (name in names(case$specs)) {
+      owner <- case$specs[[name]]
+      stopifnot(length(owner$total_names) == 1L, length(owner$allocations) == 1L,
+        identical(owner$allocations[[1L]]$gamma_coordinates, gamma), length(owner$coefficient_names) == ncol(p))
+      t <- if (owner$total_names[[1L]] == source) total else rep(row[[owner$total_names[[1L]]]], n)
+      mu <- mu + (p * t) %*% t(matrices[[name]])
+    }
+    mu
+  }
+  selected <- case$selected
+  # Original fixed step law is declared above. Thresholds and observed bin
+  # membership are computed here independently, without production contexts.
+  zcuts <- c(-Inf, qnorm(.95), qnorm(.975), Inf)
+  omega <- c(.2, 3, 1)
+  observed_bin <- findInterval(dat$yi / dat$sei, zcuts, rightmost.closed = TRUE)
+  log_likelihood <- function(total, share) {
+    mu <- mean_physical(total, share)
+    pieces <- vapply(seq_len(nrow(dat)), function(i) {
+      value <- dnorm(dat$yi[[i]], mu[, i], dat$sei[[i]], log = TRUE)
+      if (selected) {
+        mass <- vapply(seq_len(3L), function(b) {
+          lo <- zcuts[[b]] * dat$sei[[i]]; hi <- zcuts[[b + 1L]] * dat$sei[[i]]
+          if (is.infinite(lo)) pnorm(hi, mu[, i], dat$sei[[i]]) else
+            pnorm(lo, mu[, i], dat$sei[[i]], lower.tail = FALSE) - pnorm(hi, mu[, i], dat$sei[[i]], lower.tail = FALSE)
+        }, numeric(nrow(mu)))
+        if (is.null(dim(mass))) mass <- matrix(mass, nrow = 1L)
+        norm <- as.numeric(mass %*% omega)
+        stopifnot(all(is.finite(norm)), all(norm > 0))
+        value <- value + log(omega[observed_bin[[i]]]) - log(norm)
+      }
+      value
+    }, numeric(nrow(mu)))
+    rowSums(matrix(pieces, nrow = nrow(mu), ncol = nrow(dat)))
+  }
+  # Verify independently built physical means against actual original replay at
+  # a fixed grid, then keep all completion/panel/kernel code out of integrals.
+  grid <- expand.grid(total = c(-.4, 0, .7), share = c(.01, .35, .9))
+  physical_grid <- log_likelihood(grid$total, grid$share)
+  produced_grid <- .iwmde_ordered_block_log_likelihood(case$context, case$block, grid$total, grid$share)
+  grid_difference <- max(abs(physical_grid - produced_grid))
+  stopifnot(grid_difference <= 64 * .Machine$double.eps * nrow(dat) * max(1, abs(physical_grid), abs(produced_grid)))
+  zero_total <- -case$block$shift / descriptor$a
+  factor <- dnorm(zero_total, 0, case$width) * (alpha + beta - 1) / ((alpha - 1) * abs(descriptor$k * descriptor$a))
+  stopifnot(is.finite(factor), factor > 0)
+  # Complete only the independently built physical residual quadratic to select
+  # a well-scaled coordinate for the full physical selected integral.
+  coordinate <- function(s) {
+    a <- as.numeric(mean_physical(0, s)); b <- as.numeric(mean_physical(1, s)) - a
+    precision <- 1 / case$width^2 + sum(b^2 / dat$sei^2)
+    variance <- 1 / precision
+    list(mean = variance * sum(b * (dat$yi - a) / dat$sei^2), sd = sqrt(variance))
+  }
+  anchors <- c(0, .1, .3, .5, .7, .9, 1)
+  scale_D <- max(vapply(anchors, function(s) {
+    c <- coordinate(s); log_likelihood(c$mean, s) + dnorm(c$mean, 0, case$width, log = TRUE)
+  }, numeric(1)))
+  scale_N <- max(log_likelihood(zero_total, anchors))
+  integrate_ref <- function(fn, lower, upper) {
+    result <- do.call(stats::integrate, c(list(f = fn, lower = lower, upper = upper), .ordered_review_block_control))
+    stopifnot(result$message == "OK", is.finite(result$value), result$value > 0, is.finite(result$abs.error))
+    result
+  }
+  max_inner_error <- 0
+  inner_count <- 0L
+  inner <- function(share) vapply(share, function(s) {
+    c <- coordinate(s)
+    value <- integrate_ref(function(z) {
+      t <- c$mean + c$sd * z
+      exp(log_likelihood(t, s) + dnorm(t, 0, case$width, log = TRUE) - scale_D) * c$sd
+    }, -Inf, Inf)
+    max_inner_error <<- max(max_inner_error, value$abs.error)
+    inner_count <<- inner_count + 1L
+    value$value
+  }, numeric(1))
+  denominator <- integrate_ref(function(s) dbeta(s, alpha, beta) * inner(s), 0, 1)
+  numerator <- integrate_ref(function(s) dbeta(s, alpha - 1, beta) * exp(log_likelihood(zero_total, s) - scale_N), 0, 1)
+  log_N <- log(factor) + scale_N + log(numerator$value)
+  log_D <- scale_D + log(denominator$value)
+  error_N <- numerator$abs.error / numerator$value
+  error_D <- (denominator$abs.error + max_inner_error) / denominator$value
+  stopifnot(error_N < 1e-7, error_D < 1e-7)
+  list(log_N = log_N, log_D = log_D, log_ratio = log_N - log_D, N = exp(log_N), D = exp(log_D),
+    ratio = exp(log_N - log_D), error_N = error_N, error_D = error_D,
+    error_ratio = (1 + error_N) / (1 - error_D) - 1, numerator = numerator, denominator = denominator,
+    max_inner_error = max_inner_error, inner_count = inner_count, scale_N = scale_N, scale_D = scale_D,
+    alpha = alpha, beta = beta, k = descriptor$k, a = descriptor$a, shift = case$block$shift,
+    zero_total = zero_total, factor = factor, grid_difference = grid_difference,
+    relative_transition_width = range(dat$sei) / case$width,
+    selection_cuts = if (selected) zcuts else NULL, selection_weights = if (selected) omega else NULL)
+}
+
+test_that("physical ordered block oracles cover shifted numerators and selected denominators", {
+
+  skip_on_cran()
+  previous <- RoBMA.options()
+  RoBMA.options(max_cores = 1L, native_threads = 1L)
+  withr::defer(do.call(RoBMA.options, previous[c("max_cores", "native_threads")]))
+  # Exact original report79 cases and quadrature budgets. These are synthetic
+  # conditional numerical fixtures, not fitted posterior or MCMC calibration.
+  # QUADPACK and maximum queried inner errors are estimates, not enclosures.
+  settings <- list(list(label = "shifted-total", shared = TRUE),
+    list(label = "selected-ordinary", selected = TRUE, width = 1),
+    list(label = "selected-sharper", selected = TRUE, width = 3))
+  for (arguments in settings) {
+    evidence <- withCallingHandlers({
+      case <- do.call(.ordered_review_block_case, arguments)
+      reference <- .ordered_review_block_reference(case)
+      produced <- .iwmde_ordered_block_log_terms(case$context, case$target, list(case$state), case$target$ordered_point_plan)
+      proof <- produced$proofs[[1L]]
+      N <- exp(proof$numerator$log_value)
+      D <- exp(proof$denominator$log_value)
+      ratio <- exp(produced$log_terms[[1L]])
+      differences <- c(N = abs(N - reference$N), D = abs(D - reference$D), ratio = abs(ratio - reference$ratio))
+      float <- 256 * .Machine$double.eps * nrow(case$data) * max(1, abs(c(reference$log_N, reference$log_D)))
+      allowances <- c(N = N * proof$numerator_relative_error + reference$N * (reference$error_N + float),
+        D = D * proof$denominator_relative_error + reference$D * (reference$error_D + float),
+        ratio = ratio * proof$ratio_relative_error + reference$ratio * (reference$error_ratio + float))
+      branch <- if (case$shared) identical(proof$numerator$method, "shifted_beta_total_supplier") else
+        identical(as.integer(proof$orders), c(15L, 31L, 63L)) && length(proof$denominator$attempts) > 0L && proof$counts$native_nodes > 0L
+      list(case = case, reference = reference, proof = proof, differences = differences,
+        allowances = allowances, branch = branch)
+    }, warning = function(warning) stop(warning))
+    for (quantity in names(evidence$differences)) expect_true(evidence$differences[[quantity]] <=
+      evidence$allowances[[quantity]], info = paste(arguments$label, quantity))
+    expect_true(evidence$branch, info = arguments$label)
+    relative <- c(N = evidence$differences[["N"]] / evidence$reference$N,
+      D = evidence$differences[["D"]] / evidence$reference$D,
+      ratio = evidence$differences[["ratio"]] / evidence$reference$ratio)
+    cat("PHYSICAL_BLOCK_ORACLE", arguments$label, "N/D/ratio discrepancies",
+      paste(format(relative, digits = 17), collapse = "/"), "production errors",
+      paste(format(c(evidence$proof$numerator_relative_error, evidence$proof$denominator_relative_error,
+        evidence$proof$ratio_relative_error), digits = 17), collapse = "/"), "\n")
+    # Preserve report79's dependent-stop policy: do not run the sharper case
+    # after an unresolved ordinary selected reference/production discrepancy.
+    if (!evidence$branch || any(evidence$differences > evidence$allowances)) break
+  }
+})
