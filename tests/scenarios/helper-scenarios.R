@@ -78,6 +78,11 @@ if (!exists(".scenario_state", inherits = TRUE)) {
       call. = FALSE
     )
   }
+  if (type %in% c("scenario", "text") &&
+      grepl("\\.new$", name, ignore.case = TRUE)) {
+    stop("Scenario ", type, " names ending in '.new' are reserved for candidates.",
+         call. = FALSE)
+  }
 
   return(name)
 }
@@ -183,6 +188,7 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
     envir = .scenario_state
   )
   assign("timing_warned", character(), envir = .scenario_state)
+  assign("plot_names", character(), envir = .scenario_state)
 
   if (refit && update) {
     message("Refitting models and updating locked outputs for scenario '",
@@ -1353,6 +1359,22 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
 }
 
 
+.scenario_claim_plot_filename <- function(name) {
+
+  filename <- .scenario_plot_filename(name)
+  owners <- get("plot_names", envir = .scenario_state, inherits = FALSE)
+  if (filename %in% names(owners) && !identical(owners[[filename]], name)) {
+    stop("Scenario plot filename '", filename, "' is already owned by '",
+         owners[[filename]], "'; '", name, "' maps to the same filename.",
+         call. = FALSE)
+  }
+  owners[[filename]] <- name
+  assign("plot_names", owners, envir = .scenario_state)
+
+  return(invisible(filename))
+}
+
+
 .scenario_copy_file <- function(from, to, type) {
 
   dir.create(dirname(to), recursive = TRUE, showWarnings = FALSE)
@@ -1694,9 +1716,9 @@ scenario_time <- function(name, code) {
 # tracked text file.
 scenario_text <- function(name, code) {
 
-  set.seed(1)
   config <- .scenario_config()
   name   <- .scenario_validate_name(name, "text")
+  set.seed(1)
   path   <- file.path(config[["results_dir"]], paste0(name, ".txt"))
   candidate <- .scenario_candidate_path(path)
   expr   <- substitute(code)
@@ -1808,9 +1830,10 @@ scenario_text <- function(name, code) {
 # record the canonical render's performance.
 scenario_plot <- function(name, code) {
 
-  set.seed(1)
   config      <- .scenario_config()
   name        <- .scenario_validate_name(name, "plot")
+  .scenario_claim_plot_filename(name)
+  set.seed(1)
   expr        <- substitute(code)
   eval_env    <- parent.frame()
   show_output <- isTRUE(config[["show_output"]])

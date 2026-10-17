@@ -116,6 +116,10 @@ not mechanically reformat an existing scenario to ordinary source-file width.
 Call `scenario_start()` before `scenario_fit()`, `scenario_time()`,
 `scenario_text()`, or `scenario_plot()`. Use the shared helpers rather than
 recreating their caching, timing, printing, graphics, or snapshot behavior.
+Scenario and text names cannot end in `.new` (case insensitive), which is
+reserved for last-run and snapshot candidates. Distinct plot names must map to
+distinct canonical SVG filenames within a run; punctuation and case aliases
+are rejected before the second plot is evaluated.
 
 Run one scenario with:
 
