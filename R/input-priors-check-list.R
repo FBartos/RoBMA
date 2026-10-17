@@ -324,6 +324,8 @@
     data, measure,
     bias_type, steps, weightfunction_model = BayesTools::selection_model()) {
 
+  prior_supplied <- c(effect = !missing(prior_effect),
+    heterogeneity = !missing(prior_heterogeneity))
   ### check input
   if (!missing(rescale_priors))
     BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
@@ -370,15 +372,15 @@
       component = "random"
     )
   }
-  is_random_prior_heterogeneity <- !missing(prior_heterogeneity) &&
+  is_random_prior_heterogeneity <- prior_supplied[["heterogeneity"]] &&
     .is_prior_random(prior_heterogeneity)
   random_prior_needs_default_scale <- is_random_prior_heterogeneity &&
     !.assign_prior.random_has_scale(prior_heterogeneity)
 
   intercepts <- .resolve_prior_intercepts(
     data = data, prior_mods = prior_mods, prior_scale = prior_scale,
-    effect_supplied = !missing(prior_effect),
-    heterogeneity_supplied = !missing(prior_heterogeneity),
+    effect_supplied = prior_supplied[["effect"]],
+    heterogeneity_supplied = prior_supplied[["heterogeneity"]],
     random_prior = is_random_prior_heterogeneity
   )
 
@@ -563,6 +565,8 @@
     data, model_type, random_component_averaging = FALSE,
     weightfunction_model = BayesTools::selection_model()) {
 
+  prior_supplied <- c(effect = !missing(prior_effect), effect_null = !missing(prior_effect_null),
+    heterogeneity = !missing(prior_heterogeneity), heterogeneity_null = !missing(prior_heterogeneity_null))
   ### check input
   if (!missing(rescale_priors))
     BayesTools::check_real(rescale_priors, "rescale_priors", lower = 0, allow_bound = FALSE, allow_NA = FALSE)
@@ -643,7 +647,7 @@
       call. = FALSE
     )
   }
-  is_random_prior_heterogeneity <- !missing(prior_heterogeneity) &&
+  is_random_prior_heterogeneity <- prior_supplied[["heterogeneity"]] &&
     .is_prior_random(prior_heterogeneity)
   if (is_random_prior_heterogeneity && !is_random) {
     stop(
@@ -655,9 +659,9 @@
   intercepts <- .resolve_prior_intercepts(
     data = data, prior_mods = prior_mods, prior_mods_null = prior_mods_null,
     prior_scale = prior_scale, prior_scale_null = prior_scale_null,
-    effect_supplied = !missing(prior_effect), effect_null_supplied = !missing(prior_effect_null),
-    heterogeneity_supplied = !missing(prior_heterogeneity),
-    heterogeneity_null_supplied = !missing(prior_heterogeneity_null),
+    effect_supplied = prior_supplied[["effect"]], effect_null_supplied = prior_supplied[["effect_null"]],
+    heterogeneity_supplied = prior_supplied[["heterogeneity"]],
+    heterogeneity_null_supplied = prior_supplied[["heterogeneity_null"]],
     model_average = TRUE, random_prior = is_random_prior_heterogeneity
   )
 
