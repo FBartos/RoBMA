@@ -68,6 +68,13 @@ are failures; optional dependency and extended-gallery skips remain visible and
 permitted. Filtered development runs enforce native availability but do not claim
 complete standard evidence.
 
+`tools/profile-iwmde-qcmde.R` prepares the release DLL from its own source
+root, disables pkgload compilation and test helpers, and defaults to one native
+thread. `--list` reports available and omitted cached-fit cases without running
+the estimator. Its output records source/package/DLL identity and labels
+elapsed values as including CPU and allocation profiling. An explicit
+`ROBMA_DEBUG_DLL=TRUE` retains the existing DLL and is labelled a debug opt-out.
+
 Every certification case has a hard one-hour limit shared by its cache
 preparation and verification phases. The phases execute in separate processes,
 so native fitting state cannot leak into post-fit verification. Certification
