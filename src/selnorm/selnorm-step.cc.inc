@@ -87,7 +87,9 @@ bool add_weighted_standard_normal_interval(double lower, double upper,
 double step_log_normalizer_score_space(const double *omega,
                                        const SelNormKernelData &data,
                                        double mean, double sd, double sei,
-                                       int omega_stride)
+                                       int omega_stride,
+                                       double requested_lower = -INFINITY,
+                                       double requested_upper = INFINITY)
 {
   double log_mass = -INFINITY;
 
@@ -110,7 +112,8 @@ double step_log_normalizer_score_space(const double *omega,
       const double upper   = stable_affine_score(upper_z, sei, mean, sd);
       if (std::isnan(lower) || std::isnan(upper) || !(lower < upper) ||
           !add_weighted_standard_normal_interval(
-            lower, upper, std::log(w), &log_mass
+            std::max(lower, requested_lower), std::min(upper, requested_upper),
+            std::log(w), &log_mass
           )) {
         return std::numeric_limits<double>::quiet_NaN();
       }
@@ -284,7 +287,8 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
                                        double sei,
                                        int omega_stride,
                                        double *p1, double *p2,
-                                       double *inverse_weight)
+                                       double *inverse_weight,
+                                       double *log_normalizer = nullptr)
 {
   if (!std::isfinite(step_log_normalizer_score_space(
         omega, data, signed_mean, sd, sei, omega_stride
@@ -366,6 +370,7 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
   *p1             = requested[0] / normalizer;
   *p2             = requested[1] / normalizer;
   *inverse_weight = 1 / normalizer;
+  if (log_normalizer != nullptr) *log_normalizer = std::log(normalizer);
   return std::isfinite(*p1) && *p1 >= 0 && *p1 <= 1 &&
     std::isfinite(*p2) && *p2 >= 0 && *p2 <= 1 &&
     std::isfinite(*inverse_weight) && *inverse_weight > 0;
@@ -379,7 +384,8 @@ bool step_cdf_pair_logspace(const double *omega,
                             int omega_stride,
                             bool trusted_partition,
                             double *p1, double *p2,
-                            double *inverse_weight)
+                            double *inverse_weight,
+                            double *log_normalizer = nullptr)
 {
   const bool signed_lower_tail[2] = {
     q1_signed_lower_tail, q2_signed_lower_tail
@@ -447,6 +453,7 @@ bool step_cdf_pair_logspace(const double *omega,
   *p1 = probability_from_log_ratio(log_mass[0], log_denom);
   *p2 = probability_from_log_ratio(log_mass[1], log_denom);
   *inverse_weight = std::exp(-log_denom);
+  if (log_normalizer != nullptr) *log_normalizer = log_denom;
 
   return std::isfinite(*p1) && *p1 >= 0 && *p1 <= 1 &&
     std::isfinite(*p2) && *p2 >= 0 && *p2 <= 1 &&

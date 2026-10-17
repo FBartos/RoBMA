@@ -4,6 +4,67 @@ source(testthat::test_path("common-functions.R"))
 
 skip_on_cran()
 
+test_that("near-unit selected thresholds use a stable central complement", {
+
+  skip_if_not(.has_native_zplot_threshold())
+  omega <- c(1, .41740074534134219, .062339173792726146, .028900058998508272)
+  prior <- BayesTools::prior_weightfunction("one-sided", c(.025, .05, .5),
+    BayesTools::wf_fixed(omega))
+  for (direction in c("positive", "negative")) for (telescope in c(TRUE, FALSE)) {
+    sign <- if (direction == "positive") 1 else -1
+    sei <- .1
+    mean <- sign * -10.388518242603137
+    sd <- 1.2250556218212294
+    spec <- .selection_spec(list(outcome = list(bias = prior)), 0, sei,
+      effect_direction = direction, signed_data = FALSE)
+    spec$telescope_probabilities <- telescope
+    spec$omega <- matrix(omega, 1L)
+    spec$alpha <- 0
+    spec$phack_kind <- 0L
+    spec$kernel_mode <- SELKERNEL_STEP
+    log_norm <- .test_step_log_norm_reference(matrix(mean), matrix(sd), sei,
+      matrix(omega, 1L), spec)[1L]
+    for (threshold in c(0, .3, 130)) {
+      central <- vapply(seq_along(omega), function(bin) {
+        bounds <- sign * c(spec$z_lower[bin], spec$z_upper[bin]) * sei
+        log(omega[bin]) + .test_interval_log_prob(
+          max(-threshold * sei, min(bounds)), min(threshold * sei, max(bounds)), mean, sd)
+      }, numeric(1))
+      expected <- -expm1(.test_logsumexp(central) - log_norm)
+      actual <- .zplot_selnorm_threshold_summary(threshold, matrix(mean), matrix(sd), sei, spec, FALSE)
+      expect_true(is.finite(actual$EDR))
+      expect_equal(actual$EDR, expected, tolerance = 1e-12)
+      expect_equal(actual$weights, exp(-log_norm), tolerance = 1e-12)
+    }
+  }
+})
+
+test_that("STEP multivariate probability projection retains near-unit tails", {
+
+  skip_if_not(.has_native_zplot_threshold())
+  mean <- -10.388518242603137
+  sd <- 1.2250556218212294
+  omega <- c(1, .41740074534134219, .062339173792726146, .028900058998508272)
+  prior <- BayesTools::prior_weightfunction("one-sided", c(.025, .05, .5),
+    BayesTools::wf_fixed(omega))
+  selection <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(.1, .1),
+    effect_direction = "positive", signed_data = FALSE)
+  selection$omega <- matrix(omega, 1L)
+  selection$alpha <- 0
+  selection$phack_kind <- 0L
+  selection$kernel_mode <- SELKERNEL_STEP
+  selection$vector_rule <- 0L
+  selection$use_normal <- FALSE
+  covariance <- diag(sd^2, 2L)
+  actual <- .zplot_joint_block(.3, matrix(mean, 1L, 2L),
+    matrix(covariance[lower.tri(covariance, diag = TRUE)], 1L), c(.1, .1),
+    selection, TRUE, set_selection_likelihood_control(),
+    factors = list(residual_sd = matrix(sd, 1L, 2L), loading = matrix(0, 1L, 2L),
+      loading_support = matrix(FALSE, 2L, 1L)))
+  expect_equal(as.numeric(actual$density), 1, tolerance = 1e-12)
+  expect_equal(actual$relative_mcse, 0, tolerance = 1e-12)
+})
+
 
 test_that("native zero-SE funnel retains remote-tail interval mass", {
 

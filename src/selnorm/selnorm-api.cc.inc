@@ -335,6 +335,7 @@ bool cpp_selnorm_step_cdf_plan(
   }
 
   const double signed_mean = data.effect_sign * mean;
+
   for (int b = 0; b < data.n_bins; ) {
     const double w = omega_at(omega, b + 1, omega_stride);
     int last = b;
@@ -920,9 +921,32 @@ double cpp_selnorm_kernel_threshold(
 
   const double signed_mean = data.effect_sign * mean;
 
+  // A near-unit selected tail probability is determined by its central
+  // complement. Retain the exact normalizer used by the successful tail pair.
+  const auto finish_probability = [&](double upper_prob, double lower_prob,
+                                      double log_normalizer) {
+    const double tails = upper_prob + lower_prob;
+    if (!std::isfinite(tails) || tails < 0.0 || !std::isfinite(log_normalizer)) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    if (tails <= .5) return tails;
+    const double central_lower = stable_affine_score(-z_threshold, sei, signed_mean, sd);
+    const double central_upper = stable_affine_score(z_threshold, sei, signed_mean, sd);
+    const double log_central = step_log_normalizer_score_space(
+      omega, data, signed_mean, sd, sei, omega_stride, central_lower, central_upper);
+    if (log_central == -INFINITY) return 1.0;
+    if (!std::isfinite(log_central) || log_central > log_normalizer) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    const double probability = -std::expm1(log_central - log_normalizer);
+    return std::isfinite(probability) && probability >= 0.0 && probability <= 1.0 ?
+      probability : std::numeric_limits<double>::quiet_NaN();
+  };
+
   if (data.trusted_step_partition && data.telescope_probabilities) {
     double upper_prob;
     double lower_prob;
+    double log_normalizer;
     const double q_upper_z = data.effect_sign * z_threshold;
     const double q_lower_z = -q_upper_z;
     const bool upper_signed_lower_tail = data.effect_sign == 1 ? false : true;
@@ -933,17 +957,15 @@ double cpp_selnorm_kernel_threshold(
           q_upper_z, upper_signed_lower_tail,
           q_lower_z, lower_signed_lower_tail,
           signed_mean, sd, sei, omega_stride,
-          &upper_prob, &lower_prob, inverse_weight
+          &upper_prob, &lower_prob, inverse_weight, &log_normalizer
         )) {
-      const double probability = upper_prob + lower_prob;
-      return std::isfinite(probability) &&
-        probability >= 0 && probability <= 1 ?
-        probability : std::numeric_limits<double>::quiet_NaN();
+      return finish_probability(upper_prob, lower_prob, log_normalizer);
     }
   }
 
   double upper_prob;
   double lower_prob;
+  double log_normalizer;
   if (step_cdf_pair_logspace(
         omega, data,
         data.effect_sign * z_threshold,
@@ -951,12 +973,9 @@ double cpp_selnorm_kernel_threshold(
         -data.effect_sign * z_threshold,
         data.effect_sign == 1 ? true : false,
         signed_mean, sd, sei, omega_stride, data.trusted_step_partition,
-        &upper_prob, &lower_prob, inverse_weight
+        &upper_prob, &lower_prob, inverse_weight, &log_normalizer
       )) {
-    const double probability = upper_prob + lower_prob;
-    return std::isfinite(probability) &&
-      probability >= 0 && probability <= 1 ?
-      probability : std::numeric_limits<double>::quiet_NaN();
+    return finish_probability(upper_prob, lower_prob, log_normalizer);
   }
 
   return std::numeric_limits<double>::quiet_NaN();
