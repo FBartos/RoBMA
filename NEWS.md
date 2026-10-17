@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- A single nested random-effect component accepts supported covariance and named random wrappers without admitting multiple ambiguous bare terms.
 - Random-effect factors retain declared index and grouping levels through subset and missing-row selection, including shared moderator and scale columns.
 - Diagonal sampling-input completion preserves supplied missingness and validates invalid retained values without dropping conversion-created missing rows.
 - Synthetic density-diagnostic fixtures declare their exact zero resolution component when checking attachment, value alignment, and validation-movement gates.

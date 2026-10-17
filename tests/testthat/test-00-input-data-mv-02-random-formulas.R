@@ -1991,6 +1991,45 @@ test_that("random-effect structure preserves every represented design change", {
 })
 
 
+test_that("one supported nested wrapper remains one unambiguous component", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), study = rep(c("a", "b"), each = 2), esid = paste0("e", 1:4))
+  formulas <- list(
+    plain = ~ 1 | study / esid,
+    us = ~ us(1 | study / esid),
+    diag = ~ diag(1 | study / esid),
+    named = ~ random(1 | study / esid, name = "spatial"),
+    unnamed_list = list(~ us(1 | study / esid)),
+    named_list = list(component = ~ us(1 | study / esid))
+  )
+  for (formula in formulas) {
+    parsed <- BayesTools::random_effects_formula(formula)
+    expect_silent(object <- brma.mv(
+      yi = yi, V = diag(0.04, 4), random = formula, data = dat, measure = "GEN",
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    ))
+    actual <- attr(object[["data"]][["location"]], "random_effects")
+    expect_identical(actual[["components"]], parsed[["components"]])
+    for (field in c("block_name", "group_label", "group_nesting_components", "structure")) {
+      expect_identical(lapply(actual[["terms"]], `[[`, field), lapply(parsed[["terms"]], `[[`, field))
+    }
+  }
+  for (formula in list(
+      ~ (1 | study) + (1 | esid),
+      ~ random(1 | study / esid, name = "first") + random(1 | study, name = "second"))) {
+    expect_s3_class(BayesTools::random_effects_formula(formula), "BayesTools_random_effects")
+    expect_error(brma.mv(
+      yi = yi, V = diag(0.04, 4), random = formula, data = dat, measure = "GEN",
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    ), "Bare 'random' formulas with multiple random-effect terms are ambiguous.", fixed = TRUE)
+  }
+  expect_silent(brma.mv(
+    yi = yi, V = diag(0.04, 4), random = list(first = ~ 1 | study, second = ~ 1 | esid),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+  ))
+})
+
+
 test_that("random factor levels and actual AR1 covariance survive row selection", {
 
   dat <- data.frame(

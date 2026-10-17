@@ -1572,7 +1572,7 @@ NULL
     return(invisible(TRUE))
   }
   if (length(terms) > 1L &&
-      !.check_and_list_data.random_is_plain_nested(random)) {
+      !.check_and_list_data.random_is_single_nested_component(random, random_effects)) {
     stop(
       "Bare 'random' formulas with multiple random-effect terms are ",
       "ambiguous. Use a named list such as ",
@@ -1584,17 +1584,48 @@ NULL
   invisible(TRUE)
 }
 
-.check_and_list_data.random_is_plain_nested <- function(random) {
+.check_and_list_data.random_is_single_nested_component <- function(random,
+                                                                   random_effects) {
 
   formula <- if (inherits(random, "formula")) random else random[[1L]]
   rhs <- formula[[if (length(formula) == 3L) 3L else 2L]]
   while (is.call(rhs) && identical(rhs[[1L]], as.name("("))) {
     rhs <- rhs[[2L]]
   }
+  terms <- random_effects[["terms"]]
+  wrapper_names <- unique(c("random", "re", vapply(terms, function(term) {
+    original <- term[["original_call"]]
+    if (is.call(original)) as.character(original[[1L]]) else ""
+  }, character(1))))
+  if (is.call(rhs) && !identical(rhs[[1L]], as.name("|")) &&
+      as.character(rhs[[1L]]) %in% wrapper_names) {
+    arguments <- as.list(rhs)[-1L]
+    argument_names <- names(arguments)
+    if (is.null(argument_names)) argument_names <- rep("", length(arguments))
+    term_position <- which(!nzchar(argument_names))
+    if (length(term_position) != 1L) return(FALSE)
+    rhs <- arguments[[term_position]]
+    while (is.call(rhs) && identical(rhs[[1L]], as.name("("))) {
+      rhs <- rhs[[2L]]
+    }
+  }
+  if (!is.call(rhs) || !identical(rhs[[1L]], as.name("|")) ||
+      length(rhs) != 3L ||
+      !.check_and_list_data.random_group_has_nested_slash(rhs[[3L]])) {
+    return(FALSE)
+  }
 
-  is.call(rhs) &&
-    identical(rhs[[1L]], as.name("|")) &&
-    .check_and_list_data.random_group_has_nested_slash(rhs[[3L]])
+  components <- random_effects[["components"]]
+  if (length(components) != 1L || length(components[[1L]]) != length(terms)) {
+    return(FALSE)
+  }
+  nesting <- lapply(terms, `[[`, "group_nesting_components")
+  full_nesting <- nesting[[which.max(lengths(nesting))]]
+  length(full_nesting) > 1L &&
+    identical(sort(lengths(nesting)), seq_along(full_nesting)) &&
+    all(vapply(nesting, function(component) {
+      identical(component, head(full_nesting, length(component)))
+    }, logical(1)))
 }
 
 .check_and_list_data.random_group_has_nested_slash <- function(expr) {
