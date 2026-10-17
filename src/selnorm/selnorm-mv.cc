@@ -4261,7 +4261,8 @@ double cpp_selnorm_factor_step_lpdf(
   // minimum-rank recovery produces. Try the sparse grid before the randomized
   // fallback; the sequence above is unchanged, so nothing that accepted there
   // reaches this.
-  if (rank >= 3 && (!forest.valid || forest.max_depth + 1 >= rank)) {
+  if (vector_rule == SELVECTOR_PRODUCT && rank >= 3 &&
+      (!forest.valid || forest.max_depth + 1 >= rank)) {
     FactorSmolyakLevels levels;
     if (factor_smolyak_levels(quadrature_nodes, quadrature_log_weights,
                               quadrature_orders, quadrature_rule_count,

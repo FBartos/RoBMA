@@ -1482,6 +1482,61 @@ test_that("the factor node budget, not the rank, bounds the deterministic ladder
 })
 
 
+test_that("best factors bypass the product-only sparse grid", {
+
+  skip_if_not_certification("Default rank-seven/eight best controls run in numerical-kernels.")
+  quadrature <- .selection_joint_factor_quadrature_rules()
+  for (rank in c(7L, 8L)) {
+    K <- rank + 1L
+    loading <- matrix(0, K, rank)
+    for (column in seq_len(rank)) {
+      loading[c(column, column %% K + 1L, (column + 1L) %% K + 1L), column] <- .1
+    }
+    residual <- rep(sqrt(.02), K)
+    sei <- sqrt(residual^2 + rowSums(loading^2))
+    mean <- rep(.1, K)
+    cutoff <- stats::qnorm(.025, lower.tail = FALSE)
+    design <- BayesTools::selection_qmc_design(2L * rank, 8192L, 8L, seed = 1L)
+    evaluate <- function(rule) .Call("RoBMA_selnorm_factor_step_loglik_batch",
+      rep(0, K), matrix(mean, 1L), matrix(residual, 1L), matrix(as.numeric(loading), 1L),
+      sei, matrix(c(1, .5), 1L), c(cutoff, -Inf), c(Inf, cutoff), rep(2L, K),
+      1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights, as.double(quadrature$orders),
+      as.double(design), 512L, 8192L, 8L, .005, TRUE, as.integer(rule), PACKAGE = "RoBMA")
+    best <- evaluate(1L)
+    product <- evaluate(0L)
+    covariance <- diag(residual^2) + tcrossprod(loading)
+    withr::local_seed(431L)
+    probability <- mvtnorm::pmvnorm(rep(-Inf, K), cutoff * sei, mean,
+      sigma = covariance, algorithm = mvtnorm::GenzBretz(maxpts = 2000000L, abseps = 1e-7))
+    expected <- log(1 - .5 * as.numeric(probability))
+    expect_gte(best$log_normalizer, log(.5))
+    expect_lte(best$log_normalizer, 0)
+    expect_equal(best$log_normalizer, expected, tolerance = .005)
+    expect_gt(abs(best$log_normalizer - product$log_normalizer), .05)
+    expect_gt(best$relative_mcse, 0)
+    expect_identical(product$relative_mcse, 0)
+    expect_lte(max(best$relative_mcse, best$relative_change), .005)
+  }
+})
+
+test_that("best publication constructors retain the declared factor route", {
+
+  K <- 8L
+  loading <- matrix(0, K, 7L)
+  for (column in seq_len(7L)) {
+    loading[c(column, column %% K + 1L, (column + 1L) %% K + 1L), column] <- .05
+  }
+  object <- bselmodel.mv(yi = seq(-.1, .4, length.out = K),
+    V = known_v_factor(rep(.02, K), loading), data = data.frame(paper = rep("a", K)),
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .5)),
+      model = BayesTools::selection_model(group = "paper", weight_rule = "best")))
+  plan <- .data_selection_execution_plan(object$data)
+  expect_identical(plan$block_methods, "factor")
+  expect_identical(plan$factor_ranks, 7L)
+  expect_identical(.data_selection_model(object$data)$branches[[1L]]$weight_rule, "best")
+})
+
 test_that("zero loading columns do not charge the budget on a non-forest support", {
 
   # Two supports that overlap without nesting are not a forest, so the nested
