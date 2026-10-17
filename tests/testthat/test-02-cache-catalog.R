@@ -227,6 +227,7 @@ test_that("test cache roots isolate profiles", {
   skip_if_not(length(required) > 0L, "Complete package source tree is unavailable.")
   root <- tempfile("robma-producer-source-")
   paths <- unique(c(required, "DESCRIPTION", "tests/testthat/common-functions.R",
+                    "tests/testthat/test-02-cache-catalog.R",
                     paste0("tests/testthat/", unique(fit_catalog()[["source_file"]]))))
   for (path in paths) {
     target <- file.path(root, path)
@@ -487,6 +488,51 @@ test_that("dependency reads detect artifact mutation during deserialization", {
     }
     expect_error(e$load_info(parents[["info"]]), "changed.*read")
   })
+})
+
+test_that("cache inventory assertion rejects inactive and uncatalogued artifacts", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    withr::local_envvar(c(ROBMA_TEST_PROFILE = "standard", ROBMA_TEST_ACTIVE_FITS = ""))
+    active <- "bcg_meta-analysis"
+    inactive <- "bcg_glmm_3lvl_scale"
+    stray <- "uncatalogued_cache_inventory_probe"
+    e$save_fit(active, e$.fake_fit_for_catalog_entry(active), e$.fake_info_for_catalog_entry(active))
+    expressions <- as.list(parse(file.path(root, "tests/testthat/test-02-cache-catalog.R")))
+    assertion <- Filter(function(expr) is.call(expr) &&
+      identical(expr[[1L]], as.name("test_that")) &&
+      identical(expr[[2L]], "cached fits are catalogued and valid"), expressions)[[1L]]
+    run_assertion <- function() {
+      reporter <- testthat::ListReporter$new()
+      testthat::with_reporter(reporter, {
+        reporter$start_file("test-02-cache-catalog.R")
+        testthat::context("Cached fit catalog")
+        eval(assertion, e)
+        reporter$end_file()
+      })
+      as.data.frame(reporter$get_results())
+    }
+    control <- run_assertion()
+    expect_equal(sum(control[["failed"]]), 0L)
+    expect_false(any(control[["error"]] | control[["skipped"]]))
+    e$save_fit(inactive, e$.fake_fit_for_catalog_entry(inactive), e$.fake_info_for_catalog_entry(inactive))
+    expect_true(sum(run_assertion()[["failed"]]) > 0L)
+    file.remove(e$fit_cache_paths(inactive)[["fit"]])
+    saveRDS(list(structural_probe = TRUE), e$fit_cache_paths(stray)[["fit"]])
+    expect_true(sum(run_assertion()[["failed"]]) > 0L)
+    expect_equal(e$list_fits(validate = FALSE), active)
+  })
+})
+
+test_that("cache profile membership includes actual positive and negative members", {
+
+  withr::local_envvar(c(ROBMA_TEST_PROFILE = "standard", ROBMA_TEST_ACTIVE_FITS = ""))
+  expect_true("bcg_meta-analysis" %in% active_fit_catalog()[["name"]])
+  expect_false("bcg_glmm_3lvl_scale" %in% active_fit_catalog()[["name"]])
+  Sys.setenv(ROBMA_TEST_PROFILE = "certification")
+  expect_true("bcg_glmm_3lvl_scale" %in% active_fit_catalog()[["name"]])
+  expect_true("bcg_meta-analysis" %in% active_fit_catalog()[["name"]])
 })
 
 
@@ -1059,8 +1105,6 @@ test_that("fit catalog is internally consistent", {
       "plot_prior_random_scale"
     )
   )
-  expect_true(all(active_fit_catalog()[["profile"]] %in%
-                    if (is_certification_profile()) TEST_PROFILES else "standard"))
 })
 
 test_that("fit catalog mirrors test-01 save_fit calls", {
@@ -1386,7 +1430,7 @@ test_that("cached fits are catalogued and valid", {
 
   skip_on_cran()
 
-  cached_names <- list_fits(validate = FALSE)
+  cached_names <- list_fits(validate = FALSE, active_only = FALSE)
   if (length(cached_names) == 0) {
     skip("No cached fits available for catalog validation.")
   }
