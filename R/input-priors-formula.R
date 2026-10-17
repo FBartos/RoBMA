@@ -1,18 +1,32 @@
-.term_default_continuous_prior         <- function(prior) {
+.term_default_continuous_prior         <- function(prior, parameter = "mods") {
 
   if (!BayesTools::is.prior.factor(prior)) {
     return(prior)
   }
+  if (BayesTools::is.prior.ordered(prior)) {
+    stop(structure(
+      list(message = paste0(
+        "An ordered default in 'prior_", parameter,
+        "' cannot supply a continuous term. Use a named 'prior_", parameter,
+        "' list with a separate scalar prior for each continuous term."
+      ), call = NULL),
+      class = c("RoBMA_prior_error", "error", "condition")
+    ))
+  }
 
   distribution <- prior[["distribution"]]
-  if (distribution %in% c("mnormal", "mcauchy", "mt")) {
-    distribution <- substring(distribution, 2)
+  parameters <- prior[["parameters"]]
+  if (distribution %in% c("mnormal", "mcauchy", "mt", "mpoint")) {
+    distribution <- switch(distribution,
+      mnormal = "normal", mcauchy = "cauchy", mt = "t", mpoint = "point")
+    parameters[["K"]] <- NULL
   }
 
   return(BayesTools::prior(
     distribution = distribution,
-    parameters   = prior[["parameters"]],
-    truncation   = prior[["truncation"]]
+    parameters   = parameters,
+    truncation   = prior[["truncation"]],
+    prior_weights = prior[["prior_weights"]]
   ))
 }
 .term_default_factor_prior             <- function(prior, contrast) {
@@ -202,11 +216,16 @@
   # use user-specified default priors when available; otherwise construct defaults
   if (!is.null(user_default_prior)) {
 
-    default_prior_continuous <- .term_default_continuous_prior(user_default_prior)
-    default_prior_factor     <- .term_default_factor_prior(
-      prior    = user_default_prior,
-      contrast = attr(data, "set_contrast_factor_predictors")
-    )
+    default_prior_continuous <- function() {
+      .rescale_prior_object(
+        .term_default_continuous_prior(user_default_prior, parameter), rescale_priors)
+    }
+    default_prior_factor <- function() {
+      .rescale_prior_object(.term_default_factor_prior(
+        prior = user_default_prior,
+        contrast = attr(data, "set_contrast_factor_predictors")
+      ), rescale_priors)
+    }
 
   } else if (set_default_spike) {
 

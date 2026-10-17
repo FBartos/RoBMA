@@ -1,5 +1,54 @@
 context("Prior input handling for brma.norm")
 
+test_that("single user defaults convert only consumed scalar or factor fallbacks", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4),
+    f = ordered(c("a", "b", "c", "a")), x = c(-1, 0, 1, 2))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  ordered <- prior_ordered(total = normal)
+  construct <- function(prior, mixed = FALSE, rescale = 1) {
+    brma(yi = yi, sei = sei, mods = if (mixed) ~ f + x else ~ f,
+      data = dat, measure = "SMD", prior_mods = prior, rescale_priors = rescale,
+      only_priors = TRUE, silent = TRUE)
+  }
+  bind <- function(object) {
+    args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+    BayesTools::JAGS_formula(formula = args$formula_list$mu, parameter = "mu",
+      data = args$formula_data_list$mu, prior_list = args$formula_prior_list$mu,
+      formula_scale = args$formula_scale_list$mu)[["prior_list"]]
+  }
+  expect_silent(object <- construct(ordered))
+  expect_silent(bound <- bind(object))
+  expect_s3_class(bound[["mu_f"]], "prior.ordered")
+  expect_identical(bound[["mu_f"]][["total"]], ordered[["total"]])
+  expect_error(construct(ordered, TRUE), "Use a named 'prior_mods' list", class = "RoBMA_prior_error", fixed = TRUE)
+  expect_error(construct(ordered, rescale = 2), "cannot be rescaled", fixed = TRUE)
+  priors <- list(
+    mnormal = BayesTools::prior_factor("mnormal", list(mean = 0, sd = 1), contrast = "meandif"),
+    mcauchy = BayesTools::prior_factor("mcauchy", list(location = 0, scale = 1), contrast = "meandif"),
+    mt = BayesTools::prior_factor("mt", list(location = 0, scale = 1, df = 3), contrast = "meandif"),
+    mpoint = BayesTools::prior_factor("mpoint", list(location = 0), contrast = "meandif")
+  )
+  for (name in names(priors)) {
+    original <- priors[[name]]
+    expect_silent(bind(construct(original)))
+    expect_silent(bound <- bind(construct(original, TRUE)))
+    expect_identical(bound[["mu_x"]][["distribution"]],
+      switch(name, mnormal = "normal", mcauchy = "t", mt = "t", mpoint = "point"))
+    expect_null(bound[["mu_x"]][["parameters"]][["K"]])
+    expect_false(BayesTools::is.prior.vector(bound[["mu_x"]]))
+    expect_identical(bound[["mu_f"]][["distribution"]], original[["distribution"]])
+    expect_identical(bound[["mu_f"]][["parameters"]], original[["parameters"]])
+    expect_identical(bound[["mu_f"]][["prior_weights"]], original[["prior_weights"]])
+  }
+  expect_silent(bound <- bind(construct(priors$mnormal, TRUE, rescale = 2)))
+  expect_identical(bound$mu_f$parameters$sd, 2)
+  expect_identical(bound$mu_x$parameters$sd, 2)
+  expect_identical(priors$mnormal$parameters$sd, 1)
+  expect_error(BayesTools::prior_factor("mnormal", list(mean = c(0, 1), sd = 1)), "numeric vector of length 1", fixed = TRUE)
+  expect_error(BayesTools::prior_factor("mpoint", list(location = c(0, 0))), "numeric vector of length 1", fixed = TRUE)
+})
+
 source(testthat::test_path("helper-contracts.R"))
 
 # Test data for prior specification tests
