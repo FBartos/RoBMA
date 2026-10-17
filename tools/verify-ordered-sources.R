@@ -15,6 +15,7 @@ if (!is.character(fixtures) || !identical(sort(names(fixtures)), sort(required))
   stop("The manifest must name existing normal, gamma, selected and shared fit paths.", call. = FALSE)
 }
 options(warn = 1, width = 180)
+source(file.path("tools", "ordered-source-verification.R"), local = TRUE)
 Sys.setenv(OMP_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", MKL_NUM_THREADS = "1")
 pkgload::load_all(".", compile = FALSE, helpers = FALSE, quiet = TRUE)
 ns <- asNamespace("RoBMA")
@@ -28,6 +29,7 @@ print(lapply(c("BayesTools", "RoBMA"), function(package) {
 }))
 records <- list()
 physical_blocks <- list()
+counts <- c(source = 0L, grid = 0L, proof = 0L, physical_block = 0L, supplier = 0L)
 physical_block_reference <- function(fit, context, target, state, proof, fixture_name) {
   # The public projection tensor and allocation metadata determine the physical
   # coordinates. No completed Gaussian geometry, production block likelihood,
@@ -159,6 +161,7 @@ for (name in required) {
   stopifnot(nrow(context[["posterior_samples"]]) == 4000L,
     length(unique(context[["chain_id"]])) == 2L, nrow(context[["data"]][["outcome"]]) == 12L)
   specs <- BayesTools::JAGS_ordered_parameter_spec(fit[["fit"]])
+  .ordered_source_fixture_role(name, fit, context, specs, ns)
   coefficients <- specs[["mu_g"]][["coefficient_names"]]
   weights <- if (name == "gamma") list(first = stats::setNames(1, coefficients[[1L]]),
     total = stats::setNames(rep(1, 3L), coefficients)) else
@@ -191,6 +194,7 @@ for (name in required) {
       reference[["abs.error"]] / reference[["value"]] +
       64 * .Machine$double.eps * 12 * source[["max_log_scale"]]
     stopifnot(difference <= allowance)
+    counts[["source"]] <- counts[["source"]] + 1L
     record <- data.frame(fixture = name, target = target_name,
       source_family = state[["ordered_chart"]][["prior"]][["distribution"]],
       method = source[["method"]], relative_difference = difference, allowance = allowance)
@@ -199,12 +203,14 @@ for (name in required) {
     if (target_name == "total") next
     states <- lapply(c(1L, 1990L, 4000L), function(row) ns$.iwmde_ordered_row_state(context, target, row))
     block <- ns$.iwmde_ordered_block_geometry(context, target, states[[2L]])
+    .ordered_source_block_role(name, context, target, states[[2L]], block, ns)
     candidates <- expand.grid(total = c(-.4, 0, .7), share = c(0, .5, 1))
     samples <- ns$.iwmde_ordered_block_samples(context, block, candidates[["total"]], candidates[["share"]])
-    original <- ns$.iwmde_log_lik_from_posterior_samples_sum_active_branch(context, samples, state[["active_setup"]], "estimate")
+    original <- ns$.iwmde_log_lik_from_posterior_samples_sum_active_branch(context, samples, block[["state"]][["active_setup"]], "estimate")
     compiled <- ns$.iwmde_ordered_block_log_likelihood(context, block, candidates[["total"]], candidates[["share"]])
     floor <- 64 * .Machine$double.eps * 12 * pmax(1, abs(original), abs(compiled))
     stopifnot(all(abs(original - compiled) <= floor))
+    counts[["grid"]] <- counts[["grid"]] + 1L
     produced <- ns$.iwmde_ordered_block_log_terms(context, target, states, target[["ordered_point_plan"]])
     for (proof in produced[["proofs"]]) {
       floating <- 64 * .Machine$double.eps * 12 * max(1, proof[["counts"]][["max_log_scale"]],
@@ -215,12 +221,14 @@ for (name in required) {
         identical(proof[["denominator_relative_error"]], e_Z),
         identical(proof[["ratio_relative_error"]], (1 + e_N) / (1 - e_Z) - 1),
         proof[["ratio_relative_error"]] <= .025)
+      counts[["proof"]] <- counts[["proof"]] + 1L
     }
     for (i in seq_along(states)) {
       reference <- physical_block_reference(fit, context, target, states[[i]], produced[["proofs"]][[i]], name)
       reference <- cbind(fixture = name, reference)
       print(reference)
       physical_blocks[[paste(name, i)]] <- reference
+      counts[["physical_block"]] <- counts[["physical_block"]] + 1L
     }
     cat(name, "original/compiled maximum likelihood difference", max(abs(original - compiled)),
       "; three N/D ratio arithmetic proofs and independent physical block references passed.\n")
@@ -230,7 +238,7 @@ for (name in required) {
     numerator <- ns$.iwmde_ordered_block_numerator(context, block, supplier)
     original_likelihood <- function(total, share) {
       samples <- ns$.iwmde_ordered_block_samples(context, block, total, share)
-      ns$.iwmde_log_lik_from_posterior_samples_sum_active_branch(context, samples, state[["active_setup"]], "estimate")
+      ns$.iwmde_log_lik_from_posterior_samples_sum_active_branch(context, samples, block[["state"]][["active_setup"]], "estimate")
     }
     scale <- numerator[["log_value"]]
     # Direct reciprocal-supplier integrals use the original likelihood, without
@@ -253,10 +261,13 @@ for (name in required) {
       block[["counts"]][["max_log_scale"]], abs(numerator[["log_value"]]))
     allowance <- numerator[["relative_error"]] + expm1(floating) + reference[["abs.error"]] / reference[["value"]]
     stopifnot(difference <= allowance)
+    counts[["supplier"]] <- counts[["supplier"]] + 1L
     print(data.frame(fixture = name, supplier = supplier, method = numerator[["method"]],
       relative_difference = difference, allowance = allowance))
   }
 }
 stopifnot(identical(hashes, vapply(fixtures, function(path) digest::digest(file = path, algo = "sha256"), character(1))))
-cat("ORDERED_SOURCE_VERIFICATION_COMPLETE: five physical source normalizers, four original/compiled likelihood grids, twelve N/D ratio arithmetic proofs, twelve independent physical block N/D and ratio references and two physical supplier numerators passed; fit hashes unchanged.\n")
+.ordered_source_verification_counts(counts)
+cat("ORDERED_SOURCE_VERIFICATION_COMPLETE: ", paste(names(counts), counts, sep = "=", collapse = ", "),
+  "; successful physical source/grid/proof/block/supplier checks; fit hashes unchanged.\n", sep = "")
 cat("LIMIT: selective original-source correctness evidence on rows 1/1990/4000; reference quadrature errors are estimates, not global integration or chain-calibration certification. No new native build or performance certification.\n")
