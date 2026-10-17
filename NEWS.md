@@ -6,7 +6,7 @@
 - New-grid regression prediction and sampling bands consistently refuse marginalized known-R fitted-layout multipliers; mean and credible-interval plots remain available.
 - Explicit sampled mean-centered random effects remain sampled when automatic estimate-level marginalization is considered.
 - Prediction data parsing separates unused outcome fields from same-named predictors while retaining required response and PET/PEESE sampling inputs; explicit new-grid metadata records those placeholders.
-- A single nested random-effect component accepts supported covariance and named random wrappers without admitting multiple ambiguous bare terms.
+- A single nested random-effect component accepts supported covariance and named random wrappers using its parsed nesting metadata, while multiple ambiguous bare terms remain unavailable.
 - Random-effect factors retain declared index and grouping levels through subset and missing-row selection, including shared moderator and scale columns.
 - Diagonal sampling-input completion preserves supplied missingness and validates invalid retained values without dropping conversion-created missing rows.
 - Synthetic density-diagnostic fixtures declare their exact zero resolution component when checking attachment, value alignment, and validation-movement gates.

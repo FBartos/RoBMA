@@ -1624,7 +1624,7 @@ NULL
   length(full_nesting) > 1L &&
     identical(sort(lengths(nesting)), seq_along(full_nesting)) &&
     all(vapply(nesting, function(component) {
-      identical(component, head(full_nesting, length(component)))
+      identical(component, utils::head(full_nesting, length(component)))
     }, logical(1)))
 }
 
