@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- IWMDE excludes scalar as well as indexed local latent monitors from marginalized proposals and global likelihood sample views.
 - IWMDE retains declared finite omega endpoints as raw conditioning values, preserving conditional proposals in mixed selection ensembles.
 - qCMDE/IWMDE retain the joint dependent factor prior without evaluating an unused scalar focal density.
 - numerical row priors use the existing ordered conditional kernel for ordered nuisance terms, preserving valid zero inclusion states and typed expression-total refusals.

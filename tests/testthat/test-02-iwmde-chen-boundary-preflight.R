@@ -123,3 +123,31 @@ test_that("Chen boundary preflight does not reject evaluation-only boundaries", 
 
 
 
+testthat::test_that("scalar and indexed marginalized local coordinates are excluded", {
+  local <- c("gamma", "theta", "sampling_z", "pi", "phi", "gamma[1]", "theta[2]", "sampling_z[1]", "pi[3]", "phi[4]")
+  testthat::expect_true(all(vapply(local, .iwmde_parameter_is_local_latent, logical(1))))
+  other <- c("gamma_global", "theta2", "sampling_z_extra", "pilot", "phi_global", "mu")
+  testthat::expect_false(any(vapply(other, .iwmde_parameter_is_local_latent, logical(1))))
+  samples <- matrix(seq_len(48L), 3L, dimnames = list(NULL, c(local, other)))
+  dropped <- .iwmde_drop_local_latent_sample_columns(samples)
+  testthat::expect_identical(colnames(dropped), other)
+})
+
+test_that("declared formula coefficients remain global conditioning columns", {
+
+  x <- seq(-1, 1, length.out = 40L)
+  compiled <- BayesTools::JAGS_formula(~ theta, "mu", data.frame(theta = x),
+    list(intercept = BayesTools::prior("point", list(0)),
+      theta = BayesTools::prior("normal", list(0, 1))))
+  expect_true("mu_theta" %in% names(compiled[["prior_list"]]))
+  samples <- cbind(focal = sin(seq_along(x)), mu_theta = x,
+    sampling_z = x + .1)
+  context <- .iwmde_context_ensure_caches(list(posterior_samples = samples,
+    flat_prior_list = c(compiled[["prior_list"]],
+      list(focal = BayesTools::prior("normal", list(0, 1)),
+        sampling_z = BayesTools::prior("normal", list(0, 1)))),
+    indicator_names = character()))
+  columns <- .iwmde_chen_conditioning_columns(context, "focal", list(type = "primitive"))
+  expect_identical(columns, "mu_theta")
+  expect_identical(colnames(.iwmde_drop_local_latent_sample_columns(samples)), c("focal", "mu_theta"))
+})

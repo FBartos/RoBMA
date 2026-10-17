@@ -417,7 +417,7 @@
     return(FALSE)
   }
 
-  return(grepl("^(gamma|theta|sampling_z|pi|phi)\\[", parameter))
+  return(grepl("^(gamma|theta|sampling_z|pi|phi)(\\[|$)", parameter))
 }
 
 
