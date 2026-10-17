@@ -1239,6 +1239,10 @@
   }
   rule_resolution <- function(nodes, rows) {
 
+    # Leave malformed native inputs to their existing argument-specific
+    # validator rather than reshaping them while preparing a descriptor.
+    if (!identical(dim(factors$residual_sd), c(S, K)) ||
+        !identical(dim(factors$loading), c(S, K * rank))) return(rep(TRUE, length(rows)))
     vapply(rows, function(row) {
       .selection_transition_rule_resolves(nodes, mean[row, ], factors$residual_sd[row, ],
         matrix(factors$loading[row, ], K, rank), sei,

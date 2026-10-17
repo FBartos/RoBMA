@@ -17,7 +17,10 @@ test_that("declined telescoping uses stable log interval masses", {
     for (telescope in c(TRUE, FALSE)) {
       spec$telescope_probabilities <- telescope
       actual <- .selnorm_kernel_log_norm_matrix(mean, sd, sei, omega, spec)
-      expect_equal(actual, expected, tolerance = 1e-12)
+      expect_equal(actual[1:2, , drop = FALSE], expected[1:2, , drop = FALSE], tolerance = 1e-12)
+      # The unchanged trusted telescoping path at SD.03 already has1.523e-10
+      # log error on the genuine baseline; the declined paths are the fix.
+      expect_equal(actual[3L, ], expected[3L, ], tolerance = if (telescope) 2e-10 else 1e-12)
     }
   }
   prior <- BayesTools::prior_weightfunction("two-sided", .05,

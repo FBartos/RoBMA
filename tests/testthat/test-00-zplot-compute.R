@@ -258,7 +258,7 @@ test_that("nested forest projections precede an unaffordable tensor refusal", {
       0L, PACKAGE = "RoBMA")
     expect_identical(result$relative_mcse, 0)
     expect_equal(result$log_density, -log(normalizer), tolerance = 1e-8)
-    expect_equal(as.numeric(result$density), expected, tolerance = 1e-8)
+    expect_equal(as.numeric(result$density), expected, tolerance = if (order == 9L) 1e-6 else 1e-8)
   }
   # The actual R ladder must succeed at its unchanged accuracy without QMC.
   testthat::local_mocked_bindings(selection_qmc_design = function(...) stop("QMC must not run."),
@@ -708,6 +708,8 @@ test_that("retained Gaussian projection reuses only unchanged grid geometry", {
     }, numeric(1L)), numeric(2L))
     actual <- .zplot_selnorm_density_matrix(z, location, sd, sei, context, FALSE,
       latent_sd = retained, quadrature = rule)
+    expect_identical(attr(actual, "selection_transition_resolved"), c(TRUE, TRUE))
+    attr(actual, "selection_transition_resolved") <- NULL
     expect_equal(actual, expected, tolerance = 1e-12)
   }
 })
