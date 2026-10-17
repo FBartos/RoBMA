@@ -873,16 +873,20 @@ NULL
   if (has_vi && has_sei) {
     missing_vi  <- is.na(vi)
     missing_sei <- is.na(sei)
-    vi[missing_vi]   <- sei[missing_vi]^2
-    sei[missing_sei] <- sqrt(vi[missing_sei])
-  }
+    missing_for_na <- missing_vi & missing_sei
 
-  missing_for_na <- rep(FALSE, k)
-  if (has_vi) {
-    missing_for_na <- missing_for_na | is.na(vi)
-  }
-  if (has_sei) {
-    missing_for_na <- missing_for_na | is.na(sei)
+    # Complete only representable positive inputs. Invalid present values and
+    # failed conversions remain in the retained-row validation record.
+    complete_vi <- missing_vi & is.finite(sei) & sei > 0
+    represented_vi <- sei[complete_vi]^2
+    represented_rows <- which(complete_vi)[
+      is.finite(represented_vi) & represented_vi > 0
+    ]
+    vi[represented_rows] <- sei[represented_rows]^2
+    complete_sei <- missing_sei & is.finite(vi) & vi > 0
+    sei[complete_sei] <- sqrt(vi[complete_sei])
+  } else {
+    missing_for_na <- if (has_vi) is.na(vi) else is.na(sei)
   }
 
   return(list(

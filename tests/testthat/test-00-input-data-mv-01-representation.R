@@ -1206,6 +1206,61 @@ test_that("brma.mv validates vi and sei after row selection", {
 })
 
 
+test_that("diagonal completion preserves original missingness and retained validation", {
+
+  construct <- function(vi, sei, subset = NULL, x = NULL) {
+    args <- list(
+      yi = c(0.1, 0.2, 0.3), vi = vi, sei = sei, measure = "GEN",
+      prior_unit_information_sd = 1, only_data = TRUE
+    )
+    if (!is.null(subset)) args$subset <- subset
+    if (!is.null(x)) {
+      args$mods <- ~ x
+      args$data <- data.frame(x = x)
+    }
+    do.call(brma.mv, args)
+  }
+  bad_vi <- c(-0.01, 0.04, 0.09)
+  missing_sei <- c(NA_real_, 0.2, 0.3)
+  expect_error(
+    construct(bad_vi, missing_sei),
+    "brma.mv() input 'vi' must contain positive finite values.",
+    fixed = TRUE
+  )
+  expect_silent(excluded <- construct(bad_vi, missing_sei, c(FALSE, TRUE, TRUE)))
+  expect_warning(
+    predictor_excluded <- construct(bad_vi, missing_sei, x = c(NA, 1, 2)),
+    "1 observation(s) removed due to missing values.", fixed = TRUE
+  )
+  for (object in list(excluded, predictor_excluded)) {
+    known <- .data_known_v_data(object[["data"]])
+    expect_identical(known[["selection_metadata"]][["row_index"]], 2:3)
+    expect_equal(.known_v_materialize(known), diag(c(0.04, 0.09)))
+    expect_equal(object[["data"]][["outcome"]][["yi"]], c(0.2, 0.3))
+  }
+  expect_identical(attr(excluded[["data"]], "n_dropped"), 0L)
+  expect_identical(attr(predictor_excluded[["data"]], "n_dropped"), 1L)
+  for (values in list(
+      list(vi = c(0.01, 0.04, 0.09), sei = missing_sei),
+      list(vi = c(NA, 0.04, 0.09), sei = c(0.1, 0.2, 0.3)))) {
+    expect_silent(object <- construct(values$vi, values$sei))
+    expect_identical(attr(object[["data"]], "n_dropped"), 0L)
+    expect_equal(.known_v_materialize(.data_known_v_data(object[["data"]])), diag(c(0.01, 0.04, 0.09)))
+  }
+  expect_warning(
+    missing <- construct(c(NA, 0.04, 0.09), missing_sei),
+    "1 observation(s) removed due to missing values.", fixed = TRUE
+  )
+  expect_identical(attr(missing[["data"]], "n_dropped"), 1L)
+  for (value in c(-0.01, 0, Inf)) {
+    expect_error(construct(c(value, 0.04, 0.09), missing_sei), "'vi' must contain positive finite values", fixed = TRUE)
+  }
+  for (value in c(1e-200, 1e200)) {
+    expect_error(construct(c(NA, 0.04, 0.09), c(value, 0.2, 0.3)), "positive finite", fixed = TRUE)
+  }
+})
+
+
 test_that("brma.mv rejects invalid and unsupported inputs", {
 
   expect_error(
