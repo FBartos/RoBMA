@@ -1563,9 +1563,9 @@ if (!is.environment(.fit_cache_generations)) {
   return(generation)
 }
 
-# Ordinary devtools testing reaches this initializer while sourcing the helper,
-# before any test-01 builder; a helper re-source retrieves the same generation.
-.fit_cache_generation_begin()
+# Devtools has loaded the product before test helpers run. A profile runner may
+# source helpers earlier: let it load its own product before beginning a run.
+if ("RoBMA" %in% loadedNamespaces()) .fit_cache_generation_begin()
 
 fit_cache_metadata <- function(name, fit, info = NULL) {
 

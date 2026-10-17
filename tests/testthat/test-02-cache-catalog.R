@@ -312,6 +312,33 @@ test_that("producer generation captures all builders before later helper sources
   })
 })
 
+test_that("helper initialization leaves product loading to the profile runner", {
+
+  skip_on_cran()
+  skip_if_not_installed("processx")
+  .with_cache_source_fixture(function(e, root) {
+    script <- file.path(root, "helper-startup.R")
+    output <- file.path(root, "helper-startup.rds")
+    writeLines(c(
+      "main <- function() {",
+      "  args <- commandArgs(trailingOnly = TRUE)",
+      "  before <- 'RoBMA' %in% loadedNamespaces()",
+      "  testthat::local_test_directory(file.path(args[[1L]], 'tests/testthat'), .env = environment())",
+      "  source(file.path(args[[1L]], 'tests/testthat/common-functions.R'), local = new.env(parent = globalenv()))",
+      "  saveRDS(list(before = before, after = 'RoBMA' %in% loadedNamespaces()), args[[2L]])",
+      "}", "main()"
+    ), script)
+    result <- processx::run(
+      file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"),
+      c("--vanilla", script, root, output), error_on_status = FALSE
+    )
+    expect_equal(result[["status"]], 0L, info = result[["stderr"]])
+    observed <- readRDS(output)
+    expect_false(observed[["before"]])
+    expect_false(observed[["after"]])
+  })
+})
+
 .cache_dependency_parents <- function(e) {
 
   info_name <- "brma.mv_block_mvn_random"
