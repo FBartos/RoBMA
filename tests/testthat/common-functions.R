@@ -859,6 +859,16 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, plot_prior_random_catalog)
 
+  catalog[["dependencies"]] <- rep(list(data.frame(
+    name = character(), artifact = character()
+  )), nrow(catalog))
+  for (name in c("iwmde_known_v_tau_full", "iwmde_known_v_tau_null")) {
+    catalog[["dependencies"]][[match(name, catalog[["name"]])]] <- data.frame(
+      name = c("brma.mv_block_mvn_random", "brma.mv_block_mvn_fixed_random_null"),
+      artifact = c("info", "fit"), stringsAsFactors = FALSE
+    )
+  }
+
   return(catalog)
 }
 
@@ -1528,6 +1538,8 @@ if (!is.environment(.fit_cache_generations)) {
   generation$backend <- bayestools_backend_fingerprint(required = FALSE)
   files <- unique(fit_catalog()[["source_file"]])
   generation$builders <- setNames(vapply(files, source_file_md5, character(1)), files)
+  generation$consumed <- list()
+  generation$conflicts <- character()
   assign(key, generation, .fit_cache_generations)
   return(generation)
 }
@@ -1581,6 +1593,9 @@ fit_cache_metadata <- function(name, fit, info = NULL) {
     has_metafor_info               = !is.null(info) &&
       "metafor" %in% names(info) && !is.null(info[["metafor"]])
   )
+  if (!is.null(entry) && nrow(entry[["dependencies"]][[1L]]) > 0L) {
+    metadata[["dependencies"]] <- .fit_cache_dependencies_for_save(entry)
+  }
 
   return(metadata)
 }
@@ -1629,6 +1644,67 @@ read_cached_info <- function(name) {
   }
 
   return(info)
+}
+
+.fit_cache_artifact_receipt <- function(name, artifact) {
+
+  path <- fit_cache_paths(name)[[artifact]]
+  if (!file.exists(path)) {
+    stop("Required dependency artifact is missing: ", artifact, " ", name, call. = FALSE)
+  }
+  metadata <- load_fit_metadata(name)
+  list(name = name, artifact = artifact, content_md5 = unname(tools::md5sum(path)),
+       provenance = metadata[setdiff(names(metadata), "saved_at")])
+}
+
+.fit_cache_receipt_key <- function(name, artifact) {
+  normalizePath(fit_cache_paths(name)[[artifact]], winslash = "/", mustWork = FALSE)
+}
+
+.fit_cache_record_consumption <- function(receipt) {
+
+  generation <- .fit_cache_generation_begin()
+  key <- .fit_cache_receipt_key(receipt[["name"]], receipt[["artifact"]])
+  first <- generation$consumed[[key]]
+  if (is.null(first)) {
+    generation$consumed[[key]] <- receipt
+  } else if (!identical(first, receipt)) {
+    generation$conflicts <- union(generation$conflicts, key)
+  }
+  return(invisible(TRUE))
+}
+
+.fit_cache_dependencies_for_save <- function(entry) {
+
+  dependencies <- entry[["dependencies"]][[1L]]
+  generation <- .fit_cache_generation_begin()
+  receipts <- vector("list", nrow(dependencies))
+  for (i in seq_len(nrow(dependencies))) {
+    name <- dependencies[["name"]][[i]]
+    artifact <- dependencies[["artifact"]][[i]]
+    key <- .fit_cache_receipt_key(name, artifact)
+    if (key %in% generation$conflicts) {
+      stop("Cached fit has conflicting dependency consumption: ", artifact, " ", name,
+           ". Reload the product and rerun generation.", call. = FALSE)
+    }
+    receipt <- generation$consumed[[key]]
+    if (is.null(receipt)) {
+      stop("Cached fit requires dependency consumption in this generation: ", artifact, " ", name,
+           ". Load the declared input before building the fit.", call. = FALSE)
+    }
+    problems <- validate_cached_fit(name)
+    if (length(problems) > 0L) {
+      stop("Cached fit dependency changed or is invalid: ", name, ": ",
+           paste(problems, collapse = "; "), call. = FALSE)
+    }
+    current <- .fit_cache_artifact_receipt(name, artifact)
+    if (!identical(receipt, current)) {
+      stop("Cached fit dependency changed after consumption: ", artifact, " ", name,
+           ". Rerun generation with the current inputs.", call. = FALSE)
+    }
+    receipts[[i]] <- receipt
+  }
+  return(receipts)
 }
 
 .fit_object_cache  <- new.env(parent = emptyenv())
@@ -1685,7 +1761,8 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
                                   bayestools_backend_fingerprint(
                                     required = FALSE
                                   ),
-                                package_md5 = NULL, catalog = NULL) {
+                                package_md5 = NULL, catalog = NULL,
+                                .active = character()) {
 
   messages <- character()
   paths    <- fit_cache_paths(name)
@@ -1693,6 +1770,9 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
     catalog <- fit_catalog()
   }
   entry    <- fit_catalog_entry(name, catalog)
+  if (name %in% .active) {
+    return(paste0("cache dependency cycle: ", paste(c(.active, name), collapse = " -> ")))
+  }
 
   if (check_files && !file.exists(paths[["fit"]]) && is.null(fit)) {
     messages <- c(messages, "fit file is missing")
@@ -1717,8 +1797,33 @@ validate_cached_fit <- function(name, fit = NULL, info = NULL,
   }
 
   if (!is.null(entry) && !is.null(metadata)) {
-    if (!identical(names(metadata), FIT_CACHE_METADATA_FIELDS)) {
+    dependencies <- entry[["dependencies"]][[1L]]
+    fields <- c(FIT_CACHE_METADATA_FIELDS, if (nrow(dependencies) > 0L) "dependencies")
+    if (!identical(names(metadata), fields)) {
       messages <- c(messages, "cache metadata fields changed")
+    }
+    if (nrow(dependencies) > 0L) {
+      saved_dependencies <- metadata[["dependencies"]]
+      if (!is.list(saved_dependencies) || length(saved_dependencies) != nrow(dependencies)) {
+        messages <- c(messages, "cache dependency fingerprints missing or changed")
+      }
+      for (i in seq_len(nrow(dependencies))) {
+        parent <- dependencies[["name"]][[i]]
+        artifact <- dependencies[["artifact"]][[i]]
+        problems <- validate_cached_fit(parent, deep = deep, catalog = catalog,
+                                         package_md5 = package_md5,
+                                         bayestools_fingerprint = bayestools_fingerprint,
+                                         .active = c(.active, name))
+        if (length(problems) > 0L) {
+          messages <- c(messages, paste0("cache dependency ", parent, ": ", problems))
+        }
+        current <- tryCatch(.fit_cache_artifact_receipt(parent, artifact), error = identity)
+        if (inherits(current, "error")) {
+          messages <- c(messages, conditionMessage(current))
+        } else if (length(saved_dependencies) < i || !identical(saved_dependencies[[i]], current)) {
+          messages <- c(messages, paste0("cache dependency artifact changed: ", artifact, " ", parent))
+        }
+      }
     }
     if (is.null(metadata[["schema_version"]]) ||
         !identical(
@@ -1989,9 +2094,11 @@ save_fit <- function(name, fit, info = NULL) {
   # Save cache metadata last so interrupted fits do not validate later.
   saveRDS(metadata, file = paths[["metadata"]])
 
-  assign(name, fit, envir = .fit_object_cache)
+  assign(name, list(object = fit, receipt = .fit_cache_artifact_receipt(name, "fit")),
+         envir = .fit_object_cache)
   if (!is.null(info)) {
-    assign(name, info, envir = .info_object_cache)
+    assign(name, list(object = info, receipt = .fit_cache_artifact_receipt(name, "info")),
+           envir = .info_object_cache)
   } else {
     .clear_info_object_cache(name)
   }
@@ -1999,7 +2106,10 @@ save_fit <- function(name, fit, info = NULL) {
   return(invisible(TRUE))
 }
 
-load_fit <- function(name, validate = TRUE) {
+.load_cache_artifact <- function(name, artifact, validate) {
+
+  path <- fit_cache_paths(name)[[artifact]]
+  before <- if (file.exists(path)) .fit_cache_artifact_receipt(name, artifact) else NULL
 
   if (validate) {
     problems <- validate_cached_fit(name)
@@ -2012,42 +2122,31 @@ load_fit <- function(name, validate = TRUE) {
     }
   }
 
-  if (exists(name, envir = .fit_object_cache, inherits = FALSE)) {
-    return(get(name, envir = .fit_object_cache, inherits = FALSE))
+  cache <- if (artifact == "fit") .fit_object_cache else .info_object_cache
+  cached <- if (exists(name, cache, inherits = FALSE)) get(name, cache, inherits = FALSE) else NULL
+  if (!is.null(cached) && identical(cached[["receipt"]], before)) {
+    object <- cached[["object"]]
+  } else {
+    object <- if (artifact == "fit") read_cached_fit(name) else read_cached_info(name)
   }
-
-  fit <- read_cached_fit(name)
-  if (is.null(fit)) {
+  if (artifact == "fit" && is.null(object)) {
     stop(paste0("Cached fit '", name, "' could not be read."), call. = FALSE)
   }
+  after <- if (file.exists(path)) .fit_cache_artifact_receipt(name, artifact) else NULL
+  if (!identical(before, after)) {
+    stop("Cached artifact changed during read: ", artifact, " ", name, call. = FALSE)
+  }
+  assign(name, list(object = object, receipt = after), cache)
+  if (validate && !is.null(after)) .fit_cache_record_consumption(after)
+  return(object)
+}
 
-  assign(name, fit, envir = .fit_object_cache)
-
-  return(fit)
+load_fit <- function(name, validate = TRUE) {
+  return(.load_cache_artifact(name, "fit", validate))
 }
 
 load_info <- function(name, validate = TRUE) {
-
-  if (validate) {
-    problems <- validate_cached_fit(name)
-    if (length(problems) > 0) {
-      skip(paste0(
-        "Cached fit '", name, "' is missing, stale, or invalid: ",
-        paste(problems, collapse = "; "),
-        ". Run `test(filter = 'test-01')`."
-      ))
-    }
-  }
-
-  if (exists(name, envir = .info_object_cache, inherits = FALSE)) {
-    return(get(name, envir = .info_object_cache, inherits = FALSE))
-  }
-
-  info <- read_cached_info(name)
-
-  assign(name, info, envir = .info_object_cache)
-
-  return(info)
+  return(.load_cache_artifact(name, "info", validate))
 }
 
 list_fits <- function(name, feature, class, family, has_metafor, has_loo,

@@ -311,6 +311,184 @@ test_that("producer generation captures all builders before later helper sources
   })
 })
 
+.cache_dependency_parents <- function(e) {
+
+  info_name <- "brma.mv_block_mvn_random"
+  fit_name  <- "brma.mv_block_mvn_fixed_random_null"
+  info <- list(data = data.frame(yi = 1), V = matrix(1), marker = "A")
+  fit <- e$.fake_fit_for_catalog_entry(fit_name)
+  fit[["marker"]] <- "A"
+  e$save_fit(info_name, e$.fake_fit_for_catalog_entry(info_name), info)
+  e$save_fit(fit_name, fit, e$.fake_info_for_catalog_entry(fit_name))
+  return(c(info = info_name, fit = fit_name))
+}
+
+.consume_cache_dependency_parents <- function(e, parents) {
+  list(info = e$load_info(parents[["info"]]), fit = e$load_fit(parents[["fit"]]))
+}
+
+.save_cache_dependency_children <- function(e) {
+  children <- c("iwmde_known_v_tau_full", "iwmde_known_v_tau_null")
+  for (name in children) e$save_fit(name, e$.fake_fit_for_catalog_entry(name))
+  return(children)
+}
+
+test_that("derived cache entries declare and validate consumed artifacts", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    parents <- .cache_dependency_parents(e)
+    .consume_cache_dependency_parents(e, parents)
+    children <- .save_cache_dependency_children(e)
+    expected <- data.frame(name = unname(parents), artifact = names(parents))
+    for (child in children) {
+      expect_equal(e$fit_catalog_entry(child)[["dependencies"]][[1L]], expected)
+      expect_equal(length(e$load_fit_metadata(child)[["dependencies"]]), 2L)
+      expect_equal(e$validate_cached_fit(child, deep = TRUE), character())
+    }
+    # Rewriting identical bytes or a timestamp alone is the same consumed input.
+    for (artifact in names(parents)) {
+      path <- e$fit_cache_paths(parents[[artifact]])[[artifact]]
+      writeBin(readBin(path, "raw", file.info(path)$size), path)
+      metadata <- e$load_fit_metadata(parents[[artifact]])
+      metadata[["saved_at"]] <- "different timestamp"
+      saveRDS(metadata, e$fit_cache_paths(parents[[artifact]])[["metadata"]])
+    }
+    for (child in children) expect_equal(e$validate_cached_fit(child), character())
+    child_paths <- unlist(lapply(children, function(name) e$fit_cache_paths(name)[c("fit", "metadata")]))
+    child_bytes <- tools::md5sum(child_paths)
+    stale_children <- function() {
+      for (child in children) {
+        expect_true(length(e$validate_cached_fit(child)) > 0L)
+        expect_true(length(e$validate_cached_fit(child, deep = TRUE)) > 0L)
+      }
+      expect_identical(tools::md5sum(child_paths), child_bytes)
+    }
+    for (artifact in names(parents)) {
+      path <- e$fit_cache_paths(parents[[artifact]])[[artifact]]
+      bytes <- readBin(path, "raw", file.info(path)$size)
+      value <- readRDS(path)
+      value[["marker"]] <- "B"
+      if (artifact == "info") value[["data"]][["yi"]] <- 2
+      saveRDS(value, path)
+      stale_children()
+      writeBin(bytes, path)
+      file.remove(path)
+      stale_children()
+      writeBin(bytes, path)
+    }
+    # The info dependency also requires its parent fit's normal provenance.
+    path <- e$fit_cache_paths(parents[["info"]])[["fit"]]
+    bytes <- readBin(path, "raw", file.info(path)$size)
+    file.remove(path); stale_children(); writeBin(bytes, path)
+    path <- file.path(root, "tests/testthat/test-01-brma.mv.R")
+    bytes <- readBin(path, "raw", file.info(path)$size)
+    cat("\n.cache_parent_builder_marker <- 'B'\n", file = path, append = TRUE)
+    stale_children(); writeBin(bytes, path)
+    for (child in children) {
+      metadata <- e$load_fit_metadata(child)
+      metadata[["dependencies"]] <- NULL
+      saveRDS(metadata, e$fit_cache_paths(child)[["metadata"]])
+      expect_true(any(grepl("dependenc", e$validate_cached_fit(child))))
+    }
+  })
+})
+
+test_that("derived cache saves require current generation consumption receipts", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    parents <- .cache_dependency_parents(e)
+    children <- c("iwmde_known_v_tau_full", "iwmde_known_v_tau_null")
+    for (child in children) {
+      expect_error(e$save_fit(child, e$.fake_fit_for_catalog_entry(child)), "consum")
+      expect_false(file.exists(e$fit_cache_paths(child)[["fit"]]))
+    }
+    .consume_cache_dependency_parents(e, parents)
+    .save_cache_dependency_children(e)
+    paths <- unlist(lapply(children, function(name) e$fit_cache_paths(name)[c("fit", "metadata")]))
+    before <- tools::md5sum(paths)
+    if (exists(".fit_cache_generation_begin", e, inherits = FALSE)) e$.fit_cache_generation_begin(force = TRUE)
+    e$load_info(parents[["info"]], validate = FALSE)
+    e$load_fit(parents[["fit"]], validate = FALSE)
+    for (child in children) expect_error(e$save_fit(child, e$.fake_fit_for_catalog_entry(child)), "consum")
+    expect_identical(tools::md5sum(paths), before)
+    .consume_cache_dependency_parents(e, parents)
+    source(file.path(root, "tests/testthat/common-functions.R"), local = e)
+    expect_true(e$save_fit(children[[1L]], e$.fake_fit_for_catalog_entry(children[[1L]])))
+    before <- tools::md5sum(paths)
+    path <- e$fit_cache_paths(parents[["info"]])[["info"]]
+    value <- readRDS(path); value[["data"]][["yi"]] <- 2
+    saveRDS(value, path)
+    parent_paths <- unlist(lapply(parents, function(name) e$fit_cache_paths(name)[c("fit", "info", "metadata")]))
+    parent_paths <- parent_paths[file.exists(parent_paths)]
+    parent_before <- tools::md5sum(parent_paths)
+    for (child in children) expect_error(e$save_fit(child, e$.fake_fit_for_catalog_entry(child)), "changed")
+    expect_identical(tools::md5sum(paths), before)
+    expect_identical(tools::md5sum(parent_paths), parent_before)
+  })
+})
+
+test_that("warmed dependency objects retain first consumption conflicts", {
+
+  skip_on_cran()
+  for (artifact in c("fit", "info")) {
+    .with_cache_source_fixture(function(e, root) {
+      parents <- .cache_dependency_parents(e)
+      consumed <- .consume_cache_dependency_parents(e, parents)
+      expect_identical(consumed[[artifact]][["marker"]], "A")
+      children <- .save_cache_dependency_children(e)
+      paths <- unlist(lapply(children, function(name) e$fit_cache_paths(name)[c("fit", "metadata")]))
+      before <- tools::md5sum(paths)
+      path <- e$fit_cache_paths(parents[[artifact]])[[artifact]]
+      bytes <- readBin(path, "raw", file.info(path)$size)
+      value <- readRDS(path); value[["marker"]] <- "B"; saveRDS(value, path)
+      reloaded <- if (artifact == "fit") e$load_fit(parents[[artifact]]) else e$load_info(parents[[artifact]])
+      expect_identical(reloaded[["marker"]], "B")
+      for (child in children) expect_error(e$save_fit(child, e$.fake_fit_for_catalog_entry(child)), "conflicting")
+      # A later return to the first bytes cannot erase conflicting consumption.
+      writeBin(bytes, path)
+      .consume_cache_dependency_parents(e, parents)
+      for (child in children) expect_error(e$save_fit(child, e$.fake_fit_for_catalog_entry(child)), "conflicting")
+      expect_identical(tools::md5sum(paths), before)
+    })
+  }
+})
+
+test_that("declared cache dependency cycles fail validation", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    parents <- .cache_dependency_parents(e)
+    .consume_cache_dependency_parents(e, parents)
+    child <- .save_cache_dependency_children(e)[[1L]]
+    catalog <- e$fit_catalog()
+    if (is.null(catalog[["dependencies"]])) catalog[["dependencies"]] <- rep(list(NULL), nrow(catalog))
+    catalog[["dependencies"]][[match(child, catalog[["name"]])]] <-
+      data.frame(name = parents[["fit"]], artifact = "fit")
+    catalog[["dependencies"]][[match(parents[["fit"]], catalog[["name"]])]] <-
+      data.frame(name = child, artifact = "fit")
+    expect_true(any(grepl("cycle", e$validate_cached_fit(child, catalog = catalog))))
+  })
+})
+
+test_that("dependency reads detect artifact mutation during deserialization", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    parents <- .cache_dependency_parents(e)
+    e$.clear_info_object_cache()
+    read_info <- e$read_cached_info
+    e$read_cached_info <- function(name) {
+      value <- read_info(name)
+      changed <- value; changed[["marker"]] <- "B"
+      saveRDS(changed, e$fit_cache_paths(name)[["info"]])
+      value
+    }
+    expect_error(e$load_info(parents[["info"]]), "changed.*read")
+  })
+})
+
 
 test_that("cache source hash tracks only cache-affecting fitting sources", {
 

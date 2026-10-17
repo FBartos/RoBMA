@@ -124,6 +124,17 @@ artifact: reload the product and rerun generation after editing those sources.
 This lifecycle cannot retroactively certify a manually loaded namespace whose
 sources were already stale before the helper initialized.
 
+The catalog explicitly declares consumed fit/info artifacts for derived caches.
+Both known-V IWMDE oracle children depend on the random model's info (including
+data and V) and the fixed-random-null fit. Validated loads record exact artifact
+bytes and parent provenance in the current generation; memoized objects retain
+their own receipt and reload when those inputs change. A save requires those
+receipts, refuses changed or conflicting consumption, and persists them in the
+child metadata. Validation recursively checks declared parents and required
+artifacts, refusing cycles and old child metadata without the dependencies.
+Unvalidated loads and receipts from a previous generation cannot authorize a
+derived save. Ordinary fits without declared dependencies keep their cache rules.
+
 Regenerate only affected fits with `refresh-standard` after fitting, prior/data
 input, native likelihood, or JAGS changes. Do not invalidate fits for unrelated
 plotting, summary, documentation, or post-fit changes.
