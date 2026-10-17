@@ -688,6 +688,28 @@ bool prepare_envelope_geometry(
   return true;
 }
 
+bool envelope_rule_resolves_transitions(
+    const std::vector<EnvelopeGroupGeometry> &geometry, const double *omega,
+    const SelNormKernelData &selection, const double *nodes, int offset, int order)
+{
+  int dimension = 0;
+  for (const auto &group : geometry) dimension += group.mean.size();
+  const int rank = geometry.size() == 1 ? 1 : geometry.size() + 1;
+  std::vector<double> mean(dimension), sd(dimension), sei(dimension);
+  std::vector<double> loading(dimension * rank, 0.0);
+  for (std::size_t group = 0; group < geometry.size(); ++group) {
+    const auto &g = geometry[group];
+    for (std::size_t i = 0; i < g.mean.size(); ++i) {
+      const int row = g.row_index[i];
+      mean[row] = g.mean[i]; sd[row] = g.residual_sd[i]; sei[row] = g.selection_se[i];
+      loading[row] = g.common_loading[i];
+      if (rank > 1) loading[row + dimension * (group + 1)] = g.loading[i];
+    }
+  }
+  return cpp_selnorm_step_rule_resolves_transitions(nodes, offset, order,
+    mean.data(), sd.data(), loading.data(), dimension, rank, sei.data(), omega, selection);
+}
+
 double envelope_rule_log_integral(
     const std::vector<EnvelopeGroupGeometry> &geometry, const double *omega,
     const SelNormKernelData &selection, const double *nodes, const double *log_weights,
@@ -1738,6 +1760,13 @@ bool dense_envelope_log_integral(
   std::vector<EnvelopeGroupGeometry> lower_geometry, upper_geometry;
   if (!prepare_envelope_geometry(covariance, mean, selection_se, dimension,
                                  envelope, false, &lower_geometry)) return false;
+  int finest_offset = 0;
+  for (int rule = 0; rule + 1 < integration->rule_count; ++rule) {
+    finest_offset += static_cast<int>(integration->orders[rule]);
+  }
+  const int finest_order = static_cast<int>(integration->orders[integration->rule_count - 1]);
+  if (!envelope_rule_resolves_transitions(lower_geometry, omega, selection,
+        integration->nodes, finest_offset, finest_order)) return false;
   // The upper geometry is only consumed by a monotone direct comparison. The
   // covariance-bound route below accepts many states without ever evaluating
   // it, so its matrices stay lazy. The original eager rejection semantics are
@@ -1746,11 +1775,14 @@ bool dense_envelope_log_integral(
   if (monotone && !envelope_geometry_feasible(covariance, selection_se, dimension,
                                               envelope, true)) return false;
   bool upper_prepared = false;
+  bool upper_resolvable = false;
   const auto prepare_upper = [&]() {
-    if (upper_prepared) return true;
+    if (upper_prepared) return upper_resolvable;
     upper_prepared = prepare_envelope_geometry(covariance, mean, selection_se,
                                                dimension, envelope, true, &upper_geometry);
-    return upper_prepared;
+    upper_resolvable = upper_prepared && envelope_rule_resolves_transitions(
+      upper_geometry, omega, selection, integration->nodes, finest_offset, finest_order);
+    return upper_resolvable;
   };
 
   const double relative_gap_bound = monotone ?
@@ -1818,7 +1850,9 @@ bool dense_envelope_log_integral(
     const bool use_gap_bound = std::isfinite(relative_gap) && relative_gap >= 0.0 &&
       relative_gap <= integration->tolerance;
     if (use_gap_bound &&
-        relative_gap + 2.0 * lower_change + lower_tail + cdf_relative_error <= integration->tolerance) {
+        relative_gap + 2.0 * lower_change + lower_tail + cdf_relative_error <= integration->tolerance &&
+        envelope_rule_resolves_transitions(lower_geometry, omega, selection,
+          integration->nodes, offset, order)) {
       // The derivative bound measures uncertainty; adding a fraction of that
       // deliberately loose bound would introduce an artificial correction.
       *log_normalizer = lower;
@@ -1855,7 +1889,11 @@ bool dense_envelope_log_integral(
       const double tail = cdf_log_error > 0 ?
         cdf_scale_twice * std::exp(log_tail - std::min(lower, upper)) :
         std::exp(log_tail - std::min(lower, upper));
-      if (width + 2.0 * change + tail + cdf_relative_error <= integration->tolerance) {
+      if (width + 2.0 * change + tail + cdf_relative_error <= integration->tolerance &&
+          envelope_rule_resolves_transitions(lower_geometry, omega, selection,
+            integration->nodes, offset, order) &&
+          envelope_rule_resolves_transitions(upper_geometry, omega, selection,
+            integration->nodes, offset, order)) {
         *log_normalizer = log_add_exp(lower, upper) - std::log(2.0);
         integration->used_envelope = true;
         integration->quadrature_change = change;
@@ -3169,13 +3207,9 @@ double factor_smolyak_binomial(int n, int k)
 
 // The sparse-grid integral at one level, or false when the level exceeds the
 // node budget, a sub-rule fails, or the signed combination is not positive.
-bool factor_smolyak_log_integral(
-    const FactorNormalizerContext &context, const FactorSmolyakLevels &levels,
-    int total, double *result)
+bool factor_smolyak_rule_affordable(int rank, const FactorSmolyakLevels &levels, int total)
 {
-  const int rank = context.rank;
   if (rank < 1 || total < rank) return false;
-
   double nodes_used = 0.0;
   factor_smolyak_indices(rank, levels.count, total, [&](const int *index) {
     double size = 1.0;
@@ -3184,9 +3218,15 @@ bool factor_smolyak_log_integral(
     }
     nodes_used += size;
   });
-  if (!(nodes_used > 0.0) || nodes_used > SELNORM_FACTOR_NODE_BUDGET) {
-    return false;
-  }
+  return nodes_used > 0.0 && nodes_used <= SELNORM_FACTOR_NODE_BUDGET;
+}
+
+bool factor_smolyak_log_integral(
+    const FactorNormalizerContext &context, const FactorSmolyakLevels &levels,
+    int total, double *result)
+{
+  const int rank = context.rank;
+  if (!factor_smolyak_rule_affordable(rank, levels, total)) return false;
 
   std::vector<const double *> axis_nodes(static_cast<std::size_t>(rank));
   std::vector<const double *> axis_log_weights(static_cast<std::size_t>(rank));
@@ -4209,9 +4249,24 @@ double cpp_selnorm_factor_step_lpdf(
   // `order^(depth + 1)` and its ladder length does not depend on the rank.
   const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
 
+  const auto resolves = [&](int offset, int order) {
+    return cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
+      mean, residual_sd, loading, dimension, rank, selection_se, omega, selection);
+  };
+  bool quadrature_resolvable = false;
+  if (quadrature_rule_count >= 3) {
+    int finest_offset = 0, finest_order = 0, next_offset = 0;
+    for (int rule = 0; rule < quadrature_rule_count; ++rule) {
+      const int order = static_cast<int>(quadrature_orders[rule]);
+      if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
+      finest_offset = next_offset; finest_order = order; next_offset += order;
+    }
+    quadrature_resolvable = finest_order > 0 && resolves(finest_offset, finest_order);
+  }
+
   // The cluster evaluator enters at rank one only after its own unchanged
   // quadrature sequence rejects. Share the QMC fallback below in that case.
-  if (quadrature_rule_count >= 3) {
+  if (quadrature_resolvable) {
     int quadrature_offset = 0;
     int quadrature_order = static_cast<int>(quadrature_orders[0]);
     if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
@@ -4242,7 +4297,7 @@ double cpp_selnorm_factor_step_lpdf(
             quadrature_nodes, quadrature_offset, quadrature_order, rank,
             omega, n_bins, dimension, vector_rule, current_quadrature,
             relative_tolerance
-          )) {
+          ) && resolves(quadrature_offset, quadrature_order)) {
         *relative_change = current_quadrature_change;
         if (log_normalizer_out != nullptr) {
           *log_normalizer_out = current_quadrature;
@@ -4270,7 +4325,11 @@ double cpp_selnorm_factor_step_lpdf(
       double previous_sparse = 0.0;
       double previous_sparse_change = std::numeric_limits<double>::infinity();
       bool have_previous = false;
-      for (int total = rank; ; ++total) {
+      int finest_total = rank;
+      while (factor_smolyak_rule_affordable(rank, levels, finest_total + 1)) ++finest_total;
+      const int finest_top = std::min(finest_total - rank, levels.count - 1);
+      const bool sparse_resolvable = resolves(levels.offset[finest_top], levels.order[finest_top]);
+      for (int total = rank; sparse_resolvable && total <= finest_total; ++total) {
         double current_sparse = 0.0;
         if (!factor_smolyak_log_integral(context, levels, total,
                                          &current_sparse)) break;
@@ -4288,7 +4347,7 @@ double cpp_selnorm_factor_step_lpdf(
                 quadrature_nodes, levels.offset[top], levels.order[top], rank,
                 omega, n_bins, dimension, vector_rule, current_sparse,
                 relative_tolerance
-              )) {
+              ) && resolves(levels.offset[top], levels.order[top])) {
             *relative_change = change;
             if (log_normalizer_out != nullptr) {
               *log_normalizer_out = current_sparse;
@@ -4626,14 +4685,21 @@ double cpp_selnorm_cluster_step_lpdf(
   context.kernel_mode = kernel_mode;
   context.selection = selection;
 
+  int finest_offset = 0;
+  for (int rule = 0; rule + 1 < quadrature_rule_count; ++rule) {
+    finest_offset += static_cast<int>(quadrature_orders[rule]);
+  }
+  const bool ladder_resolvable = cpp_selnorm_step_rule_resolves_transitions(
+    quadrature_nodes, finest_offset, static_cast<int>(quadrature_orders[quadrature_rule_count - 1]),
+    mean, residual_sd, loading, dimension, 1, selection_se, omega, selection);
   int offset = 0;
   int order = static_cast<int>(quadrature_orders[0]);
-  double previous = cluster_rule_log_integral(
+  double previous = ladder_resolvable ? cluster_rule_log_integral(
     context, quadrature_nodes, quadrature_log_weights,
     offset, order
-  );
+  ) : std::numeric_limits<double>::quiet_NaN();
   offset += order;
-  for (int rule = 1; rule < quadrature_rule_count; ++rule) {
+  for (int rule = 1; ladder_resolvable && rule < quadrature_rule_count; ++rule) {
     order = static_cast<int>(quadrature_orders[rule]);
     const double current = cluster_rule_log_integral(
       context, quadrature_nodes, quadrature_log_weights,
@@ -4645,7 +4711,8 @@ double cpp_selnorm_cluster_step_lpdf(
         quadrature_covers_gaussian_tails(
           quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
           vector_rule, current, relative_tolerance
-        )) {
+        ) && cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
+          mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
       return log_density - current;
     }
     previous = current;

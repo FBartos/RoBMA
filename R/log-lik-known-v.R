@@ -683,6 +683,22 @@
     context <- BayesTools::selection_context_subset_observations(selection, row)
     log_weight <- .selection_joint_log_weight(matrix(y[row], S, 1L),
       setup[["selection_sei"]][row], context)
+    resolution <- function(nodes, rows) {
+
+      vapply(rows, function(draw) {
+        selection_row <- BayesTools::selection_context_subset_rows(context, draw)
+        sei <- setup[["selection_sei"]][row]
+        density_resolved <- !"log_density" %in% components || .selection_transition_rule_resolves(
+          nodes, conditional_mean[draw], sqrt(variance[draw]), matrix(conditional_sd[draw], 1L),
+          sei, selection_row)
+        population_resolved <- !any(components != "log_density") || .selection_transition_rule_resolves(
+          nodes, mean[draw], sqrt(variance[draw]), matrix(sqrt(sampling_variance), 1L), sei, selection_row)
+        density_resolved && population_resolved
+      }, logical(1))
+    }
+    finest <- .gauss_hermite_nodes(utils::tail(SELNORM_CLUSTER_QUADRATURE_ORDERS, 1L))$nodes
+    active <- active[resolution(finest, active)]
+    if (!length(active)) next
     previous <- NULL
     # Integrate inverse acceptance under E | Y instead of multiplying a
     # narrow Gaussian likelihood by a broad sampling-error quadrature rule.
@@ -747,7 +763,8 @@
           valid <- valid & !is.na(value) & value != Inf
           if (component == "variance") valid <- valid & value >= 0
         }
-        accepted <- which(valid & is.finite(error) & error <= plan[["relative_tolerance"]])
+        accepted <- which(resolution(rule$nodes, active) & valid & is.finite(error) &
+                            error <= plan[["relative_tolerance"]])
         if (length(accepted)) {
           draws <- active[accepted]
           for (component in components) out[[component]][draws, row] <- current[[component]][accepted]

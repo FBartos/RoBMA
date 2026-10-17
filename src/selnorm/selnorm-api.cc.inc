@@ -251,6 +251,65 @@ double cpp_selnorm_kernel_log_norm(
 }
 
 
+bool cpp_selnorm_step_rule_resolves_transitions(
+  const double *nodes, int offset, int order,
+  const double *mean, const double *residual_sd, const double *loading,
+  int dimension, int rank, const double *selection_se,
+  const double *omega, const SelNormKernelData &data, int omega_stride)
+{
+  bool changed = false;
+  for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
+    changed = changed || (std::isfinite(data.z_lower[bin]) &&
+      omega[bin * omega_stride] != omega[(bin + 1) * omega_stride]);
+  }
+  if (!changed || rank == 0) return true;
+  if (nodes == nullptr || order < 2 || offset < 0) return false;
+  const double *z = nodes + offset;
+  double coupled_gap = 0.0;
+  for (int point = 0; point < order; ++point) {
+    if (!std::isfinite(z[point]) || (point > 0 && !(z[point] > z[point - 1]))) return false;
+    if (point > 0 && z[point - 1] <= 3.0 && z[point] >= -3.0) {
+      coupled_gap = std::max(coupled_gap, z[point] - z[point - 1]);
+    }
+  }
+  for (int axis = 0; axis < rank; ++axis) {
+    bool coupled = false;
+    for (int row = 0; row < dimension; ++row) {
+      if (loading[row + dimension * axis] == 0.0) continue;
+      for (int other = 0; other < rank; ++other) {
+        coupled = coupled || (other != axis && loading[row + dimension * other] != 0.0);
+      }
+    }
+    for (int row = 0; row < dimension; ++row) {
+      const double coefficient = loading[row + dimension * axis];
+      if (coefficient == 0.0) continue;
+      if (!std::isfinite(coefficient) || !(residual_sd[row] > 0.0) ||
+          !std::isfinite(residual_sd[row]) || !std::isfinite(mean[row])) return false;
+      if (coupled) {
+        if (!(coupled_gap > 0.0) || coupled_gap * std::fabs(coefficient) > residual_sd[row]) return false;
+        continue;
+      }
+      for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
+        if (!std::isfinite(data.z_lower[bin]) ||
+            omega[bin * omega_stride] == omega[(bin + 1) * omega_stride]) continue;
+        const double center = (coefficient < 0.0 ? -1.0 : 1.0) * stable_affine_score(
+          data.effect_sign * data.z_lower[bin], selection_se[row], mean[row], std::fabs(coefficient));
+        if (std::isnan(center)) return false;
+        // Exterior transitions remain owned by the existing tail gates.
+        if (center <= z[0] || center >= z[order - 1]) continue;
+        int upper = 1;
+        while (upper < order && z[upper] < center) ++upper;
+        double gap = z[upper] - z[upper - 1];
+        if (z[upper] == center && upper + 1 < order) {
+          gap = std::max(gap, z[upper + 1] - z[upper]);
+        }
+        if (gap * std::fabs(coefficient) > residual_sd[row]) return false;
+      }
+    }
+  }
+  return true;
+}
+
 double cpp_selnorm_step_log_norm(
   double mean,
   double sd,

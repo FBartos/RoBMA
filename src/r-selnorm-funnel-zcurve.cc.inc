@@ -722,6 +722,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     int coarse_count = 0;
     SelNormRuleWeights coarse_weights;
     SEXP fitted_error = R_NilValue, extrapolated_error = R_NilValue;
+    SEXP fitted_resolution = PROTECT(Rf_allocVector(LGLSXP, S)); ++n_protect;
+    SEXP extrapolated_resolution = PROTECT(Rf_allocVector(LGLSXP, S)); ++n_protect;
     if (requested) {
       if (TYPEOF(interpolation) != VECSXP || Rf_length(interpolation) != 2) {
         Rf_error("Density integration controls must supply a relative tolerance and a coarse quadrature rule.");
@@ -784,6 +786,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
       long double fitted_absolute_error = 0.0L, extrapolated_absolute_error = 0.0L;
       long double fitted_peak = 0.0L, extrapolated_peak = 0.0L;
       bool zero_weight_display = true;
+      bool row_resolved = true;
       if (interpolate) {
         // Actual requested grid values give a lower bound on the Gaussian
         // grid peak and therefore only tighten the interpolation allocation.
@@ -844,12 +847,18 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
       }
       for (int k = 0; k < K; ++k) {
         const int cell = s + S * k;
+        bool cell_resolved = true;
         // One implementation serves original grid evaluation and Cheb nodes.
         const auto inverse_integral = [&](double value, const double *rule_nodes,
             const double *rule_logs, const long double *rule_weights, int count,
             bool logarithm) -> long double {
           const double location = selnorm_fma(candidate_fraction[cell], mean_p[cell],
             context_fraction[cell] * (value * sei_p[k]));
+          if (rule_nodes == nodes_p) {
+            cell_resolved = cell_resolved && cpp_selnorm_step_rule_resolves_transitions(
+              rule_nodes, 0, count, &location, sd_p + cell, conditional_sd.data() + cell,
+              1, 1, sei_p + k, row_weights.data(), data);
+          }
           for (int j = 0; j < count; ++j) {
             node_means[j] = selnorm_fma(conditional_sd[cell], rule_nodes[j], location);
             normalizers[j] = 1.0L;
@@ -949,13 +958,20 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
                 density[ell] += cell_density[ell];
                 interpolation_error[ell] += cell_error[ell];
               }
+              row_resolved = row_resolved && cell_resolved;
               continue;
             }
           }
         }
+        // A discarded interpolation attempt is not the returned candidate.
+        cell_resolved = true;
         if (population_nodes) {
           const auto forward_curve = [&](const double *rule_nodes, const double *rule_logs,
               int count, std::vector<long double> &curve) {
+            if (rule_nodes == nodes_p) {
+              cell_resolved = cpp_selnorm_step_rule_resolves_transitions(rule_nodes, 0, count,
+                mean_p + cell, sd_p + cell, latent_p + cell, 1, 1, sei_p + k, row_weights.data(), data);
+            }
             for (int j = 0; j < count; ++j) {
               node_means[j] = selnorm_fma(latent_p[cell], rule_nodes[j], mean_p[cell]);
               normalizers[j] = 1.0L;
@@ -991,6 +1007,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
               if (coarse_count > 0) coarse_noninterpolated[ell] += cell_coarse[ell];
             }
           }
+          row_resolved = row_resolved && cell_resolved;
           continue;
         }
 
@@ -1016,6 +1033,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             }
           }
         }
+        row_resolved = row_resolved && cell_resolved;
       }
       for (int ell = 0; ell < L; ++ell) {
         const double weight = selected && (!extrapolate_b || paired) ?
@@ -1041,8 +1059,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
               fitted_peak = std::max(fitted_peak, static_cast<long double>(fitted_value));
             }
           }
-          if (weight > 0) zero_weight_display = false;
         }
+        if (weight > 0) zero_weight_display = false;
         if (paired) {
           extrapolated_p[s + S * ell] = static_cast<double>(value);
           fitted_p[s + S * ell] = weight > 0 ? static_cast<double>(value * weight) : 0;
@@ -1061,6 +1079,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         REAL(fitted_error)[s] = relative_error(fitted_absolute_error, fitted_peak, zero_weight_display);
         REAL(extrapolated_error)[s] = relative_error(extrapolated_absolute_error, extrapolated_peak, false);
       }
+      LOGICAL(fitted_resolution)[s] = row_resolved || zero_weight_display;
+      LOGICAL(extrapolated_resolution)[s] = row_resolved;
     }
     if (requested) {
       if (paired) {
@@ -1070,6 +1090,13 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         Rf_setAttrib(out, Rf_install("relative_integration_error"),
           extrapolate_b ? extrapolated_error : fitted_error);
       }
+    }
+    if (paired) {
+      Rf_setAttrib(fitted, Rf_install("selection_transition_resolved"), fitted_resolution);
+      Rf_setAttrib(extrapolated, Rf_install("selection_transition_resolved"), extrapolated_resolution);
+    } else {
+      Rf_setAttrib(out, Rf_install("selection_transition_resolved"),
+        extrapolate_b ? extrapolated_resolution : fitted_resolution);
     }
     UNPROTECT(n_protect);
     return out;

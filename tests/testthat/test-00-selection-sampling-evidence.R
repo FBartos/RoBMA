@@ -350,6 +350,30 @@ test_that("independent deletion broadcasts a fixed heterogeneity scale", {
   expect_equal(actual, unname(expected), tolerance = 1e-12)
 })
 
+test_that("native scalar deletion guards its own returned conditional rule", {
+
+  evaluate <- function(orders, variance = .16, mode = 1L, omega = c(1, .2)) {
+    rule <- .selection_joint_cluster_quadrature_rules(orders)
+    .Call("RoBMA_selnorm_sampling_deletion_loglik_batch", 0, matrix(.2), .64,
+      matrix(variance), matrix(.64 + variance), .7, matrix(omega, 1L),
+      c(0, -Inf), c(Inf, 0), 1L, mode, FALSE,
+      as.double(rule$nodes), as.double(rule$log_weights), as.integer(rule$orders), 1,
+      PACKAGE = "RoBMA")
+  }
+  expect_true(is.na(evaluate(c(3L, 7L))[1L]))
+  actual <- evaluate(c(3L, 7L, 15L))[1L]
+  conditional_mean <- .2 + .64 / .8 * (0 - .2)
+  conditional_sd <- sqrt(.64 * .16 / .8)
+  expected <- stats::dnorm(0, .2, sqrt(.8), log = TRUE) +
+    log(stats::integrate(function(u) stats::dnorm(u) /
+      (.2 + .8 * stats::pnorm((conditional_mean + conditional_sd * u) / .4)),
+      -Inf, Inf, rel.tol = 1e-11)$value)
+  expect_equal(actual, expected, tolerance = 1e-4)
+  expect_equal(evaluate(c(3L, 7L), variance = 0)[1L], stats::dnorm(0, .2, .8, log = TRUE))
+  expect_equal(evaluate(c(3L, 7L), mode = 0L)[1L], stats::dnorm(0, .2, sqrt(.8), log = TRUE))
+  expect_equal(evaluate(c(3L, 7L), omega = c(1, 1))[1L], stats::dnorm(0, .2, sqrt(.8), log = TRUE))
+})
+
 
 test_that("fixed-zero random bridge replay preserves its fitted source map", {
 

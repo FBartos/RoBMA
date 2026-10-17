@@ -117,6 +117,21 @@ test_that("ordinary covariance envelopes preserve full-V density and bounded err
   expect_equal(unname(best[["integration_diagnostics"]][1L, 1L]), 0)
 })
 
+test_that("sharp dense envelopes resolve the returned selection transitions", {
+
+  covariance <- matrix(.99, 3L, 3L)
+  diag(covariance) <- 1
+  cutoff <- stats::qnorm(.975)
+  mean <- cutoff - 1.5
+  actual <- .selection_envelope_test_call(covariance, mean, rep(1, 3L), c(1, 0))
+  expected <- stats::integrate(function(u) stats::dnorm(u) *
+    stats::pnorm((-1.5 + sqrt(.99) * u) / sqrt(.01))^3,
+    -Inf, Inf, rel.tol = 1e-12, abs.tol = 1e-14)$value
+  expect_identical(actual$relative_mcse, 0)
+  expect_equal(unname(actual$integration_diagnostics[1L, "used_covariance_envelope"]), 1)
+  expect_lt(abs(expm1(log(expected) - actual$log_normalizer)), .005)
+})
+
 test_that("ordinary Assink V retains a distant normalizer missed by coarse rules", {
 
   skip_if_not_installed("metadat")

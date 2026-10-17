@@ -49,7 +49,9 @@ sum of covariance-bound width, twice the successive quadrature change,
 the relative exterior-mass bound, and any post-fit CDF interpolation error
 to satisfy this tolerance. Factor quadrature also checks exterior Gaussian
 mass before accepting rule agreement; an unresolved rule sequence uses the
-existing QMC fallback. Zplot projections additionally check density error
+existing QMC fallback. The returned deterministic candidate also requires
+selection-transition resolution; coarser comparison rules retain their
+actual values without an added resolution requirement. Zplot projections additionally check density error
 relative to the peak within each posterior draw and raw normalizer-mass
 diagnostics, including their bounded approximation and omission terms.
 These diagnostics do not certify the total integrated error of a compressed
@@ -83,6 +85,13 @@ share one numerical error budget. Interior quadrature error is estimated,
 so this is not a rigorous probability interval. Unsupported or unresolved
 cases use randomized quasi-Monte Carlo in the dense conditional-normal
 representation.
+Deterministic candidates additionally resolve finite changed-weight selection
+transitions in their actual Gaussian integration coordinates. The node gap
+across an interior transition must not exceed its conditional residual SD
+divided by the absolute loading. Coupled axes use conservative central node
+spacing. Unresolved candidates refine or use the existing fallback; the
+numerical settings and likelihood target are unchanged. This extra heuristic
+does not certify total integration error, including reciprocal normalizers.
 Each fit or post-fit request uses a fixed integration design, so repeated
 likelihood evaluations are deterministic. One-observation blocks are evaluated
 analytically.

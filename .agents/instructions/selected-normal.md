@@ -151,6 +151,29 @@ bound for nonmonotone weights. Covariance error,
 quadrature change, and exterior Gaussian mass share the existing error budget;
 unresolved evaluations retain QMC and its diagnostics.
 
+Deterministic acceptance also requires selection-transition resolution in the
+actual standardized Gaussian axes: changed finite cutoff centers use the
+supplied signed mean, selection SE and loading; their bracketing node gaps must
+not exceed residual SD divided by absolute loading. Coupled axes use maximum
+spacing over |z|<=3 against each axis's minimum applicable width. Zero loadings,
+equal adjacent weights and analytically cancelled factors add no constraint;
+singleton child variance absorbed exactly adds no child axis. Exterior factors
+remain owned by existing tail gates. Check the returned candidate, preserving
+actual previous-rule values/offsets without requiring resolved comparands.
+Precheck the finest available/affordable rule and retain existing fallback or
+unavailability, truthful measured diagnostics and unchanged budgets.
+
+Retained-latent density has separate population-forward, conditional response-
+root interpolation and direct conditional routes. Sampling density uses its
+actual E|Y affine axis; tails/moments use E's population axis, only when those
+components are requested. The scalar native deletion ladder has its own guard.
+Context numerator, denominator and outer rules remain separate, with their
+common denominator and original raw mass intact. These transition checks are
+additional heuristics for primitive A even inside 1/A; they do not establish
+an inverse-integrand or focal-Gaussian error bound. Keep all existing Gaussian
+basis, covariance, interpolation, compression, mass, exterior and change gates.
+Factor-only rank-two event partition/quantile integration is outside this rule.
+
 ## Unsupported Paths
 
 Publication-bias weight functions are unsupported for binomial and Poisson

@@ -541,6 +541,42 @@ test_that("conditional z marginals integrate conditional selection normalizers",
 })
 
 
+test_that("latent density resolution follows population and conditional coordinates", {
+
+  prior <- BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, .2)))
+  selection <- .selection_spec(list(outcome = list(bias = prior)), 0, .7,
+    effect_direction = "positive", signed_data = FALSE)
+  selection$omega <- matrix(c(1, .2), 1L)
+  selection$alpha <- 0
+  selection$phack_kind <- 0L
+  selection$kernel_mode <- SELKERNEL_STEP
+  selection$use_normal <- FALSE
+  rule <- .gauss_hermite_nodes(3L)
+  population <- .zplot_selnorm_density_matrix(c(-.5, 0, .5), matrix(.3), matrix(.8), .7,
+    selection, FALSE, latent_sd = matrix(.1), quadrature = rule)
+  expect_identical(attr(population, "selection_transition_resolved"), TRUE)
+  expected <- vapply(c(-.5, 0, .5), function(z) {
+    location <- .3 + .1 * rule$nodes
+    .7 * ifelse(z >= 0, 1, .2) * sum(rule$weights *
+      stats::dnorm(z * .7, location, .8) / (.2 + .8 * stats::pnorm(location / .8)))
+  }, numeric(1))
+  expect_equal(as.numeric(population), expected, tolerance = 1e-12)
+  conditional <- .zplot_selnorm_density_matrix(c(-.1, 0, .1), matrix(0), matrix(.001), .7,
+    selection, FALSE, latent_sd = matrix(.6), quadrature = rule)
+  expect_identical(attr(conditional, "selection_transition_resolved"), FALSE)
+  expect_true(all(is.finite(conditional)))
+  # A resolution decision remains separate from a measured integration error.
+  attr(rule, "density_control") <- list(.001, .gauss_hermite_nodes(1L))
+  conditional <- .zplot_selnorm_density_matrix(c(-.1, 0, .1), matrix(0), matrix(.001), .7,
+    selection, FALSE, latent_sd = matrix(.6), quadrature = rule)
+  expect_identical(attr(conditional, "selection_transition_resolved"), FALSE)
+  expect_type(attr(conditional, "relative_integration_error"), "double")
+  selection$omega[,] <- 1
+  constant <- .zplot_selnorm_density_matrix(c(-.1, 0, .1), matrix(0), matrix(.001), .7,
+    selection, FALSE, latent_sd = matrix(.6), quadrature = rule)
+  expect_identical(attr(constant, "selection_transition_resolved"), TRUE)
+})
+
 test_that("latent z densities cannot accept a missed narrow Gaussian kernel", {
 
   cutoff <- stats::qnorm(.025, lower.tail = FALSE)

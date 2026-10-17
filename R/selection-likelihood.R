@@ -27,6 +27,44 @@ SELNORM_FACTOR_MAX_RANK <- 8L
 SELNORM_FACTOR_NODE_BUDGET <- 262144
 
 
+.selection_transition_rule_resolves <- function(nodes, mean, residual_sd, loading,
+                                                sei, selection, axes = seq_len(ncol(loading))) {
+
+  if (!is.null(selection$kernel_mode) && selection$kernel_mode[[1L]] == SELKERNEL_NORMAL) return(TRUE)
+  omega <- as.numeric(selection$omega[1L, ])
+  cuts <- selection$z_lower[seq_len(length(omega) - 1L)]
+  cuts <- cuts[is.finite(cuts) & utils::head(omega, -1L) != utils::tail(omega, -1L)]
+  if (!length(cuts) || !length(axes)) return(TRUE)
+  nodes <- sort(nodes)
+  if (length(nodes) < 2L || any(!is.finite(nodes)) || any(diff(nodes) <= 0)) return(FALSE)
+  coupled_intervals <- utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3
+  coupled_gap <- if (any(coupled_intervals)) max(diff(nodes)[coupled_intervals]) else Inf
+  for (axis in axes) {
+    coefficient <- loading[, axis]
+    active <- which(coefficient != 0)
+    if (!length(active)) next
+    if (any(!is.finite(coefficient[active])) || any(!is.finite(mean[active])) ||
+        any(!is.finite(residual_sd[active]) | residual_sd[active] <= 0)) return(FALSE)
+    other <- setdiff(seq_len(ncol(loading)), axis)
+    coupled <- length(other) > 0L && any(rowSums(loading[active, other, drop = FALSE] != 0) > 0L)
+    if (coupled) {
+      if (any(coupled_gap * abs(coefficient[active]) > residual_sd[active])) return(FALSE)
+      next
+    }
+    for (row in active) for (cut in cuts) {
+      center <- (selection$sign * cut * sei[row] - mean[row]) / coefficient[row]
+      if (is.na(center)) return(FALSE)
+      # Exterior transitions still require the existing Gaussian-tail gates.
+      if (center <= nodes[1L] || center >= utils::tail(nodes, 1L)) next
+      lower <- findInterval(center, nodes)
+      gap <- nodes[lower + 1L] - nodes[lower]
+      if (nodes[lower] == center && lower > 1L) gap <- max(gap, nodes[lower] - nodes[lower - 1L])
+      if (gap * abs(coefficient[row]) > residual_sd[row]) return(FALSE)
+    }
+  }
+  TRUE
+}
+
 .selnorm_factor_rule_affordable <- function(order, exponent) {
 
   as.double(order)^as.double(exponent) <= SELNORM_FACTOR_NODE_BUDGET
@@ -57,6 +95,13 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' so this is not a rigorous probability interval. Unsupported or unresolved
 #' cases use randomized quasi-Monte Carlo in the dense conditional-normal
 #' representation.
+#' Deterministic candidates additionally resolve finite changed-weight selection
+#' transitions in their actual Gaussian integration coordinates. The node gap
+#' across an interior transition must not exceed its conditional residual SD
+#' divided by the absolute loading. Coupled axes use conservative central node
+#' spacing. Unresolved candidates refine or use the existing fallback; the
+#' numerical settings and likelihood target are unchanged. This extra heuristic
+#' does not certify total integration error, including reciprocal normalizers.
 #' Each fit or post-fit request uses a fixed integration design, so repeated
 #' likelihood evaluations are deterministic. One-observation blocks are evaluated
 #' analytically.
@@ -122,7 +167,9 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #'   the relative exterior-mass bound, and any post-fit CDF interpolation error
 #'   to satisfy this tolerance. Factor quadrature also checks exterior Gaussian
 #'   mass before accepting rule agreement; an unresolved rule sequence uses the
-#'   existing QMC fallback. Zplot projections additionally check density error
+#'   existing QMC fallback. The returned deterministic candidate also requires
+#'   selection-transition resolution; coarser comparison rules retain their
+#'   actual values without an added resolution requirement. Zplot projections additionally check density error
 #'   relative to the peak within each posterior draw and raw normalizer-mass
 #'   diagnostics, including their bounded approximation and omission terms.
 #'   These diagnostics do not certify the total integrated error of a compressed

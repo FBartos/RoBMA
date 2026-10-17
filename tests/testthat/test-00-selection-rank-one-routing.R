@@ -1,6 +1,58 @@
 context("Joint selection rank-one routing")
 skip_on_cran()
 
+test_that("transition resolution retains literal signs, nodes and exterior ownership", {
+
+  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .2)))
+  nodes <- .gauss_hermite_nodes(31L)$nodes
+  center <- nodes[17L]
+  gap <- max(diff(nodes[16:18]))
+  for (sign in c(1L, -1L)) for (loading in c(1, -1)) {
+    spec <- .selection_spec(list(outcome = list(bias = prior)), 0, .7,
+      effect_direction = if (sign == 1L) "positive" else "negative", signed_data = FALSE)
+    spec$omega <- matrix(c(1, .2), 1L)
+    mean <- sign * spec$z_lower[1L] * .7 - loading * center
+    expect_false(.selection_transition_rule_resolves(nodes, mean, gap / 2, matrix(loading), .7, spec))
+    expect_true(.selection_transition_rule_resolves(nodes, mean, gap * 1.01, matrix(loading), .7, spec))
+    expect_true(.selection_transition_rule_resolves(nodes, mean, .001, matrix(0), .7, spec))
+    exterior_mean <- sign * spec$z_lower[1L] * .7 - loading * (max(nodes) + .001)
+    expect_true(.selection_transition_rule_resolves(nodes, exterior_mean, .001, matrix(loading), .7, spec))
+    spec$omega[,] <- 1
+    expect_true(.selection_transition_rule_resolves(nodes, mean, .001, matrix(loading), .7, spec))
+  }
+})
+
+test_that("rank-one acceptance resolves the returned candidate without resolving its comparand", {
+
+  rho <- .99
+  K <- 3L
+  mean <- rep(-1.5, K)
+  sd <- rep(sqrt(1 - rho), K)
+  loading <- rep(sqrt(rho), K)
+  rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  spec <- .selection_spec(list(outcome = list(bias = BayesTools::prior_weightfunction(
+    "one-sided", .5, BayesTools::wf_fixed(c(1, 0))))), rep(.3, K), rep(1, K),
+    effect_direction = "positive", signed_data = FALSE)
+  spec$omega <- matrix(c(1, 0), 1L)
+  expect_false(.selection_transition_rule_resolves(.gauss_hermite_nodes(511L)$nodes,
+    mean, sd, matrix(loading, K), rep(1, K), spec))
+  expect_true(.selection_transition_rule_resolves(.gauss_hermite_nodes(1023L)$nodes,
+    mean, sd, matrix(loading, K), rep(1, K), spec))
+  actual <- .Call("RoBMA_selnorm_cluster_step_loglik_batch", rep(.3, K), matrix(mean, 1L),
+    matrix(sd, 1L), matrix(loading, 1L), rep(1, K), spec$omega, c(0, -Inf), c(Inf, 0),
+    rep(1L, K), 1L, TRUE, 1L, rules$nodes, rules$log_weights, as.double(rules$orders),
+    as.double(BayesTools::selection_qmc_design(2L, 8192L, 8L, seed = 173L)),
+    512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+  reference <- stats::integrate(function(u) stats::dnorm(u) *
+    stats::pnorm((-1.5 + sqrt(rho) * u) / sqrt(1 - rho))^K,
+    -Inf, Inf, rel.tol = 1e-12, abs.tol = 1e-14)$value
+  rule <- .gauss_hermite_nodes(1023L)
+  candidate <- log(sum(rule$weights * stats::pnorm((-1.5 + sqrt(rho) * rule$nodes) / sqrt(1 - rho))^K))
+  expect_identical(actual$relative_mcse, 0)
+  expect_equal(actual$log_normalizer, candidate, tolerance = 1e-12)
+  expect_lt(abs(expm1(log(reference) - actual$log_normalizer)), .005)
+})
+
 test_that("nested intercept random effects use the exact rank-one kernel", {
 
   dat <- data.frame(

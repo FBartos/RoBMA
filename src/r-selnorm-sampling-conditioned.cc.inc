@@ -119,6 +119,11 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
         const double sd = std::sqrt(variance);
         const double gaussian = Rf_dnorm4(REAL(yi)[k], mean, std::sqrt(total), 1);
         const double log_weight = std::log(weights[INTEGER(obs_bin)[k] - 1]);
+        int finest_offset = 0;
+        for (int rule = 0; rule + 1 < rule_count; ++rule) finest_offset += INTEGER(orders)[rule];
+        if (!cpp_selnorm_step_rule_resolves_transitions(REAL(nodes), finest_offset,
+              INTEGER(orders)[rule_count - 1], &conditional_mean, &sd, &conditional_sd,
+              1, 1, REAL(sei) + k, weights.data(), data)) continue;
         double previous = NA_REAL;
         int offset = 0;
         for (int r = 0; r < rule_count; ++r) {
@@ -154,7 +159,9 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
           const double current = gaussian + log_weight + log_inverse;
           const double change = current == previous ? 0.0 : std::abs(std::expm1(current - previous));
           if (r > 0 && !std::isnan(current) && current != std::numeric_limits<double>::infinity() &&
-              std::isfinite(change) && change <= tolerance) {
+              std::isfinite(change) && change <= tolerance &&
+              cpp_selnorm_step_rule_resolves_transitions(REAL(nodes), offset, order,
+                &conditional_mean, &sd, &conditional_sd, 1, 1, REAL(sei) + k, weights.data(), data)) {
             REAL(out)[cell] = current;
             break;
           }

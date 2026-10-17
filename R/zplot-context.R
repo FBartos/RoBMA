@@ -562,6 +562,34 @@
   # Raw A0 anchors and the continuous inverse-Aq tail rectangles remain unpruned.
   pruning_allowance <- if (point_context) 0 else tolerance * reference_peak / 32
   pruning_key <- format(pruning_allowance, digits = 17)
+  selection_resolutions <- new.env(parent = emptyenv())
+  selection_resolution <- function(inner_order, denominator_order, outer_order) {
+
+    key <- paste(inner_order, denominator_order, outer_order, sep = "/")
+    if (exists(key, selection_resolutions, inherits = FALSE)) return(get(key, selection_resolutions))
+    outer_nodes <- if (point_context) 0 else quadrature_rule(outer_order)$nodes
+    means <- if (point_context) point_means else {
+      outer(outer_nodes, as.numeric(context_factor)) + rep(mean, each = length(outer_nodes))
+    }
+    # Keep the other declared Gaussian axes when deciding whether a center
+    # shifts: a continuous context couples the inner transitions as well.
+    loading <- cbind(geometry$loading, if (point_context) rep(0, k) else as.numeric(context_factor))
+    inner_axes <- seq_len(ncol(geometry$loading))
+    check_inner <- function(order) {
+      nodes <- quadrature_rule(order)$nodes
+      all(vapply(seq_len(nrow(means)), function(row) {
+        .selection_transition_rule_resolves(nodes, means[row, ], geometry$residual_sd,
+          loading, sei, selection, axes = inner_axes)
+      }, logical(1)))
+    }
+    value <- c(inner = check_inner(inner_order), denominator = check_inner(denominator_order),
+      outer = point_context || .selection_transition_rule_resolves(outer_nodes, mean,
+        geometry$residual_sd, loading, sei, selection, axes = ncol(loading)))
+    assign(key, value, selection_resolutions)
+    value
+  }
+  if (!all(selection_resolution(utils::tail(inner_orders, 1L), utils::tail(denominator_orders, 1L),
+      if (point_context) 0L else utils::tail(context_orders, 1L)))) return(NULL)
   repeat {
     resolution <- gaussian_resolution(inner_orders[inner_index],
       if (point_context) 0L else context_orders[context_index])
@@ -573,6 +601,18 @@
         context_index <- context_index + 1L
       } else if (inner_index < length(inner_orders)) {
         inner_index <- inner_index + 1L
+      } else return(NULL)
+      next
+    }
+    selection_resolved <- selection_resolution(inner_orders[inner_index], denominator_orders[denominator_index],
+      if (point_context) 0L else context_orders[context_index])
+    if (!all(selection_resolved)) {
+      if (!selection_resolved[["inner"]] && inner_index < length(inner_orders)) {
+        inner_index <- inner_index + 1L
+      } else if (!selection_resolved[["denominator"]] && denominator_index < length(denominator_orders)) {
+        denominator_index <- denominator_index + 1L
+      } else if (!selection_resolved[["outer"]] && !point_context && context_index < length(context_orders)) {
+        context_index <- context_index + 1L
       } else return(NULL)
       next
     }

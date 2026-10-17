@@ -1237,6 +1237,19 @@
     orders <- orders[.selnorm_factor_rule_affordable(orders, cost_exponent)]
     quadrature <- length(orders) > 0L
   }
+  rule_resolution <- function(nodes, rows) {
+
+    vapply(rows, function(row) {
+      .selection_transition_rule_resolves(nodes, mean[row, ], factors$residual_sd[row, ],
+        matrix(factors$loading[row, ], K, rank), sei,
+        BayesTools::selection_context_subset_rows(selection, row))
+    }, logical(1))
+  }
+  finest_resolved <- rep(TRUE, S)
+  if (quadrature) {
+    finest_resolved <- rule_resolution(.gauss_hermite_nodes(utils::tail(orders, 1L))$nodes, active)
+    if (!any(finest_resolved)) quadrature <- FALSE
+  }
   rule_index <- 1L
   repeat {
     rule <- if (quadrature) .gauss_hermite_nodes(orders[rule_index]) else NULL
@@ -1287,7 +1300,8 @@
     result$log_density[active]  <- current$log_density
     result$relative_mcse[active] <- error
     result$density[active, ]    <- current$density
-    failed <- which(!is.finite(accepted_error) | accepted_error > control$relative_tolerance |
+    resolved <- if (quadrature) rule_resolution(rule$nodes, active) else rep(TRUE, length(active))
+    failed <- which(!resolved | !is.finite(accepted_error) | accepted_error > control$relative_tolerance |
                       !is.finite(current$log_density))
     if (!length(failed)) return(result)
     if (!quadrature && points >= control$max_points_per_scramble) {
@@ -1304,7 +1318,7 @@
                      error = if (is.null(previous)) rep(Inf, length(failed)) else error[failed])
     if (quadrature) {
       rule_index <- rule_index + 1L
-      if (rule_index > length(orders)) {
+      if (rule_index > length(orders) || !any(finest_resolved[active])) {
         quadrature <- FALSE
         previous   <- NULL
         points     <- control$points_per_scramble
@@ -1355,6 +1369,25 @@
   active   <- seq_len(S)
   result <- list(fitted = matrix(0, S, length(z)),
                  extrapolated = matrix(0, S, length(z)), weights = numeric(S))
+  population_needed <- (probability || !fitted_only) &&
+    !(probability && fitted_only && length(z) == 1L && z == 0)
+  population_resolution <- function(nodes) {
+
+    if (!population_needed) return(rep(TRUE, S))
+    vapply(seq_len(S), function(row) {
+      selection_row <- BayesTools::selection_context_subset_rows(selection, row)
+      loading <- matrix(latent_sd[row, ], ncol = 1L)
+      fitted <- .selection_transition_rule_resolves(nodes, mean[row, ], sd[row, ], loading, sei, selection_row)
+      extrapolated <- !probability || fitted_only || .selection_transition_rule_resolves(
+        nodes, mean_extrapolated[row, ], sd[row, ], loading, sei, selection_row)
+      fitted && extrapolated
+    }, logical(1))
+  }
+  unresolved <- function() stop(
+    "Zplot marginal integration is unavailable: selection transitions remain unresolved at the available quadrature rules. Inspect the fitted selection and heterogeneity parameters.",
+    call. = FALSE)
+  finest <- .gauss_hermite_nodes(utils::tail(SELNORM_CLUSTER_QUADRATURE_ORDERS, 1L))$nodes
+  if (any(!population_resolution(finest))) unresolved()
   for (order in SELNORM_CLUSTER_QUADRATURE_ORDERS) {
     rule <- .gauss_hermite_nodes(order)
     fitted       <- matrix(0, S, length(z))
@@ -1362,9 +1395,8 @@
     weights      <- numeric(S)
     if (!probability && !is.null(previous_rule)) {
       attr(rule, "density_control") <- list(as.double(control$relative_tolerance), previous_rule)
-      # Condition the retained Gaussian source on the evaluated outcome before
-      # quadrature. Integrating its original population density can miss the
-      # arbitrarily narrow sampling kernel when the integrated SD is small.
+      # The native evaluator retains its population-forward, conditional
+      # response-root interpolation and direct-conditional coordinate routes.
       if (fitted_only) {
         fitted <- .zplot_selnorm_density_matrix(z, mean, sd, sei, selection,
           FALSE, latent_sd = latent_sd, quadrature = rule)
@@ -1419,7 +1451,22 @@
         change[!is.finite(change)] <- Inf
         change
       }))
-      accepted <- which(is.finite(error) & error <= control$relative_tolerance)
+      resolved <- population_resolution(rule$nodes)
+      if (!probability) {
+        fitted_resolved <- attr(fitted, "selection_transition_resolved", exact = TRUE)
+        if (!is.logical(fitted_resolved) || length(fitted_resolved) != S || anyNA(fitted_resolved)) {
+          stop("Zplot density selection-resolution diagnostics are unavailable.", call. = FALSE)
+        }
+        resolved <- resolved & fitted_resolved
+        if (!fitted_only) {
+          extrapolated_resolved <- attr(extrapolated, "selection_transition_resolved", exact = TRUE)
+          if (!is.logical(extrapolated_resolved) || length(extrapolated_resolved) != S || anyNA(extrapolated_resolved)) {
+            stop("Zplot density selection-resolution diagnostics are unavailable.", call. = FALSE)
+          }
+          resolved <- resolved & extrapolated_resolved
+        }
+      }
+      accepted <- which(resolved & is.finite(error) & error <= control$relative_tolerance)
       result$fitted[active[accepted], ]       <- fitted[accepted, , drop = FALSE]
       result$extrapolated[active[accepted], ] <- extrapolated[accepted, , drop = FALSE]
       result$weights[active[accepted]]       <- weights[accepted]
@@ -1443,6 +1490,7 @@
     attr(rule, "density_control") <- NULL
     previous_rule <- rule
   }
+  if (any(!resolved)) unresolved()
   stop(
     "Zplot marginal integration was rejected by diagnostics: relative integration error was ",
     format(max(error), digits = 4), ". Inspect the fitted selection and heterogeneity parameters.",
