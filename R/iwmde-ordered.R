@@ -485,7 +485,8 @@
   for (name in names(context[["flat_prior_list"]])) {
     prior <- context[["flat_prior_list"]][[name]]
     if (name %in% focal_ordered) {
-      if (BayesTools::is.prior.mixture(prior[["total"]]) ||
+      if (length(parameter_spec[["ordered_specs"]][[name]][["total_names"]]) != 1L ||
+          BayesTools::is.prior.mixture(prior[["total"]]) ||
           any(vapply(parameter_spec[["ordered_specs"]][[name]][["allocations"]], function(record) {
             !identical(record[["spec"]][["type"]], "fixed") && record[["dim"]] > 1L
           }, logical(1)))) return(FALSE)

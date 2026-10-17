@@ -2002,3 +2002,109 @@ testthat::test_that("admitted nonpure share endpoints use the allocation group s
     }
   }
 })
+
+.ordered_review_multi_fixture <- function(interaction = TRUE) {
+point <- BayesTools::prior("point", list(location = 0))
+normal <- BayesTools::prior("normal", list(mean = 0, sd = 1))
+dat <- expand.grid(f = c("lo", "mid", "hi"), g = c("a", "b", "c"), repeat_id = 1:2,
+  KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
+dat$f <- ordered(dat$f, levels = c("lo", "mid", "hi"))
+dat$g <- factor(dat$g, levels = c("a", "b", "c"))
+dat$yi <- rep(c(-.2, .1, .35, .05, .2, .5, -.1, .15, .4), 2L)
+dat$sei <- rep(c(.4, .5, .6), 6L)
+
+
+  mods <- if (interaction) ~f*g else ~f
+  prior_mods <- if (interaction) list(
+    f = BayesTools::prior_ordered(point, allocation = c(.25, .75)),
+    g = BayesTools::prior_factor("point", list(location = 0), contrast = "treatment"),
+    `f:g` = BayesTools::prior_ordered(normal, allocation = c(.25, .75))) else
+      list(f = BayesTools::prior_ordered(normal, allocation = c(.25, .75)))
+  setup <- .ordered_review_compile_object(RoBMA::brma(yi = yi, sei = sei, mods = mods, data = dat,
+    measure = "GEN", prior_effect = point, prior_heterogeneity = point,
+    prior_mods = prior_mods, standardize_continuous_predictors = FALSE,
+    only_priors = TRUE, silent = TRUE))
+  ordered_priors <- setup$compiled$mu$prior_list[vapply(setup$compiled$mu$prior_list,
+    BayesTools::is.prior.ordered, logical(1))]
+  source_specs <- Map(BayesTools:::.bt_ordered_spec, names(ordered_priors), ordered_priors)
+  focal <- names(source_specs)[vapply(source_specs, function(spec) {
+    !BayesTools::is.prior.point(spec$total_prior)
+  }, logical(1))]
+  stopifnot(length(focal) == 1L)
+  focal_spec <- source_specs[[focal]]
+  columns <- unique(c(.ordered_review_prior_columns(setup$compiled$mu$prior_list),
+    unlist(lapply(source_specs, `[[`, "total_names"), use.names = FALSE)))
+  samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  samples[, focal_spec$total_names[1L]] <- .3
+  if (interaction) samples[, focal_spec$total_names[2L]] <- rep(c(-.6, .8), 12L)
+  for (spec in source_specs) {
+    values <- BayesTools:::.bt_deterministic_node_evaluate(BayesTools:::.bt_dnode_ordered_coefficients(spec),
+      BayesTools:::.bt_deterministic_lookup(samples))
+    samples[, colnames(values)] <- values
+  }
+  object <- .ordered_review_attach_replay(setup, samples)
+  specs <- BayesTools::JAGS_ordered_parameter_spec(object$fit)
+  stopifnot(identical(specs[[focal]]$total_names, focal_spec$total_names),
+    all(vapply(specs[[focal]]$allocations, function(record) {
+      identical(record$spec$type, "fixed")
+    }, logical(1))))
+  design <- BayesTools::JAGS_formula_design(object$fit, parameter = "mu")
+  term <- which(paste0("mu_", design$model_terms) == focal)
+  stopifnot(length(term) == 1L)
+  term_columns <- which(design$assign == term - 1L)
+  X <- design$model_matrix[, term_columns, drop = FALSE]
+  stopifnot(ncol(X) == length(focal_spec$coefficient_names))
+  # Independent affine source design: the declared fixed .25/.75 increment
+  # allocation multiplies each total in its own declared coefficient slice.
+  coefficient_map <- matrix(0, ncol(X), length(focal_spec$total_names),
+    dimnames = list(focal_spec$coefficient_names, focal_spec$total_names))
+  for (slice in seq_along(focal_spec$total_names)) {
+    indices <- which(focal_spec$slice_index == slice)
+    stopifnot(length(indices) == 2L,
+      identical(as.numeric(focal_spec$coefficient_grid$f[indices]), c(1, 2)))
+    coefficient_map[indices, slice] <- c(.25, .75)
+  }
+  B <- X %*% coefficient_map
+  y <- object$data$outcome$yi
+  variance <- object$data$outcome$sei^2
+  list(object = object, setup = setup, samples = samples, specs = specs,
+    focal = focal, focal_spec = focal_spec, context = .iwmde_context(object),
+    X = X, B = B, y = y, variance = variance, coefficient_map = coefficient_map)
+}
+
+testthat::test_that("fixed allocations with multiple total slices do not certify constant contributions", {
+  multi <- .ordered_review_multi_fixture(TRUE)
+  selected <- vapply(1:2, function(slice) multi$focal_spec$coefficient_names[
+    which(multi$focal_spec$slice_index == slice)[1L]], character(1))
+  input <- list(type = "linear", weights = setNames(c(1, 1), selected))
+  target <- .iwmde_ordered_target_spec(multi$context, "cell", input)
+  states <- lapply(1:2, function(i) .iwmde_ordered_row_state(multi$context, target, i))
+  testthat::expect_false(.iwmde_ordered_constant_certificate(multi$context, target, states))
+  control <- .iwmde_density_control_resolve("qCMDE", list(samples = 24L), "ordinate")
+  raw <- .iwmde_ordered_log_terms(multi$context, target, states, .1, control)
+  # Independent Gaussian calculation from the actual stored compiler matrix
+  # and declared .25/.75 fixed allocation, with both source totals retained.
+  precision <- 1 + sum(multi$B[, 1L]^2 / multi$variance)
+  reference <- vapply(1:2, function(row) {
+    total_2 <- multi$samples[row, multi$focal_spec$total_names[2L]]
+    mean <- sum(multi$B[, 1L] * (multi$y - multi$B[, 2L] * total_2) / multi$variance) / precision
+    stats::dnorm((.1 - .25 * total_2) / .25, mean, sqrt(1 / precision), log = TRUE) - log(.25)
+  }, numeric(1))
+  expect_lte(max(abs(as.numeric(raw$log_terms) - reference)), 1e-12)
+  primitive <- .iwmde_ordered_target_spec(multi$context, multi$focal_spec$total_names[1L], NULL)
+  primitive_states <- lapply(1:2, function(i) .iwmde_ordered_row_state(multi$context, primitive, i))
+  primitive_raw <- .iwmde_ordered_log_terms(multi$context, primitive, primitive_states, .1, control)
+  expect_lte(abs(diff(as.numeric(primitive_raw$log_terms))), 1e-12)
+  expect_false(.iwmde_ordered_constant_certificate(multi$context, primitive, primitive_states))
+  for (method in c("qCMDE", "IWMDE")) {
+    result <- .ordered_review_complete(multi, input, method, .1, "ordinate")
+    testthat::expect_equal(as.numeric(result$y), .895435295614602, tolerance = 1e-12)
+    testthat::expect_gt(diff(range(as.numeric(result$scaled_contributions))), .1)
+    testthat::expect_false(identical(result$mcmc_uncertainty_scope, "declared_constant_conditional_contribution"))
+    testthat::expect_false(identical(as.numeric(result$mcse), 0))
+  }
+  single <- .ordered_review_multi_fixture(FALSE)
+  target <- .iwmde_ordered_target_spec(single$context, single$focal_spec$total_names[1L], NULL)
+  states <- lapply(1:2, function(i) .iwmde_ordered_row_state(single$context, target, i))
+  testthat::expect_true(.iwmde_ordered_constant_certificate(single$context, target, states))
+})

@@ -56,6 +56,10 @@ capabilities and a genuinely zero total retains its atom.
 Admitted share-supplier endpoints use the allocation group of every nonzero
 coefficient, even when their values differ, retaining within-group ratios and
 the exact matching declared affine offset. Signed interiors keep their own chart.
+An ordered constant-contribution certificate requires one declared total source
+slice as well as the existing fixed-allocation/no-other-randomness guards.
+Multiple slices retain ordinary uncertainty, including unavailable empirical
+zero-variance diagnostics; equal observed contributions do not certify constancy.
 Regular offsets with finite first but uncertified fourth reciprocal moments
 use a positive block. Normalize source and block rows separately, replace only
 the exact offset rows in the common contribution matrix, then aggregate and
