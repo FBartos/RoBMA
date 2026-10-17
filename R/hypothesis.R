@@ -26,6 +26,14 @@
 #' w(\theta_{i}\mid\xi_{i})\frac{q(\theta^{*},\xi_{i})}
 #' {q(\theta_{i},\xi_{i})},}
 #' where \eqn{w(\theta\mid\xi)} is a normalized, fitted conditional weight.
+#' For half-bounded targets, IWMDE fits the distance from the declared boundary
+#' and normalizes a Normal weight over its central 95 percent positive-tail
+#' interval, using the actual computed endpoints. A draw outside that compact
+#' interval contributes zero while retaining its original row and chain. The
+#' same compact family is used when conditional fitting is unavailable.
+#' Compact focal support does not certify a finite joint second moment or
+#' MCMC long-run variance; reported uncertainty is conditional on the fitted
+#' proposal and does not include uncertainty from learning it on the same draws.
 #' Spike-mixture and product-space results additionally retain the posterior
 #' mass of the continuous active branch. These estimators build on conditional
 #' marginal density estimation and importance-weighted marginal density

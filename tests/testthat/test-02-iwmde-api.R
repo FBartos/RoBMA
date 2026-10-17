@@ -1499,7 +1499,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "6")
-  expect_equal(provenance[["algorithm_version"]], "30")
+  expect_equal(provenance[["algorithm_version"]], "31")
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -2651,14 +2651,14 @@ test_that("IWMDE marginal-mean specs preserve child condition metadata", {
 
 test_that("restricted Chen fallback weights are proper densities", {
 
-  gamma_weight <- .iwmde_chen_gamma_log_weight_single(
+  compact_weight <- .iwmde_chen_compact_marginal_normal_log_weight(
     active_values = seq(.001, 3, length.out = 500),
     weight_values = c(.25, .30, .35, .40, .45, .50),
     support       = c(0, Inf)
   )
-  gamma_mass <- .iwmde_trapz(
+  compact_mass <- .iwmde_trapz(
     seq(.001, 3, length.out = 500),
-    exp(gamma_weight[["log_weight"]])
+    exp(compact_weight[["log_weight"]])
   )
 
   beta_grid <- seq(.001, .999, length.out = 500)
@@ -2669,9 +2669,9 @@ test_that("restricted Chen fallback weights are proper densities", {
   )
   beta_mass <- .iwmde_trapz(beta_grid, exp(beta_weight[["log_weight"]]))
 
-  expect_equal(gamma_weight[["method"]], "chen_gamma")
+  expect_equal(compact_weight[["method"]], "chen_compact_marginal_normal")
   expect_equal(beta_weight[["method"]], "chen_beta")
-  expect_equal(gamma_mass, 1, tolerance = .01)
+  expect_equal(compact_mass, 1, tolerance = .01)
   expect_equal(beta_mass, 1, tolerance = .01)
 })
 

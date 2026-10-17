@@ -2112,25 +2112,33 @@ test_that("IWMDE fails the target on a non-finite proposal density", {
 })
 
 
-test_that("restricted Chen fallback weights are moment matched", {
+test_that("restricted Chen fallback weights follow their normalized families", {
 
   p <- stats::ppoints(500)
 
   distance_fit <- stats::qgamma(p, shape = 18, scale = .04)
   active       <- seq(.02, 2, length.out = 100)
-  gamma_weight <- .iwmde_chen_gamma_log_weight_single(
+  compact_weight <- .iwmde_chen_compact_marginal_normal_log_weight(
     active_values = active,
     weight_values = distance_fit,
     support       = c(0, Inf)
   )
 
-  shape <- mean(distance_fit)^2 / stats::var(distance_fit)
-  rate  <- mean(distance_fit) / stats::var(distance_fit)
+  location <- mean(distance_fit)
+  scale <- stats::sd(distance_fit)
+  log_s0 <- stats::pnorm(0, location, scale, lower.tail = FALSE, log.p = TRUE)
+  lower <- stats::qnorm(log_s0 + log(.975), location, scale, lower.tail = FALSE, log.p = TRUE)
+  upper <- stats::qnorm(log_s0 + log(.025), location, scale, lower.tail = FALSE, log.p = TRUE)
+  # Moderate, nonsingular reference: direct CDF subtraction is independent of
+  # the shared stable tail normalizer used by the production compact weight.
+  mass <- stats::pnorm(upper, location, scale) - stats::pnorm(lower, location, scale)
+  expected <- stats::dnorm(active, location, scale, log = TRUE) - log(mass)
+  expected[active < lower | active > upper] <- -Inf
 
-  expect_equal(gamma_weight[["method"]], "chen_gamma")
+  expect_equal(compact_weight[["method"]], "chen_compact_marginal_normal")
   expect_equal(
-    gamma_weight[["log_weight"]],
-    stats::dgamma(active, shape = shape, rate = rate, log = TRUE),
+    compact_weight[["log_weight"]],
+    expected,
     tolerance = 1e-12
   )
 

@@ -946,7 +946,18 @@
       detail    = "the proposal log-density vector has an invalid length or type"
     )
   }
-  finite_weight <- is.finite(raw_log_weight)
+  certified_zero <- weight[["zero_support"]]
+  if (is.null(certified_zero)) {
+    certified_zero <- rep(FALSE, length(active_rows))
+  } else if (!is.logical(certified_zero) || !is.null(dim(certified_zero)) ||
+      length(certified_zero) != length(active_rows) || anyNA(certified_zero) ||
+      !identical(names(certified_zero), as.character(active_rows)) ||
+      any(certified_zero & (is.na(raw_log_weight) | raw_log_weight != -Inf))) {
+    .iwmde_stop_construction_failure("iwmde", parameter, active_rows,
+      "proposal-density construction", "the zero-support certificate has an invalid type, row alignment, or value")
+  }
+  finite_weight <- !is.na(raw_log_weight) & raw_log_weight != Inf &
+    (is.finite(raw_log_weight) | (raw_log_weight == -Inf & certified_zero))
   if (any(!finite_weight)) {
     .iwmde_stop_construction_failure(
       estimator = "iwmde",

@@ -136,10 +136,11 @@ test_that("a row-varying target is partitioned by the pattern of finite bounds, 
       calls[[length(calls) + 1L]] <<- list(values = active_values, support = support)
       list(log_weight = rep(0, length(active_values)), method = "bounded")
     },
-    .iwmde_chen_gamma_log_weight_single = function(active_values, weight_values,
-                                                   support) {
+    .iwmde_chen_compact_conditional_normal_log_weight = function(
+        context, parameter, parameter_spec, active_rows, active_values,
+        weight_rows, weight_values, support) {
       calls[[length(calls) + 1L]] <<- list(values = active_values, support = support)
-      list(log_weight = rep(0, length(active_values)), method = "gamma")
+      list(log_weight = rep(0, length(active_values)), method = "half_bounded")
     },
     .package = "RoBMA"
   )
@@ -294,4 +295,82 @@ test_that("IWMDE of a difference of factor coefficients succeeds and agrees with
   diagnostics <- density_diagnostics(iwmde)
   expect_identical(diagnostics[["estimator"]], "iwmde")
   expect_lt(diagnostics[["relative_mcse"]], .01)
+})
+
+
+# Real public constructor/compiler/fit contract, with explicitly synthetic
+# source rows; these tests verify the proposal seam, not fitted BF calibration.
+.zero_i <- seq_len(80L)
+.zero_object <- .chen_factor_object(cbind(
+  .05 + .1 * stats::qnorm((.5 + .zero_i * 0.7548776662466927) %% 1),
+  .17 + .1 * stats::qnorm((.5 + .zero_i * 0.5698402909980532) %% 1)))
+.zero_context <- .iwmde_context(.zero_object)
+.zero_parameter <- colnames(.zero_context[["posterior_samples"]])[[1L]]
+.zero_plan <- .iwmde_plan(.zero_context, .zero_parameter, "IWMDE", list(samples = 40L),
+  outputs = "ordinate", values = .1, parameter_spec = list(type = "primitive"))
+stopifnot(identical(.zero_plan[["status"]], "ok"))
+.zero_execution <- .iwmde_plan_row_execution(.zero_context, .zero_plan)
+.chen_execute_zero_proposal <- function(proposal) {
+  execution <- .zero_execution
+  execution$proposal_weight <- proposal
+  .iwmde_execute_plan_estimator(.zero_context, .zero_plan, "ordinate", execution)
+}
+
+testthat::test_that("certified zero weights retain the exact row population and denominator", {
+  proposal <- .zero_execution$proposal_weight
+  n <- length(proposal$log_weight)
+  mask <- setNames(seq_len(n) %% 5L == 0L, as.character(.zero_execution$active_rows))
+  proposal$log_weight[mask] <- -Inf
+  proposal$zero_support <- mask
+  result <- tryCatch(.chen_execute_zero_proposal(proposal), error = identity)
+  testthat::expect_false(inherits(result, "error"))
+  if (!inherits(result, "error")) {
+    q <- .iwmde_log_q_grid(.zero_context, .zero_parameter, .1,
+      .zero_execution$row_states, .zero_plan$replacement)
+    baseline <- vapply(.zero_execution$row_states, `[[`, numeric(1), "baseline_log_q")
+    expected <- .zero_plan$rows$active_mass * sum(exp(as.numeric(q) - baseline + proposal$log_weight)) / n
+    testthat::expect_lte(abs(result$y - expected), 64 * .Machine$double.eps * max(1, expected))
+    testthat::expect_identical(result$n_candidate_rows, as.integer(n))
+    testthat::expect_identical(result$n_evaluated_rows, as.integer(n))
+    testthat::expect_identical(as.integer(result$finite_terms), as.integer(sum(!mask)))
+    testthat::expect_equal(result$sampling_fraction, n / length(.zero_execution$sampling_population_rows))
+    testthat::expect_null(result$zero_support)
+    testthat::expect_false(any(vapply(result$weight_partitions, function(partition) "zero_support" %in% names(partition), logical(1))))
+  }
+})
+
+testthat::test_that("malformed or contradictory zero certificates fail before density evaluation", {
+  proposal <- .zero_execution$proposal_weight
+  n <- length(proposal$log_weight)
+  valid <- setNames(rep(FALSE, n), as.character(.zero_execution$active_rows))
+  malformed <- list(as.integer(valid), valid[-1L], replace(valid, 1L, NA),
+    setNames(valid, rev(names(valid))), unname(valid), replace(valid, 1L, TRUE))
+  for (mask in malformed) {
+    weight <- proposal
+    weight$zero_support <- mask
+    error <- tryCatch(.chen_execute_zero_proposal(weight), error = identity)
+    testthat::expect_s3_class(error, "iwmde_construction_error")
+  }
+  for (value in c(-Inf, Inf, NA_real_, NaN)) {
+    weight <- proposal
+    weight$log_weight[1L] <- value
+    weight$zero_support <- valid
+    testthat::expect_error(.chen_execute_zero_proposal(weight), class = "iwmde_construction_error")
+  }
+})
+
+testthat::test_that("an all-zero certified proposal remains a diagnostic failure", {
+  proposal <- .zero_execution$proposal_weight
+  proposal$log_weight[] <- -Inf
+  proposal$zero_support <- setNames(rep(TRUE, length(proposal$log_weight)), as.character(.zero_execution$active_rows))
+  result <- tryCatch(.chen_execute_zero_proposal(proposal), error = identity)
+  testthat::expect_false(inherits(result, "iwmde_construction_error"))
+  if (!inherits(result, "error")) {
+    testthat::expect_identical(result$n_evaluated_rows, .zero_execution$n_candidate_rows)
+    testthat::expect_identical(as.numeric(result$y), 0)
+    testthat::expect_false(any(result$structural_zero))
+    reason <- .iwmde_posterior_ordinate_bf_failure_reason(
+      list(ordinate = result$y[1L], diagnostics = list(estimator = "iwmde")))
+    testthat::expect_identical(reason, "posterior ordinate is zero or non-finite")
+  }
 })

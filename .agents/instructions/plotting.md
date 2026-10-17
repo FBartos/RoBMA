@@ -58,6 +58,12 @@ exact offset bits, per-row 0.025 numerical gate and separate atom measure.
 Unknown suppliers or missing population precision certificates remain explicit
 point capabilities; density curves omit only classified exact unavailable
 points and retain their reasons. Keep log/scaled contributions under underflow.
+Ordinary IWMDE half-bounded weights fit natural distance on declared row
+supports and normalize compact Normal intervals by their actual endpoints.
+Transient row-aligned zero certificates admit only valid out-of-proposal-support
+draws; preserve their original denominator, chain and conditioning population.
+Finite closed-support omega conditioners retain raw endpoints. These fitted
+proposals do not certify global second moments or proposal-learning uncertainty.
 Block capabilities must match the invariant diagonal Gaussian geometry and its
 literal Normal/Gamma prior scope. Finite-upper Gamma share inverse suppliers
 with no validated route are classified before denominator work. Unselected,

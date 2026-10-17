@@ -185,6 +185,7 @@
     weight_keys  <- .iwmde_chen_support_keys(weight_supports)
   }
   out          <- rep(-Inf, length(active_values))
+  zero_support <- stats::setNames(rep(FALSE, length(active_values)), as.character(active_rows))
   methods      <- character()
   partitions   <- list()
 
@@ -246,15 +247,28 @@
         fallback_from = "chen_logit_conditional_normal"
       )
     } else {
-      weight <- .iwmde_chen_gamma_log_weight_single(
-        active_values = row_active,
-        weight_values = row_weight,
-        support       = row_support
+      weight <- .iwmde_chen_try_weight(
+        expr = .iwmde_chen_compact_conditional_normal_log_weight(
+          context, parameter, parameter_spec, active_rows[active_index],
+          row_active, weight_rows[weight_index], row_weight, row_support
+        ),
+        fallback = .iwmde_chen_compact_marginal_normal_log_weight(
+          row_active, row_weight, row_support
+        ),
+        fallback_from = "chen_compact_conditional_normal"
       )
     }
     weight <- .iwmde_chen_weight_fallback_fields(weight)
 
     out[active_index] <- weight[["log_weight"]] + log_jacobian
+    certified <- weight[["zero_support"]]
+    if (!is.null(certified)) {
+      if (!is.logical(certified) || !is.null(dim(certified)) ||
+          length(certified) != length(active_index) || anyNA(certified)) {
+        stop("Internal IWMDE zero-support certificate is inconsistent.", call. = FALSE)
+      }
+      zero_support[active_index] <- certified
+    }
     methods <- c(methods, weight[["method"]])
     partitions[[length(partitions) + 1L]] <- list(
       key             = key,
@@ -272,6 +286,7 @@
 
   return(list(
     log_weight       = out,
+    zero_support     = zero_support,
     method           = .iwmde_chen_method_label(methods, "chen"),
     fallback_from    = fallback_summary[["from"]],
     fallback_reason  = fallback_summary[["reason"]],
@@ -438,50 +453,79 @@
 }
 
 
-.iwmde_chen_gamma_log_weight_single <- function(active_values, weight_values,
-                                                support) {
+.iwmde_chen_support_distance <- function(values, support) {
 
-  out <- rep(-Inf, length(active_values))
-  if (is.finite(support[1])) {
-    distance_fit  <- weight_values - support[1]
-    distance_eval <- active_values - support[1]
-  } else if (is.finite(support[2])) {
-    distance_fit  <- support[2] - weight_values
-    distance_eval <- support[2] - active_values
-  } else {
-    return(list(log_weight = out, method = "chen_gamma"))
+  if (is.finite(support[[1L]])) values - support[[1L]] else support[[2L]] - values
+}
+
+
+# Endpoints and membership stay in r = distance / focal_scale coordinates.
+# The actual rounded endpoints determine the normalizing mass, not nominal .95.
+.iwmde_chen_compact_normal_log_weight <- function(distance, mean, sd,
+                                                 focal_scale, method) {
+
+  n <- length(distance)
+  mean <- rep_len(mean, n)
+  sd <- rep_len(sd, n)
+  out <- rep(-Inf, n)
+  certified <- rep(FALSE, n)
+  if (!is.numeric(focal_scale) || length(focal_scale) != 1L ||
+      !is.finite(focal_scale) || focal_scale <= 0) {
+    return(list(log_weight = out, zero_support = certified, method = method))
   }
+  valid <- is.finite(mean) & is.finite(sd) & sd > 0
+  log_s0 <- rep(NA_real_, n)
+  log_s0[valid] <- stats::pnorm(0, mean[valid], sd[valid], lower.tail = FALSE, log.p = TRUE)
+  valid <- valid & is.finite(log_s0)
+  lower <- upper <- rep(NA_real_, n)
+  lower[valid] <- stats::qnorm(log_s0[valid] + log(.975), mean[valid], sd[valid], lower.tail = FALSE, log.p = TRUE)
+  upper[valid] <- stats::qnorm(log_s0[valid] + log(.025), mean[valid], sd[valid], lower.tail = FALSE, log.p = TRUE)
+  valid <- valid & is.finite(lower) & is.finite(upper) & lower > 0 & lower < upper
+  log_mass <- rep(NA_real_, n)
+  log_mass[valid] <- .iwmde_qcmde_log_normal_mass(lower[valid], upper[valid], mean[valid], sd[valid])
+  valid <- valid & is.finite(log_mass) & log_mass <= 0
+  r <- distance / focal_scale
+  evaluated <- valid & is.finite(distance) & distance >= 0 & !is.na(r)
+  certified[evaluated] <- r[evaluated] < lower[evaluated] | r[evaluated] > upper[evaluated]
+  inside <- evaluated & !certified
+  out[inside] <- stats::dnorm(r[inside], mean[inside], sd[inside], log = TRUE) -
+    log_mass[inside] - log(focal_scale)
+  list(log_weight = out, zero_support = certified, method = method)
+}
 
-  distance_fit <- distance_fit[
-    is.finite(distance_fit) & distance_fit > 0
-  ]
-  keep <- is.finite(distance_eval) & distance_eval > 0
-  if (length(distance_fit) < 3L || !any(keep)) {
-    return(list(log_weight = out, method = "chen_gamma"))
+
+.iwmde_chen_compact_marginal_normal_log_weight <- function(active_values,
+                                                          weight_values,
+                                                          support) {
+
+  distance_fit <- .iwmde_chen_support_distance(weight_values, support)
+  distance_eval <- .iwmde_chen_support_distance(active_values, support)
+  method <- "chen_compact_marginal_normal"
+  if (length(distance_fit) < 3L || any(!is.finite(distance_fit)) || any(distance_fit <= 0)) {
+    return(list(log_weight = rep(-Inf, length(active_values)),
+      zero_support = rep(FALSE, length(active_values)), method = method))
   }
+  focal_scale <- max(abs(distance_fit))
+  scaled <- distance_fit / focal_scale
+  .iwmde_chen_compact_normal_log_weight(distance_eval, mean(scaled), stats::sd(scaled), focal_scale, method)
+}
 
-  location <- mean(distance_fit)
-  variance <- stats::var(distance_fit)
-  if (!is.finite(location) || !is.finite(variance) ||
-      location <= 0 || variance <= 0) {
-    return(list(log_weight = out, method = "chen_gamma"))
+
+.iwmde_chen_compact_conditional_normal_log_weight <- function(context, parameter,
+    parameter_spec, active_rows, active_values, weight_rows, weight_values, support) {
+
+  conditioning <- .iwmde_chen_conditioning_matrix(context, parameter, parameter_spec,
+    active_rows, weight_rows)
+  if (!ncol(conditioning[["fit"]])) {
+    return(.iwmde_chen_compact_marginal_normal_log_weight(active_values, weight_values, support))
   }
-
-  shape <- (location / sqrt(variance))^2
-  rate  <- location / variance
-  if (!is.finite(shape) || !is.finite(rate) ||
-      shape <= 0 || rate <= 0) {
-    return(list(log_weight = out, method = "chen_gamma"))
+  distance_fit <- .iwmde_chen_support_distance(weight_values, support)
+  if (any(!is.finite(distance_fit)) || any(distance_fit <= 0)) {
+    .iwmde_chen_conditional_stop("conditioning fit rows lie outside the declared positive distance support")
   }
-
-  out[keep] <- stats::dgamma(
-    distance_eval[keep],
-    shape = shape,
-    rate  = rate,
-    log   = TRUE
-  )
-
-  return(list(log_weight = out, method = "chen_gamma"))
+  gaussian <- .iwmde_chen_conditional_gaussian(distance_fit, conditioning[["fit"]], conditioning[["eval"]])
+  .iwmde_chen_compact_normal_log_weight(.iwmde_chen_support_distance(active_values, support),
+    gaussian[["means"]], gaussian[["sd"]], gaussian[["focal_scale"]], "chen_compact_conditional_normal")
 }
 
 
