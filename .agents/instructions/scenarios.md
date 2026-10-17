@@ -235,6 +235,9 @@ tightening precision. Output updates, regeneration, and refitting do not imply
 consent to a slower baseline. Compare against the old baseline before applying
 automatic or explicit updates. Record R version and platform as informational
 provenance without automatically invalidating the baseline.
+Per-call and mean regression comparisons use the baseline captured at
+`scenario_start()`, even when direct execution has already maintained the best
+or explicitly accepted measurements on disk during the run.
 Only a completed run with no failed, errored, skipped, or interrupted tests may
 replace the entire timing baseline. Runs allowed to continue after failures
 merge their successful measurements and retain unmeasured rows; strict failed

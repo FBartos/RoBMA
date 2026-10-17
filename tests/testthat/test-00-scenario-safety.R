@@ -220,3 +220,51 @@ test_that("strict failure preserves baseline and complete success may replace it
   expect_equal(partial[["baseline"]][["elapsed"]][
     partial[["baseline"]][["name"]] == "obsolete"], 8)
 })
+
+
+test_that("direct timing warnings compare with the immutable run-start baseline", {
+
+  helper_env <- environment(scenario_start)
+  old_interactive <- get(".scenario_is_interactive", helper_env)
+  on.exit(assign(".scenario_is_interactive", old_interactive, helper_env),
+          add = TRUE)
+  assign(".scenario_is_interactive", function() TRUE, helper_env)
+  withr::local_envvar(ROBMA_SCENARIO_RUNNER = NA_character_)
+  for (case in c("accepted", "best", "unchanged")) {
+    root <- tempfile("robma-scenario-baseline-")
+    dir.create(root)
+    on.exit(unlink(root, recursive = TRUE), add = TRUE)
+    scenario_start("unit", root = root, show_output = FALSE)
+    .scenario_register_timing("text", "a", 10)
+    .scenario_register_timing("text", "b", 10)
+    scenario_start("unit", root = root, show_output = FALSE,
+                   update_timings = case == "accepted")
+    current <- switch(case, accepted = c(12, 12), best = c(8, 14),
+                      unchanged = c(10, 10))
+    warnings <- character()
+    withCallingHandlers({
+      .scenario_register_timing("text", "a", current[[1L]])
+      .scenario_register_timing("text", "b", current[[2L]])
+    }, warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+    issues <- .scenario_timing_issues(final = TRUE)
+    average <- issues[["text"]][issues[["id"]] == "average"]
+    if (case == "accepted") {
+      expect_length(average, 1L)
+      expect_match(average, "average timing regression: 20%", fixed = TRUE)
+      expect_true(any(grepl("average timing regression: 20%", warnings,
+                           fixed = TRUE)))
+    } else {
+      expect_length(average, 0L)
+      expect_false(any(grepl("average timing regression", warnings, fixed = TRUE)))
+    }
+    baseline <- .scenario_read_timings(file.path(root, "timings/unit.tsv"))
+    expect_equal(baseline[["elapsed"]],
+                 switch(case, accepted = c(12, 12), best = c(8, 10),
+                        unchanged = c(10, 10)))
+    last <- .scenario_read_timings(file.path(root, "timings/unit.new.tsv"))
+    expect_equal(last[["elapsed"]], current)
+  }
+})

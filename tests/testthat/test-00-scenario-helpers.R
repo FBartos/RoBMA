@@ -424,6 +424,7 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
   last_run_path <- file.path(root, "timings", "unit.new.tsv")
   expect_equal(.scenario_read_timings(timing_path)[["elapsed"]], 10)
 
+  scenario_start("unit", root = root)
   expect_warning(
     .scenario_register_timing("text", "summary", 12),
     "average timing regression: 20%"

@@ -180,6 +180,9 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
     .scenario_read_timings(.scenario_timing_paths()[["expected"]]),
     envir = .scenario_state
   )
+  assign("timing_maintained",
+         get("timing_baseline", envir = .scenario_state, inherits = FALSE),
+         envir = .scenario_state)
   assign("timings", .scenario_empty_timings(), envir = .scenario_state)
   assign("cached_fit_names", character(), envir = .scenario_state)
   assign("timing_warned", character(), envir = .scenario_state)
@@ -1197,9 +1200,11 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   config <- .scenario_config()
   if (config[["direct"]]) {
     baseline <- get(
-      "timing_baseline", envir = .scenario_state, inherits = FALSE
+      "timing_maintained", envir = .scenario_state, inherits = FALSE
     )
-    expected_key <- .scenario_expected_timing_keys(baseline)
+    expected_key <- .scenario_expected_timing_keys(get(
+      "timing_baseline", envir = .scenario_state, inherits = FALSE
+    ))
     complete <- length(expected_key) > 0L &&
       setequal(.scenario_timing_key(current), expected_key)
     .scenario_warn_timing_issues(.scenario_timing_issues(final = complete))
@@ -1211,7 +1216,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     )
     if (!identical(updated, baseline)) {
       .scenario_write_timings(updated, paths[["expected"]])
-      assign("timing_baseline", updated, envir = .scenario_state)
+      assign("timing_maintained", updated, envir = .scenario_state)
     }
     .scenario_write_timings(current, paths[["last_run"]])
   }
@@ -1237,7 +1242,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   .scenario_warn_timing_issues(issues)
 
   baseline <- get(
-    "timing_baseline", envir = .scenario_state, inherits = FALSE
+    "timing_maintained", envir = .scenario_state, inherits = FALSE
   )
   if (allow_update && nrow(current) > 0L) {
     existed <- file.exists(paths[["expected"]])
@@ -1254,7 +1259,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     }
     if (!identical(updated, baseline)) {
       .scenario_write_timings(updated, paths[["expected"]])
-      assign("timing_baseline", updated, envir = .scenario_state)
+      assign("timing_maintained", updated, envir = .scenario_state)
       message(
         if (existed) "Updated" else "Added",
         " scenario timings: ", paths[["expected"]]
