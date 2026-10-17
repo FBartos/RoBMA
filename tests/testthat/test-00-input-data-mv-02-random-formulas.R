@@ -1989,3 +1989,84 @@ test_that("random-effect structure preserves every represented design change", {
     .marginalized_random_effect_row_multiplier_varying(multiplier_term)
   )
 })
+
+
+test_that("random factor levels and actual AR1 covariance survive row selection", {
+
+  dat <- data.frame(
+    row_id = 1:6, yi = seq(0.1, 0.6, by = 0.1),
+    time = ordered(c(1, 2, 4, 1, 2, 4), levels = 1:4),
+    study = factor(rep(c("a", "b"), each = 3), levels = c("a", "b", "unused")),
+    fixed = factor(rep(c("u", "v"), 3), levels = c("u", "v", "unused"))
+  )
+  extra <- rbind(dat, transform(dat[1L, ], row_id = 7L, yi = NA_real_))
+  construct <- function(mode, shared = FALSE) {
+    selected <- if (mode == "complete") dat else extra
+    args <- list(
+      yi = quote(yi), V = diag(0.04, nrow(selected)),
+      random = ~ ar1(time | study), data = selected, measure = "GEN",
+      prior_effect = BayesTools::prior("normal", list(0, 1)),
+      prior_heterogeneity = BayesTools::prior("point", list(1)),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    )
+    if (mode == "subset") args$subset <- quote(row_id <= 6)
+    if (shared) {
+      args$mods <- ~ time + fixed
+      args$scale <- ~ time
+    }
+    do.call(brma.mv, args)
+  }
+  expect_silent(complete <- construct("complete"))
+  expect_warning(na <- construct("na"), "1 observation(s) removed due to missing values.", fixed = TRUE)
+  expect_silent(subset <- construct("subset"))
+  compiled <- lapply(list(complete, na, subset), function(object) {
+    args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+    BayesTools::JAGS_formula(
+      formula = args$formula_list$mu, parameter = "mu",
+      data = args$formula_data_list$mu, prior_list = args$formula_prior_list$mu,
+      formula_scale = args$formula_scale_list$mu,
+      prior_random = args$formula_random_prior_list$mu,
+      random_effects_compile = args$formula_random_effects_compile_list$mu
+    )
+  })
+  oracle <- 0.5 ^ abs(outer(c(1, 2, 4), c(1, 2, 4), `-`))
+  oracle <- as.matrix(Matrix::bdiag(oracle, oracle))
+  for (i in seq_along(compiled)) {
+    design <- compiled[[i]][["formula_design"]]
+    term <- design[["random_effects"]][[1L]]
+    expect_identical(term[["structured_index"]][["levels"]], as.character(1:4))
+    expect_identical(term[["group_levels"]], levels(dat$study))
+    expect_identical(term[["group_map"]], rep(1:2, each = 3))
+    expect_identical(colnames(term[["model_matrix"]]), paste0("time", 1:4))
+    expect_equal(unname(term[["model_matrix"]][, 3L]), rep(0, 6))
+    states <- matrix(1, 1, 2, dimnames = list(NULL, c(
+      unique(term[["sd_parameter_names"]]), term[["correlation"]][["sample_name"]]
+    )))
+    states[, term[["correlation"]][["sample_name"]]] <- 0.5
+    covariance <- BayesTools::random_effects_marginal_vcov(
+      design, posterior_samples = states, prior_list = compiled[[i]][["prior_list"]]
+    )
+    expect_equal(unname(covariance[["samples"]][1L, , ]), oracle, tolerance = 1e-14)
+    expect_equal(list(complete, na, subset)[[i]][["data"]][["outcome"]][["yi"]], dat$yi)
+  }
+  expect_identical(compiled[[1L]]$formula_design$random_effects[[1L]]$structured_index,
+    compiled[[2L]]$formula_design$random_effects[[1L]]$structured_index)
+  expect_identical(compiled[[1L]]$formula_design$random_effects[[1L]]$model_matrix,
+    compiled[[3L]]$formula_design$random_effects[[1L]]$model_matrix)
+  for (mode in c("na", "subset")) {
+    if (mode == "na") {
+      expect_warning(shared <- construct(mode, TRUE), "removed due to missing values")
+    } else {
+      expect_silent(shared <- construct(mode, TRUE))
+    }
+    prepared <- shared[["data"]]
+    for (frame in prepared[c("location", "mods", "scale")]) {
+      expect_identical(levels(frame[["time"]]), levels(dat$time))
+      expect_identical(class(frame[["time"]]), class(dat$time))
+      expect_identical(as.character(frame[["time"]]), as.character(dat$time))
+      expect_s3_class(attr(frame, "formula"), "formula")
+    }
+    expect_identical(levels(prepared[["mods"]][["fixed"]]), c("u", "v"))
+    expect_identical(prepared[["location"]][["time"]], prepared[["scale"]][["time"]])
+  }
+})

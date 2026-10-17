@@ -332,6 +332,9 @@ NULL
     stop("The 'scale' argument requires 'random' in multivariate models.", call. = FALSE)
   }
 
+  random_factor_columns <- names(data_random[["data"]])[
+    vapply(data_random[["data"]], is.factor, logical(1))
+  ]
   data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
   data_scale <- .check_and_list_data.scale_coerce_character_predictors(data_scale)
   if (!is.null(data_random[["data"]])) {
@@ -349,10 +352,10 @@ NULL
 
     # Apply subsetting to all data frames
     data_outcome <- .check_and_list_data.subset(data_outcome, subset)
-    data_mods    <- .check_and_list_data.subset(data_mods, subset)
-    data_scale   <- .check_and_list_data.scale_subset(data_scale, subset)
+    data_mods    <- .check_and_list_data.subset(data_mods, subset, random_factor_columns)
+    data_scale   <- .check_and_list_data.scale_subset(data_scale, subset, random_factor_columns)
     if (!is.null(data_random[["data"]])) {
-      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], subset)
+      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], subset, random_factor_columns)
     }
   }
 
@@ -390,10 +393,10 @@ NULL
     keep_rows[current_rows] <- keep_after_subset
 
     data_outcome <- .check_and_list_data.subset(data_outcome, keep_after_subset)
-    data_mods    <- .check_and_list_data.subset(data_mods, keep_after_subset)
-    data_scale   <- .check_and_list_data.scale_subset(data_scale, keep_after_subset)
+    data_mods    <- .check_and_list_data.subset(data_mods, keep_after_subset, random_factor_columns)
+    data_scale   <- .check_and_list_data.scale_subset(data_scale, keep_after_subset, random_factor_columns)
     if (!is.null(data_random[["data"]])) {
-      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], keep_after_subset)
+      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], keep_after_subset, random_factor_columns)
     }
   }
 
@@ -1834,7 +1837,7 @@ NULL
 # @param subset A logical vector indicating which rows to keep
 #
 # @return The subsetted data.frame (or NULL if input was NULL)
-.check_and_list_data.subset <- function(df, subset) {
+.check_and_list_data.subset <- function(df, subset, preserve_factor_columns = character()) {
 
   if (is.null(df))
     return(NULL)
@@ -1849,8 +1852,8 @@ NULL
   # Apply subset
   df <- df[subset, , drop = FALSE]
 
-  # Drop unused factor levels
-  df <- droplevels(df)
+  # Declared random-factor levels define covariance indices and grouping levels.
+  df <- droplevels(df, except = which(names(df) %in% preserve_factor_columns))
 
   # Reset row names
   rownames(df) <- NULL
@@ -1870,15 +1873,17 @@ NULL
   return(df)
 }
 
-.check_and_list_data.scale_subset <- function(data_scale, subset) {
+.check_and_list_data.scale_subset <- function(data_scale, subset,
+                                              preserve_factor_columns = character()) {
 
   if (.check_and_list_data.is_scale_components(data_scale)) {
-    data_scale <- lapply(data_scale, .check_and_list_data.subset, subset = subset)
+    data_scale <- lapply(data_scale, .check_and_list_data.subset, subset = subset,
+      preserve_factor_columns = preserve_factor_columns)
     class(data_scale) <- c("RoBMA_scale_components", "list")
     return(data_scale)
   }
 
-  .check_and_list_data.subset(data_scale, subset)
+  .check_and_list_data.subset(data_scale, subset, preserve_factor_columns)
 }
 
 
