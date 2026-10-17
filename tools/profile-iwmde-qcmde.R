@@ -29,7 +29,7 @@ source(testthat::test_path("common-functions.R"))
       density_method  = density_method,
       density_control = list(
         n_points             = n_points,
-        max_samples          = max_samples,
+        samples              = max_samples,
         normalization_points = normalization_points,
         normalization_prob   = .9999,
         display_grid         = "ordinate"
