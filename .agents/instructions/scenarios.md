@@ -274,8 +274,11 @@ review.
 scenario, so scenario workloads can serve as a performance benchmark during
 development. It binds fits and every fit-dependent assignment lazily and times
 that preparation separately, loads the release DLL, and writes one `results.tsv`
-row per artifact with wall time, peak memory and an md5 fingerprint of the
+row per artifact with wall time, R heap maxima and an md5 fingerprint of the
 printed text or the rendered SVG. It writes no timing baseline and no snapshot:
+The `memory_gb` field sums the maximum-used MB of R's node and vector heaps;
+their maxima need not be simultaneous. It is neither process RSS nor total
+process peak memory.
 
 ```text
 Rscript tools/bench-scenario.R bem2011 --only='^zplot$' --out=../.work/tmp/<task>/run1

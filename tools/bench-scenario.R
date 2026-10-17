@@ -13,7 +13,7 @@
 # separately (prep_elapsed) and excluded from the artifact's elapsed time.
 #
 # The run directory collects `results.tsv` (one row per evaluated artifact: wall
-# time, peak memory, md5 fingerprint of the printed text or the rendered SVG),
+# time, sum of R heap maxima, md5 fingerprint of printed text or rendered SVG),
 # the artifact files themselves and, with --profile, an `Rprof` file plus a
 # `.prof.txt` summary. Every per-artifact file is prefixed `<scenario>--`.
 # This runner never writes timing baselines or testthat snapshots.
@@ -194,7 +194,7 @@ bench_run <- function(type, name, expr, env) {
     writeLines(txt, paste0(file_stub, ".txt"))
     fingerprint <- unname(tools::md5sum(paste0(file_stub, ".txt")))
   }
-  memory_gb <- sum(gc()[, 6L]) / 1024
+  memory_gb <- get(".scenario_memory_peak_gb", bench_env)()
   if (profile && file.exists(prof_file)) {
     summary <- tryCatch(utils::summaryRprof(prof_file), error = function(e) NULL)
     if (!is.null(summary)) {

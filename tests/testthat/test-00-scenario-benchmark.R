@@ -138,6 +138,43 @@ test_that("benchmark plots use the canonical scenario SVG renderer", {
 })
 
 
+test_that("benchmark memory reads MB maxima in ordinary and finite-heap layouts", {
+
+  root <- .scenario_benchmark_fixture('scenario_text("chosen", print(7))')
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  env <- new.env(parent = globalenv())
+  source(file.path(root, "tests/scenarios/helper-scenarios.R"), local = env)
+  find_memory <- function(expr) {
+    if (!is.call(expr)) return(NULL)
+    if (identical(expr[[1L]], as.name("<-")) &&
+        identical(expr[[2L]], as.name("memory_gb"))) return(expr[[3L]])
+    for (part in as.list(expr)) {
+      found <- find_memory(part)
+      if (!is.null(found)) return(found)
+    }
+    return(NULL)
+  }
+  source <- parse(file.path(root, "tools/bench-scenario.R"), keep.source = FALSE)
+  memory_expr <- find_memory(as.call(c(list(as.name("{")), as.list(source))))
+  ordinary <- matrix(c(10, 100, 1, 10, 20, 200, 2, 20, 40, 400, 4, 40), nrow = 2L,
+                     dimnames = list(c("Ncells", "Vcells"),
+                                     c("used", "(Mb)", "gc trigger", "(Mb)", "max used", "(Mb)")))
+  finite <- cbind(ordinary[, 1:4], `limit (Mb)` = c(NA, 4096), ordinary[, 5:6])
+  for (layout in list(ordinary, finite)) {
+    env$gc <- function(...) layout
+    evaluation <- list2env(list(gc = env$gc, bench_env = env), parent = globalenv())
+    reference <- sum(layout[, match("max used", colnames(layout)) + 1L]) / 1024
+    expect_equal(eval(memory_expr, evaluation), reference)
+  }
+  run <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(run[["out"]], recursive = TRUE), add = TRUE)
+  expect_equal(run[["status"]], 0L)
+  result <- read.delim(file.path(run[["out"]], "results.tsv"))
+  # This tiny real driver call cannot have thousands of GB of R heap maxima.
+  expect_true(is.finite(result$memory_gb) && result$memory_gb >= 0 && result$memory_gb < 1)
+})
+
+
 test_that("Bem-shaped two-list preparation retains real named outputs and loop bindings", {
 
   root <- .scenario_benchmark_fixture(c(
