@@ -1,5 +1,40 @@
 context("Prior input handling for BMA product-space constructors")
 
+test_that("sole ordered term components retain their total-owned mixture and bind", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4), f = ordered(c("a", "b", "c", "a")))
+  normal <- BayesTools::prior("normal", list(0, 1), prior_weights = 3)
+  zero <- BayesTools::prior("point", list(0), prior_weights = 1)
+  priors <- list(
+    ordinary = prior_ordered(total = normal, allocation = c(0.25, 0.75), id = "retained"),
+    mixed = prior_ordered(total = BayesTools::prior_mixture(list(zero, normal), is_null = c(TRUE, FALSE)),
+      allocation = c(0.25, 0.75), id = "retained")
+  )
+  for (constructor in list(BMA, BMA.norm, RoBMA)) for (prior in priors) {
+    expect_silent(object <- constructor(
+      yi = yi, sei = sei, mods = ~ f, data = dat, measure = "SMD",
+      prior_mods = list(f = prior), prior_mods_null = list(f = NULL), only_priors = TRUE, silent = TRUE
+    ))
+    expect_s3_class(object[["priors"]][["mods"]][["f"]], "prior.ordered")
+    expect_false(BayesTools::is.prior.mixture(object[["priors"]][["mods"]][["f"]]))
+    args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+    expect_silent(compiled <- BayesTools::JAGS_formula(
+      formula = args$formula_list$mu, parameter = "mu", data = args$formula_data_list$mu,
+      prior_list = args$formula_prior_list$mu, formula_scale = args$formula_scale_list$mu
+    ))
+    bound <- compiled[["prior_list"]][["mu_f"]]
+    for (field in c("total", "allocation", "contrast", "id", "prior_weights")) {
+      expect_identical(bound[[field]], prior[[field]])
+    }
+    expect_identical(attr(bound[["total"]], "components"), attr(prior[["total"]], "components"))
+    expect_identical(attr(bound[["total"]], "prior_weights"), attr(prior[["total"]], "prior_weights"))
+    expect_error(constructor(
+      yi = yi, sei = sei, mods = ~ f, data = dat, measure = "SMD",
+      prior_mods = list(f = prior), only_priors = TRUE, silent = TRUE
+    ), "prior_ordered(total = ...)", class = "RoBMA_prior_error", fixed = TRUE)
+  }
+})
+
 skip_on_cran()
 
 .get_is_null <- function(prior) {

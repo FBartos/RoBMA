@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Model-averaging constructors bind sole ordered term containers directly and report the total-owned mixture remedy before a separate term mixture is built.
 - User formula-default conversions run only when consumed, retain factor/ordered containers, and convert supported scalar fallbacks without their vector dimension.
 - New-grid regression prediction and sampling bands consistently refuse marginalized known-R fitted-layout multipliers; mean and credible-interval plots remain available.
 - Explicit sampled mean-centered random effects remain sampled when automatic estimate-level marginalization is considered.

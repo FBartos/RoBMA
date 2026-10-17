@@ -727,12 +727,37 @@
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
     rescale_priors = rescale_priors, formula_parameter = formula_parameter)
 
+  refuse_ordered_mixture <- function(term, omit_null) {
+    argument <- paste0("prior_", parameter, if (!omit_null) "_null" else "")
+    omission <- paste0("prior_", parameter, if (omit_null) "_null" else "")
+    stop(structure(
+      list(message = paste0(
+        "The ordered prior for term '", term, "' in '", argument,
+        "' cannot be combined with a separate term prior. Put the complete ",
+        "mixture in 'prior_ordered(total = ...)' and omit the separate ",
+        "component with '", omission, " = list(",
+        deparse(as.name(term), backtick = TRUE), " = NULL)'."
+      ), call = NULL),
+      class = c("RoBMA_prior_error", "error", "condition")
+    ))
+  }
+  ordered_alt <- setdiff(names(prior_list_alt)[vapply(
+    prior_list_alt, BayesTools::is.prior.ordered, logical(1))], c("intercept", par_alt_omit))
+  for (term in setdiff(ordered_alt, par_null_omit)) {
+    refuse_ordered_mixture(term, omit_null = TRUE)
+  }
+
   prior_list_null <- .assign_prior_list.terms(
     prior_list = prior_list_null, prior_intercept = prior_intercept, parameter = parameter,
     measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
     prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
     rescale_priors = rescale_priors, set_default_spike = TRUE,
     formula_parameter = formula_parameter)
+  ordered_null <- setdiff(names(prior_list_null)[vapply(
+    prior_list_null, BayesTools::is.prior.ordered, logical(1))], c("intercept", par_null_omit))
+  for (term in setdiff(ordered_null, par_alt_omit)) {
+    refuse_ordered_mixture(term, omit_null = FALSE)
+  }
 
   available_terms <- names(prior_list_alt)
   .warn_unmatched_prior_omissions(
@@ -775,10 +800,15 @@
       stop(sprintf("At least one prior distribution needs to be defined for '%1$s' parameter in the '%2$s' model.", par, parameter))
     }
 
-    prior_list[[par]] <- BayesTools::prior_mixture(
-      prior_list = temp_prior_list,
-      is_null    = temp_is_null
-    )
+    prior_list[[par]] <- if (length(temp_prior_list) == 1L &&
+        BayesTools::is.prior.ordered(temp_prior_list[[1L]])) {
+      temp_prior_list[[1L]]
+    } else {
+      BayesTools::prior_mixture(
+        prior_list = temp_prior_list,
+        is_null    = temp_is_null
+      )
+    }
   }
 
   prior_list <- .repair_formula_prior_list(

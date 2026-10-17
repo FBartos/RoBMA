@@ -756,6 +756,20 @@ NULL
 #' `prior_mods` / `prior_scale` means "use defaults". To omit a component for a
 #' specific term, use a named list entry such as `prior_mods_null = list(x1 = NULL)`.
 #'
+#' An ordered term's mixture belongs on its scalar total. Supply the complete
+#' `prior_ordered(total = ...)` in one term component and omit the separate term
+#' component with a named `NULL` entry. For example:
+#' \preformatted{
+#' total <- prior_mixture(list(prior("point", list(0)),
+#'                             prior("normal", list(0, 1))),
+#'                        is_null = c(TRUE, FALSE))
+#' BMA(yi = yi, sei = sei, mods = ~ f, data = dat, measure = "SMD",
+#'     prior_mods = list(f = prior_ordered(total = total)),
+#'     prior_mods_null = list(f = NULL), only_priors = TRUE)
+#' }
+#' Combining an ordered container with a separate term null or alternative is
+#' unavailable and raises `RoBMA_prior_error` with the corresponding omission.
+#'
 #' ### Parameter-specific customization for moderators
 #'
 #' For moderator priors (`prior_mods`, `prior_mods_null`), you can specify different
