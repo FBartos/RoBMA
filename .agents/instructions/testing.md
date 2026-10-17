@@ -134,6 +134,8 @@ child metadata. Validation recursively checks declared parents and required
 artifacts, refusing cycles and old child metadata without the dependencies.
 Unvalidated loads and receipts from a previous generation cannot authorize a
 derived save. Ordinary fits without declared dependencies keep their cache rules.
+Present info artifacts that cannot be read fail before consumption is recorded;
+truly absent optional info still returns an empty list.
 
 Regenerate only affected fits with `refresh-standard` after fitting, prior/data
 input, native likelihood, or JAGS changes. Do not invalidate fits for unrelated

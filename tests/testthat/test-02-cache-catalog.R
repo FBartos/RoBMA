@@ -507,13 +507,39 @@ test_that("dependency reads detect artifact mutation during deserialization", {
     parents <- .cache_dependency_parents(e)
     e$.clear_info_object_cache()
     read_info <- e$read_cached_info
-    e$read_cached_info <- function(name) {
-      value <- read_info(name)
+    e$read_cached_info <- function(name, ...) {
+      value <- read_info(name, ...)
       changed <- value; changed[["marker"]] <- "B"
       saveRDS(changed, e$fit_cache_paths(name)[["info"]])
       value
     }
     expect_error(e$load_info(parents[["info"]]), "changed.*read")
+  })
+})
+
+test_that("present corrupt info cannot authorize a derived cache save", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    parents <- .cache_dependency_parents(e)
+    path <- e$fit_cache_paths(parents[["info"]])[["info"]]
+    bytes <- readBin(path, "raw", file.info(path)$size)
+    expect_equal(e$load_info(parents[["info"]])[["data"]][["yi"]], 1)
+    file.remove(path)
+    expect_identical(e$load_info(parents[["info"]]), list())
+    writeBin(bytes, path)
+    .consume_cache_dependency_parents(e, parents)
+    children <- .save_cache_dependency_children(e)
+    e$.fit_cache_generation_begin(force = TRUE)
+    e$load_fit(parents[["fit"]])
+    writeBin(charToRaw("present but not an RDS artifact"), path)
+    e$.clear_info_object_cache()
+    paths <- unlist(lapply(c(parents, children), function(name) e$fit_cache_paths(name)[c("fit", "info", "metadata")]))
+    paths <- paths[file.exists(paths)]
+    before <- tools::md5sum(paths)
+    expect_error(e$load_info(parents[["info"]]), "could not be read")
+    for (child in children) expect_error(e$save_fit(child, e$.fake_fit_for_catalog_entry(child)), "consum")
+    expect_identical(tools::md5sum(paths), before)
   })
 })
 

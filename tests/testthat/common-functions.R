@@ -1634,12 +1634,15 @@ read_cached_fit <- function(name) {
   return(fit)
 }
 
-read_cached_info <- function(name) {
+read_cached_info <- function(name, required = FALSE) {
 
   path <- fit_cache_paths(name)[["info"]]
   info <- suppressWarnings(try(readRDS(path), silent = TRUE))
 
   if (inherits(info, "try-error")) {
+    if (required) {
+      stop("Cached info '", name, "' could not be read.", call. = FALSE)
+    }
     return(list())
   }
 
@@ -2127,7 +2130,8 @@ save_fit <- function(name, fit, info = NULL) {
   if (!is.null(cached) && identical(cached[["receipt"]], before)) {
     object <- cached[["object"]]
   } else {
-    object <- if (artifact == "fit") read_cached_fit(name) else read_cached_info(name)
+    object <- if (artifact == "fit") read_cached_fit(name) else
+      read_cached_info(name, required = !is.null(before))
   }
   if (artifact == "fit" && is.null(object)) {
     stop(paste0("Cached fit '", name, "' could not be read."), call. = FALSE)
