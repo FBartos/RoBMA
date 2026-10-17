@@ -1,6 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
 - Complete or structural-zero formula intercepts avoid constructing unused omitted effect defaults; genuinely missing priors and supplied input validation retain their requirements.
-- Complete formula-intercept overrides reject lost explicit declarations, preserve actual random SD/inclusion consumers, and avoid unused scale-intercept defaults.
+- Complete formula-intercept overrides reject lost explicit declarations, preserve actual random SD/inclusion consumers and strictly positive scale points, and avoid unused scale-intercept defaults.
 - Model-averaging constructors bind sole ordered term containers directly and report the total-owned mixture remedy before a separate term mixture is built.
 - User formula-default conversions run only when consumed, retain factor/ordered containers, and convert supported scalar fallbacks without their vector dimension.
 - New-grid regression prediction and sampling bands consistently refuse marginalized known-R fitted-layout multipliers; mean and credible-interval plots remain available.

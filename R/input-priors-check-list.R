@@ -77,11 +77,11 @@
   argument <- paste0("prior_", parameter)
   tryCatch({
     if (parameter == "scale") {
-      prior <- .check_prior.heterogeneity(prior, prior_name = argument)
-      if (BayesTools::is.prior.point(prior) && mean(prior) == 0) {
+      if (BayesTools::is.prior.point(prior) && mean(prior) <= 0) {
         stop("The 'intercept' prior in '", argument,
-          "' must be positive because scale regression uses log(intercept).", call. = FALSE)
+          "' must be strictly positive because scale regression uses log(intercept).", call. = FALSE)
       }
+      prior <- .check_prior.heterogeneity(prior, prior_name = argument)
     } else {
       prior <- .check_prior.simple_or_point(prior, prior_name = argument)
     }
