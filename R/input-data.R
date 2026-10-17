@@ -2494,12 +2494,19 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     stop("Internal error: prediction placeholder length mismatch.", call. = FALSE)
   }
   newdata[[placeholder]] <- value
+  parser_columns <- attr(newdata, "parser_columns", exact = TRUE)
+  parser_columns[[name]] <- placeholder
+  attr(newdata, "parser_columns") <- parser_columns
   return(newdata)
 }
 
 
 .prepare_newdata_parser_column <- function(newdata, name) {
 
+  parser_columns <- attr(newdata, "parser_columns", exact = TRUE)
+  if (name %in% names(parser_columns)) {
+    return(parser_columns[[name]])
+  }
   if (name %in% names(newdata)) {
     return(name)
   }
@@ -2534,29 +2541,28 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   n_new        <- nrow(newdata)
 
   if (outcome_type == "norm") {
-    if (!"yi" %in% names(newdata)) {
-      newdata <- .prepare_newdata_add_placeholder(
-        newdata = newdata,
-        name    = "yi",
-        value   = 0,
-        n       = n_new
-      )
-    }
+    newdata <- .prepare_newdata_add_placeholder(
+      newdata = newdata, name = "yi", value = 0, n = n_new
+    )
 
-    if (!("sei" %in% names(newdata) || "vi" %in% names(newdata))) {
-      if (.prepare_newdata_needs_norm_sei(object, type, bias_adjusted)) {
+    if (.prepare_newdata_needs_norm_sei(object, type, bias_adjusted)) {
+      if (!("sei" %in% names(newdata) || "vi" %in% names(newdata))) {
         stop(
           "The 'newdata' must contain either 'sei' (standard error) or ",
           "'vi' (variance) column.",
           call. = FALSE
         )
       }
+    } else {
       newdata <- .prepare_newdata_add_placeholder(
         newdata = newdata,
         name    = "sei",
         value   = 0,
         n       = n_new
       )
+      parser_columns <- attr(newdata, "parser_columns", exact = TRUE)
+      parser_columns["vi"] <- list(NULL)
+      attr(newdata, "parser_columns") <- parser_columns
     }
 
   } else if (outcome_type == "bin") {
@@ -2564,7 +2570,7 @@ print.RoBMA_data <- function(x, n = 6, ...) {
     provided_counts  <- intersect(count_names, names(newdata))
     totals_available <- all(c("n1i", "n2i") %in% provided_counts)
 
-    if (length(provided_counts) == 0L && type != "response") {
+    if (type != "response") {
       for (name in c("ai", "ci", "n1i", "n2i")) {
         newdata <- .prepare_newdata_add_placeholder(
           newdata = newdata,
@@ -2606,7 +2612,7 @@ print.RoBMA_data <- function(x, n = 6, ...) {
       .prepare_newdata_stop_missing(newdata, c("t1i", "t2i"))
     }
     for (name in c("x1i", "x2i", "t1i", "t2i")) {
-      if (!name %in% names(newdata)) {
+      if (name %in% c("x1i", "x2i") || type != "response") {
         newdata <- .prepare_newdata_add_placeholder(
           newdata = newdata,
           name    = name,
