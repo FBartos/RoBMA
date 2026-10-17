@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Explicit sampled mean-centered random effects remain sampled when automatic estimate-level marginalization is considered.
 - Prediction data parsing separates unused outcome fields from same-named predictors while retaining required response and PET/PEESE sampling inputs.
 - A single nested random-effect component accepts supported covariance and named random wrappers without admitting multiple ambiguous bare terms.
 - Random-effect factors retain declared index and grouping levels through subset and missing-row selection, including shared moderator and scale columns.

@@ -1,3 +1,34 @@
+test_that("automatic estimate marginalization honors sampled mean-centered requests", {
+
+  for (repeated in c(FALSE, TRUE)) {
+    dat <- data.frame(
+      yi = if (repeated) c(0.1, 0.2, 0.3, 0.4) else c(0.1, 0.2, 0.3),
+      study = factor(if (repeated) c("a", "a", "b", "b") else c("a", "b", "c"))
+    )
+    for (mode in c("mean_centered", "centered", "noncentered")) {
+      expect_silent(object <- brma.mv(
+        yi = yi, V = diag(0.01, nrow(dat)), random = ~ 1 | study,
+        data = dat, measure = "GEN", prior_unit_information_sd = 1,
+        prior_effect = BayesTools::prior("normal", list(0, 1)),
+        prior_heterogeneity = BayesTools::prior_random(
+          sd = BayesTools::prior("gamma", list(shape = 2, rate = 2)),
+          study = BayesTools::random_block(parameterization = mode)),
+        standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE
+      ))
+      term <- .fitted_formula_design(object, "mu", required = TRUE)[["random_effects"]][[1L]]
+      if (mode == "mean_centered") {
+        expect_identical(term[["compile_mode"]], "sampled")
+        expect_identical(term[["parameterization_resolved"]], "mean_centered")
+        expect_type(term[["mean_translation"]], "list")
+        expect_false(.is_marginalized_estimate_level_candidate(term, nrow(dat)))
+      } else {
+        expect_identical(term[["compile_mode"]], if (repeated) "sampled" else "marginalized")
+      }
+    }
+  }
+})
+
+
 test_that("mean-centered selection intercepts use retained source metadata", {
 
   dat <- data.frame(yi = c(.1, .2, -.1, .05),

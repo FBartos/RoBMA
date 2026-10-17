@@ -195,6 +195,10 @@
   if (!identical(term[["compile_mode"]], "sampled")) {
     return(FALSE)
   }
+  if (identical(term[["parameterization_resolved"]], "mean_centered") ||
+      !is.null(term[["mean_translation"]])) {
+    return(FALSE)
+  }
   if (.random_effect_term_has_known_group_covariance(term)) {
     return(.known_r_marginal_variance_factors_available(
       formula_design = formula_design,
