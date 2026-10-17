@@ -5,6 +5,22 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Named alternative-list intercepts supply the complete prior, while ordinary
+term alternative/null entries remain separate components. Reject named null-list
+intercepts (including NULL/FALSE) and explicit global declarations left without
+a consumer by that override. Resolve supplied argument presence before defaults
+or omission filtering. Component scale retains actual global SD and inclusion/
+omission-gate consumers, including gate-only roots with local SD sources; unused
+scale-intercept defaults need no UISD. Scale intercepts retain the positive SD
+contract because their model uses log(intercept). Structural-zero mods retain
+their existing point-zero validation and explicit-global compatibility.
+
+Ordered term containers pass through when they are the sole retained component.
+Their mixture/inclusion declaration belongs on total; combining a container with
+a separate term component refuses with the prior_ordered(total=...) and named
+NULL omission remedy. Constructor/binding support does not establish downstream
+ordered inclusion/export compatibility with an unaccepted dependency.
+
 Marginal-means BF rows localize declared BayesTools formula-measure and
 ordinate refusals to NA with the original measure reason, structured condition
 diagnostics, and matching unavailable posterior-density source. Missing-source,

@@ -46,6 +46,9 @@ component(s).}
 heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
+A named \code{intercept} entry, including \code{NULL} or \code{FALSE}, is unavailable: put
+the complete intercept prior in \code{prior_mods}, or use global prior arguments
+without a formula-list intercept. The same rule applies to \code{prior_scale_null}.
 A single prior applies to all terms; a named list can specify term-specific
 components. This argument can be specified only when \code{mods} is specified.}
 
@@ -167,6 +170,20 @@ removes that hypothesis component:
 For moderator and scale regression terms, an omitted or whole-argument \code{NULL}
 \code{prior_mods} / \code{prior_scale} means "use defaults". To omit a component for a
 specific term, use a named list entry such as \code{prior_mods_null = list(x1 = NULL)}.
+
+An ordered term's mixture belongs on its scalar total. Supply the complete
+\code{prior_ordered(total = ...)} in one term component and omit the separate term
+component with a named \code{NULL} entry. For example:
+\preformatted{
+total <- prior_mixture(list(prior("point", list(0)),
+                            prior("normal", list(0, 1))),
+                       is_null = c(TRUE, FALSE))
+BMA(yi = yi, sei = sei, mods = ~ f, data = dat, measure = "SMD",
+    prior_mods = list(f = prior_ordered(total = total)),
+    prior_mods_null = list(f = NULL), only_priors = TRUE)
+}
+Combining an ordered container with a separate term null or alternative is
+unavailable and raises \code{RoBMA_prior_error} with the corresponding omission.
 }
 
 \subsection{Parameter-specific customization for moderators}{

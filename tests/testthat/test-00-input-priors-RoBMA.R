@@ -1,5 +1,74 @@
 context("Prior input handling for RoBMA (mixture priors)")
 
+test_that("complete scale intercepts preserve support and reject unconsumed globals", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4), x = c(-1, 0, 1, 2))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  positive <- BayesTools::prior("point", list(0.3))
+  base <- list(yi = quote(yi), sei = quote(sei), scale = ~ x, data = dat, measure = "GEN",
+    prior_effect = normal, prior_scale = list(intercept = positive, x = normal), only_priors = TRUE, silent = TRUE)
+  for (constructor in list(brma, BMA)) {
+    expect_silent(object <- do.call(constructor, base))
+    expect_identical(object$priors$scale$intercept$parameters$location, 0.3)
+    for (value in list(NULL, FALSE, BayesTools::prior("gamma", list(2, 2)))) {
+      args <- base
+      args["prior_heterogeneity"] <- list(value)
+      expect_error(do.call(constructor, args), "prior_heterogeneity", class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+    }
+    for (value in list(NULL, FALSE, BayesTools::prior("point", list(-0.2)), BayesTools::prior("point", list(0)))) {
+      args <- base
+      args$prior_scale <- list(intercept = value, x = normal)
+      condition <- tryCatch(do.call(constructor, args), error = identity)
+      expect_s3_class(condition, "RoBMA_prior_error")
+      expect_match(conditionMessage(condition), "prior_scale", fixed = TRUE)
+      expect_null(conditionCall(condition))
+    }
+  }
+  for (name in c("prior_scale_null", "prior_heterogeneity_null")) {
+    args <- base
+    args[name] <- if (name == "prior_scale_null") list(list(intercept = NULL)) else list(NULL)
+    expect_error(do.call(BMA, args), name, class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+  }
+})
+
+
+test_that("complete formula intercept overrides reject every lost declaration", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4), x = c(-1, 0, 1, 2))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  zero <- BayesTools::prior("point", list(0))
+  base <- list(yi = quote(yi), sei = quote(sei), mods = ~ x, data = dat, measure = "SMD",
+    prior_mods = list(intercept = normal, x = normal), prior_heterogeneity = zero,
+    prior_heterogeneity_null = NULL, only_priors = TRUE, silent = TRUE)
+  expect_silent(object <- do.call(BMA, base))
+  expect_identical(object$priors$mods$intercept$parameters, normal$parameters)
+  expect_identical(object$priors$mods$intercept$distribution, "normal")
+  for (name in c("prior_effect", "prior_effect_null")) for (value in list(normal, NULL, FALSE)) {
+    args <- base
+    args[name] <- list(value)
+    condition <- tryCatch(do.call(BMA, args), error = identity)
+    expect_s3_class(condition, "RoBMA_prior_intercept_conflict")
+    expect_s3_class(condition, "RoBMA_prior_error")
+    expect_match(conditionMessage(condition), name, fixed = TRUE)
+    expect_null(conditionCall(condition))
+  }
+  for (name in c("prior_mods", "prior_mods_null")) for (value in list(NULL, FALSE, normal)) {
+    if (name == "prior_mods" && BayesTools::is.prior(value)) next
+    args <- base
+    args[[name]] <- if (name == "prior_mods") list(intercept = value, x = normal) else list(intercept = value)
+    expect_error(do.call(BMA, args), "'intercept' entry", class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+  }
+  args <- base
+  args$prior_mods_null <- list(intercept = BayesTools::prior("normal", list(1, 1)))
+  condition <- tryCatch(do.call(BMA, args), error = identity)
+  expect_identical(conditionMessage(condition), paste0(
+    "The 'intercept' entry in 'prior_mods_null' is unavailable. Supply the complete intercept prior ",
+    "in 'prior_mods', or use the global prior arguments without a formula-list intercept."
+  ))
+  expect_silent(brma(yi = yi, sei = sei, mods = ~ 0 + x, data = dat, measure = "GEN",
+    prior_effect = normal, prior_mods = list(x = normal), prior_heterogeneity = zero, only_priors = TRUE, silent = TRUE))
+})
+
 skip_on_cran()
 source(testthat::test_path("helper-contracts.R"))
 

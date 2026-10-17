@@ -5,20 +5,20 @@
 
   return(prior)
 }
-.check_prior.heterogeneity            <- function(prior) {
+.check_prior.heterogeneity            <- function(prior, prior_name = "prior_heterogeneity") {
 
   if (.is_prior_random(prior)) {
     return(prior)
   }
 
-  prior <- .check_prior.simple_or_point(prior, prior_name = "prior_heterogeneity")
+  prior <- .check_prior.simple_or_point(prior, prior_name = prior_name)
 
   # check range restriction
   if (BayesTools::is.prior.point(prior) && mean(prior) < 0) {
-    stop("Point prior distribution for 'prior_heterogeneity' must be at least 0.", call. = FALSE)
+    stop("Point prior distribution for '", prior_name, "' must be at least 0.", call. = FALSE)
   }
   if (prior[["truncation"]][["lower"]] < 0) {
-    warning("Lower truncation point for 'prior_heterogeneity' prior distribution must be at least 0. The prior distribution was modified.",
+    warning(paste0("Lower truncation point for '", prior_name, "' prior distribution must be at least 0. The prior distribution was modified."),
             immediate. = TRUE, call. = FALSE)
     prior[["truncation"]][["lower"]] <- 0
   }
@@ -70,6 +70,113 @@
     stop("The 'prior_mods' / 'prior_scale' arguments for predictors must be a either a simple, factor, or point prior distribution.", call. = FALSE)
 
   return()
+}
+
+.check_prior.formula_intercept <- function(prior, parameter) {
+
+  argument <- paste0("prior_", parameter)
+  tryCatch({
+    if (parameter == "scale") {
+      prior <- .check_prior.heterogeneity(prior, prior_name = argument)
+      if (BayesTools::is.prior.point(prior) && mean(prior) == 0) {
+        stop("The 'intercept' prior in '", argument,
+          "' must be positive because scale regression uses log(intercept).", call. = FALSE)
+      }
+    } else {
+      prior <- .check_prior.simple_or_point(prior, prior_name = argument)
+    }
+    prior
+  }, error = function(error) {
+    stop(structure(list(message = conditionMessage(error), call = NULL),
+      class = c("RoBMA_prior_error", "error", "condition")))
+  })
+}
+
+.prior_intercept_conflict <- function(argument, competing = NULL, invalid = FALSE) {
+
+  message <- if (!is.null(competing)) {
+    paste0("The 'intercept' entry in '", argument,
+      "' overrides the complete intercept prior and leaves the explicitly supplied '",
+      competing, "' without a consumer. Specify the complete intercept in one place: ",
+      "use '", argument, "', or use the global prior arguments without a formula-list intercept.")
+  } else if (invalid) {
+    paste0("The 'intercept' entry in '", argument,
+      "' must be a complete prior distribution. Supply it in '", argument,
+      "', or use the global prior arguments without a formula-list intercept.")
+  } else {
+    alternative <- sub("_null$", "", argument)
+    paste0("The 'intercept' entry in '", argument,
+      "' is unavailable. Supply the complete intercept prior in '", alternative,
+      "', or use the global prior arguments without a formula-list intercept.")
+  }
+  stop(structure(list(message = message, call = NULL),
+    class = c("RoBMA_prior_intercept_conflict", "RoBMA_prior_error", "error", "condition")))
+}
+
+.resolve_prior_intercepts <- function(
+    data, prior_mods, prior_mods_null, prior_scale, prior_scale_null,
+    effect_supplied, effect_null_supplied = FALSE, heterogeneity_supplied,
+    heterogeneity_null_supplied = FALSE, model_average = FALSE,
+    random_prior = FALSE) {
+
+  has_intercept <- function(prior) {
+    is.list(prior) && !BayesTools::is.prior(prior) && "intercept" %in% names(prior)
+  }
+  whole_override <- function(alternative, null, argument) {
+    if (!missing(null) && has_intercept(null)) {
+      .prior_intercept_conflict(paste0(argument, "_null"))
+    }
+    supplied <- !missing(alternative) && has_intercept(alternative)
+    if (supplied && !BayesTools::is.prior(alternative[["intercept"]])) {
+      .prior_intercept_conflict(argument, invalid = TRUE)
+    }
+    supplied
+  }
+  structural_zero <- .is_data_mods(data) &&
+    attr(stats::terms(attr(data[["mods"]], "formula")), "intercept") == 0L
+  effect_override <- .is_data_mods(data) && whole_override(prior_mods, prior_mods_null, "prior_mods")
+  if (effect_override && !structural_zero) {
+    if (effect_supplied) .prior_intercept_conflict("prior_mods", "prior_effect")
+    if (effect_null_supplied) .prior_intercept_conflict("prior_mods", "prior_effect_null")
+  }
+
+  scale_overrides <- logical()
+  global_sd_consumed <- TRUE
+  if (.is_data_scale(data)) {
+    specs <- .data_scale_component_specs(data)
+    component_scale <- inherits(data[["scale"]], "RoBMA_scale_components")
+    alt <- if (!missing(prior_scale)) prior_scale else NULL
+    null <- if (!missing(prior_scale_null)) prior_scale_null else NULL
+    if (component_scale) {
+      if (!is.null(alt) && !isFALSE(alt)) {
+        alt <- .assign_prior_list.scale_match_components(alt, specs, "prior_scale")
+      }
+      if (!is.null(null) && !isFALSE(null)) {
+        null <- .assign_prior_list.scale_match_components(null, specs, "prior_scale_null")
+      }
+    }
+    scale_overrides <- vapply(names(specs), function(component) {
+      alternative <- if (component_scale && is.list(alt)) alt[[component]] else alt
+      null_component <- if (component_scale && is.list(null)) null[[component]] else null
+      whole_override(alternative, null_component, "prior_scale")
+    }, logical(1))
+    unscaled_blocks <- FALSE
+    if (.is_data_random(data)) {
+      terms <- attr(data[["location"]], "random_effects")[["terms"]]
+      block_names <- vapply(terms, `[[`, character(1), "block_name")
+      components <- .assign_prior.random_component_labels(terms, block_names)
+      sources <- .assign_prior.random_scale_sources(data)
+      unscaled_blocks <- any(!block_names %in% names(sources) & !components %in% names(sources))
+    }
+    global_sd_consumed <- any(!scale_overrides) || unscaled_blocks
+    gate_consumed <- model_average && .is_data_random(data)
+    if (any(scale_overrides) && !global_sd_consumed && !gate_consumed && !random_prior) {
+      if (heterogeneity_supplied) .prior_intercept_conflict("prior_scale", "prior_heterogeneity")
+      if (heterogeneity_null_supplied) .prior_intercept_conflict("prior_scale", "prior_heterogeneity_null")
+    }
+  }
+  list(effect_override = effect_override, structural_zero = structural_zero,
+    scale_overrides = scale_overrides, global_sd_consumed = global_sd_consumed)
 }
 .check_prior_specification_conflict   <- function(prior_unit_information_sd, prior_informed_field) {
 
@@ -268,6 +375,13 @@
   random_prior_needs_default_scale <- is_random_prior_heterogeneity &&
     !.assign_prior.random_has_scale(prior_heterogeneity)
 
+  intercepts <- .resolve_prior_intercepts(
+    data = data, prior_mods = prior_mods, prior_scale = prior_scale,
+    effect_supplied = !missing(prior_effect),
+    heterogeneity_supplied = !missing(prior_heterogeneity),
+    random_prior = is_random_prior_heterogeneity
+  )
+
   if (is_random_prior_heterogeneity && !is_random) {
     stop(
       "'prior_heterogeneity = BayesTools::prior_random(...)' can be used only when 'random' is specified.",
@@ -283,6 +397,8 @@
     )
   if (is_fixed_mv) {
     prior_outcome[["tau"]] <- BayesTools::prior("spike", parameters = list(0))
+  } else if (.is_data_scale(data) && !intercepts[["global_sd_consumed"]]) {
+    prior_outcome[["tau"]] <- NULL
   } else if (is_random_prior_heterogeneity &&
       (.is_data_scale(data) || random_prior_needs_default_scale)) {
     prior_outcome[["tau"]] <- .assign_prior.simple(
@@ -358,7 +474,7 @@
   )
 
   if (is_random) {
-    preview_defaults <- BayesTools::prior_random(sd = prior_random_sd)
+    preview_defaults <- .assign_prior.random_preview_defaults(data, prior_random_sd)
     preview_prior <- if (is_random_prior_heterogeneity) {
       .assign_prior.random_complete(
         prior    = prior_heterogeneity,
@@ -531,6 +647,15 @@
     )
   }
 
+  intercepts <- .resolve_prior_intercepts(
+    data = data, prior_mods = prior_mods, prior_mods_null = prior_mods_null,
+    prior_scale = prior_scale, prior_scale_null = prior_scale_null,
+    effect_supplied = !missing(prior_effect), effect_null_supplied = !missing(prior_effect_null),
+    heterogeneity_supplied = !missing(prior_heterogeneity),
+    heterogeneity_null_supplied = !missing(prior_heterogeneity_null),
+    model_average = TRUE, random_prior = is_random_prior_heterogeneity
+  )
+
   prior_outcome[["mu"]] <- .assign_prior.simple_mixture(
     prior = prior_effect, prior_null = prior_effect_null, parameter = "effect", measure = measure,
     data = data, prior_unit_information_sd = prior_unit_information_sd,
@@ -558,13 +683,23 @@
   if (!missing(prior_informed_subfield)) {
     heterogeneity_args[["prior_informed_subfield"]] <- prior_informed_subfield
   }
+  random_mixture <- NULL
   prior_outcome[["tau"]] <- if (is_fixed_mv) {
     BayesTools::prior("spike", parameters = list(0))
+  } else if (.is_data_scale(data) && !intercepts[["global_sd_consumed"]]) {
+    if (is_random) {
+      components <- do.call(.assign_prior.simple_mixture, c(heterogeneity_args,
+        list(components_only = TRUE, default_required = FALSE)))
+      random_mixture <- .assign_prior.random_mixture_parts(
+        default_slab = NULL, components = components)
+      random_mixture[["slab"]]
+    } else {
+      NULL
+    }
   } else {
     do.call(.assign_prior.simple_mixture, heterogeneity_args)
   }
-  random_mixture <- NULL
-  if (is_random) {
+  if (is_random && is.null(random_mixture)) {
     default_slab_args <- heterogeneity_args[
       !names(heterogeneity_args) %in% c("prior", "prior_null")
     ]

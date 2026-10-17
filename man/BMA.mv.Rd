@@ -128,12 +128,20 @@ specified only when \code{mods} is specified. A formula without an intercept
 (\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
 the list is accepted only as a point prior at zero; any other \code{intercept}
 prior stops with an error of class \code{RoBMA_prior_intercept_conflict} (also of
-class \code{RoBMA_prior_error}).}
+class \code{RoBMA_prior_error}).
+A named \code{intercept} entry supplies the complete intercept prior. Explicit
+competing global effect declarations are refused when this would discard
+them. Named \code{NULL} or \code{FALSE} intercept entries are invalid; specify the
+complete prior in one place.}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
 priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{scale} is specified.}
+specified only when \code{scale} is specified.
+A named \code{intercept} entry supplies the complete positive SD prior used by
+\code{log(intercept)}. Global heterogeneity declarations remain meaningful when
+they supply another random root or its model-inclusion weights; declarations
+fully replaced without a consumer raise \code{RoBMA_prior_intercept_conflict}.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}
@@ -142,6 +150,9 @@ component(s).}
 heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
+A named \code{intercept} entry, including \code{NULL} or \code{FALSE}, is unavailable: put
+the complete intercept prior in \code{prior_mods}, or use global prior arguments
+without a formula-list intercept. The same rule applies to \code{prior_scale_null}.
 A single prior applies to all terms; a named list can specify term-specific
 components. This argument can be specified only when \code{mods} is specified.}
 

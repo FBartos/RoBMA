@@ -320,6 +320,21 @@
   sources
 }
 
+.assign_prior.random_preview_defaults <- function(data, sd) {
+
+  if (!is.null(sd)) return(BayesTools::prior_random(sd = sd))
+  sources <- .assign_prior.random_scale_sources(data)
+  terms <- attr(data[["location"]], "random_effects")[["terms"]]
+  blocks <- vapply(terms, `[[`, character(1), "block_name")
+  components <- .assign_prior.random_component_labels(terms, blocks)
+  block_priors <- lapply(seq_along(blocks), function(i) {
+    key <- if (blocks[[i]] %in% names(sources)) blocks[[i]] else components[[i]]
+    BayesTools::random_block(sd_source = sources[[key]])
+  })
+  names(block_priors) <- blocks
+  do.call(BayesTools::prior_random, block_priors)
+}
+
 # The variables of each model term of a compiled random-effect term (none for
 # the intercept), from the term's formula.
 .random_term_model_term_variables <- function(term) {
@@ -1360,7 +1375,8 @@
 ### assign mixture prior distributions
 .assign_prior.simple_mixture                   <- function(
     prior, prior_null, parameter, measure, data, prior_unit_information_sd,
-    prior_informed_field, prior_informed_subfield, rescale_priors) {
+    prior_informed_field, prior_informed_subfield, rescale_priors,
+    components_only = FALSE, default_required = TRUE) {
 
   ### check the alternative prior input
   # prior can be either
@@ -1370,7 +1386,11 @@
   # - list of prior distributions
   # each of these prior distributions needs to satisfy the same properties as in brma
   # if only a single distribution is specified, place it in a list for a simpler treatment
-  if (missing(prior) || BayesTools::is.prior(prior)) {
+  default_alternative_weight <- 0
+  if (missing(prior) && !default_required) {
+    priors_alt <- list()
+    default_alternative_weight <- 1
+  } else if (missing(prior) || BayesTools::is.prior(prior)) {
     priors_alt <- list(.assign_prior.simple(
       prior = prior, parameter = parameter, measure = measure,
       data = data, prior_unit_information_sd = prior_unit_information_sd,
@@ -1426,8 +1446,12 @@
     stop(gettextf("The 'prior_%1$s_null' must be either prior distribution or a list of prior distributions.", parameter), call. = FALSE)
   }
 
-  if (length(priors_null) + length(priors_alt) == 0) {
+  if (length(priors_null) + length(priors_alt) == 0 && default_alternative_weight == 0) {
     stop(gettextf("At least one prior distribution needs to be defined for '%1$s'.", parameter), call. = FALSE)
+  }
+  if (components_only) {
+    return(list(alternative = priors_alt, null = priors_null,
+      default_alternative_weight = default_alternative_weight))
   }
 
   ### specify the corresponding mixture prior
@@ -1439,22 +1463,30 @@
   return(prior)
 }
 
-.assign_prior.random_mixture_parts            <- function(prior,
-                                                           default_slab) {
+.assign_prior.random_mixture_parts            <- function(prior = NULL,
+                                                           default_slab,
+                                                           components = NULL) {
 
-  if (!BayesTools::is.prior.mixture(prior)) {
-    stop("Internal error: random-effect model averaging requires a mixture prior.", call. = FALSE)
+  default_alternative_weight <- 0
+  if (is.null(components)) {
+    if (!BayesTools::is.prior.mixture(prior)) {
+      stop("Internal error: random-effect model averaging requires a mixture prior.", call. = FALSE)
+    }
+    labels <- attr(prior, "components", exact = TRUE)
+    weights <- attr(prior, "prior_weights", exact = TRUE)
+  } else {
+    default_alternative_weight <- components[["default_alternative_weight"]]
+    prior <- c(components[["null"]], components[["alternative"]])
+    labels <- c(rep("null", length(components[["null"]])), rep("alternative", length(components[["alternative"]])))
+    weights <- vapply(prior, `[[`, numeric(1), "prior_weights")
   }
-
-  components <- attr(prior, "components", exact = TRUE)
-  weights    <- attr(prior, "prior_weights", exact = TRUE)
-  if (!is.character(components) || length(components) != length(prior) ||
+  if (!is.character(labels) || length(labels) != length(prior) ||
       !is.numeric(weights) || length(weights) != length(prior) ||
       anyNA(weights) || any(!is.finite(weights)) || any(weights <= 0)) {
     stop("Internal error: malformed heterogeneity mixture prior.", call. = FALSE)
   }
 
-  is_null <- components == "null"
+  is_null <- labels == "null"
   for (i in which(is_null)) {
     if (!BayesTools::is.prior.point(prior[[i]]) || mean(prior[[i]]) != 0) {
       stop(
@@ -1474,7 +1506,8 @@
     }
   }
 
-  prior_inclusion <- sum(weights[!is_null]) / sum(weights)
+  prior_inclusion <- (sum(weights[!is_null]) + default_alternative_weight) /
+    (sum(weights) + default_alternative_weight)
   alternatives    <- prior[!is_null]
   attributes(alternatives) <- NULL
   slab <- if (length(alternatives) == 0L) {
@@ -1513,7 +1546,7 @@
     )
   }
 
-  preview_defaults <- BayesTools::prior_random(sd = slab)
+  preview_defaults <- .assign_prior.random_preview_defaults(data, slab)
   preview_prior <- if (is.null(prior_override)) {
     preview_defaults
   } else {

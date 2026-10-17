@@ -166,8 +166,12 @@
   } else if (!missing(prior_list)) {
     # check the priors and apply rescaling if specified
     for (i in seq_along(prior_list)) {
-      .check_prior.term(prior_list[[i]])
       prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
+      if (!is.null(names(prior_list)) && identical(names(prior_list)[[i]], "intercept")) {
+        prior_list[[i]] <- .check_prior.formula_intercept(prior_list[[i]], parameter)
+      } else {
+        .check_prior.term(prior_list[[i]])
+      }
     }
   } else {
     # create an empty placeholder instead
@@ -746,6 +750,9 @@
   for (term in setdiff(ordered_alt, par_null_omit)) {
     refuse_ordered_mixture(term, omit_null = TRUE)
   }
+  # The alternative intercept is the complete prior; the null-side builder
+  # needs the same effective intercept even when its unused global default is absent.
+  prior_intercept <- prior_list_alt[["intercept"]]
 
   prior_list_null <- .assign_prior_list.terms(
     prior_list = prior_list_null, prior_intercept = prior_intercept, parameter = parameter,

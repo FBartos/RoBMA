@@ -131,6 +131,9 @@ component(s).}
 heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
+A named \code{intercept} entry, including \code{NULL} or \code{FALSE}, is unavailable: put
+the complete intercept prior in \code{prior_mods}, or use global prior arguments
+without a formula-list intercept. The same rule applies to \code{prior_scale_null}.
 A single prior applies to all terms; a named list can specify term-specific
 components. This argument can be specified only when \code{mods} is specified.}
 

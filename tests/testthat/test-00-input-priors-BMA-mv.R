@@ -1,5 +1,65 @@
 skip_on_cran()
 
+test_that("component scale overrides retain real global SD and inclusion consumers", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), x = c(-1, 0, 1, 2),
+    study = factor(c("a", "a", "b", "b")), obs = factor(seq_len(4)))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  global <- BayesTools::prior("gamma", list(shape = 2, rate = 2), prior_weights = 3)
+  zero <- BayesTools::prior("point", list(0), prior_weights = 1)
+  args <- list(yi = quote(yi), V = diag(0.04, 4),
+    random = list(study_effect = ~ 1 | study, observation_effect = ~ 1 | obs),
+    scale = list(study = ~ x, obs = ~ 1),
+    prior_scale = list(study = list(intercept = BayesTools::prior("point", list(0.3)), x = normal),
+      obs = list(intercept = BayesTools::prior("point", list(0.4)))),
+    data = dat, measure = "GEN", prior_effect = normal, only_priors = TRUE, silent = TRUE)
+  check_binding <- function(object, probability = NULL) {
+    expect_s3_class(object, "brma.mv")
+    design <- .fitted_formula_design(object, "mu", required = TRUE)
+    for (term in design[["random_effects"]]) {
+      expect_s3_class(term[["sd_binding"]][["source"]], "random_sd_source")
+      expect_match(term[["sd_binding"]][["source"]][["name"]], "^tau_")
+    }
+    expect_identical(object$priors$scale$log_tau_study_effect$intercept$parameters$location, 0.3)
+    expect_identical(object$priors$scale$log_tau_observation_effect$intercept$parameters$location, 0.4)
+    if (!is.null(probability)) {
+      allocations <- object$priors$random$allocation
+      expect_length(allocations, 2L)
+      expect_true(all(vapply(allocations, function(a) is.null(a$sd), logical(1))))
+      expect_equal(unlist(lapply(allocations, function(a) lapply(a$inclusion, mean))),
+        c(study_effect = probability, observation_effect = probability))
+    }
+  }
+  expect_silent(check_binding(do.call(brma.mv, args)))
+  for (name in c("omitted", "weighted", "null_NULL", "alt_FALSE")) {
+    selected <- args
+    expected <- switch(name, omitted = 0.5, weighted = 0.75, null_NULL = 1, alt_FALSE = 0)
+    if (name %in% c("weighted", "null_NULL")) selected$prior_heterogeneity <- global
+    if (name == "weighted") selected$prior_heterogeneity_null <- zero
+    if (name == "null_NULL") selected["prior_heterogeneity_null"] <- list(NULL)
+    if (name == "alt_FALSE") selected$prior_heterogeneity <- FALSE
+    expect_silent(check_binding(do.call(BMA.mv, selected), expected))
+  }
+  selected <- args
+  selected$prior_heterogeneity <- global
+  expect_error(do.call(brma.mv, selected), "prior_heterogeneity", class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+  selected$scale <- list(study = ~ x)
+  selected$prior_scale <- selected$prior_scale["study"]
+  expect_silent(partial <- do.call(brma.mv, selected))
+  design <- .fitted_formula_design(partial, "mu", required = TRUE)
+  sd_names <- unique(design$random_effects[[2L]]$sd_parameter_names)
+  binding_args <- .create_jags_formula_args(partial$data, partial$priors)
+  compiled <- BayesTools::JAGS_formula(
+    formula = binding_args$formula_list$mu, parameter = "mu", data = binding_args$formula_data_list$mu,
+    prior_list = binding_args$formula_prior_list$mu, formula_scale = binding_args$formula_scale_list$mu,
+    prior_random = binding_args$formula_random_prior_list$mu,
+    random_effects_compile = binding_args$formula_random_effects_compile_list$mu)
+  expect_length(sd_names, 1L)
+  expect_identical(compiled$prior_list[[sd_names]]$distribution, global$distribution)
+  expect_identical(compiled$prior_list[[sd_names]]$parameters, global$parameters)
+  expect_identical(partial$priors$scale$log_tau_study_effect$intercept$parameters$location, 0.3)
+})
+
 .bma_mv_input_data <- function() {
 
   data.frame(

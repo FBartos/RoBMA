@@ -30,10 +30,18 @@
 #' the list is accepted only as a point prior at zero; any other `intercept`
 #' prior stops with an error of class `RoBMA_prior_intercept_conflict` (also of
 #' class `RoBMA_prior_error`).
+#' A named `intercept` entry supplies the complete intercept prior. Explicit
+#' competing global effect declarations are refused when this would discard
+#' them. Named `NULL` or `FALSE` intercept entries are invalid; specify the
+#' complete prior in one place.
 #' @param prior_scale prior distribution for the scale (\eqn{\delta}) parameters.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' priors. If omitted or `NULL`, default priors are used. This argument can be
 #' specified only when `scale` is specified.
+#' A named `intercept` entry supplies the complete positive SD prior used by
+#' `log(intercept)`. Global heterogeneity declarations remain meaningful when
+#' they supply another random root or its model-inclusion weights; declarations
+#' fully replaced without a consumer raise `RoBMA_prior_intercept_conflict`.
 #' @param prior_heterogeneity_allocation prior distribution for the fraction of
 #' heterogeneity allocated to the cluster-level component in multilevel models
 #' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`. This argument
@@ -648,6 +656,9 @@ NULL
 #' @param prior_heterogeneity_null prior distribution(s) for the null
 #' heterogeneity component(s).
 #' @param prior_mods_null prior distribution(s) for null moderator components.
+#' A named `intercept` entry, including `NULL` or `FALSE`, is unavailable: put
+#' the complete intercept prior in `prior_mods`, or use global prior arguments
+#' without a formula-list intercept. The same rule applies to `prior_scale_null`.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' components. This argument can be specified only when `mods` is specified.
 #' @param prior_scale_null prior distribution(s) for null scale-regression
