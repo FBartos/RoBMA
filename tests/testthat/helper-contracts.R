@@ -712,6 +712,8 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
     )
   }
   ran_precomputed <- character()
+  successful_precomputed <- character()
+  refused_precomputed <- character()
   entries <- metadata[["entries"]]
   entries <- entries[entries[["component"]] != "bias", , drop = FALSE]
   for (i in seq_len(nrow(entries))) {
@@ -749,13 +751,19 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
           if (is.null(refusal)) {
             # An admitted statement runs; qCMDE/IWMDE ordinates may still be
             # rejected by their numerical diagnostics.
+            permitted_refusal <- precomputed && inherits(out, "RoBMA_density_ordinate_error") &&
+              (!inherits(out, "iwmde_construction_error") || inherits(out, "RoBMA_density_chain_coverage"))
             expect_false(
-              inherits(out, "error") &&
-                !(precomputed && inherits(out, "RoBMA_density_ordinate_error")),
+              inherits(out, "error") && !permitted_refusal,
               info = paste(case, if (inherits(out, "error")) conditionMessage(out))
             )
             if (precomputed) {
               ran_precomputed <- c(ran_precomputed, paste(type, method))
+              if (!inherits(out, "error")) {
+                successful_precomputed <- c(successful_precomputed, paste(type, method))
+              } else if (permitted_refusal) {
+                refused_precomputed <- c(refused_precomputed, paste(type, method))
+              }
             }
           } else {
             expect_s3_class(out, refusal[["class"]][[1L]])
@@ -766,5 +774,11 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
     }
   }
 
+  if (run_precomputed) {
+    message("Admitted precomputed checks (", info, "): attempted=", length(ran_precomputed),
+      " [", paste(ran_precomputed, collapse = ", "), "], successful=", length(successful_precomputed),
+      " [", paste(successful_precomputed, collapse = ", "), "], permitted_refusal=", length(refused_precomputed),
+      " [", paste(refused_precomputed, collapse = ", "), "].")
+  }
   invisible(quantities)
 }

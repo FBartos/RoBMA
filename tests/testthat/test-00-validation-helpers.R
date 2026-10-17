@@ -52,3 +52,43 @@ test_that("random prior comparisons check declared boundaries and outside zeros"
   .expect_random_prior_curve(data.frame(x = x, y = expected), expected, 1e-6,
     support = c(0, 1))
 })
+
+test_that("plan assertions distinguish numerical refusals from construction errors", {
+
+  expressions <- as.list(parse(testthat::test_path("helper-contracts.R")))
+  helper <- Filter(function(node) is.call(node) && identical(node[[1L]], as.name("<-")) &&
+    identical(node[[2L]], as.name(".expect_plans_consistent")), expressions)[[1L]]
+  assertion <- refusal <- NULL
+  visit <- function(node) {
+    if (missing(node)) return(invisible(NULL))
+    if (is.call(node)) {
+      if (identical(node[[1L]], as.name("expect_false"))) assertion <<- node
+      if (identical(node[[1L]], as.name("<-")) && identical(node[[2L]], as.name("permitted_refusal"))) refusal <<- node
+      for (child in as.list(node)) visit(child)
+    }
+  }
+  visit(helper)
+  expect_false(is.null(assertion) || is.null(refusal))
+  condition <- function(classes) structure(list(message = "explicit synthetic plan condition"),
+    class = c(classes, "error", "condition"))
+  controls <- list(numeric = 1, plain = simpleError("explicit synthetic plain error"),
+    ordinate = condition("RoBMA_density_ordinate_error"),
+    numerical = condition(c("RoBMA_density_ordinate_error", "iwmde_ordinate_numerical_error")),
+    construction = condition(c("RoBMA_density_ordinate_error", "iwmde_construction_error")),
+    chain = condition(c("RoBMA_density_ordinate_error", "RoBMA_density_chain_coverage", "iwmde_construction_error")))
+  for (precomputed in c(TRUE, FALSE)) for (name in names(controls)) {
+    input <- list2env(list(out = controls[[name]], precomputed = precomputed,
+      case = paste("synthetic", name), expect_false = testthat::expect_false))
+    eval(refusal, input)
+    reporter <- testthat::ListReporter$new()
+    testthat::with_reporter(reporter, {
+      reporter$start_file("plan-condition-control")
+      testthat::test_that("the actual plan assertion evaluates the synthetic condition", eval(assertion, input))
+      reporter$end_file()
+    })
+    result <- as.data.frame(reporter$get_results())
+    rejected <- name != "numeric" && (!precomputed || name %in% c("plain", "construction"))
+    expect_equal(sum(result[["failed"]]), as.integer(rejected), info = paste(precomputed, name))
+    expect_false(any(result[["error"]] | result[["skipped"]]))
+  }
+})
