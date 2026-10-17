@@ -632,6 +632,7 @@ test_that("density diagnostics gate unstable qCMDE/IWMDE attributes", {
     normalization_relative_error      = 0,
     normalization_mass_ratio          = 1,
     max_ordinate_relative_change      = .06,
+    max_lattice_resolution_relative_error = rep(0, length(.06)),
     max_normalizer_relative_change    = .06,
     max_quadrature_relative_change    = NA_real_
   )
@@ -733,6 +734,7 @@ test_that("density gates use bulk and 5/95 tail checkpoints", {
     normalization_relative_error    = 0,
     normalization_mass_ratio        = 1,
     max_ordinate_relative_change    = 0,
+    max_lattice_resolution_relative_error = rep(0, length(0)),
     max_normalizer_relative_change  = 0,
     max_quadrature_relative_change  = NA_real_
   ), curve)
@@ -986,6 +988,7 @@ test_that("IWMDE BF diagnostics retain the exact boundary ordinate", {
     max_log_ratio    = 1,
     pilot_y          = 2,
     ordinate_relative_change = 0,
+    lattice_resolution_relative_error = rep(0, length(0)),
     ordinate_log_change      = 0
   )
 
@@ -1002,6 +1005,7 @@ test_that("IWMDE BF diagnostics retain the exact boundary ordinate", {
         normalization_relative_error = 0,
         normalization_mass_ratio = 1,
         max_ordinate_relative_change = 0,
+        max_lattice_resolution_relative_error = rep(0, length(0)),
         max_normalizer_relative_change = 0,
         normalization_range    = c(evaluation_value / 2, evaluation_value * 2)
       )
@@ -1393,7 +1397,8 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
       estimator               = "q_grid_cmde",
       final_normalization_integral = 1,
       normalization_mass_ratio = 1,
-      ordinate_relative_change = c(0, 0, 0)
+      ordinate_relative_change = c(0, 0, 0),
+      lattice_resolution_relative_error = c(0, 0, 0)
     ),
     diagnostics = list(
       bf_included         = TRUE,
@@ -1424,7 +1429,9 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
       final_normalization_integral = 1,
       normalization_relative_error = 0,
       bf_ordinate_relative_change = 0,
+      bf_lattice_resolution_relative_error = rep(0, length(0)),
       max_ordinate_relative_change = 0,
+      max_lattice_resolution_relative_error = rep(0, length(0)),
       max_normalizer_relative_change = 0,
       normalization_range = c(-1, 1),
       estimator           = "q_grid_cmde",
@@ -1575,7 +1582,8 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
         estimator                 = "q_grid_cmde",
         final_normalization_integral = 1,
         normalization_mass_ratio  = 1,
-        ordinate_relative_change  = c(0, 0, 0)
+        ordinate_relative_change  = c(0, 0, 0),
+        lattice_resolution_relative_error = c(0, 0, 0)
       ),
       diagnostics = list(
         bf_included         = TRUE,
@@ -1606,7 +1614,9 @@ test_that("iwmde_estimate returns plan-backed attributes and caches by provenanc
         final_normalization_integral = 1,
         normalization_relative_error = 0,
         bf_ordinate_relative_change = 0,
+        bf_lattice_resolution_relative_error = rep(0, length(0)),
         max_ordinate_relative_change = 0,
+        max_lattice_resolution_relative_error = rep(0, length(0)),
         max_normalizer_relative_change = 0,
         normalization_range = c(-1, 1),
         estimator           = "q_grid_cmde",
@@ -1780,6 +1790,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
         active_mass            = 1,
         normalization_relative_error = abs(normalization_integral - 1),
         ordinate_relative_change = ordinate_relative_change,
+        lattice_resolution_relative_error = rep(0, length(ordinate_relative_change)),
         max_normalizer_relative_change = ordinate_relative_change,
         normalization_range    = c(-1, 1),
         estimator              = estimator,
@@ -1947,6 +1958,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
       final_normalization_integral = 1,
       normalization_relative_error = 0,
       bf_ordinate_relative_change = .06,
+      bf_lattice_resolution_relative_error = rep(0, length(.06)),
       max_normalizer_relative_change = .06,
       normalization_range    = c(-1, 1),
       estimator              = "q_grid_cmde"
@@ -1994,6 +2006,7 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
     active_mass            = 1,
     normalization_relative_error = 0,
     ordinate_relative_change = 0,
+    lattice_resolution_relative_error = rep(0, length(0)),
     max_normalizer_relative_change = 0,
     normalization_range    = c(-1, 1),
     estimator              = "q_grid_cmde",

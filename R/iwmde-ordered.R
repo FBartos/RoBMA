@@ -1114,6 +1114,7 @@
     analytic <- all(!vapply(masses, is.null, logical(1)))
     certified <- if (!analytic) lapply(states, function(state) .iwmde_ordered_source_normalizer(context, state)) else NULL
     source_inner <- !analytic && all(!vapply(certified, is.null, logical(1)))
+    resolution <- numeric(length(states))
     if (analytic) {
       log_Z <- vapply(masses, `[[`, numeric(1), "log_normalizer")
       discretization <- exterior <- rep(0, length(states))
@@ -1141,13 +1142,15 @@
       log_Z <- summary[["log_normalizer"]]
       discretization <- abs(expm1(summary[["validation_log_normalizer"]] - log_Z))
       exterior <- rep(summary[["truncation"]][["max"]], length(states))
+      resolution <- summary[["resolution"]][["relative_error"]]
+      if (!is.numeric(resolution) || length(resolution) != length(states)) resolution <- rep(NA_real_, length(states))
     }
     n_observations <- nrow(context[["data"]][["outcome"]])
     if (is.null(n_observations)) n_observations <- 1L
     floor <- 64 * .Machine$double.eps * max(1L, n_observations) *
       pmax(1, abs(log_Z), abs(vapply(states, `[[`, numeric(1), "baseline_log_q")),
         if (analytic || source_inner) vapply(masses, `[[`, numeric(1), "max_log_scale") else 1)
-    denominator_error <- discretization + exterior + expm1(floor)
+    denominator_error <- discretization + exterior + resolution + expm1(floor)
     ratio_error <- (1 + expm1(floor)) / (1 - denominator_error) - 1
     proof <- list(internal_method = "ordered_source_conditional_cmde",
       working_distribution = "normalized_conditional_source", normalization_basis = "source_chart",
@@ -1157,6 +1160,7 @@
       source_support = support, source_grid = summary[["normalization_range"]],
       source_grid_points = summary[["normalization_points"]],
       exterior_relative_error = exterior, floating_relative_error = expm1(floor),
+      lattice_resolution_relative_error = resolution,
       candidate_rows = rows)
     if (any(!is.finite(ratio_error)) || any(denominator_error >= 1) || any(ratio_error > .025)) {
       .iwmde_ordered_normalization_error(parameter, rows, proof)
@@ -1179,7 +1183,7 @@
       log_terms[, positions[[i]]] <- log_q - log_Z[[i]] - log(abs(chart[["slope"]]))
       row_proof <- proof
       for (field in c("numerator_relative_error", "denominator_relative_error", "ratio_relative_error",
-        "exterior_relative_error", "floating_relative_error")) row_proof[[field]] <- proof[[field]][[i]]
+        "exterior_relative_error", "floating_relative_error", "lattice_resolution_relative_error")) row_proof[[field]] <- proof[[field]][[i]]
       row_proof[["candidate_rows"]] <- rows[[i]]
       row_proof[["chart"]] <- chart[intersect(c("kind", "source", "key", "J", "indices", "component"), names(chart))]
       row_proof[["log_normalizer"]] <- log_Z[[i]]
@@ -1342,6 +1346,13 @@
   numerical_error <- rep(0, length(display_grid))
   available <- denominator > 0
   numerical_error[available] <- numerator[available] / denominator[available]
+  resolution <- vapply(produced[["proofs"]], function(proof) {
+    if (identical(proof[["internal_method"]], "ordered_offset_block_cmde")) return(0)
+    value <- proof[["lattice_resolution_relative_error"]]
+    if (is.numeric(value) && length(value) == 1L) value else NA_real_
+  }, numeric(1))
+  resolution_error <- .iwmde_qcmde_resolution_ordinate_error(log_terms, rep(0, ncol(log_terms)),
+    list(relative_error = resolution))
   integral <- if (density_output) .iwmde_ordered_integral_error(log_terms, display_grid,
     density_terms, execution, active_mass) else list(mcse = NA_real_, relative_mcse = NA_real_)
   source_points <- max(vapply(produced[["proofs"]], `[[`, numeric(1), "source_grid_points"))
@@ -1376,6 +1387,7 @@
     normalization_relative_error = max(numerical_error), normalization_scale = produced[["normalization_basis"]],
     normalization_mass_ratio = 1, normalization_truncation = max(vapply(produced[["proofs"]], `[[`, numeric(1), "exterior_relative_error")),
     normalization_truncation_status = "estimate", truncation_ordinate_bound = 0,
+    lattice_resolution_relative_error = resolution_error,
     pilot_y = y, validation_y = y, ordinate_relative_change = numerical_error,
     ordinate_log_change = log1p(numerical_error), pilot_ordinate_relative_change = numerical_error,
     pilot_ordinate_log_change = log1p(numerical_error),

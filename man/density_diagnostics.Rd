@@ -40,7 +40,7 @@ The exact columns, in order, are \code{schema_version}, \code{algorithm_version}
 \code{normalization_relative_error}, \code{stability_metric},
 \code{stability_relative_error}, \code{ordinate_relative_change},
 \code{normalization_truncation}, \code{normalization_truncation_status},
-\code{truncation_ordinate_bound},
+\code{truncation_ordinate_bound}, \code{lattice_resolution_relative_error},
 \code{quadrature_relative_change}, \code{pilot_gate_stopped}, \code{pilot_bulk_ess},
 \code{target_relative_mcse},
 \code{stability_warning_threshold}, \code{stability_rejection_threshold},
@@ -136,18 +136,24 @@ same trapezoid rule, on the same grid, that integrates them, so they sum to
 the active mass up to roundoff by construction, and rows normalized in
 closed form contribute their analytic mass within the range. The
 discretization and truncation errors of the lattice normalizers are reported
-by \code{ordinate_relative_change} and \code{truncation_ordinate_bound}. The active
+by \code{ordinate_relative_change}, \code{lattice_resolution_relative_error}, and
+\code{truncation_ordinate_bound}. The active
 policy check is identified by \code{stability_metric}: qCMDE checks its posterior
-ordinate error bound (\code{ordinate_error_bound}), whereas IWMDE checks
-normalization mass. The qCMDE bound adds two parts. \code{ordinate_relative_change}
+ordinate error estimate (\code{ordinate_error_estimate}), whereas IWMDE checks
+normalization mass. The qCMDE estimate adds three parts. \code{ordinate_relative_change}
 is the ordinate's movement between the selected normalization grid and the
 coarser nested grid over the same range. It estimates the discretization
 error of the lattice normalizers; it is an estimate, not a bound, because a
 row narrower than the lattice step can escape both grids alike. Rows whose
+lattice normalization is under-resolved also contribute an ordinate-share
+weighted resolution estimate (\code{lattice_resolution_relative_error}), using
+the kernel width or nested-grid log curvature at each row's maximum.
+This component and their sum are estimates, not rigorous bounds: a sharp
+prior core can be narrower than its likelihood kernel. Rows whose
 Gaussian likelihood kernel meets a normal prior are normalized by the
 closed-form mass of their support when their evaluated values are those of
 that closed form: their normalizer is the same on every grid, so they add no
-discretization change and no truncation. \code{truncation_ordinate_bound} is
+discretization change, lattice-resolution component or truncation. \code{truncation_ordinate_bound} is
 \eqn{t / (1 - t)} for the largest fraction \eqn{t} of any row's conditional
 mass outside the normalization range (\code{normalization_truncation}): a row
 normalizer missing that fraction overstates the row's density by at most

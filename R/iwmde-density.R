@@ -863,6 +863,8 @@
     normalization_truncation          = truncation[["max"]],
     normalization_truncation_status   = truncation[["status"]],
     truncation_ordinate_bound         = truncation[["ordinate_bound"]],
+    lattice_resolution_relative_error = .iwmde_qcmde_resolution_ordinate_error(
+      log_q_display, log_normalizer, normalized[["resolution"]]),
     pilot_y                           = pilot_y,
     validation_y                      = validation_y,
     ordinate_relative_change          = ordinate_change[["relative"]],

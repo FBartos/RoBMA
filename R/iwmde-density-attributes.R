@@ -296,6 +296,7 @@
     pilot_ordinate                    = diagnostics[["bf_pilot_ordinate"]],
     validation_ordinate               = diagnostics[["bf_validation_ordinate"]],
     ordinate_relative_change          = diagnostics[["bf_ordinate_relative_change"]],
+    lattice_resolution_relative_error = diagnostics[["bf_lattice_resolution_relative_error"]],
     ordinate_log_change               = diagnostics[["bf_ordinate_log_change"]],
     pilot_ordinate_relative_change    =
       diagnostics[["bf_pilot_ordinate_relative_change"]],

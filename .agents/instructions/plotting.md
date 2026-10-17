@@ -64,6 +64,15 @@ Transient row-aligned zero certificates admit only valid out-of-proposal-support
 draws; preserve their original denominator, chain and conditioning population.
 Finite closed-support omega conditioners retain raw endpoints. These fitted
 proposals do not certify global second moments or proposal-learning uncertainty.
+Lattice qCMDE normalization caches row-resolution estimates from the nested-grid
+maximum: the Gaussian physical width divided by that point's chart Jacobian,
+or the existing log-density second difference when no kernel is available.
+The component is `e / (1 - e)`, with `e = 2 exp(-2 pi^2 (s_z / h_z)^2)` at
+the nested spacing, combined by actual ordinate shares. Unknown widths remain
+unavailable; nonlattice normalizers contribute zero. The combined stability
+metric is an error estimate, not a rigorous bound. Ordered source ratio errors
+include this component in their denominator proof and report it without adding
+it a second time to the stability gate.
 Block capabilities must match the invariant diagonal Gaussian geometry and its
 literal Normal/Gamma prior scope. Finite-upper Gamma share inverse suppliers
 with no validated route are classified before denominator work. Unselected,

@@ -498,7 +498,7 @@
       "pilot_ordinate_log_change", "p95_normalizer_relative_change",
       "n_rescued_normalizer", "n_initial_dropped_normalizer",
       "n_refinement_steps", "normalization_truncation",
-      "normalization_truncation_status", "truncation_ordinate_bound"
+      "normalization_truncation_status", "truncation_ordinate_bound", "lattice_resolution_relative_error"
     )
   } else {
     c(
@@ -525,6 +525,11 @@
         "Internal qCMDE density result has inconsistent diagnostic vectors.",
         call. = FALSE
       )
+    }
+    resolution <- density[["lattice_resolution_relative_error"]]
+    if (!is.numeric(resolution) || length(resolution) != n_values ||
+        any(is.nan(resolution)) || any(!is.na(resolution) & resolution < 0)) {
+      stop("Internal qCMDE density result has invalid lattice-resolution estimates.", call. = FALSE)
     }
     if (any(!is.finite(density[["pilot_y"]])) ||
         any(density[["pilot_y"]] < 0) ||

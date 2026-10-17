@@ -17,6 +17,7 @@ source(testthat::test_path("common-functions.R"))
     bf_ess                       = ess,
     bf_max_weight_share          = max_weight_share,
     bf_ordinate_relative_change  = 0,
+    bf_lattice_resolution_relative_error = rep(0, length(0)),
     max_quadrature_relative_change = 0,
     mixture_mcse_type              = mixture_mcse_type,
     estimator                    = "q_grid_cmde"
@@ -390,6 +391,7 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     sampling_uncertainty_type         = "finite_population_srswor",
     normalization_relative_error      = .001,
     ordinate_relative_change          = .002,
+    lattice_resolution_relative_error = rep(0, length(.002)),
     max_quadrature_relative_change    = .003,
     target_relative_mcse              = .05,
     requested_samples                 = 500L,
@@ -445,7 +447,7 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     "sampling_fraction", "mcmc_uncertainty_scope",
     "sampling_uncertainty_type", "ess", "max_weight_share",
     "normalization_relative_error", "stability_metric",
-    "stability_relative_error", "ordinate_relative_change",
+    "stability_relative_error", "ordinate_relative_change", "lattice_resolution_relative_error",
     "normalization_truncation", "normalization_truncation_status",
     "truncation_ordinate_bound",
     "quadrature_relative_change", "pilot_gate_stopped", "pilot_bulk_ess",
@@ -578,6 +580,7 @@ test_that("point-BF policy enforces adaptive quadrature stability", {
     ess                             = 250,
     max_weight_share                = .01,
     ordinate_relative_change        = .001,
+    lattice_resolution_relative_error = rep(0, length(.001)),
     max_quadrature_relative_change  = .03
   )
 

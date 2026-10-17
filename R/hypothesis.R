@@ -379,7 +379,13 @@ hypothesis.default <- function(object, ...) {
 #' (\code{normalization_truncation_status}), and this bound
 #' (\code{truncation_ordinate_bound}), together with the change between the
 #' two nested grids (\code{ordinate_relative_change}), which estimates the
-#' discretization error of the lattice normalizers and is not a bound. Set
+#' discretization error of the lattice normalizers, and the contribution-share
+#' weighted lattice-resolution estimate (\code{lattice_resolution_relative_error}).
+#' The resolution estimate uses the Gaussian kernel width at the nested-grid
+#' maximum, or local log curvature when no kernel is available. Neither the
+#' resolution component nor the combined error estimate is a rigorous bound;
+#' a sharp prior core can be narrower than its likelihood kernel. Exact
+#' nonlattice normalizers have no lattice-resolution component. Set
 #' \code{normalization_prob} closer to 1 to reduce the truncation, and increase
 #' \code{normalization_points} to reduce the discretization. IWMDE checks its
 #' normalization mass on
@@ -388,8 +394,8 @@ hypothesis.default <- function(object, ...) {
 #' A point ordinate warns at relative MCSE at least 5 percent,
 #' ESS below 100, maximum contribution share at least 20 percent, or fewer than
 #' 100 finite contributions. These same-sample diagnostics do not suppress a
-#' finite fixed-design estimate. The qCMDE ordinate error bound (the ordinate
-#' change between the nested grids plus the tail-truncation bound) warns above
+#' finite fixed-design estimate. The qCMDE ordinate error estimate (nested-grid
+#' change, lattice resolution and the tail-truncation bound) warns above
 #' 2.5 percent and is
 #' rejected above 5 percent; IWMDE normalization error warns above 5 percent and
 #' is rejected above 10 percent. Adaptive-quadrature sensitivity warns above

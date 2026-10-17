@@ -306,6 +306,8 @@ test_that("a cached normalization is built once and evaluates only the display v
   expect_identical(second$summary, fresh$summary)
   expect_identical(second$quadrature_change, fresh$quadrature_change)
   expect_identical(first$summary, fresh$summary)
+  expect_length(first$summary$resolution$relative_error, 2L)
+  expect_identical(second$summary$resolution, first$summary$resolution)
   expect_identical(sort(setdiff(ls(env, all.names = TRUE), ".order")), "entry")
 })
 

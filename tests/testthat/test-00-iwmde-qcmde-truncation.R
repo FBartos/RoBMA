@@ -108,13 +108,14 @@ test_that("exact rows report their truncation and bound the ordinate error", {
 })
 
 
-test_that("the qCMDE ordinate error bound adds the grid change and truncation", {
+test_that("the qCMDE ordinate error estimate combines resolution, grid change and truncation", {
 
   diagnostics <- function(change, bound, status = "estimate") {
     list(
       estimator                       = "q_grid_cmde",
       ordinate                        = .4,
       ordinate_relative_change        = change,
+      lattice_resolution_relative_error = 0,
       normalization_truncation        = bound / (1 + bound),
       normalization_truncation_status = status,
       truncation_ordinate_bound       = bound
@@ -128,7 +129,7 @@ test_that("the qCMDE ordinate error bound adds the grid change and truncation", 
   expect_identical(
     .iwmde_diagnostics_bf_failure_reason(diagnostics(.001, .06)),
     paste0(
-      "qCMDE posterior ordinate error bound is 6.1% (grid change 0.1%; ",
+      "qCMDE posterior ordinate error estimate is 6.1% (grid change 0.1%; lattice resolution 0%; ",
       "tail truncation 6%, estimated). Try setting 'normalization_prob' ",
       "closer to 1 in the 'density_control' argument"
     )
@@ -136,7 +137,7 @@ test_that("the qCMDE ordinate error bound adds the grid change and truncation", 
   expect_identical(
     .iwmde_diagnostics_bf_failure_reason(diagnostics(.05, .01, "exact")),
     paste0(
-      "qCMDE posterior ordinate error bound is 6% (grid change 5%; ",
+      "qCMDE posterior ordinate error estimate is 6% (grid change 5%; lattice resolution 0%; ",
       "tail truncation 1%, exact). Try increasing 'normalization_points' in ",
       "the 'density_control' argument"
     )
@@ -145,7 +146,7 @@ test_that("the qCMDE ordinate error bound adds the grid change and truncation", 
   expect_identical(
     .iwmde_diagnostics_bf_warning(diagnostics(.01, .02, "bound")),
     paste0(
-      "qCMDE posterior ordinate error bound is 3% (grid change 1%; ",
+      "qCMDE posterior ordinate error estimate is 3% (grid change 1%; lattice resolution 0%; ",
       "tail truncation 2%, upper bound) (warning threshold ",
       .iwmde_percent(.025), "; BF rejection threshold ", .iwmde_percent(.05),
       ")."
@@ -166,6 +167,13 @@ test_that("the qCMDE ordinate error bound adds the grid change and truncation", 
     .iwmde_diagnostics_bf_failure_reason(diagnostics(.001, NA_real_)),
     "normalization diagnostics are unavailable"
   )
+  missing <- diagnostics(.001, .001)
+  missing[["lattice_resolution_relative_error"]] <- NULL
+  expect_identical(.iwmde_diagnostics_bf_failure_reason(missing), "normalization diagnostics are unavailable")
+  resolved <- diagnostics(.001, .001)
+  resolved[["lattice_resolution_relative_error"]] <- .1
+  expect_equal(.iwmde_diagnostics_qcmde_ordinate_relative_change(resolved), .102)
+  expect_match(.iwmde_diagnostics_bf_failure_reason(resolved), "normalization_points", fixed = TRUE)
 })
 
 
@@ -185,6 +193,7 @@ test_that("density diagnostics report the truncation and its status", {
       active_mass                     = 1,
       normalization_relative_error    = 0,
       ordinate_relative_change        = .002,
+      lattice_resolution_relative_error = 0,
       normalization_truncation        = .0099,
       normalization_truncation_status = "bound",
       truncation_ordinate_bound       = .01,
@@ -194,7 +203,7 @@ test_that("density diagnostics report the truncation and its status", {
   )
   row <- .iwmde_public_density_diagnostic_row(entry)
 
-  expect_identical(row[["stability_metric"]], "ordinate_error_bound")
+  expect_identical(row[["stability_metric"]], "ordinate_error_estimate")
   expect_equal(row[["stability_relative_error"]], .012)
   expect_equal(row[["ordinate_relative_change"]], .002)
   expect_equal(row[["normalization_truncation"]], .0099)
@@ -206,7 +215,7 @@ test_that("density diagnostics report the truncation and its status", {
 
   # Records from before the truncation was reported gain typed missing values.
   older <- row[setdiff(names(row), c("normalization_truncation",
-    "normalization_truncation_status", "truncation_ordinate_bound"))]
+    "normalization_truncation_status", "truncation_ordinate_bound", "lattice_resolution_relative_error"))]
   class(older) <- c("RoBMA_density_diagnostics", "data.frame")
   validated <- .density_diagnostics_validate(older)
   expect_identical(names(validated),
@@ -214,6 +223,7 @@ test_that("density diagnostics report the truncation and its status", {
   expect_identical(validated[["normalization_truncation_status"]],
                    NA_character_)
   expect_identical(validated[["truncation_ordinate_bound"]], NA_real_)
+  expect_identical(validated[["lattice_resolution_relative_error"]], NA_real_)
 })
 
 

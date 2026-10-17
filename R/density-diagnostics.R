@@ -84,18 +84,24 @@
 #' the active mass up to roundoff by construction, and rows normalized in
 #' closed form contribute their analytic mass within the range. The
 #' discretization and truncation errors of the lattice normalizers are reported
-#' by `ordinate_relative_change` and `truncation_ordinate_bound`. The active
+#' by `ordinate_relative_change`, `lattice_resolution_relative_error`, and
+#' `truncation_ordinate_bound`. The active
 #' policy check is identified by `stability_metric`: qCMDE checks its posterior
-#' ordinate error bound (`ordinate_error_bound`), whereas IWMDE checks
-#' normalization mass. The qCMDE bound adds two parts. `ordinate_relative_change`
+#' ordinate error estimate (`ordinate_error_estimate`), whereas IWMDE checks
+#' normalization mass. The qCMDE estimate adds three parts. `ordinate_relative_change`
 #' is the ordinate's movement between the selected normalization grid and the
 #' coarser nested grid over the same range. It estimates the discretization
 #' error of the lattice normalizers; it is an estimate, not a bound, because a
 #' row narrower than the lattice step can escape both grids alike. Rows whose
+#' lattice normalization is under-resolved also contribute an ordinate-share
+#' weighted resolution estimate (`lattice_resolution_relative_error`), using
+#' the kernel width or nested-grid log curvature at each row's maximum.
+#' This component and their sum are estimates, not rigorous bounds: a sharp
+#' prior core can be narrower than its likelihood kernel. Rows whose
 #' Gaussian likelihood kernel meets a normal prior are normalized by the
 #' closed-form mass of their support when their evaluated values are those of
 #' that closed form: their normalizer is the same on every grid, so they add no
-#' discretization change and no truncation. `truncation_ordinate_bound` is
+#' discretization change, lattice-resolution component or truncation. `truncation_ordinate_bound` is
 #' \eqn{t / (1 - t)} for the largest fraction \eqn{t} of any row's conditional
 #' mass outside the normalization range (`normalization_truncation`): a row
 #' normalizer missing that fraction overstates the row's density by at most
@@ -171,7 +177,7 @@
 #' `normalization_relative_error`, `stability_metric`,
 #' `stability_relative_error`, `ordinate_relative_change`,
 #' `normalization_truncation`, `normalization_truncation_status`,
-#' `truncation_ordinate_bound`,
+#' `truncation_ordinate_bound`, `lattice_resolution_relative_error`,
 #' `quadrature_relative_change`, `pilot_gate_stopped`, `pilot_bulk_ess`,
 #' `target_relative_mcse`,
 #' `stability_warning_threshold`, `stability_rejection_threshold`,
@@ -381,7 +387,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   } else if (is.null(diagnostics[["truncation_ordinate_bound"]])) {
     "ordinate_relative_change"
   } else {
-    "ordinate_error_bound"
+    "ordinate_error_estimate"
   }
   if (!is.null(diagnostics[["internal_method"]]) && diagnostics[["internal_method"]] %in%
       c("ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) stability_metric <- "block_integration_error"
@@ -472,6 +478,8 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     ordinate_relative_change = .iwmde_public_numeric(
       diagnostics[["ordinate_relative_change"]]
     ),
+    lattice_resolution_relative_error = .iwmde_diagnostic_scalar_any(diagnostics,
+      c("lattice_resolution_relative_error", "bf_lattice_resolution_relative_error", "max_lattice_resolution_relative_error")),
     normalization_truncation = .iwmde_public_numeric(
       diagnostics[["normalization_truncation"]]
     ),
@@ -563,6 +571,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
     normalization_relative_error = numeric(),
     stability_metric = character(), stability_relative_error = numeric(),
     ordinate_relative_change = numeric(),
+    lattice_resolution_relative_error = numeric(),
     normalization_truncation = numeric(),
     normalization_truncation_status = character(),
     truncation_ordinate_bound = numeric(),
@@ -595,7 +604,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
   template <- .iwmde_empty_public_density_diagnostics()
   added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason",
              "normalization_truncation", "normalization_truncation_status",
-             "truncation_ordinate_bound", "internal_method", "working_distribution",
+             "truncation_ordinate_bound", "lattice_resolution_relative_error", "internal_method", "working_distribution",
              "normalization_basis", "ordered_error_status", "block_numerator_relative_error",
              "block_denominator_relative_error", "block_max_order", "block_max_panels", "block_native_nodes")
   if (inherits(diagnostics, "RoBMA_density_diagnostics") &&

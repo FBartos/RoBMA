@@ -843,6 +843,7 @@
     normalization_truncation_status =
       density[["normalization_truncation_status"]],
     truncation_ordinate_bound   = density[["truncation_ordinate_bound"]],
+    max_lattice_resolution_relative_error = .iwmde_max_or_na(density[["lattice_resolution_relative_error"]]),
     max_ordinate_relative_change =
       .iwmde_max_or_na(density[["ordinate_relative_change"]]),
     max_normalizer_relative_change =
@@ -971,6 +972,7 @@
       bf_diagnostics[["bf_validation_ordinate"]],
     bf_ordinate_relative_change =
       bf_diagnostics[["bf_ordinate_relative_change"]],
+    bf_lattice_resolution_relative_error = bf_diagnostics[["bf_lattice_resolution_relative_error"]],
     bf_ordinate_log_change      =
       bf_diagnostics[["bf_ordinate_log_change"]],
     bf_pilot_ordinate_relative_change =

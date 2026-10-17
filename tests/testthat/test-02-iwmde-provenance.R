@@ -299,6 +299,7 @@ test_that("plan, density, and diagnostic schemas reject malformed fields", {
     pilot_y                       = c(.4, .3),
     validation_y                  = c(.4, .3),
     ordinate_relative_change      = c(0, 0),
+    lattice_resolution_relative_error = rep(0, length(c(0, 0))),
     ordinate_log_change           = c(0, 0),
     pilot_ordinate_relative_change = c(0, 0),
     pilot_ordinate_log_change      = c(0, 0),

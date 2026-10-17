@@ -141,6 +141,10 @@
   )
   if (identical(normalization_error, Inf) &&
       identical(estimator, "q_grid_cmde")) {
+    resolution <- .iwmde_diagnostics_qcmde_error_components(diagnostics)[["resolution"]]
+    if (identical(resolution, Inf)) return(paste0(
+      "qCMDE lattice resolution error estimate is unbounded. Increase 'normalization_points' ",
+      "in the 'density_control' argument and inspect density_diagnostics()"))
     return(paste0(
       "qCMDE posterior ordinate error is unbounded: a conditional density ",
       "does not decrease at an end of the normalization range. Inspect ",
@@ -368,9 +372,9 @@
     # the grid resolution is its remedy; the range's tail truncation is set by
     # the conditional coverage.
     components <- .iwmde_diagnostics_qcmde_error_components(diagnostics)
+    grid_error <- components[["change"]] + components[["resolution"]]
     if (components[["reported"]] && is.finite(components[["truncation"]]) &&
-        (!is.finite(components[["change"]]) ||
-         components[["truncation"]] >= components[["change"]])) {
+        (!is.finite(grid_error) || components[["truncation"]] >= grid_error)) {
       return(paste0(
         "Try setting 'normalization_prob' closer to 1 in the ",
         "'density_control' argument"
@@ -811,6 +815,8 @@
     diagnostics,
     c("max_ordinate_relative_change", "ordinate_relative_change")
   )
+  out[["lattice_resolution_relative_error"]] <- .iwmde_diagnostic_scalar_any(
+    diagnostics, c("max_lattice_resolution_relative_error", "lattice_resolution_relative_error"))
 
   return(out)
 }
@@ -881,10 +887,8 @@
 }
 
 
-# The qCMDE ordinate error bound: the ordinate change between the nested grids
-# (discretization) plus the relative bound t / (1 - t) that the largest row
-# truncation t places on the ordinate. Diagnostics that do not report the
-# truncation carry only the grid change.
+# The qCMDE ordinate error estimate combines nested change, a contribution-share
+# weighted lattice-resolution estimate, and the separate tail-truncation bound.
 .iwmde_diagnostics_qcmde_ordinate_relative_change <- function(diagnostics) {
 
   components <- .iwmde_diagnostics_qcmde_error_components(diagnostics)
@@ -892,15 +896,18 @@
   if (!is.finite(change) || change < 0) {
     return(NA_real_)
   }
-  if (!components[["reported"]]) {
-    return(change)
-  }
+  resolution <- components[["resolution"]]
+  if (is.na(resolution) || resolution < 0) return(NA_real_)
+  # Ordered source ratio errors already include their row-resolution terms.
+  if (isTRUE(diagnostics[["internal_method"]] %in% c("ordered_source_conditional_cmde",
+      "ordered_source_with_offset_block_cmde", "ordered_offset_block_cmde"))) resolution <- 0
+  if (!components[["reported"]]) return(change + resolution)
   truncation <- components[["truncation"]]
   if (is.na(truncation) || truncation < 0) {
     return(NA_real_)
   }
 
-  return(change + truncation)
+  return(change + truncation + resolution)
 }
 
 
@@ -914,6 +921,8 @@
       c("ordinate_relative_change", "bf_ordinate_relative_change")
     ),
     reported   = reported,
+    resolution = .iwmde_diagnostic_scalar_any(diagnostics,
+      c("lattice_resolution_relative_error", "bf_lattice_resolution_relative_error", "max_lattice_resolution_relative_error")),
     truncation = if (reported) {
       .iwmde_diagnostic_scalar(diagnostics, "truncation_ordinate_bound")
     } else {
@@ -959,8 +968,9 @@
   percent <- function(value) trimws(.iwmde_percent(value))
 
   return(paste0(
-    " posterior ordinate error bound is ", percent(error),
+    " posterior ordinate error estimate is ", percent(error),
     " (grid change ", percent(components[["change"]]),
+    "; lattice resolution ", percent(components[["resolution"]]),
     "; tail truncation ", percent(components[["truncation"]]),
     ", ", status, ")"
   ))
@@ -1161,6 +1171,7 @@
     bf_pilot_ordinate   = NA_real_,
     bf_validation_ordinate = NA_real_,
     bf_ordinate_relative_change = NA_real_,
+    bf_lattice_resolution_relative_error = NA_real_,
     bf_ordinate_log_change      = NA_real_,
     bf_pilot_ordinate_relative_change = NA_real_,
     bf_pilot_ordinate_log_change      = NA_real_,
@@ -1203,6 +1214,8 @@
     .iwmde_density_index_value(density, "validation_y", index)
   out[["bf_ordinate_relative_change"]] <-
     .iwmde_density_index_value(density, "ordinate_relative_change", index)
+  out[["bf_lattice_resolution_relative_error"]] <-
+    .iwmde_density_index_value(density, "lattice_resolution_relative_error", index)
   out[["bf_ordinate_log_change"]] <-
     .iwmde_density_index_value(density, "ordinate_log_change", index)
   out[["bf_pilot_ordinate_relative_change"]] <-

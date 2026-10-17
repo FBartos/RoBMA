@@ -353,6 +353,8 @@
     nested            = grids[["nested"]],
     laws              = laws,
     closed_form       = closed,
+    resolution        = .iwmde_qcmde_row_resolution(grids[["nested"]], kernel,
+      lattice[["step"]] / 2, lattice_rows),
     log_mass          = intervals[["log_mass"]],
     extension_steps   = extension[["steps"]],
     extension_passes  = extension[["passes"]],
@@ -367,6 +369,65 @@
       grid_context[["normalizer_grid"]]
     )
   ))
+}
+
+
+# Lattice resolution is an error estimate, not an aliasing bound. In particular
+# a Gaussian likelihood width need not describe a sharper prior core.
+.iwmde_qcmde_row_resolution <- function(grid, kernel, step, rows) {
+
+  n <- ncol(grid[["log_q"]])
+  error <- numeric(n)
+  width <- rep(NA_real_, n)
+  method <- rep("not_lattice", n)
+  error[rows] <- NA_real_
+  method[rows] <- "unavailable"
+  if (!length(rows) || !is.finite(step) || step <= 0) {
+    return(list(relative_error = error, width = width, method = method, step = step))
+  }
+  values <- grid[["log_q"]] + grid[["log_jacobian"]]
+  maximum <- max.col(t(values), ties.method = "first")
+  quadratic <- if (is.list(kernel) && is.numeric(kernel[["quadratic"]]) &&
+      length(kernel[["quadratic"]]) == n) kernel[["quadratic"]] else rep(NA_real_, n)
+  gaussian <- rows[is.finite(quadratic[rows]) & quadratic[rows] > 0 & !is.na(maximum[rows])]
+  if (length(gaussian)) {
+    width[gaussian] <- exp(-log(quadratic[gaussian]) / 2 - grid[["log_jacobian"]][maximum[gaussian]])
+    method[gaussian] <- "gaussian_kernel_at_argmax"
+  }
+  curvature <- setdiff(rows, gaussian)
+  curvature <- curvature[!is.na(maximum[curvature]) & maximum[curvature] > 1L & maximum[curvature] < nrow(values)]
+  if (length(curvature)) {
+    index <- maximum[curvature]
+    second <- values[cbind(index + 1L, curvature)] - 2 * values[cbind(index, curvature)] +
+      values[cbind(index - 1L, curvature)]
+    valid <- is.finite(second) & second < 0
+    width[curvature[valid]] <- step / sqrt(-second[valid])
+    method[curvature[valid]] <- "nested_log_curvature"
+  }
+  valid <- rows[is.finite(width[rows]) & width[rows] > 0]
+  if (length(valid)) {
+    e <- 2 * exp(-2 * pi^2 * (width[valid] / step)^2)
+    error[valid] <- ifelse(e >= 1, Inf, e / (1 - e))
+  }
+  method[rows[is.na(error[rows])]] <- "unavailable"
+  list(relative_error = error, width = width, method = method, step = step)
+}
+
+
+.iwmde_qcmde_resolution_ordinate_error <- function(log_q, log_normalizer, resolution) {
+
+  error <- resolution[["relative_error"]]
+  if (!is.numeric(error) || length(error) != ncol(log_q)) return(rep(NA_real_, nrow(log_q)))
+  terms <- sweep(log_q, 2L, log_normalizer, "-")
+  vapply(seq_len(nrow(terms)), function(i) {
+    keep <- is.finite(terms[i, ])
+    if (!any(keep)) return(NA_real_)
+    component <- error[keep]
+    if (anyNA(component) || any(component < 0)) return(NA_real_)
+    if (any(is.infinite(component))) return(Inf)
+    shares <- exp(terms[i, keep] - max(terms[i, keep]))
+    sum(shares * component) / sum(shares)
+  }, numeric(1))
 }
 
 
@@ -688,6 +749,7 @@
     final_normalization_integral = .iwmde_trapz(final_grid[["z"]], norm_y_final) +
       closed_mass(final_grid),
     truncation                   = truncation,
+    resolution                   = pass[["resolution"]],
     normalization_points         = length(final_grid[["x"]]),
     normalization_range          = range(final_grid[["x"]]),
     normalization_initial_points = length(pilot_grid[["x"]]),
