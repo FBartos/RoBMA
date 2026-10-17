@@ -60,7 +60,8 @@ test_that("profiler loader resolves its own root and reports build and omitted c
   writeLines(c('.state <- new.env(parent = emptyenv())', '.state$threads <- NA_integer_',
                'RoBMA.options <- function(native_threads) .state$threads <- native_threads',
                'RoBMA.get_option <- function(name) .state$threads'), file.path(root, "R/options.R"))
-  writeLines('list_fits <- function(validate) character()',
+  writeLines(c('package_source_md5 <- function() { testthat::test_path("..", ".."); "synthetic-source-marker" }',
+               'list_fits <- function(validate) character()'),
              file.path(root, "tests/testthat/common-functions.R"))
   invocation <- tempfile("robma-profiler-invocation-")
   dir.create(invocation)
@@ -68,6 +69,8 @@ test_that("profiler loader resolves its own root and reports build and omitted c
   executable <- file.path(R.home("bin"),
                           if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
   withr::local_envvar(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
+  withr::local_envvar(c(TESTTHAT = NA_character_, TESTTHAT_PKG = NA_character_,
+                       TESTTHAT_WD = NA_character_, R_TESTS = ""))
   for (debug in c("FALSE", "TRUE")) {
     withr::local_envvar(ROBMA_DEBUG_DLL = debug)
     run <- processx::run(executable,

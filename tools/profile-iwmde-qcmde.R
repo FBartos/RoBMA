@@ -7,6 +7,7 @@ script_path <- if (length(file_arg) > 0L) sub("^--file=", "", file_arg[[1L]]) el
 script_path <- normalizePath(script_path, winslash = "/", mustWork = TRUE)
 project_root <- normalizePath(file.path(dirname(script_path), ".."),
                               winslash = "/", mustWork = TRUE)
+setwd(project_root)
 source(file.path(project_root, "tools", "optimized-dll.R"))
 preparation <- ensure_optimized_dll(project_root, quiet = TRUE)
 if (identical(preparation, "unavailable")) {
