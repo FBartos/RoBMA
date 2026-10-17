@@ -916,11 +916,14 @@
   if (.iwmde_parameter_matches_coordinate(column, omega_coordinates)) {
     support <- .iwmde_chen_omega_support(context)
     if (all(is.finite(support))) {
-      return(.iwmde_chen_transform_bounded(
-        fit_values,
-        eval_values,
-        support
-      ))
+      # Declared finite omega supports include structural endpoint states in
+      # product-space rows. Keep them as finite regressors; the conditional
+      # Gaussian fit already centers/scales columns and removes constants.
+      fit  <- as.numeric(fit_values)
+      eval <- as.numeric(eval_values)
+      fit[!is.finite(fit) | fit < support[[1L]] | fit > support[[2L]]] <- NA_real_
+      eval[!is.finite(eval) | eval < support[[1L]] | eval > support[[2L]]] <- NA_real_
+      return(list(fit = fit, eval = eval))
     }
     return(.iwmde_chen_transform_lower_bounded(
       fit_values,
