@@ -815,6 +815,22 @@ test_that("point nuisance AGHQ fails when refinement cannot certify accuracy", {
 })
 
 
+test_that("point Poisson AGHQ retains zero-count finite log-rate tails", {
+
+  for (counts in list(c(0L, 0L), c(1L, 0L), c(0L, 1L))) {
+    out <- .glmm_pois_point_aghq(counts[1L], counts[2L], 1, 1,
+      matrix(0), matrix(.7), .8, -800)
+    # exp(-800 +/- .35*theta) is negligible at this comparison scale.
+    # A single event gives the normal MGF exp((.8*.35)^2/2).
+    expected <- if (sum(counts) == 0L) 0 else -.8 * 800 + (.8 * .35)^2 / 2
+    expect_lt(abs(out[["value"]][1L, 1L] - expected), 1e-10)
+    expect_identical(out[["exact_count"]], 0L)
+    expect_identical(sum(out[["order_counts"]]), 1L)
+    expect_identical(out[["max_mode_iterations"]], 55L)
+  }
+})
+
+
 test_that("GLMM refinements reject persistent non-finite ordinates", {
 
   grid_control <- .glmm_grid_control(

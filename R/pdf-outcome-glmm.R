@@ -9,7 +9,10 @@
     return(-exp(log_lambda))
   }
 
-  return(x * log_lambda - exp(log_lambda))
+  lambda <- exp(log_lambda)
+  value  <- x * log_lambda - lambda
+  value[is.infinite(lambda) & lambda > 0] <- -Inf
+  return(value)
 }
 
 
@@ -221,21 +224,19 @@
   logit_p1 <- logit_baserate + 0.5 * mu_samples
   logit_p2 <- logit_baserate - 0.5 * mu_samples
 
-  log_lik <- matrix(
-    stats::dbinom(
-      x    = rep(ai, each = S),
-      size = rep(n1i, each = S),
-      prob = as.vector(.inv_logit(logit_p1)),
-      log  = TRUE
-    ) + stats::dbinom(
-      x    = rep(ci, each = S),
-      size = rep(n2i, each = S),
-      prob = as.vector(.inv_logit(logit_p2)),
-      log  = TRUE
-    ),
-    nrow = S,
-    ncol = K
-  )
+  log_p1 <- stats::plogis(logit_p1, log.p = TRUE)
+  log_q1 <- stats::plogis(logit_p1, lower.tail = FALSE, log.p = TRUE)
+  log_p2 <- stats::plogis(logit_p2, log.p = TRUE)
+  log_q2 <- stats::plogis(logit_p2, lower.tail = FALSE, log.p = TRUE)
+  log_coefficient <- lchoose(n1i, ai) + lchoose(n2i, ci)
+  log_lik <- matrix(rep(log_coefficient, each = S), nrow = S, ncol = K)
+  for (k in seq_len(K)) {
+    log_lik[, k] <- log_lik[, k] +
+      (if (ai[k] == 0L) 0 else ai[k] * log_p1[, k]) +
+      (if (n1i[k] - ai[k] == 0L) 0 else (n1i[k] - ai[k]) * log_q1[, k]) +
+      (if (ci[k] == 0L) 0 else ci[k] * log_p2[, k]) +
+      (if (n2i[k] - ci[k] == 0L) 0 else (n2i[k] - ci[k]) * log_q2[, k])
+  }
 
   return(log_lik)
 }
@@ -617,19 +618,12 @@
   log_lambda1 <- log_phi + 0.5 * mu_samples + log_t1i
   log_lambda2 <- log_phi - 0.5 * mu_samples + log_t2i
 
-  log_lik <- matrix(
-    stats::dpois(
-      x      = rep(x1i, each = S),
-      lambda = as.vector(exp(log_lambda1)),
-      log    = TRUE
-    ) + stats::dpois(
-      x      = rep(x2i, each = S),
-      lambda = as.vector(exp(log_lambda2)),
-      log    = TRUE
-    ),
-    nrow = S,
-    ncol = K
-  )
+  log_factorial <- lgamma(x1i + 1) + lgamma(x2i + 1)
+  log_lik <- matrix(NA_real_, nrow = S, ncol = K)
+  for (k in seq_len(K)) {
+    log_lik[, k] <- .poisson_log_kernel(x1i[k], log_lambda1[, k]) +
+      .poisson_log_kernel(x2i[k], log_lambda2[, k]) - log_factorial[k]
+  }
 
   return(log_lik)
 }

@@ -662,8 +662,8 @@
   log_density <- function(theta) {
     rate <- rates(theta)
     log_likelihood <-
-      x1i * rate[["log_lambda1"]] - exp(rate[["log_lambda1"]]) +
-      x2i * rate[["log_lambda2"]] - exp(rate[["log_lambda2"]]) -
+      .poisson_log_kernel(x1i, rate[["log_lambda1"]]) +
+      .poisson_log_kernel(x2i, rate[["log_lambda2"]]) -
       lgamma(x1i + 1) - lgamma(x2i + 1)
     weight * log_likelihood + stats::dnorm(theta, log = TRUE)
   }

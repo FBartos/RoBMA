@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Conditional binomial and Poisson GLMM likelihoods preserve finite log tails
+  and zero-count limits, including the point log-rate quadrature evaluator.
 - Binomial GLMM adaptive quadrature retains the normalized beta prior and
   paired probability derivatives for extreme beta shapes; density provenance
   invalidates ordinates produced by the previous likelihood evaluator.
