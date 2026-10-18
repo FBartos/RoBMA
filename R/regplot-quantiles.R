@@ -80,7 +80,15 @@
     posterior_samples = posterior_samples
   )
   if (!is.numeric(se) || !length(se) %in% c(1L, ncol(mean_samples)) ||
-      any(!is.finite(se)) || any(se <= 0)) {
+      any(!is.finite(se)) || any(se < 0)) {
+    stop(
+      "Regression-plot standard errors must be finite and non-negative and ",
+      "have length one or one value per prediction.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(setup[["selection"]]) &&
+      any(setup[["is_weightfunction"]]) && any(se == 0)) {
     stop(
       "Selection-model regression-plot standard errors must be positive and ",
       "have length one or one value per prediction.",

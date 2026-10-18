@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Regression intervals permit zero SE after positive all-conditioned selection
+  cancels to the ordinary Gaussian law; active selected kernels remain positive-SE.
 - Regression plots retain the selected precision moderator, synchronize its
   variance/SE companion, and refuse inconsistent companion grouping grids.
 - Forest rendering requires metafor 5.0-1 or newer for predictive-distribution

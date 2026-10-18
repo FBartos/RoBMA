@@ -113,7 +113,9 @@ intervals require a supported scalar selection law; joint configurations
 needing retained-source or multivariate-event integration are unavailable.
 Use \code{sampling_bias = FALSE} for bias-adjusted intervals. Conditioning
 every applicable selection source cancels positive weights and uses the
-ordinary Gaussian interval law.}
+ordinary Gaussian interval law.
+This Gaussian case permits zero pointwise SE; active selection kernels
+still require strictly positive pointwise SE.}
 
 \item{sei}{single positive numeric value used as the reference standard
 error for sampling-bias and sampling-interval calculations. Defaults to the

@@ -67,6 +67,8 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' Use \code{sampling_bias = FALSE} for bias-adjusted intervals. Conditioning
 #' every applicable selection source cancels positive weights and uses the
 #' ordinary Gaussian interval law.
+#' This Gaussian case permits zero pointwise SE; active selection kernels
+#' still require strictly positive pointwise SE.
 #' @param sei single positive numeric value used as the reference standard
 #' error for sampling-bias and sampling-interval calculations. Defaults to the
 #' median observed standard error. When \code{mod = "sei"} or \code{mod =
