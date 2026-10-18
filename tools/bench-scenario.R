@@ -678,7 +678,9 @@ top_writes <- list(writes = unique(unlist(lapply(top, `[[`, "writes"))),
 plans <- lapply(exprs, function(e) {
   if (!test_body(e)) return(NULL)
   statements <- as.list(e[[3L]])[-1L]
-  admit_fit_lists(statements, fit_list_blocks(statements), top_writes)
+  blocks <- fit_list_blocks(statements)
+  if (!length(blocks)) return(blocks)
+  admit_fit_lists(statements, blocks, top_writes)
 })
 for (index in seq_along(exprs)) {
   e <- exprs[[index]]
