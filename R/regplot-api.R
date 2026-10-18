@@ -49,6 +49,8 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' moderator enters exactly one two-way interaction, the other variable in the
 #' interaction is used automatically. Continuous \code{by} moderators are shown
 #' at mean - SD, mean, and mean + SD.
+#' The companion precision measure (\code{sei} versus \code{vi}) is not selected
+#' automatically; an explicitly inconsistent companion grouping grid is unavailable.
 #' @param legend logical; whether to show legend when \code{by} is specified.
 #' Defaults to \code{TRUE}.
 #' @param xlab character; x-axis label. Defaults to the moderator name.
@@ -70,6 +72,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' median observed standard error. When \code{mod = "sei"} or \code{mod =
 #' "vi"}, the plotted moderator supplies the pointwise standard error and an
 #' explicit \code{sei} override is not allowed.
+#' The companion precision column is synchronized with the plotted values. When
+#' precision is a non-plotted predictor and no override is supplied, its existing
+#' representative predictor value supplies the precision.
 #' @param max_samples maximum number of posterior samples used for prediction
 #' summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
 #' use all posterior samples.

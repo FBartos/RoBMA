@@ -89,7 +89,9 @@ Defaults to \code{c(0.5, 3)}.}
 lines/colors. Defaults to \code{NULL}. If omitted and the selected
 moderator enters exactly one two-way interaction, the other variable in the
 interaction is used automatically. Continuous \code{by} moderators are shown
-at mean - SD, mean, and mean + SD.}
+at mean - SD, mean, and mean + SD.
+The companion precision measure (\code{sei} versus \code{vi}) is not selected
+automatically; an explicitly inconsistent companion grouping grid is unavailable.}
 
 \item{legend}{logical; whether to show legend when \code{by} is specified.
 Defaults to \code{TRUE}.}
@@ -117,7 +119,10 @@ ordinary Gaussian interval law.}
 error for sampling-bias and sampling-interval calculations. Defaults to the
 median observed standard error. When \code{mod = "sei"} or \code{mod =
 "vi"}, the plotted moderator supplies the pointwise standard error and an
-explicit \code{sei} override is not allowed.}
+explicit \code{sei} override is not allowed.
+The companion precision column is synchronized with the plotted values. When
+precision is a non-plotted predictor and no override is supplied, its existing
+representative predictor value supplies the precision.}
 
 \item{max_samples}{maximum number of posterior samples used for prediction
 summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to

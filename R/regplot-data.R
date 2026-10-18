@@ -224,6 +224,9 @@
   }
 
   candidates <- unique(candidates[candidates %in% names(predictor_info)])
+  if (mod_name %in% c("sei", "vi")) {
+    candidates <- setdiff(candidates, setdiff(c("sei", "vi"), mod_name))
+  }
 
   if (length(candidates) == 0L) {
     return(NULL)
@@ -353,6 +356,15 @@
     }
   }
 
+  if (mod_name %in% c("sei", "vi") && !is.null(by_info) &&
+      by_info[["name"]] %in% setdiff(c("sei", "vi"), mod_name) &&
+      any(!.sampling_variance_matches_se(newdata_list[["vi"]],
+                                         newdata_list[["sei"]]))) {
+    stop("The 'by' grid has inconsistent 'sei' and 'vi' values. ",
+      "Choose a grouping moderator other than the companion precision measure.",
+      call. = FALSE)
+  }
+
   return(list(
     newdata  = as.data.frame(newdata_list),
     grid     = grid,
@@ -478,16 +490,17 @@
 .regplot_prediction_precision <- function(newdata, mod_name, n_pred,
                                           default_sei, reference_sei) {
 
-  if (identical(mod_name, "vi") ||
-      (is.null(reference_sei) && "vi" %in% names(newdata))) {
+  if (identical(mod_name, "sei")) {
+    sei <- newdata[["sei"]]
+  } else if (identical(mod_name, "vi") ||
+             (is.null(reference_sei) && "vi" %in% names(newdata))) {
     vi <- newdata[["vi"]]
     if (!is.numeric(vi) || length(vi) != n_pred ||
         any(!is.finite(vi)) || any(vi < 0)) {
       stop("Prediction variances must be finite and non-negative.", call. = FALSE)
     }
     sei <- sqrt(vi)
-  } else if (identical(mod_name, "sei") ||
-             (is.null(reference_sei) && "sei" %in% names(newdata))) {
+  } else if (is.null(reference_sei) && "sei" %in% names(newdata)) {
     sei <- newdata[["sei"]]
   } else {
     sei <- rep(
@@ -501,13 +514,11 @@
          call. = FALSE)
   }
 
-  if (!mod_name %in% c("sei", "vi") && !is.null(reference_sei)) {
-    if ("vi" %in% names(newdata)) {
+  if (any(c("sei", "vi") %in% names(newdata))) {
+    if (!identical(mod_name, "vi")) {
       newdata[["vi"]] <- sei^2
     }
-    if ("sei" %in% names(newdata)) {
-      newdata[["sei"]] <- sei
-    }
+    newdata[["sei"]] <- sei
   }
 
   return(list(newdata = newdata, sei = sei))

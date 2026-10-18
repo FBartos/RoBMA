@@ -827,3 +827,27 @@ test_that("native regplot mixture intervals match R fallback", {
 
   expect_equal(actual, expected, tolerance = 1e-4)
 })
+test_that("regression precision grids retain the explicitly plotted measure", {
+
+  newdata <- data.frame(sei = c(.1, .2), vi = rep(.075, 2))
+  result <- .regplot_prediction_precision(newdata, "sei", 2L, .25, NULL)
+  expect_identical(result$sei, c(.1, .2))
+  expect_identical(result$newdata$sei, c(.1, .2))
+  expect_identical(result$newdata$vi, c(.1, .2)^2)
+  newdata <- data.frame(sei = rep(.25, 2), vi = c(.01, .04))
+  result <- .regplot_prediction_precision(newdata, "vi", 2L, .25, NULL)
+  expect_identical(result$sei, sqrt(c(.01, .04)))
+  expect_identical(result$newdata$vi, c(.01, .04))
+  result <- .regplot_prediction_precision(newdata, "x", 2L, .25, NULL)
+  expect_identical(result$sei, sqrt(newdata$vi))
+  result <- .regplot_prediction_precision(newdata, "x", 2L, .25, .3)
+  expect_identical(result$newdata$sei, rep(.3, 2))
+  expect_identical(result$newdata$vi, rep(.3^2, 2))
+  info <- list(sei = list(data = c(.1, .2, .3)),
+    vi = list(data = c(.01, .04, .09)))
+  expect_error(.regplot_prediction_grid("sei", "continuous", info$sei$data,
+    list(name = "vi", type = "continuous", data = info$vi$data),
+    c(.1, .2), 2, info),
+    "The 'by' grid has inconsistent 'sei' and 'vi' values.", fixed = TRUE)
+})
+

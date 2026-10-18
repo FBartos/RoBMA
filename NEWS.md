@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Regression plots retain the selected precision moderator, synchronize its
+  variance/SE companion, and refuse inconsistent companion grouping grids.
 - Forest rendering requires metafor 5.0-1 or newer for predictive-distribution
   support; data-only forest preparation remains independent of metafor.
 - Multi-component PET/PEESE prior curves retain the bias-only location and
