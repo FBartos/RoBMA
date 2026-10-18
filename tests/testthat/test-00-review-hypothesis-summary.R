@@ -322,3 +322,36 @@ test_that("E3-1 scale-bound random correlation summaries remain available", {
     expect_true(any(grepl("rho", capture.output(print(result)), fixed = TRUE)))
   }
 })
+
+test_that("E3-2 inclusion warnings follow actual relabel and row selection", {
+
+  original <- c("(mu) intercept", "(mu) inclusion(study)")
+  table <- data.frame(prior_prob = .5, post_prob = c(.75, .8),
+    inclusion_BF = c(3, 4), row.names = original)
+  table$inclusion_BF <- BayesTools::format_BF(table$inclusion_BF, inclusion = TRUE)
+  class(table) <- c("BayesTools_table", "data.frame")
+  attr(table, "type") <- c("prior_prob", "post_prob", "inclusion_BF")
+  attr(table, "parameters") <- original
+  attr(table, "rownames") <- TRUE
+  attr(table, "logBF") <- FALSE
+  attr(table, "BF01") <- FALSE
+  attr(table, "warnings") <- stats::setNames(c("Synthetic effect marker E.", "Synthetic random marker R.",
+    "Synthetic global marker G."), c(original, ""))
+  core <- .summary.inclusion_subtable(table, 1L, "Effect", "Component Inclusion")
+  random <- .summary.inclusion_subtable(table, 2L, "study: tau", "Random-Effect Inclusion")
+  result <- structure(list(inclusion_components = core, inclusion_random = random,
+    name = "Synthetic warning transport"), class = "summary.brma")
+  merged <- .summary_brma_component_inclusion(result)
+  warnings <- attr(merged, "warnings", exact = TRUE)
+  expect_true(all(c("Effect", "Heterogeneity: study: tau") %in% names(warnings)))
+  expect_true(any(grepl("marker G", warnings, fixed = TRUE)))
+  selected <- merged["Effect", , drop = FALSE]
+  expect_true(any(grepl("marker E", attr(selected, "warnings"), fixed = TRUE)))
+  expect_false(any(grepl("marker R", attr(selected, "warnings"), fixed = TRUE)))
+  expect_equal(as.numeric(merged$inclusion_BF), c(3, 4))
+  for (field in c("mods", "scale")) attr(result, field) <- FALSE
+  attr(result, "random") <- TRUE
+  printed <- capture.output(print(result))
+  expect_equal(sum(grepl("marker E", printed, fixed = TRUE)), 1L)
+  expect_equal(sum(grepl("marker R", printed, fixed = TRUE)), 1L)
+})

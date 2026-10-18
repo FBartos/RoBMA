@@ -506,6 +506,8 @@ as.data.frame.summary.brma <- function(
 
   random_inclusion <- x[["inclusion_random"]]
   if (length(random_inclusion) > 0L && nrow(random_inclusion) > 0L) {
+    random_inclusion <- .summary_inclusion_relabel_warnings(random_inclusion,
+      paste0("Heterogeneity: ", rownames(random_inclusion)))
     rownames(random_inclusion) <- paste0("Heterogeneity: ", rownames(random_inclusion))
     inclusion <- .summary_brma_combine_tables(
       tables = list(x[["inclusion_components"]], random_inclusion),
@@ -1149,6 +1151,7 @@ print.brma <- function(x, ...) {
     table   = table,
     indices = indices
   )
+  output <- .summary_inclusion_relabel_warnings(output, row_labels)
   rownames(output) <- row_labels
 
   attr(output, "parameters") <- row_labels
@@ -1156,6 +1159,22 @@ print.brma <- function(x, ...) {
 
   return(output)
 }
+
+.summary_inclusion_relabel_warnings <- function(table, row_labels) {
+
+  warnings <- attr(table, "warnings", exact = TRUE)
+  keys <- names(warnings)
+  if (is.null(keys)) return(table)
+  indices <- match(keys, rownames(table))
+  missing <- is.na(indices)
+  indices[missing] <- match(keys[missing], attr(table, "parameters", exact = TRUE))
+  matched <- !is.na(indices) & !is.na(keys) & nzchar(keys)
+  keys[matched] <- row_labels[indices[matched]]
+  names(warnings) <- keys
+  attr(table, "warnings") <- warnings
+  table
+}
+
 
 # Restore row-level bounds after table subsetting. Unbounded BF columns also
 # carry all-NA bound metadata even though they do not have BayesTools_BF class.
