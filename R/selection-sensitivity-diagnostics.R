@@ -25,6 +25,9 @@
 #' Within a connected source unit, their product gives the
 #' relative reweighting when the retained contexts are integrated before
 #' selection normalization.
+#' Sampling-conditioned comparisons use the fitted candidate factors, including
+#' singular declared support. Integration diagnostics report maxima over the
+#' constituent event evaluations, rather than an error bound for their product.
 #'
 #' `ess_fraction` estimates `mean(W)^2 / mean(W^2)`;
 #' `total_variation` estimates the distance between the pre-selection context
@@ -235,19 +238,31 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     execution_plan <- .selection_joint_execution_plan_with_control(execution_plan, integration_control)
   }
   publication_groups <- model[["groups"]][["row_blocks"]]
-  adjacency <- diag(TRUE, ncol(means))
+  components <- .selection_dependency_union(ncol(means))
   for (rows in c(parts[["full_dependency_blocks"]], publication_groups,
                  execution_plan[["row_blocks"]])) {
-    adjacency[rows, rows] <- TRUE
+    components$join(rows)
   }
-  row_blocks <- .known_v_block_indices(adjacency * 1)
+  row_blocks <- components$blocks()
+  normalizer_setup <- NULL
+  if (.selection_retains_sampling(data)) {
+    # The native state producers read this plan from data. Keep an explicit
+    # diagnostic override local, without changing the fitted object's metadata.
+    normalizer_data <- data
+    attr(normalizer_data, "selection_execution_plan") <- execution_plan
+    normalizer_setup <- list(fit = object[["fit"]], data = normalizer_data,
+      priors = priors, posterior_samples = posterior_samples,
+      S = nrow(posterior_samples), K = ncol(means),
+      tau_within = scales[["tau_within"]], tau_between = scales[["tau_between"]])
+  }
   result <- .selection_sensitivity_run(
     means = parts[["means"]], covariance = parts[["covariance"]],
     context_covariance = parts[["context_covariance"]],
     selection_sei = .outcome_data_sei(object), selection_context = context,
     normalization_units = execution_plan[["row_blocks"]], row_blocks = row_blocks,
     execution_plan = execution_plan, latent_samples = latent_samples,
-    random_covariance = parts[["random_covariance"]]
+    random_covariance = parts[["random_covariance"]],
+    normalizer_setup = normalizer_setup
   )
   reference <- model
   for (mode in c("estimate_random_effects", "other_random_effects", "known_sampling_variance")) {
@@ -319,7 +334,7 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
 .selection_sensitivity_run <- function(
     means, covariance, context_covariance, selection_sei, selection_context,
     normalization_units, row_blocks, execution_plan, latent_samples,
-    random_covariance = NULL) {
+    random_covariance = NULL, normalizer_setup = NULL) {
 
   means <- as.matrix(means)
   S <- nrow(means)
@@ -368,7 +383,16 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     log_normalizers <- matrix(0, latent_samples, length(normalization_units))
     event_error <- numeric(length(normalization_units))
     event_quadrature_error <- numeric(length(normalization_units))
-    for (event in seq_along(normalization_units)) {
+    if (!is.null(normalizer_setup)) {
+      current <- .selection_conditioned_sampling_subset_setup(normalizer_setup, draw)
+      mass <- .selection_conditioned_sampling_normalizer(current, conditional_means)
+      if (any(!is.finite(mass[["block_log_mass"]]))) {
+        stop("Selection sensitivity normalizers must be finite and positive.", call. = FALSE)
+      }
+      log_normalizers <- mass[["block_log_mass"]]
+      event_error <- vapply(mass[["diagnostics"]], function(x) max(x[["relative_mcse"]]), numeric(1L))
+      event_quadrature_error <- vapply(mass[["diagnostics"]], function(x) max(x[["relative_change"]]), numeric(1L))
+    } else for (event in seq_along(normalization_units)) {
       observations <- normalization_units[[event]]
       n <- length(observations)
       sigma <- .block_covariance_sub(covariance, draw, observations)

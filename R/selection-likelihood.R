@@ -1632,10 +1632,12 @@ set_selection_likelihood_control <- function(
   setup[["S"]] <- S
   value <- numeric(S)
   diagnostics <- vector("list", length(.data_selection_execution_plan(setup[["data"]])[["row_blocks"]]))
+  block_log_mass <- matrix(0, S, length(diagnostics))
   for (rows in chunks) {
     current <- .selection_conditioned_sampling_subset_setup(setup, rows)
     result <- .selection_conditioned_sampling_normalizer_chunk(current, means[rows, , drop = FALSE])
     value[rows] <- result[["log_mass"]]
+    block_log_mass[rows, ] <- result[["block_log_mass"]]
     for (block in seq_along(diagnostics)) {
       if (is.null(diagnostics[[block]])) {
         diagnostics[[block]] <- lapply(result[["diagnostics"]][[block]], function(x) numeric(S))
@@ -1645,7 +1647,7 @@ set_selection_likelihood_control <- function(
       }
     }
   }
-  list(log_mass = value, diagnostics = diagnostics)
+  list(log_mass = value, diagnostics = diagnostics, block_log_mass = block_log_mass)
 }
 
 
@@ -1666,6 +1668,7 @@ set_selection_likelihood_control <- function(
   groups      <- .data_selection_model(data)[["groups"]][["group_index"]]
   value       <- numeric(S)
   diagnostics <- vector("list", length(plan[["row_blocks"]]))
+  block_log_mass <- matrix(0, S, length(diagnostics))
   for (index in seq_along(plan[["row_blocks"]])) {
     rows    <- plan[["row_blocks"]][[index]]
     loading <- factors[["loadings"]][[index]]
@@ -1688,9 +1691,10 @@ set_selection_likelihood_control <- function(
       as.numeric(plan[["factor_quadrature"]][["orders"]]), PACKAGE = "RoBMA")
     .selection_conditioned_sampling_diagnostics(result, plan)
     value <- value + result[["log_normalizer"]]
+    block_log_mass[, index] <- result[["log_normalizer"]]
     diagnostics[[index]] <- result[c("relative_mcse", "relative_change")]
   }
-  list(log_mass = value, diagnostics = diagnostics)
+  list(log_mass = value, diagnostics = diagnostics, block_log_mass = block_log_mass)
 }
 
 
