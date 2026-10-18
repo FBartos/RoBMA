@@ -37,6 +37,13 @@ context("Scenario benchmark preparation")
 
 .scenario_benchmark_run <- function(root, args, target = root, installed = TRUE) {
 
+  # Benchmark rows include HEAD: give disposable roots an identifiable HEAD.
+  if (!dir.exists(file.path(target, ".git"))) {
+    stopifnot(system2("git", c("-C", shQuote(target), "init", "--quiet")) == 0L)
+    stopifnot(system2("git", c("-C", shQuote(target), "-c", "user.name=RoBMA-tests",
+      "-c", "user.email=tests@example.org", "commit", "--quiet", "--allow-empty",
+      "-m", "fixture")) == 0L)
+  }
   out <- tempfile("robma-bench-output-")
   executable <- file.path(R.home("bin"),
                           if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
@@ -234,4 +241,158 @@ test_that("unsupported compound fit loading refuses before reading caches", {
   expect_equal(run[["status"]], 1L)
   expect_match(run[["stderr"]], "Unsupported compound.*scenario_fit")
   expect_false(grepl("No cached fit|unsupported side effect", run[["stderr"]]))
+})
+
+
+.scenario_admission_cases <- function() {
+
+  loop <- c('fits <- list()', 'for (key in keys) {',
+            '  fits[[key]] <- scenario_fit(key, stop("must never fit"))', '}')
+  chosen <- 'scenario_text("chosen", print(fits))'
+  cached <- list(old = list(value = "OLD_CACHE"), new = list(value = "NEW_CACHE"))
+  case <- function(block, fits = list(), args = "--only=^chosen$", refuse = TRUE,
+                   top = character(), text = "[1] 7") {
+    list(block = block, fits = fits, args = args, refuse = refuse, top = top, text = text)
+  }
+  dormant <- c('keys <- "old"', loop, 'keys <- "new"',
+               'scenario_text("chosen", print(7))', 'scenario_text("dependent", print(fits))')
+  lazy <- c('fit_other <- scenario_fit("irrelevant", stop("must never fit"))',
+            'keys <- if (fit_other$value) "old" else "old"', loop, 'keys <- "new"',
+            'scenario_text("chosen", print(7))', 'scenario_text("dependent", print(fits))')
+  cases <- list(
+    rebind_both = case(c('keys <- "old"', loop, 'keys <- "new"', chosen), cached),
+    rebind_only_old = case(c('keys <- "old"', loop, 'keys <- "new"', chosen), cached["old"]),
+    stable = case(c('keys <- "old"', loop, chosen), cached, refuse = FALSE, text = "OLD_CACHE"),
+    names_rebind = case(c('keys <- "old"', 'labels <- "OLD_LABEL"', loop,
+                         'names(fits) <- labels', 'labels <- "NEW_LABEL"', chosen), cached),
+    unselected_list = case(dormant, args = "--list", refuse = FALSE),
+    unselected_filter = case(dormant, refuse = FALSE),
+    lazy_dependency_list = case(lazy, args = "--list", refuse = FALSE),
+    lazy_dependency_filter = case(lazy, refuse = FALSE),
+    derived_selected = case(c('keys <- "old"', loop, 'keys <- "new"',
+                             'view <- fits[[1L]]$value', 'scenario_text("chosen", print(view))'), cached),
+    derived_unused = case(c('keys <- "old"', loop, 'keys <- "new"', 'view <- fits[[1L]]$value',
+                           'scenario_text("chosen", print(7))',
+                           'scenario_text("dependent", print(view))'), refuse = FALSE),
+    transitive_selector = case(c('selector <- "old"', 'keys <- selector', loop,
+                                'selector <- "new"', chosen), cached),
+    lazy_selector_selected = case(c('fit_other <- scenario_fit("irrelevant", stop("must never fit"))',
+                                   'selector <- if (fit_other$value) "old" else "old"',
+                                   'keys <- selector', loop, 'selector <- "new"', chosen)),
+    unresolved_payload = case(c('keys <- "old"', loop, 'keys <- "new"',
+                               'artifact_name <- "chosen"', 'scenario_text(artifact_name, print(fits))'), cached),
+    name_root_list = case(c('keys <- "old"', loop, 'keys <- "new"',
+                           'artifact_name <- paste0("artifact_", fits[[1L]]$value)',
+                           'scenario_text(artifact_name, print(7))'), cached, args = "--list"),
+    dynamic_selected = case(c('keys <- "old"', loop, 'keys <- "new"',
+                             'scenario_text("chosen", print(get("fits")))'), cached),
+    local_callable = case(c('keys <- "old"', loop, 'keys <- "new"',
+                           'view <- function() fits', 'scenario_text("chosen", print(view()))'), cached),
+    empty_sequence = case(c('keys <- c()', loop, chosen)),
+    unknown_sequence = case(c('keys <- character()', loop, chosen)),
+    helper_shadow = case(c('keys <- "old"', 'paste0 <- function(...) "new"',
+                           'fits <- list()', 'for (key in keys) {',
+                           '  fits[[key]] <- scenario_fit(paste0(key), stop("must never fit"))', '}', chosen), cached),
+    top_helper_shadow = case(c('keys <- "old"', 'fits <- list()', 'for (key in keys) {',
+                               '  fits[[key]] <- scenario_fit(paste0(key), stop("must never fit"))', '}', chosen),
+                             cached, top = 'paste0 <- function(...) "new"'),
+    counter_only = case(c('keys <- "old"', 'preparation_count <- 0L', loop,
+                         'names(fits) <- { preparation_count <- preparation_count + 1L; keys }',
+                         'scenario_text("chosen", print(preparation_count))'), cached),
+    counter_intermediate = case(c('keys <- "old"', 'preparation_count <- 0L', loop,
+                                 'names(fits) <- { preparation_count <- preparation_count + 1L; keys }',
+                                 'observed <- preparation_count',
+                                 'scenario_text("chosen", print(list(fits, observed)))'), cached),
+    structural = case(c('fit_needed <- scenario_fit("missing", stop("must never fit"))',
+                        'scenario_text("chosen", print(fit_needed))', 'fits <- list()',
+                        'for (key in c("old")) {', '  message("unsupported side effect")',
+                        '  fits[[key]] <- scenario_fit(key, stop("must never fit"))', '}'))
+  )
+  mutations <- c(arrow = '"new" -> keys', equal = 'keys = "new"',
+                 replacement = 'keys[1L] <- "new"', nested_replacement = 'names(keys)[1L] <- "new"',
+                 loop_target = 'for (keys in "new") NULL', nonlocal = 'keys <<- "new"',
+                 reflective = 'assign("keys", "new")')
+  for (name in names(mutations)) {
+    cases[[paste0("mutation_", name)]] <- case(c('keys <- "old"', loop, mutations[[name]], chosen), cached)
+  }
+  for (shape in c("direct", "compound")) {
+    timing <- 'scenario_time("excluded", print(fits))'
+    if (shape == "compound") timing <- paste0("if (TRUE) ", timing)
+    for (mode in c("filter", "list")) {
+      cases[[paste0("time_", shape, "_", mode)]] <- case(
+        c('keys <- "old"', loop, 'keys <- "new"', timing, 'scenario_text("chosen", print(7))'),
+        args = if (mode == "list") "--list" else "--only=^chosen$",
+        refuse = shape == "compound" && mode == "filter")
+    }
+  }
+  cases
+}
+
+
+test_that("source admission refuses demanded binding changes and keeps dormant payloads lazy", {
+
+  for (name in names(.scenario_admission_cases())) {
+    fixture <- .scenario_admission_cases()[[name]]
+    root <- .scenario_benchmark_fixture(fixture$block, fixture$fits)
+    on.exit(unlink(root, recursive = TRUE), add = TRUE)
+    if (length(fixture$top)) {
+      path <- file.path(root, "tests/scenarios/test-unit.R")
+      writeLines(c(fixture$top, readLines(path)), path)
+    }
+    # Observe actual readRDS calls after package loading, without replacing the loader.
+    bootstrap <- file.path(root, "tools/bench-bootstrap.R")
+    lines <- readLines(bootstrap)
+    marker <- gsub("\\\\", "/", file.path(root, "cache-reads.log"))
+    trace <- sprintf('trace("readRDS", where = baseenv(), print = FALSE, tracer = quote(if (is.character(file) && grepl("/cache/unit/", file, fixed = TRUE)) cat(file, "\\n", file = "%s", append = TRUE)))', marker)
+    writeLines(append(lines, trace, after = length(lines) - 1L), bootstrap)
+    cache_paths <- list.files(file.path(root, "cache"), full.names = TRUE, recursive = TRUE)
+    before <- tools::md5sum(cache_paths)
+    run <- .scenario_benchmark_run(root, fixture$args)
+    on.exit(unlink(run$out, recursive = TRUE), add = TRUE)
+    expect_identical(tools::md5sum(cache_paths), before, info = name)
+    if (fixture$refuse) {
+      expect_equal(run$status, 1L, info = name)
+      expect_match(run$stderr, "Unsupported (binding-sensitive|compound) scenario_fit", info = name)
+      expect_false(grepl("No cached fit|unsupported side effect", run$stderr), info = name)
+      expect_equal(length(list.files(run$out, recursive = TRUE)), 0L, info = name)
+      expect_false(file.exists(marker), info = name)
+    } else {
+      expect_equal(run$status, 0L, info = name)
+      if (fixture$args == "--list") {
+        expect_true(file.exists(file.path(run$out, "listing-unit.tsv")), info = name)
+      } else {
+        path <- file.path(run$out, "unit--chosen.txt")
+        expect_true(file.exists(path), info = name)
+        if (file.exists(path)) expect_match(paste(readLines(path), collapse = "\n"), fixture$text,
+                                           fixed = TRUE, info = name)
+      }
+      if (name != "stable") expect_false(file.exists(marker), info = name)
+    }
+  }
+})
+
+
+test_that("all scenario bodies are admitted before earlier user code or cache reads", {
+
+  root <- .scenario_benchmark_fixture(c(
+    'keys <- "old"', 'fits <- list()',
+    'for (key in keys) fits[[key]] <- scenario_fit(key, stop("must never fit"))',
+    'keys <- "new"', 'scenario_text("chosen", print(fits))'
+  ), fits = list(old = list(value = "OLD_CACHE")))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  path <- file.path(root, "tests/scenarios/test-unit.R")
+  marker <- gsub("\\\\", "/", file.path(root, "earlier-user-code"))
+  writeLines(c('testthat::test_that("earlier effect", {',
+               sprintf('  writeLines("must not execute", "%s")', marker),
+               '  early <- scenario_fit("absent", stop("must never fit"))',
+               '  scenario_text("chosen", print(early))', '})', readLines(path)), path)
+  before <- tools::md5sum(list.files(file.path(root, "cache"), recursive = TRUE, full.names = TRUE))
+  run <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(run$out, recursive = TRUE), add = TRUE)
+  expect_equal(run$status, 1L)
+  expect_match(run$stderr, "Unsupported binding-sensitive scenario_fit")
+  expect_false(grepl("No cached fit", run$stderr))
+  expect_false(file.exists(marker))
+  expect_length(list.files(run$out, recursive = TRUE), 0L)
+  expect_identical(tools::md5sum(names(before)), before)
 })

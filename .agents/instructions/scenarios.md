@@ -312,6 +312,46 @@ body only assigns `scenario_fit()` results into those lists, and subsequent
 needs an output, retaining its lists, names, and loop binding. Unsupported
 compound fit construction fails before the benchmark reads any cache.
 
+Preparation inputs have a bounded source contract: literals and plain local
+definitions using `c`, `seq_along`, `paste0`, parentheses, `[` and `[[`.
+The loop sequence must have declared nonempty literal-vector provenance (or
+`seq_along` of one); empty, inherited, cyclic, fit-dependent or opaque sequence
+definitions cannot be certified when demanded. Fixed helpers must retain their
+bindings, including function-position and scenario-file top-level bindings.
+Input dependencies are followed through local definitions without reading their
+values. Later direct, replacement, loop-target, nonlocal and visible reflective
+writes refuse a potentially demanded block with a named input/source diagnostic.
+The suffix check is conservative: an eager copy or a write after an earlier
+force does not establish a separate admission exception.
+
+Admission prepares every test body's source plan before evaluating any scenario
+expression. Artifact names are always demand roots; selected literal payloads,
+potentially selected unresolved names and their transitive local dependencies
+also count in ordinary runs. `--list` excludes ordinary payloads. A direct bare
+excluded `scenario_time()` is skipped by the runner, while an actually evaluated
+compound timing call can execute its excluded payload. Assigned excluded results
+remain lazy. Unselected unsafe lists, including fit-dependent inputs, remain
+unforced; their existing loader refuses before block evaluation if an unexpected
+consumer later forces them. Structural unsupported-compound errors remain
+independent of selection. Existing output-directory/helper/index setup may occur
+before refusal; no new artifact or cache read occurs for the refused block.
+
+The exact diagnostic `names()` counter form is supported: a plain local numeric
+literal initializer, increment-by-numeric-literal assignments in a brace block,
+and a final admitted names expression. Observe its counter in a payload that
+also directly demands the block's list or final loop output. Counter-only and
+eager intermediate counter observations are unsupported. The counter still
+updates once per names assignment in the original scenario environment.
+
+This is a declarative preparation check, not a general R interpreter or proof
+of purity. Source dependency unions and opaque/dynamic demand can over-refuse.
+General analysis/artifact calls must not secretly modify or dynamically fetch
+preparation bindings outside explicit source dependencies. Imported functions,
+S3 methods, reference objects and hidden reflection cannot be certified by this
+pass. No whole-run atomicity guarantee applies outside that contract. Fit code
+and `cache_version` promises are not executed by this benchmark wrapper and are
+excluded from preparation dependencies and mutation summaries.
+
 Two rules make the numbers usable:
 
 - **A/B in one session.** Compare against a baseline measured on the same

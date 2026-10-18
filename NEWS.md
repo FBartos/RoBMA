@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scenario benchmarks admit fit-list preparation from bounded stable source
+  inputs before scenario evaluation, refusing demanded binding changes while
+  preserving lazy excluded artifacts and one-shot list/counter preparation.
 - Non-finite bridge repetitions raise a classed RoBMA error with public
   remedies and the intact upstream condition; unused add_marglik() arguments
   warn. Standardized comparison results require finite repetitions.
