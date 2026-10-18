@@ -76,5 +76,16 @@ test_that("F3-3 every direct factor grid obeys native diagnostics including cach
     passing <- .review_grid_diagnostic_transport(method, 0, 0, kind)
     expect_true(is.numeric(passing$first) && all(is.finite(passing$first)))
     expect_identical(passing$first, passing$repeat_value)
+    if (kind == "anchor") {
+      expect_gt(passing$shared$stats[["interpolated_points"]], 0)
+      # Native acceptance alone does not certify interpolation: existing
+      # anchors additionally require MCSE exactly zero and finite nonnegative
+      # eta = 2 * nested change no larger than the original tolerance.
+      for (metrics in list(c(.001, 0), c(0, .004))) {
+        direct <- .review_grid_diagnostic_transport(method, metrics[1L], metrics[2L], kind)
+        expect_true(is.numeric(direct$first) && all(is.finite(direct$first)))
+        expect_identical(direct$shared$stats[["interpolated_points"]], 0)
+      }
+    }
   }
 })
