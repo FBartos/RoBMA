@@ -141,6 +141,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
       samples_table <- BayesTools::JAGS_estimates_table(
         fit                    = model[["fit"]],
         keep_formulas          = "log_tau",
+        remove_inclusion       = TRUE,
         random_effects_summary = "none",
         remove_diagnostics     = TRUE,
         transform_factors      = transform_factors,
@@ -152,6 +153,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
       samples_table <- BayesTools::JAGS_estimates_table(
         fit                    = model[["fit"]],
         keep_parameters        = "tau",
+        remove_inclusion       = TRUE,
         random_effects_summary = "none",
         remove_diagnostics     = TRUE,
         transform_factors      = transform_factors,

@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Coefficient influence diagnostics exclude declared mixture inclusion indicators
+  from location and scale coefficient tables.
 - LOO comparison and predictive weights retain short, unique model labels for
   named arguments, direct symbols and programmatically supplied model values.
 - Known-V estimate residuals use the shared precision availability checks and

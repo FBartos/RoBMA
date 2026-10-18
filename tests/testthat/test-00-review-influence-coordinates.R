@@ -1,5 +1,69 @@
 context("Influence diagnostics use the fitted coordinates of factor levels")
 
+.review_influence_mixture <- function(scale = FALSE) {
+
+  dat <- data.frame(yi = seq(.1, .6, .1), sei = 1, x = rep(c(-1, 0, 1), 2))
+  normal <- prior("normal", list(0, 1))
+  point <- prior("point", list(0))
+  args <- list(yi = dat$yi, sei = dat$sei, data = dat, prior_effect = normal,
+    prior_effect_null = FALSE, prior_heterogeneity_null = NULL, only_priors = TRUE,
+    silent = TRUE, measure = "GEN", prior_unit_information_sd = 1)
+  if (scale) {
+    args <- c(args, list(scale = ~ x, prior_scale = list(x = normal),
+      prior_scale_null = list(x = point),
+      prior_heterogeneity = prior("normal", list(0, 1), truncation = list(0, Inf))))
+  } else {
+    args <- c(args, list(mods = ~ x, prior_mods = list(x = normal),
+      prior_mods_null = list(x = point), prior_heterogeneity = point))
+  }
+  setup <- review_compile_object(do.call(BMA.norm, args))
+  priors <- c(do.call(c, unname(lapply(setup$compiled, `[[`, "prior_list"))),
+    .create_fit_priors(setup$object$data, setup$object$priors))
+  primitive <- matrix(numeric(), 24L, 0L)
+  for (name in names(priors)) {
+    mixture <- priors[[name]]
+    stopifnot(BayesTools::is.prior.mixture(mixture))
+    slope <- length(mixture) == 2L
+    values <- matrix(if (slope) rep(c(1, 1, 2, 2), 6) else 1, 24L, 1L,
+      dimnames = list(NULL, paste0(name, "_indicator")))
+    primitive <- cbind(primitive, values)
+    for (j in seq_along(mixture)) {
+      value <- if (BayesTools::is.prior.point(mixture[[j]])) mixture[[j]]$parameters$location else {
+        if (slope) rep(c(.25, .5, 1, 2), 6) else rep(rep(c(-1, 1), each = 4), 3) + if (scale) 2 else 0
+      }
+      primitive <- cbind(primitive, matrix(value, 24L, 1L,
+        dimnames = list(NULL, paste0(name, "_component_", j))))
+    }
+  }
+  seed <- review_attach_replay(setup, primitive)
+  generated <- BayesTools::JAGS_evaluate_deterministic(seed$fit, draws = primitive)
+  pool <- cbind(primitive, generated[, setdiff(colnames(generated), colnames(primitive)), drop = FALSE])
+  monitors <- BayesTools::JAGS_to_monitor(priors)
+  names <- unique(unlist(lapply(monitors, function(name) {
+    if (name %in% colnames(pool)) name else colnames(pool)[startsWith(colnames(pool), paste0(name, "["))]
+  })))
+  review_attach_replay(setup, pool[, names, drop = FALSE])
+}
+
+test_that("mixture influence coordinates exclude declared inclusion indicators", {
+
+  for (scale in c(FALSE, TRUE)) {
+    object <- .review_influence_mixture(scale)
+    component <- if (scale) "scale" else "mods"
+    weights <- matrix(rep(c(3/8, 3/8, 1/8, 1/8)/6, 6), 24L, 6L)
+    coefficients <- BayesTools::JAGS_estimates_table(object$fit,
+      keep_formulas = if (scale) "log_tau" else "mu", remove_inclusion = TRUE,
+      remove_diagnostics = TRUE, transform_factors = TRUE, transform_scaled = TRUE,
+      return_samples = TRUE)
+    result <- covratio(object, component = component, .weights = weights)
+    expect_equal(as.numeric(result), rep(31/44, 6), tolerance = 1e-12)
+    expect_identical(colnames(dfbetas(object, component = component, .weights = weights)),
+      colnames(coefficients))
+    expect_equal(as.numeric(covratio(object, component = component,
+      .weights = matrix(1/24, 24L, 6L))), rep(1, 6), tolerance = 1e-12)
+  }
+})
+
 test_that("COVRATIO of a dependent factor-level parameterization uses the fitted coordinates", {
 
   # The levels of a mean-difference factor are linearly dependent (they sum to

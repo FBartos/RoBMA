@@ -120,6 +120,7 @@
     samples <- BayesTools::JAGS_estimates_table(
       fit                    = model[["fit"]],
       keep_formulas          = "mu",
+      remove_inclusion       = TRUE,
       remove_parameters      = remove_parameters,
       random_effects_summary = "none",
       remove_diagnostics     = TRUE,
@@ -137,6 +138,7 @@
   samples <- BayesTools::JAGS_estimates_table(
     fit                = model[["fit"]],
     keep_parameters    = "mu",
+    remove_inclusion   = TRUE,
     remove_diagnostics = TRUE,
     transform_factors  = transform_factors,
     transform_scaled   = !standardized_coefficients,

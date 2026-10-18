@@ -119,6 +119,7 @@ covratio.brma <- function(model, type = "mods", component = NULL,
       samples_table <- BayesTools::JAGS_estimates_table(
         fit                    = model[["fit"]],
         keep_formulas          = "log_tau",
+        remove_inclusion       = TRUE,
         random_effects_summary = "none",
         remove_diagnostics     = TRUE,
         return_samples         = TRUE
@@ -128,6 +129,7 @@ covratio.brma <- function(model, type = "mods", component = NULL,
       samples_table <- BayesTools::JAGS_estimates_table(
         fit                    = model[["fit"]],
         keep_parameters        = "tau",
+        remove_inclusion       = TRUE,
         random_effects_summary = "none",
         remove_diagnostics     = TRUE,
         return_samples         = TRUE
