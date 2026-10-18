@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Multilevel conditional arithmetic checks prior/noise products and the final
+  total mean against unavailable nonfinite or underflowed working values.
 - Specialized multilevel BLUP totals retain their stable weighted mean instead
   of re-adding potentially canceling cluster and within contributions.
 - Ordinary singleton selected predictions use exact-cell chunk pricing with

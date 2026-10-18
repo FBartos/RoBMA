@@ -1627,6 +1627,9 @@
     }
   }
 
+  if (any(!is.finite(total_contribution))) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+  }
   return(list(
     cluster  = cluster_contribution,
     estimate = estimate_contribution,
@@ -1660,10 +1663,10 @@
     idx <- block_indices[[block]]
     prior_z[[block]] <- stats::rnorm(S)
     if (identical(component, "total")) {
-      prior_within[, idx] <-
-        tau_within[, idx, drop = FALSE] *
+      prior_within[, idx] <- .multilevel_conditional_product(
+        tau_within[, idx, drop = FALSE],
           matrix(stats::rnorm(S * length(idx)),
-                 nrow = S, ncol = length(idx))
+                 nrow = S, ncol = length(idx)))
     }
   }
   prior_noise <- matrix(
@@ -1676,7 +1679,8 @@
   if (any(!is.finite(diagonal_sd)) || any(!is.finite(tau_within) | tau_within < 0)) {
     stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
-  prior_noise <- prior_noise * if (identical(component, "total")) sampling_sd else diagonal_sd
+  prior_noise <- .multilevel_conditional_product(prior_noise,
+    if (identical(component, "total")) sampling_sd else diagonal_sd)
   residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
     bias_offset - mu_samples
   out <- matrix(0, nrow = S, ncol = K)
