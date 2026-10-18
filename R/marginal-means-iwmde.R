@@ -59,7 +59,8 @@
                                          parameter, type, levels, targeted,
                                          include_ordinates = TRUE,
                                          ordinate_control = NULL,
-                                         integration_control = NULL) {
+                                         integration_control = NULL,
+                                         target_relative_mcse = .05) {
 
   .check_iwmde_available(object, "qCMDE/IWMDE marginal_means()")
   if (isTRUE(include_ordinates)) {
@@ -77,6 +78,7 @@
   density_control_list <- list(
     n_points             = n_points,
     samples              = sample_budget,
+    target_relative_mcse = target_relative_mcse,
     normalization_points = normalization_points,
     normalization_prob   = normalization_prob,
     integration_control  = integration_control,
@@ -206,6 +208,7 @@
   marginal_means_object[["density_settings"]] <- list(
     n_points             = n_points,
     samples              = sample_budget,
+    target_relative_mcse = target_relative_mcse,
     normalization_points = normalization_points,
     normalization_prob   = normalization_prob,
     integration_control  = integration_control,
@@ -854,6 +857,7 @@
       marginal_means_object = x,
       n_points              = density_control[["n_points"]],
       sample_budget         = density_control[["samples"]],
+      target_relative_mcse  = density_control[["target_relative_mcse"]],
       normalization_points  = density_control[["normalization_points"]],
       normalization_prob    = density_control[["normalization_prob"]],
       integration_control   = density_control[["integration_control"]],

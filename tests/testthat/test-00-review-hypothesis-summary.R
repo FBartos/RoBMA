@@ -47,3 +47,17 @@ test_that("E2-1 declared empty marginal cells retain their actual event", {
   result <- tryCatch(hypothesis(means, "intercept = 0", density_method = "qCMDE", seed = 19), error = identity)
   expect_false(inherits(result, "error") && grepl("metadata is incomplete", conditionMessage(result), fixed = TRUE))
 })
+
+test_that("E2-2 actual attachment retains requested curve precision", {
+
+  object <- review_factor_replay(c("A", "B"), "treatment", independent = TRUE,
+    distribution = "normal", n = 240L)
+  result <- marginal_means(object, bf = FALSE, parameter = "g", density_method = "qCMDE",
+    density_control = list(target_relative_mcse = .1, samples = 120L))
+  expect_identical(result$density_settings$target_relative_mcse, .1)
+  cells <- result$inference$averaged$mu_g
+  for (cell in cells) {
+    density <- BayesTools::posterior_metadata(cell, "posterior_density")
+    if (!is.null(density)) expect_identical(density$iwmde_provenance$density_control$target_relative_mcse, .1)
+  }
+})
