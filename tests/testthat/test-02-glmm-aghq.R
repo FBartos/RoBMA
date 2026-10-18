@@ -210,6 +210,13 @@ test_that("binomial AGHQ initializes extreme beta priors on the log-odds scale",
 
   expect_true(is.finite(events[["value"]][1L, 1L]))
   expect_equal(events[["value"]], non_events[["value"]], tolerance = 1e-10)
+  # Independently checked beta-one moment bounds at mu=.1, tau=.2 enclose
+  # [-71.60328143412962686785, -71.60328143412962566032]. The 1e-6 absolute
+  # allowance includes quadrature/rounding rather than claiming those bounds
+  # enclose the floating-point computation itself.
+  expect_lt(abs(events[["value"]][1L, 1L] + 71.603281434129627), 1e-6)
+  expect_identical(events[["exact_count"]], 0L)
+  expect_identical(sum(events[["order_counts"]]), 1L)
   expect_identical(events[["max_mode_iterations"]], 1L)
   expect_identical(non_events[["max_mode_iterations"]], 1L)
 })

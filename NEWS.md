@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Binomial GLMM adaptive quadrature retains the normalized beta prior and
+  paired probability derivatives for extreme beta shapes; density provenance
+  invalidates ordinates produced by the previous likelihood evaluator.
 - Completed SD-component declarations resolve through the current prepared
   binding so row-source callbacks retain their declared pooled evaluation.
 - Total heterogeneity rejects an unrepresentable aggregate variance before

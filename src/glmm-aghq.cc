@@ -241,16 +241,6 @@ QuadratureRules validate_rules(SEXP nodes, SEXP log_weights, int consecutive)
 }
 
 
-double logistic(double x)
-{
-  if (x >= 0.0) {
-    return 1.0 / (1.0 + std::exp(-x));
-  }
-  const double ex = std::exp(x);
-  return ex / (1.0 + ex);
-}
-
-
 double softplus(double x)
 {
   if (x >= 0.0) {
@@ -338,10 +328,21 @@ struct BinomialProblem {
       log_inv_logit(eta1), log_one_minus_inv_logit(eta1),
       log_inv_logit(eta2), log_one_minus_inv_logit(eta2)
     );
+    const double lp = log_inv_logit(logit_pi);
+    const double lq = log_one_minus_inv_logit(logit_pi);
+    const double smaller_probability = std::exp(std::min(lp, lq));
+    // Evaluate the density at the smaller probability to retain its tail.
+    // Subnormal probabilities instead retain the original log coordinates.
+    const double log_beta_logit =
+      smaller_probability >= std::numeric_limits<double>::min()
+      ? robma_native::call(
+          &(Rf_dbeta), smaller_probability,
+          logit_pi >= 0.0 ? beta : alpha,
+          logit_pi >= 0.0 ? alpha : beta, 1
+        ) + lp + lq
+      : alpha * lp + beta * lq - log_beta;
     const double log_prior =
-      -0.5 * theta * theta - 0.5 * LOG_2PI +
-      alpha * log_inv_logit(logit_pi) +
-      beta * log_one_minus_inv_logit(logit_pi) - log_beta;
+      -0.5 * theta * theta - 0.5 * LOG_2PI + log_beta_logit;
 
     return weight * log_likelihood + log_prior;
   }
@@ -356,20 +357,25 @@ struct BinomialProblem {
     }
 
     const double effect = mu + tau * theta;
-    const double p1     = logistic(logit_pi + 0.5 * effect);
-    const double p2     = logistic(logit_pi - 0.5 * effect);
-    const double pi0    = logistic(logit_pi);
-    const double r1     = a - n1 * p1;
-    const double r2     = c - n2 * p2;
-    const double v1     = n1 * p1 * (1.0 - p1);
-    const double v2     = n2 * p2 * (1.0 - p2);
+    const double eta1   = logit_pi + 0.5 * effect;
+    const double eta2   = logit_pi - 0.5 * effect;
+    const double p1     = std::exp(log_inv_logit(eta1));
+    const double q1     = std::exp(log_one_minus_inv_logit(eta1));
+    const double p2     = std::exp(log_inv_logit(eta2));
+    const double q2     = std::exp(log_one_minus_inv_logit(eta2));
+    const double pi0    = std::exp(log_inv_logit(logit_pi));
+    const double qi0    = std::exp(log_one_minus_inv_logit(logit_pi));
+    const double r1     = a * q1 - (n1 - a) * p1;
+    const double r2     = c * q2 - (n2 - c) * p2;
+    const double v1     = n1 * p1 * q1;
+    const double v2     = n2 * p2 * q2;
 
     *g1  = weight * 0.5 * tau * (r1 - r2) - theta;
-    *g2  = weight * (r1 + r2) + alpha - (alpha + beta) * pi0;
+    *g2  = weight * (r1 + r2) + alpha * qi0 - beta * pi0;
     *h11 = 1.0 + weight * 0.25 * tau * tau * (v1 + v2);
     *h12 = weight * 0.5 * tau * (v1 - v2);
     *h22 = weight * (v1 + v2) +
-      (alpha + beta) * pi0 * (1.0 - pi0);
+      (alpha * pi0) * qi0 + (beta * pi0) * qi0;
 
     return std::isfinite(*g1) && std::isfinite(*g2) &&
       std::isfinite(*h11) && std::isfinite(*h12) && std::isfinite(*h22);
@@ -857,6 +863,9 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
 
   const double alpha_value = scalar_real(alpha, "alpha", true);
   const double beta_value  = scalar_real(beta, "beta", true);
+  const double log_beta_value = robma_native::call(
+    &(Rf_lbeta), alpha_value, beta_value
+  );
   const double tolerance_value = scalar_real(tolerance, "tolerance", true);
   const double mode_tolerance_value = scalar_real(
     mode_tolerance,
@@ -919,8 +928,7 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
       problem.alpha           = alpha_value;
       problem.beta            = beta_value;
       problem.log_coefficient = log_coefficient;
-      problem.log_beta        = std::lgamma(alpha_value) +
-        std::lgamma(beta_value) - std::lgamma(alpha_value + beta_value);
+      problem.log_beta        = log_beta_value;
 
       IntegralResult result;
       const bool exact = problem.mu == 0.0 && problem.tau == 0.0;
