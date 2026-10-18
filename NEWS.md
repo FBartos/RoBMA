@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Specialized multilevel fitted effects retain Gaussian conditional means and
+  uncertainty when between-cluster variation dominates within-cluster noise.
 - Scalar fitted Gaussian means use stable SD-ratio weights, preserving conditional
   uncertainty when a representable pair of large variances overflows their sum.
 - Successful COVRATIO results retain their print and data-frame methods even

@@ -1482,9 +1482,9 @@
 # .solve_diagonal_rank_one_block
 # ---------------------------------------------------------------------------- #
 #
-# Solve (diag(diagonal) + rank_one %*% t(rank_one))^-1 residual. The analytic
-# Sherman-Morrison path is O(K) per cluster and falls back to Cholesky when a
-# diagonal element is non-positive.
+# Preserve the original dense solve and diagnostics for zero-diagonal boundary
+# rows. Positive-diagonal conditional means and draws use the scaled sufficient
+# cluster calculation below rather than subtracting an inverse correction.
 #
 # ---------------------------------------------------------------------------- #
 .solve_diagonal_rank_one_block <- function(diagonal, rank_one, residual) {
@@ -1494,17 +1494,6 @@
       !all(is.finite(residual))) {
     stop("Cannot solve known-V BLUP covariance block with non-finite inputs.",
          call. = FALSE)
-  }
-
-  if (all(is.finite(diagonal)) && all(diagonal > 0)) {
-    inv_diag_residual <- residual / diagonal
-    inv_diag_rank_one <- rank_one / diagonal
-    denom             <- 1 + sum(rank_one * inv_diag_rank_one)
-
-    if (is.finite(denom) && denom > 0) {
-      correction <- inv_diag_rank_one * sum(rank_one * inv_diag_residual) / denom
-      return(inv_diag_residual - correction)
-    }
   }
 
   covariance <- diag(diagonal, nrow = length(diagonal), ncol = length(diagonal)) +
@@ -1522,55 +1511,41 @@
 }
 
 
-# Solve one diagonal-plus-rank-one system per posterior row. The ordinary path
-# is vectorized across draws; exceptional boundary rows retain the scalar
-# factorization and its exact diagnostics.
-.solve_diagonal_rank_one_batch <- function(diagonal, rank_one, residual) {
+.multilevel_conditional_product <- function(first, second) {
 
-  diagonal <- as.matrix(diagonal)
-  rank_one <- as.matrix(rank_one)
-  residual <- as.matrix(residual)
-  if (!identical(dim(diagonal), dim(rank_one)) ||
-      !identical(dim(diagonal), dim(residual)) ||
-      any(!is.finite(diagonal)) || any(!is.finite(rank_one)) ||
-      any(!is.finite(residual))) {
-    stop("Cannot solve known-V BLUP covariance batch with invalid inputs.",
-         call. = FALSE)
+  out <- first * second
+  if (any(!is.finite(out)) ||
+      any(first != 0 & second != 0 & out == 0)) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
+  return(out)
+}
 
-  S        <- nrow(diagonal)
-  solution <- matrix(NA_real_, nrow = S, ncol = ncol(diagonal))
-  regular  <- rowSums(diagonal <= 0) == 0L
-  if (any(regular)) {
-    inv_diagonal <- 1 / diagonal[regular, , drop = FALSE]
-    inv_residual <- residual[regular, , drop = FALSE] * inv_diagonal
-    inv_rank_one <- rank_one[regular, , drop = FALSE] * inv_diagonal
-    denominator <- 1 + rowSums(
-      rank_one[regular, , drop = FALSE] * inv_rank_one
-    )
-    regular_rows <- which(regular)
-    valid <- is.finite(denominator) & denominator > 0
-    if (any(valid)) {
-      numerator <- rowSums(
-        rank_one[regular_rows[valid], , drop = FALSE] *
-          inv_residual[valid, , drop = FALSE]
-      )
-      solution[regular_rows[valid], ] <-
-        inv_residual[valid, , drop = FALSE] -
-        inv_rank_one[valid, , drop = FALSE] * (numerator / denominator[valid])
-    }
-    regular[regular_rows[!valid]] <- FALSE
+
+.multilevel_conditional_cluster <- function(loading, diagonal_sd, innovation, prior_z) {
+
+  whitened_loading <- loading / diagonal_sd
+  whitened_residual <- innovation / diagonal_sd
+  if (any(!is.finite(whitened_loading)) || any(!is.finite(whitened_residual)) ||
+      any(loading != 0 & whitened_loading == 0) ||
+      any(innovation != 0 & whitened_residual == 0)) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
-
-  for (draw in which(!regular)) {
-    solution[draw, ] <- .solve_diagonal_rank_one_block(
-      diagonal = diagonal[draw, ],
-      rank_one = rank_one[draw, ],
-      residual = residual[draw, ]
-    )
+  scale <- pmax(1, apply(abs(whitened_loading), 1L, max))
+  unit_loading <- whitened_loading / scale
+  inverse_scale <- 1 / scale
+  denominator <- .multilevel_conditional_product(inverse_scale, inverse_scale) +
+    rowSums(.multilevel_conditional_product(unit_loading, unit_loading))
+  numerator <- .multilevel_conditional_product(prior_z, inverse_scale) +
+    rowSums(.multilevel_conditional_product(unit_loading, whitened_residual))
+  h <- numerator / denominator
+  scaled_loading <- loading / scale
+  if (any(!is.finite(numerator)) || any(!is.finite(h)) ||
+      any(loading != 0 & scaled_loading == 0) ||
+      any(whitened_loading != 0 & unit_loading == 0)) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
-
-  return(solution)
+  return(.multilevel_conditional_product(scaled_loading, h))
 }
 
 
@@ -1612,23 +1587,32 @@
 
   cluster_contribution  <- matrix(0, nrow = S, ncol = K)
   estimate_contribution <- matrix(0, nrow = S, ncol = K)
+  sampling_sd <- matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
+  diagonal_sd <- .root_sum_squares(tau_within, sampling_sd)
+  if (any(!is.finite(diagonal_sd)) || any(!is.finite(tau_within) | tau_within < 0)) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+  }
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
 
   for (idx in block_indices) {
-    weighted_residual <- .solve_diagonal_rank_one_batch(
-      diagonal = tau_within[, idx, drop = FALSE]^2 +
-        matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE),
-      rank_one = tau_between[, idx, drop = FALSE],
-      residual = matrix(yi[idx], nrow = S, ncol = length(idx), byrow = TRUE) -
-        bias_offset[, idx, drop = FALSE] - mu_samples[, idx, drop = FALSE]
-    )
-
-    estimate_contribution[, idx] <-
-      tau_within[, idx, drop = FALSE]^2 * weighted_residual
-    cluster_scale <- rowSums(
-      tau_between[, idx, drop = FALSE] * weighted_residual
-    )
-    cluster_contribution[, idx] <-
-      tau_between[, idx, drop = FALSE] * cluster_scale
+    regular <- rowSums(diagonal_sd[, idx, drop = FALSE] == 0) == 0L
+    if (any(regular)) {
+      weights <- .gaussian_conditional_sd_weights(
+        tau_within[regular, idx, drop = FALSE], sampling_sd[regular, idx, drop = FALSE])
+      cluster_contribution[regular, idx] <- .multilevel_conditional_cluster(
+        tau_between[regular, idx, drop = FALSE], diagonal_sd[regular, idx, drop = FALSE],
+        residual[regular, idx, drop = FALSE], rep(0, sum(regular)))
+      estimate_contribution[regular, idx] <- .multilevel_conditional_product(
+        weights[["first"]], residual[regular, idx, drop = FALSE] -
+          cluster_contribution[regular, idx, drop = FALSE])
+    }
+    for (draw in which(!regular)) {
+      solved <- .solve_diagonal_rank_one_block(
+        tau_within[draw, idx]^2 + vi[idx], tau_between[draw, idx], residual[draw, idx])
+      cluster_contribution[draw, idx] <- tau_between[draw, idx] * sum(tau_between[draw, idx] * solved)
+      estimate_contribution[draw, idx] <- tau_within[draw, idx]^2 * solved
+    }
   }
 
   return(list(
@@ -1657,14 +1641,13 @@
   }
 
   block_indices <- .get_multilevel_block_indices(cluster)
-  prior_effect  <- matrix(0, nrow = S, ncol = K)
-  for (idx in block_indices) {
-    cluster_z <- stats::rnorm(S)
-    prior_effect[, idx] <-
-      tau_between[, idx, drop = FALSE] *
-        matrix(cluster_z, nrow = S, ncol = length(idx))
+  prior_z <- vector("list", length(block_indices))
+  prior_within <- matrix(0, nrow = S, ncol = K)
+  for (block in seq_along(block_indices)) {
+    idx <- block_indices[[block]]
+    prior_z[[block]] <- stats::rnorm(S)
     if (identical(component, "total")) {
-      prior_effect[, idx] <- prior_effect[, idx, drop = FALSE] +
+      prior_within[, idx] <-
         tau_within[, idx, drop = FALSE] *
           matrix(stats::rnorm(S * length(idx)),
                  nrow = S, ncol = length(idx))
@@ -1675,34 +1658,44 @@
     nrow = S,
     ncol = K
   )
-  if (identical(component, "total")) {
-    prior_noise <- prior_noise *
-      matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
-  } else {
-    prior_noise <- prior_noise * sqrt(
-      matrix(vi, nrow = S, ncol = K, byrow = TRUE) + tau_within^2
-    )
+  sampling_sd <- matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
+  diagonal_sd <- .root_sum_squares(tau_within, sampling_sd)
+  if (any(!is.finite(diagonal_sd)) || any(!is.finite(tau_within) | tau_within < 0)) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
+  prior_noise <- prior_noise * if (identical(component, "total")) sampling_sd else diagonal_sd
   residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
     bias_offset - mu_samples
-  out <- prior_effect
+  out <- matrix(0, nrow = S, ncol = K)
 
-  for (idx in block_indices) {
-    weights <- .solve_diagonal_rank_one_batch(
-      diagonal = tau_within[, idx, drop = FALSE]^2 +
-        matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE),
-      rank_one = tau_between[, idx, drop = FALSE],
-      residual = residual[, idx, drop = FALSE] -
-        prior_effect[, idx, drop = FALSE] -
-        prior_noise[, idx, drop = FALSE]
-    )
-    cluster_scale <- rowSums(tau_between[, idx, drop = FALSE] * weights)
-    out[, idx] <- prior_effect[, idx, drop = FALSE] +
-      tau_between[, idx, drop = FALSE] * cluster_scale
-    if (identical(component, "total")) {
-      out[, idx] <- out[, idx, drop = FALSE] +
-        tau_within[, idx, drop = FALSE]^2 * weights
+  for (block in seq_along(block_indices)) {
+    idx <- block_indices[[block]]
+    regular <- rowSums(diagonal_sd[, idx, drop = FALSE] == 0) == 0L
+    if (any(regular)) {
+      cluster_draw <- .multilevel_conditional_cluster(
+        tau_between[regular, idx, drop = FALSE], diagonal_sd[regular, idx, drop = FALSE],
+        residual[regular, idx, drop = FALSE] - prior_within[regular, idx, drop = FALSE] -
+          prior_noise[regular, idx, drop = FALSE], prior_z[[block]][regular])
+      out[regular, idx] <- cluster_draw
+      if (identical(component, "total")) {
+        weights <- .gaussian_conditional_sd_weights(
+          tau_within[regular, idx, drop = FALSE], sampling_sd[regular, idx, drop = FALSE])
+        out[regular, idx] <-
+          .multilevel_conditional_product(weights[["first"]], residual[regular, idx, drop = FALSE]) +
+          .multilevel_conditional_product(weights[["second"]], cluster_draw + prior_within[regular, idx, drop = FALSE]) -
+          .multilevel_conditional_product(weights[["first"]], prior_noise[regular, idx, drop = FALSE])
+      }
     }
+    for (draw in which(!regular)) {
+      prior_effect <- tau_between[draw, idx] * prior_z[[block]][draw] + prior_within[draw, idx]
+      solved <- .solve_diagonal_rank_one_block(tau_within[draw, idx]^2 + vi[idx],
+        tau_between[draw, idx], residual[draw, idx] - prior_effect - prior_noise[draw, idx])
+      out[draw, idx] <- prior_effect + tau_between[draw, idx] * sum(tau_between[draw, idx] * solved)
+      if (identical(component, "total")) out[draw, idx] <- out[draw, idx] + tau_within[draw, idx]^2 * solved
+    }
+  }
+  if (any(!is.finite(out))) {
+    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
 
   return(out)

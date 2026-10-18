@@ -288,6 +288,77 @@ test_that("specialized multilevel cluster depth retains posterior uncertainty", 
 })
 
 
+test_that("specialized multilevel conditioning remains stable at dominant between scales", {
+
+  S <- 20000L
+  for (mode in c("total", "cluster")) for (q in c(1, 100, 1e5, 1e6, 2^27)) {
+    mean <- .evaluate.brma.multilevel_blup.norm(matrix(0, 1L, 2L),
+      matrix(0, 1L, 2L), matrix(q, 1L, 2L), c(1, 1), c(1, 1), c(1L, 1L))
+    target_mean <- 2 / (2 + q^-2)
+    target_variance <- 1 / (2 + q^-2)
+    expect_lt(max(abs(mean$cluster - target_mean)), 1e-14)
+    set.seed(2301)
+    value <- .evaluate.brma.multilevel_posterior.norm(matrix(0, S, 2L),
+      matrix(0, S, 2L), matrix(q, S, 2L), c(1, 1), c(1, 1), c(1L, 1L), component = mode)
+    expect_identical(value[, 1L], value[, 2L])
+    expect_lt(abs(mean(value[, 1L]) - target_mean), 6 * sqrt(target_variance / S))
+    expect_lt(abs(stats::var(value[, 1L]) - target_variance),
+      6 * target_variance * sqrt(2 / (S - 1)))
+  }
+})
+
+test_that("specialized multilevel conditioning preserves assigned normals and boundary solves", {
+
+  S <- 3L
+  cluster <- c(2L, 1L, 2L, 1L)
+  mu <- matrix(c(.1, -.2, .3, .5), S, 4L, byrow = TRUE)
+  w <- matrix(c(.3, .5, .7, .2), S, 4L, byrow = TRUE)
+  v <- matrix(c(.8, 1.2, .9, .6), S, 4L, byrow = TRUE)
+  e <- c(.5, 1.1, .8, .4)
+  y <- c(1, 2, -.4, .7)
+  bias <- matrix(c(.2, -.1, .1, -.2), S, 4L, byrow = TRUE)
+  for (mode in c("total", "cluster")) {
+    set.seed(2303)
+    prior <- matrix(0, S, 4L)
+    for (idx in split(1:4, cluster)) {
+      prior[, idx] <- v[, idx, drop = FALSE] * stats::rnorm(S)
+      if (mode == "total") prior[, idx] <- prior[, idx, drop = FALSE] +
+        w[, idx, drop = FALSE] * matrix(stats::rnorm(S * length(idx)), S, length(idx))
+    }
+    noise_sd <- if (mode == "total") matrix(e, S, 4L, byrow = TRUE) else
+      sqrt(w^2 + matrix(e^2, S, 4L, byrow = TRUE))
+    noise <- matrix(stats::rnorm(S * 4L), S, 4L) * noise_sd
+    expected_seed <- .Random.seed
+    expected_next <- stats::rnorm(5L)
+    reference <- prior
+    for (idx in split(1:4, cluster)) {
+      G <- tcrossprod(v[1L, idx])
+      if (mode == "total") G <- G + diag(w[1L, idx]^2)
+      M <- tcrossprod(v[1L, idx]) + diag(w[1L, idx]^2 + e[idx]^2)
+      reference[, idx] <- prior[, idx, drop = FALSE] +
+        (matrix(y[idx], S, length(idx), byrow = TRUE) - bias[, idx, drop = FALSE] -
+          mu[, idx, drop = FALSE] - prior[, idx, drop = FALSE] - noise[, idx, drop = FALSE]) %*%
+        solve(M, G)
+    }
+    set.seed(2303)
+    value <- .evaluate.brma.multilevel_posterior.norm(mu, w, v, y, e^2, cluster,
+      bias_offset = bias, component = mode)
+    expect_lt(max(abs(value - reference)), 1e-13)
+    expect_identical(.Random.seed, expected_seed)
+    expect_identical(stats::rnorm(5L), expected_next)
+  }
+  boundary <- .evaluate.brma.multilevel_blup.norm(matrix(0, 1L, 1L),
+    matrix(0, 1L, 1L), matrix(1, 1L, 1L), 2, 0, 1L)
+  expect_equal(boundary$cluster, matrix(2, 1L, 1L), tolerance = 0)
+  expect_error(.evaluate.brma.multilevel_blup.norm(matrix(0, 1L, 2L),
+    matrix(0, 1L, 2L), matrix(1, 1L, 2L), c(2, 2), c(0, 0), c(1L, 1L)),
+    "not positive definite")
+  expect_error(.evaluate.brma.multilevel_blup.norm(matrix(0, 1L, 1L),
+    matrix(0, 1L, 1L), matrix(1e308, 1L, 1L), 1, 1e-300, 1L),
+    "Multilevel Gaussian conditional arithmetic is numerically unavailable.", fixed = TRUE)
+})
+
+
 test_that("conditional random selection integrates the complete sampling covariance", {
 
   dat <- data.frame(
