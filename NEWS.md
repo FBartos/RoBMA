@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selected latent prediction with explicit normal newdata reports the required
+  `sei` or `vi` column before building its selection context.
 - Scalar conditional means report unavailable arithmetic when a nonzero
   weighted location contribution underflows before the final sum.
 - Multilevel conditional reconstruction reports numerical unavailability when

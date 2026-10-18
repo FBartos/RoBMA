@@ -2521,11 +2521,18 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 }
 
 
+.is_selected_latent_prediction <- function(object, type, bias_adjusted) {
+
+  .is_data_joint_selection(object[["data"]]) && type == "estimate" && !bias_adjusted
+}
+
+
 # Internal helper to decide whether normal newdata needs sampling SE.
 .prepare_newdata_needs_norm_sei <- function(object, type, bias_adjusted) {
 
   return(
     type == "response" ||
+      .is_selected_latent_prediction(object, type, bias_adjusted) ||
       (
         !bias_adjusted &&
           type %in% c("terms", "cluster", "estimate") &&

@@ -39,7 +39,9 @@ must agree. Poisson GLMM response predictions require exposures \code{t1i}
 and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 known-\code{V} \code{brma.mv()} response prediction, explicit
 \code{newdata} also requires a new sampling covariance matrix. Product-only
-selection models require no publication-group column. If an active
+selection models require no publication-group column. Unadjusted normal
+selected latent predictions (\code{type = "estimate"}) require \code{sei}
+or \code{vi} in explicit \code{newdata}. If an active
 selection branch uses \code{weight_rule = "best"}, its publication groups
 must also be resolvable in the prediction data.}
 

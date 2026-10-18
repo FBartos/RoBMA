@@ -540,6 +540,32 @@ test_that(".prepare_newdata permits bias-adjusted PET/PEESE terms without new st
   ))
 })
 
+test_that("selected latent newdata requires sampling information before selection context", {
+
+  object <- bselmodel(yi = c(.2, .5), sei = c(.2, .3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .05,
+      BayesTools::wf_fixed(c(1, .4))))
+  samples <- cbind(mu = c(.1, -.1), tau = .3)
+  expect_error(predict(object, newdata = data.frame(row = 1L), type = "estimate",
+    quiet = TRUE, .posterior_samples = samples), paste0(
+      "The 'newdata' must contain either 'sei' (standard error) or 'vi' (variance) column."),
+    fixed = TRUE)
+  for (newdata in list(data.frame(sei = .2), data.frame(vi = .04))) {
+    expect_no_error(predict(object, newdata = newdata, type = "estimate", quiet = TRUE,
+      .posterior_samples = samples))
+  }
+  for (type in c("terms", "estimate")) {
+    expect_no_error(predict(object, newdata = data.frame(row = 1L), type = type,
+      bias_adjusted = TRUE, quiet = TRUE, .posterior_samples = samples))
+  }
+  ordinary <- brma(yi = c(.2, .5), sei = c(.2, .3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE)
+  expect_no_error(predict(ordinary, newdata = data.frame(row = 1L), type = "estimate",
+    quiet = TRUE, .posterior_samples = samples))
+})
+
+
 test_that(".prepare_newdata preserves predictor transformation settings", {
 
   fit_std <- brma.norm(

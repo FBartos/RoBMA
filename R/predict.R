@@ -21,7 +21,9 @@
 #'   and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 #'   known-\code{V} \code{brma.mv()} response prediction, explicit
 #'   \code{newdata} also requires a new sampling covariance matrix. Product-only
-#'   selection models require no publication-group column. If an active
+#'   selection models require no publication-group column. Unadjusted normal
+#'   selected latent predictions (\code{type = "estimate"}) require \code{sei}
+#'   or \code{vi} in explicit \code{newdata}. If an active
 #'   selection branch uses \code{weight_rule = "best"}, its publication groups
 #'   must also be resolvable in the prediction data.
 #' @param type type of prediction to be performed. Options are:
@@ -428,8 +430,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     )
   }
 
-  selected_latent <- .is_data_joint_selection(object[["data"]]) &&
-    type == "estimate" && !bias_adjusted
+  selected_latent <- .is_selected_latent_prediction(object, type, bias_adjusted)
   known_v_newdata_response <- .is_data_known_v(object[["data"]]) &&
     !is.null(newdata) && (type == "response" || selected_latent)
   known_V_new <- NULL
