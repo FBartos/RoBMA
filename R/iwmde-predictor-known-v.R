@@ -85,6 +85,23 @@
       samples      = posterior_samples
     )
   }
+  if (!is.null(setup[["sampling_factors"]])) {
+    marginal <- .known_v_marginal_factor_plan(context[["object"]],
+      posterior_samples, .data_known_v_data(data))
+    yi <- data[["outcome"]][["yi"]]
+    if (.data_effect_direction(data) == "negative") {
+      yi <- -yi
+      mu_samples <- -mu_samples
+    }
+    return(.marglik_covariance_plan_loglik_batch(
+      cache = setup[["covariance_plan_cache"]], y = as.double(yi), means = mu_samples,
+      sampling_covariance = marginal[["sampling_covariance"]],
+      random_covariance_plans = marginal[["random_covariance_plans"]],
+      random_covariance_states = marginal[["random_covariance_states"]],
+      block_indices = marginal[["block_indices"]],
+      extra_variances = marginal[["extra_variances"]]
+    ))
+  }
   random_factors <- .brma_mv_random_effects_marginal_factor_plan(
     object            = context[["object"]],
     posterior_samples = posterior_samples,
@@ -92,6 +109,8 @@
     row_blocks        = setup[["dependency_blocks"]],
     data              = data
   )
+  random_factors <- .known_v_append_sampling_factor(random_factors,
+    setup[["sampling_factors"]])
 
   S <- nrow(posterior_samples)
   K <- nrow(data[["outcome"]])
@@ -139,9 +158,14 @@
 
   known_V <- .data_known_v_data(data)
   sampling_covariance <- .known_v_covariance_matrix(known_V)
+  sampling_factors <- if (identical(.known_v_effective_backend(known_V), "whitened")) {
+    .known_v_sampling_factor_plan(known_V)
+  } else NULL
   setup <- list(
     blocks              = blocks,
-    sampling_covariance = sampling_covariance,
+    sampling_covariance = if (is.null(sampling_factors)) sampling_covariance else
+      sampling_factors[["sampling_covariance"]],
+    sampling_factors    = sampling_factors,
     dependency_blocks   = .random_effect_dependency_blocks(
       sampling_covariance = sampling_covariance,
       formula_design      = formula_design,
@@ -242,6 +266,7 @@
   }
   valid_values <- values[valid]
   setup <- .iwmde_known_v_random_marginal_setup(context)
+  if (!is.null(setup[["sampling_factors"]])) return(NULL)
   if (identical(mode, "direct_sd")) {
     variance_values <- tryCatch(
       BayesTools::parameter_transform_forward(
@@ -974,6 +999,22 @@
     context, setup, yi, mu, mu_basis) {
 
   random_setup <- .iwmde_known_v_random_marginal_setup(context)
+  if (!is.null(random_setup[["sampling_factors"]])) {
+    marginal <- .known_v_marginal_factor_plan(context[["object"]],
+      setup[["posterior_samples"]], .data_known_v_data(context[["data"]]))
+    result <- .marglik_covariance_plan_location_quadratic_batch(
+      cache = random_setup[["covariance_plan_cache"]], y = as.double(yi),
+      means = mu, bases = mu_basis,
+      sampling_covariance = marginal[["sampling_covariance"]],
+      random_covariance_plans = marginal[["random_covariance_plans"]],
+      random_covariance_states = marginal[["random_covariance_states"]],
+      block_indices = marginal[["block_indices"]],
+      extra_variances = marginal[["extra_variances"]]
+    )
+    if (is.null(result)) return(NULL)
+    return(.iwmde_normal_location_likelihood_change_result(
+      linear = result[["linear"]], quadratic = result[["quadratic"]]))
+  }
   random_factors <- .brma_mv_random_effects_marginal_factor_states(
     object            = context[["object"]],
     posterior_samples = setup[["posterior_samples"]],
@@ -981,6 +1022,8 @@
     row_blocks        = random_setup[["dependency_blocks"]],
     data              = context[["data"]]
   )
+  random_factors <- .known_v_append_sampling_factor(random_factors,
+    random_setup[["sampling_factors"]])
 
   S <- setup[["S"]]
   K <- setup[["K"]]

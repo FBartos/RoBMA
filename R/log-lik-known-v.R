@@ -101,12 +101,30 @@
 }
 
 
-.known_v_plan_block_data <- function(block_data, selected_blocks) {
+.known_v_plan_block_data <- function(block_data, selected_blocks,
+                                    sampling_factors = NULL) {
 
   selected_data    <- block_data[selected_blocks]
   selected_indices <- lapply(selected_data, `[[`, "index")
   global_indices   <- as.integer(unlist(selected_indices, use.names = FALSE))
   block_sizes      <- lengths(selected_indices)
+  if (!is.null(sampling_factors)) {
+    local_blocks <- unname(split(seq_along(global_indices),
+      rep(seq_along(block_sizes), block_sizes)))
+    loading <- sampling_factors[["factor_plan"]][["model_matrix"]][
+      global_indices, , drop = FALSE]
+    loading <- loading[, colSums(loading != 0) > 0L, drop = FALSE]
+    rank <- ncol(loading)
+    return(list(
+      global_indices = global_indices,
+      block_indices = local_blocks,
+      covariance = sampling_factors[["sampling_covariance"]][
+        global_indices, global_indices, drop = FALSE],
+      factor_plans = if (rank) list(list(type = "group", model_matrix = loading,
+        group_map = rep(1L, length(global_indices)), coefficient_structure = "diagonal")) else list(),
+      factor_states = if (rank) list(list(coefficient_factor = diag(1, rank))) else list()
+    ))
+  }
   local_blocks     <- vector("list", length(block_sizes))
   covariance       <- matrix(
     0,
@@ -1331,8 +1349,9 @@
   }
 
   if (length(dependent) > 0L) {
+    sampling_factors <- .known_v_sampling_factor_plan(known_V)
     for (blocks in .known_v_plan_block_groups(block_data, dependent)) {
-      plan_data <- .known_v_plan_block_data(block_data, blocks)
+      plan_data <- .known_v_plan_block_data(block_data, blocks, sampling_factors)
       idx       <- plan_data[["global_indices"]]
       states    <- rep(list(plan_data[["factor_states"]]), S)
       log_lik <- log_lik + tryCatch(

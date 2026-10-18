@@ -62,6 +62,10 @@ singular value. Operations requiring that unavailable representation fail with
 their target context; they must not treat underflow as a structural zero, add
 jitter, or silently use a lower-rank inverse. Genuine PSD targets retain their
 supported spectral paths, and sampling may use the accepted factor directly.
+Post-fit covariance plans reuse positive stored whitening variances and rotation
+when an accepted block contains an exact zero. Only that block is converted to
+a fixed sampling factor; independent rows and positive-definite blocks retain
+their base covariance. Retained sampling factors are never appended twice.
 
 For correlated known `V`, estimate-unit log scores are Schur conditionals
 `p(y_i | y_-i, theta)` within dependency blocks. Their column sum is a

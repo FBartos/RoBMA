@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Post-fit covariance plans retain accepted zero-variance whitening directions
+  through their stored sampling factors; earlier density ordinates are invalidated.
 - Exact independent integrated row support regularizes singular known-V blocks
   without relying on an ill-conditioned sampling null basis.
 - Exact covariance recovery excludes just-identified integer Ledermann ranks,

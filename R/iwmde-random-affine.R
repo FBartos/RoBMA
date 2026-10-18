@@ -26,6 +26,7 @@
   }
 
   setup <- .iwmde_known_v_random_marginal_setup(context)
+  if (!is.null(setup[["sampling_factors"]])) return(NULL)
 
   coefficients <- .iwmde_random_affine_coefficients(values, update)
   finite <- is.finite(values) & is.finite(coefficients)

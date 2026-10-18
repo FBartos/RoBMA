@@ -920,6 +920,15 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     sampling_latent_marginalized = sampling_latent_marginalized
   )
   fit_data[["marglik_sampling_covariance"]] <- covariance
+  sampling_factors <- if (!.selection_retains_sampling(model_data) &&
+      (sampling_latent_marginalized ||
+       !identical(.data_known_v_effective_backend(model_data), "latent"))) {
+    .known_v_sampling_factor_plan(.data_known_v_data(model_data))
+  } else NULL
+  if (!is.null(sampling_factors)) {
+    fit_data[["marglik_sampling_covariance"]] <- sampling_factors[["sampling_covariance"]]
+    fit_data[["marglik_sampling_factors"]] <- sampling_factors
+  }
   fit_data[["marglik_dependency_blocks"]] <- dependency_blocks
 
   fit_data
@@ -2392,6 +2401,13 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     list(list(covariance = marginal_random_covariance[["covariance"]]))
   } else {
     list()
+  }
+  sampling_factors <- data[["marglik_sampling_factors"]]
+  if (!is.null(sampling_factors)) {
+    random_covariance_plans <- c(random_covariance_plans,
+      list(sampling_factors[["factor_plan"]]))
+    random_covariance_states <- c(random_covariance_states,
+      list(sampling_factors[["factor_state"]]))
   }
 
   .marglik_covariance_plan_loglik(

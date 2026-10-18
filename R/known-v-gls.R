@@ -304,12 +304,13 @@
 
 
 # Compile the exact fixed sampling factor independently of the fitting backend.
-# Explicit factor storage is authoritative; otherwise only the latent backend
-# exposes a certified factorization.
+# Stored sampling factors and accepted whitening zeros retain their support
+# independently of the post-fit native eigensolve.
 .known_v_sampling_factor_plan <- function(known_V) {
 
   storage <- .known_v_storage(known_V)
   K       <- .known_v_nrow(known_V)
+  sampling_covariance <- NULL
   if (identical(storage, "factor")) {
     model_matrix      <- known_V[["factor_loading"]]
     residual_variance <- known_V[["factor_diagonal"]]
@@ -328,6 +329,46 @@
       offset <- offset + block[["rank"]]
     }
     residual_variance <- .known_v_residual_variance(known_V)
+  } else if (identical(.known_v_effective_backend(known_V), "whitened")) {
+    sampling_covariance <- .known_v_covariance_matrix(known_V)
+    blocks <- .known_v_backend_blocks(known_V, "whitened")
+    model_matrix <- matrix(0, nrow = K, ncol = 0L)
+    seen <- integer()
+    for (block in blocks) {
+      index <- block[["index"]]
+      variance <- block[["variance"]]
+      rotation <- block[["rotation"]]
+      if (!is.numeric(index) || !length(index) || anyNA(index) ||
+          any(!is.finite(index)) || any(index != as.integer(index)) ||
+          any(index < 1L | index > K) || anyDuplicated(index) ||
+          any(index %in% seen) || !identical(as.integer(block[["size"]]), length(index)) ||
+          !is.numeric(variance) || length(variance) != length(index) ||
+          anyNA(variance) || any(!is.finite(variance)) || any(variance < 0) ||
+          !is.matrix(rotation) || !is.numeric(rotation) ||
+          !identical(dim(rotation), rep.int(length(index), 2L)) ||
+          anyNA(rotation) || any(!is.finite(rotation))) {
+        stop("Known-V whitening support metadata are invalid.", call. = FALSE)
+      }
+      seen <- c(seen, index)
+      if (!any(variance == 0)) next
+      positive <- which(variance > 0)
+      loading <- sweep(t(rotation[positive, , drop = FALSE]),
+        2L, sqrt(variance[positive]), "*")
+      fixed <- matrix(0, nrow = K, ncol = length(positive))
+      fixed[index, ] <- loading
+      model_matrix <- cbind(model_matrix, fixed)
+      sampling_covariance[index, index] <- 0
+    }
+    if (ncol(model_matrix) > 0L) {
+      original <- .known_v_diagonal(known_V)
+      reconstructed <- diag(sampling_covariance) + rowSums(model_matrix^2)
+      if (any(abs(reconstructed - original) >
+          8 * K * .Machine$double.eps * max(original))) {
+        stop("Known-V whitening support no longer reproduces its covariance diagonal.",
+          call. = FALSE)
+      }
+    }
+    residual_variance <- diag(sampling_covariance)
   } else {
     return(NULL)
   }
@@ -343,7 +384,9 @@
   }
 
   return(list(
-    sampling_covariance = diag(residual_variance, nrow = K, ncol = K),
+    sampling_covariance = if (is.null(sampling_covariance)) {
+      diag(residual_variance, nrow = K, ncol = K)
+    } else sampling_covariance,
     factor_plan = list(
       type                  = "group",
       model_matrix          = model_matrix,
@@ -354,6 +397,17 @@
       coefficient_factor = diag(1, nrow = rank, ncol = rank)
     )
   ))
+}
+
+
+.known_v_append_sampling_factor <- function(random_factors, sampling_factors) {
+
+  if (is.null(sampling_factors)) return(random_factors)
+  random_factors[["factor_plans"]] <- c(random_factors[["factor_plans"]],
+    list(sampling_factors[["factor_plan"]]))
+  random_factors[["factor_states"]] <- lapply(random_factors[["factor_states"]],
+    function(states) c(states, list(sampling_factors[["factor_state"]])))
+  random_factors
 }
 
 

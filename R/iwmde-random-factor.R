@@ -38,6 +38,7 @@
     return(NULL)
   }
   setup <- .iwmde_known_v_random_marginal_setup(context)
+  if (!is.null(setup[["sampling_factors"]])) return(NULL)
   rows  <- vapply(row_states, `[[`, integer(1), "row_index")
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
   mu_samples <- .iwmde_predictor_evaluate_fixed_mu(
@@ -84,6 +85,8 @@
     )
   }
   update_grid[["factor_index"]] <- as.integer(factor_index)
+  random_factors <- .known_v_append_sampling_factor(random_factors,
+    setup[["sampling_factors"]])
 
   S <- length(row_states)
   K <- length(yi)
