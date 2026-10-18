@@ -291,6 +291,11 @@ test_that("unsupported compound fit loading refuses before reading caches", {
                            'scenario_text(artifact_name, print(7))'), cached, args = "--list"),
     dynamic_selected = case(c('keys <- "old"', loop, 'keys <- "new"',
                              'scenario_text("chosen", print(get("fits")))'), cached),
+    qualified_ordinary_payload = case(c('keys <- "old"', loop,
+                                       'scenario_text("chosen", print(base::identity(fits)))'),
+                                      cached, refuse = FALSE, text = "OLD_CACHE"),
+    qualified_reflective = case(c('keys <- "old"', loop, 'keys <- "new"',
+                                 'scenario_text("chosen", print(base::get("fits")))'), cached),
     local_callable = case(c('keys <- "old"', loop, 'keys <- "new"',
                            'view <- function() fits', 'scenario_text("chosen", print(view()))'), cached),
     empty_sequence = case(c('keys <- c()', loop, chosen)),
@@ -315,6 +320,14 @@ test_that("unsupported compound fit loading refuses before reading caches", {
                                     'names(fits) <- { preparation_count <- preparation_count + missing_increment; keys }',
                                     'scenario_text("chosen", print(7))',
                                     'scenario_text("dependent", print(fits))'), refuse = FALSE),
+    counter_indirect_name = case(c('keys <- "old"', 'preparation_count <- 0L', loop,
+                                  'names(fits) <- { preparation_count <- preparation_count + 1L; keys }',
+                                  'artifact_name <- paste0("artifact_", preparation_count, length(fits))',
+                                  'scenario_text(artifact_name, print(7))'), cached, args = "--only=."),
+    counter_direct_name = case(c('keys <- "old"', 'preparation_count <- 0L', loop,
+                                'names(fits) <- { preparation_count <- preparation_count + 1L; keys }',
+                                'scenario_text(paste0("artifact_", preparation_count, length(fits)), print(7))'),
+                               cached, args = "--only=."),
     structural = case(c('fit_needed <- scenario_fit("missing", stop("must never fit"))',
                         'scenario_text("chosen", print(fit_needed))', 'fits <- list()',
                         'for (key in c("old")) {', '  message("unsupported side effect")',
@@ -378,7 +391,7 @@ test_that("source admission refuses demanded binding changes and keeps dormant p
         if (file.exists(path)) expect_match(paste(readLines(path), collapse = "\n"), fixture$text,
                                            fixed = TRUE, info = name)
       }
-      if (!name %in% c("stable", "latest_plain_definition")) {
+      if (!name %in% c("stable", "latest_plain_definition", "qualified_ordinary_payload")) {
         expect_false(file.exists(marker), info = name)
       }
     }

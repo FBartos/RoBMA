@@ -347,6 +347,8 @@ eager intermediate counter observations are unsupported. The counter still
 updates once per names assignment in the original scenario environment.
 Explicit names-RHS write targets are tracked even when their effect syntax is
 unsupported, so observing such a target alone cannot prove its block dormant.
+Counter reads reached through a name or ordinary assignment are also unsupported;
+the source demand closure retains the distinction between names and payloads.
 
 This is a declarative preparation check, not a general R interpreter or proof
 of purity. Source dependency unions and opaque/dynamic demand can over-refuse.
@@ -356,6 +358,9 @@ S3 methods, reference objects and hidden reflection cannot be certified by this
 pass. No whole-run atomicity guarantee applies outside that contract. Fit code
 and `cache_version` promises are not executed by this benchmark wrapper and are
 excluded from preparation dependencies and mutation summaries.
+Literal `pkg::fun` and `pkg:::fun` positions are ordinary analysis calls;
+qualified reflective operations retain their dynamic classification. Other
+computed call heads remain conservative. This does not extend selector syntax.
 
 Two rules make the numbers usable:
 

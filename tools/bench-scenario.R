@@ -242,6 +242,13 @@ dynamic_heads <- c("assign", "rm", "remove", "delayedAssign", "makeActiveBinding
   "environment", "parent.frame", "sys.frame", "globalenv", "list2env", "as.environment",
   "new.env", "lockBinding", "unlockBinding", "bindingIsActive", "activeBindingFunction")
 
+call_binding <- function(x) {
+  if (is.symbol(x)) return(as.character(x))
+  if (call_head(x) %in% c("::", ":::") && length(x) == 3L &&
+      is.symbol(x[[2L]]) && is.symbol(x[[3L]])) return(as.character(x[[3L]]))
+  character()
+}
+
 source_reads <- function(x) {
   if (missing(x)) return(list(reads = character(), calls = character(), dynamic = FALSE))
   if (is.symbol(x)) return(list(reads = as.character(x), calls = character(), dynamic = FALSE))
@@ -256,7 +263,7 @@ source_reads <- function(x) {
   summaries <- lapply(parts, source_reads)
   list(reads = unique(unlist(lapply(summaries, `[[`, "reads"))),
        calls = unique(c(head, unlist(lapply(summaries, `[[`, "calls")))),
-       dynamic = !is.symbol(x[[1L]]) || head %in% dynamic_heads ||
+       dynamic = !length(call_binding(x[[1L]])) || call_binding(x[[1L]]) %in% dynamic_heads ||
          any(vapply(summaries, `[[`, logical(1), "dynamic")))
 }
 
@@ -275,7 +282,8 @@ source_writes <- function(x) {
   if (!is.call(x) || call_head(x) == "scenario_fit") return(empty)
   head <- call_head(x)
   writes <- character()
-  dynamic <- head %in% dynamic_heads || !is.symbol(x[[1L]])
+  binding <- call_binding(x[[1L]])
+  dynamic <- !length(binding) || binding %in% dynamic_heads
   if (head %in% c("<-", "=", "<<-", "->", "->>")) {
     target <- if (head %in% c("->", "->>")) x[[3L]] else x[[2L]]
     writes <- assigned_object(target)
@@ -427,13 +435,17 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
   edges <- list()
   roots <- list()
   lazy <- character()
-  add_root <- function(x) roots[[length(roots) + 1L]] <<- source_reads(x)
+  add_root <- function(x, kind = "eager") {
+    root <- source_reads(x)
+    root$kind <- kind
+    roots[[length(roots) + 1L]] <<- root
+  }
   artifact <- function(st, compound = FALSE) {
-    add_root(st[[2L]])
+    add_root(st[[2L]], "name")
     literal <- is.character(st[[2L]]) && length(st[[2L]]) == 1L
     demanded <- !list_only && (!literal || selected(st[[2L]]) ||
       (compound && call_head(st) == "scenario_time"))
-    if (demanded) add_root(st[[3L]])
+    if (demanded) add_root(st[[3L]], "payload")
   }
   compound_roots <- function(x) {
     head <- call_head(x)
@@ -451,7 +463,7 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
       lhs <- as.character(st[[2L]]); rhs <- st[[3L]]; rhs_head <- call_head(rhs)
       reads <- if (rhs_head %in% artifact_heads) source_reads(rhs[[3L]]) else source_reads(rhs)
       edges[[lhs]] <- union(edges[[lhs]], reads$reads)
-      if (rhs_head == "scenario_fit") { add_root(rhs[[2L]]); lazy <- union(lazy, lhs); next }
+      if (rhs_head == "scenario_fit") { add_root(rhs[[2L]], "name"); lazy <- union(lazy, lhs); next }
       if (rhs_head %in% artifact_heads) {
         artifact(rhs)
         if (!list_only && is.character(rhs[[2L]]) && length(rhs[[2L]]) == 1L && !selected(rhs[[2L]])) lazy <- union(lazy, lhs)
@@ -495,12 +507,15 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
   for (first in names(blocks)) {
     block <- blocks[[first]]
     for (root in roots) {
-      if (any(root$reads %in% block$counters) && !any(root$reads %in% block$outputs)) {
-        block$issues <- union(block$issues, "counter-only or eager intermediate counter observation is unsupported")
+      observes <- any(closure(root$reads)$reads %in% block$counters)
+      supported <- root$kind == "payload" && any(root$reads %in% block$counters) &&
+        any(root$reads %in% block$outputs)
+      if (observes && !supported) {
+        block$issues <- union(block$issues, "counter observation outside a direct artifact payload with its list/loop output is unsupported")
       }
     }
     demanded <- opaque || any(demand$reads %in% block$outputs) ||
-      any(vapply(roots, function(root) any(root$reads %in% block$counters), logical(1)))
+      any(demand$reads %in% block$counters)
     block$refusal <- if (length(block$issues)) paste0(
       "Unsupported binding-sensitive scenario_fit list construction: ",
       paste(block$issues, collapse = "; "), "; use stable, bounded preparation inputs.") else NULL
