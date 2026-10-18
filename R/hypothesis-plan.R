@@ -2061,7 +2061,9 @@
 
   atoms <- BayesTools::posterior_metadata(sample, "atoms")
   mass  <- atoms[["mass"]]
+  locations <- atoms[["locations"]]
   isTRUE(atoms[["declared"]]) && !isFALSE(atoms[["joint_declared"]]) && length(mass) > 0L &&
+    is.matrix(locations) && ncol(locations) == 1L && length(unique(as.numeric(locations))) == 1L &&
     abs(sum(mass) - 1) <= sqrt(.Machine[["double.eps"]])
 }
 

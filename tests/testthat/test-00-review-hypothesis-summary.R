@@ -111,6 +111,24 @@
   review_attach_replay(setup, samples)
 }
 
+.review_h_atomic <- function() {
+
+  dat <- data.frame(yi = c(-.1, 0, .1, .2), sei = .2, x = c(-1, 0, 1, 2))
+  point <- function(value) BayesTools::prior("point", list(value))
+  setup <- review_compile_object(BMA.norm(yi = yi, sei = sei, mods = ~x, data = dat,
+    measure = "GEN", prior_effect = list(point(-.2), point(.2)), prior_effect_null = NULL,
+    prior_mods = list(x = point(0)), prior_mods_null = NULL, prior_heterogeneity = point(.1),
+    prior_heterogeneity_null = NULL, standardize_continuous_predictors = FALSE,
+    only_priors = TRUE, silent = TRUE))
+  samples <- cbind(mu_intercept = rep(c(-.2, .2), c(40, 60)),
+    mu_intercept_indicator = rep(1:2, c(40, 60)), mu_x = 0, tau = .1)
+  map <- setup$object$formula_design$mu$name_map
+  missing <- setdiff(map$jags_name[map$role == "_indicator"], colnames(samples))
+  if (length(missing)) samples <- cbind(samples,
+    matrix(1, nrow(samples), length(missing), dimnames = list(NULL, missing)))
+  review_attach_replay(setup, samples)
+}
+
 test_that("E2-1 declared empty marginal cells retain their actual event", {
 
   object <- .review_h_empty_condition()
@@ -354,4 +372,21 @@ test_that("E3-2 inclusion warnings follow actual relabel and row selection", {
   printed <- capture.output(print(result))
   expect_equal(sum(grepl("marker E", printed, fixed = TRUE)), 1L)
   expect_equal(sum(grepl("marker R", printed, fixed = TRUE)), 1L)
+})
+
+test_that("E1-1 multiple declared atomic locations are not one fixed scalar", {
+
+  means <- marginal_means(.review_h_atomic(), bf = FALSE, density_method = "KDE", n_samples = 128)
+  cell <- means$inference$averaged$mu_intercept$intercept
+  expect_false(.hypothesis_plan_draws_fixed(cell))
+  result <- hypothesis(means, "intercept > 0", density_method = "KDE", seed = 19)
+  direct <- BayesTools::hypothesis_BF(means$inference$averaged$mu_intercept,
+    hypothesis = "intercept > 0", parameter = "intercept", density_method = "KDE")
+  expect_equal(as.numeric(result$BF), as.numeric(direct$BF), tolerance = 1e-14)
+  expect_equal(as.numeric(result$BF), 1.5, tolerance = 1e-14)
+  duplicate <- BayesTools::posterior_atom_attribute(data.frame(x = c(.2, .2), mass = c(.4, .6)))
+  fixed <- with_draw_metadata(rep(.2, 3), atoms = duplicate)
+  expect_true(.hypothesis_plan_draws_fixed(fixed))
+  expect_error(BayesTools::posterior_atom_attribute(data.frame(x = c(-.2, .2), mass = c(0, 1))))
+  expect_false(.hypothesis_plan_draws_fixed(numeric()))
 })
