@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Hypothesis row labels retain factor suffixes only for declared level expansions, preserving indexed scalar and random-quantity identities.
 - Region hypotheses distinguish multiple declared discrete support locations from a single structurally fixed scalar.
 - Inclusion-table warning keys follow their displayed rows through relabeling, heterogeneity prefixes and subsequent row selection.
 - Scale-bound random correlation quantities remain in standard summaries and their printed and tabular exports.

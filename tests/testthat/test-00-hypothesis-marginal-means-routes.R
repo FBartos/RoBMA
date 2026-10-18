@@ -357,7 +357,9 @@ test_that("hypothesis labels retain expanded factor levels", {
   restored <- .hypothesis_brma_restore_hypothesis_labels(
     out             = out,
     hypothesis      = display,
-    parameter_label = "Preregistered"
+    parameter_label = "Preregistered",
+    producer_parameter = "mu_Preregistered",
+    route = "levels"
   )
 
   expect_identical(

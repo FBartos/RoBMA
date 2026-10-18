@@ -426,7 +426,9 @@ test_that("hypothesis results restore public interaction labels", {
   out <- .hypothesis_brma_restore_hypothesis_labels(
     out             = out,
     hypothesis      = display_hypothesis,
-    parameter_label = "alloc:ablat"
+    parameter_label = "alloc:ablat",
+    producer_parameter = "mu_interaction",
+    route = "scalar"
   )
 
   expect_identical(out[["Alternative"]], c(

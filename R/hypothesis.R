@@ -554,7 +554,9 @@ hypothesis.brma <- function(object, hypothesis,
   .hypothesis_brma_restore_hypothesis_labels(
     out             = out,
     hypothesis      = display,
-    parameter_label = plan[["label"]]
+    parameter_label = plan[["label"]],
+    producer_parameter = plan[["parameter"]],
+    route           = plan[["route"]]
   )
 }
 
@@ -1465,7 +1467,8 @@ hypothesis.brma <- function(object, hypothesis,
 
 
 .hypothesis_brma_restore_hypothesis_labels <- function(
-    out, hypothesis, parameter_label = NULL) {
+    out, hypothesis, parameter_label = NULL, producer_parameter = NULL,
+    route = "scalar") {
 
   if (!is.data.frame(out)) {
     return(out)
@@ -1521,15 +1524,13 @@ hypothesis.brma <- function(object, hypothesis,
 
   if (!is.null(parameter_label)) {
     old_rownames  <- rownames(out)
-    bracket_start <- regexpr("[", old_rownames, fixed = TRUE)
     suffix        <- rep("", length(old_rownames))
-    has_suffix    <- bracket_start > 0L
-    suffix[has_suffix] <- substring(
-      old_rownames[has_suffix],
-      bracket_start[has_suffix]
-    )
-    # Statement numbers of repeated rows are renumbered for the display labels.
-    suffix <- sub(" \\([0-9]+\\)$", "", suffix)
+    if (identical(route, "levels")) {
+      BayesTools::check_char(producer_parameter, "producer_parameter", check_length = 1L, allow_NA = FALSE)
+      producer_rows <- sub(" \\([0-9]+\\)$", "", old_rownames)
+      has_suffix <- startsWith(producer_rows, paste0(producer_parameter, "["))
+      suffix[has_suffix] <- substring(producer_rows[has_suffix], nchar(producer_parameter) + 1L)
+    }
     out <- .hypothesis_brma_set_row_names(
       out       = out,
       row_names = .hypothesis_brma_row_names(

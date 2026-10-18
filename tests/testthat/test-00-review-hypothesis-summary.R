@@ -390,3 +390,26 @@ test_that("E1-1 multiple declared atomic locations are not one fixed scalar", {
   expect_error(BayesTools::posterior_atom_attribute(data.frame(x = c(-.2, .2), mass = c(0, 1))))
   expect_false(.hypothesis_plan_draws_fixed(numeric()))
 })
+
+test_that("E1-2 indexed scalar labels do not acquire factor suffixes", {
+
+  dat <- data.frame(yi = 0, study = factor(rep(c("a", "b"), each = 2)),
+    out = factor(rep(c("x", "y"), 2)))
+  setup <- review_compile_object(brma.mv(yi = yi, V = diag(4), data = dat, measure = "GEN",
+    random = ~us(0 + out | study), prior_effect = BayesTools::prior("point", list(0)),
+    prior_heterogeneity = BayesTools::prior_random(sd = BayesTools::prior("gamma", list(2, 2)),
+      study = BayesTools::random_block(contrasts = c(out = "independent"))),
+    only_priors = TRUE, silent = TRUE))
+  term <- setup$object$formula_design$mu$random_effects[[1L]]
+  columns <- unique(c(review_prior_columns(setup$compiled$mu$prior_list), term$correlation$primitive_names))
+  samples <- matrix(.5, 100, length(columns), dimnames = list(NULL, columns))
+  samples[, "mu_intercept"] <- 0
+  for (column in setdiff(columns, "mu_intercept")) samples[, column] <- seq(.2, .8, length.out = 100)
+  object <- review_attach_replay(setup, samples)
+  for (parameter in c("tau(out[x])", "rho(out[x],out[y])")) {
+    statement <- paste0("`", parameter, "` > 0.5")
+    result <- hypothesis(object, rep(statement, 2), component = "random", density_method = "KDE", seed = 19)
+    expect_identical(rownames(result), paste0(parameter, " (", 1:2, ")"))
+    expect_identical(as.data.frame(result)$parameter, rownames(result))
+  }
+})
