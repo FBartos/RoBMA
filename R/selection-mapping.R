@@ -1248,7 +1248,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
       prior             = prior_list,
       column            = "bias_indicator"
     )
-  } else if (BayesTools::is.prior.mixture(priors_bias)) {
+  } else if (length(prior_list) > 1L) {
     stop("Missing posterior model indicator: 'bias_indicator'.",
          call. = FALSE)
   } else {
