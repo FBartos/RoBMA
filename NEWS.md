@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Prior inspection includes stored GLMM baseline and latent-effect priors,
+  retaining their declared laws and explicit formula qualification.
 - Serial native selection, predictor, RNG and retained-context zcurve batches
   check interruptions in bounded work chunks while preserving arithmetic and draws.
 - Retained-context zcurve setup and Gaussian projection recurrences also check

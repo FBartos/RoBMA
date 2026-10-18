@@ -1591,6 +1591,16 @@
 
   .check_plot_prior_name(parameter, "parameter")
 
+  if (identical(component, "auto") && parameter != "bias" &&
+      BayesTools::is.prior(object[["priors"]][["outcome"]][[parameter]])) {
+    return(.select_plot_prior_entry(
+      object,
+      list(parameter = parameter, source = "outcome", term = parameter,
+           formula_parameter = NA_character_),
+      allow_mixed_bias, standardized_coefficients
+    ))
+  }
+
   entry <- .brma_parameter_select_entry(
     object    = object,
     parameter = parameter,
@@ -1814,6 +1824,17 @@
       next
     }
     selected[[selected_entry[["label"]]]] <- selected_entry
+  }
+
+  outcome <- object[["priors"]][["outcome"]]
+  for (parameter in setdiff(names(outcome), names(selected))) {
+    if (BayesTools::is.prior(outcome[[parameter]])) {
+      selected[[parameter]] <- .select_plot_prior_entry(
+        object,
+        list(parameter = parameter, source = "outcome", term = parameter,
+             formula_parameter = NA_character_)
+      )
+    }
   }
 
   if (.has_print_prior_random(object)) {

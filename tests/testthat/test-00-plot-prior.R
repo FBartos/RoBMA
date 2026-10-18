@@ -2,6 +2,47 @@ context("Prior plotting")
 
 source(testthat::test_path("helper-visuals.R"))
 
+test_that("stored GLMM outcome priors retain prior-facing ownership", {
+
+  objects <- list(
+    brma.glmm(ai = 1:3, ci = 2:4, n1i = rep(10, 3), n2i = rep(12, 3),
+      measure = "OR", prior_unit_information_sd = 1,
+      only_priors = TRUE, silent = TRUE),
+    brma.glmm(x1i = 1:3, x2i = 2:4, t1i = rep(10, 3), t2i = rep(12, 3),
+      measure = "IRR", prior_unit_information_sd = 1,
+      only_priors = TRUE, silent = TRUE)
+  )
+  for (object in objects) {
+    selected <- withVisible(print_prior(object, silent = TRUE))
+    expect_false(selected$visible)
+    expect_identical(selected$value, object$priors$outcome)
+    for (parameter in setdiff(names(object$priors$outcome), c("mu", "tau"))) {
+      expect_output(result <- withVisible(print_prior(
+        object, parameter = parameter, silent = TRUE
+      )), NA)
+      expect_false(result$visible)
+      expect_identical(result$value, object$priors$outcome[[parameter]])
+      expect_s3_class(plot_prior(object, parameter = parameter,
+        plot_type = "ggplot"), "ggplot")
+    }
+  }
+
+  object <- brma.glmm(ai = ai, ci = ci, n1i = n1i, n2i = n2i, mods = ~ pi,
+    data = data.frame(ai = 1:3, ci = 2:4, n1i = 10, n2i = 12, pi = 1:3),
+    measure = "OR", prior_unit_information_sd = 1,
+    prior_mods = list(pi = prior("normal", list(mean = 2, sd = 1))),
+    only_priors = TRUE, silent = TRUE)
+  expect_identical(print_prior(object, parameter = "pi", silent = TRUE),
+    object$priors$outcome$pi)
+  expect_identical(print_prior(object, parameter_mods = "pi", silent = TRUE),
+    object$priors$mods$pi)
+  expect_identical(print_prior(object, parameter = "pi", component = "mods",
+    silent = TRUE), object$priors$mods$pi)
+  selected <- print_prior(object, silent = TRUE)
+  expect_identical(selected$mu_pi, object$priors$mods$pi)
+  expect_identical(selected$pi, object$priors$outcome$pi)
+})
+
 test_data <- data.frame(
   effect     = c(0.10, 0.25, 0.15, 0.30, 0.05),
   std_err    = sqrt(c(0.04, 0.06, 0.05, 0.08, 0.03)),
