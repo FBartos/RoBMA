@@ -175,6 +175,50 @@ test_that("marginal prediction is independent of implicit versus explicit design
 })
 
 
+test_that("cluster conditioning uses augmented sampling noise in every representation", {
+
+  S <- 20000L
+  dat <- data.frame(yi = c(.8, -.1), vi = c(.04, .09), paper = c("a", "a"))
+  object <- bselmodel(yi = yi, vi = vi, cluster = paper, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .05,
+      BayesTools::wf_fixed(c(1, .4)), model = BayesTools::selection_model(
+        other_random_effects = "integrate")))
+  # Supplied global rows isolate the conditional law; they are not a fitted chain.
+  samples <- cbind(mu = rep(.1, S), tau = .5, rho = .64)
+  cx <- .predict_brma_context(object, newdata = NULL, V_new = NULL,
+    type = "estimate", conditioning_depth = "cluster", conditioning_depth_specified = TRUE,
+    as_measure = TRUE, output_measure = NULL, transform = NULL, probs = c(.025, .975),
+    bias_adjusted = FALSE, quiet = TRUE, conditional = FALSE,
+    dots = list(.posterior_samples = samples))
+  posterior <- .predict_joint_selection_source_posterior
+  telemetry <- new.env(parent = environment(.predict_brma_location_state))
+  telemetry$.predict_joint_selection_source_posterior <- function(parts, y, draw = TRUE) {
+    telemetry$parts <- parts
+    posterior(parts, y, draw)
+  }
+  producer <- .predict_brma_location_state
+  environment(producer) <- telemetry
+  set.seed(814)
+  location <- producer(cx, list(within = matrix(.3, S, 2L), between = matrix(.4, S, 2L)))
+  parts <- telemetry$parts
+  expect_null(parts$sampling_covariance_matrix)
+  C <- matrix(.4^2, 2L, 2L)
+  N <- diag(.3^2 + dat$vi)
+  M <- C + N
+  expect_lt(max(abs(.block_covariance_dense(parts$covariance, 1L) - M)), 1e-15)
+  expect_lt(max(abs(.block_covariance_dense(parts$random_covariance, 1L) +
+    .block_covariance_dense(parts$sampling_covariance, 1L) - M)), 1e-15)
+  target_mean <- .1 + as.vector(C %*% solve(M, dat$yi - .1))
+  target_covariance <- C - C %*% solve(M, C)
+  expect_true(all(abs(colMeans(location$cluster_mu) - target_mean) <
+    6 * sqrt(diag(target_covariance) / S)))
+  covariance_mcse <- sqrt((outer(diag(target_covariance), diag(target_covariance)) +
+    target_covariance^2) / (S - 1))
+  expect_true(all(abs(stats::cov(location$cluster_mu) - target_covariance) < 6 * covariance_mcse))
+})
+
+
 test_that("estimate depth includes conditional latent uncertainty", {
 
   S   <- 30000L

@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Cluster-depth selection predictions use the augmented within-estimate noise
+  consistently when drawing fitted cluster effects.
 - Specialized multilevel fitted effects retain Gaussian conditional means and
   uncertainty when between-cluster variation dominates within-cluster noise.
 - Scalar fitted Gaussian means use stable SD-ratio weights, preserving conditional

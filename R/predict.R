@@ -964,6 +964,9 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
           cluster_parts[["sampling_covariance"]] <- .block_covariance_add_diagonal(
             cluster_parts[["sampling_covariance"]], within^2
           )
+          # The augmented blocks own the conditioning noise; the original
+          # fixed sampling matrix no longer represents that covariance.
+          cluster_parts[["sampling_covariance_matrix"]] <- NULL
         }
         cluster_mu <- .predict_joint_selection_source_posterior(
           cluster_parts, outcome_data[["yi"]],
