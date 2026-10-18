@@ -39,7 +39,7 @@ test_that("spike-and-slab plotting preserves the parent probability measure", {
         points <- Filter(function(x) inherits(x, "density.prior.point"), data)
         expect_length(points, 1L)
         expect_identical(points[[1L]]$y, 1)
-        expect_identical(plot$labels$y, "Probability")
+        expect_identical(plot$scales$get_scales("y")$name, "Probability")
       } else {
         expect_true(is.finite(plot$bt_scale_y2_state$scale_y2))
         expect_equal(atoms[[1L]]$data$yend / plot$bt_scale_y2_state$scale_y2,
