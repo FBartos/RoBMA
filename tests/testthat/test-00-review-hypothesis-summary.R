@@ -31,9 +31,16 @@
   components <- vapply(slope, function(prior) attr(prior, "component"), character(1L))
   alternative <- which(components == "alternative")
   null <- which(components == "null")
+  fit_priors <- .create_fit_priors(setup$object$data, setup$object$priors)
+  stopifnot(BayesTools::is.prior.mixture(fit_priors$tau), length(fit_priors$tau) == 1L)
+  tau_component <- seq_along(fit_priors$tau)
   samples <- cbind(mu_intercept = .2 + .025 * stats::qnorm((seq_len(120) - .5) / 120),
     mu_x = c(rep(0, 60), seq(.01, .15, length.out = 60)),
-    mu_x_indicator = rep(c(null, alternative), each = 60), tau = 0)
+    mu_x_indicator = rep(c(null, alternative), each = 60), tau = 0,
+    tau_indicator = rep(tau_component, 120L))
+  monitors <- unique(c(BayesTools::JAGS_to_monitor(c(setup$compiled$mu$prior_list, fit_priors)),
+    .create_jags_formula_args(setup$object$data, setup$object$priors)$add_parameters))
+  stopifnot(length(setdiff(monitors, colnames(samples))) == 0L)
   review_attach_replay(setup, samples)
 }
 
@@ -163,6 +170,30 @@ test_that("E2-1 declared empty marginal cells retain their actual event", {
   # A public point reaches estimation; a subsequent diagnostic refusal is kept.
   result <- tryCatch(hypothesis(means, "intercept = 0", density_method = "qCMDE", seed = 19), error = identity)
   expect_false(inherits(result, "error") && grepl("metadata is incomplete", conditionMessage(result), fixed = TRUE))
+})
+
+test_that("E2-1 complete declared monitors admit public empty-cell estimation", {
+
+  object <- .review_h_empty_condition()
+  samples <- as.matrix(object$fit$mcmc)
+  priors <- attr(object$fit, "prior_list")
+  monitors <- unique(c(BayesTools::JAGS_to_monitor(priors),
+    .create_jags_formula_args(object$data, object$priors)$add_parameters))
+  expect_length(setdiff(monitors, colnames(samples)), 0L)
+  expect_identical(unique(samples[, "tau_indicator"]), as.numeric(seq_along(priors$tau)))
+  means <- marginal_means(object, bf = FALSE, density_method = "qCMDE", n_samples = 128)
+  expect_s3_class(means, "marginal_means.brma")
+  densities <- unlist(lapply(means$inference$averaged, function(cells)
+    lapply(cells, function(cell) BayesTools::posterior_metadata(cell, "posterior_density"))),
+    recursive = FALSE)
+  expect_length(densities, 4L)
+  expect_true(all(vapply(densities, is.null, logical(1L))))
+  failures <- vapply(means$density_diagnostics$averaged, function(record)
+    .iwmde_diagnostics_density_failure_reason(record$diagnostics), character(1L))
+  expect_true(all(grepl("120 estimator rows across.*2 active states", failures)))
+  point <- hypothesis(means, "intercept = .1", density_method = "qCMDE", seed = 19)
+  expect_true(is.finite(as.numeric(point$BF)))
+  expect_match(density_diagnostics(point)$warnings, "effective sample size")
 })
 
 test_that("E2-2 actual attachment retains requested curve precision", {
