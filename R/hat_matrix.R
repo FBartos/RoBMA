@@ -410,12 +410,15 @@
         }, logical(1))]
       }
       y_offset  <- yi - offset_samples[s, ]
-      projection <- .known_v_gls_projection_blocks(
-        X              = X_s,
-        y              = y_offset,
-        known_V        = known_V,
-        extra_variance = extra_variance[s, ],
-        return_full_H  = return_full_H
+      projection <- .known_v_with_request_rows(
+        .known_v_gls_projection_blocks(
+          X              = X_s,
+          y              = y_offset,
+          known_V        = known_V,
+          extra_variance = extra_variance[s, ],
+          return_full_H  = return_full_H
+        ),
+        rows = s
       )
       residual   <- projection[["sampling_residual"]]
       residual[zero_residual_rows] <- 0
@@ -719,11 +722,17 @@
         stop("Known-V residual covariance is not positive definite.",
              call. = FALSE)
       }
-      W_block          <- chol2inv(chol_covariance)
       covariance_factor <- t(chol_covariance)
-      local_W_X <- W_block %*% X[index, , drop = FALSE]
-      local_W_y <- as.vector(W_block %*% y[index])
-      W_L <- W_block %*% covariance_factor
+      n <- length(index)
+      applied <- .known_v_covariance_plan_precision_rhs_batch(
+        list(sampling_covariance = V_block, random_covariance_plans = list(),
+          random_covariance_states = list(list()), block_indices = list(seq_len(n)),
+          extra_variances = matrix(block_extra, 1L)),
+        cbind(X[index, , drop = FALSE], y[index], covariance_factor)
+      )
+      local_W_X <- matrix(applied[1L, , seq_len(p)], n, p)
+      local_W_y <- applied[1L, , p + 1L]
+      W_L <- matrix(applied[1L, , p + 1L + seq_len(n)], n, n)
       A_X <- V_block %*% local_W_X
       A_y <- as.vector(V_block %*% local_W_y)
       A_L <- V_block %*% W_L

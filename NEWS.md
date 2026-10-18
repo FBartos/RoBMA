@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Known-V estimate residuals use the shared precision availability checks and
+  report unavailable draws in their current, possibly thinned request order.
 - Rank-one sampling residuals use refined precision products and direct
   covariance factors to retain tiny independent variances.
 - Exact residual zeros require an isolated row in the relevant covariance

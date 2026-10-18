@@ -1,4 +1,5 @@
-.review_gls_replay <- function(V, y, x, sd = NULL, saturated = FALSE) {
+.review_gls_replay <- function(V, y, x, sd = NULL, saturated = FALSE,
+                                sd_values = NULL) {
 
   K <- length(y)
   dat <- data.frame(x = x, row = factor(seq_len(K)),
@@ -8,7 +9,8 @@
     standardize_continuous_predictors = FALSE,
     prior_effect = prior("normal", list(0, 1)), prior_mods = prior("normal", list(0, 1)),
     measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
-  if (!is.null(sd)) args$prior_heterogeneity <- prior_random(sd = prior("point", list(sd)))
+  if (!is.null(sd)) args$prior_heterogeneity <- prior_random(
+    sd = if (BayesTools::is.prior(sd)) sd else prior("point", list(sd)))
   compiled <- review_compile_object(suppressWarnings(do.call(brma.mv, args)))
   priors <- c(compiled$compiled$mu$prior_list,
     .create_fit_priors(compiled$object$data, compiled$object$priors))
@@ -23,6 +25,10 @@
       paste0(term$parameter_stem, "_xRE_Zx[", seq_len(term$n_groups), ",", j, "]")
     }))
     samples <- cbind(samples, matrix(0, 24L, length(names), dimnames = list(NULL, names)))
+  }
+  if (!is.null(sd_values)) {
+    term <- compiled$object$formula_design$mu$random_effects[[1L]]
+    samples[, term$sd_parameter_names] <- sd_values
   }
   review_attach_replay(compiled, samples)
 }
@@ -39,6 +45,24 @@ test_that("known-V residual zeros use the covariance multiplier", {
   expect_identical(as.numeric(rstandard(diagonal)[1, ]), c(0, 0, 0))
   saturated <- .review_gls_replay(V, c(0, 1, -1), c(1, 0, 0), saturated = TRUE)
   expect_true(all(as.matrix(rstandard(saturated)) == 0))
+})
+
+test_that("estimate precision refusals number thinned public request positions", {
+
+  rho <- 1 - 1e-11
+  V <- matrix(c(1, rho, rho, 1), 2L)
+  rows <- .thin_sample_rows(24L, 10L)
+  scales <- rep(.1, 24L)
+  scales[rows[3L]] <- 0
+  object <- .review_gls_replay(V, c(1, -1), c(0, 1),
+    sd = prior("normal", list(0, 1), truncation = list(lower = 0)), sd_values = scales)
+  condition <- NULL
+  expect_warning(condition <- tryCatch(rstandard(object, conditioning_depth = "estimate", max_samples = 10),
+    RoBMA_known_v_precision_unavailable = identity), "deterministically thinned")
+  expect_s3_class(condition, "RoBMA_known_v_precision_unavailable")
+  expect_identical(condition$rows, 3L)
+  expect_match(conditionMessage(condition), "draw 3 among", fixed = TRUE)
+  expect_true(condition$reciprocal_condition < 1e-10)
 })
 
 test_that("marginal zero certification uses full random covariance beyond diagonal V", {
