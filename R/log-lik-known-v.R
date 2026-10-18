@@ -757,10 +757,16 @@
         }
         if (any(c("mean", "variance") %in% components)) {
           moments <- .selection_step_moments_matrix(means, sd, sei, contexts)
-          selected_mean <- as.vector(matrix(moments[["mean"]], n, order) %*% rule[["weights"]])
+          centered <- sweep(matrix(moments[["mean"]], n, order), 1L, mean[active], "-")
+          centered_mean <- as.vector(centered %*% rule[["weights"]])
+          selected_mean <- mean[active] + centered_mean
           if ("mean" %in% components) current[["mean"]] <- direction * selected_mean
-          if ("variance" %in% components) current[["variance"]] <-
-            as.vector(matrix(moments[["second"]], n, order) %*% rule[["weights"]]) - selected_mean^2
+          current[["mean_offset"]] <- direction * centered_mean
+          if ("variance" %in% components) {
+            centered <- sweep(centered, 1L, centered_mean, "-")
+            current[["variance"]] <- as.vector((
+              matrix(moments[["variance"]], n, order) + centered^2) %*% rule[["weights"]])
+          }
         }
       }
       if (!is.null(previous)) {
@@ -773,9 +779,13 @@
           } else {
             scale <- if (component == "mean") sqrt(total[active]) else
               if (component == "variance") total[active] else abs(value)
-            abs(value - previous[[component]]) / scale
+            if (component == "mean") {
+              abs(current[["mean_offset"]] - previous[["mean_offset"]]) / scale
+            } else abs(value - previous[[component]]) / scale
           }
           same <- !is.na(value) & !is.na(previous[[component]]) & value == previous[[component]]
+          if (component == "mean") same <- !is.na(current[["mean_offset"]]) &
+            !is.na(previous[["mean_offset"]]) & current[["mean_offset"]] == previous[["mean_offset"]]
           change[same] <- 0
           error <- pmax(error, change)
           valid <- valid & !is.na(value) & value != Inf
@@ -985,9 +995,11 @@
         value <- exp(mass + anchor - log_normalizer(e))
         if (!is.null(moment)) {
           moments <- if (v_u == 0) {
-            list(mean = means, second = means^2)
+            list(mean = means, variance = matrix(0, n, 1L))
           } else .selection_step_moments_matrix(means, matrix(sqrt(v_u), n, 1L), sei, contexts)
-          value <- value * as.numeric(moments[[moment]])
+          centered <- as.numeric(moments[["mean"]]) - mean
+          value <- value * if (moment == "mean") centered else
+            as.numeric(moments[["variance"]]) + centered^2
         }
         as.numeric(value)
       }
@@ -1048,13 +1060,14 @@
         # Scale moment error by the Gaussian SD/second moment, so a zero
         # selected mean remains a valid result rather than a relative-error
         # singularity. Density and event-mass criteria remain relative to mass.
-        selected_mean <- integrate_gaussian(function(e) weighted_mass(e, moment = "mean"),
+        centered_mean <- integrate_gaussian(function(e) weighted_mass(e, moment = "mean"),
           m_e, v_e, moment_scale = normalizer * sqrt(variance)) / normalizer
+        selected_mean <- mean + centered_mean
         if ("mean" %in% components) out[["mean"]][draw, row] <- direction * selected_mean
         if ("variance" %in% components) {
           second <- integrate_gaussian(function(e) weighted_mass(e, moment = "second"),
-            m_e, v_e, moment_scale = normalizer * (variance + mean^2)) / normalizer
-          selected_variance <- second - selected_mean^2
+            m_e, v_e, moment_scale = normalizer * (variance + centered_mean^2)) / normalizer
+          selected_variance <- second - centered_mean^2
           if (!is.finite(selected_variance) || selected_variance < 0) {
             stop("Selected-normal predictive variance is invalid.", call. = FALSE)
           }
@@ -1121,7 +1134,7 @@
         }
       }
       if ("variance" %in% components) {
-        variance <- moments[["second"]] - moments[["mean"]]^2
+        variance <- moments[["variance"]]
         if (any(!is.finite(variance)) || any(variance < 0)) {
           stop("Selected-normal predictive variance is invalid.", call. = FALSE)
         }
@@ -1187,7 +1200,7 @@
         }
       }
       if ("variance" %in% components) {
-        variance <- moments[["second"]] - moments[["mean"]]^2
+        variance <- moments[["variance"]]
         if (any(!is.finite(variance)) || any(variance < 0)) {
           stop("Selected-normal predictive variance is invalid.", call. = FALSE)
         }

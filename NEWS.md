@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selected predictive moments use direct centered variances and stable outer
+  mixtures, including when locations are large relative to their uncertainty.
 - Structured precision diagnostics retain the existing availability boundary;
   ill-conditioned location shortcuts decline to the general likelihood evaluator.
 - Post-fit covariance plans retain accepted zero-variance whitening directions

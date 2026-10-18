@@ -757,7 +757,7 @@ test_that("trusted step densities, CDF, moments, and RNG match fallback paths", 
       tolerance = 1e-12
     )
     expect_equal(
-      moments,
+      moments[c("mean", "second")],
       .test_step_moments_reference(sign * mean, sd, sei, omega, spec),
       tolerance = 1e-12
     )

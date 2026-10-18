@@ -21,6 +21,11 @@ another flip.
 
 ## Product-Space Routing
 
+Predictive variance consumes the kernel's direct centered variance. Raw second
+moments remain available to their callers, but are not subtracted from squared
+large means. Outer sampling mixtures and scalar moment integrals use a Gaussian
+location center and retain the existing numerical error and transition checks.
+
 For model-averaged publication-bias fits, posterior `bias_indicator` identifies
 the active bias branch. Never infer branch identity from `omega` values.
 

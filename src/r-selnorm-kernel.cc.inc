@@ -482,13 +482,16 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
 
   SEXP out_mean = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
   SEXP out_second = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
-  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SEXP out_variance = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 3));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 3));
 
   SET_STRING_ELT(names, 0, Rf_mkChar("mean"));
   SET_STRING_ELT(names, 1, Rf_mkChar("second"));
+  SET_STRING_ELT(names, 2, Rf_mkChar("variance"));
   SET_VECTOR_ELT(out, 0, out_mean);
   SET_VECTOR_ELT(out, 1, out_second);
+  SET_VECTOR_ELT(out, 2, out_variance);
   Rf_setAttrib(out, R_NamesSymbol, names);
 
   const double *mean_p     = REAL(mean);
@@ -496,6 +499,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
   const double *sei_p      = REAL(sei);
   double *mean_out_p       = REAL(out_mean);
   double *second_out_p     = REAL(out_second);
+  double *variance_out_p   = REAL(out_variance);
 
   const SelNormKernelRowArgs row_args(selnorm, S);
   const auto compute_cell = [&](int s, int k) {
@@ -513,7 +517,8 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
       mean_out_p + cell,
       second_out_p + cell,
       S,
-      false
+      false,
+      variance_out_p + cell
     );
   };
 
@@ -529,7 +534,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
     });
   }
 
-  UNPROTECT(4);
+  UNPROTECT(5);
   return out;
   ROBMA_NATIVE_END
 }
