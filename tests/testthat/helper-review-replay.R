@@ -3,6 +3,42 @@
 # BayesTools and finalized as a BayesTools fit around supplied posterior
 # draws, so that post-fit methods run without sampling.
 
+review_scaled_allocation_replay <- function(shift = 0, standardized = TRUE) {
+
+  dat <- data.frame(yi = seq(-.1, .2, length.out = 8L),
+    study = rep(letters[1:4], each = 2L),
+    x = rep(c(-sqrt(3.5), sqrt(3.5)), 4L) + shift)
+  setup <- review_compile_object(brma.mv(
+    yi = yi, V = diag(.1, 8L), mods = ~ x, random = ~ diag(1 + x | study),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    standardize_continuous_predictors = standardized, only_priors = TRUE, silent = TRUE
+  ))
+  compiled <- setup$compiled$mu
+  term <- compiled$formula_design$random_effects[[1L]]
+  allocation <- term$sd_binding$allocations[[1L]]
+  priors <- c(compiled$prior_list, .create_fit_priors(setup$object$data, setup$object$priors))
+  weights <- paste0(allocation$weight_name, "[", seq_len(allocation$n_targets), "]")
+  auxiliary <- .iwmde_simplex_auxiliary_columns(allocation$weight_name, allocation$n_targets)
+  map <- compiled$formula_design$name_map
+  latent <- map$jags_name[map$kind == "random" & map$role == "_xRE_Zx"]
+  latent <- unlist(lapply(seq_len(term$n_columns), function(j) {
+    paste0(latent, "[", seq_len(term$n_groups), ",", j, "]")
+  }), use.names = FALSE)
+  columns <- unique(c(review_prior_columns(priors), auxiliary, latent))
+  samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  samples[, allocation$source$name] <- seq(.8, 1.2, length.out = 24L)
+  samples[, weights] <- .5
+  samples[, auxiliary] <- 1
+  seed <- review_attach_replay(setup, samples)
+  registry <- BayesTools::JAGS_deterministic_nodes(seed$fit)
+  nodes <- registry$node[registry$family == "random_sd"]
+  samples <- cbind(samples, BayesTools::JAGS_evaluate_deterministic(seed$fit, draws = samples, nodes = nodes))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit,
+    requires = c("name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  list(object = object, samples = samples)
+}
+
 # The compiled formula designs of an 'only_priors' object.
 review_compile_object <- function(object) {
 

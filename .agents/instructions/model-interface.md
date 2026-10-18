@@ -127,6 +127,11 @@ through exact covariance algebra and retain the generic evaluator for factor,
 Markov, and unsupported families. Do not infer affineness from posterior draws
 or evaluated covariance candidates.
 
+Allocated component SD density targets in predictor-scaled blocks require the
+standardized view or KDE for original-scale requests, following the structured
+scaled-component capability. The restriction is block-wide, including centered
+intercepts with accidental draw parity; direct one-to-one transforms remain supported.
+
 Post-fit mixture likelihoods keep random-source indicators with their persisted
 compiled priors, including externally bound SD sources; localize only indicators
 whose consuming priors were localized. Compute internally generated point-only

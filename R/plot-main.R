@@ -66,6 +66,10 @@
 #' remain KDE-only. Shared inclusion gates are supported for aggregate and
 #' component SDs and allocation proportions. SDs retain their excluded zero
 #' branches; proportions condition on positive total heterogeneity.
+#' Allocated component SDs in a predictor-scaled block require
+#' `standardized_coefficients = TRUE` or `density_method = 'KDE'` for an
+#' original-scale request. This block-wide limitation also covers a centered
+#' intercept whose value happens to be unchanged by scaling.
 #' In independently gated allocations, realized
 #' `tau_total`/`tau2_total` and `tau2_prop(...)` are KDE-only because they combine
 #' multiple gate and allocation coordinates. Their structural point masses are

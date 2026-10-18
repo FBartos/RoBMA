@@ -151,6 +151,9 @@ statements), \code{RoBMA_density_method_random_target} (random-effect
 quantities without a supported scalar random-component coordinate), and
 \code{RoBMA_density_method_original_scale} (original-scale coefficients
 whose fitted map is nonlinear, such as \code{exp(affine)} targets). As in
+\code{\link[=plot.brma]{plot.brma()}}, allocated component SDs in a predictor-scaled block require
+\code{standardized_coefficients = TRUE} or \code{density_method = 'KDE'}; the
+block-wide restriction also covers an unchanged centered intercept. As in
 \code{\link[=plot.brma]{plot.brma()}}, the capability of the fitted model is checked before these
 causes and before other qCMDE/IWMDE refusals of the tested quantity: a
 request to which both apply stops with the capability refusal. A qCMDE/IWMDE

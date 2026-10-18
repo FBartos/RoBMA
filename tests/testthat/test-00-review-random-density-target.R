@@ -1,5 +1,40 @@
 context("Random-effect density targets follow the requested coefficient scale")
 
+test_that("scaled allocation SDs refuse original component targets by declared capability", {
+
+  for (shift in c(0, 1)) {
+    replay <- review_scaled_allocation_replay(shift)
+    object <- replay$object
+    expect_identical(dim(replay$samples), c(24L, 17L))
+    expect_s3_class(object, "only_priors.brma")
+    for (selector in c("tau(x)", "tau(intercept)")) {
+      target <- .brma_random_parameter_density_target(object, selector)
+      expect_false(target$available)
+      expect_identical(target$class, c("RoBMA_density_method_original_scale", "RoBMA_density_method_unavailable"))
+      selected <- .brma_random_parameter_select(object, selector)
+      expect_identical(target$reason, paste0(
+        "qCMDE/IWMDE densities are unavailable for original-scale random-effect quantity '",
+        selected$spec$label, "' because predictor scaling changes its allocated component SD. ",
+        "Use standardized_coefficients = TRUE or density_method = 'KDE'."))
+      standardized <- .brma_random_parameter_density_target(object, selector, standardized_coefficients = TRUE)
+      expect_false(isFALSE(standardized$available))
+      context <- .iwmde_context(object)
+      spec <- .iwmde_parameter_spec(context, standardized$parameter, standardized$parameter_spec)
+      expected <- as.numeric(.brma_random_parameter_mixed_posterior(object, selector,
+        standardized_coefficients = TRUE)[[1L]])
+      expect_lt(max(abs(.iwmde_parameter_values(context, standardized$parameter, spec) - expected)), 1e-13)
+      original <- as.numeric(.brma_random_parameter_mixed_posterior(object, selector)[[1L]])
+      root <- seq(.8, 1.2, length.out = 24L)
+      independent <- if (selector == "tau(x)") root / 2 else root * sqrt(1 + shift^2 / 4)
+      expect_lt(max(abs(original - independent)), 1e-13)
+    }
+  }
+  object <- review_scaled_allocation_replay(standardized = FALSE)$object
+  for (selector in c("tau(x)", "tau(intercept)")) {
+    expect_false(isFALSE(.brma_random_parameter_density_target(object, selector)$available))
+  }
+})
+
 # A one-slope random SD of a standardized predictor with a 'tau' alias: the
 # fitted SD coordinate is 'source' on the standardized scale and the original
 # scale multiplies it by 1 / sd(x).

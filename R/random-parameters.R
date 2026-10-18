@@ -849,7 +849,9 @@
       selected             = selected,
       posterior            = posterior,
       conditioning_exclude = conditioning_exclude,
-      covariance_update    = covariance_update
+      covariance_update    = covariance_update,
+      standardized_coefficients = standardized_coefficients,
+      operation            = operation
     )
     if (!is.null(target)) {
       return(target)
@@ -872,12 +874,26 @@
 
 
 .brma_random_parameter_component_density_target <- function(
-    object, selected, posterior, conditioning_exclude, covariance_update) {
+    object, selected, posterior, conditioning_exclude, covariance_update,
+    standardized_coefficients = FALSE, operation = "densities") {
 
   formula_design <- attr(object[["fit"]], "formula_design", exact = TRUE)
   spec <- selected[["spec"]]
   if (!identical(spec[["source_type"]], "composite")) {
     return(NULL)
+  }
+  if (!standardized_coefficients &&
+      identical(covariance_update[["family"]], "unsupported") &&
+      identical(covariance_update[["reason"]], "scaled_component_sd")) {
+    return(.iwmde_unavailable(
+      reason = paste0(
+        "qCMDE/IWMDE ", operation, " are unavailable for original-scale ",
+        "random-effect quantity '", spec[["label"]],
+        "' because predictor scaling changes its allocated component SD. ",
+        "Use standardized_coefficients = TRUE or density_method = 'KDE'."
+      ),
+      type = "original_scale"
+    ))
   }
   if (identical(spec[["evaluator"]], "allocation_sd")) {
     allocation <- selected[["allocation_definition"]]
