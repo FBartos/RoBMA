@@ -111,6 +111,14 @@ Non-unit observation `weights` require sampling `integrate` and the supported
 independent-product weighted path. Unit weights are identical to omission and
 remain valid with sampling `condition`.
 
+Fitted integrated latent prediction uses the normalized powered Gaussian
+augmentation documented in the predictive-target contract, conditional on the
+unchanged supplied global and retained-source posterior row. Publication weights
+at the observed response are constant in that conditional; likelihood powers
+instead change its conditioning variance to `sei²/weights`. Population response
+sampling keeps the raw variance and existing PET/PEESE direction. Existing
+weighted admission refusals remain authoritative.
+
 Publication grouping is active only for `weight_rule = "best"`. Product
 branches ignore `group`, do not bind its column or check its partition, and
 accept the default `group = NULL` for every supported model structure.

@@ -7,6 +7,24 @@
 # ============================================================================ #
 
 
+.prediction_latent_augmentation_metadata <- function(context) {
+
+  if (!isTRUE(context[["same_data"]]) ||
+      !identical(context[["outcome_type"]], "norm") ||
+      !identical(context[["conditioning_depth"]], "estimate") ||
+      !context[["type"]] %in% c("estimate", "response")) return(NULL)
+  data <- context[["object"]][["data"]]
+  model <- .data_selection_model(data)
+  sources <- model[["sources"]][["random"]]
+  if (!any(vapply(sources, function(source) !isTRUE(source[["retained"]]), logical(1L)))) {
+    return(NULL)
+  }
+  weights <- if (.is_data_weights(data)) data[["outcome"]][["weights"]] else
+    rep(1, nrow(data[["outcome"]]))
+  list(policy = "normalized_powered_gaussian", likelihood_weights = weights)
+}
+
+
 .brma_mv_diagnostic_target_table <- function() {
 
   data.frame(

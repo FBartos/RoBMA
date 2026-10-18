@@ -127,6 +127,16 @@
 #' uncertainty, not only the BLUP mean. \code{blup()} and \code{fitted(...,
 #' conditioning_depth = "estimate")} remain the conditional-mean interfaces.
 #'
+#' For admitted weighted Gaussian selection models, reconstruction of fitted
+#' integrated true effects uses the normalized conditional kernel
+#' \eqn{N(u;0,\tau^2)N(y;c+u,s^2)^w}. Its conditioning variance is
+#' \eqn{s^2/w}; the fitted global posterior and retained latent contributions
+#' remain the supplied posterior. This post-fit augmentation does not assert
+#' that likelihood powering commutes with integrating a latent effect.
+#' Estimate-depth estimate and response targets record this policy and the
+#' row-aligned likelihood weights in \code{RoBMA_target$latent_augmentation}.
+#' Response replication adds the original sampling variance \eqn{s^2}.
+#'
 #' \code{newdata} supplies design values and grouping identities; it does not
 #' select an estimand. Consequently, marginal prediction has the same law for
 #' \code{newdata = NULL} and an equivalent explicit design. Matching fitted
@@ -673,6 +683,9 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         if (selected) "selected" else "unselected",
       event = event
     ))
+    target <- attr(out, "RoBMA_target")
+    target[["latent_augmentation"]] <- .prediction_latent_augmentation_metadata(context)
+    attr(out, "RoBMA_target") <- target
   }
   out
 }
@@ -1511,6 +1524,19 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 }
 
 
+.predict_brma_conditioning_variance <- function(data) {
+
+  variance <- data[["outcome"]][["sei"]]^2
+  if (.is_data_weights(data)) variance <- variance / data[["outcome"]][["weights"]]
+  if (any(!is.finite(variance) | variance <= 0)) {
+    stop("Fitted Gaussian conditioning variance is numerically unavailable; ",
+         "the represented sampling variance divided by likelihood weight must be positive and finite.",
+         call. = FALSE)
+  }
+  return(variance)
+}
+
+
 .predict_joint_selection_gaussian_parts <- function(
     object, data, posterior_samples, fixed_mu, within, between,
     known_V_new = NULL, fitted_context = FALSE, draw_context = TRUE,
@@ -1685,6 +1711,11 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     diag(data[["outcome"]][["sei"]]^2, K, K)
   } else .known_v_covariance_matrix(known_V)
   sampling_covariance <- full_sampling_covariance
+  if (fitted_context && .is_data_weights(data)) {
+    # Admitted nonunit weighted selection models have independent sampling.
+    # Population response construction retains the raw covariance above.
+    diag(sampling_covariance) <- .predict_brma_conditioning_variance(data)
+  }
   retained_sampling <- identical(model[["known_sampling_variance"]], "condition")
   if (retained_sampling) {
     sampling_covariance <- matrix(0, K, K)

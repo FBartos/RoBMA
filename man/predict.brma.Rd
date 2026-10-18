@@ -175,6 +175,16 @@ target. For normal fitted effects this includes the conditional latent
 uncertainty, not only the BLUP mean. \code{blup()} and \code{fitted(...,
 conditioning_depth = "estimate")} remain the conditional-mean interfaces.
 
+For admitted weighted Gaussian selection models, reconstruction of fitted
+integrated true effects uses the normalized conditional kernel
+\eqn{N(u;0,\tau^2)N(y;c+u,s^2)^w}. Its conditioning variance is
+\eqn{s^2/w}; the fitted global posterior and retained latent contributions
+remain the supplied posterior. This post-fit augmentation does not assert
+that likelihood powering commutes with integrating a latent effect.
+Estimate-depth estimate and response targets record this policy and the
+row-aligned likelihood weights in \code{RoBMA_target$latent_augmentation}.
+Response replication adds the original sampling variance \eqn{s^2}.
+
 \code{newdata} supplies design values and grouping identities; it does not
 select an estimand. Consequently, marginal prediction has the same law for
 \code{newdata = NULL} and an equivalent explicit design. Matching fitted

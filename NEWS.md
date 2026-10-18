@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Weighted Gaussian selection predictions reconstruct fitted integrated truth
+  with a documented normalized powered Gaussian conditional and prediction-only
+  provenance, while response replication retains its raw sampling variance.
 - Cluster-depth selection predictions use the augmented within-estimate noise
   consistently when drawing fitted cluster effects.
 - Specialized multilevel fitted effects retain Gaussian conditional means and

@@ -138,6 +138,19 @@ Response prediction preserves full `V`/`V_new` and joint `ZGZ'` dependence.
 Conditional means remain available through `blup()` and
 `fitted(..., conditioning_depth = "estimate")`.
 
+For admitted Gaussian selection models, fitted integrated truth is reconstructed
+conditional on the supplied global and retained-source posterior row using the
+normalized kernel `N(u;0,tau²) N(y;c+u,s²)^w`. Conditioning uses represented
+positive finite `s²/w`; underflow/overflow is numerical unavailability, never a
+structural zero. This chosen post-fit augmentation preserves the global
+posterior and does not interchange likelihood powering and latent integration.
+Estimate-depth estimate and response truth targets alone attach prediction-only
+`latent_augmentation` metadata with policy `normalized_powered_gaussian` and
+row-aligned `likelihood_weights` (omission/unit weights become ones). Fully
+retained truth, conditional means, terms, marginal/newdata and fresh cluster
+effects carry no reconstruction claim. Response sampling retains raw `s²`;
+log-score, full-joint and LOO metadata do not acquire this prediction marker.
+
 Normal-model funnel/sampling bands, regression/forest prediction intervals,
 default z-plots, and default residual diagnostics use explicit marginal
 targets. GLMM funnel and regression sampling bands are descriptive normal
