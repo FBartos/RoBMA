@@ -13,6 +13,7 @@ test_that("threaded selection kernels return identical values at any thread coun
   .with_kernel_thread_worker({
 
     expect_true(.has_native_selnorm_kernel())
+    expect_true(.has_native_selnorm_loglik_row_sum())
     expect_true(.has_native_selnorm_log_norm_delta())
 
     inputs <- .kernel_thread_inputs(S = 6000L)
