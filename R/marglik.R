@@ -41,7 +41,7 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' \code{"warp3"}.
 #' @param maxiter maximum number of bridge iterations per repetition.
 #' @param silent whether bridge-sampling progress is suppressed.
-#' @param ... reserved for future use.
+#' @param ... reserved for future use. Unused arguments produce a warning.
 #'
 #' @details
 #' The marginal likelihood is computed using the \code{bridgesampling} package
@@ -79,6 +79,14 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' The complete sampling error and random effects are reconstructed for each
 #' proposed bridge state before evaluating its selection normalizer.
 #'
+#' A non-finite bridge repetition raises a
+#' \code{RoBMA_marglik_repetition_failure} error, inheriting from
+#' \code{RoBMA_marglik_error}. Its \code{parent} retains the complete upstream
+#' condition, including the failed \code{repetitions} table. Increase
+#' \code{maxiter} or fit more posterior draws (for example with a larger
+#' \code{sample} or \code{update()}) before retrying; these actions do not
+#' guarantee that the diagnostics will pass.
+#'
 #' @return The brma object with the marginal likelihood result stored in
 #' \code{object[["marglik"]]}.
 #'
@@ -114,14 +122,28 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     parallel = parallel,
     cores    = cores
   )
-  marglik <- .marglik(
+  .warn_unused_dots(list(...), allowed = character(), caller = "add_marglik()")
+  marglik <- tryCatch(.marglik(
     object      = object,
     cores       = parallel_control[["cores"]],
     repetitions = repetitions,
     method      = method,
     maxiter     = maxiter,
     silent      = silent
-  )
+  ), BayesTools_marglik_repetition_failure = function(condition) {
+    stop(errorCondition(
+      message = paste0(
+        "Bridge sampling was rejected by diagnostics: repetition(s) ",
+        paste(condition[["repetitions"]][["repetition"]], collapse = ", "),
+        " returned a non-finite natural-log marginal likelihood. ",
+        "Increase 'maxiter' or fit more posterior draws ",
+        "(for example with a larger 'sample' or update())."
+      ),
+      class = c("RoBMA_marglik_repetition_failure", "RoBMA_marglik_error"),
+      call = NULL,
+      parent = condition
+    ))
+  })
   if (inherits(marglik, "error")) {
     stop(conditionMessage(marglik), call. = FALSE)
   }

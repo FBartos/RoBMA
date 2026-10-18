@@ -45,8 +45,7 @@ If any model contains repeated bridge estimates, comparisons retain those
 repetitions regardless of model order. Models with fewer repetitions are
 recycled to the largest repetition count with a warning, following
 \pkg{bridgesampling}.
-A stored explicit non-finite-repetition drop policy is honored; otherwise
-standardized marginal-likelihood results must be finite. Legacy raw
+Standardized marginal-likelihood results must be finite. Legacy raw
 \code{"bridge_list"} results retain non-finite repetitions and use upstream
 comparison behavior through \pkg{bridgesampling}, with normalized prior
 probabilities and its missing-value propagation, warnings, and errors.

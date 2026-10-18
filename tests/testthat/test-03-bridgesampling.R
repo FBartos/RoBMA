@@ -261,6 +261,45 @@ test_that("add_marglik draws the bridge proposal with the fit's seed", {
   expect_identical(logml(first), logml(second))
 })
 
+test_that("add_marglik retains actual upstream nonfinite repetition diagnostics", {
+
+  skip_if_missing_fits("bcg_meta-analysis")
+  fit <- fits[["bcg_meta-analysis"]]
+  original_sampler <- get("bridge_sampler", asNamespace("bridgesampling"))
+  original_result <- get(".bt_marglik_from_upstream", asNamespace("BayesTools"))
+  original <- NULL
+  testthat::local_mocked_bindings(bridge_sampler = function(...) {
+    result <- original_sampler(...)
+    result$logml[2L] <- NA_real_
+    result
+  }, .package = "bridgesampling")
+  testthat::local_mocked_bindings(.bt_marglik_from_upstream = function(...) {
+    withCallingHandlers(original_result(...),
+      BayesTools_marglik_repetition_failure = function(condition) {
+        original <<- condition
+      })
+  }, .package = "BayesTools")
+  withr::local_preserve_seed()
+  set.seed(11)
+  expected_next <- stats::runif(1L)
+  set.seed(11)
+  actual <- tryCatch(add_marglik(fit, repetitions = 3L), error = identity)
+  expect_identical(stats::runif(1L), expected_next)
+  expect_identical(class(actual), c("RoBMA_marglik_repetition_failure",
+    "RoBMA_marglik_error", "error", "condition"))
+  expect_identical(conditionMessage(actual), paste0(
+    "Bridge sampling was rejected by diagnostics: repetition(s) 2 returned ",
+    "a non-finite natural-log marginal likelihood. Increase 'maxiter' or fit ",
+    "more posterior draws (for example with a larger 'sample' or update())."
+  ))
+  expect_null(actual$call)
+  expect_s3_class(original, "BayesTools_marglik_repetition_failure")
+  expect_identical(actual$parent, original)
+  expect_identical(actual$parent$repetitions$repetition, 2L)
+  expect_identical(actual$parent$repetitions$finite, FALSE)
+  expect_identical(actual$parent$repetitions$logml, NA_real_)
+})
+
 
 test_that("bf computes Bayes factor between two models, can be applied to both bridge and brma", {
 

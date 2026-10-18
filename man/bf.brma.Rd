@@ -52,8 +52,8 @@ When either model contains repeated bridge estimates, the shorter sequence
 is recycled with a warning, following \pkg{bridgesampling}. Repetitions are
 compared in order. The median-based estimate is computed from the separate
 medians of the log marginal likelihoods before recycling, rather than the
-median of the repetition-wise Bayes factors. A recorded explicit drop policy
-excludes non-finite repetitions from standardized results. Legacy raw
+median of the repetition-wise Bayes factors. Standardized
+marginal-likelihood results must be finite. Legacy raw
 \code{"bridge_list"} results retain failed repetitions in the returned
 estimates, with upstream missing-value behavior when printed.
 }

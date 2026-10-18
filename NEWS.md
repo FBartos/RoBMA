@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Non-finite bridge repetitions raise a classed RoBMA error with public
+  remedies and the intact upstream condition; unused add_marglik() arguments
+  warn. Standardized comparison results require finite repetitions.
 - Zplot density grids, histogram edges, and threshold markers share signed
   selection cutoffs for positive and negative effect directions.
 - Scalar estimate-depth zplot variances preserve representable harmonic

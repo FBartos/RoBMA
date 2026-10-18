@@ -343,12 +343,8 @@ logml.brma <- function(x, ...) {
   repeated <- legacy || inherits(upstream, "bridge_list") || length(values) > 1L
 
   if (!legacy && any(!is.finite(values))) {
-    if (identical(marglik[["aggregation"]][["nonfinite_policy"]], "drop")) {
-      values <- values[is.finite(values)]
-    } else {
-      stop("Stored log marginal likelihoods must contain only finite values.",
-           call. = FALSE)
-    }
+    stop("Stored log marginal likelihoods must contain only finite values.",
+         call. = FALSE)
   }
   if (length(values) == 0L) {
     stop("No included log marginal likelihood repetitions are available.",
@@ -402,8 +398,7 @@ logml.brma <- function(x, ...) {
 #' repetitions regardless of model order. Models with fewer repetitions are
 #' recycled to the largest repetition count with a warning, following
 #' \pkg{bridgesampling}.
-#' A stored explicit non-finite-repetition drop policy is honored; otherwise
-#' standardized marginal-likelihood results must be finite. Legacy raw
+#' Standardized marginal-likelihood results must be finite. Legacy raw
 #' \code{"bridge_list"} results retain non-finite repetitions and use upstream
 #' comparison behavior through \pkg{bridgesampling}, with normalized prior
 #' probabilities and its missing-value propagation, warnings, and errors.
@@ -513,8 +508,8 @@ post_prob.brma <- function(x, ..., prior_prob = NULL, model_names = NULL) {
 #' is recycled with a warning, following \pkg{bridgesampling}. Repetitions are
 #' compared in order. The median-based estimate is computed from the separate
 #' medians of the log marginal likelihoods before recycling, rather than the
-#' median of the repetition-wise Bayes factors. A recorded explicit drop policy
-#' excludes non-finite repetitions from standardized results. Legacy raw
+#' median of the repetition-wise Bayes factors. Standardized
+#' marginal-likelihood results must be finite. Legacy raw
 #' \code{"bridge_list"} results retain failed repetitions in the returned
 #' estimates, with upstream missing-value behavior when printed.
 #'

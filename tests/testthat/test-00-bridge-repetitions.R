@@ -22,6 +22,73 @@
   )
 }
 
+test_that("add_marglik translates only thrown typed repetition failures", {
+
+  raw <- .bridge_repetition_test_raw(c(-2, NA_real_, Inf))
+  original <- tryCatch(.bridge_repetition_test_stored(raw), error = identity)
+  expect_s3_class(original, "BayesTools_marglik_repetition_failure")
+  fit <- .bridge_repetition_test_fit(NULL)
+  signal <- function(condition) {
+    testthat::local_mocked_bindings(.marglik = function(...) stop(condition),
+      .package = "RoBMA")
+    tryCatch(add_marglik(fit), error = identity)
+  }
+  actual <- signal(original)
+  expect_identical(class(actual), c("RoBMA_marglik_repetition_failure",
+    "RoBMA_marglik_error", "error", "condition"))
+  expect_identical(conditionMessage(actual), paste0(
+    "Bridge sampling was rejected by diagnostics: repetition(s) 2, 3 returned ",
+    "a non-finite natural-log marginal likelihood. Increase 'maxiter' or fit ",
+    "more posterior draws (for example with a larger 'sample' or update())."
+  ))
+  expect_null(actual$call)
+  expect_identical(actual$parent, original)
+  expect_identical(actual$parent$repetitions$repetition, c(2L, 3L))
+  expect_identical(actual$parent$repetitions, original$repetitions)
+  expect_identical(conditionMessage(actual$parent), conditionMessage(original))
+  expect_identical(class(actual$parent), class(original))
+
+  unrelated <- list(
+    errorCondition("Unrelated typed input failure.",
+      class = "BayesTools_marglik_input", diagnostic = list(nodes = "mu")),
+    errorCondition("Refit required.", class = "BayesTools_marglik_refit_required"),
+    errorCondition("Required monitor is missing.", class = "BayesTools_marglik_missing_monitor"),
+    simpleError("Unrelated callback or programming failure."),
+    simpleError(conditionMessage(original))
+  )
+  for (condition in unrelated) {
+    expect_identical(signal(condition), condition)
+  }
+})
+
+test_that("add_marglik warns about unused dots after existing argument validation", {
+
+  stored <- .bridge_repetition_test_stored(.bridge_repetition_test_raw(-2))
+  fit <- .bridge_repetition_test_fit(NULL)
+  testthat::local_mocked_bindings(.marglik = function(...) stored,
+    .package = "RoBMA")
+  expect_warning(result <- add_marglik(fit, unknown = TRUE),
+    "Unused argument in add_marglik(): 'unknown'", fixed = TRUE)
+  expect_identical(result$marglik, stored)
+  expect_warning(add_marglik(fit, nonfinite = "drop"),
+    "Unused argument in add_marglik(): 'nonfinite'", fixed = TRUE)
+  # Supply an unnamed entry to dots after every ordinary formal argument.
+  expect_warning(do.call(add_marglik, c(list(object = fit, parallel = FALSE,
+    cores = 1L, repetitions = 1L, method = "normal", maxiter = 100L,
+    silent = TRUE), list(TRUE))),
+    "Unused argument in add_marglik(): '<unnamed>'", fixed = TRUE)
+  expect_warning(add_marglik(fit, parallel = FALSE, cores = 1L,
+    repetitions = 3L, method = "warp3", maxiter = 100L, silent = FALSE), NA)
+  expect_warning(expect_error(add_marglik(fit, method = "bad", unknown = TRUE),
+    "'arg' should be one of", fixed = TRUE), NA)
+  expect_warning(expect_error(add_marglik(fit, cores = 0L, unknown = TRUE),
+    "cores", fixed = TRUE), NA)
+  product <- fit
+  class(product) <- c("RoBMA", "brma")
+  expect_warning(expect_error(add_marglik(product, unknown = TRUE),
+    "product-space", fixed = TRUE), NA)
+})
+
 test_that("public posterior model probabilities normalize finite prior weights safely", {
 
   controls <- list(c(1e308, 1e308), c(1e308, 5e307), c(1e-300, 2e-300),
@@ -145,7 +212,7 @@ test_that("a scalar first model still retains all repeated posterior comparisons
   expect_identical(attr(aliased, "model_names"), c("scalar", "repeated"))
 })
 
-test_that("recorded nonfinite drop policy differs from legacy NA propagation", {
+test_that("standardized comparisons refuse nonfinite repeats and legacy propagates NA", {
 
   failed_raw <- .bridge_repetition_test_raw(c(-2, NA_real_, -1))
   # A finite estimate that exhausted maxiter remains included under "drop".
@@ -173,7 +240,10 @@ test_that("recorded nonfinite drop policy differs from legacy NA propagation", {
                  "Dropped non-finite", fixed = TRUE)
   dropped_fit <- .bridge_repetition_test_fit(dropped)
   comparison_fit <- .bridge_repetition_test_fit(.bridge_repetition_test_raw(c(0, 1)))
-  expect_equal(bf(dropped_fit, comparison_fit, log = TRUE)$bf, c(-2, -2))
+  expect_error(bf(dropped_fit, comparison_fit, log = TRUE),
+    "Stored log marginal likelihoods must contain only finite values.", fixed = TRUE)
+  expect_error(post_prob(dropped_fit, comparison_fit),
+    "Stored log marginal likelihoods must contain only finite values.", fixed = TRUE)
   expect_identical(logml(dropped_fit), dropped$logml)
   expect_equal(dropped_fit$marglik$repetitions$logml, c(-2, NA, -1))
   dropped_fit$marglik$aggregation$nonfinite_policy <- "error"
@@ -184,8 +254,16 @@ test_that("recorded nonfinite drop policy differs from legacy NA propagation", {
   ), "Dropped non-finite", fixed = TRUE)
   one_left <- .bridge_repetition_test_fit(one_left)
   scalar <- .bridge_repetition_test_fit(.bridge_repetition_test_raw(0))
-  expect_s3_class(bf(one_left, scalar), "bf_bridge_list")
-  expect_equal(dim(post_prob(one_left, scalar)), c(1L, 2L))
+  expect_error(bf(one_left, scalar), "must contain only finite values", fixed = TRUE)
+  expect_error(post_prob(one_left, scalar), "must contain only finite values", fixed = TRUE)
+
+  finite_raw$niter[1L] <- 101L
+  over_limit <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(finite_raw))
+  expect_false(over_limit$marglik$repetitions$success[1L])
+  expect_identical(logml(over_limit), 1)
+  expect_equal(bf(over_limit, legacy_finite, log = TRUE)$bf, c(0, 0, 0))
+  expect_equal(post_prob(over_limit, legacy_finite), matrix(.5, 3L, 2L,
+    dimnames = list(NULL, c("over_limit", "legacy_finite"))))
 })
 
 test_that("single and exact marginal likelihood comparisons retain their contracts", {

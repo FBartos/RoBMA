@@ -36,7 +36,7 @@ default, \code{NULL}, inherits the setting used to fit \code{object}.}
 
 \item{silent}{whether bridge-sampling progress is suppressed.}
 
-\item{...}{reserved for future use.}
+\item{...}{reserved for future use. Unused arguments produce a warning.}
 }
 \value{
 The brma object with the marginal likelihood result stored in
@@ -81,6 +81,14 @@ With \code{known_sampling_variance = "condition"}, the bridge retains the
 independent Gaussian augmentation coordinates and their normalized priors.
 The complete sampling error and random effects are reconstructed for each
 proposed bridge state before evaluating its selection normalizer.
+
+A non-finite bridge repetition raises a
+\code{RoBMA_marglik_repetition_failure} error, inheriting from
+\code{RoBMA_marglik_error}. Its \code{parent} retains the complete upstream
+condition, including the failed \code{repetitions} table. Increase
+\code{maxiter} or fit more posterior draws (for example with a larger
+\code{sample} or \code{update()}) before retrying; these actions do not
+guarantee that the diagnostics will pass.
 }
 \examples{
 \dontrun{
