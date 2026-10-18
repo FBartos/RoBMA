@@ -11,7 +11,7 @@
 
 #' @exportS3Method BayesTools::parameter_draws
 #' @noRd
-parameter_draws.brma <- function(object, selection, ...) {
+parameter_draws.brma <- function(object, selection, model_samples = NULL, ...) {
 
   if (!is.list(selection) || !inherits(selection, "BayesTools_parameter_selection")) {
     stop("'selection' must contain one resolved BayesTools parameter quantity.",
@@ -27,7 +27,9 @@ parameter_draws.brma <- function(object, selection, ...) {
 
   provider <- quantities[["provider"]]
   if (identical(provider, "BayesTools")) {
-    return(BayesTools::parameter_draws(object[["fit"]], selection, ...))
+    return(BayesTools::parameter_draws(
+      object[["fit"]], selection, model_samples = model_samples, ...
+    ))
   }
   if (!identical(provider, "RoBMA")) {
     stop(
@@ -43,9 +45,46 @@ parameter_draws.brma <- function(object, selection, ...) {
     stop("RoBMA parameter quantity has no valid extraction key.", call. = FALSE)
   }
   key <- keys[[1L]]
+  .check_unused_dots(list(...), allowed = character(),
+                     caller = "parameter_draws.brma()")
+  catalog <- .brma_parameter_catalog_metadata(object)[["catalog"]]
+  current <- catalog[["quantities"]]
+  current <- current[
+    current[["quantity_id"]] %in% quantities[["quantity_id"]], , drop = FALSE
+  ]
+  rownames(current) <- NULL
+  rownames(quantities) <- NULL
+  if (nrow(current) != 1L || !identical(quantities, current)) {
+    stop("'selection' does not identify a current RoBMA parameter quantity.",
+         call. = FALSE)
+  }
+  key <- current[["extraction_key"]][[1L]]
   if (identical(key[["type"]], "robma_formula_group")) {
+    fit <- object[["fit"]]
+    if (!is.null(model_samples)) {
+      if (!is.matrix(model_samples) || !is.numeric(model_samples) ||
+          is.null(colnames(model_samples)) ||
+          anyDuplicated(colnames(model_samples))) {
+        stop("'model_samples' must be a numeric matrix with unique column names.",
+             call. = FALSE)
+      }
+      missing <- setdiff(key[["dependencies"]], colnames(model_samples))
+      if (length(missing) > 0L) {
+        stop(
+          "The supplied 'model_samples' are missing declared source coordinates: ",
+          paste(missing, collapse = ", "), ".",
+          call. = FALSE
+        )
+      }
+      source <- if (inherits(model_samples, "mcmc")) {
+        model_samples
+      } else {
+        coda::mcmc(model_samples)
+      }
+      fit <- BayesTools::JAGS_with_draws(fit, source)
+    }
     return(BayesTools::JAGS_materialize_draws(
-      fit        = object[["fit"]],
+      fit        = fit,
       parameters = key[["dependencies"]]
     ))
   }

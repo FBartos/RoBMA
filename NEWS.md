@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Formula-group draw extraction honors supplied source rows and chain timing,
+  and validates the current RoBMA catalog recipe before evaluating it.
 - Retained complete sampling errors identify fitted truth without claiming a
   powered Gaussian augmentation in prediction metadata.
 - Declared singleton covariance draws batch their assigned normals, while small
