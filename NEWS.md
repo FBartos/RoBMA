@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Interpretation labels pooled heterogeneity with its actual declared quantity, including common and total scales.
 - Transformed point ordinates classify their declared source-coordinate prior instead of applying a display-scale prior at a source-scale value.
 - Marginal-means plots reuse same-method stored curve settings when controls are omitted, retaining explicit recomputation requests.
 - Point hypotheses inherit stored marginal-means controls only for the same declared estimator; method switches use their fresh defaults.

@@ -216,3 +216,17 @@ test_that("E2-5 transformed source ordinates keep their declared source prior", 
     BayesTools::parameter_transform_inverse(.8, target$display_transform))
   expect_identical(spec$prior_ordinates[[1L]]$behavior, "regular")
 })
+
+test_that("E2-6 interpretation names the actual pooled common quantity", {
+
+  object <- .review_h_random("common")
+  pooled <- pooled_heterogeneity(object)
+  expect_identical(colnames(pooled), "tau_common")
+  result <- interpret(object, scope = "estimates", central = "mean", probs = c(.025, .975), digits = 10)
+  records <- attr(result, "records")
+  records <- records[grepl("heterogeneity", records$record_id, fixed = TRUE), , drop = FALSE]
+  expect_identical(records$parameter, "tau_common")
+  expect_equal(records$central_value, mean(pooled), tolerance = 1e-14)
+  expect_equal(c(records$lower_value, records$upper_value), unname(stats::quantile(pooled, c(.025, .975))), tolerance = 1e-14)
+  expect_true(any(grepl("mean tau_common", result, fixed = TRUE)))
+})

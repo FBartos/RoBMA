@@ -453,7 +453,7 @@ print.interpret.brma <- function(x, ...) {
     sources[["pooled_heterogeneity"]] <- .interpret_record_source(
       .interpret_samples_record(
         samples      = heterogeneity,
-        parameter    = "tau",
+        parameter    = .interpret_heterogeneity_quantity(heterogeneity),
         conditioning = conditioning,
         probs        = probs,
         central      = central
@@ -476,7 +476,7 @@ print.interpret.brma <- function(x, ...) {
     sources[[source_id]] <- .interpret_record_source(
       .interpret_samples_record(
         samples      = heterogeneity[[i]],
-        parameter    = paste0("tau [", component_label, "]"),
+        parameter    = paste0(.interpret_heterogeneity_quantity(heterogeneity[[i]]), " [", component_label, "]"),
         conditioning = conditioning,
         probs        = probs,
         central      = central
@@ -487,6 +487,14 @@ print.interpret.brma <- function(x, ...) {
 
   return(sources)
 }
+
+.interpret_heterogeneity_quantity <- function(samples) {
+
+  quantity <- colnames(samples)
+  if (length(quantity) == 1L && !is.na(quantity) && nzchar(quantity)) return(quantity)
+  "tau"
+}
+
 
 .interpret_heterogeneity_component_labels <- function(heterogeneity) {
 
