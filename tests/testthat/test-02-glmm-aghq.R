@@ -8,30 +8,46 @@ context("Adaptive GLMM quadrature")
                                weight = 1, lower = 0, upper = 1) {
 
   log_coefficient <- lchoose(n1, a) + lchoose(n2, c)
-  prior_mass <- stats::pbeta(upper, alpha, beta) -
-    stats::pbeta(lower, alpha, beta)
+  log_mass <- if (lower == 0) {
+    stats::pbeta(upper, alpha, beta, log.p = TRUE)
+  } else if (upper == 1) {
+    stats::pbeta(lower, alpha, beta, lower.tail = FALSE, log.p = TRUE)
+  } else {
+    use_upper_tail <- stats::pbeta(lower, alpha, beta) > .5
+    large <- stats::pbeta(if (use_upper_tail) lower else upper,
+      alpha, beta, lower.tail = !use_upper_tail, log.p = TRUE)
+    small <- stats::pbeta(if (use_upper_tail) upper else lower,
+      alpha, beta, lower.tail = !use_upper_tail, log.p = TRUE)
+    large + log(-expm1(small - large))
+  }
+  inner_results <- list()
+  count_log <- function(count, log_probability) {
+    if (count == 0L) rep(0, length(log_probability)) else count * log_probability
+  }
   log_integrate_theta <- function(theta) {
 
     vapply(theta, function(theta_value) {
       effect <- mu + tau * theta_value
       inner <- stats::integrate(
         function(pi0) {
-          p1 <- stats::plogis(stats::qlogis(pi0) + 0.5 * effect)
-          p2 <- stats::plogis(stats::qlogis(pi0) - 0.5 * effect)
+          eta1 <- log(pi0) - log1p(-pi0) + 0.5 * effect
+          eta2 <- log(pi0) - log1p(-pi0) - 0.5 * effect
+          log1pexp <- function(x) pmax(x, 0) + log1p(exp(-abs(x)))
           exp(weight * (
             log_coefficient +
-              a * log(p1) + (n1 - a) * log1p(-p1) +
-              c * log(p2) + (n2 - c) * log1p(-p2)
-          )) * stats::dbeta(pi0, alpha, beta) / prior_mass
+              count_log(a, -log1pexp(-eta1)) + count_log(n1 - a, -log1pexp(eta1)) +
+              count_log(c, -log1pexp(-eta2)) + count_log(n2 - c, -log1pexp(eta2))
+          ) + stats::dbeta(pi0, alpha, beta, log = TRUE) - log_mass)
         },
         lower         = lower,
         upper         = upper,
         subdivisions  = 1000L,
         rel.tol       = 1e-10,
         stop.on.error = TRUE
-      )[["value"]]
+      )
+      inner_results[[length(inner_results) + 1L]] <<- list(theta = theta_value, integral = inner)
 
-      log(inner) + stats::dnorm(theta_value, log = TRUE)
+      log(inner[["value"]]) + stats::dnorm(theta_value, log = TRUE)
     }, numeric(1))
   }
 
@@ -58,13 +74,20 @@ context("Adaptive GLMM quadrature")
     subdivisions  = 1000L,
     rel.tol       = 1e-9,
     stop.on.error = TRUE
-  )[["value"]]
+  )
 
-  return(mode[["objective"]] + log(value))
+  # QUADPACK errors and messages are retained; these are estimates, not a
+  # rounding enclosure or a total nested-integration error certificate.
+  return(list(value = mode[["objective"]] + log(value[["value"]]),
+    inner = inner_results, outer = value, mode = mode, log_prior_mass = log_mass))
 }
 
 
 # Independently integrate the Poisson GLMM over theta and the log base rate.
+# For an untruncated target, the default +/-10 SD nuisance interval is
+# renormalized; omitted prior mass is 2*pnorm(-10), about 1.524e-23. Positive
+# powered probabilities are at most one, so the absolute mass change is bounded
+# by that tail mass (before converting to a log-integral comparison).
 .pois_aghq_oracle <- function(x1, x2, t1, t2, mu, tau, mean, sd,
                               weight = 1, lower = mean - 10 * sd,
                               upper = mean + 10 * sd) {
@@ -473,8 +496,115 @@ test_that("joint binomial AGHQ matches independent integration", {
     c(alpha = 1.5, beta = 2.5)
   )
 
-  expect_equal(out[["value"]][1, 1], expected, tolerance = 2e-6,
+  expect_equal(out[["value"]][1, 1], expected[["value"]], tolerance = 2e-6,
                info = "independent joint binomial integral")
+  expect_identical(expected[["outer"]][["message"]], "OK")
+  expect_true(all(vapply(expected[["inner"]], function(x) x$integral$message == "OK", logical(1))))
+})
+
+
+test_that("active binomial boundary, sharp, point and truncated routes retain physical references", {
+
+  # Fixed independent physical-p/theta integrals use full p support, positive
+  # powered coefficients once and theta[-10,10] without renormalization. Omitted
+  # normal mass <=1.524e-23. All final integration messages were OK; QUADPACK
+  # estimates (and shared Rmath beta/CDF evaluation) are not rounding bounds.
+  # Estimated log errors: zero/all6.78e-11, power2.33e-11, sharp6.83e-12,
+  # point1.16e-14, truncated1.42e-11. Sharp observed rounding exceeded its
+  # quadrature estimate; the existing absolute comparison scale is2e-6.
+  cases <- list(
+    zero = list(a = 0L, c = 0L, n1 = 10L, n2 = 10L, mu = .35, tau = .7,
+      shapes = c(.01, 2.5), power = 1, reference = -.024476521042923388, grid = TRUE),
+    all = list(a = 10L, c = 10L, n1 = 10L, n2 = 10L, mu = .35, tau = .7,
+      shapes = c(2.5, .01), power = 1, reference = -.024476521042923388, grid = TRUE),
+    power = list(a = 7L, c = 3L, n1 = 24L, n2 = 21L, mu = .35, tau = .7,
+      shapes = c(1.5, 2.5), power = .8, reference = -4.2314458086137074, grid = FALSE),
+    sharp = list(a = 505L, c = 499L, n1 = 88391L, n2 = 88391L,
+      mu = -.6308474, tau = .373213, shapes = c(1, 1), power = 1,
+      reference = -18.992479602352965, grid = FALSE),
+    point = list(a = 7L, c = 3L, n1 = 24L, n2 = 21L, mu = .35, tau = .7,
+      point = .4, power = .8, reference = -5.7572219676012706, grid = FALSE),
+    truncated = list(a = 7L, c = 3L, n1 = 24L, n2 = 21L, mu = .35, tau = .7,
+      shapes = c(.01, 2.5), upper = .9, power = 1,
+      reference = -8.8888302714960936, grid = TRUE)
+  )
+  for (name in names(cases)) {
+    x <- cases[[name]]
+    prior <- if (!is.null(x$point)) BayesTools::prior("point", list(x$point)) else
+      BayesTools::prior("beta", as.list(x$shapes),
+        truncation = list(lower = 0, upper = if (is.null(x$upper)) 1 else x$upper))
+    out <- .outcome_pdf.binom(x$a, x$c, x$n1, x$n2,
+      matrix(x$mu), matrix(x$tau), prior, weights = x$power)
+    diagnostics <- attr(out, "glmm_aghq_diagnostics", exact = TRUE)
+    expect_lt(abs(out[1L, 1L] - x$reference), 2e-6, label = name)
+    expect_identical(diagnostics$exact_count, 0L, info = name)
+    if (x$grid) {
+      expect_identical(diagnostics$grid_columns, 1L, info = name)
+      expect_identical(sum(diagnostics$order_counts), 0L, info = name)
+      expect_gte(diagnostics$grid_max_theta_order, 29L, label = name)
+      expect_gte(diagnostics$grid_max_nuisance_order, 75L, label = name)
+      expect_lte(diagnostics$grid_max_change, 1e-6, label = name)
+    } else {
+      expect_length(diagnostics$grid_columns, 0L)
+      expect_identical(sum(diagnostics$order_counts), 1L, info = name)
+      expect_gt(diagnostics$max_order, 0L, label = name)
+      expect_lte(diagnostics$max_change, 1e-6, label = name)
+      if (name == "point") {
+        # The point route is the R one-dimensional evaluator.
+        direct <- .glmm_binom_point_aghq(x$a, x$c, x$n1, x$n2,
+          matrix(x$mu), matrix(x$tau), x$power, x$point)
+        expect_identical(diagnostics$max_mode_iterations, 55L)
+      } else {
+        direct <- .glmm_binom_aghq(x$a, x$c, x$n1, x$n2,
+          matrix(x$mu), matrix(x$tau), x$power,
+          c(alpha = x$shapes[1L], beta = x$shapes[2L]))
+      }
+      expect_lt(abs(direct$value[1L, 1L] - x$reference), 2e-6, label = name)
+      expect_identical(direct$exact_count, 0L)
+      expect_identical(sum(direct$order_counts), 1L)
+    }
+    if (name %in% c("zero", "all")) {
+      expect_error(.glmm_binom_aghq(x$a, x$c, x$n1, x$n2,
+        matrix(x$mu), matrix(x$tau), x$power,
+        c(alpha = x$shapes[1L], beta = x$shapes[2L])),
+        "Binomial AGHQ failed to converge.*order 49")
+    }
+  }
+})
+
+
+test_that("fitted multilevel GLMM estimate scores retain cluster and scale coordinates", {
+
+  object <- load_fit("bcg_glmm_3lvl_scale")
+  posterior <- .get_posterior_samples(object$fit)
+  setup <- .log_lik_posterior_setup(object$fit, posterior, object$data,
+    object$priors, unit = "estimate", data_hash = .get_outcome_hash(object))
+  design <- attr(object$fit, "formula_design", exact = TRUE)[["log_tau"]]
+  mapping <- BayesTools::JAGS_formula_name_map(object$fit, "log_tau")
+  mapping <- mapping[mapping$kind == "fixed" & mapping$role == "coefficient", ]
+  coefficients <- as.numeric(posterior[1L, mapping$jags_name[match(design$model_terms, mapping$term)]])
+  coefficients[design$model_terms == "intercept"] <- log(coefficients[design$model_terms == "intercept"])
+  total <- exp(sum(coefficients * design$model_matrix[1L, ]))
+  rho <- posterior[1L, "rho"]
+  data <- .create_fit_data(object$data, object$priors)
+  offset <- posterior[1L, paste0("gamma[", data$cluster[1L], "]")] * total * sqrt(rho)
+  mu <- posterior[1L, "mu"] + offset
+  within <- total * sqrt(1 - rho)
+  expect_lt(abs(mu - setup$mu[1L, 1L]), 1e-12)
+  expect_lt(abs(within - setup$tau_within[1L, 1L]), 1e-12)
+  score <- log_lik(object, unit = "estimate")
+  diagnostics <- attr(score, "glmm_aghq_diagnostics", exact = TRUE)
+  expect_identical(dim(score), dim(setup$mu))
+  expect_true(all(is.finite(score)))
+  expect_identical(diagnostics$exact_count, 0L)
+  expect_length(diagnostics$grid_columns, 0L)
+  expect_identical(sum(diagnostics$order_counts), length(score))
+  first <- object$data$outcome[1L, ]
+  prior <- object$priors$outcome$pi$parameters
+  direct <- .glmm_binom_aghq(first$ai, first$ci, first$n1i, first$n2i,
+    matrix(mu), matrix(within), NULL, c(alpha = prior$alpha, beta = prior$beta))
+  expect_lt(abs(score[1L, 1L] - direct$value[1L, 1L]), 1e-10)
+  expect_error(log_lik(object, unit = "cluster"), "Cluster-unit GLMM log-likelihood is unavailable")
 })
 
 
@@ -659,7 +789,7 @@ test_that("ordinary AGHQ recovers only failed observations", {
   )
   diagnostics <- attr(pointwise, "glmm_aghq_diagnostics")
 
-  expect_equal(pointwise[1L, 2L], expected_second, tolerance = 2e-6,
+  expect_equal(pointwise[1L, 2L], expected_second[["value"]], tolerance = 2e-6,
                info = "failed observation uses independently checked grid")
   expect_identical(diagnostics[["grid_columns"]], 2L,
                    info = "the exact first observation does not fall back")
@@ -969,7 +1099,7 @@ test_that("truncated nuisance priors match independent integration", {
     lower = -3, upper = 2
   )
 
-  expect_equal(bin[1L, 1L], expected_bin, tolerance = 2e-6,
+  expect_equal(bin[1L, 1L], expected_bin[["value"]], tolerance = 2e-6,
                info = "truncated beta prior")
   expect_equal(pois[1L, 1L], expected_pois, tolerance = 2e-6,
                info = "truncated normal prior")
@@ -1004,7 +1134,7 @@ test_that("truncated nuisance recovery certifies sharp theta integrals", {
     mean = -1, sd = 1.3, lower = -3, upper = 2
   )
 
-  expect_equal(bin[1L, 1L], expected_bin, tolerance = 2e-6)
+  expect_equal(bin[1L, 1L], expected_bin[["value"]], tolerance = 2e-6)
   expect_equal(pois[1L, 1L], expected_pois, tolerance = 2e-6)
   expect_gt(
     attr(bin, "glmm_aghq_diagnostics")[["grid_max_theta_order"]],

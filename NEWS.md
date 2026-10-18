@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- GLMM regression checks cover active boundary and sharp-count quadrature,
+  weighted point and truncated priors, and retained multilevel score coordinates.
 - Conditional binomial and Poisson GLMM likelihoods preserve finite log tails
   and zero-count limits, including the point log-rate quadrature evaluator.
 - Binomial GLMM adaptive quadrature retains the normalized beta prior and
