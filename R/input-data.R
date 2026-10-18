@@ -459,7 +459,8 @@ NULL
       V                        = known_V_input,
       keep_rows                = keep_rows,
       known_v_parameterization = known_v_parameterization,
-      known_v_is_scale         = !is.null(data_scale)
+      known_v_is_scale         = !is.null(data_scale),
+      recover_factor           = selection_binding
     )
     data_outcome[["sei"]] <- sqrt(.known_v_diagonal(known_V))
   }

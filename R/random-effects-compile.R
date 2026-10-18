@@ -157,7 +157,8 @@
     keep_rows                = rep(TRUE, .known_v_nrow(known_V)),
     known_v_parameterization = "auto",
     known_v_is_scale         = TRUE,
-    warn_singular            = FALSE
+    warn_singular            = FALSE,
+    recover_factor           = .known_v_has_certified_factor(known_V)
   )
   new_known_V[["selection_metadata"]] <- known_V[["selection_metadata"]]
   new_known_V[["selection_structure"]] <- known_V[["selection_structure"]]

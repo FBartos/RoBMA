@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Gaussian known-V construction avoids selection-only exact-factor recovery;
+  selected models retain their certified factors and bounded correlation-level grouping.
 - Sole publication-bias branches route complete posterior output without requiring an indicator the backend does not declare.
 - Joint selection covariance preserves known random-group kernel scaling; saved density ordinates from earlier evaluators are invalidated.
 - Selection dependency preparation uses row components without an additional dense adjacency, preserving known-group and coefficient-support dependencies.

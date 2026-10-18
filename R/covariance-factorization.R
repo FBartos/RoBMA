@@ -264,7 +264,7 @@
     return(NULL)
   }
 
-  levels <- .covariance_correlation_levels(off_diagonal, tolerance)
+  levels <- .covariance_correlation_levels(off_diagonal, tolerance, max_levels)
   if (is.null(levels)) {
     return(NULL)
   }
@@ -731,26 +731,25 @@
 # within the roundoff tolerance of their neighbour join one level and are
 # represented by its mean; the reconstruction certificate, not this clustering,
 # decides whether the resulting representation is accepted.
-.covariance_correlation_levels <- function(values, tolerance) {
+.covariance_correlation_levels <- function(values, tolerance, max_levels = Inf) {
 
   values <- sort(unique(values))
   if (length(values) == 0L) {
     return(NULL)
   }
 
-  level_values <- numeric(0)
-  members      <- values[[1L]]
-  for (value in values[-1L]) {
-    if (value - members[[length(members)]] <= tolerance) {
-      members <- c(members, value)
-    } else {
-      level_values <- c(level_values, mean(members))
-      members      <- value
-    }
+  starts <- c(TRUE, diff(values) > tolerance)
+  # A near-zero group may precede the positive levels used by the caller.
+  if (sum(values[starts] > tolerance) > max_levels) {
+    return(NULL)
   }
-  level_values <- c(level_values, mean(members))
+  membership <- cumsum(starts)
+  level_values <- vapply(split(values, membership), mean, numeric(1))
+  if (sum(level_values > tolerance) > max_levels) {
+    return(NULL)
+  }
 
-  level_values
+  unname(level_values)
 }
 
 

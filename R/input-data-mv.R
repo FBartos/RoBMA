@@ -72,7 +72,7 @@
 
 .known_v_prepare <- function(V, keep_rows, known_v_parameterization,
                              known_v_is_scale = FALSE,
-                             warn_singular = TRUE) {
+                             warn_singular = TRUE, recover_factor = FALSE) {
 
   known_v_parameterization <- match.arg(
     known_v_parameterization,
@@ -89,7 +89,8 @@
   metadata <- .known_v_input_metadata(V)
   metadata <- .known_v_subset_selection_metadata(metadata, which(keep_rows))
   V       <- .known_v_subset_input(V, keep_rows)
-  known_V <- .known_v_canonicalize(V, warn_singular = warn_singular)
+  known_V <- .known_v_canonicalize(V, warn_singular = warn_singular,
+                                  recover_factor = recover_factor)
   known_V <- .known_v_update(known_V, list(selection_metadata = metadata))
   declared_factor <- identical(.known_v_storage(known_V), "factor")
   covariance_blocks <- .known_v_correlated_blocks(known_V)
@@ -194,7 +195,8 @@
 }
 
 
-.known_v_canonicalize <- function(V, warn_singular = TRUE) {
+.known_v_canonicalize <- function(V, warn_singular = TRUE,
+                                  recover_factor = TRUE) {
 
   storage <- .known_v_input_storage(V)
   K       <- .known_v_input_nrow(V)
@@ -271,7 +273,7 @@
     }
     retain_dense <- length(indices) == 1L &&
       length(indices[[1L]]) == K && K > 1L
-    return(.known_v_attach_certified_factor(.new_known_v(list(
+    known_V <- .new_known_v(list(
       version  = 2L,
       selection_metadata = metadata,
       storage  = if (retain_dense) {
@@ -287,7 +289,8 @@
       blocks   = if (retain_dense) NULL else blocks,
       block_indices = if (retain_dense) indices else NULL,
       singular = singular
-    ))))
+    ))
+    return(if (recover_factor) .known_v_attach_certified_factor(known_V) else known_V)
   }
 
   blocks   <- list()
@@ -313,7 +316,7 @@
     .known_v_warn_singular()
   }
 
-  .known_v_attach_certified_factor(.new_known_v(list(
+  known_V <- .new_known_v(list(
     version  = 2L,
     selection_metadata = metadata,
     storage  = "blocks",
@@ -321,7 +324,8 @@
     diagonal = diagonal,
     blocks   = blocks,
     singular = singular
-  )))
+  ))
+  if (recover_factor) .known_v_attach_certified_factor(known_V) else known_V
 }
 
 
