@@ -44,7 +44,10 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' correlated known-\code{V} data, this is influence under conditional estimate
 #' deletion, not independent-study deletion.
 #' Parameters with zero posterior variance are excluded from the covariance
-#' determinant and reported in a printed note when available. If no estimable
+#' determinant and reported in a printed note when available. Ordered terms
+#' retain their fitted totals and omit one share per metadata-declared Dirichlet
+#' simplex. Aliases of a shared allocation source contribute its independent
+#' coordinates only once. If no estimable
 #' parameters remain, or if a full or LOO covariance determinant is zero or
 #' non-finite after exclusion, COVRATIO is undefined and values are reported as
 #' \code{NaN}.
@@ -144,6 +147,10 @@ covratio.brma <- function(model, type = "mods", component = NULL,
 
   # Ensure matrix (S x P)
   beta_samples <- as.matrix(samples_table)
+  if (component %in% c("mods", "scale")) {
+    beta_samples <- .covratio_ordered_coordinates(model, beta_samples,
+      if (component == "mods") "mu" else "log_tau")
+  }
 
   result <- .covratio_internal(beta_samples, weights)
   K      <- length(result[["values"]])
@@ -198,6 +205,51 @@ covratio.brma <- function(model, type = "mods", component = NULL,
   }
 
   return(out)
+}
+
+
+# Ordered total/share targets retain fitted totals. A declared Dirichlet source
+# contributes dim - 1 coordinates once, independently of how many terms display
+# aliases of its shares. The public source metadata owns dimensions and order.
+.covratio_ordered_coordinates <- function(model, samples, formula_parameter) {
+
+  specs <- BayesTools::JAGS_ordered_parameter_spec(model[["fit"]])
+  relevant <- vapply(specs, function(spec) {
+    identical(spec[["label_parts"]][["formula_parameter"]], formula_parameter)
+  }, logical(1))
+  if (!any(relevant)) return(samples)
+  specs <- BayesTools::JAGS_ordered_parameter_spec(model[["fit"]],
+    parameters = names(specs)[relevant], draws = .get_posterior_samples(model[["fit"]]))
+  omit <- character()
+  seen <- list()
+  for (spec in specs) {
+    sampled <- spec[["sampled_parameters"]]
+    share_names <- sampled[["allocation_names"]]
+    labels <- BayesTools::parameter_labels(sampled[["label_parts"]][share_names],
+      style = "table", formula_prefix = TRUE)
+    offset <- 0L
+    for (allocation in spec[["allocations"]]) {
+      if (!identical(allocation[["spec"]][["type"]], "dirichlet")) next
+      dimension <- allocation[["dim"]]
+      positions <- offset + seq_len(dimension)
+      if (max(positions) > length(labels) ||
+          length(allocation[["coordinates"]]) != dimension ||
+          any(!labels[positions] %in% colnames(samples))) {
+        .stop_refit_required("Ordered COVRATIO coordinates are unavailable. Refit the model with the current RoBMA/BayesTools build.")
+      }
+      for (j in seq_len(dimension)) {
+        source <- list(key = allocation[["key"]], coordinate = allocation[["coordinates"]][j])
+        duplicate <- any(vapply(seen, identical, logical(1), y = source))
+        if (j == dimension || duplicate) omit <- c(omit, labels[positions[j]])
+        seen[[length(seen) + 1L]] <- source
+      }
+      offset <- offset + dimension
+    }
+    if (offset != length(share_names)) {
+      .stop_refit_required("Ordered COVRATIO source dimensions are unavailable. Refit the model with the current RoBMA/BayesTools build.")
+    }
+  }
+  samples[, !colnames(samples) %in% omit, drop = FALSE]
 }
 
 

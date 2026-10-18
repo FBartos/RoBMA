@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Ordered COVRATIO uses one independent share basis per declared allocation
+  source, preserving fitted totals and deduplicating shared allocation aliases.
 - Coefficient influence diagnostics exclude declared mixture inclusion indicators
   from location and scale coefficient tables.
 - LOO comparison and predictive weights retain short, unique model labels for
