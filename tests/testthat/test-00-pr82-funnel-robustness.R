@@ -15,9 +15,10 @@ test_that("common funnel heterogeneity tolerates only double roundoff", {
                "finite row-marginal heterogeneity", fixed = TRUE)
 })
 
-test_that("conditioned funnel quadrature retains zero-width mixture branches", {
+test_that("conditioned funnel quadrature does not silently cap unresolved widths", {
 
-  expect_identical(.funnel_conditioned_order(c(1, 0), c(0.1, 1)), 401L)
+  expect_error(.funnel_conditioned_order(c(1, 0), c(0.1, 1)),
+    "required quadrature order Inf exceeds the current cap 401", fixed = TRUE)
   expect_lt(.funnel_conditioned_order(c(1, 0), c(0.1, 0)), 401L)
 })
 

@@ -128,12 +128,58 @@ test_that("rows with and without integrated variance mix in one contour", {
                                             two)
   reduced  <- .funnel_conditioned_expansion(location, integrated_sd, conditioned_sd,
                                             two, cancelled = c(FALSE, TRUE))
-  expect_identical(nrow(finest[["mean"]]), 2L * 401L)
+  # The existing certificate is resolved before budgeting even when the
+  # caller omits the optional precomputed cancellation flags.
+  expect_identical(nrow(finest[["mean"]]), nrow(reduced[["mean"]]))
   expect_identical(nrow(reduced[["mean"]]), .funnel_conditioned_order(
     integrated_sd[1L, , drop = FALSE], conditioned_sd[1L, , drop = FALSE]) + 1L)
   expect_identical(reduced[["selected_rows"]],
                    c(rep(TRUE, nrow(reduced[["mean"]]) - 1L), FALSE))
   expect_equal(sum(reduced[["weights"]]), sum(finest[["weights"]]))
+})
+
+test_that("constant and ordinary funnel rows retain exact Gaussian components", {
+
+  setup <- .funnel_zero_setup(c(0, .1), integrated = c(1e-12, .04),
+    conditioned = c(0, 0), retains_sampling = TRUE, omega = c(1, 1, 1, 1))
+  setup$is_weightfunction <- c(TRUE, FALSE)
+  setup$weights <- c(.3, .7)
+  for (v in c(0, 1e-12, 1e-10, 1e-8, 1e-6)) {
+    setup$sources$integrated[1L] <- v
+    band <- .funnel_model_averaged_quantiles_native(.1, setup, "positive")
+    sd <- sqrt(c(v + .01, .05))
+    expected <- vapply(c(.025, .975, .5), function(p) stats::uniroot(
+      function(q) sum(c(.3, .7) * stats::pnorm(q, c(0, .1), sd)) - p,
+      c(-3, 3), tol = 1e-12)$root, numeric(1))
+    expect_lt(max(abs(unlist(band) - expected)), 1e-11)
+    expansion <- .funnel_conditioned_expansion(matrix(c(0, .1)),
+      matrix(sqrt(c(v, .04))), matrix(.1, 2L, 1L), setup)
+    expect_identical(nrow(expansion$mean), 2L)
+    expect_identical(expansion$selected_rows, c(FALSE, FALSE))
+    expect_identical(expansion$weights, c(.3, .7))
+  }
+})
+
+test_that("funnel quadrature refuses an unresolved required order before expansion", {
+
+  expect_identical(vapply(c(1, 6, 8), function(ratio) {
+    .funnel_conditioned_order(1, ratio)
+  }, integer(1)), c(49L, 289L, 385L))
+  for (ratio in c(9, 1e5, Inf)) {
+    expect_error(.funnel_conditioned_order(1, ratio),
+      "Selected funnel contours are numerically unavailable: required quadrature order", fixed = TRUE)
+  }
+  expect_identical(.funnel_conditioned_order(0, 0), 21L)
+  setup <- .funnel_zero_setup(0, integrated = 1, conditioned = 81,
+    retains_sampling = FALSE)
+  testthat::local_mocked_bindings(
+    .gauss_hermite_nodes = function(...) stop("Node expansion must not start."),
+    .package = "RoBMA")
+  expect_error(.funnel_conditioned_expansion(matrix(0), matrix(1), matrix(9), setup),
+    "required quadrature order 433 exceeds the current cap 401", fixed = TRUE)
+  setup$sources$integrated <- c(1, 2)
+  expect_error(.funnel_model_averaged_quantiles_native(.1, setup, "positive"),
+    "Funnel source variances must contain one finite non-negative value per posterior row.", fixed = TRUE)
 })
 
 

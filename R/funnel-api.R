@@ -70,6 +70,11 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' Exact-zero integrated selected cells require an existing positive-weight
 #' cancellation certificate; otherwise the selected contour is unavailable.
 #' \code{sampling_bias = FALSE} remains an explicitly unselected reference.
+#' Ordinary and constant-positive step-selection rows are evaluated as exact
+#' Gaussian components before conditioned-source quadrature. Remaining selected
+#' rows are unavailable when the required odd quadrature order exceeds the
+#' existing 401-node cap or is nonfinite. \code{max_samples} controls posterior
+#' rows and does not increase this quadrature budget.
 #' When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 #' skew from these regression adjustments.
 #' @param max_samples maximum number of posterior draws used by

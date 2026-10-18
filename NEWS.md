@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Funnel contours retain exact ordinary and certified Gaussian components
+  before quadrature, and report required orders beyond the unchanged node cap.
 - Selected funnel contours refuse uncertified exact-zero integrated cells
   instead of returning ordinary atoms in forbidden selection bins.
 - Regression intervals permit zero SE after positive all-conditioned selection

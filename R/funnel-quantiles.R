@@ -379,6 +379,12 @@
 
   S <- length(setup[["mu"]])
   L <- length(se_sequence)
+  if (length(setup[["is_weightfunction"]]) != S ||
+      !is.logical(setup[["is_weightfunction"]]) ||
+      anyNA(setup[["is_weightfunction"]])) {
+    stop("Funnel selection flags must contain one logical value per posterior row.",
+      call. = FALSE)
+  }
   location <- vapply(
     se_sequence,
     .funnel_row_location,
@@ -391,6 +397,16 @@
   # squares to zero, which is why the combination goes through
   # `.root_sum_squares()` rather than through a sum of squares.
   sources <- setup[["sources"]]
+  if (!is.null(sources)) {
+    for (field in c("integrated", "conditioned")) {
+      values <- sources[[field]]
+      if (!is.numeric(values) || !is.null(dim(values)) || length(values) != S ||
+          any(!is.finite(values)) || any(values < 0)) {
+        stop("Funnel source variances must contain one finite non-negative ",
+          "value per posterior row.", call. = FALSE)
+      }
+    }
+  }
   add_sampling <- function(scale) {
     matrix(vapply(se_sequence, function(se) {
 
@@ -474,7 +490,7 @@
   if (!is.matrix(omega) || !nrow(omega) %in% c(1L, S)) {
     return(matrix(FALSE, nrow = S, ncol = ncol(integrated_sd)))
   }
-  positive <- rep_len(apply(omega > 0, 1L, all), S)
+  positive <- rep_len(apply(is.finite(omega) & omega > 0, 1L, all), S)
   mode     <- rep_len(selection[["kernel_mode"]], S)
   rows     <- rows & positive & mode %in% SELKERNEL_STEP
 
@@ -504,10 +520,28 @@
                                           conditioned_sd, setup,
                                           cancelled = rep(FALSE, nrow(location))) {
 
+  S <- nrow(location)
+  if (!is.matrix(location) || !is.matrix(integrated_sd) ||
+      !is.matrix(conditioned_sd) || !identical(dim(location), dim(integrated_sd)) ||
+      !identical(dim(location), dim(conditioned_sd)) ||
+      !length(location) || any(!is.finite(location)) ||
+      any(!is.finite(integrated_sd)) || any(integrated_sd < 0) ||
+      any(!is.finite(conditioned_sd)) || any(conditioned_sd < 0) ||
+      length(cancelled) != S || anyNA(cancelled)) {
+    stop("Funnel mixture locations and source SDs must be finite aligned ",
+      "matrices with non-negative SDs and one cancellation flag per row.",
+      call. = FALSE)
+  }
   weights       <- .funnel_setup_weights(setup)
   selected_rows <- setup[["is_weightfunction"]]
   selection     <- setup[["selection"]]
   total_sd      <- .root_sum_squares(integrated_sd, conditioned_sd)
+  if (length(weights) != S || any(!is.finite(weights)) || any(weights < 0) ||
+      sum(weights) <= 0 || length(selected_rows) != S ||
+      !is.logical(selected_rows) || anyNA(selected_rows)) {
+    stop("Funnel mixture weights and selection flags must align with posterior rows.",
+      call. = FALSE)
+  }
 
   certified <- .funnel_selection_cancelled_cells(integrated_sd, setup)
   if (!is.null(selection) &&
@@ -519,23 +553,27 @@
       call. = FALSE
     )
   }
+  cancelled <- cancelled | rowSums(certified) == ncol(integrated_sd)
 
-  # Without conditioned variation, or without an active selection kernel, the
-  # observed law is the ordinary selected or Gaussian one at the total spread.
-  if (!any(conditioned_sd > 0) || is.null(selection) || !any(selected_rows)) {
+  if (is.null(selection) || !any(selected_rows)) {
     return(list(
       mean = location, sd = total_sd, weights = weights,
       selected_rows = selected_rows, selection = selection
     ))
   }
 
-  # The rows `cancelled` (the same in every column) are the retained Normal law
-  # at the total spread, one unselected component each: the offset is already
-  # integrated, so the quadrature is not needed. The rule is chosen from the
-  # rows that remain; a zero integrated SD among them keeps the finest rule.
-  S         <- nrow(location)
-  expanded  <- which(!cancelled)
-  retained  <- which(cancelled)
+  # Ordinary and certified cancelling rows retain one exact Gaussian component.
+  # Finite equal positive step weights also cancel at any integrated spread.
+  omega <- selection[["omega"]]
+  constant <- rep(FALSE, S)
+  if (is.matrix(omega) && nrow(omega) == S && ncol(omega) > 0L) {
+    constant <- apply(is.finite(omega) & omega > 0, 1L, all) &
+      rowSums(omega != omega[, 1L]) == 0L &
+      rep_len(selection[["kernel_mode"]], S) == SELKERNEL_STEP
+  }
+  gaussian <- !selected_rows | cancelled | constant
+  expanded <- which(!gaussian & rowSums(conditioned_sd > 0) > 0L)
+  retained <- setdiff(seq_len(S), expanded)
   index     <- integer()
   mean      <- location[0L, , drop = FALSE]
   sd        <- mean
@@ -552,15 +590,6 @@
       conditioned_sd[index, , drop = FALSE]
     sd    <- integrated_sd[index, , drop = FALSE]
     node_weight <- rep(node_weights, each = length(expanded))
-
-    # A row on a non-selection branch has no normalizer to condition, so its
-    # marginal is exactly Gaussian at the total spread. Keep it exact instead
-    # of rebuilding it from the quadrature.
-    normal <- !selected_rows[index]
-    if (any(normal)) {
-      mean[normal, ] <- location[index, , drop = FALSE][normal, , drop = FALSE]
-      sd[normal, ]   <- total_sd[index, , drop = FALSE][normal, , drop = FALSE]
-    }
   }
 
   # The expanded matrices are the largest objects of a model-averaged funnel
@@ -574,7 +603,7 @@
     mean          = mean,
     sd            = sd,
     weights       = c(weights[index] * node_weight, weights[retained]),
-    selected_rows = c(selected_rows[index], rep(FALSE, length(retained))),
+    selected_rows = c(selected_rows[index], selected_rows[retained] & !gaussian[retained]),
     selection     = .funnel_expand_selection_context(selection, c(index, retained))
   ))
 }
@@ -590,33 +619,26 @@
 .funnel_conditioned_order <- function(integrated_sd, conditioned_sd,
                                       minimum = 21L, maximum = 401L) {
 
-  if (any(integrated_sd == 0 & conditioned_sd > 0)) return(maximum)
-  positive <- integrated_sd > 0
-  if (!any(positive)) return(maximum)
-  ratio <- max(conditioned_sd[positive] / integrated_sd[positive])
-  if (!is.finite(ratio)) return(maximum)
-  order <- ceiling(48 * max(ratio, 1))
-  order <- order + 1L - order %% 2L
-  as.integer(min(max(order, minimum), maximum))
+  active <- conditioned_sd > 0
+  if (!any(active)) return(minimum)
+  ratio <- max(conditioned_sd[active] / integrated_sd[active])
+  order <- if (is.finite(ratio)) ceiling(48 * max(ratio, 1)) else Inf
+  if (is.finite(order)) order <- max(order + 1L - order %% 2L, minimum)
+  if (!is.finite(order) || order > maximum) {
+    stop("Selected funnel contours are numerically unavailable: required ",
+      "quadrature order ", format(order, scientific = FALSE, trim = TRUE),
+      " exceeds the current cap ", maximum, ". ",
+      "Use 'sampling_bias = FALSE' for an unselected reference.",
+      call. = FALSE)
+  }
+  as.integer(order)
 }
 
 
 .funnel_expand_selection_context <- function(selection, index) {
 
   if (is.null(selection)) return(NULL)
-  for (field in c("omega", "alpha", "phack_kind", "kernel_mode", "use_normal",
-                  "vector_rule", "bias_indicator")) {
-    value <- selection[[field]]
-    if (is.null(value)) next
-    if (is.matrix(value)) {
-      if (nrow(value) == length(unique(index))) {
-        selection[[field]] <- value[index, , drop = FALSE]
-      }
-    } else if (length(value) == length(unique(index))) {
-      selection[[field]] <- value[index]
-    }
-  }
-  selection
+  BayesTools::selection_context_subset_rows(selection, index)
 }
 
 
