@@ -1006,6 +1006,15 @@
   if (ncol(null) == 0L) {
     return(TRUE)
   }
+  # A set of exact singleton columns covering every row contains a permuted
+  # nonzero diagonal submatrix. Its full support does not depend on the error
+  # in the sampling null basis; extra generator columns do not change it.
+  singleton <- which(colSums(generators != 0) == 1L &
+    colSums(!is.finite(generators)) == 0L)
+  if (all(is.finite(generators)) && length(singleton) > 0L &&
+      all(rowSums(generators[, singleton, drop = FALSE] != 0) > 0L)) {
+    return(TRUE)
+  }
   generators <- generators[, colSums(generators != 0) > 0, drop = FALSE]
   if (ncol(generators) < ncol(null)) {
     return(FALSE)

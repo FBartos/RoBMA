@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Exact independent integrated row support regularizes singular known-V blocks
+  without relying on an ill-conditioned sampling null basis.
 - Exact covariance recovery excludes just-identified integer Ledermann ranks,
   while retaining the declared two-row special case.
 - Gaussian known-V construction avoids selection-only exact-factor recovery;

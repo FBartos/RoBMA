@@ -51,6 +51,9 @@ search; selection preparation persists any certified representation it requests.
 Minimum-rank recovery requires strictly more off-diagonal observations than free
 loadings; integer Ledermann boundary ranks are excluded except for the explicit
 two-row special case.
+Integrated generator columns with exactly one finite nonzero each certify
+full-row support when their row set covers the block. All other generator
+supports retain the existing error-bounded null-space projection policy.
 
 Covariance classification, sampling support, and numerical representations are
 distinct. Preserve the accepted sampling factor and PSD/PD status when a
