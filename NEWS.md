@@ -1,4 +1,10 @@
 ## version 4.1.0 (IN PROGRESS)
+- Sole publication-bias branches route complete posterior output without requiring an indicator the backend does not declare.
+- Joint selection covariance preserves known random-group kernel scaling; saved density ordinates from earlier evaluators are invalidated.
+- Selection dependency preparation uses row components without an additional dense adjacency, preserving known-group and coefficient-support dependencies.
+- Sampling-conditioned sensitivity diagnostics preserve separate publication events and declared singular candidate factors, including explicit integration controls.
+- Direct factor and cluster normalizer-grid values, including cached requests, retain both native Monte Carlo and nested-change rejection criteria.
+- Rank-two best-two-sided native selection events include both reflected selection boundaries while retaining signed physical box limits.
 - Model-averaged point requests count actual expanded marginal targets before enforcing their existing single-marginal restriction.
 - Whole-term and explicit-level hypotheses use compatible expansion groups so mixed requests agree with separate calls.
 - Hypothesis row labels retain factor suffixes only for declared level expansions, preserving indexed scalar and random-quantity identities.

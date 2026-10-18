@@ -93,3 +93,38 @@ test_that("conditioned sensitivity uses the validated override in its actual sta
   for (plan in observed) expect_identical(plan[names(control)], unclass(control))
   expect_identical(.data_selection_execution_plan(object$data), original_plan)
 })
+
+test_that("conditioned block masses are assigned only to their connected output units", {
+
+  V <- diag(5L)
+  V[1:2, 1:2] <- .4; diag(V)[1:2] <- 1
+  V[3:5, 3:5] <- .2; diag(V)[3:5] <- 1
+  model <- BayesTools::selection_model(weight_rule = "best", group = "paper", known_sampling_variance = "condition")
+  setup <- review_compile_object(bselmodel.mv(yi = rep(0, 5), V = V, random = NULL,
+    data = data.frame(paper = letters[1:5]), measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, .2)), model = model),
+    only_priors = TRUE, silent = TRUE))
+  priors <- .create_fit_priors(setup$object$data, setup$object$priors)
+  columns <- setdiff(review_prior_columns(priors), "omega")
+  samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  object <- review_attach_replay(setup, samples)
+  generated <- BayesTools::JAGS_evaluate_deterministic(object$fit, draws = samples)
+  for (name in colnames(generated)) if (name %in% colnames(samples)) samples[, name] <- generated[, name] else samples <- cbind(samples, generated[, name, drop = FALSE])
+  object <- review_attach_replay(setup, samples)
+  withr::local_seed(712)
+  actual <- suppressWarnings(selection_sensitivity_diagnostics(object, max_posterior_samples = 10, latent_samples = 32, seed = 712))
+  expect_identical(actual$n_estimates, c(2L, 3L))
+  set.seed(712)
+  reference <- lapply(seq_len(10L), function(draw) {
+    h <- .selection_sensitivity_covariance_draws(V, 32L)
+    t(vapply(list(1:2, 3:5), function(rows) {
+      w <- apply(ifelse(h[, rows, drop = FALSE] >= 0, 1, .2), 1L, prod)
+      c(TV = .5 * mean(abs(w / mean(w) - 1)), ESS = mean(w)^2 / mean(w^2))
+    }, numeric(2L)))
+  })
+  for (block in 1:2) {
+    expect_lte(abs(actual$total_variation_median[block] - median(vapply(reference, function(x) x[block, "TV"], numeric(1L)))), 1e-12)
+    expect_lte(abs(actual$ess_fraction_median[block] - median(vapply(reference, function(x) x[block, "ESS"], numeric(1L)))), 1e-12)
+  }
+})

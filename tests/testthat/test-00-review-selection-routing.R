@@ -40,6 +40,28 @@ test_that("F3-4 sole bias branches use complete backend monitors without an indi
         supplied[1L, "bias_indicator"] <- value
         expect_error(.selection_row_routing(object$priors, supplied), "posterior model indicator")
       }
+      for (mu_branch in 1:2) for (tau_branch in 1:2) {
+        row <- which(samples[, "mu_indicator"] == mu_branch & samples[, "tau_indicator"] == tau_branch)[1L]
+        matched <- review_attach_replay(setup, samples[rep(row, 24L), , drop = FALSE])
+        control_args <- args
+        control_args$prior_bias_null <- NULL
+        control_args$prior_effect <- priors$mu[[mu_branch]]
+        control_args$prior_heterogeneity <- priors$tau[[tau_branch]]
+        control_setup <- review_compile_object(do.call(bselmodel, control_args))
+        control_samples <- cbind(mu = rep(samples[row, "mu"], 24L), tau = samples[row, "tau"])
+        initial <- review_attach_replay(control_setup, control_samples)
+        generated <- BayesTools::JAGS_evaluate_deterministic(initial$fit, draws = control_samples)
+        control_samples <- cbind(control_samples, generated[, setdiff(colnames(generated), colnames(control_samples)), drop = FALSE])
+        control <- review_attach_replay(control_setup, control_samples)
+        expect_identical(unname(control_samples[, "mu"]), unname(samples[rep(row, 24L), "mu"]))
+        expect_identical(unname(control_samples[, "tau"]), unname(samples[rep(row, 24L), "tau"]))
+        expect_true(all(c("mu", "tau", "omega[1]", "omega[2]") %in% colnames(control_samples)))
+        set.seed(26010)
+        target_prediction <- stats::predict(matched, type = "response", quiet = TRUE)
+        set.seed(26010)
+        control_prediction <- stats::predict(control, type = "response", quiet = TRUE)
+        expect_lte(max(abs(as.vector(target_prediction) - as.vector(control_prediction))), 1e-12)
+      }
     }
     if (kind == "two") {
       expect_error(.selection_row_routing(object$priors,

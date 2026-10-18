@@ -56,6 +56,9 @@ best-rule publication groups. Product-only models require no grouping.
 Within a connected source unit, their product gives the
 relative reweighting when the retained contexts are integrated before
 selection normalization.
+Sampling-conditioned comparisons use the fitted candidate factors, including
+singular declared support. Integration diagnostics report maxima over the
+constituent event evaluations, rather than an error bound for their product.
 
 \code{ess_fraction} estimates \code{mean(W)^2 / mean(W^2)};
 \code{total_variation} estimates the distance between the pre-selection context
