@@ -149,28 +149,36 @@ test_that("marginal means retain target-specific unavailable reasons", {
   expect_null(BayesTools::posterior_metadata(posterior, "posterior_ordinate"))
   failure <- attr(posterior, "ordinate_failures", exact = TRUE)
   expect_identical(failure[["numerical_status"]], "underflow")
-  bf <- .marginal_means_iwmde_bf_scalar(posterior, 3, NULL, "qCMDE", "Unavailable.")
+  request <- attr(failure, "iwmde_provenance")[[.iwmde_key_number(3)]]
+  bf <- .marginal_means_iwmde_bf_scalar(posterior, 3, request, "qCMDE", "Unavailable.")
   expect_true(is.na(bf))
   expect_match(attr(bf, "warnings"), "underflowed to zero", fixed = TRUE)
+  expect_s3_class(attr(bf, "numerical_diagnostics"), "RoBMA_density_ordinate_error")
   other <- .marginal_means_iwmde_bf_scalar(posterior, 4, NULL, "qCMDE", "Other target unavailable.")
   expect_identical(attr(other, "warnings"), "Other target unavailable.")
 })
 
 test_that("multi-level marginal means keep each failure beside valid Bayes factors", {
 
-  underflow <- .iwmde_estimate_ordinate_failures(.pr82_failure_plan(3), .pr82_failure_diagnostic(3))
-  unknown <- .iwmde_estimate_ordinate_failures(.pr82_failure_plan(3),
-    .pr82_failure_diagnostic(3, log_ordinate = NA_real_))
-  bad <- list(underflow = structure(1:3, ordinate_failures = underflow),
-              unknown = structure(1:3, ordinate_failures = unknown))
-  result <- .marginal_means_iwmde_bf(bad, 3, provenance = list(), density_method = "qCMDE")
+  failure_sample <- function(diagnostic) {
+    estimate <- .iwmde_estimate_result(.pr82_failure_plan(3), ordinate_diagnostic = diagnostic)
+    object <- list(inference = list(conditional = list(mu = list(a = 1:3))))
+    .marginal_means_attach_iwmde_ordinate_type(object, "conditional",
+      list(a = list(parameter = "mu", level = "a")), list(a = estimate))$inference$conditional$mu$a
+  }
+  bad <- list(underflow = failure_sample(.pr82_failure_diagnostic(3)),
+    unknown = failure_sample(.pr82_failure_diagnostic(3, log_ordinate = NA_real_)))
+  requests <- lapply(bad, function(sample)
+    attr(attr(sample, "ordinate_failures"), "iwmde_provenance")[[.iwmde_key_number(3)]])
+  result <- .marginal_means_iwmde_bf(bad, 3, provenance = requests, density_method = "qCMDE")
   expect_true(all(vapply(result, is.na, logical(1L))))
   expect_match(attr(result[["underflow"]], "warnings"), "underflowed to zero", fixed = TRUE)
   expect_match(attr(result[["unknown"]], "warnings"), "without a finite log estimate", fixed = TRUE)
   provenance <- .iwmde_provenance_request("qCMDE", "q_grid_cmde", value = 3,
     metadata = list(parameter = "mu", level = "good"), attribute = "ordinate")
   ordinate <- BayesTools::posterior_ordinate_attribute(3, 1, "q_grid_cmde", "qCMDE",
-    diagnostics = list(estimator = "q_grid_cmde", ordinate_relative_change = 0),
+    diagnostics = list(estimator = "q_grid_cmde", ordinate_relative_change = 0,
+      lattice_resolution_relative_error = 0),
     iwmde_provenance = provenance)
   posterior <- c(
     list(good = with_draw_metadata(1:3, posterior_ordinate = ordinate)),
@@ -185,7 +193,7 @@ test_that("multi-level marginal means keep each failure beside valid Bayes facto
     2
   }, .package = "BayesTools")
   mixed <- .marginal_means_iwmde_bf(posterior, 3,
-    provenance = list(good = provenance), density_method = "qCMDE")
+    provenance = c(list(good = provenance), requests), density_method = "qCMDE")
   expect_identical(calls, 1L)
   expect_equal(as.numeric(mixed[["good"]]), 2)
   expect_match(attr(mixed[["underflow"]], "warnings"), "underflowed to zero", fixed = TRUE)

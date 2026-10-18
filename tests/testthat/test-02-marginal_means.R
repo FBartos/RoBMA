@@ -65,6 +65,9 @@ smoke_samples <- test_profile_value(250L, 1000L)
 .marginal_means_iwmde_test_object <- function() {
 
   emm <- .marginal_means_test_object()
+  event <- BayesTools:::.condition_event(stats::setNames(rep(list(
+    BayesTools::prior_spike_and_slab(BayesTools::prior("normal", list(0, 1)))), 2L),
+    c("mu_intercept", "mu_alloc")), c("mu_intercept", "mu_alloc"), "OR")
   for (type in c("averaged", "conditional")) {
     for (level in names(emm[["inference"]][[type]][["mu_alloc"]])) {
       sample <- emm[["inference"]][[type]][["mu_alloc"]][[level]]
@@ -76,7 +79,9 @@ smoke_samples <- test_profile_value(250L, 1000L)
         BayesTools::posterior_metadata(sample, "condition") <- list(
           effective_conditional      = c("mu_intercept", "mu_alloc"),
           effective_conditional_rule = "OR",
-          condition_key              = "OR\r2\rmu_alloc\rmu_intercept"
+          condition_key              = event$condition_key,
+          condition_event            = event,
+          resolved_condition_event   = event
         )
       }
       emm[["inference"]][[type]][["mu_alloc"]][[level]] <- sample
@@ -113,6 +118,8 @@ smoke_samples <- test_profile_value(250L, 1000L)
     normalization_relative_error      = 0,
     normalization_mass_ratio          = 1,
     max_ordinate_relative_change      = 0,
+    # Synthetic accepted curve: exact declared lattice resolution.
+    max_lattice_resolution_relative_error = 0,
     max_normalizer_relative_change    = 0,
     max_quadrature_relative_change    = 0
   )
@@ -553,7 +560,8 @@ test_that("marginal_means plot computes missing explicit qCMDE densities", {
                                             display_grid, null_hypothesis,
                                             parameter, type, levels, targeted,
                                             include_ordinates = TRUE,
-                                            integration_control = NULL) {
+                                            integration_control = NULL,
+                                            target_relative_mcse = .05) {
 
       attached <<- list(
         density_method    = density_method,
@@ -685,6 +693,7 @@ test_that("marginal_means BF refresh requires ordinate provenance", {
     normalization_relative_error = 0,
     normalization_mass_ratio     = 1,
     ordinate_relative_change     = 0,
+    lattice_resolution_relative_error = 0,
     max_normalizer_relative_change = 0
   )
   provenance <- list(
@@ -818,7 +827,8 @@ test_that("marginal_means plot does not reuse qCMDE density for explicit IWMDE",
                                             display_grid, null_hypothesis,
                                             parameter, type, levels, targeted,
                                             include_ordinates = TRUE,
-                                            integration_control = NULL) {
+                                            integration_control = NULL,
+                                            target_relative_mcse = .05) {
 
       attached <<- list(density_method = density_method, levels = levels)
       for (level in levels) {
@@ -902,7 +912,8 @@ test_that("marginal_means plot errors when explicit IWMDE density is unavailable
                                             display_grid, null_hypothesis,
                                             parameter, type, levels, targeted,
                                             include_ordinates = TRUE,
-                                            integration_control = NULL) {
+                                            integration_control = NULL,
+                                            target_relative_mcse = .05) {
 
       density_diagnostics <- .marginal_means_iwmde_density_diagnostics("iwmde")
       density_diagnostics[["n_estimator_rows"]]    <- 500L

@@ -448,3 +448,25 @@ test_that("E1-4 model-average request limits count actual expanded targets", {
     .hypothesis_plan_marginal_means(means, statement))
   expect_null(.hypothesis_plan_marginal_means_request_refusal(repeated, means))
 })
+
+test_that("E2-7 actual structural point-mass conditions keep their source identity", {
+
+  means <- marginal_means(.review_h_atomic(), bf = FALSE, density_method = "KDE", n_samples = 128)
+  posterior <- means$inference$conditional$mu_intercept
+  result <- .marginal_means_inclusion_bf(posterior, -.2, TRUE)$intercept
+  original <- attr(result, "numerical_diagnostics")
+  expect_s3_class(original, "BayesTools_posterior_point_mass_at_null")
+  expect_true(is.na(result))
+  expect_true(is.character(conditionMessage(original)))
+  expect_identical(attr(result, "posterior_density_source"), "null_point_mass")
+  expect_error(.marginal_means_row_bf(stop("Programming failure.", call. = FALSE)), "Programming failure.", fixed = TRUE)
+})
+
+test_that("synthetic accepted diagnostics still require declared lattice accuracy", {
+
+  diagnostics <- list(estimator = "q_grid_cmde", ordinate_relative_change = 0,
+    lattice_resolution_relative_error = 0)
+  expect_null(.iwmde_diagnostics_bf_failure_reason(diagnostics))
+  diagnostics$lattice_resolution_relative_error <- NULL
+  expect_match(.iwmde_diagnostics_bf_failure_reason(diagnostics), "normalization diagnostics are unavailable", fixed = TRUE)
+})
