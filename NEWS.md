@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Group-IID random-covariance density shortcuts require declared fixed-mean
+  invariance; candidate-dependent means use the accurate general evaluator.
 - BCG benchmark listing and filtered marginal comparisons retain the complete
   data unscaling and model-matrix preparation through one deferred input.
 - Scenario benchmarks admit fit-list preparation from bounded stable source

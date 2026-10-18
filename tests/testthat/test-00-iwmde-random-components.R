@@ -135,6 +135,12 @@ test_that("shared-gate allocation grids use declared continuous covariance plans
                    data = list(outcome = data.frame(yi = yi)))
   testthat::local_mocked_bindings(
     .iwmde_uses_known_v_random_marginal_likelihood = function(...) TRUE,
+    # These covariance-only fixtures supply fixed means directly.
+    .iwmde_build_replacement_samples = function(context, parameter, values, ...) {
+      expect_length(values, 1L)
+      list(changed_parameters = parameter)
+    },
+    .iwmde_q_grid_fixed_mu_is_invariant = function(...) TRUE,
     .is_data_weights = function(...) FALSE,
     .fitted_formula_design = function(...) design,
     .iwmde_known_v_random_marginal_setup = function(...) list(
@@ -714,6 +720,11 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
     data = list(outcome = data.frame(yi = yi))
   )
   testthat::local_mocked_bindings(
+    .iwmde_build_replacement_samples = function(context, parameter, values, ...) {
+      expect_length(values, 1L)
+      list(changed_parameters = parameter)
+    },
+    .iwmde_q_grid_fixed_mu_is_invariant = function(...) TRUE,
     .iwmde_known_v_random_group_iid_plan = function(...) {
       list(
         source_parameter   = "tau",

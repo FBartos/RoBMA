@@ -158,6 +158,11 @@ test_that("direct grouped-scale grid matches dense Gaussian likelihoods", {
     data = list(outcome = data.frame(yi = yi))
   )
   testthat::local_mocked_bindings(
+    .iwmde_build_replacement_samples = function(context, parameter, values, ...) {
+      expect_length(values, 1L)
+      list(changed_parameters = parameter)
+    },
+    .iwmde_q_grid_fixed_mu_is_invariant = function(...) TRUE,
     .iwmde_known_v_random_group_iid_plan = function(...) {
       list(
         source_parameter      = "tau",
@@ -304,9 +309,11 @@ test_that("invariant q-grids bypass candidate covariance reconstruction", {
     .iwmde_predictor_log_prior = function(...) {
       numeric(length(values) * length(row_states))
     },
-    .iwmde_build_replacement_samples = function(...) {
-      stop("candidate covariance reconstruction must not run", call. = FALSE)
+    .iwmde_build_replacement_samples = function(context, parameter, values, ...) {
+      expect_length(values, 1L)
+      list(changed_parameters = parameter)
     },
+    .iwmde_q_grid_fixed_mu_is_invariant = function(...) TRUE,
     .brma_mv_random_effects_marginal_vcov = function(...) {
       stop("candidate covariance reconstruction must not run", call. = FALSE)
     },
