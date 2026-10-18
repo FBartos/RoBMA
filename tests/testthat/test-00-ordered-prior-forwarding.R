@@ -122,14 +122,15 @@ test_that("plot dispatch forwards matched ordered styles and ordinary prior defa
 
   quantities <- data.frame(quantity_id = "target", term = "f", formula_parameter = "mu")
   quantities[["extraction_key"]] <- I(list(list(dependencies = "mu_f[1]")))
-  entry <- list(component = "mods", selection = list(quantities = quantities))
+  entry <- list(parameter = "selected", component = "mods",
+    selection = list(quantities = quantities))
   fit <- list()
   attr(fit, "prior_list") <- list(mu_f = BayesTools::prior_ordered(
     BayesTools::prior("normal", list(0, 1))), mu_x = BayesTools::prior("normal", list(0, 1)))
   object <- structure(list(fit = fit), class = "brma")
   captured <- NULL
   local_mocked_bindings(
-    .check_and_select_plot_parameter = function(...) "selected",
+    .check_and_select_plot_parameter = function(...) entry,
     .brma_parameter_select_entry = function(...) entry,
     .plot_output_setup = function(...) NULL,
     .as_mixed_posteriors_parameters = function(...) "selected",

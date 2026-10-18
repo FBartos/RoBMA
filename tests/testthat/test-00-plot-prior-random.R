@@ -18,15 +18,22 @@ test_that("spike-and-slab plotting preserves the parent probability measure", {
     lines <- Filter(function(x) inherits(x$geom, "GeomLine"), plot$layers)
     atoms <- Filter(function(x) inherits(x$geom, "GeomSegment"), plot$layers)
     if (probability > 0) {
+      expect_length(lines, 1L)
       curve <- lines[[1L]]$data
       keep <- curve$x > 0
+      expect_true(any(keep))
+      expect_true(all(is.finite(curve$y[keep])))
       expect_equal(curve$y[keep] / (2 * stats::dnorm(curve$x[keep])),
         rep(probability, sum(keep)), tolerance = 1e-12)
     }
     if (probability < 1) {
+      expect_length(atoms, 1L)
+      expect_true(is.finite(plot$bt_scale_y2_state$scale_y2))
       expect_equal(atoms[[1L]]$data$yend / plot$bt_scale_y2_state$scale_y2,
         1 - probability, tolerance = 1e-12)
     }
+    if (probability == 0) expect_length(lines, 0L)
+    if (probability == 1) expect_length(atoms, 0L)
     .with_temp_plot_device(expect_silent(plot_prior(object, "tau")))
   }
 })

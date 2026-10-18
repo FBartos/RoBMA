@@ -514,7 +514,7 @@ test_that("known-V marginalized random SDs stay in global IWMDE state", {
     parameter_scale = NULL,
     component       = NULL,
     object          = fit
-  )
+  )[["parameter"]]
   sample_parameter <- .as_mixed_posteriors_parameters(fit, parameter)
   samples <- BayesTools::as_mixed_posteriors(
     model            = fit[["fit"]],
@@ -888,7 +888,8 @@ test_that("plot density errors retain semantic targets and computed diagnostics"
   supplied_target <- NULL
   testthat::local_mocked_bindings(
     .iwmde_check_density_method_supported = function(...) invisible(NULL),
-    .check_and_select_plot_parameter = function(...) parameter,
+    .check_and_select_plot_parameter = function(...) list(
+      parameter = parameter, component = "random"),
     .brma_parameter_select_entry = function(...) list(component = "random"),
     .plot_output_setup = function(...) NULL,
     .brma_random_parameter_mixed_posterior = function(...) samples,
