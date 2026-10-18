@@ -139,6 +139,11 @@ laws but cannot use the source-held-weight density chart. Refuse that chart thro
 the existing random-target cause and KDE remedy; source-zero and gate atoms retain
 their declared laws. Classify active source components from priors and indicators,
 never from the apparent variation of replayed draws.
+Allocated SD proposals resolve active source-prior row bounds and multiply by
+the declared positive component multiplier. Fit by finite-bound pattern after
+standardizing each row to its own interval, applying the row Jacobian once.
+Unknown bounds, invalid multipliers and nonempty all-invalid support populations
+fail construction; do not widen unsupported populations to the real line.
 
 Post-fit mixture likelihoods keep random-source indicators with their persisted
 compiled priors, including externally bound SD sources; localize only indicators

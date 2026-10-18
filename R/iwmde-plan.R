@@ -619,6 +619,8 @@
     "index",
     "n_targets",
     "source_parameter",
+    "node",
+    "gate_columns",
     "factors",
     "target_columns",
     "factor_columns",

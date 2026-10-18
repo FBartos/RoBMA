@@ -374,3 +374,150 @@ testthat::test_that("an all-zero certified proposal remains a diagnostic failure
     testthat::expect_identical(reason, "posterior ordinate is zero or non-finite")
   }
 })
+test_that("compiled allocated SD proposals normalize on their own declared intervals", {
+
+  compact <- NULL
+  compact_evaluator <- .iwmde_chen_compact_normal_log_weight
+  # Observe the genuine callback parameters without changing its result. Its
+  # compact endpoints are quadrature breakpoints, not target/prior support.
+  testthat::local_mocked_bindings(.iwmde_chen_compact_normal_log_weight = function(
+      distance, mean, sd, focal_scale, method) {
+    compact <<- list(mean = mean, sd = sd, focal_scale = focal_scale)
+    compact_evaluator(distance, mean, sd, focal_scale, method)
+  }, .package = "RoBMA")
+  u <- seq_len(32L) / 33
+  cases <- list(
+    uniform = list(prior = BayesTools::prior("uniform", list(0, 1)), values = u, lower = rep(0, 32), upper = rep(1, 32)),
+    truncated = list(prior = BayesTools::prior("normal", list(1, .7), truncation = list(.1, 2)),
+      values = .1 + 1.9 * u, lower = rep(.1, 32), upper = rep(2, 32)),
+    positive = list(prior = BayesTools::prior("gamma", list(2, 2), truncation = list(.4, Inf)),
+      values = .4 + u, lower = rep(.4, 32), upper = rep(Inf, 32)),
+    mixture = list(prior = BayesTools::prior_mixture(list(
+      BayesTools::prior("uniform", list(0, 1)), BayesTools::prior("uniform", list(.2, 2))), is_null = c(FALSE, FALSE)),
+      values = c(1:16 / 17, .2 + 1.8 * (1:16 / 17)), indicators = rep(1:2, each = 16),
+      lower = rep(c(0, .2), each = 16), upper = rep(c(1, 2), each = 16)),
+    full_positive = list(prior = BayesTools::prior("gamma", list(2, 2)), values = u,
+      lower = rep(0, 32), upper = rep(Inf, 32))
+  )
+  for (name in names(cases)) {
+    case <- cases[[name]]
+    scale <- if (is.null(case$scale)) "total_variance" else case$scale
+    fixture <- review_allocated_source_replay("uniform", source_prior = case$prior,
+      source_values = case$values, source_indicators = case$indicators, scale = scale)
+    object <- fixture$object
+    target <- .brma_random_parameter_density_target(object, "(mu) study: tau")
+    context <- .iwmde_context(object)
+    spec <- .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+    values <- .iwmde_parameter_values(context, target$parameter, spec)
+    multiplier <- sqrt(fixture$samples[, fixture$weights[1L]] * if (scale == "mean_variance") 2 else 1)
+    expected <- cbind(case$lower * multiplier, case$upper * multiplier)
+    supports <- .iwmde_parameter_row_supports(context, target$parameter, 1:32, spec)
+    expect_equal(unname(supports), unname(expected), tolerance = 1e-14, info = name)
+    set.seed(1401)
+    plan <- .iwmde_plan(context, target$parameter, density_method = "IWMDE",
+      density_control = list(samples = 24L), outputs = "ordinate", values = .6, parameter_spec = target$parameter_spec)
+    expect_identical(plan$status, "ok", info = name)
+    execution <- .iwmde_plan_row_execution(context, plan)
+    fit_rows <- plan$rows$continuous_rows
+    eval_rows <- execution$active_rows
+    expect_length(fit_rows, 32L)
+    expect_length(eval_rows, 24L)
+    expect_identical(as.numeric(execution$active_values), as.numeric(values[eval_rows]))
+    proposal <- function(rows, x) .iwmde_chen_log_weight(context, target$parameter, spec,
+      active_rows = rows, active_values = x, weight_rows = fit_rows,
+      weight_values = values[fit_rows], support = plan$support$support)
+    actual <- proposal(eval_rows, values[eval_rows])
+    expect_identical(actual, execution$proposal_weight)
+    expect_length(actual$partitions, 1L)
+    # All 32 fitting rows in the original bounded fixture, including rows that
+    # are not estimator rows; representative rows of the additional laws.
+    rows <- if (name == "uniform") 1:32 else c(3L, 11L, 23L)
+    for (row in rows) {
+      callback <- function(x) exp(proposal(rep(row, length(x)), x)$log_weight)
+      compact <- NULL
+      proposal(row, values[row])
+      captured <- compact
+      pieces <- expected[row, ]
+      if (!is.null(captured)) {
+        log_tail <- stats::pnorm(0, captured$mean, captured$sd, lower.tail = FALSE, log.p = TRUE)
+        endpoints <- expected[row, 1L] + captured$focal_scale * stats::qnorm(
+          log_tail + log(c(.975, .025)), captured$mean, captured$sd, lower.tail = FALSE, log.p = TRUE)
+        expect_true(all(is.finite(endpoints)) && endpoints[1L] > expected[row, 1L] &&
+          endpoints[2L] < expected[row, 2L])
+        expect_equal(callback(c(mean(c(expected[row, 1L], endpoints[1L])),
+          endpoints[2L] + max(1, diff(endpoints)))), c(0, 0))
+        pieces <- c(expected[row, 1L], endpoints, expected[row, 2L])
+        if (name == "positive" && row == 23L) {
+          plain <- stats::integrate(callback, expected[row, 1L], expected[row, 2L],
+            rel.tol = 1e-9, abs.tol = 1e-10, subdivisions = 1000L)
+          cat("PRESERVED_PLAIN_HALF_LINE_QUADRATURE positive23 value=", format(plain$value, digits = 17),
+            " abs.error=", format(plain$abs.error, digits = 17), " message=", plain$message, "\n", sep = "")
+        }
+      }
+      integrals <- lapply(seq_len(length(pieces) - 1L), function(i) stats::integrate(callback,
+        pieces[i], pieces[i + 1L], rel.tol = 1e-9, abs.tol = 1e-10, subdivisions = 1000L))
+      value <- sum(vapply(integrals, `[[`, numeric(1), "value"))
+      error <- sum(vapply(integrals, `[[`, numeric(1), "abs.error"))
+      expect_true(abs(value - 1) < 1e-7 + error, info = paste(name, row, value, error))
+    }
+  }
+})
+
+test_that("missing allocated bounds and all-invalid row populations fail without widening", {
+
+  fixture <- review_allocated_source_replay("uniform")
+  target <- .brma_random_parameter_density_target(fixture$object, "(mu) study: tau")
+  context <- .iwmde_context(fixture$object)
+  context$flat_prior_list[[target$parameter]] <- NULL
+  expect_error(.iwmde_parameter_row_supports(context, target$parameter, 1:2, target$parameter_spec),
+    class = "iwmde_construction_error")
+  linear <- .chen_linear_fixture(4L)
+  linear$context$posterior_samples[,] <- NA_real_
+  warnings <- list()
+  outcome <- withCallingHandlers(tryCatch(.iwmde_parameter_support(linear$context, "a+b", 1:4,
+    linear$spec), error = identity), warning = function(w) warnings[[length(warnings) + 1L]] <<- w)
+  expect_s3_class(outcome, "iwmde_construction_error")
+  expect_length(warnings, 0L)
+  expect_equal(.iwmde_parameter_support(linear$context, "a+b", integer(), linear$spec), c(-Inf, Inf))
+  mixed <- .chen_linear_fixture(4L)
+  expected <- .iwmde_parameter_support(mixed$context, "a+b", c(1L, 3L, 4L), mixed$spec)
+  mixed$context$posterior_samples[2L, ] <- NA_real_
+  expect_equal(.iwmde_parameter_support(mixed$context, "a+b", 1:4, mixed$spec), expected)
+  # The existing genuine compiler fixture has a gated root and a child split.
+  nested <- shared_gate_random_object(root_gate = rep(1, 4))
+  selected <- .brma_random_parameter_density_target(nested, "(mu) study: tau(intercept)")
+  nested_context <- .iwmde_context_ensure_caches(list(object = nested,
+    posterior_samples = as.matrix(nested$fit[[1L]]),
+    flat_prior_list = attr(nested$fit, "prior_list"), indicator_names = character()))
+  expect_equal(.iwmde_parameter_row_supports(nested_context, selected$parameter,
+    c(4L, 1L), selected$parameter_spec), matrix(c(0, Inf), 2L, 2L, byrow = TRUE))
+})
+
+test_that("admitted SD-component allocations retain their nonunit source multiplier", {
+
+  weight <- ((seq_len(32) * 11) %% 37 + .5) / 37
+  shares <- cbind(weight, 1 - weight)
+  source <- .2 + 1.8 * seq_len(32) / 33
+  object <- sd_component_allocation_object(list(source = source, weight = shares, eta = 2 * shares),
+    source_prior = BayesTools::prior("uniform", list(.2, 2)))
+  target <- .brma_random_parameter_density_target(object, "tau(intercept)")
+  samples <- as.matrix(object$fit[[1L]])
+  context <- .iwmde_context_ensure_caches(list(object = object, posterior_samples = samples,
+    flat_prior_list = attr(object$fit, "prior_list"), indicator_names = character()))
+  spec <- .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+  multiplier <- sqrt(2 * weight)
+  expected <- cbind(.2 * multiplier, 2 * multiplier)
+  expect_equal(.iwmde_parameter_row_supports(context, target$parameter, 1:32, spec), expected, tolerance = 1e-14)
+  values <- .iwmde_parameter_values(context, target$parameter, spec)
+  expect_lt(max(abs(values - source * multiplier)), 1e-14)
+  for (row in c(3L, 11L, 23L)) {
+    proposal <- function(x) exp(.iwmde_chen_log_weight(context, target$parameter, spec,
+      rep(row, length(x)), x, 1:32, values, range(expected))$log_weight)
+    integral <- stats::integrate(proposal, expected[row, 1L], expected[row, 2L], rel.tol = 1e-9, abs.tol = 1e-10)
+    expect_lt(abs(integral$value - 1), 1e-7 + integral$abs.error)
+  }
+  absent_node <- spec
+  absent_node$node <- NULL
+  expect_error(.iwmde_parameter_row_supports(context, target$parameter, 1:2, absent_node),
+    "multipliers need the deterministic nodes")
+})

@@ -350,7 +350,8 @@ shared_gate_random_object <- function(root_gate = c(0, 1, 0, 1),
 # weights on the mean-variance scale, so each component SD is the source SD
 # times sqrt(2 * weight). 'draws' maps the roles "source", "weight" (two
 # columns) and "eta" (two columns; optional) to their values.
-sd_component_allocation_object <- function(draws) {
+sd_component_allocation_object <- function(draws,
+    source_prior = BayesTools::prior("normal", list(0, 1), list(0, Inf))) {
 
   result <- BayesTools::JAGS_formula(
     formula      = ~ 1 + random(1 + x | g, name = "g", covariance = "diag"),
@@ -362,7 +363,7 @@ sd_component_allocation_object <- function(draws) {
       BayesTools::random_variance_allocation(
         name = "gc", terms = "g", target = "sd_component",
         scale = "mean_variance",
-        sd = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
+        sd = source_prior,
         weights = BayesTools::prior("dirichlet", list(alpha = c(1, 2)))
       )
     ))

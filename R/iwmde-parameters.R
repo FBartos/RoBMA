@@ -1086,6 +1086,15 @@
   if (nrow(supports) == 0L) {
     return(c(-Inf, Inf))
   }
+  valid <- !is.na(supports[, 1L]) & !is.na(supports[, 2L]) &
+    supports[, 1L] < supports[, 2L]
+  if (!any(valid)) {
+    .iwmde_stop_construction_failure(
+      estimator = "IWMDE", parameter = parameter, rows = rows,
+      stage = "target-support evaluation", detail = "no valid row supports are available"
+    )
+  }
+  supports <- supports[valid, , drop = FALSE]
 
   lower <- min(supports[, 1L], na.rm = TRUE)
   upper <- max(supports[, 2L], na.rm = TRUE)
@@ -1128,12 +1137,23 @@
   }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "random_component_sd")) {
-    return(matrix(
-      c(0, Inf),
-      nrow  = length(rows),
-      ncol  = 2L,
-      byrow = TRUE
-    ))
+    supports <- .iwmde_parameter_row_supports(
+      context, parameter, rows, list(type = "primitive")
+    )
+    multiplier <- .iwmde_random_component_sd_multiplier(
+      context, context[["posterior_samples"]][rows, , drop = FALSE], parameter_spec
+    )
+    if (is.null(.iwmde_parameter_prior_name(context, parameter)) ||
+        anyNA(supports) || any(!is.finite(supports[, 1L])) ||
+        any(supports[, 1L] < 0 | supports[, 1L] >= supports[, 2L]) ||
+        length(multiplier) != length(rows) || any(!is.finite(multiplier) | multiplier <= 0)) {
+      .iwmde_stop_construction_failure(
+        estimator = "IWMDE", parameter = parameter, rows = rows,
+        stage = "target-support evaluation",
+        detail = "allocated SD source bounds and positive multipliers are required"
+      )
+    }
+    return(supports * multiplier)
   }
 
   if (.iwmde_parameter_is_eta(parameter)) {

@@ -5526,4 +5526,3 @@ test_that("genuine covariance shortcuts decline declared mean multipliers with b
     if (!dependent) expect_lt(max(abs(fast[, 1L] - reference)), 1e-12)
   }
 })
-

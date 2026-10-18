@@ -167,14 +167,13 @@
     rows           = weight_rows,
     parameter_spec = parameter_spec
   )
-  # A target whose support varies from row to row (the linear route: it is the
-  # interval along which the other coordinates stay in their own supports) has
+  # Linear and allocated-component targets have row-dependent supports and
   # a proposal for every row, so each row is standardized by its own bounds and
   # the rows are partitioned by which bounds are finite. A fit on the raw values
   # of draw-dependent supports would be a fit on a mixture of supports: no
   # proposal would integrate to one on any row's support. Elsewhere a support is
   # constant within a partition of equal bounds, and is used as it is.
-  standardized <- identical(parameter_spec[["type"]], "linear")
+  standardized <- parameter_spec[["type"]] %in% c("linear", "random_component_sd")
   if (standardized) {
     active_chart <- .iwmde_chen_standardize(active_values, active_supports)
     weight_chart <- .iwmde_chen_standardize(weight_values, weight_supports)

@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Allocated SD working proposals use each active source prior's support multiplied by its declared allocation factor, normalizing fitting and evaluation rows on their own target intervals.
 - Allocated SD targets with a positive point source and stochastic weights retain their continuous prior law and refuse unsupported scalar-source density charts with the KDE remedy.
 - Affine and factor covariance density shortcuts retain the generic candidate evaluator when declared source dependencies change the fixed mean.
 - Allocated component SD densities in predictor-scaled blocks refuse unsupported original-scale targets with standardized-coefficient and KDE remedies, including unchanged centered intercepts.
