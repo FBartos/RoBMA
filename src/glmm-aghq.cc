@@ -262,6 +262,17 @@ double log_one_minus_inv_logit(double x)
 }
 
 
+void logistic_pair(double x, double *p, double *q)
+{
+  const double smaller_odds = std::exp(-std::fabs(x));
+  const double denominator = 1.0 + smaller_odds;
+  const double major = 1.0 / denominator;
+  const double minor = smaller_odds / denominator;
+  *p = x >= 0.0 ? major : minor;
+  *q = x >= 0.0 ? minor : major;
+}
+
+
 double log_add_exp(double x, double y)
 {
   const double maximum = std::max(x, y);
@@ -330,17 +341,22 @@ struct BinomialProblem {
     );
     const double lp = log_inv_logit(logit_pi);
     const double lq = log_one_minus_inv_logit(logit_pi);
-    const double smaller_probability = std::exp(std::min(lp, lq));
-    // Evaluate the density at the smaller probability to retain its tail.
-    // Subnormal probabilities instead retain the original log coordinates.
-    const double log_beta_logit =
-      smaller_probability >= std::numeric_limits<double>::min()
-      ? robma_native::call(
+    double log_beta_logit;
+    if (alpha == 1.0 && beta == 1.0) {
+      // The uniform beta density leaves only the logit Jacobian.
+      log_beta_logit = lp + lq;
+    } else {
+      const double smaller_probability = std::exp(std::min(lp, lq));
+      // Evaluate the density at the smaller probability to retain its tail.
+      // Subnormal probabilities instead retain the original log coordinates.
+      log_beta_logit = smaller_probability >= std::numeric_limits<double>::min()
+        ? robma_native::call(
           &(Rf_dbeta), smaller_probability,
           logit_pi >= 0.0 ? beta : alpha,
           logit_pi >= 0.0 ? alpha : beta, 1
         ) + lp + lq
-      : alpha * lp + beta * lq - log_beta;
+        : alpha * lp + beta * lq - log_beta;
+    }
     const double log_prior =
       -0.5 * theta * theta - 0.5 * LOG_2PI + log_beta_logit;
 
@@ -359,12 +375,10 @@ struct BinomialProblem {
     const double effect = mu + tau * theta;
     const double eta1   = logit_pi + 0.5 * effect;
     const double eta2   = logit_pi - 0.5 * effect;
-    const double p1     = std::exp(log_inv_logit(eta1));
-    const double q1     = std::exp(log_one_minus_inv_logit(eta1));
-    const double p2     = std::exp(log_inv_logit(eta2));
-    const double q2     = std::exp(log_one_minus_inv_logit(eta2));
-    const double pi0    = std::exp(log_inv_logit(logit_pi));
-    const double qi0    = std::exp(log_one_minus_inv_logit(logit_pi));
+    double p1, q1, p2, q2, pi0, qi0;
+    logistic_pair(eta1, &p1, &q1);
+    logistic_pair(eta2, &p2, &q2);
+    logistic_pair(logit_pi, &pi0, &qi0);
     const double r1     = a * q1 - (n1 - a) * p1;
     const double r2     = c * q2 - (n2 - c) * p2;
     const double v1     = n1 * p1 * q1;

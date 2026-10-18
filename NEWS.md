@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Binomial GLMM quadrature uses the exact uniform-beta identity and evaluates
+  derivative probability pairs directly while retaining independent log tails.
 - GLMM regression checks cover active boundary and sharp-count quadrature,
   weighted point and truncated priors, and retained multilevel score coordinates.
 - Conditional binomial and Poisson GLMM likelihoods preserve finite log tails
