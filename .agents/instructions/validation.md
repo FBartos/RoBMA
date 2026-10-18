@@ -19,6 +19,9 @@ The row executor materializes ALTREP views on the main thread after validation
 and transports worker exceptions to the outer boundary. Shared JAGS kernels do
 not include the R API remapping. Changes to this boundary require the focused
 native-unwind tests as well as the relevant numerical checks.
+Serial selection batches and their direct RNG/reduction paths check interrupts
+on the main thread in roughly one-million-work chunks. Large individual grid
+rows also account for work internally; OpenMP workers never enter those checks.
 
 ## Performance investigation
 

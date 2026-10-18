@@ -87,11 +87,19 @@ struct RobmaRowSchedule {
 #define ROBMA_WORK_PER_THREAD 2.0e4
 #define ROBMA_WORK_PER_THREAD_REGION 1.0e6
 
+inline int robma_serial_chunk_rows(int rows, double work_per_row)
+{
+  if (rows <= 0 || !(work_per_row > 0.0)) return rows;
+  const double chunk = std::floor(ROBMA_WORK_PER_THREAD_REGION / work_per_row);
+  return chunk >= static_cast<double>(rows) ? rows :
+    std::max(1, static_cast<int>(chunk));
+}
+
 inline RobmaRowSchedule robma_row_schedule(int rows, double work_per_row)
 {
   RobmaRowSchedule schedule;
   schedule.threads = 1;
-  schedule.chunk_rows = rows;
+  schedule.chunk_rows = robma_serial_chunk_rows(rows, work_per_row);
 #if defined(_OPENMP)
   if (rows < 2 || !(work_per_row > 0.0)) return schedule;
   int requested = robma_native_threads_value().load(std::memory_order_relaxed);
@@ -123,6 +131,25 @@ inline int robma_work_threads(int rows, double work_per_row)
 }
 
 namespace robma_parallel {
+
+// Main-thread bypasses and large individual rows account for their actual
+// work without a protected R call per element. Each row owns its counter;
+// parallel row bodies disable it and never enter the R API.
+class SerialWork {
+ public:
+  explicit SerialWork(bool enabled = true) : enabled_(enabled) {}
+  void add(double work = 1.0) {
+    if (!enabled_) return;
+    remaining_ -= std::max(1.0, work);
+    if (remaining_ <= 0.0) {
+      robma_native::check_interrupt();
+      remaining_ = ROBMA_WORK_PER_THREAD_REGION;
+    }
+  }
+ private:
+  bool enabled_;
+  double remaining_ = ROBMA_WORK_PER_THREAD_REGION;
+};
 
 // Applies 'body(s)' to every row in [0, rows). With more than one thread the
 // rows are split into chunks processed by independent OpenMP workers; 'body'
@@ -184,13 +211,19 @@ void for_rows(int rows, int threads, Body &&body)
 }
 
 // Runs 'body(s)' over the rows with the thread count and region size the
-// schedule chose. One thread keeps the plain serial loop, so a serial batch
-// gains neither an interrupt check per row nor a changed access order.
+// schedule chose. Serial chunks use the same work budget independently of
+// OpenMP availability and preserve the original row access order.
 template <typename Body>
 void for_rows(int rows, const RobmaRowSchedule &schedule, Body &&body)
 {
   if (schedule.threads <= 1) {
-    for (int s = 0; s < rows; ++s) body(s);
+    const int step = std::max(1, schedule.chunk_rows);
+    for (int start = 0; start < rows;) {
+      robma_native::check_interrupt();
+      const int end = start + std::min(step, rows - start);
+      for (int s = start; s < end; ++s) body(s);
+      start = end;
+    }
     return;
   }
   for_rows(rows, schedule.threads, schedule.chunk_rows, std::forward<Body>(body));

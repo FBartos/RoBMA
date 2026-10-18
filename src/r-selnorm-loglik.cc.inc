@@ -111,15 +111,22 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
   // carried: the logarithm of the same scale, and the row sums that
   // .iwmde_predictor_candidates() tested with rowSums(), accumulated over the
   // same observations in the same order and in the same long double.
+  robma_parallel::SerialWork preparation;
   const bool has_log_tau = log_tau_p != 0;
   std::vector<double> log_base;
   if (has_log_tau) {
     if (scale_tau) {
       log_base.resize(static_cast<std::size_t>(G));
-      for (int g = 0; g < G; ++g) log_base[g] = std::log(values_p[g]);
+      for (int g = 0; g < G; ++g) {
+        log_base[g] = std::log(values_p[g]);
+        preparation.add();
+      }
     } else {
       log_base.resize(static_cast<std::size_t>(S) * K);
-      for (std::size_t i = 0; i < log_base.size(); ++i) log_base[i] = std::log(tau_p[i]);
+      for (std::size_t i = 0; i < log_base.size(); ++i) {
+        log_base[i] = std::log(tau_p[i]);
+        preparation.add();
+      }
     }
   }
   std::vector<double> mu_row;
@@ -127,7 +134,10 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
     mu_row.resize(static_cast<std::size_t>(S));
     for (int s = 0; s < S; ++s) {
       long double sum = 0.0L;
-      for (int k = 0; k < K; ++k) sum += static_cast<long double>(mu_p[s + S * k]);
+      for (int k = 0; k < K; ++k) {
+        sum += static_cast<long double>(mu_p[s + S * k]);
+        preparation.add();
+      }
       mu_row[static_cast<std::size_t>(s)] = static_cast<double>(sum);
     }
   }
@@ -141,6 +151,7 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
       long double sum = 0.0L;
       bool ok = true;
       for (int k = 0; k < K; ++k) {
+        preparation.add();
         const double scale = scale_tau ? values_p[i] : tau_p[i + S * k];
         if (!std::isfinite(scale) || scale < 0.0) ok = false;
         sum += static_cast<long double>(scale);
@@ -152,11 +163,15 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
 
   // Posterior rows are independent: row s reads call-common inputs and its own
   // slice, and writes only its own G output slots.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(G) * K);
   const auto compute_row = [&](int s) {
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     const double current_value = current_p[s];
     const std::size_t row = static_cast<std::size_t>(s);
     const bool fixed_mu = mu_basis_p == 0;
     for (int g = 0; g < G; ++g) {
+      row_work.add();
       const R_xlen_t cell = static_cast<R_xlen_t>(s) * G + g;
       const double value = values_p[g];
       const double delta = value - current_value;
@@ -179,6 +194,7 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
       bool tau_ok = true;
       double row_sum = 0.0;
       for (int k = 0; k < K; ++k) {
+        row_work.add();
         const int slot = s + S * k;
         const double location = fixed_mu ? mu_p[slot] :
           mu_p[slot] + mu_basis_p[slot] * delta;
@@ -216,13 +232,7 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
   };
 
   // One density evaluation per grid value and observation.
-  const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(G) * K);
-  if (schedule.threads == 1) {
-    for (int s = 0; s < S; ++s) compute_row(s);
-  } else {
-    robma_parallel::for_rows(S, schedule, compute_row);
-  }
+  robma_parallel::for_rows(S, schedule, compute_row);
 
   UNPROTECT(4);
   return out;
@@ -261,9 +271,11 @@ extern "C" SEXP RoBMA_norm_loglik_row_sum(
   const double *weights_p = weights == R_NilValue ? 0 : REAL(weights);
   double *out_p          = REAL(out);
 
+  robma_parallel::SerialWork work;
   for (int s = 0; s < S; ++s) {
     double row_sum = 0.0;
     for (int k = 0; k < K; ++k) {
+      work.add();
       const int cell = s + S * k;
       const double sd = std::hypot(tau_p[cell], sei_p[k]);
       const double weight = weights_p == 0 ? 1.0 : weights_p[k];

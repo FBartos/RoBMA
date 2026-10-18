@@ -14,7 +14,9 @@ struct SelNormKernelRowArgs {
       phack_kind(static_cast<std::size_t>(S)),
       kernel_mode(static_cast<std::size_t>(S))
   {
+    robma_parallel::SerialWork work;
     for (int s = 0; s < S; ++s) {
+      work.add();
       alpha[static_cast<std::size_t>(s)]       = args.alpha_at(s);
       phack_kind[static_cast<std::size_t>(s)]  = args.phack_kind_at(s);
       kernel_mode[static_cast<std::size_t>(s)] = args.kernel_mode_at(s);
@@ -79,9 +81,13 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
   // slice of the inputs, and writes only its own G output slots. The per-row
   // arithmetic and its order are the ones the serial loop uses, so the result
   // is identical at any thread count.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(G) * K * selnorm.B);
   const auto compute_row = [&](int s) {
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     const std::size_t row = static_cast<std::size_t>(s);
     for (int g = 0; g < G; ++g) {
+      row_work.add();
       const double delta = values_p[g] - current_p[s];
       double row_sum = 0;
 
@@ -91,6 +97,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
       }
 
       for (int k = 0; k < K; ++k) {
+        row_work.add(selnorm.B);
         const int cell = s + S * k;
         const double candidate_log_norm = cpp_selnorm_kernel_log_norm(
           mean_p[cell] + basis_p[cell] * delta,
@@ -113,13 +120,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_delta_grid(
   };
 
   // One log-normalizer evaluation per grid value, observation and bin.
-  const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(G) * K * selnorm.B);
-  if (schedule.threads == 1) {
-    for (int s = 0; s < S; ++s) compute_row(s);
-  } else {
-    robma_parallel::for_rows(S, schedule, compute_row);
-  }
+  robma_parallel::for_rows(S, schedule, compute_row);
 
   UNPROTECT(1);
   return out;
@@ -202,8 +203,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_matrix(
   const RobmaRowSchedule schedule = robma_row_schedule(
     S, static_cast<double>(K) * selnorm.B);
   if (schedule.threads == 1) {
+    robma_parallel::SerialWork work;
     for (int k = 0; k < K; ++k) {
-      for (int s = 0; s < S; ++s) compute_cell(s, k);
+      for (int s = 0; s < S; ++s) {
+        compute_cell(s, k);
+        work.add(selnorm.B);
+      }
     }
   } else {
     robma_parallel::for_rows(S, schedule, [&](int s) {
@@ -266,10 +271,14 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
   const SelNormKernelRowArgs row_args(selnorm, S);
   // The row sum keeps its serial accumulation order; only whole rows are
   // distributed, and each row writes one output slot of its own.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
   const auto compute_row = [&](int s) {
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     const std::size_t row = static_cast<std::size_t>(s);
     double row_sum = 0.0;
     for (int k = 0; k < K; ++k) {
+      row_work.add(selnorm.B);
       const int cell = s + S * k;
       row_sum += cpp_selnorm_kernel_lpdf(
         yi_p[k],
@@ -292,13 +301,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_loglik_row_sum(
     out_p[s] = row_sum;
   };
 
-  const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(K) * selnorm.B);
-  if (schedule.threads == 1) {
-    for (int s = 0; s < S; ++s) compute_row(s);
-  } else {
-    robma_parallel::for_rows(S, schedule, compute_row);
-  }
+  robma_parallel::for_rows(S, schedule, compute_row);
 
   UNPROTECT(1);
   return out;
@@ -359,8 +362,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_log_norm_matrix(
   const RobmaRowSchedule schedule = robma_row_schedule(
     S, static_cast<double>(K) * selnorm.B);
   if (schedule.threads == 1) {
+    robma_parallel::SerialWork work;
     for (int k = 0; k < K; ++k) {
-      for (int s = 0; s < S; ++s) compute_cell(s, k);
+      for (int s = 0; s < S; ++s) {
+        compute_cell(s, k);
+        work.add(selnorm.B);
+      }
     }
   } else {
     robma_parallel::for_rows(S, schedule, [&](int s) {
@@ -440,8 +447,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
   const RobmaRowSchedule schedule = robma_row_schedule(
     S, static_cast<double>(K) * selnorm.B);
   if (schedule.threads == 1) {
+    robma_parallel::SerialWork work;
     for (int k = 0; k < K; ++k) {
-      for (int s = 0; s < S; ++s) compute_cell(s, k);
+      for (int s = 0; s < S; ++s) {
+        compute_cell(s, k);
+        work.add(selnorm.B);
+      }
     }
   } else {
     robma_parallel::for_rows(S, schedule, [&](int s) {
@@ -525,8 +536,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
   const RobmaRowSchedule schedule = robma_row_schedule(
     S, static_cast<double>(K) * selnorm.B);
   if (schedule.threads == 1) {
+    robma_parallel::SerialWork work;
     for (int k = 0; k < K; ++k) {
-      for (int s = 0; s < S; ++s) compute_cell(s, k);
+      for (int s = 0; s < S; ++s) {
+        compute_cell(s, k);
+        work.add(selnorm.B);
+      }
     }
   } else {
     robma_parallel::for_rows(S, schedule, [&](int s) {
@@ -574,6 +589,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
 
   // Serial: the draws consume R's random number stream in a fixed order, so
   // distributing rows would change the values and touch the R API in workers.
+  robma_parallel::SerialWork work;
   GetRNGstate();
   for (int k = 0; k < K; ++k) {
     for (int s = 0; s < S; ++s) {
@@ -594,6 +610,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
         S,
         false
       );
+      work.add(selnorm.B);
     }
   }
   PutRNGstate();
@@ -668,6 +685,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   // Serial: this batch reduces over posterior rows into one summary per
   // observation, its row body raises R errors on invalid weights and moments,
   // and the moment work buffers are shared across rows.
+  robma_parallel::SerialWork work;
   for (int k = 0; k < K; ++k) {
     double log_lower_sum = -INFINITY;
     double log_upper_sum = -INFINITY;
@@ -675,6 +693,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     long double mean_sum = 0;
 
     for (int s = 0; s < S; ++s) {
+      work.add(selnorm.B);
       const int cell = s + S * k;
       const double w = weights_p[cell];
       if (!std::isfinite(w) || w < 0) {
@@ -750,6 +769,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     const long double mixture_mean = mean_sum / weight_sum;
     long double variance_sum = 0;
     for (int s = 0; s < S; ++s) {
+      work.add(selnorm.B);
       const int cell = s + S * k;
       if (weights_p[cell] == 0) {
         continue;

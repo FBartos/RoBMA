@@ -24,10 +24,12 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
   const double *sei_p  = REAL(sei);
   double *out_p        = REAL(out);
 
+  robma_parallel::SerialWork preparation;
   std::vector<double> log_scale(static_cast<size_t>(S) * static_cast<size_t>(K));
   for (int k = 0; k < K; ++k) {
     const double log_sei = std::log(sei_p[k]);
     for (int s = 0; s < S; ++s) {
+      preparation.add();
       const int cell = s + S * k;
       log_scale[static_cast<size_t>(cell)] =
         log_sei - std::log(sd_p[cell]);
@@ -36,10 +38,15 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
 
   // Posterior rows are independent: each keeps the serial per-grid-point and
   // per-estimate accumulation order and writes only its own output slots.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(L) * K);
   const auto compute_row = [&](int s) {
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     for (int ell = 0; ell < L; ++ell) {
+      row_work.add();
       double dens_sum = 0;
       for (int k = 0; k < K; ++k) {
+        row_work.add(1.0);
         const int cell = s + S * k;
         dens_sum += cpp_selnorm_affine_normal_pdf_log_scale(
           z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
@@ -51,13 +58,7 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
   };
 
   // One normal density evaluation per grid point and observation.
-  const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(L) * K);
-  if (schedule.threads == 1) {
-    for (int s = 0; s < S; ++s) compute_row(s);
-  } else {
-    robma_parallel::for_rows(S, schedule, compute_row);
-  }
+  robma_parallel::for_rows(S, schedule, compute_row);
 
   UNPROTECT(1);
   return out;
@@ -170,6 +171,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
 
   validate_omega_matrix(omega_p, S, B);
 
+  robma_parallel::SerialWork preparation;
   std::vector<double> row_alpha(S);
   std::vector<int> row_phack(S);
   std::vector<int> row_mode(S);
@@ -177,6 +179,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   std::vector<bool> row_use_step(S);
 
   for (int s = 0; s < S; ++s) {
+    preparation.add();
     row_alpha[static_cast<size_t>(s)] = scalar_or_row_real(
       alpha_p, Rf_length(alpha), s, "alpha"
     );
@@ -199,11 +202,15 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   // Rows are independent and every input length was validated above, so each
   // row keeps its serial accumulation order and writes only its own EDR and
   // weight slot.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * B);
   const auto compute_row = [&](int s) {
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     double threshold_sum = 0;
     double weight_sum = 0;
 
     for (int k = 0; k < K; ++k) {
+      row_work.add(static_cast<double>(B));
       const int cell = s + S * k;
       double inverse_weight = 1;
       double threshold_prob;
@@ -272,13 +279,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   };
 
   // One threshold or log-normalizer evaluation per observation and bin.
-  const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(K) * B);
-  if (schedule.threads == 1) {
-    for (int s = 0; s < S; ++s) compute_row(s);
-  } else {
-    robma_parallel::for_rows(S, schedule, compute_row);
-  }
+  robma_parallel::for_rows(S, schedule, compute_row);
 
   UNPROTECT(4);
   return out;
@@ -622,6 +623,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
   validate_omega_matrix(omega_p, S, B);
 
+  robma_parallel::SerialWork preparation;
   std::vector<double> row_alpha(S);
   std::vector<int> row_phack(S);
   std::vector<int> row_mode(S);
@@ -630,6 +632,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   bool any_step = false;
 
   for (int s = 0; s < S; ++s) {
+    preparation.add();
     row_alpha[static_cast<size_t>(s)] = scalar_or_row_real(
       alpha_p, Rf_length(alpha), s, "alpha"
     );
@@ -659,6 +662,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   for (int k = 0; k < K; ++k) {
     const double log_sei = std::log(sei_p[k]);
     for (int s = 0; s < S; ++s) {
+      preparation.add(B);
       const int cell = s + S * k;
       if (latent_mixture) {
         if (!(sd_p[cell] > 0) || !std::isfinite(sd_p[cell]) ||
@@ -710,6 +714,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   // per-row integration errors through the R API, and shares its node, curve
   // and interpolation buffers across rows.
   if (latent_mixture) {
+    robma_parallel::SerialWork work;
     SelNormNormalProjectionWorkspace projection(z_p, L);
     std::vector<double> row_weights(B), node_means(n_nodes), log_coefficients(n_nodes);
     std::vector<long double> normalizers(n_nodes);
@@ -760,6 +765,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     if (interpolate) {
       double lower = z_p[0], upper = z_p[0];
       for (int ell = 0; ell < L; ++ell) {
+        work.add();
         if (!std::isfinite(z_p[ell])) { interpolate = false; break; }
         lower = std::min(lower, z_p[ell]); upper = std::max(upper, z_p[ell]);
       }
@@ -778,6 +784,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     const SelNormRuleWeights quadrature_weights =
       selnorm_rule_weights(log_weights_p, n_nodes);
     for (int s = 0; s < S; ++s) {
+      work.add();
       std::fill(density.begin(), density.end(), 0.0L);
       std::fill(interpolation_error.begin(), interpolation_error.end(), 0.0L);
       std::fill(noninterpolated.begin(), noninterpolated.end(), 0.0L);
@@ -792,6 +799,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         // grid peak and therefore only tighten the interpolation allocation.
         long double highest = -1.0L, anchor = 0.0L, total_weight = 0.0L, weighted_mean = 0.0L;
         for (int k = 0; k < K; ++k) {
+          work.add();
           const int cell = s + S * k;
           const long double weight = static_cast<long double>(sei_p[k]) / total_sd[cell];
           if (weight > highest) {
@@ -806,6 +814,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
           int selected = 0;
           long double distance = std::fabs(static_cast<long double>(z_p[0]) - location);
           for (int ell = 1; ell < L; ++ell) {
+            work.add();
             const long double candidate = std::fabs(static_cast<long double>(z_p[ell]) - location);
             if (candidate < distance) { selected = ell; distance = candidate; }
           }
@@ -814,6 +823,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         const auto evaluate_reference = [&](int ell) {
           long double value = 0.0L;
           for (int k = 0; k < K; ++k) {
+            work.add();
             const int cell = s + S * k;
             value += std::exp(static_cast<long double>(cpp_selnorm_affine_normal_lpdf_log_scale(
               z_p[ell], sei_p[k], mean_p[cell], total_sd[cell], log_scale[cell])));
@@ -846,6 +856,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         Rf_error("Latent z densities are unavailable for active p-hacking kernels.");
       }
       for (int k = 0; k < K; ++k) {
+        work.add();
         const int cell = s + S * k;
         bool cell_resolved = true;
         // One implementation serves original grid evaluation and Cheb nodes.
@@ -860,9 +871,11 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
               1, 1, sei_p + k, row_weights.data(), data);
           }
           for (int j = 0; j < count; ++j) {
+            work.add(B);
             node_means[j] = selnorm_fma(conditional_sd[cell], rule_nodes[j], location);
             normalizers[j] = 1.0L;
           }
+          work.add(static_cast<double>(count) * B);
           const bool ordinary = cpp_selnorm_step_normalizer_product(
             node_means.data(), count, sd_p[cell], sei_p[k], row_weights.data(),
             data, normalizers.data());
@@ -877,6 +890,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
           }
           double value_log = -std::numeric_limits<double>::infinity();
           for (int j = 0; j < count; ++j) {
+            work.add(B);
             const double normalizer = cpp_selnorm_step_log_norm(node_means[j],
               sd_p[cell], sei_p[k], row_weights.data(), data, 1, false);
             if (!std::isfinite(normalizer)) {
@@ -927,6 +941,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             const bool gaussian_projected = valid && projection.density(mean_p + cell, 1,
               total_sd[cell], sei_p[k], &unit_log_coefficient, cell_gaussian.data());
             for (int ell = 0; ell < L && valid; ++ell) {
+              work.add();
               const long double gaussian = gaussian_projected ? cell_gaussian[ell] :
                 std::exp(static_cast<long double>(cpp_selnorm_affine_normal_lpdf_log_scale(
                   z_p[ell], sei_p[k], mean_p[cell], total_sd[cell], log_scale[cell])));
@@ -955,6 +970,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             }
             if (valid) {
               for (int ell = 0; ell < L; ++ell) {
+                work.add();
                 density[ell] += cell_density[ell];
                 interpolation_error[ell] += cell_error[ell];
               }
@@ -973,23 +989,29 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
                 mean_p + cell, sd_p + cell, latent_p + cell, 1, 1, sei_p + k, row_weights.data(), data);
             }
             for (int j = 0; j < count; ++j) {
+              work.add(B);
               node_means[j] = selnorm_fma(latent_p[cell], rule_nodes[j], mean_p[cell]);
               normalizers[j] = 1.0L;
             }
+            work.add(static_cast<double>(count) * B);
             const bool ordinary = cpp_selnorm_step_normalizer_product(node_means.data(),
               count, sd_p[cell], sei_p[k], row_weights.data(), data, normalizers.data());
             for (int j = 0; j < count; ++j) {
+              work.add(B);
               const double normalizer = ordinary ? static_cast<double>(std::log(normalizers[j])) :
                 cpp_selnorm_step_log_norm(node_means[j], sd_p[cell], sei_p[k], row_weights.data(), data, 1, false);
               if (!std::isfinite(normalizer)) Rf_error("The retained-context selection normalizer is unavailable.");
               log_coefficients[j] = rule_logs[j] - normalizer;
             }
+            work.add(static_cast<double>(L) * count);
             if (projection.density(node_means.data(), count, sd_p[cell], sei_p[k],
                 log_coefficients.data(), curve.data())) return;
             const double scale = std::log(sei_p[k]) - std::log(sd_p[cell]);
             for (int ell = 0; ell < L; ++ell) {
+              work.add();
               double value = -std::numeric_limits<double>::infinity();
               for (int j = 0; j < count; ++j) {
+                work.add(B);
                 value = logspace_add(value, log_coefficients[j] +
                   cpp_selnorm_affine_normal_lpdf_log_scale(z_p[ell], sei_p[k], node_means[j], sd_p[cell], scale));
               }
@@ -1001,6 +1023,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             forward_curve(coarse_nodes, coarse_logs, coarse_count, cell_coarse);
           }
           for (int ell = 0; ell < L; ++ell) {
+            work.add();
             density[ell] += cell_density[ell];
             if (requested) {
               noninterpolated[ell] += cell_density[ell];
@@ -1012,6 +1035,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         }
 
         for (int ell = 0; ell < L; ++ell) {
+          work.add();
           const double gaussian = cpp_selnorm_affine_normal_lpdf_log_scale(
             z_p[ell], sei_p[k], mean_p[cell], total_sd[cell], log_scale[cell]);
           double fine_inverse = selected ? -log_norm[cell] : 0;
@@ -1036,6 +1060,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         row_resolved = row_resolved && cell_resolved;
       }
       for (int ell = 0; ell < L; ++ell) {
+        work.add();
         const double weight = selected && (!extrapolate_b || paired) ?
           row_weights[z_bin[static_cast<size_t>(ell)] - 1] : 1.0;
         const long double value = density[ell] / K;
@@ -1106,8 +1131,12 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   // (row, grid point) cell, with every input already validated and the row
   // normalizers already built. Visiting the cells row-first leaves the
   // arithmetic and its order unchanged and gives each row its own output slots.
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(L) * K);
   const auto compute_row = [&](int s) {
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     for (int ell = 0; ell < L; ++ell) {
+      row_work.add();
       if (row_active_phack[static_cast<size_t>(s)]) {
         const double missing = std::numeric_limits<double>::quiet_NaN();
         if (paired) {
@@ -1130,6 +1159,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
           const double log_observed_weight = positive_weight ? std::log(w) : 0;
 
           for (int k = 0; k < K; ++k) {
+            row_work.add(1.0);
             const int cell = s + S * k;
             double log_density = cpp_selnorm_affine_normal_lpdf_log_scale(
               z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
@@ -1143,6 +1173,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
           }
         } else {
           for (int k = 0; k < K; ++k) {
+            row_work.add(1.0);
             const int cell = s + S * k;
             fitted_sum += cpp_selnorm_affine_normal_pdf_log_scale(
               z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
@@ -1172,6 +1203,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         }
 
         for (int k = 0; k < K; ++k) {
+          row_work.add(1.0);
           const int cell = s + S * k;
           double log_density = cpp_selnorm_affine_normal_lpdf_log_scale(
             z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
@@ -1187,6 +1219,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         }
       } else {
         for (int k = 0; k < K; ++k) {
+          row_work.add(1.0);
           const int cell = s + S * k;
           dens_sum += cpp_selnorm_affine_normal_pdf_log_scale(
             z_p[ell], sei_p[k], mean_p[cell], sd_p[cell],
@@ -1201,13 +1234,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
   // One density evaluation per grid point and observation; the retained-context
   // branch stays serial above, so only this region's work is scheduled here.
-  const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(L) * K);
-  if (schedule.threads == 1) {
-    for (int s = 0; s < S; ++s) compute_row(s);
-  } else {
-    robma_parallel::for_rows(S, schedule, compute_row);
-  }
+  robma_parallel::for_rows(S, schedule, compute_row);
 
   UNPROTECT(n_protect);
   return out;

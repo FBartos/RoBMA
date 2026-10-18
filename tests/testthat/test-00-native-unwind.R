@@ -147,6 +147,42 @@ test_that("native interrupt checks unwind without leaving live workspaces", {
   expect_identical(after[[2L]] - before[[2L]], 2L)
 })
 
+test_that("serial predictor grids interrupt during real batch and single-row work", {
+
+  skip_on_cran()
+  previous <- RoBMA.get_option("native_threads")
+  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
+  on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE), add = TRUE)
+  RoBMA.options(native_threads = 1L)
+  for (shape in list(c(S = 2000L, K = 100L, G = 500L),
+                    c(S = 1L, K = 100L, G = 500000L))) {
+    S <- shape[["S"]]
+    K <- shape[["K"]]
+    G <- shape[["G"]]
+    args <- list(rep(.1, K), rep(.3, K), NULL, matrix(.1, S, K),
+      matrix(1, S, K), matrix(.2, S, K), NULL, rep(.1, S),
+      seq(-.5, .5, length.out = G), FALSE, FALSE)
+    before <- .native_unwind_probe("counts")
+    completed <- FALSE
+    caught <- tryCatch(.native_unwind_probe("callback", function() {
+      setTimeLimit(elapsed = .02, transient = TRUE)
+      do.call(.Call, c(list("RoBMA_norm_predictor_grid_loglik"), args,
+        list(PACKAGE = "RoBMA")))
+      completed <<- TRUE
+      setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE)
+    }), error = identity)
+    setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE)
+    expect_s3_class(caught, "error")
+    expect_match(conditionMessage(caught), "reached elapsed time limit", fixed = TRUE)
+    expect_false(completed)
+    expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+    after <- .native_unwind_probe("counts")
+    expect_identical(after[[1L]], 0L)
+    expect_identical(after[[2L]] - before[[2L]], 2L)
+    expect_identical(.native_unwind_probe("normal"), 42L)
+  }
+})
+
 test_that("worker failures return to the main boundary without R API calls", {
 
   for (threads in 1:2) {
