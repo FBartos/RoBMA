@@ -2356,6 +2356,11 @@ set_selection_likelihood_control <- function(
     if (.marginalized_random_effect_has_row_multiplier(term)) {
       return(TRUE)
     }
+    # The scalar evaluator does not carry a known group kernel's diagonal.
+    # Its compiled factor state owns that scaling, including Rscale = 'none'.
+    if (.random_effect_term_has_known_group_covariance(term)) {
+      return(FALSE)
+    }
     model_matrix <- term[["model_matrix"]]
     is.matrix(model_matrix) && ncol(model_matrix) == 1L &&
       nrow(model_matrix) == setup[["K"]] && all(is.finite(model_matrix)) &&
