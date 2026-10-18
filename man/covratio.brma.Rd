@@ -47,7 +47,10 @@ For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
 correlated known-\code{V} data, this is influence under conditional estimate
 deletion, not independent-study deletion.
 Parameters with zero posterior variance are excluded from the covariance
-determinant and reported in a printed note when available. If no estimable
+determinant and reported in a printed note when available. Ordered terms
+retain their fitted totals and omit one share per metadata-declared Dirichlet
+simplex. Aliases of a shared allocation source contribute its independent
+coordinates only once. If no estimable
 parameters remain, or if a full or LOO covariance determinant is zero or
 non-finite after exclusion, COVRATIO is undefined and values are reported as
 \code{NaN}.

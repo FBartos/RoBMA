@@ -70,6 +70,9 @@ summaries. For correlated known-\code{V} models, marginal residuals use the
 GLS residual covariance and estimate-depth residuals use the BLUP-style
 sampling residual projection. For a correctly specified model, these
 residuals should approximately follow a standard normal distribution.
+A design-exactly fitted row is set to zero only when its covariance
+multiplier has no other partners; fully saturated designs remain exactly
+zero under correlated covariance as well.
 
 For ensembles whose members differ in their PET and PEESE terms, each draw
 uses the design of its member, as described in \code{\link{hatvalues.brma}}.
@@ -90,6 +93,8 @@ posterior draw used) is unavailable: the call stops with an error of class
 \code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
 The condition carries the draw positions (\code{rows}) and their
 \code{reciprocal_condition}.
+These positions refer to the current request after deterministic thinning,
+including estimate-depth requests.
 }
 \examples{
 \dontrun{
