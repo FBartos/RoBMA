@@ -1541,6 +1541,7 @@
   h <- numerator / denominator
   scaled_loading <- loading / scale
   if (any(!is.finite(numerator)) || any(!is.finite(h)) ||
+      any(numerator != 0 & h == 0) ||
       any(loading != 0 & scaled_loading == 0) ||
       any(whitened_loading != 0 & unit_loading == 0)) {
     stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)

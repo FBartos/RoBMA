@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Multilevel conditional reconstruction reports numerical unavailability when
+  division erases a nonzero sufficient statistic before rescaling.
 - Weighted Gaussian selection predictions reconstruct fitted integrated truth
   with a documented normalized powered Gaussian conditional and prediction-only
   provenance, while response replication retains its raw sampling variance.
