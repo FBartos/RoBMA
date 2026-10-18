@@ -232,7 +232,7 @@ plot_pet_peese.brma  <- function(
     parameter_mods  = NULL,
     parameter_scale = NULL,
     object          = x
-  )
+  )[["parameter"]]
   samples <- BayesTools::as_mixed_posteriors(
     model      = x[["fit"]],
     parameters = .as_mixed_posteriors_parameters(

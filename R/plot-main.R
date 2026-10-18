@@ -324,14 +324,14 @@ lines.brma <- function(
   }
 
   ### select and validate the parameter to be plotted
-  parameter <- .check_and_select_plot_parameter(
+  parameter_entry <- .check_and_select_plot_parameter(
     parameter        = parameter,
     parameter_mods   = parameter_mods,
     parameter_scale  = parameter_scale,
     component        = component,
     object           = x
   )
-  parameter_entry <- .brma_parameter_select_entry(x, parameter, allow_factor_cells = TRUE)
+  parameter <- parameter_entry[["parameter"]]
   plot_transform  <- .plot_output_setup(
     object          = x,
     parameter       = parameter,

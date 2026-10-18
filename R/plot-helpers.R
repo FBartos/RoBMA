@@ -1,6 +1,7 @@
 .check_and_select_plot_parameter <- function(parameter, parameter_mods,
                                              parameter_scale, object,
-                                             component = "auto") {
+                                             component = "auto",
+                                             allow_factor_cells = TRUE) {
 
   component           <- .parameter_component_normalize(component)
   has_parameter       <- !missing(parameter)       && !is.null(parameter)
@@ -14,36 +15,40 @@
 
   if (has_parameter_mods) {
     .parameter_component_check_compatible(component, "mods", "parameter_mods")
-    return(.brma_parameter_select(
+    return(.brma_parameter_select_entry(
       object    = object,
       parameter = parameter_mods,
       component = "mods",
       argument  = "parameter_mods",
-      allow_factor_cells = TRUE
+      allow_factor_cells = allow_factor_cells
     ))
   }
 
   if (has_parameter_scale) {
     .parameter_component_check_compatible(component, "scale", "parameter_scale")
-    return(.brma_parameter_select(
+    return(.brma_parameter_select_entry(
       object    = object,
       parameter = parameter_scale,
       component = "scale",
       argument  = "parameter_scale",
-      allow_factor_cells = TRUE
+      allow_factor_cells = allow_factor_cells
     ))
   }
 
   if (!has_parameter) {
+    if (identical(component, "auto") &&
+        (.is_mods(object) || .is_random(object))) {
+      component <- "mods"
+    }
     parameter <- .brma_parameter_default(component, object)
   }
 
-  return(.brma_parameter_select(
+  return(.brma_parameter_select_entry(
     object    = object,
     parameter = parameter,
     component = component,
     argument  = "parameter",
-    allow_factor_cells = TRUE
+    allow_factor_cells = allow_factor_cells
   ))
 }
 

@@ -54,14 +54,15 @@ plot_diagnostic.brma <- function(
   BayesTools::check_char(type, "type", allow_values = c("autocorrelation", "trace", "density"))
 
   ### select and validate the parameter to be plotted
-  parameter <- .check_and_select_plot_parameter(
+  parameter_entry <- .check_and_select_plot_parameter(
     parameter        = parameter,
     parameter_mods   = parameter_mods,
     parameter_scale  = parameter_scale,
     component        = component,
-    object           = x
+    object           = x,
+    allow_factor_cells = FALSE
   )
-  parameter_entry <- .brma_parameter_select_entry(x, parameter)
+  parameter       <- parameter_entry[["parameter"]]
   is_random       <- identical(parameter_entry[["component"]], "random")
 
   # a message with info about multiple plots

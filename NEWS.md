@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Default posterior and diagnostic plots retain the selected location component
+  when location and scale formulas share parameter aliases.
 - Unfitted formula prior selectors recognize the same effect and heterogeneity
   intercept aliases as fitted objects.
 - Prior inspection includes stored GLMM baseline and latent-effect priors,

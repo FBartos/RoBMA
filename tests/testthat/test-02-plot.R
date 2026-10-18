@@ -303,6 +303,23 @@ test_that("plot.brma component disambiguates shared location-scale terms", {
   expect_equal(captured[["parameter"]], "mu_Preregistered")
 })
 
+test_that("default location-scale plots and diagnostics retain the selected quantity", {
+
+  skip_if_missing_fits("bangertdrowns2004_location-scale")
+  fit <- fits[["bangertdrowns2004_location-scale"]]
+  default <- plot(fit, plot_type = "ggplot")
+  explicit <- plot(fit, component = "mods", plot_type = "ggplot")
+  expect_equal(ggplot2::ggplot_build(default)$data,
+    ggplot2::ggplot_build(explicit)$data)
+  trace <- plot_diagnostic(fit, type = "trace", plot_type = "ggplot")
+  explicit_trace <- plot_diagnostic(fit, component = "mods",
+    type = "trace", plot_type = "ggplot")
+  expect_equal(ggplot2::ggplot_build(trace)$data,
+    ggplot2::ggplot_build(explicit_trace)$data)
+  expect_error(lines(fit, parameter = "intercept", plot_type = "ggplot"),
+    class = "BayesTools_parameter_ambiguous")
+})
+
 
 test_that("lines.brma forwards posterior overlays", {
 

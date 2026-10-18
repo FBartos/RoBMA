@@ -421,6 +421,10 @@ test_that("indexed factor plots retain semantic cells without cached fits", {
     for (level in c("a", "b")) {
       selector <- paste0("group[", level, "]")
       entry <- .brma_parameter_select_entry(object, selector, allow_factor_cells = TRUE)
+      expect_error(plot_diagnostic(object, parameter = selector,
+        component = "mods", type = "trace", plot_type = "ggplot"),
+        "Individual factor-cell selection is unavailable for this method.",
+        fixed = TRUE)
       key <- entry$selection$quantities$extraction_key[[1L]]
       # Treatment a is structural zero and b has weight +1. Two-level
       # orthonormal cells have weights +/-1/sqrt(2); metadata owns which
