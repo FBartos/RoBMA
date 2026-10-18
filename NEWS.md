@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Forest rendering requires metafor 5.0-1 or newer for predictive-distribution
+  support; data-only forest preparation remains independent of metafor.
 - Multi-component PET/PEESE prior curves retain the bias-only location and
   declared model probabilities, including the no-bias atom.
 - Spike-and-slab prior plots preserve the declared inclusion probability and

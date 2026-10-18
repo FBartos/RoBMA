@@ -94,6 +94,20 @@ test_that("forest rendering preserves prediction labels unless overridden", {
 })
 
 
+test_that("forest rendering reports the required metafor version before drawing", {
+
+  skip_if_not_installed("metafor")
+  testthat::local_mocked_bindings(
+    packageVersion = function(pkg, ...) package_version("4.8-0"),
+    .package = "utils")
+  error <- tryCatch(.forest_require_metafor(), error = function(e) e)
+  expect_identical(conditionMessage(error), paste0(
+    "Forest plots are unavailable with package 'metafor' version 4.8.0; ",
+    "version 5.0-1 or newer is required. ",
+    "Install it with install.packages(\"metafor\")."))
+  expect_null(conditionCall(error))
+})
+
 test_that("forest predictive distributions retain actual draw geometry", {
 
   draws <- matrix(c(-4, -2, -1, -.5, 0, .2, .4, 2, 5), ncol = 1L)

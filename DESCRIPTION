@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.1.0.332
+Version: 4.1.0.333
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -57,7 +57,7 @@ Imports:
     coda,
     ggplot2
 Suggests:
-    metafor,
+    metafor (>= 5.0-1),
     posterior,
     weightr,
     lme4,

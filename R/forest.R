@@ -452,6 +452,16 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
     )
   }
 
+  version <- utils::packageVersion("metafor")
+  if (version < "5.0-1") {
+    stop(
+      "Forest plots are unavailable with package 'metafor' version ",
+      as.character(version), "; version 5.0-1 or newer is required. ",
+      "Install it with install.packages(\"metafor\").",
+      call. = FALSE
+    )
+  }
+
   return(invisible(TRUE))
 }
 
