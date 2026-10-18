@@ -1796,6 +1796,38 @@ set_selection_likelihood_control <- function(
 }
 
 
+.selection_dependency_union <- function(K) {
+
+  parent <- seq_len(K)
+  size <- rep.int(1L, K)
+  root <- function(row) {
+    while (parent[[row]] != row) {
+      parent[[row]] <<- parent[[parent[[row]]]]
+      row <- parent[[row]]
+    }
+    row
+  }
+  join <- function(rows) {
+    if (length(rows) < 2L) return(invisible(NULL))
+    first <- root(rows[[1L]])
+    for (row in rows[-1L]) {
+      other <- root(row)
+      if (first == other) next
+      if (size[[first]] < size[[other]]) {
+        previous <- first; first <- other; other <- previous
+      }
+      parent[[other]] <<- first
+      size[[first]] <<- size[[first]] + size[[other]]
+    }
+    invisible(NULL)
+  }
+  list(join = join, blocks = function() {
+    roots <- vapply(seq_len(K), root, integer(1L))
+    unname(split(seq_len(K), match(roots, unique(roots))))
+  })
+}
+
+
 .selection_joint_dependency_blocks <- function(
     data, random_terms = list(), sampling = NULL) {
 
@@ -1806,51 +1838,77 @@ set_selection_likelihood_control <- function(
   if (is.null(sampling)) {
     sampling <- .selection_joint_sampling_plan(data)
   }
-  structural_sampling <- if (identical(
-      sampling[["representation"]],
-      "dense"
-    )) {
-    sampling[["covariance"]]
-  } else {
-    K <- length(sampling[["diagonal"]])
-    adjacency <- diag(TRUE, K)
-    loading <- sampling[["loading"]]
-    for (column in seq_len(ncol(loading))) {
-      support <- loading[, column] != 0
-      adjacency <- adjacency | outer(support, support, "&")
+  dense <- identical(sampling[["representation"]], "dense")
+  K <- if (dense) nrow(sampling[["covariance"]]) else length(sampling[["diagonal"]])
+  loading <- if (dense) NULL else sampling[["loading"]]
+  supplied <- if (dense) list(list(index = seq_len(K), covariance = sampling[["covariance"]])) else
+    sampling[["supplied"]][["blocks"]]
+  clustered <- !length(random_terms) && .is_data_multilevel(data) &&
+    !.selection_retains_other_random(data)
+  if (!dense && !ncol(loading) && !length(supplied) &&
+      !length(random_terms) && !clustered) return(as.list(seq_len(K)))
+
+  components <- .selection_dependency_union(K)
+  if (!is.null(loading)) for (column in seq_len(ncol(loading))) {
+    components$join(which(loading[, column] != 0))
+  }
+  # Read already supplied covariance one row at a time. Its exact zero edges,
+  # including cancellation that declined factor recovery, remain authoritative.
+  for (block in supplied) {
+    index <- block[["index"]]
+    covariance <- block[["covariance"]]
+    for (row in seq_along(index)) {
+      neighbors <- which(covariance[row, ] != 0)
+      components$join(c(index[[row]], index[neighbors]))
     }
-    # Blocks the factor does not represent keep their dependence in the
-    # supplied entries, so read the structure from V wherever it is stored.
-    for (block in sampling[["supplied"]][["blocks"]]) {
-      index <- block[["index"]]
-      adjacency[index, index] <- adjacency[index, index] |
-        (block[["covariance"]] != 0)
+  }
+  block_names <- vapply(random_terms, .random_effect_term_block_name, character(1L))
+  if (anyDuplicated(block_names)) {
+    stop("Random-effect block names must be non-empty and unique.", call. = FALSE)
+  }
+  for (term in random_terms) {
+    groups <- term[["group_map"]]
+    if (!is.numeric(groups) || length(groups) != K || anyNA(groups) ||
+        any(!is.finite(groups)) || any(groups < 1L) ||
+        any(groups > .Machine$integer.max) || any(groups != as.integer(groups))) {
+      stop("Random-effect grouping metadata are invalid for dependency construction.", call. = FALSE)
     }
-    adjacency * 1
+    known <- .random_effect_term_has_known_group_covariance(term)
+    if (!is.null(term[["group_covariance"]]) && !known) {
+      stop("Known random-effect group covariance metadata are unavailable for block '",
+        term[["block_name"]], "'. Compile the formula before resolving dependencies.", call. = FALSE)
+    }
+    kernel <- if (known) term[["group_covariance"]][["kernel"]] else NULL
+    valid_kernel <- !known || (is.matrix(kernel) && is.numeric(kernel) &&
+      nrow(kernel) == ncol(kernel) && !any(groups > nrow(kernel)))
+    if (known && valid_kernel) for (row in seq_len(nrow(kernel))) {
+      if (any(!is.finite(kernel[row, ])) || any(kernel[row, ] != kernel[, row]) || kernel[row, row] <= 0) {
+        valid_kernel <- FALSE
+        break
+      }
+    }
+    if (!valid_kernel) {
+      stop("Known random-effect group covariance is invalid for dependency construction.", call. = FALSE)
+    }
+    independent_columns <- identical(term[["structure"]], "id") || identical(term[["structure"]], "diag")
+    model_matrix <- if (independent_columns) term[["model_matrix"]] else NULL
+    if (independent_columns && (!is.matrix(model_matrix) || !is.numeric(model_matrix) ||
+        nrow(model_matrix) != K || ncol(model_matrix) < 1L || any(!is.finite(model_matrix)) ||
+        !identical(as.integer(term[["n_columns"]]), ncol(model_matrix)))) {
+      stop("Random-effect coefficient support is unavailable for block '", term[["block_name"]],
+        "': valid compiled 'model_matrix' metadata are required.", call. = FALSE)
+    }
+    for (column in seq_len(if (independent_columns) ncol(model_matrix) else 1L)) {
+      rows <- if (independent_columns) which(model_matrix[, column] != 0) else seq_len(K)
+      by_group <- split(rows, groups[rows])
+      for (group in names(by_group)) {
+        neighbors <- if (known) names(by_group)[kernel[as.integer(group), as.integer(names(by_group))] != 0] else group
+        components$join(unlist(by_group[neighbors], use.names = FALSE))
+      }
+    }
   }
-
-  if (length(random_terms) > 0L) {
-    block_names <- unique(vapply(
-      random_terms,
-      .random_effect_term_block_name,
-      character(1)
-    ))
-    return(.random_effect_dependency_blocks(
-      sampling_covariance = structural_sampling,
-      formula_design      = list(random_effects = random_terms),
-      blocks              = block_names
-    ))
-  }
-
-  adjacency <- structural_sampling != 0
-
-  if (.is_data_multilevel(data) && !.selection_retains_other_random(data)) {
-    cluster   <- data[["outcome"]][["cluster"]]
-    adjacency <- adjacency | outer(cluster, cluster, "==")
-  }
-  diag(adjacency) <- TRUE
-
-  .known_v_block_indices(adjacency * 1)
+  if (clustered) for (rows in split(seq_len(K), data[["outcome"]][["cluster"]])) components$join(rows)
+  components$blocks()
 }
 
 
