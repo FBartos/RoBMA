@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Exact covariance recovery excludes just-identified integer Ledermann ranks,
+  while retaining the declared two-row special case.
 - Gaussian known-V construction avoids selection-only exact-factor recovery;
   selected models retain their certified factors and bounded correlation-level grouping.
 - Sole publication-bias branches route complete posterior output without requiring an indicator the backend does not declare.

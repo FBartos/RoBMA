@@ -48,6 +48,9 @@ Bayesian posterior averaging and LOO-PIT distinct from metafor's refit z-score.
 Exact diagonal-plus-factor recovery is selection-only during model construction.
 Gaussian known-V preparation keeps the supplied covariance without running that
 search; selection preparation persists any certified representation it requests.
+Minimum-rank recovery requires strictly more off-diagonal observations than free
+loadings; integer Ledermann boundary ranks are excluded except for the explicit
+two-row special case.
 
 Covariance classification, sampling support, and numerical representations are
 distinct. Preserve the accepted sampling factor and PSD/PD status when a

@@ -394,11 +394,11 @@
     return(NULL)
   }
 
-  # Rank one is always in scope: for two rows it is the only representation
-  # there is, and it is the one the cluster route wants.
+  # The two-row representation is an explicit exception. Larger blocks must
+  # stay strictly below the off-diagonal evidence boundary.
   limit <- max(min(
     as.integer(max_rank), size - 1L,
-    max(.covariance_ledermann_rank(size), 1L)
+    if (size == 2L) 1L else .covariance_ledermann_rank(size)
   ), 0L)
   # Ranks below the off-diagonal bound cannot hold an exact representation, and
   # a bound above the limit settles the block without any refinement at all.
@@ -479,7 +479,7 @@
 # loadings, `(2n + 1 - sqrt(8n + 1)) / 2` (Ledermann, 1937).
 .covariance_ledermann_rank <- function(size) {
 
-  as.integer(floor((2 * size + 1 - sqrt(8 * size + 1)) / 2))
+  as.integer(ceiling((2 * size + 1 - sqrt(8 * size + 1)) / 2) - 1L)
 }
 
 
