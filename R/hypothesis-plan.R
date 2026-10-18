@@ -2041,14 +2041,11 @@
     ))
   }
   levels <- unique(unlist(lapply(plans, function(plan) {
-    levels <- .hypothesis_marginal_means_ast_levels(
-      hypothesis = plan[["hypothesis"]],
-      parameter  = plan[["parameter"]]
-    )
-    if (length(levels) == 0L) {
-      levels <- ""
-    }
-    paste(plan[["parameter"]], levels, sep = "\r")
+    vapply(plan[["targets"]], function(target) {
+      level <- target[["level"]]
+      if (is.null(level) || is.na(level)) level <- ""
+      paste(plan[["parameter"]], level, sep = "\r")
+    }, character(1L))
   })))
   if (all(point) && length(levels) > 1L) {
     return(.hypothesis_refusal(

@@ -431,3 +431,20 @@ test_that("E1-3 whole-term and explicit-level modes form compatible groups", {
     }
   }
 })
+
+test_that("E1-4 model-average request limits count actual expanded targets", {
+
+  means <- marginal_means(.review_h_empty_condition(), bf = FALSE, density_method = "KDE", n_samples = 128)
+  plan <- .hypothesis_plan_marginal_means(means, "x = 0")
+  expect_gt(length(plan$targets), 1L)
+  refusal <- .hypothesis_plan_marginal_means_request_refusal(list(plan), means)
+  expect_true(!is.null(refusal))
+  expect_error(hypothesis(means, "x = 0", density_method = "KDE", seed = 19),
+    "spanning multiple marginal-means levels", class = "RoBMA_hypothesis_statement")
+  one <- hypothesis(means, "intercept = 0", density_method = "KDE", seed = 19)
+  alias <- hypothesis(means, "mu_intercept = 0", density_method = "KDE", seed = 19)
+  expect_equal(attr(one, "raw_log_BF"), attr(alias, "raw_log_BF"), tolerance = 1e-14)
+  repeated <- lapply(c("intercept = 0", "mu_intercept = 0.1"), function(statement)
+    .hypothesis_plan_marginal_means(means, statement))
+  expect_null(.hypothesis_plan_marginal_means_request_refusal(repeated, means))
+})

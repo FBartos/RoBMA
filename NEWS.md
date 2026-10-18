@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Model-averaged point requests count actual expanded marginal targets before enforcing their existing single-marginal restriction.
 - Whole-term and explicit-level hypotheses use compatible expansion groups so mixed requests agree with separate calls.
 - Hypothesis row labels retain factor suffixes only for declared level expansions, preserving indexed scalar and random-quantity identities.
 - Region hypotheses distinguish multiple declared discrete support locations from a single structurally fixed scalar.
