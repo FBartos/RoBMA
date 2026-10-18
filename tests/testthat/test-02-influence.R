@@ -267,6 +267,11 @@ test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
 
       samples
     },
+    .covratio_ordered_coordinates = function(model, samples, formula_parameter) {
+
+      expect_identical(formula_parameter, "mu")
+      samples
+    },
     .influence_fit_samples = function(model) {
 
       fit_samples
