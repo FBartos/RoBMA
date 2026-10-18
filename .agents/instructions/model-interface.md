@@ -134,6 +134,11 @@ Allocated component SD density targets in predictor-scaled blocks require the
 standardized view or KDE for original-scale requests, following the structured
 scaled-component capability. The restriction is block-wide, including centered
 intercepts with accidental draw parity; direct one-to-one transforms remain supported.
+Positive point sources times stochastic allocation weights have continuous target
+laws but cannot use the source-held-weight density chart. Refuse that chart through
+the existing random-target cause and KDE remedy; source-zero and gate atoms retain
+their declared laws. Classify active source components from priors and indicators,
+never from the apparent variation of replayed draws.
 
 Post-fit mixture likelihoods keep random-source indicators with their persisted
 compiled priors, including externally bound SD sources; localize only indicators

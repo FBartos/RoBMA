@@ -978,6 +978,44 @@
     ))
   }
 
+  priors <- attr(object[["fit"]], "prior_list", exact = TRUE)
+  stochastic <- vapply(factors, function(factor) {
+    prior <- priors[[factor[["weight_name"]]]]
+    inherits(prior, "prior.simplex") && identical(prior[["distribution"]], "dirichlet")
+  }, logical(1))
+  if (!all(stochastic) || is.null(priors[[source_parameter]])) {
+    return(NULL)
+  }
+  context <- .iwmde_context_ensure_caches(list(
+    object = object,
+    posterior_samples = posterior,
+    flat_prior_list = priors,
+    indicator_names = .iwmde_indicator_names(
+      posterior, prior_list = priors,
+      coordinates = .iwmde_parameter_coordinates(object[["fit"]])
+    )
+  ))
+  states <- .iwmde_focal_prior_states(context, source_parameter)
+  live <- rep(TRUE, nrow(posterior))
+  for (indicator in indicators) {
+    if (!indicator %in% colnames(posterior)) {
+      .stop_refit_required("Allocated random-component inclusion monitors are missing.")
+    }
+    live <- live & .as_exact_model_indicator(posterior[, indicator], indicator) != 0L
+  }
+  if (any(live & states[["status"]] == "point" &
+          is.finite(states[["location"]]) & states[["location"]] > 0)) {
+    return(.iwmde_unavailable(
+      reason = paste0(
+        "qCMDE/IWMDE ", operation, " are unavailable for random-effect quantity '",
+        spec[["label"]], "' because its positive point source is multiplied by ",
+        "stochastic allocation weights and cannot be swept by the scalar source chart. ",
+        "Use density_method = 'KDE'."
+      ),
+      type = "random_target"
+    ))
+  }
+
   auxiliary_columns <- unique(unlist(lapply(factors, function(factor) {
     .iwmde_simplex_auxiliary_columns(
       factor[["weight_name"]],

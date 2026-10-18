@@ -195,3 +195,53 @@ review_prior_columns <- function(priors) {
     BayesTools:::.prior_linear_prior_columns(parameter, priors[[parameter]])
   })))
 }
+
+# Exact public constructor/compiler and supplied-row declarations from14/14b.
+review_allocated_source_replay <- function(kind, constant_weights = FALSE) {
+  source_prior <- switch(kind,
+    mixture = BayesTools::prior_mixture(list(BayesTools::prior('point', list(location = 1)),
+      BayesTools::prior('gamma', list(shape = 2, rate = 2))), is_null = c(FALSE, FALSE)),
+    point = BayesTools::prior('point', list(location = 1)),
+    zero = BayesTools::prior('point', list(location = 0)),
+    uniform = BayesTools::prior('uniform', list(a = 0, b = 1)))
+  dat <- data.frame(yi = rep(0, 4), study = factor(c('a', 'a', 'b', 'b')),
+    estimate = factor(seq_len(4)))
+  heterogeneity <- BayesTools::prior_random(allocation = list(
+    BayesTools::random_variance_allocation(name = 'split',
+      terms = c(study = 'study', estimate = 'estimate'), target = 'block',
+      scale = 'total_variance', sd = source_prior,
+      weights = BayesTools::prior('dirichlet', list(alpha = c(1, 1))))))
+  setup <- review_compile_object(RoBMA::brma.mv(yi = yi, V = diag(4), mods = ~1,
+    random = list(study = ~id(1 | study), estimate = ~id(1 | estimate)),
+    data = dat, measure = 'GEN', prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior('point', list(location = 0)),
+    prior_heterogeneity = heterogeneity, standardize_continuous_predictors = FALSE,
+    only_priors = TRUE, silent = TRUE))
+  allocation <- setup$compiled$mu$formula_design$random_effects[[1L]]$sd_binding$allocations[[1L]]
+  source_parameter <- allocation$source$name
+  weights <- paste0(allocation$weight_name, '[', 1:2, ']')
+  auxiliaries <- .iwmde_simplex_auxiliary_columns(allocation$weight_name, 2L)
+  indicator <- if (kind == 'mixture') paste0(source_parameter, '_indicator') else character()
+  columns <- unique(c(review_prior_columns(setup$compiled$mu$prior_list), source_parameter,
+    weights, auxiliaries, indicator))
+  n <- if (kind == 'uniform') 32L else 24L
+  samples <- matrix(.5, n, length(columns), dimnames = list(NULL, columns))
+  samples[, 'mu_intercept'] <- 0
+  samples[, source_parameter] <- switch(kind, mixture = c(rep(1, 2), seq(.4, 1.5, length.out = 22)),
+    point = rep(1, n), zero = rep(0, n), uniform = seq_len(n) / 33)
+  samples[, weights[1L]] <- if (kind == 'uniform') c(.25, .75, ((seq_len(30) * 11) %% 31 + .5) / 31) else
+    rep(c(.25, .75, seq(.15, .85, length.out = 10)), 2)
+  samples[, weights[2L]] <- 1 - samples[, weights[1L]]
+  if (constant_weights) samples[, weights] <- .5
+  samples[, auxiliaries] <- 2 * samples[, weights]
+  if (length(indicator)) samples[, indicator] <- c(rep(1, 2), rep(2, 22))
+  stopifnot(all(is.finite(samples)), all(samples[, weights] > 0), all(samples[, weights] < 1),
+    max(abs(rowSums(samples[, weights]) - 1)) < 1e-15,
+    max(abs(samples[, auxiliaries] / rowSums(samples[, auxiliaries]) - samples[, weights])) < 1e-15)
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  stopifnot(identical(class(object), class(setup$object)))
+  list(object = object, samples = samples, allocation = allocation,
+    source_parameter = source_parameter, weights = weights)
+}
+

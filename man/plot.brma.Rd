@@ -140,6 +140,10 @@ Allocated component SDs in a predictor-scaled block require
 \code{standardized_coefficients = TRUE} or \code{density_method = 'KDE'} for an
 original-scale request. This block-wide limitation also covers a centered
 intercept whose value happens to be unchanged by scaling.
+A positive point source multiplied by stochastic allocation weights has a
+continuous target law, but its source-held-weight chart cannot sweep that
+target; use \code{density_method = 'KDE'}. Source-zero and inclusion-gate atoms
+retain their declared locations.
 In independently gated allocations, realized
 \code{tau_total}/\code{tau2_total} and \code{tau2_prop(...)} are KDE-only because they combine
 multiple gate and allocation coordinates. Their structural point masses are

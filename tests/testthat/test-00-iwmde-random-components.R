@@ -1181,3 +1181,47 @@ test_that("separate random targets share one hypothesis result", {
   expect_identical(attr(out, "hypothesis_ast"), hypothesis)
   expect_s3_class(out, "BayesTools_hypothesis_BF")
 })
+test_that("positive point sources with stochastic shares refuse source density charts", {
+
+  selector <- "(mu) study: tau"
+  for (kind in c("mixture", "point", "zero", "uniform")) {
+    fixture <- review_allocated_source_replay(kind)
+    object <- fixture$object
+    expected <- fixture$samples[, fixture$source_parameter] * sqrt(fixture$samples[, fixture$weights[1L]])
+    public <- as.numeric(.brma_random_parameter_mixed_posterior(object, selector)[[1L]])
+    expect_lt(max(abs(public - expected)), 1e-14)
+    expect_s3_class(object, "only_priors.brma")
+    target <- .brma_random_parameter_density_target(object, selector)
+    if (kind %in% c("mixture", "point")) {
+      expect_false(target$available)
+      expect_identical(target$class, c("RoBMA_density_method_random_target", "RoBMA_density_method_unavailable"))
+      expect_identical(target$reason, paste0(
+        "qCMDE/IWMDE densities are unavailable for random-effect quantity 'study: tau' ",
+        "because its positive point source is multiplied by stochastic allocation weights ",
+        "and cannot be swept by the scalar source chart. Use density_method = 'KDE'."))
+      # Declared Dirichlet weights remain stochastic even in a constant replay.
+      constant <- review_allocated_source_replay(kind, constant_weights = TRUE)$object
+      expect_true(isFALSE(.brma_random_parameter_density_target(constant, selector)$available))
+    } else {
+      expect_false(isFALSE(target$available))
+      context <- .iwmde_context(object)
+      spec <- .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+      components <- .iwmde_parameter_components(context, target$parameter, spec)
+      if (kind == "zero") {
+        expect_equal(components$point_masses, data.frame(x = 0, mass = 1))
+      } else {
+        expect_true(all(components$active))
+      }
+    }
+    if (kind == "mixture") {
+      # A direct registered method on an unchanged synthetic prior-only carrier,
+      # not ordinary generic posterior dispatch or fitted posterior samples.
+      outcome <- tryCatch(getS3method("plot", "brma")(object, parameter = selector,
+        component = "random", prior = FALSE, density_method = "IWMDE", plot_type = "ggplot"), error = identity)
+      expect_s3_class(outcome, "RoBMA_density_method_random_target")
+      expect_s3_class(outcome, "RoBMA_density_method_unavailable")
+      expect_s3_class(object, "only_priors.brma")
+    }
+  }
+})
+
