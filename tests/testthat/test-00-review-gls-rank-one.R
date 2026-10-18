@@ -42,3 +42,20 @@ test_that("sampling residual factor products retain a global mixed-block project
   expect_equal(actual$H, H, tolerance = 1e-12)
   expect_equal(actual$H_diag, diag(H), tolerance = 1e-12)
 })
+
+test_that("rank-one products avoid a subtractive precision matrix and retain D0 controls", {
+
+  testthat::local_mocked_bindings(.hat_precision_matrix = function(...) stop("subtractive precision"),
+    .package = "RoBMA")
+  expect_true(all(is.finite(.review_rank_one_gls(matrix(c(1, 2), 2L), c(1, 1),
+    c(1, 1), c(.1, .2))$sampling_residual)))
+  known <- .known_v_prepare(known_v_factor(c(0, 0), matrix(1, 2L, 1L)),
+    c(TRUE, TRUE), "whitened", warn_singular = FALSE)
+  actual <- .known_v_gls_projection_blocks(matrix(1, 2L), c(1, -1), known, c(0, .1))
+  expect_equal(actual$sampling_residual, c(0, 0), tolerance = 1e-12)
+  expect_equal(actual$sampling_residual_variance, c(0, 0), tolerance = 1e-12)
+  zero <- .known_v_prepare(known_v_factor(c(1, 1), matrix(0, 2L, 1L)),
+    c(TRUE, TRUE), "whitened")
+  actual <- .known_v_gls_projection_blocks(matrix(1, 2L), c(1, -1), zero, c(.1, .2))
+  expect_true(all(is.finite(actual$sampling_residual_variance)))
+})
