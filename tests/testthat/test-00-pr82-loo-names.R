@@ -26,3 +26,17 @@ test_that("deterministic LOO merge matches pointwise columns by name", {
                                                c(TRUE, FALSE, FALSE, FALSE))
   expect_identical(actual$pointwise, baseline$pointwise)
 })
+
+test_that("LOO model labels remain bounded for expressions and do.call values", {
+
+  scores <- matrix(seq(-2, -1, length.out = 200L), 40L, 5L)
+  low <- loo::waic(scores)
+  high <- loo::waic(scores + 1)
+  metadata <- list(unit = "estimate", retained_context = "remaining_data",
+    target = "estimate_log_score", data_hash = "same-data")
+  attr(low, "RoBMA_target") <- attr(high, "RoBMA_target") <- metadata
+  expect_identical(rownames(do.call(loo_compare.loo, list(low, high))), c("model2", "model1"))
+  expect_identical(rownames(do.call(loo_compare.loo, list(x = low, second = high))), c("second", "x"))
+  expect_identical(rownames(loo_compare.loo(identity(low), identity(high))), c("model2", "model1"))
+  expect_identical(rownames(loo_compare.loo(low, low = high)), c("low.1", "low"))
+})

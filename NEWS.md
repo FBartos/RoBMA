@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- LOO comparison and predictive weights retain short, unique model labels for
+  named arguments, direct symbols and programmatically supplied model values.
 - Known-V estimate residuals use the shared precision availability checks and
   report unavailable draws in their current, possibly thinned request order.
 - Rank-one sampling residuals use refined precision products and direct

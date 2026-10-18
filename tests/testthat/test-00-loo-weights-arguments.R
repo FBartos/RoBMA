@@ -121,3 +121,17 @@ test_that("loo_model_weights rejects incompatible stored targets", {
     fixed = TRUE
   )
 })
+
+test_that("predictive weights use bounded unique labels for argument values", {
+
+  low <- .make_loo_model_weights_fixture(0)
+  high <- .make_loo_model_weights_fixture(.3)
+  expect_identical(names(do.call(loo_model_weights.brma,
+    c(list(low, high), list(method = "pseudobma", BB = FALSE)))), c("model1", "model2"))
+  expect_identical(names(do.call(loo_model_weights.brma,
+    c(list(low, model1 = high), list(method = "pseudobma", BB = FALSE)))), c("model1", "model1.1"))
+  expect_identical(names(loo_model_weights.brma(low, low = high,
+    method = "pseudobma", BB = FALSE)), c("low", "low.1"))
+  expect_identical(names(loo_model_weights.brma(identity(low), identity(high),
+    method = "pseudobma", BB = FALSE)), c("model1", "model2"))
+})

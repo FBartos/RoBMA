@@ -808,7 +808,9 @@ loo_compare <- function(x, ...) UseMethod("loo_compare")
 #' @aliases loo_compare
 #' @export
 loo_compare.brma <- function(x, ..., unit = "estimate") {
-  return(.loo_compare_objects(c(list(x), list(...)), unit,
+  first <- list(x)
+  names(first) <- .loo_first_argument_name(sys.call())
+  return(.loo_compare_objects(c(first, list(...)), unit,
     as.list(substitute(list(x, ...)))[-1L]))
 }
 
@@ -832,7 +834,9 @@ loo_compare.brma <- function(x, ..., unit = "estimate") {
 #'
 #' @export
 loo_compare.loo <- function(x, ..., unit = "estimate") {
-  return(.loo_compare_objects(c(list(x), list(...)), unit,
+  first <- list(x)
+  names(first) <- .loo_first_argument_name(sys.call())
+  return(.loo_compare_objects(c(first, list(...)), unit,
     as.list(substitute(list(x, ...)))[-1L]))
 }
 
@@ -846,11 +850,7 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
   }
 
   if (!is.null(expressions)) {
-    labels <- names(models)
-    if (is.null(labels)) labels <- rep("", length(models))
-    unnamed <- !nzchar(labels)
-    labels[unnamed] <- vapply(expressions[unnamed], deparse1, character(1L))
-    names(models) <- make.unique(labels)
+    names(models) <- .loo_model_argument_labels(models, expressions)
   }
 
   loo_objects <- lapply(models, function(m) {
@@ -868,6 +868,26 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
   result <- .as_legacy_loo_compare(loo_compare_fun(loo_objects))
 
   return(result)
+}
+
+
+.loo_first_argument_name <- function(call) {
+
+  labels <- names(call)
+  if (length(labels) >= 2L && !is.na(labels[2L])) labels[2L] else ""
+}
+
+
+.loo_model_argument_labels <- function(models, expressions) {
+
+  labels <- names(models)
+  if (is.null(labels)) labels <- rep("", length(models))
+  for (i in which(is.na(labels) | !nzchar(labels))) {
+    labels[i] <- if (is.symbol(expressions[[i]])) {
+      as.character(expressions[[i]])
+    } else paste0("model", i)
+  }
+  make.unique(labels)
 }
 
 
@@ -999,6 +1019,7 @@ loo_model_weights.brma <- function(
   unit   <- .normalize_unit(unit)
   dots   <- list(...)
   models <- c(list(x), dots)
+  names(models)[1L] <- .loo_first_argument_name(sys.call())
 
   if (length(models) < 2L) {
     stop("At least two models are required for predictive model weights.",
@@ -1020,13 +1041,7 @@ loo_model_weights.brma <- function(
     list(model_call[["x"]]),
     as.list(model_call[["..."]])
   )
-  model_names <- vapply(model_expressions, deparse1, character(1))
-  dot_names   <- names(dots)
-  named_dots  <- which(!is.na(dot_names) & nzchar(dot_names))
-  if (length(named_dots) > 0L) {
-    model_names[named_dots + 1L] <- dot_names[named_dots]
-  }
-  names(loo_objects) <- model_names
+  names(loo_objects) <- .loo_model_argument_labels(models, model_expressions)
 
   .check_loo_compare_targets(loo_objects)
 
