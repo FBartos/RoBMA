@@ -194,6 +194,11 @@ test_that("recovery leaves Gaussian known-V models byte-identical", {
         .package = "RoBMA")
     }
     object <- build()
+    expect_false(.known_v_has_certified_factor(.data_known_v_data(object$data)))
+    if (recovered) {
+      attr(object$data, "known_V_data") <- .known_v_attach_certified_factor(
+        .data_known_v_data(object$data))
+    }
     list(fit_data = .create_fit_data(object$data, object$priors),
          syntax   = .create_model_syntax(object$data, object$priors),
          known_V  = .data_known_v_data(object$data))
