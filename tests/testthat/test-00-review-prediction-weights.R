@@ -156,3 +156,47 @@ test_that("augmentation provenance follows reconstruction and represented varian
   expect_error(.prediction_weight_state(tiny, samples),
     "Fitted Gaussian conditioning variance is numerically unavailable", fixed = TRUE)
 })
+
+
+test_that("retained sampling truth has no powered Gaussian augmentation marker", {
+
+  samples <- cbind(mu = c(.1, .2), tau = .3,
+    "theta[1]" = .4, "theta[2]" = -.2, "theta[3]" = .5,
+    "sampling_z[1]" = .2, "sampling_z[2]" = -.3, "sampling_z[3]" = .1)
+  omitted <- .prediction_weight_fixture(NULL, BayesTools::selection_model(
+    known_sampling_variance = "condition"))
+  unit <- .prediction_weight_fixture(rep(1, 3L), BayesTools::selection_model(
+    known_sampling_variance = "condition"))
+  sei <- omitted$data$outcome$sei
+  y <- matrix(omitted$data$outcome$yi, 2L, 3L, byrow = TRUE)
+  e0 <- matrix(c(.2, -.3, .1) * sei, 2L, 3L, byrow = TRUE)
+  u0 <- matrix(c(.4, -.2, .5) * .3, 2L, 3L, byrow = TRUE)
+  noise_weight <- matrix(sei^2 / (sei^2 + .3^2), 2L, 3L, byrow = TRUE)
+  truth <- y - (e0 + noise_weight * (y - samples[, "mu"] - e0 - u0))
+  for (type in c("estimate", "response")) for (adjusted in c(FALSE, TRUE)) {
+    set.seed(13071)
+    a <- predict(omitted, type = type, conditioning_depth = "estimate",
+      bias_adjusted = adjusted, quiet = TRUE, .posterior_samples = samples)
+    expected_seed <- .Random.seed
+    set.seed(13071)
+    b <- predict(unit, type = type, conditioning_depth = "estimate",
+      bias_adjusted = adjusted, quiet = TRUE, .posterior_samples = samples)
+    expect_equal(as.numeric(a), as.numeric(b), tolerance = 0)
+    expect_identical(.Random.seed, expected_seed)
+    expect_null(attr(a, "RoBMA_target")$latent_augmentation)
+    expect_null(attr(b, "RoBMA_target")$latent_augmentation)
+    if (type == "estimate") expect_equal(as.numeric(a), as.numeric(truth), tolerance = 1e-14)
+    if (type == "response" && adjusted) {
+      set.seed(13071)
+      expected <- truth + matrix(stats::rnorm(6L), 2L, 3L) *
+        matrix(sei, 2L, 3L, byrow = TRUE)
+      expect_equal(as.numeric(a), as.numeric(expected), tolerance = 1e-14)
+      expect_identical(.Random.seed, expected_seed)
+    }
+    integrated <- predict(.prediction_weight_fixture(NULL), type = type,
+      conditioning_depth = "estimate", bias_adjusted = adjusted, quiet = TRUE,
+      .posterior_samples = samples[, c("mu", "tau"), drop = FALSE])
+    expect_identical(attr(integrated, "RoBMA_target")$latent_augmentation$policy,
+      "normalized_powered_gaussian")
+  }
+})

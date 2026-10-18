@@ -146,8 +146,10 @@ structural zero. This chosen post-fit augmentation preserves the global
 posterior and does not interchange likelihood powering and latent integration.
 Estimate-depth estimate and response truth targets alone attach prediction-only
 `latent_augmentation` metadata with policy `normalized_powered_gaussian` and
-row-aligned `likelihood_weights` (omission/unit weights become ones). Fully
-retained truth, conditional means, terms, marginal/newdata and fresh cluster
+row-aligned `likelihood_weights` (omission/unit weights become ones). A retained
+complete sampling error identifies truth by `y-e` and carries no such marker,
+including when a random source is declared integrated. Fully retained truth,
+conditional means, terms, marginal/newdata and fresh cluster
 effects carry no reconstruction claim. Response sampling retains raw `s²`;
 log-score, full-joint and LOO metadata do not acquire this prediction marker.
 

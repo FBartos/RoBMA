@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Retained complete sampling errors identify fitted truth without claiming a
+  powered Gaussian augmentation in prediction metadata.
 - Declared singleton covariance draws batch their assigned normals, while small
   selected conditional matrices use the original assembled factor and solve.
 - Multilevel conditional arithmetic checks prior/noise products and the final

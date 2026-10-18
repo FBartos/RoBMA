@@ -14,6 +14,7 @@
       !identical(context[["conditioning_depth"]], "estimate") ||
       !context[["type"]] %in% c("estimate", "response")) return(NULL)
   data <- context[["object"]][["data"]]
+  if (.selection_retains_sampling(data)) return(NULL)
   model <- .data_selection_model(data)
   sources <- model[["sources"]][["random"]]
   if (!any(vapply(sources, function(source) !isTRUE(source[["retained"]]), logical(1L)))) {
