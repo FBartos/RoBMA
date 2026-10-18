@@ -93,3 +93,80 @@ test_that("estimate context identity and legacy normalization share the score ow
     .current_predictive_target_key(retained, "estimate")$retained_random_context))
   expect_null(.current_predictive_target_key(cluster, "cluster")$sampling_deletion_policy)
 })
+
+
+test_that("correlated sampling deletion is continuous at constant selection weights", {
+
+  # Complete compiler-declared supplied states, not a fitted posterior chain.
+  # With retained e=0 and integrated G=I, the remaining sampling coordinate
+  # mixes h~N(0,.75) with the selected N(h,1) observation kernel.
+  reference <- function(weight) {
+    if (weight == 1) return(c(log_density = stats::dnorm(0, sd = sqrt(1.75), log = TRUE),
+      cdf = .5, log_lower = log(.5), log_upper = log(.5), mean = 0, variance = 1.75))
+    integrate_h <- function(f) stats::integrate(function(h) f(h) * stats::dnorm(h, sd = sqrt(.75)),
+      -Inf, Inf, rel.tol = 1e-10, abs.tol = 1e-12, subdivisions = 1000L)$value
+    mass <- function(h) weight * stats::pnorm(-h) + stats::pnorm(h)
+    shift <- function(h) (1 - weight) * stats::dnorm(h) / mass(h)
+    mean_h <- function(h) h + shift(h)
+    variance_h <- function(h) 1 - (1 - weight) * h * stats::dnorm(h) / mass(h) - shift(h)^2
+    mean <- integrate_h(mean_h)
+    lower <- integrate_h(function(h) weight * stats::pnorm(-h) / mass(h))
+    upper <- integrate_h(function(h) stats::pnorm(h) / mass(h))
+    c(log_density = log(integrate_h(function(h) stats::dnorm(h) / mass(h))),
+      cdf = lower, log_lower = log(lower), log_upper = log(upper), mean = mean,
+      variance = integrate_h(function(h) variance_h(h) + (mean_h(h) - mean)^2))
+  }
+  for (weight in c(1, 1 - 1e-6)) {
+    setup <- review_compile_object(bselmodel.mv(yi = c(0, 0),
+      V = matrix(c(1, .5, .5, 1), 2L), random = ~ 1 | estimate,
+      data = data.frame(estimate = factor(1:2)), measure = "GEN", effect_direction = "positive",
+      prior_effect = BayesTools::prior("point", list(location = 0)),
+      prior_heterogeneity = BayesTools::prior_random(sd = BayesTools::prior("point", list(location = 1))),
+      prior_bias = BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, weight)),
+        model = BayesTools::selection_model(known_sampling_variance = "condition", weight_rule = "product")),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+    priors <- unlist(lapply(setup$compiled, `[[`, "prior_list"), recursive = FALSE)
+    names(priors) <- unlist(lapply(setup$compiled, function(part) names(part$prior_list)), use.names = FALSE)
+    priors <- c(priors, .create_fit_priors(setup$object$data, setup$object$priors))
+    columns <- setdiff(review_prior_columns(priors), "omega")
+    samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+    for (name in names(priors)) if (BayesTools::is.prior.point(priors[[name]])) {
+      samples[, name] <- priors[[name]]$parameters$location
+    }
+    terms <- .formula_design_random_effects_by_mode(setup$object$formula_design$mu, "sampled")
+    extras <- unlist(lapply(terms, function(term) {
+      base <- paste0(term$parameter_stem, "_xRE_Zx")
+      expect_true(base %in% setup$compiled$mu$add_parameters)
+      unlist(lapply(seq_len(term$n_columns), function(column) {
+        paste0(base, "[", seq_len(term$n_groups), ",", column, "]")
+      }))
+    }), use.names = FALSE)
+    samples <- cbind(samples, matrix(0, 24L, length(extras), dimnames = list(NULL, extras)))
+    generated <- BayesTools::JAGS_evaluate_deterministic(review_attach_replay(setup, samples)$fit, draws = samples)
+    for (name in colnames(generated)) {
+      if (name %in% colnames(samples)) samples[, name] <- generated[, name]
+      else samples <- cbind(samples, generated[, name, drop = FALSE])
+    }
+    required <- c(unlist(lapply(BayesTools::JAGS_to_monitor(priors), function(name) {
+      if (name == "omega") paste0("omega[", 1:2, "]")
+      else if (name == "sampling_z") paste0("sampling_z[", 1:2, "]") else name
+    })), extras)
+    expect_true(all(required %in% colnames(samples)))
+    object <- review_attach_replay(setup, samples)
+    expect_identical(class(object), class(setup$object))
+    BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding", "formula_name_map",
+      "formula_design", "parameter_map", "draw_geometry"))
+    likelihood <- .estimate_likelihood_setup.brma(object)
+    state <- .selection_conditioned_sampling_state(likelihood)
+    expect_true(all(state$e == 0))
+    expect_true(all(state$baseline_mu == 0))
+    expect_equal(unname(.selection_covariance_draw(state$integrated_covariance, 1L)), diag(2L), tolerance = 0)
+    expected <- reference(weight)
+    actual <- .selection_joint_estimate_targets(likelihood, names(expected))
+    tolerance <- if (weight == 1) 1e-12 else 2e-6
+    for (component in names(expected)) {
+      expect_true(max(abs(actual[[component]] - expected[[component]])) <= tolerance, info = component)
+    }
+    expect_equal(as.numeric(log_lik(object)), as.numeric(actual$log_density), tolerance = 0)
+  }
+})
