@@ -196,13 +196,11 @@ covratio.brma <- function(model, type = "mods", component = NULL,
       "COVRATIO could not be computed for one or more observations because the LOO covariance determinant is zero or non-finite; affected values are reported as NaN."
     )
   }
-  if (!is.null(note)) {
-    out <- .diagnostic_with_note(
-      out,
-      class = "covratio.brma",
-      note  = note
-    )
-  }
+  out <- .diagnostic_with_note(
+    out,
+    class = "covratio.brma",
+    note  = note
+  )
 
   return(out)
 }

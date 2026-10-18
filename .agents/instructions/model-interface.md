@@ -5,6 +5,12 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Coefficient influence diagnostics request coefficient-only tables, excluding
+declared inclusion indicators. COVRATIO retains ordered fitted totals and one
+independent basis per metadata-declared Dirichlet allocation source, deduplicating
+shared aliases; DFBETAS keeps the individual share coordinates. Every COVRATIO
+return carries its result class, including successful results without notes.
+
 Named alternative-list intercepts supply the complete prior, while ordinary
 term alternative/null entries remain separate components. Reject named null-list
 intercepts (including NULL/FALSE) and explicit global declarations left without

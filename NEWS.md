@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Successful COVRATIO results retain their print and data-frame methods even
+  when no diagnostic note is needed.
 - Ordered COVRATIO uses one independent share basis per declared allocation
   source, preserving fitted totals and deduplicating shared allocation aliases.
 - Coefficient influence diagnostics exclude declared mixture inclusion indicators

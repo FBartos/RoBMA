@@ -87,6 +87,11 @@ test_that("COVRATIO of a dependent factor-level parameterization uses the fitted
   # equal weights leave the posterior covariance unchanged
   expect_equal(as.numeric(observed), rep(1, 6L), tolerance = 1e-10)
   expect_null(attr(observed, "note"))
+  expect_s3_class(observed, "covratio.brma")
+  expect_identical(names(as.data.frame(observed)), c("component", "parameter", "value"))
+  expect_identical(as.data.frame(observed), data.frame(observed))
+  expect_identical(as.numeric(as.data.frame(observed)$value), as.numeric(observed))
+  expect_output(print(observed), "Study 1", fixed = TRUE)
 })
 
 
