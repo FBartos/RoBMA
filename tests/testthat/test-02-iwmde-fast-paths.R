@@ -5488,3 +5488,42 @@ test_that("the loading-free shortcut refuses a non-intercept design column", {
       matrix(z^2, S, K, byrow = TRUE)
   )
 })
+test_that("genuine covariance shortcuts decline declared mean multipliers with bounded work", {
+
+  builder <- .iwmde_build_replacement_samples
+  calls <- list()
+  testthat::local_mocked_bindings(.iwmde_build_replacement_samples = function(
+      context, parameter, values, row_states, replacement) {
+    calls[[length(calls) + 1L]] <<- c(candidates = length(values), rows = length(row_states))
+    builder(context, parameter, values, row_states, replacement)
+  }, .package = "RoBMA")
+  for (factor in c(FALSE, TRUE)) for (dependent in c(TRUE, FALSE)) {
+    fixture <- review_random_mean_dependency_replay(factor, dependent)
+    args <- list(context = fixture$context, parameter = fixture$parameter,
+      values = c(1, 2), row_states = fixture$states, replacement = fixture$replacement)
+    shortcut <- if (factor) .iwmde_log_q_grid_known_v_random_factor else .iwmde_log_q_grid_known_v_random_affine
+    calls <- list()
+    fast <- do.call(shortcut, c(args, list(active_setup = fixture$states[[1L]]$active_setup)))
+    expect_identical(unname(calls[[1L]]), c(1L, 1L))
+    if (dependent) {
+      expect_null(fast)
+      expect_length(calls, 1L)
+    } else {
+      expect_true(is.matrix(fast))
+    }
+    reference <- vapply(args$values, function(v) {
+      x <- c(1, 2)
+      variance <- if (factor) 1 + v^2 + .36 * x^2 - .72 * v * x else 1 + v^2 * x^2
+      mean <- if (dependent) v * x else x
+      sum(stats::dnorm(0, mean, sqrt(variance), log = TRUE)) +
+        stats::dgamma(v, 2, 1, log = TRUE) + stats::dgamma(1, 2, 1, log = TRUE) +
+        if (factor) stats::dgamma(.6, 2, 1, log = TRUE) + stats::dbeta(.2, 1, 1, log = TRUE) else 0
+    }, numeric(1))
+    for (evaluator in list(.iwmde_log_q_grid, .iwmde_log_q_grid_batch, .iwmde_log_q_grid_scalar)) {
+      actual <- do.call(evaluator, args)
+      expect_lt(max(abs(actual[, 1L] - reference)), 1e-12)
+    }
+    if (!dependent) expect_lt(max(abs(fast[, 1L] - reference)), 1e-12)
+  }
+})
+

@@ -39,6 +39,43 @@ review_scaled_allocation_replay <- function(shift = 0, standardized = TRUE) {
   list(object = object, samples = samples)
 }
 
+review_random_mean_dependency_replay <- function(factor = FALSE, dependent = TRUE) {
+
+  dat <- data.frame(yi = c(0, 0), x = c(1, 2), study = factor(c("a", "b")))
+  prior <- BayesTools::prior("gamma", list(shape = 2, rate = 1))
+  random <- if (factor) ~ us(1 + x | study) else ~ id(0 + x | study)
+  constructor <- function(x_prior) brma.mv(
+    yi = yi, V = diag(2), mods = ~ 0 + x, random = random, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1, prior_mods = list(x = x_prior),
+    prior_heterogeneity = BayesTools::prior_random(sd = prior),
+    standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE)
+  discovery <- review_compile_object(constructor(prior))
+  source <- discovery$compiled$mu$formula_design$random_effects[[1L]]$sd_parameter_names[[1L]]
+  x_prior <- prior
+  if (dependent) attr(x_prior, "multiply_by") <- source
+  setup <- review_compile_object(constructor(x_prior))
+  term <- setup$compiled$mu$formula_design$random_effects[[1L]]
+  correlation <- if (factor) term$correlation$primitive_names else character()
+  columns <- unique(c(review_prior_columns(setup$compiled$mu$prior_list), correlation))
+  samples <- matrix(.6, 24L, length(columns), dimnames = list(NULL, columns))
+  samples[, "mu_intercept"] <- 0
+  samples[, "mu_x"] <- c(1, seq(.65, 1.75, length.out = 23L))
+  samples[, source] <- c(1, seq(.7, 1.8, length.out = 23L))
+  if (factor) samples[, correlation] <- .2
+  object <- review_attach_replay(setup, samples)
+  quantities <- BayesTools::parameter_catalog(object$fit)$quantities
+  selected <- quantities[quantities$role == "random_sd", , drop = FALSE]
+  selected <- selected[vapply(selected$extraction_key, function(key) identical(key$source_parameter, source), logical(1)), , drop = FALSE]
+  stopifnot(nrow(selected) == 1L)
+  selector <- .brma_random_parameter_io_labels(selected, "selector")
+  target <- .brma_random_parameter_density_target(object, selector)
+  context <- .iwmde_context(object)
+  spec <- .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+  states <- .iwmde_row_states(context, 1L, parameter = target$parameter, parameter_spec = spec)
+  list(object = object, context = context, states = states, parameter = target$parameter,
+    replacement = .iwmde_replacement_spec(context, target$parameter, spec))
+}
+
 # The compiled formula designs of an 'only_priors' object.
 review_compile_object <- function(object) {
 

@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Affine and factor covariance density shortcuts retain the generic candidate evaluator when declared source dependencies change the fixed mean.
 - Allocated component SD densities in predictor-scaled blocks refuse unsupported original-scale targets with standardized-coefficient and KDE remedies, including unchanged centered intercepts.
 - Deterministic selected-normal candidates additionally resolve selection transitions in their actual Gaussian axes, preserving existing error gates and falling back or reporting unavailability at unchanged budgets when transitions remain unresolved.
 - Exact zero-column compaction to one active factor retains deterministic quadrature while exhausted cluster ladders retain their randomized fallback.

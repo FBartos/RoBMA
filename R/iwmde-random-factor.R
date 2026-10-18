@@ -31,6 +31,12 @@
   if (sum(finite) < 2L) {
     return(NULL)
   }
+  candidates <- .iwmde_build_replacement_samples(
+    context, parameter, values[which(finite)[1L]], row_states, replacement
+  )
+  if (!.iwmde_q_grid_fixed_mu_is_invariant(context, candidates)) {
+    return(NULL)
+  }
   setup <- .iwmde_known_v_random_marginal_setup(context)
   rows  <- vapply(row_states, `[[`, integer(1), "row_index")
   samples <- context[["posterior_samples"]][rows, , drop = FALSE]
