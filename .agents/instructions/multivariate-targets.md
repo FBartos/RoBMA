@@ -16,6 +16,10 @@ residuals, marginal covariance diagnostics, or marginal likelihood.
   known-V models the projection applies the inverse marginal covariance; a
   covariance too ill-conditioned for that application is unavailable (error
   class `RoBMA_known_v_precision_unavailable`), never a rounded number.
+  Precision-only structured shortcuts use their existing refined or gated
+  routes; this availability rule does not gate log scores or conditional laws.
+  The dense location-quadratic shortcut declines ill-conditioned covariance
+  applications so density consumers can use their general evaluator.
   `RoBMA()` ensembles whose members differ in bias terms use, for each draw,
   the design of the draw's member (location columns plus the PET or PEESE
   column of PET or PEESE members; `R/bias-branch-design.R`), not one design

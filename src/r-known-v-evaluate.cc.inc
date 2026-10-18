@@ -113,7 +113,9 @@ int require_batched_plan_inputs(
   return INTEGER(mean_dim)[1];
 }
 
-void plan_location_quadratic_values(
+bool factor_location_covariance(double *covariance, int size);
+
+bool plan_location_quadratic_values(
     CovariancePlan &plan,
     const double *mean,
     const double *basis,
@@ -150,10 +152,7 @@ void plan_location_quadratic_values(
     }
 
     int info = 0;
-    F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
-    if (info != 0) {
-      Rf_error("Known-V integrated covariance is not positive definite.");
-    }
+    if (!factor_location_covariance(covariance, size)) return false;
     const int n_rhs = 2;
     F77_CALL(dpotrs)(
       "L",
@@ -179,6 +178,7 @@ void plan_location_quadratic_values(
 
   *linear = linear_value;
   *quadratic = quadratic_value;
+  return true;
 }
 
 // The precision application B^-1 (r - U c) is a difference of nearly equal
@@ -290,6 +290,17 @@ bool precision_condition_acceptable(double reciprocal)
 {
   return reciprocal > std::numeric_limits<double>::epsilon() /
     PRECISION_CONDITION_LIMIT;
+}
+
+bool factor_location_covariance(double *covariance, int size)
+{
+  const ConditionScale scale = symmetric_lower_condition_scale(covariance, size);
+  int info = 0;
+  F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
+  if (info != 0) return false;
+  double reciprocal = 0.0;
+  return cholesky_reciprocal_condition(covariance, size, scale, &reciprocal) &&
+    precision_condition_acceptable(reciprocal);
 }
 
 // Error-free transformations for the compensated (Dot2) residual updates.
@@ -1126,14 +1137,14 @@ void plan_conditional_values(
         mean_values,
         extra_values,
         output
-      ) || fixed_known_group_block_conditional_values(
+      ) || (!precision_residual_only(output) && fixed_known_group_block_conditional_values(
         plan,
         block,
         factors,
         mean_values,
         extra_values,
         output
-      ) || spectral_block_conditional_values(
+      )) || spectral_block_conditional_values(
         plan,
         block,
         factors,

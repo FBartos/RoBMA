@@ -1059,6 +1059,7 @@
     block_indices            = block_indices,
     extra_variances          = matrix(0, nrow = S, ncol = K)
   )
+  if (is.null(result)) return(NULL)
 
   return(.iwmde_normal_location_likelihood_change_result(
     linear    = result[["linear"]],

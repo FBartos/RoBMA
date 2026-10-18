@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Structured precision diagnostics retain the existing availability boundary;
+  ill-conditioned location shortcuts decline to the general likelihood evaluator.
 - Post-fit covariance plans retain accepted zero-variance whitening directions
   through their stored sampling factors; earlier density ordinates are invalidated.
 - Exact independent integrated row support regularizes singular known-V blocks

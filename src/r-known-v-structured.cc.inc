@@ -308,6 +308,12 @@ bool spectral_block_conditional_values(
     return false;
   }
 
+  if (precision_residual_only(output)) {
+    const double reciprocal_spectral = (block.sampling_eigenvalues.front() + shift) /
+      (block.sampling_eigenvalues.back() + shift);
+    if (reciprocal_spectral < 1e3 *
+        (std::numeric_limits<double>::epsilon() / 1e-6)) return false;
+  }
   double *inverse_variance = plan.diagonal_work.data();
   double *transformed_residual = plan.residual_work.data();
   for (int eigen = 0; eigen < size; ++eigen) {

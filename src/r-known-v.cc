@@ -514,7 +514,7 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
       VECTOR_ELT(random_covariance_states, draw),
       *plan
     );
-    plan_location_quadratic_values(
+    if (!plan_location_quadratic_values(
       *plan,
       mean_values + static_cast<size_t>(draw) * plan->n,
       basis_values + static_cast<size_t>(draw) * plan->n,
@@ -522,7 +522,10 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_location_quadratic_batch(
       extra_values + static_cast<size_t>(draw) * plan->n,
       REAL(linear) + draw,
       REAL(quadratic) + draw
-    );
+    )) {
+      UNPROTECT(4);
+      return R_NilValue;
+    }
   }
   UNPROTECT(4);
   return output;
