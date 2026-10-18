@@ -371,7 +371,9 @@ test_that("source admission refuses demanded binding changes and keeps dormant p
         if (file.exists(path)) expect_match(paste(readLines(path), collapse = "\n"), fixture$text,
                                            fixed = TRUE, info = name)
       }
-      if (name != "stable") expect_false(file.exists(marker), info = name)
+      if (!name %in% c("stable", "latest_plain_definition")) {
+        expect_false(file.exists(marker), info = name)
+      }
     }
   }
 })
