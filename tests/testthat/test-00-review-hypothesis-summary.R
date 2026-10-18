@@ -154,6 +154,12 @@ test_that("E2-1 declared empty marginal cells retain their actual event", {
     BayesTools::posterior_metadata(changed, "condition") <- metadata
     expect_error(.iwmde_sample_condition_metadata(changed, require_child_condition = TRUE), "metadata")
   }
+  nonempty <- cells[[which(vapply(cells, function(cell)
+    length(BayesTools::posterior_metadata(cell, "condition")$effective_conditional) > 0L, logical(1L)))[[1L]]]]
+  metadata <- BayesTools::posterior_metadata(nonempty, "condition")
+  metadata$averaged <- TRUE
+  BayesTools::posterior_metadata(nonempty, "condition") <- metadata
+  expect_error(.iwmde_sample_condition_metadata(nonempty, require_child_condition = TRUE), "metadata")
   # A public point reaches estimation; a subsequent diagnostic refusal is kept.
   result <- tryCatch(hypothesis(means, "intercept = 0", density_method = "qCMDE", seed = 19), error = identity)
   expect_false(inherits(result, "error") && grepl("metadata is incomplete", conditionMessage(result), fixed = TRUE))

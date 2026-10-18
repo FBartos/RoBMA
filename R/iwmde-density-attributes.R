@@ -98,7 +98,7 @@
         identical(event[["conditional_rule"]], conditional_rule) &&
         identical(event[["condition_key"]], condition_key)
     }, logical(1))) &&
-      (length(conditional) > 0L ||
+      ((length(conditional) > 0L && !isTRUE(condition[["averaged"]])) ||
         (declared_empty && identical(condition_key, "<averaged>")))
   }
   if (isTRUE(require_child_condition) &&
