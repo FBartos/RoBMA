@@ -52,7 +52,8 @@ test_that("location conditioning is separate from predictive type", {
     .evaluate.brma.mu = function(...) fixed_location,
     .evaluate.brma.cluster_effects = function(...) latent_cluster,
     .evaluate.brma.multilevel_blup.norm = function(...) {
-      list(cluster = blup_cluster, estimate = blup_estimate)
+      list(cluster = blup_cluster, estimate = blup_estimate,
+        total = blup_cluster + blup_estimate)
     },
     .package = "RoBMA"
   )
