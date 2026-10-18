@@ -415,6 +415,10 @@
         factor[["loading"]][positions, , drop = FALSE], sei, context,
         execution_plan, factor[["block_index"]], return_normalizer = TRUE)
     }
+    if (!is.null(factor)) {
+      .selection_joint_factor_check_diagnostics(result, execution_plan,
+        if (identical(factor[["method"]], "rank_one")) "cluster" else "factor")
+    }
     eta <- if (is.null(factor)) {
       diagnostic <- result[["integration_diagnostics"]]
       cdf <- attr(diagnostic, "cdf_relative_error", exact = TRUE)

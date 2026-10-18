@@ -2944,8 +2944,8 @@ set_selection_likelihood_control <- function(
     stop("The cluster selection kernel returned invalid output.",
          call. = FALSE)
   }
-  .selection_joint_factor_check_diagnostics(result, execution_plan, "cluster")
   if (return_normalizer) return(result)
+  .selection_joint_factor_check_diagnostics(result, execution_plan, "cluster")
   result[["log_density"]]
 }
 
@@ -3051,8 +3051,8 @@ set_selection_likelihood_control <- function(
     stop("The selection factor kernel returned invalid output.",
          call. = FALSE)
   }
-  .selection_joint_factor_check_diagnostics(result, execution_plan, "factor")
   if (return_normalizer) return(result)
+  .selection_joint_factor_check_diagnostics(result, execution_plan, "factor")
   result[["log_density"]]
 }
 

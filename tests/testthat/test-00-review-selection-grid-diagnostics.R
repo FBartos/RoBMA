@@ -1,4 +1,5 @@
-.review_grid_diagnostic_transport <- function(method, mcse, change, kind) {
+.review_grid_diagnostic_transport <- function(method, mcse, change, kind, consumer = "grid",
+    cache_change = NULL) {
 
   # Controlled diagnostic transport only: retain the actual native numerical
   # values and all original wrappers/grid/cache, replace reported diagnostics
@@ -42,19 +43,27 @@
     factor_points_per_proposal = 8L, factor_max_points_per_proposal = 8L,
     scrambles = 2L, relative_tolerance = .005, seed = 1L,
     quadrature = quadrature, factor_quadrature = quadrature, factor_ranks = rank,
+    block_methods = method,
     design_keys = paste0("factor_", rank),
     designs = setNames(list(BayesTools::selection_qmc_design(2L * rank, 8L, 2L, seed = 1L)), paste0("factor_", rank)))
   means <- matrix(mean, S, 2L, byrow = TRUE)
   if (kind != "constant") means <- means + outer(queries, c(1, .5))
   call <- function() {
+    if (consumer == "zplot") return(.zplot_normalizer_block(yi, means, NULL, sei, context,
+      plan, plan, 1L, new.env(parent = emptyenv()),
+      list(residual_sd = matrix(residual, S, 2L, byrow = TRUE),
+        loading = matrix(as.numeric(loading), S, length(loading), byrow = TRUE))))
     args <- list(yi, means, matrix(residual, S, 2L, byrow = TRUE),
       matrix(as.numeric(loading), S, length(loading), byrow = TRUE), sei, context, plan)
     if (method == "factor") args$block_index <- 1L
-    args$normalizer_grid <- metadata
+    if (consumer == "raw") args$return_normalizer <- TRUE else args$normalizer_grid <- metadata
     do.call(get(name, namespace), args)
   }
-  list(first = tryCatch(call(), error = identity), repeat_value = tryCatch(call(), error = identity),
-    shared = shared)
+  first <- tryCatch(call(), error = identity)
+  if (!is.null(cache_change)) {
+    for (entry in as.list(shared$cases)) entry$relative_change[entry$have] <- cache_change
+  }
+  list(first = first, repeat_value = tryCatch(call(), error = identity), shared = shared)
 }
 
 test_that("F3-3 every direct factor grid obeys native diagnostics including cached rows", {
@@ -72,6 +81,7 @@ test_that("F3-3 every direct factor grid obeys native diagnostics including cach
         expect_s3_class(value, "error")
         if (inherits(value, "error")) expect_identical(conditionMessage(value), message)
       }
+      expect_true(all(vapply(as.list(result$shared$cases), function(entry) !any(entry$have), logical(1))))
     }
     passing <- .review_grid_diagnostic_transport(method, 0, 0, kind)
     expect_true(is.numeric(passing$first) && all(is.finite(passing$first)))
@@ -87,5 +97,39 @@ test_that("F3-3 every direct factor grid obeys native diagnostics including cach
         expect_identical(direct$shared$stats[["interpolated_points"]], 0)
       }
     }
+  }
+})
+
+test_that("F3-3 cached direct rows are revalidated independently of fresh storage", {
+
+  for (method in c("rank_one", "factor")) {
+    result <- .review_grid_diagnostic_transport(method, 0, 0, "constant", cache_change = .02)
+    expect_true(is.numeric(result$first) && all(is.finite(result$first)))
+    expect_s3_class(result$repeat_value, "error")
+    expect_match(conditionMessage(result$repeat_value), "nested-design relative change was 0.02", fixed = TRUE)
+    expect_equal(result$shared$stats[["constant_evaluations"]], 1)
+  }
+})
+
+test_that("F3-3 raw normalizers retain downstream zplot diagnostic ownership", {
+
+  for (method in c("rank_one", "factor")) {
+    raw <- .review_grid_diagnostic_transport(method, 0, .02, "constant", consumer = "raw")
+    expect_type(raw$first, "list")
+    expect_false(inherits(raw$first, "error"))
+    if (!inherits(raw$first, "error")) {
+      expect_true(all(raw$first$relative_mcse == 0))
+      expect_true(all(raw$first$relative_change == .02))
+      expect_true(all(is.finite(raw$first$log_normalizer)))
+    }
+    zplot <- .review_grid_diagnostic_transport(method, 0, .02, "constant", consumer = "zplot")
+    expect_s3_class(zplot$first, "error")
+    expect_identical(conditionMessage(zplot$first), paste0(
+      "Zplot marginal integration was rejected by diagnostics: relative integration error was 0.02. ",
+      "Increase 'max_points_per_scramble' in 'integration_control = set_selection_likelihood_control()'."))
+    passing <- .review_grid_diagnostic_transport(method, 0, 0, "constant", consumer = "zplot")
+    expect_false(inherits(passing$first, "error"))
+    expect_true(all(is.finite(passing$first$log_density)))
+    expect_true(all(passing$first$relative_mcse == 0))
   }
 })
