@@ -3,6 +3,59 @@
 # BayesTools and finalized as a BayesTools fit around supplied posterior
 # draws, so that post-fit methods run without sampling.
 
+review_heterogeneity_har_replay <- function(scaled = FALSE, n = 120L,
+    weights = c(.5, .5), rho = 0, time = c(1, 2, 1, 2), direct = FALSE) {
+
+  dat <- data.frame(yi = seq(.1, .4, length.out = length(time)),
+    study = factor(rep(c("s1", "s2"), each = length(time) / 2L)), time = time)
+  args <- list(yi = quote(yi), V = diag(.04, nrow(dat)),
+    random = ~ har(time | study), data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+    standardize_continuous_predictors = FALSE,
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    prior_heterogeneity = BayesTools::prior("normal", list(mean = 0, sd = 1),
+      truncation = list(lower = 0, upper = Inf)))
+  if (scaled) args[["scale"]] <- ~ time
+  if (direct) args[["prior_heterogeneity"]] <- BayesTools::prior_random(
+    sd = BayesTools::prior("normal", list(mean = 0, sd = 1),
+      truncation = list(lower = 0, upper = Inf)))
+  setup <- review_compile_object(do.call(brma.mv, args))
+  term <- setup$compiled$mu$formula_design$random_effects[[1L]]
+  allocation <- if (direct) NULL else term$sd_binding$allocations[[1L]]
+  priors <- list()
+  for (compiled in setup$compiled) priors <- c(priors, compiled$prior_list)
+  priors <- c(priors, .create_fit_priors(setup$object$data, setup$object$priors))
+  weight_columns <- if (direct) character() else paste0(allocation$weight_name, "[", 1:2, "]")
+  auxiliary <- if (direct) character() else .iwmde_simplex_auxiliary_columns(allocation$weight_name, 2L)
+  additional <- unique(unlist(lapply(setup$compiled, `[[`, "add_parameters")))
+  latent_base <- paste0(term$parameter_stem, "_xRE_Zx")
+  index <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
+  latent <- paste0(latent_base, "[", index$group, ",", index$column, "]")
+  columns <- unique(c(review_prior_columns(priors), auxiliary,
+    setdiff(additional, latent_base), latent))
+  samples <- matrix(0, n, length(columns), dimnames = list(NULL, columns))
+  if (!direct) {
+    samples[, weight_columns] <- rep(weights, each = n)
+    samples[, auxiliary] <- rep(2 * weights, each = n)
+  }
+  samples[, term$correlation$sample_name] <- if (identical(term$correlation$rho_scale, "fisher_z")) atanh(rho) else rho
+  if (scaled) {
+    samples[, review_coefficient_name(setup, "intercept", "log_tau")] <- 2
+    samples[, review_coefficient_name(setup, "time", "log_tau")] <- log(2)
+  } else {
+    if (direct) {
+      samples[, term$sd_parameter_names] <- rep(2 * sqrt(2 * weights), each = n)
+    } else {
+      samples[, allocation$source$name] <- 2
+      samples[, term$sd_binding$sd_component_names] <- rep(2 * sqrt(2 * weights), each = n)
+    }
+  }
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit,
+    requires = c("name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  list(object = object, samples = samples, setup = setup, term = term, allocation = allocation)
+}
+
 review_scaled_allocation_replay <- function(shift = 0, standardized = TRUE) {
 
   dat <- data.frame(yi = seq(-.1, .2, length.out = 8L),

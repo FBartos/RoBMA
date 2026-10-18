@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Explicit pooled heterogeneity totals and pooled-effect prediction intervals
+  use the full average-design random covariance, preserving default allocation anchors.
 - Formula-group draw extraction honors supplied source rows and chain timing,
   and validates the current RoBMA catalog recipe before evaluating it.
 - Retained complete sampling errors identify fitted truth without claiming a

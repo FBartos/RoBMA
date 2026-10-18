@@ -62,7 +62,11 @@ returns one \code{brma_samples} object when there is a single heterogeneity
 component and a named list when there are multiple components.
 \code{component = "total"} computes the variance-additive total at the
 average random-effect design. Random slopes are evaluated as
-\eqn{\bar q^T G \bar q}. With a known group covariance \eqn{R}, the
+\eqn{\bar q^T G \bar q}, including within-block correlations. Default and
+named allocation components retain their declared scale anchors; explicit
+totals and pooled-effect prediction intervals use the full covariance of
+the average design, including allocation-owned blocks.
+With a known group covariance \eqn{R}, the
 reported \code{sd} is the fitted multiplier of that kernel. It need not equal
 every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
 one. Row-specific marginal standard deviations are available from

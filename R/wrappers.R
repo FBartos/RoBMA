@@ -318,7 +318,7 @@ pooled_effect <- function(object, ...) {
 #' For models without moderators, this returns the single mu parameter. The
 #' prediction interval is marginal over one new true effect at the same average
 #' location, scale, and random-effect design. It therefore uses
-#' \code{pooled_heterogeneity()}, not the observed-design RMS heterogeneity
+#' \code{pooled_heterogeneity(component = "total")}, rather than the observed-design RMS heterogeneity
 #' reported by \code{summary_heterogeneity()}. For known-\eqn{R} random
 #' effects this is a unit-kernel reference interval; use \code{predict()} for
 #' an interval tied to a fitted group and its known covariance multiplier.
@@ -499,7 +499,11 @@ pooled_heterogeneity <- function(object, ...) {
 #' component and a named list when there are multiple components.
 #' \code{component = "total"} computes the variance-additive total at the
 #' average random-effect design. Random slopes are evaluated as
-#' \eqn{\bar q^T G \bar q}. With a known group covariance \eqn{R}, the
+#' \eqn{\bar q^T G \bar q}, including within-block correlations. Default and
+#' named allocation components retain their declared scale anchors; explicit
+#' totals and pooled-effect prediction intervals use the full covariance of
+#' the average design, including allocation-owned blocks.
+#' With a known group covariance \eqn{R}, the
 #' reported \code{sd} is the fitted multiplier of that kernel. It need not equal
 #' every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
 #' one. Row-specific marginal standard deviations are available from
@@ -608,7 +612,8 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
   if (inherits(object, "brma.mv")) {
     components <- .pooled_brma_mv_heterogeneity_components(
       object            = object,
-      posterior_samples = posterior_samples
+      posterior_samples = posterior_samples,
+      covariance        = TRUE
     )
     return(.total_brma_mv_heterogeneity_samples(components))
   }

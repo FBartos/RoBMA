@@ -29,13 +29,14 @@
     object[["fit"]],
     dots[[".posterior_samples"]]
   )
+  component <- .normalize_brma_mv_heterogeneity_component(component)
   components <- .pooled_brma_mv_heterogeneity_components(
     object            = object,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    covariance        = identical(component, "total")
   )
   component_quantities <- attr(components, "quantities", exact = TRUE)
 
-  component <- .normalize_brma_mv_heterogeneity_component(component)
   if (identical(component, "all")) {
     selected <- components
   } else {
@@ -115,7 +116,7 @@
 
 
 .pooled_brma_mv_heterogeneity_components <- function(
-    object, posterior_samples = NULL) {
+    object, posterior_samples = NULL, covariance = FALSE) {
 
   posterior_samples <- .get_posterior_samples(
     object[["fit"]],
@@ -157,11 +158,15 @@
   if (is.null(location_priors)) {
     location_priors <- object[["priors"]][["location"]]
   }
-  allocation_components <- .brma_mv_pooled_allocation_block_samples(
-    object            = object,
-    formula_design    = formula_design,
-    posterior_samples = posterior_samples
-  )
+  allocation_components <- if (covariance) {
+    list()
+  } else {
+    .brma_mv_pooled_allocation_block_samples(
+      object            = object,
+      formula_design    = formula_design,
+      posterior_samples = posterior_samples
+    )
+  }
 
   covariance_blocks <- setdiff(blocks, names(allocation_components))
   covariance_components <- list()
@@ -179,6 +184,10 @@
       by_block = TRUE
     )
     covariance_components <- lapply(variance, function(samples) {
+      if (any(!is.finite(samples)) || any(samples < 0)) {
+        stop("Pooled heterogeneity requires finite nonnegative random variance.",
+             call. = FALSE)
+      }
       matrix(sqrt(samples[, 1L]), ncol = 1L)
     })
   }
@@ -193,6 +202,13 @@
   quantities <- stats::setNames(rep("sd", length(blocks)), blocks)
   for (block in intersect(blocks, names(allocation_components))) {
     quantities[[block]] <- allocation_components[[block]][["quantity"]]
+  }
+  if (covariance) {
+    for (term in formula_design[["random_effects"]]) {
+      if (term[["n_columns"]] > 1L) {
+        quantities[[term[["block_name"]]]] <- "sd_total"
+      }
+    }
   }
   attr(out, "quantities") <- quantities
 
