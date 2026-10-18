@@ -1644,6 +1644,15 @@
 }
 
 
+.zplot_scalar_harmonic_variance <- function(first, second) {
+
+  # Callers retain their finite, positive summed-denominator admission checks.
+  small <- pmin(first, second)
+  large <- pmax(first, second)
+  small / (1 + small / large)
+}
+
+
 .zplot_independent_conditional_variance <- function(tau_within, vi) {
 
   tau2       <- tau_within^2
@@ -1659,7 +1668,7 @@
     )
   }
 
-  return(tau2 * vi_samples / denominator)
+  return(.zplot_scalar_harmonic_variance(tau2, vi_samples))
 }
 
 
@@ -1682,7 +1691,7 @@
         )
       }
 
-      within_variance <- within2 * vi[idx] / denominator
+      within_variance <- .zplot_scalar_harmonic_variance(within2, vi[idx])
       gamma_variance  <- 1 / (
         1 + sum(tau_between[s, idx]^2 / denominator)
       )
@@ -1727,7 +1736,7 @@
           call. = FALSE
         )
       }
-      out[, idx] <- tau2 * V_block[1L, 1L] / denominator
+      out[, idx] <- .zplot_scalar_harmonic_variance(tau2, V_block[1L, 1L])
       next
     }
 

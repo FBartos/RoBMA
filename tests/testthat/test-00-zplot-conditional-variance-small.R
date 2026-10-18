@@ -36,3 +36,32 @@ test_that("conditional Gaussian variance keeps invalid covariance failures expli
   expect_error(.zplot_gaussian_conditional_variance(matrix(-1), matrix(2)),
     "Latent and sampling covariance matrices must be positive semidefinite.", fixed = TRUE)
 })
+test_that("scalar zplot conditional variances preserve representable unit scales", {
+
+  for (a in c(1e-200, 1, 1e200)) for (ratio in c(1, 4)) {
+    b <- a * ratio
+    tau <- matrix(sqrt(a), 1L, 1L)
+    known_v <- .known_v_canonicalize_newdata(matrix(b))
+    values <- c(.zplot_independent_conditional_variance(tau, b),
+      .zplot_multilevel_conditional_variance(tau, matrix(0), b, 1L),
+      .zplot_known_v_conditional_variance(tau, known_v))
+    expected <- if (ratio == 1) a / 2 else a / (1 + 1 / ratio)
+    expect_true(all(is.finite(values)))
+    expect_lt(max(abs(values / expected - 1)), 1e-14)
+    if (ratio == 1) expect_equal(1 + values / b, rep(1.5, 3), tolerance = 1e-14)
+  }
+  for (pair in list(c(0, 1), c(1, 0))) {
+    tau <- matrix(sqrt(pair[1L]))
+    known_v <- .known_v_canonicalize_newdata(matrix(pair[2L]))
+    expect_identical(unname(c(.zplot_independent_conditional_variance(tau, pair[2L]),
+      .zplot_multilevel_conditional_variance(tau, matrix(0), pair[2L], 1L),
+      .zplot_known_v_conditional_variance(tau, known_v))), rep(0, 3))
+  }
+  expect_error(.zplot_independent_conditional_variance(matrix(0), 0),
+    "Cannot evaluate the estimate-depth conditional variance", fixed = TRUE)
+  expect_error(.zplot_multilevel_conditional_variance(matrix(0), matrix(0), 0, 1L),
+    "Cannot evaluate the multilevel estimate-depth conditional variance.", fixed = TRUE)
+  expect_error(.zplot_independent_conditional_variance(matrix(sqrt(1e308)), 1e308),
+    "Cannot evaluate the estimate-depth conditional variance", fixed = TRUE)
+})
+
