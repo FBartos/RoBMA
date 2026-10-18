@@ -1,6 +1,8 @@
 ## version 4.1.0 (IN PROGRESS)
 - Serial native selection, predictor, RNG and retained-context zcurve batches
   check interruptions in bounded work chunks while preserving arithmetic and draws.
+- Retained-context zcurve setup and Gaussian projection recurrences also check
+  interruptions within large grids while shared and worker projections remain isolated.
 - Native nil lengths preserve cleanup and RNG ownership; malformed normal
   predictor locations receive their named numeric validation error.
 - Native thread invariance checks execute every selected-normal and predictor

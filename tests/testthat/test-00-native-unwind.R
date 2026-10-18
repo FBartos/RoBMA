@@ -5,6 +5,22 @@ context("Native C++ unwinding across R conditions")
   .Call("RoBMA_native_unwind_probe", action, callback, threads, PACKAGE = "RoBMA")
 }
 
+test_that("projection polling is opt-in and unwinds construction and density", {
+
+  default <- .native_unwind_probe("projection_disabled")
+  expect_equal(default, dnorm(((0:63) - 32) / 8), tolerance = 1e-14)
+  expect_identical(.native_unwind_probe("projection_checked"), default)
+  for (mode in c("projection_constructor", "projection_density", "projection_zero")) {
+    before <- .native_unwind_probe("counts")
+    expect_error(.native_unwind_probe(mode), "native projection poll", fixed = TRUE)
+    after <- .native_unwind_probe("counts")
+    expect_identical(after[[1L]], 0L)
+    expect_identical(after[[2L]] - before[[2L]], 2L)
+    expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+    expect_identical(.native_unwind_probe("projection_disabled"), default)
+  }
+})
+
 test_that("nil lengths release guards, context and consumed RNG state", {
 
   withr::local_seed(119002L)

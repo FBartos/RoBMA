@@ -303,7 +303,8 @@ struct ZcurveChebyshevGrid {
   long double minimum_cardinal = std::numeric_limits<long double>::infinity();
   long double maximum_cardinal = 0;
 
-  ZcurveChebyshevGrid(const double *grid, int size, int n, double lower, double upper)
+  ZcurveChebyshevGrid(const double *grid, int size, int n, double lower, double upper,
+                     robma_parallel::SerialWork &work)
     : count(n), half_log_factorial(0.5L * std::lgamma(static_cast<long double>(n + 1))),
       nodes(n), cardinal(static_cast<std::size_t>(size) * n)
   {
@@ -312,6 +313,7 @@ struct ZcurveChebyshevGrid {
     const long double radius = (static_cast<long double>(upper) - lower) / 2;
     std::vector<long double> weights(n), terms(n);
     for (int j = 0; j < n; ++j) {
+      work.add();
       const long double angle = pi * (2 * j + 1) / (2 * n);
       nodes[j] = static_cast<double>(midpoint + radius * std::cos(angle));
       weights[j] = (j % 2 ? -1 : 1) * std::sin(angle);
@@ -321,14 +323,19 @@ struct ZcurveChebyshevGrid {
       }
     }
     for (int point = 0; point < size; ++point) {
+      work.add();
       int match = -1;
-      for (int j = 0; j < n; ++j) if (grid[point] == nodes[j]) { match = j; break; }
+      for (int j = 0; j < n; ++j) {
+        work.add();
+        if (grid[point] == nodes[j]) { match = j; break; }
+      }
       if (match >= 0) {
         cardinal[static_cast<std::size_t>(point) * n + match] = 1.0L;
         continue;
       }
       long double denominator = 0.0L;
       for (int j = 0; j < n; ++j) {
+        work.add();
         terms[j] = weights[j] / (static_cast<long double>(grid[point]) - nodes[j]);
         denominator += terms[j];
       }
@@ -337,6 +344,7 @@ struct ZcurveChebyshevGrid {
         return;
       }
       for (int j = 0; j < n; ++j) {
+        work.add();
         cardinal[static_cast<std::size_t>(point) * n + j] = terms[j] / denominator;
       }
     }
@@ -347,7 +355,9 @@ struct ZcurveChebyshevGrid {
     const long double operations = (2 * count + 2) * std::numeric_limits<long double>::epsilon();
     const long double table_gamma = operations / (1 - operations);
     for (int point = 0; point < size; ++point) {
+      work.add();
       for (int j = 0; j < count; ++j) {
+        work.add();
         const std::size_t index = static_cast<std::size_t>(point) * count + j;
         const double coefficient = static_cast<double>(cardinal[index]);
         if (!std::isfinite(coefficient) || (coefficient == 0 && cardinal[index] != 0)) {
@@ -501,6 +511,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   const int L = Rf_length(z_sequence);
   const int B = matrix_ncol(omega, "omega");
 
+  robma_parallel::SerialWork preparation;
   const bool latent_mixture = latent_sd != R_NilValue;
   const double *latent_p = NULL;
   const double *nodes_p = NULL;
@@ -524,6 +535,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     nodes_p = REAL(nodes);
     log_weights_p = REAL(log_weights);
     for (int j = 0; j < n_nodes; ++j) {
+      preparation.add();
       if (!std::isfinite(nodes_p[j]) || !std::isfinite(log_weights_p[j])) {
         Rf_error("Quadrature nodes and log weights must be finite.");
       }
@@ -623,7 +635,6 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
 
   validate_omega_matrix(omega_p, S, B);
 
-  robma_parallel::SerialWork preparation;
   std::vector<double> row_alpha(S);
   std::vector<int> row_phack(S);
   std::vector<int> row_mode(S);
@@ -703,6 +714,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   std::vector<int> z_bin(L, 1);
   if (any_step && (!extrapolate_b || paired)) {
     for (int ell = 0; ell < L; ++ell) {
+      preparation.add(B);
       z_bin[static_cast<size_t>(ell)] = z_step_bin(
         data.effect_sign * z_p[ell], data
       );
@@ -715,7 +727,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
   // and interpolation buffers across rows.
   if (latent_mixture) {
     robma_parallel::SerialWork work;
-    SelNormNormalProjectionWorkspace projection(z_p, L);
+    SelNormNormalProjectionWorkspace projection(z_p, L,
+      robma_native::check_interrupt, static_cast<std::size_t>(ROBMA_WORK_PER_THREAD_REGION));
     std::vector<double> row_weights(B), node_means(n_nodes), log_coefficients(n_nodes);
     std::vector<long double> normalizers(n_nodes);
     std::vector<long double> density(L), cell_density(L);
@@ -750,6 +763,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         }
         coarse_nodes = REAL(cn); coarse_logs = REAL(cw);
         for (int j = 0; j < coarse_count; ++j) {
+          work.add();
           if (!std::isfinite(coarse_nodes[j]) || !std::isfinite(coarse_logs[j])) {
             Rf_error("Coarse quadrature values must be finite.");
           }
@@ -773,7 +787,8 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
       if (interpolate) {
         log_interval_quarter = std::log((static_cast<long double>(upper) - lower) / 4);
         for (int n : {8, 12, 16, 24, 32, 48, 64}) {
-          if (2 * n < L) chebyshev.emplace_back(z_p, L, n, lower, upper);
+          work.add();
+          if (2 * n < L) chebyshev.emplace_back(z_p, L, n, lower, upper, work);
         }
       }
     }
@@ -1003,7 +1018,6 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
               if (!std::isfinite(normalizer)) Rf_error("The retained-context selection normalizer is unavailable.");
               log_coefficients[j] = rule_logs[j] - normalizer;
             }
-            work.add(static_cast<double>(L) * count);
             if (projection.density(node_means.data(), count, sd_p[cell], sei_p[k],
                 log_coefficients.data(), curve.data())) return;
             const double scale = std::log(sei_p[k]) - std::log(sd_p[cell]);

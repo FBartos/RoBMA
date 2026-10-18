@@ -2219,6 +2219,8 @@ double factor_log_integrand(const FactorNormalizerContext &context,
 struct NormalProjectionGrid {
   const double *z;
   int size;
+  void (*poll)();
+  std::size_t poll_interval, remaining_work;
   std::vector<long double> gaps;
   std::vector<int> gap_index;
   std::vector<std::vector<int>> positions;
@@ -2230,16 +2232,32 @@ struct NormalProjectionGrid {
   };
   std::vector<RepeatedDistance> distances;
 
-  NormalProjectionGrid(const double *grid, int length) : z(grid), size(length)
+  // This plain, instance-owned hook is opt-in. Shared and worker workspaces
+  // never supply it; this translation unit does not call the R API.
+  void account_work()
+  {
+    if (poll && --remaining_work == 0) {
+      poll();
+      remaining_work = poll_interval;
+    }
+  }
+
+  NormalProjectionGrid(const double *grid, int length,
+                       void (*poll_function)() = nullptr,
+                       std::size_t interval = 1000000)
+    : z(grid), size(length), poll(poll_function),
+      poll_interval(std::max<std::size_t>(1, interval)), remaining_work(poll_interval)
   {
     if (size < 2 || !std::isfinite(z[0])) return;
     for (int i = 1; i < size; ++i) {
+      account_work();
       const long double gap = static_cast<long double>(z[i]) - z[i - 1];
       if (!(gap > 0.0L) || !std::isfinite(z[i])) {
         positions.clear();
         return;
       }
-      const auto found = std::find(gaps.begin(), gaps.end(), gap);
+      const auto found = std::find_if(gaps.begin(), gaps.end(),
+        [this, gap](long double value) { account_work(); return value == gap; });
       gap_index.push_back(static_cast<int>(found - gaps.begin()));
       if (found == gaps.end()) {
         gaps.push_back(gap);
@@ -2259,13 +2277,18 @@ struct NormalProjectionGrid {
     forward.resize(size - 1);
     backward.resize(size - 1);
     for (std::size_t g = 0; g < positions.size(); ++g) {
+      account_work();
       const std::size_t first_distance = distances.size();
       for (std::size_t j = 1; j < positions[g].size(); ++j) {
+        account_work();
         const int previous = positions[g][j - 1];
         const int next = positions[g][j];
         const long double distance = static_cast<long double>(z[next]) - z[previous];
         auto found = std::find_if(distances.begin() + first_distance, distances.end(),
-          [distance](RepeatedDistance const &entry) { return entry.value == distance; });
+          [this, distance](RepeatedDistance const &entry) {
+            account_work();
+            return entry.value == distance;
+          });
         if (found == distances.end()) {
           distances.push_back({static_cast<int>(g), distance, {}});
           found = distances.end() - 1;
@@ -2278,14 +2301,17 @@ struct NormalProjectionGrid {
   void prepare(double sei, double sd)
   {
     for (std::size_t g = 0; g < positions.size(); ++g) {
+      account_work();
       delta[g] = gaps[g] * sei / sd;
     }
     for (RepeatedDistance const &entry : distances) {
+      account_work();
       // Identical actual grid distances share the exact original arithmetic;
       // neither the grid nor its gaps are rounded to a regular sequence.
       const long double distance = entry.value * sei / sd;
       const long double multiplier = std::exp(-delta[entry.gap] * distance);
       for (auto const &occurrence : entry.occurrences) {
+        account_work();
         forward[occurrence.first] = multiplier;
         backward[occurrence.second] = multiplier;
       }
@@ -2299,7 +2325,8 @@ struct NormalProjectionGrid {
     if (positions.empty()) return false;
     if (weight == 0.0L) return true;
     if (!(weight > 0.0L) || !std::isfinite(weight)) return false;
-    int anchor = static_cast<int>(std::lower_bound(z, z + size, mean / sei) - z);
+    int anchor = static_cast<int>(std::lower_bound(z, z + size, mean / sei,
+      [this](double value, double target) { account_work(); return value < target; }) - z);
     anchor = std::min(anchor, size - 1);
     const auto score = [this, sei, mean, sd](int i) {
       return selnorm_fma(z[i], sei, -mean) / sd;
@@ -2307,7 +2334,9 @@ struct NormalProjectionGrid {
     if (anchor > 0 && std::abs(score(anchor - 1)) < std::abs(score(anchor))) --anchor;
     if (!std::isfinite(score(anchor))) return false;
     for (std::size_t g = 0; g < positions.size(); ++g) {
-      const auto first = std::lower_bound(positions[g].begin(), positions[g].end(), anchor);
+      account_work();
+      const auto first = std::lower_bound(positions[g].begin(), positions[g].end(), anchor,
+        [this](int value, int target) { account_work(); return value < target; });
       if (first != positions[g].end()) {
         const double first_score = score(*first);
         if (!std::isfinite(first_score)) return false;
@@ -2329,6 +2358,7 @@ struct NormalProjectionGrid {
     // f(s + d) / f(s) = exp(-s*d - d*d/2). For another occurrence
     // of that exact gap, the ratio changes by exp(-d * distance).
     for (int i = anchor + 1; i < size; ++i) {
+      account_work();
       const int g = gap_index[i - 1];
       value *= right[g];
       density[i] += value * z_weight[i];
@@ -2336,6 +2366,7 @@ struct NormalProjectionGrid {
     }
     value = initial;
     for (int i = anchor - 1; i >= 0; --i) {
+      account_work();
       const int g = gap_index[i];
       value *= left[g];
       density[i] += value * z_weight[i];
@@ -3429,11 +3460,13 @@ struct SelNormNormalProjectionWorkspace::Impl {
   std::vector<double> weights;
   std::vector<long double> output;
 
-  Impl(const double *z, int size) : recurrence(z, size), weights(size, 1.0), output(size) {}
+  Impl(const double *z, int size, void (*poll)(), std::size_t poll_interval)
+    : recurrence(z, size, poll, poll_interval), weights(size, 1.0), output(size) {}
 };
 
-SelNormNormalProjectionWorkspace::SelNormNormalProjectionWorkspace(const double *z, int size)
-  : impl(new Impl(z, size)) {}
+SelNormNormalProjectionWorkspace::SelNormNormalProjectionWorkspace(
+    const double *z, int size, void (*poll)(), std::size_t poll_interval)
+  : impl(new Impl(z, size, poll, poll_interval)) {}
 
 SelNormNormalProjectionWorkspace::~SelNormNormalProjectionWorkspace() = default;
 
@@ -3445,6 +3478,7 @@ bool SelNormNormalProjectionWorkspace::density(
   std::fill(impl->output.begin(), impl->output.end(), 0.0L);
   const double log_scale = std::log(sei) - std::log(sd);
   for (int point = 0; point < count; ++point) {
+    impl->recurrence.account_work();
     const long double weight = std::exp(static_cast<long double>(log_coefficients[point]));
     if (!impl->recurrence.add(mean[point], sei, sd, log_scale, weight,
                              impl->weights, impl->output)) {

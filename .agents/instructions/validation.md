@@ -22,6 +22,11 @@ native-unwind tests as well as the relevant numerical checks.
 Serial selection batches and their direct RNG/reduction paths check interrupts
 on the main thread in roughly one-million-work chunks. Large individual grid
 rows also account for work internally; OpenMP workers never enter those checks.
+The serial retained-context zcurve owner also polls its Chebyshev setup and
+projection topology/recurrence work. Its private per-instance projection hook
+defaults to disabled for shared, JAGS and worker workspaces; callbacks may throw
+through ordinary C++ cleanup. This does not bound allocation or scalar-kernel
+latency for arbitrary native-only requests.
 
 ## Performance investigation
 

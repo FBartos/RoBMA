@@ -100,12 +100,15 @@ double cpp_selnorm_mnorm_step_surrogate_lpdf(
 
 // Call-owned grid topology and scratch space for quadrature mixtures. The grid
 // must remain unchanged throughout this workspace's lifetime. False leaves
-// output untouched and requests direct evaluation of the same mixture.
+// output untouched and requests direct evaluation of the same mixture. Only a
+// serial R owner supplies a polling function; shared/JAGS owners leave it null.
 class SelNormNormalProjectionWorkspace {
   struct Impl;
   std::unique_ptr<Impl> impl;
 public:
-  SelNormNormalProjectionWorkspace(const double *z, int size);
+  SelNormNormalProjectionWorkspace(const double *z, int size,
+                                  void (*poll)() = nullptr,
+                                  std::size_t poll_interval = 1000000);
   ~SelNormNormalProjectionWorkspace();
   bool density(const double *mean, int count, double sd, double sei,
                const double *log_coefficients, long double *output);

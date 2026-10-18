@@ -51,6 +51,31 @@ extern "C" SEXP RoBMA_native_unwind_probe(SEXP action, SEXP callback, SEXP threa
   NativeProbeWorkspace outer;
   {
     NativeProbeWorkspace inner;
+    if (std::strncmp(mode, "projection_", 11) == 0) {
+      std::vector<double> grid(64), means(1024, 0.0), logs(1024, -std::log(1024.0));
+      std::vector<long double> density(64);
+      for (int i = 0; i < 64; ++i) grid[i] = (i - 32) / 8.0;
+      const bool disabled = std::strcmp(mode, "projection_disabled") == 0;
+      const bool checked = std::strcmp(mode, "projection_checked") == 0;
+      const bool constructor = std::strcmp(mode, "projection_constructor") == 0;
+      const bool zero = std::strcmp(mode, "projection_zero") == 0;
+      if (zero) std::fill(logs.begin(), logs.end(), -std::numeric_limits<double>::infinity());
+      const auto quiet = +[]() {};
+      const auto failure = +[]() { throw std::runtime_error("native projection poll"); };
+      // No hook argument at all on the default-disabled path. The other
+      // modes exercise actual construction, recurrence and zero components.
+      std::unique_ptr<SelNormNormalProjectionWorkspace> projection;
+      if (disabled) projection.reset(new SelNormNormalProjectionWorkspace(grid.data(), 64));
+      else projection.reset(new SelNormNormalProjectionWorkspace(grid.data(), 64,
+        checked ? quiet : failure, constructor || checked ? 1 : 512));
+      if (!projection->density(means.data(), 1024, 1.0, 1.0, logs.data(), density.data())) {
+        Rf_error("Native projection probe could not evaluate its regular grid.");
+      }
+      SEXP out = PROTECT(Rf_allocVector(REALSXP, 64));
+      for (int i = 0; i < 64; ++i) REAL(out)[i] = static_cast<double>(density[i]);
+      UNPROTECT(1);
+      return out;
+    }
     const bool nil_length = std::strcmp(mode, "nil_length") == 0;
     const bool nil_xlength = std::strcmp(mode, "nil_xlength") == 0;
     int nil_size = -1;
