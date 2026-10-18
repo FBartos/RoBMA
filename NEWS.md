@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scalar fitted Gaussian means use stable SD-ratio weights, preserving conditional
+  uncertainty when a representable pair of large variances overflows their sum.
 - Successful COVRATIO results retain their print and data-frame methods even
   when no diagnostic note is needed.
 - Ordered COVRATIO uses one independent share basis per declared allocation

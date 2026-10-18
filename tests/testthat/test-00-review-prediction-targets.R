@@ -38,6 +38,30 @@ test_that("fitted Gaussian uncertainty is equivariant to effect-size units", {
   reference <- draw_at_scale(1)
   expect_equal(draw_at_scale(1e100), reference, tolerance = 1e-14)
   expect_equal(draw_at_scale(1e-100), reference, tolerance = 1e-14)
+  expect_equal(draw_at_scale(1e154), reference, tolerance = 1e-14)
+})
+
+test_that("scalar Gaussian conditionals retain represented means and normal assignments", {
+
+  S <- 20000L
+  for (scale in c(1, 1e100, 1e-100, 1e154)) {
+    set.seed(2302)
+    normals <- matrix(stats::rnorm(S * 3L), S, 3L)
+    expected_seed <- .Random.seed
+    set.seed(2302)
+    value <- .evaluate.brma.true_effects_posterior.norm(
+      matrix(c(0, -.2, -.2) * scale, S, 3L, byrow = TRUE),
+      matrix(c(1, 0, .7) * scale, S, 3L, byrow = TRUE),
+      yi = c(8, 2, 2) * scale, sei = c(1, .7, 0) * scale,
+      bias_offset = matrix(c(0, -.3, .3) * scale, S, 3L, byrow = TRUE))
+    expect_equal(value[, 1L] / scale, 4 + normals[, 1L] / sqrt(2), tolerance = 1e-14)
+    expect_equal(value[, 2L], rep(-.2 * scale, S), tolerance = 0)
+    expect_equal(value[, 3L], rep(2 * scale - .3 * scale, S), tolerance = 0)
+    expect_identical(.Random.seed, expected_seed)
+  }
+  expect_error(.evaluate.brma.true_effects.norm(matrix(0, 1L, 1L),
+    matrix(1e-200, 1L, 1L), yi = 1e200, sei = 1, same_data = TRUE),
+    "Gaussian conditional arithmetic is numerically unavailable.", fixed = TRUE)
 })
 
 test_that("one-estimate GLMM replication accepts scalar JAGS nuisance names", {

@@ -1855,6 +1855,32 @@
 # @return S x K matrix of true-effect BLUP means or new-effect posterior samples
 #
 # ---------------------------------------------------------------------------- #
+.gaussian_conditional_sd_weights <- function(first, second) {
+
+  if (any(!is.finite(first) | first < 0) ||
+      any(!is.finite(second) | second < 0)) {
+    stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+  }
+  large <- pmax(first, second)
+  small <- pmin(first, second)
+  positive <- large > 0
+  ratio_squared <- large
+  ratio_squared[] <- 0
+  ratio_squared[positive] <- (small[positive] / large[positive])^2
+  if (any(small > 0 & ratio_squared == 0)) {
+    stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+  }
+  smaller_weight <- ratio_squared / (1 + ratio_squared)
+  larger_weight <- 1 / (1 + ratio_squared)
+  first_weight <- ifelse(first > second, larger_weight, smaller_weight)
+  second_weight <- ifelse(first > second, smaller_weight, larger_weight)
+  # Retain the existing both-zero mean convention; no new support law is set.
+  first_weight[!positive] <- 0
+  second_weight[!positive] <- 1
+  return(list(first = first_weight, second = second_weight))
+}
+
+
 .evaluate.brma.true_effects.norm <- function(mu_samples, tau_within, yi, sei,
                                              same_data, bias_offset = NULL) {
 
@@ -1863,13 +1889,8 @@
 
   if (same_data) {
 
-    # BLUP: empirical Bayes conditional means for existing observations
-    # lambda = tau^2 / (tau^2 + se^2) ranges from 0 (strong shrinkage)
-    # to 1 (weak shrinkage).
-    lambda      <- tau_within^2
-    denominator <- sweep(lambda, 2, sei^2, "+")
-    lambda      <- lambda / denominator
-    lambda[denominator == 0] <- 0
+    sampling_sd <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
+    weights <- .gaussian_conditional_sd_weights(tau_within, sampling_sd)
 
     if (is.null(bias_offset)) {
       bias_offset <- matrix(0, nrow = S, ncol = K)
@@ -1878,11 +1899,14 @@
            call. = FALSE)
     }
 
-    # BLUP: weighted average of observed effect and model prediction
-    # high tau -> lambda -> 1 -> trust data more
-    # low tau -> lambda -> 0 -> trust model more
-    true_effects_samples <- mu_samples +
-      lambda * (sweep(mu_samples, 2, yi, function(mu, yi_i) yi_i - mu) - bias_offset)
+    # Compute both variance weights independently from SD ratios. This avoids
+    # overflowing a sum of squared SDs and losing a small weight through 1-a.
+    adjusted_y <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) - bias_offset
+    true_effects_samples <- weights[["second"]] * mu_samples +
+      weights[["first"]] * adjusted_y
+    if (any(!is.finite(adjusted_y)) || any(!is.finite(true_effects_samples))) {
+      stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+    }
 
   } else {
 
