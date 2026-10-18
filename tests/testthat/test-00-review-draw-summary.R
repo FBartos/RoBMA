@@ -89,3 +89,50 @@ test_that("pooled totals and prediction intervals use full allocation covariance
   expect_equal(as.numeric(pooled_heterogeneity(row$object, component = "total")),
     rep(4, 120L), tolerance = 1e-13)
 })
+
+test_that("row-source allocation anchors use prepared pooled source values", {
+
+  x <- review_heterogeneity_har_replay(scaled = TRUE)
+  for (object in list(x$object, x$setup$object)) {
+    for (component in c("all", "study")) {
+      anchor <- pooled_heterogeneity(object, component = component,
+        .posterior_samples = x$samples)
+      expect_identical(colnames(anchor), "tau_common")
+      expect_equal(as.numeric(anchor), rep(sqrt(32), 120L), tolerance = 1e-13)
+    }
+    expect_equal(as.numeric(pooled_heterogeneity(object, component = "total",
+      .posterior_samples = x$samples)), rep(4, 120L), tolerance = 1e-13)
+    missing <- x$samples[, colnames(x$samples) != "log_tau_time", drop = FALSE]
+    expect_error(pooled_heterogeneity(object, .posterior_samples = missing),
+      "Pooled SD-component allocation is unavailable; missing source coordinates: log_tau_time.",
+      fixed = TRUE)
+  }
+  observed <- summary_heterogeneity(x$object, component = "total")
+  expect_equal(observed$estimates["tau", "Mean"], sqrt(40), tolerance = 1e-13)
+})
+
+test_that("row-source anchors retain admitted parent weights and gates once", {
+
+  for (role in c("mean_variance", "total_variance")) {
+    x <- review_heterogeneity_parent_replay(role)
+    expected <- sqrt(32) * sqrt(.25) * c(0, 1, 0, 1)
+    for (object in list(x$object, x$setup$object)) {
+      anchor <- pooled_heterogeneity(object, component = x$blocks[1L],
+        .posterior_samples = x$samples)
+      expect_equal(as.numeric(anchor), expected, tolerance = 1e-13)
+      expect_identical(colnames(anchor), if (role == "mean_variance") "tau_common" else "tau_total")
+      missing <- x$samples[, colnames(x$samples) != x$gate, drop = FALSE]
+      expect_error(pooled_heterogeneity(object, component = x$blocks[1L], .posterior_samples = missing),
+        paste0("Cannot evaluate marginalized random-effect allocation; missing posterior column: ", x$gate), fixed = TRUE)
+      weight <- paste0(x$root$weight_name, "[1]")
+      missing <- x$samples[, colnames(x$samples) != weight, drop = FALSE]
+      expect_error(pooled_heterogeneity(object, component = x$blocks[1L], .posterior_samples = missing),
+        paste0("Cannot evaluate marginalized random-effect allocation; missing posterior column: ", weight), fixed = TRUE)
+      multiplier <- if (role == "mean_variance") 2 else 1
+      study_variance <- 32 * .25 * multiplier * sum(c(.5, .5)^2 * c(.2, .8)) * c(0, 1, 0, 1)
+      total <- sqrt(study_variance + 32 * .75)
+      expect_equal(as.numeric(pooled_heterogeneity(object, component = "total", .posterior_samples = x$samples)),
+        total, tolerance = 1e-13)
+    }
+  }
+})

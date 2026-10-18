@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Row-source allocation anchors evaluate the declared pooled scale design,
+  retaining parent allocation factors and strict source-coordinate requirements.
 - Heterogeneity summaries retain declared undefined-share draws and their
   defined-draw footnotes, and construct tables only for requested components.
 - Explicit pooled heterogeneity totals and pooled-effect prediction intervals

@@ -223,10 +223,6 @@
   if (length(allocations) == 0L) {
     return(list())
   }
-  source_samples <- .brma_mv_scale_source_samples(
-    object            = object,
-    posterior_samples = posterior_samples
-  )
   K   <- nrow(object[["data"]][["outcome"]])
   out <- list()
 
@@ -250,7 +246,35 @@
     }
     quantity <- .brma_mv_allocation_aggregate_quantities(allocation)[["sd"]]
 
-    if (!is.null(object[["fit"]])) {
+    source <- allocation[["source"]]
+    if (identical(source[["shape"]], "row")) {
+      evaluator <- source[["source"]][["values"]]
+      inputs <- source[["source"]][["inputs"]]
+      if (!is.function(evaluator)) {
+        stop("Pooled SD-component allocation requires its prepared row-source evaluator.",
+             call. = FALSE)
+      }
+      missing <- setdiff(inputs, colnames(posterior_samples))
+      if (length(missing) > 0L) {
+        stop("Pooled SD-component allocation is unavailable; missing source coordinates: ",
+             paste(missing, collapse = ", "), ".", call. = FALSE)
+      }
+      samples <- vapply(seq_len(nrow(posterior_samples)), function(i) {
+        evaluator(parameters = as.list(stats::setNames(
+          as.numeric(posterior_samples[i, inputs, drop = FALSE]), inputs)),
+          data = formula_design[["source_data"]], n_rows = 1L)
+      }, numeric(1L))
+      samples <- matrix(samples, ncol = 1L)
+      for (factor in allocation[["parent_factors"]]) {
+        samples <- samples * .random_allocation_factor_samples(
+          factor = factor, posterior_samples = posterior_samples
+        )
+      }
+      if (any(!is.finite(samples)) || any(samples < 0)) {
+        stop("Pooled heterogeneity requires finite nonnegative allocation SDs.",
+             call. = FALSE)
+      }
+    } else if (!is.null(object[["fit"]])) {
       catalog    <- BayesTools::parameter_catalog(object[["fit"]])
       quantities <- catalog[["quantities"]]
       keys       <- quantities[["extraction_key"]]
@@ -280,7 +304,9 @@
       )
       samples <- matrix(as.numeric(draws[[1L]][, 1L]), ncol = 1L)
     } else {
-      source <- allocation[["source"]]
+      source_samples <- .brma_mv_scale_source_samples(
+        object = object, posterior_samples = posterior_samples
+      )
       name   <- source[["name"]]
       available <- !is.null(source_samples) && name %in% names(source_samples)
       if (!available && identical(source[["shape"]], "scalar")) {

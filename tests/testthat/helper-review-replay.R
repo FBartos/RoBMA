@@ -56,6 +56,61 @@ review_heterogeneity_har_replay <- function(scaled = FALSE, n = 120L,
   list(object = object, samples = samples, setup = setup, term = term, allocation = allocation)
 }
 
+review_heterogeneity_parent_replay <- function(role) {
+
+  dat <- data.frame(yi = c(.1, .2, .3, .4), time = c(1, 2, 1, 2),
+    study = factor(c("s1", "s1", "s2", "s2")), other = factor(1:4))
+  args <- list(yi = quote(yi), V = diag(.04, 4L),
+    random = list(combined = ~har(time | study) + id(1 | other)),
+    scale = list(combined = ~time), data = dat, prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("point", list(location = 0)), measure = "GEN",
+    standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE)
+  discovery <- do.call(brma.mv, args)
+  blocks <- vapply(discovery$formula_design$mu$random_effects, `[[`, character(1), "block_name")
+  source <- .data_scale_component_specs(discovery$data)[[1L]]$source
+  args$prior_heterogeneity <- BayesTools::prior_random(allocation = list(
+    BayesTools::random_variance_allocation(name = "root",
+      terms = c(study = blocks[1L], other = blocks[2L]),
+      sd_source = BayesTools::random_sd_source(source, shape = "row"),
+      weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1))),
+      inclusion = list(study = BayesTools::prior("spike", list(location = .5)))),
+    BayesTools::random_variance_allocation(name = "child", terms = blocks[1L],
+      target = "sd_component", parent = BayesTools::allocation_ref("root", "study"),
+      scale = role, weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1))))))
+  setup <- review_compile_object(do.call(brma.mv, args))
+  design <- setup$compiled$mu$formula_design
+  priors <- list()
+  for (compiled in setup$compiled) priors <- c(priors, compiled$prior_list)
+  priors <- c(priors, .create_fit_priors(setup$object$data, setup$object$priors))
+  additional <- unique(unlist(lapply(setup$compiled, `[[`, "add_parameters")))
+  latent <- unlist(lapply(design$random_effects, function(term) {
+    base <- paste0(term$parameter_stem, "_xRE_Zx")
+    index <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
+    paste0(base, "[", index$group, ",", index$column, "]")
+  }))
+  bases <- vapply(design$random_effects, function(term) paste0(term$parameter_stem, "_xRE_Zx"), character(1))
+  auxiliary <- unlist(lapply(design$random_allocations, function(allocation) {
+    .iwmde_simplex_auxiliary_columns(allocation$weight_name, 2L)
+  }))
+  columns <- unique(c(review_prior_columns(priors), setdiff(additional, bases), auxiliary, latent))
+  samples <- matrix(0, 4L, length(columns), dimnames = list(NULL, columns))
+  root <- design$random_allocations$root
+  child <- design$random_allocations$child
+  for (allocation in list(root, child)) {
+    weights <- if (allocation$label == "root") c(.25, .75) else c(.2, .8)
+    samples[, paste0(allocation$weight_name, "[", 1:2, "]")] <- rep(weights, each = 4L)
+    samples[, .iwmde_simplex_auxiliary_columns(allocation$weight_name, 2L)] <- rep(2 * weights, each = 4L)
+  }
+  gate <- root$inclusion$study$indicator_name
+  samples[, gate] <- c(0, 1, 0, 1)
+  parameter <- .data_scale_component_specs(setup$object$data)[[1L]]$parameter
+  samples[, review_coefficient_name(setup, "intercept", parameter)] <- 2
+  samples[, review_coefficient_name(setup, "time", parameter)] <- log(2)
+  object <- review_attach_replay(setup, samples)
+  list(object = object, setup = setup, samples = samples, root = root, child = child,
+    gate = gate, blocks = blocks)
+}
+
 review_scaled_allocation_replay <- function(shift = 0, standardized = TRUE) {
 
   dat <- data.frame(yi = seq(-.1, .2, length.out = 8L),
