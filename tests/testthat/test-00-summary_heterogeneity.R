@@ -427,3 +427,51 @@ test_that("undefined original-scale correlations are summarized over defined dra
     )
   )
 })
+
+test_that("undefined allocation shares retain carrier rows and table footnotes", {
+
+  skip_on_cran()
+  fit <- load_fit("lane_nested_total")
+  samples <- .get_posterior_samples(fit[["fit"]])
+  catalog <- BayesTools::parameter_catalog(fit[["fit"]])
+  quantities <- catalog[["quantities"]]
+  gate <- quantities[quantities[["role"]] == "random_inclusion", , drop = FALSE]
+  gate <- gate[["extraction_key"]][[1L]][["source_parameter"]]
+  shares <- quantities[quantities[["quantity"]] == "var_prop", , drop = FALSE]
+  expect_true(any(samples[, gate] == 0))
+  expect_true(any(samples[, gate] == 1))
+  for (index in list(seq_len(nrow(samples)), which(samples[, gate] == 0),
+      which(samples[, gate] == 1))) {
+    selected <- samples[index, , drop = FALSE]
+    reference <- lapply(seq_len(nrow(shares)), function(i) {
+      selection <- BayesTools::parameter_catalog_resolve(catalog,
+        shares[["canonical_name"]][i], namespace = shares[["namespace"]][i])
+      values <- .brma_mv_catalog_draw_values(BayesTools::parameter_draws(
+        fit[["fit"]], selection, model_samples = selected))
+      expect_length(values, length(index))
+      expect_identical(BayesTools::posterior_metadata(values, "undefined_draws"),
+        "allocation_active")
+      values
+    })
+    names(reference) <- .brma_random_parameter_io_labels(shares, "label")
+    reference <- BayesTools::ensemble_estimates_table(reference,
+      parameters = names(reference))
+    for (component in c("all", "total", "study")) {
+      result <- summary_heterogeneity(fit, component = component,
+        .posterior_samples = selected)
+      expect_identical(as.data.frame(result), data.frame(result))
+      expect_type(as.data.frame(result)[["Mean"]], "double")
+      printed <- capture.output(print(result))
+      if (component == "all") {
+        table <- result[["study/esid"]][["estimates"]]
+        expect_equal(as.matrix(table[rownames(reference), , drop = FALSE]),
+          as.matrix(reference), ignore_attr = TRUE)
+        expect_identical(unname(attr(table, "footnotes")),
+          unname(attr(reference, "footnotes")))
+        for (note in unname(attr(reference, "footnotes"))) {
+          expect_true(any(grepl(note, printed, fixed = TRUE)))
+        }
+      }
+    }
+  }
+})

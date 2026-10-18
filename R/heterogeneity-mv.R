@@ -378,6 +378,7 @@
 .summary_heterogeneity_brma_mv <- function(object, probs = c(.025, .975),
                                            component = "all", ...) {
 
+  component <- .normalize_brma_mv_heterogeneity_component(component)
   dots              <- list(...)
   posterior_samples <- .get_posterior_samples(
     object[["fit"]],
@@ -391,7 +392,8 @@
   allocation_summaries <- .summary_heterogeneity_brma_mv_allocations(
     object            = object,
     posterior_samples = posterior_samples,
-    probs             = probs
+    probs             = probs,
+    component         = component
   )
   correlation_samples <- .brma_mv_correlation_sample_lists(
     object            = object,
@@ -401,7 +403,6 @@
     correlation_samples[["total"]] <- correlation_samples[[names(components)]]
   }
 
-  component <- .normalize_brma_mv_heterogeneity_component(component)
   if (identical(component, "all")) {
     replaced_components <- .brma_mv_allocation_replaced_components(
       allocation_summaries
@@ -434,7 +435,8 @@
         components            = components,
         component             = component,
         object                = object,
-        extra_component_names = names(allocation_summaries)
+        extra_component_names = attr(allocation_summaries, "available_components",
+                                     exact = TRUE)
       )
       out <- lapply(names(selected), function(name) {
         .summary_heterogeneity_brma_mv_one(
@@ -563,7 +565,12 @@
 
 .summary_heterogeneity_brma_mv_allocations <- function(object,
                                                        posterior_samples,
-                                                       probs) {
+                                                       probs,
+                                                       component = "all") {
+
+  if (identical(component, "total")) {
+    return(list())
+  }
 
   allocation_samples <- .brma_mv_allocation_sample_lists(
     object            = object,
@@ -572,8 +579,14 @@
   if (length(allocation_samples) == 0L) {
     return(list())
   }
+  available_components <- names(allocation_samples)
+  selected <- if (identical(component, "all")) {
+    available_components
+  } else {
+    .match_brma_mv_allocation_summary_component(component, allocation_samples)
+  }
 
-  out <- lapply(names(allocation_samples), function(name) {
+  out <- lapply(selected, function(name) {
     samples_list <- allocation_samples[[name]]
     estimates <- BayesTools::ensemble_estimates_table(
       samples    = samples_list,
@@ -587,7 +600,8 @@
 
     output
   })
-  names(out) <- names(allocation_samples)
+  names(out) <- selected
+  attr(out, "available_components") <- available_components
 
   attr(out, "component_aliases") <- attr(
     allocation_samples,
@@ -779,21 +793,6 @@
         model_samples = posterior_samples
       )
       values <- .brma_mv_catalog_draw_values(draws)
-      if (identical(selected[["quantity"]][i], "var_prop")) {
-        values <- values[!is.na(values)]
-        if (length(values) == 0L) {
-          stop(
-            "Heterogeneity-variance proportion '",
-            .brma_random_parameter_io_labels(
-              selected[i, , drop = FALSE],
-              "label"
-            ),
-            "' is unavailable because no posterior draw has positive ",
-            "realized allocation variance.",
-            call. = FALSE
-          )
-        }
-      }
       values
     })
     names(samples_list) <- .brma_random_parameter_io_labels(selected, "label")

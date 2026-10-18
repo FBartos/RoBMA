@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Heterogeneity summaries retain declared undefined-share draws and their
+  defined-draw footnotes, and construct tables only for requested components.
 - Explicit pooled heterogeneity totals and pooled-effect prediction intervals
   use the full average-design random covariance, preserving default allocation anchors.
 - Formula-group draw extraction honors supplied source rows and chain timing,
