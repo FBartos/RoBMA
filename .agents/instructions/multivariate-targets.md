@@ -160,6 +160,11 @@ cluster diagnostics that lack this partition metadata.
 
 ## Relevant Files
 
+Residual diagnostics certify an individual exact zero only if its design
+certificate and the actual covariance multiplier leave that row isolated.
+Marginal targets include every random covariance source in that check;
+fully saturated designs retain their exact zero independently of covariance.
+
 - Target availability and metadata: `R/unit_level.R`,
   `R/brma-mv-targets.R`.
 - Known-`V` scores: `R/log-lik.R`, `R/log-lik-known-v.R`.

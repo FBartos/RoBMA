@@ -135,6 +135,12 @@
 
     if (is_multilevel) {
       M_diag_s <- M_diag_s + tau_b_s^2
+      if (conditioning_depth == "marginal" && length(zero_residual_rows) < K) {
+        zero_residual_rows <- zero_residual_rows[vapply(zero_residual_rows, function(i) {
+          partners <- block_indices[[which(vapply(block_indices, function(index) i %in% index, logical(1)))]]
+          all(tau_b_s[i] * tau_b_s[setdiff(partners, i)] == 0)
+        }, logical(1))]
+      }
     }
 
     M_diag_samples[s, ] <- M_diag_s
@@ -395,6 +401,14 @@
     for (s in seq_len(S)) {
       X_s                <- design_plan[["designs"]][[design_plan[["draw_class"]][s]]]
       zero_residual_rows <- design_plan[["zero_residual_rows"]][[design_plan[["draw_class"]][s]]]
+      if (length(zero_residual_rows) < K) {
+        zero_residual_rows <- zero_residual_rows[vapply(zero_residual_rows, function(i) {
+          all(vapply(.known_v_correlated_blocks(known_V), function(block) {
+            local <- match(i, block[["index"]])
+            is.na(local) || all(block[["covariance"]][local, -local] == 0)
+          }, logical(1)))
+        }, logical(1))]
+      }
       y_offset  <- yi - offset_samples[s, ]
       projection <- .known_v_gls_projection_blocks(
         X              = X_s,
@@ -456,7 +470,7 @@
       H_samples <- projection[["H"]]
     }
     if (return_resid) {
-      residual <- .hat_zero_class_rows(projection[["residual"]], design_plan)
+      residual <- projection[["residual"]]
       if (summarize) {
         resid_sum <- colSums(residual)
       } else {
@@ -464,10 +478,7 @@
       }
     }
     if (return_se) {
-      residual_variance <- .hat_zero_class_rows(
-        projection[["residual_variance"]],
-        design_plan
-      )
+      residual_variance <- projection[["residual_variance"]]
       se <- .hat_variance_sd(
         residual_variance,
         "Known-V marginal residual variance"
@@ -543,7 +554,8 @@
         y                 = y,
         return_full_H     = return_full_H,
         return_se         = return_se,
-        return_resid      = return_resid
+        return_resid      = return_resid,
+        zero_candidates   = design_plan[["zero_residual_rows"]][[design_class]]
       ),
       rows = rows
     )

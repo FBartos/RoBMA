@@ -395,7 +395,7 @@ test_that("the tight GLS residual variance forms no K x K identity per draw", {
     object = list(), posterior_samples = matrix(0, S, 1L), known_V = list(),
     X = X, y = rep(0, K), return_se = TRUE
   )
-  growth <- gc()["Vcells", 6L] - before["Vcells", 2L]
+  growth <- (gc()["Vcells", "max used"] - before["Vcells", "used"]) * 8 / 1024^2
   expect_lt(growth, 8)
 
   # With W = I the hat column of row 1 is X (X'X)^-1 x_1 = e_1, so the

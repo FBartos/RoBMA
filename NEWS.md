@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Exact residual zeros require an isolated row in the relevant covariance
+  multiplier, while fully saturated designs retain their exact zero certificate.
 - Estimate deletion for sampling-conditioned selection models retains declared
   sampling and random context in selected and ordinary branches. Cluster deletion
   keeps its distinct joint law; changed legacy estimate scores require recomputation.

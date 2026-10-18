@@ -439,7 +439,8 @@
 }
 .known_v_factor_gls_projection_batch <- function(
     object, posterior_samples, known_V, X, y,
-    return_full_H = FALSE, return_se = FALSE, return_resid = FALSE) {
+    return_full_H = FALSE, return_se = FALSE, return_resid = FALSE,
+    zero_candidates = integer()) {
 
   S <- nrow(posterior_samples)
   K <- length(y)
@@ -520,6 +521,9 @@
       }
       residual_variance_samples[s, ] <- variance_s
     }
+    zero_rows <- .known_v_isolated_projection_rows(plan_data, s, zero_candidates)
+    if (return_resid) residual_samples[s, zero_rows] <- 0
+    if (return_se) residual_variance_samples[s, zero_rows] <- 0
   }
 
   return(list(
@@ -530,6 +534,42 @@
     residual_variance  = residual_variance_samples,
     covariance_path    = "factor_plan_gls"
   ))
+}
+
+
+# A design certificate Q e_i = 0 also certifies a zero marginal residual row
+# only when its covariance multiplier has no other partners. Inspect candidate
+# covariance rows through the existing factors, without a new dense covariance.
+.known_v_isolated_projection_rows <- function(plan_data, draw, candidates) {
+
+  K <- nrow(plan_data[["sampling_covariance"]])
+  if (length(candidates) == K) return(candidates) # wholly saturated design
+  plans <- plan_data[["random_covariance_plans"]]
+  states <- plan_data[["random_covariance_states"]][[draw]]
+  candidates[vapply(candidates, function(i) {
+    others <- setdiff(seq_len(K), i)
+    if (any(plan_data[["sampling_covariance"]][i, others] != 0)) return(FALSE)
+    for (factor in seq_along(plans)) {
+      plan <- plans[[factor]]
+      state <- states[[factor]]
+      # Unrecognized representations retain the computed residual instead of
+      # claiming a structural zero from incomplete covariance information.
+      if (!plan[["type"]] %in% c("group", "known_group", "row_group") ||
+          is.null(state[["coefficient_factor"]])) return(FALSE)
+      design <- plan[["model_matrix"]]
+      root <- state[["coefficient_factor"]]
+      loading <- design[i, ]
+      if (identical(plan[["type"]], "row_group")) loading <- loading * state[["row_scale"]][i]
+      covariance_row <- as.vector(design %*% (root %*% crossprod(root, loading)))
+      if (identical(plan[["type"]], "row_group")) covariance_row <- covariance_row * state[["row_scale"]]
+      groups <- plan[["group_map"]]
+      covariance_row <- covariance_row * if (identical(plan[["type"]], "known_group")) {
+        plan[["group_covariance"]][groups, groups[i]]
+      } else groups == groups[i]
+      if (any(covariance_row[others] != 0)) return(FALSE)
+    }
+    TRUE
+  }, logical(1))]
 }
 
 
