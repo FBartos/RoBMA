@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Estimate deletion for sampling-conditioned selection models retains declared
+  sampling and random context in selected and ordinary branches. Cluster deletion
+  keeps its distinct joint law; changed legacy estimate scores require recomputation.
 - Selected predictive moments use direct centered variances and stable outer
   mixtures, including when locations are large relative to their uncertainty.
 - Structured precision diagnostics retain the existing availability boundary;

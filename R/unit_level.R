@@ -492,10 +492,13 @@
 
   key <- list(
     unit             = unit,
-    retained_context = .selection_deletion_retained_context(object[["data"]], object[["priors"]]),
+    retained_context = .selection_deletion_retained_context(object[["data"]], object[["priors"]], unit),
     target           = target,
     data_hash        = data_hash
   )
+  if (unit == "estimate") {
+    key <- c(key, .selection_estimate_context_metadata(object[["data"]]))
+  }
   if (unit == "cluster") {
     cluster <- object[["data"]][["outcome"]][["cluster"]]
     key[["cluster_partition"]] <- unname(split(seq_along(cluster), cluster))
@@ -504,12 +507,13 @@
 }
 
 
-.selection_deletion_retained_context <- function(data, priors) {
+.selection_deletion_retained_context <- function(data, priors, unit = "estimate") {
 
   if (!.is_data_joint_selection(data) || !.selection_retains_sampling(data) ||
       !.is_priors_weightfunction(priors)) return("remaining_data")
   sources <- .data_selection_model(data)[["sources"]][["random"]]
-  if (!any(vapply(sources, function(source) !source[["retained"]], logical(1L)))) {
+  if (unit == "cluster" &&
+      !any(vapply(sources, function(source) !source[["retained"]], logical(1L)))) {
     return("remaining_data")
   }
   # Singleton dependency blocks integrate the deleted sampling error without
@@ -523,6 +527,76 @@
 }
 
 
+.selection_retained_random_context_from_model <- function(model) {
+
+  sources <- model[["sources"]][["random"]]
+  if (!is.list(sources)) return(NA_character_)
+  scalar_text <- function(x) is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
+  valid <- vapply(sources, function(source) is.list(source) &&
+    scalar_text(source[["name"]]) && scalar_text(source[["role"]]) &&
+    is.logical(source[["retained"]]) && length(source[["retained"]]) == 1L &&
+    !is.na(source[["retained"]]), logical(1))
+  if (!all(valid)) return(NA_character_)
+  retained <- sources[vapply(sources, `[[`, logical(1), "retained")]
+  if (!length(retained)) return("none")
+  declarations <- sort(unique(vapply(retained, function(source) {
+    paste(source[["name"]], source[["role"]], sep = "|")
+  }, character(1))))
+  .iwmde_hash("retained_random_context", declarations)
+}
+
+
+.selection_estimate_context_metadata <- function(data) {
+
+  if (!.is_data_joint_selection(data) || !.selection_retains_sampling(data)) {
+    return(list(retained_random_context = "none"))
+  }
+  list(retained_random_context = .selection_retained_random_context_from_model(
+      .data_selection_model(data)),
+    sampling_deletion_policy = "declared_retained_context",
+    ordinary_branch_handling = "declared_retained_context_when_selection_cancels")
+}
+
+
+# Normalize a metadata copy before fingerprint completeness checks. An old
+# sampling-conditioned law is unchanged only when complete declarations prove
+# independent deletion with no retained random source. Unknown old contexts
+# cannot be promoted to the new law.
+.normalize_predictive_target_metadata <- function(metadata) {
+
+  if (!is.list(metadata) || !identical(metadata[["unit"]], "estimate")) return(metadata)
+  if (identical(metadata[["sampling_deletion_policy"]], "declared_retained_context")) {
+    context <- metadata[["retained_random_context"]]
+    if (!is.character(context) || length(context) != 1L || is.na(context) || !nzchar(context)) return(NULL)
+    return(metadata)
+  }
+  model <- metadata[["selection_model"]]
+  if (is.null(model)) {
+    if (!is.null(metadata[["sampling_structure"]]) ||
+        !is.null(metadata[["ordinary_branch_handling"]]) ||
+        identical(metadata[["retained_context"]], "remaining_data_and_remaining_sampling_errors")) return(NULL)
+    metadata[["retained_random_context"]] <- "none"
+    return(metadata)
+  }
+  sampling <- model[["known_sampling_variance"]]
+  context <- .selection_retained_random_context_from_model(model)
+  if (length(sampling) != 1L || is.na(sampling) ||
+      !sampling %in% c("integrate", "condition") || is.na(context)) return(NULL)
+  if (sampling == "condition") {
+    sizes <- metadata[["dependency_component_sizes"]]
+    n <- metadata[["n"]]
+    if (!identical(context, "none") || !is.numeric(sizes) || !length(sizes) ||
+        anyNA(sizes) || any(!is.finite(sizes)) || any(sizes != 1L) ||
+        !is.numeric(n) || length(n) != 1L || is.na(n) || sum(sizes) != n ||
+        !identical(metadata[["dependency_conditioning"]], FALSE)) return(NULL)
+    metadata[["sampling_deletion_policy"]] <- "declared_retained_context"
+    metadata[["ordinary_branch_handling"]] <- "declared_retained_context_when_selection_cancels"
+  }
+  metadata[["retained_random_context"]] <- "none"
+  metadata
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .predictive_target_fingerprint
 # ---------------------------------------------------------------------------- #
@@ -532,7 +606,9 @@
 # ---------------------------------------------------------------------------- #
 .predictive_target_fingerprint <- function(metadata) {
 
+  metadata <- .normalize_predictive_target_metadata(metadata)
   fields <- c("unit", "retained_context", "target", "data_hash")
+  if (identical(metadata[["unit"]], "estimate")) fields <- c(fields, "retained_random_context")
   if (is.null(metadata) || !all(fields %in% names(metadata))) {
     return(NULL)
   }
@@ -554,6 +630,7 @@
 # ---------------------------------------------------------------------------- #
 .check_cached_predictive_target <- function(object, metadata, unit, method) {
 
+  metadata <- .normalize_predictive_target_metadata(metadata)
   recompute <- if (identical(method, "LOO")) "add_loo()" else "add_waic()"
   stored_fingerprint <- .predictive_target_fingerprint(metadata)
   if (is.null(stored_fingerprint)) {
@@ -691,7 +768,9 @@
 # ---------------------------------------------------------------------------- #
 .check_loo_compare_targets <- function(loo_objects) {
 
-  metadata <- lapply(loo_objects, .get_loo_target_metadata)
+  metadata <- lapply(loo_objects, function(object) {
+    .normalize_predictive_target_metadata(.get_loo_target_metadata(object))
+  })
   missing  <- vapply(metadata, is.null, logical(1))
 
   if (length(metadata) <= 1) {
@@ -699,7 +778,7 @@
   }
 
   if (any(missing)) {
-    stop("LOO/WAIC objects without RoBMA target metadata cannot be compared.",
+    stop("LOO/WAIC objects without RoBMA target metadata cannot be compared. Recompute legacy or incomplete results with 'add_loo()' or 'add_waic()'.",
          call. = FALSE)
   }
 
@@ -737,6 +816,13 @@
       length(unique(data_hashes)) > 1) {
     stop("LOO/WAIC objects with different data, unit, or retained-context targets cannot be compared.",
          call. = FALSE)
+  }
+  if (identical(units[[1L]], "estimate")) {
+    contexts <- vapply(metadata, `[[`, character(1), "retained_random_context")
+    if (length(unique(contexts)) > 1L) {
+      stop("LOO/WAIC objects with different declared retained random contexts cannot be compared.",
+        call. = FALSE)
+    }
   }
 
   if (identical(units[[1L]], "cluster")) {

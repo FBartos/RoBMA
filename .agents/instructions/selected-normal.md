@@ -55,6 +55,12 @@ equivalent numerical kernel and retains its existing error diagnostics.
 
 ## Vector Selection Models
 
+Estimate deletion under sampling conditioning retains the declared remaining
+sampling errors and random-source context in both selected and actual normal
+branches. Gaussian cancellation conditions sampling and integrated random
+coordinates separately. Cluster joint deletion keeps its distinct law, including
+singleton clusters; no prediction augmentation policy enters these score keys.
+
 Weightfunction priors carry `selection_model()` with these defaults:
 `estimate_random_effects = "integrate"`, `other_random_effects = "condition"`,
 `known_sampling_variance = "integrate"`, `weight_rule = "product"` and

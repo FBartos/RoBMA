@@ -189,7 +189,8 @@
 .selection_conditioned_sampling_deletion_loglik <- function(setup, units) {
 
   if (all(lengths(units) == 1L)) {
-    scores <- .selection_conditioned_sampling_estimate_targets(setup, "log_density")[["log_density"]]
+    scores <- .selection_conditioned_sampling_estimate_targets(setup, "log_density",
+      retained_context = FALSE)[["log_density"]]
     return(scores[, unlist(units, use.names = FALSE), drop = FALSE])
   }
   out <- matrix(NA_real_, setup[["S"]], length(units))

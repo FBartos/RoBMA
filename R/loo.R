@@ -680,6 +680,10 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit columns
 #' are Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}. Their row sum
 #' is not presented as a full joint likelihood.
+#' Sampling-conditioned selection models retain the declared remaining sampling
+#' errors and random context for estimate deletion, including ordinary component
+#' branches and constant selection weights. Cluster deletion keeps its distinct
+#' joint target. Earlier affected estimate scores must be recomputed.
 #' Estimate-unit GLMM draws support point or beta baserate priors and point or
 #' normal log-rate priors, including their supported truncations. Other
 #' nuisance-prior families are rejected when the model input is validated.

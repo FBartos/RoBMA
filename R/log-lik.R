@@ -103,9 +103,11 @@
     target[["selection_event"]] <- "original_publication"
     target[["latent_effect_handling"]] <- "declared_retained_context_and_integrated_sources"
     if (.selection_retains_sampling(data)) {
-      target[["retained_context"]] <- .selection_deletion_retained_context(data, priors)
+      target[["retained_context"]] <- .selection_deletion_retained_context(data, priors, unit)
       target[["latent_effect_handling"]] <- "deleted_sampling_error_integrated_with_declared_random_sources"
-      target[["ordinary_branch_handling"]] <- "all_local_Gaussian_sources_integrated_when_selection_cancels"
+      target[["ordinary_branch_handling"]] <- if (unit == "estimate") {
+        "declared_retained_context_when_selection_cancels"
+      } else "all_local_Gaussian_sources_integrated_when_selection_cancels"
     }
     attr(log_lik, "RoBMA_target") <- target
   }
@@ -1097,9 +1099,9 @@
     "none"
   }
 
-  list(
+  c(list(
     unit                 = "estimate",
-    retained_context     = "remaining_data",
+    retained_context     = .selection_deletion_retained_context(setup[["data"]], setup[["priors"]]),
     target               = "estimate_log_score",
     n                    = setup[["K"]],
     targets              = seq_len(setup[["K"]]),
@@ -1128,5 +1130,5 @@
     known_r_semantics    = known_r_metadata[["known_r_semantics"]],
     random_effect_representation = random_representation,
     latent_effect_handling       = latent_effect_handling
-  )
+  ), .selection_estimate_context_metadata(setup[["data"]]))
 }

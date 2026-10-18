@@ -610,7 +610,8 @@
 }
 
 
-.selection_conditioned_sampling_independent_targets <- function(setup, state, selection, components) {
+.selection_conditioned_sampling_independent_targets <- function(setup, state, selection, components,
+                                                               retained_context = TRUE) {
 
   plan <- .data_selection_execution_plan(setup[["data"]])
   independent_blocks <- all(lengths(plan[["row_blocks"]]) == 1L)
@@ -624,6 +625,7 @@
     # univariate sources the other contexts do not enter this scalar law, so
     # neither Gaussian auxiliary reconstruction nor S x K x K arrays are used.
     if (!independent_blocks || .is_data_random(setup[["data"]]) ||
+        (retained_context && .selection_retains_estimate(setup[["data"]])) ||
         .is_data_multilevel(setup[["data"]]) || any(selection[["omega"]] <= 0) ||
         any(!selection[["kernel_mode"]] %in% c(SELKERNEL_NORMAL, SELKERNEL_STEP)) ||
         any(selection[["vector_rule"]] != 0L)) return(NULL)
@@ -682,8 +684,12 @@
     # When selection cancels in a dependent block, retain the ordinary joint
     # Gaussian deletion calculation below, which also integrates random context.
     normal_rows <- if (independent_blocks) ordinary else rep(FALSE, S)
-    ordinary_mean <- direction * setup[["mu"]][normal_rows, row]
-    ordinary_variance <- total_variances[normal_rows, row]
+    ordinary_mean <- if (retained_context) {
+      direction * (baseline_mu + sampling_means)[normal_rows, row]
+    } else direction * setup[["mu"]][normal_rows, row]
+    ordinary_variance <- if (retained_context) {
+      sampling_variances[[row]] + integrated_variances[normal_rows, row]
+    } else total_variances[normal_rows, row]
     ordinary_sd <- sqrt(ordinary_variance)
     if ("log_density" %in% components) out[["log_density"]][normal_rows, row] <- stats::dnorm(y[row], ordinary_mean, ordinary_sd, log = TRUE)
     if ("cdf" %in% components) out[["cdf"]][normal_rows, row] <- stats::pnorm(y[row], ordinary_mean, ordinary_sd, lower.tail = direction == 1)
@@ -809,13 +815,15 @@
 }
 
 
-.selection_conditioned_sampling_estimate_targets <- function(setup, components) {
+.selection_conditioned_sampling_estimate_targets <- function(setup, components,
+                                                            retained_context = TRUE) {
 
   S <- setup[["S"]]
   K <- setup[["K"]]
   direction <- if (identical(setup[["effect_direction"]], "negative")) -1 else 1
   selection <- .selection_joint_signed_context(setup, direction * setup[["yi"]])
-  independent <- .selection_conditioned_sampling_independent_targets(setup, NULL, selection, components)
+  independent <- .selection_conditioned_sampling_independent_targets(setup, NULL, selection, components,
+    retained_context = retained_context)
   if (!is.null(independent) && !any(vapply(independent, anyNA, logical(1L)))) {
     attr(independent, "dependency_blocks") <- .data_selection_execution_plan(setup[["data"]])[["row_blocks"]]
     return(independent)
@@ -823,7 +831,8 @@
   out <- stats::setNames(lapply(components, function(component) matrix(NA_real_, S, K)), components)
   for (rows in .selection_conditioned_sampling_chunks(S, K)) {
     current <- .selection_conditioned_sampling_subset_setup(setup, rows)
-    result <- .selection_conditioned_sampling_estimate_targets_chunk(current, components)
+    result <- .selection_conditioned_sampling_estimate_targets_chunk(current, components,
+      retained_context = retained_context)
     for (component in components) out[[component]][rows, ] <- result[[component]]
   }
   attr(out, "dependency_blocks") <- .data_selection_execution_plan(setup[["data"]])[["row_blocks"]]
@@ -831,7 +840,8 @@
 }
 
 
-.selection_conditioned_sampling_estimate_targets_chunk <- function(setup, components) {
+.selection_conditioned_sampling_estimate_targets_chunk <- function(setup, components,
+                                                                  retained_context = TRUE) {
 
   S <- setup[["S"]]
   K <- setup[["K"]]
@@ -839,11 +849,13 @@
   y <- direction * setup[["yi"]]
   plan <- .data_selection_execution_plan(setup[["data"]])
   selection <- .selection_joint_signed_context(setup, y)
-  out <- .selection_conditioned_sampling_independent_targets(setup, NULL, selection, components)
+  out <- .selection_conditioned_sampling_independent_targets(setup, NULL, selection, components,
+    retained_context = retained_context)
   state <- NULL
   if (is.null(out)) {
     state <- .selection_conditioned_sampling_state(setup)
-    out <- .selection_conditioned_sampling_independent_targets(setup, state, selection, components)
+    out <- .selection_conditioned_sampling_independent_targets(setup, state, selection, components,
+      retained_context = retained_context)
   }
   if (is.null(out)) {
     out <- stats::setNames(lapply(components, function(component) matrix(NA_real_, S, K)),
@@ -868,12 +880,21 @@
     covariance <- .selection_covariance_draw(state[["integrated_covariance"]], draw)
     ordinary <- all(covariance == 0) || selection[["kernel_mode"]][draw] == SELKERNEL_NORMAL ||
       all(selection[["omega"]][draw, ] == selection[["omega"]][draw, 1L])
+    if (retained_context || !ordinary) {
+      sampling <- .selection_deleted_gaussian_coordinates(V, errors[draw, ])
+      random <- .selection_deleted_gaussian_coordinates(
+        covariance, y - baseline[draw, ] - errors[draw, ])
+    }
     if (ordinary) {
-      fixed <- direction * setup[["mu"]][draw, ]
-      gaussian <- .selection_deleted_gaussian_coordinates(
-        .selection_covariance_draw(ordinary_covariance, draw), y - fixed
-      )
-      means <- fixed + gaussian[["mean"]]
+      if (retained_context) {
+        means <- baseline[draw, ] + sampling[["mean"]] + random[["mean"]]
+        gaussian <- list(variance = sampling[["variance"]] + random[["variance"]])
+      } else {
+        fixed <- direction * setup[["mu"]][draw, ]
+        gaussian <- .selection_deleted_gaussian_coordinates(
+          .selection_covariance_draw(ordinary_covariance, draw), y - fixed)
+        means <- fixed + gaussian[["mean"]]
+      }
       sd <- sqrt(gaussian[["variance"]])
       pending <- Reduce(`|`, lapply(out, function(value) is.na(value[draw, ])))
       if (any(sd[pending] == 0)) {
@@ -893,10 +914,6 @@
       }
       next
     }
-    sampling <- .selection_deleted_gaussian_coordinates(V, errors[draw, ])
-    random <- .selection_deleted_gaussian_coordinates(
-      covariance, y - baseline[draw, ] - errors[draw, ]
-    )
     for (row in seq_len(K)) {
       if (!any(vapply(out, function(value) is.na(value[draw, row]), logical(1L)))) next
       v_e <- sampling[["variance"]][row]
@@ -1415,7 +1432,13 @@
     components = "cdf"
   )
 
-  return(summary[["cdf"]])
+  out <- summary[["cdf"]]
+  if (.is_data_joint_selection(setup[["data"]])) {
+    attr(out, "RoBMA_target") <- c(.estimate_log_lik_target_metadata(
+      setup, setup[["data_hash"]], attr(summary, "dependency_blocks")),
+      .selection_postfit_target_metadata(setup[["data"]]))
+  }
+  out
 }
 
 

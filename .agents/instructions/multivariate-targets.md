@@ -148,6 +148,12 @@ through generic response prediction.
 Keep target metadata in `attr(x, "RoBMA_target")`. LOO comparisons must reject
 mismatched data, unit, retained context, or likelihood target. Known-`R`
 metadata is informative and is not itself a comparison key.
+Sampling-conditioned estimate scores additionally declare
+`sampling_deletion_policy="declared_retained_context"` and a canonical retained
+random-source identity. Normalize proven unchanged legacy metadata on a copy
+before completeness checks; affected or unknown old contexts require recomputation.
+The policy marker is estimate-only, while empty ordinary/integrated random
+context has one identity and cluster cache semantics remain unchanged.
 Cluster-unit scores also retain the ordered row partition; matching cluster
 counts or labels alone do not make pointwise scores comparable. Recompute old
 cluster diagnostics that lack this partition metadata.
