@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Ordinary singleton selected predictions use exact-cell chunk pricing with
+  conservative fixed/output reserves under the unchanged covariance budget.
 - Selected conditional predictions sample and solve safely eligible declared
   covariance blocks while retaining the full classifier for uncertain blocks.
 - Selected latent prediction with explicit normal newdata reports the required

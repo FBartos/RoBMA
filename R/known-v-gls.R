@@ -686,8 +686,15 @@
 
 .known_v_covariance_chunk_indices <- function(S, K, max_bytes = NULL) {
 
+  .known_v_covariance_cells_chunk_indices(S, as.double(K) * K, max_bytes)
+}
+
+
+.known_v_covariance_cells_chunk_indices <- function(S, cells_per_matrix, max_bytes = NULL) {
+
   max_bytes      <- .known_v_covariance_max_bytes(max_bytes)
-  one_draw_bytes <- .known_v_covariance_peak_bytes(1L, K)
+  bytes_per_matrix <- 8 * as.double(cells_per_matrix)
+  one_draw_bytes <- (2 * as.double(1L) + 2) * bytes_per_matrix
 
   if (is.finite(max_bytes) && one_draw_bytes > max_bytes) {
     stop(
@@ -702,7 +709,6 @@
   chunk_size <- if (is.infinite(max_bytes)) {
     S
   } else {
-    bytes_per_matrix <- .known_v_covariance_bytes(1L, K)
     max_draws         <- floor((max_bytes / bytes_per_matrix - 2) / 2)
     max(1L, min(S, max_draws))
   }

@@ -139,6 +139,10 @@
 #' row-aligned likelihood weights in \code{RoBMA_target$latent_augmentation}.
 #' Response replication adds the original sampling variance \eqn{s^2}.
 #'
+#' Ordinary independent Gaussian selection predictions use exact diagonal-cell
+#' chunk pricing after conservative fixed-geometry and output reserves. Other
+#' model structures retain the dense covariance charge under the same budget.
+#'
 #' \code{newdata} supplies design values and grouping identities; it does not
 #' select an estimand. Consequently, marginal prediction has the same law for
 #' \code{newdata = NULL} and an equivalent explicit design. Matching fitted
@@ -277,11 +281,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   type <- context[["type"]]
   if (isTRUE(context[["is_joint_selection"]]) &&
       !type %in% c("terms", "terms.scale")) {
-    chunks <- .known_v_covariance_chunk_indices(
-      S = nrow(context[["posterior_samples"]]), K = context[["K"]],
-      # Random, sampling and total arrays coexist with conditioning temporaries.
-      max_bytes = .known_v_covariance_max_bytes() / 4
-    )
+    chunks <- .predict_brma_covariance_chunks(context)
     if (length(chunks) > 1L) {
       samples <- matrix(NA_real_, nrow(context[["posterior_samples"]]), context[["K"]])
       row_names <- NULL
@@ -1522,6 +1522,74 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     effect     = !is.element(outcome_type, c("bin", "pois")) || as_measure
   ))
 
+}
+
+
+.predict_brma_singleton_covariance_eligible <- function(context) {
+
+  if (!isTRUE(context[["same_data"]]) || !is.null(context[["raw_newdata"]]) ||
+      !isTRUE(context[["is_joint_selection"]]) ||
+      !identical(context[["outcome_type"]], "norm") ||
+      isTRUE(context[["is_random"]]) || isTRUE(context[["random_mv"]]) ||
+      isTRUE(context[["is_multilevel"]]) || isTRUE(context[["is_scale"]]) ||
+      isTRUE(context[["is_known_v"]]) || !is.null(context[["known_V_new"]])) return(FALSE)
+  object <- context[["object"]]
+  if (inherits(object, "brma.mv")) return(FALSE)
+  data <- object[["data"]]
+  model <- .data_selection_model(data)
+  plan <- .data_selection_execution_plan(data)
+  if (is.null(model) || is.null(plan) ||
+      !.selection_integrates_estimate(data) || .selection_retains_sampling(data) ||
+      .selection_retains_any_random(data) ||
+      !identical(model[["known_sampling_variance"]], "integrate")) return(FALSE)
+  active <- model[["branches"]][model[["active_branches"]]]
+  if (!length(active) || !all(vapply(active, function(branch) {
+    identical(branch[["weight_rule"]], "product")
+  }, logical(1L)))) return(FALSE)
+  sources <- model[["sources"]][["random"]]
+  if (length(sources) != 1L || !identical(sources[[1L]][["role"]], "estimate") ||
+      !identical(sources[[1L]][["retained"]], FALSE)) return(FALSE)
+  K <- context[["K"]]
+  if (length(plan[["row_blocks"]]) != K || !all(plan[["block_sizes"]] == 1L) ||
+      !identical(unname(unlist(plan[["row_blocks"]], use.names = FALSE)), seq_len(K)) ||
+      !is.null(plan[["random_covariance"]]) ||
+      ncol(plan[["sampling"]][["loading"]]) != 0L ||
+      length(plan[["sampling"]][["dense_rows"]]) != 0L) return(FALSE)
+  variance <- tryCatch(.predict_brma_conditioning_variance(data), error = function(error) NULL)
+  !is.null(variance) && length(variance) == K
+}
+
+
+.predict_brma_singleton_covariance_reserve <- function(S, K) {
+
+  S <- as.double(S)
+  K <- as.double(K)
+  64 * K^2 + 16 * S * K + 2048 * K
+}
+
+
+.predict_brma_singleton_covariance_chunks <- function(S, K, max_bytes = NULL) {
+
+  max_bytes <- .known_v_covariance_max_bytes(max_bytes)
+  reserve <- .predict_brma_singleton_covariance_reserve(S, K)
+  if (is.finite(max_bytes) && (!is.finite(reserve) || reserve >= max_bytes)) {
+    stop("Singleton prediction fixed/output reserve exhausts the configured covariance budget before Gaussian-parts construction.",
+         call. = FALSE)
+  }
+  .known_v_covariance_cells_chunk_indices(S, as.double(K),
+    max_bytes = if (is.infinite(max_bytes)) max_bytes else (max_bytes - reserve) / 16)
+}
+
+
+.predict_brma_covariance_chunks <- function(context) {
+
+  S <- nrow(context[["posterior_samples"]])
+  K <- context[["K"]]
+  if (.predict_brma_singleton_covariance_eligible(context)) {
+    return(.predict_brma_singleton_covariance_chunks(S, K))
+  }
+  # Other covariance consumers retain their conservative dense charge.
+  .known_v_covariance_chunk_indices(S, K, max_bytes = .known_v_covariance_max_bytes() / 4)
 }
 
 

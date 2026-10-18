@@ -187,6 +187,10 @@ Estimate-depth estimate and response targets record this policy and the
 row-aligned likelihood weights in \code{RoBMA_target$latent_augmentation}.
 Response replication adds the original sampling variance \eqn{s^2}.
 
+Ordinary independent Gaussian selection predictions use exact diagonal-cell
+chunk pricing after conservative fixed-geometry and output reserves. Other
+model structures retain the dense covariance charge under the same budget.
+
 \code{newdata} supplies design values and grouping identities; it does not
 select an estimand. Consequently, marginal prediction has the same law for
 \code{newdata = NULL} and an equivalent explicit design. Matching fitted
