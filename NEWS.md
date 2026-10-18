@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Rank-one sampling residuals use refined precision products and direct
+  covariance factors to retain tiny independent variances.
 - Exact residual zeros require an isolated row in the relevant covariance
   multiplier, while fully saturated designs retain their exact zero certificate.
 - Estimate deletion for sampling-conditioned selection models retains declared

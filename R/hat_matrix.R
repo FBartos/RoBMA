@@ -673,16 +673,42 @@
     rank_one     <- .covariance_exact_rank_one_factor(V_block)
 
     if (!is.null(rank_one) && all(block_extra > 0)) {
-      local_index <- seq_along(index)
-      W_block <- .hat_precision_matrix(
-        diagonal      = block_extra,
-        rank_one      = rank_one,
-        block_indices = list(local_index)
-      )
+      n <- length(index)
       covariance_factor <- cbind(
-        diag(sqrt(block_extra), nrow = length(index)),
+        diag(sqrt(block_extra), nrow = n),
         rank_one
       )
+      plan_data <- list(
+        sampling_covariance = matrix(0, n, n),
+        random_covariance_plans = list(list(
+          type = "group", model_matrix = matrix(rank_one, n, 1L),
+          group_map = rep(1L, n), coefficient_structure = "diagonal")),
+        random_covariance_states = list(list(list(coefficient_factor = matrix(1)))),
+        block_indices = list(seq_len(n)), extra_variances = matrix(block_extra, 1L)
+      )
+      applied <- .known_v_covariance_plan_precision_rhs_batch(
+        plan_data, cbind(X[index, , drop = FALSE], y[index], covariance_factor)
+      )
+      local_W_X <- matrix(applied[1L, , seq_len(p)], n, p)
+      local_W_y <- applied[1L, , p + 1L]
+      W_L <- matrix(applied[1L, , p + 1L + seq_len(n + 1L)], n, n + 1L)
+
+      # Direct A = V M^-1 products avoid cancellation in I - D M^-1.
+      # The scaled norm keeps the rank-one shrinkage stable for small D.
+      z <- rank_one / sqrt(block_extra)
+      if (all(rank_one == 0)) {
+        a <- numeric(n)
+        A_L <- matrix(0, n, n + 1L)
+      } else {
+        z_scale <- max(abs(z))
+        scale <- z_scale * sqrt(sum((z / z_scale)^2))
+        q <- z / scale
+        h <- if (scale >= 1) 1 / (1 + (1 / scale)^2) else scale^2 / (1 + scale^2)
+        a <- h * (q / scale) / sqrt(block_extra)
+        A_L <- cbind(tcrossprod(rank_one, h * q / scale), rank_one * h)
+      }
+      A_X <- tcrossprod(rank_one, as.vector(crossprod(a, X[index, , drop = FALSE])))
+      A_y <- rank_one * sum(a * y[index])
     } else {
       covariance <- V_block
       diag(covariance) <- diag(covariance) + block_extra
@@ -695,15 +721,18 @@
       }
       W_block          <- chol2inv(chol_covariance)
       covariance_factor <- t(chol_covariance)
+      local_W_X <- W_block %*% X[index, , drop = FALSE]
+      local_W_y <- as.vector(W_block %*% y[index])
+      W_L <- W_block %*% covariance_factor
+      A_X <- V_block %*% local_W_X
+      A_y <- as.vector(V_block %*% local_W_y)
+      A_L <- V_block %*% W_L
     }
 
-    W_X[index, ] <- W_block %*% X[index, , drop = FALSE]
-    W_y[index]   <- as.vector(W_block %*% y[index])
+    W_X[index, ] <- local_W_X
+    W_y[index]   <- local_W_y
     projection_blocks[[b]] <- list(
-      index             = index,
-      V                 = V_block,
-      W                 = W_block,
-      covariance_factor = covariance_factor
+      index = index, A_X = A_X, A_y = A_y, A_L = A_L, W_L = W_L
     )
   }
 
@@ -712,26 +741,23 @@
     rank = attr(X, "rank")
   )
   beta_hat <- as.vector(XtWX_inv %*% crossprod(X, W_y))
-  residual <- y - as.vector(X %*% beta_hat)
 
   sampling_residual <- numeric(K)
   V_W_X             <- matrix(0, nrow = K, ncol = p)
   for (block in projection_blocks) {
     index   <- block[["index"]]
-    W_r     <- as.vector(block[["W"]] %*% residual[index])
-    V_W_X[index, ] <- block[["V"]] %*% W_X[index, , drop = FALSE]
-    sampling_residual[index] <- as.vector(block[["V"]] %*% W_r)
+    V_W_X[index, ] <- block[["A_X"]]
+    sampling_residual[index] <- block[["A_y"]] - as.vector(block[["A_X"]] %*% beta_hat)
   }
 
   V_W_X_B                  <- V_W_X %*% XtWX_inv
   sampling_residual_variance <- numeric(K)
   for (block in projection_blocks) {
     index <- block[["index"]]
-    W_L   <- block[["W"]] %*% block[["covariance_factor"]]
     residual_factor <- -V_W_X_B %*%
-      crossprod(X[index, , drop = FALSE], W_L)
+      crossprod(X[index, , drop = FALSE], block[["W_L"]])
     residual_factor[index, ] <- residual_factor[index, , drop = FALSE] +
-      block[["V"]] %*% W_L
+      block[["A_L"]]
     sampling_residual_variance <- sampling_residual_variance +
       rowSums(residual_factor^2)
   }
