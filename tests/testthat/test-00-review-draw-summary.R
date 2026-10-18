@@ -8,6 +8,20 @@ test_that("finite component SDs reject an overflowing total variance", {
   expect_equal(.total_brma_mv_heterogeneity_samples(list(matrix(3, 2L), matrix(4, 2L))), matrix(5, 2L))
 })
 
+test_that("completed allocations resolve to the authoritative prepared binding", {
+
+  x <- review_heterogeneity_har_replay(scaled = TRUE)
+  original <- .fitted_formula_design(x$object, "mu", required = TRUE)
+  complete <- .brma_mv_resolve_sd_component_allocation(
+    original$random_allocations[[1L]], original)
+  expect_gt(length(complete$leaf_terms), 1L)
+  prepared <- .brma_mv_pooled_formula_design(x$object)
+  allocation <- .brma_mv_resolve_sd_component_allocation(complete, prepared)
+  expect_true(is.function(allocation$source$source$values))
+  expect_identical(allocation$source,
+    prepared$random_effects[[1L]]$sd_binding$allocations[[1L]]$source)
+})
+
 test_that("RoBMA formula groups honor supplied source rows and current recipes", {
 
   object <- review_factor_replay(c("a", "b", "c"), "treatment",

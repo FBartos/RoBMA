@@ -913,8 +913,7 @@
 .brma_mv_resolve_sd_component_allocation <- function(allocation,
                                                     formula_design) {
 
-  if (!identical(allocation[["target"]], "sd_component") ||
-      length(allocation[["leaf_terms"]]) > 0L) {
+  if (!identical(allocation[["target"]], "sd_component")) {
     return(allocation)
   }
 

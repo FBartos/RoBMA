@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Completed SD-component declarations resolve through the current prepared
+  binding so row-source callbacks retain their declared pooled evaluation.
 - Total heterogeneity rejects an unrepresentable aggregate variance before
   taking its square root.
 - Row-source heterogeneity allocation tables retain absolute observed-level SDs
