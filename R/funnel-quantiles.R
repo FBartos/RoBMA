@@ -579,10 +579,11 @@
   sd        <- mean
   node_weight <- numeric()
   if (length(expanded) > 0L) {
-    rule  <- .gauss_hermite_nodes(.funnel_conditioned_order(
+    order <- .funnel_conditioned_order(
       integrated_sd[expanded, , drop = FALSE],
       conditioned_sd[expanded, , drop = FALSE]
-    ))
+    )
+    rule <- .gauss_hermite_nodes(order)
     node_weights <- rule[["weights"]] / sum(rule[["weights"]])
     index <- rep(expanded, times = length(rule[["nodes"]]))
     mean  <- location[index, , drop = FALSE] +

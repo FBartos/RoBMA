@@ -66,7 +66,8 @@ test_that("unfitted formula prior aliases retain their declared owners", {
   no_intercept <- brma(yi = effect, sei = std_err, mods = ~ 0 + mod_cont,
     data = test_data, measure = "GEN", prior_unit_information_sd = 1,
     only_priors = TRUE, silent = TRUE)
-  expect_error(print_prior(no_intercept, "effect", silent = TRUE), "not available")
+  expect_identical(print_prior(no_intercept, "effect", silent = TRUE),
+    print_prior(no_intercept, "mu_intercept", silent = TRUE))
   random <- brma.mv(yi = effect, V = diag(test_data$std_err^2),
     random = ~ 1 | mod_factor, data = test_data, measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)

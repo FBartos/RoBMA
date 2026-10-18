@@ -162,10 +162,14 @@ test_that("fully conditioned selection uses Gaussian funnel and regression quant
       "Regression-plot standard errors must be finite and non-negative and have length one or one value per prediction.",
       fixed = TRUE)
   }
-  expect_error(.regplot_selection_mixture_interval_quantiles(make_object(FALSE),
-    mean_samples = matrix(0, 2L, 2L), sd_samples = matrix(.5, 2L, 2L),
-    se = c(0, .1), probs = c(.025, .975), posterior_samples = matrix(0, 2L, 1L)),
-    "Selection-model regression-plot standard errors must be positive", fixed = TRUE)
+  testthat::with_mocked_bindings({
+    expect_error(.regplot_selection_mixture_interval_quantiles(make_object(FALSE),
+      mean_samples = matrix(0, 2L, 2L), sd_samples = matrix(.5, 2L, 2L),
+      se = c(0, .1), probs = c(.025, .975), posterior_samples = matrix(0, 2L, 1L)),
+      "Selection-model regression-plot standard errors must be positive", fixed = TRUE)
+  }, .regplot_selection_setup = function(...) {
+    list(selection = list(active = TRUE), is_weightfunction = TRUE)
+  }, .package = "RoBMA")
 
 })
 

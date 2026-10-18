@@ -28,9 +28,23 @@ test_that("spike-and-slab plotting preserves the parent probability measure", {
     }
     if (probability < 1) {
       expect_length(atoms, 1L)
-      expect_true(is.finite(plot$bt_scale_y2_state$scale_y2))
-      expect_equal(atoms[[1L]]$data$yend / plot$bt_scale_y2_state$scale_y2,
-        1 - probability, tolerance = 1e-12)
+      if (probability == 0) {
+        # A pure point uses the primary probability axis. Read the producer's
+        # probability data, rather than treating an arrow height as mass.
+        producer <- get(".plot_data_prior_list.simple", asNamespace("BayesTools"))
+        data <- producer(list(parent), x_seq = c(.1, .5, 1), x_range = NULL,
+          x_range_quant = NULL, n_points = 500, n_samples = 10000,
+          force_samples = FALSE, individual = FALSE, transformation = NULL,
+          transformation_arguments = NULL, transformation_settings = FALSE)
+        points <- Filter(function(x) inherits(x, "density.prior.point"), data)
+        expect_length(points, 1L)
+        expect_identical(points[[1L]]$y, 1)
+        expect_identical(plot$labels$y, "Probability")
+      } else {
+        expect_true(is.finite(plot$bt_scale_y2_state$scale_y2))
+        expect_equal(atoms[[1L]]$data$yend / plot$bt_scale_y2_state$scale_y2,
+          1 - probability, tolerance = 1e-12)
+      }
     }
     if (probability == 0) expect_length(lines, 0L)
     if (probability == 1) expect_length(atoms, 0L)
