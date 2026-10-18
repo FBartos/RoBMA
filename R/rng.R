@@ -157,10 +157,24 @@
     return(mu_samples + matrix(stats::rnorm(S * K), S, K, byrow = TRUE) %*% factor)
   }
 
+  cache <- if (blocked) .block_covariance_guard_cache(covariance_samples) else NULL
   response_samples <- mu_samples
   for (s in seq_len(S)) {
-    # The assembled K x K matrix, not the blocks: this factorization of the
-    # whole matrix and of its blocks differ in the last bits.
+    if (blocked) {
+      plan <- .block_covariance_guard_plan(covariance_samples, s, cache)
+      if (plan[["fast"]]) {
+        # Factors precede this draw's K normals, assigned in original row order.
+        normals <- stats::rnorm(K)
+        for (index in seq_along(covariance_samples[["blocks"]])) {
+          rows <- covariance_samples[["blocks"]][[index]]
+          response_samples[s, rows] <- mu_samples[s, rows] +
+            as.vector(normals[rows] %*% plan[["blocks"]][[index]][["factor"]])
+        }
+        next
+      }
+    }
+    # Uncertain blocks and ordinary arrays retain the assembled classifier,
+    # its exact failure point, and the same K-normal vector for reached draws.
     covariance <- if (blocked) {
       .block_covariance_dense(covariance_samples, s)
     } else {

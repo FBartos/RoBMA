@@ -151,6 +151,15 @@ retained truth, conditional means, terms, marginal/newdata and fresh cluster
 effects carry no reconstruction claim. Response sampling retains raw `s²`;
 log-score, full-joint and LOO metadata do not acquire this prediction marker.
 
+Declared-block prediction sampling uses block factors only after whole-draw
+eligibility checks: exact diagonal/rank-one support or a positive correlation
+eigenvalue above the conservative whole-K gamma margin. Uncertain, near-boundary,
+invalid and unexpectedly unavailable block factors retain the original assembled
+classifier. Total solves require safely PD blocks and fall back to the original
+assembled Cholesky on any block failure. Each reached draw retains exactly K
+normals in row order and random-source then sampling-source phases; eligible
+arithmetic can change realization bits.
+
 Normal-model funnel/sampling bands, regression/forest prediction intervals,
 default z-plots, and default residual diagnostics use explicit marginal
 targets. GLMM funnel and regression sampling bands are descriptive normal

@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selected conditional predictions sample and solve safely eligible declared
+  covariance blocks while retaining the full classifier for uncertain blocks.
 - Selected latent prediction with explicit normal newdata reports the required
   `sei` or `vi` column before building its selection context.
 - Scalar conditional means report unavailable arithmetic when a nonzero

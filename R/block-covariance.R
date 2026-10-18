@@ -23,13 +23,9 @@
 #   row_block     per row, the index of the block that holds it
 #   row_position  per row, its position inside that block
 #
-# Results are the dense cube's results. Two operations are deliberately *not*
-# done block-wise: `.block_covariance_dense()` assembles the K x K matrix for a
-# per-draw Cholesky or spectral factorization, because LAPACK's blocked
-# factorization of the assembled matrix and of its blocks differ in the last
-# bits (measured: 8.9e-16 on a K = 100 partition), and callers that factorize
-# require bit-identical results. `.block_covariance_chol_solve()` is the
-# block-wise solve, for callers that do not.
+# Guarded sampling and solves use declared blocks only when whole-draw safety
+# checks preserve the assembled classifier's policy. Uncertain cases retain
+# the original full factorization. Eligible arithmetic may differ in last bits.
 #
 # ---------------------------------------------------------------------------- #
 
@@ -376,9 +372,8 @@
 }
 
 
-# The dense K x K covariance of one draw. Callers that factorize the matrix use
-# this: a blocked LAPACK factorization of the assembled matrix and of its blocks
-# do not agree bit for bit, and their results must.
+# The dense K x K covariance of one draw, including the original classifier
+# fallback for guarded block sampling and solves.
 .block_covariance_dense <- function(x, draw) {
 
   .block_covariance_sub(x, draw, seq_len(x[["K"]]))
@@ -501,6 +496,100 @@
     out[rows] <- backsolve(factor, forwardsolve(t(factor), rhs[rows]))
   }
   out
+}
+
+
+# Performance eligibility only: a declined block retains the original assembled
+# numerical policy. K is the whole draw dimension, never the block dimension.
+.block_covariance_guard_block <- function(covariance, K, factors = TRUE, pd_only = FALSE) {
+
+  decline <- function(reason) list(eligible = FALSE, reason = reason)
+  n <- nrow(covariance)
+  if (any(!is.finite(covariance))) return(decline("nonfinite"))
+  if (any(covariance != t(covariance))) return(decline("asymmetric"))
+  diagonal <- diag(covariance)
+  if (any(diagonal < 0)) return(decline("negative_diagonal"))
+  zero <- which(diagonal == 0)
+  if (any(covariance[zero, , drop = FALSE] != 0)) return(decline("nonzero_zero_axis"))
+  positive <- which(diagonal > 0)
+  if (!pd_only && all(covariance[row(covariance) != col(covariance)] == 0)) {
+    return(list(eligible = TRUE, reason = "exact_diagonal",
+      factor = if (factors) diag(sqrt(diagonal), n) else NULL))
+  }
+  if (!pd_only && length(positive)) {
+    loading <- .covariance_exact_rank_one_factor(covariance[positive, positive, drop = FALSE])
+    if (!is.null(loading)) {
+      factor <- if (factors) matrix(0, n, n) else NULL
+      if (factors) factor[1L, positive] <- loading
+      return(list(eligible = TRUE, reason = "exact_rank_one", factor = factor))
+    }
+  }
+  operations <- 4 * K
+  gamma <- operations * .Machine$double.eps / (1 - operations * .Machine$double.eps)
+  margin <- 4 * gamma * K
+  if (!is.finite(gamma) || gamma <= 0 || !is.finite(margin) || margin <= 0) {
+    return(decline("invalid_gamma"))
+  }
+  if (!length(positive) || (pd_only && length(positive) != n)) return(decline("pd_zero_axis"))
+  correlation <- covariance[positive, positive, drop = FALSE] /
+    tcrossprod(sqrt(diagonal[positive]))
+  diag(correlation) <- 1
+  if (any(!is.finite(correlation)) || any(abs(correlation) > 1)) return(decline("correlation_envelope"))
+  values <- tryCatch(eigen(correlation, symmetric = TRUE, only.values = TRUE)[["values"]],
+    error = function(error) NULL)
+  if (is.null(values) || any(!is.finite(values))) return(decline("eigen_unavailable"))
+  if (!(min(values) > margin)) return(decline("eigen_margin"))
+  factor <- if (factors) tryCatch(
+    .covariance_sampling_factor(.covariance_factorization(covariance)),
+    error = function(error) NULL) else NULL
+  if (factors && is.null(factor)) return(decline("eligible_factor_unavailable"))
+  list(eligible = TRUE, reason = "safe_positive", factor = factor)
+}
+
+
+.block_covariance_guard_cache <- function(x, factors = TRUE, pd_only = FALSE) {
+
+  if (length(x[["blocks"]]) == 1L) return(list(NULL))
+  lapply(seq_along(x[["blocks"]]), function(index) {
+    value <- x[["values"]][[index]]
+    if (dim(value)[[1L]] != 1L) return(NULL)
+    n <- length(x[["blocks"]][[index]])
+    .block_covariance_guard_block(matrix(value[1L, , ], n, n), x[["K"]], factors, pd_only)
+  })
+}
+
+
+.block_covariance_guard_plan <- function(x, draw, cache, factors = TRUE, pd_only = FALSE) {
+
+  if (length(x[["blocks"]]) == 1L) return(list(fast = FALSE, reason = "single_block"))
+  plans <- vector("list", length(x[["blocks"]]))
+  for (index in seq_along(plans)) {
+    plan <- cache[[index]]
+    if (is.null(plan)) {
+      value <- x[["values"]][[index]]
+      n <- length(x[["blocks"]][[index]])
+      plan <- .block_covariance_guard_block(matrix(value[draw, , ], n, n),
+        x[["K"]], factors, pd_only)
+    }
+    if (!plan[["eligible"]]) return(list(fast = FALSE, reason = plan[["reason"]]))
+    plans[[index]] <- plan
+  }
+  list(fast = TRUE, blocks = plans)
+}
+
+
+.block_covariance_guarded_chol_solve <- function(x, draw, rhs, cache) {
+
+  plan <- .block_covariance_guard_plan(x, draw, cache, factors = FALSE, pd_only = TRUE)
+  if (plan[["fast"]]) {
+    result <- tryCatch(.block_covariance_chol_solve(x, draw, rhs), error = function(error) NULL)
+    if (!is.null(result)) return(result)
+  }
+  factor <- tryCatch(chol(.block_covariance_dense(x, draw)), error = function(error) NULL)
+  if (is.null(factor)) {
+    stop("Selected latent posterior covariance must be positive definite.", call. = FALSE)
+  }
+  backsolve(factor, forwardsolve(t(factor), rhs))
 }
 
 

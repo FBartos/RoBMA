@@ -1876,22 +1876,17 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   random <- sampling <- matrix(0, S, K)
   if (draw) {
     random <- .outcome_rng.norm_known_v_covariance(random, parts[["random_covariance"]])
-    sampling_covariance <- parts[["sampling_covariance_matrix"]]
-    if (is.null(sampling_covariance)) sampling_covariance <- parts[["sampling_covariance"]]
-    sampling <- .outcome_rng.norm_known_v_covariance(sampling, sampling_covariance)
+    sampling <- .outcome_rng.norm_known_v_covariance(sampling, parts[["sampling_covariance"]])
   }
   residual <- y - parts[["means"]] - random - sampling
-  # The assembled K x K matrix, not the blocks: a blocked LAPACK factorization
-  # of the whole matrix and of its blocks differ in the last bits.
+  # Safely PD declared blocks use the existing block solve; uncertainty and
+  # unexpected block failure preserve the assembled Cholesky and exact refusal.
   zero_random <- .block_covariance_zero_draws(parts[["random_covariance"]])
+  solve_cache <- .block_covariance_guard_cache(parts[["covariance"]], factors = FALSE, pd_only = TRUE)
   for (s in seq_len(S)) {
     if (zero_random[[s]]) next
-    covariance <- .block_covariance_dense(parts[["covariance"]], s)
-    factor <- tryCatch(chol(covariance), error = function(e) NULL)
-    if (is.null(factor)) {
-      stop("Selected latent posterior covariance must be positive definite.", call. = FALSE)
-    }
-    precision_residual <- backsolve(factor, forwardsolve(t(factor), residual[s, ]))
+    precision_residual <- .block_covariance_guarded_chol_solve(
+      parts[["covariance"]], s, residual[s, ], solve_cache)
     random[s, ] <- random[s, ] +
       .block_covariance_matvec(parts[["random_covariance"]], s, precision_residual)
   }
