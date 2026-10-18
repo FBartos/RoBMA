@@ -52,12 +52,14 @@
       identical(parameter_spec[["type"]], "unsupported_formula_transform")) {
     .iwmde_stop_unavailable(.iwmde_unavailable(parameter_spec[["reason"]], "original_scale"))
   }
+  identity_transform <- is.null(display_transform) || identical(display_transform[["type"]], "identity")
   if (is.null(parameter_spec)) {
     parameter_spec <- list(
       type          = "primitive",
-      prior_density = BayesTools::posterior_metadata(raw_posterior, "prior_density")
+      prior_density = if (identity_transform)
+        BayesTools::posterior_metadata(raw_posterior, "prior_density")
     )
-  } else if (is.null(parameter_spec[["prior_density"]])) {
+  } else if (is.null(parameter_spec[["prior_density"]]) && identity_transform) {
     parameter_spec[["prior_density"]] <- BayesTools::posterior_metadata(
       raw_posterior,
       "prior_density"

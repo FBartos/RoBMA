@@ -37,6 +37,62 @@
   review_attach_replay(setup, samples)
 }
 
+.review_h_random <- function(kind = c("fisher", "scale", "common"), structure = "cs") {
+
+  kind <- match.arg(kind)
+  dat <- data.frame(yi = c(.1, .2, .3, .4), study = factor(c("s1", "s1", "s2", "s2")),
+    outcome = factor(c("a", "b", "a", "b")), x = c(-1, 1, -1, 1))
+  half <- BayesTools::prior("normal", list(0, .5), list(0, Inf))
+  random <- if (kind == "common") ~diag(1 + x | study) else if (structure == "ar1") {
+    ~ar1(outcome | study)
+  } else ~cs(outcome | study)
+  args <- list(yi = dat$yi, V = diag(.04, 4), random = random,
+    data = dat, measure = "GEN",
+    prior_effect = BayesTools::prior("normal", list(0, 1)),
+    prior_heterogeneity = if (kind == "fisher") {
+      BayesTools::prior_random(sd = half, cor = BayesTools::prior("normal", list(0, .5)))
+    } else half, prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  if (kind == "scale") args$scale <- ~x
+  object <- do.call(brma.mv, args)
+  setup <- review_compile_object(object)
+  term <- setup$object$formula_design$mu$random_effects[[1L]]
+  priors <- unlist(lapply(setup$compiled, `[[`, "prior_list"), recursive = FALSE)
+  names(priors) <- unlist(lapply(setup$compiled, function(compiled) names(compiled$prior_list)))
+  priors <- c(priors, .create_fit_priors(object$data, object$priors))
+  columns <- review_prior_columns(priors)
+  n <- 120L
+  samples <- matrix(0, n, length(columns), dimnames = list(NULL, columns))
+  samples[, "mu_intercept"] <- seq(.1, .3, length.out = n)
+  if (kind == "common") {
+    allocation <- setup$object$formula_design$mu$random_allocations[[1L]]
+    samples[, allocation$source_node] <- seq(.2, .4, length.out = n)
+    weights <- c(.4, .6)
+    weight_names <- paste0(allocation$weight_name, "[", 1:2, "]")
+    samples[, weight_names] <- matrix(rep(weights, each = n), n)
+    eta <- samples[, weight_names, drop = FALSE]
+    colnames(eta) <- paste0(BayesTools:::.JAGS_prior_dirichlet_eta_name(allocation$weight_name), "[", 1:2, "]")
+    sds <- vapply(seq_len(2), function(i) samples[, allocation$source_node] * sqrt(2 * weights[[i]]), numeric(n))
+    colnames(sds) <- term$sd_binding$sd_component_names
+    samples <- cbind(samples, eta, sds)
+  } else {
+    samples[, term$correlation$sample_name] <- seq(-.2, .3, length.out = n)
+    if (kind == "fisher") {
+      samples[, term$sd_binding$source$name] <- seq(.2, .4, length.out = n)
+      rho <- matrix(tanh(samples[, term$correlation$sample_name]), ncol = 1,
+        dimnames = list(NULL, term$correlation$rho_name))
+      samples <- cbind(samples, rho)
+    } else {
+      samples[, "log_tau_intercept"] <- seq(.15, .35, length.out = n)
+      samples[, "log_tau_x"] <- seq(-.1, .1, length.out = n)
+    }
+  }
+  latent <- grep("_xRE_Zx$", setup$compiled$mu$add_parameters, value = TRUE)
+  indices <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
+  values <- vapply(seq_len(nrow(indices)), function(i) .1 * sin(seq_len(n) / (i + 1)), numeric(n))
+  colnames(values) <- paste0(latent, "[", indices$group, ",", indices$column, "]")
+  review_attach_replay(setup, cbind(samples, values))
+}
+
 test_that("E2-1 declared empty marginal cells retain their actual event", {
 
   object <- .review_h_empty_condition()
@@ -139,4 +195,24 @@ test_that("E3-3 plots forward stored curve controls separately from point settin
   expect_true(seen$force)
   expect_error(plot(means, parameter = "g", density_method = "IWMDE"), "Captured plot controls.", fixed = TRUE)
   expect_identical(seen$control$samples, 1000L)
+})
+
+test_that("E2-5 transformed source ordinates keep their declared source prior", {
+
+  object <- .review_h_random("fisher")
+  warnings <- character()
+  result <- withCallingHandlers(hypothesis(object, "`(mu) rho` = 0.8", density_method = "qCMDE", seed = 19),
+    warning = function(condition) {
+      warnings <<- c(warnings, conditionMessage(condition))
+      invokeRestart("muffleWarning")
+    })
+  expect_s3_class(result, "BayesTools_hypothesis_BF")
+  expect_false(any(grepl("target prior density tends to zero", warnings, fixed = TRUE)))
+  diagnostics <- density_diagnostics(result)
+  expect_false(any(grepl("target prior density tends to zero", diagnostics$warnings, fixed = TRUE)))
+  target <- .brma_random_parameter_density_target(object, "(mu) rho", operation = "point hypotheses")
+  context <- .iwmde_context(object)
+  spec <- .iwmde_prepare_prior_ordinates(context, target$parameter, target$parameter_spec,
+    BayesTools::parameter_transform_inverse(.8, target$display_transform))
+  expect_identical(spec$prior_ordinates[[1L]]$behavior, "regular")
 })
