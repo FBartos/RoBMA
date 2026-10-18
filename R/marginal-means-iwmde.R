@@ -1033,13 +1033,17 @@
       )
       label <- paste0(selected_parameter[["label"]], ": ", level)
       key   <- label
+      weights <- .iwmde_linear_weights(
+        BayesTools::posterior_metadata(level_sample, "linear_weights")
+      )
+      weights <- .brma_fitted_linear_weights(level_sample, weights)
       specs[[key]] <- c(
         list(
           type      = "linear",
           label     = label,
           parameter = parameter_name,
           level     = level,
-          weights   = BayesTools::posterior_metadata(level_sample, "linear_weights"),
+          weights   = weights,
           prior_density = BayesTools::posterior_metadata(level_sample, "prior_density")
         ),
         condition_metadata,

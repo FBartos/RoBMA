@@ -1,5 +1,24 @@
 # Genuine compiler/fit-contract supplied-row replays; these are transport and
 # declared-target regressions, not MCMC or posterior calibration fixtures.
+.review_h_contribution <- function(multiplier = 2) {
+
+  dat <- data.frame(yi = c(-.2, .3, 0, .4, .1, .2), sei = .5,
+    g = factor(rep(c("A", "B"), 3)))
+  slope <- BayesTools::prior_factor("normal", list(0, 1), contrast = "treatment")
+  attr(slope, "multiply_by") <- multiplier
+  setup <- review_compile_object(brma(yi = yi, sei = sei, mods = ~g, data = dat,
+    measure = "GEN", prior_effect = BayesTools::prior("normal", list(0, 1)),
+    prior_mods = list(g = slope), prior_heterogeneity = if (is.character(multiplier)) {
+      BayesTools::prior("normal", list(0, .5), list(0, Inf))
+    } else BayesTools::prior("point", list(.1)),
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+  n <- 240L
+  quantiles <- stats::qnorm((seq_len(n) - .5) / n)
+  samples <- cbind(mu_intercept = .1 + .12 * quantiles,
+    mu_g = .2 + .15 * quantiles[rev(seq_len(n))], tau = .1)
+  review_attach_replay(setup, samples)
+}
+
 .review_h_empty_condition <- function() {
 
   dat <- data.frame(yi = c(.1, .2, .15, .25), sei = .2, x = c(-1, 1, -1, 1))
@@ -60,4 +79,25 @@ test_that("E2-2 actual attachment retains requested curve precision", {
     density <- BayesTools::posterior_metadata(cell, "posterior_density")
     if (!is.null(density)) expect_identical(density$iwmde_provenance$density_control$target_relative_mcse, .1)
   }
+})
+
+test_that("E2-3 marginal specs use the actual fitted contribution target", {
+
+  for (multiplier in c(2, 1, -2)) {
+    object <- .review_h_contribution(multiplier)
+    means <- marginal_means(object, bf = FALSE, density_method = "KDE")
+    spec <- .iwmde_marginal_means_specs(means, "g", "conditional", "B")[[1L]]
+    weights <- .iwmde_linear_weights(spec$weights)
+    draws <- as.matrix(coda::as.mcmc(object$fit))
+    projection <- as.numeric(draws[, names(weights), drop = FALSE] %*% weights)
+    expect_equal(projection, as.numeric(means$inference$conditional$mu_g$B), tolerance = 1e-14)
+    expect_identical(weights, c(mu_intercept = 1, mu_g = multiplier))
+    combination <- .hypothesis_plan_marginal_means_build(means, "1 * g[B] = 0.1")$targets[[1L]]$spec
+    spec$weights <- weights
+    expect_identical(weights[order(names(weights))], combination$weights[order(names(combination$weights))])
+  }
+  object <- .review_h_contribution("tau")
+  means <- marginal_means(object, bf = FALSE, density_method = "KDE")
+  expect_error(.iwmde_marginal_means_specs(means, "g", "conditional", "B"),
+    class = "RoBMA_density_method_original_scale")
 })
