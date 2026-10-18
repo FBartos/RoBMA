@@ -5,6 +5,70 @@ context("Native C++ unwinding across R conditions")
   .Call("RoBMA_native_unwind_probe", action, callback, threads, PACKAGE = "RoBMA")
 }
 
+test_that("nil lengths release guards, context and consumed RNG state", {
+
+  withr::local_seed(119002L)
+  expected <- runif(3L)
+  set.seed(119002L)
+  runif(1L)
+  seed_after_one <- .Random.seed
+  condition <- structure(list(message = "after nil length", call = NULL, marker = 136L),
+    class = c("nil_probe_error", "error", "condition"))
+
+  for (mode in c("nil_length", "nil_xlength")) {
+    for (fail in c(FALSE, TRUE)) {
+      expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+      before <- .native_unwind_probe("counts")
+      set.seed(119002L)
+      if (fail) {
+        caught <- tryCatch(.native_unwind_probe(mode, function() stop(condition)),
+          nil_probe_error = identity)
+        expect_identical(caught, condition)
+      } else {
+        expect_identical(.native_unwind_probe(mode), 0L)
+      }
+      expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+      after <- .native_unwind_probe("counts")
+      expect_identical(after[[1L]], 0L)
+      expect_identical(after[[2L]] - before[[2L]], 2L)
+      expect_identical(.Random.seed, seed_after_one)
+      expect_identical(runif(1L), expected[[2L]])
+      expect_identical(.native_unwind_probe("normal"), 42L)
+    }
+  }
+})
+
+test_that("nested nil lengths restore their exact parent and borrowed RNG owner", {
+
+  withr::local_seed(119002L)
+  expected <- runif(3L)
+  condition <- structure(list(message = "nested nil length", call = NULL),
+    class = c("nil_probe_error", "error", "condition"))
+  for (mode in c("nil_length", "nil_xlength")) {
+    for (fail in c(FALSE, TRUE)) {
+      before <- .native_unwind_probe("counts")
+      set.seed(119002L)
+      expect_identical(.native_unwind_probe("rng_callback", function() {
+        if (fail) {
+          caught <- tryCatch(.native_unwind_probe(mode, function() stop(condition)),
+            nil_probe_error = identity)
+          expect_identical(caught, condition)
+        } else {
+          expect_identical(.native_unwind_probe(mode), 0L)
+        }
+        # The outer probe also compares exact saved parent/owner pointers after
+        # this callback; these flags separately observe the pre-entry state.
+        expect_identical(.native_unwind_probe("state"), rep(TRUE, 3L))
+      }), 42L)
+      expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+      after <- .native_unwind_probe("counts")
+      expect_identical(after[[1L]], 0L)
+      expect_identical(after[[2L]] - before[[2L]], 4L)
+      expect_identical(runif(1L), expected[[3L]])
+    }
+  }
+})
+
 test_that("R and C++ failures release all native probe workspaces", {
 
   for (mode in c("cpp", "bad_alloc", "allocation", "r_error")) {

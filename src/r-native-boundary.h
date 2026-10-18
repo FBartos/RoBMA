@@ -191,9 +191,10 @@ inline SEXP string_elt(SEXP object, R_xlen_t index)
 
 inline R_xlen_t xlength(SEXP object)
 {
+  if (TYPEOF(object) == NILSXP) return 0;
   if (!ALTREP(object)) {
     switch (TYPEOF(object)) {
-    case NILSXP: case CHARSXP: case LGLSXP: case INTSXP: case REALSXP:
+    case CHARSXP: case LGLSXP: case INTSXP: case REALSXP:
     case CPLXSXP: case STRSXP: case VECSXP: case EXPRSXP: case RAWSXP:
       return XLENGTH(object);
     default: return call(Rf_xlength, object);

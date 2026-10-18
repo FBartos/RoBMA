@@ -42,6 +42,7 @@ extern "C" SEXP RoBMA_norm_predictor_grid_loglik(
   check_real(sei, "sei");
   check_real(current, "current");
   check_real(values, "values");
+  check_real(mu, "mu");
   check_logical(scale_update_tau, "scale_update_tau");
   check_logical(log_tau_delta_log, "log_tau_delta_log");
 

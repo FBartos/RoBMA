@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Native nil lengths preserve cleanup and RNG ownership; malformed normal
+  predictor locations receive their named numeric validation error.
 - Native thread invariance checks execute every selected-normal and predictor
   route above its actual work gate in a fresh two-thread OpenMP worker.
 - Binomial GLMM quadrature uses the exact uniform-beta identity and evaluates

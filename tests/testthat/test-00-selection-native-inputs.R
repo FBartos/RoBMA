@@ -219,3 +219,21 @@ test_that("native Gaussian sampling preserves exact integer covariance support",
     expect_equal(qr(result$draws)$rank, 2L)
   }
 })
+test_that("normal predictor validates mu before reading dimensions and restores state", {
+
+  mu <- matrix(c(-.2, .1, .3, .4, -.1, 0), 3L)
+  evaluate <- function(location) {
+    .Call("RoBMA_norm_predictor_grid_loglik", c(-.1, .3), c(.3, .5), c(.5, 1.5),
+      location, matrix(1, 3L, 2L), matrix(.2, 3L, 2L), NULL, c(.1, .2, .3),
+      c(-.2, 0, .5), FALSE, FALSE, PACKAGE = "RoBMA")
+  }
+  reference <- evaluate(mu)
+  expect_true(all(is.finite(reference[["log_lik"]])))
+  expect_true(all(reference[["valid"]]))
+  for (invalid in list(NULL, matrix(1L, 3L, 2L), new.env(), list())) {
+    expect_error(evaluate(invalid), "'mu' must be numeric.", fixed = TRUE)
+    expect_identical(.Call("RoBMA_native_unwind_probe", "state", NULL, 1L,
+      PACKAGE = "RoBMA"), rep(FALSE, 3L))
+    expect_identical(evaluate(mu), reference)
+  }
+})
