@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Zplot density grids, histogram edges, and threshold markers share signed
+  selection cutoffs for positive and negative effect directions.
 - Scalar estimate-depth zplot variances preserve representable harmonic
   variances across changes of units in all three scalar branches.
 - Funnel contours retain exact ordinary and certified Gaussian components

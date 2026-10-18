@@ -46,3 +46,27 @@ test_that("coarse histogram bins retain every selection threshold", {
   expect_identical(range(bins), c(0, 3))
   expect_true(all(diff(bins) > 0))
 })
+test_that("zplot display grids share the signed selection cutoffs", {
+
+  prior <- BayesTools::prior_weightfunction("one-sided", .025,
+    weights = BayesTools::wf_fixed(c(1, .2)))
+  priors <- list(outcome = list(bias = prior))
+  positive <- .zplot_threshold(priors, "positive")
+  negative <- .zplot_threshold(priors, "negative")
+  expect_equal(negative, -positive, tolerance = 1e-14)
+  for (thresholds in list(positive, negative)) {
+    histogram <- .zplot_bins(priors, -6, 6, .5, NULL,
+      type = "hist", thresholds = thresholds)
+    density <- .zplot_bins(priors, -6, 6, .05, NULL,
+      type = "dens", thresholds = thresholds)
+    expect_true(all(thresholds %in% histogram))
+    expect_true(all(thresholds %in% density))
+  }
+  prior <- BayesTools::prior_weightfunction("two-sided", .05,
+    weights = BayesTools::wf_fixed(c(1, .2)))
+  priors <- list(outcome = list(bias = prior))
+  expect_equal(.zplot_threshold(priors, "positive"),
+    .zplot_threshold(priors, "negative"), tolerance = 1e-14)
+  expect_identical(.zplot_threshold(NULL, "negative"), numeric())
+})
+

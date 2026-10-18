@@ -622,6 +622,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
   dots <- list(...)
 
   # get line values first so we can set ylim
+  thresholds <- .zplot_threshold(x[["priors"]], .effect_direction(x))
   ymax                <- 0
   lines_fit           <- NULL
   lines_extrapolation <- NULL
@@ -640,7 +641,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
       to         = to,
       by         = by.lines,
       length.out = length.out.lines,
-      type       = "dens"
+      type       = "dens",
+      thresholds = thresholds
     )
     paired_density <- .zplot_density_pair(
       object             = x,
@@ -669,7 +671,8 @@ plot.zplot_brma <- function(x, plot_type = "base",
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            parallel = parallel, cores = cores, extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
-           integration_control = integration_control),
+           integration_control = integration_control,
+           .zplot_thresholds = thresholds),
       dots, dots_fit
     )))
     ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
@@ -684,6 +687,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
            parallel = parallel, cores = cores, extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
            integration_control = integration_control,
+           .zplot_thresholds = thresholds,
            col = "blue"), # default color if not in dots
       dots, dots_extrapolation
     )))
@@ -711,6 +715,7 @@ plot.zplot_brma <- function(x, plot_type = "base",
     plot_thresholds = plot_thresholds,
     dots_thresholds = dots_thresholds,
     .zplot_auto_ymax = if (ymax != 0) ymax * 1.05 else NULL,
+    .zplot_thresholds = thresholds,
     dots_hist       = dots_hist,
     dots_all        = dots
   )
@@ -872,9 +877,15 @@ hist.zplot_brma <- function(x, plot_type = "base",
   }
 
   z <- x$zplot$data[["z"]]
+  thresholds <- dots[[".zplot_thresholds"]]
+  if (is.null(thresholds)) {
+    thresholds <- .zplot_threshold(x[["priors"]], .effect_direction(x))
+  }
+  dots[[".zplot_thresholds"]] <- NULL
 
   # create bin sequence using zplot helper (handles thresholds)
-  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by, length.out = length.out, type = "hist")
+  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by,
+    length.out = length.out, type = "hist", thresholds = thresholds)
   z_in_range <- z >= min(z_sequence) & z <= max(z_sequence)
 
   # message about out-of-range values
@@ -948,7 +959,6 @@ hist.zplot_brma <- function(x, plot_type = "base",
 
   # add threshold lines
   if (plot_thresholds) {
-    thresholds <- .zplot_threshold(x[["priors"]])
     if (length(thresholds) > 0) {
       dots_thresholds <- if (!is.null(dots_thresholds)) dots_thresholds else list()
       dots_thresholds_params <- .get_dots_thresholds_zplot(dots_thresholds, plot_type = plot_type)
@@ -1087,7 +1097,13 @@ lines.zplot_brma <- function(x, plot_type = "base",
   dots <- list(...)
 
   # prepare z sequence
-  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by, length.out = length.out, type = "dens")
+  thresholds <- dots[[".zplot_thresholds"]]
+  if (is.null(thresholds)) {
+    thresholds <- .zplot_threshold(x[["priors"]], .effect_direction(x))
+  }
+  dots[[".zplot_thresholds"]] <- NULL
+  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by,
+    length.out = length.out, type = "dens", thresholds = thresholds)
 
   # get densities from model
   z_density <- .zplot_fun.brma(

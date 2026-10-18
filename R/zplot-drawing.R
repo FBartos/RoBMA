@@ -133,7 +133,8 @@
 # @return numeric vector of bin boundaries or density evaluation points
 #
 # ---------------------------------------------------------------------------- #
-.zplot_bins      <- function(priors, from, to, by, length.out, type = "hist"){
+.zplot_bins      <- function(priors, from, to, by, length.out, type = "hist",
+                             thresholds = NULL){
 
   if(is.null(length.out)){
     bins <- seq(from = from, to = to, by = by)
@@ -142,7 +143,7 @@
   }
 
   # obtain tresholds from the specified priors
-  z_bounds <- .zplot_threshold(priors)
+  z_bounds <- if (is.null(thresholds)) .zplot_threshold(priors) else thresholds
 
   # return simple binning in case of no weightfunctions
   if(length(z_bounds) == 0){
@@ -197,25 +198,26 @@
 
   return(list(priors_bias))
 }
-.zplot_threshold <- function(priors){
+.zplot_threshold <- function(priors, effect_direction = "positive"){
 
   priors_bias <- .zplot_bias_priors(priors)
 
   # return simple binning in case of no bias
   if(length(priors_bias) == 0L){
-    return()
+    return(numeric())
   }
 
   p_bounds <- .selection_kernel_breaks(priors_bias)
 
   # return simple binning in case of no selection kernels
   if(is.null(p_bounds)){
-    return()
+    return(numeric())
   }
 
   # obtain tresholds from the specified priors
   z_bounds <- stats::qnorm(rev(p_bounds), 0, 1, lower.tail = FALSE)
-  z_bounds <- z_bounds[!is.infinite(z_bounds)]
+  sign <- if (identical(effect_direction, "negative")) -1 else 1
+  z_bounds <- sort(unique(sign * z_bounds[is.finite(z_bounds)]))
 
   return(z_bounds)
 }
