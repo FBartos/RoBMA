@@ -170,10 +170,20 @@ double sampling_conditioned_rank_two_mass(const double *mean,
   for (int row = 0; row < dimension; ++row) {
     std::vector<double> boundaries;
     for (int bin = 0; bin < selection.n_bins; ++bin) {
-      if (std::isfinite(selection.z_lower[bin])) boundaries.push_back(sign * se[row] * selection.z_lower[bin]);
+      if (std::isfinite(selection.z_lower[bin])) {
+        const double boundary = sign * se[row] * selection.z_lower[bin];
+        boundaries.push_back(boundary);
+        // The inner best-two-sided event uses absolute thresholds. Both
+        // reflections must partition affine lines and zero-second-loading
+        // vertical cuts before an interval can be certified empty.
+        if (vector_rule == SELVECTOR_BEST_TWO_SIDED) boundaries.push_back(-boundary);
+      }
     }
+    // Box bounds are signed physical limits, not selection thresholds.
     if (lower != nullptr && std::isfinite(lower[row])) boundaries.push_back(lower[row]);
     if (upper != nullptr && std::isfinite(upper[row])) boundaries.push_back(upper[row]);
+    std::sort(boundaries.begin(), boundaries.end());
+    boundaries.erase(std::unique(boundaries.begin(), boundaries.end()), boundaries.end());
     const double first = loading[row], second = loading[row + dimension];
     for (double boundary : boundaries) {
       if (second != 0.0) {

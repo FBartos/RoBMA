@@ -288,6 +288,65 @@ test_that("rank-two factor quadrature partitions deterministic-row jumps", {
   expect_lt(out$relative_change, args$relative_tolerance)
 })
 
+test_that("F6-1 rank-two best-two-sided support includes reflected selection boundaries", {
+
+  args <- .sampling_native_arguments(c(-3, -3), c(0, 0), rbind(c(1, 1), c(1, -1)),
+    omega = c(0, 1, 0), rule = 2L, points = 8192L)
+  # Preserve the original valid nonmirrored private/native input. Ordinary
+  # two-sided prior constructors mirror their bins and have separate coverage.
+  args$initial_points <- 1024L
+  args$qmc <- as.double(BayesTools::selection_qmc_design(4L, 8192L, 8L, seed = 1L))
+  args$z_lower <- c(2, 1, -Inf); args$z_upper <- c(Inf, 2, 1)
+  p <- function(bound) pnorm(bound, -3, sqrt(2)) - pnorm(-bound, -3, sqrt(2))
+  reference <- p(2)^2 - p(1)^2
+  actual <- .sampling_native_mass(args)
+  expect_lte(abs(exp(actual$log_normalizer) - reference), 1e-9)
+  expect_lte(abs(exp(actual$log_normalizer) - reference) / reference, 2e-8)
+  expect_silent(.selection_conditioned_sampling_diagnostics(actual, list(relative_tolerance = .005)))
+  mirrored <- args
+  mirrored$z_lower <- c(2, 1, -1, -2, -Inf); mirrored$z_upper <- c(Inf, 2, 1, -1, -2)
+  mirrored$omega <- matrix(c(0, 1, 0, 1, 0), 1L)
+  expect_lte(abs(exp(.sampling_native_mass(mirrored)$log_normalizer) - reference), 1e-9)
+  nonzero <- args; nonzero$omega <- matrix(c(.1, 1, .2), 1L)
+  expect_lte(abs(exp(.sampling_native_mass(nonzero)$log_normalizer) -
+    (.1 * (1 - p(2)^2) + reference + .2 * p(1)^2)), 1e-9)
+  # CDF differences impose signed physical box limits. They must not be
+  # reflected along with selection thresholds.
+  projected <- do.call(.Call, c(list("RoBMA_selnorm_factor_projection_batch"), unname(args),
+    list(c(-1.5, .5), 1L), list(PACKAGE = "RoBMA")))
+  box <- function(bound) pnorm(min(bound, .5), -3, sqrt(2)) - pnorm(max(-bound, -1.5), -3, sqrt(2))
+  expected_box <- (box(2) * p(2) - box(1) * p(1)) / reference
+  expect_lte(abs(diff(as.vector(projected$density)) - expected_box), 1e-8)
+  product <- args; product$vector_rule <- 0L
+  one_sided <- args; one_sided$vector_rule <- 1L
+  ordinary_p <- function(bound) pnorm(bound, -3, sqrt(2))
+  expect_lte(abs(exp(.sampling_native_mass(product)$log_normalizer) - (ordinary_p(2) - ordinary_p(1))^2), 1e-9)
+  expect_lte(abs(exp(.sampling_native_mass(one_sided)$log_normalizer) - (ordinary_p(2)^2 - ordinary_p(1)^2)), 1e-9)
+})
+
+test_that("F6-1 reflected vertical cuts preserve three-row rank-two support", {
+
+  args <- .sampling_native_arguments(rep(-3, 3), rep(0, 3),
+    rbind(c(1, 0), c(1, 1), c(0, 1)), omega = c(0, 1, 0), rule = 2L)
+  args$z_lower <- c(2, 1, -Inf); args$z_upper <- c(Inf, 2, 1)
+  conditional <- function(u, bound) {
+    lo <- pmax(-bound + 3 - u, -bound + 3)
+    hi <- pmin(bound + 3 - u, bound + 3)
+    ifelse(abs(-3 + u) < bound & lo < hi, pnorm(hi) - pnorm(lo), 0)
+  }
+  cuts <- c(-Inf, -4, -2, 0, 1, 2, 4, 5, Inf)
+  pieces <- lapply(seq_len(length(cuts) - 1L), function(i) {
+    integrate(function(u) dnorm(u) * (conditional(u, 2) - conditional(u, 1)),
+      cuts[i], cuts[i + 1L], abs.tol = 1e-12, rel.tol = 1e-10)
+  })
+  reference <- sum(vapply(pieces, `[[`, numeric(1L), "value"))
+  error <- sum(vapply(pieces, `[[`, numeric(1L), "abs.error"))
+  out <- .sampling_native_mass(args)
+  expect_gt(reference, .001)
+  expect_lte(abs(exp(out$log_normalizer) - reference), error + 1e-9)
+  expect_silent(.selection_conditioned_sampling_diagnostics(out, list(relative_tolerance = .005)))
+})
+
 test_that("PSD projections preserve exact CDF and tail endpoints and empty selection events", {
 
   args <- .sampling_native_arguments(rep(0, 3), rep(0, 3),
