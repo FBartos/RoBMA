@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- BCG benchmark listing and filtered marginal comparisons retain the complete
+  data unscaling and model-matrix preparation through one deferred input.
 - Scenario benchmarks admit fit-list preparation from bounded stable source
   inputs before scenario evaluation, refusing demanded binding changes while
   preserving lazy excluded artifacts and one-shot list/counter preparation.

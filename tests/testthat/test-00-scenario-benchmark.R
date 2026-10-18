@@ -423,3 +423,82 @@ test_that("all scenario bodies are admitted before earlier user code or cache re
   expect_length(list.files(run$out, recursive = TRUE), 0L)
   expect_identical(tools::md5sum(names(before)), before)
 })
+
+
+.scenario_marginal_fixture <- function() {
+
+  package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
+  source <- file.path(package_root, "tests/scenarios/test-bcg.R")
+  skip_if_not(file.exists(source), "Canonical BCG scenario requires a source checkout.")
+  preparation <- NULL
+  head <- function(x) if (is.call(x)) paste(deparse(x[[1L]]), collapse = "") else ""
+  for (expr in parse(source, keep.source = FALSE)) {
+    if (!grepl("test_that$", head(expr))) next
+    statements <- as.list(expr[[3L]])[-1L]
+    first <- which(vapply(statements, function(st) head(st) == "<-" &&
+      is.symbol(st[[2L]]) && as.character(st[[2L]]) %in% c("marginal_draws", "marginal_inputs"), logical(1)))
+    last <- which(vapply(statements, function(st) head(st) == "scenario_text" &&
+      identical(st[[2L]], "fit_reg3_marginal_means_comparison"), logical(1)))
+    if (length(first) && length(last)) preparation <- statements[seq.int(first[[1L]], last[[1L]])]
+  }
+  stopifnot(!is.null(preparation))
+  draws <- list(a = c(1, 3), b = c(2, 4))
+  attr(draws, "data") <- data.frame(alloc = factor(c("a", "b")), ablat = c(0, 1))
+  primary <- list(inference = list(averaged = list(mu_alloc__xXx__ablat = draws)))
+  reference <- structure(list(intercept = 0.5, beta = c(0.25, 0.1, 0.2)),
+                         class = "scenario_benchmark_reference")
+  root <- .scenario_benchmark_fixture(c(
+    'dat <- data.frame(ablat = c(10, 20))',
+    'fit_reg3 <- scenario_fit("primary", stop("must never fit"))',
+    'fit_reg3_metafor <- scenario_fit("reference", stop("must never fit"))',
+    'fit_reg3_emm <- scenario_time("fit_reg3_emm", fit_reg3)',
+    unlist(lapply(preparation, deparse), use.names = FALSE)
+  ), fits = list(primary = primary, reference = reference))
+  # Explicit synthetic cached reference: this is not a fitted metafor object.
+  scenario <- file.path(root, "tests/scenarios/test-unit.R")
+  writeLines(c('predict.scenario_benchmark_reference <- function(object, newmods, ...) {',
+               '  list(pred = unname(object$intercept + as.vector(newmods %*% object$beta)))',
+               '}', readLines(scenario)), scenario)
+  bootstrap <- file.path(root, "tools/bench-bootstrap.R")
+  lines <- readLines(bootstrap)
+  marker <- gsub("\\\\", "/", file.path(root, "cache-reads.log"))
+  trace <- sprintf('trace("readRDS", where = baseenv(), print = FALSE, tracer = quote(if (is.character(file) && grepl("/cache/unit/", file, fixed = TRUE)) cat(file, "\\n", file = "%s", append = TRUE)))', marker)
+  writeLines(append(lines, trace, after = length(lines) - 1L), bootstrap)
+  attr(root, "preparation") <- preparation
+  root
+}
+
+
+test_that("BCG marginal preparation agrees for full and selected synthetic cached inputs", {
+
+  root <- .scenario_marginal_fixture()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  full <- .scenario_benchmark_run(root, "--only=.")
+  on.exit(unlink(full$out, recursive = TRUE), add = TRUE)
+  selected <- .scenario_benchmark_run(root, "--only=^fit_reg3_marginal_means_comparison$")
+  on.exit(unlink(selected$out, recursive = TRUE), add = TRUE)
+  expect_equal(full$status, 0L)
+  expect_equal(selected$status, 0L)
+  name <- "unit--fit_reg3_marginal_means_comparison.txt"
+  expect_true(file.exists(file.path(full$out, name)))
+  expect_true(file.exists(file.path(selected$out, name)))
+  for (run in list(full, selected)) {
+    if (file.exists(file.path(run$out, "results.tsv"))) {
+      expect_true(all(read.delim(file.path(run$out, "results.tsv"))$status == "ok"))
+    }
+  }
+  if (file.exists(file.path(full$out, name)) && file.exists(file.path(selected$out, name))) {
+    expect_identical(readLines(file.path(full$out, name)), readLines(file.path(selected$out, name)))
+  }
+  marker <- file.path(root, "cache-reads.log")
+  unlink(marker)
+  listed <- .scenario_benchmark_run(root, "--list")
+  on.exit(unlink(listed$out, recursive = TRUE), add = TRUE)
+  expect_equal(listed$status, 0L)
+  expect_false(file.exists(marker))
+  expect_false(file.exists(file.path(listed$out, name)))
+  listing <- file.path(listed$out, "listing-unit.tsv")
+  expect_true(file.exists(listing))
+  if (file.exists(listing)) expect_identical(read.delim(listing)$name,
+    c("fit_reg3_emm", "fit_reg3_marginal_means_comparison"))
+})

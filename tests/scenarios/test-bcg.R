@@ -619,14 +619,18 @@ testthat::test_that("BCG Meta-Regression", {
   )})
 
   ### marginal means ----
-  marginal_draws    <- fit_reg3_emm[["inference"]][["averaged"]][["mu_alloc__xXx__ablat"]]
-  marginal_newdata  <- attr(marginal_draws, "data")
-  marginal_newdata$ablat <- mean(dat$ablat) + marginal_newdata$ablat * stats::sd(dat$ablat)
-  marginal_newmods       <- stats::model.matrix(~ alloc * ablat, data = marginal_newdata)[, -1, drop = FALSE]
+  marginal_inputs <- {
+    marginal_draws    <- fit_reg3_emm[["inference"]][["averaged"]][["mu_alloc__xXx__ablat"]]
+    marginal_newdata  <- attr(marginal_draws, "data")
+    marginal_newdata$ablat <- mean(dat$ablat) + marginal_newdata$ablat * stats::sd(dat$ablat)
+    marginal_newmods       <- stats::model.matrix(~ alloc * ablat, data = marginal_newdata)[, -1, drop = FALSE]
+    list(draws = marginal_draws, newdata = marginal_newdata,
+         newmods = marginal_newmods, reference = fit_reg3_metafor)
+  }
   scenario_text("fit_reg3_marginal_means_comparison", {data.frame(
-    marginal_newdata,
-    RoBMA   = vapply(marginal_draws, mean, numeric(1)),
-    metafor = predict(fit_reg3_metafor, newmods = marginal_newmods)[["pred"]]
+    marginal_inputs$newdata,
+    RoBMA   = vapply(marginal_inputs$draws, mean, numeric(1)),
+    metafor = predict(marginal_inputs$reference, newmods = marginal_inputs$newmods)[["pred"]]
   )})
 
   ### ordinal predictor ---

@@ -362,6 +362,13 @@ Literal `pkg::fun` and `pkg:::fun` positions are ordinary analysis calls;
 qualified reflective operations retain their dynamic classification. Other
 computed call heads remain conservative. This does not extend selector syntax.
 
+Keep a dependent preparation's extraction, replacement/unscaling and design
+construction inside one plain assignment RHS, with the fit objects it actually
+consumes. BCG's marginal comparison uses `marginal_inputs` for those steps and
+its reference fit. The benchmark now attributes that preparation to
+`prep_elapsed` before the text timer; the ordinary scenario still performs the
+same operations sequentially. Fitting and `scenario_time()` code are unchanged.
+
 Two rules make the numbers usable:
 
 - **A/B in one session.** Compare against a baseline measured on the same
