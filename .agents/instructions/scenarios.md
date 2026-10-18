@@ -321,6 +321,8 @@ bindings, including function-position and scenario-file top-level bindings.
 Input dependencies are followed through local definitions without reading their
 values. Later direct, replacement, loop-target, nonlocal and visible reflective
 writes refuse a potentially demanded block with a named input/source diagnostic.
+For each input, use its latest preceding plain definition; a visible write
+between that definition and block entry makes its provenance uncertifiable.
 The suffix check is conservative: an eager copy or a write after an earlier
 force does not establish a separate admission exception.
 

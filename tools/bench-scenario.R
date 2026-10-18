@@ -333,11 +333,19 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
         if (name %in% locals) return(FALSE)
         inputs <<- union(inputs, name)
         defs <- Filter(function(d) d$index < start, definitions[[name]])
-        if (name %in% stack || length(defs) != 1L) {
+        if (name %in% stack || !length(defs)) {
           issues <<- c(issues, paste0("input '", name, "' has ambiguous or nonlocal source provenance"))
           return(FALSE)
         }
-        return(certify(defs[[1L]]$expr, c(stack, name), sequence, locals))
+        definition <- defs[[length(defs)]]
+        between <- if (definition$index + 1L < start) {
+          all_writes[seq.int(definition$index + 1L, start - 1L)]
+        } else list()
+        if (name %in% unique(unlist(lapply(between, `[[`, "writes")))) {
+          issues <<- c(issues, paste0("input '", name, "' has an intervening source write after its plain definition"))
+          return(FALSE)
+        }
+        return(certify(definition$expr, c(stack, name), sequence, locals))
       }
       if (is.atomic(x) && !is.null(x)) return(length(x) > 0L)
       head <- call_head(x)
