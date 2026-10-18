@@ -6,6 +6,7 @@ context("IWMDE normal predictor grid")
 
 source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-iwmde.R"))
+source(testthat::test_path("helper-selection-kernel.R"))
 
 
 # Cached fixtures that could reach the native normal candidate grid: ordinary
@@ -790,84 +791,103 @@ test_that("the scale model's `tau` density line matches the generic evaluator", 
 
 test_that("the native normal candidate grid is thread invariant", {
 
-  skip_if_not(is.loaded("RoBMA_norm_predictor_grid_loglik", PACKAGE = "RoBMA"))
-  previous_threads <- RoBMA.get_option("native_threads")
-  withr::defer(RoBMA.options(native_threads = previous_threads))
+  .with_kernel_thread_worker({
 
-  withr::local_seed(20260918)
-  S   <- 96L
-  K   <- 9L
-  G   <- 7L
-  yi  <- stats::rnorm(K, sd = .3)
-  sei <- stats::runif(K, .05, .40)
-  mu  <- matrix(stats::rnorm(S * K, sd = .2), nrow = S)
-  mu_basis      <- matrix(stats::rnorm(S * K), nrow = S)
-  tau           <- matrix(stats::runif(S * K, 0, .5), nrow = S)
-  log_tau_basis <- matrix(stats::rnorm(S * K, sd = .3), nrow = S)
-  current       <- stats::rnorm(S, sd = .2)
-  values        <- c(-0.4, 0, 0.2, 0.7, 1.5, NaN, Inf)
-  weights       <- stats::runif(K, .5, 2)
+    expect_true(is.loaded("RoBMA_norm_predictor_grid_loglik", PACKAGE = "RoBMA"))
+    previous_threads <- RoBMA.get_option("native_threads")
+    withr::defer(RoBMA.options(native_threads = previous_threads))
 
-  call_grid <- function(scale_tau, use_mu_basis, use_log_tau, use_weights,
-                        log_delta = FALSE) {
-    .Call("RoBMA_norm_predictor_grid_loglik",
-      yi, sei, if (use_weights) weights else NULL, mu,
-      if (use_mu_basis) mu_basis else NULL,
-      if (scale_tau) NULL else tau,
-      if (use_log_tau) log_tau_basis else NULL,
-      current, values, scale_tau, log_delta, PACKAGE = "RoBMA")
-  }
+    withr::local_seed(20260918)
+    S   <- 1000L
+    K   <- 9L
+    G   <- 7L
+    yi  <- stats::rnorm(K, sd = .3)
+    sei <- stats::runif(K, .05, .40)
+    mu  <- matrix(stats::rnorm(S * K, sd = .2), nrow = S)
+    mu_basis      <- matrix(stats::rnorm(S * K), nrow = S)
+    tau           <- matrix(stats::runif(S * K, 0, .5), nrow = S)
+    log_tau_basis <- matrix(stats::rnorm(S * K, sd = .3), nrow = S)
+    current       <- stats::rnorm(S, sd = .2)
+    values        <- c(-0.4, 0, 0.2, 0.7, 1.5, NaN, Inf)
+    weights       <- stats::runif(K, .5, 2)
 
-  for (scale_tau in c(FALSE, TRUE)) {
-    for (use_log_tau in c(FALSE, TRUE)) {
-      reference <- NULL
-      for (threads in c(1L, 2L, 8L)) {
-        RoBMA.options(native_threads = threads)
-        value <- call_grid(scale_tau, TRUE, use_log_tau, TRUE)
-        if (is.null(reference)) {
-          reference <- value
-        } else {
-          expect_identical(value, reference,
-            info = paste("scale_tau", scale_tau, "log_tau", use_log_tau,
-                         "threads", threads))
+    call_grid <- function(scale_tau, use_mu_basis, use_log_tau, use_weights,
+                          log_delta = FALSE) {
+      .Call("RoBMA_norm_predictor_grid_loglik",
+        yi, sei, if (use_weights) weights else NULL, mu,
+        if (use_mu_basis) mu_basis else NULL,
+        if (scale_tau) NULL else tau,
+        if (use_log_tau) log_tau_basis else NULL,
+        current, values, scale_tau, log_delta, PACKAGE = "RoBMA")
+    }
+
+    for (scale_tau in c(FALSE, TRUE)) {
+      for (use_log_tau in c(FALSE, TRUE)) {
+        reference <- NULL
+        for (threads in c(1L, 2L, 8L)) {
+          RoBMA.options(native_threads = threads)
+          if (threads > 1L) {
+            schedule <- .Call("RoBMA_selnorm_row_schedule", as.double(S),
+              as.double(G * K), PACKAGE = "RoBMA")
+            expect_gt(schedule[["threads"]], 1L)
+          }
+          value <- call_grid(scale_tau, TRUE, use_log_tau, TRUE)
+          if (is.null(reference)) {
+            expect_true(any(is.finite(value[["log_lik"]])))
+            expect_true(any(value[["valid"]]))
+            reference <- value
+          } else {
+            expect_identical(value, reference,
+              info = paste("scale_tau", scale_tau, "log_tau", use_log_tau,
+                           "threads", threads))
+          }
         }
       }
     }
-  }
 
-  # The log-coordinate delta of a logged formula intercept is equally thread
-  # invariant, and it accompanies no location basis.
-  positive_current <- abs(current) + .1
-  log_reference <- NULL
-  for (threads in c(1L, 2L, 8L)) {
-    RoBMA.options(native_threads = threads)
-    value <- .Call("RoBMA_norm_predictor_grid_loglik",
-      yi, sei, weights, mu, NULL, tau, log_tau_basis,
-      positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA")
-    if (is.null(log_reference)) {
-      log_reference <- value
-    } else {
-      expect_identical(value, log_reference, info = paste("log delta, threads", threads))
+    # The log-coordinate delta of a logged formula intercept is equally thread
+    # invariant, and it accompanies no location basis.
+    positive_current <- abs(current) + .1
+    log_reference <- NULL
+    for (threads in c(1L, 2L, 8L)) {
+      RoBMA.options(native_threads = threads)
+      if (threads > 1L) {
+        schedule <- .Call("RoBMA_selnorm_row_schedule", as.double(S),
+          as.double(G * K), PACKAGE = "RoBMA")
+        expect_gt(schedule[["threads"]], 1L)
+      }
+      value <- .Call("RoBMA_norm_predictor_grid_loglik",
+        yi, sei, weights, mu, NULL, tau, log_tau_basis,
+        positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA")
+      if (is.null(log_reference)) {
+        expect_true(any(is.finite(value[["log_lik"]])))
+        expect_true(any(value[["valid"]]))
+        log_reference <- value
+      } else {
+        expect_identical(value, log_reference, info = paste("log delta, threads", threads))
+      }
     }
-  }
-  # Only a positive candidate and a positive current value have a logarithm.
-  non_positive <- !is.na(values) & values <= 0
-  expect_true(all(!log_reference[["valid"]][rep(non_positive, times = S)]))
-  expect_true(any(log_reference[["valid"]]))
-  expect_error(
-    .Call("RoBMA_norm_predictor_grid_loglik", yi, sei, weights, mu, mu_basis,
-      tau, log_tau_basis, positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA"),
-    "location basis"
-  )
-  expect_error(
-    .Call("RoBMA_norm_predictor_grid_loglik", yi, sei, weights, mu, NULL,
-      tau, NULL, positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA"),
-    "log-tau basis"
-  )
+    # Only a positive candidate and a positive current value have a logarithm.
+    non_positive <- !is.na(values) & values <= 0
+    expect_true(all(!log_reference[["valid"]][rep(non_positive, times = S)]))
+    expect_true(any(log_reference[["valid"]]))
+    expect_error(
+      .Call("RoBMA_norm_predictor_grid_loglik", yi, sei, weights, mu, mu_basis,
+        tau, log_tau_basis, positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA"),
+      "location basis"
+    )
+    expect_error(
+      .Call("RoBMA_norm_predictor_grid_loglik", yi, sei, weights, mu, NULL,
+        tau, NULL, positive_current, values, FALSE, TRUE, PACKAGE = "RoBMA"),
+      "log-tau basis"
+    )
 
-  # A grid without a mu basis and without weights keeps the same shapes.
-  plain <- call_grid(FALSE, FALSE, FALSE, FALSE)
-  expect_identical(length(plain[["log_lik"]]), length(values) * S)
-  expect_identical(length(plain[["valid"]]), length(values) * S)
-  expect_true(is.logical(plain[["valid"]]))
+    # A grid without a mu basis and without weights keeps the same shapes.
+    plain <- .expect_thread_invariant("plain normal predictor", function() {
+      call_grid(FALSE, FALSE, FALSE, FALSE)
+    }, rows = S, work_per_row = G * K)
+    expect_identical(length(plain[["log_lik"]]), length(values) * S)
+    expect_identical(length(plain[["valid"]]), length(values) * S)
+    expect_true(is.logical(plain[["valid"]]))
+  })
 })

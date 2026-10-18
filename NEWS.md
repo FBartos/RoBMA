@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Native thread invariance checks execute every selected-normal and predictor
+  route above its actual work gate in a fresh two-thread OpenMP worker.
 - Binomial GLMM quadrature uses the exact uniform-beta identity and evaluates
   derivative probability pairs directly while retaining independent log tails.
 - GLMM regression checks cover active boundary and sharp-count quadrature,

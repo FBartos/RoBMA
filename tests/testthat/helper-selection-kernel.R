@@ -320,3 +320,126 @@
     second = moment_second
   ))
 }
+
+
+# OpenMP limits and the complete private library list precede namespace import.
+# Every numerical comparison executes in the same fresh two-core worker.
+.with_kernel_thread_worker <- function(code) {
+
+  withr::local_envvar(c(OMP_NUM_THREADS = "2", OMP_THREAD_LIMIT = "2",
+    OMP_DYNAMIC = "FALSE", R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)))
+  cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
+  on.exit(parallel::stopCluster(cluster), add = TRUE)
+  openmp <- parallel::clusterCall(cluster, function(paths) {
+    .libPaths(paths)
+    Sys.setenv(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
+    loadNamespace("RoBMA")
+    RoBMA::RoBMA.options(max_cores = 2L, native_threads = 1L)
+    .Call("RoBMA_native_unwind_probe", "openmp", NULL, 1L, PACKAGE = "RoBMA")
+  }, .libPaths())[[1L]]
+  testthat::skip_if_not(isTRUE(openmp), "This build has no OpenMP support.")
+
+  result <- parallel::clusterCall(cluster, function(code, helper) {
+    env <- new.env(parent = asNamespace("RoBMA"))
+    for (name in c("expect_identical", "expect_true", "expect_error", "expect_gt")) {
+      env[[name]] <- getExportedValue("testthat", name)
+    }
+    sys.source(helper, envir = env)
+    eval(code, envir = env)
+    TRUE
+  }, substitute(code), normalizePath(testthat::test_path("helper-selection-kernel.R")))[[1L]]
+  testthat::expect_true(result)
+}
+
+
+# One synthetic batch with row-wise selection weights, kernel modes and scales.
+# Callers choose S from the actual entry point's work formula.
+.kernel_thread_inputs <- function(S = 96L, K = 5L) {
+
+  withr::local_seed(20260917)
+  yi   <- c(.12, -.05, .31, .22, -.18)[seq_len(K)]
+  sei  <- c(.10, .18, .14, .22, .09)[seq_len(K)]
+  spec <- .test_step_spec(yi, sei)
+
+  mean <- matrix(stats::rnorm(S * K, mean = .15, sd = .10), nrow = S)
+  sd   <- matrix(stats::runif(S * K, .08, .30), nrow = S)
+  # A normal row every fourth draw: the selected and unselected branches of the
+  # kernels must both be visited inside the parallel region.
+  kernel_mode <- rep(SELKERNEL_STEP, S)
+  kernel_mode[seq.int(4L, S, by = 4L)] <- SELKERNEL_NORMAL
+  omega <- cbind(
+    rep(1, S),
+    stats::runif(S, .40, .95),
+    stats::runif(S, .15, .60),
+    stats::runif(S, .05, .40)
+  )
+  omega <- omega[, seq_len(spec[["n_bins"]]), drop = FALSE]
+  omega[, 1L] <- 1
+
+  return(list(
+    yi          = yi,
+    sei         = sei,
+    spec        = spec,
+    S           = S,
+    K           = K,
+    mean        = mean,
+    sd          = sd,
+    omega       = omega,
+    kernel_mode = kernel_mode
+  ))
+}
+
+
+.kernel_thread_selection_context <- function(inputs) {
+
+  context <- inputs[["spec"]]
+  context[["omega"]]       <- inputs[["omega"]]
+  context[["alpha"]]       <- 0
+  context[["phack_kind"]]  <- 0L
+  context[["kernel_mode"]] <- inputs[["kernel_mode"]]
+  context[["vector_rule"]] <- 0L
+  context[["use_normal"]]  <- inputs[["kernel_mode"]] == SELKERNEL_NORMAL
+
+  return(BayesTools::selection_context_validate(
+    context,
+    n_samples = inputs[["S"]]
+  ))
+}
+
+
+# Evaluate one entry point at several thread budgets and require the values to
+# be identical, not merely close: the row partition must never change a result.
+.expect_thread_invariant <- function(label, evaluate,
+                                     threads = c(1L, 2L, 8L),
+                                     rows = NULL, work_per_row = NULL) {
+
+  previous <- RoBMA.get_option("native_threads")
+  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
+
+  reference <- NULL
+  for (count in threads) {
+    RoBMA.options(native_threads = count)
+    if (count > 1L && !is.null(rows)) {
+      schedule <- .Call("RoBMA_selnorm_row_schedule", as.double(rows),
+        as.double(work_per_row), PACKAGE = "RoBMA")
+      expect_true(schedule[["threads"]] > 1L,
+        info = paste(label, "rows", rows, "work per row", work_per_row))
+    }
+    values <- evaluate()
+    if (is.null(reference)) {
+      expect_true(
+        any(is.finite(unlist(values, use.names = FALSE))),
+        info = paste0(label, ": no finite value to compare")
+      )
+      reference <- values
+    } else {
+      expect_identical(
+        values,
+        reference,
+        info = paste0(label, " at ", count, " threads")
+      )
+    }
+  }
+
+  return(invisible(reference))
+}
