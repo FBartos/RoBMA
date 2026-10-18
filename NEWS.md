@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Marginal-means plots reuse same-method stored curve settings when controls are omitted, retaining explicit recomputation requests.
 - Point hypotheses inherit stored marginal-means controls only for the same declared estimator; method switches use their fresh defaults.
 - Marginal-means curve and point targets fold declared constant formula contributions into fitted weights exactly once.
 - Marginal-means curve attachment and plot recomputation retain the requested relative-MCSE control in produced settings and provenance.

@@ -119,3 +119,24 @@ test_that("E2-4 method switches resolve fresh controls and same methods inherit"
     expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 120L)
   }
 })
+
+test_that("E3-3 plots forward stored curve controls separately from point settings", {
+
+  means <- marginal_means(.review_h_contribution(1), bf = FALSE, parameter = "g",
+    density_method = "qCMDE", density_control = list(n_points = 80L, samples = 120L))
+  means$ordinate_settings$n_points <- 77L
+  seen <- NULL
+  testthat::local_mocked_bindings(.marginal_means_plot_prepare_iwmde = function(
+      x, selected, type, density_method, density_control, force) {
+    seen <<- list(control = density_control, force = force)
+    stop("Captured plot controls.", call. = FALSE)
+  }, .package = "RoBMA")
+  expect_error(plot(means, parameter = "g"), "Captured plot controls.", fixed = TRUE)
+  expect_identical(seen$control$n_points, 80L)
+  expect_false(seen$force)
+  expect_error(plot(means, parameter = "g", density_control = list(n_points = 80L)),
+    "Captured plot controls.", fixed = TRUE)
+  expect_true(seen$force)
+  expect_error(plot(means, parameter = "g", density_method = "IWMDE"), "Captured plot controls.", fixed = TRUE)
+  expect_identical(seen$control$samples, 1000L)
+})

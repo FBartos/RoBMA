@@ -829,6 +829,11 @@ plot.marginal_means.brma <- function(x, parameter, type = NULL,
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
   density_control_requested <- !is.null(density_control)
   density_method <- .marginal_means_density_method(x, density_method)
+  if (is.null(density_control) && .density_method_uses_precomputed(density_method)) {
+    display_grid <- x[["density_settings"]][["display_grid"]]
+    if (is.null(display_grid)) display_grid <- "adaptive"
+    density_control <- .marginal_means_iwmde_settings_control(x, density_method, display_grid)
+  }
   if (.density_method_uses_precomputed(density_method) ||
       !is.null(density_control)) {
     density_control <- .density_control_normalize(
