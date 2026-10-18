@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Unavailable marginal-means Bayes factors retain matching producer refusal diagnostics and distinguish stale or uncomputed ordinates from numerical and structural refusals.
 - Interpretation labels pooled heterogeneity with its actual declared quantity, including common and total scales.
 - Transformed point ordinates classify their declared source-coordinate prior instead of applying a display-scale prior at a source-scale value.
 - Marginal-means plots reuse same-method stored curve settings when controls are omitted, retaining explicit recomputation requests.

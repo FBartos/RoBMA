@@ -93,6 +93,24 @@
   review_attach_replay(setup, cbind(samples, values))
 }
 
+.review_h_ordinate_refusal <- function() {
+
+  dat <- data.frame(yi = rep(c(.1, 10), each = 3), sei = .2,
+    g = factor(rep(c("A", "B"), each = 3)))
+  setup <- review_compile_object(brma(yi = yi, sei = sei, mods = ~0+g, data = dat,
+    measure = "GEN", prior_effect = BayesTools::prior("point", list(0)),
+    prior_mods = list(g = BayesTools::prior_factor("normal", list(0, 1), contrast = "independent")),
+    prior_heterogeneity = BayesTools::prior("point", list(.1)), prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE))
+  name <- review_coefficient_name(setup, "g")
+  columns <- BayesTools:::.JAGS_prior_factor_names(name, setup$compiled$mu$prior_list[[name]])
+  n <- 240L
+  quantiles <- stats::qnorm((seq_len(n) - .5) / n)
+  samples <- cbind(.1 + .12 * quantiles, 9.84 + .12 * rev(quantiles), mu_intercept = 0, tau = .1)
+  colnames(samples)[1:2] <- columns
+  review_attach_replay(setup, samples)
+}
+
 test_that("E2-1 declared empty marginal cells retain their actual event", {
 
   object <- .review_h_empty_condition()
@@ -229,4 +247,56 @@ test_that("E2-6 interpretation names the actual pooled common quantity", {
   expect_equal(records$central_value, mean(pooled), tolerance = 1e-14)
   expect_equal(c(records$lower_value, records$upper_value), unname(stats::quantile(pooled, c(.025, .975))), tolerance = 1e-14)
   expect_true(any(grepl("mean tau_common", result, fixed = TRUE)))
+})
+
+test_that("E2-7 genuine precomputed numerical refusals retain exact row diagnostics", {
+
+  object <- .review_h_ordinate_refusal()
+  means <- marginal_means(object, bf = TRUE, parameter = "g", density_method = "qCMDE",
+    n_samples = 256, density_control = list(samples = 100L))
+  cells <- means$inference$conditional$mu_g
+  bf <- means$inference$inference$mu_g
+  records <- attr(cells$B, "ordinate_failures", exact = TRUE)
+  expect_identical(records$numerical_status, "underflow")
+  expect_identical(records$requested_value, 0)
+  expect_true(is.finite(as.numeric(bf$A)))
+  expect_true(is.na(bf$B))
+  condition <- attr(bf$B, "numerical_diagnostics", exact = TRUE)
+  expect_s3_class(condition, "RoBMA_density_ordinate_error")
+  expect_identical(attr(bf$B, "posterior_density_source", exact = TRUE), "numerical_unavailable")
+  if (inherits(condition, "condition")) expect_identical(condition$density_diagnostics$log_ordinate, records$log_ordinate)
+  stale_request <- .marginal_means_ordinate_request_provenance(means, "mu_g", 0, "IWMDE")
+  stale <- .marginal_means_iwmde_bf(cells, 0, stale_request, "IWMDE")
+  expect_false(grepl("underflow", attr(stale$B, "warnings"), fixed = TRUE))
+  expect_null(attr(stale$B, "numerical_diagnostics", exact = TRUE))
+  other_request <- .marginal_means_ordinate_request_provenance(means, "mu_g", .1, "qCMDE")
+  other <- .marginal_means_iwmde_bf(cells, .1, other_request, "qCMDE")
+  expect_false(grepl("underflow", attr(other$B, "warnings"), fixed = TRUE))
+  expect_null(attr(other$B, "numerical_diagnostics", exact = TRUE))
+  changed <- means
+  changed$ordinate_settings$samples <- 101L
+  changed_request <- .marginal_means_ordinate_request_provenance(changed, "mu_g", 0, "qCMDE")
+  changed_bf <- .marginal_means_iwmde_bf(cells, 0, changed_request, "qCMDE")
+  expect_false(grepl("underflow", attr(changed_bf$B, "warnings"), fixed = TRUE))
+  expect_null(attr(changed_bf$B, "numerical_diagnostics", exact = TRUE))
+  legacy <- cells
+  attr(attr(legacy$B, "ordinate_failures"), "iwmde_provenance") <- NULL
+  expected <- .marginal_means_ordinate_request_provenance(means, "mu_g", 0, "qCMDE")
+  legacy_bf <- .marginal_means_iwmde_bf(legacy, 0, expected, "qCMDE")
+  expect_null(attr(legacy_bf$B, "numerical_diagnostics", exact = TRUE))
+  expect_false(grepl("underflow", attr(legacy_bf$B, "warnings"), fixed = TRUE))
+  all_failed <- marginal_means(object, null_hypothesis = 100, bf = TRUE, parameter = "g",
+    density_method = "qCMDE", n_samples = 256, density_control = list(samples = 100L))
+  for (item in all_failed$inference$inference$mu_g) {
+    expect_true(is.na(item))
+    expect_s3_class(attr(item, "numerical_diagnostics"), "RoBMA_density_ordinate_error")
+  }
+  table <- summary(means, bf = TRUE)
+  diagnostics <- attr(table, "numerical_diagnostics", exact = TRUE)
+  expect_true(any(vapply(diagnostics, inherits, logical(1), "RoBMA_density_ordinate_error")))
+  for (frame in list(as.data.frame(table), data.frame(table))) {
+    expect_identical(frame$parameter, c("g[A]", "g[B]"))
+    expect_equal(as.numeric(frame$inclusion_BF), c(as.numeric(bf$A), NA_real_))
+    expect_null(attr(frame$inclusion_BF, "numerical_diagnostics", exact = TRUE))
+  }
 })

@@ -329,6 +329,21 @@
     if (is.null(ordinate)) {
       ordinate <- estimate[["rejected_posterior_ordinate"]]
     }
+    failures <- estimate[["ordinate_failures"]]
+    diagnostic <- estimate[["diagnostics"]][["ordinate"]]
+    plan <- estimate[["plan"]]
+    if (!is.null(failures) && nrow(failures) && is.list(plan)) {
+      # Keep the actual producer receipt before the public diagnostic frame
+      # loses the target/control fields needed for exact request matching.
+      receipts <- lapply(seq_len(nrow(failures)), function(i) {
+        .iwmde_result_provenance(diagnostic, plan[["density_method"]],
+          metadata = plan[["target"]][["metadata"]], density_control = plan[["control"]],
+          value = failures[["requested_value"]][[i]],
+          evaluation_value = failures[["evaluation_value"]][[i]], attribute = "ordinate")
+      })
+      names(receipts) <- .iwmde_key_number(failures[["requested_value"]])
+      attr(failures, "iwmde_provenance") <- receipts
+    }
 
     parameter <- specs[[name]][["parameter"]]
     level     <- specs[[name]][["level"]]
@@ -338,13 +353,13 @@
     }
 
     if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "ordinate_failures") <- estimate[["ordinate_failures"]]
+      attr(samples[[level]], "ordinate_failures") <- failures
       if (!is.null(ordinate)) {
         BayesTools::posterior_metadata(samples[[level]], "posterior_ordinate") <-
           ordinate
       }
     } else {
-      attr(samples, "ordinate_failures") <- estimate[["ordinate_failures"]]
+      attr(samples, "ordinate_failures") <- failures
       if (!is.null(ordinate)) {
         BayesTools::posterior_metadata(samples, "posterior_ordinate") <- ordinate
       }
@@ -551,14 +566,8 @@
   }, logical(1))
   if (!any(valid)) {
     for (i in seq_along(out)) {
-      out[[i]] <- .marginal_means_unavailable_bf_scalar(
-        .marginal_means_iwmde_bf_warning(
-          BayesTools::posterior_metadata(posterior[[i]], "posterior_ordinate"),
-          default = warning,
-          failure_records = attr(posterior[[i]], "ordinate_failures", exact = TRUE),
-          value = null_hypothesis
-        )
-      )
+      out[[i]] <- .marginal_means_precomputed_unavailable_bf(
+        posterior[[i]], null_hypothesis, provenance[[i]], warning)
     }
     return(out)
   }
@@ -585,14 +594,8 @@
         )
       ))
     } else {
-      out[[i]] <- .marginal_means_unavailable_bf_scalar(
-        .marginal_means_iwmde_bf_warning(
-          BayesTools::posterior_metadata(posterior[[i]], "posterior_ordinate"),
-          default = warning,
-          failure_records = attr(posterior[[i]], "ordinate_failures", exact = TRUE),
-          value = null_hypothesis
-        )
-      )
+      out[[i]] <- .marginal_means_precomputed_unavailable_bf(
+        posterior[[i]], null_hypothesis, provenance[[i]], warning)
     }
   }
 
@@ -609,14 +612,8 @@
     value              = null_hypothesis,
     provenance         = provenance
   )) {
-    return(.marginal_means_unavailable_bf_scalar(
-      .marginal_means_iwmde_bf_warning(
-        BayesTools::posterior_metadata(posterior, "posterior_ordinate"),
-        default = warning,
-        failure_records = attr(posterior, "ordinate_failures", exact = TRUE),
-        value = null_hypothesis
-      )
-    ))
+    return(.marginal_means_precomputed_unavailable_bf(
+      posterior, null_hypothesis, provenance, warning))
   }
 
   posterior <- .marginal_means_bf_posterior(posterior)
@@ -630,6 +627,36 @@
     ),
     posterior_ordinate = BayesTools::posterior_metadata(posterior, "posterior_ordinate")
   ))
+}
+
+
+.marginal_means_precomputed_unavailable_bf <- function(posterior, value, provenance, warning) {
+
+  entries <- .iwmde_posterior_ordinate_entries(
+    BayesTools::posterior_metadata(posterior, "posterior_ordinate"))
+  entries <- Filter(function(entry) {
+    .iwmde_ordinate_value_matches(entry, value) &&
+      .iwmde_provenance_matches(entry, provenance) &&
+      .iwmde_attribute_method_matches_request(entry, provenance)
+  }, entries)
+  ordinate <- .iwmde_posterior_ordinate_combine(entries)
+  failures <- attr(posterior, "ordinate_failures", exact = TRUE)
+  if (!is.null(failures) && nrow(failures)) {
+    receipts <- attr(failures, "iwmde_provenance", exact = TRUE)
+    keep <- vapply(seq_len(nrow(failures)), function(i) {
+      key <- .iwmde_key_number(failures[["requested_value"]][[i]])
+      identical(failures[["requested_value"]][[i]], as.numeric(value)) &&
+        .iwmde_provenance_matches(list(iwmde_provenance = receipts[[key]]), provenance)
+    }, logical(1L))
+    failures <- failures[keep, , drop = FALSE]
+  }
+  message <- .marginal_means_iwmde_bf_warning(ordinate, default = warning,
+    failure_records = failures, value = value)
+  condition <- if (!is.null(ordinate) || (!is.null(failures) && nrow(failures))) {
+    .iwmde_ordinate_unavailable_condition(message,
+      list(rejected_posterior_ordinate = ordinate, ordinate_failures = failures))
+  }
+  .marginal_means_unavailable_bf_scalar(message, condition)
 }
 
 
@@ -692,8 +719,15 @@
   attr(out, "warnings") <- warning
   if(!is.null(condition)){
     attr(out, "numerical_diagnostics") <- condition
-    attr(out, "posterior_density_source") <- if(inherits(condition, "BayesTools_formula_measure_unavailable"))
-      "measure_unavailable" else "numerical_unavailable"
+    sources <- c(BayesTools_formula_measure_unavailable = "measure_unavailable",
+      BayesTools_posterior_point_mass_at_null = "null_point_mass",
+      BayesTools_point_mass_at_null = "point_mass_prior_ordinate",
+      BayesTools_zero_ordinate = "zero_prior_ordinate",
+      BayesTools_infinite_ordinate = "infinite_prior_ordinate",
+      BayesTools_undefined_ordinate = "undefined_prior_ordinate",
+      BayesTools_inexact_ordinate = "inexact_prior_ordinate")
+    matched <- names(sources)[vapply(names(sources), inherits, logical(1L), x = condition)]
+    attr(out, "posterior_density_source") <- if (length(matched)) unname(sources[[matched[[1L]]]]) else "numerical_unavailable"
   }
   return(out)
 }

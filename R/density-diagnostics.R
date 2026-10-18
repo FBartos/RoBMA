@@ -234,6 +234,12 @@ density_diagnostics.default <- function(object, ...) {
 
 .iwmde_stop_ordinate_unavailable <- function(message, estimate) {
 
+  stop(.iwmde_ordinate_unavailable_condition(message, estimate))
+}
+
+
+.iwmde_ordinate_unavailable_condition <- function(message, estimate) {
+
   message     <- paste0(sub("[.]+$", "", message), ".")
   ordinate    <- estimate[["rejected_posterior_ordinate"]]
   diagnostics <- estimate[["ordinate_failures"]]
@@ -249,7 +255,7 @@ density_diagnostics.default <- function(object, ...) {
     class = c("RoBMA_density_ordinate_error", "error", "condition")
   )
 
-  stop(condition)
+  condition
 }
 
 
