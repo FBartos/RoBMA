@@ -349,7 +349,10 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
       }
       if (is.atomic(x) && !is.null(x)) return(length(x) > 0L)
       head <- call_head(x)
-      if (literal_number(x)) return(TRUE)
+      if (literal_number(x)) {
+        fixed <<- union(fixed, head)
+        return(TRUE)
+      }
       if (!head %in% c("c", "seq_along", "paste0", "(", "[", "[[")) {
         issues <<- c(issues, paste0("uncertifiable preparation expression '",
                                    paste(deparse(x), collapse = " "), "'"))
@@ -377,6 +380,9 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
     for (st in as.list(block$expr)[-1L]) {
       if (!call_head(st) %in% c("<-", "=") || call_head(st[[2L]]) != "names") next
       rhs <- st[[3L]]
+      # Even unsupported names effects are outputs for the dormancy proof.
+      # Reading their target alone must not silently observe its stale value.
+      counters <- union(counters, source_writes(rhs)$writes)
       if (call_head(rhs) == "{") {
         parts <- as.list(rhs)[-1L]
         increments <- if (length(parts) > 1L) parts[-length(parts)] else list()
@@ -392,9 +398,12 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
           counters <- union(counters, counter)
           inputs <- union(inputs, counter)
           fixed <- union(fixed, "+")
+          if (is.call(increment[[3L]][[3L]])) fixed <- union(fixed, call_head(increment[[3L]][[3L]]))
           defs <- Filter(function(d) d$index < start, definitions[[counter]])
           if (length(defs) != 1L || !literal_number(defs[[1L]]$expr)) {
             issues <- c(issues, paste0("counter '", counter, "' needs a plain numeric literal initializer"))
+          } else if (is.call(defs[[1L]]$expr)) {
+            fixed <- union(fixed, call_head(defs[[1L]]$expr))
           }
         }
         if (length(parts)) certify(parts[[length(parts)]]) else issues <- c(issues, "empty names expression")

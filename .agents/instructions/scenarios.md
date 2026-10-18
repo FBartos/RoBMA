@@ -318,6 +318,7 @@ The loop sequence must have declared nonempty literal-vector provenance (or
 `seq_along` of one); empty, inherited, cyclic, fit-dependent or opaque sequence
 definitions cannot be certified when demanded. Fixed helpers must retain their
 bindings, including function-position and scenario-file top-level bindings.
+Signed numeric literals also require the ordinary unary `+`/`-` bindings.
 Input dependencies are followed through local definitions without reading their
 values. Later direct, replacement, loop-target, nonlocal and visible reflective
 writes refuse a potentially demanded block with a named input/source diagnostic.
@@ -344,6 +345,8 @@ and a final admitted names expression. Observe its counter in a payload that
 also directly demands the block's list or final loop output. Counter-only and
 eager intermediate counter observations are unsupported. The counter still
 updates once per names assignment in the original scenario environment.
+Explicit names-RHS write targets are tracked even when their effect syntax is
+unsupported, so observing such a target alone cannot prove its block dormant.
 
 This is a declarative preparation check, not a general R interpreter or proof
 of purity. Source dependency unions and opaque/dynamic demand can over-refuse.
