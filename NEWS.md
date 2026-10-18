@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Specialized multilevel BLUP totals retain their stable weighted mean instead
+  of re-adding potentially canceling cluster and within contributions.
 - Ordinary singleton selected predictions use exact-cell chunk pricing with
   conservative fixed/output reserves under the unchanged covariance budget.
 - Selected conditional predictions sample and solve safely eligible declared

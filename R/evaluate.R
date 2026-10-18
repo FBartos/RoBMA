@@ -1594,6 +1594,7 @@
 
   cluster_contribution  <- matrix(0, nrow = S, ncol = K)
   estimate_contribution <- matrix(0, nrow = S, ncol = K)
+  total_contribution <- matrix(0, nrow = S, ncol = K)
   sampling_sd <- matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
   diagonal_sd <- .root_sum_squares(tau_within, sampling_sd)
   if (any(!is.finite(diagonal_sd)) || any(!is.finite(tau_within) | tau_within < 0)) {
@@ -1613,18 +1614,23 @@
       estimate_contribution[regular, idx] <- .multilevel_conditional_product(
         weights[["first"]], residual[regular, idx, drop = FALSE] -
           cluster_contribution[regular, idx, drop = FALSE])
+      total_contribution[regular, idx] <-
+        .multilevel_conditional_product(weights[["first"]], residual[regular, idx, drop = FALSE]) +
+        .multilevel_conditional_product(weights[["second"]], cluster_contribution[regular, idx, drop = FALSE])
     }
     for (draw in which(!regular)) {
       solved <- .solve_diagonal_rank_one_block(
         tau_within[draw, idx]^2 + vi[idx], tau_between[draw, idx], residual[draw, idx])
       cluster_contribution[draw, idx] <- tau_between[draw, idx] * sum(tau_between[draw, idx] * solved)
       estimate_contribution[draw, idx] <- tau_within[draw, idx]^2 * solved
+      total_contribution[draw, idx] <- cluster_contribution[draw, idx] + estimate_contribution[draw, idx]
     }
   }
 
   return(list(
     cluster  = cluster_contribution,
-    estimate = estimate_contribution
+    estimate = estimate_contribution,
+    total = total_contribution
   ))
 }
 

@@ -1054,8 +1054,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
           bias_offset = blup_bias_offset
         )
       }
-      mu_samples <- fixed_mu + multilevel_blup[["cluster"]] +
-        multilevel_blup[["estimate"]]
+      mu_samples <- fixed_mu + multilevel_blup[["total"]]
     } else {
       mu_samples <- cluster_mu
 
