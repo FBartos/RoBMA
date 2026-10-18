@@ -363,6 +363,7 @@
       entry$data <- matrix(NA_real_, length(shared$queries), 4L,
         dimnames = list(NULL, c("log_density", "log_A", "mcse", "eta")))
       entry$have <- logical(length(shared$queries))
+      entry$relative_change <- rep(NA_real_, length(shared$queries))
       entry$seen <- logical(length(shared$queries))
       entry$reported <- numeric(length(shared$queries))
       entry$unknown <- logical(length(shared$queries))
@@ -440,6 +441,10 @@
       rows <- if (entry$constant) seq_along(entry$have) else ids[at]
       if (entry$constant) value <- matrix(value[1L, ], length(rows), 4L, byrow = TRUE)
       entry$data[rows, ] <- value
+      if (!is.null(factor)) {
+        changes <- result[["relative_change"]][at]
+        entry$relative_change[rows] <- if (entry$constant) rep(changes[[1L]], length(rows)) else changes
+      }
       entry$have[rows] <- TRUE
     }
     for (name in c("anchor", "fallback", "constant")) {
@@ -534,6 +539,13 @@
     result[direct] <- values[, "log_density"]
     error[direct] <- values[, "eta"]
     mcse[direct] <- values[, "mcse"]
+    if (!is.null(factor) && length(direct)) {
+      changes <- entry$relative_change[own_qid[at_direct]]
+      if (length(changes) != length(direct)) changes <- rep(NA_real_, length(direct))
+      .selection_joint_factor_check_diagnostics(list(relative_mcse = mcse[direct],
+        relative_change = changes), execution_plan,
+        if (identical(factor[["method"]], "rank_one")) "cluster" else "factor")
+    }
   }
   .selection_joint_dense_loglik_check_mcse(mcse, execution_plan)
   if (any(interpolated)) {

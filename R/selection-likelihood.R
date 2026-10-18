@@ -2869,6 +2869,25 @@ set_selection_likelihood_control <- function(
 }
 
 
+.selection_joint_factor_check_diagnostics <- function(result, execution_plan, method) {
+
+  diagnostic <- pmax(result[["relative_mcse"]], result[["relative_change"]])
+  failed <- which(!is.finite(diagnostic) | diagnostic > execution_plan[["relative_tolerance"]])
+  if (length(failed)) {
+    first <- failed[[1L]]
+    stop("Selection ", method, " normalizer was rejected by diagnostics: ",
+      "relative Monte Carlo standard error was ", format(result[["relative_mcse"]][first], digits = 4),
+      " and nested-design relative change was ", format(result[["relative_change"]][first], digits = 4),
+      ". Increase 'max_points_per_scramble' or 'scrambles' in ",
+      "'set_selection_likelihood_control()'. Pass the control as ",
+      "'selection_control' when fitting, 'integration_control' in zplot(), ",
+      "or 'density_control$integration_control' for supported post-fit densities and hypotheses.",
+      call. = FALSE)
+  }
+  invisible(NULL)
+}
+
+
 .selection_joint_cluster_loglik_block <- function(
     yi, means, residual_sd, loading, sei, selection_context,
     execution_plan, return_normalizer = FALSE, normalizer_grid = NULL,
@@ -2925,25 +2944,8 @@ set_selection_likelihood_control <- function(
     stop("The cluster selection kernel returned invalid output.",
          call. = FALSE)
   }
+  .selection_joint_factor_check_diagnostics(result, execution_plan, "cluster")
   if (return_normalizer) return(result)
-  diagnostic <- pmax(result[["relative_mcse"]], result[["relative_change"]])
-  failed <- which(!is.finite(diagnostic) |
-    diagnostic > execution_plan[["relative_tolerance"]])
-  if (length(failed) > 0L) {
-    stop(
-      "Selection cluster normalizer was rejected by diagnostics: ",
-      "relative Monte Carlo standard error was ",
-      format(result[["relative_mcse"]][failed[[1L]]], digits = 4),
-      " and nested-design relative change was ",
-      format(result[["relative_change"]][failed[[1L]]], digits = 4),
-      ". Increase 'max_points_per_scramble' or 'scrambles' in ",
-      "'set_selection_likelihood_control()'. Pass the control as ",
-      "'selection_control' when fitting, 'integration_control' in zplot(), ",
-      "or 'density_control$integration_control' for supported post-fit ",
-      "densities and hypotheses.",
-      call. = FALSE
-    )
-  }
   result[["log_density"]]
 }
 
@@ -3049,26 +3051,8 @@ set_selection_likelihood_control <- function(
     stop("The selection factor kernel returned invalid output.",
          call. = FALSE)
   }
+  .selection_joint_factor_check_diagnostics(result, execution_plan, "factor")
   if (return_normalizer) return(result)
-  diagnostic <- pmax(result[["relative_mcse"]], result[["relative_change"]])
-  failed <- which(!is.finite(diagnostic) |
-    diagnostic > execution_plan[["relative_tolerance"]])
-  if (length(failed) > 0L) {
-    stop(
-      "Selection factor normalizer was rejected by diagnostics: ",
-      "relative Monte Carlo standard error was ",
-      format(result[["relative_mcse"]][failed[[1L]]], digits = 4),
-      " and nested-design relative change was ",
-      format(result[["relative_change"]][failed[[1L]]], digits = 4),
-      ". Increase 'max_points_per_scramble' or 'scrambles' in ",
-      "'set_selection_likelihood_control()'. Pass the control as ",
-      "'selection_control' when fitting, 'integration_control' in zplot(), ",
-      "or ",
-      "'density_control$integration_control' for supported post-fit ",
-      "densities and hypotheses.",
-      call. = FALSE
-    )
-  }
   result[["log_density"]]
 }
 
