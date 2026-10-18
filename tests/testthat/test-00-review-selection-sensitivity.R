@@ -128,3 +128,44 @@ test_that("conditioned block masses are assigned only to their connected output 
     expect_lte(abs(actual$ess_fraction_median[block] - median(vapply(reference, function(x) x[block, "ESS"], numeric(1L)))), 1e-12)
   }
 })
+
+test_that("conditioned sensitivity follows genuine normal product and best branches for both signs", {
+
+  V <- matrix(c(1, .5, .5, 1), 2L)
+  for (direction in c("positive", "negative")) {
+    priors <- lapply(c("product", "best"), function(rule) BayesTools::prior_weightfunction(
+      "one-sided", .5, BayesTools::wf_fixed(c(1, .2)), model = BayesTools::selection_model(
+        weight_rule = rule, group = "paper", known_sampling_variance = "condition")))
+    setup <- review_compile_object(RoBMA.mv(yi = c(0, 0), V = V, random = NULL,
+      data = data.frame(paper = c("a", "a")), measure = "GEN", prior_unit_information_sd = 1,
+      prior_effect = BayesTools::prior("point", list(location = 0)), prior_effect_null = NULL,
+      prior_bias = priors, effect_direction = direction, only_priors = TRUE, silent = TRUE))
+    fit_priors <- unlist(lapply(setup$compiled, `[[`, "prior_list"), recursive = FALSE)
+    fit_priors <- c(fit_priors, .create_fit_priors(setup$object$data, setup$object$priors))
+    expect_true("bias_indicator" %in% BayesTools::JAGS_to_monitor(fit_priors))
+    columns <- unique(c(setdiff(review_prior_columns(fit_priors), "omega"), "bias_indicator"))
+    samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+    for (name in names(fit_priors)) if (BayesTools::is.prior.point(fit_priors[[name]])) samples[, name] <- fit_priors[[name]]$parameters$location
+    samples[, "bias_indicator"] <- rep(1:3, 8L)
+    initial <- review_attach_replay(setup, samples)
+    generated <- BayesTools::JAGS_evaluate_deterministic(initial$fit, draws = samples)
+    for (name in colnames(generated)) if (name %in% colnames(samples)) samples[, name] <- generated[, name] else samples <- cbind(samples, generated[, name, drop = FALSE])
+    object <- review_attach_replay(setup, samples)
+    context <- .selection_context(object, samples)
+    expect_identical(context$use_normal, samples[, "bias_indicator"] == 1L)
+    expect_identical(context$vector_rule, ifelse(samples[, "bias_indicator"] == 3L, 1L, 0L))
+    actual <- suppressWarnings(selection_sensitivity_diagnostics(object,
+      max_posterior_samples = 24L, latent_samples = 32L, seed = 971L))
+    withr::local_seed(971)
+    metrics <- t(vapply(seq_len(24L), function(draw) {
+      branch <- samples[draw, "bias_indicator"]
+      if (branch == 1L) return(c(TV = 0, ESS = 1))
+      h <- .selection_sensitivity_covariance_draws(V, 32L)
+      selected <- (if (direction == "positive") h else -h) >= 0
+      w <- if (branch == 2L) apply(ifelse(selected, 1, .2), 1L, prod) else ifelse(rowSums(selected) > 0, 1, .2)
+      c(TV = .5 * mean(abs(w / mean(w) - 1)), ESS = mean(w)^2 / mean(w^2))
+    }, numeric(2L)))
+    expect_lte(abs(actual$total_variation_median - median(metrics[, "TV"])), 1e-12)
+    expect_lte(abs(actual$ess_fraction_median - median(metrics[, "ESS"])), 1e-12)
+  }
+})
