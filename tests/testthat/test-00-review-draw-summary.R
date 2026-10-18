@@ -1,3 +1,13 @@
+test_that("finite component SDs reject an overflowing total variance", {
+
+  component <- matrix(sqrt(.75 * .Machine$double.xmax), 2L, 1L)
+  expect_true(all(is.finite(component)))
+  expect_error(.total_brma_mv_heterogeneity_samples(list(component, component)),
+    "Total heterogeneity requires finite nonnegative variance.", fixed = TRUE)
+  expect_identical(.total_brma_mv_heterogeneity_samples(list(matrix(0, 2L), matrix(0, 2L))), matrix(0, 2L))
+  expect_equal(.total_brma_mv_heterogeneity_samples(list(matrix(3, 2L), matrix(4, 2L))), matrix(5, 2L))
+})
+
 test_that("RoBMA formula groups honor supplied source rows and current recipes", {
 
   object <- review_factor_replay(c("a", "b", "c"), "treatment",

@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Total heterogeneity rejects an unrepresentable aggregate variance before
+  taking its square root.
 - Row-source heterogeneity allocation tables retain absolute observed-level SDs
   and variances alongside catalog correlations and multipliers.
 - Row-source allocation anchors evaluate the declared pooled scale design,

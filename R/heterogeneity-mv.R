@@ -1867,6 +1867,10 @@
     stop("Heterogeneity components must contain numeric samples.", call. = FALSE)
   }
   variance <- Reduce(`+`, lapply(components, function(samples) samples^2))
+  if (any(!is.finite(variance)) || any(variance < 0)) {
+    stop("Total heterogeneity requires finite nonnegative variance.",
+         call. = FALSE)
+  }
   sqrt(variance)
 }
 
