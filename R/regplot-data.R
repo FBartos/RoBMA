@@ -464,11 +464,11 @@
 
   if (outcome_type == "norm") {
     newdata[["yi"]] <- rep(0, n_pred)
-    if ("vi" %in% names(newdata)) {
+    if (!"sei" %in% names(newdata) && "vi" %in% names(newdata)) {
       newdata[["sei"]] <- sqrt(newdata[["vi"]])
-    } else if ("sei" %in% names(newdata)) {
+    } else if ("sei" %in% names(newdata) && !"vi" %in% names(newdata)) {
       newdata[["vi"]] <- newdata[["sei"]]^2
-    } else {
+    } else if (!any(c("sei", "vi") %in% names(newdata))) {
       newdata[["sei"]] <- if (length(sei) == 1L) rep(sei, n_pred) else sei
     }
   } else if (outcome_type == "bin") {
@@ -488,11 +488,20 @@
 
 
 .regplot_prediction_precision <- function(newdata, mod_name, n_pred,
-                                          default_sei, reference_sei) {
+                                          default_sei, reference_sei,
+                                          by_name = NULL) {
 
-  if (identical(mod_name, "sei")) {
+  precision_owner <- if (mod_name %in% c("sei", "vi")) {
+    mod_name
+  } else if (!is.null(by_name) && by_name %in% c("sei", "vi")) {
+    by_name
+  } else {
+    NULL
+  }
+
+  if (identical(precision_owner, "sei")) {
     sei <- newdata[["sei"]]
-  } else if (identical(mod_name, "vi") ||
+  } else if (identical(precision_owner, "vi") ||
              (is.null(reference_sei) && "vi" %in% names(newdata))) {
     vi <- newdata[["vi"]]
     if (!is.numeric(vi) || length(vi) != n_pred ||
@@ -515,7 +524,7 @@
   }
 
   if (any(c("sei", "vi") %in% names(newdata))) {
-    if (!identical(mod_name, "vi")) {
+    if (!identical(precision_owner, "vi")) {
       newdata[["vi"]] <- sei^2
     }
     newdata[["sei"]] <- sei
@@ -972,11 +981,12 @@
     mod_name      = mod_name,
     n_pred        = n_pred,
     default_sei   = se_rep,
-    reference_sei = reference_sei
+    reference_sei = reference_sei,
+    by_name       = if (!is.null(by_info)) by_info[["name"]] else NULL
   )
   prediction_grid[["newdata"]] <- prediction_precision[["newdata"]]
   grid_sei <- prediction_precision[["sei"]]
-  precision_moderator <- mod_name %in% c("sei", "vi")
+  precision_moderator <- any(c("sei", "vi") %in% names(predictor_info))
   prediction_sei <- if (sampling_bias || precision_moderator) grid_sei else 0
   newdata <- .regplot_add_dummy_outcome(
     x       = x,

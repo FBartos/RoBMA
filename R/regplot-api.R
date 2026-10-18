@@ -49,6 +49,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' moderator enters exactly one two-way interaction, the other variable in the
 #' interaction is used automatically. Continuous \code{by} moderators are shown
 #' at mean - SD, mean, and mean + SD.
+#' Grouping by \code{sei} or \code{vi} supplies the pointwise precision when
+#' neither precision measure is plotted; an explicit \code{sei} reference is
+#' then not allowed.
 #' The companion precision measure (\code{sei} versus \code{vi}) is not selected
 #' automatically; an explicitly inconsistent companion grouping grid is unavailable.
 #' @param legend logical; whether to show legend when \code{by} is specified.
@@ -74,9 +77,11 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' median observed standard error. When \code{mod = "sei"} or \code{mod =
 #' "vi"}, the plotted moderator supplies the pointwise standard error and an
 #' explicit \code{sei} override is not allowed.
-#' The companion precision column is synchronized with the plotted values. When
-#' precision is a non-plotted predictor and no override is supplied, its existing
-#' representative predictor value supplies the precision.
+#' A grouping moderator \code{by = "sei"} or \code{by = "vi"} also supplies
+#' pointwise precision and disallows an explicit \code{sei} override.
+#' The companion precision column is synchronized with the plotted or grouped
+#' values. When precision is neither plotted nor grouped and no override is
+#' supplied, its existing representative predictor value supplies the precision.
 #' @param max_samples maximum number of posterior samples used for prediction
 #' summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
 #' use all posterior samples.
@@ -284,6 +289,13 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
 
   # identify grouping variable (explicit or auto-detected interaction)
   by_info <- .regplot_get_by(x, by, mod_name, predictor_info)
+  if (!is.null(by_info) && by_info[["name"]] %in% c("sei", "vi") &&
+      !is.null(sei)) {
+    stop(
+      "'sei' cannot be supplied when the grouping moderator is 'sei' or 'vi'.",
+      call. = FALSE
+    )
+  }
 
   # generate plot data
   regplot_data <- .regplot_data(

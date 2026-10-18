@@ -90,6 +90,9 @@ lines/colors. Defaults to \code{NULL}. If omitted and the selected
 moderator enters exactly one two-way interaction, the other variable in the
 interaction is used automatically. Continuous \code{by} moderators are shown
 at mean - SD, mean, and mean + SD.
+Grouping by \code{sei} or \code{vi} supplies the pointwise precision when
+neither precision measure is plotted; an explicit \code{sei} reference is
+then not allowed.
 The companion precision measure (\code{sei} versus \code{vi}) is not selected
 automatically; an explicitly inconsistent companion grouping grid is unavailable.}
 
@@ -122,9 +125,11 @@ error for sampling-bias and sampling-interval calculations. Defaults to the
 median observed standard error. When \code{mod = "sei"} or \code{mod =
 "vi"}, the plotted moderator supplies the pointwise standard error and an
 explicit \code{sei} override is not allowed.
-The companion precision column is synchronized with the plotted values. When
-precision is a non-plotted predictor and no override is supplied, its existing
-representative predictor value supplies the precision.}
+A grouping moderator \code{by = "sei"} or \code{by = "vi"} also supplies
+pointwise precision and disallows an explicit \code{sei} override.
+The companion precision column is synchronized with the plotted or grouped
+values. When precision is neither plotted nor grouped and no override is
+supplied, its existing representative predictor value supplies the precision.}
 
 \item{max_samples}{maximum number of posterior samples used for prediction
 summaries and interval bands. Defaults to \code{10000}. Use \code{Inf} to
