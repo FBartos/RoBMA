@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Declared singleton covariance draws batch their assigned normals, while small
+  selected conditional matrices use the original assembled factor and solve.
 - Multilevel conditional arithmetic checks prior/noise products and the final
   total mean against unavailable nonfinite or underflowed working values.
 - Specialized multilevel BLUP totals retain their stable weighted mean instead

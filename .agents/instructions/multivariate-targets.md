@@ -151,7 +151,12 @@ retained truth, conditional means, terms, marginal/newdata and fresh cluster
 effects carry no reconstruction claim. Response sampling retains raw `s²`;
 log-score, full-joint and LOO metadata do not acquire this prediction marker.
 
-Declared-block prediction sampling uses block factors only after whole-draw
+Declared singleton prediction sampling batches row-ordered normals only when
+all variances are finite and nonnegative; otherwise the original per-draw
+classifier preserves the failure point. Other whole matrices of at most32rows
+use the original assembled sampling and Cholesky solve. This private execution
+boundary changes no support/rank policy. Larger declared-block sampling uses
+block factors only after whole-draw
 eligibility checks: exact diagonal/rank-one support or a positive correlation
 eigenvalue above the conservative whole-K gamma margin. Uncertain, near-boundary,
 invalid and unexpectedly unavailable block factors retain the original assembled

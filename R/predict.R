@@ -1946,10 +1946,12 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     sampling <- .outcome_rng.norm_known_v_covariance(sampling, parts[["sampling_covariance"]])
   }
   residual <- y - parts[["means"]] - random - sampling
-  # Safely PD declared blocks use the existing block solve; uncertainty and
-  # unexpected block failure preserve the assembled Cholesky and exact refusal.
+  # Larger safely PD blocks use the block solve; small whole matrices,
+  # uncertainty and unexpected failure retain assembled Cholesky/refusal.
   zero_random <- .block_covariance_zero_draws(parts[["random_covariance"]])
-  solve_cache <- .block_covariance_guard_cache(parts[["covariance"]], factors = FALSE, pd_only = TRUE)
+  solve_cache <- if (.block_covariance_use_guarded_execution(parts[["covariance"]])) {
+    .block_covariance_guard_cache(parts[["covariance"]], factors = FALSE, pd_only = TRUE)
+  } else NULL
   for (s in seq_len(S)) {
     if (zero_random[[s]]) next
     precision_residual <- .block_covariance_guarded_chol_solve(

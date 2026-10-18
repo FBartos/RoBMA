@@ -578,12 +578,22 @@
 }
 
 
+# Small whole matrices avoid per-block R dispatch. This is an execution boundary,
+# independent of the covariance classifier's support and rank policy.
+.block_covariance_use_guarded_execution <- function(x) {
+
+  x[["K"]] > 32L
+}
+
+
 .block_covariance_guarded_chol_solve <- function(x, draw, rhs, cache) {
 
-  plan <- .block_covariance_guard_plan(x, draw, cache, factors = FALSE, pd_only = TRUE)
-  if (plan[["fast"]]) {
-    result <- tryCatch(.block_covariance_chol_solve(x, draw, rhs), error = function(error) NULL)
-    if (!is.null(result)) return(result)
+  if (.block_covariance_use_guarded_execution(x)) {
+    plan <- .block_covariance_guard_plan(x, draw, cache, factors = FALSE, pd_only = TRUE)
+    if (plan[["fast"]]) {
+      result <- tryCatch(.block_covariance_chol_solve(x, draw, rhs), error = function(error) NULL)
+      if (!is.null(result)) return(result)
+    }
   }
   factor <- tryCatch(chol(.block_covariance_dense(x, draw)), error = function(error) NULL)
   if (is.null(factor)) {

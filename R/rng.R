@@ -157,10 +157,20 @@
     return(mu_samples + matrix(stats::rnorm(S * K), S, K, byrow = TRUE) %*% factor)
   }
 
-  cache <- if (blocked) .block_covariance_guard_cache(covariance_samples) else NULL
+  if (blocked && all(lengths(covariance_samples[["blocks"]]) == 1L)) {
+    variances <- .block_covariance_diag_matrix(covariance_samples)
+    if (all(is.finite(variances)) && all(variances >= 0)) {
+      # Batch only declared singletons, retaining K row-ordered normals per draw.
+      normals <- matrix(stats::rnorm(as.double(S) * K), S, K, byrow = TRUE)
+      return(mu_samples + normals * sqrt(variances))
+    }
+    # A bad later draw must reach the original classifier after its valid prefix.
+  }
+  guarded <- blocked && .block_covariance_use_guarded_execution(covariance_samples)
+  cache <- if (guarded) .block_covariance_guard_cache(covariance_samples) else NULL
   response_samples <- mu_samples
   for (s in seq_len(S)) {
-    if (blocked) {
+    if (guarded) {
       plan <- .block_covariance_guard_plan(covariance_samples, s, cache)
       if (plan[["fast"]]) {
         # Factors precede this draw's K normals, assigned in original row order.
