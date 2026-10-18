@@ -101,3 +101,21 @@ test_that("E2-3 marginal specs use the actual fitted contribution target", {
   expect_error(.iwmde_marginal_means_specs(means, "g", "conditional", "B"),
     class = "RoBMA_density_method_original_scale")
 })
+
+test_that("E2-4 method switches resolve fresh controls and same methods inherit", {
+
+  object <- .review_h_contribution(1)
+  for (method in c("qCMDE", "IWMDE")) {
+    means <- marginal_means(object, bf = FALSE, parameter = "g", density_method = method,
+      density_control = list(n_points = 80L, samples = 120L))
+    other <- setdiff(c("qCMDE", "IWMDE"), method)
+    fresh <- .hypothesis_marginal_means_density_control(means, other, NULL)
+    expect_identical(fresh$samples, .density_control_normalize(other, purpose = "ordinate")$samples)
+    expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 120L)
+    expect_identical(.hypothesis_marginal_means_density_control(means, other, list(samples = 321L))$samples, 321L)
+    means$ordinate_settings$samples <- 119L
+    expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 119L)
+    means$ordinate_settings <- NULL
+    expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 120L)
+  }
+})

@@ -385,10 +385,17 @@
                                                   display_grid) {
 
   settings <- if (identical(display_grid, "ordinate") &&
-                  is.list(object[["ordinate_settings"]])) {
+                  is.list(object[["ordinate_settings"]]) &&
+                  length(object[["ordinate_settings"]])) {
     object[["ordinate_settings"]]
   } else {
     object[["density_settings"]]
+  }
+  stored_method <- settings[["density_method"]]
+  if (is.null(stored_method)) stored_method <- object[["density_settings"]][["density_method"]]
+  if (is.null(stored_method) ||
+      !identical(.density_method_normalize(stored_method), .density_method_normalize(density_method))) {
+    settings <- NULL
   }
   control <- settings[intersect(
     c(

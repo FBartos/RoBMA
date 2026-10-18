@@ -536,24 +536,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 .hypothesis_marginal_means_density_control <- function(object, density_method,
                                                        density_control) {
 
-  if (is.null(density_control) && is.list(object[["density_settings"]])) {
-    settings <- if (is.list(object[["ordinate_settings"]])) {
-      object[["ordinate_settings"]]
-    } else {
-      object[["density_settings"]]
-    }
-    keep <- c(
-      "n_points",
-      "samples",
-      "target_relative_mcse",
-      "display_grid"
-    )
-    if (density_method %in% c("qCMDE", "IWMDE")) {
-      keep <- c(
-        keep, "normalization_points", "normalization_prob", "integration_control"
-      )
-    }
-    density_control <- settings[intersect(keep, names(settings))]
+  if (is.null(density_control)) {
+    return(.marginal_means_iwmde_settings_control(object, density_method, "ordinate"))
   }
 
   density_control <- .iwmde_density_control_resolve(

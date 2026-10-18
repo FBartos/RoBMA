@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Point hypotheses inherit stored marginal-means controls only for the same declared estimator; method switches use their fresh defaults.
 - Marginal-means curve and point targets fold declared constant formula contributions into fitted weights exactly once.
 - Marginal-means curve attachment and plot recomputation retain the requested relative-MCSE control in produced settings and provenance.
 - Marginal-means density inference accepts explicitly declared unconditioned cells while retaining strict checks of their conditioning metadata.
