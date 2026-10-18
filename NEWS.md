@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scalar conditional means report unavailable arithmetic when a nonzero
+  weighted location contribution underflows before the final sum.
 - Multilevel conditional reconstruction reports numerical unavailability when
   division erases a nonzero sufficient statistic before rescaling.
 - Weighted Gaussian selection predictions reconstruct fitted integrated truth

@@ -62,6 +62,18 @@ test_that("scalar Gaussian conditionals retain represented means and normal assi
   expect_error(.evaluate.brma.true_effects.norm(matrix(0, 1L, 1L),
     matrix(1e-200, 1L, 1L), yi = 1e200, sei = 1, same_data = TRUE),
     "Gaussian conditional arithmetic is numerically unavailable.", fixed = TRUE)
+  conditional_mean <- function(mu, yi, tau = 1, sei = 1) {
+    .evaluate.brma.true_effects.norm(matrix(mu, 1L, 1L), matrix(tau, 1L, 1L),
+      yi = yi, sei = sei, same_data = TRUE)
+  }
+  expect_error(conditional_mean(2^-1074, 2^-1074),
+    "Gaussian conditional arithmetic is numerically unavailable.", fixed = TRUE)
+  expect_equal(conditional_mean(0, 0), matrix(0, 1L, 1L), tolerance = 0)
+  expect_equal(conditional_mean(2^-1022, -2^-1022), matrix(0, 1L, 1L), tolerance = 0)
+  expect_equal(conditional_mean(2^-1074, 0, tau = 0), matrix(2^-1074, 1L, 1L), tolerance = 0)
+  expect_equal(conditional_mean(0, 2^-1074, sei = 0), matrix(2^-1074, 1L, 1L), tolerance = 0)
+  expect_equal(conditional_mean(2^-1074, 0, tau = 0, sei = 0),
+    matrix(2^-1074, 1L, 1L), tolerance = 0)
 })
 
 test_that("one-estimate GLMM replication accepts scalar JAGS nuisance names", {

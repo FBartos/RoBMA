@@ -1511,14 +1511,20 @@
 }
 
 
-.multilevel_conditional_product <- function(first, second) {
+.gaussian_conditional_product <- function(first, second, context = "Gaussian") {
 
   out <- first * second
   if (any(!is.finite(out)) ||
       any(first != 0 & second != 0 & out == 0)) {
-    stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+    stop(context, " conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
   return(out)
+}
+
+
+.multilevel_conditional_product <- function(first, second) {
+
+  .gaussian_conditional_product(first, second, "Multilevel Gaussian")
 }
 
 
@@ -1896,8 +1902,8 @@
     # Compute both variance weights independently from SD ratios. This avoids
     # overflowing a sum of squared SDs and losing a small weight through 1-a.
     adjusted_y <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) - bias_offset
-    true_effects_samples <- weights[["second"]] * mu_samples +
-      weights[["first"]] * adjusted_y
+    true_effects_samples <- .gaussian_conditional_product(weights[["second"]], mu_samples) +
+      .gaussian_conditional_product(weights[["first"]], adjusted_y)
     if (any(!is.finite(adjusted_y)) || any(!is.finite(true_effects_samples))) {
       stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
     }
