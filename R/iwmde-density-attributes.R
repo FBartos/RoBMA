@@ -83,8 +83,26 @@
   )
   condition_key <- condition[["condition_key"]]
 
+  declared_empty <- isTRUE(condition[["averaged"]]) &&
+    any(vapply(c("effective_conditional", "conditional"), function(field) {
+      !is.null(condition[[field]]) && length(condition[[field]]) == 0L
+    }, logical(1)))
+  if (declared_empty && is.null(conditional)) conditional <- character()
+  child_valid <- !is.null(conditional) && !is.null(conditional_rule) &&
+    !is.null(condition_key)
+  if (isTRUE(require_child_condition) && child_valid) {
+    events <- condition[c("condition_event", "resolved_condition_event")]
+    child_valid <- length(events) == 2L && all(vapply(events, function(event) {
+      inherits(event, "BayesTools_condition_event") &&
+        setequal(event[["conditional"]], conditional) &&
+        identical(event[["conditional_rule"]], conditional_rule) &&
+        identical(event[["condition_key"]], condition_key)
+    }, logical(1))) &&
+      (length(conditional) > 0L ||
+        (declared_empty && identical(condition_key, "<averaged>")))
+  }
   if (isTRUE(require_child_condition) &&
-      (is.null(conditional) || is.null(conditional_rule) || is.null(condition_key))) {
+      !child_valid) {
     stop(
       "Conditional marginal-means qCMDE/IWMDE metadata is incomplete; recompute the marginal_means object with current BayesTools.",
       call. = FALSE
