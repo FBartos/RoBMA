@@ -1506,7 +1506,7 @@ test_that("qCMDE/IWMDE posterior attributes carry RoBMA provenance", {
 
   provenance <- ordinate_attr[["iwmde_provenance"]]
   expect_equal(provenance[["schema_version"]], "6")
-  expect_equal(provenance[["algorithm_version"]], "33")
+  expect_equal(provenance[["algorithm_version"]], .iwmde_algorithm_version())
   expect_equal(provenance[["provenance_level"]], "diagnostic_adapter")
   expect_equal(provenance[["density_method"]], "qCMDE")
   expect_equal(provenance[["internal_method"]], "q_grid_cmde")
@@ -2150,6 +2150,7 @@ test_that("density_control validates public density settings", {
   expect_equal(valid_iwmde[["normalization_prob"]], .95)
   mm_iwmde <- .hypothesis_marginal_means_density_control(
     object = list(density_settings = list(
+      density_method       = "IWMDE",
       n_points             = 20,
       samples              = 30,
       normalization_points = 40,
@@ -2161,6 +2162,16 @@ test_that("density_control validates public density settings", {
   )
   expect_equal(mm_iwmde[["normalization_points"]], 40)
   expect_equal(mm_iwmde[["normalization_prob"]], .95)
+  for (stored_method in list(NULL, "qCMDE")) {
+    fresh <- .hypothesis_marginal_means_density_control(
+      object = list(density_settings = list(density_method = stored_method,
+        normalization_points = 40, normalization_prob = .95)),
+      density_method = "IWMDE", density_control = NULL)
+    defaults <- .hypothesis_marginal_means_density_control(
+      object = list(), density_method = "IWMDE", density_control = NULL)
+    expect_identical(fresh$normalization_points, defaults$normalization_points)
+    expect_identical(fresh$normalization_prob, defaults$normalization_prob)
+  }
   expect_error(
     .density_control_normalize("qCMDE", list(normalization_prob = 0)),
     "higher than 0"
