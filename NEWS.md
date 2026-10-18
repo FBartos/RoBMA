@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Unfitted formula prior selectors recognize the same effect and heterogeneity
+  intercept aliases as fitted objects.
 - Prior inspection includes stored GLMM baseline and latent-effect priors,
   retaining their declared laws and explicit formula qualification.
 - Serial native selection, predictor, RNG and retained-context zcurve batches

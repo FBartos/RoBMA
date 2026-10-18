@@ -52,6 +52,28 @@ test_data <- data.frame(
   stringsAsFactors = FALSE
 )
 
+test_that("unfitted formula prior aliases retain their declared owners", {
+
+  object <- brma(yi = effect, sei = std_err, mods = ~ scale_var,
+    scale = ~ scale_var, data = test_data, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_identical(print_prior(object, "effect", silent = TRUE),
+    print_prior(object, "mu_intercept", silent = TRUE))
+  expect_identical(print_prior(object, "heterogeneity", silent = TRUE),
+    print_prior(object, "log_tau_intercept", silent = TRUE))
+  expect_error(print_prior(object, "intercept", silent = TRUE), "ambiguous")
+  expect_error(print_prior(object, "scale_var", silent = TRUE), "ambiguous")
+  no_intercept <- brma(yi = effect, sei = std_err, mods = ~ 0 + mod_cont,
+    data = test_data, measure = "GEN", prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE)
+  expect_error(print_prior(no_intercept, "effect", silent = TRUE), "not available")
+  random <- brma.mv(yi = effect, V = diag(test_data$std_err^2),
+    random = ~ 1 | mod_factor, data = test_data, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_identical(print_prior(random, "effect", silent = TRUE),
+    print_prior(random, "mu_intercept", silent = TRUE))
+})
+
 .with_temp_plot_device <- function(expr) {
 
   file <- tempfile(fileext = ".png")

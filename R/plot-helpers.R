@@ -1122,7 +1122,7 @@
     location_source <- if (.is_random(object)) "location" else "mods"
     if (.location_intercept_available(object, required = FALSE)) {
       add("mu_intercept", "mods", "intercept",
-          c("mu_intercept", "mu", "intercept"),
+          c("mu_intercept", "mu", "effect", "intercept"),
           source = location_source, formula_parameter = "mu")
     }
     .brma_parameter_catalog_terms(
@@ -1144,7 +1144,7 @@
       formula_parameter <- scale_spec[["parameter"]]
       if (single_scale && identical(formula_parameter, "log_tau")) {
         intercept_parameter <- "log_tau_intercept"
-        intercept_aliases   <- c("log_tau_intercept", "tau", "intercept")
+        intercept_aliases   <- c("log_tau_intercept", "tau", "heterogeneity", "intercept")
       } else {
         component_aliases <- scale_spec[["aliases"]]
         intercept_parameter <- paste0(formula_parameter, "_intercept")
