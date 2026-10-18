@@ -1,5 +1,36 @@
 source(testthat::test_path("common-functions.R"))
 
+test_that("spike-and-slab plotting preserves the parent probability measure", {
+
+  object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  # Isolate frontend dispatch here; compiler-backed random selectors have
+  # their own fitted checks below and in the plotting verification gallery.
+  for (probability in c(0, .1, 1)) {
+    parent <- BayesTools::prior_spike_and_slab(
+      prior("normal", list(mean = 0, sd = 1), list(lower = 0, upper = Inf)),
+      prior("point", list(location = probability)))
+    testthat::local_mocked_bindings(
+      .select_plot_prior_parameter = function(...) list(
+        prior = parent, label = "tau", source = "random"),
+      .package = "RoBMA")
+    plot <- plot_prior(object, "tau", plot_type = "ggplot")
+    lines <- Filter(function(x) inherits(x$geom, "GeomLine"), plot$layers)
+    atoms <- Filter(function(x) inherits(x$geom, "GeomSegment"), plot$layers)
+    if (probability > 0) {
+      curve <- lines[[1L]]$data
+      keep <- curve$x > 0
+      expect_equal(curve$y[keep] / (2 * stats::dnorm(curve$x[keep])),
+        rep(probability, sum(keep)), tolerance = 1e-12)
+    }
+    if (probability < 1) {
+      expect_equal(atoms[[1L]]$data$yend / plot$bt_scale_y2_state$scale_y2,
+        1 - probability, tolerance = 1e-12)
+    }
+    .with_temp_plot_device(expect_silent(plot_prior(object, "tau")))
+  }
+})
+
 # plot_prior() and print_prior() of the random-effect selectors of fitted
 # objects. A quantity that is exactly one declared prior under the identity
 # transform shows that prior; any other quantity shows the prior law

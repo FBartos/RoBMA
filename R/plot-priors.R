@@ -237,6 +237,11 @@ plot_prior.brma <- function(
       plot_type = plot_type,
       dots      = dots
     )
+  } else if (BayesTools::is.prior.spike_and_slab(selected[["prior"]])) {
+    plot <- do.call(
+      "plot",
+      c(list(x = selected[["prior"]], plot_type = plot_type), dots)
+    )
   } else if (BayesTools::is.prior.mixture(selected[["prior"]])) {
     plot <- do.call(
       BayesTools::plot_prior_list,

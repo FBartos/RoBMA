@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Spike-and-slab prior plots preserve the declared inclusion probability and
+  atom mass through the intact parent prior.
 - Default posterior and diagnostic plots retain the selected location component
   when location and scale formulas share parameter aliases.
 - Unfitted formula prior selectors recognize the same effect and heterogeneity
