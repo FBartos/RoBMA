@@ -509,6 +509,17 @@
   selection     <- setup[["selection"]]
   total_sd      <- .root_sum_squares(integrated_sd, conditioned_sd)
 
+  certified <- .funnel_selection_cancelled_cells(integrated_sd, setup)
+  if (!is.null(selection) &&
+      any((integrated_sd == 0) & selected_rows & !certified)) {
+    stop(
+      "Selected funnel contours are unavailable for exact-zero integrated ",
+      "cells without a valid selection-cancellation support certificate. ",
+      "Use 'sampling_bias = FALSE' for an unselected reference.",
+      call. = FALSE
+    )
+  }
+
   # Without conditioned variation, or without an active selection kernel, the
   # observed law is the ordinary selected or Gaussian one at the total spread.
   if (!any(conditioned_sd > 0) || is.null(selection) || !any(selected_rows)) {

@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selected funnel contours refuse uncertified exact-zero integrated cells
+  instead of returning ordinary atoms in forbidden selection bins.
 - Regression intervals permit zero SE after positive all-conditioned selection
   cancels to the ordinary Gaussian law; active selected kernels remain positive-SE.
 - Regression plots retain the selected precision moderator, synchronize its

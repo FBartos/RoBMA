@@ -85,6 +85,9 @@ includes selection models (weightfunction), uses selected-normal quantiles
 where the fitted source and publication structure admit a scalar calculation.
 Unsupported joint-selection configurations fail explicitly; use
 \code{sampling_bias = FALSE} for bias-adjusted contours.
+Exact-zero integrated selected cells require an existing positive-weight
+cancellation certificate; otherwise the selected contour is unavailable.
+\code{sampling_bias = FALSE} remains an explicitly unselected reference.
 When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 skew from these regression adjustments.}
 

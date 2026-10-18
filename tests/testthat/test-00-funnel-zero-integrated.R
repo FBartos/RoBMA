@@ -167,12 +167,17 @@ test_that("a cell whose selection does not cancel keeps the selected route", {
   expect_identical(.funnel_selection_cancelled_cells(integrated, plain),
                    matrix(c(FALSE, TRUE), 2L, 1L))
 
-  # The zero-bin route is the 401-node expansion of before.
+  # The zero-bin route has no certified degenerate selected law.
   location <- matrix(0, 2L, 1L)
-  expansion <- .funnel_conditioned_expansion(location, integrated,
-                                             matrix(.1, 2L, 1L), zero_bin,
-    cancelled = .funnel_selection_cancelled_cells(integrated, zero_bin)[, 1L])
-  expect_identical(nrow(expansion[["mean"]]), 2L * 401L)
+  error <- tryCatch(.funnel_conditioned_expansion(location, integrated,
+    matrix(.1, 2L, 1L), zero_bin,
+    cancelled = .funnel_selection_cancelled_cells(integrated, zero_bin)[, 1L]),
+    error = function(e) e)
+  expect_identical(conditionMessage(error), paste0(
+    "Selected funnel contours are unavailable for exact-zero integrated ",
+    "cells without a valid selection-cancellation support certificate. ",
+    "Use 'sampling_bias = FALSE' for an unselected reference."))
+  expect_null(conditionCall(error))
 })
 
 
