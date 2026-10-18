@@ -254,7 +254,14 @@ test_that("all-conditioned evidence cancels weights without using sampling auxil
   sd <- sqrt(matrix(fixture$dat$sei^2, 2L, 2L, byrow = TRUE) + samples[, "tau"]^2)
   expected <- stats::dnorm(matrix(fixture$dat$yi, 2L, 2L, byrow = TRUE), means, sd, log = TRUE)
   expect_equal(.log_lik_estimate_sum_from_setup(setup), rowSums(expected), tolerance = 1e-12)
-  expect_equal(.log_lik_estimate_from_setup(setup), unname(expected), tolerance = 1e-12)
+  y <- matrix(fixture$dat$yi, 2L, 2L, byrow = TRUE)
+  vi <- matrix(fixture$dat$sei^2, 2L, 2L, byrow = TRUE)
+  e0 <- sweep(samples[, paste0("sampling_z[", 1:2, "]")], 2L, fixture$dat$sei, "*")
+  u0 <- samples[, paste0("theta[", 1:2, "]")] * samples[, "tau"]
+  retained <- means + u0 + samples[, "tau"]^2 / (vi + samples[, "tau"]^2) *
+    (y - means - u0 - e0)
+  deletion <- stats::dnorm(y, retained, sqrt(vi), log = TRUE)
+  expect_equal(.log_lik_estimate_from_setup(setup), unname(deletion), tolerance = 1e-12)
 })
 
 
@@ -308,7 +315,7 @@ test_that("prepared scalar bridge evaluation preserves augmentation and directio
 })
 
 
-test_that("singleton sampling deletion shares the observation comparison target", {
+test_that("singleton sampling deletion distinguishes declared retained random context", {
 
   keys <- lapply(c("integrate", "condition"), function(estimate) {
     object <- .sampling_selection_evidence_fixture(estimate)$object
@@ -316,11 +323,11 @@ test_that("singleton sampling deletion shares the observation comparison target"
     expect_identical(key$retained_context, "remaining_data")
     key
   })
-  expect_identical(keys[[1L]], keys[[2L]])
+  expect_false(identical(keys[[1L]]$retained_random_context, keys[[2L]]$retained_random_context))
   objects <- lapply(keys, function(key) {
     structure(list(), class = "psis_loo", RoBMA_target = key)
   })
-  expect_no_error(.check_loo_compare_targets(objects))
+  expect_error(.check_loo_compare_targets(objects), "different declared retained random contexts", fixed = TRUE)
   object <- bselmodel.mv(yi = c(.4, -.2), V = matrix(c(.64, .2, .2, 1.21), 2L),
     random = ~ 1 | estimate, data = data.frame(estimate = c("a", "b")),
     measure = "GEN", effect_direction = "positive", prior_unit_information_sd = 1,
@@ -336,7 +343,7 @@ test_that("singleton sampling deletion shares the observation comparison target"
 
 test_that("independent deletion broadcasts a fixed heterogeneity scale", {
 
-  fixture <- .sampling_selection_evidence_fixture("condition")
+  fixture <- .sampling_selection_evidence_fixture("integrate")
   object <- fixture$object
   setup <- .log_lik_posterior_setup(object$fit, fixture$samples, object$data,
     object$priors, "estimate", NULL)
@@ -344,10 +351,17 @@ test_that("independent deletion broadcasts a fixed heterogeneity scale", {
   selection <- .selection_joint_signed_context(setup, setup$yi)
   actual <- .selection_conditioned_sampling_independent_targets(setup, NULL,
     selection, "log_density")$log_density
-  expected <- stats::dnorm(matrix(setup$yi, setup$S, setup$K, byrow = TRUE),
-    setup$mu, sqrt(matrix(fixture$dat$sei^2 + .4^2, setup$S, setup$K, byrow = TRUE)),
-    log = TRUE)
-  expect_equal(actual, unname(expected), tolerance = 1e-12)
+  expected <- matrix(NA_real_, setup$S, setup$K)
+  for (draw in seq_len(setup$S)) for (row in seq_len(setup$K)) {
+    mu <- setup$mu[draw, row]
+    y <- setup$yi[row]
+    se <- fixture$dat$sei[row]
+    expected[draw, row] <- log(stats::integrate(function(e) {
+      dnorm(e, 0, se) * dnorm(y, mu + e, .4) * ifelse(y >= 0, 1, .2) /
+        (.2 + .8 * pnorm((mu + e) / .4))
+    }, -Inf, Inf, rel.tol = 1e-10)$value)
+  }
+  expect_equal(actual, unname(expected), tolerance = 2e-6)
 })
 
 test_that("native scalar deletion guards its own returned conditional rule", {
@@ -522,7 +536,12 @@ test_that("singleton deletion evaluates the existing scalar law without auxiliar
       expected <- .selection_conditioned_sampling_independent_targets(
         setup, state, selection, components)
       attr(expected, "dependency_blocks") <- .data_selection_execution_plan(setup$data)$row_blocks
-      cases[[paste(estimate, direction)]] <- list(setup = setup, expected = expected)
+      if (estimate == "condition") {
+        expect_null(.selection_conditioned_sampling_independent_targets(
+          setup, NULL, selection, components))
+        expect_equal(.selection_conditioned_sampling_estimate_targets(setup, components),
+          expected, tolerance = 1e-12)
+      } else cases[[paste(estimate, direction)]] <- list(setup = setup, expected = expected)
       # Hard weights retain the general path's support/boundary checks.
       selection$omega[, 2L] <- 0
       expect_null(.selection_conditioned_sampling_independent_targets(
