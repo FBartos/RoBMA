@@ -42,6 +42,12 @@ review_heterogeneity_har_replay <- function(scaled = FALSE, n = 120L,
   if (scaled) {
     samples[, review_coefficient_name(setup, "intercept", "log_tau")] <- 2
     samples[, review_coefficient_name(setup, "time", "log_tau")] <- log(2)
+    output <- setup$compiled$log_tau$formula_design$name_map
+    output <- output$jags_name[output$kind == "formula_output"]
+    generated <- matrix(rep(c(log(2) + time * log(2), 2 * 2^time), each = n), nrow = n,
+      dimnames = list(NULL, c(paste0(output, "[", seq_along(time), "]"),
+        paste0(allocation$source$name, "[", seq_along(time), "]"))))
+    samples <- cbind(samples, generated)
   } else {
     if (direct) {
       samples[, term$sd_parameter_names] <- rep(2 * sqrt(2 * weights), each = n)
@@ -106,6 +112,12 @@ review_heterogeneity_parent_replay <- function(role) {
   parameter <- .data_scale_component_specs(setup$object$data)[[1L]]$parameter
   samples[, review_coefficient_name(setup, "intercept", parameter)] <- 2
   samples[, review_coefficient_name(setup, "time", parameter)] <- log(2)
+  output <- setup$compiled[[parameter]]$formula_design$name_map
+  output <- output$jags_name[output$kind == "formula_output"]
+  generated <- matrix(rep(c(log(2) + dat$time * log(2), 2 * 2^dat$time), each = 4L), nrow = 4L,
+    dimnames = list(NULL, c(paste0(output, "[", seq_len(4L), "]"),
+      paste0(source, "[", seq_len(4L), "]"))))
+  samples <- cbind(samples, generated)
   object <- review_attach_replay(setup, samples)
   list(object = object, setup = setup, samples = samples, root = root, child = child,
     gate = gate, blocks = blocks)

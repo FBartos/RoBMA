@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Row-source heterogeneity allocation tables retain absolute observed-level SDs
+  and variances alongside catalog correlations and multipliers.
 - Row-source allocation anchors evaluate the declared pooled scale design,
   retaining parent allocation factors and strict source-coordinate requirements.
 - Heterogeneity summaries retain declared undefined-share draws and their

@@ -600,7 +600,8 @@
 
   allocation_samples <- .brma_mv_allocation_sample_lists(
     object            = object,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    component         = component
   )
   if (length(allocation_samples) == 0L) {
     return(list())
@@ -644,7 +645,8 @@
 }
 
 
-.brma_mv_allocation_sample_lists <- function(object, posterior_samples) {
+.brma_mv_allocation_sample_lists <- function(object, posterior_samples,
+                                              component = "all") {
 
   if (!.is_random(object)) {
     return(list())
@@ -653,7 +655,8 @@
   if (!is.null(object[["fit"]])) {
     return(.brma_mv_allocation_catalog_sample_lists(
       object            = object,
-      posterior_samples = posterior_samples
+      posterior_samples = posterior_samples,
+      component         = component
     ))
   }
 
@@ -694,6 +697,10 @@
       allocation     = allocation,
       formula_design = formula_design
     )
+    if (!identical(component, "all") && !component %in%
+        .brma_mv_allocation_summary_aliases(name, allocation)) {
+      next
+    }
     samples_list <- .brma_mv_allocation_summary_samples(
       allocation        = allocation,
       formula_design    = formula_design,
@@ -735,7 +742,8 @@
 
 
 .brma_mv_allocation_catalog_sample_lists <- function(object,
-                                                      posterior_samples) {
+                                                      posterior_samples,
+                                                      component = "all") {
 
   formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
   allocations    <- formula_design[["random_allocations"]]
@@ -756,6 +764,7 @@
   out          <- list()
   aliases      <- list()
   replacements <- list()
+  source_samples <- NULL
 
   for (allocation in allocations) {
     allocation <- .brma_mv_resolve_sd_component_allocation(
@@ -772,6 +781,13 @@
     }
     if (identical(target, "sd_component") &&
         length(allocation[["leaf_terms"]]) <= 1L) {
+      next
+    }
+    name <- .brma_mv_allocation_summary_name(
+      allocation = allocation, formula_design = formula_design
+    )
+    if (!identical(component, "all") && !component %in%
+        .brma_mv_allocation_summary_aliases(name, allocation)) {
       next
     }
 
@@ -822,6 +838,41 @@
       values
     })
     names(samples_list) <- .brma_random_parameter_io_labels(selected, "label")
+    if (identical(target, "sd_component") &&
+        identical(allocation[["source"]][["shape"]], "row")) {
+      if (is.null(source_samples)) {
+        source_samples <- .brma_mv_scale_source_samples(
+          object = object, posterior_samples = posterior_samples
+        )
+      }
+      source <- allocation[["source"]][["name"]]
+      observed_sources <- source_samples
+      observed_sources[[source]] <- .random_sd_source_samples(
+        source = allocation[["source"]], posterior_samples = posterior_samples,
+        K = nrow(object[["data"]][["outcome"]]), source_samples = source_samples
+      )
+      for (factor in allocation[["parent_factors"]]) {
+        observed_sources[[source]] <- .recycle_rows(
+          observed_sources[[source]],
+          .random_allocation_factor_samples(factor, posterior_samples)
+        )
+      }
+      block_rows <- which(selected[["owner_type"]] == "random_block")
+      block_owner <- if (length(block_rows) > 0L) {
+        selected[["label_parts"]][[block_rows[1L]]][["random"]][["owner"]]
+      } else {
+        .brma_mv_allocation_public_name(allocation)
+      }
+      observed <- .brma_mv_sd_component_allocation_summary_samples(
+        allocation = allocation,
+        term = .brma_mv_sd_component_allocation_term(allocation, formula_design),
+        block_owner = block_owner, posterior_samples = posterior_samples,
+        source_samples = observed_sources,
+        K = nrow(object[["data"]][["outcome"]])
+      )
+      samples_list <- c(observed[!names(observed) %in% names(samples_list)],
+        samples_list)
+    }
 
     name <- .brma_mv_allocation_summary_name(
       allocation     = allocation,

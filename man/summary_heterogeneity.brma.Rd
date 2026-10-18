@@ -107,7 +107,9 @@ For heterogeneous structured random effects, such as
 \code{random = ~ har(time | study)}, the allocation table reports
 the exhaustive semantic allocation family: aggregate SD and variance,
 level-specific component SDs and variances, correlations, SD multipliers, and
-variance multipliers. A redundant block owner is omitted for a bare formula or
+variance multipliers. For row-shaped scale sources, absolute level SDs and
+variances use the observed rows assigned to each level; their aggregate uses
+the observed-source RMS. A redundant block owner is omitted for a bare formula or
 unnamed one-entry list and retained for explicitly named one-entry lists and
 multiple components.
 }

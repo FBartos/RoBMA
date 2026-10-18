@@ -136,3 +136,54 @@ test_that("row-source anchors retain admitted parent weights and gates once", {
     }
   }
 })
+
+test_that("fitted row-source summaries merge absolute quantities with catalog rows", {
+
+  for (time in list(c(1, 2, 1, 2), c(2, 1, 1, 1))) {
+    x <- review_heterogeneity_har_replay(scaled = TRUE, time = time)
+    expected <- c(tau_common = sqrt(mean((2 * 2^time)^2)),
+      tau2_common = mean((2 * 2^time)^2),
+      `tau(time[1])` = 4, `tau(time[2])` = 8,
+      `tau2(time[1])` = 16, `tau2(time[2])` = 64, rho = 0,
+      `tau_mult(time[1])` = 1, `tau_mult(time[2])` = 1,
+      `tau2_mult(time[1])` = 1, `tau2_mult(time[2])` = 1)
+    for (component in c("all", "study")) {
+      result <- summary_heterogeneity(x$object, component = component)
+      expect_identical(rownames(result$estimates), names(expected))
+      expect_equal(as.numeric(result$estimates[, "Mean"]), unname(expected), tolerance = 1e-13)
+      frame <- as.data.frame(result)
+      expect_identical(frame, data.frame(result))
+      expect_type(frame$Mean, "double")
+      expect_equal(frame$Mean, unname(expected), tolerance = 1e-13)
+      expect_true(all(frame$component == "study"))
+    }
+    total <- summary_heterogeneity(x$object, component = "total")
+    expect_equal(total$estimates["tau", "Mean"], expected[["tau_common"]], tolerance = 1e-13)
+  }
+  scalar <- review_heterogeneity_har_replay()
+  expect_equal(nrow(summary_heterogeneity(scalar$object)$estimates), 11L)
+  for (role in c("mean_variance", "total_variance")) {
+    x <- review_heterogeneity_parent_replay(role)
+    samples <- .brma_mv_allocation_sample_lists(x$object, x$samples)[[x$blocks[1L]]]
+    gate <- c(0, 1, 0, 1)
+    multiplier <- if (role == "mean_variance") 2 else 1
+    for (i in 1:2) {
+      sd <- c(4, 8)[i] * sqrt(.25) * sqrt(multiplier * c(.2, .8)[i]) * gate
+      sd_name <- paste0(x$blocks[1L], ": tau(time[", i, "])")
+      var_name <- paste0(x$blocks[1L], ": tau2(time[", i, "])")
+      expect_equal(samples[[sd_name]], sd, tolerance = 1e-13)
+      expect_equal(samples[[var_name]], sd^2, tolerance = 1e-13)
+    }
+    aggregate <- paste0("child: ", if (role == "mean_variance") "tau_common" else "tau_total")
+    expect_equal(samples[[aggregate]], sqrt(40) * sqrt(.25) * gate, tolerance = 1e-13)
+    expect_equal(sum(grepl("tau_mult(time[1])", names(samples), fixed = TRUE)), 1L)
+    expect_equal(sum(grepl("rho", names(samples), fixed = TRUE)), 1L)
+    for (index in list(seq_len(4L), which(gate == 0), which(gate == 1))) {
+      out <- summary_heterogeneity(x$object, component = x$blocks[1L],
+        .posterior_samples = x$samples[index, , drop = FALSE])
+      expect_identical(as.data.frame(out), data.frame(out))
+      expect_equal(out$estimates[aggregate, "Mean"],
+        mean(sqrt(40) * sqrt(.25) * gate[index]), tolerance = 1e-13)
+    }
+  }
+})
