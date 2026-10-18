@@ -425,10 +425,10 @@ test_that("all scenario bodies are admitted before earlier user code or cache re
 })
 
 
-.scenario_marginal_fixture <- function() {
+.scenario_marginal_fixture <- function(source = NULL) {
 
   package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
-  source <- file.path(package_root, "tests/scenarios/test-bcg.R")
+  if (is.null(source)) source <- file.path(package_root, "tests/scenarios/test-bcg.R")
   skip_if_not(file.exists(source), "Canonical BCG scenario requires a source checkout.")
   preparation <- NULL
   head <- function(x) if (is.call(x)) paste(deparse(x[[1L]]), collapse = "") else ""
