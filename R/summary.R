@@ -834,6 +834,11 @@ print.brma <- function(x, ...) {
     return(TRUE)
   }
 
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  if (any(quantities[["role"]] == "random_correlation" & !quantities[["internal"]])) {
+    return(TRUE)
+  }
+
   any(vapply(design[["random_effects"]], function(term) {
     binding <- term[["sd_binding"]]
     if (is.null(binding)) {

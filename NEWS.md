@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scale-bound random correlation quantities remain in standard summaries and their printed and tabular exports.
 - Unavailable marginal-means Bayes factors retain matching producer refusal diagnostics and distinguish stale or uncomputed ordinates from numerical and structural refusals.
 - Interpretation labels pooled heterogeneity with its actual declared quantity, including common and total scales.
 - Transformed point ordinates classify their declared source-coordinate prior instead of applying a display-scale prior at a source-scale value.

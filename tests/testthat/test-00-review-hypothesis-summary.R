@@ -300,3 +300,25 @@ test_that("E2-7 genuine precomputed numerical refusals retain exact row diagnost
     expect_null(attr(frame$inclusion_BF, "numerical_diagnostics", exact = TRUE))
   }
 })
+
+test_that("E3-1 scale-bound random correlation summaries remain available", {
+
+  for (structure in c("cs", "ar1")) {
+    object <- .review_h_random("scale", structure)
+    catalog <- BayesTools::parameter_catalog(object$fit)$quantities
+    expect_true(any(catalog$role == "random_correlation"))
+    direct <- BayesTools::JAGS_estimates_table(object$fit, random_effects_summary = "standard",
+      keep_parameters = "random", remove_diagnostics = TRUE, diagnostic_columns = "none",
+      simplify_names = TRUE, transform_scaled = TRUE, formula_prefix = FALSE,
+      random_effects_metadata = TRUE, remove_spike_0 = FALSE, remove_inclusion = FALSE)
+    result <- summary(object, include_mcmc_diagnostics = FALSE)
+    expect_true(.summary_random_components_enabled(object))
+    expect_true(is.data.frame(result$estimates_random) && nrow(result$estimates_random) > 0L)
+    if (is.data.frame(result$estimates_random) && nrow(result$estimates_random) > 0L)
+      expect_equal(result$estimates_random$Mean, direct$Mean, tolerance = 1e-14)
+    for (frame in list(as.data.frame(result), data.frame(result))) {
+      expect_true(any(grepl("rho", frame$parameter, fixed = TRUE)))
+    }
+    expect_true(any(grepl("rho", capture.output(print(result)), fixed = TRUE)))
+  }
+})
