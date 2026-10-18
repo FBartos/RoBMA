@@ -1240,7 +1240,7 @@
   }
 
   plan[["route"]] <- "levels"
-  plan[["group"]] <- paste("levels", parameter, sep = "\r")
+  plan[["group"]] <- .hypothesis_plan_levels_group(plan, parameter)
   refs <- plan[["refs"]]
   if (length(referenced) > 0L) {
     plan[["support"]] <- .hypothesis_plan_support_bounds(
@@ -1934,7 +1934,7 @@
   )
   plan[["kind"]]              <- "marginal_mean"
   plan[["route"]]             <- "levels"
-  plan[["group"]]             <- paste("levels", parameter, sep = "\r")
+  plan[["group"]]             <- .hypothesis_plan_levels_group(plan, parameter)
   plan[["capability_object"]] <- object[["source_object"]]
   model_averaged <- isTRUE(object[["model_averaged"]]) ||
     inherits(object[["source_object"]], "RoBMA")
@@ -2002,6 +2002,15 @@
   }
 
   .hypothesis_plan_finish(plan, object)
+}
+
+
+.hypothesis_plan_levels_group <- function(plan, parameter) {
+
+  occurrences <- BayesTools::hypothesis_symbols(plan[["hypothesis"]], occurrences = TRUE)
+  levels <- occurrences[["level"]][occurrences[["parameter"]] == parameter]
+  mode <- if (anyNA(levels)) "whole" else "explicit"
+  paste("levels", parameter, mode, sep = "\r")
 }
 
 

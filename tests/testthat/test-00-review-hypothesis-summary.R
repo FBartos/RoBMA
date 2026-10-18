@@ -413,3 +413,21 @@ test_that("E1-2 indexed scalar labels do not acquire factor suffixes", {
     expect_identical(as.data.frame(result)$parameter, rownames(result))
   }
 })
+
+test_that("E1-3 whole-term and explicit-level modes form compatible groups", {
+
+  object <- review_factor_replay(c("A", "B", "C"), "meandif", independent = TRUE, n = 240L)
+  means <- marginal_means(object, bf = FALSE, density_method = "KDE")
+  for (input in list(object, means)) {
+    for (operator in c(">", "=")) {
+      statements <- paste(c("g[B]", "g"), operator, "0")
+      run <- function(statements) hypothesis(input, statements, density_method = "KDE", seed = 19)
+      for (order in list(1:2, 2:1)) {
+        combined <- run(statements[order])
+        separate <- lapply(statements[order], run)
+        expect_identical(nrow(combined), 4L)
+        expect_equal(attr(combined, "raw_log_BF"), unlist(lapply(separate, attr, which = "raw_log_BF"), use.names = FALSE), tolerance = 1e-12)
+      }
+    }
+  }
+})
