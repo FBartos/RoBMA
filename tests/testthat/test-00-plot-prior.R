@@ -767,6 +767,47 @@ test_that("plot_prior handles publication-bias prior components", {
   expect_vdiffr_snapshot("plot_prior_selection_omega", omega_plot)
 })
 
+test_that("PET and PEESE mixtures plot their declared bias-only law", {
+
+  make_object <- function(priors) RoBMA(yi = c(.1, .2, .3),
+    sei = c(.1, .15, .2), measure = "GEN", prior_unit_information_sd = 1,
+    prior_bias = priors, only_priors = TRUE, silent = TRUE)
+  for (kind in c("PET", "PEESE")) for (weight in c(1, 3)) {
+    constructor <- if (kind == "PET") prior_PET else prior_PEESE
+    object <- make_object(list(
+      constructor("normal", list(mean = 0, sd = 1)),
+      constructor("normal", list(mean = 0, sd = 2), prior_weights = weight)))
+    grid <- c(0, .1, .5, 1)
+    plot <- plot_prior(object, kind, plot_type = "ggplot", x_seq = grid)
+    line <- ggplot_geom_layer_data(plot, "GeomLine")
+    polygon <- ggplot_geom_layer_data(plot, "GeomPolygon")
+    probabilities <- c(.5, .025, .975)
+    quantiles <- vapply(probabilities, function(p) stats::uniroot(function(q) {
+      sum(c(1, weight) / (1 + weight) *
+        (2 * stats::pnorm(q / c(1, 2)) - 1)) - p
+    }, c(0, 32), tol = 1e-12)$root, numeric(1))
+    reference <- outer(grid^(if (kind == "PET") 1 else 2), quantiles)
+    actual <- cbind(line$y, polygon$y[1:4], rev(polygon$y[5:8]))
+    # Existing backend bisection stops at a 1e-8 scaled bracket width;
+    # this is a conservative allowance against the tighter independent root.
+    expect_true(all(abs(actual - reference) <= 2e-7 * pmax(1, abs(reference))))
+    expect_identical(unname(actual[1, ]), rep(0, 3))
+    expect_s3_class(plot_prior(object, kind, individual = TRUE,
+      plot_type = "ggplot"), "ggplot")
+    shifted <- plot_prior(object, kind, plot_type = "ggplot", x_seq = grid,
+      prior_list_mu = replicate(2, prior("point", list(location = .3)),
+        simplify = FALSE))
+    shifted_line <- ggplot_geom_layer_data(shifted, "GeomLine")
+    expect_true(all(abs(shifted_line$y - line$y - .3) < 2e-7))
+  }
+  object <- RoBMA(yi = c(.1, .2, .3), sei = c(.1, .15, .2),
+    measure = "GEN", model_type = "PP", prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE)
+  plot <- plot_prior(object, "bias", plot_type = "ggplot", x_seq = c(0, .1, .5, 1))
+  expect_true(all(ggplot_geom_layer_data(plot, "GeomLine")$y == 0))
+  expect_true(all(ggplot_geom_layer_data(plot, "GeomPolygon")$y[1:4] == 0))
+})
+
 test_that("only_priors objects print and plot via prior methods", {
 
   skip_on_cran()

@@ -50,6 +50,11 @@
 #' meta-regression intercept). For base plots, the probability mapping created
 #' by \code{plot_prior()} is reused by subsequent posterior
 #' \code{lines.brma()} calls, including overlays from other fitted objects.
+#' PET/PEESE mixtures show bias-only effect-versus-standard-error curves by
+#' default, with a zero location contribution and the declared model weights.
+#' Use \code{individual = TRUE} for coefficient densities, or supply
+#' \code{prior_list_mu} to request full regression curves with explicit location
+#' priors, as supported by [BayesTools::plot_prior_list()].
 #'
 #' The random-effect quantities of fitted \code{brma.mv}, \code{BMA.mv}, and
 #' \code{RoBMA.mv} objects are selected by their names in \code{parameter},
@@ -243,11 +248,21 @@ plot_prior.brma <- function(
       c(list(x = selected[["prior"]], plot_type = plot_type), dots)
     )
   } else if (BayesTools::is.prior.mixture(selected[["prior"]])) {
+    prior_list <- .prior_mixture_plot_list(selected[["prior"]])
+    has_petpeese <- any(vapply(prior_list, function(prior) {
+      BayesTools::is.prior.PET(prior) || BayesTools::is.prior.PEESE(prior)
+    }, logical(1)))
+    if (has_petpeese && !isTRUE(dots[["individual"]]) &&
+        !"prior_list_mu" %in% names(dots)) {
+      dots[["prior_list_mu"]] <- lapply(prior_list, function(prior) {
+        BayesTools::prior("point", list(location = 0))
+      })
+    }
     plot <- do.call(
       BayesTools::plot_prior_list,
       c(
         list(
-          prior_list = .prior_mixture_plot_list(selected[["prior"]]),
+          prior_list = prior_list,
           plot_type  = plot_type
         ),
         dots

@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Multi-component PET/PEESE prior curves retain the bias-only location and
+  declared model probabilities, including the no-bias atom.
 - Spike-and-slab prior plots preserve the declared inclusion probability and
   atom mass through the intact parent prior.
 - Default posterior and diagnostic plots retain the selected location component
