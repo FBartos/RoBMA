@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Unspecified ordinary factor null priors use each retained alternative term's
+  declared contrast, including independent indicator-coded interactions.
 - Factor-level qCMDE/IWMDE hypotheses and marginal-means Bayes factors retain
   their exact child identity in posterior metadata and request provenance.
 - BayesTools integration uses its public formula, posterior, prior-law plotting,

@@ -119,6 +119,45 @@ test_that("documented remedies for indicator-coded factor terms construct their 
       priors <- independent[["priors"]][["mods"]]
       expect_true(.all_components(priors[["g:x"]], BayesTools::is.prior.independent))
       expect_true(.all_components(priors[["g"]], BayesTools::is.prior.meandif))
+      matching <- do.call(constructor, c(common, list(
+        mods       = mods,
+        prior_mods = list("g:x" = prior_factor(
+          "normal", list(0, 0.5), contrast = "independent"
+        )),
+        prior_mods_null = list("g:x" = prior_factor(
+          "point", list(0), contrast = "independent"
+        ))
+      )))
+      expect_identical(independent[["priors"]], matching[["priors"]])
+      factor_prior <- priors[["g:x"]]
+      expect_identical(attr(factor_prior, "components"), c("null", "alternative"))
+      expect_identical(attr(factor_prior, "prior_weights"), c(1, 1))
+      expect_identical(attr(factor_prior, "K"), 3L)
+      expect_identical(attr(factor_prior, "factor_design"), diag(3))
+      expect_identical(attr(factor_prior, "levels"), 3L)
+      expect_true(BayesTools::is.prior.point(factor_prior[[1L]]))
+      expect_equal(factor_prior[[1L]][["parameters"]][["location"]], 0)
+      expect_equal(factor_prior[[2L]][["parameters"]][["sd"]], 0.5)
+      for (component in factor_prior) {
+        expect_identical(attr(component, "factor_design"), diag(3))
+        expect_identical(attr(component, "factor_contrasts"), c(g = "contr.independent"))
+        expect_identical(component[["prior_weights"]], 1)
+      }
+
+      for (null in list(
+        prior_factor("point", list(0), contrast = "meandif"),
+        BayesTools::prior("point", list(0))
+      )) {
+        args <- c(common, list(mods = mods, prior_mods = list(
+          "g:x" = prior_factor("normal", list(0, 0.5), contrast = "independent")
+        ), prior_mods_null = list("g:x" = null)))
+        message <- if (BayesTools::is.prior.factor(null)) {
+          "The prior_list must contain only one type of factor priors."
+        } else {
+          "Unsupported prior distribution defined for 'g:x' factor variable."
+        }
+        expect_error(do.call(constructor, args), message, fixed = TRUE)
+      }
 
       treatment <- do.call(constructor, c(common, list(
         mods = mods, set_contrast_factor_predictors = "treatment"

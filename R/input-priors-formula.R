@@ -755,6 +755,35 @@
   for (term in setdiff(ordered_alt, par_null_omit)) {
     refuse_ordered_mixture(term, omit_null = TRUE)
   }
+  # Unspecified factor nulls use the retained alternative's declared contrast.
+  # Explicit defaults and term omissions keep their existing meaning.
+  if (missing(prior_list_null) || is.null(prior_list_null)) {
+    prior_list_null <- list()
+  }
+  if (is.list(prior_list_null) && !BayesTools::is.prior(prior_list_null) &&
+      (length(prior_list_null) == 0L || !is.null(names(prior_list_null)))) {
+    unspecified_null <- setdiff(names(prior_list_alt),
+      c("intercept", names(prior_list_null), par_null_omit, par_alt_omit))
+    for (term in unspecified_null) {
+      alternative <- prior_list_alt[[term]]
+      if (!BayesTools::is.prior.factor(alternative) ||
+          BayesTools::is.prior.ordered(alternative)) {
+        next
+      }
+      contrasts <- c(
+        treatment   = BayesTools::is.prior.treatment(alternative),
+        independent = BayesTools::is.prior.independent(alternative),
+        meandif     = BayesTools::is.prior.meandif(alternative),
+        orthonormal = BayesTools::is.prior.orthonormal(alternative)
+      )
+      if (sum(contrasts) == 1L) {
+        prior_list_null[[term]] <- BayesTools::prior_factor(
+          "spike", parameters = list(0), contrast = names(contrasts)[contrasts]
+        )
+      }
+    }
+  }
+
   # The alternative intercept is the complete prior; the null-side builder
   # needs the same effective intercept even when its unused global default is absent.
   prior_intercept <- prior_list_alt[["intercept"]]

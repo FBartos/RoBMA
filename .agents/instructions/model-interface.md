@@ -23,6 +23,12 @@ Scale intercepts retain the positive SD contract because their model uses
 log(intercept). Structural-zero mods retain
 their existing point-zero validation and explicit-global compatibility.
 
+Unspecified ordinary factor null terms use a zero prior in the retained
+alternative term's declared contrast before formula binding. Explicit global
+and named null priors, NULL/FALSE term omissions, omitted alternatives,
+continuous defaults, and intercept policy retain their existing semantics.
+The formula compiler owns all dimensions, levels, and bound design metadata.
+
 Ordered term containers pass through when they are the sole retained component.
 Their mixture/inclusion declaration belongs on total; combining a container with
 a separate term component refuses with the prior_ordered(total=...) and named
