@@ -122,7 +122,8 @@
 #' effect-size location and individual meta-regression coefficients for fitted
 #' log-scale OR, RR, HR, and IRR models. For scale-regression coefficients,
 #' \code{"EXP"} displays the multiplicative change in heterogeneity.
-#' \code{"LOG"} displays a positive heterogeneity intercept on the log scale.
+#' \code{"LOG"} displays a positive heterogeneity intercept or random-effect
+#' variance or SD multiplier on the log scale.
 #' The transformation is applied to KDE and precomputed qCMDE/IWMDE densities
 #' with the corresponding Jacobian.
 #' For automatically unscaled scale-formula intercepts, use

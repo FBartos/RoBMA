@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Output documentation distinguishes auxiliary coordinates and supported log
+  displays; native-thread option errors describe the existing NA default.
 - Fitted and random-effect adapters reject unsupported controls clearly and
   share the existing typed expansion-required condition across analogous paths.
 - Z-plot context fallback uses the public static-cache contract and removes unused selection arguments and facades.

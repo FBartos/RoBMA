@@ -55,7 +55,10 @@
 #' effects, known-\code{V} dependency factors, random-effect simulation and
 #' Cholesky factors, and prior-parameterization variables are omitted. Stable
 #' fitted coordinates such as model indicators and likelihood parameters
-#' remain available. Formula-random coordinates are replaced by their semantic
+#' remain available. Ordinary spike-and-slab backend slab and inclusion
+#' coordinates are omitted by default; \code{include_auxiliary = TRUE} retains
+#' them. Semantic random-effect indicators remain available as described below.
+#' Formula-random coordinates are replaced by their semantic
 #' RoBMA quantities using the same names as summaries, plots, and hypotheses,
 #' such as `tau_total`, `tau_common`, `rho(...)`, and `tau2_prop(...)`.
 #' A `rho(...)` column can contain `NA` draws: an original-scale correlation
