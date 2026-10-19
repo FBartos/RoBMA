@@ -206,27 +206,6 @@ double plot_probability_or_na(double x)
   return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
 }
 
-double plot_interval_probability(double lower, double upper,
-                                 double mean, double sd)
-{
-  if (!(sd > 0) || lower >= upper) {
-    return 0;
-  }
-  if (std::isinf(lower) && lower < 0) {
-    return std::isinf(upper) && upper > 0 ?
-      1 : pnorm(upper, mean, sd, true, false);
-  }
-  if (std::isinf(upper) && upper > 0) {
-    return pnorm(lower, mean, sd, false, false);
-  }
-  if (lower > mean) {
-    return pnorm(lower, mean, sd, false, false) -
-      pnorm(upper, mean, sd, false, false);
-  }
-  return pnorm(upper, mean, sd, true, false) -
-    pnorm(lower, mean, sd, true, false);
-}
-
 struct PlotMixtureContext {
   int S;
   double se;
@@ -360,8 +339,8 @@ double plot_selected_cdf_zero_se(double q, int s,
   const double *omega_s = ctx.omega + s;
   const double signed_mean = data.effect_sign * ctx.mean[s];
   const double signed_q    = data.effect_sign * q;
-  double requested_mass  = 0;
-  double complement_mass = 0;
+  double requested_log_mass  = -INFINITY;
+  double complement_log_mass = -INFINITY;
 
   for (int b = 0; b < data.n_bins; ++b) {
     const double z_lower = data.z_lower[b];
@@ -383,28 +362,35 @@ double plot_selected_cdf_zero_se(double q, int s,
     }
 
     const double weight = omega_s[static_cast<size_t>(ctx.S) * b];
+    if (weight == 0.0) {
+      continue;
+    }
+    const double log_weight = std::log(weight);
     if (data.effect_sign == 1) {
-      requested_mass += weight * plot_interval_probability(
-        lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]
-      );
-      complement_mass += weight * plot_interval_probability(
-        std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]
-      );
+      requested_log_mass = logspace_add(requested_log_mass, log_weight +
+        cpp_selnorm_normal_interval_log_prob(
+          lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]));
+      complement_log_mass = logspace_add(complement_log_mass, log_weight +
+        cpp_selnorm_normal_interval_log_prob(
+          std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]));
     } else {
-      requested_mass += weight * plot_interval_probability(
-        std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]
-      );
-      complement_mass += weight * plot_interval_probability(
-        lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]
-      );
+      requested_log_mass = logspace_add(requested_log_mass, log_weight +
+        cpp_selnorm_normal_interval_log_prob(
+          std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]));
+      complement_log_mass = logspace_add(complement_log_mass, log_weight +
+        cpp_selnorm_normal_interval_log_prob(
+          lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]));
     }
   }
 
-  const double total_mass = requested_mass + complement_mass;
-  if (!(total_mass > 0) || !std::isfinite(total_mass)) {
+  const double total_log_mass = logspace_add(requested_log_mass, complement_log_mass);
+  if (!std::isfinite(total_log_mass)) {
     return NA_REAL;
   }
-  return plot_probability_or_na(requested_mass / total_mass);
+  const double probability = requested_log_mass <= complement_log_mass ?
+    std::exp(requested_log_mass - total_log_mass) :
+    -std::expm1(complement_log_mass - total_log_mass);
+  return plot_probability_or_na(probability);
 }
 
 double plot_selected_cdf(double q, int s, const PlotMixtureContext &ctx)
@@ -583,6 +569,10 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     const double quantile = plot_weighted_empirical_quantile(ctx, p);
     *quantile_cdf = plot_mixture_cdf(quantile, ctx);
     return quantile;
+  }
+  if (std::isfinite(lower) && lower == upper && step > 0.0) {
+    lower = std::nextafter(lower, -INFINITY);
+    upper = std::nextafter(upper, INFINITY);
   }
   if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper ||
       !(step > 0)) {

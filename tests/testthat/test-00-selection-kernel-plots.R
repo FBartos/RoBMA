@@ -475,6 +475,121 @@ test_that("plot quantiles retain tiny positive normal scales", {
 })
 
 
+.plot_range_point_replay <- function(object) {
+
+  setup <- review_compile_object(object)
+  priors <- c(do.call(c, unname(lapply(setup$compiled, `[[`, "prior_list"))),
+    .create_fit_priors(object$data, object$priors))
+  monitors <- BayesTools::JAGS_to_monitor(priors)
+  columns <- setdiff(review_prior_columns(priors), "omega")
+  primitive <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  for (name in names(priors)) {
+    if (BayesTools::is.prior.point(priors[[name]])) {
+      primitive[, name] <- priors[[name]]$parameters$location
+    }
+  }
+  preliminary <- review_attach_replay(setup, primitive)
+  generated <- BayesTools::JAGS_evaluate_deterministic(preliminary$fit, draws = primitive)
+  complete <- cbind(primitive, generated[, setdiff(colnames(generated), columns), drop = FALSE])
+  required <- unlist(lapply(monitors, function(name) {
+    if (name == "omega") return(paste0("omega[", seq_len(nrow(priors$omega$bins)), "]"))
+    name
+  }))
+  stopifnot(!anyDuplicated(required), all(required %in% colnames(complete)),
+    all(is.finite(complete)))
+  samples <- complete[, required, drop = FALSE]
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
+    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  list(object = object, samples = samples)
+}
+
+
+test_that("plot quantiles bracket translated tiny positive scales", {
+
+  probs <- c(.025, .5, .975)
+  for (rows in 1:2) {
+    observed <- tryCatch(.plot_mixture_quantiles_native(matrix(1, rows, 2L),
+      matrix(1e-20, rows, 2L), probs, rep(1, rows), caller = "test"), error = identity)
+    expect_true(is.matrix(observed))
+    if (is.matrix(observed)) {
+      # The exact roots round to one. A bracket can only distinguish adjacent
+      # floating-point neighbors at this translation, rather than exact CDFs.
+      expect_lte(max(abs(observed - 1)), 2 * .Machine$double.eps)
+    }
+  }
+  for (control in list(c(0, 1e-20), c(1, .1))) {
+    observed <- .plot_mixture_quantiles_native(matrix(control[1L]), matrix(control[2L]),
+      probs, 1, caller = "test")
+    expect_lte(max(abs((as.numeric(observed) - control[1L]) / control[2L] -
+      stats::qnorm(probs))), 1e-7)
+  }
+  replay <- .plot_range_point_replay(brma(yi = c(.3, .4, .5), sei = rep(.1, 3L),
+    mods = ~ x, data = data.frame(x = c(0, .5, 1)),
+    prior_effect = BayesTools::prior("point", list(location = 1)),
+    prior_mods = list(x = BayesTools::prior("point", list(location = 0))),
+    prior_heterogeneity = BayesTools::prior("point", list(location = 1e-20)),
+    standardize_continuous_predictors = FALSE, measure = "GEN", prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE))
+  public <- tryCatch(regplot(replay$object, mod = "x", at = c(0, 1),
+    pi = TRUE, as_data = TRUE), error = identity)
+  expect_false(inherits(public, "error"))
+  if (!inherits(public, "error")) {
+    expect_true(is.data.frame(public$pi))
+    expect_lte(max(abs(unlist(public$pi[c("lower", "upper")]) - 1)),
+      2 * .Machine$double.eps)
+  }
+})
+
+
+test_that("plot zero-SE selection tails retain positive log-scale mass", {
+
+  probs <- c(.025, .5, .975)
+  # Independent 50-digit mpmath integral/root references from the original
+  # Normal(-40, 1) conditioned-positive-tail witness.
+  reference <- c(.000632545353094317, .017314126764651106, .092058652310624073)
+  for (direction in c("positive", "negative")) {
+    sign <- if (direction == "positive") 1 else -1
+    replay <- .plot_range_point_replay(bselmodel(yi = c(.3, .4, .5), sei = rep(.1, 3L),
+      prior_effect = BayesTools::prior("point", list(location = -40 * sign)),
+      prior_heterogeneity = BayesTools::prior("point", list(location = 1)),
+      prior_bias = BayesTools::prior_weightfunction("one-sided", .025,
+        BayesTools::wf_fixed(c(1, 0))), effect_direction = direction,
+      measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+    for (rows in 1:2) {
+      context <- .selection_context(replay$object,
+        posterior_samples = replay$samples[seq_len(rows), , drop = FALSE])
+      observed <- tryCatch(.plot_mixture_quantiles_native(matrix(-40 * sign, rows, 1L),
+        matrix(1, rows, 1L), probs, rep(1, rows), se = 0,
+        selected_rows = !context$use_normal, selection_context = context, caller = "test"),
+        error = identity)
+      expect_true(is.matrix(observed))
+      if (is.matrix(observed)) {
+        expected <- if (sign == 1) reference else -rev(reference)
+        expect_lte(max(abs(as.numeric(observed) - expected)), 1e-10)
+      }
+    }
+    if (direction == "positive") {
+      context <- .selection_context(replay$object,
+        posterior_samples = replay$samples[1L, , drop = FALSE])
+      ordinary <- .plot_mixture_quantiles_native(matrix(0), matrix(1), probs, 1,
+        se = 0, selected_rows = !context$use_normal, selection_context = context, caller = "test")
+      expect_lte(max(abs(as.numeric(ordinary) - stats::qnorm((1 + probs) / 2))), 1e-10)
+      positive_se <- .plot_mixture_quantiles_native(matrix(-40), matrix(sqrt(1.01)), probs, 1,
+        se = .1, selected_rows = !context$use_normal, selection_context = context, caller = "test")
+      boundary <- stats::qnorm(.975) * .1
+      log_tail <- stats::pnorm(boundary, -40, sqrt(1.01), lower.tail = FALSE, log.p = TRUE)
+      positive_reference <- stats::qnorm(log_tail + log1p(-probs), lower.tail = FALSE,
+        log.p = TRUE) * sqrt(1.01) - 40
+      expect_lte(max(abs(as.numeric(positive_se) - positive_reference)), 1e-10)
+      public <- tryCatch(funnel(replay$object, residual = FALSE, sampling_bias = TRUE,
+        sampling_heterogeneity = TRUE, as_data = TRUE), error = identity)
+      expect_false(inherits(public, "error"))
+    }
+  }
+})
+
+
 test_that("plot quantile inversion returns the generalized inverse", {
 
   jump <- 0.123456789
