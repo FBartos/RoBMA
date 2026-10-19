@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selection-sensitivity refusals retain observed fields and original causes; latent budgets and prospective grid storage are validated clearly.
 - Scalar-source allocation summaries use declared component multipliers when
   random designs have more coefficient columns than observation rows.
 - Output documentation distinguishes auxiliary coordinates and supported log

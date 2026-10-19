@@ -14,8 +14,8 @@
   queries <- sort(unique(queries[is.finite(queries)]))
   if (!tracked || length(queries) < 16L || !length(rows)) return(NULL)
   # Reserve for native records, reported error, binding data and R overhead.
-  bytes <- 4 * (length(queries) * length(rows) * tracked * 48 +
-    length(rows) * sum(lengths(plan[["row_blocks"]])^2) * 8)
+  bytes <- 4 * (as.double(length(queries)) * length(rows) * tracked * 48 +
+    as.double(length(rows)) * sum(lengths(plan[["row_blocks"]])^2) * 8)
   if (!is.finite(bytes) || bytes > .known_v_covariance_max_bytes()) return(NULL)
   out <- new.env(parent = emptyenv())
   out$queries <- queries
@@ -45,7 +45,7 @@
   midpoint <- (min(x) + max(x)) / 2
   leaves <- list()
   unit <- .Machine$double.eps
-  gamma <- function(n) (n * unit) / (1 - n * unit)
+  rounding_gamma <- function(n) (n * unit) / (1 - n * unit)
   normal <- function(value) is.finite(value) & abs(value) >= .Machine$double.xmin
   for (side in c(FALSE, TRUE)) {
     available <- ids[(x > midpoint) == side]
@@ -91,7 +91,7 @@
     if (length(exact)) L[cbind(exact, matching[exact])] <- 1
     # Actual-double differences define the interpolation nodes. Relative
     # difference/division/product error is bounded by gamma_(4*(m-1)).
-    coefficient_gamma <- gamma(4 * (m - 1))
+    coefficient_gamma <- rounding_gamma(4 * (m - 1))
     coefficient_error <- abs(L) * coefficient_gamma / (1 - coefficient_gamma)
     if (length(exact)) coefficient_error[exact, ] <- 0
     log_product <- rep(-Inf, length(query))
@@ -101,7 +101,7 @@
       logarithms <- log(distance)
       # Conventional log/subtraction/summation allowances, evaluated upward
       # in log space to avoid losing small products through underflow.
-      allowance <- (gamma(m) + unit / (1 - unit)) * sum(abs(logarithms)) - m * log1p(-unit)
+      allowance <- (rounding_gamma(m) + unit / (1 - unit)) * sum(abs(logarithms)) - m * log1p(-unit)
       log_product[[i]] <- sum(logarithms) + allowance
     }
     if (!any(safe)) next

@@ -7,9 +7,11 @@
 #'
 #' @param object A fitted normal-outcome model with a bound selection model.
 #' @param max_posterior_samples Maximum number of posterior draws to evaluate.
+#'   A positive integer of at least `10`, or `Inf` for all posterior draws.
 #'   Draws are deterministically thinned over posterior row order.
 #' @param latent_samples Number of fresh pre-selection retained-context draws
-#'   per posterior draw. Defaults to `512`.
+#'   per posterior draw. Must be one finite integer of at least `2`; defaults
+#'   to `512`.
 #' @param seed Integer seed for the diagnostic simulation. The calling R
 #'   session's random-number state is restored before returning.
 #' @param integration_control Optional settings from
@@ -30,6 +32,8 @@
 #' constituent event evaluations, rather than an error bound for their product.
 #'
 #' `ess_fraction` estimates `mean(W)^2 / mean(W^2)`;
+#' this is a retained-context reweighting ESS fraction within each posterior
+#' parameter state, not the posterior sample ESS.
 #' `total_variation` estimates the distance between the pre-selection context
 #' law and its normalized `W`-reweighted law. The fitted and reference
 #' conditioning specifications, publication identities, and source roles are
@@ -57,12 +61,34 @@
 #' Sensitivity notifications are emitted only by these explicit helper calls,
 #' not by fitting, extension, or ordinary model printing.
 #'
-#' @return A data frame with one row per connected source unit. The `q05`,
-#'   `median`, and `q95` columns summarize ESS fractions, total variation, and
-#'   the interquartile range of log weights across posterior draws. Conditional
-#'   Monte Carlo standard errors and simulation budgets are also reported.
-#'   `settings` and `target` attributes record simulation settings and the
-#'   compared model specifications. The add function returns the fitted object.
+#' The substantial-sensitivity warning has class
+#' `RoBMA_selection_sensitivity_warning`, retaining `simpleWarning`, `warning`,
+#' and `condition`. Its fields are `maximum_total_variation`, `threshold` (`0.10`),
+#' and `comparison` (`"retained_context_reweighting"`). Own nonfinite normalizer
+#' refusals have class `RoBMA_selection_sensitivity_normalizer_unavailable` and
+#' fields `reason`, `posterior_draw` (the evaluated posterior-row index),
+#' `latent_draw`, `event`, and the observed `log_mass` values. Unsupported retained
+#' covariance has class `RoBMA_selection_sensitivity_covariance_unavailable` and
+#' `reason = "retained_covariance_unavailable"`. Both refusals inherit from
+#' `RoBMA_selection_sensitivity_error`, `simpleError`, `error`, and `condition`.
+#' Downstream integration failures retain their original conditions.
+#'
+#' @return A data frame with one row per connected source unit, identified by
+#'   `block`, comma-separated observation `rows`, and `n_estimates`. The
+#'   `ess_fraction`, `total_variation`, and `log_weight_iqr` summaries each have
+#'   `_q05`, `_median`, and `_q95` columns across all evaluated posterior draws,
+#'   including non-selection draws. The `ess_fraction_mcse` and
+#'   `total_variation_mcse` columns have `_median` and `_max` suffixes for
+#'   conditional Monte Carlo uncertainty. `integration_relative_mcse_max` and
+#'   `integration_relative_quadrature_error_max` are maxima over constituent
+#'   event evaluations, not an error bound for the multiplied unit weight.
+#'   `posterior_samples`, `total_posterior_samples`, and `latent_samples` report
+#'   the simulation budgets. The `settings` attribute records
+#'   `max_posterior_samples`, `latent_samples`, `seed`, and `integration_control`.
+#'   The `target` attribute records the comparison, fitted and reference models,
+#'   applicability, source roles, fitted and reference sampling structures,
+#'   publication groups, likelihood unit, row blocks, and resolved event
+#'   integration settings. The add function returns the fitted object.
 #' @seealso [bselmodel.mv()], [set_selection_likelihood_control()]
 #' @export
 selection_sensitivity_diagnostics <- function(
@@ -90,13 +116,15 @@ selection_sensitivity_diagnostics <- function(
     max_posterior_samples,
     argument = "max_posterior_samples"
   )
-  latent_samples <- .normalize_max_samples(
-    latent_samples,
-    argument = "latent_samples",
-    minimum = 2L
-  )
-  if (is.infinite(latent_samples)) {
-    stop("'latent_samples' must be a finite positive integer.", call. = FALSE)
+  if (!is.numeric(latent_samples) || is.complex(latent_samples) ||
+      length(latent_samples) != 1L || is.na(latent_samples) ||
+      !is.finite(latent_samples) || latent_samples < 2 ||
+      latent_samples != floor(latent_samples)) {
+    stop("'latent_samples' must be a single finite integer of at least 2.",
+         call. = FALSE)
+  }
+  if (latent_samples <= .Machine$integer.max) {
+    latent_samples <- as.integer(latent_samples)
   }
   if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
       !is.finite(seed) || seed < 0 || seed > .Machine$integer.max ||
@@ -312,13 +340,21 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
   maximum_tv <- max(total_variation)
   tv_percent <- sprintf("%.1f", 100 * maximum_tv)
   if (maximum_tv >= 0.10) {
-    warning(
-      "Selection conditioning sensitivity was substantial: the largest unit-level ",
-      "posterior-median total variation distance was ", tv_percent, "%. ",
-      "Retaining and integrating the specified contexts define different reporting models. ",
-      "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications.",
-      call. = FALSE
-    )
+    warning(structure(
+      list(
+        message = paste0(
+          "Selection conditioning sensitivity was substantial: the largest unit-level ",
+          "posterior-median total variation distance was ", tv_percent, "%. ",
+          "Retaining and integrating the specified contexts define different reporting models. ",
+          "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications."
+        ),
+        call = NULL,
+        maximum_total_variation = maximum_tv,
+        threshold = 0.10,
+        comparison = "retained_context_reweighting"
+      ),
+      class = c("RoBMA_selection_sensitivity_warning", "simpleWarning", "warning", "condition")
+    ))
   } else if (maximum_tv > 0.05) {
     message(
       "Selection conditioning sensitivity: the largest unit-level ",
@@ -386,8 +422,16 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     if (!is.null(normalizer_setup)) {
       current <- .selection_conditioned_sampling_subset_setup(normalizer_setup, draw)
       mass <- .selection_conditioned_sampling_normalizer(current, conditional_means)
-      if (any(!is.finite(mass[["block_log_mass"]]))) {
-        stop("Selection sensitivity normalizers must be finite and positive.", call. = FALSE)
+      invalid <- which(!is.finite(mass[["block_log_mass"]]), arr.ind = TRUE)
+      if (nrow(invalid) > 0L) {
+        stop(structure(
+          list(message = "Selection sensitivity normalizers must be finite and positive.",
+            call = NULL, reason = "nonfinite_normalizer", posterior_draw = draw,
+            latent_draw = unname(invalid[, 1L]), event = unname(invalid[, 2L]),
+            log_mass = unname(mass[["block_log_mass"]][invalid])),
+          class = c("RoBMA_selection_sensitivity_normalizer_unavailable",
+            "RoBMA_selection_sensitivity_error", "simpleError", "error", "condition")
+        ))
       }
       log_normalizers <- mass[["block_log_mass"]]
       event_error <- vapply(mass[["diagnostics"]], function(x) max(x[["relative_mcse"]]), numeric(1L))
@@ -422,8 +466,16 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
         remedy = paste0("Increase 'max_points_per_scramble' in ",
           "'integration_control = set_selection_likelihood_control()'.")
       )
-      if (any(!is.finite(mass[["log_mass"]]))) {
-        stop("Selection sensitivity normalizers must be finite and positive.", call. = FALSE)
+      invalid <- which(!is.finite(mass[["log_mass"]]))
+      if (length(invalid) > 0L) {
+        stop(structure(
+          list(message = "Selection sensitivity normalizers must be finite and positive.",
+            call = NULL, reason = "nonfinite_normalizer", posterior_draw = draw,
+            latent_draw = invalid, event = rep.int(event, length(invalid)),
+            log_mass = unname(mass[["log_mass"]][invalid])),
+          class = c("RoBMA_selection_sensitivity_normalizer_unavailable",
+            "RoBMA_selection_sensitivity_error", "simpleError", "error", "condition")
+        ))
       }
       log_normalizers[, event] <- mass[["log_mass"]]
       event_error[[event]] <- max(mass[["relative_mcse"]])
@@ -457,10 +509,12 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
     .covariance_factorization(covariance)
   )
   if (is.null(factor)) {
-    stop(
-      "Selection sensitivity latent covariance is not positive semidefinite.",
-      call. = FALSE
-    )
+    stop(structure(
+      list(message = "Selection sensitivity latent covariance is not positive semidefinite.",
+        call = NULL, reason = "retained_covariance_unavailable"),
+      class = c("RoBMA_selection_sensitivity_covariance_unavailable",
+        "RoBMA_selection_sensitivity_error", "simpleError", "error", "condition")
+    ))
   }
   matrix(
     stats::rnorm(latent_samples * nrow(covariance)),

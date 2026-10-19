@@ -379,3 +379,159 @@ test_that("selection sensitivity notifications use posterior-median TV", {
     fixed = TRUE
   )
 })
+
+
+test_that("selection sensitivity warnings retain their original parents and observed fields", {
+
+  condition <- tryCatch(
+    .selection_sensitivity_notify(c(.01, .235)), warning = identity
+  )
+  expect_identical(class(condition), c("RoBMA_selection_sensitivity_warning",
+    "simpleWarning", "warning", "condition"))
+  expect_identical(conditionMessage(condition), paste0(
+    "Selection conditioning sensitivity was substantial: the largest unit-level ",
+    "posterior-median total variation distance was 23.5%. ",
+    "Retaining and integrating the specified contexts define different reporting models. ",
+    "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications."
+  ))
+  expect_null(conditionCall(condition))
+  expect_identical(condition$maximum_total_variation, .235)
+  expect_identical(condition$threshold, .10)
+  expect_identical(condition$comparison, "retained_context_reweighting")
+})
+
+
+test_that("latent simulation budgets have one truthful finite-integer validation", {
+
+  used <- NULL
+  testthat::local_mocked_bindings(
+    .data_selection_model = function(data) list(),
+    .compute_selection_sensitivity_diagnostics = function(
+        object, max_posterior_samples, latent_samples, seed, integration_control) {
+      used <<- list(max_posterior_samples, latent_samples)
+      data.frame(total_variation_median = 0)
+    },
+    .package = "RoBMA"
+  )
+  object <- structure(list(data = list(), fit = list()), class = "brma")
+  for (bad in list(NULL, numeric(), c(2, 3), "2", TRUE, NA_real_, NaN,
+                   Inf, -Inf, -1, 0, 1, 1.5, 2 + 1i)) {
+    condition <- tryCatch(selection_sensitivity_diagnostics(
+      object, latent_samples = bad
+    ), error = identity)
+    expect_identical(conditionMessage(condition),
+      "'latent_samples' must be a single finite integer of at least 2.")
+    expect_null(conditionCall(condition))
+  }
+  expect_silent(selection_sensitivity_diagnostics(
+    object, latent_samples = 2, max_posterior_samples = Inf
+  ))
+  expect_identical(used, list(Inf, 2L))
+  condition <- tryCatch(selection_sensitivity_diagnostics(
+    object, latent_samples = 2, max_posterior_samples = 9
+  ), error = identity)
+  expect_identical(conditionMessage(condition),
+    "'max_posterior_samples' must be at least 10.")
+  stored <- simpleError("Original cached diagnostic failure.")
+  attr(stored, "settings") <- list(latent_samples = 2L)
+  object[["selection_sensitivity_diagnostics"]] <- stored
+  expect_identical(tryCatch(selection_sensitivity_diagnostics(object),
+    error = identity), stored)
+})
+
+
+test_that("sensitivity owns only its nonfinite-normalizer and covariance refusals", {
+
+  prior <- BayesTools::prior_weightfunction(
+    "one-sided", .5, BayesTools::wf_fixed(c(1, .2))
+  )
+  selection <- .selection_spec(list(outcome = list(bias = prior)),
+    c(0, 0), c(1, 1), "positive")
+  selection$omega <- matrix(c(1, .2), 1L)
+  selection$kernel_mode <- SELKERNEL_STEP
+  selection$vector_rule <- 0L
+  selection$alpha <- 0
+  selection$phack_kind <- 0L
+  selection$use_normal <- FALSE
+  args <- list(
+    means = matrix(0, 1L, 2L),
+    covariance = .as_block_covariance(array(diag(2), c(1L, 2L, 2L))),
+    context_covariance = .as_block_covariance(array(diag(2), c(1L, 2L, 2L))),
+    selection_sei = c(1, 1), selection_context = selection,
+    normalization_units = list(1L, 2L), row_blocks = list(1:2),
+    execution_plan = set_selection_likelihood_control(), latent_samples = 3L
+  )
+  checked <- 0L
+  downstream <- NULL
+  testthat::local_mocked_bindings(
+    .selection_sensitivity_covariance_draws = function(covariance, latent_samples) {
+      matrix(0, latent_samples, nrow(covariance))
+    },
+    .selection_joint_checked_event = function(...) {
+      if (!is.null(downstream)) stop(downstream)
+      checked <<- checked + 1L
+      list(log_mass = if (checked == 1L) rep(0, 3L) else c(0, -Inf, Inf),
+        relative_mcse = 0, relative_quadrature_error = 0)
+    },
+    .selection_conditioned_sampling_subset_setup = function(setup, rows) setup,
+    .selection_conditioned_sampling_normalizer = function(...) {
+      list(block_log_mass = matrix(c(0, -Inf, 0, 0, 0, Inf), 3L, 2L))
+    },
+    .package = "RoBMA"
+  )
+  condition <- tryCatch(do.call(.selection_sensitivity_run, args), error = identity)
+  expect_identical(class(condition), c("RoBMA_selection_sensitivity_normalizer_unavailable",
+    "RoBMA_selection_sensitivity_error", "simpleError", "error", "condition"))
+  expect_identical(conditionMessage(condition),
+    "Selection sensitivity normalizers must be finite and positive.")
+  expect_null(conditionCall(condition))
+  expect_identical(condition$reason, "nonfinite_normalizer")
+  expect_identical(condition$posterior_draw, 1L)
+  expect_identical(condition$latent_draw, c(2L, 3L))
+  expect_identical(condition$event, c(2L, 2L))
+  expect_identical(condition$log_mass, c(-Inf, Inf))
+
+  args$normalizer_setup <- list()
+  conditioned <- tryCatch(do.call(.selection_sensitivity_run, args), error = identity)
+  expect_identical(class(conditioned), class(condition))
+  expect_identical(conditionMessage(conditioned), conditionMessage(condition))
+  expect_null(conditionCall(conditioned))
+  expect_identical(conditioned$posterior_draw, 1L)
+  expect_identical(conditioned$latent_draw, c(2L, 3L))
+  expect_identical(conditioned$event, c(1L, 2L))
+  expect_identical(conditioned$log_mass, c(-Inf, Inf))
+
+  args$normalizer_setup <- NULL
+  # Use the existing quadrature condition constructor to test exact transport;
+  # this injected condition is not a claim of a selected-normal GLMM path.
+  downstream <- .glmm_grid_nonconvergence_condition(
+    outcome_type = "bin", observation = 7L,
+    theta_changes = c(2e-5, 3e-6), nuisance_changes = c(4e-7, 5e-8)
+  )
+  expect_identical(tryCatch(do.call(.selection_sensitivity_run, args), error = identity),
+    downstream)
+  downstream <- simpleError("Original programming error.")
+  expect_identical(tryCatch(do.call(.selection_sensitivity_run, args), error = identity),
+    downstream)
+  invalid_weights <- tryCatch(.selection_sensitivity_weight_metrics(c(0, -Inf)),
+    error = identity)
+  expect_identical(class(invalid_weights), c("simpleError", "error", "condition"))
+  expect_identical(conditionMessage(invalid_weights),
+    "Selection sensitivity log weights are invalid.")
+})
+
+
+test_that("unsupported retained covariance has a narrow sensitivity condition", {
+
+  condition <- tryCatch(.selection_sensitivity_covariance_draws(matrix(-1), 2L),
+    error = identity)
+  expect_identical(class(condition), c("RoBMA_selection_sensitivity_covariance_unavailable",
+    "RoBMA_selection_sensitivity_error", "simpleError", "error", "condition"))
+  expect_identical(conditionMessage(condition),
+    "Selection sensitivity latent covariance is not positive semidefinite.")
+  expect_identical(condition$reason, "retained_covariance_unavailable")
+  expect_null(conditionCall(condition))
+  programming <- tryCatch(.selection_sensitivity_covariance_draws(matrix(NA_real_), 2L),
+    error = identity)
+  expect_false(inherits(programming, "RoBMA_selection_sensitivity_error"))
+})

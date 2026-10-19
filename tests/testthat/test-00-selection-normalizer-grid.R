@@ -85,6 +85,17 @@
     diagnostic = .selection_normalizer_grid_diagnostics(context$normalizer_grid))
 }
 
+
+test_that("oversize normalizer grids decline before integer products overflow", {
+
+  fixture <- .normalizer_grid_test_fixture()
+  # Each requested posterior row is valid; repetition makes the prospective
+  # grid exceed its byte budget without allocating that grid.
+  expect_silent(expect_null(.selection_normalizer_grid(
+    fixture$context, seq(-1, 1, length.out = 50000L), rep.int(1L, 50000L)
+  )))
+})
+
 test_that("requested-node interpolation preserves full joint densities for both signs", {
 
   # Uneven spacing and a close pair exercise actual-node geometry, not the
