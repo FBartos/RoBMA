@@ -1237,9 +1237,8 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
 .selection_row_routing <- function(priors, posterior_samples,
                                    selection_spec = NULL) {
 
-  S           <- nrow(posterior_samples)
-  priors_bias <- priors[["outcome"]][["bias"]]
-  prior_list  <- .selection_bias_priors(priors)
+  S          <- nrow(posterior_samples)
+  prior_list <- .selection_bias_priors(priors)
 
   if ("bias_indicator" %in% colnames(posterior_samples)) {
     bias_indicator <- .extract_posterior_indicator(

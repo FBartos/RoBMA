@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selection row routing avoids an unused prior lookup while retaining its normalized branch metadata.
 - Native sampler allocation retains ownership across allocation failures; scalar selected-normal means must be finite and existing diagnostics retain significant digits.
 - Selection-sensitivity refusals retain observed fields and original causes; latent budgets and prospective grid storage are validated clearly.
 - Scalar-source allocation summaries use declared component multipliers when
