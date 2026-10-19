@@ -77,7 +77,7 @@
 #' structures use `cor` in `random_covariance()`; `cor_scale = "fisher_z"`
 #' places the prior on Fisher's z, whereas `cor_scale = "cor"` places it on the
 #' raw correlation. When omitted, CS/HCS receive a uniform prior over
-#' `(-1 / (K - 1), 1)`, AR1/HAR over `(-1, 1)`, and CAR over `(0, 1)`.
+#' `(-1 / (K - 1), 1)`, AR1/HAR over `(-1, 1)`, and CAR over `[0, 1)`.
 #' Unstructured `us()` blocks default to `prior_lkj(eta = 1)`. Values of `eta`
 #' above one shrink correlations toward zero; `eta = 1` is uniform over
 #' correlation matrices.
@@ -240,8 +240,9 @@
 #' @param cor_scale scale for an explicitly supplied scalar `cor` prior.
 #'   `"fisher_z"` places it on `atanh(cor)` and is the default; `"cor"` uses
 #'   raw correlation; `"logit"` uses a logit transform of the admissible raw
-#'   interval. An omitted `cor` always receives the raw-uniform default after
-#'   the structure and dimension are resolved.
+#'   interval. An omitted `cor` receives `LKJ(1)` for US/UN and the
+#'   structure-specific raw-uniform default for scalar correlations after the
+#'   structure and dimension are resolved.
 #' @param include_correlation whether `prior_lkj()` requests monitoring of the
 #'   semantic correlation matrix.
 #' @param include_primitives whether `prior_lkj()` requests monitoring of its

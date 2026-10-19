@@ -15,12 +15,20 @@ components. A single prior applies to all terms; a named list can specify
 term-specific components. This argument can be specified only when \code{mods} is
 specified. For a formula without an intercept (\code{~ 0 + x}), an \code{intercept}
 entry other than a point prior at zero stops with an error of class
-\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).}
+\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).
+A named alternative \code{intercept} is the complete prior, including any mixture;
+it replaces the global effect mixture. Specify it in one place: null-list
+intercepts and explicit global effect declarations left without a consumer
+are refused. Ordinary term entries replace only their alternative component.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
 term-specific components. This argument can be specified only when \code{scale}
-is specified.}
+is specified. A named alternative \code{intercept} supplies the complete positive
+SD prior used by \code{log(intercept)}. Global heterogeneity declarations remain
+meaningful when they supply another random root or its inclusion weights;
+declarations replaced without a consumer are refused. Null-list intercept
+declarations are unavailable.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
 alternative cluster-level heterogeneity allocation component(s). This
@@ -167,9 +175,17 @@ removes that hypothesis component:
 \item \code{prior_bias_null = NULL} or \code{FALSE}: No "no bias" model (assumes some bias mechanism)
 \item \code{prior_bias = NULL} or \code{FALSE}: No bias model (assumes no bias mechanism)
 }
-For moderator and scale regression terms, an omitted or whole-argument \code{NULL}
-\code{prior_mods} / \code{prior_scale} means "use defaults". To omit a component for a
-specific term, use a named list entry such as \code{prior_mods_null = list(x1 = NULL)}.
+For moderator and scale formula priors, an omitted or whole-argument
+\code{NULL} uses the corresponding default. Whole-argument \code{FALSE} is not a
+supported shortcut for omitting every term. Omit a particular alternative or
+null component with a named \code{NULL} or \code{FALSE} entry, for example
+\code{prior_mods_null = list(x1 = NULL)}. Ordinary named terms replace only that
+alternative or null component. A named alternative \code{intercept} instead
+supplies the complete intercept prior, including any desired mixture.
+Null-list intercept declarations are refused, as are explicit global priors
+discarded without a consumer. A global heterogeneity declaration can still
+supply an unscaled root or component-inclusion weights when scale intercepts
+have their own priors; retain it when it has such a consumer.
 
 An ordered term's mixture belongs on its scalar total. Supply the complete
 \code{prior_ordered(total = ...)} in one term component and omit the separate term

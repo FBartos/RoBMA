@@ -168,7 +168,8 @@ test_that("GEN measure without ni is rejected", {
 
   expect_error(
     brma.norm(yi = effect, sei = std_err, data = test_data, measure = "GEN", only_priors = TRUE),
-    regexp = "Sample size 'ni' or unit information sd 'unit_information_sd' must be specified"
+    regexp = "Sample size 'ni' or unit information sd 'prior_unit_information_sd' must be specified to set-up prior distributions without known UISD.",
+    fixed = TRUE
   )
 })
 
@@ -1171,7 +1172,6 @@ test_that("Both mods and scale priors are assigned together", {
   expect_named(formula_args[["formula_scale_list"]], c("mu", "log_tau"))
   expect_length(formula_args[["formula_random_prior_list"]], 0L)
   expect_length(formula_args[["formula_random_effects_compile_list"]], 0L)
-  expect_length(formula_args[["add_parameters"]], 0L)
   expect_true(isTRUE(attr(formula_args[["formula_list"]][["log_tau"]], "log(intercept)")))
 })
 
@@ -1207,4 +1207,45 @@ test_that("set_contrast_factor_predictors options are applied", {
     ),
     regexp = "set_contrast_factor_predictors"
   )
+})
+
+
+test_that("support restriction rejects empty continuous truncation intervals", {
+
+  negative <- BayesTools::prior("normal", list(0, 1), list(-Inf, -1))
+  above <- BayesTools::prior("normal", list(0, 1), list(1.2, 2))
+  expect_warning(expect_error(.check_prior.heterogeneity(negative),
+    "The 'prior_heterogeneity' prior has an empty truncation interval after support restriction.", fixed = TRUE),
+    "Lower truncation point", fixed = TRUE)
+  expect_warning(expect_error(.check_prior.restricted_01(above, "prior_heterogeneity_allocation"),
+    "The 'prior_heterogeneity_allocation' prior has an empty truncation interval after support restriction.", fixed = TRUE),
+    "Upper truncation point", fixed = TRUE)
+  expect_silent(.check_prior.heterogeneity(BayesTools::prior("normal", list(0, 1), list(0, Inf))))
+  expect_silent(.check_prior.restricted_01(BayesTools::prior("normal", list(0, 1), list(0, 1)), "allocation"))
+  for (boundary in c(0, 1)) {
+    expect_silent(.check_prior.restricted_01(BayesTools::prior("point", list(boundary)), "allocation"))
+  }
+})
+
+
+test_that("unit-information SD inputs remain positive complete and finite", {
+
+  for (argument in c("sei", "ni")) {
+    for (value in list(numeric(), Inf, -Inf, NA_real_, 0, -1)) {
+      args <- list(sei = 1, ni = 1)
+      args[[argument]] <- value
+      expect_error(do.call(estimate_unit_information_sd, args), paste0("'", argument, "'"), fixed = TRUE)
+    }
+  }
+  expect_error(estimate_unit_information_sd(c(1, 2), 1), "'ni'", fixed = TRUE)
+  small <- estimate_unit_information_sd(1e-100, 1)
+  expect_gt(small, 0)
+  expect_lte(abs(small / 1e-100 - 1), 1e-14)
+  expect_equal(estimate_unit_information_sd(1, 1e100), 1e50, tolerance = 1e-14)
+  expect_equal(estimate_unit_information_sd(c(.2, .3), c(20, 30)),
+    sqrt(50 / (.2^(-2) + .3^(-2))))
+  expect_error(brma(yi = c(.1, .2), sei = c(.2, .3),
+    measure = "GEN", only_priors = TRUE),
+    "Sample size 'ni' or unit information sd 'prior_unit_information_sd' must be specified to set-up prior distributions without known UISD.",
+    fixed = TRUE)
 })

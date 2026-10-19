@@ -430,3 +430,13 @@ test_that("GLMM estimate-level factor priors declare complete factor levels", {
     }
   }
 })
+
+
+test_that("BMA.glmm declares mean-difference factor defaults", {
+
+  dat <- transform(test_data_bin, group = factor(c("a", "b", "a")))
+  object <- BMA.glmm(ai = ai, bi = bi, ci = ci, di = di, mods = ~ group,
+                     data = dat, measure = "OR", only_priors = TRUE)
+  expect_identical(attr(object[["data"]], "set_contrast_factor_predictors"), "meandif")
+  expect_s3_class(object[["priors"]][["mods"]][["group"]][[1L]], "prior.meandif")
+})

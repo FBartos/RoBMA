@@ -32,8 +32,10 @@
 #' exactly as \eqn{\mathrm{diag}(d) + U U^\mathsf{T}}. Other blocks that are
 #' exactly a diagonal plus a few loading columns, such as covariance from
 #' overlapping samples, shared control arms, or partially shared raters, are
-#' recovered by a minimum-rank search that stops at the kernel rank cap and at
-#' the Ledermann bound. The recovered representation must reproduce the
+#' recovered by a rank search that stops at the first successful candidate,
+#' the kernel rank cap, or the Ledermann bound. It finds the smallest rank
+#' reached by that search, without certifying the minimum possible rank. The
+#' recovered representation must reproduce the
 #' supplied entries to working precision; blocks that do not, such as
 #' autoregressive `phi` structures, keep the general route with the supplied
 #' entries. `V` remains the stored covariance either way. Use

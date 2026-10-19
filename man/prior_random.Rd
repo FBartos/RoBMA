@@ -174,8 +174,9 @@ correlations near zero; \code{eta = 1} is uniform over correlation matrices.}
 \item{cor_scale}{scale for an explicitly supplied scalar \code{cor} prior.
 \code{"fisher_z"} places it on \code{atanh(cor)} and is the default; \code{"cor"} uses
 raw correlation; \code{"logit"} uses a logit transform of the admissible raw
-interval. An omitted \code{cor} always receives the raw-uniform default after
-the structure and dimension are resolved.}
+interval. An omitted \code{cor} receives \code{LKJ(1)} for US/UN and the
+structure-specific raw-uniform default for scalar correlations after the
+structure and dimension are resolved.}
 
 \item{include_correlation}{whether \code{prior_lkj()} requests monitoring of the
 semantic correlation matrix.}
@@ -293,7 +294,7 @@ Standard-deviation priors must have nonnegative support. Scalar-correlation
 structures use \code{cor} in \code{random_covariance()}; \code{cor_scale = "fisher_z"}
 places the prior on Fisher's z, whereas \code{cor_scale = "cor"} places it on the
 raw correlation. When omitted, CS/HCS receive a uniform prior over
-\verb{(-1 / (K - 1), 1)}, AR1/HAR over \verb{(-1, 1)}, and CAR over \verb{(0, 1)}.
+\verb{(-1 / (K - 1), 1)}, AR1/HAR over \verb{(-1, 1)}, and CAR over \verb{[0, 1)}.
 Unstructured \code{us()} blocks default to \code{prior_lkj(eta = 1)}. Values of \code{eta}
 above one shrink correlations toward zero; \code{eta = 1} is uniform over
 correlation matrices.

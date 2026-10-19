@@ -44,7 +44,8 @@
 #' fully replaced without a consumer raise `RoBMA_prior_intercept_conflict`.
 #' @param prior_heterogeneity_allocation prior distribution for the fraction of
 #' heterogeneity allocated to the cluster-level component in multilevel models
-#' (\eqn{\rho}). If omitted or `NULL`, defaults to `Beta(1, 1)`. This argument
+#' (\eqn{\rho}, a variance fraction rather than a random-coefficient
+#' correlation). If omitted or `NULL`, defaults to `Beta(1, 1)`. This argument
 #' can be specified only when `cluster` is specified.
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
 #' base-rate probability in binomial GLMM models (`measure = "OR"`). If omitted
@@ -62,9 +63,10 @@
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.
-#' Point and none priors are unchanged. For constructors with publication-bias
-#' prior distributions, `rescale_priors` does not rescale them except for the
-#' default PEESE prior's UISD adjustment. Defaults to 1.
+#' Point and none priors are unchanged; supplied `prior_random()` scale
+#' architectures and publication-bias priors are not rescaled. The default
+#' PEESE prior separately uses its documented UISD adjustment, independently of
+#' `rescale_priors`. Defaults to 1.
 #' @param standardize_continuous_predictors logical. Whether to standardize continuous predictors.
 #' Defaults to `TRUE`.
 #' @param set_contrast_factor_predictors character. How to set contrast for factor predictors.
@@ -328,7 +330,7 @@ NULL
 #' `hcs()` \tab index levels \tab one per level \tab `Uniform(-1 / (K - 1), 1)` on raw `cor` \cr
 #' `ar1()` / `ar()` \tab ordered index \tab one shared SD \tab `Uniform(-1, 1)` on raw `cor` \cr
 #' `har()` \tab ordered index \tab one per level \tab `Uniform(-1, 1)` on raw `cor` \cr
-#' `car()` \tab numeric coordinates \tab one shared SD \tab `Uniform(0, 1)` on raw `cor`
+#' `car()` \tab numeric coordinates \tab one shared SD \tab `Uniform(0, 1)` on raw `cor`, supported on `[0, 1)`
 #' }
 #'
 #' Correlation priors are added after the formula basis and \eqn{K} are
@@ -362,9 +364,11 @@ NULL
 #'   components are `tau2_mult(...)` and `tau_mult(...)`.
 #' }
 #'
-#' Consequently, the base prior always controls a clearly defined total or
-#' average variance scale; it is not independently copied to every SD when that
-#' would make the implied total variance grow with the number of components.
+#' Without component-specific scale models, the base prior controls a shared
+#' total or average variance scale. Component-specific or partial `scale`
+#' models instead create independent roots for the targeted components; every
+#' unscaled component retains its own base SD prior. Splits remain within each
+#' component, so their combined variance is not governed by one global total prior.
 #'
 #' ## Public random-effect parameter names
 #'
@@ -459,9 +463,10 @@ NULL
 #' row-wise total random-effect standard deviation. With one top-level
 #' random-effect component, a single `scale` formula is unambiguous. With
 #' multiple top-level random-effect components, `scale` must be a named list
-#' whose names match the random-effect components. The random-effect allocation
-#' rules then split the row-wise standard-deviation source rather than a scalar
-#' total SD parameter. The `prior_scale` argument controls the scale-regression
+#' whose names identify the targeted components or concrete blocks. Each
+#' target has its own row-wise SD root and its allocations split within that
+#' component; untargeted components retain independent base SD roots. The
+#' `prior_scale` argument controls the scale-regression
 #' coefficients. A custom `prior_random()` containing explicit SD architecture
 #' must agree with these row-shaped scale sources; incompatible sources are
 #' rejected rather than silently replaced.
@@ -479,6 +484,11 @@ NULL
 #'
 #' @examples
 #' \dontrun{
+#' dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4),
+#'                   ni = rep(40, 4), study = rep(c("a", "b"), each = 2),
+#'                   group = factor(rep(c("control", "treatment"), 2)))
+#' V <- diag(rep(0.04, nrow(dat)))
+#' group_prior <- prior_factor("normal", list(0, 1), contrast = "independent")
 #' random_prior <- prior_random(
 #'   study = random_block(contrasts = c(group = "independent"))
 #' )
@@ -631,10 +641,18 @@ NULL
 #' specified. For a formula without an intercept (`~ 0 + x`), an `intercept`
 #' entry other than a point prior at zero stops with an error of class
 #' `RoBMA_prior_intercept_conflict` (also of class `RoBMA_prior_error`).
+#' A named alternative `intercept` is the complete prior, including any mixture;
+#' it replaces the global effect mixture. Specify it in one place: null-list
+#' intercepts and explicit global effect declarations left without a consumer
+#' are refused. Ordinary term entries replace only their alternative component.
 #' @param prior_scale prior distribution(s) for alternative scale-regression
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `scale`
-#' is specified.
+#' is specified. A named alternative `intercept` supplies the complete positive
+#' SD prior used by `log(intercept)`. Global heterogeneity declarations remain
+#' meaningful when they supply another random root or its inclusion weights;
+#' declarations replaced without a consumer are refused. Null-list intercept
+#' declarations are unavailable.
 #' @param prior_heterogeneity_allocation prior distribution(s) for the
 #' alternative cluster-level heterogeneity allocation component(s). This
 #' argument can be specified only when `cluster` is specified.
@@ -763,9 +781,17 @@ NULL
 #'   \item `prior_bias_null = NULL` or `FALSE`: No "no bias" model (assumes some bias mechanism)
 #'   \item `prior_bias = NULL` or `FALSE`: No bias model (assumes no bias mechanism)
 #' }
-#' For moderator and scale regression terms, an omitted or whole-argument `NULL`
-#' `prior_mods` / `prior_scale` means "use defaults". To omit a component for a
-#' specific term, use a named list entry such as `prior_mods_null = list(x1 = NULL)`.
+#' For moderator and scale formula priors, an omitted or whole-argument
+#' `NULL` uses the corresponding default. Whole-argument `FALSE` is not a
+#' supported shortcut for omitting every term. Omit a particular alternative or
+#' null component with a named `NULL` or `FALSE` entry, for example
+#' `prior_mods_null = list(x1 = NULL)`. Ordinary named terms replace only that
+#' alternative or null component. A named alternative `intercept` instead
+#' supplies the complete intercept prior, including any desired mixture.
+#' Null-list intercept declarations are refused, as are explicit global priors
+#' discarded without a consumer. A global heterogeneity declaration can still
+#' supply an unscaled root or component-inclusion weights when scale intercepts
+#' have their own priors; retain it when it has such a consumer.
 #'
 #' An ordered term's mixture belongs on its scalar total. Supply the complete
 #' `prior_ordered(total = ...)` in one term component and omit the separate term
@@ -999,7 +1025,7 @@ NULL
     # compute sd based on the sample sizes for the general effect sizes
     ni <- data[["outcome"]][["ni"]]
     if (all(is.na(ni))) {
-      stop("Sample size 'ni' or unit information sd 'unit_information_sd' must be specified to set-up prior distributions without known UISD.", call. = FALSE)
+      stop("Sample size 'ni' or unit information sd 'prior_unit_information_sd' must be specified to set-up prior distributions without known UISD.", call. = FALSE)
     }
     if (any(is.na(ni))) {
       stop("Sample size 'ni' must be complete to estimate unit information sd for measures without known UISD.", call. = FALSE)
@@ -1030,7 +1056,7 @@ NULL
 }
 
 # computes the unit information based on data
-# based on Eq. 6 of RÃ¶ver, C., Bender, R., Dias, S., Schmid, C. H., Schmidli, H., Sturtz, S., ... & Friede, T. (2021). On weakly informative prior distributions for the heterogeneity parameter in Bayesian randomâ€effects metaâ€analysis. Research Synthesis Methods, 12(4), 448-474. 10.1002/jrsm.1475
+# based on Eq. 6 of Röver, C., Bender, R., Dias, S., Schmid, C. H., Schmidli, H., Sturtz, S., ... & Friede, T. (2021). On weakly informative prior distributions for the heterogeneity parameter in Bayesian random-effects meta-analysis. Research Synthesis Methods, 12(4), 448-474. 10.1002/jrsm.1475
 .get_unit_information_sd.norm <- function(sei, ni) {
 
   UISD <- sqrt(sum(ni) / sum(sei^(-2)))
@@ -1044,9 +1070,9 @@ NULL
 #' sample sizes and standard errors. The UISD is used to scale weakly informative
 #' prior distributions for meta-analytic parameters.
 #'
-#' @param sei a complete numeric vector of strictly positive standard errors
-#' for each study.
-#' @param ni a complete numeric vector of strictly positive sample sizes for
+#' @param sei a non-empty complete numeric vector of finite strictly positive
+#' standard errors for each study.
+#' @param ni a complete numeric vector of finite strictly positive sample sizes for
 #' each study, with the same length as `sei`.
 #'
 #' @details
@@ -1076,8 +1102,16 @@ NULL
 #' @export
 estimate_unit_information_sd <- function(sei, ni) {
 
-  BayesTools::check_real(sei, "sei", lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = FALSE)
+  BayesTools::check_real(sei, "sei", lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = 0)
   BayesTools::check_real(ni,  "ni",  lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = length(sei))
+
+  for (argument in c("sei", "ni")) {
+    value <- if (argument == "sei") sei else ni
+    if (any(!is.finite(value))) {
+      stop("The '", argument, "' argument must contain only finite values.",
+           call. = FALSE)
+    }
+  }
 
   return(.get_unit_information_sd.norm(sei = sei, ni = ni))
 }

@@ -90,14 +90,19 @@ levels. This is distinct from the known sampling covariance \code{V}.}
 
 \item{Rscale}{scaling applied to each supplied \code{R} matrix before fitting.
 Supported values are \code{"cor"}, \code{"none"}, \code{"cor0"}, \code{"cov0"}, with
-metafor-compatible aliases \code{TRUE}, \code{FALSE}, \code{0}, \code{1}, \code{2}, and \code{3}.}
+metafor-compatible aliases \code{TRUE}, \code{FALSE}, \code{0}, \code{1}, \code{2}, and \code{3}.
+An unnamed scalar is recycled across all supplied matrices. A vector or list
+can specify one scaling value per named \code{R} entry, with exactly matching
+names. An unnamed one-element list is supported only for a single \code{R} matrix.}
 
 \item{data}{an optional data frame containing the variables.}
 
 \item{slab}{an optional vector of study labels.}
 
 \item{subset}{an optional logical or numeric vector specifying a subset of
-data to be used.}
+data to be used. Subsetting precedes missing-row removal; retained-row
+outcome and predictor checks follow these steps. Type, shape, and existing
+extraction checks can still reject malformed inputs before subsetting.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support
@@ -163,9 +168,10 @@ or use \code{set_contrast_factor_predictors = "treatment"}.}
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged. For constructors with publication-bias
-prior distributions, \code{rescale_priors} does not rescale them except for the
-default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged; supplied \code{prior_random()} scale
+architectures and publication-bias priors are not rescaled. The default
+PEESE prior separately uses its documented UISD adjustment, independently of
+\code{rescale_priors}. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
@@ -234,12 +240,15 @@ eigen-rotated likelihood (\code{known_v_parameterization = "whitened"}), or
 through an exact native block multivariate-normal likelihood
 (\code{known_v_parameterization = "block_mvn"}). The default
 \code{known_v_parameterization = "auto"} chooses the whitened backend whenever the
-extra diagonal variance is scalar, otherwise chooses block-MVN when the
+extra diagonal variance is scalar and no scale regression is present,
+otherwise chooses block-MVN when the
 largest dense covariance block is at or below the configured feasibility
 threshold, and falls back to the latent backend for large blocks. The automatic
 block-MVN threshold defaults to 128 rows per covariance block and can be
 changed with \code{options(RoBMA.known_v_block_mvn_max_block_size = value)}, where
-\code{value} is a positive integer or \code{Inf}.
+\code{value} is a positive integer or \code{Inf}. Correlated \code{V} with scale regression
+cannot use \code{"whitened"}; request \code{"block_mvn"} explicitly if an automatic
+latent decomposition is unavailable for a nearly singular block.
 Covariance inputs retain their symmetric representation. Numerical
 positive-semidefinite checks use standardized correlations so small marginal
 variances are not mistaken for null directions. At a numerically singular

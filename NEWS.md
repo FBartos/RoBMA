@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Prior support restrictions reject empty intervals, and unit-information
+  inputs require finite values. Formula warnings and help retain declared
+  component roots, complete intercept priors and ordered-factor semantics.
 - Retained outcomes, sample sizes and exposures must be finite. Constructor
   controls and known-covariance diagnostics report their actual arguments and rank.
 - Chain continuation retains fitted runtime controls and avoids rebuilding

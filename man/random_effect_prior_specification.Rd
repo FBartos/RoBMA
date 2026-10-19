@@ -130,7 +130,7 @@ plain \code{|}, \code{us()} / \code{un()} \tab coefficients \tab one per column 
 \code{hcs()} \tab index levels \tab one per level \tab \code{Uniform(-1 / (K - 1), 1)} on raw \code{cor} \cr
 \code{ar1()} / \code{ar()} \tab ordered index \tab one shared SD \tab \code{Uniform(-1, 1)} on raw \code{cor} \cr
 \code{har()} \tab ordered index \tab one per level \tab \code{Uniform(-1, 1)} on raw \code{cor} \cr
-\code{car()} \tab numeric coordinates \tab one shared SD \tab \code{Uniform(0, 1)} on raw \code{cor}
+\code{car()} \tab numeric coordinates \tab one shared SD \tab \code{Uniform(0, 1)} on raw \code{cor}, supported on \code{[0, 1)}
 }
 
 Correlation priors are added after the formula basis and \eqn{K} are
@@ -165,9 +165,11 @@ The public aggregate quantities are \code{tau_common} and \code{tau2_common};
 components are \code{tau2_mult(...)} and \code{tau_mult(...)}.
 }
 
-Consequently, the base prior always controls a clearly defined total or
-average variance scale; it is not independently copied to every SD when that
-would make the implied total variance grow with the number of components.
+Without component-specific scale models, the base prior controls a shared
+total or average variance scale. Component-specific or partial \code{scale}
+models instead create independent roots for the targeted components; every
+unscaled component retains its own base SD prior. Splits remain within each
+component, so their combined variance is not governed by one global total prior.
 }
 
 \subsection{Public random-effect parameter names}{
@@ -265,9 +267,10 @@ When \code{scale} is used together with \code{random}, the scale model targets t
 row-wise total random-effect standard deviation. With one top-level
 random-effect component, a single \code{scale} formula is unambiguous. With
 multiple top-level random-effect components, \code{scale} must be a named list
-whose names match the random-effect components. The random-effect allocation
-rules then split the row-wise standard-deviation source rather than a scalar
-total SD parameter. The \code{prior_scale} argument controls the scale-regression
+whose names identify the targeted components or concrete blocks. Each
+target has its own row-wise SD root and its allocations split within that
+component; untargeted components retain independent base SD roots. The
+\code{prior_scale} argument controls the scale-regression
 coefficients. A custom \code{prior_random()} containing explicit SD architecture
 must agree with these row-shaped scale sources; incompatible sources are
 rejected rather than silently replaced.
@@ -287,6 +290,11 @@ fitted RoBMA selectors use \code{tau_total} and \code{tau_common}, respectively.
 }
 \examples{
 \dontrun{
+dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4),
+                  ni = rep(40, 4), study = rep(c("a", "b"), each = 2),
+                  group = factor(rep(c("control", "treatment"), 2)))
+V <- diag(rep(0.04, nrow(dat)))
+group_prior <- prior_factor("normal", list(0, 1), contrast = "independent")
 random_prior <- prior_random(
   study = random_block(contrasts = c(group = "independent"))
 )

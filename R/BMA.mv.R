@@ -5,8 +5,8 @@
 #' effects. Random structures supplied through `random` are model-averaged with
 #' independent component gates.
 #'
-#' @inheritParams brma.mv
 #' @inheritParams RoBMA_prior_specification
+#' @inheritParams brma.mv
 #'
 #' @details
 #' Omitted or NULL `random` specifies no heterogeneity and no random-effect
@@ -33,6 +33,10 @@
 #' while `prior_heterogeneity = NULL` or `FALSE` fixes them off. Nested random
 #' terms are gated as one top-level component before their internal Dirichlet
 #' split.
+#' Component-specific or partial scale models instead have independent SD roots,
+#' with allocation within each component; unscaled components keep their own
+#' base SD prior. See \code{\link{random_effect_prior_specification}}.
+#'
 #'
 #' A partial [BayesTools::prior_random()] supplied through
 #' `prior_heterogeneity` may override contrasts, correlations, monitoring, and

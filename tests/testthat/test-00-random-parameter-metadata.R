@@ -62,7 +62,8 @@ make_random_metadata_catalog <- function(summaries, mappings) {
         source_parameter = mapping[["source_parameter"]],
         source_prior = mapping[["source_prior"]],
         source_transform = mapping[["source_transform"]],
-        source_scale = mapping[["source_scale"]]
+        source_scale = mapping[["source_scale"]],
+        allocation_derived = mapping[["allocation_derived"]]
       )
     )
   })
@@ -351,7 +352,9 @@ test_that("random-parameter sources are consumed from the BayesTools catalog", {
     mapping("random_var_prop", "variance_allocation", "total", "var_prop", "a",
             source_parameter = "weight", source_prior = "weight"),
     mapping("random_sd", "random_block", "study", "sd", "a",
-            source_parameter = "sd_a", source_prior = "sd_a"),
+            source_type = "composite", source_transform = "random_sd",
+            source_scale = NA_real_,
+            allocation_derived = TRUE),
     mapping("random_correlation", "random_block", "study", "cor",
             source_parameter = "study_rho_z", source_prior = "study_rho_z",
             source_type = "one_to_one_transform",
@@ -365,15 +368,18 @@ test_that("random-parameter sources are consumed from the BayesTools catalog", {
 
   expect_equal(
     specs[["source_parameter"]],
-    c("total_source", "weight", "sd_a", "study_rho_z", "")
+    c("total_source", "weight", "", "study_rho_z", "")
   )
   expect_equal(
     specs[["source_type"]],
-    c("identity", "identity", "identity", "one_to_one_transform", "composite")
+    c("identity", "identity", "composite", "one_to_one_transform", "composite")
   )
   expect_equal(specs[["owner_name"]], c("total", "total", rep("study", 3L)))
   expect_identical(specs[["source_transform"]][4L], "fisher_z")
-  expect_false(any(specs[["allocation_derived"]]))
+  expect_identical(specs[["allocation_derived"]], c(FALSE, FALSE, TRUE, FALSE, FALSE))
+  # Missing extraction metadata keeps its documented FALSE default.
+  catalog[["quantities"]][["extraction_key"]][[3L]][["allocation_derived"]] <- NULL
+  expect_false(any(.brma_random_parameter_specs(catalog[["quantities"]])[["allocation_derived"]]))
 })
 
 

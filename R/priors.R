@@ -61,8 +61,10 @@ prior_factor <- BayesTools::prior_factor
 #' total effect from its allocation across ordered-level increments.
 #'
 #' @inheritParams prior
-#' @param total scalar prior for the total effect from the first to the last
-#' ordered level.
+#' @param total scalar prior for the sum of ordered increments. With
+#' `"cumulative"`, this is the first-to-last level difference; with
+#' `"cumulative_levels"`, it is the last level's effect relative to the zero
+#' baseline preceding the first level.
 #' @param allocation allocation prior or fixed split. \code{NULL} creates a
 #' late-bound flat Dirichlet allocation with dimension determined by the formula
 #' term. Numeric vectors specify fixed splits. Dirichlet priors specify random
@@ -71,12 +73,16 @@ prior_factor <- BayesTools::prior_factor
 #' \code{nlevels(f) - 1} increments and sets the first level effect to zero.
 #' \code{"cumulative_levels"} uses \code{nlevels(f)} increments and gives the
 #' first level a non-zero allocation share.
-#' @param id optional allocation-sharing id. For terms with multiple ordered
-#' factors, use a named character vector.
+#' @param id optional allocation-sharing id. Equal ids share compatible
+#' allocation weights, not the total-effect prior. For terms with multiple
+#' ordered factors, use a named character vector.
 #'
 #' @details This is RoBMA's re-export of \code{BayesTools::prior_ordered()}.
 #' Spike-and-slab or mixture behavior belongs on \code{total}, e.g.,
 #' \code{prior_ordered(prior_spike_and_slab(...))}.
+#' Unsupported ordered combinations raise typed
+#' `BayesTools_ordered_unavailable` conditions; constructor support does not
+#' imply support for every post-fit operation.
 #'
 #' @return An object inheriting from \code{prior}.
 #'

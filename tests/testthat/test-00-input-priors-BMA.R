@@ -224,3 +224,29 @@ test_that("BMA constructors reject bias and model arguments passed through dots"
     "Unused argument.*prior_bias"
   )
 })
+
+
+test_that("default independent formula warning is emitted once per ensemble formula", {
+
+  dat <- data.frame(yi = c(.1, .2, .3, .4), sei = rep(.2, 4),
+                    group = factor(rep(c("a", "b"), 2)))
+  messages <- character()
+  withCallingHandlers(BMA(yi = yi, sei = sei, mods = ~ group, data = dat,
+    set_contrast_factor_predictors = "independent", measure = "SMD", only_priors = TRUE),
+    warning = function(warning) {
+      messages <<- c(messages, conditionMessage(warning))
+      invokeRestart("muffleWarning")
+    })
+  expect_equal(sum(grepl("The 'mods' formula is overspecified", messages, fixed = TRUE)), 1L)
+  messages <- character()
+  withCallingHandlers(BMA(yi = yi, sei = sei, scale = ~ 0 + group, data = dat,
+    set_contrast_factor_predictors = "independent", measure = "SMD", only_priors = TRUE),
+    warning = function(warning) {
+      messages <<- c(messages, conditionMessage(warning))
+      invokeRestart("muffleWarning")
+    })
+  scale_message <- messages[grepl("The 'scale' formula is overspecified", messages, fixed = TRUE)]
+  expect_length(scale_message, 1L)
+  expect_match(scale_message, "'prior_scale'", fixed = TRUE)
+  expect_false(any(grepl("scale = ~ 0", scale_message, fixed = TRUE)))
+})

@@ -78,7 +78,9 @@ meta-analysis.}
 \item{slab}{an optional vector of study labels.}
 
 \item{subset}{an optional logical or numeric vector specifying a subset of
-data to be used.}
+data to be used. Subsetting precedes missing-row removal; retained-row
+outcome and predictor checks follow these steps. Type, shape, and existing
+extraction checks can still reject malformed inputs before subsetting.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support

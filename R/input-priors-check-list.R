@@ -7,10 +7,6 @@
 }
 .check_prior.heterogeneity            <- function(prior, prior_name = "prior_heterogeneity") {
 
-  if (.is_prior_random(prior)) {
-    return(prior)
-  }
-
   prior <- .check_prior.simple_or_point(prior, prior_name = prior_name)
 
   # check range restriction
@@ -21,6 +17,13 @@
     warning(paste0("Lower truncation point for '", prior_name, "' prior distribution must be at least 0. The prior distribution was modified."),
             immediate. = TRUE, call. = FALSE)
     prior[["truncation"]][["lower"]] <- 0
+  }
+
+  if (!BayesTools::is.prior.point(prior) &&
+      prior[["truncation"]][["lower"]] >= prior[["truncation"]][["upper"]]) {
+    stop("The '", prior_name,
+         "' prior has an empty truncation interval after support restriction.",
+         call. = FALSE)
   }
 
   return(prior)
@@ -57,6 +60,13 @@
     warning(sprintf("Upper truncation point for '%s' prior distribution must be at most 1. The prior distribution was modified.", prior_name),
             immediate. = TRUE, call. = FALSE)
     prior[["truncation"]][["upper"]] <- 1
+  }
+
+  if (!BayesTools::is.prior.point(prior) &&
+      prior[["truncation"]][["lower"]] >= prior[["truncation"]][["upper"]]) {
+    stop("The '", prior_name,
+         "' prior has an empty truncation interval after support restriction.",
+         call. = FALSE)
   }
 
   return(prior)
@@ -427,21 +437,21 @@
   if (.is_data_multilevel(data)) {
     prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation(prior = prior_heterogeneity_allocation)
     # gamma is an auxiliary parameter for non-centered random-effects parameterization (cluster-level)
-    prior_outcome[["gamma"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+    prior_outcome[["gamma"]] <- BayesTools::prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for glmm models of OR
   if (.data_outcome_type(data) == "bin") {
     prior_outcome[["pi"]]    <- .assign_prior.baserate(prior = prior_baserate)
     # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
     # (these are marginalized in the normal model)
-    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+    prior_outcome[["theta"]] <- BayesTools::prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for glmm models of IRR
   if (.data_outcome_type(data) == "pois") {
     prior_outcome[["phi"]] <- .assign_prior.lograte(prior = prior_lograte, data)
     # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
     # (these are marginalized in the normal model)
-    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+    prior_outcome[["theta"]] <- BayesTools::prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for selection / PET / PEESE models
   if (!missing(bias_type)) {
@@ -481,20 +491,22 @@
   )
 
   if (is_random) {
-    preview_defaults <- .assign_prior.random_preview_defaults(data, prior_random_sd)
-    preview_prior <- if (is_random_prior_heterogeneity) {
-      .assign_prior.random_complete(
-        prior    = prior_heterogeneity,
-        defaults = preview_defaults
+    if (!is_random_prior_heterogeneity || random_prior_needs_default_scale) {
+      preview_defaults <- .assign_prior.random_preview_defaults(data, prior_random_sd)
+      preview_prior <- if (is_random_prior_heterogeneity) {
+        .assign_prior.random_complete(
+          prior    = prior_heterogeneity,
+          defaults = preview_defaults
+        )
+      } else {
+        preview_defaults
+      }
+      random_formula_design <- .compile_prior_random_formula_design(
+        data           = data,
+        prior_location = prior_location,
+        prior_random   = preview_prior
       )
-    } else {
-      preview_defaults
     }
-    random_formula_design <- .compile_prior_random_formula_design(
-      data           = data,
-      prior_location = prior_location,
-      prior_random   = preview_prior
-    )
     prior_random <- if (is_random_prior_heterogeneity) {
       if (random_prior_needs_default_scale) {
         random_defaults <- .assign_prior.random(
@@ -734,21 +746,21 @@
     prior_outcome[["rho"]]   <- .assign_prior.heterogeneity_allocation_mixture(
       prior = prior_heterogeneity_allocation, prior_null = prior_heterogeneity_allocation_null)
     # gamma is an auxiliary parameter for non-centered random-effects parameterization (cluster-level)
-    prior_outcome[["gamma"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+    prior_outcome[["gamma"]] <- BayesTools::prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for glmm models of OR
   if (.data_outcome_type(data) == "bin") {
     prior_outcome[["pi"]]    <- .assign_prior.baserate(prior = prior_baserate)
     # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
     # (these are marginalized in the normal model)
-    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+    prior_outcome[["theta"]] <- BayesTools::prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for glmm models of IRR
   if (.data_outcome_type(data) == "pois") {
     prior_outcome[["phi"]] <- .assign_prior.lograte(prior = prior_lograte, data)
     # theta is an auxiliary parameter for non-centered random-effects parameterization (for estimate-level)
     # (these are marginalized in the normal model)
-    prior_outcome[["theta"]] <- prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
+    prior_outcome[["theta"]] <- BayesTools::prior_factor("normal", parameters = list("mean" = 0, "sd" = 1), contrast = "independent")
   }
   # only for RoBMA
   if (!missing(model_type)) {

@@ -92,7 +92,11 @@ Complete its scale with RoBMA's ordinary UISD/allocation rules while preserving
 the user's contrasts, covariance priors, and policies. When any scale
 architecture is supplied, do not merge additional scale defaults. Correlation
 defaults remain BayesTools-owned: omitted US/UN uses `LKJ(1)` and omitted scalar
-correlations use the complete structure-specific raw interval.
+correlations use the complete structure-specific raw interval (CAR includes
+zero and excludes one). Component-specific or partial scale models have
+independent SD roots; allocations split within each component and unscaled
+components retain their own base SD. A global total prior applies only to
+the shared architecture without component-specific scale roots.
 
 ## Parameter metadata and naming
 
@@ -200,8 +204,9 @@ Wrappers prepend their class, for example `c("BMA.norm", "RoBMA", "brma")` and
 `c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`.
 
 Primary constructors are `brma()`, `brma.norm()`, `brma.glmm()`, `brma.mv()`,
-`bselmodel()`, `bPET()`, `bPEESE()`, `RoBMA()`, `BMA()`, `BMA.norm()`, and
-`BMA.glmm()`.
+`bselmodel()`, `bselmodel.mv()`, `bPET()`, `bPET.mv()`, `bPEESE()`,
+`bPEESE.mv()`, `RoBMA()`, `RoBMA.mv()`, `BMA()`, `BMA.norm()`, `BMA.mv()`,
+and `BMA.glmm()`.
 
 Follow existing S3 result families. For method-specific results, prefer
 `<generic>.<input_class>` with matching print/summary methods and retain useful

@@ -105,7 +105,8 @@
   term_positions <- match(default_factor_terms, model_terms)
   term_assign <- term_positions - as.integer(has_compiled_intercept)
   selected_assign <- term_assign
-  has_formula_intercept <- attr(stats::terms(formula), "intercept") == 1L
+  has_formula_intercept <- has_compiled_intercept &&
+    (parameter == "scale" || attr(stats::terms(formula), "intercept") == 1L)
   if (has_formula_intercept) {
     selected_assign <- c(0L, selected_assign)
   }
@@ -118,7 +119,9 @@
     return(invisible(FALSE))
   }
 
-  remedy <- if (has_formula_intercept) {
+  remedy <- if (parameter == "scale") {
+    "Set identifiable contrasts with 'prior_scale'; scale regression retains an intercept."
+  } else if (has_formula_intercept) {
     paste0(
       "Suppress the intercept with '", parameter,
       " = ~ 0 + ...', use independent coding for at most one factor term, "
@@ -132,7 +135,7 @@
     "the affected design has ", ncol(affected_matrix),
     " columns but rank ", affected_rank, ". ",
     remedy,
-    "or set identifiable contrasts with 'prior_", parameter, "'.",
+    if (parameter != "scale") paste0("or set identifiable contrasts with 'prior_", parameter, "'."),
     call. = FALSE
   )
 
@@ -350,13 +353,15 @@
     formula    = formula,
     prior_list = prior_list
   )
-  .warn_default_independent_fixed_overspecification(
-    formula_design       = formula_result[["formula_design"]],
-    formula              = formula,
-    explicit_prior_names = explicit_prior_names,
-    parameter            = parameter,
-    contrast             = attr(data, "set_contrast_factor_predictors")
-  )
+  if (!set_default_spike) {
+    .warn_default_independent_fixed_overspecification(
+      formula_design       = formula_result[["formula_design"]],
+      formula              = formula,
+      explicit_prior_names = explicit_prior_names,
+      parameter            = parameter,
+      contrast             = attr(data, "set_contrast_factor_predictors")
+    )
+  }
   # The assigned priors are named by their formula terms (the name map of the
   # formula relates the coefficient names to the terms).
   prior_list <- formula_result[["prior_list"]]

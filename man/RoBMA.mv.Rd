@@ -100,14 +100,19 @@ levels. This is distinct from the known sampling covariance \code{V}.}
 
 \item{Rscale}{scaling applied to each supplied \code{R} matrix before fitting.
 Supported values are \code{"cor"}, \code{"none"}, \code{"cor0"}, \code{"cov0"}, with
-metafor-compatible aliases \code{TRUE}, \code{FALSE}, \code{0}, \code{1}, \code{2}, and \code{3}.}
+metafor-compatible aliases \code{TRUE}, \code{FALSE}, \code{0}, \code{1}, \code{2}, and \code{3}.
+An unnamed scalar is recycled across all supplied matrices. A vector or list
+can specify one scaling value per named \code{R} entry, with exactly matching
+names. An unnamed one-element list is supported only for a single \code{R} matrix.}
 
 \item{data}{an optional data frame containing the variables.}
 
 \item{slab}{an optional vector of study labels.}
 
 \item{subset}{an optional logical or numeric vector specifying a subset of
-data to be used.}
+data to be used. Subsetting precedes missing-row removal; retained-row
+outcome and predictor checks follow these steps. Type, shape, and existing
+extraction checks can still reject malformed inputs before subsetting.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support
@@ -121,38 +126,31 @@ standard deviation. GLMM raw-count constructors support only \code{"OR"} and
 likely to be selected; \code{"negative"} mirrors the selection direction;
 \code{"detect"} infers the direction from the fitted data.}
 
-\item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
-(the intercept). If omitted and consumed, a default prior is constructed. In single-model
-functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+\item{prior_effect}{prior distribution(s) for the alternative effect
+component(s).}
 
-\item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
-parameter. If omitted and consumed, a default prior is constructed. In single-model
-functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero. For
-\code{\link{brma.mv}} random-effect formulas, this can also be a partial or
-complete \code{\link{prior_random}} object; see
-\code{\link{random_effect_prior_specification}}.}
+\item{prior_heterogeneity}{prior distribution(s) for the alternative
+heterogeneity component(s).}
 
-\item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
-A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{mods} is specified. A formula without an intercept
-(\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
-the list is accepted only as a point prior at zero; any other \code{intercept}
-prior stops with an error of class \code{RoBMA_prior_intercept_conflict} (also of
-class \code{RoBMA_prior_error}).
-A named \code{intercept} entry supplies the complete intercept prior. Explicit
-competing global effect declarations are refused when this would discard
-them. Named \code{NULL} or \code{FALSE} intercept entries are invalid; specify the
-complete prior in one place.}
+\item{prior_mods}{prior distribution(s) for alternative moderator
+components. A single prior applies to all terms; a named list can specify
+term-specific components. This argument can be specified only when \code{mods} is
+specified. For a formula without an intercept (\code{~ 0 + x}), an \code{intercept}
+entry other than a point prior at zero stops with an error of class
+\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).
+A named alternative \code{intercept} is the complete prior, including any mixture;
+it replaces the global effect mixture. Specify it in one place: null-list
+intercepts and explicit global effect declarations left without a consumer
+are refused. Ordinary term entries replace only their alternative component.}
 
-\item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
-A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used. This argument can be
-specified only when \code{scale} is specified.
-A named \code{intercept} entry supplies the complete positive SD prior used by
-\code{log(intercept)}. Global heterogeneity declarations remain meaningful when
-they supply another random root or its model-inclusion weights; declarations
-fully replaced without a consumer raise \code{RoBMA_prior_intercept_conflict}.}
+\item{prior_scale}{prior distribution(s) for alternative scale-regression
+components. A single prior applies to all terms; a named list can specify
+term-specific components. This argument can be specified only when \code{scale}
+is specified. A named alternative \code{intercept} supplies the complete positive
+SD prior used by \code{log(intercept)}. Global heterogeneity declarations remain
+meaningful when they supply another random root or its inclusion weights;
+declarations replaced without a consumer are refused. Null-list intercept
+declarations are unavailable.}
 
 \item{prior_bias}{prior distribution(s) for alternative publication-bias
 component(s), such as weight functions, PET, or PEESE.
@@ -221,9 +219,10 @@ or use \code{set_contrast_factor_predictors = "treatment"}.}
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged. For constructors with publication-bias
-prior distributions, \code{rescale_priors} does not rescale them except for the
-default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged; supplied \code{prior_random()} scale
+architectures and publication-bias priors are not rescaled. The default
+PEESE prior separately uses its documented UISD adjustment, independently of
+\code{rescale_priors}. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
@@ -328,7 +327,11 @@ Random structures supplied through \code{random} use the same independent
 component gates as \code{\link[=BMA.mv]{BMA.mv()}}. A Dirichlet prior allocates the slab total
 variance across multiple top-level components and each allocation is
 multiplied by its own inclusion indicator without renormalizing the
-remaining allocations. The default prior inclusion probability is 0.5 for
+remaining allocations.
+Component-specific or partial scale models instead have independent SD roots,
+with allocation within each component; unscaled components keep their own
+base SD prior. See \code{\link{random_effect_prior_specification}}.
+The default prior inclusion probability is 0.5 for
 every component. Public \code{tau_total} and \code{tau2_total} draws are the realized
 gated aggregate, including the all-off zero branch. Public
 \code{tau2_prop(...)} draws are realized shares conditional on positive total

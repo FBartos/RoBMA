@@ -114,7 +114,9 @@ meta-analysis.}
 \item{slab}{an optional vector of study labels.}
 
 \item{subset}{an optional logical or numeric vector specifying a subset of
-data to be used.}
+data to be used. Subsetting precedes missing-row removal; retained-row
+outcome and predictor checks follow these steps. Type, shape, and existing
+extraction checks can still reject malformed inputs before subsetting.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support
@@ -134,12 +136,20 @@ components. A single prior applies to all terms; a named list can specify
 term-specific components. This argument can be specified only when \code{mods} is
 specified. For a formula without an intercept (\code{~ 0 + x}), an \code{intercept}
 entry other than a point prior at zero stops with an error of class
-\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).}
+\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).
+A named alternative \code{intercept} is the complete prior, including any mixture;
+it replaces the global effect mixture. Specify it in one place: null-list
+intercepts and explicit global effect declarations left without a consumer
+are refused. Ordinary term entries replace only their alternative component.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
 term-specific components. This argument can be specified only when \code{scale}
-is specified.}
+is specified. A named alternative \code{intercept} supplies the complete positive
+SD prior used by \code{log(intercept)}. Global heterogeneity declarations remain
+meaningful when they supply another random root or its inclusion weights;
+declarations replaced without a consumer are refused. Null-list intercept
+declarations are unavailable.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
 alternative cluster-level heterogeneity allocation component(s). This
@@ -206,9 +216,10 @@ or use \code{set_contrast_factor_predictors = "treatment"}.}
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged. For constructors with publication-bias
-prior distributions, \code{rescale_priors} does not rescale them except for the
-default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged; supplied \code{prior_random()} scale
+architectures and publication-bias priors are not rescaled. The default
+PEESE prior separately uses its documented UISD adjustment, independently of
+\code{rescale_priors}. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}

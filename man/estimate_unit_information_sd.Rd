@@ -7,10 +7,10 @@
 estimate_unit_information_sd(sei, ni)
 }
 \arguments{
-\item{sei}{a complete numeric vector of strictly positive standard errors
-for each study.}
+\item{sei}{a non-empty complete numeric vector of finite strictly positive
+standard errors for each study.}
 
-\item{ni}{a complete numeric vector of strictly positive sample sizes for
+\item{ni}{a complete numeric vector of finite strictly positive sample sizes for
 each study, with the same length as \code{sei}.}
 }
 \value{
