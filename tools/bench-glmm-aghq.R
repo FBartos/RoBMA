@@ -12,8 +12,8 @@
 # the kernel itself. An unlucky exact placement costs a factor of 2.2 with the
 # compiled kernel object byte-identical and the entry address unchanged; linked
 # call and data-reference operands differ with relocation. It is not
-# an R-level or a numerical change - every repetition returns the same result -
-# so no test and no scenario fingerprint can see it. Run this after any native
+# a measured numerical change: matched repetitions returned the same result.
+# Runtime alone does not identify a placement cause in a new build. Run this after any native
 # change; `.agents/instructions/validation.md` records what to do with a slow
 # reading.
 #
@@ -92,7 +92,9 @@ cat("build:     ", build, " (", as.character(sha), ")\n", sep = "")
 cat("dll:       ", as.character(dll), " md5 ",
     if (is.na(dll)) NA_character_ else unname(tools::md5sum(dll)), "\n", sep = "")
 cat("cache:     ", cache, "\n", sep = "")
-cat("threads:   ", threads, "   reps: ", reps, "\n", sep = "")
+cat("native-thread option: ", threads, "   reps: ", reps, "\n", sep = "")
+cat("The bare Poisson AGHQ kernel is serial; --threads does not parallelize its work.\n")
+cat("All recorded seconds are wall time.\n")
 
 
 object_md5 <- function(value) {
@@ -285,7 +287,7 @@ if (length(reference) == 1L && is.finite(reference)) {
       sprintf("%.2f", reference / REFERENCE_FAST),
       "x the fast reference).\n", sep = "")
   if (reference > 1.5 * REFERENCE_FAST) {
-    cat("SLOW: this build is in the collided layout. See ",
+    cat("SLOW relative to the historical machine-specific reference; cause unverified. See ",
         "'.agents/instructions/validation.md', section 'Performance ",
         "investigation'.\n", sep = "")
   }

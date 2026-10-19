@@ -12,7 +12,7 @@ an object or rendering without error is not sufficient representative evidence.
 | Heterogeneity summaries | Numerical metafor comparisons for ordinary, scale, multilevel, selection, and GLMM models; deterministic AR/CS/CAR correlation moments, intervals, component ownership, and data-frame coercion | Negative-direction and secondary model variants |
 | Funnel, Q-Q, radial, regression, forest, and z plots | Analytic funnel PIT-projection, CDF-mixture, and posterior-integration identities plus human-reviewed vdiffr snapshots, including side-by-side metafor views where displays share an estimand | Secondary model families and customization galleries |
 | Prior plots | Stored GLMM prior identities, declared spike/slab probabilities, independent PET/PEESE mixture inverse CDFs, and base/ggplot snapshots for outcome, moderator, and publication-bias priors | Structural component-selection tests cover additional prior families |
-| Marginal z densities | Independent one-dimensional integrations for jointly selected correlated Gaussian marginals and conditionally normalized models; nonunit-SE Jacobians, normal/selection branch routing, reflected directions, threshold probabilities, and extrapolated area | Cached Assink marginal known-V regression comparison with independent joint-selection quadrature |
+| Marginal z densities | Independent one-dimensional integrations for jointly selected correlated Gaussian marginals and conditionally normalized models; nonunit-SE Jacobians, normal/selection branch routing, reflected directions, threshold probabilities, and extrapolated area | Cached unselected Assink known-V marginal regression structural and finiteness checks; independent joint-selection quadrature is covered by synthetic standard tests |
 | Multivariate diagnostics | Analytic known-V/known-R data checks and representative forest coverage | Human-reviewed funnel, Q-Q, forest, and regression snapshots from high-draw metafor fixtures |
 | Estimate-unit LOO | Analytic Gaussian conditional-density identities and cached-fit target contracts; independent conditioned-sampling deletion integrals that integrate the deleted error conditional on retained remaining errors, including singular integrated random covariance | Five exact observation-deletion refits of Kearon US/HCS and Ishak HAR models in the `loo-exact-refits` case |
 | Joint selection likelihood | Independent `mvtnorm` rectangle-probability identities for the dependent-block normalizer, analytic diagonal reduction, selected-response region masses and singular-covariance support, specialized cluster-posterior moments, dense-versus-compiled conditional random-effect algebra, a cached random-formula `bselmodel.mv` fit, and a cached `RoBMA.mv` product-space fit combining unadjusted, selection, PET, PEESE, moderator, and independently gated random branches. The two cached multivariate fixtures explicitly integrate both contextual sources with product weights; their fitted checks cover manual posterior averaging, model enumeration, summary, LOO, bridge availability contracts, prediction, diagnostics, plots, and LOO-PIT residuals. | Larger dependency blocks and high-draw bridge stability checks |
@@ -105,8 +105,10 @@ draws (24,000 for the correlated conditional examples, whose latent effects
 mix more slowly). Seeds are fixed independently of observed recovery; the
 test runner never retries or extends chains until expectations pass.
 
-For the dense reference, marginal normalizers are an expansion into eight Gaussian
-orthant probabilities evaluated by `mvtnorm::TVPACK()`. The conditional
+For the positive-direction dense reference, marginal normalizers expand over
+eight subsets: four multivariate `mvtnorm::TVPACK()` evaluations, three scalar
+`pnorm()` terms, and the empty-subset probability one. Negative-direction
+recovery simulations are separate from this numerical posterior oracle. The conditional
 reference uses retained covariance `C = V + study_sd^2 * 11'` and integrated
 covariance `estimate_sd^2 * I`. With positive estimate SD, Gaussian conditioning
 gives the unselected `C | Y` law, over which the oracle independently integrates

@@ -620,7 +620,7 @@ test_that("IWMDE adaptive display grid concentrates support points", {
 
 test_that("Chen conditioning rejects structural boundary mixtures", {
 
-  .skip_if_missing_raw_fits("dat.lehmann2018_RoBMA")
+  skip_if_missing_fits("dat.lehmann2018_RoBMA")
 
   context <- .iwmde_context(load_fit("dat.lehmann2018_RoBMA", validate = FALSE))
   spec    <- .iwmde_parameter_spec(context, "mu")
@@ -659,7 +659,7 @@ test_that("IWMDE replacement maps preserve the baseline posterior ordinate", {
     "dat.lehmann2018_RoBMA",
     "bcg_glmm"
   )
-  .skip_if_missing_raw_fits(fit_names)
+  skip_if_missing_fits(fit_names)
 
   cases <- list(
     "bcg_meta-analysis"     = c("mu", "tau"),
@@ -714,7 +714,7 @@ test_that("IWMDE replacement maps preserve the baseline posterior ordinate", {
 
 test_that("IWMDE scalar prior delta matches full prior ordinate", {
 
-  .skip_if_missing_raw_fits("bcg_meta-analysis")
+  skip_if_missing_fits("bcg_meta-analysis")
 
   context   <- .iwmde_context(load_fit("bcg_meta-analysis", validate = FALSE))
   samples   <- context[["posterior_samples"]]
@@ -758,7 +758,7 @@ test_that("IWMDE scalar prior delta matches full prior ordinate", {
 
 test_that("IWMDE disables focal prior delta for vector priors", {
 
-  .skip_if_missing_raw_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")
+  skip_if_missing_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")
 
   context   <- .iwmde_context(load_fit("dat.lehmann2018_RoBMA_3lvl_mods_scale", validate = FALSE))
   samples   <- context[["posterior_samples"]]
@@ -778,7 +778,7 @@ test_that("IWMDE disables focal prior delta for vector priors", {
 test_that("IWMDE conditions GLMM global parameters on sampled local states", {
 
   fit_names <- c("bcg_glmm", "nielweise2008_glmm")
-  .skip_if_missing_raw_fits(fit_names)
+  skip_if_missing_fits(fit_names)
 
   for (name in fit_names) {
     context <- .iwmde_context(load_fit(name, validate = FALSE))
@@ -814,7 +814,7 @@ test_that("IWMDE conditions GLMM global parameters on sampled local states", {
 
 test_that("IWMDE retains fitted cluster context for conditional selection rows", {
 
-  .skip_if_missing_raw_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")
+  skip_if_missing_fits("dat.lehmann2018_RoBMA_3lvl_mods_scale")
 
   context   <- .iwmde_context(load_fit("dat.lehmann2018_RoBMA_3lvl_mods_scale", validate = FALSE))
   samples   <- context[["posterior_samples"]]
@@ -852,7 +852,7 @@ test_that("IWMDE retains fitted cluster context for conditional selection rows",
 
 test_that("IWMDE linear replacement maps preserve derived ordinates", {
 
-  .skip_if_missing_raw_fits("bcg_meta-regression")
+  skip_if_missing_fits("bcg_meta-regression")
 
   context <- .iwmde_context(load_fit("bcg_meta-regression", validate = FALSE))
   samples <- context[["posterior_samples"]]

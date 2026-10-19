@@ -371,7 +371,7 @@
 
 .selection_recovery_reference_density <- function(design, yi, truth, target, order) {
 
-  # Independent 3-dimensional oracle, with nuisance parameters fixed. Marginal:
+  # Independent positive-direction 3-dimensional oracle, with nuisance parameters fixed. Marginal:
   # expand prod[w + (1-w) I(Y>cut)] into eight Gaussian orthant probabilities.
   # Conditional: C is the full sampling error plus the retained study effect.
   # Integrate reciprocal row normalizers over C | Y under the *unselected*

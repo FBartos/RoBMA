@@ -1,4 +1,4 @@
-FIT_CACHE_SCHEMA_VERSION <- 7L
+FIT_CACHE_SCHEMA_VERSION <- 8L
 FIT_CACHE_METADATA_FIELDS <- c(
   "schema_version",
   "name",
@@ -152,7 +152,7 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   connection <- file(path, open = "wb")
   on.exit(close(connection), add = TRUE)
-  writeLines(lines, connection, useBytes = TRUE)
+  writeLines(enc2utf8(lines), connection, useBytes = TRUE)
 
   return(invisible(path))
 }
@@ -168,14 +168,19 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
     ". Review it with 'review_test_snapshots()'."
   )
 
+  actual_output <- sub("\r$", "", actual_output)
   if (!file.exists(ref_file)) {
+    .write_reference_candidate(actual_output, candidate)
     skip(paste("Reference file", filename, "not found."))
     return(invisible(actual_output))
   }
 
   expected_output <- readLines(ref_file, warn = FALSE, encoding = "UTF-8")
   if (identical(actual_output, expected_output)) {
-    unlink(candidate)
+    if (file.exists(candidate) &&
+        (unlink(candidate) != 0L || file.exists(candidate))) {
+      stop("Could not remove reference candidate: ", candidate, call. = FALSE)
+    }
   } else {
     .write_reference_candidate(actual_output, candidate)
   }
@@ -205,7 +210,11 @@ test_reference_table <- function(table, filename, info_msg = NULL,
 test_reference_text <- function(text, filename, info_msg = NULL,
                                 print_dir = REFERENCE_DIR) {
 
-  actual_output <- strsplit(text, "\n", fixed = TRUE)[[1L]]
+  if (!is.character(text) || length(text) != 1L || is.na(text)) {
+    stop("'text' must be one non-missing character string.", call. = FALSE)
+  }
+  actual_output <- strsplit(gsub("\r\n", "\n", text, fixed = TRUE),
+                            "\n", fixed = TRUE)[[1L]]
   return(.test_reference_lines(
     actual_output = actual_output,
     filename      = filename,
@@ -919,7 +928,7 @@ skip_if_fit_not_active <- function(name) {
 
   if (!is_fit_active(name)) {
     testthat::skip(paste0(
-      "Cached fit '", name, "' belongs to the certification profile."
+      "Cached fit '", name, "' is not active in the current profile or case."
     ))
   }
 
@@ -1006,6 +1015,33 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
   )
 }
 
+# Hash canonical UTF-8 text with LF line endings, including on Windows.
+# Empty input remains an empty file; each supplied line retains its final LF.
+.canonical_text_md5 <- function(lines) {
+
+  normalized <- tempfile("robma-canonical-text-")
+  on.exit(unlink(normalized), add = TRUE)
+  connection <- file(normalized, open = "wb")
+  tryCatch(
+    writeLines(gsub("\r\n", "\n", enc2utf8(lines), fixed = TRUE),
+               connection, sep = "\n", useBytes = TRUE),
+    finally = close(connection)
+  )
+
+  return(unname(tools::md5sum(normalized)))
+}
+
+
+.source_hash_deparse <- function(expr) {
+
+  return(deparse(
+    expr,
+    width.cutoff = 500L,
+    control = c("keepNA", "keepInteger", "niceNames", "showAttributes", "hexNumeric")
+  ))
+}
+
+
 .source_hash_normalize_expr <- function(expr) {
 
   if (is.call(expr)) {
@@ -1029,7 +1065,7 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
     }
   }
 
-  return(paste(deparse(expr, width.cutoff = 500L), collapse = "\n"))
+  return(paste(.source_hash_deparse(expr), collapse = "\n"))
 }
 
 # The shared GLMM fit settings (chains, draws, burn-in, adaptation) are read at
@@ -1044,7 +1080,7 @@ catalog_fits <- function(feature, class, family, has_metafor, has_loo,
 
   return(paste0(
     "test_glmm_fit_settings() = ",
-    paste(deparse(test_glmm_fit_settings(), width.cutoff = 500L), collapse = " ")
+    paste(.source_hash_deparse(test_glmm_fit_settings()), collapse = " ")
   ))
 }
 
@@ -1059,9 +1095,9 @@ source_file_md5 <- function(source_file) {
     return(NA_character_)
   }
 
-  parsed <- try(parse(path), silent = TRUE)
+  parsed <- try(parse(path, encoding = "UTF-8"), silent = TRUE)
   if (inherits(parsed, "try-error")) {
-    lines <- readLines(path, warn = FALSE)
+    lines <- readLines(path, warn = FALSE, encoding = "UTF-8")
     references <- any(grepl("test_glmm_fit_settings", lines, fixed = TRUE))
     lines <- sub("#.*$", "", lines)
     lines <- trimws(lines)
@@ -1075,11 +1111,7 @@ source_file_md5 <- function(source_file) {
   }
   lines <- c(lines, .source_hash_fit_settings(references))
 
-  normalized <- tempfile("robma-fit-source-", fileext = ".R")
-  writeLines(lines, normalized, useBytes = TRUE)
-  on.exit(unlink(normalized), add = TRUE)
-
-  return(unname(tools::md5sum(normalized)))
+  return(.canonical_text_md5(lines))
 }
 
 .package_source_md5_cache <- getOption("RoBMA.test.package_source_md5_cache")
@@ -1340,18 +1372,14 @@ if (!is.environment(.package_source_md5_cache)) {
 
   extension <- tolower(tools::file_ext(path))
   if (identical(extension, "r")) {
-    parsed <- try(parse(file = path, keep.source = FALSE), silent = TRUE)
+    parsed <- try(parse(file = path, keep.source = FALSE, encoding = "UTF-8"), silent = TRUE)
     if (!inherits(parsed, "try-error")) {
       lines <- unlist(lapply(parsed, function(expr) {
-        paste(deparse(expr, width.cutoff = 500L), collapse = "\n")
+        paste(.source_hash_deparse(expr), collapse = "\n")
       }), use.names = FALSE)
       lines <- as.character(lines)
 
-      normalized <- tempfile("robma-package-source-", fileext = ".R")
-      writeLines(lines, normalized, useBytes = TRUE)
-      on.exit(unlink(normalized), add = TRUE)
-
-      return(unname(tools::md5sum(normalized)))
+      return(.canonical_text_md5(lines))
     }
   }
 
@@ -1364,12 +1392,8 @@ if (!is.environment(.package_source_md5_cache)) {
     "configure", "configure.win", "cleanup", "cleanup.win"
   )
   if (extension %in% text_extensions || basename(path) %in% text_basenames) {
-    lines      <- readLines(path, warn = FALSE)
-    normalized <- tempfile("robma-package-source-", fileext = ".txt")
-    writeLines(lines, normalized, useBytes = TRUE)
-    on.exit(unlink(normalized), add = TRUE)
-
-    return(unname(tools::md5sum(normalized)))
+    lines <- readLines(path, warn = FALSE, encoding = "UTF-8")
+    return(.canonical_text_md5(lines))
   }
 
   return(unname(tools::md5sum(path)))
@@ -1417,17 +1441,16 @@ package_source_md5 <- function() {
   }
 
   file_hashes    <- vapply(source_files, .fit_cache_source_file_md5, character(1))
+  if (anyNA(file_hashes)) {
+    return(NA_character_)
+  }
   relative_files <- substring(source_files, nchar(package_root) + 2L)
   hash_input     <- paste(
     paste0(relative_files, ":", unname(file_hashes)),
     collapse = "\n"
   )
 
-  normalized <- tempfile("robma-package-source-", fileext = ".txt")
-  writeLines(hash_input, normalized, useBytes = TRUE)
-  on.exit(unlink(normalized), add = TRUE)
-
-  value <- unname(tools::md5sum(normalized))
+  value <- .canonical_text_md5(hash_input)
   assign("value", value, envir = .package_source_md5_cache)
   assign("fingerprint", fingerprint, envir = .package_source_md5_cache)
 
@@ -2334,17 +2357,22 @@ clean_cached_fits <- function(name) {
       paths <- unlist(fit_cache_paths(fit_name), use.names = FALSE)
       paths <- paths[file.exists(paths)]
       if (length(paths) > 0L) {
-        file.remove(paths)
+        removed <- file.remove(paths)
+        if (!all(removed) || any(file.exists(paths))) {
+          stop("Could not remove cached artifacts for '", fit_name, "'.", call. = FALSE)
+        }
       }
     }
     .clear_fit_object_cache(fit_names)
     .clear_info_object_cache(fit_names)
   } else {
     # Remove all cached files from test directories
-    unlink(temp_fits_dir, recursive = TRUE)
-    unlink(temp_info_dir, recursive = TRUE)
-    unlink(temp_metadata_dir, recursive = TRUE)
-    unlink(temp_temp_dir, recursive = TRUE)
+    directories <- c(temp_fits_dir, temp_info_dir, temp_metadata_dir, temp_temp_dir)
+    removed <- vapply(directories, unlink, integer(1), recursive = TRUE)
+    if (any(removed != 0L) || any(dir.exists(directories))) {
+      stop("Could not remove all owned cache directories in: ", test_files_dir,
+           call. = FALSE)
+    }
 
     # Recreate empty directories
     dir.create(temp_fits_dir, showWarnings = FALSE, recursive = TRUE)

@@ -769,7 +769,7 @@ test_that("plot.brma drops qCMDE density when sample scales differ", {
 
 test_that("plot.brma forwards attached qCMDE density for PET and PEESE parameters", {
 
-  .skip_if_missing_raw_fits(c("dat.lehmann2018-PET", "dat.lehmann2018-PEESE"))
+  skip_if_missing_fits(c("dat.lehmann2018-PET", "dat.lehmann2018-PEESE"))
 
   for (case in list(
     list(fit = "dat.lehmann2018-PET", parameter = "PET"),

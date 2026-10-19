@@ -35,20 +35,17 @@ profile_started <- Sys.time()
 finish_profile <- function(status = 0L) {
 
   elapsed <- difftime(Sys.time(), profile_started, units = "secs")
-  message("Elapsed seconds: ", round(as.numeric(elapsed), 1))
+  message("Full profile wall seconds: ", round(as.numeric(elapsed), 1))
   quit(save = "no", status = status)
 }
 
 
 .rscript <- function() {
 
-  command <- Sys.which("Rscript")
-  if (!nzchar(command)) {
-    command <- file.path(
-      R.home("bin"),
-      if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"
-    )
-  }
+  command <- file.path(
+    R.home("bin"),
+    if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"
+  )
 
   return(command)
 }
@@ -223,6 +220,64 @@ run_certification_worker <- function(name, phase) {
 }
 
 
+.run_certification_process <- function(command, args, timeout) {
+
+  started <- proc.time()[["elapsed"]]
+  process <- processx::process$new(
+    command = command, args = args, env = Sys.getenv(),
+    stdout = "|", stderr = "|", echo_cmd = TRUE,
+    cleanup_tree = TRUE, windows_hide_window = TRUE
+  )
+  on.exit(process$kill_tree(), add = TRUE)
+  output <- character()
+  errors <- character()
+  timed_out <- FALSE
+  echo_ready <- function(ready) {
+    read_any <- FALSE
+    if (identical(ready[["output"]], "ready")) {
+      chunk <- process$read_output(2000L)
+      if (nzchar(chunk)) {
+        output <<- c(output, chunk)
+        cat(chunk, file = stdout())
+        read_any <- TRUE
+      }
+    }
+    if (identical(ready[["error"]], "ready")) {
+      chunk <- process$read_error(2000L)
+      if (nzchar(chunk)) {
+        errors <<- c(errors, chunk)
+        cat(chunk, file = stderr())
+        read_any <- TRUE
+      }
+    }
+    return(read_any)
+  }
+  while (process$is_alive()) {
+    remaining <- timeout - (proc.time()[["elapsed"]] - started)
+    if (remaining <= 0) {
+      timed_out <- TRUE
+      break
+    }
+    ready <- process$poll_io(as.integer(ceiling(min(100, 1000 * remaining))))
+    if (proc.time()[["elapsed"]] - started >= timeout) {
+      timed_out <- TRUE
+      break
+    }
+    echo_ready(ready)
+  }
+  # End the marker-owned tree before waiting or reading an incomplete stream.
+  process$kill_tree(close_connections = FALSE)
+  process$wait(timeout = 1000L)
+  if (process$is_alive()) {
+    stop("Certification child process did not terminate after tree cleanup.",
+         call. = FALSE)
+  }
+  while (echo_ready(process$poll_io(0L))) {}
+  return(list(status = process$get_exit_status(), timeout = timed_out,
+    stdout = paste0(output, collapse = ""), stderr = paste0(errors, collapse = "")))
+}
+
+
 run_certification_phase <- function(name, phase, clean, timeout) {
 
   if (!requireNamespace("processx", quietly = TRUE)) {
@@ -249,14 +304,8 @@ run_certification_phase <- function(name, phase, clean, timeout) {
   message(
     "Starting certification case '", name, "' ", phase_label, "."
   )
-  result <- processx::run(
-    command         = .rscript(),
-    args            = phase_args,
-    timeout         = timeout,
-    echo            = TRUE,
-    echo_cmd        = TRUE,
-    spinner         = FALSE,
-    error_on_status = FALSE
+  result <- .run_certification_process(
+    command = .rscript(), args = phase_args, timeout = timeout
   )
   if (isTRUE(result[["timeout"]])) {
     stop(
@@ -390,7 +439,7 @@ if (identical(profile, "standard")) {
   results <- run_tests("00-|02-|03-")
   validate_standard_evidence(results)
   elapsed <- proc.time()[["elapsed"]] - started
-  message("Standard profile completed in ", round(elapsed, 1), " seconds.")
+  message("Gated standard test phase completed in ", round(elapsed, 1), " seconds.")
   if (elapsed > 15 * 60) {
     stop(
       "The standard test profile exceeded its 15-minute runtime budget (",

@@ -1,5 +1,7 @@
 # ---------------------------------------------------------------------------- #
-# Independent R references for regression-plot mixture quantiles.
+# R references for equal-weight regression-plot mixture inversion.
+# Bisection and averaging are independent; selected CDF evaluations share
+# the production .selection_step_cdf_matrix() path through .funnel_selected_cdf().
 # ---------------------------------------------------------------------------- #
 #
 # Deterministic quantiles of posterior mixtures of normal distributions.
@@ -214,9 +216,6 @@
 }
 
 
-# ---------------------------------------------------------------------------- #
-# .regplot_selection_setup
-# ---------------------------------------------------------------------------- #
 # ---------------------------------------------------------------------------- #
 # .regplot_bracketed_quantile
 # ---------------------------------------------------------------------------- #

@@ -43,7 +43,7 @@ test_that("IWMDE classifies prior ordinates of every route by eligibility", {
   # A regular ordinate that the rule refuses warns before estimation.
   testthat::local_mocked_bindings(
     prior_ordinate_status = function(prior_density, values, labels = NULL) {
-      out <- eligible_ordinate_status(prior_density, values)
+      out <- eligible_ordinate_status(values)
       out[["eligible"]]  <- FALSE
       out[["condition"]] <- "BayesTools_inexact_ordinate"
       out[["reason"]]    <- "Inexact."

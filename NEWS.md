@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Validation tooling uses canonical source hashes and whole-profile keys,
+  checks benchmark cache calls and fit contracts, and bounds worker-tree cleanup.
 - Influence diagnostics carry canonical target metadata, explain partly undefined
   random correlations, and return classed undefined results for fixed-scale sets.
 - Z plots validate stored and explicit integration controls, compose standalone

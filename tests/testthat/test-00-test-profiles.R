@@ -4,6 +4,27 @@ source(testthat::test_path("common-functions.R"))
 source(testthat::test_path("helper-profile-cases.R"))
 
 
+.expect_required_test_declarations <- function(required_tests, test_files,
+                                               name, test_filter) {
+
+  expect_s3_class(required_tests, "data.frame")
+  expect_gt(nrow(required_tests), 0L)
+  expect_identical(names(required_tests), c("file", "test"), info = name)
+  expect_false(anyDuplicated(required_tests) > 0L, info = name)
+  expect_true(all(required_tests[["file"]] %in% test_files), info = name)
+  for (i in seq_len(nrow(required_tests))) {
+    required_file <- required_tests[["file"]][[i]]
+    required_test <- required_tests[["test"]][[i]]
+    required_stem <- sub("^test-", "", sub("\\.[Rr]$", "", required_file))
+    expect_true(grepl(test_filter, required_stem), info = name)
+    source_lines <- readLines(testthat::test_path(required_file), warn = FALSE)
+    declaration <- paste0("test_that(\"", required_test, "\"")
+    expect_true(any(grepl(declaration, source_lines, fixed = TRUE)),
+                info = paste(name, required_file, required_test))
+  }
+}
+
+
 .with_test_profile_env <- function(code) {
 
   variables <- c("ROBMA_TEST_PROFILE", "ROBMA_TEST_ACTIVE_FITS")
@@ -301,28 +322,9 @@ test_that("certification cases partition expensive evidence", {
     expect_true(any(grepl(case[["test_filter"]], test_stems)), info = name)
     expect_true(all(case[["fit_sources"]] %in% test_files), info = name)
     required_tests <- case[["required_tests"]]
-    expect_s3_class(required_tests, "data.frame")
-    expect_gt(nrow(required_tests), 0L)
-    expect_identical(names(required_tests), c("file", "test"), info = name)
-    expect_false(anyDuplicated(required_tests) > 0L, info = name)
-    expect_true(all(required_tests[["file"]] %in% test_files), info = name)
-    for (i in seq_len(nrow(required_tests))) {
-      required_file <- required_tests[["file"]][[i]]
-      required_test <- required_tests[["test"]][[i]]
-      required_stem <- sub(
-        "^test-", "", sub("\\.[Rr]$", "", required_file)
-      )
-      expect_true(grepl(case[["test_filter"]], required_stem), info = name)
-      source_lines <- readLines(
-        testthat::test_path(required_file),
-        warn = FALSE
-      )
-      declaration <- paste0("test_that(\"", required_test, "\"")
-      expect_true(
-        any(grepl(declaration, source_lines, fixed = TRUE)),
-        info = paste(name, required_file, required_test)
-      )
-    }
+    .expect_required_test_declarations(
+      required_tests, test_files, name, case[["test_filter"]]
+    )
     fit_names <- certification_case_fit_names(name, catalog = catalog)
     fit_sources <- catalog[["source_file"]][match(fit_names, catalog[["name"]])]
     expect_true(all(fit_sources %in% case[["fit_sources"]]), info = name)
@@ -708,4 +710,13 @@ test_that("refit skipping checks fits owned by the fitting file before its class
   checked <- character()
   expect_false(helper_env$skip_refit_if_cached("bPET"))
   expect_identical(checked, "bPET_own")
+})
+
+
+test_that("standard required evidence names declared tests", {
+
+  test_files <- list.files(testthat::test_path(), pattern = "^test-.*\\.[Rr]$")
+  .expect_required_test_declarations(
+    standard_required_tests(), test_files, "standard", "00-|02-|03-"
+  )
 })

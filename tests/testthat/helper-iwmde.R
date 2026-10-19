@@ -50,55 +50,6 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   )
 }
 
-.expect_iwmde_ok <- function(out, parameters, estimator = "q_grid_cmde",
-                             mass_tolerance = NULL) {
-
-  expect_named(out, parameters)
-
-  for (parameter in parameters) {
-    diagnostic <- out[[parameter]]
-
-    expect_equal(diagnostic[["status"]], "ok")
-    expect_length(diagnostic[["iwmde"]][["x"]], 20L)
-    expect_length(diagnostic[["iwmde"]][["y"]], 20L)
-    expect_true(all(is.finite(diagnostic[["iwmde"]][["y"]])))
-    expect_true(all(diagnostic[["iwmde"]][["y"]] >= 0))
-    expect_true(is.finite(diagnostic[["diagnostics"]][["integral"]]))
-    expect_gt(diagnostic[["diagnostics"]][["integral"]], 0)
-    expect_gt(diagnostic[["diagnostics"]][["display_mass_fraction"]], 0)
-    expect_true(is.finite(diagnostic[["diagnostics"]][["display_mass_fraction"]]))
-    expect_lt(diagnostic[["diagnostics"]][["display_mass_fraction"]], 10)
-    expect_true(is.finite(diagnostic[["diagnostics"]][["min_ess"]]))
-    expect_gt(diagnostic[["diagnostics"]][["min_ess"]], 0)
-    expect_true(
-      diagnostic[["diagnostics"]][["max_weight_share"]] >= 0 &&
-        diagnostic[["diagnostics"]][["max_weight_share"]] <= 1
-    )
-    expect_true(is.finite(diagnostic[["diagnostics"]][["normalization_points"]]))
-    expect_gt(diagnostic[["diagnostics"]][["normalization_points"]], 0)
-    expect_true(is.finite(diagnostic[["diagnostics"]][["n_batches"]]))
-    expect_equal(diagnostic[["diagnostics"]][["estimator"]], estimator)
-    .expect_iwmde_mass_contract(
-      diagnostic     = diagnostic,
-      estimator      = estimator,
-      mass_tolerance = mass_tolerance
-    )
-    expect_equal(
-      diagnostic[["active_mass"]] +
-        sum(diagnostic[["point_masses"]][["mass"]]),
-      1,
-      tolerance = 1e-8
-    )
-  }
-}
-
-
-.skip_if_missing_raw_fits <- function(names) {
-
-  skip_if_missing_fits(names)
-}
-
-
 .mock_iwmde_empty_point_masses <- function() {
 
   data.frame(x = numeric(), mass = numeric())
@@ -438,7 +389,7 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
                                              n_rows = 3L,
                                              n_values = 3L) {
 
-  .skip_if_missing_raw_fits(fit_name)
+  skip_if_missing_fits(fit_name)
 
   context <- .iwmde_context(load_fit(fit_name, validate = FALSE))
   spec    <- .iwmde_parameter_spec(context, parameter, parameter_spec)
@@ -501,7 +452,7 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
                                                        n_rows = 3L,
                                                        n_values = 3L) {
 
-  .skip_if_missing_raw_fits(fit_name)
+  skip_if_missing_fits(fit_name)
 
   context <- .iwmde_context(load_fit(fit_name, validate = FALSE))
   spec    <- .iwmde_parameter_spec(context, parameter, parameter_spec)
@@ -559,52 +510,12 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
 }
 
 
-.expect_iwmde_mass_contract <- function(diagnostic, estimator,
-                                        mass_tolerance = NULL) {
-
-  active_mass            <- diagnostic[["active_mass"]]
-  normalization_integral <- if (identical(estimator, "q_grid_cmde")) {
-    diagnostic[["diagnostics"]][["final_normalization_integral"]]
-  } else {
-    diagnostic[["diagnostics"]][["support_grid_normalization_integral"]]
-  }
-  normalization_relative_error <-
-    diagnostic[["diagnostics"]][["normalization_relative_error"]]
-  normalization_mass_ratio <- diagnostic[["diagnostics"]][["normalization_mass_ratio"]]
-
-  expect_true(is.finite(active_mass))
-  expect_gt(active_mass, 0)
-  expect_true(is.finite(normalization_integral))
-  expect_gt(normalization_integral, 0)
-  expect_true(is.finite(normalization_mass_ratio))
-  expect_gt(normalization_mass_ratio, 0)
-  expect_true(is.finite(normalization_relative_error))
-  expect_gte(normalization_relative_error, 0)
-  if (identical(estimator, "q_grid_cmde")) {
-    normalizer_change <- diagnostic[["diagnostics"]][["max_normalizer_relative_change"]]
-    ordinate_change   <- diagnostic[["diagnostics"]][["max_ordinate_relative_change"]]
-    expect_equal(normalization_mass_ratio, 1, tolerance = 1e-6)
-    expect_true(is.finite(normalizer_change))
-    expect_gte(normalizer_change, 0)
-    expect_true(is.finite(ordinate_change))
-    expect_gte(ordinate_change, 0)
-  } else if (identical(estimator, "iwmde") && !is.null(mass_tolerance)) {
-    expect_equal(
-      normalization_mass_ratio,
-      active_mass / normalization_integral,
-      tolerance = 1e-6
-    )
-    expect_equal(normalization_integral, active_mass, tolerance = mass_tolerance)
-  }
-}
-
-
 .expect_iwmde_normal_quadratic_equals_scalar <- function(fit_name, parameter,
                                                          parameter_spec = NULL,
                                                          n_rows = 3L,
                                                          n_values = 3L) {
 
-  .skip_if_missing_raw_fits(fit_name)
+  skip_if_missing_fits(fit_name)
 
   context <- .iwmde_context(load_fit(fit_name, validate = FALSE))
   spec    <- .iwmde_parameter_spec(context, parameter, parameter_spec)

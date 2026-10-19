@@ -2061,7 +2061,7 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
 
 test_that("old IWMDE variant labels are rejected", {
 
-  .skip_if_missing_raw_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
+  skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
 
   expect_error(
     plot(
@@ -2083,7 +2083,7 @@ test_that("old IWMDE variant labels are rejected", {
 
 test_that("unused dots warn in cleaned density interfaces", {
 
-  .skip_if_missing_raw_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
+  skip_if_missing_fits(c("bcg_meta-analysis", "bcg_meta-regression2"))
 
   expect_warning(
     plot(

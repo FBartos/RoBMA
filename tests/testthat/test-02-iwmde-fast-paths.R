@@ -3983,7 +3983,7 @@ test_that("multilevel weightfunction formula path matches scalar fallback", {
   # evaluation.
   fit_name  <- "dat.lehmann2018-3PSM_3lvl_mods_marginal"
   parameter <- "mu_Preregistered"
-  .skip_if_missing_raw_fits(fit_name)
+  skip_if_missing_fits(fit_name)
 
   context <- .iwmde_context(load_fit(fit_name, validate = FALSE))
 
@@ -4724,7 +4724,7 @@ test_that("IWMDE normal quadratic fast path matches scalar fallback", {
 test_that("known-V normal q-grid caches invariant spectral blocks", {
 
   fit_name <- "brma.mv_block_mvn_fixed_random_null"
-  .skip_if_missing_raw_fits(fit_name)
+  skip_if_missing_fits(fit_name)
 
   context   <- .iwmde_context(load_fit(fit_name, validate = FALSE))
   parameter <- "mu"
@@ -4827,7 +4827,7 @@ test_that("known-V normal q-grid caches invariant spectral blocks", {
 test_that("known-V grouped baseline states match scalar construction", {
 
   fit_name <- "brma.mv_block_mvn_random"
-  .skip_if_missing_raw_fits(fit_name)
+  skip_if_missing_fits(fit_name)
 
   fit             <- load_fit(fit_name, validate = FALSE)
   parameter       <- "mu"
@@ -4874,7 +4874,7 @@ test_that("ordinary marginal baseline states match scalar construction", {
 
   fit_names  <- c("bcg_meta-analysis", "bcg_meta-regression")
   parameters <- c("mu", "mu_ablat")
-  .skip_if_missing_raw_fits(fit_names)
+  skip_if_missing_fits(fit_names)
 
   for (i in seq_along(fit_names)) {
     fit             <- load_fit(fit_names[[i]], validate = FALSE)

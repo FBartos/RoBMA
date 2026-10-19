@@ -30,12 +30,15 @@ context("Scenario benchmark preparation")
                block, '})'), file.path(root, "tests/scenarios/test-unit.R"))
   cache <- file.path(root, "cache", "unit")
   dir.create(cache, recursive = TRUE)
-  for (name in names(fits)) saveRDS(fits[[name]], file.path(cache, paste0(name, ".rds")))
+  for (name in names(fits)) {
+    saveRDS(fits[[name]], file.path(cache, paste0(name, ".rds")))
+    writeLines('stop("must never fit")', file.path(cache, paste0(name, ".call.txt")))
+  }
   return(root)
 }
 
 
-.scenario_benchmark_run <- function(root, args, target = root, installed = TRUE) {
+.scenario_benchmark_run <- function(root, args, target = root, installed = TRUE, threads = 1L) {
 
   # Benchmark rows include HEAD: give disposable roots an identifiable HEAD.
   if (!dir.exists(file.path(target, ".git"))) {
@@ -51,7 +54,7 @@ context("Scenario benchmark preparation")
   result <- processx::run(executable, c("--vanilla", file.path(root, "tools/bench-bootstrap.R"),
                           "unit", if (installed) "--installed", paste0("--root=", target),
                           paste0("--cache=", file.path(root, "cache")),
-                          paste0("--out=", out), "--threads=1", args),
+                          paste0("--out=", out), if (!is.null(threads)) paste0("--threads=", threads), args),
                           error_on_status = FALSE, timeout = 60000)
   cat("\nSynthetic benchmark exit ", result[["status"]], "\n",
       result[["stdout"]], result[["stderr"]], sep = "")
@@ -526,4 +529,134 @@ test_that("BCG marginal preparation agrees for full and selected synthetic cache
   expect_true(file.exists(listing))
   if (file.exists(listing)) expect_identical(read.delim(listing)$name,
     c("fit_reg3_emm", "fit_reg3_marginal_means_comparison"))
+})
+
+
+test_that("benchmark cache versions match literals without forcing expressions", {
+
+  block <- c(
+    'fit_needed <- scenario_fit("needed", stop("must never fit"), cache_version = 2L)',
+    'scenario_text("chosen", print(fit_needed$value))'
+  )
+  root <- .scenario_benchmark_fixture(block)
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  call_path <- file.path(root, "cache", "unit", "needed.call.txt")
+  writeLines(c("cache_version: 2", 'stop("must never fit")'), call_path)
+  matched <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(matched$out, recursive = TRUE), add = TRUE)
+  expect_equal(matched$status, 0L)
+  text <- file.path(matched$out, "unit--chosen.txt")
+  expect_true(file.exists(text))
+  if (file.exists(text)) expect_identical(readLines(text), "[1] 7")
+
+  writeLines(c("cache_version: 1", 'stop("must never fit")'), call_path)
+  stale <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(stale$out, recursive = TRUE), add = TRUE)
+  expect_equal(stale$status, 1L)
+  expect_match(stale$stderr, "Missing or changed fitting call", fixed = TRUE)
+
+  # Count an actual version-expression side effect outside the failed child.
+  # Both the old ignore behavior and the new refusal leave the count at zero;
+  # the intended new behavior is refusal rather than silent version omission.
+  counter <- file.path(root, "version-counter.txt")
+  writeLines("0", counter)
+  counter_literal <- paste(deparse(normalizePath(counter, winslash = "/")), collapse = "")
+  opaque <- paste0('fit_needed <- scenario_fit("needed", stop("must never fit"), ',
+    'cache_version = { writeLines(as.character(as.integer(readLines(', counter_literal,
+    ')) + 1L), ', counter_literal, '); 2L })')
+  writeLines(c('scenario_start("unit")', 'testthat::test_that("synthetic workload", {',
+    opaque, block[[2L]], '})'), file.path(root, "tests", "scenarios", "test-unit.R"))
+  refused <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(refused$out, recursive = TRUE), add = TRUE)
+  expect_equal(refused$status, 1L)
+  expect_match(refused$stderr, "expressions are not evaluated", fixed = TRUE)
+  expect_identical(readLines(counter), "0")
+})
+
+
+test_that("benchmark cache loading validates genuine persisted fit contracts", {
+
+  setup <- review_compile_object(brma(yi = c(.1, .2, -.1), sei = rep(.2, 3L),
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = prior("normal", list(0, 1)),
+    prior_heterogeneity = prior("point", list(.1)), only_priors = TRUE, silent = TRUE))
+  object <- review_attach_replay(setup,
+    cbind(mu = seq(-.2, .3, length.out = 24L), tau = .1))
+  required <- sub("_version$", "", setdiff(BayesTools::JAGS_fit_contract_schema()$field, "schema_version"))
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = required)
+  root <- .scenario_benchmark_fixture(c(
+    'fit_needed <- scenario_fit("needed", stop("must never fit"))',
+    'scenario_text("chosen", print(nobs(fit_needed)))'
+  ), fits = list(needed = object))
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper <- new.env(parent = globalenv())
+  source(file.path(root, "tests/scenarios/helper-scenarios.R"), local = helper)
+  helper$scenario_start("unit", root = file.path(root, "tests/scenarios"), show_output = FALSE)
+  expect_identical(helper$.scenario_check_cached_fit("needed", object), object)
+  accepted <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(accepted$out, recursive = TRUE), add = TRUE)
+  expect_equal(accepted$status, 0L)
+  output <- file.path(accepted$out, "unit--chosen.txt")
+  expect_true(file.exists(output))
+  if (file.exists(output)) expect_identical(readLines(output), "[1] 3")
+  stale <- object
+  attr(stale$fit, "fit_contract") <- NULL
+  # This is the actual finalized replay with its persisted contract removed,
+  # not a synthetic accepted class or forged schema field.
+  refusal <- tryCatch(helper$.scenario_check_cached_fit("needed", stale), error = identity)
+  expect_s3_class(refusal, "RoBMA_scenario_stale_cache")
+  expect_identical(refusal$fit, "needed")
+  expect_identical(refusal$scenario, "unit")
+  saveRDS(stale, file.path(root, "cache/unit/needed.rds"))
+  rejected <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(rejected$out, recursive = TRUE), add = TRUE)
+  expect_equal(rejected$status, 1L)
+  expect_match(rejected$stderr, "Cached scenario fit 'needed' of scenario 'unit' is stale.", fixed = TRUE)
+})
+
+
+test_that("benchmark option defaults and missing call metadata remain explicit", {
+
+  block <- function(version = "") c(
+    paste0('fit_needed <- scenario_fit("needed", stop("must never fit")', version, ')'),
+    'scenario_text("chosen", dput(list(value = fit_needed$value, threads = RoBMA.get_option("native_threads"))))')
+  root <- .scenario_benchmark_fixture(block())
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  bootstrap <- file.path(root, "tools/bench-bootstrap.R")
+  writeLines(sub("native_threads = 1L", "native_threads = 2L", readLines(bootstrap), fixed = TRUE), bootstrap)
+  scenario <- file.path(root, "tests/scenarios/test-unit.R")
+  write_block <- function(code) writeLines(c('scenario_start("unit")',
+    'testthat::test_that("synthetic workload", {', code, '})'), scenario)
+  for (version in c("", ", cache_version = NULL")) {
+    write_block(block(version))
+    for (threads in list(NULL, 1L)) {
+      result <- .scenario_benchmark_run(root, "--only=^chosen$", threads = threads)
+      on.exit(unlink(result$out, recursive = TRUE), add = TRUE)
+      expect_equal(result$status, 0L)
+      output <- file.path(result$out, "unit--chosen.txt")
+      expect_true(file.exists(output))
+      if (file.exists(output)) expect_identical(readLines(output), "list(value = 7, threads = 1L)")
+    }
+  }
+  call_path <- file.path(root, "cache/unit/needed.call.txt")
+  stopifnot(file.remove(call_path))
+  missing <- .scenario_benchmark_run(root, "--only=^chosen$")
+  on.exit(unlink(missing$out, recursive = TRUE), add = TRUE)
+  expect_equal(missing$status, 1L)
+  expect_match(missing$stderr, "Missing or changed fitting call", fixed = TRUE)
+  writeLines('stop("must never fit")', call_path)
+  for (version in c(", cache_version = 0", ", cache_version = 1.5")) {
+    write_block(block(version))
+    invalid <- .scenario_benchmark_run(root, "--only=^chosen$")
+    on.exit(unlink(invalid$out, recursive = TRUE), add = TRUE)
+    expect_equal(invalid$status, 1L)
+    expect_match(invalid$stderr, "'cache_version' must be NULL or one positive integer.", fixed = TRUE)
+  }
+  write_block(block())
+  for (threads in c(0, -1, 1.5, Inf)) {
+    invalid <- .scenario_benchmark_run(root, "--only=^chosen$", threads = threads)
+    on.exit(unlink(invalid$out, recursive = TRUE), add = TRUE)
+    expect_equal(invalid$status, 1L)
+    expect_match(invalid$stderr, "--threads must be a positive integer.", fixed = TRUE)
+  }
 })

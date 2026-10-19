@@ -363,8 +363,12 @@ General analysis/artifact calls must not secretly modify or dynamically fetch
 preparation bindings outside explicit source dependencies. Imported functions,
 S3 methods, reference objects and hidden reflection cannot be certified by this
 pass. No whole-run atomicity guarantee applies outside that contract. Fit code
-and `cache_version` promises are not executed by this benchmark wrapper and are
-excluded from preparation dependencies and mutation summaries.
+and opaque `cache_version` promises are excluded from preparation dependencies
+and mutation summaries and are never evaluated by the benchmark wrapper.
+Benchmark cache reads accept omitted/default `NULL` or direct numeric-literal
+versions, validated by the same fitting-call serializer as `scenario_fit()`.
+Opaque version expressions fail with an explicit benchmark-only refusal before
+they are forced. Ordinary `scenario_fit()` retains its existing version API.
 Literal `pkg::fun` and `pkg:::fun` positions are ordinary analysis calls;
 qualified reflective operations retain their dynamic classification. Other
 computed call heads remain conservative. This does not extend selector syntax.

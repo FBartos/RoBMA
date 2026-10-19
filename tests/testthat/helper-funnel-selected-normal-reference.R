@@ -1,5 +1,7 @@
 # ============================================================================ #
-# Independent R reference for funnel selected-normal quantiles.
+# R reference for funnel mixture inversion and posterior averaging.
+# Positive-SE step precomputation uses independent interval arithmetic;
+# fallback selected CDF paths share production .selection_step_cdf_matrix().
 # ============================================================================ #
 
 .has_native_funnel_model_averaged_quantiles <- function(setup) {
@@ -31,7 +33,7 @@
   total_sd <- se_setup[["total_sd"]]
   location <- se_setup[["location"]]
   if (all(total_sd == 0)) {
-    weights <- .funnel_setup_weights(setup)
+    weights <- .funnel_reference_setup_weights(setup)
     order   <- order(location)
     index   <- which(cumsum(weights[order]) >= p)[1L]
     return(location[order[index]])
@@ -103,7 +105,7 @@
 .funnel_model_averaged_se_setup <- function(se, setup, effect_direction) {
 
   total_sd      <- .root_sum_squares(se, setup[["tau"]])
-  location      <- .funnel_row_location(se, setup, effect_direction)
+  location      <- .funnel_reference_row_location(se, setup, effect_direction)
   zero_sd       <- total_sd == 0
   normal_rows   <- !setup[["is_weightfunction"]] & !zero_sd
   weighted_rows <- setup[["is_weightfunction"]] & !zero_sd
@@ -271,12 +273,12 @@
   }
 
   cdf_values <- .test_validate_cdf(cdf_values, "Model-averaged funnel")
-  weights <- .funnel_setup_weights(se_setup[["setup"]])
+  weights <- .funnel_reference_setup_weights(se_setup[["setup"]])
   return(sum(weights * cdf_values))
 }
 
 
-.funnel_setup_weights <- function(setup) {
+.funnel_reference_setup_weights <- function(setup) {
 
   weights <- setup[["weights"]]
   if (is.null(weights)) {
@@ -374,13 +376,13 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .funnel_row_location
+# .funnel_reference_row_location
 # ---------------------------------------------------------------------------- #
 #
 # Row-specific expected observed location on the original effect-size scale.
 #
 # ---------------------------------------------------------------------------- #
-.funnel_row_location <- function(se, setup, effect_direction) {
+.funnel_reference_row_location <- function(se, setup, effect_direction) {
 
   direction <- ifelse(effect_direction == "negative", -1, 1)
 

@@ -376,7 +376,7 @@ test_that("plug-in funnels average complete joint-model CDFs", {
 })
 
 
-test_that("weighted funnel CDF mixes models before inversion", {
+test_that("weighted funnel reference CDF mixes models before inversion", {
 
   setup <- list(
     mu                = c(0, 2),

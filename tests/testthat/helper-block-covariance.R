@@ -13,7 +13,7 @@
     return(samples)
   }
   dimension <- dim(samples)
-  if (!identical(length(dimension), 3L)) {
+  if (!identical(length(dimension), 3L) || dimension[[2L]] != dimension[[3L]]) {
     stop("A fixture covariance must be a draw x row x row array.", call. = FALSE)
   }
   K         <- dimension[[2L]]

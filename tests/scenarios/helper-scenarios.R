@@ -214,15 +214,9 @@ scenario_start <- function(name, regenerate = NULL, refit = NULL, update = NULL,
 }
 
 
-# Load an existing cached fit only when its fitting call still matches; a fit
-# that the current build refuses as stale stops with an error of class
-# "RoBMA_scenario_stale_cache" (the check is skipped when refitting).
-# Otherwise evaluate the expression and replace the fit and call cache.
-scenario_fit <- function(name, code, cache_version = NULL) {
+# Canonical fitting call shared by scenario cache writes and benchmark reads.
+.scenario_fit_call <- function(expr, cache_version = NULL) {
 
-  config   <- .scenario_config()
-  paths    <- .scenario_fit_paths(name)
-  expr     <- substitute(code)
   fit_call <- deparse(expr, width.cutoff = 500L)
   if (!is.null(cache_version)) {
     if (!is.numeric(cache_version) || length(cache_version) != 1L ||
@@ -236,6 +230,21 @@ scenario_fit <- function(name, code, cache_version = NULL) {
       fit_call
     )
   }
+
+  return(fit_call)
+}
+
+
+# Load an existing cached fit only when its fitting call still matches; a fit
+# that the current build refuses as stale stops with an error of class
+# "RoBMA_scenario_stale_cache" (the check is skipped when refitting).
+# Otherwise evaluate the expression and replace the fit and call cache.
+scenario_fit <- function(name, code, cache_version = NULL) {
+
+  config   <- .scenario_config()
+  paths    <- .scenario_fit_paths(name)
+  expr     <- substitute(code)
+  fit_call <- .scenario_fit_call(expr, cache_version)
 
   cached_call <- if (file.exists(paths[["call"]])) {
     tryCatch(

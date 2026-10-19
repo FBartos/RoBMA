@@ -37,8 +37,10 @@
                                              rho = -.3) {
 
   size <- length(variance)
-  if (size < 3L || rho >= 0) {
-    stop("A negative dense-route block needs at least three rows and rho < 0.",
+  if (!is.numeric(variance) || size < 3L || any(!is.finite(variance)) ||
+      any(variance <= 0) || !is.numeric(rho) || length(rho) != 1L ||
+      !is.finite(rho) || rho < -1 / (size - 1L) || rho >= 0) {
+    stop("A negative dense-route block needs positive finite variances, at least three rows, and -1/(size - 1) <= rho < 0.",
          call. = FALSE)
   }
   correlation <- matrix(rho, size, size)

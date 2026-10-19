@@ -17,11 +17,22 @@ project_root <- normalizePath(file.path(dirname(script_path), ".."), mustWork = 
 setwd(project_root)
 
 Sys.setenv(ROBMA_TEST_PROFILE = profile)
+Sys.unsetenv("ROBMA_TEST_ACTIVE_FITS")
 source(file.path("tests", "testthat", "common-functions.R"))
+if (!.fit_cache_source_tree_available(project_root)) {
+  stop("The selected project root is missing required package sources; the profile cache key cannot be generated.",
+       call. = FALSE)
+}
 
 catalog      <- active_fit_catalog()
 source_files <- unique(catalog[["source_file"]])
 source_hashes <- vapply(source_files, source_file_md5, character(1))
+package_hash <- package_source_md5()
+if (anyNA(source_hashes) || any(!nzchar(source_hashes)) ||
+    length(package_hash) != 1L || is.na(package_hash) || !nzchar(package_hash)) {
+  stop("A required source hash is unavailable; the profile cache key cannot be generated.",
+       call. = FALSE)
+}
 jags_version <- tryCatch(
   as.character(rjags::jags.version()),
   error = function(error) "unavailable"
@@ -36,12 +47,9 @@ key_data <- c(
   paste0("BayesTools=", as.character(utils::packageVersion("BayesTools"))),
   paste0("R=", paste(R.version$major, R.version$minor, sep = ".")),
   paste0("JAGS=", jags_version),
-  paste0("package=", package_source_md5()),
+  paste0("package=", package_hash),
   paste0("BayesTools-backend=", bayestools_backend_fingerprint()),
   paste0(source_files, "=", source_hashes)
 )
 
-key_file <- tempfile("robma-test-cache-key-")
-on.exit(unlink(key_file), add = TRUE)
-writeLines(key_data, key_file, useBytes = TRUE)
-cat(profile, "-", unname(tools::md5sum(key_file)), "\n", sep = "")
+cat(profile, "-", .canonical_text_md5(key_data), "\n", sep = "")

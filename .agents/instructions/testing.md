@@ -72,11 +72,23 @@ complete standard evidence.
 root, disables pkgload compilation and test helpers, and defaults to one native
 thread. `--list` reports available and omitted cached-fit cases without running
 the estimator. Its output records source/package/DLL identity and labels
-elapsed values as including CPU and allocation profiling. An explicit
+elapsed values as including Rprof sampling and allocation profiling. An explicit
 `ROBMA_DEBUG_DLL=TRUE` retains the existing DLL and is labelled a debug opt-out.
 
+The complete standard profile gates its test phase at 900 seconds, after
+cache validation, including `run_tests()` preparation and required-evidence checks;
+the runner separately reports the full profile wall time.
+Standard uses the explicit `profile == "standard"` catalog membership, rather
+than every `tier == "core"` entry. Certification extends the catalog and
+selects its own declared fit subsets; excluded core entries are not standard
+evidence. Shared GLMM settings use 1500 samples per chain in standard and 5000
+in certification, but `bcg_BMA.glmm` deliberately retains its explicit
+three-chain, 1000-sample, 2000-burn-in, 500-adaptation, thin-160 settings.
+These profile descriptions do not change any fitting budget.
+
 Every certification case has a hard one-hour limit shared by its cache
-preparation and verification phases. The phases execute in separate processes,
+preparation and verification phases. Each phase owns its child process tree and
+terminates that tree before waiting or draining output at the deadline. The phases execute in separate processes,
 so native fitting state cannot leak into post-fit verification. Certification
 has no total limit because cases can be selected or rerun independently.
 The runners start child R processes with `--vanilla`: they inherit the calling
@@ -147,7 +159,13 @@ It refreshes missing or stale entries before running the strictly cached
 standard profile. Certification caches remain local or release-worker assets.
 
 Relevant controls are `ROBMA_TEST_PROFILE`, `ROBMA_TEST_FILES_DIR`,
-`ROBMA_TEST_SKIP_REFIT`, and `ROBMA_TEST_FORCE_REFIT`.
+`ROBMA_TEST_SKIP_REFIT`, `ROBMA_TEST_FORCE_REFIT`, and the case-local
+`ROBMA_TEST_ACTIVE_FITS` filter. `tools/test-cache-key.R` clears that inherited
+filter because its key describes the whole profile. Explicitly empty
+`ROBMA_TEST_PROFILE` remains invalid. Source hashes use binary UTF-8/LF text
+and round-trippable numeric deparse; empty text retains its existing semantics.
+Cache-key changes require one integrated schema advance before final refresh;
+old baseline artifacts are preserved rather than resealed.
 `ROBMA_TEST_QUIET_SKIPS=TRUE` retains skip counts while suppressing individual
 skip reports in profile-runner output.
 
@@ -180,6 +198,8 @@ read by another test.
   intended result changed; accept a verified baseline change only after
   maintainer or explicitly delegated review.
 - Do not add redundant matrices, samples, fits, or assertions for coverage alone.
+- Deterministic collinear replay draws establish structural contracts only;
+  they do not provide Monte Carlo, calibration, or posterior-inference evidence.
 
 The evidence inventory in `tests/testthat/REGRESSION-COVERAGE.md` records the
 representative oracle and visual coverage expected for public post-fit methods.
@@ -234,8 +254,14 @@ the existing development DLL with `compile = FALSE`, records native/dependency
 identity, and verifies that input fit hashes remain unchanged. This is
 correctness evidence; it does not certify a new native build's performance.
 The physical N/D/reference guards name the fixture, original row and quantity;
-ratio envelopes retain producer, reference and floating errors including their
-product terms. Ordered short-row tests explicitly restrict an internal valid
+comparisons use `abs(expm1(logP - logR))` and the reference-scale envelope
+`eP * (P/R) + eR + ef * max(1, P/R)`. Reported producer/reference errors are
+relative to their own computed values; reference integrals are finite positive
+and errors finite nonnegative. Every resulting comparison envelope must remain
+at or below the existing 0.025 verification accuracy ceiling. Ratio arithmetic
+identity checks remain separate. Set native/BLAS limits in the launching
+environment before R starts; the verifier prints those limits and its native
+thread option without claiming to reset already initialized BLAS state. Ordered short-row tests explicitly restrict an internal valid
 plan population; the public planner's 20-continuous-row minimum stays unchanged.
 Missing MCMC error with finite importance ESS remains partial uncertainty.
 The ordered-result NA masks also reject malformed available-status all-NA

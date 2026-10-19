@@ -13,7 +13,8 @@
 # separately (prep_elapsed) and excluded from the artifact's elapsed time.
 #
 # The run directory collects `results.tsv` (one row per evaluated artifact: wall
-# time, sum of R heap maxima, md5 fingerprint of printed text or rendered SVG),
+# time, sum of R heap maxima (not process RSS or simultaneous peak memory),
+# md5 fingerprint of printed text or rendered SVG),
 # the artifact files themselves and, with --profile, an `Rprof` file plus a
 # `.prof.txt` summary. Every per-artifact file is prefixed `<scenario>--`.
 # This runner never writes timing baselines or testthat snapshots.
@@ -68,7 +69,12 @@ local({
   }
 })
 limit     <- as.numeric(opt("limit", "Inf"))
-threads   <- opt("threads")
+threads   <- suppressWarnings(as.numeric(opt("threads", "1")))
+if (!is.finite(threads) || threads < 1 || threads > .Machine$integer.max ||
+    threads != floor(threads)) {
+  stop("--threads must be a positive integer.", call. = FALSE)
+}
+threads <- as.integer(threads)
 tag       <- opt("tag", "")
 profile   <- flag("profile")
 list_only <- flag("list")
@@ -87,7 +93,7 @@ if (flag("installed")) {
                    debug = FALSE)
   build <- if (identical(preparation, "debug")) "load_all debug opt-out" else "load_all release"
 }
-if (!is.null(threads)) RoBMA.options(native_threads = as.integer(threads))
+RoBMA.options(native_threads = threads)
 sha <- tryCatch(system2("git", c("-C", shQuote(root), "rev-parse", "--short", "HEAD"), stdout = TRUE),
                 error = function(e) NA_character_)
 
@@ -126,10 +132,25 @@ make_lazy <- function(lhs, expr, env, loader = NULL) {
   state$lazy <- union(state$lazy, lhs)
 }
 
-load_fit <- function(name) {
+load_fit <- function(name, expr, cache_version = NULL) {
+  name <- get(".scenario_validate_name", bench_env)(name, "fit")
   path <- file.path(cache, scenario, paste0(name, ".rds"))
   if (!file.exists(path)) stop("No cached fit '", name, "' at ", path, call. = FALSE)
-  readRDS(path)
+  fit_call <- get(".scenario_fit_call", bench_env)(expr, cache_version)
+  call_path <- file.path(cache, scenario, paste0(name, ".call.txt"))
+  cached_call <- if (file.exists(call_path)) {
+    tryCatch(readLines(call_path, warn = FALSE, encoding = "UTF-8"),
+             error = function(error) NULL)
+  } else {
+    NULL
+  }
+  if (!identical(cached_call, fit_call)) {
+    stop("Missing or changed fitting call for cached scenario fit '", name,
+         "'. Regenerate the scenario cache before benchmarking.", call. = FALSE)
+  }
+  fit <- readRDS(path)
+  get(".scenario_check_cached_fit", bench_env)(name, fit)
+  return(fit)
 }
 
 bench_run <- function(type, name, expr, env) {
@@ -223,8 +244,22 @@ bench_run <- function(type, name, expr, env) {
   invisible(result)
 }
 
-assign("scenario_start", function(name, ...) invisible(NULL), envir = bench_env)
-assign("scenario_fit", function(name, code, cache_version = NULL) load_fit(name), envir = bench_env)
+assign("scenario_start", function(name, ...) {
+  # Only the identity is needed by the existing stale-fit diagnostic. The
+  # benchmark owns cache reads and never starts the scenario output workflow.
+  assign("config", list(name = name), envir = get(".scenario_state", bench_env))
+  invisible(NULL)
+}, envir = bench_env)
+assign("scenario_fit", function(name, code, cache_version = NULL) {
+  # Version expressions are excluded from preparation analysis. Inspect their
+  # promises without forcing them; the scenario serializer validates literals.
+  version <- if (missing(cache_version)) NULL else substitute(cache_version)
+  if (!is.null(version) && !(is.numeric(version) && length(version) == 1L)) {
+    stop("Benchmark 'cache_version' must be NULL or a direct numeric literal; expressions are not evaluated.",
+         call. = FALSE)
+  }
+  load_fit(name, substitute(code), version)
+}, envir = bench_env)
 assign("scenario_time", function(name, code) bench_run("time", name, substitute(code), parent.frame()),
        envir = bench_env)
 assign("scenario_text", function(name, code) bench_run("text", name, substitute(code), parent.frame()),
@@ -635,7 +670,14 @@ run_block <- function(body, env, blocks) {
       lhs <- as.character(st[[2L]]); rhs <- st[[3L]]; rhs_head <- call_head(rhs)
       if (rhs_head == "scenario_fit") {
         fit_name <- eval(rhs[[2L]], env)
-        local({ n <- fit_name; make_lazy(lhs, NULL, env, loader = function() load_fit(n)) })
+        local({
+          fitting_call <- rhs
+          fitting_call[[1L]] <- get("scenario_fit", bench_env)
+          fitting_call[2L] <- list(fit_name)
+          fitting_env <- env
+          make_lazy(lhs, NULL, env,
+            loader = function() eval(fitting_call, fitting_env))
+        })
         next
       }
       if (rhs_head %in% c("scenario_time", "scenario_text", "scenario_plot")) {

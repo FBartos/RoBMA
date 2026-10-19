@@ -1521,3 +1521,131 @@ test_that("cached fits are catalogued and valid", {
     )
   )
 })
+
+.review_binary_text_md5 <- function(text) {
+
+  path <- tempfile("robma-binary-reference-")
+  on.exit(unlink(path), add = TRUE)
+  writeBin(charToRaw(enc2utf8(text)), path)
+  unname(tools::md5sum(path))
+}
+
+
+test_that("cache text hashes use binary UTF-8 LF and preserve empty semantics", {
+
+  root <- tempfile("robma-source-text-")
+  dir.create(root)
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  testthat::local_test_directory(root, .env = environment())
+  for (text in c("a\nb\n", "\u00e9\n\u010d\n", "", "\n")) {
+    paths <- file.path(root, c("lf.cc", "crlf.cc"))
+    writeBin(charToRaw(enc2utf8(text)), paths[[1L]])
+    writeBin(charToRaw(enc2utf8(gsub("\n", "\r\n", text, fixed = TRUE))), paths[[2L]])
+    original <- tools::md5sum(paths)
+    expected <- .review_binary_text_md5(text)
+    expect_identical(unname(vapply(paths, .fit_cache_source_file_md5, character(1L))),
+      rep(expected, 2L))
+    expect_identical(tools::md5sum(paths), original)
+  }
+  values <- c("1.0000000000000000", "1.0000000000000002")
+  paths <- file.path(root, c("first.R", "second.R"))
+  for (j in 1:2) writeBin(charToRaw(paste0("value <- ", values[[j]], "\n")), paths[[j]])
+  parsed <- vapply(paths, function(path) eval(parse(path)[[1L]][[3L]]), numeric(1L))
+  expect_false(identical(parsed[[1L]], parsed[[2L]]))
+  expect_false(identical(.fit_cache_source_file_md5(paths[[1L]]),
+    .fit_cache_source_file_md5(paths[[2L]])))
+  expect_false(identical(source_file_md5("first.R"), source_file_md5("second.R")))
+  for (text in c("", "# comment only\n")) {
+    path <- file.path(root, "empty.R")
+    writeBin(charToRaw(text), path)
+    expect_identical(.fit_cache_source_file_md5(path), .review_binary_text_md5(""))
+    expect_identical(source_file_md5("empty.R"), .review_binary_text_md5(""))
+  }
+})
+
+
+test_that("package source aggregates hash the declared LF bytes without unavailable values", {
+
+  skip_on_cran()
+  .with_cache_source_fixture(function(e, root) {
+    files <- e$.fit_cache_source_files(package_root = root)
+    original <- lapply(files, readLines, warn = FALSE, encoding = "UTF-8")
+    observed <- character()
+    for (ending in c("\n", "\r\n")) {
+      for (j in seq_along(files)) {
+        text <- if (length(original[[j]])) paste0(paste(original[[j]], collapse = ending), ending) else ""
+        writeBin(charToRaw(enc2utf8(text)), files[[j]])
+      }
+      e$.clear_package_source_md5_cache()
+      hashes <- vapply(files, e$.fit_cache_source_file_md5, character(1L))
+      relative <- substring(files, nchar(root) + 2L)
+      expected <- .review_binary_text_md5(paste0(paste(paste0(relative, ":", hashes), collapse = "\n"), "\n"))
+      observed <- c(observed, e$package_source_md5())
+      expect_identical(tail(observed, 1L), expected)
+    }
+    expect_identical(observed[[1L]], observed[[2L]])
+    e$.clear_package_source_md5_cache()
+    assign(".fit_cache_source_file_md5", function(path) NA_character_, e)
+    expect_identical(e$package_source_md5(), NA_character_)
+  })
+})
+
+
+test_that("text references retain scalar CRLF and missing-candidate policy", {
+
+  root <- tempfile("robma-reference-text-")
+  dir.create(root)
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  baseline <- file.path(root, "reference.txt")
+  writeBin(charToRaw("a\nb\n"), baseline)
+  before <- readBin(baseline, "raw", n = file.size(baseline))
+  test_reference_text("a\r\nb", "reference.txt", print_dir = root)
+  expect_identical(readBin(baseline, "raw", n = file.size(baseline)), before)
+  writeBin(charToRaw("a\r\nb\r\n"), baseline)
+  test_reference_text("a\nb", "reference.txt", print_dir = root)
+  for (invalid in list(c("a", "ignored"), character(), NA_character_, 1)) {
+    expect_error(test_reference_text(invalid, "reference.txt", print_dir = root),
+      "'text' must be one non-missing character string.", fixed = TRUE)
+  }
+  missing <- tryCatch(test_reference_text("new", "missing.txt", print_dir = root), skip = identity)
+  expect_s3_class(missing, "skip")
+  expect_false(file.exists(file.path(root, "missing.txt")))
+  candidate <- .reference_candidate_path(file.path(root, "missing.txt"))
+  expect_true(file.exists(candidate))
+  if (file.exists(candidate)) expect_identical(readLines(candidate), "new")
+  candidate <- .reference_candidate_path(baseline)
+  writeLines("old candidate", candidate)
+  before <- readBin(baseline, "raw", n = file.size(baseline))
+  test_reference_text("a\nb", "reference.txt", print_dir = root)
+  expect_false(file.exists(candidate))
+  expect_identical(readBin(baseline, "raw", n = file.size(baseline)), before)
+})
+
+
+test_that("owned cache cleanup checks unsuccessful filesystem operations", {
+
+  .with_temp_fit_cache({
+    name <- "bcg_meta-analysis"
+    paths <- unlist(fit_cache_paths(name), use.names = FALSE)
+    for (path in paths) {
+      dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+      writeLines("owned", path)
+    }
+    neighbor <- file.path(test_files_dir, "unrelated.txt")
+    writeLines("retained", neighbor)
+    clean <- clean_cached_fits
+    environment(clean) <- list2env(list(file.remove = function(paths) rep(FALSE, length(paths))),
+      parent = environment(clean))
+    expect_error(clean(name), "Could not remove cached artifacts", fixed = TRUE)
+    expect_true(all(file.exists(paths)))
+    clean_cached_fits(name)
+    expect_false(any(file.exists(paths)))
+    expect_true(file.exists(neighbor))
+    clean <- clean_cached_fits
+    environment(clean) <- list2env(list(unlink = function(...) 1L), parent = environment(clean))
+    expect_error(clean(), "Could not remove all owned cache directories", fixed = TRUE)
+    clean_cached_fits()
+    expect_true(all(dir.exists(c(temp_fits_dir, temp_info_dir, temp_metadata_dir, temp_temp_dir))))
+    expect_identical(readLines(neighbor), "retained")
+  })
+})

@@ -48,7 +48,7 @@ cat("source_root: ", project_root, "\nsource_head: ", source_head,
     "\ndll: ", dll_path, " md5 ", identity$dll_md5,
     "\nbuild: ", build, " (", preparation, ")",
     "\nnative_threads: ", identity$native_threads,
-    "\nElapsed values include CPU and allocation profiling.\n", sep = "")
+    "\nWall elapsed values include Rprof sampling and allocation profiling.\n", sep = "")
 
 .profile_iwmde_estimator <- function(name, likelihood_family, parameter, value,
                                      max_samples, density_method = "qCMDE",
@@ -238,8 +238,8 @@ results <- lapply(cases, function(case) {
 })
 for (result in results) {
   print(result, row.names = FALSE, digits = 6)
-  cat("Top functions by total CPU time:\n")
+  cat("Top functions by total Rprof sample time:\n")
   print(attr(result, "profile")[["by_total"]], digits = 4)
-  cat("Top functions by self CPU time:\n")
+  cat("Top functions by self Rprof sample time:\n")
   print(attr(result, "profile")[["by_self"]], digits = 4)
 }

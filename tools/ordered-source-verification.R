@@ -64,3 +64,54 @@
     paste(names(counts), counts, sep = "=", collapse = ", "), ".", call. = FALSE)
   invisible(counts)
 }
+
+
+# Error estimates are relative to their own computed values P and R. Compare
+# on the reference scale with r = P/R, keeping the existing accuracy ceiling.
+.ordered_source_comparison <- function(log_producer, log_reference,
+                                       producer_error, reference_error,
+                                       floating_error, fixture, row, quantity) {
+
+  fail <- function(detail) {
+    stop("Ordered verification for fixture '", fixture, "', row ", row,
+         ", ", quantity, ": ", detail, ".", call. = FALSE)
+  }
+  inputs <- list(log_producer, log_reference, producer_error, reference_error,
+                 floating_error)
+  if (!all(vapply(inputs, function(value) {
+    is.numeric(value) && length(value) == 1L && is.finite(value)
+  }, logical(1)))) {
+    fail("comparison values and error estimates must be finite scalars")
+  }
+  if (any(c(producer_error, reference_error, floating_error) < 0)) {
+    fail("error estimates must be nonnegative")
+  }
+  ratio <- exp(log_producer - log_reference)
+  difference <- abs(expm1(log_producer - log_reference))
+  allowance <- producer_error * ratio + reference_error +
+    floating_error * max(1, ratio)
+  if (!is.finite(ratio) || !is.finite(difference) || !is.finite(allowance)) {
+    fail("discrepancy and comparison envelope must be finite")
+  }
+  if (allowance > .025) {
+    fail("comparison envelope exceeds the 0.025 accuracy ceiling")
+  }
+  if (difference > allowance) {
+    fail("discrepancy exceeds its comparison envelope")
+  }
+  return(list(difference = difference, allowance = allowance))
+}
+
+
+.ordered_source_reference_integral <- function(reference, fixture, row, quantity) {
+
+  value <- reference[["value"]]
+  error <- reference[["abs.error"]]
+  if (!is.numeric(value) || length(value) != 1L || !is.finite(value) || value <= 0 ||
+      !is.numeric(error) || length(error) != 1L || !is.finite(error) || error < 0) {
+    stop("Ordered verification for fixture '", fixture, "', row ", row,
+         ", ", quantity, ": reference integral must be finite and positive with a finite nonnegative error estimate.",
+         call. = FALSE)
+  }
+  return(invisible(reference))
+}

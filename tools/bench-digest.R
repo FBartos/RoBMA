@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Digest a bench-scenario run directory: per artifact elapsed, native share, top
+# Digest a bench-scenario run directory: wall elapsed, Rprof native self-time share, top
 # self-time functions. Writes `digest.txt` next to the results it reads.
 #
 #   Rscript tools/bench-digest.R <run dir> [min seconds]
@@ -24,7 +24,6 @@ for (i in seq_len(nrow(results))) {
       self   <- s$by.self
       total  <- s$sampling.time
       native <- sum(self$self.time[rownames(self) %in% native_names])
-      gcs    <- sum(self$self.time[rownames(self) %in% c("\"gc\"", "\"<GC>\"")])
       top    <- utils::head(self[!rownames(self) %in% native_names, , drop = FALSE], 6L)
       line <- paste0(line, sprintf("  sampled %6.1fs native %4.0f%%  | ", total, 100 * native / total),
                      paste0(gsub("\"", "", rownames(top)), " ", round(100 * top$self.time / total), "%",

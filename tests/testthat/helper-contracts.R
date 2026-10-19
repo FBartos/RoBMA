@@ -217,7 +217,13 @@ with_draw_metadata <- function(x, ..., class = NULL) {
     class(x) <- class
   }
   fields <- list(...)
-  for (field in names(fields)) {
+  field_names <- names(fields)
+  if (length(fields) > 0L &&
+      (is.null(field_names) || anyNA(field_names) ||
+       any(!nzchar(field_names)) || anyDuplicated(field_names))) {
+    stop("Draw metadata fields must have nonempty unique names.", call. = FALSE)
+  }
+  for (field in field_names) {
     BayesTools::posterior_metadata(x, field) <- fields[[field]]
   }
   x
@@ -261,9 +267,14 @@ as_bayestools_fit <- function(fit) {
 known_v_pair_conditional_log_lik <- function(fit, yi, V,
                                              sd_name = "mu__xREx__estimate_intercept") {
 
+  partners <- lapply(seq_len(nrow(V)), function(i) setdiff(which(V[i, ] != 0), i))
+  if (any(lengths(partners) != 1L)) {
+    stop("A pair-conditional reference requires exactly one partner per row.",
+         call. = FALSE)
+  }
   draws <- as.matrix(coda::as.mcmc.list(fit[["fit"]]))
   vapply(seq_len(nrow(V)), function(i) {
-    j <- setdiff(which(V[i, ] != 0), i)
+    j <- partners[[i]]
     vapply(seq_len(nrow(draws)), function(s) {
       mu    <- draws[s, "mu_intercept"]
       Sigma <- V + diag(draws[s, sd_name]^2, nrow(V))
@@ -424,7 +435,7 @@ catalog_label_parts <- function(selector, components, formula_parameter = "",
 
 # The BayesTools::prior_ordinate_status() table of values whose prior
 # ordinates are regular and exactly classified (eligible point hypotheses).
-eligible_ordinate_status <- function(prior_density, values, labels = NULL) {
+eligible_ordinate_status <- function(values) {
 
   data.frame(
     value               = values,
