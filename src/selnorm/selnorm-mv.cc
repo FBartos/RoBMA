@@ -16,11 +16,12 @@
 #include <functional>
 #include <iterator>
 #include <list>
-#include <memory_resource>
+#include <memory>
 #include <mutex>
 #include <new>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <limits>
@@ -1014,6 +1015,55 @@ double covariance_relative_gap_bound(const std::vector<double>& covariance,
 
 // Selection-envelope memoization. Hashes only select candidates: complete
 // owned values, including the numerical controls, establish every cache hit.
+// All container rebinds share this direct-allocation accounting state. The
+// resource outlives storage; allocator metadata and process RSS are not counted.
+struct EnvelopeMemoResource {
+  std::size_t capacity, allocated = 0, peak = 0;
+  explicit EnvelopeMemoResource(std::size_t bytes) : capacity(bytes) {}
+};
+
+template<class T> class EnvelopeMemoAllocator {
+  template<class U> friend class EnvelopeMemoAllocator;
+  EnvelopeMemoResource *resource;
+public:
+  using value_type = T;
+  using propagate_on_container_copy_assignment = std::false_type;
+  using propagate_on_container_move_assignment = std::false_type;
+  using propagate_on_container_swap = std::false_type;
+  using is_always_equal = std::false_type;
+  template<class U> struct rebind { using other = EnvelopeMemoAllocator<U>; };
+
+  explicit EnvelopeMemoAllocator(EnvelopeMemoResource *owner) noexcept : resource(owner) {}
+  template<class U> EnvelopeMemoAllocator(const EnvelopeMemoAllocator<U> &other) noexcept
+    : resource(other.resource) {}
+
+  T *allocate(std::size_t count)
+  {
+    if (count > std::numeric_limits<std::size_t>::max() / sizeof(T)) throw std::bad_alloc();
+    const std::size_t bytes = count * sizeof(T);
+    if (bytes > resource->capacity - resource->allocated) throw std::bad_alloc();
+    T *result = std::allocator<T>{}.allocate(count);
+    resource->allocated += bytes;
+    resource->peak = std::max(resource->peak, resource->allocated);
+    return result;
+  }
+  void deallocate(T *value, std::size_t count) noexcept
+  {
+    std::allocator<T>{}.deallocate(value, count);
+    resource->allocated -= count * sizeof(T);
+  }
+  template<class U> bool operator==(const EnvelopeMemoAllocator<U> &other) const noexcept
+  {
+    return resource == other.resource;
+  }
+  template<class U> bool operator!=(const EnvelopeMemoAllocator<U> &other) const noexcept
+  {
+    return !(*this == other);
+  }
+};
+
+using EnvelopeMemoValues = std::vector<double, EnvelopeMemoAllocator<double>>;
+
 struct EnvelopeMemoSpan {
   const double *data;
   std::size_t size;
@@ -1040,7 +1090,7 @@ struct EnvelopeMemoView {
     }
     return value;
   }
-  bool equals(const std::pmr::vector<double> &stored) const
+  bool equals(const EnvelopeMemoValues &stored) const
   {
     if (stored.size() != size()) return false;
     std::size_t offset = 0;
@@ -1051,42 +1101,13 @@ struct EnvelopeMemoView {
     }
     return true;
   }
-  void copy_to(std::pmr::vector<double> *stored) const
+  void copy_to(EnvelopeMemoValues *stored) const
   {
     stored->reserve(size());
     for (std::size_t i = 0; i < count; ++i) {
       stored->insert(stored->end(), parts[i].data, parts[i].data + parts[i].size);
     }
   }
-};
-
-// Keys, controls, LRU nodes, and index blocks use this direct counting
-// resource. A pool resource is deliberately not interposed here: its hidden
-// pool/oversize state makes the byte cap indirect, and the actual crash was in
-// a key copy on its exception-driven full-cache retry path. Direct requests
-// are exactly countable and every eviction immediately returns usable bytes.
-// Process RSS additionally includes allocator metadata outside these blocks.
-class EnvelopeMemoResource final : public std::pmr::memory_resource {
-  void *do_allocate(std::size_t bytes, std::size_t alignment) override
-  {
-    if (bytes > capacity - allocated) throw std::bad_alloc();
-    void *result = std::pmr::new_delete_resource()->allocate(bytes, alignment);
-    allocated += bytes;
-    peak = std::max(peak, allocated);
-    return result;
-  }
-  void do_deallocate(void *value, std::size_t bytes, std::size_t alignment) override
-  {
-    std::pmr::new_delete_resource()->deallocate(value, bytes, alignment);
-    allocated -= bytes;
-  }
-  bool do_is_equal(const std::pmr::memory_resource &other) const noexcept override
-  {
-    return this == &other;
-  }
-public:
-  std::size_t capacity, allocated = 0, peak = 0;
-  explicit EnvelopeMemoResource(std::size_t bytes) : capacity(bytes) {}
 };
 
 struct EnvelopeMemoResult {
@@ -1264,41 +1285,45 @@ void snapshot_entry_validate(const SnapshotEntry &entry, const SnapshotHeader &h
 }
 
 struct EnvelopeMemoEntry {
-  std::pmr::vector<double> key;
+  EnvelopeMemoValues key;
   std::size_t hash;
   EnvelopeMemoComponent component;
   EnvelopeMemoResult result;
-  EnvelopeMemoEntry(std::pmr::memory_resource *resource, const EnvelopeMemoView &view,
+  EnvelopeMemoEntry(EnvelopeMemoResource *resource, const EnvelopeMemoView &view,
       std::size_t hash_value, EnvelopeMemoComponent owner, const EnvelopeMemoResult &value)
-    : key(resource), hash(hash_value), component(owner), result(value)
+    : key(EnvelopeMemoAllocator<double>(resource)), hash(hash_value), component(owner), result(value)
   {
     view.copy_to(&key);
   }
-  EnvelopeMemoEntry(std::pmr::memory_resource *resource, const unsigned char *data,
+  EnvelopeMemoEntry(EnvelopeMemoResource *resource, const unsigned char *data,
       std::size_t count, std::size_t hash_value, EnvelopeMemoComponent owner, const EnvelopeMemoResult &value)
-    : key(resource), hash(hash_value), component(owner), result(value)
+    : key(EnvelopeMemoAllocator<double>(resource)), hash(hash_value), component(owner), result(value)
   {
     key.resize(count);
     if (count) std::memcpy(key.data(), data, count * sizeof(double));
   }
 };
 
-using EnvelopeMemoEntries = std::pmr::list<EnvelopeMemoEntry>;
+using EnvelopeMemoEntries = std::list<EnvelopeMemoEntry, EnvelopeMemoAllocator<EnvelopeMemoEntry>>;
 using EnvelopeMemoIndex =
-  std::pmr::unordered_multimap<std::size_t, EnvelopeMemoEntries::iterator>;
+  std::unordered_multimap<std::size_t, EnvelopeMemoEntries::iterator,
+    std::hash<std::size_t>, std::equal_to<std::size_t>,
+    EnvelopeMemoAllocator<std::pair<const std::size_t, EnvelopeMemoEntries::iterator>>>;
 
 // Conservative direct-allocation allowance for one LRU node, one index node,
 // and bucket storage (including the old-plus-new arrays during rehash).
 constexpr std::size_t envelope_entry_overhead = 512;
 
 struct EnvelopeMemoStorage {
-  std::array<std::pmr::vector<double>, 2> controls;
+  std::array<EnvelopeMemoValues, 2> controls;
   std::array<bool, 2> controls_ready{{false, false}};
   EnvelopeMemoEntries entries;
   EnvelopeMemoIndex index;
-  explicit EnvelopeMemoStorage(std::pmr::memory_resource *resource)
-    : controls{{std::pmr::vector<double>(resource), std::pmr::vector<double>(resource)}},
-      entries(resource), index(resource)
+  explicit EnvelopeMemoStorage(EnvelopeMemoResource *resource)
+    : controls{{EnvelopeMemoValues(EnvelopeMemoAllocator<double>(resource)),
+        EnvelopeMemoValues(EnvelopeMemoAllocator<double>(resource))}},
+      entries(EnvelopeMemoEntries::allocator_type(resource)),
+      index(EnvelopeMemoIndex::allocator_type(resource))
   {
     // Rehash's old and new buckets both count against the one shared cap.
     index.max_load_factor(1.0f);
@@ -1357,7 +1382,7 @@ class EnvelopeMemo {
         resource.capacity - resource.allocated < required) {
       // Unordered-map buckets do not shrink when nodes are erased. Return that
       // retained capacity before declaring an otherwise empty cache full.
-      EnvelopeMemoIndex empty(&resource);
+      EnvelopeMemoIndex empty{EnvelopeMemoIndex::allocator_type(&resource)};
       storage->index.swap(empty);
     }
     return resource.capacity - resource.allocated >= required;
@@ -1404,7 +1429,7 @@ class EnvelopeMemo {
       auto current = entry++;
       if (current->component == component) erase(current, false);
     }
-    std::pmr::vector<double> empty(&resource);
+    EnvelopeMemoValues empty{EnvelopeMemoAllocator<double>(&resource)};
     storage->controls[owner].swap(empty);
     storage->controls_ready[owner] = false;
   }
@@ -1636,7 +1661,7 @@ public:
         if (!envelope_memo_entry_bytes(entry.size,
               storage && storage->controls_ready[owner] ? 0 : header.controls_size[owner],
               &required) ||
-            !make_room(required)) {
+            required > resource.capacity - resource.allocated) {
           if (resource.capacity != 0) ++counters[owner].allocation_failures;
           full = true;
           break;
@@ -1649,13 +1674,12 @@ public:
             std::memcpy(storage->controls[owner].data(), header.controls[owner], header.controls_size[owner] * sizeof(double));
             storage->controls_ready[owner] = true;
           }
-          // Input order is MRU-first. Proactive admission evicts only from the
-          // cold end, so a smaller budget retains the warm prefix and order.
+          // Input order is MRU-first. Admission never evicts restored entries,
+          // so a smaller budget retains only the warm prefix in that order.
           storage->entries.emplace_back(&resource, entry.key, entry.size, hash, entry.component, entry.result);
           created = true;
           storage->index.emplace(hash, std::prev(storage->entries.end()));
           ++counters[owner].entries;
-          if (owner == 0) ++out.restored_exact; else ++out.restored_coarse;
         } catch (const std::bad_alloc &) {
           if (created) storage->entries.pop_back();
           ++counters[owner].allocation_failures; full = true;
@@ -1663,6 +1687,8 @@ public:
       }
     }
     if (storage && storage->entries.empty()) release_storage();
+    out.restored_exact = counters[slot(EnvelopeMemoComponent::exact)].entries;
+    out.restored_coarse = counters[slot(EnvelopeMemoComponent::coarse)].entries;
     out.skipped = out.available_exact + out.available_coarse - out.restored_exact - out.restored_coarse;
     return out;
   }

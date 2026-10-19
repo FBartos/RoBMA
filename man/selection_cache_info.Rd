@@ -16,11 +16,14 @@ proposal cache, or \code{"all"} caches.}
 \value{
 A data frame with the cache component, byte counts, entry count, and
 lookup, eviction and allocation counters. The \code{"total"} row reports the
-shared capacity and allocated pool/index storage; component byte counts are
-\code{NA} because pool blocks are shared. They exclude the surrounding R
-process and JAGS model. The allocated size can remain unchanged after eviction.
-Allocation-failure counts include attempts refused by the configured cap;
-they do not necessarily indicate exhaustion of system memory.
+shared capacity and directly allocated blocks, including retained controls and
+index buckets; component byte counts are \code{NA} because storage is shared.
+Allocator metadata, the surrounding R process and JAGS model are excluded;
+this is not a process-RSS limit. Eviction releases entry blocks, while controls
+and index buckets can remain allocated. Oversize lookup keys increment misses
+without incrementing allocation failures. Failed insertion, capacity or
+allocation attempts can increment allocation failures; these counts do not
+necessarily indicate exhaustion of system memory.
 }
 \description{
 Reports the bounded native selection-normalizer cache in the
@@ -40,8 +43,9 @@ disabled until a budget can be resolved or supplied explicitly.
 Loading the package does not query available memory. The first selection
 computation initializes the current process's cache, including computations
 on a saved fit. Explicit option changes and fitting setup also initialize it.
-Exact and coarse entries share one lazily allocated pool with global
-least-recently-used eviction. The ordinary sampler does not use coarse entries.
+Exact and coarse entries share one byte budget for directly allocated key,
+control, list-node and index blocks, with global least-recently-used eviction.
+Storage is allocated lazily. The ordinary sampler does not use coarse entries.
 
 The budget is resolved once before fitting and divided equally among chains.
 Shares are pooled for chains assigned to the same process: ten parallel
@@ -56,9 +60,10 @@ This function reports only the current process, not separate workers or saved
 fitted-object caches. By default entries live in the native process. Set
 \code{RoBMA.options(selection.cache_retain = TRUE)} to retain them with the
 fit; see \code{\link{remove_selection_cache}}. Changing
-the budget or clearing all entries releases the pool. Clearing one component
-leaves the shared pool available for reuse. Switching sampler options does
-not clear existing entries or replace already compiled samplers.
+the budget or clearing all entries releases the shared storage. Clearing one
+component releases its keys, nodes and controls; shared index buckets can remain
+allocated. Switching sampler options does not clear existing entries or replace
+already compiled samplers.
 
 The exact cache accelerates successful deterministic covariance-envelope
 normalizers for multivariate step selection. Unsupported numerical routes

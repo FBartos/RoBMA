@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Retained selection caches restored into a smaller memory budget keep the most
+  recent entries that fit and report the entries actually retained. Native
+  storage uses standard containers with one shared counting allocator.
 - Closed-form density normalizers combine Gaussian factors successively and
   retain narrow-prior and far-tail support contributions on their own scales.
 - Selection-projection diagnostics include numerator and denominator

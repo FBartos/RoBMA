@@ -5,8 +5,8 @@
 #include <cstdint>
 #include <memory>
 
-// One process-wide exact/coarse budget. Global bytes include all pool/index
-// blocks requested upstream; component counters do not duplicate that storage.
+// One process-wide exact/coarse budget. Global bytes include all directly
+// allocated shared blocks; component counters do not duplicate that storage.
 struct SelNormCacheStats {
   std::size_t entries = 0;
   std::uint64_t hits = 0, misses = 0, evictions = 0, resets = 0, allocation_failures = 0;
@@ -23,7 +23,7 @@ SelNormCacheInfo cpp_selnorm_cache_control(
 );
 
 // Snapshot buffers are call-owned views. R allocates export memory outside
-// the cache mutex; restore validates every shard before replacing pool state.
+// the cache mutex; restore validates every shard before replacing cache storage.
 struct SelNormCacheBlob { const unsigned char *data; std::size_t size; };
 struct SelNormCacheRestoreInfo {
   std::uint64_t snapshots = 0, available_exact = 0, available_coarse = 0;
@@ -62,8 +62,9 @@ struct SelNormZProjection {
 
 // Optional integration rules for an ordinary dense covariance. Covariance
 // envelopes bound monotone product normalizers. Nonmonotone products require
-// an absolute covariance-perturbation bound. That error is separate from the
-// estimated interior quadrature error and bounded exterior Gaussian mass.
+// a covariance-perturbation bound: strictly positive weights permit a relative
+// bound, while zero weights retain the absolute bound. Covariance error is
+// separate from estimated interior quadrature error and bounded exterior mass.
 struct SelNormDenseIntegration {
   const double *nodes = nullptr;
   const double *log_weights = nullptr;
