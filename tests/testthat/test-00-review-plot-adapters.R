@@ -16,7 +16,7 @@
 test_that("admitted forest adapters preserve presentation and explicit overrides", {
 
   fit <- .review_plot_adapter_replay()
-  slab <- paste0("Study ", seq_len(nobs(fit)))
+  slab <- paste0("Custom study ", seq_len(nobs(fit)))
   prepared <- forest.brma(fit, addpred = TRUE, predstyle = "shade", row = -4,
     mlab = "Prepared", predlim = c(-2, 2), border = "red", constarea = TRUE,
     slab = slab, as_data = TRUE)
