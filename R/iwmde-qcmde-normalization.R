@@ -53,15 +53,6 @@
   conditional_log_mass <- vapply(conditional_normalizers, `[[`, numeric(1L), "log_normalizer")
   quadrature_changes <- vapply(conditional_normalizers, `[[`, numeric(1L), "relative_error")
 
-  record_quadrature <- function(log_q) {
-
-    change <- attr(log_q, "max_quadrature_relative_change", exact = TRUE)
-    if (is.numeric(change) && length(change) == 1L && !is.na(change)) {
-      quadrature_changes <<- c(quadrature_changes, change)
-    }
-
-    invisible(log_q)
-  }
   # The log prior that a Gaussian-kernel route reports with its values, by
   # value, for the rows named in `priors$columns` once the rows' laws are known
   # (all rows before). The closed-form normalization of exact rows checks it on
@@ -89,10 +80,10 @@
   }
   evaluate <- function(evaluation_context, values) {
 
-    log_q <- record_quadrature(.iwmde_qcmde_evaluate_grid(
+    log_q <- .iwmde_qcmde_evaluate_grid(
       evaluation_context, parameter, values, row_states, replacement,
       estimator_rows
-    ))
+    )
     record_prior(values, log_q)
 
     return(log_q)
@@ -208,7 +199,6 @@
     log_q <- .iwmde_qcmde_try_log_q(direct, parameter, values, row_states,
                                     replacement)
     if (!is.null(log_q)) {
-      record_quadrature(log_q)
       record_prior(values, log_q)
     }
     log_q
@@ -657,15 +647,6 @@
 }
 
 
-# The largest of the quadrature changes reported, NA when none was.
-.iwmde_qcmde_max_change <- function(changes) {
-
-  changes <- changes[!is.na(changes)]
-
-  if (length(changes) > 0L) max(changes) else NA_real_
-}
-
-
 # What of a normalization pass does not depend on the display values: the
 # normalizers of the three grids, the normalization integrals of the pilot and
 # the selected grid, the row truncation, and the descriptions of the grids.
@@ -781,10 +762,6 @@
         context, parameter, display_grid, row_states, replacement,
         estimator_rows
       )
-      quadrature_change <- .iwmde_qcmde_max_change(c(
-        quadrature_change,
-        attr(evaluated, "max_quadrature_relative_change", exact = TRUE)
-      ))
       log_q_display <- matrix(as.numeric(evaluated), nrow(evaluated),
                               ncol(evaluated))
     }

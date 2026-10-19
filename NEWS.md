@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Invalid batched density likelihood lengths raise an error; ordinary grids no
+  longer carry an unused quadrature attribute, while retained-location
+  normalizers preserve their actual quadrature diagnostics.
 - Density metadata preserves allocated-SD evaluator failures and requires an
   explicit coordinate before applying a formula predictor shortcut.
 - Single-point density results retain only that point's prior classification

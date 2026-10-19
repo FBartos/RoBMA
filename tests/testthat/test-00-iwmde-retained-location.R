@@ -165,6 +165,12 @@ test_that("conditional normalization preserves truncation and scaled t-prior mas
     expect_equal(result$log_normalizer, expected, tolerance = 1e-7)
     expect_lte(abs(expm1(expected - result$log_normalizer)), result$relative_error + 1e-10)
     expect_identical(result$method, "scaled_gaussian_integral")
+    z <- seq(-.1, .2, length.out = 5L)
+    pass <- .iwmde_qcmde_normalization_pass(list(), "target", kernel_center,
+      list(x = z, z = z, log_jacobian = rep(0, length(z))),
+      .iwmde_parameter_transform(c(-Inf, Inf)), .999, states,
+      list(type = "scalar"), 1L)
+    expect_identical(pass$quadrature_change, result$relative_error)
   }
   invalid <- states[[1L]]
   invalid$gaussian_change$quadratic <- 0

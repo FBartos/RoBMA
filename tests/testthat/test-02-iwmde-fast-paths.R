@@ -1833,50 +1833,6 @@ test_that("qCMDE grid refinement measures discretization alone", {
 })
 
 
-test_that("qCMDE keeps the largest quadrature change of every evaluation", {
-
-  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
-  normalization_values <- seq(-6, 6, length.out = 20L)
-  normalization_grid <- list(
-    x            = normalization_values,
-    z            = normalization_values,
-    log_jacobian = rep(0, length(normalization_values))
-  )
-  calls <- 0L
-
-  testthat::local_mocked_bindings(
-    .iwmde_log_q_grid = function(context, parameter, values, row_states,
-                                 replacement) {
-
-      calls <<- calls + 1L
-      out <- cbind(stats::dnorm(values, log = TRUE))
-      attr(out, "max_quadrature_relative_change") <- if (calls == 3L) {
-        Inf
-      } else {
-        .001
-      }
-      out
-    },
-    .package = "RoBMA"
-  )
-
-  pass <- .iwmde_qcmde_normalization_pass(
-    context            = list(),
-    parameter          = "mu",
-    display_grid       = 7,
-    normalization_grid = normalization_grid,
-    transform          = transform,
-    normalization_prob = .999,
-    row_states         = list(list()),
-    replacement        = list(type = "scalar"),
-    estimator_rows     = 1L
-  )
-
-  expect_identical(calls, 3L)
-  expect_identical(pass[["quadrature_change"]], Inf)
-})
-
-
 test_that("qCMDE ordinate changes preserve infinite relative changes", {
 
   change <- .iwmde_qcmde_ordinate_change(
@@ -4338,7 +4294,7 @@ test_that("IWMDE active-branch samples reject uncollapsed prior mixtures", {
   )
 })
 
-test_that("IWMDE batched q evaluation warns on invalid likelihood length", {
+test_that("IWMDE batched q evaluation rejects invalid likelihood lengths", {
 
   context <- list(
     posterior_samples = matrix(
@@ -4358,19 +4314,22 @@ test_that("IWMDE batched q evaluation warns on invalid likelihood length", {
     )
   )
 
-  expect_warning(
-    out <- .iwmde_log_q_grid_from_samples(
+  evaluate <- function(log_lik_fun) {
+    .iwmde_log_q_grid_from_samples(
       context         = context,
       parameter       = "mu",
       values          = c(0, 1),
       row_states      = row_states,
       replacement     = list(type = "scalar"),
       likelihood_mode = "marginal",
-      log_lik_fun     = function(samples, active_setup, batch) 0
-    ),
-    "invalid length"
-  )
-  expect_null(out)
+      log_lik_fun     = log_lik_fun
+    )
+  }
+  for (invalid in list(0, numeric(), "0")) {
+    expect_error(evaluate(function(samples, active_setup, batch) invalid),
+      "Batched IWMDE likelihood returned an invalid length.", fixed = TRUE)
+  }
+  expect_null(evaluate(function(samples, active_setup, batch) NULL))
 })
 
 

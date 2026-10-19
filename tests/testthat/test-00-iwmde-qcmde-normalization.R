@@ -40,9 +40,7 @@ context("qCMDE normalization pass: call structure and grid requests")
       if (in_grid && fail_in_grid(values)) {
         stop("the grid cannot answer this request")
       }
-      out <- rows(values)
-      attr(out, "max_quadrature_relative_change") <- .001
-      out
+      rows(values)
     },
     .iwmde_qcmde_estimate_only = function(context, row_states, rows) {
       estimate_only
@@ -109,7 +107,7 @@ test_that("an estimate-only batch evaluates the display values, nodes and midpoi
   # calls, value for value.
   expect_identical(.qcmde_pass_plain(merged[["pass"]]),
                    .qcmde_pass_plain(sequential[["pass"]]))
-  expect_identical(merged[["pass"]][["quadrature_change"]], .001)
+  expect_identical(merged[["pass"]][["quadrature_change"]], NA_real_)
 })
 
 
@@ -243,9 +241,7 @@ test_that("only batches whose rows cannot report a Gaussian kernel are estimate-
     .iwmde_log_q_grid = function(context, parameter, values, row_states,
                                  replacement) {
       state$calls <- state$calls + 1L
-      out <- rows(values)
-      attr(out, "max_quadrature_relative_change") <- .001
-      out
+      rows(values)
     },
     .iwmde_qcmde_normalization_pass = function(...) {
       state$passes <- state$passes + 1L
@@ -352,14 +348,6 @@ test_that("the cache keeps a bounded number of entries and no entry above its si
   expect_null(.iwmde_qcmde_cache_get(list(cache = env, key = "large")))
   expect_false(.iwmde_qcmde_cache_set(NULL, list(value = 1)))
   expect_null(.iwmde_qcmde_cache_get(NULL))
-})
-
-
-test_that("the largest of the quadrature changes reported is kept, and none is NA", {
-
-  expect_identical(.iwmde_qcmde_max_change(c(NA, .01, .002)), .01)
-  expect_identical(.iwmde_qcmde_max_change(c(NA_real_, NA_real_)), NA_real_)
-  expect_identical(.iwmde_qcmde_max_change(NULL), NA_real_)
 })
 
 

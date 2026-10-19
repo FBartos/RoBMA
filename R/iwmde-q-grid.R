@@ -24,8 +24,6 @@
       ordinary <- .iwmde_log_q_grid(context, parameter, values,
         row_states[!transformed], replacement)
       out[, !transformed] <- ordinary
-      change <- attr(ordinary, "max_quadrature_relative_change", exact = TRUE)
-      if (!is.null(change)) attr(out, "max_quadrature_relative_change") <- change
       kernel <- .iwmde_gaussian_kernel_assign(NULL, which(!transformed),
         attr(ordinary, "gaussian_kernel", exact = TRUE), length(row_states))
       if (!is.null(kernel)) attr(out, "gaussian_kernel") <- kernel
@@ -223,7 +221,6 @@
 
   out    <- matrix(-Inf, nrow = length(values), ncol = length(row_states))
   groups <- .iwmde_row_state_groups(context, row_states)
-  quadrature_change <- NA_real_
   kernel <- NULL
 
   for (state_cols in groups) {
@@ -247,24 +244,8 @@
       value   = attr(group_out, "gaussian_kernel", exact = TRUE),
       n       = length(row_states)
     )
-    group_quadrature_change <- attr(
-      group_out,
-      "max_quadrature_relative_change",
-      exact = TRUE
-    )
-    if (length(group_quadrature_change) == 1L &&
-        is.finite(group_quadrature_change)) {
-      quadrature_change <- max(
-        quadrature_change,
-        group_quadrature_change,
-        na.rm = TRUE
-      )
-    }
   }
 
-  if (is.finite(quadrature_change)) {
-    attr(out, "max_quadrature_relative_change") <- quadrature_change
-  }
   if (!is.null(kernel)) {
     attr(out, "gaussian_kernel") <- kernel
   }

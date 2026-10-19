@@ -135,11 +135,10 @@
       }
 
       if (!is.numeric(log_lik) || length(log_lik) != length(valid_positions)) {
-        warning(
-          "Batched IWMDE likelihood returned an invalid length; falling back to scalar evaluation.",
+        stop(
+          "Batched IWMDE likelihood returned an invalid length.",
           call. = FALSE
         )
-        return(NULL)
       }
 
       log_prior <- .iwmde_replacement_log_prior(
