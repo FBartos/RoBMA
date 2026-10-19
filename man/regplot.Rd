@@ -62,7 +62,8 @@ selection process.}
 
 \item{at}{numeric vector; for continuous moderators, values at which to
 evaluate the prediction. If not specified, uses a sequence across the
-observed range.}
+observed range. Continuous evaluation values are sorted with all
+associated predictions and intervals; duplicate evaluations are retained.}
 
 \item{digits}{integer; number of decimal places for labels. Defaults to \code{2}.}
 
@@ -80,7 +81,9 @@ Defaults to \code{NULL} (no reference line).}
 
 \item{psize}{numeric vector or \code{NULL}; point sizes for each study.
 If scalar, it is recycled to all studies. If \code{NULL} (default), sizes
-are computed based on inverse sampling variance.}
+are computed from inverse standard error, mapped to \code{plim}. Equal
+precisions use the lower endpoint; zero SEs receive the established maximum
+priority when positive SEs are also present.}
 
 \item{plim}{numeric vector of length 2; range for point sizes.
 Defaults to \code{c(0.5, 3)}.}

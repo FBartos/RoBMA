@@ -7,7 +7,8 @@
 \method{cooks.distance}{brma}(model, ...)
 }
 \arguments{
-\item{model}{a fitted brma object.}
+\item{model}{a fitted normal-outcome \code{brma} object without a
+weightfunction component.}
 
 \item{...}{additional arguments (currently ignored).}
 }
@@ -37,6 +38,9 @@ estimate-unit PSIS weights. With correlated known-\code{V}, deletion is
 conditional estimate deletion and the reported fitted-value target is the
 fixed-location mean \eqn{\mu = X\beta}; sampled or marginalized random
 effects are not included in the reported fitted value.
+Selection \code{brma.mv()} influence is currently unavailable. The PSIS
+fixed-location moments do not require the inverse marginal covariance used
+by \code{hatvalues()}.
 }
 \examples{
 \dontrun{

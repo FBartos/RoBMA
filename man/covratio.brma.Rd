@@ -46,6 +46,10 @@ variance), while values < 1 indicate that the observation decreases precision
 For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
 correlated known-\code{V} data, this is influence under conditional estimate
 deletion, not independent-study deletion.
+A requested random-effect correlation must be defined in every posterior
+draw. If either SD is zero in some draws, the complete influence request is
+unavailable; explicitly select an everywhere-defined quantity with
+\code{component = "random"} and \code{parameter} instead.
 Parameters with zero posterior variance are excluded from the covariance
 determinant and reported in a printed note when available. Ordered terms
 retain their fitted totals and omit one share per metadata-declared Dirichlet

@@ -25,14 +25,16 @@ EDR, Soric FDR, and the conventional missing-count diagnostic when applicable.
 \details{
 The summary includes:
 \describe{
-\item{EDR}{Expected Discovery Rate - average power of significant studies}
+\item{EDR}{Expected Discovery Rate - the posterior average probability of
+significance for a new outcome from the bias-adjusted reference}
 \item{Soric FDR}{Expected proportion of false discoveries among significant
 results, computed from EDR following Soric (1989)}
 \item{Missing N}{The retained reference-bin-normalized inverse-weight
 diagnostic for independent univariate and conditional-cluster product
 models. See \code{\link[=as_zplot.brma]{as_zplot.brma()}} for the additional assumptions required by
 a literal count interpretation. Unavailable for multivariate models,
-applicable integrated contexts, or best-rule selection models because
+retained estimate-level or sampling-error sources, applicable integrated
+contexts, or best-rule selection models because
 relative weights do not identify a missing count}
 }
 

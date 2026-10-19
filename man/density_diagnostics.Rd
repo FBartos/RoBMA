@@ -116,6 +116,8 @@ A hypothesis result without attached diagnostics, such as one whose point
 ordinates were estimated with \code{density_method = "KDE"} or one without a
 point hypothesis, stops with the class
 \code{RoBMA_density_diagnostics_unavailable}.
+Density ordinate, diagnostic-unavailable, and plot conditions share the
+\code{RoBMA_density_error} parent while retaining their specific condition classes.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 below 100, the largest contribution share is at least 20 percent, or fewer
@@ -188,6 +190,9 @@ offsets classified as nonfinite or unsupported are excluded only from density cu
 explicit point requests retain their structural or precision refusal.
 The ordered per-row limit of 0.025 is separate from the generic stability
 warning/rejection thresholds reported in this table.
+Source-normalization refusals have class \code{RoBMA_ordered_normalization_error}
+and retain \code{iwmde_ordered_normalization_error} as a compatibility ancestor.
+Their condition's \code{proof} field contains the numerical integration evidence.
 When only some ordered evaluations lack certified contribution variation,
 their MCMC error and ESS stay unavailable while other evaluations retain
 their metrics. A printed table footnote reports the \code{partial} uncertainty

@@ -17,11 +17,13 @@ structure of \code{metafor::influence} objects. It is a list containing:
 \item{inf}{A data frame with columns: \code{rstudent}, \code{dffits},
 \code{cook.d}, \code{cov.r}, \code{tau.del}, and \code{hat}, where available.
 The \code{tau.del} column is the PSIS leave-one-out posterior mean of the
-aggregate heterogeneity. For scale models, aggregation is over the remaining
-scale-model rows after each deletion.}
+root mean square of total row-level heterogeneity over the remaining
+scale-model rows after each deletion. It is not a pooled log-scale design
+prediction.}
 \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
-Undefined determinant- or variance-standardized diagnostics are reported as
-\code{NaN} and printed with an explanatory note.
+Undefined COVRATIO and coefficient DFBETAS values are reported as
+\code{NaN} with an explanatory note. DFFITS returns \code{NA} when its
+leave-one-out posterior fitted-value SD is zero, without a separate note.
 Binomial and Poisson GLMMs are not supported because the aggregate includes
 an \code{rstudent} LOO-PIT component and no discrete PIT convention has been
 defined. Their PIT-independent COVRATIO and DFBETAS diagnostics remain
@@ -42,8 +44,13 @@ The \code{hat} column uses the design of each draw's member for ensembles
 whose members differ in their PET and PEESE terms, as described in
 \code{\link{hatvalues.brma}}.
 
-For known-\code{V} models, the hat values, DFFITS and Cook's distance require
-applying the inverse of the marginal covariance. A covariance that is too
+Selection \code{brma.mv()} models are currently unavailable through this
+aggregate diagnostic. Standalone DFFITS and Cook's distance are available
+for normal outcomes without a weightfunction component.
+
+For known-\code{V} models, the hat values require applying the inverse of
+the marginal covariance. DFFITS and Cook's distance use PSIS fixed-location
+moments and do not apply this inverse. A covariance that is too
 ill-conditioned for that (a reciprocal condition number of about \code{2e-10}
 or less in any posterior draw used) is unavailable: the call stops with an
 error of class \code{RoBMA_known_v_precision_unavailable}, whose parent class

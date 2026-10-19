@@ -49,6 +49,10 @@ joint target. Earlier affected estimate scores must be recomputed.
 Estimate-unit GLMM draws support point or beta baserate priors and point or
 normal log-rate priors, including their supported truncations. Other
 nuisance-prior families are rejected when the model input is validated.
+Numerical quadrature failures share class \code{RoBMA_glmm_numerical_error}.
+AGHQ failures have class \code{RoBMA_glmm_aghq_nonconvergence}; prior-CDF refinement
+failures retain \code{RoBMA_glmm_grid_nonconvergence}. Their fields identify the
+outcome family, observation, and available sample/refinement diagnostics.
 Cluster-unit GLMM draws are unavailable until certified nested
 adaptive quadrature is implemented.
 }

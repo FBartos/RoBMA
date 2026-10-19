@@ -83,10 +83,10 @@ terms used in multiple prior components. A \code{parameter_mods} or
 an error of class \code{RoBMA_component_mismatch}.}
 }
 \value{
-\code{plot_prior} returns either \code{NULL} invisibly if
-\code{plot_type = "base"} or a \code{ggplot2} object if
-\code{plot_type = "ggplot"}. If multiple parameters are requested, a named
-list is returned, invisibly for base plots.
+\code{plot_prior} returns the selected prior plotting method's
+result, invisibly for base plots (which may include plot-data metadata), or
+a \code{ggplot2} object for \code{plot_type = "ggplot"}. If multiple
+parameters are requested, a named list is returned, invisibly for base plots.
 }
 \description{
 \code{plot_prior} visualizes prior distributions stored in
@@ -126,6 +126,15 @@ original predictor scale of these laws. Objects created with
 \code{only_priors = TRUE} have no fitted random-effect quantities; print
 their random-effect priors with
 \code{print_prior(x, parameter = "random")}.
+
+Inconsistent random-allocation parent metadata stop with
+\code{RoBMA_random_prior_derivation_error}; cycles additionally carry
+\code{RoBMA_random_allocation_cycle}, and unknown parents carry
+\code{RoBMA_random_allocation_parent_unavailable}. A parent chain beyond the
+supported depth of 16 allocations carries
+\code{RoBMA_random_allocation_depth_unavailable}. The condition retains
+its \code{reason} and visited \code{allocation_chain}. Other source errors
+propagate with their original classes and causes.
 
 A term with several fitted coordinates (a factor with three or more levels
 or with independent contrasts, and the interactions of such a factor) has

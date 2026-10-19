@@ -19,10 +19,12 @@ add_selection_sensitivity_diagnostics(object, ...)
 \item{object}{A fitted normal-outcome model with a bound selection model.}
 
 \item{max_posterior_samples}{Maximum number of posterior draws to evaluate.
+A positive integer of at least \code{10}, or \code{Inf} for all posterior draws.
 Draws are deterministically thinned over posterior row order.}
 
 \item{latent_samples}{Number of fresh pre-selection retained-context draws
-per posterior draw. Defaults to \code{512}.}
+per posterior draw. Must be one finite integer of at least \code{2}; defaults
+to \code{512}.}
 
 \item{seed}{Integer seed for the diagnostic simulation. The calling R
 session's random-number state is restored before returning.}
@@ -35,12 +37,22 @@ session's random-number state is restored before returning.}
 \code{selection_sensitivity_diagnostics()}.}
 }
 \value{
-A data frame with one row per connected source unit. The \code{q05},
-\code{median}, and \code{q95} columns summarize ESS fractions, total variation, and
-the interquartile range of log weights across posterior draws. Conditional
-Monte Carlo standard errors and simulation budgets are also reported.
-\code{settings} and \code{target} attributes record simulation settings and the
-compared model specifications. The add function returns the fitted object.
+A data frame with one row per connected source unit, identified by
+\code{block}, comma-separated observation \code{rows}, and \code{n_estimates}. The
+\code{ess_fraction}, \code{total_variation}, and \code{log_weight_iqr} summaries each have
+\verb{_q05}, \verb{_median}, and \verb{_q95} columns across all evaluated posterior draws,
+including non-selection draws. The \code{ess_fraction_mcse} and
+\code{total_variation_mcse} columns have \verb{_median} and \verb{_max} suffixes for
+conditional Monte Carlo uncertainty. \code{integration_relative_mcse_max} and
+\code{integration_relative_quadrature_error_max} are maxima over constituent
+event evaluations, not an error bound for the multiplied unit weight.
+\code{posterior_samples}, \code{total_posterior_samples}, and \code{latent_samples} report
+the simulation budgets. The \code{settings} attribute records
+\code{max_posterior_samples}, \code{latent_samples}, \code{seed}, and \code{integration_control}.
+The \code{target} attribute records the comparison, fitted and reference models,
+applicability, source roles, fitted and reference sampling structures,
+publication groups, likelihood unit, row blocks, and resolved event
+integration settings. The add function returns the fitted object.
 }
 \description{
 Describes how integrating the contexts retained by a fitted selection model
@@ -61,6 +73,8 @@ singular declared support. Integration diagnostics report maxima over the
 constituent event evaluations, rather than an error bound for their product.
 
 \code{ess_fraction} estimates \code{mean(W)^2 / mean(W^2)};
+this is a retained-context reweighting ESS fraction within each posterior
+parameter state, not the posterior sample ESS.
 \code{total_variation} estimates the distance between the pre-selection context
 law and its normalized \code{W}-reweighted law. The fitted and reference
 conditioning specifications, publication identities, and source roles are
@@ -87,6 +101,18 @@ stored as unavailable without discarding the fitted posterior. Call
 \code{selection_sensitivity_diagnostics()} to inspect the comparison or its error.
 Sensitivity notifications are emitted only by these explicit helper calls,
 not by fitting, extension, or ordinary model printing.
+
+The substantial-sensitivity warning has class
+\code{RoBMA_selection_sensitivity_warning}, retaining \code{simpleWarning}, \code{warning},
+and \code{condition}. Its fields are \code{maximum_total_variation}, \code{threshold} (\code{0.10}),
+and \code{comparison} (\code{"retained_context_reweighting"}). Own nonfinite normalizer
+refusals have class \code{RoBMA_selection_sensitivity_normalizer_unavailable} and
+fields \code{reason}, \code{posterior_draw} (the evaluated posterior-row index),
+\code{latent_draw}, \code{event}, and the observed \code{log_mass} values. Unsupported retained
+covariance has class \code{RoBMA_selection_sensitivity_covariance_unavailable} and
+\code{reason = "retained_covariance_unavailable"}. Both refusals inherit from
+\code{RoBMA_selection_sensitivity_error}, \code{simpleError}, \code{error}, and \code{condition}.
+Downstream integration failures retain their original conditions.
 }
 \seealso{
 \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}

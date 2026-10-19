@@ -53,14 +53,10 @@ change the EDR and missing-study summaries stored by \code{as_zplot()}.}
 \item{as_data}{whether to return data instead of plotting. Defaults to \code{FALSE}.}
 
 \item{integration_control}{numerical integration settings created by
-\code{set_selection_likelihood_control()}. These control integration within
-each posterior draw, independently of \code{max_samples}. Factor blocks and
-supported full-covariance product-selection blocks use deterministic
-Gauss-Hermite quadrature where possible, with the existing adaptive randomized
-quasi-Monte Carlo fallback. Density-error checks use the peak within each
-posterior draw and also check the selection normalizer. Bounded CDF
-interpolation, Gaussian-mixture approximation, and omitted contributions
-are charged to the same numerical error budget.}
+\code{set_selection_likelihood_control()}. Defaults to the settings stored by
+\code{as_zplot()}; an explicit value overrides them for these lines. Legacy
+objects without stored settings require an explicit control, or recreation
+with \code{as_zplot()}, when their selected density needs integration.}
 
 \item{parallel}{whether to distribute multivariate selection-model density
 calculations across local workers. Defaults to \code{FALSE}. Only posterior
@@ -107,7 +103,8 @@ When \code{extrapolate = FALSE}, the density includes all bias adjustments
 (PET/PEESE regression, selection weights) representing the fitted model.
 When \code{extrapolate = TRUE}, bias adjustments are removed to show the
 hypothetical distribution without publication bias. Multivariate models,
-applicable integrated contexts, and best-rule selection models use a
+retained estimate-level or sampling-error sources, applicable integrated
+contexts, and best-rule selection models use a
 normalized pre-selection Gaussian reference. Released univariate product
 targets retain inverse-weight scaling
 and their extrapolated curve need not integrate to one.

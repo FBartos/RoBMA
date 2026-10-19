@@ -112,14 +112,18 @@ to that one prediction row and the prediction interval uses
 \code{conditioning_depth = "marginal"}. For
 \pkg{metafor}'s \code{predstyle = "shade"} and
 \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
-density estimate computed from those posterior predictive draws. The
+density estimate computed from those posterior predictive draws. This is a
+display approximation that can smooth point masses. The
 displayed prediction-interval endpoints remain the posterior quantiles of
 the corresponding predictive draws.
 
 Additional study-level columns can be added with metafor's \code{ilab}
 interface. When supplied to \code{as_metafor_forest()} or to
 \code{metafor::forest(..., as_data = TRUE)}, those arguments are stored in
-the adapter object's \code{forest_args}; when supplied to
+the adapter object's \code{forest_args}; presentation options such as
+\code{addfit}, \code{row}, and \code{predstyle} are retained by
+\code{forest(..., as_data = TRUE)} for later rendering. Explicit plot-time
+arguments override stored defaults. When supplied to
 \code{metafor::forest()} at plot time, they are forwarded directly.
 
 Use \code{as_metafor_forest()} to prepare the adapter object without

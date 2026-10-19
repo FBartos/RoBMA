@@ -19,13 +19,12 @@
 
 \item{conditioning_depth}{conditioning depth. Options are:
 \itemize{
-\item \code{"marginal"} (default): Residuals from fixed effects predictions
-(\eqn{observed - X\beta}).
-\item \code{"cluster"}: Residuals from cluster-level predictions (observed -
-(\eqn{X\beta + gamma})). Only available for multilevel (3-level) models.
-\item \code{"estimate"}: Residuals from BLUPs,
-i.e., deviations of the observed effect sizes from the best linear
-unbiased predictions of the estimate-specific true effects (observed - theta).
+\item \code{"marginal"} (default): GLS projection residuals
+\eqn{(I - H)y}.
+\item \code{"cluster"}: Projection residuals after the fitted cluster
+contribution is removed. Only available for specialized multilevel models.
+\item \code{"estimate"}: Sampling residual projection after the fitted
+random-effect contribution is removed (a BLUP-style target).
 }}
 
 \item{max_samples}{maximum posterior draws used for known-\code{V}
@@ -37,7 +36,7 @@ Finite values deterministically thin draws across posterior row order.}
 \value{
 A data frame with columns:
 \itemize{
-\item \code{resid}: Raw residuals
+\item \code{resid}: Posterior mean projection residuals at the requested depth
 \item \code{se}: Standard errors of the residuals
 \item \code{z}: Standardized residuals
 }
@@ -52,8 +51,10 @@ standardized residuals (z-values). Available for normal outcome models only.
 This function returns a data frame with three columns matching the output
 of \code{metafor::rstandard}:
 \itemize{
-\item \code{resid}: GLS projection residuals \eqn{(I - H) y}, so that the
-residual and its standard error come from the same projection. These are
+\item \code{resid}: Projection residuals: marginal depth uses
+\eqn{(I - H)y}; cluster and estimate depths retain their corresponding
+random-effect target. Known-\code{V} estimate depth uses the sampling
+residual projection. Residuals and SDs come from the same projection. These are
 not the posterior-mean residuals returned by
 \code{residuals(type = "outcome")}, which subtract the posterior mean of
 the fitted values and therefore carry the prior's shrinkage; the two

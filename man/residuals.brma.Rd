@@ -22,11 +22,13 @@
 \item \code{"outcome"} (default): Raw residuals (observed - fitted).
 Available for all model types.
 \item \code{"pearson"}: Pearson (semi-standardized) residuals, dividing
-raw residuals by the marginal standard error \eqn{\sqrt{v_i + \tau^2}}.
+raw residuals by the SD of the corresponding outcome target: marginal
+includes all applicable heterogeneity, cluster depth includes within-
+cluster heterogeneity, and estimate depth uses sampling variance only.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
-\item \code{"rstandard"}: Internally standardized residuals, dividing
-raw residuals by their standard errors computed using the hat matrix.
+\item \code{"rstandard"}: Internally standardized projection residuals,
+divided by their corresponding SDs computed using the hat matrix.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
 \item \code{"LOO-PIT"} (alias: \code{"rstudent"}): Leave-one-out probability
@@ -41,7 +43,7 @@ PIT convention, which is not implemented. Note: This requires that the loo
 has been computed previously (see \code{add_loo()} function).
 }}
 
-\item{unit}{output unit. Only \code{"estimate"} is implemented currently..}
+\item{unit}{output unit. Only \code{"estimate"} is implemented currently.}
 
 \item{conditioning_depth}{conditioning depth for non-LOO residuals. \code{"marginal"}
 uses fixed effects only, \code{"cluster"} conditions on cluster-level random

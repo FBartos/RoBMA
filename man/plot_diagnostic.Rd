@@ -107,7 +107,8 @@ an error of class \code{RoBMA_component_mismatch}.}
 }
 \value{
 \code{plot_diagnostic} returns the object returned by
-\code{BayesTools::JAGS_diagnostics()}, invisibly for base graphics.
+\code{BayesTools::JAGS_diagnostics()}, including a list when several
+coordinate plots are produced, invisibly for base graphics.
 }
 \description{
 \code{plot_diagnostic} creates visual MCMC diagnostics for a

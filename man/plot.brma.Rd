@@ -89,7 +89,8 @@ log-scale measures.}
 effect-size location and individual meta-regression coefficients for fitted
 log-scale OR, RR, HR, and IRR models. For scale-regression coefficients,
 \code{"EXP"} displays the multiplicative change in heterogeneity.
-\code{"LOG"} displays a positive heterogeneity intercept on the log scale.
+\code{"LOG"} displays a positive heterogeneity intercept or random-effect
+variance or SD multiplier on the log scale.
 The transformation is applied to KDE and precomputed qCMDE/IWMDE densities
 with the corresponding Jacobian.
 For automatically unscaled scale-formula intercepts, use
@@ -212,7 +213,8 @@ density-axis range, and probability-axis range respectively. Set
 }
 \value{
 \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
+or a \code{ggplot2} object (a named list of plots for a whole factor term)
+if \code{plot_type = "ggplot"}.
 \code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
 ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 }
@@ -231,7 +233,9 @@ for binomial and Poisson GLMMs). Requests that are unavailable for the
 plotted quantity stop with the same parent class and
 \code{RoBMA_density_method_conditional_random} (conditional random-effect plots,
 which are KDE-only), \code{RoBMA_density_method_random_target} (a random-effect
-quantity without a supported scalar random-component coordinate), or
+quantity without a supported scalar random-component coordinate),
+\code{RoBMA_density_method_bias_target} (a composite weightfunction target; use
+\code{density_method = 'KDE'}), or
 \code{RoBMA_density_method_original_scale} (a coefficient or factor cell whose
 original-scale value is not a linear combination of its fitted
 coefficients, such as the exponentiated intercept of a scale formula with

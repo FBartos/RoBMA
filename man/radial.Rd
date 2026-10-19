@@ -91,7 +91,8 @@ the plot}
 If \code{as_data = TRUE}, returns a list with the computed plot data
 including: \code{points}, \code{refline}, \code{band}, \code{arc},
 \code{arc_ticks}, \code{ci_arc}, \code{ci_ticks}, \code{xlim}, and
-\code{zlim}.
+\code{zlim}. Returned arc coordinates use plain trigonometry; both renderers
+recompute arcs for their aspect ratio, so the data do not encode final device geometry.
 }
 \description{
 \code{radial.brma} creates a radial (Galbraith) plot for a

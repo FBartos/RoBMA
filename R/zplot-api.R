@@ -546,7 +546,6 @@ print.zplot_brma <- function(x, ...) {
 #' fewer posterior draws than workers uses serial computation. Parallel workers
 #' require matching installed package/native builds and share the configured
 #' selection-cache budget. Worker count is reported when parallel work starts.
-#' @inheritParams as_zplot.brma
 #' @param integration_control numerical integration settings created by
 #' \code{set_selection_likelihood_control()}. Defaults to the settings stored by
 #' \code{as_zplot()}; an explicit value overrides them for this plot. Legacy

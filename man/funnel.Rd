@@ -198,7 +198,9 @@ designs.
 Residual mode follows the fitted estimate-unit residual target.
 
 \code{bfunnel()} is available only for intercept-only normal models with
-common marginal heterogeneity. It averages the same sampling CDF over
+common marginal heterogeneity. It has no residual mode: explicitly supplied
+\code{residual}, \code{type}, \code{unit}, or \code{conditioning_depth}
+arguments are refused. It averages the same sampling CDF over
 posterior draws and then inverts the averaged CDF. Thus it incorporates
 posterior uncertainty in the effect, heterogeneity, PET/PEESE coefficients,
 and selection parameters in addition to model uncertainty. For models
@@ -241,6 +243,11 @@ distribution is discrete and no discrete PIT convention has been defined.
 Use \code{type = "outcome"} for a descriptive effect-size-scale residual
 funnel when needed. Its sampling-error-only bands are not exact diagnostics
 for the fitted count likelihood.
+
+Outcome-mode plot data carry the canonical \code{RoBMA_target} attribute.
+Its \code{reference_law} identifies the independently published new-estimate
+product-rule law; \code{estimand} separately records plug-in versus
+posterior-predictive averaging. Declared source roles retain their provenance.
 }
 \examples{
 \dontrun{

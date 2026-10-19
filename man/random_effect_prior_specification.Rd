@@ -130,7 +130,7 @@ plain \code{|}, \code{us()} / \code{un()} \tab coefficients \tab one per column 
 \code{hcs()} \tab index levels \tab one per level \tab \code{Uniform(-1 / (K - 1), 1)} on raw \code{cor} \cr
 \code{ar1()} / \code{ar()} \tab ordered index \tab one shared SD \tab \code{Uniform(-1, 1)} on raw \code{cor} \cr
 \code{har()} \tab ordered index \tab one per level \tab \code{Uniform(-1, 1)} on raw \code{cor} \cr
-\code{car()} \tab numeric coordinates \tab one shared SD \tab \code{Uniform(0, 1)} on raw \code{cor}, supported on \code{[0, 1)}
+\code{car()} \tab numeric coordinates \tab one shared SD \tab \code{Uniform(0, 1)} on raw \code{cor}, supported on \verb{[0, 1)}
 }
 
 Correlation priors are added after the formula basis and \eqn{K} are

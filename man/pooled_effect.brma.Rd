@@ -19,7 +19,9 @@
 
 \item{bias_adjusted}{whether to adjust for publication bias. Defaults to
 \code{TRUE}. For PET/PEESE models this removes the regression bias term from
-the pooled location effect. Selection-model weighting affects response
+the pooled location effect. This reference declares no new-publication
+standard error or selection event; explicit unadjusted \code{predict()} rows
+instead target a selected new publication. Selection-model weighting affects response
 predictions, not this fixed-location posterior summary.}
 
 \item{output_measure}{effect-size measure for location/effect predictions.

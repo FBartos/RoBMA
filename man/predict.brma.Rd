@@ -143,7 +143,7 @@ available only for specialized multilevel models fitted with
 currently restricted to \code{newdata = NULL}, where fitted identities are
 unambiguous.}
 
-\item{...}{additional arguments}
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. For

@@ -60,7 +60,8 @@ The input object with added class \code{"zplot_brma"} and a new
 \item{estimates}{a list with posterior samples for \code{EDR} and
 extrapolation \code{weights}, when a missing-count convention applies}
 \item{data}{a list with \code{significance_level},
-\code{conditioning_depth}, observed \code{z}-statistics,
+\code{conditioning_depth}, stored \code{integration_control},
+observed \code{z}-statistics,
 \code{N_significant}, and \code{N_observed}}
 \item{target}{the fitted reporting specification, reference distribution,
 source and publication identities, and missing-count applicability}
@@ -100,8 +101,9 @@ estimand unless \code{conditioning_depth = "estimate"} is requested.
 
 The EDR uses the bias-adjusted reference distribution: selection and
 PET/PEESE offsets are removed. For multivariate selection models, models
-integrating applicable contextual sources, and best-rule selection models,
-this reference is the normalized pre-selection Gaussian marginal,
+retaining estimate-level or sampling-error sources or integrating applicable
+contextual sources, and best-rule selection models, this reference is the
+normalized pre-selection Gaussian marginal,
 integrating all newly realized contexts. Its integral is
 one and EDR is its significance probability. Relative selection weights do
 not identify an absolute publication probability or missing count, so

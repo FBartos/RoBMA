@@ -101,7 +101,10 @@ samples as a \code{mcmc.list} object and then using the corresponding
 effects, known-\code{V} dependency factors, random-effect simulation and
 Cholesky factors, and prior-parameterization variables are omitted. Stable
 fitted coordinates such as model indicators and likelihood parameters
-remain available. Formula-random coordinates are replaced by their semantic
+remain available. Ordinary spike-and-slab backend slab and inclusion
+coordinates are omitted by default; \code{include_auxiliary = TRUE} retains
+them. Semantic random-effect indicators remain available as described below.
+Formula-random coordinates are replaced by their semantic
 RoBMA quantities using the same names as summaries, plots, and hypotheses,
 such as \code{tau_total}, \code{tau_common}, \code{rho(...)}, and \code{tau2_prop(...)}.
 A \code{rho(...)} column can contain \code{NA} draws: an original-scale correlation

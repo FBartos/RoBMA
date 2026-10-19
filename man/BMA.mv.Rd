@@ -274,7 +274,6 @@ Component-specific or partial scale models instead have independent SD roots,
 with allocation within each component; unscaled components keep their own
 base SD prior. See \code{\link{random_effect_prior_specification}}.
 
-
 A partial \code{\link[BayesTools:prior_random]{BayesTools::prior_random()}} supplied through
 \code{prior_heterogeneity} may override contrasts, correlations, monitoring, and
 parameterization. \code{BMA.mv()} owns the gated scale architecture, so a custom

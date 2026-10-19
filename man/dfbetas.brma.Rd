@@ -83,6 +83,10 @@ the model \eqn{K} times, making it computationally efficient.
 For \code{brma.mv()} objects, DFBETAS use estimate-unit PSIS weights. With
 correlated known-\code{V} data, this is influence under conditional estimate
 deletion, not independent-study deletion.
+A requested random-effect correlation must be defined in every posterior
+draw. If either SD is zero in some draws, the complete influence request is
+unavailable; explicitly select an everywhere-defined quantity with
+\code{component = "random"} and \code{parameter} instead.
 For \code{type = "bias"}, fixed identification parameters (e.g., the reference
 \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
 These parameters are retained in the output, but their DFBETAS values are

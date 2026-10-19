@@ -74,14 +74,10 @@ Defaults to \code{TRUE}.}
 \item{dots_thresholds}{graphical parameters for threshold lines (list).}
 
 \item{integration_control}{numerical integration settings created by
-\code{set_selection_likelihood_control()}. These control integration within
-each posterior draw, independently of \code{max_samples}. Factor blocks and
-supported full-covariance product-selection blocks use deterministic
-Gauss-Hermite quadrature where possible, with the existing adaptive randomized
-quasi-Monte Carlo fallback. Density-error checks use the peak within each
-posterior draw and also check the selection normalizer. Bounded CDF
-interpolation, Gaussian-mixture approximation, and omitted contributions
-are charged to the same numerical error budget.}
+\code{set_selection_likelihood_control()}. Defaults to the settings stored by
+\code{as_zplot()}; an explicit value overrides them for this plot. Legacy
+objects without stored settings require an explicit control, or recreation
+with \code{as_zplot()}, when their selected density needs integration.}
 
 \item{parallel}{whether to distribute multivariate selection-model density
 calculations across local workers. Defaults to \code{FALSE}. Only posterior
@@ -128,8 +124,9 @@ The plot can display two density curves:
 This represents the expected distribution of z-statistics given the estimated
 selection process. Shown by default.}
 \item{Extrapolation (blue)}{The bias-adjusted reference without selective
-reporting. Multivariate models, applicable integrated contexts, and
-best-rule selection models use the normalized pre-selection Gaussian
+reporting. Multivariate models, retained estimate-level or sampling-error
+sources, applicable integrated contexts, and best-rule selection models
+use the normalized pre-selection Gaussian
 marginal. Released univariate product
 targets retain their inverse-weight scaling convention. Shown only when
 \code{plot_extrapolation = TRUE}, since the extrapolated curve rescales

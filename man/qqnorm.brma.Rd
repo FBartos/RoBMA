@@ -42,14 +42,16 @@ matrix. Only available for normal outcome models without selection
 \item{unit}{output unit. Only \code{"estimate"} is implemented currently.}
 
 \item{conditioning_depth}{residual conditioning depth. Options are
-\code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.}
+\code{"marginal"}, \code{"cluster"}, and \code{"estimate"}. It does not
+apply to LOO-PIT residuals, whose metadata record the deletion unit and
+retained context instead; leave it omitted for those residuals.}
 
 \item{envelope}{logical indicating whether to add a pseudo confidence
-envelope to the plot. The envelope is created by simulating sets of
-standard normal quantiles, providing a reference for the expected variability
+envelope to the plot. The deterministic envelope uses Beta order-statistic
+quantiles transformed to the standard normal scale, providing a reference
 under a correctly specified model. Defaults to \code{TRUE}.}
 
-\item{conf_level}{numeric value between 0 and 100 specifying the confidence level
+\item{conf_level}{finite numeric value strictly between 0 and 100 specifying the confidence level
 for the envelope bounds. Defaults to \code{95}.}
 
 \item{bonferroni}{logical indicating whether to apply Bonferroni correction

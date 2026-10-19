@@ -31,7 +31,9 @@ Defaults to \code{"base"}.}
 
 \item{length.out}{number of bins (alternative to \code{by}).}
 
-\item{add}{whether to add to existing plot. Defaults to \code{FALSE}.}
+\item{add}{whether to add to an existing base plot. Defaults to
+\code{FALSE}. For ggplot, combine the histogram and density layers with
+\code{+}; \code{add = TRUE} is unsupported.}
 
 \item{plot_thresholds}{whether to show significance threshold lines.
 Defaults to \code{TRUE}.}
@@ -42,10 +44,13 @@ Defaults to \code{TRUE}.}
 
 \item{dots_all}{graphical parameters passed to all components (list).}
 
-\item{...}{additional graphical parameters.}
+\item{...}{additional graphical parameters. Use \code{as_data = TRUE} to
+return histogram data without drawing.}
 }
 \value{
-\code{NULL} invisibly for base graphics, or a ggplot2 object.
+\code{NULL} invisibly for base graphics, a ggplot2 object, or a data
+frame with columns \code{x}, \code{density}, and \code{breaks} (bin widths)
+when \code{as_data = TRUE}.
 }
 \description{
 Plots a histogram of observed z-values from the meta-analysis.
@@ -53,7 +58,8 @@ Plots a histogram of observed z-values from the meta-analysis.
 \details{
 Z-statistics are computed as effect size divided by standard error
 (\code{yi / sei}). Histogram bins are adjusted to align with significance
-thresholds when selection model priors are present.
+thresholds when selection model priors are present. Standalone ggplot
+histograms scale automatically to added layers unless \code{ylim} is supplied.
 }
 \seealso{
 \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}, \code{\link[=lines.zplot_brma]{lines.zplot_brma()}}
