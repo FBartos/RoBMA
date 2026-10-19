@@ -1136,7 +1136,7 @@ lines.brma <- function(
       density_method      = density_method,
       density_diagnostics = diagnostics
     ),
-    class = c("RoBMA_density_plot_error", "error", "condition")
+    class = c("RoBMA_density_plot_error", "RoBMA_density_error", "error", "condition")
   ))
 }
 
@@ -1157,7 +1157,8 @@ lines.brma <- function(
       next
     }
     reason <- .iwmde_diagnostics_density_failure_reason(
-      diagnostic[["diagnostics"]]
+      diagnostic[["diagnostics"]],
+      diagnostics_reference = "the returned condition's 'density_diagnostics' field"
     )
     if (!is.null(reason)) {
       return(list(reason = reason, rejected = TRUE))

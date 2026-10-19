@@ -34,14 +34,6 @@
     return("posterior ordinate is zero or non-finite")
   }
 
-  value <- .iwmde_ordinate_scalar(posterior_ordinate, "evaluation_value")
-  if (!is.finite(value)) {
-    value <- .iwmde_ordinate_scalar(posterior_ordinate, "value")
-  }
-  if (is.finite(value)) {
-    diagnostics[["evaluation_value"]] <- value
-  }
-
   return(.iwmde_diagnostics_bf_failure_reason(diagnostics))
 }
 
@@ -65,22 +57,12 @@
     return("posterior ordinate is zero or non-finite")
   }
 
-  if (identical(estimator, "q_grid_cmde")) {
-    mass_reason <- .iwmde_diagnostics_mass_failure_reason(
-      diagnostics = diagnostics,
-      estimator   = estimator
-    )
-    if (!is.null(mass_reason)) {
-      return(mass_reason)
-    }
-  } else if (identical(estimator, "iwmde")) {
-    mass_reason <- .iwmde_diagnostics_mass_failure_reason(
-      diagnostics = diagnostics,
-      estimator   = estimator
-    )
-    if (!is.null(mass_reason)) {
-      return(mass_reason)
-    }
+  mass_reason <- .iwmde_diagnostics_mass_failure_reason(
+    diagnostics = diagnostics,
+    estimator   = estimator
+  )
+  if (!is.null(mass_reason)) {
+    return(mass_reason)
   }
 
   quadrature_reason <- .iwmde_diagnostics_quadrature_failure_reason(
@@ -95,7 +77,8 @@
 
 
 .iwmde_diagnostics_density_failure_reason <- function(diagnostics,
-                                                      has_diagnostics_field = TRUE) {
+                                                      has_diagnostics_field = TRUE,
+                                                      diagnostics_reference = "density_diagnostics()") {
 
   if (is.null(diagnostics) || !is.list(diagnostics)) {
     return("missing qCMDE/IWMDE density diagnostics")
@@ -123,17 +106,20 @@
 
   mass_reason <- .iwmde_diagnostics_mass_failure_reason(
     diagnostics = density_diagnostics,
-    estimator   = estimator
+    estimator   = estimator,
+    diagnostics_reference = diagnostics_reference
   )
   if (!is.null(mass_reason)) {
     return(mass_reason)
   }
 
-  return(.iwmde_diagnostics_quadrature_failure_reason(density_diagnostics))
+  return(.iwmde_diagnostics_quadrature_failure_reason(density_diagnostics,
+    diagnostics_reference = diagnostics_reference))
 }
 
 
-.iwmde_diagnostics_mass_failure_reason <- function(diagnostics, estimator) {
+.iwmde_diagnostics_mass_failure_reason <- function(diagnostics, estimator,
+    diagnostics_reference = "density_diagnostics()") {
 
   normalization_error <- .iwmde_diagnostics_stability_relative_error(
     diagnostics = diagnostics,
@@ -144,11 +130,11 @@
     resolution <- .iwmde_diagnostics_qcmde_error_components(diagnostics)[["resolution"]]
     if (identical(resolution, Inf)) return(paste0(
       "qCMDE lattice resolution error estimate is unbounded. Increase 'normalization_points' ",
-      "in the 'density_control' argument and inspect density_diagnostics()"))
+      "in the 'density_control' argument and inspect ", diagnostics_reference))
     return(paste0(
       "qCMDE posterior ordinate error is unbounded: a conditional density ",
       "does not decrease at an end of the normalization range. Inspect ",
-      "density_diagnostics() and try another 'density_method'"
+      diagnostics_reference, " and try another 'density_method'"
     ))
   }
   if (!is.finite(normalization_error)) {
@@ -619,8 +605,8 @@
   }
 
   return(paste0(
-    " Higher precision can be obtained by increasing the number of evaluated ",
-    "posterior samples via the 'density_control' argument."
+    " Higher precision can be obtained by increasing 'samples' in the ",
+    "'density_control' argument."
   ))
 }
 
@@ -678,14 +664,16 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " relative MCSE is ",
-      .iwmde_percent(relative_mcse), ".", precision_action
+      .iwmde_percent(relative_mcse), " (requested precision target ",
+      .iwmde_percent(target_relative_mcse), ").", precision_action
     ))
   } else if (is.finite(relative_mcse) &&
              relative_mcse >= .iwmde_bf_warning_relative_mcse()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " relative MCSE is ",
-      .iwmde_percent(relative_mcse)
+      .iwmde_percent(relative_mcse), " (warning threshold ",
+      .iwmde_percent(.iwmde_bf_warning_relative_mcse()), ")."
     ))
   }
 
@@ -705,14 +693,16 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " finite-population row-sampling relative error is ",
-      .iwmde_percent(sampling_relative_mcse), ".", precision_action
+      .iwmde_percent(sampling_relative_mcse), " (requested precision target ",
+      .iwmde_percent(target_relative_mcse), ").", precision_action
     ))
   } else if (is.finite(sampling_relative_mcse) &&
              sampling_relative_mcse >= .iwmde_bf_warning_relative_mcse()) {
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " finite-population row-sampling relative error is ",
-      .iwmde_percent(sampling_relative_mcse)
+      .iwmde_percent(sampling_relative_mcse), " (warning threshold ",
+      .iwmde_percent(.iwmde_bf_warning_relative_mcse()), ")."
     ))
   }
 
@@ -740,7 +730,8 @@
     warnings <- c(warnings, paste0(
       .iwmde_estimator_label(estimator),
       " effective sample size is ",
-      .iwmde_count(ess)
+      .iwmde_count(ess), " (warning threshold ",
+      .iwmde_count(.iwmde_bf_warning_min_ess()), ")."
     ))
   }
 
@@ -822,7 +813,8 @@
 }
 
 
-.iwmde_diagnostics_quadrature_failure_reason <- function(diagnostics) {
+.iwmde_diagnostics_quadrature_failure_reason <- function(diagnostics,
+    diagnostics_reference = "density_diagnostics()") {
 
   quadrature_change <- .iwmde_diagnostics_quadrature_relative_change(diagnostics)
   if (!is.finite(quadrature_change)) {
@@ -832,7 +824,7 @@
     return(paste0(
       "adaptive quadrature sensitivity is ",
       .iwmde_percent(quadrature_change),
-      ". Try another 'density_method' and inspect density_diagnostics() ",
+      ". Try another 'density_method' and inspect ", diagnostics_reference, " ",
       "for details"
     ))
   }
@@ -1069,9 +1061,10 @@
 
 .iwmde_percent <- function(value) {
 
-  if (!is.finite(value)) {
+  if (is.na(value)) {
     return("NA")
   }
+  if (is.infinite(value)) return(paste0(as.character(value), "%"))
 
   paste0(formatC(100 * value, digits = 3, format = "fg"), "%")
 }
@@ -1079,9 +1072,10 @@
 
 .iwmde_count <- function(value) {
 
-  if (!is.finite(value)) {
+  if (is.na(value)) {
     return("NA")
   }
+  if (is.infinite(value)) return(as.character(value))
 
   formatC(value, digits = 3, format = "fg")
 }

@@ -1367,13 +1367,17 @@ test_that("IWMDE keeps adjacent representable coordinates distinct", {
 
   clustered_values <- c(.Machine$double.eps, 2 * .Machine$double.eps)
   clustered_grid <- .iwmde_include_display_values(
-    grid    = c(0, 1, 2),
+    grid    = c(0, .5, 1, 2),
     values  = clustered_values,
     xlim    = c(0, 2),
     support = c(0, 2)
   )
-  expect_length(clustered_grid, 3L)
+  expect_length(clustered_grid, 4L)
   expect_true(all(clustered_values %in% clustered_grid))
+  expect_identical(range(clustered_grid), c(0, 2))
+  limited_grid <- .iwmde_include_display_values(c(0, 1, 2), clustered_values,
+    c(0, 2), c(0, 2))
+  expect_identical(limited_grid, c(0, clustered_values[[1L]], 2))
 })
 
 
@@ -1990,7 +1994,8 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     ),
     paste0(
       "qCMDE posterior ordinate is unavailable for 'mu = 0': ",
-      "target is unsupported"
+      "target is unsupported. Inspect 'density_diagnostics()' for the failed ",
+      "criterion and its computation settings."
     )
   )
 })
@@ -2023,9 +2028,11 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
   warnings <- .iwmde_posterior_ordinate_warnings(ordinate)
 
   expect_true(.iwmde_posterior_ordinate_supports_bf(ordinate))
-  expect_true("qCMDE relative MCSE is 17.3%" %in% warnings)
+  expect_true(paste0("qCMDE relative MCSE is ", .iwmde_percent(.173),
+    " (warning threshold ", .iwmde_percent(.05), ").") %in% warnings)
   expect_true(any(grepl("uses only\\s+60.*finite importance terms.*100", warnings)))
-  expect_true("qCMDE effective sample size is 67.8" %in% warnings)
+  expect_true(paste0("qCMDE effective sample size is ", .iwmde_count(67.8),
+    " (warning threshold ", .iwmde_count(100), ").") %in% warnings)
   expect_true(any(grepl("largest importance weight.*30%.*20%", warnings)))
 
   targeted <- diagnostics
@@ -2034,20 +2041,21 @@ test_that("qCMDE and IWMDE BF warnings cover Monte Carlo reliability", {
   targeted[["all_rows_used"]]          <- FALSE
   warnings <- .iwmde_diagnostics_bf_warning(targeted)
   expect_true(paste0(
-    "qCMDE relative MCSE is 17.3%. Higher precision can be obtained by ",
-    "increasing the number of evaluated posterior samples via the ",
-    "'density_control' argument."
+    "qCMDE relative MCSE is ", .iwmde_percent(.173),
+    " (requested precision target ", .iwmde_percent(.05), "). Higher precision ",
+    "can be obtained by increasing 'samples' in the 'density_control' argument."
   ) %in% warnings)
-  expect_true(any(grepl(paste0(
-    "qCMDE finite-population row-sampling relative error is\\s+12%\\. ",
-    "Higher precision can be obtained by increasing the number of evaluated ",
-    "posterior samples via the 'density_control' argument\\."
-  ), warnings)))
+  expect_true(paste0("qCMDE finite-population row-sampling relative error is ",
+    .iwmde_percent(.12), " (requested precision target ", .iwmde_percent(.05),
+    "). Higher precision can be obtained by increasing 'samples' in the ",
+    "'density_control' argument.") %in% warnings)
 
   diagnostics[["estimator"]] <- "iwmde"
   warnings <- .iwmde_diagnostics_bf_warning(diagnostics)
-  expect_true("IWMDE relative MCSE is 17.3%" %in% warnings)
-  expect_true("IWMDE effective sample size is 67.8" %in% warnings)
+  expect_true(paste0("IWMDE relative MCSE is ", .iwmde_percent(.173),
+    " (warning threshold ", .iwmde_percent(.05), ").") %in% warnings)
+  expect_true(paste0("IWMDE effective sample size is ", .iwmde_count(67.8),
+    " (warning threshold ", .iwmde_count(100), ").") %in% warnings)
 })
 
 

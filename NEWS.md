@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Density warnings report their thresholds, preserve infinite observed values,
+  and share a condition family with remedies that match the available diagnostics.
 - Density construction failures identify invalid supports and grouped baselines;
   aggregation refuses inconsistent denominators and retains honest diagnostics.
 - Marginal-means hypothesis paths retain their named level carriers and avoid

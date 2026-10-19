@@ -185,6 +185,6 @@
     .iwmde_estimate_ordinate_failures(current_plan, diagnostic)
   })
   error[["density_diagnostics"]] <- .iwmde_bind_density_diagnostics(frames)
-  class(error) <- unique(c("RoBMA_density_ordinate_error", class(error)))
+  class(error) <- unique(c("RoBMA_density_ordinate_error", "RoBMA_density_error", class(error)))
   stop(error)
 }

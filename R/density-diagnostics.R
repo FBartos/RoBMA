@@ -64,6 +64,8 @@
 #' ordinates were estimated with `density_method = "KDE"` or one without a
 #' point hypothesis, stops with the class
 #' `RoBMA_density_diagnostics_unavailable`.
+#' Density ordinate, diagnostic-unavailable, and plot conditions share the
+#' `RoBMA_density_error` parent while retaining their specific condition classes.
 #'
 #' The reliability policy warns when relative MCSE is at least 5 percent, ESS is
 #' below 100, the largest contribution share is at least 20 percent, or fewer
@@ -252,7 +254,7 @@ density_diagnostics.default <- function(object, ...) {
       call                = NULL,
       density_diagnostics = diagnostics
     ),
-    class = c("RoBMA_density_ordinate_error", "error", "condition")
+    class = c("RoBMA_density_ordinate_error", "RoBMA_density_error", "error", "condition")
   )
 
   condition
@@ -298,7 +300,7 @@ density_diagnostics.BayesTools_hypothesis_BF <- function(object, ...) {
       ),
       call    = NULL
     ),
-    class = c("RoBMA_density_diagnostics_unavailable", "error", "condition")
+    class = c("RoBMA_density_diagnostics_unavailable", "RoBMA_density_error", "error", "condition")
   ))
 }
 
