@@ -1650,9 +1650,10 @@
       sep = "\r"
     )
   }
-  zero_alternative <- if (any(refs[["value"]] == 0)) {
-    .brma_random_parameter_zero_boundary_alternative(object, selected)
+  zero_boundary <- if (any(refs[["value"]] == 0)) {
+    .brma_random_parameter_zero_boundary(object, selected)
   }
+  zero_alternative <- zero_boundary[["alternative"]]
   point_mass_reason <- paste0(
     "Point-null Bayes factors at %s are unavailable for random-effect ",
     "quantity '%s' because its prior has a point mass at %s. Use a ",
@@ -1665,7 +1666,7 @@
     label_value <- paste0(label, " = ", format(value, digits = 15L, trim = TRUE))
     # A prior point mass at 0 is refused as such; otherwise 0 is a
     # nonregular product boundary of an allocation-derived SD.
-    point_mass <- !is.null(zero_alternative) && value == 0 && identical(
+    point_mass <- !is.null(zero_boundary) && value == 0 && identical(
       BayesTools::prior_ordinate_status(prior_density, value, labels = label_value)[["condition"]],
       "BayesTools_point_mass_at_null"
     )
@@ -1674,15 +1675,20 @@
       label         = label_value,
       prior_density = prior_density,
       atoms         = BayesTools::posterior_metadata(samples[[parameter]], "atoms"),
-      refusal       = if (!is.null(zero_alternative) && value == 0 && !point_mass) {
+      refusal       = if (!is.null(zero_boundary) && value == 0 && !point_mass) {
         c(
           .hypothesis_refusal(
             paste0(
               "Point-null Bayes factors are unavailable for allocation-derived ",
               "random-effect quantity '", label, "' at 0 because zero is a ",
               "nonregular product boundary of the common scale and allocation ",
-              "weight. Test '", zero_alternative, "' to compare omission of ",
-              "this component."
+              "weight. ",
+              if (is.null(zero_alternative)) {
+                "Use a region or directional hypothesis."
+              } else {
+                paste0("Test '", zero_alternative,
+                  "' to compare omission of this component.")
+              }
             ),
             "target"
           ),

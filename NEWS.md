@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Allocation-derived SD zero refusals identify the unique public omission
+  coordinate by its declared owner, or retain the region/directional remedy.
 - Prior-only allocation summaries preserve declared owners, parent factors, and
   realized gate activity, with undefined shares excluded explicitly.
 - Heterogeneity selector errors retain all declared choices and avoid extracting unrequested source allocations.

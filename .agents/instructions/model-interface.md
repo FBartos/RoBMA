@@ -255,3 +255,9 @@ visible component owners. Block allocation shares condition on declared own
 and parent gate activity; inactive shares carry allocation_active undefined-draw
 metadata. Zero numerical SD alone does not deactivate an allocation. Ungated
 shares retain the declared weights without renormalization.
+
+Allocation-derived SD zero boundaries remain nonregular even when no unique
+public omission coordinate is available. Suggested omission commands resolve by
+the actual formula, allocation owner and component index, and quote the complete
+public selector. Eligibility is independent of whether that remedy is available;
+prior point masses keep their existing classification.

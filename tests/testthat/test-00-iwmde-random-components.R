@@ -958,87 +958,201 @@ test_that("semantic random point hypotheses reject singular display boundaries",
 })
 
 
-test_that("allocation-derived SD zero tests name the omission coordinate", {
+# Two independent declared allocations deliberately reuse the public component
+# labels. This is a constructor/compiler replay, not a fitted posterior sample.
+.random_boundary_replay <- function(target, scale) {
 
-  allocation <- list(
-    target          = "block",
-    scale           = "total_variance",
-    index           = 1L,
-    component_names = c("study", "observation")
+  dat <- data.frame(
+    yi = seq(-.1, .2, length.out = 8L),
+    x = rep(c(-1, 1), 4L),
+    study = factor(rep(letters[1:4], each = 2L)),
+    other = factor(seq_len(8L)),
+    third = factor(rep(c("a", "b"), each = 4L)),
+    fourth = factor(rep(c("a", "b"), 4L))
   )
-  term <- list(
-    block_name  = "study",
-    group_label = "study_id",
-    sd_binding  = list(
-      true_allocation = TRUE,
-      allocations     = list(allocation)
-    )
-  )
-  formula_design <- list(mu = list(
-    parameter      = "mu",
-    random_effects = list(term)
-  ))
-  object <- list(fit = structure(list(), formula_design = formula_design))
-  selected <- list(
-    entry = list(term = "study: tau"),
-    spec = list(
-      label              = "study: tau",
-      quantity           = "sd",
-      allocation_derived = TRUE,
-      formula_parameter  = "mu",
-      block              = "study",
-      grouping           = "study_id",
-      random_component   = "intercept",
-      status             = "sampled"
-    )
-  )
-  testthat::local_mocked_bindings(
-    .brma_random_parameter_density_target = function(...) list(reason = "none"),
-    .package = "RoBMA"
-  )
-  # A half-normal prior has a regular one-sided ordinate at 0: zero is not a
-  # prior point mass but the product boundary of the allocation.
-  refusal_at_zero <- function(object) {
-    plan <- .random_component_plan(
-      statement     = "theta = 0",
-      selected      = selected,
-      values        = seq(.1, 1, length.out = 20L),
-      prior_density = BayesTools::prior("normal", list(0, 1), list(0, Inf)),
-      object        = object
-    )
-    refusal <- .hypothesis_plan_status(plan, "qCMDE")
-    expect_identical(refusal, .hypothesis_plan_status(plan, "KDE"))
-    expect_identical(refusal[["class"]][[1L]], "RoBMA_hypothesis_target")
-    expect_true(refusal[["value_specific"]])
-    refusal[["reason"]]
+  random <- if (identical(target, "block")) {
+    list(first = ~ id(1 | study), second = ~ id(1 | other),
+      third = ~ id(1 | third), fourth = ~ id(1 | fourth))
+  } else {
+    list(first = ~ diag(1 + x | study), second = ~ diag(1 + x | other))
   }
-
-  expect_identical(
-    refusal_at_zero(object),
-    paste0(
-      "Point-null Bayes factors are unavailable for allocation-derived ",
-      "random-effect quantity 'study: tau' at 0 because zero is a ",
-      "nonregular product boundary of the common scale and allocation ",
-      "weight. Test 'tau2_prop(study) = 0' to compare omission of this ",
-      "component."
-    )
+  args <- list(
+    yi = quote(yi), V = diag(.1, 8L), random = random, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    standardize_continuous_predictors = FALSE,
+    only_priors = TRUE, silent = TRUE
   )
+  discovery <- review_compile_object(do.call(brma.mv, args))
+  blocks <- vapply(discovery$compiled$mu$formula_design$random_effects,
+    `[[`, character(1), "block_name")
+  allocation_terms <- if (identical(target, "block")) {
+    list(c(shared = blocks[[1L]], other = blocks[[2L]]),
+      c(shared = blocks[[3L]], other = blocks[[4L]]))
+  } else {
+    as.list(blocks)
+  }
+  args$prior_heterogeneity <- BayesTools::prior_random(allocation =
+    lapply(seq_along(allocation_terms), function(i) {
+      BayesTools::random_variance_allocation(
+        name = c("first_split", "second_split")[[i]],
+        terms = allocation_terms[[i]], target = target, scale = scale,
+        sd = BayesTools::prior("normal", list(mean = 0, sd = 1),
+          truncation = list(lower = 0, upper = Inf)),
+        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
+      )
+    }))
+  setup <- review_compile_object(do.call(brma.mv, args))
+  design <- setup$compiled$mu$formula_design
+  allocations <- lapply(design$random_allocations, function(allocation) {
+    resolved <- .brma_mv_resolve_sd_component_allocation(allocation, design)
+    if (identical(resolved$target, "sd_component")) {
+      stopifnot(length(resolved$n_targets) == 1L, is.finite(resolved$n_targets),
+        resolved$n_targets > 0L, length(resolved$leaf_index_by_column) > 0L,
+        !anyNA(resolved$leaf_index_by_column))
+    }
+    resolved
+  })
+  priors <- c(setup$compiled$mu$prior_list,
+    .create_fit_priors(setup$object$data, setup$object$priors))
+  additional <- setup$compiled$mu$add_parameters
+  latent_bases <- vapply(design$random_effects,
+    function(term) paste0(term$parameter_stem, "_xRE_Zx"), character(1))
+  latent <- unlist(lapply(design$random_effects, function(term) {
+    base <- paste0(term$parameter_stem, "_xRE_Zx")
+    if (!base %in% additional) return(character())
+    index <- expand.grid(group = seq_len(term$n_groups),
+      column = seq_len(term$n_columns))
+    paste0(base, "[", index$group, ",", index$column, "]")
+  }), use.names = FALSE)
+  auxiliary <- unlist(lapply(allocations, function(allocation) {
+    .iwmde_simplex_auxiliary_columns(allocation$weight_name, allocation$n_targets)
+  }), use.names = FALSE)
+  columns <- unique(c(review_prior_columns(priors),
+    setdiff(additional, latent_bases), latent, auxiliary))
+  samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  for (name in names(priors)) {
+    if (BayesTools::is.prior.point(priors[[name]])) {
+      samples[, name] <- priors[[name]]$parameters$location
+    }
+  }
+  for (allocation in allocations) {
+    weights <- paste0(allocation$weight_name, "[", seq_len(allocation$n_targets), "]")
+    samples[, allocation$source$name] <- seq(.8, 1.2, length.out = nrow(samples))
+    samples[, weights] <- rep(c(.25, .75), each = nrow(samples))
+    samples[, .iwmde_simplex_auxiliary_columns(allocation$weight_name,
+      allocation$n_targets)] <- 2 * samples[, weights]
+  }
+  preliminary <- review_attach_replay(setup, samples)
+  registry <- BayesTools::JAGS_deterministic_nodes(preliminary$fit)
+  nodes <- registry$node[registry$family == "random_sd"]
+  generated <- BayesTools::JAGS_evaluate_deterministic(
+    preliminary$fit, draws = samples, nodes = nodes)
+  existing <- intersect(nodes, colnames(samples))
+  if (length(existing)) samples[, existing] <- generated[, existing, drop = FALSE]
+  extra <- setdiff(nodes, colnames(samples))
+  if (length(extra)) samples <- cbind(samples, generated[, extra, drop = FALSE])
+  monitors <- BayesTools::JAGS_to_monitor(priors)
+  required <- unlist(lapply(monitors, function(base) {
+    expanded <- colnames(samples)[startsWith(colnames(samples), paste0(base, "["))]
+    if (length(expanded)) expanded else base
+  }), use.names = FALSE)
+  stopifnot(!anyDuplicated(required), all(required %in% colnames(samples)),
+    all(is.finite(samples)))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
+    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  quantities <- BayesTools::parameter_catalog(object$fit)$quantities
+  component <- if (identical(target, "block")) "intercept" else "x"
+  rows <- which(quantities$quantity == "sd" &
+    (identical(target, "block") | quantities$component == component) &
+    vapply(quantities$extraction_key, function(key) {
+      identical(key$random_block, design$random_effects[[1L]]$block_name)
+    }, logical(1)))
+  stopifnot(length(rows) == 1L)
+  selector <- .brma_random_parameter_io_labels(quantities[rows, , drop = FALSE], "selector")
+  list(object = object, selector = selector, target = target, scale = scale)
+}
 
-  mean_design <- formula_design
-  mean_design[["mu"]][["random_effects"]][[1L]][["sd_binding"]][[
-    "allocations"
-  ]][[1L]][["scale"]] <- "mean_variance"
-  mean_object <- list(fit = structure(list(), formula_design = mean_design))
-  expect_identical(
-    refusal_at_zero(mean_object),
-    paste0(
-      "Point-null Bayes factors are unavailable for allocation-derived ",
-      "random-effect quantity 'study: tau' at 0 because zero is a ",
-      "nonregular product boundary of the common scale and allocation ",
-      "weight. Test 'tau2_mult(study) = 0' to compare omission of this ",
-      "component."
-    )
-  )
+
+test_that("allocation-derived SD zero remedies resolve the intended owner", {
+
+  cases <- list(c("block", "total_variance"),
+    c("sd_component", "total_variance"), c("sd_component", "mean_variance"))
+  for (case in cases) {
+    target <- case[[1L]]
+    scale <- case[[2L]]
+    replay <- .random_boundary_replay(target, scale)
+    object <- replay$object
+    quantity <- if (scale == "total_variance") "tau2_prop" else "tau2_mult"
+    component <- if (target == "block") "shared" else "x"
+    short <- paste0(quantity, "(", component, ")")
+    selector <- paste0("(mu) first_split: ", short)
+    expected <- .brma_parameter_select_entry(object, selector, component = "random")
+    key <- expected$selection$quantities$extraction_key[[1L]]
+    expect_identical(key$allocation_label, "first_split")
+    expect_equal(key$index, if (target == "block") 1L else 2L)
+    expect_identical(expected$formula_parameter, "mu")
+    expect_error(.brma_parameter_select_entry(object, short, component = "random"),
+      class = "BayesTools_parameter_ambiguous")
+
+    command <- paste0(deparse1(as.name(selector), backtick = TRUE), " = 0")
+    expect_true(is.list(BayesTools::hypothesis_parse(command)))
+    selected <- .brma_random_parameter_select(object, replay$selector)
+    message <- paste0(
+      "Point-null Bayes factors are unavailable for allocation-derived random-effect quantity '",
+      selected$spec$label, "' at 0 because zero is a nonregular product boundary of the ",
+      "common scale and allocation weight. Test '", command,
+      "' to compare omission of this component.")
+    errors <- lapply(c("KDE", "qCMDE"), function(method) {
+      tryCatch(hypothesis(object,
+        paste0(deparse1(as.name(replay$selector), backtick = TRUE), " = 0"),
+        component = "random", density_method = method, n_samples = 1000L, seed = 1),
+        error = identity)
+    })
+    for (error in errors) {
+      expect_s3_class(error, "RoBMA_hypothesis_target")
+      expect_identical(conditionMessage(error), message)
+    }
+    expect_identical(class(errors[[1L]]), class(errors[[2L]]))
+    expect_identical(conditionMessage(errors[[1L]]), conditionMessage(errors[[2L]]))
+    resolved <- .brma_parameter_select_entry(object, selector, component = "random")
+    expect_identical(resolved$quantity_id, expected$quantity_id)
+  }
+})
+
+
+test_that("block mean-variance allocation retains its constructor boundary", {
+
+  expect_error(.random_boundary_replay("block", "mean_variance"),
+    '\'scale = "mean_variance"\' is supported only with target = "sd_component".', fixed = TRUE)
+})
+
+
+test_that("a missing public allocation remedy preserves the zero-boundary refusal", {
+
+  replay <- .random_boundary_replay("sd_component", "mean_variance")
+  object <- replay$object
+  metadata <- .brma_parameter_catalog_metadata(object)
+  counterpart <- .brma_parameter_select_entry(object,
+    "(mu) first_split: tau2_mult(x)", component = "random")
+  # Synthetic absence control only: retain the genuine compiled catalog but
+  # make this counterpart unavailable in RoBMA's public selection entries.
+  metadata$entries <- metadata$entries[
+    metadata$entries$quantity_id != counterpart$quantity_id, , drop = FALSE]
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog_metadata = function(...) metadata,
+    .package = "RoBMA")
+  error <- tryCatch(hypothesis(object,
+    paste0(deparse1(as.name(replay$selector), backtick = TRUE), " = 0"),
+    component = "random", density_method = "KDE", n_samples = 1000L, seed = 1),
+    error = identity)
+  expect_s3_class(error, "RoBMA_hypothesis_target")
+  selected <- .brma_random_parameter_select(object, replay$selector)
+  expect_identical(conditionMessage(error), paste0(
+    "Point-null Bayes factors are unavailable for allocation-derived random-effect quantity '",
+    selected$spec$label, "' at 0 because zero is a nonregular product boundary of the ",
+    "common scale and allocation weight. Use a region or directional hypothesis."))
 })
 
 

@@ -17,7 +17,7 @@ test_that("incomplete allocation scale metadata has no boundary alternative", {
     .package = "RoBMA"
   )
   selected <- list(spec = list(quantity = "sd", allocation_derived = TRUE))
-  expect_null(.brma_random_parameter_zero_boundary_alternative(list(), selected))
+  expect_null(.brma_random_parameter_zero_boundary(list(), selected))
 })
 
 test_that("gate-only proportions decline unsupported density coordinates", {

@@ -87,10 +87,9 @@
 
 .brma_random_parameter_supported_quantities <- function() {
 
-  c(
-    "sd", "var", "sd_total", "var_total", "sd_common", "var_common",
-    "cor", "var_prop", "var_mult", "sd_mult"
-  )
+  quantities <- names(.brma_random_parameter_io_quantity_map())
+  # Keep the existing supported-quantity order, with the SD multiplier last.
+  quantities[order(quantities == "sd_mult")]
 }
 
 .brma_random_parameter_bundle <- function(
@@ -770,12 +769,15 @@
   )
   display_transform <- selected[["spec"]][["display_transform"]]
   allocation <- selected[["allocation_definition"]]
-  shared_gate_proportion <- identical(type, "var_prop") &&
+  shared_gate_candidate <- identical(type, "var_prop") &&
     length(allocation[["inclusion"]]) == 0L &&
     is.character(allocation[["weight_name"]]) &&
     length(allocation[["weight_name"]]) == 1L &&
-    !is.na(allocation[["weight_name"]]) && nzchar(allocation[["weight_name"]]) &&
-    !is.null(.brma_random_parameter_gate_selection(object, selected))
+    !is.na(allocation[["weight_name"]]) && nzchar(allocation[["weight_name"]])
+  shared_gate_selection <- if (shared_gate_candidate) {
+    .brma_random_parameter_gate_selection(object, selected)
+  }
+  shared_gate_proportion <- shared_gate_candidate && !is.null(shared_gate_selection)
   if (shared_gate_proportion) {
     source            <- allocation[["weight_name"]]
     source_type       <- "identity"
@@ -837,7 +839,8 @@
             # allocation gates (multipliers of mean-variance allocations
             # have none).
             gate_selection       = if (identical(type, "var_prop")) {
-              .brma_random_parameter_gate_selection(object, selected)
+              if (shared_gate_candidate) shared_gate_selection else
+                .brma_random_parameter_gate_selection(object, selected)
             }
           ),
           display_transform = allocation_transform
@@ -1082,11 +1085,6 @@
   if (!is.list(factor) || !all(fields %in% names(factor))) {
     return(NULL)
   }
-  inclusion_name <- factor[["inclusion_name"]]
-  if (is.character(inclusion_name) && length(inclusion_name) == 1L &&
-      !is.na(inclusion_name) && nzchar(inclusion_name)) {
-    return(NULL)
-  }
 
   out <- factor[fields]
   out[["index"]]     <- as.integer(out[["index"]])
@@ -1186,8 +1184,7 @@
 }
 
 
-.brma_random_parameter_zero_boundary_alternative <- function(object,
-                                                               selected) {
+.brma_random_parameter_zero_boundary <- function(object, selected) {
 
   spec <- selected[["spec"]]
   if (!identical(spec[["quantity"]], "sd") ||
@@ -1235,10 +1232,56 @@
     "var_mult"
   }
 
-  paste0(
-    .brma_random_parameter_io_quantity(quantity),
-    "(", component, ") = 0"
+  boundary <- list(alternative = NULL)
+  metadata <- .brma_parameter_catalog_metadata(object)
+  index <- if (identical(target, "sd_component")) {
+    column <- .brma_random_parameter_component_column(term, spec)
+    if (is.na(column)) return(boundary)
+    allocation[["leaf_index_by_column"]][column]
+  } else {
+    allocation[["index"]]
+  }
+  if (!is.numeric(index) || length(index) != 1L || !is.finite(index) ||
+      index != as.integer(index) || index < 1L ||
+      !is.character(allocation[["label"]]) ||
+      length(allocation[["label"]]) != 1L || is.na(allocation[["label"]]) ||
+      !nzchar(allocation[["label"]])) {
+    return(boundary)
+  }
+
+  quantities <- metadata[["catalog"]][["quantities"]]
+  entries <- metadata[["entries"]]
+  public_ids <- entries[["quantity_id"]][entries[["component"]] == "random"]
+  same_formula <- vapply(quantities[["formula_parameter"]], function(parameter) {
+    .brma_random_parameter_metadata_matches(parameter, spec[["formula_parameter"]])
+  }, logical(1))
+  same_allocation <- vapply(quantities[["extraction_key"]], function(key) {
+    identical(key[["allocation_label"]], allocation[["label"]]) &&
+      is.numeric(key[["index"]]) && length(key[["index"]]) == 1L &&
+      !is.na(key[["index"]]) && key[["index"]] == index
+  }, logical(1))
+  rows <- which(
+    quantities[["quantity_id"]] %in% public_ids &
+      quantities[["quantity"]] == quantity & same_formula & same_allocation
   )
+  if (length(rows) != 1L) return(boundary)
+
+  quantity <- quantities[rows, , drop = FALSE]
+  selector <- .brma_random_parameter_io_labels(quantity, "selector")
+  resolved <- tryCatch(
+    .brma_parameter_select_entry(object, selector, component = "random"),
+    BayesTools_parameter_not_found = function(error) NULL,
+    BayesTools_parameter_ambiguous = function(error) NULL
+  )
+  if (is.null(resolved) ||
+      !identical(resolved[["quantity_id"]], quantity[["quantity_id"]])) {
+    return(boundary)
+  }
+
+  boundary[["alternative"]] <- paste0(
+    deparse1(as.name(selector), backtick = TRUE), " = 0"
+  )
+  boundary
 }
 
 
