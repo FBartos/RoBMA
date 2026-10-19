@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Regression-plot fallback matches the declared new-row capability condition;
+  unrelated prediction and callback errors retain their original identity.
 - Bridge rank refusals retain the upstream sample diagnostics and give
   reason-specific RoBMA remedies without promising that more draws cure dependence.
 - Marginal-likelihood documentation distinguishes finite availability from

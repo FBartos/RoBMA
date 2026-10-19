@@ -659,17 +659,8 @@
         data              = prediction_data,
         new_levels        = "sample"
       ),
-      error = function(e) {
-        row_source_error <- grepl(
-          "row-indexed external SD source",
-          conditionMessage(e),
-          fixed = TRUE
-        ) || grepl(
-          "posterior-indexed row source",
-          conditionMessage(e),
-          fixed = TRUE
-        )
-        if (row_source_error &&
+      BayesTools_prediction_new_rows_unavailable = function(e) {
+        if (identical(e[["reason"]], "posterior_indexed_row_source") &&
             .regplot_mv_random_intercept_only(x)) {
           return(NULL)
         }
