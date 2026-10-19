@@ -141,7 +141,9 @@ RoBMA.options    <- function(...) {
 # Put back a state recorded by .rng_state().
 .rng_state_restore <- function(state) {
 
-  do.call(RNGkind, as.list(state[["kind"]]))
+  if (!identical(RNGkind(), state[["kind"]])) {
+    do.call(RNGkind, as.list(state[["kind"]]))
+  }
   if (!is.null(state[["seed"]])) {
     assign(".Random.seed", state[["seed"]], envir = .GlobalEnv)
   } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
@@ -152,10 +154,11 @@ RoBMA.options    <- function(...) {
 }
 
 
-# Evaluate 'expr' without leaving a trace in the caller's random-number
-# stream: the RNG kind and '.Random.seed' are put back afterwards. With
-# 'initialize', a stream the caller has not initialized is seeded first, so
-# that read-only stochastic summaries are repeatable.
+# Evaluate 'expr' and restore the caller's RNG kind and '.Random.seed'. The
+# optional Box-Muller generator's hidden normal cache cannot be restored
+# across reseeding, kind changes or normal draws. With 'initialize', a stream
+# the caller has not initialized is seeded first, so that read-only stochastic
+# summaries are repeatable.
 .with_preserved_rng <- function(expr, initialize = TRUE) {
 
   state <- .rng_state()

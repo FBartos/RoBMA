@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- RNG restoration avoids reselecting an unchanged generator and describes the
+  optional Box-Muller hidden-cache limitation precisely.
 - Scenario comparisons preserve extraction failures, restore temporary sampler
   options on every exit, and report missing managed rendering as incomplete.
 - GLMM quadrature recovery uses typed numerical failures and preserves their
