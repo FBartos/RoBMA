@@ -209,15 +209,16 @@ plot_prior.brma <- function(
 
   dots <- list(...)
   if (is.null(dots[["par_name"]])) {
-    dots[["par_name"]] <- selected[["label"]]
+    dots[["par_name"]] <- if (.effect_output_active(effect_transform)) {
+      effect_transform[["label"]]
+    } else {
+      selected[["label"]]
+    }
   }
   if (.effect_output_requested(effect_transform)) {
     dots[["transformation"]]           <- .effect_plot_transformation(effect_transform)
     dots[["transformation_arguments"]] <- NULL
     dots[["transformation_settings"]]  <- FALSE
-    if (.effect_output_active(effect_transform)) {
-      dots[["par_name"]] <- effect_transform[["label"]]
-    }
   }
 
   if (!standardized_coefficients) {

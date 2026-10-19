@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Transformed prior plots preserve an explicit parameter label.
 - Heterogeneity exports retain their component label, and prior-only coefficient
   queries preserve their existing NULL result.
 - RNG restoration avoids reselecting an unchanged generator and describes the

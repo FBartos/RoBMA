@@ -883,3 +883,38 @@ test_that("print_prior of a prior object prints the text of the prior and one li
   indented <- capture.output(.print_prior_object(simple, label = "tau", indent = "  "))
   expect_identical(indented, c("  tau:", "    Normal(0, 1)"))
 })
+
+
+test_that("transformed prior plots retain explicit parameter labels", {
+
+  skip_if_not_installed("ggplot2")
+  object <- brma(yi = c(-.2, .1, .4), sei = rep(.2, 3L), measure = "OR",
+    prior_effect = prior("normal", list(mean = 0, sd = 1)),
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  args <- list(x = object, parameter = "mu", transform = "EXP",
+    plot_type = "ggplot", x_seq = seq(-2, 2, length.out = 41L))
+  explicit <- do.call(plot_prior, c(args, list(par_name = "Reported odds ratio")))
+  default <- do.call(plot_prior, args)
+  null <- do.call(plot_prior, c(args, list(par_name = NULL)))
+  label <- function(plot) plot[["scales"]]$get_scales("x")$name
+  expect_identical(label(explicit),
+    quote("Reported odds ratio" ~ "~" ~ "transformed(Normal(0, 1))"))
+  expect_identical(label(default),
+    quote("odds ratio" ~ "~" ~ "transformed(Normal(0, 1))"))
+  expect_identical(label(null), label(default))
+  layer <- function(plot) {
+    index <- which(vapply(plot[["layers"]], function(layer) {
+      inherits(layer[["geom"]], "GeomLine")
+    }, logical(1L)))[[1L]]
+    ggplot2::layer_data(plot, index)[c("x", "y")]
+  }
+  data <- layer(explicit)
+  expect_true(all(data[["x"]] > 0))
+  expect_equal(data[["y"]], stats::dlnorm(data[["x"]]), tolerance = 1e-12)
+  expect_identical(layer(default), data)
+  expect_identical(layer(null), data)
+  expect_error(plot_prior(object, parameter = "tau", transform = "EXP",
+    plot_type = "ggplot"),
+    "'output_measure' and 'transform' are only available for effect-size location priors ('mu' or the meta-regression intercept).",
+    fixed = TRUE)
+})
