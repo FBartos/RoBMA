@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Generated random-effect allocation identifiers avoid collisions within each
+  completed graph while retaining declared component names and parent references.
 - Covariance density grids distinguish conditional random-effect dependencies
   from fixed-mean dependencies while retaining conservative mean-update guards.
 - Formula coefficient hypotheses and linear-context readers admit current

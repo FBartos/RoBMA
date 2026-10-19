@@ -182,6 +182,10 @@ prefix; a named one-entry list retains its name. Lists with multiple entries
 generate missing names as `component 1`, `component 2`, etc. Generated
 allocations keep a stable internal `name`, use `display_name = ""` when no
 public owner is needed, and carry public `component_names` separately.
+Generated allocation IDs are unique within one prior-completion graph. Keep
+valid preferred IDs; resolve actual collisions with a locally reserved suffix.
+Consumed symbolic term values avoid actual block names without changing their
+component keys, public labels, or parent component references.
 
 Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
 (plus specialized `rho`/`I2`). `brma.mv()` uses `tau`/`tau2` for one component,

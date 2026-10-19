@@ -687,6 +687,10 @@
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
   n_columns     <- vapply(block_info, `[[`, integer(1), "n_columns")
+  groups        <- .assign_prior.random_component_groups(terms, block_names)
+  allocate_name <- .assign_prior.random_allocation_names(
+    block_names, groups, allocation_name
+  )
 
   if (!is.null(inclusion)) {
     return(.assign_prior.random_gated_allocation(
@@ -695,7 +699,8 @@
       sd              = sd,
       sd_sources      = sd_sources,
       inclusion       = inclusion,
-      allocation_name = allocation_name
+      allocation_name = allocation_name,
+      allocate_name   = allocate_name
     ))
   }
 
@@ -704,14 +709,15 @@
       terms      = terms,
       block_info = block_info,
       sd_sources = sd_sources,
-      sd         = sd
+      sd         = sd,
+      allocate_name = allocate_name
     ))
   }
 
   if (length(block_names) == 1L) {
     if (isTRUE(heterogeneous[[1L]])) {
       return(BayesTools::random_variance_allocation(
-        name       = allocation_name,
+        name       = allocate_name(allocation_name),
         display_name = "",
         terms      = block_names,
         sd         = sd,
@@ -723,9 +729,9 @@
     return(NULL)
   }
 
-  groups <- .assign_prior.random_component_groups(terms, block_names)
   if (length(groups) == 1L) {
     group <- groups[[1L]]
+    allocation_name <- allocate_name(allocation_name)
     allocation <- BayesTools::random_variance_allocation(
       name      = allocation_name,
       display_name = "",
@@ -748,7 +754,7 @@
       }
       parent <- parent_for_block[[block_names[[i]]]]
       allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
-        name       = paste0(block_names[[i]], "_components"),
+        name       = allocate_name(paste0(block_names[[i]], "_components")),
         display_name = group[["child_names"]][
           match(block_names[[i]], group[["blocks"]])
         ],
@@ -765,7 +771,8 @@
     return(allocations)
   }
 
-  root_terms <- .assign_prior.random_root_terms(groups)
+  root_terms <- .assign_prior.random_root_terms(groups, allocate_name)
+  allocation_name <- allocate_name(allocation_name)
   root_allocation <- BayesTools::random_variance_allocation(
     name      = allocation_name,
     display_name = "",
@@ -781,6 +788,7 @@
       group      = group,
       groups     = groups,
       block_info = block_info,
+      allocate_name = allocate_name,
       parent     = BayesTools::allocation_ref(
         allocation_name,
         group[["label"]]
@@ -810,7 +818,8 @@
 }
 
 .assign_prior.random_gated_allocation <- function(
-    terms, block_info, sd, sd_sources = NULL, inclusion, allocation_name) {
+    terms, block_info, sd, sd_sources = NULL, inclusion, allocation_name,
+    allocate_name) {
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   groups        <- .assign_prior.random_component_groups(terms, block_names)
@@ -833,10 +842,11 @@
   }
 
   if (is.null(sd_sources)) {
+    allocation_name <- allocate_name(allocation_name)
     root_allocation <- BayesTools::random_variance_allocation(
       name            = allocation_name,
       display_name    = "",
-      terms           = .assign_prior.random_root_terms(groups),
+      terms           = .assign_prior.random_root_terms(groups, allocate_name),
       component_names = vapply(groups, `[[`, character(1), "name"),
       sd              = sd,
       weights         = if (length(groups) > 1L) {
@@ -852,6 +862,7 @@
         group      = group,
         groups     = groups,
         block_info = block_info,
+        allocate_name = allocate_name,
         parent     = BayesTools::allocation_ref(
           allocation_name,
           group[["label"]]
@@ -867,17 +878,20 @@
     if (is.null(source) && length(group[["blocks"]]) == 1L) {
       source <- sd_sources[[group[["blocks"]][[1L]]]]
     }
-    group_allocation_name <- .assign_prior.random_component_allocation_name(
+    group_allocation_name <- allocate_name(.assign_prior.random_component_allocation_name(
       group  = group,
       groups = groups
-    )
+    ))
     root_args <- list(
       name            = group_allocation_name,
       display_name    = if (length(groups) == 1L) "" else group[["name"]],
       terms           = if (length(group[["blocks"]]) == 1L) {
         stats::setNames(group[["blocks"]], group[["label"]])
       } else {
-        stats::setNames(paste0(group[["label"]], "_gated"), group[["label"]])
+        stats::setNames(
+          allocate_name(paste0(group[["label"]], "_gated"), allocation = FALSE),
+          group[["label"]]
+        )
       },
       component_names = group[["name"]],
       weights         = NULL,
@@ -896,6 +910,7 @@
       group      = group,
       groups     = groups,
       block_info = block_info,
+      allocate_name = allocate_name,
       parent     = BayesTools::allocation_ref(
         group_allocation_name,
         group[["label"]]
@@ -908,7 +923,7 @@
 }
 
 .assign_prior.random_group_descendants <- function(
-    group, groups, block_info, parent) {
+    group, groups, block_info, parent, allocate_name) {
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
@@ -920,7 +935,7 @@
   )
 
   if (length(group[["blocks"]]) > 1L) {
-    split_name <- paste0(group[["label"]], "_split")
+    split_name <- allocate_name(paste0(group[["label"]], "_split"))
     allocations[[1L]] <- BayesTools::random_variance_allocation(
       name            = split_name,
       display_name    = group[["name"]],
@@ -948,7 +963,7 @@
       next
     }
     allocations[[length(allocations) + 1L]] <- BayesTools::random_variance_allocation(
-      name         = paste0(block, "_components"),
+      name         = allocate_name(paste0(block, "_components")),
       display_name = .assign_prior.random_block_display_name(
         block  = block,
         groups = groups
@@ -965,7 +980,8 @@
 }
 
 .assign_prior.random_component_allocations <- function(terms, block_info,
-                                                       sd_sources, sd) {
+                                                       sd_sources, sd,
+                                                       allocate_name) {
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
@@ -987,7 +1003,7 @@
         }
         block_source <- sd_sources[[block]]
         allocation_args <- list(
-          name         = paste0(block, "_components"),
+          name         = allocate_name(paste0(block, "_components")),
           display_name = .assign_prior.random_block_display_name(
             block  = block,
             groups = groups
@@ -1011,10 +1027,10 @@
     }
 
     if (length(group[["blocks"]]) > 1L) {
-      allocation_name <- .assign_prior.random_component_allocation_name(
+      allocation_name <- allocate_name(.assign_prior.random_component_allocation_name(
         group  = group,
         groups = groups
-      )
+      ))
       allocation_args <- list(
         name            = allocation_name,
         display_name    = if (length(groups) == 1L) "" else group[["name"]],
@@ -1045,7 +1061,7 @@
         }
         descendants[[length(descendants) + 1L]] <-
           BayesTools::random_variance_allocation(
-            name         = paste0(block, "_components"),
+            name         = allocate_name(paste0(block, "_components")),
             display_name = .assign_prior.random_block_display_name(
               block  = block,
               groups = groups
@@ -1065,7 +1081,7 @@
     index <- match(block, block_names)
     if (isTRUE(heterogeneous[[index]])) {
       allocation_args <- list(
-        name         = paste0(block, "_components"),
+        name         = allocate_name(paste0(block, "_components")),
         display_name = if (length(groups) == 1L) "" else group[["name"]],
         terms        = block,
         weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
@@ -1194,13 +1210,45 @@
   }, character(1))
 }
 
-.assign_prior.random_root_terms        <- function(groups) {
+.assign_prior.random_allocation_names  <- function(block_names, groups, root) {
+
+  group_labels <- vapply(groups, `[[`, character(1), "label")
+  reserved <- unique(c(
+    block_names, group_labels,
+    unlist(lapply(groups, `[[`, "child_labels"), use.names = FALSE),
+    root, paste0(group_labels, "_split"), paste0(group_labels, "_gated"),
+    paste0(block_names, "_components")
+  ))
+  allocated <- character()
+  generated <- character()
+
+  function(preferred, allocation = TRUE) {
+
+    # IDs collide only with other IDs. A consumed symbolic term is ambiguous
+    # only when its value names an actual block; its public key stays intact.
+    occupied <- if (allocation) allocated else block_names
+    selected <- preferred
+    if (selected %in% occupied) {
+      suffix <- 1L
+      repeat {
+        selected <- paste0(preferred, "_", suffix)
+        if (!selected %in% c(reserved, generated)) break
+        suffix <- suffix + 1L
+      }
+    }
+    if (allocation) allocated <<- c(allocated, selected)
+    generated <<- unique(c(generated, selected))
+    selected
+  }
+}
+
+.assign_prior.random_root_terms        <- function(groups, allocate_name) {
 
   terms <- vapply(groups, function(group) {
     if (length(group[["blocks"]]) == 1L) {
       return(group[["blocks"]][[1L]])
     }
-    group[["label"]]
+    allocate_name(group[["label"]], allocation = FALSE)
   }, character(1))
   stats::setNames(terms, vapply(groups, `[[`, character(1), "label"))
 }

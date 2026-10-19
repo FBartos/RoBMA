@@ -451,3 +451,128 @@ test_that("BMA.mv rejects publication-bias arguments", {
     fixed = TRUE
   )
 })
+
+.bma_mv_collision_object <- function(case) {
+
+  dat <- data.frame(
+    yi = c(.08, .13, .18, .20, .01, .05),
+    study = factor(rep(c("s1", "s2", "s3"), each = 2)),
+    esid = factor(seq_len(6)), lab = factor(rep(c("l1", "l2"), 3)),
+    x = c(-1, 1, -1, 1, -1, 1)
+  )
+  random <- list(study = ~ random(1 | study, name = "study") +
+    random(1 | esid, name = "esid"))
+  if (case == "combined") names(random) <- "combined"
+  if (case %in% c("scaled", "suffix")) {
+    names(random) <- "a"
+    random$a_split <- ~ random(1 | lab, name = "lab")
+  }
+  if (case == "suffix") {
+    random$a_split_1 <- ~ random(1 | lab, name = "suffix_one")
+    random$a_split_2 <- ~ random(1 | lab, name = "suffix_two")
+  }
+  args <- list(yi = quote(yi), V = diag(c(.04, .05, .04, .05, .04, .05)),
+    random = random, data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    only_priors = TRUE, silent = TRUE)
+  if (case %in% c("scaled", "suffix")) {
+    args$scale <- stats::setNames(rep(list(~ x), length(random)), names(random))
+  }
+  do.call(if (case == "brma") brma.mv else BMA.mv, args)
+}
+
+.expect_bma_mv_allocation_graph <- function(object) {
+
+  setup <- review_compile_object(object)
+  allocations <- setup$compiled$mu$formula_design$random_allocations
+  labels <- vapply(allocations, `[[`, character(1), "label")
+  expect_length(unique(labels), length(labels))
+  expect_identical(names(allocations), unname(labels))
+  for (allocation in allocations) {
+    parent <- allocation$parent
+    if (is.null(parent)) next
+    expect_true(parent$allocation %in% labels)
+    expect_true(parent$component %in% names(allocations[[parent$allocation]]$terms))
+  }
+  terms <- setup$compiled$mu$formula_design$random_effects
+  expect_true(all(vapply(terms, function(term) !is.null(term$sd_binding), logical(1))))
+  allocations
+}
+
+test_that("a consumed component keeps its public key when it names an actual block", {
+
+  object <- .bma_mv_collision_object("study")
+  allocations <- .expect_bma_mv_allocation_graph(object)
+  root <- allocations$heterogeneity
+  expect_identical(names(root$terms), "study")
+  expect_identical(root$component_names, "study")
+  expect_false(unname(root$terms) %in% c("study", "esid"))
+  expect_identical(allocations$study_split$parent$allocation, root$label)
+  expect_identical(allocations$study_split$parent$component, "study")
+  expect_identical(allocations$study_split$display_name, "study")
+  expect_identical(unname(allocations$study_split$terms), c("study", "esid"))
+  expect_equal(mean(root$inclusion$study$prior), .5)
+})
+
+test_that("valid allocation names, parent keys and priors survive noncolliding controls", {
+
+  ordinary <- .expect_bma_mv_allocation_graph(.bma_mv_collision_object("brma"))
+  expect_identical(names(ordinary), "heterogeneity")
+  expect_identical(unname(ordinary$heterogeneity$terms), c("study", "esid"))
+  expect_identical(ordinary$heterogeneity$display_name, "")
+  combined <- .expect_bma_mv_allocation_graph(.bma_mv_collision_object("combined"))
+  expect_identical(names(combined), c("heterogeneity", "combined_split"))
+  expect_identical(combined$heterogeneity$terms, c(combined = "combined"))
+  expect_identical(combined$combined_split$parent$allocation, "heterogeneity")
+  expect_identical(combined$combined_split$parent$component, "combined")
+  expect_identical(combined$combined_split$display_name, "combined")
+  expect_equal(mean(combined$heterogeneity$inclusion$combined$prior), .5)
+  prior <- .bma_mv_collision_object("combined")$priors$random$allocation[[1L]]$sd
+  expect_identical(prior$distribution, "normal")
+  expect_equal(prior$parameters$sd, .25)
+  expect_equal(.bma_mv_collision_object("combined")$priors$random$allocation[[2L]]$weights$parameters$alpha, c(1, 1))
+})
+
+for (.collision_case in c("scaled", "suffix")) {
+  local({
+    case <- .collision_case
+    test_that(paste("component scale graph avoids declared allocation collisions:", case), {
+
+      object <- .bma_mv_collision_object(case)
+      allocations <- .expect_bma_mv_allocation_graph(object)
+      split <- Filter(function(a) identical(unname(a$terms), c("study", "esid")), allocations)
+      expect_length(split, 1L)
+      expect_identical(split[[1L]]$parent$allocation, "a")
+      expect_identical(split[[1L]]$parent$component, "a")
+      expect_identical(split[[1L]]$display_name, "a")
+      # A preferred allocation ID remains valid when it merely names a public component.
+      expect_identical(allocations$a$label, "a")
+      labels <- vapply(allocations, `[[`, character(1), "label")
+      expect_identical(split[[1L]]$label, "a_split")
+      for (owner in if (case == "suffix") c("a_split", "a_split_1", "a_split_2") else "a_split") {
+        root <- Filter(function(a) identical(a$display_name, owner) && is.null(a$parent), allocations)
+        expect_length(root, 1L)
+        if (owner == "a_split") {
+          expect_false(root[[1L]]$label %in% (if (case == "suffix") c("a_split", "a_split_1", "a_split_2") else "a_split"))
+        }
+        expect_identical(names(root[[1L]]$terms), owner)
+        expect_equal(mean(root[[1L]]$inclusion[[owner]]$prior), .5)
+      }
+      expect_identical(names(.data_scale_formula_sources(object$data)),
+        if (case == "suffix") c("a", "a_split", "a_split_1", "a_split_2") else c("a", "a_split"))
+    })
+  })
+}
+
+test_that("an unused heterogeneity root does not reserve a component allocation ID", {
+
+  data <- .bma_mv_input_data()
+  object <- brma.mv(yi = yi, V = .bma_mv_input_V(), data = data,
+    random = list(other = ~ random(1 | study, name = "study"),
+      heterogeneity = ~ random(1 | group, name = "group") + random(1 | esid, name = "esid")),
+    scale = list(other = ~ x, heterogeneity = ~ x),
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  allocations <- .expect_bma_mv_allocation_graph(object)
+  expect_identical(names(allocations), "heterogeneity")
+  expect_identical(allocations$heterogeneity$label, "heterogeneity")
+})
+
