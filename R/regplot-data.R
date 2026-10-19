@@ -986,8 +986,7 @@
   )
   prediction_grid[["newdata"]] <- prediction_precision[["newdata"]]
   grid_sei <- prediction_precision[["sei"]]
-  precision_moderator <- any(c("sei", "vi") %in% names(predictor_info))
-  prediction_sei <- if (sampling_bias || precision_moderator) grid_sei else 0
+  prediction_sei <- if (sampling_bias) grid_sei else 0
   newdata <- .regplot_add_dummy_outcome(
     x       = x,
     newdata = prediction_grid[["newdata"]],

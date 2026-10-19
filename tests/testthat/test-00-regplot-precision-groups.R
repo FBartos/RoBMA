@@ -117,3 +117,30 @@ test_that("group precision validation retains resolved fields without a second c
       by_name = "vi"), "Prediction variances must be finite and non-negative.", fixed = TRUE)
   }
 })
+
+test_that("grouped precision supplies normal sampling intervals without sampling bias", {
+
+  fixture <- .regplot_precision_replay()
+  level <- 95
+  probabilities <- c((1 - level / 100) / 2, 1 - (1 - level / 100) / 2)
+  for (by in c("sei", "vi")) {
+    values <- fixture$data[[by]]
+    groups <- c(mean(values) - stats::sd(values), mean(values), mean(values) + stats::sd(values))
+    group_sei <- if (by == "sei") groups else sqrt(groups)
+    actual <- regplot(fixture$object, mod = "x", by = by, at = c(1, 2),
+      si = TRUE, level = level, sampling_bias = FALSE, as_data = TRUE)
+    sei <- group_sei[actual$si$group_id]
+    sd <- sqrt(.25 + sei^2)
+    expected_lower <- stats::qnorm(probabilities[[1L]], mean = sei, sd = sd)
+    expected_upper <- stats::qnorm(probabilities[[2L]], mean = sei, sd = sd)
+    # The native root's local tolerance is 2*eps*abs(root)+eps*sd. This
+    # allowance also covers qnorm/CDF rounding and averaging24 equal states.
+    lower_scale <- pmax(1, abs(expected_lower), sd)
+    upper_scale <- pmax(1, abs(expected_upper), sd)
+    expect_lte(max(abs(actual$si$lower - expected_lower) / lower_scale),
+      64 * .Machine$double.eps)
+    expect_lte(max(abs(actual$si$upper - expected_upper) / upper_scale),
+      64 * .Machine$double.eps)
+    expect_identical(actual$sei, rep(group_sei, each = 2L))
+  }
+})
