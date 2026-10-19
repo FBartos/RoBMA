@@ -273,6 +273,7 @@
 .iwmde_display_grid <- function(xlim, n_points, transform, values = NULL,
                                 grid_method = "uniform") {
 
+  if (identical(grid_method, "ordinate")) grid_method <- "adaptive"
   grid_method <- .iwmde_normalize_display_grid(grid_method)
   if (identical(grid_method, "uniform") || is.null(values)) {
     return(seq(xlim[1], xlim[2], length.out = n_points))
@@ -307,6 +308,7 @@
   }
 
   protected <- rep(FALSE, length(grid))
+  if (length(grid) > 0L) protected[c(1L, length(grid))] <- TRUE
   for (value in sort(unique(values))) {
     existing <- which(grid == value)
     if (length(existing) > 0L) {

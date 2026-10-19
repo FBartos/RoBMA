@@ -190,7 +190,7 @@
   finite_rows <- finite & condition_rows
   if (!any(finite_rows)) {
     plan[["status"]] <- "unsupported"
-    plan[["reason"]] <- "posterior samples are not finite"
+    plan[["reason"]] <- "the target conditioning event has no posterior samples"
     plan[["rows"]]   <- .iwmde_plan_empty_rows()
     return(plan)
   }
@@ -212,6 +212,13 @@
   }
 
   continuous_rows <- which(component[["active"]] & finite_rows)
+  if (length(continuous_rows) < 20L) {
+    plan[["status"]] <- "unsupported"
+    plan[["reason"]] <- "fewer than 20 continuous active samples"
+    plan[["rows"]]   <- .iwmde_plan_empty_rows()
+    return(plan)
+  }
+
   chain_coverage <- .iwmde_plan_chain_coverage(
     context       = context,
     eligible_rows = continuous_rows,
@@ -239,12 +246,7 @@
       )
     )
   }
-  if (length(continuous_rows) < 20L) {
-    plan[["status"]] <- "unsupported"
-    plan[["reason"]] <- "fewer than 20 continuous active samples"
-    plan[["rows"]]   <- .iwmde_plan_empty_rows()
-    return(plan)
-  }
+
 
   continuous_values <- posterior_values[continuous_rows]
   if (all(continuous_values == continuous_values[[1L]])) {

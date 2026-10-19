@@ -120,3 +120,54 @@ test_that("successful qCMDE ordinates preserve the actual pilot facts", {
   expect_identical(actual$pilot_gate_stopped, FALSE)
   expect_identical(actual$pilot_bulk_ess, NA_real_)
 })
+
+test_that("density grid controls reject missing counts and name invalid settings", {
+
+  for (setting in c("n_points", "normalization_points")) {
+    for (value in list(NA_real_, c(20, 30))) {
+      failure <- tryCatch(.density_control_normalize("qCMDE",
+        stats::setNames(list(value), setting)), error = identity)
+      expect_s3_class(failure, "error")
+      message <- if (inherits(failure, "condition")) conditionMessage(failure) else ""
+      expect_match(message, paste0("density_control$", setting), fixed = TRUE)
+    }
+  }
+  failure <- tryCatch(.density_control_normalize("qCMDE", list(display_grid = "bad")),
+    error = identity)
+  expect_match(conditionMessage(failure), "density_control$display_grid", fixed = TRUE)
+  control <- tryCatch(.density_control_normalize("qCMDE", list(display_grid = "ordinate"),
+    purpose = "ordinate"), error = identity)
+  expect_identical(control$display_grid, "adaptive")
+  transform <- .iwmde_parameter_transform(c(-Inf, Inf))
+  grid <- tryCatch(.iwmde_display_grid(c(-1, 1), 20L, transform,
+    grid_method = "ordinate"), error = identity)
+  expect_identical(grid, .iwmde_display_grid(c(-1, 1), 20L, transform))
+})
+
+test_that("requested display values preserve both original endpoints", {
+
+  grid <- seq(0, 1, length.out = 20L)
+  actual <- .iwmde_include_display_values(grid, c(.001, .999), c(0, 1), c(0, 1))
+  expect_identical(range(actual), range(grid))
+  expect_true(all(c(.001, .999) %in% actual))
+  expect_length(actual, length(grid))
+})
+
+test_that("row-count refusal precedes chain coverage and names an empty condition", {
+
+  context <- .iwmde_context(.ordinate_control_test_object(10L))
+  context$chain_id <- rep(1L, 10L)
+  context$chain_order <- 1:2
+  testthat::local_mocked_bindings(.iwmde_plan_chain_coverage = function(...) {
+    stop("chain coverage must follow the minimum row count")
+  }, .package = "RoBMA")
+  plan <- tryCatch(.iwmde_plan(context, "mu", "qCMDE", list(),
+    outputs = "ordinate", values = 0), error = identity)
+  expect_identical(plan$status, "unsupported")
+  expect_identical(plan$reason, "fewer than 20 continuous active samples")
+  testthat::local_mocked_bindings(.iwmde_parameter_condition_rows = function(...) rep(FALSE, 10L),
+    .package = "RoBMA")
+  plan <- .iwmde_plan(context, "mu", "qCMDE", list(), outputs = "ordinate", values = 0)
+  expect_identical(plan$status, "unsupported")
+  expect_match(plan$reason, "conditioning event", fixed = TRUE)
+})

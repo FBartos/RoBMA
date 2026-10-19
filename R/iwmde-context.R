@@ -117,8 +117,8 @@
       !.is_data_known_v(data)) {
     return(.iwmde_unavailable(
       reason = paste0(
-        "qCMDE/IWMDE is not implemented for brma.mv() random-formula ",
-        "models without known V yet."
+        "qCMDE/IWMDE density estimation is unavailable for brma.mv() ",
+        "random-formula models without known V. Use density_method = 'KDE'."
       ),
       type   = "random_unknown_v"
     ))

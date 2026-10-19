@@ -75,7 +75,9 @@
   BayesTools::check_int(
     defaults[["n_points"]],
     "density_control$n_points",
-    lower = 20
+    lower        = 20,
+    check_length = 1,
+    allow_NA     = FALSE
   )
   .iwmde_check_samples(defaults[["samples"]])
   BayesTools::check_real(
@@ -97,7 +99,8 @@
     "density_control$normalization_points",
     lower        = 20,
     allow_NULL   = TRUE,
-    check_length = 1
+    check_length = 1,
+    allow_NA     = FALSE
   )
   BayesTools::check_real(
     defaults[["normalization_prob"]],
@@ -122,8 +125,16 @@
       call. = FALSE
     )
   }
-  defaults[["display_grid"]] <- .iwmde_normalize_display_grid(
-    defaults[["display_grid"]]
+  display_grid <- defaults[["display_grid"]]
+  if (identical(purpose, "ordinate") && identical(display_grid, "ordinate")) {
+    display_grid <- "adaptive"
+  }
+  defaults[["display_grid"]] <- tryCatch(
+    .iwmde_normalize_display_grid(display_grid),
+    error = function(error) stop(
+      "'density_control$display_grid' must be 'adaptive' or 'uniform'.",
+      call. = FALSE
+    )
   )
   if (!is.null(defaults[["integration_control"]])) {
     defaults[["integration_control"]] <- .check_selection_likelihood_control(
