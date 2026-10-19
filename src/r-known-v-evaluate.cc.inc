@@ -1609,19 +1609,18 @@ SEXP plan_affine_grid_log_likelihood(
           }
           const double value = spectral[static_cast<size_t>(index)];
           log_determinant += std::log(denominator);
-          quadratic += value * value / denominator;
+          const double standardized = value / std::sqrt(denominator);
+          quadratic += (0.5 * standardized) * standardized;
         }
         if (!valid || !std::isfinite(log_determinant) ||
-            !std::isfinite(quadratic)) {
+            std::isnan(quadratic) || quadratic < 0.0) {
           UNPROTECT(1);
           return R_NilValue;
         }
         REAL(out)[static_cast<size_t>(grid) +
           static_cast<size_t>(grids) * static_cast<size_t>(draw)] +=
-          -0.5 * (
-            static_cast<double>(size) * log_two_pi +
-            log_determinant + quadratic
-          );
+          -0.5 * (static_cast<double>(size) * log_two_pi +
+            log_determinant) - quadratic;
       }
     }
   }

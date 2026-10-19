@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Gaussian joint log densities accumulate representable half squares, and
+  Woodbury likelihoods use their residual form before severe cancellation.
 - Invalid batched density likelihood lengths raise an error; ordinary grids no
   longer carry an unused quadrature attribute, while retained-location
   normalizers preserve their actual quadrature diagnostics.

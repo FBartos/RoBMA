@@ -84,7 +84,7 @@ bool prepare_block_base_sampling_block(
     const double transformed_residual = base_rhs[static_cast<size_t>(row)];
     residual[static_cast<size_t>(local)] = transformed_residual;
     if (base_quadratic != nullptr) {
-      *base_quadratic += transformed_residual * transformed_residual;
+      *base_quadratic += (0.5 * transformed_residual) * transformed_residual;
     }
     for (int column = 0; column < rank; ++column) {
       U[static_cast<size_t>(local + size * column)] = base_rhs[
@@ -258,7 +258,8 @@ bool spectral_block_log_likelihood(
     diagonal[static_cast<size_t>(eigen)] = variance;
     residual[static_cast<size_t>(eigen)] = transformed_residual;
     log_determinant += std::log(variance);
-    base_quadratic += transformed_residual * transformed_residual / variance;
+    const double standardized = transformed_residual / std::sqrt(variance);
+    base_quadratic += (0.5 * standardized) * standardized;
   }
 
   double *U = fill_low_rank_factor(plan, block, factors);
@@ -419,10 +420,9 @@ bool markov_block_log_likelihood(
           !std::isfinite(residual)) {
         return false;
       }
-      log_likelihood += -0.5 * (
-        log_two_pi + std::log(innovation_variance) +
-        residual * residual / innovation_variance
-      );
+      const double standardized = residual / std::sqrt(innovation_variance);
+      log_likelihood += -0.5 * (log_two_pi + std::log(innovation_variance)) -
+        (0.5 * standardized) * standardized;
       state_mean += state_variance * loading * residual /
         innovation_variance;
       state_variance *= observation_variance / innovation_variance;
@@ -672,7 +672,6 @@ bool fixed_known_group_block_log_likelihood(
 
   const int size = static_cast<int>(block.index.size());
   const int rank = block.rank;
-  const int increment = 1;
   const double *small = plan.small_matrix_work.data();
   const double *rhs = plan.rhs_work.data();
   const double *residual = plan.residual_work.data();
@@ -682,21 +681,22 @@ bool fixed_known_group_block_log_likelihood(
       column + rank * column
     )]);
   }
-  double quadratic = F77_CALL(ddot)(
-    &rank, rhs, &increment, rhs, &increment
-  );
-  for (int local = 0; local < size; ++local) {
-    const double current = residual[static_cast<size_t>(local)];
-    quadratic += current * current *
-      block.fixed_known_group_precision[static_cast<size_t>(local)];
+  double quadratic = 0.0;
+  for (int row = 0; row < rank; ++row) {
+    const double current = rhs[static_cast<size_t>(row)];
+    quadratic += (0.5 * current) * current;
   }
-  if (!std::isfinite(log_determinant) || !std::isfinite(quadratic)) {
+  for (int local = 0; local < size; ++local) {
+    const double standardized = residual[static_cast<size_t>(local)] *
+      std::sqrt(block.fixed_known_group_precision[static_cast<size_t>(local)]);
+    quadratic += (0.5 * standardized) * standardized;
+  }
+  if (!std::isfinite(log_determinant) || std::isnan(quadratic) || quadratic < 0.0) {
     Rf_error("Known-V fixed-basis likelihood is not finite.");
   }
   const double log_two_pi = 1.837877066409345483560659472811;
-  *value = -0.5 * (
-    static_cast<double>(size) * log_two_pi + log_determinant + quadratic
-  );
+  *value = -0.5 * (static_cast<double>(size) * log_two_pi +
+    log_determinant) - quadratic;
   return true;
 }
 

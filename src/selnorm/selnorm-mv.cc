@@ -3983,9 +3983,10 @@ double cpp_gaussian_latent_loglik(
       const double weight = power == nullptr ? 1.0 : power[i];
       if (weight == 0.0) continue;
       const double standardized = residual[i] / sd[i];
-      quadratic += weight * standardized * standardized;
+      const double weighted = std::sqrt(weight) * standardized;
+      quadratic += (0.5 * weighted) * weighted;
     }
-    return norm - 0.5 * quadratic;
+    return norm - quadratic;
   }
 
   if (top <= bottom) {
@@ -4018,11 +4019,12 @@ double cpp_gaussian_latent_loglik(
       if (weight == 0.0) continue;
       const double remainder = (first[i] - second[i] * latent) -
         second[i] * step;
-      quadratic += weight * remainder * remainder;
+      const double weighted = std::sqrt(weight) * remainder;
+      quadratic += (0.5 * weighted) * weighted;
     }
     latent += step;
-    quadratic += latent * latent;
-    return norm - 0.5 * std::log1p(information) - 0.5 * quadratic;
+    quadratic += (0.5 * latent) * latent;
+    return norm - 0.5 * std::log1p(information) - quadratic;
   }
 
   // first = a_i = loading_i / T, second = p_i a_i (or its scaled version).
@@ -4102,14 +4104,15 @@ double cpp_gaussian_latent_loglik(
     if (weight == 0.0) continue;
     const double standardized =
       ((residual[i] - shift(i, center)) - shift(i, step)) / sd[i];
-    quadratic += weight * standardized * standardized;
+    const double weighted = std::sqrt(weight) * standardized;
+    quadratic += (0.5 * weighted) * weighted;
   }
   center += step;
   const double latent = center / scale;
-  quadratic += latent * latent;
+  quadratic += (0.5 * latent) * latent;
   const double log_a = 2.0 * (std::log(scale) - std::log(bottom)) +
     log_factor + std::log(denominator);
-  return norm - 0.5 * log_a - 0.5 * quadratic;
+  return norm - 0.5 * log_a - quadratic;
 }
 
 double cpp_selnorm_factor_step_lpdf(

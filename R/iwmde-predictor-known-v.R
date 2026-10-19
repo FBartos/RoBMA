@@ -861,9 +861,9 @@
     }
     residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) - mu
 
-    return(rowSums(-.5 * (
-      log(2 * pi * variance) + residual^2 / variance
-    )))
+    standardized <- residual / sqrt(variance)
+    return(rowSums(-.5 * log(2 * pi) - .5 * log(variance) -
+      (.5 * standardized) * standardized))
   }
 
   common_shift <- vapply(block_indices, function(index) {
@@ -896,9 +896,9 @@
       if (any(!is.finite(variance)) || any(variance <= 0)) {
         return(NULL)
       }
-      log_lik <- log_lik - .5 * (
-        log(2 * pi * variance) + residual[, 1L]^2 / variance
-      )
+      standardized <- residual[, 1L] / sqrt(variance)
+      log_lik <- log_lik - .5 * log(2 * pi) - .5 * log(variance) -
+        (.5 * standardized) * standardized
       next
     }
 

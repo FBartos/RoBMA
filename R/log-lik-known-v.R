@@ -1373,9 +1373,9 @@
         context    = "joint likelihood"
       )
     }
-    log_lik <- rowSums(-0.5 * (
-      log(2 * pi * variance) + residual^2 / variance
-    ))
+    standardized <- residual / sqrt(variance)
+    log_lik <- rowSums(-.5 * log(2 * pi) - .5 * log(variance) -
+      (.5 * standardized) * standardized)
   }
 
   if (length(dependent) > 0L) {

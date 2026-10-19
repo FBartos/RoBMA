@@ -96,14 +96,11 @@ double cholesky_block_log_likelihood(int size, double *covariance,
   double quadratic = 0.0;
   for (int row = 0; row < size; ++row) {
     const double value = residual[static_cast<size_t>(row)];
-    quadratic += value * value;
+    quadratic += (0.5 * value) * value;
   }
   const double log_two_pi = 1.837877066409345483560659472811;
-  return -0.5 * (
-    static_cast<double>(size) * log_two_pi +
-    log_determinant +
-    quadratic
-  );
+  return -0.5 * (static_cast<double>(size) * log_two_pi +
+    log_determinant) - quadratic;
 }
 
 double dense_block_log_likelihood(
@@ -283,7 +280,8 @@ bool finish_low_rank_log_likelihood(
     double *value)
 {
   // small is K = I + U' B^-1 U and rhs is U' B^-1 r. Thus
-  // log|Sigma| = log|B| + log|K| and r' Sigma^-1 r = r' B^-1 r - rhs' K^-1 rhs.
+  // log|Sigma| = log|B| + log|K|. Accumulate half quadratics so a
+  // representable Gaussian log density survives an overflowing unhalved square.
   double *small = plan.small_matrix_work.data();
   double *rhs = plan.rhs_work.data();
   int info = 0;
@@ -305,7 +303,7 @@ bool finish_low_rank_log_likelihood(
   }
   double adjustment = 0.0;
   for (int row = 0; row < rank; ++row) {
-    adjustment += rhs[static_cast<size_t>(row)] *
+    adjustment += (0.5 * rhs[static_cast<size_t>(row)]) *
       rhs[static_cast<size_t>(row)];
   }
   double quadratic = base_quadratic - adjustment;
@@ -313,7 +311,7 @@ bool finish_low_rank_log_likelihood(
     static_cast<double>(size + rank + 1) *
     std::numeric_limits<double>::epsilon() *
     (std::abs(base_quadratic) + std::abs(adjustment));
-  if (!(quadratic > cancellation_bound)) {
+  if (adjustment > 0.5 * base_quadratic || !(quadratic > cancellation_bound)) {
     // Re-evaluate the same quadratic as a sum of squares when subtraction loses
     // precision. The bound chooses an algebraic form; it does not clamp a value.
     const int one = 1;
@@ -327,22 +325,23 @@ bool finish_low_rank_log_likelihood(
       "N", &size, &rank, &minus_one, U, &size, rhs, &one,
       &plus_one, residual, &one FCONE
     );
-    quadratic = F77_CALL(ddot)(&rank, rhs, &one, rhs, &one);
+    quadratic = 0.0;
+    for (int row = 0; row < rank; ++row) {
+      const double transformed = rhs[static_cast<size_t>(row)];
+      quadratic += (0.5 * transformed) * transformed;
+    }
     for (int observation = 0; observation < size; ++observation) {
-      const double transformed = residual[static_cast<size_t>(observation)];
-      quadratic += transformed * transformed /
-        diagonal[static_cast<size_t>(observation)];
+      const double standardized = residual[static_cast<size_t>(observation)] /
+        std::sqrt(diagonal[static_cast<size_t>(observation)]);
+      quadratic += (0.5 * standardized) * standardized;
     }
   }
-  if (!std::isfinite(log_determinant) || !std::isfinite(quadratic)) {
+  if (!std::isfinite(log_determinant) || std::isnan(quadratic) || quadratic < 0.0) {
     Rf_error("Known-V bridge Woodbury likelihood is not finite.");
   }
   const double log_two_pi = 1.837877066409345483560659472811;
-  *value = -0.5 * (
-    static_cast<double>(size) * log_two_pi +
-    log_determinant +
-    quadratic
-  );
+  *value = -0.5 * (static_cast<double>(size) * log_two_pi +
+    log_determinant) - quadratic;
   return true;
 }
 
@@ -359,11 +358,8 @@ bool diagonal_low_rank_log_likelihood(
 {
   if (rank == 0) {
     const double log_two_pi = 1.837877066409345483560659472811;
-    *value = -0.5 * (
-      static_cast<double>(size) * log_two_pi +
-      log_determinant +
-      base_quadratic
-    );
+    *value = -0.5 * (static_cast<double>(size) * log_two_pi +
+      log_determinant) - base_quadratic;
     return true;
   }
 
@@ -599,7 +595,7 @@ bool sparse_factor_log_likelihood(
   const double *solution_values = static_cast<const double *>(solution->x);
   double adjustment = 0.0;
   for (int row = 0; row < rank; ++row) {
-    adjustment += rhs[static_cast<size_t>(row)] *
+    adjustment += (0.5 * rhs[static_cast<size_t>(row)]) *
       solution_values[static_cast<size_t>(row)];
   }
   std::copy(
@@ -614,7 +610,7 @@ bool sparse_factor_log_likelihood(
     static_cast<double>(size + rank + 1) *
     std::numeric_limits<double>::epsilon() *
     (std::abs(base_quadratic) + std::abs(adjustment));
-  if (!(quadratic > cancellation_bound)) {
+  if (adjustment > 0.5 * base_quadratic || !(quadratic > cancellation_bound)) {
     // Avoid cancellation by evaluating the equivalent residual sum of squares.
     const int one = 1;
     const double minus_one = -1.0;
@@ -623,22 +619,23 @@ bool sparse_factor_log_likelihood(
       "N", &size, &rank, &minus_one, U, &size, rhs, &one,
       &plus_one, residual, &one FCONE
     );
-    quadratic = F77_CALL(ddot)(&rank, rhs, &one, rhs, &one);
+    quadratic = 0.0;
+    for (int row = 0; row < rank; ++row) {
+      const double transformed = rhs[static_cast<size_t>(row)];
+      quadratic += (0.5 * transformed) * transformed;
+    }
     for (int observation = 0; observation < size; ++observation) {
-      const double transformed = residual[static_cast<size_t>(observation)];
-      quadratic += transformed * transformed /
-        diagonal[static_cast<size_t>(observation)];
+      const double standardized = residual[static_cast<size_t>(observation)] /
+        std::sqrt(diagonal[static_cast<size_t>(observation)]);
+      quadratic += (0.5 * standardized) * standardized;
     }
   }
-  if (!std::isfinite(log_determinant) || !std::isfinite(quadratic)) {
+  if (!std::isfinite(log_determinant) || std::isnan(quadratic) || quadratic < 0.0) {
     Rf_error("Known-V sparse Woodbury likelihood is not finite.");
   }
   const double log_two_pi = 1.837877066409345483560659472811;
-  *value = -0.5 * (
-    static_cast<double>(size) * log_two_pi +
-    log_determinant +
-    quadratic
-  );
+  *value = -0.5 * (static_cast<double>(size) * log_two_pi +
+    log_determinant) - quadratic;
   return true;
 }
 
@@ -675,8 +672,9 @@ bool low_rank_block_log_likelihood(
     residual[static_cast<size_t>(row)] =
       plan.y[static_cast<size_t>(global)] - mean[global];
     log_determinant += std::log(variance);
-    base_quadratic += residual[static_cast<size_t>(row)] *
-      residual[static_cast<size_t>(row)] / variance;
+    const double standardized = residual[static_cast<size_t>(row)] /
+      std::sqrt(variance);
+    base_quadratic += (0.5 * standardized) * standardized;
   }
 
   double *U = fill_low_rank_factor(plan, block, factors);
