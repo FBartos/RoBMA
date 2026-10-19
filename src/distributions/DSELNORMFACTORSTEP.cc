@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -134,15 +135,13 @@ double DSELNORMFACTORSTEP::logDensity(
   );
   const double diagnostic = std::max(relative_mcse, relative_change);
   if (!std::isfinite(diagnostic) || diagnostic > *par[18]) {
-    throw std::runtime_error(
+    char message[512];
+    std::snprintf(message, sizeof(message),
       "Selection factor normalizer was rejected by diagnostics: "
-      "relative Monte Carlo standard error was " +
-      std::to_string(relative_mcse) +
-      " and nested-design relative change was " +
-      std::to_string(relative_change) + ". Increase "
-      "'max_points_per_scramble' or 'scrambles' in "
-      "'selection_control'."
-    );
+      "relative Monte Carlo standard error was %g and nested-design "
+      "relative change was %g. Increase 'max_points_per_scramble' "
+      "or 'scrambles' in 'selection_control'.", relative_mcse, relative_change);
+    throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;
   return log_density;
@@ -154,9 +153,9 @@ void DSELNORMFACTORSTEP::randomSample(
     std::vector<unsigned int> const &len,
     double const *lower, double const *upper, RNG *rng) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
-    x[i] = std::numeric_limits<double>::quiet_NaN();
-  }
+  throw std::runtime_error(
+    "'dselnorm_factor_step' supports observed nodes only; sampling unobserved selected nodes is unsupported."
+  );
 }
 
 void DSELNORMFACTORSTEP::support(

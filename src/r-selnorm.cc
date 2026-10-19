@@ -90,8 +90,12 @@ extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
   const double row_count = Rf_asReal(rows);
   const double work = Rf_asReal(work_per_row);
   if (!std::isfinite(row_count) || row_count < 0 ||
+      row_count != std::floor(row_count) ||
       row_count > static_cast<double>(std::numeric_limits<int>::max())) {
     Rf_error("'rows' must be one nonnegative whole number of rows.");
+  }
+  if (!std::isfinite(work)) {
+    Rf_error("'work_per_row' must be one finite number.");
   }
   const RobmaRowSchedule schedule =
     robma_row_schedule(static_cast<int>(row_count), work);

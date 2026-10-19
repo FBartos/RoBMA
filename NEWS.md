@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Native selection inputs reject lossy controls and malformed partitions before
+  worker execution; unsupported JAGS sampling fails explicitly, and unavailable
+  known-covariance output starts missing.
 - Marginal-mean and model summaries retain row notes and declared formula
   owners, avoid hidden Bayes-factor work, and forward current ordinate settings.
 - Hypotheses bind positional statements, retain literal refusal and warning

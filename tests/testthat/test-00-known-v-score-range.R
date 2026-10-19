@@ -288,3 +288,22 @@ test_that("joint group-IID grids decline nonpositive covariance cells", {
   }, numeric(1L))
   expect_equal(as.numeric(control), expected, tolerance = 1e-13)
 })
+
+
+test_that("unavailable native precision blocks retain missing values beside evaluated blocks", {
+
+  covariance <- matrix(c(1, 1, 0, 1, 1, 0, 0, 0, 2), 3L)
+  plan <- .Call("RoBMA_known_v_covariance_plan_create", c(.2, -.1, .4),
+    covariance, list(), list(1:2, 3L), PACKAGE = "RoBMA")
+  evaluate <- function(extra) {
+    .Call("RoBMA_known_v_covariance_plan_precision_residual_batch", plan,
+      matrix(0, 3L, 1L), list(list()), matrix(extra, 3L, 1L), PACKAGE = "RoBMA")
+  }
+  unavailable <- evaluate(c(0, 0, 0))
+  expect_true(all(is.na(unavailable[1:2, 1L])))
+  expect_identical(unavailable[3L, 1L], .2)
+  expect_identical(attr(unavailable, "unavailable"), 0)
+  available <- evaluate(c(1, 1, 0))
+  expect_equal(as.numeric(available), c(1 / 6, -2 / 15, .2), tolerance = 1e-14)
+  expect_true(is.na(attr(available, "unavailable")))
+})

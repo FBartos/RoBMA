@@ -638,7 +638,6 @@ bool finish_conditional_block(
   // residual, and variance are all derived from this same joint precision; none
   // is an independent marginal observation target.
   const double *latent_residual_solution = solutions;
-  const bool residual_only = precision_residual_only(output);
   for (int observation = 0; observation < size; ++observation) {
     double residual_correction = 0.0;
     for (int column : active_columns[static_cast<size_t>(observation)]) {
@@ -653,12 +652,6 @@ bool finish_conditional_block(
       residual_correction;
     if (!std::isfinite(precision_residual)) {
       return false;
-    }
-    if (residual_only) {
-      output.precision_residual[
-        block.index[static_cast<size_t>(observation)]
-      ] = precision_residual;
-      continue;
     }
 
     const double *precision_solution = solutions +
@@ -1214,12 +1207,6 @@ void plan_conditional_values(
         reciprocal_condition = 0.0;
       }
       if (info != 0 || !precision_condition_acceptable(reciprocal_condition)) {
-        if (output.unavailable_condition == nullptr) {
-          Rf_error(
-            "Known-V precision application is unavailable for an "
-            "ill-conditioned covariance."
-          );
-        }
         if (std::isnan(*output.unavailable_condition) ||
             reciprocal_condition < *output.unavailable_condition) {
           *output.unavailable_condition = reciprocal_condition;

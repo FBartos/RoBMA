@@ -5,6 +5,7 @@
 #include <util/nainf.h>
 
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
@@ -173,12 +174,12 @@ double DSELNORMMVSTEP::logDensity(
     &relative_mcse, nullptr, nullptr, static_cast<int>(*par[14]), &integration
   );
   if (!std::isfinite(relative_mcse) || relative_mcse > *par[13]) {
-    throw std::runtime_error(
+    char message[512];
+    std::snprintf(message, sizeof(message),
       "Selection normalizer was rejected by diagnostics: relative "
-      "Monte Carlo standard error was " + std::to_string(relative_mcse) +
-      ". Increase 'points_per_scramble' or 'scrambles' in "
-      "'selection_control'."
-    );
+      "Monte Carlo standard error was %g. Increase 'points_per_scramble' "
+      "or 'scrambles' in 'selection_control'.", relative_mcse);
+    throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;
   return log_density;
@@ -215,9 +216,9 @@ void DSELNORMMVSTEP::randomSample(
     std::vector<unsigned int> const &len,
     double const *lower, double const *upper, RNG *rng) const
 {
-  for (unsigned int i = 0; i < length; ++i) {
-    x[i] = std::numeric_limits<double>::quiet_NaN();
-  }
+  throw std::runtime_error(
+    "'dselnorm_mnorm_step' supports observed nodes only; sampling unobserved selected nodes is unsupported."
+  );
 }
 
 void DSELNORMMVSTEP::support(

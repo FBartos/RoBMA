@@ -152,7 +152,13 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   const int S = matrix_nrow(means, "means");
   const int K = matrix_ncol(means, "means");
   const int B = matrix_ncol(omega, "omega");
-  const int L = K * (K + 1) / 2;
+  const R_xlen_t packed = static_cast<R_xlen_t>(K) *
+    (static_cast<R_xlen_t>(K) + 1) / 2;
+  if (packed > std::numeric_limits<int>::max() ||
+      (K > 0 && K > std::numeric_limits<int>::max() / K)) {
+    Rf_error("Selection covariance exceeds the native integer indexing limit.");
+  }
+  const int L = static_cast<int>(packed);
   const int rule_length = validate_vector_rule(vector_rule, S);
   const int mode_length = Rf_length(kernel_mode);
   if (S < 1 || K < 1 || B < 1 || Rf_length(sei) != K ||
@@ -184,8 +190,11 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
   validate_omega_matrix(REAL(omega), S, B);
   const int n_points = INTEGER(points)[0];
   const int n_scrambles = INTEGER(scrambles)[0];
+  const R_xlen_t qmc_dimensions = static_cast<R_xlen_t>(2) * K;
   if (rank_one_loading == R_NilValue && K > 1 &&
-      XLENGTH(qmc) != static_cast<R_xlen_t>(2 * K) * n_points * n_scrambles) {
+      (n_points > XLENGTH(qmc) / qmc_dimensions ||
+       XLENGTH(qmc) % (qmc_dimensions * n_points) != 0 ||
+       XLENGTH(qmc) / (qmc_dimensions * n_points) != n_scrambles)) {
     Rf_error("'qmc' dimensions do not match the integration settings.");
   }
   for (R_xlen_t i = 0; i < XLENGTH(qmc); ++i) {
@@ -305,12 +314,19 @@ static SEXP selnorm_mnorm_step_batch(
   const int S = matrix_nrow(means, "means");
   const int vector_length = validate_vector_rule(vector_rule, S);
   const int K = matrix_ncol(means, "means");
-  const int L = K * (K + 1) / 2;
+  const R_xlen_t packed = static_cast<R_xlen_t>(K) *
+    (static_cast<R_xlen_t>(K) + 1) / 2;
+  if (packed > std::numeric_limits<int>::max() ||
+      (K > 0 && K > std::numeric_limits<int>::max() / K)) {
+    Rf_error("Selection covariance exceeds the native integer indexing limit.");
+  }
+  const int L = static_cast<int>(packed);
   const int B = matrix_ncol(omega, "omega");
   if (S < 1 || K < 1) {
     Rf_error("'means' must have positive dimensions.");
   }
   int rank = 0;
+  int loading_columns = 0;
   if (factors != R_NilValue) {
     if (TYPEOF(factors) != VECSXP ||
         (Rf_length(factors) != 2 && Rf_length(factors) != 5)) {
@@ -325,6 +341,7 @@ static SEXP selnorm_mnorm_step_batch(
       Rf_error("'loading' has invalid dimensions.");
     }
     rank = columns / K;
+    loading_columns = columns;
   }
   validate_matrix_dims_named(
     covariance_lower, "covariance_lower", S, L, "means"
@@ -346,6 +363,12 @@ static SEXP selnorm_mnorm_step_batch(
   const int kernel_length = Rf_length(kernel_mode);
   if (kernel_length != 1 && kernel_length != S) {
     Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
+  }
+  for (int i = 0; i < kernel_length; ++i) {
+    if (INTEGER(kernel_mode)[i] != SELKERNEL_NORMAL &&
+        INTEGER(kernel_mode)[i] != SELKERNEL_STEP) {
+      Rf_error("Multivariate selection requires a normal or step kernel.");
+    }
   }
   if (Rf_length(points) != 1 || INTEGER(points)[0] < 1 ||
       Rf_length(scrambles) != 1 || INTEGER(scrambles)[0] < 2) {
@@ -387,16 +410,18 @@ static SEXP selnorm_mnorm_step_batch(
         Rf_error("'loading_support' has invalid dimensions.");
       }
       loading_support = LOGICAL(support);
-      for (int index = 0; index < K * rank; ++index) {
+      for (int index = 0; index < loading_columns; ++index) {
         if (loading_support[index] == NA_LOGICAL) {
           Rf_error("'loading_support' must not contain missing values.");
         }
       }
     }
   }
-  const R_xlen_t expected_qmc = static_cast<R_xlen_t>(n_scrambles) *
-    static_cast<R_xlen_t>(n_points) * static_cast<R_xlen_t>(2 * K);
-  if (!quadrature && K > 1 && XLENGTH(qmc) != expected_qmc) {
+  const R_xlen_t qmc_dimensions = static_cast<R_xlen_t>(2) * K;
+  if (!quadrature && K > 1 &&
+      (n_points > XLENGTH(qmc) / qmc_dimensions ||
+       XLENGTH(qmc) % (qmc_dimensions * n_points) != 0 ||
+       XLENGTH(qmc) / (qmc_dimensions * n_points) != n_scrambles)) {
     Rf_error("'qmc' dimensions do not match the integration settings.");
   }
   std::vector<double> normalizer_orders;
@@ -405,8 +430,7 @@ static SEXP selnorm_mnorm_step_batch(
   // The dense R interface approximates only post-fit log densities.
   // Its existing projected-outcome path retains the original primitive.
   if (z != R_NilValue) integration_rules.bounded_cdf = false;
-  if (integration_rules.bounded_cdf &&
-      !selnorm_is_descending_step_partition(REAL(z_lower), REAL(z_upper), B)) {
+  if (!selnorm_is_descending_step_partition(REAL(z_lower), REAL(z_upper), B)) {
     Rf_error("Selection bounds do not define a descending step partition.");
   }
 
@@ -458,7 +482,7 @@ static SEXP selnorm_mnorm_step_batch(
   std::vector<double> lower(static_cast<std::size_t>(L));
   std::vector<double> omega_row(static_cast<std::size_t>(B));
   std::vector<double> residual_sd(static_cast<std::size_t>(K));
-  std::vector<double> loading(static_cast<std::size_t>(K * rank));
+  std::vector<double> loading(static_cast<std::size_t>(loading_columns));
   CompactStepPartition partition;
 
   // Per-row factor inputs are validated before the row loop so the parallel
@@ -471,7 +495,7 @@ static SEXP selnorm_mnorm_step_batch(
           Rf_error("'residual_sd' must be finite and positive.");
         }
       }
-      for (int j = 0; j < K * rank; ++j) {
+      for (int j = 0; j < loading_columns; ++j) {
         const double value = REAL(VECTOR_ELT(factors, 1))[s + S * j];
         if (!std::isfinite(value)) Rf_error("'loading' must be finite.");
         if (loading_support != nullptr && !loading_support[j] && value != 0.0) {
@@ -510,7 +534,7 @@ static SEXP selnorm_mnorm_step_batch(
       for (int i = 0; i < K; ++i) {
         row_residual_sd[i] = REAL(VECTOR_ELT(factors, 0))[s + S * i];
       }
-      for (int j = 0; j < K * rank; ++j) {
+      for (int j = 0; j < loading_columns; ++j) {
         row_loading[j] = REAL(VECTOR_ELT(factors, 1))[s + S * j];
       }
     }
@@ -624,7 +648,7 @@ static SEXP selnorm_mnorm_step_batch(
       std::vector<double> row_lower(static_cast<std::size_t>(L));
       std::vector<double> row_omega(static_cast<std::size_t>(B));
       std::vector<double> row_residual_sd(static_cast<std::size_t>(K));
-      std::vector<double> row_loading(static_cast<std::size_t>(K * rank));
+      std::vector<double> row_loading(static_cast<std::size_t>(loading_columns));
       std::vector<double> row_projected(static_cast<std::size_t>(Z));
       CompactStepPartition row_partition;
       compute_row(s, row_mean, row_lower, row_omega, row_residual_sd,
@@ -755,11 +779,13 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   int previous_order = 0;
   for (int rule = 0; rule < Rf_length(quadrature_orders); ++rule) {
     const double raw_order = REAL(quadrature_orders)[rule];
-    const int order = static_cast<int>(raw_order);
-    if (!std::isfinite(raw_order) || raw_order != static_cast<double>(order) ||
-        order <= previous_order) {
-      Rf_error("'quadrature_orders' must contain increasing positive integers.");
+    if (!std::isfinite(raw_order) || raw_order != std::floor(raw_order) ||
+        raw_order <= previous_order || raw_order > std::numeric_limits<int>::max() ||
+        raw_order > Rf_length(quadrature_nodes) - quadrature_length ||
+        raw_order > Rf_length(quadrature_log_weights) - quadrature_length) {
+      Rf_error("'quadrature_orders' must contain increasing positive integers matching the quadrature rules.");
     }
+    const int order = static_cast<int>(raw_order);
     quadrature_length += order;
     previous_order = order;
   }
@@ -769,14 +795,24 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   const int n_initial_points = INTEGER(initial_points)[0];
   const int n_max_points = INTEGER(max_points)[0];
   const int n_scrambles = INTEGER(scrambles)[0];
-  const R_xlen_t expected_qmc = static_cast<R_xlen_t>(2) *
-    static_cast<R_xlen_t>(n_max_points) * n_scrambles;
-  if (XLENGTH(qmc) != expected_qmc) {
+  const R_xlen_t qmc_dimensions = 2;
+  if (n_max_points > XLENGTH(qmc) / qmc_dimensions ||
+      XLENGTH(qmc) % (qmc_dimensions * n_max_points) != 0 ||
+      XLENGTH(qmc) / (qmc_dimensions * n_max_points) != n_scrambles) {
     Rf_error("'qmc' dimensions do not match the cluster integration settings.");
   }
   const int kernel_length = Rf_length(kernel_mode);
   if (kernel_length != 1 && kernel_length != S) {
     Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
+  }
+  for (int i = 0; i < kernel_length; ++i) {
+    if (INTEGER(kernel_mode)[i] != SELKERNEL_NORMAL &&
+        INTEGER(kernel_mode)[i] != SELKERNEL_STEP) {
+      Rf_error("Multivariate selection requires a normal or step kernel.");
+    }
+  }
+  if (!selnorm_is_descending_step_partition(REAL(z_lower), REAL(z_upper), B)) {
+    Rf_error("Selection bounds do not define a descending step partition.");
   }
   validate_omega_matrix(REAL(omega), S, B);
   for (int k = 0; k < K; ++k) {
@@ -784,6 +820,16 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
         !(REAL(sei)[k] > 0.0) || INTEGER(obs_bin)[k] < 1 ||
         INTEGER(obs_bin)[k] > B) {
       Rf_error("Observed selection inputs are invalid.");
+    }
+  }
+
+  for (R_xlen_t i = 0; i < XLENGTH(means); ++i) {
+    if (!std::isfinite(REAL(means)[i]) ||
+        !(REAL(residual_sd)[i] > 0.0) || !std::isfinite(REAL(residual_sd)[i])) {
+      Rf_error("Cluster selection location inputs are invalid.");
+    }
+    if (!std::isfinite(REAL(loading)[i])) {
+      Rf_error("Cluster selection loadings must be finite.");
     }
   }
 
@@ -915,11 +961,13 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   int previous_order = 0;
   for (int rule = 0; rule < Rf_length(quadrature_orders); ++rule) {
     const double raw_order = REAL(quadrature_orders)[rule];
-    const int order = static_cast<int>(raw_order);
-    if (!std::isfinite(raw_order) || raw_order != static_cast<double>(order) ||
-        order <= previous_order) {
-      Rf_error("'quadrature_orders' must contain increasing positive integers.");
+    if (!std::isfinite(raw_order) || raw_order != std::floor(raw_order) ||
+        raw_order <= previous_order || raw_order > std::numeric_limits<int>::max() ||
+        raw_order > Rf_length(quadrature_nodes) - quadrature_length ||
+        raw_order > Rf_length(quadrature_log_weights) - quadrature_length) {
+      Rf_error("'quadrature_orders' must contain increasing positive integers matching the quadrature rules.");
     }
+    const int order = static_cast<int>(raw_order);
     quadrature_length += order;
     previous_order = order;
   }
@@ -929,15 +977,24 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   const int n_initial_points = INTEGER(initial_points)[0];
   const int n_max_points = INTEGER(max_points)[0];
   const int n_scrambles = INTEGER(scrambles)[0];
-  const R_xlen_t expected_qmc = static_cast<R_xlen_t>(2 * rank) *
-    static_cast<R_xlen_t>(n_max_points) *
-    static_cast<R_xlen_t>(n_scrambles);
-  if (XLENGTH(qmc) != expected_qmc) {
+  const R_xlen_t qmc_dimensions = static_cast<R_xlen_t>(2) * rank;
+  if (n_max_points > XLENGTH(qmc) / qmc_dimensions ||
+      XLENGTH(qmc) % (qmc_dimensions * n_max_points) != 0 ||
+      XLENGTH(qmc) / (qmc_dimensions * n_max_points) != n_scrambles) {
     Rf_error("'qmc' dimensions do not match the factor integration settings.");
   }
   const int kernel_length = Rf_length(kernel_mode);
   if (kernel_length != 1 && kernel_length != S) {
     Rf_error("'kernel_mode' must have length 1 or one value per posterior sample.");
+  }
+  for (int i = 0; i < kernel_length; ++i) {
+    if (INTEGER(kernel_mode)[i] != SELKERNEL_NORMAL &&
+        INTEGER(kernel_mode)[i] != SELKERNEL_STEP) {
+      Rf_error("Multivariate selection requires a normal or step kernel.");
+    }
+  }
+  if (!selnorm_is_descending_step_partition(REAL(z_lower), REAL(z_upper), B)) {
+    Rf_error("Selection bounds do not define a descending step partition.");
   }
   validate_omega_matrix(REAL(omega), S, B);
   for (int i = 0; i < K; ++i) {
@@ -966,7 +1023,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
         Rf_error("Exact factor selection location inputs are invalid.");
       }
     }
-    for (int column = 0; column < K * rank; ++column) {
+    for (int column = 0; column < loading_columns; ++column) {
       if (!std::isfinite(REAL(loading)[s + S * column])) {
         Rf_error("Exact factor selection loadings must be finite.");
       }
@@ -977,14 +1034,14 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
     std::vector<double> row_mean(static_cast<std::size_t>(K));
     std::vector<double> row_sd(static_cast<std::size_t>(K));
     std::vector<double> row_coefficient(
-      static_cast<std::size_t>(K * rank)
+      static_cast<std::size_t>(loading_columns)
     );
     std::vector<double> row_omega(static_cast<std::size_t>(B));
     for (int i = 0; i < K; ++i) {
       row_mean[i] = REAL(means)[s + S * i];
       row_sd[i] = REAL(residual_sd)[s + S * i];
     }
-    for (int column = 0; column < K * rank; ++column) {
+    for (int column = 0; column < loading_columns; ++column) {
       row_coefficient[column] = REAL(loading)[s + S * column];
     }
     for (int bin = 0; bin < B; ++bin) {
@@ -1411,21 +1468,26 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
   SEXP draws = PROTECT(allocate_selnorm_matrix(REALSXP, S, K));
   std::fill(REAL(draws), REAL(draws) + static_cast<R_xlen_t>(S) * K,
             NA_REAL);
-  std::vector<double> block_covariance(
-    static_cast<std::size_t>(maximum_block_size * maximum_block_size)
-  );
+  const R_xlen_t block_cells = static_cast<R_xlen_t>(maximum_block_size) *
+    maximum_block_size;
+  const R_xlen_t block_work = static_cast<R_xlen_t>(3) * maximum_block_size - 1;
+  if (block_cells > std::numeric_limits<int>::max() ||
+      block_work > std::numeric_limits<int>::max()) {
+    Rf_error("Selected response workspace exceeds the native integer indexing limit.");
+  }
+  std::vector<double> block_covariance(static_cast<std::size_t>(block_cells));
   std::vector<double> factor(
-    static_cast<std::size_t>(maximum_block_size * maximum_block_size)
+    static_cast<std::size_t>(block_cells)
   );
   std::vector<double> eigenvalues(static_cast<std::size_t>(maximum_block_size));
-  const int work_length = std::max(1, 3 * maximum_block_size - 1);
+  const int work_length = static_cast<int>(std::max<R_xlen_t>(1, block_work));
   std::vector<double> work(static_cast<std::size_t>(work_length));
   std::vector<double> rank_one(static_cast<std::size_t>(maximum_block_size));
   std::vector<double> cholesky(
-    static_cast<std::size_t>(maximum_block_size * maximum_block_size)
+    static_cast<std::size_t>(block_cells)
   );
   std::vector<double> eigenvectors(
-    static_cast<std::size_t>(maximum_block_size * maximum_block_size)
+    static_cast<std::size_t>(block_cells)
   );
   std::vector<double> normal(static_cast<std::size_t>(maximum_block_size));
   std::vector<double> candidate(static_cast<std::size_t>(maximum_block_size));
@@ -1449,6 +1511,7 @@ extern "C" SEXP RoBMA_selnorm_mnorm_step_rng_batch(
 
   GetRNGstate();
   for (int s = 0; s < S && failure_code == 0; ++s) {
+    R_CheckUserInterrupt();
     const int mode = scalar_or_row_int(
       INTEGER(kernel_mode), mode_length, s, "kernel_mode"
     );

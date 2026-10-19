@@ -13,7 +13,7 @@ inline double norm_predictor_cell(double yi, double mu, double tau, double sei,
 void check_predictor_matrix(SEXP x, const char *name, int S, int K)
 {
   check_real(x, name);
-  validate_matrix_dims(x, name, S, K);
+  validate_matrix_dims_named(x, name, S, K, "mu");
 }
 
 }

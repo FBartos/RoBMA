@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 #ifndef FCONE
@@ -136,10 +137,7 @@ void DKNOWNVMNORM::randomSample(double *x, unsigned int length,
   int info = 0;
   F77_CALL(dpotrf)("L", &k, covariance.data(), &k, &info FCONE);
   if (info != 0) {
-    for (int i = 0; i < k; ++i) {
-      x[i] = std::numeric_limits<double>::quiet_NaN();
-    }
-    return;
+    throw std::runtime_error("Known-V sampling covariance is not positive definite.");
   }
 
   std::vector<double> z(static_cast<unsigned int>(k));

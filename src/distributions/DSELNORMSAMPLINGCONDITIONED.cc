@@ -6,6 +6,7 @@
 #include <util/nainf.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -51,7 +52,7 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterValue(
   const int rank = static_cast<int>(*par[4]);
   if (rank > 0 && rank > limit / rank) return false;
   if (len[3] != static_cast<unsigned int>(std::max(1, k * rank))) return false;
-  if (!selnorm_jags_integer_in_range(*par[18], 1, limit) ||
+  if (!selnorm_jags_integer_in_range(*par[18], 2, limit) ||
       !selnorm_jags_integer_in_range(*par[19], 1, limit) || *par[19] < *par[18] ||
       !selnorm_jags_integer_in_range(*par[20], 2, limit)) return false;
   if (!(rank == 0 && len[17] == 1) &&
@@ -117,12 +118,18 @@ double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
     static_cast<int>(*par[20]), *par[21], &mcse, &change, e.data(), delta.data(),
     &normalizer, quadrature);
   if (!std::isfinite(mcse) || mcse > *par[21]) {
-    throw std::runtime_error("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was " +
-      std::to_string(mcse) + ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.");
+    char message[512];
+    std::snprintf(message, sizeof(message),
+      "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error "
+      "was %g. Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.", mcse);
+    throw std::runtime_error(message);
   }
   if (!std::isfinite(change) || change > *par[21]) {
-    throw std::runtime_error("Selection normalizer was rejected by diagnostics: relative nested-design change was " +
-      std::to_string(change) + ". Increase 'max_points_per_scramble' in 'selection_control'.");
+    char message[512];
+    std::snprintf(message, sizeof(message),
+      "Selection normalizer was rejected by diagnostics: relative nested-design change "
+      "was %g. Increase 'max_points_per_scramble' in 'selection_control'.", change);
+    throw std::runtime_error(message);
   }
   return std::isfinite(value) ? value : JAGS_NEGINF;
 }
@@ -131,7 +138,9 @@ void DSELNORMSAMPLINGCONDITIONED::randomSample(double *x, unsigned int length,
     std::vector<double const *> const &par, std::vector<unsigned int> const &len,
     double const *lower, double const *upper, RNG *rng) const
 {
-  std::fill_n(x, length, std::numeric_limits<double>::quiet_NaN());
+  throw std::runtime_error(
+    "'dselnorm_sampling_conditioned' supports observed nodes only; sampling unobserved selected nodes is unsupported."
+  );
 }
 
 void DSELNORMSAMPLINGCONDITIONED::typicalValue(double *x, unsigned int length,

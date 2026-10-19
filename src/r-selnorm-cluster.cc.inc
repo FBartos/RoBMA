@@ -34,7 +34,7 @@ struct NormClusterRows {
       sd(static_cast<size_t>(capacity)),
       loading(static_cast<size_t>(capacity)),
       power(static_cast<size_t>(capacity)),
-      work(static_cast<size_t>(2 * capacity)) {}
+      work(static_cast<size_t>(capacity) * 2) {}
 };
 
 void validate_cluster_common_data(SEXP yi, SEXP sampling, const char *sampling_name,
@@ -78,15 +78,27 @@ void validate_cluster_common_data(SEXP yi, SEXP sampling, const char *sampling_n
     if (cluster_size_p[g] <= 0) {
       Rf_error("'cluster_size' must contain positive cluster sizes.");
     }
+    if (cluster_size_p[g] > n_cluster_index - cluster_total) {
+      Rf_error("'cluster_size' must sum to the length of 'cluster_index'.");
+    }
     cluster_total += cluster_size_p[g];
   }
   if (cluster_total != n_cluster_index) {
     Rf_error("'cluster_size' must sum to the length of 'cluster_index'.");
   }
+  if (n_cluster_index != *K) {
+    Rf_error("'cluster_index' must partition the observations.");
+  }
+  std::vector<bool> seen(static_cast<size_t>(*K), false);
   for (int i = 0; i < n_cluster_index; ++i) {
     if (cluster_index_p[i] < 1 || cluster_index_p[i] > *K) {
       Rf_error("'cluster_index' values must be between 1 and the number of observations.");
     }
+    const size_t index = static_cast<size_t>(cluster_index_p[i] - 1);
+    if (seen[index]) {
+      Rf_error("'cluster_index' must partition the observations.");
+    }
+    seen[index] = true;
   }
 }
 

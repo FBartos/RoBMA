@@ -1107,3 +1107,24 @@ test_that("a declined quadrature batch preserves the complete scalar product", {
     expect_lte(actual$relative_change, .005)
   }
 })
+
+
+test_that("general scalar ingress retains all four declared kernel modes", {
+
+  spec <- .test_step_spec(0, 1)
+  native <- BayesTools::selection_native_kernel_args(selection_spec = spec,
+    S = 1L, alpha = .5, phack_kind = 0L, kernel_mode = 1L)[["static"]]
+  evaluate <- function(mode, telescope = native[["telescope_probabilities"]]) {
+    .Call("RoBMA_selnorm_kernel_log_norm_matrix", matrix(0), matrix(1), 1,
+      matrix(rep(1, spec$n_bins), 1L), .5, 0L, mode,
+      native[["z_lower"]], native[["z_upper"]], native[["sign"]], native[["phack_q"]],
+      native[["phack_z_source"]], native[["phack_z_dest"]], native[["segment_bounds"]],
+      native[["segment_step_bin"]], native[["segment_phack_region"]], telescope,
+      PACKAGE = "RoBMA")
+  }
+  for (mode in 0:3) expect_equal(as.numeric(evaluate(mode)), 0, tolerance = 1e-14)
+  for (mode in c(NA_integer_, -1L, 999L)) {
+    expect_error(evaluate(mode), "'kernel_mode' must identify a supported selection kernel.", fixed = TRUE)
+  }
+  expect_error(evaluate(1L, NA), "'telescope_probabilities' must not be missing.", fixed = TRUE)
+})

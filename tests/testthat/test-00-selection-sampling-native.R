@@ -573,3 +573,31 @@ test_that("projection diagnostics include denominator uncertainty in every ratio
     expect_gt(actual$relative_mcse, 1e-8)
   }
 })
+
+
+test_that("conditioned ingress needs two points and guards order casts", {
+
+  args <- .sampling_native_arguments(c(.2, -.1), c(.25, .49), points = 2L)
+  args$qmc <- .5
+  reference <- .sampling_native_mass(args)
+  expected <- sum(log(.2 + .8 * stats::pnorm(c(.2, -.1) / c(.5, .7))))
+  expect_equal(reference$log_normalizer, expected, tolerance = 1e-14)
+  changed <- args
+  changed$initial_points <- 1L
+  expect_error(.sampling_native_mass(changed),
+    "Conditional sampling selection controls are invalid.", fixed = TRUE)
+  for (field in c("cluster_orders", "factor_orders")) {
+    for (order in c(2.5, .Machine$integer.max + 1, length(args$cluster_nodes) + length(args$factor_nodes))) {
+      changed <- args
+      changed[[field]][1L] <- order
+      expect_error(.sampling_native_mass(changed),
+        "Conditional selection quadrature orders must be increasing positive integers matching their arrays.",
+        fixed = TRUE)
+    }
+  }
+  changed <- args
+  changed$rank <- .Machine$integer.max
+  expect_error(.sampling_native_mass(changed),
+    "Conditional sampling selection exceeds the native integer indexing limit.", fixed = TRUE)
+  expect_identical(.sampling_native_mass(args), reference)
+})

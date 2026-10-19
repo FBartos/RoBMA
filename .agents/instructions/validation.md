@@ -28,6 +28,11 @@ defaults to disabled for shared, JAGS and worker workspaces; callbacks may throw
 through ordinary C++ cleanup. This does not bound allocation or scalar-kernel
 latency for arbitrary native-only requests.
 
+The registered scalar `RoBMA_known_v_covariance_plan_conditional_loglik` entry
+is retained as a scalar conditional-score oracle for native tests. The
+production batch entry and precision-refinement routes keep their separate
+output and unavailability contracts.
+
 ## Performance investigation
 
 ### The Poisson GLMM AGHQ layout collision

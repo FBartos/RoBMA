@@ -201,8 +201,11 @@ static SelNormConditionedQuadrature sampling_conditioned_quadrature(
     int total = 0, previous = 0;
     for (int i = 0; i < count; ++i) {
       const double order = REAL(inputs[offset + 2])[i];
-      if (order <= previous || order != std::floor(order)) {
-        Rf_error("Conditional selection quadrature orders must be increasing positive integers.");
+      if (!std::isfinite(order) || order <= previous || order != std::floor(order) ||
+          order > std::numeric_limits<int>::max() ||
+          order > Rf_length(inputs[offset]) - total ||
+          order > Rf_length(inputs[offset + 1]) - total) {
+        Rf_error("Conditional selection quadrature orders must be increasing positive integers matching their arrays.");
       }
       previous = static_cast<int>(order);
       total += previous;
@@ -249,7 +252,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
   const int B = matrix_ncol(omega, "omega");
   if (S < 1 || K < 1 || B < 1 || Rf_length(rank) != 1 || INTEGER(rank)[0] < 0 ||
       Rf_length(sign) != 1 || (INTEGER(sign)[0] != 1 && INTEGER(sign)[0] != -1) ||
-      Rf_length(initial_points) != 1 || INTEGER(initial_points)[0] < 1 ||
+      Rf_length(initial_points) != 1 || INTEGER(initial_points)[0] < 2 ||
       Rf_length(max_points) != 1 || INTEGER(max_points)[0] < INTEGER(initial_points)[0] ||
       Rf_length(scrambles) != 1 || INTEGER(scrambles)[0] < 2 ||
       Rf_length(relative_tolerance) != 1 || !(REAL(relative_tolerance)[0] > 0.0) ||
@@ -258,6 +261,15 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
     Rf_error("Conditional sampling selection controls are invalid.");
   }
   const int R = INTEGER(rank)[0], maximum = INTEGER(max_points)[0], shifts = INTEGER(scrambles)[0];
+  const R_xlen_t loading_size = static_cast<R_xlen_t>(K) * R;
+  const R_xlen_t maximum_dimensions = std::max(static_cast<R_xlen_t>(2) * K,
+    static_cast<R_xlen_t>(K) + R);
+  if (loading_size > std::numeric_limits<int>::max() ||
+      maximum_dimensions > std::numeric_limits<int>::max() ||
+      (R > 0 && R > std::numeric_limits<int>::max() / R)) {
+    Rf_error("Conditional sampling selection exceeds the native integer indexing limit.");
+  }
+  const int loading_columns = static_cast<int>(loading_size);
   const int mode_length = Rf_length(kernel_mode), rule_length = validate_vector_rule(vector_rule, S);
   const bool project = z != R_NilValue;
   int projection_kind = 0, size = 0;
@@ -277,14 +289,18 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
       }
     }
   }
+  const R_xlen_t qmc_dimensions = std::max(static_cast<R_xlen_t>(2) * K,
+    project ? static_cast<R_xlen_t>(K) + R : static_cast<R_xlen_t>(R));
   if (Rf_length(sei) != K || Rf_length(group_index) != K || Rf_length(z_lower) != B ||
       Rf_length(z_upper) != B || (mode_length != 1 && mode_length != S) ||
       (!(!project && R == 0 && XLENGTH(qmc) == 1) &&
-       XLENGTH(qmc) != static_cast<R_xlen_t>(shifts) * maximum * std::max(2 * K, project ? K + R : R))) {
+       (maximum > XLENGTH(qmc) / qmc_dimensions ||
+        XLENGTH(qmc) % (qmc_dimensions * maximum) != 0 ||
+        XLENGTH(qmc) / (qmc_dimensions * maximum) != shifts))) {
     Rf_error("Conditional sampling selection inputs have invalid dimensions.");
   }
   validate_matrix_dims_named(diagonal, "diagonal", S, K, "means");
-  validate_matrix_dims_named(loading, "loading", S, K * R, "means");
+  validate_matrix_dims_named(loading, "loading", S, loading_columns, "means");
   validate_matrix_dims_named(omega, "omega", S, B, "means");
   validate_omega_matrix(REAL(omega), S, B);
   if (!selnorm_is_descending_step_partition(REAL(z_lower), REAL(z_upper), B)) {
@@ -329,7 +345,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
   robma_parallel::for_rows(S, threads, [&](int s) {
     std::vector<double> row_m(static_cast<std::size_t>(K));
     std::vector<double> row_d(static_cast<std::size_t>(K));
-    std::vector<double> row_l(static_cast<std::size_t>(K * R));
+    std::vector<double> row_l(static_cast<std::size_t>(loading_columns));
     std::vector<double> row_w(static_cast<std::size_t>(B));
     std::vector<double> row_projected(static_cast<std::size_t>(size));
     const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
@@ -337,7 +353,7 @@ static SEXP selnorm_conditioned_normalizer_or_projection_batch(
       row_m[row] = REAL(means)[s + S * row];
       row_d[row] = REAL(diagonal)[s + S * row];
     }
-    for (int i = 0; i < K * R; ++i) row_l[i] = REAL(loading)[s + S * i];
+    for (int i = 0; i < loading_columns; ++i) row_l[i] = REAL(loading)[s + S * i];
     for (int bin = 0; bin < B; ++bin) row_w[bin] = REAL(omega)[s + S * bin];
     if (project) {
       double normalizer = 0.0;
@@ -438,11 +454,17 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
   const int S = matrix_nrow(means, "means");
   const int K = matrix_ncol(means, "means");
   const int B = matrix_ncol(omega, "omega");
-  const int lower_size = K * (K + 1) / 2;
+  const R_xlen_t packed = static_cast<R_xlen_t>(K) *
+    (static_cast<R_xlen_t>(K) + 1) / 2;
+  if (packed > std::numeric_limits<int>::max() ||
+      (K > 0 && K > std::numeric_limits<int>::max() / K)) {
+    Rf_error("Selection covariance exceeds the native integer indexing limit.");
+  }
+  const int lower_size = static_cast<int>(packed);
   const bool fixed_covariance = Rf_getAttrib(sampling_lower, R_DimSymbol) == R_NilValue;
   if (S < 1 || K < 1 || B < 1 || Rf_length(rank) != 1 || INTEGER(rank)[0] < 0 ||
       Rf_length(sign) != 1 || (INTEGER(sign)[0] != 1 && INTEGER(sign)[0] != -1) ||
-      Rf_length(initial_points) != 1 || INTEGER(initial_points)[0] < 1 ||
+      Rf_length(initial_points) != 1 || INTEGER(initial_points)[0] < 2 ||
       Rf_length(max_points) != 1 || INTEGER(max_points)[0] < INTEGER(initial_points)[0] ||
       Rf_length(scrambles) != 1 || INTEGER(scrambles)[0] < 2 ||
       Rf_length(relative_tolerance) != 1 || !(REAL(relative_tolerance)[0] > 0.0) ||
@@ -451,6 +473,15 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
     Rf_error("Conditional sampling selection controls are invalid.");
   }
   const int R = INTEGER(rank)[0];
+  const R_xlen_t loading_size = static_cast<R_xlen_t>(K) * R;
+  const R_xlen_t qmc_dimensions = std::max(static_cast<R_xlen_t>(2) * K,
+    static_cast<R_xlen_t>(R));
+  if (loading_size > std::numeric_limits<int>::max() ||
+      qmc_dimensions > std::numeric_limits<int>::max() ||
+      (R > 0 && R > std::numeric_limits<int>::max() / R)) {
+    Rf_error("Conditional sampling selection exceeds the native integer indexing limit.");
+  }
+  const int loading_columns = static_cast<int>(loading_size);
   const int points = INTEGER(initial_points)[0];
   const int maximum = INTEGER(max_points)[0];
   const int shifts = INTEGER(scrambles)[0];
@@ -461,14 +492,16 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
       Rf_length(z_lower) != B || Rf_length(z_upper) != B ||
       (mode_length != 1 && mode_length != S) ||
       (!(R == 0 && XLENGTH(qmc) == 1) &&
-       XLENGTH(qmc) != static_cast<R_xlen_t>(shifts) * maximum * std::max(2 * K, R))) {
+       (maximum > XLENGTH(qmc) / qmc_dimensions ||
+        XLENGTH(qmc) % (qmc_dimensions * maximum) != 0 ||
+        XLENGTH(qmc) / (qmc_dimensions * maximum) != shifts))) {
     Rf_error("Conditional sampling selection inputs have invalid dimensions.");
   }
   validate_matrix_dims_named(diagonal, "diagonal", S, K, "means");
   if (!fixed_covariance) {
     validate_matrix_dims_named(sampling_lower, "sampling_lower", S, lower_size, "means");
   }
-  validate_matrix_dims_named(loading, "loading", S, K * R, "means");
+  validate_matrix_dims_named(loading, "loading", S, loading_columns, "means");
   validate_matrix_dims_named(sampling_auxiliary, "sampling_auxiliary", S, K, "means");
   validate_matrix_dims_named(random_auxiliary, "random_auxiliary", S, K, "means");
   validate_matrix_dims_named(omega, "omega", S, B, "means");
@@ -501,6 +534,12 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
       Rf_error("'qmc' must contain finite values strictly between zero and one.");
     }
   }
+  for (int i = 0; i < mode_length; ++i) {
+    if (INTEGER(kernel_mode)[i] != SELKERNEL_NORMAL &&
+        INTEGER(kernel_mode)[i] != SELKERNEL_STEP) {
+      Rf_error("Conditional sampling selection requires a normal or step kernel.");
+    }
+  }
   SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
   const char *labels[] = {"log_lik", "e_star", "delta", "log_normalizer",
@@ -511,21 +550,18 @@ extern "C" SEXP RoBMA_selnorm_sampling_conditioned_batch(
     SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   }
   Rf_setAttrib(out, R_NamesSymbol, names);
-  std::vector<double> mean(K), d(K), l(K * R), e0(K), u0(K), weights(B), e(K), delta(K), retained(lower_size);
+  std::vector<double> mean(K), d(K), l(loading_columns), e0(K), u0(K), weights(B), e(K), delta(K), retained(lower_size);
   std::string failure;
   try {
     for (int s = 0; s < S; ++s) {
       const int mode = scalar_or_row_int(INTEGER(kernel_mode), mode_length, s, "kernel_mode");
-      if (mode != SELKERNEL_NORMAL && mode != SELKERNEL_STEP) {
-        throw std::runtime_error("Conditional sampling selection requires a normal or step kernel.");
-      }
       for (int row = 0; row < K; ++row) {
         mean[row] = REAL(means)[s + S * row];
         d[row] = REAL(diagonal)[s + S * row];
         e0[row] = REAL(sampling_auxiliary)[s + S * row];
         u0[row] = REAL(random_auxiliary)[s + S * row];
       }
-      for (int i = 0; i < K * R; ++i) l[i] = REAL(loading)[s + S * i];
+      for (int i = 0; i < loading_columns; ++i) l[i] = REAL(loading)[s + S * i];
       for (int i = 0; i < lower_size; ++i) retained[i] = REAL(sampling_lower)[fixed_covariance ? i : s + S * i];
       for (int bin = 0; bin < B; ++bin) weights[bin] = REAL(omega)[s + S * bin];
       REAL(VECTOR_ELT(out, 0))[s] = cpp_selnorm_sampling_conditioned_lpdf(

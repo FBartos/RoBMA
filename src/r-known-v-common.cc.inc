@@ -31,7 +31,11 @@ SEXP allocate_plan_matrix(int type, int rows, int columns)
       (rows > 0 && columns > std::numeric_limits<int>::max() / rows)) {
     Rf_error("Known-V output exceeds the native matrix integer indexing limit.");
   }
-  return Rf_allocMatrix(type, rows, columns);
+  SEXP output = Rf_allocMatrix(type, rows, columns);
+  if (type == REALSXP) {
+    std::fill_n(REAL(output), static_cast<R_xlen_t>(rows) * columns, NA_REAL);
+  }
+  return output;
 }
 
 SEXP list_element(SEXP x, const char *name)

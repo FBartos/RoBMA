@@ -95,6 +95,9 @@ void check_logical(SEXP x, const char *name)
   if (TYPEOF(x) != LGLSXP || Rf_length(x) != 1) {
     Rf_error("'%s' must be a single logical value.", name);
   }
+  if (LOGICAL(x)[0] == NA_LOGICAL) {
+    Rf_error("'%s' must not be missing.", name);
+  }
 }
 
 double scalar_or_col_real(const double *x, int n, int col, const char *name)
@@ -300,6 +303,12 @@ SelNormNativeArgs validate_selnorm_native_args(
   validate_selnorm_row_arg_length(alpha, S, "alpha");
   validate_selnorm_row_arg_length(phack_kind, S, "phack_kind");
   validate_selnorm_row_arg_length(kernel_mode, S, "kernel_mode");
+  for (int i = 0; i < Rf_length(kernel_mode); ++i) {
+    if (INTEGER(kernel_mode)[i] < SELKERNEL_NORMAL ||
+        INTEGER(kernel_mode)[i] > SELKERNEL_STEP_PHACK_POWER) {
+      Rf_error("'kernel_mode' must identify a supported selection kernel.");
+    }
+  }
 
   SelNormNativeArgs args;
   args.S               = S;

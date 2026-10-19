@@ -237,3 +237,88 @@ test_that("normal predictor validates mu before reading dimensions and restores 
     expect_identical(evaluate(mu), reference)
   }
 })
+
+
+test_that("native schedule controls reject lossy rows and nonfinite work", {
+
+  schedule <- function(rows, work) {
+    .Call("RoBMA_selnorm_row_schedule", rows, work, PACKAGE = "RoBMA")
+  }
+  for (rows in c(.5, -1, Inf, NaN, NA_real_, .Machine$integer.max + 1)) {
+    expect_error(schedule(rows, 1),
+      "'rows' must be one nonnegative whole number of rows.", fixed = TRUE)
+  }
+  for (work in c(Inf, -Inf, NaN, NA_real_)) {
+    expect_error(schedule(2, work),
+      "'work_per_row' must be one finite number.", fixed = TRUE)
+  }
+  for (work in c(-1, 0, .25)) {
+    expect_identical(unname(schedule(2, work)[["threads"]]), 1L)
+  }
+})
+
+test_that("predictor dimensions and missing flags name their actual arguments", {
+
+  evaluate <- function(basis = matrix(1, 2L, 2L), flag = FALSE) {
+    .Call("RoBMA_norm_predictor_grid_loglik", c(-.1, .3), c(.3, .5), c(.5, 1.5),
+      matrix(0, 2L, 2L), basis, matrix(.2, 2L, 2L), NULL, c(.1, .2),
+      c(-.2, 0, .5), flag, FALSE, PACKAGE = "RoBMA")
+  }
+  reference <- evaluate()
+  expect_error(evaluate(matrix(1, 1L, 2L)),
+    "'mu_basis' dimensions must match 'mu'.", fixed = TRUE)
+  expect_error(evaluate(flag = NA), "'scale_update_tau' must not be missing.", fixed = TRUE)
+  expect_identical(.Call("RoBMA_native_unwind_probe", "state", NULL, 1L,
+    PACKAGE = "RoBMA"), rep(FALSE, 3L))
+  expect_identical(evaluate(), reference)
+})
+
+test_that("dense ingress refuses unsupported modes and malformed partitions", {
+
+  args <- list(c(.1, -.1), matrix(c(0, 0), 1L), matrix(c(1, .2, 1), 1L),
+    c(1, 1), matrix(c(1, .2), 1L), c(0, -Inf), c(Inf, 0), c(1L, 2L),
+    1L, TRUE, 0L, rep(.5, 32L), 4L, 2L, .005, FALSE, 0L, NULL)
+  evaluate <- function(values) {
+    do.call(.Call, c(list("RoBMA_selnorm_mnorm_step_loglik_batch"), values,
+      list(PACKAGE = "RoBMA")))
+  }
+  reference <- evaluate(args)
+  expect_true(all(is.finite(reference$log_density)))
+  for (mode in c(NA_integer_, -1L, 2L, 3L, 999L)) {
+    changed <- args
+    changed[[11L]] <- mode
+    expect_error(evaluate(changed),
+      "Multivariate selection requires a normal or step kernel.", fixed = TRUE)
+  }
+  changed <- args
+  changed[[10L]] <- NA
+  expect_error(evaluate(changed), "'telescope_probabilities' must not be missing.", fixed = TRUE)
+  changed <- args
+  changed[[6L]] <- c(-Inf, 0)
+  changed[[7L]] <- c(0, Inf)
+  expect_error(evaluate(changed),
+    "Selection bounds do not define a descending step partition.", fixed = TRUE)
+  changed <- args
+  changed[[13L]] <- .Machine$integer.max
+  expect_error(evaluate(changed),
+    "'qmc' dimensions do not match the integration settings.", fixed = TRUE)
+  expect_identical(evaluate(args), reference)
+})
+
+test_that("normal cluster indices cover each outcome exactly once", {
+
+  evaluate <- function(index, sizes) {
+    .Call("RoBMA_norm_cluster_analytic_loglik_row_sum", c(.1, -.1, .2), c(1, 1, 1),
+      matrix(0, 1L, 3L), matrix(0, 1L, 3L), matrix(0, 1L, 3L),
+      index, sizes, c(.5, 1, 2), PACKAGE = "RoBMA")
+  }
+  expected <- sum(c(.5, 1, 2) * stats::dnorm(c(.1, -.1, .2), log = TRUE))
+  for (index in list(c(1L, 1L, 3L), c(1L, 2L))) {
+    expect_error(evaluate(index, length(index)),
+      "'cluster_index' must partition the observations.", fixed = TRUE)
+  }
+  expect_error(evaluate(1:3, c(4L, 1L)),
+    "'cluster_size' must sum to the length of 'cluster_index'.", fixed = TRUE)
+  expect_equal(as.numeric(evaluate(c(3L, 1L, 2L), c(1L, 2L))), expected, tolerance = 1e-14)
+  expect_equal(as.numeric(evaluate(1:3, rep(1L, 3L))), expected, tolerance = 1e-14)
+})
