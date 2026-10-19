@@ -3,7 +3,7 @@
 .iwmde_ordered_numeric_stop <- function(cause, detail, proof = list()) {
 
   stop(structure(list(message = paste0("Ordered density was rejected by diagnostics: ",
-    detail, ". Inspect 'density_diagnostics()' and the block integration proof."),
+    detail, ". Inspect the condition's 'proof' field or use 'density_method = \"KDE\"'."),
     call = NULL, cause = cause, proof = proof),
     class = c(paste0("RoBMA_ordered_", cause), "iwmde_ordinate_numerical_error", "error", "condition")))
 }
@@ -325,6 +325,7 @@
                                       coalesced = list(), recompute = NULL) {
 
   if (is.null(records[["index"]])) records[["index"]] <- seq_len(nrow(records))
+  # Force the original records before refinement reassigns the lazy default.
   history <- history
   noncritical <- c("fixed_prior_probability", "roundtrip_quantile", "source_geometry")
   repeat {
@@ -1078,7 +1079,9 @@
     fraction <- exp(upper - lower)
     trace[[length(trace) + 1L]] <- list(radius = radius, log_lower = lower, log_upper = upper, fraction = fraction)
     if (fraction <= .025 / 16 || !nrow(outside)) break
-    if (j == 30L) .iwmde_ordered_numeric_stop("inner_guard_unresolved", "the source missing-mass guard exhausted thirty doublings", trace)
+    if (j == 30L) .iwmde_ordered_numeric_stop("inner_guard_unresolved",
+      paste0("the source missing-mass relative error is ", format(fraction, digits = 8L),
+        " at radius ", format(radius, digits = 8L)), trace)
   }
   geometric <- unlist(lapply(0:j, function(i) center + c(-1, 1) * 2^i * width), use.names = FALSE)
   cuts <- .iwmde_ordered_base_cuts(prior, c(center, geometric), recompute = function() gaussian_log(center))
@@ -1093,8 +1096,9 @@
   refinements <- 0L
   repeat {
     if (2L * (length(cuts) - 1L) > 100L) {
-      .iwmde_ordered_numeric_stop("panel_budget_exceeded", paste0("the ", label, " partition exceeds one hundred fine panels"),
-        list(cuts = cuts, refinements = refinements))
+      .iwmde_ordered_numeric_stop("panel_budget_exceeded", paste0("the ", label,
+        " partition requires ", 2L * (length(cuts) - 1L), " fine panels"),
+        list(cuts = cuts, refinements = refinements, max_fine_panels = 100L))
     }
     fine <- .iwmde_ordered_probability_refine(cuts, prior)
     coarse <- .iwmde_ordered_panel_rule(cuts, prior, 8L, evaluate)
@@ -1109,9 +1113,11 @@
     fraction <- exp(.iwmde_log_sum_exp(errors) - final[["log_value"]])
     if (is.finite(fraction) && fraction <= target) break
     if (length(fine) - 1L >= 100L) {
-      .iwmde_ordered_numeric_stop("panel_budget_exceeded", paste0("the ", label, " refinement exhausted one hundred fine panels"),
+      .iwmde_ordered_numeric_stop("panel_budget_exceeded", paste0("the ", label,
+        " relative integration error is ", format(fraction, digits = 8L), " after ",
+        length(fine) - 1L, " fine panels"),
         list(log_value = final[["log_value"]], log_errors = errors, relative_error = fraction,
-          fine_cuts = fine, refinements = refinements))
+          fine_cuts = fine, refinements = refinements, max_fine_panels = 100L))
     }
     split <- vapply(seq_along(primary[["panels"]]), function(i) {
       .iwmde_log_sum_exp(final[["panels"]][c(2L * i - 1L, 2L * i)])
@@ -1274,7 +1280,7 @@
     total <- completion[["mean"]] + completion[["sd"]] * rule[["nodes"]]
     actual <- .iwmde_ordered_block_log_likelihood(context, block, total, share)
     correction <- actual - .iwmde_ordered_block_gaussian_log(block, total, share)
-    value <- completion[["log_mass"]] + .iwmde_log_sum_exp(log(rule[["weights"]]) + correction)
+    value <- completion[["log_mass"]] + .iwmde_log_sum_exp(rule[["log_weights"]] + correction)
     tail <- completion[["log_mass"]] + block[["log_correction_upper"]] + log(2) +
       stats::pnorm(max(abs(rule[["nodes"]])), lower.tail = FALSE, log.p = TRUE)
     block[["counts"]][["max_log_scale"]] <- max(block[["counts"]][["max_log_scale"]], completion[["max_log_scale"]], abs(actual), abs(correction))
@@ -1328,7 +1334,7 @@
   lapply(seq_along(shares), function(i) {
     take <- seq.int((i - 1L) * order + 1L, i * order)
     list(log_value = completion[["log_mass"]][[i]] +
-      .iwmde_log_sum_exp(log(rule[["weights"]]) + correction[take]),
+      .iwmde_log_sum_exp(rule[["log_weights"]] + correction[take]),
       log_error = -Inf, log_exterior = completion[["log_mass"]][[i]] + log_tail,
       fine_panels = 0L, method = "completed_gaussian_gh", order = order)
   })
@@ -1371,7 +1377,9 @@
     fraction <- exp(upper - lower)
     trace[[length(trace) + 1L]] <- list(radius = radius, log_lower = lower, log_upper = upper, fraction = fraction)
     if (fraction <= .025 / 16 || !nrow(outside)) break
-    if (j == 30L) .iwmde_ordered_numeric_stop("outer_guard_unresolved", "the share missing-mass guard exhausted thirty doublings", trace)
+    if (j == 30L) .iwmde_ordered_numeric_stop("outer_guard_unresolved",
+      paste0("the share missing-mass relative error is ", format(fraction, digits = 8L),
+        " at radius ", format(radius, digits = 8L)), trace)
   }
   # Normal E uses only its final-band cuts. The proper-prior protocol keeps the
   # specified geometric sequence through the final radius.

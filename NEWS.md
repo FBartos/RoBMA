@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Ordered density integration retains finite log weights and the declared
+  uncertainty conditioning; numerical refusals expose their observed work and proof.
 - Known-V null-space coverage refuses indefinite factorizations and names the
   supported prior remedy; dense reference-only helpers now live with their tests.
 - Density warnings report their thresholds, preserve infinite observed values,

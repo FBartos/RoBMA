@@ -138,6 +138,9 @@
 #' explicit point requests retain their structural or precision refusal.
 #' The ordered per-row limit of 0.025 is separate from the generic stability
 #' warning/rejection thresholds reported in this table.
+#' Source-normalization refusals have class `RoBMA_ordered_normalization_error`
+#' and retain `iwmde_ordered_normalization_error` as a compatibility ancestor.
+#' Their condition's `proof` field contains the numerical integration evidence.
 #' When only some ordered evaluations lack certified contribution variation,
 #' their MCMC error and ESS stay unavailable while other evaluations retain
 #' their metrics. A printed table footnote reports the `partial` uncertainty

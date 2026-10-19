@@ -127,7 +127,7 @@
   if (!identical(record[["spec"]][["type"]], "dirichlet")) return(NULL)
   J <- which(coefficients != 0)
   interior <- min(coefficients) < 0 && max(coefficients) > 0
-  endpoint <- any(coefficients == 0) && length(J) < length(coefficients) && !interior
+  endpoint <- any(coefficients == 0) && !interior
   if (!interior && !endpoint) return(NULL)
   pure <- length(unique(coefficients)) == 2L && endpoint
   k <- if (pure) coefficients[J][[1L]] else NA_real_
@@ -789,7 +789,8 @@
     .iwmde_stop_construction_failure(context[["ordered_requested_method"]], parameter_spec[["parameter"]],
       row_index, "source-chart construction", "the continuous source slope is zero or unrepresentable")
   }
-  descriptor <- .iwmde_ordered_offset_descriptor(context, parameter_spec)
+  descriptor <- parameter_spec[["ordered_point_plan"]][["descriptor"]]
+  if (is.null(descriptor)) descriptor <- .iwmde_ordered_offset_descriptor(context, parameter_spec)
   offset <- if (!is.null(descriptor) && !isTRUE(descriptor[["interior"]]) && identical(record[["key"]], descriptor[["record"]][["key"]]) &&
       !is.null(J) && identical(as.integer(J), as.integer(descriptor[["J"]]))) {
     descriptor[["offset"]]
@@ -872,7 +873,7 @@
     prior_list = generic,
     prior_evaluator = BayesTools::JAGS_marglik_priors_rows_evaluator(generic),
     focal_prior = chart[["prior"]], likelihood_mode = .iwmde_likelihood_mode(parameter_spec[["parameter"]], parameter_spec, context),
-    state_scope = .iwmde_state_scope(parameter_spec[["parameter"]], parameter_spec, context),
+    state_scope = state_scope,
     use_focal_prior_delta = FALSE)
   state[["baseline_log_q"]] <- .iwmde_ordered_log_q_source(context, state, chart[["current"]])[[1L]]
   state[["source_gaussian"]] <- .iwmde_ordered_source_gaussian(context, state)
@@ -1094,10 +1095,11 @@
   message <- paste0("Ordered density for '", parameter,
     "' was rejected by diagnostics: source integration error ",
     format(max(proof[["ratio_relative_error"]]), digits = 8L),
-    ". Inspect 'density_diagnostics()' and the source normalization proof.")
+    ". Inspect the condition's 'proof' field or use 'density_method = \"KDE\"'.")
   stop(structure(list(message = message, call = NULL, parameter = parameter,
     rows = rows, stage = "ordered source normalization", proof = proof),
-    class = c("iwmde_ordered_normalization_error", "iwmde_ordinate_numerical_error", "error", "condition")))
+    class = c("RoBMA_ordered_normalization_error", "iwmde_ordered_normalization_error",
+      "iwmde_ordinate_numerical_error", "error", "condition")))
 }
 
 
@@ -1216,7 +1218,9 @@
 
 
 .iwmde_ordered_integral_error <- function(log_terms, x, density_terms,
-                                          execution, active_mass) {
+                                          execution, active_mass,
+                                          conditioned_rows = NULL,
+                                          conditioned_chain_id = NULL) {
 
   if (length(x) < 2L) return(list(mcse = NA_real_, relative_mcse = NA_real_))
   dx <- diff(x)
@@ -1236,7 +1240,7 @@
   attr(contributions, "target") <- mean(contributions)
   attr(contributions, "finite_terms") <- sum(is.finite(integrals))
   mcmc <- .iwmde_mcmc_contributions(contributions, execution[["sampling_population_rows"]],
-    execution[["population_rows"]], execution[["conditioned_chain_id"]], active_mass)
+    conditioned_rows, conditioned_chain_id, active_mass)
   error <- .iwmde_mixture_mcse(contributions, mcmc, density_terms[["active_mass_error"]], active_mass)
   log_mcse <- log(error[["mcse"]][[1L]]) + scale
   absolute <- exp(log_mcse)
@@ -1365,7 +1369,10 @@
   resolution_error <- .iwmde_qcmde_resolution_ordinate_error(log_terms, rep(0, ncol(log_terms)),
     list(relative_error = resolution))
   integral <- if (density_output) .iwmde_ordered_integral_error(log_terms, display_grid,
-    density_terms, execution, active_mass) else list(mcse = NA_real_, relative_mcse = NA_real_)
+    density_terms, execution, active_mass,
+    conditioned_rows = if (mixed) execution[["population_rows"]] else NULL,
+    conditioned_chain_id = if (mixed) execution[["conditioned_chain_id"]] else NULL
+  ) else list(mcse = NA_real_, relative_mcse = NA_real_)
   source_points <- max(vapply(produced[["proofs"]], `[[`, numeric(1), "source_grid_points"))
   source_ranges <- do.call(rbind, lapply(produced[["proofs"]], `[[`, "source_grid"))
   source_range <- if (source_points == 0L) c(NA_real_, NA_real_) else range(source_ranges)
