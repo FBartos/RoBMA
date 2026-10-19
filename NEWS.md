@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Marginal-likelihood documentation distinguishes finite availability from
+  iteration telemetry and retains the typed iteration warning under silence.
 - Random-effect inclusion exports and shared summary labels follow each gate's
   declared allocation component, including child gates and scalar child totals.
 - Generated random-effect allocation identifiers avoid collisions within each

@@ -34,9 +34,8 @@ default, \code{NULL}, inherits the setting used to fit \code{object}.}
 
 \item{maxiter}{maximum number of bridge iterations per repetition.}
 
-\item{silent}{whether bridge-sampling progress is suppressed. With the
-current BayesTools backend, this also suppresses its maximum-iteration
-convergence warning; inspect the stored repetition diagnostics.}
+\item{silent}{whether bridge-sampling progress is suppressed. The typed
+iteration-limit diagnostic remains visible even when \code{silent = TRUE}.}
 
 \item{...}{reserved for future use. Unused arguments produce a warning.}
 }
@@ -55,10 +54,17 @@ in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
 Proposal draws use the seed stored with the fit. When that seed is non-NULL,
 the caller's random-number state is restored after the call; a NULL fit seed
 uses and advances the caller's random-number stream.
-With the current BayesTools backend, a finite repetition that exceeds
-\code{maxiter} can still be stored. Check
-\code{object[["marglik"]][["repetitions"]][["within_maxiter"]]} even when
-\code{silent = TRUE}.
+A finite bridge estimate remains available when observed iteration counts
+exceed \code{maxiter}. The stored result's \code{success} records finite
+availability, not certified convergence. Its optional
+\code{iteration_limit_exceeded} is \code{TRUE} for observed excess,
+\code{FALSE} for complete counts without excess, and \code{NA} or absent
+when telemetry is unavailable. Counts may include upstream retries.
+Observed excess raises \code{BayesTools_marglik_iteration_limit}, inheriting
+from \code{BayesTools_marglik_diagnostic}, under either \code{silent} setting.
+Inspect \code{print(object[["marglik"]])} and its repetition diagnostics.
+\code{bridge_sampler(object)} returns the original upstream bridge object;
+it does not promise the stored wrapper's optional telemetry field.
 
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 \code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose a

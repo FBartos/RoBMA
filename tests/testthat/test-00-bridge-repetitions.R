@@ -236,8 +236,13 @@ test_that("standardized comparisons refuse nonfinite repeats and legacy propagat
   expect_equal(probabilities, reference)
   expect_true(all(is.na(probabilities[2, ])))
 
-  expect_warning(dropped <- .bridge_repetition_test_stored(failed_raw, "drop"),
-                 "Dropped non-finite", fixed = TRUE)
+  iteration_warning <- NULL
+  expect_warning(dropped <- withCallingHandlers(.bridge_repetition_test_stored(failed_raw, "drop"),
+    BayesTools_marglik_iteration_limit = function(w) {
+      iteration_warning <<- w
+      invokeRestart("muffleWarning")
+    }), "Dropped non-finite", fixed = TRUE)
+  expect_s3_class(iteration_warning, "BayesTools_marglik_iteration_limit")
   dropped_fit <- .bridge_repetition_test_fit(dropped)
   comparison_fit <- .bridge_repetition_test_fit(.bridge_repetition_test_raw(c(0, 1)))
   expect_error(bf(dropped_fit, comparison_fit, log = TRUE),
@@ -258,12 +263,78 @@ test_that("standardized comparisons refuse nonfinite repeats and legacy propagat
   expect_error(post_prob(one_left, scalar), "must contain only finite values", fixed = TRUE)
 
   finite_raw$niter[1L] <- 101L
-  over_limit <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(finite_raw))
+  expect_warning(over_limit <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(finite_raw)),
+    class = "BayesTools_marglik_iteration_limit")
   expect_false(over_limit$marglik$repetitions$success[1L])
   expect_identical(logml(over_limit), 1)
   expect_equal(bf(over_limit, legacy_finite, log = TRUE)$bf, c(0, 0, 0))
   expect_equal(post_prob(over_limit, legacy_finite), matrix(.5, 3L, 2L,
     dimnames = list(NULL, c("over_limit", "legacy_finite"))))
+})
+
+test_that("add_marglik retains finite public retry results and typed warnings under silence", {
+
+  mu_sd <- sqrt(1 / (1 + 1 / .8^2))
+  mu_mean <- (.5 / .8^2) * mu_sd^2
+  posterior <- coda::as.mcmc(matrix(stats::qnorm((seq_len(400) - .5) / 400,
+    mu_mean, mu_sd), ncol = 1L, dimnames = list(NULL, "mu")))
+  fit <- .bridge_repetition_test_fit(NULL)
+  original_fit <- serialize(fit, NULL)
+  for (silent in c(TRUE, FALSE)) {
+    original <- NULL
+    upstream_warning <- NULL
+    testthat::local_mocked_bindings(.marglik = function(..., silent) {
+      original <<- withCallingHandlers(BayesTools::JAGS_bridgesampling(
+        fit = posterior,
+        log_posterior = function(parameters, data) stats::dnorm(parameters$mu, .5, .8, log = TRUE),
+        data = list(), prior_list = list(mu = BayesTools::prior("normal", list(0, 1))),
+        repetitions = 2L, seed = 43L, use_neff = FALSE, maxiter = 10L, silent = silent
+      ), BayesTools_marglik_iteration_limit = function(w) upstream_warning <<- w)
+      original
+    }, .package = "RoBMA")
+    warnings <- list()
+    output <- capture.output(actual <- withCallingHandlers(add_marglik(fit, silent = silent),
+      BayesTools_marglik_iteration_limit = function(w) {
+        warnings[[length(warnings) + 1L]] <<- w
+        invokeRestart("muffleWarning")
+      }))
+    expect_identical(actual$marglik, original)
+    expect_length(warnings, 1L)
+    expect_identical(warnings[[1L]], upstream_warning)
+    expect_true(actual$marglik$success)
+    expect_identical(actual$marglik$iteration_limit_exceeded, TRUE)
+    expect_identical(actual$marglik$repetitions$niter, c(11, 11))
+    expect_equal(logml(actual), -0.448163376077635, tolerance = 1e-13)
+    expect_identical(logml(actual), stats::median(actual$marglik$repetitions$logml))
+    expect_output(print(actual$marglik), "iteration counts exceeded", fixed = TRUE)
+    expect_output(print(actual$marglik), "counts may include upstream retries", fixed = TRUE)
+    expect_identical(bridge_sampler(actual), original$diagnostics$upstream)
+    if (silent) expect_length(output, 0L) else expect_gt(length(output), 0L)
+  }
+  expect_identical(serialize(fit, NULL), original_fit)
+})
+
+test_that("optional iteration telemetry is separate from finite marginal-likelihood availability", {
+
+  manual <- BayesTools::bridgesampling_object(-2)
+  exact <- BayesTools::JAGS_bridgesampling(
+    fit = coda::as.mcmc(matrix(rep(0, 20), ncol = 1L, dimnames = list(NULL, "mu"))),
+    log_posterior = function(parameters, data) -2, data = list(),
+    prior_list = list(mu = BayesTools::prior("point", list(0))))
+  for (stored in list(manual, exact, .bridge_repetition_test_stored(.bridge_repetition_test_raw(-2)))) {
+    for (flag in list(TRUE, FALSE, NA, NULL)) {
+      stored["iteration_limit_exceeded"] <- list(flag)
+      if (is.null(flag)) stored$iteration_limit_exceeded <- NULL
+      fit <- .bridge_repetition_test_fit(NULL)
+      testthat::local_mocked_bindings(.marglik = function(...) stored, .package = "RoBMA")
+      expect_warning(actual <- add_marglik(fit), NA)
+      expect_identical(actual$marglik, stored)
+      expect_true(actual$marglik$success)
+      expect_identical(logml(actual), -2)
+      expect_identical(actual$marglik$iteration_limit_exceeded, flag)
+      if (isTRUE(flag)) expect_output(print(actual$marglik), "iteration counts exceeded", fixed = TRUE)
+    }
+  }
 })
 
 test_that("single and exact marginal likelihood comparisons retain their contracts", {
