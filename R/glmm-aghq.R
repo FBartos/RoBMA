@@ -195,29 +195,68 @@
 }
 
 
-.glmm_grid_nonconvergence_condition <- function(
-    outcome_type, observation, theta_changes, nuisance_changes) {
+.glmm_numerical_condition <- function(outcome_type, method, reason, observation,
+    sample = NULL, order = NULL, change = NULL, mode_iterations = NULL,
+    theta_changes = NULL, nuisance_changes = NULL, curvature = NULL,
+    native_observation = NULL) {
 
   label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
-  message <- paste0(
-    label, " prior-CDF quadrature failed to converge at observation ",
-    observation, ". Last theta changes: ",
-    paste(format(theta_changes, digits = 4), collapse = ", "),
-    "; last nuisance changes: ",
-    paste(format(nuisance_changes, digits = 4), collapse = ", "), "."
-  )
-
+  prior <- if (identical(outcome_type, "bin")) "prior_pi" else "prior_phi"
+  if (identical(method, "grid")) {
+    message <- paste0(label,
+      " prior-CDF quadrature was rejected by diagnostics at observation ",
+      observation, ": last theta changes ",
+      paste(format(theta_changes, digits = 4), collapse = ", "),
+      "; last nuisance changes ",
+      paste(format(nuisance_changes, digits = 4), collapse = ", "), ".")
+    specific_class <- "RoBMA_glmm_grid_nonconvergence"
+  } else {
+    detail <- if (identical(reason, "mode_nonconvergence")) {
+      paste0("the mode did not converge",
+        if (length(mode_iterations) == 1L && !is.na(mode_iterations)) {
+          paste0(" after ", mode_iterations, " iterations")
+        })
+    } else if (identical(reason, "mode_curvature")) {
+      paste0("the mode curvature was ", format(curvature, digits = 8L))
+    } else if (length(order) == 1L && !is.na(order)) {
+      paste0("last log-likelihood change ", format(change, digits = 8L),
+        " at quadrature order ", order)
+    } else {
+      "quadrature did not produce a finite evaluated rule"
+    }
+    message <- paste0(label, " AGHQ was rejected by diagnostics: ", detail,
+      " at sample ", sample, ", observation ", observation, ".")
+    specific_class <- "RoBMA_glmm_aghq_nonconvergence"
+  }
+  message <- paste0(message, " Inspect the data and '", prior,
+    "' before refitting the model.")
   return(structure(
     list(
       message          = message,
       call             = NULL,
       outcome_type     = outcome_type,
+      method           = method,
+      reason           = reason,
+      sample           = sample,
       observation      = observation,
+      native_observation = native_observation,
+      order            = order,
+      change           = change,
+      mode_iterations  = mode_iterations,
+      curvature        = curvature,
       theta_changes    = theta_changes,
       nuisance_changes = nuisance_changes
     ),
-    class = c("RoBMA_glmm_grid_nonconvergence", "error", "condition")
+    class = c(specific_class, "RoBMA_glmm_numerical_error", "error", "condition")
   ))
+}
+
+
+.glmm_grid_nonconvergence_condition <- function(
+    outcome_type, observation, theta_changes, nuisance_changes) {
+
+  .glmm_numerical_condition(outcome_type, "grid", "grid_nonconvergence",
+    observation, theta_changes = theta_changes, nuisance_changes = nuisance_changes)
 }
 
 
@@ -370,9 +409,8 @@
 
 .glmm_aghq_numerical_failure <- function(condition, outcome_type) {
 
-  label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
-  pattern <- paste0("^", label, " AGHQ (mode failed|failed to converge)")
-  return(grepl(pattern, conditionMessage(condition), perl = TRUE))
+  inherits(condition, "RoBMA_glmm_aghq_nonconvergence") &&
+    identical(condition[["outcome_type"]], outcome_type)
 }
 
 
@@ -446,7 +484,8 @@
 }
 
 
-# Locate the unique mode of a strictly log-concave one-dimensional kernel.
+# Bracket the unique mode in at most 20 expansions, then use the existing 55
+# bisections for the strictly log-concave one-dimensional point-prior kernel.
 .glmm_point_mode <- function(gradient, n, outcome_type, observation) {
 
   lower <- rep(-1, n)
@@ -468,12 +507,8 @@
   failed <- !is.finite(lower_gradient) | !is.finite(upper_gradient) |
     lower_gradient < 0 | upper_gradient > 0
   if (any(failed)) {
-    label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
-    stop(
-      label, " AGHQ mode failed at sample ", which(failed)[1L],
-      ", observation ", observation, ".",
-      call. = FALSE
-    )
+    stop(.glmm_numerical_condition(outcome_type, "aghq", "mode_nonconvergence",
+      observation, sample = which(failed)[1L], mode_iterations = 20L))
   }
 
   for (iteration in seq_len(55L)) {
@@ -492,14 +527,10 @@
 
   mode    <- .glmm_point_mode(gradient, n, outcome_type, observation)
   hessian <- negative_hessian(mode)
-  label   <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
   if (any(!is.finite(hessian) | hessian <= 0)) {
-    stop(
-      label, " AGHQ mode failed at sample ",
-      which(!is.finite(hessian) | hessian <= 0)[1L],
-      ", observation ", observation, ".",
-      call. = FALSE
-    )
+    failed <- which(!is.finite(hessian) | hessian <= 0)[1L]
+    stop(.glmm_numerical_condition(outcome_type, "aghq", "mode_curvature",
+      observation, sample = failed, mode_iterations = 55L, curvature = hessian[failed]))
   }
 
   rules          <- control[["rules"]]
@@ -548,12 +579,9 @@
 
   if (anyNA(result)) {
     failed <- which(is.na(result))[1L]
-    stop(
-      label, " AGHQ failed to converge at sample ", failed,
-      ", observation ", observation, " (order ", length(nodes),
-      ", change ", format(last_change[failed], digits = 8), ").",
-      call. = FALSE
-    )
+    stop(.glmm_numerical_condition(outcome_type, "aghq", "quadrature_nonconvergence",
+      observation, sample = failed, order = length(nodes), change = last_change[failed],
+      mode_iterations = 55L))
   }
 
   orders       <- vapply(rules[["nodes"]], length, integer(1))
@@ -680,10 +708,27 @@
 }
 
 
+# Translate only the native failure record; successful results are returned as-is.
+.glmm_aghq_result <- function(result, outcome_type, observation = NULL) {
+
+  if (!is.list(result) || !identical(result[["status"]], "numerical_failure")) {
+    return(result)
+  }
+  native_observation <- result[["observation"]]
+  if (is.null(observation)) observation <- native_observation
+  stop(.glmm_numerical_condition(outcome_type, "aghq", result[["reason"]],
+    observation, sample = result[["sample"]], order = result[["order"]],
+    change = result[["change"]], mode_iterations = result[["mode_iterations"]],
+    native_observation = native_observation))
+}
+
+
+# Native AGHQ row_sum remains a focused test/benchmark route. Production
+# marginal dispatch assembles each column and sums those columns when requested.
 # Native binomial AGHQ dispatch. Returns values and convergence diagnostics.
 .glmm_binom_aghq <- function(ai, ci, n1i, n2i, mu_samples, tau_within,
                              weights, prior_spec, row_sum = FALSE,
-                             control = .glmm_aghq_control()) {
+                             control = .glmm_aghq_control(), observation = NULL) {
 
   symbol <- if (row_sum) {
     "RoBMA_glmm_binom_aghq_row_sum"
@@ -694,7 +739,7 @@
     .glmm_likelihood_weights(weights, ncol(mu_samples))
   )
 
-  return(.Call(
+  result <- .Call(
     symbol,
     .native_integer_vector(ai),
     .native_integer_vector(ci),
@@ -711,14 +756,15 @@
     control[["consecutive"]],
     control[["mode_tolerance"]],
     PACKAGE = "RoBMA"
-  ))
+  )
+  .glmm_aghq_result(result, "bin", observation)
 }
 
 
 # Native Poisson AGHQ dispatch. Returns values and convergence diagnostics.
 .glmm_pois_aghq <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within,
                             weights, prior_spec, row_sum = FALSE,
-                            control = .glmm_aghq_control()) {
+                            control = .glmm_aghq_control(), observation = NULL) {
 
   symbol <- if (row_sum) {
     "RoBMA_glmm_pois_aghq_row_sum"
@@ -729,7 +775,7 @@
     .glmm_likelihood_weights(weights, ncol(mu_samples))
   )
 
-  return(.Call(
+  result <- .Call(
     symbol,
     .native_integer_vector(x1i),
     .native_integer_vector(x2i),
@@ -746,7 +792,8 @@
     control[["consecutive"]],
     control[["mode_tolerance"]],
     PACKAGE = "RoBMA"
-  ))
+  )
+  .glmm_aghq_result(result, "pois", observation)
 }
 
 
@@ -771,7 +818,8 @@
         tau_within  = tau_within[, k, drop = FALSE],
         weights     = if (is.null(weights)) NULL else weights[k],
         prior_spec  = prior_spec,
-        control     = control
+        control     = control,
+        observation = k
       )
     }
   } else if (BayesTools::is.prior.point(prior_pi)) {
@@ -874,7 +922,8 @@
         tau_within = tau_within[, k, drop = FALSE],
         weights    = if (is.null(weights)) NULL else weights[k],
         prior_spec = prior_spec,
-        control    = control
+        control    = control,
+        observation = k
       )
     }
   } else if (BayesTools::is.prior.point(prior_phi)) {

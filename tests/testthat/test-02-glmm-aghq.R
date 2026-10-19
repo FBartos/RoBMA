@@ -567,7 +567,8 @@ test_that("active binomial boundary, sharp, point and truncated routes retain ph
       expect_error(.glmm_binom_aghq(x$a, x$c, x$n1, x$n2,
         matrix(x$mu), matrix(x$tau), x$power,
         c(alpha = x$shapes[1L], beta = x$shapes[2L])),
-        "Binomial AGHQ failed to converge.*order 49")
+        "Binomial AGHQ was rejected by diagnostics.*quadrature order 49",
+        class = "RoBMA_glmm_aghq_nonconvergence")
     }
   }
 })
@@ -939,7 +940,8 @@ test_that("point nuisance AGHQ fails when refinement cannot certify accuracy", {
       matrix(-0.3614195), matrix(1.45076), NULL, 0.5,
       control = control
     ),
-    "Binomial AGHQ failed to converge at sample 1, observation 1",
+    "Binomial AGHQ was rejected by diagnostics.*sample 1, observation 1",
+    class = "RoBMA_glmm_aghq_nonconvergence",
     info = "capped refinement does not silently accept the last rule"
   )
 })
@@ -975,7 +977,8 @@ test_that("GLMM refinements reject persistent non-finite ordinates", {
       observation  = 1L,
       control      = grid_control
     ),
-    "prior-CDF quadrature failed to converge",
+    "prior-CDF quadrature was rejected by diagnostics",
+    class = "RoBMA_glmm_grid_nonconvergence",
     info = "equal non-finite grid ordinates are numerical failure"
   )
 
@@ -993,7 +996,8 @@ test_that("GLMM refinements reject persistent non-finite ordinates", {
       observation      = 1L,
       control          = point_control
     ),
-    "AGHQ failed to converge",
+    "AGHQ was rejected by diagnostics",
+    class = "RoBMA_glmm_aghq_nonconvergence",
     info = "equal non-finite point-prior ordinates are numerical failure"
   )
 })
@@ -1179,7 +1183,7 @@ test_that("quadrature recovery catches only its classed failures", {
   expect_equal(grid_failure[["theta_changes"]], c(2e-5, 3e-6))
   expect_match(
     conditionMessage(grid_failure),
-    "^Binomial prior-CDF quadrature failed to converge at observation 7[.]"
+    "^Binomial prior-CDF quadrature was rejected by diagnostics at observation 7:"
   )
 
   expect_error(

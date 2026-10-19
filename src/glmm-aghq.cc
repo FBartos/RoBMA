@@ -508,6 +508,7 @@ bool find_mode(const Problem &problem, double tolerance,
   const int max_iterations = 60;
 
   for (int iteration = 1; iteration <= max_iterations; ++iteration) {
+    *iterations = iteration;
     double value, g1, g2, h11, h12, h22;
     if (!problem.derivatives(*theta, *nuisance, &value, &g1, &g2,
                              &h11, &h12, &h22) ||
@@ -746,6 +747,34 @@ SEXP make_result(SEXP value, const QuadratureDiagnostics &diagnostics,
 }
 
 
+// Numerical failures carry diagnostics only: no partially filled value escapes.
+SEXP make_failure_result(const IntegralResult &result, const char *reason,
+                         int sample, int observation)
+{
+  const int n_fields = 7;
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, n_fields));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, n_fields));
+  const char *field_names[n_fields] = {
+    "status", "reason", "sample", "observation", "order", "change",
+    "mode_iterations"
+  };
+  for (int i = 0; i < n_fields; ++i) {
+    SET_STRING_ELT(names, i, Rf_mkChar(field_names[i]));
+  }
+  SET_VECTOR_ELT(out, 0, Rf_mkString("numerical_failure"));
+  SET_VECTOR_ELT(out, 1, Rf_mkString(reason));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(sample));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(observation));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(result.order > 0 ? result.order : NA_INTEGER));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarReal(result.order > 0 ? result.change : NA_REAL));
+  SET_VECTOR_ELT(out, 6, Rf_ScalarInteger(result.mode_iterations > 0 ?
+    result.mode_iterations : NA_INTEGER));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
+}
+
+
 // log Gamma(z + t) - log Gamma(z) for z >= 16 and t > 0 given as r = t / z,
 // log z and 1 / z (so that a z beyond the largest double can be passed
 // without being formed): with L = log1p(r) and h(r) = ((1 + r) L - r) / r the
@@ -978,15 +1007,16 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
         );
       }
       if (!result.mode_converged) {
-        Rf_error("Binomial AGHQ mode failed at sample %d, observation %d.",
-                 s + 1, k + 1);
+        SEXP failure = PROTECT(make_failure_result(result, "mode_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
       }
       if (!result.quadrature_converged) {
-        Rf_error(
-          "Binomial AGHQ failed to converge at sample %d, observation %d "
-          "(order %d, change %.8g).",
-          s + 1, k + 1, result.order, result.change
-        );
+        SEXP failure = PROTECT(make_failure_result(result, "quadrature_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
       }
 
       if (row_sum) {
@@ -1098,15 +1128,16 @@ SEXP run_poisson(SEXP x1i, SEXP x2i, SEXP t1i, SEXP t2i,
         mode_tolerance_value
       );
       if (!result.mode_converged) {
-        Rf_error("Poisson AGHQ mode failed at sample %d, observation %d.",
-                 s + 1, k + 1);
+        SEXP failure = PROTECT(make_failure_result(result, "mode_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
       }
       if (!result.quadrature_converged) {
-        Rf_error(
-          "Poisson AGHQ failed to converge at sample %d, observation %d "
-          "(order %d, change %.8g).",
-          s + 1, k + 1, result.order, result.change
-        );
+        SEXP failure = PROTECT(make_failure_result(result, "quadrature_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
       }
 
       if (row_sum) {

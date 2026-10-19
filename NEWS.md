@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- GLMM quadrature recovery uses typed numerical failures and preserves their
+  observed sample, public observation, and refinement diagnostics.
 - Partial selection events validate their required geometry and selected-response
   simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and
