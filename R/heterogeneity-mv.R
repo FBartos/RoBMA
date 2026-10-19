@@ -1121,7 +1121,7 @@
       n_targets = n_targets
     )
     columns <- which(leaf_index == i)
-    if (length(columns) == 0L) {
+    if (!identical(source_shape, "row") || length(columns) == 0L) {
       sd_samples <- total_sd * sqrt(variance_multiplier)
     } else {
       rows <- .brma_mv_sd_component_allocation_rows(

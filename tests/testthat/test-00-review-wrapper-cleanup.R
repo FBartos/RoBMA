@@ -23,7 +23,9 @@ test_that("analogous unique-level refusals retain the existing expansion conditi
   error <- tryCatch(ranef(slope$object), error = identity)
   expect_s3_class(error, "RoBMA_ranef_expand_required")
   expect_s3_class(error, "RoBMA_unsupported_request")
-  expect_match(conditionMessage(error), "Use 'expand = TRUE'.", fixed = TRUE)
+  expect_identical(conditionMessage(error), paste0(
+    "Unique-level random effects are unavailable for random-slope block 'study'. ",
+    "Use 'expand = TRUE'."))
 
   multiple <- review_heterogeneity_parent_replay("mean_variance")
   error <- tryCatch(ranef(multiple$object, component = "total"), error = identity)

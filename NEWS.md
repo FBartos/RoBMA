@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scalar-source allocation summaries use declared component multipliers when
+  random designs have more coefficient columns than observation rows.
 - Output documentation distinguishes auxiliary coordinates and supported log
   displays; native-thread option errors describe the existing NA default.
 - Fitted and random-effect adapters reject unsupported controls clearly and
