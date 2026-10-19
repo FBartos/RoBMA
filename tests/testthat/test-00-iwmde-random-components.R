@@ -1235,4 +1235,3 @@ test_that("positive point sources with stochastic shares refuse source density c
     }
   }
 })
-

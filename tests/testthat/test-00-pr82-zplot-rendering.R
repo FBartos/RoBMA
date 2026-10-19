@@ -69,4 +69,3 @@ test_that("zplot display grids share the signed selection cutoffs", {
     .zplot_threshold(priors, "negative"), tolerance = 1e-14)
   expect_identical(.zplot_threshold(NULL, "negative"), numeric())
 })
-

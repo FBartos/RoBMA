@@ -64,4 +64,3 @@ test_that("scalar zplot conditional variances preserve representable unit scales
   expect_error(.zplot_independent_conditional_variance(matrix(sqrt(1e308)), 1e308),
     "Cannot evaluate the estimate-depth conditional variance", fixed = TRUE)
 })
-

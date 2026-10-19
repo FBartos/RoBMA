@@ -369,4 +369,3 @@ review_allocated_source_replay <- function(kind, constant_weights = FALSE,
   list(object = object, samples = samples, allocation = allocation,
     source_parameter = source_parameter, weights = weights)
 }
-

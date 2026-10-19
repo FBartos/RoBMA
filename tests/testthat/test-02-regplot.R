@@ -850,4 +850,3 @@ test_that("regression precision grids retain the explicitly plotted measure", {
     c(.1, .2), 2, info),
     "The 'by' grid has inconsistent 'sei' and 'vi' values.", fixed = TRUE)
 })
-
