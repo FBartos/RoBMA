@@ -105,6 +105,11 @@ quantity, and alias tables. `parameter_coordinates()` exposes backend rows
 keyed by `coordinate_name`; `parameter_catalog()` exposes semantic quantities
 keyed by `canonical_name`. Resolve public selectors through the catalog and
 obtain draws through `parameter_draws()`.
+RoBMA-owned selections must match a fresh public catalog resolution by the
+current canonical name, namespace and component: wrapper fields and their order,
+schema/map versions, outer quantity identity and the complete quantity row.
+Only row names are normalized. BayesTools-owned rows remain delegated; matching
+metadata does not establish a physical fit's origin.
 
 Ordered `as_draws()` exports consume `JAGS_ordered_parameter_spec()` source
 coordinates and sampled-parameter labels. Read only declared sampled or

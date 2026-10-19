@@ -52,9 +52,24 @@ parameter_draws.brma <- function(object, selection, model_samples = NULL, ...) {
   current <- current[
     current[["quantity_id"]] %in% quantities[["quantity_id"]], , drop = FALSE
   ]
+  if (nrow(current) != 1L) {
+    stop("'selection' does not identify a current RoBMA parameter quantity.",
+         call. = FALSE)
+  }
+  resolved <- BayesTools::parameter_catalog_resolve(
+    catalog,
+    alias     = current[["canonical_name"]],
+    namespace = current[["namespace"]],
+    component = current[["component"]]
+  )
   rownames(current) <- NULL
   rownames(quantities) <- NULL
-  if (nrow(current) != 1L || !identical(quantities, current)) {
+  rownames(resolved[["quantities"]]) <- NULL
+  wrapper_fields <- c("schema_version", "parameter_map_version", "quantity_id")
+  if (!identical(names(selection), names(resolved)) ||
+      !all(vapply(wrapper_fields, function(field) {
+        identical(selection[[field]], resolved[[field]])
+      }, logical(1))) || !identical(quantities, resolved[["quantities"]])) {
     stop("'selection' does not identify a current RoBMA parameter quantity.",
          call. = FALSE)
   }

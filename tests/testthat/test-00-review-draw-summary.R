@@ -32,7 +32,8 @@ test_that("RoBMA formula groups honor supplied source rows and current recipes",
     group[["role"]] == "formula_coefficient_group", , drop = FALSE]
   expect_equal(nrow(group), 1L)
   selection <- BayesTools::parameter_catalog_resolve(
-    catalog, alias = group[["canonical_name"]], component = "mods"
+    catalog, alias = group[["canonical_name"]], namespace = group[["namespace"]],
+    component = group[["component"]]
   )
   dependencies <- group[["extraction_key"]][[1L]][["dependencies"]]
   supplied <- matrix(seq_len(14L) / 10, nrow = 7L,
@@ -50,6 +51,30 @@ test_that("RoBMA formula groups honor supplied source rows and current recipes",
   expect_identical(as.matrix(draws), supplied[7:1, , drop = FALSE])
   expect_identical(attr(draws[[1L]], "mcpar"), c(201, 213, 2))
   expect_equal(nrow(as.matrix(BayesTools::parameter_draws(object, selection))), 24L)
+  normalized <- selection
+  rownames(normalized[["quantities"]]) <- "unimportant_row_name"
+  expect_identical(as.matrix(BayesTools::parameter_draws(object, normalized,
+    model_samples = supplied)), supplied)
+  corruptions <- list()
+  for (field in c("schema_version", "parameter_map_version", "quantity_id")) {
+    wrong <- selection
+    wrong[[field]] <- if (identical(field, "quantity_id")) "RoBMA::foreign" else 999L
+    corruptions[[paste0(field, "_wrong")]] <- wrong
+    for (value in list(NULL, logical(), NA, list(1L), c(1L, 2L))) {
+      malformed <- selection
+      malformed[field] <- list(value)
+      if (is.null(value)) malformed[[field]] <- NULL
+      corruptions[[length(corruptions) + 1L]] <- malformed
+    }
+  }
+  extra <- selection
+  extra[["extra"]] <- TRUE
+  corruptions[["extra_field"]] <- extra
+  corruptions[["reordered_fields"]] <- selection[rev(names(selection))]
+  for (invalid in corruptions) {
+    expect_error(BayesTools::parameter_draws(object, invalid, model_samples = supplied),
+      "'selection' does not identify a current RoBMA parameter quantity.", fixed = TRUE)
+  }
   expect_error(BayesTools::parameter_draws(object, selection, unexpected = TRUE),
     "Unused argument in parameter_draws.brma(): 'unexpected'", fixed = TRUE)
   for (source in list(as.data.frame(supplied),
