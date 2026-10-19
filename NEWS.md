@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Covariance density grids distinguish conditional random-effect dependencies
+  from fixed-mean dependencies while retaining conservative mean-update guards.
 - Formula coefficient hypotheses and linear-context readers admit current
   BayesTools coefficient-transform metadata, requiring BayesTools >= 0.3.1.223.
 - Scenario benchmark source admission retains unresolved reflective effects

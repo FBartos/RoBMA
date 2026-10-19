@@ -476,7 +476,11 @@
     return(FALSE)
   }
 
-  return(!any(dependencies[["formula_parameter"]] == "mu"))
+  # Conditional random-effect rows do not describe the fixed mean.
+  # Keep every other dependency type conservative, including unknown types.
+  fixed_mean <- dependencies[["formula_parameter"]] == "mu" &
+    dependencies[["dependency_type"]] != "random_effect"
+  return(!any(fixed_mean))
 }
 
 

@@ -139,8 +139,12 @@ or evaluated covariance candidates.
 Covariance q-grid shortcuts, including group-IID, certify fixed-mean invariance
 from the complete replacement-coordinate dependency metadata, including declared
 regenerated SD nodes regardless of candidate validity or numerical equality, using
-at most one candidate per row; dependent or unknown mean updates retain the generic
-evaluator.
+at most one candidate per row. The public dependency query includes the
+conditional random predictor: only 'random_effect' rows are excluded when
+checking fixed-mu dependence. Every other mu dependency type, including unknown
+types, and query failures retain the generic evaluator. Algorithm version 40
+invalidates older density requests and plans; result schema 6 and fit-cache
+schema 8 are unchanged.
 
 Allocated component SD density targets in predictor-scaled blocks require the
 standardized view or KDE for original-scale requests, following the structured

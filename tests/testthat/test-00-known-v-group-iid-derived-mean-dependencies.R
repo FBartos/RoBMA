@@ -167,7 +167,12 @@ test_that("allocated SD updates carry declared fixed-mean dependencies", {
       expect_setequal(candidate$changed_parameters, c(source, sd_names))
       dependencies <- BayesTools::JAGS_formula_coordinate_dependencies(
         object$fit, candidate$changed_parameters)
-      expect_identical(any(dependencies$formula_parameter == "mu"), dependent)
+      # The public query includes the conditional random predictor separately
+      # from the fixed-mean multiplier on the same changed SD coordinate.
+      expect_true(any(dependencies$formula_parameter == "mu" &
+        dependencies$dependency_type == "random_effect"))
+      expect_identical(any(dependencies$formula_parameter == "mu" &
+        dependencies$dependency_type == "multiplier"), dependent)
       expect_identical(r(".iwmde_q_grid_fixed_mu_is_invariant")(
         context, candidate), !dependent)
     }

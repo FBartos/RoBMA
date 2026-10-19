@@ -93,11 +93,11 @@ test_that("request keys carry schema and algorithm versions", {
 
   expect_equal(request[["schema_version"]], "6")
   expect_equal(request[["algorithm_version"]], .iwmde_algorithm_version())
-  expect_identical(request[["algorithm_version"]], "39")
+  expect_identical(request[["algorithm_version"]], "40")
   expect_true(.iwmde_provenance_matches(list(iwmde_provenance = request), request))
 
   testthat::local_mocked_bindings(
-    .iwmde_algorithm_version = function() "38",
+    .iwmde_algorithm_version = function() "39",
     .package                 = "RoBMA"
   )
   changed_request <- .iwmde_provenance_request(
@@ -106,7 +106,7 @@ test_that("request keys carry schema and algorithm versions", {
     target_key     = "primitive|mu"
   )
 
-  expect_equal(changed_request[["algorithm_version"]], "38")
+  expect_equal(changed_request[["algorithm_version"]], "39")
   expect_false(identical(request[["request_key"]], changed_request[["request_key"]]))
   expect_false(.iwmde_provenance_matches(
     list(iwmde_provenance = changed_request), request
@@ -564,7 +564,7 @@ test_that("plan keys carry schema and algorithm versions", {
 
   expect_equal(payload[["schema_version"]], "6")
   expect_equal(payload[["algorithm_version"]], .iwmde_algorithm_version())
-  expect_identical(payload[["algorithm_version"]], "39")
+  expect_identical(payload[["algorithm_version"]], "40")
   expect_identical(payload, .iwmde_plan_key_payload(plan))
   expect_identical(
     payload[["prior_ordinates"]],
@@ -572,12 +572,12 @@ test_that("plan keys carry schema and algorithm versions", {
   )
 
   testthat::local_mocked_bindings(
-    .iwmde_algorithm_version = function() "38",
+    .iwmde_algorithm_version = function() "39",
     .package                 = "RoBMA"
   )
   changed_payload <- .iwmde_plan_key_payload(plan)
 
-  expect_equal(changed_payload[["algorithm_version"]], "38")
+  expect_equal(changed_payload[["algorithm_version"]], "39")
   expect_false(identical(
     .iwmde_hash("iwmde_plan", payload),
     .iwmde_hash("iwmde_plan", changed_payload)
