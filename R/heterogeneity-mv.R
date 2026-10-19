@@ -604,12 +604,13 @@
     posterior_samples = posterior_samples,
     component         = component
   )
-  if (length(allocation_samples) == 0L) {
-    return(list())
+  available_components <- attr(allocation_samples, "available_components",
+                               exact = TRUE)
+  if (is.null(available_components)) {
+    available_components <- names(allocation_samples)
   }
-  available_components <- names(allocation_samples)
   selected <- if (identical(component, "all")) {
-    available_components
+    names(allocation_samples)
   } else {
     .match_brma_mv_allocation_summary_component(component, allocation_samples)
   }
@@ -668,13 +669,11 @@
   }
 
   K              <- nrow(object[["data"]][["outcome"]])
-  source_samples <- .brma_mv_scale_source_samples(
-    object            = object,
-    posterior_samples = posterior_samples
-  )
+  source_samples <- NULL
   out <- list()
   aliases <- list()
   replacements <- list()
+  available_components <- character()
 
   for (allocation in allocations) {
     allocation <- .brma_mv_resolve_sd_component_allocation(
@@ -698,9 +697,15 @@
       allocation     = allocation,
       formula_design = formula_design
     )
-    if (!identical(component, "all") && !component %in%
-        .brma_mv_allocation_summary_aliases(name, allocation)) {
+    declared_aliases <- .brma_mv_allocation_summary_aliases(name, allocation)
+    available_components <- c(available_components, declared_aliases)
+    if (!identical(component, "all") && !component %in% declared_aliases) {
       next
+    }
+    if (is.null(source_samples)) {
+      source_samples <- .brma_mv_scale_source_samples(
+        object = object, posterior_samples = posterior_samples
+      )
     }
     samples_list <- .brma_mv_allocation_summary_samples(
       allocation        = allocation,
@@ -726,8 +731,9 @@
     names(replacements)[[length(replacements)]] <- name
   }
 
+  attr(out, "available_components") <- unique(available_components)
   if (length(out) == 0L) {
-    return(list())
+    return(out)
   }
 
   original_names <- names(out)
@@ -766,6 +772,7 @@
   aliases      <- list()
   replacements <- list()
   source_samples <- NULL
+  available_components <- character()
 
   for (allocation in allocations) {
     allocation <- .brma_mv_resolve_sd_component_allocation(
@@ -787,8 +794,9 @@
     name <- .brma_mv_allocation_summary_name(
       allocation = allocation, formula_design = formula_design
     )
-    if (!identical(component, "all") && !component %in%
-        .brma_mv_allocation_summary_aliases(name, allocation)) {
+    declared_aliases <- .brma_mv_allocation_summary_aliases(name, allocation)
+    available_components <- c(available_components, declared_aliases)
+    if (!identical(component, "all") && !component %in% declared_aliases) {
       next
     }
 
@@ -896,8 +904,9 @@
     names(replacements)[[length(replacements)]] <- name
   }
 
+  attr(out, "available_components") <- unique(available_components)
   if (length(out) == 0L) {
-    return(list())
+    return(out)
   }
   original_names <- names(out)
   names(out)          <- make.unique(original_names, sep = "_")
@@ -1217,8 +1226,9 @@
       length(leaf_index) != ncol(model_matrix) ||
       length(columns) == 0L) {
     stop(
-      "Cannot summarize row-varying SD-component allocation because its ",
-      "design-column allocation does not map to observation-level SD samples.",
+      "Row-varying SD-component allocation summaries are unavailable because ",
+      "the design-column allocation does not map to observation-level SD samples. ",
+      "Inspect the fitted random-effect design and allocation metadata.",
       call. = FALSE
     )
   }
@@ -1227,8 +1237,9 @@
   rows   <- which(active)
   if (length(rows) == 0L) {
     stop(
-      "Cannot summarize row-varying SD-component allocation because no ",
-      "observations map to one of its components.",
+      "Row-varying SD-component allocation summaries are unavailable because no ",
+      "observations map to one of the components. ",
+      "Inspect the fitted random-effect design and allocation metadata.",
       call. = FALSE
     )
   }
@@ -1811,7 +1822,7 @@
     stop(
       "Heterogeneity component '", component, "' is ambiguous. Available ",
       "components: ",
-      paste(c(component_names, extra_component_names, "all", "total"),
+      paste(unique(c(component_names, extra_component_names, "all", "total")),
             collapse = ", "), ".",
       call. = FALSE
     )
@@ -1819,7 +1830,7 @@
 
   stop(
     "Unknown heterogeneity component '", component, "'. Available components: ",
-    paste(c(component_names, extra_component_names, "all", "total"),
+    paste(unique(c(component_names, extra_component_names, "all", "total")),
           collapse = ", "), ".",
     call. = FALSE
   )

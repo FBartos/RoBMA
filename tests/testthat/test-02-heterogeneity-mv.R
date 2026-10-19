@@ -6,6 +6,77 @@ source(testthat::test_path("helper-contracts.R"))
 fit_names <- list_fits()
 fits      <- lazy_fits(fit_names, validate = FALSE)
 
+test_that("unknown heterogeneity selectors retain declared allocation choices", {
+
+  replay <- review_heterogeneity_har_replay()
+  choices <- .brma_mv_allocation_summary_aliases("study", replay$allocation)
+  for (object in list(replay$object, replay$setup$object)) {
+    known <- .brma_mv_allocation_sample_lists(object, replay$samples,
+      component = "study")
+    expect_named(known, "study")
+    expect_true(all(choices %in% attr(known, "available_components", exact = TRUE)))
+    expect_s3_class(summary_heterogeneity(object, component = "study",
+      .posterior_samples = replay$samples), "summary_heterogeneity.brma")
+    condition <- tryCatch(summary_heterogeneity(object, component = "missing",
+      .posterior_samples = replay$samples), error = identity)
+    expect_identical(conditionMessage(condition), paste0(
+      "Unknown heterogeneity component 'missing'. Available components: ",
+      paste(unique(c("study", choices, "all", "total")), collapse = ", "), "."
+    ))
+    expect_null(conditionCall(condition))
+  }
+  testthat::local_mocked_bindings(
+    .brma_mv_scale_source_samples = function(...) stop("Unrequested source evaluated."),
+    .brma_mv_allocation_summary_samples = function(...) stop("Unrequested allocation evaluated."),
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    parameter_draws = function(...) stop("Unrequested catalog draws evaluated."),
+    .package = "BayesTools"
+  )
+  for (object in list(replay$object, replay$setup$object)) {
+    expect_no_error(unselected <- .brma_mv_allocation_sample_lists(
+      object, replay$samples, component = "missing"
+    ))
+    expect_length(unselected, 0L)
+    expect_true(all(choices %in% attr(unselected, "available_components", exact = TRUE)))
+    summaries <- .summary_heterogeneity_brma_mv_allocations(
+      object, replay$samples, probs = c(.025, .975), component = "missing"
+    )
+    expect_length(summaries, 0L)
+    expect_true(all(choices %in% attr(summaries, "available_components", exact = TRUE)))
+  }
+})
+
+
+test_that("row allocation structural refusals state unavailability and inspection", {
+
+  allocation <- list(leaf_index_by_column = 1L)
+  condition <- tryCatch(.brma_mv_sd_component_allocation_rows(
+    allocation, term = NULL, component = 1L, source_shape = "row", K = 2L
+  ), error = identity)
+  expect_identical(conditionMessage(condition), paste0(
+    "Row-varying SD-component allocation summaries are unavailable because ",
+    "the design-column allocation does not map to observation-level SD samples. ",
+    "Inspect the fitted random-effect design and allocation metadata."
+  ))
+  expect_null(conditionCall(condition))
+  condition <- tryCatch(.brma_mv_sd_component_allocation_rows(
+    allocation, term = list(model_matrix = matrix(0, 2L, 1L)),
+    component = 1L, source_shape = "row", K = 2L
+  ), error = identity)
+  expect_identical(conditionMessage(condition), paste0(
+    "Row-varying SD-component allocation summaries are unavailable because no ",
+    "observations map to one of the components. ",
+    "Inspect the fitted random-effect design and allocation metadata."
+  ))
+  expect_null(conditionCall(condition))
+  expect_identical(.brma_mv_sd_component_allocation_rows(
+    allocation, term = list(model_matrix = matrix(c(1, 0), 2L, 1L)),
+    component = 1L, source_shape = "row", K = 2L
+  ), 1L)
+})
+
 .brma_mv_heterogeneity_named_object <- function() {
 
   dat <- data.frame(
