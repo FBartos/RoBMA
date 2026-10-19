@@ -923,15 +923,12 @@
 .iwmde_qcmde_try_log_q <- function(context, parameter, values, row_states,
                                    replacement) {
 
-  log_q <- tryCatch(
-    .iwmde_log_q_grid(
-      context     = context,
-      parameter   = parameter,
-      values      = values,
-      row_states  = row_states,
-      replacement = replacement
-    ),
-    error = function(e) NULL
+  log_q <- .iwmde_log_q_grid(
+    context     = context,
+    parameter   = parameter,
+    values      = values,
+    row_states  = row_states,
+    replacement = replacement
   )
   if (!is.numeric(log_q) || !is.matrix(log_q) ||
       !identical(dim(log_q), c(length(values), length(row_states)))) {
@@ -988,7 +985,9 @@
 
   estimate <- which(laws[["kind"]] %in% "estimate")
   if (length(estimate) > 0L) {
-    value[estimate]  <- estimates[estimate]
+    relative_tail <- estimates[estimate]
+    value[estimate] <- relative_tail / (1 + relative_tail)
+    value[estimate[is.infinite(relative_tail) & relative_tail > 0]] <- 1
     status[estimate] <- "estimate"
   }
   value <- pmin(value, 1)

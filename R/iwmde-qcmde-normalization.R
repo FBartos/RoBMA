@@ -220,8 +220,7 @@
       return(evaluate_directly(values))
     }
     out <- matrix(NA_real_, length(values), n_states)
-    requested <- tryCatch(evaluate(grid_context, values[inside]),
-                          error = function(e) NULL)
+    requested <- evaluate(grid_context, values[inside])
     if (is.null(requested)) {
       inside <- rep(FALSE, length(values))
     } else {
@@ -278,9 +277,9 @@
       initial_midpoints[["log_q"]][ahead[!is.na(ahead)], , drop = FALSE]
   }
   # The midpoints of the initial lattice are requests of the call-owned grids.
-  # The midpoints beyond it are too while their nodes were in the reserve, and
-  # a request of the grid that fails there is evaluated without it, like the
-  # extension nodes; every other midpoint is evaluated directly.
+  # Midpoints beyond it also use those grids while their nodes were reserved;
+  # every other midpoint is evaluated directly. Thrown evaluator failures
+  # propagate rather than being treated as an optional unavailable value.
   inner     <- midpoint_index > 0 & midpoint_index < n_points - 1L
   in_grid   <- is.na(ahead) & midpoints[["x"]] %in% reserved
   planned   <- in_grid & inner
@@ -292,10 +291,7 @@
   }
   if (any(band)) {
     values <- midpoints[["x"]][band]
-    midpoints[["log_q"]][band, ] <- tryCatch(
-      evaluate(grid_context, values),
-      error = function(e) evaluate(direct, values)
-    )
+    midpoints[["log_q"]][band, ] <- evaluate(grid_context, values)
   }
   if (any(remaining)) {
     midpoints[["log_q"]][remaining, ] <- evaluate(direct,
@@ -331,6 +327,8 @@
     columns   = priors$columns,
     transform = transform
   )
+  rejected_exact <- setdiff(which(laws[["kind"]] %in% "exact"), closed[["rows"]])
+  laws[["kind"]][rejected_exact] <- "estimate"
   lattice_rows <- setdiff(ordinary_rows, closed[["rows"]])
   for (name in names(grids)) {
     log_normalizer <- numeric(n_states)

@@ -715,3 +715,29 @@ test_that("closed Normal rows retain narrow priors and scaled support tails", {
       128 * .Machine$double.eps * max(1, abs(expected[[index]])))
   }
 })
+
+test_that("rejected exact laws report estimated tails on their actual retained lattice", {
+
+  rows <- list(.cf_row(.3, .8, .25, -3.7, 0, 10, -2.3))
+  declared <- list(.cf_misreport(rows[[1L]]$prior, sd = 2))
+  pass <- .cf_pass(rows, priors = declared)$pass
+  expect_identical(pass$closed_form$rows, integer())
+  expect_identical(pass$laws$kind, "estimate")
+  expect_equal(pass$extension_steps, c(lower = 0L, upper = 0L))
+  grid <- pass$nested
+  # Endpoint exponential envelopes from the independently evaluated row.
+  values <- .cf_log_q(rows[[1L]], grid$x)
+  n <- length(values)
+  edge <- c(1L, n)
+  adjacent <- c(2L, n - 1L)
+  slopes <- (values[adjacent] - values[edge]) /
+    abs(grid$z[adjacent] - grid$z[edge])
+  expect_true(all(slopes > 0))
+  relative_tail <- sum(exp(values[edge] - grid$log_normalizer) / slopes)
+  expected <- relative_tail / (1 + relative_tail)
+  summary <- .iwmde_qcmde_normalization_summary(pass, "mu", 1L, 1, 1L)
+  expect_identical(summary$truncation$status, "estimate")
+  expect_equal(summary$truncation$max, expected,
+    tolerance = 64 * .Machine$double.eps)
+  expect_equal(summary$normalization_range, range(grid$x), tolerance = 0)
+})

@@ -183,25 +183,14 @@ test_that("call-owned grids keep the display values alone in their first request
 })
 
 
-test_that("an extension value the grid cannot answer is evaluated without it", {
+test_that("a thrown extension-grid failure propagates through the grid wrapper", {
 
   inside   <- function(values) any(values < -1.001 | values > 1.001)
   display  <- c(-.3, .4)
-  reference <- .qcmde_pass_run(.qcmde_pass_laplace_rows, c(-1, 1), 41L,
-                               display_grid = display)
-  failing   <- .qcmde_pass_run(.qcmde_pass_laplace_rows, c(-1, 1), 41L,
+  expect_error(.qcmde_pass_run(.qcmde_pass_laplace_rows, c(-1, 1), 41L,
                                display_grid = display, grid = TRUE,
-                               fail_in_grid = inside)
-
-  # The requests of the grid for values beyond the range failed, and the pass
-  # evaluated those values directly; what it assembled is unchanged.
-  calls <- failing[["calls"]]
-  by_grid <- vapply(calls, `[[`, logical(1), "grid")
-  failed  <- vapply(calls[by_grid], function(call) inside(call[["values"]]),
-                    logical(1))
-  expect_true(any(failed))
-  expect_identical(.qcmde_pass_plain(failing[["pass"]]),
-                   .qcmde_pass_plain(reference[["pass"]]))
+                               fail_in_grid = inside),
+    "the grid cannot answer this request", class = "iwmde_construction_error")
 })
 
 
@@ -410,4 +399,66 @@ test_that("the session caches are emptied when BayesTools was reloaded since the
   assign("BayesTools", new.env(parent = emptyenv()), envir = .session_caches_code)
   .hypothesis_plan_cache(list(a = 1))
   expect_false(exists("entry", envir = env, inherits = FALSE))
+})
+
+test_that("normalization failures propagate instead of retrying optional grids", {
+
+  failures <- lapply(c("programming_error", "memory_error", "refit_required"), function(kind) {
+    structure(list(message = paste("synthetic", kind), call = NULL),
+      class = c(kind, "error", "condition"))
+  })
+  for (failure in failures) {
+    for (midpoint in c(FALSE, TRUE)) {
+      outside <- function(values) {
+        beyond <- abs(values) > 1.001
+        half_step <- abs(values / .05 - round(values / .05)) > .1
+        any(beyond & if (midpoint) half_step else !half_step)
+      }
+      observed <- tryCatch(.qcmde_pass_run(.qcmde_pass_laplace_rows,
+        c(-1, 1), 41L, display_grid = c(-.3, .4), grid = TRUE,
+        fail_in_grid = function(values) {
+          if (outside(values)) stop(failure)
+          FALSE
+        }), error = identity)
+      # This caller already enriches failures from the joint-density grid.
+      expect_s3_class(observed, "iwmde_construction_error")
+      message <- if (inherits(observed, "condition")) conditionMessage(observed) else ""
+      expect_match(message, failure$message, fixed = TRUE)
+    }
+  }
+})
+
+test_that("optional extension evaluation preserves value declines and thrown conditions", {
+
+  evaluate <- function() .iwmde_qcmde_try_log_q(list(), "mu", c(0, 1),
+    list(list()), list(type = "scalar"))
+  for (value in list(NULL, FALSE, matrix(0, 1L, 1L))) {
+    testthat::local_mocked_bindings(.iwmde_log_q_grid = function(...) value,
+      .package = "RoBMA")
+    expect_null(evaluate())
+  }
+  value <- matrix(c(0, -Inf), ncol = 1L)
+  testthat::local_mocked_bindings(.iwmde_log_q_grid = function(...) value,
+    .package = "RoBMA")
+  expect_identical(evaluate(), value)
+  for (kind in c("programming_error", "memory_error", "refit_required")) {
+    failure <- structure(list(message = paste("synthetic", kind), call = NULL),
+      class = c(kind, "error", "condition"))
+    testthat::local_mocked_bindings(.iwmde_log_q_grid = function(...) stop(failure),
+      .package = "RoBMA")
+    expect_identical(tryCatch(evaluate(), error = identity), failure)
+  }
+})
+
+test_that("estimated tail diagnostics use the full normalizer fraction", {
+
+  # Unit Laplace law: G is the mass on [-1, 1] and T is its missing mass.
+  tail <- exp(-1)
+  grid_mass <- 1 - tail
+  laws <- list(kind = rep("estimate", 3L))
+  out <- .iwmde_qcmde_row_truncation(laws, rep(0, 3L), c(-1, 1),
+    c(tail / grid_mass, 0, Inf))
+  expect_equal(out$value, c(tail, 0, 1), tolerance = 32 * .Machine$double.eps)
+  expect_identical(out$status, rep("estimate", 3L))
+  expect_identical(.iwmde_qcmde_truncation_summary(out)$ordinate_bound, Inf)
 })

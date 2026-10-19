@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Density normalization preserves thrown evaluation failures and reports
+  estimated tails for rows whose declared closed form fails validation.
 - Retained selection caches restored into a smaller memory budget keep the most
   recent entries that fit and report the entries actually retained. Native
   storage uses standard containers with one shared counting allocator.
