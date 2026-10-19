@@ -332,6 +332,17 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
   }
 }
 
+double plot_add_log_mass(double left, double right)
+{
+  if (left == -INFINITY) {
+    return right;
+  }
+  if (right == -INFINITY) {
+    return left;
+  }
+  return logspace_add(left, right);
+}
+
 double plot_selected_cdf_zero_se(double q, int s,
                                  const PlotMixtureContext &ctx)
 {
@@ -367,23 +378,23 @@ double plot_selected_cdf_zero_se(double q, int s,
     }
     const double log_weight = std::log(weight);
     if (data.effect_sign == 1) {
-      requested_log_mass = logspace_add(requested_log_mass, log_weight +
+      requested_log_mass = plot_add_log_mass(requested_log_mass, log_weight +
         cpp_selnorm_normal_interval_log_prob(
           lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]));
-      complement_log_mass = logspace_add(complement_log_mass, log_weight +
+      complement_log_mass = plot_add_log_mass(complement_log_mass, log_weight +
         cpp_selnorm_normal_interval_log_prob(
           std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]));
     } else {
-      requested_log_mass = logspace_add(requested_log_mass, log_weight +
+      requested_log_mass = plot_add_log_mass(requested_log_mass, log_weight +
         cpp_selnorm_normal_interval_log_prob(
           std::max(lower, signed_q), upper, signed_mean, ctx.sd[s]));
-      complement_log_mass = logspace_add(complement_log_mass, log_weight +
+      complement_log_mass = plot_add_log_mass(complement_log_mass, log_weight +
         cpp_selnorm_normal_interval_log_prob(
           lower, std::min(upper, signed_q), signed_mean, ctx.sd[s]));
     }
   }
 
-  const double total_log_mass = logspace_add(requested_log_mass, complement_log_mass);
+  const double total_log_mass = plot_add_log_mass(requested_log_mass, complement_log_mass);
   if (!std::isfinite(total_log_mass)) {
     return NA_REAL;
   }
@@ -570,7 +581,8 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     *quantile_cdf = plot_mixture_cdf(quantile, ctx);
     return quantile;
   }
-  if (std::isfinite(lower) && lower == upper && step > 0.0) {
+  const bool collapsed_bracket = std::isfinite(lower) && lower == upper && step > 0.0;
+  if (collapsed_bracket) {
     lower = std::nextafter(lower, -INFINITY);
     upper = std::nextafter(upper, INFINITY);
   }
@@ -671,7 +683,7 @@ double plot_mixture_quantile(double p, const PlotMixtureContext &ctx,
     return NA_REAL;
   }
 
-  if (all_positive_sd && ctx.full_support) {
+  if (all_positive_sd && ctx.full_support && !collapsed_bracket) {
     // Brent's iterate on the sign-change bracket, resolved to a tolerance on
     // the scale of the narrowest component (not to adjacent doubles).
     double root_value = NA_REAL;
