@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Random-effect inclusion exports and shared summary labels follow each gate's
+  declared allocation component, including child gates and scalar child totals.
 - Generated random-effect allocation identifiers avoid collisions within each
   completed graph while retaining declared component names and parent references.
 - Covariance density grids distinguish conditional random-effect dependencies

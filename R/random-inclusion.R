@@ -131,12 +131,21 @@
 
   paired <- vapply(seq_along(gate_rows), function(i) {
 
-    candidates <- sd_rows[vapply(sd_indicators, identical, logical(1),
-                                 indicators[[i]])]
-    totals <- candidates[quantities[["quantity"]][candidates] %in%
-                           c("sd_total", "sd_common")]
-    if (length(totals) == 1L) {
-      candidates <- totals
+    gate <- gate_rows[[i]]
+    key  <- keys[[gate]]
+    if (identical(key[["evaluator"]], "allocation_inclusion") &&
+        identical(quantities[["owner_type"]][[gate]], "variance_allocation")) {
+      candidates <- .random_allocation_inclusion_sd_rows(
+        object, quantities, key, sd_rows
+      )
+    } else {
+      candidates <- sd_rows[vapply(sd_indicators, identical, logical(1),
+                                   indicators[[i]])]
+      totals <- candidates[quantities[["quantity"]][candidates] %in%
+                             c("sd_total", "sd_common")]
+      if (length(totals) == 1L) {
+        candidates <- totals
+      }
     }
     if (length(candidates) != 1L) {
       return(NA_character_)
@@ -149,6 +158,59 @@
 
   out <- stats::setNames(paired, indicators)
   out[!is.na(out)]
+}
+
+
+# An allocation gate switches its declared component, which may itself be
+# consumed by a child allocation. Catalog gate indices count inclusion entries,
+# so resolve the component key from the exact compiled indicator source first.
+.random_allocation_inclusion_sd_rows <- function(object, quantities, key,
+                                                  sd_rows) {
+
+  parameter   <- key[["formula_parameter"]]
+  design      <- .fitted_formula_design(object, parameter, required = FALSE)
+  allocations <- design[["random_allocations"]]
+  owners <- Filter(function(allocation) {
+    identical(allocation[["label"]], key[["allocation_label"]])
+  }, allocations)
+  if (length(owners) != 1L) return(integer())
+  allocation <- owners[[1L]]
+  inclusion <- allocation[["inclusion"]]
+  matches <- which(vapply(inclusion, function(entry) {
+    identical(entry[["indicator_name"]], key[["source_parameter"]])
+  }, logical(1)))
+  if (length(matches) != 1L) return(integer())
+  component <- names(inclusion)[[matches]]
+
+  children <- Filter(function(child) {
+    parent <- child[["parent"]]
+    !is.null(parent) &&
+      identical(parent[["allocation"]], allocation[["label"]]) &&
+      identical(parent[["component"]], component)
+  }, allocations)
+  if (length(children) > 1L) return(integer())
+
+  eligible <- sd_rows[
+    quantities[["formula_parameter"]][sd_rows] == parameter &
+      !quantities[["internal"]][sd_rows] &
+      quantities[["status"]][sd_rows] != "unavailable"
+  ]
+  keys <- quantities[["extraction_key"]]
+  if (length(children) == 1L) {
+    child_label <- children[[1L]][["label"]]
+    return(eligible[vapply(eligible, function(row) {
+      quantities[["quantity"]][[row]] %in% c("sd_total", "sd_common") &&
+        identical(keys[[row]][["allocation_label"]], child_label) &&
+        identical(keys[[row]][["evaluator"]], "allocation_sd")
+    }, logical(1))])
+  }
+
+  block <- unname(allocation[["terms"]][[component]])
+  eligible[vapply(eligible, function(row) {
+    identical(quantities[["quantity"]][[row]], "sd") &&
+      identical(keys[[row]][["random_block"]], block) &&
+      identical(keys[[row]][["evaluator"]], "sd")
+  }, logical(1))]
 }
 
 

@@ -185,3 +185,119 @@ test_that("random-effect quantities without a scalar coordinate refuse qCMDE/IWM
     )
   }
 })
+
+# Genuine public constructors and current compiler metadata; deterministic source
+# replay verifies ownership and algebra, rather than posterior calibration.
+.allocation_inclusion_replay <- function(mode) {
+
+  point <- function(x) BayesTools::prior("point", list(location = x))
+  if (mode == "common") {
+    dat <- data.frame(yi = c(.10, .25, .15, .30),
+      study = factor(c("s1", "s1", "s2", "s2")), group = factor(c("a", "b", "a", "b")))
+    object <- BMA.mv(yi = yi, V = diag(.04, 4), data = dat,
+      random = ~ us(0 + group | study),
+      prior_heterogeneity = BayesTools::prior_random(
+        study = BayesTools::random_block(contrasts = c(group = "independent"))),
+      measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  } else {
+    dat <- data.frame(yi = rep(c(.1, .2), 4), study = factor(rep(c("s1", "s2"), each = 4)),
+      lab = factor(rep(c("l1", "l1", "l2", "l2"), 2)), site = factor(rep(c("t1", "t2"), 4)))
+    random <- list(study = ~ 1 | study, lab = ~ 1 | lab, site = ~ 1 | site)
+    if (mode == "gate_only") random$site <- NULL
+    root <- BayesTools::random_variance_allocation(name = "root",
+      terms = if (mode == "gate_only") c(pool = "pool") else c(pool = "pool", site = "site"),
+      sd = BayesTools::prior("gamma", list(shape = 2, rate = 2)),
+      weights = if (mode == "gate_only") NULL else BayesTools::prior("dirichlet", list(alpha = c(1, 1))),
+      inclusion = if (mode %in% c("root", "gate_only")) list(pool = point(.5)) else NULL)
+    split <- BayesTools::random_variance_allocation(name = "split", terms = c(study = "study", lab = "lab"),
+      parent = BayesTools::allocation_ref("root", "pool"),
+      weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1))),
+      inclusion = if (mode == "children") list(study = point(.5), lab = point(.5)) else if (mode == "lab") list(lab = point(.5)) else NULL)
+    object <- brma.mv(yi = yi, V = diag(.01, 8), random = random, data = dat, mods = ~ 1,
+      measure = "GEN", prior_unit_information_sd = 1,
+      prior_effect = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+      prior_heterogeneity = BayesTools::prior_random(allocation = list(root, split)),
+      standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE)
+  }
+  setup <- review_compile_object(object)
+  compiled <- setup$compiled$mu
+  allocations <- compiled$formula_design$random_allocations
+  gates <- unlist(lapply(allocations, function(a) vapply(a$inclusion, `[[`, character(1), "indicator_name")), use.names = FALSE)
+  auxiliaries <- unlist(lapply(allocations, function(a) {
+    if (length(a$weight_name)) .iwmde_simplex_auxiliary_columns(a$weight_name, if (a$target == "sd_component") length(a$weights$parameters$alpha) else a$n_targets) else character()
+  }), use.names = FALSE)
+  correlation <- unlist(lapply(compiled$formula_design$random_effects, function(term) term$correlation$primitive_names), use.names = FALSE)
+  columns <- unique(c(review_prior_columns(compiled$prior_list), gates, auxiliaries, correlation))
+  samples <- matrix(.5, 24L, length(columns), dimnames = list(NULL, columns))
+  samples[, review_coefficient_name(setup, "intercept")] <- seq(-.1, .1, length.out = 24)
+  root <- allocations[[1L]]
+  samples[, root$source$name] <- seq(.8, 1.2, length.out = 24)
+  weights <- cbind(rep(c(.25, .5, .75), 8), rep(c(.75, .5, .25), 8))
+  for (a in allocations) if (length(a$weight_name)) {
+    stopifnot((if (a$target == "sd_component") length(a$weights$parameters$alpha) else a$n_targets) == 2L)
+    samples[, paste0(a$weight_name, "[", 1:2, "]")] <- weights
+    samples[, .iwmde_simplex_auxiliary_columns(a$weight_name, 2L)] <- 2 * weights
+  }
+  if (mode == "children") {
+    samples[, allocations$split$inclusion$study$indicator_name] <- rep(c(0, 1, 0, 1), 6)
+    samples[, allocations$split$inclusion$lab$indicator_name] <- rep(c(0, 0, 1, 1), 6)
+  } else samples[, gates] <- if (mode == "lab") rep(c(0, 0, 1, 1), 6) else rep(0:1, 12)
+  list(object = review_attach_replay(setup, samples), sources = samples,
+    allocations = allocations, gates = gates)
+}
+
+for (.inclusion_mode in c("children", "root", "gate_only", "lab", "common")) {
+  local({
+    mode <- .inclusion_mode
+    test_that(paste("allocation inclusion uses exact declared scalar SD ownership:", mode), {
+
+      replay <- .allocation_inclusion_replay(mode)
+      object <- replay$object
+      quantities <- BayesTools::parameter_catalog(object$fit)$quantities
+      rows <- which(quantities$role == "random_inclusion")
+      expected <- switch(mode, children = c("study: tau", "lab: tau"),
+        root = "split: tau_total", gate_only = "split: tau_total", lab = "lab: tau", common = "component_1: tau_common")
+      mapping <- .random_inclusion_sd_names(object)
+      expect_identical(unname(mapping[replay$gates]), expected)
+      expect_identical(.summary_random_inclusion_labels(object,
+        quantities$canonical_name[rows], quantities$canonical_name[rows]), expected)
+      internal <- as.matrix(BayesTools::JAGS_materialize_draws(object$fit, include_internal = TRUE))
+      public <- as.matrix(posterior::as_draws_matrix(as_draws(object)))
+      for (i in seq_along(replay$gates)) {
+        gate <- replay$gates[[i]]
+        label <- paste0(expected[[i]], "_indicator")
+        expect_identical(sum(colnames(public) == label), 1L)
+        expect_identical(unname(internal[, gate]), unname(replay$sources[, gate]))
+        expect_identical(as.numeric(public[, label]), unname(replay$sources[, gate]))
+        expect_setequal(unname(public[, label]), c(0, 1))
+      }
+      expect_false(any(replay$gates %in% colnames(public)))
+      if (mode == "lab") {
+        key <- quantities$extraction_key[[rows]]
+        expect_identical(key$index, 1L)
+        expect_identical(replay$allocations$split$inclusion$lab$index, 2L)
+        inactive <- replay$sources[, replay$gates] == 0
+        expect_identical(sum(inactive), 12L)
+        expect_true(all(public[inactive, "lab: tau"] == 0))
+        expect_true(all(public[inactive, "study: tau"] > 0))
+        expect_true(all(public[inactive, "split: tau_total"] > 0))
+        expect_false("split: tau_total_indicator" %in% colnames(public))
+      }
+      if (mode != "common") {
+        expect_equal(unname(public[, "split: tau_total"]^2),
+          unname(public[, "study: tau"]^2 + public[, "lab: tau"]^2))
+        result <- summary(object)
+        expect_s3_class(result, "summary.brma")
+        # These genuine brma carriers do not exercise RoBMA's Component Inclusion table.
+        expect_length(result$inclusion_random, 0L)
+        expect_true(all(.brma_random_parameter_io_labels(quantities[rows, , drop = FALSE], "label") %in% rownames(result$estimates_random)))
+      } else {
+        child <- replay$allocations$study_components
+        expect_identical(child$target, "sd_component")
+        expect_identical(child$scale, "mean_variance")
+        expect_identical(child$parent$allocation, replay$allocations[[1L]]$label)
+      }
+    })
+  })
+}
+

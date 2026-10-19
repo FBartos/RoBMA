@@ -186,6 +186,11 @@ Generated allocation IDs are unique within one prior-completion graph. Keep
 valid preferred IDs; resolve actual collisions with a locally reserved suffix.
 Consumed symbolic term values avoid actual block names without changing their
 component keys, public labels, or parent component references.
+Allocation inclusion labels resolve the exact formula, allocation and compiled
+indicator source to its component key. A uniquely consuming child supplies its
+public total/common SD; otherwise a uniquely identified scalar block SD owns
+the label. Ambiguous or unavailable scalar counterparts remain unmapped. Direct
+SD-prior mixture indicators retain their separate handling.
 
 Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
 (plus specialized `rho`/`I2`). `brma.mv()` uses `tau`/`tau2` for one component,
