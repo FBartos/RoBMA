@@ -38,7 +38,7 @@ event counts \code{ai} and \code{ci}, or supply the four cell counts
 must agree. Poisson GLMM response predictions require exposures \code{t1i}
 and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 known-\code{V} \code{brma.mv()} response prediction, explicit
-\code{newdata} also requires a new sampling covariance matrix. Product-only
+\code{newdata} also requires sampling covariance through \code{V_new}. Product-only
 selection models require no publication-group column. Unadjusted normal
 selected latent predictions (\code{type = "estimate"}) require \code{sei}
 or \code{vi} in explicit \code{newdata}. If an active
@@ -55,9 +55,9 @@ The random-effect distribution is selected by \code{conditioning_depth}.
 Adds the outcome sampling distribution to the corresponding latent-effect
 target.
 \item \code{"terms.scale"}: Scale parameter (tau), incorporating scale
-regression if present. For \code{brma.mv()} random-formula models with
-scale formulas, returns a named list of component-specific
-\code{brma_samples} matrices.
+regression if present. For \code{brma.mv()} random-formula models,
+returns a named list of component-specific \code{brma_samples} matrices,
+whether or not scale formulas are present.
 }
 The released \code{"cluster"} and \code{"blup"} spellings are retained as
 compatibility shortcuts for conditional location samples: they fix
@@ -114,8 +114,8 @@ depth and fresh Gaussian draws for a new estimate within a fitted cluster.
 The fitted selection specification and prediction conditioning depth are
 separate choices.}
 
-\item{quiet}{logical; whether to suppress informational messages about
-prediction scale and bias adjustment.}
+\item{quiet}{logical; whether to suppress the informational message when
+conditional posterior samples are flattened to one chain.}
 
 \item{conditional}{whether to return conditional posterior predictions for
 RoBMA product-space objects. For location predictions, samples are conditioned
@@ -123,11 +123,13 @@ on the effect component; for \code{type = "terms.scale"}, samples are
 conditioned on the heterogeneity component. Conditional samples are flattened
 to one chain after subsetting posterior rows.}
 
-\item{V_new}{optional sampling covariance matrix for explicit
+\item{V_new}{optional sampling covariance for explicit
 \code{newdata} response or selected latent predictions from known-\code{V} \code{brma.mv()}
-models. May be a square matrix or a list of block covariance matrices whose
-total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
-rows is not supported.
+models. Accepts a vector of diagonal variances, a square covariance matrix,
+a list of block covariance matrices, or a \code{\link{known_v_factor}}
+declaration. Its total dimension must match \code{nrow(newdata)}.
+It is required for explicit-newdata response predictions and unadjusted
+selected latent predictions. Cross-covariance with observed rows is not supported.
 Numerical symmetry is handled as for \code{V}: accepted off-diagonal pairs
 are averaged internally; the supplied object and diagonal are unchanged.}
 
@@ -190,6 +192,10 @@ Response replication adds the original sampling variance \eqn{s^2}.
 Ordinary independent Gaussian selection predictions use exact diagonal-cell
 chunk pricing after conservative fixed-geometry and output reserves. Other
 model structures retain the dense covariance charge under the same budget.
+The \code{RoBMA.known_v_covariance_max_bytes} option controls covariance
+chunk memory. Selected predictions are reproducible for a fixed seed and
+chunk budget, but changing this option can change the returned seeded draw
+sequence because chunking changes the order of random-number consumption.
 
 \code{newdata} supplies design values and grouping identities; it does not
 select an estimand. Consequently, marginal prediction has the same law for
@@ -226,7 +232,8 @@ raw future effect-size estimates with the supplied \code{sei}, not
 \code{sei / sqrt(weight)}.
 
 For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
-response prediction requires \code{V_new}. Random-formula models preserve
+response and unadjusted selected latent prediction require \code{V_new}.
+Random-formula models preserve
 the joint random-effect structure selected by \code{conditioning_depth} and
 then add \code{V} or \code{V_new} sampling noise. Cross-covariance with
 observed rows is not supported. Explicit

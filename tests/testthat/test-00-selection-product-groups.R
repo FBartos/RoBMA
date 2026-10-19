@@ -166,7 +166,7 @@ test_that("product prediction needs no publication column in newdata", {
     .product_group_prior(selection_model(weight_rule = "best", group = paper))))
   context$object <- object
   expect_error(.predict_joint_selection_groups(context),
-    "The 'group' column 'paper' was not found in 'data'.", fixed = TRUE)
+    "The 'newdata' must contain the publication-group column 'paper' required by 'weight_rule = \"best\"'.", fixed = TRUE)
   context$raw_newdata$paper <- c("x", "x", "y", "y")
   expect_identical(.predict_joint_selection_groups(context), list(1:2, 3:4))
 })

@@ -265,7 +265,7 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
 
   actual <- .predict_known_v_newdata_add_vi(
     newdata = data.frame(sei = c(1e-150, 1e150)),
-    V_new   = diag(c(1e-300, 1e300))
+    V_new   = c(1e-300, 1e300)
   )
   expect_identical(actual[["vi"]], c(1e-300, 1e300))
   expect_identical(actual[["sei"]], c(1e-150, 1e150))
@@ -276,7 +276,7 @@ test_that("known-V prediction compares supplied sampling scales row-wise", {
         vi  = c(.04, .05),
         sei = c(.20, .30)
       ),
-      V_new = diag(c(.04, .05))
+      V_new = c(.04, .05)
     ),
     "must match diag\\(V_new\\)"
   )

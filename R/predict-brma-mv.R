@@ -9,7 +9,7 @@
 
 .predict_known_v_newdata_add_vi <- function(newdata, V_new) {
 
-  diag_v <- if (is.matrix(V_new)) diag(V_new) else as.numeric(V_new)
+  diag_v <- as.numeric(V_new)
   if ("vi" %in% names(newdata)) {
     .predict_known_v_newdata_check_variance(
       supplied = newdata[["vi"]],
@@ -314,9 +314,8 @@
 
   sampled_blocks <- .data_sampled_random_effect_blocks(data)
   sampled_effect <- matrix(0, nrow = S, ncol = K)
-  components     <- list()
   if (length(sampled_blocks) > 0L) {
-    block_groups <- if (by_block) as.list(sampled_blocks) else list(sampled_blocks)
+    block_groups <- list(sampled_blocks)
     for (blocks in block_groups) {
       block_effect <- .evaluate.brma.random_effects(
         fit               = object[["fit"]],
@@ -330,15 +329,12 @@
         object            = object
       )
       sampled_effect <- sampled_effect + block_effect
-      if (by_block) {
-        components[[blocks]] <- block_effect
-      }
     }
   }
 
   marginalized_terms <- .data_marginalized_random_effects(data)
   if (length(marginalized_terms) == 0L) {
-    return(if (by_block) components else sampled_effect)
+    return(sampled_effect)
   }
 
   source_samples <- .predict_known_v_newdata_marginalized_source_samples(
@@ -376,12 +372,6 @@
     bias_offset = bias_offset
   )
 
-  if (by_block) {
-    # Estimate-level compilation permits a single integrated local block.
-    block <- marginalized_terms[[1L]][["block_name"]]
-    components[[block]] <- conditional_effect - mu_samples - sampled_effect
-    return(components)
-  }
   return(conditional_effect - mu_samples)
 }
 

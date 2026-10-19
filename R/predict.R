@@ -20,7 +20,7 @@
 #'   must agree. Poisson GLMM response predictions require exposures \code{t1i}
 #'   and \code{t2i}; event counts \code{x1i} and \code{x2i} are optional. For
 #'   known-\code{V} \code{brma.mv()} response prediction, explicit
-#'   \code{newdata} also requires a new sampling covariance matrix. Product-only
+#'   \code{newdata} also requires sampling covariance through \code{V_new}. Product-only
 #'   selection models require no publication-group column. Unadjusted normal
 #'   selected latent predictions (\code{type = "estimate"}) require \code{sei}
 #'   or \code{vi} in explicit \code{newdata}. If an active
@@ -36,9 +36,9 @@
 #'   Adds the outcome sampling distribution to the corresponding latent-effect
 #'   target.
 #'   \item \code{"terms.scale"}: Scale parameter (tau), incorporating scale
-#'   regression if present. For \code{brma.mv()} random-formula models with
-#'   scale formulas, returns a named list of component-specific
-#'   \code{brma_samples} matrices.
+#'   regression if present. For \code{brma.mv()} random-formula models,
+#'   returns a named list of component-specific \code{brma_samples} matrices,
+#'   whether or not scale formulas are present.
 #' }
 #' The released \code{"cluster"} and \code{"blup"} spellings are retained as
 #' compatibility shortcuts for conditional location samples: they fix
@@ -101,13 +101,15 @@
 #' on the effect component; for \code{type = "terms.scale"}, samples are
 #' conditioned on the heterogeneity component. Conditional samples are flattened
 #' to one chain after subsetting posterior rows.
-#' @param quiet logical; whether to suppress informational messages about
-#' prediction scale and bias adjustment.
-#' @param V_new optional sampling covariance matrix for explicit
+#' @param quiet logical; whether to suppress the informational message when
+#' conditional posterior samples are flattened to one chain.
+#' @param V_new optional sampling covariance for explicit
 #' \code{newdata} response or selected latent predictions from known-\code{V} \code{brma.mv()}
-#' models. May be a square matrix or a list of block covariance matrices whose
-#' total dimension matches \code{nrow(newdata)}. Cross-covariance with observed
-#' rows is not supported.
+#' models. Accepts a vector of diagonal variances, a square covariance matrix,
+#' a list of block covariance matrices, or a \code{\link{known_v_factor}}
+#' declaration. Its total dimension must match \code{nrow(newdata)}.
+#' It is required for explicit-newdata response predictions and unadjusted
+#' selected latent predictions. Cross-covariance with observed rows is not supported.
 #' Numerical symmetry is handled as for \code{V}: accepted off-diagonal pairs
 #' are averaged internally; the supplied object and diagonal are unchanged.
 #'
@@ -142,6 +144,10 @@
 #' Ordinary independent Gaussian selection predictions use exact diagonal-cell
 #' chunk pricing after conservative fixed-geometry and output reserves. Other
 #' model structures retain the dense covariance charge under the same budget.
+#' The \code{RoBMA.known_v_covariance_max_bytes} option controls covariance
+#' chunk memory. Selected predictions are reproducible for a fixed seed and
+#' chunk budget, but changing this option can change the returned seeded draw
+#' sequence because chunking changes the order of random-number consumption.
 #'
 #' \code{newdata} supplies design values and grouping identities; it does not
 #' select an estimand. Consequently, marginal prediction has the same law for
@@ -178,7 +184,8 @@
 #' \code{sei / sqrt(weight)}.
 #'
 #' For known-\code{V} \code{brma.mv()} models, explicit \code{newdata}
-#' response prediction requires \code{V_new}. Random-formula models preserve
+#' response and unadjusted selected latent prediction require \code{V_new}.
+#' Random-formula models preserve
 #' the joint random-effect structure selected by \code{conditioning_depth} and
 #' then add \code{V} or \code{V_new} sampling noise. Cross-covariance with
 #' observed rows is not supported. Explicit
@@ -327,8 +334,10 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       samples    = mu_samples,
       title      = if (context[["conditioning_depth"]] == "cluster") {
         "Cluster-Level Fitted Location:"
-      } else {
+      } else if (context[["outcome_type"]] == "norm") {
         "True Effects (BLUP Means):"
+      } else {
+        "True Effect Posterior Draws:"
       },
       parameters = .conditional_effect_parameters(context[["object"]])
     ))
@@ -396,6 +405,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(quiet, "quiet")
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1,
+                         check_length = 0, allow_NULL = TRUE, allow_NA = FALSE)
   if (conditional && !.is_RoBMA(object)) {
     stop("'conditional' predictions are available only for RoBMA objects.",
          call. = FALSE)
@@ -408,9 +419,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     if (!is.data.frame(newdata) && !is.list(newdata)) {
       stop("'newdata' must be NULL, a data.frame, or a named list.", call. = FALSE)
     }
-    if (is.list(newdata) && !is.data.frame(newdata) && is.null(names(newdata))) {
-      stop("'newdata' list must be named.", call. = FALSE)
-    }
+    newdata <- .prepare_newdata_as_data_frame(newdata)
   }
 
   if (type %in% c("terms", "terms.scale") &&
@@ -530,6 +539,13 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
 
   if (conditioning_depth == "cluster" && !is_multilevel) {
+    if (requested_type == "cluster") {
+      stop(
+        "type = 'cluster' is only available for specialized multilevel ",
+        "models fitted with 'cluster'.",
+        call. = FALSE
+      )
+    }
     stop(
       "conditioning_depth = 'cluster' is only available for specialized ",
       "multilevel models fitted with 'cluster'.",
@@ -942,7 +958,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       bias_offset = blup_bias_offset
     )
     cluster_mu <- fixed_mu
-    if (is_multilevel) {
+    if (is_multilevel && conditioning_depth == "cluster") {
       if (!is.null(parts[["posterior_sources"]])) {
         cluster_sources <- if (context[["type"]] == "location") {
           parts[["posterior_source_means"]]
@@ -1042,7 +1058,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
       )
       mu_samples <- fixed_mu + random_blup
     } else if (is_multilevel && outcome_type == "norm" && same_data &&
-               (!is_weightfunction || is_joint_selection)) {
+               !is_weightfunction) {
       if (is.null(multilevel_blup)) {
         multilevel_blup <- .evaluate.brma.multilevel_blup.norm(
           mu_samples  = fixed_mu,
@@ -1283,9 +1299,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
         posterior_samples = posterior_samples,
         bias_offset       = blup_bias_offset
       )
-  } else if (context[["is_multilevel"]] &&
-             (!context[["is_weightfunction"]] ||
-              isTRUE(context[["is_joint_selection"]]))) {
+  } else if (context[["is_multilevel"]] && !context[["is_weightfunction"]]) {
     true_effects_samples <- fixed_mu +
       .evaluate.brma.multilevel_posterior.norm(
         mu_samples  = fixed_mu,
@@ -1968,10 +1982,17 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   model <- .data_selection_model(context[["object"]][["data"]])
   if (context[["same_data"]]) return(model[["groups"]][["row_blocks"]])
   known_V <- context[["known_V_new"]]
+  prediction_data <- .prepare_newdata_as_data_frame(context[["raw_newdata"]])
   groups <- lapply(model[["branches"]][model[["active_branches"]]], function(branch) {
+    group <- branch[["group"]]
+    if (identical(branch[["weight_rule"]], "best") && !is.null(group) &&
+        !group %in% names(prediction_data)) {
+      stop("The 'newdata' must contain the publication-group column '", group,
+           "' required by 'weight_rule = \"best\"'.", call. = FALSE)
+    }
     .selection_bind_groups(
       model = branch, row_index = seq_len(context[["K"]]),
-      input_data = .prepare_newdata_as_data_frame(context[["raw_newdata"]]),
+      input_data = prediction_data,
       cluster = context[["outcome_data"]][["cluster"]],
       allow_singletons = !isTRUE(model[["applicability"]][["other_random_effects"]]) &&
         (is.null(known_V) || !length(.known_v_correlated_blocks(known_V)))

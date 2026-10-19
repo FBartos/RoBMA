@@ -2440,7 +2440,14 @@ print.RoBMA_data <- function(x, n = 6, ...) {
 .prepare_newdata_as_data_frame <- function(newdata) {
 
   if (is.list(newdata) && !is.data.frame(newdata)) {
+    column_names <- names(newdata)
+    if (is.null(column_names) || anyNA(column_names) || any(!nzchar(column_names))) {
+      stop("'newdata' list must have a name for every column.", call. = FALSE)
+    }
     newdata <- as.data.frame(newdata, stringsAsFactors = FALSE)
+  }
+  if (is.data.frame(newdata) && nrow(newdata) == 0L) {
+    stop("'newdata' must contain at least one row.", call. = FALSE)
   }
 
   return(newdata)
