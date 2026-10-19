@@ -1319,6 +1319,7 @@
     scale_priors      = active_setup[["priors"]][["scale"]],
     is_scale          = .is_data_scale(data),
     is_multilevel     = .is_data_multilevel(data),
+    is_random         = .is_data_random(data),
     K                 = nrow(data[["outcome"]]),
     posterior_samples = samples,
     fixed_tau         = .fixed_tau_prior_value(active_setup[["priors"]]),

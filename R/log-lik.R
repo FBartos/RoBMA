@@ -755,6 +755,7 @@
       scale_priors      = priors[["scale"]],
       is_scale          = is_scale,
       is_multilevel     = is_multilevel,
+      is_random         = .is_data_random(data),
       K                 = K,
       posterior_samples = posterior_samples,
       fixed_tau         = .fixed_tau_prior_value(priors),

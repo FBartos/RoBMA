@@ -82,6 +82,7 @@
     scale_priors  = priors[["scale"]],
     is_scale      = is_scale,
     is_multilevel     = is_multilevel,
+    is_random         = .is_random(object),
     K                 = K,
     fixed_tau         = .fixed_tau_prior_value(priors),
     fixed_rho         = .fixed_rho_prior_value(priors)

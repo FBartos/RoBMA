@@ -666,6 +666,7 @@
       scale_priors      = object[["priors"]][["scale"]],
       is_scale          = TRUE,
       is_multilevel     = FALSE,
+      is_random         = .is_random(object),
       K                 = K,
       posterior_samples = posterior_samples
     )

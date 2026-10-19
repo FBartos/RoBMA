@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Missing global heterogeneity follows declared random-formula metadata and
+  explicit caller structure rather than posterior column-name spelling.
 - Removed an unused private CDF facade while retaining independent CDF and
   tail checks on the production LOO and selection kernels.
 - Ordered density integration retains finite log weights and the declared

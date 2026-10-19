@@ -1062,6 +1062,7 @@
         scale_priors      = x[["priors"]][["scale"]],
         is_scale          = is_scale,
         is_multilevel     = is_multilevel,
+        is_random         = .is_random(x),
         K                 = n_pred,
         posterior_samples = posterior_samples,
         fixed_tau         = .fixed_tau_prior_value(x[["priors"]]),

@@ -629,6 +629,7 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
     scale_priors      = object[["priors"]][["scale"]],
     is_scale          = .is_scale(object),
     is_multilevel     = .is_multilevel(object),
+    is_random         = .is_random(object),
     posterior_samples = posterior_samples,
     fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
     fixed_rho         = .fixed_rho_prior_value(object[["priors"]])

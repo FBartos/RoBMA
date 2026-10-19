@@ -373,6 +373,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     scale_priors      = object[["priors"]][["scale"]],
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
+    is_random         = .is_random(object),
     K                 = tau_K,
     fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
     fixed_rho         = .fixed_rho_prior_value(object[["priors"]])

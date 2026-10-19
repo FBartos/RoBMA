@@ -188,6 +188,7 @@
     scale_priors      = active_setup[["priors"]][["scale"]],
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
+    is_random         = .is_data_random(data),
     K                 = K,
     posterior_samples = samples,
     fixed_tau         = .fixed_tau_prior_value(active_setup[["priors"]]),

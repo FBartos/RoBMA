@@ -1594,6 +1594,7 @@
     scale_priors      = object[["priors"]][["scale"]],
     is_scale          = .is_scale(object),
     is_multilevel     = .is_multilevel(object),
+    is_random         = .is_random(object),
     K                 = K,
     posterior_samples = posterior_samples,
     fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),

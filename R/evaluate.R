@@ -451,8 +451,10 @@
 .evaluate.brma.tau <- function(fit, scale_data, scale_formula, scale_priors,
                                is_scale, is_multilevel, K,
                                posterior_samples = NULL,
-                               fixed_tau = NULL, fixed_rho = NULL) {
+                               fixed_tau = NULL, fixed_rho = NULL,
+                               is_random = NULL) {
 
+  BayesTools::check_bool(is_random, "is_random", allow_NULL = TRUE)
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S <- nrow(posterior_samples)  # number of posterior samples
 
@@ -479,7 +481,14 @@
         required          = FALSE
       )
       if (is.null(tau_parameter)) {
-        if (!any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+        # An explicit declaration takes precedence over the fit fallback.
+        declared_random <- if (is.null(is_random)) {
+          designs <- BayesTools::JAGS_formula_design(fit)
+          any(vapply(designs, function(design) {
+            length(design[["random_effects"]]) > 0L
+          }, logical(1L)))
+        } else is_random
+        if (!declared_random) {
           stop("Missing posterior tau columns.", call. = FALSE)
         }
         tau_samples <- matrix(0, nrow = S, ncol = K)
@@ -530,8 +539,10 @@
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.pooled_tau <- function(
     fit, scale_data, scale_formula, scale_priors, is_scale, is_multilevel,
-    posterior_samples = NULL, fixed_tau = NULL, fixed_rho = NULL) {
+    posterior_samples = NULL, fixed_tau = NULL, fixed_rho = NULL,
+    is_random = NULL) {
 
+  BayesTools::check_bool(is_random, "is_random", allow_NULL = TRUE)
   posterior_samples <- .get_posterior_samples(fit, posterior_samples)
   S                 <- nrow(posterior_samples)
 
@@ -558,7 +569,13 @@
         required          = FALSE
       )
       if (is.null(tau_parameter)) {
-        if (!any(grepl("__xRE", colnames(posterior_samples), fixed = TRUE))) {
+        declared_random <- if (is.null(is_random)) {
+          designs <- BayesTools::JAGS_formula_design(fit)
+          any(vapply(designs, function(design) {
+            length(design[["random_effects"]]) > 0L
+          }, logical(1L)))
+        } else is_random
+        if (!declared_random) {
           stop("Missing posterior tau columns.", call. = FALSE)
         }
         tau_samples <- matrix(0, nrow = S, ncol = 1L)
