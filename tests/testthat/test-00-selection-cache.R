@@ -1,3 +1,17 @@
+test_that("selection cache inspection initializes its configured budget", {
+
+  old <- RoBMA.options()
+  on.exit(do.call(RoBMA.options, old), add = TRUE)
+  RoBMA.options(selection.cache_max_bytes = 65536)
+  .Call("RoBMA_selnorm_cache_control", 0, 3L, PACKAGE = "RoBMA")
+  RoBMA.private[["selection_runtime_initialized"]] <- FALSE
+  info <- selection_cache_info()
+  expect_identical(info$capacity_bytes[1L], 65536)
+  expect_true(RoBMA.private[["selection_runtime_initialized"]])
+  expect_identical(selection_cache_info(), info)
+})
+
+
 test_that("exact selection caching preserves targets under controls and memory pressure", {
 
   old_limit <- RoBMA.get_option("selection.cache_max_bytes")

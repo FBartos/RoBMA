@@ -77,7 +77,7 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' Creates numerical integration settings for the product and best-p-value
 #' selection likelihoods used by [bselmodel()], [bselmodel.mv()], [RoBMA()], and
 #' [RoBMA.mv()]. Covariance factors use deterministic sequences of
-#' Gauss-Hermite rules. Certified factors of structural rank one through four
+#' Gauss-Hermite rules. Certified factors of structural rank one through eight
 #' fall back to randomized quasi-Monte Carlo in the factor dimension when the
 #' quadrature sequence does not converge. General covariance blocks with
 #' product weights first try same-diagonal covariance approximations with a
@@ -151,7 +151,7 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #'   Selected-density projection fallbacks instead retain the prior Gaussian
 #'   and one proposal optimized from zero.
 #' @param max_points_per_scramble largest nested-design budget used for a
-#'   certified factor fallback, or a post-fit Gaussian event
+#'   certified factor fallback, including fitting-time refinement, or a post-fit Gaussian event
 #'   calculation, when the initial `points_per_scramble` budget fails its
 #'   integration diagnostic. Refinement doubles the point count up to this
 #'   value while reusing the same fixed design.
@@ -189,6 +189,7 @@ set_selection_likelihood_control <- function(
     points_per_scramble,
     "points_per_scramble",
     lower = 8L,
+    upper = .Machine$integer.max,
     check_length = 1L,
     allow_NA = FALSE
   )
@@ -196,6 +197,7 @@ set_selection_likelihood_control <- function(
     max_points_per_scramble,
     "max_points_per_scramble",
     lower = points_per_scramble,
+    upper = .Machine$integer.max,
     check_length = 1L,
     allow_NA = FALSE
   )
@@ -203,6 +205,7 @@ set_selection_likelihood_control <- function(
     scrambles,
     "scrambles",
     lower = 2L,
+    upper = .Machine$integer.max,
     check_length = 1L,
     allow_NA = FALSE
   )
@@ -221,6 +224,7 @@ set_selection_likelihood_control <- function(
     seed,
     "seed",
     lower = 0L,
+    upper = .Machine$integer.max,
     check_length = 1L,
     allow_NA = FALSE
   )
@@ -654,7 +658,9 @@ set_selection_likelihood_control <- function(
       source <- random_sources[[match(name, vapply(random_sources, `[[`, character(1L), "name"))]]
       if (!isTRUE(source[["retained"]])) {
         stop("Mean-centered parameterization is unavailable for integrated selection source '",
-             name, "'.", call. = FALSE)
+             name, "'. Use 'random_block(parameterization = \"centered\")' or ",
+             "'random_block(parameterization = \"noncentered\")' in 'prior_heterogeneity'.",
+             call. = FALSE)
       }
     }
   } else if (!inherits(object, "brma.mv")) {
@@ -1307,7 +1313,7 @@ set_selection_likelihood_control <- function(
       "sel_telescope_probabilities,", selection_spec[["jags_vector_rule"]], ",",
       prefix, "_group,", .selection_joint_qmc_name(plan[["design_keys"]][[index]]), ",",
       plan[["points_per_scramble"]], ",", plan[["max_points_per_scramble"]], ",",
-      plan[["scrambles"]], ",", format(plan[["relative_tolerance"]], scientific = FALSE),
+      plan[["scrambles"]], ",", format(plan[["relative_tolerance"]], digits = 17, scientific = FALSE),
       ",sel_cond_cluster_nodes,sel_cond_cluster_log_weights,sel_cond_cluster_orders,",
       "sel_cond_factor_nodes,sel_cond_factor_log_weights,sel_cond_factor_orders)\n")
   }
@@ -1472,7 +1478,9 @@ set_selection_likelihood_control <- function(
       max(mcse, change) > plan[["relative_tolerance"]]) {
     stop("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
       format(mcse), " and nested-design relative change was ", format(change),
-      ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.",
+      ". Increase 'max_points_per_scramble' or 'scrambles' with 'set_selection_likelihood_control()'. ",
+      "Pass the control as 'selection_control' when fitting, 'integration_control' in zplot(), or ",
+      "'density_control$integration_control' for supported post-fit densities and hypotheses.",
       call. = FALSE)
   }
   invisible(NULL)
@@ -3624,7 +3632,7 @@ set_selection_likelihood_control <- function(
         plan[["factor_points_per_proposal"]], ",",
         plan[["factor_max_points_per_proposal"]], ",",
         plan[["scrambles"]], ",",
-        format(plan[["relative_tolerance"]], scientific = FALSE), ",",
+        format(plan[["relative_tolerance"]], digits = 17, scientific = FALSE), ",",
         selection_spec[["jags_vector_rule"]], ")\n"
       )
     } else if (method == "factor") {
@@ -3648,7 +3656,7 @@ set_selection_likelihood_control <- function(
         plan[["factor_points_per_proposal"]], ",",
         plan[["factor_max_points_per_proposal"]], ",",
         plan[["scrambles"]], ",",
-        format(plan[["relative_tolerance"]], scientific = FALSE), ",",
+        format(plan[["relative_tolerance"]], digits = 17, scientific = FALSE), ",",
         selection_spec[["jags_vector_rule"]], ")\n"
       )
     } else {
@@ -3666,7 +3674,7 @@ set_selection_likelihood_control <- function(
         plan[["points_per_scramble"]], ",1:", 2L * block_n, "],",
         plan[["points_per_scramble"]], ",",
         plan[["scrambles"]], ",",
-        format(plan[["relative_tolerance"]], scientific = FALSE), ",",
+        format(plan[["relative_tolerance"]], digits = 17, scientific = FALSE), ",",
         selection_spec[["jags_vector_rule"]], ",",
         "sel_joint_cluster_nodes,sel_joint_cluster_log_weights,",
         "sel_joint_cluster_orders)\n"
@@ -3699,7 +3707,7 @@ set_selection_likelihood_control <- function(
     stop(
       "Selection normalizer was rejected by diagnostics: relative ",
       "Monte Carlo standard error was ", format(observed, digits = 4),
-      ". Increase 'points_per_scramble' in ",
+      ". Increase 'points_per_scramble' or 'scrambles' in ",
       "'set_selection_likelihood_control()'. Pass the control as ",
       "'selection_control' when fitting, 'integration_control' in zplot(), ",
       "or ",

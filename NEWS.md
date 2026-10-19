@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selection controls retain full-precision tolerance syntax, reject integer
+  overflow early and name supported remedies; cache inspection initializes
+  the configured process budget.
 - Prior support restrictions reject empty intervals, and unit-information
   inputs require finite values. Formula warnings and help retain declared
   component roots, complete intercept priors and ordered-factor semantics.

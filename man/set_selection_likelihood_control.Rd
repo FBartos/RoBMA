@@ -31,7 +31,7 @@ Selected-density projection fallbacks instead retain the prior Gaussian
 and one proposal optimized from zero.}
 
 \item{max_points_per_scramble}{largest nested-design budget used for a
-certified factor fallback, or a post-fit Gaussian event
+certified factor fallback, including fitting-time refinement, or a post-fit Gaussian event
 calculation, when the initial \code{points_per_scramble} budget fails its
 integration diagnostic. Refinement doubles the point count up to this
 value while reusing the same fixed design.}
@@ -67,7 +67,7 @@ A \code{RoBMA_selection_likelihood_control} object.
 Creates numerical integration settings for the product and best-p-value
 selection likelihoods used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
 \code{\link[=RoBMA.mv]{RoBMA.mv()}}. Covariance factors use deterministic sequences of
-Gauss-Hermite rules. Certified factors of structural rank one through four
+Gauss-Hermite rules. Certified factors of structural rank one through eight
 fall back to randomized quasi-Monte Carlo in the factor dimension when the
 quadrature sequence does not converge. General covariance blocks with
 product weights first try same-diagonal covariance approximations with a

@@ -45,6 +45,56 @@ test_that("post-fit selection controls are explicit and validated", {
 })
 
 
+test_that("selection integer controls reject values outside their storage range", {
+
+  too_large <- as.double(.Machine$integer.max) + 1
+  for (argument in c("points_per_scramble", "max_points_per_scramble", "scrambles", "seed")) {
+    args <- stats::setNames(list(too_large), argument)
+    if (argument == "points_per_scramble") args$max_points_per_scramble <- too_large
+    expect_error(do.call(set_selection_likelihood_control, args),
+      paste0("The '", argument, "' must be equal or lower than 2147483647."), fixed = TRUE)
+  }
+  control <- set_selection_likelihood_control(points_per_scramble = .Machine$integer.max,
+    max_points_per_scramble = .Machine$integer.max, scrambles = 2L, seed = .Machine$integer.max)
+  expect_identical(control$points_per_scramble, .Machine$integer.max)
+  expect_identical(control$max_points_per_scramble, .Machine$integer.max)
+  expect_identical(control$seed, .Machine$integer.max)
+})
+
+
+test_that("selection model syntax preserves tolerance independently of print precision", {
+
+  tolerance <- .0012345678901234567
+  object <- bselmodel.mv(yi = c(.1, .2), V = matrix(c(.04, .01, .01, .09), 2L),
+    random = ~ id(1 | study), data = data.frame(study = c("a", "a")),
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    prior_heterogeneity = BayesTools::prior_random(sd = BayesTools::prior("point", list(location = 0))),
+    selection_control = set_selection_likelihood_control(relative_tolerance = tolerance),
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  low <- withr::with_options(list(digits = 3), .create_model_syntax(object$data, object$priors))
+  high <- withr::with_options(list(digits = 17), .create_model_syntax(object$data, object$priors))
+  expect_identical(low, high)
+  expect_true(grepl(format(tolerance, digits = 17, scientific = FALSE), low, fixed = TRUE))
+})
+
+
+test_that("selection diagnostic remedies name the available control entrypoints", {
+
+  suffix <- paste0("'selection_control' when fitting, 'integration_control' in zplot(), or ",
+    "'density_control$integration_control' for supported post-fit densities and hypotheses.")
+  expect_error(.selection_conditioned_sampling_diagnostics(
+    list(relative_mcse = .02, relative_change = .03), list(relative_tolerance = .005)),
+    paste0("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
+      format(.02), " and nested-design relative change was ", format(.03),
+      ". Increase 'max_points_per_scramble' or ",
+      "'scrambles' with 'set_selection_likelihood_control()'. Pass the control as ", suffix), fixed = TRUE)
+  expect_error(.selection_joint_dense_loglik_check_mcse(.02, list(relative_tolerance = .005)),
+    paste0("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
+      "0.02. Increase 'points_per_scramble' or 'scrambles' in 'set_selection_likelihood_control()'. ",
+      "Pass the control as ", suffix), fixed = TRUE)
+})
+
+
 test_that("post-fit budgets preserve fitted metadata and isolate evaluation caches", {
 
   control <- set_selection_likelihood_control(

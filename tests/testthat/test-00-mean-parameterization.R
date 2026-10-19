@@ -52,6 +52,8 @@ test_that("mean-centered selection intercepts use retained source metadata", {
   expect_identical(study$parameterization_resolved, "mean_centered")
   condition <- tryCatch(create("integrate"), error = identity)
   expect_identical(conditionMessage(condition),
-    "Mean-centered parameterization is unavailable for integrated selection source 'study'.")
+    paste0("Mean-centered parameterization is unavailable for integrated selection source 'study'. ",
+      "Use 'random_block(parameterization = \"centered\")' or ",
+      "'random_block(parameterization = \"noncentered\")' in 'prior_heterogeneity'."))
   expect_null(conditionCall(condition))
 })

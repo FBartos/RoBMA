@@ -19,7 +19,7 @@
 #' If the available-memory query fails, a warning is issued and caching stays
 #' disabled until a budget can be resolved or supplied explicitly.
 #' Loading the package does not query available memory. The first selection
-#' computation initializes the current process's cache, including computations
+#' computation or cache inspection initializes the current process's cache, including computations
 #' on a saved fit. Explicit option changes and fitting setup also initialize it.
 #' Exact and coarse entries share one byte budget for directly allocated key,
 #' control, list-node and index blocks, with global least-recently-used eviction.
@@ -69,6 +69,7 @@ selection_cache_info <- function(clear = FALSE, component = c("all", "exact", "c
     stop("Selection cache information is unavailable because the native RoBMA routines are not loaded.",
          call. = FALSE)
   }
+  .selection_runtime_ensure()
   mask <- if (clear) switch(component, exact = 1L, coarse = 2L, all = 3L) else 0L
   info <- .Call("RoBMA_selnorm_cache_control", NULL, mask, PACKAGE = "RoBMA")
   components <- if (component == "all") c("total", "exact", "coarse") else component

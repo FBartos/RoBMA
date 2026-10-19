@@ -41,7 +41,7 @@ setting supplies an explicit total byte budget; \code{0} disables storage.
 If the available-memory query fails, a warning is issued and caching stays
 disabled until a budget can be resolved or supplied explicitly.
 Loading the package does not query available memory. The first selection
-computation initializes the current process's cache, including computations
+computation or cache inspection initializes the current process's cache, including computations
 on a saved fit. Explicit option changes and fitting setup also initialize it.
 Exact and coarse entries share one byte budget for directly allocated key,
 control, list-node and index blocks, with global least-recently-used eviction.
