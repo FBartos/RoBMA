@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Factor-level qCMDE/IWMDE hypotheses and marginal-means Bayes factors retain
+  their exact child identity in posterior metadata and request provenance.
 - BayesTools integration uses its public formula, posterior, prior-law plotting,
   and random-group APIs while preserving the existing RoBMA interfaces.
 - Allocation inclusion exports follow declared component-label positions for

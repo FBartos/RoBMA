@@ -6,6 +6,24 @@ if (!exists("skip_if_missing_fits", mode = "function", inherits = FALSE)) {
   source(testthat::test_path("common-functions.R"), local = TRUE)
 }
 
+# Check metadata on a genuinely produced child, including the identity recorded
+# before estimation in its request provenance. This does not certify precision.
+.expect_iwmde_child_identity <- function(samples, parameter, level, value = NULL,
+                                          attribute = "posterior_ordinate") {
+
+  metadata <- BayesTools::posterior_metadata(samples, attribute)
+  target <- paste0(parameter, "[", level, "]")
+  expect_identical(metadata[["parameter"]], target)
+  expect_identical(metadata[["level"]], level)
+  expected <- .iwmde_posterior_metadata(samples, target, level)
+  expect_identical(metadata[["iwmde_provenance"]][["target"]],
+    .iwmde_target_provenance(expected))
+  for (field in c("conditional", "conditional_rule", "condition_key")) {
+    expect_identical(metadata[[field]], expected[[field]], info = field)
+  }
+  if (!is.null(value)) expect_identical(metadata[["value"]], value)
+}
+
 .bridge_shared_prior_semantics <- function(object, focal) {
 
   priors <- object[["priors"]]

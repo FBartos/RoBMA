@@ -106,6 +106,9 @@ test_that("marginal means retain genuine qCMDE curves and usable point ordinates
   averaged_cells <- means[["inference"]][["averaged"]][["mu_alloc"]]
   expect_named(cells, c("alternate", "random", "systematic"))
   expect_named(averaged_cells, names(cells))
+  requests <- .marginal_means_ordinate_request_provenance(means, "mu_alloc", 0, "qCMDE")
+  context <- .iwmde_context(fit)
+  control <- .marginal_means_iwmde_settings_control(means, "qCMDE", "ordinate")
   for (level in names(cells)) {
     curve <- BayesTools::posterior_metadata(averaged_cells[[level]], "posterior_density")
     ordinate <- BayesTools::posterior_metadata(cells[[level]], "posterior_ordinate")
@@ -117,6 +120,22 @@ test_that("marginal means retain genuine qCMDE curves and usable point ordinates
     expect_identical(ordinate[["status"]], "ok", info = level)
     expect_true(is.finite(ordinate[["ordinate"]]) && ordinate[["ordinate"]] > 0)
     expect_true(ordinate[["diagnostics"]][["n_evaluated_rows"]] > 0L)
+    .expect_iwmde_child_identity(cells[[level]], "mu_alloc", level, 0)
+    .expect_iwmde_child_identity(averaged_cells[[level]], "mu_alloc", level,
+      attribute = "posterior_density")
+    expect_true(.iwmde_posterior_ordinate_matches_request(ordinate, 0, requests[[level]]))
+    spec <- .iwmde_marginal_means_specs(means, "mu_alloc", "conditional", level)[[1L]]
+    legacy_metadata <- .marginal_means_iwmde_metadata(means, "conditional", spec)
+    legacy_metadata[["parameter"]] <- "mu_alloc"
+    legacy_request <- .iwmde_request_provenance(context, spec[["label"]], "qCMDE",
+      control, attribute = "ordinate", value = 0, parameter_spec = spec,
+      metadata = legacy_metadata)
+    expect_false(identical(requests[[level]][["request_key"]], legacy_request[["request_key"]]))
+    expect_false(.iwmde_posterior_ordinate_matches_request(ordinate, 0, legacy_request))
+    absent <- means
+    absent[["inference"]][["conditional"]][["mu_alloc"]] <- NULL
+    expect_identical(.marginal_means_iwmde_metadata(absent, "conditional", spec),
+      list(parameter = paste0("mu_alloc[", level, "]"), level = level))
   }
 
   # Under the declared independent Normal treatment priors the random-cell

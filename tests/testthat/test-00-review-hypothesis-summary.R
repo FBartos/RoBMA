@@ -191,7 +191,20 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
   failures <- vapply(means$density_diagnostics$averaged, function(record)
     .iwmde_diagnostics_density_failure_reason(record$diagnostics), character(1L))
   expect_true(all(grepl("120 estimator rows across.*2 active states", failures)))
+  captured <- NULL
+  compute <- BayesTools::hypothesis_BF
+  testthat::local_mocked_bindings(
+    hypothesis_BF = function(posterior, ...) {
+      captured <<- posterior
+      compute(posterior = posterior, ...)
+    },
+    .package = "BayesTools"
+  )
   point <- hypothesis(means, "intercept = .1", density_method = "qCMDE", seed = 19)
+  child <- captured[["conditional"]][["mu_intercept"]][["intercept"]]
+  .expect_iwmde_child_identity(child, "mu_intercept", "intercept", .1)
+  expect_identical(BayesTools::posterior_metadata(child, "condition"),
+    BayesTools::posterior_metadata(means$inference$conditional$mu_intercept$intercept, "condition"))
   expect_true(is.finite(as.numeric(point$BF)))
   diagnostics <- density_diagnostics(point)
   expect_identical(diagnostics$requested_samples, 500)

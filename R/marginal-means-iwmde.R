@@ -359,14 +359,15 @@
 
   parameter <- spec[["parameter"]]
   level     <- spec[["level"]]
+  target    <- paste0(parameter, "[", level, "]")
   samples   <- marginal_means_object[["inference"]][[type]][[parameter]]
   if (is.null(samples)) {
-    return(list(parameter = parameter, level = level))
+    return(list(parameter = target, level = level))
   }
 
   return(.iwmde_posterior_metadata(
     samples   = samples[[level]],
-    parameter = parameter,
+    parameter = target,
     level     = level
   ))
 }

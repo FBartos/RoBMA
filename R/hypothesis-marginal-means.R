@@ -583,7 +583,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   spec <- specs[[1L]]
   metadata <- .iwmde_posterior_metadata(
     samples   = sample,
-    parameter = parameter,
+    parameter = label,
     level     = spec[["level"]]
   )
   expected_provenance <- .iwmde_request_provenance(

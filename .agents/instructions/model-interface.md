@@ -35,6 +35,11 @@ diagnostics, and matching unavailable posterior-density source. Missing-source,
 refit, other transform, invalid-context and programming errors remain strict.
 An explicit late KDE summary BF request computes skipped BFs from stored
 conditional cells at the stored null; existing computed results are retained.
+Factor-level qCMDE/IWMDE producers declare the exact parent[level] child identity
+in posterior metadata before request/plan provenance is created, retaining the
+separate level and declared condition, including the empty averaged event.
+Marginal-means display labels are not target aliases; wrong-level metadata
+remains ineligible for the requested child.
 
 Expanded hypothesis results retain positional statement identity in the
 producer's uniform statement-major quantity loop. Identical statement text

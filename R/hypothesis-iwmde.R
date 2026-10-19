@@ -400,7 +400,7 @@
     parameter_spec = parameter_spec,
     metadata       = .iwmde_posterior_metadata(
       samples   = posterior[[level]],
-      parameter = parameter,
+      parameter = paste0(parameter, "[", level, "]"),
       level     = level
     ),
     cache          = estimate_cache

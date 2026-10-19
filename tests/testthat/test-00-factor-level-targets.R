@@ -351,6 +351,16 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
     suppressWarnings(hypothesis(ordered, "g[mid] = 0", density_method = "KDE")),
     class = "BayesTools_infinite_ordinate"
   )
+  # Observe the actual public BF input without replacing its computation.
+  captured <- NULL
+  compute <- BayesTools::hypothesis_BF
+  testthat::local_mocked_bindings(
+    hypothesis_BF = function(posterior, ...) {
+      captured <<- c(list(posterior = posterior), list(...))
+      do.call(compute, captured)
+    },
+    .package = "BayesTools"
+  )
   # A finite Bayes factor needs only a small qCMDE grid and row sample.
   control <- list(n_points = 20, samples = 50)
   for (method in c("KDE", "qCMDE")) {
@@ -360,6 +370,20 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
         density_control = if (identical(method, "qCMDE")) control
       ))
       expect_true(is.finite(attr(result, "raw_BF")), info = paste(statement, method))
+      if (identical(method, "qCMDE")) {
+        level <- if (identical(statement, "g[mid] = 0.1")) "mid" else "hi"
+        value <- if (identical(level, "mid")) 0.1 else 0
+        .expect_iwmde_child_identity(captured[["posterior"]][[level]], "mu_g", level, value)
+        condition <- BayesTools::posterior_metadata(captured[["posterior"]][[level]], "condition")
+        expect_true(condition[["averaged"]])
+        expect_identical(condition[["condition_key"]], "<averaged>")
+        wrong <- captured
+        ordinate <- BayesTools::posterior_metadata(wrong[["posterior"]][[level]], "posterior_ordinate")
+        ordinate[["parameter"]] <- "mu_g[lo]"
+        BayesTools::posterior_metadata(wrong[["posterior"]][[level]], "posterior_ordinate") <- ordinate
+        expect_error(do.call(compute, wrong),
+          "requires valid posterior ordinate or posterior density metadata", fixed = TRUE)
+      }
     }
   }
 
@@ -772,12 +796,30 @@ test_that("point hypotheses on the fixed reference level give one reason for eve
     class = "RoBMA_hypothesis_fixed"
   )
 
+  captured <- NULL
+  compute <- BayesTools::hypothesis_BF
+  testthat::local_mocked_bindings(
+    hypothesis_BF = function(posterior, ...) {
+      captured <<- c(list(posterior = posterior), list(...))
+      do.call(compute, captured)
+    },
+    .package = "BayesTools"
+  )
   # The other levels keep their qCMDE ordinates, and contrasts with the
   # reference level are defined.
   expect_s3_class(
     suppressWarnings(hypothesis(fit, c("g1[10] = 0", "g1[20] = 0"), seed = 1)),
     "data.frame"
   )
+  for (level in c("10", "20")) {
+    .expect_iwmde_child_identity(captured[["posterior"]][[level]], "mu_g1", level, 0)
+    wrong <- captured
+    ordinate <- BayesTools::posterior_metadata(wrong[["posterior"]][[level]], "posterior_ordinate")
+    ordinate[["parameter"]] <- "mu_g1[5]"
+    BayesTools::posterior_metadata(wrong[["posterior"]][[level]], "posterior_ordinate") <- ordinate
+    expect_error(do.call(compute, wrong),
+      "requires valid posterior ordinate or posterior density metadata", fixed = TRUE)
+  }
   expect_s3_class(
     suppressWarnings(hypothesis(fit, "g1[10] = g1[5]", density_method = "KDE")),
     "data.frame"
