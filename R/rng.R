@@ -303,6 +303,7 @@
     n_samples = S,
     required  = c("omega", "kernel_mode", "use_normal", "vector_rule")
   )
+  .selection_joint_check_event_geometry(selection_context)
   if (any(!selection_context[["kernel_mode"]] %in%
           c(SELKERNEL_NORMAL, SELKERNEL_STEP))) {
     stop("Selected response simulation requires a step selection kernel.",
@@ -314,6 +315,7 @@
          call. = FALSE)
   }
   .known_v_validate_dependency_blocks(dependency_blocks, K)
+  dependency_blocks <- lapply(dependency_blocks, as.integer)
 
   p_cuts  <- .selection_assert_p_cuts(selection_context[["p_cuts"]])
   z_lower <- stats::qnorm(p_cuts[-1L], lower.tail = FALSE)

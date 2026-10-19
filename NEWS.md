@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Partial selection events validate their required geometry and selected-response
+  simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and
   explicit caller structure rather than posterior column-name spelling.
 - Removed an unused private CDF facade while retaining independent CDF and

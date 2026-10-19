@@ -1590,7 +1590,7 @@
 # @param vi           numeric vector of sampling variances
 # @param cluster      integer vector of cluster identifiers
 #
-# @return A list with S x K matrices `cluster` and `estimate`.
+# @return A list with S x K matrices `cluster`, `estimate`, and their `total`.
 #
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.multilevel_blup.norm <- function(mu_samples, tau_within, tau_between,

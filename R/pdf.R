@@ -5,6 +5,19 @@
 # Shared full-event weighting and Gaussian conditioning for partial-vector
 # densities, deletion scores, and selected-density projections.
 # ============================================================================ #
+
+.selection_joint_check_event_geometry <- function(context) {
+
+  sign <- context[["sign"]]
+  if (!is.numeric(sign) || is.complex(sign) || length(sign) != 1L ||
+      !is.finite(sign) || !sign %in% c(-1, 1)) {
+    stop("Selection-event context 'sign' must be -1 or 1.", call. = FALSE)
+  }
+  .selection_assert_p_cuts(context[["p_cuts"]])
+  invisible(TRUE)
+}
+
+
 # A partial vector is evaluated inside its original publication event. The
 # returned numerator still needs that event's original normalizing constant.
 .selection_joint_event_numerator <- function(
@@ -15,8 +28,9 @@
   mean <- as.matrix(mean)
   S <- nrow(mean)
   K <- ncol(mean)
-  if (!is.numeric(observed) || anyNA(observed) ||
-      any(observed != as.integer(observed)) || anyDuplicated(observed) ||
+  .selection_joint_check_event_geometry(selection_context)
+  if (!is.numeric(observed) || is.complex(observed) || any(!is.finite(observed)) ||
+      any(observed != trunc(observed)) || anyDuplicated(observed) ||
       any(observed < 1L | observed > K)) {
     stop("Observed selection-event indices must be unique valid row indices.", call. = FALSE)
   }
@@ -65,7 +79,9 @@
   conditional_mean <- mean[, missing, drop = FALSE]
   missing_pairs <- which(lower.tri(matrix(0, length(missing), length(missing)),
                                   diag = TRUE), arr.ind = TRUE)
-  conditional_lower <- matrix(0, S, nrow(missing_pairs))
+  conditional_lower <- if (is.null(rank_one_loading)) {
+    matrix(0, S, nrow(missing_pairs))
+  } else NULL
   conditional_rank_one <- NULL
   gaussian_log_density <- numeric(S)
   if (!is.null(rank_one_loading)) {
@@ -152,6 +168,7 @@
 
 .selection_joint_log_weight <- function(y, sei, context) {
 
+  .selection_joint_check_event_geometry(context)
   y <- as.matrix(y)
   S <- nrow(y)
   rule <- context[["vector_rule"]]
@@ -189,6 +206,7 @@
 
 .selection_joint_condition_event_context <- function(context, observed, sei) {
 
+  .selection_joint_check_event_geometry(context)
   observed <- as.matrix(observed)
   S <- nrow(context[["omega"]])
   rule <- context[["vector_rule"]]

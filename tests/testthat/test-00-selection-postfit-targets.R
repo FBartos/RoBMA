@@ -123,16 +123,18 @@ test_that("declared rank-one partial events condition the scalar latent exactly"
   mean <- matrix(c(.1, .3), 1L)
   loading <- matrix(c(.8, -1.2), 1L)
   sei <- c(.8, 1.2)
-  observed <- .6
-  missing <- .3 - 1.2 * (observed - .1) / .8
-  for (rule in c("product", "best")) {
-    context <- .postfit_selection_context("one-sided", rule, 1L)
+  for (side in c("one-sided", "two-sided")) for (rule in c("product", "best")) {
+    observed <- if (side == "one-sided") .6 else 1.4
+    missing <- .3 - 1.2 * (observed - .1) / .8
+    context <- .postfit_selection_context(side, rule, 1L)
     value <- .selection_joint_event_numerator(
       mean, selection_se = sei, selection_context = context,
       execution_plan = plan, observed = 1L, values = observed,
       rank_one_loading = loading
     )
-    p <- stats::pnorm(c(observed, missing) / sei, lower.tail = FALSE)
+    p <- if (side == "two-sided") {
+      2 * stats::pnorm(-abs(c(observed, missing) / sei))
+    } else stats::pnorm(c(observed, missing) / sei, lower.tail = FALSE)
     weight <- c(1, 2, .4)[findInterval(p, c(0, .05, .3, 1))]
     expected <- stats::dnorm(observed, .1, .8, log = TRUE) +
       if (rule == "product") sum(log(weight)) else log(weight[which.min(p)])
@@ -155,6 +157,51 @@ test_that("declared rank-one partial events condition the scalar latent exactly"
     "rank-one law has no Lebesgue density."
   ))
   expect_null(conditionCall(error))
+})
+
+
+test_that("partial events require their sign and p-value geometry", {
+
+  context <- .postfit_selection_context("one-sided", "product", 1L)
+  invalid <- context
+  invalid[["sign"]] <- NULL
+  expect_error(.selection_joint_log_weight(matrix(.2, 1L, 2L), c(1, 1), invalid),
+    "Selection-event context 'sign' must be -1 or 1.", fixed = TRUE)
+  invalid <- context
+  invalid[["p_cuts"]] <- NULL
+  expect_error(.selection_joint_condition_event_context(invalid, matrix(.2), 1),
+    "Selection p-value cut breaks must be finite numeric values.", fixed = TRUE)
+})
+
+
+test_that("selected response accepts validated double indices without changing draws", {
+
+  context <- .postfit_selection_context("one-sided", "product", 2L)
+  covariance <- array(0, c(2L, 2L, 2L))
+  covariance[, 1L, 1L] <- 1
+  covariance[, 2L, 2L] <- 1
+  call <- list(mu_samples = matrix(0, 2L, 2L), covariance_samples = covariance,
+    sei = c(1, 1), selection_context = context, dependency_blocks = list(1:2))
+  withr::local_seed(235)
+  expected <- do.call(.outcome_rng.selnorm_mvn, call)
+  expected_seed <- .Random.seed
+  call[["dependency_blocks"]] <- list(c(1, 2))
+  set.seed(235)
+  actual <- tryCatch(do.call(.outcome_rng.selnorm_mvn, call), error = identity)
+  expect_false(inherits(actual, "error"))
+  if (!inherits(actual, "error")) {
+    expect_identical(actual, expected)
+    expect_identical(.Random.seed, expected_seed)
+  }
+  warnings <- character()
+  call[["dependency_blocks"]] <- list(c(1, 2^31))
+  error <- withCallingHandlers(tryCatch(do.call(.outcome_rng.selnorm_mvn, call),
+    error = identity), warning = function(warning) {
+      warnings <<- c(warnings, conditionMessage(warning))
+      invokeRestart("muffleWarning")
+    })
+  expect_identical(conditionMessage(error), "Known-V block metadata must partition the fitted rows.")
+  expect_length(warnings, 0L)
 })
 
 

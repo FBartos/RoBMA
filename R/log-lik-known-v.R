@@ -87,9 +87,12 @@
     stop("Known-V block metadata must partition the fitted rows.",
          call. = FALSE)
   }
-  if (any(flat != as.integer(flat))) {
+  if (any(flat != trunc(flat))) {
     stop("Known-V block metadata must contain integer row indices.",
          call. = FALSE)
+  }
+  if (any(flat < 1 | flat > K)) {
+    stop("Known-V block metadata must partition the fitted rows.", call. = FALSE)
   }
   flat <- as.integer(flat)
   if (length(flat) != K || !identical(sort(flat), seq_len(K))) {
