@@ -1001,6 +1001,7 @@
   )
   samples <- synced[["samples"]]
   valid   <- valid & synced[["valid"]]
+  changed_parameters <- c(changed_parameters, synced[["changed_parameters"]])
   return(list(
     samples            = samples,
     valid              = valid,
@@ -1100,7 +1101,7 @@
   valid   <- rep(TRUE, nrow(samples))
   if (length(parameters) == 0L || is.null(context[["object"]][["fit"]]) ||
       is.null(context[["data"]]) || !.is_data_random(context[["data"]])) {
-    return(list(samples = samples, valid = valid))
+    return(list(samples = samples, valid = valid, changed_parameters = character()))
   }
 
   nodes <- .iwmde_random_sd_sync_nodes(
@@ -1109,7 +1110,7 @@
     columns    = colnames(samples)
   )
   if (length(nodes) == 0L) {
-    return(list(samples = samples, valid = valid))
+    return(list(samples = samples, valid = valid, changed_parameters = character()))
   }
 
   evaluate <- .iwmde_deterministic_evaluator(context, nodes)
@@ -1120,7 +1121,7 @@
     samples[finite, nodes] <- derived[finite, , drop = FALSE]
   }
 
-  return(list(samples = samples, valid = valid))
+  return(list(samples = samples, valid = valid, changed_parameters = nodes))
 }
 
 
