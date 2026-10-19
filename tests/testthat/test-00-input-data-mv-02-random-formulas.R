@@ -738,7 +738,67 @@ test_that("brma.mv validates random formula edge cases", {
     .create_model_syntax(scale_random[["data"]], scale_random[["priors"]]),
     "tau\\[i\\] = exp\\(log_tau\\[i\\]\\)"
   )
-  expect_false(.summary_random_components_enabled(scale_random))
+  summary_replay <- function(object) {
+
+    setup <- review_compile_object(object)
+    compiled <- setup[["compiled"]]
+    priors <- c(do.call(c, unname(lapply(compiled, `[[`, "prior_list"))),
+      .create_fit_priors(object[["data"]], object[["priors"]]))
+    additional <- unique(unlist(lapply(compiled, `[[`, "add_parameters")))
+    expanded <- list()
+    row_sources <- outputs <- auxiliary <- character()
+    K <- nrow(object[["data"]][["outcome"]])
+    for (parameter in names(compiled)) {
+      design <- compiled[[parameter]][["formula_design"]]
+      map <- design[["name_map"]]
+      output <- map[["jags_name"]][map[["kind"]] == "formula_output"]
+      outputs <- c(outputs, paste0(output, "[", seq_len(K), "]"))
+      for (term in design[["random_effects"]]) {
+        base <- map[["jags_name"]][map[["kind"]] == "random" &
+          map[["term"]] == term[["block_name"]] & map[["role"]] == "_xRE_Zx"]
+        if (identical(term[["compile_mode"]], "sampled")) {
+          stopifnot(length(base) == 1L, base %in% additional)
+          index <- expand.grid(group = seq_len(term[["n_groups"]]),
+            column = seq_len(term[["n_columns"]]))
+          expanded[[base]] <- paste0(base, "[", index[["group"]], ",", index[["column"]], "]")
+        } else {
+          stopifnot(!any(base %in% additional))
+        }
+        source <- term[["sd_binding"]][["source"]]
+        stopifnot(identical(source[["shape"]], "row"))
+        row_sources <- c(row_sources, paste0(source[["name"]], "[", seq_len(K), "]"))
+      }
+      for (allocation in design[["random_allocations"]]) {
+        auxiliary <- c(auxiliary, .iwmde_simplex_auxiliary_columns(
+          allocation[["weight_name"]], allocation[["n_targets"]]))
+      }
+    }
+    # Marginalized terms emit no latent even when their monitoring policy can
+    # retain one. Cover every actual compiler-added monitor from its shape.
+    stopifnot(setequal(names(expanded), additional))
+    columns <- unique(c(review_prior_columns(priors), unlist(expanded),
+      row_sources, outputs, auxiliary))
+    samples <- matrix(0, 4L, length(columns), dimnames = list(NULL, columns))
+    samples[, unique(row_sources)] <- 1
+    if (length(auxiliary)) samples[, auxiliary] <- 1
+    for (parameter in .data_scale_formula_parameters(object[["data"]])) {
+      samples[, review_coefficient_name(setup, "intercept", parameter)] <- 1
+    }
+    for (design in lapply(compiled, `[[`, "formula_design")) {
+      for (allocation in design[["random_allocations"]]) {
+        weights <- paste0(allocation[["weight_name"]], "[",
+          seq_len(allocation[["n_targets"]]), "]")
+        samples[, weights] <- 1 / allocation[["n_targets"]]
+      }
+    }
+    replay <- review_attach_replay(setup, samples)
+    BayesTools::JAGS_validate_fit_contract(replay[["fit"]], requires = c(
+      "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+
+    replay
+  }
+  scale_random_replay <- summary_replay(scale_random)
+  expect_false(.summary_random_components_enabled(scale_random_replay))
 
   component_scale_random <- brma.mv(
     yi                        = yi,
@@ -1008,7 +1068,8 @@ test_that("brma.mv validates random formula edge cases", {
     prior_unit_information_sd = 1,
     only_priors               = TRUE
   )
-  expect_true(.summary_random_components_enabled(nested_scale_random))
+  nested_scale_random_replay <- summary_replay(nested_scale_random)
+  expect_true(.summary_random_components_enabled(nested_scale_random_replay))
   expect_equal(
     nested_scale_random[["priors"]][["random"]][["allocation"]][[1]][["name"]],
     "heterogeneity"

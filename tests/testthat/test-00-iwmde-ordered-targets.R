@@ -1432,7 +1432,7 @@ test_that("analytic source normalizers bypass an unused normalization grid", {
   priors <- list(intercept = BayesTools::prior("point", list(0)),
     f = BayesTools::prior_ordered(total, allocation = allocation))
   arguments <- list(yi = dat[["yi"]], sei = dat[["sei"]], mods = ~f, data = dat, measure = "SMD",
-    only_priors = TRUE, prior_effect = BayesTools::prior("point", list(0)),
+    only_priors = TRUE,
     prior_heterogeneity = BayesTools::prior("point", list(0)), prior_mods = priors)
   if (selected) {
     arguments[["effect_direction"]] <- direction

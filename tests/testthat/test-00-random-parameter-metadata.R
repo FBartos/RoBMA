@@ -783,6 +783,15 @@ test_that("allocated component SD targets use declared catalog provenance", {
   )
   fit <- structure(
     coda::mcmc(posterior),
+    prior_list = list(
+      tau = BayesTools::prior(
+        "normal", parameters = list(mean = 0, sd = 1),
+        truncation = list(lower = 0, upper = Inf)
+      ),
+      weight = BayesTools::prior(
+        "dirichlet", parameters = list(alpha = c(1, 1))
+      )
+    ),
     formula_design = list(list(
       parameter      = "mu",
       random_effects = list(term)
