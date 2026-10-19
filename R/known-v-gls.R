@@ -400,17 +400,6 @@
 }
 
 
-.known_v_append_sampling_factor <- function(random_factors, sampling_factors) {
-
-  if (is.null(sampling_factors)) return(random_factors)
-  random_factors[["factor_plans"]] <- c(random_factors[["factor_plans"]],
-    list(sampling_factors[["factor_plan"]]))
-  random_factors[["factor_states"]] <- lapply(random_factors[["factor_states"]],
-    function(states) c(states, list(sampling_factors[["factor_state"]])))
-  random_factors
-}
-
-
 .known_v_covariance_plan_precision_rhs_batch <- function(plan_data, rhs) {
 
   S <- nrow(plan_data[["extra_variances"]])

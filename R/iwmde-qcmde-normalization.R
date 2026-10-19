@@ -846,22 +846,6 @@
 }
 
 
-.iwmde_qcmde_density_from_normalizer <- function(log_q_display,
-                                                 log_normalizer,
-                                                 active_mass,
-                                                 denominator) {
-
-  keep_rows <- is.finite(log_normalizer)
-  return(.iwmde_qcmde_pilot_density(
-    log_q_display  = log_q_display,
-    log_normalizer = log_normalizer,
-    keep_rows      = keep_rows,
-    active_mass    = active_mass,
-    denominator    = denominator
-  ))
-}
-
-
 # Quadrature tolerance of the retained-location conditional normalizers.
 .iwmde_qcmde_refinement_target <- function() {
 

@@ -85,8 +85,6 @@
     )
   }
   update_grid[["factor_index"]] <- as.integer(factor_index)
-  random_factors <- .known_v_append_sampling_factor(random_factors,
-    setup[["sampling_factors"]])
 
   S <- length(row_states)
   K <- length(yi)

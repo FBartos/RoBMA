@@ -109,8 +109,9 @@ test_that("row normalizers resolve narrow Gaussian kernels missed by a shared gr
   expect_equal(range(evaluation[["nested"]][["z"]]), range(z))
   expect_identical(evaluation$conditional_normalization$methods,
     rep("normal_product", 2L))
-  density <- .iwmde_qcmde_density_from_normalizer(evaluation$log_q_display,
-    evaluation[["nested"]][["log_normalizer"]], active_mass = 1, denominator = 2L)
+  density <- .iwmde_qcmde_pilot_density(evaluation$log_q_display,
+    evaluation[["nested"]][["log_normalizer"]],
+    is.finite(evaluation[["nested"]][["log_normalizer"]]), active_mass = 1, denominator = 2L)
   expected <- rowMeans(vapply(seq_along(current), function(row) {
     stats::dnorm(values, conditional_mean[row], conditional_sd[row])
   }, numeric(length(values))))

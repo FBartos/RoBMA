@@ -109,8 +109,6 @@
     row_blocks        = setup[["dependency_blocks"]],
     data              = data
   )
-  random_factors <- .known_v_append_sampling_factor(random_factors,
-    setup[["sampling_factors"]])
 
   S <- nrow(posterior_samples)
   K <- nrow(data[["outcome"]])
@@ -1033,8 +1031,6 @@
     row_blocks        = random_setup[["dependency_blocks"]],
     data              = context[["data"]]
   )
-  random_factors <- .known_v_append_sampling_factor(random_factors,
-    random_setup[["sampling_factors"]])
 
   S <- setup[["S"]]
   K <- setup[["K"]]

@@ -121,9 +121,6 @@
       valid_positions <- which(valid)
       valid_samples   <- candidates[["samples"]][valid, , drop = FALSE]
       active_setup    <- group_states[[1L]][["active_setup"]]
-      # TODO: optimization needed: full-V marginal selection grids repeat native
-      # factor normalizers across replacement states and values; optimize that
-      # work while retaining the declared target and diagnostic controls.
       log_lik <- log_lik_fun(
         samples      = valid_samples,
         active_setup = active_setup,
@@ -1033,15 +1030,6 @@
     return(list(row = row, valid = valid))
   }
 
-  if (identical(replacement[["type"]], "linear")) {
-    return(.iwmde_replace_linear_row(
-      context     = context,
-      state       = state,
-      value       = value,
-      replacement = replacement
-    ))
-  }
-
   if (identical(replacement[["type"]], "simplex_pair")) {
     n_targets         <- replacement[["n_targets"]]
     columns           <- paste0(
@@ -1099,19 +1087,6 @@
       valid = synced[["valid"]]
     ))
   }
-
-  row <- state[["row"]]
-  row[[parameter]] <- value
-  synced <- .iwmde_sync_replacement_row(
-    context    = context,
-    row        = row,
-    parameters = parameter
-  )
-
-  return(out(
-    synced[["row"]],
-    valid = synced[["valid"]]
-  ))
 }
 
 
@@ -1220,39 +1195,6 @@
     row        = synced[["row"]],
     parameters = parameters
   )
-}
-
-
-.iwmde_replace_linear_row <- function(context, state, value, replacement) {
-
-  out <- function(row, valid = TRUE) {
-    return(list(row = row, valid = valid))
-  }
-
-  row    <- state[["row"]]
-  linear <- .iwmde_linear_replacement_state(
-    context     = context,
-    state       = state,
-    replacement = replacement
-  )
-  if (!isTRUE(linear[["valid"]]) || !is.finite(value)) {
-    return(out(row, valid = FALSE))
-  }
-
-  if (length(linear[["active_columns"]]) == 0L) {
-    valid <- linear[["current"]] == value
-    return(out(row, valid = valid))
-  }
-
-  row[linear[["active_columns"]]] <- row[linear[["active_columns"]]] +
-    (value - linear[["current"]]) * linear[["coefficients"]]
-  synced <- .iwmde_sync_replacement_row(
-    context    = context,
-    row        = row,
-    parameters = linear[["active_columns"]]
-  )
-
-  return(out(synced[["row"]], valid = synced[["valid"]]))
 }
 
 
@@ -1453,53 +1395,6 @@
       parameters            = parameters,
       use_focal_prior_delta = FALSE
     ))
-  }
-
-  if (identical(replacement[["type"]], "scalar")) {
-    parameters <- state[["parameters"]]
-    name       <- replacement[["name"]]
-    if (!is.null(parameters[[name]])) {
-      parameters[[name]] <- value
-      synced <- .iwmde_sync_replacement_row(
-        context    = context,
-        row        = row,
-        parameters = name
-      )
-      if (!isTRUE(synced[["valid"]])) {
-        return(out(synced[["row"]], parameters, valid = FALSE))
-      }
-      parameters <- .iwmde_row_parameters(
-        context      = context,
-        row          = synced[["row"]],
-        active_setup = state[["active_setup"]],
-        state_scope  = .iwmde_state_scope_value(state)
-      )
-      return(out(synced[["row"]], parameters))
-    }
-  }
-
-  if (identical(replacement[["type"]], "indexed")) {
-    parameters <- state[["parameters"]]
-    name       <- replacement[["name"]]
-    index      <- replacement[["index"]]
-    if (!is.null(parameters[[name]]) && length(parameters[[name]]) >= index) {
-      parameters[[name]][index] <- value
-      synced <- .iwmde_sync_replacement_row(
-        context    = context,
-        row        = row,
-        parameters = parameter
-      )
-      if (!isTRUE(synced[["valid"]])) {
-        return(out(synced[["row"]], parameters, valid = FALSE))
-      }
-      parameters <- .iwmde_row_parameters(
-        context      = context,
-        row          = synced[["row"]],
-        active_setup = state[["active_setup"]],
-        state_scope  = .iwmde_state_scope_value(state)
-      )
-      return(out(synced[["row"]], parameters))
-    }
   }
 
   synced <- .iwmde_sync_replacement_row(

@@ -440,8 +440,9 @@ test_that("a cached normalization with closed-form rows serves a second ordinate
                tolerance = 1e-10)
 
   # The second ordinate is the mixture of the rows' normals at its values.
-  density <- .iwmde_qcmde_density_from_normalizer(
-    second[["log_q_display"]], second[["summary"]][["log_normalizer"]], 1, 3L)
+  density <- .iwmde_qcmde_pilot_density(
+    second[["log_q_display"]], second[["summary"]][["log_normalizer"]],
+    is.finite(second[["summary"]][["log_normalizer"]]), 1, 3L)
   expected <- vapply(c(.05, .15), function(x) {
     mean(vapply(seq_along(rows), function(i) {
       exp(.cf_log_q(rows[[i]], x) - .cf_log_normalizer[[names(rows)[[i]]]])

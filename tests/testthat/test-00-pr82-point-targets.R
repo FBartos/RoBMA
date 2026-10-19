@@ -19,9 +19,8 @@ test_that("all-point linear targets use one declared-metadata arithmetic path", 
   state <- list(row = samples[1L, ], row_index = 1L,
                  parameters = list(mu = 0), baseline_log_prior = 0)
   expect_identical(.iwmde_linear_value_row(context, state[["row"]], weights), target)
-  expect_true(.iwmde_replace_linear_row(context, state, target, replacement)[["valid"]])
-  expect_false(.iwmde_replace_linear_row(context, state, .6, replacement)[["valid"]])
   expect_true(.iwmde_replace_linear_parameters(context, state, target, replacement)[["valid"]])
+  expect_false(.iwmde_replace_linear_parameters(context, state, .6, replacement)[["valid"]])
   candidates <- .iwmde_build_replacement_samples(context, "contrast", c(target, .6),
                                                   list(state), replacement)
   expect_identical(candidates[["valid"]], c(TRUE, FALSE))
