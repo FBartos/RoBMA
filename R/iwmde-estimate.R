@@ -414,8 +414,14 @@
   }
   if (!is.null(ordinate_diagnostic)) {
     if (length(plan[["grids"]][["requested_values"]]) <= 1L) {
+      selected <- ordinate_diagnostic
+      if (length(plan[["grids"]][["requested_values"]]) == 1L) {
+        selected <- .iwmde_select_ordinate_diagnostic(
+          ordinate_diagnostic, plan[["grids"]][["requested_values"]][[1L]]
+        )
+      }
       candidate_ordinate <- .iwmde_posterior_ordinate_attribute(
-        diagnostic      = ordinate_diagnostic,
+        diagnostic      = selected,
         density_method  = plan[["density_method"]],
         density_control = plan[["control"]],
         metadata        = plan[["target"]][["metadata"]],

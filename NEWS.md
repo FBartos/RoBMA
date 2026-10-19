@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Single-point density results retain only that point's prior classification
+  and warnings.
 - Density controls reject missing grid counts early, preserve display endpoints,
   and distinguish insufficient rows from an empty conditioning event.
 - Point density diagnostics preserve pilot facts and point-specific weight

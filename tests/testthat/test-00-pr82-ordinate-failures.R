@@ -344,3 +344,28 @@ test_that("rejected requested points retain their own weight diagnostics", {
   expect_identical(actual$max_weight_share, c(.2, .3))
   expect_identical(actual$relative_mcse, c(.4, .5))
 })
+
+test_that("a single accepted point keeps only its own prior classification and warnings", {
+
+  diagnostics <- .mock_iwmde_good_diagnostics("q_grid_cmde", 500L, 1, TRUE)
+  diagnostics$bf_log_ordinate <- log(.4)
+  diagnostics$prior_ordinates <- .iwmde_prior_ordinate_classifications(
+    BayesTools::prior("gamma", list(shape = .5, rate = 1)), c(0, 1))
+  diagnostics$ordinate_warnings <- .iwmde_ordinate_prior_warnings("mu",
+    diagnostics$prior_ordinates)
+  diagnostic <- list(status = "ok", parameter = "mu", diagnostics = diagnostics,
+    iwmde = list(x = 1, y = .4, log_y = log(.4), pilot_y = .4, validation_y = .4,
+      ordinate_relative_change = 0, lattice_resolution_relative_error = 0,
+      ordinate_log_change = 0, pilot_ordinate_relative_change = 0,
+      pilot_ordinate_log_change = 0, mcse = .001, relative_mcse = .01,
+      active_branch_mcse = .001, active_branch_relative_mcse = .01,
+      active_mass_component_mcse = 0, finite_terms = 500L, ess = 250,
+      max_weight_share = .01, max_log_ratio = 0))
+  result <- .iwmde_estimate_result(.pr82_failure_plan(1), ordinate_diagnostic = diagnostic)
+  ordinate <- result$posterior_ordinate
+  expect_false(is.null(ordinate))
+  expect_identical(names(ordinate$diagnostics$prior_ordinates), .iwmde_key_number(1))
+  expect_identical(ordinate$diagnostics$prior_ordinates[[1L]]$value, 1)
+  expect_true(ordinate$diagnostics$prior_ordinates[[1L]]$eligible)
+  expect_length(ordinate$diagnostics$ordinate_warnings, 0L)
+})
