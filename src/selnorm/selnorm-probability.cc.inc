@@ -68,12 +68,13 @@ double sub_logspace(double log_a, double log_b)
     return std::numeric_limits<double>::quiet_NaN();
   }
 
-  const double ratio = std::exp(log_b - log_a);
-  if (ratio >= 1) {
+  const double delta = log_b - log_a;
+  if (delta == 0.0) {
     return -INFINITY;
   }
 
-  return log_a + std::log1p(-ratio);
+  return log_a + (delta > -std::log(2.0) ?
+    std::log(-std::expm1(delta)) : std::log1p(-std::exp(delta)));
 }
 
 double interval_log_prob(double lower, double upper, double mean, double sd)

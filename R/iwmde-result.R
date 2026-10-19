@@ -10,7 +10,7 @@
 
 .iwmde_algorithm_version <- function() {
 
-  return("37")
+  return("38")
 }
 
 

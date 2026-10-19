@@ -16,14 +16,6 @@ double cpp_selnorm_normal_lpdf(double x, double mean, double sd)
   return dnorm(score, 0, 1, true) - std::log(sd);
 }
 
-double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
-                                      double sd)
-{
-  return cpp_selnorm_affine_normal_lpdf_log_scale(
-    z, sei, mean, sd, std::log(sei) - std::log(sd)
-  );
-}
-
 double cpp_selnorm_affine_normal_lpdf_log_scale(
   double z, double sei, double mean, double sd, double log_scale)
 {
@@ -436,6 +428,8 @@ bool cpp_selnorm_step_cdf_plan(
 }
 
 
+// Mean and product arrays are contiguous (stride one) across this batch.
+// SELNORM_TAIL_MAX_BINS bounds changed boundaries, rather than the bin count.
 // Telescoped step normalizers for a whole quadrature batch. For one row the
 // cutoff scores are affine in the quadrature location, so the row's scale and
 // scaled cutoffs hoist out of the loop and every tail is evaluated through the
@@ -549,8 +543,10 @@ bool cpp_selnorm_step_normalizer_product(
     }
     return true;
   }
+  std::vector<long double> attempted_product(product, product + count);
   if (step_normalizer_batch_telescoping(mean, count, sd, sei, omega, data,
-                                       product)) {
+                                       attempted_product.data())) {
+    std::copy(attempted_product.begin(), attempted_product.end(), product);
     return true;
   }
 

@@ -91,9 +91,6 @@ bool selnorm_is_descending_step_partition(const double *z_lower,
 
 double cpp_selnorm_normal_lpdf(double x, double mean, double sd);
 
-double cpp_selnorm_affine_normal_lpdf(double z, double sei, double mean,
-                                      double sd);
-
 double cpp_selnorm_affine_normal_lpdf_log_scale(
   double z, double sei, double mean, double sd, double log_scale
 );

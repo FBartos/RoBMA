@@ -28,7 +28,8 @@ test_that("the tail kernel agrees with pnorm across the supported range", {
   expect_lt(max(abs(kernel[comparable] - reference[comparable]) /
                   reference[comparable]), 1e-13)
 
-  # Beyond the range both algorithms report an exact zero.
+  # The kernel intentionally truncates tails beyond its supported range;
+  # pnorm still returns nonzero subnormal probabilities immediately beyond it.
   expect_true(all(kernel[grid > 37.5193] == 0))
   expect_identical(.selnorm_normal_upper_tail(0), 0.5)
 })
@@ -86,6 +87,11 @@ test_that("the fallback lane is as accurate as the vectorized one", {
   # it happens to be the dispatched path.
   grid <- sort(unique(c(seq(-40, 40, by = 0.002), seq(-1, 1, by = 1e-4),
                         seq(0.6, 0.75, by = 1e-5), seq(5.5, 5.8, by = 1e-5))))
+  expect_identical(.selnorm_normal_upper_tail(Inf, scalar = TRUE), 0)
+  expect_identical(.selnorm_normal_upper_tail(-Inf, scalar = TRUE), 1)
+  expect_true(is.na(.selnorm_normal_upper_tail(NaN, scalar = TRUE)))
+  expect_true(is.na(.selnorm_normal_upper_tail(NA_real_, scalar = TRUE)))
+  expect_identical(.selnorm_normal_upper_tail(numeric(0), scalar = TRUE), numeric(0))
   fallback  <- .selnorm_normal_upper_tail(grid, scalar = TRUE)
   reference <- stats::pnorm(grid, lower.tail = FALSE)
 

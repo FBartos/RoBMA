@@ -107,8 +107,8 @@ SELNORM_TAIL_INLINE Value upper_tail(Value x)
         small);
     }
     if (Lane::any(far)) {
-      // Beyond the tail cut the tail underflows the double range; the
-      // established algorithms return an exact zero there. The guarded
+      // Beyond the tail cut, intentionally omit subnormal probabilities;
+      // the established algorithms return an exact zero there. The guarded
       // magnitude keeps the unused lanes inside the fitted range.
       const Mask usable = Lane::conjunction(
         far, Lane::less_equal(magnitude, Lane::splat(tail_cut)));

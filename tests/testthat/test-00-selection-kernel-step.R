@@ -1054,3 +1054,56 @@ test_that("an estimate one ulp below a p-value cut with a non-unit SE is assigne
   )
   expect_identical(as.integer(fit_data[["sel_joint_singleton_obs_bin"]])[9L], 2L)
 })
+
+test_that("a declined quadrature batch preserves the complete scalar product", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+  rules <- .selection_joint_cluster_quadrature_rules(c(512L, 514L))
+  expect_identical(as.integer(rules$orders), c(512L, 514L))
+  expect_true(all(is.finite(rules$nodes)))
+  expect_true(all(is.finite(rules$log_weights)))
+  lse <- function(x) {
+    top <- max(x)
+    top + log(sum(exp(x - top)))
+  }
+  qmc <- as.double(BayesTools::selection_qmc_design(2L, 8L, 8L, seed = 341L))
+  for (nonunit in c(FALSE, TRUE)) for (mean in c(-37.5193, -37.5190, -37.5195)) {
+    means <- if (nonunit) c(0, mean) else mean
+    loading <- if (nonunit) c(0, -1e-6) else -1e-6
+    K <- length(means)
+    args <- list(rep(.1, K), matrix(means, 1L), matrix(rep(1, K), 1L),
+      matrix(loading, 1L), rep(1, K), matrix(c(1, 0), 1L), c(0, -Inf),
+      c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, as.double(rules$nodes),
+      as.double(rules$log_weights), as.double(rules$orders), qmc,
+      8L, 8L, 8L, .005, TRUE, 0L)
+    actual <- do.call(.Call, c(list("RoBMA_selnorm_cluster_step_loglik_batch"),
+      args, list(PACKAGE = "RoBMA")))
+    incoming <- if (nonunit) log(.5) else 0
+    reference <- incoming + stats::pnorm(mean / sqrt(1 + 1e-12), log.p = TRUE)
+    offset <- 0L
+    for (order in rules$orders) {
+      index <- offset + seq_len(order)
+      offset <- offset + order
+      nodes <- rules$nodes[index]
+      weights <- rules$log_weights[index]
+      expect_true(all(diff(nodes) > 0))
+      expect_equal(sum(nodes < 0), order / 2)
+      expect_equal(sum(nodes > 0), order / 2)
+      scalar <- stats::pnorm(mean - 1e-6 * nodes, log.p = TRUE)
+      if (mean == -37.5193) expect_true(all(scalar > log(.Machine$double.xmin)))
+      complete <- incoming + lse(weights + scalar)
+      expect_lte(abs(complete - reference),
+        128 * .Machine$double.eps * max(1, abs(reference)))
+    }
+    # Independent complete scalar-rule and Gaussian-convolution references.
+    # This extreme fixture can decline earlier with double-width long double;
+    # its complete log fallback must retain the same law on that platform.
+    expected_density <- sum(stats::dnorm(rep(.1, K), means,
+      sqrt(1 + loading^2), log = TRUE)) - reference
+    allowance <- 128 * .Machine$double.eps * max(1, abs(reference))
+    expect_lte(abs(actual$log_normalizer - reference), allowance)
+    expect_lte(abs(actual$log_density - expected_density), allowance)
+    expect_identical(actual$relative_mcse, 0)
+    expect_lte(actual$relative_change, .005)
+  }
+})

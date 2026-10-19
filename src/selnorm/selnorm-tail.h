@@ -325,20 +325,12 @@ inline void upper_tail_affine(const double *mean, std::size_t count,
   // price of the shared score on such a build, and the lane is still ahead of
   // the library erfc it replaces (23.0 ns in the same harness).
   for (std::size_t index = 0; index < count; ++index) {
-    out[index] = scalar_kernel::upper_tail(
-      std::fma(-mean[index], inverse_sd, offset));
+    const double score = std::fma(-mean[index], inverse_sd, offset);
+    // NaN must not reach the scalar kernel's integer conversions.
+    out[index] = std::isnan(score) ? score : scalar_kernel::upper_tail(score);
   }
 }
 
-
-// Q(x) for one argument. Routed through the batch so that a single value and
-// the same value inside a batch agree exactly.
-inline double upper_tail_scalar(double x)
-{
-  double result;
-  upper_tail_affine(&x, 1, 0.0, -1.0, &result);
-  return result;
-}
 
 }  // namespace selnorm_tail
 
