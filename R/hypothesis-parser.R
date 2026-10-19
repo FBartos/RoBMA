@@ -1,5 +1,4 @@
-.hypothesis_brma_point_refs <- function(hypothesis, parameter,
-                                        require_direct = TRUE) {
+.hypothesis_brma_point_refs <- function(hypothesis, parameter) {
 
   refs <- BayesTools::hypothesis_parse_point_reference(
     hypothesis     = hypothesis,
@@ -14,7 +13,7 @@
     ))
   }
 
-  if (isTRUE(require_direct) && any(!refs[["direct"]])) {
+  if (any(!refs[["direct"]])) {
     unsupported <- refs[["hypothesis"]][!refs[["direct"]]][1L]
     stop(
       "Point-null hypotheses require a direct parameter or level reference; ",
@@ -24,7 +23,7 @@
     )
   }
 
-  refs <- refs[refs[["direct"]] & refs[["parameter"]] == parameter, , drop = FALSE]
+  refs <- refs[refs[["parameter"]] == parameter, , drop = FALSE]
   if (nrow(refs) == 0L) {
     return(data.frame(
       symbol           = character(),

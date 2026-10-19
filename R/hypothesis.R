@@ -70,7 +70,8 @@
 #'
 #' @param object a fitted \code{brma}, \code{BMA}, \code{RoBMA}, or a posterior
 #' object accepted by \code{BayesTools::hypothesis_BF()}.
-#' @param ... additional arguments passed to methods.
+#' @param ... additional arguments passed to methods. For fitted \code{brma}
+#' objects, unused arguments trigger a warning.
 #'
 #' @return A \code{BayesTools_hypothesis_BF} BayesTools table.
 #'
@@ -121,9 +122,9 @@ hypothesis <- function(object, ...) {
 
 #' @rdname hypothesis
 #' @export
-hypothesis.default <- function(object, ...) {
+hypothesis.default <- function(object, hypothesis, ...) {
 
-  BayesTools::hypothesis_BF(posterior = object, ...)
+  BayesTools::hypothesis_BF(posterior = object, hypothesis = hypothesis, ...)
 }
 
 
@@ -177,7 +178,9 @@ hypothesis.default <- function(object, ...) {
 #' linear combination of the levels of one factor term (for example
 #' \code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
 #' random-effect variance are evaluated through its standard deviation, so
-#' that both give the same Bayes factor. A statement comparing such a point
+#' that both give the same Bayes factor at positive variance values. At zero,
+#' the square map is singular: the variance is tested on its own scale and
+#' follows its own prior-ordinate eligibility rules. A statement comparing such a point
 #' with a region of the variance (for example
 #' \code{"tau2 = 0.09 vs tau2 > 0.09"}) evaluates the point through the
 #' standard deviation and the region on the variance draws. Certified
@@ -401,8 +404,8 @@ hypothesis.default <- function(object, ...) {
 #' change, lattice resolution and the tail-truncation bound) warns above
 #' 2.5 percent and is
 #' rejected above 5 percent; IWMDE normalization error warns above 5 percent and
-#' is rejected above 10 percent. Adaptive-quadrature sensitivity warns above
-#' 2.5 percent and is rejected above 5 percent.
+#' is rejected above 10 percent. For retained-location conditional normalizers,
+#' adaptive-quadrature sensitivity warns above 2.5 percent and is rejected above 5 percent.
 #' @param n_samples number of prior samples/grid points used by BayesTools for
 #' deterministic marginal prior densities.
 #'
@@ -574,11 +577,11 @@ hypothesis.brma <- function(object, hypothesis,
   if (any(prior_components == "null") &&
       any(prior_components == "alternative")) {
     warning(
-      "Model-averaged coefficient test: this hypothesis uses the full ",
+      "Model-averaged parameter test: this hypothesis uses the full ",
       "ensemble for ", parameter, ", including models where ",
       parameter, " is fixed by its null component. To test the ",
       "hypothesis only within models where ", parameter,
-      " is active, use conditional = TRUE.",
+      " is active, use 'conditional = TRUE'.",
       call. = FALSE
     )
   }
@@ -860,7 +863,9 @@ hypothesis.brma <- function(object, hypothesis,
     samples           = samples[[parameter]],
     posterior_defined = .brma_random_parameter_defined_share(
       object,
-      samples[[parameter]]
+      samples[[parameter]],
+      selected    = selected,
+      conditional = plan[["conditional"]]
     )
   )
   method <- .hypothesis_plan_execution_method(plans, density_method)
@@ -881,7 +886,8 @@ hypothesis.brma <- function(object, hypothesis,
       seed                      = seed,
       n_samples                 = plan[["n_samples"]],
       columns                   = columns,
-      density_method            = method
+      density_method            = method,
+      conditional               = plan[["conditional"]]
     ))
   }
 
@@ -973,17 +979,42 @@ hypothesis.brma <- function(object, hypothesis,
 # Point statements on a variance, evaluated through its standard deviation:
 # the table shows the variance statements, and the prior and posterior
 # densities on the variance scale.
-.hypothesis_plan_random_sd_points <- function(plan, hypothesis, values, ...) {
+.hypothesis_plan_random_sd_points <- function(plan, hypothesis, values,
+                                                density_method, ...) {
 
   evaluation <- plan[["evaluation"]]
-  out <- .hypothesis_plan_random_evaluate(
+  out <- tryCatch(.hypothesis_plan_random_evaluate(
     plan       = plan,
     posterior  = evaluation[["samples"]][[evaluation[["parameter"]]]],
     parameter  = evaluation[["parameter"]],
     hypothesis = .hypothesis_plan_sd_hypothesis(hypothesis, evaluation[["parameter"]]),
     values     = sqrt(values),
+    density_method = density_method,
     ...
-  )
+  ), RoBMA_density_ordinate_error = function(condition) {
+    diagnostics <- condition[["density_diagnostics"]]
+    if (!is.data.frame(diagnostics) || nrow(diagnostics) == 0L) stop(condition)
+    index <- match(diagnostics[["requested_value"]], sqrt(values))
+    matched <- !is.na(index)
+    if (!any(matched)) stop(condition)
+    diagnostics[["requested_value"]][matched] <- values[index[matched]]
+    if (is.null(diagnostics[["requested_scale"]])) diagnostics[["requested_scale"]] <- NA_character_
+    if (is.null(diagnostics[["evaluation_scale"]])) diagnostics[["evaluation_scale"]] <- NA_character_
+    diagnostics[["requested_scale"]][matched] <- "variance"
+    diagnostics[["evaluation_scale"]][matched] <- "sd"
+    condition[["density_diagnostics"]] <- diagnostics
+    if (any(matched)) {
+      first <- which(matched)[[1L]]
+      condition[["message"]] <- .hypothesis_brma_iwmde_ordinate_failure_message(
+        density_method = density_method,
+        target = paste0(plan[["label"]], " = ", diagnostics[["requested_value"]][[first]]),
+        diagnostic = list(status = if (diagnostics[["status"]][[first]] == "rejected") "ok" else "unavailable"),
+        reason = diagnostics[["failure_reason"]][[first]],
+        numerical_status = diagnostics[["numerical_status"]][[first]]
+      )
+    }
+    stop(condition)
+  })
 
   .hypothesis_plan_sd_restore(out, hypothesis)
 }
@@ -1304,6 +1335,10 @@ hypothesis.brma <- function(object, hypothesis,
     row_log_BF[restore_order], logBF = attr(results[[1L]]$BF, "logBF"),
     BF01 = attr(results[[1L]]$BF, "BF01"), bound_operator = source_bound_operator[restore_order],
     diagnostics = row_diagnostics[[1L]][restore_order])
+  if ("BF_error" %in% names(out)) {
+    attr(out[["BF_error"]], "name") <-
+      attr(results[[1L]][["BF_error"]], "name", exact = TRUE)
+  }
   attr(out, "hypothesis_ast") <- hypothesis
   warnings <- .hypothesis_brma_unique_named_warnings(
     unlist(warnings, use.names = TRUE)
@@ -1347,7 +1382,7 @@ hypothesis.brma <- function(object, hypothesis,
 .hypothesis_brma_random_prior_draws <- function(
     object, parameter, selected, posterior, hypothesis,
     standardized_coefficients, logBF, BF01, seed, n_samples,
-    columns, density_method) {
+    columns, density_method, conditional) {
 
   prior <- .brma_random_parameter_select(
     object                    = object,
@@ -1378,7 +1413,9 @@ hypothesis.brma <- function(object, hypothesis,
   footnote <- .brma_random_parameter_defined_footnote(
     label             = selected[["spec"]][["label"]],
     samples           = prior[["samples"]],
-    posterior_defined = .brma_random_parameter_defined_share(object, posterior),
+    posterior_defined = .brma_random_parameter_defined_share(
+      object, posterior, selected = selected, conditional = conditional
+    ),
     prior_defined     = prior_defined
   )
   if (!is.null(footnote)) {

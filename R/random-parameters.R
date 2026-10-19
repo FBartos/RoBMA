@@ -207,9 +207,12 @@
                                                     prior_defined = NULL) {
 
   counts <- function(defined, what) {
-    if (is.null(defined) || all(defined)) {
-      return(NULL)
+    if (is.null(defined)) return(NULL)
+    if (is.list(defined)) {
+      if (defined[["defined"]] == defined[["eligible"]]) return(NULL)
+      return(paste(defined[["defined"]], "of", defined[["eligible"]], what, "draws"))
     }
+    if (all(defined)) return(NULL)
     paste(sum(defined), "of", length(defined), what, "draws")
   }
   parts <- c(
@@ -1158,10 +1161,10 @@
   as.numeric(support[["bounds"]])
 }
 
-# The draws a random-effect mixed posterior summarizes: when BayesTools left
-# out the draws where the quantity is undefined, a mask of the retained share
-# of the fitted draws (for the footnote); NULL when every draw is used.
-.brma_random_parameter_defined_share <- function(object, values) {
+# Counts for the defined-draw footnote. Conditioning exclusions are outside
+# the eligible population; this record is never a positional draw mask.
+.brma_random_parameter_defined_share <- function(object, values, selected,
+                                                  conditional = FALSE) {
 
   if (is.null(BayesTools::posterior_metadata(values, "undefined_draws"))) {
     return(NULL)
@@ -1171,11 +1174,15 @@
     nrow,
     integer(1)
   ))
-  if (length(values) >= n_draws) {
-    return(NULL)
+  if (isTRUE(conditional)) {
+    states <- BayesTools::parameter_gate_states(
+      object[["fit"]], selected[["entry"]][["selection"]]
+    )
+    n_draws <- sum(states[["event"]])
   }
+  if (length(values) >= n_draws) return(NULL)
 
-  c(rep(TRUE, length(values)), rep(FALSE, n_draws - length(values)))
+  list(defined = length(values), eligible = n_draws)
 }
 
 

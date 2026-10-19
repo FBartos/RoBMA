@@ -1655,7 +1655,7 @@
   }
   point_mass_reason <- paste0(
     "Point-null Bayes factors at %s are unavailable for random-effect ",
-    "quantity '", label, "' because its prior has a point mass at %s. Use a ",
+    "quantity '%s' because its prior has a point mass at %s. Use a ",
     "region or directional hypothesis; the Component Inclusion table from ",
     "'summary(object)' or 'summary_models(object)' compares the exclusion ",
     "and inclusion of gated components."
@@ -1691,7 +1691,7 @@
       }
     )
     value_text <- format(value, digits = 15L, trim = TRUE)
-    target[["point_mass_reason"]] <- sprintf(point_mass_reason, value_text, value_text)
+    target[["point_mass_reason"]] <- sprintf(point_mass_reason, value_text, label, value_text)
     target
   })
   precomputed <- .hypothesis_plan_random_precomputed(
@@ -1715,22 +1715,25 @@
 # standard deviation; the region part is evaluated on the variance draws.
 .hypothesis_plan_random_evaluation <- function(plan, object, cache, selected) {
 
+  statement <- plan[["hypothesis"]][["statements"]][[1L]]
+  sides <- vapply(list(statement[["left"]], statement[["right"]]),
+    `[[`, character(1L), "type")
+  values <- unique(plan[["refs"]][["value"]])
+  unsupported <- length(values) > 1L ||
+    ("not_point" %in% sides && "region" %in% sides) ||
+    all(sides == "point")
+  if (unsupported) {
+    return(list(refusal = .hypothesis_refusal(
+      "Unsupported hypothesis comparison. Compare one point value with its complement or a region hypothesis.",
+      "statement"
+    )))
+  }
   pair <- .brma_random_parameter_sd_pair(object, selected)
   # At a variance of 0 the square map is singular: the variance is evaluated
   # on its own draws there (its prior ordinate is classified on its own
   # scale).
   if (is.null(pair) || any(plan[["refs"]][["value"]] <= 0)) {
     return(list(parameter = NULL))
-  }
-  if (length(unique(plan[["refs"]][["value"]])) > 1L) {
-    return(list(refusal = .hypothesis_refusal(
-      paste0(
-        "Point hypotheses on random-effect variance '",
-        selected[["spec"]][["label"]], "' are evaluated through its standard ",
-        "deviation and must compare one point value per statement."
-      ),
-      "statement"
-    )))
   }
   pair_samples <- .hypothesis_plan_cached(
     cache,

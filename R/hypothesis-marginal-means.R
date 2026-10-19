@@ -34,8 +34,9 @@
 #' avoid null atoms in averaged marginals. For model-averaged objects,
 #' hypotheses that mix point and region events, and point hypotheses on more
 #' than one marginal mean (several levels of a factor, or levels and scalar
-#' marginal means of one parameter or of several), are not supported; region
-#' hypotheses may refer to several parameters.
+#' marginal means of one parameter or of several), are not supported.
+#' Separate region statements may refer to different parameters, while each
+#' statement refers to the marginal means of one parameter.
 #' Single-model hypotheses use one common averaged posterior and may combine
 #' these events. Point hypotheses require the exact prior ordinate that
 #' BayesTools attaches to the marginal mean, as for fitted objects.
@@ -215,7 +216,6 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     object <- .hypothesis_marginal_means_attach_iwmde(
       object          = object,
       parameter       = parameter,
-      parameter_label = plan[["label"]],
       hypothesis      = hypothesis,
       inference_type  = inference_type,
       density_method  = density_method,
@@ -470,7 +470,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
 
 .hypothesis_marginal_means_attach_iwmde <- function(
-    object, parameter, parameter_label, hypothesis, density_method,
+    object, parameter, hypothesis, density_method,
     density_control, inference_type = "conditional") {
 
   point_refs <- .hypothesis_brma_point_refs(hypothesis, parameter)
@@ -565,10 +565,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 
   level <- ref[["level"]]
   value <- ref[["value"]]
-  sample <- .hypothesis_marginal_means_ref_sample(
-    samples = samples,
-    level   = level
-  )
+  sample <- samples[[level]]
   label <- if (is.na(level)) {
     parameter
   } else {
@@ -645,33 +642,8 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     existing = existing,
     ordinate = ordinate
   )
-  samples <- .hypothesis_marginal_means_set_ref_sample(
-    samples = samples,
-    level   = level,
-    sample  = sample
-  )
+  samples[[level]] <- sample
   object[["inference"]][[inference_type]][[parameter]] <- samples
 
   return(object)
-}
-
-
-.hypothesis_marginal_means_ref_sample <- function(samples, level) {
-
-  if (is.na(level)) {
-    return(samples)
-  }
-
-  return(samples[[level]])
-}
-
-
-.hypothesis_marginal_means_set_ref_sample <- function(samples, level, sample) {
-
-  if (is.na(level)) {
-    return(sample)
-  }
-
-  samples[[level]] <- sample
-  return(samples)
 }

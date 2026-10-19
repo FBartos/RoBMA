@@ -116,7 +116,7 @@
 
 
 # The object above with a scalar marginal mean, 'intercept': a parameter
-# without levels whose draws lie above zero in 60% of the averaged draws.
+# represented by the public producer's one-level list, with 60% positive averaged draws.
 .marginal_means_route_scalar_object <- function(model_averaged = TRUE) {
 
   scalar <- function(x, condition_key = NULL) {
@@ -131,7 +131,14 @@
       BayesTools::posterior_metadata(out, "condition") <-
         list(condition_key = condition_key)
     }
+    out <- structure(list(intercept = out),
+      class = c("marginal_posterior.factor", "marginal_posterior", "list"))
     attr(out, "parameter") <- "mu_intercept"
+    BayesTools::posterior_metadata(out, "prior_context") <-
+      BayesTools:::.prior_density_context(
+        prior_list = list(a = BayesTools::prior("normal", list(mean = 0, sd = 1))),
+        column_names = "a", n_grid = 128
+      )
     out
   }
   object <- .marginal_means_route_two_parameter_object(model_averaged)
@@ -721,7 +728,7 @@ test_that("model-averaged requests count a scalar marginal mean as one point tar
   expect_null(refusal(object, c("intercept > 0", "alloc[A] > 0", "other[A] > 0")))
   out <- hypothesis(object, c("intercept = 0.2", "intercept = 0.3"), seed = 913)
   expect_identical(
-    rownames(out), c("mu_intercept (1)", "mu_intercept (2)")
+    rownames(out), c("mu_intercept[intercept] (1)", "mu_intercept[intercept] (2)")
   )
   expect_identical(
     refusal(object, c("intercept = 0.2", "alloc[A] > 0"))[["class"]],

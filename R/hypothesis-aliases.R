@@ -277,7 +277,7 @@
     paste0(
       "Hypothesis references multiple model parameters (",
       paste(unique(entries[["parameter"]]), collapse = ", "),
-      "). Set 'component' to 'mods'/'location', 'scale', or 'bias'."
+      "). Set 'component' to 'mods'/'location', 'scale', or 'random'."
     ),
     "ambiguous"
   ))

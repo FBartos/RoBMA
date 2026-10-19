@@ -193,7 +193,12 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
   expect_true(all(grepl("120 estimator rows across.*2 active states", failures)))
   point <- hypothesis(means, "intercept = .1", density_method = "qCMDE", seed = 19)
   expect_true(is.finite(as.numeric(point$BF)))
-  expect_match(density_diagnostics(point)$warnings, "effective sample size")
+  diagnostics <- density_diagnostics(point)
+  expect_identical(diagnostics$requested_samples, 500)
+  expect_identical(diagnostics$eligible_rows, 120L)
+  expect_identical(diagnostics$evaluated_rows, 120L)
+  expect_true(diagnostics$all_rows_used)
+  expect_equal(attr(point, "raw_log_BF"), -1.0297189562170501, tolerance = 1e-14)
 })
 
 test_that("E2-2 actual attachment retains requested curve precision", {
@@ -506,4 +511,183 @@ test_that("synthetic accepted diagnostics still require declared lattice accurac
   expect_null(.iwmde_diagnostics_bf_failure_reason(diagnostics))
   diagnostics$lattice_resolution_relative_error <- NULL
   expect_match(.iwmde_diagnostics_bf_failure_reason(diagnostics), "normalization diagnostics are unavailable", fixed = TRUE)
+})
+
+test_that("E1-c1 default named and positional hypotheses share the actual carrier", {
+
+  object <- review_factor_replay(c("A", "B", "C"), "meandif",
+    independent = TRUE, distribution = "mnormal", n = 128L)
+  posterior <- BayesTools::marginal_posterior(
+    .brma_as_mixed_posteriors(object, parameters = "mu_intercept"),
+    parameter = "mu_intercept", prior_samples = TRUE, use_formula = FALSE,
+    n_samples = 128L
+  )
+  original <- posterior
+  named <- hypothesis(object = posterior, hypothesis = "mu_intercept > 0",
+    parameter = "mu_intercept", seed = 17)
+  positional <- hypothesis(posterior, "mu_intercept > 0", parameter = "mu_intercept", seed = 17)
+  expect_identical(positional, named)
+  expect_identical(posterior, original)
+})
+
+test_that("E2-c2 warning ownership distinguishes exact references and expressions", {
+
+  statements <- c("tau = 0", "tau_total = 0", "2 * tau = 0",
+    "g[A] = 0", "g[AA] = 0")
+  ast <- BayesTools::hypothesis_parse(statements)
+  table <- data.frame(
+    Alternative = statements,
+    Null = c("tau != 0", "tau_total != 0", "2 * tau != 0",
+      "g[A] != 0", "g[AA] != 0"),
+    row.names = c("tau", "tau_total", "scaled_tau", "g[A]", "g[AA]"),
+    check.names = FALSE
+  )
+  attr(table, "hypothesis_ast") <- ast
+  record <- function(parameter, label = parameter, level = NA_character_, value = 0) {
+    data.frame(parameter = parameter, label = label, level = level, value = value,
+      warning = "Declared ordinate warning.", stringsAsFactors = FALSE)
+  }
+  expect_identical(.hypothesis_brma_warning_rows(table, record("tau")), "tau")
+  expect_identical(.hypothesis_brma_warning_rows(table, record("tau_total")), "tau_total")
+  expect_identical(.hypothesis_brma_warning_rows(table, record("2 * tau")), "scaled_tau")
+  expect_identical(.hypothesis_brma_warning_rows(table, record("g", "g[A]", "A")), "g[A]")
+  expect_identical(.hypothesis_brma_warning_rows(table, record("tau", value = .1)), character())
+  expanded <- table[rep(4L, 4L), , drop = FALSE]
+  rownames(expanded) <- c("g[A] (1)", "g[B] (1)", "g[A] (2)", "g[B] (2)")
+  expanded$Alternative <- "g = 0"
+  expanded$Null <- "g != 0"
+  attr(expanded, "hypothesis_ast") <- BayesTools::hypothesis_parse(c("g = 0", "g = 0"))
+  expect_identical(.hypothesis_brma_warning_rows(expanded, record("g", "g[A]", "A")),
+    c("g[A] (1)", "g[A] (2)"))
+})
+
+test_that("E1-c1 unsupported random comparisons refuse before SD-pair work", {
+
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_sd_pair = function(...) stop("SD-pair lookup was evaluated."),
+    .package = "RoBMA"
+  )
+  for (statement in c("tau2 != 0 vs tau2 > 0", "tau2 = -1 vs tau2 = 0",
+    "tau2 = 0 vs tau2 = .1")) {
+    ast <- BayesTools::hypothesis_parse(statement)
+    plan <- .hypothesis_plan_new(ast, ast, "tau2", "tau2", "random")
+    result <- .hypothesis_plan_random_evaluation(plan, object = NULL, cache = NULL,
+      selected = list(spec = list(label = "tau2")))
+    expect_identical(result$refusal$class, "RoBMA_hypothesis_statement")
+    expect_match(result$refusal$reason, "Unsupported hypothesis comparison.", fixed = TRUE)
+  }
+})
+
+test_that("E1-c1 a variance refusal preserves SD evaluation evidence", {
+
+  diagnostics <- data.frame(requested_value = .3, evaluation_value = .3,
+    estimator = "q_grid_cmde", density_method = "qCMDE", status = "unavailable",
+    numerical_status = "underflow", failure_reason = "Ordinary-scale ordinate underflow.")
+  original <- .iwmde_ordinate_unavailable_condition("Original SD message.",
+    list(ordinate_failures = diagnostics))
+  testthat::local_mocked_bindings(
+    .hypothesis_plan_random_evaluate = function(...) stop(original),
+    .package = "RoBMA"
+  )
+  plan <- list(label = "50% study: tau2",
+    evaluation = list(parameter = "tau", samples = list(tau = c(.2, .3))))
+  result <- tryCatch(.hypothesis_plan_random_sd_points(plan,
+    BayesTools::hypothesis_parse("tau2 = .09"), values = .09,
+    density_method = "qCMDE"), error = identity)
+  expect_s3_class(result, "RoBMA_density_ordinate_error")
+  expect_match(conditionMessage(result), "50% study: tau2 = 0.09", fixed = TRUE)
+  expect_identical(result$density_diagnostics$requested_value, .09)
+  expect_identical(result$density_diagnostics$evaluation_value, diagnostics$evaluation_value)
+  expect_identical(result$density_diagnostics$estimator, diagnostics$estimator)
+  expect_identical(result$density_diagnostics$failure_reason, diagnostics$failure_reason)
+  expect_identical(result$density_diagnostics$evaluation_scale, "sd")
+  expect_identical(result$density_diagnostics$requested_scale, "variance")
+})
+
+test_that("A5-5 genuine BMA gate eligibility controls undefined-draw notes", {
+
+  fixture <- review_bma_gate_replay()
+  object <- fixture$object
+  catalog <- BayesTools::parameter_catalog(object$fit)$quantities
+  keep <- startsWith(catalog$role, "random_") & !catalog$internal &
+    catalog$quantity %in% .brma_random_parameter_supported_quantities()
+  specs <- .brma_random_parameter_specs(catalog[keep, , drop = FALSE])
+  target <- specs$parameter[specs$quantity == "var_prop" & specs$random_component == "study"]
+  expect_length(target, 1L)
+  selected <- .brma_random_parameter_select(object, target)
+  states <- BayesTools::parameter_gate_states(object$fit, selected$entry$selection)
+  expect_identical(states$event, c(FALSE, TRUE, FALSE, TRUE))
+  expect_identical(states$defined, c(FALSE, TRUE, TRUE, TRUE))
+  conditional <- hypothesis(object, paste0("`", target, "` > 0.1"), conditional = TRUE,
+    seed = 17, n_samples = 128L)
+  averaged <- hypothesis(object, paste0("`", target, "` > 0.1"), conditional = FALSE,
+    seed = 17, n_samples = 128L)
+  expect_false(any(grepl("posterior draws where the quantity is defined",
+    attr(conditional, "footnotes", exact = TRUE), fixed = TRUE)))
+  expect_match(attr(averaged, "footnotes", exact = TRUE),
+    "computed from 3 of 4 posterior draws where the quantity is defined.", fixed = TRUE)
+  expect_identical(as.numeric(conditional$BF), Inf)
+  expect_equal(as.numeric(averaged$BF), 1.1578947368421058, tolerance = 1e-14)
+  parent <- review_heterogeneity_parent_replay("total_variance")$object
+  parent_catalog <- BayesTools::parameter_catalog(parent$fit)$quantities
+  parent_keep <- startsWith(parent_catalog$role, "random_") & !parent_catalog$internal &
+    parent_catalog$quantity %in% .brma_random_parameter_supported_quantities()
+  parent_specs <- .brma_random_parameter_specs(parent_catalog[parent_keep, , drop = FALSE])
+  child <- parent_specs$parameter[parent_specs$quantity == "var_prop" &
+    parent_specs$random_component == "time[1]"]
+  expect_length(child, 1L)
+  undefined <- hypothesis(parent, paste0("`", child, "` > 0.2"),
+    seed = 17, n_samples = 128L)
+  expect_match(attr(undefined, "footnotes", exact = TRUE),
+    "computed from 2 of 4 posterior draws", fixed = TRUE)
+  expect_equal(attr(undefined, "raw_log_BF"), -Inf)
+})
+
+test_that("E1-c1 genuine percent labels retain the point-mass refusal", {
+
+  for (label in c("study", "50% study")) {
+    fixture <- review_bma_gate_replay(label)
+    catalog <- BayesTools::parameter_catalog(fixture$object$fit)$quantities
+    keep <- startsWith(catalog$role, "random_") & !catalog$internal &
+      catalog$quantity %in% .brma_random_parameter_supported_quantities()
+    specs <- .brma_random_parameter_specs(catalog[keep, , drop = FALSE])
+    target <- specs$parameter[specs$quantity == "sd" & specs$owner_name == label]
+    expect_length(target, 1L)
+    selected <- .brma_random_parameter_select(fixture$object, target)
+    expect_identical(as.numeric(selected$samples), c(0, .5, 0, .5))
+    result <- tryCatch(hypothesis(fixture$object, paste0("`", target, "` = 0")), error = identity)
+    expect_s3_class(result, "BayesTools_point_mass_at_null")
+    expected <- paste0("Point-null Bayes factors at 0 are unavailable for random-effect quantity '",
+      label, ": tau' because its prior has a point mass at 0. Use a region or directional hypothesis; ",
+      "the Component Inclusion table from 'summary(object)' or 'summary_models(object)' compares the exclusion and inclusion of gated components.")
+    expect_identical(conditionMessage(result), expected)
+  }
+})
+
+test_that("E2-c2 actual scaled-expression warnings retain their rewritten identity", {
+
+  records <- list()
+  append <- .hypothesis_brma_append_iwmde_warnings
+  testthat::local_mocked_bindings(.hypothesis_brma_append_iwmde_warnings = function(table, posterior, ...) {
+    records[[length(records) + 1L]] <<- list(
+      record = .iwmde_collect_posterior_ordinate_warning_records(posterior),
+      table = table, ast = attr(table, "hypothesis_ast"))
+    append(table, posterior, ...)
+  }, .package = "RoBMA")
+  result <- hypothesis(.review_h_contribution(2), c("2 * g[B] = 0.1", "2 * g[B] = 0.2"),
+    density_method = "qCMDE", n_samples = 128L, seed = 19)
+  expect_length(records, 1L)
+  record <- records[[1L]]$record
+  expect_identical(record$parameter, rep(".BayesTools_linear_target", 2L))
+  expect_identical(record$label, record$parameter)
+  expect_identical(record$value, c(.1, .2))
+  expect_true(all(is.na(record$level)))
+  expect_equal(as.numeric(result$BF), c(.16425804522585283, .15622347412902271), tolerance = 1e-14)
+  warnings <- attr(result, "warnings", exact = TRUE)
+  expect_identical(names(warnings), rownames(result))
+  expect_identical(unname(warnings), record$warning)
+  for (i in 1:2) {
+    expect_identical(.hypothesis_brma_warning_rows(records[[1L]]$table, record[i, , drop = FALSE]),
+      rownames(records[[1L]]$table)[i])
+  }
 })

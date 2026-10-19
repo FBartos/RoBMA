@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Hypotheses bind positional statements, retain literal refusal and warning
+  identities, and count defined draws within their declared conditioning event.
 - Selection controls retain full-precision tolerance syntax, reject integer
   overflow early and name supported remedies; cache inspection initializes
   the configured process budget.

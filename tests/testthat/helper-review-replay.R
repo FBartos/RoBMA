@@ -369,3 +369,63 @@ review_allocated_source_replay <- function(kind, constant_weights = FALSE,
   list(object = object, samples = samples, allocation = allocation,
     source_parameter = source_parameter, weights = weights)
 }
+
+review_bma_gate_replay <- function(study_label = "study") {
+  dat <- data.frame(yi = c(.1, .2, .3, .4),
+    study = factor(c("s1", "s1", "s2", "s2")), other = factor(1:4))
+  setup <- review_compile_object(BMA.mv(yi = yi, V = diag(.04, 4L),
+    random = stats::setNames(list(~ 1 | study, ~ 1 | other), c(study_label, "other")), data = dat,
+    prior_effect = BayesTools::prior("point", list(location = 0)), prior_effect_null = NULL,
+    prior_heterogeneity = BayesTools::prior("gamma", list(shape = 2, rate = 2)),
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+  design <- setup$compiled$mu$formula_design
+  allocation <- design$random_allocations[[1L]]
+  priors <- c(setup$compiled$mu$prior_list, .create_fit_priors(setup$object$data, setup$object$priors))
+  additional <- unique(unlist(lapply(setup$compiled, `[[`, "add_parameters")))
+  latent_bases <- vapply(design$random_effects, function(term) paste0(term$parameter_stem, "_xRE_Zx"), character(1))
+  latent <- unlist(lapply(design$random_effects, function(term) {
+    base <- paste0(term$parameter_stem, "_xRE_Zx")
+    if (!base %in% additional) return(character())
+    index <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
+    paste0(base, "[", index$group, ",", index$column, "]")
+  }), use.names = FALSE)
+  weight_columns <- paste0(allocation$weight_name, "[", 1:2, "]")
+  auxiliary <- .iwmde_simplex_auxiliary_columns(allocation$weight_name, 2L)
+  columns <- unique(c(review_prior_columns(priors), setdiff(additional, latent_bases), latent, auxiliary))
+  monitors <- BayesTools::JAGS_to_monitor(priors)
+  required <- unlist(lapply(monitors, function(base) {
+    expanded <- columns[startsWith(columns, paste0(base, "["))]
+    if (length(expanded)) expanded else base
+  }), use.names = FALSE)
+  columns <- unique(c(columns, required))
+  samples <- matrix(0, 4L, length(columns), dimnames = list(NULL, columns))
+  for (name in names(priors)) {
+    prior <- priors[[name]]
+    if (BayesTools::is.prior.point(prior)) samples[, name] <- prior$parameters$location
+    if (BayesTools::is.prior.mixture(prior)) samples[, paste0(name, "_indicator")] <- 1
+  }
+  samples[, allocation$source$name] <- 1
+  samples[, weight_columns] <- rep(c(.25, .75), each = 4L)
+  samples[, auxiliary] <- 2 * samples[, weight_columns]
+  gates <- vapply(allocation$inclusion, `[[`, character(1), "indicator_name")
+  component_index <- match(c(study_label, "other"), allocation$component_names)
+  gate_index <- match(component_index,
+    vapply(allocation$inclusion, `[[`, integer(1), "index"))
+  stopifnot(!anyNA(component_index), !anyNA(gate_index))
+  samples[, gates[[gate_index[[1L]]]]] <- c(0, 1, 0, 1)
+  samples[, gates[[gate_index[[2L]]]]] <- c(0, 0, 1, 1)
+  preliminary <- review_attach_replay(setup, samples)
+  registry <- BayesTools::JAGS_deterministic_nodes(preliminary$fit)
+  nodes <- registry$node[registry$family == "random_sd"]
+  generated <- BayesTools::JAGS_evaluate_deterministic(preliminary$fit, draws = samples, nodes = nodes)
+  existing <- intersect(nodes, colnames(samples))
+  if (length(existing)) samples[, existing] <- generated[, existing, drop = FALSE]
+  extra <- setdiff(nodes, colnames(samples))
+  if (length(extra)) samples <- cbind(samples, generated[, extra, drop = FALSE])
+  stopifnot(all(required %in% colnames(samples)), all(is.finite(samples)))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
+    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  list(object = object, setup = setup, allocation = allocation, samples = samples,
+    required = required, gates = gates, nodes = nodes)
+}

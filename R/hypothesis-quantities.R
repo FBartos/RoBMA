@@ -29,8 +29,9 @@
 #' \code{component}; a name shared by several quantities of a component, such
 #' as the \code{intercept} of several scale formulas, is not listed),
 #' \code{parameter},
-#' \code{component}, \code{term}, \code{bracket} (the level selector of factor
-#' terms), \code{point_test}, \code{direction_test}, \code{contrast_test}
+#' \code{component}, \code{term}, \code{bracket} (a \code{parameter[level]}
+#' template for fitted factor terms, or a concrete level selector for each
+#' marginal-mean row), \code{point_test}, \code{direction_test}, \code{contrast_test}
 #' (\code{NA} for quantities without levels), \code{point_test_methods},
 #' \code{contrast_test_methods}, and \code{reason} (the refusals of the
 #' rendered statements).

@@ -443,17 +443,23 @@
 .hypothesis_brma_iwmde_ordinate_failure_message <- function(
     density_method, target, diagnostic, reason, numerical_status = NULL) {
 
+  reason <- sub("[.]$", "", reason)
+  remedy <- if (!is.null(numerical_status) && !identical(numerical_status, "finite")) {
+    " Inspect 'density_diagnostics()'; use a region hypothesis when a point ordinate is not representable."
+  } else {
+    " Inspect 'density_diagnostics()' for the failed criterion and its computation settings."
+  }
   if (identical(diagnostic[["status"]], "ok") &&
       (is.null(numerical_status) || identical(numerical_status, "finite"))) {
     return(paste0(
       density_method, " posterior ordinate for '", target,
-      "' was rejected by diagnostics: ", reason
+      "' was rejected by diagnostics: ", reason, ".", remedy
     ))
   }
 
   return(paste0(
     density_method, " posterior ordinate is unavailable for '", target,
-    "': ", reason
+    "': ", reason, ".", remedy
   ))
 }
 
@@ -519,15 +525,21 @@
   point_rows <- .hypothesis_brma_warning_point_rows(table, record)
   if (length(point_rows) > 0L) {
     candidates <- intersect(candidates, point_rows)
+  } else if (!is.null(.hypothesis_brma_result_statements(table))) {
+    return(character())
   }
 
   label <- record[["label"]]
   if (!is.na(label) && nzchar(label)) {
     label_rows <- unique(c(
       which(row_names == label),
-      .hypothesis_brma_table_rows_with_labels(table, label)
+      which(sub(" \\([0-9]+\\)$", "", row_names) == label)
     ))
     narrowed <- intersect(candidates, label_rows)
+    if (length(narrowed) == 0L) {
+      narrowed <- intersect(candidates,
+        .hypothesis_brma_table_rows_with_labels(table, label))
+    }
     if (length(narrowed) > 0L) {
       candidates <- narrowed
     }
@@ -617,6 +629,15 @@
   } else {
     NULL
   }
+  if (is.null(expr)) {
+    label <- record[["label"]]
+    # A compound ordinate can carry its expression as the declared label.
+    if (!is.na(label) && nzchar(label)) {
+      label_ast <- BayesTools::hypothesis_parse(paste0(label, " = 0"))
+      expected <- label_ast[["statements"]][[1L]][["left"]][["expression"]]
+      expr <- if (identical(expression, expected)) label else NULL
+    }
+  }
   if (is.null(expr) || length(expr) != 1L || is.na(expr) || !nzchar(expr)) {
     return(FALSE)
   }
@@ -658,8 +679,10 @@
   for (column in columns) {
     values <- as.character(table[[column]])
     matches <- matches | values %in% labels
-    for (label in labels) {
-      matches <- matches | grepl(label, values, fixed = TRUE)
+    for (i in which(!matches)) {
+      parsed <- BayesTools::hypothesis_parse(values[[i]])
+      references <- BayesTools::hypothesis_symbols(parsed, occurrences = TRUE)
+      matches[[i]] <- matches[[i]] || any(references[["symbol"]] %in% labels)
     }
   }
 

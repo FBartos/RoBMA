@@ -32,6 +32,10 @@ test_that("parameter groups bind producer logs in statement order and export vis
   expect_equal(expected[1L], 710, tolerance = 1e-12)
   expect_identical(attr(out, "raw_log_BF"), expected)
   expect_length(attr(out, "numerical_diagnostics"), 3L)
+  expect_identical(attr(out$BF_error, "name"), "error%(BF)")
+  expect_true(any(grepl("error%(BF)", capture.output(print(out)), fixed = TRUE)))
+  expect_identical(as.numeric(out$BF_error),
+    c(as.numeric(first$BF_error)[1L], as.numeric(second$BF_error), as.numeric(first$BF_error)[2L]))
   expect_length(attr(out, "prior_numerical_diagnostics"), 3L)
   inverse <- update(out, BF01 = TRUE)
   expect_equal(as.numeric(inverse$BF)[1L], exp(-710), tolerance = 1e-14)

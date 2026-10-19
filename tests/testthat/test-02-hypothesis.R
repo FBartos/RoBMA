@@ -85,9 +85,9 @@ test_that("hypothesis warns only for omitted conditioning on null-component ense
   )
   single_model_object <- make_object(mixture_prior, "brma")
   warning_message <- paste0(
-    "Model-averaged coefficient test: this hypothesis uses the full ensemble ",
+    "Model-averaged parameter test: this hypothesis uses the full ensemble ",
     "for mu, including models where mu is fixed by its null component. To test ",
-    "the hypothesis only within models where mu is active, use conditional = TRUE."
+    "the hypothesis only within models where mu is active, use 'conditional = TRUE'."
   )
 
   statement <- BayesTools::hypothesis_parse("mu > 0")
@@ -1594,6 +1594,10 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
       list(
         status      = "ok",
         target_key  = plan[["target"]][["target_key"]],
+        iwmde = list(x = values[[1L]], y = 2, log_y = log(2),
+          mcse = .01, relative_mcse = .01, finite_terms = 60L, ess = 30,
+          max_weight_share = .2, max_log_ratio = 0,
+          ordinate_relative_change = 0, lattice_resolution_relative_error = 0),
         diagnostics = list(
           bf_included         = TRUE,
           bf_value            = values[[1L]],
@@ -1714,6 +1718,10 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
 
     list(
       status      = "ok",
+      iwmde = list(x = 0, y = ordinate, log_y = log(ordinate),
+        mcse = .01, relative_mcse = .01, finite_terms = 60L, ess = 30,
+        max_weight_share = .2, max_log_ratio = 0,
+        ordinate_relative_change = 0, lattice_resolution_relative_error = 0),
       diagnostics = list(
         bf_included         = TRUE,
         bf_value            = 0,
@@ -1823,7 +1831,6 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
   reused <- .hypothesis_marginal_means_attach_iwmde(
     object          = make_object(compatible_sample),
     parameter       = "mu_alloc",
-    parameter_label = "alloc",
     hypothesis      = "mu_alloc[alternate] = 0",
     density_method  = "qCMDE",
     density_control = density_control
@@ -1844,7 +1851,6 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
   recomputed <- .hypothesis_marginal_means_attach_iwmde(
     object          = make_object(incompatible_sample),
     parameter       = "mu_alloc",
-    parameter_label = "alloc",
     hypothesis      = "mu_alloc[alternate] = 0",
     density_method  = "qCMDE",
     density_control = density_control
@@ -2247,7 +2253,6 @@ test_that("qCMDE/IWMDE infer the sole marginal-means factor level", {
   out <- .hypothesis_marginal_means_attach_iwmde(
     object          = object,
     parameter       = "mu_alloc",
-    parameter_label = "alloc",
     hypothesis      = "mu_alloc = 0",
     density_method  = "qCMDE",
     density_control = list()

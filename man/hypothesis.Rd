@@ -24,7 +24,7 @@
 
 hypothesis(object, ...)
 
-\method{hypothesis}{default}(object, ...)
+\method{hypothesis}{default}(object, hypothesis, ...)
 
 \method{hypothesis}{brma}(
   object,
@@ -278,8 +278,8 @@ finite fixed-design estimate. The qCMDE ordinate error estimate (nested-grid
 change, lattice resolution and the tail-truncation bound) warns above
 2.5 percent and is
 rejected above 5 percent; IWMDE normalization error warns above 5 percent and
-is rejected above 10 percent. Adaptive-quadrature sensitivity warns above
-2.5 percent and is rejected above 5 percent.}
+is rejected above 10 percent. For retained-location conditional normalizers,
+adaptive-quadrature sensitivity warns above 2.5 percent and is rejected above 5 percent.}
 
 \item{columns}{output columns passed to \code{BayesTools::hypothesis_BF()}.
 \code{"default"} returns the compact BayesTools table with
@@ -288,7 +288,8 @@ columns. \code{"all"} also returns \code{prior}, \code{posterior}, and
 \code{method} columns. The \code{prior} and \code{posterior} columns are
 diagnostics rather than probabilities for all hypothesis types.}
 
-\item{...}{additional arguments passed to methods.}
+\item{...}{additional arguments passed to methods. For fitted \code{brma}
+objects, unused arguments trigger a warning.}
 
 \item{component}{parameter component. Defaults to \code{"auto"}, which
 infers the component when possible. Use \code{"mods"} (alias
@@ -331,7 +332,9 @@ hypotheses require a direct parameter reference, a factor level, or a
 linear combination of the levels of one factor term (for example
 \code{"g[a] = g[b]"} or \code{"2 * g[a] = 0.1"}). Point hypotheses on a
 random-effect variance are evaluated through its standard deviation, so
-that both give the same Bayes factor. A statement comparing such a point
+that both give the same Bayes factor at positive variance values. At zero,
+the square map is singular: the variance is tested on its own scale and
+follows its own prior-ordinate eligibility rules. A statement comparing such a point
 with a region of the variance (for example
 \code{"tau2 = 0.09 vs tau2 > 0.09"}) evaluates the point through the
 standard deviation and the region on the variance draws. Certified
@@ -383,8 +386,9 @@ Model-averaged point-null hypotheses use alternative-conditioned draws to
 avoid null atoms in averaged marginals. For model-averaged objects,
 hypotheses that mix point and region events, and point hypotheses on more
 than one marginal mean (several levels of a factor, or levels and scalar
-marginal means of one parameter or of several), are not supported; region
-hypotheses may refer to several parameters.
+marginal means of one parameter or of several), are not supported.
+Separate region statements may refer to different parameters, while each
+statement refers to the marginal means of one parameter.
 Single-model hypotheses use one common averaged posterior and may combine
 these events. Point hypotheses require the exact prior ordinate that
 BayesTools attaches to the marginal mean, as for fitted objects.
