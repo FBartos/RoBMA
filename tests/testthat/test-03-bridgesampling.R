@@ -77,10 +77,12 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
   backend_logml        <- numeric()
   estimate_scale_logml <- numeric()
   same_models          <- list()
+  bridge_models        <- list()
   for (name in mv_names) {
     withr::local_seed(100)
     fit_brma <- add_marglik(load_fit(name, validate = FALSE))
     target   <- attr(fit_brma[["marglik"]], "RoBMA_target", exact = TRUE)
+    bridge_models[[name]] <- fit_brma
     expect_s3_class(fit_brma[["marglik"]], "BayesTools_marglik", info = name)
     expect_true(is.finite(logml(fit_brma)), info = name)
     expect_equal(target[["reported_target"]], "full joint fitted likelihood", info = name)
@@ -109,6 +111,29 @@ test_that("add_marglik computes bridge sampling for brma.mv known-V fits", {
   }
   expect_lt(diff(range(backend_logml)), 0.50)
   expect_lt(diff(range(estimate_scale_logml)), 0.75)
+
+  # Compare equivalent targets using natural-log MCSE, rather than treating
+  # a relative-error percentage as uncertainty on the log scale.
+  for (group in list(same_model_names, estimate_scale_names)) {
+    pairs <- utils::combn(group, 2L, simplify = FALSE)
+    for (pair in pairs) {
+      models <- bridge_models[pair]
+      estimates <- vapply(models, logml, numeric(1))
+      errors <- vapply(models, function(model) {
+        repetitions <- model[["marglik"]][["repetitions"]]
+        expect_gt(nrow(repetitions), 0L)
+        expect_true(all(repetitions[["finite"]]))
+        expect_true(all(repetitions[["success"]]))
+        expect_true(all(repetitions[["within_maxiter"]]))
+        expect_length(repetitions[["mcse"]], nrow(repetitions))
+        expect_true(all(is.finite(repetitions[["mcse"]]) & repetitions[["mcse"]] >= 0))
+        max(repetitions[["mcse"]])
+      }, numeric(1))
+      roundoff <- 64 * .Machine$double.eps * (1 + sum(abs(estimates)))
+      expect_true(abs(diff(estimates)) <= 4 * sum(errors) + roundoff,
+        info = paste(pair, collapse = " versus "))
+    }
+  }
 
   bf_result <- bf(
     same_models[["brma.mv_latent"]],

@@ -34,7 +34,9 @@ default, \code{NULL}, inherits the setting used to fit \code{object}.}
 
 \item{maxiter}{maximum number of bridge iterations per repetition.}
 
-\item{silent}{whether bridge-sampling progress is suppressed.}
+\item{silent}{whether bridge-sampling progress is suppressed. With the
+current BayesTools backend, this also suppresses its maximum-iteration
+convergence warning; inspect the stored repetition diagnostics.}
 
 \item{...}{reserved for future use. Unused arguments produce a warning.}
 }
@@ -50,6 +52,13 @@ bridge sampling and store the result in the object.
 The marginal likelihood is computed using the \code{bridgesampling} package
 via the \code{BayesTools::JAGS_bridgesampling} wrapper. The result is stored
 in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
+Proposal draws use the seed stored with the fit. When that seed is non-NULL,
+the caller's random-number state is restored after the call; a NULL fit seed
+uses and advances the caller's random-number stream.
+With the current BayesTools backend, a finite repetition that exceeds
+\code{maxiter} can still be stored. Check
+\code{object[["marglik"]][["repetitions"]][["within_maxiter"]]} even when
+\code{silent = TRUE}.
 
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 \code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose a

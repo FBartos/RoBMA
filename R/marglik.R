@@ -40,13 +40,22 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' @param method bridge transformation; either \code{"normal"} or
 #' \code{"warp3"}.
 #' @param maxiter maximum number of bridge iterations per repetition.
-#' @param silent whether bridge-sampling progress is suppressed.
+#' @param silent whether bridge-sampling progress is suppressed. With the
+#' current BayesTools backend, this also suppresses its maximum-iteration
+#' convergence warning; inspect the stored repetition diagnostics.
 #' @param ... reserved for future use. Unused arguments produce a warning.
 #'
 #' @details
 #' The marginal likelihood is computed using the \code{bridgesampling} package
 #' via the \code{BayesTools::JAGS_bridgesampling} wrapper. The result is stored
 #' in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
+#' Proposal draws use the seed stored with the fit. When that seed is non-NULL,
+#' the caller's random-number state is restored after the call; a NULL fit seed
+#' uses and advances the caller's random-number stream.
+#' With the current BayesTools backend, a finite repetition that exceeds
+#' \code{maxiter} can still be stored. Check
+#' \code{object[["marglik"]][["repetitions"]][["within_maxiter"]]} even when
+#' \code{silent = TRUE}.
 #'
 #' Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
 #' \code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose a
@@ -144,9 +153,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       parent = condition
     ))
   })
-  if (inherits(marglik, "error")) {
-    stop(conditionMessage(marglik), call. = FALSE)
-  }
   marglik <- .brma_mv_attach_marglik_target_metadata(marglik, object)
   object[["marglik"]] <- marglik
   return(object)
@@ -395,6 +401,8 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   if (!eligible) {
     reason <- if (!.is_data_multilevel(data)) {
       "model has no cluster effect from the specialized multilevel interface"
+    } else if (joint_selection && .selection_retains_sampling(data)) {
+      "cluster effects remain in the retained-sampling selection context"
     } else if (.data_outcome_type(data) != "norm") {
       "cluster effects enter a non-Gaussian likelihood"
     } else if ((joint_selection && !integrate_cluster) ||
@@ -764,9 +772,9 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
         requested = integrate_sampling,
         included = if (integrate_sampling) "known V" else character(),
         exact = TRUE,
-        target = if (integrate_sampling) {
-          "full sampling error integrated before selection normalization"
-        } else "full sampling error retained through Gaussian augmentation"
+        target = if (.selection_retains_sampling(data)) {
+          "full sampling error retained through Gaussian augmentation"
+        } else "full sampling error integrated before selection normalization"
       )
     ))
   }
@@ -1095,17 +1103,16 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 # .log_posterior
 # ---------------------------------------------------------------------------- #
 #
-# Compute the log-likelihood of the data given a single posterior sample.
-# This function is called by BayesTools::JAGS_bridgesampling for each
-# posterior sample during bridge sampling.
+# Evaluate the full fitted data likelihood at one proposed bridge state.
+# BayesTools::JAGS_bridgesampling reconstructs deterministic formula nodes and
+# evaluates the normalized priors of the retained bridge coordinates, including
+# retained standardized latent effects and GLMM nuisance parameters. This
+# callback supplies the remaining data likelihood, integrating only the Gaussian
+# sources declared by the bridge setup. It does not use pointwise deletion scores.
 #
-# The function converts single-sample parameters to 1-row matrices to reuse
-# the existing evaluate and pdf helper functions from evaluate.R and pdf.R.
-# (in contrast to .log_lik.brma, this function does not add likelihood contributions from
-#  estimate-level effects / baserate/ lograte for GLMMs since those are automatically 
-#  handled via JAGS_bridgesampling function -- i.e., all parameters generated directly 
-#  by BayesTools are automatically evaluated in the likelihood calculation, the only 
-#  part missing is the final p(data | parameters) term) 
+# One-state parameter values are converted to 1-row matrices where the shared
+# evaluate.R and pdf.R helpers require them. A bridge state need not be a stored
+# posterior draw.
 #
 # @param parameters       named list of parameter values (preprocessed by BayesTools)
 #                         - mu: scalar (no mods) or vector of length K (with mods)
@@ -1122,7 +1129,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
 # @param data             list containing fit_data (from .create_fit_data)
 # @param is_scale         logical; whether model has scale regression
 # @param is_multilevel    logical; whether model is multilevel
-# @param is_weights       logical; whether model uses weights (currently unused)
+# @param is_weights       logical; whether model uses likelihood weights
 # @param is_PET           logical; whether model includes PET
 # @param is_PEESE         logical; whether model includes PEESE
 # @param is_weightfunction logical; whether model includes selection weights

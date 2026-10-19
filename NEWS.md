@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Bridge diagnostics name retained sampling targets, and conjugate Gaussian
+  reference models check marginal likelihoods against natural-log uncertainty.
 - Native selection inputs reject lossy controls and malformed partitions before
   worker execution; unsupported JAGS sampling fails explicitly, and unavailable
   known-covariance output starts missing.

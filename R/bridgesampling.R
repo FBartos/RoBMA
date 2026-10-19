@@ -174,6 +174,12 @@ bridgesampling::bayes_factor
 #' pass fitted \code{brma} objects directly to \code{\link{bf}} or
 #' \code{\link{post_prob}}.
 #'
+#' When a stored marginal-likelihood result has no raw bridge object,
+#' extraction raises \code{RoBMA_bridge_unavailable}.
+#' Its \code{reason} is \code{"exact_zero_dimensional"} for an exact result,
+#' or \code{"missing_upstream"} when a stored result lacks its raw bridge
+#' object. For the latter, recompute the result with \code{\link{add_marglik}}.
+#'
 #' @return An object of class \code{"bridge"}, or \code{"bridge_list"} for
 #' repeated bridge estimates, as returned by
 #' \code{\link[bridgesampling]{bridge_sampler}}.
