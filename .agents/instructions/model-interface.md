@@ -50,7 +50,7 @@ available, consult its `jags-formula.md` guide for the detailed shared contract.
 RoBMA consumes the resolved column counts, bases, levels, covariance ownership,
 and labels. Do not introduce a separate parser or reconstruct a basis with
 `stats::model.matrix()`, fixed formulas, or posterior draws.
-Formula-design 6, unscale-design 2 and coefficient-transform 3 require refitting
+Formula-design 6, unscale-design 2 and coefficient-transform 4 require refitting
 older formats. Select active targets/recipes before finite C access. Dynamic
 numeric targets use original fitted state; prior laws use public BayesTools APIs.
 Static qCMDE/IWMDE refuse state-dependent raw maps or stochastic formula products.
@@ -231,7 +231,7 @@ typed static qCMDE/IWMDE refusal and row reason. Point/transitive/group consumer
 transport producer log ordinates and canonical logs with aligned diagnostics;
 plain exports strip hidden column carriers.
 Model and conditional prior contexts use schema 2 with validated model log owners;
-primitive contexts use schema 1. Coefficient transformation descriptors remain schema 3.
+primitive contexts use schema 1. Coefficient transformation descriptors use schema 4, requiring BayesTools >= 0.3.1.223.
 Variance point numerical diagnostics retain SD evaluation provenance and apply
 the common Jacobian to requested variance log heights. Point-region results
 reuse the actual point producer's diagnostics in statement order. Variance

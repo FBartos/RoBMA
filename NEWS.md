@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Formula coefficient hypotheses and linear-context readers admit current
+  BayesTools coefficient-transform metadata, requiring BayesTools >= 0.3.1.223.
 - Scenario benchmark source admission retains unresolved reflective effects
   in fit-list names preparation and refuses them before scenario evaluation,
   including blocks whose lists are otherwise unselected.

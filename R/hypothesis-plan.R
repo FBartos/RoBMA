@@ -817,7 +817,7 @@
     inherits(context, "prior_density_conditional_context")) 2L else 1L
   if(length(context[["transforms"]]) && (!identical(context[["schema_version"]], context_schema) ||
      any(vapply(context[["transforms"]], function(transform){
-       !identical(transform[["descriptor"]][["schema_version"]], 3L)
+       !identical(transform[["descriptor"]][["schema_version"]], 4L)
      }, logical(1))))) .stop_refit_required(
        "Stored formula context has unsupported transformation metadata. Recreate the posterior with the current RoBMA/BayesTools build.")
   if(identical(space, "formula_contribution") &&

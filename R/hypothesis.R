@@ -1447,7 +1447,7 @@ hypothesis.brma <- function(object, hypothesis,
     target_scale = "original"
   )
   if (!inherits(transform, "BayesTools_formula_coefficient_transform") ||
-      !identical(transform[["schema_version"]], 3L)) {
+      !identical(transform[["schema_version"]], 4L)) {
     .stop_refit_required(
       "Formula coefficient transformation metadata are unsupported. Refit ",
       "the model with the current BayesTools version."

@@ -60,9 +60,29 @@ test_that("linear coordinate readers distinguish current model and primitive con
   old$schema_version <- 2L
   expect_error(.brma_linear_weight_space(draws(old)), class = "RoBMA_refit_required")
   for(context in list(primitive, model, conditional)){
-    context$transforms$mu$descriptor$schema_version <- 2L
-    expect_error(.brma_linear_weight_space(draws(context)), class = "RoBMA_refit_required")
+    for(version in c(2L, 3L)){
+      context$transforms$mu$descriptor$schema_version <- version
+      expect_error(.brma_linear_weight_space(draws(context)), class = "RoBMA_refit_required")
+    }
   }
   expect_error(.brma_linear_weight_space(draws(model, "formula_contribution")),
     class = "RoBMA_refit_required")
+})
+
+test_that("current coefficient transforms support identity-scale public hypotheses", {
+  set.seed(1L)
+  object <- review_factor_replay(c("a", "b", "c"), "treatment",
+    distribution = "normal", independent = TRUE, n = 24L)
+  descriptor <- BayesTools::JAGS_formula_coefficient_transform(object$fit, "mu", "original")
+  expect_identical(descriptor$schema_version, 4L)
+  expect_identical(unname(descriptor$matrix), diag(3L))
+  original <- RoBMA::hypothesis(object, "intercept = 0", component = "mods",
+    standardized_coefficients = FALSE, density_method = "KDE", seed = 1L)
+  standardized <- RoBMA::hypothesis(object, "intercept = 0", component = "mods",
+    standardized_coefficients = TRUE, density_method = "KDE", seed = 1L)
+  expect_s3_class(original, "BayesTools_hypothesis_BF")
+  expect_identical(nrow(original), 1L)
+  expect_true(is.finite(original$BF) && original$BF > 0)
+  expect_identical(original$Null, "intercept = 0")
+  expect_equal(original$BF, standardized$BF, tolerance = 1e-12)
 })
