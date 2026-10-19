@@ -127,37 +127,9 @@ test_that("JAGS selection controls reject fractional modes and bins", {
   skip_if_not_installed("rjags")
 
 
-  base <- list(y = c(0, 0), mu = c(0, 0), covariance = c(1, 0, 1),
-    sd = c(1, 1), loading = c(.1, .1), sei = c(1, 1), omega = c(1, .2),
-    lower = c(0, -1e300), upper = c(1e300, 0), bins = c(1, 1),
-    sign = 1, telescope = 1, mode = 0, points = 4, maximum = 4,
-    scrambles = 2, tolerance = .005, rule = 0,
-    nodes = rep(0, 9), log_weights = rep(0, 9), orders = c(1, 3, 5))
-  cases <- list(
-    dense = list(distribution = "dselnorm_mnorm_step", arguments = c(
-      "mu", "covariance", "sei", "omega", "lower", "upper", "bins",
-      "sign", "telescope", "mode", "qmc", "points", "scrambles", "tolerance",
-      "rule", "nodes", "log_weights", "orders"),
-      extra = list(qmc = rep(.5, 32)), bad = c("mode", "sign", "telescope", "bins", "points")),
-    cluster = list(distribution = "dselnorm_cluster_step", arguments = c(
-      "mu", "sd", "loading", "sei", "omega", "lower", "upper", "bins",
-      "sign", "telescope", "mode", "nodes", "log_weights", "orders", "qmc",
-      "points", "maximum", "scrambles", "tolerance", "rule"),
-      extra = list(qmc = rep(.5, 16)), bad = c("mode", "sign", "telescope", "bins")),
-    factor = list(distribution = "dselnorm_factor_step", arguments = c(
-      "mu", "sd", "factor_loading", "sei", "omega", "lower", "upper", "bins",
-      "sign", "telescope", "mode", "nodes", "log_weights", "orders", "qmc",
-      "points", "maximum", "scrambles", "tolerance", "rule"),
-      extra = list(factor_loading = rep(.1, 4), qmc = rep(.5, 32)),
-      bad = c("mode", "bins", "points")),
-    conditioned = list(distribution = "dselnorm_sampling_conditioned", arguments = c(
-      "mu", "covariance", "residual", "loading", "rank", "mu", "mu", "sei", "omega",
-      "lower", "upper", "bins", "sign", "mode", "telescope", "rule", "groups", "qmc",
-      "points", "maximum", "scrambles", "tolerance", "nodes", "log_weights", "orders",
-      "nodes", "log_weights", "orders"),
-      extra = list(residual = c(0, 0), rank = 1, groups = c(1, 2), qmc = rep(.5, 32)),
-      bad = c("rank", "bins", "groups", "rule", "scrambles"))
-  )
+  fixtures <- .native_selection_jags_fixtures()
+  base <- fixtures$base
+  cases <- fixtures$cases
   compile <- function(specification, data) {
 
     used <- unique(c("y", specification$arguments))
