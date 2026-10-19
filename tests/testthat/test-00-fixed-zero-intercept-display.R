@@ -378,3 +378,18 @@ test_that("catalogs and selectors offer the original-scale intercept of '~ 0 + x
   )
   expect_true("mu_intercept" %in% hypothesis_quantities(fitted)[["parameter"]])
 })
+
+
+test_that("prior-only ordinary and multivariate coefficients remain NULL", {
+
+  ordinary <- brma.norm(yi = yi, sei = sei,
+    data = .fixed_zero_intercept_test_data, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  multivariate <- brma.mv(yi = yi, V = sei^2, random = ~ 1 | study,
+    data = .fixed_zero_intercept_test_data, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_null(ordinary[["coefficients"]])
+  expect_null(multivariate[["coefficients"]])
+  expect_null(coef(ordinary))
+  expect_null(coef(multivariate))
+})

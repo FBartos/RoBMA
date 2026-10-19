@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Heterogeneity exports retain their component label, and prior-only coefficient
+  queries preserve their existing NULL result.
 - RNG restoration avoids reselecting an unchanged generator and describes the
   optional Box-Muller hidden-cache limitation precisely.
 - Scenario comparisons preserve extraction failures, restore temporary sampler

@@ -48,3 +48,15 @@ test_that("coef returns model coefficients across cached fits", {
     )
   }
 })
+
+
+test_that("fitted multivariate coefficients retain semantic labels", {
+
+  skip_if_missing_fits("brma.mv_latent")
+  object <- fits[["brma.mv_latent"]]
+  coefficients <- coef(object)
+  expect_s3_class(object, "brma.mv")
+  expect_true("mu" %in% names(coefficients))
+  expect_false(any(names(coefficients) %in% c("intercept", "(mu) intercept")))
+  expect_identical(unname(coefficients), unname(object[["coefficients"]]))
+})

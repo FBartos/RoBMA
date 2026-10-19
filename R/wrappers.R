@@ -54,7 +54,10 @@ nobs.brma <- function(object, ...) {
 #' @export
 coef.brma <- function(object, ...) {
 
-  coefficients        <- object[["coefficients"]]
+  coefficients <- object[["coefficients"]]
+  if (is.null(coefficients)) {
+    return(NULL)
+  }
   names(coefficients) <- .location_repair_intercept_labels(
     labels = names(coefficients),
     object = object

@@ -273,7 +273,7 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
   # create output object
   output <- list(
     estimates = estimates,
-    component = "location"
+    component = "heterogeneity"
   )
 
   class(output) <- "summary_heterogeneity.brma"
@@ -447,7 +447,7 @@ as.data.frame.summary_heterogeneity.brma <- function(
   component <- x[["component"]]
   if (!is.character(component) || length(component) != 1L ||
       is.na(component) || !nzchar(component)) {
-    component <- "location"
+    component <- "heterogeneity"
   }
   output <- .output_table_as_long_data_frame(
     table            = x[["estimates"]],

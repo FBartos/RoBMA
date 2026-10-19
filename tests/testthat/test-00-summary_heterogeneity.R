@@ -475,3 +475,18 @@ test_that("undefined allocation shares retain carrier rows and table footnotes",
     }
   }
 })
+
+
+test_that("unlabeled heterogeneity summaries use the heterogeneity component", {
+
+  estimates <- BayesTools::ensemble_estimates_table(
+    samples = list(tau = 1:20, tau2 = (1:20)^2),
+    parameters = c("tau", "tau2"), probs = c(.025, .975)
+  )
+  object <- structure(list(estimates = estimates),
+    class = "summary_heterogeneity.brma")
+  frame <- as.data.frame(object)
+  expect_identical(frame[["component"]], rep("heterogeneity", 2L))
+  expect_identical(frame[["parameter"]], c("tau", "tau2"))
+  expect_identical(data.frame(object), frame)
+})
