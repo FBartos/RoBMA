@@ -22,7 +22,9 @@
 #' @param newdata optional one-row prediction design used when
 #'   \code{addpred = TRUE}. When omitted, the interval is evaluated at the
 #'   average expanded design using \code{pooled_effect()}. When supplied, each
-#'   row passed to \code{predict.brma()} is one new true effect; the forest
+#'   row passed to \code{predict.brma()} is one new true effect; with
+#'   \code{bias_adjusted = FALSE}, it targets a selected new publication. The
+#'   pooled reference declares no new-publication SE or selection event. The forest
 #'   adapter accepts exactly one because it draws one summary polygon.
 #' @param bias_adjusted logical; whether pooled and prediction summaries should
 #'   adjust for publication bias. Defaults to \code{TRUE}.
@@ -116,7 +118,7 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 
   yi       <- .outcome_data_yi(x)
   sei      <- .outcome_data_sei(x)
-  slab     <- .get_estimate_labels(x)
+  slab     <- if (is.null(dots[["slab"]])) .get_estimate_labels(x) else dots[["slab"]]
   measure  <- .measure(x)
   z_value  <- stats::qnorm(1 - (1 - level) / 2)
   yi_plot  <- yi
@@ -143,6 +145,7 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
     conditional   = conditional
   )
   pooled <- .forest_summary_row(pooled_samples)
+  target <- attr(pooled_samples, "RoBMA_target", exact = TRUE)
 
   prediction   <- NULL
   summary_row  <- pooled
@@ -182,6 +185,7 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
         conditional        = conditional,
         quiet              = TRUE
       )
+      target <- attr(prediction_effect_samples, "RoBMA_target", exact = TRUE)
       prediction_effect <- .forest_summary_row(prediction_effect_samples)
       prediction <- prediction_terms
       prediction[["pi.lb"]] <- prediction_effect[["ci.lb"]]
@@ -247,6 +251,7 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
     default_ylim  = default_ylim
   )
   class(out) <- c("metafor_forest.brma", "list")
+  attr(out, "RoBMA_target") <- target
 
   return(out)
 }
@@ -311,14 +316,18 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #' \code{conditioning_depth = "marginal"}. For
 #' \pkg{metafor}'s \code{predstyle = "shade"} and
 #' \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
-#' density estimate computed from those posterior predictive draws. The
+#' density estimate computed from those posterior predictive draws. This is a
+#' display approximation that can smooth point masses. The
 #' displayed prediction-interval endpoints remain the posterior quantiles of
 #' the corresponding predictive draws.
 #'
 #' Additional study-level columns can be added with metafor's \code{ilab}
 #' interface. When supplied to \code{as_metafor_forest()} or to
 #' \code{metafor::forest(..., as_data = TRUE)}, those arguments are stored in
-#' the adapter object's \code{forest_args}; when supplied to
+#' the adapter object's \code{forest_args}; presentation options such as
+#' \code{addfit}, \code{row}, and \code{predstyle} are retained by
+#' \code{forest(..., as_data = TRUE)} for later rendering. Explicit plot-time
+#' arguments override stored defaults. When supplied to
 #' \code{metafor::forest()} at plot time, they are forwarded directly.
 #'
 #' Use \code{as_metafor_forest()} to prepare the adapter object without
@@ -387,7 +396,7 @@ forest.brma <- function(x, addfit = TRUE, addpred = FALSE,
   }
 
   if (as_data) {
-    return(as_metafor_forest.brma(
+    forest_data <- as_metafor_forest.brma(
       x             = x,
       level         = level,
       addpred       = addpred,
@@ -395,7 +404,21 @@ forest.brma <- function(x, addfit = TRUE, addpred = FALSE,
       bias_adjusted = bias_adjusted,
       conditional   = conditional,
       ...
-    ))
+    )
+    forest_data[["addpoly_args"]] <- .forest_addpoly_args(
+      forest_data, forest_data[["forest_args"]], mlab, row, predstyle,
+      if (missing(predlim)) NULL else predlim,
+      if (missing(border)) NULL else border,
+      if (missing(constarea)) NULL else constarea
+    )
+    forest_data[["plot_defaults"]] <- list(addfit = addfit)
+    if (isTRUE(forest_data[["default_ylim"]])) {
+      forest_data[["forest_args"]][["ylim"]] <- if (addfit) {
+        .forest_default_ylim(nrow(forest_data[["studies"]]), row,
+          forest_data[["forest_args"]], predstyle)
+      } else NULL
+    }
+    return(forest_data)
   }
 
   forest_data <- as_metafor_forest.brma(
@@ -428,6 +451,15 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
                                         row = -1, predlim, border,
                                         constarea, ...) {
 
+  stored <- x[["addpoly_args"]]
+  defaults <- x[["plot_defaults"]]
+  if (missing(addfit) && !is.null(defaults[["addfit"]])) addfit <- defaults[["addfit"]]
+  if (missing(predstyle) && !is.null(defaults)) predstyle <- stored[["predstyle"]]
+  if (missing(mlab) && !is.null(defaults)) mlab <- stored[["mlab"]]
+  if (missing(row) && !is.null(defaults)) row <- stored[["rows"]]
+  if (missing(predlim) && !is.null(defaults)) predlim <- stored[["predlim"]]
+  if (missing(border) && !is.null(defaults)) border <- stored[["border"]]
+  if (missing(constarea) && !is.null(defaults)) constarea <- stored[["constarea"]]
   return(.forest_plot_metafor(
     forest_data = x,
     addfit      = addfit,
@@ -563,14 +595,13 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
   forest_args <- .forest_merge_args(forest_data[["forest_args"]], dots)
 
   if ((is.null(forest_args[["ylim"]]) ||
-       (isTRUE(forest_data[["default_ylim"]]) && !custom_ylim)) &&
-      addfit) {
-    forest_args[["ylim"]] <- .forest_default_ylim(
+       (isTRUE(forest_data[["default_ylim"]]) && !custom_ylim))) {
+    forest_args[["ylim"]] <- if (addfit) .forest_default_ylim(
       k         = nrow(forest_data[["studies"]]),
       row       = row,
       dots      = forest_args,
       predstyle = predstyle
-    )
+    ) else NULL
   }
 
   plot <- do.call(metafor::forest.default, forest_args)

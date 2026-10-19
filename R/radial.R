@@ -113,7 +113,8 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' If \code{as_data = TRUE}, returns a list with the computed plot data
 #' including: \code{points}, \code{refline}, \code{band}, \code{arc},
 #' \code{arc_ticks}, \code{ci_arc}, \code{ci_ticks}, \code{xlim}, and
-#' \code{zlim}.
+#' \code{zlim}. Returned arc coordinates use plain trigonometry; both renderers
+#' recompute arcs for their aspect ratio, so the data do not encode final device geometry.
 #'
 #' @references
 #' Galbraith, R. F. (1988). Graphical display of estimates having differing
@@ -241,7 +242,9 @@ galbraith.brma <- function(x, ...) {
 # Computes precision (x-axis), standardized effects (z-axis),
 # confidence band, reference line, and arc data.
 #
-# Arc coordinates are computed using trigonometry (for ggplot and as_data).
+# Returned arc coordinates use plain trigonometry for as_data. Both
+# renderers recompute their arcs using their own aspect ratios; the returned
+# arc coordinates do not describe the final device geometry.
 # The base R plotting function recomputes arcs using the aspect ratio
 # for correct circular appearance (matching metafor::radial).
 #
@@ -287,7 +290,9 @@ galbraith.brma <- function(x, ...) {
   # for ordinary models and a row-specific scale for random-formula designs.
   tau  <- .get_radial_tau_rows(x)
   tau2 <- tau^2
-  row_specific_tau <- !all(tau == tau[[1L]])
+  # The row notation follows the declared scale/random design, including
+  # draws on which different rows happen to have the same marginal scale.
+  row_specific_tau <- .is_scale(x) || .is_random(x)
 
   # compute precision and standardized values
   wi <- vi + tau2
@@ -470,7 +475,7 @@ galbraith.brma <- function(x, ...) {
     band       = df_band,
     band_upper = df_band_upper,
     band_lower = df_band_lower,
-    # arcs (trigonometric, for ggplot/as_data)
+    # arcs (plain trigonometry for as_data; renderers recompute device geometry)
     arc        = df_arc,
     arc_ticks  = df_arc_ticks,
     ci_arc     = df_ci_arc,

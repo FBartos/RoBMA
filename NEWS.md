@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Forest adapters retain presentation options; diagnostic plots preserve reference targets, disconnected contours, and declared row labels.
 - Posterior and prior plots preserve explicit colors and transformed labels, and explain unsupported targets and allocation derivations.
 - Validation tooling uses canonical source hashes and whole-profile keys,
   checks benchmark cache calls and fit contracts, and bounds worker-tree cleanup.

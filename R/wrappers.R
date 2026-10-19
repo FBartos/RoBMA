@@ -292,7 +292,9 @@ pooled_effect <- function(object, ...) {
 #' @param object a fitted brma object
 #' @param bias_adjusted whether to adjust for publication bias. Defaults to
 #' \code{TRUE}. For PET/PEESE models this removes the regression bias term from
-#' the pooled location effect. Selection-model weighting affects response
+#' the pooled location effect. This reference declares no new-publication
+#' standard error or selection event; explicit unadjusted \code{predict()} rows
+#' instead target a selected new publication. Selection-model weighting affects response
 #' predictions, not this fixed-location posterior summary.
 #' @param probs quantiles of the posterior distribution to be displayed.
 #' Defaults to \code{c(.025, .975)} for 95% credible intervals.
@@ -433,14 +435,22 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     effect_transform   = effect_transform,
     prediction_samples = prediction_samples
   )
-  return(.condition_prediction_samples(
+  out <- .condition_prediction_samples(
     object            = object,
     samples           = out,
     conditional       = conditional,
     parameters        = .conditional_effect_parameters(object),
     posterior_samples = posterior_samples,
     quiet             = TRUE
-  ))
+  )
+  attr(out, "RoBMA_target") <- c(list(
+    method = "pooled_effect()",
+    reported_target = "fixed-location average-expanded-design reference",
+    prediction_target = "new unselected true effect at the pooled reference",
+    bias_adjusted = bias_adjusted,
+    rng_policy = "preserve_caller_state"
+  ), .selection_postfit_target_metadata(data))
+  return(out)
 }
 
 

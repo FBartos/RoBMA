@@ -445,7 +445,8 @@ test_that("funnel routes study-specific heterogeneity to residual mode", {
   testthat::local_mocked_bindings(
     .is_mods  = function(object) FALSE,
     .is_scale = function(object) FALSE,
-    .funnel_common_heterogeneity = function(object, posterior_samples = NULL) {
+    .funnel_common_heterogeneity = function(object, posterior_samples = NULL,
+                                         commonness_only = FALSE) {
       list(common = FALSE)
     },
     .check_unit_conditioning_depth = function(...) invisible(TRUE),
@@ -468,7 +469,8 @@ test_that("bfunnel rejects targets without a common normal outcome scale", {
     .outcome_type = function(object) "norm",
     .is_mods      = function(object) FALSE,
     .is_scale     = function(object) FALSE,
-    .funnel_common_heterogeneity = function(object, posterior_samples = NULL) {
+    .funnel_common_heterogeneity = function(object, posterior_samples = NULL,
+                                         commonness_only = FALSE) {
       list(common = FALSE)
     },
     .package = "RoBMA"

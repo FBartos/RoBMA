@@ -307,3 +307,20 @@ test_that("prior-only scale formulas evaluate the fitted standardization", {
     tolerance = 1e-12
   )
 })
+
+test_that("pooled target metadata names its fixed reference and retains RNG behavior", {
+
+  object <- brma(yi = c(-.1, 0, .1), sei = rep(.1, 3), measure = "GEN",
+    prior_effect = prior("point", list(location = 0)),
+    prior_heterogeneity = prior("point", list(location = .1)),
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  posterior <- cbind(mu = rep(0, 24L), tau = rep(.1, 24L))
+  withr::local_seed(481)
+  before <- .Random.seed
+  pooled <- pooled_effect(object, bias_adjusted = FALSE, .posterior_samples = posterior)
+  target <- attr(pooled, "RoBMA_target", exact = TRUE)
+  expect_identical(target$reported_target, "fixed-location average-expanded-design reference")
+  expect_identical(target$prediction_target, "new unselected true effect at the pooled reference")
+  expect_identical(target$rng_policy, "preserve_caller_state")
+  expect_identical(.Random.seed, before)
+})

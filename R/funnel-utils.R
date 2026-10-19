@@ -6,13 +6,13 @@
 # ---------------------------------------------------------------------------- #
 #
 # Clip a line (x, y) to x-limits, interpolating exact intersections.
-# Assumes y is monotonic (funnel lines usually are monotonic with SE).
+# Disconnected visible runs are separated by NA coordinates.
 #
 # @param x numeric vector of x coordinates
 # @param y numeric vector of y coordinates
 # @param xlim numeric vector of length 2 (min, max)
 #
-# @return data.frame with xe and ye
+# @return data.frame with x and y, including NA breaks between visible runs
 #
 # ---------------------------------------------------------------------------- #
 .clip_line_x <- function(x, y, xlim) {
@@ -28,47 +28,33 @@
     return(data.frame(x = x[keep], y = y[keep]))
   }
 
-  x_out <- numeric(0)
-  y_out <- numeric(0)
-
-  for (i in 1:(length(x) - 1)) {
-    x1 <- x[i]
-    y1 <- y[i]
-    x2 <- x[i+1]
-    y2 <- y[i+1]
-
-    # strictly inside
-    if (x1 >= xmin && x1 <= xmax) {
-      x_out <- c(x_out, x1)
-      y_out <- c(y_out, y1)
+  x_out <- y_out <- numeric()
+  # Each segment has one visible parameter interval. Only join adjacent
+  # intervals when the common original vertex remains visible.
+  previous_visible <- FALSE
+  for (i in seq_len(length(x) - 1L)) {
+    dx <- x[i + 1L] - x[i]
+    bounds <- if (dx == 0) {
+      if (x[i] >= xmin && x[i] <= xmax) c(0, 1) else c(1, 0)
+    } else {
+      crossing <- sort((c(xmin, xmax) - x[i]) / dx)
+      c(max(0, crossing[1L]), min(1, crossing[2L]))
     }
-
-    if (x1 != x2) {
-      t_cross <- numeric(0)
-      x_cross <- numeric(0)
-      y_cross <- numeric(0)
-      for (boundary in c(xmin, xmax)) {
-        t <- (boundary - x1) / (x2 - x1)
-        if (t > 0 && t < 1) {
-          t_cross <- c(t_cross, t)
-          x_cross <- c(x_cross, boundary)
-          y_cross <- c(y_cross, y1 + (y2 - y1) * t)
-        }
-      }
-      if (length(t_cross) > 0L) {
-        cross_order <- order(t_cross)
-        x_out <- c(x_out, x_cross[cross_order])
-        y_out <- c(y_out, y_cross[cross_order])
-      }
+    if (bounds[1L] > bounds[2L]) {
+      previous_visible <- FALSE
+      next
     }
-  }
-
-  # handle last point
-  xn <- x[length(x)]
-  yn <- y[length(y)]
-  if (xn >= xmin && xn <= xmax) {
-    x_out <- c(x_out, xn)
-    y_out <- c(y_out, yn)
+    current_x <- x[i] + bounds * dx
+    current_y <- y[i] + bounds * (y[i + 1L] - y[i])
+    connected <- previous_visible && bounds[1L] == 0
+    if (length(x_out) && !connected) {
+      x_out <- c(x_out, NA_real_)
+      y_out <- c(y_out, NA_real_)
+    }
+    keep <- if (connected) 2L else 1:2
+    x_out <- c(x_out, current_x[keep])
+    y_out <- c(y_out, current_y[keep])
+    previous_visible <- bounds[2L] == 1
   }
 
   return(data.frame(x = x_out, y = y_out))
@@ -101,6 +87,16 @@
 #
 # ---------------------------------------------------------------------------- #
 .set_dots_funnel <- function(dots) {
+
+  if ("as_data" %in% names(dots)) {
+    BayesTools::check_bool(dots[["as_data"]], "as_data")
+  }
+  .check_plot_numeric(dots[["xlim"]], "xlim", check_length = 2)
+  .check_plot_numeric(dots[["ylim"]], "ylim", check_length = 2, lower = 0)
+  .check_plot_numeric(dots[["refline"]], "refline", check_length = 1)
+  if (!is.null(dots[["ylim"]]) && dots[["ylim"]][1L] == dots[["ylim"]][2L]) {
+    stop("'ylim' must contain two distinct standard-error limits.", call. = FALSE)
+  }
 
   # point styling (use metafor-style argument names)
   dots <- .plot_point_style_defaults(dots)

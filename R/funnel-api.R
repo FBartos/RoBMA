@@ -150,7 +150,9 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' Residual mode follows the fitted estimate-unit residual target.
 #'
 #' \code{bfunnel()} is available only for intercept-only normal models with
-#' common marginal heterogeneity. It averages the same sampling CDF over
+#' common marginal heterogeneity. It has no residual mode: explicitly supplied
+#' \code{residual}, \code{type}, \code{unit}, or \code{conditioning_depth}
+#' arguments are refused. It averages the same sampling CDF over
 #' posterior draws and then inverts the averaged CDF. Thus it incorporates
 #' posterior uncertainty in the effect, heterogeneity, PET/PEESE coefficients,
 #' and selection parameters in addition to model uncertainty. For models
@@ -194,6 +196,11 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' Use \code{type = "outcome"} for a descriptive effect-size-scale residual
 #' funnel when needed. Its sampling-error-only bands are not exact diagnostics
 #' for the fitted count likelihood.
+#'
+#' Outcome-mode plot data carry the canonical \code{RoBMA_target} attribute.
+#' Its \code{reference_law} identifies the independently published new-estimate
+#' product-rule law; \code{estimand} separately records plug-in versus
+#' posterior-predictive averaging. Declared source roles retain their provenance.
 #'
 #' @return If \code{as_data = TRUE}, \code{funnel.brma} and
 #' \code{bfunnel.brma} return a list with the
@@ -281,7 +288,7 @@ funnel.brma <- function(x, residual, type = "LOO-PIT",
   if (missing(residual)) {
     is_residual <- is_mods || is_scale
     if (!is_residual) {
-      common_heterogeneity <- .funnel_common_heterogeneity(x)
+      common_heterogeneity <- .funnel_common_heterogeneity(x, commonness_only = TRUE)
       is_residual          <- !common_heterogeneity[["common"]]
     }
   } else {
@@ -392,6 +399,8 @@ bfunnel.brma <- function(x, sampling_heterogeneity = TRUE,
   }
 
   dots <- list(...)
+  unsupported <- intersect(names(dots), c("residual", "type", "unit", "conditioning_depth"))
+  .check_unused_dots(dots[unsupported], allowed = character(), caller = "bfunnel()")
   .check_legacy_level_arg(dots, "bfunnel()")
 
   BayesTools::check_bool(sampling_heterogeneity, "sampling_heterogeneity")

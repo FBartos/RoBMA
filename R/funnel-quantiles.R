@@ -77,7 +77,8 @@
 # Determine whether the fitted model has one row-invariant marginal
 # heterogeneity distribution. For random-formula brma.mv models this evaluates
 # the same row-marginal ZGZ' variances used by prediction and bridge likelihoods.
-.funnel_common_heterogeneity <- function(object, posterior_samples = NULL) {
+.funnel_common_heterogeneity <- function(object, posterior_samples = NULL,
+                                          commonness_only = FALSE) {
 
   posterior_samples <- .get_posterior_samples(
     object[["fit"]],
@@ -100,10 +101,12 @@
 
   # A selected target also needs one common split of the total into integrated
   # and conditioned sources: the same total can be split differently by row.
-  sources <- .funnel_selection_source_variances(
-    object            = object,
-    posterior_samples = posterior_samples
-  )
+  sources <- if (!commonness_only || total_common) {
+    .funnel_selection_source_variances(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+  } else NULL
   if (!is.null(sources)) {
     common <- common && sources[["common"]]
   }
@@ -242,11 +245,17 @@
       diagonal_only     = TRUE
     )[["samples"]]
     if (length(dim(samples)) == 3L) {
+      if (!identical(dim(samples), c(S, K, K))) {
+        stop("Funnel random-source covariance samples must have dimensions S x K x K.", call. = FALSE)
+      }
       samples <- t(vapply(seq_len(S), function(draw) {
         diag(matrix(samples[draw, , ], K, K))
       }, numeric(K)))
     }
-    return(matrix(as.numeric(samples), nrow = S, ncol = K))
+    if (!is.matrix(samples) || !identical(dim(samples), c(S, K))) {
+      stop("Funnel random-source variance samples must have dimensions S x K.", call. = FALSE)
+    }
+    return(samples)
   }
 
   components <- .evaluate.brma.tau(

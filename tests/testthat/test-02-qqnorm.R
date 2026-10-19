@@ -623,3 +623,25 @@ test_that("Q-Q plot customization snapshots are stable", {
     qqnorm(fit_brma, plot_type = "ggplot", shade = NA, type = "rstandard")
   )
 })
+
+
+test_that("QQ LOO metadata record deletion context rather than marginal depth", {
+
+  name <- "brma.mv_block_mvn"
+  skip_if_missing_fits(name)
+  fit <- fits[[name]]
+  qq <- withCallingHandlers(qqnorm.brma(fit, as_data = TRUE), warning = function(warning) {
+    if (startsWith(conditionMessage(warning), paste0(
+        "Some Pareto k values are high, indicating potentially unreliable ",
+        "LOO diagnostics for estimates: "))) invokeRestart("muffleWarning")
+  })
+  expected <- .selection_deletion_retained_context(fit$data, fit$priors)
+  expect_identical(qq$unit, "estimate")
+  expect_null(qq$conditioning_depth)
+  expect_identical(qq$retained_context, expected)
+  expect_false("conditioning_depth" %in% names(qq$points))
+  expect_identical(qq$points$retained_context, rep(expected, nobs(fit)))
+  standard <- qqnorm.brma(fit, type = "rstandard", as_data = TRUE)
+  expect_identical(standard$conditioning_depth, "marginal")
+  expect_null(standard$retained_context)
+})

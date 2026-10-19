@@ -219,32 +219,10 @@
 #
 # PET/PEESE contours can be non-monotone in x because they are parameterized by
 # standard error. ggplot2::geom_line() sorts by x, which can scramble such
-# contours, so those cases must use geom_path().
+# contours. Every contour therefore uses a data-bound geom_path().
 #
 # ---------------------------------------------------------------------------- #
 .add_funnel_path_or_line <- function(out, data, lty, colour) {
-
-  x_finite <- data[["x"]][is.finite(data[["x"]])]
-  if (length(x_finite) < 3L) {
-    is_monotone <- TRUE
-  } else {
-    x_diff      <- diff(x_finite)
-    x_diff      <- x_diff[x_diff != 0]
-    is_monotone <- length(x_diff) < 2L || all(x_diff > 0) || all(x_diff < 0)
-  }
-
-  if (is_monotone) {
-    return(out +
-      ggplot2::geom_line(
-        mapping = ggplot2::aes(
-          x = data[["x"]],
-          y = data[["y"]]
-        ),
-        linetype = lty,
-        colour   = colour
-      )
-    )
-  }
 
   return(out +
     ggplot2::geom_path(

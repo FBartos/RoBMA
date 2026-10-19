@@ -47,6 +47,11 @@
          call. = FALSE)
   }
 
+  if (max(se) == 0 && is.null(dots[["ylim"]])) {
+    stop("Funnel-plot standard-error range is unavailable when all standard errors are zero. ",
+      "Supply 'ylim' with two distinct non-negative values.", call. = FALSE)
+  }
+
   # compute standard-error plotting range
   se_range <- pretty(c(0, max(se)))
 
@@ -68,7 +73,7 @@
   if (!is.null(dots[["refline"]])) {
     df_refline <- data.frame(
       x = rep(dots[["refline"]], 2),
-      y = range(se_range)
+      y = if (is.null(dots[["ylim"]])) range(se_range) else range(dots[["ylim"]])
     )
   } else {
     # use model center
@@ -163,6 +168,13 @@
     refline      = df_refline,
     estimand     = estimand
   )
+  attr(out, "RoBMA_target") <- c(list(
+    method = if (estimand == "plugin") "funnel()" else "bfunnel()",
+    reported_target = "marginal new-estimate outcome distribution",
+    reference_law = "independently_published_new_estimate_product_rule",
+    bias_adjusted = !sampling_bias,
+    sampling_heterogeneity = sampling_heterogeneity
+  ), .selection_postfit_target_metadata(x[["data"]]))
   if (is_glmm) {
     out[["approximation"]] <- list(
       method                              = "normal_effect_size_approximation",
@@ -223,10 +235,19 @@
     }
   }
   K <- length(se)
+  if (length(res) != K || any(!is.finite(res))) {
+    stop("Residual funnel plots are unavailable because the requested residuals are non-finite. ",
+      "Inspect 'residuals()' for the requested target.", call. = FALSE)
+  }
 
   if (K == 0L || any(!is.finite(se)) || any(se < 0)) {
     stop("Funnel-plot standard errors must be finite and non-negative.",
          call. = FALSE)
+  }
+
+  if (max(se) == 0 && is.null(dots[["ylim"]])) {
+    stop("Funnel-plot standard-error range is unavailable when all standard errors are zero. ",
+      "Supply 'ylim' with two distinct non-negative values.", call. = FALSE)
   }
 
   # Compute a descriptive sampling-error reference region. Residual funnels do
@@ -271,7 +292,7 @@
   }
   df_refline <- data.frame(
     x = rep(refline_x, 2),
-    y = range(se_range)
+    y = range(ylim)
   )
 
   # create output data structures. LOO-PIT residuals are the estimate-unit LOO
@@ -289,7 +310,7 @@
   } else {
     df_points[["conditioning_depth"]] <- rep(conditioning_depth, K)
   }
-  if (exists("res_obj") && is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
+  if (is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
     df_points[["cluster"]]     <- res_obj[["cluster"]]
     df_points[["n_estimates"]] <- res_obj[["n_estimates"]]
   }

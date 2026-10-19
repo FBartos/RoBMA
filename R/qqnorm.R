@@ -37,12 +37,14 @@
 #' }
 #' @param unit output unit. Only \code{"estimate"} is implemented currently.
 #' @param conditioning_depth residual conditioning depth. Options are
-#' \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.
+#' \code{"marginal"}, \code{"cluster"}, and \code{"estimate"}. It does not
+#' apply to LOO-PIT residuals, whose metadata record the deletion unit and
+#' retained context instead; leave it omitted for those residuals.
 #' @param envelope logical indicating whether to add a pseudo confidence
-#' envelope to the plot. The envelope is created by simulating sets of
-#' standard normal quantiles, providing a reference for the expected variability
+#' envelope to the plot. The deterministic envelope uses Beta order-statistic
+#' quantiles transformed to the standard normal scale, providing a reference
 #' under a correctly specified model. Defaults to \code{TRUE}.
-#' @param conf_level numeric value between 0 and 100 specifying the confidence level
+#' @param conf_level finite numeric value strictly between 0 and 100 specifying the confidence level
 #' for the envelope bounds. Defaults to \code{95}.
 #' @param bonferroni logical indicating whether to apply Bonferroni correction
 #' to the envelope, so it can be regarded as a simultaneous confidence region
@@ -173,7 +175,12 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   unit               <- .normalize_unit(unit)
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
   BayesTools::check_bool(envelope, "envelope")
-  BayesTools::check_real(conf_level, "conf_level", lower = 0, upper = 100)
+  .check_plot_numeric(conf_level, "conf_level", check_length = 1, allow_null = FALSE)
+  if (conf_level <= 0 || conf_level >= 100) {
+    stop("'conf_level' must be greater than 0 and less than 100.", call. = FALSE)
+  }
+  .check_plot_numeric(if (missing(xlim)) NULL else xlim, "xlim", check_length = 2)
+  .check_plot_numeric(if (missing(ylim)) NULL else ylim, "ylim", check_length = 2)
   BayesTools::check_bool(bonferroni, "bonferroni")
   BayesTools::check_int(reps, "reps", lower = 1)
   BayesTools::check_bool(smooth, "smooth")
@@ -286,7 +293,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     )
   }
   if (length(z) == 0L || any(!is.finite(z))) {
-    stop("Normal QQ plots require finite standardized residuals.", call. = FALSE)
+    stop("Normal QQ plots are unavailable because the requested standardized residuals are non-finite. ",
+      "Inspect 'residuals()' for the requested target.", call. = FALSE)
   }
   K <- length(z)
 
@@ -336,15 +344,18 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   df_points <- data.frame(
     x                  = qq_x,
     y                  = qq_y,
-    unit               = rep(unit, K),
-    conditioning_depth = rep(conditioning_depth, K)
+    unit               = rep(unit, K)
   )
+  if (type %in% c("LOO-PIT", "rstudent")) {
+    df_points[["retained_context"]] <- rep(
+      .selection_deletion_retained_context(x[["data"]], x[["priors"]]), K)
+  } else df_points[["conditioning_depth"]] <- rep(conditioning_depth, K)
   if (is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
     df_points[["cluster"]]     <- res_obj[["cluster"]][sort_order]
     df_points[["n_estimates"]] <- res_obj[["n_estimates"]][sort_order]
   }
 
-  return(list(
+  out <- list(
     # core QQ data (for invisible return, matching metafor)
     x        = qq_x,
     y        = qq_y,
@@ -363,7 +374,12 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     unit               = unit,
     conditioning_depth = conditioning_depth,
     K                  = K
-  ))
+  )
+  if (type %in% c("LOO-PIT", "rstudent")) {
+    out[["conditioning_depth"]] <- NULL
+    out[["retained_context"]] <- .selection_deletion_retained_context(x[["data"]], x[["priors"]])
+  }
+  return(out)
 }
 
 

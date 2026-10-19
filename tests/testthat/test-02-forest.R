@@ -657,3 +657,83 @@ test_that("Forest plot renders extended visual gallery", {
     })
   }
 })
+
+test_that("forest preparation retains presentation options and explicit render overrides", {
+
+  name <- "bcg_meta-analysis"
+  skip_if_missing_fits(name)
+  fit <- fits[[name]]
+  slab <- paste0("Study ", seq_len(nobs(fit)))
+  prepared <- forest.brma(fit, addpred = TRUE, predstyle = "shade", row = -4,
+    mlab = "Prepared", predlim = c(-2, 2), border = "red", constarea = TRUE,
+    slab = slab, as_data = TRUE)
+  expect_identical(prepared$studies$slab, slab)
+  expect_identical(prepared$forest_args$slab, slab)
+  expect_identical(attr(prepared$forest_args$x, "slab"), slab)
+  expect_identical(prepared$addpoly_args$rows, -4)
+  expect_identical(prepared$addpoly_args$predstyle, "shade")
+  expect_identical(prepared$addpoly_args$mlab, "Prepared")
+  expect_identical(prepared$addpoly_args$predlim, c(-2, 2))
+  expect_identical(prepared$addpoly_args$border, "red")
+  expect_identical(prepared$addpoly_args$constarea, TRUE)
+  bare <- forest.brma(fit, addfit = FALSE, as_data = TRUE)
+  expect_identical(bare$plot_defaults$addfit, FALSE)
+  expect_null(bare$forest_args$ylim)
+  custom <- forest.brma(fit, addfit = FALSE, ylim = c(-5, 30), as_data = TRUE)
+  expect_identical(custom$forest_args$ylim, c(-5, 30))
+  .with_temp_plot_device({
+    direct <- forest.brma(fit, addpred = TRUE, predstyle = "shade", row = -4,
+      mlab = "Prepared", predlim = c(-2, 2), border = "red", constarea = TRUE, slab = slab)
+    replay <- forest.metafor_forest.brma(prepared)
+    expect_equal(replay, direct)
+    expect_silent(forest.metafor_forest.brma(prepared, predstyle = "bar", row = -2,
+      mlab = "Override", border = "blue"))
+    expect_equal(forest.metafor_forest.brma(bare), forest.brma(fit, addfit = FALSE))
+    legacy <- as_metafor_forest(fit)
+    expect_null(legacy$plot_defaults)
+    expect_equal(forest.metafor_forest.brma(legacy), forest.brma(fit))
+  })
+})
+
+test_that("selected forest and funnel targets retain their declared reference provenance", {
+
+  name <- "dat.lehmann2018-3PSM"
+  skip_if_missing_fits(name)
+  fit <- fits[[name]]
+  posterior <- .get_posterior_samples(fit$fit)
+  posterior <- posterior[seq_len(min(24L, nrow(posterior))), , drop = FALSE]
+  withr::local_seed(481)
+  before <- .Random.seed
+  pooled <- pooled_effect(fit, bias_adjusted = FALSE, .posterior_samples = posterior)
+  expect_identical(.Random.seed, before)
+  explicit <- predict(fit, newdata = data.frame(sei = .1), type = "estimate",
+    bias_adjusted = FALSE, quiet = TRUE, .posterior_samples = posterior)
+  expect_identical(attr(explicit, "RoBMA_target", exact = TRUE)$event, "new_publication")
+  expect_false(identical(.Random.seed, before))
+  prepared <- forest.brma(fit, addpred = TRUE, bias_adjusted = FALSE, as_data = TRUE)
+  expect_identical(attr(prepared, "RoBMA_target", exact = TRUE)$reported_target,
+    "fixed-location average-expanded-design reference")
+  specified <- forest.brma(fit, addpred = TRUE, bias_adjusted = FALSE,
+    newdata = data.frame(sei = .1), as_data = TRUE)
+  expect_identical(attr(specified, "RoBMA_target", exact = TRUE)$event, "new_publication")
+  for (fun in list(funnel, bfunnel)) {
+    actual <- fun(fit, refline = .1, ylim = c(0, .27), xlim = c(-1, 1),
+      max_samples = 24L, as_data = TRUE)
+    expect_identical(actual$refline, data.frame(x = c(.1, .1), y = c(0, .27)))
+    target <- attr(actual, "RoBMA_target", exact = TRUE)
+    expect_identical(target$reference_law, "independently_published_new_estimate_product_rule")
+    expect_identical(target$selection_model, .data_selection_model(fit$data))
+    expect_true(actual$estimand %in% c("plugin", "posterior_predictive"))
+    plotted <- fun(fit, refline = .1, ylim = c(0, .27), xlim = c(-1, 1),
+      max_samples = 24L, plot_type = "ggplot")
+    reference_layer <- which(vapply(plotted$layers, function(layer) {
+      identical(layer$data, actual$refline)
+    }, logical(1L)))
+    expect_length(reference_layer, 1L)
+    reference <- ggplot2::ggplot_build(plotted)$data[[reference_layer]]
+    expect_identical(sum(is.finite(reference$y)), 2L)
+    expect_equal(reference$y, -actual$refline$y)
+    .with_temp_plot_device(expect_null(fun(fit, refline = .1,
+      ylim = c(0, .27), xlim = c(-1, 1), max_samples = 24L, plot_type = "base")))
+  }
+})
