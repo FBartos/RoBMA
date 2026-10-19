@@ -239,3 +239,13 @@ and the existing undefined warning for that numerical-zero pair, preserving
 independent region-prior diagnostics and legitimate boundary infinities. Scalar and
 exp-affine discovery catches only declared formula-measure refusals; requested
 hypotheses, missing owners, refit conditions and programming errors stay strict.
+
+Hypothesis wrappers bind named and positional statements identically. Refusal
+messages retain literal semantic labels and distinguish requested variance values
+from the SD values used for evaluation. Warning attribution uses exact declared
+statement/reference identity, including factor levels and full expressions.
+Summary combinations retain keyed row footnotes through relabeling and keep
+ordinary global notes. Explicitly hidden Bayes factors are not refreshed; requested
+precomputed BFs skip preliminary KDE work. Defined-draw notes count undefinedness
+within the declared conditioning event; conditioning exclusions are not undefined
+draws, and the resulting count records are never positional draw masks.

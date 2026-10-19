@@ -57,7 +57,8 @@ test_that("structurally fixed marginal cells have unavailable BFs", {
   expect_true(is.na(inference[["zero"]]))
   expect_match(
     attr(inference[["zero"]], "warnings", exact = TRUE),
-    "structurally fixed"
+    "The posterior of the marginal mean has a point mass at the null hypothesis; its inclusion Bayes factor is undefined.",
+    fixed = TRUE
   )
 
   refusal <- simpleError(paste0(
@@ -127,7 +128,7 @@ test_that("marginal means whose Savage-Dickey Bayes factor is refused have NA ro
                        "instead."),
     mass      = paste0("The prior of the marginal mean has a point mass at the ",
                        "null hypothesis; its inclusion Bayes factor is undefined."),
-    fixed     = paste0("The marginal mean is structurally fixed at the null ",
+    fixed     = paste0("The posterior of the marginal mean has a point mass at the null ",
                        "hypothesis; its inclusion Bayes factor is undefined.")
   )
   for (row in names(refusals)) {

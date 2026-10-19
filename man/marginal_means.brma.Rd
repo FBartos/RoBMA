@@ -28,7 +28,7 @@ factors, specified on the fitted linear-predictor scale. Defaults to
 \code{transform} changes the displayed scale. A marginal mean whose
 Savage-Dickey Bayes factor at the null hypothesis is undefined (BayesTools
 refuses it with a condition of class \code{BayesTools_hypothesis_ordinate}:
-the mean is structurally fixed at the null, or its prior density there is a
+its posterior has a point mass at the null, or its prior density there is a
 point mass, zero (for example a null outside a truncated prior), infinite,
 undefined, or without an exact value) has an \code{NA} inclusion Bayes
 factor, whose reason the summary prints below the table; the other marginal
@@ -89,7 +89,8 @@ IWMDE is unavailable for binomial and Poisson GLMMs because its
 high-dimensional conditional weights did not meet the bridge-sampling
 certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.}
 
-\item{density_control}{named list of density-estimation settings. Supported
+\item{density_control}{named list of density-estimation settings for
+precomputed qCMDE/IWMDE methods. It is accepted and ignored for KDE. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} for density
 curves and point ordinates,
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}

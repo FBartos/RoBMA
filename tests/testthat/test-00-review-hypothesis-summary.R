@@ -513,6 +513,9 @@ test_that("synthetic accepted diagnostics still require declared lattice accurac
   expect_match(.iwmde_diagnostics_bf_failure_reason(diagnostics), "normalization diagnostics are unavailable", fixed = TRUE)
 })
 
+
+# Append to test-00-review-hypothesis-summary.R, whose genuine replay helpers
+# this block reuses.
 test_that("E1-c1 default named and positional hypotheses share the actual carrier", {
 
   object <- review_factor_replay(c("A", "B", "C"), "meandif",
@@ -604,6 +607,96 @@ test_that("E1-c1 a variance refusal preserves SD evaluation evidence", {
   expect_identical(result$density_diagnostics$requested_scale, "variance")
 })
 
+test_that("E3-c1 combined keyed notes follow exact colliding row labels", {
+
+  make_table <- function(value) {
+    table <- data.frame(Mean = value, row.names = "tau")
+    class(table) <- c("BayesTools_table", "data.frame")
+    attr(table, "type") <- "estimate"
+    attr(table, "parameters") <- "tau-source"
+    attr(table, "footnotes") <- stats::setNames(
+      c("tau: Defined-draw explanation.", "Ordinary global explanation."),
+      c("tau-source", ""))
+    table
+  }
+  output <- .summary_brma_combine_tables(list(make_table(.1), make_table(.2)), "Estimates")
+  notes <- attr(output, "footnotes", exact = TRUE)
+  expect_identical(rownames(output), c("tau", "tau.1"))
+  expect_identical(unname(notes[names(notes) == "tau"]), "tau: Defined-draw explanation.")
+  expect_identical(unname(notes[names(notes) == "tau.1"]), "tau.1: Defined-draw explanation.")
+  expect_equal(sum(notes == "Ordinary global explanation."), 1L)
+  expect_identical(output$Mean, c(.1, .2))
+})
+
+test_that("E3-c2 unused summary arguments warn and lines rejects explicit add", {
+
+  object <- .review_h_contribution()
+  expect_warning(summary(object, include_mcmc_diagnostics = FALSE,
+    unused_cleanup_argument = TRUE), "unused_cleanup_argument", fixed = TRUE)
+  models <- .review_h_empty_condition()
+  expect_warning(summary_models(models, include_mcmc_diagnostics = FALSE,
+    unused_cleanup_argument = TRUE), "unused_cleanup_argument", fixed = TRUE)
+  expect_error(lines(object, add = FALSE),
+    "'lines()' always adds to an existing plot. Omit 'add'; use 'plot()' to create a new plot.",
+    fixed = TRUE)
+})
+
+test_that("E3-c2 model tables support both plain data-frame coercions", {
+
+  object <- .review_h_empty_condition()
+  for (type in c("marginal", "individual")) {
+    result <- summary_models(object, type = type, include_mcmc_diagnostics = FALSE)
+    frame <- as.data.frame(result)
+    expect_identical(data.frame(result, check.names = FALSE), frame)
+    expect_identical(names(data.frame(result)), make.names(names(frame), unique = TRUE))
+    expect_identical(class(frame), "data.frame")
+    expect_identical(names(frame)[1:2], c("component", "parameter"))
+    expect_true(all(vapply(frame[c("prior_prob", "post_prob", "inclusion_BF")], is.numeric, logical(1L))))
+    if (type == "marginal") {
+      expected <- unlist(lapply(result$marginal, `[[`, "post_prob"), use.names = FALSE)
+      expect_identical(frame$post_prob, expected)
+      expect_identical(unique(frame$component), names(result$marginal))
+    } else {
+      expect_identical(frame$post_prob, result$individual$post_prob)
+      expect_identical(unique(frame$component), "individual models")
+    }
+  }
+})
+
+test_that("E3-c3 a hidden BF summary skips refresh and retains its source evidence", {
+
+  means <- marginal_means(.review_h_contribution(), bf = FALSE,
+    density_method = "KDE", n_samples = 128L)
+  original <- means
+  testthat::local_mocked_bindings(
+    .marginal_means_refresh_iwmde_bf = function(...) stop("Hidden BF refresh was evaluated."),
+    .package = "RoBMA"
+  )
+  result <- summary(means, bf = FALSE)
+  expect_s3_class(result, "summary.marginal_means.brma")
+  expect_false(any(grepl("BF", names(result), fixed = TRUE)))
+  expect_identical(means, original)
+})
+
+test_that("E3-c3 precomputed marginal means skip the preliminary KDE BF", {
+
+  count <- 0L
+  compute <- .marginal_means_inclusion_bf_one
+  testthat::local_mocked_bindings(
+    .marginal_means_inclusion_bf_one = function(posterior, null_hypothesis) {
+      count <<- count + 1L
+      compute(posterior, null_hypothesis)
+    },
+    .package = "RoBMA"
+  )
+  result <- marginal_means(.review_h_contribution(), bf = TRUE,
+    density_method = "qCMDE", n_samples = 128L)
+  expect_s3_class(result, "marginal_means.brma")
+  expect_identical(count, 0L)
+  expect_identical(result$density_method, "qCMDE")
+  expect_true(is.list(result$ordinate_diagnostics))
+})
+
 test_that("A5-5 genuine BMA gate eligibility controls undefined-draw notes", {
 
   fixture <- review_bma_gate_replay()
@@ -661,6 +754,36 @@ test_that("E1-c1 genuine percent labels retain the point-mass refusal", {
       label, ": tau' because its prior has a point mass at 0. Use a region or directional hypothesis; ",
       "the Component Inclusion table from 'summary(object)' or 'summary_models(object)' compares the exclusion and inclusion of gated components.")
     expect_identical(conditionMessage(result), expected)
+  }
+})
+
+test_that("E3-c4 fixed-zero formulas retain actual mods and location owners", {
+
+  for (owner in c("mods", "location")) {
+    object <- if (owner == "mods") .review_h_ordinate_refusal() else review_fixed_zero_location_replay()
+    original <- object
+    source <- .fitted_formula_source("mu", object$data)
+    design <- .fitted_formula_design(object, "mu", required = TRUE)
+    formula <- .fitted_formula_evaluable(object, design, source)
+    terms <- .marginal_means_terms(design)
+    parameters <- BayesTools::JAGS_parameter_names(terms, formula_parameter = "mu")
+    dropped <- .marginal_means_drop_fixed_zero_intercept(object, formula, terms, parameters)
+    expect_identical(source, owner)
+    expect_length(dropped$formula, 2L)
+    expect_identical(environment(dropped$formula), environment(formula))
+    expect_identical(dropped$terms, "g")
+    expect_identical(dropped$parameters, "mu_g")
+    means <- marginal_means(object, bf = FALSE, density_method = "KDE")
+    expect_identical(names(means$inference$averaged$mu_g), c("A", "B"))
+    draws <- as.matrix(coda::as.mcmc(object$fit))
+    for (level in c("A", "B")) {
+      cell <- means$inference$averaged$mu_g[[level]]
+      weights <- .iwmde_linear_weights(BayesTools::posterior_metadata(cell, "linear_weights"))
+      expect_equal(as.numeric(cell), as.numeric(draws[, names(weights), drop = FALSE] %*% weights),
+        tolerance = 1e-14)
+    }
+    expect_identical(object, original)
+    expect_identical(.fitted_formula_design(object, "mu", required = TRUE), design)
   }
 })
 

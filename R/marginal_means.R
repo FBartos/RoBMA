@@ -46,7 +46,7 @@ marginal_means <- function(object, ...) {
 #' \code{transform} changes the displayed scale. A marginal mean whose
 #' Savage-Dickey Bayes factor at the null hypothesis is undefined (BayesTools
 #' refuses it with a condition of class \code{BayesTools_hypothesis_ordinate}:
-#' the mean is structurally fixed at the null, or its prior density there is a
+#' its posterior has a point mass at the null, or its prior density there is a
 #' point mass, zero (for example a null outside a truncated prior), infinite,
 #' undefined, or without an exact value) has an \code{NA} inclusion Bayes
 #' factor, whose reason the summary prints below the table; the other marginal
@@ -91,7 +91,8 @@ marginal_means <- function(object, ...) {
 #' ordinates used for inclusion Bayes factors. These ordinates are always
 #' computed from conditional marginal means, even when \code{type} excludes
 #' \code{"conditional"}.
-#' @param density_control named list of density-estimation settings. Supported
+#' @param density_control named list of density-estimation settings for
+#' precomputed qCMDE/IWMDE methods. It is accepted and ignored for KDE. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples} for density
 #' curves and point ordinates,
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
@@ -245,7 +246,9 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   )
 
   design           <- .fitted_formula_design(object, "mu", required = TRUE)
-  formula          <- .fitted_formula_evaluable(object, design, "mods")
+  formula          <- .fitted_formula_evaluable(
+    object, design, .fitted_formula_source("mu", object[["data"]])
+  )
   terms            <- .marginal_means_terms(design)
   parameters       <- BayesTools::JAGS_parameter_names(
     parameters        = terms,
@@ -275,7 +278,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     formula             = formula,
     null_hypothesis     = null_hypothesis,
     n_samples           = n_samples,
-    bf                  = bf
+    bf                  = isTRUE(bf) && !precompute_density
   ))
 
   available_parameters <- Reduce(
@@ -422,8 +425,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 # marginal mean whose Savage-Dickey Bayes factor at the null is undefined
 # does not stop the table: BayesTools' refusals of the ordinates of a point
 # hypothesis (class "BayesTools_hypothesis_ordinate": a declared posterior
-# point mass at the null, "BayesTools_posterior_point_mass_at_null", i.e. a
-# mean structurally fixed at the null; a prior point mass, or a zero,
+# point mass at the null, "BayesTools_posterior_point_mass_at_null", which
+# may carry only part of the posterior mass; a prior point mass, or a zero,
 # infinite, undefined, or inexact prior ordinate at the null, e.g.
 # "BayesTools_zero_ordinate" for a null outside a truncated prior) give that
 # row an NA Bayes factor with the reason of the refusal's class in its
@@ -460,7 +463,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   }
   if (inherits(condition, "BayesTools_posterior_point_mass_at_null")) {
     return(paste0(
-      "The marginal mean is structurally fixed at the null hypothesis; ",
+      "The posterior of the marginal mean has a point mass at the null hypothesis; ",
       "its inclusion Bayes factor is undefined."
     ))
   }
@@ -513,7 +516,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   }
 
   return(list(
-    formula    = stats::update.formula(formula, . ~ . - 1),
+    formula    = stats::update.formula(formula, ~ . - 1),
     terms      = terms[keep],
     parameters = parameters[keep]
   ))
@@ -581,7 +584,7 @@ summary.marginal_means.brma <- function(object, type = NULL,
     )
   }
 
-  inference_object <- .marginal_means_refresh_iwmde_bf(
+  inference_object <- if (isTRUE(bf)) .marginal_means_refresh_iwmde_bf(
     inference            = object[["inference"]],
     parameters           = object[["parameters"]],
     null_hypothesis      = object[["null_hypothesis"]],
@@ -591,7 +594,7 @@ summary.marginal_means.brma <- function(object, type = NULL,
       object[["density_method"]]
     },
     object               = object
-  )
+  ) else object[["inference"]]
   if (isTRUE(bf) && identical(object[["bf"]], FALSE) &&
       identical(object[["density_method"]], "KDE")) {
     parameters <- intersect(object[["parameters"]],

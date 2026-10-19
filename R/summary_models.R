@@ -10,10 +10,11 @@
 #'   (\code{"marginal"}) or individual model combinations (\code{"individual"}).
 #' @param include_mcmc_diagnostics whether to include Bayes factor MCMC
 #'   diagnostics in the output. Defaults to \code{TRUE}.
-#' @param ... additional arguments
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
-#' @details Only mixture-prior components are summarized; non-mixture
-#' components are omitted.
+#' @details Model families include ordinary mixtures, spike-and-slab priors,
+#' and declared Bernoulli inclusion gates of random-effect components. Fixed
+#' components without a model choice are omitted.
 #'
 #' @return A list of class \code{summary_models.RoBMA} with elements
 #' \code{name} and \code{type}. For \code{type = "marginal"}, element
@@ -49,6 +50,7 @@ summary_models.default <- function(object, ...) {
 summary_models.RoBMA <- function(object, type = "marginal",
                                  include_mcmc_diagnostics = TRUE, ...) {
 
+  .warn_unused_dots(list(...), allowed = character(), caller = "summary_models()")
   BayesTools::check_char(type, "type")
   BayesTools::check_bool(include_mcmc_diagnostics, "include_mcmc_diagnostics")
   type <- match.arg(type, c("marginal", "individual"))

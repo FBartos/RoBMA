@@ -45,14 +45,19 @@ Defaults to \code{FALSE}.}
 \item{BF01}{whether to show inverse inclusion Bayes factors. Defaults to
 \code{FALSE}.}
 
-\item{...}{additional arguments}
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 
 \item{x}{a \code{summary.brma} or fitted \code{brma} object.}
 }
 \value{
 A list of class \code{summary.brma} with model name, optional RoBMA
 inclusion tables, common estimates, moderator estimates, scale estimates,
-publication-bias estimates, and optional conditional estimates. The printed
+publication-bias estimates, and optional conditional estimates.
+\code{known_v_backend} records the known-sampling-covariance backend.
+\code{inclusion_random} contains random-effect inclusion tables;
+\code{selection_model}, \code{selection_sampling}, and
+\code{selection_sensitivity_diagnostics} retain selection-target metadata
+and optional sensitivity diagnostics. The printed
 form displays the non-empty tables. Objects created with \code{only_data = TRUE}
 return the resolved data and objects created with \code{only_priors = TRUE}
 return the resolved prior list, because neither carries a posterior.

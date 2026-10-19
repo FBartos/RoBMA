@@ -24,11 +24,16 @@
 #' Defaults to \code{FALSE}.
 #' @param BF01 whether to show inverse inclusion Bayes factors. Defaults to
 #' \code{FALSE}.
-#' @param ... additional arguments
+#' @param ... unused additional arguments. Supplied arguments trigger a warning.
 #'
 #' @return A list of class `summary.brma` with model name, optional RoBMA
 #' inclusion tables, common estimates, moderator estimates, scale estimates,
-#' publication-bias estimates, and optional conditional estimates. The printed
+#' publication-bias estimates, and optional conditional estimates.
+#' \code{known_v_backend} records the known-sampling-covariance backend.
+#' \code{inclusion_random} contains random-effect inclusion tables;
+#' \code{selection_model}, \code{selection_sampling}, and
+#' \code{selection_sensitivity_diagnostics} retain selection-target metadata
+#' and optional sensitivity diagnostics. The printed
 #' form displays the non-empty tables. Objects created with `only_data = TRUE`
 #' return the resolved data and objects created with `only_priors = TRUE`
 #' return the resolved prior list, because neither carries a posterior.
@@ -87,6 +92,8 @@ summary.brma       <- function(
     conditional               = FALSE,
     logBF                     = FALSE,
     BF01                      = FALSE, ...) {
+
+  .warn_unused_dots(list(...), allowed = character(), caller = "summary.brma()")
 
   ### model information
   is_mods       <- .is_mods(object)
@@ -582,7 +589,7 @@ as.data.frame.summary.brma <- function(
       out[[column]], sources, vapply(tables, nrow, integer(1L))
     )
   }
-  for (attribute in c("type", "n_models")) {
+  for (attribute in "type") {
     values <- unlist(unname(lapply(tables, function(table) {
       value <- attr(table, attribute, exact = TRUE)
       if (is.null(value)) return(NULL)
@@ -590,10 +597,18 @@ as.data.frame.summary.brma <- function(
     })))
     attr(out, attribute) <- if (length(values)) unname(values[colnames(out)]) else NULL
   }
+  row_offset <- 0L
+  for (i in seq_along(tables)) {
+    rows <- row_offset + seq_len(nrow(tables[[i]]))
+    tables[[i]] <- .summary_inclusion_relabel_warnings(tables[[i]], rownames(out)[rows])
+    row_offset <- row_offset + nrow(tables[[i]])
+  }
   for (attribute in c("parameters", "footnotes", "warnings")) {
     values <- unlist(unname(lapply(tables, attr, which = attribute, exact = TRUE)),
-                     use.names = attribute == "warnings")
-    attr(out, attribute) <- if (attribute == "footnotes") unique(values) else values
+                     use.names = attribute %in% c("warnings", "footnotes"))
+    attr(out, attribute) <- if (attribute == "footnotes") {
+      .hypothesis_brma_unique_named_warnings(values)
+    } else values
   }
   attr(out, "title") <- title
   attr(out, "rownames") <- attr(tables[[1L]], "rownames", exact = TRUE)
@@ -1162,16 +1177,27 @@ print.brma <- function(x, ...) {
 
 .summary_inclusion_relabel_warnings <- function(table, row_labels) {
 
-  warnings <- attr(table, "warnings", exact = TRUE)
-  keys <- names(warnings)
-  if (is.null(keys)) return(table)
-  indices <- match(keys, rownames(table))
-  missing <- is.na(indices)
-  indices[missing] <- match(keys[missing], attr(table, "parameters", exact = TRUE))
-  matched <- !is.na(indices) & !is.na(keys) & nzchar(keys)
-  keys[matched] <- row_labels[indices[matched]]
-  names(warnings) <- keys
-  attr(table, "warnings") <- warnings
+  for (attribute in c("warnings", "footnotes")) {
+    notes <- attr(table, attribute, exact = TRUE)
+    keys <- names(notes)
+    if (is.null(keys)) next
+    indices <- match(keys, rownames(table))
+    missing <- is.na(indices)
+    indices[missing] <- match(keys[missing], attr(table, "parameters", exact = TRUE))
+    matched <- !is.na(indices) & !is.na(keys) & nzchar(keys)
+    if (attribute == "footnotes") {
+      for (i in which(matched)) {
+        prefix <- paste0(rownames(table)[[indices[[i]]]], ": ")
+        if (startsWith(notes[[i]], prefix)) {
+          notes[[i]] <- paste0(row_labels[[indices[[i]]]], ": ",
+            substring(notes[[i]], nchar(prefix) + 1L))
+        }
+      }
+    }
+    keys[matched] <- row_labels[indices[matched]]
+    names(notes) <- keys
+    attr(table, attribute) <- notes
+  }
   table
 }
 

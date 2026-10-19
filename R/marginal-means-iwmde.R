@@ -121,7 +121,6 @@
       context, ordinate_control_list[["integration_control"]]
     )
   }
-  include_values       <- NULL
   specs_by_type        <- .marginal_means_iwmde_specs_by_type(
     marginal_means_object = marginal_means_object,
     parameter             = parameter,
@@ -150,7 +149,7 @@
         density_method  = density_method,
         density_control = density_control_list,
         outputs         = "density",
-        values          = include_values,
+        values          = NULL,
         parameter_spec  = spec,
         metadata        = .marginal_means_iwmde_metadata(
           marginal_means_object = marginal_means_object,
@@ -215,7 +214,7 @@
     density_method       = density_method,
     method               = .density_method_iwmde_estimator(density_method),
     display_grid         = display_grid,
-    include_values       = include_values,
+    include_values       = NULL,
     ordinate_values      = null_hypothesis,
     parameter            = parameter,
     type                 = type,
@@ -227,8 +226,8 @@
     marginal_means_object[["inference"]] <- .marginal_means_refresh_iwmde_bf(
       inference            = marginal_means_object[["inference"]],
       parameters           = marginal_means_object[["parameters"]],
-      null_hypothesis      = marginal_means_object[["null_hypothesis"]],
-      density_method       = marginal_means_object[["density_method"]],
+      null_hypothesis      = null_hypothesis,
+      density_method       = density_method,
       object               = marginal_means_object
     )
   }

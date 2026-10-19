@@ -429,3 +429,38 @@ review_bma_gate_replay <- function(study_label = "study") {
   list(object = object, setup = setup, allocation = allocation, samples = samples,
     required = required, gates = gates, nodes = nodes)
 }
+
+review_fixed_zero_location_replay <- function() {
+  dat <- data.frame(yi = rep(c(.1, 10), each = 3), study = factor(rep(1:3, 2)),
+    g = factor(rep(c("A", "B"), each = 3)))
+  setup <- review_compile_object(brma.mv(yi = yi, V = diag(.04, 6),
+    mods = ~ 0 + g, random = ~ 1 | study, data = dat, measure = "GEN",
+    prior_effect = BayesTools::prior("point", list(0)),
+    prior_mods = list(g = BayesTools::prior_factor("normal", list(0, 1), contrast = "independent")),
+    prior_heterogeneity = BayesTools::prior("point", list(.1)),
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+  priors <- c(setup$compiled$mu$prior_list, .create_fit_priors(setup$object$data, setup$object$priors))
+  design <- setup$compiled$mu$formula_design
+  additional <- setup$compiled$mu$add_parameters
+  latent_bases <- vapply(design$random_effects, function(term) paste0(term$parameter_stem, "_xRE_Zx"), character(1))
+  latent <- unlist(lapply(design$random_effects, function(term) {
+    base <- paste0(term$parameter_stem, "_xRE_Zx")
+    if (!base %in% additional) return(character())
+    index <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
+    paste0(base, "[", index$group, ",", index$column, "]")
+  }), use.names = FALSE)
+  columns <- unique(c(review_prior_columns(priors), setdiff(additional, latent_bases), latent))
+  n <- 240L
+  samples <- matrix(0, n, length(columns), dimnames = list(NULL, columns))
+  for (name in names(priors)) if (BayesTools::is.prior.point(priors[[name]])) {
+    samples[, name] <- priors[[name]]$parameters$location
+  }
+  name <- review_coefficient_name(setup, "g")
+  factor_columns <- BayesTools:::.JAGS_prior_factor_names(name, priors[[name]])
+  quantiles <- stats::qnorm((seq_len(n) - .5) / n)
+  samples[, factor_columns] <- cbind(.1 + .12 * quantiles, 9.84 + .12 * rev(quantiles))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding",
+    "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  object
+}

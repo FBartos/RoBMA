@@ -239,7 +239,8 @@ plot.brma <- function(
 }
 
 #' @details \code{lines.brma()} adds the posterior density to an existing base
-#' plot. With \code{plot_type = "ggplot"}, it returns ggplot2 layer(s) that can
+#' plot. Omit \code{add}: this method always adds, and supplying \code{add}
+#' triggers an error. With \code{plot_type = "ggplot"}, it returns ggplot2 layer(s) that can
 #' be added to a \code{plot.brma(..., plot_type = "ggplot")} object with
 #' \code{+}. For base plots containing point masses, the initial
 #' \code{plot.brma()} call establishes the secondary probability axis and
@@ -257,6 +258,10 @@ lines.brma <- function(
     density_method = c("KDE", "qCMDE", "IWMDE"),
     density_control = NULL, component = "auto", ...) {
 
+  if ("add" %in% names(match.call(expand.dots = FALSE)[["..."]])) {
+    stop("'lines()' always adds to an existing plot. Omit 'add'; use 'plot()' to create a new plot.",
+      call. = FALSE)
+  }
   BayesTools::check_bool(prior, "prior")
   if (isTRUE(prior)) {
     stop(

@@ -17,7 +17,7 @@ summary_models(object, ...)
 \code{RoBMA}, \code{RoBMA.mv}, \code{BMA}/\code{BMA.norm},
 \code{BMA.glmm}, and \code{BMA.mv}.}
 
-\item{...}{additional arguments}
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 
 \item{type}{whether to summarize marginal component prior distributions
 (\code{"marginal"}) or individual model combinations (\code{"individual"}).}
@@ -40,8 +40,9 @@ Creates marginal or individual model-weight summaries for
 RoBMA-class product-space objects.
 }
 \details{
-Only mixture-prior components are summarized; non-mixture
-components are omitted.
+Model families include ordinary mixtures, spike-and-slab priors,
+and declared Bernoulli inclusion gates of random-effect components. Fixed
+components without a model choice are omitted.
 }
 \examples{
 \dontrun{

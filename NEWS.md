@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Marginal-mean and model summaries retain row notes and declared formula
+  owners, avoid hidden Bayes-factor work, and forward current ordinate settings.
 - Hypotheses bind positional statements, retain literal refusal and warning
   identities, and count defined draws within their declared conditioning event.
 - Selection controls retain full-precision tolerance syntax, reject integer

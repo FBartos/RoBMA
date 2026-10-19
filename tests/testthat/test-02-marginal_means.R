@@ -325,8 +325,11 @@ test_that("marginal_means BF ordinate targets stay conditional", {
 test_that("marginal_means attaches BF ordinates for averaged density targets", {
 
   emm <- .marginal_means_iwmde_test_object()
+  emm$density_method <- "IWMDE"
+  emm$null_hypothesis <- .5
   estimate_calls <- list()
   refreshed <- NULL
+  refreshed_request <- NULL
   testthat::local_mocked_bindings(
     .iwmde_context = function(object) list(source = object),
     .iwmde_estimate = function(context, parameter, density_method,
@@ -371,6 +374,8 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
                                                 object = NULL) {
 
       refreshed <<- inference
+      refreshed_request <<- list(null_hypothesis = null_hypothesis,
+        density_method = density_method)
       return(inference)
     },
     .package = "RoBMA"
@@ -396,6 +401,10 @@ test_that("marginal_means attaches BF ordinates for averaged density targets", {
     vapply(estimate_calls, `[[`, character(1), "outputs"),
     c("density", "ordinate")
   )
+  expect_identical(refreshed_request, list(null_hypothesis = 0,
+    density_method = "qCMDE"))
+  expect_true("include_values" %in% names(out$density_settings))
+  expect_null(out$density_settings$include_values)
   expect_equal(
     vapply(estimate_calls, `[[`, character(1), "marginal_type"),
     c("averaged", "conditional")
@@ -1106,7 +1115,7 @@ test_that("marginal_means hides normal approximation density method", {
                                      conditional_list, conditional_rule,
                                      formula, null_hypothesis,
                                      normal_approximation, n_samples, silent,
-                                     force_plots) {
+                                     force_plots, density_method, compute_BF) {
 
       captured <<- list(
         normal_approximation = normal_approximation,
