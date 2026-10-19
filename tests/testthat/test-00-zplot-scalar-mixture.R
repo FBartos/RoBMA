@@ -76,7 +76,9 @@ test_that("paired scalar z integration preserves fitted, extrapolated and inacti
   testthat::local_mocked_bindings(
     .gauss_hermite_nodes = function(...) list(nodes = 0, weights = 1, log_weights = 0),
     .zplot_selnorm_density_matrix = function(z_sequence, mean, ...) {
-      structure(matrix(.5, nrow(mean), length(z_sequence)), relative_integration_error = rep(.02, nrow(mean)))
+      structure(matrix(.5, nrow(mean), length(z_sequence)),
+        relative_integration_error = rep(.02, nrow(mean)),
+        selection_transition_resolved = rep(TRUE, nrow(mean)))
     },
     .package = "RoBMA"
   )

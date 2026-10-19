@@ -889,5 +889,7 @@ test_that("the native normal candidate grid is thread invariant", {
     expect_identical(length(plain[["log_lik"]]), length(values) * S)
     expect_identical(length(plain[["valid"]]), length(values) * S)
     expect_true(is.logical(plain[["valid"]]))
+    expect_true(any(is.finite(plain[["log_lik"]])))
+    expect_true(any(plain[["valid"]]))
   })
 })

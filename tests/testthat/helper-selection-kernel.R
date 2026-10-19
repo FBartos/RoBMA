@@ -316,8 +316,9 @@
   }
 
   return(list(
-    mean   = moment_mean,
-    second = moment_second
+    mean     = moment_mean,
+    second   = moment_second,
+    variance = moment_second - moment_mean^2
   ))
 }
 
