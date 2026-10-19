@@ -19,6 +19,16 @@
 }
 
 
+.random_allocation_component_labels <- function(allocation) {
+
+  labels <- allocation[["component_labels"]]
+  if (length(labels) == 0L) {
+    labels <- names(allocation[["terms"]])
+  }
+  labels
+}
+
+
 .random_component_inclusion_map <- function(object) {
 
   formula_design <- .fitted_formula_design(object, "mu", required = FALSE)
@@ -48,8 +58,11 @@
         call. = FALSE
       )
     }
-    component_index <- match(component_id, names(allocation[["terms"]]))
-    if (is.na(component_index)) {
+    component_labels <- .random_allocation_component_labels(allocation)
+    component_index <- which(component_labels == component_id)
+    if (!is.character(component_labels) ||
+        length(component_labels) != length(allocation[["terms"]]) ||
+        length(component_index) != 1L) {
       stop(
         "Random-effect allocation metadata reference unknown component '",
         component_id, "' in allocation '", allocation_label, "'.",
@@ -58,7 +71,7 @@
     }
     aliases <- c(
       component_id,
-      unname(allocation[["terms"]][[component_id]]),
+      unname(allocation[["terms"]][[component_index]]),
       allocation[["component_names"]][[component_index]]
     )
     aliases <- unique(aliases[!is.na(aliases) & nzchar(aliases)])
@@ -74,7 +87,7 @@
           !identical(parent[["component"]], component_id)) {
         next
       }
-      for (child_component in names(child[["terms"]])) {
+      for (child_component in .random_allocation_component_labels(child)) {
         add_component(
           allocation_label = child[["label"]],
           component_id     = child_component,
@@ -205,7 +218,12 @@
     }, logical(1))])
   }
 
-  block <- unname(allocation[["terms"]][[component]])
+  component_labels <- .random_allocation_component_labels(allocation)
+  component_index <- which(component_labels == component)
+  if (!is.character(component_labels) ||
+      length(component_labels) != length(allocation[["terms"]]) ||
+      length(component_index) != 1L) return(integer())
+  block <- unname(allocation[["terms"]][[component_index]])
   eligible[vapply(eligible, function(row) {
     identical(quantities[["quantity"]][[row]], "sd") &&
       identical(keys[[row]][["random_block"]], block) &&

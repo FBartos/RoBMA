@@ -196,6 +196,11 @@ indicator source to its component key. A uniquely consuming child supplies its
 public total/common SD; otherwise a uniquely identified scalar block SD owns
 the label. Ambiguous or unavailable scalar counterparts remain unmapped. Direct
 SD-prior mixture indicators retain their separate handling.
+Allocation component labels address term positions even when the public term
+vector is unnamed. Traverse descendants through their declared labels; only
+absent or empty label metadata falls back to the legacy named-term declaration.
+Ambiguous or missing label correspondence remains an error or an unmapped scalar
+counterpart under the existing consumer contract.
 
 Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
 (plus specialized `rho`/`I2`). `brma.mv()` uses `tau`/`tau2` for one component,

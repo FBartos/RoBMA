@@ -188,7 +188,7 @@ test_that("random-effect quantities without a scalar coordinate refuse qCMDE/IWM
 
 # Genuine public constructors and current compiler metadata; deterministic source
 # replay verifies ownership and algebra, rather than posterior calibration.
-.allocation_inclusion_replay <- function(mode) {
+.allocation_inclusion_replay <- function(mode, unnamed = character()) {
 
   point <- function(x) BayesTools::prior("point", list(location = x))
   if (mode == "common") {
@@ -205,11 +205,12 @@ test_that("random-effect quantities without a scalar coordinate refuse qCMDE/IWM
     random <- list(study = ~ 1 | study, lab = ~ 1 | lab, site = ~ 1 | site)
     if (mode == "gate_only") random$site <- NULL
     root <- BayesTools::random_variance_allocation(name = "root",
-      terms = if (mode == "gate_only") c(pool = "pool") else c(pool = "pool", site = "site"),
+      terms = if (mode == "gate_only") c(pool = "pool") else if ("root" %in% unnamed) c("pool", "site") else c(pool = "pool", site = "site"),
       sd = BayesTools::prior("gamma", list(shape = 2, rate = 2)),
       weights = if (mode == "gate_only") NULL else BayesTools::prior("dirichlet", list(alpha = c(1, 1))),
       inclusion = if (mode %in% c("root", "gate_only")) list(pool = point(.5)) else NULL)
-    split <- BayesTools::random_variance_allocation(name = "split", terms = c(study = "study", lab = "lab"),
+    split <- BayesTools::random_variance_allocation(name = "split",
+      terms = if ("split" %in% unnamed) c("study", "lab") else c(study = "study", lab = "lab"),
       parent = BayesTools::allocation_ref("root", "pool"),
       weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1))),
       inclusion = if (mode == "children") list(study = point(.5), lab = point(.5)) else if (mode == "lab") list(lab = point(.5)) else NULL)
@@ -244,6 +245,51 @@ test_that("random-effect quantities without a scalar coordinate refuse qCMDE/IWM
   } else samples[, gates] <- if (mode == "lab") rep(c(0, 0, 1, 1), 6) else rep(0:1, 12)
   list(object = review_attach_replay(setup, samples), sources = samples,
     allocations = allocations, gates = gates)
+}
+
+for (.unnamed_case in c("lab", "children", "root", "recursive")) {
+  local({
+    case <- .unnamed_case
+    test_that(paste("allocation inclusion follows declared positions for unnamed terms:", case), {
+
+      mode <- if (case == "recursive") "root" else case
+      unnamed <- switch(case, lab = "split", children = "split", root = "root",
+        recursive = c("root", "split"))
+      named <- .allocation_inclusion_replay(mode)
+      replay <- .allocation_inclusion_replay(mode, unnamed)
+      original <- serialize(replay$object, NULL)
+      expect_identical(replay$sources, named$sources)
+      for (owner in unnamed) {
+        expect_null(names(replay$allocations[[owner]]$terms))
+        expect_identical(unname(replay$allocations[[owner]]$component_labels),
+          unname(named$allocations[[owner]]$component_labels))
+      }
+      expected <- switch(mode, lab = "lab: tau", children = c("study: tau", "lab: tau"),
+        root = "split: tau_total")
+      quantities <- BayesTools::parameter_catalog(replay$object$fit)$quantities
+      rows <- which(quantities$role == "random_inclusion")
+      named_public <- as.matrix(posterior::as_draws_matrix(as_draws(named$object)))
+      public <- tryCatch(as.matrix(posterior::as_draws_matrix(as_draws(replay$object))), error = identity)
+      labels <- tryCatch(.summary_random_inclusion_labels(replay$object,
+        quantities$canonical_name[rows], quantities$canonical_name[rows]), error = identity)
+      expect_identical(labels, expected)
+      expect_false(inherits(public, "error"))
+      if (!inherits(public, "error")) {
+        expect_identical(public, named_public)
+        expect_identical(nrow(public), 24L)
+        expect_identical(anyDuplicated(colnames(public)), 0L)
+        for (i in seq_along(replay$gates)) {
+          expect_identical(as.numeric(public[, paste0(expected[[i]], "_indicator")]),
+            unname(replay$sources[, replay$gates[[i]]]))
+        }
+        expect_false(any(replay$gates %in% colnames(public)))
+      }
+      result <- summary(replay$object)
+      expect_s3_class(result, "summary.brma")
+      expect_length(result$inclusion_random, 0L)
+      expect_identical(serialize(replay$object, NULL), original)
+    })
+  })
 }
 
 for (.inclusion_mode in c("children", "root", "gate_only", "lab", "common")) {
