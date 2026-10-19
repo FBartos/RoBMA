@@ -722,18 +722,6 @@ test_that("zplot handles RoBMA bias-mixture branches", {
   weighted_rows <- which(!selection[["use_normal"]])
   skip_if_not(length(weighted_rows) > 0, "No weightfunction posterior rows in cached fit.")
 
-  selection_args <- .zplot_selection_args(
-    selection = selection,
-    row       = weighted_rows[1],
-    estimate  = 1,
-    n         = 3
-  )
-  active_cuts <- selection[["n_bins"]] - 1L
-
-  expect_equal(nrow(selection_args[["omega"]]), 3)
-  expect_equal(ncol(selection_args[["omega"]]), selection[["n_bins"]])
-  expect_length(selection_args[["crit_yi"]], active_cuts)
-
   zc <- .test_as_zplot(fit, max_samples = max_samples)
   expect_true(all(is.finite(zc[["zplot"]][["estimates"]][["EDR"]])))
   expect_true(all(zc[["zplot"]][["estimates"]][["EDR"]] >= 0))

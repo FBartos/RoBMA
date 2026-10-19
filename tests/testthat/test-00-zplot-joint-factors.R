@@ -105,7 +105,6 @@ test_that("streamed contexts keep row weights and current-cell fallback aligned"
     .zplot_joint_factor_preparation = function(...) prepared,
     .predict_joint_selection_gaussian_parts = function(...) stop("Dense covariance cubes must not be requested."),
     .zplot_context_projection = function(z, mean, covariance, context_factor, sei, selection, control) {
-      stopifnot(exists("static", envir = selection$native_cache, inherits = FALSE))
       calls[[length(calls) + 1L]] <<- list(mean = mean, C = covariance, L = context_factor,
         omega = selection$omega, static = BayesTools::selection_native_static_args(selection))
       if (selection$omega[1L, 2L] == .6) return(NULL)

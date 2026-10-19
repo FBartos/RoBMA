@@ -127,7 +127,6 @@
       lower <- .selection_joint_covariance_lower(setup, block,
         random_factor_samples = prepared[["integrated"]])
       block_context <- BayesTools::selection_context_subset_observations(prepared[["selection"]], observations)
-      static <- BayesTools::selection_native_static_args(block_context)
       fallback_factors <- NULL
       fallback_prepared <- FALSE
       loading <- retained[["loadings"]][[block]]
@@ -166,7 +165,6 @@
           covariance, context_factor, block_sei, projection_context, control)
         if (is.null(projected)) {
           context <- BayesTools::selection_context_subset_rows(block_context, draw)
-          assign("static", static, envir = context[["native_cache"]])
           if (!fallback_prepared) {
             if (!is.null(plan[["sampling_factor_blocks"]]) &&
                 plan[["block_methods"]][[block]] %in% c("rank_one", "factor")) {

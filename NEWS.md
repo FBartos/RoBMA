@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Z-plot context fallback uses the public static-cache contract and removes unused selection arguments and facades.
 - Forest adapters retain presentation options; diagnostic plots preserve reference targets, disconnected contours, and declared row labels.
 - Posterior and prior plots preserve explicit colors and transformed labels, and explain unsupported targets and allocation derivations.
 - Validation tooling uses canonical source hashes and whole-profile keys,

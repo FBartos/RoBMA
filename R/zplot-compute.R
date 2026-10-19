@@ -37,7 +37,6 @@
 
   ### extract model info
   is_weightfunction <- .is_weightfunction(object)
-  effect_direction  <- .effect_direction(object)
 
   ### 1. Thin posterior samples before derived quantities
   posterior_samples <- .get_posterior_samples(object[["fit"]])
@@ -107,8 +106,7 @@
       tau_within       = tau_within,
       sei              = sei,
       selection        = selection,
-      extrapolate      = extrapolate,
-      effect_direction = effect_direction
+      extrapolate      = extrapolate
     ))
   }
 
@@ -119,8 +117,7 @@
       tau_within       = tau_within,
       sei              = sei,
       selection        = selection,
-      extrapolate      = extrapolate,
-      effect_direction = effect_direction
+      extrapolate      = extrapolate
     ))
   }
 
@@ -1902,8 +1899,7 @@
 }
 
 .zplot_threshold_vectorized <- function(z_threshold, mu_samples, tau_within,
-                                         sei, selection, extrapolate,
-                                         effect_direction) {
+                                         sei, selection, extrapolate) {
 
   S        <- nrow(mu_samples)
   K        <- ncol(mu_samples)
@@ -2213,8 +2209,7 @@
       tau_within       = predictive_fit[["tau_within"]],
       sei              = predictive_fit[["sei"]],
       selection        = NULL,
-      extrapolate      = FALSE,
-      effect_direction = .effect_direction(object)
+      extrapolate      = FALSE
     )
     return(list(fitted = density, extrapolated = density))
   }
@@ -2226,8 +2221,7 @@
       tau_within       = predictive_fit[["tau_within"]],
       sei              = predictive_fit[["sei"]],
       selection        = selection,
-      extrapolate      = FALSE,
-      effect_direction = .effect_direction(object)
+      extrapolate      = FALSE
     ),
     extrapolated = .zplot_density_vectorized(
       z_sequence       = z_sequence,
@@ -2235,15 +2229,13 @@
       tau_within       = predictive_extrapolated[["tau_within"]],
       sei              = predictive_extrapolated[["sei"]],
       selection        = selection,
-      extrapolate      = TRUE,
-      effect_direction = .effect_direction(object)
+      extrapolate      = TRUE
     )
   ))
 }
 
 .zplot_density_vectorized <- function(z_sequence, mu_samples, tau_within,
-                                       sei, selection, extrapolate,
-                                       effect_direction) {
+                                       sei, selection, extrapolate) {
 
   total_sd <- .zplot_total_sd(tau_within, sei)
 
@@ -2325,32 +2317,6 @@
   return(.selection_context(
     object            = object,
     posterior_samples = posterior_samples
-  ))
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .zplot_selection_args
-# ---------------------------------------------------------------------------- #
-#
-# Extract active omega and cutpoints for one posterior row and estimate.
-#
-# ---------------------------------------------------------------------------- #
-.zplot_selection_args <- function(selection, row, estimate, n = 1L) {
-
-  .selection_require_step_evaluable(selection, ".zplot_selection_args()")
-
-  omega <- selection[["omega"]][row, , drop = FALSE]
-
-  if (n > 1L) {
-    omega <- matrix(as.numeric(omega), nrow = n, ncol = ncol(omega), byrow = TRUE)
-  }
-
-  return(list(
-    omega   = omega,
-    crit_yi = stats::qnorm(rev(selection[["p_cuts"]])[-c(1L, length(selection[["p_cuts"]]))],
-                           lower.tail = FALSE) *
-      selection[["sei"]][estimate]
   ))
 }
 
