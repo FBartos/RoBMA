@@ -263,3 +263,28 @@ test_that("joint affine grids preserve finite half squares and true overflow", {
     }
   }
 })
+
+
+test_that("joint group-IID grids decline nonpositive covariance cells", {
+
+  y <- c(.1, -.2)
+  plan <- .Call("RoBMA_known_v_covariance_plan_create", y, matrix(0, 2L, 2L),
+    list(), list(1:2), PACKAGE = "RoBMA")
+  observed <- tryCatch(.Call("RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik",
+    plan, matrix(0, 2L, 1L), matrix(c(1, 0), 2L, 1L), matrix(c(1, 0), 2L, 1L),
+    PACKAGE = "RoBMA"), error = identity)
+  expect_null(observed)
+  expect_error(.Call("RoBMA_known_v_covariance_plan_loglik", plan, c(0, 0),
+    list(), c(0, 0), PACKAGE = "RoBMA"),
+    "Known-V integrated bridge covariance is not positive definite.", fixed = TRUE)
+  control <- .Call("RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik",
+    plan, matrix(0, 2L, 1L), matrix(c(1, .2), 2L, 1L), matrix(c(1, .5), 2L, 1L),
+    PACKAGE = "RoBMA")
+  expected <- vapply(seq_len(2L), function(g) {
+    covariance <- diag(c(1, .5)[g], 2L) + c(1, .2)[g]
+    root <- chol(covariance)
+    standardized <- forwardsolve(t(root), y)
+    -log(2 * pi) - sum(log(diag(root))) - .5 * sum(standardized^2)
+  }, numeric(1L))
+  expect_equal(as.numeric(control), expected, tolerance = 1e-13)
+})

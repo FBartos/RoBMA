@@ -412,9 +412,14 @@ extern "C" SEXP RoBMA_known_v_covariance_plan_group_iid_variance_grid_loglik(
             residual.begin() + static_cast<size_t>(size),
             dense_residual.begin()
           );
+          bool positive_definite = false;
           block_log_likelihood = cholesky_block_log_likelihood(
-            size, covariance.data(), dense_residual.data()
+            size, covariance.data(), dense_residual.data(), &positive_definite
           );
+          if (!positive_definite) {
+            UNPROTECT(1);
+            return R_NilValue;
+          }
         }
         REAL(out)[static_cast<size_t>(grid) +
           static_cast<size_t>(grids) * static_cast<size_t>(draw)] +=

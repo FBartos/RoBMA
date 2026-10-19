@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Group-IID covariance grids decline an unevaluable covariance cell while
+  direct joint likelihood calls retain their covariance error.
 - Gaussian joint log densities accumulate representable half squares, and
   Woodbury likelihoods use their residual form before severe cancellation.
 - Invalid batched density likelihood lengths raise an error; ordinary grids no

@@ -44,7 +44,8 @@ void fill_dense_block(
 }
 
 double cholesky_block_log_likelihood(int size, double *covariance,
-                                     double *residual)
+                                     double *residual,
+                                     bool *positive_definite = nullptr)
 {
   int info = 0;
   if (size <= 4) {
@@ -79,7 +80,13 @@ double cholesky_block_log_likelihood(int size, double *covariance,
   } else {
     F77_CALL(dpotrf)("L", &size, covariance, &size, &info FCONE);
   }
+  if (positive_definite != nullptr) {
+    *positive_definite = info == 0;
+  }
   if (info != 0) {
+    if (positive_definite != nullptr) {
+      return NA_REAL;
+    }
     Rf_error("Known-V integrated bridge covariance is not positive definite.");
   }
   double log_determinant = 0.0;
