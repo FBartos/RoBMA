@@ -54,7 +54,7 @@ test_that("integration rejections name fitting and supported post-fit remedies",
     expect_identical(conditionMessage(condition), paste0(
       "Selection normalizer was rejected by diagnostics: relative ",
       "Monte Carlo standard error was ", if (is.finite(mcse)) "0.006" else "Inf",
-      ". Increase 'points_per_scramble' in ", remedies
+      ". Increase 'points_per_scramble' or 'scrambles' in ", remedies
     ))
     expect_null(conditionCall(condition))
 

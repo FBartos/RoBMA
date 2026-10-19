@@ -1945,7 +1945,8 @@ test_that("brma.mv diagnostic target registry documents implemented semantics", 
   expect_s3_class(targets, "data.frame")
   expect_named(
     targets,
-    c("method", "status", "target", "known_v_semantics", "known_r_semantics")
+    c("method", "status", "target", "known_v_semantics", "known_r_semantics",
+      "deletion_target", "reported_target")
   )
   expect_equal(anyDuplicated(targets[["method"]]), 0L)
   expect_true(all(c("implemented", "deferred") %in% targets[["status"]]))

@@ -1284,14 +1284,23 @@ test_that("AGHQ reports failure when refinement is capped", {
     consecutive = 2L
   )
 
-  expect_error(
-    .glmm_pois_aghq(
-      1L, 1L, 370, 483,
-      matrix(-0.45), matrix(0.5), NULL,
-      c(mean = -6.0187, sd = 20.27),
-      control = control
-    ),
-    regexp = "failed to converge.*sample 1, observation 1",
-    info   = "hard failure includes cell and terminal refinement"
-  )
+  condition <- tryCatch(.glmm_pois_aghq(
+    1L, 1L, 370, 483,
+    matrix(-0.45), matrix(0.5), NULL,
+    c(mean = -6.0187, sd = 20.27),
+    control = control
+  ), error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_aghq_nonconvergence")
+  expect_s3_class(condition, "RoBMA_glmm_numerical_error")
+  expect_identical(condition[["outcome_type"]], "pois")
+  expect_identical(condition[["reason"]], "quadrature_nonconvergence")
+  expect_identical(condition[["sample"]], 1L)
+  expect_identical(condition[["observation"]], 1L)
+  expect_identical(condition[["order"]], 13L)
+  expect_true(is.finite(condition[["change"]]))
+  expect_identical(conditionMessage(condition), paste0(
+    "Poisson AGHQ was rejected by diagnostics: last log-likelihood change ",
+    format(condition[["change"]], digits = 8L),
+    " at quadrature order 13 at sample 1, observation 1. ",
+    "Inspect the data and 'prior_phi' before refitting the model."))
 })
