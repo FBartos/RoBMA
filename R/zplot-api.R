@@ -78,8 +78,9 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #'
 #' The EDR uses the bias-adjusted reference distribution: selection and
 #' PET/PEESE offsets are removed. For multivariate selection models, models
-#' integrating applicable contextual sources, and best-rule selection models,
-#' this reference is the normalized pre-selection Gaussian marginal,
+#' retaining estimate-level or sampling-error sources or integrating applicable
+#' contextual sources, and best-rule selection models, this reference is the
+#' normalized pre-selection Gaussian marginal,
 #' integrating all newly realized contexts. Its integral is
 #' one and EDR is its significance probability. Relative selection weights do
 #' not identify an absolute publication probability or missing count, so
@@ -136,7 +137,8 @@ as_zplot <- function(object, ...) UseMethod("as_zplot")
 #'   \item{estimates}{a list with posterior samples for \code{EDR} and
 #'     extrapolation \code{weights}, when a missing-count convention applies}
 #'   \item{data}{a list with \code{significance_level},
-#'     \code{conditioning_depth}, observed \code{z}-statistics,
+#'     \code{conditioning_depth}, stored \code{integration_control},
+#'     observed \code{z}-statistics,
 #'     \code{N_significant}, and \code{N_observed}}
 #'   \item{target}{the fitted reporting specification, reference distribution,
 #'     source and publication identities, and missing-count applicability}
@@ -164,6 +166,9 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                           integration_control = set_selection_likelihood_control(), ...) {
 
   .check_zplot_significance_level(significance_level)
+  integration_control <- .check_selection_likelihood_control(
+    integration_control, argument = "integration_control"
+  )
   max_samples        <- .normalize_max_samples(max_samples, "max_samples")
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
@@ -230,7 +235,7 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
   )
 
   # add class
-  class(object) <- c("zplot_brma", class(object))
+  class(object) <- c("zplot_brma", class(object)[class(object) != "zplot_brma"])
 
   return(object)
 }
@@ -362,14 +367,16 @@ zplot.zplot_brma <- function(object, ...) {
 #' @details
 #' The summary includes:
 #' \describe{
-#'   \item{EDR}{Expected Discovery Rate - average power of significant studies}
+#'   \item{EDR}{Expected Discovery Rate - the posterior average probability of
+#'     significance for a new outcome from the bias-adjusted reference}
 #'   \item{Soric FDR}{Expected proportion of false discoveries among significant
 #'     results, computed from EDR following Soric (1989)}
 #'   \item{Missing N}{The retained reference-bin-normalized inverse-weight
 #'     diagnostic for independent univariate and conditional-cluster product
 #'     models. See [as_zplot.brma()] for the additional assumptions required by
 #'     a literal count interpretation. Unavailable for multivariate models,
-#'     applicable integrated contexts, or best-rule selection models because
+#'     retained estimate-level or sampling-error sources, applicable integrated
+#'     contexts, or best-rule selection models because
 #'     relative weights do not identify a missing count}
 #' }
 #'
@@ -395,7 +402,7 @@ summary.zplot_brma <- function(object, probs = c(.025, .975), ...) {
     paste0(
       "Estimated using %1$i estimates, %2$i significant ",
       "(ODR = %3$.2f, 95%% CI [%4$.2f, %5$.2f]); ",
-      "conditioning depth: %6$s)."
+      "conditioning depth: %6$s."
     ),
     object$zplot$data[["N_observed"]],
     object$zplot$data[["N_significant"]],
@@ -540,6 +547,11 @@ print.zplot_brma <- function(x, ...) {
 #' require matching installed package/native builds and share the configured
 #' selection-cache budget. Worker count is reported when parallel work starts.
 #' @inheritParams as_zplot.brma
+#' @param integration_control numerical integration settings created by
+#' \code{set_selection_likelihood_control()}. Defaults to the settings stored by
+#' \code{as_zplot()}; an explicit value overrides them for this plot. Legacy
+#' objects without stored settings require an explicit control, or recreation
+#' with \code{as_zplot()}, when their selected density needs integration.
 #' @param plot_fit whether to show fitted density (with bias adjustments).
 #' Defaults to \code{TRUE}.
 #' @param plot_extrapolation whether to show extrapolated density (bias removed).
@@ -582,8 +594,9 @@ print.zplot_brma <- function(x, ...) {
 #'     This represents the expected distribution of z-statistics given the estimated
 #'     selection process. Shown by default.}
 #'   \item{Extrapolation (blue)}{The bias-adjusted reference without selective
-#'     reporting. Multivariate models, applicable integrated contexts, and
-#'     best-rule selection models use the normalized pre-selection Gaussian
+#'     reporting. Multivariate models, retained estimate-level or sampling-error
+#'     sources, applicable integrated contexts, and best-rule selection models
+#'     use the normalized pre-selection Gaussian
 #'     marginal. Released univariate product
 #'     targets retain their inverse-weight scaling convention. Shown only when
 #'     \code{plot_extrapolation = TRUE}, since the extrapolated curve rescales
@@ -618,7 +631,19 @@ plot.zplot_brma <- function(x, plot_type = "base",
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
   BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
   BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
+  has_integration_control <- !missing(integration_control) ||
+    "integration_control" %in% names(x[["zplot"]][["data"]])
+  if (has_integration_control) {
+    integration_control <- .check_selection_likelihood_control(
+      integration_control, argument = "integration_control"
+    )
+  }
 
+  integration_args <- if (has_integration_control) {
+    list(integration_control = integration_control)
+  } else {
+    list()
+  }
   dots <- list(...)
 
   # get line values first so we can set ylim
@@ -635,6 +660,15 @@ plot.zplot_brma <- function(x, plot_type = "base",
     names(dots), names(dots_fit), names(dots_extrapolation)
   ) %in% computational_args)
   if (plot_fit && plot_extrapolation && !pair_overrides) {
+    if (!has_integration_control &&
+        .zplot_requires_selection_marginal(x, .zplot_stored_conditioning_depth(x))) {
+      stop(
+        "'integration_control' is unavailable for this legacy zplot object. ",
+        "Supply 'integration_control = set_selection_likelihood_control()' ",
+        "or recreate the object with 'as_zplot()'.",
+        call. = FALSE
+      )
+    }
     z_sequence <- .zplot_bins(
       priors     = x[["priors"]],
       from       = from,
@@ -671,11 +705,9 @@ plot.zplot_brma <- function(x, plot_type = "base",
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            parallel = parallel, cores = cores, extrapolate = FALSE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
-           integration_control = integration_control,
            .zplot_thresholds = thresholds),
-      dots, dots_fit
+      integration_args, dots, dots_fit
     )))
-    ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
   }
 
   # 2. Extrapolation lines (unbiased zplot density)
@@ -686,12 +718,10 @@ plot.zplot_brma <- function(x, plot_type = "base",
       list(x = x, plot_type = plot_type, probs = probs, max_samples = max_samples,
            parallel = parallel, cores = cores, extrapolate = TRUE, plot_ci = plot_ci, from = from, to = to,
            by = by.lines, length.out = length.out.lines, as_data = TRUE,
-           integration_control = integration_control,
            .zplot_thresholds = thresholds,
            col = "blue"), # default color if not in dots
-      dots, dots_extrapolation
+      integration_args, dots, dots_extrapolation
     )))
-    ymax <- max(c(ymax, lines_extrapolation$y, if (plot_ci) lines_extrapolation$y_uCI))
   }
   if (plot_fit) {
     ymax <- max(c(ymax, lines_fit$y, if (plot_ci) lines_fit$y_uCI))
@@ -722,7 +752,10 @@ plot.zplot_brma <- function(x, plot_type = "base",
 
   # 4. Add fit lines
   if (plot_fit) {
-    dots_fit_lines <- .get_dots_lines_zplot(c(dots_fit, dots), plot_type = plot_type)
+    dots_fit_lines <- .get_dots_lines_zplot(c(
+      .get_dots_lines_zplot(dots_fit, plot_type, defaults = FALSE),
+      .get_dots_lines_zplot(dots, plot_type, defaults = FALSE)
+    ), plot_type = plot_type)
 
     if (plot_type == "base") {
       if (plot_ci) {
@@ -765,7 +798,10 @@ plot.zplot_brma <- function(x, plot_type = "base",
 
   # 5. Add extrapolation lines
   if (plot_extrapolation) {
-     dots_ext_lines <- .get_dots_lines_zplot(c(dots_extrapolation, dots), plot_type = plot_type, col = "blue")
+    dots_ext_lines <- .get_dots_lines_zplot(c(
+      .get_dots_lines_zplot(dots_extrapolation, plot_type, defaults = FALSE),
+      .get_dots_lines_zplot(dots, plot_type, defaults = FALSE)
+    ), plot_type = plot_type, col = "blue")
 
     if (plot_type == "base") {
       if (plot_ci) {
@@ -841,20 +877,26 @@ plot.zplot_brma <- function(x, plot_type = "base",
 #' @param from,to z-value range for plotting. Defaults to \code{-6} and \code{6}.
 #' @param by bin width. Defaults to 0.5.
 #' @param length.out number of bins (alternative to \code{by}).
-#' @param add whether to add to existing plot. Defaults to \code{FALSE}.
+#' @param add whether to add to an existing base plot. Defaults to
+#' \code{FALSE}. For ggplot, combine the histogram and density layers with
+#' \code{+}; \code{add = TRUE} is unsupported.
 #' @param plot_thresholds whether to show significance threshold lines.
 #' Defaults to \code{TRUE}.
 #' @param dots_thresholds graphical parameters for threshold lines (list).
 #' @param dots_hist graphical parameters for histogram (list).
 #' @param dots_all graphical parameters passed to all components (list).
-#' @param ... additional graphical parameters.
+#' @param ... additional graphical parameters. Use \code{as_data = TRUE} to
+#' return histogram data without drawing.
 #'
 #' @details
 #' Z-statistics are computed as effect size divided by standard error
 #' (\code{yi / sei}). Histogram bins are adjusted to align with significance
-#' thresholds when selection model priors are present.
+#' thresholds when selection model priors are present. Standalone ggplot
+#' histograms scale automatically to added layers unless \code{ylim} is supplied.
 #'
-#' @return \code{NULL} invisibly for base graphics, or a ggplot2 object.
+#' @return \code{NULL} invisibly for base graphics, a ggplot2 object, or a data
+#' frame with columns \code{x}, \code{density}, and \code{breaks} (bin widths)
+#' when \code{as_data = TRUE}.
 #'
 #' @seealso [plot.zplot_brma()], [lines.zplot_brma()]
 #'
@@ -869,6 +911,13 @@ hist.zplot_brma <- function(x, plot_type = "base",
   BayesTools::check_real(to, "to")
   BayesTools::check_real(by, "by", allow_NULL = TRUE)
   BayesTools::check_bool(add, "add")
+  if (plot_type == "ggplot" && add) {
+    stop(
+      "'add = TRUE' is unavailable for 'plot_type = \"ggplot\"'. ",
+      "Combine 'hist()' and 'lines()' layers with '+'.",
+      call. = FALSE
+    )
+  }
   BayesTools::check_bool(plot_thresholds, "plot_thresholds")
 
   dots <- list(...)
@@ -907,6 +956,12 @@ hist.zplot_brma <- function(x, plot_type = "base",
   if (isTRUE(dots[["as_data"]])) {
     return(df_hist)
   }
+
+  # Normalize threshold and shared aliases before applying component priority.
+  dots_thresholds <- c(
+    .get_dots_lines_zplot(dots_thresholds, plot_type, defaults = FALSE),
+    .get_dots_lines_zplot(dots, plot_type, defaults = FALSE)
+  )
 
   # merge dots_hist
   if (!is.null(dots_hist)) {
@@ -1029,6 +1084,11 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' change the EDR and missing-study summaries stored by \code{as_zplot()}.
 #' @inheritParams plot.zplot_brma
 #' @inheritParams as_zplot.brma
+#' @param integration_control numerical integration settings created by
+#' \code{set_selection_likelihood_control()}. Defaults to the settings stored by
+#' \code{as_zplot()}; an explicit value overrides them for these lines. Legacy
+#' objects without stored settings require an explicit control, or recreation
+#' with \code{as_zplot()}, when their selected density needs integration.
 #' @param plot_ci whether to show credible interval bands. Defaults to \code{TRUE}.
 #' @param extrapolate whether to remove bias adjustments. Defaults to \code{FALSE}.
 #' @param from,to z-value range for density. Defaults to \code{-6} and \code{6}.
@@ -1061,7 +1121,8 @@ hist.zplot_brma <- function(x, plot_type = "base",
 #' (PET/PEESE regression, selection weights) representing the fitted model.
 #' When \code{extrapolate = TRUE}, bias adjustments are removed to show the
 #' hypothetical distribution without publication bias. Multivariate models,
-#' applicable integrated contexts, and best-rule selection models use a
+#' retained estimate-level or sampling-error sources, applicable integrated
+#' contexts, and best-rule selection models use a
 #' normalized pre-selection Gaussian reference. Released univariate product
 #' targets retain inverse-weight scaling
 #' and their extrapolated curve need not integrate to one.
@@ -1087,6 +1148,20 @@ lines.zplot_brma <- function(x, plot_type = "base",
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
   BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
   BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
+  if (!missing(integration_control) ||
+      "integration_control" %in% names(x[["zplot"]][["data"]])) {
+    integration_control <- .check_selection_likelihood_control(
+      integration_control, argument = "integration_control"
+    )
+  } else if (.zplot_requires_selection_marginal(
+      x, .zplot_stored_conditioning_depth(x))) {
+    stop(
+      "'integration_control' is unavailable for this legacy zplot object. ",
+      "Supply 'integration_control = set_selection_likelihood_control()' ",
+      "or recreate the object with 'as_zplot()'.",
+      call. = FALSE
+    )
+  }
   BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(extrapolate, "extrapolate")
   BayesTools::check_real(from, "from")

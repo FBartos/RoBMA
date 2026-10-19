@@ -11,7 +11,7 @@ test_that("zplot density defaults follow the model class and preserve explicit b
     matrix(.1, 2L, length(grid))
   }
   testthat::local_mocked_bindings(
-    .zplot_bins = function(priors, from, to, by, length.out, type){
+    .zplot_bins = function(priors, from, to, by, length.out, type, thresholds = NULL){
       grids[[length(grids) + 1L]] <<- list(from = from, to = to, by = by,
         length.out = length.out, type = type)
       grid

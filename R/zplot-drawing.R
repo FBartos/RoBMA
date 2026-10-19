@@ -1,7 +1,8 @@
 .get_dots_hist_zplot <- function(dots, plot_type = "base", max_density = NULL) {
 
   ylim <- dots[["ylim"]]
-  if (is.null(ylim) && !is.null(max_density)) {
+  if (is.null(ylim) && !is.null(max_density) &&
+      (plot_type == "base" || !is.null(dots[[".zplot_auto_ymax"]]))) {
     ylim <- c(0, max(c(max_density, dots[[".zplot_auto_ymax"]])))
   }
   if (plot_type == "base") {
@@ -41,25 +42,30 @@
 # @param plot_type "base" or "ggplot"
 # @param col       default line color
 # @param alpha     default alpha for CI ribbons
+# @param defaults  include default values, or normalize supplied styles only
 #
 # @return list of graphical parameters appropriate for plot_type
 #
 # ---------------------------------------------------------------------------- #
-.get_dots_lines_zplot <- function(dots, plot_type = "base", col = "black", alpha = 0.40) {
+.get_dots_lines_zplot <- function(dots, plot_type = "base", col = "black",
+                                   alpha = 0.40, defaults = TRUE) {
   if (plot_type == "base") {
     line_dots <- list(
-      lwd   = if (!is.null(dots[["lwd"]]))   dots[["lwd"]]   else 2,
-      col   = if (!is.null(dots[["col"]]))   dots[["col"]]   else col,
-      lty   = if (!is.null(dots[["lty"]]))   dots[["lty"]]   else 1,
-      alpha = if (!is.null(dots[["alpha"]])) dots[["alpha"]] else alpha
+      lwd   = if (!is.null(dots[["lwd"]]))   dots[["lwd"]]   else if (defaults) 2,
+      col   = if (!is.null(dots[["col"]]))   dots[["col"]]   else if (defaults) col,
+      lty   = if (!is.null(dots[["lty"]]))   dots[["lty"]]   else if (defaults) 1,
+      alpha = if (!is.null(dots[["alpha"]])) dots[["alpha"]] else if (defaults) alpha
     )
   } else if (plot_type == "ggplot") {
     line_dots <- list(
-      linewidth = if (!is.null(dots[["linewidth"]])) dots[["linewidth"]] else if (!is.null(dots[["lwd"]])) dots[["lwd"]] else 1,
-      color     = if (!is.null(dots[["color"]]))     dots[["color"]]     else if (!is.null(dots[["col"]])) dots[["col"]] else col,
-      linetype  = if (!is.null(dots[["linetype"]])) dots[["linetype"]]  else if (!is.null(dots[["lty"]])) dots[["lty"]] else 1,
-      alpha     = if (!is.null(dots[["alpha"]]))    dots[["alpha"]]     else alpha
+      linewidth = if (!is.null(dots[["linewidth"]])) dots[["linewidth"]] else if (!is.null(dots[["lwd"]])) dots[["lwd"]] else if (defaults) 1,
+      color     = if (!is.null(dots[["color"]]))     dots[["color"]]     else if (!is.null(dots[["col"]])) dots[["col"]] else if (defaults) col,
+      linetype  = if (!is.null(dots[["linetype"]])) dots[["linetype"]]  else if (!is.null(dots[["lty"]])) dots[["lty"]] else if (defaults) 1,
+      alpha     = if (!is.null(dots[["alpha"]]))    dots[["alpha"]]     else if (defaults) alpha
     )
+  }
+  if (!defaults) {
+    line_dots <- line_dots[!vapply(line_dots, is.null, logical(1L))]
   }
   return(line_dots)
 }

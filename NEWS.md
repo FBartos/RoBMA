@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Z plots validate stored and explicit integration controls, compose standalone
+  histogram limits with added layers, and honor component style aliases.
 - Transformed prior plots preserve an explicit parameter label.
 - Heterogeneity exports retain their component label, and prior-only coefficient
   queries preserve their existing NULL result.

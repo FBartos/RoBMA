@@ -209,3 +209,190 @@ test_that("regplot evaluates a component-specific scale on the prediction grid",
   fallback <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
   expect_equal(unname(fallback^2), unname(study_variance + tau_esid^2), tolerance = 1e-12)
 })
+
+
+# Reuse the compiler/finalized-fit replay above for actual public zplot calls.
+# These repeated point-prior states test display routing, not MCMC accuracy.
+.review_display_replay <- function(selected = FALSE) {
+
+  yi <- seq(-5.5, 5.5, length.out = 24L)
+  point <- BayesTools::prior("point", list(location = 0))
+  if (selected) {
+    object <- bselmodel.mv(yi = yi, V = diag(24L), random = NULL,
+      measure = "GEN", prior_effect = point,
+      prior_bias = BayesTools::prior_weightfunction("one-sided", .025,
+        BayesTools::wf_fixed(c(1, .2))), prior_unit_information_sd = 1,
+      only_priors = TRUE, silent = TRUE)
+    samples <- matrix(0, 24L, 1L, dimnames = list(NULL, "mu"))
+  } else {
+    object <- brma(yi = yi, sei = rep(1, 24L), measure = "GEN",
+      prior_effect = point,
+      prior_heterogeneity = BayesTools::prior("point", list(location = .1)),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+    samples <- cbind(mu = rep(0, 24L), tau = rep(.1, 24L))
+  }
+  .replay_object(object, samples)[["object"]]
+}
+
+
+test_that("actual ordinary heterogeneity summaries identify their component", {
+
+  result <- summary_heterogeneity(.review_display_replay())
+  frame <- as.data.frame(result)
+  expect_identical(result[["component"]], "heterogeneity")
+  expect_identical(frame[["component"]], rep("heterogeneity", 4L))
+  expect_identical(frame[["parameter"]], c("tau", "tau2", "I2", "H2"))
+  expect_identical(data.frame(result), frame)
+  expect_equal(unname(frame[["Mean"]]), c(.1, .01, 100 * .01 / 1.01, 1.01),
+    tolerance = 1e-12)
+})
+
+
+test_that("zplot public controls distinguish explicit, stored and legacy inputs", {
+
+  skip_if_not_installed("ggplot2")
+  invalid_message <- "'integration_control' must be created by set_selection_likelihood_control()."
+  legacy_message <- paste0(
+    "'integration_control' is unavailable for this legacy zplot object. ",
+    "Supply 'integration_control = set_selection_likelihood_control()' ",
+    "or recreate the object with 'as_zplot()'.")
+  control <- set_selection_likelihood_control()
+  override <- set_selection_likelihood_control(seed = 203L)
+  for (selected in c(FALSE, TRUE)) {
+    object <- .review_display_replay(selected)
+    for (invalid in list(NULL, list())) {
+      expect_error(as_zplot(object, integration_control = invalid),
+        invalid_message, fixed = TRUE)
+    }
+    z <- as_zplot(object, integration_control = control)
+    expect_identical(z[["zplot"]][["data"]][["integration_control"]], control)
+    stored <- lines(z, plot_type = "ggplot", as_data = TRUE, max_samples = Inf)
+    expect_equal(lines(z, plot_type = "ggplot", as_data = TRUE,
+      max_samples = Inf, integration_control = override), stored, tolerance = 1e-12)
+    for (invalid in list(NULL, list())) {
+      expect_error(lines(z, as_data = TRUE, integration_control = invalid),
+        invalid_message, fixed = TRUE)
+      expect_error(plot(z, plot_type = "ggplot", integration_control = invalid),
+        invalid_message, fixed = TRUE)
+      expect_error(plot(z, plot_type = "ggplot",
+        dots_fit = list(integration_control = invalid)), invalid_message, fixed = TRUE)
+      corrupt <- z
+      corrupt[["zplot"]][["data"]]["integration_control"] <- list(invalid)
+      expect_error(lines(corrupt, as_data = TRUE), invalid_message, fixed = TRUE)
+      expect_error(plot(corrupt, plot_type = "ggplot"), invalid_message, fixed = TRUE)
+    }
+    legacy <- z
+    legacy[["zplot"]][["data"]][["integration_control"]] <- NULL
+    expect_s3_class(plot(legacy, plot_type = "ggplot", plot_fit = FALSE,
+      plot_extrapolation = FALSE), "ggplot")
+    expect_s3_class(plot(legacy, plot_type = "ggplot", plot_extrapolation = TRUE,
+      dots_fit = list(integration_control = control),
+      dots_extrapolation = list(integration_control = control)), "ggplot")
+    for (both in c(FALSE, TRUE)) {
+      expect_s3_class(plot(legacy, plot_type = "ggplot",
+        plot_extrapolation = both, integration_control = control), "ggplot")
+      if (selected) {
+        expect_error(plot(legacy, plot_type = "ggplot", plot_extrapolation = both),
+          legacy_message, fixed = TRUE)
+      } else {
+        expect_s3_class(plot(legacy, plot_type = "ggplot",
+          plot_extrapolation = both), "ggplot")
+      }
+    }
+    if (selected) {
+      error <- tryCatch(lines(legacy, as_data = TRUE), error = identity)
+      expect_identical(conditionMessage(error), legacy_message)
+      expect_null(conditionCall(error))
+    } else {
+      expect_equal(lines(legacy, as_data = TRUE, max_samples = Inf), stored,
+        tolerance = 0)
+    }
+    expect_equal(lines(legacy, as_data = TRUE, max_samples = Inf,
+      integration_control = control), stored, tolerance = 0)
+  }
+})
+
+
+test_that("standalone ggplot histograms scale to actual added density layers", {
+
+  skip_if_not_installed("ggplot2")
+  z <- as_zplot(.review_display_replay())
+  bars <- hist(z, plot_type = "ggplot", as_data = TRUE, plot_thresholds = FALSE)
+  density <- lines(z, plot_type = "ggplot", as_data = TRUE, plot_ci = FALSE)
+  expect_gt(max(density[["y"]]), max(bars[["density"]]))
+  histogram <- hist(z, plot_type = "ggplot", plot_thresholds = FALSE)
+  composed <- histogram + lines(z, plot_type = "ggplot", plot_ci = FALSE)
+  expect_null(histogram[["coordinates"]][["limits"]][["y"]])
+  built <- ggplot2::ggplot_build(composed)
+  expect_gte(built[["layout"]][["panel_params"]][[1L]][["y.range"]][[2L]],
+    max(density[["y"]]))
+  explicit <- hist(z, plot_type = "ggplot", ylim = c(0, .1),
+    plot_thresholds = FALSE) + lines(z, plot_type = "ggplot", plot_ci = FALSE)
+  expect_identical(explicit[["coordinates"]][["limits"]][["y"]], c(0, .1))
+  combined <- plot(z, plot_type = "ggplot", plot_ci = FALSE,
+    plot_thresholds = FALSE)
+  expect_equal(combined[["coordinates"]][["limits"]][["y"]],
+    c(0, max(density[["y"]]) * 1.05), tolerance = 0)
+  expect_identical(.get_dots_hist_zplot(list(), "base", max(bars[["density"]]))[["ylim"]],
+    c(0, max(bars[["density"]])))
+  expect_error(hist(z, plot_type = "ggplot", add = TRUE), paste0(
+    "'add = TRUE' is unavailable for 'plot_type = \"ggplot\"'. ",
+    "Combine 'hist()' and 'lines()' layers with '+'."), fixed = TRUE)
+})
+
+
+test_that("zplot component styles override global aliases in actual layers", {
+
+  skip_if_not_installed("ggplot2")
+  z <- as_zplot(.review_display_replay(TRUE))
+  layer <- function(plot, geom, occurrence = 1L) {
+    indices <- which(vapply(plot[["layers"]], function(layer) {
+      inherits(layer[["geom"]], geom)
+    }, logical(1L)))
+    ggplot2::layer_data(plot, indices[[occurrence]])
+  }
+  styles <- list(
+    list(col = "red", lty = 2, lwd = 2),
+    list(color = "red", linetype = 2, linewidth = 2),
+    list(color = "red", col = "orange", linetype = 2, lty = 5,
+      linewidth = 2, lwd = 5)
+  )
+  for (style in styles) {
+    plot <- plot(z, plot_type = "ggplot", plot_ci = FALSE,
+      plot_extrapolation = TRUE, color = "black", linetype = 1, linewidth = .5,
+      dots_fit = style,
+      dots_extrapolation = list(col = "blue", lty = 3, lwd = 3),
+      dots_thresholds = list(col = "green", lty = 4, lwd = 4))
+    fit <- layer(plot, "GeomLine", 1L)
+    extrapolation <- layer(plot, "GeomLine", 2L)
+    threshold <- layer(plot, "GeomVline")
+    expect_identical(unique(fit[["colour"]]), "red")
+    expect_equal(unique(fit[["linetype"]]), 2)
+    expect_equal(unique(fit[["linewidth"]]), 2)
+    expect_identical(unique(extrapolation[["colour"]]), "blue")
+    expect_equal(unique(extrapolation[["linetype"]]), 3)
+    expect_equal(unique(extrapolation[["linewidth"]]), 3)
+    expect_identical(unique(threshold[["colour"]]), "green")
+    expect_equal(unique(threshold[["linetype"]]), 4)
+    expect_equal(unique(threshold[["linewidth"]]), 4)
+  }
+  global <- hist(z, plot_type = "ggplot", color = "purple", linetype = 5,
+    linewidth = 2)
+  threshold <- layer(global, "GeomVline")
+  expect_identical(unique(threshold[["colour"]]), "purple")
+  expect_equal(unique(threshold[["linetype"]]), 5)
+  expect_equal(unique(threshold[["linewidth"]]), 2)
+})
+
+
+test_that("zplot reconversion and summary wording retain the public result", {
+
+  z <- as_zplot(.review_display_replay())
+  again <- as_zplot(z)
+  expect_identical(sum(class(again) == "zplot_brma"), 1L)
+  printed <- capture.output(value <- withVisible(print(z)))
+  expect_s3_class(value[["value"]], "summary.zplot_brma")
+  expect_false(value[["visible"]])
+  expect_true(any(grepl("conditioning depth: marginal.", printed, fixed = TRUE)))
+  expect_false(any(grepl("conditioning depth: marginal).", printed, fixed = TRUE)))
+})
