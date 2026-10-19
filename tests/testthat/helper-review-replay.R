@@ -4,7 +4,8 @@
 # draws, so that post-fit methods run without sampling.
 
 review_heterogeneity_har_replay <- function(scaled = FALSE, n = 120L,
-    weights = c(.5, .5), rho = 0, time = c(1, 2, 1, 2), direct = FALSE) {
+    weights = c(.5, .5), rho = 0, time = c(1, 2, 1, 2), direct = FALSE,
+    component_name = NULL) {
 
   dat <- data.frame(yi = seq(.1, .4, length.out = length(time)),
     study = factor(rep(c("s1", "s2"), each = length(time) / 2L)), time = time)
@@ -16,6 +17,9 @@ review_heterogeneity_har_replay <- function(scaled = FALSE, n = 120L,
     prior_heterogeneity = BayesTools::prior("normal", list(mean = 0, sd = 1),
       truncation = list(lower = 0, upper = Inf)))
   if (scaled) args[["scale"]] <- ~ time
+  if (!is.null(component_name)) {
+    args[["random"]] <- stats::setNames(list(~ har(time | study)), component_name)
+  }
   if (direct) args[["prior_heterogeneity"]] <- BayesTools::prior_random(
     sd = BayesTools::prior("normal", list(mean = 0, sd = 1),
       truncation = list(lower = 0, upper = Inf)))

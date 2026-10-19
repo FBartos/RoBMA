@@ -249,3 +249,9 @@ ordinary global notes. Explicitly hidden Bayes factors are not refreshed; reques
 precomputed BFs skip preliminary KDE work. Defined-draw notes count undefinedness
 within the declared conditioning event; conditioning exclusions are not undefined
 draws, and the resulting count records are never positional draw masks.
+
+Prior-only allocation summaries use declared parent factors once and retain
+visible component owners. Block allocation shares condition on declared own
+and parent gate activity; inactive shares carry allocation_active undefined-draw
+metadata. Zero numerical SD alone does not deactivate an allocation. Ungated
+shares retain the declared weights without renormalization.

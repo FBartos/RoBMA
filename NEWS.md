@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Prior-only allocation summaries preserve declared owners, parent factors, and
+  realized gate activity, with undefined shares excluded explicitly.
 - Heterogeneity selector errors retain all declared choices and avoid extracting unrequested source allocations.
 - Selection row routing avoids an unused prior lookup while retaining its normalized branch metadata.
 - Native sampler allocation retains ownership across allocation failures; scalar selected-normal means must be finite and existing diagnostics retain significant digits.

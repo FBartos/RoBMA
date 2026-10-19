@@ -707,11 +707,23 @@
         object = object, posterior_samples = posterior_samples
       )
     }
+    allocation_sources <- source_samples
+    source_name <- allocation[["source"]][["name"]]
+    allocation_sources[[source_name]] <- .random_sd_source_samples(
+      source = allocation[["source"]], posterior_samples = posterior_samples,
+      K = K, source_samples = source_samples
+    )
+    for (factor in allocation[["parent_factors"]]) {
+      allocation_sources[[source_name]] <- .recycle_rows(
+        allocation_sources[[source_name]],
+        .random_allocation_factor_samples(factor, posterior_samples)
+      )
+    }
     samples_list <- .brma_mv_allocation_summary_samples(
       allocation        = allocation,
       formula_design    = formula_design,
       posterior_samples = posterior_samples,
-      source_samples    = source_samples,
+      source_samples    = allocation_sources,
       K                 = K
     )
 
@@ -965,17 +977,20 @@
       character(1),
       "block_name"
     ))
-    block_owner <- if (length(blocks) == 1L) {
-      ""
-    } else {
-      .brma_mv_sd_component_allocation_block(allocation)
+    term <- .brma_mv_sd_component_allocation_term(allocation, formula_design)
+    block_owner <- term[["block_name"]]
+    if (is.null(block_owner) || !nzchar(block_owner)) {
+      block_owner <- term[["group_label"]]
+    } else if (identical(block_owner, term[["component_label"]]) &&
+               !is.null(term[["component"]]) && nzchar(term[["component"]])) {
+      block_owner <- term[["component"]]
+    }
+    if (length(blocks) <= 1L && !isTRUE(term[["component_visible"]])) {
+      block_owner <- ""
     }
     return(.brma_mv_sd_component_allocation_summary_samples(
       allocation        = allocation,
-      term              = .brma_mv_sd_component_allocation_term(
-        allocation     = allocation,
-        formula_design = formula_design
-      ),
+      term              = term,
       block_owner       = block_owner,
       posterior_samples = posterior_samples,
       source_samples    = source_samples,
@@ -1010,18 +1025,6 @@
   )
   total_variance <- rowMeans(total^2)
 
-  aggregate_quantities <- .brma_mv_allocation_aggregate_quantities(allocation)
-  allocation_owner <- .brma_mv_allocation_public_name(allocation)
-  samples <- list()
-  samples[[.brma_mv_allocation_parameter_name(
-    allocation_owner,
-    .brma_random_parameter_io_quantity(aggregate_quantities[["sd"]])
-  )]] <- sqrt(total_variance)
-  samples[[.brma_mv_allocation_parameter_name(
-    allocation_owner,
-    .brma_random_parameter_io_quantity(aggregate_quantities[["var"]])
-  )]] <- total_variance
-
   weight_name <- allocation[["weight_name"]]
   terms       <- allocation[["terms"]]
   labels      <- names(terms)
@@ -1034,6 +1037,7 @@
       !anyNA(component_names) && all(nzchar(component_names))) {
     labels <- unname(component_names)
   }
+  component_weights <- matrix(NA_real_, nrow(posterior_samples), length(terms))
   for (i in seq_along(terms)) {
     column <- paste0(weight_name, "[", i, "]")
     if (!column %in% colnames(posterior_samples)) {
@@ -1047,10 +1051,61 @@
         call. = FALSE
       )
     }
+    component_weights[, i] <- weights
+  }
+
+  inclusion <- allocation[["inclusion"]]
+  for (gate in inclusion) {
+    index <- gate[["index"]]
+    BayesTools::check_int(index, "allocation inclusion index", lower = 1,
+      upper = length(terms), allow_NULL = FALSE)
+    component_weights[, index] <- component_weights[, index] *
+      .random_allocation_factor_samples(
+        list(inclusion_name = gate[["indicator_name"]]), posterior_samples
+      )[, 1L]
+  }
+  active_weight <- rowSums(component_weights)
+  if (length(inclusion) > 0L) {
+    total_variance <- total_variance * active_weight
+  }
+
+  parent_active <- rep(TRUE, nrow(posterior_samples))
+  parent_gated <- FALSE
+  for (factor in allocation[["parent_factors"]]) {
+    if (!is.null(factor[["inclusion_name"]])) {
+      parent_gated <- TRUE
+      parent_active <- parent_active & .random_allocation_factor_samples(
+        list(inclusion_name = factor[["inclusion_name"]]), posterior_samples
+      )[, 1L] == 1
+    }
+  }
+  gated <- length(inclusion) > 0L || parent_gated
+  if (gated) {
+    active <- parent_active & active_weight > 0
+    component_weights[active, ] <- component_weights[active, , drop = FALSE] /
+      active_weight[active]
+    component_weights[!active, ] <- NA_real_
+  }
+
+  aggregate_quantities <- .brma_mv_allocation_aggregate_quantities(allocation)
+  allocation_owner <- .brma_mv_allocation_public_name(allocation)
+  samples <- list()
+  samples[[.brma_mv_allocation_parameter_name(
+    allocation_owner,
+    .brma_random_parameter_io_quantity(aggregate_quantities[["sd"]])
+  )]] <- sqrt(total_variance)
+  samples[[.brma_mv_allocation_parameter_name(
+    allocation_owner,
+    .brma_random_parameter_io_quantity(aggregate_quantities[["var"]])
+  )]] <- total_variance
+  for (i in seq_along(terms)) {
+    share <- component_weights[, i]
+    if (gated) {
+      BayesTools::posterior_metadata(share, "undefined_draws") <- "allocation_active"
+    }
     samples[[.brma_mv_allocation_parameter_name(
-      allocation_owner,
-      paste0("tau2_prop(", labels[[i]], ")")
-    )]] <- weights
+      allocation_owner, paste0("tau2_prop(", labels[[i]], ")")
+    )]] <- share
   }
 
   samples
@@ -1087,9 +1142,16 @@
     K       = K
   )
   total_sd <- sqrt(rowMeans(total^2))
+  block <- .brma_mv_sd_component_allocation_block(allocation)
+  if (is.null(block_owner)) {
+    block_owner <- block
+  }
 
   aggregate_quantities <- .brma_mv_allocation_aggregate_quantities(allocation)
   allocation_owner <- .brma_mv_allocation_public_name(allocation)
+  if (!nzchar(allocation_owner)) {
+    allocation_owner <- block_owner
+  }
   samples <- list()
   samples[[.brma_mv_allocation_parameter_name(
     allocation_owner,
@@ -1102,10 +1164,6 @@
 
   weight_name <- allocation[["weight_name"]]
   labels      <- .brma_mv_sd_component_allocation_labels(allocation)
-  block       <- .brma_mv_sd_component_allocation_block(allocation)
-  if (is.null(block_owner)) {
-    block_owner <- block
-  }
   leaf_index  <- allocation[["leaf_index_by_column"]]
   n_targets   <- allocation[["n_targets"]]
   scale       <- allocation[["scale"]]
