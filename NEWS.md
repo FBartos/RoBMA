@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Closed-form density normalizers combine Gaussian factors successively and
+  retain narrow-prior and far-tail support contributions on their own scales.
 - Selection-projection diagnostics include numerator and denominator
   uncertainty before averaging over observations.
 - Selected-normal quadrature discards incomplete batch products before scalar

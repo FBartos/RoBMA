@@ -72,6 +72,151 @@
 }
 
 
+# Localized positive-tail integral for the closed-form row consumer. This is
+# the positive-real Mills expansion with its first omitted term, capped at64.
+.iwmde_qcmde_closed_form_log_mills <- function(a) {
+
+  if (length(a) != 1L || !is.finite(a) || a < 16) {
+    return(NA_real_)
+  }
+  total <- 1
+  term  <- 1
+  for (index in seq_len(64L)) {
+    next_term <- term * (-(2 * index - 1) / a / a)
+    if (abs(next_term) <= .Machine$double.eps / 8 * total) {
+      if (!is.finite(total) || total <= 0) {
+        return(NA_real_)
+      }
+      return(-log(a) + log(total))
+    }
+    total <- total + next_term
+    term  <- next_term
+  }
+
+  return(NA_real_)
+}
+
+
+# log integral_0^width exp(-a*t - t^2/2) dt. Narrow finite intervals use the
+# same16-node Gauss-Legendre machinery as the ordinary normal-mass helper.
+.iwmde_qcmde_closed_form_log_tail <- function(a, width) {
+
+  log_mills <- .iwmde_qcmde_closed_form_log_mills(a)
+  if (!is.finite(log_mills) || length(width) != 1L || is.na(width) ||
+      width <= 0) {
+    return(NA_real_)
+  }
+  if (is.infinite(width)) {
+    return(log_mills)
+  }
+  decay <- a * width + .5 * width * width
+  if (is.na(decay) || decay <= 0) {
+    return(NA_real_)
+  }
+  if (decay < .1) {
+    rule <- .gauss_legendre_nodes(16L)
+    node <- width * rule[["nodes"]]
+    terms <- rule[["log_weights"]] - a * width * rule[["nodes"]] -
+      .5 * node * node
+    top <- max(terms)
+    return(log(width) + top + log(sum(exp(terms - top))))
+  }
+  if (is.infinite(decay)) {
+    return(log_mills)
+  }
+  exponent <- -decay + .iwmde_qcmde_closed_form_log_mills(a + width) -
+    log_mills
+  if (!is.finite(exponent) || exponent >= 0) {
+    return(NA_real_)
+  }
+
+  return(log_mills + log(-expm1(exponent)))
+}
+
+
+# Successive Gaussian products retain the target's current coordinate and a
+# separate shift. For support wholly in a far tail, evaluate the original row
+# at its finite nearest endpoint instead of cancelling height and tail mass.
+.iwmde_qcmde_closed_form_normalizer <- function(current, linear, quadratic,
+                                                baseline, constant, form,
+                                                lower, upper) {
+
+  factor_mean <- form[["mean"]]
+  factor_sd   <- form[["sd"]]
+  if (!all(is.finite(c(current, linear, quadratic, baseline, constant))) ||
+      quadratic <= 0 || length(factor_mean) != length(factor_sd) ||
+      any(!is.finite(factor_mean)) || any(!is.finite(factor_sd) | factor_sd <= 0) ||
+      is.na(lower) || is.na(upper) || lower >= upper) {
+    return(NULL)
+  }
+  root_quadratic <- sqrt(quadratic)
+  kernel_sd <- 1 / root_quadratic
+  shift <- linear / quadratic
+  sd <- kernel_sd
+  if (!is.finite(shift) || !is.finite(sd) || sd <= 0) {
+    return(NULL)
+  }
+  # Save only the overlap inputs here. Its completed height is not evaluated
+  # on the boundary-scaled branch, where that unused term may overflow.
+  overlap_mean <- overlap_location <- overlap_sd <- numeric(length(factor_sd))
+  for (index in seq_along(factor_sd)) {
+    offset <- factor_mean[[index]] - current
+    scale  <- factor_sd[[index]]
+    largest <- max(sd, scale)
+    smallest <- min(sd, scale)
+    combined_sd <- largest * sqrt(1 + (smallest / largest)^2)
+    if (!is.finite(offset) || !is.finite(combined_sd) || combined_sd <= 0) {
+      return(NULL)
+    }
+    overlap_mean[[index]] <- shift
+    overlap_location[[index]] <- offset
+    overlap_sd[[index]] <- combined_sd
+    shift <- if (sd <= scale) {
+      shift + (offset - shift) * (sd / combined_sd)^2
+    } else {
+      offset + (shift - offset) * (scale / combined_sd)^2
+    }
+    sd <- smallest * (largest / combined_sd)
+    if (!is.finite(shift) || !is.finite(sd) || sd <= 0) {
+      return(NULL)
+    }
+  }
+  right_distance <- ((lower - current) - shift) / sd
+  left_distance  <- (shift - (upper - current)) / sd
+  right_tail <- isTRUE(right_distance >= 16)
+  left_tail  <- isTRUE(left_distance >= 16)
+  if (right_tail || left_tail) {
+    boundary <- if (right_tail) lower else upper
+    distance <- if (right_tail) right_distance else left_distance
+    if (!is.finite(boundary)) {
+      return(NULL)
+    }
+    width <- (upper - lower) / sd
+    delta <- boundary - current
+    log_boundary <- baseline + constant +
+      sum(stats::dnorm(boundary, factor_mean, factor_sd, log = TRUE)) +
+      linear * delta - .5 * quadratic * delta * delta
+    log_normalizer <- log_boundary + log(sd) +
+      .iwmde_qcmde_closed_form_log_tail(distance, width)
+  } else {
+    score <- linear / root_quadratic
+    log_kernel <- baseline + .5 * score * score + log(kernel_sd) + log(2 * pi) / 2
+    for (index in seq_along(overlap_sd)) {
+      log_kernel <- log_kernel + stats::dnorm(overlap_mean[[index]],
+        overlap_location[[index]], overlap_sd[[index]], log = TRUE)
+    }
+    log_mass <- .iwmde_qcmde_log_normal_mass(lower - current, upper - current,
+      shift, sd)
+    log_normalizer <- log_kernel + constant + log_mass
+  }
+  if (!is.finite(log_normalizer)) {
+    return(NULL)
+  }
+
+  return(list(log_normalizer = log_normalizer, shift = shift, sd = sd))
+}
+
+
 # The exact rows of a pass whose reported log prior is the declared form's up to
 # a constant on the lattice `grid`, with their normalizers: the mass of the row
 # over its whole support (the prior's support within the chart's). `prior` holds
@@ -79,21 +224,11 @@
 # `columns` (NULL when it reported none); `laws` and `kernel` are those of the
 # pass.
 #
-# With u = x - current, the row's log density is
-#
-#   l(x) = baseline + constant + sum_j log N(x; m_j, s_j) + L u - Q u^2 / 2
-#        = const + B u - P u^2 / 2,
-#
-# where L and Q are the kernel's coefficients, P = Q + sum_j 1 / s_j^2 and
-# B = L + sum_j (m_j - current) / s_j^2. The normal has centre u* = B / P and SD
-# 1 / sqrt(P), and
-#
-#   log Z = baseline + constant + sum_j [-log s_j - log(2 pi) / 2]
-#           - sum_j (m_j - current)^2 / (2 s_j^2) + B^2 / (2 P)
-#           + log(2 pi) / 2 + log(1 / sqrt(P)) + log(mass of the support),
-#
-# evaluated from the coefficients and not at a rounded mean, which a row narrower
-# than the spacing of the doubles at its centre could not place.
+# The Gaussian likelihood and every declared Gaussian prior factor are combined
+# successively. The separate current coordinate and shift avoid rounding away a
+# narrow row's location. A support wholly beyond sixteen combined SDs uses the
+# original row at its nearest finite endpoint with a boundary-scaled tail mass,
+# avoiding cancellation of a large completed height and a tiny support mass.
 .iwmde_qcmde_closed_form_rows <- function(laws, kernel, grid, prior, columns,
                                           transform) {
 
@@ -131,22 +266,17 @@
       next
     }
 
-    offset    <- form[["mean"]] - current
-    precision <- quadratic + sum(1 / form[["sd"]]^2)
-    slope     <- linear + sum(offset / form[["sd"]]^2)
-    sd        <- 1 / sqrt(precision)
-    shift     <- slope / precision
-    lower     <- max(laws[["lower"]][[row]], support[[1L]])
-    upper     <- min(laws[["upper"]][[row]], support[[2L]])
-    log_mass  <- .iwmde_qcmde_log_normal_mass(lower - current, upper - current,
-                                              shift, sd)
-    log_normalizer <- baseline + constant +
-      sum(-log(form[["sd"]]) - log(2 * pi) / 2) -
-      sum(offset^2 / (2 * form[["sd"]]^2)) + slope^2 / (2 * precision) +
-      log(2 * pi) / 2 + log(sd) + log_mass
-    if (!is.finite(log_normalizer)) {
+    lower <- max(laws[["lower"]][[row]], support[[1L]])
+    upper <- min(laws[["upper"]][[row]], support[[2L]])
+    normalizer <- .iwmde_qcmde_closed_form_normalizer(
+      current, linear, quadratic, baseline, constant, form, lower, upper
+    )
+    if (is.null(normalizer)) {
       next
     }
+    log_normalizer <- normalizer[["log_normalizer"]]
+    shift <- normalizer[["shift"]]
+    sd <- normalizer[["sd"]]
     out[["rows"]]           <- c(out[["rows"]], row)
     out[["log_normalizer"]] <- c(out[["log_normalizer"]], log_normalizer)
     out[["center"]]         <- c(out[["center"]], current)

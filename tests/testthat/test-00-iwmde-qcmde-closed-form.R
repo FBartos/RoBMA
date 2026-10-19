@@ -628,3 +628,90 @@ test_that("rows a hundred million times narrower than the step are normalized by
                                   tolerance = 1e-6)))
   }
 })
+
+test_that("closed Normal rows retain narrow priors and scaled support tails", {
+
+  evaluate <- function(current, linear, quadratic, baseline, form, values, prior) {
+    delta <- values - current
+    log_q <- baseline + linear * delta - .5 * quadratic * delta^2 + prior
+    result <- .iwmde_qcmde_closed_form_rows(
+      laws = list(kind = "exact", form = list(form), lower = form$lower, upper = form$upper),
+      kernel = list(current = current, linear = linear, quadratic = quadratic, baseline = baseline),
+      grid = list(x = values, log_q = matrix(log_q, ncol = 1L)),
+      prior = matrix(prior, ncol = 1L), columns = 1L,
+      transform = list(lower = form$lower, upper = form$upper))
+    expect_identical(result$rows, 1L)
+    expect_identical(result$center, current)
+    result$log_normalizer
+  }
+  focal <- function(row, values, prior = .cf_log_prior(row, values)) {
+    form <- .iwmde_qcmde_normal_prior_parameters(row$prior)
+    evaluate(row$current, row$linear, row$quadratic, row$baseline, form, values, prior)
+  }
+  # Original narrow-prior fixture: kernelSD.5/current.1/baseline-1.3 and
+  # declared unbounded Normal(0,1e-8) prior. The independent integral scales
+  # only the prior coordinate; it never uses the completed Gaussian mean.
+  row <- .cf_row(.1, .5, .1, -1.3, 0, 1e-8, 0)
+  reference <- stats::integrate(function(u) stats::dnorm(u) *
+    exp(-1.3 - 2 * (1e-8 * u - .1)^2), -Inf, Inf, rel.tol = 1e-12, abs.tol = 0)
+  expected <- log(reference$value)
+  allowance <- reference$abs.error / reference$value +
+    128 * .Machine$double.eps * max(1, abs(expected))
+  expect_lte(abs(focal(row, c(-3, -1, 1, 3) * 1e-8) - expected), allowance)
+
+  # Original half-normal T1e8 fixture, ordinaryT3, and its reflected support.
+  # Their physical row is sqrt(2/pi)*exp(-T*x-x^2); u=T*x supplies the reference.
+  for (T in c(1e8, 3)) for (direction in c(1, -1)) {
+    current <- direction / T
+    row <- .cf_row(-direction * T, 1, current,
+      -T * abs(current) - .5 * current^2, 0, 1, 0,
+      lower = if (direction == 1) 0 else -Inf,
+      upper = if (direction == 1) Inf else 0)
+    reference <- stats::integrate(function(u) exp(-u - (u / T)^2),
+      0, Inf, rel.tol = 1e-12, abs.tol = 0)
+    expected <- log(sqrt(2 / pi)) - log(T) + log(reference$value)
+    allowance <- reference$abs.error / reference$value +
+      128 * .Machine$double.eps * max(1, abs(expected))
+    expect_lte(abs(focal(row, direction * c(0, 1, 2, 3) / T) - expected), allowance)
+  }
+
+  # A finite near-boundary interval exercises the actual16-node helper. The
+  # evaluated prior uses its explicitly declared physical normalizing mass,
+  # avoiding a subtractive-CDF artifact in the older general test helper.
+  T <- 1e8
+  upper <- 1e-10
+  current <- upper / 2
+  row <- .cf_row(-T, 1, current, -T * current - .5 * current^2,
+    0, 1, 0, lower = 0, upper = upper)
+  values <- seq(0, upper, length.out = 4L)
+  prior_integral <- stats::integrate(function(u) stats::dnorm(upper * u),
+    0, 1, rel.tol = 1e-12, abs.tol = 0)
+  prior_mass <- upper * prior_integral$value
+  prior <- stats::dnorm(values, log = TRUE) - log(prior_mass)
+  reference <- stats::integrate(function(u) exp(-T * upper * u - (upper * u)^2),
+    0, 1, rel.tol = 1e-12, abs.tol = 0)
+  expected <- log(upper) - log(2 * pi) / 2 + log(reference$value) - log(prior_mass)
+  allowance <- reference$abs.error / reference$value +
+    prior_integral$abs.error / prior_integral$value +
+    128 * .Machine$double.eps * max(1, abs(expected))
+  expect_lte(abs(focal(row, values, prior) - expected), allowance)
+
+  # Independent80-digit Gaussian-product constants retained from177. These
+  # are explicit zero/two-factor declarations of the same row-level contract.
+  forms <- list(
+    list(mean = numeric(), sd = numeric(), lower = -Inf, upper = Inf),
+    list(mean = c(0, .2), sd = c(.7, 1.1), lower = -Inf, upper = Inf))
+  expected <- c(-1.0542086473552726098253773208085074,
+    -2.9296430659478288107944095688822882)
+  values <- c(-.3, -.1, .2, .4)
+  for (index in seq_along(forms)) {
+    form <- forms[[index]]
+    prior <- numeric(length(values))
+    for (factor in seq_along(form$mean)) {
+      prior <- prior + stats::dnorm(values, form$mean[[factor]], form$sd[[factor]], log = TRUE)
+    }
+    actual <- evaluate(.1, .4, 4, -1.3, form, values, prior)
+    expect_lte(abs(actual - expected[[index]]),
+      128 * .Machine$double.eps * max(1, abs(expected[[index]])))
+  }
+})
