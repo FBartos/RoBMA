@@ -156,7 +156,7 @@ known_v_factor <- function(diagonal, loading) {
 }
 
 
-.known_v_has_declared_factor <- function(V, arg = "V") {
+.known_v_has_declared_factor <- function(V) {
 
   inherits(V, "RoBMA_known_v_factor")
 }
@@ -239,34 +239,6 @@ known_v_factor <- function(diagonal, loading) {
   }
 
   as.integer(known_V[["certified_factor"]][["dense_rows"]])
-}
-
-
-# The certified factor of each correlated dependency block, block-local.
-.known_v_certified_factor_blocks <- function(known_V) {
-
-  if (identical(.known_v_storage(known_V), "factor")) {
-    loading  <- known_V[["factor_loading"]]
-    diagonal <- as.numeric(known_V[["factor_diagonal"]])
-    return(lapply(known_V[["block_indices"]], function(index) {
-      block_loading <- loading[index, , drop = FALSE]
-      list(
-        index    = index,
-        diagonal = diagonal[index],
-        loading  = unname(block_loading[, colSums(abs(block_loading)) > 0, drop = FALSE])
-      )
-    }))
-  }
-
-  factor   <- known_V[["certified_factor"]]
-  diagonal <- as.numeric(factor[["diagonal"]])
-  lapply(factor[["blocks"]], function(block) {
-    list(
-      index    = block[["index"]],
-      diagonal = diagonal[block[["index"]]],
-      loading  = block[["loading"]]
-    )
-  })
 }
 
 
@@ -377,7 +349,6 @@ known_v_factor <- function(diagonal, loading) {
 
   invisible(known_V)
 }
-
 
 
 .known_v_factor_covariance <- function(diagonal, loading, index = NULL) {
@@ -727,7 +698,7 @@ known_v_factor <- function(diagonal, loading) {
 # Describe known-V input without materializing block-diagonal storage.
 .known_v_input_storage <- function(V, arg = "V") {
 
-  if (.known_v_has_declared_factor(V, arg = arg)) {
+  if (.known_v_has_declared_factor(V)) {
     .known_v_factor_components(V, arg = arg)
     return("factor")
   }

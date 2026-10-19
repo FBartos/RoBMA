@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Known-V null-space coverage refuses indefinite factorizations and names the
+  supported prior remedy; dense reference-only helpers now live with their tests.
 - Density warnings report their thresholds, preserve infinite observed values,
   and share a condition family with remedies that match the available diagnostics.
 - Density construction failures identify invalid supports and grouped baselines;

@@ -213,13 +213,6 @@
   }
   component <- merge(component, left)
   component <- merge(component, right)
-  # Repeat until stable: merging on the right can connect components the left
-  # pass had kept apart, and vice versa.
-  repeat {
-    updated <- merge(merge(component, left), right)
-    if (identical(updated, component)) break
-    component <- updated
-  }
   unname(lapply(split(seq_len(K), component), as.integer))
 }
 

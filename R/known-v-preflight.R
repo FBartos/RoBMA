@@ -65,10 +65,10 @@
     if (length(invalid_numeric_blocks) > 0L) {
       block_labels <- .known_v_block_labels(invalid_numeric_blocks)
       stop(
-        "Fixed integrated variance does not make singular 'V' dependency ",
+        "Fixed integrated variance does not make 'V' dependency ",
         "block(s) at retained rows ", paste(block_labels, collapse = ", "),
         " numerically positive definite for the block-MVN backend. Increase ",
-        "the fixed heterogeneity/random-effect SD or supply a ",
+        "the fixed heterogeneity/random-effect SD in 'prior_heterogeneity' or supply a ",
         "positive-definite 'V'.",
         call. = FALSE
       )
@@ -999,6 +999,8 @@
 # generators' largest singular value, below which a direction is only rounding
 # noise of N.
 .known_v_nullspace_is_covered <- function(factorization, generators) {
+
+  if (!.covariance_is_positive_semidefinite(factorization)) return(FALSE)
 
   K    <- nrow(factorization[["covariance"]])
   rank <- nrow(factorization[["sampling_factor"]])
