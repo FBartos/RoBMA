@@ -151,14 +151,19 @@ capture_calls <- function(fit_name) {
   store$recorded <- list()
   wrapper <- function(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights,
                       prior_spec, row_sum = FALSE,
-                      control = RoBMA:::.glmm_aghq_control()) {
-    value <- original(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights,
-                      prior_spec, row_sum, control)
-    store$recorded[[length(store$recorded) + 1L]] <- list(
+                      control = RoBMA:::.glmm_aghq_control(), observation = NULL) {
+    args <- list(x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+      mu_samples = mu_samples, tau_within = tau_within, weights = weights,
+      prior_spec = prior_spec, row_sum = row_sum, control = control)
+    if (!is.null(observation)) args[["observation"]] <- observation
+    value <- do.call(original, args)
+    recorded <- list(
       x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i, mu_samples = mu_samples,
       tau_within = tau_within, weights = weights, prior_spec = prior_spec,
       row_sum = row_sum, control = control, value = value
     )
+    if (!is.null(observation)) recorded[["observation"]] <- observation
+    store$recorded[[length(store$recorded) + 1L]] <- recorded
     value
   }
   utils::assignInNamespace(".glmm_pois_aghq", wrapper, ns = "RoBMA")
