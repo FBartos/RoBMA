@@ -863,10 +863,9 @@ double log_gamma_increment_sum(double a, double b, double t)
 }
 
 
-// The exact (mu = tau = 0) value is kept out of line: inlined into the
-// per-cell loop of run_binomial it changed the placement of that loop and
-// slowed the adaptive quadrature sharing it by about a third (g++ 14, -O2),
-// although no cell of such a call reaches the exact branch.
+// Historical g++ 14 -O2 builds were about a third slower with the exact
+// (mu = tau = 0) helper inlined, even for calls that never reached that branch.
+// Keep the measured layout choice; a causal placement mechanism was not proved.
 #if defined(__GNUC__) || defined(__clang__)
 #define ROBMA_GLMM_NOINLINE __attribute__((noinline))
 #else

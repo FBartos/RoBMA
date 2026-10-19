@@ -91,7 +91,7 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_pdf.binom
+# .outcome_pdf.binom_r
 # ---------------------------------------------------------------------------- #
 #
 # Compute pointwise marginal log-likelihoods for binomial outcome models.
@@ -102,8 +102,9 @@
 #
 # This function uses Gauss-Hermite quadrature for the theta dimension (N(0,1)
 # prior) which requires far fewer points than quantile spacing for similar
-# accuracy. The pi dimension uses Gauss-Legendre quadrature on the prior CDF
-# scale, so the integration covers the full baserate prior support.
+# accuracy. The pi dimension uses beta-weighted quadrature for supported beta
+# priors, including one-sided truncation; other priors use Gauss-Legendre
+# quadrature on the prior CDF scale over their full support.
 #
 # The integration over samples is vectorized for efficiency: instead of looping
 # over S samples, we compute all samples simultaneously using matrix operations.
@@ -485,7 +486,7 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .outcome_pdf.pois
+# .outcome_pdf.pois_r
 # ---------------------------------------------------------------------------- #
 #
 # Compute pointwise marginal log-likelihoods for Poisson outcome models.

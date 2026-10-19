@@ -1,6 +1,40 @@
 context("JAGS module functionality")
 skip_on_cran()
 
+test_that("scalar step kernels require finite means in every mode", {
+
+  skip_if_not_installed("rjags")
+  RoBMA:::.load_RoBMA_module()
+  compile <- function(mode, changes = list()) {
+
+    switch_mode <- !is.null(mode)
+    syntax <- paste0(
+      "model { beta ~ dnorm(0,1)\n mu <- beta + offset\n",
+      "y ~ dselnorm_step", if (switch_mode) "_switch" else "",
+      "(mu,sigma,sei,power,omega[],lo[],hi[],bin,1,",
+      if (switch_mode) "mode," else "", "1) }"
+    )
+    data <- list(y = 0, offset = 0, sigma = 1, sei = 1, power = 1,
+      omega = c(1, .5), lo = c(0, -1e300), hi = c(1e300, 0), bin = 2L)
+    if (switch_mode) data$mode <- mode
+    for (name in names(changes)) data[[name]] <- changes[[name]]
+    connection <- textConnection(syntax)
+    on.exit(close(connection), add = TRUE)
+    rjags::jags.model(connection, data = data, n.chains = 1L,
+      n.adapt = 0L, quiet = TRUE, inits = list(beta = 0))
+  }
+  for (mode in list(NULL, SELKERNEL_NORMAL, SELKERNEL_STEP)) {
+    expect_no_error(compile(mode))
+    for (mean in c(Inf, -Inf)) {
+      expect_error(compile(mode, list(offset = mean)),
+        "Invalid parent values", fixed = TRUE)
+    }
+  }
+  # The normal branch still ignores inactive step weights and observed bins.
+  expect_no_error(compile(SELKERNEL_NORMAL,
+    list(omega = c(-1, -1), bin = 0L)))
+})
+
 test_that("RoBMA JAGS module exposes scalar selected-normal step kernel", {
 
   RoBMA:::.load_RoBMA_module()

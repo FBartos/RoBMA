@@ -27,13 +27,12 @@
 
 
 # Check whether the native specialized quadrature is available for a family.
-.has_native_glmm_aghq <- function(outcome_type, row_sum = FALSE) {
+.has_native_glmm_aghq <- function(outcome_type) {
 
-  suffix <- if (row_sum) "_row_sum" else ""
   symbol <- switch(
     outcome_type,
-    "bin"  = paste0("RoBMA_glmm_binom_aghq", suffix),
-    "pois" = paste0("RoBMA_glmm_pois_aghq", suffix),
+    "bin"  = "RoBMA_glmm_binom_aghq",
+    "pois" = "RoBMA_glmm_pois_aghq",
     stop("Unknown GLMM outcome type.", call. = FALSE)
   )
 
@@ -84,24 +83,10 @@
 }
 
 
-# Require the certified default marginal-likelihood route.
-.glmm_aghq_require_default <- function(prior_spec, outcome_type,
-                                       row_sum = FALSE) {
+# Require the native route after an untruncated beta/normal specification was found.
+.glmm_aghq_require_default <- function(outcome_type) {
 
-  if (is.null(prior_spec)) {
-    prior_label <- if (identical(outcome_type, "bin")) {
-      "an untruncated beta 'prior_pi'"
-    } else {
-      "an untruncated normal 'prior_phi'"
-    }
-    stop(
-      "Default ordinary GLMM marginal log-likelihood evaluation requires ",
-      prior_label, ". Truncated, point, and other nuisance priors are not ",
-      "supported by the certified adaptive quadrature.",
-      call. = FALSE
-    )
-  }
-  if (!.has_native_glmm_aghq(outcome_type, row_sum = row_sum)) {
+  if (!.has_native_glmm_aghq(outcome_type)) {
     stop(
       "The native adaptive ordinary-GLMM quadrature is unavailable.",
       call. = FALSE
@@ -113,6 +98,8 @@
 
 
 # Common native AGHQ controls. Optional arguments support focused numerical tests.
+# mode_tolerance controls native Newton refinement; the R point-prior route uses
+# the fixed bisection count documented in .glmm_point_mode().
 .glmm_aghq_control <- function(orders = NULL, tolerance = 1e-6,
                                consecutive = 2L, mode_tolerance = 1e-12) {
 
@@ -393,6 +380,7 @@
 }
 
 
+# Recovery extends only theta refinement; the nuisance ladder stays unchanged.
 .glmm_grid_recovery_control <- function(control) {
 
   return(.glmm_grid_control(
@@ -807,7 +795,7 @@
 
   evaluate_aghq <- NULL
   if (!is.null(prior_spec)) {
-    .glmm_aghq_require_default(prior_spec, "bin")
+    .glmm_aghq_require_default("bin")
     evaluate_aghq <- function(k) {
       .glmm_binom_aghq(
         ai          = ai[k],
@@ -911,7 +899,7 @@
 
   evaluate_aghq <- NULL
   if (!is.null(prior_spec)) {
-    .glmm_aghq_require_default(prior_spec, "pois")
+    .glmm_aghq_require_default("pois")
     evaluate_aghq <- function(k) {
       .glmm_pois_aghq(
         x1i        = x1i[k],

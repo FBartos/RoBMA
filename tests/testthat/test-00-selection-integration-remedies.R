@@ -143,19 +143,19 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
     message <- switch(method,
       mnorm = paste0(
         "Selection normalizer was rejected by diagnostics: relative Monte Carlo ",
-        "standard error was ", sprintf("%.6f", raw$relative_mcse),
+        "standard error was ", sprintf("%g", raw$relative_mcse),
         ". Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."
       ),
       cluster = paste0(
         "Selection cluster normalizer was rejected by diagnostics: relative Monte Carlo ",
-        "standard error was ", sprintf("%.6f", raw$relative_mcse),
-        " and nested-design relative change was ", sprintf("%.6f", raw$relative_change),
+        "standard error was ", sprintf("%g", raw$relative_mcse),
+        " and nested-design relative change was ", sprintf("%g", raw$relative_change),
         ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       ),
       factor = paste0(
         "Selection factor normalizer was rejected by diagnostics: relative Monte Carlo ",
-        "standard error was ", sprintf("%.6f", raw$relative_mcse),
-        " and nested-design relative change was ", sprintf("%.6f", raw$relative_change),
+        "standard error was ", sprintf("%g", raw$relative_mcse),
+        " and nested-design relative change was ", sprintf("%g", raw$relative_change),
         ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       )
     )
@@ -213,4 +213,53 @@ test_that("invalid zplot factor supports have a complete structural message", {
                        "Selection factor loading supports are invalid.")
     expect_null(conditionCall(condition))
   }
+})
+
+
+test_that("JAGS reports a positive diagnostic smaller than one millionth", {
+
+  skip_if_not_installed("rjags")
+  quadrature <- .selection_joint_cluster_quadrature_rules(c(1L, 3L, 5L))
+  qmc <- BayesTools::selection_qmc_design(
+    dimensions = 4L, points = 8L, scrambles = 2L, seed = 1L
+  )
+  cutoff <- stats::qnorm(.05, lower.tail = FALSE)
+  residual_sd <- c(.2, .25)
+  loading <- matrix(c(.8, .8, .3, -.3), 2L)
+  covariance <- diag(residual_sd^2) + tcrossprod(loading)
+  data <- list(y = c(.8, 1.2), offset = c(-.1, .2), sei = c(.4, .6),
+    omega = c(1, 1 - 1e-7), z_lower = c(cutoff, -1e300),
+    z_upper = c(1e300, cutoff), bins = c(1L, 1L),
+    covariance = covariance[lower.tri(covariance, diag = TRUE)],
+    qmc = qmc, tolerance = 1e-14)
+  data <- c(data, quadrature[c("nodes", "log_weights", "orders")])
+  raw <- .Call("RoBMA_selnorm_mnorm_step_loglik_batch",
+    data$y, matrix(data$offset, 1L), matrix(data$covariance, 1L), data$sei,
+    matrix(data$omega, 1L), c(cutoff, -Inf), c(Inf, cutoff), data$bins,
+    1L, TRUE, SELKERNEL_STEP, as.double(qmc), 8L, 2L, data$tolerance,
+    FALSE, 0L, quadrature, PACKAGE = "RoBMA")
+  expect_gt(raw$relative_mcse, data$tolerance)
+  expect_lt(raw$relative_mcse, 1e-6)
+  expected <- paste0(
+    "Selection normalizer was rejected by diagnostics: relative Monte Carlo ",
+    "standard error was ", sprintf("%g", raw$relative_mcse),
+    ". Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."
+  )
+  syntax <- paste0(
+    "model { beta ~ dnorm(0,1)\n",
+    "for(i in 1:2) { mu[i] <- beta + offset[i] }\n",
+    "y[1:2] ~ dselnorm_mnorm_step(mu[],covariance[],sei[],omega[],",
+    "z_lower[],z_upper[],bins[],1,1,1,qmc[,,],8,2,tolerance,0,",
+    "nodes[],log_weights[],orders[]) }"
+  )
+  connection <- textConnection(syntax)
+  on.exit(close(connection), add = TRUE)
+  condition <- tryCatch(rjags::jags.model(
+    connection, data = data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
+    inits = list(beta = 0, .RNG.name = "base::Wichmann-Hill", .RNG.seed = 1L)
+  ), error = identity)
+  expect_s3_class(condition, "error")
+  expect_true(startsWith(conditionMessage(condition), "RUNTIME ERROR:\n"))
+  expect_identical(trimws(sub("^RUNTIME ERROR:\n", "", conditionMessage(condition))),
+    expected)
 })

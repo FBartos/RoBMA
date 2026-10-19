@@ -244,7 +244,8 @@ std::vector<Sampler *> CoarseCorrectedSliceFactory::makeSamplers(
       std::vector<std::unique_ptr<MutableSampleMethod> > owned_methods;
       std::vector<MutableSampleMethod *> methods;
       for (unsigned int chain = 0; chain < node->nchain(); ++chain) {
-        owned_methods.emplace_back(new CoarseCorrectedSlice(view.get(), chain, config.settings));
+        owned_methods.emplace_back(
+          std::make_unique<CoarseCorrectedSlice>(view.get(), chain, config.settings));
         methods.push_back(owned_methods.back().get());
       }
       // The Sampler base adopts the graph before MutableSampler copies members.

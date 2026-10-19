@@ -34,7 +34,8 @@ bool DSELNORMSTEP::checkParameterValue(std::vector<double const *> const &par,
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
 
-  if (!(*par[1] > 0 && *par[2] > 0 && *par[3] > 0) ||
+  if (!std::isfinite(*par[0]) ||
+      !(*par[1] > 0 && *par[2] > 0 && *par[3] > 0) ||
       !(*par[8] == 1 || *par[8] == -1) ||
       !(*par[9] == 0 || *par[9] == 1) ||
       !selnorm_jags_integer_in_range(*par[7], 1, n_bins)) {

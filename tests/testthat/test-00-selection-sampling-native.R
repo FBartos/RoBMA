@@ -479,14 +479,14 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
     if (criterion == "mcse") {
       expect_gt(diagnostic$relative_mcse, args$relative_tolerance)
       expected <- sprintf(paste0(
-        "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %.6f. ",
+        "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %g. ",
         "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       ), diagnostic$relative_mcse)
     } else {
       expect_lte(diagnostic$relative_mcse, args$relative_tolerance)
       expect_gt(diagnostic$relative_change, args$relative_tolerance)
       expected <- sprintf(paste0(
-        "Selection normalizer was rejected by diagnostics: relative nested-design change was %.6f. ",
+        "Selection normalizer was rejected by diagnostics: relative nested-design change was %g. ",
         "Increase 'max_points_per_scramble' in 'selection_control'."
       ), diagnostic$relative_change)
     }

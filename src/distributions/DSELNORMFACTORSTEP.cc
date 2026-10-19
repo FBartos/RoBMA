@@ -27,7 +27,7 @@ bool DSELNORMFACTORSTEP::checkParameterLength(
   const unsigned int maximum = std::numeric_limits<int>::max();
   for (unsigned int length : len) if (length > maximum) return false;
   if (len[0] == 0 || len[0] > maximum / len[0]) return false;
-  if (len[0] == 0 || len[1] != len[0] || len[2] % len[0] != 0 ||
+  if (len[1] != len[0] || len[2] % len[0] != 0 ||
       len[3] != len[0] || len[7] != len[0] || len[4] == 0 ||
       len[5] != len[4] || len[6] != len[4]) return false;
   const unsigned int rank = len[2] / len[0];

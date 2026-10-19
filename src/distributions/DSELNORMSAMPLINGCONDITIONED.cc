@@ -25,7 +25,7 @@ bool DSELNORMSAMPLINGCONDITIONED::checkParameterLength(
   const unsigned int maximum = std::numeric_limits<int>::max();
   for (unsigned int length : len) if (length > maximum) return false;
   if (len[0] == 0 || len[0] > maximum / len[0]) return false;
-  if (len[0] == 0 || len[1] != static_cast<std::uint64_t>(len[0]) * (len[0] + 1) / 2 ||
+  if (len[1] != static_cast<std::uint64_t>(len[0]) * (len[0] + 1) / 2 ||
       len[2] != len[0] || len[3] == 0 || len[4] != 1 ||
       len[5] != len[0] || len[6] != len[0] || len[7] != len[0] ||
       len[8] == 0 || len[9] != len[8] || len[10] != len[8] ||
