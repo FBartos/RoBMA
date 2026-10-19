@@ -164,6 +164,9 @@ existing typed ordered-expression refusal for the requested target.
 Use `plot_type = "base"` or `"ggplot"` where both backends are available.
 Keep released plotting arguments working for the compatibility periods in
 [model-interface.md](model-interface.md).
+Posterior plots pass explicit limits in display coordinates with
+`transformation_settings = TRUE`; prior-facing plots keep their source-coordinate
+contract with `FALSE`. Automatic prior windows remain BayesTools-owned.
 
 Test computed plot data and dispatch separately, then retain representative
 human-reviewed visual snapshots for both backends. Structural or render-only
