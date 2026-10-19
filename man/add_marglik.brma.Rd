@@ -104,6 +104,17 @@ condition, including the failed \code{repetitions} table. Increase
 \code{maxiter} or fit more posterior draws (for example with a larger
 \code{sample} or \code{update()}) before retrying; these actions do not
 guarantee that the diagnostics will pass.
+
+A checked posterior sample that cannot form a full-rank bridge proposal
+raises \code{RoBMA_marglik_rank_deficiency}, inheriting from
+\code{RoBMA_marglik_error}. Its unchanged upstream \code{parent} and exposed
+\code{reason}, \code{rank}, \code{n_coordinates}, \code{n_draws}, and
+\code{dependent_coordinates} describe the observed sample. For
+\code{reason = "insufficient_draws"}, fit more posterior draws with a larger
+\code{sample} or \code{update()}; dependence may persist. For
+\code{reason = "dependent_coordinates"}, inspect the parameterization and
+sampling; more draws alone need not resolve dependence. Reported pivot
+coordinates identify one dependent set, not uniquely faulty nodes.
 }
 \examples{
 \dontrun{

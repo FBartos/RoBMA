@@ -272,6 +272,77 @@ test_that("standardized comparisons refuse nonfinite repeats and legacy propagat
     dimnames = list(NULL, c("over_limit", "legacy_finite"))))
 })
 
+test_that("add_marglik transports genuine rank diagnoses with sample-specific remedies", {
+
+  sampler_calls <- 0L
+  testthat::local_mocked_bindings(bridge_sampler = function(...) {
+    sampler_calls <<- sampler_calls + 1L
+    stop("Rank refusal must precede bridge sampler work.")
+  }, .package = "bridgesampling")
+  t <- seq(-1, 1, length.out = 20L)
+  a <- c(0, 1, 0, 1)
+  b <- c(0, 0, 1, 1)
+  cases <- list(
+    cbind(x1 = c(-1, 1), x2 = c(1, -1)),
+    cbind(x1 = t, x2 = 2 * t),
+    cbind(a = a, b = b, c = a + b, d = 2 * a + b, e = a + 2 * b),
+    cbind(x1 = rep(c(0, 1), each = 3L), x2 = rep(c(0, 2), each = 3L))
+  )
+  reasons <- c("insufficient_draws", "dependent_coordinates",
+    "insufficient_draws", "dependent_coordinates")
+  ranks <- c(1L, 1L, 2L, 1L)
+  fit <- .bridge_repetition_test_fit(NULL)
+  signal <- function(condition) {
+    testthat::local_mocked_bindings(.marglik = function(...) stop(condition),
+      .package = "RoBMA")
+    tryCatch(add_marglik(fit), error = identity)
+  }
+  for (i in seq_along(cases)) {
+    coordinates <- cases[[i]]
+    original <- tryCatch(BayesTools::JAGS_bridgesampling(
+      coda::as.mcmc(coordinates),
+      log_posterior = function(parameters, data) 0, data = list(),
+      prior_list = setNames(rep(list(BayesTools::prior("normal", list(0, 1))),
+        ncol(coordinates)), colnames(coordinates))
+    ), error = identity)
+    expect_s3_class(original, "BayesTools_marglik_rank_deficiency")
+    expect_identical(original$reason, reasons[[i]])
+    expect_identical(original$rank, ranks[[i]])
+    expect_identical(original$n_coordinates, ncol(coordinates))
+    expect_identical(original$n_draws, nrow(coordinates))
+    actual <- signal(original)
+    expect_identical(class(actual), c("RoBMA_marglik_rank_deficiency",
+      "RoBMA_marglik_error", "error", "condition"))
+    expect_null(conditionCall(actual))
+    expect_identical(actual$parent, original)
+    for (field in c("reason", "rank", "n_coordinates", "n_draws", "dependent_coordinates")) {
+      expect_identical(actual[[field]], original[[field]])
+    }
+    common <- paste0("Bridge sampling was rejected by diagnostics: the checked posterior ",
+      "sample cannot form a full-rank bridge proposal (rank ", original$rank,
+      " of ", original$n_coordinates, " varying coordinates from ", original$n_draws,
+      " draws). ")
+    remedy <- if (identical(original$reason, "insufficient_draws")) {
+      paste0("Fit more posterior draws, for example with a larger 'sample' or update(); ",
+        "dependence between coordinates may persist.")
+    } else {
+      paste0("Inspect the parameterization and sampling; more posterior draws alone ",
+        "need not resolve dependence.")
+    }
+    expect_identical(conditionMessage(actual), paste0(common, remedy,
+      " Reported dependent coordinates identify one pivot-dependent set, not uniquely faulty nodes."))
+    expect_identical(signal(simpleError(conditionMessage(original))),
+      simpleError(conditionMessage(original)))
+    for (reason in list(NULL, NA_character_, character(), c("insufficient_draws", "dependent_coordinates"),
+        1, "other")) {
+      malformed <- original
+      malformed["reason"] <- list(reason)
+      expect_identical(signal(malformed), malformed)
+    }
+  }
+  expect_identical(sampler_calls, 0L)
+})
+
 test_that("add_marglik retains finite public retry results and typed warnings under silence", {
 
   mu_sd <- sqrt(1 / (1 + 1 / .8^2))

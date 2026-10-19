@@ -102,6 +102,17 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' \code{sample} or \code{update()}) before retrying; these actions do not
 #' guarantee that the diagnostics will pass.
 #'
+#' A checked posterior sample that cannot form a full-rank bridge proposal
+#' raises \code{RoBMA_marglik_rank_deficiency}, inheriting from
+#' \code{RoBMA_marglik_error}. Its unchanged upstream \code{parent} and exposed
+#' \code{reason}, \code{rank}, \code{n_coordinates}, \code{n_draws}, and
+#' \code{dependent_coordinates} describe the observed sample. For
+#' \code{reason = "insufficient_draws"}, fit more posterior draws with a larger
+#' \code{sample} or \code{update()}; dependence may persist. For
+#' \code{reason = "dependent_coordinates"}, inspect the parameterization and
+#' sampling; more draws alone need not resolve dependence. Reported pivot
+#' coordinates identify one dependent set, not uniquely faulty nodes.
+#'
 #' @return The brma object with the marginal likelihood result stored in
 #' \code{object[["marglik"]]}.
 #'
@@ -157,6 +168,41 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       class = c("RoBMA_marglik_repetition_failure", "RoBMA_marglik_error"),
       call = NULL,
       parent = condition
+    ))
+  }, BayesTools_marglik_rank_deficiency = function(condition) {
+    reason <- condition[["reason"]]
+    if (!identical(reason, "insufficient_draws") &&
+        !identical(reason, "dependent_coordinates")) {
+      stop(condition)
+    }
+    remedy <- if (identical(reason, "insufficient_draws")) {
+      paste0(
+        "Fit more posterior draws, for example with a larger 'sample' or update(); ",
+        "dependence between coordinates may persist."
+      )
+    } else {
+      paste0(
+        "Inspect the parameterization and sampling; more posterior draws alone ",
+        "need not resolve dependence."
+      )
+    }
+    stop(errorCondition(
+      message = paste0(
+        "Bridge sampling was rejected by diagnostics: the checked posterior ",
+        "sample cannot form a full-rank bridge proposal (rank ",
+        condition[["rank"]], " of ", condition[["n_coordinates"]],
+        " varying coordinates from ", condition[["n_draws"]], " draws). ",
+        remedy, " Reported dependent coordinates identify one pivot-dependent ",
+        "set, not uniquely faulty nodes."
+      ),
+      class = c("RoBMA_marglik_rank_deficiency", "RoBMA_marglik_error"),
+      call = NULL,
+      parent = condition,
+      reason = reason,
+      rank = condition[["rank"]],
+      n_coordinates = condition[["n_coordinates"]],
+      n_draws = condition[["n_draws"]],
+      dependent_coordinates = condition[["dependent_coordinates"]]
     ))
   })
   marglik <- .brma_mv_attach_marglik_target_metadata(marglik, object)

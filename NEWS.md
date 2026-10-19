@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Bridge rank refusals retain the upstream sample diagnostics and give
+  reason-specific RoBMA remedies without promising that more draws cure dependence.
 - Marginal-likelihood documentation distinguishes finite availability from
   iteration telemetry and retains the typed iteration warning under silence.
 - Random-effect inclusion exports and shared summary labels follow each gate's
