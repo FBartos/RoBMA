@@ -1227,4 +1227,3 @@ test_that(".log_lik.brma returns finite log-likelihoods for weightfunction model
                  info = paste(name, ": ncol matches number of observations"))
   }
 })
-
