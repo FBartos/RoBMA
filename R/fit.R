@@ -143,10 +143,8 @@
 
       for (b in seq_along(block_mvn_blocks)) {
         block <- block_mvn_blocks[[b]]
-        if (block[["size"]] > 1L) {
-          fit_data[[paste0("known_v_y_", b)]]     <- yi[block[["index"]]]
-          fit_data[[paste0("known_v_lower_", b)]] <- block[["v_lower"]]
-        }
+        fit_data[[paste0("known_v_y_", b)]]     <- yi[block[["index"]]]
+        fit_data[[paste0("known_v_lower_", b)]] <- block[["v_lower"]]
       }
     } else {
       # ordinary normal and latent known-V bias graphs reference sei
@@ -256,7 +254,7 @@
 
   # check whether the intercept was removed from the formula
   # if so, warn the user and return it back (intercepts cannot be omitted from scale models)
-  if (attr(terms(formula), "intercept") == 0) {
+  if (attr(stats::terms(formula), "intercept") == 0) {
     warning("Intercept cannot be omitted from scale models (the regression estimates a multiplicative constant for the intercept). The intercept removal term has been ignored.", call. = FALSE)
     formula <- BayesTools::formula_add_intercept(formula)
   }
@@ -298,7 +296,6 @@
     known_v_backend == "whitened"
   is_known_v_block_mvn         <- !is_joint_selection && is_known_v &&
     known_v_backend == "block_mvn"
-  has_marginalized_random      <- .data_has_marginalized_random_effects(data)
 
   all_selection_sources_retained <- .selection_all_sources_conditioned(data)
   retained_sampling <- if (.is_data_joint_selection(data) &&
@@ -312,7 +309,7 @@
 
   if (is_known_v_whitened && is_scale) {
     stop(
-      "known_v_parameterization = 'whitened' is currently available only without scale regression.",
+      "'known_v_parameterization = \"whitened\"' is currently available only without scale regression.",
       call. = FALSE
     )
   }
@@ -665,14 +662,11 @@
         "[1:", block[["size"]], "])\n"
       )
       extra <- if (is_random) {
-        if (has_marginalized_random) {
-          .data_marginalized_random_variance_expression(
-            data,
-            row_index = as.character(index[[1L]])
-          )
-        } else {
-          "0"
-        }
+        # Backend preflight already requires row-constant extra variance.
+        .data_marginalized_random_variance_expression(
+          data,
+          row_index = as.character(index[[1L]])
+        )
       } else {
         "pow(tau,2)"
       }
@@ -749,16 +743,15 @@
   errors   <- NULL
   warnings <- NULL
 
-  ### create model base
-  fit_priors       <- .create_fit_priors(data = data, priors = priors)
-  fit_data         <- .create_fit_data(data = data, priors = priors)
-  fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
-
-  ### generate the model syntax
-  model_syntax <- .create_model_syntax(data = data, priors = priors)
+  # Keep priors available for the fit-error result, including extension errors.
+  fit_priors <- .create_fit_priors(data = data, priors = priors)
 
   ### fit the model
-  if (!extend || length(object[["fit"]]) == 0) {
+  if (!extend || length(object[["fit"]]) == 0L) {
+
+    fit_data         <- .create_fit_data(data = data, priors = priors)
+    fit_formula_args <- .create_jags_formula_args(data = data, priors = priors)
+    model_syntax     <- .create_model_syntax(data = data, priors = priors)
 
     fit <- BayesTools::JAGS_fit(
       model_syntax          = model_syntax,
@@ -770,7 +763,6 @@
       formula_scale_list    = .optional_jags_value(fit_formula_args[["formula_scale_list"]]),
       formula_random_prior_list           = .optional_jags_value(fit_formula_args[["formula_random_prior_list"]]),
       formula_random_effects_compile_list = .optional_jags_value(fit_formula_args[["formula_random_effects_compile_list"]]),
-      add_parameters                      = .optional_jags_value(fit_formula_args[["add_parameters"]]),
       chains                = fit_control[["chains"]],
       adapt                 = fit_control[["adapt"]],
       burnin                = fit_control[["burnin"]],
@@ -806,9 +798,6 @@
 
 
   # assess the model fit and deal with errors
-  attr(fit, "selection_runtime") <- attr(
-    attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE
-  )
   if (inherits(fit, "error")) {
 
     if(grepl("Unknown function", fit$message))
@@ -824,9 +813,10 @@
 
   } else {
 
+    attr(fit, "selection_runtime") <- attr(
+      attr(fit, "runtime_setup", exact = TRUE), "selection_runtime", exact = TRUE
+    )
     has_posterior <- TRUE
-    # BayesTools classifies structural parameters (reference and fixed
-    # publication weights, point priors) from the prior list.
     # BayesTools classifies parameters by the fit's coordinate roles.
     check_fit     <- BayesTools::JAGS_check_convergence(
       fit                  = fit,
@@ -906,8 +896,8 @@
 
   return(predicate(bias_prior))
 }
-.is_priors_PET            <- function(priors) .prior_bias_matches(priors, is.prior.PET)
-.is_priors_PEESE          <- function(priors) .prior_bias_matches(priors, is.prior.PEESE)
+.is_priors_PET            <- function(priors) .prior_bias_matches(priors, BayesTools::is.prior.PET)
+.is_priors_PEESE          <- function(priors) .prior_bias_matches(priors, BayesTools::is.prior.PEESE)
 .is_priors_weightfunction <- function(priors) .prior_bias_matches(priors, .prior_is_selection_kernel)
 .is_priors_bias           <- function(priors) {
   return(.is_priors_PET(priors) || .is_priors_PEESE(priors) || .is_priors_weightfunction(priors))

@@ -756,11 +756,6 @@ test_that("evaluated known-V marginalized scale maps component row source", {
   expect_named(source_samples, "tau_ran_effects")
   expect_equal(source_samples[["tau_ran_effects"]], tau_within_samples)
 
-  formula_args <- .create_jags_formula_args(
-    data   = object[["data"]],
-    priors = object[["priors"]]
-  )
-  expect_false("tau_ran_effects" %in% formula_args[["add_parameters"]])
 
   log_lik <- .test_log_lik_known_v_joint_sum_from_evaluated_predictors(
     fit                         = object[["fit"]],

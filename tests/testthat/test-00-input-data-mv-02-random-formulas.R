@@ -1566,11 +1566,6 @@ test_that("brma.mv marginalized estimate-level scale uses row SD source", {
     posterior^2
   )
 
-  formula_args <- .create_jags_formula_args(
-    data   = object[["data"]],
-    priors = object[["priors"]]
-  )
-  expect_false("tau" %in% formula_args[["add_parameters"]])
 })
 
 
@@ -1668,11 +1663,6 @@ test_that("brma.mv supports partial random scale with sampled random component",
     posterior^2
   )
 
-  formula_args <- .create_jags_formula_args(
-    data   = object[["data"]],
-    priors = object[["priors"]]
-  )
-  expect_false("tau_ran_effects" %in% formula_args[["add_parameters"]])
 })
 
 

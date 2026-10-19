@@ -88,11 +88,10 @@ NULL
   return(object)
 }
 
-.validate_constructor_dots <- function(dots, caller, allowed_extra = character()) {
+.validate_constructor_dots <- function(dots, caller) {
 
   allowed <- c(
-    "only_data", "only_priors", "is_JASP", "is_JASP_prefix",
-    allowed_extra
+    "only_data", "only_priors", "is_JASP", "is_JASP_prefix"
   )
   .check_unused_dots(
     dots    = dots,
@@ -192,13 +191,14 @@ NULL
   return(dots[keep])
 }
 
-.autocompute_brma <- function(object, loo = TRUE, waic = TRUE,
-                              marglik = !inherits(object, "RoBMA")) {
+.autocompute_brma <- function(object) {
 
-  if (loo && RoBMA.get_option("autocompute.loo")) {
+  marglik <- !inherits(object, "RoBMA")
+
+  if (RoBMA.get_option("autocompute.loo")) {
     object <- add_loo(object)
   }
-  if (waic && RoBMA.get_option("autocompute.waic")) {
+  if (RoBMA.get_option("autocompute.waic")) {
     object <- add_waic(object)
   }
   if (marglik && RoBMA.get_option("autocompute.marglik")) {

@@ -26,8 +26,7 @@
     formula_prior_list                  = list(),
     formula_scale_list                  = list(),
     formula_random_prior_list           = list(),
-    formula_random_effects_compile_list = list(),
-    add_parameters                      = character()
+    formula_random_effects_compile_list = list()
   )
 
   ### add effect regressions and random effects

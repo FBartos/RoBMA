@@ -1042,17 +1042,14 @@
 }
 
 
-# The allocated SD nodes of 'terms'. With 'monitored = FALSE' only terms whose
-# SD is not one monitored column count: the terms whose SDs
-# .marginalized_random_effect_sd_samples() evaluates.
-.marginalized_random_sd_nodes <- function(terms, monitored = FALSE) {
+# Allocated SD nodes needed by .marginalized_random_effect_sd_samples();
+# a term with a directly monitored SD column needs no deterministic evaluator.
+.marginalized_random_sd_nodes <- function(terms) {
 
-  if (!monitored) {
-    terms <- Filter(
-      function(term) !.marginalized_random_effect_sd_monitored(term),
-      terms
-    )
-  }
+  terms <- Filter(
+    function(term) !.marginalized_random_effect_sd_monitored(term),
+    terms
+  )
 
   unique(unlist(
     lapply(terms, .marginalized_random_effect_allocated_sd_nodes),
@@ -1064,9 +1061,9 @@
 # The prepared BayesTools evaluator (JAGS_deterministic_evaluator()) of the
 # allocated SD nodes of 'terms' (.marginalized_random_sd_nodes()). NULL without
 # such nodes or without a fit.
-.marginalized_random_sd_evaluator <- function(fit, terms, monitored = FALSE) {
+.marginalized_random_sd_evaluator <- function(fit, terms) {
 
-  nodes <- .marginalized_random_sd_nodes(terms, monitored = monitored)
+  nodes <- .marginalized_random_sd_nodes(terms)
   if (is.null(fit) || length(nodes) == 0L) {
     return(NULL)
   }

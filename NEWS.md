@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Chain continuation retains fitted runtime controls and avoids rebuilding
+  fresh-fit data, formulas and syntax.
 - Plot quantile brackets retain tiny positive scales after translation, and
   zero-SE selected contours retain positive tail mass on the log scale.
 - Group-IID covariance grids decline an unevaluable covariance cell while
