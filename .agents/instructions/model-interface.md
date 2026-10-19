@@ -45,6 +45,11 @@ declarations with the BayesTools design and scaling. Numeric point readers
 require a finite numeric scalar; expression points use BayesTools' owned
 monitor/replay route and do not become numeric constants by their wrapper.
 
+BayesTools integration uses public accessors and wrappers. The fixed-zero
+marginal-likelihood rebuild takes backend names from persisted
+`parameter_coordinates(fit)$coordinate_name`; `JAGS_parameter_names()` encodes
+declared character names and does not retrieve them from a fit.
+
 BayesTools owns formula semantics and compiled metadata. When its source is
 available, consult its `jags-formula.md` guide for the detailed shared contract.
 RoBMA consumes the resolved column counts, bases, levels, covariance ownership,

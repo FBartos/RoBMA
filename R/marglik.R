@@ -606,12 +606,12 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   )
   fixed_priors <- c(fixed_formula_output[["prior_list"]], fit_priors)
   model_data <- .create_fit_data(data = object[["data"]], priors = object[["priors"]])
-  fixed_design <- BayesTools:::.bt_formula_point_finalize(
+  fixed_design <- BayesTools::JAGS_formula_point_finalize(
     fixed_formula_output[["formula_design"]], fixed_priors,
     fit_formula_args[["formula_data_list"]][["mu"]], model_data,
-    parameter_names = BayesTools::JAGS_parameter_names(fit)
+    parameter_names = BayesTools::parameter_coordinates(fit)[["coordinate_name"]]
   )
-  fixed_scale <- BayesTools:::.bt_formula_scale_finalize(
+  fixed_scale <- BayesTools::JAGS_formula_scale_finalize(
     fixed_formula_output[["formula_scale"]], fixed_design,
     prior_list = fixed_priors, model_data = model_data, owner_scope = "fit"
   )

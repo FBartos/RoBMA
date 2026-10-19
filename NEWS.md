@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- BayesTools integration uses its public formula, posterior, prior-law plotting,
+  and random-group APIs while preserving the existing RoBMA interfaces.
 - Allocation inclusion exports follow declared component-label positions for
   named and unnamed term vectors, including recursive child allocations.
 - RoBMA-owned parameter draws validate the complete selection wrapper and row

@@ -351,7 +351,7 @@
     paste0(names(prior_list)[declares_indicator], "_indicator"),
     if (any(has_ordered_total)) {
       paste0(
-        BayesTools:::.prior_ordered_total_name(names(prior_list)[has_ordered_total]),
+        BayesTools::prior_ordered_total_name(names(prior_list)[has_ordered_total]),
         "_indicator"
       )
     },

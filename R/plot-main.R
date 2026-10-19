@@ -450,7 +450,7 @@ lines.brma <- function(
       transform_scaled = !standardized_coefficients
     )
     if (parameter %in% c("PET", "PEESE") && identical(sample_parameter, "bias")) {
-      samples <- BayesTools:::.simplify_as_mixed_posterior_bias(samples, parameter)
+      samples <- BayesTools::simplify_as_mixed_posterior_bias(samples, parameter)
       sample_parameter <- parameter
     }
     density_sample_parameter <- .plot_brma_density_sample_parameter(

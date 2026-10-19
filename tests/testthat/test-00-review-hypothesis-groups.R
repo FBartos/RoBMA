@@ -61,19 +61,19 @@ test_that("different level expressions with equal fitted weights are separate gr
 })
 
 # The group key of a level combination reads the level coefficients of a
-# statement side from this unexported BayesTools helper
+# statement side from this public BayesTools helper
 # (.hypothesis_plan_combination_group). A rename or a changed return value
 # there must fail here, with the reason, instead of in every grouped call.
 test_that("the BayesTools linear-target side helper the group key uses is unchanged", {
 
   side_function <- tryCatch(
-    utils::getFromNamespace(".hypothesis_linear_target_side", "BayesTools"),
+    BayesTools::hypothesis_linear_target_side,
     error = identity
   )
   expect_true(
     is.function(side_function),
     info = paste(
-      "BayesTools:::.hypothesis_linear_target_side is gone; RoBMA's",
+      "BayesTools::hypothesis_linear_target_side is gone; RoBMA's",
       ".hypothesis_plan_combination_group() depends on it."
     )
   )

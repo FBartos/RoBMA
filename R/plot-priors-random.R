@@ -372,14 +372,6 @@
     }
   }
 
-  plot_data <- BayesTools:::.prior_linear_density_to_plot_data(
-    law,
-    n_points                 = n_points,
-    x_range                  = xlim,
-    transformation           = dots[["transformation"]],
-    transformation_arguments = dots[["transformation_arguments"]],
-    transformation_settings  = isTRUE(dots[["transformation_settings"]])
-  )
   graphical <- dots
   graphical[c(
     "xlim", "n_points", "n_samples", "force_samples", "individual",
@@ -388,8 +380,16 @@
   )] <- NULL
 
   plot <- do.call(
-    BayesTools:::.plot_prior_list.both,
-    c(list(plot_data = plot_data, plot_type = plot_type), graphical)
+    graphics::plot,
+    c(list(
+      x                        = law,
+      plot_type                = plot_type,
+      n_points                 = n_points,
+      xlim                     = xlim,
+      transformation           = dots[["transformation"]],
+      transformation_arguments = dots[["transformation_arguments"]],
+      transformation_settings  = isTRUE(dots[["transformation_settings"]])
+    ), graphical)
   )
 
   if (plot_type == "ggplot") {

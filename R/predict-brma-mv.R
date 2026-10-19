@@ -466,13 +466,12 @@
   # key and an unseen tuple has a key of its own.
   if (!is.null(term[["group_expr"]]) && !is.null(term[["group_tuple_keys"]]) &&
       !is.null(term[["group_component_identity_keys"]])) {
-    components <- BayesTools:::.bt_random_group_component_names(term)
+    components <- BayesTools::random_group_component_names(term)
     if (!all(components %in% names(location)) ||
         anyNA(location[components])) {
       return(NULL)
     }
-    observations <- BayesTools:::.bt_random_group_observations(term, location)
-    return(BayesTools:::.bt_random_group_prediction_tuple_keys(term, observations))
+    return(BayesTools::random_group_prediction_keys(term, location))
   }
 
   group_label <- term[["group_label"]]

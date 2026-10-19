@@ -1069,7 +1069,7 @@ hypothesis.brma <- function(object, hypothesis,
   # The unit part carries the conditioning of the draws, so that BayesTools
   # matches it to conditional (product-space) draws.
   BayesTools::posterior_metadata(posterior, "posterior_ordinate") <- do.call(
-    utils::getFromNamespace(".posterior_log_ordinate_attribute", "BayesTools"),
+    BayesTools::posterior_log_ordinate_attribute,
     c(
       list(
         value          = points,
@@ -1111,7 +1111,7 @@ hypothesis.brma <- function(object, hypothesis,
   numerical_diagnostics <- attr(point, "numerical_diagnostics", exact = TRUE)[point_index]
   attr(out, "numerical_diagnostics") <- numerical_diagnostics
   if ("BF" %in% names(out)) {
-    out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
+    out[["BF"]] <- BayesTools::format_BF_from_log(
       raw_log_BF, logBF = logBF, BF01 = BF01,
       diagnostics = numerical_diagnostics)
   }
@@ -1323,7 +1323,7 @@ hypothesis.brma <- function(object, hypothesis,
     rep_len(as.character(operator), nrow(result))
   }), use.names = FALSE)
   source_bound_operator <- if(isTRUE(attr(results[[1L]]$BF, "BF01"))){
-    utils::getFromNamespace(".invert_BF_bound_operator", "BayesTools")(bound_operator)
+    BayesTools::invert_BF_bound_operator(bound_operator)
   }else bound_operator
 
   out <- out[restore_order, , drop = FALSE]
@@ -1331,7 +1331,7 @@ hypothesis.brma <- function(object, hypothesis,
   attr(out, "raw_log_BF") <- row_log_BF[restore_order]
   attr(out, "numerical_diagnostics") <- row_diagnostics[[1L]][restore_order]
   attr(out, "prior_numerical_diagnostics") <- row_diagnostics[[2L]][restore_order]
-  out[["BF"]] <- utils::getFromNamespace(".format_BF_from_log", "BayesTools")(
+  out[["BF"]] <- BayesTools::format_BF_from_log(
     row_log_BF[restore_order], logBF = attr(results[[1L]]$BF, "logBF"),
     BF01 = attr(results[[1L]]$BF, "BF01"), bound_operator = source_bound_operator[restore_order],
     diagnostics = row_diagnostics[[1L]][restore_order])

@@ -799,7 +799,7 @@
   if(is.null(unavailable)) return(invisible(TRUE))
   entries <- unavailable[unavailable[["measure"]] == measure, , drop = FALSE]
   if(!nrow(entries)) return(invisible(TRUE))
-  utils::getFromNamespace(".bt_formula_measure_check", "BayesTools")(
+  BayesTools::posterior_measure_check(
     sample, measure, column = entries[["column"]])
 
 }
@@ -1471,7 +1471,7 @@
   if (!inherits(hypothesis, "BayesTools_hypothesis_ast")) {
     hypothesis <- BayesTools::hypothesis_parse(hypothesis)
   }
-  coefficients <- BayesTools:::.hypothesis_linear_target_side(
+  coefficients <- BayesTools::hypothesis_linear_target_side(
     hypothesis[["statements"]][[1L]][["left"]], plan[["parameter"]]
   )[["coefficients"]]
 

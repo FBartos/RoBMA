@@ -244,7 +244,7 @@ as_bayestools_fit <- function(fit) {
        !identical(specification$owner_scope, "compiler") || !isFALSE(specification$complete)) next
     scale <- scales[[parameter]]
     if(is.null(scale)) scale <- design$formula_scale
-    scale <- BayesTools:::.bt_formula_scale_finalize(scale, design,
+    scale <- BayesTools::JAGS_formula_scale_finalize(scale, design,
       attr(fit, "prior_list", exact = TRUE), owner_scope = "fit")
     designs[[parameter]]$formula_scale <- scale
     scales[[parameter]] <- scale

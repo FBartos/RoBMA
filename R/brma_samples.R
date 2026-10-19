@@ -422,7 +422,7 @@ as.data.frame.brma_samples_list <- function(
     class(x) <- "data.frame"
     for(column in names(x)){
       if(inherits(x[[column]], "BayesTools_BF")){
-        x[[column]] <- utils::getFromNamespace(".BF_carrier_drop", "BayesTools")(x[[column]])
+        x[[column]] <- BayesTools::BF_carrier_drop(x[[column]])
       }
     }
     return(x)
