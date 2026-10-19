@@ -78,6 +78,15 @@
 #' their random-effect priors with
 #' \code{print_prior(x, parameter = "random")}.
 #'
+#' Inconsistent random-allocation parent metadata stop with
+#' \code{RoBMA_random_prior_derivation_error}; cycles additionally carry
+#' \code{RoBMA_random_allocation_cycle}, and unknown parents carry
+#' \code{RoBMA_random_allocation_parent_unavailable}. A parent chain beyond the
+#' supported depth of 16 allocations carries
+#' \code{RoBMA_random_allocation_depth_unavailable}. The condition retains
+#' its \code{reason} and visited \code{allocation_chain}. Other source errors
+#' propagate with their original classes and causes.
+#'
 #' A term with several fitted coordinates (a factor with three or more levels
 #' or with independent contrasts, and the interactions of such a factor) has
 #' an original-scale prior only when the standardization of continuous
@@ -92,10 +101,10 @@
 #' and factor-by-factor interactions without an interaction with a
 #' standardized predictor) are plotted as before.
 #'
-#' @return \code{plot_prior} returns either \code{NULL} invisibly if
-#' \code{plot_type = "base"} or a \code{ggplot2} object if
-#' \code{plot_type = "ggplot"}. If multiple parameters are requested, a named
-#' list is returned, invisibly for base plots.
+#' @return \code{plot_prior} returns the selected prior plotting method's
+#' result, invisibly for base plots (which may include plot-data metadata), or
+#' a \code{ggplot2} object for \code{plot_type = "ggplot"}. If multiple
+#' parameters are requested, a named list is returned, invisibly for base plots.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {

@@ -29,7 +29,8 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' \code{50} to \code{99.9}. Defaults to \code{95}.
 #' @param at numeric vector; for continuous moderators, values at which to
 #' evaluate the prediction. If not specified, uses a sequence across the
-#' observed range.
+#' observed range. Continuous evaluation values are sorted with all
+#' associated predictions and intervals; duplicate evaluations are retained.
 #' @param digits integer; number of decimal places for labels. Defaults to \code{2}.
 #' @param transf function; transformation to apply to the y-axis (effect sizes).
 #' Defaults to \code{NULL} (no transformation).
@@ -41,7 +42,9 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' Defaults to \code{NULL} (no reference line).
 #' @param psize numeric vector or \code{NULL}; point sizes for each study.
 #' If scalar, it is recycled to all studies. If \code{NULL} (default), sizes
-#' are computed based on inverse sampling variance.
+#' are computed from inverse standard error, mapped to \code{plim}. Equal
+#' precisions use the lower endpoint; zero SEs receive the established maximum
+#' priority when positive SEs are also present.
 #' @param plim numeric vector of length 2; range for point sizes.
 #' Defaults to \code{c(0.5, 3)}.
 #' @param by character; name of a moderator variable to use for separate
@@ -223,8 +226,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   BayesTools::check_bool(ci, "ci")
   BayesTools::check_bool(pi, "pi")
   BayesTools::check_bool(si, "si")
-  BayesTools::check_real(level, "level", lower = 50, upper = 99.9)
-  .check_plot_numeric(at, "at", allow_null = TRUE)
+  .check_plot_numeric(level, "level", check_length = 1, lower = 50, upper = 99.9, allow_null = FALSE)
   BayesTools::check_int(digits, "digits", lower = 0)
   .check_plot_function(transf, "transf")
   .check_plot_numeric(refline, "refline", check_length = 1, allow_null = TRUE)
@@ -240,7 +242,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   BayesTools::check_bool(sampling_bias, "sampling_bias")
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
   if (!is.null(sei)) {
-    BayesTools::check_real(sei, "sei", lower = 0)
+    .check_plot_numeric(sei, "sei", check_length = 1, lower = 0, allow_null = FALSE)
     if (sei <= 0) {
       stop("'sei' must be positive.", call. = FALSE)
     }
@@ -278,6 +280,7 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   if (mod_type == "categorical" && !is.null(at)) {
     stop("'at' is only available for continuous moderators.", call. = FALSE)
   }
+  .check_plot_numeric(at, "at", allow_null = TRUE)
 
   K <- length(.outcome_data_yi(x))
   if (!is.null(psize)) {

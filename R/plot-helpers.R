@@ -370,52 +370,6 @@
   return(out)
 }
 
-# The fitted coordinate that a catalog quantity is identical to: the coordinate
-# of a coordinate key, or the only dependency of a factor-level key with unit
-# weight (a direct level cell or a contrast coefficient '<parameter>{j}').
-# Combinations of coordinates and structural levels have none.
-.brma_catalog_key_coordinate <- function(key) {
-
-  if (!is.list(key) || length(key[["dependencies"]]) != 1L) {
-    return(NULL)
-  }
-  if (identical(key[["type"]], "coordinate")) {
-    return(key[["dependencies"]][[1L]])
-  }
-  if (identical(key[["type"]], "factor_level") &&
-      identical(unname(as.numeric(key[["weights"]])), 1)) {
-    return(key[["dependencies"]][[1L]])
-  }
-
-  return(NULL)
-}
-
-# The fitted coordinate that a factor level (or cell) structurally is: a
-# direct level cell of treatment, independent, or ordered coding. BayesTools
-# labels every coordinate that is not structurally a level cell as a contrast
-# coefficient '<parameter>{j}' holding that coordinate, so a level whose
-# unit-weight coordinate a coefficient also holds is not a level cell. This
-# keeps a mean-difference or orthonormal level whose design row is a unit
-# vector in floating point (the first of four mean-difference levels) from
-# being taken for that coordinate.
-.brma_catalog_level_coordinate <- function(quantity, quantities) {
-
-  key        <- quantity[["extraction_key"]][[1L]]
-  coordinate <- .brma_catalog_key_coordinate(key)
-  if (is.null(coordinate) || !identical(key[["type"]], "factor_level")) {
-    return(coordinate)
-  }
-  holders <- vapply(quantities[["extraction_key"]], function(other) {
-    is.list(other) && identical(other[["type"]], "factor_level") &&
-      identical(.brma_catalog_key_coordinate(other), coordinate)
-  }, logical(1))
-  if (sum(holders) != 1L) {
-    return(NULL)
-  }
-
-  return(coordinate)
-}
-
 # Catalog quantities that are factor contrast coefficients ('g{1}'): their
 # label parts name a contrast coefficient rather than a level cell.
 .brma_catalog_contrast_coefficient <- function(quantities) {
@@ -1292,6 +1246,10 @@
 .set_dots_plot        <- function(..., n_levels = 1) {
 
   dots <- list(...)
+  if (is.null(dots[["col"]])) {
+    dots[["col"]] <- if (!is.null(dots[["color"]])) dots[["color"]] else dots[["colour"]]
+  }
+  dots[c("color", "colour")] <- NULL
   if (is.null(dots[["col"]]) & n_levels == 1) {
     dots[["col"]]      <- "black"
   }else if (is.null(dots[["col"]]) & n_levels > 1) {
@@ -1347,7 +1305,7 @@
 .plot_brma_ordered_target <- function(object, entry) {
 
   quantities <- entry[["selection"]][["quantities"]]
-  if (length(entry[["member_quantity_ids"]]) > 0L) {
+  if (length(unlist(entry[["member_quantity_ids"]], use.names = FALSE)) > 0L) {
     catalog <- .brma_parameter_catalog_metadata(object)[["catalog"]][["quantities"]]
     quantities <- rbind(quantities, catalog[
       catalog[["quantity_id"]] %in% unlist(entry[["member_quantity_ids"]], use.names = FALSE),
@@ -1386,13 +1344,15 @@
     dots_prior <- list()
   }
 
+  if (is.null(dots_prior[["col"]])) {
+    dots_prior[["col"]] <- if (!is.null(dots_prior[["color"]])) {
+      dots_prior[["color"]]
+    } else dots_prior[["colour"]]
+  }
+
   if (ordered && !is.null(posterior_col)) {
     if (is.null(dots_prior[["col"]])) {
-      dots_prior[["col"]] <- if (!is.null(dots_prior[["color"]])) {
-        dots_prior[["color"]]
-      } else if (!is.null(dots_prior[["colour"]])) {
-        dots_prior[["colour"]]
-      } else posterior_col
+      dots_prior[["col"]] <- posterior_col
     }
     if (!is.null(dots_prior[["linetype"]])) {
       dots_prior[["lty"]] <- dots_prior[["linetype"]]
@@ -1400,6 +1360,8 @@
       dots_prior[["lty"]] <- 2
     }
   }
+
+  dots_prior[c("color", "colour")] <- NULL
 
   if (!ordered && is.null(dots_prior[["col"]])) {
     dots_prior[["col"]]      <- "grey60"
@@ -1417,8 +1379,12 @@
 
   dots <- list(...)
   if (is.null(dots[["col"]])) {
+    dots[["col"]] <- if (!is.null(dots[["color"]])) dots[["color"]] else dots[["colour"]]
+  }
+  if (is.null(dots[["col"]])) {
     dots[["col"]] <- if(type == "autocorrelation") "black" else rev(scales::viridis_pal()(chains))
   }
+  dots[c("color", "colour")] <- NULL
 
   return(dots)
 }
@@ -1673,7 +1639,6 @@
       prior_list        = priors[[source]],
       term              = term,
       argument          = "parameter",
-      prefix            = "mu",
       source            = source,
       label             = parameter,
       formula_parameter = formula_parameter
@@ -1691,7 +1656,6 @@
       prior_list        = prior_list,
       term              = term,
       argument          = "parameter",
-      prefix            = formula_parameter,
       source            = source,
       label             = parameter,
       formula_parameter = formula_parameter
@@ -1722,8 +1686,8 @@
   stop(sprintf("Unknown prior source '%s'.", source), call. = FALSE)
 }
 
-.select_plot_prior_term <- function(prior_list, term, argument, prefix, source,
-                                    label = NULL,
+.select_plot_prior_term <- function(prior_list, term, argument, source,
+                                    label,
                                     formula_parameter = NA_character_) {
 
   if (is.null(prior_list)) {
@@ -1741,7 +1705,7 @@
 
   return(list(
     prior             = prior_list[[term]],
-    label             = if (!is.null(label)) label else paste0(prefix, "_", term),
+    label             = label,
     source            = source,
     term              = term,
     formula_parameter = formula_parameter

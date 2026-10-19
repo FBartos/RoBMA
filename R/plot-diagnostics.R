@@ -36,7 +36,8 @@
 #'   setup to \code{BayesTools::JAGS_diagnostics()}.
 #'
 #' @return \code{plot_diagnostic} returns the object returned by
-#'   \code{BayesTools::JAGS_diagnostics()}, invisibly for base graphics.
+#'   \code{BayesTools::JAGS_diagnostics()}, including a list when several
+#'   coordinate plots are produced, invisibly for base graphics.
 #'
 #' @seealso [summary.brma()]
 #'

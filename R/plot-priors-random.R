@@ -52,7 +52,7 @@
 
   selected[["prior"]]      <- law
   selected[["derivation"]] <- .brma_random_prior_derivation(
-    object, spec, provenance
+    object, spec, provenance, quantities
   )
 
   return(selected)
@@ -64,7 +64,7 @@
 # notation of print_prior(object, "random")) and the named source priors it
 # refers to. A quantity whose derivation is not described here is derived from
 # the random-effect specification as a whole.
-.brma_random_prior_derivation <- function(object, spec, provenance) {
+.brma_random_prior_derivation <- function(object, spec, provenance, quantities) {
 
   fit        <- object[["fit"]]
   prior_list <- attr(fit, "prior_list", exact = TRUE)
@@ -78,10 +78,7 @@
     if (!is.null(term) && .marginalized_random_effect_has_allocation(term)) {
       allocation <- term[["sd_binding"]][["allocations"]][[1L]]
       column     <- .brma_random_parameter_component_column(term, spec)
-      factors    <- tryCatch(
-        .marginalized_random_effect_allocation_factors(term, column = column),
-        error = function(error) NULL
-      )
+      factors <- .marginalized_random_effect_allocation_factors(term, column = column)
     }
   }
   chain    <- .brma_random_allocation_chain(
@@ -91,7 +88,15 @@
   product  <- function(factors) .brma_random_allocation_terms(factors, symbols)
   square   <- function(expression) paste0("(", expression, ")^2")
   # the SD symbol of a variance: its label without the block prefix
-  sd_label <- sub("^.*: ", "", sub("tau2", "tau", label, fixed = TRUE))
+  sd_parts <- lapply(quantities[["label_parts"]], function(parts) {
+    quantity <- parts[["random"]][["quantity"]]
+    mapped <- c(var = "sd", var_total = "sd_total", var_common = "sd_common")
+    if (quantity %in% names(mapped)) parts[["random"]][["quantity"]] <- unname(mapped[[quantity]])
+    parts
+  })
+  sd_label <- sub("^.*: ", "", BayesTools::parameter_labels(
+    .brma_random_parameter_io_parts(sd_parts), style = "table",
+    formula_prefix = FALSE, simplify = TRUE))
 
   # the declared priors that the expression refers to
   sd_source  <- FALSE
@@ -237,16 +242,43 @@
 .brma_random_allocation_chain <- function(formula_design, spec, allocation) {
 
   chain <- list()
+  visited <- character()
   while (!is.null(allocation) && length(chain) < 16L) {
+    visit_key <- paste(spec[["formula_parameter"]], allocation[["label"]], sep = "::")
+    if (visit_key %in% visited) {
+      stop(structure(list(message = "Random-effect allocation metadata contain a parent cycle.",
+        call = NULL, reason = "parent_cycle", allocation_chain = visited),
+        class = c("RoBMA_random_allocation_cycle", "RoBMA_random_prior_derivation_error", "error", "condition")))
+    }
+    visited <- c(visited, visit_key)
     chain  <- c(list(allocation), chain)
     parent <- allocation[["parent"]][["allocation"]]
     allocation <- if (is.character(parent) && length(parent) == 1L &&
                       !is.na(parent) && nzchar(parent)) {
-      .brma_random_parameter_design_allocation(
+      resolved <- .brma_random_parameter_design_allocation(
         formula_design,
         list(allocation = parent, formula_parameter = spec[["formula_parameter"]])
       )
+      if (is.null(resolved)) {
+        stop(structure(list(message = paste0("Random-effect allocation metadata reference unknown parent '",
+          parent, "'."), call = NULL, reason = "unknown_parent", allocation_chain = visited),
+          class = c("RoBMA_random_allocation_parent_unavailable", "RoBMA_random_prior_derivation_error", "error", "condition")))
+      }
+      resolved
     }
+  }
+
+  if (!is.null(allocation)) {
+    visit_key <- paste(spec[["formula_parameter"]], allocation[["label"]], sep = "::")
+    if (visit_key %in% visited) {
+      stop(structure(list(message = "Random-effect allocation metadata contain a parent cycle.",
+        call = NULL, reason = "parent_cycle", allocation_chain = visited),
+        class = c("RoBMA_random_allocation_cycle", "RoBMA_random_prior_derivation_error", "error", "condition")))
+    }
+    stop(structure(list(message = paste0("Random-effect allocation prior derivation is unavailable: ",
+      "the parent chain exceeds the supported depth of 16 allocations."),
+      call = NULL, reason = "unsupported_depth", allocation_chain = visited, supported_depth = 16L),
+      class = c("RoBMA_random_allocation_depth_unavailable", "RoBMA_random_prior_derivation_error", "error", "condition")))
   }
 
   return(chain)

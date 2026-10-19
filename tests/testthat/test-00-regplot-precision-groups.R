@@ -144,3 +144,45 @@ test_that("grouped precision supplies normal sampling intervals without sampling
     expect_identical(actual$sei, rep(group_sei, each = 2L))
   }
 })
+
+test_that("continuous regplot sorts duplicate evaluations with every interval", {
+
+  fixture <- .regplot_precision_replay(mods = ~ sei + vi)
+  x <- c(.1, .1, .2, .3)
+  actual <- regplot(fixture$object, mod = "sei", at = c(.3, .1, .2, .1),
+    pi = TRUE, si = TRUE, as_data = TRUE)
+  expect_identical(actual$pred$x, x)
+  expect_equal(actual$pred$y, x, tolerance = 0)
+  expect_identical(actual$sei, x)
+  for (band in c("ci", "pi", "si")) {
+    expect_identical(actual[[band]]$x, c(x, rev(x)))
+  }
+  q <- stats::qnorm(c(.025, .975))
+  expected_pi <- c(x + .5 * q[1L], rev(x + .5 * q[2L]))
+  expected_si <- c(x + sqrt(.25 + x^2) * q[1L],
+    rev(x + sqrt(.25 + x^2) * q[2L]))
+  # The native inverse has its existing few-ulp local stopping allowance.
+  expect_lte(max(abs(actual$pi$y - expected_pi)), 64 * .Machine$double.eps)
+  expect_lte(max(abs(actual$si$y - expected_si)), 64 * .Machine$double.eps)
+  for (mod in list(c(1, 2), NA_real_, Inf, 1.5, 0)) {
+    expect_error(regplot(fixture$object, mod = mod, as_data = TRUE), "moderator index", fixed = TRUE)
+  }
+  for (level in c(NA_real_, Inf, -Inf)) {
+    expect_error(regplot(fixture$object, level = level, as_data = TRUE), "'level'", fixed = TRUE)
+  }
+  for (sei in c(NA_real_, Inf, -Inf)) {
+    expect_error(regplot(fixture$object, sei = sei, as_data = TRUE), "'sei'", fixed = TRUE)
+  }
+})
+
+test_that("GLMM regression bands disclose their descriptive normal response law", {
+
+  fixture <- .regplot_precision_replay(mods = ~ sei + vi, binomial = TRUE)
+  expect_warning(actual <- regplot(fixture$object, mod = "sei", at = c(.1, .2),
+    pi = TRUE, si = TRUE, as_data = TRUE), paste0(
+      "GLMM regression prediction and sampling bands are descriptive normal ",
+      "effect-size approximations; they are not coverage intervals from the ",
+      "fitted discrete likelihood."), fixed = TRUE)
+  expect_identical(actual$approximation, list(method = "normal_effect_size_approximation",
+    descriptive = TRUE, fitted_discrete_likelihood_coverage = FALSE))
+})

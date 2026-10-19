@@ -1,39 +1,5 @@
 context("Influence cleanup preserves declared targets and draw populations")
 
-.review_cleanup_plain_replay <- function(known_v = FALSE, constant_mu = FALSE,
-    fixed_tau = TRUE, singular = FALSE) {
-
-  dat <- data.frame(yi = seq(.1, .6, .1), sei = .2, x = rep(c(-1, 2), 3))
-  args <- list(yi = dat$yi, data = dat, measure = "GEN",
-    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
-    prior_effect = prior("normal", list(0, 1)),
-    prior_heterogeneity = if (fixed_tau) prior("point", list(0)) else
-      prior("normal", list(0, 1), truncation = list(0, Inf)))
-  if (known_v) {
-    V <- diag(.04, 6L)
-    V[1L, 2L] <- V[2L, 1L] <- .01
-    args$V <- V
-    args$prior_heterogeneity <- NULL
-    args$mods <- if (singular) ~ x else ~ 1
-    args$standardize_continuous_predictors <- FALSE
-  } else args$sei <- dat$sei
-  setup <- review_compile_object(do.call(if (known_v) brma.mv else brma, args))
-  n <- if (known_v) 120L else 24L
-  mu <- if (constant_mu) rep(.2, n) else if (known_v)
-    .35 + .04 * stats::qnorm((seq_len(n) - .5) / n) else rep(c(0, 0, 1, 2), 6L)
-  samples <- matrix(mu, ncol = 1L, dimnames = list(NULL, "mu"))
-  if (!known_v) samples <- cbind(samples, tau = if (fixed_tau) 0 else .3)
-  if (known_v) colnames(samples)[1L] <- review_coefficient_name(setup, "intercept")
-  if (singular) {
-    samples <- cbind(samples, mu)
-    colnames(samples)[ncol(samples)] <- review_coefficient_name(setup, "x")
-  }
-  object <- review_attach_replay(setup, samples)
-  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding",
-    "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
-  object
-}
-
 test_that("known-V public influence diagnostics use canonical accurate target metadata", {
 
   object <- .review_cleanup_plain_replay(known_v = TRUE)

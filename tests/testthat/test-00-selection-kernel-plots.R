@@ -213,8 +213,7 @@ test_that("native zplot density matches selected-normal R reference", {
         tau_within       = tau,
         sei              = sei,
         selection        = selection,
-        extrapolate      = extrapolate,
-        effect_direction = "positive"
+        extrapolate      = extrapolate
       ),
       reference_density(extrapolate),
       tolerance = 1e-12
@@ -345,8 +344,7 @@ test_that("zplot threshold separates fitted, extrapolated, and missing-study tar
     tau_within       = tau,
     sei              = sei,
     selection        = selection,
-    extrapolate      = TRUE,
-    effect_direction = "positive"
+    extrapolate      = TRUE
   )
   fitted <- .zplot_threshold_vectorized(
     z_threshold      = threshold,
@@ -354,8 +352,7 @@ test_that("zplot threshold separates fitted, extrapolated, and missing-study tar
     tau_within       = tau,
     sei              = sei,
     selection        = selection,
-    extrapolate      = FALSE,
-    effect_direction = "positive"
+    extrapolate      = FALSE
   )
 
   expect_equal(
@@ -473,36 +470,6 @@ test_that("plot quantiles retain tiny positive normal scales", {
     tolerance = 1e-7
   )
 })
-
-
-.plot_range_point_replay <- function(object) {
-
-  setup <- review_compile_object(object)
-  priors <- c(do.call(c, unname(lapply(setup$compiled, `[[`, "prior_list"))),
-    .create_fit_priors(object$data, object$priors))
-  monitors <- BayesTools::JAGS_to_monitor(priors)
-  columns <- setdiff(review_prior_columns(priors), "omega")
-  primitive <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
-  for (name in names(priors)) {
-    if (BayesTools::is.prior.point(priors[[name]])) {
-      primitive[, name] <- priors[[name]]$parameters$location
-    }
-  }
-  preliminary <- review_attach_replay(setup, primitive)
-  generated <- BayesTools::JAGS_evaluate_deterministic(preliminary$fit, draws = primitive)
-  complete <- cbind(primitive, generated[, setdiff(colnames(generated), columns), drop = FALSE])
-  required <- unlist(lapply(monitors, function(name) {
-    if (name == "omega") return(paste0("omega[", seq_len(nrow(priors$omega$bins)), "]"))
-    name
-  }))
-  stopifnot(!anyDuplicated(required), all(required %in% colnames(complete)),
-    all(is.finite(complete)))
-  samples <- complete[, required, drop = FALSE]
-  object <- review_attach_replay(setup, samples)
-  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
-    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
-  list(object = object, samples = samples)
-}
 
 
 test_that("plot quantiles bracket translated tiny positive scales", {

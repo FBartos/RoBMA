@@ -181,7 +181,9 @@
 #' plotted quantity stop with the same parent class and
 #' `RoBMA_density_method_conditional_random` (conditional random-effect plots,
 #' which are KDE-only), `RoBMA_density_method_random_target` (a random-effect
-#' quantity without a supported scalar random-component coordinate), or
+#' quantity without a supported scalar random-component coordinate),
+#' `RoBMA_density_method_bias_target` (a composite weightfunction target; use
+#' `density_method = 'KDE'`), or
 #' `RoBMA_density_method_original_scale` (a coefficient or factor cell whose
 #' original-scale value is not a linear combination of its fitted
 #' coefficients, such as the exponentiated intercept of a scale formula with
@@ -203,7 +205,8 @@
 #' estimate plans that could retain the fitted object.
 #'
 #' @return \code{plot.brma} returns either \code{NULL} if \code{plot_type = "base"}
-#' or a \code{ggplot2} object if \code{plot_type = "ggplot"}.
+#' or a \code{ggplot2} object (a named list of plots for a whole factor term)
+#' if \code{plot_type = "ggplot"}.
 #' \code{lines.brma} returns \code{NULL} for \code{plot_type = "base"} and
 #' ggplot2 layer(s) for \code{plot_type = "ggplot"}.
 #'
@@ -337,6 +340,18 @@ lines.brma <- function(
     object           = x
   )
   parameter <- parameter_entry[["parameter"]]
+  if (identical(parameter, "bias")) {
+    stop("Posterior density plots are unavailable for aggregate 'bias'. ",
+      "Use 'parameter = \"PET\"', 'parameter = \"PEESE\"', or ",
+      "'parameter = \"omega\"' to plot a supported component.", call. = FALSE)
+  }
+  if (identical(parameter, "omega") && .density_method_uses_precomputed(density_method)) {
+    .iwmde_stop_unavailable(.iwmde_unavailable(
+      reason = paste0("qCMDE/IWMDE density plots are unavailable for composite ",
+        "weightfunction targets. Use 'density_method = \"KDE\"'."),
+      type = "bias_target"
+    ))
+  }
   plot_transform  <- .plot_output_setup(
     object          = x,
     parameter       = parameter,
@@ -422,6 +437,10 @@ lines.brma <- function(
       )
     }
   } else {
+    parameter_spec <- if (.density_method_uses_precomputed(density_method)) {
+      .plot_brma_formula_parameter_spec(x, parameter, parameter_entry,
+        standardized_coefficients)
+    } else NULL
     sample_parameter <- .as_mixed_posteriors_parameters(x, parameter)
     samples <- .brma_as_mixed_posteriors(
       object           = x,
@@ -439,12 +458,6 @@ lines.brma <- function(
       sample_parameter = sample_parameter
     )
     if (.density_method_uses_precomputed(density_method)) {
-      parameter_spec <- .plot_brma_formula_parameter_spec(
-        object                    = x,
-        parameter                 = parameter,
-        parameter_entry           = parameter_entry,
-        standardized_coefficients = standardized_coefficients
-      )
       samples <- .plot_brma_attach_iwmde(
         object                  = x,
         samples                 = samples,
@@ -490,6 +503,9 @@ lines.brma <- function(
       entry            = parameter_entry,
       object           = x
     )
+    if ((is_random || is_factor_cell) && .effect_output_active(plot_transform)) {
+      dots[["par_name"]] <- paste0(dots[["par_name"]], " (", plot_transform[["label"]], ")")
+    }
   }
 
   # prepare the argument call
@@ -1196,12 +1212,6 @@ lines.brma <- function(
 }
 
 
-# Name mixed factor columns by the fitted coordinates they hold. A column that
-# is a catalog quantity identical to one coordinate (a direct level cell such
-# as treatment 'mu_g[3]', which holds coordinate 'mu_g[2]', or a contrast
-# coefficient 'mu_g{j}') takes that coordinate's name; other columns keep
-# theirs. All columns are renamed at once, since a level label can equal the
-# name of another level's coordinate.
 # The fitted coordinates that mixed-posterior columns of a factor term hold:
 # the sole dependency, with unit weight, of each column's draw metadata. Other
 # columns (combinations of coordinates) name no coordinate.

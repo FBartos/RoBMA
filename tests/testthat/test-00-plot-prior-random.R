@@ -351,3 +351,89 @@ test_that("only_priors objects point to the random-effect specification", {
   expect_match(conditionMessage(error), "is not available.")
   expect_false(grepl("random", conditionMessage(error), fixed = TRUE))
 })
+
+test_that("allocation derivations retain cycle, unknown-parent, and supported-depth causes", {
+
+  allocation <- function(name, parent = NULL) list(label = name,
+    parent = if (is.null(parent)) NULL else list(allocation = parent))
+  spec <- list(formula_parameter = "mu")
+  definitions <- lapply(seq_len(17L), function(i) allocation(as.character(i),
+    if (i == 1L) NULL else as.character(i - 1L)))
+  design <- list(mu = list(parameter = "mu", random_allocations = definitions))
+  # Resolving the root on the last supported iteration is valid.
+  expect_length(.brma_random_allocation_chain(design, spec, definitions[[16L]]), 16L)
+  error <- tryCatch(.brma_random_allocation_chain(design, spec, definitions[[17L]]), error = identity)
+  expect_s3_class(error, "RoBMA_random_allocation_depth_unavailable")
+  expect_s3_class(error, "RoBMA_random_prior_derivation_error")
+  expect_identical(error$reason, "unsupported_depth")
+  expect_identical(error$supported_depth, 16L)
+  expect_identical(conditionMessage(error), paste0(
+    "Random-effect allocation prior derivation is unavailable: ",
+    "the parent chain exceeds the supported depth of 16 allocations."))
+  cyclical <- allocation("cycle", "cycle")
+  design$mu$random_allocations <- list(cyclical)
+  error <- tryCatch(.brma_random_allocation_chain(design, spec, cyclical), error = identity)
+  expect_s3_class(error, "RoBMA_random_allocation_cycle")
+  expect_s3_class(error, "RoBMA_random_prior_derivation_error")
+  expect_identical(error$reason, "parent_cycle")
+  expect_identical(conditionMessage(error), "Random-effect allocation metadata contain a parent cycle.")
+  error <- tryCatch(.brma_random_allocation_chain(design, spec,
+    allocation("leaf", "absent")), error = identity)
+  expect_s3_class(error, "RoBMA_random_allocation_parent_unavailable")
+  expect_identical(error$reason, "unknown_parent")
+  expect_identical(conditionMessage(error), "Random-effect allocation metadata reference unknown parent 'absent'.")
+})
+
+test_that("random variance derivations preserve tau2 inside grouping names", {
+
+  dat <- data.frame(yi = c(.1, .2, .3, .4), study = c("a", "a", "b", "b"), esid = 1:4)
+  setup <- review_compile_object(brma.mv(yi = yi, V = diag(.04, 4L),
+    random = list(tau2_study = ~ id(1 | study), other = ~ id(1 | esid)),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    prior_heterogeneity = BayesTools::prior_random(sd = BayesTools::prior("normal",
+      list(mean = 0, sd = 1), list(lower = 0, upper = Inf))),
+    only_priors = TRUE, silent = TRUE))
+  priors <- c(setup$compiled$mu$prior_list,
+    .create_fit_priors(setup$object$data, setup$object$priors))
+  # Include the compiler-declared random monitors, rather than attaching
+  # prior columns alone to a random-effect model.
+  terms <- setup$compiled$mu$formula_design$random_effects
+  latent_bases <- vapply(terms, function(term) paste0(term$parameter_stem, "_xRE_Zx"), character(1L))
+  latent <- unlist(lapply(terms, function(term) {
+    index <- expand.grid(group = seq_len(term$n_groups), column = seq_len(term$n_columns))
+    paste0(term$parameter_stem, "_xRE_Zx[", index$group, ",", index$column, "]")
+  }), use.names = FALSE)
+  additional <- unique(unlist(lapply(setup$compiled, `[[`, "add_parameters")))
+  columns <- unique(c(review_prior_columns(priors), setdiff(additional, latent_bases), latent))
+  samples <- matrix(.5, 24L, length(columns), dimnames = list(NULL, columns))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
+    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  quantities <- BayesTools::parameter_catalog(object$fit)$quantities
+  quantities <- quantities[quantities$quantity == "var", , drop = FALSE]
+  available <- .brma_random_parameter_specs(quantities)
+  selected <- available$parameter[available$quantity == "var" &
+    grepl("tau2_study", available$label, fixed = TRUE)]
+  expect_length(selected, 1L)
+  label <- available$label[match(selected, available$parameter)]
+  text <- capture.output(print_prior(object, parameter = selected))
+  expect_identical(text[1L], paste0(label, " = tau^2"))
+  expect_match(text[1L], "tau2_study", fixed = TRUE)
+  expect_identical(text[2L], "  tau:")
+})
+
+test_that("allocation derivation preserves unexpected source errors", {
+
+  error <- structure(list(message = "Synthetic source programming failure.", call = NULL),
+    class = c("review_source_programming_error", "error", "condition"))
+  testthat::local_mocked_bindings(
+    .marginalized_random_effect_allocation_factors = function(...) stop(error),
+    .marginalized_random_effect_has_allocation = function(...) TRUE,
+    .brma_random_parameter_component_column = function(...) 1L,
+    .package = "RoBMA")
+  actual <- tryCatch(.brma_random_prior_derivation(
+    object = list(fit = list()), spec = list(allocation_derived = TRUE),
+    provenance = list(term = list(sd_binding = list(allocations = list(list()))))),
+    error = identity)
+  expect_identical(actual, error)
+})

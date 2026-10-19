@@ -124,7 +124,8 @@
     }
   } else if (is.numeric(mod)) {
     # index-based selection
-    if (mod < 1 || mod > length(mod_names)) {
+    if (length(mod) != 1L || !is.finite(mod) || mod != floor(mod) ||
+        mod < 1 || mod > length(mod_names)) {
       stop("Invalid moderator index. Must be between 1 and ",
            length(mod_names), ".", call. = FALSE)
     }
@@ -290,7 +291,7 @@
       x_range <- range(mod_data)
       at_pred <- seq(x_range[1], x_range[2], length.out = 101)
     } else {
-      at_pred <- at
+      at_pred <- sort(at)
     }
     x_values  <- at_pred
     x_numeric <- at_pred
@@ -1027,6 +1028,11 @@
   }
 
   if (pi || si) {
+    if (.outcome_type(x) %in% c("bin", "pois")) {
+      warning("GLMM regression prediction and sampling bands are descriptive normal ",
+        "effect-size approximations; they are not coverage intervals from the ",
+        "fitted discrete likelihood.", call. = FALSE)
+    }
     if (inherits(x, "brma.mv") &&
         .data_has_marginalized_known_group_covariance(x[["data"]])) {
       stop(
@@ -1255,7 +1261,7 @@
     df_refline <- data.frame(y = refline)
   }
 
-  return(list(
+  out <- list(
     points   = df_points,
     pred     = df_pred,
     ci       = df_ci,
@@ -1273,5 +1279,10 @@
     groups   = groups,
     levels   = if (mod_type == "categorical") levels(mod_data) else NULL,
     sei      = if (length(unique(grid_sei)) == 1L) grid_sei[[1L]] else grid_sei
-  ))
+  )
+  if ((pi || si) && .outcome_type(x) %in% c("bin", "pois")) {
+    out[["approximation"]] <- list(method = "normal_effect_size_approximation",
+      descriptive = TRUE, fitted_discrete_likelihood_coverage = FALSE)
+  }
+  return(out)
 }

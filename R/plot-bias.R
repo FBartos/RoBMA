@@ -124,7 +124,6 @@ plot_weightfunction.brma  <- function(
 
 .weightfunction_observed_p_values <- function(x) {
 
-  outcome_data <- x[["data"]][["outcome"]]
   bias_prior  <- x[["priors"]][["outcome"]][["bias"]]
   bias_priors <- .selection_bias_priors(x[["priors"]])
   if (!any(vapply(bias_priors, .prior_has_selection, logical(1)))) {
@@ -138,7 +137,7 @@ plot_weightfunction.brma  <- function(
         (.is_prior_weightfunction(prior) && prior[["side"]] == "one-sided")
     }, logical(1)))
   sign <- if (.effect_direction(x) == "negative") -1L else 1L
-  z <- sign * outcome_data[["yi"]] / outcome_data[["sei"]]
+  z <- sign * .outcome_data_yi(x) / .outcome_data_sei(x)
 
   if (one_sided) {
     return(stats::pnorm(z, lower.tail = FALSE))
@@ -246,7 +245,7 @@ plot_pet_peese.brma  <- function(
   dots_prior <- .set_dots_prior(dots_prior)
 
   # set plotting range (make sure all effect sizes are within the plotting range)
-  data_outcome <- x[["data"]][["outcome"]]
+  data_outcome <- data.frame(yi = .outcome_data_yi(x), sei = .outcome_data_sei(x))
   if (is.null(dots[["ylim"]])) {
     dots[["ylim"]] <- range(pretty(c(0, range(data_outcome$yi))))
   }

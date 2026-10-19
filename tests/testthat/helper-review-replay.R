@@ -262,7 +262,7 @@ review_attach_replay <- function(setup, samples) {
 # normal quantiles.
 review_factor_replay <- function(levels, contrast, variable_intercept = TRUE,
                                  independent = FALSE, distribution = "mnormal",
-                                 n = 100L) {
+                                 n = 100L, measure = "GEN") {
 
   dat <- data.frame(
     yi  = seq(-.1, .2, length.out = 6),
@@ -270,7 +270,7 @@ review_factor_replay <- function(levels, contrast, variable_intercept = TRUE,
     g   = factor(rep(levels, each = 6L / length(levels)), levels = levels)
   )
   object <- brma(
-    yi = yi, sei = sei, mods = ~ g, data = dat, measure = "GEN",
+    yi = yi, sei = sei, mods = ~ g, data = dat, measure = measure,
     prior_unit_information_sd = 1,
     prior_effect = if (variable_intercept) {
       BayesTools::prior("normal", list(mean = 0, sd = 1))
@@ -459,6 +459,71 @@ review_fixed_zero_location_replay <- function() {
   factor_columns <- BayesTools:::.JAGS_prior_factor_names(name, priors[[name]])
   quantiles <- stats::qnorm((seq_len(n) - .5) / n)
   samples[, factor_columns] <- cbind(.1 + .12 * quantiles, 9.84 + .12 * rev(quantiles))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding",
+    "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  object
+}
+
+
+.plot_range_point_replay <- function(object) {
+
+  setup <- review_compile_object(object)
+  priors <- c(do.call(c, unname(lapply(setup$compiled, `[[`, "prior_list"))),
+    .create_fit_priors(object$data, object$priors))
+  monitors <- BayesTools::JAGS_to_monitor(priors)
+  columns <- setdiff(review_prior_columns(priors), "omega")
+  primitive <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  for (name in names(priors)) {
+    if (BayesTools::is.prior.point(priors[[name]])) {
+      primitive[, name] <- priors[[name]]$parameters$location
+    }
+  }
+  preliminary <- review_attach_replay(setup, primitive)
+  generated <- BayesTools::JAGS_evaluate_deterministic(preliminary$fit, draws = primitive)
+  complete <- cbind(primitive, generated[, setdiff(colnames(generated), columns), drop = FALSE])
+  required <- unlist(lapply(monitors, function(name) {
+    if (name == "omega") return(paste0("omega[", seq_len(nrow(priors$omega$bins)), "]"))
+    name
+  }))
+  stopifnot(!anyDuplicated(required), all(required %in% colnames(complete)),
+    all(is.finite(complete)))
+  samples <- complete[, required, drop = FALSE]
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
+    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  list(object = object, samples = samples)
+}
+
+
+.review_cleanup_plain_replay <- function(known_v = FALSE, constant_mu = FALSE,
+    fixed_tau = TRUE, singular = FALSE) {
+
+  dat <- data.frame(yi = seq(.1, .6, .1), sei = .2, x = rep(c(-1, 2), 3))
+  args <- list(yi = dat$yi, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+    prior_effect = prior("normal", list(0, 1)),
+    prior_heterogeneity = if (fixed_tau) prior("point", list(0)) else
+      prior("normal", list(0, 1), truncation = list(0, Inf)))
+  if (known_v) {
+    V <- diag(.04, 6L)
+    V[1L, 2L] <- V[2L, 1L] <- .01
+    args$V <- V
+    args$prior_heterogeneity <- NULL
+    args$mods <- if (singular) ~ x else ~ 1
+    args$standardize_continuous_predictors <- FALSE
+  } else args$sei <- dat$sei
+  setup <- review_compile_object(do.call(if (known_v) brma.mv else brma, args))
+  n <- if (known_v) 120L else 24L
+  mu <- if (constant_mu) rep(.2, n) else if (known_v)
+    .35 + .04 * stats::qnorm((seq_len(n) - .5) / n) else rep(c(0, 0, 1, 2), 6L)
+  samples <- matrix(mu, ncol = 1L, dimnames = list(NULL, "mu"))
+  if (!known_v) samples <- cbind(samples, tau = if (fixed_tau) 0 else .3)
+  if (known_v) colnames(samples)[1L] <- review_coefficient_name(setup, "intercept")
+  if (singular) {
+    samples <- cbind(samples, mu)
+    colnames(samples)[ncol(samples)] <- review_coefficient_name(setup, "x")
+  }
   object <- review_attach_replay(setup, samples)
   BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding",
     "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
