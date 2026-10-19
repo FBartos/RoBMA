@@ -53,14 +53,16 @@ testthat::test_that("Bangertdrowns location-scale models", {
   scenario_text("fit_ls_summary", {summary(fit_ls)})
 
   ### pooled effect summary
+  # Use the moderator mean in the retained model design.
+  mean_ni100 <- mean(metafor_l[["X"]][, "ni100"])
   set.seed(1)
   predict(metafor_simple)
   scenario_text("fit_simple_effect", {pooled_effect(fit_simple)})
-  apply(as.data.frame(predict(metafor_l)), 2 , mean)
+  predict(metafor_l, newmods = mean_ni100)
   scenario_text("fit_l_effect",      {pooled_effect(fit_l)})
-  apply(as.data.frame(predict(metafor_s)), 2 , mean)
+  predict(metafor_s, newmods = 1, newscale = mean_ni100)
   scenario_text("fit_s_effect",      {pooled_effect(fit_s)})
-  apply(as.data.frame(predict(metafor_ls)), 2 , mean)
+  predict(metafor_ls, newmods = mean_ni100, newscale = mean_ni100)
   scenario_text("fit_ls_effect",     {pooled_effect(fit_ls)})
 
   set.seed(1)
@@ -68,9 +70,9 @@ testthat::test_that("Bangertdrowns location-scale models", {
   scenario_text("fit_simple_heterogeneity", {pooled_heterogeneity(fit_simple)})
   confint(metafor_l)
   scenario_text("fit_l_heterogeneity",      {pooled_heterogeneity(fit_l)})
-  apply(as.data.frame(predict(metafor_s, newscale = TRUE)), 2 , function(x) sqrt(mean(exp(x))))
+  predict(metafor_s, newscale = mean_ni100, transf = function(x) exp(x / 2))
   scenario_text("fit_s_heterogeneity",      {pooled_heterogeneity(fit_s)})
-  apply(as.data.frame(predict(metafor_ls, newscale = TRUE)), 2 , function(x) sqrt(mean(exp(x))))
+  predict(metafor_ls, newscale = mean_ni100, transf = function(x) exp(x / 2))
   scenario_text("fit_ls_heterogeneity",     {pooled_heterogeneity(fit_ls)})
 
 

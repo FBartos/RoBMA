@@ -342,28 +342,6 @@ testthat::test_that("Assink brma and brma.mv models", {
     lines(fit_BMA.mv, "tau2_prop(study)", density_method = "qCMDE", lty = 2)
   })
 
-  set.seed(1)
-  scenario_plot("fit.BMA_posterior_random", {
-    par(mfrow = c(2, 3))
-
-    plot(fit_brma.mv, "tau_total", prior = TRUE)
-    lines(fit_brma.mv, "tau_total", density_method = "qCMDE", lty = 2)
-
-    plot(fit_brma.mv, "study: tau", prior = TRUE)
-    lines(fit_brma.mv, "study: tau", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000L))
-
-    plot(fit_brma.mv, "esid_study: tau", prior = TRUE)
-    lines(fit_brma.mv, "esid_study: tau", density_method = "qCMDE", lty = 2, density_control = list(samples = 1000L))
-
-    plot(fit_brma.mv, "tau2_prop(esid_study)", prior = TRUE)
-    lines(fit_brma.mv, "tau2_prop(esid_study)", density_method = "qCMDE", lty = 2)
-
-    plot(fit_brma.mv, "tau2_prop(study)", prior = TRUE)
-    lines(fit_brma.mv, "tau2_prop(study)", density_method = "qCMDE", lty = 2)
-  })
-
-
-
   ### hypothesis ----
   set.seed(1)
   BF_brma_rho    <- scenario_time("BF_brma_rho", hypothesis(fit_brma_cluster, c("rho != 0 vs rho = 0", "rho != 1 vs rho = 1"), density_method = "qCMDE", density_control = list(samples = 2000)))
@@ -371,7 +349,9 @@ testthat::test_that("Assink brma and brma.mv models", {
   scenario_text("fit_rho_bayes_factor_comparison", data.frame(
     rho                = c(0, 1),
     density_brma_BF    = BF_brma_rho[["BF"]],
+    density_brma_error_percent = BF_brma_rho[["BF_error"]],
     density_mv_diag_BF = BF_mv_diag_rho[["BF"]],
+    density_mv_diag_error_percent = BF_mv_diag_rho[["BF_error"]],
     marglik_brma_BF    = c(bf(fit_brma_cluster, fit_brma)$bf, NA),
     marglik_mv_diag_BF = c(bf(fit_brma.mv_diag, fit_brma.mv_diag_no_study)$bf, bf(fit_brma.mv_diag, fit_brma.mv_diag_no_effect)$bf)
   ))
@@ -384,6 +364,7 @@ testthat::test_that("Assink brma and brma.mv models", {
   scenario_text("fit_random_bayes_factor_comparison", data.frame(
     hypothesis = c("rho != 0", "rho != 1", "tau != 0"),
     density_BF = BF_random[["BF"]],
+    density_error_percent = BF_random[["BF_error"]],
     marglik_BF = c(bf(fit_brma.mv, fit_brma.mv_no_study)$bf, bf(fit_brma.mv, fit_brma.mv_no_effect)$bf,
                    bf(fit_brma.mv, fit_brma.mv_fixed)$bf)
   ))
@@ -405,10 +386,11 @@ testthat::test_that("Assink brma and brma.mv models", {
 
   ### pooled effects ----
   compare_preds <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
-    cbind.data.frame(
+    data.frame(
       "metafor" = t(data.frame(predict(fit_metafor))[c("pred", "ci.lb", "ci.ub", "pi.lb", "pi.ub")]),
-      ex_p(fit_RoBMA),
-      if (!is.null(fit_RoBMA2)) ex_p(fit_RoBMA2) else data.frame(brma.uni = rep(NA_real_, 5L)))
+      "brma.mv"  = ex_p(fit_RoBMA)[, 1L],
+      "brma.uni" = if (!is.null(fit_RoBMA2)) ex_p(fit_RoBMA2)[, 1L] else rep(NA_real_, 5L),
+      check.names = FALSE)
   }
 
   set.seed(1)
@@ -771,7 +753,9 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   scenario_text("bPET-rho-bayes-factor-comparison", data.frame(
     rho                = c(0, 1),
     density_bPET_BF    = BF_bPET_rho[["BF"]],
+    density_bPET_error_percent = BF_bPET_rho[["BF_error"]],
     density_mv_vi_BF   = BF_bPET_mv_rho[["BF"]],
+    density_mv_vi_error_percent = BF_bPET_mv_rho[["BF_error"]],
     marglik_bPET_BF    = c(bf(fit_bPET_cluster, fit_bPET)$bf, NA),
     marglik_mv_vi_BF   = c(bf(fit_bPET.mv, fit_bPET.mv_no_study)$bf, bf(fit_bPET.mv, fit_bPET.mv_no_effect)$bf)
   ))
@@ -784,6 +768,7 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   scenario_text("bPET-random-bayes-factor-comparison", data.frame(
     hypothesis = c("rho != 0", "rho != 1", "tau != 0"),
     density_BF = BF_bPET_random[["BF"]],
+    density_error_percent = BF_bPET_random[["BF_error"]],
     marglik_BF = c(bf(fit_bPET.mv_V, fit_bPET.mv_V_no_study)$bf, bf(fit_bPET.mv_V, fit_bPET.mv_V_no_effect)$bf,
                    bf(fit_bPET.mv_V, fit_bPET.mv_V_fixed)$bf)
   ))
@@ -934,9 +919,10 @@ testthat::test_that("Assink bPEESE.mv-specific checks", {
   ### Point-null Bayes factor ----
   set.seed(1)
   BF_bPEESE_mu <- scenario_time("BF_bPEESE_mu", hypothesis(fit_bPEESE.mv_V, "mu = 0", density_control = list(samples = 2000)))
-  scenario_text("bPEESE-mu-bayes-factor-comparison", c(
-    marglik = bf(fit_bPEESE.mv_V, fit_bPEESE.mv_V_null)[["bf"]],
-    density = BF_bPEESE_mu[["BF"]][[1L]]
+  scenario_text("bPEESE-mu-bayes-factor-comparison", data.frame(
+    marglik_BF = bf(fit_bPEESE.mv_V, fit_bPEESE.mv_V_null)[["bf"]],
+    density_BF = BF_bPEESE_mu[["BF"]][[1L]],
+    density_error_percent = BF_bPEESE_mu[["BF_error"]][[1L]]
   ))
 
   ### PEESE-specific plots ----
@@ -1041,23 +1027,29 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
 
   # faster calculation using coarse corrected cache
   fit_bselmodel.mv_V_cond_coarse <- scenario_fit("fit_bselmodel.mv_V_cond_coarse", {
-    RoBMA.options(selection.sampler = "coarse_corrected")
-    tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
-    tmp <- add_marglik(tmp)
-    tmp <- add_loo(tmp)
-    RoBMA.options(selection.sampler = "default")
-    return(tmp)
+    (function() {
+      previous_sampler <- RoBMA.options()[["selection.sampler"]]
+      on.exit(RoBMA.options(selection.sampler = previous_sampler), add = TRUE)
+      RoBMA.options(selection.sampler = "coarse_corrected")
+      tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1)
+      tmp <- add_marglik(tmp)
+      tmp <- add_loo(tmp)
+      return(tmp)
+    })()
   })
 
   # fit C-C-I model (coarsed for speed)
   fit_bselmodel.mv_V_CCI_coarse <- scenario_fit("fit_bselmodel.mv_V_CCI_coarse", {
-    RoBMA.options(selection.sampler = "coarse_corrected")
-    tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1,
-                        selection = selection_model(estimate_random_effects = "condition"))
-    tmp <- add_marglik(tmp)
-    tmp <- add_loo(tmp)
-    RoBMA.options(selection.sampler = "default")
-    return(tmp)
+    (function() {
+      previous_sampler <- RoBMA.options()[["selection.sampler"]]
+      on.exit(RoBMA.options(selection.sampler = previous_sampler), add = TRUE)
+      RoBMA.options(selection.sampler = "coarse_corrected")
+      tmp <- bselmodel.mv(yi = yi, V = V_assink, random = ~ 1 | study / esid, measure = "SMD", data = dat.assink2016, parallel = TRUE, seed = 1,
+                          selection = selection_model(estimate_random_effects = "condition"))
+      tmp <- add_marglik(tmp)
+      tmp <- add_loo(tmp)
+      return(tmp)
+    })()
   })
 
   ### Model summaries ----
@@ -1073,8 +1065,6 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     metafor::rma(yi, vi, data = dat.assink2016, method = "FE"),
     type = "stepfun", steps = 0.025, decreasing = TRUE
   )
-  fit_metafor_vi <- metafor::rma.mv(yi, vi,       random = ~ esid | study, data = dat.assink2016)
-  fit_metafor_V  <- metafor::rma.mv(yi, V_assink, random = ~ esid | study, data = dat.assink2016)
 
   ### Simple summaries ----
   # The univariate and estimate-only diagonal models have metafor counterparts.
@@ -1087,7 +1077,6 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   scenario_text("bselmodel-summary-mv-vi-fixed-cond", summary(fit_bselmodel.mv_fixed_cond))
   scenario_text("bselmodel-summary-fixed-cond",       summary(fit_bselmodel_fixed_cond))
   scenario_text("bselmodel-summary-mv-V_fixed",       summary(fit_bselmodel.mv_V_fixed))
-  # the fit_metafor_vi -> fit_metafor_V change shows
 
   scenario_text("bselmodel-summary-mv-vi-cond",       summary(fit_bselmodel.mv_cond))
   scenario_text("bselmodel-summary-cluster-cond",     summary(fit_bselmodel_cluster_cond))
@@ -1162,7 +1151,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   })
   scenario_plot("bselmodel-posterior-mod-default", {
     plot(fit_bselmodel.mv_V_reg_cond, "deltype", prior = TRUE, xlim = c(-1, 1), ylim = c(0, 3))
-    lines(fit_bselmodel.mv_V_reg_cond, "deltype", density_method = "qCMDE")
+    lines(fit_bselmodel.mv_V_reg_cond, "deltype", density_method = "qCMDE", lty = 2)
   })
   # TODO: some of these also take extremely long
   scenario_plot("bselmodel-posterior-random-mv", {
@@ -1180,9 +1169,10 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   })
 
   BF_bselmodel_mu_cond <- scenario_time("BF_bselmodel_mu_cond", hypothesis(fit_bselmodel.mv_V_cond, "mu != 0 vs mu = 0", density_method = "qCMDE", density_control = list(samples = 1000), seed = 1))
-  scenario_text("bselmodel-mu-bayes-factor-comparison-default", c(
-    "bridge" = bf(fit_bselmodel.mv_V_cond, fit_bselmodel.mv_V_cond_null)[["bf"]],
-    "SD"     = BF_bselmodel_mu_cond[["BF"]]
+  scenario_text("bselmodel-mu-bayes-factor-comparison-default", data.frame(
+    bridge_BF = bf(fit_bselmodel.mv_V_cond, fit_bselmodel.mv_V_cond_null)[["bf"]],
+    qCMDE_BF = BF_bselmodel_mu_cond[["BF"]],
+    qCMDE_error_percent = BF_bselmodel_mu_cond[["BF_error"]]
   ))
 
   ### Heterogeneity and moderator hypotheses ----
@@ -1278,7 +1268,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     return(invisible(NULL))
   }
   scenario_plot("bselmodel-marginal-diagnostics-mv-vi-cond", plot_bselmodel_diagnostic_equivalence(fit_bselmodel_cluster_cond, fit_bselmodel.mv_cond))
-  scenario_plot("bselmodel-marginal-diagnostics-mv-V-cond",  plot_bselmodel_diagnostic_equivalence(fit_bselmodel.mv_V_cond,    fit_bselmodel.mv_cond))
+  scenario_plot("bselmodel-marginal-diagnostics-mv-V-cond",  plot_bselmodel_diagnostic_equivalence(fit_bselmodel.mv_V_cond,    fit_bselmodel.mv_cond, reference_label = "mv-V", estimate_label = "mv-vi"))
 
   # The outcome contours describe a new independently published estimate.
   scenario_plot("bselmodel-funnel-mv-V-cond", {

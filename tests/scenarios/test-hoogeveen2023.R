@@ -4,10 +4,10 @@ scenario_start("hoogeveen2023")
 
 ### Description
 # Compare the exact rank-one sampling-covariance analysis of the Many-Analysts
-# Religion Project with independent analysis effects and with the known quality
-# covariance R.
+# Religion Project with independent analysis effects, quality-linked diagonal
+# variances, and outcome-linked diagonal variances.
 
-testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R", {
+testthat::test_that("Hoogeveen rank-one sampling covariance and diagonal R", {
 
   data("Hoogeveen2023", package = "RoBMA")
 
@@ -32,7 +32,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   fit_metafor_mv_quality <- metafor::rma.mv(yi = yi, V = V_median, random = ~ 1 | analysis,
                                             R = list(analysis = R_quality), Rscale = "none",
                                             data = dat, method = "REML", test = "t")
-  # fit with an altered rcor matrix to induce high dependency on R
+  # Sensitivity analysis with outcome-linked diagonal variances in R.
   fit_metafor_mv_rcor <- metafor::rma.mv(yi = yi, V = V_median, random = ~ 1 | analysis,
                                             R = list(analysis = R_correlated), Rscale = "none",
                                             data = dat, method = "REML", test = "t")
@@ -74,7 +74,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
     return(temp_fit)
   })
 
-  # fits with an altered rcor matrix to induce high dependency on R
+  # Fits with outcome-linked diagonal variances in R.
   fit_brma_mv_rcor <- scenario_fit("fit_brma_mv_rcor", {
     temp_fit <- brma.mv(yi = yi, V = V_median, random = ~ 1 | analysis,
                         R = list(analysis = R_correlated), Rscale = "none", data = dat, measure = "GEN",
@@ -112,7 +112,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
     robma_components   <- c(NA, NA, NA, NA, "analysis")
     robma_statistics   <- c("Mean", "SD", "CI_0.025", "CI_0.975", "Median")
     data.frame(
-      model = rep(c("without known R", "with known R", "with corr R"), each = 2L),
+      model = rep(c("without known R", "with known R", "with varying diagonal R"), each = 2L),
       implementation = rep(c("metafor", "RoBMA"), 3L),
       round(rbind(
         ex_m(fit_metafor_mv, metafor_parameters, metafor_statistics),
@@ -139,7 +139,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
   scenario_text("effect-bayes-factors", rbind(
     "without known R" = effect_bayes_factors(fit_brma_mv,         fit_brma_mv_null),
     "with known R"    = effect_bayes_factors(fit_brma_mv_quality, fit_brma_mv_quality_null),
-    "with corr R "    = effect_bayes_factors(fit_brma_mv_rcor,    fit_brma_mv_rcor_null)
+    "with varying diagonal R"    = effect_bayes_factors(fit_brma_mv_rcor,    fit_brma_mv_rcor_null)
   ))
 
 
@@ -187,7 +187,7 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
     scenario_agreement_plot(
       metafor::ranef(fit_metafor_mv_rcor)[["analysis"]][["intrcpt"]],
       as.data.frame(ranef(fit_brma_mv_rcor))[["Mean"]],
-      main = "Known quality R"
+      main = "Varying diagonal R"
     )
   })
 
@@ -202,13 +202,13 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and known quality R"
     funnel(fit_brma_mv,         main = "Funnel: no known R")
     bfunnel(fit_brma_mv,        main = "Bayesian funnel: no known R")
     funnel(fit_brma_mv_quality, main = "Funnel: known R")
-    funnel(fit_brma_mv_rcor,    main = "Funnel: cor R")
+    funnel(fit_brma_mv_rcor,    main = "Funnel: varying diagonal R")
   })
   scenario_plot("qqnorm", {
     par(mfrow = c(1, 3))
     qqnorm(fit_brma_mv,         main = "No known R")
     qqnorm(fit_brma_mv_quality, main = "Known quality R")
-    qqnorm(fit_brma_mv_rcor,    main = "Cor R")
+    qqnorm(fit_brma_mv_rcor,    main = "Varying diagonal R")
   })
   scenario_plot("zplot", {
     zplot(fit_brma_mv_quality, from = 0, to = 20, by.lines = 1,

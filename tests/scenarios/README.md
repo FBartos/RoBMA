@@ -128,7 +128,8 @@ checked.
 output, so summary and table calls do not need an explicit `print()`. Message
 conditions emitted while evaluating the expression, such as fitting progress,
 are suppressed; warnings and errors remain visible. Changed text is stored as
-`<name>.new.txt` and reported with testthat's colored value diff. An interactive
+`<name>.new.txt` and reported with testthat's value diff (color depends on the
+reporter and testthat edition). An interactive
 `test_scenarios()` run collects all table and figure mismatches, finishes the
 selected scenarios, and then opens testthat's snapshot reviewer for one-by-one
 visual Accept, Reject, or Skip decisions. Accepted candidates replace the
@@ -137,6 +138,8 @@ cached. Call `review_scenario_snapshots()` to reopen the cached candidates, and
 rerun `test_scenarios()` after review to confirm accepted changes. The reviewer
 is also opened when a selected scenario stops early after caching a mismatch.
 Non-interactive runs retain candidates and fail without prompting.
+Managed scenario plots require `vdiffr`; a missing rendering dependency errors
+and leaves the run incomplete rather than certifying later omitted artifacts.
 
 Use `test_scenarios(update = TRUE)` or CLI `--update` only when a managed run
 should replace baselines. `refit = TRUE` / `--refit` refits models without

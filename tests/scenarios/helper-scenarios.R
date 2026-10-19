@@ -1535,12 +1535,6 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
 }
 
 
-.scenario_review_text_snapshots <- function(root, scenarios) {
-
-  return(.scenario_review_snapshots(root, scenarios, types = "table"))
-}
-
-
 review_scenario_snapshots <- function(filter = NULL, root = NULL) {
 
   has_last_run <- exists(
@@ -1761,6 +1755,11 @@ scenario_text <- function(name, code) {
 scenario_plot <- function(name, code) {
 
   config      <- .scenario_config()
+  if (.scenario_is_true(Sys.getenv("ROBMA_SCENARIO_RUNNER")) &&
+      !requireNamespace("vdiffr", quietly = TRUE)) {
+    stop("Package 'vdiffr' is required to render managed scenario plots; this run is incomplete.",
+         call. = FALSE)
+  }
   name        <- .scenario_validate_name(name, "plot")
   .scenario_claim_plot_filename(name)
   set.seed(1)
@@ -2206,10 +2205,7 @@ ex_r <- function(fit, parameter, component = NULL, statistic = "Mean") {
 
   tables <- list(
     as.data.frame(summary(fit, include_mcmc_diagnostics = FALSE)),
-    tryCatch(
-      as.data.frame(summary_heterogeneity(fit)),
-      error = function(e) NULL
-    )
+    as.data.frame(summary_heterogeneity(fit))
   )
   return(.scenario_ex_values(
     fit, parameter, component, statistic,
@@ -2357,6 +2353,10 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
   reference_values <- .scenario_marginal_diagnostic_values(fit_reference)
   brma_values      <- .scenario_marginal_diagnostic_values(fit_brma)
   diagnostics      <- intersect(names(reference_values), names(brma_values))
+  if (length(diagnostics) == 0L) {
+    stop("'fit_reference' and 'fit_brma' have no shared marginal diagnostics.",
+         call. = FALSE)
+  }
 
   plot_columns <- min(2L, length(diagnostics))
   plot_rows    <- ceiling(length(diagnostics) / plot_columns)
@@ -2587,7 +2587,7 @@ plot_marginal_diagnostics <- function(fit_reference, fit_brma,
   )
   files <- files[selected]
   if (length(files) == 0L) {
-    stop("No scenarios matched 'filter = ", encodeString(filter, quote = "'"),
+    stop("No scenarios matched 'filter' = ", encodeString(filter, quote = "'"),
          ".", call. = FALSE)
   }
 

@@ -301,7 +301,7 @@ testthat::test_that("Bem BMA models", {
   ))
 
   scenario_text("density_ineq", rbind(
-    suppressWarnings(hypothesis(fit_BMA, hypothesis = "mu > 0.2 vs mu < 0.2")), # this one should be different because rellies on model-averaged fit
+    hypothesis(fit_BMA, hypothesis = "mu > 0.2 vs mu < 0.2", conditional = FALSE), # model-averaged fit
     hypothesis(fit_BMA,     hypothesis = "mu > 0.2 vs mu < 0.2", conditional = TRUE),
     hypothesis(fit_BMA_con, hypothesis = "mu > 0.2 vs mu < 0.2")
   ))

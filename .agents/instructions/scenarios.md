@@ -165,7 +165,8 @@ Text baselines under `results/` and SVGs under `_snaps/` are committed
 human-reviewed artifacts. Missing baselines fail during `test_scenario()`, CLI,
 and non-interactive runs unless updating is explicitly enabled. With updating
 disabled, changed text is retained as `<name>.new.txt` and reported with
-testthat's colored value diff. Interactive `test_scenario()` runs finish all
+testthat's value diff (color depends on the reporter and testthat
+edition). Interactive `test_scenario()` runs finish all
 selected scenarios before listing the table and figure mismatches and opening
 the same combined reviewer. Accepted candidates replace the baseline, rejected
 candidates are removed, and skipped candidates remain cached. Direct plot
@@ -175,6 +176,8 @@ when implementation, inputs, or RNG behavior changed, or reproducibility is
 unverified. Run deferred review from the runner's exit
 path so an early scenario failure cannot bypass cached candidates.
 Non-interactive runs never prompt or accept changes.
+Managed scenario plots require `vdiffr`; a missing rendering dependency
+errors and leaves the run incomplete rather than certifying omitted artifacts.
 
 Scenario runs report committed text and SVG artifacts that are no longer
 referenced by the scenario. Never delete an orphan automatically. The runners

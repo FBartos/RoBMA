@@ -15,9 +15,6 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   dat$group <- factor(dat$group, levels = c(1, 2), labels = c("sensitivity", "specificity"))
   dat <- metafor::escalc(measure = "PLO", xi = out1, mi = out2, data = dat, add = 1 / 2, to = "all")
 
-  unit_information_sd <- estimate_unit_information_sd(sei = sqrt(dat$vi), ni = dat$out1 + dat$out2)
-  group_prior         <- prior_factor(distribution = "normal", parameters = list(mean = 0, sd = unit_information_sd), contrast = "independent")
-  heterogeneity_prior <- prior("normal", parameters = list(mean = 0, sd = unit_information_sd * 0.25), truncation = list(0, Inf))
   random_prior_us     <- prior_random(study = random_block(contrasts = c(group = "independent")))
   random_prior_diag   <- prior_random(study = random_block(contrasts = c(group = "independent")))
   random_prior_hcs0   <- prior_random(study = random_block(covariance = random_covariance(cor = prior("spike", list(0)))))
@@ -203,8 +200,8 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
   scenario_plot("marginal_diagnostics_us",   plot_marginal_diagnostics(fit_metafor_us, fit_brma_us))
   scenario_plot("marginal_diagnostics_diag", plot_marginal_diagnostics(fit_metafor_diag, fit_brma_diag))
   # the main differences bellow seem to be due to unstable loo
-  scenario_plot("robma_diagnostics_1",       plot_marginal_diagnostics(fit_brma_us, fit_brma_hcs))
-  scenario_plot("robma_diagnostics_2",       plot_marginal_diagnostics(fit_brma_diag, fit_brma_hcs0))
+  scenario_plot("robma_diagnostics_1",       plot_marginal_diagnostics(fit_brma_us, fit_brma_hcs, reference_label = "US", estimate_label = "HCS"))
+  scenario_plot("robma_diagnostics_2",       plot_marginal_diagnostics(fit_brma_diag, fit_brma_hcs0, reference_label = "DIAG", estimate_label = "HCS0"))
 
   ### diagnostic plots ----
   set.seed(1)

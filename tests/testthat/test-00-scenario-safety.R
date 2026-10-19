@@ -139,6 +139,19 @@ test_that("plot aliases fail before evaluating or writing a second artifact", {
     skip = 'testthat::skip("Deliberate synthetic rendering skip")',
     error = 'stop("Deliberate synthetic scenario error")',
     interrupt = 'stop(structure(list(message = "Deliberate synthetic interruption"), class = c("interrupt", "condition")))',
+    missing_render = c(
+      'real_require_namespace <- base::requireNamespace',
+      'missing_dependency <- function(package, ...) {',
+      '  if (identical(package, "vdiffr")) return(FALSE)',
+      '  real_require_namespace(package, ...)',
+      '}',
+      'assign("requireNamespace", missing_dependency, environment(scenario_plot))',
+      'missing_check <- testthat::skip_if_not_installed',
+      'environment(missing_check) <- list2env(list(requireNamespace = missing_dependency), parent = environment(missing_check))',
+      'testthat::local_mocked_bindings(skip_if_not_installed = missing_check, .package = "testthat")',
+      paste0('scenario_plot("figure", writeLines("evaluated", ',
+             deparse(file.path(project, "plot-evaluated")), '))')
+    ),
     success = 'testthat::succeed()'
   )
   .scenario_write_lines(c(
@@ -193,6 +206,23 @@ test_that("failed and skipped managed runs merge without losing unmeasured timin
     if (outcome == "error") expect_true(run[["result"]][["error"]])
     if (outcome == "interrupt") expect_s3_class(run[["error"]], "interrupt")
   }
+})
+
+
+test_that("missing rendering is an incomplete managed run with retained timings", {
+
+  run <- .scenario_safety_timing_run("missing_render")
+  on.exit(unlink(run[["project"]], recursive = TRUE), add = TRUE)
+  expect_true(run[["result"]][["error"]])
+  expect_false(run[["result"]][["skipped"]])
+  expect_setequal(run[["baseline"]][["name"]], c("first", "obsolete"))
+  expect_equal(run[["baseline"]][["elapsed"]][
+    run[["baseline"]][["name"]] == "first"], 9)
+  expect_equal(run[["baseline"]][["elapsed"]][
+    run[["baseline"]][["name"]] == "obsolete"], 8)
+  expect_identical(run[["last"]][["name"]], "first")
+  expect_equal(run[["last"]][["elapsed"]], 9)
+  expect_false(file.exists(file.path(run[["project"]], "plot-evaluated")))
 })
 
 

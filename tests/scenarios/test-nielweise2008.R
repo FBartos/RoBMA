@@ -4,7 +4,7 @@ scenario_start("nielweise2008")
 
 ### Description
 # compare Poisson incidence-rate models fitted with metafor, brma.glmm(), and
-# BMA.glmm(), including posterior prediction of the observed event counts
+# BMA.glmm(), including pooled and predicted-effect comparisons
 
 testthat::test_that("Niel-Weise Poisson incidence-rate models", {
 

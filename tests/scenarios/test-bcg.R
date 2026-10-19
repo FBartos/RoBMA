@@ -35,13 +35,13 @@ testthat::test_that("BCG Simple Fits", {
   scenario_plot("fit_simple_posterior_mu", {
     plot(fit_simple, "mu", ylim = c(0, 2.5), prior = TRUE)
     lines(fit_simple, "mu", density_method = "IWMDE", lty = 2)
-    lines(fit_simple, "mu", density_method = "qCMDE", lty = 2)
+    lines(fit_simple, "mu", density_method = "qCMDE", lty = 3)
   })
 
   scenario_plot("fit_simple_posterior_tau", {
     plot(fit_simple, "tau", ylim = c(0, 3), prior = TRUE)
     lines(fit_simple, "tau", density_method = "IWMDE", lty = 2)
-    lines(fit_simple, "tau", density_method = "qCMDE", lty = 2)
+    lines(fit_simple, "tau", density_method = "qCMDE", lty = 3)
   })
 
   # metafor::forest(fit_simple_metafor)
@@ -270,13 +270,13 @@ testthat::test_that("BCG Simple Fits", {
   scenario_plot("fit_moment_posterior_mu", {
     plot(fit_moment, "mu", ylim = c(0, 3), prior = TRUE)
     lines(fit_moment, "mu", density_method = "IWMDE", lty = 2)
-    lines(fit_moment, "mu", density_method = "qCMDE", lty = 2)
+    lines(fit_moment, "mu", density_method = "qCMDE", lty = 3)
   })
 
   scenario_plot("fit_moment_posterior_tau", {
     plot(fit_moment, "tau", ylim = c(0, 3), prior = TRUE)
     lines(fit_moment, "tau", density_method = "IWMDE", lty = 2)
-    lines(fit_moment, "tau", density_method = "qCMDE", lty = 2)
+    lines(fit_moment, "tau", density_method = "qCMDE", lty = 3)
   })
 
 })
@@ -317,26 +317,26 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_plot("fit_reg1_posterior_mu", {
     plot(fit_reg1, "mu", ylim = c(0, 2), prior = TRUE)
     lines(fit_reg1, "mu", density_method = "IWMDE", lty = 2)
-    lines(fit_reg1, "mu", density_method = "qCMDE", lty = 2)
+    lines(fit_reg1, "mu", density_method = "qCMDE", lty = 3)
   })
 
   scenario_plot("fit_reg1_posterior_tau", {
     plot(fit_reg1, "tau", ylim = c(0, 3), prior = TRUE)
     lines(fit_reg1, "tau", density_method = "IWMDE", lty = 2)
-    lines(fit_reg1, "tau", density_method = "qCMDE", lty = 2)
+    lines(fit_reg1, "tau", density_method = "qCMDE", lty = 3)
   })
 
   scenario_plot("fit_reg1_posterior_alloc", {
     plot(fit_reg1, "alloc", ylim = c(0, 1.5), prior = TRUE)
     lines(fit_reg1, "alloc", density_method = "IWMDE", lty = 2)
-    lines(fit_reg1, "alloc", density_method = "qCMDE", lty = 2)
+    lines(fit_reg1, "alloc", density_method = "qCMDE", lty = 3)
   })
 
   scenario_plot("fit_reg1_regplot", {regplot(fit_reg1, mod = "alloc")})
   scenario_plot("fit_reg1_emmplot", {
     plot(fit_reg1_emm, parameter = "alloc", prior = TRUE, xlim = c(-3, 3))
     lines(fit_reg1_emm, "alloc", density_method = "IWMDE", lty = 2)
-    lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 2)
+    lines(fit_reg1_emm, "alloc", density_method = "qCMDE", lty = 3)
   })
 
   # with transformation
@@ -462,7 +462,7 @@ testthat::test_that("BCG Meta-Regression", {
   scenario_plot("fit_reg2_posterior_ablat", {
     plot(fit_reg2, "ablat",  prior = TRUE)
     lines(fit_reg2, "ablat", density_method = "IWMDE", lty = 2)
-    lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 2)
+    lines(fit_reg2, "ablat", density_method = "qCMDE", lty = 3)
   })
   scenario_plot("fit_reg2_regplot", {regplot(fit_reg2, mod = "ablat")})
   scenario_plot("fit_reg2_regplot_si",  {regplot(fit_reg2, mod = "ablat", si = TRUE)})
@@ -538,9 +538,13 @@ testthat::test_that("BCG Meta-Regression", {
   set.seed(1)
   fit_reg3_hypotheses       <- scenario_time("fit_reg3_hypotheses" , hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]")))
   fit_reg3_hypotheses_IWMDE <- scenario_time("fit_reg3_hypotheses_IWMDE" , hypothesis(fit_reg3, hypothesis = c("alloc:ablat[random] < 0", "alloc:ablat[random] = 0", "alloc:ablat[random] < alloc:ablat[systematic]"), density_method = "IWMDE"))
-  scenario_text("fit_reg3_interaction_hypotheses", cbind(
-    fit_reg3_hypotheses,
-    fit_reg3_hypotheses_IWMDE[,3:4]
+  scenario_text("fit_reg3_interaction_hypotheses", data.frame(
+    fit_reg3_hypotheses[, setdiff(names(fit_reg3_hypotheses), c("BF", "BF_error")), drop = FALSE],
+    qCMDE_BF = fit_reg3_hypotheses[["BF"]],
+    qCMDE_error_percent = fit_reg3_hypotheses[["BF_error"]],
+    IWMDE_BF = fit_reg3_hypotheses_IWMDE[["BF"]],
+    IWMDE_error_percent = fit_reg3_hypotheses_IWMDE[["BF_error"]],
+    check.names = FALSE
   ))
 
   ### numerical diagnostic comparisons ----

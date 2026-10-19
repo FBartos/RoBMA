@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scenario comparisons preserve extraction failures, restore temporary sampler
+  options on every exit, and report missing managed rendering as incomplete.
 - GLMM quadrature recovery uses typed numerical failures and preserves their
   observed sample, public observation, and refinement diagnostics.
 - Partial selection events validate their required geometry and selected-response
