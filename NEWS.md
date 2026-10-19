@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scenario benchmark names counters require stable list and loop outputs;
+  demanded counter preparation refuses a later output reassignment.
 - Group-IID random-covariance density shortcuts require declared fixed-mean
   invariance; candidate-dependent means use the accurate general evaluator.
 - BCG benchmark listing and filtered marginal comparisons retain the complete

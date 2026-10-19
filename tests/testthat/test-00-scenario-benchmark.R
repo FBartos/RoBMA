@@ -251,14 +251,19 @@ test_that("unsupported compound fit loading refuses before reading caches", {
   chosen <- 'scenario_text("chosen", print(fits))'
   cached <- list(old = list(value = "OLD_CACHE"), new = list(value = "NEW_CACHE"))
   case <- function(block, fits = list(), args = "--only=^chosen$", refuse = TRUE,
-                   top = character(), text = "[1] 7") {
-    list(block = block, fits = fits, args = args, refuse = refuse, top = top, text = text)
+                   top = character(), text = "[1] 7", cache_reads = NULL,
+                   refusal = NULL) {
+    list(block = block, fits = fits, args = args, refuse = refuse, top = top,
+         text = text, cache_reads = cache_reads, refusal = refusal)
   }
   dormant <- c('keys <- "old"', loop, 'keys <- "new"',
                'scenario_text("chosen", print(7))', 'scenario_text("dependent", print(fits))')
   lazy <- c('fit_other <- scenario_fit("irrelevant", stop("must never fit"))',
             'keys <- if (fit_other$value) "old" else "old"', loop, 'keys <- "new"',
             'scenario_text("chosen", print(7))', 'scenario_text("dependent", print(fits))')
+  counter_prefix <- c('keys <- "seed"', 'preparation_count <- 0L', 'fits <- list()',
+    'for (key in keys) fits[[key]] <- scenario_fit(key, stop("must never fit"))',
+    'names(fits) <- { preparation_count <- preparation_count + 1L; keys }')
   cases <- list(
     rebind_both = case(c('keys <- "old"', loop, 'keys <- "new"', chosen), cached),
     rebind_only_old = case(c('keys <- "old"', loop, 'keys <- "new"', chosen), cached["old"]),
@@ -306,6 +311,20 @@ test_that("unsupported compound fit loading refuses before reading caches", {
     top_helper_shadow = case(c('keys <- "old"', 'fits <- list()', 'for (key in keys) {',
                                '  fits[[key]] <- scenario_fit(paste0(key), stop("must never fit"))', '}', chosen),
                              cached, top = 'paste0 <- function(...) "new"'),
+    counter_output_list_reassigned = case(c(counter_prefix,
+      'fits <- list(value = "REPLACED")',
+      'scenario_text("chosen", print(list(fits, preparation_count)))'),
+      fits = list(seed = list(value = "SEED_CACHE")),
+      refusal = "counter-preparation output 'fits' is reassigned after its block"),
+    counter_output_loop_reassigned = case(c(counter_prefix,
+      'key <- "REPLACED"',
+      'scenario_text("chosen", print(list(key, preparation_count)))'),
+      fits = list(seed = list(value = "SEED_CACHE")),
+      refusal = "counter-preparation output 'key' is reassigned after its block"),
+    counter_stable_outputs = case(c(counter_prefix,
+      'scenario_text("chosen", print(list(fits, preparation_count)))'),
+      fits = list(seed = list(value = "SEED_CACHE")), refuse = FALSE,
+      text = c("SEED_CACHE", "[[2]]\n[1] 1"), cache_reads = 1L),
     counter_only = case(c('keys <- "old"', 'preparation_count <- 0L', loop,
                          'names(fits) <- { preparation_count <- preparation_count + 1L; keys }',
                          'scenario_text("chosen", print(preparation_count))'), cached),
@@ -378,6 +397,8 @@ test_that("source admission refuses demanded binding changes and keeps dormant p
     if (fixture$refuse) {
       expect_equal(run$status, 1L, info = name)
       expect_match(run$stderr, "Unsupported (binding-sensitive|compound) scenario_fit", info = name)
+      if (!is.null(fixture$refusal)) expect_match(run$stderr, fixture$refusal,
+                                                fixed = TRUE, info = name)
       expect_false(grepl("No cached fit|unsupported side effect", run$stderr), info = name)
       expect_equal(length(list.files(run$out, recursive = TRUE)), 0L, info = name)
       expect_false(file.exists(marker), info = name)
@@ -388,10 +409,14 @@ test_that("source admission refuses demanded binding changes and keeps dormant p
       } else {
         path <- file.path(run$out, "unit--chosen.txt")
         expect_true(file.exists(path), info = name)
-        if (file.exists(path)) expect_match(paste(readLines(path), collapse = "\n"), fixture$text,
-                                           fixed = TRUE, info = name)
+        if (file.exists(path)) for (text in fixture$text) {
+          expect_match(paste(readLines(path), collapse = "\n"), text, fixed = TRUE, info = name)
+        }
       }
-      if (!name %in% c("stable", "latest_plain_definition", "qualified_ordinary_payload")) {
+      if (!is.null(fixture$cache_reads)) {
+        expect_true(file.exists(marker), info = name)
+        if (file.exists(marker)) expect_equal(length(readLines(marker)), fixture$cache_reads, info = name)
+      } else if (!name %in% c("stable", "latest_plain_definition", "qualified_ordinary_payload")) {
         expect_false(file.exists(marker), info = name)
       }
     }

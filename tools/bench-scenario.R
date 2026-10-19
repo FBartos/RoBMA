@@ -418,8 +418,14 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
       } else certify(rhs)
     }
     suffix <- if (block$last < length(statements)) all_writes[seq.int(block$last + 1L, length(statements))] else list()
-    changed <- intersect(inputs, unique(unlist(lapply(suffix, `[[`, "writes"))))
+    suffix_writes <- unique(unlist(lapply(suffix, `[[`, "writes")))
+    changed <- intersect(inputs, suffix_writes)
     if (length(changed)) issues <- c(issues, paste0("input '", changed, "' is reassigned after its block"))
+    if (length(counters)) {
+      changed_outputs <- intersect(block$outputs, suffix_writes)
+      if (length(changed_outputs)) issues <- c(issues, paste0(
+        "counter-preparation output '", changed_outputs, "' is reassigned after its block"))
+    }
     shadowed <- intersect(fixed, c(top_writes$writes, unlist(lapply(all_writes, `[[`, "writes"))))
     if (length(shadowed)) issues <- c(issues, paste0("fixed helper '", shadowed, "' is rebound in scenario source"))
     if (top_writes$dynamic || any(vapply(suffix, `[[`, logical(1), "dynamic"))) {

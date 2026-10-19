@@ -343,7 +343,11 @@ The exact diagnostic `names()` counter form is supported: a plain local numeric
 literal initializer, increment-by-numeric-literal assignments in a brace block,
 and a final admitted names expression. Observe its counter in a payload that
 also directly demands the block's list or final loop output. Counter-only and
-eager intermediate counter observations are unsupported. The counter still
+eager intermediate counter observations are unsupported. For a counter block,
+every declared list and loop output must retain its binding after preparation;
+visible reassignment of any output refuses a potentially demanded block. This
+restriction does not apply to blocks without names counters, and genuinely
+undemanded blocks remain lazy. The counter still
 updates once per names assignment in the original scenario environment.
 Explicit names-RHS write targets are tracked even when their effect syntax is
 unsupported, so observing such a target alone cannot prove its block dormant.
