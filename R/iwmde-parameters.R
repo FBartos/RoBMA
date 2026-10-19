@@ -128,9 +128,8 @@
         reason = "simplex and auxiliary-gamma coordinates are inconsistent"
       ))
     }
-    multiplier <- tryCatch(
-      .iwmde_random_component_sd_multiplier(context, samples, parameter_spec),
-      error = function(error) NULL
+    multiplier <- .iwmde_random_component_sd_multiplier(
+      context, samples, parameter_spec
     )
     if (is.null(multiplier) || any(!is.finite(multiplier) | multiplier <= 0)) {
       return(list(
@@ -614,9 +613,6 @@
   if (!is.null(static)) {
     return(static)
   }
-
-  active  <- rep(TRUE, n)
-  points  <- data.frame(x = numeric(), mass = numeric())
 
   point_location <- rep(NA_real_, n)
   states <- .iwmde_focal_prior_states(context, parameter)

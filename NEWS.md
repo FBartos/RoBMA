@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Density metadata preserves allocated-SD evaluator failures and requires an
+  explicit coordinate before applying a formula predictor shortcut.
 - Single-point density results retain only that point's prior classification
   and warnings.
 - Density controls reject missing grid counts early, preserve display endpoints,

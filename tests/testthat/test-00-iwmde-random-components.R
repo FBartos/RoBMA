@@ -1235,3 +1235,61 @@ test_that("positive point sources with stochastic shares refuse source density c
     }
   }
 })
+
+test_that("allocated SD metadata preserves evaluator failures and numeric refusals", {
+
+  object <- shared_gate_random_object()
+  samples <- as.matrix(object$fit[[1L]])
+  context <- list(object = object, posterior_samples = samples,
+    flat_prior_list = list(), evaluator_cache = new.env(parent = emptyenv()))
+  target <- .brma_random_parameter_density_target(object, "(mu) study: tau(intercept)")
+  evaluate <- function() .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+  expect_identical(evaluate()$status, "ok")
+  for (kind in c("programming_error", "memory_error", "refit_required")) {
+    failure <- structure(list(message = paste("synthetic", kind), call = NULL),
+      class = c(kind, "error", "condition"))
+    testthat::local_mocked_bindings(.iwmde_random_component_sd_multiplier = function(...) stop(failure),
+      .package = "RoBMA")
+    expect_identical(tryCatch(evaluate(), error = identity), failure)
+  }
+  for (value in list(NULL, c(0, 1, 1, 1), rep(NA_real_, 4L))) {
+    testthat::local_mocked_bindings(.iwmde_random_component_sd_multiplier = function(...) value,
+      .package = "RoBMA")
+    expect_identical(evaluate()$status, "unsupported")
+    expect_match(evaluate()$reason, "must be positive", fixed = TRUE)
+  }
+})
+
+test_that("an affine predictor basis must declare its coordinate", {
+
+  expect_null(.iwmde_predictor_basis_coordinate(list(status = "affine")))
+  coordinate <- NULL
+  testthat::local_mocked_bindings(JAGS_formula_predictor_basis = function(...) {
+    list(status = "affine", parameter = "mu", basis = matrix(1, 1L, 2L),
+      coordinate = coordinate)
+  }, .package = "BayesTools")
+  materialize <- function() .iwmde_predictor_materialize_formula_basis(
+    context = list(), setup = list(posterior_samples = matrix(0, 1L, 1L)),
+    basis = list(formula_mu = TRUE, scale_update = "none"),
+    formula_mu_directions = matrix(1, 1L, 1L))
+  missing <- materialize()
+  expect_true(missing$formula_mu)
+  expect_identical(missing$formula_mu_status, "non_affine")
+  coordinate <- "identity"
+  declared <- materialize()
+  expect_false(declared$formula_mu)
+  expect_identical(declared$mu_basis, matrix(1, 1L, 2L))
+})
+
+test_that("missing row supports remain unavailable and mixed valid supports remain usable", {
+
+  supports <- matrix(NA_real_, 2L, 2L)
+  testthat::local_mocked_bindings(.iwmde_parameter_row_supports = function(...) supports,
+    .package = "RoBMA")
+  expect_warning(failure <- tryCatch(.iwmde_parameter_support(list(), "mu", 1:2),
+    error = identity), NA)
+  expect_s3_class(failure, "iwmde_construction_error")
+  expect_match(conditionMessage(failure), "no valid row supports", fixed = TRUE)
+  supports[2L, ] <- c(-1, 2)
+  expect_identical(.iwmde_parameter_support(list(), "mu", 1:2), c(-1, 2))
+})

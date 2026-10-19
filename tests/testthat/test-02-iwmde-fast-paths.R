@@ -3199,7 +3199,6 @@ test_that("fixed formula coordinates materialize an exact location basis", {
     byrow = TRUE
   )
   expect_false(isTRUE(basis[["formula_mu"]]))
-  expect_true(isTRUE(basis[["formula_mu_affine"]]))
   expect_identical(basis[["current"]], posterior_samples[, "mu_group[1]"])
   expect_identical(unname(basis[["mu_basis"]]), unname(expected))
   expect_false(.iwmde_q_grid_fixed_mu_is_invariant(

@@ -466,8 +466,8 @@
     # sweeps that coordinate's own values - a unit direction on the focal
     # coordinate - with nothing else moving, because one candidate delta cannot
     # serve two coordinates. Anything else keeps the generic evaluator and the
-    # whole formula. A released BayesTools that names no coordinate reports the
-    # fitted one.
+    # whole formula. A basis without a declared coordinate cannot certify an
+    # additive update and keeps the generic evaluator.
     coordinate <- .iwmde_predictor_basis_coordinate(result)
     takes_coordinate <- identical(coordinate, "identity") ||
       (identical(coordinate, "log") &&
@@ -489,7 +489,6 @@
       basis[["mu_basis"]]           <- result[["basis"]]
       basis[["formula_mu"]]         <- FALSE
       basis[["formula_mu_columns"]] <- NULL
-      basis[["formula_mu_affine"]]  <- TRUE
     } else {
       basis[["log_tau_basis"]]            <- result[["basis"]]
       basis[["log_tau_basis_coordinate"]] <- coordinate
@@ -505,16 +504,11 @@
 # The coordinate an affine predictor basis is additive in. Every caller of
 # `BayesTools::JAGS_formula_predictor_basis()` has to read it before it forms an
 # update from `value - current`: a logged formula intercept is affine in its own
-# logarithm, not in the fitted coordinate. A released BayesTools that names no
-# coordinate reports the fitted one.
+# logarithm, not in the fitted coordinate. A missing coordinate does not certify
+# an additive update.
 .iwmde_predictor_basis_coordinate <- function(result) {
 
-  coordinate <- result[["coordinate"]]
-  if (is.null(coordinate)) {
-    return("identity")
-  }
-
-  return(coordinate)
+  return(result[["coordinate"]])
 }
 
 
