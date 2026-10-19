@@ -277,31 +277,34 @@ test_that("trusted step normalizer handles nonmonotone weights and tail underflo
     tolerance = 1e-10
   )
 
-  cancellation_spec              <- .test_step_spec(0, 1)
-  cancellation_spec[["n_bins"]]  <- 3L
-  cancellation_spec[["z_lower"]] <- c(1e-8, 0, -Inf)
-  cancellation_spec[["z_upper"]] <- c(Inf, 1e-8, 0)
-  cancellation_spec[["obs_bin"]] <- 2L
-  cancellation_spec[["segments"]] <- list(
-    bounds       = c(-Inf, 0, 1e-8, Inf),
-    step_bin     = c(3L, 2L, 1L),
-    phack_region = c(0L, 0L, 0L)
-  )
-  cancellation_omega             <- matrix(c(1, 1e16, 1), nrow = 1)
-
-  expect_equal(
-    .selnorm_kernel_log_norm_matrix(
-      mean           = tail_mean,
-      sd             = tail_sd,
-      sei            = 1,
-      omega          = cancellation_omega,
-      selection_spec = cancellation_spec
-    )[1, 1],
-    .test_step_log_norm_reference(
-      tail_mean, tail_sd, 1, cancellation_omega, cancellation_spec
-    )[1, 1],
-    tolerance = 1e-10
-  )
+  # 80- and 120-digit erf identities and independent direct quadrature agree
+  # for these exact binary endpoints. The old log-CDF subtraction reference
+  # loses relative accuracy near the normal CDF's one-half offset.
+  cancellation_omega <- matrix(c(1, 1e16, 1), nrow = 1)
+  cancellation_bounds <- list(c(0, 1e-8), c(-1e-8, 0), c(-1e-8 / 2, 1e-8 / 2))
+  for (bounds in cancellation_bounds) {
+    cancellation_spec <- .test_step_spec(0, 1)
+    cancellation_spec[["n_bins"]] <- 3L
+    cancellation_spec[["z_lower"]] <- c(bounds[2L], bounds[1L], -Inf)
+    cancellation_spec[["z_upper"]] <- c(Inf, bounds[2L], bounds[1L])
+    cancellation_spec[["obs_bin"]] <- 2L
+    cancellation_spec[["segments"]] <- list(
+      bounds = c(-Inf, bounds, Inf),
+      step_bin = c(3L, 2L, 1L),
+      phack_region = c(0L, 0L, 0L)
+    )
+    expect_equal(
+      .selnorm_kernel_log_norm_matrix(
+        mean = tail_mean,
+        sd = tail_sd,
+        sei = 1,
+        omega = cancellation_omega,
+        selection_spec = cancellation_spec
+      )[1, 1],
+      17.501742235813975,
+      tolerance = 1e-10
+    )
+  }
 })
 
 test_that("step normalizer handles normal mode and full-support unit weights", {

@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Central normal-interval log masses avoid cancellation while preserving the existing subnormal tail path.
 - Native plot quantiles preserve empty log masses and resolve collapsed positive-scale brackets on the representable grid.
 - Allocation-derived SD zero refusals identify the unique public omission
   coordinate by its declared owner, or retain the region/directional remedy.

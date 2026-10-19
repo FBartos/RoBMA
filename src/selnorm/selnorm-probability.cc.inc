@@ -77,6 +77,8 @@ double sub_logspace(double log_a, double log_b)
     std::log(-std::expm1(delta)) : std::log1p(-std::exp(delta)));
 }
 
+double stable_normal_score(double x, double mean, double sd);
+
 double interval_log_prob(double lower, double upper, double mean, double sd)
 {
   if (!(sd > 0) || !std::isfinite(sd) || !std::isfinite(mean) ||
@@ -88,6 +90,19 @@ double interval_log_prob(double lower, double upper, double mean, double sd)
   }
   if (std::isinf(lower) && lower < 0 && std::isinf(upper) && upper > 0) {
     return 0;
+  }
+
+  if (lower <= mean && upper >= mean) {
+    const double probability = 0.5 * (
+      std::erf(stable_normal_score(upper, mean, sd) * M_SQRT1_2) -
+      std::erf(stable_normal_score(lower, mean, sd) * M_SQRT1_2)
+    );
+    // Opposite-signed erf terms avoid subtraction at the CDF's one-half
+    // offset. Keep subnormal-rounded probabilities on the existing tail path.
+    if (std::isfinite(probability) &&
+        probability >= std::numeric_limits<double>::min()) {
+      return std::log(probability);
+    }
   }
 
   if (lower >= mean) {
