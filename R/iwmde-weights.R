@@ -148,7 +148,7 @@
 
 .iwmde_chen_log_weight <- function(context, parameter, parameter_spec,
                                    active_rows, active_values, weight_rows,
-                                   weight_values, support) {
+                                   weight_values) {
 
   .iwmde_require_target_type(parameter_spec)
   if (identical(parameter_spec[["type"]], "ordered")) {
@@ -167,6 +167,22 @@
     rows           = weight_rows,
     parameter_spec = parameter_spec
   )
+  for (population in c("active", "weight")) {
+    supports <- if (identical(population, "active")) active_supports else weight_supports
+    rows <- if (identical(population, "active")) active_rows else weight_rows
+    invalid <- !vapply(seq_len(nrow(supports)), function(i) {
+      .iwmde_chen_valid_support(supports[i, ])
+    }, logical(1L))
+    if (any(invalid)) {
+      .iwmde_stop_construction_failure(
+        estimator = "iwmde",
+        parameter = parameter,
+        rows      = rows[invalid],
+        stage     = "proposal-support construction",
+        detail    = "the declared conditional target support has invalid bounds"
+      )
+    }
+  }
   # Linear and allocated-component targets have row-dependent supports and
   # a proposal for every row, so each row is standardized by its own bounds and
   # the rows are partitioned by which bounds are finite. A fit on the raw values

@@ -24,7 +24,7 @@ testthat::test_that("boundary conditioners use conditional normal weights withou
   context <- .iwmde_context_ensure_caches(context)
   spec <- list(type = "primitive", parameter = "mu")
   weight <- .iwmde_chen_log_weight(context, "mu", spec, i, samples[, "mu"], i,
-    samples[, "mu"], c(-Inf, Inf))
+    samples[, "mu"])
   testthat::expect_identical(weight$method, "chen_conditional_normal")
   testthat::expect_identical(weight$fallback_count, 0L)
   conditioning <- tryCatch(.iwmde_chen_conditioning_matrix(context, "mu", spec,

@@ -169,9 +169,7 @@ test_that("Chen dispatcher aggregates fallback partitions and rows", {
     active_rows    = seq_len(4L),
     active_values  = c(-1, 1, .25, .75),
     weight_rows    = seq_len(4L),
-    weight_values  = c(-1, 1, .25, .75),
-    support        = c(-Inf, Inf)
-  )
+    weight_values  = c(-1, 1, .25, .75))
 
   expect_equal(weight[["fallback_count"]], 2L)
   expect_equal(weight[["fallback_rows"]], 4L)

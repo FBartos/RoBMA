@@ -54,7 +54,10 @@
     }
   } else {
     if (!is.finite(denominator) || denominator < ncol(log_terms)) {
-      denominator <- ncol(log_terms)
+      stop(
+        "IWMDE density aggregation requires a finite denominator at least as large as the number of terms.",
+        call. = FALSE
+      )
     }
     contribution_rows        <- seq_len(ncol(log_terms))
     sampling_population_rows <- contribution_rows

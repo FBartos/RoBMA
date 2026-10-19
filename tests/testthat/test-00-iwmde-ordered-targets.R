@@ -527,7 +527,7 @@ test_that("unknown ordered dispatch cannot reuse primitive or retained-location 
     function() .iwmde_predictor_update_basis(list(), "x", list(), unknown, list()),
     function() .iwmde_log_q_grid(list(), "x", 0, list(), unknown),
     function() .iwmde_qcmde_row_laws(list(), list(), unknown, NULL),
-    function() .iwmde_chen_log_weight(list(), "x", unknown, integer(), numeric(), integer(), numeric(), c(-Inf, Inf)),
+    function() .iwmde_chen_log_weight(list(), "x", unknown, integer(), numeric(), integer(), numeric()),
     function() .iwmde_estimate(list(), "x", "qCMDE", NULL, parameter_spec = unknown))
   for (call in calls) expect_error(call(), class = "RoBMA_density_method_unknown_target")
 })

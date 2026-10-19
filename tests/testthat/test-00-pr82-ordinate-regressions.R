@@ -65,8 +65,7 @@ test_that("ordinate-only qCMDE does not infer bulk mass from requested points", 
       normalization_grid = list(x = z, z = z, log_jacobian = rep(0, length(z))),
       transform = .iwmde_parameter_transform(c(-Inf, Inf)),
       row_states = list(list(row_index = 1L)), active_mass = 1,
-      replacement = list(type = "scalar"), density_output = FALSE
-    )
+      replacement = list(type = "scalar"))
   }
   result <- ordinate(c(0, 2, 50))
   expect_false(result[["pilot_gate_stopped"]])

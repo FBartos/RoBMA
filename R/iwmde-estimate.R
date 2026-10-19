@@ -639,8 +639,7 @@
       active_rows    = active_rows,
       active_values  = active_values,
       weight_rows    = proposal_rows,
-      weight_values  = proposal_values,
-      support        = plan[["support"]][["support"]]
+      weight_values  = proposal_values
     ),
     error = function(e) {
       if (inherits(e, "iwmde_construction_error")) {
@@ -709,7 +708,6 @@
       active_mass        = plan[["rows"]][["active_mass"]],
       replacement        = plan[["replacement"]],
       n_candidate_rows   = execution[["n_candidate_rows"]],
-      density_output     = identical(output, "density"),
       normalization_prob = plan[["control"]][["normalization_prob"]],
       normalization_cache = .iwmde_plan_normalization_cache(
         context, plan, display_grid

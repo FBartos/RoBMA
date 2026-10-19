@@ -2170,9 +2170,7 @@ test_that("Chen weights dispatch by row-specific support", {
     active_rows    = seq_len(4L),
     active_values  = c(.25, .75, 1.25, 1.75),
     weight_rows    = seq_len(4L),
-    weight_values  = c(.30, .70, 1.30, 1.70),
-    support        = c(0, 2)
-  )
+    weight_values  = c(.30, .70, 1.30, 1.70))
 
   expect_length(calls, 2L)
   expect_equal(calls[[1L]][["active_rows"]], 1:2)
@@ -2246,9 +2244,7 @@ test_that("Chen proposal pooling ignores nuisance product states", {
     active_rows    = seq_len(4L),
     active_values  = c(.25, .75, .25, .75),
     weight_rows    = seq_len(4L),
-    weight_values  = c(.30, .70, .30, .70),
-    support        = c(0, 1)
-  )
+    weight_values  = c(.30, .70, .30, .70))
 
   expect_length(calls, 1L)
   expect_equal(calls[[1L]][["active_rows"]], 1:4)
@@ -2294,9 +2290,7 @@ test_that("Chen weight dispatcher falls back when conditioning fails", {
     active_rows    = seq_len(3L),
     active_values  = c(-1, 0, 1),
     weight_rows    = seq_len(3L),
-    weight_values  = c(-1, 0, 1),
-    support        = c(-Inf, Inf)
-  )
+    weight_values  = c(-1, 0, 1))
 
   expect_equal(weight[["method"]], "chen_marginal_normal")
   expect_equal(weight[["log_weight"]], rep(log(.25), 3L))
@@ -2328,9 +2322,7 @@ test_that("Chen weight dispatcher falls back when conditioning fails", {
     active_rows    = seq_len(3L),
     active_values  = c(.25, .5, .75),
     weight_rows    = seq_len(3L),
-    weight_values  = c(.25, .5, .75),
-    support        = c(0, 1)
-  )
+    weight_values  = c(.25, .5, .75))
 
   expect_equal(weight[["method"]], "chen_beta")
   expect_equal(weight[["log_weight"]], rep(log(.5), 3L))

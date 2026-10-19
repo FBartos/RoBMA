@@ -148,8 +148,7 @@
                                                   max_weight_share = NULL) {
 
   stop(structure(list(
-    message = paste0("Posterior density aggregation failed on the ordinary scale; ",
-      "computed log estimates were retained."),
+    message = "Posterior density aggregation failed on the ordinary scale.",
     call = NULL, stage = "posterior-density aggregation",
     ordinate = ordinate, log_ordinate = log_ordinate, values = values,
     finite_terms = finite_terms, max_weight_share = max_weight_share

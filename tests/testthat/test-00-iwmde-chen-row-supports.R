@@ -41,9 +41,7 @@ context("(00) IWMDE Chen proposals for row-varying bounded supports")
     active_rows    = active_rows,
     active_values  = active_values,
     weight_rows    = fixture$rows,
-    weight_values  = fixture$values,
-    support        = c(0, 2)
-  )
+    weight_values  = fixture$values)
 }
 
 
@@ -153,9 +151,7 @@ test_that("a row-varying target is partitioned by the pattern of finite bounds, 
       active_rows    = 1:6,
       active_values  = values,
       weight_rows    = 1:6,
-      weight_values  = values,
-      support        = c(-Inf, Inf)
-    )
+      weight_values  = values)
     list(weight = weight, calls = calls)
   }
 
@@ -425,7 +421,7 @@ test_that("compiled allocated SD proposals normalize on their own declared inter
     expect_identical(as.numeric(execution$active_values), as.numeric(values[eval_rows]))
     proposal <- function(rows, x) .iwmde_chen_log_weight(context, target$parameter, spec,
       active_rows = rows, active_values = x, weight_rows = fit_rows,
-      weight_values = values[fit_rows], support = plan$support$support)
+      weight_values = values[fit_rows])
     actual <- proposal(eval_rows, values[eval_rows])
     expect_identical(actual, execution$proposal_weight)
     expect_length(actual$partitions, 1L)
@@ -512,7 +508,7 @@ test_that("admitted SD-component allocations retain their nonunit source multipl
   expect_lt(max(abs(values - source * multiplier)), 1e-14)
   for (row in c(3L, 11L, 23L)) {
     proposal <- function(x) exp(.iwmde_chen_log_weight(context, target$parameter, spec,
-      rep(row, length(x)), x, 1:32, values, range(expected))$log_weight)
+      rep(row, length(x)), x, 1:32, values)$log_weight)
     integral <- stats::integrate(proposal, expected[row, 1L], expected[row, 2L], rel.tol = 1e-9, abs.tol = 1e-10)
     expect_lt(abs(integral$value - 1), 1e-7 + integral$abs.error)
   }

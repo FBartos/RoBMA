@@ -410,13 +410,22 @@
     }
   )
   if (is.null(row_states)) {
-    row_states <- .iwmde_row_states_grouped_marginal(
+    row_states <- tryCatch(.iwmde_row_states_grouped_marginal(
       context        = context,
       rows           = candidate_rows,
       parameter      = plan[["target"]][["parameter"]],
       parameter_spec = plan[["execution_spec"]],
       estimator      = plan[["method"]]
-    )
+    ), error = function(e) {
+      if (inherits(e, "iwmde_construction_error")) stop(e)
+      .iwmde_stop_construction_failure(
+        estimator = plan[["method"]],
+        parameter = plan[["target"]][["parameter"]],
+        rows      = candidate_rows,
+        stage     = "grouped baseline joint-density evaluation",
+        detail    = conditionMessage(e)
+      )
+    })
   }
   if (is.null(row_states)) {
     row_states <- .iwmde_row_states(

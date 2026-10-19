@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Density construction failures identify invalid supports and grouped baselines;
+  aggregation refuses inconsistent denominators and retains honest diagnostics.
 - Marginal-means hypothesis paths retain their named level carriers and avoid
   redundant scalar branches and statement reparsing.
 - Prediction validates probabilities and explicit data rows, names missing

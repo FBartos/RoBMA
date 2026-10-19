@@ -257,7 +257,9 @@
   estimator_label <- if (identical(estimator, "q_grid_cmde") ||
                          identical(estimator, "qCMDE")) {
     "qCMDE"
-  } else if (is.null(estimator) || identical(estimator, "ordered_source_conditional_cmde")) {
+  } else if (is.null(estimator)) {
+    "Posterior density"
+  } else if (identical(estimator, "ordered_source_conditional_cmde")) {
     "Ordered density"
   } else {
     "IWMDE"
@@ -699,7 +701,6 @@
                                 conditioned_rows = NULL,
                                 conditioned_chain_id = NULL,
                                 n_candidate_rows = length(row_states),
-                                density_output = TRUE,
                                 normalization_prob =
                                   .density_control_normalize("qCMDE")[[
                                     "normalization_prob"]],
@@ -781,7 +782,6 @@
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
   max_log_ratio    <- density_terms[["max_log_ratio"]]
-  ess              <- density_terms[["ess"]]
   max_weight_share <- density_terms[["max_weight_share"]]
   contributions      <- density_terms[["contributions"]]
   mcmc_contributions <- density_terms[["mcmc_contributions"]]
@@ -1050,7 +1050,6 @@
   y                <- density_terms[["y"]]
   finite_terms     <- density_terms[["finite_terms"]]
   max_log_ratio    <- density_terms[["max_log_ratio"]]
-  ess              <- density_terms[["ess"]]
   max_weight_share <- density_terms[["max_weight_share"]]
   contributions      <- density_terms[["contributions"]]
   mcmc_contributions <- density_terms[["mcmc_contributions"]]

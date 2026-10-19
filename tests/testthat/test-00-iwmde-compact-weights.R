@@ -16,7 +16,7 @@
 }
 .compact_weight <- function(fixture, rows = fixture$rows, values = fixture$values[rows]) {
   .iwmde_chen_log_weight(fixture$context, "T", list(type = "primitive"),
-    rows, values, fixture$rows, fixture$values, fixture$support)
+    rows, values, fixture$rows, fixture$values)
 }
 .compact_reference <- function(fixture, rows, values) {
   conditioning <- .iwmde_chen_conditioning_matrix(fixture$context, "T", list(type = "primitive"), rows, fixture$rows)
@@ -104,8 +104,7 @@ testthat::test_that("row-varying translated and reflected half supports retain t
       supports <- .iwmde_parameter_row_supports(context, "sum", i, spec)
       finite_bound <- sign * abs(raw[, "a"] - raw[, "b"]) * scale
       testthat::expect_equal(supports[, if (sign > 0) 1L else 2L], finite_bound, tolerance = 1e-13)
-      weight <- .iwmde_chen_log_weight(context, "sum", spec, i, values, i, values,
-        if (sign > 0) c(0, Inf) else c(-Inf, 0))
+      weight <- .iwmde_chen_log_weight(context, "sum", spec, i, values, i, values)
       z <- 2 * pmin(raw[, "a"], raw[, "b"]) * scale
       reference_fixture <- .compact_fixture(0, Inf, conditioner = FALSE)
       reference_fixture$z <- z
