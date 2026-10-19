@@ -354,6 +354,10 @@ undemanded blocks remain lazy. The counter still
 updates once per names assignment in the original scenario environment.
 Explicit names-RHS write targets are tracked even when their effect syntax is
 unsupported, so observing such a target alone cannot prove its block dormant.
+Visible reflective, nonlocal or unbounded names-RHS effects also prevent a
+dormancy proof. Such a block refuses
+during source admission even if the selected artifact only prints a literal
+(for example, `7`) and never demands its list. No reflective effect is evaluated.
 Counter reads reached through a name or ordinary assignment are also unsupported;
 the source demand closure retains the distinction between names and payloads.
 

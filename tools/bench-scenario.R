@@ -361,6 +361,7 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
     fixed <- helpers
     issues <- character()
     counters <- character()
+    names_dynamic <- FALSE
     literal_number <- function(x) {
       is.numeric(x) && length(x) == 1L ||
         (call_head(x) %in% c("+", "-") && length(x) == 2L &&
@@ -425,7 +426,9 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
       rhs <- st[[3L]]
       # Even unsupported names effects are outputs for the dormancy proof.
       # Reading their target alone must not silently observe its stale value.
-      counters <- union(counters, source_writes(rhs)$writes)
+      names_effects <- source_writes(rhs)
+      counters <- union(counters, names_effects$writes)
+      names_dynamic <- names_dynamic || names_effects$dynamic
       if (call_head(rhs) == "{") {
         parts <- as.list(rhs)[-1L]
         increments <- if (length(parts) > 1L) parts[-length(parts)] else list()
@@ -466,7 +469,11 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
     if (top_writes$dynamic || any(vapply(suffix, `[[`, logical(1), "dynamic"))) {
       issues <- c(issues, "visible reflective, nonlocal or unbounded binding operation after preparation")
     }
+    if (names_dynamic) {
+      issues <- c(issues, "visible reflective, nonlocal or unbounded binding operation in names preparation")
+    }
     block$issues <- unique(issues)
+    block$names_dynamic <- names_dynamic
     block$counters <- counters
     block$inputs <- inputs
     blocks[[first]] <- block
@@ -555,7 +562,7 @@ admit_fit_lists <- function(statements, blocks, top_writes) {
         block$issues <- union(block$issues, "counter observation outside a direct artifact payload with its list/loop output is unsupported")
       }
     }
-    demanded <- opaque || any(demand$reads %in% block$outputs) ||
+    demanded <- block$names_dynamic || opaque || any(demand$reads %in% block$outputs) ||
       any(demand$reads %in% block$counters)
     block$refusal <- if (length(block$issues)) paste0(
       "Unsupported binding-sensitive scenario_fit list construction: ",

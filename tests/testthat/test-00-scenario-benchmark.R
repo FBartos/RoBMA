@@ -264,6 +264,12 @@ test_that("unsupported compound fit loading refuses before reading caches", {
   lazy <- c('fit_other <- scenario_fit("irrelevant", stop("must never fit"))',
             'keys <- if (fit_other$value) "old" else "old"', loop, 'keys <- "new"',
             'scenario_text("chosen", print(7))', 'scenario_text("dependent", print(fits))')
+  names_prefix <- c(
+    'keys <- "seed"', 'preparation_count <- 0L', 'fits <- list()',
+    'for (key in keys) fits[[key]] <- scenario_fit(key, stop("must never fit"))'
+  )
+  reflective_names <- c(names_prefix, 'names(fits) <- { assign("preparation_count", 1L); keys }')
+  seed_cache <- list(seed = list(value = "SEED_CACHE"))
   counter_prefix <- c('keys <- "seed"', 'preparation_count <- 0L', 'fits <- list()',
     'for (key in keys) fits[[key]] <- scenario_fit(key, stop("must never fit"))',
     'names(fits) <- { preparation_count <- preparation_count + 1L; keys }')
@@ -314,6 +320,19 @@ test_that("unsupported compound fit loading refuses before reading caches", {
     top_helper_shadow = case(c('keys <- "old"', 'fits <- list()', 'for (key in keys) {',
                                '  fits[[key]] <- scenario_fit(paste0(key), stop("must never fit"))', '}', chosen),
                              cached, top = 'paste0 <- function(...) "new"'),
+    names_reflective_counter = case(c(reflective_names,
+      'scenario_text("chosen", print(preparation_count))'), seed_cache),
+    names_reflective_selector = case(c(reflective_names, 'keys2 <- c("downstream")',
+      'fits2 <- list()',
+      'for (key2 in keys2) fits2[[key2]] <- scenario_fit(paste0("fit_", preparation_count), stop("must never fit"))',
+      'scenario_text("chosen", print(fits2))'),
+      c(seed_cache, list(fit_0 = list(value = "ZERO_CACHE"), fit_1 = list(value = "ONE_CACHE")))),
+    names_literal_counter = case(c(names_prefix,
+      'names(fits) <- { preparation_count <- preparation_count + 1L; keys }',
+      'scenario_text("chosen", print(list(fits, preparation_count)))'),
+      seed_cache, refuse = FALSE, text = "SEED_CACHE"),
+    names_reflective_dormant = case(c(reflective_names,
+      'scenario_text("chosen", print(7))'), seed_cache),
     counter_output_list_reassigned = case(c(counter_prefix,
       'fits <- list(value = "REPLACED")',
       'scenario_text("chosen", print(list(fits, preparation_count)))'),
@@ -416,7 +435,12 @@ test_that("source admission refuses demanded binding changes and keeps dormant p
           expect_match(paste(readLines(path), collapse = "\n"), text, fixed = TRUE, info = name)
         }
       }
-      if (!is.null(fixture$cache_reads)) {
+      if (name == "names_literal_counter") {
+        expected <- capture.output(print(list(list(seed = list(value = "SEED_CACHE")), 1L)))
+        if (file.exists(path)) expect_identical(readLines(path), expected, info = name)
+        expect_true(file.exists(marker), info = name)
+        if (file.exists(marker)) expect_identical(basename(trimws(readLines(marker))), "seed.rds", info = name)
+      } else if (!is.null(fixture$cache_reads)) {
         expect_true(file.exists(marker), info = name)
         if (file.exists(marker)) expect_equal(length(readLines(marker)), fixture$cache_reads, info = name)
       } else if (!name %in% c("stable", "latest_plain_definition", "qualified_ordinary_payload")) {

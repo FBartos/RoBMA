@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Scenario benchmark source admission retains unresolved reflective effects
+  in fit-list names preparation and refuses them before scenario evaluation,
+  including blocks whose lists are otherwise unselected.
 - Central normal-interval log masses avoid cancellation while preserving the existing subnormal tail path.
 - Native plot quantiles preserve empty log masses and resolve collapsed positive-scale brackets on the representable grid.
 - Allocation-derived SD zero refusals identify the unique public omission
