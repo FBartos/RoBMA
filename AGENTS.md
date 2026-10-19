@@ -42,7 +42,7 @@ substitute a target with matching dimensions.
 
 - Input: `R/input-data.R`, `R/input-priors*.R`, and `R/input-object.R`.
 - Fitting: `R/fit.R` and model constructors.
-- Posterior evaluation: `R/evaluate.R`, `R/pdf*.R`, `R/cdf.R`, and `R/rng.R`.
+- Posterior evaluation: `R/evaluate.R`, `R/pdf*.R`, `R/rng.R`, and the LOO tail helpers.
 - Outcome access: `R/outcome-helpers.R`.
 - Selection routing: `R/selection-mapping.R`.
 - Native R interface: `R/distributions.R`.

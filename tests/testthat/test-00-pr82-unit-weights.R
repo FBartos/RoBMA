@@ -111,8 +111,7 @@ test_that("sampling-conditioned unit weights leave the covariance backend as omi
       backend = .estimate_normal_target_uses_covariance_backend(object[["data"]], object[["priors"]]),
       point   = .log_lik_estimate_from_setup(setup),
       sum     = .log_lik_estimate_sum_from_setup(setup),
-      tails   = .loo_predictive_log_tails_estimate(setup),
-      cdf     = .cdf_lik_estimate.brma(object, setup = setup)
+      tails   = .loo_predictive_log_tails_estimate(setup)
     )
   }
   expected <- evaluate(omitted)
@@ -121,5 +120,4 @@ test_that("sampling-conditioned unit weights leave the covariance backend as omi
   expect_identical(actual[["point"]], expected[["point"]])
   expect_identical(actual[["sum"]], expected[["sum"]])
   expect_identical(actual[["tails"]], expected[["tails"]])
-  expect_identical(actual[["cdf"]], expected[["cdf"]])
 })

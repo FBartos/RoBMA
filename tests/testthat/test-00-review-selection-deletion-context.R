@@ -89,11 +89,8 @@ test_that("estimate context identity and legacy normalization share the score ow
       object$data, object$priors, unit = "estimate", add_metadata = TRUE,
       data_hash = .get_outcome_hash(object))
     metadata <- attr(score, "RoBMA_target")
-    cdf <- .cdf_lik_estimate.brma(object, setup)
     key <- .current_predictive_target_key(object, "estimate")
     expect_identical(metadata$sampling_deletion_policy, "declared_retained_context")
-    expect_identical(attr(cdf, "RoBMA_target")$retained_random_context,
-      metadata$retained_random_context)
     expect_identical(.predictive_target_fingerprint(metadata), .predictive_target_fingerprint(key))
     expect_identical(metadata$retained_random_context == "none", !retained)
     legacy <- metadata

@@ -724,60 +724,6 @@ test_that(".outcome_pdf.norm computes correct log-likelihood", {
   expect_equal(log_lik[1, 1], expected_ll, tolerance = 1e-10)
 })
 
-test_that(".outcome_cdf.norm keeps negative-direction tail precision", {
-
-  yi         <- 10
-  sei        <- 1
-  mu_samples <- matrix(0, nrow = 1, ncol = 1)
-  tau_within <- matrix(0, nrow = 1, ncol = 1)
-
-  cdf_vals <- .outcome_cdf.norm(
-    yi         = yi,
-    mu_samples = mu_samples,
-    tau_within = tau_within,
-    sei        = sei,
-    lower.tail = FALSE
-  )
-
-  expect_equal(cdf_vals[1, 1], stats::pnorm(yi, lower.tail = FALSE))
-  expect_gt(cdf_vals[1, 1], 0)
-})
-
-test_that(".outcome_cdf.selnorm forwards lower.tail through step kernel", {
-
-  yi         <- 3
-  sei        <- 1
-  mu_samples <- matrix(0, nrow = 1, ncol = 1)
-  tau_within <- matrix(0, nrow = 1, ncol = 1)
-  prior      <- BayesTools::prior_weightfunction(
-    "one-sided", c(.05), BayesTools::wf_fixed(c(1, 1))
-  )
-  spec <- .selection_spec(
-    priors           = list(outcome = list(bias = prior)),
-    yi               = yi,
-    sei              = sei,
-    effect_direction = "positive"
-  )
-  selection_context <- c(spec, list(
-    omega       = matrix(c(1, 1), nrow = 1),
-    alpha       = 0,
-    phack_kind  = 0L,
-    kernel_mode = SELKERNEL_STEP
-  ))
-
-  cdf_vals <- .outcome_cdf.selnorm(
-    yi                = yi,
-    mu_samples        = mu_samples,
-    tau_within        = tau_within,
-    sei               = sei,
-    selection_context = selection_context,
-    lower.tail        = FALSE
-  )
-
-  expect_equal(cdf_vals[1, 1], stats::pnorm(yi, lower.tail = FALSE),
-               tolerance = 1e-12)
-  expect_gt(cdf_vals[1, 1], 0)
-})
 
 test_that("GLMM nuisance grids integrate over prior support", {
 

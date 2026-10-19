@@ -75,7 +75,7 @@ test_that("uniform powers of two multiply the selected-normal scores", {
                2 * reference[["score"]], tolerance = 1e-12)
 })
 
-test_that("weighted joint-selection LOO tails, CDF and moments follow the selected law", {
+test_that("weighted joint-selection LOO tails and moments follow the selected law", {
 
   for (mode in c("condition", "integrate")) {
     fixture   <- .weighted_selection_fixture(mode, weights = c(2, .5, 3))
@@ -87,8 +87,6 @@ test_that("weighted joint-selection LOO tails, CDF and moments follow the select
     expect_equal(unname(exp(tails[["log_lower"]])), reference[["cdf"]], tolerance = 1e-12)
     expect_equal(unname(exp(tails[["log_upper"]])), 1 - reference[["cdf"]],
                  tolerance = 1e-12)
-    cdf <- .cdf_lik_estimate.brma(fixture[["object"]], setup = setup)
-    expect_equal(unname(cdf), reference[["cdf"]], tolerance = 1e-12)
 
     # Predictive moments are those of the unweighted law.
     unweighted   <- .weighted_selection_fixture(mode)

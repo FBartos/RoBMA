@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Removed an unused private CDF facade while retaining independent CDF and
+  tail checks on the production LOO and selection kernels.
 - Ordered density integration retains finite log weights and the declared
   uncertainty conditioning; numerical refusals expose their observed work and proof.
 - Known-V null-space coverage refuses indefinite factorizations and names the

@@ -1418,31 +1418,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .cdf_normal_covariance_estimate_target_from_setup
-# ---------------------------------------------------------------------------- #
-#
-# CDF values matching
-# `.log_lik_normal_covariance_estimate_target_from_setup()`.
-#
-# ---------------------------------------------------------------------------- #
-.cdf_normal_covariance_estimate_target_from_setup <- function(setup) {
-
-  summary <- .normal_covariance_estimate_target_summary_from_setup(
-    setup      = setup,
-    components = "cdf"
-  )
-
-  out <- summary[["cdf"]]
-  if (.is_data_joint_selection(setup[["data"]])) {
-    attr(out, "RoBMA_target") <- c(.estimate_log_lik_target_metadata(
-      setup, setup[["data_hash"]], attr(summary, "dependency_blocks")),
-      .selection_postfit_target_metadata(setup[["data"]]))
-  }
-  out
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .normal_covariance_estimate_target_summary_from_setup
 # ---------------------------------------------------------------------------- #
 #

@@ -699,24 +699,15 @@ test_that("selected-normal RNG requires explicit row routing", {
   )
 })
 
-test_that("outcome CDF values retain exact probability endpoints", {
+test_that("production normal LOO tails retain exact probability endpoints", {
 
-  cdf_vals <- .outcome_cdf.norm(
-    yi         = c(-100, 100),
-    mu_samples = matrix(0, nrow = 1L, ncol = 2L),
-    tau_within = matrix(0, nrow = 1L, ncol = 2L),
-    sei        = c(1, 1)
-  )
-
-  expect_identical(cdf_vals, matrix(c(0, 1), nrow = 1L))
-
-  interior_tail <- .outcome_cdf.norm(
-    yi         = c(-38, 8.2),
-    mu_samples = matrix(0, nrow = 1L, ncol = 2L),
-    tau_within = matrix(0, nrow = 1L, ncol = 2L),
-    sei        = c(1, 1)
-  )
-  expect_equal(as.numeric(interior_tail), stats::pnorm(c(-38, 8.2)))
+  tails <- function(yi) .loo_predictive_log_tails_estimate(list(
+    outcome_type = "norm", data = structure(list(), outcome_type = "norm"),
+    priors = list(), S = 1L, K = length(yi), yi = yi, sei = rep(1, length(yi)),
+    mu = matrix(0, 1L, length(yi)), tau_within = matrix(0, 1L, length(yi))))
+  expect_identical(exp(tails(c(-100, 100))[["log_lower"]]), matrix(c(0, 1), 1L))
+  expect_equal(as.numeric(exp(tails(c(-38, 8.2))[["log_lower"]])),
+    stats::pnorm(c(-38, 8.2)))
 })
 
 
@@ -1205,7 +1196,7 @@ test_that(".extract_use_normal returns correct structure for RoBMA", {
 })
 
 # ============================================================================ #
-# SECTION 4: Integration Tests for .log_lik.brma() and .cdf.brma() with use_normal
+# SECTION 4: Integration Tests for .log_lik.brma() with use_normal
 # ============================================================================ #
 # These tests verify that PDF and CDF functions work correctly with the
 # use_normal fast-path optimization
@@ -1237,38 +1228,3 @@ test_that(".log_lik.brma returns finite log-likelihoods for weightfunction model
   }
 })
 
-test_that(".cdf.brma returns valid CDF values for weightfunction models", {
-
-  for (name in names(fits)) {
-
-    object <- fits[[name]]
-
-    # skip non-brma objects or objects without weightfunction priors
-    if (!inherits(object, "brma")) next
-    if (!.is_weightfunction(object)) next
-
-    # compute CDF (this internally uses use_normal optimization)
-    conditioning_depth <- if (.is_data_known_v(object[["data"]])) {
-      "estimate"
-    } else {
-      "marginal"
-    }
-    cdf_vals <- .cdf.brma(
-      object,
-      conditioning_depth = conditioning_depth
-    )
-
-    # verify structure
-    expect_true(is.matrix(cdf_vals),
-                info = paste(name, ": cdf_vals is a matrix"))
-    expect_true(all(is.finite(cdf_vals)),
-                info = paste(name, ": all CDF values are finite"))
-    expect_true(all(cdf_vals >= 0 & cdf_vals <= 1),
-                info = paste(name, ": all CDF values are in [0, 1]"))
-
-    # verify dimensions match
-    K <- length(.outcome_data_yi(object))
-    expect_equal(ncol(cdf_vals), K,
-                 info = paste(name, ": ncol matches number of observations"))
-  }
-})

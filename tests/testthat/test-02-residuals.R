@@ -7,18 +7,12 @@ source(testthat::test_path("helper-metafor.R"))
 
 REFERENCE_DIR <<- testthat::test_path("..", "results", "residuals")
 
-test_that("internal CDF routes reject discrete GLMM approximations", {
+test_that("production LOO tails reject discrete GLMM approximations", {
 
   for (outcome_type in c("bin", "pois")) {
-    data <- list()
-    attr(data, "outcome_type") <- outcome_type
-    object <- list(data = data)
-
-    expect_error(.cdf.brma(object), "discrete PIT convention")
-    expect_error(
-      .cdf_lik_estimate.brma(object),
-      "discrete PIT convention"
-    )
+    expect_error(.loo_predictive_log_tails_estimate(list(outcome_type = outcome_type)),
+      "LOO-PIT residuals are not available for binomial or Poisson GLMMs because a discrete PIT convention has not been defined.",
+      fixed = TRUE)
   }
 })
 
@@ -505,7 +499,7 @@ test_that("brma.mv known-V residual diagnostics match Schur and GLS oracles", {
 
   fit_brma    <- fits[[name]]
   setup       <- .estimate_likelihood_setup.brma(fit_brma)
-  cdf_matrix  <- .cdf_lik_estimate.brma(fit_brma)
+  cdf_matrix  <- exp(.loo_predictive_log_tails_estimate(setup)[["log_lower"]])
   known_V     <- .data_known_v_data(setup[["data"]])
   first_block <- .known_v_blocks(known_V)[[1L]][["index"]]
 
@@ -623,24 +617,6 @@ test_that("Known-V Pearson residuals avoid dense covariance allocation", {
   actual   <- residuals(fit_brma, type = "pearson")
   expect_equal(unname(actual), unname(expected), tolerance = 1e-10)
   expect_null(attr(actual, "known_v_diagnostic"))
-})
-
-
-test_that("legacy known-V CDF wrapper uses estimate-unit target", {
-
-  name <- "brma.mv_block_mvn_random_scale"
-  skip_if_missing_fits(name)
-
-  fit_brma <- fits[[name]]
-
-  cdf_legacy <- .cdf.brma(fit_brma, conditioning_depth = "estimate")
-  cdf_target <- .cdf_lik_estimate.brma(fit_brma)
-
-  expect_equal(unname(cdf_legacy), unname(cdf_target))
-  expect_error(
-    .cdf.brma(fit_brma, conditioning_depth = "marginal"),
-    "conditioning_depth = 'estimate'"
-  )
 })
 
 

@@ -21,24 +21,6 @@
 }
 
 
-test_that("retained estimate CDF keeps deletion available and names unsupported marginal mixtures", {
-
-  object <- bselmodel(yi = c(.2, .5), sei = c(.2, .3), measure = "GEN",
-    prior_unit_information_sd = 1, only_priors = TRUE,
-    selection = BayesTools::selection_model(estimate_random_effects = "condition"))
-  expected <- matrix(c(.3, .7), 1L)
-  testthat::local_mocked_bindings(.cdf_lik_estimate.brma = function(object) expected,
-    .package = "RoBMA")
-  expect_equal(unname(.cdf.brma(object, conditioning_depth = "estimate")), expected)
-  error <- tryCatch(.cdf.brma(object, conditioning_depth = "marginal"), error = identity)
-  expect_identical(conditionMessage(error), paste0(
-    "Joint-selection CDF evaluation is unavailable at this conditioning depth. ",
-    "Use the estimate-deletion CDF for LOO-PIT or 'as_zplot()' for marginal selected projections."
-  ))
-  expect_null(conditionCall(error))
-})
-
-
 test_that("fixed-effect mv selection has no estimate variance source", {
 
   dat <- data.frame(yi = c(.2, .5), vi = c(.04, .09))

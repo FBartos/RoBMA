@@ -37,10 +37,11 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use selected-normal branche
     sei               = setup[["sei"]],
     selection_context = selected_context
   )
-  cdf_vals <- .outcome_cdf.selnorm(
-    yi                = setup[["yi"]],
-    mu_samples        = setup[["mu"]][selected_rows, , drop = FALSE],
-    tau_within        = setup[["tau_within"]][selected_rows, , drop = FALSE],
+  cdf_vals <- .selection_step_cdf_matrix(
+    q                 = setup[["yi"]],
+    mean              = setup[["mu"]][selected_rows, , drop = FALSE],
+    sd                = sqrt(setup[["tau_within"]][selected_rows, , drop = FALSE]^2 +
+      matrix(setup[["sei"]]^2, length(selected_rows), setup[["K"]], byrow = TRUE)),
     sei               = setup[["sei"]],
     selection_context = selected_context
   )
@@ -66,16 +67,11 @@ test_that("RoBMA mixed-bias branch PDF, CDF, and RNG use selected-normal branche
     tau_within = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
     sei        = setup[["sei"]]
   )
-  normal_cdf <- .outcome_cdf.norm(
-    yi         = if (setup[["effect_direction"]] == "negative") -setup[["yi"]] else setup[["yi"]],
-    mu_samples = if (setup[["effect_direction"]] == "negative") {
-      -setup[["mu"]][normal_branch_rows, , drop = FALSE]
-    } else {
-      setup[["mu"]][normal_branch_rows, , drop = FALSE]
-    },
-    tau_within = setup[["tau_within"]][normal_branch_rows, , drop = FALSE],
-    sei        = setup[["sei"]],
-    lower.tail = if (setup[["effect_direction"]] == "negative") FALSE else TRUE
+  normal_cdf <- stats::pnorm(
+    matrix(setup[["yi"]], length(normal_branch_rows), setup[["K"]], byrow = TRUE),
+    mean = setup[["mu"]][normal_branch_rows, , drop = FALSE],
+    sd = sqrt(setup[["tau_within"]][normal_branch_rows, , drop = FALSE]^2 +
+      matrix(setup[["sei"]]^2, length(normal_branch_rows), setup[["K"]], byrow = TRUE))
   )
 
   expect_equal(
