@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Point density diagnostics preserve pilot facts and point-specific weight
+  diagnostics; older tables retain typed missing values for absent pilot facts.
 - Density normalization preserves thrown evaluation failures and reports
   estimated tails for rows whose declared closed form fails validation.
 - Retained selection caches restored into a smaller memory budget keep the most

@@ -311,6 +311,8 @@
     n_weight_fallback_rows            = diagnostics[["n_weight_fallback_rows"]],
     weight_fallback_from              = diagnostics[["weight_fallback_from"]],
     weight_fallback_reasons           = diagnostics[["weight_fallback_reasons"]],
+    pilot_gate_stopped                = diagnostics[["pilot_gate_stopped"]],
+    pilot_bulk_ess                    = diagnostics[["pilot_bulk_ess"]],
     pilot_ordinate                    = diagnostics[["bf_pilot_ordinate"]],
     validation_ordinate               = diagnostics[["bf_validation_ordinate"]],
     ordinate_relative_change          = diagnostics[["bf_ordinate_relative_change"]],

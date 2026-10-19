@@ -110,3 +110,13 @@ test_that("large requested row budgets use the existing finite candidate populat
     expect_identical(plan$rows$n_candidate_rows, 80L)
   }
 })
+
+test_that("successful qCMDE ordinates preserve the actual pilot facts", {
+
+  result <- hypothesis(.ordinate_control_test_object(80L), "mu = 0",
+    density_method = "qCMDE",
+    density_control = list(samples = 70, target_relative_mcse = .01))
+  actual <- density_diagnostics(result)
+  expect_identical(actual$pilot_gate_stopped, FALSE)
+  expect_identical(actual$pilot_bulk_ess, NA_real_)
+})

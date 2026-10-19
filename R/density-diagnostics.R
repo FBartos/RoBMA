@@ -609,6 +609,7 @@ density_diagnostics.RoBMA_density_ordinate_error <- function(object, ...) {
 
   template <- .iwmde_empty_public_density_diagnostics()
   added <- c("ordinate", "log_ordinate", "numerical_status", "failure_reason",
+             "pilot_gate_stopped", "pilot_bulk_ess",
              "normalization_truncation", "normalization_truncation_status",
              "truncation_ordinate_bound", "lattice_resolution_relative_error", "internal_method", "working_distribution",
              "normalization_basis", "ordered_error_status", "block_numerator_relative_error",

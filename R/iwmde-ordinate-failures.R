@@ -67,9 +67,11 @@
       raw[["bf_log_ordinate"]] <- NA_real_
       raw[["bf_evaluation_value"]] <- NA_real_
     }
-    normalized <- raw
     fields <- startsWith(names(raw), "bf_")
-    names(normalized)[fields] <- substring(names(raw)[fields], 4L)
+    point_fields <- substring(names(raw)[fields], 4L)
+    normalized <- raw[fields | !names(raw) %in% point_fields]
+    fields <- startsWith(names(normalized), "bf_")
+    names(normalized)[fields] <- substring(names(normalized)[fields], 4L)
     normalized[["estimator"]] <- plan[["method"]]
     if (!is.null(plan[["control"]][["samples"]])) {
       normalized[["requested_samples"]] <- plan[["control"]][["samples"]]

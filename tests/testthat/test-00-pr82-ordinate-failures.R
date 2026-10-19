@@ -316,3 +316,31 @@ test_that("hypothesis results without attached diagnostics have none available",
   expect_s3_class(error, "error")
   expect_false(inherits(error, "RoBMA_density_diagnostics_unavailable"))
 })
+
+test_that("historical diagnostics upgrade pilot columns without inventing facts", {
+
+  current <- .iwmde_estimate_ordinate_failures(.pr82_failure_plan(), .pr82_failure_diagnostic())
+  legacy <- current[setdiff(names(current), c("pilot_gate_stopped", "pilot_bulk_ess"))]
+  actual <- tryCatch(.density_diagnostics_validate(legacy), error = identity)
+  expect_s3_class(actual, "RoBMA_density_diagnostics")
+  if (inherits(actual, "RoBMA_density_diagnostics")) {
+    expect_named(actual, names(current))
+    expect_identical(actual$pilot_gate_stopped, NA)
+    expect_identical(actual$pilot_bulk_ess, NA_real_)
+    expect_identical(actual[names(legacy)], legacy)
+  }
+})
+
+test_that("rejected requested points retain their own weight diagnostics", {
+
+  diagnostic <- list(status = "ok", parameter = "mu",
+    diagnostics = list(estimator = "q_grid_cmde", max_weight_share = .99,
+      max_log_ratio = 100, relative_mcse = .9),
+    iwmde = list(x = c(0, 1), y = c(.4, .5), log_y = log(c(.4, .5)),
+      max_weight_share = c(.2, .3), max_log_ratio = c(2, 3),
+      relative_mcse = c(.4, .5)))
+  actual <- .iwmde_estimate_ordinate_failures(.pr82_failure_plan(c(0, 1)), diagnostic)
+  expect_identical(actual$requested_value, c(0, 1))
+  expect_identical(actual$max_weight_share, c(.2, .3))
+  expect_identical(actual$relative_mcse, c(.4, .5))
+})
