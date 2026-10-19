@@ -626,6 +626,10 @@ void cpp_selnorm_factor_projection(
     double *log_normalizer, double *relative_error)
 {
   const double infinity = std::numeric_limits<double>::infinity();
+  const auto integration_error = [infinity](double error, double change) {
+    return std::isfinite(error) && std::isfinite(change) ?
+      std::max(error, change) : infinity;
+  };
   std::fill_n(density, size, 0.0);
   *log_normalizer = 0.0;
   *relative_error = 0.0;
@@ -664,8 +668,10 @@ void cpp_selnorm_factor_projection(
       one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
       &error, &change, quadrature);
     *log_normalizer += denominator;
-    *relative_error = std::max(*relative_error, std::max(error, change));
-    if (!std::isfinite(denominator)) {
+    const double denominator_error = integration_error(error, change);
+    *relative_error = std::max(*relative_error, denominator_error);
+    if (!std::isfinite(denominator) || !std::isfinite(denominator_error) ||
+        denominator_error >= 1.0) {
       *relative_error = infinity;
       std::fill_n(density, size, std::numeric_limits<double>::quiet_NaN());
       return;
@@ -727,6 +733,7 @@ void cpp_selnorm_factor_projection(
       for (int index = 0; index < size; ++index) {
         const double q = z[index] * se[focal];
         double value = 0.0, local_error = 0.0;
+        bool ratio = false;
         if (kind == 1 && !std::isfinite(z[index])) {
           value = z[index] > 0.0 ? 1.0 : 0.0;
         } else if (kind == 2 && z[index] == 0.0) {
@@ -736,6 +743,7 @@ void cpp_selnorm_factor_projection(
             kind == 1 ? pnorm(q, m[focal], sd, true, false) :
             pnorm(-q, m[focal], sd, true, false) + pnorm(q, m[focal], sd, false, false);
         } else if (kind == 0) {
+          ratio = true;
           for (int row = 0; row < k; ++row) conditional_mean[row] = m[row] + slope[row] * (q - m[focal]);
           conditional_mean[focal] = q;
           const double numerator = cpp_selnorm_conditioned_log_normalizer(
@@ -744,16 +752,17 @@ void cpp_selnorm_factor_projection(
             effect_sign, kernel_mode, telescope_probabilities, vector_rule,
             one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
             &error, &change, quadrature);
-          local_error = std::max(error, change);
+          local_error = integration_error(error, change);
           value = std::exp(std::log(se[focal]) + dnorm(q, m[focal], sd, true) + numerator - denominator);
         } else {
+          ratio = true;
           upper[focal] = kind == 1 ? q : -q;
           const double first = cpp_selnorm_conditioned_log_normalizer(m.data(),
             d.data(), l.data(), k, rank, se.data(), omega, n_bins, z_lower, z_upper,
             effect_sign, kernel_mode, telescope_probabilities, vector_rule,
             one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
             &error, &change, quadrature, lower.data(), upper.data());
-          local_error = std::max(error, change);
+          local_error = integration_error(error, change);
           value = std::exp(first - denominator);
           upper[focal] = infinity;
           if (kind == 2) {
@@ -764,10 +773,14 @@ void cpp_selnorm_factor_projection(
               effect_sign, kernel_mode, telescope_probabilities, vector_rule,
               one_group.data(), qmc, initial_points, max_points, scrambles, tolerance,
               &error, &change, quadrature, lower.data(), upper.data());
-            local_error = std::max(first_error, std::max(error, change));
+            local_error = std::max(first_error, integration_error(error, change));
             value = std::exp(log_add_exp(first, second) - denominator);
             lower[focal] = -infinity;
           }
+        }
+        if (ratio) {
+          local_error = (local_error + denominator_error) /
+            (1.0 - denominator_error);
         }
         density[index] += value / dimension;
         if (!std::isfinite(local_error) || !std::isfinite(value)) {

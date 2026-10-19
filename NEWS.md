@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selection-projection diagnostics include numerator and denominator
+  uncertainty before averaging over observations.
 - Selected-normal quadrature discards incomplete batch products before scalar
   fallback; interval log masses use stable subtraction near equality.
 - Scenario benchmark names counters require stable list and loop outputs;

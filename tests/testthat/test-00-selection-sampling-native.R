@@ -510,3 +510,66 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
     })
   }
 })
+
+test_that("projection diagnostics include denominator uncertainty in every ratio", {
+
+  args <- .sampling_native_arguments(c(.1, -.2, .4), c(.2, .3, .4),
+    matrix(c(1, .8, 1.2), 3L, 1L), points = 8L)
+  args$relative_tolerance <- 1e-8
+  denominator <- .sampling_native_mass(args)
+  eD <- max(denominator$relative_mcse, denominator$relative_change)
+  expect_true(is.finite(eD) && eD >= 0 && eD < 1)
+  sigma <- diag(c(.2, .3, .4))
+  loading <- c(1, .8, 1.2)
+  for (column in 1:3) for (row in 1:3) {
+    sigma[row, column] <- sigma[row, column] + loading[row] * loading[column]
+  }
+  packed <- matrix(sigma[lower.tri(sigma, diag = TRUE)], 1L)
+  design <- array(args$qmc, c(8L, 8L, 6L))
+  prefix <- list(full = as.double(design),
+    coarse = as.double(design[, 1:4, , drop = FALSE]))
+  lse <- function(x) {
+    top <- max(x)
+    top + log(sum(exp(x - top)))
+  }
+  event <- function(focal, q, tail, points) {
+    lower <- matrix(rep(-Inf, 3L), 1L)
+    upper <- matrix(rep(Inf, 3L), 1L)
+    if (tail == "cdf") upper[focal] <- q
+    if (tail == "minus") upper[focal] <- -q
+    if (tail == "plus") lower[focal] <- q
+    do.call(.Call, c(list("RoBMA_selnorm_gaussian_event_mass_batch"),
+      list(args$means, packed, args$sei, args$omega, args$z_lower, args$z_upper,
+        args$sign, args$kernel_mode, args$vector_rule, lower, upper,
+        prefix[[if (points == 8L) "full" else "coarse"]], as.integer(points),
+        8L, NULL, NULL, 1e-8), list(PACKAGE = "RoBMA")))
+  }
+  for (kind in c(1L, 2L)) {
+    grid <- if (kind == 1L) c(-.5, .25, 1) else c(.5, 1.5)
+    actual <- do.call(.Call, c(list("RoBMA_selnorm_factor_projection_batch"),
+      unname(args), list(as.double(grid), kind), list(PACKAGE = "RoBMA")))
+    values <- errors <- matrix(NA_real_, 3L, length(grid))
+    for (focal in 1:3) for (index in seq_along(grid)) {
+      tails <- if (kind == 1L) "cdf" else c("minus", "plus")
+      components <- lapply(tails, function(tail) {
+        full <- event(focal, grid[[index]], tail, 8L)
+        coarse <- event(focal, grid[[index]], tail, 4L)
+        list(log_mass = full$log_mass,
+          error = max(full$relative_mcse, abs(expm1(coarse$log_mass - full$log_mass))))
+      })
+      values[focal, index] <- exp(lse(vapply(components, `[[`, numeric(1), "log_mass")) -
+        denominator$log_normalizer)
+      errors[focal, index] <- max(vapply(components, `[[`, numeric(1), "error"))
+    }
+    density <- colSums(values / 3)
+    absolute <- colSums(values * (errors + eD) / (1 - eD) / 3)
+    expected <- max(eD, max(absolute) / max(density))
+    allowance <- 128 * .Machine$double.eps * max(1, abs(expected), abs(actual$relative_mcse))
+    expect_lte(abs(actual$relative_mcse - expected), allowance)
+    expect_lte(max(abs(as.vector(actual$density) - density)), allowance)
+    expect_lte(abs(actual$log_density + denominator$log_normalizer), allowance)
+    # These8/4-prefix projections exceed the public1e-8 refusal limit. This
+    # checks diagnostic wiring, not an accepted curve or a rigorous bound.
+    expect_gt(actual$relative_mcse, 1e-8)
+  }
+})
