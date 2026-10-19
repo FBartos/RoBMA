@@ -43,7 +43,11 @@ dffits <- function(model, ...) UseMethod("dffits")
 #' Estimate-unit LOO must first be computed with
 #' \code{model <- add_loo(model, unit = "estimate")}. If the leave-one-out
 #' posterior SD of a fitted value is zero, the corresponding DFFITS value
-#' is returned as \code{NA}.
+#' is returned as \code{NA}, without a separate explanatory note.
+#' The diagnostic is available for normal outcomes without a weightfunction
+#' component; selection \code{brma.mv()} influence is currently unavailable.
+#' Fixed-location PSIS moments do not require the inverse marginal covariance
+#' used by \code{hatvalues()}.
 #'
 #' @return A named numeric vector of DFFITS values, one for each observation.
 #'

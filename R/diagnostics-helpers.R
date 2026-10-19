@@ -78,16 +78,6 @@
 }
 
 
-.diagnostic_psis_weights <- function(model, weights = NULL) {
-
-  if (!is.null(weights)) {
-    return(weights)
-  }
-
-  return(loo_weights(model, unit = "estimate"))
-}
-
-
 .check_fixed_location_influence_available <- function(model, caller) {
 
   if (.outcome_type(model) != "norm") {
@@ -129,10 +119,7 @@
       return_samples         = TRUE
     )
 
-    return(.diagnostic_fixed_location_coefficient_samples(
-      as.matrix(samples),
-      require_mu_columns = TRUE
-    ))
+    return(.diagnostic_fixed_location_coefficient_samples(as.matrix(samples)))
   }
 
   samples <- BayesTools::JAGS_estimates_table(
@@ -205,29 +192,45 @@
 }
 
 
-.diagnostic_fixed_location_coefficient_samples <- function(samples_mat,
-                                                           require_mu_columns = FALSE) {
+.diagnostic_fixed_location_coefficient_samples <- function(samples_mat) {
 
   column_names <- colnames(samples_mat)
-  if (is.null(column_names)) {
-    if (require_mu_columns) {
-      stop("Fixed location coefficient columns could not be identified.",
-           call. = FALSE)
-    }
-    return(samples_mat)
-  }
-
-  keep <- startsWith(column_names, "(mu) ")
-
+  keep <- if (is.null(column_names)) logical() else startsWith(column_names, "(mu) ")
   if (!any(keep)) {
-    if (require_mu_columns) {
-      stop("Fixed location coefficient columns could not be identified.",
-           call. = FALSE)
-    }
-    return(samples_mat)
+    stop("Fixed location coefficient columns could not be identified.",
+         call. = FALSE)
   }
 
   return(samples_mat[, keep, drop = FALSE])
+}
+
+
+# Influence retains the complete posterior request. A semantic correlation
+# declared undefined at zero SD is unavailable, rather than a malformed draw.
+.diagnostic_check_random_defined <- function(samples, diagnostic) {
+
+  declared <- BayesTools::posterior_metadata(samples, "undefined_draws")
+  if (is.null(declared)) return(invisible(NULL))
+  samples <- as.matrix(samples)
+  correlation <- colnames(samples) %in% names(declared)[declared == "correlation"]
+  missing <- is.na(samples)
+  allowed <- matrix(correlation, nrow(samples), ncol(samples), byrow = TRUE)
+  # Leave undeclared missing or infinite values to the ordinary validator.
+  if (any(!is.finite(samples) & !(missing & allowed))) return(invisible(NULL))
+  affected <- which(correlation & colSums(missing) > 0L)
+  if (length(affected) == 0L) return(invisible(NULL))
+  quantities <- vapply(affected, function(j) {
+    paste0("'", colnames(samples)[j], "' (", sum(!missing[, j]), " of ",
+      nrow(samples), " posterior draws defined)")
+  }, character(1))
+  stop(
+    diagnostic, " is unavailable for random-effect quantity ",
+    paste(quantities, collapse = ", "),
+    " because the correlation is undefined when either SD is zero. ",
+    "Use 'component = \"random\"' and 'parameter' to explicitly select an ",
+    "everywhere-defined quantity.",
+    call. = FALSE
+  )
 }
 
 

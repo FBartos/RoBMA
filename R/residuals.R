@@ -24,11 +24,13 @@
 #'   \item \code{"outcome"} (default): Raw residuals (observed - fitted).
 #'     Available for all model types.
 #'   \item \code{"pearson"}: Pearson (semi-standardized) residuals, dividing
-#'     raw residuals by the marginal standard error \eqn{\sqrt{v_i + \tau^2}}.
+#'     raw residuals by the SD of the corresponding outcome target: marginal
+#'     includes all applicable heterogeneity, cluster depth includes within-
+#'     cluster heterogeneity, and estimate depth uses sampling variance only.
 #'     Only available for normal outcome models without selection (weightfunction)
 #'     bias adjustment.
-#'   \item \code{"rstandard"}: Internally standardized residuals, dividing
-#'     raw residuals by their standard errors computed using the hat matrix.
+#'   \item \code{"rstandard"}: Internally standardized projection residuals,
+#'     divided by their corresponding SDs computed using the hat matrix.
 #'     Only available for normal outcome models without selection (weightfunction)
 #'     bias adjustment.
 #'   \item \code{"LOO-PIT"} (alias: \code{"rstudent"}): Leave-one-out probability
@@ -42,7 +44,7 @@
 #'     PIT convention, which is not implemented. Note: This requires that the loo
 #'     has been computed previously (see \code{add_loo()} function).
 #' }
-#' @param unit output unit. Only \code{"estimate"} is implemented currently..
+#' @param unit output unit. Only \code{"estimate"} is implemented currently.
 #' @param conditioning_depth conditioning depth for non-LOO residuals. \code{"marginal"}
 #' uses fixed effects only, \code{"cluster"} conditions on cluster-level random
 #' effects, and \code{"estimate"} conditions on the full estimate-level fitted
@@ -501,13 +503,12 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' @param unit output unit. Only \code{"estimate"} is implemented currently.
 #' @param conditioning_depth conditioning depth. Options are:
 #' \itemize{
-#'   \item \code{"marginal"} (default): Residuals from fixed effects predictions
-#'     (\eqn{observed - X\beta}).
-#'   \item \code{"cluster"}: Residuals from cluster-level predictions (observed -
-#'     (\eqn{X\beta + gamma})). Only available for multilevel (3-level) models.
-#'   \item \code{"estimate"}: Residuals from BLUPs,
-#'     i.e., deviations of the observed effect sizes from the best linear
-#'     unbiased predictions of the estimate-specific true effects (observed - theta).
+#'   \item \code{"marginal"} (default): GLS projection residuals
+#'     \eqn{(I - H)y}.
+#'   \item \code{"cluster"}: Projection residuals after the fitted cluster
+#'     contribution is removed. Only available for specialized multilevel models.
+#'   \item \code{"estimate"}: Sampling residual projection after the fitted
+#'     random-effect contribution is removed (a BLUP-style target).
 #' }
 #' @param ... additional arguments (currently ignored)
 #' @param max_samples maximum posterior draws used for known-\code{V}
@@ -518,8 +519,10 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' This function returns a data frame with three columns matching the output
 #' of \code{metafor::rstandard}:
 #' \itemize{
-#'   \item \code{resid}: GLS projection residuals \eqn{(I - H) y}, so that the
-#'     residual and its standard error come from the same projection. These are
+#'   \item \code{resid}: Projection residuals: marginal depth uses
+#'     \eqn{(I - H)y}; cluster and estimate depths retain their corresponding
+#'     random-effect target. Known-\code{V} estimate depth uses the sampling
+#'     residual projection. Residuals and SDs come from the same projection. These are
 #'     not the posterior-mean residuals returned by
 #'     \code{residuals(type = "outcome")}, which subtract the posterior mean of
 #'     the fitted values and therefore carry the prior's shrinkage; the two
@@ -564,7 +567,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #'
 #' @return A data frame with columns:
 #' \itemize{
-#'   \item \code{resid}: Raw residuals
+#'   \item \code{resid}: Posterior mean projection residuals at the requested depth
 #'   \item \code{se}: Standard errors of the residuals
 #'   \item \code{z}: Standardized residuals
 #' }
@@ -781,17 +784,17 @@ rstudent.brma <- function(model, unit = "estimate",
     caller             = "rstudent()"
   )
 
+  .check_residual_type_availability(
+    type              = "rstudent",
+    outcome_type      = .outcome_type(model),
+    is_weightfunction = .is_weightfunction(model)
+  )
   setup <- .estimate_likelihood_setup.brma(
     object                  = model,
     condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
       model[["data"]],
       model[["priors"]]
     )
-  )
-  .check_residual_type_availability(
-    type              = "rstudent",
-    outcome_type      = setup[["outcome_type"]],
-    is_weightfunction = setup[["is_weightfunction"]]
   )
 
   # extract PSIS object once and reuse it for PIT and LOO expectations
@@ -1066,8 +1069,7 @@ rstudent.brma <- function(model, unit = "estimate",
 # @param object             brma object.
 # @param predictive_summary optional precomputed known-V conditional summary.
 #
-# @return If loo_only = TRUE, returns the psis_loo object.
-#         Otherwise, returns numeric vector of LOO-PIT residuals.
+# @return Numeric vector of LOO-PIT residuals.
 #
 # ---------------------------------------------------------------------------- #
 .standardized_residuals_loopit <- function(

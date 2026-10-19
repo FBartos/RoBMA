@@ -28,7 +28,7 @@
 
 .brma_mv_diagnostic_target_table <- function() {
 
-  data.frame(
+  table <- data.frame(
     method = c(
       "log_lik(unit = 'estimate')",
       "add_loo()/loo()",
@@ -82,8 +82,15 @@
       rep("conditional estimate deletion with integrated random effects", 2),
       "deferred for brma.mv()"
     ),
+    deletion_target = c(rep("estimate", 6), rep(NA_character_, 4),
+      rep("estimate", 2), NA_character_),
     stringsAsFactors = FALSE
   )
+  table[["reported_target"]] <- table[["target"]]
+  table[["reported_target"]][table[["method"]] %in%
+    c("dffits()", "cooks.distance()")] <- "fixed_location_fitted_value"
+
+  return(table)
 }
 
 
@@ -105,18 +112,18 @@
 
   row <- .brma_mv_target_row(method)
 
-  return(list(
-    method              = row[["method"]],
-    status              = row[["status"]],
-    deletion_target     = "estimate",
-    known_v_semantics   = row[["known_v_semantics"]],
-    known_r_semantics   = row[["known_r_semantics"]],
-    reported_target     = if (method %in% c("dffits()", "cooks.distance()")) {
-      "fixed_location_fitted_value"
-    } else {
-      row[["target"]]
-    }
-  ))
+  target <- list(
+    method            = row[["method"]],
+    status            = row[["status"]],
+    known_v_semantics = row[["known_v_semantics"]],
+    known_r_semantics = row[["known_r_semantics"]],
+    reported_target   = row[["reported_target"]]
+  )
+  if (!is.na(row[["deletion_target"]])) {
+    target[["deletion_target"]] <- row[["deletion_target"]]
+  }
+
+  return(target)
 }
 
 
@@ -160,7 +167,7 @@
 
 .brma_mv_attach_target_metadata <- function(x, method) {
 
-  attr(x, "brma_mv_target") <- .brma_mv_target_metadata(method)
+  attr(x, "RoBMA_target") <- .brma_mv_target_metadata(method)
   return(x)
 }
 

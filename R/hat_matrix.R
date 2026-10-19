@@ -22,9 +22,13 @@
 # Returns a list containing:
 # - H_diag: S x K matrix of hat matrix diagonals (leverages)
 # - H: S x K x K array of full hat matrices (only if return_full_H = TRUE)
-# - se_components: S x K matrix of standard errors components for residuals (if return_se = TRUE)
-# - resid_components: S x K matrix of GLS residuals (if return_resid = TRUE)
+# - se: S x K matrix of residual SDs (if return_se = TRUE)
+# - resid: S x K matrix of projection residuals (if return_resid = TRUE)
+# - z: posterior mean of draw-wise resid/se (if both are requested and summarize)
 # - M_diag: S x K matrix of marginal variance diagonals
+# - known_v_diagnostic: selected-draw metadata for known-V computations
+# With summarize = TRUE, se and resid are posterior mean vectors; H_diag,
+# optional H, and M_diag retain their posterior-draw dimensions.
 #
 # @param object brma object
 # @param conditioning_depth character; conditioning depth for residual SEs:
@@ -33,7 +37,11 @@
 #                           - "estimate": Uses sampling variance V
 # @param return_full_H logical; whether to return the full hat matrix for each sample
 # @param return_se logical; whether to compute and return standard error components
-# @param return_resid logical; whether to compute and return GLS residual components
+# @param return_resid logical; whether to compute and return projection residuals
+# @param summarize logical; whether to average residuals and SDs, retaining
+#                  draw-wise ratios for their posterior mean z
+# @param max_samples maximum known-V posterior draws; finite values use the
+#                    existing deterministic thinning across posterior row order
 #
 # ---------------------------------------------------------------------------- #
 .compute_hat_matrix_samples <- function(object, conditioning_depth = "marginal",
@@ -660,8 +668,10 @@
     stop("Known-V block GLS inputs have inconsistent dimensions.", call. = FALSE)
   }
 
-  if (any(!is.finite(extra_variance)) || any(extra_variance < 0)) {
-    stop("Known-V residual covariance is not positive definite.", call. = FALSE)
+  if (!is.numeric(extra_variance) || any(!is.finite(extra_variance)) ||
+      any(extra_variance < 0)) {
+    stop("'extra_variance' must contain finite, non-negative variances.",
+         call. = FALSE)
   }
 
   W_X               <- matrix(0, nrow = K, ncol = p)

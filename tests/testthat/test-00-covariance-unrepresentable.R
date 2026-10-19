@@ -78,8 +78,6 @@ test_that("likelihood and projection boundaries identify unavailable Cholesky fa
                .covariance_cholesky_unavailable_message("Known-V conditional covariance"), fixed = TRUE)
   expect_error(.known_v_is_numerically_positive_definite(covariance),
                .covariance_cholesky_unavailable_message("Known-V block-MVN covariance"), fixed = TRUE)
-  expect_error(.vif_vcov_from_covariance_samples(matrix(1, 2L, 1L), array(covariance, c(1L, 2L, 2L))),
-               .covariance_cholesky_unavailable_message("VIF marginal covariance"), fixed = TRUE)
   known_V <- .known_v_prepare(covariance, c(TRUE, TRUE), "block_mvn", warn_singular = FALSE)
   expect_error(.known_v_gls_projection_blocks(matrix(1, 2L, 1L), c(0, 0), known_V, c(0, 0)),
                .covariance_cholesky_unavailable_message("Known-V residual covariance"), fixed = TRUE)

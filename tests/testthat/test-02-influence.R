@@ -254,13 +254,6 @@ test_that("Standalone DFBETAS and COVRATIO check Pareto k diagnostics", {
       context_calls <<- context_calls + 1L
       list(psis_weights = psis_weights)
     },
-    .diagnostic_psis_weights = function(model, weights = NULL) {
-
-      if (!is.null(weights)) {
-        return(weights)
-      }
-      psis_weights
-    },
     .diagnostic_location_parameter_samples = function(model,
                                                       standardized_coefficients = FALSE,
                                                       transform_factors = TRUE) {
@@ -483,12 +476,16 @@ test_that("Influence for brma.mv returns implemented estimate-unit components", 
     tolerance = 1e-12
   )
   expect_null(attr(inf_brma, "note"))
+  expect_null(attr(inf_brma, "RoBMA_target"))
+  expect_null(attr(inf_brma, "brma_mv_target"))
+  expect_identical(attr(inf_brma$dfbs, "RoBMA_target"),
+    attr(dfbetas(fit_brma), "RoBMA_target"))
   expect_equal(
-    attr(dffits_mv, "brma_mv_target")[["reported_target"]],
+    attr(dffits_mv, "RoBMA_target")[["reported_target"]],
     "fixed_location_fitted_value"
   )
   expect_equal(
-    attr(cooks_mv, "brma_mv_target")[["reported_target"]],
+    attr(cooks_mv, "RoBMA_target")[["reported_target"]],
     "fixed_location_fitted_value"
   )
 })
@@ -515,9 +512,9 @@ test_that("Influence diagnostics support random-formula brma.mv fixed coefficien
   expect_true(all(is.finite(cook)))
   expect_null(attr(dfbs, "note"))
   expect_null(attr(covr, "note"))
-  expect_equal(attr(dff, "brma_mv_target")[["reported_target"]],
+  expect_equal(attr(dff, "RoBMA_target")[["reported_target"]],
                "fixed_location_fitted_value")
-  expect_equal(attr(cook, "brma_mv_target")[["reported_target"]],
+  expect_equal(attr(cook, "RoBMA_target")[["reported_target"]],
                "fixed_location_fitted_value")
 })
 

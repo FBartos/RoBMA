@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Influence diagnostics carry canonical target metadata, explain partly undefined
+  random correlations, and return classed undefined results for fixed-scale sets.
 - Z plots validate stored and explicit integration controls, compose standalone
   histogram limits with added layers, and honor component style aliases.
 - Transformed prior plots preserve an explicit parameter label.

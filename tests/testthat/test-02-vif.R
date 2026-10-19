@@ -59,46 +59,33 @@ test_that("VIF rejects data-only objects", {
   )
 }
 
-test_that("full covariance VIF backend matches manual GLS oracle", {
+test_that("the live factor-plan VIF backend matches an independent dense oracle", {
 
-  X <- cbind(
-    intercept = 1,
-    x         = c(-1, 0, 1, -1),
-    z         = c(0, 1, 1, 2)
-  )
-  M1 <- matrix(c(
-    0.08, 0.02, 0.00, 0.00,
-    0.02, 0.09, 0.00, 0.00,
-    0.00, 0.00, 0.07, 0.03,
-    0.00, 0.00, 0.03, 0.10
-  ), nrow = 4, byrow = TRUE)
-  M2 <- M1 + diag(c(0.01, 0.02, 0.01, 0.03))
-
-  covariance_samples <- array(NA_real_, dim = c(2, 4, 4))
-  covariance_samples[1, , ] <- M1
-  covariance_samples[2, , ] <- M2
-
-  expected <- .vif_full_gls_vcov_oracle(X, covariance_samples)
-  actual   <- .vif_vcov_from_covariance_samples(
-    X                  = X,
-    covariance_samples = covariance_samples
-  )
-
-  diagonal_covariance <- array(NA_real_, dim = c(2, 4, 4))
-  diagonal_covariance[1, , ] <- diag(diag(M1))
-  diagonal_covariance[2, , ] <- diag(diag(M2))
-  diagonal_only <- .vif_vcov_from_covariance_samples(
-    X                  = X,
-    covariance_samples = diagonal_covariance
-  )
-
-  expect_equal(actual, expected, tolerance = 1e-12)
-  expect_false(isTRUE(all.equal(actual, diagonal_only, tolerance = 1e-8)))
-  expect_error(
-    .vif_vcov_from_covariance_samples(X, M1),
-    "draw x row x row"
-  )
+  dat <- data.frame(yi = c(.1, .2, -.1, .3),
+    x = c(-1, 0, 1, -1), z = c(0, 1, 1, 2))
+  V <- matrix(c(.08, .02, 0, 0, .02, .09, 0, 0,
+    0, 0, .07, .03, 0, 0, .03, .10), 4L)
+  setup <- review_compile_object(brma.mv(yi = yi, V = V, mods = ~ x + z,
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE))
+  samples <- matrix(0, 2L, 3L, dimnames = list(NULL, c("intercept", "x", "z")))
+  colnames(samples)[1:3] <- vapply(c("intercept", "x", "z"),
+    function(term) review_coefficient_name(setup, term), character(1))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c("name_encoding",
+    "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  X <- .get_model_matrix(object)
+  covariance <- array(0, c(2L, 4L, 4L))
+  for (j in 1:2) covariance[j, , ] <- V
+  actual <- .vif_vcov_from_factor_plan(object, X, samples,
+    .data_known_v_data(object$data))
+  expect_equal(actual, .vif_full_gls_vcov_oracle(X, covariance), tolerance = 1e-12)
+  diagonal <- covariance
+  for (j in 1:2) diagonal[j, , ] <- diag(diag(covariance[j, , ]))
+  expect_false(isTRUE(all.equal(actual, .vif_full_gls_vcov_oracle(X, diagonal),
+    tolerance = 1e-8)))
 })
+
 
 test_that("diagonal VIF averages coefficient covariance over posterior draws", {
 
@@ -155,10 +142,7 @@ test_that("diagonal brma and known-V covariance paths use the same estimand", {
     weights            = weights,
     tau_within_samples = tau_within
   )
-  known_v <- .vif_vcov_from_covariance_samples(
-    X                  = X,
-    covariance_samples = covariance_samples
-  )
+  known_v <- .vif_full_gls_vcov_oracle(X, covariance_samples)
 
   expect_equal(ordinary, known_v, tolerance = 1e-12)
 })
@@ -239,41 +223,16 @@ test_that("known-V VIF uses sampling covariance alone without scalar tau", {
   expect_equal(covariance_samples[1, , ], V)
 })
 
-test_that("fixed location coefficient extraction is strict only when requested", {
+test_that("fixed location coefficient extraction requires declared location columns", {
 
-  samples <- matrix(
-    seq_len(6),
-    nrow     = 2,
-    dimnames = list(
-      NULL,
-      c("(mu) intercept", "(mu) x", "(tau) intercept")
-    )
-  )
-
-  filtered <- .diagnostic_fixed_location_coefficient_samples(
-    samples,
-    require_mu_columns = TRUE
-  )
-
+  samples <- matrix(seq_len(6), nrow = 2,
+    dimnames = list(NULL, c("(mu) intercept", "(mu) x", "(tau) intercept")))
+  filtered <- .diagnostic_fixed_location_coefficient_samples(samples)
   expect_equal(colnames(filtered), c("(mu) intercept", "(mu) x"))
-  expect_equal(
-    .diagnostic_fixed_location_coefficient_samples(samples[, 3, drop = FALSE]),
-    samples[, 3, drop = FALSE]
-  )
-  expect_error(
-    .diagnostic_fixed_location_coefficient_samples(
-      samples[, 3, drop = FALSE],
-      require_mu_columns = TRUE
-    ),
-    "Fixed location coefficient columns"
-  )
-  expect_error(
-    .diagnostic_fixed_location_coefficient_samples(
-      matrix(seq_len(4), nrow = 2),
-      require_mu_columns = TRUE
-    ),
-    "Fixed location coefficient columns"
-  )
+  for (invalid in list(samples[, 3, drop = FALSE], matrix(seq_len(4), 2L))) {
+    expect_error(.diagnostic_fixed_location_coefficient_samples(invalid),
+      "Fixed location coefficient columns could not be identified.", fixed = TRUE)
+  }
 })
 
 skip_if_no_fits()

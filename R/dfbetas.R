@@ -66,6 +66,10 @@
 #' For \code{brma.mv()} objects, DFBETAS use estimate-unit PSIS weights. With
 #' correlated known-\code{V} data, this is influence under conditional estimate
 #' deletion, not independent-study deletion.
+#' A requested random-effect correlation must be defined in every posterior
+#' draw. If either SD is zero in some draws, the complete influence request is
+#' unavailable; explicitly select an everywhere-defined quantity with
+#' \code{component = "random"} and \code{parameter} instead.
 #' For \code{type = "bias"}, fixed identification parameters (e.g., the reference
 #' \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
 #' These parameters are retained in the output, but their DFBETAS values are
@@ -122,7 +126,7 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
     .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
     weights <- psis_context[["psis_weights"]]
   } else {
-    weights <- .diagnostic_psis_weights(model, .weights)
+    weights <- .weights
   }
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
@@ -175,6 +179,10 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   }
 
 
+  if (identical(component, "random")) {
+    .diagnostic_check_random_defined(samples_table, "DFBETAS")
+  }
+
   # samples_table is a flattened data frame (S rows x P columns)
   # ensure it's a matrix for computation
   samples_mat <- as.matrix(samples_table)
@@ -189,6 +197,9 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
     beta_loo_df <- as.data.frame(result[["loo_estimates"]])
     colnames(beta_loo_df) <- colnames(samples_mat)
     beta_loo_df <- .diagnostic_set_rownames(beta_loo_df, model)
+    if (inherits(model, "brma.mv")) {
+      beta_loo_df <- .brma_mv_attach_target_metadata(beta_loo_df, "dfbetas()")
+    }
     return(beta_loo_df)
   }
 
@@ -196,7 +207,6 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   undefined   <- result[["undefined"]]
   note        <- NULL
   if (any(undefined)) {
-    dfbetas_val[undefined] <- NaN
     note <- .diagnostic_zero_variance_note(
       diagnostic = "DFBETAS",
       parameters = colnames(samples_mat)[apply(undefined, 2, any)]
@@ -211,6 +221,9 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
     attr(dfbetas_df, "note") <- note
   }
   class(dfbetas_df) <- c("dfbetas.brma", class(dfbetas_df))
+  if (inherits(model, "brma.mv")) {
+    dfbetas_df <- .brma_mv_attach_target_metadata(dfbetas_df, "dfbetas()")
+  }
 
   return(dfbetas_df)
 }

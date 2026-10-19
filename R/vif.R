@@ -439,11 +439,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # @param rows optional rows of the selected draws to average over.
 #
 # ---------------------------------------------------------------------------- #
-.vif_vcov_brma_mv <- function(object, X, max_samples = Inf,
-                              sample_info = .vif_known_v_sample_info(
-                                object, max_samples
-                              ),
-                              rows = NULL) {
+.vif_vcov_brma_mv <- function(object, X, sample_info, rows = NULL) {
 
   posterior_samples <- sample_info[["posterior_samples"]]
   if (!is.null(rows)) {
@@ -544,55 +540,6 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   )
 
   return(vif_df)
-}
-
-
-# ---------------------------------------------------------------------------- #
-# .vif_vcov_from_covariance_samples
-# ---------------------------------------------------------------------------- #
-#
-# Compute mean_s solve(X' M_s^{-1} X) from full marginal covariance samples.
-#
-# ---------------------------------------------------------------------------- #
-.vif_vcov_from_covariance_samples <- function(X, covariance_samples,
-                                              average = TRUE) {
-
-  K <- nrow(X)
-  P <- ncol(X)
-
-  if (length(dim(covariance_samples)) != 3L ||
-      dim(covariance_samples)[2L] != K ||
-      dim(covariance_samples)[3L] != K) {
-    stop("VIF covariance samples must have dimensions draw x row x row.",
-         call. = FALSE)
-  }
-
-  S        <- dim(covariance_samples)[1L]
-  vcov_sum <- matrix(0, nrow = P, ncol = P)
-
-  for (s in seq_len(S)) {
-    covariance <- covariance_samples[s, , , drop = FALSE]
-    covariance <- matrix(covariance, nrow = K, ncol = K)
-    factorization   <- .covariance_factorization(covariance)
-    chol_covariance <- .covariance_cholesky(factorization, "VIF marginal covariance")
-    if (is.null(chol_covariance)) {
-      stop("VIF marginal covariance is not positive definite.",
-           call. = FALSE)
-    }
-
-    W <- chol2inv(chol_covariance)
-    vcov_sum <- vcov_sum + .hat_solve_crossprod(
-      crossprod(X, W %*% X),
-      rank = attr(X, "rank")
-    )
-  }
-
-  vcov <- if (average) vcov_sum / S else vcov_sum
-  if (!is.null(colnames(X))) {
-    dimnames(vcov) <- list(colnames(X), colnames(X))
-  }
-
-  return(vcov)
 }
 
 

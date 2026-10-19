@@ -173,7 +173,7 @@
   if (.is_data_known_v(object[["data"]])) {
     known_V <- .data_known_v_data(object[["data"]])
     blocks  <- .known_v_correlated_blocks(known_V)
-    diagonal <- .normalize_hash_zero(.known_v_diagonal(known_V))
+    diagonal <- .known_v_diagonal(known_V)
     # A known V without correlated blocks whose diagonal is the squared
     # standard errors is the ordinary data of those standard errors, which the
     # outcome already hashes; only correlated structure (or a diagonal that
@@ -188,9 +188,7 @@
         blocks   = lapply(blocks, function(block) {
           list(
             index      = unname(as.integer(block[["index"]])),
-            covariance = unname(.normalize_hash_zero(
-              as.numeric(block[["covariance"]])
-            ))
+            covariance = unname(as.numeric(block[["covariance"]]))
           )
         })
       )
@@ -315,13 +313,6 @@
     caller, " with ", argument, " = 'cluster' is not implemented currently.",
     call. = FALSE
   )
-}
-
-
-.normalize_hash_zero <- function(x) {
-
-  x[x == 0] <- 0
-  x
 }
 
 

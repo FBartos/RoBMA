@@ -43,6 +43,10 @@ covratio <- function(model, ...) UseMethod("covratio")
 #' For \code{brma.mv()} objects, COVRATIO uses estimate-unit PSIS weights. With
 #' correlated known-\code{V} data, this is influence under conditional estimate
 #' deletion, not independent-study deletion.
+#' A requested random-effect correlation must be defined in every posterior
+#' draw. If either SD is zero in some draws, the complete influence request is
+#' unavailable; explicitly select an everywhere-defined quantity with
+#' \code{component = "random"} and \code{parameter} instead.
 #' Parameters with zero posterior variance are excluded from the covariance
 #' determinant and reported in a printed note when available. Ordered terms
 #' retain their fitted totals and omit one share per metadata-declared Dirichlet
@@ -99,7 +103,7 @@ covratio.brma <- function(model, type = "mods", component = NULL,
     .diagnostic_check_loo(model, context = psis_context, unit = "estimate")
     weights <- psis_context[["psis_weights"]]
   } else {
-    weights <- .diagnostic_psis_weights(model, .weights)
+    weights <- .weights
   }
 
   # determine whether to extract formula (for meta-regression) or parameter (for intercept-only)
@@ -145,11 +149,40 @@ covratio.brma <- function(model, type = "mods", component = NULL,
     )
   }
 
+  if (identical(component, "random")) {
+    .diagnostic_check_random_defined(samples_table, "COVRATIO")
+  }
+
   # Ensure matrix (S x P)
   beta_samples <- as.matrix(samples_table)
   if (component %in% c("mods", "scale")) {
     beta_samples <- .covratio_ordered_coordinates(model, beta_samples,
       if (component == "mods") "mu" else "log_tau")
+  }
+
+  # A declared ordinary fixed heterogeneity can have a valid empty table:
+  # no stochastic scale coefficient exists. Do not accept empty selections
+  # for random-formula/scale models or zero-row/malformed posterior carriers.
+  if (identical(component, "scale") && !is_scale && !.is_random(model) &&
+      !is.null(.fixed_tau_prior_value(model[["priors"]])) &&
+      nrow(beta_samples) > 0L && ncol(beta_samples) == 0L) {
+    posterior_samples <- as.matrix(.get_posterior_samples(model[["fit"]]))
+    if (nrow(posterior_samples) != nrow(beta_samples) ||
+        any(!is.finite(posterior_samples))) {
+      stop("COVRATIO requires finite posterior draws with matching row counts.",
+           call. = FALSE)
+    }
+    weights <- .influence_normalize_weights(weights, nrow(beta_samples))
+    out <- .diagnostic_with_note(
+      .diagnostic_set_names(rep(NaN, ncol(weights)), model),
+      class = "covratio.brma",
+      note = paste0("COVRATIO could not be computed because no parameters with ",
+        "non-zero posterior variance remain; values are reported as NaN.")
+    )
+    if (inherits(model, "brma.mv")) {
+      out <- .brma_mv_attach_target_metadata(out, "covratio()")
+    }
+    return(out)
   }
 
   result <- .covratio_internal(beta_samples, weights)
@@ -167,11 +200,15 @@ covratio.brma <- function(model, type = "mods", component = NULL,
         zero_note,
         "COVRATIO could not be computed because no parameters with non-zero posterior variance remain; values are reported as NaN."
       )
-      return(.diagnostic_with_note(
+      out <- .diagnostic_with_note(
         .diagnostic_set_names(rep(NaN, K), model),
         class = "covratio.brma",
         note  = note
-      ))
+      )
+      if (inherits(model, "brma.mv")) {
+        out <- .brma_mv_attach_target_metadata(out, "covratio()")
+      }
+      return(out)
     }
     note <- .diagnostic_collect_notes(note, zero_note)
   }
@@ -181,11 +218,15 @@ covratio.brma <- function(model, type = "mods", component = NULL,
       note,
       "COVRATIO could not be computed because the full posterior covariance determinant is zero or non-finite; values are reported as NaN."
     )
-    return(.diagnostic_with_note(
+    out <- .diagnostic_with_note(
       .diagnostic_set_names(rep(NaN, K), model),
       class = "covratio.brma",
       note  = note
-    ))
+    )
+    if (inherits(model, "brma.mv")) {
+      out <- .brma_mv_attach_target_metadata(out, "covratio()")
+    }
+    return(out)
   }
 
   out <- result[["values"]]
@@ -201,6 +242,10 @@ covratio.brma <- function(model, type = "mods", component = NULL,
     class = "covratio.brma",
     note  = note
   )
+
+  if (inherits(model, "brma.mv")) {
+    out <- .brma_mv_attach_target_metadata(out, "covratio()")
+  }
 
   return(out)
 }

@@ -15,7 +15,8 @@
 #' distance measures the aggregate influence of each observation on the
 #' model coefficients.
 #'
-#' @param model a fitted brma object.
+#' @param model a fitted normal-outcome \code{brma} object without a
+#' weightfunction component.
 #' @param ... additional arguments (currently ignored).
 #'
 #' @details
@@ -36,6 +37,9 @@
 #' conditional estimate deletion and the reported fitted-value target is the
 #' fixed-location mean \eqn{\mu = X\beta}; sampled or marginalized random
 #' effects are not included in the reported fitted value.
+#' Selection \code{brma.mv()} influence is currently unavailable. The PSIS
+#' fixed-location moments do not require the inverse marginal covariance used
+#' by \code{hatvalues()}.
 #'
 #' @return A numeric vector of Cook's distance values, one for each observation.
 #'
