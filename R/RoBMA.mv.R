@@ -4,8 +4,8 @@
 #' multilevel meta-analytic models with known sampling covariance and formula
 #' random effects.
 #'
-#' @inheritParams brma.mv
 #' @inheritParams RoBMA
+#' @inheritParams brma.mv
 #' @inheritParams bselmodel.mv
 #'
 #' @details
@@ -27,7 +27,11 @@
 #' component gates as [BMA.mv()]. A Dirichlet prior allocates the slab total
 #' variance across multiple top-level components and each allocation is
 #' multiplied by its own inclusion indicator without renormalizing the
-#' remaining allocations. The default prior inclusion probability is 0.5 for
+#' remaining allocations.
+#' Component-specific or partial scale models instead have independent SD roots,
+#' with allocation within each component; unscaled components keep their own
+#' base SD prior. See \code{\link{random_effect_prior_specification}}.
+#' The default prior inclusion probability is 0.5 for
 #' every component. Public `tau_total` and `tau2_total` draws are the realized
 #' gated aggregate, including the all-off zero branch. Public
 #' `tau2_prop(...)` draws are realized shares conditional on positive total
@@ -180,6 +184,7 @@ RoBMA.mv <- function(
     weightfunction_model       = selection
   )
 
+  selection_control <- .check_selection_likelihood_control(selection_control)
   .finalize_mv_object(
     object                     = object,
     selection_control          = selection_control,

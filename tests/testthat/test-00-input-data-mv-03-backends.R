@@ -1082,3 +1082,18 @@ test_that("known-V preparation can suppress duplicate singular warnings", {
     )
   )
 })
+
+
+test_that("block and whitening diagnostics retain the accepted covariance rank", {
+
+  for (correlation in c(1, .5)) {
+    V <- .04 * matrix(c(1, correlation, correlation, 1), 2)
+    known_V <- .known_v_canonicalize(V, warn_singular = FALSE)
+    expected_rank <- if (correlation == 1) 1L else 2L
+    for (prepare in list(.known_v_block_mvn_blocks, .known_v_whiten_blocks)) {
+      diagnostics <- prepare(known_V)[["diagnostics"]]
+      expect_equal(diagnostics[["block_size"]], 2L)
+      expect_equal(diagnostics[["rank"]], expected_rank)
+    }
+  }
+})

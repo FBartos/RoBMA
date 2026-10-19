@@ -69,7 +69,9 @@
 #' @param data an optional data frame containing the variables.
 #' @param slab an optional vector of study labels.
 #' @param subset an optional logical or numeric vector specifying a subset of
-#' data to be used.
+#' data to be used. Subsetting precedes missing-row removal; retained-row
+#' outcome and predictor checks follow these steps. Type, shape, and existing
+#' extraction checks can still reject malformed inputs before subsetting.
 #' @param measure a character string specifying the effect size measure.
 #' Normal/effect-size constructors require an explicit value and support
 #' `"SMD"`, `"ZCOR"`, `"RR"`, `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and `"GEN"`.
@@ -197,10 +199,11 @@ NULL
   # Validate weights
   if (!is.null(weights) && anyNA(weights))
     stop("The 'weights' argument must not contain missing values.", call. = FALSE)
-  if (!is.null(weights))
+  if (!is.null(weights)) {
     BayesTools::check_real(weights, "weights", check_length = k, allow_NULL = TRUE, allow_NA = FALSE, lower = 0, allow_bound = FALSE)
-  if (!is.null(weights) && any(!is.finite(weights)))
-    stop("The 'weights' argument must contain only finite values.", call. = FALSE)
+    if (any(!is.finite(weights)))
+      stop("The 'weights' argument must contain only finite values.", call. = FALSE)
+  }
 
   # Validate cluster
   if (!is.null(cluster) && length(cluster) != k)
@@ -229,8 +232,8 @@ NULL
 #
 # @param .call Matched call from the calling function (required for NSE)
 # @param .envir The environment where the calling function was invoked (required for NSE)
-# @param class The model class: "norm" for normal likelihood (yi, sei) or
-#              "glmm" for generalized linear mixed models (ai, bi, ci, di, etc.)
+# @param class The input family: "norm" for independent normal outcomes,
+#        "mv" for known sampling covariance, or "glmm" for raw-count outcomes
 # @param measure The effect size measure (used for "glmm" class to determine
 #                outcome type: "OR" for binomial, "IRR" for Poisson)
 # @param standardize_continuous_predictors Whether to standardize continuous predictors
@@ -245,7 +248,6 @@ NULL
                                  set_contrast_factor_predictors, standardize_continuous_predictors,
                                  effect_direction = "positive", skip_validation = FALSE,
                                  allow_na_drop = TRUE,
-                                 random_effects_metadata = NULL,
                                  random_group_covariance = NULL,
                                  known_v_parameterization = "auto",
                                  selection_binding = FALSE) {
@@ -324,7 +326,6 @@ NULL
     data                    = data,
     .envir                  = .envir,
     k                       = k,
-    random_effects_metadata = random_effects_metadata,
     random_group_covariance = random_group_covariance
   )
   if (identical(class, "mv") && !is.null(data_scale) &&
@@ -413,6 +414,17 @@ NULL
     )
   }
 
+  # Validate the retained real-valued outcome fields. Integer count fields
+  # retain their existing check_int() validation during extraction.
+  finite_arguments <- intersect(c("yi", "ni", "t1i", "t2i"), names(data_outcome))
+  for (argument in finite_arguments) {
+    value <- data_outcome[[argument]]
+    if (any(!is.na(value) & !is.finite(value))) {
+      stop("The '", argument, "' argument must contain only finite non-missing values.",
+           call. = FALSE)
+    }
+  }
+
   if (outcome_type == "norm" && effect_direction == "detect") {
     effect_direction <- if (stats::median(data_outcome[["yi"]], na.rm = TRUE) >= 0) "positive" else "negative"
   }
@@ -439,10 +451,6 @@ NULL
 
   # Convert cluster to numeric factor for use as indices in fitting (after NA dropping)
   if (cluster_provided) {
-    if (anyNA(data_outcome[["cluster"]])) {
-      stop("The 'cluster' argument must not contain missing values.", call. = FALSE)
-    }
-
     cluster_factor <- factor(data_outcome[["cluster"]], levels = unique(data_outcome[["cluster"]]))
     data_outcome[["cluster_label"]] <- as.character(cluster_factor)
     data_outcome[["cluster"]]       <- as.integer(cluster_factor)
@@ -974,6 +982,7 @@ NULL
     stop(
       "For GLMM models, provide either (ai, bi, ci, di) or ",
       "(ai, ci, n1i, n2i).",
+      if (skip_validation) " For response predictions, supply 'n1i' and 'n2i' in 'newdata', or provide the complete four cell counts.",
       call. = FALSE
     )
   }
@@ -996,6 +1005,7 @@ NULL
     stop(
       "For GLMM models, provide either (ai, bi, ci, di) or ",
       "(ai, ci, n1i, n2i).",
+      if (skip_validation) " For response predictions, supply 'n1i' and 'n2i' in 'newdata', or provide the complete four cell counts.",
       call. = FALSE
     )
   }
@@ -1404,25 +1414,12 @@ NULL
 }
 
 .check_and_list_data.random <- function(.call, data, .envir, k,
-                                        random_effects_metadata = NULL,
                                         random_group_covariance = NULL) {
 
   arg_index <- match("random", names(.call))
   if (is.na(arg_index)) {
     if (!is.null(random_group_covariance)) {
       stop("'R' requires a 'random' formula.", call. = FALSE)
-    }
-    if (!is.null(random_effects_metadata)) {
-      if (!inherits(random_effects_metadata, "BayesTools_random_effects")) {
-        stop("Internal error: random-effect metadata must be a BayesTools random-effect object.",
-             call. = FALSE)
-      }
-      return(list(
-        formula        = NULL,
-        data           = NULL,
-        terms          = random_effects_metadata[["terms"]],
-        random_effects = random_effects_metadata
-      ))
     }
     return(list(formula = NULL, data = NULL, terms = list()))
   }
@@ -2422,7 +2419,11 @@ print.RoBMA_data <- function(x, n = 6, ...) {
   # Moderators (scale)
   if (!is.null(x$scale)) {
     cat("\nModerators (scale)\n")
-    print(utils::head(x$scale, n = n))
+    if (inherits(x$scale, "RoBMA_scale_components")) {
+      print(lapply(x$scale, utils::head, n = n))
+    } else {
+      print(utils::head(x$scale, n = n))
+    }
   }
 
   # Indicate if more rows exist

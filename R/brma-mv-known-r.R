@@ -102,6 +102,10 @@
     stop("Internal error: missing R entries.", call. = FALSE)
   }
 
+  if (length(Rscale) == 0L) {
+    stop("'Rscale' must contain at least one scaling value.", call. = FALSE)
+  }
+
   if (is.list(Rscale) && !is.data.frame(Rscale)) {
     return(.brma_mv_normalize_Rscale_list(Rscale, R_names))
   }

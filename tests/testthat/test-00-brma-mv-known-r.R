@@ -821,3 +821,23 @@ test_that("brma.mv keeps unsupported known R marginalization designs sampled", {
   expect_equal(offdiag_term[["compile_mode"]], "sampled")
   expect_false(.data_has_marginalized_random_effects(offdiag_object[["data"]]))
 })
+
+
+test_that("empty Rscale has an argument error only when R is used", {
+
+  dat <- data.frame(yi = c(.1, .2, .3, .4), study = rep(c("a", "b"), each = 2))
+  covariance <- diag(2)
+  dimnames(covariance) <- list(c("a", "b"), c("a", "b"))
+  for (empty in list(NULL, character(), numeric(), list())) {
+    expect_error(brma.mv(yi = yi, V = diag(rep(.04, 4)), random = ~ 1 | study,
+      R = covariance, Rscale = empty, data = dat, only_data = TRUE),
+      "'Rscale' must contain at least one scaling value.", fixed = TRUE)
+    expect_silent(brma.mv(yi = yi, V = diag(rep(.04, 4)), random = ~ 1 | study,
+      R = NULL, Rscale = empty, data = dat, only_data = TRUE))
+  }
+  expect_error(brma.mv(yi = yi, V = diag(rep(.04, 4)), random = NULL,
+    R = "malformed matrix", data = dat, only_data = TRUE),
+    "'R' requires a non-NULL 'random' formula.", fixed = TRUE)
+  expect_silent(brma.mv(yi = yi, V = diag(rep(.04, 4)), random = ~ 1 | study,
+    R = covariance, Rscale = "cor", data = dat, only_data = TRUE))
+})

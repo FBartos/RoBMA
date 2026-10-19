@@ -37,7 +37,10 @@ test_that("top-level fitting constructors reject stale algorithm argument", {
     bPET.mv   = bPET.mv,
     bPEESE    = bPEESE,
     bPEESE.mv = bPEESE.mv,
-    bselmodel = bselmodel
+    bselmodel = bselmodel,
+    bselmodel.mv = bselmodel.mv,
+    BMA.mv = BMA.mv,
+    RoBMA.mv = RoBMA.mv
   )
   glmm_constructors <- list(
     brma.glmm = brma.glmm,
@@ -47,7 +50,7 @@ test_that("top-level fitting constructors reject stale algorithm argument", {
   for (constructor_name in names(norm_constructors)) {
     constructor <- norm_constructors[[constructor_name]]
     args <- norm_args
-    if (constructor_name %in% c("brma.mv", "bPET.mv", "bPEESE.mv")) {
+    if (constructor_name %in% c("brma.mv", "bPET.mv", "bPEESE.mv", "bselmodel.mv", "BMA.mv", "RoBMA.mv")) {
       args[["V"]]  <- diag(args[["sei"]]^2)
       args[["sei"]] <- NULL
     }
@@ -141,4 +144,17 @@ test_that("top-level fitting constructors validate internal dot types", {
     ),
     "is_JASP_prefix"
   )
+})
+
+
+test_that("mv bias constructors name the supported prior_bias argument", {
+
+  for (constructor in list(bPET.mv, bPEESE.mv, bselmodel.mv, RoBMA.mv)) {
+    expect_error(do.call(constructor, list(yi = c(.1, .2), V = diag(rep(.04, 2)),
+      prior_PET = BayesTools::prior_PET("normal", list(0, 1)), only_data = TRUE)),
+      "use 'prior_bias' for a supported publication-bias prior.", fixed = TRUE)
+  }
+  expect_error(brma.mv(yi = c(.1, .2), V = diag(rep(.04, 2)),
+    prior_PET = BayesTools::prior_PET("normal", list(0, 1)), only_data = TRUE),
+    "PET publication-bias priors are not supported in brma.mv().", fixed = TRUE)
 })

@@ -139,6 +139,7 @@ RoBMA <- function(
     prior_informed_subfield           = prior_informed_subfield,
     data = object[["data"]], model_type = model_type,
     weightfunction_model = selection)
+  selection_control <- .check_selection_likelihood_control(selection_control)
   object <- .prepare_selection_model_object(object)
   if (.is_priors_weightfunction(object[["priors"]])) {
     object <- .prepare_selection_likelihood_object(

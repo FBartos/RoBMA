@@ -464,7 +464,7 @@
 }
 
 
-# Reject singular known-V blocks without integrated conditional variance.
+# Choose the known-V backend; model-variance preflight handles singular support.
 .known_v_auto_parameterization <- function(block_indices, known_v_is_scale,
                                            known_v_is_singular = FALSE,
                                            max_block_size = NULL) {
@@ -543,7 +543,8 @@
   for (b in seq_along(covariance_blocks)) {
     idx     <- covariance_blocks[[b]][["index"]]
     V_block <- covariance_blocks[[b]][["covariance"]]
-    eig     <- .covariance_factorization(V_block)[["eigenvalues"]]
+    factorization <- .covariance_factorization(V_block)
+    eig           <- factorization[["eigenvalues"]]
 
     blocks[[b]] <- list(
       index   = idx,
@@ -554,7 +555,7 @@
     diagnostics[[b]] <- data.frame(
       block          = b,
       block_size     = length(idx),
-      rank           = length(idx),
+      rank           = nrow(factorization[["sampling_factor"]]),
       min_eigenvalue = min(eig),
       max_eigenvalue = max(eig),
       stringsAsFactors = FALSE
@@ -634,7 +635,7 @@
     diagnostics[[b]] <- data.frame(
       block                   = b,
       block_size              = length(idx),
-      rank                    = length(idx),
+      rank                    = nrow(factorization[["sampling_factor"]]),
       min_whitening_variance  = min(values),
       max_whitening_variance  = max(values),
       stringsAsFactors        = FALSE
@@ -915,7 +916,8 @@
   if (alpha_max <= sqrt(.Machine$double.eps)) {
     stop(
       "A known-V block is too close to singular for a positive residual ",
-      "D + BB' decomposition.",
+      "D + BB' decomposition. Use 'known_v_parameterization = \"block_mvn\"' ",
+      "to request the exact block likelihood.",
       call. = FALSE
     )
   }

@@ -1045,3 +1045,27 @@ test_that("GLMM attributes reflect NA dropping", {
   expect_equal(attr(result, "k_final"), 3)
   expect_equal(attr(result, "n_dropped"), 1)
 })
+
+
+test_that("retained Poisson exposures must be finite with excluded-row controls", {
+
+  args <- list(x1i = c(1, 2, 3), x2i = c(2, 1, 2), t1i = c(10, 20, 30),
+               t2i = c(20, 10, 20), measure = "IRR", only_data = TRUE)
+  for (argument in c("t1i", "t2i")) {
+    invalid <- args
+    invalid[[argument]][1L] <- Inf
+    expect_error(do.call(brma.glmm, invalid),
+      paste0("The '", argument, "' argument must contain only finite non-missing values."), fixed = TRUE)
+    invalid[["subset"]] <- 2:3
+    expect_silent(do.call(brma.glmm, invalid))
+    invalid[["subset"]] <- NULL
+    invalid[["data"]] <- data.frame(x = c(NA, 1, 2))
+    invalid[["mods"]] <- ~ x
+    expect_warning(do.call(brma.glmm, invalid), "1 observation(s) removed", fixed = TRUE)
+  }
+  args[["t1i"]] <- c(.Machine$double.xmin, 20, .Machine$double.xmax)
+  expect_silent(do.call(brma.glmm, args))
+  # Count and total guards already act during extraction; retain their order.
+  expect_error(brma.glmm(ai = c(Inf, 2, 3), ci = c(1, 1, 1),
+    n1i = rep(10, 3), n2i = rep(10, 3), subset = 2:3, only_data = TRUE), "'ai'.*finite")
+})

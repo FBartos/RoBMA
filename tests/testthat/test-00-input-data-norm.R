@@ -1735,3 +1735,31 @@ test_that("NA in subset argument is rejected", {
     regexp = "must not contain NA"
   )
 })
+
+
+test_that("retained normal outcomes and optional sample sizes must be finite", {
+
+  for (constructor in list(brma, brma.mv)) {
+    args <- list(yi = c(.1, .2, .3), ni = c(20, 30, 40), only_data = TRUE)
+    if (identical(constructor, brma.mv)) args[["V"]] <- diag(rep(.04, 3)) else args[["sei"]] <- rep(.2, 3)
+    for (argument in c("yi", "ni")) {
+      invalid <- args
+      invalid[[argument]][1L] <- Inf
+      expect_error(do.call(constructor, invalid),
+        paste0("The '", argument, "' argument must contain only finite non-missing values."), fixed = TRUE)
+      excluded <- invalid
+      excluded[["subset"]] <- 2:3
+      expect_silent(result <- do.call(constructor, excluded))
+      expect_equal(nrow(result[["data"]][["outcome"]]), 2L)
+      excluded[["subset"]] <- NULL
+      excluded[["data"]] <- data.frame(x = c(NA, 1, 2))
+      excluded[["mods"]] <- ~ x
+      expect_warning(result <- do.call(constructor, excluded), "1 observation(s) removed", fixed = TRUE)
+      expect_equal(nrow(result[["data"]][["outcome"]]), 2L)
+    }
+    valid <- args
+    valid[["yi"]][1L] <- -.Machine$double.xmax
+    valid[["ni"]] <- c(NA, .Machine$double.xmin, .Machine$double.xmax)
+    expect_silent(do.call(constructor, valid))
+  }
+})

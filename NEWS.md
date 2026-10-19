@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Retained outcomes, sample sizes and exposures must be finite. Constructor
+  controls and known-covariance diagnostics report their actual arguments and rank.
 - Chain continuation retains fitted runtime controls and avoids rebuilding
   fresh-fit data, formulas and syntax.
 - Plot quantile brackets retain tiny positive scales after translation, and

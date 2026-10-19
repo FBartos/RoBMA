@@ -20,6 +20,9 @@
 #' @param Rscale scaling applied to each supplied `R` matrix before fitting.
 #' Supported values are `"cor"`, `"none"`, `"cor0"`, `"cov0"`, with
 #' metafor-compatible aliases `TRUE`, `FALSE`, `0`, `1`, `2`, and `3`.
+#' An unnamed scalar is recycled across all supplied matrices. A vector or list
+#' can specify one scaling value per named `R` entry, with exactly matching
+#' names. An unnamed one-element list is supported only for a single `R` matrix.
 #'
 #' @details
 #' `brma.mv()` represents known sampling dependence through a latent `D + BB'`
@@ -28,12 +31,15 @@
 #' through an exact native block multivariate-normal likelihood
 #' (`known_v_parameterization = "block_mvn"`). The default
 #' `known_v_parameterization = "auto"` chooses the whitened backend whenever the
-#' extra diagonal variance is scalar, otherwise chooses block-MVN when the
+#' extra diagonal variance is scalar and no scale regression is present,
+#' otherwise chooses block-MVN when the
 #' largest dense covariance block is at or below the configured feasibility
 #' threshold, and falls back to the latent backend for large blocks. The automatic
 #' block-MVN threshold defaults to 128 rows per covariance block and can be
 #' changed with `options(RoBMA.known_v_block_mvn_max_block_size = value)`, where
-#' `value` is a positive integer or `Inf`.
+#' `value` is a positive integer or `Inf`. Correlated `V` with scale regression
+#' cannot use `"whitened"`; request `"block_mvn"` explicitly if an automatic
+#' latent decomposition is unavailable for a nearly singular block.
 #' Covariance inputs retain their symmetric representation. Numerical
 #' positive-semidefinite checks use standardized correlations so small marginal
 #' variances are not mistaken for null directions. At a numerically singular
@@ -321,8 +327,13 @@ brma.mv <- function(
   )
   # 'R' is only meaningful alongside a random-effect term. Check that first so
   # the actionable message wins over the per-matrix validation below.
-  if (!is.null(R) && is.na(match("random", names(matched_call)))) {
+  random_index <- match("random", names(matched_call))
+  if (!is.null(R) && is.na(random_index)) {
     stop("'R' requires a 'random' formula.", call. = FALSE)
+  }
+  if (!is.null(R) && !is.na(random_index) &&
+      is.null(matched_call[[random_index]])) {
+    stop("'R' requires a non-NULL 'random' formula.", call. = FALSE)
   }
   random_group_covariance <- .brma_mv_make_group_covariance(
     R      = R,
@@ -397,6 +408,14 @@ brma.mv <- function(
       "; publication-bias model types are unavailable."
     )
   )
+  if (caller %in% c("bPET.mv()", "bPEESE.mv()", "bselmodel.mv()", "RoBMA.mv()")) {
+    for (argument in c("prior_PET", "prior_PEESE")) {
+      messages[[argument]] <- paste0(
+        "'", argument, "' is not an argument of ", caller,
+        "; use 'prior_bias' for a supported publication-bias prior."
+      )
+    }
+  }
   stop(
     paste(unname(messages[unsupported]), collapse = " "),
     call. = FALSE

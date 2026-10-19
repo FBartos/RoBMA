@@ -780,3 +780,15 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
     case[["check"]](result)
   }
 })
+
+
+test_that("missing binomial response totals name the newdata remedy", {
+
+  object <- brma.glmm(ai = c(1, 2), ci = c(2, 1), n1i = c(10, 10),
+    n2i = c(10, 10), only_data = TRUE)
+  expect_error(.prepare_newdata(object, newdata = data.frame(x = 1), type = "response"),
+    "For response predictions, supply 'n1i' and 'n2i' in 'newdata', or provide the complete four cell counts.",
+    fixed = TRUE)
+  expect_silent(.prepare_newdata(object,
+    newdata = data.frame(n1i = 10, n2i = 20), type = "response"))
+})

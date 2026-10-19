@@ -116,6 +116,9 @@ test_that("all public fitting constructors preserve original fitting errors", {
     bPEESE     = function() do.call(bPEESE, normal_args),
     bPEESE.mv  = function() do.call(bPEESE.mv, mv_args),
     bselmodel  = function() do.call(bselmodel, normal_args),
+    bselmodel.mv = function() do.call(bselmodel.mv, mv_args),
+    BMA.mv     = function() do.call(BMA.mv, mv_args),
+    RoBMA.mv   = function() do.call(RoBMA.mv, mv_args),
     RoBMA      = function() do.call(RoBMA, normal_args),
     brma.glmm  = function() do.call(brma.glmm, glmm_args),
     BMA.glmm   = function() do.call(BMA.glmm, glmm_args)
