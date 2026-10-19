@@ -33,9 +33,15 @@ log-likelihood. RoBMA therefore does not implement \code{stats::logLik()}.
 The log-likelihood is computed for each target at each posterior sample.
 For binomial and Poisson models, each observation consists of a pair of
 counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
-For correlated known-\code{V} \code{brma.mv()} models, estimate-unit columns
-are Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}. Their row sum
-is not presented as a full joint likelihood.
+Estimate-unit columns condition on the retained observations in each
+declared dependency block. For Gaussian targets after integrating their
+declared local Gaussian sources, including correlated known-\code{V}
+\code{brma.mv()} and specialized multilevel normal models, these are
+Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}; their row sum
+generally is not the full joint likelihood. Likelihood powers and
+retained-sampling context follow the declared target. Independent
+observations reduce to ordinary pointwise contributions. Cluster-unit
+columns delete each complete cluster jointly.
 Sampling-conditioned selection models retain the declared remaining sampling
 errors and random context for estimate deletion, including ordinary component
 branches and constant selection weights. Cluster deletion keeps its distinct

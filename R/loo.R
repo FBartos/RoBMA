@@ -152,6 +152,13 @@ add_loo.brma <- function(object, unit = "estimate", r_eff = NULL, parallel = FAL
   # compute the log-likelihood matrix (S x K)
   log_lik <- .log_lik.brma(object, unit = unit, caller = "add_loo()")
   target  <- attr(log_lik, "RoBMA_target", exact = TRUE)
+  if (any(!is.finite(log_lik))) {
+    stop(
+      "LOO diagnostics are unavailable because log-likelihood draws contain ",
+      "non-finite values. Inspect 'log_lik()' before retrying.",
+      call. = FALSE
+    )
+  }
 
   # determine number of cores based on `parallel` and package options
   cores <- if (parallel) max(1, RoBMA.get_option("max_cores")) else 1
@@ -677,9 +684,15 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' The log-likelihood is computed for each target at each posterior sample.
 #' For binomial and Poisson models, each observation consists of a pair of
 #' counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
-#' For correlated known-\code{V} \code{brma.mv()} models, estimate-unit columns
-#' are Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}. Their row sum
-#' is not presented as a full joint likelihood.
+#' Estimate-unit columns condition on the retained observations in each
+#' declared dependency block. For Gaussian targets after integrating their
+#' declared local Gaussian sources, including correlated known-\code{V}
+#' \code{brma.mv()} and specialized multilevel normal models, these are
+#' Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}; their row sum
+#' generally is not the full joint likelihood. Likelihood powers and
+#' retained-sampling context follow the declared target. Independent
+#' observations reduce to ordinary pointwise contributions. Cluster-unit
+#' columns delete each complete cluster jointly.
 #' Sampling-conditioned selection models retain the declared remaining sampling
 #' errors and random context for estimate deletion, including ordinary component
 #' branches and constant selection weights. Cluster deletion keeps its distinct
@@ -935,15 +948,6 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
 #' @export
 print.compare.loo.brma <- function(x, ..., digits = 1, simplify = TRUE) {
 
-  if (is.data.frame(x)) {
-    print_method <- get(
-      "print.compare.loo",
-      envir    = asNamespace("loo"),
-      inherits = FALSE
-    )
-    return(print_method(x, ..., digits = digits))
-  }
-
   x_copy <- x
   if (ncol(x_copy) >= 2L && isTRUE(simplify)) {
     x_copy <- x_copy[, c("elpd_diff", "se_diff"), drop = FALSE]
@@ -1058,10 +1062,15 @@ loo_model_weights.brma <- function(
   if (length(unique(draw_counts)) > 1L &&
       length(unique(target_counts)) == 1L) {
     method <- match.arg(method)
-    lpd_point <- vapply(
-      loo_objects,
-      function(object) object[["pointwise"]][, "elpd_loo"],
-      numeric(target_counts[[1L]])
+    lpd_point <- matrix(
+      vapply(
+        loo_objects,
+        function(object) object[["pointwise"]][, "elpd_loo"],
+        numeric(target_counts[[1L]])
+      ),
+      nrow = target_counts[[1L]],
+      ncol = length(loo_objects),
+      dimnames = list(NULL, names(loo_objects))
     )
 
     if (method == "stacking") {
@@ -1221,8 +1230,10 @@ check_loo <- function(object, ...) UseMethod("check_loo")
 #' @param ... currently unused.
 #'
 #' @details LOO must first be computed with
-#' \code{object <- add_loo(object, unit = unit)}. The method warns when any
-#' Pareto \eqn{k} diagnostic is greater than 0.7.
+#' \code{object <- add_loo(object, unit = unit)}. With \eqn{S} posterior draws
+#' in the stored LOO result, the method warns when any Pareto \eqn{k} diagnostic
+#' is greater than \eqn{\min(1 - 1 / \log_{10}(S), 0.7)}. The warning reports
+#' the affected target indices and their observed \eqn{k} values.
 #'
 #' @return NULL (throws warning if diagnostics are unreliable).
 #'
@@ -1235,12 +1246,16 @@ check_loo.brma <- function(object, unit = "estimate", ...) {
 
   # check Pareto k diagnostics and warn if unreliable
   pareto_k <- loo_result[["diagnostics"]][["pareto_k"]]
-  bad_k <- which(pareto_k > 0.7)
+  n_samples <- dim(loo_result)[[1L]]
+  threshold <- min(1 - 1 / log10(n_samples), 0.7)
+  bad_k <- which(pareto_k > threshold)
   if (length(bad_k) > 0) {
     warning(
-      "Some Pareto k values are high (> 0.7), indicating potentially unreliable ",
-      "LOO diagnostics for ", unit, "s: ", paste(bad_k, collapse = ", "), ". ",
-      "Inspect the loo fit by using loo(object).",
+      "Some Pareto k values are high, indicating potentially unreliable ",
+      "LOO diagnostics for ", unit, "s: ",
+      paste0(bad_k, " (k = ", format(pareto_k[bad_k], digits = 4), ")",
+             collapse = ", "), ". ",
+      "Inspect the LOO result with 'loo(object, unit = \"", unit, "\")'.",
       call. = FALSE
     )
   }

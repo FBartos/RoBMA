@@ -255,6 +255,10 @@
       total_factor <- .covariance_cholesky(.covariance_factorization(total),
                                            "Selection deletion covariance")
       if (is.null(total_factor)) {
+        if (ordinary) {
+          stop("Selection deletion is unavailable because the deleted outcome vector has no density conditional on retained outcomes. Inspect the supplied sampling covariance and random-effect structure.",
+               call. = FALSE)
+        }
         stop("Selection deletion is unavailable because the deleted outcome vector has no density conditional on retained sampling errors and outcomes. Use 'known_sampling_variance = \"integrate\"' when fitting to obtain sampling-marginal deletion scores.",
              call. = FALSE)
       }
@@ -431,13 +435,14 @@
 # @param log_lik         S x G log-likelihood matrix.
 # @param cluster_indices named list of cluster index vectors.
 # @param data_hash       character; hash of the outcome target.
+# @param cluster_labels  character; user labels in cluster_indices order.
 #
 # @return log-likelihood matrix with names and metadata.
 #
 # ---------------------------------------------------------------------------- #
-.add_cluster_log_lik_metadata <- function(log_lik, cluster_indices, data_hash) {
+.add_cluster_log_lik_metadata <- function(log_lik, cluster_indices, data_hash,
+                                          cluster_labels = names(cluster_indices)) {
 
-  cluster_labels    <- names(cluster_indices)
   colnames(log_lik) <- paste0("log_lik_cluster[", cluster_labels, "]")
   attr(log_lik, "RoBMA_target") <- list(
     unit             = "cluster",

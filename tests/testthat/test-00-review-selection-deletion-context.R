@@ -1,9 +1,9 @@
-.review_sampling_deletion_setup <- function(retained = TRUE, cluster = FALSE) {
+.review_sampling_deletion_setup <- function(retained = TRUE, cluster = FALSE, weight = 1) {
 
   args <- list(yi = c(.4, -.25), sei = c(1, 1), measure = "GEN",
     effect_direction = "positive", prior_unit_information_sd = 1,
     prior_effect = prior("point", list(0)), prior_heterogeneity = prior("point", list(1)),
-    prior_bias = prior_weightfunction("one-sided", .5, wf_fixed(c(1, 1)),
+    prior_bias = prior_weightfunction("one-sided", .5, wf_fixed(c(1, weight)),
       model = selection_model(estimate_random_effects = if (retained) "condition" else "integrate",
         known_sampling_variance = "condition")), only_priors = TRUE, silent = TRUE)
   if (cluster) {
@@ -17,6 +17,28 @@
   list(object = object, setup = .log_lik_posterior_setup(object$fit, samples,
     object$data, object$priors, "estimate", NULL))
 }
+
+test_that("internal deletion covariance guards distinguish ordinary and retained-sampling remedies", {
+
+  # Public admission rejects singular total covariance. This is an internal
+  # failed-factorization diagnostic control using otherwise valid live states.
+  for (weight in c(1, .2)) {
+    fixture <- .review_sampling_deletion_setup(retained = FALSE, weight = weight)
+    state <- .selection_conditioned_sampling_state(fixture$setup)
+    testthat::with_mocked_bindings({
+      result <- tryCatch(.selection_conditioned_sampling_deletion_loglik_chunk(
+        fixture$setup, list(1L)), error = identity)
+      expect_s3_class(result, "error")
+      expected <- if (weight == 1) {
+        "Selection deletion is unavailable because the deleted outcome vector has no density conditional on retained outcomes. Inspect the supplied sampling covariance and random-effect structure."
+      } else {
+        "Selection deletion is unavailable because the deleted outcome vector has no density conditional on retained sampling errors and outcomes. Use 'known_sampling_variance = \"integrate\"' when fitting to obtain sampling-marginal deletion scores."
+      }
+      expect_identical(conditionMessage(result), expected)
+    }, .selection_conditioned_sampling_state = function(setup) state,
+    .covariance_cholesky = function(...) NULL, .package = "RoBMA")
+  }
+})
 
 test_that("estimate deletion retains declared random context when selection cancels", {
 

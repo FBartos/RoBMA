@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- LOO comparisons retain single-target matrix dimensions and user cluster
+  labels; diagnostics distinguish non-finite scores and use stored draw counts.
 - Bridge diagnostics name retained sampling targets, and conjugate Gaussian
   reference models check marginal likelihoods against natural-log uncertainty.
 - Native selection inputs reject lossy controls and malformed partitions before

@@ -94,7 +94,10 @@
     log_lik <- .add_cluster_log_lik_metadata(
       log_lik         = log_lik,
       cluster_indices = setup[["cluster"]],
-      data_hash       = data_hash
+      data_hash       = data_hash,
+      cluster_labels  = unname(.get_cluster_labels(list(data = data))[
+        names(setup[["cluster"]])
+      ])
     )
   }
   if (.is_data_joint_selection(data)) {
@@ -558,6 +561,13 @@
   }
 
   if (.estimate_normal_target_uses_covariance_backend(data, priors)) {
+    if (!.is_data_known_v(data)) {
+      stop(
+        "Internal error: a multilevel normal joint log-likelihood requires ",
+        "the cluster likelihood evaluator, not an estimate-unit sum.",
+        call. = FALSE
+      )
+    }
     return(.log_lik_known_v_joint_sum_from_setup(setup))
   }
 
