@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Marginal-means hypothesis paths retain their named level carriers and avoid
+  redundant scalar branches and statement reparsing.
 - Prediction validates probabilities and explicit data rows, names missing
   publication groups, and avoids unused selected cluster preparation.
 - LOO comparisons retain single-target matrix dimensions and user cluster

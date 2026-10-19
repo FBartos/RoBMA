@@ -368,23 +368,9 @@
   if (length(labels) > 0L) {
     mapping <- c(mapping, stats::setNames(rep(parameter, length(labels)), labels))
   }
-  statements <- BayesTools::hypothesis_render(ast)
-  if (length(statements) == 1L) {
-    roots   <- BayesTools::hypothesis_symbols(ast)
-    mapping <- mapping[names(mapping) %in% roots]
-    return(.hypothesis_brma_rewrite_statement(ast, mapping))
-  }
-
-  rewritten <- vapply(statements, function(statement) {
-
-    statement_ast <- BayesTools::hypothesis_parse(statement)
-    roots <- BayesTools::hypothesis_symbols(statement_ast)
-    statement_mapping <- mapping[names(mapping) %in% roots]
-    BayesTools::hypothesis_render(
-      .hypothesis_brma_rewrite_statement(statement_ast, statement_mapping)
-    )
-  }, character(1))
-  return(BayesTools::hypothesis_parse(unname(rewritten)))
+  roots   <- BayesTools::hypothesis_symbols(ast)
+  mapping <- mapping[names(mapping) %in% roots]
+  return(.hypothesis_brma_rewrite_statement(ast, mapping))
 }
 
 

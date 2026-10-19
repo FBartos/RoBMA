@@ -379,44 +379,43 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
 .hypothesis_marginal_means_check_parameter <- function(hypothesis, alias_catalog,
                                                        selected) {
 
-  for (statement in BayesTools::hypothesis_render(hypothesis)) {
-    roots <- .hypothesis_brma_symbol_roots(BayesTools::hypothesis_parse(statement))
-    roots <- unique(roots[nzchar(roots)])
+  statement <- BayesTools::hypothesis_render(hypothesis)
+  roots <- .hypothesis_brma_symbol_roots(hypothesis)
+  roots <- unique(roots[nzchar(roots)])
 
-    # A statement that names the marginal means of several parameters has the
-    # refusal it has without 'parameter' (omitting 'parameter' does not help),
-    # with the class of the mismatch with the selected parameter.
-    named <- lapply(roots, function(root) {
-      unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
-    })
-    named <- named[lengths(named) > 0L]
-    if (length(named) > 1L && length(Reduce(intersect, named)) == 0L) {
+  # A statement that names the marginal means of several parameters has the
+  # refusal it has without 'parameter' (omitting 'parameter' does not help),
+  # with the class of the mismatch with the selected parameter.
+  named <- lapply(roots, function(root) {
+    unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
+  })
+  named <- named[lengths(named) > 0L]
+  if (length(named) > 1L && length(Reduce(intersect, named)) == 0L) {
+    refusal <- .hypothesis_refusal(
+      .hypothesis_marginal_means_multiple_parameters_message(
+        unique(unlist(named))
+      ),
+      "statement"
+    )
+    refusal[["class"]] <- c("RoBMA_hypothesis_parameter_mismatch", refusal[["class"]])
+    .hypothesis_stop(refusal)
+  }
+
+  for (root in roots) {
+    parameters <- unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
+    if (length(parameters) > 0L && !selected %in% parameters) {
       refusal <- .hypothesis_refusal(
-        .hypothesis_marginal_means_multiple_parameters_message(
-          unique(unlist(named))
+        paste0(
+          "Statement '", statement, "' refers to the marginal means of '",
+          paste(parameters, collapse = "', '"), "', but 'parameter' selects '",
+          selected, "'. A statement must refer to the marginal means of one ",
+          "parameter; omit 'parameter' to test statements on different ",
+          "parameters in one call."
         ),
         "statement"
       )
       refusal[["class"]] <- c("RoBMA_hypothesis_parameter_mismatch", refusal[["class"]])
       .hypothesis_stop(refusal)
-    }
-
-    for (root in roots) {
-      parameters <- unique(alias_catalog[["parameter"]][alias_catalog[["alias"]] == root])
-      if (length(parameters) > 0L && !selected %in% parameters) {
-        refusal <- .hypothesis_refusal(
-          paste0(
-            "Statement '", statement, "' refers to the marginal means of '",
-            paste(parameters, collapse = "', '"), "', but 'parameter' selects '",
-            selected, "'. A statement must refer to the marginal means of one ",
-            "parameter; omit 'parameter' to test statements on different ",
-            "parameters in one call."
-          ),
-          "statement"
-        )
-        refusal[["class"]] <- c("RoBMA_hypothesis_parameter_mismatch", refusal[["class"]])
-        .hypothesis_stop(refusal)
-      }
     }
   }
 
@@ -520,7 +519,7 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
     samples, point_refs) {
 
   missing_level <- is.na(point_refs[["level"]])
-  if (!is.list(samples) || length(samples) != 1L || !any(missing_level)) {
+  if (length(samples) != 1L || !any(missing_level)) {
     return(point_refs)
   }
   level <- names(samples)
@@ -566,18 +565,14 @@ hypothesis.marginal_means.brma <- function(object, hypothesis,
   level <- ref[["level"]]
   value <- ref[["value"]]
   sample <- samples[[level]]
-  label <- if (is.na(level)) {
-    parameter
-  } else {
-    paste0(parameter, "[", level, "]")
-  }
+  label <- paste0(parameter, "[", level, "]")
   existing <- BayesTools::posterior_metadata(sample, "posterior_ordinate")
 
   specs <- .iwmde_marginal_means_specs(
     marginal_means_object = object,
     parameter             = parameter,
     type                  = inference_type,
-    levels                = if (is.na(level)) NULL else level
+    levels                = level
   )
   if (length(specs) != 1L) {
     stop(

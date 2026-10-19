@@ -155,10 +155,10 @@ test_that("marginal means whose Savage-Dickey Bayes factor is refused have NA ro
   expect_identical(as.numeric(bf[["computed"]]), 2.5)
   expect_true(is.na(bf[["inexact"]]))
   expect_identical(attr(bf[["inexact"]], "warnings", exact = TRUE), reasons[["inexact"]])
-  scalar <- .marginal_means_iwmde_bf(precomputed[["inexact"]], 0,
-                                     density_method = "qCMDE")
-  expect_true(is.na(scalar))
-  expect_identical(attr(scalar, "warnings", exact = TRUE), reasons[["inexact"]])
+  singleton <- .marginal_means_iwmde_bf(precomputed["inexact"], 0,
+                                        density_method = "qCMDE")
+  expect_true(is.na(singleton[["inexact"]]))
+  expect_identical(attr(singleton[["inexact"]], "warnings", exact = TRUE), reasons[["inexact"]])
 
   # Any other failure of a row's Bayes factor stops the table unchanged, on
   # the KDE and on the qCMDE/IWMDE paths: only the ordinate refusals above
@@ -195,7 +195,7 @@ test_that("marginal means whose Savage-Dickey Bayes factor is refused have NA ro
         info = info
       )
       expect_identical(
-        tryCatch(.marginal_means_iwmde_bf(precomputed[["computed"]], 0,
+        tryCatch(.marginal_means_iwmde_bf(precomputed["computed"], 0,
                                           density_method = "qCMDE"),
                  error = identity),
         failure,

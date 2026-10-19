@@ -397,19 +397,14 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
   for (i in seq_len(nrow(term_map))) {
 
     parameter <- term_map[["parameter"]][[i]]
-    levels    <- if (is.list(averaged[[parameter]])) {
-      level_names <- names(averaged[[parameter]])
-      if (is.null(level_names) ||
-          length(level_names) != length(averaged[[parameter]]) ||
-          any(!nzchar(level_names))) {
-        stop(
-          "Grouped marginal means must have non-empty level names.",
-          call. = FALSE
-        )
-      }
-      level_names
-    } else {
-      list(NULL)
+    levels <- names(averaged[[parameter]])
+    if (is.null(levels) ||
+        length(levels) != length(averaged[[parameter]]) ||
+        any(!nzchar(levels))) {
+      stop(
+        "Grouped marginal means must have non-empty level names.",
+        call. = FALSE
+      )
     }
     for (level in levels) {
       rows[[length(rows) + 1L]] <- cbind(
@@ -418,7 +413,7 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
           object    = object,
           parameter = parameter,
           level     = level,
-          levels    = if (is.null(level)) NULL else unlist(levels),
+          levels    = levels,
           cache     = cache
         )
       )
@@ -436,7 +431,7 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
 }
 
 
-.hypothesis_quantities_marginal_row <- function(term_row, level = NULL) {
+.hypothesis_quantities_marginal_row <- function(term_row, level) {
 
   parameter <- term_row[["parameter"]][[1L]]
   return(data.frame(
@@ -444,20 +439,15 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     parameter  = parameter,
     component  = "marginal_means",
     term       = term_row[["term"]][[1L]],
-    bracket    = if (is.null(level)) {
-      NA_character_
-    } else {
-      paste0(parameter, "[", level, "]")
-    },
+    bracket    = paste0(parameter, "[", level, "]"),
     stringsAsFactors = FALSE,
     check.names = FALSE
   ))
 }
 
 
-# The plans of one marginal mean (a level of a factor term, or a scalar
-# term): its point and region statements and its contrasts with the other
-# levels.
+# The plans of one marginal-mean level: its point and region statements and
+# its contrasts with the other levels.
 .hypothesis_quantities_marginal_render <- function(object, parameter, level,
                                                    levels, cache) {
 
@@ -470,9 +460,6 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     )
   }
   reference <- function(level) {
-    if (is.null(level)) {
-      return(paste0("`", parameter, "`"))
-    }
     paste0("`", parameter, "[", level, "]`")
   }
   point  <- .hypothesis_quantities_point_plan(plan_of, reference(level))
@@ -481,7 +468,7 @@ hypothesis_quantities.marginal_means.brma <- function(object, ...) {
     region   = list(plan_of(paste0(
       reference(level), " > ", .hypothesis_quantities_region_value(point)
     ))),
-    contrast = if (!is.null(level) && length(levels) > 1L) {
+    contrast = if (length(levels) > 1L) {
       lapply(setdiff(levels, level), function(other) {
         plan_of(paste0(reference(level), " = ", reference(other)))
       })

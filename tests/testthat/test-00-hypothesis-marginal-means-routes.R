@@ -115,51 +115,6 @@
 }
 
 
-# The object above with a scalar marginal mean, 'intercept': a parameter
-# represented by the public producer's one-level list, with 60% positive averaged draws.
-.marginal_means_route_scalar_object <- function(model_averaged = TRUE) {
-
-  scalar <- function(x, condition_key = NULL) {
-    out <- with_draw_metadata(
-      x,
-      class          = c("marginal_posterior.simple", "numeric"),
-      linear_weights = c(a = 1),
-      prior_density  = BayesTools::prior("normal", list(mean = 0, sd = 1)),
-      atoms          = BayesTools::posterior_atom_attribute()
-    )
-    if (!is.null(condition_key)) {
-      BayesTools::posterior_metadata(out, "condition") <-
-        list(condition_key = condition_key)
-    }
-    out <- structure(list(intercept = out),
-      class = c("marginal_posterior.factor", "marginal_posterior", "list"))
-    attr(out, "parameter") <- "mu_intercept"
-    BayesTools::posterior_metadata(out, "prior_context") <-
-      BayesTools:::.prior_density_context(
-        prior_list = list(a = BayesTools::prior("normal", list(mean = 0, sd = 1))),
-        column_names = "a", n_grid = 128
-      )
-    out
-  }
-  object <- .marginal_means_route_two_parameter_object(model_averaged)
-  object[["inference"]][["averaged"]][["mu_intercept"]] <-
-    scalar(c(rep(0.2, 60), rep(-0.2, 40)))
-  object[["inference"]][["conditional"]][["mu_intercept"]] <-
-    scalar(rep(0.2, 100), "event-intercept")
-  object[["term_map"]] <- rbind(
-    object[["term_map"]],
-    data.frame(
-      term             = "intercept",
-      parameter        = "mu_intercept",
-      label            = "intercept",
-      stringsAsFactors = FALSE
-    )
-  )
-
-  return(object)
-}
-
-
 test_that("cross-level region hypotheses use direct averaged odds", {
 
   object <- .marginal_means_route_test_object(model_averaged = TRUE)
@@ -679,59 +634,4 @@ test_that("model-averaged requests count point levels across parameters", {
   for (statements in list(levels, c("alloc[A] = 0", "other[A] > 0"))) {
     expect_null(refusal(single, statements))
   }
-})
-
-
-test_that("model-averaged requests count a scalar marginal mean as one point target", {
-
-  object <- .marginal_means_route_scalar_object(model_averaged = TRUE)
-  single <- .marginal_means_route_scalar_object(model_averaged = FALSE)
-  refusal <- function(object, statements) {
-    plans <- lapply(statements, function(statement) {
-      .hypothesis_plan_marginal_means(object, statement)
-    })
-    .hypothesis_plan_marginal_means_request_refusal(plans = plans, object = object)
-  }
-  reason <- paste0(
-    "Point hypotheses spanning multiple marginal-means levels are not ",
-    "supported because the levels need not share one conditioning event."
-  )
-
-  # Point statements on two different targets are refused whatever their
-  # kind: a scalar marginal mean and a level, two scalar marginal means, and
-  # (as before) two levels. The requests with the scalar marginal mean were
-  # accepted although both are point statements on two conditioning events.
-  requests <- list(
-    c("intercept = 0.2", "alloc[A] = 0.1"),
-    c("alloc[A] = 0.1", "intercept = 0.2"),
-    c("alloc[A] = 0.1", "other[A] = 0.1"),
-    c("alloc[A] = 0.1", "alloc[B] = 0.1")
-  )
-  for (statements in requests) {
-    expect_identical(
-      refusal(object, statements)[["reason"]], reason,
-      info = paste(statements, collapse = " | ")
-    )
-    expect_error(
-      hypothesis(object, statements, seed = 913),
-      "spanning multiple marginal-means levels",
-      class = "RoBMA_hypothesis_statement",
-      info = paste(statements, collapse = " | ")
-    )
-    expect_null(refusal(single, statements))
-  }
-
-  # One target is not refused however many statements state it, and region
-  # statements may name any parameters.
-  expect_null(refusal(object, "intercept = 0.2"))
-  expect_null(refusal(object, c("intercept = 0.2", "intercept = 0.3")))
-  expect_null(refusal(object, c("intercept > 0", "alloc[A] > 0", "other[A] > 0")))
-  out <- hypothesis(object, c("intercept = 0.2", "intercept = 0.3"), seed = 913)
-  expect_identical(
-    rownames(out), c("mu_intercept[intercept] (1)", "mu_intercept[intercept] (2)")
-  )
-  expect_identical(
-    refusal(object, c("intercept = 0.2", "alloc[A] > 0"))[["class"]],
-    "RoBMA_hypothesis_statement"
-  )
 })

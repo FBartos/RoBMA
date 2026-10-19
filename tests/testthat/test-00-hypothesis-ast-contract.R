@@ -185,17 +185,19 @@ test_that("marginal-means aliases never silently resolve collisions", {
 })
 
 
-test_that("hypothesis aliases are rewritten independently by statement", {
+test_that("hypothesis plans rewrite aliases independently by statement", {
 
-  rewritten <- .hypothesis_brma_rewrite(
-    hypothesis = BayesTools::hypothesis_parse(c("effect > 0", "mu < 0")),
-    aliases    = list(effect = "mu", mu = "mu"),
-    parameter  = "mu"
+  object <- review_factor_replay(c("A", "B"), "treatment", distribution = "normal")
+  plans <- .hypothesis_plans(
+    object,
+    c("intercept > 0", "mu_intercept < 0"),
+    component = "mods"
   )
 
   expect_identical(
-    BayesTools::hypothesis_render(rewritten),
-    c("mu > 0", "mu < 0")
+    vapply(plans, function(plan) BayesTools::hypothesis_render(plan[["hypothesis"]]),
+           character(1L)),
+    c("mu_intercept > 0", "mu_intercept < 0")
   )
 })
 

@@ -814,3 +814,46 @@ test_that("E2-c2 actual scaled-expression warnings retain their rewritten identi
       rownames(records[[1L]]$table)[i])
   }
 })
+
+test_that("marginal-means requests count the genuine singleton intercept target", {
+
+  means <- marginal_means(.review_h_empty_condition(), bf = FALSE,
+    density_method = "KDE", n_samples = 128L)
+  expect_identical(names(means$inference$averaged$mu_intercept), "intercept")
+  expect_identical(names(means$inference$conditional$mu_intercept), "intercept")
+  original <- means$inference
+  level <- names(means$inference$averaged$mu_x)[[1L]]
+  slope <- paste0("`x[", level, "]` = 0.1")
+  refusal <- function(statements) {
+    plans <- lapply(statements, function(statement)
+      .hypothesis_plan_marginal_means(means, statement))
+    .hypothesis_plan_marginal_means_request_refusal(plans, means)
+  }
+  reason <- paste0("Point hypotheses spanning multiple marginal-means levels are not ",
+    "supported because the levels need not share one conditioning event.")
+  other <- paste0("`x[", tail(names(means$inference$averaged$mu_x), 1L), "]` = 0.1")
+  for (statements in list(c("intercept = 0.2", slope), c(slope, "intercept = 0.2"),
+                           c(slope, other))) {
+    expect_identical(refusal(statements)$reason, reason)
+    expect_identical(refusal(statements)$class, "RoBMA_hypothesis_statement")
+    expect_error(hypothesis(means, statements, seed = 913),
+      "spanning multiple marginal-means levels", class = "RoBMA_hypothesis_statement")
+  }
+  repeated <- c("intercept = 0.2", "mu_intercept = 0.3")
+  expect_null(refusal("intercept = 0.2"))
+  expect_null(refusal(repeated))
+  result <- hypothesis(means, repeated, seed = 913)
+  expect_identical(rownames(result),
+    c("mu_intercept[intercept] (1)", "mu_intercept[intercept] (2)"))
+  expect_identical(refusal(c("intercept = 0.2", "x > 0"))$class,
+    "RoBMA_hypothesis_statement")
+  expect_null(refusal(c("intercept > 0", "x > 0")))
+  expect_identical(means$inference, original)
+
+  single <- marginal_means(review_factor_replay(c("A", "B"), "treatment", distribution = "normal"),
+    bf = FALSE, density_method = "KDE", n_samples = 128L)
+  statements <- c("intercept = 0.2", "g[A] = 0.1")
+  plans <- lapply(statements, function(statement)
+    .hypothesis_plan_marginal_means(single, statement))
+  expect_null(.hypothesis_plan_marginal_means_request_refusal(plans, single))
+})

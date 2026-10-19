@@ -313,6 +313,14 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
 }
 
 
+.discovery_marginal_intercept <- function() {
+
+  object <- review_factor_replay(c("a", "b"), "treatment", distribution = "normal")
+  means <- marginal_means(object, bf = FALSE, n_samples = 128L)
+  means[["inference"]][["averaged"]][["mu_intercept"]]
+}
+
+
 .discovery_marginal_object <- function(term_map, means, source_object) {
 
   structure(list(
@@ -331,7 +339,7 @@ test_that("marginal discovery shares its source-model IWMDE capability", {
   )
   object <- .discovery_marginal_object(
     term_map      = data.frame(term = "intercept", parameter = "mu_intercept"),
-    means         = list(mu_intercept = .discovery_marginal_mean(c(-1, 0, 1))),
+    means         = list(mu_intercept = .discovery_marginal_intercept()),
     source_object = source_object
   )
 
@@ -360,7 +368,7 @@ test_that("marginal-means discovery reports selectable levels", {
       parameter = c("mu_intercept", "mu_group")
     ),
     means = list(
-      mu_intercept = .discovery_marginal_mean(c(-1, 0, 1)),
+      mu_intercept = .discovery_marginal_intercept(),
       mu_group     = list(
         a = .discovery_marginal_mean(c(-1, 0)),
         b = .discovery_marginal_mean(c(0, 1))
@@ -373,7 +381,7 @@ test_that("marginal-means discovery reports selectable levels", {
   scalar <- out[out[["parameter"]] == "mu_intercept", , drop = FALSE]
   grouped <- out[out[["parameter"]] == "mu_group", , drop = FALSE]
 
-  expect_true(all(is.na(scalar[["bracket"]])))
+  expect_identical(scalar[["bracket"]], "mu_intercept[intercept]")
   expect_identical(grouped[["bracket"]], c("mu_group[a]", "mu_group[b]"))
   expect_identical(unique(out[["point_test_methods"]]), "KDE, qCMDE")
   expect_true(is.na(scalar[["contrast_test"]]))

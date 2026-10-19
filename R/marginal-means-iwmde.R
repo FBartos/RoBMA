@@ -299,19 +299,11 @@
       next
     }
 
-    if (is.list(samples) && !is.null(samples[[level]])) {
-      samples[[level]] <- .iwmde_attach_posterior_density(
-        samples[[level]],
-        estimate[["posterior_density"]],
-        point_masses = diagnostic[["point_masses"]]
-      )
-    } else {
-      samples <- .iwmde_attach_posterior_density(
-        samples,
-        estimate[["posterior_density"]],
-        point_masses = diagnostic[["point_masses"]]
-      )
-    }
+    samples[[level]] <- .iwmde_attach_posterior_density(
+      samples[[level]],
+      estimate[["posterior_density"]],
+      point_masses = diagnostic[["point_masses"]]
+    )
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples
   }
 
@@ -351,17 +343,10 @@
       next
     }
 
-    if (is.list(samples) && !is.null(samples[[level]])) {
-      attr(samples[[level]], "ordinate_failures") <- failures
-      if (!is.null(ordinate)) {
-        BayesTools::posterior_metadata(samples[[level]], "posterior_ordinate") <-
-          ordinate
-      }
-    } else {
-      attr(samples, "ordinate_failures") <- failures
-      if (!is.null(ordinate)) {
-        BayesTools::posterior_metadata(samples, "posterior_ordinate") <- ordinate
-      }
+    attr(samples[[level]], "ordinate_failures") <- failures
+    if (!is.null(ordinate)) {
+      BayesTools::posterior_metadata(samples[[level]], "posterior_ordinate") <-
+        ordinate
     }
     marginal_means_object[["inference"]][[type]][[parameter]] <- samples
   }
@@ -379,16 +364,8 @@
     return(list(parameter = parameter, level = level))
   }
 
-  if (is.list(samples) && !is.null(samples[[level]])) {
-    return(.iwmde_posterior_metadata(
-      samples   = samples[[level]],
-      parameter = parameter,
-      level     = level
-    ))
-  }
-
   return(.iwmde_posterior_metadata(
-    samples   = samples,
+    samples   = samples[[level]],
     parameter = parameter,
     level     = level
   ))
@@ -541,16 +518,6 @@
                                      density_method = NULL,
                                      warning = .marginal_means_iwmde_bf_warning()) {
 
-  if (!is.list(posterior)) {
-    return(.marginal_means_iwmde_bf_scalar(
-      posterior       = posterior,
-      null_hypothesis = null_hypothesis,
-      provenance      = provenance,
-      density_method  = density_method,
-      warning         = warning
-    ))
-  }
-
   out <- vector("list", length(posterior))
   names(out) <- names(posterior)
   valid <- vapply(names(posterior), function(level) {
@@ -599,33 +566,6 @@
   }
 
   return(out)
-}
-
-
-.marginal_means_iwmde_bf_scalar <- function(posterior, null_hypothesis,
-                                            provenance, density_method,
-                                            warning) {
-
-  if (!.iwmde_posterior_ordinate_matches_request(
-    posterior_ordinate = BayesTools::posterior_metadata(posterior, "posterior_ordinate"),
-    value              = null_hypothesis,
-    provenance         = provenance
-  )) {
-    return(.marginal_means_precomputed_unavailable_bf(
-      posterior, null_hypothesis, provenance, warning))
-  }
-
-  posterior <- .marginal_means_bf_posterior(posterior)
-  .marginal_means_row_bf(.iwmde_bf_append_warning(
-    bf                 = BayesTools::Savage_Dickey_BF(
-      posterior            = posterior,
-      null_hypothesis      = null_hypothesis,
-      normal_approximation = FALSE,
-      silent               = TRUE,
-      density_method       = "precomputed"
-    ),
-    posterior_ordinate = BayesTools::posterior_metadata(posterior, "posterior_ordinate")
-  ))
 }
 
 
@@ -743,20 +683,7 @@
 
 
 .marginal_means_missing_posterior_density_levels <- function(samples,
-                                                             provenance,
-                                                             parameter = NULL) {
-
-  if (!is.list(samples)) {
-    level <- .marginal_means_posterior_density_levels(samples, parameter)
-    if (.marginal_means_posterior_density_matches(
-          samples    = samples,
-          provenance = provenance[[level]]
-        )) {
-      return(character())
-    }
-
-    return(level)
-  }
+                                                             provenance) {
 
   levels <- names(samples)
   missing <- !vapply(levels, function(level) {
@@ -767,24 +694,6 @@
   }, logical(1))
 
   return(levels[missing])
-}
-
-
-.marginal_means_posterior_density_levels <- function(samples, parameter = NULL) {
-
-  if (is.list(samples)) {
-    return(names(samples))
-  }
-
-  level <- names(samples)
-  if (is.null(level) || length(level) == 0L || !nzchar(level[[1L]])) {
-    if (is.null(parameter)) {
-      return("")
-    }
-    return(parameter)
-  }
-
-  return(level[[1L]])
 }
 
 
@@ -878,12 +787,11 @@
     context         = context
   )
   missing_levels <- if (isTRUE(force)) {
-    .marginal_means_posterior_density_levels(samples, parameter)
+    names(samples)
   } else {
     .marginal_means_missing_posterior_density_levels(
       samples    = samples,
-      provenance = provenance,
-      parameter  = parameter
+      provenance = provenance
     )
   }
   if (length(missing_levels) > 0L) {
@@ -914,8 +822,7 @@
 
   missing_levels <- .marginal_means_missing_posterior_density_levels(
     samples    = x[["inference"]][[type]][[parameter]],
-    provenance = provenance,
-    parameter  = parameter
+    provenance = provenance
   )
   if (length(missing_levels) > 0L) {
     rejection_reasons <- .marginal_means_iwmde_density_rejection_reasons(
@@ -1054,10 +961,6 @@
     }
 
     level_samples <- samples[[parameter_name]]
-    if (!is.list(level_samples)) {
-      level_samples <- list(parameter_name = level_samples)
-      names(level_samples) <- parameter_name
-    }
     keep_levels <- names(level_samples)
     if (!is.null(levels)) {
       keep_levels <- intersect(keep_levels, levels)

@@ -2023,8 +2023,8 @@
 # region statements on the averaged marginal means), so a request cannot
 # combine point and region statements or point statements on several
 # marginal means, whether the levels belong to one marginal-means parameter or
-# to several; the scalar marginal mean of a parameter without levels is one
-# target, counted as the pair (parameter, "").
+# to several. A certified linear-expression target without an explicit level
+# is counted as the pair (parameter, "").
 .hypothesis_plan_marginal_means_request_refusal <- function(plans, object) {
 
   model_averaged <- isTRUE(object[["model_averaged"]]) ||
@@ -2079,10 +2079,6 @@
 
 .hypothesis_plan_marginal_label <- function(plan, level) {
 
-  if (is.na(level)) {
-    return(plan[["label"]])
-  }
-
   paste0(plan[["label"]], "[", level, "]")
 }
 
@@ -2091,7 +2087,7 @@
 
   posterior <- plan[["draws"]][["posterior"]]
   parameter <- plan[["parameter"]]
-  levels    <- if (is.list(posterior)) names(posterior) else NULL
+  levels    <- names(posterior)
   occurrences <- BayesTools::hypothesis_symbols(
     plan[["hypothesis"]],
     occurrences = TRUE
@@ -2108,7 +2104,7 @@
     return(plan)
   }
   sample_of <- function(level) {
-    if (is.na(level)) posterior else posterior[[level]]
+    posterior[[level]]
   }
   level_fixed <- function(level) {
     .hypothesis_plan_draws_fixed(sample_of(level))
@@ -2121,15 +2117,11 @@
   # every point target below is among the tested ones: a fixed marginal mean
   # is refused here, before any target is built.
   refs   <- plan[["refs"]]
-  tested <- if (is.list(posterior)) {
-    unique(c(
-      refs[["level"]][refs[["direct"]] & !is.na(refs[["level"]])],
-      if (whole_term || length(referenced) == 0L) levels,
-      if (length(referenced) > 0L && all(vapply(referenced, level_fixed, logical(1)))) referenced
-    ))
-  } else {
-    NA_character_
-  }
+  tested <- unique(c(
+    refs[["level"]][refs[["direct"]] & !is.na(refs[["level"]])],
+    if (whole_term || length(referenced) == 0L) levels,
+    if (length(referenced) > 0L && all(vapply(referenced, level_fixed, logical(1)))) referenced
+  ))
   fixed  <- tested[vapply(tested, level_fixed, logical(1))]
   if (length(fixed) > 0L) {
     plan[["refusal"]] <- .hypothesis_plan_fixed_refusal(
@@ -2140,10 +2132,10 @@
 
   # A factor marginal mean with one level resolves statements without a
   # level to that level.
-  if (is.list(posterior) && length(posterior) == 1L) {
+  if (length(posterior) == 1L) {
     refs[["level"]][is.na(refs[["level"]])] <- levels
   }
-  if (is.list(posterior) && any(is.na(refs[["level"]]))) {
+  if (any(is.na(refs[["level"]]))) {
     plan[["method_refusals"]] <- c(
       plan[["method_refusals"]],
       .hypothesis_plan_precomputed_refusals(paste0(
@@ -2155,7 +2147,7 @@
   }
   method_refusals <- plan[["method_refusals"]]
   plan[["targets"]] <- unlist(lapply(seq_len(nrow(refs)), function(i) {
-    ref_levels <- if (is.na(refs[["level"]][[i]]) && is.list(posterior)) {
+    ref_levels <- if (is.na(refs[["level"]][[i]])) {
       levels
     } else {
       refs[["level"]][[i]]

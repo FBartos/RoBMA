@@ -150,11 +150,13 @@ test_that("marginal means retain target-specific unavailable reasons", {
   failure <- attr(posterior, "ordinate_failures", exact = TRUE)
   expect_identical(failure[["numerical_status"]], "underflow")
   request <- attr(failure, "iwmde_provenance")[[.iwmde_key_number(3)]]
-  bf <- .marginal_means_iwmde_bf_scalar(posterior, 3, request, "qCMDE", "Unavailable.")
+  bf <- .marginal_means_iwmde_bf(list(a = posterior), 3, list(a = request),
+    "qCMDE", "Unavailable.")[["a"]]
   expect_true(is.na(bf))
   expect_match(attr(bf, "warnings"), "underflowed to zero", fixed = TRUE)
   expect_s3_class(attr(bf, "numerical_diagnostics"), "RoBMA_density_ordinate_error")
-  other <- .marginal_means_iwmde_bf_scalar(posterior, 4, NULL, "qCMDE", "Other target unavailable.")
+  other <- .marginal_means_iwmde_bf(list(a = posterior), 4, NULL,
+    "qCMDE", "Other target unavailable.")[["a"]]
   expect_identical(attr(other, "warnings"), "Other target unavailable.")
 })
 

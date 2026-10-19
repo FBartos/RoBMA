@@ -389,16 +389,10 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 .marginal_means_inclusion_bf <- function(posterior, null_hypothesis, compute) {
 
   if (!isTRUE(compute)) {
-    if (is.list(posterior)) {
-      unavailable <- as.list(rep(NA_real_, length(posterior)))
-      return(stats::setNames(unavailable, names(posterior)))
-    }
-    return(NA_real_)
+    unavailable <- as.list(rep(NA_real_, length(posterior)))
+    return(stats::setNames(unavailable, names(posterior)))
   }
 
-  if (!is.list(posterior)) {
-    return(.marginal_means_inclusion_bf_one(posterior, null_hypothesis))
-  }
   out <- lapply(seq_along(posterior), function(i) {
 
     child <- posterior[[i]]
