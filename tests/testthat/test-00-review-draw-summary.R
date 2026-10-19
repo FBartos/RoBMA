@@ -70,7 +70,9 @@ test_that("RoBMA formula groups honor supplied source rows and current recipes",
   extra <- selection
   extra[["extra"]] <- TRUE
   corruptions[["extra_field"]] <- extra
-  corruptions[["reordered_fields"]] <- selection[rev(names(selection))]
+  reordered_selection <- selection[rev(names(selection))]
+  class(reordered_selection) <- class(selection)
+  corruptions[["reordered_fields"]] <- reordered_selection
   for (invalid in corruptions) {
     expect_error(BayesTools::parameter_draws(object, invalid, model_samples = supplied),
       "'selection' does not identify a current RoBMA parameter quantity.", fixed = TRUE)
