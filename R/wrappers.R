@@ -120,6 +120,7 @@ fitted.brma <- function(object, unit = "estimate",
                         conditional = FALSE, ...) {
 
   dots                         <- list(...)
+  .check_unused_dots(dots, allowed = "quiet", caller = "fitted()")
   quiet                        <- .fitted_brma_quiet(dots)
   conditioning_depth_specified <- !missing(conditioning_depth)
 
@@ -970,6 +971,8 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 
   BayesTools::check_bool(expand, "expand")
   dots <- list(...)
+  controlled <- intersect(names(dots), c("newdata", "type", "quiet"))
+  .check_unused_dots(dots[controlled], allowed = character(), caller = "ranef()")
   if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
     stop(
       "'output_measure' and 'transform' are not available for random-effect ",
@@ -1674,10 +1677,9 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     all(model_matrix == 0 | model_matrix == 1) &&
     all(rowSums(model_matrix) == 1)
   if (!is_indicator) {
-    stop(
+    .stop_ranef_expand_required(
       "Unique-level random effects are unavailable for random-slope block '",
-      block, "'. Use 'expand = TRUE'.",
-      call. = FALSE
+      block, "'. Use 'expand = TRUE'."
     )
   }
 
@@ -1690,11 +1692,10 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       length(coefficient_labels) != ncol(model_matrix) ||
       anyNA(coefficient_labels) || any(!nzchar(coefficient_labels)) ||
       anyDuplicated(coefficient_labels)) {
-    stop(
+    .stop_ranef_expand_required(
       "Unique-level random effects are unavailable for block '", block,
       "' because its semantic coefficient labels are missing. Use ",
-      "'expand = TRUE'.",
-      call. = FALSE
+      "'expand = TRUE'."
     )
   }
 
@@ -1721,10 +1722,9 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 .check_ranef_total_expansion <- function(components, expand) {
 
   if (!expand && length(components) > 1L) {
-    stop(
+    .stop_ranef_expand_required(
       "'component = \"total\"' across multiple random-effect blocks requires ",
-      "'expand = TRUE'.",
-      call. = FALSE
+      "'expand = TRUE'."
     )
   }
 
