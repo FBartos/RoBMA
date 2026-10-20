@@ -34,9 +34,11 @@ test_that("namespace loading does not probe RAM or warn when automatic probing f
   expect_identical(calls, 0L)
   expect_false(RoBMA.private[["selection_runtime_initialized"]])
   expect_identical(RoBMA.get_option("selection.cache_max_bytes"), "auto")
-  expect_equal(selection_cache_info()[["capacity_bytes"]][[1L]], 0)
-  expect_warning(.selection_runtime_ensure(), "Automatic selection cache memory budget is unavailable", fixed = TRUE)
-  expect_warning(.selection_runtime_ensure(), NA)
+  expect_warning(info <- selection_cache_info(),
+    "Automatic selection cache memory budget is unavailable", fixed = TRUE)
+  expect_equal(info[["capacity_bytes"]][[1L]], 0)
+  expect_silent(.selection_runtime_ensure())
+  expect_silent(selection_cache_info())
   expect_identical(calls, 1L)
 })
 
