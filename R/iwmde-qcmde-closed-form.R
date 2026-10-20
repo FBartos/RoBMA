@@ -73,7 +73,7 @@
 
 
 # Localized positive-tail integral for the closed-form row consumer. This is
-# the positive-real Mills expansion with its first omitted term, capped at64.
+# the positive-real Mills expansion with its first omitted term, capped at 64.
 .iwmde_qcmde_closed_form_log_mills <- function(a) {
 
   if (length(a) != 1L || !is.finite(a) || a < 16) {
@@ -98,7 +98,7 @@
 
 
 # log integral_0^width exp(-a*t - t^2/2) dt. Narrow finite intervals use the
-# same16-node Gauss-Legendre machinery as the ordinary normal-mass helper.
+# same 16-node Gauss-Legendre machinery as the ordinary normal-mass helper.
 .iwmde_qcmde_closed_form_log_tail <- function(a, width) {
 
   log_mills <- .iwmde_qcmde_closed_form_log_mills(a)

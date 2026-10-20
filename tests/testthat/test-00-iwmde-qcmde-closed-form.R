@@ -660,7 +660,8 @@ test_that("closed Normal rows retain narrow priors and scaled support tails", {
     128 * .Machine$double.eps * max(1, abs(expected))
   expect_lte(abs(focal(row, c(-3, -1, 1, 3) * 1e-8) - expected), allowance)
 
-  # Original half-normal T1e8 fixture, ordinaryT3, and its reflected support.
+  # Half-normal rows at T = 1e8 and the ordinary T = 3, and their reflected
+  # supports.
   # Their physical row is sqrt(2/pi)*exp(-T*x-x^2); u=T*x supplies the reference.
   for (T in c(1e8, 3)) for (direction in c(1, -1)) {
     current <- direction / T
@@ -676,7 +677,7 @@ test_that("closed Normal rows retain narrow priors and scaled support tails", {
     expect_lte(abs(focal(row, direction * c(0, 1, 2, 3) / T) - expected), allowance)
   }
 
-  # A finite near-boundary interval exercises the actual16-node helper. The
+  # A finite near-boundary interval exercises the actual 16-node helper. The
   # evaluated prior uses its explicitly declared physical normalizing mass,
   # avoiding a subtractive-CDF artifact in the older general test helper.
   T <- 1e8
@@ -697,8 +698,8 @@ test_that("closed Normal rows retain narrow priors and scaled support tails", {
     128 * .Machine$double.eps * max(1, abs(expected))
   expect_lte(abs(focal(row, values, prior) - expected), allowance)
 
-  # Independent80-digit Gaussian-product constants retained from177. These
-  # are explicit zero/two-factor declarations of the same row-level contract.
+  # Independent 80-digit Gaussian-product constants. These are explicit zero-
+  # and two-factor declarations of the same row-level contract.
   forms <- list(
     list(mean = numeric(), sd = numeric(), lower = -Inf, upper = Inf),
     list(mean = c(0, .2), sd = c(.7, 1.1), lower = -Inf, upper = Inf))

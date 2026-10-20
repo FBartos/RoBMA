@@ -320,7 +320,8 @@ review_prior_columns <- function(priors) {
   })))
 }
 
-# Exact public constructor/compiler and supplied-row declarations from14/14b.
+# Replays an allocated random-component source through the public
+# constructor/compiler with supplied-row declarations.
 review_allocated_source_replay <- function(kind, constant_weights = FALSE,
     source_prior = NULL, source_values = NULL, source_indicators = NULL,
     scale = "total_variance") {

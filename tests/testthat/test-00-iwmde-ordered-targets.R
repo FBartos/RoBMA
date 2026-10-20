@@ -2276,8 +2276,9 @@ test_that("physical ordered block oracles cover shifted numerators and selected 
   previous <- RoBMA.options()
   RoBMA.options(max_cores = 1L, native_threads = 1L)
   withr::defer(do.call(RoBMA.options, previous[c("max_cores", "native_threads")]))
-  # Exact original report79 cases and quadrature budgets. These are synthetic
-  # conditional numerical fixtures, not fitted posterior or MCMC calibration.
+  # Shifted-total and selected-denominator cases at the production quadrature
+  # budgets. These are synthetic conditional numerical fixtures, not fitted
+  # posterior or MCMC calibration.
   # QUADPACK and maximum queried inner errors are estimates, not enclosures.
   settings <- list(list(label = "shifted-total", shared = TRUE),
     list(label = "selected-ordinary", selected = TRUE, width = 1),
@@ -2304,15 +2305,8 @@ test_that("physical ordered block oracles cover shifted numerators and selected 
     for (quantity in names(evidence$differences)) expect_true(evidence$differences[[quantity]] <=
       evidence$allowances[[quantity]], info = paste(arguments$label, quantity))
     expect_true(evidence$branch, info = arguments$label)
-    relative <- c(N = evidence$differences[["N"]] / evidence$reference$N,
-      D = evidence$differences[["D"]] / evidence$reference$D,
-      ratio = evidence$differences[["ratio"]] / evidence$reference$ratio)
-    cat("PHYSICAL_BLOCK_ORACLE", arguments$label, "N/D/ratio discrepancies",
-      paste(format(relative, digits = 17), collapse = "/"), "production errors",
-      paste(format(c(evidence$proof$numerator_relative_error, evidence$proof$denominator_relative_error,
-        evidence$proof$ratio_relative_error), digits = 17), collapse = "/"), "\n")
-    # Preserve report79's dependent-stop policy: do not run the sharper case
-    # after an unresolved ordinary selected reference/production discrepancy.
+    # The sharper case depends on the ordinary selected one: do not run it
+    # after an unresolved reference/production discrepancy.
     if (!evidence$branch || any(evidence$differences > evidence$allowances)) break
   }
 })

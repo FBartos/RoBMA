@@ -443,12 +443,6 @@ test_that("compiled allocated SD proposals normalize on their own declared inter
         expect_equal(callback(c(mean(c(expected[row, 1L], endpoints[1L])),
           endpoints[2L] + max(1, diff(endpoints)))), c(0, 0))
         pieces <- c(expected[row, 1L], endpoints, expected[row, 2L])
-        if (name == "positive" && row == 23L) {
-          plain <- stats::integrate(callback, expected[row, 1L], expected[row, 2L],
-            rel.tol = 1e-9, abs.tol = 1e-10, subdivisions = 1000L)
-          cat("PRESERVED_PLAIN_HALF_LINE_QUADRATURE positive23 value=", format(plain$value, digits = 17),
-            " abs.error=", format(plain$abs.error, digits = 17), " message=", plain$message, "\n", sep = "")
-        }
       }
       integrals <- lapply(seq_len(length(pieces) - 1L), function(i) stats::integrate(callback,
         pieces[i], pieces[i + 1L], rel.tol = 1e-9, abs.tol = 1e-10, subdivisions = 1000L))

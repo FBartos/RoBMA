@@ -72,13 +72,6 @@ testthat::test_that("quarter-step lattice under-resolution reaches the existing 
   testthat::expect_true(is.finite(reference) && reference > 0)
   result <- tryCatch(RoBMA::hypothesis(seed$object, paste0("mu = ", sprintf("%.17g", seed$value)),
     density_method = "qCMDE", columns = "all"), error = identity)
-  if (!inherits(result, "error")) {
-    raw <- unname(attr(result, "raw_BF"))
-    estimate <- dcauchy(seed$value) / raw
-    cat("D5_FROZEN_FALSE_ACCEPT", "reference", reference, "estimate", estimate,
-      "relative_error", estimate / reference - 1, "BF", raw, "\n")
-    print(as.data.frame(RoBMA::density_diagnostics(result)))
-  }
   testthat::expect_true(inherits(result, "RoBMA_density_ordinate_error"))
   if (inherits(result, "RoBMA_density_ordinate_error")) {
     diagnostic <- as.data.frame(result[["density_diagnostics"]])
@@ -118,8 +111,8 @@ testthat::test_that("the resolved divisor-four window remains publicly available
 })
 
 testthat::test_that("the sharp Cauchy core retains its existing diagnostic refusal", {
-  # Exact original report08/p06 control: the likelihood-kernel width can miss
-  # prior curvature, so the additional resolution estimate is not a theorem.
+  # The likelihood-kernel width can miss prior curvature, so the additional
+  # resolution estimate is not a theorem; this sharp prior keeps its refusal.
   seed <- .resolution_seed_fit(1, BayesTools::prior("cauchy", list(location = 0, scale = .01)), .25, 1)
   testthat::expect_error(RoBMA::hypothesis(seed$object,
     paste0("mu = ", sprintf("%.17g", seed$value)), density_method = "qCMDE"),
