@@ -65,6 +65,56 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
   TRUE
 }
 
+# The decision of .selection_transition_rule_resolves() for one scalar axis
+# (a 1 x 1 loading) at each posterior row of `rows`, without a one-row
+# selection context per row. `mean`, `residual_sd` and `coefficient` hold one
+# value per element of `rows`; `sei` is the scalar selection SE; `selection` is
+# the full context and supplies the fields the rule reads: `kernel_mode`,
+# `omega`, `z_lower` and `sign`.
+.selection_scalar_transition_rule_resolves <- function(nodes, mean, residual_sd, coefficient,
+                                                       sei, selection, rows) {
+
+  resolved <- rep(TRUE, length(rows))
+  kernel_mode <- selection$kernel_mode
+  normal <- if (is.null(kernel_mode)) FALSE else {
+    (if (length(kernel_mode) == 1L) kernel_mode else kernel_mode[rows]) == SELKERNEL_NORMAL
+  }
+  omega <- selection$omega[rows, , drop = FALSE]
+  n_cuts <- ncol(omega) - 1L
+  cuts <- selection$z_lower[seq_len(n_cuts)]
+  changed <- omega[, seq_len(n_cuts), drop = FALSE] != omega[, seq_len(n_cuts) + 1L, drop = FALSE] &
+    rep(is.finite(cuts), each = length(rows))
+  reaches_nodes <- !normal & rowSums(changed) > 0L
+  if (!any(reaches_nodes)) return(resolved)
+  nodes <- sort(nodes)
+  if (length(nodes) < 2L || any(!is.finite(nodes)) || any(diff(nodes) <= 0)) {
+    return(!reaches_nodes)
+  }
+  active <- reaches_nodes & !is.na(coefficient) & coefficient != 0
+  invalid <- active & (!is.finite(coefficient) | !is.finite(mean) |
+                         !is.finite(residual_sd) | residual_sd <= 0)
+  resolved[invalid] <- FALSE
+  tested <- which(active & !invalid)
+  if (!length(tested)) return(resolved)
+  centers <- (matrix(selection$sign * cuts * sei, length(tested), n_cuts, byrow = TRUE) -
+                mean[tested]) / coefficient[tested]
+  used <- changed[tested, , drop = FALSE]
+  failed <- rowSums(used & is.na(centers)) > 0L
+  interior <- which(used & !is.na(centers) & centers > nodes[1L] &
+                      centers < nodes[length(nodes)])
+  if (length(interior)) {
+    lower <- findInterval(centers[interior], nodes)
+    gap <- nodes[lower + 1L] - nodes[lower]
+    tied <- nodes[lower] == centers[interior] & lower > 1L
+    gap[tied] <- pmax(gap[tied], nodes[lower[tied]] - nodes[lower[tied] - 1L])
+    tested_row <- (interior - 1L) %% length(tested) + 1L
+    failed[tested_row[gap * abs(coefficient[tested][tested_row]) >
+                        residual_sd[tested][tested_row]]] <- TRUE
+  }
+  resolved[tested[failed]] <- FALSE
+  resolved
+}
+
 .selnorm_factor_rule_affordable <- function(order, exponent) {
 
   as.double(order)^as.double(exponent) <= SELNORM_FACTOR_NODE_BUDGET

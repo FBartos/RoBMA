@@ -22,6 +22,53 @@ test_that("transition resolution retains literal signs, nodes and exterior owner
   }
 })
 
+test_that("the vectorized scalar-axis transition rule equals the rule applied row by row", {
+
+  # Dyadic rows put the transition at cut 2 with selection SE .5 exactly on a node
+  # (center = node); the others are generic. Rows mix unchanged weights, normal
+  # kernels, zero, missing and invalid scales, exterior centers and (through the
+  # selection SE and a zero cut) missing centers.
+  grid <- c(-2, -1, -.5, 0, .5, 1, 2)
+  dyadic <- expand.grid(node = grid, coefficient = c(1, 2, .5, -1), residual_sd = c(.25, 1, 4))
+  dyadic$mean <- 1 - dyadic$coefficient * dyadic$node
+  set.seed(31)
+  n_random <- 160L
+  random <- data.frame(
+    coefficient = stats::rnorm(n_random) * 2,
+    residual_sd = exp(stats::runif(n_random, -3, 1)),
+    mean = stats::rnorm(n_random, 0, 2))
+  random$coefficient[c(3, 40, 77)] <- c(0, NA, Inf)
+  random$residual_sd[c(5, 61, 99, 120)] <- c(0, NA, Inf, -1)
+  random$mean[c(7, 88)] <- c(NA, -Inf)
+  draws <- rbind(random, dyadic[, names(random)])
+  n <- nrow(draws)
+  omega <- cbind(1, matrix(sample(c(.2, .5, 1), 2L * n, replace = TRUE), n, 2L))
+  omega[seq(1L, n, by = 9L), ] <- 1
+  omega[seq(2L, n, by = 11L), 3L] <- omega[seq(2L, n, by = 11L), 2L]
+  kernel_mode <- rep(SELKERNEL_STEP, n)
+  kernel_mode[seq(4L, n, by = 13L)] <- SELKERNEL_NORMAL
+  seen <- logical()
+  for (z_lower in list(c(2, .5, 9), c(2, -Inf, 9), c(-Inf, -Inf, 9), c(0, .5, 9))) for (effect_sign in c(1L, -1L)) {
+    selection <- list(kernel_mode = kernel_mode, omega = omega, z_lower = z_lower, sign = effect_sign)
+    for (sei in c(.5, NA, Inf)) for (nodes in list(.gauss_hermite_nodes(15L)$nodes,
+        .gauss_hermite_nodes(127L)$nodes, grid, rev(grid), c(grid, grid[1L]), c(grid, Inf))) {
+      rows <- c(seq_len(n), 5L, 5L, n)
+      reference <- vapply(rows, function(i) {
+        .selection_transition_rule_resolves(nodes, draws$mean[i], draws$residual_sd[i],
+          matrix(draws$coefficient[i], 1L), sei,
+          list(kernel_mode = kernel_mode[i], omega = omega[i, , drop = FALSE],
+               z_lower = z_lower, sign = effect_sign))
+      }, logical(1))
+      actual <- .selection_scalar_transition_rule_resolves(nodes, draws$mean[rows],
+        draws$residual_sd[rows], draws$coefficient[rows], sei, selection, rows)
+      expect_identical(actual, reference)
+      seen <- c(seen, reference)
+    }
+  }
+  # Both outcomes occur, so the comparison is not vacuous.
+  expect_true(any(seen) && any(!seen))
+})
+
 test_that("rank-one acceptance resolves the returned candidate without resolving its comparand", {
 
   rho <- .99
