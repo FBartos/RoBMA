@@ -114,6 +114,25 @@ test_that("estimate context identity and legacy normalization share the score ow
 })
 
 
+test_that("the stored retained random context is formed from the sorted retained declarations", {
+
+  model <- list(sources = list(random = list(
+    list(name = "paper",    role = "cluster",  retained = TRUE),
+    list(name = "estimate", role = "estimate", retained = TRUE),
+    list(name = "paper",    role = "cluster",  retained = TRUE),
+    list(name = "other",    role = "estimate", retained = FALSE)
+  )))
+  declarations <- c("estimate|estimate", "paper|cluster")
+  context      <- .selection_retained_random_context_from_model(model)
+  expect_identical(context,
+    paste("retained_random_context", rlang::hash(declarations), sep = "|"))
+  expect_identical(context, .iwmde_hash("retained_random_context", declarations))
+  model$sources$random[[1L]]$retained <- FALSE
+  model$sources$random[[2L]]$retained <- FALSE
+  model$sources$random[[3L]]$retained <- FALSE
+  expect_identical(.selection_retained_random_context_from_model(model), "none")
+})
+
 test_that("correlated sampling deletion is continuous at constant selection weights", {
 
   # Complete compiler-declared supplied states, not a fitted posterior chain.

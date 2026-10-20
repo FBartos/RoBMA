@@ -533,7 +533,8 @@
   declarations <- sort(unique(vapply(retained, function(source) {
     paste(source[["name"]], source[["role"]], sep = "|")
   }, character(1))))
-  .iwmde_hash("retained_random_context", declarations)
+  # Stored with the fit, so formed without helpers of post-fit source files.
+  paste("retained_random_context", rlang::hash(declarations), sep = "|")
 }
 
 
