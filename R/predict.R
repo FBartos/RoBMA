@@ -1587,7 +1587,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   max_bytes <- .known_v_covariance_max_bytes(max_bytes)
   reserve <- .predict_brma_singleton_covariance_reserve(S, K)
   if (is.finite(max_bytes) && (!is.finite(reserve) || reserve >= max_bytes)) {
-    stop("Singleton prediction fixed/output reserve exhausts the configured covariance budget before Gaussian-parts construction.",
+    stop("Singleton prediction fixed/output reserve exhausts the configured covariance budget before Gaussian-parts construction. ",
+         "Increase option 'RoBMA.known_v_covariance_max_bytes'.",
          call. = FALSE)
   }
   .known_v_covariance_cells_chunk_indices(S, as.double(K),

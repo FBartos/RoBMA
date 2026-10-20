@@ -11,7 +11,10 @@ test_that("singleton prediction pricing uses exact cells and ordered partitions"
       expect_identical(unlist(chunks, use.names = FALSE), seq_len(S))
     }
     expect_identical(.predict_brma_singleton_covariance_chunks(S, K, Inf), list(seq_len(S)))
-    expect_error(.predict_brma_singleton_covariance_chunks(S, K, reserve), "before Gaussian-parts")
+    expect_error(.predict_brma_singleton_covariance_chunks(S, K, reserve), paste0(
+      "before Gaussian-parts construction. Increase option ",
+      "'RoBMA.known_v_covariance_max_bytes'."
+    ), fixed = TRUE)
     expect_error(.predict_brma_singleton_covariance_chunks(S, K, reserve + 1), "single known-V")
   }
   reserve <- .predict_brma_singleton_covariance_reserve(3L, 6500L)
