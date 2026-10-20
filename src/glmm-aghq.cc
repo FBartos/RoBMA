@@ -17,6 +17,13 @@ namespace {
 const double LOG_2PI = std::log(2.0 * std::acos(-1.0));
 const double LOG_DBL_MAX = std::log(std::numeric_limits<double>::max());
 
+// Beta shapes with alpha + beta up to this bound use the closed-form log
+// density alpha * lp + beta * lq - log_beta. Its absolute rounding error is
+// about DBL_EPSILON * (alpha + beta) * max(|lp|, |lq|), below 1e-9 within the
+// bound. Concentrated priors beyond it keep the density evaluated at the
+// smaller probability, which retains the tail the closed form would round away.
+const double BETA_CLOSED_FORM_MAX_SHAPE_SUM = 1e5;
+
 
 struct QuadratureRules {
   const double **nodes;
@@ -345,6 +352,8 @@ struct BinomialProblem {
     if (alpha == 1.0 && beta == 1.0) {
       // The uniform beta density leaves only the logit Jacobian.
       log_beta_logit = lp + lq;
+    } else if (alpha + beta <= BETA_CLOSED_FORM_MAX_SHAPE_SUM) {
+      log_beta_logit = alpha * lp + beta * lq - log_beta;
     } else {
       const double smaller_probability = std::exp(std::min(lp, lq));
       // Evaluate the density at the smaller probability to retain its tail.

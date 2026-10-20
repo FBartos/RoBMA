@@ -245,6 +245,31 @@ test_that("binomial AGHQ initializes extreme beta priors on the log-odds scale",
 })
 
 
+test_that("binomial AGHQ is continuous across the closed-form beta density bound", {
+
+  # Shapes with alpha + beta <= 1e5 use the closed-form log density and larger
+  # ones the density at the smaller probability. Scaling the shape sum by
+  # 1 -/+ 1e-9 around the bound moves the true log likelihood by far less than
+  # the 1e-8 relative allowance, which covers the closed form's rounding error
+  # (about 1e-11 absolute) and the quadrature of each side.
+  ai  <- c(2L, 5L)
+  ci  <- c(4L, 9L)
+  n1i <- c(30L, 60L)
+  n2i <- c(30L, 55L)
+  mu  <- matrix(c(.2, -.1), 1L, 2L)
+  tau <- matrix(.3, 1L, 2L)
+  for (fraction in c(.5, .2, .93, 1e-4)) {
+    value <- vapply(1e5 * c(1 - 1e-9, 1 + 1e-9), function(shape_sum) {
+      .glmm_binom_aghq(ai, ci, n1i, n2i, mu, tau, NULL,
+        c(alpha = fraction * shape_sum, beta = (1 - fraction) * shape_sum))[["value"]]
+    }, numeric(2L))
+    expect_true(all(is.finite(value)))
+    expect_lt(max(abs(value[, 1L] - value[, 2L]) / abs(value[, 1L])), 1e-8,
+      label = paste("relative change across the bound at prior mean", fraction))
+  }
+})
+
+
 test_that("exact beta-binomial shortcut keeps event increments for large shapes", {
 
   # One event and one non-event: the sequence probability is
