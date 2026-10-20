@@ -988,6 +988,13 @@ test_that("Degenerate moderator and scale designs are rejected", {
     const_scale = c(1, 1, 1)
   )
 
+  test_data_infinite <- data.frame(
+    effect   = c(0.10, 0.25, 0.15),
+    std_err  = c(0.2, 0.25, 0.22),
+    inf_var  = c(1, Inf, 3),
+    mod_cont = c(1.5, 2.3, 1.8)
+  )
+
   expect_error_cases(list(
     list(
       label  = "constant numeric moderator",
@@ -1034,6 +1041,29 @@ test_that("Degenerate moderator and scale designs are rejected", {
         only_data = TRUE
       )),
       regexp = "zero variance"
+    ),
+    list(
+      label  = "infinite moderator",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ inf_var,
+        data      = test_data_infinite,
+        only_data = TRUE
+      )),
+      regexp = "The 'mods' variable 'inf_var' contains infinite values. Continuous predictors must be finite or missing."
+    ),
+    list(
+      label  = "infinite scale predictor",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ mod_cont,
+        scale     = ~ inf_var,
+        data      = test_data_infinite,
+        only_data = TRUE
+      )),
+      regexp = "The 'scale' variable 'inf_var' contains infinite values."
     )
   ))
 })

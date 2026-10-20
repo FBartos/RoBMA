@@ -373,6 +373,21 @@ test_that("estimate_unit_information_sd computes UISD and validates inputs", {
       label  = "missing sei",
       expr   = quote(estimate_unit_information_sd(sei = c(0.2, NA), ni = c(50, 30))),
       regexp = "sei"
+    ),
+    list(
+      label  = "empty sei",
+      expr   = quote(estimate_unit_information_sd(sei = numeric(), ni = numeric())),
+      regexp = "^The 'sei' argument cannot be empty\\.$"
+    ),
+    list(
+      label  = "empty ni",
+      expr   = quote(estimate_unit_information_sd(sei = c(0.2, 0.3), ni = numeric())),
+      regexp = "^The 'ni' argument cannot be empty\\.$"
+    ),
+    list(
+      label  = "NULL sei",
+      expr   = quote(estimate_unit_information_sd(sei = NULL, ni = NULL)),
+      regexp = "^The 'sei' argument cannot be NULL\\.$"
     )
   ))
 })

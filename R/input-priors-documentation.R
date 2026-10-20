@@ -1104,6 +1104,12 @@ NULL
 #' @export
 estimate_unit_information_sd <- function(sei, ni) {
 
+  for (argument in c("sei", "ni")) {
+    value <- if (argument == "sei") sei else ni
+    if (!is.null(value) && length(value) == 0L) {
+      stop("The '", argument, "' argument cannot be empty.", call. = FALSE)
+    }
+  }
   BayesTools::check_real(sei, "sei", lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = 0)
   BayesTools::check_real(ni,  "ni",  lower = 0, allow_bound = FALSE, allow_NULL = FALSE, allow_NA = FALSE, check_length = length(sei))
 

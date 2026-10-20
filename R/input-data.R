@@ -2071,7 +2071,13 @@ NULL
              call. = FALSE)
       }
     } else if (is.numeric(col)) {
-      # Numeric: must have sd > 0 (not constant)
+      # Numeric: must be finite (or missing) and have sd > 0 (not constant)
+      if (any(is.infinite(col))) {
+        stop(paste0("The '", name, "' variable '", col_name,
+                    "' contains infinite values. ",
+                    "Continuous predictors must be finite or missing."),
+             call. = FALSE)
+      }
       col_sd <- stats::sd(col, na.rm = TRUE)
       if (is.na(col_sd) || col_sd == 0) {
         stop(paste0("The '", name, "' variable '", col_name,
