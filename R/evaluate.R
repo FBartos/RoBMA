@@ -1576,6 +1576,141 @@
 
 
 # ---------------------------------------------------------------------------- #
+# Direct arithmetic for in-range inputs
+# ---------------------------------------------------------------------------- #
+#
+# The conditional computations of the multilevel and true-effect evaluators scale
+# and check every product so that they hold at any finite scale. When every SD
+# and residual of a call is zero or has an absolute value in [2^-100, 2^100], and
+# every sampling SD is positive, the plain vectorized arithmetic of 4.1.0.229
+# cannot overflow or underflow: a variance lies in [2^-200, 2^200], a diagonal in
+# (2^-200, 2^201], a ratio b^2 / D below 2^400, a block sum (at most 2^30 rows)
+# below 2^430, and the smallest nonzero product (cluster mean b * h, h at least
+# (b r / D) / (1 + sum b^2 / D)) stays above 2^-931, the smallest normal double
+# being 2^-1022. Any other call, and any call whose direct result is not finite,
+# uses the checked route unchanged.
+#
+# ---------------------------------------------------------------------------- #
+EVALUATE_DIRECT_BOUND <- 2^100
+
+.within_direct_range <- function(x, nonnegative = FALSE) {
+
+  if (!length(x)) return(FALSE)
+  limits <- range(x)
+  lower <- if (nonnegative) 0 else -EVALUATE_DIRECT_BOUND
+  if (!all(is.finite(limits)) || limits[[1L]] < lower ||
+      limits[[2L]] > EVALUATE_DIRECT_BOUND) {
+    return(FALSE)
+  }
+  magnitude <- if (nonnegative) x else abs(x)
+  !any(magnitude > 0 & magnitude < 1 / EVALUATE_DIRECT_BOUND)
+}
+
+
+# `scales` and `values` are lists of S x K arrays (nonnegative SDs, signed
+# residuals) and `sampling_sd` has length K.
+.evaluate_direct_arithmetic <- function(scales, sampling_sd, values) {
+
+  shape <- dim(values[[1L]])
+  length(shape) == 2L &&
+    all(vapply(c(scales, values), function(x) identical(dim(x), shape), logical(1L))) &&
+    length(sampling_sd) == shape[[2L]] &&
+    all(is.finite(sampling_sd)) && all(sampling_sd > 0) &&
+    .within_direct_range(sampling_sd, nonnegative = TRUE) &&
+    all(vapply(scales, .within_direct_range, logical(1L), nonnegative = TRUE)) &&
+    all(vapply(values, .within_direct_range, logical(1L)))
+}
+
+
+# Same-data true effects mu + tau^2 / (tau^2 + sei^2) * (y - bias - mu), or NULL
+# when the inputs leave the direct range or the result is not finite.
+.true_effects_direct <- function(mu_samples, tau_within, yi, sei, bias_offset) {
+
+  S <- nrow(mu_samples)
+  K <- ncol(mu_samples)
+  if (!identical(dim(tau_within), c(S, K)) || length(yi) != K || length(sei) != K) {
+    return(NULL)
+  }
+  adjusted_y <- matrix(yi, nrow = S, ncol = K, byrow = TRUE)
+  if (!is.null(bias_offset)) adjusted_y <- adjusted_y - bias_offset
+  if (!.evaluate_direct_arithmetic(list(tau_within), sei, list(mu_samples, adjusted_y))) {
+    return(NULL)
+  }
+  within_variance <- tau_within^2
+  weight <- within_variance / (within_variance + matrix(sei^2, nrow = S, ncol = K, byrow = TRUE))
+  true_effects <- mu_samples + weight * (adjusted_y - mu_samples)
+  if (all(is.finite(true_effects))) true_effects else NULL
+}
+
+
+# Same-data BLUP of the clustered model by the diagonal-plus-rank-one identity:
+# with D = tau_within^2 + vi and a block loading b, the cluster contribution is
+# b * sum(b r / D) / (1 + sum(b^2 / D)), the estimate contribution
+# tau_within^2 / D * (r - cluster) and the total tau_within^2 / D * r +
+# vi / D * cluster.
+.multilevel_blup_direct <- function(tau_within, tau_between, vi, residual, block_indices) {
+
+  S <- nrow(residual)
+  K <- ncol(residual)
+  cluster_contribution  <- matrix(0, nrow = S, ncol = K)
+  estimate_contribution <- matrix(0, nrow = S, ncol = K)
+  total_contribution    <- matrix(0, nrow = S, ncol = K)
+  for (idx in block_indices) {
+    within_variance   <- tau_within[, idx, drop = FALSE]^2
+    sampling_variance <- matrix(vi[idx], nrow = S, ncol = length(idx), byrow = TRUE)
+    diagonal          <- within_variance + sampling_variance
+    loading           <- tau_between[, idx, drop = FALSE]
+    block_residual    <- residual[, idx, drop = FALSE]
+    cluster <- loading * (rowSums(loading * block_residual / diagonal) /
+                            (1 + rowSums(loading^2 / diagonal)))
+    cluster_contribution[, idx]  <- cluster
+    estimate_contribution[, idx] <- within_variance / diagonal * (block_residual - cluster)
+    total_contribution[, idx]    <- within_variance / diagonal * block_residual +
+      sampling_variance / diagonal * cluster
+  }
+
+  list(cluster = cluster_contribution, estimate = estimate_contribution,
+       total = total_contribution)
+}
+
+
+# Conditional simulation of the total or cluster-level latent contribution for the
+# prior draws of `.evaluate.brma.multilevel_posterior.norm`.
+.multilevel_posterior_direct <- function(tau_within, tau_between, vi, residual, prior_z,
+                                         prior_within, prior_noise, block_indices,
+                                         component) {
+
+  S <- nrow(residual)
+  K <- ncol(residual)
+  total <- identical(component, "total")
+  within_variance   <- tau_within^2
+  sampling_variance <- matrix(vi, nrow = S, ncol = K, byrow = TRUE)
+  diagonal          <- within_variance + sampling_variance
+  prior_noise <- prior_noise * if (total) sqrt(sampling_variance) else sqrt(diagonal)
+  out <- matrix(0, nrow = S, ncol = K)
+  for (block in seq_along(block_indices)) {
+    idx            <- block_indices[[block]]
+    loading        <- tau_between[, idx, drop = FALSE]
+    block_diagonal <- diagonal[, idx, drop = FALSE]
+    block_residual <- residual[, idx, drop = FALSE]
+    block_within   <- prior_within[, idx, drop = FALSE]
+    block_noise    <- prior_noise[, idx, drop = FALSE]
+    innovation <- block_residual - block_within - block_noise
+    cluster_draw <- loading * ((prior_z[[block]] + rowSums(loading * innovation / block_diagonal)) /
+                                 (1 + rowSums(loading^2 / block_diagonal)))
+    out[, idx] <- if (total) {
+      within_share <- within_variance[, idx, drop = FALSE] / block_diagonal
+      within_share * block_residual +
+        sampling_variance[, idx, drop = FALSE] / block_diagonal * (cluster_draw + block_within) -
+        within_share * block_noise
+    } else cluster_draw
+  }
+
+  out
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .evaluate.brma.multilevel_blup.norm
 # ---------------------------------------------------------------------------- #
 #
@@ -1610,6 +1745,13 @@
   }
 
   block_indices <- .get_multilevel_block_indices(cluster)
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
+  if (.evaluate_direct_arithmetic(list(tau_within, tau_between), sqrt(pmax(vi, 0)),
+                                  list(residual))) {
+    direct <- .multilevel_blup_direct(tau_within, tau_between, vi, residual, block_indices)
+    if (all(is.finite(direct[["total"]]))) return(direct)
+  }
 
   cluster_contribution  <- matrix(0, nrow = S, ncol = K)
   estimate_contribution <- matrix(0, nrow = S, ncol = K)
@@ -1619,8 +1761,6 @@
   if (any(!is.finite(diagonal_sd)) || any(!is.finite(tau_within) | tau_within < 0)) {
     stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
-  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
-    bias_offset - mu_samples
 
   for (idx in block_indices) {
     regular <- rowSums(diagonal_sd[, idx, drop = FALSE] == 0) == 0L
@@ -1676,13 +1816,20 @@
   }
 
   block_indices <- .get_multilevel_block_indices(cluster)
+  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
+    bias_offset - mu_samples
+  direct <- .evaluate_direct_arithmetic(list(tau_within, tau_between), sqrt(pmax(vi, 0)),
+                                        list(residual))
   prior_z <- vector("list", length(block_indices))
   prior_within <- matrix(0, nrow = S, ncol = K)
   for (block in seq_along(block_indices)) {
     idx <- block_indices[[block]]
     prior_z[[block]] <- stats::rnorm(S)
     if (identical(component, "total")) {
-      prior_within[, idx] <- .multilevel_conditional_product(
+      prior_within[, idx] <- if (direct) {
+        tau_within[, idx, drop = FALSE] *
+          matrix(stats::rnorm(S * length(idx)), nrow = S, ncol = length(idx))
+      } else .multilevel_conditional_product(
         tau_within[, idx, drop = FALSE],
           matrix(stats::rnorm(S * length(idx)),
                  nrow = S, ncol = length(idx)))
@@ -1693,6 +1840,14 @@
     nrow = S,
     ncol = K
   )
+  if (direct) {
+    out <- .multilevel_posterior_direct(tau_within, tau_between, vi, residual, prior_z,
+                                        prior_within, prior_noise, block_indices, component)
+    if (any(!is.finite(out))) {
+      stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+    }
+    return(out)
+  }
   sampling_sd <- matrix(sqrt(vi), nrow = S, ncol = K, byrow = TRUE)
   diagonal_sd <- .root_sum_squares(tau_within, sampling_sd)
   if (any(!is.finite(diagonal_sd)) || any(!is.finite(tau_within) | tau_within < 0)) {
@@ -1700,8 +1855,6 @@
   }
   prior_noise <- .multilevel_conditional_product(prior_noise,
     if (identical(component, "total")) sampling_sd else diagonal_sd)
-  residual <- matrix(yi, nrow = S, ncol = K, byrow = TRUE) -
-    bias_offset - mu_samples
   out <- matrix(0, nrow = S, ncol = K)
 
   for (block in seq_along(block_indices)) {
@@ -1921,6 +2074,10 @@
 
   if (same_data) {
 
+    if (is.null(bias_offset) || identical(dim(bias_offset), c(S, K))) {
+      direct <- .true_effects_direct(mu_samples, tau_within, yi, sei, bias_offset)
+      if (!is.null(direct)) return(direct)
+    }
     sampling_sd <- matrix(sei, nrow = S, ncol = K, byrow = TRUE)
     weights <- .gaussian_conditional_sd_weights(tau_within, sampling_sd)
 
