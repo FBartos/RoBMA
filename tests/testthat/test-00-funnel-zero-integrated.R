@@ -167,8 +167,20 @@ test_that("funnel quadrature refuses an unresolved required order before expansi
   }, integer(1)), c(49L, 289L, 385L))
   for (ratio in c(9, 1e5, Inf)) {
     expect_error(.funnel_conditioned_order(1, ratio),
-      "Selected funnel contours are numerically unavailable: required quadrature order", fixed = TRUE)
+      "Selected funnel contours were rejected by diagnostics: the conditioned-to-integrated standard deviation ratio",
+      fixed = TRUE)
   }
+  condition <- tryCatch(.funnel_conditioned_order(1, 9), error = identity)
+  expect_s3_class(condition, "RoBMA_funnel_quadrature_rejected")
+  expect_identical(conditionMessage(condition), paste0(
+    "Selected funnel contours were rejected by diagnostics: the conditioned-to-integrated ",
+    "standard deviation ratio of 9 requires a quadrature order of 433 that the funnel ",
+    "quadrature cannot resolve. Use 'sampling_bias = FALSE' for an unselected reference."
+  ))
+  expect_null(conditionCall(condition))
+  expect_identical(condition$ratio, 9)
+  expect_identical(condition$required_order, 433)
+  expect_identical(condition$maximum, 401L)
   expect_identical(.funnel_conditioned_order(0, 0), 21L)
   setup <- .funnel_zero_setup(0, integrated = 1, conditioned = 81,
     retains_sampling = FALSE)
@@ -176,7 +188,7 @@ test_that("funnel quadrature refuses an unresolved required order before expansi
     .gauss_hermite_nodes = function(...) stop("Node expansion must not start."),
     .package = "RoBMA")
   expect_error(.funnel_conditioned_expansion(matrix(0), matrix(1), matrix(9), setup),
-    "required quadrature order 433 exceeds the current cap 401", fixed = TRUE)
+    "ratio of 9 requires a quadrature order of 433", fixed = TRUE)
   setup$sources$integrated <- c(1, 2)
   expect_error(.funnel_model_averaged_quantiles_native(.1, setup, "positive"),
     "Funnel source variances must contain one finite non-negative value per posterior row.", fixed = TRUE)

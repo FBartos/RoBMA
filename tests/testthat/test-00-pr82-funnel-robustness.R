@@ -17,8 +17,13 @@ test_that("common funnel heterogeneity tolerates only double roundoff", {
 
 test_that("conditioned funnel quadrature does not silently cap unresolved widths", {
 
-  expect_error(.funnel_conditioned_order(c(1, 0), c(0.1, 1)),
-    "required quadrature order Inf exceeds the current cap 401", fixed = TRUE)
+  condition <- tryCatch(.funnel_conditioned_order(c(1, 0), c(0.1, 1)), error = identity)
+  expect_identical(conditionMessage(condition), paste0(
+    "Selected funnel contours were rejected by diagnostics: the conditioned-to-integrated ",
+    "standard deviation ratio is not finite. Use 'sampling_bias = FALSE' for an ",
+    "unselected reference."
+  ))
+  expect_identical(condition$maximum, 401L)
   expect_lt(.funnel_conditioned_order(c(1, 0), c(0.1, 0)), 401L)
 })
 

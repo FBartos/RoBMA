@@ -637,11 +637,23 @@
   order <- if (is.finite(ratio)) ceiling(48 * max(ratio, 1)) else Inf
   if (is.finite(order)) order <- max(order + 1L - order %% 2L, minimum)
   if (!is.finite(order) || order > maximum) {
-    stop("Selected funnel contours are numerically unavailable: required ",
-      "quadrature order ", format(order, scientific = FALSE, trim = TRUE),
-      " exceeds the current cap ", maximum, ". ",
-      "Use 'sampling_bias = FALSE' for an unselected reference.",
-      call. = FALSE)
+    observed <- if (is.finite(order)) {
+      paste0("the conditioned-to-integrated standard deviation ratio of ",
+        format(signif(ratio, 3L), trim = TRUE), " requires a quadrature order of ",
+        format(order, scientific = FALSE, trim = TRUE),
+        " that the funnel quadrature cannot resolve")
+    } else {
+      "the conditioned-to-integrated standard deviation ratio is not finite"
+    }
+    stop(errorCondition(
+      message = paste0("Selected funnel contours were rejected by diagnostics: ",
+        observed, ". Use 'sampling_bias = FALSE' for an unselected reference."),
+      class          = "RoBMA_funnel_quadrature_rejected",
+      call           = NULL,
+      ratio          = ratio,
+      required_order = order,
+      maximum        = maximum
+    ))
   }
   as.integer(order)
 }
