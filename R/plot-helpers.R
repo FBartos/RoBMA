@@ -215,22 +215,6 @@
   )
 }
 
-.brma_parameter_select <- function(object, parameter,
-                                   component = "auto",
-                                   argument = "parameter",
-                                   allow_factor_cells = FALSE) {
-
-  entry <- .brma_parameter_select_entry(
-    object    = object,
-    parameter = parameter,
-    component = component,
-    argument  = argument,
-    allow_factor_cells = allow_factor_cells
-  )
-
-  return(entry[["parameter"]])
-}
-
 .brma_parameter_select_entry <- function(object, parameter,
                                          component = "auto",
                                          argument = "parameter",
@@ -1243,13 +1227,20 @@
   paste0("'", available, "'", collapse = ", ")
 }
 
-.set_dots_plot        <- function(..., n_levels = 1) {
+# Fold the `color` and `colour` aliases into `col`; an explicit `col` wins.
+.normalize_color_alias <- function(dots) {
 
-  dots <- list(...)
   if (is.null(dots[["col"]])) {
     dots[["col"]] <- if (!is.null(dots[["color"]])) dots[["color"]] else dots[["colour"]]
   }
   dots[c("color", "colour")] <- NULL
+
+  return(dots)
+}
+
+.set_dots_plot        <- function(..., n_levels = 1) {
+
+  dots <- .normalize_color_alias(list(...))
   if (is.null(dots[["col"]]) & n_levels == 1) {
     dots[["col"]]      <- "black"
   }else if (is.null(dots[["col"]]) & n_levels > 1) {
@@ -1344,11 +1335,7 @@
     dots_prior <- list()
   }
 
-  if (is.null(dots_prior[["col"]])) {
-    dots_prior[["col"]] <- if (!is.null(dots_prior[["color"]])) {
-      dots_prior[["color"]]
-    } else dots_prior[["colour"]]
-  }
+  dots_prior <- .normalize_color_alias(dots_prior)
 
   if (ordered && !is.null(posterior_col)) {
     if (is.null(dots_prior[["col"]])) {
@@ -1360,8 +1347,6 @@
       dots_prior[["lty"]] <- 2
     }
   }
-
-  dots_prior[c("color", "colour")] <- NULL
 
   if (!ordered && is.null(dots_prior[["col"]])) {
     dots_prior[["col"]]      <- "grey60"
@@ -1377,14 +1362,10 @@
 }
 .set_dots_diagnostics <- function(..., type, chains) {
 
-  dots <- list(...)
-  if (is.null(dots[["col"]])) {
-    dots[["col"]] <- if (!is.null(dots[["color"]])) dots[["color"]] else dots[["colour"]]
-  }
+  dots <- .normalize_color_alias(list(...))
   if (is.null(dots[["col"]])) {
     dots[["col"]] <- if(type == "autocorrelation") "black" else rev(scales::viridis_pal()(chains))
   }
-  dots[c("color", "colour")] <- NULL
 
   return(dots)
 }

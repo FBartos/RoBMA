@@ -341,14 +341,17 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   if (is.null(ylab)) ylab <- "Sample Quantiles"
 
   # points data frame
+  deletion_type    <- type %in% c("LOO-PIT", "rstudent")
+  retained_context <- if (deletion_type) {
+    .selection_deletion_retained_context(x[["data"]], x[["priors"]])
+  }
   df_points <- data.frame(
     x                  = qq_x,
     y                  = qq_y,
     unit               = rep(unit, K)
   )
-  if (type %in% c("LOO-PIT", "rstudent")) {
-    df_points[["retained_context"]] <- rep(
-      .selection_deletion_retained_context(x[["data"]], x[["priors"]]), K)
+  if (deletion_type) {
+    df_points[["retained_context"]] <- rep(retained_context, K)
   } else df_points[["conditioning_depth"]] <- rep(conditioning_depth, K)
   if (is.data.frame(res_obj) && "cluster" %in% names(res_obj)) {
     df_points[["cluster"]]     <- res_obj[["cluster"]][sort_order]
@@ -375,9 +378,9 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     conditioning_depth = conditioning_depth,
     K                  = K
   )
-  if (type %in% c("LOO-PIT", "rstudent")) {
+  if (deletion_type) {
     out[["conditioning_depth"]] <- NULL
-    out[["retained_context"]] <- .selection_deletion_retained_context(x[["data"]], x[["priors"]])
+    out[["retained_context"]] <- retained_context
   }
   return(out)
 }

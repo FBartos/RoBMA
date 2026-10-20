@@ -449,8 +449,7 @@
       location       = location[, columns, drop = FALSE],
       integrated_sd  = integrated[, columns, drop = FALSE],
       conditioned_sd = conditioned[, columns, drop = FALSE],
-      setup          = setup,
-      cancelled      = cancelled[, columns[[1L]]]
+      setup          = setup
     )
     quantiles[columns, ] <- .plot_mixture_quantiles_native(
       mean_samples      = expansion[["mean"]],
@@ -528,8 +527,7 @@
 #
 # ---------------------------------------------------------------------------- #
 .funnel_conditioned_expansion <- function(location, integrated_sd,
-                                          conditioned_sd, setup,
-                                          cancelled = rep(FALSE, nrow(location))) {
+                                          conditioned_sd, setup) {
 
   S <- nrow(location)
   if (!is.matrix(location) || !is.matrix(integrated_sd) ||
@@ -537,10 +535,9 @@
       !identical(dim(location), dim(conditioned_sd)) ||
       !length(location) || any(!is.finite(location)) ||
       any(!is.finite(integrated_sd)) || any(integrated_sd < 0) ||
-      any(!is.finite(conditioned_sd)) || any(conditioned_sd < 0) ||
-      length(cancelled) != S || anyNA(cancelled)) {
+      any(!is.finite(conditioned_sd)) || any(conditioned_sd < 0)) {
     stop("Funnel mixture locations and source SDs must be finite aligned ",
-      "matrices with non-negative SDs and one cancellation flag per row.",
+      "matrices with non-negative SDs.",
       call. = FALSE)
   }
   weights       <- .funnel_setup_weights(setup)
@@ -564,7 +561,7 @@
       call. = FALSE
     )
   }
-  cancelled <- cancelled | rowSums(certified) == ncol(integrated_sd)
+  cancelled <- rowSums(certified) == ncol(integrated_sd)
 
   if (is.null(selection) || !any(selected_rows)) {
     return(list(

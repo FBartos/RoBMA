@@ -292,7 +292,7 @@ galbraith.brma <- function(x, ...) {
   tau2 <- tau^2
   # The row notation follows the declared scale/random design, including
   # draws on which different rows happen to have the same marginal scale.
-  row_specific_tau <- .is_scale(x) || .is_random(x)
+  row_specific_tau <- .is_random(x)
 
   # compute precision and standardized values
   wi <- vi + tau2

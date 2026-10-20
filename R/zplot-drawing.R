@@ -129,18 +129,19 @@
 # when selection model priors are present. For densities, threshold
 # values are added to the sequence to ensure accurate representation.
 #
-# @param priors     list of priors (used to extract thresholds)
 # @param from       lower bound of z-value range
 # @param to         upper bound of z-value range
 # @param by         step size (NULL to use length.out)
 # @param length.out number of bins (NULL to use by)
 # @param type       "hist" or "dens"
+# @param thresholds signed z-statistic thresholds of the selection kernel (see
+#                   `.zplot_threshold()`), empty for none
 #
 # @return numeric vector of bin boundaries or density evaluation points
 #
 # ---------------------------------------------------------------------------- #
-.zplot_bins      <- function(priors, from, to, by, length.out, type = "hist",
-                             thresholds = NULL){
+.zplot_bins      <- function(from, to, by, length.out, type = "hist",
+                             thresholds){
 
   if(is.null(length.out)){
     bins <- seq(from = from, to = to, by = by)
@@ -148,16 +149,13 @@
     bins <- seq(from = from, to = to, length.out = length.out)
   }
 
-  # obtain tresholds from the specified priors
-  z_bounds <- if (is.null(thresholds)) .zplot_threshold(priors) else thresholds
-
   # return simple binning in case of no weightfunctions
-  if(length(z_bounds) == 0){
+  if(length(thresholds) == 0){
     return(bins)
   }
 
   # retain bounds within the plotting range
-  z_bounds <- z_bounds[z_bounds > from & z_bounds < to]
+  z_bounds <- thresholds[thresholds > from & thresholds < to]
 
   if(type == "hist"){
     # for histogram, shift the specified bin boundaries to the closest z-treshold

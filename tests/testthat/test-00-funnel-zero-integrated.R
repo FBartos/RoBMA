@@ -124,18 +124,14 @@ test_that("rows with and without integrated variance mix in one contour", {
   two      <- .funnel_zero_setup(c(0, 0), integrated = c(1, 0), conditioned = c(0, 0),
                                  retains_sampling = TRUE)
   location <- matrix(0, 2L, 2L)
-  finest   <- .funnel_conditioned_expansion(location, integrated_sd, conditioned_sd,
-                                            two)
   reduced  <- .funnel_conditioned_expansion(location, integrated_sd, conditioned_sd,
-                                            two, cancelled = c(FALSE, TRUE))
-  # The existing certificate is resolved before budgeting even when the
-  # caller omits the optional precomputed cancellation flags.
-  expect_identical(nrow(finest[["mean"]]), nrow(reduced[["mean"]]))
+                                            two)
+  # The selection-cancellation certificate is resolved before budgeting.
   expect_identical(nrow(reduced[["mean"]]), .funnel_conditioned_order(
     integrated_sd[1L, , drop = FALSE], conditioned_sd[1L, , drop = FALSE]) + 1L)
   expect_identical(reduced[["selected_rows"]],
                    c(rep(TRUE, nrow(reduced[["mean"]]) - 1L), FALSE))
-  expect_equal(sum(reduced[["weights"]]), sum(finest[["weights"]]))
+  expect_equal(sum(reduced[["weights"]]), 1)
 })
 
 test_that("constant and ordinary funnel rows retain exact Gaussian components", {
@@ -228,9 +224,7 @@ test_that("a cell whose selection does not cancel keeps the selected route", {
   # The zero-bin route has no certified degenerate selected law.
   location <- matrix(0, 2L, 1L)
   error <- tryCatch(.funnel_conditioned_expansion(location, integrated,
-    matrix(.1, 2L, 1L), zero_bin,
-    cancelled = .funnel_selection_cancelled_cells(integrated, zero_bin)[, 1L]),
-    error = function(e) e)
+    matrix(.1, 2L, 1L), zero_bin), error = function(e) e)
   expect_identical(conditionMessage(error), paste0(
     "Selected funnel contours are unavailable for exact-zero integrated ",
     "cells without a valid selection-cancellation support certificate. ",

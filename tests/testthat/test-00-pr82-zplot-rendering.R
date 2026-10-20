@@ -41,7 +41,8 @@ test_that("coarse histogram bins retain every selection threshold", {
   )
   priors <- list(outcome = list(bias = prior))
   thresholds <- stats::qnorm(c(0.05, 0.1), lower.tail = FALSE)
-  bins <- .zplot_bins(priors, from = 0, to = 3, by = 1.5, length.out = NULL)
+  bins <- .zplot_bins(from = 0, to = 3, by = 1.5, length.out = NULL,
+    thresholds = .zplot_threshold(priors))
   expect_true(all(thresholds %in% bins))
   expect_identical(range(bins), c(0, 3))
   expect_true(all(diff(bins) > 0))
@@ -55,9 +56,9 @@ test_that("zplot display grids share the signed selection cutoffs", {
   negative <- .zplot_threshold(priors, "negative")
   expect_equal(negative, -positive, tolerance = 1e-14)
   for (thresholds in list(positive, negative)) {
-    histogram <- .zplot_bins(priors, -6, 6, .5, NULL,
+    histogram <- .zplot_bins(-6, 6, .5, NULL,
       type = "hist", thresholds = thresholds)
-    density <- .zplot_bins(priors, -6, 6, .05, NULL,
+    density <- .zplot_bins(-6, 6, .05, NULL,
       type = "dens", thresholds = thresholds)
     expect_true(all(thresholds %in% histogram))
     expect_true(all(thresholds %in% density))

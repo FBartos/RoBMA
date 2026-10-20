@@ -155,7 +155,7 @@
       )
   }
 
-  out <- .add_funnel_path_or_line(
+  out <- .add_funnel_path(
     out    = out,
     data   = df_refline,
     lty    = lty,
@@ -163,13 +163,13 @@
   )
 
   # add funnel edge lines
-  out <- .add_funnel_path_or_line(
+  out <- .add_funnel_path(
     out    = out,
     data   = df_funnel_edge1,
     lty    = lty,
     colour = col_line
   )
-  out <- .add_funnel_path_or_line(
+  out <- .add_funnel_path(
     out    = out,
     data   = df_funnel_edge2,
     lty    = lty,
@@ -212,7 +212,7 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .add_funnel_path_or_line
+# .add_funnel_path
 # ---------------------------------------------------------------------------- #
 #
 # Add a contour line to a ggplot object.
@@ -222,7 +222,7 @@
 # contours. Every contour therefore uses a data-bound geom_path().
 #
 # ---------------------------------------------------------------------------- #
-.add_funnel_path_or_line <- function(out, data, lty, colour) {
+.add_funnel_path <- function(out, data, lty, colour) {
 
   return(out +
     ggplot2::geom_path(

@@ -178,6 +178,24 @@
 }
 
 
+# A legacy zplot object stores no integration control, which its selection
+# target needs.
+.zplot_check_legacy_integration_control <- function(object) {
+
+  if (.zplot_requires_selection_marginal(
+      object, .zplot_stored_conditioning_depth(object))) {
+    stop(
+      "'integration_control' is unavailable for this legacy zplot object. ",
+      "Supply 'integration_control = set_selection_likelihood_control()' ",
+      "or recreate the object with 'as_zplot()'.",
+      call. = FALSE
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
 .zplot_selection_marginal <- function(
     object, posterior_samples, z_sequence, z_threshold,
     conditioning_depth, integration_control, extrapolate_only = FALSE,

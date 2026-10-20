@@ -481,13 +481,8 @@ lines.brma <- function(
   ### set up plotting arguments
   ordered_target <- isTRUE(prior) && .plot_brma_ordered_target(x, parameter_entry)
   ordered_cell <- ordered_target && is_factor_cell
-  if (ordered_cell) {
-    if (is.null(dots_raw[["col"]])) {
-      dots_raw[["col"]] <- if (!is.null(dots_raw[["color"]])) {
-        dots_raw[["color"]]
-      } else dots_raw[["colour"]]
-    }
-    if (!is.null(dots_raw[["linetype"]])) dots_raw[["lty"]] <- dots_raw[["linetype"]]
+  if (ordered_cell && !is.null(dots_raw[["linetype"]])) {
+    dots_raw[["lty"]] <- dots_raw[["linetype"]]
   }
   n_levels   <- .get_samples_n_levels(samples, parameter)
   dots       <- do.call(.set_dots_plot, c(dots_raw, list(n_levels = n_levels)))

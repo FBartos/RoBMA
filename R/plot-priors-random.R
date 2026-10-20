@@ -87,16 +87,6 @@
   symbols  <- .brma_random_allocation_symbols(chain)
   product  <- function(factors) .brma_random_allocation_terms(factors, symbols)
   square   <- function(expression) paste0("(", expression, ")^2")
-  # the SD symbol of a variance: its label without the block prefix
-  sd_parts <- lapply(quantities[["label_parts"]], function(parts) {
-    quantity <- parts[["random"]][["quantity"]]
-    mapped <- c(var = "sd", var_total = "sd_total", var_common = "sd_common")
-    if (quantity %in% names(mapped)) parts[["random"]][["quantity"]] <- unname(mapped[[quantity]])
-    parts
-  })
-  sd_label <- sub("^.*: ", "", BayesTools::parameter_labels(
-    .brma_random_parameter_io_parts(sd_parts), style = "table",
-    formula_prefix = FALSE, simplify = TRUE))
 
   # the declared priors that the expression refers to
   sd_source  <- FALSE
@@ -121,7 +111,17 @@
     identical(spec[["source_transform"]], "square") &&
     !isTRUE(spec[["allocation_derived"]])
   if (quantity %in% c("var", "var_total", "var_common") && one_to_one) {
-    # the square of one declared SD prior
+    # the square of one declared SD prior, named by the SD symbol of the
+    # variance: its label without the block prefix
+    sd_parts <- quantities[["label_parts"]][[1L]]
+    sd_quantity <- sd_parts[["random"]][["quantity"]]
+    mapped <- c(var = "sd", var_total = "sd_total", var_common = "sd_common")
+    if (sd_quantity %in% names(mapped)) {
+      sd_parts[["random"]][["quantity"]] <- unname(mapped[[sd_quantity]])
+    }
+    sd_label <- sub("^.*: ", "", BayesTools::parameter_labels(
+      .brma_random_parameter_io_parts(list(sd_parts)), style = "table",
+      formula_prefix = FALSE, simplify = TRUE))
     expression <- if (grepl("[^A-Za-z0-9_.]", sd_label)) {
       paste0("(", sd_label, ")^2")
     } else {
@@ -243,14 +243,19 @@
 
   chain <- list()
   visited <- character()
+  visit_key <- function(allocation) {
+    paste(spec[["formula_parameter"]], allocation[["label"]], sep = "::")
+  }
+  stop_cycle <- function() {
+    stop(structure(list(message = "Random-effect allocation metadata contain a parent cycle.",
+      call = NULL, reason = "parent_cycle", allocation_chain = visited),
+      class = c("RoBMA_random_allocation_cycle", "RoBMA_random_prior_derivation_error", "error", "condition")))
+  }
   while (!is.null(allocation) && length(chain) < 16L) {
-    visit_key <- paste(spec[["formula_parameter"]], allocation[["label"]], sep = "::")
-    if (visit_key %in% visited) {
-      stop(structure(list(message = "Random-effect allocation metadata contain a parent cycle.",
-        call = NULL, reason = "parent_cycle", allocation_chain = visited),
-        class = c("RoBMA_random_allocation_cycle", "RoBMA_random_prior_derivation_error", "error", "condition")))
+    if (visit_key(allocation) %in% visited) {
+      stop_cycle()
     }
-    visited <- c(visited, visit_key)
+    visited <- c(visited, visit_key(allocation))
     chain  <- c(list(allocation), chain)
     parent <- allocation[["parent"]][["allocation"]]
     allocation <- if (is.character(parent) && length(parent) == 1L &&
@@ -269,11 +274,8 @@
   }
 
   if (!is.null(allocation)) {
-    visit_key <- paste(spec[["formula_parameter"]], allocation[["label"]], sep = "::")
-    if (visit_key %in% visited) {
-      stop(structure(list(message = "Random-effect allocation metadata contain a parent cycle.",
-        call = NULL, reason = "parent_cycle", allocation_chain = visited),
-        class = c("RoBMA_random_allocation_cycle", "RoBMA_random_prior_derivation_error", "error", "condition")))
+    if (visit_key(allocation) %in% visited) {
+      stop_cycle()
     }
     stop(structure(list(message = paste0("Random-effect allocation prior derivation is unavailable: ",
       "the parent chain exceeds the supported depth of 16 allocations."),

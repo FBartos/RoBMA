@@ -659,17 +659,10 @@ plot.zplot_brma <- function(x, plot_type = "base",
     names(dots), names(dots_fit), names(dots_extrapolation)
   ) %in% computational_args)
   if (plot_fit && plot_extrapolation && !pair_overrides) {
-    if (!has_integration_control &&
-        .zplot_requires_selection_marginal(x, .zplot_stored_conditioning_depth(x))) {
-      stop(
-        "'integration_control' is unavailable for this legacy zplot object. ",
-        "Supply 'integration_control = set_selection_likelihood_control()' ",
-        "or recreate the object with 'as_zplot()'.",
-        call. = FALSE
-      )
+    if (!has_integration_control) {
+      .zplot_check_legacy_integration_control(x)
     }
     z_sequence <- .zplot_bins(
-      priors     = x[["priors"]],
       from       = from,
       to         = to,
       by         = by.lines,
@@ -932,7 +925,7 @@ hist.zplot_brma <- function(x, plot_type = "base",
   dots[[".zplot_thresholds"]] <- NULL
 
   # create bin sequence using zplot helper (handles thresholds)
-  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by,
+  z_sequence <- .zplot_bins(from = from, to = to, by = by,
     length.out = length.out, type = "hist", thresholds = thresholds)
   z_in_range <- z >= min(z_sequence) & z <= max(z_sequence)
 
@@ -1152,14 +1145,8 @@ lines.zplot_brma <- function(x, plot_type = "base",
     integration_control <- .check_selection_likelihood_control(
       integration_control, argument = "integration_control"
     )
-  } else if (.zplot_requires_selection_marginal(
-      x, .zplot_stored_conditioning_depth(x))) {
-    stop(
-      "'integration_control' is unavailable for this legacy zplot object. ",
-      "Supply 'integration_control = set_selection_likelihood_control()' ",
-      "or recreate the object with 'as_zplot()'.",
-      call. = FALSE
-    )
+  } else {
+    .zplot_check_legacy_integration_control(x)
   }
   BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(extrapolate, "extrapolate")
@@ -1176,7 +1163,7 @@ lines.zplot_brma <- function(x, plot_type = "base",
     thresholds <- .zplot_threshold(x[["priors"]], .effect_direction(x))
   }
   dots[[".zplot_thresholds"]] <- NULL
-  z_sequence <- .zplot_bins(priors = x[["priors"]], from = from, to = to, by = by,
+  z_sequence <- .zplot_bins(from = from, to = to, by = by,
     length.out = length.out, type = "dens", thresholds = thresholds)
 
   # get densities from model
