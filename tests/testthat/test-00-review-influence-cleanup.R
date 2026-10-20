@@ -85,6 +85,28 @@ test_that("known-V undefined COVRATIO return paths retain their PSIS target", {
   }
 })
 
+test_that("printing a COVRATIO result hides its internal target and keeps its note", {
+
+  weights <- matrix(1 / 120, 120L, 6L)
+  results <- list(
+    ordinary = covratio(add_loo(.review_cleanup_plain_replay(known_v = TRUE))),
+    singular = covratio(.review_cleanup_plain_replay(known_v = TRUE,
+      singular = TRUE), .weights = weights)
+  )
+  for (name in names(results)) {
+    result <- results[[name]]
+    expect_identical(attr(result, "RoBMA_target")$method, "covratio()", info = name)
+    printed <- capture.output(print(result))
+    expect_false(any(grepl("RoBMA_target", printed, fixed = TRUE)), info = name)
+    expect_false(any(grepl("attr(,", printed, fixed = TRUE)), info = name)
+    expect_false(any(grepl("covratio.brma", printed, fixed = TRUE)), info = name)
+    # the target remains on the object itself
+    expect_identical(attr(result, "RoBMA_target")$method, "covratio()", info = name)
+  }
+  expect_true(any(grepl(attr(results$singular, "note"),
+    capture.output(print(results$singular)), fixed = TRUE)))
+})
+
 test_that("joint and covariance registry rows have no false estimate deletion", {
 
   for (method in c("add_marglik()/bridge_sampler()", "hatvalues()",

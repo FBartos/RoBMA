@@ -382,6 +382,7 @@ print.covratio.brma <- function(x, ...) {
 
   note <- attr(x, "note")
   attr(x, "note") <- NULL
+  attr(x, "RoBMA_target") <- NULL
   class(x) <- NULL
   print(x, ...)
   .print_diagnostic_note(note)
