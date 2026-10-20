@@ -618,7 +618,7 @@ test_that("IWMDE adaptive display grid concentrates support points", {
   expect_gt(sum(abs(adaptive - 2) < .25), sum(abs(uniform - 2) < .25))
 })
 
-test_that("Chen conditioning rejects structural boundary mixtures", {
+test_that("Chen conditioning constructs finite raw omega boundary regressors", {
 
   skip_if_missing_fits("dat.lehmann2018_RoBMA")
 
@@ -639,16 +639,24 @@ test_that("Chen conditioning rejects structural boundary mixtures", {
   component <- .iwmde_parameter_components(context, "mu", spec)
   values    <- .iwmde_parameter_values(context, "mu", spec)
   rows      <- which(component[["active"]] & is.finite(values))
-  expect_error(
-    .iwmde_chen_conditioning_matrix(
-      context        = context,
-      parameter      = "mu",
-      parameter_spec = spec,
-      active_rows    = head(rows, 50L),
-      weight_rows    = rows
-    ),
-    "conditioning fit columns contain non-finite transformed values"
+  conditioning <- .iwmde_chen_conditioning_matrix(
+    context        = context,
+    parameter      = "mu",
+    parameter_spec = spec,
+    active_rows    = head(rows, 50L),
+    weight_rows    = rows
   )
+  expect_true(all(is.finite(conditioning[["fit"]])))
+  expect_true(all(is.finite(conditioning[["eval"]])))
+  omega_columns <- grep("^omega\\[", conditioning[["columns"]], value = TRUE)
+  expect_gt(length(omega_columns), 0L)
+  raw <- context[["posterior_samples"]][rows, omega_columns, drop = FALSE]
+  support <- .iwmde_chen_omega_support(context)
+  expect_true(any(raw == support[[1L]] | raw == support[[2L]]))
+  expect_identical(unname(conditioning[["fit"]][, omega_columns, drop = FALSE]),
+    unname(raw))
+  expect_identical(unname(conditioning[["eval"]][, omega_columns, drop = FALSE]),
+    unname(context[["posterior_samples"]][head(rows, 50L), omega_columns, drop = FALSE]))
 })
 
 test_that("IWMDE replacement maps preserve the baseline posterior ordinate", {
