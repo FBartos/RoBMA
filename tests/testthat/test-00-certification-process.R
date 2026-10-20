@@ -81,7 +81,6 @@ test_that("certification subprocesses retain complete success and nonzero output
       expect_identical(tail(fake$state$events, 1L), "kill:TRUE")
       expect_true(fake$state$constructor$cleanup_tree)
       expect_true(fake$state$constructor$windows_hide_window)
-      expect_identical(fake$state$constructor$env, Sys.getenv())
     })
   }
 })
@@ -107,5 +106,43 @@ test_that("certification subprocess interruptions and cleanup failures unwind", 
       expect_false(fake$state$alive)
       expect_identical(tail(fake$state$events, 1L), "kill:TRUE")
     })
+  }
+})
+
+
+test_that("a real certification child past its limit is killed with its grandchild", {
+
+  skip_on_cran()
+  skip_if_not_installed("processx")
+  helper  <- .review_certification_process()
+  rscript <- file.path(R.home("bin"),
+    if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  directory <- normalizePath(tempfile("owned-certification-child-"),
+    winslash = "/", mustWork = FALSE)
+  dir.create(directory)
+  on.exit(unlink(directory, recursive = TRUE), add = TRUE)
+  pid_file   <- file.path(directory, "grandchild.pid")
+  grandchild <- file.path(directory, "grandchild.R")
+  child      <- file.path(directory, "child.R")
+  writeLines(c(
+    sprintf('writeLines(as.character(Sys.getpid()), "%s")', pid_file),
+    "Sys.sleep(120)"
+  ), grandchild)
+  writeLines(c(
+    sprintf('system2("%s", c("--vanilla", "%s"), wait = FALSE)', rscript, grandchild),
+    "Sys.sleep(120)"
+  ), child)
+
+  started <- proc.time()[["elapsed"]]
+  capture.output(result <- helper(rscript, c("--vanilla", child), 3))
+  elapsed <- proc.time()[["elapsed"]] - started
+
+  expect_true(result$timeout)
+  expect_false(identical(result$status, 0L))
+  expect_lt(elapsed, 10)
+  expect_true(file.exists(pid_file), info = "The grandchild started before the limit.")
+  if (file.exists(pid_file)) {
+    pid <- as.integer(readLines(pid_file, warn = FALSE))
+    expect_false(pid %in% ps::ps_pids())
   }
 })

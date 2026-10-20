@@ -224,7 +224,7 @@ run_certification_worker <- function(name, phase) {
 
   started <- proc.time()[["elapsed"]]
   process <- processx::process$new(
-    command = command, args = args, env = Sys.getenv(),
+    command = command, args = args,
     stdout = "|", stderr = "|", echo_cmd = TRUE,
     cleanup_tree = TRUE, windows_hide_window = TRUE
   )
