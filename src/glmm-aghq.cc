@@ -18,11 +18,15 @@ const double LOG_2PI = std::log(2.0 * std::acos(-1.0));
 const double LOG_DBL_MAX = std::log(std::numeric_limits<double>::max());
 
 // Beta shapes with alpha + beta up to this bound use the closed-form log
-// density alpha * lp + beta * lq - log_beta. Its absolute rounding error is
-// about DBL_EPSILON * (alpha + beta) * max(|lp|, |lq|), below 1e-9 within the
-// bound. Concentrated priors beyond it keep the density evaluated at the
-// smaller probability, which retains the tail the closed form would round away.
-const double BETA_CLOSED_FORM_MAX_SHAPE_SUM = 1e5;
+// density alpha * lp + beta * lq - log_beta. Its rounding noise, about
+// DBL_EPSILON * (alpha * |lp| + beta * |lq|), must stay well below what the
+// mode search of find_mode() resolves: the Armijo test and the convergence
+// criterion work at mode_tolerance = 1e-12, so noise at that level stops the
+// Newton steps near the mode (nonconvergence), long before it matters for the
+// integral. At the bound the noise is about 1.4e-13. Concentrated priors beyond
+// it evaluate the density at the smaller probability, which is accurate to
+// rounding of the value itself and retains the tail the closed form would lose.
+const double BETA_CLOSED_FORM_MAX_SHAPE_SUM = 1e3;
 
 
 struct QuadratureRules {

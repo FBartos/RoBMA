@@ -247,11 +247,11 @@ test_that("binomial AGHQ initializes extreme beta priors on the log-odds scale",
 
 test_that("binomial AGHQ is continuous across the closed-form beta density bound", {
 
-  # Shapes with alpha + beta <= 1e5 use the closed-form log density and larger
+  # Shapes with alpha + beta <= 1e3 use the closed-form log density and larger
   # ones the density at the smaller probability. Scaling the shape sum by
   # 1 -/+ 1e-9 around the bound moves the true log likelihood by far less than
   # the 1e-8 relative allowance, which covers the closed form's rounding error
-  # (about 1e-11 absolute) and the quadrature of each side.
+  # (about 1e-13 absolute) and the quadrature of each side.
   ai  <- c(2L, 5L)
   ci  <- c(4L, 9L)
   n1i <- c(30L, 60L)
@@ -259,13 +259,57 @@ test_that("binomial AGHQ is continuous across the closed-form beta density bound
   mu  <- matrix(c(.2, -.1), 1L, 2L)
   tau <- matrix(.3, 1L, 2L)
   for (fraction in c(.5, .2, .93, 1e-4)) {
-    value <- vapply(1e5 * c(1 - 1e-9, 1 + 1e-9), function(shape_sum) {
+    value <- vapply(1e3 * c(1 - 1e-9, 1 + 1e-9), function(shape_sum) {
       .glmm_binom_aghq(ai, ci, n1i, n2i, mu, tau, NULL,
         c(alpha = fraction * shape_sum, beta = (1 - fraction) * shape_sum))[["value"]]
     }, numeric(2L))
     expect_true(all(is.finite(value)))
     expect_lt(max(abs(value[, 1L] - value[, 2L]) / abs(value[, 1L])), 1e-8,
       label = paste("relative change across the bound at prior mean", fraction))
+  }
+})
+
+
+test_that("binomial AGHQ mode search converges for concentrated beta priors over many draws", {
+
+  # The closed-form log density has rounding noise of about
+  # eps * (alpha * |lp| + beta * |lq|); with shape sums of 1e4 and more it
+  # reaches mode_tolerance (1e-12) and stalls the Newton steps of the mode
+  # search at some draws (RoBMA_glmm_aghq_nonconvergence). Above the bound the
+  # density is evaluated at the smaller probability. Reference values: the
+  # 4.1.0.420 build, which used that route for every non-uniform prior, at
+  # draws 1, 44, 140 and 300 of observations 1, 4 and 6.
+  ai  <- c(2L, 5L, 12L, 20L, 0L, 3L)
+  ci  <- c(4L, 9L, 10L, 25L, 1L, 0L)
+  n1i <- c(30L, 60L, 40L, 80L, 15L, 22L)
+  n2i <- c(30L, 55L, 41L, 75L, 14L, 25L)
+  draws <- withr::with_seed(21, {
+    list(mu = matrix(rnorm(300L * 6L, 0, .4), 300L, 6L),
+         tau = matrix(abs(rnorm(300L * 6L, .2, .1)), 300L, 6L))
+  }, .rng_kind = "Mersenne-Twister", .rng_normal_kind = "Inversion", .rng_sample_kind = "Rejection")
+  reference <- list(
+    "25000_25000" = list(
+      sum = -43119.633805268,
+      cells = matrix(c(
+        -25.77374187554875, -25.32112309540952, -25.22699212109874, -26.25838901753625,
+        -19.22587533341839, -19.27964685074012, -18.70743191483005, -18.97089339229578,
+        -25.16711273003426, -24.91001705588358, -26.00400693510275, -25.61741944804021),
+        4L)),
+    "10000_20000" = list(
+      sum = -19995.851651314,
+      cells = matrix(c(
+        -12.65969280828293, -12.2106049738906, -12.09034974667973, -13.11930364628969,
+        -5.897572385329831, -5.922391967190909, -5.411420863735282, -5.657378313055217,
+        -13.74614753827331, -13.51290323260307, -14.49199384278415, -14.16031300434924),
+        4L)))
+  for (shapes in list(c(25000, 25000), c(10000, 20000))) {
+    key <- paste(shapes, collapse = "_")
+    out <- .glmm_binom_aghq(ai, ci, n1i, n2i, draws$mu, draws$tau, NULL,
+      c(alpha = shapes[[1L]], beta = shapes[[2L]]))
+    expect_true(all(is.finite(out[["value"]])), info = key)
+    expect_lt(abs(sum(out[["value"]]) / reference[[key]]$sum - 1), 1e-12, label = key)
+    expect_lt(max(abs(out[["value"]][c(1L, 44L, 140L, 300L), c(1L, 4L, 6L)] /
+                        reference[[key]]$cells - 1)), 1e-12, label = key)
   }
 })
 
