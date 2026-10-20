@@ -38,10 +38,11 @@ context("Scenario benchmark preparation")
 }
 
 
-.scenario_benchmark_run <- function(root, args, target = root, installed = TRUE, threads = 1L) {
+.scenario_benchmark_run <- function(root, args, target = root, installed = TRUE, threads = 1L,
+                                    git = TRUE) {
 
   # Benchmark rows include HEAD: give disposable roots an identifiable HEAD.
-  if (!dir.exists(file.path(target, ".git"))) {
+  if (git && !dir.exists(file.path(target, ".git"))) {
     stopifnot(system2("git", c("-C", shQuote(target), "init", "--quiet")) == 0L)
     stopifnot(system2("git", c("-C", shQuote(target), "-c", "user.name=RoBMA-tests",
       "-c", "user.email=tests@example.org", "commit", "--quiet", "--allow-empty",
@@ -403,4 +404,77 @@ test_that("benchmark option defaults and missing call metadata remain explicit",
     expect_equal(invalid$status, 1L)
     expect_match(invalid$stderr, "--threads must be a positive integer.", fixed = TRUE)
   }
+})
+
+
+test_that("benchmark tools record an unavailable git HEAD as NA", {
+
+  package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
+  tools <- file.path(package_root, "tools", c("bench-scenario.R", "bench-glmm-aghq.R"))
+  skip_if_not(all(file.exists(tools)), "Developer benchmarks require a source checkout.")
+  has_head <- function(path) {
+    suppressWarnings(system2("git", c("-C", shQuote(path), "rev-parse", "--short", "HEAD"),
+                             stdout = FALSE, stderr = FALSE)) == 0L
+  }
+  plain <- tempfile("robma-no-git-")
+  dir.create(plain)
+  on.exit(unlink(plain, recursive = TRUE), add = TRUE)
+  skip_if(has_head(plain), "The temporary directory lies inside a git work tree.")
+  repository <- tempfile("robma-git-")
+  dir.create(repository)
+  on.exit(unlink(repository, recursive = TRUE), add = TRUE)
+  stopifnot(system2("git", c("-C", shQuote(repository), "init", "--quiet")) == 0L)
+  stopifnot(system2("git", c("-C", shQuote(repository), "-c", "user.name=RoBMA-tests",
+    "-c", "user.email=tests@example.org", "commit", "--quiet", "--allow-empty",
+    "-m", "fixture")) == 0L)
+
+  find_sha <- function(expr) {
+    if (!is.call(expr)) return(NULL)
+    if (identical(expr[[1L]], as.name("<-")) && identical(expr[[2L]], as.name("sha"))) {
+      return(expr[[3L]])
+    }
+    for (part in as.list(expr)) {
+      found <- find_sha(part)
+      if (!is.null(found)) return(found)
+    }
+    return(NULL)
+  }
+  for (tool in tools) {
+    sha_expr <- find_sha(as.call(c(list(as.name("{")), as.list(parse(tool, keep.source = FALSE)))))
+    expect_false(is.null(sha_expr), info = basename(tool))
+    # Output rows are built from this value: it must be exactly one string.
+    expect_identical(suppressWarnings(eval(sha_expr, list(root = plain))), NA_character_,
+                     info = basename(tool))
+    sha <- eval(sha_expr, list(root = repository))
+    expect_true(is.character(sha) && length(sha) == 1L && grepl("^[0-9a-f]+$", sha),
+                info = basename(tool))
+  }
+
+  root <- .scenario_benchmark_fixture('scenario_text("chosen", print(7))')
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  run <- .scenario_benchmark_run(root, "--only=^chosen$", git = FALSE)
+  on.exit(unlink(run[["out"]], recursive = TRUE), add = TRUE)
+  expect_equal(run[["status"]], 0L)
+  path <- file.path(run[["out"]], "results.tsv")
+  expect_true(file.exists(path))
+  if (file.exists(path)) {
+    result <- read.delim(path, stringsAsFactors = FALSE)
+    expect_identical(result$status, "ok")
+    expect_true(is.na(result$sha))
+  }
+})
+
+
+test_that("bench-digest stops with a usage message without a run directory", {
+
+  script <- file.path(normalizePath(testthat::test_path("..", ".."), winslash = "/"),
+                      "tools", "bench-digest.R")
+  skip_if_not(file.exists(script), "Developer benchmark requires a source checkout.")
+  executable <- file.path(R.home("bin"),
+                          if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  run <- processx::run(executable, c("--vanilla", script), error_on_status = FALSE,
+                       timeout = 60)
+  expect_equal(run[["status"]], 1L)
+  expect_match(run[["stderr"]], "Usage: Rscript tools/bench-digest.R <run dir> [min seconds]",
+               fixed = TRUE)
 })

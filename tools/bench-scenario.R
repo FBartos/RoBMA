@@ -96,8 +96,11 @@ if (flag("installed")) {
   build <- if (identical(preparation, "debug")) "load_all debug opt-out" else "load_all release"
 }
 RoBMA.options(native_threads = threads)
-sha <- tryCatch(system2("git", c("-C", shQuote(root), "rev-parse", "--short", "HEAD"), stdout = TRUE),
-                error = function(e) NA_character_)
+sha <- tryCatch({
+  commit <- system2("git", c("-C", shQuote(root), "rev-parse", "--short", "HEAD"), stdout = TRUE)
+  # A root without a git HEAD gives no output: record it as unavailable.
+  if (length(commit) == 1L && !is.na(commit) && nzchar(commit)) commit else NA_character_
+}, error = function(e) NA_character_)
 
 bench_env <- new.env(parent = globalenv())
 sys.source(file.path(main_root, "tests", "scenarios", "helper-scenarios.R"), envir = bench_env,

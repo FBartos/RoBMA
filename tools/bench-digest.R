@@ -4,6 +4,9 @@
 #
 #   Rscript tools/bench-digest.R <run dir> [min seconds]
 args    <- commandArgs(trailingOnly = TRUE)
+if (length(args) < 1L) {
+  stop("Usage: Rscript tools/bench-digest.R <run dir> [min seconds]", call. = FALSE)
+}
 run_dir <- args[[1L]]
 min_s   <- if (length(args) > 1L) as.numeric(args[[2L]]) else 2
 results <- utils::read.delim(file.path(run_dir, "results.tsv"), stringsAsFactors = FALSE, quote = "")
