@@ -77,8 +77,9 @@ composite score, not the full joint likelihood.
 
 Full-joint Gaussian bridge likelihoods include latent sampling factors as well
 as residual sampling covariance. An omitted private dependency partition uses
-one complete block when sampling factors are present; residual covariance alone
-does not establish row independence.
+one complete block when sampling factors are present and the random-effect
+covariance is dense or absent; residual covariance alone does not establish row
+independence.
 
 For Gaussian estimate-unit scores, integrate every local Gaussian random
 effect through BayesTools' compiled marginal covariance plan. The target is
