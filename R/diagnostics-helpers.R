@@ -240,18 +240,7 @@
     return(check_loo(model, unit = unit))
   }
 
-  loo_result <- context[["loo_result"]]
-  pareto_k   <- loo_result[["diagnostics"]][["pareto_k"]]
-  bad_k      <- which(pareto_k > 0.7)
-
-  if (length(bad_k) > 0L) {
-    warning(
-      "Some Pareto k values are high (> 0.7), indicating potentially unreliable ",
-      "LOO diagnostics for ", unit, "s: ", paste(bad_k, collapse = ", "), ". ",
-      "Inspect the loo fit by using loo(object).",
-      call. = FALSE
-    )
-  }
+  .loo_warn_pareto_k(context[["loo_result"]], unit)
 
   return(invisible(NULL))
 }

@@ -21,6 +21,53 @@ test_that("known-V public influence diagnostics use canonical accurate target me
     "RoBMA_target"), attr(results$dfbetas, "RoBMA_target"))
 })
 
+test_that("cached-context influence diagnostics warn at the check_loo() Pareto threshold", {
+
+  object <- add_loo(.review_cleanup_plain_replay(known_v = TRUE))
+  draws <- dim(object[["loo"]][["estimate"]])[[1L]]
+  threshold <- min(1 - 1 / log10(draws), 0.7)
+  expect_lt(threshold, 0.6)
+  pareto_k <- rep(0.1, 6L)
+  pareto_k[3L] <- 0.6
+  object[["loo"]][["estimate"]][["diagnostics"]][["pareto_k"]] <- pareto_k
+  expected <- paste0("Some Pareto k values are high, indicating potentially unreliable ",
+    "LOO diagnostics for estimates: 3 (k = 0.6). ",
+    "Inspect the LOO result with 'loo(object, unit = \"estimate\")'.")
+  expect_warning(check_loo(object), expected, fixed = TRUE)
+  expect_warning(covratio(object), expected, fixed = TRUE)
+  expect_warning(dfbetas(object), expected, fixed = TRUE)
+  expect_warning(dffits(object), expected, fixed = TRUE)
+  expect_warning(cooks.distance(object), expected, fixed = TRUE)
+  # A value at the cutoff does not warn, as for check_loo().
+  object[["loo"]][["estimate"]][["diagnostics"]][["pareto_k"]] <- rep(threshold, 6L)
+  expect_warning(check_loo(object), NA)
+  expect_warning(covratio(object), NA)
+})
+
+test_that("the cached-context Pareto check follows the check_loo() cutoff for every draw count", {
+
+  object <- brma(yi = c(.1, -.2), sei = c(.3, .4), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE)
+  for (S in c(50L, 100L, 4000L)) {
+    scores <- cbind(-1 + .01 * sin(seq_len(S)), -2 + .02 * cos(seq_len(S)))
+    result <- loo::loo(scores, r_eff = 1, save_psis = TRUE, cores = 1)
+    attr(result, "RoBMA_target") <- .current_predictive_target_key(object, "estimate")
+    boundary <- min(1 - 1 / log10(S), 0.7)
+    context <- list(loo_result = result)
+    object[["loo"]] <- list(estimate = result)
+    context[["loo_result"]][["diagnostics"]][["pareto_k"]] <- rep(boundary, 2L)
+    expect_warning(.diagnostic_check_loo(object, context = context, unit = "estimate"), NA)
+    context[["loo_result"]][["diagnostics"]][["pareto_k"]] <- c(boundary + .01, boundary)
+    object[["loo"]][["estimate"]] <- context[["loo_result"]]
+    expected <- paste0("Some Pareto k values are high, indicating potentially unreliable ",
+      "LOO diagnostics for estimates: 1 (k = ", format(boundary + .01, digits = 4), "). ",
+      "Inspect the LOO result with 'loo(object, unit = \"estimate\")'.")
+    expect_warning(.diagnostic_check_loo(object, context = context, unit = "estimate"),
+      expected, fixed = TRUE)
+    expect_warning(check_loo(object), expected, fixed = TRUE)
+  }
+})
+
 test_that("known-V undefined COVRATIO return paths retain their PSIS target", {
 
   weights <- matrix(1 / 120, 120L, 6L)

@@ -1251,11 +1251,22 @@ check_loo.brma <- function(object, unit = "estimate", ...) {
   loo_result <- loo.brma(object, unit = unit)
 
   # check Pareto k diagnostics and warn if unreliable
-  pareto_k <- loo_result[["diagnostics"]][["pareto_k"]]
+  .loo_warn_pareto_k(loo_result, unit)
+
+  return()
+}
+
+
+# The Pareto k warning of check_loo() and of the influence diagnostics that
+# reuse a cached PSIS context: one cutoff, min(1 - 1 / log10(S), 0.7) for the S
+# draws of the stored loo result, and one message.
+.loo_warn_pareto_k <- function(loo_result, unit) {
+
+  pareto_k  <- loo_result[["diagnostics"]][["pareto_k"]]
   n_samples <- dim(loo_result)[[1L]]
   threshold <- min(1 - 1 / log10(n_samples), 0.7)
-  bad_k <- which(pareto_k > threshold)
-  if (length(bad_k) > 0) {
+  bad_k     <- which(pareto_k > threshold)
+  if (length(bad_k) > 0L) {
     warning(
       "Some Pareto k values are high, indicating potentially unreliable ",
       "LOO diagnostics for ", unit, "s: ",
@@ -1266,5 +1277,5 @@ check_loo.brma <- function(object, unit = "estimate", ...) {
     )
   }
 
-  return()
+  return(invisible(NULL))
 }

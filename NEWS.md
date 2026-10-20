@@ -1,4 +1,8 @@
 ## version 4.1.0 (IN PROGRESS)
+- Influence diagnostics that reuse the cached LOO result (`dfbetas()`,
+  `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
+  warn about high Pareto k values at the same draw-count-dependent cutoff and
+  with the same message as `check_loo()`.
 - `loo_compare()` and `loo_model_weights()` label the first model by its
   expression unless the call names `x`, so a named option or a named additional
   model no longer renames it.
