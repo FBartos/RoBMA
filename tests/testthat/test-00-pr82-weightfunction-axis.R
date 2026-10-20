@@ -2,6 +2,7 @@ test_that("observed weightfunction p-values follow the displayed axis", {
 
   make_object <- function(prior, direction = "positive") {
     data <- list(outcome = data.frame(yi = c(-2.5, 0, 2.5), sei = 1))
+    attr(data, "outcome_type") <- "norm"
     attr(data, "effect_direction") <- direction
     list(data = data, priors = list(outcome = list(bias = prior)))
   }
