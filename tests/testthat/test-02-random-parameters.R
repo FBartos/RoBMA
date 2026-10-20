@@ -461,7 +461,8 @@ test_that("random influence matches weighted scalar moment oracles", {
     parameter = parameter,
     .weights  = weights
   )
-  expect_equal(unname(observed_covratio), loo_var / full_var,
+  expect_s3_class(observed_covratio, "covratio.brma")
+  expect_equal(unname(as.numeric(observed_covratio)), loo_var / full_var,
                tolerance = 1e-12)
   expect_error(
     covratio(fit, component = "random", .weights = weights),
@@ -1002,7 +1003,7 @@ test_that("direct multivariate random quantities expose density targets", {
       "Point-null Bayes factors are unavailable for allocation-derived ",
       "random-effect quantity 'study: tau' at 0 because zero is a ",
       "nonregular product boundary of the common scale and allocation ",
-      "weight. Test 'tau2_prop(study) = 0' to compare omission of this ",
+      "weight. Test '`(mu) tau2_prop(study)` = 0' to compare omission of this ",
       "component."
     ),
     fixed = TRUE
