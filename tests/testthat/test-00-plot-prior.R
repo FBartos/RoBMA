@@ -106,18 +106,6 @@ test_that("unfitted formula prior aliases retain their declared owners", {
     print_prior(random, "mu_intercept", silent = TRUE))
 })
 
-.with_temp_plot_device <- function(expr) {
-
-  file <- tempfile(fileext = ".png")
-  grDevices::png(filename = file)
-  on.exit({
-    grDevices::dev.off()
-    unlink(file)
-  }, add = TRUE)
-
-  force(expr)
-}
-
 .is_ggplot <- function(x) {
 
   inherits(x, "ggplot")

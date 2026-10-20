@@ -29,6 +29,8 @@ test_that("admitted forest adapters preserve presentation and explicit overrides
   expect_identical(prepared$addpoly_args$predlim, c(-2, 2))
   expect_identical(prepared$addpoly_args$border, "red")
   expect_identical(prepared$addpoly_args$constarea, TRUE)
+  expect_identical(prepared$plot_defaults$addfit, TRUE)
+  expect_identical(prepared$forest_args$ylim, c(-6, nobs(fit) + 3))
   bare <- forest.brma(fit, addfit = FALSE, as_data = TRUE)
   expect_identical(bare$plot_defaults$addfit, FALSE)
   expect_null(bare$forest_args$ylim)
@@ -45,6 +47,35 @@ test_that("admitted forest adapters preserve presentation and explicit overrides
     legacy <- as_metafor_forest(fit)
     expect_null(legacy$plot_defaults)
     expect_equal(forest.metafor_forest.brma(legacy), forest.brma(fit))
+  })
+  local({
+    calls <- list()
+    testthat::local_mocked_bindings(
+      forest.default = function(...) {
+        calls[["forest"]] <<- list(...)
+        invisible(NULL)
+      },
+      addpoly.default = function(...) {
+        calls[["addpoly"]] <<- list(...)
+        invisible(NULL)
+      }, .package = "metafor"
+    )
+    forest.metafor_forest.brma(prepared)
+    expect_identical(calls[["forest"]][["ylim"]], c(-6, nobs(fit) + 3))
+    expect_identical(calls[["addpoly"]][["predstyle"]], "shade")
+    expect_identical(calls[["addpoly"]][["rows"]], -4)
+    expect_identical(calls[["addpoly"]][["border"]], "red")
+    forest.metafor_forest.brma(prepared, predstyle = "bar", row = -2,
+      mlab = "Override", border = "blue", ylim = c(-8, 40))
+    expect_identical(calls[["forest"]][["ylim"]], c(-8, 40))
+    expect_identical(calls[["addpoly"]][["predstyle"]], "bar")
+    expect_identical(calls[["addpoly"]][["rows"]], -2)
+    expect_identical(calls[["addpoly"]][["mlab"]], "Override")
+    expect_identical(calls[["addpoly"]][["border"]], "blue")
+    calls[["addpoly"]] <- NULL
+    forest.metafor_forest.brma(prepared, addfit = FALSE)
+    expect_null(calls[["addpoly"]])
+    expect_null(calls[["forest"]][["ylim"]])
   })
 })
 
