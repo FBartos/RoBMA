@@ -109,11 +109,19 @@ test_that("response RNG interrupts between rows and releases its consumed stream
   expect_identical(complete$failure_code, 0L)
   complete_seed <- .Random.seed
   assign(".Random.seed", initial, envir = .GlobalEnv)
+  # The generator repeats inside the callback until the elapsed limit fires, so
+  # the test does not depend on one call outlasting the limit (a fast machine
+  # completes 50,000 rows in under 20 ms). The bound only stops a broken
+  # interrupt check from running forever; reaching it fails the assertions.
+  calls <- 0L
   interrupt <- function() {
     on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE), add = TRUE)
     .Call("RoBMA_native_unwind_probe", "callback", function() {
       setTimeLimit(elapsed = .02, transient = TRUE)
-      generate()
+      while (calls < 2000L) {
+        generate()
+        calls <<- calls + 1L
+      }
     }, 1L, PACKAGE = "RoBMA")
   }
   result <- tryCatch(interrupt(), error = identity)
