@@ -21,6 +21,30 @@ test_that("density warnings name their observed thresholds and sample control", 
 })
 
 
+test_that("ordinate failure messages carry one inspect sentence", {
+
+  inspect_count <- function(text) length(gregexpr("[Ii]nspect", text)[[1L]])
+  rejected <- .hypothesis_brma_iwmde_ordinate_failure_message("qCMDE", "mu = 0",
+    list(status = "ok"), paste0("qCMDE lattice resolution error estimate is unbounded. ",
+      "Increase 'normalization_points' in the 'density_control' argument and inspect ",
+      "density_diagnostics()"))
+  expect_identical(rejected, paste0(
+    "qCMDE posterior ordinate for 'mu = 0' was rejected by diagnostics: ",
+    "qCMDE lattice resolution error estimate is unbounded. Increase ",
+    "'normalization_points' in the 'density_control' argument and inspect ",
+    "density_diagnostics()."))
+  underflow <- .hypothesis_brma_iwmde_ordinate_failure_message("qCMDE", "mu = 0",
+    list(status = "ok"), .iwmde_ordinate_numerical_reason("underflow"),
+    numerical_status = "underflow")
+  expect_identical(inspect_count(underflow), 1L)
+  expect_match(underflow, " Use a region hypothesis when a point ordinate is not representable.$")
+  # A reason without its own hint still gets the remedy.
+  plain <- .hypothesis_brma_iwmde_ordinate_failure_message("qCMDE", "mu = 0",
+    list(status = "unsupported"), "target is unsupported")
+  expect_identical(inspect_count(plain), 1L)
+})
+
+
 test_that("density messages print trimmed values and floor tiny percentages", {
 
   expect_identical(.iwmde_percent(.025), "2.5%")

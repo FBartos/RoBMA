@@ -444,8 +444,14 @@
     density_method, target, diagnostic, reason, numerical_status = NULL) {
 
   reason <- sub("[.]$", "", reason)
+  # A reason that already tells the reader to inspect the diagnostics keeps that
+  # sentence; the remedy then adds only what the reason does not say.
+  inspected <- grepl("inspect", reason, ignore.case = TRUE)
   remedy <- if (!is.null(numerical_status) && !identical(numerical_status, "finite")) {
-    " Inspect 'density_diagnostics()'; use a region hypothesis when a point ordinate is not representable."
+    paste0(" ", if (inspected) "Use" else "Inspect 'density_diagnostics()'; use",
+           " a region hypothesis when a point ordinate is not representable.")
+  } else if (inspected) {
+    ""
   } else {
     " Inspect 'density_diagnostics()' for the failed criterion and its computation settings."
   }

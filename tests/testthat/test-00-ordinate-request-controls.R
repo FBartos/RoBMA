@@ -34,7 +34,7 @@ test_that("unavailable ordinates retain the actual normalized request", {
   expect_identical(conditionMessage(error), paste0(
     "qCMDE posterior ordinate is unavailable for 'effect = 0': fewer than 20 continuous active samples. ",
     "Inspect 'density_diagnostics()' for the computation stage. ",
-    "Inspect 'density_diagnostics()'; use a region hypothesis when a point ordinate is not representable."))
+    "Use a region hypothesis when a point ordinate is not representable."))
   actual <- density_diagnostics(error)
   expect_equal(actual$requested_samples, 70)
   expect_equal(actual$target_relative_mcse, .01)
