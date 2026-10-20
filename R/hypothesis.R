@@ -288,7 +288,11 @@ hypothesis.default <- function(object, hypothesis, ...) {
 #' \code{RoBMA_density_ordinate_error}; when a fitted chain has no eligible row
 #' of the target, the error also has the class
 #' \code{RoBMA_density_chain_coverage} and its message names
-#' \code{density_method = "KDE"} and longer chains as remedies.
+#' \code{density_method = "KDE"} and longer chains as remedies. The refusal for
+#' fewer than 20 continuous active samples of the target takes precedence over
+#' this diagnosis: such a target is refused for that reason alone, without the
+#' class \code{RoBMA_density_chain_coverage}, even when a fitted chain has none
+#' of its rows.
 #'
 #' Statements that need to be restated, or an argument that needs to change,
 #' stop with the class \code{RoBMA_hypothesis_statement} without
