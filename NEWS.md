@@ -18,9 +18,12 @@
 - Restore the runtime of binomial GLMM AGHQ with non-uniform beta baserate
   priors, rank-one cluster selection densities, multilevel BLUP and true-effect
   evaluation, sampling-conditioned tail and moment targets, whitened known-V
-  joint likelihoods, and block-wise covariance sampling and solves (the
-  block-wise route is used only where it is faster than the dense one), with
-  unchanged results.
+  joint likelihoods, block-wise covariance sampling and solves (the block-wise
+  route is used only where it is faster than the dense one), and z-curve plots
+  of selection models (whose quadrature transition check had made them up to
+  40x slower). Results agree with 4.1.0.420 to rounding; seeded predictive draws
+  change only where the covariance route returns to the dense one of 4.1.0.229.
+  Binomial GLMM AGHQ links its kernel first to keep the faster code placement.
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.
