@@ -987,7 +987,11 @@ expect_influence_matches_metafor <- function(case) {
                            tolerance = 1e-12)
     testthat::expect_equal(inf_brma$inf$cook.d, unname(cooks.distance(fit_brma)),
                            tolerance = 1e-12)
-    testthat::expect_equal(inf_metafor$inf$cov.r, unname(covratio(fit_brma)),
+    covratio_values <- covratio(fit_brma)
+    testthat::expect_identical(class(covratio_values), c("covratio.brma", "numeric"))
+    testthat::expect_identical(names(covratio_values), rownames(inf_brma$inf))
+    testthat::expect_null(attr(covratio_values, "note", exact = TRUE))
+    testthat::expect_equal(inf_metafor$inf$cov.r, unname(unclass(covratio_values)),
                            tolerance = 0.05)
   }
 }
