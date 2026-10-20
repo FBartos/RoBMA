@@ -265,16 +265,18 @@
 .test_step_moments_reference <- function(mu, sigma, sei, omega, spec,
                                          kernel_mode = rep(SELKERNEL_STEP, nrow(mu))) {
 
-  S             <- nrow(mu)
-  K             <- ncol(mu)
-  moment_mean   <- matrix(NA_real_, nrow = S, ncol = K)
-  moment_second <- matrix(NA_real_, nrow = S, ncol = K)
+  S               <- nrow(mu)
+  K               <- ncol(mu)
+  moment_mean     <- matrix(NA_real_, nrow = S, ncol = K)
+  moment_second   <- matrix(NA_real_, nrow = S, ncol = K)
+  moment_variance <- matrix(NA_real_, nrow = S, ncol = K)
 
   for (s in seq_len(S)) {
     for (k in seq_len(K)) {
       if (kernel_mode[s] == SELKERNEL_NORMAL) {
-        moment_mean[s, k]   <- mu[s, k]
-        moment_second[s, k] <- sigma[s, k]^2 + mu[s, k]^2
+        moment_mean[s, k]     <- mu[s, k]
+        moment_second[s, k]   <- sigma[s, k]^2 + mu[s, k]^2
+        moment_variance[s, k] <- sigma[s, k]^2
         next
       }
 
@@ -282,6 +284,11 @@
       denom         <- 0
       signed_first  <- 0
       signed_second <- 0
+      # Per-bin standardized pieces, kept for the centered variance below.
+      bin_weight    <- numeric(spec[["n_bins"]])
+      bin_mass      <- numeric(spec[["n_bins"]])
+      bin_ordinates <- numeric(spec[["n_bins"]])
+      bin_edges     <- numeric(spec[["n_bins"]])
 
       for (b in seq_len(spec[["n_bins"]])) {
         lower <- spec[["z_lower"]][b] * sei[k]
@@ -308,17 +315,30 @@
         denom         <- denom + omega[s, b] * m0
         signed_first  <- signed_first + omega[s, b] * m1
         signed_second <- signed_second + omega[s, b] * m2
+        bin_weight[b]    <- omega[s, b]
+        bin_mass[b]      <- m0
+        bin_ordinates[b] <- pa - pb
+        bin_edges[b]     <- a_pa - b_pb
       }
 
       moment_mean[s, k]   <- spec[["sign"]] * signed_first / denom
       moment_second[s, k] <- signed_second / denom
+
+      # Second central moment about the selected mean, summed bin by bin.
+      # With Z standard normal truncated to a bin and shift = (mean - selected
+      # mean) / sd, E[(Z + shift)^2] over the bin is
+      # (1 + shift^2) * mass + 2 * shift * (pa - pb) + (a * pa - b * pb),
+      # which avoids the raw second moment minus squared mean.
+      shift <- (signed_mean - signed_first / denom) / sigma[s, k]
+      moment_variance[s, k] <- sigma[s, k]^2 * sum(bin_weight * (
+        (1 + shift^2) * bin_mass + 2 * shift * bin_ordinates + bin_edges)) / denom
     }
   }
 
   return(list(
     mean     = moment_mean,
     second   = moment_second,
-    variance = moment_second - moment_mean^2
+    variance = moment_variance
   ))
 }
 

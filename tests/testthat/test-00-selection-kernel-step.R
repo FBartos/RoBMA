@@ -759,11 +759,38 @@ test_that("trusted step densities, CDF, moments, and RNG match fallback paths", 
       ),
       tolerance = 1e-12
     )
-    expect_equal(
-      moments[c("mean", "second")],
-      .test_step_moments_reference(sign * mean, sd, sei, omega, spec)[c("mean", "second")],
-      tolerance = 1e-12
+    # The native variance is accumulated about the Gaussian mean; the
+    # reference sums bin-wise second central moments about the selected mean.
+    # On these rows the selected variance is 0.5-1 times the Gaussian variance,
+    # so both agree to a few ulp (measured relative difference 4e-16) and 1e-12
+    # leaves room for libm differences. This is not a far-tail accuracy claim:
+    # for a one-sided step with the selected region a standard deviations
+    # beyond the Gaussian mean, the centered variance has a relative error
+    # against a 6000-bit reference of about 1.2e-12 (a = 6), 9e-12 (10),
+    # 1e-10 (15), 3.5e-10 (20) and 1e-8 (30); such rows need a relative
+    # tolerance of that order, not 1e-12.
+    reference <- .test_step_moments_reference(sign * mean, sd, sei, omega, spec)
+    expect_equal(moments[c("mean", "second")], reference[c("mean", "second")],
+                 tolerance = 1e-12)
+    expect_lt(max(abs(moments[["variance"]] / reference[["variance"]] - 1)), 1e-12)
+
+    # The unselected normal row (kernel mode NORMAL) has the Gaussian moments.
+    mixed_modes     <- c(SELKERNEL_STEP, SELKERNEL_NORMAL, SELKERNEL_STEP)
+    mixed_moments   <- .selnorm_kernel_moments_matrix(
+      mean           = sign * mean,
+      sd             = sd,
+      sei            = sei,
+      omega          = omega,
+      selection_spec = spec,
+      kernel_mode    = mixed_modes
     )
+    mixed_reference <- .test_step_moments_reference(
+      sign * mean, sd, sei, omega, spec, mixed_modes)
+    expect_equal(mixed_moments[c("mean", "second")],
+                 mixed_reference[c("mean", "second")], tolerance = 1e-12)
+    expect_lt(max(abs(mixed_moments[["variance"]] / mixed_reference[["variance"]] - 1)),
+              1e-12)
+    expect_equal(mixed_moments[["variance"]][2L, ], sd[2L, ]^2, tolerance = 1e-12)
 
     withr::local_seed(511)
     rng_fast <- .selnorm_kernel_rng_matrix(

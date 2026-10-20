@@ -264,7 +264,14 @@ test_that("native central interval probabilities are not projected", {
       stats::pnorm(lower, mean = mean, sd = sd)
   )
 
-  expect_identical(actual, expected)
+  # The interval holds probability mass 0.78 between CDF values 0.14 and 0.92,
+  # so the naive difference does not cancel and its rounding error is a few
+  # ulp of the mass. The native central route evaluates the same mass through
+  # erf, which differs from pnorm by a few ulp and by the libm in use; the
+  # two routes are not bitwise identical in general (225 of 400 random
+  # straddling intervals matched exactly). 1e-13 relative on the log mass is
+  # two orders above the expected difference.
+  expect_lt(abs(actual / expected - 1), 1e-13)
   expect_true(is.nan(native_log_probability(NaN, sd, lower, upper)))
   expect_true(is.nan(native_log_probability(mean, Inf, lower, upper)))
 })
