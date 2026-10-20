@@ -42,7 +42,7 @@ regplot <- function(x, ...) UseMethod("regplot")
 #' Defaults to \code{NULL} (no reference line).
 #' @param psize numeric vector or \code{NULL}; point sizes for each study.
 #' If scalar, it is recycled to all studies. If \code{NULL} (default), sizes
-#' are computed from inverse standard error, mapped to \code{plim}. Equal
+#' are computed from the inverse sampling variance, mapped to \code{plim}. Equal
 #' precisions use the lower endpoint; zero SEs receive the established maximum
 #' priority when positive SEs are also present.
 #' @param plim numeric vector of length 2; range for point sizes.
