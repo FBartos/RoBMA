@@ -695,10 +695,12 @@ test_that("E3-c2 unused summary arguments warn and lines rejects explicit add", 
 
   object <- .review_h_contribution()
   expect_warning(summary(object, include_mcmc_diagnostics = FALSE,
-    unused_cleanup_argument = TRUE), "unused_cleanup_argument", fixed = TRUE)
+    unused_cleanup_argument = TRUE),
+    "Unused argument in summary.brma(): 'unused_cleanup_argument'", fixed = TRUE)
   models <- .review_h_empty_condition()
   expect_warning(summary_models(models, include_mcmc_diagnostics = FALSE,
-    unused_cleanup_argument = TRUE), "unused_cleanup_argument", fixed = TRUE)
+    unused_cleanup_argument = TRUE),
+    "Unused argument in summary_models(): 'unused_cleanup_argument'", fixed = TRUE)
   expect_error(lines(object, add = FALSE),
     "'lines()' always adds to an existing plot. Omit 'add'; use 'plot()' to create a new plot.",
     fixed = TRUE)
