@@ -421,16 +421,34 @@ test_that("expression nuisance and selected cells retain their declared typed re
   skip_if_missing_fits(fit_name)
   object <- load_fit(fit_name)
   context <- .iwmde_context(object)
+  refusals <- list()
   for (parameter in c("mu_intercept", "tau")) {
     spec <- .iwmde_parameter_spec(context, parameter, NULL)
-    expect_error(.iwmde_row_states(context, 1:2, parameter, spec),
-      class = "BayesTools_ordered_expression_unavailable")
+    refusals[[parameter]] <- tryCatch(.iwmde_row_states(context, 1:2, parameter, spec),
+      error = identity)
+    expect_s3_class(refusals[[parameter]], "BayesTools_ordered_expression_unavailable")
     expect_null(.normal_grid_inputs(context, parameter))
   }
   for (parameter in c("intercept", "tau")) {
-    expect_error(graphics::plot(object, parameter = parameter, prior = FALSE,
-      density_method = "qCMDE", plot_type = "ggplot"),
-      class = "BayesTools_ordered_expression_unavailable")
+    failure <- tryCatch(graphics::plot(object, parameter = parameter, prior = FALSE,
+      density_method = "qCMDE", plot_type = "ggplot"), error = identity)
+    expect_s3_class(failure, "RoBMA_density_construction_error")
+    expect_s3_class(failure, "iwmde_construction_error")
+    expect_identical(failure[["target"]],
+      if (parameter == "intercept") "mu_intercept" else "tau")
+    expect_identical(failure[["stage"]], "grouped baseline joint-density evaluation")
+    expect_identical(failure[["detail"]],
+      conditionMessage(refusals[[failure[["target"]]]]))
+    expect_match(failure[["detail"]], paste0(
+      "The ordered density kernel for 'mu_g' is unavailable for expression totals. ",
+      "Use a supported scalar total prior"), fixed = TRUE)
+    posterior_rows <- failure[["posterior_rows"]]
+    expect_type(posterior_rows, "integer")
+    expect_gt(length(posterior_rows), 0L)
+    expect_identical(anyDuplicated(posterior_rows), 0L)
+    expect_true(all(posterior_rows >= 1L &
+      posterior_rows <= nrow(context[["posterior_samples"]])))
+    expect_match(conditionMessage(failure), "Use density_method = 'KDE'", fixed = TRUE)
   }
   expect_error(graphics::plot(object, parameter = "g[hi]", prior = FALSE,
     density_method = "qCMDE", plot_type = "ggplot"),
