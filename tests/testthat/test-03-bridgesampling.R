@@ -314,8 +314,9 @@ test_that("add_marglik retains actual upstream nonfinite repetition diagnostics"
     "RoBMA_marglik_error", "error", "condition"))
   expect_identical(conditionMessage(actual), paste0(
     "Bridge sampling was rejected by diagnostics: repetition(s) 2 returned ",
-    "a non-finite natural-log marginal likelihood. Increase 'maxiter' or fit ",
-    "more posterior draws (for example with a larger 'sample' or update())."
+    "a non-finite natural-log marginal likelihood. Inspect the posterior ",
+    "samples and priors for non-finite densities or fit more posterior draws ",
+    "(for example with a larger 'sample' or update())."
   ))
   expect_null(actual$call)
   expect_s3_class(original, "BayesTools_marglik_repetition_failure")

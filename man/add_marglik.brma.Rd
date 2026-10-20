@@ -101,9 +101,11 @@ A non-finite bridge repetition raises a
 \code{RoBMA_marglik_repetition_failure} error, inheriting from
 \code{RoBMA_marglik_error}. Its \code{parent} retains the complete upstream
 condition, including the failed \code{repetitions} table. Increase
-\code{maxiter} or fit more posterior draws (for example with a larger
-\code{sample} or \code{update()}) before retrying; these actions do not
-guarantee that the diagnostics will pass.
+\code{maxiter} when a failed repetition reached its iteration limit;
+otherwise inspect the posterior samples and priors for non-finite densities.
+Fitting more posterior draws (for example with a larger \code{sample} or
+\code{update()}) may help in either case. These actions do not guarantee
+that the diagnostics will pass.
 
 A checked posterior sample that cannot form a full-rank bridge proposal
 raises \code{RoBMA_marglik_rank_deficiency}, inheriting from
@@ -113,8 +115,9 @@ raises \code{RoBMA_marglik_rank_deficiency}, inheriting from
 \code{reason = "insufficient_draws"}, fit more posterior draws with a larger
 \code{sample} or \code{update()}; dependence may persist. For
 \code{reason = "dependent_coordinates"}, inspect the parameterization and
-sampling; more draws alone need not resolve dependence. Reported pivot
-coordinates identify one dependent set, not uniquely faulty nodes.
+sampling; more draws alone need not resolve dependence. The message names the
+first reported pivot coordinates; they identify one dependent set, not
+uniquely faulty nodes.
 }
 \examples{
 \dontrun{

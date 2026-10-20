@@ -38,8 +38,9 @@ test_that("add_marglik translates only thrown typed repetition failures", {
     "RoBMA_marglik_error", "error", "condition"))
   expect_identical(conditionMessage(actual), paste0(
     "Bridge sampling was rejected by diagnostics: repetition(s) 2, 3 returned ",
-    "a non-finite natural-log marginal likelihood. Increase 'maxiter' or fit ",
-    "more posterior draws (for example with a larger 'sample' or update())."
+    "a non-finite natural-log marginal likelihood. Inspect the posterior ",
+    "samples and priors for non-finite densities or fit more posterior draws ",
+    "(for example with a larger 'sample' or update())."
   ))
   expect_null(actual$call)
   expect_identical(actual$parent, original)
@@ -59,6 +60,43 @@ test_that("add_marglik translates only thrown typed repetition failures", {
   for (condition in unrelated) {
     expect_identical(signal(condition), condition)
   }
+})
+
+test_that("add_marglik names the remedy that fits the cause of a repetition failure", {
+
+  fit <- .bridge_repetition_test_fit(NULL)
+  failure_message <- function(logml, niter) {
+    raw <- .bridge_repetition_test_raw(logml)
+    raw$niter <- niter
+    original <- suppressWarnings(
+      tryCatch(.bridge_repetition_test_stored(raw), error = identity)
+    )
+    expect_s3_class(original, "BayesTools_marglik_repetition_failure")
+    testthat::local_mocked_bindings(.marglik = function(...) stop(original),
+      .package = "RoBMA")
+    conditionMessage(tryCatch(add_marglik(fit), error = identity))
+  }
+  prefix <- "Bridge sampling was rejected by diagnostics: repetition(s) "
+  suffix <- " returned a non-finite natural-log marginal likelihood. "
+  draws  <- "fit more posterior draws (for example with a larger 'sample' or update())."
+
+  # the failed repetition reached the iteration limit 'maxiter' = 100
+  expect_identical(
+    failure_message(c(-2, NA_real_), c(4L, 101L)),
+    paste0(prefix, "2", suffix, "Increase 'maxiter' or ", draws)
+  )
+  # a non-finite estimate within the limit is not cured by more iterations
+  expect_identical(
+    failure_message(c(-2, NA_real_), c(4L, 4L)),
+    paste0(prefix, "2", suffix, "Inspect the posterior samples and priors ",
+           "for non-finite densities or ", draws)
+  )
+  # both causes
+  expect_identical(
+    failure_message(c(NA_real_, NA_real_), c(4L, 101L)),
+    paste0(prefix, "1, 2", suffix, "Increase 'maxiter', inspect the posterior ",
+           "samples and priors for non-finite densities, or ", draws)
+  )
 })
 
 test_that("add_marglik warns about unused dots after existing argument validation", {
@@ -329,7 +367,12 @@ test_that("add_marglik transports genuine rank diagnoses with sample-specific re
       paste0("Inspect the parameterization and sampling; more posterior draws alone ",
         "need not resolve dependence.")
     }
-    expect_identical(conditionMessage(actual), paste0(common, remedy,
+    dependent <- original$dependent_coordinates
+    expect_gt(length(dependent), 0L)
+    coordinates <- paste0(" Dependent coordinates: ",
+      paste0("'", utils::head(dependent, 3L), "'", collapse = ", "),
+      if (length(dependent) > 3L) ", ...", ".")
+    expect_identical(conditionMessage(actual), paste0(common, remedy, coordinates,
       " Reported dependent coordinates identify one pivot-dependent set, not uniquely faulty nodes."))
     expect_identical(signal(simpleError(conditionMessage(original))),
       simpleError(conditionMessage(original)))
