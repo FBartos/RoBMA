@@ -280,25 +280,61 @@ test_that("random selectors of a nested gated allocation derive from its allocat
   expect_identical(grep(":$", printed, value = TRUE), "  w:")
 })
 
-test_that("random selectors without a prior density are refused with the target classes", {
+test_that("random slopes show their declared scalar prior on both predictor scales", {
+
+  skip_on_cran()
+  fit <- load_fit("lane_random_correlation_direct")
+  prior <- attr(fit[["fit"]], "prior_list", exact = TRUE)[["mu__xREx__study_x"]]
+  expect_true(BayesTools::is.prior(prior))
+  expect_identical(prior[["distribution"]], "normal")
+  expect_equal(prior[["parameters"]], list(mean = 0, sd = .5))
+  support <- unname(unlist(prior[["truncation"]]))
+  expect_identical(support, c(0, Inf))
+
+  # The fitted block uses (x - mean(x)) / sd(x): its original-scale slope
+  # SD is the declared fitted SD divided by that persisted predictor SD.
+  predictor_sd <- attr(fit[["fit"]], "formula_scale", exact = TRUE)[["mu"]][["mu_x"]][["sd"]]
+  expect_length(predictor_sd, 1L)
+  expect_true(is.finite(predictor_sd) && predictor_sd > 0)
+  expected_density <- function(x, scale) {
+    source_x <- x / scale
+    parameters <- prior[["parameters"]]
+    mass <- diff(stats::pnorm(support, parameters[["mean"]], parameters[["sd"]]))
+    stats::dnorm(source_x, parameters[["mean"]], parameters[["sd"]]) / (mass * scale)
+  }
+  for (standardized in c(TRUE, FALSE)) {
+    scale <- if (standardized) 1 else 1 / predictor_sd
+    plot <- plot_prior(fit, "tau(x)", plot_type = "ggplot",
+      standardized_coefficients = standardized)
+    expect_s3_class(plot, "ggplot")
+    curve <- .random_prior_curve(plot)
+    expect_true(all(curve[["x"]] >= support[[1L]] * scale))
+    .expect_random_prior_curve(curve, expected_density(curve[["x"]], scale),
+      1e-6, support = support * scale)
+    expect_length(.random_prior_layers(plot)[["arrows"]], 0L)
+  }
+
+  .with_temp_plot_device(expect_null(plot_prior(fit, "tau(x)")))
+  printed <- capture.output(returned <- print_prior(fit, "tau(x)"))
+  expect_s3_class(returned, "prior_linear_density")
+  expect_identical(printed[[1L]],
+    "tau(x): prior law derived from the declared random-effect priors")
+  expect_true(any(grepl("Normal(0, 0.5)[0, Inf]", printed, fixed = TRUE)))
+  expect_silent(print_prior(fit, "tau(x)", silent = TRUE))
+})
+
+
+test_that("random correlations without an original-scale prior retain target refusals", {
 
   skip_on_cran()
   fit <- load_fit("lane_random_correlation_direct")
 
-  expect_error(
-    plot_prior(fit, "tau(x)"),
-    "prior of the random-effect quantity 'tau(x)' is unavailable",
-    fixed = TRUE, class = "RoBMA_hypothesis_target"
+  error <- tryCatch(
+    plot_prior(fit, "rho(intercept,x)", standardized_coefficients = FALSE),
+    error = identity
   )
-  for (call in list(
-    quote(plot_prior(fit, "tau(x)")),
-    quote(print_prior(fit, "tau(x)")),
-    quote(plot_prior(fit, "rho(intercept,x)", standardized_coefficients = FALSE))
-  )) {
-    error <- tryCatch(eval(call), error = identity)
-    expect_s3_class(error, "RoBMA_hypothesis_target")
-    expect_s3_class(error, "RoBMA_hypothesis_unavailable")
-  }
+  expect_s3_class(error, "RoBMA_hypothesis_target")
+  expect_s3_class(error, "RoBMA_hypothesis_unavailable")
 
   # the correlation has its exact prior on the fitted scale
   expect_error(
