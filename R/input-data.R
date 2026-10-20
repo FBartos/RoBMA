@@ -954,6 +954,24 @@ NULL
 
   vi  <- hidden[["vi"]]
   sei <- hidden[["sei"]]
+  if (!is.null(sei)) {
+    sei <- sei[keep_rows]
+    # A present 'sei' that cannot define a sampling variance is reported before
+    # the 'vi' it failed to complete; missing entries are checked after 'vi'.
+    present <- !is.na(sei)
+    if (any(present & (!is.finite(sei) | sei <= 0))) {
+      stop("brma.mv() input 'sei' must contain positive finite values.",
+           call. = FALSE)
+    }
+    represented_vi <- sei^2
+    if (any(present & (!is.finite(represented_vi) | represented_vi <= 0))) {
+      stop(
+        "brma.mv() input 'sei' must have positive finite squared ",
+        "sampling variances.",
+        call. = FALSE
+      )
+    }
+  }
   if (!is.null(vi)) {
     vi <- vi[keep_rows]
     if (any(!is.finite(vi)) || any(vi <= 0)) {
@@ -962,8 +980,7 @@ NULL
     }
   }
   if (!is.null(sei)) {
-    sei <- sei[keep_rows]
-    if (any(!is.finite(sei)) || any(sei <= 0)) {
+    if (any(!is.finite(sei))) {
       stop("brma.mv() input 'sei' must contain positive finite values.",
            call. = FALSE)
     }
@@ -972,16 +989,6 @@ NULL
     if (any(!.sampling_variance_matches_se(vi, sei))) {
       stop("brma.mv() inputs 'vi' and 'sei' must be consistent.",
            call. = FALSE)
-    }
-  }
-  if (!is.null(sei)) {
-    represented_vi <- sei^2
-    if (any(!is.finite(represented_vi)) || any(represented_vi <= 0)) {
-      stop(
-        "brma.mv() input 'sei' must have positive finite squared ",
-        "sampling variances.",
-        call. = FALSE
-      )
     }
   }
 

@@ -1255,8 +1255,16 @@ test_that("diagonal completion preserves original missingness and retained valid
   for (value in c(-0.01, 0, Inf)) {
     expect_error(construct(c(value, 0.04, 0.09), missing_sei), "'vi' must contain positive finite values", fixed = TRUE)
   }
+  # a present 'sei' that cannot define a variance is reported as 'sei', not as
+  # the 'vi' that its completion left missing
+  for (value in c(-1, 0, Inf)) {
+    expect_error(construct(c(NA, 0.04, 0.09), c(value, 0.2, 0.3)),
+      "brma.mv() input 'sei' must contain positive finite values.", fixed = TRUE)
+  }
   for (value in c(1e-200, 1e200)) {
-    expect_error(construct(c(NA, 0.04, 0.09), c(value, 0.2, 0.3)), "positive finite", fixed = TRUE)
+    expect_error(construct(c(NA, 0.04, 0.09), c(value, 0.2, 0.3)),
+      "brma.mv() input 'sei' must have positive finite squared sampling variances.",
+      fixed = TRUE)
   }
 })
 
