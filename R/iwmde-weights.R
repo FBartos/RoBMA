@@ -1086,7 +1086,17 @@
 
 .iwmde_chen_omega_support <- function(context) {
 
-  prior <- context[["flat_prior_list"]][["bias"]]
+  # An ensemble stores its weight-function prior under "bias"; a single weight
+  # function (bselmodel()) is renamed to its output parameter, the omega
+  # coordinate itself (see .create_fit_priors()).
+  prior_name <- NULL
+  for (name in c(context[["selection_spec"]][["jags_omega"]], "bias")) {
+    prior_name <- .iwmde_parameter_prior_name(context, name)
+    if (!is.null(prior_name)) {
+      break
+    }
+  }
+  prior <- if (is.null(prior_name)) NULL else context[["flat_prior_list"]][[prior_name]]
   if (is.null(prior)) {
     return(c(0, Inf))
   }

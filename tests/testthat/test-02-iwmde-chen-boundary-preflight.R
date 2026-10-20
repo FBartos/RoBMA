@@ -13,6 +13,32 @@ testthat::test_that("finite declared omega conditioners retain endpoints and raw
   testthat::expect_true(all(!is.finite(invalid$eval)))
 })
 
+testthat::test_that("a single weight function stored as omega uses the raw closed support", {
+  # bselmodel() and bselmodel.mv() rename their non-mixture weight-function
+  # prior from "bias" to its output parameter "omega" (.create_fit_priors()).
+  prior <- BayesTools::prior_weightfunction(
+    side = "one-sided", steps = .05, weights = BayesTools::wf_cumulative(c(1, 1)))
+  values <- c(0, .2, .75, 1)
+  for (name in c("bias", "omega")) {
+    context <- list(flat_prior_list = setNames(list(prior), name),
+      selection_spec = list(jags_omega = "omega"))
+    testthat::expect_identical(.iwmde_chen_omega_support(context), c(0, 1))
+    transformed <- .iwmde_chen_transform_conditioning_column(
+      context, values, rev(values), "omega[2]")
+    testthat::expect_identical(transformed$fit, values)
+    testthat::expect_identical(transformed$eval, rev(values))
+    invalid <- .iwmde_chen_transform_conditioning_column(
+      context, c(-.01, 1.01, NA), c(-Inf, NA), "omega[2]")
+    testthat::expect_true(all(!is.finite(invalid$fit)))
+    testthat::expect_true(all(!is.finite(invalid$eval)))
+  }
+  # Without a weight-function prior the support stays the lower-bounded one.
+  testthat::expect_identical(
+    .iwmde_chen_omega_support(list(flat_prior_list = list(),
+      selection_spec = list(jags_omega = "omega"))),
+    c(0, Inf))
+})
+
 testthat::test_that("boundary conditioners use conditional normal weights without a forced fallback", {
   i <- seq_len(40L)
   omega <- rep(c(0, .2, .6, 1), 10L)
