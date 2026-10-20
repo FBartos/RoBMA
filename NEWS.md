@@ -1,4 +1,10 @@
 ## version 4.1.0 (IN PROGRESS)
+- IWMDE conditioning for single-weightfunction `bselmodel()` and `bselmodel.mv()`
+  fits uses the declared closed omega support, as for model-averaged fits.
+- GLMM AGHQ failure messages name the public `prior_baserate` and
+  `prior_lograte` arguments; IWMDE diagnostic messages report percentages and
+  counts compactly and give one remedy; density construction errors also
+  carry the class `RoBMA_density_error`.
 - Restore the runtime of binomial GLMM AGHQ with non-uniform beta baserate
   priors, rank-one cluster selection densities, multilevel BLUP and true-effect
   evaluation, sampling-conditioned tail and moment targets, and whitened
