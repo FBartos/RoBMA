@@ -309,73 +309,14 @@ otherwise), `--installed` benchmarks the installed package, and `--tag` labels
 the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run with
 each artifact's native share and top self-time functions;
 `tools/bench-prof-tree.R <file.Rprof>` prints the call tree of one artifact.
-Fit-list preparation supports contiguous empty-list initializers, a loop whose
-body only assigns `scenario_fit()` results into those lists, and subsequent
-`names()` assignments. The original block runs once when a selected artifact
-needs an output, retaining its lists, names, and loop binding. Unsupported
-compound fit construction fails before the benchmark reads any cache.
-
-Preparation inputs have a bounded source contract: literals and plain local
-definitions using `c`, `seq_along`, `paste0`, parentheses, `[` and `[[`.
-The loop sequence must have declared nonempty literal-vector provenance (or
-`seq_along` of one); empty, inherited, cyclic, fit-dependent or opaque sequence
-definitions cannot be certified when demanded. Fixed helpers must retain their
-bindings, including function-position and scenario-file top-level bindings.
-Signed numeric literals also require the ordinary unary `+`/`-` bindings.
-Input dependencies are followed through local definitions without reading their
-values. Later direct, replacement, loop-target, nonlocal and visible reflective
-writes refuse a potentially demanded block with a named input/source diagnostic.
-For each input, use its latest preceding plain definition; a visible write
-between that definition and block entry makes its provenance uncertifiable.
-The suffix check is conservative: an eager copy or a write after an earlier
-force does not establish a separate admission exception.
-
-Admission prepares every test body's source plan before evaluating any scenario
-expression. Artifact names are always demand roots; selected literal payloads,
-potentially selected unresolved names and their transitive local dependencies
-also count in ordinary runs. `--list` excludes ordinary payloads. A direct bare
-excluded `scenario_time()` is skipped by the runner, while an actually evaluated
-compound timing call can execute its excluded payload. Assigned excluded results
-remain lazy. Unselected unsafe lists, including fit-dependent inputs, remain
-unforced; their existing loader refuses before block evaluation if an unexpected
-consumer later forces them. Structural unsupported-compound errors remain
-independent of selection. Existing output-directory/helper/index setup may occur
-before refusal; no new artifact or cache read occurs for the refused block.
-
-The exact diagnostic `names()` counter form is supported: a plain local numeric
-literal initializer, increment-by-numeric-literal assignments in a brace block,
-and a final admitted names expression. Observe its counter in a payload that
-also directly demands the block's list or final loop output. Counter-only and
-eager intermediate counter observations are unsupported. For a counter block,
-every declared list and loop output must retain its binding after preparation;
-visible reassignment of any output refuses a potentially demanded block. This
-restriction does not apply to blocks without names counters, and genuinely
-undemanded blocks remain lazy. The counter still
-updates once per names assignment in the original scenario environment.
-Explicit names-RHS write targets are tracked even when their effect syntax is
-unsupported, so observing such a target alone cannot prove its block dormant.
-Visible reflective, nonlocal or unbounded names-RHS effects also prevent a
-dormancy proof. Such a block refuses
-during source admission even if the selected artifact only prints a literal
-(for example, `7`) and never demands its list. No reflective effect is evaluated.
-Counter reads reached through a name or ordinary assignment are also unsupported;
-the source demand closure retains the distinction between names and payloads.
-
-This is a declarative preparation check, not a general R interpreter or proof
-of purity. Source dependency unions and opaque/dynamic demand can over-refuse.
-General analysis/artifact calls must not secretly modify or dynamically fetch
-preparation bindings outside explicit source dependencies. Imported functions,
-S3 methods, reference objects and hidden reflection cannot be certified by this
-pass. No whole-run atomicity guarantee applies outside that contract. Fit code
-and opaque `cache_version` promises are excluded from preparation dependencies
-and mutation summaries and are never evaluated by the benchmark wrapper.
-Benchmark cache reads accept omitted/default `NULL` or direct numeric-literal
-versions, validated by the same fitting-call serializer as `scenario_fit()`.
-Opaque version expressions fail with an explicit benchmark-only refusal before
-they are forced. Ordinary `scenario_fit()` retains its existing version API.
-Literal `pkg::fun` and `pkg:::fun` positions are ordinary analysis calls;
-qualified reflective operations retain their dynamic classification. Other
-computed call heads remain conservative. This does not extend selector syntax.
+A statement that builds several fits at once, such as a loop filling a list of
+`scenario_fit()` results, is evaluated eagerly and reads every cached fit it
+constructs, also under `--list` and `--only`; only scalar fit assignments and
+the assignments that depend on them stay lazy. Benchmark cache reads accept
+omitted/default `NULL` or direct numeric-literal `cache_version` values,
+validated by the same fitting-call serializer as `scenario_fit()`. Opaque
+version expressions fail with an explicit benchmark-only refusal before they
+are forced. Ordinary `scenario_fit()` retains its existing version API.
 
 Keep a dependent preparation's extraction, replacement/unscaling and design
 construction inside one plain assignment RHS, with the fit objects it actually

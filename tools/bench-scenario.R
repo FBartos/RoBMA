@@ -11,6 +11,8 @@
 # Fits and every assignment that depends on a fit are bound lazily, so only what
 # a selected artifact needs is loaded or computed; that preparation is timed
 # separately (prep_elapsed) and excluded from the artifact's elapsed time.
+# A statement that builds several fits at once, such as a loop filling a list of
+# `scenario_fit()` results, is evaluated eagerly and reads all of its cached fits.
 #
 # The run directory collects `results.tsv` (one row per evaluated artifact: wall
 # time, sum of R heap maxima (not process RSS or simultaneous peak memory),
@@ -251,8 +253,8 @@ assign("scenario_start", function(name, ...) {
   invisible(NULL)
 }, envir = bench_env)
 assign("scenario_fit", function(name, code, cache_version = NULL) {
-  # Version expressions are excluded from preparation analysis. Inspect their
-  # promises without forcing them; the scenario serializer validates literals.
+  # Inspect the version promise without forcing it; the scenario serializer
+  # validates literals.
   version <- if (missing(cache_version)) NULL else substitute(cache_version)
   if (!is.null(version) && !(is.numeric(version) && length(version) == 1L)) {
     stop("Benchmark 'cache_version' must be NULL or a direct numeric literal; expressions are not evaluated.",
@@ -270,409 +272,10 @@ assign("scenario_plot", function(name, code) bench_run("plot", name, substitute(
 call_head <- function(x) if (is.call(x)) paste(deparse(x[[1L]]), collapse = "") else ""
 has_scenario_call <- function(x) any(c("scenario_time", "scenario_text", "scenario_plot") %in% all.names(x))
 
-# Source-only declarations for the benchmark's deliberately bounded fit-list language.
-artifact_heads <- c("scenario_time", "scenario_text", "scenario_plot")
-dynamic_heads <- c("assign", "rm", "remove", "delayedAssign", "makeActiveBinding",
-  "eval", "evalq", "parse", "source", "sys.source", "get", "get0", "mget", "do.call",
-  "environment", "parent.frame", "sys.frame", "globalenv", "list2env", "as.environment",
-  "new.env", "lockBinding", "unlockBinding", "bindingIsActive", "activeBindingFunction")
-
-call_binding <- function(x) {
-  if (is.symbol(x)) return(as.character(x))
-  if (call_head(x) %in% c("::", ":::") && length(x) == 3L &&
-      is.symbol(x[[2L]]) && is.symbol(x[[3L]])) return(as.character(x[[3L]]))
-  character()
-}
-
-source_reads <- function(x) {
-  if (missing(x)) return(list(reads = character(), calls = character(), dynamic = FALSE))
-  if (is.symbol(x)) return(list(reads = as.character(x), calls = character(), dynamic = FALSE))
-  empty <- list(reads = character(), calls = character(), dynamic = FALSE)
-  if (!is.call(x)) return(empty)
-  head <- call_head(x)
-  if (head %in% c("::", ":::")) return(empty)
-  if (head == "scenario_fit") return(source_reads(x[[2L]]))
-  parts <- as.list(x)
-  if (head %in% c("$", "@")) parts <- parts[1:2]
-  if (head == "function") parts <- list(x[[3L]])
-  summaries <- lapply(parts, source_reads)
-  list(reads = unique(unlist(lapply(summaries, `[[`, "reads"))),
-       calls = unique(c(head, unlist(lapply(summaries, `[[`, "calls")))),
-       dynamic = !length(call_binding(x[[1L]])) || call_binding(x[[1L]]) %in% dynamic_heads ||
-         any(vapply(summaries, `[[`, logical(1), "dynamic")))
-}
-
-assigned_object <- function(x) {
-  if (is.symbol(x)) return(as.character(x))
-  if (call_head(x) %in% c("[", "[[", "$", "@", "names", "dim", "dimnames", "attr",
-                         "attributes", "class", "levels", "length")) {
-    return(assigned_object(x[[2L]]))
-  }
-  character()
-}
-
-source_writes <- function(x) {
-  empty <- list(writes = character(), dynamic = FALSE)
-  if (missing(x)) return(empty)
-  if (!is.call(x) || call_head(x) == "scenario_fit") return(empty)
-  head <- call_head(x)
-  writes <- character()
-  binding <- call_binding(x[[1L]])
-  dynamic <- !length(binding) || binding %in% dynamic_heads
-  if (head %in% c("<-", "=", "<<-", "->", "->>")) {
-    target <- if (head %in% c("->", "->>")) x[[3L]] else x[[2L]]
-    writes <- assigned_object(target)
-    dynamic <- dynamic || !length(writes) || head %in% c("<<-", "->>")
-  }
-  if (head == "for") writes <- c(writes, as.character(x[[2L]]))
-  children <- lapply(as.list(x)[-1L], source_writes)
-  list(writes = unique(c(writes, unlist(lapply(children, `[[`, "writes")))),
-       dynamic = dynamic || any(vapply(children, `[[`, logical(1), "dynamic")))
-}
-
-plain_assignment <- function(st) {
-  call_head(st) %in% c("<-", "=") && is.symbol(st[[2L]])
-}
-
-assignment_depends <- function(rhs, lazy) {
-  any(all.vars(rhs) %in% lazy) || grepl("^metafor::(rma|selmodel)", call_head(rhs))
-}
-
-admit_fit_lists <- function(statements, blocks, top_writes) {
-  if (!length(blocks)) return(blocks)
-  definitions <- list()
-  block_indices <- unique(unlist(lapply(names(blocks), function(first) {
-    seq.int(as.integer(first), blocks[[first]]$last)
-  })))
-  for (i in setdiff(seq_along(statements), block_indices)) {
-    st <- statements[[i]]
-    if (plain_assignment(st)) {
-      lhs <- as.character(st[[2L]])
-      definitions[[lhs]] <- c(definitions[[lhs]], list(list(index = i, expr = st[[3L]])))
-    }
-  }
-  all_writes <- lapply(statements, source_writes)
-  helpers <- c("list", "scenario_fit", "names", "names<-")
-  for (first in names(blocks)) {
-    block <- blocks[[first]]
-    start <- as.integer(first)
-    local_names <- block$outputs
-    inputs <- character()
-    fixed <- helpers
-    issues <- character()
-    counters <- character()
-    names_dynamic <- FALSE
-    literal_number <- function(x) {
-      is.numeric(x) && length(x) == 1L ||
-        (call_head(x) %in% c("+", "-") && length(x) == 2L &&
-           is.numeric(x[[2L]]) && length(x[[2L]]) == 1L)
-    }
-    certify <- function(x, stack = character(), sequence = FALSE, locals = local_names) {
-      if (missing(x)) {
-        issues <<- c(issues, "missing preparation subscript is outside the bounded language")
-        return(FALSE)
-      }
-      if (is.symbol(x)) {
-        name <- as.character(x)
-        if (name %in% locals) return(FALSE)
-        inputs <<- union(inputs, name)
-        defs <- Filter(function(d) d$index < start, definitions[[name]])
-        if (name %in% stack || !length(defs)) {
-          issues <<- c(issues, paste0("input '", name, "' has ambiguous or nonlocal source provenance"))
-          return(FALSE)
-        }
-        definition <- defs[[length(defs)]]
-        between <- if (definition$index + 1L < start) {
-          all_writes[seq.int(definition$index + 1L, start - 1L)]
-        } else list()
-        if (name %in% unique(unlist(lapply(between, `[[`, "writes")))) {
-          issues <<- c(issues, paste0("input '", name, "' has an intervening source write after its plain definition"))
-          return(FALSE)
-        }
-        return(certify(definition$expr, c(stack, name), sequence, locals))
-      }
-      if (is.atomic(x) && !is.null(x)) return(length(x) > 0L)
-      head <- call_head(x)
-      if (literal_number(x)) {
-        fixed <<- union(fixed, head)
-        return(TRUE)
-      }
-      if (!head %in% c("c", "seq_along", "paste0", "(", "[", "[[")) {
-        issues <<- c(issues, paste0("uncertifiable preparation expression '",
-                                   paste(deparse(x), collapse = " "), "'"))
-        return(FALSE)
-      }
-      fixed <<- union(fixed, head)
-      args <- as.list(x)[-1L]
-      nonempty <- vapply(args, certify, logical(1), stack = stack, locals = locals)
-      if (head == "(") return(length(args) == 1L && certify(args[[1L]], stack, sequence, locals))
-      if (sequence && !head %in% c("c", "seq_along")) return(FALSE)
-      if (head == "c") return(length(args) > 0L && all(nonempty))
-      if (head == "seq_along") return(length(args) == 1L &&
-        certify(args[[1L]], stack, sequence = TRUE, locals = locals))
-      TRUE
-    }
-    loop <- Filter(function(st) call_head(st) == "for", as.list(block$expr)[-1L])[[1L]]
-    if (!certify(loop[[3L]], sequence = TRUE, locals = setdiff(local_names, as.character(loop[[2L]])))) {
-      issues <- c(issues, "loop sequence is not a declared nonempty literal vector or seq_along of one")
-    }
-    body <- if (call_head(loop[[4L]]) == "{") as.list(loop[[4L]])[-1L] else list(loop[[4L]])
-    for (st in body) {
-      for (subscript in as.list(st[[2L]])[-c(1L, 2L)]) certify(subscript)
-      certify(st[[3L]][[2L]])
-    }
-    for (st in as.list(block$expr)[-1L]) {
-      if (!call_head(st) %in% c("<-", "=") || call_head(st[[2L]]) != "names") next
-      rhs <- st[[3L]]
-      # Even unsupported names effects are outputs for the dormancy proof.
-      # Reading their target alone must not silently observe its stale value.
-      names_effects <- source_writes(rhs)
-      counters <- union(counters, names_effects$writes)
-      names_dynamic <- names_dynamic || names_effects$dynamic
-      if (call_head(rhs) == "{") {
-        parts <- as.list(rhs)[-1L]
-        increments <- if (length(parts) > 1L) parts[-length(parts)] else list()
-        for (increment in increments) {
-          valid <- plain_assignment(increment) && call_head(increment[[3L]]) == "+" &&
-            length(increment[[3L]]) == 3L && identical(increment[[2L]], increment[[3L]][[2L]]) &&
-            literal_number(increment[[3L]][[3L]])
-          if (!valid) {
-            issues <- c(issues, "names expression has an unsupported counter effect")
-            next
-          }
-          counter <- as.character(increment[[2L]])
-          counters <- union(counters, counter)
-          inputs <- union(inputs, counter)
-          fixed <- union(fixed, "+")
-          if (is.call(increment[[3L]][[3L]])) fixed <- union(fixed, call_head(increment[[3L]][[3L]]))
-          defs <- Filter(function(d) d$index < start, definitions[[counter]])
-          if (length(defs) != 1L || !literal_number(defs[[1L]]$expr)) {
-            issues <- c(issues, paste0("counter '", counter, "' needs a plain numeric literal initializer"))
-          } else if (is.call(defs[[1L]]$expr)) {
-            fixed <- union(fixed, call_head(defs[[1L]]$expr))
-          }
-        }
-        if (length(parts)) certify(parts[[length(parts)]]) else issues <- c(issues, "empty names expression")
-      } else certify(rhs)
-    }
-    suffix <- if (block$last < length(statements)) all_writes[seq.int(block$last + 1L, length(statements))] else list()
-    suffix_writes <- unique(unlist(lapply(suffix, `[[`, "writes")))
-    changed <- intersect(inputs, suffix_writes)
-    if (length(changed)) issues <- c(issues, paste0("input '", changed, "' is reassigned after its block"))
-    if (length(counters)) {
-      changed_outputs <- intersect(block$outputs, suffix_writes)
-      if (length(changed_outputs)) issues <- c(issues, paste0(
-        "counter-preparation output '", changed_outputs, "' is reassigned after its block"))
-    }
-    shadowed <- intersect(fixed, c(top_writes$writes, unlist(lapply(all_writes, `[[`, "writes"))))
-    if (length(shadowed)) issues <- c(issues, paste0("fixed helper '", shadowed, "' is rebound in scenario source"))
-    if (top_writes$dynamic || any(vapply(suffix, `[[`, logical(1), "dynamic"))) {
-      issues <- c(issues, "visible reflective, nonlocal or unbounded binding operation after preparation")
-    }
-    if (names_dynamic) {
-      issues <- c(issues, "visible reflective, nonlocal or unbounded binding operation in names preparation")
-    }
-    block$issues <- unique(issues)
-    block$names_dynamic <- names_dynamic
-    block$counters <- counters
-    block$inputs <- inputs
-    blocks[[first]] <- block
-  }
-
-  # Match the runner's existing lazy-assignment decision without evaluating values.
-  edges <- list()
-  roots <- list()
-  lazy <- character()
-  add_root <- function(x, kind = "eager") {
-    root <- source_reads(x)
-    root$kind <- kind
-    roots[[length(roots) + 1L]] <<- root
-  }
-  artifact <- function(st, compound = FALSE) {
-    add_root(st[[2L]], "name")
-    literal <- is.character(st[[2L]]) && length(st[[2L]]) == 1L
-    demanded <- !list_only && (!literal || selected(st[[2L]]) ||
-      (compound && call_head(st) == "scenario_time"))
-    if (demanded) add_root(st[[3L]], "payload")
-  }
-  compound_roots <- function(x) {
-    head <- call_head(x)
-    if (head %in% artifact_heads) return(artifact(x, compound = TRUE))
-    if (!is.call(x) || !has_scenario_call(x)) return(add_root(x))
-    for (part in as.list(x)[-1L]) compound_roots(part)
-    invisible(NULL)
-  }
-  for (i in seq_along(statements)) {
-    block <- blocks[[as.character(i)]]
-    if (!is.null(block)) { lazy <- union(lazy, block$outputs); next }
-    if (i %in% block_indices) next
-    st <- statements[[i]]; head <- call_head(st)
-    if (plain_assignment(st)) {
-      lhs <- as.character(st[[2L]]); rhs <- st[[3L]]; rhs_head <- call_head(rhs)
-      reads <- if (rhs_head %in% artifact_heads) source_reads(rhs[[3L]]) else source_reads(rhs)
-      edges[[lhs]] <- union(edges[[lhs]], reads$reads)
-      if (rhs_head == "scenario_fit") { add_root(rhs[[2L]], "name"); lazy <- union(lazy, lhs); next }
-      if (rhs_head %in% artifact_heads) {
-        artifact(rhs)
-        if (!list_only && is.character(rhs[[2L]]) && length(rhs[[2L]]) == 1L && !selected(rhs[[2L]])) lazy <- union(lazy, lhs)
-        next
-      }
-      depends <- assignment_depends(rhs, lazy)
-      if (depends && !lhs %in% all.vars(rhs)) { lazy <- union(lazy, lhs); next }
-      if (depends && list_only) next
-      add_root(rhs)
-    } else if (head %in% artifact_heads) {
-      artifact(st)
-    } else if (has_scenario_call(st)) {
-      compound_roots(st)
-    } else if (!any(all.vars(st) %in% lazy) && !grepl("expect_", head)) {
-      add_root(st)
-    }
-  }
-  closure <- function(reads) {
-    seen <- character(); cycle <- FALSE
-    walk <- function(name, path = character()) {
-      if (name %in% path) { cycle <<- TRUE; return(invisible(NULL)) }
-      if (name %in% seen) return(invisible(NULL))
-      seen <<- union(seen, name)
-      for (dependency in edges[[name]]) walk(dependency, c(path, name))
-    }
-    for (name in reads) walk(name)
-    list(reads = seen, cycle = cycle)
-  }
-  reached <- unique(unlist(lapply(roots, `[[`, "reads")))
-  demand <- closure(reached)
-  opaque <- any(vapply(roots, function(root) {
-    root$dynamic || any(root$calls %in% names(definitions))
-  }, logical(1))) || demand$cycle
-  # A demanded assignment can hide a reflective or local-function dependency too.
-  for (name in intersect(demand$reads, names(definitions))) {
-    for (definition in definitions[[name]]) {
-      info <- source_reads(definition$expr)
-      opaque <- opaque || info$dynamic || any(info$calls %in% names(definitions))
-    }
-  }
-  for (first in names(blocks)) {
-    block <- blocks[[first]]
-    for (root in roots) {
-      observes <- any(closure(root$reads)$reads %in% block$counters)
-      supported <- root$kind == "payload" && any(root$reads %in% block$counters) &&
-        any(root$reads %in% block$outputs)
-      if (observes && !supported) {
-        block$issues <- union(block$issues, "counter observation outside a direct artifact payload with its list/loop output is unsupported")
-      }
-    }
-    demanded <- block$names_dynamic || opaque || any(demand$reads %in% block$outputs) ||
-      any(demand$reads %in% block$counters)
-    block$refusal <- if (length(block$issues)) paste0(
-      "Unsupported binding-sensitive scenario_fit list construction: ",
-      paste(block$issues, collapse = "; "), "; use stable, bounded preparation inputs.") else NULL
-    if (demanded && !is.null(block$refusal)) stop(block$refusal, call. = FALSE)
-    blocks[[first]] <- block
-  }
-  blocks
-}
-
-fit_list_blocks <- function(statements) {
-  blocks <- list()
-  index <- 1L
-  initializer <- function(st) {
-    call_head(st) %in% c("<-", "=") && is.symbol(st[[2L]]) &&
-      call_head(st[[3L]]) == "list" && length(st[[3L]]) == 1L
-  }
-  while (index <= length(statements)) {
-    first <- index
-    outputs <- character()
-    while (index <= length(statements) && initializer(statements[[index]])) {
-      outputs <- c(outputs, as.character(statements[[index]][[2L]]))
-      index <- index + 1L
-    }
-    if (length(outputs) > 0L && index <= length(statements) &&
-        call_head(statements[[index]]) == "for" &&
-        "scenario_fit" %in% all.names(statements[[index]])) {
-      loop <- statements[[index]]
-      body <- if (call_head(loop[[4L]]) == "{") as.list(loop[[4L]])[-1L] else list(loop[[4L]])
-      valid_assignment <- function(st) {
-        if (!call_head(st) %in% c("<-", "=") ||
-            !call_head(st[[2L]]) %in% c("[", "[[") ||
-            !is.symbol(st[[2L]][[2L]]) ||
-            !as.character(st[[2L]][[2L]]) %in% outputs ||
-            call_head(st[[3L]]) != "scenario_fit") return(FALSE)
-        # The loop itself only constructs the declared lists. Cached fit code
-        # stays unevaluated, exactly as for an ordinary scalar fit assignment.
-        !"scenario_fit" %in% all.names(st[[2L]])
-      }
-      if (length(body) > 0L && all(vapply(body, valid_assignment, logical(1)))) {
-        index <- index + 1L
-        while (index <= length(statements)) {
-          st <- statements[[index]]
-          names_assignment <- call_head(st) %in% c("<-", "=") &&
-            call_head(st[[2L]]) == "names" && length(st[[2L]]) == 2L &&
-            is.symbol(st[[2L]][[2L]]) &&
-            as.character(st[[2L]][[2L]]) %in% outputs &&
-            !"scenario_fit" %in% all.names(st[[3L]])
-          if (!names_assignment) break
-          index <- index + 1L
-        }
-        blocks[[as.character(first)]] <- list(
-          last = index - 1L,
-          outputs = unique(c(outputs, as.character(loop[[2L]]))),
-          expr = as.call(c(list(as.name("{")), statements[first:(index - 1L)]))
-        )
-        next
-      }
-    }
-    # Preflight every statement before any selected artifact can read a fit.
-    # This is an explicit supported construction block, not an R interpreter.
-    index <- first
-    st <- statements[[index]]
-    scalar_fit <- call_head(st) %in% c("<-", "=") &&
-      is.symbol(st[[2L]]) && call_head(st[[3L]]) == "scenario_fit"
-    if ("scenario_fit" %in% all.names(st) && !scalar_fit) {
-      stop("Unsupported compound scenario_fit construction; use scalar fit assignments ",
-           "or list initializers followed by a fit-only for loop and names assignments.",
-           call. = FALSE)
-    }
-    index <- index + 1L
-  }
-  blocks
-}
-
-make_lazy_fit_lists <- function(block, env) {
-  force(block); force(env)
-  result <- NULL
-  evaluated <- FALSE
-  load <- function(output) {
-    if (!evaluated) {
-      # Dormant unsafe declarations stay lazy, but cannot execute if an opaque
-      # consumer unexpectedly forces them outside the source demand proof.
-      if (!is.null(block$refusal)) stop(block$refusal, call. = FALSE)
-      eval(block$expr, env)
-      result <<- mget(block$outputs, envir = env, inherits = FALSE)
-      evaluated <<- TRUE
-    }
-    result[[output]]
-  }
-  for (output in block$outputs) {
-    local({ name <- output; make_lazy(name, NULL, env, loader = function() load(name)) })
-  }
-  invisible(NULL)
-}
-
-run_block <- function(body, env, blocks) {
-  statements <- as.list(body)[-1L]
-  skip <- integer()
-  for (index in seq_along(statements)) {
-    if (index %in% skip) next
-    block <- blocks[[as.character(index)]]
-    if (!is.null(block)) {
-      make_lazy_fit_lists(block, env)
-      skip <- seq.int(index, block$last)
-      next
-    }
-    st <- statements[[index]]
+run_block <- function(body, env) {
+  for (st in as.list(body)[-1L]) {
     head <- call_head(st)
-    is_assign <- plain_assignment(st)
+    is_assign <- head %in% c("<-", "=") && is.symbol(st[[2L]])
     if (is_assign) {
       lhs <- as.character(st[[2L]]); rhs <- st[[3L]]; rhs_head <- call_head(rhs)
       if (rhs_head == "scenario_fit") {
@@ -696,7 +299,7 @@ run_block <- function(body, env, blocks) {
         }
         next
       }
-      depends <- assignment_depends(rhs, state$lazy)
+      depends <- any(all.vars(rhs) %in% state$lazy) || grepl("^metafor::(rma|selmodel)", rhs_head)
       if (depends && !(lhs %in% all.vars(rhs))) {
         make_lazy(lhs, rhs, env)
         next
@@ -721,28 +324,11 @@ run_block <- function(body, env, blocks) {
 
 file  <- file.path(main_root, "tests", "scenarios", paste0("test-", scenario, ".R"))
 exprs <- parse(file, keep.source = FALSE)
-test_body <- function(e) grepl("test_that$", call_head(e))
-helper_import <- function(e) {
-  call_head(e) == "if" && grepl("helper-scenarios", paste(deparse(e), collapse = ""))
-}
-top <- lapply(Filter(function(e) !test_body(e) && !helper_import(e), as.list(exprs)), source_writes)
-top_writes <- list(writes = unique(unlist(lapply(top, `[[`, "writes"))),
-                   dynamic = any(vapply(top, `[[`, logical(1), "dynamic")))
-# Admit every body before any scenario expression can read a cache or produce
-# an artifact. Setup above (including the output directory) is not transactional.
-plans <- lapply(exprs, function(e) {
-  if (!test_body(e)) return(NULL)
-  statements <- as.list(e[[3L]])[-1L]
-  blocks <- fit_list_blocks(statements)
-  if (!length(blocks)) return(blocks)
-  admit_fit_lists(statements, blocks, top_writes)
-})
-for (index in seq_along(exprs)) {
-  e <- exprs[[index]]
+for (e in exprs) {
   head <- call_head(e)
-  if (test_body(e)) {
-    run_block(e[[3L]], new.env(parent = bench_env), plans[[index]])
-  } else if (helper_import(e)) {
+  if (grepl("test_that$", head)) {
+    run_block(e[[3L]], new.env(parent = bench_env))
+  } else if (head == "if" && grepl("helper-scenarios", paste(deparse(e), collapse = ""))) {
     next
   } else {
     eval(e, bench_env)
