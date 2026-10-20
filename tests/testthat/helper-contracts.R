@@ -729,6 +729,17 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
 }
 
 
+# An admitted qCMDE/IWMDE statement may still be refused by the numerical
+# diagnostics of its ordinate; a construction error (other than a chain
+# coverage refusal) or any other error is not such a refusal.
+.is_permitted_plan_refusal <- function(out, precomputed) {
+
+  precomputed && inherits(out, "RoBMA_density_ordinate_error") &&
+    (!inherits(out, "iwmde_construction_error") ||
+       inherits(out, "RoBMA_density_chain_coverage"))
+}
+
+
 # hypothesis() evaluates a statement exactly when its plan admits the method,
 # and otherwise stops with the plan's refusal (its first class and message).
 # hypothesis_quantities() renders the same plans, and lists aliases that name
@@ -792,8 +803,7 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
           if (is.null(refusal)) {
             # An admitted statement runs; qCMDE/IWMDE ordinates may still be
             # rejected by their numerical diagnostics.
-            permitted_refusal <- precomputed && inherits(out, "RoBMA_density_ordinate_error") &&
-              (!inherits(out, "iwmde_construction_error") || inherits(out, "RoBMA_density_chain_coverage"))
+            permitted_refusal <- .is_permitted_plan_refusal(out, precomputed)
             expect_false(
               inherits(out, "error") && !permitted_refusal,
               info = paste(case, if (inherits(out, "error")) conditionMessage(out))
