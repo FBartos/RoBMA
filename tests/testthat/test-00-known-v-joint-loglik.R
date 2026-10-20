@@ -436,6 +436,39 @@ test_that("latent known-V metadata use the exact low-rank covariance plan", {
 })
 
 
+test_that("whitened known-V support builds the dense covariance only for exact zero variances", {
+
+  dense_builds <- 0L
+  dense_covariance <- .known_v_covariance_matrix
+  testthat::local_mocked_bindings(
+    .known_v_covariance_matrix = function(...) {
+      dense_builds <<- dense_builds + 1L
+      dense_covariance(...)
+    },
+    .package = "RoBMA"
+  )
+  covariance <- function(pair) {
+    V <- diag(c(.04, .04, .09, .02, .03))
+    V[1:2, 1:2] <- pair
+    V
+  }
+  prepare <- function(pair) {
+    .known_v_prepare(V = covariance(pair), keep_rows = rep(TRUE, 5L),
+      known_v_parameterization = "whitened", warn_singular = FALSE)
+  }
+
+  expect_null(.known_v_sampling_factor_plan(prepare(matrix(c(.04, .01, .01, .05), 2L))))
+  expect_identical(dense_builds, 0L)
+
+  support <- .known_v_sampling_factor_plan(prepare(matrix(.04, 2L, 2L)))
+  expect_identical(dense_builds, 1L)
+  expect_identical(nrow(support[["factor_plan"]][["model_matrix"]]), 5L)
+  expect_identical(ncol(support[["factor_plan"]][["model_matrix"]]), 1L)
+  expect_identical(support[["sampling_covariance"]][1:2, 1:2], matrix(0, 2L, 2L))
+  expect_equal(diag(support[["sampling_covariance"]])[3:5], c(.09, .02, .03))
+})
+
+
 test_that("declared known-V factors stay compact in GLS and prediction", {
 
   diagonal <- c(.10, .20, .15, .05)

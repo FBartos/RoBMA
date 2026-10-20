@@ -243,8 +243,13 @@
     }
     residual_variance <- .known_v_residual_variance(known_V)
   } else if (identical(.known_v_effective_backend(known_V), "whitened")) {
-    sampling_covariance <- .known_v_covariance_matrix(known_V)
     blocks <- .known_v_backend_blocks(known_V, "whitened")
+    # Only accepted zero-variance support is removed from the dense covariance, so
+    # no K x K matrix is built unless some block has an exact zero variance.
+    if (any(vapply(blocks, function(block) any(block[["variance"]] == 0, na.rm = TRUE),
+                   logical(1L)))) {
+      sampling_covariance <- .known_v_covariance_matrix(known_V)
+    }
     model_matrix <- matrix(0, nrow = K, ncol = 0L)
     seen <- integer()
     for (block in blocks) {
@@ -272,14 +277,15 @@
       model_matrix <- cbind(model_matrix, fixed)
       sampling_covariance[index, index] <- 0
     }
-    if (ncol(model_matrix) > 0L) {
-      original <- .known_v_diagonal(known_V)
-      reconstructed <- diag(sampling_covariance) + rowSums(model_matrix^2)
-      if (any(abs(reconstructed - original) >
-          8 * K * .Machine$double.eps * max(original))) {
-        stop("Known-V whitening support no longer reproduces its covariance diagonal.",
-          call. = FALSE)
-      }
+    if (ncol(model_matrix) == 0L) {
+      return(NULL)
+    }
+    original <- .known_v_diagonal(known_V)
+    reconstructed <- diag(sampling_covariance) + rowSums(model_matrix^2)
+    if (any(abs(reconstructed - original) >
+        8 * K * .Machine$double.eps * max(original))) {
+      stop("Known-V whitening support no longer reproduces its covariance diagonal.",
+        call. = FALSE)
     }
     residual_variance <- diag(sampling_covariance)
   } else {
