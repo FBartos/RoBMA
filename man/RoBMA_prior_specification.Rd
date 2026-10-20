@@ -193,9 +193,9 @@ An ordered term's mixture belongs on its scalar total. Supply the complete
 \code{prior_ordered(total = ...)} in one term component and omit the separate term
 component with a named \code{NULL} entry. For example:
 \preformatted{
-total <- prior_mixture(list(prior("point", list(0)),
-                            prior("normal", list(0, 1))),
-                       is_null = c(TRUE, FALSE))
+total <- BayesTools::prior_mixture(list(prior("point", list(0)),
+                                         prior("normal", list(0, 1))),
+                                    is_null = c(TRUE, FALSE))
 BMA(yi = yi, sei = sei, mods = ~ f, data = dat, measure = "SMD",
     prior_mods = list(f = prior_ordered(total = total)),
     prior_mods_null = list(f = NULL), only_priors = TRUE)
