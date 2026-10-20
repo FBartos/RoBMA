@@ -214,17 +214,52 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
   expect_equal(attr(point, "raw_log_BF"), -1.0297189562170501, tolerance = 1e-14)
 })
 
+# Draws of the exact posterior of a two-group treatment-contrast model (normal
+# priors, tau = .1, six observations), so that the qCMDE row weights are
+# well behaved and the density diagnostics of the cells pass.
+.review_h_posterior_replay <- function(n = 240L) {
+
+  dat <- data.frame(yi = seq(-.1, .2, length.out = 6L), sei = .1,
+    g = factor(rep(c("A", "B"), each = 3L)))
+  setup <- review_compile_object(brma(yi = yi, sei = sei, mods = ~ g, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+    prior_mods = list(g = BayesTools::prior_factor("normal", list(mean = 0, sd = 1),
+      contrast = "treatment")),
+    prior_heterogeneity = BayesTools::prior("point", list(location = .1)),
+    only_priors = TRUE, silent = TRUE))
+  design     <- cbind(1, as.numeric(dat$g == "B"))
+  variance   <- .1^2 + .1^2
+  covariance <- solve(crossprod(design) / variance + diag(2L))
+  location   <- covariance %*% crossprod(design, dat$yi) / variance
+  withr::local_seed(6123)
+  draws <- matrix(stats::rnorm(2L * n), n, 2L) %*% chol(covariance) +
+    matrix(location, n, 2L, byrow = TRUE)
+  g_name <- review_coefficient_name(setup, "g")
+  slope  <- draws[, 2L, drop = FALSE]
+  colnames(slope) <- BayesTools:::.JAGS_prior_factor_names(
+    g_name, setup[["compiled"]][["mu"]][["prior_list"]][[g_name]]
+  )
+  samples <- cbind(slope, draws[, 1L], tau = rep(.1, n))
+  colnames(samples)[2L] <- review_coefficient_name(setup, "intercept")
+
+  review_attach_replay(setup, samples)
+}
+
 test_that("E2-2 actual attachment retains requested curve precision", {
 
-  object <- review_factor_replay(c("A", "B"), "treatment", independent = TRUE,
-    distribution = "normal", n = 240L)
-  result <- marginal_means(object, bf = FALSE, parameter = "g", density_method = "qCMDE",
-    density_control = list(target_relative_mcse = .1, samples = 120L))
-  expect_identical(result$density_settings$target_relative_mcse, .1)
-  cells <- result$inference$averaged$mu_g
-  for (cell in cells) {
-    density <- BayesTools::posterior_metadata(cell, "posterior_density")
-    if (!is.null(density)) expect_identical(density$iwmde_provenance$density_control$target_relative_mcse, .1)
+  object <- .review_h_posterior_replay()
+  for (target in c(.1, .05)) {
+    result <- marginal_means(object, bf = FALSE, parameter = "g", density_method = "qCMDE",
+      density_control = list(target_relative_mcse = target, samples = 120L))
+    expect_identical(result$density_settings$target_relative_mcse, target)
+    cells <- result$inference$averaged$mu_g
+    expect_named(cells, c("A", "B"))
+    for (cell in cells) {
+      density <- BayesTools::posterior_metadata(cell, "posterior_density")
+      expect_false(is.null(density))
+      expect_identical(density$iwmde_provenance$density_control$target_relative_mcse, target)
+    }
   }
 })
 
