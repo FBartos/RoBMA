@@ -129,22 +129,6 @@ test_that("the ensemble table weights class GVIFs by their draw counts", {
   expect_identical(names(full), c("term", "df", "GVIF", "GVIF^(1/(2*df))"))
 })
 
-test_that("exactly fitted rows are zeroed per design class", {
-
-  design_plan <- list(
-    draw_class         = c(1L, 2L, 1L, 2L),
-    zero_residual_rows = list(2L, c(1L, 3L), integer())
-  )
-  x <- matrix(1, nrow = 4, ncol = 3)
-
-  zeroed <- .hat_zero_class_rows(x, design_plan)
-
-  expected <- x
-  expected[c(1L, 3L), 2L] <- 0
-  expected[c(2L, 4L), c(1L, 3L)] <- 0
-  expect_identical(zeroed, expected)
-})
-
 # ---------------------------------------------------------------------------- #
 # known-V design classes: failures name the draws of the request
 # ---------------------------------------------------------------------------- #

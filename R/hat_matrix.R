@@ -642,23 +642,6 @@
 }
 
 
-# Zero the rows that the design of each draw fits exactly (see
-# .hat_zero_residual_rows()) in an S x K matrix of residual quantities.
-.hat_zero_class_rows <- function(x, design_plan) {
-
-  zeroed <- x
-  for (design_class in seq_along(design_plan[["zero_residual_rows"]])) {
-    columns <- design_plan[["zero_residual_rows"]][[design_class]]
-    rows    <- which(design_plan[["draw_class"]] == design_class)
-    if (length(columns) > 0L && length(rows) > 0L) {
-      zeroed[rows, columns] <- 0
-    }
-  }
-
-  return(zeroed)
-}
-
-
 .known_v_gls_projection_blocks <- function(X, y, known_V, extra_variance,
                                            return_full_H = FALSE) {
 
