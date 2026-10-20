@@ -89,6 +89,63 @@
 }
 
 
+# TRUE exactly when .selection_transition_rule_resolves() is TRUE at every row
+# of `means` (and for no rows): one pass over the rows, not one rule call per
+# row. The rule's checks read `means` only through the finiteness of the active
+# elements and the centers of the uncoupled transitions, so each is evaluated
+# for all rows as a matrix with the rule's own arithmetic. The preamble and the
+# per-axis decisions mirror the row-wise rule; the equivalence is pinned by
+# test-00-zplot-context.R.
+.selection_transition_rule_resolves_rows <- function(nodes, means, residual_sd, loading,
+                                                     sei, selection, axes = seq_len(ncol(loading))) {
+
+  stopifnot(is.matrix(means), ncol(means) == nrow(loading))
+  if (!nrow(means)) return(TRUE)
+  if (!is.null(selection$kernel_mode) && selection$kernel_mode[[1L]] == SELKERNEL_NORMAL) return(TRUE)
+  omega <- as.numeric(selection$omega[1L, ])
+  cuts <- selection$z_lower[seq_len(length(omega) - 1L)]
+  cuts <- cuts[is.finite(cuts) & utils::head(omega, -1L) != utils::tail(omega, -1L)]
+  if (!length(cuts) || !length(axes)) return(TRUE)
+  nodes <- sort(nodes)
+  if (length(nodes) < 2L || any(!is.finite(nodes)) || any(diff(nodes) <= 0)) return(FALSE)
+  n_nodes <- length(nodes)
+  n_rows <- nrow(means)
+  coupled_intervals <- utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3
+  coupled_gap <- if (any(coupled_intervals)) max(diff(nodes)[coupled_intervals]) else Inf
+  for (axis in axes) {
+    coefficient <- loading[, axis]
+    active <- which(coefficient != 0)
+    if (!length(active)) next
+    coefficient <- coefficient[active]
+    scale <- residual_sd[active]
+    location <- means[, active, drop = FALSE]
+    if (any(!is.finite(coefficient)) || any(!is.finite(location)) ||
+        any(!is.finite(scale) | scale <= 0)) return(FALSE)
+    other <- setdiff(seq_len(ncol(loading)), axis)
+    coupled <- length(other) > 0L && any(rowSums(loading[active, other, drop = FALSE] != 0) > 0L)
+    if (coupled) {
+      if (any(coupled_gap * abs(coefficient) > scale)) return(FALSE)
+      next
+    }
+    for (cut in cuts) {
+      center <- (rep(selection$sign * cut * sei[active], each = n_rows) - location) /
+        rep(coefficient, each = n_rows)
+      if (anyNA(center)) return(FALSE)
+      # Exterior transitions still require the existing Gaussian-tail gates.
+      interior <- which(center > nodes[1L] & center < nodes[n_nodes])
+      if (!length(interior)) next
+      lower <- findInterval(center[interior], nodes)
+      gap <- nodes[lower + 1L] - nodes[lower]
+      tied <- nodes[lower] == center[interior] & lower > 1L
+      gap[tied] <- pmax(gap[tied], nodes[lower[tied]] - nodes[lower[tied] - 1L])
+      element <- (interior - 1L) %/% n_rows + 1L
+      if (any(gap * abs(coefficient[element]) > scale[element])) return(FALSE)
+    }
+  }
+  TRUE
+}
+
+
 # Called with a validated single-row selection context and metadata-prepared
 # retained Gaussian factors. NULL delegates this cell to the existing full-event
 # implementation; no alternative target, partial result or false pass is returned.
@@ -575,12 +632,16 @@
     # shifts: a continuous context couples the inner transitions as well.
     loading <- cbind(geometry$loading, if (point_context) rep(0, k) else as.numeric(context_factor))
     inner_axes <- seq_len(ncol(geometry$loading))
+    # The numerator and denominator sweeps at the same order and outer rule are
+    # one decision over the outer nodes, so each is evaluated once per call.
     check_inner <- function(order) {
-      nodes <- quadrature_rule(order)$nodes
-      all(vapply(seq_len(nrow(means)), function(row) {
-        .selection_transition_rule_resolves(nodes, means[row, ], geometry$residual_sd,
-          loading, sei, selection, axes = inner_axes)
-      }, logical(1)))
+
+      key <- paste("sweep", order, outer_order, sep = "/")
+      if (exists(key, selection_resolutions, inherits = FALSE)) return(get(key, selection_resolutions))
+      value <- .selection_transition_rule_resolves_rows(quadrature_rule(order)$nodes, means,
+        geometry$residual_sd, loading, sei, selection, axes = inner_axes)
+      assign(key, value, selection_resolutions)
+      value
     }
     value <- c(inner = check_inner(inner_order), denominator = check_inner(denominator_order),
       outer = point_context || .selection_transition_rule_resolves(outer_nodes, mean,
