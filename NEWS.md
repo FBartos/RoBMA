@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- `loo_compare()` and `loo_model_weights()` label the first model by its
+  expression unless the call names `x`, so a named option or a named additional
+  model no longer renames it.
 - The private known-V Gaussian bridge fallback preserves latent sampling-factor
   covariance when no dependency partition is supplied.
 - Unspecified ordinary factor null priors use each retained alternative term's

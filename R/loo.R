@@ -888,10 +888,12 @@ loo_compare.loo <- function(x, ..., unit = "estimate") {
 }
 
 
+# The first model is labelled by its argument name only when the call names `x`
+# itself; any other name in the call belongs to a different argument and the
+# label falls back to the substituted expression.
 .loo_first_argument_name <- function(call) {
 
-  labels <- names(call)
-  if (length(labels) >= 2L && !is.na(labels[2L])) labels[2L] else ""
+  if ("x" %in% names(call)) "x" else ""
 }
 
 

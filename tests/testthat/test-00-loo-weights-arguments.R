@@ -135,3 +135,15 @@ test_that("predictive weights use bounded unique labels for argument values", {
   expect_identical(names(loo_model_weights.brma(identity(low), identity(high),
     method = "pseudobma", BB = FALSE)), c("model1", "model2"))
 })
+
+test_that("predictive weights label the first model by its expression unless x is named", {
+
+  low <- .make_loo_model_weights_fixture(0)
+  high <- .make_loo_model_weights_fixture(.3)
+  expect_identical(names(loo_model_weights.brma(a = low, high,
+    method = "pseudobma", BB = FALSE)), c("high", "a"))
+  expect_identical(names(loo_model_weights.brma(method = "pseudobma", BB = FALSE,
+    low, high)), c("low", "high"))
+  expect_identical(names(loo_model_weights.brma(x = low, second = high,
+    method = "pseudobma", BB = FALSE)), c("x", "second"))
+})
