@@ -321,12 +321,12 @@
       if (!available) {
         next
       }
-      samples <- .random_sd_source_samples(
-        source            = source,
+      samples <- .brma_mv_allocation_observed_sources(
+        allocation        = allocation,
         posterior_samples = posterior_samples,
         K                 = K,
         source_samples    = source_samples
-      )
+      )[[name]]
       samples <- matrix(
         sqrt(rowMeans(samples^2)),
         ncol = 1L
@@ -708,23 +708,16 @@
         object = object, posterior_samples = posterior_samples
       )
     }
-    allocation_sources <- source_samples
-    source_name <- allocation[["source"]][["name"]]
-    allocation_sources[[source_name]] <- .random_sd_source_samples(
-      source = allocation[["source"]], posterior_samples = posterior_samples,
-      K = K, source_samples = source_samples
-    )
-    for (factor in allocation[["parent_factors"]]) {
-      allocation_sources[[source_name]] <- .recycle_rows(
-        allocation_sources[[source_name]],
-        .random_allocation_factor_samples(factor, posterior_samples)
-      )
-    }
     out[[length(out) + 1L]] <- .brma_mv_allocation_summary_samples(
       allocation        = allocation,
       formula_design    = formula_design,
       posterior_samples = posterior_samples,
-      source_samples    = allocation_sources,
+      source_samples    = .brma_mv_allocation_observed_sources(
+        allocation        = allocation,
+        posterior_samples = posterior_samples,
+        K                 = K,
+        source_samples    = source_samples
+      ),
       K                 = K
     )
   }
@@ -779,6 +772,33 @@
   )
 
   return(samples)
+}
+
+
+# The source samples with the SD source of 'allocation' replaced by its observed
+# values: evaluated on the posterior draws and scaled by each declared parent
+# factor (weights and inclusion gates), as its summaries and its pooled SD use it.
+.brma_mv_allocation_observed_sources <- function(allocation, posterior_samples,
+                                                 K, source_samples = NULL) {
+
+  observed <- .random_sd_source_samples(
+    source            = allocation[["source"]],
+    posterior_samples = posterior_samples,
+    K                 = K,
+    source_samples    = source_samples
+  )
+  for (factor in allocation[["parent_factors"]]) {
+    observed <- .recycle_rows(
+      observed,
+      .random_allocation_factor_samples(factor, posterior_samples)
+    )
+  }
+  if (is.null(source_samples)) {
+    source_samples <- list()
+  }
+  source_samples[[allocation[["source"]][["name"]]]] <- observed
+
+  return(source_samples)
 }
 
 
@@ -911,18 +931,12 @@
           object = object, posterior_samples = posterior_samples
         )
       }
-      source <- allocation[["source"]][["name"]]
-      observed_sources <- source_samples
-      observed_sources[[source]] <- .random_sd_source_samples(
-        source = allocation[["source"]], posterior_samples = posterior_samples,
-        K = nrow(object[["data"]][["outcome"]]), source_samples = source_samples
+      observed_sources <- .brma_mv_allocation_observed_sources(
+        allocation        = allocation,
+        posterior_samples = posterior_samples,
+        K                 = nrow(object[["data"]][["outcome"]]),
+        source_samples    = source_samples
       )
-      for (factor in allocation[["parent_factors"]]) {
-        observed_sources[[source]] <- .recycle_rows(
-          observed_sources[[source]],
-          .random_allocation_factor_samples(factor, posterior_samples)
-        )
-      }
       block_rows <- which(selected[["owner_type"]] == "random_block")
       block_owner <- if (length(block_rows) > 0L) {
         selected[["label_parts"]][[block_rows[1L]]][["random"]][["owner"]]

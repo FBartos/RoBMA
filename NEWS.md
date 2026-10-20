@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- Prior-only `pooled_heterogeneity()` applies the declared parent weights and
+  inclusion gates to scalar-source SD-component allocations, as the summaries
+  and the replay-backed pooled values do.
 - `summary_heterogeneity()` component selectors accept the unique names that
   the complete result gives to allocation summaries with the same name, such as
   `"study/esid_1"`.

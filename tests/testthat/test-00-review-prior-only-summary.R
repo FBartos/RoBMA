@@ -155,3 +155,59 @@ test_that("component selection evaluates only the selected allocation draws", {
     }
   }
 })
+
+# A nested allocation over scalar SD sources: the root splits an SD of 2 with
+# variance shares (.25, .75), and the child allocation of the first share
+# divides it over the leaves of the study block with shares (.2, .8).
+.review_nested_scalar_source_replay <- function() {
+
+  dat <- data.frame(yi = c(.1, .2, .3, .4), time = c(1, 2, 1, 2),
+    study = factor(c("s1", "s1", "s2", "s2")), other = factor(1:4))
+  args <- list(yi = quote(yi), V = diag(.04, 4L),
+    random = list(combined = ~ har(time | study) + id(1 | other)), data = dat,
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    standardize_continuous_predictors = FALSE, only_priors = TRUE, silent = TRUE)
+  blocks <- vapply(do.call(brma.mv, args)$formula_design$mu$random_effects,
+    `[[`, character(1), "block_name")
+  args$prior_heterogeneity <- BayesTools::prior_random(allocation = list(
+    BayesTools::random_variance_allocation(name = "root",
+      terms = c(study = blocks[1L], other = blocks[2L]),
+      sd = BayesTools::prior("gamma", list(2, 2)),
+      weights = BayesTools::prior("dirichlet", list(c(1, 1)))),
+    BayesTools::random_variance_allocation(name = "child", terms = blocks[1L],
+      target = "sd_component", parent = BayesTools::allocation_ref("root", "study"),
+      scale = "mean_variance",
+      weights = BayesTools::prior("dirichlet", list(c(1, 1))))))
+  setup <- review_compile_object(do.call(brma.mv, args))
+  allocations <- setup$compiled$mu$formula_design$random_allocations
+  columns <- review_prior_columns(setup$compiled$mu$prior_list)
+  samples <- matrix(.2, 24L, length(columns), dimnames = list(NULL, columns))
+  samples[, allocations$root$source$name] <- 2
+  for (allocation in allocations) {
+    weights <- if (allocation$label == "root") c(.25, .75) else c(.2, .8)
+    samples[, paste0(allocation$weight_name, "[", 1:2, "]")] <- rep(weights, each = 24L)
+  }
+
+  list(setup = setup, samples = samples, blocks = blocks, allocations = allocations,
+    fitted = review_attach_replay(setup, samples))
+}
+
+test_that("prior-only pooled and summary SDs apply the declared parent factors", {
+
+  replay <- .review_nested_scalar_source_replay()
+  block <- replay$blocks[1L]
+  # The root SD 2 scaled by the study variance share .25 is 1.
+  fitted <- pooled_heterogeneity(replay$fitted, .posterior_samples = replay$samples)
+  prior_only <- pooled_heterogeneity(replay$setup$object, .posterior_samples = replay$samples)
+  expect_equal(as.numeric(fitted[[block]]), rep(1, 24L), tolerance = 1e-13)
+  expect_equal(as.numeric(prior_only[[block]]), as.numeric(fitted[[block]]),
+    tolerance = 1e-13)
+  for (object in list(replay$fitted, replay$setup$object)) {
+    summary <- summary_heterogeneity(object, component = block,
+      .posterior_samples = replay$samples)
+    row <- grep("tau_common$", rownames(summary$estimates))
+    expect_length(row, 1L)
+    expect_equal(unname(summary$estimates[row, "Mean"]), 1, tolerance = 1e-13)
+  }
+})
