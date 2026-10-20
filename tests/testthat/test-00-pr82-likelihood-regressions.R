@@ -344,7 +344,7 @@ test_that("deletion fallback preserves coordinates resolved by the fast path", {
       list(mean = matrix(c(5, NA_real_), 1L))
     },
     .selection_conditioned_sampling_state = function(...) list(
-      baseline_mu = matrix(0, 1L, 2L), e = matrix(0, 1L, 2L),
+      baseline_mu = matrix(c(2, 3), 1L), e = matrix(0, 1L, 2L),
       sampling_covariance = diag(2), integrated_covariance = array(0, c(1L, 2L, 2L)),
       total_covariance = array(diag(c(0, 1)), c(1L, 2L, 2L))),
     .selection_deleted_gaussian_coordinates = function(...) {
@@ -354,6 +354,32 @@ test_that("deletion fallback preserves coordinates resolved by the fast path", {
   out <- .selection_conditioned_sampling_estimate_targets(
     list(S = 1L, K = 2L, yi = c(0, 0), mu = matrix(c(2, 3), 1L)), "mean")
   expect_identical(out$mean, matrix(c(5, 3), 1L))
+})
+
+test_that("deletion fallback retains the conditional sampling mean", {
+
+  sampling_covariance <- matrix(c(1, .5, .5, 1), 2L)
+  local_mocked_bindings(
+    .data_selection_execution_plan = function(...) list(row_blocks = list(1L, 2L),
+      relative_tolerance = 1e-6, max_points_per_scramble = 128L),
+    .data_selection_model = function(...) list(groups = list(row_blocks = list(1:2))),
+    .selection_joint_signed_context = function(...) list(),
+    .selection_conditioned_sampling_independent_targets = function(...) {
+      list(mean = matrix(c(5, NA_real_), 1L))
+    },
+    .selection_conditioned_sampling_state = function(...) list(
+      baseline_mu = matrix(c(2, 3), 1L), e = matrix(c(4, 0), 1L),
+      sampling_covariance = sampling_covariance,
+      integrated_covariance = array(0, c(1L, 2L, 2L)),
+      total_covariance = array(sampling_covariance, c(1L, 2L, 2L))),
+    .package = "RoBMA"
+  )
+  out <- .selection_conditioned_sampling_estimate_targets(
+    list(S = 1L, K = 2L, yi = c(0, 0), mu = matrix(c(2, 3), 1L)), "mean")
+  # E_2 | E_1 = 4 has mean V_21 / V_11 * 4 = 2; G = 0 contributes zero.
+  expected <- 3 + .5 / 1 * 4 + 0
+  expect_identical(out$mean, matrix(c(5, expected), 1L))
+  expect_gt(expected, 3)
 })
 
 test_that("the cluster integral forms no quotient by a loading", {
