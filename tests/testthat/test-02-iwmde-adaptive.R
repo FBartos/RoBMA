@@ -276,13 +276,15 @@ test_that("fixed-budget diagnostics never select ordinate availability", {
   expect_equal(estimate_imprecise[["posterior_ordinate"]][["ordinate"]], 2)
   expect_true(estimate_precise[["sampling_design"]][["sampling_target_met"]])
   expect_false(estimate_imprecise[["sampling_design"]][["sampling_target_met"]])
-  expect_match(
-    paste(.iwmde_posterior_ordinate_warnings(
-      estimate_imprecise[["posterior_ordinate"]]
-    ), collapse = " "),
-    "via the 'density_control' argument",
-    fixed = TRUE
-  )
+  warning_text <- paste(.iwmde_posterior_ordinate_warnings(
+    estimate_imprecise[["posterior_ordinate"]]
+  ), collapse = " ")
+  expect_match(warning_text,
+    "increasing 'samples' in the 'density_control' argument", fixed = TRUE)
+  expect_match(warning_text, "10%.*requested precision target[[:space:]]+5%")
+  expect_match(warning_text, "20 finite importance terms")
+  expect_match(warning_text, "effective sample size is[[:space:]]+20")
+  expect_match(warning_text, "warning threshold[[:space:]]+100")
 })
 
 
