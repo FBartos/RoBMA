@@ -2001,6 +2001,37 @@ EVALUATE_DIRECT_BOUND <- 2^100
 }
 
 
+# Variance shares of two SDs, each computed from their ratio so that a small
+# share is not lost through 1 - a and no sum of squared SDs can overflow.
+.gaussian_conditional_sd_weights <- function(first, second) {
+
+  if (any(!is.finite(first) | first < 0) ||
+      any(!is.finite(second) | second < 0)) {
+    stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+  }
+  large <- pmax(first, second)
+  small <- pmin(first, second)
+  positive <- large > 0
+  ratio_squared <- large
+  ratio_squared[] <- 0
+  ratio_squared[positive] <- (small[positive] / large[positive])^2
+  if (any(small > 0 & ratio_squared == 0)) {
+    stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
+  }
+  smaller_weight <- ratio_squared / (1 + ratio_squared)
+  larger_weight <- 1 / (1 + ratio_squared)
+  first_larger <- first > second
+  first_weight <- smaller_weight
+  first_weight[first_larger] <- larger_weight[first_larger]
+  second_weight <- larger_weight
+  second_weight[first_larger] <- smaller_weight[first_larger]
+  # Retain the existing both-zero mean convention; no new support law is set.
+  first_weight[!positive] <- 0
+  second_weight[!positive] <- 1
+  return(list(first = first_weight, second = second_weight))
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .evaluate.brma.true_effects.norm
 # ---------------------------------------------------------------------------- #
@@ -2038,35 +2069,6 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # @return S x K matrix of true-effect BLUP means or new-effect posterior samples
 #
 # ---------------------------------------------------------------------------- #
-.gaussian_conditional_sd_weights <- function(first, second) {
-
-  if (any(!is.finite(first) | first < 0) ||
-      any(!is.finite(second) | second < 0)) {
-    stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
-  }
-  large <- pmax(first, second)
-  small <- pmin(first, second)
-  positive <- large > 0
-  ratio_squared <- large
-  ratio_squared[] <- 0
-  ratio_squared[positive] <- (small[positive] / large[positive])^2
-  if (any(small > 0 & ratio_squared == 0)) {
-    stop("Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
-  }
-  smaller_weight <- ratio_squared / (1 + ratio_squared)
-  larger_weight <- 1 / (1 + ratio_squared)
-  first_larger <- first > second
-  first_weight <- smaller_weight
-  first_weight[first_larger] <- larger_weight[first_larger]
-  second_weight <- larger_weight
-  second_weight[first_larger] <- smaller_weight[first_larger]
-  # Retain the existing both-zero mean convention; no new support law is set.
-  first_weight[!positive] <- 0
-  second_weight[!positive] <- 1
-  return(list(first = first_weight, second = second_weight))
-}
-
-
 .evaluate.brma.true_effects.norm <- function(mu_samples, tau_within, yi, sei,
                                              same_data, bias_offset = NULL) {
 
