@@ -257,16 +257,26 @@ bool cpp_selnorm_step_rule_resolves_transitions(
   if (!changed || rank == 0) return true;
   if (nodes == nullptr || order < 2 || offset < 0) return false;
   const double *z = nodes + offset;
+  // Axes are coupled only through a row that loads on two or more of them; the
+  // central node spacing is needed for no other case.
+  bool any_coupled = false;
+  for (int row = 0; row < dimension && !any_coupled; ++row) {
+    int loaded_axes = 0;
+    for (int axis = 0; axis < rank; ++axis) {
+      loaded_axes += loading[row + dimension * axis] != 0.0;
+    }
+    any_coupled = loaded_axes >= 2;
+  }
   double coupled_gap = 0.0;
   for (int point = 0; point < order; ++point) {
     if (!std::isfinite(z[point]) || (point > 0 && !(z[point] > z[point - 1]))) return false;
-    if (point > 0 && z[point - 1] <= 3.0 && z[point] >= -3.0) {
+    if (any_coupled && point > 0 && z[point - 1] <= 3.0 && z[point] >= -3.0) {
       coupled_gap = std::max(coupled_gap, z[point] - z[point - 1]);
     }
   }
   for (int axis = 0; axis < rank; ++axis) {
     bool coupled = false;
-    for (int row = 0; row < dimension; ++row) {
+    for (int row = 0; any_coupled && row < dimension; ++row) {
       if (loading[row + dimension * axis] == 0.0) continue;
       for (int other = 0; other < rank; ++other) {
         coupled = coupled || (other != axis && loading[row + dimension * other] != 0.0);
@@ -289,8 +299,9 @@ bool cpp_selnorm_step_rule_resolves_transitions(
         if (std::isnan(center)) return false;
         // Exterior transitions remain owned by the existing tail gates.
         if (center <= z[0] || center >= z[order - 1]) continue;
-        int upper = 1;
-        while (upper < order && z[upper] < center) ++upper;
+        // The nodes are strictly increasing and the center lies strictly
+        // inside them: the first node not below it has index 1 .. order - 1.
+        const int upper = static_cast<int>(std::lower_bound(z, z + order, center) - z);
         double gap = z[upper] - z[upper - 1];
         if (z[upper] == center && upper + 1 < order) {
           gap = std::max(gap, z[upper + 1] - z[upper]);
