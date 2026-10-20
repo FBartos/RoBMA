@@ -1554,7 +1554,9 @@
       any(innovation != 0 & whitened_residual == 0)) {
     stop("Multilevel Gaussian conditional arithmetic is numerically unavailable.", call. = FALSE)
   }
-  scale <- pmax(1, apply(abs(whitened_loading), 1L, max))
+  absolute_loading <- abs(whitened_loading)
+  scale <- pmax(1, absolute_loading[cbind(
+    seq_len(nrow(absolute_loading)), max.col(absolute_loading, ties.method = "first"))])
   unit_loading <- whitened_loading / scale
   inverse_scale <- 1 / scale
   denominator <- .multilevel_conditional_product(inverse_scale, inverse_scale) +
@@ -1899,8 +1901,11 @@
   }
   smaller_weight <- ratio_squared / (1 + ratio_squared)
   larger_weight <- 1 / (1 + ratio_squared)
-  first_weight <- ifelse(first > second, larger_weight, smaller_weight)
-  second_weight <- ifelse(first > second, smaller_weight, larger_weight)
+  first_larger <- first > second
+  first_weight <- smaller_weight
+  first_weight[first_larger] <- larger_weight[first_larger]
+  second_weight <- larger_weight
+  second_weight[first_larger] <- smaller_weight[first_larger]
   # Retain the existing both-zero mean convention; no new support law is set.
   first_weight[!positive] <- 0
   second_weight[!positive] <- 1
