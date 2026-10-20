@@ -26,7 +26,7 @@
 - `loo_compare()` and `loo_model_weights()` label the first model by its
   expression unless the call names `x`, so a named option or a named additional
   model no longer renames it.
-- The private known-V Gaussian bridge fallback preserves latent sampling-factor
+- Known-V bridge sampling with latent sampling factors keeps their full
   covariance when no dependency partition is supplied.
 - Unspecified ordinary factor null priors use each retained alternative term's
   declared contrast, including independent indicator-coded interactions.
@@ -71,8 +71,8 @@
 - Z-plot context fallback uses the public static-cache contract and removes unused selection arguments and facades.
 - Forest adapters retain presentation options; diagnostic plots preserve reference targets, disconnected contours, and declared row labels.
 - Posterior and prior plots preserve explicit colors and transformed labels, and explain unsupported targets and allocation derivations.
-- Validation tooling uses canonical source hashes and whole-profile keys,
-  checks benchmark cache calls and fit contracts, and bounds worker-tree cleanup.
+- Development tooling (scenario benchmarks, validation profiles, cache keys) and
+  its tests were extended; they are not part of the installed package.
 - Influence diagnostics carry canonical target metadata, explain partly undefined
   random correlations, and return classed undefined results for fixed-scale sets.
 - Z plots validate stored and explicit integration controls, compose standalone
@@ -82,20 +82,16 @@
   queries preserve their existing NULL result.
 - RNG restoration avoids reselecting an unchanged generator and describes the
   optional Box-Muller hidden-cache limitation precisely.
-- Scenario comparisons preserve extraction failures, restore temporary sampler
-  options on every exit, and report missing managed rendering as incomplete.
 - GLMM quadrature recovery uses typed numerical failures and preserves their
   observed sample, public observation, and refinement diagnostics.
 - Partial selection events validate their required geometry and selected-response
   simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and
   explicit caller structure rather than posterior column-name spelling.
-- Removed an unused private CDF facade while retaining independent CDF and
-  tail checks on the production LOO and selection kernels.
 - Ordered density integration retains finite log weights and the declared
   uncertainty conditioning; numerical refusals expose their observed work and proof.
 - Known-V null-space coverage refuses indefinite factorizations and names the
-  supported prior remedy; dense reference-only helpers now live with their tests.
+  supported prior remedy.
 - Density warnings report their thresholds, preserve infinite observed values,
   and share a condition family with remedies that match the available diagnostics.
 - Density construction failures identify invalid supports and grouped baselines;
@@ -156,8 +152,6 @@
 - Group-IID random-covariance density shortcuts require declared fixed-mean
   invariance, including allocated SDs regenerated from replacement coordinates;
   candidate-dependent means use the accurate general evaluator.
-- BCG benchmark listing and filtered marginal comparisons retain the complete
-  data unscaling and model-matrix preparation through one deferred input.
 - Non-finite bridge repetitions raise a classed RoBMA error with public
   remedies and the intact upstream condition; unused add_marglik() arguments
   warn. Standardized comparison results require finite repetitions.
@@ -192,12 +186,8 @@
   interruptions within large grids while shared and worker projections remain isolated.
 - Native nil lengths preserve cleanup and RNG ownership; malformed normal
   predictor locations receive their named numeric validation error.
-- Native thread invariance checks execute every selected-normal and predictor
-  route above its actual work gate in a fresh two-thread OpenMP worker.
 - Binomial GLMM quadrature uses the exact uniform-beta identity and evaluates
   derivative probability pairs directly while retaining independent log tails.
-- GLMM regression checks cover active boundary and sharp-count quadrature,
-  weighted point and truncated priors, and retained multilevel score coordinates.
 - Conditional binomial and Poisson GLMM likelihoods preserve finite log tails
   and zero-count limits, including the point log-rate quadrature evaluator.
 - Binomial GLMM adaptive quadrature retains the normalized beta prior and
@@ -318,8 +308,6 @@
   enters `mods` or `scale` and loses a level to the selection stops with
   `RoBMA_structured_index_level_removed`.
 - Diagonal sampling-input completion preserves supplied missingness and validates invalid retained values without dropping conversion-created missing rows.
-- Synthetic density-diagnostic fixtures declare their exact zero resolution component when checking attachment, value alignment, and validation-movement gates.
-- Independent physical integration tests cover shifted ordered-source numerators and ordinary/sharper selected two-dimensional block denominators, with their numerical error estimates retained.
 - Ordered constant-contribution uncertainty certificates require a single declared total slice; multiple slices retain ordinary uncertainty and its existing availability diagnostics.
 - Admitted ordered share endpoints use the existing allocation group chart for unequal nonzero coefficients and preserve the exact declared affine offset.
 - Ordered fixed-total and nonzero Bernoulli interior contractions retain certified regular conditional densities instead of being classified by endpoint exponents; uncertified interior limits remain unavailable.
@@ -328,29 +316,29 @@
 - IWMDE excludes scalar as well as indexed local latent monitors from marginalized proposals and global likelihood sample views.
 - IWMDE retains declared finite omega endpoints as raw conditioning values, preserving conditional proposals in mixed selection ensembles.
 - qCMDE/IWMDE retain the joint dependent factor prior without evaluating an unused scalar focal density.
-- numerical row priors use the existing ordered conditional kernel for ordered nuisance terms, preserving valid zero inclusion states and typed expression-total refusals.
-- marginal means retain available sibling Bayes factors when a declared formula measure is unavailable; refused rows keep the original reason. Explicit late KDE summaries compute skipped Bayes factors from the stored conditional cells and null hypothesis.
-* Preserve structured allowed refusal diagnostics for unavailable marginal-means Bayes-factor rows.
-* Report equivalent SD and variance point/region numerical-zero comparisons as canonical undefined Bayes factors with aligned diagnostics and warnings.
-- repeated expanded factor hypotheses retain their original statement numbers, canonical BF logs and row diagnostics through parameter-group binding.
-- hypothesis groups retain every expanded factor row, select their point metadata and density method locally, and preserve declared OR conditions through scalar attachment. Stochastic contribution measures are refused during method planning, while fixed whole-term marginal cells retain their structural refusal.
-- ordered total inclusion participates in marginal conditioning. Single-model default density curves request averaged targets; conditional point ordinates retain their existing behavior. Direct atom predicates respect explicit joint-law availability.
-- fixed-zero random-effect marginal likelihoods finalize the locally rebuilt fixed formula declarations and scale while retaining the original sampler coordinates.
-- scalar PET and PEESE plots attach qCMDE/IWMDE densities and atoms to their declared scalar view. Streamed zplot projections retain validated native static bounds; exact ordered selection partitions admit finalized empty scaling metadata.
-- posterior value wrappers preserve BayesTools declared unavailable-measure diagnostics, including aligned model/log probability payloads, through replacement draws and hypothesis refusal conversion.
-- formula coordinate readers accept validated model and conditional context schema 2, while primitive context schema 1 and coefficient transformation descriptor schema 3 retain their separate requirements.
-- scalar qCMDE/IWMDE plot curves retain their backend source parameter in provenance and declare the actual BayesTools display target for precomputed matching.
-- variance point-region results retain actual aligned point numerical diagnostics in variance units, including repeated points and reversed statements.
-- scalar and exponentiated-affine discovery plans retain declared unavailable-law reasons and usable siblings; requested hypotheses and missing-owner or programming failures remain strict.
-- selected and prior-only formula draw carriers retain complete prior declarations; numeric point helpers require finite scalar numeric locations and use BayesTools' owned formula replay.
-- hypothesis contribution combinations fold constant multipliers once and retain typed qCMDE/IWMDE refusals for stochastic products and dynamic original maps. Log ordinates and aligned BF diagnostics survive transitive/group binding; plain exports omit hidden carriers.
-- formula adapters accept BayesTools coefficient-transform 3 and preserve original fitted multiplier states for original-scale corrections. Unsupported measures remain typed refusals; qCMDE/IWMDE require certified static projections. Prior plots and no-fit carriers supply complete ordinary multiplier priors, while empty scaling intentionally selects fitted coordinates.
+- Numerical row priors use the existing ordered conditional kernel for ordered nuisance terms, preserving valid zero inclusion states and typed expression-total refusals.
+- Marginal means retain available sibling Bayes factors when a declared formula measure is unavailable; refused rows keep the original reason. Explicit late KDE summaries compute skipped Bayes factors from the stored conditional cells and null hypothesis.
+- Preserve structured allowed refusal diagnostics for unavailable marginal-means Bayes-factor rows.
+- Report equivalent SD and variance point/region numerical-zero comparisons as canonical undefined Bayes factors with aligned diagnostics and warnings.
+- Repeated expanded factor hypotheses retain their original statement numbers, canonical BF logs and row diagnostics through parameter-group binding.
+- Hypothesis groups retain every expanded factor row, select their point metadata and density method locally, and preserve declared OR conditions through scalar attachment. Stochastic contribution measures are refused during method planning, while fixed whole-term marginal cells retain their structural refusal.
+- Ordered total inclusion participates in marginal conditioning. Single-model default density curves request averaged targets; conditional point ordinates retain their existing behavior. Direct atom predicates respect explicit joint-law availability.
+- Fixed-zero random-effect marginal likelihoods finalize the locally rebuilt fixed formula declarations and scale while retaining the original sampler coordinates.
+- Scalar PET and PEESE plots attach qCMDE/IWMDE densities and atoms to their declared scalar view. Streamed zplot projections retain validated native static bounds; exact ordered selection partitions admit finalized empty scaling metadata.
+- Posterior value wrappers preserve BayesTools declared unavailable-measure diagnostics, including aligned model/log probability payloads, through replacement draws and hypothesis refusal conversion.
+- Formula coordinate readers accept validated model and conditional context schema 2, while primitive context schema 1 and coefficient transformation descriptor schema 4 retain their separate requirements.
+- Scalar qCMDE/IWMDE plot curves retain their backend source parameter in provenance and declare the actual BayesTools display target for precomputed matching.
+- Variance point-region results retain actual aligned point numerical diagnostics in variance units, including repeated points and reversed statements.
+- Scalar and exponentiated-affine discovery plans retain declared unavailable-law reasons and usable siblings; requested hypotheses and missing-owner or programming failures remain strict.
+- Selected and prior-only formula draw carriers retain complete prior declarations; numeric point helpers require finite scalar numeric locations and use BayesTools' owned formula replay.
+- Hypothesis contribution combinations fold constant multipliers once and retain typed qCMDE/IWMDE refusals for stochastic products and dynamic original maps. Log ordinates and aligned BF diagnostics survive transitive/group binding; plain exports omit hidden carriers.
+- Formula adapters accept BayesTools coefficient-transform 4 and preserve original fitted multiplier states for original-scale corrections. Unsupported measures remain typed refusals; qCMDE/IWMDE require certified static projections. Prior plots and no-fit carriers supply complete ordinary multiplier priors, while empty scaling intentionally selects fitted coordinates.
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.173 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.223 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
-    BayesTools >= 0.3.1.171 is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
+    That BayesTools version is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,
     conditional kernels, ordered prior-curve semantics and exact prior-style
     lookup used by this release.
