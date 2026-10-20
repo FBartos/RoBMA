@@ -307,9 +307,9 @@ the committed scenario timings use the package default, which inherits the
 fitted model's `parallel` setup, so compare benchmark rows with each other at
 the same thread budget, not with those timings), `--root` points at another
 RoBMA tree (the driver's own scenario definitions, helpers, fit cache, and
-committed timings serve both comparison arms; `--cache` can select another fit
-cache otherwise), `--installed` benchmarks the installed package, and `--tag`
-labels the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run
+committed timings serve both comparison arms), `--cache` selects another fit
+cache, `--installed` benchmarks the installed package, and `--tag` labels the
+rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run
 with each artifact's native share and top self-time functions;
 `tools/bench-prof-tree.R <file.Rprof>` prints the call tree of one artifact.
 A statement that builds several fits at once, such as a loop filling a list of

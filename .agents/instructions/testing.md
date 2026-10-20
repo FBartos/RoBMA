@@ -69,7 +69,7 @@ permitted. Filtered development runs enforce native availability but do not clai
 complete standard evidence.
 
 `tools/profile-iwmde-qcmde.R` prepares the release DLL from its own source
-root, disables pkgload compilation and test helpers, and defaults to one native
+root, disables pkgload compilation and test helpers, and uses one native
 thread. `--list` reports available and omitted cached-fit cases without running
 the estimator. Its output records source/package/DLL identity and labels
 elapsed values as including Rprof sampling and allocation profiling. An explicit

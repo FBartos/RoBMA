@@ -208,7 +208,7 @@ numerical contract.
 - `R/selection-mapping.R`: selection specifications, contexts, and row routing.
 - `R/selection-likelihood.R`: resolved source roles and candidate covariance.
 - `R/known-v-representation.R`: authoritative sampling covariance storage.
-- `R/pdf*.R`, `R/cdf.R`, `R/rng.R`: outcome evaluation.
+- `R/pdf*.R`, `R/rng.R`: outcome evaluation.
 - `src/selnorm/`: shared native kernels.
 - `tests/testthat/helper-selection-kernel.R`: focused test fixtures.
 

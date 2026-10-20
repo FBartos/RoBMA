@@ -161,7 +161,7 @@ log-score, full-joint and LOO metadata do not acquire this prediction marker.
 
 Declared singleton prediction sampling batches row-ordered normals only when
 all variances are finite and nonnegative; otherwise the original per-draw
-classifier preserves the failure point. Other whole matrices of at most32rows
+classifier preserves the failure point. Other whole matrices of at most 32 rows
 use the original assembled sampling and Cholesky solve. This private execution
 boundary changes no support/rank policy. Larger declared-block sampling uses
 block factors only after whole-draw
@@ -193,12 +193,12 @@ Cluster-unit scores also retain the ordered row partition; matching cluster
 counts or labels alone do not make pointwise scores comparable. Recompute old
 cluster diagnostics that lack this partition metadata.
 
-## Relevant Files
-
 Residual diagnostics certify an individual exact zero only if its design
 certificate and the actual covariance multiplier leave that row isolated.
 Marginal targets include every random covariance source in that check;
 fully saturated designs retain their exact zero independently of covariance.
+
+## Relevant Files
 
 - Target availability and metadata: `R/unit_level.R`,
   `R/brma-mv-targets.R`.
