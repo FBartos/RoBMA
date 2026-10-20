@@ -26,6 +26,8 @@ test_that("density-only routes signal a public class with the KDE remedy", {
   for (route in names(errors)) {
     error <- errors[[route]]
     expect_s3_class(error, "RoBMA_density_construction_error")
+    # a member of the density condition family
+    expect_s3_class(error, "RoBMA_density_error")
     # the internal class stays for the callers that match it
     expect_s3_class(error, "iwmde_construction_error")
     expect_s3_class(error, "error")

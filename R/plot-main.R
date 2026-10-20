@@ -190,7 +190,8 @@
 #' coefficients, such as the exponentiated intercept of a scale formula with
 #' standardized predictors; use `standardized_coefficients = TRUE`). A density
 #' whose construction fails stops with an error of class
-#' `RoBMA_density_construction_error`; use `density_method = "KDE"` to estimate
+#' `RoBMA_density_construction_error` (a `RoBMA_density_error`); use
+#' `density_method = "KDE"` to estimate
 #' it from the posterior draws. A fitted chain with no eligible row of the
 #' target adds the class `RoBMA_density_chain_coverage`, and the message names
 #' longer chains and their convergence as the other remedy.

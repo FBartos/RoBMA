@@ -78,8 +78,9 @@ test_that("the density-only routes keep the remedy of a chain-coverage refusal",
   testthat::local_mocked_bindings(.iwmde_estimate = function(failure) stop(failure), .package = "RoBMA")
   wrapped <- tryCatch(.iwmde_estimate_density(coverage), error = identity)
   expect_identical(
-    class(wrapped)[1:3],
-    c("RoBMA_density_construction_error", "RoBMA_density_chain_coverage", "iwmde_construction_error")
+    class(wrapped),
+    c("RoBMA_density_construction_error", "RoBMA_density_chain_coverage",
+      "iwmde_construction_error", "RoBMA_density_error", "error", "condition")
   )
   # the remedy is not repeated by the generic KDE advice
   expect_identical(conditionMessage(wrapped), conditionMessage(coverage))

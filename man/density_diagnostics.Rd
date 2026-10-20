@@ -113,7 +113,8 @@ A hypothesis result without attached diagnostics, such as one whose point
 ordinates were estimated with \code{density_method = "KDE"} or one without a
 point hypothesis, stops with the class
 \code{RoBMA_density_diagnostics_unavailable}.
-Density ordinate, diagnostic-unavailable, and plot conditions share the
+Density ordinate, diagnostic-unavailable, plot, and construction
+(\code{RoBMA_density_construction_error}) conditions share the
 \code{RoBMA_density_error} parent while retaining their specific condition classes.
 
 The reliability policy warns when relative MCSE is at least 5 percent, ESS is

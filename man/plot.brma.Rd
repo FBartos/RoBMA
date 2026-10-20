@@ -241,7 +241,8 @@ original-scale value is not a linear combination of its fitted
 coefficients, such as the exponentiated intercept of a scale formula with
 standardized predictors; use \code{standardized_coefficients = TRUE}). A density
 whose construction fails stops with an error of class
-\code{RoBMA_density_construction_error}; use \code{density_method = "KDE"} to estimate
+\code{RoBMA_density_construction_error} (a \code{RoBMA_density_error}); use
+\code{density_method = "KDE"} to estimate
 it from the posterior draws. A fitted chain with no eligible row of the
 target adds the class \code{RoBMA_density_chain_coverage}, and the message names
 longer chains and their convergence as the other remedy.

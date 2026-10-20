@@ -134,7 +134,8 @@ marginal_means <- function(object, ...) {
 #' \code{RoBMA_density_method_scale_components} (component-specific scale
 #' formulas), or \code{RoBMA_density_method_glmm} (IWMDE for binomial and
 #' Poisson GLMMs). A density whose construction fails stops with an error of
-#' class \code{RoBMA_density_construction_error}; use
+#' class \code{RoBMA_density_construction_error} (a \code{RoBMA_density_error});
+#' use
 #' \code{density_method = "KDE"} to estimate it from the posterior draws. A
 #' fitted chain with no eligible row of the target adds the class
 #' \code{RoBMA_density_chain_coverage}, and the message names longer chains and
