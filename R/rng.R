@@ -166,7 +166,7 @@
     }
     # A bad later draw must reach the original classifier after its valid prefix.
   }
-  guarded <- blocked && .block_covariance_use_guarded_execution(covariance_samples)
+  guarded <- blocked && .block_covariance_use_guarded_execution(covariance_samples, "sampling")
   cache <- if (guarded) .block_covariance_guard_cache(covariance_samples) else NULL
   response_samples <- mu_samples
   for (s in seq_len(S)) {

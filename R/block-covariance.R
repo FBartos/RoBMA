@@ -572,16 +572,44 @@
 
 
 # Small whole matrices avoid per-block R dispatch. This is an execution boundary,
-# independent of the covariance classifier's support and rank policy.
-.block_covariance_use_guarded_execution <- function(x) {
+# independent of the covariance classifier's support and rank policy. Above it
+# the guarded route replaces one whole-matrix factorization per draw by R
+# dispatch per block and, for a covariance that varies by draw, one eigenvalue
+# guard per block and draw. The break-even sizes come from a grid of K = 40-800
+# with 2-, 4- and 20-row blocks (guarded against the assembled route):
+# - sampling, draw-invariant blocks: the guard is cached once, so the guarded
+#   route pays from the boundary on;
+# - sampling, draw-varying blocks: break-even about K = 140 (2-row blocks), 115
+#   (4-row) and 70 (20-row), so the guarded route is used from
+#   BLOCK_COVARIANCE_GUARD_MIN_K_SAMPLING_VARYING;
+# - solving recomputes each block's Cholesky factor per draw even for
+#   draw-invariant blocks: break-even about K = 400, 270 and 120 for those
+#   (BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT) and about 700, 400 and 250
+#   for draw-varying blocks (BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_VARYING).
+BLOCK_COVARIANCE_GUARD_MIN_K_SAMPLING_VARYING <- 150L
+BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT <- 400L
+BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_VARYING <- 700L
+.block_covariance_use_guarded_execution <- function(x, consumer = c("sampling", "solve")) {
 
-  x[["K"]] > 32L
+  consumer <- match.arg(consumer)
+  if (x[["K"]] <= 32L) return(FALSE)
+  # The solve consumer asks per draw: no block scan below its smallest threshold.
+  if (identical(consumer, "solve") && x[["K"]] < BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT) {
+    return(FALSE)
+  }
+  invariant <- all(vapply(x[["values"]], function(value) dim(value)[[1L]] == 1L, logical(1L)))
+  if (identical(consumer, "sampling")) {
+    return(invariant || x[["K"]] >= BLOCK_COVARIANCE_GUARD_MIN_K_SAMPLING_VARYING)
+  }
+  x[["K"]] >= if (invariant) {
+    BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT
+  } else BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_VARYING
 }
 
 
 .block_covariance_guarded_chol_solve <- function(x, draw, rhs, cache) {
 
-  if (.block_covariance_use_guarded_execution(x)) {
+  if (.block_covariance_use_guarded_execution(x, "solve")) {
     plan <- .block_covariance_guard_plan(x, draw, cache, factors = FALSE, pd_only = TRUE)
     if (plan[["fast"]]) {
       result <- tryCatch(.block_covariance_chol_solve(x, draw, rhs), error = function(error) NULL)

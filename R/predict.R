@@ -1964,7 +1964,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   # Larger safely PD blocks use the block solve; small whole matrices,
   # uncertainty and unexpected failure retain assembled Cholesky/refusal.
   zero_random <- .block_covariance_zero_draws(parts[["random_covariance"]])
-  solve_cache <- if (.block_covariance_use_guarded_execution(parts[["covariance"]])) {
+  solve_cache <- if (.block_covariance_use_guarded_execution(parts[["covariance"]], "solve")) {
     .block_covariance_guard_cache(parts[["covariance"]], factors = FALSE, pd_only = TRUE)
   } else NULL
   for (s in seq_len(S)) {

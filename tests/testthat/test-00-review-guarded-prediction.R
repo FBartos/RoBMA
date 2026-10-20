@@ -33,16 +33,19 @@ test_that("large guarded blocks preserve odd draw and row normal assignments", {
 
   original_kind <- RNGkind()
   withr::defer(do.call(RNGkind, as.list(original_kind)))
-  for (kind in c("Inversion", "Box-Muller")) for (variable in c(FALSE, TRUE)) {
+  # A covariance that varies by draw is sampled blockwise only from the sampling
+  # threshold on (30 copies give K = 150); below it the assembled route draws.
+  for (kind in c("Inversion", "Box-Muller")) for (variable in c(FALSE, TRUE)) for (copies in c(7L, 30L)) {
     for (single in c(FALSE, TRUE)) for (source in c("G", "N")) {
-      fixture <- .guarded_prediction_fixture(variable, single, copies = 7L)
-      K <- 35L
+      fixture <- .guarded_prediction_fixture(variable, single, copies = copies)
+      K <- 5L * copies
+      assembled <- single || (variable && K < BLOCK_COVARIANCE_GUARD_MIN_K_SAMPLING_VARYING)
       x <- fixture[[source]]
       do.call(RNGkind, list("Mersenne-Twister", kind))
       set.seed(11621)
       expected <- matrix(0, 3L, K)
       for (s in 1:3) {
-        if (single) {
+        if (assembled) {
           factor <- .covariance_sampling_factor(.covariance_factorization(.block_covariance_dense(x, s)))
           expected[s, ] <- as.vector(stats::rnorm(K) %*% factor)
         } else {
@@ -119,7 +122,8 @@ test_that("unexpected eligible block failures retain the original full fallback"
   environment(guard) <- fault
   expect_identical(guard(matrix(c(1, .25, .25, 1), 2L), 5L)$reason,
     "eligible_factor_unavailable")
-  fixture <- .guarded_prediction_fixture(copies = 7L)
+  # The block solve is reached from the solve threshold on (80 copies give K = 400).
+  fixture <- .guarded_prediction_fixture(copies = 80L)
   x <- .block_covariance_add(fixture$G, fixture$N)
   solve <- .block_covariance_guarded_chol_solve
   fault <- new.env(parent = environment(solve))
@@ -129,7 +133,7 @@ test_that("unexpected eligible block failures retain the original full fallback"
     stop("injected block solve failure")
   }
   environment(solve) <- fault
-  rhs <- rep(c(.2, -.1, .4, .8, -.2), 7L)
+  rhs <- rep(c(.2, -.1, .4, .8, -.2), 80L)
   cache <- .block_covariance_guard_cache(x, factors = FALSE, pd_only = TRUE)
   C <- .block_covariance_dense(x, 1L)
   factor <- chol(C)
@@ -238,6 +242,43 @@ test_that("small whole matrices bypass block guards for sampling and solving", {
 })
 
 
+test_that("guarded execution follows the draw dependence of the blocks and the consumer", {
+
+  rule <- .block_covariance_use_guarded_execution
+  covariance <- function(K, varying) {
+    blocks <- lapply(seq(1L, K, by = 2L), function(first) as.integer(first:min(first + 1L, K)))
+    values <- lapply(seq_along(blocks), function(index) {
+      n <- length(blocks[[index]])
+      draws <- if (varying[[index %% length(varying) + 1L]]) 3L else 1L
+      array(rep(diag(n), each = draws), c(draws, n, n))
+    })
+    .block_covariance(blocks, values, 3L, K)
+  }
+  sampling_varying <- BLOCK_COVARIANCE_GUARD_MIN_K_SAMPLING_VARYING
+  solve_invariant <- BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT
+  solve_varying <- BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_VARYING
+  # Sampling: draw-invariant blocks from the whole-matrix boundary, varying ones
+  # from the sampling threshold (one varying block is enough to pay the guard).
+  expect_false(rule(covariance(32L, FALSE), "sampling"))
+  expect_true(rule(covariance(33L, FALSE), "sampling"))
+  expect_false(rule(covariance(33L, TRUE), "sampling"))
+  expect_false(rule(covariance(33L, c(FALSE, TRUE)), "sampling"))
+  expect_false(rule(covariance(sampling_varying - 1L, TRUE), "sampling"))
+  expect_true(rule(covariance(sampling_varying, TRUE), "sampling"))
+  expect_true(rule(covariance(sampling_varying, c(FALSE, TRUE)), "sampling"))
+  # Solving: invariant blocks from their threshold, varying ones from a larger one.
+  expect_false(rule(covariance(33L, FALSE), "solve"))
+  expect_false(rule(covariance(solve_invariant - 1L, FALSE), "solve"))
+  expect_true(rule(covariance(solve_invariant, FALSE), "solve"))
+  expect_false(rule(covariance(solve_varying - 1L, TRUE), "solve"))
+  expect_true(rule(covariance(solve_varying, TRUE), "solve"))
+  expect_false(rule(covariance(solve_varying - 1L, c(FALSE, TRUE)), "solve"))
+  expect_true(rule(covariance(solve_varying, c(FALSE, TRUE)), "solve"))
+  expect_identical(rule(covariance(sampling_varying, TRUE)),
+    rule(covariance(sampling_varying, TRUE), "sampling"))
+})
+
+
 test_that("large eligible sampling factor faults actually reach the assembled fallback", {
 
   fixture <- .guarded_prediction_fixture(copies = 7L)
@@ -294,7 +335,10 @@ test_that("large source phases and the small execution boundary retain normal bu
     expect_identical(.Random.seed, expected_seed)
     expect_identical(stats::rnorm(5L), expected_next)
   }
-  for (K in c(32L, 33L)) {
+  # Draw-invariant blocks: sampling is guarded above K = 32 (one plan per draw),
+  # solving above the solve threshold (one plan per solve).
+  for (K in c(32L, 33L, BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT - 1L,
+              BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT)) {
     covariance <- diag(K)
     covariance[1:2, 1:2] <- covariance[1:2, 1:2] + .1
     covariance[3:K, 3:K] <- covariance[3:K, 3:K] + .1
@@ -309,9 +353,13 @@ test_that("large source phases and the small execution boundary retain normal bu
     solve <- .block_covariance_guarded_chol_solve
     environment(sampling) <- environment(solve) <- fault
     sampling(matrix(0, 3L, K), x)
-    cache <- if (K > 32L) .block_covariance_guard_cache(x, factors = FALSE, pd_only = TRUE) else NULL
+    expect_identical(calls, if (K > 32L) 3L else 0L)
+    calls <- 0L
+    cache <- if (K >= BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT) {
+      .block_covariance_guard_cache(x, factors = FALSE, pd_only = TRUE)
+    } else NULL
     solve(x, 1L, rep(1, K), cache)
-    expect_identical(calls, if (K > 32L) 4L else 0L)
+    expect_identical(calls, if (K >= BLOCK_COVARIANCE_GUARD_MIN_K_SOLVE_INVARIANT) 1L else 0L)
   }
 })
 
