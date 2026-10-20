@@ -433,9 +433,7 @@ test_that("BMA.mv prediction and diagnostic targets remain available", {
   )
   fitted_estimate <- fitted(
     fit_bma_mv,
-    type               = "estimate",
-    conditioning_depth = "estimate",
-    summary             = FALSE
+    conditioning_depth = "estimate"
   )
 
   expect_brma_samples_matrix(terms, n, "BMA.mv terms")
@@ -453,6 +451,8 @@ test_that("BMA.mv prediction and diagnostic targets remain available", {
   }
   expect_length(fitted_estimate, n)
   expect_true(all(is.finite(fitted_estimate)))
+  expect_type(fitted_estimate, "double")
+  expect_equal(unname(fitted_estimate), unname(colMeans(as.matrix(blup(fit_bma_mv)))))
   expect_brma_samples_matrix(pooled_effect(fit_bma_mv), 1L, "BMA.mv pooled effect")
   expect_brma_samples_matrix(
     pooled_heterogeneity(fit_bma_mv, component = "total"),

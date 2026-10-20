@@ -147,11 +147,14 @@ test_that("RoBMA.mv predictive and scoring targets remain multivariate", {
   expect_brma_samples_matrix(terms, n, "RoBMA.mv terms")
   expect_brma_samples_matrix(estimate, n, "RoBMA.mv estimate")
   expect_brma_samples_matrix(response, n, "RoBMA.mv response")
-  expect_length(fitted(
+  fitted_estimate <- fitted(
     fit_robma_mv,
-    type               = "estimate",
     conditioning_depth = "estimate"
-  ), n)
+  )
+  expect_length(fitted_estimate, n)
+  expect_type(fitted_estimate, "double")
+  expect_true(all(is.finite(fitted_estimate)))
+  expect_equal(unname(fitted_estimate), unname(colMeans(as.matrix(blup(fit_robma_mv)))))
   expect_brma_samples_matrix(
     pooled_effect(fit_robma_mv),
     1L,
