@@ -1334,10 +1334,8 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       pattern    = "[.]new[.]txt$",
       full.names = TRUE
     )
+    # a candidate without a baseline is offered too; accepting it creates it
     expected   <- sub("[.]new[.]txt$", ".txt", candidates)
-    keep       <- file.exists(expected)
-    candidates <- candidates[keep]
-    expected   <- expected[keep]
 
     data.frame(
       type     = rep("table", length(candidates)),
@@ -1465,10 +1463,12 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     return(invisible(changes))
   }
 
+  new_baseline <- !file.exists(changes[["expected"]])
   message(
     subject, " snapshot mismatches:\n- ",
     paste0(
       "[", changes[["type"]], "] ", changes[["name"]],
+      ifelse(new_baseline, " (no baseline yet)", ""),
       collapse = "\n- "
     )
   )
@@ -1490,9 +1490,14 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       basename(changes[["expected"]][[i]])
     )
     staged_candidate[[i]] <- .scenario_candidate_path(staged_expected[[i]])
-    .scenario_copy_file(
-      changes[["expected"]][[i]], staged_expected[[i]], "review snapshot"
-    )
+    if (new_baseline[[i]]) {
+      # an empty stand-in lets the review show the whole candidate as new
+      .scenario_write_lines(character(), staged_expected[[i]])
+    } else {
+      .scenario_copy_file(
+        changes[["expected"]][[i]], staged_expected[[i]], "review snapshot"
+      )
+    }
     .scenario_copy_file(
       changes[["candidate"]][[i]], staged_candidate[[i]], "review candidate"
     )
@@ -1519,9 +1524,11 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       )
       changes[["status"]][[i]] <- "accepted"
       unlink(changes[["candidate"]][[i]])
-    } else if (.scenario_files_identical(
-      staged_expected[[i]], changes[["expected"]][[i]]
-    )) {
+    } else if (if (new_baseline[[i]]) {
+      file.size(staged_expected[[i]]) == 0
+    } else {
+      .scenario_files_identical(staged_expected[[i]], changes[["expected"]][[i]])
+    }) {
       changes[["status"]][[i]] <- "rejected"
       unlink(changes[["candidate"]][[i]])
     } else {

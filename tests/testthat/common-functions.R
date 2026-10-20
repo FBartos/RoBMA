@@ -171,7 +171,7 @@ if (!dir.exists(temp_temp_dir)) dir.create(temp_temp_dir, showWarnings = FALSE, 
   actual_output <- sub("\r$", "", actual_output)
   if (!file.exists(ref_file)) {
     .write_reference_candidate(actual_output, candidate)
-    skip(paste("Reference file", filename, "not found."))
+    skip(paste("Reference file", filename, "not found.", candidate_msg))
     return(invisible(actual_output))
   }
 

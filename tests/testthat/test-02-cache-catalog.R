@@ -1612,6 +1612,9 @@ test_that("text references retain scalar CRLF and missing-candidate policy", {
   expect_false(file.exists(file.path(root, "missing.txt")))
   candidate <- .reference_candidate_path(file.path(root, "missing.txt"))
   expect_true(file.exists(candidate))
+  expect_match(conditionMessage(missing), paste0("Reference file missing.txt not found. ",
+    "Reference candidate cached at ", candidate, ". Review it with 'review_test_snapshots()'."),
+    fixed = TRUE)
   if (file.exists(candidate)) expect_identical(readLines(candidate), "new")
   candidate <- .reference_candidate_path(baseline)
   writeLines("old candidate", candidate)

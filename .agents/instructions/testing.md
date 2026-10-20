@@ -224,7 +224,9 @@ same test-name or trailing-slash directory semantics as
 `testthat::snapshot_review()`; use `reference_filter` to select reference
 groups such as `"interpret"` or `"marginal_means"`. Accept changes only after
 maintainer or explicitly delegated review. Rejected `.new.txt` candidates are
-deleted and skipped ones remain available for a later review.
+deleted and skipped ones remain available for a later review. A reference
+without a baseline skips with its candidate path; the review lists that
+candidate as having no baseline yet, and accepting it creates the baseline.
 
 Set `ROBMA_TEST_ALLOW_MISSING_SNAPSHOTS=TRUE` only during an explicit snapshot
 regeneration workflow.
