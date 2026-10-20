@@ -149,12 +149,18 @@ test_that("streamed normalizer diagnostics retain every row and reject a later c
       diagnostics <- list(relative_mcse = means[, 1L] / 10000,
                            relative_change = means[, 1L] / 20000)
       .selection_conditioned_sampling_diagnostics(diagnostics, plan)
-      list(log_mass = means[, 1L],
+      block_log_mass <- matrix(means[, 1L] / length(plan[["row_blocks"]]),
+        nrow = nrow(means), ncol = length(plan[["row_blocks"]]))
+      list(log_mass = rowSums(block_log_mass), block_log_mass = block_log_mass,
            diagnostics = rep(list(diagnostics), length(plan[["row_blocks"]])))
     }, .package = "RoBMA"
   )
   means <- matrix(seq_len(setup[["S"]]), setup[["S"]], setup[["K"]])
   result <- .selection_conditioned_sampling_normalizer(setup, means)
+  expect_identical(result[["log_mass"]], as.numeric(means[, 1L]))
+  expect_identical(rowSums(result[["block_log_mass"]]), result[["log_mass"]])
+  expect_identical(dim(result[["block_log_mass"]]),
+    c(setup[["S"]], length(plan[["row_blocks"]])))
   for (diagnostics in result[["diagnostics"]]) {
     expect_identical(diagnostics[["relative_mcse"]], seq_len(setup[["S"]]) / 10000)
     expect_identical(diagnostics[["relative_change"]], seq_len(setup[["S"]]) / 20000)
