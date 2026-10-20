@@ -1,4 +1,8 @@
 ## version 4.1.0 (IN PROGRESS)
+- Restore the runtime of binomial GLMM AGHQ with non-uniform beta baserate
+  priors, rank-one cluster selection densities, multilevel BLUP and true-effect
+  evaluation, sampling-conditioned tail and moment targets, and whitened
+  known-V joint likelihoods, with unchanged results.
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.
