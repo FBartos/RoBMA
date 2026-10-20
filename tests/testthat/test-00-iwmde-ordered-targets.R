@@ -2098,7 +2098,12 @@ testthat::test_that("fixed allocations with multiple total slices do not certify
   expect_false(.iwmde_ordered_constant_certificate(multi$context, primitive, primitive_states))
   for (method in c("qCMDE", "IWMDE")) {
     result <- .ordered_review_complete(multi, input, method, .1, "ordinate")
-    testthat::expect_equal(as.numeric(result$y), .895435295614602, tolerance = 1e-12)
+    # The ordinate is the mean of the exact conditional densities of the two
+    # retained rows (the independent Gaussian reference above, on the density
+    # scale); the allowance is the estimator's reported normalization error
+    # plus rounding.
+    testthat::expect_lte(abs(as.numeric(result$y) / mean(exp(reference)) - 1),
+      result$normalization_relative_error + 64 * .Machine$double.eps)
     testthat::expect_gt(diff(range(as.numeric(result$scaled_contributions))), .1)
     testthat::expect_false(identical(result$mcmc_uncertainty_scope, "declared_constant_conditional_contribution"))
     testthat::expect_false(identical(as.numeric(result$mcse), 0))

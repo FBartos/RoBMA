@@ -211,7 +211,22 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
   expect_identical(diagnostics$eligible_rows, 120L)
   expect_identical(diagnostics$evaluated_rows, 120L)
   expect_true(diagnostics$all_rows_used)
-  expect_equal(attr(point, "raw_log_BF"), -1.0297189562170501, tolerance = 1e-14)
+  # Savage-Dickey value of this conjugate fixture. The design column x sums to
+  # zero, so the posterior of the intercept given any retained row (tau = 0) is
+  # the same normal: precision 1 / .2^2 + 4 / .2^2 and mean
+  # (.4 / .2^2 + sum(yi) / .2^2) / precision. The qCMDE ordinate is the mean of
+  # these exact conditional ordinates, and the prior ordinate is that of
+  # normal(.4, .2). The allowance is the numerical error reported by the
+  # diagnostics (an error e of the ordinate moves the log Bayes factor by
+  # log1p(e) at most), plus rounding.
+  precision <- 125
+  expected <- stats::dnorm(.1, .4, .2, log = TRUE) -
+    stats::dnorm(.1, (.4 / .2^2 + sum(c(.1, .2, .15, .25)) / .2^2) / precision,
+                 sqrt(1 / precision), log = TRUE)
+  reported <- diagnostics$normalization_relative_error + diagnostics$stability_relative_error +
+    diagnostics$lattice_resolution_relative_error + diagnostics$truncation_ordinate_bound
+  expect_lte(abs(attr(point, "raw_log_BF") - expected),
+             log1p(reported) + 64 * .Machine$double.eps)
 })
 
 # Draws of the exact posterior of a two-group treatment-contrast model (normal
@@ -845,7 +860,8 @@ test_that("E2-c2 actual scaled-expression warnings retain their rewritten identi
       table = table, ast = attr(table, "hypothesis_ast"))
     append(table, posterior, ...)
   }, .package = "RoBMA")
-  result <- hypothesis(.review_h_contribution(2), c("2 * g[B] = 0.1", "2 * g[B] = 0.2"),
+  fixture <- .review_h_contribution(2)
+  result <- hypothesis(fixture, c("2 * g[B] = 0.1", "2 * g[B] = 0.2"),
     density_method = "qCMDE", n_samples = 128L, seed = 19)
   expect_length(records, 1L)
   record <- records[[1L]]$record
@@ -853,7 +869,32 @@ test_that("E2-c2 actual scaled-expression warnings retain their rewritten identi
   expect_identical(record$label, record$parameter)
   expect_identical(record$value, c(.1, .2))
   expect_true(all(is.na(record$level)))
-  expect_equal(as.numeric(result$BF), c(.16425804522585283, .15622347412902271), tolerance = 1e-14)
+  # Savage-Dickey values of this conjugate fixture. With tau = .1 the data
+  # variance is .5^2 + .1^2, and the posterior of g[B] given the intercept of a
+  # retained row is normal with precision 1 + sum((2 * z)^2) / variance and mean
+  # sum(2 * z * (yi - intercept)) / (variance * precision), where z indicates
+  # level B and 2 is the coefficient multiplier. The qCMDE ordinate of
+  # 2 * g[B] is the mean of these exact conditional ordinates over the retained
+  # rows; its prior ordinate is that of normal(0, 2). The allowance is the
+  # numerical error reported by the diagnostics plus rounding; the sampling
+  # warnings above concern the replayed rows, not this comparison.
+  intercept <- as.matrix(fixture$fit$mcmc)[, "mu_intercept"]
+  yi        <- c(-.2, .3, 0, .4, .1, .2)
+  z         <- rep(c(0, 1), 3L)
+  variance  <- .5^2 + .1^2
+  precision <- 1 + sum((2 * z)^2) / variance
+  conditional_mean <- vapply(intercept, function(b) {
+    sum(2 * z * (yi - b)) / (variance * precision)
+  }, numeric(1))
+  expected <- vapply(c(.1, .2), function(target) {
+    stats::dnorm(target, 0, 2) /
+      mean(stats::dnorm(target, 2 * conditional_mean, 2 / sqrt(precision)))
+  }, numeric(1))
+  diagnostics <- density_diagnostics(result)
+  reported <- diagnostics$normalization_relative_error + diagnostics$stability_relative_error +
+    diagnostics$lattice_resolution_relative_error + diagnostics$truncation_ordinate_bound
+  expect_true(all(abs(as.numeric(result$BF) / expected - 1) <=
+                    reported + 64 * .Machine$double.eps))
   warnings <- attr(result, "warnings", exact = TRUE)
   expect_identical(names(warnings), rownames(result))
   expect_identical(unname(warnings), record$warning)
