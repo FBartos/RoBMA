@@ -7,8 +7,10 @@
   carry the class `RoBMA_density_error`.
 - Restore the runtime of binomial GLMM AGHQ with non-uniform beta baserate
   priors, rank-one cluster selection densities, multilevel BLUP and true-effect
-  evaluation, sampling-conditioned tail and moment targets, and whitened
-  known-V joint likelihoods, with unchanged results.
+  evaluation, sampling-conditioned tail and moment targets, whitened known-V
+  joint likelihoods, and block-wise covariance sampling and solves (the
+  block-wise route is used only where it is faster than the dense one), with
+  unchanged results.
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.
