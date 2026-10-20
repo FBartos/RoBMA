@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- The private known-V Gaussian bridge fallback preserves latent sampling-factor
+  covariance when no dependency partition is supplied.
 - Unspecified ordinary factor null priors use each retained alternative term's
   declared contrast, including independent indicator-coded interactions.
 - Factor-level qCMDE/IWMDE hypotheses and marginal-means Bayes factors retain

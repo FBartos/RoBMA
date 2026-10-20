@@ -218,6 +218,45 @@ test_that("known-V PET and PEESE bridge targets match joint normal densities", {
       )
 
       expect_equal(actual, expected, tolerance = 1e-12)
+
+      if (backend == "latent") {
+        K <- nrow(input[["V"]])
+        random_covariance <- outer(rep(0.1, K), rep(0.1, K))
+        bridge_context <- list(marginalized_random = list(mu = list(
+          representation = "dense",
+          covariance = random_covariance
+        )))
+        dense_expected <- .marglik_mvn_log_density(
+          y = direction * input[["data"]][["yi"]],
+          mean = direction * mu +
+            specification[["value"]] * specification[["predictor"]],
+          covariance = input[["V"]] + diag(tau^2, K) + random_covariance
+        )
+
+        expect_false(is.null(fit_data[["marglik_sampling_factors"]]))
+        for (dependency_blocks in list(NULL, list(seq_len(K)))) {
+          control_fit_data <- fit_data
+          control_fit_data[["marglik_dependency_blocks"]] <- dependency_blocks
+          dense_actual <- .log_posterior(
+            parameters                  = parameters,
+            data                        = control_fit_data,
+            is_scale                    = FALSE,
+            is_multilevel               = FALSE,
+            is_weights                  = FALSE,
+            is_known_v                  = TRUE,
+            is_PET                      = bias_type == "PET",
+            is_PEESE                    = bias_type == "PEESE",
+            is_weightfunction           = FALSE,
+            effect_direction            = specification[["direction"]],
+            outcome_type                = "norm",
+            model_data                  = object[["data"]],
+            bridge_context              = bridge_context,
+            sampling_latent_marginalized = TRUE
+          )
+
+          expect_equal(dense_actual, dense_expected, tolerance = 1e-12)
+        }
+      }
     }
   }
 })

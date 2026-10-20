@@ -2439,6 +2439,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     yi <- -yi
   }
 
+  sampling_factors <- data[["marglik_sampling_factors"]]
   block_indices <- data[["marglik_dependency_blocks"]]
   factor_representation <- !is.null(marginal_random_covariance) &&
     identical(
@@ -2454,6 +2455,10 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
       )
     }
     block_indices <- random_indices
+  } else if (is.null(block_indices) && !is.null(sampling_factors)) {
+    # Residual sampling covariance can split latent-factor dependencies.
+    # Keep their complete joint covariance when no partition was supplied.
+    block_indices <- list(seq_len(K))
   } else if (is.null(block_indices)) {
     covariance <- sampling_covariance +
       if (is.null(marginal_random_covariance)) 0 else
@@ -2483,7 +2488,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   } else {
     list()
   }
-  sampling_factors <- data[["marglik_sampling_factors"]]
   if (!is.null(sampling_factors)) {
     random_covariance_plans <- c(random_covariance_plans,
       list(sampling_factors[["factor_plan"]]))

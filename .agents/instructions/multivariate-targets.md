@@ -75,6 +75,11 @@ For correlated known `V`, estimate-unit log scores are Schur conditionals
 `p(y_i | y_-i, theta)` within dependency blocks. Their column sum is a
 composite score, not the full joint likelihood.
 
+Full-joint Gaussian bridge likelihoods include latent sampling factors as well
+as residual sampling covariance. An omitted private dependency partition uses
+one complete block when sampling factors are present; residual covariance alone
+does not establish row independence.
+
 For Gaussian estimate-unit scores, integrate every local Gaussian random
 effect through BayesTools' compiled marginal covariance plan. The target is
 `p(y_i | y_-i, theta)`: retained rows from the same dependency block remain
