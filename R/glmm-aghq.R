@@ -188,7 +188,7 @@
     native_observation = NULL) {
 
   label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
-  prior <- if (identical(outcome_type, "bin")) "prior_pi" else "prior_phi"
+  prior <- if (identical(outcome_type, "bin")) "prior_baserate" else "prior_lograte"
   if (identical(method, "grid")) {
     message <- paste0(label,
       " prior-CDF quadrature was rejected by diagnostics at observation ",
@@ -202,6 +202,11 @@
       paste0("the mode did not converge",
         if (length(mode_iterations) == 1L && !is.na(mode_iterations)) {
           paste0(" after ", mode_iterations, " iterations")
+        })
+    } else if (identical(reason, "mode_bracket")) {
+      paste0("the mode could not be bracketed",
+        if (length(mode_iterations) == 1L && !is.na(mode_iterations)) {
+          paste0(" within ", mode_iterations, " bracket expansions")
         })
     } else if (identical(reason, "mode_curvature")) {
       paste0("the mode curvature was ", format(curvature, digits = 8L))
@@ -495,7 +500,7 @@
   failed <- !is.finite(lower_gradient) | !is.finite(upper_gradient) |
     lower_gradient < 0 | upper_gradient > 0
   if (any(failed)) {
-    stop(.glmm_numerical_condition(outcome_type, "aghq", "mode_nonconvergence",
+    stop(.glmm_numerical_condition(outcome_type, "aghq", "mode_bracket",
       observation, sample = which(failed)[1L], mode_iterations = 20L))
   }
 

@@ -1327,5 +1327,5 @@ test_that("AGHQ reports failure when refinement is capped", {
     "Poisson AGHQ was rejected by diagnostics: last log-likelihood change ",
     format(condition[["change"]], digits = 8L),
     " at quadrature order 13 at sample 1, observation 1. ",
-    "Inspect the data and 'prior_phi' before refitting the model."))
+    "Inspect the data and 'prior_lograte' before refitting the model."))
 })

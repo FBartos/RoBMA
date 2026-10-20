@@ -23,9 +23,15 @@ test_that("point AGHQ failures report their typed family and observed location",
   expect_identical(condition[["sample"]], 1L)
   expect_identical(condition[["observation"]], 7L)
   expect_identical(conditionMessage(condition), paste0(
-    "Binomial AGHQ was rejected by diagnostics: the mode did not converge after ",
-    "20 iterations at sample 1, observation 7. Inspect the data and 'prior_pi' ",
-    "before refitting the model."))
+    "Binomial AGHQ was rejected by diagnostics: the mode could not be bracketed ",
+    "within 20 bracket expansions at sample 1, observation 7. Inspect the data ",
+    "and 'prior_baserate' before refitting the model."))
+  expect_identical(condition[["reason"]], "mode_bracket")
+  poisson <- tryCatch(.glmm_point_mode(function(x) rep(1, length(x)), 1L, "pois", 3L),
+    error = identity)
+  expect_s3_class(poisson, "RoBMA_glmm_aghq_nonconvergence")
+  expect_match(conditionMessage(poisson), "Inspect the data and 'prior_lograte' before",
+    fixed = TRUE)
 })
 
 
@@ -40,7 +46,7 @@ test_that("prior-CDF failures retain their specific class and numerical family",
   expect_identical(conditionMessage(condition), paste0(
     "Binomial prior-CDF quadrature was rejected by diagnostics at observation 7: ",
     "last theta changes 2e-05, 3e-06; last nuisance changes 4e-07, 5e-08. ",
-    "Inspect the data and 'prior_pi' before refitting the model."))
+    "Inspect the data and 'prior_baserate' before refitting the model."))
 })
 
 
