@@ -92,7 +92,8 @@ marginal_means <- function(object, ...) {
 #' computed from conditional marginal means, even when \code{type} excludes
 #' \code{"conditional"}.
 #' @param density_control named list of density-estimation settings for
-#' precomputed qCMDE/IWMDE methods. It is accepted and ignored for KDE. Supported
+#' precomputed qCMDE/IWMDE methods. It is rejected with an error when
+#' \code{density_method} is \code{"KDE"}. Supported
 #' entries are \code{n_points} (default \code{100}), \code{samples} for density
 #' curves and point ordinates,
 #' \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}

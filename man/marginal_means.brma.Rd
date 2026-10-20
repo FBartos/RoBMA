@@ -90,7 +90,8 @@ high-dimensional conditional weights did not meet the bridge-sampling
 certification tolerance. Use qCMDE for GLMM density curves and Bayes factors.}
 
 \item{density_control}{named list of density-estimation settings for
-precomputed qCMDE/IWMDE methods. It is accepted and ignored for KDE. Supported
+precomputed qCMDE/IWMDE methods. It is rejected with an error when
+\code{density_method} is \code{"KDE"}. Supported
 entries are \code{n_points} (default \code{100}), \code{samples} for density
 curves and point ordinates,
 \code{target_relative_mcse} (default \code{0.05}), \code{display_grid}
