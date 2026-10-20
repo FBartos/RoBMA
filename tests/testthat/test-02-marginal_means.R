@@ -1586,6 +1586,8 @@ test_that("same-sample diagnostics warn without suppressing finite ordinates", {
       final_normalization_integral = .5,
       normalization_relative_error = 0,
       ordinate_relative_change = 0,
+      # Synthetic accuracy declaration: no numerical lattice is evaluated.
+      lattice_resolution_relative_error = 0,
       max_normalizer_relative_change = 0,
       normalization_range    = c(-1, 1)
     )
@@ -1603,6 +1605,19 @@ test_that("same-sample diagnostics warn without suppressing finite ordinates", {
   qcmde_ordinate[["diagnostics"]][["active_mass"]] <- .5
   qcmde_ordinate[["diagnostics"]][["normalization_range"]] <- c(.25, 1)
   expect_true(.iwmde_posterior_ordinate_supports_bf(qcmde_ordinate))
+
+  # Copied synthetic controls preserve the current missing/unbounded refusals.
+  missing_lattice <- qcmde_ordinate
+  missing_lattice[["diagnostics"]][["lattice_resolution_relative_error"]] <- NULL
+  expect_false(.iwmde_posterior_ordinate_supports_bf(missing_lattice))
+  expect_identical(.iwmde_diagnostics_bf_failure_reason(missing_lattice[["diagnostics"]]),
+    "normalization diagnostics are unavailable")
+  unbounded_lattice <- qcmde_ordinate
+  unbounded_lattice[["diagnostics"]][["lattice_resolution_relative_error"]] <- Inf
+  expect_false(.iwmde_posterior_ordinate_supports_bf(unbounded_lattice))
+  expect_identical(.iwmde_diagnostics_bf_failure_reason(unbounded_lattice[["diagnostics"]]),
+    paste0("qCMDE lattice resolution error estimate is unbounded. Increase 'normalization_points' ",
+      "in the 'density_control' argument and inspect density_diagnostics()"))
 
   diagnostic <- list(
     status      = "ok",

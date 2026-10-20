@@ -168,6 +168,7 @@ test_that("Weightfunction observed p-values use selection mapping sign", {
     sei = c(0.20, 0.25, 0.50)
   )
   data <- list(outcome = outcome)
+  attr(data, "outcome_type") <- "norm"
   attr(data, "effect_direction") <- "negative"
 
   object <- list(

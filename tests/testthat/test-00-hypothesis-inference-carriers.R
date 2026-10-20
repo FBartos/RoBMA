@@ -115,7 +115,7 @@ test_that("equivalent SD and variance zero-point zero-region BFs are canonical u
 test_that("single and gated variance composition retains indexed diagnostics and valid boundaries", {
 
   objects <- list(gated = gated_random_object(),
-    single = single_sd_random_object(BayesTools::prior("gamma", list(2, 2))))
+    single = single_sd_random_object(BayesTools::prior("gamma", list(2, 2)), varying_draws = TRUE))
   undefined_message <- "The posterior point ordinate and region mass are both numerically zero; transitive BF is undefined."
   boundary_message <- "Posterior region mass is zero; reported BF is boundary-valued."
   cuts <- c(10, .3, 3, 10)

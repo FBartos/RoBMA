@@ -511,8 +511,9 @@ gated_random_object <- function(n = 200L) {
 
 # A fitted-object stand-in with one ungated random-intercept SD with prior
 # 'prior' and constant draws 0.2 (a sampled quantity whose retained draws
-# happen to be constant, or a structural one for a spike prior).
-single_sd_random_object <- function(prior) {
+# happen to be constant, or a structural one for a spike prior). The explicit
+# varying control preserves those declarations and supplies spread for KDE.
+single_sd_random_object <- function(prior, varying_draws = FALSE) {
 
   result <- BayesTools::JAGS_formula(
     formula = ~ 1 + random(1 | study, name = "study", covariance = "diag"),
@@ -524,6 +525,9 @@ single_sd_random_object <- function(prior) {
   sd_name <- result[["formula_design"]][["random_effects"]][[1L]][["sd_parameter_names"]]
   samples <- cbind(mu_intercept = seq(-.2, .2, length.out = 20L), sd = .2)
   colnames(samples)[2L] <- sd_name
+  if (varying_draws) {
+    samples[, sd_name] <- seq(.1, .7, length.out = 20L)
+  }
   fit <- coda::mcmc.list(coda::mcmc(samples))
   attr(fit, "prior_list") <- result[["prior_list"]]
   attr(fit, "formula_design") <- list(mu = result[["formula_design"]])
@@ -539,8 +543,8 @@ single_sd_random_object <- function(prior) {
 # over the intercept and slope SD components of 'study'. The study
 # components multiply two Dirichlet shares: BayesTools gives them a
 # plotting density whose ordinates are not structurally exact. All draws are
-# 0.5.
-nested_allocation_random_object <- function() {
+# 0.5 unless the explicit continuous KDE control is requested.
+nested_allocation_random_object <- function(varying_draws = FALSE) {
 
   data <- data.frame(
     study = factor(c("s1", "s1", "s2", "s2")),
@@ -569,9 +573,34 @@ nested_allocation_random_object <- function() {
     BayesTools:::.prior_linear_prior_columns(parameter, prior_list[[parameter]])
   })))
   samples <- matrix(.5, 4L, length(columns), dimnames = list(NULL, columns))
+  if (varying_draws) {
+    # Synthetic continuous controls for KDE consumer tests. The compiler
+    # declares every source/share column; this is not complete sampler replay.
+    design <- result[["formula_design"]]
+    root <- design[["random_allocations"]][["root"]]
+    split <- design[["random_allocations"]][["split"]]
+    name_map <- design[["name_map"]]
+    intercept <- name_map[["jags_name"]][name_map[["kind"]] == "fixed" &
+      name_map[["term"]] == "intercept"]
+    root_weights <- BayesTools:::.prior_linear_prior_columns(
+      root[["weight_name"]], prior_list[[root[["weight_name"]]]]
+    )
+    split_weights <- BayesTools:::.prior_linear_prior_columns(
+      split[["weight_name"]], prior_list[[split[["weight_name"]]]]
+    )
+    stopifnot(length(intercept) == 1L, length(root_weights) == 2L,
+      length(split_weights) == 2L, all(c(intercept, root[["source_node"]],
+        root_weights, split_weights) %in% columns))
+    samples <- matrix(.5, 20L, length(columns), dimnames = list(NULL, columns))
+    share <- seq(.1, .9, length.out = 20L)
+    samples[, intercept] <- seq(-.2, .2, length.out = 20L)
+    samples[, root[["source_node"]]] <- seq(.1, .7, length.out = 20L)
+    samples[, root_weights] <- cbind(share, 1 - share)
+    samples[, split_weights] <- cbind(1 - share, share)
+  }
   # A runjags-like fit, so that prior draws can replace its draws.
   fit <- structure(
-    list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = 4L),
+    list(mcmc = coda::mcmc.list(coda::mcmc(samples)), sample = if (varying_draws) 20L else 4L),
     class = c("runjags", "list")
   )
   attr(fit, "prior_list") <- prior_list

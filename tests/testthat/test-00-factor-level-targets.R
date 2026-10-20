@@ -503,58 +503,57 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
 
 test_that("formula coefficient routes follow the fitted coefficient transform", {
 
-  # The route of an original-scale coefficient is the map type and support
-  # that BayesTools declares, and the coefficient's row of the transform
-  # matrix on the fitted coordinates.
-  transform <- structure(
-    list(
-      schema_version    = 3L,
-      target_scale      = "original",
-      target_names      = c("mu_x", "log_tau_intercept"),
-      matrix            = rbind(
-        mu_x              = c(mu_x = 0.5, log_tau_intercept = 0),
-        log_tau_intercept = c(mu_x = 0, log_tau_intercept = 1)
-      ),
-      source_transforms = c(mu_x = "identity", log_tau_intercept = "log"),
-      output_transforms = list(mu_x = "identity", log_tau_intercept = "exp"),
-      targets           = formula_transform_targets(
-        c(mu_x = "affine", log_tau_intercept = "exp_affine"),
-        c(mu_x = "identity", log_tau_intercept = "exp")
-      )
-    ),
-    class = "BayesTools_formula_coefficient_transform"
+  # Synthetic compiler/consumer rows, not posterior-inference evidence.
+  location_compiled <- BayesTools::JAGS_formula(
+    formula = ~ 1 + x, parameter = "mu", data = data.frame(x = c(2, 4, 6)),
+    prior_list = list(
+      intercept = BayesTools::prior("normal", list(0, 1)),
+      x = BayesTools::prior("normal", list(0, 1))
+    ), formula_scale = TRUE
   )
-  testthat::local_mocked_bindings(
-    JAGS_formula_coefficient_transform = function(...) transform,
-    .package = "BayesTools"
+  location_fit <- coda::mcmc.list(coda::mcmc(cbind(
+    mu_intercept = c(-.2, 0, .2), mu_x = c(-.1, 0, .1)
+  )))
+  attr(location_fit, "prior_list") <- location_compiled[["prior_list"]]
+  attr(location_fit, "formula_design") <- list(mu = location_compiled[["formula_design"]])
+  attr(location_fit, "formula_scale") <- list(mu = location_compiled[["formula_scale"]])
+  location_fit <- as_bayestools_fit(location_fit)
+  formula <- ~ 1 + x
+  attr(formula, "log(intercept)") <- TRUE
+  compiled <- BayesTools::JAGS_formula(
+    formula = formula, parameter = "log_tau",
+    data = data.frame(x = c(2, 4, 6)),
+    prior_list = list(
+      intercept = BayesTools::prior("gamma", list(2, 2)),
+      x = BayesTools::prior("normal", list(0, 1))
+    ), formula_scale = TRUE
   )
-  route <- function(parameter) {
+  fit <- coda::mcmc.list(coda::mcmc(cbind(
+    log_tau_intercept = c(.2, .3, .4), log_tau_x = c(-.1, 0, .1)
+  )))
+  attr(fit, "prior_list") <- compiled[["prior_list"]]
+  attr(fit, "formula_design") <- list(log_tau = compiled[["formula_design"]])
+  attr(fit, "formula_scale") <- list(log_tau = compiled[["formula_scale"]])
+  fit <- as_bayestools_fit(fit)
+
+  scale_fit <- fit
+  route <- function(parameter, fit = location_fit, formula_parameter = "mu",
+                    component = "mods") {
     .brma_formula_coefficient_route(
-      object   = list(fit = structure(list(), class = "BayesTools_fit")),
-      selected = list(
-        parameter = parameter,
-        component = "mods",
-        entry     = list(formula_parameter = "mu", role = "fixed_coefficient")
-      )
+      object = list(fit = fit),
+      selected = list(parameter = parameter, component = component,
+        entry = list(formula_parameter = formula_parameter, role = "fixed_coefficient"))
     )
   }
-
-  # The qCMDE/IWMDE parameter spec of a plotted original-scale coefficient:
-  # a nonlinear map is refused with the original-scale density-method
-  # classes; a structurally fixed coefficient is no density-method cause.
-  plot_spec <- function(parameter) {
+  plot_spec <- function(parameter, fit = location_fit, formula_parameter = "mu",
+                        component = "mods") {
     tryCatch(
       .plot_brma_formula_parameter_spec(
-        object          = list(fit = structure(list(), class = "BayesTools_fit")),
-        parameter       = parameter,
-        parameter_entry = list(
-          formula_parameter = "mu",
-          role              = "fixed_coefficient",
-          component         = "mods"
-        ),
+        object = list(fit = fit), parameter = parameter,
+        parameter_entry = list(formula_parameter = formula_parameter,
+          role = "fixed_coefficient", component = component),
         standardized_coefficients = FALSE
-      ),
-      error = identity
+      ), error = identity
     )
   }
   original_scale <- c("RoBMA_density_method_original_scale",
@@ -565,12 +564,21 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   expect_identical(affine[["weights"]], c(mu_x = 0.5))
   expect_identical(affine[["support"]], c(-Inf, Inf))
   expect_identical(plot_spec("mu_x"), list(type = "linear", weights = c(mu_x = 0.5)))
-  exp_affine <- route("log_tau_intercept")
+  exp_affine <- route("log_tau_intercept", scale_fit, "log_tau", "scale")
   expect_identical(exp_affine[["type"]], "exp_affine")
   expect_identical(exp_affine[["support"]], c(0, Inf))
-  expect_identical(class(plot_spec("log_tau_intercept")), original_scale)
+  expect_identical(class(plot_spec("log_tau_intercept", scale_fit, "log_tau", "scale")),
+    original_scale)
 
-  transform[["targets"]][["map_type"]][[1L]] <- "unsupported"
+  coefficient_transform <- BayesTools::JAGS_formula_coefficient_transform
+  transform <- coefficient_transform(location_fit, "mu")
+  # Artificial consumer-branch test: modify a copy of a genuine descriptor;
+  # this unsupported map is not presented as a valid compiler output.
+  transform[["targets"]][["map_type"]][transform[["targets"]][["target"]] == "mu_x"] <- "unsupported"
+  testthat::local_mocked_bindings(
+    JAGS_formula_coefficient_transform = function(...) transform,
+    .package = "BayesTools"
+  )
   expect_identical(
     route("mu_x")[["reason"]],
     "The fitted nonlinear joint coefficient transform for 'mu_x' is not supported by hypothesis()."
@@ -578,15 +586,37 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   error <- plot_spec("mu_x")
   expect_identical(class(error), original_scale)
   expect_identical(conditionMessage(error), route("mu_x")[["reason"]])
-  transform[["matrix"]]["mu_x", "mu_x"] <- 0
-  transform[["targets"]][["structural_status"]][[1L]] <- "structural"
-  transform[["targets"]][["fixed_value"]][[1L]] <- 0
+
+  # Genuine all-point compiler metadata establish structural fixedness;
+  # constant retained continuous draws do not establish it.
+  fixed_compiled <- BayesTools::JAGS_formula(
+    formula = ~ 1 + x, parameter = "mu", data = data.frame(x = c(2, 4, 6)),
+    prior_list = list(intercept = BayesTools::prior("point", list(3)),
+      x = BayesTools::prior("point", list(0))), formula_scale = TRUE
+  )
+  fixed_design <- fixed_compiled[["formula_design"]]
+  fixed_scale <- BayesTools::JAGS_formula_scale_finalize(
+    fixed_compiled[["formula_scale"]], fixed_design,
+    fixed_compiled[["prior_list"]], owner_scope = "fit"
+  )
+  fixed_design[["formula_scale"]] <- fixed_scale
+  fixed_fit <- structure(list(), class = "BayesTools_fit")
+  attr(fixed_fit, "prior_list") <- fixed_compiled[["prior_list"]]
+  attr(fixed_fit, "formula_design") <- list(mu = fixed_design)
+  attr(fixed_fit, "formula_scale") <- list(mu = fixed_scale)
+  attr(fixed_fit, "parameter_map") <- BayesTools:::.bt_build_parameter_map(
+    columns = character(), prior_list = fixed_compiled[["prior_list"]],
+    formula_design = list(mu = fixed_design), formula_scale = list(mu = fixed_scale)
+  )
+  fixed_fit <- BayesTools:::.bt_attach_fit_contract(fixed_fit)
+  # Use the genuine producer saved before mocking the unsupported branch.
+  transform <- coefficient_transform(fixed_fit, "mu")
   expect_identical(
-    route("mu_x")[["reason"]],
+    route("mu_x", fixed_fit)[["reason"]],
     "The fitted coefficient 'mu_x' is structurally fixed and has no posterior hypothesis route."
   )
-  error <- plot_spec("mu_x")
-  expect_identical(conditionMessage(error), route("mu_x")[["reason"]])
+  error <- plot_spec("mu_x", fixed_fit)
+  expect_identical(conditionMessage(error), route("mu_x", fixed_fit)[["reason"]])
   expect_false(inherits(error, "RoBMA_density_method_unavailable"))
 
   # Point values outside the open support of a transformed coefficient are

@@ -75,11 +75,17 @@ test_that("hypothesis_quantities() renders the plans that hypothesis() executes"
     )
   }
   .plan_fit_cache[["quantities"]] <- quantities
+})
+
+
+test_that("synthetic continuous controls execute every advertised KDE plan", {
+
+  skip_on_cran()
   fixtures <- list(
     gated     = gated_random_object(),
-    ungated   = single_sd_random_object(BayesTools::prior("gamma", list(2, 2))),
+    ungated   = single_sd_random_object(BayesTools::prior("gamma", list(2, 2)), varying_draws = TRUE),
     fixed     = single_sd_random_object(BayesTools::prior("spike", list(location = .2))),
-    nested    = nested_allocation_random_object()
+    nested    = nested_allocation_random_object(varying_draws = TRUE)
   )
   for (name in names(fixtures)) {
     .expect_plans_consistent(fixtures[[name]], info = name, run_precomputed = FALSE)
@@ -355,8 +361,8 @@ test_that("levels of a factor alias shared by the location and scale formulas re
   expect_identical(
     conditionMessage(error),
     paste0(
-      "Parameter alias 'g1{1}' is ambiguous; use 'namespace' or 'component' ",
-      "to select one quantity."
+      "Parameter alias 'g1{1}' is ambiguous: it names 'log_tau_g1{1}', ",
+      "'mu_g1{1}'; use 'namespace' or 'component' to select one quantity."
     )
   )
 })
@@ -488,8 +494,13 @@ test_that("BayesTools resolution errors that escape planning are statement error
     expect_identical(class(error), ambiguous, info = case[["statement"]])
     expect_identical(
       conditionMessage(error),
-      paste0("Parameter alias 'g1' is ambiguous; use 'namespace' or ",
-             "'component' to select one quantity."),
+      paste0("Parameter alias 'g1' is ambiguous: it names '",
+        if (case[["component"]] == "mods") "mu" else "log_tau",
+        "_g1[10]', '", if (case[["component"]] == "mods") "mu" else "log_tau",
+        "_g1[20]', '", if (case[["component"]] == "mods") "mu" else "log_tau",
+        "_g1[5]', '", if (case[["component"]] == "mods") "mu" else "log_tau",
+        "_g1{1}', '", if (case[["component"]] == "mods") "mu" else "log_tau",
+        "_g1{2}'; use 'namespace' or 'component' to select one quantity."),
       info = case[["statement"]]
     )
     expect_identical(error[["alias"]], "g1", info = case[["statement"]])
@@ -508,18 +519,21 @@ test_that("BayesTools resolution errors that escape planning are statement error
   }
 
   # A level of a factor term next to the whole term resolves to one
-  # parameter; BayesTools refuses the whole term only when it evaluates the
-  # statement on the levels, which is a statement error too.
+  # parameter; BayesTools refuses mixing explicit levels and the whole term
+  # before unknown-name evaluation, with its precise base-error diagnostic.
   error <- tryCatch(
     hypothesis(fit, "g1[10] > mu_g1", component = "mods", density_method = "KDE"),
     error = identity
   )
-  expect_identical(class(error), c(.hypothesis_not_found_class(), "error", "condition"))
+  expect_identical(class(error), c("simpleError", "error", "condition"))
   expect_identical(
     conditionMessage(error),
-    "Hypothesis expression references unknown quantity 'mu_g1'."
+    paste0("Hypotheses that reference levels of 'mu_g1' (e.g. 'mu_g1[10]') ",
+      "cannot also reference the whole parameter 'mu_g1' in one call. Evaluate ",
+      "the explicit-level and the whole-parameter hypotheses in separate calls ",
+      "of 'hypothesis_BF()'.")
   )
-  expect_identical(error[["alias"]], "mu_g1")
+  expect_null(error[["alias"]])
 
   # Any BayesTools resolution error that escapes the planning or the
   # evaluation, on fitted objects and on marginal means, keeps its message,
@@ -883,9 +897,8 @@ test_that("statement refusals of the plans are statement errors, not unavailable
         "`(mu) esid: tau2(intercept)` = 0.09"
       ),
       message = paste0(
-        "Point hypotheses on random-effect variance 'esid: tau2' are ",
-        "evaluated through its standard deviation and must compare one ",
-        "point value per statement."
+        "Unsupported hypothesis comparison. Compare one point value with ",
+        "its complement or a region hypothesis."
       )
     ),
     # One quantity named by several names in one statement.
@@ -1338,8 +1351,11 @@ test_that("point hypotheses with an inexact prior ordinate are refused with its 
                   c("(mu) split: tau_total", "(mu) split: tau2_total"))
   expect_true(all(totals[["point_test"]]))
   expect_true(all(totals[["direction_test"]]))
+  # Keep the constant object above for structural/refusal/region checks;
+  # this point ordinate needs the separately requested continuous KDE control.
+  varying <- nested_allocation_random_object(varying_draws = TRUE)
   expect_s3_class(
-    suppressWarnings(hypothesis(object, "`(mu) split: tau_total` = 0.4", density_method = "KDE",
+    suppressWarnings(hypothesis(varying, "`(mu) split: tau_total` = 0.4", density_method = "KDE",
                                 seed = 1, n_samples = 1000)),
     "BayesTools_hypothesis_BF"
   )

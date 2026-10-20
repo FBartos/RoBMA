@@ -65,40 +65,24 @@ test_that("IWMDE classifies prior ordinates of every route by eligibility", {
 
 test_that("transformed coefficient routes use exact structural weights", {
 
-  transform <- list(
-    schema_version             = 3L,
-    formula_design_version     = 6L,
-    parameter_map_version = 10L,
-    parameter                  = "mu",
-    target_scale               = "original",
-    source_names               = c("mu_intercept", "mu_x"),
-    target_names               = c("mu_intercept", "mu_x"),
-    matrix = rbind(
-      mu_intercept = c(mu_intercept = 1, mu_x = -2),
-      mu_x         = c(mu_intercept = 0, mu_x = 0.5)
-    ),
-    source_transforms = c(mu_intercept = "identity", mu_x = "identity"),
-    output_transforms = c(mu_intercept = "identity", mu_x = "identity"),
-    dependencies = data.frame(
-      target      = c("mu_intercept", "mu_intercept", "mu_x"),
-      source      = c("mu_intercept", "mu_x", "mu_x"),
-      coefficient = c(1, -2, 0.5),
-      stringsAsFactors = FALSE
-    ),
-    sources = data.frame(),
-    targets = formula_transform_targets(
-      c(mu_intercept = "affine", mu_x = "affine"),
-      c(mu_intercept = "identity", mu_x = "identity")
-    )
+  # Synthetic compiler/consumer rows, not posterior-inference evidence.
+  compiled <- BayesTools::JAGS_formula(
+    formula = ~ 1 + x, parameter = "mu", data = data.frame(x = c(2, 4, 6)),
+    prior_list = list(
+      intercept = BayesTools::prior("normal", list(0, 1)),
+      x = BayesTools::prior("normal", list(0, 1))
+    ), formula_scale = TRUE
   )
-  class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
-  testthat::local_mocked_bindings(
-    JAGS_formula_coefficient_transform = function(...) transform,
-    .package = "BayesTools"
-  )
+  fit <- coda::mcmc.list(coda::mcmc(cbind(
+    mu_intercept = c(-.2, 0, .2), mu_x = c(-.1, 0, .1)
+  )))
+  attr(fit, "prior_list") <- compiled[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
+  attr(fit, "formula_scale") <- list(mu = compiled[["formula_scale"]])
+  fit <- as_bayestools_fit(fit)
 
   route <- .brma_formula_coefficient_route(
-    object   = list(fit = structure(list(sentinel = TRUE), class = "BayesTools_fit")),
+    object   = list(fit = fit),
     selected = list(
       parameter = "mu_intercept",
       component = "mods",
@@ -116,27 +100,22 @@ test_that("transformed coefficient routes use exact structural weights", {
 
 test_that("transformed coefficient plots use exact structural weights", {
 
-  transform <- list(
-    schema_version = 3L,
-    target_scale   = "original",
-    source_names   = c("mu_intercept", "mu_x"),
-    target_names   = c("mu_intercept", "mu_x"),
-    matrix = rbind(
-      mu_intercept = c(mu_intercept = 1, mu_x = -2),
-      mu_x         = c(mu_intercept = 0, mu_x = 0.5)
-    ),
-    source_transforms = c(mu_intercept = "identity", mu_x = "identity"),
-    output_transforms = c(mu_intercept = "identity", mu_x = "identity"),
-    targets = formula_transform_targets(
-      c(mu_intercept = "affine", mu_x = "affine"),
-      c(mu_intercept = "identity", mu_x = "identity")
-    )
+  # Synthetic compiler/consumer rows, not posterior-inference evidence.
+  compiled <- BayesTools::JAGS_formula(
+    formula = ~ 1 + x, parameter = "mu", data = data.frame(x = c(2, 4, 6)),
+    prior_list = list(
+      intercept = BayesTools::prior("normal", list(0, 1)),
+      x = BayesTools::prior("normal", list(0, 1))
+    ), formula_scale = TRUE
   )
-  class(transform) <- c("BayesTools_formula_coefficient_transform", "list")
-  testthat::local_mocked_bindings(
-    JAGS_formula_coefficient_transform = function(...) transform,
-    .package = "BayesTools"
-  )
+  fit <- coda::mcmc.list(coda::mcmc(cbind(
+    mu_intercept = c(-.2, 0, .2), mu_x = c(-.1, 0, .1)
+  )))
+  attr(fit, "prior_list") <- compiled[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
+  attr(fit, "formula_scale") <- list(mu = compiled[["formula_scale"]])
+  fit <- as_bayestools_fit(fit)
+
   entry <- list(
     component         = "mods",
     role              = "fixed_coefficient",
@@ -144,17 +123,13 @@ test_that("transformed coefficient plots use exact structural weights", {
   )
 
   observed <- .plot_brma_formula_parameter_spec(
-    object                    = list(
-      fit = structure(list(), class = "BayesTools_fit")
-    ),
+    object                    = list(fit = fit),
     parameter                 = "mu_x",
     parameter_entry           = entry,
     standardized_coefficients = FALSE
   )
   standardized <- .plot_brma_formula_parameter_spec(
-    object                    = list(
-      fit = structure(list(), class = "BayesTools_fit")
-    ),
+    object                    = list(fit = fit),
     parameter                 = "mu_x",
     parameter_entry           = entry,
     standardized_coefficients = TRUE
@@ -250,43 +225,26 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
 
 test_that("unit log-intercepts are identity maps on their positive support", {
 
-  transform <- list(
-    schema_version             = 3L,
-    formula_design_version     = 6L,
-    parameter_map_version = 10L,
-    parameter                  = "log_tau",
-    target_scale               = "original",
-    source_names               = "log_tau_intercept",
-    target_names               = "log_tau_intercept",
-    matrix = matrix(
-      1,
-      nrow = 1L,
-      dimnames = list("log_tau_intercept", "log_tau_intercept")
-    ),
-    source_transforms = c(log_tau_intercept = "log"),
-    output_transforms = c(log_tau_intercept = "exp"),
-    dependencies = data.frame(
-      target      = "log_tau_intercept",
-      source      = "log_tau_intercept",
-      coefficient = 1,
-      stringsAsFactors = FALSE
-    ),
-    sources = data.frame(),
-    targets = formula_transform_targets(
-      c(log_tau_intercept = "identity"),
-      c(log_tau_intercept = "exp")
-    )
+  # Synthetic compiler/consumer rows, not posterior-inference evidence.
+  formula <- ~ 1
+  attr(formula, "log(intercept)") <- TRUE
+  compiled <- BayesTools::JAGS_formula(
+    formula = formula, parameter = "log_tau",
+    data = data.frame(row = 1:3),
+    prior_list = list(
+      intercept = BayesTools::prior("gamma", list(2, 2))
+    ), formula_scale = TRUE
   )
-  class(transform) <- c(
-    "BayesTools_formula_coefficient_transform",
-    "list"
-  )
-  testthat::local_mocked_bindings(
-    JAGS_formula_coefficient_transform = function(...) transform,
-    .package = "BayesTools"
-  )
+  fit <- coda::mcmc.list(coda::mcmc(cbind(
+    log_tau_intercept = c(.2, .3, .4)
+  )))
+  attr(fit, "prior_list") <- compiled[["prior_list"]]
+  attr(fit, "formula_design") <- list(log_tau = compiled[["formula_design"]])
+  attr(fit, "formula_scale") <- list(log_tau = compiled[["formula_scale"]])
+  fit <- as_bayestools_fit(fit)
+
   route <- .brma_formula_coefficient_route(
-    object   = list(fit = structure(list(), class = "BayesTools_fit")),
+    object   = list(fit = fit),
     selected = list(
       parameter = "log_tau_intercept",
       component = "scale",

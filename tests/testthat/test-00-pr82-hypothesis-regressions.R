@@ -1,41 +1,52 @@
 test_that("coefficient transform routes follow the declared BayesTools map type", {
 
-  transform <- function(targets) {
-    structure(list(target_scale = "original", target_names = "mu",
-      matrix = matrix(c(1, 1), 1L, dimnames = list("mu", c("a", "b"))),
-      source_transforms = c(a = "identity", b = "log"),
-      output_transforms = c(mu = "identity"), targets = targets),
-      class = "BayesTools_formula_coefficient_transform")
-  }
+  compiled <- BayesTools::JAGS_formula(
+    formula = ~ 1 + x, parameter = "mu", data = data.frame(x = c(2, 4, 6)),
+    prior_list = list(
+      intercept = BayesTools::prior("normal", list(0, 1)),
+      x = BayesTools::prior("normal", list(0, 1))
+    ), formula_scale = TRUE
+  )
+  fit <- coda::mcmc.list(coda::mcmc(cbind(
+    mu_intercept = c(-.2, 0, .2), mu_x = c(-.1, 0, .1)
+  )))
+  attr(fit, "prior_list") <- compiled[["prior_list"]]
+  attr(fit, "formula_design") <- list(mu = compiled[["formula_design"]])
+  attr(fit, "formula_scale") <- list(mu = compiled[["formula_scale"]])
+  fit <- as_bayestools_fit(fit)
+  declared <- BayesTools::JAGS_formula_coefficient_transform(fit, "mu")
+  # Artificial consumer-branch test: copies of the genuine descriptor below
+  # deliberately contradict or omit producer metadata. They are not valid
+  # compiler outputs; the consumer must follow declared map type/raw weights.
+  declared[["matrix"]]["mu_intercept", ] <- c(1, 1)
+  declared[["source_transforms"]][["mu_x"]] <- "log"
   route <- function(targets) {
+    transform <- declared
+    transform[["targets"]] <- targets
     testthat::local_mocked_bindings(
-      JAGS_formula_coefficient_transform = function(...) {
-        out <- transform(targets)
-        out[["schema_version"]] <- 3L
-        out
-      },
+      JAGS_formula_coefficient_transform = function(...) transform,
       .package = "BayesTools"
     )
     .brma_formula_coefficient_route(
-      object   = list(fit = structure(list(), class = "BayesTools_fit")),
-      selected = list(parameter = "mu", component = "mods",
-                      entry = list(formula_parameter = "mu"))
+      object = list(fit = fit),
+      selected = list(parameter = "mu_intercept", component = "mods",
+        entry = list(formula_parameter = "mu"))
     )
   }
-
-  unsupported <- route(formula_transform_targets(
-    c(mu = "unsupported"), c(mu = "identity")
-  ))
+  targets <- declared[["targets"]]
+  targets[["map_type"]][targets[["target"]] == "mu_intercept"] <- "unsupported"
+  unsupported <- route(targets)
   expect_identical(unsupported[["type"]], "unsupported")
   expect_match(unsupported[["reason"]], "not supported by hypothesis()", fixed = TRUE)
 
-  affine <- route(formula_transform_targets(c(mu = "affine"), c(mu = "identity")))
+  targets[["map_type"]][targets[["target"]] == "mu_intercept"] <- "affine"
+  affine <- route(targets)
   expect_identical(affine[["type"]], "affine")
-  expect_identical(affine[["weights"]], c(a = 1, b = 1))
+  expect_identical(affine[["weights"]], c(mu_intercept = 1, mu_x = 1))
   expect_identical(affine[["support"]], c(-Inf, Inf))
 
   # Transforms without the declared map types are not certified.
-  for (targets in list(NULL, data.frame(target = "mu"))) {
+  for (targets in list(NULL, data.frame(target = "mu_intercept"))) {
     uncertified <- route(targets)
     expect_identical(uncertified[["type"]], "unsupported")
     expect_match(uncertified[["reason"]], "lacks the certified structural metadata",
