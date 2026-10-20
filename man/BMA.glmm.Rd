@@ -137,19 +137,20 @@ term-specific components. This argument can be specified only when \code{mods} i
 specified. For a formula without an intercept (\code{~ 0 + x}), an \code{intercept}
 entry other than a point prior at zero stops with an error of class
 \code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).
-A named alternative \code{intercept} is the complete prior, including any mixture;
-it replaces the global effect mixture. Specify it in one place: null-list
-intercepts and explicit global effect declarations left without a consumer
-are refused. Ordinary term entries replace only their alternative component.}
+A named alternative \code{intercept} must be a single simple or point prior; it is
+the complete intercept prior and replaces the global effect mixture. Specify
+it in one place: null-list intercepts and explicit global effect declarations
+left without a consumer are refused. Ordinary term entries replace only their
+alternative component.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
 term-specific components. This argument can be specified only when \code{scale}
-is specified. A named alternative \code{intercept} supplies the complete positive
-SD prior used by \code{log(intercept)}. Global heterogeneity declarations remain
-meaningful when they supply another random root or its inclusion weights;
-declarations replaced without a consumer are refused. Null-list intercept
-declarations are unavailable.}
+is specified. A named alternative \code{intercept} must be a single positive
+simple or point prior; it is the complete SD prior used by \code{log(intercept)}.
+Global heterogeneity declarations remain meaningful when they supply another
+random root or its inclusion weights; declarations replaced without a
+consumer are refused. Null-list intercept declarations are unavailable.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
 alternative cluster-level heterogeneity allocation component(s). This
