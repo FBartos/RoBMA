@@ -417,6 +417,24 @@
 }
 
 
+# Posterior samples without tau columns are valid only for a model that declares
+# random effects: an explicit `is_random` takes precedence over the fit's designs.
+.check_declared_random_tau <- function(fit, is_random) {
+
+  declared_random <- if (is.null(is_random)) {
+    designs <- BayesTools::JAGS_formula_design(fit)
+    any(vapply(designs, function(design) {
+      length(design[["random_effects"]]) > 0L
+    }, logical(1L)))
+  } else is_random
+  if (!declared_random) {
+    stop("Missing posterior tau columns.", call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+
 # ---------------------------------------------------------------------------- #
 # .evaluate.brma.tau
 # ---------------------------------------------------------------------------- #
@@ -481,16 +499,7 @@
         required          = FALSE
       )
       if (is.null(tau_parameter)) {
-        # An explicit declaration takes precedence over the fit fallback.
-        declared_random <- if (is.null(is_random)) {
-          designs <- BayesTools::JAGS_formula_design(fit)
-          any(vapply(designs, function(design) {
-            length(design[["random_effects"]]) > 0L
-          }, logical(1L)))
-        } else is_random
-        if (!declared_random) {
-          stop("Missing posterior tau columns.", call. = FALSE)
-        }
+        .check_declared_random_tau(fit, is_random)
         tau_samples <- matrix(0, nrow = S, ncol = K)
       } else if (ncol(tau_parameter) == 1L) {
         # simple model: extract tau column and replicate to K columns
@@ -569,15 +578,7 @@
         required          = FALSE
       )
       if (is.null(tau_parameter)) {
-        declared_random <- if (is.null(is_random)) {
-          designs <- BayesTools::JAGS_formula_design(fit)
-          any(vapply(designs, function(design) {
-            length(design[["random_effects"]]) > 0L
-          }, logical(1L)))
-        } else is_random
-        if (!declared_random) {
-          stop("Missing posterior tau columns.", call. = FALSE)
-        }
+        .check_declared_random_tau(fit, is_random)
         tau_samples <- matrix(0, nrow = S, ncol = 1L)
       } else if (ncol(tau_parameter) == 1L) {
         tau_samples <- matrix(tau_parameter[, 1L], nrow = S, ncol = 1L)
