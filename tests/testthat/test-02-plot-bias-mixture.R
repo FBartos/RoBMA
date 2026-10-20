@@ -77,7 +77,11 @@ test_that("PET-PEESE plot requests location and mixed bias posterior", {
   calls <- list()
 
   testthat::local_mocked_bindings(
-    .brma_parameter_select = function(object, parameter, ...) parameter,
+    .brma_parameter_select_entry = function(object, parameter, ...) {
+      expect_identical(parameter, "mu")
+      list(parameter = "mu", component = "mods", term = "mu", source = "outcome",
+        formula_parameter = NA_character_)
+    },
     .package = "RoBMA"
   )
 
@@ -129,11 +133,11 @@ test_that("generic posterior plot requests mixed bias posterior", {
   calls <- list()
 
   testthat::local_mocked_bindings(
-    .brma_parameter_select = function(object, parameter, ...) {
-      if (identical(parameter, "weightfunction")) "omega" else parameter
-    },
     .brma_parameter_select_entry = function(object, parameter, ...) {
-      list(parameter = parameter, component = "bias")
+      expect_true(parameter %in% c("omega", "weightfunction"))
+      calls[["selection"]] <<- parameter
+      list(parameter = "omega", component = "bias", term = "omega", source = "bias",
+        formula_parameter = NA_character_)
     },
     .package = "RoBMA"
   )
@@ -158,14 +162,17 @@ test_that("generic posterior plot requests mixed bias posterior", {
     .package = "BayesTools"
   )
 
-  out <- plot(
-    mock_bias_mixture_fit(),
-    parameter = "weightfunction",
-    plot_type = "ggplot"
-  )
+  for (parameter in c("omega", "weightfunction")) {
+    out <- plot(
+      mock_bias_mixture_fit(),
+      parameter = parameter,
+      plot_type = "ggplot"
+    )
 
-  expect_s3_class(out, "mock_plot")
-  expect_equal(calls[["as_mixed_posteriors"]][["parameters"]], "bias")
-  expect_null(calls[["as_mixed_posteriors"]][["conditional"]])
-  expect_equal(calls[["plot_posterior"]][["parameter"]], "omega")
+    expect_identical(calls[["selection"]], parameter)
+    expect_s3_class(out, "mock_plot")
+    expect_equal(calls[["as_mixed_posteriors"]][["parameters"]], "bias")
+    expect_null(calls[["as_mixed_posteriors"]][["conditional"]])
+    expect_equal(calls[["plot_posterior"]][["parameter"]], "omega")
+  }
 })
