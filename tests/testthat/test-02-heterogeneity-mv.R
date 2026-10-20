@@ -77,6 +77,45 @@ test_that("row allocation structural refusals state unavailability and inspectio
   ), 1L)
 })
 
+test_that("row allocation summaries refuse a component without a design column", {
+
+  allocation <- list(
+    leaf_terms           = c("a", "b"),
+    n_targets            = 2L,
+    weight_name          = "w",
+    scale                = "total_variance",
+    leaf_index_by_column = 1L,
+    source               = list(shape = "row", name = "src"),
+    terms                = c(block = "block"),
+    source_node          = "node",
+    display_name         = "split",
+    label                = "split"
+  )
+  term <- list(
+    model_matrix      = matrix(c(1, 0), 2L, 1L),
+    block_name        = "block",
+    component_label   = "block",
+    component_visible = TRUE
+  )
+  posterior <- matrix(c(.5, .5, .2, .8), 2L, 2L,
+                      dimnames = list(NULL, c("w[1]", "w[2]")))
+  condition <- tryCatch(.brma_mv_sd_component_allocation_summary_samples(
+    allocation        = allocation,
+    term              = term,
+    block_owner       = "block",
+    posterior_samples = posterior,
+    source_samples    = list(src = matrix(c(2, 4), 2L, 1L)),
+    K                 = 2L
+  ), error = identity)
+  expect_s3_class(condition, "error")
+  expect_identical(conditionMessage(condition), paste0(
+    "Row-varying SD-component allocation summaries are unavailable because ",
+    "the design-column allocation does not map to observation-level SD samples. ",
+    "Inspect the fitted random-effect design and allocation metadata."
+  ))
+  expect_null(conditionCall(condition))
+})
+
 .brma_mv_heterogeneity_named_object <- function() {
 
   dat <- data.frame(

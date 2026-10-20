@@ -1196,7 +1196,6 @@
 
   weight_name <- allocation[["weight_name"]]
   labels      <- .brma_mv_sd_component_allocation_labels(allocation)
-  leaf_index  <- allocation[["leaf_index_by_column"]]
   n_targets   <- allocation[["n_targets"]]
   scale       <- allocation[["scale"]]
 
@@ -1219,8 +1218,7 @@
       scale     = scale,
       n_targets = n_targets
     )
-    columns <- which(leaf_index == i)
-    if (!identical(source_shape, "row") || length(columns) == 0L) {
+    if (!identical(source_shape, "row")) {
       sd_samples <- total_sd * sqrt(variance_multiplier)
     } else {
       rows <- .brma_mv_sd_component_allocation_rows(
