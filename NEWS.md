@@ -1,4 +1,14 @@
 ## version 4.1.0 (IN PROGRESS)
+- `print_prior()` and `plot_prior()` no longer list the internal non-centred
+  auxiliary priors of multilevel and GLMM models; `print()` of a COVRATIO result
+  hides internal attributes; clustered z-curve conditional variances no longer
+  depend on the numerical scale of the variances.
+- Clearer input and diagnostic messages: an invalid `sei` is reported as `sei`,
+  non-finite predictors and empty `sei` are named as such, marginal-likelihood
+  repetition failures suggest `maxiter` only when a repetition hit it and rank
+  refusals list the dependent coordinates, funnel quadrature refusals report the
+  observed ratio, and the singleton prediction budget refusal names its option.
+  Row-source SD-component summaries refuse components without design columns.
 - IWMDE conditioning for single-weightfunction `bselmodel()` and `bselmodel.mv()`
   fits uses the declared closed omega support, as for model-averaged fits.
 - GLMM AGHQ failure messages name the public `prior_baserate` and
