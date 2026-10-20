@@ -81,3 +81,77 @@ test_that("prior-only child summaries apply declared parent factors once", {
     }
   }
 })
+
+# Two random blocks over the same nested groups: the summaries of their
+# allocations share the name "study/esid", so the complete result names the
+# second one "study/esid_1".
+.review_duplicate_allocation_names_replay <- function() {
+
+  dat <- data.frame(yi = seq(.1, .8, length.out = 8L), study = factor(rep(1:2, each = 4L)),
+    esid = factor(rep(1:2, 4L)))
+  setup <- review_compile_object(brma.mv(yi = yi, V = diag(.1, 8L),
+    random = list(a = ~ 1 | study/esid, b = ~ 1 | study/esid), data = dat,
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+  columns <- review_prior_columns(setup$compiled$mu$prior_list)
+  samples <- matrix(1, 24L, length(columns), dimnames = list(NULL, columns))
+  for (allocation in setup$compiled$mu$formula_design$random_allocations) {
+    weights <- paste0(allocation$weight_name, "[", seq_len(allocation$n_targets), "]")
+    samples[, weights] <- 1 / allocation$n_targets
+  }
+
+  list(setup = setup, samples = samples, fitted = review_attach_replay(setup, samples))
+}
+
+test_that("heterogeneity selectors accept the unique names of the complete result", {
+
+  replay <- .review_duplicate_allocation_names_replay()
+  for (object in list(replay$fitted, replay$setup$object)) {
+    complete <- summary_heterogeneity(object, .posterior_samples = replay$samples)
+    allocations <- c("a+b", "study/esid", "study/esid_1")
+    expect_identical(names(complete)[1:3], allocations)
+    all_lists <- .brma_mv_allocation_sample_lists(object, replay$samples)
+    expect_identical(names(all_lists), allocations)
+    expect_true(all(allocations %in%
+      attr(all_lists, "available_components", exact = TRUE)))
+    for (name in allocations) {
+      selected <- summary_heterogeneity(object, component = name,
+        .posterior_samples = replay$samples)
+      expect_identical(selected[["component"]], name)
+      expect_identical(selected[["estimates"]], complete[[name]][["estimates"]])
+      lists <- .brma_mv_allocation_sample_lists(object, replay$samples,
+        component = name)
+      expect_identical(names(lists), name)
+      expect_identical(lists[[name]], all_lists[[name]])
+    }
+  }
+})
+
+test_that("component selection evaluates only the selected allocation draws", {
+
+  replay <- .review_duplicate_allocation_names_replay()
+  calls <- 0L
+  testthat::local_mocked_bindings(
+    parameter_draws = local({
+      original <- BayesTools::parameter_draws
+      function(...) {
+        calls <<- calls + 1L
+        original(...)
+      }
+    }),
+    .package = "BayesTools"
+  )
+  for (object in list(replay$fitted, replay$setup$object)) {
+    calls <- 0L
+    complete <- .brma_mv_allocation_sample_lists(object, replay$samples)
+    complete_calls <- calls
+    calls <- 0L
+    selected <- .brma_mv_allocation_sample_lists(object, replay$samples,
+      component = "study/esid_1")
+    expect_identical(names(selected), "study/esid_1")
+    expect_identical(selected[["study/esid_1"]], complete[["study/esid_1"]])
+    if (!is.null(object[["fit"]])) {
+      expect_gt(calls, 0L)
+      expect_lt(calls, complete_calls)
+    }
+  }
+})

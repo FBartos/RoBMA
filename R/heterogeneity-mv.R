@@ -668,12 +668,8 @@
     return(list())
   }
 
-  K              <- nrow(object[["data"]][["outcome"]])
-  source_samples <- NULL
-  out <- list()
-  aliases <- list()
-  replacements <- list()
-  available_components <- character()
+  K       <- nrow(object[["data"]][["outcome"]])
+  entries <- list()
 
   for (allocation in allocations) {
     allocation <- .brma_mv_resolve_sd_component_allocation(
@@ -684,8 +680,7 @@
     if (!target %in% c("block", "sd_component")) {
       next
     }
-    terms <- allocation[["terms"]]
-    if (identical(target, "block") && length(terms) <= 1L) {
+    if (identical(target, "block") && length(allocation[["terms"]]) <= 1L) {
       next
     }
     if (identical(target, "sd_component") &&
@@ -693,15 +688,21 @@
       next
     }
 
-    name <- .brma_mv_allocation_summary_name(
-      allocation     = allocation,
-      formula_design = formula_design
+    entries[[length(entries) + 1L]] <- list(
+      allocation = allocation,
+      name       = .brma_mv_allocation_summary_name(
+        allocation     = allocation,
+        formula_design = formula_design
+      )
     )
-    declared_aliases <- .brma_mv_allocation_summary_aliases(name, allocation)
-    available_components <- c(available_components, declared_aliases)
-    if (!identical(component, "all") && !component %in% declared_aliases) {
-      next
-    }
+  }
+
+  plan           <- .brma_mv_allocation_summary_plan(entries, component)
+  source_samples <- NULL
+  out            <- list()
+
+  for (i in plan[["selected"]]) {
+    allocation <- entries[[i]][["allocation"]]
     if (is.null(source_samples)) {
       source_samples <- .brma_mv_scale_source_samples(
         object = object, posterior_samples = posterior_samples
@@ -719,44 +720,78 @@
         .random_allocation_factor_samples(factor, posterior_samples)
       )
     }
-    samples_list <- .brma_mv_allocation_summary_samples(
+    out[[length(out) + 1L]] <- .brma_mv_allocation_summary_samples(
       allocation        = allocation,
       formula_design    = formula_design,
       posterior_samples = posterior_samples,
       source_samples    = allocation_sources,
       K                 = K
     )
-
-    out[[length(out) + 1L]] <- samples_list
-    names(out)[[length(out)]] <- name
-    aliases[[length(aliases) + 1L]] <- .brma_mv_allocation_summary_aliases(
-      name       = name,
-      allocation = allocation
-    )
-    names(aliases)[[length(aliases)]] <- name
-    replacements[[length(replacements) + 1L]] <- if (identical(target, "sd_component")) {
-      terms <- as.character(allocation[["terms"]])
-      terms[!is.na(terms) & nzchar(terms)]
-    } else {
-      character(0)
-    }
-    names(replacements)[[length(replacements)]] <- name
   }
 
-  attr(out, "available_components") <- unique(available_components)
-  if (length(out) == 0L) {
-    return(out)
+  available <- c(unlist(plan[["aliases"]], use.names = FALSE), plan[["names"]])
+
+  return(.brma_mv_allocation_summary_result(out, plan, entries, available))
+}
+
+
+# The summary names of the allocations are made unique over all of them, in
+# declaration order, before 'component' selects among them, so that a selector
+# matches the names of the complete result. An exact name selects that
+# allocation alone; otherwise every allocation declaring the alias is kept.
+.brma_mv_allocation_summary_plan <- function(entries, component) {
+
+  summary_names <- vapply(entries, `[[`, character(1), "name")
+  unique_names  <- make.unique(summary_names, sep = "_")
+  aliases <- lapply(seq_along(entries), function(i) {
+    .brma_mv_allocation_summary_aliases(summary_names[[i]], entries[[i]][["allocation"]])
+  })
+  names(aliases) <- unique_names
+
+  selected <- if (identical(component, "all")) {
+    seq_along(entries)
+  } else if (component %in% unique_names) {
+    match(component, unique_names)
+  } else {
+    which(vapply(aliases, function(x) component %in% x, logical(1)))
   }
 
-  original_names <- names(out)
-  names(out)     <- make.unique(original_names, sep = "_")
-  names(aliases) <- names(out)
-  names(replacements) <- names(out)
+  list(names = unique_names, aliases = aliases, selected = selected)
+}
 
-  attr(out, "component_aliases")      <- aliases
-  attr(out, "component_replacements") <- replacements
 
-  return(out)
+.brma_mv_allocation_summary_result <- function(samples, plan, entries,
+                                               available) {
+
+  attr(samples, "available_components") <- unique(available)
+  if (length(samples) == 0L) {
+    return(samples)
+  }
+
+  selected <- plan[["selected"]]
+  names(samples) <- plan[["names"]][selected]
+  attr(samples, "component_aliases")      <- plan[["aliases"]][selected]
+  attr(samples, "component_replacements") <- stats::setNames(
+    lapply(entries[selected], function(entry) {
+      .brma_mv_allocation_summary_replacements(entry[["allocation"]])
+    }),
+    plan[["names"]][selected]
+  )
+
+  return(samples)
+}
+
+
+# The random blocks that an SD-component allocation replaces in the complete
+# summary.
+.brma_mv_allocation_summary_replacements <- function(allocation) {
+
+  if (!identical(allocation[["target"]], "sd_component")) {
+    return(character(0))
+  }
+  terms <- as.character(allocation[["terms"]])
+
+  terms[!is.na(terms) & nzchar(terms)]
 }
 
 
@@ -780,10 +815,7 @@
     drop = FALSE
   ]
   keys <- quantities[["extraction_key"]]
-  out          <- list()
-  aliases      <- list()
-  replacements <- list()
-  source_samples <- NULL
+  entries <- list()
   available_components <- character()
 
   for (allocation in allocations) {
@@ -806,11 +838,10 @@
     name <- .brma_mv_allocation_summary_name(
       allocation = allocation, formula_design = formula_design
     )
-    declared_aliases <- .brma_mv_allocation_summary_aliases(name, allocation)
-    available_components <- c(available_components, declared_aliases)
-    if (!identical(component, "all") && !component %in% declared_aliases) {
-      next
-    }
+    available_components <- c(
+      available_components,
+      .brma_mv_allocation_summary_aliases(name, allocation)
+    )
 
     allocation_rows <- vapply(keys, function(key) {
       identical(key[["allocation_label"]], allocation[["label"]])
@@ -842,21 +873,35 @@
         "cor", "sd_mult", "var_prop", "var_mult", "inclusion"
       )
     )
-    selected <- selected[order(order_group, na.last = TRUE), , drop = FALSE]
 
-    samples_list <- lapply(seq_len(nrow(selected)), function(i) {
+    entries[[length(entries) + 1L]] <- list(
+      allocation = allocation,
+      name       = name,
+      rows       = selected[order(order_group, na.last = TRUE), , drop = FALSE]
+    )
+  }
+
+  plan           <- .brma_mv_allocation_summary_plan(entries, component)
+  source_samples <- NULL
+  out            <- list()
+
+  for (i in plan[["selected"]]) {
+    allocation <- entries[[i]][["allocation"]]
+    target     <- allocation[["target"]]
+    selected   <- entries[[i]][["rows"]]
+
+    samples_list <- lapply(seq_len(nrow(selected)), function(j) {
       selection <- BayesTools::parameter_catalog_resolve(
         catalog   = catalog,
-        alias     = selected[["canonical_name"]][i],
-        namespace = selected[["namespace"]][i]
+        alias     = selected[["canonical_name"]][j],
+        namespace = selected[["namespace"]][j]
       )
       draws <- BayesTools::parameter_draws(
         object[["fit"]],
         selection,
         model_samples = posterior_samples
       )
-      values <- .brma_mv_catalog_draw_values(draws)
-      values
+      .brma_mv_catalog_draw_values(draws)
     })
     names(samples_list) <- .brma_random_parameter_io_labels(selected, "label")
     if (identical(target, "sd_component") &&
@@ -895,39 +940,12 @@
         samples_list)
     }
 
-    name <- .brma_mv_allocation_summary_name(
-      allocation     = allocation,
-      formula_design = formula_design
-    )
     out[[length(out) + 1L]] <- samples_list
-    names(out)[[length(out)]] <- name
-    aliases[[length(aliases) + 1L]] <- .brma_mv_allocation_summary_aliases(
-      name       = name,
-      allocation = allocation
-    )
-    names(aliases)[[length(aliases)]] <- name
-    replacements[[length(replacements) + 1L]] <-
-      if (identical(target, "sd_component")) {
-        terms <- as.character(allocation[["terms"]])
-        terms[!is.na(terms) & nzchar(terms)]
-      } else {
-        character(0)
-      }
-    names(replacements)[[length(replacements)]] <- name
   }
 
-  attr(out, "available_components") <- unique(available_components)
-  if (length(out) == 0L) {
-    return(out)
-  }
-  original_names <- names(out)
-  names(out)          <- make.unique(original_names, sep = "_")
-  names(aliases)      <- names(out)
-  names(replacements) <- names(out)
-  attr(out, "component_aliases")      <- aliases
-  attr(out, "component_replacements") <- replacements
+  available <- c(available_components, plan[["names"]])
 
-  return(out)
+  return(.brma_mv_allocation_summary_result(out, plan, entries, available))
 }
 
 

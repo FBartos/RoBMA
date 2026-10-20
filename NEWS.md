@@ -1,4 +1,7 @@
 ## version 4.1.0 (IN PROGRESS)
+- `summary_heterogeneity()` component selectors accept the unique names that
+  the complete result gives to allocation summaries with the same name, such as
+  `"study/esid_1"`.
 - `plot_prior()` draws the bias-only curves of PET and PEESE mixtures with the
   effect direction of the object, as `plot_pet_peese()` does.
 - Influence diagnostics that reuse the cached LOO result (`dfbetas()`,
