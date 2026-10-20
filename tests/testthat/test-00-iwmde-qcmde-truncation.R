@@ -13,7 +13,8 @@ context("(00) qCMDE truncation reporting")
 }
 
 
-.qcmde_truncation_density <- function(rows, probability, value = .05) {
+.qcmde_truncation_density <- function(rows, probability, value = .05,
+                                       missing_kernel_field = NULL) {
 
   current <- rows[["center"]] + .02
   testthat::local_mocked_bindings(
@@ -29,8 +30,16 @@ context("(00) qCMDE truncation reporting")
         current     = current,
         linear      = (rows[["center"]] - current) / rows[["scale"]]^2,
         quadratic   = 1 / rows[["scale"]]^2,
-        prior_route = rep("focal", length(current))
+        prior_route = rep("focal", length(current)),
+        baseline    = -.5 * ((current - rows[["center"]]) / rows[["scale"]])^2,
+        log_prior   = matrix(stats::dnorm(values, 0, 1, log = TRUE),
+                             nrow = length(values), ncol = length(current))
       )
+      if (!is.null(missing_kernel_field)) {
+        kernel <- attr(out, "gaussian_kernel")
+        kernel[[missing_kernel_field]] <- NULL
+        attr(out, "gaussian_kernel") <- kernel
+      }
       out
     },
     .package = "RoBMA"
@@ -65,7 +74,7 @@ context("(00) qCMDE truncation reporting")
 }
 
 
-test_that("exact rows report their truncation and bound the ordinate error", {
+test_that("exact rows normalize over their whole support and report no truncation", {
 
   rows <- .qcmde_truncation_rows()
   laws <- .qcmde_truncation_laws(rows)
@@ -82,29 +91,40 @@ test_that("exact rows report their truncation and bound the ordinate error", {
 
     outside <- stats::pnorm(range[[1L]], laws$mean, laws$sd) +
       stats::pnorm(range[[2L]], laws$mean, laws$sd, lower.tail = FALSE)
+    whole_support <- stats::pnorm(Inf, laws$mean, laws$sd) -
+      stats::pnorm(-Inf, laws$mean, laws$sd)
     expect_identical(density[["normalization_truncation_status"]], "exact")
-    expect_equal(density[["normalization_truncation"]], max(outside),
+    expect_equal(density[["normalization_truncation"]], max(1 - whole_support),
                  tolerance = 1e-8)
     expect_lte(density[["normalization_truncation"]], 1 - probability + 1e-12)
     expect_equal(density[["truncation_ordinate_bound"]],
-                 max(outside) / (1 - max(outside)), tolerance = 1e-8)
+                 max(1 - whole_support) / min(whole_support), tolerance = 1e-8)
+    expect_equal(density[["final_normalization_integral"]], mean(1 - outside),
+                 tolerance = 1e-8)
 
-    # The ordinate error is the truncation's overstatement plus the
-    # discretization the nested grids measure.
+    # The exact normalizer includes the mass beyond the displayed lattice.
     truth <- mean(stats::dnorm(.05, laws$mean, laws$sd))
-    error <- density[["y"]] / truth - 1
-    expect_lte(error, density[["truncation_ordinate_bound"]] +
-      density[["ordinate_relative_change"]])
-    expect_gte(error, -density[["ordinate_relative_change"]])
+    expect_equal(density[["y"]], truth, tolerance = 1e-8)
   }
 
-  # The coverage is what sets the result: a lower 'normalization_prob' moves
-  # the ordinate by about the truncation it reports.
+  # Coverage changes the lattice mass, while the whole-support ordinate stays
+  # fixed by the declared normal conditional law.
   loose <- .qcmde_truncation_density(rows, .99)
   tight <- .qcmde_truncation_density(rows, 1 - 1e-8)
-  expect_gt(loose[["y"]] / tight[["y"]] - 1, 1e-4)
-  expect_lt(loose[["y"]] / tight[["y"]] - 1,
-            loose[["truncation_ordinate_bound"]])
+  expect_lt(loose[["final_normalization_integral"]],
+            tight[["final_normalization_integral"]])
+  expect_equal(loose[["y"]], tight[["y"]], tolerance = 1e-8)
+})
+
+
+test_that("incomplete Gaussian kernels retain estimated truncation status", {
+
+  rows <- .qcmde_truncation_rows()
+  for (field in c("baseline", "log_prior")) {
+    density <- .qcmde_truncation_density(rows, .999,
+      missing_kernel_field = field)
+    expect_identical(density[["normalization_truncation_status"]], "estimate")
+  }
 })
 
 
