@@ -1747,9 +1747,12 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
       )
     )
   }
+  # Factor-level producers declare the exact parent[level] child identity in
+  # the posterior metadata (model-interface.md); a stored ordinate that names
+  # the parent alone is not the requested child's.
   metadata <- .iwmde_posterior_metadata(
     samples   = sample,
-    parameter = "mu_alloc",
+    parameter = "mu_alloc[alternate]",
     level     = "alternate"
   )
   compatible_object <- make_object(sample)
@@ -1863,6 +1866,35 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
   expect_equal(calls, 1L)
   expect_equal(recomputed_ordinate[["ordinate"]], 4)
   expect_equal(recomputed_ordinate[["density_method"]], "qCMDE")
+
+  # The legacy identity (the parent name without the level) is recomputed even
+  # though its method, value and controls match the request.
+  legacy_sample <- sample
+  BayesTools::posterior_metadata(legacy_sample, "posterior_ordinate") <-
+    .iwmde_posterior_ordinate_attribute(
+      diagnostic      = compatible_diagnostic,
+      density_method  = "qCMDE",
+      metadata        = .iwmde_posterior_metadata(
+        samples   = sample,
+        parameter = "mu_alloc",
+        level     = "alternate"
+      ),
+      density_control = density_control
+    )
+  legacy <- .hypothesis_marginal_means_attach_iwmde(
+    object          = make_object(legacy_sample),
+    parameter       = "mu_alloc",
+    hypothesis      = "mu_alloc[alternate] = 0",
+    density_method  = "qCMDE",
+    density_control = density_control
+  )
+  legacy_ordinate <- BayesTools::posterior_metadata(
+    legacy[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
+    "posterior_ordinate"
+  )
+
+  expect_equal(calls, 2L)
+  expect_equal(legacy_ordinate[["ordinate"]], 4)
 })
 
 
