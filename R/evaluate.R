@@ -1584,12 +1584,15 @@
 # and check every product so that they hold at any finite scale. When every SD
 # and residual of a call is zero or has an absolute value in [2^-100, 2^100], and
 # every sampling SD is positive, the plain vectorized arithmetic of 4.1.0.229
-# cannot overflow or underflow: a variance lies in [2^-200, 2^200], a diagonal in
-# (2^-200, 2^201], a ratio b^2 / D below 2^400, a block sum (at most 2^30 rows)
-# below 2^430, and the smallest nonzero product (cluster mean b * h, h at least
-# (b r / D) / (1 + sum b^2 / D)) stays above 2^-931, the smallest normal double
-# being 2^-1022. Any other call, and any call whose direct result is not finite,
-# uses the checked route unchanged.
+# cannot overflow: a variance lies in [2^-200, 2^200], a diagonal in
+# (2^-200, 2^201], a ratio b^2 / D below 2^400 and a block sum (at most 2^30
+# rows) below 2^430. The cluster mean b * h, with h at least
+# (b r / D) / (1 + sum b^2 / D), stays above 2^-931, the smallest normal double
+# being 2^-1022. A later product with a share, such as vi / D * cluster, can fall
+# below the double range: it rounds to zero, which is the correctly rounded
+# value, where the checked route would refuse the product as unavailable. Any
+# other call, and any call whose direct result is not finite, uses the checked
+# route unchanged.
 #
 # ---------------------------------------------------------------------------- #
 EVALUATE_DIRECT_BOUND <- 2^100

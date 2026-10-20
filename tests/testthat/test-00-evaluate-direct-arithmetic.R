@@ -144,3 +144,28 @@ test_that("the direct range is zero or an absolute value within the bound", {
   expect_false(.evaluate_direct_arithmetic(list(matrix(1, 2L, 2L)), c(1, 1, 1), list(matrix(1, 2L, 3L))))
   expect_true(.evaluate_direct_arithmetic(list(matrix(1, 2L, 3L)), c(1, 1, 1), list(matrix(1, 2L, 3L))))
 })
+
+
+test_that("a direct product below the double range rounds to zero where the checked route refuses", {
+
+  # One cluster of three estimates with every input inside the direct range.
+  # tau_within = 2^100 with vi = 2^-200 gives a total contribution of about
+  # 2^-1300 in the second estimate, which is not representable.
+  mu_samples  <- matrix(0, 1L, 3L)
+  tau_within  <- matrix(c(0, 2^100, 2^-100), 1L, 3L)
+  tau_between <- matrix(c(2^100, 2^-100, 2^-100), 1L, 3L)
+  vi          <- c(2^-200, 2^-200, 2^200)
+  yi          <- c(0, 0, 2^-100)
+  cluster     <- c(1L, 1L, 1L)
+  evaluate <- function() .evaluate.brma.multilevel_blup.norm(
+    mu_samples, tau_within, tau_between, yi, vi, cluster)
+
+  direct <- evaluate()
+  expect_true(all(is.finite(unlist(direct))))
+  expect_identical(direct[["total"]][[2L]], 0)
+  testthat::with_mocked_bindings(
+    expect_error(evaluate(), "numerically unavailable"),
+    .evaluate_direct_arithmetic = function(...) FALSE,
+    .package = "RoBMA"
+  )
+})
