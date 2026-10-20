@@ -196,13 +196,11 @@ test_that("an eligible bounded envelope retries the ordinary rule before QMC", {
       2 * diagnostic[, "quadrature_change"] + if (is.null(cdf)) 0 else cdf
   }
 
-  # Both pilots must pass the same final rule: the pilot budget is below
-  # both coarse scores. Choose an interior tolerance between the measured
-  # final scores instead of hard-coding a platform-sensitive boundary.
-  coarse <- c(score(invoke(.5, FALSE)), score(invoke(.5, TRUE)))
-  pilot_tolerance <- .8 * min(coarse)
-  ordinary <- invoke(pilot_tolerance, FALSE)
-  bounded <- invoke(pilot_tolerance, TRUE)
+  # Both coarse calls return successful envelopes. Choose an interior
+  # tolerance between their measured scores to exercise the retry boundary;
+  # a pilot below both scores would instead send both calls to QMC.
+  ordinary <- invoke(.5, FALSE)
+  bounded <- invoke(.5, TRUE)
   ordinary_score <- score(ordinary)
   bounded_score <- score(bounded)
   log_error <- attr(bounded$integration_diagnostics, "cdf_log_error", exact = TRUE)
@@ -212,7 +210,7 @@ test_that("an eligible bounded envelope retries the ordinary rule before QMC", {
   tolerance <- (ordinary_score + bounded_score) / 2
   expect_gt(tolerance - ordinary_score, 1000 * .Machine$double.eps)
   expect_gt(bounded_score - tolerance, 1000 * .Machine$double.eps)
-  expect_lt(tolerance, min(coarse))
+  expect_true(all(is.finite(c(ordinary_score, bounded_score))))
 
   # Eligibility depends on these unchanged weights/K and this CDF-only
   # floor. The final call cannot appear to retry by disabling the table at
@@ -223,6 +221,8 @@ test_that("an eligible bounded envelope retries the ordinary rule before QMC", {
   retried <- invoke(tolerance, TRUE)
   expect_equal(retried$integration_diagnostics[, "used_covariance_envelope"][[1L]], 1)
   expect_identical(attr(retried$integration_diagnostics, "cdf_relative_error", exact = TRUE), 0)
+  expect_identical(exact$relative_mcse, 0)
+  expect_identical(retried$relative_mcse, 0)
   expect_identical(retried$log_normalizer, exact$log_normalizer)
   expect_identical(retried$log_density, exact$log_density)
 
