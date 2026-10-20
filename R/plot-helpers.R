@@ -1512,6 +1512,14 @@
   return(label)
 }
 
+# Outcome priors that are not declared by the model: the fixed N(0, 1) priors of
+# the non-centred cluster (`gamma`) and estimate-level GLMM (`theta`) effects.
+# They are stored with every such model but are neither printed nor plotted.
+.plot_prior_auxiliary_outcome_priors <- function() {
+
+  c("gamma", "theta")
+}
+
 .select_plot_prior_parameter <- function(
     object, parameter, parameter_mods, parameter_scale,
     component = "auto", allow_mixed_bias = FALSE,
@@ -1563,6 +1571,7 @@
   .check_plot_prior_name(parameter, "parameter")
 
   if (identical(component, "auto") && parameter != "bias" &&
+      !parameter %in% .plot_prior_auxiliary_outcome_priors() &&
       BayesTools::is.prior(object[["priors"]][["outcome"]][[parameter]])) {
     return(.select_plot_prior_entry(
       object,
@@ -1796,7 +1805,8 @@
   }
 
   outcome <- object[["priors"]][["outcome"]]
-  for (parameter in setdiff(names(outcome), names(selected))) {
+  for (parameter in setdiff(names(outcome), c(names(selected),
+                                              .plot_prior_auxiliary_outcome_priors()))) {
     if (BayesTools::is.prior(outcome[[parameter]])) {
       selected[[parameter]] <- .select_plot_prior_entry(
         object,

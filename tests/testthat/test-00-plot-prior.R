@@ -13,10 +13,18 @@ test_that("stored GLMM outcome priors retain prior-facing ownership", {
       only_priors = TRUE, silent = TRUE)
   )
   for (object in objects) {
+    # the non-centred estimate-level effect `theta` is an internal auxiliary
+    # prior, not a declared one
+    expect_true("theta" %in% names(object$priors$outcome))
+    declared <- setdiff(names(object$priors$outcome), "theta")
     selected <- withVisible(print_prior(object, silent = TRUE))
     expect_false(selected$visible)
-    expect_identical(selected$value, object$priors$outcome)
-    for (parameter in setdiff(names(object$priors$outcome), c("mu", "tau"))) {
+    expect_identical(selected$value, object$priors$outcome[declared])
+    expect_error(print_prior(object, parameter = "theta", silent = TRUE),
+      "The specified parameter 'theta' is not available.", fixed = TRUE)
+    expect_error(plot_prior(object, parameter = "theta", plot_type = "ggplot"),
+      "The specified parameter 'theta' is not available.", fixed = TRUE)
+    for (parameter in setdiff(declared, c("mu", "tau"))) {
       expect_output(result <- withVisible(print_prior(
         object, parameter = parameter, silent = TRUE
       )), NA)
@@ -41,6 +49,29 @@ test_that("stored GLMM outcome priors retain prior-facing ownership", {
   selected <- print_prior(object, silent = TRUE)
   expect_identical(selected$mu_pi, object$priors$mods$pi)
   expect_identical(selected$pi, object$priors$outcome$pi)
+})
+
+test_that("multilevel prior listings leave out the auxiliary cluster-effect prior", {
+
+  object <- brma(yi = c(.1, .3, -.2, .4, .2, 0), sei = rep(.2, 6L),
+    cluster = c(1, 1, 2, 2, 3, 3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  outcome <- object$priors$outcome
+  # `gamma` is the fixed N(0, 1) prior of the non-centred cluster effects
+  expect_true("gamma" %in% names(outcome))
+  expect_true("rho" %in% names(outcome))
+
+  selected <- print_prior(object, silent = TRUE)
+  expect_identical(names(selected), setdiff(names(outcome), "gamma"))
+  expect_identical(selected, outcome[names(selected)])
+  expect_identical(print_prior(object, parameter = "rho", silent = TRUE), outcome$rho)
+  expect_s3_class(plot_prior(object, parameter = "rho", plot_type = "ggplot"), "ggplot")
+
+  message <- "The specified parameter 'gamma' is not available."
+  expect_error(print_prior(object, parameter = "gamma", silent = TRUE), message,
+    fixed = TRUE)
+  expect_error(plot_prior(object, parameter = "gamma", plot_type = "ggplot"), message,
+    fixed = TRUE)
 })
 
 test_data <- data.frame(
