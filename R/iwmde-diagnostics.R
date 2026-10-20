@@ -933,10 +933,10 @@
 
   internal <- diagnostics[["internal_method"]]
   if (!is.null(internal) && internal %in% c("ordered_offset_block_cmde", "ordered_source_with_offset_block_cmde")) {
-    return(paste0(" block integration error is ", trimws(.iwmde_percent(error)), " (estimated)"))
+    return(paste0(" block integration error is ", .iwmde_percent(error), " (estimated)"))
   }
   if (identical(internal, "ordered_source_conditional_cmde")) {
-    return(paste0(" source integration error is ", trimws(.iwmde_percent(error)), " (estimated)"))
+    return(paste0(" source integration error is ", .iwmde_percent(error), " (estimated)"))
   }
 
   if (!identical(estimator, "q_grid_cmde")) {
@@ -957,13 +957,11 @@
     "status unavailable"
   )
 
-  percent <- function(value) trimws(.iwmde_percent(value))
-
   return(paste0(
-    " posterior ordinate error estimate is ", percent(error),
-    " (grid change ", percent(components[["change"]]),
-    "; lattice resolution ", percent(components[["resolution"]]),
-    "; tail truncation ", percent(components[["truncation"]]),
+    " posterior ordinate error estimate is ", .iwmde_percent(error),
+    " (grid change ", .iwmde_percent(components[["change"]]),
+    "; lattice resolution ", .iwmde_percent(components[["resolution"]]),
+    "; tail truncation ", .iwmde_percent(components[["truncation"]]),
     ", ", status, ")"
   ))
 }
@@ -1066,7 +1064,12 @@
   }
   if (is.infinite(value)) return(paste0(as.character(value), "%"))
 
-  paste0(formatC(100 * value, digits = 3, format = "fg"), "%")
+  percent <- 100 * value
+  if (percent > 0 && percent < 1e-4) {
+    return("<1e-4%")
+  }
+
+  paste0(trimws(formatC(percent, digits = 3, format = "fg")), "%")
 }
 
 
@@ -1076,8 +1079,11 @@
     return("NA")
   }
   if (is.infinite(value)) return(as.character(value))
+  if (value != 0 && abs(value) < 1e-3) {
+    return(format(value, digits = 3))
+  }
 
-  formatC(value, digits = 3, format = "fg")
+  trimws(formatC(value, digits = 3, format = "fg"))
 }
 
 

@@ -21,6 +21,27 @@ test_that("density warnings name their observed thresholds and sample control", 
 })
 
 
+test_that("density messages print trimmed values and floor tiny percentages", {
+
+  expect_identical(.iwmde_percent(.025), "2.5%")
+  expect_identical(.iwmde_percent(.5), "50%")
+  expect_identical(.iwmde_percent(0), "0%")
+  expect_identical(.iwmde_percent(2e-6), "0.0002%")
+  expect_identical(.iwmde_percent(6.7e-301), "<1e-4%")
+  expect_identical(.iwmde_count(100), "100")
+  expect_identical(.iwmde_count(67.8), "67.8")
+  expect_identical(.iwmde_count(0), "0")
+  expect_identical(.iwmde_count(5e-300), "5e-300")
+  diagnostics <- list(estimator = "q_grid_cmde", ordinate_relative_change = .127,
+    lattice_resolution_relative_error = 6.7e-301, truncation_ordinate_bound = .001,
+    normalization_truncation_status = "bound")
+  expect_identical(
+    .iwmde_diagnostics_stability_description(diagnostics, "q_grid_cmde", .128),
+    paste0(" posterior ordinate error estimate is 12.8% (grid change 12.7%; ",
+           "lattice resolution <1e-4%; tail truncation 0.1%, upper bound)"))
+})
+
+
 test_that("density conditions retain their specific classes and common family", {
 
   ordinate <- .iwmde_ordinate_unavailable_condition("Unavailable", list())
