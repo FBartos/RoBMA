@@ -93,7 +93,8 @@ PKG_LIBS=-L"$(JAGS_ROOT)/${R_ARCH}/bin" -ljags-$(JAGS_MAJOR) -ljrmath-0 $(LAPACK
 ### Objects to be compiled
 ### NB: the objects in distributions/jags are only necessary for JAGS <=3, and are excluded by the sources when compiling against JAGS >= 4
 ###############
-OBJECTS = distributions/DWN.o \
+OBJECTS = glmm-aghq.o \
+		  distributions/DWN.o \
 		  distributions/DWB.o \
 		  distributions/DWP.o \
 		  distributions/DKNOWNVMNORM.o \
@@ -107,7 +108,7 @@ OBJECTS = distributions/DWN.o \
 		  samplers/CoarseCorrectedSlice.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
-		  glmm-aghq.o r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
+		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############
 

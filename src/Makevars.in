@@ -34,7 +34,8 @@ PKG_LIBS=@JAGS_LIBS@ @JAGS_RPATH@ -ljrmath $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) 
 ###  LIBS and objects to be compiled
 ###############
 
-OBJECTS = distributions/DWN.o \
+OBJECTS = glmm-aghq.o \
+		  distributions/DWN.o \
 		  distributions/DWB.o \
 		  distributions/DWP.o \
 		  distributions/DKNOWNVMNORM.o \
@@ -48,7 +49,7 @@ OBJECTS = distributions/DWN.o \
 		  samplers/CoarseCorrectedSlice.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
-		  glmm-aghq.o r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
+		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############
 
