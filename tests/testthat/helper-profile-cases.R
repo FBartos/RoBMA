@@ -215,7 +215,7 @@ standard_required_tests <- function() {
       "plot_prior draws the prior of a variance as the square of the SD prior",
       "random selectors of gated allocations show prior laws with their point masses",
       "random selectors of a nested gated allocation derive from its allocation chain",
-      "random selectors without a prior density are refused with the target classes",
+      "random correlations without an original-scale prior retain target refusals",
       "only_priors objects point to the random-effect specification"
     )),
     .required_tests("test-02-random-prior-plots.R", c(
