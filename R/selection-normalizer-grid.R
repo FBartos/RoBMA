@@ -544,10 +544,10 @@
     error[direct] <- values[, "eta"]
     mcse[direct] <- values[, "mcse"]
     if (!is.null(factor) && length(direct)) {
-      changes <- entry$relative_change[own_qid[at_direct]]
-      if (length(changes) != length(direct)) changes <- rep(NA_real_, length(direct))
+      # Rows cached by an earlier call of this shared grid are revalidated
+      # against this call's plan; fetch() checks only the rows it writes.
       .selection_joint_factor_check_diagnostics(list(relative_mcse = mcse[direct],
-        relative_change = changes), execution_plan,
+        relative_change = entry$relative_change[own_qid[at_direct]]), execution_plan,
         if (identical(factor[["method"]], "rank_one")) "cluster" else "factor")
     }
   }
