@@ -809,6 +809,38 @@ test_that("PET and PEESE mixtures plot their declared bias-only law", {
   expect_true(all(ggplot_geom_layer_data(plot, "GeomPolygon")$y[1:4] == 0))
 })
 
+test_that("PET and PEESE mixtures follow the effect direction of the object", {
+
+  make_object <- function(kind, direction) {
+    constructor <- if (kind == "PET") prior_PET else prior_PEESE
+    RoBMA(yi = c(.1, .2, .3) * if (direction == "negative") -1 else 1,
+      sei = c(.1, .15, .2), measure = "GEN", effect_direction = direction,
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+      prior_bias = list(
+        constructor("normal", list(mean = 0, sd = 1)),
+        constructor("normal", list(mean = 0, sd = 2), prior_weights = 3)))
+  }
+  grid <- c(0, .1, .5, 1)
+  for (kind in c("PET", "PEESE")) {
+    positive <- plot_prior(make_object(kind, "positive"), kind,
+      plot_type = "ggplot", x_seq = grid)
+    negative <- plot_prior(make_object(kind, "negative"), kind,
+      plot_type = "ggplot", x_seq = grid)
+    explicit <- plot_prior(make_object(kind, "negative"), kind,
+      plot_type = "ggplot", x_seq = grid, effect_direction = "negative")
+    mirrored <- plot_prior(make_object(kind, "positive"), kind,
+      plot_type = "ggplot", x_seq = grid, effect_direction = "negative")
+    line <- function(plot) ggplot_geom_layer_data(plot, "GeomLine")$y
+    band <- function(plot) sort(ggplot_geom_layer_data(plot, "GeomPolygon")$y)
+    expect_true(all(line(positive) >= 0), info = kind)
+    expect_equal(line(negative), -line(positive), tolerance = 1e-6, info = kind)
+    expect_equal(line(negative), line(explicit), info = kind)
+    expect_equal(line(negative), line(mirrored), info = kind)
+    expect_equal(band(negative), sort(-band(positive)), tolerance = 1e-6, info = kind)
+    expect_equal(band(negative), band(explicit), info = kind)
+  }
+})
+
 test_that("only_priors objects print and plot via prior methods", {
 
   skip_on_cran()

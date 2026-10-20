@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- `plot_prior()` draws the bias-only curves of PET and PEESE mixtures with the
+  effect direction of the object, as `plot_pet_peese()` does.
 - Influence diagnostics that reuse the cached LOO result (`dfbetas()`,
   `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
   warn about high Pareto k values at the same draw-count-dependent cutoff and

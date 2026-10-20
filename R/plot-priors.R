@@ -268,6 +268,9 @@ plot_prior.brma <- function(
         BayesTools::prior("point", list(location = 0))
       })
     }
+    if (is.null(dots[["effect_direction"]])) {
+      dots[["effect_direction"]] <- .effect_direction(x)
+    }
     plot <- do.call(
       BayesTools::plot_prior_list,
       c(
