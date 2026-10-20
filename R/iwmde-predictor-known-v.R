@@ -85,33 +85,33 @@
       samples      = posterior_samples
     )
   }
+  S <- nrow(posterior_samples)
+  K <- nrow(data[["outcome"]])
+  # The covariance inputs: the sampling-factor plan when the accepted whitening
+  # of V has exact zeros, the random-effect factor plans otherwise.
   if (!is.null(setup[["sampling_factors"]])) {
     marginal <- .known_v_marginal_factor_plan(context[["object"]],
       posterior_samples, .data_known_v_data(data))
-    yi <- data[["outcome"]][["yi"]]
-    if (.data_effect_direction(data) == "negative") {
-      yi <- -yi
-      mu_samples <- -mu_samples
-    }
-    return(.marglik_covariance_plan_loglik_batch(
-      cache = setup[["covariance_plan_cache"]], y = as.double(yi), means = mu_samples,
-      sampling_covariance = marginal[["sampling_covariance"]],
-      random_covariance_plans = marginal[["random_covariance_plans"]],
-      random_covariance_states = marginal[["random_covariance_states"]],
-      block_indices = marginal[["block_indices"]],
-      extra_variances = marginal[["extra_variances"]]
-    ))
+    sampling_covariance <- marginal[["sampling_covariance"]]
+    factor_plans        <- marginal[["random_covariance_plans"]]
+    factor_states       <- marginal[["random_covariance_states"]]
+    block_indices       <- marginal[["block_indices"]]
+    extra_variances     <- marginal[["extra_variances"]]
+  } else {
+    random_factors <- .brma_mv_random_effects_marginal_factor_plan(
+      object            = context[["object"]],
+      posterior_samples = posterior_samples,
+      blocks            = setup[["blocks"]],
+      row_blocks        = setup[["dependency_blocks"]],
+      data              = data
+    )
+    sampling_covariance <- setup[["sampling_covariance"]]
+    factor_plans        <- random_factors[["factor_plans"]]
+    factor_states       <- random_factors[["factor_states"]]
+    block_indices       <- setup[["dependency_blocks"]]
+    extra_variances     <- matrix(0, nrow = S, ncol = K)
   }
-  random_factors <- .brma_mv_random_effects_marginal_factor_plan(
-    object            = context[["object"]],
-    posterior_samples = posterior_samples,
-    blocks            = setup[["blocks"]],
-    row_blocks        = setup[["dependency_blocks"]],
-    data              = data
-  )
 
-  S <- nrow(posterior_samples)
-  K <- nrow(data[["outcome"]])
   if (!is.matrix(mu_samples) || !identical(dim(mu_samples), c(S, K)) ||
       any(!is.finite(mu_samples))) {
     stop(
@@ -129,11 +129,11 @@
     cache                    = setup[["covariance_plan_cache"]],
     y                        = as.double(yi),
     means                    = mu_samples,
-    sampling_covariance      = setup[["sampling_covariance"]],
-    random_covariance_plans  = random_factors[["factor_plans"]],
-    random_covariance_states = random_factors[["factor_states"]],
-    block_indices            = setup[["dependency_blocks"]],
-    extra_variances          = matrix(0, nrow = S, ncol = K)
+    sampling_covariance      = sampling_covariance,
+    random_covariance_plans  = factor_plans,
+    random_covariance_states = factor_states,
+    block_indices            = block_indices,
+    extra_variances          = extra_variances
   ))
 }
 
