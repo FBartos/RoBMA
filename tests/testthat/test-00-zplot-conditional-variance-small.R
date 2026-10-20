@@ -10,6 +10,25 @@ test_that("conditional Gaussian variances preserve the scalar harmonic law", {
   }
 })
 
+test_that("clustered conditional variance scales with the variances", {
+
+  # One estimate: latent variance tau_within^2 + tau_between^2 = 2a with
+  # independent sampling variance a leaves 2a / 3. Two estimates of one
+  # cluster leave 5a / 8 each. Scaling every variance by `a` scales the result.
+  for (a in c(1, 1e-250, 1e250)) {
+    one <- .zplot_multilevel_conditional_variance(
+      matrix(sqrt(a)), matrix(sqrt(a)), a, "one"
+    )
+    expect_true(all(is.finite(one)))
+    expect_equal(as.numeric(one) / (a * 2 / 3), 1, tolerance = 1e-14)
+    two <- .zplot_multilevel_conditional_variance(
+      matrix(sqrt(a), 1L, 2L), matrix(sqrt(a), 1L, 2L), rep(a, 2L), c("g", "g")
+    )
+    expect_true(all(is.finite(two)))
+    expect_equal(as.numeric(two) / (a * 5 / 8), c(1, 1), tolerance = 1e-14)
+  }
+})
+
 test_that("conditional Gaussian variance agrees with independent precision addition", {
 
   latent <- matrix(c(1, .5, .5, 2), 2L)

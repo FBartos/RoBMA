@@ -1693,7 +1693,10 @@
       gamma_variance  <- 1 / (
         1 + sum(tau_between[s, idx]^2 / denominator)
       )
-      gamma_loading  <- tau_between[s, idx] * vi[idx] / denominator
+      # The ratio precedes the product, so that scaling every variance by `a`
+      # scales the result by `a` where the product of the scales would not be
+      # representable.
+      gamma_loading  <- tau_between[s, idx] * (vi[idx] / denominator)
 
       out[s, idx] <- within_variance + gamma_loading^2 * gamma_variance
     }
