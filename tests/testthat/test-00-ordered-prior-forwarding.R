@@ -20,19 +20,21 @@ test_that("selected ordered prior styles resolve scalar defaults and alias confl
   expect_identical(.set_dots_prior(NULL, ordered = TRUE, posterior_col = "purple"),
     list(col = "purple", lty = 2, col.fill = "#B3B3B34C"))
   aliases <- list(color = "blue", colour = "red", lty = 1, linetype = "dotted")
-  expect_identical(.set_dots_prior(aliases, ordered = TRUE, posterior_col = "purple"),
-    list(color = "blue", colour = "red", lty = "dotted", linetype = "dotted",
+  alias_style <- .set_dots_prior(aliases, ordered = TRUE, posterior_col = "purple")
+  expect_identical(alias_style,
+    list(lty = "dotted", linetype = "dotted",
       col = "blue", col.fill = "#B3B3B34C"))
+  expect_false(any(c("color", "colour") %in% names(alias_style)))
   explicit <- list(col = "green", color = "blue", colour = "red", lty = 1,
     linetype = "dotdash")
-  expected <- explicit
-  expected[["lty"]] <- "dotdash"
-  expected[["col.fill"]] <- "#B3B3B34C"
-  expect_identical(.set_dots_prior(explicit, ordered = TRUE, posterior_col = "purple"),
-    expected)
-  expect_identical(.set_dots_prior(list(colour = "red"), ordered = TRUE,
-    posterior_col = "purple"), list(colour = "red", col = "red", lty = 2,
-    col.fill = "#B3B3B34C"))
+  explicit_style <- .set_dots_prior(explicit, ordered = TRUE, posterior_col = "purple")
+  expect_identical(explicit_style, list(col = "green", lty = "dotdash",
+    linetype = "dotdash", col.fill = "#B3B3B34C"))
+  expect_false(any(c("color", "colour") %in% names(explicit_style)))
+  colour_style <- .set_dots_prior(list(colour = "red"), ordered = TRUE,
+    posterior_col = "purple")
+  expect_identical(colour_style, list(col = "red", lty = 2, col.fill = "#B3B3B34C"))
+  expect_false(any(c("color", "colour") %in% names(colour_style)))
 })
 
 
