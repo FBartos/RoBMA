@@ -1,4 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
+- Posterior density curves of `tau2_prop(...)` in allocations with inclusion
+  gates stay within [0, 1] (BayesTools 0.3.1.227).
 - `print_prior()` and `plot_prior()` no longer list the internal non-centred
   auxiliary priors of multilevel and GLMM models; `print()` of a COVRATIO result
   hides internal attributes; clustered z-curve conditional variances no longer
