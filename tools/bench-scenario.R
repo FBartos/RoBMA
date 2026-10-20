@@ -14,6 +14,13 @@
 # A statement that builds several fits at once, such as a loop filling a list of
 # `scenario_fit()` results, is evaluated eagerly and reads all of its cached fits.
 #
+# Post-fit work runs on one native thread unless `--threads` says otherwise: the
+# runner always sets `RoBMA.options(native_threads = <n>)`, default 1, and records
+# it in the `threads` column. The committed scenario timings use the package
+# default (`native_threads = NA`: inherit the fitted model's `parallel` setup, up
+# to `max_cores` native threads), so compare benchmark rows with each other at
+# the same thread budget, not with those timings.
+#
 # The run directory collects `results.tsv` (one row per evaluated artifact: wall
 # time, sum of R heap maxima (not process RSS or simultaneous peak memory),
 # md5 fingerprint of printed text or rendered SVG),

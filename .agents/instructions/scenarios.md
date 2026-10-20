@@ -302,12 +302,15 @@ artifact) and `--index=<from:to>` then runs a slice of that listing, which is ho
 a long scenario is split across processes. `--only` is a regular expression on
 artifact names, `--profile` adds an `Rprof` file and a `.prof.txt` summary,
 `--limit` caps one artifact's wall time, `--threads` sets
-`RoBMA.options(native_threads=)`, `--root` points at another RoBMA tree (the
-driver's own scenario definitions, helpers, fit cache, and committed timings
-serve both comparison arms; `--cache` can select another fit cache
-otherwise), `--installed` benchmarks the installed package, and `--tag` labels
-the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run with
-each artifact's native share and top self-time functions;
+`RoBMA.options(native_threads=)` (default 1, recorded in the `threads` column;
+the committed scenario timings use the package default, which inherits the
+fitted model's `parallel` setup, so compare benchmark rows with each other at
+the same thread budget, not with those timings), `--root` points at another
+RoBMA tree (the driver's own scenario definitions, helpers, fit cache, and
+committed timings serve both comparison arms; `--cache` can select another fit
+cache otherwise), `--installed` benchmarks the installed package, and `--tag`
+labels the rows. `tools/bench-digest.R <run dir> [min seconds]` summarizes a run
+with each artifact's native share and top self-time functions;
 `tools/bench-prof-tree.R <file.Rprof>` prints the call tree of one artifact.
 A statement that builds several fits at once, such as a loop filling a list of
 `scenario_fit()` results, is evaluated eagerly and reads every cached fit it
