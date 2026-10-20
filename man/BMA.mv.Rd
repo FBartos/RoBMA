@@ -106,7 +106,16 @@ names. An unnamed one-element list is supported only for a single \code{R} matri
 \item{subset}{an optional logical or numeric vector specifying a subset of
 data to be used. Subsetting precedes missing-row removal; retained-row
 outcome and predictor checks follow these steps. Type, shape, and existing
-extraction checks can still reject malformed inputs before subsetting.}
+extraction checks can still reject malformed inputs before subsetting.
+Row selection (by \code{subset} or missing-row removal) drops factor levels left
+without rows from \code{mods}, \code{scale}, and random-effect grouping factors. The
+index of a structured random-effect term (\code{cs()}, \code{hcs()}, \code{ar1()}, \code{har()})
+keeps its declared levels, which define the covariance structure. If such an
+index is also used in \code{mods} or \code{scale} and the selection leaves one of its
+levels without rows, the fit stops with an error of class
+\code{RoBMA_structured_index_level_removed} (also \code{RoBMA_data_error}); remove the
+level from the data with \code{droplevels()} or use a separate column for the
+moderator.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support

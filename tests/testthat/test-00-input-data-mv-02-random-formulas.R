@@ -2082,7 +2082,7 @@ test_that("one supported nested wrapper remains one unambiguous component", {
 })
 
 
-test_that("random factor levels and actual AR1 covariance survive row selection", {
+test_that("structured index levels and actual AR1 covariance survive row selection", {
 
   dat <- data.frame(
     row_id = 1:6, yi = seq(0.1, 0.6, by = 0.1),
@@ -2126,7 +2126,11 @@ test_that("random factor levels and actual AR1 covariance survive row selection"
     design <- compiled[[i]][["formula_design"]]
     term <- design[["random_effects"]][[1L]]
     expect_identical(term[["structured_index"]][["levels"]], as.character(1:4))
-    expect_identical(term[["group_levels"]], levels(dat$study))
+    # An ordinary grouping factor is restricted to its retained rows by row
+    # selection, as before declared levels were preserved; only the structured
+    # index keeps levels that no retained row uses.
+    expect_identical(term[["group_levels"]],
+      if (i == 1L) levels(dat$study) else c("a", "b"))
     expect_identical(term[["group_map"]], rep(1:2, each = 3))
     expect_identical(colnames(term[["model_matrix"]]), paste0("time", 1:4))
     expect_equal(unname(term[["model_matrix"]][, 3L]), rep(0, 6))
@@ -2160,4 +2164,204 @@ test_that("random factor levels and actual AR1 covariance survive row selection"
     expect_identical(levels(prepared[["mods"]][["fixed"]]), c("u", "v"))
     expect_identical(prepared[["location"]][["time"]], prepared[["scale"]][["time"]])
   }
+})
+
+
+test_that("row selection drops levels that no retained row uses from fixed and grouping factors", {
+
+  dat <- data.frame(
+    yi    = seq(0.05, 0.9, length.out = 18),
+    vi    = rep(c(0.02, 0.03, 0.04), 6),
+    group = factor(rep(c("a", "b", "c"), 6)),
+    study = factor(rep(1:6, each = 3)),
+    x     = seq(-1, 1, length.out = 18)
+  )
+  construct <- function(data, mods, ...) {
+    brma.mv(
+      yi = yi, vi = vi, mods = mods, random = ~ 1 | study/group, data = data,
+      measure = "SMD", prior_unit_information_sd = 1, only_priors = TRUE,
+      silent = TRUE, ...
+    )
+  }
+  compile_location <- function(object) {
+    args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+    BayesTools::JAGS_formula(
+      formula = args$formula_list$mu, parameter = "mu",
+      data = args$formula_data_list$mu, prior_list = args$formula_prior_list$mu,
+      formula_scale = args$formula_scale_list$mu,
+      prior_random = args$formula_random_prior_list$mu,
+      random_effects_compile = args$formula_random_effects_compile_list$mu
+    )
+  }
+  expect_design <- function(selected, reference) {
+    # The selected design is the design of the data frame that never contained
+    # the removed level: the first retained level is the reference level.
+    for (frame in selected[["data"]][c("mods", "location")]) {
+      expect_identical(levels(frame[["group"]]), c("b", "c"))
+    }
+    expect_identical(attr(selected[["priors"]][["mods"]][["group"]], "level_names"),
+      c("b", "c"))
+    design <- compile_location(selected)[["formula_design"]]
+    expected <- compile_location(reference)[["formula_design"]]
+    expect_identical(design[["column_names"]], expected[["column_names"]])
+    expect_false("groupb" %in% design[["column_names"]])
+    expect_identical(design[["model_matrix"]], expected[["model_matrix"]])
+    expect_identical(design[["xlevels"]], expected[["xlevels"]])
+    expect_identical(selected[["priors"]][["mods"]], reference[["priors"]][["mods"]])
+  }
+
+  # subset removes the reference level of a factor shared with 'random'
+  keep <- dat$group != "a"
+  reference <- construct(droplevels(dat[keep, ]), ~ group)
+  expect_silent(selected <- construct(dat, ~ group, subset = keep))
+  expect_design(selected, reference)
+
+  # missing-row removal removes the reference level of the shared factor
+  missing <- dat
+  missing$x[missing$group == "a"] <- NA_real_
+  reference <- construct(droplevels(missing[keep, ]), ~ group + x)
+  expect_warning(
+    selected <- construct(missing, ~ group + x),
+    "6 observation(s) removed due to missing values.", fixed = TRUE
+  )
+  expect_design(selected, reference)
+
+  # the same holds when the shared factor also enters the scale design
+  scaled <- function(data, ...) {
+    brma.mv(
+      yi = yi, vi = vi, mods = ~ group, scale = ~ group,
+      random = ~ 1 | study/group, data = data, measure = "SMD",
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE, ...
+    )
+  }
+  selected <- scaled(dat, subset = keep)
+  expect_identical(levels(selected[["data"]][["scale"]][["group"]]), c("b", "c"))
+  expect_identical(selected[["data"]][["mods"]][["group"]],
+    selected[["data"]][["scale"]][["group"]])
+  expect_identical(selected[["data"]][["location"]][["group"]],
+    selected[["data"]][["mods"]][["group"]])
+})
+
+
+test_that("row selection keeps a structured index level that no retained row uses", {
+
+  dat <- data.frame(
+    yi    = seq(0.1, 0.8, by = 0.1),
+    time  = ordered(rep(1:4, 2), levels = 1:4),
+    study = factor(rep(c("a", "b"), each = 4), levels = c("a", "b", "unused"))
+  )
+  construct <- function(data, subset = NULL) {
+    args <- list(
+      yi = quote(yi), V = diag(0.04, nrow(data)), random = ~ ar1(time | study),
+      data = data, measure = "GEN",
+      prior_effect = BayesTools::prior("normal", list(0, 1)),
+      prior_heterogeneity = BayesTools::prior("point", list(1)),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    )
+    args$subset <- subset
+    do.call(brma.mv, args)
+  }
+  random_term <- function(object) {
+    args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+    BayesTools::JAGS_formula(
+      formula = args$formula_list$mu, parameter = "mu",
+      data = args$formula_data_list$mu, prior_list = args$formula_prior_list$mu,
+      formula_scale = args$formula_scale_list$mu,
+      prior_random = args$formula_random_prior_list$mu,
+      random_effects_compile = args$formula_random_effects_compile_list$mu
+    )[["formula_design"]][["random_effects"]][[1L]]
+  }
+
+  # the selection empties level 4 of the structured index, which is not shared
+  # with the fixed or scale design: the index keeps its declared level, so the
+  # AR1 spacing and matrix dimension are those of the declared index
+  selected <- construct(dat, subset = dat$time != "4")
+  term <- random_term(selected)
+  expect_identical(levels(selected[["data"]][["location"]][["time"]]), as.character(1:4))
+  expect_identical(term[["structured_index"]][["levels"]], as.character(1:4))
+  expect_identical(colnames(term[["model_matrix"]]), paste0("time", 1:4))
+  expect_equal(unname(term[["model_matrix"]][, 4L]), rep(0, 6))
+  # the ordinary grouping factor loses its unused level
+  expect_identical(term[["group_levels"]], c("a", "b"))
+  expect_identical(term[["group_map"]], rep(1:2, each = 3))
+})
+
+
+test_that("row selection refuses to empty a structured index level used in mods or scale", {
+
+  dat <- data.frame(
+    row_id = 1:8,
+    yi     = seq(0.1, 0.8, by = 0.1),
+    time   = ordered(rep(1:4, 2), levels = 1:4),
+    study  = factor(rep(c("a", "b"), each = 4)),
+    alt    = ordered(rep(1:4, 2), levels = 1:4)
+  )
+  construct <- function(data, mods = NULL, scale = NULL, subset = NULL) {
+    args <- list(
+      yi = quote(yi), V = diag(0.04, nrow(data)), random = ~ ar1(time | study),
+      data = data, measure = "GEN",
+      prior_effect = BayesTools::prior("normal", list(0, 1)),
+      prior_heterogeneity = BayesTools::prior("point", list(1)),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    )
+    args$mods   <- mods
+    args$scale  <- scale
+    args$subset <- subset
+    do.call(brma.mv, args)
+  }
+  keep <- dat$time != "4"
+  expect_refused <- function(expr, design) {
+    warned <- character()
+    condition <- withCallingHandlers(
+      tryCatch(expr, error = function(error) error),
+      warning = function(warning) {
+        warned <<- c(warned, conditionMessage(warning))
+        invokeRestart("muffleWarning")
+      }
+    )
+    expect_s3_class(condition, "RoBMA_structured_index_level_removed")
+    expect_s3_class(condition, "RoBMA_data_error")
+    expect_identical(warned, character())
+    message <- conditionMessage(condition)
+    expect_match(message, "structured random-effect index 'time'", fixed = TRUE)
+    expect_match(message, paste0("the '", design, "' design"), fixed = TRUE)
+    expect_match(message, "level(s) '4'", fixed = TRUE)
+    expect_match(message, "droplevels()", fixed = TRUE)
+    expect_match(message, "separate column", fixed = TRUE)
+    expect_null(condition[["call"]])
+  }
+
+  # subset empties level 4 of the index shared with the fixed design
+  expect_refused(construct(dat, mods = ~ time, subset = keep), "mods")
+  # ... or with the scale design
+  expect_refused(construct(dat, mods = ~ alt, scale = ~ time, subset = keep), "scale")
+  # ... or missing-row removal does, before it reports the removed rows
+  missing <- dat
+  missing$yi[missing$time == "4"] <- NA_real_
+  expect_refused(construct(missing, mods = ~ time), "mods")
+
+  # no level is emptied: the shared index keeps its declared levels
+  expect_silent(shared <- construct(dat, mods = ~ time, scale = ~ time,
+    subset = dat$row_id != 4L))
+  for (frame in shared[["data"]][c("mods", "scale", "location")]) {
+    expect_identical(levels(frame[["time"]]), as.character(1:4))
+  }
+
+  # remedies: drop the level from the data, or use a separate moderator column
+  trimmed <- construct(droplevels(dat[keep, ]), mods = ~ time)
+  expect_identical(levels(trimmed[["data"]][["location"]][["time"]]), as.character(1:3))
+  expect_silent(separate <- construct(dat, mods = ~ alt, subset = keep))
+  expect_identical(levels(separate[["data"]][["mods"]][["alt"]]), as.character(1:3))
+  expect_identical(levels(separate[["data"]][["location"]][["time"]]), as.character(1:4))
+
+  # CAR builds its time grid from the observed coordinates, so its time column
+  # has no declared levels to preserve
+  expect_silent(car_selected <- brma.mv(
+    yi = yi, V = diag(0.04, nrow(dat)), random = ~ car(time | study),
+    mods = ~ time, data = dat, subset = keep, measure = "GEN",
+    prior_effect = BayesTools::prior("normal", list(0, 1)),
+    prior_heterogeneity = BayesTools::prior("point", list(1)),
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+  ))
+  expect_identical(levels(car_selected[["data"]][["mods"]][["time"]]), as.character(1:3))
 })

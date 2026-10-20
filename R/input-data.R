@@ -72,6 +72,15 @@
 #' data to be used. Subsetting precedes missing-row removal; retained-row
 #' outcome and predictor checks follow these steps. Type, shape, and existing
 #' extraction checks can still reject malformed inputs before subsetting.
+#' Row selection (by `subset` or missing-row removal) drops factor levels left
+#' without rows from `mods`, `scale`, and random-effect grouping factors. The
+#' index of a structured random-effect term (`cs()`, `hcs()`, `ar1()`, `har()`)
+#' keeps its declared levels, which define the covariance structure. If such an
+#' index is also used in `mods` or `scale` and the selection leaves one of its
+#' levels without rows, the fit stops with an error of class
+#' `RoBMA_structured_index_level_removed` (also `RoBMA_data_error`); remove the
+#' level from the data with `droplevels()` or use a separate column for the
+#' moderator.
 #' @param measure a character string specifying the effect size measure.
 #' Normal/effect-size constructors require an explicit value and support
 #' `"SMD"`, `"ZCOR"`, `"RR"`, `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and `"GEN"`.
@@ -333,9 +342,7 @@ NULL
     stop("The 'scale' argument requires 'random' in multivariate models.", call. = FALSE)
   }
 
-  random_factor_columns <- names(data_random[["data"]])[
-    vapply(data_random[["data"]], is.factor, logical(1))
-  ]
+  structured_index_columns <- .check_and_list_data.structured_index_columns(data_random)
   data_mods  <- .check_and_list_data.coerce_character_predictors(data_mods)
   data_scale <- .check_and_list_data.scale_coerce_character_predictors(data_scale)
   if (!is.null(data_random[["data"]])) {
@@ -352,11 +359,15 @@ NULL
     keep_rows <- keep_rows & subset
 
     # Apply subsetting to all data frames
+    .check_and_list_data.validate_structured_index_levels(
+      data_mods, data_scale, subset, structured_index_columns,
+      selection = "'subset'"
+    )
     data_outcome <- .check_and_list_data.subset(data_outcome, subset)
-    data_mods    <- .check_and_list_data.subset(data_mods, subset, random_factor_columns)
-    data_scale   <- .check_and_list_data.scale_subset(data_scale, subset, random_factor_columns)
+    data_mods    <- .check_and_list_data.subset(data_mods, subset, structured_index_columns)
+    data_scale   <- .check_and_list_data.scale_subset(data_scale, subset, structured_index_columns)
     if (!is.null(data_random[["data"]])) {
-      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], subset, random_factor_columns)
+      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], subset, structured_index_columns)
     }
   }
 
@@ -387,17 +398,22 @@ NULL
       .check_and_list_data.stop_na(data_list_for_na)
     }
 
+    keep_after_subset <- !na_rows
+    .check_and_list_data.validate_structured_index_levels(
+      data_mods, data_scale, keep_after_subset, structured_index_columns,
+      selection = "missing-value removal"
+    )
+
     warning(paste0(n_dropped, " observation(s) removed due to missing values."), call. = FALSE, immediate. = TRUE)
 
-    keep_after_subset <- !na_rows
     current_rows <- which(keep_rows)
     keep_rows[current_rows] <- keep_after_subset
 
     data_outcome <- .check_and_list_data.subset(data_outcome, keep_after_subset)
-    data_mods    <- .check_and_list_data.subset(data_mods, keep_after_subset, random_factor_columns)
-    data_scale   <- .check_and_list_data.scale_subset(data_scale, keep_after_subset, random_factor_columns)
+    data_mods    <- .check_and_list_data.subset(data_mods, keep_after_subset, structured_index_columns)
+    data_scale   <- .check_and_list_data.scale_subset(data_scale, keep_after_subset, structured_index_columns)
     if (!is.null(data_random[["data"]])) {
-      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], keep_after_subset, random_factor_columns)
+      data_random[["data"]] <- .check_and_list_data.subset(data_random[["data"]], keep_after_subset, structured_index_columns)
     }
   }
 
@@ -1860,10 +1876,13 @@ NULL
 
 
 # Internal function to apply subsetting to a data.frame
-# Preserves formula attributes and drops unused factor levels
+# Preserves formula attributes and drops unused factor levels, except for the
+# declared levels of structured random-effect index columns
 #
 # @param df A data.frame (can be NULL)
 # @param subset A logical vector indicating which rows to keep
+# @param preserve_factor_columns Names of the factor columns that keep every
+#        declared level (see `.check_and_list_data.structured_index_columns()`)
 #
 # @return The subsetted data.frame (or NULL if input was NULL)
 .check_and_list_data.subset <- function(df, subset, preserve_factor_columns = character()) {
@@ -1881,7 +1900,7 @@ NULL
   # Apply subset
   df <- df[subset, , drop = FALSE]
 
-  # Declared random-factor levels define covariance indices and grouping levels.
+  # Drop unused factor levels; a structured index keeps its declared levels
   df <- droplevels(df, except = which(names(df) %in% preserve_factor_columns))
 
   # Reset row names
@@ -1913,6 +1932,98 @@ NULL
   }
 
   .check_and_list_data.subset(data_scale, subset, preserve_factor_columns)
+}
+
+# Factor columns of the random-effect data that are structured indices of a
+# `cs()`, `hcs()`, `ar1()` or `har()` term. BayesTools resolves such an index
+# from the declared levels of the factor, so they define the covariance
+# dimension and spacing, also for levels no retained row uses, and must survive
+# row selection. Other columns follow the ordinary rule that row selection drops
+# unused levels: coefficient and grouping factors (known `R` is restricted to
+# the fitted grouping levels) and the `car()` time column (its time grid is the
+# set of observed coordinates). Character columns have no declared levels.
+#
+# @param data_random The list returned by `.check_and_list_data.random()`
+#
+# @return A character vector of column names
+.check_and_list_data.structured_index_columns <- function(data_random) {
+
+  random_data <- data_random[["data"]]
+  if (is.null(random_data)) {
+    return(character())
+  }
+
+  structured <- c("cs", "hcs", "ar1", "har")
+  index_variables <- lapply(data_random[["terms"]], function(term) {
+    structure <- term[["structure"]]
+    if (is.character(structure) && length(structure) == 1L &&
+        tolower(structure) %in% structured) {
+      all.vars(term[["expr"]])
+    } else {
+      character()
+    }
+  })
+  columns <- intersect(unique(unlist(index_variables, use.names = FALSE)),
+                       names(random_data))
+
+  columns[vapply(random_data[columns], is.factor, logical(1))]
+}
+
+# A structured index that also enters the fixed or scale design keeps its
+# declared levels there too. Row selection that leaves one of its levels
+# without rows would give the moderator a coefficient (or the intercept) for an
+# empty level, so it is refused before any frame is changed.
+#
+# @param data_mods,data_scale The 'mods' and 'scale' frames before the selection
+# @param keep A logical vector of the rows the selection retains
+# @param structured_columns Names from `.check_and_list_data.structured_index_columns()`
+# @param selection Description of the selection step for the message
+.check_and_list_data.validate_structured_index_levels <- function(data_mods, data_scale,
+                                                                  keep, structured_columns,
+                                                                  selection) {
+
+  if (length(structured_columns) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  designs <- c(
+    if (!is.null(data_mods)) list(mods = data_mods),
+    .check_and_list_data.scale_na_frames(data_scale)
+  )
+  for (design in names(designs)) {
+    frame <- designs[[design]]
+    for (column in intersect(structured_columns, names(frame))) {
+      values  <- frame[[column]]
+      present <- !is.na(values)
+      emptied <- setdiff(as.character(values[present]),
+                         as.character(values[present & keep]))
+      emptied <- levels(values)[levels(values) %in% emptied]
+      if (length(emptied) == 0L) {
+        next
+      }
+
+      stop(structure(
+        list(
+          message = paste0(
+            "Row selection by ", selection, " leaves level(s) ",
+            paste0("'", emptied, "'", collapse = ", "),
+            " of the structured random-effect index '", column,
+            "' without observations, but the index is also used in the '",
+            design, "' design. A structured index keeps its declared levels, so ",
+            "that design would receive a coefficient for an empty level. ",
+            "Remove the empty level(s) from the data with 'droplevels()' if ",
+            "the random-effect index should not include them, or use a ",
+            "separate column for the moderator."
+          ),
+          call = NULL
+        ),
+        class = c("RoBMA_structured_index_level_removed", "RoBMA_data_error",
+                  "error", "condition")
+      ))
+    }
+  }
+
+  invisible(TRUE)
 }
 
 
