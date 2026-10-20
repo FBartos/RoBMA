@@ -645,7 +645,7 @@
     stop(errorCondition(
       message = paste0("Selected funnel contours were rejected by diagnostics: ",
         observed, ". Use 'sampling_bias = FALSE' for an unselected reference."),
-      class          = "RoBMA_funnel_quadrature_rejected",
+      class          = c("RoBMA_funnel_quadrature_rejected", "RoBMA_numerical_unavailable"),
       call           = NULL,
       ratio          = ratio,
       required_order = order,

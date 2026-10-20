@@ -168,6 +168,8 @@ test_that("funnel quadrature refuses an unresolved required order before expansi
   }
   condition <- tryCatch(.funnel_conditioned_order(1, 9), error = identity)
   expect_s3_class(condition, "RoBMA_funnel_quadrature_rejected")
+  expect_identical(class(condition), c("RoBMA_funnel_quadrature_rejected",
+    "RoBMA_numerical_unavailable", "error", "condition"))
   expect_identical(conditionMessage(condition), paste0(
     "Selected funnel contours were rejected by diagnostics: the conditioned-to-integrated ",
     "standard deviation ratio of 9 requires a quadrature order of 433 that the funnel ",

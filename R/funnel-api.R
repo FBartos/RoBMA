@@ -73,8 +73,12 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' Ordinary and constant-positive step-selection rows are evaluated as exact
 #' Gaussian components before conditioned-source quadrature. Remaining selected
 #' rows are unavailable when the required odd quadrature order exceeds the
-#' existing 401-node cap or is nonfinite. \code{max_samples} controls posterior
-#' rows and does not increase this quadrature budget.
+#' existing 401-node cap or is nonfinite; the call then stops with an error of
+#' class \code{RoBMA_funnel_quadrature_rejected}, whose parent class is
+#' \code{RoBMA_numerical_unavailable}, carrying the standard deviation
+#' \code{ratio}, the \code{required_order} and the \code{maximum} order.
+#' \code{max_samples} controls posterior rows and does not increase this
+#' quadrature budget.
 #' When \code{TRUE} and the model includes PET/PEESE, incorporates the expected
 #' skew from these regression adjustments.
 #' @param max_samples maximum number of posterior draws used by
