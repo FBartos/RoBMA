@@ -1382,6 +1382,10 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
     density_control  = list(n_points = 20, samples = 20)
   )
 
+  averaged_density <- BayesTools::posterior_metadata(
+    mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
+    "posterior_density"
+  )
   conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
@@ -1392,7 +1396,8 @@ test_that("marginal_means IWMDE ordinates do not expand plot densities", {
   )
   ordinate_diagnostic <- mm[["ordinate_diagnostics"]][["conditional"]][["alloc: alternate"]]
 
-  expect_true(max(conditional_density[["x"]]) < mm[["null_hypothesis"]])
+  expect_true(max(averaged_density[["x"]]) < mm[["null_hypothesis"]])
+  expect_null(conditional_density)
   expect_null(conditional_ordinate)
   expect_equal(ordinate_diagnostic[["iwmde"]][["x"]], mm[["null_hypothesis"]])
   expect_true(max(ordinate_diagnostic[["xlim"]]) < mm[["null_hypothesis"]])
@@ -1453,6 +1458,10 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     density_control   = density_control
   )
 
+  averaged_density <- BayesTools::posterior_metadata(
+    mm[["inference"]][["averaged"]][["mu_alloc"]][["alternate"]],
+    "posterior_density"
+  )
   conditional_density <- BayesTools::posterior_metadata(
     mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
     "posterior_density"
@@ -1465,8 +1474,9 @@ test_that("marginal_means refreshes BFs from BF-grade IWMDE densities", {
     object               = mm
   )
 
-  expect_equal(conditional_density[["density_method"]], "IWMDE")
-  expect_equal(conditional_density[["diagnostics"]][["estimator"]], "iwmde")
+  expect_equal(averaged_density[["density_method"]], "IWMDE")
+  expect_equal(averaged_density[["diagnostics"]][["estimator"]], "iwmde")
+  expect_null(conditional_density)
   expect_equal(
     BayesTools::posterior_metadata(
       mm[["inference"]][["conditional"]][["mu_alloc"]][["alternate"]],
