@@ -40,9 +40,6 @@
   from fixed-mean dependencies while retaining conservative mean-update guards.
 - Formula coefficient hypotheses and linear-context readers admit current
   BayesTools coefficient-transform metadata, requiring BayesTools >= 0.3.1.223.
-- Scenario benchmark source admission retains unresolved reflective effects
-  in fit-list names preparation and refuses them before scenario evaluation,
-  including blocks whose lists are otherwise unselected.
 - Central normal-interval log masses avoid cancellation while preserving the existing subnormal tail path.
 - Native plot quantiles preserve empty log masses and resolve collapsed positive-scale brackets on the representable grid.
 - Allocation-derived SD zero refusals identify the unique public omission
@@ -144,16 +141,11 @@
   uncertainty before averaging over observations.
 - Selected-normal quadrature discards incomplete batch products before scalar
   fallback; interval log masses use stable subtraction near equality.
-- Scenario benchmark names counters require stable list and loop outputs;
-  demanded counter preparation refuses a later output reassignment.
 - Group-IID random-covariance density shortcuts require declared fixed-mean
   invariance, including allocated SDs regenerated from replacement coordinates;
   candidate-dependent means use the accurate general evaluator.
 - BCG benchmark listing and filtered marginal comparisons retain the complete
   data unscaling and model-matrix preparation through one deferred input.
-- Scenario benchmarks admit fit-list preparation from bounded stable source
-  inputs before scenario evaluation, refusing demanded binding changes while
-  preserving lazy excluded artifacts and one-shot list/counter preparation.
 - Non-finite bridge repetitions raise a classed RoBMA error with public
   remedies and the intact upstream condition; unused add_marglik() arguments
   warn. Standardized comparison results require finite repetitions.
@@ -307,7 +299,12 @@
 - Explicit sampled mean-centered random effects remain sampled when automatic estimate-level marginalization is considered.
 - Prediction data parsing separates unused outcome fields from same-named predictors while retaining required response and PET/PEESE sampling inputs; explicit new-grid metadata records those placeholders.
 - A single nested random-effect component accepts supported covariance and named random wrappers using its parsed nesting metadata, while multiple ambiguous bare terms remain unavailable.
-- Random-effect factors retain declared index and grouping levels through subset and missing-row selection, including shared moderator and scale columns.
+- Row selection (`subset` and missing-row removal) drops factor levels left
+  without rows from moderator, scale and random-effect grouping factors; only
+  the index factors of structured `cs()`, `hcs()`, `ar1()` and `har()`
+  random-effect terms keep their declared levels. A structured index that also
+  enters `mods` or `scale` and loses a level to the selection stops with
+  `RoBMA_structured_index_level_removed`.
 - Diagonal sampling-input completion preserves supplied missingness and validates invalid retained values without dropping conversion-created missing rows.
 - Synthetic density-diagnostic fixtures declare their exact zero resolution component when checking attachment, value alignment, and validation-movement gates.
 - Independent physical integration tests cover shifted ordered-source numerators and ordinary/sharper selected two-dimensional block denominators, with their numerical error estimates retained.
