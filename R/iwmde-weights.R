@@ -204,7 +204,7 @@
   methods      <- character()
   partitions   <- list()
 
-  for (key in unique(active_keys[!is.na(active_keys)])) {
+  for (key in unique(active_keys)) {
     active_index <- which(active_keys == key)
     weight_index <- which(weight_keys == key)
     if (length(active_index) == 0L || length(weight_index) == 0L) {
@@ -221,9 +221,6 @@
       row_active    <- active_values[active_index]
       row_weight    <- weight_values[weight_index]
       log_jacobian  <- 0
-    }
-    if (!.iwmde_chen_valid_support(row_support)) {
-      next
     }
     if (!is.finite(row_support[1]) && !is.finite(row_support[2])) {
       weight <- .iwmde_chen_try_weight(

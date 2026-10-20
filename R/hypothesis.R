@@ -1003,16 +1003,14 @@ hypothesis.brma <- function(object, hypothesis,
     diagnostics[["requested_scale"]][matched] <- "variance"
     diagnostics[["evaluation_scale"]][matched] <- "sd"
     condition[["density_diagnostics"]] <- diagnostics
-    if (any(matched)) {
-      first <- which(matched)[[1L]]
-      condition[["message"]] <- .hypothesis_brma_iwmde_ordinate_failure_message(
-        density_method = density_method,
-        target = paste0(plan[["label"]], " = ", diagnostics[["requested_value"]][[first]]),
-        diagnostic = list(status = if (diagnostics[["status"]][[first]] == "rejected") "ok" else "unavailable"),
-        reason = diagnostics[["failure_reason"]][[first]],
-        numerical_status = diagnostics[["numerical_status"]][[first]]
-      )
-    }
+    first <- which(matched)[[1L]]
+    condition[["message"]] <- .hypothesis_brma_iwmde_ordinate_failure_message(
+      density_method = density_method,
+      target = paste0(plan[["label"]], " = ", diagnostics[["requested_value"]][[first]]),
+      diagnostic = list(status = if (diagnostics[["status"]][[first]] == "rejected") "ok" else "unavailable"),
+      reason = diagnostics[["failure_reason"]][[first]],
+      numerical_status = diagnostics[["numerical_status"]][[first]]
+    )
     stop(condition)
   })
 

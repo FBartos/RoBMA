@@ -210,12 +210,7 @@
       return(evaluate_directly(values))
     }
     out <- matrix(NA_real_, length(values), n_states)
-    requested <- evaluate(grid_context, values[inside])
-    if (is.null(requested)) {
-      inside <- rep(FALSE, length(values))
-    } else {
-      out[inside, ] <- requested
-    }
+    out[inside, ] <- evaluate(grid_context, values[inside])
     if (any(!inside)) {
       other <- evaluate_directly(values[!inside])
       if (!is.null(other)) {

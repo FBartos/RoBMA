@@ -44,7 +44,6 @@ parameter_draws.brma <- function(object, selection, model_samples = NULL, ...) {
       is.na(keys[[1L]][["type"]]) || !nzchar(keys[[1L]][["type"]])) {
     stop("RoBMA parameter quantity has no valid extraction key.", call. = FALSE)
   }
-  key <- keys[[1L]]
   .check_unused_dots(list(...), allowed = character(),
                      caller = "parameter_draws.brma()")
   catalog <- .brma_parameter_catalog_metadata(object)[["catalog"]]

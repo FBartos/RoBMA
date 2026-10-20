@@ -1008,14 +1008,6 @@
     n_values   = length(q_grid),
     stage      = "joint-density ordinate evaluation"
   )
-  quadrature_change <- attr(
-    log_q_grid,
-    "max_quadrature_relative_change",
-    exact = TRUE
-  )
-  if (is.null(quadrature_change)) {
-    quadrature_change <- NA_real_
-  }
   log_q_display <- log_q_grid[seq_along(display_grid), , drop = FALSE]
   log_q_norm <- if (has_normalization_grid) {
     log_q_grid[
@@ -1117,7 +1109,7 @@
     normalization_scale               = normalization[["scale_type"]],
     normalization_mass_ratio          = normalization[["mass_ratio"]],
     max_normalizer_relative_change    = NA_real_,
-    max_quadrature_relative_change    = quadrature_change,
+    max_quadrature_relative_change    = NA_real_,
     median_normalizer_relative_change = NA_real_,
     normalization_refined_points      = 0L,
     normalization_refined_range       = c(NA_real_, NA_real_),
