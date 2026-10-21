@@ -1481,6 +1481,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
   on.exit(unlink(review_root, recursive = TRUE), add = TRUE)
   staged_expected  <- character(nrow(changes))
   staged_candidate <- character(nrow(changes))
+  staged_md5       <- character(nrow(changes))
   for (i in seq_len(nrow(changes))) {
     directory <- file.path(
       review_root, "_snaps", changes[["scenario"]][[i]]
@@ -1491,13 +1492,20 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
     )
     staged_candidate[[i]] <- .scenario_candidate_path(staged_expected[[i]])
     if (new_baseline[[i]]) {
-      # an empty stand-in lets the review show the whole candidate as new
-      .scenario_write_lines(character(), staged_expected[[i]])
+      # A stand-in lets the review show the whole candidate as new. It never
+      # equals the candidate, so an unchanged stand-in means that the candidate
+      # was rejected and a stand-in equal to the candidate that it was accepted:
+      # empty, or one line for an empty candidate.
+      .scenario_write_lines(
+        if (file.size(changes[["candidate"]][[i]]) == 0) "No baseline yet." else character(),
+        staged_expected[[i]]
+      )
     } else {
       .scenario_copy_file(
         changes[["expected"]][[i]], staged_expected[[i]], "review snapshot"
       )
     }
+    staged_md5[[i]] <- unname(tools::md5sum(staged_expected[[i]]))
     .scenario_copy_file(
       changes[["candidate"]][[i]], staged_candidate[[i]], "review candidate"
     )
@@ -1524,11 +1532,7 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       )
       changes[["status"]][[i]] <- "accepted"
       unlink(changes[["candidate"]][[i]])
-    } else if (if (new_baseline[[i]]) {
-      file.size(staged_expected[[i]]) == 0
-    } else {
-      .scenario_files_identical(staged_expected[[i]], changes[["expected"]][[i]])
-    }) {
+    } else if (identical(unname(tools::md5sum(staged_expected[[i]])), staged_md5[[i]])) {
       changes[["status"]][[i]] <- "rejected"
       unlink(changes[["candidate"]][[i]])
     } else {

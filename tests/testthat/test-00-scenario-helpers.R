@@ -1456,6 +1456,50 @@ test_that("scenario review offers a candidate without a baseline", {
 })
 
 
+test_that("scenario review tells rejection from acceptance of an empty candidate without a baseline", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env   <- environment(scenario_text)
+  helper_names <- c(".scenario_is_interactive", ".scenario_snapshot_review")
+  old_helpers  <- mget(helper_names, envir = helper_env, inherits = FALSE)
+  on.exit(list2env(old_helpers, envir = helper_env), add = TRUE)
+  assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
+  assign(
+    ".scenario_snapshot_review",
+    function(path, files = NULL) {
+
+      # the protocol of testthat::snapshot_review(): accepting copies the
+      # candidate over the snapshot, accepting and rejecting remove the candidate
+      candidates <- list.files(
+        file.path(path, "_snaps"),
+        pattern    = "[.]new[.]txt$",
+        recursive  = TRUE,
+        full.names = TRUE
+      )
+      accept <- candidates[grepl("accept.*[.]new[.]txt$", basename(candidates))]
+      file.copy(accept, sub("[.]new[.]", ".", accept), overwrite = TRUE)
+      unlink(candidates)
+      return(TRUE)
+    },
+    envir = helper_env
+  )
+  results <- file.path(root, "results", "unit")
+  .scenario_write_lines(character(), file.path(results, "accept-empty.new.txt"))
+  .scenario_write_lines(character(), file.path(results, "reject-empty.new.txt"))
+  .scenario_write_lines("fresh", file.path(results, "reject-text.new.txt"))
+
+  changes <- suppressMessages(.scenario_review_snapshots(root, "unit", types = "table"))
+  expect_identical(changes[["name"]], c("unit/accept-empty", "unit/reject-empty", "unit/reject-text"))
+  expect_identical(changes[["status"]], c("accepted", "rejected", "rejected"))
+  expect_true(file.exists(file.path(results, "accept-empty.txt")))
+  expect_identical(file.size(file.path(results, "accept-empty.txt")), 0)
+  expect_false(file.exists(file.path(results, "reject-empty.txt")))
+  expect_false(file.exists(file.path(results, "reject-text.txt")))
+  expect_length(list.files(results, pattern = "[.]new[.]txt$"), 0L)
+})
+
+
 test_that("scenario review tolerates selected scenarios without candidates", {
 
   root <- .scenario_test_root()
