@@ -1660,6 +1660,17 @@ EVALUATE_DIRECT_BOUND <- 2^100
 # b * sum(b r / D) / (1 + sum(b^2 / D)), the estimate contribution
 # tau_within^2 / D * (r - cluster) and the total tau_within^2 / D * r +
 # vi / D * cluster.
+# The estimate contribution subtracts the cluster contribution from the
+# residual, here and in the checked route. With t = b^2 / D of a row and s the
+# sum of t over the other rows of its block, residuals that share the cluster
+# effect lose about log10(sqrt(min(t, 1 + s))) digits of r - cluster through
+# their own conditioning, in any form. When t also exceeds 1 + s by a factor f,
+# the subtraction loses about log10(f) digits more (all beyond f ~ 1e16): a very
+# precise estimate under much larger cluster heterogeneity. For a residual of z
+# marginal SDs the error stays below about 2^-53 sqrt(t) |z| posterior SDs of
+# the estimate-level effect (raw-unit data with f near 1e9: 7e-7 relative,
+# 1e-11 SD). Avoiding the f loss needs leave-one-out block sums for that row and
+# about a third more time for the BLUP.
 .multilevel_blup_direct <- function(tau_within, tau_between, vi, residual, block_indices) {
 
   S <- nrow(residual)
@@ -1782,6 +1793,7 @@ EVALUATE_DIRECT_BOUND <- 2^100
       cluster_contribution[regular, idx] <- .multilevel_conditional_cluster(
         tau_between[regular, idx, drop = FALSE], diagonal_sd[regular, idx, drop = FALSE],
         residual[regular, idx, drop = FALSE], rep(0, sum(regular)))
+      # Same accuracy limit as .multilevel_blup_direct().
       estimate_contribution[regular, idx] <- .multilevel_conditional_product(
         weights[["first"]], residual[regular, idx, drop = FALSE] -
           cluster_contribution[regular, idx, drop = FALSE])
