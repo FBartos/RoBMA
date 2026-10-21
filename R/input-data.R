@@ -74,13 +74,15 @@
 #' extraction checks can still reject malformed inputs before subsetting.
 #' Row selection (by `subset` or missing-row removal) drops factor levels left
 #' without rows from `mods`, `scale`, and random-effect grouping factors. The
-#' index of a structured random-effect term (`cs()`, `hcs()`, `ar1()`, `har()`)
-#' keeps its declared levels, which define the covariance structure. If such an
-#' index is also used in `mods` or `scale` and the selection leaves one of its
-#' levels without rows, the fit stops with an error of class
-#' `RoBMA_structured_index_level_removed` (also `RoBMA_data_error`); remove the
-#' level from the data with `droplevels()` or use a separate column for the
-#' moderator.
+#' index variable of a structured random-effect term (`cs()`, `hcs()`, `ar1()`,
+#' `har()` with one index variable) keeps its declared levels, which define the
+#' covariance structure; the variables of a multi-variable `cs(a + b | group)`
+#' index follow the ordinary rule, because that index is built from their
+#' observed combinations. If an index variable that keeps its levels is also used
+#' in `mods` or `scale` and loses one of its levels to the selection, the fit
+#' stops with an error of class `RoBMA_structured_index_level_removed` (also
+#' `RoBMA_data_error`); remove the level from the data with `droplevels()` or use
+#' a separate column for the moderator.
 #' @param measure a character string specifying the effect size measure.
 #' Normal/effect-size constructors require an explicit value and support
 #' `"SMD"`, `"ZCOR"`, `"RR"`, `"OR"`, `"HR"`, `"RD"`, `"IRR"`, and `"GEN"`.
