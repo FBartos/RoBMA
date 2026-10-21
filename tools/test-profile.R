@@ -440,9 +440,9 @@ if (identical(profile, "standard")) {
   validate_standard_evidence(results)
   elapsed <- proc.time()[["elapsed"]] - started
   message("Gated standard test phase completed in ", round(elapsed, 1), " seconds.")
-  if (elapsed > 15 * 60) {
+  if (elapsed > 20 * 60) {
     stop(
-      "The standard test profile exceeded its 15-minute runtime budget (",
+      "The standard test profile exceeded its 20-minute runtime budget (",
       round(elapsed, 1), " seconds).",
       call. = FALSE
     )

@@ -1,5 +1,7 @@
 context("Ordered primitive conditional density targets")
 
+source(testthat::test_path("common-functions.R"))
+
 .ordered_target_fixture <- function(total = BayesTools::prior("normal", list(0, 1)),
                                      allocation = NULL, shared = FALSE, total_shared = NULL, data = NULL) {
 
@@ -1895,6 +1897,7 @@ test_that("actual selected source normalizers retain the anchored prior constant
 }
 
 testthat::test_that("regular signed fixed-total interior retains positive conditional contributions", {
+  skip_if_not_certification("This ordered-target oracle runs in the iwmde-qcmde case.")
   fixture <- .ordered_review_fixed_fixture(2, c(1, 1, 1))
   selected <- .ordered_review_target(fixture, c(-1, 0, 1))
   target <- selected$target
@@ -1968,6 +1971,7 @@ testthat::test_that("uncertified interior limits stay capabilities while zero to
 })
 
 testthat::test_that("admitted nonpure share endpoints use the allocation group source", {
+  skip_if_not_certification("This ordered-target oracle runs in the iwmde-qcmde case.")
   fixture <- .ordered_review_fixed_fixture(1, c(.5, .5, 1))
   original_reference <- c(.39665640275463004, .46414550333288829, .66240827718740158)
   for (sign in c(1, -1)) {
@@ -2277,6 +2281,7 @@ testthat::test_that("fixed allocations with multiple total slices do not certify
 
 test_that("physical ordered block oracles cover shifted numerators and selected denominators", {
 
+  skip_if_not_certification("These production-budget block oracles run in the iwmde-qcmde case.")
   skip_on_cran()
   previous <- RoBMA.options()
   RoBMA.options(max_cores = 1L, native_threads = 1L)

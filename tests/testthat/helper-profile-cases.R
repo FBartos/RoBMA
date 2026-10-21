@@ -667,12 +667,24 @@ certification_cases <- function() {
         "iwmde_known_v_tau_null"
       ),
       test_filter = anchored(
-        "00-hypothesis-plan|",
+        "00-(hypothesis-plan|iwmde-ordered-targets)|",
         "02-(hypothesis|iwmde.*|marginal_means|random-parameters)|",
         "03-(bridgesampling|loo)"
       ),
       required_tests = rbind(
         .hypothesis_plan_required_tests(),
+        .required_tests(
+          "test-00-hypothesis-plan.R",
+          "synthetic continuous controls execute every advertised KDE plan"
+        ),
+        .required_tests(
+          "test-00-iwmde-ordered-targets.R",
+          c(
+            "regular signed fixed-total interior retains positive conditional contributions",
+            "admitted nonpure share endpoints use the allocation group source",
+            "physical ordered block oracles cover shifted numerators and selected denominators"
+          )
+        ),
         .required_tests(
           "test-02-iwmde-oracles.R",
           c(
@@ -684,6 +696,31 @@ certification_cases <- function() {
         .required_tests(
           "test-03-loo.R",
           "brma.mv known-V fits expose conditional estimate-unit LOO and WAIC"
+        )
+      )
+    ),
+    "tooling" = list(
+      description = paste(
+        "Scenario benchmark driver runs and fit-cache producer fixtures that",
+        "copy the package source tree or start child R processes."
+      ),
+      fit_sources = character(),
+      test_filter = anchored("00-scenario-benchmark|02-cache-catalog"),
+      required_tests = rbind(
+        .required_tests(
+          "test-00-scenario-benchmark.R",
+          c(
+            "benchmark workload and helpers belong to the driver tree",
+            "BCG marginal preparation agrees for full and selected synthetic cached inputs",
+            "benchmark option defaults and missing call metadata remain explicit"
+          )
+        ),
+        .required_tests(
+          "test-02-cache-catalog.R",
+          c(
+            "derived cache entries declare and validate consumed artifacts",
+            "warmed dependency objects retain first consumption conflicts"
+          )
         )
       )
     )

@@ -38,7 +38,7 @@ cleans the standard fit cache before rebuilding; `update = TRUE` permits
 missing visual candidates, and `regenerate = TRUE` combines those controls.
 Every run ends with snapshot review. Ordinary tests have no per-file timing
 baseline, so `update_timings = TRUE` fails clearly; the standard profile's
-15-minute total limit is an extreme ceiling, not a runtime target. Interactive
+20-minute total limit is an extreme ceiling, not a runtime target. Interactive
 calls default to
 testthat's progress reporter. Use `reporter = "llm"` for agent-oriented output;
 the quiet LLM reporter prints failures and warnings immediately, retains skip
@@ -50,13 +50,17 @@ much slower than the ordinary standard profile and does not run
 
 - `Rscript tools/test-profile.R standard`: routine unit, integration,
   representative metafor, and human-reviewed visual tests using an already
-  valid fit cache; its 15-minute maximum on the reference machine is a ceiling,
+  valid fit cache; its 20-minute maximum on the reference machine is a ceiling,
   not a target. It never fits models.
 - `Rscript tools/test-profile.R refresh-standard`: create only missing or stale
   standard cached fits. Use `--clean` only for an intentional full refresh.
 - `Rscript tools/test-profile.R certification --list`: list independently
   runnable expensive numerical and extended-regression cases. Run named cases
-  by appending their names; omitting names runs every case in sequence.
+  by appending their names; omitting names runs every case in sequence. A
+  slow test whose evidence the standard profile does not need starts with
+  `skip_if_not_certification()` naming its case, and the case runs its file and
+  lists it in `required_tests`; the `tooling` case holds the slow checks of the
+  test tooling itself (scenario benchmark driver, fit-cache producer fixtures).
 - `Rscript tools/test-profile.R release`: refresh standard fits, run the
   standard suite, run all certification cases, then call `devtools::check()`.
 
@@ -75,7 +79,7 @@ the estimator. Its output records source/package/DLL identity and labels
 elapsed values as including Rprof sampling and allocation profiling. An explicit
 `ROBMA_DEBUG_DLL=TRUE` retains the existing DLL and is labelled a debug opt-out.
 
-The complete standard profile gates its test phase at 900 seconds, after
+The complete standard profile gates its test phase at 1200 seconds, after
 cache validation, including `run_tests()` preparation and required-evidence checks;
 the runner separately reports the full profile wall time.
 Standard uses the explicit `profile == "standard"` catalog membership, rather

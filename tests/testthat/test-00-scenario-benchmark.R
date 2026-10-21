@@ -1,5 +1,7 @@
 context("Scenario benchmark preparation")
 
+source(testthat::test_path("common-functions.R"))
+
 
 .scenario_benchmark_fixture <- function(block, fits = list(needed = list(value = 7))) {
 
@@ -66,6 +68,7 @@ context("Scenario benchmark preparation")
 
 test_that("benchmark workload and helpers belong to the driver tree", {
 
+  skip_if_not_certification("These child-process driver runs belong to the tooling case.")
   root <- .scenario_benchmark_fixture('scenario_text("chosen", print("MAIN WORKLOAD"))')
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   target <- tempfile("robma-helperless-target-")
@@ -244,6 +247,7 @@ test_that("Bem-shaped fit-list construction keeps its named outputs and loop bin
 
 test_that("BCG marginal preparation agrees for full and selected synthetic cached inputs", {
 
+  skip_if_not_certification("These child-process driver runs belong to the tooling case.")
   root <- .scenario_marginal_fixture()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   full <- .scenario_benchmark_run(root, "--only=.")
@@ -362,6 +366,7 @@ test_that("benchmark cache loading validates genuine persisted fit contracts", {
 
 test_that("benchmark option defaults and missing call metadata remain explicit", {
 
+  skip_if_not_certification("These child-process driver runs belong to the tooling case.")
   block <- function(version = "") c(
     paste0('fit_needed <- scenario_fit("needed", stop("must never fit")', version, ')'),
     'scenario_text("chosen", dput(list(value = fit_needed$value, threads = RoBMA.get_option("native_threads"))))')

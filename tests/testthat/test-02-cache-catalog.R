@@ -363,6 +363,7 @@ test_that("helper initialization leaves product loading to the profile runner", 
 
 test_that("derived cache entries declare and validate consumed artifacts", {
 
+  skip_if_not_certification("These copied-source cache fixtures belong to the tooling case.")
   skip_on_cran()
   .with_cache_source_fixture(function(e, root) {
     parents <- .cache_dependency_parents(e)
@@ -459,6 +460,7 @@ test_that("derived cache saves require current generation consumption receipts",
 
 test_that("warmed dependency objects retain first consumption conflicts", {
 
+  skip_if_not_certification("These copied-source cache fixtures belong to the tooling case.")
   skip_on_cran()
   for (artifact in c("fit", "info")) {
     .with_cache_source_fixture(function(e, root) {
@@ -545,6 +547,8 @@ test_that("present corrupt info cannot authorize a derived cache save", {
 
 test_that("cache inventory assertion rejects inactive and uncatalogued artifacts", {
 
+  skip_if(is_certification_profile(),
+          "The fixture switches to the standard profile, which changes the producer provenance of a certification process.")
   skip_on_cran()
   .with_cache_source_fixture(function(e, root) {
     withr::local_envvar(c(ROBMA_TEST_PROFILE = "standard", ROBMA_TEST_ACTIVE_FITS = ""))
@@ -1481,6 +1485,8 @@ test_that("cache validation rejects corrupted synthetic metadata", {
 
 test_that("cached fits are catalogued and valid", {
 
+  skip_if(is_certification_profile(),
+          "A certification case activates only its own fits; the standard profile checks the cache inventory.")
   skip_on_cran()
 
   cached_names <- list_fits(validate = FALSE, active_only = FALSE)

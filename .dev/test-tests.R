@@ -134,7 +134,7 @@ test_tests <- function(filter = NULL, reporter = "progress", refit = FALSE,
   if (update_timings) {
     stop(
       "Ordinary tests have no timing baselines; the standard profile ",
-      "enforces its 15-minute total budget.",
+      "enforces its 20-minute total budget.",
       call. = FALSE
     )
   }

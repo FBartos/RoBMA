@@ -306,7 +306,8 @@ test_that("certification cases partition expensive evidence", {
     "multivariate-parity-nested",
     "multivariate-parity-har",
     "multivariate-parity-treatment",
-    "iwmde-qcmde"
+    "iwmde-qcmde",
+    "tooling"
   ))
 
   test_files <- list.files(
@@ -591,7 +592,7 @@ test_that("certification case verification filters select their intended files",
     "multivariate-parity-har"       = multivariate,
     "multivariate-parity-treatment" = multivariate,
     "iwmde-qcmde" = c(
-      "00-hypothesis-plan", "02-hypothesis",
+      "00-hypothesis-plan", "00-iwmde-ordered-targets", "02-hypothesis",
       paste0("02-iwmde-", c(
         "adaptive", "api", "bound-rows", "chen-boundary-preflight",
         "fallbacks", "fast-paths", "glmm-local", "known-v-tau-fast-path",
@@ -601,7 +602,8 @@ test_that("certification case verification filters select their intended files",
       )),
       "02-marginal_means", "02-random-parameters", "03-bridgesampling",
       "03-loo"
-    )
+    ),
+    "tooling" = c("00-scenario-benchmark", "02-cache-catalog")
   )
 
   expect_identical(names(expected), certification_case_names())

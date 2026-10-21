@@ -80,6 +80,7 @@ test_that("hypothesis_quantities() renders the plans that hypothesis() executes"
 
 test_that("synthetic continuous controls execute every advertised KDE plan", {
 
+  skip_if_not_certification("This KDE plan matrix runs in the iwmde-qcmde case.")
   skip_on_cran()
   fixtures <- list(
     gated     = gated_random_object(),
