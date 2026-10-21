@@ -39,7 +39,8 @@
   `"study/esid_1"`.
 - `plot_prior()` draws the bias-only curves of single PET and PEESE priors and
   of their mixtures with the effect direction of the object, as
-  `plot_pet_peese()` does.
+  `plot_pet_peese()` does; a single prior is drawn as the one-component mixture
+  (bias-only curve, the mixture title and plotting grid).
 - Influence diagnostics that reuse the cached LOO result (`dfbetas()`,
   `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
   warn about high Pareto k values at the same draw-count-dependent cutoff and
