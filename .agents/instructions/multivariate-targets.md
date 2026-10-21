@@ -163,8 +163,13 @@ Declared singleton prediction sampling batches row-ordered normals only when
 all variances are finite and nonnegative; otherwise the original per-draw
 classifier preserves the failure point. Other whole matrices of at most 32 rows
 use the original assembled sampling and Cholesky solve. This private execution
-boundary changes no support/rank policy. Larger declared-block sampling uses
-block factors only after whole-draw
+boundary changes no support/rank policy. Above 32 rows the block route is used
+from measured break-even sizes (`R/block-covariance.R`): sampling when every
+block is draw-invariant (its guard is cached once) and, for covariance that
+varies by draw, from K = 150 rows; total solves, which recompute each block's
+factor per draw, from K = 400 rows for draw-invariant blocks and K = 700 for
+draw-varying blocks. Smaller whole matrices keep the assembled route.
+Block sampling uses block factors only after whole-draw
 eligibility checks: exact diagonal/rank-one support or a positive correlation
 eigenvalue above the conservative whole-K gamma margin. Uncertain, near-boundary,
 invalid and unexpectedly unavailable block factors retain the original assembled

@@ -216,15 +216,19 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
   # the same normal: precision 1 / .2^2 + 4 / .2^2 and mean
   # (.4 / .2^2 + sum(yi) / .2^2) / precision. The qCMDE ordinate is the mean of
   # these exact conditional ordinates, and the prior ordinate is that of
-  # normal(.4, .2). The allowance is the numerical error reported by the
-  # diagnostics (an error e of the ordinate moves the log Bayes factor by
-  # log1p(e) at most), plus rounding.
+  # normal(.4, .2). The reference is exact and all 120 rows are evaluated, and
+  # the realized difference is 1.3e-15 in the log Bayes factor (measured on
+  # 4.1.0.436), so the tolerance of 1e-12 leaves three orders of rounding room
+  # and still detects a relative bias of the ordinate above 1e-12. The numerical
+  # error reported by the diagnostics (an error e of the ordinate moves the log
+  # Bayes factor by log1p(e) at most) is a coarser bound that must cover it.
   precision <- 125
   expected <- stats::dnorm(.1, .4, .2, log = TRUE) -
     stats::dnorm(.1, (.4 / .2^2 + sum(c(.1, .2, .15, .25)) / .2^2) / precision,
                  sqrt(1 / precision), log = TRUE)
   reported <- diagnostics$normalization_relative_error + diagnostics$stability_relative_error +
     diagnostics$lattice_resolution_relative_error + diagnostics$truncation_ordinate_bound
+  expect_lte(abs(attr(point, "raw_log_BF") - expected), 1e-12)
   expect_lte(abs(attr(point, "raw_log_BF") - expected),
              log1p(reported) + 64 * .Machine$double.eps)
 })
@@ -877,9 +881,13 @@ test_that("E2-c2 actual scaled-expression warnings retain their rewritten identi
   # sum(2 * z * (yi - intercept)) / (variance * precision), where z indicates
   # level B and 2 is the coefficient multiplier. The qCMDE ordinate of
   # 2 * g[B] is the mean of these exact conditional ordinates over the retained
-  # rows; its prior ordinate is that of normal(0, 2). The allowance is the
-  # numerical error reported by the diagnostics plus rounding; the sampling
-  # warnings above concern the replayed rows, not this comparison.
+  # rows; its prior ordinate is that of normal(0, 2). The reference is exact and
+  # all 240 rows are evaluated, and the realized relative difference is 2.2e-16
+  # for both targets (measured on 4.1.0.436), so the tolerance of 1e-12 leaves
+  # three orders of rounding room and still detects a relative bias of the
+  # ordinate above 1e-12. The numerical error reported by the diagnostics is a
+  # coarser bound that must cover it; the sampling warnings above concern the
+  # replayed rows, not this comparison.
   intercept <- as.matrix(fixture$fit$mcmc)[, "mu_intercept"]
   yi        <- c(-.2, .3, 0, .4, .1, .2)
   z         <- rep(c(0, 1), 3L)
@@ -895,6 +903,7 @@ test_that("E2-c2 actual scaled-expression warnings retain their rewritten identi
   diagnostics <- density_diagnostics(result)
   reported <- diagnostics$normalization_relative_error + diagnostics$stability_relative_error +
     diagnostics$lattice_resolution_relative_error + diagnostics$truncation_ordinate_bound
+  expect_true(all(abs(as.numeric(result$BF) / expected - 1) <= 1e-12))
   expect_true(all(abs(as.numeric(result$BF) / expected - 1) <=
                     reported + 64 * .Machine$double.eps))
   warnings <- attr(result, "warnings", exact = TRUE)
