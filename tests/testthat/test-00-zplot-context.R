@@ -453,7 +453,8 @@ test_that("the vectorized transition rule decides every branch like the rule at 
   decide(TRUE, 0)
   decide(TRUE, 0, residual_sd = .5)
   decide(FALSE, 0, residual_sd = .49)
-  # Nodes are sorted first; duplicated, non-finite and too few nodes fail.
+  # Nodes are sorted first, which drops NA nodes; duplicated, infinite and too
+  # few nodes fail.
   decide(TRUE, .25, nodes = rev(grid))
   decide(TRUE, .25, nodes = c(grid, NA))
   decide(FALSE, .25, nodes = c(grid, grid[1L]))

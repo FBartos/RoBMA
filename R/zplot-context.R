@@ -99,7 +99,6 @@
 .selection_transition_rule_resolves_rows <- function(nodes, means, residual_sd, loading,
                                                      sei, selection, axes = seq_len(ncol(loading))) {
 
-  stopifnot(is.matrix(means), ncol(means) == nrow(loading))
   if (!nrow(means)) return(TRUE)
   if (!is.null(selection$kernel_mode) && selection$kernel_mode[[1L]] == SELKERNEL_NORMAL) return(TRUE)
   omega <- as.numeric(selection$omega[1L, ])
