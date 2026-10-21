@@ -1,3 +1,3 @@
-  rho density_brma_BF density_mv_diag_BF marglik_brma_BF marglik_mv_diag_BF
-1   0    1.967244e+13       2.131189e+13    2.038436e+13       2.046797e+13
-2   1    9.473921e+16       9.995020e+16              NA       7.343967e+16
+  rho density_brma_BF density_brma_error_percent density_mv_diag_BF density_mv_diag_error_percent marglik_brma_BF marglik_mv_diag_BF
+1   0    1.967244e+13                   9.167980       2.131189e+13                      7.539611    2.038436e+13       2.046797e+13
+2   1    9.473921e+16                   6.675688       9.995020e+16                      7.320051              NA       7.343967e+16

@@ -8,3 +8,5 @@ tau:
     (1/2) * Normal(0, 0.5)[0, Inf]
   null:
     (1/2) * Spike(0)
+phi:
+  independent contrast: Normal(-6.02, 1)

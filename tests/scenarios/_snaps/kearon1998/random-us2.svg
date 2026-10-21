@@ -234,7 +234,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMC4wMHwzNjAuMDB8Mzg0LjAwfDU3Ni4wMA==)'>
-<text x='189.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='99.06px' lengthAdjust='spacingAndGlyphs'>tau2_mult(group[sensitivity])</text>
+<text x='189.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='137.79px' lengthAdjust='spacingAndGlyphs'>tau2_mult(group[sensitivity]) (log scale)</text>
 <text transform='translate(8.55,475.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzguOTd8MzQwLjA0fDQyMi45N3w1MjcuNTM=)'>
@@ -278,7 +278,7 @@
   </clipPath>
 </defs>
 <g clip-path='url(#cpMzYwLjAwfDcyMC4wMHwzODQuMDB8NTc2LjAw)'>
-<text x='549.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='94.65px' lengthAdjust='spacingAndGlyphs'>tau_mult(group[specificity])</text>
+<text x='549.50' y='563.64' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='133.39px' lengthAdjust='spacingAndGlyphs'>tau_mult(group[specificity]) (log scale)</text>
 <text transform='translate(368.55,475.25) rotate(-90)' text-anchor='middle' style='font-size: 7.92px; font-family: sans;' textLength='26.42px' lengthAdjust='spacingAndGlyphs'>Density</text>
 </g>
 <g clip-path='url(#cpMzk4Ljk3fDcwMC4wNHw0MjIuOTd8NTI3LjUz)'>

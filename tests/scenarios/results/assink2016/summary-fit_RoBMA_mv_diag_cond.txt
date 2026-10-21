@@ -6,6 +6,7 @@ Component Inclusion
 Effect                         0.500       0.250        0.334               11.889
 Heterogeneity: tau_total       0.500       1.000   >14999.000                   NA
 Publication Bias               0.500       0.996      233.375               36.280
+[0;31mBayes factor MC error for bias is based on 64 posterior samples from the less frequent model.[0m
 
 Estimates
                        Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat

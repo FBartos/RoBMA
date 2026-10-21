@@ -1,4 +1,4 @@
-         metafor         mu         mu
+         metafor    brma.mv   brma.uni
 pred   0.4267994  0.4138570  0.4153927
 ci.lb  0.1946824  0.1899486  0.1827404
 ci.ub  0.6589163  0.6372719  0.6490657

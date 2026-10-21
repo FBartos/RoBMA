@@ -1,2 +1,2 @@
-   bridge        SD 
-0.6003264 0.5900575 
+  bridge_BF  qCMDE_BF qCMDE_error_percent
+1 0.5990285 0.5980573            7.264782

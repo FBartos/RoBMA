@@ -1,2 +1,2 @@
- marglik  density 
-5.131426 4.937680 
+  marglik_BF density_BF density_error_percent
+1   5.131426    4.93768               3.18288
