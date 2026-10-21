@@ -2243,6 +2243,16 @@ test_that("row selection drops levels that no retained row uses from fixed and g
 })
 
 
+# Single-variable structured indices, whose declared levels define the covariance
+# dimension and spacing, in each spelling that reaches the structured compiler.
+structured_index_formulas <- list(
+  ar1     = ~ ar1(time | study),
+  har     = ~ har(time | study),
+  cs      = ~ cs(time | study),
+  hcs     = ~ hcs(time | study),
+  wrapper = ~ random(time | study, covariance = "ar1")
+)
+
 test_that("row selection keeps a structured index level that no retained row uses", {
 
   dat <- data.frame(
@@ -2250,9 +2260,9 @@ test_that("row selection keeps a structured index level that no retained row use
     time  = ordered(rep(1:4, 2), levels = 1:4),
     study = factor(rep(c("a", "b"), each = 4), levels = c("a", "b", "unused"))
   )
-  construct <- function(data, subset = NULL) {
+  construct <- function(data, random, subset = NULL) {
     args <- list(
-      yi = quote(yi), V = diag(0.04, nrow(data)), random = ~ ar1(time | study),
+      yi = quote(yi), V = diag(0.04, nrow(data)), random = random,
       data = data, measure = "GEN",
       prior_effect = BayesTools::prior("normal", list(0, 1)),
       prior_heterogeneity = BayesTools::prior("point", list(1)),
@@ -2274,16 +2284,19 @@ test_that("row selection keeps a structured index level that no retained row use
 
   # the selection empties level 4 of the structured index, which is not shared
   # with the fixed or scale design: the index keeps its declared level, so the
-  # AR1 spacing and matrix dimension are those of the declared index
-  selected <- construct(dat, subset = dat$time != "4")
-  term <- random_term(selected)
-  expect_identical(levels(selected[["data"]][["location"]][["time"]]), as.character(1:4))
-  expect_identical(term[["structured_index"]][["levels"]], as.character(1:4))
-  expect_identical(colnames(term[["model_matrix"]]), paste0("time", 1:4))
-  expect_equal(unname(term[["model_matrix"]][, 4L]), rep(0, 6))
-  # the ordinary grouping factor loses its unused level
-  expect_identical(term[["group_levels"]], c("a", "b"))
-  expect_identical(term[["group_map"]], rep(1:2, each = 3))
+  # covariance spacing and matrix dimension are those of the declared index
+  for (name in names(structured_index_formulas)) {
+    selected <- construct(dat, structured_index_formulas[[name]], subset = dat$time != "4")
+    term <- random_term(selected)
+    expect_identical(levels(selected[["data"]][["location"]][["time"]]),
+      as.character(1:4), label = name)
+    expect_identical(term[["structured_index"]][["levels"]], as.character(1:4), label = name)
+    expect_identical(colnames(term[["model_matrix"]]), paste0("time", 1:4), label = name)
+    expect_equal(unname(term[["model_matrix"]][, 4L]), rep(0, 6), label = name)
+    # the ordinary grouping factor loses its unused level
+    expect_identical(term[["group_levels"]], c("a", "b"), label = name)
+    expect_identical(term[["group_map"]], rep(1:2, each = 3), label = name)
+  }
 })
 
 
@@ -2296,9 +2309,9 @@ test_that("row selection refuses to empty a structured index level used in mods 
     study  = factor(rep(c("a", "b"), each = 4)),
     alt    = ordered(rep(1:4, 2), levels = 1:4)
   )
-  construct <- function(data, mods = NULL, scale = NULL, subset = NULL) {
+  construct <- function(data, random, mods = NULL, scale = NULL, subset = NULL) {
     args <- list(
-      yi = quote(yi), V = diag(0.04, nrow(data)), random = ~ ar1(time | study),
+      yi = quote(yi), V = diag(0.04, nrow(data)), random = random,
       data = data, measure = "GEN",
       prior_effect = BayesTools::prior("normal", list(0, 1)),
       prior_heterogeneity = BayesTools::prior("point", list(1)),
@@ -2331,28 +2344,35 @@ test_that("row selection refuses to empty a structured index level used in mods 
     expect_null(condition[["call"]])
   }
 
-  # subset empties level 4 of the index shared with the fixed design
-  expect_refused(construct(dat, mods = ~ time, subset = keep), "mods")
-  # ... or with the scale design
-  expect_refused(construct(dat, mods = ~ alt, scale = ~ time, subset = keep), "scale")
-  # ... or missing-row removal does, before it reports the removed rows
-  missing <- dat
-  missing$yi[missing$time == "4"] <- NA_real_
-  expect_refused(construct(missing, mods = ~ time), "mods")
+  for (name in names(structured_index_formulas)) {
+    random <- structured_index_formulas[[name]]
 
-  # no level is emptied: the shared index keeps its declared levels
-  expect_silent(shared <- construct(dat, mods = ~ time, scale = ~ time,
-    subset = dat$row_id != 4L))
-  for (frame in shared[["data"]][c("mods", "scale", "location")]) {
-    expect_identical(levels(frame[["time"]]), as.character(1:4))
+    # subset empties level 4 of the index shared with the fixed design
+    expect_refused(construct(dat, random, mods = ~ time, subset = keep), "mods")
+    # ... or with the scale design
+    expect_refused(construct(dat, random, mods = ~ alt, scale = ~ time, subset = keep), "scale")
+    # ... or missing-row removal does, before it reports the removed rows
+    missing <- dat
+    missing$yi[missing$time == "4"] <- NA_real_
+    expect_refused(construct(missing, random, mods = ~ time), "mods")
+
+    # no level is emptied: the shared index keeps its declared levels
+    expect_silent(shared <- construct(dat, random, mods = ~ time, scale = ~ time,
+      subset = dat$row_id != 4L))
+    for (frame in shared[["data"]][c("mods", "scale", "location")]) {
+      expect_identical(levels(frame[["time"]]), as.character(1:4), label = name)
+    }
+
+    # remedies: drop the level from the data, or use a separate moderator column
+    trimmed <- construct(droplevels(dat[keep, ]), random, mods = ~ time)
+    expect_identical(levels(trimmed[["data"]][["location"]][["time"]]),
+      as.character(1:3), label = name)
+    expect_silent(separate <- construct(dat, random, mods = ~ alt, subset = keep))
+    expect_identical(levels(separate[["data"]][["mods"]][["alt"]]),
+      as.character(1:3), label = name)
+    expect_identical(levels(separate[["data"]][["location"]][["time"]]),
+      as.character(1:4), label = name)
   }
-
-  # remedies: drop the level from the data, or use a separate moderator column
-  trimmed <- construct(droplevels(dat[keep, ]), mods = ~ time)
-  expect_identical(levels(trimmed[["data"]][["location"]][["time"]]), as.character(1:3))
-  expect_silent(separate <- construct(dat, mods = ~ alt, subset = keep))
-  expect_identical(levels(separate[["data"]][["mods"]][["alt"]]), as.character(1:3))
-  expect_identical(levels(separate[["data"]][["location"]][["time"]]), as.character(1:4))
 
   # CAR builds its time grid from the observed coordinates, so its time column
   # has no declared levels to preserve
