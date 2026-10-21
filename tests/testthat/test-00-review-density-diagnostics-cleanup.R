@@ -23,7 +23,11 @@ test_that("density warnings name their observed thresholds and sample control", 
 
 test_that("ordinate failure messages carry one inspect sentence", {
 
-  inspect_count <- function(text) length(gregexpr("[Ii]nspect", text)[[1L]])
+  # gregexpr() reports no match as the single position -1
+  inspect_count <- function(text) sum(gregexpr("[Ii]nspect", text)[[1L]] > 0L)
+  expect_identical(inspect_count("target is unsupported."), 0L)
+  expect_identical(inspect_count("Inspect diagnostics."), 1L)
+  expect_identical(inspect_count("Inspect diagnostics. Inspect again."), 2L)
   rejected <- .hypothesis_brma_iwmde_ordinate_failure_message("qCMDE", "mu = 0",
     list(status = "ok"), paste0("qCMDE lattice resolution error estimate is unbounded. ",
       "Increase 'normalization_points' in the 'density_control' argument and inspect ",
