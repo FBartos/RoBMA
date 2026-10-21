@@ -18,7 +18,7 @@
   counts compactly and give one remedy; density construction errors also
   carry the class `RoBMA_density_error`.
 - Restore the runtime of binomial GLMM AGHQ with non-uniform beta baserate
-  priors, rank-one cluster selection densities, multilevel BLUP and true-effect
+  priors, multilevel BLUP and true-effect
   evaluation, sampling-conditioned tail and moment targets, whitened known-V
   joint likelihoods, block-wise covariance sampling and solves (the block-wise
   route is used only where it is faster than the dense one), and z-curve plots
@@ -26,14 +26,20 @@
   40x slower). Results agree with 4.1.0.420 to rounding; seeded predictive draws
   change only where the covariance route returns to the dense one of 4.1.0.229.
   Binomial GLMM AGHQ links its kernel first to keep the faster code placement.
+  Rank-one cluster selection densities avoid repeated bracketing work, but
+  selection likelihoods remain slower than in 4.1.0.229 where deterministic
+  quadrature must now resolve every selection transition (coupled factor-step
+  blocks use finer rules, and some rows of random-formula qCMDE densities use
+  the randomized fallback).
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.
 - `summary_heterogeneity()` component selectors accept the unique names that
   the complete result gives to allocation summaries with the same name, such as
   `"study/esid_1"`.
-- `plot_prior()` draws the bias-only curves of PET and PEESE mixtures with the
-  effect direction of the object, as `plot_pet_peese()` does.
+- `plot_prior()` draws the bias-only curves of single PET and PEESE priors and
+  of their mixtures with the effect direction of the object, as
+  `plot_pet_peese()` does.
 - Influence diagnostics that reuse the cached LOO result (`dfbetas()`,
   `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
   warn about high Pareto k values at the same draw-count-dependent cutoff and
@@ -227,7 +233,9 @@
 - Declared singleton covariance draws batch their assigned normals, while small
   selected conditional matrices use the original assembled factor and solve.
 - Multilevel conditional arithmetic checks prior/noise products and the final
-  total mean against unavailable nonfinite or underflowed working values.
+  total mean against unavailable nonfinite or underflowed working values when
+  an SD or residual lies outside [2^-100, 2^100]; within that range the direct
+  arithmetic is used and a product below the double range rounds to zero.
 - Specialized multilevel BLUP totals retain their stable weighted mean instead
   of re-adding potentially canceling cluster and within contributions.
 - Ordinary singleton selected predictions use exact-cell chunk pricing with
@@ -318,10 +326,11 @@
 - A single nested random-effect component accepts supported covariance and named random wrappers using its parsed nesting metadata, while multiple ambiguous bare terms remain unavailable.
 - Row selection (`subset` and missing-row removal) drops factor levels left
   without rows from moderator, scale and random-effect grouping factors; only
-  the index factors of structured `cs()`, `hcs()`, `ar1()` and `har()`
-  random-effect terms keep their declared levels. A structured index that also
-  enters `mods` or `scale` and loses a level to the selection stops with
-  `RoBMA_structured_index_level_removed`.
+  the single index factor of a structured `cs()`, `hcs()`, `ar1()` or `har()`
+  random-effect term keeps its declared levels (the variables of a
+  multi-variable `cs(a + b | group)` index follow the ordinary rule). A
+  structured index that also enters `mods` or `scale` and loses a level to the
+  selection stops with `RoBMA_structured_index_level_removed`.
 - Diagonal sampling-input completion preserves supplied missingness and validates invalid retained values without dropping conversion-created missing rows.
 - Ordered constant-contribution uncertainty certificates require a single declared total slice; multiple slices retain ordinary uncertainty and its existing availability diagnostics.
 - Admitted ordered share endpoints use the existing allocation group chart for unequal nonzero coefficients and preserve the exact declared affine offset.
@@ -351,7 +360,7 @@
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.223 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.227 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
     That BayesTools version is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,
