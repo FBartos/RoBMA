@@ -2365,3 +2365,60 @@ test_that("row selection refuses to empty a structured index level used in mods 
   ))
   expect_identical(levels(car_selected[["data"]][["mods"]][["time"]]), as.character(1:3))
 })
+
+
+test_that("a multi-variable cs() or hcs() index follows the ordinary row-selection rule", {
+
+  # BayesTools builds the index of cs(outcome + arm | study) from the observed
+  # (outcome, arm) cells, so the declared levels of its variables define neither
+  # spacing nor matrix dimensions: the selection drops an emptied level of
+  # 'outcome' from the random data and from 'mods' as it does for any factor.
+  dat <- data.frame(
+    yi      = seq(0.05, 0.9, length.out = 24),
+    outcome = factor(rep(c("a", "b", "c"), 8)),
+    arm     = factor(rep(rep(c("x", "y"), each = 3), 4)),
+    study   = factor(rep(1:4, each = 6))
+  )
+  keep <- dat$outcome != "c"
+  construct <- function(data, random, mods = NULL, subset = NULL) {
+    args <- list(
+      yi = quote(yi), V = diag(0.04, nrow(data)), random = random,
+      data = data, measure = "GEN",
+      prior_effect = BayesTools::prior("normal", list(0, 1)),
+      prior_heterogeneity = BayesTools::prior("point", list(1)),
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE
+    )
+    args$mods   <- mods
+    args$subset <- subset
+    do.call(brma.mv, args)
+  }
+  compile <- function(object) {
+    args <- .create_jags_formula_args(object[["data"]], object[["priors"]])
+    BayesTools::JAGS_formula(
+      formula = args$formula_list$mu, parameter = "mu",
+      data = args$formula_data_list$mu, prior_list = args$formula_prior_list$mu,
+      formula_scale = args$formula_scale_list$mu,
+      prior_random = args$formula_random_prior_list$mu,
+      random_effects_compile = args$formula_random_effects_compile_list$mu
+    )[["formula_design"]]
+  }
+
+  for (structure in c("cs", "hcs")) {
+    random <- stats::as.formula(paste0("~ ", structure, "(outcome + arm | study)"))
+    for (mods in list(NULL, ~ outcome)) {
+      label <- paste(structure, if (is.null(mods)) "random only" else "shared with mods")
+      expect_silent(selected <- construct(dat, random, mods = mods, subset = keep))
+      reference <- construct(droplevels(dat[keep, ]), random, mods = mods)
+      expect_identical(levels(selected[["data"]][["location"]][["outcome"]]),
+        c("a", "b"), label = label)
+      design <- compile(selected)
+      expected <- compile(reference)
+      expect_identical(design[["column_names"]], expected[["column_names"]], label = label)
+      expect_identical(design[["model_matrix"]], expected[["model_matrix"]], label = label)
+      expect_identical(design[["random_effects"]][[1L]][["structured_index"]],
+        expected[["random_effects"]][[1L]][["structured_index"]], label = label)
+      expect_identical(design[["random_effects"]][[1L]][["model_matrix"]],
+        expected[["random_effects"]][[1L]][["model_matrix"]], label = label)
+    }
+  }
+})

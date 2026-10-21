@@ -1941,14 +1941,17 @@ NULL
   .check_and_list_data.subset(data_scale, subset, preserve_factor_columns)
 }
 
-# Factor columns of the random-effect data that are structured indices of a
-# `cs()`, `hcs()`, `ar1()` or `har()` term. BayesTools resolves such an index
+# Factor columns of the random-effect data that are the single index variable of
+# a `cs()`, `hcs()`, `ar1()` or `har()` term. BayesTools resolves such an index
 # from the declared levels of the factor, so they define the covariance
 # dimension and spacing, also for levels no retained row uses, and must survive
 # row selection. Other columns follow the ordinary rule that row selection drops
 # unused levels: coefficient and grouping factors (known `R` is restricted to
-# the fitted grouping levels) and the `car()` time column (its time grid is the
-# set of observed coordinates). Character columns have no declared levels.
+# the fitted grouping levels), the `car()` time column (its time grid is the
+# set of observed coordinates), and the variables of a multi-variable
+# `cs(a + b | group)` or `hcs()` index, which BayesTools builds from the
+# observed cells of the variables, not from their declared levels. Character
+# columns have no declared levels.
 #
 # @param data_random The list returned by `.check_and_list_data.random()`
 #
@@ -1963,12 +1966,14 @@ NULL
   structured <- c("cs", "hcs", "ar1", "har")
   index_variables <- lapply(data_random[["terms"]], function(term) {
     structure <- term[["structure"]]
-    if (is.character(structure) && length(structure) == 1L &&
-        tolower(structure) %in% structured) {
+    variables <- if (is.character(structure) && length(structure) == 1L &&
+                     tolower(structure) %in% structured) {
       all.vars(term[["expr"]])
     } else {
       character()
     }
+    # an index of several variables is the set of their observed cells
+    if (length(variables) == 1L) variables else character()
   })
   columns <- intersect(unique(unlist(index_variables, use.names = FALSE)),
                        names(random_data))
