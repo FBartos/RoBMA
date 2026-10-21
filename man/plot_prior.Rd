@@ -99,8 +99,10 @@ plotting scale only for effect-size location priors (\code{"mu"} or the
 meta-regression intercept). For base plots, the probability mapping created
 by \code{plot_prior()} is reused by subsequent posterior
 \code{lines.brma()} calls, including overlays from other fitted objects.
-PET/PEESE mixtures show bias-only effect-versus-standard-error curves by
-default, with a zero location contribution and the declared model weights.
+PET and PEESE priors, single or mixed, show bias-only
+effect-versus-standard-error curves by default, with a zero location
+contribution, the effect direction of the object (override it with
+\code{effect_direction}), and the declared model weights.
 Use \code{individual = TRUE} for coefficient densities, or supply
 \code{prior_list_mu} to request full regression curves with explicit location
 priors, as supported by \code{\link[BayesTools:plot_prior_list]{BayesTools::plot_prior_list()}}.

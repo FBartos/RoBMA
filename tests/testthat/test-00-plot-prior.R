@@ -860,6 +860,73 @@ test_that("PET and PEESE mixtures follow the effect direction of the object", {
   }
 })
 
+test_that("a single PET or PEESE prior follows the effect direction of the object", {
+
+  make_object <- function(kind, direction) {
+    constructor <- if (kind == "PET") prior_PET else prior_PEESE
+    model <- if (kind == "PET") bPET else bPEESE
+    model(yi = c(.1, .2, .3) * if (direction == "negative") -1 else 1,
+      sei = c(.1, .15, .2), measure = "GEN", effect_direction = direction,
+      prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE,
+      prior_bias = constructor("normal", list(mean = 0, sd = 1)))
+  }
+  # the prior overlay of plot_pet_peese() on draws replayed around the prior
+  overlay <- function(object) {
+    setup <- review_compile_object(object)
+    priors <- list()
+    for (compiled in setup$compiled) priors <- c(priors, compiled$prior_list)
+    priors <- c(priors, .create_fit_priors(setup$object$data, setup$object$priors))
+    columns <- review_prior_columns(priors)
+    samples <- matrix(.1, 30, length(columns), dimnames = list(NULL, columns))
+    plot <- plot_pet_peese(review_attach_replay(setup, samples), prior = TRUE,
+      plot_type = "ggplot", show_data = FALSE)
+    ggplot_geom_layer_data(plot, "GeomLine")
+  }
+  grid <- c(0, .1, .5, 1)
+  line <- function(plot) ggplot_geom_layer_data(plot, "GeomLine")$y
+  band <- function(plot) sort(ggplot_geom_layer_data(plot, "GeomPolygon")$y)
+  # the curve is linear (PET) or quadratic (PEESE) in the standard error
+  slope <- function(data, kind) {
+    positive <- data$x > 0
+    unname(data$y[positive] / data$x[positive]^(if (kind == "PET") 1 else 2))
+  }
+  for (kind in c("PET", "PEESE")) {
+    constructor <- if (kind == "PET") prior_PET else prior_PEESE
+    # the unchanged curve of the prior alone, which has no effect direction
+    bare <- plot_prior(constructor("normal", list(mean = 0, sd = 1)),
+      plot_type = "ggplot", x_seq = grid)
+    positive <- plot_prior(make_object(kind, "positive"), kind,
+      plot_type = "ggplot", x_seq = grid)
+    negative <- plot_prior(make_object(kind, "negative"), kind,
+      plot_type = "ggplot", x_seq = grid)
+    explicit <- plot_prior(make_object(kind, "negative"), kind,
+      plot_type = "ggplot", x_seq = grid, effect_direction = "negative")
+    mirrored <- plot_prior(make_object(kind, "positive"), kind,
+      plot_type = "ggplot", x_seq = grid, effect_direction = "negative")
+    expect_equal(line(positive), line(bare), info = kind)
+    expect_equal(band(positive), band(bare), info = kind)
+    expect_true(all(line(positive) >= 0), info = kind)
+    expect_equal(line(negative), -line(positive), tolerance = 1e-6, info = kind)
+    expect_equal(line(negative), line(explicit), info = kind)
+    expect_equal(line(negative), line(mirrored), info = kind)
+    expect_equal(band(negative), sort(-band(positive)), tolerance = 1e-6, info = kind)
+    expect_equal(band(negative), band(explicit), info = kind)
+    # the prior overlay of plot_pet_peese() (which draws the mean, where
+    # plot_prior() draws the median) has the same sign in each direction
+    positive_overlay <- overlay(make_object(kind, "positive"))
+    negative_overlay <- overlay(make_object(kind, "negative"))
+    expect_true(all(positive_overlay$y >= 0), info = kind)
+    expect_true(all(negative_overlay$y <= 0), info = kind)
+    expect_equal(slope(negative_overlay, kind), -slope(positive_overlay, kind),
+      tolerance = 1e-6, info = kind)
+    expect_identical(sign(slope(negative_overlay, kind)[[1L]]), sign(line(negative)[[4L]]),
+      info = kind)
+    # coefficient densities do not depend on the direction
+    expect_s3_class(plot_prior(make_object(kind, "negative"), kind,
+      individual = TRUE, plot_type = "ggplot"), "ggplot")
+  }
+})
+
 test_that("only_priors objects print and plot via prior methods", {
 
   skip_on_cran()
