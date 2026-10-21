@@ -364,6 +364,99 @@ test_that("independent deletion broadcasts a fixed heterogeneity scale", {
   expect_equal(actual, unname(expected), tolerance = 2e-6)
 })
 
+test_that("the deleted-row conditional mean keeps both variance shares", {
+
+  # mean + variance / total * (observed - mean) loses other_variance / total *
+  # mean once the share of X rounds to one: 2^80 with a variance ratio 2^-60
+  # gave 0 instead of 2^20.
+  expect_identical(.gaussian_summand_conditional_mean(2^80, 1, 2^-60, 0), 2^20)
+  expect_identical(.gaussian_summand_conditional_mean(0, 2^-60, 1, 2^80), 2^20)
+  expect_identical(.gaussian_summand_conditional_mean(.3, .5, 0, -1.2), -1.2)
+  expect_identical(.gaussian_summand_conditional_mean(.3, 0, .5, -1.2), .3)
+
+  # Mixed scales (locations 2^-95..2^95, variances 2^-190..2^190) against the
+  # product form (other * mean + variance * observed) / total, relative to the
+  # scale of the two terms.
+  grid <- withr::with_seed(20261021, {
+    n <- 2000L
+    magnitude <- function(range) stats::runif(n, 1, 2) * 2^stats::runif(n, -range, range)
+    sign <- function() sample(c(-1, 1), n, replace = TRUE)
+    list(mean = sign() * magnitude(95), observed = sign() * magnitude(95),
+         variance = magnitude(190), other = magnitude(190))
+  }, .rng_kind = "Mersenne-Twister", .rng_normal_kind = "Inversion", .rng_sample_kind = "Rejection")
+  total <- grid$variance + grid$other
+  reference <- (grid$other * grid$mean + grid$variance * grid$observed) / total
+  scale <- abs(grid$other / total * grid$mean) + abs(grid$variance / total * grid$observed)
+  actual <- .gaussian_summand_conditional_mean(grid$mean, grid$variance, grid$other, grid$observed)
+  expect_true(all(abs(actual - reference) <= 1e-14 * scale))
+  # The grid contains rounded-to-one shares whose other term is not negligible.
+  expect_true(any(grid$variance / total == 1 &
+                    abs(grid$other / total * grid$mean) > 1e-14 * scale))
+
+  # The scalar deletion route centres its quadrature there: the transition rule
+  # receives 2^20 + y for mean 2^80 and integrated variance 2^-60 sei^2.
+  fixture <- .sampling_selection_evidence_fixture("integrate")
+  object <- fixture$object
+  setup <- .log_lik_posterior_setup(object$fit, fixture$samples, object$data,
+    object$priors, "estimate", NULL)
+  setup$mu[] <- 2^80
+  setup$tau_within <- matrix(fixture$dat$sei * 2^-30, 1L, setup$K)
+  selection <- .selection_joint_signed_context(setup, setup$yi)
+  original <- .selection_scalar_transition_rule_resolves
+  centres <- list()
+  testthat::local_mocked_bindings(
+    .selection_scalar_transition_rule_resolves = function(nodes, mean, residual_sd, coefficient,
+                                                          sei, ...) {
+      if (all(mean < 2^79)) centres[[length(centres) + 1L]] <<- list(mean = mean, sei = sei)
+      original(nodes, mean, residual_sd, coefficient, sei, ...)
+    }, .package = "RoBMA")
+  .selection_conditioned_sampling_independent_targets(setup, NULL, selection,
+    c("log_density", "mean"))
+  rows <- vapply(centres, function(centre) match(centre$sei, fixture$dat$sei), integer(1L))
+  expect_setequal(rows, 1:2)
+  for (i in seq_along(centres)) {
+    expect_equal(centres[[i]]$mean, rep(2^20 + setup$yi[rows[i]], length(centres[[i]]$mean)),
+                 tolerance = 1e-15)
+  }
+})
+
+test_that("multi-row sampling deletion keeps both variance shares of its conditional mean", {
+
+  # Deleting rows 1:2 conditions their sampling errors on the retained error
+  # 2^80 (conditional mean .3 * 2^80 each) under an integrated random covariance
+  # of 2^-60. Its share times that mean (about 2^18) is what
+  # m_e + gain (y - m_e) loses once the gain rounds to the identity.
+  dat <- data.frame(yi = c(.4, -.2, .9), sei = c(.8, 1.1, 1), paper = "a")
+  object <- bselmodel(
+    yi = yi, sei = sei, data = dat, measure = "GEN", effect_direction = "positive",
+    prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, .2)),
+      model = BayesTools::selection_model(estimate_random_effects = "integrate",
+        known_sampling_variance = "condition", group = "paper")))
+  samples <- matrix(c(.1, .5, rep(0, 6L)), 1L, dimnames = list(NULL,
+    c("mu", "tau", paste0("theta[", 1:3, "]"), paste0("sampling_z[", 1:3, "]"))))
+  setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
+  V <- matrix(.3, 3L, 3L) + diag(c(.34, .91, .7))
+  state <- list(e = matrix(c(0, 0, 2^80), 1L), baseline_mu = matrix(0, 1L, 3L),
+    sampling_covariance = V, integrated_covariance = array(diag(2^-60, 3L), c(1L, 3L, 3L)),
+    log_normalizer = matrix(0, 1L, length(.data_selection_execution_plan(setup$data)$row_blocks)))
+  centres <- list()
+  testthat::local_mocked_bindings(
+    .selection_conditioned_sampling_state = function(...) state,
+    .selection_conditioned_sampling_normalizer = function(setup, means) {
+      # Only the draws given the deleted outcomes lie below the 2^80 scale.
+      if (all(abs(means[, 1:2]) < 2^60)) centres[[length(centres) + 1L]] <<- means[, 1:2, drop = FALSE]
+      list(log_mass = rep(0, nrow(means)))
+    }, .package = "RoBMA")
+  .selection_conditioned_sampling_deletion_loglik(setup, list(1:2))
+  sampling <- .selection_deleted_gaussian_block(V, state$e[1L, ], 1:2)
+  total <- sampling$covariance + diag(2^-60, 2L)
+  expected <- as.vector(diag(2^-60, 2L) %*% solve(total, sampling$mean) +
+    sampling$covariance %*% solve(total, dat$yi[1:2]))
+  expect_gt(length(centres), 0L)
+  for (centre in centres) expect_equal(colMeans(centre), expected, tolerance = 1e-12)
+})
+
 test_that("native scalar deletion guards its own returned conditional rule", {
 
   evaluate <- function(orders, variance = .16, mode = 1L, omega = c(1, .2)) {

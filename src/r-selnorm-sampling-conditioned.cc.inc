@@ -114,7 +114,8 @@ extern "C" SEXP RoBMA_selnorm_sampling_deletion_loglik_batch(
         }
         const double sampling = REAL(sampling_variances)[k];
         const double total = sampling + variance;
-        const double conditional_mean = mean + sampling / total * (REAL(yi)[k] - mean);
+        // Both shares multiply their own term, as .gaussian_summand_conditional_mean().
+        const double conditional_mean = variance / total * mean + sampling / total * REAL(yi)[k];
         const double conditional_sd = std::sqrt(sampling * variance / total);
         const double sd = std::sqrt(variance);
         const double gaussian = Rf_dnorm4(REAL(yi)[k], mean, std::sqrt(total), 1);

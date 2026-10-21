@@ -274,11 +274,15 @@
       if (is.null(sampling_root) || is.null(random_root)) {
         stop("Selection deletion covariance must be positive semidefinite.", call. = FALSE)
       }
-      gain <- sampling[["covariance"]] %*% chol2inv(total_factor)
-      posterior_mean <- sampling[["mean"]] + as.vector(gain %*% residual)
+      # Both gains come from one precision and multiply their own term, as in
+      # .gaussian_summand_conditional_mean(): I - gain would lose the random share.
+      precision <- chol2inv(total_factor)
+      gain <- sampling[["covariance"]] %*% precision
+      complement <- random[["covariance"]] %*% precision
+      posterior_mean <- as.vector(complement %*% sampling[["mean"]]) +
+        as.vector(gain %*% (y[deleted] - baseline[draw, deleted] - random[["mean"]]))
       # A conditional-draw root avoids subtracting nearly equal covariances.
-      posterior_root <- rbind(sampling_root %*% t(diag(dimension) - gain),
-                              -random_root %*% t(gain))
+      posterior_root <- rbind(sampling_root %*% t(complement), -random_root %*% t(gain))
       affected <- vapply(plan[["row_blocks"]], function(index) any(index %in% deleted), logical(1L))
       complete_blocks <- all(vapply(plan[["row_blocks"]][affected], function(index) {
         all(index %in% deleted)

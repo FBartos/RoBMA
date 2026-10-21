@@ -613,6 +613,18 @@
 }
 
 
+# Mean of X given X + U = observed for independent X ~ N(mean, variance) and
+# U ~ N(0, other_variance). Both variance shares are formed from the same
+# denominator and applied to their own term: mean + variance / total *
+# (observed - mean) would lose other_variance / total * mean whenever the share
+# of X rounds to one.
+.gaussian_summand_conditional_mean <- function(mean, variance, other_variance, observed) {
+
+  total <- variance + other_variance
+  other_variance / total * mean + variance / total * observed
+}
+
+
 .selection_conditioned_sampling_independent_targets <- function(setup, state, selection, components,
                                                                retained_context = TRUE) {
 
@@ -705,7 +717,7 @@
     sampling_variance <- sampling_variances[[row]]
     mean <- direction * (baseline_mu[, row] + sampling_means[, row])
     total <- sampling_variance + variance
-    conditional_mean <- mean + sampling_variance / total * (y[row] - mean)
+    conditional_mean <- .gaussian_summand_conditional_mean(mean, sampling_variance, variance, y[row])
     conditional_sd <- sqrt(sampling_variance * variance / total)
     context <- BayesTools::selection_context_subset_observations(selection, row)
     log_weight <- .selection_joint_log_weight(matrix(y[row], S, 1L),
@@ -1040,7 +1052,7 @@
              call. = FALSE)
       }
       if ("log_density" %in% components) {
-        conditional_mean <- m_e + v_e / variance * (y[row] - mean)
+        conditional_mean <- .gaussian_summand_conditional_mean(m_e, v_e, v_u, y[row] - location)
         conditional_variance <- v_e * v_u / variance
         reciprocal <- integrate_gaussian(function(e) exp(anchor - log_normalizer(e)),
                                           conditional_mean, conditional_variance)
@@ -1070,7 +1082,7 @@
             contexts <- BayesTools::selection_context_subset_rows(context, rep(1L, length(p)))
             log_weights <- .selection_joint_log_weight(matrix(proposed, length(p), 1L), sei, contexts)
             vapply(seq_along(proposed), function(i) {
-              conditional_mean <- m_e + v_e / variance * (proposed[i] - mean)
+              conditional_mean <- .gaussian_summand_conditional_mean(m_e, v_e, v_u, proposed[i] - location)
               reciprocal <- integrate_gaussian(function(e) exp(anchor - log_normalizer(e)),
                 conditional_mean, v_e * v_u / variance)
               exp(log_weights[i] + log(reciprocal) - log(normalizer))
