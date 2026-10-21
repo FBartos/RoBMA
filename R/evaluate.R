@@ -1589,10 +1589,12 @@
 # rows) below 2^430. The cluster mean b * h, with h at least
 # (b r / D) / (1 + sum b^2 / D), stays above 2^-931, the smallest normal double
 # being 2^-1022. A later product with a share, such as vi / D * cluster, can fall
-# below the double range: it rounds to zero, which is the correctly rounded
-# value, where the checked route would refuse the product as unavailable. Any
-# other call, and any call whose direct result is not finite, uses the checked
-# route unchanged.
+# below the smallest nonzero double (2^-1074): it rounds to zero, which is the
+# correctly rounded value, where the checked route would refuse the product as
+# unavailable. Every variance share is formed from the same denominator and
+# applied to its own term, never as 1 - share, so that a share below the rounding
+# of the other is not lost. Any other call, and any call whose direct result is
+# not finite, uses the checked route unchanged.
 #
 # ---------------------------------------------------------------------------- #
 EVALUATE_DIRECT_BOUND <- 2^100
@@ -1626,8 +1628,12 @@ EVALUATE_DIRECT_BOUND <- 2^100
 }
 
 
-# Same-data true effects mu + tau^2 / (tau^2 + sei^2) * (y - bias - mu), or NULL
-# when the inputs leave the direct range or the result is not finite.
+# Same-data true effects, the convex combination of the location and the bias-
+# adjusted estimate with the variance shares tau^2 / D and sei^2 / D of
+# D = tau^2 + sei^2, or NULL when the inputs leave the direct range or the result
+# is not finite. Both shares are computed from the same denominator and applied
+# to their own term: mu + tau^2 / D * (y - mu) would lose the sampling share
+# times mu whenever the within share rounds to one.
 .true_effects_direct <- function(mu_samples, tau_within, yi, sei, bias_offset) {
 
   S <- nrow(mu_samples)
@@ -1640,9 +1646,11 @@ EVALUATE_DIRECT_BOUND <- 2^100
   if (!.evaluate_direct_arithmetic(list(tau_within), sei, list(mu_samples, adjusted_y))) {
     return(NULL)
   }
-  within_variance <- tau_within^2
-  weight <- within_variance / (within_variance + matrix(sei^2, nrow = S, ncol = K, byrow = TRUE))
-  true_effects <- mu_samples + weight * (adjusted_y - mu_samples)
+  within_variance   <- tau_within^2
+  sampling_variance <- matrix(sei^2, nrow = S, ncol = K, byrow = TRUE)
+  total_variance    <- within_variance + sampling_variance
+  true_effects <- sampling_variance / total_variance * mu_samples +
+    within_variance / total_variance * adjusted_y
   if (all(is.finite(true_effects))) true_effects else NULL
 }
 
@@ -2046,9 +2054,11 @@ EVALUATE_DIRECT_BOUND <- 2^100
 #
 # For same_data = TRUE: Uses empirical Bayes shrinkage to return the
 # conditional BLUP mean, E(theta_i | y_i, mu_i, tau_i), for each posterior row:
-#   theta_i = lambda_i * y_i + (1 - lambda_i) * mu_i
-# where:
-#   lambda_i = tau_within^2 / (tau_within^2 + se_i^2)
+#   theta_i = lambda_i * y_i + kappa_i * mu_i
+# where the variance shares of D_i = tau_within^2 + se_i^2 are
+#   lambda_i = tau_within^2 / D_i,   kappa_i = se_i^2 / D_i
+# and are computed independently, so that a share below the rounding of the
+# other is not lost through 1 - lambda_i.
 #
 # If bias_offset is supplied, the observed estimate is first corrected by the
 # posterior-row PET/PEESE offset:
