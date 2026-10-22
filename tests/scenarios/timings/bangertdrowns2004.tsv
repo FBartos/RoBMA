@@ -9,7 +9,7 @@ fit_model	fit_l	1.050000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_ls	2.200000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_s	2.060000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_simple	1.000000000	NA	4.6.0	Windows/x86_64-w64-mingw32
-fit_loo	fit_BMA	0.410000000	NA	4.6.0	Windows/x86_64-w64-mingw32
+fit_loo	fit_BMA	0.390000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_l	0.320000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_ls	0.400000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_loo	fit_s	0.360000000	NA	4.6.0	Windows/x86_64-w64-mingw32
@@ -19,7 +19,7 @@ fit_marglik	fit_ls	1.740000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_s	1.470000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_simple	1.020000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 time	fit_l_dfbetas	0.030000000	0.415918	4.6.0	Windows/x86_64-w64-mingw32
-time	fit_l_diagnostics_robma	2.860000000	0.580273	4.6.0	Windows/x86_64-w64-mingw32
+time	fit_l_diagnostics_robma	2.810000000	0.580273	4.6.0	Windows/x86_64-w64-mingw32
 time	fit_l_rstudent	0.280000000	0.429102	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_BMA_effect	0.030000000	0.409766	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_BMA_heterogeneity	0.010000000	0.378418	4.6.0	Windows/x86_64-w64-mingw32
