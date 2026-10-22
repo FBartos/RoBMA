@@ -1,5 +1,11 @@
 ## version 4.1.0 (IN PROGRESS)
-- Coupled factor rows also resolve their selection transitions when the rule's lattice aliasing exponent reaches 8, so Assink-type known-V blocks accept order 11 instead of 21 and moderately sharp random-formula rows stay deterministic instead of falling back to QMC.
+- Coupled factor rows also resolve their selection transitions when the rule's
+  lattice aliasing exponent reaches 8, so Assink-type known-V blocks accept
+  order 11 instead of 21 and moderately sharp random-formula rows stay
+  deterministic instead of falling back to QMC.
+- The known-V deletion conditional mean of selection models keeps both variance
+  shares, so a sampling share that rounds to one no longer drops the location
+  term at extreme scales.
 - Posterior density curves of `tau2_prop(...)` in allocations with inclusion
   gates stay within [0, 1] (BayesTools 0.3.1.227).
 - `print_prior()` and `plot_prior()` no longer list the internal non-centred
@@ -28,10 +34,10 @@
   change only where the covariance route returns to the dense one of 4.1.0.229.
   Binomial GLMM AGHQ links its kernel first to keep the faster code placement.
   Rank-one cluster selection densities avoid repeated bracketing work, but
-  selection likelihoods remain slower than in 4.1.0.229 where deterministic
-  quadrature must now resolve every selection transition (coupled factor-step
-  blocks use finer rules, and some rows of random-formula qCMDE densities use
-  the randomized fallback).
+  selection likelihoods remain somewhat slower than in 4.1.0.229 where
+  deterministic quadrature must now resolve every selection transition (some
+  coupled factor-step blocks use finer rules, and some rows of random-formula
+  qCMDE densities use the randomized fallback).
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.
