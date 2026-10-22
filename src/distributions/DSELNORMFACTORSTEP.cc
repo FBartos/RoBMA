@@ -13,9 +13,20 @@
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-mv.h"
 #include "selnorm-jags-bounds.h"
+#include "selnorm-node-memo.h"
 
 namespace jags {
 namespace RoBMA {
+
+namespace {
+// The memo is single-threaded like the sampler that fills it and is never
+// destroyed: a static destructor would run while the DLL unloads.
+SelNormNodeMemo &factor_node_memo()
+{
+  static SelNormNodeMemo *memo = new SelNormNodeMemo();
+  return *memo;
+}
+}
 
 DSELNORMFACTORSTEP::DSELNORMFACTORSTEP() :
   VectorDist("dselnorm_factor_step", 20) {}
@@ -109,6 +120,20 @@ double DSELNORMFACTORSTEP::logDensity(
     std::vector<unsigned int> const &len,
     double const *lower, double const *upper) const
 {
+  // A call whose inputs all equal the previous stored call of this node
+  // returns that density (see selnorm-node-memo.h). Bounds do not exist for
+  // vector nodes and are not read; a call that has any is not memoized.
+  SelNormMemoInput memo_inputs[selnorm_step_memo_inputs];
+  double memo_scalars[selnorm_step_memo_scalars];
+  const bool memoized = selnorm_node_memo_enabled() &&
+    lower == nullptr && upper == nullptr;
+  if (memoized) {
+    selnorm_step_memo_collect(x, length, static_cast<int>(type), par, len,
+                              memo_inputs, memo_scalars);
+    double remembered = 0.0;
+    if (factor_node_memo().find(x, memo_inputs, selnorm_step_memo_inputs,
+                                &remembered)) return remembered;
+  }
   const int k = static_cast<int>(length);
   const int rank = static_cast<int>(len[2] / len[0]);
   const int n_bins = static_cast<int>(len[4]);
@@ -144,6 +169,12 @@ double DSELNORMFACTORSTEP::logDensity(
     throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;
+  // Only deterministic results are stored: they have no Monte Carlo error
+  // and never read the QMC design, which the stored inputs omit.
+  if (memoized && relative_mcse == 0.0) {
+    factor_node_memo().store(x, memo_inputs, selnorm_step_memo_inputs,
+                             log_density);
+  }
   return log_density;
 }
 
