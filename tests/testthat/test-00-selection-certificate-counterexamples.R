@@ -168,14 +168,14 @@ test_that("a rung that coincides with the aliasing of the tilted density is dete
   # Sol 8 rows: the order-31 rung estimates the normalizer 7.9e-3 low, and the
   # neighbouring rungs 15, 21 and 31 sit near zero crossings of their errors, so
   # their successive change is small. The shift-amplitude certificate of the
-  # rung itself is not: its summed amplitude covers the actual error (within the
-  # factor 1.30 of its derivation) and exceeds half the tolerance.
+  # rung itself is not: its summed amplitude covers the actual error and exceeds
+  # half the tolerance.
   block     <- .test_cert_parallel_block(c(.224, .975), .344, -4.08, 8L, c(1, 0))
   reference <- .test_cert_reference_parallel(block)
   for (order in c(21L, 31L)) {
     certificate <- .test_cert_amplitudes(block, order)
     error       <- abs(expm1(certificate[["log_integral"]] - reference))
-    expect_lt(error, 1.3 * sum(certificate[["amplitude"]]))
+    expect_lt(error, sum(certificate[["amplitude"]]))
     expect_gt(sum(certificate[["amplitude"]]), .test_cert_tolerance / 2)
   }
 })

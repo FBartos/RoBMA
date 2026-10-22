@@ -75,18 +75,43 @@ test_that("the combined exterior and amplitude allowance decides at its exact bo
 test_that("a block with a constant selection weight is accepted without a certificate", {
 
   # No transition: no aliasing to certify. Equal weights leave only the exterior
-  # mass, held to the combined allowance.
+  # mass, held to the combined allowance tail <= tolerance / (1 + tolerance).
   block  <- .test_cert_block(list(list(count = 4L, loading = c(.6, .5), sd = 1.1, mean = .2, sei = 1)),
                              c(1, 1))
-  probe  <- .test_cert_probe(block, 11L)
+  orders <- SELNORM_FACTOR_QUADRATURE_ORDERS
+  probes <- lapply(orders, function(order) .test_cert_probe(block, order, refine = FALSE))
+  values <- vapply(probes, function(probe) probe[["log_normalizer"]], numeric(1L))
+  tails  <- vapply(probes, function(probe) probe[["tail_bound"]], numeric(1L))
+  expect_false(probes[[1L]][["transitions"]])
+  # The rung the kernel returned is the one whose value it carries: the values of
+  # constant-weight rungs differ by rounding only, and each is distinct.
+  native_rung <- function(actual) {
+    rung <- which(values == actual[["log_normalizer"]])
+    expect_length(rung, 1L)
+    rung
+  }
+
   actual <- .test_cert_native_factor(block)
-  expect_false(probe[["transitions"]])
   expect_identical(actual[["relative_mcse"]], 0)
   # four rows of constant weight one: the normalizer is exactly one
   expect_equal(actual[["log_normalizer"]], 0, tolerance = 1e-12)
-  # the first rung whose exterior mass fits the allowance (order 7)
-  expect_equal(.test_cert_emulate_ladder(block)[["order"]], 7L)
-  expect_equal(actual[["relative_change"]], .test_cert_emulate_ladder(block)[["change"]], tolerance = 1e-8)
+  # the first rung whose exterior mass fits the allowance (order 7, the first rung
+  # with two successive changes)
+  rung <- native_rung(actual)
+  expect_identical(orders[rung], 7L)
+  expect_identical(orders[which(tails <= .005 / 1.005)[1L]], 7L)
+  # the change is that of the rung and the one before it (rounding noise: another
+  # rung would show another value, which the absolute tolerance resolves)
+  expect_equal(actual[["relative_change"]], abs(expm1(values[rung - 1L] - values[rung])),
+               tolerance = 1e-20)
+  # the allowance decides at its exact boundary tail = tolerance / (1 + tolerance),
+  # which the plain exterior gate (tail <= tolerance) would pass
+  threshold <- tails[rung] / (1 - tails[rung])
+  for (side in c(-1, 1)) {
+    boundary <- .test_cert_native_factor(block, tolerance = threshold * (1 + side * 1e-6))
+    expect_identical(boundary[["relative_mcse"]], 0, info = as.character(side))
+    expect_identical(orders[native_rung(boundary)], if (side > 0) 7L else 9L, info = as.character(side))
+  }
 })
 
 test_that("the cluster kernel follows the one-change R certificate ladder", {

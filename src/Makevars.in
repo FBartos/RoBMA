@@ -104,7 +104,7 @@ distributions/DSELNORMSAMPLINGCONDITIONED.o: selnorm/selnorm-mv.h selnorm/selnor
 
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h
 
-$(filter distributions/DSELNORM%.o,$(OBJECTS)): distributions/selnorm-jags-bounds.h
+$(filter distributions/DSELNORM%.o,$(OBJECTS)): distributions/selnorm-jags-bounds.h distributions/selnorm-node-memo.h
 
 # Local headers are transitive dependencies of the objects that include them.
 $(filter distributions/DSELNORM%.o,$(OBJECTS)) r-regplot.o r-selnorm.o selnorm/selnorm.o selnorm/selnorm-mv.o: selnorm/selnorm-fma.h
