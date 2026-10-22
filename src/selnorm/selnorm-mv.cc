@@ -3724,6 +3724,28 @@ bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
 }
 
 
+// The same for a rung of the rank-one cluster rule: a single group whose
+// shifted copies are the one-dimensional rule at a shift.
+bool cluster_rung_certified(const ClusterNormalizerContext &context,
+                            const double *nodes, const double *log_weights,
+                            int offset, int order, double q0, double tilted_mean,
+                            bool transitions, double tail_bound,
+                            double relative_tolerance)
+{
+  if (!transitions) {
+    return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
+  }
+  const std::vector<double> mean(1, tilted_mean);
+  const ShiftCertificate certificate = shift_certificate(
+    q0, mean, nodes + offset, order, relative_tolerance, true,
+    [&](int, double delta, double *value) {
+      *value = cluster_rule_log_integral(context, nodes, log_weights, offset,
+        order, nullptr, nullptr, 0, nullptr, delta);
+      return std::isfinite(*value);
+    });
+  return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
+}
+
 // Sparse-grid quadrature for factor supports that are not a forest. Such a
 // block has no cheaper exact structure, and its tensor rule costs
 // `order^rank`, which the node budget refuses above a low order once the rank
@@ -5427,51 +5449,87 @@ double cpp_selnorm_cluster_step_lpdf(
   context.kernel_mode = kernel_mode;
   context.selection = selection;
 
-  int finest_offset = 0;
-  for (int rule = 0; rule + 1 < quadrature_rule_count; ++rule) {
-    finest_offset += static_cast<int>(quadrature_orders[rule]);
-  }
-  const bool ladder_resolvable = cpp_selnorm_step_rule_resolves_transitions(
-    quadrature_nodes, finest_offset, static_cast<int>(quadrature_orders[quadrature_rule_count - 1]),
-    mean, residual_sd, loading, dimension, 1, selection_se, omega, selection);
-  // As in the factor ladder, but acceptance compares a rung with one before it:
-  // start one rung below the first that resolves the transitions.
-  int start = 0, offset = 0;
-  for (int rule = 1, rung_offset = static_cast<int>(quadrature_orders[0]);
-       ladder_resolvable && rule < quadrature_rule_count; ++rule) {
-    const int rung_order = static_cast<int>(quadrature_orders[rule]);
-    if (cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, rung_offset, rung_order,
-          mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
-      start = rule - 1;
-      break;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    // Acceptance by the shift-amplitude certificate on the one latent axis,
+    // compared with one rung before it. The ladder starts at its first rung;
+    // the certificate is consulted only at a finite rung whose change and
+    // exterior mass already pass. The accepted rung itself is returned.
+    const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+    int offset = 0;
+    int order = static_cast<int>(quadrature_orders[0]);
+    double previous = cluster_rule_log_integral(
+      context, quadrature_nodes, quadrature_log_weights, offset, order
+    );
+    offset += order;
+    for (int rule = 1; rule < quadrature_rule_count; ++rule) {
+      order = static_cast<int>(quadrature_orders[rule]);
+      double tilted_mean = std::numeric_limits<double>::quiet_NaN();
+      const double current = cluster_rule_log_integral(
+        context, quadrature_nodes, quadrature_log_weights, offset, order,
+        nullptr, nullptr, 0, nullptr, 0.0, &tilted_mean
+      );
+      *relative_change = cluster_relative_change(previous, current);
+      if (log_normalizer_out != nullptr) *log_normalizer_out = current;
+      double tail_bound = std::numeric_limits<double>::quiet_NaN();
+      if (std::isfinite(current) && *relative_change <= relative_tolerance &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
+            vector_rule, current, relative_tolerance, &tail_bound
+          ) && cluster_rung_certified(context, quadrature_nodes,
+            quadrature_log_weights, offset, order, current, tilted_mean,
+            transitions, tail_bound, relative_tolerance)) {
+        return log_density - current;
+      }
+      previous = current;
+      offset += order;
     }
-    rung_offset += rung_order;
-  }
-  for (int rule = 0; rule < start; ++rule) offset += static_cast<int>(quadrature_orders[rule]);
-  int order = static_cast<int>(quadrature_orders[start]);
-  double previous = ladder_resolvable ? cluster_rule_log_integral(
-    context, quadrature_nodes, quadrature_log_weights,
-    offset, order
-  ) : std::numeric_limits<double>::quiet_NaN();
-  offset += order;
-  for (int rule = start + 1; ladder_resolvable && rule < quadrature_rule_count; ++rule) {
-    order = static_cast<int>(quadrature_orders[rule]);
-    const double current = cluster_rule_log_integral(
+  } else {
+    int finest_offset = 0;
+    for (int rule = 0; rule + 1 < quadrature_rule_count; ++rule) {
+      finest_offset += static_cast<int>(quadrature_orders[rule]);
+    }
+    const bool ladder_resolvable = cpp_selnorm_step_rule_resolves_transitions(
+      quadrature_nodes, finest_offset, static_cast<int>(quadrature_orders[quadrature_rule_count - 1]),
+      mean, residual_sd, loading, dimension, 1, selection_se, omega, selection);
+    // As in the factor ladder, but acceptance compares a rung with one before it:
+    // start one rung below the first that resolves the transitions.
+    int start = 0, offset = 0;
+    for (int rule = 1, rung_offset = static_cast<int>(quadrature_orders[0]);
+         ladder_resolvable && rule < quadrature_rule_count; ++rule) {
+      const int rung_order = static_cast<int>(quadrature_orders[rule]);
+      if (cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, rung_offset, rung_order,
+            mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
+        start = rule - 1;
+        break;
+      }
+      rung_offset += rung_order;
+    }
+    for (int rule = 0; rule < start; ++rule) offset += static_cast<int>(quadrature_orders[rule]);
+    int order = static_cast<int>(quadrature_orders[start]);
+    double previous = ladder_resolvable ? cluster_rule_log_integral(
       context, quadrature_nodes, quadrature_log_weights,
       offset, order
-    );
-    *relative_change = cluster_relative_change(previous, current);
-    if (log_normalizer_out != nullptr) *log_normalizer_out = current;
-    if (std::isfinite(current) && *relative_change <= relative_tolerance &&
-        quadrature_covers_gaussian_tails(
-          quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
-          vector_rule, current, relative_tolerance
-        ) && cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
-          mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
-      return log_density - current;
-    }
-    previous = current;
+    ) : std::numeric_limits<double>::quiet_NaN();
     offset += order;
+    for (int rule = start + 1; ladder_resolvable && rule < quadrature_rule_count; ++rule) {
+      order = static_cast<int>(quadrature_orders[rule]);
+      const double current = cluster_rule_log_integral(
+        context, quadrature_nodes, quadrature_log_weights,
+        offset, order
+      );
+      *relative_change = cluster_relative_change(previous, current);
+      if (log_normalizer_out != nullptr) *log_normalizer_out = current;
+      if (std::isfinite(current) && *relative_change <= relative_tolerance &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
+            vector_rule, current, relative_tolerance
+          ) && cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
+            mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
+        return log_density - current;
+      }
+      previous = current;
+      offset += order;
+    }
   }
 
   return cpp_selnorm_factor_step_lpdf(

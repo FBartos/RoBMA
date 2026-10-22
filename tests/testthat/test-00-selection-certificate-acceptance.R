@@ -89,6 +89,36 @@ test_that("a block with a constant selection weight is accepted without a certif
   expect_equal(actual[["relative_change"]], .test_cert_emulate_ladder(block)[["change"]], tolerance = 1e-8)
 })
 
+test_that("the cluster kernel follows the one-change R certificate ladder", {
+
+  set.seed(99)
+  routes <- character()
+  rules <- SELNORM_CLUSTER_QUADRATURE_ORDERS
+  for (i in seq_len(6L)) {
+    count <- sample(c(3L, 12L, 40L), 1L)
+    block <- .test_cert_block(list(list(count = count, loading = stats::runif(1L, .4, 1.6),
+      sd = stats::runif(1L, .3, 1), mean = stats::rnorm(1L, 0, 2), sei = 1)),
+      c(1, stats::runif(1L, 0, .6)))
+    for (tolerance in c(.005, .02)) {
+      actual   <- .test_cert_native_cluster(block, tolerance = tolerance)
+      expected <- .test_cert_emulate_ladder(block, tolerance, orders = rules, changes = 1L)
+      info     <- paste(i, tolerance)
+      if (is.null(expected)) {
+        routes <- c(routes, "fallback")
+        expect_gt(actual[["relative_mcse"]], 0, label = info)
+      } else {
+        routes <- c(routes, "deterministic")
+        expect_identical(actual[["relative_mcse"]], 0, label = info)
+        expect_equal(actual[["log_normalizer"]], expected[["value"]], tolerance = 1e-10, info = info)
+        expect_equal(actual[["relative_change"]], expected[["change"]], tolerance = 1e-8, info = info)
+        expect_lt(.test_cert_relative_error(actual[["log_normalizer"]],
+          .test_cert_reference_parallel(block)), tolerance, label = info)
+      }
+    }
+  }
+  expect_true("deterministic" %in% routes)
+})
+
 test_that("the best weight rule keeps its geometric acceptance, decisions and values", {
 
   # Seeded random best-rule blocks (one- and two-sided; rank-one clusters and

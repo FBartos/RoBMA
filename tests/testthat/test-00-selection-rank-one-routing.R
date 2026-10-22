@@ -210,7 +210,7 @@ test_that("the vectorized scalar-axis transition rule equals the rule applied ro
   expect_true(any(seen) && any(!seen))
 })
 
-test_that("rank-one acceptance resolves the returned candidate without resolving its comparand", {
+test_that("rank-one acceptance returns the rung its certificate ladder accepts", {
 
   rho <- .99
   K <- 3L
@@ -222,6 +222,8 @@ test_that("rank-one acceptance resolves the returned candidate without resolving
     "one-sided", .5, BayesTools::wf_fixed(c(1, 0))))), rep(.3, K), rep(1, K),
     effect_direction = "positive", signed_data = FALSE)
   spec$omega <- matrix(c(1, 0), 1L)
+  # The geometric transition rule, kept by the zplot mirrors, rejects order 511
+  # and resolves order 1023 here; the kernel no longer consults it.
   expect_false(.selection_transition_rule_resolves(.gauss_hermite_nodes(511L)$nodes,
     mean, sd, matrix(loading, K), rep(1, K), spec))
   expect_true(.selection_transition_rule_resolves(.gauss_hermite_nodes(1023L)$nodes,
@@ -234,10 +236,15 @@ test_that("rank-one acceptance resolves the returned candidate without resolving
   reference <- stats::integrate(function(u) stats::dnorm(u) *
     stats::pnorm((-1.5 + sqrt(rho) * u) / sqrt(1 - rho))^K,
     -Inf, Inf, rel.tol = 1e-12, abs.tol = 1e-14)$value
-  rule <- .gauss_hermite_nodes(1023L)
-  candidate <- log(sum(rule$weights * stats::pnorm((-1.5 + sqrt(rho) * rule$nodes) / sqrt(1 - rho))^K))
+  # The certificate ladder (one change test) accepts the first rung with a
+  # certified amplitude; the kernel returns that rung.
+  block <- .test_cert_block(list(list(count = K, loading = loading[1L], sd = sd[1L],
+    mean = mean[1L], sei = 1)), c(1, 0))
+  expected <- .test_cert_emulate_ladder(block, .005,
+    orders = SELNORM_CLUSTER_QUADRATURE_ORDERS, changes = 1L)
+  expect_false(is.null(expected))
   expect_identical(actual$relative_mcse, 0)
-  expect_equal(actual$log_normalizer, candidate, tolerance = 1e-12)
+  expect_equal(actual$log_normalizer, expected$value, tolerance = 1e-12)
   expect_lt(abs(expm1(log(reference) - actual$log_normalizer)), .005)
 })
 
