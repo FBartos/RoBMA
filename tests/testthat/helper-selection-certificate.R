@@ -61,10 +61,11 @@
 }
 
 .test_cert_native_cluster <- function(block, tolerance = .005, initial = 256L,
-                                      points = 2048L, scrambles = 8L, seed = 1L) {
+                                      points = 2048L, scrambles = 8L, seed = 1L,
+                                      rules = .selection_joint_cluster_quadrature_rules(
+                                        SELNORM_CLUSTER_QUADRATURE_ORDERS)) {
 
   K     <- block[["rows"]]
-  rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
   qmc   <- BayesTools::selection_qmc_design(
     dimensions = 2L, points = points, scrambles = scrambles, seed = seed)
 

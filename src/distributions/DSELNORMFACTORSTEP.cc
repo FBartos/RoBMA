@@ -149,6 +149,7 @@ double DSELNORMFACTORSTEP::logDensity(
 
   double relative_mcse = 0.0;
   double relative_change = 0.0;
+  bool deterministic = false;
   const double log_density = cpp_selnorm_factor_step_lpdf(
     x, par[0], par[1], par[2], k, rank, par[3], par[4], n_bins,
     z_lower.data(), z_upper.data(), obs_bin.data(),
@@ -156,7 +157,7 @@ double DSELNORMFACTORSTEP::logDensity(
     static_cast<int>(*par[10]), par[11], par[12], par[13],
     static_cast<int>(len[13]), par[14], initial_points, max_points,
     scrambles, *par[18], &relative_mcse, &relative_change,
-    nullptr, static_cast<int>(*par[19])
+    nullptr, static_cast<int>(*par[19]), nullptr, &deterministic
   );
   const double diagnostic = std::max(relative_mcse, relative_change);
   if (!std::isfinite(diagnostic) || diagnostic > *par[18]) {
@@ -169,9 +170,11 @@ double DSELNORMFACTORSTEP::logDensity(
     throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;
-  // Only deterministic results are stored: they have no Monte Carlo error
-  // and never read the QMC design, which the stored inputs omit.
-  if (memoized && relative_mcse == 0.0) {
+  // Only results the kernel reports as deterministic (ladder, refinement tier
+  // or sparse grid) are stored: they never read the QMC design, which the
+  // stored inputs omit. A randomized result can have a Monte Carlo standard
+  // error of exactly zero, so that error does not decide.
+  if (memoized && deterministic) {
     factor_node_memo().store(x, memo_inputs, selnorm_step_memo_inputs,
                              log_density);
   }

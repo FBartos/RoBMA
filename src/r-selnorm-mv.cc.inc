@@ -838,6 +838,9 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   SEXP relative_change = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP log_normalizer = PROTECT(Rf_allocVector(REALSXP, S));
   std::fill_n(REAL(log_normalizer), S, NA_REAL);
+  // Whether each row is a deterministic result (attribute "deterministic" of the output).
+  SEXP deterministic = PROTECT(Rf_allocVector(LGLSXP, S));
+  std::fill_n(LOGICAL(deterministic), S, 0);
   // These rule weights are invariant across posterior draws and observations,
   // and a one-row call must not pay for the whole rule before any model work.
   const SelNormRuleWeights quadrature_weights = selnorm_rule_weights(
@@ -858,6 +861,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
     }
     double mcse = 0.0;
     double error = 0.0;
+    bool row_deterministic = false;
     REAL(log_density)[s] = cpp_selnorm_cluster_step_lpdf(
       REAL(yi), row_mean.data(), row_sd.data(), row_coefficient.data(), K, REAL(sei),
       row_omega.data(), B, REAL(z_lower), REAL(z_upper), INTEGER(obs_bin),
@@ -868,10 +872,12 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
       REAL(qmc), n_initial_points, n_max_points, n_scrambles,
       REAL(relative_tolerance)[0], &mcse, &error, quadrature_weights->data(),
       LOGICAL(return_normalizer)[0] ? REAL(log_normalizer) + s : nullptr,
-      scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule")
+      scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule"),
+      &row_deterministic
     );
     REAL(relative_mcse)[s] = mcse;
     REAL(relative_change)[s] = error;
+    LOGICAL(deterministic)[s] = row_deterministic;
   });
 
   SEXP output = PROTECT(Rf_allocVector(VECSXP, 4));
@@ -885,7 +891,8 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
   SET_STRING_ELT(names, 2, Rf_mkChar("relative_change"));
   SET_STRING_ELT(names, 3, Rf_mkChar("log_normalizer"));
   Rf_setAttrib(output, R_NamesSymbol, names);
-  UNPROTECT(6);
+  Rf_setAttrib(output, Rf_install("deterministic"), deterministic);
+  UNPROTECT(7);
   return output;
   ROBMA_NATIVE_END
 }
@@ -1013,6 +1020,9 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   SEXP relative_change = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP log_normalizer = PROTECT(Rf_allocVector(REALSXP, S));
   std::fill_n(REAL(log_normalizer), S, NA_REAL);
+  // Whether each row is a deterministic result (attribute "deterministic" of the output).
+  SEXP deterministic = PROTECT(Rf_allocVector(LGLSXP, S));
+  std::fill_n(LOGICAL(deterministic), S, 0);
   // Per-row location and loading inputs are validated before the row loop so
   // parallel workers never raise R errors from a worker thread.
   for (int s = 0; s < S; ++s) {
@@ -1049,6 +1059,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
     }
     double mcse = 0.0;
     double change = 0.0;
+    bool row_deterministic = false;
     REAL(log_density)[s] = cpp_selnorm_factor_step_lpdf(
       REAL(yi), row_mean.data(), row_sd.data(), row_coefficient.data(), K, rank,
       REAL(sei), row_omega.data(), B, REAL(z_lower), REAL(z_upper),
@@ -1060,10 +1071,12 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
       REAL(qmc), n_initial_points, n_max_points, n_scrambles,
       REAL(relative_tolerance)[0], &mcse, &change,
       LOGICAL(return_normalizer)[0] ? REAL(log_normalizer) + s : nullptr,
-      scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule")
+      scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule"),
+      nullptr, &row_deterministic
     );
     REAL(relative_mcse)[s] = mcse;
     REAL(relative_change)[s] = change;
+    LOGICAL(deterministic)[s] = row_deterministic;
   });
 
   SEXP output = PROTECT(Rf_allocVector(VECSXP, 4));
@@ -1077,7 +1090,8 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   SET_STRING_ELT(names, 2, Rf_mkChar("relative_change"));
   SET_STRING_ELT(names, 3, Rf_mkChar("log_normalizer"));
   Rf_setAttrib(output, R_NamesSymbol, names);
-  UNPROTECT(6);
+  Rf_setAttrib(output, Rf_install("deterministic"), deterministic);
+  UNPROTECT(7);
   return output;
   ROBMA_NATIVE_END
 }

@@ -149,3 +149,66 @@ test_that("a selection fit with factor and cluster blocks draws identically with
   expect_identical(dim(with_memo[["draws"]]), c(200L, ncol(with_memo[["draws"]])))
   expect_identical(with_memo[["draws"]], without_memo[["draws"]])
 })
+
+
+# The factor node may remember a density only when its kernel reports the result
+# as deterministic: the ladder, the refinement tier or the sparse grid, which
+# never read the QMC design that the memo key omits. The batch entries expose the
+# flag as the attribute "deterministic" of their result (one value per row).
+# A randomized result is never flagged, whatever its Monte Carlo standard error
+# (which can be exactly zero), so it cannot be stored.
+test_that("the kernels flag only ladder, tier and sparse-grid results as deterministic", {
+
+  flagged <- function(result) attr(result, "deterministic")
+  group   <- .test_cert_parallel_group
+
+  # a smooth block: the ladder accepts a rung
+  smooth <- .test_cert_block(list(group(4L, c(.6, .5), 1.1, .2)), c(1, .5))
+  result <- .test_cert_native_factor(smooth)
+  expect_false(is.na(.test_cert_probe_ladder(smooth)))
+  expect_identical(flagged(result), TRUE)
+  expect_true(.test_cert_deterministic(result))
+
+  # the 80-row block that the shift certificate defers at every rung and the
+  # refinement tier certifies
+  fed80  <- .test_cert_block(list(group(80L, c(.496441, .542314), .246872, -2.125758)), c(1, .01))
+  result <- .test_cert_native_factor(fed80)
+  expect_true(is.na(.test_cert_probe_ladder(fed80)))
+  expect_true(.test_cert_tier(fed80)[["accepted"]])
+  expect_identical(flagged(result), TRUE)
+  expect_true(.test_cert_deterministic(result))
+
+  # rank eight with cyclically overlapping supports is not a forest and the node
+  # budget affords one tensor rung: the sparse grid certifies it
+  rank    <- 8L
+  mean    <- seq(-.25, .35, length.out = rank)
+  cyclic  <- matrix(0, rank, rank)
+  for (column in seq_len(rank)) cyclic[c(column, column %% rank + 1L), column] <- .12
+  sparse <- .test_cert_block(lapply(seq_len(rank), function(row) {
+    group(1L, cyclic[row, ], .35, mean[row], sei = .25)
+  }), c(.4, 1), c(stats::qnorm(.05, lower.tail = FALSE), -Inf))
+  result <- .test_cert_native_factor(sparse)
+  expect_true(is.na(.test_cert_probe_ladder(sparse)))
+  expect_true(.test_cert_deterministic(result))
+  expect_identical(flagged(result), TRUE)
+
+  # the rank-one cluster ladder
+  cluster <- .test_cert_block(list(group(4L, .8, 1.1, .3)), c(1, .5))
+  result  <- .test_cert_native_cluster(cluster)
+  expect_true(.test_cert_deterministic(result))
+  expect_identical(flagged(result), TRUE)
+
+  # a block forced to the randomized fallback by rules too short to certify it,
+  # for the factor and the cluster kernel: flagged FALSE with a Monte Carlo error
+  short  <- .selection_joint_cluster_quadrature_rules(c(3L, 5L, 7L))
+  result <- .test_cert_native_factor(fed80, rules = short)
+  expect_gt(result[["relative_mcse"]], 0)
+  expect_identical(flagged(result), FALSE)
+  sharp  <- .test_cert_block(list(group(100L, .5, .1, -.1)), c(1, .1))
+  result <- .test_cert_native_cluster(sharp, rules = .selection_joint_cluster_quadrature_rules(c(15L, 31L)))
+  expect_gt(result[["relative_mcse"]], 0)
+  expect_identical(flagged(result), FALSE)
+
+  # one flag per row
+  expect_identical(length(flagged(.test_cert_native_factor(smooth))), 1L)
+})

@@ -5224,12 +5224,13 @@ double cpp_selnorm_factor_step_lpdf(
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse,
     double *relative_change, double *log_normalizer_out, int vector_rule,
-    const SelNormTiltedMoments *proposal_moments)
+    const SelNormTiltedMoments *proposal_moments, bool *deterministic)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   const double log_two_pi = std::log(6.283185307179586476925286766559);
   *relative_mcse = 0.0;
   *relative_change = 0.0;
+  if (deterministic != nullptr) *deterministic = false;
   if (log_normalizer_out != nullptr) {
     *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
   }
@@ -5461,6 +5462,7 @@ double cpp_selnorm_factor_step_lpdf(
           if (log_normalizer_out != nullptr) {
             *log_normalizer_out = current_quadrature;
           }
+          if (deterministic != nullptr) *deterministic = true;
           return log_density - current_quadrature;
         }
         previous_quadrature = current_quadrature;
@@ -5476,6 +5478,7 @@ double cpp_selnorm_factor_step_lpdf(
             cost_exponent, relative_tolerance, &refined_value, &refined_change)) {
         *relative_change = refined_change;
         if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
+        if (deterministic != nullptr) *deterministic = true;
         return log_density - refined_value;
       }
     }
@@ -5543,6 +5546,7 @@ double cpp_selnorm_factor_step_lpdf(
           if (log_normalizer_out != nullptr) {
             *log_normalizer_out = current_quadrature;
           }
+          if (deterministic != nullptr) *deterministic = true;
           return log_density - current_quadrature;
         }
         previous_quadrature = current_quadrature;
@@ -5594,6 +5598,7 @@ double cpp_selnorm_factor_step_lpdf(
             if (log_normalizer_out != nullptr) {
               *log_normalizer_out = current_sparse;
             }
+            if (deterministic != nullptr) *deterministic = true;
             return log_density - current_sparse;
           }
           previous_sparse_change = change;
@@ -5907,11 +5912,12 @@ double cpp_selnorm_cluster_step_lpdf(
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse, double *relative_change,
     const long double *quadrature_weights, double *log_normalizer_out,
-    int vector_rule)
+    int vector_rule, bool *deterministic)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
   *relative_change = 0.0;
+  if (deterministic != nullptr) *deterministic = false;
   if (log_normalizer_out != nullptr) {
     *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
   }
@@ -6028,6 +6034,7 @@ double cpp_selnorm_cluster_step_lpdf(
           ) && cluster_rung_certified(context, quadrature_nodes,
             quadrature_log_weights, offset, order, current, tilted_mean,
             transitions, tail_bound, relative_tolerance)) {
+        if (deterministic != nullptr) *deterministic = true;
         return log_density - current;
       }
       previous = current;
@@ -6095,6 +6102,7 @@ double cpp_selnorm_cluster_step_lpdf(
             vector_rule, current, relative_tolerance
           ) && cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
             mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
+        if (deterministic != nullptr) *deterministic = true;
         return log_density - current;
       }
       previous = current;
@@ -6108,7 +6116,7 @@ double cpp_selnorm_cluster_step_lpdf(
     nullptr, nullptr, nullptr, 0, qmc, initial_points, max_points,
     scrambles, relative_tolerance, relative_mcse, relative_change,
     log_normalizer_out, vector_rule,
-    vector_rule == SELVECTOR_PRODUCT ? &finest_moments : nullptr
+    vector_rule == SELVECTOR_PRODUCT ? &finest_moments : nullptr, deterministic
   );
 }
 

@@ -235,7 +235,8 @@ double cpp_selnorm_cluster_step_lpdf(
   double *relative_change,
   const long double *quadrature_weights = nullptr,
   double *log_normalizer = nullptr,
-  int vector_rule = 0
+  int vector_rule = 0,
+  bool *deterministic = nullptr
 );
 
 // Mean and covariance (column-major) of the latent coordinates under the tilted
@@ -256,6 +257,13 @@ struct SelNormTiltedMoments {
 // Zero loading columns are compacted out before integration: they only add a
 // latent axis that integrates to one, so `rank` is the declared rank and the
 // evaluated one follows the columns that carry dependence.
+//
+// The optional `deterministic` flag of the factor and cluster kernels is set
+// exactly when the returned density is a function of the call's inputs alone: it
+// came from the deterministic ladder, the refinement tier or the sparse grid.
+// The randomized fallback never sets it, whatever its Monte Carlo standard
+// error (which can be exactly zero), and neither does a call that returns
+// before a normalizer is computed. Only such results may be remembered.
 double cpp_selnorm_factor_step_lpdf(
   const double *x,
   const double *mean,
@@ -285,7 +293,8 @@ double cpp_selnorm_factor_step_lpdf(
   double *relative_change,
   double *log_normalizer = nullptr,
   int vector_rule = 0,
-  const SelNormTiltedMoments *proposal_moments = nullptr
+  const SelNormTiltedMoments *proposal_moments = nullptr,
+  bool *deterministic = nullptr
 );
 
 double cpp_selnorm_gaussian_event_log_mass(
