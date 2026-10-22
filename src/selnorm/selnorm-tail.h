@@ -291,6 +291,76 @@ inline void upper_tail_affine_avx2(const double *mean, std::size_t count,
   }
 }
 
+// Elementwise helpers of the double-precision step normalizer products
+// (SelNormDoubleProducts in selnorm.h), vectorized like the tail itself. The
+// scalar versions after the region compute the same expressions.
+//
+// value[i] += step * tail[i] and magnitude[i] += |step * tail[i]|.
+inline void accumulate_boundary_avx2(const double *tail, std::size_t count,
+                                     double step, double *value,
+                                     double *magnitude)
+{
+  const __m256d scale = _mm256_set1_pd(step);
+  const __m256d sign = _mm256_set1_pd(-0.0);
+  std::size_t index = 0;
+  for (; index + 4 <= count; index += 4) {
+    const __m256d contribution = _mm256_mul_pd(scale, _mm256_loadu_pd(tail + index));
+    _mm256_storeu_pd(value + index,
+      _mm256_add_pd(_mm256_loadu_pd(value + index), contribution));
+    _mm256_storeu_pd(magnitude + index,
+      _mm256_add_pd(_mm256_loadu_pd(magnitude + index),
+                    _mm256_andnot_pd(sign, contribution)));
+  }
+  for (; index < count; ++index) {
+    const double contribution = step * tail[index];
+    value[index] += contribution;
+    magnitude[index] += std::fabs(contribution);
+  }
+}
+
+// product[i] *= value[i], and whether every location is finite, every value
+// passes the checks of the batch step normalizer and every updated product lies
+// in [2^-960, 2^960].
+inline bool update_products_avx2(const double *location, const double *value,
+                                 const double *magnitude, std::size_t count,
+                                 double *product)
+{
+  const __m256d sign = _mm256_set1_pd(-0.0);
+  const __m256d maximum = _mm256_set1_pd(std::numeric_limits<double>::max());
+  const __m256d minimum = _mm256_set1_pd(std::numeric_limits<double>::min());
+  const __m256d ratio = _mm256_set1_pd(1e-8);
+  const __m256d lowest = _mm256_set1_pd(0x1p-960);
+  const __m256d highest = _mm256_set1_pd(0x1p960);
+  __m256d valid = _mm256_castsi256_pd(_mm256_set1_epi64x(-1));
+  std::size_t index = 0;
+  for (; index + 4 <= count; index += 4) {
+    const __m256d normalizer = _mm256_loadu_pd(value + index);
+    const __m256d updated = _mm256_mul_pd(_mm256_loadu_pd(product + index), normalizer);
+    _mm256_storeu_pd(product + index, updated);
+    __m256d ok = _mm256_cmp_pd(
+      _mm256_andnot_pd(sign, _mm256_loadu_pd(location + index)), maximum, _CMP_LE_OQ);
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(normalizer, maximum, _CMP_LE_OQ));
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(normalizer, minimum, _CMP_GT_OQ));
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(normalizer,
+      _mm256_mul_pd(ratio, _mm256_loadu_pd(magnitude + index)), _CMP_GT_OQ));
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(updated, lowest, _CMP_GE_OQ));
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(updated, highest, _CMP_LE_OQ));
+    valid = _mm256_and_pd(valid, ok);
+  }
+  bool all = _mm256_movemask_pd(valid) == 15;
+  for (; index < count; ++index) {
+    const double normalizer = value[index];
+    const double updated = product[index] * normalizer;
+    product[index] = updated;
+    all &= (std::fabs(location[index]) <= std::numeric_limits<double>::max()) &
+           (normalizer <= std::numeric_limits<double>::max()) &
+           (normalizer > std::numeric_limits<double>::min()) &
+           (normalizer > 1e-8 * magnitude[index]) &
+           (updated >= 0x1p-960) & (updated <= 0x1p960);
+  }
+  return all;
+}
+
 #pragma GCC pop_options
 
 
@@ -329,6 +399,50 @@ inline void upper_tail_affine(const double *mean, std::size_t count,
     // NaN must not reach the scalar kernel's integer conversions.
     out[index] = std::isnan(score) ? score : scalar_kernel::upper_tail(score);
   }
+}
+
+// value[i] += step * tail[i] and magnitude[i] += |step * tail[i]|: one changed
+// boundary of the step normalizers of a block.
+inline void accumulate_boundary(const double *tail, std::size_t count,
+                                double step, double *value, double *magnitude)
+{
+#if SELNORM_TAIL_HAS_AVX2
+  if (avx2_available()) {
+    accumulate_boundary_avx2(tail, count, step, value, magnitude);
+    return;
+  }
+#endif
+  for (std::size_t index = 0; index < count; ++index) {
+    const double contribution = step * tail[index];
+    value[index] += contribution;
+    magnitude[index] += std::fabs(contribution);
+  }
+}
+
+// product[i] *= value[i]; false when a location is not finite, a value fails the
+// checks of the batch step normalizer (finite, above the smallest normal, above
+// 1e-8 of its magnitude) or an updated product leaves [2^-960, 2^960].
+inline bool update_products(const double *location, const double *value,
+                            const double *magnitude, std::size_t count,
+                            double *product)
+{
+#if SELNORM_TAIL_HAS_AVX2
+  if (avx2_available()) {
+    return update_products_avx2(location, value, magnitude, count, product);
+  }
+#endif
+  bool valid = true;
+  for (std::size_t index = 0; index < count; ++index) {
+    const double normalizer = value[index];
+    const double updated = product[index] * normalizer;
+    product[index] = updated;
+    valid &= (std::fabs(location[index]) <= std::numeric_limits<double>::max()) &
+             (normalizer <= std::numeric_limits<double>::max()) &
+             (normalizer > std::numeric_limits<double>::min()) &
+             (normalizer > 1e-8 * magnitude[index]) &
+             (updated >= 0x1p-960) & (updated <= 0x1p960);
+  }
+  return valid;
 }
 
 

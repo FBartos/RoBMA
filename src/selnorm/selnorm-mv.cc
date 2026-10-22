@@ -120,6 +120,28 @@ struct ClusterRuleWorkspace {
   std::vector<long double> projection_probability;
 };
 
+// Workspaces of the double-precision node products of the product ladders. One
+// set belongs to one kernel call (the batch entries are threaded, so nothing is
+// static) and is reused by every rung and shifted copy of that call: the row
+// constants of the step normalizers and the buffers of the node products and
+// conditional means.
+struct SelNormLeanScratch {
+  SelNormDoubleProducts plan;
+  std::vector<double> product, means;
+
+  void configure(const double *residual_sd, const double *selection_se, int rows,
+                 const double *omega, const SelNormKernelData &selection)
+  {
+    plan.build(residual_sd, selection_se, rows, omega, selection);
+  }
+  bool attempted() const { return plan.usable(); }
+  // Room for rows of `count` nodes.
+  void reserve(std::size_t count)
+  {
+    if (means.size() < count) means.resize(count);
+  }
+};
+
 // A nonzero `shift` evaluates the same integral through the exactly shifted
 // rule: nodes x_j + shift and weights w_j exp(-shift x_j - shift^2 / 2). The
 // shifted weights are built here from the log weights and never read
@@ -292,6 +314,93 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
     }
   }
   return out;
+}
+
+// The direct rule of cluster_rule_log_integral for the product rule with the
+// node products (SelNormDoubleProducts) and the weights in double. The rule is
+// computed only when the caller's plan is usable and every row stays in range;
+// false leaves the outputs untouched and the caller evaluates the rule with
+// cluster_rule_log_integral, unchanged.
+bool cluster_rule_log_integral_double(const ClusterNormalizerContext &context,
+                                      const double *nodes,
+                                      const double *log_weights,
+                                      int offset, int order,
+                                      SelNormLeanScratch *scratch, double shift,
+                                      double *tilted_mean, double *tilted_variance,
+                                      double *value)
+{
+  if (scratch == nullptr || !scratch->attempted() ||
+      context.vector_rule != SELVECTOR_PRODUCT) {
+    return false;
+  }
+  const std::size_t count = static_cast<std::size_t>(order);
+  scratch->reserve(count);
+  scratch->product.assign(count, 1.0);
+  for (int i = 0; i < context.dimension; ++i) {
+    for (int j = 0; j < order; ++j) {
+      scratch->means[static_cast<std::size_t>(j)] =
+        context.mean[i] + context.loading[i] * (nodes[offset + j] + shift);
+    }
+    if (!scratch->plan.multiply(i, scratch->means.data(), count,
+                                scratch->product.data())) {
+      return false;
+    }
+  }
+  const auto node_weight = [&](int j) -> double {
+    return shift == 0.0 && context.quadrature_weights ?
+      static_cast<double>(context.quadrature_weights[offset + j]) :
+      std::exp(log_weights[offset + j] - shift * nodes[offset + j] -
+        0.5 * shift * shift);
+  };
+  long double integral = 0.0L;
+  long double moment = 0.0L;
+  for (int j = 0; j < order; ++j) {
+    const long double term = static_cast<long double>(
+      scratch->product[static_cast<std::size_t>(j)]) * node_weight(j);
+    integral += term;
+    if (tilted_mean != nullptr || tilted_variance != nullptr) {
+      moment += term * nodes[offset + j];
+    }
+  }
+  if (!(integral > 0.0L) || !std::isfinite(integral)) return false;
+  if (tilted_mean != nullptr) {
+    *tilted_mean = static_cast<double>(moment / integral);
+  }
+  if (tilted_variance != nullptr) {
+    const long double center = moment / integral;
+    long double spread = 0.0L;
+    for (int j = 0; j < order; ++j) {
+      const long double deviation = nodes[offset + j] - center;
+      spread += static_cast<long double>(
+        scratch->product[static_cast<std::size_t>(j)]) * node_weight(j) *
+        deviation * deviation;
+    }
+    *tilted_variance = static_cast<double>(spread / integral);
+  }
+  *value = static_cast<double>(std::log(integral));
+  return true;
+}
+
+// The rule of a rank-one product ladder rung: in double when that is allowed
+// and in range, else cluster_rule_log_integral. `lean_used` reports which.
+double cluster_ladder_log_integral(const ClusterNormalizerContext &context,
+                                   const double *nodes,
+                                   const double *log_weights,
+                                   int offset, int order,
+                                   SelNormLeanScratch *scratch,
+                                   double shift = 0.0,
+                                   double *tilted_mean = nullptr,
+                                   double *tilted_variance = nullptr,
+                                   bool *lean_used = nullptr)
+{
+  double value = 0.0;
+  const bool lean = cluster_rule_log_integral_double(context, nodes,
+    log_weights, offset, order, scratch, shift, tilted_mean, tilted_variance,
+    &value);
+  if (lean_used != nullptr) *lean_used = lean;
+  if (lean) return value;
+  return cluster_rule_log_integral(context, nodes, log_weights, offset, order,
+    nullptr, nullptr, 0, nullptr, shift, tilted_mean, tilted_variance);
 }
 
 double cluster_relative_change(double coarse, double fine)
@@ -3316,12 +3425,17 @@ class FactorNestedRung {
     std::vector<std::vector<long double> > rows, own, integral;
   };
 
+  // `scratch` (call-owned, may be null) holds the workspaces of the double
+  // precision node products; without it, or when it is not attempted, every
+  // product is accumulated in long double.
   FactorNestedRung(const FactorNormalizerContext &context,
                    const FactorForestPlan &plan, const double *nodes,
-                   const double *log_weights, int offset, int order)
+                   const double *log_weights, int offset, int order,
+                   SelNormLeanScratch *scratch = nullptr)
     : context_(context), plan_(plan), nodes_(nodes + offset),
       log_weights_(log_weights + offset), order_(order),
-      node_count_(static_cast<std::size_t>(plan.valid ? plan.effective_rank : 0))
+      node_count_(static_cast<std::size_t>(plan.valid ? plan.effective_rank : 0)),
+      scratch_(scratch)
   {
     power_.assign(node_count_ + 2, 1);
     for (std::size_t j = 1; j < power_.size(); ++j) {
@@ -3348,6 +3462,10 @@ class FactorNestedRung {
     ready_ = std::isfinite(*log_value);
     return ready_;
   }
+
+  // Whether the last run (evaluate() or a shifted copy) accumulated its node
+  // products in double rather than falling back to long double.
+  bool lean_used() const { return lean_used_; }
 
   // Tilted mean of every axis (plan order) from the retained messages.
   bool means(std::vector<double> *out) const
@@ -3467,9 +3585,8 @@ class FactorNestedRung {
   bool shifted(int axis, double delta, double *log_value, bool reuse = true) const
   {
     if (!ready_) return false;
-    Messages scratch;
     long double total = 0.0L;
-    if (!run(axis, delta, reuse ? &base_ : nullptr, &scratch, &total)) return false;
+    if (!run(axis, delta, reuse ? &base_ : nullptr, &shifted_messages_, &total)) return false;
     *log_value = static_cast<double>(std::log(total));
     return std::isfinite(*log_value);
   }
@@ -3560,36 +3677,65 @@ class FactorNestedRung {
   }
 
  private:
+  // The conditional means of one row at every node of the axes it loads.
   // `shifted_axis` (and the optional `second_axis`) are plan axes whose nodes
   // move by `delta` (`second_delta`).
+  void expand_means(int row, const std::vector<int> &row_axes, int shifted_axis,
+                    double delta, int second_axis, double second_delta,
+                    double *conditional_means) const
+  {
+    conditional_means[0] = context_.mean[row];
+    for (std::size_t position = 0; position < row_axes.size(); ++position) {
+      const int axis = row_axes[position];
+      const double coefficient = context_.loading[
+        row + context_.dimension * plan_.permutation[axis]
+      ];
+      const std::size_t lower_size = power_[position];
+      // Expand one axis at a time. Visit node zero last so the prefix is
+      // still available while filling the other slices of the same buffer.
+      for (int point = order_ - 1; point >= 0; --point) {
+        const double node = axis == shifted_axis ? nodes_[point] + delta :
+          axis == second_axis ? nodes_[point] + second_delta : nodes_[point];
+        const double shift = coefficient * node;
+        for (std::size_t lower = 0; lower < lower_size; ++lower) {
+          conditional_means[
+            lower + static_cast<std::size_t>(point) * lower_size
+          ] = conditional_means[lower] + shift;
+        }
+      }
+    }
+  }
+
+  // The product of the normalizers of `rows` at every node, multiplied into
+  // `target`. With `lean` the products are accumulated in double and the call
+  // is all or nothing: false leaves `target` untouched (a normalizer failed
+  // its checks or the node products left the double range), and the caller
+  // evaluates the rung with the long double products.
   bool accumulate_rows(const std::vector<int> &rows, std::size_t size,
                        const std::vector<int> &row_axes,
                        std::vector<long double> &target, int shifted_axis,
                        double delta, int second_axis = -1,
-                       double second_delta = 0.0) const
+                       double second_delta = 0.0, bool lean = false) const
   {
+    if (lean) {
+      SelNormLeanScratch &scratch = *scratch_;
+      scratch.reserve(size);
+      scratch.product.assign(size, 1.0);
+      for (int row : rows) {
+        expand_means(row, row_axes, shifted_axis, delta, second_axis,
+                     second_delta, scratch.means.data());
+        if (!scratch.plan.multiply(row, scratch.means.data(), size,
+                                   scratch.product.data())) return false;
+      }
+      for (std::size_t point = 0; point < size; ++point) {
+        target[point] *= scratch.product[point];
+      }
+      return true;
+    }
     std::vector<double> conditional_means(size);
     for (int row : rows) {
-      conditional_means[0] = context_.mean[row];
-      for (std::size_t position = 0; position < row_axes.size(); ++position) {
-        const int axis = row_axes[position];
-        const double coefficient = context_.loading[
-          row + context_.dimension * plan_.permutation[axis]
-        ];
-        const std::size_t lower_size = power_[position];
-        // Expand one axis at a time. Visit node zero last so the prefix is
-        // still available while filling the other slices of the same buffer.
-        for (int point = order_ - 1; point >= 0; --point) {
-          const double node = axis == shifted_axis ? nodes_[point] + delta :
-            axis == second_axis ? nodes_[point] + second_delta : nodes_[point];
-          const double shift = coefficient * node;
-          for (std::size_t lower = 0; lower < lower_size; ++lower) {
-            conditional_means[
-              lower + static_cast<std::size_t>(point) * lower_size
-            ] = conditional_means[lower] + shift;
-          }
-        }
-      }
+      expand_means(row, row_axes, shifted_axis, delta, second_axis,
+                   second_delta, conditional_means.data());
       if (!cpp_selnorm_step_normalizer_product(
             conditional_means.data(), size, context_.residual_sd[row],
             context_.selection_se[row], context_.omega, context_.selection,
@@ -3610,6 +3756,20 @@ class FactorNestedRung {
   bool run(int axis, double delta, const Messages *base, Messages *out,
            long double *total) const
   {
+    // The double products first; any row out of range discards that attempt and
+    // the whole evaluation is repeated with the long double products.
+    lean_used_ = false;
+    if (scratch_ != nullptr && scratch_->attempted() &&
+        run_pass(axis, delta, base, out, total, true)) {
+      lean_used_ = true;
+      return true;
+    }
+    return run_pass(axis, delta, base, out, total, false);
+  }
+
+  bool run_pass(int axis, double delta, const Messages *base, Messages *out,
+                long double *total, bool lean) const
+  {
     Messages &m = *out;
     m.rows.assign(node_count_, std::vector<long double>());
     m.own.assign(node_count_, std::vector<long double>());
@@ -3623,7 +3783,8 @@ class FactorNestedRung {
     if (base == nullptr) {
       std::vector<long double> free_product(1, 1.0L);
       const std::vector<int> no_axes;
-      if (!accumulate_rows(plan_.free_rows, 1, no_axes, free_product, -1, 0.0)) return false;
+      if (!accumulate_rows(plan_.free_rows, 1, no_axes, free_product, -1, 0.0,
+                           -1, 0.0, lean)) return false;
       m.free_product = free_product[0];
     } else {
       m.free_product = base->free_product;
@@ -3644,7 +3805,7 @@ class FactorNestedRung {
       if (rows_changed) {
         m.rows[q].assign(size, 1.0L);
         if (!accumulate_rows(plan_.node_rows[q], size, plan_.axes[q], m.rows[q],
-                             axis, delta)) return false;
+                             axis, delta, -1, 0.0, lean)) return false;
       }
       m.own[q] = rows_changed ? m.rows[q] : base->rows[q];
       for (int child : plan_.children[q]) {
@@ -3682,10 +3843,14 @@ class FactorNestedRung {
   const double *log_weights_;
   int order_;
   std::size_t node_count_;
+  SelNormLeanScratch *scratch_;
   std::vector<std::size_t> power_;
   std::vector<long double> weights_;
   std::vector<int> by_depth_;
   Messages base_;
+  // The messages of the shifted copies, reused from one copy to the next.
+  mutable Messages shifted_messages_;
+  mutable bool lean_used_ = false;
   bool ready_ = false;
 };
 
@@ -3702,7 +3867,6 @@ class FactorTensorRung {
     : context_(context), nodes_(nodes + offset),
       log_weights_(log_weights + offset), order_(order)
   {
-    certificate_shifted_weights(nodes_, log_weights_, order_, 0.0, &weights_);
     total_ = 1;
     for (int factor = 0; factor < context_.rank; ++factor) {
       total_ *= static_cast<std::size_t>(order_);
@@ -3870,6 +4034,9 @@ class FactorTensorRung {
                   std::vector<long double> *point_terms = nullptr) const
   {
     const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    if (weights_.empty()) {
+      certificate_shifted_weights(nodes_, log_weights_, order_, 0.0, &weights_);
+    }
     std::vector<std::vector<long double> > shifted_weights(rank);
     std::vector<char> moved(rank, 0);
     for (std::size_t factor = 0; factor < rank; ++factor) {
@@ -3962,7 +4129,8 @@ class FactorTensorRung {
   const double *log_weights_;
   int order_;
   std::size_t total_ = 1;
-  std::vector<long double> weights_;
+  // The unshifted weights, built on first use (the nested rule does not need them).
+  mutable std::vector<long double> weights_;
   std::vector<double> mean_;
   bool direct_ = false;
 };
@@ -3975,13 +4143,19 @@ class FactorRung {
  public:
   enum Path { DECLINED, NESTED, TENSOR_DIRECT, TENSOR_LOG };
 
+  // `scratch` (call-owned, may be null) enables the double precision node
+  // products of the nested rule.
   FactorRung(const FactorNormalizerContext &context, const FactorForestPlan &plan,
-             const double *nodes, const double *log_weights, int offset, int order)
+             const double *nodes, const double *log_weights, int offset, int order,
+             SelNormLeanScratch *scratch = nullptr)
     : context_(context), plan_(plan), order_(order), nodes_(nodes + offset),
-      nested_(context, plan, nodes, log_weights, offset, order),
+      nested_(context, plan, nodes, log_weights, offset, order, scratch),
       tensor_(context, nodes, log_weights, offset, order) {}
 
   Path path() const { return path_; }
+
+  // Whether the value came from the nested rule with double node products.
+  bool lean_used() const { return lean_; }
 
   // Loading column of a certified axis.
   int column(int axis) const
@@ -3994,6 +4168,7 @@ class FactorRung {
     double value = 0.0;
     if (nested_.evaluate(&value)) {
       path_ = NESTED;
+      lean_ = nested_.lean_used();
       return value;
     }
     // A forest plan that fails numerically leaves only the tensor rule, which
@@ -4081,6 +4256,7 @@ class FactorRung {
   FactorNestedRung nested_;
   FactorTensorRung tensor_;
   Path path_ = DECLINED;
+  bool lean_ = false;
 };
 
 // Whether a factor rung is certified: no transition, or the rung resolves its
@@ -4177,7 +4353,8 @@ bool cluster_rung_certified(const ClusterNormalizerContext &context,
                             const double *nodes, const double *log_weights,
                             int offset, int order, double q0, double tilted_mean,
                             bool transitions, double tail_bound,
-                            double relative_tolerance)
+                            double relative_tolerance,
+                            SelNormLeanScratch *scratch = nullptr)
 {
   if (!transitions) {
     return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
@@ -4192,8 +4369,8 @@ bool cluster_rung_certified(const ClusterNormalizerContext &context,
   const ShiftCertificate certificate = shift_certificate(
     q0, mean, nodes + offset, order, relative_tolerance, true,
     [&](int, double delta, double *value) {
-      *value = cluster_rule_log_integral(context, nodes, log_weights, offset,
-        order, nullptr, nullptr, 0, nullptr, delta);
+      *value = cluster_ladder_log_integral(context, nodes, log_weights, offset,
+        order, scratch, delta);
       return std::isfinite(*value);
     });
   return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
@@ -5411,6 +5588,12 @@ double cpp_selnorm_factor_step_lpdf(
   // The nested rule expands one axis per tree level, so a forest support pays
   // `order^(depth + 1)` and its ladder length does not depend on the rank.
   const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
+  // Workspaces of the double precision node products, shared by every rung and
+  // shifted copy of this call.
+  SelNormLeanScratch lean;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    lean.configure(residual_sd, selection_se, dimension, omega, selection);
+  }
 
   const auto resolves = [&](int offset, int order) {
     return cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
@@ -5437,7 +5620,7 @@ double cpp_selnorm_factor_step_lpdf(
         previous_offset = finest_offset; previous_order = finest_order;
         finest_offset = quadrature_offset; finest_order = quadrature_order;
         FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
-                        quadrature_offset, quadrature_order);
+                        quadrature_offset, quadrature_order, &lean);
         const double current_quadrature = rung.log_integral();
         if (std::isfinite(current_quadrature)) ++finite_rungs;
         const double current_quadrature_change = rule == 0 ?
@@ -5624,7 +5807,7 @@ double cpp_selnorm_factor_step_lpdf(
     const SelNormTiltedMoments *moments = proposal_moments;
     if (moments == nullptr && finite_rungs >= 3 && finest_order > 0) {
       FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
-                      finest_offset, finest_order);
+                      finest_offset, finest_order, &lean);
       const double finest_value = rung.log_integral();
       if (std::isfinite(finest_value) &&
           quadrature_covers_gaussian_tails(
@@ -6009,19 +6192,23 @@ double cpp_selnorm_cluster_step_lpdf(
     // the certificate is consulted only at a finite rung whose change and
     // exterior mass already pass. The accepted rung itself is returned.
     const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+    // Double precision node products, with workspaces shared by every rung and
+    // shifted copy of this call.
+    SelNormLeanScratch lean;
+    lean.configure(residual_sd, selection_se, dimension, omega, selection);
     int offset = 0;
     int order = static_cast<int>(quadrature_orders[0]);
-    double previous = cluster_rule_log_integral(
-      context, quadrature_nodes, quadrature_log_weights, offset, order
+    double previous = cluster_ladder_log_integral(
+      context, quadrature_nodes, quadrature_log_weights, offset, order, &lean
     );
     if (std::isfinite(previous)) ++finest_moments.finite_rungs;
     offset += order;
     for (int rule = 1; rule < quadrature_rule_count; ++rule) {
       order = static_cast<int>(quadrature_orders[rule]);
       double tilted_mean = std::numeric_limits<double>::quiet_NaN();
-      const double current = cluster_rule_log_integral(
+      const double current = cluster_ladder_log_integral(
         context, quadrature_nodes, quadrature_log_weights, offset, order,
-        nullptr, nullptr, 0, nullptr, 0.0, &tilted_mean
+        &lean, 0.0, &tilted_mean
       );
       if (std::isfinite(current)) ++finest_moments.finite_rungs;
       *relative_change = cluster_relative_change(previous, current);
@@ -6033,7 +6220,7 @@ double cpp_selnorm_cluster_step_lpdf(
             vector_rule, current, relative_tolerance, &tail_bound
           ) && cluster_rung_certified(context, quadrature_nodes,
             quadrature_log_weights, offset, order, current, tilted_mean,
-            transitions, tail_bound, relative_tolerance)) {
+            transitions, tail_bound, relative_tolerance, &lean)) {
         if (deterministic != nullptr) *deterministic = true;
         return log_density - current;
       }
@@ -6047,9 +6234,9 @@ double cpp_selnorm_cluster_step_lpdf(
     if (finest_moments.finite_rungs >= 3 && std::isfinite(previous)) {
       double tilted_mean = std::numeric_limits<double>::quiet_NaN();
       double tilted_variance = std::numeric_limits<double>::quiet_NaN();
-      const double finest = cluster_rule_log_integral(
+      const double finest = cluster_ladder_log_integral(
         context, quadrature_nodes, quadrature_log_weights, offset - order, order,
-        nullptr, nullptr, 0, nullptr, 0.0, &tilted_mean, &tilted_variance
+        &lean, 0.0, &tilted_mean, &tilted_variance
       );
       if (std::isfinite(finest) && std::isfinite(tilted_mean) &&
           std::isfinite(tilted_variance) &&
@@ -6215,9 +6402,10 @@ bool cpp_selnorm_certificate_probe(
     context.selection = selection;
     double tilted = nan, variance = nan;
     out->path = 4;
-    out->log_normalizer = cluster_rule_log_integral(context, quadrature_nodes,
-      quadrature_log_weights, offset, order, nullptr, nullptr, 0, nullptr, 0.0, &tilted,
-      &variance);
+    SelNormLeanScratch lean;
+    lean.configure(residual_sd, selection_se, dimension, omega, selection);
+    out->log_normalizer = cluster_ladder_log_integral(context, quadrature_nodes,
+      quadrature_log_weights, offset, order, &lean, 0.0, &tilted, &variance, &out->lean);
     out->has_moments = std::isfinite(tilted) && std::isfinite(variance);
     out->moment_mean.assign(1, tilted);
     out->moment_covariance.assign(1, variance);
@@ -6228,8 +6416,8 @@ bool cpp_selnorm_certificate_probe(
       &out->tail_bound);
     out->column.assign(1, 0);
     const auto shifted = [&](int, double delta, double *value) {
-      *value = cluster_rule_log_integral(context, quadrature_nodes,
-        quadrature_log_weights, offset, order, nullptr, nullptr, 0, nullptr, delta);
+      *value = cluster_ladder_log_integral(context, quadrature_nodes,
+        quadrature_log_weights, offset, order, &lean, delta);
       return std::isfinite(*value);
     };
     certify(out->log_normalizer, std::vector<double>(1, tilted), shifted);
@@ -6238,6 +6426,9 @@ bool cpp_selnorm_certificate_probe(
       shifted(0, shift_delta[k], &value);
       out->reuse_value.push_back(value);
       out->full_value.push_back(value);
+      out->reference_value.push_back(cluster_rule_log_integral(context,
+        quadrature_nodes, quadrature_log_weights, offset, order, nullptr, nullptr,
+        0, nullptr, shift_delta[k]));
     }
     return true;
   }
@@ -6257,8 +6448,11 @@ bool cpp_selnorm_certificate_probe(
   FactorForestPlan forest;
   factor_forest_plan(context, nullptr, &forest);
 
-  FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights, offset, order);
+  SelNormLeanScratch lean;
+  lean.configure(residual_sd, selection_se, dimension, omega, selection);
+  FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights, offset, order, &lean);
   out->log_normalizer = rung.log_integral();
+  out->lean = rung.lean_used();
   out->reference_log_normalizer = factor_rule_log_integral(context, forest,
     quadrature_nodes, quadrature_log_weights, offset, order);
   out->path = static_cast<int>(rung.path());
@@ -6271,6 +6465,9 @@ bool cpp_selnorm_certificate_probe(
   for (std::size_t group = 0; group < axis_mean.size(); ++group) {
     out->column.push_back(rung.column(static_cast<int>(group)));
   }
+  // The same rung with long double node products, for the shifted references.
+  FactorRung rung_long_double(context, forest, quadrature_nodes, quadrature_log_weights, offset, order);
+  rung_long_double.log_integral();
   certify(out->log_normalizer, axis_mean,
     [&rung](int axis, double delta, double *value) { return rung.shifted(axis, delta, value); });
   if (refinement && rung.refinable()) {
@@ -6285,13 +6482,17 @@ bool cpp_selnorm_certificate_probe(
     for (std::size_t g = 0; g < out->column.size(); ++g) {
       if (out->column[g] == shift_axis[k]) group = static_cast<int>(g);
     }
-    double reuse_value = nan, full_value = nan;
+    double reuse_value = nan, full_value = nan, reference_value = nan;
     if (group >= 0) {
       rung.shifted(group, shift_delta[k], &reuse_value, true);
       rung.shifted(group, shift_delta[k], &full_value, false);
+      if (rung_long_double.path() == rung.path()) {
+        rung_long_double.shifted(group, shift_delta[k], &reference_value, true);
+      }
     }
     out->reuse_value.push_back(reuse_value);
     out->full_value.push_back(full_value);
+    out->reference_value.push_back(reference_value);
   }
   return true;
 }

@@ -2,6 +2,7 @@
 #define SELNORM_H_
 
 #include <cstddef>
+#include <vector>
 #include "selnorm-fma.h"
 
 // Longest step partition the batched tail kernel hoists cutoffs for; longer
@@ -201,6 +202,40 @@ bool cpp_selnorm_step_normalizer_product(
   const double *mean, std::size_t count, double sd, double sei,
   const double *omega, const SelNormKernelData &data, long double *product
 );
+
+// Double-precision node products for the product ladders: the arithmetic of the
+// batch routine behind cpp_selnorm_step_normalizer_product with the node
+// products in double. The constants of the rows that do not depend on the node
+// are built once per kernel call and shared by every rung and shifted copy of
+// that call. A plan belongs to one call (the batch entries are threaded) and is
+// never shared. It is not usable when `rows * log2(smallest positive omega)` is
+// below -960, where the node products leave the double range for any row, or
+// when a row's geometry is unsupported (the caller then keeps the long double
+// routine above).
+class SelNormDoubleProducts {
+ public:
+  void build(const double *residual_sd, const double *selection_se, int rows,
+             const double *omega, const SelNormKernelData &data);
+  bool usable() const { return usable_; }
+  // Multiply the normalizers of `row` at the `count` locations in `mean` into
+  // `product`. Every normalizer is checked as the batch routine does and every
+  // updated node product must lie in [2^-960, 2^960]. False means "out of
+  // range": `product` may be partly updated, and the caller discards every
+  // product of the rung and evaluates it with the long double routine.
+  bool multiply(int row, const double *mean, std::size_t count,
+                double *product) const;
+
+ private:
+  bool usable_ = false;
+  // The changed boundaries and their weight differences belong to the selection
+  // weights alone. Per row, `row_stride_` doubles hold the inverse residual SD
+  // and then one scaled cutoff per changed boundary.
+  int boundaries_ = 0;
+  int row_stride_ = 0;
+  double last_ = 0.0;
+  double difference_[SELNORM_TAIL_MAX_BINS];
+  std::vector<double> rows_;
+};
 
 double cpp_selnorm_step_cdf_from_telescope_plan(
   double q,

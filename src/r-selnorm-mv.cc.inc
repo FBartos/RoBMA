@@ -1166,7 +1166,7 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
     Rf_error("Certificate probe inputs are invalid.");
   }
 
-  const int slots = 26;
+  const int slots = 28;
   SEXP output = PROTECT(Rf_allocVector(VECSXP, slots));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, slots));
   int slot = 0;
@@ -1212,6 +1212,8 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
   add_vector("amplitude", probe.amplitude);
   add_vector("reuse_value", probe.reuse_value);
   add_vector("full_value", probe.full_value);
+  add_flag("lean", probe.lean);
+  add_vector("reference_value", probe.reference_value);
   add_flag("refined", probe.refined);
   add_scalar("refined_2", probe.refined_2);
   add_scalar("refined_4", probe.refined_4);

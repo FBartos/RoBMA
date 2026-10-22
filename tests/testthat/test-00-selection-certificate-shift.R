@@ -79,8 +79,17 @@ test_that("the rung value of the certificate evaluators equals the unmodified ev
   blocks <- .test_cert_structures(c(1, .2))
   for (name in names(blocks)) for (order in c(7L, 15L, 21L)) {
     probe <- .test_cert_probe(blocks[[name]], order)
-    expect_identical(probe[["log_normalizer"]], probe[["reference_log_normalizer"]],
-                     info = paste(name, order))
+    info  <- paste(name, order)
+    # The nested rules accumulate their node products in double (agreeing with
+    # the long double rule to 1e-13, see test-00-selection-lean-arithmetic.R);
+    # the tensor rule keeps the arithmetic of the unmodified evaluator exactly.
+    expect_identical(probe[["lean"]], name != "tensor", info = info)
+    if (probe[["lean"]]) {
+      expect_lt(abs(expm1(probe[["log_normalizer"]] - probe[["reference_log_normalizer"]])), 1e-13,
+                label = info)
+    } else {
+      expect_identical(probe[["log_normalizer"]], probe[["reference_log_normalizer"]], info = info)
+    }
   }
   expected_path <- c(forest = "nested", multi_root = "nested", chain = "nested", tensor = "tensor_direct")
   for (name in names(expected_path)) {
@@ -194,9 +203,13 @@ test_that("the rank-one cluster rung gives its mean, shifts and amplitude withou
       shift_delta = c(.3, -.4), precomputed = TRUE)
     oracle <- .test_cert_amplitudes(block, order)
     expect_identical(plain[["path"]], .test_cert_paths[["cluster"]])
-    expect_identical(plain[["log_normalizer"]], plain[["reference_log_normalizer"]])
-    # the shifted copies build their own weights and ignore a precomputed rule
-    expect_identical(precomputed[["log_normalizer"]], plain[["log_normalizer"]])
+    # the rung is evaluated with double node products and double weights, and
+    # agrees with the unchanged long double rule to 1e-13
+    expect_true(plain[["lean"]])
+    expect_lt(abs(expm1(plain[["log_normalizer"]] - plain[["reference_log_normalizer"]])), 1e-13)
+    # the unshifted rung reads a precomputed rule (to its rounding to double);
+    # the shifted copies build their own weights and ignore it
+    expect_lt(abs(precomputed[["log_normalizer"]] - plain[["log_normalizer"]]), 1e-14)
     expect_identical(precomputed[["full_value"]], plain[["full_value"]])
     expect_identical(precomputed[["amplitude"]], plain[["amplitude"]])
     expect_lt(abs(plain[["log_normalizer"]] - oracle[["log_integral"]]), 1e-10)

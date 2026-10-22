@@ -586,6 +586,93 @@ bool cpp_selnorm_step_normalizer_product(
   return true;
 }
 
+void SelNormDoubleProducts::build(
+  const double *residual_sd, const double *selection_se, int rows,
+  const double *omega, const SelNormKernelData &data)
+{
+  usable_ = false;
+  if (rows < 1 || !data.trusted_step_partition || !data.telescope_probabilities ||
+      data.n_bins < 1 || data.bounded_cdf ||
+      !(data.effect_sign == 1 || data.effect_sign == -1) ||
+      data.n_bins - 1 > SELNORM_TAIL_MAX_BINS) {
+    return;
+  }
+  double smallest = std::numeric_limits<double>::infinity();
+  for (int bin = 0; bin < data.n_bins; ++bin) {
+    if (!std::isfinite(omega[bin]) || omega[bin] < 0.0) return;
+    if (omega[bin] > 0.0) smallest = std::min(smallest, omega[bin]);
+  }
+  if (!std::isfinite(smallest) ||
+      static_cast<double>(rows) * std::log2(smallest) < -960.0) {
+    return;
+  }
+
+  // The changed boundaries and weight differences of
+  // step_normalizer_batch_telescoping, and per row the inverse residual SD and
+  // the scaled cutoffs.
+  const double last = omega[data.n_bins - 1];
+  if (!std::isfinite(last)) return;
+  last_ = last;
+  boundaries_ = 0;
+  int changed[SELNORM_TAIL_MAX_BINS];
+  for (int bin = 0; bin < data.n_bins - 1; ++bin) {
+    const double step = omega[bin] - omega[bin + 1];
+    if (!std::isfinite(step)) return;
+    if (step == 0.0) continue;
+    difference_[boundaries_] = step;
+    changed[boundaries_] = bin;
+    ++boundaries_;
+  }
+  row_stride_ = 1 + boundaries_;
+  rows_.assign(static_cast<std::size_t>(rows) * row_stride_, 0.0);
+  for (int row = 0; row < rows; ++row) {
+    const double sd = residual_sd[row];
+    const double sei = selection_se[row];
+    if (!(sd > 0) || !std::isfinite(sd) || !(sei > 0) || !std::isfinite(sei)) return;
+    const double inverse_sd = data.effect_sign / sd;
+    if (!std::isfinite(inverse_sd)) return;
+    double *constants = rows_.data() + static_cast<std::size_t>(row) * row_stride_;
+    constants[0] = inverse_sd;
+    for (int k = 0; k < boundaries_; ++k) {
+      const double scaled = data.z_lower[changed[k]] * sei / sd;
+      if (!std::isfinite(scaled)) return;
+      constants[1 + k] = scaled;
+    }
+  }
+  usable_ = true;
+}
+
+bool SelNormDoubleProducts::multiply(
+  int row, const double *mean, std::size_t count, double *product) const
+{
+  const double *constants = rows_.data() + static_cast<std::size_t>(row) * row_stride_;
+  const double inverse_sd = constants[0];
+  const double last = last_;
+  const double absolute_last = std::abs(last);
+  const std::size_t block = 256;
+  double tail[block];
+  double value[block];
+  double magnitude[block];
+  // Per block: the normalizers of the changed boundaries, then their checks
+  // (those of the batch routine and a finite location) and the multiplication
+  // into the node products with the range check. A failed block returns at
+  // once, with the products partly updated.
+  for (std::size_t start = 0; start < count; start += block) {
+    const std::size_t size = std::min(block, count - start);
+    const double *location = mean + start;
+    std::fill(value, value + size, last);
+    std::fill(magnitude, magnitude + size, absolute_last);
+    for (int bin = 0; bin < boundaries_; ++bin) {
+      selnorm_tail::upper_tail_affine(location, size, constants[1 + bin], inverse_sd, tail);
+      selnorm_tail::accumulate_boundary(tail, size, difference_[bin], value, magnitude);
+    }
+    if (!selnorm_tail::update_products(location, value, magnitude, size, product + start)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool cpp_selnorm_step_cdf_telescope_plan(
   double mean,
   double sd,

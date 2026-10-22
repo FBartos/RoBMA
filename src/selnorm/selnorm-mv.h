@@ -138,6 +138,11 @@ struct SelNormCertificateProbe {
   std::vector<int> column;
   std::vector<double> mean, gap, half, quarter, amplitude;
   std::vector<double> reuse_value, full_value;
+  // Whether the rung (and its shifted copies) came from the double precision
+  // node products, and the shifted values of the same requests computed with
+  // the long double products.
+  bool lean = false;
+  std::vector<double> reference_value;
   // Averages over the shift grids M = 2 and 4 of the refinement tier, at the
   // gaps of the rung's tilted means (forests of depth <= 1, tensors of rank <= 2).
   bool refined = false;
