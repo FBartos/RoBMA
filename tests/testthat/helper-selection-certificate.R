@@ -343,7 +343,7 @@
 # in the rank-one cluster ladder when `cluster = TRUE`.
 .test_cert_probe <- function(block, order, cluster = FALSE, tolerance = .005,
                              shift_axis = integer(), shift_delta = numeric(),
-                             telescope = TRUE, precomputed = FALSE) {
+                             telescope = TRUE, precomputed = FALSE, refine = TRUE) {
 
   rules <- if (cluster) {
     .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
@@ -355,7 +355,7 @@
     block[["omega"]], block[["z_lower"]], block[["z_upper"]], 1L, telescope,
     rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]),
     match(order, rules[["orders"]]), tolerance, as.integer(shift_axis),
-    as.double(shift_delta), precomputed, PACKAGE = "RoBMA")
+    as.double(shift_delta), precomputed, refine, PACKAGE = "RoBMA")
 }
 
 # The path codes of the probe.
@@ -407,4 +407,48 @@
     previous_change <- change
   }
   NULL
+}
+
+# ---------------------------------------------------------------------------- #
+# Native refinement tier
+# ---------------------------------------------------------------------------- #
+
+# The decision of the tier recomputed from the probe: the M = 4 average of the
+# finest and previous affordable rung (orders 95 and 63 at rank two and for
+# forests of depth one), the shift check, the tail gate and the order check.
+.test_cert_tier <- function(block, tolerance = .005, finest = 95L, previous = 63L) {
+
+  fine <- .test_cert_probe(block, finest, tolerance = tolerance)
+  prior <- .test_cert_probe(block, previous, tolerance = tolerance)
+  shift_change <- abs(expm1(fine[["refined_4"]] - fine[["refined_2"]]))
+  order_change <- abs(expm1(fine[["refined_4"]] - prior[["refined_4"]]))
+  tail <- .test_cert_tail_bound(block, finest, fine[["refined_4"]])
+  list(
+    value = fine[["refined_4"]], shift_change = shift_change, order_change = order_change,
+    tail = tail,
+    accepted = shift_change <= tolerance / 2 && tail <= tolerance && order_change <= tolerance / 2
+  )
+}
+
+# The accepted order of the certificate ladder recomputed from the probe's rung
+# values: finite, the two successive changes and the tail gate within the
+# tolerance, and the certificate; NA when every affordable rung is rejected.
+.test_cert_probe_ladder <- function(block, tolerance = .005) {
+
+  previous <- -Inf
+  previous_change <- Inf
+  for (order in SELNORM_FACTOR_QUADRATURE_ORDERS) {
+    probe <- .test_cert_probe(block, order, tolerance = tolerance, refine = FALSE)
+    if (probe[["path"]] == .test_cert_paths[["declined"]]) break
+    value <- probe[["log_normalizer"]]
+    difference <- previous - value
+    change <- if (!is.finite(difference) || abs(difference) > 50) Inf else abs(expm1(difference))
+    if (is.finite(value) && change <= tolerance && previous_change <= tolerance &&
+        probe[["tail_bound"]] <= tolerance && probe[["accepted"]]) {
+      return(order)
+    }
+    previous <- value
+    previous_change <- change
+  }
+  NA_integer_
 }

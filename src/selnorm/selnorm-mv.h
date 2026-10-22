@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -133,6 +134,11 @@ struct SelNormCertificateProbe {
   std::vector<int> column;
   std::vector<double> mean, gap, half, quarter, amplitude;
   std::vector<double> reuse_value, full_value;
+  // Averages over the shift grids M = 2 and 4 of the refinement tier, at the
+  // gaps of the rung's tilted means (forests of depth <= 1, tensors of rank <= 2).
+  bool refined = false;
+  double refined_2 = std::numeric_limits<double>::quiet_NaN();
+  double refined_4 = std::numeric_limits<double>::quiet_NaN();
 };
 
 bool cpp_selnorm_certificate_probe(
@@ -143,7 +149,7 @@ bool cpp_selnorm_certificate_probe(
   const double *quadrature_log_weights, const double *quadrature_orders,
   int quadrature_rule_count, int rule, double relative_tolerance,
   const int *shift_axis, const double *shift_delta, int shift_count,
-  bool precomputed_weights, SelNormCertificateProbe *out
+  bool precomputed_weights, bool refinement, SelNormCertificateProbe *out
 );
 
 double cpp_selnorm_certificate_node_gap(const double *nodes, int order, double mean);

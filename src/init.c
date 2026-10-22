@@ -18,7 +18,7 @@ extern SEXP RoBMA_selnorm_set_native_threads(SEXP threads);
 extern SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row);
 extern SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights);
 extern SEXP RoBMA_selnorm_certificate_probe(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP,
-  SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
+  SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP);
 extern SEXP RoBMA_selnorm_certificate_gap(SEXP nodes, SEXP mean);
 extern SEXP RoBMA_selnorm_cache_snapshot(void);
 extern SEXP RoBMA_selnorm_cache_restore(SEXP snapshots);
@@ -395,7 +395,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_set_native_threads", (DL_FUNC) &RoBMA_selnorm_set_native_threads, 1},
     {"RoBMA_selnorm_row_schedule", (DL_FUNC) &RoBMA_selnorm_row_schedule, 2},
     {"RoBMA_selnorm_rule_weights_check", (DL_FUNC) &RoBMA_selnorm_rule_weights_check, 1},
-    {"RoBMA_selnorm_certificate_probe", (DL_FUNC) &RoBMA_selnorm_certificate_probe, 19},
+    {"RoBMA_selnorm_certificate_probe", (DL_FUNC) &RoBMA_selnorm_certificate_probe, 20},
     {"RoBMA_selnorm_certificate_gap", (DL_FUNC) &RoBMA_selnorm_certificate_gap, 2},
     {"RoBMA_selnorm_cache_snapshot", (DL_FUNC) &RoBMA_selnorm_cache_snapshot, 0},
     {"RoBMA_selnorm_cache_restore", (DL_FUNC) &RoBMA_selnorm_cache_restore, 1},

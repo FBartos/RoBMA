@@ -1092,9 +1092,9 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
   SEXP omega, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP telescope,
   SEXP quadrature_nodes, SEXP quadrature_log_weights, SEXP quadrature_orders,
   SEXP rule, SEXP tolerance, SEXP shift_axis, SEXP shift_delta,
-  SEXP precomputed_weights)
+  SEXP precomputed_weights, SEXP refinement)
 {
-  ROBMA_NATIVE_BEGIN(cluster, mean, residual_sd, loading, rank, sei, omega, z_lower, z_upper, sign, telescope, quadrature_nodes, quadrature_log_weights, quadrature_orders, rule, tolerance, shift_axis, shift_delta, precomputed_weights)
+  ROBMA_NATIVE_BEGIN(cluster, mean, residual_sd, loading, rank, sei, omega, z_lower, z_upper, sign, telescope, quadrature_nodes, quadrature_log_weights, quadrature_orders, rule, tolerance, shift_axis, shift_delta, precomputed_weights, refinement)
   check_logical(cluster, "cluster");
   check_real(mean, "mean");
   check_real(residual_sd, "residual_sd");
@@ -1114,6 +1114,7 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
   check_integer(shift_axis, "shift_axis");
   check_real(shift_delta, "shift_delta");
   check_logical(precomputed_weights, "precomputed_weights");
+  check_logical(refinement, "refinement");
   const int dimension = Rf_length(mean);
   const int columns = INTEGER(rank)[0];
   const int bins = Rf_length(omega);
@@ -1124,7 +1125,7 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
   if (Rf_length(cluster) != 1 || Rf_length(rank) != 1 || Rf_length(rule) != 1 ||
       Rf_length(sign) != 1 || Rf_length(telescope) != 1 ||
       Rf_length(tolerance) != 1 || Rf_length(precomputed_weights) != 1 ||
-      dimension < 1 || columns < 1 || Rf_length(residual_sd) != dimension ||
+      Rf_length(refinement) != 1 || dimension < 1 || columns < 1 || Rf_length(residual_sd) != dimension ||
       Rf_length(sei) != dimension || Rf_length(loading) != dimension * columns ||
       Rf_length(z_lower) != bins || Rf_length(z_upper) != bins ||
       total != Rf_length(quadrature_nodes) ||
@@ -1147,11 +1148,11 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
         REAL(quadrature_orders), Rf_length(quadrature_orders),
         INTEGER(rule)[0] - 1, REAL(tolerance)[0], axes.data(),
         REAL(shift_delta), static_cast<int>(axes.size()),
-        LOGICAL(precomputed_weights)[0], &probe)) {
+        LOGICAL(precomputed_weights)[0], LOGICAL(refinement)[0], &probe)) {
     Rf_error("Certificate probe inputs are invalid.");
   }
 
-  const int slots = 18;
+  const int slots = 21;
   SEXP output = PROTECT(Rf_allocVector(VECSXP, slots));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, slots));
   int slot = 0;
@@ -1195,6 +1196,9 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
   add_vector("amplitude", probe.amplitude);
   add_vector("reuse_value", probe.reuse_value);
   add_vector("full_value", probe.full_value);
+  add_flag("refined", probe.refined);
+  add_scalar("refined_2", probe.refined_2);
+  add_scalar("refined_4", probe.refined_4);
   Rf_setAttrib(output, R_NamesSymbol, names);
   UNPROTECT(2);
   return output;

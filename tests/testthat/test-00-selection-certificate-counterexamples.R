@@ -7,7 +7,10 @@ skip_on_cran()
 # (composite Gauss-Legendre or nested stats::integrate), never from the kernel.
 # A block either carries a deterministic result (relative MCSE exactly zero)
 # within the relative tolerance of the reference, or reaches the randomized
-# fallback; the expected route is stated for every block.
+# fallback; the expected route is stated for every block. The shift-amplitude
+# certificate defers the blocks that fed95b63 accepted wrongly; the refinement
+# tier (the average over four shifts per axis at the finest affordable rung)
+# certifies them, within 1e-5 of the reference.
 
 .test_cert_tolerance <- .005
 
@@ -46,12 +49,12 @@ test_that("parallel coincident rows on two axes keep their normalizer within the
     sol80_w2 = list(pinned = -6.013912874415, route = "deterministic",
       block = .test_cert_parallel_block(c(.42, .91), .53, -1.65, 80L, c(1, .2))),
     # the documented 80-row case that the geometric rule accepted with error 1.04e-2
-    fed80 = list(pinned = -9.012420977204, route = "fallback",
+    fed80 = list(pinned = -9.012420977204, route = "deterministic",
       block = .test_cert_parallel_block(c(.496441, .542314), .246872, -2.125758, 80L, c(1, .01))),
     # Opus golden-ratio blocks, always routed to the fallback by the geometric rule
-    golden20 = list(pinned = -11.228950361197, route = "fallback",
+    golden20 = list(pinned = -11.228950361197, route = "deterministic",
       block = .test_cert_parallel_block(c(1, golden), .11136 * scale, -4 * scale, 20L, c(1, 0))),
-    golden40 = list(pinned = -11.224743078254, route = "fallback",
+    golden40 = list(pinned = -11.224743078254, route = "deterministic",
       block = .test_cert_parallel_block(c(1, golden), .11136 * scale, -4 * scale, 40L, c(1, .5))),
     # a block that an aliasing-free rule resolves early
     qmc10 = list(pinned = -6.920829350705, route = "deterministic",
@@ -65,8 +68,9 @@ test_that("parallel coincident rows on two axes keep their normalizer within the
 
 test_that("a rounded mean of the documented 80-row case keeps the contract", {
 
-  # The contract states that rounding the mean to -2.13 reaches the fallback.
-  case <- list(route = "fallback", reference = .test_cert_reference_parallel,
+  # The geometric rule's contract said that rounding the mean to -2.13 reaches
+  # the fallback; the refinement tier now certifies this block as well.
+  case <- list(route = "deterministic", reference = .test_cert_reference_parallel,
     block = .test_cert_parallel_block(c(.496441, .542314), .246872, -2.13, 80L, c(1, .01)))
   .test_cert_check_case("fed80_rounded", case, .test_cert_native_factor)
 })
@@ -114,7 +118,7 @@ test_that("two crossing coincident groups keep their normalizer within the toler
     list(count = 32L, loading = c(-.37056447402550319, .48747887335740198),
          sd = .23232799104534663, mean = -2.32439955742265258, sei = 1)),
     c(1, .03633489870625161))
-  .test_cert_check_case("crossing124", list(block = block, route = "fallback",
+  .test_cert_check_case("crossing124", list(block = block, route = "deterministic",
     pinned = -21.277252217891, reference = .test_cert_reference_two_groups),
     .test_cert_native_factor)
 })
@@ -129,7 +133,7 @@ test_that("a depth-one forest with cancelling leaf aliases keeps its normalizer 
     list(count = 115L, loading = c(.001, 1, 0), sd = .249373398318475, mean = 1.93906024750322, sei = 1),
     list(count = 256L, loading = c(.001, 0, -1), sd = .103488784220421, mean = 1.91516049392521, sei = 1)),
     c(1, .01))
-  .test_cert_check_case("forest371", list(block = block, route = "fallback",
+  .test_cert_check_case("forest371", list(block = block, route = "deterministic",
     pinned = -.15663896170926442, reference = .test_cert_reference_forest),
     .test_cert_native_factor)
 })

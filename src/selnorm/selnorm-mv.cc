@@ -3339,11 +3339,99 @@ class FactorNestedRung {
     return std::isfinite(*log_value);
   }
 
+  // The averages of the rule over the grid of shifts (m / M) h_a of every axis
+  // a, m = 0..M-1, for M = 2 and M = 4 (the M = 2 grid is the even sub-grid of
+  // the other); `gap` holds h_a per plan axis. Forests of depth at most one
+  // only. Given a root shift, the leaves of a tree are independent, so the
+  // average over all shifts of the product of the leaf integrals is the
+  // product of the leaf integrals averaged over their own shifts: the tree
+  // costs M^2 evaluations of each leaf instead of M^(1 + leaves). Trees are
+  // independent of each other and multiply.
+  bool refined(const std::vector<double> &gap, double *log_average_2,
+               double *log_average_4) const
+  {
+    constexpr int grid = 4;
+    if (!ready_ || plan_.max_depth > 1 || gap.size() != node_count_) return false;
+    const auto delta = [&gap](int axis, int index) {
+      return gap[static_cast<std::size_t>(axis)] *
+        (static_cast<double>(index) / static_cast<double>(grid));
+    };
+    std::vector<std::vector<std::vector<long double> > > weights(
+      node_count_, std::vector<std::vector<long double> >(grid));
+    for (std::size_t q = 0; q < node_count_; ++q) {
+      for (int index = 0; index < grid; ++index) {
+        certificate_shifted_weights(nodes_, log_weights_, order_,
+          delta(static_cast<int>(q), index), &weights[q][static_cast<std::size_t>(index)]);
+      }
+    }
+    const std::size_t pairs = static_cast<std::size_t>(order_) * static_cast<std::size_t>(order_);
+    long double total_2 = base_.free_product;
+    long double total_4 = base_.free_product;
+    for (int root : plan_.roots) {
+      long double sum_2 = 0.0L;
+      long double sum_4 = 0.0L;
+      for (int root_index = 0; root_index < grid; ++root_index) {
+        const bool coarse_root = root_index % 2 == 0;
+        const double root_delta = delta(root, root_index);
+        std::vector<long double> own_4(static_cast<std::size_t>(order_), 1.0L);
+        if (!accumulate_rows(plan_.node_rows[root], static_cast<std::size_t>(order_),
+                             plan_.axes[root], own_4, root, root_delta)) return false;
+        std::vector<long double> own_2 = own_4;
+        for (int leaf : plan_.children[root]) {
+          std::vector<long double> inner_2(static_cast<std::size_t>(order_), 0.0L);
+          std::vector<long double> inner_4(static_cast<std::size_t>(order_), 0.0L);
+          for (int leaf_index = 0; leaf_index < grid; ++leaf_index) {
+            std::vector<long double> rows(pairs, 1.0L);
+            if (!accumulate_rows(plan_.node_rows[leaf], pairs, plan_.axes[leaf], rows,
+                                 root, root_delta, leaf, delta(leaf, leaf_index))) {
+              return false;
+            }
+            const std::vector<long double> &leaf_weights =
+              weights[static_cast<std::size_t>(leaf)][static_cast<std::size_t>(leaf_index)];
+            for (int lower = 0; lower < order_; ++lower) {
+              long double value = 0.0L;
+              for (int point = 0; point < order_; ++point) {
+                value += leaf_weights[static_cast<std::size_t>(point)] *
+                  rows[static_cast<std::size_t>(lower) +
+                       static_cast<std::size_t>(point) * static_cast<std::size_t>(order_)];
+              }
+              if (!(value > 0.0L) || !std::isfinite(value)) return false;
+              inner_4[static_cast<std::size_t>(lower)] += value;
+              if (coarse_root && leaf_index % 2 == 0) {
+                inner_2[static_cast<std::size_t>(lower)] += value;
+              }
+            }
+          }
+          for (std::size_t lower = 0; lower < static_cast<std::size_t>(order_); ++lower) {
+            own_4[lower] *= inner_4[lower] / grid;
+            own_2[lower] *= inner_2[lower] / 2.0L;
+          }
+        }
+        const std::vector<long double> &root_weights =
+          weights[static_cast<std::size_t>(root)][static_cast<std::size_t>(root_index)];
+        for (std::size_t point = 0; point < static_cast<std::size_t>(order_); ++point) {
+          sum_4 += root_weights[point] * own_4[point];
+          if (coarse_root) sum_2 += root_weights[point] * own_2[point];
+        }
+      }
+      total_4 *= sum_4 / grid;
+      total_2 *= sum_2 / 2.0L;
+    }
+    if (!(total_2 > 0.0L) || !std::isfinite(total_2) ||
+        !(total_4 > 0.0L) || !std::isfinite(total_4)) return false;
+    *log_average_2 = static_cast<double>(std::log(total_2));
+    *log_average_4 = static_cast<double>(std::log(total_4));
+    return true;
+  }
+
  private:
+  // `shifted_axis` (and the optional `second_axis`) are plan axes whose nodes
+  // move by `delta` (`second_delta`).
   bool accumulate_rows(const std::vector<int> &rows, std::size_t size,
                        const std::vector<int> &row_axes,
                        std::vector<long double> &target, int shifted_axis,
-                       double delta) const
+                       double delta, int second_axis = -1,
+                       double second_delta = 0.0) const
   {
     std::vector<double> conditional_means(size);
     for (int row : rows) {
@@ -3357,8 +3445,8 @@ class FactorNestedRung {
         // Expand one axis at a time. Visit node zero last so the prefix is
         // still available while filling the other slices of the same buffer.
         for (int point = order_ - 1; point >= 0; --point) {
-          const double node = axis == shifted_axis ?
-            nodes_[point] + delta : nodes_[point];
+          const double node = axis == shifted_axis ? nodes_[point] + delta :
+            axis == second_axis ? nodes_[point] + second_delta : nodes_[point];
           const double shift = coefficient * node;
           for (std::size_t lower = 0; lower < lower_size; ++lower) {
             conditional_means[
@@ -3466,6 +3554,8 @@ class FactorNestedRung {
   bool ready_ = false;
 };
 
+double factor_log_mean(const std::vector<double> &log_values, int count);
+
 // The tensor rule of one rung (a support that is not a forest, or a nested
 // rule that left the direct range), summed directly from positive normalizers
 // and otherwise on the log scale, as factor_rule_log_integral does. A shifted
@@ -3496,7 +3586,7 @@ class FactorTensorRung {
     std::vector<long double> moments(rank, 0.0L);
     long double sum = 0.0L;
     if (context_.vector_rule == SELVECTOR_PRODUCT &&
-        direct_sum(-1, 0.0, &sum, &moments)) {
+        direct_sum(nullptr, &sum, &moments)) {
       direct_ = true;
       *log_value = static_cast<double>(std::log(sum));
       mean_.resize(rank);
@@ -3507,7 +3597,7 @@ class FactorTensorRung {
     }
     direct_ = false;
     std::vector<double> terms;
-    log_sum(-1, 0.0, log_value, &terms);
+    log_sum(nullptr, log_value, &terms);
     mean_.assign(rank, std::numeric_limits<double>::quiet_NaN());
     if (std::isfinite(*log_value)) {
       std::fill(mean_.begin(), mean_.end(), 0.0);
@@ -3526,25 +3616,69 @@ class FactorTensorRung {
 
   bool shifted(int axis, double delta, double *log_value) const
   {
+    std::vector<double> deltas(static_cast<std::size_t>(context_.rank), 0.0);
+    deltas[static_cast<std::size_t>(axis)] = delta;
+    return shifted_grid(deltas, log_value);
+  }
+
+  // The rule with every axis a moved by deltas[a], on the path of the value.
+  bool shifted_grid(const std::vector<double> &deltas, double *log_value) const
+  {
     if (direct_) {
       long double sum = 0.0L;
-      if (!direct_sum(axis, delta, &sum, nullptr)) return false;
+      if (!direct_sum(&deltas, &sum, nullptr)) return false;
       *log_value = static_cast<double>(std::log(sum));
       return std::isfinite(*log_value);
     }
-    log_sum(axis, delta, log_value, nullptr);
+    log_sum(&deltas, log_value, nullptr);
     return std::isfinite(*log_value);
   }
 
+  // The averages over the grid of shifts (m / M) h_a of every axis, M = 2 and
+  // M = 4 (the M = 2 grid is the even sub-grid of the other); `gap` holds h_a
+  // per axis. Rank at most two: the average costs M^rank shifted rules.
+  bool refined(const std::vector<double> &gap, double *log_average_2,
+               double *log_average_4) const
+  {
+    constexpr int grid = 4;
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    if (rank > 2 || gap.size() != rank) return false;
+    std::size_t count = 1;
+    for (std::size_t axis = 0; axis < rank; ++axis) count *= grid;
+    std::vector<double> values_4(count);
+    std::vector<double> values_2;
+    std::vector<double> deltas(rank);
+    for (std::size_t point = 0; point < count; ++point) {
+      std::size_t remaining = point;
+      bool coarse = true;
+      for (std::size_t axis = 0; axis < rank; ++axis) {
+        const int index = static_cast<int>(remaining % grid);
+        remaining /= grid;
+        deltas[axis] = gap[axis] * (static_cast<double>(index) / grid);
+        coarse = coarse && index % 2 == 0;
+      }
+      if (!shifted_grid(deltas, &values_4[point])) return false;
+      if (coarse) values_2.push_back(values_4[point]);
+    }
+    *log_average_4 = factor_log_mean(values_4, static_cast<int>(values_4.size()));
+    *log_average_2 = factor_log_mean(values_2, static_cast<int>(values_2.size()));
+    return std::isfinite(*log_average_2) && std::isfinite(*log_average_4);
+  }
+
  private:
-  bool direct_sum(int shifted_axis, double delta, long double *sum,
+  bool direct_sum(const std::vector<double> *deltas, long double *sum,
                   std::vector<long double> *moments) const
   {
-    std::vector<long double> shifted_weights;
-    if (shifted_axis >= 0) {
-      certificate_shifted_weights(nodes_, log_weights_, order_, delta, &shifted_weights);
-    }
     const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    std::vector<std::vector<long double> > shifted_weights(rank);
+    std::vector<char> moved(rank, 0);
+    for (std::size_t factor = 0; factor < rank; ++factor) {
+      if (deltas != nullptr && (*deltas)[factor] != 0.0) {
+        moved[factor] = 1;
+        certificate_shifted_weights(nodes_, log_weights_, order_, (*deltas)[factor],
+                                    &shifted_weights[factor]);
+      }
+    }
     std::vector<double> latent(rank);
     std::vector<int> index(rank);
     long double direct_sum = 0.0L;
@@ -3554,9 +3688,10 @@ class FactorTensorRung {
       for (std::size_t factor = 0; factor < rank; ++factor) {
         index[factor] = static_cast<int>(remaining % static_cast<std::size_t>(order_));
         remaining /= static_cast<std::size_t>(order_);
-        const bool moved = static_cast<int>(factor) == shifted_axis;
-        latent[factor] = moved ? nodes_[index[factor]] + delta : nodes_[index[factor]];
-        term *= moved ? shifted_weights[index[factor]] : weights_[index[factor]];
+        latent[factor] = moved[factor] ? nodes_[index[factor]] + (*deltas)[factor] :
+          nodes_[index[factor]];
+        term *= moved[factor] ? shifted_weights[factor][index[factor]] :
+          weights_[index[factor]];
       }
       for (int i = 0; i < context_.dimension; ++i) {
         double conditional_mean = context_.mean[i];
@@ -3585,7 +3720,7 @@ class FactorTensorRung {
   }
 
   // Log-scale sum; the terms of the unshifted grid are kept for its means.
-  void log_sum(int shifted_axis, double delta, double *value,
+  void log_sum(const std::vector<double> *deltas, double *value,
                std::vector<double> *terms) const
   {
     const std::size_t rank = static_cast<std::size_t>(context_.rank);
@@ -3601,7 +3736,8 @@ class FactorTensorRung {
       for (std::size_t factor = 0; factor < rank; ++factor) {
         const int index = static_cast<int>(remaining % static_cast<std::size_t>(order_));
         remaining /= static_cast<std::size_t>(order_);
-        if (static_cast<int>(factor) == shifted_axis) {
+        if (deltas != nullptr && (*deltas)[factor] != 0.0) {
+          const double delta = (*deltas)[factor];
           latent[factor] = nodes_[index] + delta;
           log_weight += log_weights_[index] - delta * nodes_[index] - 0.5 * delta * delta;
         } else {
@@ -3690,6 +3826,24 @@ class FactorRung {
     return false;
   }
 
+  // Whether the refinement average is defined for this rung: a forest of
+  // depth at most one, or a tensor of rank at most two.
+  bool refinable() const
+  {
+    if (path_ == NESTED) return plan_.max_depth <= 1;
+    return (path_ == TENSOR_DIRECT || path_ == TENSOR_LOG) && context_.rank <= 2;
+  }
+
+  // Averages over the shift grids (m / M) h_a, M = 2 and 4, in the axis order
+  // of means().
+  bool refined(const std::vector<double> &gap, double *log_average_2,
+               double *log_average_4) const
+  {
+    if (!refinable()) return false;
+    return path_ == NESTED ? nested_.refined(gap, log_average_2, log_average_4) :
+      tensor_.refined(gap, log_average_2, log_average_4);
+  }
+
   const double *nodes() const { return nodes_; }
   int order() const { return order_; }
 
@@ -3723,6 +3877,59 @@ bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
   return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
 }
 
+
+// Refinement tier of the factor product ladder, for tensors of rank at most two
+// and forests of depth at most one. At the finest affordable rung, the average
+// of the rule over M shifts per axis (a lattice M times finer along every
+// axis) keeps only the aliasing harmonics that are multiples of M. The average
+// for M = 4 is accepted when it agrees with the average for M = 2 and with the
+// M = 4 average of the previous affordable rung, each within half the
+// tolerance, and the finest rung passes the tail gate for it. The shift of an
+// axis is a fraction m / M of the node gap at the rung's own tilted mean. Every
+// evaluation is a rule of an order the node budget affords. Returns the log of
+// the M = 4 average and the larger of the two relative checks.
+bool factor_refinement_certified(
+    const FactorNormalizerContext &context, const FactorForestPlan &plan,
+    const double *nodes, const double *log_weights, int offset, int order,
+    int previous_offset, int previous_order, int cost_exponent,
+    double relative_tolerance, double *log_value, double *relative_change)
+{
+  const double infinity = std::numeric_limits<double>::infinity();
+  *log_value = -infinity;
+  *relative_change = infinity;
+  const auto refined = [&](int rung_offset, int rung_order, double *average_2,
+                           double *average_4) {
+    if (!selnorm_factor_rule_affordable(rung_order, cost_exponent)) return false;
+    FactorRung rung(context, plan, nodes, log_weights, rung_offset, rung_order);
+    if (!std::isfinite(rung.log_integral())) return false;
+    std::vector<double> mean;
+    if (!rung.refinable() || !rung.means(&mean)) return false;
+    std::vector<double> gap(mean.size());
+    for (std::size_t axis = 0; axis < mean.size(); ++axis) {
+      if (!std::isfinite(mean[axis])) return false;
+      gap[axis] = certificate_node_gap(nodes + rung_offset, rung_order, mean[axis]);
+      if (!(gap[axis] > 0.0) || !std::isfinite(gap[axis])) return false;
+    }
+    return rung.refined(gap, average_2, average_4);
+  };
+  double average_2 = 0.0, average_4 = 0.0;
+  if (!refined(offset, order, &average_2, &average_4)) return false;
+  // |Qbar_4 / Qbar_2 - 1| and |Qbar_4(n) / Qbar_4(n_prev) - 1|
+  const double shift_change = cluster_relative_change(average_4, average_2);
+  if (!(shift_change <= 0.5 * relative_tolerance)) return false;
+  if (!quadrature_covers_gaussian_tails(
+        nodes, offset, order, context.rank, context.omega, context.n_bins,
+        context.dimension, SELVECTOR_PRODUCT, average_4, relative_tolerance)) {
+    return false;
+  }
+  double previous_2 = 0.0, previous_4 = 0.0;
+  if (!refined(previous_offset, previous_order, &previous_2, &previous_4)) return false;
+  const double order_change = cluster_relative_change(average_4, previous_4);
+  if (!(order_change <= 0.5 * relative_tolerance)) return false;
+  *log_value = average_4;
+  *relative_change = std::max(shift_change, order_change);
+  return true;
+}
 
 // The same for a rung of the rank-one cluster rule: a single group whose
 // shifted copies are the one-dimensional rule at a shift.
@@ -4971,9 +5178,12 @@ double cpp_selnorm_factor_step_lpdf(
       double previous_quadrature = negative_infinity;
       double previous_quadrature_change = std::numeric_limits<double>::infinity();
       int quadrature_offset = 0;
+      int finest_offset = 0, finest_order = 0, previous_offset = 0, previous_order = 0;
       for (int rule = 0; rule < quadrature_rule_count; ++rule) {
         const int quadrature_order = static_cast<int>(quadrature_orders[rule]);
         if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
+        previous_offset = finest_offset; previous_order = finest_order;
+        finest_offset = quadrature_offset; finest_order = quadrature_order;
         FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
                         quadrature_offset, quadrature_order);
         const double current_quadrature = rung.log_integral();
@@ -4999,6 +5209,17 @@ double cpp_selnorm_factor_step_lpdf(
         previous_quadrature = current_quadrature;
         previous_quadrature_change = current_quadrature_change;
         quadrature_offset += quadrature_order;
+      }
+      // The ladder rejected every affordable rung. Refine the finest one before
+      // the sparse grid and the randomized fallback.
+      double refined_value = negative_infinity, refined_change = 0.0;
+      if (previous_order > 0 && factor_refinement_certified(
+            context, forest, quadrature_nodes, quadrature_log_weights,
+            finest_offset, finest_order, previous_offset, previous_order,
+            cost_exponent, relative_tolerance, &refined_value, &refined_change)) {
+        *relative_change = refined_change;
+        if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
+        return log_density - refined_value;
       }
     }
   } else {
@@ -5551,7 +5772,7 @@ bool cpp_selnorm_certificate_probe(
     const double *quadrature_log_weights, const double *quadrature_orders,
     int quadrature_rule_count, int rule, double relative_tolerance,
     const int *shift_axis, const double *shift_delta, int shift_count,
-    bool precomputed_weights, SelNormCertificateProbe *out)
+    bool precomputed_weights, bool refinement, SelNormCertificateProbe *out)
 {
   const double nan = std::numeric_limits<double>::quiet_NaN();
   if (dimension < 1 || rank < 1 || rule < 0 || rule >= quadrature_rule_count ||
@@ -5683,6 +5904,13 @@ bool cpp_selnorm_certificate_probe(
   }
   certify(out->log_normalizer, axis_mean,
     [&rung](int axis, double delta, double *value) { return rung.shifted(axis, delta, value); });
+  if (refinement && rung.refinable()) {
+    std::vector<double> refinement_gap(axis_mean.size());
+    for (std::size_t group = 0; group < axis_mean.size(); ++group) {
+      refinement_gap[group] = certificate_node_gap(quadrature_nodes + offset, order, axis_mean[group]);
+    }
+    out->refined = rung.refined(refinement_gap, &out->refined_2, &out->refined_4);
+  }
   for (int k = 0; k < shift_count; ++k) {
     int group = -1;
     for (std::size_t g = 0; g < out->column.size(); ++g) {

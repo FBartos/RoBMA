@@ -77,7 +77,9 @@ test_that("the native factor ladder accepts the rung the R certificate ladder pr
   # quarter-shift amplitudes and combined allowance fit the tolerance. The R
   # emulation takes its rungs and amplitudes from plain tensor Gauss-Hermite
   # rules, and the accepted value is within the tolerance of an independent
-  # integral. A block with no certified rung reaches the randomized fallback.
+  # integral. A block with no certified rung goes to the refinement tier, which
+  # returns the four-shift average of the finest rung when its checks pass, and
+  # otherwise to the randomized fallback.
   quadrature <- .selection_joint_factor_quadrature_rules()
   orders <- quadrature$orders
   qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 512L, scrambles = 8L, seed = 1L)
@@ -102,8 +104,18 @@ test_that("the native factor ladder accepts the rung the R certificate ladder pr
     }), c(1, block$w2))
     expected <- .test_cert_emulate_ladder(certified, .005)
     if (is.null(expected)) {
-      routes <- c(routes, "fallback")
-      expect_gt(actual$relative_mcse, 0)
+      # the equal sharp pair: no rung is certified, the refinement tier is
+      tier <- .test_cert_tier(certified, .005)
+      if (tier$accepted) {
+        routes <- c(routes, "tier")
+        expect_identical(actual$relative_mcse, 0)
+        expect_equal(actual$log_normalizer, tier$value, tolerance = 1e-10)
+        expect_equal(actual$relative_change, max(tier$shift_change, tier$order_change), tolerance = 1e-9)
+        expect_lt(.test_cert_relative_error(actual$log_normalizer, .test_cert_reference(certified)), .005)
+      } else {
+        routes <- c(routes, "fallback")
+        expect_gt(actual$relative_mcse, 0)
+      }
     } else {
       routes <- c(routes, "deterministic")
       expect_identical(actual$relative_mcse, 0)
@@ -113,7 +125,7 @@ test_that("the native factor ladder accepts the rung the R certificate ladder pr
       expect_lt(.test_cert_relative_error(actual$log_normalizer, .test_cert_reference(certified)), .005)
     }
   }
-  expect_true(all(c("deterministic", "fallback") %in% routes))
+  expect_true(all(c("deterministic", "tier") %in% routes))
 })
 
 
