@@ -111,8 +111,6 @@
   n_rows <- nrow(means)
   coupled_intervals <- utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3
   coupled_gap <- if (any(coupled_intervals)) max(diff(nodes)[coupled_intervals]) else Inf
-  per_axis <- rep(TRUE, nrow(loading))
-  checked <- rep(FALSE, nrow(loading))
   for (axis in axes) {
     coefficient <- loading[, axis]
     active <- which(coefficient != 0)
@@ -125,9 +123,7 @@
     other <- setdiff(seq_len(ncol(loading)), axis)
     coupled <- length(other) > 0L && any(rowSums(loading[active, other, drop = FALSE] != 0) > 0L)
     if (coupled) {
-      if (!is.finite(coupled_gap)) return(FALSE)
-      per_axis[active] <- per_axis[active] & coupled_gap * abs(coefficient) <= scale
-      checked[active] <- TRUE
+      if (any(coupled_gap * abs(coefficient) > scale)) return(FALSE)
       next
     }
     for (cut in cuts) {
@@ -144,13 +140,6 @@
       element <- (interior - 1L) %/% n_rows + 1L
       if (any(gap * abs(coefficient[element]) > scale[element])) return(FALSE)
     }
-  }
-  # The coupled check reads the means through the transition positions, which
-  # set the coincident groups and sensitivities of each row of `means`.
-  if (!any(checked)) return(TRUE)
-  for (draw in seq_len(n_rows)) {
-    if (!.selection_transition_guard_resolves(.selection_transition_guard(
-          means[draw, ], residual_sd, loading, sei, selection), nodes, per_axis, checked)) return(FALSE)
   }
   TRUE
 }

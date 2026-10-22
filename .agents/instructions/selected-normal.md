@@ -174,18 +174,7 @@ Deterministic acceptance also requires selection-transition resolution in the
 actual standardized Gaussian axes: changed finite cutoff centers use the
 supplied signed mean, selection SE and loading; their bracketing node gaps must
 not exceed residual SD divided by absolute loading. Coupled axes use maximum
-spacing h over |z|<=3 against each axis's minimum applicable width. Every row
-on a coupled axis (support one included) is also checked per changed cutoff at
-the widest gap h_t reaching [-R, R], R = max(3, |c|+1), c its transition along
-the row's unit normal: 2 pi^2 q / h_t^2 + log(0.8 / sensitivity) >= need. q is
-the smallest |k|^2 - (k.a)^2/(|a|^2+s^2) over nonzero integer k on its support
-(a function of a/s; exact for two axes, the eigenvalue bound otherwise); the
-sensitivity is the step's Gaussian density over its group's normalizer
-factor; need = max(8, 4.6 + min(2.58 m, 6.87 m^0.55)), m = (1-rho)^1.5 (K-1),
-K the transitions coinciding over the central ball, rho their smallest weight
-ratio. A row passing the per-axis gap keeps it unless need > 8, so coincident
-products are bounded and isolated rows are never stricter than the gap rule.
-C++ (one guard per block) and the R mirrors share it. Zero loadings,
+spacing over |z|<=3 against each axis's minimum applicable width. Zero loadings,
 equal adjacent weights and analytically cancelled factors add no constraint;
 singleton child variance absorbed exactly adds no child axis. Exterior factors
 remain owned by existing tail gates. Check the returned candidate, preserving

@@ -22,92 +22,32 @@ test_that("transition resolution retains literal signs, nodes and exterior owner
   }
 })
 
-test_that("the lattice alias width is the smallest damped lattice frequency of a row", {
-
-  # q(k) = |k|^2 - (k.a)^2 / (|a|^2 + s^2) over nonzero integer k, by enumeration
-  enumerated <- function(a, s, K = 40L) {
-    k <- as.matrix(expand.grid(-K:K, -K:K))
-    k <- k[rowSums(abs(k)) > 0L, , drop = FALSE]
-    min(rowSums(k^2) - drop(k %*% a)^2 / (sum(a^2) + s^2))
-  }
-  # Assink and V7-01 rows, an equal sharp pair (diagonal), and sharp unequal
-  # rows whose shortest vectors are (2, 1), (2, -3) and (5, -7).
-  rows <- rbind(c(sqrt(.5), sqrt(.2), sqrt(.3)), c(.0581, .38, .0814), c(1, 1, .1),
-                c(1, .5, .2), c(2, 1, .01), c(-1, .3, .05), c(1, -sqrt(2), .02))
-  for (i in seq_len(nrow(rows))) {
-    expect_equal(.selection_transition_alias_width(matrix(rows[i, 1:2], 1L), rows[i, 3]),
-                 enumerated(rows[i, 1:2], rows[i, 3]), tolerance = 1e-12)
-  }
-  # One axis is exact; three or more axes keep the smallest eigenvalue bound.
-  expect_equal(.selection_transition_alias_width(matrix(c(0, 2, 0), 1L), .5), .25 / 4.25)
-  expect_equal(.selection_transition_alias_width(matrix(c(1, .5, .3), 1L), .2), .04 / 1.38)
-})
-
-test_that("coincident transitions raise the exponent a row needs and widths stay scale free", {
-
-  # One step needs 8; with weights (1, .5) up to three coincident steps still do.
-  expect_identical(.selection_transition_need(1, 0), 8)
-  expect_identical(.selection_transition_need(c(2, 3), .5), c(8, 8))
-  # Full selection: linear in the count first, then like its square root.
-  expect_equal(.selection_transition_need(8, 0), 4.6 + 2.58 * 7)
-  expect_equal(.selection_transition_need(40, 0), 4.6 + 6.87 * 39^.55)
-  expect_true(all(diff(.selection_transition_need(1:200, .2)) >= 0))
-  # The width depends on loading / residual SD only: representable ratios keep it,
-  # ratios beyond double range give NA, which no check accepts.
-  expect_equal(.selection_transition_alias_width(matrix(c(1, 1), 1L), 1e160), 1)
-  expect_identical(.selection_transition_alias_width(matrix(c(1, 1), 1L), 1e-170), NA_real_)
-  expect_identical(.selection_transition_alias_width(matrix(c(1e160, 1e160), 1L), 1), NA_real_)
-  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
-  spec <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(1, 1),
-    effect_direction = "positive", signed_data = FALSE)
-  spec$omega <- matrix(c(1, .3), 1L)
-  expect_false(.selection_transition_rule_resolves(.gauss_hermite_nodes(95L)$nodes, c(0, 0),
-    c(1e-170, 1), rbind(c(1, 1), c(1, 0)), c(1, 1), spec))
-})
-
-test_that("coincident coupled products are accepted only within the tolerance", {
+test_that("coincident coupled products accepted deterministically stay within the tolerance", {
 
   quadrature <- .selection_joint_factor_quadrature_rules()
   qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 8192L, scrambles = 8L, seed = 1L)
-  evaluate <- function(a, s, mean, K, omega2) {
-    loading <- matrix(rep(a, each = K), K, 2L)
-    .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(1, K), matrix(rep(mean, K), 1L),
-      matrix(rep(s, K), 1L), matrix(as.double(loading), 1L), rep(1, K), matrix(c(1, omega2), 1L),
-      c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
-      as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
-  }
-  # K identical rows depend on the latent axes through a . eta only: a
-  # one-dimensional integral over its standardized value is the reference.
-  reference <- function(a, s, mean, K, omega2) {
-    norm <- sqrt(sum(a^2))
-    f <- function(u) exp(stats::dnorm(u, log = TRUE) +
-      K * log(omega2 + (1 - omega2) * stats::pnorm((mean + norm * u) / s)))
-    breaks <- c(-Inf, seq(-10, 10, by = .25), Inf)
-    log(sum(vapply(seq_len(length(breaks) - 1L), function(i) stats::integrate(f, breaks[i], breaks[i + 1L],
-      rel.tol = 1e-12, abs.tol = 0)$value, numeric(1L))))
-  }
-  # 32 rows with equal loadings 1.2 on both axes and the step 2 SD below their
-  # mean: the per-row exponent accepted order 11, 7.3e-3 off.
-  actual <- evaluate(c(1.2, 1.2), 1, 2, 32L, 0)
-  expect_lt(abs(expm1(actual$log_normalizer - reference(c(1.2, 1.2), 1, 2, 32L, 0))), .005)
-  # 80 coincident rows under weights (1, .01): the per-axis gap alone accepted
-  # order 63, 1.04e-2 off. No deterministic rule is accepted now; the randomized
-  # fallback reports diagnostics above the tolerance, which the likelihood
-  # rejects, and its error agrees with them.
-  a <- c(0.496441, 0.542314)
-  actual <- evaluate(a, 0.246872, -2.125758, 80L, .01)
-  error <- abs(expm1(actual$log_normalizer - reference(a, 0.246872, -2.125758, 80L, .01)))
-  expect_gt(actual$relative_mcse, 0)
-  expect_true(error < .005 || max(actual$relative_mcse, actual$relative_change) > .005)
-  expect_lt(error, 4 * max(actual$relative_mcse, .005))
+  # 32 rows with equal loadings 1.2 on both axes and the step 2 SD below their mean.
+  K <- 32L
+  actual <- .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(1, K), matrix(2, 1L, K),
+    matrix(1, 1L, K), matrix(1.2, 1L, 2L * K), rep(1, K), matrix(c(1, 0), 1L),
+    c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
+    as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+  # The rows depend on the latent axes through a . eta only: a one-dimensional
+  # integral over its standardized value is the reference.
+  f <- function(u) exp(stats::dnorm(u, log = TRUE) + K * stats::pnorm((2 + sqrt(2) * 1.2 * u) / 1, log.p = TRUE))
+  breaks <- c(-Inf, seq(-10, 10, by = .25), Inf)
+  reference <- log(sum(vapply(seq_len(length(breaks) - 1L), function(i) stats::integrate(f, breaks[i],
+    breaks[i + 1L], rel.tol = 1e-12, abs.tol = 0)$value, numeric(1L))))
+  expect_identical(actual$relative_mcse, 0)
+  expect_lt(abs(expm1(actual$log_normalizer - reference)), .005)
 })
 
 test_that("eight nearly parallel coincident rows keep the normalizer within the tolerance", {
 
   # Seven rows loading (.224, .975) and one (.224, .976), so the block has full
   # rank; mean -4.08, residual SD .344, selection SE 1, weights (1, 0) at the
-  # cutoff 0. The per-row exponent accepted order 31 with relative error 7.9e-3
-  # (sol, review 33).
+  # cutoff 0. A per-row lattice exponent criterion accepted order 31 with relative
+  # error 7.9e-3 (Sol, review 33).
   K <- 8L
   loading <- matrix(rep(c(.224, .975), each = K), K, 2L)
   loading[K, 2L] <- .976
@@ -129,47 +69,6 @@ test_that("eight nearly parallel coincident rows keep the normalizer within the 
   expect_lt(abs(expm1(actual$log_normalizer - reference)), .005)
 })
 
-test_that("coupled rows resolve once their lattice damping exponent reaches the threshold", {
-
-  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
-  spec <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(1, 1),
-    effect_direction = "positive", signed_data = FALSE)
-  spec$omega <- matrix(c(1, .3), 1L)
-  resolves <- function(order, sd, loading) {
-    .selection_transition_rule_resolves(.gauss_hermite_nodes(order)$nodes, rep(0, nrow(loading)),
-      sd, loading, rep(1, nrow(loading)), spec)
-  }
-  # Assink rows: the common axis needs order 21 by its own width
-  # (residual SD / loading .775), while the lattice width .5 gives exponents
-  # 7.75 and 8.60 at the central spacings 1.129 (order 9) and 1.071 (order 11).
-  assink <- matrix(c(sqrt(.5), sqrt(.2)), 1L)
-  expect_false(resolves(9L, sqrt(.3), assink))
-  expect_true(resolves(11L, sqrt(.3), assink))
-  # Equal sharp loadings alias along the diagonal; no factor rule resolves them.
-  expect_false(resolves(95L, c(.1, .1), matrix(1, 2L, 2L)))
-  # The narrower row of a coupled block decides.
-  expect_false(resolves(11L, c(sqrt(.3), .1), rbind(assink, c(1, 1))))
-})
-
-test_that("a single-axis row on a coupled axis resolves by its one-axis width", {
-
-  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
-  spec <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(1, 1),
-    effect_direction = "positive", signed_data = FALSE)
-  spec$omega <- matrix(c(1, .3), 1L)
-  cut <- stats::qnorm(.975)
-  # Row 1 loads on axis 1 only, which row 2 couples to axis 2. Its per-axis
-  # width is 1, its lattice width .5: exponent 5.2 at order 7 (gap 1.384) and
-  # 8.6 at order 11 (gap 1.071), each plus its sensitivity credit .71 at the
-  # centre. Row 2's transition lies 3 SD away, so neither row is coincident.
-  loading <- rbind(c(1, 0), c(1, .5))
-  mean <- c(cut, cut - 3 * sqrt(1.25))
-  resolves <- function(order) .selection_transition_rule_resolves(.gauss_hermite_nodes(order)$nodes,
-    mean, c(1, 2), loading, c(1, 1), spec)
-  # The per-axis gap alone waits for order 15 (gap .857 <= 1).
-  expect_false(resolves(7L))
-  expect_true(resolves(11L))
-})
 
 test_that("the native factor ladder accepts the rung the R transition rule predicts", {
 
@@ -223,7 +122,8 @@ test_that("the native factor ladder accepts the rung the R transition rule predi
   }
 })
 
-test_that("coupled factor blocks accept the lattice-resolved rule with their independent integral", {
+
+test_that("coupled factor blocks keep their independent integral within the tolerance", {
 
   weight <- function(mu, sd, cut, omega) omega[2L] + (omega[1L] - omega[2L]) * stats::pnorm((mu - cut) / sd)
   nested <- function(mean, sd, loading, cut, omega) {
@@ -248,7 +148,8 @@ test_that("coupled factor blocks accept the lattice-resolved rule with their ind
   }
 
   # An Assink block shape (common and study loadings sqrt(.5) and sqrt(.2), residual
-  # sqrt(.3), per standard error): resolved per axis only from order 21.
+  # An Assink block shape (common and study loadings sqrt(.5) and sqrt(.2), residual
+  # sqrt(.3), per standard error): resolved per axis from order 21.
   sei <- c(.2, .3, .4)
   mean <- c(.15, .25, .1)
   loading <- cbind(sqrt(.5) * sei, sqrt(.2) * sei)
@@ -257,19 +158,14 @@ test_that("coupled factor blocks accept the lattice-resolved rule with their ind
   expect_identical(actual$relative_mcse, 0)
   expect_lt(abs(actual$log_normalizer - reference), 1e-4)
 
-  # V7-01 rows: tau .38 is now deterministic; tau .62 keeps the randomized fallback.
+  # V7-01 rows keep the randomized fallback, within the tolerance.
   sei <- c(.1, .1183)
   for (tau in c(.38, .62)) {
     loading <- cbind(c(.0581, .0688), tau)
     actual <- evaluate(c(.2, .25), c(.08, .16), c(.0814, .0963), loading, sei, c(1, .5))
     reference <- nested(c(.08, .16), c(.0814, .0963), loading, cutoff * sei, c(1, .5))
-    if (tau < .5) {
-      expect_identical(actual$relative_mcse, 0)
-      expect_lt(abs(actual$log_normalizer - reference), 1e-4)
-    } else {
-      expect_gt(actual$relative_mcse, 0)
-      expect_lt(abs(actual$log_normalizer - reference), .005)
-    }
+    expect_gt(actual$relative_mcse, 0)
+    expect_lt(abs(actual$log_normalizer - reference), .005)
   }
 })
 

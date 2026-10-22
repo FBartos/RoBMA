@@ -2,7 +2,6 @@
 #define SELNORM_H_
 
 #include <cstddef>
-#include <vector>
 #include "selnorm-fma.h"
 
 // Longest step partition the batched tail kernel hoists cutoffs for; longer
@@ -74,41 +73,14 @@ struct SelNormKernelData {
   bool bounded_cdf = false;
 };
 
-// The rule-independent part of the coupled transition check: for every changed
-// cutoff of every row on a coupled axis, the radius of the node spacing it
-// sees, the aliasing exponent it needs given the transitions coinciding with
-// it, and the credit of its relative sensitivity. A block evaluates it once
-// for all rungs of its ladders.
-struct SelNormTransitionGuard {
-  bool valid = true;
-  std::vector<double> width;   // per row: lattice alias width, 0 off coupled axes
-  std::vector<int> row;        // per transition
-  std::vector<double> reach;
-  std::vector<double> need;
-  // the sensitivity credit, formed on first use (NaN until then)
-  std::vector<double> position;
-  std::vector<double> scale;
-  std::vector<double> log_group;
-  mutable std::vector<double> credit;
-};
-
-void cpp_selnorm_transition_guard(
-  const double *mean, const double *residual_sd, const double *loading,
-  int dimension, int rank, const double *selection_se,
-  const double *omega, const SelNormKernelData &data, int omega_stride,
-  SelNormTransitionGuard *out
-);
-
 // Additional finite-rule selection-transition heuristic. The actual axes are
 // standard Gaussian; loading is column-major dimension by rank. Existing error
 // and exterior-mass gates remain separate. This is not a global error bound.
-// `guard` is the block's cpp_selnorm_transition_guard(), formed here if null.
 bool cpp_selnorm_step_rule_resolves_transitions(
   const double *nodes, int offset, int order,
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
-  const double *omega, const SelNormKernelData &data, int omega_stride = 1,
-  const SelNormTransitionGuard *guard = nullptr
+  const double *omega, const SelNormKernelData &data, int omega_stride = 1
 );
 
 double cpp_selnorm_bounded_cdf_absolute_error();

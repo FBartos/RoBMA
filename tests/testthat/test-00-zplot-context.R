@@ -489,29 +489,16 @@ test_that("the vectorized transition rule decides every branch like the rule at 
   decide(FALSE, 0, sei = NA_real_)
   decide(FALSE, 0, selection = step(z_lower = c(0, 9)), sei = Inf)
   decide(TRUE, 0, sei = Inf)
-  # An element coupled to another axis is decided by the central node gap, 1
-  # here: both transitions sit at the centre (means 1, cut 2 * .5) and coincide,
-  # which with weights (1, .2) still needs only the single-step exponent 8.
+  # An element coupled to another axis is decided by the node gap alone, not by
+  # the means: the coupled gap here is 1 and the scale is compared to it.
   coupled <- cbind(c(1, 1), c(.5, 0))
-  central <- matrix(1, 3L, 2L)
-  decide(FALSE, loading = coupled, residual_sd = c(.3, 5), sei = c(.5, .5), means = central)
-  decide(TRUE, loading = coupled, residual_sd = c(1.2, 5), sei = c(.5, .5), means = central)
-  # Scale .8 fails the axis width but resolves by its lattice width .471
-  # (exponent 2 pi^2 .471 = 9.3 at gap 1); scale .3 has width .254 (5.0).
-  decide(TRUE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = central)
-  # A transition 900 SD out barely moves the normalizer: its sensitivity credit
-  # resolves the narrow row there.
-  decide(TRUE, loading = coupled, residual_sd = c(.3, 5), sei = c(.5, .5), means = matrix(1000, 3L, 2L))
+  exterior <- matrix(1000, 3L, 2L)
+  decide(FALSE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = exterior)
+  decide(TRUE, loading = coupled, residual_sd = c(1.2, 5), sei = c(.5, .5), means = exterior)
   # Only the intervals that reach [-3, 3] count: the widest gap here is 2.
-  decide(TRUE, loading = coupled, residual_sd = c(2.5, 5), sei = c(.5, .5), means = central,
+  decide(TRUE, loading = coupled, residual_sd = c(2.5, 5), sei = c(.5, .5), means = exterior,
          nodes = c(-6, -4, grid, 4, 7))
-  # An isolated row keeps the per-axis pass (2 * .5 <= 1) although its exponent
-  # 2 pi^2 .833 / 4 = 4.1 is below 8; three coincident copies need 8.3 and lose it.
-  decide(TRUE, loading = rbind(c(.5, .5), c(0, 0)), residual_sd = c(1, 5), sei = c(.5, .5),
-         means = matrix(1, 3L, 2L), nodes = c(-6, -4, grid, 4, 7))
-  decide(FALSE, loading = matrix(.5, 3L, 2L), residual_sd = rep(1, 3L), sei = rep(.5, 3L),
-         means = matrix(1, 3L, 3L), nodes = c(-6, -4, grid, 4, 7))
-  decide(TRUE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = central,
+  decide(TRUE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = exterior,
          axes = integer())
 })
 

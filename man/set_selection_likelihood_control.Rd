@@ -88,11 +88,8 @@ representation.
 Deterministic candidates additionally resolve finite changed-weight selection
 transitions in their actual Gaussian integration coordinates. The node gap
 across an interior transition must not exceed its conditional residual SD
-divided by the absolute loading. Coupled axes use the widest central node
-spacing; a row on a coupled axis that exceeds it still resolves when the
-lattice aliasing exponent of its selection step reaches a threshold that
-coinciding steps of other rows raise. Unresolved candidates refine or use the
-existing fallback; the
+divided by the absolute loading. Coupled axes use conservative central node
+spacing. Unresolved candidates refine or use the existing fallback; the
 numerical settings and likelihood target are unchanged. This extra heuristic
 does not certify total integration error, including reciprocal normalizers.
 Each fit or post-fit request uses a fixed integration design, so repeated
