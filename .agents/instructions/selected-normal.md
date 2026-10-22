@@ -182,6 +182,15 @@ actual previous-rule values/offsets without requiring resolved comparands.
 Precheck the finest available/affordable rule and retain existing fallback or
 unavailability, truthful measured diagnostics and unchanged budgets.
 
+Known limits of this rule: it checks each axis, not the product of coincident
+transitions, which sharpens with their number (80 identical rows with loadings
+(.496, .542), residual SD .247, mean 2.13 below the cutoff and weights (1, .01)
+are accepted deterministically with relative error 1.04e-2). The randomized
+fallback is not calibrated for such products either: forced onto it, the same
+rows passed both its MCSE and change diagnostics for 11 of 40 design seeds, all
+with errors of 2-6%. Replacing the rule needs a criterion validated against
+both (review 35).
+
 Retained-latent density has separate population-forward, conditional response-
 root interpolation and direct conditional routes. Sampling density uses its
 actual E|Y affine axis; tails/moments use E's population axis, only when those
