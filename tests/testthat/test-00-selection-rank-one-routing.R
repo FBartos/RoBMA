@@ -102,6 +102,33 @@ test_that("coincident coupled products are accepted only within the tolerance", 
   expect_lt(error, 4 * max(actual$relative_mcse, .005))
 })
 
+test_that("eight nearly parallel coincident rows keep the normalizer within the tolerance", {
+
+  # Seven rows loading (.224, .975) and one (.224, .976), so the block has full
+  # rank; mean -4.08, residual SD .344, selection SE 1, weights (1, 0) at the
+  # cutoff 0. The per-row exponent accepted order 31 with relative error 7.9e-3
+  # (sol, review 33).
+  K <- 8L
+  loading <- matrix(rep(c(.224, .975), each = K), K, 2L)
+  loading[K, 2L] <- .976
+  quadrature <- .selection_joint_factor_quadrature_rules()
+  qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 8192L, scrambles = 8L, seed = 1L)
+  actual <- .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(1, K), matrix(-4.08, 1L, K),
+    matrix(.344, 1L, K), matrix(as.double(loading), 1L), rep(1, K), matrix(c(1, 0), 1L),
+    c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
+    as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+  # Independent nested adaptive integration over the two latent axes.
+  selected <- function(score) stats::pnorm((score - 4.08) / .344)
+  inner <- function(u) vapply(u, function(u0) stats::integrate(function(v) {
+    score <- .224 * u0 + .975 * v
+    stats::dnorm(v) * selected(score)^(K - 1L) * selected(score + .001 * v)
+  }, -Inf, Inf, rel.tol = 1e-10, abs.tol = 0, subdivisions = 500L)$value, numeric(1L))
+  reference <- log(stats::integrate(function(u) stats::dnorm(u) * inner(u), -Inf, Inf,
+    rel.tol = 1e-10, abs.tol = 0, subdivisions = 500L)$value)
+  expect_equal(reference, -12.49313108908495, tolerance = 1e-8)
+  expect_lt(abs(expm1(actual$log_normalizer - reference)), .005)
+})
+
 test_that("coupled rows resolve once their lattice damping exponent reaches the threshold", {
 
   prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
