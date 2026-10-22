@@ -481,6 +481,57 @@ test_that("native scalar deletion guards its own returned conditional rule", {
   expect_equal(evaluate(c(3L, 7L), omega = c(1, 1))[1L], stats::dnorm(0, .2, sqrt(.8), log = TRUE))
 })
 
+test_that("native and dependent-block deletion centre their integrals on both variance shares", {
+
+  # The native batch: mean 2^79, sampling variance 1, integrated variance 2^-60 and
+  # selection SE 2^19 put the share-form centre 2^-60 * 2^79 = 2^19 on the cutoff
+  # z = 1, which order 7 cannot resolve; the lost-share form centred at y = 0, far
+  # outside the rule. The Gaussian term dominates the value itself.
+  native <- function(orders) {
+    rule <- .selection_joint_cluster_quadrature_rules(orders)
+    .Call("RoBMA_selnorm_sampling_deletion_loglik_batch", 0, matrix(2^79), 1,
+      matrix(2^-60), matrix(1 + 2^-60), 2^19, matrix(c(1, .2), 1L),
+      c(1, -Inf), c(Inf, 1), 1L, 1L, FALSE,
+      as.double(rule$nodes), as.double(rule$log_weights), as.integer(rule$orders), 1,
+      PACKAGE = "RoBMA")[1L]
+  }
+  expect_true(is.na(native(c(3L, 7L))))
+  expect_true(is.finite(native(c(3L, 7L, 15L))))
+
+  # The dependent-block route deletes row 1 of a three-row block whose retained
+  # sampling error is 2^80 under an integrated covariance of 2^-60: its reciprocal
+  # integral is centred on .gaussian_summand_conditional_mean(), about 5.0e5, not
+  # on the lost-share value 0.
+  dat <- data.frame(yi = c(.4, -.2, .9), sei = c(.8, 1.1, 1), paper = "a")
+  object <- bselmodel(
+    yi = yi, sei = sei, data = dat, measure = "GEN", effect_direction = "positive",
+    prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .5, BayesTools::wf_fixed(c(1, .2)),
+      model = BayesTools::selection_model(estimate_random_effects = "integrate",
+        known_sampling_variance = "condition", group = "paper")))
+  samples <- matrix(c(.1, .5, rep(0, 6L)), 1L, dimnames = list(NULL,
+    c("mu", "tau", paste0("theta[", 1:3, "]"), paste0("sampling_z[", 1:3, "]"))))
+  setup <- .log_lik_posterior_setup(object$fit, samples, object$data, object$priors, "estimate", NULL)
+  V <- matrix(.3, 3L, 3L) + diag(c(.34, .91, .7))
+  state <- list(e = matrix(c(0, 0, 2^80), 1L), baseline_mu = matrix(0, 1L, 3L),
+    sampling_covariance = V, integrated_covariance = array(diag(2^-60, 3L), c(1L, 3L, 3L)),
+    total_covariance = array(V + diag(2^-60, 3L), c(1L, 3L, 3L)),
+    log_normalizer = matrix(0, 1L, length(.data_selection_execution_plan(setup$data)$row_blocks)))
+  centres <- numeric()
+  testthat::local_mocked_bindings(
+    .selection_conditioned_sampling_state = function(...) state,
+    .selection_conditioned_sampling_independent_targets = function(...) NULL,
+    .selection_conditioned_sampling_normalizer = function(setup, means) {
+      if (all(abs(means[, 1L]) < 2^60)) centres <<- c(centres, means[, 1L])
+      list(log_mass = rep(0, nrow(means)))
+    }, .package = "RoBMA")
+  .selection_conditioned_sampling_estimate_targets_chunk(setup, "log_density")
+  sampling <- .selection_deleted_gaussian_coordinates(V, state$e[1L, ])
+  centre <- .gaussian_summand_conditional_mean(sampling$mean[1L], sampling$variance[1L], 2^-60, dat$yi[1L])
+  expect_gt(centre, 4e5)
+  expect_true(any(abs(centres - centre) <= 1e-9 * centre))
+})
+
 
 test_that("fixed-zero random bridge replay preserves its fitted source map", {
 
