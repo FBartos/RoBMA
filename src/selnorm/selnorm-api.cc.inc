@@ -643,7 +643,8 @@ void SelNormDoubleProducts::build(
 }
 
 bool SelNormDoubleProducts::multiply(
-  int row, const double *mean, std::size_t count, double *product) const
+  int row, const double *mean, std::size_t count, double *product,
+  double *normalizer) const
 {
   const double *constants = rows_.data() + static_cast<std::size_t>(row) * row_stride_;
   const double inverse_sd = constants[0];
@@ -651,26 +652,23 @@ bool SelNormDoubleProducts::multiply(
   const double absolute_last = std::abs(last);
   const std::size_t block = 256;
   double tail[block];
-  double value[block];
   double magnitude[block];
-  // Per block: the normalizers of the changed boundaries, then their checks
-  // (those of the batch routine and a finite location) and the multiplication
-  // into the node products with the range check. A failed block returns at
-  // once, with the products partly updated.
+  // The normalizers of the changed boundaries, block by block into the
+  // caller's workspace, each block checked (those of the batch routine and a
+  // finite location) as soon as it is complete.
   for (std::size_t start = 0; start < count; start += block) {
     const std::size_t size = std::min(block, count - start);
     const double *location = mean + start;
+    double *value = normalizer + start;
     std::fill(value, value + size, last);
     std::fill(magnitude, magnitude + size, absolute_last);
     for (int bin = 0; bin < boundaries_; ++bin) {
       selnorm_tail::upper_tail_affine(location, size, constants[1 + bin], inverse_sd, tail);
       selnorm_tail::accumulate_boundary(tail, size, difference_[bin], value, magnitude);
     }
-    if (!selnorm_tail::update_products(location, value, magnitude, size, product + start)) {
-      return false;
-    }
+    if (!selnorm_tail::validate_normalizers(location, value, magnitude, size)) return false;
   }
-  return true;
+  return selnorm_tail::multiply_products(normalizer, count, product);
 }
 
 bool cpp_selnorm_step_cdf_telescope_plan(

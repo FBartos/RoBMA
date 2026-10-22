@@ -218,12 +218,15 @@ class SelNormDoubleProducts {
              const double *omega, const SelNormKernelData &data);
   bool usable() const { return usable_; }
   // Multiply the normalizers of `row` at the `count` locations in `mean` into
-  // `product`. Every normalizer is checked as the batch routine does and every
-  // updated node product must lie in [2^-960, 2^960]. False means "out of
-  // range": `product` may be partly updated, and the caller discards every
-  // product of the rung and evaluates it with the long double routine.
-  bool multiply(int row, const double *mean, std::size_t count,
-                double *product) const;
+  // `product`. The normalizers of the whole row are computed into the
+  // caller-owned `normalizer` (at least `count` doubles) and checked as the
+  // batch routine does before the first product is multiplied; every updated
+  // node product must lie in [2^-960, 2^960]. False means "out of range": the
+  // products are untouched after a failed check and partly updated after a
+  // product out of range, and the caller discards every product of the rung
+  // and evaluates it with the long double routine.
+  bool multiply(int row, const double *mean, std::size_t count, double *product,
+                double *normalizer) const;
 
  private:
   bool usable_ = false;

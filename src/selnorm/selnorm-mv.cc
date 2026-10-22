@@ -123,11 +123,11 @@ struct ClusterRuleWorkspace {
 // Workspaces of the double-precision node products of the product ladders. One
 // set belongs to one kernel call (the batch entries are threaded, so nothing is
 // static) and is reused by every rung and shifted copy of that call: the row
-// constants of the step normalizers and the buffers of the node products and
-// conditional means.
+// constants of the step normalizers and the buffers of the node products, the
+// normalizers of a row and the conditional means.
 struct SelNormLeanScratch {
   SelNormDoubleProducts plan;
-  std::vector<double> product, means;
+  std::vector<double> product, means, normalizer;
 
   void configure(const double *residual_sd, const double *selection_se, int rows,
                  const double *omega, const SelNormKernelData &selection)
@@ -139,6 +139,7 @@ struct SelNormLeanScratch {
   void reserve(std::size_t count)
   {
     if (means.size() < count) means.resize(count);
+    if (normalizer.size() < count) normalizer.resize(count);
   }
 };
 
@@ -342,7 +343,7 @@ bool cluster_rule_log_integral_double(const ClusterNormalizerContext &context,
         context.mean[i] + context.loading[i] * (nodes[offset + j] + shift);
     }
     if (!scratch->plan.multiply(i, scratch->means.data(), count,
-                                scratch->product.data())) {
+                                scratch->product.data(), scratch->normalizer.data())) {
       return false;
     }
   }
@@ -3725,7 +3726,8 @@ class FactorNestedRung {
         expand_means(row, row_axes, shifted_axis, delta, second_axis,
                      second_delta, scratch.means.data());
         if (!scratch.plan.multiply(row, scratch.means.data(), size,
-                                   scratch.product.data())) return false;
+                                   scratch.product.data(),
+                                   scratch.normalizer.data())) return false;
       }
       for (std::size_t point = 0; point < size; ++point) {
         target[point] *= scratch.product[point];
