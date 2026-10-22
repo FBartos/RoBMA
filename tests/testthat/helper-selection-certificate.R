@@ -275,15 +275,35 @@
   log(value[["value"]])
 }
 
+# Any block of groups of coincident rows on two latent axes: nested composite
+# Gauss-Legendre, outer over the first axis and inner over the second. The
+# panel width stays below the smallest transition width of the rows.
+.test_cert_reference_rank_two <- function(block, limit = 8, panel = .1, m = 10L) {
+
+  stopifnot(block[["rank"]] == 2L)
+  rule <- .test_cert_composite_rule(limit, panel, m)
+  log_w <- stats::dnorm(rule[["x"]], log = TRUE) + rule[["log_w"]]
+  outer_value <- vapply(rule[["x"]], function(x) {
+    value <- log_w
+    for (group in block[["groups"]]) {
+      location <- group[["mean"]] + group[["loading"]][1L] * x + group[["loading"]][2L] * rule[["x"]]
+      value <- value + group[["count"]] * .test_cert_log_probability(location, group[["sd"]],
+        group[["sei"]], block[["omega"]], block[["z_lower"]])
+    }
+    .test_cert_logsumexp(value)
+  }, numeric(1L))
+  .test_cert_logsumexp(log_w + outer_value)
+}
+
 # ---------------------------------------------------------------------------- #
 # Plain-R shift-amplitude certificate (tensor Gauss-Hermite rung)
 # ---------------------------------------------------------------------------- #
 
-# Log of the tensor Gauss-Hermite rule of this order, evaluated at the nodes
-# moved by `shift` along the axes with the exactly changed weights
-# w_j exp(-shift x_j - shift^2 / 2). With a zero shift this is the plain rule.
-.test_cert_tensor_log_integral <- function(block, order, shift = rep(0, block[["rank"]]),
-                                           moments = FALSE) {
+# Nodes and log terms of the tensor Gauss-Hermite rule of this order, evaluated
+# at the nodes moved by `shift` along the axes with the exactly changed weights
+# w_j exp(-shift x_j - shift^2 / 2): the grid rows `x` and the log of weight times
+# integrand at each of them.
+.test_cert_tensor_terms <- function(block, order, shift = rep(0, block[["rank"]])) {
 
   rule <- .gauss_hermite_nodes(order)
   rank <- block[["rank"]]
@@ -298,9 +318,30 @@
     value <- value + .test_cert_log_probability(location[, i], block[["sd"]][i],
       block[["sei"]][i], block[["omega"]], block[["z_lower"]])
   }
-  log_integral <- .test_cert_logsumexp(value)
+  list(x = x, value = value)
+}
+
+# Log of the tensor Gauss-Hermite rule of this order (see above). With a zero
+# shift this is the plain rule; `moments = TRUE` adds the tilted mean per axis.
+.test_cert_tensor_log_integral <- function(block, order, shift = rep(0, block[["rank"]]),
+                                           moments = FALSE) {
+
+  terms <- .test_cert_tensor_terms(block, order, shift)
+  log_integral <- .test_cert_logsumexp(terms[["value"]])
   if (!moments) return(log_integral)
-  list(log_integral = log_integral, mean = colSums(x * exp(value - log_integral)))
+  list(log_integral = log_integral,
+       mean = colSums(terms[["x"]] * exp(terms[["value"]] - log_integral)))
+}
+
+# Mean and covariance of the latent coordinates under the plain tensor rule (the
+# order of the loading columns).
+.test_cert_tensor_moments <- function(block, order) {
+
+  terms <- .test_cert_tensor_terms(block, order)
+  p     <- exp(terms[["value"]] - .test_cert_logsumexp(terms[["value"]]))
+  mean  <- colSums(terms[["x"]] * p)
+  centered <- sweep(terms[["x"]], 2L, mean)
+  list(mean = mean, covariance = crossprod(centered * sqrt(p)))
 }
 
 # The gap of the order-n nodes around a mean: R's findInterval clamped to the
@@ -407,6 +448,47 @@
     previous_change <- change
   }
   NULL
+}
+
+# ---------------------------------------------------------------------------- #
+# Small blocks of every support structure
+# ---------------------------------------------------------------------------- #
+
+# Structures of the selection supports at test size: one axis, two independent
+# roots, a root with two leaves, two trees of a root with one leaf, and partial
+# overlaps (a tensor). Sharp enough that a coarse rung is far from its limit.
+.test_cert_small_group <- function(count, loading, sd, mean, sei = 1) {
+
+  list(count = count, loading = loading, sd = sd, mean = mean, sei = sei)
+}
+
+.test_cert_small_blocks <- function(omega = c(1, .2), sd_scale = .3) {
+
+  list(
+    # one latent axis
+    rank_one = .test_cert_block(list(
+      .test_cert_small_group(4L, .8, sd_scale * 1.1, .3)), omega),
+    # two independent roots, each with rows on its own axis (a forest of depth zero)
+    two_roots = .test_cert_block(list(
+      .test_cert_small_group(3L, c(.8, 0), sd_scale * 1.1, .2),
+      .test_cert_small_group(2L, c(0, .7), sd_scale * 1.3, -.1)), omega),
+    # a shared axis with two leaves, rows on the shared axis only and a free row
+    two_leaves = .test_cert_block(list(
+      .test_cert_small_group(3L, c(.6, .5, 0), sd_scale * 1.1, .2),
+      .test_cert_small_group(2L, c(.6, 0, .4), sd_scale * 1.3, -.1),
+      .test_cert_small_group(2L, c(.7, 0, 0), sd_scale * 1.2, .1),
+      .test_cert_small_group(1L, c(0, 0, 0), sd_scale * 1, 0)), omega),
+    # two independent trees, each a root with one leaf
+    two_trees = .test_cert_block(list(
+      .test_cert_small_group(3L, c(.6, .5, 0, 0), sd_scale * 1.1, .2),
+      .test_cert_small_group(2L, c(0, 0, .5, .4), sd_scale * 1.3, -.1)), omega),
+    # a group on both axes with rows on either axis alone: partial overlaps, no
+    # forest, the rank-two tensor rule
+    crossing = .test_cert_block(list(
+      .test_cert_small_group(3L, c(.7, .3), sd_scale * 1.1, .2),
+      .test_cert_small_group(2L, c(.5, 0), sd_scale * 1.2, -.1),
+      .test_cert_small_group(2L, c(0, .6), sd_scale * 1.3, .1)), omega)
+  )
 }
 
 # ---------------------------------------------------------------------------- #

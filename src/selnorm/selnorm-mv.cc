@@ -126,7 +126,8 @@ struct ClusterRuleWorkspace {
 // `context.quadrature_weights`, which hold the unshifted rule. With a
 // `tilted_mean` and no shift, the rule's own posterior mean of the latent
 // coordinate under the selected integrand is returned from the same direct or
-// log-scale evaluation that produced the value.
+// log-scale evaluation that produced the value, and `tilted_variance` (which
+// needs `tilted_mean`) the variance of that coordinate about it.
 double cluster_rule_log_integral(const ClusterNormalizerContext &context,
                                  const double *nodes,
                                  const double *log_weights,
@@ -136,7 +137,8 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
                                  int cache_slots = 0,
                                  ClusterRuleProjection *projection = nullptr,
                                  double shift = 0.0,
-                                 double *tilted_mean = nullptr)
+                                 double *tilted_mean = nullptr,
+                                 double *tilted_variance = nullptr)
 {
   ClusterRuleWorkspace local;
   ClusterRuleWorkspace &scratch = workspace ? *workspace : local;
@@ -208,20 +210,32 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
     }
   }
   if (direct_ok) {
-    long double integral = 0.0L;
-    long double moment = 0.0L;
-    for (int j = 0; j < order; ++j) {
-      const long double weight = shift == 0.0 && context.quadrature_weights ?
+    const auto node_weight = [&](int j) -> long double {
+      return shift == 0.0 && context.quadrature_weights ?
         context.quadrature_weights[offset + j] :
         std::exp(static_cast<long double>(log_weights[offset + j]) -
           static_cast<long double>(shift) * nodes[offset + j] -
           0.5L * static_cast<long double>(shift) * shift);
+    };
+    long double integral = 0.0L;
+    long double moment = 0.0L;
+    for (int j = 0; j < order; ++j) {
+      const long double weight = node_weight(j);
       integral += products[j] * weight;
       if (tilted_mean != nullptr) moment += products[j] * weight * nodes[offset + j];
     }
     if (integral > 0.0L && std::isfinite(integral)) {
       if (tilted_mean != nullptr) {
         *tilted_mean = static_cast<double>(moment / integral);
+      }
+      if (tilted_variance != nullptr) {
+        const long double center = moment / integral;
+        long double spread = 0.0L;
+        for (int j = 0; j < order; ++j) {
+          const long double deviation = nodes[offset + j] - center;
+          spread += products[j] * node_weight(j) * deviation * deviation;
+        }
+        *tilted_variance = static_cast<double>(spread / integral);
       }
       return static_cast<double>(std::log(integral));
     }
@@ -265,6 +279,17 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
     }
     *tilted_mean = std::isfinite(out) ? moment :
       std::numeric_limits<double>::quiet_NaN();
+    if (tilted_variance != nullptr) {
+      double spread = 0.0;
+      for (int j = 0; j < order; ++j) {
+        if (std::isfinite(terms[static_cast<std::size_t>(j)])) {
+          const double deviation = nodes[offset + j] - moment;
+          spread += std::exp(terms[static_cast<std::size_t>(j)] - out) * deviation * deviation;
+        }
+      }
+      *tilted_variance = std::isfinite(out) ? spread :
+        std::numeric_limits<double>::quiet_NaN();
+    }
   }
   return out;
 }
@@ -3327,6 +3352,91 @@ class FactorNestedRung {
     return true;
   }
 
+  // Mean and covariance (column-major, plan-axis order) of the latent
+  // coordinates under the tilted rule, for forests of depth at most one. Given
+  // the node of its root the leaves of a tree are independent, so the root
+  // marginal and the leaf conditional means and variances (all from the
+  // retained messages) give the exact rung moments: leaf-leaf covariances run
+  // through the root, and trees are independent of each other.
+  bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
+  {
+    if (!ready_ || plan_.max_depth > 1) return false;
+    const std::size_t axes = node_count_;
+    const std::size_t order = static_cast<std::size_t>(order_);
+    mean->assign(axes, 0.0);
+    covariance->assign(axes * axes, 0.0);
+    for (int root : plan_.roots) {
+      std::vector<long double> probability(order, 0.0L);
+      long double total = 0.0L;
+      for (std::size_t node = 0; node < order; ++node) {
+        probability[node] = weights_[node] * base_.own[static_cast<std::size_t>(root)][node];
+        total += probability[node];
+      }
+      if (!(total > 0.0L) || !std::isfinite(total)) return false;
+      long double root_mean = 0.0L;
+      for (std::size_t node = 0; node < order; ++node) {
+        probability[node] /= total;
+        root_mean += probability[node] * nodes_[node];
+      }
+      long double root_variance = 0.0L;
+      for (std::size_t node = 0; node < order; ++node) {
+        const long double deviation = nodes_[node] - root_mean;
+        root_variance += probability[node] * deviation * deviation;
+      }
+      const std::size_t r = static_cast<std::size_t>(root);
+      (*mean)[r] = static_cast<double>(root_mean);
+      (*covariance)[r + axes * r] = static_cast<double>(root_variance);
+
+      const std::vector<int> &leaves = plan_.children[r];
+      std::vector<std::vector<long double> > conditional(leaves.size(),
+        std::vector<long double>(order, 0.0L));
+      std::vector<long double> leaf_mean(leaves.size(), 0.0L);
+      for (std::size_t l = 0; l < leaves.size(); ++l) {
+        const std::size_t leaf = static_cast<std::size_t>(leaves[l]);
+        const std::vector<long double> &rows = base_.own[leaf];
+        const std::vector<long double> &integral = base_.integral[leaf];
+        long double within_variance = 0.0L;
+        for (std::size_t node = 0; node < order; ++node) {
+          long double first = 0.0L;
+          for (std::size_t point = 0; point < order; ++point) {
+            first += weights_[point] * rows[node + point * order] * nodes_[point];
+          }
+          conditional[l][node] = first / integral[node];
+          long double second = 0.0L;
+          for (std::size_t point = 0; point < order; ++point) {
+            const long double deviation = nodes_[point] - conditional[l][node];
+            second += weights_[point] * rows[node + point * order] * deviation * deviation;
+          }
+          within_variance += probability[node] * (second / integral[node]);
+          leaf_mean[l] += probability[node] * conditional[l][node];
+        }
+        long double between_variance = 0.0L;
+        long double cross = 0.0L;
+        for (std::size_t node = 0; node < order; ++node) {
+          const long double deviation = conditional[l][node] - leaf_mean[l];
+          between_variance += probability[node] * deviation * deviation;
+          cross += probability[node] * (nodes_[node] - root_mean) * deviation;
+        }
+        (*mean)[leaf] = static_cast<double>(leaf_mean[l]);
+        (*covariance)[leaf + axes * leaf] = static_cast<double>(within_variance + between_variance);
+        (*covariance)[r + axes * leaf] = (*covariance)[leaf + axes * r] = static_cast<double>(cross);
+      }
+      for (std::size_t l = 0; l < leaves.size(); ++l) {
+        for (std::size_t other = 0; other < l; ++other) {
+          long double cross = 0.0L;
+          for (std::size_t node = 0; node < order; ++node) {
+            cross += probability[node] * (conditional[l][node] - leaf_mean[l]) *
+              (conditional[other][node] - leaf_mean[other]);
+          }
+          const std::size_t a = static_cast<std::size_t>(leaves[l]);
+          const std::size_t b = static_cast<std::size_t>(leaves[other]);
+          (*covariance)[a + axes * b] = (*covariance)[b + axes * a] = static_cast<double>(cross);
+        }
+      }
+    }
+    return true;
+  }
+
   // The rule with one axis shifted. `reuse` keeps the unshifted messages that
   // the shift cannot change; otherwise everything is evaluated afresh.
   bool shifted(int axis, double delta, double *log_value, bool reuse = true) const
@@ -3614,6 +3724,70 @@ class FactorTensorRung {
     return std::isfinite(*log_value);
   }
 
+  // Mean and covariance (column-major, loading-column order) of the latent
+  // coordinates under the tilted rule, from the weights of the grid points on
+  // the path that produced the value. False for a degenerate grid.
+  bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    std::vector<long double> weight(total_, 0.0L);
+    long double sum = 0.0L;
+    if (direct_) {
+      if (!direct_sum(nullptr, &sum, nullptr, &weight)) return false;
+    } else {
+      double value = 0.0;
+      std::vector<double> terms;
+      log_sum(nullptr, &value, &terms);
+      if (!std::isfinite(value)) return false;
+      for (std::size_t point = 0; point < total_; ++point) {
+        if (!std::isfinite(terms[point])) continue;
+        weight[point] = std::exp(static_cast<long double>(terms[point] - value));
+        sum += weight[point];
+      }
+    }
+    if (!(sum > 0.0L) || !std::isfinite(sum)) return false;
+    const auto node_of = [this](std::size_t point, std::size_t factor) {
+      for (std::size_t skip = 0; skip < factor; ++skip) {
+        point /= static_cast<std::size_t>(order_);
+      }
+      return nodes_[point % static_cast<std::size_t>(order_)];
+    };
+    std::vector<long double> center(rank, 0.0L);
+    for (std::size_t point = 0; point < total_; ++point) {
+      if (!(weight[point] > 0.0L)) continue;
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        center[factor] += weight[point] * node_of(point, factor);
+      }
+    }
+    mean->assign(rank, 0.0);
+    covariance->assign(rank * rank, 0.0);
+    for (std::size_t factor = 0; factor < rank; ++factor) {
+      center[factor] /= sum;
+      (*mean)[factor] = static_cast<double>(center[factor]);
+    }
+    std::vector<long double> deviation(rank);
+    std::vector<long double> second(rank * rank, 0.0L);
+    for (std::size_t point = 0; point < total_; ++point) {
+      if (!(weight[point] > 0.0L)) continue;
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        deviation[factor] = node_of(point, factor) - center[factor];
+      }
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        for (std::size_t other = 0; other <= factor; ++other) {
+          second[factor + rank * other] += weight[point] * deviation[factor] * deviation[other];
+        }
+      }
+    }
+    for (std::size_t factor = 0; factor < rank; ++factor) {
+      for (std::size_t other = 0; other <= factor; ++other) {
+        const double value = static_cast<double>(second[factor + rank * other] / sum);
+        (*covariance)[factor + rank * other] = value;
+        (*covariance)[other + rank * factor] = value;
+      }
+    }
+    return true;
+  }
+
   bool shifted(int axis, double delta, double *log_value) const
   {
     std::vector<double> deltas(static_cast<std::size_t>(context_.rank), 0.0);
@@ -3667,7 +3841,8 @@ class FactorTensorRung {
 
  private:
   bool direct_sum(const std::vector<double> *deltas, long double *sum,
-                  std::vector<long double> *moments) const
+                  std::vector<long double> *moments,
+                  std::vector<long double> *point_terms = nullptr) const
   {
     const std::size_t rank = static_cast<std::size_t>(context_.rank);
     std::vector<std::vector<long double> > shifted_weights(rank);
@@ -3709,6 +3884,7 @@ class FactorTensorRung {
       }
       direct_sum += term;
       if (!std::isfinite(direct_sum) || !(direct_sum > 0.0L)) return false;
+      if (point_terms != nullptr) (*point_terms)[point] = term;
       if (moments != nullptr) {
         for (std::size_t factor = 0; factor < rank; ++factor) {
           (*moments)[factor] += term * nodes_[index[factor]];
@@ -3824,6 +4000,31 @@ class FactorRung {
       return tensor_.shifted(axis, delta, log_value);
     }
     return false;
+  }
+
+  // Mean and covariance of the latent coordinates under the tilted rule in the
+  // order of the loading columns, for tensors and forests of depth at most one
+  // (the rule that produced the value). False for a deeper forest.
+  bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    if (path_ == TENSOR_DIRECT || path_ == TENSOR_LOG) {
+      return tensor_.moments(mean, covariance);
+    }
+    if (path_ != NESTED || plan_.effective_rank != context_.rank) return false;
+    std::vector<double> axis_mean, axis_covariance;
+    if (!nested_.moments(&axis_mean, &axis_covariance)) return false;
+    mean->assign(rank, 0.0);
+    covariance->assign(rank * rank, 0.0);
+    for (std::size_t a = 0; a < rank; ++a) {
+      const std::size_t column = static_cast<std::size_t>(plan_.permutation[a]);
+      (*mean)[column] = axis_mean[a];
+      for (std::size_t b = 0; b < rank; ++b) {
+        (*covariance)[column + rank * static_cast<std::size_t>(plan_.permutation[b])] =
+          axis_covariance[a + rank * b];
+      }
+    }
+    return true;
   }
 
   // Whether the refinement average is defined for this rung: a forest of
@@ -4977,7 +5178,8 @@ double cpp_selnorm_factor_step_lpdf(
     const double *quadrature_orders, int quadrature_rule_count,
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse,
-    double *relative_change, double *log_normalizer_out, int vector_rule)
+    double *relative_change, double *log_normalizer_out, int vector_rule,
+    const SelNormTiltedMoments *proposal_moments)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   const double log_two_pi = std::log(6.283185307179586476925286766559);
@@ -5168,6 +5370,11 @@ double cpp_selnorm_factor_step_lpdf(
     return cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
       mean, residual_sd, loading, dimension, rank, selection_se, omega, selection);
   };
+  // The finest affordable rung the product ladder evaluated, the one before it,
+  // and the number of rungs with a finite value: the randomized fallback
+  // proposes from the tilted moments of the finest rung.
+  int finest_offset = 0, finest_order = 0, previous_offset = 0, previous_order = 0;
+  int finite_rungs = 0;
   if (vector_rule == SELVECTOR_PRODUCT) {
     // Acceptance by the shift-amplitude certificate. The ladder runs from its
     // first affordable rung; the certificate is consulted only at a rung that
@@ -5178,7 +5385,6 @@ double cpp_selnorm_factor_step_lpdf(
       double previous_quadrature = negative_infinity;
       double previous_quadrature_change = std::numeric_limits<double>::infinity();
       int quadrature_offset = 0;
-      int finest_offset = 0, finest_order = 0, previous_offset = 0, previous_order = 0;
       for (int rule = 0; rule < quadrature_rule_count; ++rule) {
         const int quadrature_order = static_cast<int>(quadrature_orders[rule]);
         if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
@@ -5187,6 +5393,7 @@ double cpp_selnorm_factor_step_lpdf(
         FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
                         quadrature_offset, quadrature_order);
         const double current_quadrature = rung.log_integral();
+        if (std::isfinite(current_quadrature)) ++finite_rungs;
         const double current_quadrature_change = rule == 0 ?
           std::numeric_limits<double>::infinity() :
           cluster_relative_change(previous_quadrature, current_quadrature);
@@ -5347,29 +5554,48 @@ double cpp_selnorm_factor_step_lpdf(
     }
   }
 
-  std::vector<std::vector<double> > starts;
-  starts.push_back(std::vector<double>(static_cast<std::size_t>(rank), 0.0));
-  std::vector<double> boundaries;
-  for (int bin = 0; bin < n_bins; ++bin) {
-    if (std::isfinite(z_lower[bin])) boundaries.push_back(z_lower[bin]);
-    if (std::isfinite(z_upper[bin])) boundaries.push_back(z_upper[bin]);
-  }
-  std::sort(boundaries.begin(), boundaries.end());
-  boundaries.erase(
-    std::unique(boundaries.begin(), boundaries.end()), boundaries.end()
-  );
-  for (std::size_t boundary = 0; boundary < boundaries.size(); ++boundary) {
-    std::vector<double> start(static_cast<std::size_t>(rank), 0.0);
-    for (int i = 0; i < dimension; ++i) {
-      const double target = effect_sign * boundaries[boundary] *
-        selection_se[i] - mean[i];
-      for (int factor = 0; factor < rank; ++factor) {
-        start[factor] += loading[i + dimension * factor] *
-          inverse_variance[i] * target;
+  // Tilted moments of the finest deterministic rung propose for the product
+  // rule: the prior, a Gaussian with those moments and a copy with 1.5 times
+  // their standard deviations. They need at least three finite rungs, a block
+  // that is a tensor, a forest of depth at most one or a rank-one cluster
+  // (which hands its own over), a finest rung that covers the exterior mass
+  // (the moments of a rule that misses the selected mode say nothing about it)
+  // and a positive definite covariance; every other block keeps the optimized
+  // modes below.
+  std::vector<double> moment_mean, moment_factor;
+  bool moment_proposals = false;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    SelNormTiltedMoments finest;
+    const SelNormTiltedMoments *moments = proposal_moments;
+    if (moments == nullptr && finite_rungs >= 3 && finest_order > 0) {
+      FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
+                      finest_offset, finest_order);
+      const double finest_value = rung.log_integral();
+      if (std::isfinite(finest_value) &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, finest_offset, finest_order, rank, omega, n_bins,
+            dimension, vector_rule, finest_value, relative_tolerance) &&
+          rung.moments(&finest.mean, &finest.covariance)) {
+        finest.finite_rungs = finite_rungs;
+        moments = &finest;
       }
     }
-    if (factor_solve_cholesky(cholesky, rank, &start)) {
-      starts.push_back(start);
+    const std::size_t axes = static_cast<std::size_t>(rank);
+    if (moments != nullptr && moments->finite_rungs >= 3 &&
+        moments->mean.size() == axes && moments->covariance.size() == axes * axes &&
+        std::all_of(moments->mean.begin(), moments->mean.end(),
+                    [](double x) { return std::isfinite(x); }) &&
+        std::all_of(moments->covariance.begin(), moments->covariance.end(),
+                    [](double x) { return std::isfinite(x); })) {
+      moment_factor = moments->covariance;
+      int moment_info = 0;
+      F77_CALL(dpotrf)("L", &rank, moment_factor.data(), &rank, &moment_info FCONE);
+      moment_proposals = moment_info == 0;
+      for (int factor = 0; factor < rank && moment_proposals; ++factor) {
+        const double diagonal = moment_factor[factor + rank * factor];
+        moment_proposals = diagonal > 0.0 && std::isfinite(diagonal);
+      }
+      if (moment_proposals) moment_mean = moments->mean;
     }
   }
 
@@ -5377,41 +5603,89 @@ double cpp_selnorm_factor_step_lpdf(
   for (int factor = 0; factor < rank; ++factor) {
     identity[factor + rank * factor] = 1.0;
   }
-  // Keep the prior and every finite optimized start: opposing selection modes
-  // need not have the same location or scale. No mode deduplication is needed.
-  std::vector<std::vector<double> > proposals(1, starts[0]);
+  std::vector<std::vector<double> > proposals(
+    1, std::vector<double>(static_cast<std::size_t>(rank), 0.0));
   std::vector<std::vector<double> > proposal_factors(1, identity);
   std::vector<double> proposal_log_determinants(1, 0.0);
-  for (std::size_t candidate = 0; candidate < starts.size(); ++candidate) {
-    std::vector<double> covariance;
-    factor_optimize_mode(context, &starts[candidate], &covariance);
-    const double value = factor_log_integrand(
-      context, starts[candidate].data(), nullptr
-    );
-    if (!std::isfinite(value)) continue;
-    if (covariance.size() != identity.size() ||
-        !std::all_of(covariance.begin(), covariance.end(),
-                     [](double x) { return std::isfinite(x); })) {
-      covariance = identity;
-    }
-    F77_CALL(dpotrf)("L", &rank, covariance.data(), &rank, &info FCONE);
-    bool valid_factor = info == 0;
-    for (int factor = 0; factor < rank && valid_factor; ++factor) {
-      const double diagonal = covariance[factor + rank * factor];
-      valid_factor = diagonal > 0.0 && std::isfinite(diagonal);
-    }
-    // An optimizer covariance only defines an importance proposal. A failed
-    // approximation leaves the model covariance intact and uses unit scale.
-    if (!valid_factor) covariance = identity;
-    double proposal_log_determinant = 0.0;
+  if (moment_proposals) {
+    double moment_log_determinant = 0.0;
     for (int factor = 0; factor < rank; ++factor) {
-      proposal_log_determinant += std::log(
-        covariance[factor + rank * factor]
-      );
+      moment_log_determinant += std::log(moment_factor[factor + rank * factor]);
     }
-    proposals.push_back(starts[candidate]);
-    proposal_factors.push_back(covariance);
-    proposal_log_determinants.push_back(proposal_log_determinant);
+    proposals.push_back(moment_mean);
+    proposal_factors.push_back(moment_factor);
+    proposal_log_determinants.push_back(moment_log_determinant);
+    // Scaling the Cholesky factor scales the standard deviations.
+    std::vector<double> wide_factor = moment_factor;
+    for (int factor = 0; factor < rank; ++factor) {
+      for (int column = 0; column <= factor; ++column) {
+        wide_factor[factor + rank * column] *= 1.5;
+      }
+    }
+    proposals.push_back(moment_mean);
+    proposal_factors.push_back(wide_factor);
+    proposal_log_determinants.push_back(moment_log_determinant +
+      static_cast<double>(rank) * std::log(1.5));
+  } else {
+    std::vector<std::vector<double> > starts;
+    starts.push_back(std::vector<double>(static_cast<std::size_t>(rank), 0.0));
+    std::vector<double> boundaries;
+    for (int bin = 0; bin < n_bins; ++bin) {
+      if (std::isfinite(z_lower[bin])) boundaries.push_back(z_lower[bin]);
+      if (std::isfinite(z_upper[bin])) boundaries.push_back(z_upper[bin]);
+    }
+    std::sort(boundaries.begin(), boundaries.end());
+    boundaries.erase(
+      std::unique(boundaries.begin(), boundaries.end()), boundaries.end()
+    );
+    for (std::size_t boundary = 0; boundary < boundaries.size(); ++boundary) {
+      std::vector<double> start(static_cast<std::size_t>(rank), 0.0);
+      for (int i = 0; i < dimension; ++i) {
+        const double target = effect_sign * boundaries[boundary] *
+          selection_se[i] - mean[i];
+        for (int factor = 0; factor < rank; ++factor) {
+          start[factor] += loading[i + dimension * factor] *
+            inverse_variance[i] * target;
+        }
+      }
+      if (factor_solve_cholesky(cholesky, rank, &start)) {
+        starts.push_back(start);
+      }
+    }
+
+    // Keep the prior and every finite optimized start: opposing selection modes
+    // need not have the same location or scale. No mode deduplication is needed.
+    for (std::size_t candidate = 0; candidate < starts.size(); ++candidate) {
+      std::vector<double> covariance;
+      factor_optimize_mode(context, &starts[candidate], &covariance);
+      const double value = factor_log_integrand(
+        context, starts[candidate].data(), nullptr
+      );
+      if (!std::isfinite(value)) continue;
+      if (covariance.size() != identity.size() ||
+          !std::all_of(covariance.begin(), covariance.end(),
+                       [](double x) { return std::isfinite(x); })) {
+        covariance = identity;
+      }
+      F77_CALL(dpotrf)("L", &rank, covariance.data(), &rank, &info FCONE);
+      bool valid_factor = info == 0;
+      for (int factor = 0; factor < rank && valid_factor; ++factor) {
+        const double diagonal = covariance[factor + rank * factor];
+        valid_factor = diagonal > 0.0 && std::isfinite(diagonal);
+      }
+      // An optimizer covariance only defines an importance proposal. A failed
+      // approximation leaves the model covariance intact and uses unit scale.
+      if (!valid_factor) covariance = identity;
+      double proposal_log_determinant = 0.0;
+      for (int factor = 0; factor < rank; ++factor) {
+        proposal_log_determinant += std::log(
+          covariance[factor + rank * factor]
+        );
+      }
+      proposals.push_back(starts[candidate]);
+      proposal_factors.push_back(covariance);
+      proposal_log_determinants.push_back(proposal_log_determinant);
+    }
   }
 
   std::vector<double> scramble_log_mean(static_cast<std::size_t>(scrambles));
@@ -5670,6 +5944,9 @@ double cpp_selnorm_cluster_step_lpdf(
   context.kernel_mode = kernel_mode;
   context.selection = selection;
 
+  // The tilted moments of the finest rung, handed to the randomized fallback of
+  // the factor kernel with the number of finite rungs behind them.
+  SelNormTiltedMoments finest_moments;
   if (vector_rule == SELVECTOR_PRODUCT) {
     // Acceptance by the shift-amplitude certificate on the one latent axis,
     // compared with one rung before it. The ladder starts at its first rung;
@@ -5681,6 +5958,7 @@ double cpp_selnorm_cluster_step_lpdf(
     double previous = cluster_rule_log_integral(
       context, quadrature_nodes, quadrature_log_weights, offset, order
     );
+    if (std::isfinite(previous)) ++finest_moments.finite_rungs;
     offset += order;
     for (int rule = 1; rule < quadrature_rule_count; ++rule) {
       order = static_cast<int>(quadrature_orders[rule]);
@@ -5689,6 +5967,7 @@ double cpp_selnorm_cluster_step_lpdf(
         context, quadrature_nodes, quadrature_log_weights, offset, order,
         nullptr, nullptr, 0, nullptr, 0.0, &tilted_mean
       );
+      if (std::isfinite(current)) ++finest_moments.finite_rungs;
       *relative_change = cluster_relative_change(previous, current);
       if (log_normalizer_out != nullptr) *log_normalizer_out = current;
       double tail_bound = std::numeric_limits<double>::quiet_NaN();
@@ -5703,6 +5982,26 @@ double cpp_selnorm_cluster_step_lpdf(
       }
       previous = current;
       offset += order;
+    }
+    // Every rung was rejected. The finest one (the last, which ends at `offset`)
+    // gives the randomized fallback its tilted mean and variance, when it covers
+    // the exterior mass: moments of a rule that misses the selected mode say
+    // nothing about it.
+    if (finest_moments.finite_rungs >= 3 && std::isfinite(previous)) {
+      double tilted_mean = std::numeric_limits<double>::quiet_NaN();
+      double tilted_variance = std::numeric_limits<double>::quiet_NaN();
+      const double finest = cluster_rule_log_integral(
+        context, quadrature_nodes, quadrature_log_weights, offset - order, order,
+        nullptr, nullptr, 0, nullptr, 0.0, &tilted_mean, &tilted_variance
+      );
+      if (std::isfinite(finest) && std::isfinite(tilted_mean) &&
+          std::isfinite(tilted_variance) &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, offset - order, order, 1, omega, n_bins, dimension,
+            vector_rule, finest, relative_tolerance)) {
+        finest_moments.mean.assign(1, tilted_mean);
+        finest_moments.covariance.assign(1, tilted_variance);
+      }
     }
   } else {
     int finest_offset = 0;
@@ -5758,7 +6057,8 @@ double cpp_selnorm_cluster_step_lpdf(
     z_lower, z_upper, obs_bin, effect_sign, telescope_probabilities, kernel_mode,
     nullptr, nullptr, nullptr, 0, qmc, initial_points, max_points,
     scrambles, relative_tolerance, relative_mcse, relative_change,
-    log_normalizer_out, vector_rule
+    log_normalizer_out, vector_rule,
+    vector_rule == SELVECTOR_PRODUCT ? &finest_moments : nullptr
   );
 }
 
@@ -5849,10 +6149,14 @@ bool cpp_selnorm_certificate_probe(
     context.omega = omega;
     context.kernel_mode = SELKERNEL_STEP;
     context.selection = selection;
-    double tilted = nan;
+    double tilted = nan, variance = nan;
     out->path = 4;
     out->log_normalizer = cluster_rule_log_integral(context, quadrature_nodes,
-      quadrature_log_weights, offset, order, nullptr, nullptr, 0, nullptr, 0.0, &tilted);
+      quadrature_log_weights, offset, order, nullptr, nullptr, 0, nullptr, 0.0, &tilted,
+      &variance);
+    out->has_moments = std::isfinite(tilted) && std::isfinite(variance);
+    out->moment_mean.assign(1, tilted);
+    out->moment_covariance.assign(1, variance);
     out->reference_log_normalizer = cluster_rule_log_integral(context, quadrature_nodes,
       quadrature_log_weights, offset, order);
     quadrature_covers_gaussian_tails(quadrature_nodes, offset, order, 1, omega,
@@ -5897,6 +6201,7 @@ bool cpp_selnorm_certificate_probe(
   quadrature_covers_gaussian_tails(quadrature_nodes, offset, order, rank, omega,
     n_bins, dimension, SELVECTOR_PRODUCT, out->log_normalizer, relative_tolerance,
     &out->tail_bound);
+  out->has_moments = rung.moments(&out->moment_mean, &out->moment_covariance);
   std::vector<double> axis_mean;
   if (!rung.means(&axis_mean)) return true;
   for (std::size_t group = 0; group < axis_mean.size(); ++group) {

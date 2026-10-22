@@ -9,40 +9,6 @@ skip_on_cran()
 # within half the tolerance, and the finest rung passes the tail gate. Tensors
 # of rank at most two and forests of depth at most one only.
 
-.test_cert_ref_group <- function(count, loading, sd, mean, sei = 1) {
-
-  list(count = count, loading = loading, sd = sd, mean = mean, sei = sei)
-}
-
-.test_cert_ref_blocks <- function(omega = c(1, .2), sd_scale = .3) {
-
-  list(
-    # one latent axis
-    rank_one = .test_cert_block(list(
-      .test_cert_ref_group(4L, .8, sd_scale * 1.1, .3)), omega),
-    # two independent roots, each with rows on its own axis (a forest of depth zero)
-    two_roots = .test_cert_block(list(
-      .test_cert_ref_group(3L, c(.8, 0), sd_scale * 1.1, .2),
-      .test_cert_ref_group(2L, c(0, .7), sd_scale * 1.3, -.1)), omega),
-    # a shared axis with two leaves, rows on the shared axis only and a free row
-    two_leaves = .test_cert_block(list(
-      .test_cert_ref_group(3L, c(.6, .5, 0), sd_scale * 1.1, .2),
-      .test_cert_ref_group(2L, c(.6, 0, .4), sd_scale * 1.3, -.1),
-      .test_cert_ref_group(2L, c(.7, 0, 0), sd_scale * 1.2, .1),
-      .test_cert_ref_group(1L, c(0, 0, 0), sd_scale * 1, 0)), omega),
-    # two independent trees, each a root with one leaf
-    two_trees = .test_cert_block(list(
-      .test_cert_ref_group(3L, c(.6, .5, 0, 0), sd_scale * 1.1, .2),
-      .test_cert_ref_group(2L, c(0, 0, .5, .4), sd_scale * 1.3, -.1)), omega),
-    # a group on both axes with rows on either axis alone: partial overlaps, no
-    # forest, the rank-two tensor rule
-    crossing = .test_cert_block(list(
-      .test_cert_ref_group(3L, c(.7, .3), sd_scale * 1.1, .2),
-      .test_cert_ref_group(2L, c(.5, 0), sd_scale * 1.2, -.1),
-      .test_cert_ref_group(2L, c(0, .6), sd_scale * 1.3, .1)), omega)
-  )
-}
-
 # Mean over the grid of shifts (m / grid) * gap, m = 0..grid-1 on every axis, of
 # the plain-R tensor rule (log scale). `gap` is by loading column.
 .test_cert_shift_average <- function(block, order, gap, grid) {
@@ -66,7 +32,7 @@ test_that("the refinement averages equal the average over the full lattice of sh
   # Given the shift of a root, the leaves of its tree are independent: the
   # product of the leaf integrals, each averaged over its own shifts, is the
   # average of the products over the whole lattice of root and leaf shifts.
-  blocks <- .test_cert_ref_blocks()
+  blocks <- .test_cert_small_blocks()
   orders <- c(rank_one = 9L, two_roots = 9L, two_leaves = 11L, two_trees = 7L, crossing = 15L)
   for (name in names(blocks)) {
     block <- blocks[[name]]
@@ -85,19 +51,19 @@ test_that("the refinement averages equal the average over the full lattice of sh
 
 test_that("only forests of depth one and tensors of rank two are refined", {
 
-  blocks <- .test_cert_ref_blocks()
+  blocks <- .test_cert_small_blocks()
   for (name in names(blocks)) {
     expect_true(.test_cert_probe(blocks[[name]], 7L)[["refined"]], info = name)
   }
   # nested supports of depth two, and a rank-three tensor (partial overlaps)
   chain <- .test_cert_block(list(
-    .test_cert_ref_group(2L, c(.6, .4, .3), .33, .2),
-    .test_cert_ref_group(2L, c(.5, .4, 0), .36, -.1),
-    .test_cert_ref_group(2L, c(.7, 0, 0), .3, .1)), c(1, .2))
+    .test_cert_small_group(2L, c(.6, .4, .3), .33, .2),
+    .test_cert_small_group(2L, c(.5, .4, 0), .36, -.1),
+    .test_cert_small_group(2L, c(.7, 0, 0), .3, .1)), c(1, .2))
   tensor <- .test_cert_block(list(
-    .test_cert_ref_group(2L, c(.6, .4, 0), .33, .2),
-    .test_cert_ref_group(2L, c(0, .5, .4), .36, -.1),
-    .test_cert_ref_group(2L, c(.5, 0, .6), .3, .1)), c(1, .2))
+    .test_cert_small_group(2L, c(.6, .4, 0), .33, .2),
+    .test_cert_small_group(2L, c(0, .5, .4), .36, -.1),
+    .test_cert_small_group(2L, c(.5, 0, .6), .3, .1)), c(1, .2))
   expect_identical(.test_cert_probe(chain, 7L)[["path"]], .test_cert_paths[["nested"]])
   expect_false(.test_cert_probe(chain, 7L)[["refined"]])
   expect_identical(.test_cert_probe(tensor, 7L)[["path"]], .test_cert_paths[["tensor_direct"]])

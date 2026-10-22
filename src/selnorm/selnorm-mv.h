@@ -139,6 +139,10 @@ struct SelNormCertificateProbe {
   bool refined = false;
   double refined_2 = std::numeric_limits<double>::quiet_NaN();
   double refined_4 = std::numeric_limits<double>::quiet_NaN();
+  // Tilted moments of the rung in loading-column order (tensors and forests of
+  // depth at most one, and the rank-one cluster rule).
+  bool has_moments = false;
+  std::vector<double> moment_mean, moment_covariance;
 };
 
 bool cpp_selnorm_certificate_probe(
@@ -230,6 +234,21 @@ double cpp_selnorm_cluster_step_lpdf(
   int vector_rule = 0
 );
 
+// Mean and covariance (column-major) of the latent coordinates under the tilted
+// integrand of the finest deterministic product rung, in the order of the
+// loading columns, and the number of finite rungs the ladder evaluated. The
+// randomized fallback of the factor kernel proposes from them (the prior, a
+// Gaussian with these moments and a copy with 1.5 times their standard
+// deviations) when at least three rungs were finite, the finest covers the
+// exterior mass (the tail gate of the ladder) and the covariance is positive
+// definite. The rank-one cluster kernel carries its own to the factor kernel it
+// delegates to, empty when its finest rung does not cover the exterior mass.
+struct SelNormTiltedMoments {
+  int finite_rungs = 0;
+  std::vector<double> mean;
+  std::vector<double> covariance;
+};
+
 // Zero loading columns are compacted out before integration: they only add a
 // latent axis that integrates to one, so `rank` is the declared rank and the
 // evaluated one follows the columns that carry dependence.
@@ -261,7 +280,8 @@ double cpp_selnorm_factor_step_lpdf(
   double *relative_mcse,
   double *relative_change,
   double *log_normalizer = nullptr,
-  int vector_rule = 0
+  int vector_rule = 0,
+  const SelNormTiltedMoments *proposal_moments = nullptr
 );
 
 double cpp_selnorm_gaussian_event_log_mass(
