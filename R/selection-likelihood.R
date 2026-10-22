@@ -65,7 +65,7 @@ SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
 
 .selection_transition_need <- function(coincident, rho) {
 
-  m <- (1 - rho)^1.5 * (coincident - 1)
+  m <- (1 - rho) * sqrt(1 - rho) * (coincident - 1)
   pmax(SELNORM_TRANSITION_ALIAS_EXPONENT, 4.6 + pmin(2.58 * m, 6.87 * m^0.55))
 }
 

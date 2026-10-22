@@ -85,7 +85,11 @@ struct SelNormTransitionGuard {
   std::vector<int> row;        // per transition
   std::vector<double> reach;
   std::vector<double> need;
-  std::vector<double> credit;
+  // the sensitivity credit, formed on first use (NaN until then)
+  std::vector<double> position;
+  std::vector<double> scale;
+  std::vector<double> log_group;
+  mutable std::vector<double> credit;
 };
 
 void cpp_selnorm_transition_guard(

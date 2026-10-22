@@ -309,9 +309,11 @@ const double selnorm_transition_alias_exponent = 8.0;
 
 static double selnorm_transition_need(int coincident, double rho)
 {
-  const double m = std::pow(1.0 - rho, 1.5) * static_cast<double>(coincident - 1);
-  return std::max(selnorm_transition_alias_exponent,
-                  4.6 + std::min(2.58 * m, 6.87 * std::pow(m, 0.55)));
+  if (coincident <= 1) return selnorm_transition_alias_exponent;
+  const double m = (1.0 - rho) * std::sqrt(1.0 - rho) * static_cast<double>(coincident - 1);
+  // the linear branch is the smaller one up to m = 8.815
+  const double excess = m <= 8.8 ? 2.58 * m : std::min(2.58 * m, 6.87 * std::pow(m, 0.55));
+  return std::max(selnorm_transition_alias_exponent, 4.6 + excess);
 }
 
 void cpp_selnorm_transition_guard(
@@ -366,45 +368,64 @@ void cpp_selnorm_transition_guard(
     }
   }
   const std::size_t count = out->row.size();
-  out->reach.resize(count); out->need.resize(count); out->credit.resize(count);
+  out->reach.resize(count); out->need.resize(count);
+  out->position.resize(count); out->scale.resize(count); out->log_group.resize(count);
+  out->credit.assign(count, std::numeric_limits<double>::quiet_NaN());
   for (std::size_t t = 0; t < count; ++t) {
     int coincident = 0;
     double rho_min = 1.0, log_group = 0.0;
     for (std::size_t other = 0; other < count; ++other) {
-      double cosine = 0.0, sine = 0.0;
+      double cosine = 0.0;
+      for (int axis = 0; axis < rank; ++axis) cosine += unit[t * rank + axis] * unit[other * rank + axis];
+      const double flip = cosine < 0.0 ? -1.0 : 1.0;
+      cosine = std::min(1.0, std::fabs(cosine));
+      const double window = half_width[t] + half_width[other];
+      // 1 - cos^2 loses at most 1e-8 of the sine; it only rejects clear misses
+      if (other != t && 3.0 * std::sqrt(std::max(0.0, 1.0 - cosine * cosine)) > window + 1e-6) continue;
+      // the sine from the cross terms keeps parallel normals exactly parallel
+      double sine = 0.0;
       for (int axis = 0; axis < rank; ++axis) {
-        cosine += unit[t * rank + axis] * unit[other * rank + axis];
-        // the sine from the cross terms keeps parallel normals exactly parallel
         for (int next = axis + 1; next < rank; ++next) {
           const double cross = unit[t * rank + axis] * unit[other * rank + next] -
             unit[t * rank + next] * unit[other * rank + axis];
           sine += cross * cross;
         }
       }
-      const double flip = cosine < 0.0 ? -1.0 : 1.0;
-      cosine = std::min(1.0, std::fabs(cosine));
       sine = std::sqrt(sine);
       if (other != t && !(std::fabs(flip * centre[other] - centre[t] * cosine) + 3.0 * sine <=
-            half_width[t] + half_width[other])) continue;
+            window)) continue;
       ++coincident;
       rho_min = std::min(rho_min, rho[other]);
       log_group += std::log(rho[other]);
     }
     out->need[t] = selnorm_transition_need(coincident, rho_min);
     out->reach[t] = std::max(3.0, std::fabs(centre[t]) + 1.0);
-    // log sensitivity of the group step from r = prod(rho) to one, at its
-    // position on the side of the larger weight
-    const double scale = std::sqrt(1.0 + half_width[t] * half_width[t]);
-    const double position = (rising[t] ? centre[t] : -centre[t]) / scale;
-    const double log_r = log_group;
-    const double log_low = log_r + pnorm(position, 0.0, 1.0, true, true);
-    const double log_high = std::log1p(-std::exp(log_r)) + pnorm(position, 0.0, 1.0, false, true);
+    out->scale[t] = std::sqrt(1.0 + half_width[t] * half_width[t]);
+    out->position[t] = (rising[t] ? centre[t] : -centre[t]) / out->scale[t];
+    out->log_group[t] = log_group;
+  }
+}
+
+// log(0.8 / sensitivity) of the group step from r = prod(rho) to one, at its
+// position on the side of the larger weight. It is positive at or below the
+// centre (position <= 0), where the step carries at most half the mass.
+static double selnorm_transition_credit(const SelNormTransitionGuard &guard, std::size_t t)
+{
+  if (std::isnan(guard.credit[t])) {
+    const double position = guard.position[t], log_r = guard.log_group[t];
+    double log_lower = 0.0, log_upper = 0.0;
+    pnorm_both(position, &log_lower, &log_upper, 2, 1);
+    const double log_rest = std::log1p(-std::exp(log_r));
+    const double log_low = log_r + log_lower;
+    const double log_high = log_rest + log_upper;
     const double log_mass = std::max(log_low, log_high) +
       std::log1p(std::exp(std::min(log_low, log_high) - std::max(log_low, log_high)));
-    const double log_sensitivity = std::log1p(-std::exp(log_r)) + dnorm(position, 0.0, 1.0, true) -
-      std::log(scale) - log_mass;
-    out->credit[t] = std::log(0.8) - log_sensitivity;
+    // log of the standard normal density, as dnorm(position, 0, 1, true)
+    const double log_density = -(0.918938533204672741780329736406 + 0.5 * position * position);
+    const double log_sensitivity = log_rest + log_density - std::log(guard.scale[t]) - log_mass;
+    guard.credit[t] = std::log(0.8) - log_sensitivity;
   }
+  return guard.credit[t];
 }
 
 bool cpp_selnorm_step_rule_resolves_transitions(
@@ -497,8 +518,15 @@ bool cpp_selnorm_step_rule_resolves_transitions(
         gap = std::max(gap, z[point] - z[point - 1]);
       }
     }
-    if (!(gap > 0.0) || !(two_pi_squared * guard->width[row] / (gap * gap) + guard->credit[t] >=
-                          guard->need[t])) return false;
+    if (!(gap > 0.0)) return false;
+    const double exponent = two_pi_squared * guard->width[row] / (gap * gap);
+    // The credit is positive at or below the centre and, above it, at least
+    // -log((p + sqrt(p^2 + 4)) / 1.6) (Birnbaum's Mills-ratio bound): a pass it
+    // cannot change needs no evaluation.
+    const double position = guard->position[t];
+    if (exponent >= guard->need[t] && (position <= 0.0 ||
+        exponent - std::log((position + std::sqrt(position * position + 4.0)) / 1.6) >= guard->need[t])) continue;
+    if (!(exponent + selnorm_transition_credit(*guard, t) >= guard->need[t])) return false;
   }
   return true;
 }
