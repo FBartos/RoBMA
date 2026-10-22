@@ -1,11 +1,6 @@
 ## version 4.1.0 (IN PROGRESS)
-- Deterministic selected-normal candidates of coupled factor rows resolve a
-  selection transition by its lattice aliasing exponent at the node spacing it
-  sees, raised when transitions of several rows coincide, besides the per-axis
-  node gap; fewer known-V and random-formula blocks need finer rules or the
-  randomized fallback, and many coinciding transitions no longer pass on the
-  per-axis gap alone. The deterministic ladders start just below the first rule
-  that can resolve the transitions, with identical results.
+- The deterministic selected-normal ladders start just below the first rule
+  that can resolve the selection transitions, with identical results.
 - The known-V deletion conditional mean of selection models keeps both variance
   shares, so a sampling share that rounds to one no longer drops the location
   term at extreme scales.
