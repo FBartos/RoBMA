@@ -243,10 +243,7 @@ double cpp_selnorm_kernel_log_norm(
 }
 
 
-bool cpp_selnorm_step_rule_resolves_transitions(
-  const double *nodes, int offset, int order,
-  const double *mean, const double *residual_sd, const double *loading,
-  int dimension, int rank, const double *selection_se,
+bool cpp_selnorm_step_has_transitions(
   const double *omega, const SelNormKernelData &data, int omega_stride)
 {
   bool changed = false;
@@ -254,6 +251,16 @@ bool cpp_selnorm_step_rule_resolves_transitions(
     changed = changed || (std::isfinite(data.z_lower[bin]) &&
       omega[bin * omega_stride] != omega[(bin + 1) * omega_stride]);
   }
+  return changed;
+}
+
+bool cpp_selnorm_step_rule_resolves_transitions(
+  const double *nodes, int offset, int order,
+  const double *mean, const double *residual_sd, const double *loading,
+  int dimension, int rank, const double *selection_se,
+  const double *omega, const SelNormKernelData &data, int omega_stride)
+{
+  const bool changed = cpp_selnorm_step_has_transitions(omega, data, omega_stride);
   if (!changed || rank == 0) return true;
   if (nodes == nullptr || order < 2 || offset < 0) return false;
   const double *z = nodes + offset;

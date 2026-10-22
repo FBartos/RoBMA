@@ -1082,6 +1082,143 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
   ROBMA_NATIVE_END
 }
 
+// Development hook for the shift-amplitude certificate: one rung of the factor
+// or rank-one cluster rule on the routines the kernels use, with its tilted
+// means, shifted values (reusing the unshifted messages and recomputed afresh),
+// per-axis amplitudes and decisions. `rule` is the 1-based rung and
+// `shift_axis` the 1-based loading columns of the requested shifts.
+extern "C" SEXP RoBMA_selnorm_certificate_probe(
+  SEXP cluster, SEXP mean, SEXP residual_sd, SEXP loading, SEXP rank, SEXP sei,
+  SEXP omega, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP telescope,
+  SEXP quadrature_nodes, SEXP quadrature_log_weights, SEXP quadrature_orders,
+  SEXP rule, SEXP tolerance, SEXP shift_axis, SEXP shift_delta,
+  SEXP precomputed_weights)
+{
+  ROBMA_NATIVE_BEGIN(cluster, mean, residual_sd, loading, rank, sei, omega, z_lower, z_upper, sign, telescope, quadrature_nodes, quadrature_log_weights, quadrature_orders, rule, tolerance, shift_axis, shift_delta, precomputed_weights)
+  check_logical(cluster, "cluster");
+  check_real(mean, "mean");
+  check_real(residual_sd, "residual_sd");
+  check_real(loading, "loading");
+  check_integer(rank, "rank");
+  check_real(sei, "sei");
+  check_real(omega, "omega");
+  check_real(z_lower, "z_lower");
+  check_real(z_upper, "z_upper");
+  check_integer(sign, "sign");
+  check_logical(telescope, "telescope");
+  check_real(quadrature_nodes, "quadrature_nodes");
+  check_real(quadrature_log_weights, "quadrature_log_weights");
+  check_real(quadrature_orders, "quadrature_orders");
+  check_integer(rule, "rule");
+  check_real(tolerance, "tolerance");
+  check_integer(shift_axis, "shift_axis");
+  check_real(shift_delta, "shift_delta");
+  check_logical(precomputed_weights, "precomputed_weights");
+  const int dimension = Rf_length(mean);
+  const int columns = INTEGER(rank)[0];
+  const int bins = Rf_length(omega);
+  int total = 0;
+  for (int k = 0; k < Rf_length(quadrature_orders); ++k) {
+    total += static_cast<int>(REAL(quadrature_orders)[k]);
+  }
+  if (Rf_length(cluster) != 1 || Rf_length(rank) != 1 || Rf_length(rule) != 1 ||
+      Rf_length(sign) != 1 || Rf_length(telescope) != 1 ||
+      Rf_length(tolerance) != 1 || Rf_length(precomputed_weights) != 1 ||
+      dimension < 1 || columns < 1 || Rf_length(residual_sd) != dimension ||
+      Rf_length(sei) != dimension || Rf_length(loading) != dimension * columns ||
+      Rf_length(z_lower) != bins || Rf_length(z_upper) != bins ||
+      total != Rf_length(quadrature_nodes) ||
+      total != Rf_length(quadrature_log_weights) ||
+      Rf_length(shift_axis) != Rf_length(shift_delta) ||
+      INTEGER(rule)[0] < 1 || INTEGER(rule)[0] > Rf_length(quadrature_orders)) {
+    Rf_error("Certificate probe inputs have invalid dimensions.");
+  }
+  std::vector<int> axes(static_cast<std::size_t>(Rf_length(shift_axis)));
+  for (std::size_t k = 0; k < axes.size(); ++k) {
+    axes[k] = INTEGER(shift_axis)[k] - 1;
+  }
+
+  SelNormCertificateProbe probe;
+  if (!cpp_selnorm_certificate_probe(
+        LOGICAL(cluster)[0], REAL(mean), REAL(residual_sd), REAL(loading),
+        dimension, columns, REAL(sei), REAL(omega), bins, REAL(z_lower),
+        REAL(z_upper), INTEGER(sign)[0], LOGICAL(telescope)[0],
+        REAL(quadrature_nodes), REAL(quadrature_log_weights),
+        REAL(quadrature_orders), Rf_length(quadrature_orders),
+        INTEGER(rule)[0] - 1, REAL(tolerance)[0], axes.data(),
+        REAL(shift_delta), static_cast<int>(axes.size()),
+        LOGICAL(precomputed_weights)[0], &probe)) {
+    Rf_error("Certificate probe inputs are invalid.");
+  }
+
+  const int slots = 18;
+  SEXP output = PROTECT(Rf_allocVector(VECSXP, slots));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, slots));
+  int slot = 0;
+  const auto add_scalar = [&](const char *name, double value) {
+    SET_VECTOR_ELT(output, slot, Rf_ScalarReal(value));
+    SET_STRING_ELT(names, slot, Rf_mkChar(name));
+    ++slot;
+  };
+  const auto add_flag = [&](const char *name, bool value) {
+    SET_VECTOR_ELT(output, slot, Rf_ScalarLogical(value));
+    SET_STRING_ELT(names, slot, Rf_mkChar(name));
+    ++slot;
+  };
+  const auto add_vector = [&](const char *name, const std::vector<double> &values) {
+    SEXP vector = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(values.size())));
+    std::copy(values.begin(), values.end(), REAL(vector));
+    SET_VECTOR_ELT(output, slot, vector);
+    UNPROTECT(1);
+    SET_STRING_ELT(names, slot, Rf_mkChar(name));
+    ++slot;
+  };
+  SET_VECTOR_ELT(output, slot, Rf_ScalarInteger(probe.path));
+  SET_STRING_ELT(names, slot, Rf_mkChar("path"));
+  ++slot;
+  add_flag("transitions", probe.transitions);
+  add_scalar("log_normalizer", probe.log_normalizer);
+  add_scalar("reference_log_normalizer", probe.reference_log_normalizer);
+  add_scalar("tail_bound", probe.tail_bound);
+  add_scalar("amplitude_sum", probe.amplitude_sum);
+  add_flag("finite", probe.finite);
+  add_flag("early_reject", probe.early_reject);
+  add_flag("accepted", probe.accepted);
+  add_flag("accepted_without_early_exit", probe.accepted_without_early_exit);
+  std::vector<double> column(probe.column.begin(), probe.column.end());
+  for (double &value : column) value += 1.0;
+  add_vector("column", column);
+  add_vector("mean", probe.mean);
+  add_vector("gap", probe.gap);
+  add_vector("half", probe.half);
+  add_vector("quarter", probe.quarter);
+  add_vector("amplitude", probe.amplitude);
+  add_vector("reuse_value", probe.reuse_value);
+  add_vector("full_value", probe.full_value);
+  Rf_setAttrib(output, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return output;
+  ROBMA_NATIVE_END
+}
+
+// The node gap the certificate shifts by, for each requested mean.
+extern "C" SEXP RoBMA_selnorm_certificate_gap(SEXP nodes, SEXP mean)
+{
+  ROBMA_NATIVE_BEGIN(nodes, mean)
+  check_real(nodes, "nodes");
+  check_real(mean, "mean");
+  if (Rf_length(nodes) < 2) Rf_error("'nodes' must hold at least two nodes.");
+  const R_xlen_t count = XLENGTH(mean);
+  SEXP gap = PROTECT(Rf_allocVector(REALSXP, count));
+  for (R_xlen_t i = 0; i < count; ++i) {
+    REAL(gap)[i] = cpp_selnorm_certificate_node_gap(
+      REAL(nodes), Rf_length(nodes), REAL(mean)[i]);
+  }
+  UNPROTECT(1);
+  return gap;
+  ROBMA_NATIVE_END
+}
+
 namespace {
 
 bool selnorm_mvn_exact_rank_one_factor(const std::vector<double> &covariance,

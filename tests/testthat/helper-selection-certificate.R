@@ -294,3 +294,30 @@
     amplitude = sqrt((e2 / 2)^2 + (e2 / 2 - e4)^2)
   )
 }
+
+# ---------------------------------------------------------------------------- #
+# Native certificate probe
+# ---------------------------------------------------------------------------- #
+
+# One rung of the product rule with its shift-amplitude certificate, on the
+# routines the kernels use. `order` is the rung's order in the factor ladder, or
+# in the rank-one cluster ladder when `cluster = TRUE`.
+.test_cert_probe <- function(block, order, cluster = FALSE, tolerance = .005,
+                             shift_axis = integer(), shift_delta = numeric(),
+                             telescope = TRUE, precomputed = FALSE) {
+
+  rules <- if (cluster) {
+    .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  } else {
+    .selection_joint_factor_quadrature_rules()
+  }
+  .Call("RoBMA_selnorm_certificate_probe", cluster, block[["mean"]], block[["sd"]],
+    as.double(block[["loading"]]), as.integer(block[["rank"]]), block[["sei"]],
+    block[["omega"]], block[["z_lower"]], block[["z_upper"]], 1L, telescope,
+    rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]),
+    match(order, rules[["orders"]]), tolerance, as.integer(shift_axis),
+    as.double(shift_delta), precomputed, PACKAGE = "RoBMA")
+}
+
+# The path codes of the probe.
+.test_cert_paths <- c(declined = 0L, nested = 1L, tensor_direct = 2L, tensor_log = 3L, cluster = 4L)

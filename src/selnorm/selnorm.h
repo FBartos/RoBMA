@@ -73,6 +73,13 @@ struct SelNormKernelData {
   bool bounded_cdf = false;
 };
 
+// Whether a finite cutoff separates two different adjacent step weights. A
+// block without such a transition has a constant selection weight over the
+// actual axes, so its quadrature has no aliasing to certify.
+bool cpp_selnorm_step_has_transitions(
+  const double *omega, const SelNormKernelData &data, int omega_stride = 1
+);
+
 // Additional finite-rule selection-transition heuristic. The actual axes are
 // standard Gaussian; loading is column-major dimension by rank. Existing error
 // and exterior-mass gates remain separate. This is not a global error bound.

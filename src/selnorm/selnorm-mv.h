@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 // One process-wide exact/coarse budget. Global bytes include all directly
 // allocated shared blocks; component counters do not duplicate that storage.
@@ -114,6 +115,38 @@ public:
   bool density(const double *mean, int count, double sd, double sei,
                const double *log_coefficients, long double *output);
 };
+
+// Test hook: one rung of the product rule with the shift-amplitude certificate
+// of the factor (or rank-one cluster) kernel, on the same routines the kernels
+// use. Groups are the latent axes; `column` is the loading column of each.
+struct SelNormCertificateProbe {
+  int path = -1;  // 0 declined, 1 nested forest, 2 tensor direct, 3 tensor log, 4 cluster
+  bool transitions = false;
+  double log_normalizer = 0.0;
+  double reference_log_normalizer = 0.0;
+  double tail_bound = 0.0;
+  double amplitude_sum = 0.0;
+  bool finite = false;
+  bool early_reject = false;
+  bool accepted = false;
+  bool accepted_without_early_exit = false;
+  std::vector<int> column;
+  std::vector<double> mean, gap, half, quarter, amplitude;
+  std::vector<double> reuse_value, full_value;
+};
+
+bool cpp_selnorm_certificate_probe(
+  bool cluster, const double *mean, const double *residual_sd,
+  const double *loading, int dimension, int rank, const double *selection_se,
+  const double *omega, int n_bins, const double *z_lower, const double *z_upper,
+  int effect_sign, bool telescope_probabilities, const double *quadrature_nodes,
+  const double *quadrature_log_weights, const double *quadrature_orders,
+  int quadrature_rule_count, int rule, double relative_tolerance,
+  const int *shift_axis, const double *shift_delta, int shift_count,
+  bool precomputed_weights, SelNormCertificateProbe *out
+);
+
+double cpp_selnorm_certificate_node_gap(const double *nodes, int order, double mean);
 
 double cpp_selnorm_mnorm_step_lpdf(
   const double *x,
