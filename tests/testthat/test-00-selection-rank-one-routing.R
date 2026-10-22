@@ -22,6 +22,99 @@ test_that("transition resolution retains literal signs, nodes and exterior owner
   }
 })
 
+test_that("the lattice alias width is the smallest damped lattice frequency of a row", {
+
+  # q(k) = |k|^2 - (k.a)^2 / (|a|^2 + s^2) over nonzero integer k, by enumeration
+  enumerated <- function(a, s, K = 40L) {
+    k <- as.matrix(expand.grid(-K:K, -K:K))
+    k <- k[rowSums(abs(k)) > 0L, , drop = FALSE]
+    min(rowSums(k^2) - drop(k %*% a)^2 / (sum(a^2) + s^2))
+  }
+  # Assink and V7-01 rows, an equal sharp pair (diagonal), and sharp unequal
+  # rows whose shortest vectors are (2, 1), (2, -3) and (5, -7).
+  rows <- rbind(c(sqrt(.5), sqrt(.2), sqrt(.3)), c(.0581, .38, .0814), c(1, 1, .1),
+                c(1, .5, .2), c(2, 1, .01), c(-1, .3, .05), c(1, -sqrt(2), .02))
+  for (i in seq_len(nrow(rows))) {
+    expect_equal(.selection_transition_alias_width(matrix(rows[i, 1:2], 1L), rows[i, 3]),
+                 enumerated(rows[i, 1:2], rows[i, 3]), tolerance = 1e-12)
+  }
+  # One axis is exact; three or more axes keep the smallest eigenvalue bound.
+  expect_equal(.selection_transition_alias_width(matrix(c(0, 2, 0), 1L), .5), .25 / 4.25)
+  expect_equal(.selection_transition_alias_width(matrix(c(1, .5, .3), 1L), .2), .04 / 1.38)
+})
+
+test_that("coupled rows resolve once their lattice damping exponent reaches the threshold", {
+
+  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
+  spec <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(1, 1),
+    effect_direction = "positive", signed_data = FALSE)
+  spec$omega <- matrix(c(1, .3), 1L)
+  resolves <- function(order, sd, loading) {
+    .selection_transition_rule_resolves(.gauss_hermite_nodes(order)$nodes, rep(0, nrow(loading)),
+      sd, loading, rep(1, nrow(loading)), spec)
+  }
+  # Assink rows: the common axis needs order 21 by its own width
+  # (residual SD / loading .775), while the lattice width .5 gives exponents
+  # 7.75 and 8.60 at the central spacings 1.129 (order 9) and 1.071 (order 11).
+  assink <- matrix(c(sqrt(.5), sqrt(.2)), 1L)
+  expect_false(resolves(9L, sqrt(.3), assink))
+  expect_true(resolves(11L, sqrt(.3), assink))
+  # Equal sharp loadings alias along the diagonal; no factor rule resolves them.
+  expect_false(resolves(95L, c(.1, .1), matrix(1, 2L, 2L)))
+  # The narrower row of a coupled block decides.
+  expect_false(resolves(11L, c(sqrt(.3), .1), rbind(assink, c(1, 1))))
+})
+
+test_that("coupled factor blocks accept the lattice-resolved rule with their independent integral", {
+
+  weight <- function(mu, sd, cut, omega) omega[2L] + (omega[1L] - omega[2L]) * stats::pnorm((mu - cut) / sd)
+  nested <- function(mean, sd, loading, cut, omega) {
+    inner <- function(u) vapply(u, function(u0) stats::integrate(function(w) {
+      density <- stats::dnorm(w)
+      for (i in seq_along(mean)) {
+        density <- density * weight(mean[i] + loading[i, 1L] * u0 + loading[i, 2L] * w, sd[i], cut[i], omega)
+      }
+      density
+    }, -Inf, Inf, rel.tol = 1e-12, abs.tol = 0, subdivisions = 1000L)$value, numeric(1L))
+    log(stats::integrate(function(u) stats::dnorm(u) * inner(u), -Inf, Inf,
+      rel.tol = 1e-11, abs.tol = 0, subdivisions = 1000L)$value)
+  }
+  quadrature <- .selection_joint_factor_quadrature_rules()
+  qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 8192L, scrambles = 8L, seed = 1L)
+  cutoff <- stats::qnorm(.975)
+  evaluate <- function(y, mean, sd, loading, sei, omega) {
+    .Call("RoBMA_selnorm_factor_step_loglik_batch", y, matrix(mean, 1L), matrix(sd, 1L),
+      matrix(as.double(loading), 1L), sei, matrix(omega, 1L), c(cutoff, -Inf), c(Inf, cutoff),
+      ifelse(y / sei >= cutoff, 1L, 2L), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
+      as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+  }
+
+  # An Assink block shape (common and study loadings sqrt(.5) and sqrt(.2), residual
+  # sqrt(.3), per standard error): resolved per axis only from order 21.
+  sei <- c(.2, .3, .4)
+  mean <- c(.15, .25, .1)
+  loading <- cbind(sqrt(.5) * sei, sqrt(.2) * sei)
+  actual <- evaluate(c(.5, .1, .9), mean, sqrt(.3) * sei, loading, sei, c(1, .3))
+  reference <- nested(mean, sqrt(.3) * sei, loading, cutoff * sei, c(1, .3))
+  expect_identical(actual$relative_mcse, 0)
+  expect_lt(abs(actual$log_normalizer - reference), 1e-4)
+
+  # V7-01 rows: tau .38 is now deterministic; tau .62 keeps the randomized fallback.
+  sei <- c(.1, .1183)
+  for (tau in c(.38, .62)) {
+    loading <- cbind(c(.0581, .0688), tau)
+    actual <- evaluate(c(.2, .25), c(.08, .16), c(.0814, .0963), loading, sei, c(1, .5))
+    reference <- nested(c(.08, .16), c(.0814, .0963), loading, cutoff * sei, c(1, .5))
+    if (tau < .5) {
+      expect_identical(actual$relative_mcse, 0)
+      expect_lt(abs(actual$log_normalizer - reference), 1e-4)
+    } else {
+      expect_gt(actual$relative_mcse, 0)
+      expect_lt(abs(actual$log_normalizer - reference), .005)
+    }
+  }
+})
+
 test_that("the vectorized scalar-axis transition rule equals the rule applied row by row", {
 
   # Dyadic rows put the transition at cut 2 with selection SE .5 exactly on a node

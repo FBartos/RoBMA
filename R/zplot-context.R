@@ -123,7 +123,9 @@
     other <- setdiff(seq_len(ncol(loading)), axis)
     coupled <- length(other) > 0L && any(rowSums(loading[active, other, drop = FALSE] != 0) > 0L)
     if (coupled) {
-      if (any(coupled_gap * abs(coefficient) > scale)) return(FALSE)
+      wide <- active[coupled_gap * abs(coefficient) > scale]
+      if (length(wide) && !all(.selection_transition_alias_resolves(
+            coupled_gap, loading[wide, , drop = FALSE], residual_sd[wide]))) return(FALSE)
       next
     }
     for (cut in cuts) {

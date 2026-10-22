@@ -243,12 +243,62 @@ double cpp_selnorm_kernel_log_norm(
 }
 
 
+// A tensor rule of spacing h aliases a row's smoothed step, with loadings a and
+// residual SD s, at the lattice frequencies 2 pi k / h, damped by
+// exp(-2 pi^2 q(k) / h^2) with q(k) = |k|^2 - (k.a)^2 / (|a|^2 + s^2). Return the
+// smallest q over nonzero integer k on the row's support: exact for two axes
+// (Lagrange-Gauss reduction of the form), bounded below by the smallest
+// eigenvalue s^2 / (|a|^2 + s^2) for one axis exactly and for three or more.
+static double selnorm_transition_alias_width(const double *loading, int row,
+                                             int dimension, int rank, double residual_sd)
+{
+  double a[2] = {0.0, 0.0};
+  double norm = 0.0;
+  int support = 0;
+  for (int axis = 0; axis < rank; ++axis) {
+    const double coefficient = loading[row + dimension * axis];
+    if (coefficient == 0.0) continue;
+    if (support < 2) a[support] = coefficient;
+    ++support;
+    norm += coefficient * coefficient;
+  }
+  const double variance = residual_sd * residual_sd;
+  const double total = norm + variance;
+  const double smallest = variance / total;
+  if (support != 2) return smallest;
+  // (x.a)^2 enters through Lagrange's identity, so a sharp step cancels nothing.
+  const auto form = [&](const double *x, const double *y) {
+    return (variance * (x[0] * y[0] + x[1] * y[1]) +
+            (x[0] * a[1] - x[1] * a[0]) * (y[0] * a[1] - y[1] * a[0])) / total;
+  };
+  double u[2] = {1.0, 0.0}, v[2] = {0.0, 1.0};
+  double u_form = form(u, u), v_form = form(v, v);
+  for (int step = 0; step < 200; ++step) {
+    if (v_form < u_form) {
+      std::swap(u[0], v[0]); std::swap(u[1], v[1]); std::swap(u_form, v_form);
+    }
+    const double shift = std::nearbyint(form(u, v) / u_form);
+    if (shift == 0.0) return std::max(u_form, smallest);
+    v[0] -= shift * u[0]; v[1] -= shift * u[1];
+    v_form = form(v, v);
+  }
+  return smallest;
+}
+
+// A coupled row whose per-axis widths exceed the central spacing still resolves
+// when its smallest lattice damping exponent reaches 8. The trapezoid aliasing
+// bound then leaves h exp(-8) / (pi sqrt(2 pi)), below 1e-4 of a weight jump for
+// any rule of order three or more, and two fully coincident transitions
+// (exponent 4) stay below the default 0.005 tolerance.
+const double selnorm_transition_alias_exponent = 8.0;
+
 bool cpp_selnorm_step_rule_resolves_transitions(
   const double *nodes, int offset, int order,
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
   const double *omega, const SelNormKernelData &data, int omega_stride)
 {
+  const double two_pi_squared = 19.739208802178717;
   bool changed = false;
   for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
     changed = changed || (std::isfinite(data.z_lower[bin]) &&
@@ -288,7 +338,11 @@ bool cpp_selnorm_step_rule_resolves_transitions(
       if (!std::isfinite(coefficient) || !(residual_sd[row] > 0.0) ||
           !std::isfinite(residual_sd[row]) || !std::isfinite(mean[row])) return false;
       if (coupled) {
-        if (!(coupled_gap > 0.0) || coupled_gap * std::fabs(coefficient) > residual_sd[row]) return false;
+        if (!(coupled_gap > 0.0)) return false;
+        if (coupled_gap * std::fabs(coefficient) > residual_sd[row] &&
+            !(two_pi_squared * selnorm_transition_alias_width(
+                loading, row, dimension, rank, residual_sd[row]) >=
+              selnorm_transition_alias_exponent * coupled_gap * coupled_gap)) return false;
         continue;
       }
       for (int bin = 0; bin + 1 < data.n_bins; ++bin) {

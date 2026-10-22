@@ -174,7 +174,11 @@ Deterministic acceptance also requires selection-transition resolution in the
 actual standardized Gaussian axes: changed finite cutoff centers use the
 supplied signed mean, selection SE and loading; their bracketing node gaps must
 not exceed residual SD divided by absolute loading. Coupled axes use maximum
-spacing over |z|<=3 against each axis's minimum applicable width. Zero loadings,
+spacing h over |z|<=3 against each axis's minimum applicable width; a coupled
+row that fails it still resolves when its lattice aliasing exponent
+2 pi^2 q / h^2 reaches 8, q being the smallest |k|^2 - (k.a)^2/(|a|^2+s^2) over
+nonzero integer k on its support (exact for two axes, the eigenvalue bound
+s^2/(|a|^2+s^2) otherwise; C++ and the R mirrors share it). Zero loadings,
 equal adjacent weights and analytically cancelled factors add no constraint;
 singleton child variance absorbed exactly adds no child axis. Exterior factors
 remain owned by existing tail gates. Check the returned candidate, preserving

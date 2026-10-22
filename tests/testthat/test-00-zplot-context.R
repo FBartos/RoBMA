@@ -493,8 +493,11 @@ test_that("the vectorized transition rule decides every branch like the rule at 
   # the means: the coupled gap here is 1 and the scale is compared to it.
   coupled <- cbind(c(1, 1), c(.5, 0))
   exterior <- matrix(1000, 3L, 2L)
-  decide(FALSE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = exterior)
+  decide(FALSE, loading = coupled, residual_sd = c(.3, 5), sei = c(.5, .5), means = exterior)
   decide(TRUE, loading = coupled, residual_sd = c(1.2, 5), sei = c(.5, .5), means = exterior)
+  # Scale .8 fails the axis width but resolves by its lattice width .471
+  # (exponent 2 pi^2 .471 = 9.3 at gap 1); scale .3 has width .254 (5.0).
+  decide(TRUE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = exterior)
   # Only the intervals that reach [-3, 3] count: the widest gap here is 2.
   decide(TRUE, loading = coupled, residual_sd = c(2.5, 5), sei = c(.5, .5), means = exterior,
          nodes = c(-6, -4, grid, 4, 7))

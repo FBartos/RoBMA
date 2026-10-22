@@ -27,6 +27,48 @@ SELNORM_FACTOR_MAX_RANK <- 8L
 SELNORM_FACTOR_NODE_BUDGET <- 262144
 
 
+# Smallest lattice damping width of each row's selection step under a tensor
+# rule: min over nonzero integer k on the row's support of
+# |k|^2 - (k.a)^2 / (|a|^2 + s^2). Exact for two axes (Lagrange-Gauss
+# reduction), the smallest eigenvalue s^2 / (|a|^2 + s^2) otherwise. Mirrors
+# selnorm_transition_alias_width() in src/selnorm/selnorm-api.cc.inc.
+SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
+
+.selection_transition_alias_width <- function(loading, residual_sd) {
+
+  vapply(seq_len(nrow(loading)), function(row) {
+    if (any(!is.finite(loading[row, ])) || !is.finite(residual_sd[row]) || residual_sd[row] <= 0) {
+      return(NA_real_)
+    }
+    a <- loading[row, loading[row, ] != 0]
+    variance <- residual_sd[row]^2
+    total <- sum(a^2) + variance
+    smallest <- variance / total
+    if (length(a) != 2L) return(smallest)
+    form <- function(x, y) {
+      (variance * sum(x * y) + (x[1L] * a[2L] - x[2L] * a[1L]) * (y[1L] * a[2L] - y[2L] * a[1L])) / total
+    }
+    u <- c(1, 0); v <- c(0, 1)
+    for (step in seq_len(200L)) {
+      if (form(v, v) < form(u, u)) { swap <- u; u <- v; v <- swap }
+      shift <- round(form(u, v) / form(u, u))
+      if (shift == 0) return(max(form(u, u), smallest))
+      v <- v - shift * u
+    }
+    smallest
+  }, numeric(1L))
+}
+
+# A coupled row also resolves when its smallest lattice damping exponent
+# 2 pi^2 q / h^2 at the central spacing h reaches the shared threshold; a row
+# with an invalid loading or scale does not.
+.selection_transition_alias_resolves <- function(gap, loading, residual_sd) {
+
+  resolved <- 2 * pi^2 * .selection_transition_alias_width(loading, residual_sd) >=
+    SELNORM_TRANSITION_ALIAS_EXPONENT * gap^2
+  !is.na(resolved) & resolved
+}
+
 .selection_transition_rule_resolves <- function(nodes, mean, residual_sd, loading,
                                                 sei, selection, axes = seq_len(ncol(loading))) {
 
@@ -48,7 +90,9 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
     other <- setdiff(seq_len(ncol(loading)), axis)
     coupled <- length(other) > 0L && any(rowSums(loading[active, other, drop = FALSE] != 0) > 0L)
     if (coupled) {
-      if (any(coupled_gap * abs(coefficient[active]) > residual_sd[active])) return(FALSE)
+      wide <- active[coupled_gap * abs(coefficient[active]) > residual_sd[active]]
+      if (length(wide) && !all(.selection_transition_alias_resolves(
+            coupled_gap, loading[wide, , drop = FALSE], residual_sd[wide]))) return(FALSE)
       next
     }
     for (row in active) for (cut in cuts) {
