@@ -42,7 +42,7 @@ test_that("the refinement averages equal the average over the full lattice of sh
     for (grid in c(2L, 4L)) {
       expected <- .test_cert_shift_average(block, orders[[name]], gap, grid)
       actual   <- probe[[paste0("refined_", grid)]]
-      expect_lt(abs(expm1(actual - expected)), 1e-13, label = paste(name, "M =", grid))
+      expect_lt(abs(expm1(actual - expected)), 1e-14, label = paste(name, "M =", grid))
     }
     # not vacuous: the coarse rung is far from its refined average
     expect_gt(abs(expm1(probe[["refined_4"]] - probe[["log_normalizer"]])), 1e-5, label = name)
