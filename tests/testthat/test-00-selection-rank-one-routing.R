@@ -151,6 +151,78 @@ test_that("coupled rows resolve once their lattice damping exponent reaches the 
   expect_false(resolves(11L, c(sqrt(.3), .1), rbind(assink, c(1, 1))))
 })
 
+test_that("a single-axis row on a coupled axis resolves by its one-axis width", {
+
+  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
+  spec <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(1, 1),
+    effect_direction = "positive", signed_data = FALSE)
+  spec$omega <- matrix(c(1, .3), 1L)
+  cut <- stats::qnorm(.975)
+  # Row 1 loads on axis 1 only, which row 2 couples to axis 2. Its per-axis
+  # width is 1, its lattice width .5: exponent 5.2 at order 7 (gap 1.384) and
+  # 8.6 at order 11 (gap 1.071), each plus its sensitivity credit .71 at the
+  # centre. Row 2's transition lies 3 SD away, so neither row is coincident.
+  loading <- rbind(c(1, 0), c(1, .5))
+  mean <- c(cut, cut - 3 * sqrt(1.25))
+  resolves <- function(order) .selection_transition_rule_resolves(.gauss_hermite_nodes(order)$nodes,
+    mean, c(1, 2), loading, c(1, 1), spec)
+  # The per-axis gap alone waits for order 15 (gap .857 <= 1).
+  expect_false(resolves(7L))
+  expect_true(resolves(11L))
+})
+
+test_that("the native factor ladder accepts the rung the R transition rule predicts", {
+
+  quadrature <- .selection_joint_factor_quadrature_rules()
+  orders <- quadrature$orders
+  qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 512L, scrambles = 8L, seed = 1L)
+  spec <- list(kernel_mode = SELKERNEL_STEP, z_lower = c(0, -Inf), sign = 1)
+  tensor <- function(order, mean, s, loading, omega2) {
+    rule <- .gauss_hermite_nodes(order)
+    total <- 0
+    for (j in seq_along(rule$nodes)) {
+      product <- rep(1, order)
+      for (i in seq_along(mean)) {
+        product <- product * (omega2 + (1 - omega2) *
+          stats::pnorm((mean[i] + loading[i, 1L] * rule$nodes[j] + loading[i, 2L] * rule$nodes) / s[i]))
+      }
+      total <- total + rule$weights[j] * sum(rule$weights * product)
+    }
+    log(total)
+  }
+  # an Assink-like pair, three coincident copies, a ridge, a support-one row and
+  # an equal sharp pair (always randomized)
+  blocks <- list(
+    list(mean = c(.2, -.4), s = sqrt(.3) * c(1, 1.2), loading = rbind(c(sqrt(.5), sqrt(.2)), 1.2 * c(sqrt(.5), sqrt(.2))), w2 = .4),
+    list(mean = rep(0, 3L), s = rep(sqrt(.3), 3L), loading = matrix(c(sqrt(.5), sqrt(.2)), 3L, 2L, byrow = TRUE), w2 = .2),
+    list(mean = rep(1, 6L), s = rep(.6, 6L), loading = matrix(.7, 6L, 2L), w2 = 0),
+    list(mean = c(0, -3), s = c(1, 2), loading = rbind(c(1, 0), c(1, .5)), w2 = .3),
+    list(mean = c(0, 0), s = c(.1, .1), loading = matrix(1, 2L, 2L), w2 = .5))
+  for (block in blocks) {
+    K <- length(block$mean)
+    spec$omega <- matrix(c(1, block$w2), 1L)
+    actual <- .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(1, K), matrix(block$mean, 1L),
+      matrix(block$s, 1L), matrix(as.double(block$loading), 1L), rep(1, K), spec$omega,
+      c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
+      as.double(orders), as.double(qmc), 512L, 512L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+    values <- vapply(orders, tensor, numeric(1L), block$mean, block$s, block$loading, block$w2)
+    resolved <- vapply(orders, function(order) .selection_transition_rule_resolves(
+      .gauss_hermite_nodes(order)$nodes, block$mean, block$s, block$loading, rep(1, K), spec), logical(1L))
+    tails <- vapply(seq_along(orders), function(k) {
+      z <- .gauss_hermite_nodes(orders[k])$nodes
+      log(stats::pnorm(min(z)) + stats::pnorm(max(z), lower.tail = FALSE)) + log(2) - values[k] <= log(.005)
+    }, logical(1L))
+    change <- c(Inf, abs(expm1(-diff(values))))  # |expm1(coarser - finer)|, as the kernel
+    accepted <- which(resolved & tails & change <= .005 & c(Inf, utils::head(change, -1L)) <= .005)
+    if (!resolved[length(orders)] || !length(accepted)) {
+      expect_gt(actual$relative_mcse, 0)
+    } else {
+      expect_identical(actual$relative_mcse, 0)
+      expect_equal(actual$log_normalizer, values[accepted[1L]], tolerance = 1e-10)
+    }
+  }
+})
+
 test_that("coupled factor blocks accept the lattice-resolved rule with their independent integral", {
 
   weight <- function(mu, sd, cut, omega) omega[2L] + (omega[1L] - omega[2L]) * stats::pnorm((mu - cut) / sd)

@@ -505,6 +505,12 @@ test_that("the vectorized transition rule decides every branch like the rule at 
   # Only the intervals that reach [-3, 3] count: the widest gap here is 2.
   decide(TRUE, loading = coupled, residual_sd = c(2.5, 5), sei = c(.5, .5), means = central,
          nodes = c(-6, -4, grid, 4, 7))
+  # An isolated row keeps the per-axis pass (2 * .5 <= 1) although its exponent
+  # 2 pi^2 .833 / 4 = 4.1 is below 8; three coincident copies need 8.3 and lose it.
+  decide(TRUE, loading = rbind(c(.5, .5), c(0, 0)), residual_sd = c(1, 5), sei = c(.5, .5),
+         means = matrix(1, 3L, 2L), nodes = c(-6, -4, grid, 4, 7))
+  decide(FALSE, loading = matrix(.5, 3L, 2L), residual_sd = rep(1, 3L), sei = rep(.5, 3L),
+         means = matrix(1, 3L, 3L), nodes = c(-6, -4, grid, 4, 7))
   decide(TRUE, loading = coupled, residual_sd = c(.8, 5), sei = c(.5, .5), means = central,
          axes = integer())
 })
