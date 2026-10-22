@@ -4330,8 +4330,22 @@ double cpp_selnorm_factor_step_lpdf(
   // The cluster evaluator enters at rank one only after its own unchanged
   // quadrature sequence rejects. Share the QMC fallback below in that case.
   if (quadrature_resolvable) {
-    int quadrature_offset = 0;
-    int quadrature_order = static_cast<int>(quadrature_orders[0]);
+    // No rung below the first one that resolves the transitions can be
+    // accepted, and acceptance compares a rung with the two before it. Start
+    // two rungs below that one: values and decisions are the full ladder's.
+    int start = 0, start_offset = 0;
+    for (int rule = 1, offset = static_cast<int>(quadrature_orders[0]);
+         rule < quadrature_rule_count; ++rule) {
+      const int order = static_cast<int>(quadrature_orders[rule]);
+      if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
+      if (resolves(offset, order)) { start = std::max(0, rule - 2); break; }
+      offset += order;
+    }
+    for (int rule = 0; rule < start; ++rule) {
+      start_offset += static_cast<int>(quadrature_orders[rule]);
+    }
+    int quadrature_offset = start_offset;
+    int quadrature_order = static_cast<int>(quadrature_orders[start]);
     if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
       quadrature_order = 0;
     }
@@ -4342,8 +4356,8 @@ double cpp_selnorm_factor_step_lpdf(
       );
     double previous_quadrature_change =
       std::numeric_limits<double>::infinity();
-    quadrature_offset += static_cast<int>(quadrature_orders[0]);
-    for (int rule = 1; rule < quadrature_rule_count; ++rule) {
+    quadrature_offset += static_cast<int>(quadrature_orders[start]);
+    for (int rule = start + 1; rule < quadrature_rule_count; ++rule) {
       quadrature_order = static_cast<int>(quadrature_orders[rule]);
       if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
       const double current_quadrature = factor_rule_log_integral(
@@ -4755,14 +4769,27 @@ double cpp_selnorm_cluster_step_lpdf(
   const bool ladder_resolvable = cpp_selnorm_step_rule_resolves_transitions(
     quadrature_nodes, finest_offset, static_cast<int>(quadrature_orders[quadrature_rule_count - 1]),
     mean, residual_sd, loading, dimension, 1, selection_se, omega, selection);
-  int offset = 0;
-  int order = static_cast<int>(quadrature_orders[0]);
+  // As in the factor ladder, but acceptance compares a rung with one before it:
+  // start one rung below the first that resolves the transitions.
+  int start = 0, offset = 0;
+  for (int rule = 1, rung_offset = static_cast<int>(quadrature_orders[0]);
+       ladder_resolvable && rule < quadrature_rule_count; ++rule) {
+    const int rung_order = static_cast<int>(quadrature_orders[rule]);
+    if (cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, rung_offset, rung_order,
+          mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
+      start = rule - 1;
+      break;
+    }
+    rung_offset += rung_order;
+  }
+  for (int rule = 0; rule < start; ++rule) offset += static_cast<int>(quadrature_orders[rule]);
+  int order = static_cast<int>(quadrature_orders[start]);
   double previous = ladder_resolvable ? cluster_rule_log_integral(
     context, quadrature_nodes, quadrature_log_weights,
     offset, order
   ) : std::numeric_limits<double>::quiet_NaN();
   offset += order;
-  for (int rule = 1; ladder_resolvable && rule < quadrature_rule_count; ++rule) {
+  for (int rule = start + 1; ladder_resolvable && rule < quadrature_rule_count; ++rule) {
     order = static_cast<int>(quadrature_orders[rule]);
     const double current = cluster_rule_log_integral(
       context, quadrature_nodes, quadrature_log_weights,
