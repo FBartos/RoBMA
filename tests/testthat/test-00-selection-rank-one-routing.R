@@ -70,58 +70,50 @@ test_that("eight nearly parallel coincident rows keep the normalizer within the 
 })
 
 
-test_that("the native factor ladder accepts the rung the R transition rule predicts", {
+test_that("the native factor ladder accepts the rung the R certificate ladder predicts", {
 
+  # Acceptance is the shift-amplitude certificate: the first rung that is finite,
+  # has both successive changes, passes the tail gate and whose half- and
+  # quarter-shift amplitudes and combined allowance fit the tolerance. The R
+  # emulation takes its rungs and amplitudes from plain tensor Gauss-Hermite
+  # rules, and the accepted value is within the tolerance of an independent
+  # integral. A block with no certified rung reaches the randomized fallback.
   quadrature <- .selection_joint_factor_quadrature_rules()
   orders <- quadrature$orders
   qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 512L, scrambles = 8L, seed = 1L)
-  spec <- list(kernel_mode = SELKERNEL_STEP, z_lower = c(0, -Inf), sign = 1)
-  tensor <- function(order, mean, s, loading, omega2) {
-    rule <- .gauss_hermite_nodes(order)
-    total <- 0
-    for (j in seq_along(rule$nodes)) {
-      product <- rep(1, order)
-      for (i in seq_along(mean)) {
-        product <- product * (omega2 + (1 - omega2) *
-          stats::pnorm((mean[i] + loading[i, 1L] * rule$nodes[j] + loading[i, 2L] * rule$nodes) / s[i]))
-      }
-      total <- total + rule$weights[j] * sum(rule$weights * product)
-    }
-    log(total)
-  }
   # an Assink-like pair, three coincident copies, a ridge, a support-one row and
-  # an equal sharp pair (always randomized)
+  # an equal sharp pair
   blocks <- list(
     list(mean = c(.2, -.4), s = sqrt(.3) * c(1, 1.2), loading = rbind(c(sqrt(.5), sqrt(.2)), 1.2 * c(sqrt(.5), sqrt(.2))), w2 = .4),
     list(mean = rep(0, 3L), s = rep(sqrt(.3), 3L), loading = matrix(c(sqrt(.5), sqrt(.2)), 3L, 2L, byrow = TRUE), w2 = .2),
     list(mean = rep(1, 6L), s = rep(.6, 6L), loading = matrix(.7, 6L, 2L), w2 = 0),
     list(mean = c(0, -3), s = c(1, 2), loading = rbind(c(1, 0), c(1, .5)), w2 = .3),
     list(mean = c(0, 0), s = c(.1, .1), loading = matrix(1, 2L, 2L), w2 = .5))
+  routes <- character()
   for (block in blocks) {
     K <- length(block$mean)
-    spec$omega <- matrix(c(1, block$w2), 1L)
+    omega <- matrix(c(1, block$w2), 1L)
     actual <- .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(1, K), matrix(block$mean, 1L),
-      matrix(block$s, 1L), matrix(as.double(block$loading), 1L), rep(1, K), spec$omega,
+      matrix(block$s, 1L), matrix(as.double(block$loading), 1L), rep(1, K), omega,
       c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
       as.double(orders), as.double(qmc), 512L, 512L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
-    values <- vapply(orders, tensor, numeric(1L), block$mean, block$s, block$loading, block$w2)
-    resolved <- vapply(orders, function(order) .selection_transition_rule_resolves(
-      .gauss_hermite_nodes(order)$nodes, block$mean, block$s, block$loading, rep(1, K), spec), logical(1L))
-    tails <- vapply(seq_along(orders), function(k) {
-      z <- .gauss_hermite_nodes(orders[k])$nodes
-      log(stats::pnorm(min(z)) + stats::pnorm(max(z), lower.tail = FALSE)) + log(2) - values[k] <= log(.005)
-    }, logical(1L))
-    change <- c(Inf, abs(expm1(-diff(values))))  # |expm1(coarser - finer)|, as the kernel
-    accepted <- which(resolved & tails & change <= .005 & c(Inf, utils::head(change, -1L)) <= .005)
-    if (!resolved[length(orders)] || !length(accepted)) {
+    certified <- .test_cert_block(lapply(seq_len(K), function(i) {
+      list(count = 1L, loading = block$loading[i, ], sd = block$s[i], mean = block$mean[i], sei = 1)
+    }), c(1, block$w2))
+    expected <- .test_cert_emulate_ladder(certified, .005)
+    if (is.null(expected)) {
+      routes <- c(routes, "fallback")
       expect_gt(actual$relative_mcse, 0)
     } else {
+      routes <- c(routes, "deterministic")
       expect_identical(actual$relative_mcse, 0)
-      expect_equal(actual$log_normalizer, values[accepted[1L]], tolerance = 1e-10)
-      # The ladder's start keeps the change diagnostic of the full ladder.
-      expect_equal(actual$relative_change, change[accepted[1L]], tolerance = 1e-12)
+      expect_equal(actual$log_normalizer, expected$value, tolerance = 1e-10)
+      # The accepted rung keeps the change diagnostic of the ladder.
+      expect_equal(actual$relative_change, expected$change, tolerance = 1e-12)
+      expect_lt(.test_cert_relative_error(actual$log_normalizer, .test_cert_reference(certified)), .005)
     }
   }
+  expect_true(all(c("deterministic", "fallback") %in% routes))
 })
 
 
@@ -150,7 +142,7 @@ test_that("coupled factor blocks keep their independent integral within the tole
   }
 
   # An Assink block shape (common and study loadings sqrt(.5) and sqrt(.2), residual
-  # sqrt(.3), per standard error): resolved per axis from order 21.
+  # sqrt(.3), per standard error): a certified deterministic rung.
   sei <- c(.2, .3, .4)
   mean <- c(.15, .25, .1)
   loading <- cbind(sqrt(.5) * sei, sqrt(.2) * sei)
@@ -159,13 +151,14 @@ test_that("coupled factor blocks keep their independent integral within the tole
   expect_identical(actual$relative_mcse, 0)
   expect_lt(abs(actual$log_normalizer - reference), 1e-4)
 
-  # V7-01 rows keep the randomized fallback, within the tolerance.
+  # V7-01 rows: the geometric rule routed them to the randomized fallback; the
+  # shift-amplitude certificate accepts a deterministic rung, within the tolerance.
   sei <- c(.1, .1183)
   for (tau in c(.38, .62)) {
     loading <- cbind(c(.0581, .0688), tau)
     actual <- evaluate(c(.2, .25), c(.08, .16), c(.0814, .0963), loading, sei, c(1, .5))
     reference <- nested(c(.08, .16), c(.0814, .0963), loading, cutoff * sei, c(1, .5))
-    expect_gt(actual$relative_mcse, 0)
+    expect_identical(actual$relative_mcse, 0)
     expect_lt(abs(actual$log_normalizer - reference), .005)
   }
 })

@@ -3703,6 +3703,27 @@ class FactorRung {
   Path path_ = DECLINED;
 };
 
+// Whether a factor rung is certified: no transition, or the summed amplitudes
+// of its shifted copies and the exterior mass fit the tolerance. `q0` is the
+// rung's value and `tail_bound` the relative exterior bound of the tail gate.
+bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
+                           double tail_bound, double relative_tolerance)
+{
+  if (!transitions) {
+    // A constant selection weight has no aliasing: amplitude zero, no shifts.
+    return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
+  }
+  std::vector<double> mean;
+  if (!rung.means(&mean)) return false;
+  const ShiftCertificate certificate = shift_certificate(
+    q0, mean, rung.nodes(), rung.order(), relative_tolerance, true,
+    [&rung](int axis, double delta, double *value) {
+      return rung.shifted(axis, delta, value);
+    });
+  return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
+}
+
+
 // Sparse-grid quadrature for factor supports that are not a forest. Such a
 // block has no cheaper exact structure, and its tensor rule costs
 // `order^rank`, which the node budget refuses above a low order once the rank
@@ -4918,74 +4939,116 @@ double cpp_selnorm_factor_step_lpdf(
     return cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
       mean, residual_sd, loading, dimension, rank, selection_se, omega, selection);
   };
-  bool quadrature_resolvable = false;
-  if (quadrature_rule_count >= 3) {
-    int finest_offset = 0, finest_order = 0, next_offset = 0;
-    for (int rule = 0; rule < quadrature_rule_count; ++rule) {
-      const int order = static_cast<int>(quadrature_orders[rule]);
-      if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
-      finest_offset = next_offset; finest_order = order; next_offset += order;
-    }
-    quadrature_resolvable = finest_order > 0 && resolves(finest_offset, finest_order);
-  }
-
-  // The cluster evaluator enters at rank one only after its own unchanged
-  // quadrature sequence rejects. Share the QMC fallback below in that case.
-  if (quadrature_resolvable) {
-    // No rung below the first one that resolves the transitions can be
-    // accepted, and acceptance compares a rung with the two before it. Start
-    // two rungs below that one: values and decisions are the full ladder's.
-    int start = 0, start_offset = 0;
-    for (int rule = 1, offset = static_cast<int>(quadrature_orders[0]);
-         rule < quadrature_rule_count; ++rule) {
-      const int order = static_cast<int>(quadrature_orders[rule]);
-      if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
-      if (resolves(offset, order)) { start = std::max(0, rule - 2); break; }
-      offset += order;
-    }
-    for (int rule = 0; rule < start; ++rule) {
-      start_offset += static_cast<int>(quadrature_orders[rule]);
-    }
-    int quadrature_offset = start_offset;
-    int quadrature_order = static_cast<int>(quadrature_orders[start]);
-    if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
-      quadrature_order = 0;
-    }
-    double previous_quadrature = quadrature_order == 0 ? negative_infinity :
-      factor_rule_log_integral(
-        context, forest, quadrature_nodes, quadrature_log_weights,
-        quadrature_offset, quadrature_order
-      );
-    double previous_quadrature_change =
-      std::numeric_limits<double>::infinity();
-    quadrature_offset += static_cast<int>(quadrature_orders[start]);
-    for (int rule = start + 1; rule < quadrature_rule_count; ++rule) {
-      quadrature_order = static_cast<int>(quadrature_orders[rule]);
-      if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
-      const double current_quadrature = factor_rule_log_integral(
-        context, forest, quadrature_nodes, quadrature_log_weights,
-        quadrature_offset, quadrature_order
-      );
-      const double current_quadrature_change = cluster_relative_change(
-        previous_quadrature, current_quadrature
-      );
-      if (std::isfinite(current_quadrature) &&
-          current_quadrature_change <= relative_tolerance &&
-          previous_quadrature_change <= relative_tolerance &&
-          quadrature_covers_gaussian_tails(
-            quadrature_nodes, quadrature_offset, quadrature_order, rank,
-            omega, n_bins, dimension, vector_rule, current_quadrature,
-            relative_tolerance
-          ) && resolves(quadrature_offset, quadrature_order)) {
-        *relative_change = current_quadrature_change;
-        if (log_normalizer_out != nullptr) {
-          *log_normalizer_out = current_quadrature;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    // Acceptance by the shift-amplitude certificate. The ladder runs from its
+    // first affordable rung; the certificate is consulted only at a rung that
+    // is finite, has both successive changes and passes the tail gate. The
+    // returned value is the accepted rung itself.
+    if (quadrature_rule_count >= 3) {
+      const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+      double previous_quadrature = negative_infinity;
+      double previous_quadrature_change = std::numeric_limits<double>::infinity();
+      int quadrature_offset = 0;
+      for (int rule = 0; rule < quadrature_rule_count; ++rule) {
+        const int quadrature_order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
+        FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
+                        quadrature_offset, quadrature_order);
+        const double current_quadrature = rung.log_integral();
+        const double current_quadrature_change = rule == 0 ?
+          std::numeric_limits<double>::infinity() :
+          cluster_relative_change(previous_quadrature, current_quadrature);
+        double tail_bound = std::numeric_limits<double>::quiet_NaN();
+        if (std::isfinite(current_quadrature) &&
+            current_quadrature_change <= relative_tolerance &&
+            previous_quadrature_change <= relative_tolerance &&
+            quadrature_covers_gaussian_tails(
+              quadrature_nodes, quadrature_offset, quadrature_order, rank,
+              omega, n_bins, dimension, vector_rule, current_quadrature,
+              relative_tolerance, &tail_bound
+            ) && factor_rung_certified(rung, transitions, current_quadrature,
+              tail_bound, relative_tolerance)) {
+          *relative_change = current_quadrature_change;
+          if (log_normalizer_out != nullptr) {
+            *log_normalizer_out = current_quadrature;
+          }
+          return log_density - current_quadrature;
         }
-        return log_density - current_quadrature;
+        previous_quadrature = current_quadrature;
+        previous_quadrature_change = current_quadrature_change;
+        quadrature_offset += quadrature_order;
       }
-      previous_quadrature = current_quadrature;
-      previous_quadrature_change = current_quadrature_change;
-      quadrature_offset += quadrature_order;
+    }
+  } else {
+    bool quadrature_resolvable = false;
+    if (quadrature_rule_count >= 3) {
+      int finest_offset = 0, finest_order = 0, next_offset = 0;
+      for (int rule = 0; rule < quadrature_rule_count; ++rule) {
+        const int order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
+        finest_offset = next_offset; finest_order = order; next_offset += order;
+      }
+      quadrature_resolvable = finest_order > 0 && resolves(finest_offset, finest_order);
+    }
+
+    // The cluster evaluator enters at rank one only after its own unchanged
+    // quadrature sequence rejects. Share the QMC fallback below in that case.
+    if (quadrature_resolvable) {
+      // No rung below the first one that resolves the transitions can be
+      // accepted, and acceptance compares a rung with the two before it. Start
+      // two rungs below that one: values and decisions are the full ladder's.
+      int start = 0, start_offset = 0;
+      for (int rule = 1, offset = static_cast<int>(quadrature_orders[0]);
+           rule < quadrature_rule_count; ++rule) {
+        const int order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
+        if (resolves(offset, order)) { start = std::max(0, rule - 2); break; }
+        offset += order;
+      }
+      for (int rule = 0; rule < start; ++rule) {
+        start_offset += static_cast<int>(quadrature_orders[rule]);
+      }
+      int quadrature_offset = start_offset;
+      int quadrature_order = static_cast<int>(quadrature_orders[start]);
+      if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
+        quadrature_order = 0;
+      }
+      double previous_quadrature = quadrature_order == 0 ? negative_infinity :
+        factor_rule_log_integral(
+          context, forest, quadrature_nodes, quadrature_log_weights,
+          quadrature_offset, quadrature_order
+        );
+      double previous_quadrature_change =
+        std::numeric_limits<double>::infinity();
+      quadrature_offset += static_cast<int>(quadrature_orders[start]);
+      for (int rule = start + 1; rule < quadrature_rule_count; ++rule) {
+        quadrature_order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
+        const double current_quadrature = factor_rule_log_integral(
+          context, forest, quadrature_nodes, quadrature_log_weights,
+          quadrature_offset, quadrature_order
+        );
+        const double current_quadrature_change = cluster_relative_change(
+          previous_quadrature, current_quadrature
+        );
+        if (std::isfinite(current_quadrature) &&
+            current_quadrature_change <= relative_tolerance &&
+            previous_quadrature_change <= relative_tolerance &&
+            quadrature_covers_gaussian_tails(
+              quadrature_nodes, quadrature_offset, quadrature_order, rank,
+              omega, n_bins, dimension, vector_rule, current_quadrature,
+              relative_tolerance
+            ) && resolves(quadrature_offset, quadrature_order)) {
+          *relative_change = current_quadrature_change;
+          if (log_normalizer_out != nullptr) {
+            *log_normalizer_out = current_quadrature;
+          }
+          return log_density - current_quadrature;
+        }
+        previous_quadrature = current_quadrature;
+        previous_quadrature_change = current_quadrature_change;
+        quadrature_offset += quadrature_order;
+      }
     }
   }
 

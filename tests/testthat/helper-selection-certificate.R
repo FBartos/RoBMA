@@ -133,6 +133,44 @@
   )
 }
 
+# Whether every connected set of latent axes of the block carries parallel rows
+# (each row a multiple of one direction), so a one-dimensional reduction holds.
+.test_cert_parallel_rows <- function(block) {
+
+  loading <- block[["loading"]]
+  active  <- loading != 0
+  label   <- seq_len(ncol(loading))
+  repeat {
+    changed <- FALSE
+    for (row in seq_len(nrow(active))) {
+      columns <- which(active[row, ])
+      if (!length(columns)) next
+      target <- min(label[columns])
+      if (any(label[columns] != target)) {
+        label[label %in% label[columns]] <- target
+        changed <- TRUE
+      }
+    }
+    if (!changed) break
+  }
+  for (set in unique(label[colSums(active) > 0])) {
+    columns <- which(label == set)
+    rows    <- which(rowSums(active[, columns, drop = FALSE]) > 0)
+    a       <- loading[rows, columns, drop = FALSE]
+    u       <- a[1L, ] / sqrt(sum(a[1L, ]^2))
+    if (max(abs(a - outer(as.vector(a %*% u), u))) > 1e-12 * max(abs(a))) return(FALSE)
+  }
+  TRUE
+}
+
+# The independent reference of a block: the one-dimensional reduction of
+# parallel rows, else the nested integral of two groups of coincident rows.
+.test_cert_reference <- function(block) {
+
+  if (.test_cert_parallel_rows(block)) .test_cert_reference_parallel(block)
+  else .test_cert_reference_two_groups(block)
+}
+
 # Blocks whose rows are parallel within connected sets of latent axes: the
 # integral factors over the sets and each factor is one-dimensional along the
 # common direction u with scaled loadings c_i = a_i' u. The panel width stays
@@ -147,7 +185,8 @@
     changed <- FALSE
     for (row in seq_len(nrow(active))) {
       columns <- which(active[row, ])
-      target  <- min(label[columns])
+      if (!length(columns)) next
+      target <- min(label[columns])
       if (any(label[columns] != target)) {
         label[label %in% label[columns]] <- target
         changed <- TRUE
@@ -321,3 +360,51 @@
 
 # The path codes of the probe.
 .test_cert_paths <- c(declined = 0L, nested = 1L, tensor_direct = 2L, tensor_log = 3L, cluster = 4L)
+
+# ---------------------------------------------------------------------------- #
+# Plain-R emulation of the acceptance ladder (independent of the native code)
+# ---------------------------------------------------------------------------- #
+
+# The exterior bound of the tail gate on the relative scale: the mass of the
+# product-rule integrand outside the node box, at most omega_max per row.
+.test_cert_tail_bound <- function(block, order, log_integral) {
+
+  nodes <- .gauss_hermite_nodes(order)[["nodes"]]
+  log_tail <- log(stats::pnorm(min(nodes)) + stats::pnorm(max(nodes), lower.tail = FALSE)) +
+    log(block[["rank"]]) + log(max(block[["omega"]])) * block[["rows"]]
+  exp(log_tail - log_integral)
+}
+
+# The deterministic ladder the kernels run for a product block: a rung needs a
+# finite value, the successive changes of the rung and (factor kernel) of the
+# previous rung within the tolerance, the tail gate, and the certificate with
+# its combined allowance. Returns the accepted rung, or NULL when the block
+# reaches the randomized fallback.
+.test_cert_emulate_ladder <- function(block, tolerance = .005,
+                                      orders = SELNORM_FACTOR_QUADRATURE_ORDERS,
+                                      changes = 2L) {
+
+  transitions <- any(is.finite(block[["z_lower"]]) &
+    c(block[["omega"]][-length(block[["omega"]])] != block[["omega"]][-1L], FALSE))
+  previous <- -Inf
+  previous_change <- Inf
+  for (k in seq_along(orders)) {
+    value  <- .test_cert_tensor_log_integral(block, orders[k])
+    difference <- previous - value
+    change <- if (k == 1L || !is.finite(difference) || abs(difference) > 50) Inf else abs(expm1(difference))
+    cheap <- is.finite(value) && change <= tolerance &&
+      (changes == 1L || previous_change <= tolerance)
+    if (cheap) {
+      tail <- .test_cert_tail_bound(block, orders[k], value)
+      if (tail <= tolerance) {
+        amplitude <- if (transitions) sum(.test_cert_amplitudes(block, orders[k])[["amplitude"]]) else 0
+        if (amplitude <= tolerance / 2 && tail + 1.3 * amplitude <= tolerance / (1 + tolerance)) {
+          return(list(order = orders[k], value = value, change = change, tail = tail, amplitude = amplitude))
+        }
+      }
+    }
+    previous <- value
+    previous_change <- change
+  }
+  NULL
+}
