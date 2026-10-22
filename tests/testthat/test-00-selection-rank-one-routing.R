@@ -22,7 +22,7 @@ test_that("transition resolution retains literal signs, nodes and exterior owner
   }
 })
 
-test_that("coincident coupled products accepted deterministically stay within the tolerance", {
+test_that("a 32-row equal-loading coincident ridge stays within the tolerance", {
 
   quadrature <- .selection_joint_factor_quadrature_rules()
   qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 8192L, scrambles = 8L, seed = 1L)
@@ -32,8 +32,8 @@ test_that("coincident coupled products accepted deterministically stay within th
     matrix(1, 1L, K), matrix(1.2, 1L, 2L * K), rep(1, K), matrix(c(1, 0), 1L),
     c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
     as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
-  # The rows depend on the latent axes through a . eta only: a one-dimensional
-  # integral over its standardized value is the reference.
+  # The rows depend on the latent axes eta only through t(a) %*% eta: a
+  # one-dimensional integral over its standardized value is the reference.
   f <- function(u) exp(stats::dnorm(u, log = TRUE) + K * stats::pnorm((2 + sqrt(2) * 1.2 * u) / 1, log.p = TRUE))
   breaks <- c(-Inf, seq(-10, 10, by = .25), Inf)
   reference <- log(sum(vapply(seq_len(length(breaks) - 1L), function(i) stats::integrate(f, breaks[i],
@@ -118,6 +118,8 @@ test_that("the native factor ladder accepts the rung the R transition rule predi
     } else {
       expect_identical(actual$relative_mcse, 0)
       expect_equal(actual$log_normalizer, values[accepted[1L]], tolerance = 1e-10)
+      # The ladder's start keeps the change diagnostic of the full ladder.
+      expect_equal(actual$relative_change, change[accepted[1L]], tolerance = 1e-12)
     }
   }
 })
@@ -147,7 +149,6 @@ test_that("coupled factor blocks keep their independent integral within the tole
       as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
   }
 
-  # An Assink block shape (common and study loadings sqrt(.5) and sqrt(.2), residual
   # An Assink block shape (common and study loadings sqrt(.5) and sqrt(.2), residual
   # sqrt(.3), per standard error): resolved per axis from order 21.
   sei <- c(.2, .3, .4)

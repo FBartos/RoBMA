@@ -32,10 +32,11 @@
   change only where the covariance route returns to the dense one of 4.1.0.229.
   Binomial GLMM AGHQ links its kernel first to keep the faster code placement.
   Rank-one cluster selection densities avoid repeated bracketing work, but
-  selection likelihoods remain somewhat slower than in 4.1.0.229 where
-  deterministic quadrature must now resolve every selection transition (some
-  coupled factor-step blocks use finer rules, and some rows of random-formula
-  qCMDE densities use the randomized fallback).
+  selection likelihoods remain slower than in 4.1.0.229 where deterministic
+  quadrature must now resolve every selection transition (coupled factor-step
+  blocks use finer rules, and some rows of random-formula qCMDE densities use
+  the randomized fallback); the exact ladder start recovers part of the
+  factor-step cost.
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.

@@ -530,6 +530,31 @@ test_that("native and dependent-block deletion centre their integrals on both va
   centre <- .gaussian_summand_conditional_mean(sampling$mean[1L], sampling$variance[1L], 2^-60, dat$yi[1L])
   expect_gt(centre, 4e5)
   expect_true(any(abs(centres - centre) <= 1e-9 * centre))
+
+  # Its lower tail at y = .4 underflows, so the tail-factored ratio integrates the
+  # reciprocal at proposed deleted values. At this scale those round to 0 or
+  # -2^25 from the location; the lost-share form would centre on them, the share
+  # form adds the random-effect share of the retained error, about 5.0e5.
+  conditional_mean <- .gaussian_summand_conditional_mean
+  shares <- list()
+  centres <- numeric()
+  testthat::local_mocked_bindings(
+    .gaussian_summand_conditional_mean = function(mean, variance, other, observed) {
+      value <- conditional_mean(mean, variance, other, observed)
+      shares[[length(shares) + 1L]] <<- c(mean = mean, variance = variance, other = other, value = value)
+      value
+    }, .package = "RoBMA")
+  lower <- .selection_conditioned_sampling_estimate_targets_chunk(setup, "log_lower")
+  expect_true(is.finite(lower$log_lower[1L, 1L]))
+  # Row 1's calls; the normalizer mock records the first column only.
+  shares <- matrix(as.numeric(unlist(shares)), ncol = 4L, byrow = TRUE,
+    dimnames = list(NULL, c("mean", "variance", "other", "value")))
+  shares <- shares[shares[, "mean"] == sampling$mean[1L], , drop = FALSE]
+  expect_gt(nrow(shares), 0L)
+  expect_true(all(shares[, "variance"] == sampling$variance[1L] & shares[, "other"] == 2^-60))
+  expect_true(all(vapply(shares[, "value"], function(value) any(abs(centres - value) <= 1e-9 * abs(value)),
+    logical(1L))))
+  expect_gt(max(shares[, "value"]), 4e5)
 })
 
 
