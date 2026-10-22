@@ -1152,7 +1152,7 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
     Rf_error("Certificate probe inputs are invalid.");
   }
 
-  const int slots = 24;
+  const int slots = 26;
   SEXP output = PROTECT(Rf_allocVector(VECSXP, slots));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, slots));
   int slot = 0;
@@ -1178,6 +1178,8 @@ extern "C" SEXP RoBMA_selnorm_certificate_probe(
   SET_STRING_ELT(names, slot, Rf_mkChar("path"));
   ++slot;
   add_flag("transitions", probe.transitions);
+  add_flag("resolves_ladder", probe.resolves_ladder);
+  add_flag("resolves_tier", probe.resolves_tier);
   add_scalar("log_normalizer", probe.log_normalizer);
   add_scalar("reference_log_normalizer", probe.reference_log_normalizer);
   add_scalar("tail_bound", probe.tail_bound);

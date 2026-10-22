@@ -49,7 +49,7 @@ test_that("the combined exterior and amplitude allowance decides at its exact bo
   probe <- .test_cert_probe(block, 9L, tolerance = 1)
   tail <- probe[["tail_bound"]]
   amplitude <- probe[["amplitude_sum"]]
-  allowance <- tail + 1.3 * amplitude
+  allowance <- tail + .test_cert_allowance_factor * amplitude
   threshold <- max(2 * amplitude, allowance / (1 - allowance))
   expect_lt(allowance, 1)
   # the combined allowance is the binding condition, not the half-tolerance bound

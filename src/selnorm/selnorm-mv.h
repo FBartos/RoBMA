@@ -123,6 +123,10 @@ public:
 struct SelNormCertificateProbe {
   int path = -1;  // 0 declined, 1 nested forest, 2 tensor direct, 3 tensor log, 4 cluster
   bool transitions = false;
+  // The sharpness gate at this rung: the transition rule with every step width
+  // multiplied by the scale of the ladder and of the refinement tier.
+  bool resolves_ladder = false;
+  bool resolves_tier = false;
   double log_normalizer = 0.0;
   double reference_log_normalizer = 0.0;
   double tail_bound = 0.0;

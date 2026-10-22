@@ -3174,9 +3174,10 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
 // error of the rule at another lattice phase. Two shifted copies of a rung
 // per axis (half and quarter of the node gap around the rung's own tilted
 // mean of that axis) measure the amplitude of the first harmonic of that
-// error, and the summed amplitudes bound the rung's aliasing error up to the
-// factor 1.30 under the stated local-lattice assumptions. Every axis is its
-// own group. Weights are never renormalized.
+// error, and the summed amplitudes bound the rung's aliasing error up to a
+// small factor under the stated local-lattice assumptions, which the sharpness
+// gate below keeps true. Every axis is its own group. Weights are never
+// renormalized.
 // ---------------------------------------------------------------------------
 
 // The gap of the order-n nodes around a mean: R's findInterval clamped to the
@@ -3265,15 +3266,39 @@ ShiftCertificate shift_certificate(double log_normalizer,
   return out;
 }
 
+// Sharpness gate of the certificate. The two shifted copies sample the aliasing
+// error of a rung at three phases of the node lattice and read its first
+// harmonic; an edge of the selection weight much narrower than the node gap
+// makes the error profile sawtooth-like, with harmonics that those phases
+// cannot see (multiples of 4 vanish at all three), and the amplitude then
+// underestimates the error by more than the allowance covers. Native blocks
+// with edge width / gap between 0.018 and 0.102 were accepted with errors up to
+// 2.04e-2 (review 07, F1) and 5.3e-3 (explorer 06); no violation was found at
+// width / gap >= 1/8, and at 0.15 the error stays below 1.76 x the summed
+// amplitude (explorer 06b: ~43,000 guarded search evaluations, none over the
+// tolerance). Before a rung is certified, the transition rule must therefore
+// resolve its transitions with every step width relaxed by 1 / 0.15: the edge
+// width (residual SD / |loading|) is at least 0.15 x the node gap.
+const double selnorm_certificate_width_scale_ladder = 1.0 / 0.15;
+// The refinement tier averages four shifts per axis. That refines the lattice
+// to a quarter of the gap but leaves errors periodic in a quarter gap, and its
+// check against the two-shift average sees only half of them, so its rung has
+// to resolve the edges on the refined lattice spacing: edge width >= 0.125 x gap.
+const double selnorm_certificate_width_scale_tier = 8.0;
+// The summed amplitude bounds the aliasing error up to this factor on a
+// guarded rung (the guarded envelope of error / amplitude is 1.76 at edge / gap
+// 0.15, explorer 06b); the allowance adds it to the exterior bound.
+const double selnorm_certificate_allowance_factor = 2.0;
+
 // A rung is accepted when its summed amplitude is at most half the tolerance
-// and the exterior mass together with the amplitude (up to its factor 1.30)
+// and the exterior mass together with the amplitude (up to its factor)
 // fits the tolerance on the scale of the true normalizer.
 bool shift_certificate_accepts(const ShiftCertificate &certificate,
                                double tail_bound, double relative_tolerance)
 {
   return certificate.finite && !certificate.early_reject &&
     certificate.amplitude_sum <= 0.5 * relative_tolerance &&
-    tail_bound + 1.3 * certificate.amplitude_sum <=
+    tail_bound + selnorm_certificate_allowance_factor * certificate.amplitude_sum <=
       relative_tolerance / (1.0 + relative_tolerance);
 }
 
@@ -4058,16 +4083,22 @@ class FactorRung {
   Path path_ = DECLINED;
 };
 
-// Whether a factor rung is certified: no transition, or the summed amplitudes
-// of its shifted copies and the exterior mass fit the tolerance. `q0` is the
-// rung's value and `tail_bound` the relative exterior bound of the tail gate.
+// Whether a factor rung is certified: no transition, or the rung resolves its
+// transitions (the sharpness gate) and the summed amplitudes of its shifted
+// copies and the exterior mass fit the tolerance. `q0` is the rung's value and
+// `tail_bound` the relative exterior bound of the tail gate. `resolves(scale)`
+// is the transition rule at the rung with every step width multiplied by
+// `scale`; it is consulted before any shifted evaluation.
+template <class Resolves>
 bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
-                           double tail_bound, double relative_tolerance)
+                           double tail_bound, double relative_tolerance,
+                           Resolves &&resolves)
 {
   if (!transitions) {
     // A constant selection weight has no aliasing: amplitude zero, no shifts.
     return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
   }
+  if (!resolves(selnorm_certificate_width_scale_ladder)) return false;
   std::vector<double> mean;
   if (!rung.means(&mean)) return false;
   const ShiftCertificate certificate = shift_certificate(
@@ -4098,6 +4129,14 @@ bool factor_refinement_certified(
   const double infinity = std::numeric_limits<double>::infinity();
   *log_value = -infinity;
   *relative_change = infinity;
+  // The lattice averages are defined for rungs whose edges the refined lattice
+  // can resolve; checked at the tier's rung before any lattice evaluation.
+  if (!cpp_selnorm_step_rule_resolves_transitions(
+        nodes, offset, order, context.mean, context.residual_sd, context.loading,
+        context.dimension, context.rank, context.selection_se, context.omega,
+        context.selection, 1, selnorm_certificate_width_scale_tier)) {
+    return false;
+  }
   const auto refined = [&](int rung_offset, int rung_order, double *average_2,
                            double *average_4) {
     if (!selnorm_factor_rule_affordable(rung_order, cost_exponent)) return false;
@@ -4142,6 +4181,12 @@ bool cluster_rung_certified(const ClusterNormalizerContext &context,
 {
   if (!transitions) {
     return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
+  }
+  if (!cpp_selnorm_step_rule_resolves_transitions(
+        nodes, offset, order, context.mean, context.residual_sd, context.loading,
+        context.dimension, 1, context.selection_se, context.omega,
+        context.selection, 1, selnorm_certificate_width_scale_ladder)) {
+    return false;
   }
   const std::vector<double> mean(1, tilted_mean);
   const ShiftCertificate certificate = shift_certificate(
@@ -5406,7 +5451,12 @@ double cpp_selnorm_factor_step_lpdf(
               omega, n_bins, dimension, vector_rule, current_quadrature,
               relative_tolerance, &tail_bound
             ) && factor_rung_certified(rung, transitions, current_quadrature,
-              tail_bound, relative_tolerance)) {
+              tail_bound, relative_tolerance, [&](double width_scale) {
+                return cpp_selnorm_step_rule_resolves_transitions(
+                  quadrature_nodes, quadrature_offset, quadrature_order, mean,
+                  residual_sd, loading, dimension, rank, selection_se, omega,
+                  selection, 1, width_scale);
+              })) {
           *relative_change = current_quadrature_change;
           if (log_normalizer_out != nullptr) {
             *log_normalizer_out = current_quadrature;
@@ -6109,6 +6159,12 @@ bool cpp_selnorm_certificate_probe(
   const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
   *out = SelNormCertificateProbe();
   out->transitions = transitions;
+  out->resolves_ladder = cpp_selnorm_step_rule_resolves_transitions(
+    quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
+    selection_se, omega, selection, 1, selnorm_certificate_width_scale_ladder);
+  out->resolves_tier = cpp_selnorm_step_rule_resolves_transitions(
+    quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
+    selection_se, omega, selection, 1, selnorm_certificate_width_scale_tier);
 
   const auto certify = [&](double q0, const std::vector<double> &axis_mean,
                            const std::function<bool(int, double, double *)> &shifted) {

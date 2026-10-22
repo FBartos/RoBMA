@@ -258,11 +258,13 @@ bool cpp_selnorm_step_rule_resolves_transitions(
   const double *nodes, int offset, int order,
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
-  const double *omega, const SelNormKernelData &data, int omega_stride)
+  const double *omega, const SelNormKernelData &data, int omega_stride,
+  double width_scale)
 {
   const bool changed = cpp_selnorm_step_has_transitions(omega, data, omega_stride);
   if (!changed || rank == 0) return true;
-  if (nodes == nullptr || order < 2 || offset < 0) return false;
+  if (nodes == nullptr || order < 2 || offset < 0 ||
+      !(width_scale > 0.0) || !std::isfinite(width_scale)) return false;
   const double *z = nodes + offset;
   // Axes are coupled only through a row that loads on two or more of them; the
   // central node spacing is needed for no other case.
@@ -295,7 +297,8 @@ bool cpp_selnorm_step_rule_resolves_transitions(
       if (!std::isfinite(coefficient) || !(residual_sd[row] > 0.0) ||
           !std::isfinite(residual_sd[row]) || !std::isfinite(mean[row])) return false;
       if (coupled) {
-        if (!(coupled_gap > 0.0) || coupled_gap * std::fabs(coefficient) > residual_sd[row]) return false;
+        if (!(coupled_gap > 0.0) ||
+            coupled_gap * std::fabs(coefficient) > width_scale * residual_sd[row]) return false;
         continue;
       }
       for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
@@ -313,7 +316,7 @@ bool cpp_selnorm_step_rule_resolves_transitions(
         if (z[upper] == center && upper + 1 < order) {
           gap = std::max(gap, z[upper + 1] - z[upper]);
         }
-        if (gap * std::fabs(coefficient) > residual_sd[row]) return false;
+        if (gap * std::fabs(coefficient) > width_scale * residual_sd[row]) return false;
       }
     }
   }

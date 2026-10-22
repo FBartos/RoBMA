@@ -83,11 +83,16 @@ bool cpp_selnorm_step_has_transitions(
 // Additional finite-rule selection-transition heuristic. The actual axes are
 // standard Gaussian; loading is column-major dimension by rank. Existing error
 // and exterior-mass gates remain separate. This is not a global error bound.
+// `width_scale` multiplies every step width (residual SD over |loading|) the
+// rule compares with a node gap; the default 1 is the rule itself, a larger
+// scale relaxes it (the product-rule certificate asks for edges no narrower
+// than a fixed fraction of the gap, see selnorm-mv.cc).
 bool cpp_selnorm_step_rule_resolves_transitions(
   const double *nodes, int offset, int order,
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
-  const double *omega, const SelNormKernelData &data, int omega_stride = 1
+  const double *omega, const SelNormKernelData &data, int omega_stride = 1,
+  double width_scale = 1.0
 );
 
 double cpp_selnorm_bounded_cdf_absolute_error();

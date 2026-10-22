@@ -406,6 +406,25 @@
 # Plain-R emulation of the acceptance ladder (independent of the native code)
 # ---------------------------------------------------------------------------- #
 
+# The factor of the summed amplitude in the combined allowance, and the scales
+# of the sharpness gate (the step widths the transition rule compares with a
+# node gap are multiplied by them): the ladder rungs need an edge width of at
+# least 0.15 of the node gap, the refinement tier 0.125. Mirror the constants of
+# src/selnorm/selnorm-mv.cc.
+.test_cert_allowance_factor   <- 2
+.test_cert_width_scale_ladder <- 1 / .15
+.test_cert_width_scale_tier   <- 8
+
+# The sharpness gate at a rung: the transition rule (its R mirror) with every
+# step width multiplied by `width_scale`, on the nodes of the rung's order.
+.test_cert_resolves <- function(block, order, width_scale = .test_cert_width_scale_ladder) {
+
+  .selection_transition_rule_resolves(
+    .gauss_hermite_nodes(order)[["nodes"]], block[["mean"]], block[["sd"]] * width_scale,
+    block[["loading"]], block[["sei"]],
+    list(omega = matrix(block[["omega"]], 1L), z_lower = block[["z_lower"]], sign = 1))
+}
+
 # The exterior bound of the tail gate on the relative scale: the mass of the
 # product-rule integrand outside the node box, at most omega_max per row.
 .test_cert_tail_bound <- function(block, order, log_integral) {
@@ -418,9 +437,10 @@
 
 # The deterministic ladder the kernels run for a product block: a rung needs a
 # finite value, the successive changes of the rung and (factor kernel) of the
-# previous rung within the tolerance, the tail gate, and the certificate with
-# its combined allowance. Returns the accepted rung, or NULL when the block
-# reaches the randomized fallback.
+# previous rung within the tolerance, the tail gate, and, when the selection
+# weight has transitions, the sharpness gate and the certificate with its
+# combined allowance. Returns the accepted rung, or NULL when the block reaches
+# the randomized fallback.
 .test_cert_emulate_ladder <- function(block, tolerance = .005,
                                       orders = SELNORM_FACTOR_QUADRATURE_ORDERS,
                                       changes = 2L) {
@@ -437,9 +457,10 @@
       (changes == 1L || previous_change <= tolerance)
     if (cheap) {
       tail <- .test_cert_tail_bound(block, orders[k], value)
-      if (tail <= tolerance) {
+      if (tail <= tolerance && (!transitions || .test_cert_resolves(block, orders[k]))) {
         amplitude <- if (transitions) sum(.test_cert_amplitudes(block, orders[k])[["amplitude"]]) else 0
-        if (amplitude <= tolerance / 2 && tail + 1.3 * amplitude <= tolerance / (1 + tolerance)) {
+        if (amplitude <= tolerance / 2 &&
+            tail + .test_cert_allowance_factor * amplitude <= tolerance / (1 + tolerance)) {
           return(list(order = orders[k], value = value, change = change, tail = tail, amplitude = amplitude))
         }
       }
@@ -495,9 +516,10 @@
 # Native refinement tier
 # ---------------------------------------------------------------------------- #
 
-# The decision of the tier recomputed from the probe: the M = 4 average of the
-# finest and previous affordable rung (orders 95 and 63 at rank two and for
-# forests of depth one), the shift check, the tail gate and the order check.
+# The decision of the tier recomputed from the probe: the sharpness gate at the
+# finest rung, the M = 4 average of the finest and previous affordable rung
+# (orders 95 and 63 at rank two and for forests of depth one), the shift check,
+# the tail gate and the order check. `checks` is the decision without the gate.
 .test_cert_tier <- function(block, tolerance = .005, finest = 95L, previous = 63L) {
 
   fine <- .test_cert_probe(block, finest, tolerance = tolerance)
@@ -505,16 +527,18 @@
   shift_change <- abs(expm1(fine[["refined_4"]] - fine[["refined_2"]]))
   order_change <- abs(expm1(fine[["refined_4"]] - prior[["refined_4"]]))
   tail <- .test_cert_tail_bound(block, finest, fine[["refined_4"]])
+  checks <- shift_change <= tolerance / 2 && tail <= tolerance && order_change <= tolerance / 2
   list(
     value = fine[["refined_4"]], shift_change = shift_change, order_change = order_change,
-    tail = tail,
-    accepted = shift_change <= tolerance / 2 && tail <= tolerance && order_change <= tolerance / 2
+    tail = tail, resolves = fine[["resolves_tier"]], checks = checks,
+    accepted = fine[["resolves_tier"]] && checks
   )
 }
 
 # The accepted order of the certificate ladder recomputed from the probe's rung
 # values: finite, the two successive changes and the tail gate within the
-# tolerance, and the certificate; NA when every affordable rung is rejected.
+# tolerance, the sharpness gate and the certificate; NA when every affordable
+# rung is rejected.
 .test_cert_probe_ladder <- function(block, tolerance = .005) {
 
   previous <- -Inf
@@ -526,7 +550,7 @@
     difference <- previous - value
     change <- if (!is.finite(difference) || abs(difference) > 50) Inf else abs(expm1(difference))
     if (is.finite(value) && change <= tolerance && previous_change <= tolerance &&
-        probe[["tail_bound"]] <= tolerance && probe[["accepted"]]) {
+        probe[["tail_bound"]] <= tolerance && probe[["resolves_ladder"]] && probe[["accepted"]]) {
       return(order)
     }
     previous <- value
