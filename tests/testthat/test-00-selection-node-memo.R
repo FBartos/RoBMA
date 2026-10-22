@@ -2,10 +2,10 @@ context("Selection node memo")
 source(testthat::test_path("common-functions.R"))
 skip_on_cran()
 
-# The factor selection node remembers the density of its last deterministic
-# evaluation (src/distributions/selnorm-node-memo.h). It may answer a call only
-# when every input equals the remembered one, so the key and the draws are what
-# these tests pin.
+# The factor and cluster selection nodes remember the density of their last
+# deterministic evaluation (src/distributions/selnorm-node-memo.h). A node may
+# answer a call only when every input equals the remembered one, so the key and
+# the draws are what these tests pin.
 
 .node_memo_repository_file <- function(...) {
 
@@ -143,7 +143,8 @@ test_that("a selection fit with factor and cluster blocks draws identically with
 
   expect_identical(with_memo[["memo"]], "1")
   expect_identical(without_memo[["memo"]], "0")
-  # Both node kinds are evaluated; the factor block is the one that is memoized.
+  # Both node kinds are evaluated and memoized: the rank-one blocks are cluster
+  # nodes, the two-factor block a factor node.
   expect_true(all(c("factor", "rank_one") %in% with_memo[["methods"]]))
   expect_identical(with_memo[["methods"]], without_memo[["methods"]])
   expect_identical(dim(with_memo[["draws"]]), c(200L, ncol(with_memo[["draws"]])))
@@ -151,7 +152,7 @@ test_that("a selection fit with factor and cluster blocks draws identically with
 })
 
 
-# The factor node may remember a density only when its kernel reports the result
+# A step node may remember a density only when its kernel reports the result
 # as deterministic: the ladder, the refinement tier or the sparse grid, which
 # never read the QMC design that the memo key omits. The batch entries expose the
 # flag as the attribute "deterministic" of their result (one value per row).

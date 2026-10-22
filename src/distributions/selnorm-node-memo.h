@@ -7,7 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
-// Last-evaluation memo of a selection step node (dselnorm_factor_step uses it).
+// Last-evaluation memo of a selection step node (dselnorm_factor_step and
+// dselnorm_cluster_step use it).
 //
 // JAGS's slice sampler evaluates each update first at the current value, whose
 // inputs equal the node's previous evaluation, so a node is often asked for a
@@ -30,9 +31,11 @@
 //
 // A kernel gains only when the density it skips costs more than the comparison
 // of every input, which includes the quadrature tables. On that fit the factor
-// kernel (about 140 us a call) saves 17% of its time for 0.2-0.3 us a call.
-// The cluster step shares this layout, but its kernel (about 7 us a call) saves
-// about what comparing its 32 KB of tables costs, so it does not use the memo.
+// kernel (about 140 us a call) saves 17% of its time for 0.2-0.3 us a call. The
+// cluster kernel (about 8 us a call) saves 17% as well and pays about 0.85 us
+// for the comparison of its 32 KB of tables on a hit and 0.8 us for the store
+// after a miss, a net gain of about 7% of its time: a cluster kernel that costs
+// less than about 5 us a call would lose by it.
 
 // ROBMA_SELNORM_NODE_MEMO=0 disables the memo. The variable is read once per
 // process, so on/off comparisons run in separate processes.

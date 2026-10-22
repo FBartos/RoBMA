@@ -13,9 +13,20 @@
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-mv.h"
 #include "selnorm-jags-bounds.h"
+#include "selnorm-node-memo.h"
 
 namespace jags {
 namespace RoBMA {
+
+namespace {
+// The memo is single-threaded like the sampler that fills it and is never
+// destroyed: a static destructor would run while the DLL unloads.
+SelNormNodeMemo &cluster_node_memo()
+{
+  static SelNormNodeMemo *memo = new SelNormNodeMemo();
+  return *memo;
+}
+}
 
 DSELNORMCLUSTERSTEP::DSELNORMCLUSTERSTEP() :
   VectorDist("dselnorm_cluster_step", 20) {}
@@ -96,6 +107,20 @@ double DSELNORMCLUSTERSTEP::logDensity(
     std::vector<unsigned int> const &len,
     double const *lower, double const *upper) const
 {
+  // A call whose inputs all equal the previous stored call of this node
+  // returns that density (see selnorm-node-memo.h). Bounds do not exist for
+  // vector nodes and are not read; a call that has any is not memoized.
+  SelNormMemoInput memo_inputs[selnorm_step_memo_inputs];
+  double memo_scalars[selnorm_step_memo_scalars];
+  const bool memoized = selnorm_node_memo_enabled() &&
+    lower == nullptr && upper == nullptr;
+  if (memoized) {
+    selnorm_step_memo_collect(x, length, static_cast<int>(type), par, len,
+                              memo_inputs, memo_scalars);
+    double remembered = 0.0;
+    if (cluster_node_memo().find(x, memo_inputs, selnorm_step_memo_inputs,
+                                 &remembered)) return remembered;
+  }
   const int k = static_cast<int>(length);
   const int n_bins = static_cast<int>(len[4]);
   const SelNormJagsBounds z_lower(par[5], len[5]);
@@ -107,6 +132,7 @@ double DSELNORMCLUSTERSTEP::logDensity(
 
   double relative_mcse = 0.0;
   double relative_change = 0.0;
+  bool deterministic = false;
   const double log_density = cpp_selnorm_cluster_step_lpdf(
     x, par[0], par[1], par[2], k, par[3], par[4], n_bins,
     z_lower.data(), z_upper.data(), obs_bin.data(),
@@ -114,7 +140,8 @@ double DSELNORMCLUSTERSTEP::logDensity(
     static_cast<int>(*par[10]), par[11], par[12], par[13],
     static_cast<int>(len[13]), par[14], static_cast<int>(*par[15]),
     static_cast<int>(*par[16]), static_cast<int>(*par[17]), *par[18],
-    &relative_mcse, &relative_change, nullptr, nullptr, static_cast<int>(*par[19])
+    &relative_mcse, &relative_change, nullptr, nullptr, static_cast<int>(*par[19]),
+    &deterministic
   );
   if (!std::isfinite(relative_mcse) || !std::isfinite(relative_change) ||
       std::max(relative_mcse, relative_change) > *par[18]) {
@@ -127,6 +154,12 @@ double DSELNORMCLUSTERSTEP::logDensity(
     throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;
+  // Only results the kernel reports as deterministic (the quadrature ladder)
+  // are stored: they never read the QMC design, which the stored inputs omit.
+  if (memoized && deterministic) {
+    cluster_node_memo().store(x, memo_inputs, selnorm_step_memo_inputs,
+                              log_density);
+  }
   return log_density;
 }
 
