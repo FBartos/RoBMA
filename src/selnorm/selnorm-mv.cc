@@ -4312,9 +4312,13 @@ double cpp_selnorm_factor_step_lpdf(
   // `order^(depth + 1)` and its ladder length does not depend on the rank.
   const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
 
+  SelNormTransitionGuard transition_guard;
+  cpp_selnorm_transition_guard(mean, residual_sd, loading, dimension, rank,
+    selection_se, omega, selection, 1, &transition_guard);
   const auto resolves = [&](int offset, int order) {
     return cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
-      mean, residual_sd, loading, dimension, rank, selection_se, omega, selection);
+      mean, residual_sd, loading, dimension, rank, selection_se, omega, selection, 1,
+      &transition_guard);
   };
   bool quadrature_resolvable = false;
   if (quadrature_rule_count >= 3) {

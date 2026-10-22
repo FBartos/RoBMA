@@ -43,6 +43,65 @@ test_that("the lattice alias width is the smallest damped lattice frequency of a
   expect_equal(.selection_transition_alias_width(matrix(c(1, .5, .3), 1L), .2), .04 / 1.38)
 })
 
+test_that("coincident transitions raise the exponent a row needs and widths stay scale free", {
+
+  # One step needs 8; with weights (1, .5) up to three coincident steps still do.
+  expect_identical(.selection_transition_need(1, 0), 8)
+  expect_identical(.selection_transition_need(c(2, 3), .5), c(8, 8))
+  # Full selection: linear in the count first, then like its square root.
+  expect_equal(.selection_transition_need(8, 0), 4.6 + 2.58 * 7)
+  expect_equal(.selection_transition_need(40, 0), 4.6 + 6.87 * 39^.55)
+  expect_true(all(diff(.selection_transition_need(1:200, .2)) >= 0))
+  # The width depends on loading / residual SD only: representable ratios keep it,
+  # ratios beyond double range give NA, which no check accepts.
+  expect_equal(.selection_transition_alias_width(matrix(c(1, 1), 1L), 1e160), 1)
+  expect_identical(.selection_transition_alias_width(matrix(c(1, 1), 1L), 1e-170), NA_real_)
+  expect_identical(.selection_transition_alias_width(matrix(c(1e160, 1e160), 1L), 1), NA_real_)
+  prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))
+  spec <- .selection_spec(list(outcome = list(bias = prior)), c(0, 0), c(1, 1),
+    effect_direction = "positive", signed_data = FALSE)
+  spec$omega <- matrix(c(1, .3), 1L)
+  expect_false(.selection_transition_rule_resolves(.gauss_hermite_nodes(95L)$nodes, c(0, 0),
+    c(1e-170, 1), rbind(c(1, 1), c(1, 0)), c(1, 1), spec))
+})
+
+test_that("coincident coupled products are accepted only within the tolerance", {
+
+  quadrature <- .selection_joint_factor_quadrature_rules()
+  qmc <- BayesTools::selection_qmc_design(dimensions = 4L, points = 8192L, scrambles = 8L, seed = 1L)
+  evaluate <- function(a, s, mean, K, omega2) {
+    loading <- matrix(rep(a, each = K), K, 2L)
+    .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(1, K), matrix(rep(mean, K), 1L),
+      matrix(rep(s, K), 1L), matrix(as.double(loading), 1L), rep(1, K), matrix(c(1, omega2), 1L),
+      c(0, -Inf), c(Inf, 0), rep(1L, K), 1L, TRUE, 1L, quadrature$nodes, quadrature$log_weights,
+      as.double(quadrature$orders), as.double(qmc), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+  }
+  # K identical rows depend on the latent axes through a . eta only: a
+  # one-dimensional integral over its standardized value is the reference.
+  reference <- function(a, s, mean, K, omega2) {
+    norm <- sqrt(sum(a^2))
+    f <- function(u) exp(stats::dnorm(u, log = TRUE) +
+      K * log(omega2 + (1 - omega2) * stats::pnorm((mean + norm * u) / s)))
+    breaks <- c(-Inf, seq(-10, 10, by = .25), Inf)
+    log(sum(vapply(seq_len(length(breaks) - 1L), function(i) stats::integrate(f, breaks[i], breaks[i + 1L],
+      rel.tol = 1e-12, abs.tol = 0)$value, numeric(1L))))
+  }
+  # 32 rows with equal loadings 1.2 on both axes and the step 2 SD below their
+  # mean: the per-row exponent accepted order 11, 7.3e-3 off.
+  actual <- evaluate(c(1.2, 1.2), 1, 2, 32L, 0)
+  expect_lt(abs(expm1(actual$log_normalizer - reference(c(1.2, 1.2), 1, 2, 32L, 0))), .005)
+  # 80 coincident rows under weights (1, .01): the per-axis gap alone accepted
+  # order 63, 1.04e-2 off. No deterministic rule is accepted now; the randomized
+  # fallback reports diagnostics above the tolerance, which the likelihood
+  # rejects, and its error agrees with them.
+  a <- c(0.496441, 0.542314)
+  actual <- evaluate(a, 0.246872, -2.125758, 80L, .01)
+  error <- abs(expm1(actual$log_normalizer - reference(a, 0.246872, -2.125758, 80L, .01)))
+  expect_gt(actual$relative_mcse, 0)
+  expect_true(error < .005 || max(actual$relative_mcse, actual$relative_change) > .005)
+  expect_lt(error, 4 * max(actual$relative_mcse, .005))
+})
+
 test_that("coupled rows resolve once their lattice damping exponent reaches the threshold", {
 
   prior <- BayesTools::prior_weightfunction("one-sided", .025, BayesTools::wf_fixed(c(1, .3)))

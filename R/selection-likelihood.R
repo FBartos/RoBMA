@@ -29,24 +29,23 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 
 # Smallest lattice damping width of each row's selection step under a tensor
 # rule: min over nonzero integer k on the row's support of
-# |k|^2 - (k.a)^2 / (|a|^2 + s^2). Exact for two axes (Lagrange-Gauss
-# reduction), the smallest eigenvalue s^2 / (|a|^2 + s^2) otherwise. Mirrors
+# |k|^2 - (k.a)^2 / (|a|^2 + s^2), a function of a / s only. Exact for two axes
+# (Lagrange-Gauss reduction), the smallest eigenvalue s^2 / (|a|^2 + s^2)
+# otherwise; NA for an invalid loading or scale. Mirrors
 # selnorm_transition_alias_width() in src/selnorm/selnorm-api.cc.inc.
-SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
-
 .selection_transition_alias_width <- function(loading, residual_sd) {
 
   vapply(seq_len(nrow(loading)), function(row) {
     if (any(!is.finite(loading[row, ])) || !is.finite(residual_sd[row]) || residual_sd[row] <= 0) {
       return(NA_real_)
     }
-    a <- loading[row, loading[row, ] != 0]
-    variance <- residual_sd[row]^2
-    total <- sum(a^2) + variance
-    smallest <- variance / total
+    a <- loading[row, loading[row, ] != 0] / residual_sd[row]
+    total <- sum(a^2) + 1
+    if (!is.finite(total)) return(NA_real_)
+    smallest <- 1 / total
     if (length(a) != 2L) return(smallest)
     form <- function(x, y) {
-      (variance * sum(x * y) + (x[1L] * a[2L] - x[2L] * a[1L]) * (y[1L] * a[2L] - y[2L] * a[1L])) / total
+      (sum(x * y) + (x[1L] * a[2L] - x[2L] * a[1L]) * (y[1L] * a[2L] - y[2L] * a[1L])) / total
     }
     u <- c(1, 0); v <- c(0, 1)
     for (step in seq_len(200L)) {
@@ -59,14 +58,98 @@ SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
   }, numeric(1L))
 }
 
-# A coupled row also resolves when its smallest lattice damping exponent
-# 2 pi^2 q / h^2 at the central spacing h reaches the shared threshold; a row
-# with an invalid loading or scale does not.
-.selection_transition_alias_resolves <- function(gap, loading, residual_sd) {
+# The aliasing exponent one selection step needs; coincident steps need more.
+# Mirrors selnorm_transition_alias_exponent and selnorm_transition_need() in
+# src/selnorm/selnorm-api.cc.inc, which document the calibration.
+SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
 
-  resolved <- 2 * pi^2 * .selection_transition_alias_width(loading, residual_sd) >=
-    SELNORM_TRANSITION_ALIAS_EXPONENT * gap^2
-  !is.na(resolved) & resolved
+.selection_transition_need <- function(coincident, rho) {
+
+  m <- (1 - rho)^1.5 * (coincident - 1)
+  pmax(SELNORM_TRANSITION_ALIAS_EXPONENT, 4.6 + pmin(2.58 * m, 6.87 * m^0.55))
+}
+
+# Rule-independent part of the coupled transition check for one row of means:
+# the lattice width of every row on a coupled axis and, for each of its changed
+# cutoffs, the radius of the node spacing it sees, the exponent it needs and the
+# credit of its relative sensitivity. Mirrors cpp_selnorm_transition_guard().
+.selection_transition_guard <- function(mean, residual_sd, loading, sei, selection) {
+
+  omega <- as.numeric(selection$omega[1L, ])
+  n_cuts <- length(omega) - 1L
+  loaded <- loading != 0
+  coupled_axis <- colSums(loaded[rowSums(loaded) >= 2L, , drop = FALSE]) > 0
+  on_coupled <- which(rowSums(loaded[, coupled_axis, drop = FALSE]) > 0)
+  guard <- list(valid = TRUE, width = numeric(nrow(loading)), row = integer(), reach = numeric(),
+                need = numeric(), credit = numeric())
+  if (!length(on_coupled)) return(guard)
+  norm <- sqrt(rowSums(loading[on_coupled, , drop = FALSE]^2))
+  if (any(!is.finite(norm)) || any(!is.finite(mean[on_coupled])) ||
+      any(!is.finite(residual_sd[on_coupled]) | !(residual_sd[on_coupled] > 0))) {
+    return(list(valid = FALSE))
+  }
+  guard$width[on_coupled] <- .selection_transition_alias_width(loading[on_coupled, , drop = FALSE],
+                                                                residual_sd[on_coupled])
+  cuts <- which(is.finite(selection$z_lower[seq_len(n_cuts)]) & omega[seq_len(n_cuts)] != omega[-1L])
+  if (!length(cuts)) return(guard)
+  index <- rep(seq_along(on_coupled), each = length(cuts))
+  cut <- rep(cuts, times = length(on_coupled))
+  row <- on_coupled[index]
+  centre <- (selection$sign * selection$z_lower[cut] * sei[row] - mean[row]) / norm[index]
+  if (anyNA(centre)) return(list(valid = FALSE))
+  half_width <- residual_sd[row] / norm[index]
+  above <- omega[cut]
+  below <- omega[cut + 1L]
+  rho <- pmin(above, below) / pmax(above, below)
+  rising <- (above > below) == (selection$sign == 1)
+  unit <- loading[row, , drop = FALSE] / norm[index]
+  cosine <- tcrossprod(unit)
+  flip <- ifelse(cosine < 0, -1, 1)
+  cosine <- pmin(1, abs(cosine))
+  # the sine from the cross terms keeps parallel normals exactly parallel
+  sine <- matrix(0, length(centre), length(centre))
+  for (axis in seq_len(ncol(unit) - 1L)) for (next_axis in seq.int(axis + 1L, ncol(unit))) {
+    sine <- sine + (outer(unit[, axis], unit[, next_axis]) - outer(unit[, next_axis], unit[, axis]))^2
+  }
+  sine <- sqrt(sine)
+  # near[t, o]: transition o coincides with transition t over the central ball
+  near <- abs(flip * rep(centre, each = length(centre)) - centre * cosine) + 3 * sine <=
+    outer(half_width, half_width, `+`)
+  diag(near) <- TRUE
+  coincident <- rowSums(near)
+  rho_min <- vapply(seq_along(centre), function(t) min(rho[near[t, ]]), numeric(1L))
+  log_group <- vapply(seq_along(centre), function(t) sum(log(rho[near[t, ]])), numeric(1L))
+  # sensitivity of the group step from prod(rho) to one, on the side of the larger weight
+  scale <- sqrt(1 + half_width^2)
+  position <- ifelse(rising, centre, -centre) / scale
+  log_low <- log_group + stats::pnorm(position, log.p = TRUE)
+  log_high <- log1p(-exp(log_group)) + stats::pnorm(position, lower.tail = FALSE, log.p = TRUE)
+  log_mass <- pmax(log_low, log_high) + log1p(exp(pmin(log_low, log_high) - pmax(log_low, log_high)))
+  log_sensitivity <- log1p(-exp(log_group)) + stats::dnorm(position, log = TRUE) - log(scale) - log_mass
+  guard$row <- row
+  guard$reach <- pmax(3, abs(centre) + 1)
+  guard$need <- .selection_transition_need(coincident, rho_min)
+  guard$credit <- log(.8) - log_sensitivity
+  guard
+}
+
+# Decision of the coupled check for the rows in `checked`: a row that passes the
+# per-axis test keeps it unless coincident transitions raise its need above the
+# single-step exponent; otherwise each of its transitions needs
+# 2 pi^2 width / h^2 + credit >= need at the widest gap h it sees.
+.selection_transition_guard_resolves <- function(guard, nodes, per_axis, checked) {
+
+  if (!isTRUE(guard$valid)) return(FALSE)
+  for (t in seq_along(guard$row)) {
+    row <- guard$row[t]
+    if (!checked[row]) next
+    if (per_axis[row] && guard$need[t] <= SELNORM_TRANSITION_ALIAS_EXPONENT) next
+    reaching <- utils::head(nodes, -1L) <= guard$reach[t] & utils::tail(nodes, -1L) >= -guard$reach[t]
+    if (!any(reaching)) return(FALSE)
+    gap <- max(diff(nodes)[reaching])
+    if (!isTRUE(2 * pi^2 * guard$width[row] / gap^2 + guard$credit[t] >= guard$need[t])) return(FALSE)
+  }
+  TRUE
 }
 
 .selection_transition_rule_resolves <- function(nodes, mean, residual_sd, loading,
@@ -81,6 +164,8 @@ SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
   if (length(nodes) < 2L || any(!is.finite(nodes)) || any(diff(nodes) <= 0)) return(FALSE)
   coupled_intervals <- utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3
   coupled_gap <- if (any(coupled_intervals)) max(diff(nodes)[coupled_intervals]) else Inf
+  per_axis <- rep(TRUE, nrow(loading))
+  checked <- rep(FALSE, nrow(loading))
   for (axis in axes) {
     coefficient <- loading[, axis]
     active <- which(coefficient != 0)
@@ -90,9 +175,9 @@ SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
     other <- setdiff(seq_len(ncol(loading)), axis)
     coupled <- length(other) > 0L && any(rowSums(loading[active, other, drop = FALSE] != 0) > 0L)
     if (coupled) {
-      wide <- active[coupled_gap * abs(coefficient[active]) > residual_sd[active]]
-      if (length(wide) && !all(.selection_transition_alias_resolves(
-            coupled_gap, loading[wide, , drop = FALSE], residual_sd[wide]))) return(FALSE)
+      if (!is.finite(coupled_gap)) return(FALSE)
+      per_axis[active] <- per_axis[active] & coupled_gap * abs(coefficient[active]) <= residual_sd[active]
+      checked[active] <- TRUE
       next
     }
     for (row in active) for (cut in cuts) {
@@ -106,7 +191,9 @@ SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
       if (gap * abs(coefficient[row]) > residual_sd[row]) return(FALSE)
     }
   }
-  TRUE
+  if (!any(checked)) return(TRUE)
+  .selection_transition_guard_resolves(
+    .selection_transition_guard(mean, residual_sd, loading, sei, selection), nodes, per_axis, checked)
 }
 
 # The decision of .selection_transition_rule_resolves() for one scalar axis
@@ -192,8 +279,11 @@ SELNORM_TRANSITION_ALIAS_EXPONENT <- 8
 #' Deterministic candidates additionally resolve finite changed-weight selection
 #' transitions in their actual Gaussian integration coordinates. The node gap
 #' across an interior transition must not exceed its conditional residual SD
-#' divided by the absolute loading. Coupled axes use conservative central node
-#' spacing. Unresolved candidates refine or use the existing fallback; the
+#' divided by the absolute loading. Coupled axes use the widest central node
+#' spacing; a row on a coupled axis that exceeds it still resolves when the
+#' lattice aliasing exponent of its selection step reaches a threshold that
+#' coinciding steps of other rows raise. Unresolved candidates refine or use the
+#' existing fallback; the
 #' numerical settings and likelihood target are unchanged. This extra heuristic
 #' does not certify total integration error, including reciprocal normalizers.
 #' Each fit or post-fit request uses a fixed integration design, so repeated

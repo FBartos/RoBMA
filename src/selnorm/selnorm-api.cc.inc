@@ -249,6 +249,8 @@ double cpp_selnorm_kernel_log_norm(
 // smallest q over nonzero integer k on the row's support: exact for two axes
 // (Lagrange-Gauss reduction of the form), bounded below by the smallest
 // eigenvalue s^2 / (|a|^2 + s^2) for one axis exactly and for three or more.
+// q depends on a / s only, so the form is evaluated there; a ratio that is not
+// finite returns NaN, which no check accepts.
 static double selnorm_transition_alias_width(const double *loading, int row,
                                              int dimension, int rank, double residual_sd)
 {
@@ -256,19 +258,19 @@ static double selnorm_transition_alias_width(const double *loading, int row,
   double norm = 0.0;
   int support = 0;
   for (int axis = 0; axis < rank; ++axis) {
-    const double coefficient = loading[row + dimension * axis];
+    const double coefficient = loading[row + dimension * axis] / residual_sd;
     if (coefficient == 0.0) continue;
     if (support < 2) a[support] = coefficient;
     ++support;
     norm += coefficient * coefficient;
   }
-  const double variance = residual_sd * residual_sd;
-  const double total = norm + variance;
-  const double smallest = variance / total;
+  const double total = norm + 1.0;
+  if (!std::isfinite(total)) return std::numeric_limits<double>::quiet_NaN();
+  const double smallest = 1.0 / total;
   if (support != 2) return smallest;
   // (x.a)^2 enters through Lagrange's identity, so a sharp step cancels nothing.
   const auto form = [&](const double *x, const double *y) {
-    return (variance * (x[0] * y[0] + x[1] * y[1]) +
+    return (x[0] * y[0] + x[1] * y[1] +
             (x[0] * a[1] - x[1] * a[0]) * (y[0] * a[1] - y[1] * a[0])) / total;
   };
   double u[2] = {1.0, 0.0}, v[2] = {0.0, 1.0};
@@ -285,18 +287,132 @@ static double selnorm_transition_alias_width(const double *loading, int row,
   return smallest;
 }
 
-// A coupled row whose per-axis widths exceed the central spacing still resolves
-// when its smallest lattice damping exponent reaches 8. The trapezoid aliasing
-// bound then leaves h exp(-8) / (pi sqrt(2 pi)), below 1e-4 of a weight jump for
-// any rule of order three or more, and two fully coincident transitions
-// (exponent 4) stay below the default 0.005 tolerance.
+// A coupled row resolves at the widest node gap h that its transition sees,
+// the gap over intervals reaching [-R, R] with R = max(3, |c| + 1) for the
+// transition c along the row's unit normal, when
+//   2 pi^2 q / h^2 + log(0.8 / sensitivity) >= need(K, rho).
+// The sensitivity is the step's Gaussian density over the normalizer factor of
+// its group, a step from the product of the group's weight ratios to one:
+// 0.8 for a central full-selection step, smaller where the step barely moves
+// the normalizer. K counts the transitions whose slabs coincide with this one
+// over the central ball (|c' - c cos(theta)| + 3 sin(theta) <= w + w', w = s/|a|),
+// itself included, and rho is the smallest weight ratio among them. Products
+// of coincident steps sharpen, so
+//   need = max(8, 4.6 + min(2.58 m, 6.87 m^0.55)), m = (1 - rho)^1.5 (K - 1).
+// The constants bound, with a 5% margin, the largest exponent at which K
+// coincident one-dimensional steps (K <= 160, rho <= .7, positions within
+// 6 SD, rules of order 7 to 95) still exceed half the default tolerance; one
+// step needs 8, the bound of h exp(-8) / (pi sqrt(2 pi)) of a weight jump that
+// the per-row criterion uses. A row that passes the per-axis test keeps it
+// unless coincident transitions raise its need above 8.
 const double selnorm_transition_alias_exponent = 8.0;
+
+static double selnorm_transition_need(int coincident, double rho)
+{
+  const double m = std::pow(1.0 - rho, 1.5) * static_cast<double>(coincident - 1);
+  return std::max(selnorm_transition_alias_exponent,
+                  4.6 + std::min(2.58 * m, 6.87 * std::pow(m, 0.55)));
+}
+
+void cpp_selnorm_transition_guard(
+  const double *mean, const double *residual_sd, const double *loading,
+  int dimension, int rank, const double *selection_se,
+  const double *omega, const SelNormKernelData &data, int omega_stride,
+  SelNormTransitionGuard *out)
+{
+  out->valid = true;
+  out->width.assign(static_cast<std::size_t>(dimension), 0.0);
+  out->row.clear(); out->reach.clear(); out->need.clear(); out->credit.clear();
+  std::vector<char> coupled_axis(static_cast<std::size_t>(rank), 0);
+  for (int row = 0; row < dimension; ++row) {
+    int loaded_axes = 0;
+    for (int axis = 0; axis < rank; ++axis) loaded_axes += loading[row + dimension * axis] != 0.0;
+    if (loaded_axes < 2) continue;
+    for (int axis = 0; axis < rank; ++axis) {
+      if (loading[row + dimension * axis] != 0.0) coupled_axis[axis] = 1;
+    }
+  }
+  std::vector<double> centre, half_width, rho, unit;
+  std::vector<char> rising;
+  for (int row = 0; row < dimension; ++row) {
+    double norm = 0.0;
+    bool on_coupled = false;
+    for (int axis = 0; axis < rank; ++axis) {
+      const double coefficient = loading[row + dimension * axis];
+      if (coefficient == 0.0) continue;
+      on_coupled = on_coupled || coupled_axis[axis];
+      norm += coefficient * coefficient;
+    }
+    if (!on_coupled) continue;
+    norm = std::sqrt(norm);
+    if (!std::isfinite(norm) || !(residual_sd[row] > 0.0) || !std::isfinite(residual_sd[row]) ||
+        !std::isfinite(mean[row])) {
+      out->valid = false;
+      return;
+    }
+    out->width[row] = selnorm_transition_alias_width(loading, row, dimension, rank, residual_sd[row]);
+    for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
+      const double above = omega[bin * omega_stride], below = omega[(bin + 1) * omega_stride];
+      if (!std::isfinite(data.z_lower[bin]) || above == below) continue;
+      const double c = stable_affine_score(data.effect_sign * data.z_lower[bin],
+        selection_se[row], mean[row], norm);
+      if (std::isnan(c)) { out->valid = false; return; }
+      out->row.push_back(row);
+      centre.push_back(c);
+      half_width.push_back(residual_sd[row] / norm);
+      rho.push_back(std::min(above, below) / std::max(above, below));
+      rising.push_back((above > below) == (data.effect_sign == 1));
+      for (int axis = 0; axis < rank; ++axis) unit.push_back(loading[row + dimension * axis] / norm);
+    }
+  }
+  const std::size_t count = out->row.size();
+  out->reach.resize(count); out->need.resize(count); out->credit.resize(count);
+  for (std::size_t t = 0; t < count; ++t) {
+    int coincident = 0;
+    double rho_min = 1.0, log_group = 0.0;
+    for (std::size_t other = 0; other < count; ++other) {
+      double cosine = 0.0, sine = 0.0;
+      for (int axis = 0; axis < rank; ++axis) {
+        cosine += unit[t * rank + axis] * unit[other * rank + axis];
+        // the sine from the cross terms keeps parallel normals exactly parallel
+        for (int next = axis + 1; next < rank; ++next) {
+          const double cross = unit[t * rank + axis] * unit[other * rank + next] -
+            unit[t * rank + next] * unit[other * rank + axis];
+          sine += cross * cross;
+        }
+      }
+      const double flip = cosine < 0.0 ? -1.0 : 1.0;
+      cosine = std::min(1.0, std::fabs(cosine));
+      sine = std::sqrt(sine);
+      if (other != t && !(std::fabs(flip * centre[other] - centre[t] * cosine) + 3.0 * sine <=
+            half_width[t] + half_width[other])) continue;
+      ++coincident;
+      rho_min = std::min(rho_min, rho[other]);
+      log_group += std::log(rho[other]);
+    }
+    out->need[t] = selnorm_transition_need(coincident, rho_min);
+    out->reach[t] = std::max(3.0, std::fabs(centre[t]) + 1.0);
+    // log sensitivity of the group step from r = prod(rho) to one, at its
+    // position on the side of the larger weight
+    const double scale = std::sqrt(1.0 + half_width[t] * half_width[t]);
+    const double position = (rising[t] ? centre[t] : -centre[t]) / scale;
+    const double log_r = log_group;
+    const double log_low = log_r + pnorm(position, 0.0, 1.0, true, true);
+    const double log_high = std::log1p(-std::exp(log_r)) + pnorm(position, 0.0, 1.0, false, true);
+    const double log_mass = std::max(log_low, log_high) +
+      std::log1p(std::exp(std::min(log_low, log_high) - std::max(log_low, log_high)));
+    const double log_sensitivity = std::log1p(-std::exp(log_r)) + dnorm(position, 0.0, 1.0, true) -
+      std::log(scale) - log_mass;
+    out->credit[t] = std::log(0.8) - log_sensitivity;
+  }
+}
 
 bool cpp_selnorm_step_rule_resolves_transitions(
   const double *nodes, int offset, int order,
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
-  const double *omega, const SelNormKernelData &data, int omega_stride)
+  const double *omega, const SelNormKernelData &data, int omega_stride,
+  const SelNormTransitionGuard *guard)
 {
   const double two_pi_squared = 19.739208802178717;
   bool changed = false;
@@ -324,25 +440,31 @@ bool cpp_selnorm_step_rule_resolves_transitions(
       coupled_gap = std::max(coupled_gap, z[point] - z[point - 1]);
     }
   }
-  for (int axis = 0; axis < rank; ++axis) {
-    bool coupled = false;
-    for (int row = 0; any_coupled && row < dimension; ++row) {
+  std::vector<char> coupled_axis(static_cast<std::size_t>(rank), 0);
+  for (int axis = 0; any_coupled && axis < rank; ++axis) {
+    for (int row = 0; row < dimension && !coupled_axis[axis]; ++row) {
       if (loading[row + dimension * axis] == 0.0) continue;
       for (int other = 0; other < rank; ++other) {
-        coupled = coupled || (other != axis && loading[row + dimension * other] != 0.0);
+        if (other != axis && loading[row + dimension * other] != 0.0) coupled_axis[axis] = 1;
       }
     }
+  }
+  SelNormTransitionGuard local;
+  if (any_coupled && guard == nullptr) {
+    cpp_selnorm_transition_guard(mean, residual_sd, loading, dimension, rank,
+      selection_se, omega, data, omega_stride, &local);
+    guard = &local;
+  }
+  std::vector<char> per_axis(static_cast<std::size_t>(dimension), 1);
+  for (int axis = 0; axis < rank; ++axis) {
     for (int row = 0; row < dimension; ++row) {
       const double coefficient = loading[row + dimension * axis];
       if (coefficient == 0.0) continue;
       if (!std::isfinite(coefficient) || !(residual_sd[row] > 0.0) ||
           !std::isfinite(residual_sd[row]) || !std::isfinite(mean[row])) return false;
-      if (coupled) {
+      if (coupled_axis[axis]) {
         if (!(coupled_gap > 0.0)) return false;
-        if (coupled_gap * std::fabs(coefficient) > residual_sd[row] &&
-            !(two_pi_squared * selnorm_transition_alias_width(
-                loading, row, dimension, rank, residual_sd[row]) >=
-              selnorm_transition_alias_exponent * coupled_gap * coupled_gap)) return false;
+        per_axis[row] = per_axis[row] && coupled_gap * std::fabs(coefficient) <= residual_sd[row];
         continue;
       }
       for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
@@ -363,6 +485,20 @@ bool cpp_selnorm_step_rule_resolves_transitions(
         if (gap * std::fabs(coefficient) > residual_sd[row]) return false;
       }
     }
+  }
+  if (!any_coupled) return true;
+  if (!guard->valid) return false;
+  for (std::size_t t = 0; t < guard->row.size(); ++t) {
+    const int row = guard->row[t];
+    if (per_axis[row] && guard->need[t] <= selnorm_transition_alias_exponent) continue;
+    double gap = 0.0;
+    for (int point = 1; point < order; ++point) {
+      if (z[point - 1] <= guard->reach[t] && z[point] >= -guard->reach[t]) {
+        gap = std::max(gap, z[point] - z[point - 1]);
+      }
+    }
+    if (!(gap > 0.0) || !(two_pi_squared * guard->width[row] / (gap * gap) + guard->credit[t] >=
+                          guard->need[t])) return false;
   }
   return true;
 }

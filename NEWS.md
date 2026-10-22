@@ -1,8 +1,10 @@
 ## version 4.1.0 (IN PROGRESS)
-- Coupled factor rows also resolve their selection transitions when the rule's
-  lattice aliasing exponent reaches 8, so Assink-type known-V blocks accept
-  order 11 instead of 21 and moderately sharp random-formula rows stay
-  deterministic instead of falling back to QMC.
+- Deterministic selected-normal candidates of coupled factor rows resolve a
+  selection transition by its lattice aliasing exponent at the node spacing it
+  sees, raised when transitions of several rows coincide, besides the per-axis
+  node gap; fewer known-V and random-formula blocks need finer rules or the
+  randomized fallback, and many coinciding transitions no longer pass on the
+  per-axis gap alone.
 - The known-V deletion conditional mean of selection models keeps both variance
   shares, so a sampling share that rounds to one no longer drops the location
   term at extreme scales.
