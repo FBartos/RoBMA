@@ -233,8 +233,11 @@ test_that("an estimate-level term preserves correlated known group covariance", 
   control <- set_selection_likelihood_control(
     points_per_scramble = 8192L, relative_tolerance = 1e-6
   )
+  # The randomized conditioned normalizer is accepted when 2.36 times its relative
+  # MCSE is within 1e-6: the budget that sufficed for one standard error (262144
+  # points per scramble) is eight times too small.
   conditioned_control <- set_selection_likelihood_control(
-    points_per_scramble = 8192L, max_points_per_scramble = 262144L,
+    points_per_scramble = 8192L, max_points_per_scramble = 2097152L,
     relative_tolerance = 1e-6
   )
   V <- diag(c(.64, 1)) + tcrossprod(c(.3, .15))
