@@ -203,11 +203,12 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   rung's own tilted mean of that axis (the gap of the interval containing it;
   the first or last gap outside the nodes, the gap to its right on a node).
   Means and shifted values come from the evaluator that produced the rung
-  value. A leaf shift recomputes only that leaf's inner integrals and reuses
-  the other messages, a root shift its tree; forests deeper than one level
-  re-evaluate fully. Leaves are never shifted together, which hides leaf-leaf
-  aliasing (a valid 371-row depth-one forest was accepted that way with
-  relative error 1.0e-2).
+  value. A shift recomputes the rows of its axis and of the axes below it and
+  the messages of the axes above it, and reuses every other message and the
+  free rows, at any depth (a leaf shift costs its own rows, a root shift its
+  tree). Leaves are never shifted together, which hides leaf-leaf aliasing (a
+  valid 371-row depth-one forest was accepted that way with relative error
+  1.0e-2).
 - Amplitude: with `e2 = expm1(q_half - q0)` and `e4 = expm1(q_quarter - q0)`
   per group, `amp = sqrt((e2/2)^2 + (e2/2 - e4)^2)` is the amplitude of the
   first harmonic of that group's aliasing error, sampled at three phases. The
@@ -241,10 +242,15 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   when this average agrees within `tol/2` with the average over `(m/2) h` and
   with the same average at the previous affordable rung, and the tail gate holds
   for it; the result has relative change the larger check and relative MCSE 0.
-  Every evaluation passes the node budget. The tier's sharpness gate asks for
-  an edge width of at least `sqrt(max(1, 2 log N)) / 8` times the node gap,
-  `N` the largest number over the axes of transition rows loading on one axis:
-  a wall of `N` coincident steps is narrower than one step by about that
+  Every evaluation passes the node budget. The tier runs only when `tol` is at
+  least 0.005: its gate and its checks were calibrated at the default, and the
+  error of the harmonics they cannot see does not shrink with `tol` (at `tol`
+  of 1e-3 and 3e-4 walls of about a thousand coincident rows were accepted with
+  errors of 1.5 and 1.2 times `tol`); below it, blocks the ladder rejects go on
+  to the Smolyak grid and the randomized fallback. The tier's sharpness gate
+  asks for an edge width of at least `sqrt(max(1, 2 log N)) / 8` times the node
+  gap, `N` the largest number over the axes of transition rows loading on one
+  axis: a wall of `N` coincident steps is narrower than one step by about that
   factor and keeps a harmonic-4 error (up to 44% over `tol`) that neither
   check sees. Averaging eight shifts instead does not remove it. The cluster
   kernel has no tier.
@@ -267,9 +273,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   QMC design is not an input. Only results the kernel flags `deterministic`
   (ladders, tier, sparse grid; the batch results carry the flag as an attribute
   of that name) are stored, never a randomized, non-finite or thrown one. The
-  memo is a function-local map keyed by node, never deleted, and cleared above
-  4096 keys; `ROBMA_SELNORM_NODE_MEMO=0`, read once per process, disables it.
-  Draws are bitwise identical with and without it.
+  memo is a function-local map keyed by node, never deleted, and cleared as a
+  whole above 4096 keys. Each entry copies the quadrature tables (about 32 KB
+  for a cluster node, 5 KB for a factor node), so the map can hold roughly
+  130 MB for the rest of the R session, entries of finished models included;
+  a process with more step nodes than the cap clears it repeatedly and gains
+  little from it. `ROBMA_SELNORM_NODE_MEMO=0`, read once per process, disables
+  it. Draws are bitwise identical with and without it.
 - Lean arithmetic: the nested-forest rung with its shifted copies and the
   rank-one cluster rung accumulate node products in double. A row's node
   normalizers are computed into a call-owned workspace and all validated (the
@@ -289,7 +299,14 @@ searches, not a proof. The qCMDE normalizer grid anchors its error at
 `2 * relative_change` (`R/selection-normalizer-grid.R`), which is not an error
 bound for the accepted value. The one-sigma QMC stop is not calibrated: about
 one accepted randomized run in five on blocks deferred by the deterministic
-stages was outside `tol`.
+stages was outside `tol`. The certificate costs `1 + 2 rank` evaluations of
+each rung it consults and the tier up to 32 evaluations of the finest rung,
+each linear in the rows of the block, and the precheck of the finest rule is
+gone, so a block that no rung certifies pays the whole ladder before the
+sparse grid or the randomized fallback: 0.34 s per call for a narrow-band
+block of 20 rows (0.03 s with the precheck) and 0.1 to 0.7 s, fallback
+included, for walls of 380 to 2,300 coincident rows. The dense blocks of real
+data (5-22 rows) are unaffected.
 
 Retained-latent density has separate population-forward, conditional response-
 root interpolation and direct conditional routes. Sampling density uses its
@@ -319,6 +336,8 @@ numerical contract.
 - `R/known-v-representation.R`: authoritative sampling covariance storage.
 - `R/pdf*.R`, `R/rng.R`: outcome evaluation.
 - `src/selnorm/`: shared native kernels.
+- `src/distributions/selnorm-node-memo.h`: last-evaluation memo of the factor
+  and cluster step nodes.
 - `tests/testthat/helper-selection-kernel.R`: focused test fixtures.
 
 Test positive and negative effect directions, single and product-space models,

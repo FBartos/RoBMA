@@ -3,17 +3,18 @@
   and cluster kernels, in fitting and post-fit calculations) accept a
   deterministic quadrature rule only when shifting its nodes shows an aliasing
   error within `relative_tolerance`. The node-gap rule it replaces accepted
-  values up to 2% off for coincident or crossing selection steps and rank-one
-  clusters. Blocks with edges sharper than the nodes resolve, or whose
+  values up to 2-4% off for coincident or crossing selection steps and
+  rank-one clusters. Blocks with edges sharper than the nodes resolve, or whose
   certificate fails, use a four-shift average of the finest rule (rank-two
-  tensors and depth-one forests) or the randomized fallback, which now proposes
-  from the tilted moments of the finest rule; its stopping rule is unchanged.
-  Fits with dependent estimates run faster (about 20% in a reduced assink2016
-  CCI benchmark against 4.1.0.440): the certificate accepts coarser rules,
-  nodes reuse their last evaluation and the node products use double
-  arithmetic. Likelihood values move within `relative_tolerance`, so seeded
-  fits differ from earlier 4.1.0 revisions in the last digits. The weight rule
-  `best`, sparse grids and z-curves keep the node-gap rule. Selection
+  tensors and depth-one forests, at tolerances of at least 0.005) or the
+  randomized fallback, which now proposes from the tilted moments of the finest
+  rule; its stopping rule is unchanged. Fits with dependent estimates run
+  faster (about 20% in a reduced assink2016 CCI benchmark against 4.1.0.440),
+  because nodes reuse their last evaluation and the node products use double
+  arithmetic; the certificate itself is about cost-neutral. Likelihood values
+  and seeded fits of earlier 4.1.0 revisions can change, by more than
+  `relative_tolerance` where the previous normalizer was inaccurate. The weight
+  rule `best`, sparse grids and z-curves keep the node-gap rule. Selection
   likelihoods remain somewhat slower than in 4.1.0.229.
 - The known-V deletion conditional mean of selection models keeps both variance
   shares, so a sampling share that rounds to one no longer drops the location

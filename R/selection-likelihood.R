@@ -151,19 +151,22 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' the integral unchanged, so the change of the rule under half and quarter gap
 #' shifts of each axis measures its aliasing error. The rung's successive
 #' changes must be within `relative_tolerance`, the summed shift amplitudes must
-#' not exceed half of it, and, together with the exterior Gaussian mass, they
-#' must fit within it. A rung must also resolve the selection edges: the edge
-#' width (conditional residual SD divided by the absolute loading) is at least
-#' 0.15 times the node gap. When no rung is accepted, tensors of rank at most
-#' two and depth-one forests try the average of the finest rung over four
-#' shifts per axis before sparse grids and the randomized fallback. The
-#' best-p-value rule and the other deterministic routes instead require that the
-#' node gap across an interior transition not exceed its conditional residual SD
-#' divided by the absolute loading; coupled axes use conservative central node
-#' spacing. Unresolved candidates refine or use the existing fallback; the
-#' numerical settings and likelihood target are unchanged. These checks are
-#' heuristics, not a bound on the total integration error, including reciprocal
-#' normalizers.
+#' not exceed half of it, and twice their sum, together with the exterior
+#' Gaussian mass, must fit within it. A rung must also resolve the selection
+#' edges: the edge width (conditional residual SD divided by the absolute
+#' loading) is at least 0.15 times the node gap. When no rung is accepted,
+#' tensors of rank at most two and depth-one forests try the average of the
+#' finest rung over four shifts per axis before sparse grids and the randomized
+#' fallback. That average asks the edges for at least one eighth of the node
+#' gap, more when many rows load on the same axis, and is used only when
+#' `relative_tolerance` is at least 0.005, the tolerance at which its checks
+#' were calibrated. The best-p-value rule and the other deterministic routes
+#' instead require that the node gap across an interior transition not exceed
+#' its conditional residual SD divided by the absolute loading; coupled axes use
+#' conservative central node spacing. Unresolved candidates refine or use the
+#' existing fallback; the numerical settings and likelihood target are
+#' unchanged. These checks are heuristics, not a bound on the total integration
+#' error, including reciprocal normalizers.
 #' Each fit or post-fit request uses a fixed integration design, so repeated
 #' likelihood evaluations are deterministic. One-observation blocks are evaluated
 #' analytically.
@@ -237,17 +240,19 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #'   mass before accepting rule agreement; an unresolved rule sequence uses the
 #'   existing QMC fallback. The returned deterministic candidate also requires
 #'   its shift-amplitude certificate under product weights (summed shift
-#'   amplitudes within half of this tolerance and, with the exterior mass,
-#'   within the tolerance) or, on the other routes, selection-transition
-#'   resolution; coarser comparison rules retain their actual values without an
-#'   added resolution requirement. The randomized fallback stops when the larger
-#'   of its relative change and its relative Monte Carlo standard error (one
-#'   standard error) is within this tolerance, which does not bound the error of
-#'   the accepted value. Zplot projections additionally check density error
-#'   relative to the peak within each posterior draw and raw normalizer-mass
-#'   diagnostics, including their bounded approximation and omission terms.
-#'   These diagnostics do not certify the total integrated error of a compressed
-#'   displayed curve; see [as_zplot.brma()].
+#'   amplitudes within half of this tolerance and twice their sum, with the
+#'   exterior mass, within the tolerance; the four-shift average that follows a
+#'   rejected ladder is used only for tolerances of at least 0.005) or, on the
+#'   other routes, selection-transition resolution; coarser comparison rules
+#'   retain their actual values without an added resolution requirement. The
+#'   randomized fallback stops when the larger of its relative change and its
+#'   relative Monte Carlo standard error (one standard error) is within this
+#'   tolerance, which does not bound the error of the accepted value. Zplot
+#'   projections additionally check density error relative to the peak within
+#'   each posterior draw and raw normalizer-mass diagnostics, including their
+#'   bounded approximation and omission terms. These diagnostics do not certify
+#'   the total integrated error of a compressed displayed curve; see
+#'   [as_zplot.brma()].
 #' @param seed non-negative integer used only to create fixed quasi-Monte Carlo
 #'   designs. It does not alter R's random-number state.
 #'
