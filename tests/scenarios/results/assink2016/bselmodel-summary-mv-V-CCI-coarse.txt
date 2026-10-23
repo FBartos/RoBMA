@@ -3,14 +3,14 @@ Bayesian Multivariate Random-Effects Selection Model (k = 100)
 
 Estimates
                        Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
-mu                    0.243 0.086 0.087 0.239 0.428     0.00461          0.053 355 1.008
-tau_total             0.442 0.055 0.355 0.436 0.565     0.00270          0.050 423 1.010
-tau2_prop(esid_study) 0.759 0.141 0.447 0.775 0.980     0.00829          0.059 293 1.005
-tau2_prop(study)      0.241 0.141 0.020 0.225 0.553     0.00829          0.059 293 1.005
+mu                    0.240 0.100 0.055 0.237 0.452     0.00674          0.067 264 1.045
+tau_total             0.451 0.063 0.354 0.442 0.602     0.00340          0.054 353 1.057
+tau2_prop(esid_study) 0.735 0.150 0.406 0.750 0.975     0.00891          0.059 286 1.067
+tau2_prop(study)      0.265 0.150 0.025 0.250 0.594     0.00891          0.059 286 1.067
 
 Publication Bias
                 Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 omega[0,0.025] 1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-omega[0.025,1] 0.509 0.139 0.280 0.494 0.827     0.00302          0.022 2194 1.000
+omega[0.025,1] 0.509 0.143 0.277 0.492 0.841     0.00375          0.026 1463 1.009
 P-value intervals for publication bias weights omega correspond to one-sided p-values.
 
