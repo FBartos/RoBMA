@@ -410,11 +410,26 @@
 # The factor of the summed amplitude in the combined allowance, and the scales
 # of the sharpness gate (the step widths the transition rule compares with a
 # node gap are multiplied by them): the ladder rungs need an edge width of at
-# least 0.15 of the node gap, the refinement tier 0.125. Mirror the constants of
-# src/selnorm/selnorm-mv.cc.
+# least 0.15 of the node gap, the refinement tier 0.125 for a single row per
+# axis (see .test_cert_tier_width_scale for the narrowing by coincident rows).
+# Mirror the constants of src/selnorm/selnorm-mv.cc.
 .test_cert_allowance_factor   <- 2
 .test_cert_width_scale_ladder <- 1 / .15
 .test_cert_width_scale_tier   <- 8
+
+# The width scale of the tier gate of a block: the tier scale divided by
+# sqrt(max(1, 2 ln N)), N the largest number over the loading columns of rows
+# that load on it, when the block has a transition (the narrowing of a wall of N
+# coincident steps); the plain tier scale otherwise. Mirrors
+# selnorm_certificate_tier_width_scale in src/selnorm/selnorm-mv.cc.
+.test_cert_tier_width_scale <- function(block) {
+
+  omega <- block[["omega"]]
+  transitions <- any(is.finite(block[["z_lower"]]) & c(omega[-length(omega)] != omega[-1L], FALSE))
+  if (!transitions) return(.test_cert_width_scale_tier)
+  rows <- max(1L, colSums(block[["loading"]] != 0))
+  .test_cert_width_scale_tier / sqrt(max(1, 2 * log(rows)))
+}
 
 # The sharpness gate at a rung: the transition rule (its R mirror) with every
 # step width multiplied by `width_scale`, on the nodes of the rung's order.

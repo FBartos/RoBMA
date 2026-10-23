@@ -10,7 +10,9 @@ skip_on_cran()
 # fallback; the expected route is stated for every block. The shift-amplitude
 # certificate defers the blocks that fed95b63 accepted wrongly; the refinement
 # tier (the average over four shifts per axis at the finest affordable rung)
-# certifies them, within 1e-5 of the reference.
+# certifies them, within 1e-5 of the reference, except the forest of 371 rows,
+# whose rows narrow the tier gate beyond its edges and which therefore reaches
+# the fallback.
 
 .test_cert_tolerance <- .005
 
@@ -26,6 +28,12 @@ skip_on_cran()
   if (route == "deterministic") {
     expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference),
               .test_cert_tolerance, label = paste(name, "relative error"))
+  }
+  if (route == "fallback") {
+    # a randomized result is held to the same tolerance (the fixed design makes
+    # it reproducible)
+    expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference),
+              .test_cert_tolerance, label = paste(name, "relative error of the fallback"))
   }
   expect_identical(route, case[["route"]], label = paste(name, "route"))
   invisible(actual)
@@ -133,7 +141,9 @@ test_that("a depth-one forest with cancelling leaf aliases keeps its normalizer 
     list(count = 115L, loading = c(.001, 1, 0), sd = .249373398318475, mean = 1.93906024750322, sei = 1),
     list(count = 256L, loading = c(.001, 0, -1), sd = .103488784220421, mean = 1.91516049392521, sei = 1)),
     c(1, .01))
-  .test_cert_check_case("forest371", list(block = block, route = "deterministic",
+  # The refinement tier's gate narrows with the 371 rows on the shared axis and
+  # refuses the rung (see the refinement tests): the block reaches the fallback.
+  .test_cert_check_case("forest371", list(block = block, route = "fallback",
     pinned = -.15663896170926442, reference = .test_cert_reference_forest),
     .test_cert_native_factor)
 })

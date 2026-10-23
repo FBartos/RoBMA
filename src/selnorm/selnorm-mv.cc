@@ -3395,6 +3395,35 @@ const double selnorm_certificate_width_scale_ladder = 1.0 / 0.15;
 // check against the two-shift average sees only half of them, so its rung has
 // to resolve the edges on the refined lattice spacing: edge width >= 0.125 x gap.
 const double selnorm_certificate_width_scale_tier = 8.0;
+
+// The single-row edge width understates how sharp a block is when many rows
+// share an edge: the product of N coincident steps is a wall narrower than one
+// step, by about 1 / sqrt(2 ln N) (the extreme-value scaling of the product),
+// and the harmonics of the refined lattice that the tier's two checks cannot see
+// then carry errors beyond the tolerance. The tier gate therefore divides the
+// width scale above by sqrt(max(1, 2 ln N_max)), with N_max the largest number
+// over the latent axes of rows that carry a transition (the block has a finite
+// cutoff between differing weights) and load on that axis. A block without
+// transitions keeps the base scale; its gate is always resolved.
+double selnorm_certificate_tier_width_scale(
+    const double *omega, const SelNormKernelData &selection,
+    const double *loading, int dimension, int rank)
+{
+  if (!cpp_selnorm_step_has_transitions(omega, selection, 1)) {
+    return selnorm_certificate_width_scale_tier;
+  }
+  int rows_max = 1;
+  for (int axis = 0; axis < rank; ++axis) {
+    int rows = 0;
+    for (int row = 0; row < dimension; ++row) {
+      rows += loading[row + dimension * axis] != 0.0;
+    }
+    rows_max = std::max(rows_max, rows);
+  }
+  return selnorm_certificate_width_scale_tier /
+    std::sqrt(std::max(1.0, 2.0 * std::log(static_cast<double>(rows_max))));
+}
+
 // The summed amplitude bounds the aliasing error up to this factor on a
 // guarded rung (the guarded envelope of error / amplitude is 1.76 at edge / gap
 // 0.15, explorer 06b); the allowance adds it to the exterior bound.
@@ -4308,11 +4337,14 @@ bool factor_refinement_certified(
   *log_value = -infinity;
   *relative_change = infinity;
   // The lattice averages are defined for rungs whose edges the refined lattice
-  // can resolve; checked at the tier's rung before any lattice evaluation.
+  // can resolve, with the edge of a wall of coincident rows narrowed by their
+  // number; checked at the tier's rung before any lattice evaluation.
   if (!cpp_selnorm_step_rule_resolves_transitions(
         nodes, offset, order, context.mean, context.residual_sd, context.loading,
         context.dimension, context.rank, context.selection_se, context.omega,
-        context.selection, 1, selnorm_certificate_width_scale_tier)) {
+        context.selection, 1, selnorm_certificate_tier_width_scale(
+          context.omega, context.selection, context.loading, context.dimension,
+          context.rank))) {
     return false;
   }
   const auto refined = [&](int rung_offset, int rung_order, double *average_2,
@@ -6359,9 +6391,11 @@ bool cpp_selnorm_certificate_probe(
   out->resolves_ladder = cpp_selnorm_step_rule_resolves_transitions(
     quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
     selection_se, omega, selection, 1, selnorm_certificate_width_scale_ladder);
+  out->tier_width_scale = selnorm_certificate_tier_width_scale(
+    omega, selection, loading, dimension, rank);
   out->resolves_tier = cpp_selnorm_step_rule_resolves_transitions(
     quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
-    selection_se, omega, selection, 1, selnorm_certificate_width_scale_tier);
+    selection_se, omega, selection, 1, out->tier_width_scale);
 
   const auto certify = [&](double q0, const std::vector<double> &axis_mean,
                            const std::function<bool(int, double, double *)> &shifted) {

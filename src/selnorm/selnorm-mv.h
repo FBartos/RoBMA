@@ -124,9 +124,12 @@ struct SelNormCertificateProbe {
   int path = -1;  // 0 declined, 1 nested forest, 2 tensor direct, 3 tensor log, 4 cluster
   bool transitions = false;
   // The sharpness gate at this rung: the transition rule with every step width
-  // multiplied by the scale of the ladder and of the refinement tier.
+  // multiplied by the scale of the ladder and of the refinement tier (the tier
+  // scale narrows with the number of rows loading on an axis, see
+  // selnorm-mv.cc).
   bool resolves_ladder = false;
   bool resolves_tier = false;
+  double tier_width_scale = std::numeric_limits<double>::quiet_NaN();
   double log_normalizer = 0.0;
   double reference_log_normalizer = 0.0;
   double tail_bound = 0.0;

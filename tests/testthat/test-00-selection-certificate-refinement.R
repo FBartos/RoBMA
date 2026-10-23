@@ -7,7 +7,10 @@ skip_on_cran()
 # tilted mean. It is accepted when the M = 4 average agrees with the M = 2
 # average and with the M = 4 average of the previous affordable rung, each
 # within half the tolerance, and the finest rung passes the tail gate. Tensors
-# of rank at most two and forests of depth at most one only.
+# of rank at most two and forests of depth at most one only. The rung must also
+# pass the sharpness gate of the tier, whose step widths narrow with the number
+# of rows that share an edge (a wall of coincident rows hides errors of the
+# refined lattice from both checks, see the wall tests below).
 
 # Mean over the grid of shifts (m / grid) * gap, m = 0..grid-1 on every axis, of
 # the plain-R tensor rule (log scale). `gap` is by loading column.
@@ -80,13 +83,8 @@ test_that("the kernel returns the refined average of the finest rung when the la
            sd = 1.17935060431781880, mean = -.12799436126613484, sei = 1),
       list(count = 32L, loading = c(-.37056447402550319, .48747887335740198),
            sd = .23232799104534663, mean = -2.32439955742265258, sei = 1)),
-      c(1, .03633489870625161)),
-    forest371 = .test_cert_block(list(
-      list(count = 115L, loading = c(.001, 1, 0), sd = .249373398318475, mean = 1.93906024750322, sei = 1),
-      list(count = 256L, loading = c(.001, 0, -1), sd = .103488784220421, mean = 1.91516049392521, sei = 1)),
-      c(1, .01)))
-  references <- list(fed80 = .test_cert_reference_parallel, crossing = .test_cert_reference_two_groups,
-    forest371 = .test_cert_reference_forest)
+      c(1, .03633489870625161)))
+  references <- list(fed80 = .test_cert_reference_parallel, crossing = .test_cert_reference_two_groups)
   for (name in names(blocks)) {
     block  <- blocks[[name]]
     actual <- .test_cert_native_factor(block)
@@ -104,6 +102,34 @@ test_that("the kernel returns the refined average of the finest rung when the la
     expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], references[[name]](block)),
               1e-4, label = info)
   }
+})
+
+test_that("a forest whose rows narrow the tier gate beyond its edges reaches the fallback", {
+
+  # The 371-row forest of the research (a shared axis with loading .001 and two
+  # leaf axes of opposite orientation, 115 and 256 coincident rows). Its tier
+  # checks pass and its refined value is within 1e-4 of the reference, but the
+  # gate asks the 371 rows on the shared axis for edges of 0.43 of the node gap
+  # (the coupled rows are compared with the widest central gap, 0.33, against
+  # 2.33 x the leaf SD 0.10) and refuses the rung: the block is no longer
+  # certified by the tier. It reaches the randomized fallback, which is within
+  # the tolerance of the reference.
+  block <- .test_cert_block(list(
+    list(count = 115L, loading = c(.001, 1, 0), sd = .249373398318475, mean = 1.93906024750322, sei = 1),
+    list(count = 256L, loading = c(.001, 0, -1), sd = .103488784220421, mean = 1.91516049392521, sei = 1)),
+    c(1, .01))
+  reference <- .test_cert_reference_forest(block)
+  tier      <- .test_cert_tier(block)
+  expect_true(is.na(.test_cert_probe_ladder(block)))
+  expect_true(tier[["checks"]])
+  expect_lt(.test_cert_relative_error(tier[["value"]], reference), 1e-4)
+  expect_true(.test_cert_resolves(block, 95L, .test_cert_width_scale_tier))
+  expect_false(.test_cert_resolves(block, 95L, .test_cert_tier_width_scale(block)))
+  expect_false(tier[["accepted"]])
+  actual <- .test_cert_native_factor(block)
+  expect_false(.test_cert_deterministic(actual))
+  expect_gt(actual[["relative_mcse"]], 0)
+  expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference), .005)
 })
 
 test_that("a block whose refinement checks fail goes on to the randomized fallback", {
@@ -143,5 +169,90 @@ test_that("a block whose refinement checks fail goes on to the randomized fallba
     expect_identical(tier[["shift_change"]] > .005 / 2, case[["shift"]], info = name)
     expect_identical(tier[["order_change"]] > .005 / 2, case[["order"]], info = name)
     expect_false(.test_cert_deterministic(.test_cert_native_factor(case[["block"]])), info = name)
+  }
+})
+
+
+# Walls of many coincident rows: the product of N steps at (nearly) one place is
+# narrower than one step, and the harmonics of the refined lattice that the
+# tier's two checks cannot see then leave a four-shift average wrong by more than
+# the tolerance although both checks pass. Each block is a wall on the first
+# latent axis, groups of coincident rows with edges within one node gap of the
+# order-95 rung, plus one benign row on the second axis (a genuine rank-two
+# block whose integral separates into two one-dimensional integrals). The native
+# tier returned a deterministic value 13-44% over the tolerance for all of them
+# before the gate narrowed with the rows of a wall.
+.test_wall_block <- function(t0, f, phase, counts, w2, cut = 0) {
+
+  gap    <- .test_cert_node_gap(95L, t0)
+  groups <- Map(function(count, shift) {
+    .test_cert_parallel_group(count, c(1, 0), f * gap, cut - (t0 + shift * gap))
+  }, counts, phase)
+  groups[[length(groups) + 1L]] <- .test_cert_parallel_group(1L, c(0, .5), 1, 0)
+  .test_cert_block(groups, c(1, w2), c(cut, -Inf))
+}
+
+.test_wall_blocks <- function() {
+
+  list(
+    # 1,885 rows, weight ratio 0.16; the native tier value was 5.66e-3 off
+    rows_1885 = .test_wall_block(1.6579623735980198, 0.25013219923606989,
+      c(0, 0.11463717561324255, 0.2140615014357225, 0.34593264733960727,
+        0.39613751196415065, 0.84293796738559346, 0.86655454325784653),
+      c(12L, 414L, 461L, 355L, 1L, 232L, 409L), 0.16408394810806834),
+    # 382 rows, weight ratio 0.02 (5.67e-3)
+    rows_382 = .test_wall_block(1.703107919746371, 0.19253477477881378,
+      c(0.31637816326468388, 0.64740204987636607, 0.66698628733865917,
+        0.69550095548126811, 0.70583813432863307, 0.81818244639781434,
+        0.84752143871610663, 1),
+      c(8L, 8L, 85L, 3L, 51L, 62L, 78L, 86L), 0.02),
+    # 592 rows in ten groups, weight ratio 0.02 (6.17e-3)
+    rows_592 = .test_wall_block(1.6880720027710769, 0.19411067606025131,
+      c(0.29349067457951605, 0.32465500372921557, 0.38307427920195997,
+        0.64642551759727152, 0.74421513990069443, 0.76199385894799754,
+        0.89207790611240567, 0.90579905921208725, 0.91079307921694319, 1),
+      c(19L, 6L, 22L, 2L, 90L, 28L, 75L, 120L, 120L, 109L), 0.02),
+    # 2,285 rows behind the cut 1.96 (5.75e-3)
+    rows_2285 = .test_wall_block(1.676784259488975, 0.20867182559218952,
+      c(0.15751853348933853, 0.26851360715113781, 0.3291741060971104,
+        0.54908596548395849, 0.80868242339161378, 0.90206173135818646,
+        0.95240261906150347),
+      c(219L, 20L, 1000L, 31L, 166L, 573L, 275L), 0.38568548174855827, cut = 1.96),
+    # 521 rows with the wall far in the tail, at z = 3.97 (7.22e-3)
+    tail_wall = .test_wall_block(3.9709134940021951, 0.28650959105080109,
+      c(0.2889351625976383, 0.49619592853865413, 0.52486973812968452,
+        0.72541792092979407, 0.81832225466228026, 0.85065277806872586,
+        0.97577916999207648),
+      c(8L, 243L, 13L, 131L, 93L, 26L, 6L), 0.5072226005824273, cut = 1.96)
+  )
+}
+
+test_that("walls of coincident rows are not certified by the tier", {
+
+  tolerance <- .005
+  blocks    <- .test_wall_blocks()
+  for (name in names(blocks)) {
+    block     <- blocks[[name]]
+    reference <- .test_cert_reference_parallel(block)
+    tier      <- .test_cert_tier(block)
+    # the tier's checks pass for the finest rung and its refined value is wrong
+    expect_true(tier[["checks"]], info = name)
+    expect_gt(.test_cert_relative_error(tier[["value"]], reference), tolerance, label = name)
+    # the gate with the plain tier scale resolves the edges; the scale narrowed
+    # by the rows of the wall does not, and it is the gate that refuses the rung
+    expect_true(.test_cert_resolves(block, 95L, .test_cert_width_scale_tier), info = name)
+    expect_false(.test_cert_resolves(block, 95L, .test_cert_tier_width_scale(block)), info = name)
+    expect_false(tier[["resolves"]], info = name)
+    expect_false(tier[["accepted"]], info = name)
+    expect_true(is.na(.test_cert_probe_ladder(block)), info = name)
+    # native: no deterministic value over the tolerance; the block reaches the
+    # randomized fallback with its Monte Carlo error
+    actual <- .test_cert_native_factor(block)
+    if (.test_cert_deterministic(actual)) {
+      expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference),
+                tolerance, label = paste(name, "relative error"))
+    }
+    expect_false(.test_cert_deterministic(actual), label = paste(name, "deterministic"))
+    expect_gt(actual[["relative_mcse"]], 0, label = paste(name, "relative MCSE"))
   }
 })

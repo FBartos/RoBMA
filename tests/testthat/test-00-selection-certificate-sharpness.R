@@ -6,9 +6,10 @@ skip_on_cran()
 # makes that error sawtooth-like, with harmonics that the three sampled phases
 # cannot see, so a rung is certified only when the transition rule resolves its
 # transitions with every step width relaxed by 1 / 0.15 (edge width at least
-# 0.15 of the node gap); the refinement tier asks for 0.125 at its rung. These
-# tests pin the width scale of the native rule against its R mirror, its exact
-# boundary, the decisions of the ladders built on it, and the reason for the gate.
+# 0.15 of the node gap); the refinement tier asks for 0.125 at its rung, more
+# when many rows share an edge (see the tier tests). These tests pin the width
+# scales of the native rule against its R mirror, its exact boundary, the
+# decisions of the ladders built on it, and the reason for the gate.
 
 .test_sharp_tolerance <- .005
 
@@ -49,10 +50,11 @@ test_that("the native gate equals the R rule at the scaled step widths", {
       info  <- paste("block", i, "order", order)
       expect_identical(probe[["resolves_ladder"]],
                        .test_cert_resolves(block, order, .test_cert_width_scale_ladder), info = info)
+      expect_equal(probe[["tier_width_scale"]], .test_cert_tier_width_scale(block),
+                   tolerance = 1e-14, info = info)
       expect_identical(probe[["resolves_tier"]],
-                       .test_cert_resolves(block, order, .test_cert_width_scale_tier), info = info)
-      # the tier's larger scale relaxes the rule further: it admits what the ladder admits
-      expect_true(!probe[["resolves_ladder"]] || probe[["resolves_tier"]], info = info)
+                       .test_cert_resolves(block, order, .test_cert_tier_width_scale(block)),
+                       info = info)
       decisions[["ladder"]] <- c(decisions[["ladder"]], probe[["resolves_ladder"]])
       decisions[["tier"]]   <- c(decisions[["tier"]], probe[["resolves_tier"]])
     }
@@ -68,25 +70,31 @@ test_that("the gate flips exactly where the edge width reaches its fraction of t
 
   # One rank-one group: its transition sits in the middle of an interior node
   # interval, so the rule compares that interval's gap with scale x residual SD
-  # (uncoupled axis). The fractions 0.15 (ladder) and 0.125 (tier) of the gap
-  # are the thresholds of the SD, for any loading.
+  # (uncoupled axis). The fractions 0.15 (ladder) and 0.125 / sqrt(max(1, 2 ln N))
+  # (tier, N rows sharing the edge) of the gap are the thresholds of the SD, for
+  # any loading.
   order  <- 31L
   nodes  <- .gauss_hermite_nodes(order)[["nodes"]]
   k      <- 20L
   gap    <- nodes[k + 1L] - nodes[k]
   center <- (nodes[k] + nodes[k + 1L]) / 2
-  scales <- c(ladder = .test_cert_width_scale_ladder, tier = .test_cert_width_scale_tier)
+  wall   <- function(count, loading, sd) .test_cert_block(list(list(
+    count = count, loading = loading, sd = sd, mean = -loading * center, sei = 1)), c(1, .5))
   for (loading in c(1, 2.5, -.7)) {
-    for (gate in names(scales)) {
-      for (side in c(-1, 1)) {
-        # the SD at which the edge width sd / |loading| is the fraction 1 / scale of the gap
-        sd    <- gap * abs(loading) / scales[[gate]] * (1 + side * 1e-6)
-        block <- .test_cert_block(list(list(count = 3L, loading = loading, sd = sd,
-          mean = -loading * center, sei = 1)), c(1, .5))
-        probe <- .test_sharp_probe(block, order, cluster = TRUE)
-        info  <- paste("loading", loading, gate, "side", side)
-        expect_identical(probe[[paste0("resolves_", gate)]], side > 0, info = info)
-        expect_identical(.test_cert_resolves(block, order, scales[[gate]]), side > 0, info = info)
+    for (count in c(1L, 3L, 40L)) {
+      # the tier scale narrows with the rows that share the edge
+      scales <- c(ladder = .test_cert_width_scale_ladder,
+                  tier = .test_cert_tier_width_scale(wall(count, loading, 1)))
+      for (gate in names(scales)) {
+        for (side in c(-1, 1)) {
+          # the SD at which the edge width sd / |loading| is the fraction 1 / scale of the gap
+          sd    <- gap * abs(loading) / scales[[gate]] * (1 + side * 1e-6)
+          block <- wall(count, loading, sd)
+          probe <- .test_sharp_probe(block, order, cluster = TRUE)
+          info  <- paste("loading", loading, "rows", count, gate, "side", side)
+          expect_identical(probe[[paste0("resolves_", gate)]], side > 0, info = info)
+          expect_identical(.test_cert_resolves(block, order, scales[[gate]]), side > 0, info = info)
+        }
       }
     }
   }
@@ -101,6 +109,37 @@ test_that("the gate flips exactly where the edge width reaches its fraction of t
     block <- .test_cert_block(list(list(count = 3L, loading = loading, sd = sd, mean = .2, sei = 1)),
                               c(1, .5))
     expect_identical(.test_sharp_probe(block, 9L)[["resolves_ladder"]], side > 0, info = side)
+  }
+})
+
+test_that("the tier gate asks more of a wall of many rows than of a single row", {
+
+  # Edge width as a fraction of the gap of one interior node interval of the
+  # order-31 rule. The ladder needs 0.15 of the gap whatever the number of rows.
+  # The tier needs 0.125 for a single row, where it admits what the ladder
+  # refuses, and 0.125 sqrt(2 ln N) for N rows sharing the edge (0.27 for 10 rows,
+  # 0.46 for 1000): the product of N coincident steps is a wall narrower than one
+  # step, and it refuses edges that the ladder admits.
+  order  <- 31L
+  nodes  <- .gauss_hermite_nodes(order)[["nodes"]]
+  k      <- 20L
+  gap    <- nodes[k + 1L] - nodes[k]
+  center <- (nodes[k] + nodes[k + 1L]) / 2
+  cases <- data.frame(
+    rows     = c(1L, 1L, 1L, 10L, 10L, 1000L, 1000L),
+    fraction = c(.10, .14, .20, .20, .30, .30, .50),
+    ladder   = c(FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, TRUE),
+    tier     = c(FALSE, TRUE, TRUE, FALSE, TRUE, FALSE, TRUE)
+  )
+  for (i in seq_len(nrow(cases))) {
+    block <- .test_cert_block(list(list(count = cases[["rows"]][i], loading = 1,
+      sd = cases[["fraction"]][i] * gap, mean = -center, sei = 1)), c(1, .5))
+    probe <- .test_sharp_probe(block, order, cluster = TRUE)
+    info  <- paste(cases[["rows"]][i], "rows, edge", cases[["fraction"]][i], "of the gap")
+    expect_equal(probe[["tier_width_scale"]],
+                 8 / sqrt(max(1, 2 * log(cases[["rows"]][i]))), tolerance = 1e-14, info = info)
+    expect_identical(probe[["resolves_ladder"]], cases[["ladder"]][i], info = info)
+    expect_identical(probe[["resolves_tier"]], cases[["tier"]][i], info = info)
   }
 })
 
