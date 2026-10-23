@@ -3403,6 +3403,13 @@ const double selnorm_certificate_width_scale_ladder = 1.0 / 0.15;
 // check against the two-shift average sees only half of them, so its rung has
 // to resolve the edges on the refined lattice spacing: edge width >= 0.125 x gap.
 const double selnorm_certificate_width_scale_tier = 8.0;
+// The tier runs only at or above this relative tolerance. Its gate and its two
+// checks were calibrated at the default tolerance of 0.005, and the residual
+// error of the harmonics they cannot see does not scale with the tolerance: at
+// smaller tolerances a wall of about a thousand coincident rows was accepted
+// with an error of 1.2 to 1.5 times the tolerance. Below it, blocks that the
+// ladder rejects go on to the sparse grid and the randomized fallback.
+const double selnorm_certificate_tier_min_tolerance = 0.005;
 
 // The single-row edge width understates how sharp a block is when many rows
 // share an edge: the product of N coincident steps is a wall narrower than one
@@ -4334,8 +4341,10 @@ bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
 // M = 4 average of the previous affordable rung, each within half the
 // tolerance, and the finest rung passes the tail gate for it. The shift of an
 // axis is a fraction m / M of the node gap at the rung's own tilted mean. Every
-// evaluation is a rule of an order the node budget affords. Returns the log of
-// the M = 4 average and the larger of the two relative checks.
+// evaluation is a rule of an order the node budget affords. Only for a
+// relative tolerance of at least `selnorm_certificate_tier_min_tolerance`.
+// Returns the log of the M = 4 average and the larger of the two relative
+// checks.
 bool factor_refinement_certified(
     const FactorNormalizerContext &context, const FactorForestPlan &plan,
     const double *nodes, const double *log_weights, int offset, int order,
@@ -4345,6 +4354,8 @@ bool factor_refinement_certified(
   const double infinity = std::numeric_limits<double>::infinity();
   *log_value = -infinity;
   *relative_change = infinity;
+  // The tier is calibrated at the default tolerance (see the constant).
+  if (!(relative_tolerance >= selnorm_certificate_tier_min_tolerance)) return false;
   // The lattice averages are defined for rungs whose edges the refined lattice
   // can resolve, with the edge of a wall of coincident rows narrowed by their
   // number; checked at the tier's rung before any lattice evaluation.

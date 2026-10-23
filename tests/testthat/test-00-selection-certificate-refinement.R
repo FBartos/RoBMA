@@ -256,3 +256,82 @@ test_that("walls of coincident rows are not certified by the tier", {
     expect_gt(actual[["relative_mcse"]], 0, label = paste(name, "relative MCSE"))
   }
 })
+
+# The tier's gate and checks were calibrated at the default relative tolerance
+# 0.005. The harmonics that its checks cannot see leave an error that does not
+# shrink with the tolerance, so below 0.005 the tier is not consulted and a block
+# that the ladder rejects goes on to the randomized fallback. Two walls of
+# coincident rows on the first latent axis (plus one benign row on the second,
+# so the integral separates into two one-dimensional integrals) that the tier
+# accepted at relative tolerances 1e-3 and 3e-4 with relative errors 1.51 and
+# 1.20 times the tolerance.
+.test_tier_tolerance_blocks <- function() {
+
+  wall <- function(counts, means, sd) {
+    groups <- Map(function(count, mean) .test_cert_parallel_group(count, c(1, 0), sd, mean), counts, means)
+    c(groups, list(.test_cert_parallel_group(1L, c(0, .5), 1, 0)))
+  }
+  list(
+    # 1,366 rows
+    rows_1366 = .test_cert_block(
+      wall(c(335L, 430L, 32L, 99L, 233L, 236L),
+        c(-0.755490423695732, -0.514929270564338, -0.611609461381319,
+          -0.554809325298589, -0.753231003927926, -0.619073285093928), 0.155732100127578),
+      c(1, 0.255352684537903), c(1.96, -Inf)),
+    # 1,485 rows
+    rows_1485 = .test_cert_block(
+      wall(c(24L, 86L, 203L, 170L, 872L, 129L),
+        c(-1.3803093284502888, -1.4217925801988711, -1.4087060252603867,
+          -1.5092854225446555, -1.5072002628032823, -1.5522040571606248), 0.17325237167849328),
+      c(1, 0.87493775890300585), c(0, -Inf))
+  )
+}
+
+test_that("the tier certifies a wall at the default tolerance", {
+
+  blocks <- .test_tier_tolerance_blocks()
+  for (name in names(blocks)) {
+    block     <- blocks[[name]]
+    reference <- .test_cert_reference_parallel(block)
+    tier      <- .test_cert_tier(block, .005)
+    expect_true(is.na(.test_cert_probe_ladder(block, .005)), info = name)
+    expect_true(tier[["accepted"]], info = name)
+    actual <- .test_cert_native_factor(block, tolerance = .005)
+    expect_true(.test_cert_deterministic(actual), info = name)
+    expect_lt(abs(actual[["log_normalizer"]] - tier[["value"]]), 1e-12, label = name)
+    expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference), .005, label = name)
+  }
+})
+
+test_that("the tier is not consulted below the calibrated tolerance", {
+
+  # The tier's own checks pass for rows_1366 at 1e-3 and for rows_1485 at 3e-4
+  # while its value is over the tolerance (1.51 and 1.20 times); the other
+  # combinations pass its checks with a value within the tolerance. In every
+  # combination the ladder rejects each rung and the block reaches the
+  # randomized fallback, whose value is within the tolerance or flagged by its
+  # diagnostics (max(MCSE, change) over the tolerance, which stops a fit).
+  tier_over <- c(rows_1366 = 1e-3, rows_1485 = 3e-4)
+  blocks    <- .test_tier_tolerance_blocks()
+  for (name in names(blocks)) {
+    block     <- blocks[[name]]
+    reference <- .test_cert_reference_parallel(block)
+    for (tolerance in c(1e-3, 3e-4)) {
+      info   <- paste(name, "tolerance", tolerance)
+      tier   <- .test_cert_tier(block, tolerance)
+      actual <- .test_cert_native_factor(block, tolerance = tolerance, initial = 64L,
+                                         points = 512L, scrambles = 4L)
+      error  <- .test_cert_relative_error(actual[["log_normalizer"]], reference)
+      expect_true(is.na(.test_cert_probe_ladder(block, tolerance)), info = info)
+      if (tolerance == tier_over[[name]]) {
+        expect_true(tier[["accepted"]], info = info)
+        expect_gt(.test_cert_relative_error(tier[["value"]], reference), tolerance, label = info)
+      }
+      expect_false(.test_cert_deterministic(actual), label = info)
+      expect_gt(actual[["relative_mcse"]], 0, label = info)
+      expect_true(error <= tolerance ||
+                    max(actual[["relative_mcse"]], actual[["relative_change"]]) > tolerance,
+                  info = info)
+    }
+  }
+})
