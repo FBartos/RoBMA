@@ -1,6 +1,7 @@
 #include "DSELNORMSAMPLINGCONDITIONED.h"
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-mv.h"
+#include "../selnorm/selnorm-qmc-z.h"
 #include "selnorm-jags-bounds.h"
 
 #include <util/nainf.h>
@@ -117,7 +118,7 @@ double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
     groups.data(), par[17], static_cast<int>(*par[18]), static_cast<int>(*par[19]),
     static_cast<int>(*par[20]), *par[21], &mcse, &change, e.data(), delta.data(),
     &normalizer, quadrature);
-  if (!std::isfinite(mcse) || mcse > *par[21]) {
+  if (!std::isfinite(mcse) || selnorm_qmc_z * mcse > *par[21]) {
     char message[512];
     std::snprintf(message, sizeof(message),
       "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error "

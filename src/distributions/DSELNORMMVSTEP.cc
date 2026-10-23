@@ -13,6 +13,7 @@
 
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-mv.h"
+#include "../selnorm/selnorm-qmc-z.h"
 #include "selnorm-jags-bounds.h"
 
 namespace jags {
@@ -173,7 +174,7 @@ double DSELNORMMVSTEP::logDensity(
     scrambles,
     &relative_mcse, nullptr, nullptr, static_cast<int>(*par[14]), &integration
   );
-  if (!std::isfinite(relative_mcse) || relative_mcse > *par[13]) {
+  if (!std::isfinite(relative_mcse) || selnorm_qmc_z * relative_mcse > *par[13]) {
     char message[512];
     std::snprintf(message, sizeof(message),
       "Selection normalizer was rejected by diagnostics: relative "

@@ -1122,16 +1122,22 @@
         current_plan, K, return_normalizer = TRUE
       )
     }
+    # The reported error keeps the raw standard error; acceptance scales it by
+    # the multiplier of the randomized selection normalizers.
     error <- current$relative_mcse
+    judged <- .selection_qmc_z() * error
     if (method %in% c("rank_one", "factor")) {
-      error <- pmax(error, current$relative_change)
+      error  <- pmax(error, current$relative_change)
+      judged <- pmax(judged, current$relative_change)
     }
     if (!is.null(previous)) {
-      error <- pmax(error, abs(expm1(previous - current$log_normalizer)))
+      change <- abs(expm1(previous - current$log_normalizer))
+      error  <- pmax(error, change)
+      judged <- pmax(judged, change)
     }
     result$log_density[active]  <- -current$log_normalizer
     result$relative_mcse[active] <- error
-    failed <- which(!is.finite(error) | error > control$relative_tolerance |
+    failed <- which(!is.finite(judged) | judged > control$relative_tolerance |
                       !is.finite(current$log_normalizer))
     if (!length(failed)) return(result)
     if (method %in% c("rank_one", "factor") ||

@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "selnorm.h"
+#include "selnorm-qmc-z.h"
 
 #if defined(_OPENMP)
 #include <omp.h>
@@ -6154,7 +6155,9 @@ double cpp_selnorm_factor_step_lpdf(
       squared_relative /
       (static_cast<double>(scrambles) * static_cast<double>(scrambles - 1))
     );
-    if (std::max(*relative_mcse, *relative_change) <= relative_tolerance ||
+    // The reported MCSE is the raw standard error; the stop scales it by the
+    // fixed multiplier of selnorm-qmc-z.h, as does every judge of this result.
+    if (selnorm_qmc_diagnostic(*relative_mcse, *relative_change) <= relative_tolerance ||
         current_points == max_points) {
       break;
     }

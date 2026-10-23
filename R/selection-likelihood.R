@@ -1554,7 +1554,18 @@ set_selection_likelihood_control <- function(
   mcse   <- max(result[["relative_mcse"]])
   change <- max(result[["relative_change"]])
   if (!is.finite(mcse) || !is.finite(change) ||
-      max(mcse, change) > plan[["relative_tolerance"]]) {
+# Stopping multiplier of the randomized (QMC) selection normalizers: a returned
+# result is accepted when z times its relative Monte Carlo standard error (and,
+# where reported, its nested-design relative change) is within
+# 'relative_tolerance'. The one constant lives in the native code, where the
+# native stops and the JAGS wrappers use it; the reported MCSE stays raw.
+.selection_qmc_z <- function() {
+
+  .Call("RoBMA_selnorm_qmc_z", PACKAGE = "RoBMA")
+}
+
+
+      max(.selection_qmc_z() * mcse, change) > plan[["relative_tolerance"]]) {
     stop("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
       format(mcse), " and nested-design relative change was ", format(change),
       ". Increase 'max_points_per_scramble' or 'scrambles' with 'set_selection_likelihood_control()'. ",
@@ -2958,7 +2969,7 @@ set_selection_likelihood_control <- function(
 
 .selection_joint_factor_check_diagnostics <- function(result, execution_plan, method) {
 
-  diagnostic <- pmax(result[["relative_mcse"]], result[["relative_change"]])
+  diagnostic <- pmax(.selection_qmc_z() * result[["relative_mcse"]], result[["relative_change"]])
   failed <- which(!is.finite(diagnostic) | diagnostic > execution_plan[["relative_tolerance"]])
   if (length(failed)) {
     first <- failed[[1L]]
@@ -3779,7 +3790,7 @@ set_selection_likelihood_control <- function(
 
   failed <- which(
     !is.finite(relative_mcse) |
-      relative_mcse > execution_plan[["relative_tolerance"]]
+      .selection_qmc_z() * relative_mcse > execution_plan[["relative_tolerance"]]
   )
   if (length(failed) > 0L) {
     observed <- relative_mcse[failed[[1L]]]
@@ -3826,7 +3837,7 @@ set_selection_likelihood_control <- function(
         ". Inspect the integration diagnostics.", call. = FALSE)
     }
     error <- current[["relative_mcse"]]
-    failed <- which(!is.finite(error) | error > plan[["relative_tolerance"]])
+    failed <- which(!is.finite(error) | .selection_qmc_z() * error > plan[["relative_tolerance"]])
     if (!length(failed)) return(result)
     if (plan[["points_per_scramble"]] >= plan[["max_points_per_scramble"]]) {
       stop(subject, " was rejected by diagnostics: relative integration MCSE was ",

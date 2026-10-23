@@ -393,7 +393,8 @@ double sampling_conditioned_normalizer(const double *mean,
     const double result = evaluate(points, relative_mcse);
     *relative_change = std::isfinite(result) && std::isfinite(coarse) ?
       std::fabs(std::expm1(coarse - result)) : std::numeric_limits<double>::infinity();
-    if ((*relative_mcse <= tolerance && *relative_change <= tolerance) || points == max_points) {
+    if ((selnorm_qmc_z * *relative_mcse <= tolerance && *relative_change <= tolerance) ||
+        points == max_points) {
       return result;
     }
     coarse = result;

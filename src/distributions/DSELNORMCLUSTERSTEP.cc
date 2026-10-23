@@ -12,6 +12,7 @@
 
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-mv.h"
+#include "../selnorm/selnorm-qmc-z.h"
 #include "selnorm-jags-bounds.h"
 #include "selnorm-node-memo.h"
 
@@ -144,7 +145,7 @@ double DSELNORMCLUSTERSTEP::logDensity(
     &deterministic
   );
   if (!std::isfinite(relative_mcse) || !std::isfinite(relative_change) ||
-      std::max(relative_mcse, relative_change) > *par[18]) {
+      selnorm_qmc_diagnostic(relative_mcse, relative_change) > *par[18]) {
     char message[512];
     std::snprintf(message, sizeof(message),
       "Selection cluster normalizer was rejected by diagnostics: "

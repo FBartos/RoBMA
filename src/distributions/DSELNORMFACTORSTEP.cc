@@ -12,6 +12,7 @@
 
 #include "../selnorm/selnorm.h"
 #include "../selnorm/selnorm-mv.h"
+#include "../selnorm/selnorm-qmc-z.h"
 #include "selnorm-jags-bounds.h"
 #include "selnorm-node-memo.h"
 
@@ -159,7 +160,7 @@ double DSELNORMFACTORSTEP::logDensity(
     scrambles, *par[18], &relative_mcse, &relative_change,
     nullptr, static_cast<int>(*par[19]), nullptr, &deterministic
   );
-  const double diagnostic = std::max(relative_mcse, relative_change);
+  const double diagnostic = selnorm_qmc_diagnostic(relative_mcse, relative_change);
   if (!std::isfinite(diagnostic) || diagnostic > *par[18]) {
     char message[512];
     std::snprintf(message, sizeof(message),

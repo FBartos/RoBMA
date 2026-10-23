@@ -23,6 +23,7 @@
 #include "selnorm/selnorm-tail.h"
 #include "selnorm/selnorm-mv.h"
 #include "selnorm/selnorm-parallel.h"
+#include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CoarseCorrectedSlice.h"
 
 #ifndef FCONE
@@ -79,6 +80,15 @@ extern "C" SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar)
 // The row schedule the batch kernels resolve for a shape, exposed so the
 // package tests can certify which shapes stay serial and how large a parallel
 // region is without timing anything.
+// The stopping multiplier of the randomized selection normalizers (selnorm-qmc-z.h).
+// R judges returned QMC diagnostics with this value; it is the only copy R sees.
+extern "C" SEXP RoBMA_selnorm_qmc_z()
+{
+  ROBMA_NATIVE_BEGIN()
+  return Rf_ScalarReal(selnorm_qmc_z);
+  ROBMA_NATIVE_END
+}
+
 extern "C" SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row)
 {
   ROBMA_NATIVE_BEGIN(rows, work_per_row)

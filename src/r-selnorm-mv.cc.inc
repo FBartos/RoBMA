@@ -627,7 +627,7 @@ static SEXP selnorm_mnorm_step_batch(
       const SelNormDenseIntegration &integration = row_result.second;
       previous_accepted = adjacent_dense && std::isfinite(REAL(log_density)[s]) &&
         std::isfinite(REAL(relative_mcse)[s]) && REAL(relative_mcse)[s] >= 0.0 &&
-        REAL(relative_mcse)[s] <= REAL(relative_tolerance)[0] &&
+        selnorm_qmc_z * REAL(relative_mcse)[s] <= REAL(relative_tolerance)[0] &&
         (!return_normalizer || std::isfinite(REAL(log_normalizer)[s]));
       if (previous_accepted) {
         for (int column = 0; column < 4; ++column) {
