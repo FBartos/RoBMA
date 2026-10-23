@@ -1,10 +1,16 @@
 test_that("singleton prediction pricing uses exact cells and ordered partitions", {
 
+  # The budget that admits chunks of `size` draws beyond the reserve. It inverts
+  # the production mapping: .predict_brma_singleton_covariance_chunks() divides
+  # the budget left after the reserve by 16 (R/predict.R) and
+  # .known_v_covariance_cells_chunk_indices() charges 2 * size + 2 matrices of
+  # 8 * K^2 bytes per chunk (R/known-v-gls.R).
+  chunk_charge <- function(size, K) 16 * (2 * as.double(size) + 2) * 8 * K
+
   for (S in c(1L, 5L, 17L)) for (K in c(1L, 8L, 31L)) {
-    reserve <- 64 * as.double(K)^2 + 16 * as.double(S) * K + 2048 * as.double(K)
-    expect_equal(.predict_brma_singleton_covariance_reserve(S, K), reserve, tolerance = 0)
+    reserve <- .predict_brma_singleton_covariance_reserve(S, K)
     for (size in unique(c(1L, 2L, S))) {
-      budget <- reserve + 16 * (2 * as.double(size) + 2) * 8 * K
+      budget <- reserve + chunk_charge(size, K)
       chunks <- .predict_brma_singleton_covariance_chunks(S, K, budget)
       expected <- split(seq_len(S), ceiling(seq_len(S) / size))
       expect_identical(chunks, unname(expected))
@@ -17,6 +23,11 @@ test_that("singleton prediction pricing uses exact cells and ordered partitions"
     ), fixed = TRUE)
     expect_error(.predict_brma_singleton_covariance_chunks(S, K, reserve + 1), "single known-V")
   }
+  # The reserve (64 K^2 + 16 S K + 2048 K bytes) is pinned by value, not by a
+  # copy of its formula, at the grid of the loop and at a large known-V size.
+  expect_equal(.predict_brma_singleton_covariance_reserve(1L, 1L), 2128, tolerance = 0)
+  expect_equal(.predict_brma_singleton_covariance_reserve(5L, 8L), 21120, tolerance = 0)
+  expect_equal(.predict_brma_singleton_covariance_reserve(17L, 31L), 133424, tolerance = 0)
   reserve <- .predict_brma_singleton_covariance_reserve(3L, 6500L)
   expect_equal(reserve, 2717624000, tolerance = 0)
   expect_equal(4 * 1024^3 - reserve, 1577343296, tolerance = 0)
