@@ -80,29 +80,65 @@
 }
 
 # One block of the stored best-rule reference through the kernel of its rank
-# (the cluster kernel for rank one), with the controls of that reference.
+# (the cluster kernel for rank one), with the controls of that reference: the
+# fallback budgets double from 64 to 512 points per scramble (`initial`, `points`).
 .test_cert_native_best <- function(block,
                                    factor_rules = .selection_joint_factor_quadrature_rules(),
                                    cluster_rules = .selection_joint_cluster_quadrature_rules(
-                                     SELNORM_CLUSTER_QUADRATURE_ORDERS)) {
+                                     SELNORM_CLUSTER_QUADRATURE_ORDERS),
+                                   initial = 64L, points = 512L) {
 
   if (block[["rank"]] == 1L) {
-    qmc <- BayesTools::selection_qmc_design(2L, 512L, 8L, seed = 173L)
+    qmc <- BayesTools::selection_qmc_design(2L, points, 8L, seed = 173L)
     .Call("RoBMA_selnorm_cluster_step_loglik_batch", block[["yi"]], matrix(block[["mean"]], 1L),
       matrix(block[["sd"]], 1L), matrix(block[["loading"]][, 1L], 1L), block[["sei"]],
       matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], block[["obs_bin"]],
       1L, TRUE, 1L, cluster_rules[["nodes"]], cluster_rules[["log_weights"]],
-      as.double(cluster_rules[["orders"]]), as.double(qmc), 64L, 512L, 8L, .005, TRUE,
-      as.integer(block[["rule"]]), PACKAGE = "RoBMA")
+      as.double(cluster_rules[["orders"]]), as.double(qmc), as.integer(initial), as.integer(points),
+      8L, .005, TRUE, as.integer(block[["rule"]]), PACKAGE = "RoBMA")
   } else {
-    qmc <- BayesTools::selection_qmc_design(2L * block[["rank"]], 512L, 8L, seed = 173L)
+    qmc <- BayesTools::selection_qmc_design(2L * block[["rank"]], points, 8L, seed = 173L)
     .Call("RoBMA_selnorm_factor_step_loglik_batch", block[["yi"]], matrix(block[["mean"]], 1L),
       matrix(block[["sd"]], 1L), matrix(as.double(block[["loading"]]), 1L), block[["sei"]],
       matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], block[["obs_bin"]],
       1L, TRUE, 1L, factor_rules[["nodes"]], factor_rules[["log_weights"]],
-      as.double(factor_rules[["orders"]]), as.double(qmc), 64L, 512L, 8L, .005, TRUE,
-      as.integer(block[["rule"]]), PACKAGE = "RoBMA")
+      as.double(factor_rules[["orders"]]), as.double(qmc), as.integer(initial), as.integer(points),
+      8L, .005, TRUE, as.integer(block[["rule"]]), PACKAGE = "RoBMA")
   }
+}
+
+# A stored output of the build before the stopping multiplier (z = 1, i.e. one standard
+# error) is reproduced by a run of this build unless the run went on to a later stage of
+# its nested design. Then the stored output is the stage at which the one-standard-error
+# rule stops and the run is the stage at which the scaled rule stops, each stage from a run
+# with that single budget (`stage_run(points)`; the design of a stage is the leading part
+# of the next one). A change of proposals or of the design shows as an unreproduced stage.
+.test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
+                                              fields = c("log_normalizer", "relative_mcse", "relative_change"),
+                                              info = "") {
+
+  matches <- function(x, y) all(vapply(fields, function(field) {
+    isTRUE(all.equal(as.numeric(x[[field]]), as.numeric(y[[field]]), tolerance = 1e-12))
+  }, logical(1L)))
+  if (matches(actual, expected)) return(invisible("unchanged"))
+
+  results <- lapply(stages, stage_run)
+  stop_stage <- function(multiplier) {
+    criterion <- vapply(results, function(x) max(multiplier * x[["relative_mcse"]], x[["relative_change"]]),
+                        numeric(1L))
+    within <- which(criterion <= tolerance)
+    if (length(within)) within[[1L]] else length(results)
+  }
+  old <- stop_stage(1)
+  new <- stop_stage(.selection_qmc_z())
+  testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
+  for (field in fields) {
+    testthat::expect_equal(as.numeric(results[[old]][[field]]), as.numeric(expected[[field]]),
+      tolerance = 1e-12, info = paste(info, "stored output, stage", stages[[old]], field))
+    testthat::expect_equal(as.numeric(results[[new]][[field]]), as.numeric(actual[[field]]),
+      tolerance = 1e-12, info = paste(info, "run, stage", stages[[new]], field))
+  }
+  invisible("later stage")
 }
 
 # Whether the native kernel accepted a deterministic rule (no randomized
@@ -637,4 +673,63 @@
     previous_change <- change
   }
   NA_integer_
+}
+
+# ---------------------------------------------------------------------------- #
+# Deferred geometries that reach the randomized fallback
+# ---------------------------------------------------------------------------- #
+
+# Native fallback runs. Every block here is certified by neither the ladder nor the
+# refinement tier (the clusters have no tier: by no rung of their ladder), so it
+# reaches the randomized fallback; the fixed design seeds make the runs repeatable.
+# The parameters come from the research battery (seeds 41 and 21) and random searches
+# over forests (a shared axis and two leaves) and rank-two partial overlaps (tensor
+# rule). The optimized-mode proposals of the previous build accept a minority of
+# them and err by 10-1000 MCSE on several. Blocks whose groups all load on both axes
+# (parallel_80, band_125, crossing_20) are forests of depth one: a root that owns no
+# rows and a leaf.
+.test_cert_proposal_cases <- function() {
+
+  g <- function(count, loading, sd, mean, sei = 1) list(count = count, loading = loading, sd = sd, mean = mean, sei = sei)
+  list(
+    parallel_80 = list(kind = "factor", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
+      g(12L, c(0.014692097199723289, -0.8616553723389665), 0.13653164601012455, -5.6000270018551461, 0.34873594478420489)),
+      c(1, 0.050000000000000003), c(0, -Inf))),
+    band_125 = list(kind = "factor", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
+      g(44L, c(1.4323285021004943, 0.083058174726865039), 0.060454506795780072, 1.8231652047112927, 0.55342308823237685)),
+      c(1, 1.1010918456055847, 1), c(1, -1, -Inf))),
+    crossing_20 = list(kind = "factor", reference = .test_cert_reference_two_groups, block = .test_cert_block(list(
+      g(77L, c(-0.91463423771209651, 0.78986739681623297), 0.28436590998117955, -2.3718989917066349),
+      g(18L, c(0.015058325926115159, -0.30020325671357212), 0.019704307952072554, 1.8604332933661574)),
+      c(1, 0.050000000000000003), c(1.96, -Inf))),
+    # partial overlaps (a group on both axes, one group on each axis alone): the tensor rule
+    tensor_45 = list(kind = "factor", reference = .test_cert_reference_rank_two, pinned = -13.835385492311222,
+      block = .test_cert_block(list(
+        g(27L, c(0.82706647334157291, 0.65077649884120636), 0.054795022412045077, -0.043517232008220219),
+        g(11L, c(-1.3674417541470836, 0), 0.064991112511571233, 1.1165970716872602),
+        g(22L, c(0, 1.3796914536846054), 0.057839652420356456, 0.27615990856989825)),
+        c(1, 0.20000000000000001), c(1.96, -Inf))),
+    tensor_77 = list(kind = "factor", reference = .test_cert_reference_rank_two, pinned = -2.5592954958880094,
+      block = .test_cert_block(list(
+        g(12L, c(-0.34458291062427782, -0.83820528250345905), 0.41598330888330703, 1.3861580619958969),
+        g(25L, c(-0.69611133285596238, 0), 0.081507582329821651, 2.515650777258446),
+        g(17L, c(0, -1.8009762478430924), 0.13199939157250279, 0.82995553693087865)),
+        c(1, 0.01), c(1.96, -Inf))),
+    forest_74 = list(kind = "factor", reference = .test_cert_reference_forest, block = .test_cert_block(list(
+      g(65L, c(0.060605698492417107, 0.9655385554788849, 0), 0.57052084244334667, -2.3719209529207341),
+      g(56L, c(0.060605698492417107, 0, 1.6252115421914184), 0.040203888654504902, -4.6092623941950031)),
+      c(1, 0.20000000000000001), c(0, -Inf))),
+    forest_84 = list(kind = "factor", reference = .test_cert_reference_forest, block = .test_cert_block(list(
+      g(127L, c(0.12399440036971428, 1.9003074081263616, 0), 0.0989997504638504, -2.5188992921523741),
+      g(30L, c(0.12399440036971428, 0, 1.1540407331499025), 0.030234154411339583, 1.6193386859839336)),
+      c(1, 0.050000000000000003), c(1.645, -Inf))),
+    # a cluster whose Laplace proposal sees only the bulk of the prior: all eight scrambles
+    # then agree, the MCSE is zero and the estimate sits 7% low
+    cluster_733 = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
+      g(4L, 1.8707955473336113, 0.042233265807645956, -6.8303662251056725, 0.22565989842880826)),
+      c(1, 0.20000000000000001), c(0, -Inf))),
+    cluster_189 = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
+      g(100L, 0.65477525608481191, 0.026923363058843731, -2.5196777242881367, 0.20064200965816639)),
+      c(1, 0.050000000000000003), c(1.645, -Inf)))
+  )
 }

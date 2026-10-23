@@ -154,11 +154,15 @@ test_that("the best weight rule keeps its geometric acceptance, decisions and va
   # compilers and instruction sets (the rounding of the long double sums
   # differs there). That the best path reproduces the build before the
   # certificate bitwise was checked as an A/B comparison of the two builds during
-  # development, not in the suite.
+  # development, not in the suite. The randomized fallback of a block stops later
+  # than that build did when its one-standard-error stage fails the scaled rule
+  # (2.36 times the standard error); the stored output is then the stage where
+  # the old rule stopped (.test_cert_expect_stored_fallback).
   reference <- readRDS(testthat::test_path("fixtures", "selection-certificate-best-reference.rds"))
   factor_rules  <- .selection_joint_factor_quadrature_rules()
   cluster_rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)
   routes <- character()
+  outcomes <- character()
   for (i in seq_along(reference[["blocks"]])) {
     b <- reference[["blocks"]][[i]]
     actual <- .test_cert_native_best(b, factor_rules, cluster_rules)
@@ -166,9 +170,18 @@ test_that("the best weight rule keeps its geometric acceptance, decisions and va
     info <- paste("block", i)
     expect_identical(actual[["relative_mcse"]] == 0, expected[["relative_mcse"]] == 0, info = info)
     routes <- c(routes, if (actual[["relative_mcse"]] == 0) "deterministic" else "fallback")
-    for (field in c("log_density", "relative_mcse", "relative_change", "log_normalizer")) {
-      expect_equal(as.numeric(actual[[field]]), expected[[field]], tolerance = 1e-12, info = paste(info, field))
+    fields <- c("log_density", "relative_mcse", "relative_change", "log_normalizer")
+    if (actual[["relative_mcse"]] == 0) {
+      for (field in fields) {
+        expect_equal(as.numeric(actual[[field]]), expected[[field]], tolerance = 1e-12, info = paste(info, field))
+      }
+    } else {
+      outcomes <- c(outcomes, .test_cert_expect_stored_fallback(actual, expected,
+        function(points) .test_cert_native_best(b, factor_rules, cluster_rules, initial = points, points = points),
+        stages = c(64L, 128L, 256L, 512L), fields = fields, info = info))
     }
   }
   expect_true(all(c("deterministic", "fallback") %in% routes))
+  # the stopping multiplier moves some fallback blocks to a later stage, not all of them
+  expect_true(all(c("unchanged", "later stage") %in% outcomes))
 })

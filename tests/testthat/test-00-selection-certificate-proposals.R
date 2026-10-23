@@ -82,60 +82,8 @@ test_that("forests deeper than one level keep the optimized-mode proposals", {
   expect_true(.test_cert_probe(chain, 9L, telescope = FALSE, refine = FALSE)[["has_moments"]])
 })
 
-# Native fallback runs. Every block here is certified by neither the ladder nor the
-# refinement tier (the clusters have no tier: by no rung of their ladder), so it
-# reaches the randomized fallback; the fixed design seeds make the runs repeatable.
-# The parameters come from the research battery (seeds 41 and 21) and random searches
-# over forests (a shared axis and two leaves) and rank-two partial overlaps (tensor
-# rule). The optimized-mode proposals of the previous build accept a minority of
-# them and err by 10-1000 MCSE on several. Blocks whose groups all load on both axes
-# (parallel_80, band_125, crossing_20) are forests of depth one: a root that owns no
-# rows and a leaf.
-.test_cert_proposal_cases <- function() {
-
-  g <- function(count, loading, sd, mean, sei = 1) list(count = count, loading = loading, sd = sd, mean = mean, sei = sei)
-  list(
-    parallel_80 = list(kind = "factor", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
-      g(12L, c(0.014692097199723289, -0.8616553723389665), 0.13653164601012455, -5.6000270018551461, 0.34873594478420489)),
-      c(1, 0.050000000000000003), c(0, -Inf))),
-    band_125 = list(kind = "factor", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
-      g(44L, c(1.4323285021004943, 0.083058174726865039), 0.060454506795780072, 1.8231652047112927, 0.55342308823237685)),
-      c(1, 1.1010918456055847, 1), c(1, -1, -Inf))),
-    crossing_20 = list(kind = "factor", reference = .test_cert_reference_two_groups, block = .test_cert_block(list(
-      g(77L, c(-0.91463423771209651, 0.78986739681623297), 0.28436590998117955, -2.3718989917066349),
-      g(18L, c(0.015058325926115159, -0.30020325671357212), 0.019704307952072554, 1.8604332933661574)),
-      c(1, 0.050000000000000003), c(1.96, -Inf))),
-    # partial overlaps (a group on both axes, one group on each axis alone): the tensor rule
-    tensor_45 = list(kind = "factor", reference = .test_cert_reference_rank_two, pinned = -13.835385492311222,
-      block = .test_cert_block(list(
-        g(27L, c(0.82706647334157291, 0.65077649884120636), 0.054795022412045077, -0.043517232008220219),
-        g(11L, c(-1.3674417541470836, 0), 0.064991112511571233, 1.1165970716872602),
-        g(22L, c(0, 1.3796914536846054), 0.057839652420356456, 0.27615990856989825)),
-        c(1, 0.20000000000000001), c(1.96, -Inf))),
-    tensor_77 = list(kind = "factor", reference = .test_cert_reference_rank_two, pinned = -2.5592954958880094,
-      block = .test_cert_block(list(
-        g(12L, c(-0.34458291062427782, -0.83820528250345905), 0.41598330888330703, 1.3861580619958969),
-        g(25L, c(-0.69611133285596238, 0), 0.081507582329821651, 2.515650777258446),
-        g(17L, c(0, -1.8009762478430924), 0.13199939157250279, 0.82995553693087865)),
-        c(1, 0.01), c(1.96, -Inf))),
-    forest_74 = list(kind = "factor", reference = .test_cert_reference_forest, block = .test_cert_block(list(
-      g(65L, c(0.060605698492417107, 0.9655385554788849, 0), 0.57052084244334667, -2.3719209529207341),
-      g(56L, c(0.060605698492417107, 0, 1.6252115421914184), 0.040203888654504902, -4.6092623941950031)),
-      c(1, 0.20000000000000001), c(0, -Inf))),
-    forest_84 = list(kind = "factor", reference = .test_cert_reference_forest, block = .test_cert_block(list(
-      g(127L, c(0.12399440036971428, 1.9003074081263616, 0), 0.0989997504638504, -2.5188992921523741),
-      g(30L, c(0.12399440036971428, 0, 1.1540407331499025), 0.030234154411339583, 1.6193386859839336)),
-      c(1, 0.050000000000000003), c(1.645, -Inf))),
-    # a cluster whose Laplace proposal sees only the bulk of the prior: all eight scrambles
-    # then agree, the MCSE is zero and the estimate sits 7% low
-    cluster_733 = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
-      g(4L, 1.8707955473336113, 0.042233265807645956, -6.8303662251056725, 0.22565989842880826)),
-      c(1, 0.20000000000000001), c(0, -Inf))),
-    cluster_189 = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
-      g(100L, 0.65477525608481191, 0.026923363058843731, -2.5196777242881367, 0.20064200965816639)),
-      c(1, 0.050000000000000003), c(1.645, -Inf)))
-  )
-}
+# The deferred geometries (.test_cert_proposal_cases) live in helper-selection-certificate.R,
+# shared with test-00-selection-qmc-stopping.R.
 
 test_that("the rank-two reference agrees with the two-group reference", {
 
@@ -177,7 +125,10 @@ test_that("blocks without usable moments keep the optimized-mode proposals and t
   # (rank seven and eight tensors: two and one affordable rungs; a rank-one
   # cluster with a two-rung ladder), with a forest of depth two or three, or
   # with a moment covariance that is not positive definite. The proposals are
-  # those of that build, so every output agrees.
+  # those of that build, so every output agrees, except that a run whose stored
+  # stage fails the scaled stopping rule (2.36 times the standard error) goes on to a
+  # later stage: the stored output is then the stage where the old rule stopped
+  # (.test_cert_expect_stored_fallback).
   reference <- readRDS(testthat::test_path("fixtures", "selection-certificate-laplace-reference.rds"))
   cases <- reference[["cases"]]
   budget <- SELNORM_FACTOR_NODE_BUDGET
@@ -193,27 +144,29 @@ test_that("blocks without usable moments keep the optimized-mode proposals and t
     covariance <- matrix(probe[["moment_covariance"]], cases[[name]][["block"]][["rank"]])
     expect_error(chol(covariance), info = name)
   }
-  for (name in names(cases)) for (seed in if (name %in% c("band_a", "band_b")) 1L else 1:2) {
-    case <- cases[[name]]
-    actual <- if (case[["kind"]] == "factor") {
-      .test_cert_native_factor(case[["block"]], seed = seed, initial = 256L, points = 2048L)
+  run <- function(case, seed, initial, points) {
+    if (case[["kind"]] == "factor") {
+      .test_cert_native_factor(case[["block"]], seed = seed, initial = initial, points = points)
     } else {
       rules <- .selection_joint_cluster_quadrature_rules(c(15L, 31L))
       block <- case[["block"]]
       K <- block[["rows"]]
-      qmc <- BayesTools::selection_qmc_design(dimensions = 2L, points = 2048L, scrambles = 8L, seed = seed)
+      qmc <- BayesTools::selection_qmc_design(dimensions = 2L, points = points, scrambles = 8L, seed = seed)
       .Call("RoBMA_selnorm_cluster_step_loglik_batch", rep(0, K), matrix(block[["mean"]], 1L),
         matrix(block[["sd"]], 1L), matrix(as.double(block[["loading"]]), 1L), block[["sei"]],
         matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], rep(1L, K), 1L, TRUE, 1L,
-        rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]), as.double(qmc), 256L,
-        2048L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
+        rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]), as.double(qmc),
+        as.integer(initial), as.integer(points), 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
     }
+  }
+  for (name in names(cases)) for (seed in if (name %in% c("band_a", "band_b")) 1L else 1:2) {
+    case <- cases[[name]]
+    actual <- run(case, seed, 256L, 2048L)
     expected <- reference[["results"]][[paste(name, seed)]]
     info <- paste(name, "seed", seed)
     expect_gt(actual[["relative_mcse"]], 0, label = info)
-    for (field in c("log_normalizer", "relative_mcse", "relative_change")) {
-      expect_equal(as.numeric(actual[[field]]), as.numeric(expected[[field]]), tolerance = 1e-12,
-                   info = paste(info, field))
-    }
+    .test_cert_expect_stored_fallback(actual, expected,
+      function(points) run(case, seed, points, points),
+      stages = c(256L, 512L, 1024L, 2048L), info = info)
   }
 })

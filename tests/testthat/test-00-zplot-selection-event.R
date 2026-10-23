@@ -151,8 +151,10 @@ test_that("event refinement preserves accepted rows and exact zero numerators", 
   expect_identical(calls[[2L]]$rows, 2L)
   expect_identical(calls[[2L]]$plan$designs, list(quadrature = "keep"))
   expect_identical(calls[[2L]]$plan[c("seed", "scrambles")], plan[c("seed", "scrambles")])
+  # Accepted without refinement: the scaled error z * .02 is within the tolerance
+  # (the multiplier z of the randomized normalizers is 2.36; was .03 for one standard error).
   expect_identical(.selection_joint_checked_event(function(plan, rows) initial,
-    modifyList(plan, list(relative_tolerance = .03)), "Test", "Remedy."), initial)
+    modifyList(plan, list(relative_tolerance = .05)), "Test", "Remedy."), initial)
   expect_error(.selection_joint_checked_event(function(plan, rows) {
     list(log_mass = 0, relative_mcse = .025)
   }, plan, "Test event", "Increase the integration budget."),

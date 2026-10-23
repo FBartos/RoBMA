@@ -1103,11 +1103,15 @@ test_that("factor integration retains inactive and opposing selection modes", {
   # A small active fourth factor still has both opposing selection modes.
   # Independent base-R interval quadrature (95 sampling nodes, 5 study nodes)
   # gave -8.2656437531115206; a single-mode approximation loses half the mass.
+  # The randomized fallback stops when 2.36 times its standard error and its change
+  # are within the tolerance; this noisy state needs the odd budget 16417 (4103 ended
+  # with a change of .006 in the first row).
   loading[, 4L] <- .01
-  active <- evaluate(1:4, initial_points = 257L, max_points = 4103L)
+  active <- evaluate(1:4, initial_points = 257L, max_points = 16417L)
   expect_true(all(active[["relative_mcse"]] > 0))
   expect_true(all(active[["relative_mcse"]] <= .005))
   expect_true(all(active[["relative_change"]] <= .005))
+  expect_true(all(.selection_qmc_z() * active[["relative_mcse"]] <= .005))
   expect_lt(abs(active[["log_normalizer"]][[1L]] + 8.2656437531115206), .005)
 
   # Four coarse points cannot cover all seven proposals. This valid minimum
