@@ -76,7 +76,11 @@
 - Known-V bridge sampling with latent sampling factors keeps their full
   covariance when no dependency partition is supplied.
 - Unspecified ordinary factor null priors use each retained alternative term's
-  declared contrast, including independent indicator-coded interactions.
+  declared contrast, including independent indicator-coded interactions. A
+  factor term whose null and alternative priors still differ in contrast, such
+  as an explicit `prior_mods_null` prior with a non-default alternative contrast,
+  is refused with a `RoBMA_prior_contrast_conflict` error that names the term,
+  both contrasts and the remedies.
 - Factor-level qCMDE/IWMDE hypotheses and marginal-means Bayes factors retain
   their exact child identity in posterior metadata and request provenance.
 - BayesTools integration uses its public formula, posterior, prior-law plotting,

@@ -1306,12 +1306,14 @@ test_that("explicit factor null declarations and omissions retain their semantic
       BayesTools::prior("point", list(0))
     )) {
       args$prior_mods_null <- if (global) null else list(mod_factor = null)
-      message <- if (global || BayesTools::is.prior.factor(null)) {
-        "The prior_list must contain only one type of factor priors."
+      if (global || BayesTools::is.prior.factor(null)) {
+        expect_error(do.call(RoBMA, args), paste0("The factor term 'mod_factor' uses the ",
+          "'treatment' contrast in 'prior_mods' but the 'meandif' contrast in 'prior_mods_null'"),
+          class = "RoBMA_prior_contrast_conflict", fixed = TRUE)
       } else {
-        "Unsupported prior distribution defined for 'mod_factor' factor variable."
+        expect_error(do.call(RoBMA, args),
+          "Unsupported prior distribution defined for 'mod_factor' factor variable.", fixed = TRUE)
       }
-      expect_error(do.call(RoBMA, args), message, fixed = TRUE)
     }
   }
   args <- base

@@ -680,6 +680,10 @@ NULL
 #' without a formula-list intercept. The same rule applies to `prior_scale_null`.
 #' A single prior applies to all terms; a named list can specify term-specific
 #' components. This argument can be specified only when `mods` is specified.
+#' The null and the alternative prior of a factor term need the same contrast;
+#' a conflict stops with an error of class `RoBMA_prior_contrast_conflict`
+#' (also of class `RoBMA_prior_error`) that names the term and the remedies.
+#' The same rule applies to `prior_scale_null`.
 #' @param prior_scale_null prior distribution(s) for null scale-regression
 #' components. A single prior applies to all terms; a named list can specify
 #' term-specific components. This argument can be specified only when `scale`

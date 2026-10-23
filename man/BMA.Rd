@@ -157,7 +157,11 @@ A named \code{intercept} entry, including \code{NULL} or \code{FALSE}, is unavai
 the complete intercept prior in \code{prior_mods}, or use global prior arguments
 without a formula-list intercept. The same rule applies to \code{prior_scale_null}.
 A single prior applies to all terms; a named list can specify term-specific
-components. This argument can be specified only when \code{mods} is specified.}
+components. This argument can be specified only when \code{mods} is specified.
+The null and the alternative prior of a factor term need the same contrast;
+a conflict stops with an error of class \code{RoBMA_prior_contrast_conflict}
+(also of class \code{RoBMA_prior_error}) that names the term and the remedies.
+The same rule applies to \code{prior_scale_null}.}
 
 \item{prior_scale_null}{prior distribution(s) for null scale-regression
 components. A single prior applies to all terms; a named list can specify

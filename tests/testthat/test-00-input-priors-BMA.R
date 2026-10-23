@@ -35,6 +35,57 @@ test_that("sole ordered term components retain their total-owned mixture and bin
   }
 })
 
+test_that("a factor term whose null and alternative contrasts differ is refused with its remedies", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6), sei = rep(0.2, 6),
+    g = factor(rep(c("a", "b", "c"), 2)))
+  factor_prior <- function(contrast) BayesTools::prior_factor(
+    if (contrast %in% c("meandif", "orthonormal")) "mnormal" else "normal",
+    list(0, 1), contrast = contrast)
+  spike <- BayesTools::prior("spike", list(0))
+  build <- function(..., constructor = BMA.norm) constructor(
+    yi = yi, sei = sei, data = dat, measure = "SMD", only_priors = TRUE, silent = TRUE, ...)
+
+  # An explicit global null takes the default contrast ("meandif" here), which
+  # BayesTools refused for the other contrasts without naming the term.
+  for (contrast in c("treatment", "independent", "orthonormal")) {
+    for (constructor in list(BMA.norm, RoBMA)) {
+      condition <- tryCatch(build(mods = ~ g, prior_mods = list(g = factor_prior(contrast)),
+        prior_mods_null = spike, constructor = constructor), error = identity)
+      expect_s3_class(condition, "RoBMA_prior_contrast_conflict")
+      expect_s3_class(condition, "RoBMA_prior_error")
+      message <- conditionMessage(condition)
+      expect_match(message, paste0("The factor term 'g' uses the '", contrast,
+        "' contrast in 'prior_mods' but the 'meandif' contrast in 'prior_mods_null'"), fixed = TRUE)
+      expect_match(message, paste0("prior_mods_null = list(g = prior_factor(\"spike\", list(0), contrast = \"",
+        contrast, "\"))"), fixed = TRUE)
+      expect_match(message, "'set_contrast_factor_predictors'", fixed = TRUE)
+      expect_match(message, "leave 'prior_mods_null' unspecified", fixed = TRUE)
+    }
+  }
+  # The same conflict of a scale term names the scale arguments.
+  condition <- tryCatch(build(scale = ~ g, prior_scale = list(g = factor_prior("independent")),
+    prior_scale_null = spike, prior_heterogeneity_null = NULL), error = identity)
+  expect_s3_class(condition, "RoBMA_prior_contrast_conflict")
+  expect_match(conditionMessage(condition), "the 'independent' contrast in 'prior_scale' but the 'meandif' contrast in 'prior_scale_null'", fixed = TRUE)
+  expect_match(conditionMessage(condition), "leave 'prior_scale_null' unspecified", fixed = TRUE)
+
+  # A null with the contrast of the alternative sets the conflict aside, as does
+  # setting the default contrast or leaving the null unspecified, and a
+  # default-contrast alternative needs none of them.
+  independent <- list(g = factor_prior("independent"))
+  matching_null <- list(g = BayesTools::prior_factor("spike", list(0), contrast = "independent"))
+  for (object in list(
+    build(mods = ~ g, prior_mods = independent, prior_mods_null = matching_null),
+    build(mods = ~ g, prior_mods = independent, prior_mods_null = spike,
+          set_contrast_factor_predictors = "independent"),
+    build(mods = ~ g, prior_mods = independent),
+    build(mods = ~ g, prior_mods = list(g = factor_prior("meandif")), prior_mods_null = spike)
+  )) {
+    expect_s3_class(object, "BMA.norm")
+  }
+})
+
 skip_on_cran()
 
 .get_is_null <- function(prior) {

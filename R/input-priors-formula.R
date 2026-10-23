@@ -765,20 +765,10 @@
     unspecified_null <- setdiff(names(prior_list_alt),
       c("intercept", names(prior_list_null), par_null_omit, par_alt_omit))
     for (term in unspecified_null) {
-      alternative <- prior_list_alt[[term]]
-      if (!BayesTools::is.prior.factor(alternative) ||
-          BayesTools::is.prior.ordered(alternative)) {
-        next
-      }
-      contrasts <- c(
-        treatment   = BayesTools::is.prior.treatment(alternative),
-        independent = BayesTools::is.prior.independent(alternative),
-        meandif     = BayesTools::is.prior.meandif(alternative),
-        orthonormal = BayesTools::is.prior.orthonormal(alternative)
-      )
-      if (sum(contrasts) == 1L) {
+      contrast <- .prior_factor_contrast(prior_list_alt[[term]])
+      if (!is.na(contrast)) {
         prior_list_null[[term]] <- BayesTools::prior_factor(
-          "spike", parameters = list(0), contrast = names(contrasts)[contrasts]
+          "spike", parameters = list(0), contrast = contrast
         )
       }
     }
@@ -841,6 +831,15 @@
       stop(sprintf("At least one prior distribution needs to be defined for '%1$s' parameter in the '%2$s' model.", par, parameter))
     }
 
+    # the null and the alternative of a term share one factor contrast
+    if (length(temp_prior_list) == 2L) {
+      null_contrast <- .prior_factor_contrast(temp_prior_list[[1L]])
+      alt_contrast  <- .prior_factor_contrast(temp_prior_list[[2L]])
+      if (!is.na(null_contrast) && !is.na(alt_contrast) && null_contrast != alt_contrast) {
+        .stop_prior_contrast_conflict(par, parameter, alt_contrast, null_contrast)
+      }
+    }
+
     prior_list[[par]] <- if (length(temp_prior_list) == 1L &&
         BayesTools::is.prior.ordered(temp_prior_list[[1L]])) {
       temp_prior_list[[1L]]
@@ -858,6 +857,50 @@
   )
 
   return(prior_list)
+}
+
+
+# The contrast ("treatment", "independent", "meandif" or "orthonormal") declared
+# by a factor prior, NA for any other prior, an ordered one included.
+.prior_factor_contrast <- function(prior) {
+
+  if (!BayesTools::is.prior.factor(prior) || BayesTools::is.prior.ordered(prior)) {
+    return(NA_character_)
+  }
+  contrasts <- c(
+    treatment   = BayesTools::is.prior.treatment(prior),
+    independent = BayesTools::is.prior.independent(prior),
+    meandif     = BayesTools::is.prior.meandif(prior),
+    orthonormal = BayesTools::is.prior.orthonormal(prior)
+  )
+  if (sum(contrasts) != 1L) {
+    return(NA_character_)
+  }
+
+  names(contrasts)[contrasts]
+}
+
+
+# BayesTools refuses a mixture of factor priors with different contrasts without
+# naming the term or the arguments, so the conflict is reported before the
+# mixture is built.
+.stop_prior_contrast_conflict <- function(term, parameter, alt_contrast, null_contrast) {
+
+  argument      <- paste0("prior_", parameter)
+  null_argument <- paste0(argument, "_null")
+  stop(structure(
+    list(message = paste0(
+      "The factor term '", term, "' uses the '", alt_contrast, "' contrast in '",
+      argument, "' but the '", null_contrast, "' contrast in '", null_argument,
+      "', and its null and alternative priors need the same contrast. Give the ",
+      "term a null with the contrast of the alternative, e.g. ", null_argument,
+      " = list(", deparse(as.name(term), backtick = TRUE),
+      " = prior_factor(\"spike\", list(0), contrast = \"", alt_contrast, "\")), set ",
+      "'set_contrast_factor_predictors' to the contrast that both priors use, or ",
+      "leave '", null_argument, "' unspecified so that the null follows the alternative."
+    ), call = NULL),
+    class = c("RoBMA_prior_contrast_conflict", "RoBMA_prior_error", "error", "condition")
+  ))
 }
 
 

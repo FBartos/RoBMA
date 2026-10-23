@@ -151,12 +151,14 @@ test_that("documented remedies for indicator-coded factor terms construct their 
         args <- c(common, list(mods = mods, prior_mods = list(
           "g:x" = prior_factor("normal", list(0, 0.5), contrast = "independent")
         ), prior_mods_null = list("g:x" = null)))
-        message <- if (BayesTools::is.prior.factor(null)) {
-          "The prior_list must contain only one type of factor priors."
+        if (BayesTools::is.prior.factor(null)) {
+          expect_error(do.call(constructor, args), paste0("The factor term 'g:x' uses the ",
+            "'independent' contrast in 'prior_mods' but the 'meandif' contrast in 'prior_mods_null'"),
+            class = "RoBMA_prior_contrast_conflict", fixed = TRUE)
         } else {
-          "Unsupported prior distribution defined for 'g:x' factor variable."
+          expect_error(do.call(constructor, args),
+            "Unsupported prior distribution defined for 'g:x' factor variable.", fixed = TRUE)
         }
-        expect_error(do.call(constructor, args), message, fixed = TRUE)
       }
 
       treatment <- do.call(constructor, c(common, list(
