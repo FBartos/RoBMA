@@ -170,7 +170,9 @@ edition). Interactive `test_scenario()` runs finish all
 selected scenarios before listing the table and figure mismatches and opening
 the same combined reviewer. Accepted candidates replace the baseline, rejected
 candidates are removed, and skipped candidates remain cached. Direct plot
-comparison retains a changed `<name>.new.svg`. Accepting an already verified
+comparison retains a changed `<name>.new.svg`; a candidate without a baseline,
+text or figure, is offered by the review too and accepting it creates the
+baseline. Accepting an already verified
 candidate does not itself require rerunning an expensive expression. Rerun
 when implementation, inputs, or RNG behavior changed, or reproducibility is
 unverified. Run deferred review from the runner's exit

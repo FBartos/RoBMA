@@ -1373,10 +1373,8 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       pattern    = "[.]new[.]svg$",
       full.names = TRUE
     )
+    # a candidate without a baseline is offered too; accepting it creates it
     expected   <- sub("[.]new[.]svg$", ".svg", candidates)
-    keep       <- file.exists(expected)
-    candidates <- candidates[keep]
-    expected   <- expected[keep]
 
     data.frame(
       type      = rep("figure", length(candidates)),

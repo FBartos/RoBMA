@@ -1456,6 +1456,55 @@ test_that("scenario review offers a candidate without a baseline", {
 })
 
 
+test_that("scenario review offers a figure candidate without a baseline", {
+
+  root <- .scenario_test_root()
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  helper_env   <- environment(scenario_text)
+  helper_names <- c(".scenario_is_interactive", ".scenario_snapshot_review")
+  old_helpers  <- mget(helper_names, envir = helper_env, inherits = FALSE)
+  on.exit(list2env(old_helpers, envir = helper_env), add = TRUE)
+  assign(".scenario_is_interactive", function() TRUE, envir = helper_env)
+  assign(
+    ".scenario_snapshot_review",
+    function(path, files = NULL) {
+
+      candidates <- list.files(
+        file.path(path, "_snaps"),
+        pattern    = "[.]new[.]svg$",
+        recursive  = TRUE,
+        full.names = TRUE
+      )
+      accept <- candidates[grepl("accept.*[.]new[.]svg$", candidates)]
+      file.copy(accept, sub("[.]new[.]", ".", accept), overwrite = TRUE)
+      unlink(candidates)
+      return(TRUE)
+    },
+    envir = helper_env
+  )
+  figures <- file.path(root, "_snaps", "unit")
+  .scenario_write_lines("old", file.path(figures, "kept.svg"))
+  .scenario_write_lines("new", file.path(figures, "kept.new.svg"))
+  .scenario_write_lines("fresh", file.path(figures, "accept.new.svg"))
+  .scenario_write_lines("rejected", file.path(figures, "reject.new.svg"))
+
+  candidates <- .scenario_plot_candidates(root, "unit")
+  expect_identical(candidates[["name"]], c("unit/accept", "unit/kept", "unit/reject"))
+  expect_identical(file.exists(candidates[["expected"]]), c(FALSE, TRUE, FALSE))
+
+  changes <- expect_message(
+    .scenario_review_snapshots(root, "unit", types = "figure"),
+    "[figure] unit/accept (no baseline yet)", fixed = TRUE
+  )
+  expect_identical(changes[["name"]], c("unit/accept", "unit/kept", "unit/reject"))
+  expect_identical(changes[["status"]], c("accepted", "rejected", "rejected"))
+  expect_identical(readLines(file.path(figures, "accept.svg"), warn = FALSE), "fresh")
+  expect_false(file.exists(file.path(figures, "reject.svg")))
+  expect_identical(readLines(file.path(figures, "kept.svg"), warn = FALSE), "old")
+  expect_length(list.files(figures, pattern = "[.]new[.]svg$"), 0L)
+})
+
+
 test_that("scenario review tells rejection from acceptance of an empty candidate without a baseline", {
 
   root <- .scenario_test_root()
