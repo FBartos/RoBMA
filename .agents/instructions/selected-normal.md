@@ -262,8 +262,27 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   rank-one cluster, at least three finite rungs, a finest rung that passes the
   tail gate (moments of a rule that misses the selected mode say nothing about
   it) and a positive definite covariance; every other block, and `best`, keep
-  the optimized Laplace proposals. Budgets and diagnostics are unchanged, and
-  the stop is `max(relative MCSE, relative change) <= tol`, a one-sigma rule.
+  the optimized Laplace proposals. Budgets and the reported diagnostics are
+  unchanged: the stop is `max(z * relative MCSE, relative change) <= tol` with
+  `z = 2.36`.
+- QMC stopping multiplier: every randomized selection normalizer is accepted
+  only when `z` times its relative MCSE (and its relative change, where it
+  reports one) is within `tol`, with `z = 2.36`, the 97.5% quantile of
+  Student's t with 7 degrees of freedom, the default 8 scrambles, as a fixed
+  constant that does not follow `scrambles`. The one constant is
+  `selnorm_qmc_z` in `src/selnorm/selnorm-qmc-z.h`, used by the native stops
+  (the factor and cluster fallback, the conditioned-sampling loop) and by every
+  judge of a returned QMC diagnostic: the JAGS wrappers of the factor, cluster,
+  dense covariance and conditioned-sampling normalizers, the dense batch's
+  reuse flag, and in R `.selection_joint_factor_check_diagnostics`,
+  `.selection_conditioned_sampling_diagnostics`,
+  `.selection_joint_dense_loglik_check_mcse`, `.selection_joint_checked_event`
+  and `.zplot_normalizer_block`. R reads it through `.selection_qmc_z()`
+  (`RoBMA_selnorm_qmc_z`); never copy the number. Reported `relative_mcse`,
+  `relative_change` and the rejection messages stay the raw values, so a
+  rejected result can show an MCSE below `tol`. Deterministic rules, the
+  zplot density projections and the retained-context and deletion integrals
+  (which combine their own error terms) do not use it.
 - Last-evaluation memo: JAGS evaluates a node first at its current value, so
   about 17% of the node calls repeat the previous one. Each factor and cluster
   step node keeps owned copies of every input of a deterministic result (`x`,
@@ -297,9 +316,15 @@ coincident transitions remain unchecked there. The amplitude and its allowance
 are measured envelopes, validated by random, adversarial and hill-climbing
 searches, not a proof. The qCMDE normalizer grid anchors its error at
 `2 * relative_change` (`R/selection-normalizer-grid.R`), which is not an error
-bound for the accepted value. The one-sigma QMC stop is not calibrated: about
-one accepted randomized run in five on blocks deferred by the deterministic
-stages was outside `tol`. The certificate costs `1 + 2 rank` evaluations of
+bound for the accepted value. The scaled QMC stop is a standard-error
+criterion, not a bound: on 58 synthetic blocks deferred by the deterministic
+stages (10 designs each) it cut the accepted randomized runs outside `tol` from
+104 to 53 of 580 and raised the runs that exhaust the budget and are rejected
+from 41 to 65; most of the rest are blocks whose scrambles all miss the same
+mass (MCSE near zero), which no multiplier detects. On the real workloads
+measured (assink2016 fits and post-fit calculations) no randomized fallback is
+reached, and the few of the V7-01 fit stop at their first stage under either
+multiplier. The certificate costs `1 + 2 rank` evaluations of
 each rung it consults and the tier up to 32 evaluations of the finest rung,
 each linear in the rows of the block, and the precheck of the finest rule is
 gone, so a block that no rung certifies pays the whole ladder before the

@@ -44,13 +44,15 @@ value while reusing the same fixed design.}
 
 \item{scrambles}{number of independent randomized shifts used to estimate
 integration error for certified factors and general covariance
-blocks.}
+blocks. The stopping multiplier of \code{relative_tolerance} (2.36) is that of
+the default eight scrambles and does not change with this number.}
 
 \item{relative_tolerance}{largest accepted successive relative quadrature
 change for factor integration, or the largest nested-design relative
-change and relative Monte Carlo standard error for a factor
-fallback. General covariance blocks use the relative Monte Carlo standard
-error. Dense covariance-envelope quadrature additionally requires the
+change and 2.36 times the relative Monte Carlo standard error for a factor
+fallback. General covariance blocks and Gaussian event integrals use 2.36
+times the relative Monte Carlo standard error. Dense covariance-envelope
+quadrature additionally requires the
 sum of covariance-bound width, twice the successive quadrature change,
 the relative exterior-mass bound, and any post-fit CDF interpolation error
 to satisfy this tolerance. Factor quadrature also checks exterior Gaussian
@@ -62,9 +64,12 @@ exterior mass, within the tolerance; the four-shift average that follows a
 rejected ladder is used only for tolerances of at least 0.005) or, on the
 other routes, selection-transition resolution; coarser comparison rules
 retain their actual values without an added resolution requirement. The
-randomized fallback stops when the larger of its relative change and its
-relative Monte Carlo standard error (one standard error) is within this
-tolerance, which does not bound the error of the accepted value. Zplot
+randomized fallback stops when the larger of its relative change and 2.36
+times its relative Monte Carlo standard error (the 97.5\% quantile of
+Student's t distribution with seven degrees of freedom, for eight
+scrambles) is within this tolerance, and a result that does not pass that
+test is rejected; the reported standard error stays unscaled, and the
+criterion does not bound the error of the accepted value. Zplot
 projections additionally check density error relative to the peak within
 each posterior draw and raw normalizer-mass diagnostics, including their
 bounded approximation and omission terms. These diagnostics do not certify
