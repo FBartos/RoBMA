@@ -4,7 +4,8 @@ test_that("singleton prediction pricing uses exact cells and ordered partitions"
   # the production mapping: .predict_brma_singleton_covariance_chunks() divides
   # the budget left after the reserve by 16 (R/predict.R) and
   # .known_v_covariance_cells_chunk_indices() charges 2 * size + 2 matrices of
-  # 8 * K^2 bytes per chunk (R/known-v-gls.R).
+  # 8 * K bytes per chunk (R/known-v-gls.R); the singleton route passes K cells
+  # per matrix, one per singleton block.
   chunk_charge <- function(size, K) 16 * (2 * as.double(size) + 2) * 8 * K
 
   for (S in c(1L, 5L, 17L)) for (K in c(1L, 8L, 31L)) {

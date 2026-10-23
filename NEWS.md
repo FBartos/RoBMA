@@ -1541,8 +1541,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   evaluated with the random prediction columns, allocation shares applied)
   instead of the whole total heterogeneity, so a common-scale model no longer
   counts its allocated variance twice and component-specific scales
-  (`scale = list(block = ~x)`) no longer stop with a missing `random` formula;
-  the pointwise fallback sums the same block-owned variances.
+  (`scale = list(block = ~x)`) no longer stop with a missing `random` formula.
 - `funnel(as_data = TRUE)` points of LOO-PIT residuals carry the deletion
   `unit` and `retained_context` of the estimate-unit LOO target instead of an
   unused `conditioning_depth` label, and the selection-deletion integration
