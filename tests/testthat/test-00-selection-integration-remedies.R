@@ -54,6 +54,7 @@ test_that("integration rejections name fitting and supported post-fit remedies",
     expect_identical(conditionMessage(condition), paste0(
       "Selection normalizer was rejected by diagnostics: relative ",
       "Monte Carlo standard error was ", if (is.finite(mcse)) "0.006" else "Inf",
+      " (accepted when 2.36 times the standard error is within 'relative_tolerance')",
       ". Increase 'points_per_scramble' or 'scrambles' in ", remedies
     ))
     expect_null(conditionCall(condition))
@@ -72,8 +73,9 @@ test_that("integration rejections name fitting and supported post-fit remedies",
       "Selection factor normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ",
       if (is.finite(mcse)) "0.006" else "Inf",
-      " and nested-design relative change was 0.007. ",
-      "Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
+      " and nested-design relative change was 0.007",
+      " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
+      ". Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
     ))
     expect_null(conditionCall(condition))
 
@@ -88,8 +90,9 @@ test_that("integration rejections name fitting and supported post-fit remedies",
       "Selection cluster normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ",
       if (is.finite(mcse)) "0.006" else "Inf",
-      " and nested-design relative change was 0.007. ",
-      "Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
+      " and nested-design relative change was 0.007",
+      " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
+      ". Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
     ))
     expect_null(conditionCall(condition))
   }
@@ -144,18 +147,21 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
       mnorm = paste0(
         "Selection normalizer was rejected by diagnostics: relative Monte Carlo ",
         "standard error was ", sprintf("%g", raw$relative_mcse),
+        " (accepted when 2.36 times the standard error is within 'relative_tolerance')",
         ". Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."
       ),
       cluster = paste0(
         "Selection cluster normalizer was rejected by diagnostics: relative Monte Carlo ",
         "standard error was ", sprintf("%g", raw$relative_mcse),
         " and nested-design relative change was ", sprintf("%g", raw$relative_change),
+        " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
         ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       ),
       factor = paste0(
         "Selection factor normalizer was rejected by diagnostics: relative Monte Carlo ",
         "standard error was ", sprintf("%g", raw$relative_mcse),
         " and nested-design relative change was ", sprintf("%g", raw$relative_change),
+        " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
         ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       )
     )
@@ -243,6 +249,7 @@ test_that("JAGS reports a positive diagnostic smaller than one millionth", {
   expected <- paste0(
     "Selection normalizer was rejected by diagnostics: relative Monte Carlo ",
     "standard error was ", sprintf("%g", raw$relative_mcse),
+    " (accepted when 2.36 times the standard error is within 'relative_tolerance')",
     ". Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."
   )
   syntax <- paste0(

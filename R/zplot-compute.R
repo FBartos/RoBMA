@@ -1144,7 +1144,7 @@
         points >= control$max_points_per_scramble) {
       stop(
         "Zplot marginal integration was rejected by diagnostics: relative integration error was ",
-        format(error[failed[1L]], digits = 4),
+        format(error[failed[1L]], digits = 4), .selection_qmc_criterion(),
         ". Increase 'max_points_per_scramble' in 'integration_control = set_selection_likelihood_control()'.",
         call. = FALSE
       )

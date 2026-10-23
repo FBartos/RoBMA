@@ -150,8 +150,10 @@ double DSELNORMCLUSTERSTEP::logDensity(
     std::snprintf(message, sizeof(message),
       "Selection cluster normalizer was rejected by diagnostics: "
       "relative Monte Carlo standard error was %g and nested-design "
-      "relative change was %g. Increase 'max_points_per_scramble' "
-      "or 'scrambles' in 'selection_control'.", relative_mcse, relative_change);
+      "relative change was %g" SELNORM_QMC_CRITERION_WITH_CHANGE
+      ". Increase 'max_points_per_scramble' "
+      "or 'scrambles' in 'selection_control'.", relative_mcse, relative_change,
+      selnorm_qmc_z);
     throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;

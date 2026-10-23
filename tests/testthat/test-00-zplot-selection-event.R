@@ -158,7 +158,9 @@ test_that("event refinement preserves accepted rows and exact zero numerators", 
   expect_error(.selection_joint_checked_event(function(plan, rows) {
     list(log_mass = 0, relative_mcse = .025)
   }, plan, "Test event", "Increase the integration budget."),
-    "Test event was rejected by diagnostics: relative integration MCSE was 0.025. Increase the integration budget.",
+    paste0("Test event was rejected by diagnostics: relative integration MCSE was 0.025",
+           " (accepted when 2.36 times the standard error is within 'relative_tolerance')",
+           ". Increase the integration budget."),
     fixed = TRUE)
 })
 

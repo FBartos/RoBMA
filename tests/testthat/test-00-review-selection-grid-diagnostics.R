@@ -76,7 +76,8 @@ test_that("F3-3 every direct factor grid obeys native diagnostics including cach
       result <- .review_grid_diagnostic_transport(method, metrics[1L], metrics[2L], kind)
       message <- paste0("Selection ", if (method == "rank_one") "cluster" else "factor",
         " normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
-        format(metrics[1L], digits = 4), " and nested-design relative change was ", format(metrics[2L], digits = 4), remedy)
+        format(metrics[1L], digits = 4), " and nested-design relative change was ", format(metrics[2L], digits = 4),
+        " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')", remedy)
       for (value in result[c("first", "repeat_value")]) {
         expect_s3_class(value, "error")
         if (inherits(value, "error")) expect_identical(conditionMessage(value), message)
@@ -125,7 +126,8 @@ test_that("F3-3 raw normalizers retain downstream zplot diagnostic ownership", {
     zplot <- .review_grid_diagnostic_transport(method, 0, .02, "constant", consumer = "zplot")
     expect_s3_class(zplot$first, "error")
     expect_identical(conditionMessage(zplot$first), paste0(
-      "Zplot marginal integration was rejected by diagnostics: relative integration error was 0.02. ",
+      "Zplot marginal integration was rejected by diagnostics: relative integration error was 0.02",
+      " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance'). ",
       "Increase 'max_points_per_scramble' in 'integration_control = set_selection_likelihood_control()'."))
     passing <- .review_grid_diagnostic_transport(method, 0, 0, "constant", consumer = "zplot")
     expect_false(inherits(passing$first, "error"))

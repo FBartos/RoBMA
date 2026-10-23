@@ -86,11 +86,13 @@ test_that("selection diagnostic remedies name the available control entrypoints"
     list(relative_mcse = .02, relative_change = .03), list(relative_tolerance = .005)),
     paste0("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
       format(.02), " and nested-design relative change was ", format(.03),
+      " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
       ". Increase 'max_points_per_scramble' or ",
       "'scrambles' with 'set_selection_likelihood_control()'. Pass the control as ", suffix), fixed = TRUE)
   expect_error(.selection_joint_dense_loglik_check_mcse(.02, list(relative_tolerance = .005)),
     paste0("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
-      "0.02. Increase 'points_per_scramble' or 'scrambles' in 'set_selection_likelihood_control()'. ",
+      "0.02 (accepted when 2.36 times the standard error is within 'relative_tolerance')",
+      ". Increase 'points_per_scramble' or 'scrambles' in 'set_selection_likelihood_control()'. ",
       "Pass the control as ", suffix), fixed = TRUE)
 })
 

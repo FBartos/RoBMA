@@ -9,7 +9,9 @@ skip_on_cran()
 # deferred geometries below reach the fallback, and a single stage (initial =
 # maximum budget) fixes its diagnostics, so a tolerance can be placed in the band
 #   max(mcse, change) <= tolerance < z * mcse
-# where the one-standard-error rule accepted and the scaled rule must not.
+# where the one-standard-error rule accepted and the scaled rule must not. Every rejection
+# message reports the raw values and names the rule in a clause (selnorm-qmc-z.h and
+# .selection_qmc_criterion()); the tests pin its wording.
 
 .test_qmc_native <- function(case, seed, initial, points, tolerance) {
 
@@ -104,14 +106,19 @@ test_that("a budget-exhausted fallback is judged by the scaled error in R", {
   boundary <- list(relative_mcse = .0025, relative_change = 0)
   boundary_plan <- list(relative_tolerance = z * boundary[["relative_mcse"]])
 
-  # the reported values stay the raw ones
+  # the reported values stay the raw ones, followed by the rule that rejected them
   raw <- function(error, mcse_text) expect_match(conditionMessage(error), mcse_text, fixed = TRUE)
+  with_change <- " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')"
+  error_only  <- " (accepted when 2.36 times the standard error is within 'relative_tolerance')"
+  expect_identical(.selection_qmc_criterion(), with_change)
+  expect_identical(.selection_qmc_criterion(change = FALSE), error_only)
 
   factor_judge <- .selection_joint_factor_check_diagnostics
   for (method in c("factor", "cluster")) {
     error <- tryCatch(factor_judge(band, plan, method), error = identity)
     expect_s3_class(error, "error")
-    raw(error, "relative Monte Carlo standard error was 0.003 and nested-design relative change was 0.001")
+    raw(error, paste0("relative Monte Carlo standard error was 0.003 and nested-design relative change was 0.001",
+                      with_change, ". Increase 'max_points_per_scramble' or 'scrambles' in "))
     expect_null(factor_judge(accepted, plan, method))
     expect_null(factor_judge(boundary, boundary_plan, method))
     boundary_plan_below <- list(relative_tolerance = boundary_plan[["relative_tolerance"]] * (1 - 1e-9))
@@ -126,7 +133,8 @@ test_that("a budget-exhausted fallback is judged by the scaled error in R", {
 
   error <- tryCatch(.selection_conditioned_sampling_diagnostics(band, plan), error = identity)
   expect_s3_class(error, "error")
-  raw(error, "relative Monte Carlo standard error was 0.003 and nested-design relative change was 0.001")
+  raw(error, paste0("relative Monte Carlo standard error was 0.003 and nested-design relative change was 0.001",
+                    with_change, ". Increase 'max_points_per_scramble' or 'scrambles' with "))
   expect_null(.selection_conditioned_sampling_diagnostics(accepted, plan))
   expect_null(.selection_conditioned_sampling_diagnostics(boundary, boundary_plan))
   expect_error(.selection_conditioned_sampling_diagnostics(
@@ -134,7 +142,8 @@ test_that("a budget-exhausted fallback is judged by the scaled error in R", {
 
   error <- tryCatch(.selection_joint_dense_loglik_check_mcse(mcse, plan), error = identity)
   expect_s3_class(error, "error")
-  raw(error, "relative Monte Carlo standard error was 0.003.")
+  raw(error, paste0("relative Monte Carlo standard error was 0.003", error_only,
+                    ". Increase 'points_per_scramble' or 'scrambles' in "))
   expect_null(.selection_joint_dense_loglik_check_mcse(.002, plan))
   expect_null(.selection_joint_dense_loglik_check_mcse(boundary[["relative_mcse"]], boundary_plan))
   expect_error(.selection_joint_dense_loglik_check_mcse(c(.001, mcse, Inf), plan), "0.003")
@@ -159,7 +168,9 @@ test_that("the refinement of an event integral keeps going while the scaled erro
   expect_error(.selection_joint_checked_event(function(current, rows) {
     list(log_mass = -.1, relative_mcse = .003, relative_quadrature_error = 0)
   }, plan, "Test event", "Increase the integration budget."),
-    "Test event was rejected by diagnostics: relative integration MCSE was 0.003. Increase the integration budget.",
+    paste0("Test event was rejected by diagnostics: relative integration MCSE was 0.003",
+           " (accepted when 2.36 times the standard error is within 'relative_tolerance')",
+           ". Increase the integration budget."),
     fixed = TRUE)
   expect_silent(.selection_joint_checked_event(function(current, rows) {
     list(log_mass = -.1, relative_mcse = .0021, relative_quadrature_error = 0)
@@ -201,7 +212,9 @@ test_that("the normalizer-only zplot block judges the scaled error", {
     expect_s3_class(failure, "error")
     # the message reports the raw error, as every judge does
     expect_match(conditionMessage(failure),
-      paste0("relative integration error was ", format(mcse, digits = 4), ". Increase"),
+      paste0("relative integration error was ", format(mcse, digits = 4),
+             " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
+             ". Increase"),
       fixed = TRUE, info = method)
     accepted <- block(method, .002)
     expect_false(inherits(accepted, "error"), info = method)
@@ -277,6 +290,7 @@ test_that("the factor and cluster JAGS wrappers judge the scaled error of an exh
       "Selection ", spec[["kind"]], " normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ", sprintf("%g", band[["mcse"]]),
       " and nested-design relative change was ", sprintf("%g", band[["change"]]),
+      " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
       ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."), info = info)
     expect_null(.test_qmc_jags_step(spec[["kind"]], band, band[["high"]] * (1 + 1e-9)), info = info)
   }
@@ -315,7 +329,8 @@ test_that("the dense covariance JAGS wrapper judges the scaled error of its fixe
     quadrature[c("nodes", "log_weights", "orders")])
   expect_identical(.test_qmc_jags(syntax, data(.005)), paste0(
     "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
-    sprintf("%g", mcse), ". Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."))
+    sprintf("%g", mcse), " (accepted when 2.36 times the standard error is within 'relative_tolerance')",
+    ". Increase 'points_per_scramble' or 'scrambles' in 'selection_control'."))
   expect_null(.test_qmc_jags(syntax, data(z * mcse * (1 + 1e-9))))
 })
 
@@ -385,7 +400,8 @@ test_that("the conditioned-sampling JAGS wrapper and loop judge the scaled error
          fo = args[["factor_orders"]])
   }
   expect_identical(.test_qmc_jags(syntax, data(inside)), sprintf(paste0(
-    "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %g. ",
+    "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %g",
+    " (accepted when 2.36 times the standard error is within 'relative_tolerance'). ",
     "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."), mcse))
   expect_null(.test_qmc_jags(syntax, data(z * mcse * (1 + 1e-9))))
 

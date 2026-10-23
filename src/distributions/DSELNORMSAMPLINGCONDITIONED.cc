@@ -122,7 +122,9 @@ double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
     char message[512];
     std::snprintf(message, sizeof(message),
       "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error "
-      "was %g. Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.", mcse);
+      "was %g" SELNORM_QMC_CRITERION_ERROR_ONLY
+      ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.",
+      mcse, selnorm_qmc_z);
     throw std::runtime_error(message);
   }
   if (!std::isfinite(change) || change > *par[21]) {

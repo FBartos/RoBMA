@@ -178,8 +178,9 @@ double DSELNORMMVSTEP::logDensity(
     char message[512];
     std::snprintf(message, sizeof(message),
       "Selection normalizer was rejected by diagnostics: relative "
-      "Monte Carlo standard error was %g. Increase 'points_per_scramble' "
-      "or 'scrambles' in 'selection_control'.", relative_mcse);
+      "Monte Carlo standard error was %g" SELNORM_QMC_CRITERION_ERROR_ONLY
+      ". Increase 'points_per_scramble' "
+      "or 'scrambles' in 'selection_control'.", relative_mcse, selnorm_qmc_z);
     throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;

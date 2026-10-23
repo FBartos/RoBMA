@@ -1565,6 +1565,15 @@ set_selection_likelihood_control <- function(
 }
 
 
+# The clause of the rejection messages that names this rule (the native
+# wrappers carry the same wording, SELNORM_QMC_CRITERION_* in selnorm-qmc-z.h).
+.selection_qmc_criterion <- function(change = TRUE) {
+
+  paste0(" (accepted when ", format(.selection_qmc_z()), " times the standard error",
+         if (change) " and the change are" else " is", " within 'relative_tolerance')")
+}
+
+
 .selection_conditioned_sampling_diagnostics <- function(result, plan) {
 
   mcse   <- max(result[["relative_mcse"]])
@@ -1573,6 +1582,7 @@ set_selection_likelihood_control <- function(
       max(.selection_qmc_z() * mcse, change) > plan[["relative_tolerance"]]) {
     stop("Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was ",
       format(mcse), " and nested-design relative change was ", format(change),
+      .selection_qmc_criterion(),
       ". Increase 'max_points_per_scramble' or 'scrambles' with 'set_selection_likelihood_control()'. ",
       "Pass the control as 'selection_control' when fitting, 'integration_control' in zplot(), or ",
       "'density_control$integration_control' for supported post-fit densities and hypotheses.",
@@ -2981,6 +2991,7 @@ set_selection_likelihood_control <- function(
     stop("Selection ", method, " normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ", format(result[["relative_mcse"]][first], digits = 4),
       " and nested-design relative change was ", format(result[["relative_change"]][first], digits = 4),
+      .selection_qmc_criterion(),
       ". Increase 'max_points_per_scramble' or 'scrambles' in ",
       "'set_selection_likelihood_control()'. Pass the control as ",
       "'selection_control' when fitting, 'integration_control' in zplot(), ",
@@ -3802,6 +3813,7 @@ set_selection_likelihood_control <- function(
     stop(
       "Selection normalizer was rejected by diagnostics: relative ",
       "Monte Carlo standard error was ", format(observed, digits = 4),
+      .selection_qmc_criterion(change = FALSE),
       ". Increase 'points_per_scramble' or 'scrambles' in ",
       "'set_selection_likelihood_control()'. Pass the control as ",
       "'selection_control' when fitting, 'integration_control' in zplot(), ",
@@ -3846,7 +3858,8 @@ set_selection_likelihood_control <- function(
     if (!length(failed)) return(result)
     if (plan[["points_per_scramble"]] >= plan[["max_points_per_scramble"]]) {
       stop(subject, " was rejected by diagnostics: relative integration MCSE was ",
-        format(error[failed[[1L]]], digits = 4), ". ", remedy, call. = FALSE)
+        format(error[failed[[1L]]], digits = 4), .selection_qmc_criterion(change = FALSE),
+        ". ", remedy, call. = FALSE)
     }
     active <- active[failed]
     plan[["points_per_scramble"]] <- min(

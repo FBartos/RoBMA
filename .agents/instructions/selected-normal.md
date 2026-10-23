@@ -279,10 +279,14 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   `.selection_joint_dense_loglik_check_mcse`, `.selection_joint_checked_event`
   and `.zplot_normalizer_block`. R reads it through `.selection_qmc_z()`
   (`RoBMA_selnorm_qmc_z`); never copy the number. Reported `relative_mcse`,
-  `relative_change` and the rejection messages stay the raw values, so a
-  rejected result can show an MCSE below `tol`. Deterministic rules, the
-  zplot density projections and the retained-context and deletion integrals
-  (which combine their own error terms) do not use it.
+  `relative_change` and the values in the rejection messages stay raw, and each
+  message names the rule ("accepted when 2.36 times the standard error and the
+  change are within 'relative_tolerance'"; native wording
+  `SELNORM_QMC_CRITERION_*` in the header, R wording
+  `.selection_qmc_criterion()`), because a rejected result can show an MCSE
+  below `tol`. The zplot selection projection and density batches and the
+  retained-context and deletion-ratio QMC judge their own combined error and
+  are not scaled; deterministic rules do not use the multiplier.
 - Last-evaluation memo: JAGS evaluates a node first at its current value, so
   about 17% of the node calls repeat the previous one. Each factor and cluster
   step node keeps owned copies of every input of a deterministic result (`x`,

@@ -24,4 +24,11 @@ inline double selnorm_qmc_diagnostic(double relative_mcse, double relative_chang
   return std::max(selnorm_qmc_z * relative_mcse, relative_change);
 }
 
+// The clause of the rejection messages that names the rule (one %g: selnorm_qmc_z).
+// The R judges build the same wording in `.selection_qmc_criterion()`.
+#define SELNORM_QMC_CRITERION_WITH_CHANGE \
+  " (accepted when %g times the standard error and the change are within 'relative_tolerance')"
+#define SELNORM_QMC_CRITERION_ERROR_ONLY \
+  " (accepted when %g times the standard error is within 'relative_tolerance')"
+
 #endif
