@@ -26,6 +26,18 @@ const double LOG_DBL_MAX = std::log(std::numeric_limits<double>::max());
 // integral. At the bound the noise is about 1.4e-13. Concentrated priors beyond
 // it evaluate the density at the smaller probability, which is accurate to
 // rounding of the value itself and retains the tail the closed form would lose.
+// That route still carries rounding noise that the consecutive-order change
+// does not see: the probability exp(lp) is rounded (half an ulp, 2^-54 near
+// 1/2), the beta log density has slope of order (alpha + beta) * |p - 1/2| /
+// (p q) in p, and the quadrature nodes lie about one prior SD,
+// 1 / (2 sqrt(alpha + beta)), from the center. The value is then off by up to
+// about DBL_EPSILON * sqrt(alpha + beta) (measured envelope 0.45 times that).
+// The node positions repeat in consecutive orders, so two consecutive changes
+// can both be small while their common error is not.
+// BinomialProblem::evaluation_noise() reports this bound and integrate_problem()
+// never reports a change below it: shape sums above (tolerance / DBL_EPSILON)^2
+// (about 2e19 at the default tolerance of 1e-6) are not accepted, and below it
+// the reported change bounds the error.
 const double BETA_CLOSED_FORM_MAX_SHAPE_SUM = 1e3;
 
 
@@ -340,6 +352,18 @@ struct BinomialProblem {
   double log_coefficient;
   double log_beta;
 
+  // Bound on the rounding noise of log_density() that two consecutive
+  // quadrature orders do not reveal (see BETA_CLOSED_FORM_MAX_SHAPE_SUM): the
+  // density at the smaller probability for shape sums above the closed-form
+  // bound, nothing on the closed-form and uniform routes.
+  double evaluation_noise() const
+  {
+    const double shape_sum = alpha + beta;
+    return shape_sum > BETA_CLOSED_FORM_MAX_SHAPE_SUM
+      ? std::numeric_limits<double>::epsilon() * std::sqrt(shape_sum)
+      : 0.0;
+  }
+
   double log_density(double theta, double logit_pi) const
   {
     const double effect = mu + tau * theta;
@@ -437,6 +461,12 @@ struct PoissonProblem {
   double sd;
   double variance;
   double log_factorial;
+
+  // The Poisson log density has no route with unobserved rounding noise.
+  double evaluation_noise() const
+  {
+    return 0.0;
+  }
 
   bool rates(double theta, double phi, double *log_lambda1,
              double *log_lambda2, double *lambda1, double *lambda2) const
@@ -660,7 +690,12 @@ IntegralResult integrate_problem(const Problem &problem,
     }
 
     if (r > 0) {
-      result.change = std::fabs(current - previous);
+      // The change is not reported below the evaluation noise, which the
+      // difference of two orders can fall under by chance.
+      result.change = std::max(
+        std::fabs(current - previous),
+        problem.evaluation_noise()
+      );
       below_count = result.change <= tolerance ? below_count + 1 : 0;
     }
     previous          = current;

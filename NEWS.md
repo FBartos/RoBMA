@@ -129,6 +129,11 @@
   optional Box-Muller hidden-cache limitation precisely.
 - GLMM quadrature recovery uses typed numerical failures and preserves their
   observed sample, public observation, and refinement diagnostics.
+- Binomial GLMM AGHQ never reports a refinement change below the rounding noise
+  of the beta density of a concentrated `prior_baserate`, about
+  `.Machine$double.eps * sqrt(alpha + beta)`. Shape sums above about 2e19 are
+  refused by the quadrature and use the grid, where an error several times the
+  tolerance had been accepted; accepted values are unchanged.
 - Partial selection events validate their required geometry and selected-response
   simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and

@@ -314,6 +314,40 @@ test_that("binomial AGHQ mode search converges for concentrated beta priors over
 })
 
 
+test_that("binomial AGHQ does not report a change below the rounding noise of concentrated beta priors", {
+
+  # A zero-event study at mu = .1 and tau = 0 integrates to its likelihood at
+  # the prior center, -log1p(exp(.05)) - log1p(exp(-.05)), for alpha = beta.
+  # Above the closed-form bound the beta log density carries a rounding noise
+  # of about eps * sqrt(alpha + beta) that the change between consecutive
+  # orders does not show (at alpha = beta = 1e21 the error was 2.6e-6 with a
+  # reported change of 2.8e-8). The reported change is never below that noise,
+  # so shape sums beyond (tolerance / eps)^2, about 2e19, are refused instead
+  # of accepted with a certificate that does not hold.
+  limit <- -log1p(exp(.05)) - log1p(exp(-.05))
+  aghq <- function(shape) {
+    .glmm_binom_aghq(0L, 0L, 1L, 1L, matrix(.1), matrix(0), NULL,
+      c(alpha = shape, beta = shape))
+  }
+
+  for (shape in c(1e20, 1e21, 1e22)) {
+    expect_error(aghq(shape), class = "RoBMA_glmm_aghq_nonconvergence",
+      info = paste("shapes", shape))
+  }
+
+  accepted <- aghq(1e18)
+  expect_gte(accepted[["max_change"]], .Machine[["double.eps"]] * sqrt(2e18))
+  expect_lte(abs(accepted[["value"]][1L, 1L] - limit), accepted[["max_change"]])
+
+  # The public route takes the accurate grid where the quadrature is refused.
+  out <- .outcome_pdf.binom(0L, 0L, 1L, 1L, matrix(.1), matrix(0),
+    BayesTools::prior("beta", list(alpha = 1e21, beta = 1e21)))
+  diagnostics <- attr(out, "glmm_aghq_diagnostics", exact = TRUE)
+  expect_identical(diagnostics$grid_columns, 1L)
+  expect_lt(abs(out[1L, 1L] - limit), 1e-9)
+})
+
+
 test_that("exact beta-binomial shortcut keeps event increments for large shapes", {
 
   # One event and one non-event: the sequence probability is
