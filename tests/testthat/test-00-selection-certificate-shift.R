@@ -224,6 +224,51 @@ test_that("the rank-one cluster rung gives its mean, shifts and amplitude withou
   expect_lt(max(abs(expm1(probe[["full_value"]] - probe[["log_normalizer"]]))), 1e-12)
 })
 
+test_that("the tilted moments of a shifted cluster rule are those of its shifted nodes", {
+
+  # The coordinate of node j of the rule shifted by delta is x_j + delta, so its
+  # tilted mean and variance follow those nodes (the unshifted nodes would put
+  # the mean a whole shift off). Three evaluations: the double precision node
+  # products; products too small for the double range check that stay within
+  # long double (400 rows of weight about 2e-4, a log normalizer of -3,390); and
+  # products that underflow long double (1,500 rows, -12,717), which take the
+  # log-scale sum. The loadings are small enough that the tilted distribution
+  # spans several nodes.
+  shifts <- c(-.4, .3, 1.1)
+  blocks <- list(
+    double = .test_cert_block(list(.test_cert_group(6L, 1.3, .8, .5)), c(1, .3)),
+    long_double = .test_cert_block(list(.test_cert_group(400L, .002, 1, -3.7)), c(1, 1e-4)),
+    log_scale = .test_cert_block(list(.test_cert_group(1500L, .0005, 1, -3.7)), c(1, 1e-4))
+  )
+  for (name in names(blocks)) {
+    block <- blocks[[name]]
+    probe <- .test_cert_probe(block, 31L, cluster = TRUE, shift_axis = rep(1L, 3), shift_delta = shifts)
+    expect_identical(probe[["lean"]], name == "double", info = name)
+    # long double holds products down to about exp(-11355)
+    expect_identical(probe[["log_normalizer"]] > -11355, name != "log_scale", info = name)
+    for (k in seq_along(shifts)) {
+      terms <- .test_cert_tensor_terms(block, 31L, shifts[k])
+      p     <- exp(terms[["value"]] - .test_cert_logsumexp(terms[["value"]]))
+      node  <- terms[["x"]][, 1L] + shifts[k]
+      mean  <- sum(p * node)
+      variance <- sum(p * (node - mean)^2)
+      info  <- paste(name, "shift", shifts[k])
+      for (prefix in c("", "reference_")) {
+        expect_lt(abs(probe[[paste0(prefix, "shifted_moment_mean")]][k] - mean), 1e-10 * (1 + abs(mean)),
+                  label = paste(info, prefix, "mean"))
+        expect_lt(abs(probe[[paste0(prefix, "shifted_moment_variance")]][k] / variance - 1), 1e-9,
+                  label = paste(info, prefix, "variance"))
+      }
+    }
+  }
+
+  # a smooth block at a high rung: every shifted rule estimates the same moments
+  smooth <- .test_cert_block(list(.test_cert_group(3L, .6, 1.2, .2)), c(1, .9))
+  probe  <- .test_cert_probe(smooth, 127L, cluster = TRUE, shift_axis = rep(1L, 3), shift_delta = shifts)
+  expect_lt(max(abs(probe[["shifted_moment_mean"]] - probe[["moment_mean"]])), 1e-10)
+  expect_lt(max(abs(probe[["shifted_moment_variance"]] / probe[["moment_covariance"]] - 1)), 1e-10)
+})
+
 test_that("blocks without a transition carry no amplitude to certify", {
 
   flat  <- .test_cert_block(list(.test_cert_group(4L, c(.6, .5), 1.1, .2)), c(1, 1))

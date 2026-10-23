@@ -155,6 +155,12 @@ struct SelNormCertificateProbe {
   // depth at most one, and the rank-one cluster rule).
   bool has_moments = false;
   std::vector<double> moment_mean, moment_covariance;
+  // Rank-one cluster rule: the tilted mean and variance of the latent
+  // coordinate under the shifted rule of each shift request (the nodes are
+  // x_j + shift), from the evaluator of the ladder and from the long double
+  // evaluator.
+  std::vector<double> shifted_moment_mean, shifted_moment_variance;
+  std::vector<double> reference_shifted_moment_mean, reference_shifted_moment_variance;
 };
 
 bool cpp_selnorm_certificate_probe(

@@ -146,11 +146,12 @@ struct SelNormLeanScratch {
 // A nonzero `shift` evaluates the same integral through the exactly shifted
 // rule: nodes x_j + shift and weights w_j exp(-shift x_j - shift^2 / 2). The
 // shifted weights are built here from the log weights and never read
-// `context.quadrature_weights`, which hold the unshifted rule. With a
-// `tilted_mean` and no shift, the rule's own posterior mean of the latent
-// coordinate under the selected integrand is returned from the same direct or
-// log-scale evaluation that produced the value, and `tilted_variance` (which
-// needs `tilted_mean`) the variance of that coordinate about it.
+// `context.quadrature_weights`, which hold the unshifted rule. A `tilted_mean`
+// is the rule's own posterior mean of the latent coordinate under the selected
+// integrand, returned from the same direct or log-scale evaluation that
+// produced the value (the mean of the shifted nodes x_j + shift under a shift),
+// and `tilted_variance` (which needs `tilted_mean`) the variance of that
+// coordinate about it.
 double cluster_rule_log_integral(const ClusterNormalizerContext &context,
                                  const double *nodes,
                                  const double *log_weights,
@@ -245,7 +246,9 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
     for (int j = 0; j < order; ++j) {
       const long double weight = node_weight(j);
       integral += products[j] * weight;
-      if (tilted_mean != nullptr) moment += products[j] * weight * nodes[offset + j];
+      if (tilted_mean != nullptr) {
+        moment += products[j] * weight * (nodes[offset + j] + shift);
+      }
     }
     if (integral > 0.0L && std::isfinite(integral)) {
       if (tilted_mean != nullptr) {
@@ -255,7 +258,7 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
         const long double center = moment / integral;
         long double spread = 0.0L;
         for (int j = 0; j < order; ++j) {
-          const long double deviation = nodes[offset + j] - center;
+          const long double deviation = (nodes[offset + j] + shift) - center;
           spread += products[j] * node_weight(j) * deviation * deviation;
         }
         *tilted_variance = static_cast<double>(spread / integral);
@@ -297,7 +300,8 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
     double moment = 0.0;
     for (int j = 0; j < order; ++j) {
       if (std::isfinite(terms[static_cast<std::size_t>(j)])) {
-        moment += std::exp(terms[static_cast<std::size_t>(j)] - out) * nodes[offset + j];
+        moment += std::exp(terms[static_cast<std::size_t>(j)] - out) *
+          (nodes[offset + j] + shift);
       }
     }
     *tilted_mean = std::isfinite(out) ? moment :
@@ -306,7 +310,7 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
       double spread = 0.0;
       for (int j = 0; j < order; ++j) {
         if (std::isfinite(terms[static_cast<std::size_t>(j)])) {
-          const double deviation = nodes[offset + j] - moment;
+          const double deviation = (nodes[offset + j] + shift) - moment;
           spread += std::exp(terms[static_cast<std::size_t>(j)] - out) * deviation * deviation;
         }
       }
@@ -360,7 +364,7 @@ bool cluster_rule_log_integral_double(const ClusterNormalizerContext &context,
       scratch->product[static_cast<std::size_t>(j)]) * node_weight(j);
     integral += term;
     if (tilted_mean != nullptr || tilted_variance != nullptr) {
-      moment += term * nodes[offset + j];
+      moment += term * (nodes[offset + j] + shift);
     }
   }
   if (!(integral > 0.0L) || !std::isfinite(integral)) return false;
@@ -371,7 +375,7 @@ bool cluster_rule_log_integral_double(const ClusterNormalizerContext &context,
     const long double center = moment / integral;
     long double spread = 0.0L;
     for (int j = 0; j < order; ++j) {
-      const long double deviation = nodes[offset + j] - center;
+      const long double deviation = (nodes[offset + j] + shift) - center;
       spread += static_cast<long double>(
         scratch->product[static_cast<std::size_t>(j)]) * node_weight(j) *
         deviation * deviation;
@@ -3494,8 +3498,6 @@ class FactorNestedRung {
       [this](int left, int right) { return plan_.depth[left] > plan_.depth[right]; });
   }
 
-  std::size_t axes() const { return node_count_; }
-
   // Unshifted rule. False for an invalid plan or a rung that leaves the direct
   // range, where the caller's tensor rule takes over exactly as before.
   bool evaluate(double *log_value)
@@ -3639,12 +3641,12 @@ class FactorNestedRung {
 
   // The averages of the rule over the grid of shifts (m / M) h_a of every axis
   // a, m = 0..M-1, for M = 2 and M = 4 (the M = 2 grid is the even sub-grid of
-  // the other); `gap` holds h_a per plan axis. Forests of depth at most one
-  // only. Given a root shift, the leaves of a tree are independent, so the
-  // average over all shifts of the product of the leaf integrals is the
-  // product of the leaf integrals averaged over their own shifts: the tree
-  // costs M^2 evaluations of each leaf instead of M^(1 + leaves). Trees are
-  // independent of each other and multiply.
+  // the other); `gap` holds h_a per plan axis; a null `log_average_2` skips the
+  // M = 2 average. Forests of depth at most one only. Given a root shift, the
+  // leaves of a tree are independent, so the average over all shifts of the
+  // product of the leaf integrals is the product of the leaf integrals averaged
+  // over their own shifts: the tree costs M^2 evaluations of each leaf instead
+  // of M^(1 + leaves). Trees are independent of each other and multiply.
   bool refined(const std::vector<double> &gap, double *log_average_2,
                double *log_average_4) const
   {
@@ -3663,6 +3665,7 @@ class FactorNestedRung {
       }
     }
     const std::size_t pairs = static_cast<std::size_t>(order_) * static_cast<std::size_t>(order_);
+    const bool coarse_average = log_average_2 != nullptr;
     long double total_2 = base_.free_product;
     long double total_4 = base_.free_product;
     for (int root : plan_.roots) {
@@ -3674,9 +3677,11 @@ class FactorNestedRung {
         std::vector<long double> own_4(static_cast<std::size_t>(order_), 1.0L);
         if (!accumulate_rows(plan_.node_rows[root], static_cast<std::size_t>(order_),
                              plan_.axes[root], own_4, root, root_delta)) return false;
-        std::vector<long double> own_2 = own_4;
+        std::vector<long double> own_2;
+        if (coarse_average) own_2 = own_4;
         for (int leaf : plan_.children[root]) {
-          std::vector<long double> inner_2(static_cast<std::size_t>(order_), 0.0L);
+          std::vector<long double> inner_2(
+            coarse_average ? static_cast<std::size_t>(order_) : 0, 0.0L);
           std::vector<long double> inner_4(static_cast<std::size_t>(order_), 0.0L);
           for (int leaf_index = 0; leaf_index < grid; ++leaf_index) {
             std::vector<long double> rows(pairs, 1.0L);
@@ -3695,29 +3700,31 @@ class FactorNestedRung {
               }
               if (!(value > 0.0L) || !std::isfinite(value)) return false;
               inner_4[static_cast<std::size_t>(lower)] += value;
-              if (coarse_root && leaf_index % 2 == 0) {
+              if (coarse_average && coarse_root && leaf_index % 2 == 0) {
                 inner_2[static_cast<std::size_t>(lower)] += value;
               }
             }
           }
           for (std::size_t lower = 0; lower < static_cast<std::size_t>(order_); ++lower) {
             own_4[lower] *= inner_4[lower] / grid;
-            own_2[lower] *= inner_2[lower] / 2.0L;
+            if (coarse_average) own_2[lower] *= inner_2[lower] / 2.0L;
           }
         }
         const std::vector<long double> &root_weights =
           weights[static_cast<std::size_t>(root)][static_cast<std::size_t>(root_index)];
         for (std::size_t point = 0; point < static_cast<std::size_t>(order_); ++point) {
           sum_4 += root_weights[point] * own_4[point];
-          if (coarse_root) sum_2 += root_weights[point] * own_2[point];
+          if (coarse_average && coarse_root) sum_2 += root_weights[point] * own_2[point];
         }
       }
       total_4 *= sum_4 / grid;
       total_2 *= sum_2 / 2.0L;
     }
-    if (!(total_2 > 0.0L) || !std::isfinite(total_2) ||
-        !(total_4 > 0.0L) || !std::isfinite(total_4)) return false;
-    *log_average_2 = static_cast<double>(std::log(total_2));
+    if (!(total_4 > 0.0L) || !std::isfinite(total_4)) return false;
+    if (coarse_average) {
+      if (!(total_2 > 0.0L) || !std::isfinite(total_2)) return false;
+      *log_average_2 = static_cast<double>(std::log(total_2));
+    }
     *log_average_4 = static_cast<double>(std::log(total_4));
     return true;
   }
@@ -3921,7 +3928,6 @@ class FactorTensorRung {
   }
 
   bool direct() const { return direct_; }
-  std::size_t axes() const { return static_cast<std::size_t>(context_.rank); }
   const std::vector<double> &mean() const { return mean_; }
 
   // The value factor_rule_log_integral returns for an affordable tensor rule;
@@ -4046,7 +4052,8 @@ class FactorTensorRung {
 
   // The averages over the grid of shifts (m / M) h_a of every axis, M = 2 and
   // M = 4 (the M = 2 grid is the even sub-grid of the other); `gap` holds h_a
-  // per axis. Rank at most two: the average costs M^rank shifted rules.
+  // per axis; a null `log_average_2` skips the M = 2 average. Rank at most two:
+  // the average costs M^rank shifted rules.
   bool refined(const std::vector<double> &gap, double *log_average_2,
                double *log_average_4) const
   {
@@ -4071,6 +4078,7 @@ class FactorTensorRung {
       if (coarse) values_2.push_back(values_4[point]);
     }
     *log_average_4 = factor_log_mean(values_4, static_cast<int>(values_4.size()));
+    if (log_average_2 == nullptr) return std::isfinite(*log_average_4);
     *log_average_2 = factor_log_mean(values_2, static_cast<int>(values_2.size()));
     return std::isfinite(*log_average_2) && std::isfinite(*log_average_4);
   }
@@ -4201,6 +4209,23 @@ class FactorRung {
 
   Path path() const { return path_; }
 
+  // Whether a rung evaluated on `path` has the refinement averages: a nested
+  // forest of depth at most one, or a tensor of rank at most two. Decided from
+  // the path, so a caller can skip evaluating a rung it could not refine.
+  static bool supports_refinement(Path path, const FactorForestPlan &plan, int rank)
+  {
+    if (path == NESTED) return plan.max_depth <= 1;
+    return (path == TENSOR_DIRECT || path == TENSOR_LOG) && rank <= 2;
+  }
+
+  // Whether it has tilted moments: any tensor, or a nested forest of depth at
+  // most one whose axes are all the loading columns.
+  static bool supports_moments(Path path, const FactorForestPlan &plan, int rank)
+  {
+    if (path == TENSOR_DIRECT || path == TENSOR_LOG) return true;
+    return path == NESTED && plan.max_depth <= 1 && plan.effective_rank == rank;
+  }
+
   // Whether the value came from the nested rule with double node products.
   bool lean_used() const { return lean_; }
 
@@ -4255,10 +4280,8 @@ class FactorRung {
   bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
   {
     const std::size_t rank = static_cast<std::size_t>(context_.rank);
-    if (path_ == TENSOR_DIRECT || path_ == TENSOR_LOG) {
-      return tensor_.moments(mean, covariance);
-    }
-    if (path_ != NESTED || plan_.effective_rank != context_.rank) return false;
+    if (!supports_moments(path_, plan_, context_.rank)) return false;
+    if (path_ != NESTED) return tensor_.moments(mean, covariance);
     std::vector<double> axis_mean, axis_covariance;
     if (!nested_.moments(&axis_mean, &axis_covariance)) return false;
     mean->assign(rank, 0.0);
@@ -4278,12 +4301,11 @@ class FactorRung {
   // depth at most one, or a tensor of rank at most two.
   bool refinable() const
   {
-    if (path_ == NESTED) return plan_.max_depth <= 1;
-    return (path_ == TENSOR_DIRECT || path_ == TENSOR_LOG) && context_.rank <= 2;
+    return supports_refinement(path_, plan_, context_.rank);
   }
 
   // Averages over the shift grids (m / M) h_a, M = 2 and 4, in the axis order
-  // of means().
+  // of means(); a null `log_average_2` skips the M = 2 average.
   bool refined(const std::vector<double> &gap, double *log_average_2,
                double *log_average_4) const
   {
@@ -4392,8 +4414,9 @@ bool factor_refinement_certified(
         context.dimension, SELVECTOR_PRODUCT, average_4, relative_tolerance)) {
     return false;
   }
-  double previous_2 = 0.0, previous_4 = 0.0;
-  if (!refined(previous_offset, previous_order, &previous_2, &previous_4)) return false;
+  // only the M = 4 average of the previous rung enters the order check
+  double previous_4 = 0.0;
+  if (!refined(previous_offset, previous_order, nullptr, &previous_4)) return false;
   const double order_change = cluster_relative_change(average_4, previous_4);
   if (!(order_change <= 0.5 * relative_tolerance)) return false;
   *log_value = average_4;
@@ -5658,6 +5681,7 @@ double cpp_selnorm_factor_step_lpdf(
   // proposes from the tilted moments of the finest rung.
   int finest_offset = 0, finest_order = 0, previous_offset = 0, previous_order = 0;
   int finite_rungs = 0;
+  FactorRung::Path finest_path = FactorRung::DECLINED;
   if (vector_rule == SELVECTOR_PRODUCT) {
     // Acceptance by the shift-amplitude certificate. The ladder runs from its
     // first affordable rung; the certificate is consulted only at a rung that
@@ -5676,6 +5700,7 @@ double cpp_selnorm_factor_step_lpdf(
         FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
                         quadrature_offset, quadrature_order, &lean);
         const double current_quadrature = rung.log_integral();
+        finest_path = rung.path();
         if (std::isfinite(current_quadrature)) ++finite_rungs;
         const double current_quadrature_change = rule == 0 ?
           std::numeric_limits<double>::infinity() :
@@ -5707,9 +5732,12 @@ double cpp_selnorm_factor_step_lpdf(
         quadrature_offset += quadrature_order;
       }
       // The ladder rejected every affordable rung. Refine the finest one before
-      // the sparse grid and the randomized fallback.
+      // the sparse grid and the randomized fallback, unless its path has no
+      // refinement (a rank-three tensor, a forest of depth two).
       double refined_value = negative_infinity, refined_change = 0.0;
-      if (previous_order > 0 && factor_refinement_certified(
+      if (previous_order > 0 &&
+          FactorRung::supports_refinement(finest_path, forest, rank) &&
+          factor_refinement_certified(
             context, forest, quadrature_nodes, quadrature_log_weights,
             finest_offset, finest_order, previous_offset, previous_order,
             cost_exponent, relative_tolerance, &refined_value, &refined_change)) {
@@ -5797,8 +5825,7 @@ double cpp_selnorm_factor_step_lpdf(
   // node budget stops at a low order once the rank passes four. That is both a
   // support that is not a forest and one whose forest is a chain, which is what
   // minimum-rank recovery produces. Try the sparse grid before the randomized
-  // fallback; the sequence above is unchanged, so nothing that accepted there
-  // reaches this.
+  // fallback; nothing that accepted above reaches this.
   if (vector_rule == SELVECTOR_PRODUCT && rank >= 3 &&
       (!forest.valid || forest.max_depth + 1 >= rank)) {
     FactorSmolyakLevels levels;
@@ -5859,7 +5886,8 @@ double cpp_selnorm_factor_step_lpdf(
   if (vector_rule == SELVECTOR_PRODUCT) {
     SelNormTiltedMoments finest;
     const SelNormTiltedMoments *moments = proposal_moments;
-    if (moments == nullptr && finite_rungs >= 3 && finest_order > 0) {
+    if (moments == nullptr && finite_rungs >= 3 && finest_order > 0 &&
+        FactorRung::supports_moments(finest_path, forest, rank)) {
       FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
                       finest_offset, finest_order, &lean);
       const double finest_value = rung.log_integral();
@@ -6485,6 +6513,16 @@ bool cpp_selnorm_certificate_probe(
       out->reference_value.push_back(cluster_rule_log_integral(context,
         quadrature_nodes, quadrature_log_weights, offset, order, nullptr, nullptr,
         0, nullptr, shift_delta[k]));
+      double shifted_mean = nan, shifted_variance = nan;
+      cluster_ladder_log_integral(context, quadrature_nodes, quadrature_log_weights,
+        offset, order, &lean, shift_delta[k], &shifted_mean, &shifted_variance);
+      out->shifted_moment_mean.push_back(shifted_mean);
+      out->shifted_moment_variance.push_back(shifted_variance);
+      cluster_rule_log_integral(context, quadrature_nodes, quadrature_log_weights,
+        offset, order, nullptr, nullptr, 0, nullptr, shift_delta[k], &shifted_mean,
+        &shifted_variance);
+      out->reference_shifted_moment_mean.push_back(shifted_mean);
+      out->reference_shifted_moment_variance.push_back(shifted_variance);
     }
     return true;
   }
