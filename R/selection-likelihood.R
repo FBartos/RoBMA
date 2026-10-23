@@ -145,13 +145,25 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' so this is not a rigorous probability interval. Unsupported or unresolved
 #' cases use randomized quasi-Monte Carlo in the dense conditional-normal
 #' representation.
-#' Deterministic candidates additionally resolve finite changed-weight selection
-#' transitions in their actual Gaussian integration coordinates. The node gap
-#' across an interior transition must not exceed its conditional residual SD
-#' divided by the absolute loading. Coupled axes use conservative central node
+#' Under product weights, a deterministic rung of the factor or cluster
+#' quadrature ladder is accepted by a shift-amplitude certificate. Shifting the
+#' nodes of one latent axis by a fraction of the node gap and reweighting leaves
+#' the integral unchanged, so the change of the rule under half and quarter gap
+#' shifts of each axis measures its aliasing error. The rung's successive
+#' changes must be within `relative_tolerance`, the summed shift amplitudes must
+#' not exceed half of it, and, together with the exterior Gaussian mass, they
+#' must fit within it. A rung must also resolve the selection edges: the edge
+#' width (conditional residual SD divided by the absolute loading) is at least
+#' 0.15 times the node gap. When no rung is accepted, tensors of rank at most
+#' two and depth-one forests try the average of the finest rung over four
+#' shifts per axis before sparse grids and the randomized fallback. The
+#' best-p-value rule and the other deterministic routes instead require that the
+#' node gap across an interior transition not exceed its conditional residual SD
+#' divided by the absolute loading; coupled axes use conservative central node
 #' spacing. Unresolved candidates refine or use the existing fallback; the
-#' numerical settings and likelihood target are unchanged. This extra heuristic
-#' does not certify total integration error, including reciprocal normalizers.
+#' numerical settings and likelihood target are unchanged. These checks are
+#' heuristics, not a bound on the total integration error, including reciprocal
+#' normalizers.
 #' Each fit or post-fit request uses a fixed integration design, so repeated
 #' likelihood evaluations are deterministic. One-observation blocks are evaluated
 #' analytically.
@@ -188,11 +200,17 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #'   randomized quasi-Monte Carlo scramble for certified factor
 #'   fallbacks, and the number of shifted Halton points for general covariance
 #'   blocks.
-#'   Factor likelihood-normalizer fallbacks combine the prior Gaussian with
-#'   proposals optimized from zero and selection-boundary starting points.
-#'   Every finite optimized candidate is retained, including candidates that
-#'   locate the same mode. The total count is divided as evenly as possible
-#'   across these proposals, and importance weights use the actual allocation.
+#'   Factor likelihood-normalizer fallbacks under product weights combine the
+#'   prior Gaussian with a Gaussian at the tilted mean and covariance of the
+#'   finest quadrature rung and a copy with 1.5 times its standard deviations,
+#'   where the quadrature provides them (tensors, depth-one forests and
+#'   rank-one clusters with at least three finite rules, exterior mass covered
+#'   and a positive definite covariance). Otherwise, and for the best-p-value
+#'   rule, they combine the prior Gaussian with proposals optimized from zero
+#'   and selection-boundary starting points. Every finite optimized candidate is
+#'   retained, including candidates that locate the same mode. The total count
+#'   is divided as evenly as possible across the proposals, and importance
+#'   weights use the actual allocation.
 #'   Odd likelihood-normalizer factor budgets use the next even total because
 #'   the fixed design uses two streams. This count
 #'   is the initial nested-design budget, not an accuracy guarantee. The
@@ -218,8 +236,14 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #'   to satisfy this tolerance. Factor quadrature also checks exterior Gaussian
 #'   mass before accepting rule agreement; an unresolved rule sequence uses the
 #'   existing QMC fallback. The returned deterministic candidate also requires
-#'   selection-transition resolution; coarser comparison rules retain their
-#'   actual values without an added resolution requirement. Zplot projections additionally check density error
+#'   its shift-amplitude certificate under product weights (summed shift
+#'   amplitudes within half of this tolerance and, with the exterior mass,
+#'   within the tolerance) or, on the other routes, selection-transition
+#'   resolution; coarser comparison rules retain their actual values without an
+#'   added resolution requirement. The randomized fallback stops when the larger
+#'   of its relative change and its relative Monte Carlo standard error (one
+#'   standard error) is within this tolerance, which does not bound the error of
+#'   the accepted value. Zplot projections additionally check density error
 #'   relative to the peak within each posterior draw and raw normalizer-mass
 #'   diagnostics, including their bounded approximation and omission terms.
 #'   These diagnostics do not certify the total integrated error of a compressed
