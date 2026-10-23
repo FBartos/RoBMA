@@ -193,11 +193,17 @@
   # 3. Nodes, extended where estimated rows need it. The extension values in
   # the reserve are requests of the call-owned grids; the rest (and every value
   # without grids) is evaluated directly, and values the joint density cannot
-  # evaluate are left missing, which ends the extension there.
+  # evaluate are left missing, which ends the extension there. A condition
+  # thrown at a value is a construction failure, as at the initial nodes.
   evaluate_directly <- function(values) {
 
-    log_q <- .iwmde_qcmde_try_log_q(direct, parameter, values, row_states,
-                                    replacement)
+    log_q <- tryCatch(
+      .iwmde_qcmde_try_log_q(direct, parameter, values, row_states,
+                             replacement),
+      error = function(e) {
+        .iwmde_qcmde_stop_grid_failure(e, parameter, estimator_rows)
+      }
+    )
     if (!is.null(log_q)) {
       record_prior(values, log_q)
     }
@@ -602,6 +608,24 @@
 }
 
 
+# A condition thrown by the joint density at qCMDE grid values is a construction
+# failure of the target, whichever values (initial nodes, midpoints or extension
+# nodes) it was thrown at; a construction failure is re-signalled unchanged.
+.iwmde_qcmde_stop_grid_failure <- function(error, parameter, estimator_rows) {
+
+  if (inherits(error, "iwmde_construction_error")) {
+    stop(error)
+  }
+  .iwmde_stop_construction_failure(
+    estimator = "q_grid_cmde",
+    parameter = parameter,
+    rows      = estimator_rows,
+    stage     = "joint-density grid evaluation",
+    detail    = conditionMessage(error)
+  )
+}
+
+
 # Evaluate values of the joint density of the rows, as a normalization pass
 # does: a failure is a construction failure of the target, and the values are
 # validated.
@@ -617,16 +641,7 @@
       replacement = replacement
     ),
     error = function(e) {
-      if (inherits(e, "iwmde_construction_error")) {
-        stop(e)
-      }
-      .iwmde_stop_construction_failure(
-        estimator = "q_grid_cmde",
-        parameter = parameter,
-        rows      = estimator_rows,
-        stage     = "joint-density grid evaluation",
-        detail    = conditionMessage(e)
-      )
+      .iwmde_qcmde_stop_grid_failure(e, parameter, estimator_rows)
     }
   )
   .iwmde_validate_log_grid(

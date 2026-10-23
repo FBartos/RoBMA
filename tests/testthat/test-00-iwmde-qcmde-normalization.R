@@ -416,6 +416,29 @@ test_that("normalization failures propagate instead of retrying optional grids",
   }
 })
 
+test_that("a thrown failure at directly evaluated extension nodes is a construction failure", {
+
+  failures <- lapply(c("programming_error", "memory_error", "refit_required"), function(kind) {
+    structure(list(message = paste("synthetic", kind), call = NULL),
+      class = c(kind, "error", "condition"))
+  })
+  for (failure in failures) {
+    # Without call-owned grids every extension node and midpoint is evaluated
+    # directly; the display values, the initial nodes and their midpoints lie
+    # within [-1, 1], so the joint call that holds them does not throw.
+    rows <- function(values) {
+      if (all(abs(values) > 1.001)) stop(failure)
+      .qcmde_pass_laplace_rows(values)
+    }
+    observed <- tryCatch(.qcmde_pass_run(rows, c(-1, 1), 41L,
+      display_grid = c(-.3, .4)), error = identity)
+    expect_s3_class(observed, "iwmde_construction_error")
+    message <- if (inherits(observed, "condition")) conditionMessage(observed) else ""
+    expect_match(message, failure$message, fixed = TRUE)
+    expect_match(message, "joint-density grid evaluation", fixed = TRUE)
+  }
+})
+
 test_that("optional extension evaluation preserves value declines and thrown conditions", {
 
   evaluate <- function() .iwmde_qcmde_try_log_q(list(), "mu", c(0, 1),

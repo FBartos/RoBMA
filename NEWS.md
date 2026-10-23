@@ -43,7 +43,9 @@
 - GLMM AGHQ failure messages name the public `prior_baserate` and
   `prior_lograte` arguments; IWMDE diagnostic messages report percentages and
   counts compactly and give one remedy; density construction errors also
-  carry the class `RoBMA_density_error`.
+  carry the class `RoBMA_density_error`. A condition thrown by the joint density
+  at the extension nodes of a qCMDE normalization is reported as such a
+  construction error, as it already was at the initial nodes.
 - Restore the runtime of binomial GLMM AGHQ with non-uniform beta baserate
   priors, multilevel BLUP and true-effect
   evaluation, sampling-conditioned tail and moment targets, whitened known-V
