@@ -260,3 +260,101 @@ test_that("the columns of a contour are inverted in groups of the same cancellin
   expect_equal(c(together[["lower"]][[1L]], together[["upper"]][[1L]]), expected,
                tolerance = 1e-8)
 })
+
+
+test_that("each expanded draw gets the quadrature order of its own ratio", {
+
+  # Conditioned-to-integrated ratios of .5, 1.5 and 2.2 (the largest over the two
+  # columns of a draw) need 49, 73 and 107 nodes. The rows hold the nodes and
+  # weights of each draw's own rule, not the rule of the most extreme draw.
+  setup <- .funnel_zero_setup(c(0, .1, -.1), integrated = rep(1, 3), conditioned = rep(0, 3),
+    retains_sampling = FALSE)
+  integrated_sd  <- matrix(1, 3L, 2L)
+  conditioned_sd <- cbind(c(.5, 1.5, 2.2), c(.2, 1, 2))
+  location       <- cbind(c(0, .1, -.1), c(.05, .15, -.05))
+  orders <- vapply(1:3, function(draw) .funnel_conditioned_order(
+    integrated_sd[draw, , drop = FALSE], conditioned_sd[draw, , drop = FALSE]), integer(1L))
+  expect_identical(orders, c(49L, 73L, 107L))
+
+  expansion <- .funnel_conditioned_expansion(location, integrated_sd, conditioned_sd, setup)
+  expect_identical(nrow(expansion[["mean"]]), sum(orders))
+  expect_identical(nrow(expansion[["sd"]]), sum(orders))
+  expect_equal(sum(expansion[["weights"]]), 1)
+  expect_identical(expansion[["selected_rows"]], rep(TRUE, sum(orders)))
+
+  rows <- do.call(rbind, lapply(1:3, function(draw) {
+    rule <- .gauss_hermite_nodes(orders[[draw]])
+    cbind(
+      mean   = outer(rule[["nodes"]], conditioned_sd[draw, ]) +
+        matrix(location[draw, ], orders[[draw]], 2L, byrow = TRUE),
+      sd     = matrix(integrated_sd[draw, ], orders[[draw]], 2L, byrow = TRUE),
+      weight = rule[["weights"]] / sum(rule[["weights"]]) / 3
+    )
+  }))
+  observed <- cbind(expansion[["mean"]], expansion[["sd"]], expansion[["weights"]])
+  sort_rows <- function(x) unname(x[do.call(order, as.data.frame(x)), ])
+  expect_equal(sort_rows(observed), sort_rows(rows), tolerance = 1e-14)
+
+  # Draws that share an order share one rule: a single group is the plain rule.
+  same <- .funnel_conditioned_expansion(location[1L, , drop = FALSE],
+    integrated_sd[1L, , drop = FALSE], conditioned_sd[1L, , drop = FALSE],
+    .funnel_zero_setup(0, integrated = 1, conditioned = 0, retains_sampling = FALSE))
+  expect_identical(nrow(same[["mean"]]), 49L)
+})
+
+
+test_that("per-draw quadrature orders keep the band within the order-401 reference", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # Six draws with ratios from .3 to 2.5 need orders from 49 to 121. The
+  # reference gives every draw the largest order the rule allows (401).
+  se <- c(.1, .2)
+  ratio <- c(.3, .6, 1, 1.5, 2, 2.5)
+  integrated  <- rep(.03, 6L)
+  conditioned <- (ratio * sqrt(integrated + se[[1L]]^2))^2
+  setup <- .funnel_zero_setup(seq(-.2, .3, length.out = 6L), integrated = integrated,
+    conditioned = conditioned, retains_sampling = FALSE)
+
+  calls <- new.env()
+  calls$rows <- integer()
+  original <- .plot_mixture_quantiles_native
+  testthat::local_mocked_bindings(
+    .plot_mixture_quantiles_native = function(mean_samples, ...) {
+      calls$rows <- c(calls$rows, nrow(mean_samples))
+      original(mean_samples = mean_samples, ...)
+    },
+    .package = "RoBMA"
+  )
+  band <- .funnel_model_averaged_quantiles_native(se[[1L]], setup, "positive")
+  sd_integrated  <- rep(sqrt(.03 + se[[1L]]^2), 6L)
+  sd_conditioned <- ratio * sd_integrated
+  expect_identical(calls$rows, sum(vapply(seq_len(6L), function(draw) {
+    .funnel_conditioned_order(sd_integrated[draw], sd_conditioned[draw])
+  }, integer(1L))))
+  expect_identical(calls$rows, 49L * 3L + 73L + 97L + 121L)
+
+  reference <- testthat::with_mocked_bindings(
+    .funnel_model_averaged_quantiles_native(se[[1L]], setup, "positive"),
+    .funnel_conditioned_order = function(...) 401L,
+    .package = "RoBMA"
+  )
+  expect_lt(max(abs(unlist(band) - unlist(reference))), 4e-8)
+})
+
+
+test_that("a draw that no quadrature order resolves refuses the whole expansion", {
+
+  # One draw of ratio 9 beside draws of ratio .5: the refusal names the largest
+  # ratio and no node is built, as when every draw is expanded with one order.
+  setup <- .funnel_zero_setup(c(0, .1), integrated = c(1, 1), conditioned = c(0, 0),
+    retains_sampling = FALSE)
+  testthat::local_mocked_bindings(
+    .gauss_hermite_nodes = function(...) stop("Node expansion must not start."),
+    .package = "RoBMA")
+  condition <- tryCatch(.funnel_conditioned_expansion(matrix(c(0, .1)),
+    matrix(1, 2L, 1L), matrix(c(.5, 9), 2L, 1L), setup), error = identity)
+  expect_s3_class(condition, "RoBMA_funnel_quadrature_rejected")
+  expect_identical(condition$ratio, 9)
+  expect_identical(condition$required_order, 433)
+})

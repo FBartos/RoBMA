@@ -517,7 +517,9 @@
 # that each carry their own normalizer. The posterior mixture the native
 # inverter already evaluates normalizes every component on its own, so the
 # mixture is obtained by widening the draw set with a Gauss-Hermite rule on the
-# conditioned offset rather than by a new kernel.
+# conditioned offset rather than by a new kernel. The order of the rule follows
+# the ratio of the draw (see .funnel_conditioned_order()), so draws with the
+# same order share one rule and a few extreme draws do not set the rows of all.
 #
 # With no conditioned variance the expansion is the identity and the previous
 # contour is reproduced exactly.
@@ -587,18 +589,43 @@
   sd        <- mean
   node_weight <- numeric()
   if (length(expanded) > 0L) {
-    order <- .funnel_conditioned_order(
+    # The order is checked once for all expanded draws, so that a draw that no
+    # rule resolves is refused with the largest ratio before any node is built.
+    .funnel_conditioned_order(
       integrated_sd[expanded, , drop = FALSE],
       conditioned_sd[expanded, , drop = FALSE]
     )
-    rule <- .gauss_hermite_nodes(order)
-    node_weights <- rule[["weights"]] / sum(rule[["weights"]])
-    index <- rep(expanded, times = length(rule[["nodes"]]))
-    mean  <- location[index, , drop = FALSE] +
-      rep(rule[["nodes"]], each = length(expanded)) *
-      conditioned_sd[index, , drop = FALSE]
-    sd    <- integrated_sd[index, , drop = FALSE]
-    node_weight <- rep(node_weights, each = length(expanded))
+    # Each draw gets the order its own ratio needs and the draws with the same
+    # order share one rule: most draws need the floor, and the single most
+    # extreme draw would otherwise set the order (and the rows the native
+    # inverter evaluates) of all of them.
+    orders <- vapply(expanded, function(draw) {
+      .funnel_conditioned_order(
+        integrated_sd[draw, , drop = FALSE],
+        conditioned_sd[draw, , drop = FALSE]
+      )
+    }, integer(1L))
+    n_rows      <- sum(orders)
+    index       <- integer(n_rows)
+    mean        <- matrix(0, nrow = n_rows, ncol = ncol(location))
+    sd          <- mean
+    node_weight <- numeric(n_rows)
+    filled      <- 0L
+    for (order in sort(unique(orders))) {
+      draws <- expanded[orders == order]
+      rule  <- .gauss_hermite_nodes(order)
+      rows  <- filled + seq_len(length(draws) * order)
+      group <- rep(draws, times = order)
+      index[rows] <- group
+      mean[rows, ] <- location[group, , drop = FALSE] +
+        rep(rule[["nodes"]], each = length(draws)) *
+        conditioned_sd[group, , drop = FALSE]
+      sd[rows, ] <- integrated_sd[group, , drop = FALSE]
+      node_weight[rows] <- rep(
+        rule[["weights"]] / sum(rule[["weights"]]), each = length(draws)
+      )
+      filled <- filled + length(rows)
+    }
   }
 
   # The expanded matrices are the largest objects of a model-averaged funnel
@@ -624,7 +651,9 @@
 # order has to grow with their ratio. The constant comes from a convergence
 # sweep: at standard-deviation ratios of 1, 2, 3, 4 and 6 the resulting orders
 # hold the band to better than 4e-8 against a 501-node rule, where a fixed
-# 21-node rule drifted to 3e-2 at the widest ratio.
+# 21-node rule drifted to 3e-2 at the widest ratio. The expansion applies the
+# rule to the ratio of each draw; a call over several draws gives the order of
+# the largest ratio and refuses what no rule resolves.
 .funnel_conditioned_order <- function(integrated_sd, conditioned_sd,
                                       minimum = 21L, maximum = 401L) {
 

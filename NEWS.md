@@ -142,6 +142,14 @@
   its peak memory grows about 3 times more slowly with the number of posterior
   draws (1.06 to 0.51 GB at 1000 draws of the 100-estimate `assink2016` model).
   Densities are unchanged.
+- Model-averaged selection funnel contours with a conditioned variance source
+  give each posterior draw the quadrature order of its own conditioned-to-
+  integrated ratio instead of the order of the most extreme draw, which set the
+  number of rows of all of them: `bfunnel()` of 10,000 draws of the
+  `assink2016` model runs in about 235 instead of 404 to 496 s (two
+  realizations of the fit), and its cost no longer depends on the most extreme
+  draw. The contours
+  move by at most 4.3e-11, within the accuracy of the quadrature rule.
 - Partial selection events validate their required geometry and selected-response
   simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and
