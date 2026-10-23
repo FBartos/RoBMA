@@ -170,7 +170,7 @@ bound for nonmonotone weights. Covariance error,
 quadrature change, and exterior Gaussian mass share the existing error budget;
 unresolved evaluations retain QMC and its diagnostics.
 
-Deterministic acceptance also requires selection-transition resolution in the
+The per-transition rule requires selection-transition resolution in the
 actual standardized Gaussian axes: changed finite cutoff centers use the
 supplied signed mean, selection SE and loading; their bracketing node gaps must
 not exceed residual SD divided by absolute loading. Coupled axes use maximum
@@ -180,17 +180,116 @@ singleton child variance absorbed exactly adds no child axis. Exterior factors
 remain owned by existing tail gates. Check the returned candidate, preserving
 actual previous-rule values/offsets without requiring resolved comparands.
 Precheck the finest available/affordable rule and retain existing fallback or
-unavailability, truthful measured diagnostics and unchanged budgets.
+unavailability, truthful measured diagnostics and unchanged budgets. The rule
+checks each axis, not the product of coincident transitions, which sharpens
+with their number (80 identical rows with loadings (0.496441, 0.542314),
+residual SD 0.246872, mean -2.125758, selection SE 1, cutoff 0 and weights
+(1, .01) pass it with relative error 1.04e-2). It decides the weight rule
+`best`, the Smolyak sparse grid, the dense envelope ladder, the zplot density
+mirrors, the funnel/zcurve cells and the sampling-conditioned scalar ladders.
+The deterministic ladders of the factor and cluster kernels under `product`
+weights use the shift-amplitude certificate below instead, for fitting nodes,
+post-fit batches and the estimate-deletion delegation alike (`tol` is
+`relative_tolerance`, default 0.005).
 
-Known limits of this rule: it checks each axis, not the product of coincident
-transitions, which sharpens with their number (80 identical rows with loadings
-(0.496441, 0.542314), residual SD 0.246872, mean -2.125758, selection SE 1,
-cutoff 0 and weights (1, .01) are accepted deterministically with relative
-error 1.04e-2; with the mean rounded to -2.13 they reach the fallback). The
-randomized fallback is not calibrated for such products either: forced onto it,
-the same rows passed both its MCSE and change diagnostics for 11 of 40 design
-seeds, all with errors of 2-6%. Replacing the rule needs a criterion validated
-against both (review 35).
+- Shifted rule: moving the nodes of one latent axis by `d` and multiplying its
+  weights by `exp(-d x - d^2/2)` is an exact change of variables. The shifted
+  rule estimates the same integral and differs from the rung by the aliasing
+  error at another lattice phase. Weights are not renormalized. A shifted copy
+  builds its own weights and never reads precomputed unshifted ones.
+- Shifts and groups: every latent axis is its own group in every structure
+  (tensor axes, the root and each leaf of a forest, the axis of a rank-one
+  cluster) and is shifted by half and by a quarter of the node gap around the
+  rung's own tilted mean of that axis (the gap of the interval containing it;
+  the first or last gap outside the nodes, the gap to its right on a node).
+  Means and shifted values come from the evaluator that produced the rung
+  value. A leaf shift recomputes only that leaf's inner integrals and reuses
+  the other messages, a root shift its tree; forests deeper than one level
+  re-evaluate fully. Leaves are never shifted together, which hides leaf-leaf
+  aliasing (a valid 371-row depth-one forest was accepted that way with
+  relative error 1.0e-2).
+- Amplitude: with `e2 = expm1(q_half - q0)` and `e4 = expm1(q_quarter - q0)`
+  per group, `amp = sqrt((e2/2)^2 + (e2/2 - e4)^2)` is the amplitude of the
+  first harmonic of that group's aliasing error, sampled at three phases. The
+  half shifts of all groups come first; when `sum |e2|/2 > tol/2` the rung is
+  rejected without the quarter shifts, which cannot change that decision.
+- Acceptance: the ladder starts at its first affordable rung (no precheck or
+  exact start) and accepts the first rung that passes, in order, a finite
+  value, the successive relative changes (factor: current and previous;
+  cluster: current), the exterior-mass tail gate, the sharpness gate,
+  `sum amp <= tol/2` and the combined allowance
+  `tail_bound + 2 sum amp <= tol/(1+tol)`, with `tail_bound` the relative bound
+  the tail gate compares. The accepted rung's own value is returned. A block
+  without transitions has amplitude zero and evaluates no shifts. The factor 2
+  is the measured envelope of error over amplitude on gated rungs, not a bound.
+- Sharpness gate: the amplitude assumes that the first harmonic dominates. An
+  edge much narrower than the node gap makes the error sawtooth-like, with
+  harmonics the three phases cannot see (native blocks with edge width over
+  gap of 0.02-0.1 were accepted with errors up to 2.0e-2). A rung is certified
+  only when the per-transition rule resolves its transitions with every step
+  width relaxed by `1/0.15`: edge width (residual SD over absolute loading) at
+  least 0.15 times the node gap. Gated rungs showed error over amplitude up to
+  1.76 in scans, and searches of the whole gated ladder found no accepted
+  error above 77% of `tol`. The gate is conservative: sharp blocks go on to the
+  next stage even when a deeper rule would be accurate.
+- Refinement tier: when the ladder rejects every affordable rung, tensors of
+  rank at most two and forests of depth at most one try, before Smolyak and
+  the randomized fallback, the average of the finest affordable rung over the
+  shifts `(m/4) h` per axis, `m = 0..3` and `h` the gap above, which keeps only
+  aliasing harmonics that are multiples of 4 (leaves are averaged
+  independently per leaf at each root shift, then multiplied). It is accepted
+  when this average agrees within `tol/2` with the average over `(m/2) h` and
+  with the same average at the previous affordable rung, and the tail gate holds
+  for it; the result has relative change the larger check and relative MCSE 0.
+  Every evaluation passes the node budget. The tier's sharpness gate asks for
+  an edge width of at least `sqrt(max(1, 2 log N)) / 8` times the node gap,
+  `N` the largest number over the axes of transition rows loading on one axis:
+  a wall of `N` coincident steps is narrower than one step by about that
+  factor and keeps a harmonic-4 error (up to 44% over `tol`) that neither
+  check sees. Averaging eight shifts instead does not remove it. The cluster
+  kernel has no tier.
+- Randomized fallback: for `product` weights the proposals are the prior, a
+  Gaussian with the tilted mean and full covariance of the finest evaluated
+  rung (tensor: weighted moments; depth-one forest: from the messages;
+  rank-one cluster: its own finest rung, handed to the factor kernel) and a copy
+  with standard deviations times 1.5. They require a tensor, depth-one forest or
+  rank-one cluster, at least three finite rungs, a finest rung that passes the
+  tail gate (moments of a rule that misses the selected mode say nothing about
+  it) and a positive definite covariance; every other block, and `best`, keep
+  the optimized Laplace proposals. Budgets and diagnostics are unchanged, and
+  the stop is `max(relative MCSE, relative change) <= tol`, a one-sigma rule.
+- Last-evaluation memo: JAGS evaluates a node first at its current value, so
+  about 17% of the node calls repeat the previous one. Each factor and cluster
+  step node keeps owned copies of every input of a deterministic result (`x`,
+  all parameter arrays including the quadrature tables, scalar controls, dims
+  and flags) and its log density, and answers a call only when every stored
+  value is equal (pointer identity never suffices: JAGS mutates in place). The
+  QMC design is not an input. Only results the kernel flags `deterministic`
+  (ladders, tier, sparse grid; the batch results carry the flag as an attribute
+  of that name) are stored, never a randomized, non-finite or thrown one. The
+  memo is a function-local map keyed by node, never deleted, and cleared above
+  4096 keys; `ROBMA_SELNORM_NODE_MEMO=0`, read once per process, disables it.
+  Draws are bitwise identical with and without it.
+- Lean arithmetic: the nested-forest rung with its shifted copies and the
+  rank-one cluster rung accumulate node products in double. A row's node
+  normalizers are computed into a call-owned workspace and all validated (the
+  checks of the batch normalizer routine) before any is multiplied, so a failed
+  row leaves the products untouched. An evaluation (a rung or one shifted
+  copy) with a failed check, a node product outside `[2^-960, 2^960]` or rows
+  whose smallest positive weight cannot stay in that range (skipped up front)
+  is repeated unchanged in long double. Values agree to 1e-13 relative. Tensor
+  direct sums, the tier, `best` and projection paths keep long double, and no
+  scratch is static (the batch entries are threaded).
+
+Known limits: blocks routed to the Smolyak grid (chains of rank three or more
+and other supports the certificate rejects) keep the per-transition rule, so
+coincident transitions remain unchecked there. The amplitude and its allowance
+are measured envelopes, validated by random, adversarial and hill-climbing
+searches, not a proof. The qCMDE normalizer grid anchors its error at
+`2 * relative_change` (`R/selection-normalizer-grid.R`), which is not an error
+bound for the accepted value. The one-sigma QMC stop is not calibrated: about
+one accepted randomized run in five on blocks deferred by the deterministic
+stages was outside `tol`.
 
 Retained-latent density has separate population-forward, conditional response-
 root interpolation and direct conditional routes. Sampling density uses its
