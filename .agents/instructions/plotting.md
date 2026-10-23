@@ -120,11 +120,10 @@ Use the prediction notation and two-axis contract in
 [multivariate-targets.md](multivariate-targets.md).
 Regression/forest prediction intervals, normal-model outcome-mode funnel
 contours, and default z-plots target marginal new effects or responses.
-Regplot's scalar-intercept pointwise replay fallback matches only
-`BayesTools_prediction_new_rows_unavailable` with reason
-`posterior_indexed_row_source`. Mapping, source, monitoring and callback errors
-stay strict. Its covariance adapter supplies no implicit fitted-row mapping;
-an evaluable scale-source callback may support a new grid directly.
+Regplot's covariance adapter supplies no implicit fitted-row mapping; the
+row-indexed scale-source callback of the fitted design evaluates a new grid
+directly, and prediction, mapping, source, monitoring and callback errors
+propagate unchanged.
 GLMM funnel contours and regression sampling bands are explicitly descriptive
 normal effect-size approximations, not discrete response predictions.
 Plug-in funnel heterogeneity uses the within-model RMS SD, with integrated and

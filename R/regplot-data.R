@@ -650,42 +650,24 @@
       type           = "estimate",
       include_random = TRUE
     )
-    prediction <- tryCatch(
-      .brma_mv_random_effects_marginal_vcov(
-        object            = x,
-        posterior_samples = posterior_samples,
-        blocks            = sampled_blocks,
-        diagonal_only     = TRUE,
-        data              = prediction_data,
-        new_levels        = "sample"
-      ),
-      BayesTools_prediction_new_rows_unavailable = function(e) {
-        if (identical(e[["reason"]], "posterior_indexed_row_source") &&
-            .regplot_mv_random_intercept_only(x)) {
-          return(NULL)
-        }
-        stop(e)
-      }
+    prediction <- .brma_mv_random_effects_marginal_vcov(
+      object            = x,
+      posterior_samples = posterior_samples,
+      blocks            = sampled_blocks,
+      diagonal_only     = TRUE,
+      data              = prediction_data,
+      new_levels        = "sample"
     )
-
-    if (is.null(prediction)) {
-      return(.regplot_mv_random_pointwise_total_sd_samples(
-        x                 = x,
-        newdata           = newdata,
-        posterior_samples = posterior_samples
-      ))
-    } else {
-      sampled_variance <- .brma_mv_validate_random_marginal_variance_samples(
-        random_vcov = prediction,
-        S           = nrow(posterior_samples),
-        K           = nrow(newdata)
-      )
-      sampled_variance <- .regplot_validate_variance(
-        sampled_variance,
-        "Sampled random-effect variance"
-      )
-      variance <- variance + sampled_variance
-    }
+    sampled_variance <- .brma_mv_validate_random_marginal_variance_samples(
+      random_vcov = prediction,
+      S           = nrow(posterior_samples),
+      K           = nrow(newdata)
+    )
+    sampled_variance <- .regplot_validate_variance(
+      sampled_variance,
+      "Sampled random-effect variance"
+    )
+    variance <- variance + sampled_variance
   }
 
   marginalized_variance <- .regplot_mv_marginalized_variance_samples(
@@ -720,51 +702,6 @@
   }
 
   return(variance)
-}
-
-
-.regplot_mv_random_intercept_only <- function(x) {
-
-  design <- .fitted_formula_design(x, "mu", required = TRUE)
-  terms  <- design[["random_effects"]]
-  if (length(terms) == 0L) {
-    return(FALSE)
-  }
-
-  all(vapply(terms, function(term) {
-    model_matrix <- term[["model_matrix"]]
-    identical(as.integer(term[["n_columns"]]), 1L) &&
-      is.matrix(model_matrix) &&
-      ncol(model_matrix) == 1L &&
-      all(is.finite(model_matrix)) &&
-      all(model_matrix[, 1L] == 1)
-  }, logical(1)))
-}
-
-
-.regplot_mv_random_pointwise_total_sd_samples <- function(x, newdata,
-                                                         posterior_samples) {
-
-  if (!.is_scale(x)) {
-    stop(
-      "regplot() cannot compute newdata random-effect bands for this ",
-      "row-indexed random-formula model because it has no scale formula to ",
-      "replay on the prediction grid.",
-      call. = FALSE
-    )
-  }
-
-  # Every declared block contributes its own variance once; the total is not
-  # the heterogeneity of one common scale component.
-  design <- .fitted_formula_design(x, "mu", required = TRUE)
-  variance <- .regplot_mv_block_variance_samples(
-    x                 = x,
-    newdata           = newdata,
-    posterior_samples = posterior_samples,
-    terms             = design[["random_effects"]]
-  )
-
-  return(.regplot_variance_sd(variance, "Combined random-effect variance"))
 }
 
 

@@ -89,8 +89,6 @@
   named and unnamed term vectors, including recursive child allocations.
 - RoBMA-owned parameter draws validate the complete selection wrapper and row
   against fresh public catalog resolution before using its current recipe.
-- Regression-plot fallback matches the declared new-row capability condition;
-  unrelated prediction and callback errors retain their original identity.
 - Bridge rank refusals retain the upstream sample diagnostics and give
   reason-specific RoBMA remedies without promising that more draws cure dependence.
 - Marginal-likelihood documentation distinguishes finite availability from

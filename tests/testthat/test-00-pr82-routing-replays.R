@@ -145,62 +145,6 @@ test_that("a selected outcome funnel needs one common source split", {
   )
 }
 
-# Genuine BayesTools public prediction failures; the regplot adapter does not
-# supply fitted_rows, so transporting this leaf tests its narrow handler seam.
-.regplot_row_source_conditions <- function() {
-
-  df <- data.frame(id = factor(c("a", "a", "b", "b"), levels = c("a", "b")))
-  result <- BayesTools::JAGS_formula(
-    ~ 1 + random(1 | id, name = "id", covariance = "diag"),
-    parameter = "mu", data = df,
-    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
-    prior_random = BayesTools::prior_random(id = BayesTools::random_block(
-      sd_source = BayesTools::random_sd_source("tau", shape = "row"))))
-  term <- result$formula_design$random_effects[[1L]]
-  latent <- as.vector(BayesTools:::.bt_random_effect_latent_names(
-    term, term$n_groups, term$n_columns))
-  posterior <- matrix(c(0, 2, 4, 6, 8, 1, 3), nrow = 1L,
-    dimnames = list(NULL, c("mu_intercept", paste0("tau[", 1:4, "]"), latent)))
-  new_data <- data.frame(id = factor(c("a", "new", "new"), levels = c("a", "b", "new")))
-  call_prediction <- function(mapping = c(1L, 2L, 3L), p = posterior,
-                              data = new_data, conditional = FALSE) {
-    fit <- coda::mcmc(p)
-    attr(fit, "formula_design") <- list(mu = result$formula_design)
-    tryCatch(BayesTools::JAGS_predict_formula(fit, parameter = "mu", data = data,
-      prior_list = result$prior_list, fitted_rows = mapping, new_levels = "zero",
-      formula_target = if (conditional) "conditional" else "marginal",
-      marginal_method = "covariance"), error = identity)
-  }
-  leaf <- call_prediction()
-  stopifnot(inherits(leaf, "BayesTools_prediction_new_rows_unavailable"),
-    identical(leaf$reason, "posterior_indexed_row_source"))
-  negatives <- lapply(list(NULL, c(1L, 2L), c(1L, 2L, 5L), c(1, 2, 1.5)), call_prediction)
-  fitted_data <- df[c(4L, 2L, 2L), , drop = FALSE]
-  for (value in c(-1, NA_real_)) {
-    bad <- posterior
-    bad[, "tau[4]"] <- value
-    negatives[[length(negatives) + 1L]] <- call_prediction(c(4L, 2L, 2L), bad, fitted_data)
-  }
-  negatives[[length(negatives) + 1L]] <- call_prediction(c(4L, 2L, 2L),
-    posterior[, colnames(posterior) != "tau[4]", drop = FALSE], fitted_data)
-  negatives[[length(negatives) + 1L]] <- call_prediction(c(4L, 2L, 2L),
-    posterior[, !colnames(posterior) %in% latent, drop = FALSE], fitted_data, TRUE)
-  same_message <- simpleError(conditionMessage(leaf))
-  negatives[[length(negatives) + 1L]] <- same_message
-  negatives[[length(negatives) + 1L]] <- simpleError("JAGS_bridgesampling() row-indexed external SD source 'tau'.")
-  for (reason in list("other", NULL, NA_character_, c("posterior_indexed_row_source", "other"))) {
-    other <- leaf
-    other["reason"] <- list(reason)
-    negatives[[length(negatives) + 1L]] <- other
-  }
-  parent_only <- leaf
-  class(parent_only) <- setdiff(class(parent_only), "BayesTools_prediction_new_rows_unavailable")
-  negatives[[length(negatives) + 1L]] <- parent_only
-  negatives[[length(negatives) + 1L]] <- simpleError("Callback programming failure.")
-  stopifnot(all(vapply(negatives, inherits, logical(1), "error")))
-  list(leaf = leaf, negatives = negatives)
-}
-
 test_that("regplot counts the allocated variance of a common scale once", {
 
   replay <- .regplot_nested_replay(~ x, function(draws) {
@@ -222,23 +166,6 @@ test_that("regplot counts the allocated variance of a common scale once", {
   expect_equal(unname(marginalized), .2 * tau^2, tolerance = 1e-12)
   total <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
   expect_equal(unname(total^2), unname(tau^2), tolerance = 1e-12)
-
-  # The pointwise fallback sums the same block-owned variances.
-  original <- .regplot_row_source_conditions()
-  testthat::local_mocked_bindings(
-    .brma_mv_random_effects_marginal_vcov = function(...) {
-      stop(original$leaf)
-    },
-    .package = "RoBMA"
-  )
-  fallback <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
-  expect_equal(unname(fallback^2), unname(tau^2), tolerance = 1e-12)
-  for (condition in original$negatives) {
-    testthat::local_mocked_bindings(.brma_mv_random_effects_marginal_vcov = function(...) stop(condition),
-      .package = "RoBMA")
-    expect_identical(tryCatch(.regplot_mv_random_sd_samples(object, grid[["newdata"]], samples),
-      error = identity), condition)
-  }
 })
 
 test_that("regplot evaluates a component-specific scale on the prediction grid", {
@@ -263,31 +190,11 @@ test_that("regplot evaluates a component-specific scale on the prediction grid",
   total <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
   expect_equal(unname(total^2), unname(study_variance + tau_esid^2), tolerance = 1e-12)
 
-  original <- .regplot_row_source_conditions()
-  testthat::local_mocked_bindings(
-    .brma_mv_random_effects_marginal_vcov = function(...) {
-      stop(original$leaf)
-    },
-    .package = "RoBMA"
-  )
-  fallback <- .regplot_mv_random_sd_samples(object, grid[["newdata"]], samples)
-  expect_equal(unname(fallback^2), unname(study_variance + tau_esid^2), tolerance = 1e-12)
-})
-
-test_that("regplot capability fallback refuses genuine random slopes", {
-
-  dat <- data.frame(yi = c(.1, .2, .3, .4), x = c(0, 1, 0, 1),
-    study = factor(c("a", "a", "b", "b")))
-  object <- brma.mv(yi = yi, V = diag(.04, 4L), mods = ~ x, scale = ~ x,
-    random = ~ diag(1 + x | study), data = dat, measure = "GEN",
-    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
-  replay <- .replay_object(object)
-  original <- .regplot_row_source_conditions()$leaf
-  testthat::local_mocked_bindings(.brma_mv_random_effects_marginal_vcov = function(...) stop(original),
-    .package = "RoBMA")
-  expect_false(.regplot_mv_random_intercept_only(replay$object))
-  expect_identical(tryCatch(.regplot_mv_random_sd_samples(replay$object,
-    data.frame(x = c(0, 1)), replay$samples), error = identity), original)
+  # The replay is evaluated without a stand-in: the row-indexed scale source
+  # supplies its values on the new grid, so every band is finite.
+  expect_identical(dim(total), c(2L, 3L))
+  expect_true(all(is.finite(total)))
+  expect_equal(unname(total), sqrt(study_variance + tau_esid^2), tolerance = 1e-12)
 })
 
 
