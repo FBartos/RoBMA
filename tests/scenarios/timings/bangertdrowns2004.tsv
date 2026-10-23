@@ -19,7 +19,7 @@ fit_marglik	fit_ls	1.740000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_s	1.470000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_simple	1.020000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 time	fit_l_dfbetas	0.030000000	0.415918	4.6.0	Windows/x86_64-w64-mingw32
-time	fit_l_diagnostics_robma	2.810000000	0.580273	4.6.0	Windows/x86_64-w64-mingw32
+time	fit_l_diagnostics_robma	2.690000000	0.580273	4.6.0	Windows/x86_64-w64-mingw32
 time	fit_l_rstudent	0.280000000	0.429102	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_BMA_effect	0.030000000	0.409766	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_BMA_heterogeneity	0.010000000	0.378418	4.6.0	Windows/x86_64-w64-mingw32
@@ -36,8 +36,8 @@ text	fit_ls_summary	0.090000000	0.404394	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_prediction_comparison	0.080000000	0.439746	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_s_effect	0.030000000	0.357422	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_s_heterogeneity	0.010000000	0.347363	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_s_summary	0.080000000	0.400879	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_simple_effect	0.030000000	0.326367	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_s_summary	0.070000000	0.400879	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_simple_effect	0.020000000	0.326367	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_heterogeneity	0.000000000	0.318945	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_summary	0.090000000	0.360547	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_slope_BF_comparison	2.440000000	0.544141	4.6.0	Windows/x86_64-w64-mingw32

@@ -48,10 +48,10 @@ fit_marglik	fit_PET_null_0.25	1.130000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_simple	0.880000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_3PSM_IWMDE	32.920000000	1.383008	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_3PSM_normal	0.040000000	0.409375	4.6.0	Windows/x86_64-w64-mingw32
-time	BFs_3PSM_qCMDE	51.030000000	2.229395	4.6.0	Windows/x86_64-w64-mingw32
+time	BFs_3PSM_qCMDE	50.730000000	2.229395	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_PET_IWMDE	0.580000000	0.976953	4.6.0	Windows/x86_64-w64-mingw32
 time	BFs_PET_normal	0.040000000	0.412207	4.6.0	Windows/x86_64-w64-mingw32
-time	BFs_PET_qCMDE	0.360000000	0.775000	4.6.0	Windows/x86_64-w64-mingw32
+time	BFs_PET_qCMDE	0.350000000	0.775000	4.6.0	Windows/x86_64-w64-mingw32
 text	density_ineq	0.250000000	0.534473	4.6.0	Windows/x86_64-w64-mingw32
 text	density_test_at_0	2.430000000	1.035645	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_3PSM_summary	0.610000000	0.475195	4.6.0	Windows/x86_64-w64-mingw32
@@ -63,9 +63,9 @@ text	fit_PEESE_summary	0.550000000	0.448340	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_PET_summary	0.540000000	0.448340	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_reverse_coefficients	0.000000000	0.373242	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_reverse_fitted	0.200000000	0.576562	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_RoBMA_summary	1.870000000	0.614844	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_RoBMA_summary	1.870000000	0.613672	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_summary_con	1.630000000	0.609277	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_RoBMA_summary_con2	2.360000000	0.607812	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_RoBMA_summary_con2	2.280000000	0.607812	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_RoBMA_summary_models	0.390000000	0.622168	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_bf_comparison	0.000000000	0.341699	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_loo_comparison	0.000000000	0.380371	4.6.0	Windows/x86_64-w64-mingw32
@@ -86,7 +86,7 @@ plot	fit_posterior_mu	1.350000000	0.593262	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_weight	0.030000000	0.397656	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_3PSM	0.060000000	0.471094	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_3PSM_no_bias	0.060000000	0.474512	4.6.0	Windows/x86_64-w64-mingw32
-plot	funnel_BMA	0.020000000	0.398242	4.6.0	Windows/x86_64-w64-mingw32
+plot	funnel_BMA	0.010000000	0.398242	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_PET	0.030000000	0.414844	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_PET_no_bias	0.030000000	0.414746	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_RoBMA	0.100000000	0.558691	4.6.0	Windows/x86_64-w64-mingw32
@@ -98,5 +98,5 @@ plot	qqnorm_BMA	0.060000000	0.442383	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_PET	0.250000000	0.600391	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_RoBMA	1.640000000	0.734473	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_simple	0.060000000	0.414355	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	4.420000000	0.811816	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	4.420000000	0.811719	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot_averaged	2.800000000	0.745019	4.6.0	Windows/x86_64-w64-mingw32
