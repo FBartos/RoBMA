@@ -137,6 +137,11 @@
   refused by the quadrature and use the grid, where an error several times the
   tolerance had been accepted; accepted values are unchanged. The refusal
   message reports the larger of the last log-likelihood change and that bound.
+- The qCMDE density line of joint selection models no longer keeps the
+  sampling parts of its factor blocks, which no later chunk of the line reused:
+  its peak memory grows about 3 times more slowly with the number of posterior
+  draws (1.06 to 0.51 GB at 1000 draws of the 100-estimate `assink2016` model).
+  Densities are unchanged.
 - Partial selection events validate their required geometry and selected-response
   simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and

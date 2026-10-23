@@ -583,9 +583,13 @@
 
 
 # One joint-selection static per density-line context. The migrated execution
-# plan and the caches its block constructions key by evaluated state count are
+# plan and the constant kernel arguments its blocks are built with are
 # functions of the fitted data alone, so a density line resolves them once for
-# all of its replacement chunks instead of once per chunk.
+# all of its replacement chunks instead of once per chunk. The sampling parts of
+# the factor blocks are not kept: they are keyed by the number of evaluated
+# states, which is another number for every chunk of a density line, so no
+# entry is ever reused and the cache would grow with the posterior size (the
+# bridge, which evaluates one constant number of states, keeps its own).
 .iwmde_selection_joint_static <- function(context) {
 
   if (!.is_data_joint_selection(context[["data"]])) {
@@ -597,6 +601,7 @@
     return(get(key, envir = cache, inherits = FALSE))
   }
   static <- .selection_joint_static(context[["data"]])
+  static[["factor_block_cache"]] <- NULL
   if (is.environment(cache)) {
     assign(key, static, envir = cache)
   }

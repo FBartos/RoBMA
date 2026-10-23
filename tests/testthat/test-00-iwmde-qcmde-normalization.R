@@ -473,3 +473,38 @@ test_that("estimated tail diagnostics use the full normalizer fraction", {
   expect_identical(out$status, rep("estimate", 3L))
   expect_identical(.iwmde_qcmde_truncation_summary(out)$ordinate_bound, Inf)
 })
+
+test_that("the density-line joint selection static keeps no factor-block cache", {
+
+  # Two studies of two correlated estimates give two rank-one sampling blocks.
+  dat <- data.frame(yi = c(.1, .2, .3, .4), vi = c(.04, .05, .06, .05),
+    study = factor(c("a", "a", "b", "b")))
+  V <- diag(dat[["vi"]])
+  V[1L, 2L] <- V[2L, 1L] <- .02
+  V[3L, 4L] <- V[4L, 3L] <- .02
+  object <- bselmodel.mv(yi = yi, V = V, random = ~ 1 | study, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  context <- list(data = object[["data"]], predictor_cache = new.env(parent = emptyenv()))
+
+  static <- .iwmde_selection_joint_static(context)
+  expect_identical(.iwmde_selection_joint_static(context), static)
+  expect_null(static[["factor_block_cache"]])
+
+  # The sampling parts of a block are keyed by the number of evaluated states,
+  # which is another number for every chunk of a density line: they are built
+  # for each chunk and equal to those the bridge caches, but a density line
+  # stores none.
+  bridge  <- .selection_joint_static(context[["data"]])
+  plan    <- static[["execution_plan"]]
+  block   <- which(plan[["block_methods"]] == "rank_one")[1L]
+  block_n <- length(plan[["sampling_factor_blocks"]][[block]][["diagonal"]])
+  expect_true(is.environment(bridge[["factor_block_cache"]]))
+  for (S in c(3L, 7L, 3L)) {
+    expect_identical(
+      .selection_joint_factor_block_sampling_parts(static, plan, block, S, block_n),
+      .selection_joint_factor_block_sampling_parts(bridge, plan, block, S, block_n)
+    )
+    expect_null(static[["factor_block_cache"]])
+  }
+  expect_setequal(ls(bridge[["factor_block_cache"]]), paste0(block, "@", c(3L, 7L)))
+})
