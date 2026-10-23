@@ -1,6 +1,20 @@
 ## version 4.1.0 (IN PROGRESS)
-- The deterministic selected-normal ladders start just below the first rule
-  that can resolve the selection transitions, with identical results.
+- Selection normalizers of dependent blocks under product weights (the factor
+  and cluster kernels, in fitting and post-fit calculations) accept a
+  deterministic quadrature rule only when shifting its nodes shows an aliasing
+  error within `relative_tolerance`. The node-gap rule it replaces accepted
+  values up to 2% off for coincident or crossing selection steps and rank-one
+  clusters. Blocks with edges sharper than the nodes resolve, or whose
+  certificate fails, use a four-shift average of the finest rule (rank-two
+  tensors and depth-one forests) or the randomized fallback, which now proposes
+  from the tilted moments of the finest rule; its stopping rule is unchanged.
+  Fits with dependent estimates run faster (about 20% in a reduced assink2016
+  CCI benchmark against 4.1.0.440): the certificate accepts coarser rules,
+  nodes reuse their last evaluation and the node products use double
+  arithmetic. Likelihood values move within `relative_tolerance`, so seeded
+  fits differ from earlier 4.1.0 revisions in the last digits. The weight rule
+  `best`, sparse grids and z-curves keep the node-gap rule. Selection
+  likelihoods remain somewhat slower than in 4.1.0.229.
 - The known-V deletion conditional mean of selection models keeps both variance
   shares, so a sampling share that rounds to one no longer drops the location
   term at extreme scales.
@@ -31,12 +45,7 @@
   40x slower). Results agree with 4.1.0.420 to rounding; seeded predictive draws
   change only where the covariance route returns to the dense one of 4.1.0.229.
   Binomial GLMM AGHQ links its kernel first to keep the faster code placement.
-  Rank-one cluster selection densities avoid repeated bracketing work, but
-  selection likelihoods remain slower than in 4.1.0.229 where deterministic
-  quadrature must now resolve every selection transition (coupled factor-step
-  blocks use finer rules, and some rows of random-formula qCMDE densities use
-  the randomized fallback); the exact ladder start recovers part of the
-  factor-step cost.
+  Rank-one cluster selection densities avoid repeated bracketing work.
 - Prior-only `pooled_heterogeneity()` applies the declared parent weights and
   inclusion gates to scalar-source SD-component allocations, as the summaries
   and the replay-backed pooled values do.
