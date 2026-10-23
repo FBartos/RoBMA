@@ -214,9 +214,10 @@ test_that("RoBMA.mv retains established selection diagnostic semantics", {
 
   n <- nobs(fit_robma_mv)
   expect_length(residuals(fit_robma_mv), n)
-  expect_equal(nrow(rstudent(fit_robma_mv)), n)
-  expect_equal(nrow(dfbetas(fit_robma_mv)), n)
-  expect_length(covratio(fit_robma_mv), n)
+  # the fixture's Pareto-k diagnostic depends on its MCMC realization; these lines assert shapes only
+  expect_equal(nrow(.with_expected_pareto_warnings_muffled(rstudent(fit_robma_mv))), n)
+  expect_equal(nrow(.with_expected_pareto_warnings_muffled(dfbetas(fit_robma_mv))), n)
+  expect_length(.with_expected_pareto_warnings_muffled(covratio(fit_robma_mv)), n)
 
   unavailable <- list(
     rstandard = function() rstandard(fit_robma_mv),
