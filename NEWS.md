@@ -73,8 +73,6 @@
 - `loo_compare()` and `loo_model_weights()` label the first model by its
   expression unless the call names `x`, so a named option or a named additional
   model no longer renames it.
-- Known-V bridge sampling with latent sampling factors keeps their full
-  covariance when no dependency partition is supplied.
 - Unspecified ordinary factor null priors use each retained alternative term's
   declared contrast, including independent indicator-coded interactions. A
   factor term whose null and alternative priors still differ in contrast, such
