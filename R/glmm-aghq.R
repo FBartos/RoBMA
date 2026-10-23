@@ -211,7 +211,10 @@
     } else if (identical(reason, "mode_curvature")) {
       paste0("the mode curvature was ", format(curvature, digits = 8L))
     } else if (length(order) == 1L && !is.na(order)) {
-      paste0("last log-likelihood change ", format(change, digits = 8L),
+      # the native change is the larger of the difference between the last two
+      # orders and the rounding-noise bound of the prior density
+      paste0("the larger of the last log-likelihood change and the rounding-noise ",
+        "bound of the prior density was ", format(change, digits = 8L),
         " at quadrature order ", order)
     } else {
       "quadrature did not produce a finite evaluated rule"

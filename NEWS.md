@@ -135,7 +135,8 @@
   of the beta density of a concentrated `prior_baserate`, about
   `.Machine$double.eps * sqrt(alpha + beta)`. Shape sums above about 2e19 are
   refused by the quadrature and use the grid, where an error several times the
-  tolerance had been accepted; accepted values are unchanged.
+  tolerance had been accepted; accepted values are unchanged. The refusal
+  message reports the larger of the last log-likelihood change and that bound.
 - Partial selection events validate their required geometry and selected-response
   simulation passes validated integral dependency indices to the native kernel.
 - Missing global heterogeneity follows declared random-formula metadata and

@@ -334,6 +334,13 @@ test_that("binomial AGHQ does not report a change below the rounding noise of co
     expect_error(aghq(shape), class = "RoBMA_glmm_aghq_nonconvergence",
       info = paste("shapes", shape))
   }
+  # The refusal reports the noise bound, which the message does not call a
+  # change between orders.
+  condition <- tryCatch(aghq(1e21), error = identity)
+  expect_gte(condition[["change"]], .Machine[["double.eps"]] * sqrt(2e21))
+  expect_match(conditionMessage(condition), paste0("the larger of the last log-likelihood ",
+    "change and the rounding-noise bound of the prior density was ", format(condition[["change"]], digits = 8L)),
+    fixed = TRUE)
 
   accepted <- aghq(1e18)
   expect_gte(accepted[["max_change"]], .Machine[["double.eps"]] * sqrt(2e18))
@@ -1402,7 +1409,8 @@ test_that("AGHQ reports failure when refinement is capped", {
   expect_identical(condition[["order"]], 13L)
   expect_true(is.finite(condition[["change"]]))
   expect_identical(conditionMessage(condition), paste0(
-    "Poisson AGHQ was rejected by diagnostics: last log-likelihood change ",
+    "Poisson AGHQ was rejected by diagnostics: the larger of the last ",
+    "log-likelihood change and the rounding-noise bound of the prior density was ",
     format(condition[["change"]], digits = 8L),
     " at quadrature order 13 at sample 1, observation 1. ",
     "Inspect the data and 'prior_lograte' before refitting the model."))
