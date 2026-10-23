@@ -222,59 +222,57 @@ run_certification_worker <- function(name, phase) {
 
 .run_certification_process <- function(command, args, timeout) {
 
+  # The child writes to files, not pipes: R 4.6.0 for Windows can crash a child whose stdout
+  # is a pipe with an access violation (0xC0000005 in R_is_redirection_tty, reached through
+  # isatty() from cli and so from the testthat reporters). The parent echoes the files as they grow.
+  files <- c(out = tempfile("certification-out-", fileext = ".txt"),
+             err = tempfile("certification-err-", fileext = ".txt"))
+  file.create(files)
+  on.exit(unlink(files), add = TRUE)
   started <- proc.time()[["elapsed"]]
   process <- processx::process$new(
     command = command, args = args,
-    stdout = "|", stderr = "|", echo_cmd = TRUE,
+    stdout = files[["out"]], stderr = files[["err"]], echo_cmd = TRUE,
     cleanup_tree = TRUE, windows_hide_window = TRUE
   )
-  on.exit(process$kill_tree(), add = TRUE)
-  output <- character()
-  errors <- character()
-  timed_out <- FALSE
-  echo_ready <- function(ready) {
-    read_any <- FALSE
-    if (identical(ready[["output"]], "ready")) {
-      chunk <- process$read_output(2000L)
-      if (nzchar(chunk)) {
-        output <<- c(output, chunk)
-        cat(chunk, file = stdout())
-        read_any <- TRUE
-      }
+  # Runs before the files are removed: a live child keeps them open.
+  on.exit(process$kill_tree(), add = TRUE, after = FALSE)
+  offsets <- c(out = 0, err = 0)
+  texts   <- list(out = character(), err = character())
+  echo_new <- function() {
+    for (stream in names(files)) {
+      size <- file.size(files[[stream]])
+      if (is.na(size) || size <= offsets[[stream]]) next
+      connection <- file(files[[stream]], open = "rb")
+      seek(connection, offsets[[stream]])
+      bytes <- readBin(connection, "raw", size - offsets[[stream]])
+      close(connection)
+      chunk <- rawToChar(bytes)
+      offsets[[stream]] <<- offsets[[stream]] + length(bytes)
+      texts[[stream]]   <<- c(texts[[stream]], chunk)
+      cat(chunk, file = if (stream == "out") stdout() else stderr())
     }
-    if (identical(ready[["error"]], "ready")) {
-      chunk <- process$read_error(2000L)
-      if (nzchar(chunk)) {
-        errors <<- c(errors, chunk)
-        cat(chunk, file = stderr())
-        read_any <- TRUE
-      }
-    }
-    return(read_any)
   }
+  timed_out <- FALSE
   while (process$is_alive()) {
     remaining <- timeout - (proc.time()[["elapsed"]] - started)
     if (remaining <= 0) {
       timed_out <- TRUE
       break
     }
-    ready <- process$poll_io(as.integer(ceiling(min(100, 1000 * remaining))))
-    if (proc.time()[["elapsed"]] - started >= timeout) {
-      timed_out <- TRUE
-      break
-    }
-    echo_ready(ready)
+    process$wait(as.integer(ceiling(min(1000, 1000 * remaining))))
+    echo_new()
   }
-  # End the marker-owned tree before waiting or reading an incomplete stream.
+  # End the marker-owned tree before waiting or reading an incomplete file.
   process$kill_tree(close_connections = FALSE)
   process$wait(timeout = 1000L)
   if (process$is_alive()) {
     stop("Certification child process did not terminate after tree cleanup.",
          call. = FALSE)
   }
-  while (echo_ready(process$poll_io(0L))) {}
+  echo_new()
   return(list(status = process$get_exit_status(), timeout = timed_out,
-    stdout = paste0(output, collapse = ""), stderr = paste0(errors, collapse = "")))
+    stdout = paste0(texts[["out"]], collapse = ""), stderr = paste0(texts[["err"]], collapse = "")))
 }
 
 
