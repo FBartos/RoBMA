@@ -394,6 +394,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_normal_upper_tail", (DL_FUNC) &RoBMA_selnorm_normal_upper_tail, 2},
     {"RoBMA_selnorm_set_native_threads", (DL_FUNC) &RoBMA_selnorm_set_native_threads, 1},
     {"RoBMA_selnorm_row_schedule", (DL_FUNC) &RoBMA_selnorm_row_schedule, 2},
+    /* Test hooks (this entry and the two certificate entries below), not package interface. */
     {"RoBMA_selnorm_rule_weights_check", (DL_FUNC) &RoBMA_selnorm_rule_weights_check, 1},
     {"RoBMA_selnorm_certificate_probe", (DL_FUNC) &RoBMA_selnorm_certificate_probe, 20},
     {"RoBMA_selnorm_certificate_gap", (DL_FUNC) &RoBMA_selnorm_certificate_gap, 2},
