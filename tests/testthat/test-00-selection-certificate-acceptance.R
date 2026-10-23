@@ -61,14 +61,14 @@ test_that("the combined exterior and amplitude allowance decides at its exact bo
   for (side in c(-1, 1)) {
     tolerance <- threshold * (1 + side * 1e-6)
     expect_identical(.test_cert_probe(block, 9L, tolerance = tolerance)[["accepted"]], side > 0,
-                     info = side)
+                     info = as.character(side))
     # the kernel moves up the ladder exactly when the rung is refused
     orders <- SELNORM_FACTOR_QUADRATURE_ORDERS
     values <- vapply(orders, function(order) .test_cert_probe(block, order)[["log_normalizer"]], numeric(1L))
     actual <- .test_cert_native_factor(block, tolerance = tolerance)
     accepted <- orders[which.min(abs(values - actual[["log_normalizer"]]))]
-    expect_identical(actual[["relative_mcse"]], 0, info = side)
-    expect_identical(accepted, if (side > 0) 9L else 11L, info = side)
+    expect_identical(actual[["relative_mcse"]], 0, info = as.character(side))
+    expect_identical(accepted, if (side > 0) 9L else 11L, info = as.character(side))
   }
 })
 
@@ -149,7 +149,12 @@ test_that("the best weight rule keeps its geometric acceptance, decisions and va
   # Seeded random best-rule blocks (one- and two-sided; rank-one clusters and
   # rank-two and rank-three factors) with the outputs of the build before the
   # certificate: the best rule keeps the precheck, the exact ladder start and
-  # the geometric acceptance, so decisions and values are unchanged.
+  # the geometric acceptance, so decisions and values are unchanged. The values
+  # are compared at 1e-12 relative so that the test also holds on other
+  # compilers and instruction sets (the rounding of the long double sums
+  # differs there). That the best path reproduces the build before the
+  # certificate bitwise was checked as an A/B comparison of the two builds during
+  # development, not in the suite.
   reference <- readRDS(testthat::test_path("fixtures", "selection-certificate-best-reference.rds"))
   factor_rules  <- .selection_joint_factor_quadrature_rules()
   cluster_rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)

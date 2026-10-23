@@ -106,8 +106,16 @@
 }
 
 # Whether the native kernel accepted a deterministic rule (no randomized
-# fallback): the relative MCSE of a quadrature result is exactly zero.
-.test_cert_deterministic <- function(result) identical(as.numeric(result[["relative_mcse"]]), 0)
+# fallback): the kernel's own flag, the attribute "deterministic" of its result.
+# A randomized result can have a relative MCSE of exactly zero (scrambles that
+# coincide), so the MCSE does not identify the route; results of builds that
+# predate the flag carry none and are compared on their relative MCSE directly.
+.test_cert_deterministic <- function(result) {
+
+  flag <- attr(result, "deterministic")
+  if (is.null(flag)) stop("The kernel result carries no 'deterministic' flag.", call. = FALSE)
+  identical(as.logical(flag), TRUE)
+}
 
 .test_cert_relative_error <- function(log_normalizer, reference) {
 
@@ -162,6 +170,24 @@
   )
 }
 
+# Half-width of the latent integration range of a reference. The integrand is the
+# standard normal weight times a product of selection probabilities that is
+# constant beyond the transition of each row, at the distance
+# |cut * sei - mean| / ||loading|| of its hyperplane from the origin, so the mass
+# lies within the farthest transition plus a margin of 8 (blocks of many
+# coincident rows are carried by the plateau beyond a far transition). A
+# reference never uses less than `floor`, the half-width it used for every block
+# before the range followed the block.
+.test_cert_reference_limit <- function(block, floor, margin = 8) {
+
+  size   <- sqrt(rowSums(block[["loading"]]^2))
+  cuts   <- block[["z_lower"]][is.finite(block[["z_lower"]])]
+  active <- which(size > 0)
+  if (!length(cuts) || !length(active)) return(floor)
+  distance <- abs(outer(block[["sei"]][active], cuts) - block[["mean"]][active]) / size[active]
+  max(floor, max(distance) + margin)
+}
+
 # Whether every connected set of latent axes of the block carries parallel rows
 # (each row a multiple of one direction), so a one-dimensional reduction holds.
 .test_cert_parallel_rows <- function(block) {
@@ -204,7 +230,10 @@
 # integral factors over the sets and each factor is one-dimensional along the
 # common direction u with scaled loadings c_i = a_i' u. The panel width stays
 # below the smallest transition scale s_i / (8 |c_i|).
-.test_cert_reference_parallel <- function(block, limit = 12, m = 12L) {
+# The integrand at the ends of the range is checked to be negligible against its
+# maximum, so a range that cuts off the mass fails instead of returning a value.
+.test_cert_reference_parallel <- function(block, limit = .test_cert_reference_limit(block, 12),
+                                          m = 12L) {
 
   loading <- block[["loading"]]
   active  <- loading != 0
@@ -247,6 +276,9 @@
         block[["mean"]][row] + scale[position] * rule[["x"]],
         block[["sd"]][row], block[["sei"]][row], block[["omega"]], block[["z_lower"]])
     }
+    if (max(value[c(1L, length(value))]) > max(value) - 30) {
+      stop("The reference range [-", limit, ", ", limit, "] cuts off the mass of the block.", call. = FALSE)
+    }
     total <- total + .test_cert_logsumexp(value)
   }
   total
@@ -254,7 +286,8 @@
 
 # Two groups of coincident rows on two latent axes (any angle): nested
 # composite Gauss-Legendre in coordinates aligned with the first group.
-.test_cert_reference_two_groups <- function(block, limit = 10, panel = .1, m = 12L) {
+.test_cert_reference_two_groups <- function(block, limit = .test_cert_reference_limit(block, 10),
+                                             panel = .1, m = 12L) {
 
   first  <- block[["groups"]][[1L]]
   second <- block[["groups"]][[2L]]
@@ -289,25 +322,28 @@
 .test_cert_reference_forest <- function(block) {
 
   groups <- block[["groups"]]
+  leaf_limit <- .test_cert_reference_limit(block, 12)
+  root_limit <- .test_cert_reference_limit(block, 10)
   leaf <- function(group, position, root) {
     vapply(root, function(x) {
       stats::integrate(function(z) {
         stats::dnorm(z) * exp(group[["count"]] * .test_cert_log_probability(
           group[["mean"]] + group[["loading"]][1L] * x + group[["loading"]][position] * z,
           group[["sd"]], group[["sei"]], block[["omega"]], block[["z_lower"]]))
-      }, -12, 12, rel.tol = 1e-11, abs.tol = 1e-13, subdivisions = 1000L)[["value"]]
+      }, -leaf_limit, leaf_limit, rel.tol = 1e-11, abs.tol = 1e-13, subdivisions = 1000L)[["value"]]
     }, numeric(1L))
   }
   value <- stats::integrate(function(x) {
     stats::dnorm(x) * Reduce(`*`, lapply(seq_along(groups), function(g) leaf(groups[[g]], g + 1L, x)))
-  }, -10, 10, rel.tol = 1e-10, abs.tol = 1e-12, subdivisions = 1000L)
+  }, -root_limit, root_limit, rel.tol = 1e-10, abs.tol = 1e-12, subdivisions = 1000L)
   log(value[["value"]])
 }
 
 # Any block of groups of coincident rows on two latent axes: nested composite
 # Gauss-Legendre, outer over the first axis and inner over the second. The
 # panel width stays below the smallest transition width of the rows.
-.test_cert_reference_rank_two <- function(block, limit = 8, panel = .1, m = 10L) {
+.test_cert_reference_rank_two <- function(block, limit = .test_cert_reference_limit(block, 8),
+                                          panel = .1, m = 10L) {
 
   stopifnot(block[["rank"]] == 2L)
   rule <- .test_cert_composite_rule(limit, panel, m)

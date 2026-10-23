@@ -40,7 +40,7 @@ test_that("the rank-one cluster rule reports the mean and variance of its latent
   for (order in c(15L, 63L)) {
     probe  <- .test_cert_probe(block, order, cluster = TRUE, refine = FALSE)
     oracle <- .test_cert_tensor_moments(block, order)
-    expect_true(probe[["has_moments"]], info = order)
+    expect_true(probe[["has_moments"]], info = as.character(order))
     expect_lt(abs(probe[["moment_mean"]] - oracle[["mean"]]), 1e-12, label = order)
     expect_lt(abs(probe[["moment_covariance"]] - oracle[["covariance"]][1L, 1L]), 1e-12, label = order)
   }

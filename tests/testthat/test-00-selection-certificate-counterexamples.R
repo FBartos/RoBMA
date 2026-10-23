@@ -5,9 +5,9 @@ skip_on_cran()
 # under the geometric transition rule, or that the acceptance rule must keep
 # right. Each reference is computed here from independent integration
 # (composite Gauss-Legendre or nested stats::integrate), never from the kernel.
-# A block either carries a deterministic result (relative MCSE exactly zero)
-# within the relative tolerance of the reference, or reaches the randomized
-# fallback; the expected route is stated for every block. The shift-amplitude
+# A block either carries a deterministic result (the kernel's deterministic
+# flag) within the relative tolerance of the reference, or reaches the
+# randomized fallback; the expected route is stated for every block. The shift-amplitude
 # certificate defers the blocks that fed95b63 accepted wrongly; the refinement
 # tier (the average over four shifts per axis at the finest affordable rung)
 # certifies them, within 1e-5 of the reference, except the forest of 371 rows,
@@ -218,4 +218,25 @@ test_that("captured Assink factor states are accepted at the order the certifica
     expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], state[["reference"]]),
               .test_cert_tolerance, label = info)
   }
+})
+
+test_that("the integration range of the references follows the block", {
+
+  # 136 coincident rows with the cuts +/-2 (selection SE 1.78): the product of
+  # the rows carries the integrand to the plateau beyond the farthest
+  # transition, 19.6 latent units from the origin. A fixed range of 12 cut off
+  # almost all of the mass (a reference of -133 for -93.55).
+  block <- .test_cert_block(list(.test_cert_parallel_group(
+    136L, -0.2251444, 0.16352681, -0.85844317, sei = 1.7815126)), c(1, 1 / 3, 1), c(2, -2, -Inf))
+  limit <- .test_cert_reference_limit(block, 12)
+  expect_gt(limit, 27)
+  reference <- .test_cert_reference_parallel(block)
+  expect_lt(abs(reference - .test_cert_reference_parallel(block, limit = 2 * limit)), 1e-10)
+  expect_error(.test_cert_reference_parallel(block, limit = 12), "cuts off the mass")
+  native <- .test_cert_native_cluster(block)
+  expect_true(.test_cert_deterministic(native))
+  expect_lt(.test_cert_relative_error(native[["log_normalizer"]], reference), 1e-6)
+
+  # a block whose transitions lie within the floor keeps it
+  expect_identical(.test_cert_reference_limit(.test_cert_small_blocks()[["rank_one"]], 12), 12)
 })

@@ -141,7 +141,7 @@ test_that("the node gap is the findInterval gap clamped to the interior interval
     means <- c(-Inf, nodes[1L] - 1, nodes[1L], (nodes[1L] + nodes[2L]) / 2, nodes,
                (nodes[-1L] + nodes[-order]) / 2, nodes[order] - 1e-12, nodes[order] + 1, Inf)
     expected <- vapply(means, function(m) .test_cert_node_gap(order, m), numeric(1L))
-    expect_identical(gap(nodes, means), expected, info = order)
+    expect_identical(gap(nodes, means), expected, info = as.character(order))
     # below the first node: the first gap; above the last: the last; on a node: to its right
     expect_identical(gap(nodes, nodes[1L] - 5), nodes[2L] - nodes[1L])
     expect_identical(gap(nodes, nodes[order] + 5), nodes[order] - nodes[order - 1L])

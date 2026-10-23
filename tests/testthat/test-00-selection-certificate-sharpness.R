@@ -106,7 +106,8 @@ test_that("the gate flips exactly where the edge width reaches its fraction of t
     sd <- coupled_gap * max(abs(loading)) / .test_cert_width_scale_ladder * (1 + side * 1e-6)
     block <- .test_cert_block(list(list(count = 3L, loading = loading, sd = sd, mean = .2, sei = 1)),
                               c(1, .5))
-    expect_identical(.test_sharp_probe(block, 9L)[["resolves_ladder"]], side > 0, info = side)
+    expect_identical(.test_sharp_probe(block, 9L)[["resolves_ladder"]], side > 0,
+                     info = as.character(side))
   }
 })
 

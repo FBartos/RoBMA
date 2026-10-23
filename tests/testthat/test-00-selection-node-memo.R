@@ -6,6 +6,13 @@ skip_on_cran()
 # deterministic evaluation (src/distributions/selnorm-node-memo.h). A node may
 # answer a call only when every input equals the remembered one, so the key and
 # the draws are what these tests pin.
+#
+# Known limit of the fit test: the memo exposes no hit or miss count, so the
+# on/off fit pins identical draws but cannot observe that the memo answered a
+# call; a key that never matched would pass it. That a stored call hits, and
+# that any changed input misses, is pinned at the level of the header by the
+# compiled probe in the first test (stored_call_hits, mutated_element_misses,
+# restored_call_hits, ...).
 
 .node_memo_repository_file <- function(...) {
 
