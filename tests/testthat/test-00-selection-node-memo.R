@@ -153,11 +153,18 @@ test_that("a selection fit with factor and cluster blocks draws identically with
 
 
 # A step node may remember a density only when its kernel reports the result
-# as deterministic: the ladder, the refinement tier or the sparse grid, which
-# never read the QMC design that the memo key omits. The batch entries expose the
-# flag as the attribute "deterministic" of their result (one value per row).
-# A randomized result is never flagged, whatever its Monte Carlo standard error
-# (which can be exactly zero), so it cannot be stored.
+# as deterministic: a ladder (of the product or the best weight rule), the
+# refinement tier or the sparse grid, which never read the QMC design that the
+# memo key omits. The batch entries expose the flag as the attribute
+# "deterministic" of their result (one value per row). A randomized result is
+# never flagged, whatever its Monte Carlo standard error (which can be exactly
+# zero), so it cannot be stored.
+#
+# Known gap: the stores of the JAGS nodes (`memoized && deterministic`, one line
+# each) are not driven with a randomized result of Monte Carlo standard error
+# exactly zero. A node takes its QMC design from the model data and a fit cannot
+# be made to deliver scrambles that coincide, so the flag test below pins the
+# kernel-level decision the nodes read, and the on/off fit above their draws.
 test_that("the kernels flag only ladder, tier and sparse-grid results as deterministic", {
 
   flagged <- function(result) attr(result, "deterministic")
@@ -209,6 +216,30 @@ test_that("the kernels flag only ladder, tier and sparse-grid results as determi
   result <- .test_cert_native_cluster(sharp, rules = .selection_joint_cluster_quadrature_rules(c(15L, 31L)))
   expect_gt(result[["relative_mcse"]], 0)
   expect_identical(flagged(result), FALSE)
+
+  # a randomized result whose Monte Carlo standard error is exactly zero (the
+  # scrambles of the design are copies of one another) is not flagged either
+  design <- BayesTools::selection_qmc_design(dimensions = 4L, points = 2048L, scrambles = 8L, seed = 1L)
+  for (scramble in 2:dim(design)[1L]) design[scramble, , ] <- design[1L, , ]
+  result <- .test_cert_native_factor(fed80, rules = short, design = design)
+  expect_identical(result[["relative_mcse"]], 0)
+  expect_identical(flagged(result), FALSE)
+
+  # the best weight rule: its ladders flag their results (rank one through the
+  # cluster kernel, higher ranks through the factor kernel) and its randomized
+  # fallback does not
+  best          <- readRDS(testthat::test_path("fixtures", "selection-certificate-best-reference.rds"))
+  reference_det <- vapply(best[["results"]], function(result) result[["relative_mcse"]] == 0, NA)
+  rank_one      <- vapply(best[["blocks"]], function(block) block[["rank"]] == 1L, NA)
+  chosen <- c(which(rank_one & reference_det)[1L], which(rank_one & !reference_det)[1L],
+              which(!rank_one & reference_det)[1L], which(!rank_one & !reference_det)[1L])
+  expect_false(anyNA(chosen))
+  for (index in chosen) {
+    result <- .test_cert_native_best(best[["blocks"]][[index]])
+    info   <- paste("best-rule block", index)
+    expect_identical(.test_cert_deterministic(result), reference_det[[index]], info = info)
+    expect_identical(flagged(result), reference_det[[index]], info = info)
+  }
 
   # one flag per row
   expect_identical(length(flagged(.test_cert_native_factor(smooth))), 1L)

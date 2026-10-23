@@ -44,13 +44,15 @@
 
 # Native kernels. The normalizer does not depend on the observed values, so the
 # observed responses are zero and every row is observed in the top bin.
+# `design` replaces the default QMC design (scrambles x points x dimensions).
 .test_cert_native_factor <- function(block, tolerance = .005, initial = 256L,
                                      points = 2048L, scrambles = 8L, seed = 1L,
-                                     rules = .selection_joint_factor_quadrature_rules()) {
+                                     rules = .selection_joint_factor_quadrature_rules(),
+                                     design = NULL) {
 
   K   <- block[["rows"]]
-  qmc <- BayesTools::selection_qmc_design(
-    dimensions = 2L * block[["rank"]], points = points, scrambles = scrambles, seed = seed)
+  qmc <- if (is.null(design)) BayesTools::selection_qmc_design(
+    dimensions = 2L * block[["rank"]], points = points, scrambles = scrambles, seed = seed) else design
 
   .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(0, K), matrix(block[["mean"]], 1L),
     matrix(block[["sd"]], 1L), matrix(as.double(block[["loading"]]), 1L), block[["sei"]],
@@ -75,6 +77,32 @@
     TRUE, 1L, rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]),
     as.double(qmc), as.integer(initial), as.integer(points), as.integer(scrambles),
     tolerance, TRUE, 0L, PACKAGE = "RoBMA")
+}
+
+# One block of the stored best-rule reference through the kernel of its rank
+# (the cluster kernel for rank one), with the controls of that reference.
+.test_cert_native_best <- function(block,
+                                   factor_rules = .selection_joint_factor_quadrature_rules(),
+                                   cluster_rules = .selection_joint_cluster_quadrature_rules(
+                                     SELNORM_CLUSTER_QUADRATURE_ORDERS)) {
+
+  if (block[["rank"]] == 1L) {
+    qmc <- BayesTools::selection_qmc_design(2L, 512L, 8L, seed = 173L)
+    .Call("RoBMA_selnorm_cluster_step_loglik_batch", block[["yi"]], matrix(block[["mean"]], 1L),
+      matrix(block[["sd"]], 1L), matrix(block[["loading"]][, 1L], 1L), block[["sei"]],
+      matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], block[["obs_bin"]],
+      1L, TRUE, 1L, cluster_rules[["nodes"]], cluster_rules[["log_weights"]],
+      as.double(cluster_rules[["orders"]]), as.double(qmc), 64L, 512L, 8L, .005, TRUE,
+      as.integer(block[["rule"]]), PACKAGE = "RoBMA")
+  } else {
+    qmc <- BayesTools::selection_qmc_design(2L * block[["rank"]], 512L, 8L, seed = 173L)
+    .Call("RoBMA_selnorm_factor_step_loglik_batch", block[["yi"]], matrix(block[["mean"]], 1L),
+      matrix(block[["sd"]], 1L), matrix(as.double(block[["loading"]]), 1L), block[["sei"]],
+      matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], block[["obs_bin"]],
+      1L, TRUE, 1L, factor_rules[["nodes"]], factor_rules[["log_weights"]],
+      as.double(factor_rules[["orders"]]), as.double(qmc), 64L, 512L, 8L, .005, TRUE,
+      as.integer(block[["rule"]]), PACKAGE = "RoBMA")
+  }
 }
 
 # Whether the native kernel accepted a deterministic rule (no randomized

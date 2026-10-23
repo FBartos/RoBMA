@@ -170,10 +170,11 @@ double DSELNORMFACTORSTEP::logDensity(
     throw std::runtime_error(message);
   }
   if (!std::isfinite(log_density)) return JAGS_NEGINF;
-  // Only results the kernel reports as deterministic (ladder, refinement tier
-  // or sparse grid) are stored: they never read the QMC design, which the
-  // stored inputs omit. A randomized result can have a Monte Carlo standard
-  // error of exactly zero, so that error does not decide.
+  // Only results the kernel reports as deterministic (a ladder of the product
+  // or the best weight rule, the refinement tier or the sparse grid) are stored:
+  // they never read the QMC design, which the stored inputs omit. A randomized
+  // result can have a Monte Carlo standard error of exactly zero, so that error
+  // does not decide.
   if (memoized && deterministic) {
     factor_node_memo().store(x, memo_inputs, selnorm_step_memo_inputs,
                              log_density);

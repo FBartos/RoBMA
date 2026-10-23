@@ -62,8 +62,6 @@ test_that("the native gate equals the R rule at the scaled step widths", {
   # the geometries separate sharp from resolved rungs for both scales
   expect_true(any(decisions[["ladder"]]) && any(!decisions[["ladder"]]))
   expect_true(any(decisions[["tier"]]) && any(!decisions[["tier"]]))
-  # the ladder needs edges of 0.15 of the gap, the tier edges of 0.125
-  expect_lt(.test_cert_width_scale_ladder, .test_cert_width_scale_tier)
 })
 
 test_that("the gate flips exactly where the edge width reaches its fraction of the node gap", {
@@ -153,11 +151,11 @@ test_that("a block without transitions is always resolved", {
   expect_true(probe[["resolves_tier"]])
 })
 
-# The nine sharp blocks of the reviews, in order: the six staircase blocks of the
-# Opus review (four equal-height steps a quarter node gap apart, edge width
-# 0.018 to 0.102 of the gap) and three of the explorer's failing forests (a sharp
-# leaf and a wide one, edge width 0.042 of the gap at rung 15). The certificate
-# alone accepted each with a relative error of 5.0e-3 to 2.04e-2.
+# The nine sharp blocks, in order: six staircase blocks (four equal-height steps
+# a quarter node gap apart, edge width 0.018 to 0.102 of the gap) and three
+# failing forests of an adversarial search (a sharp leaf and a wide one, edge
+# width 0.042 of the gap at rung 15). The certificate alone accepted each with a
+# relative error of 5.0e-3 to 2.04e-2.
 .test_sharp_staircase <- function(width, means, factor) {
 
   groups <- Map(function(count, mean) {
@@ -200,7 +198,7 @@ test_that("a block without transitions is always resolved", {
       block = .test_sharp_staircase(.01, steps[["c125"]], FALSE)),
     stair_cluster_w01_127 = list(kind = "cluster", order = 127L, pinned = -0.67676298891803555,
       block = .test_sharp_staircase(.01, steps[["c200"]], FALSE)),
-    # depth-one forests: a root with two leaves (explorer 06 failing forests 1, 2, 5)
+    # depth-one forests: a root with two leaves (failing forests of the search)
     forest_w3 = list(kind = "forest", order = 15L, pinned = -3.7567291859187097,
       block = .test_sharp_forest(list(
         list(1.3974906387562571, 0.001, 3.5847573875242569, 0.050000000000000003, 154L),
@@ -224,10 +222,12 @@ test_that("sharp-edged blocks that the certificate alone accepted wrongly are no
   # Native outcome: every block reaches the randomized fallback. The edges are
   # narrower than 0.15 of the gap at every rung of their ladder (the finest rung
   # of the cluster and factor ladders still has gaps above 0.1 and 0.3), and the
-  # refinement tier needs 0.125 of the gap at the factor rung 95. A deterministic
-  # value, if one were returned, would have to be right.
-  for (name in names(.test_sharp_cases())) {
-    case      <- .test_sharp_cases()[[name]]
+  # refinement tier needs at least 0.125 of the gap (more for many rows) at the
+  # factor rung 95. A deterministic value, if one were returned, would have to
+  # be right.
+  cases <- .test_sharp_cases()
+  for (name in names(cases)) {
+    case      <- cases[[name]]
     block     <- case[["block"]]
     reference <- switch(case[["kind"]],
       forest = .test_cert_reference_forest(block), .test_cert_reference_parallel(block))
@@ -251,8 +251,9 @@ test_that("the gate is what rejects the rungs that the certificate alone accepte
   # tolerance; only the sharpness gate refuses it (the allowance factor 2 refuses
   # the first forest as well). Its edges are between 0.018 and 0.102 of the gap
   # there.
-  for (name in names(.test_sharp_cases())) {
-    case      <- .test_sharp_cases()[[name]]
+  cases <- .test_sharp_cases()
+  for (name in names(cases)) {
+    case      <- cases[[name]]
     block     <- case[["block"]]
     cluster   <- case[["kind"]] == "cluster"
     probe     <- .test_sharp_probe(block, case[["order"]], cluster)

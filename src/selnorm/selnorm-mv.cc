@@ -3383,12 +3383,20 @@ ShiftCertificate shift_certificate(double log_normalizer,
 // cannot see (multiples of 4 vanish at all three), and the amplitude then
 // underestimates the error by more than the allowance covers. Native blocks
 // with edge width / gap between 0.018 and 0.102 were accepted with errors up to
-// 2.04e-2 (review 07, F1) and 5.3e-3 (explorer 06); no violation was found at
-// width / gap >= 1/8, and at 0.15 the error stays below 1.76 x the summed
-// amplitude (explorer 06b: ~43,000 guarded search evaluations, none over the
-// tolerance). Before a rung is certified, the transition rule must therefore
-// resolve its transitions with every step width relaxed by 1 / 0.15: the edge
-// width (residual SD / |loading|) is at least 0.15 x the node gap.
+// 2.04e-2 and 5.3e-3 before the gate existed, and no violation was found at
+// width / gap >= 1/8. Before a rung is certified, the transition rule must
+// therefore resolve its transitions with every step width relaxed by 1 / 0.15:
+// the edge width (residual SD / |loading|) is at least 0.15 x the node gap.
+//
+// The gate does not make the amplitude a bound of the error. In scans of the
+// guarded amplitude the error of a rung stayed below 1.76 x the summed
+// amplitude at width / gap 0.15 (about 43,000 evaluations), but the ratio of
+// error to amplitude of a rung that passes the gate, the amplitude limit and
+// the allowance reached 2.79 (and 2.69 at width / gap 0.27 with two cuts) in a
+// search that ignored the ladder's change tests; those tests reject such rungs,
+// and searches of the whole gated ladder found no accepted value above 77% of
+// the tolerance. The acceptance rules are described in the acceptance section
+// of .agents/instructions/selected-normal.md.
 const double selnorm_certificate_width_scale_ladder = 1.0 / 0.15;
 // The refinement tier averages four shifts per axis. That refines the lattice
 // to a quarter of the gap but leaves errors periodic in a quarter gap, and its
@@ -3424,9 +3432,10 @@ double selnorm_certificate_tier_width_scale(
     std::sqrt(std::max(1.0, 2.0 * std::log(static_cast<double>(rows_max))));
 }
 
-// The summed amplitude bounds the aliasing error up to this factor on a
-// guarded rung (the guarded envelope of error / amplitude is 1.76 at edge / gap
-// 0.15, explorer 06b); the allowance adds it to the exterior bound.
+// The combined allowance adds this multiple of the summed amplitude to the
+// exterior bound. It follows the envelope of error / amplitude measured on
+// guarded rungs (1.76 at edge / gap 0.15), not a proved bound; the ladder's
+// change tests are the second protection (see the gate above).
 const double selnorm_certificate_allowance_factor = 2.0;
 
 // A rung is accepted when its summed amplitude is at most half the tolerance

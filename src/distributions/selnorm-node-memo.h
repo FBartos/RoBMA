@@ -20,10 +20,11 @@
 // for its contents: the node's `x` pointer only selects the entry.
 //
 // The QMC design array is not an input. Only results the kernel flags as
-// deterministic are stored (the ladder, the refinement tier and the sparse
-// grid); those never read the design, and the design is a fixed data array of
-// the node. A randomized result is never stored, even when its relative Monte
-// Carlo standard error happens to be exactly 0.
+// deterministic are stored (the ladders of the product and the best weight
+// rule, the refinement tier and the sparse grid); those never read the design,
+// and the design is a fixed data array of the node. A randomized result is never
+// stored, even when its relative Monte Carlo standard error happens to be
+// exactly 0.
 //
 // JAGS runs a process single-threaded, so the memo has no lock. It lives behind
 // a function-local pointer that is intentionally never deleted, which avoids

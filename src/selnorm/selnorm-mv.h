@@ -268,7 +268,8 @@ struct SelNormTiltedMoments {
 //
 // The optional `deterministic` flag of the factor and cluster kernels is set
 // exactly when the returned density is a function of the call's inputs alone: it
-// came from the deterministic ladder, the refinement tier or the sparse grid.
+// came from a deterministic ladder (of the product or the best weight rule), the
+// refinement tier or the sparse grid.
 // The randomized fallback never sets it, whatever its Monte Carlo standard
 // error (which can be exactly zero), and neither does a call that returns
 // before a normalizer is computed. Only such results may be remembered.

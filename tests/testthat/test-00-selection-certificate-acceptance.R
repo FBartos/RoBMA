@@ -156,21 +156,7 @@ test_that("the best weight rule keeps its geometric acceptance, decisions and va
   routes <- character()
   for (i in seq_along(reference[["blocks"]])) {
     b <- reference[["blocks"]][[i]]
-    actual <- if (b[["rank"]] == 1L) {
-      qmc <- BayesTools::selection_qmc_design(2L, 512L, 8L, seed = 173L)
-      .Call("RoBMA_selnorm_cluster_step_loglik_batch", b[["yi"]], matrix(b[["mean"]], 1L),
-        matrix(b[["sd"]], 1L), matrix(b[["loading"]][, 1L], 1L), b[["sei"]], matrix(b[["omega"]], 1L),
-        b[["z_lower"]], b[["z_upper"]], b[["obs_bin"]], 1L, TRUE, 1L, cluster_rules[["nodes"]],
-        cluster_rules[["log_weights"]], as.double(cluster_rules[["orders"]]), as.double(qmc),
-        64L, 512L, 8L, .005, TRUE, as.integer(b[["rule"]]), PACKAGE = "RoBMA")
-    } else {
-      qmc <- BayesTools::selection_qmc_design(2L * b[["rank"]], 512L, 8L, seed = 173L)
-      .Call("RoBMA_selnorm_factor_step_loglik_batch", b[["yi"]], matrix(b[["mean"]], 1L),
-        matrix(b[["sd"]], 1L), matrix(as.double(b[["loading"]]), 1L), b[["sei"]], matrix(b[["omega"]], 1L),
-        b[["z_lower"]], b[["z_upper"]], b[["obs_bin"]], 1L, TRUE, 1L, factor_rules[["nodes"]],
-        factor_rules[["log_weights"]], as.double(factor_rules[["orders"]]), as.double(qmc),
-        64L, 512L, 8L, .005, TRUE, as.integer(b[["rule"]]), PACKAGE = "RoBMA")
-    }
+    actual <- .test_cert_native_best(b, factor_rules, cluster_rules)
     expected <- reference[["results"]][[i]]
     info <- paste("block", i)
     expect_identical(actual[["relative_mcse"]] == 0, expected[["relative_mcse"]] == 0, info = info)
