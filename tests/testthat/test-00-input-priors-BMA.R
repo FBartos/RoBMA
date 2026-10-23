@@ -70,6 +70,25 @@ test_that("a factor term whose null and alternative contrasts differ is refused 
   expect_match(conditionMessage(condition), "the 'independent' contrast in 'prior_scale' but the 'meandif' contrast in 'prior_scale_null'", fixed = TRUE)
   expect_match(conditionMessage(condition), "leave 'prior_scale_null' unspecified", fixed = TRUE)
 
+  # A null given for the term itself is not built from the default contrast, so
+  # setting the default contrast is no remedy there; leaving the term out is.
+  for (case in list(
+    list(alt = "independent", null = "meandif", prior_mods = list(g = factor_prior("independent"))),
+    list(alt = "meandif", null = "independent", prior_mods = NULL)
+  )) {
+    args <- list(mods = ~ g, prior_mods_null = list(g = BayesTools::prior_factor(
+      "spike", list(0), contrast = case$null)))
+    args$prior_mods <- case$prior_mods
+    condition <- tryCatch(do.call(build, args), error = identity)
+    expect_s3_class(condition, "RoBMA_prior_contrast_conflict")
+    message <- conditionMessage(condition)
+    expect_match(message, paste0("uses the '", case$alt, "' contrast in 'prior_mods' but the '",
+      case$null, "' contrast in 'prior_mods_null'"), fixed = TRUE)
+    expect_match(message, paste0("contrast = \"", case$alt, "\"))"), fixed = TRUE)
+    expect_match(message, "leave the term out of 'prior_mods_null'", fixed = TRUE)
+    expect_false(grepl("set_contrast_factor_predictors", message, fixed = TRUE))
+  }
+
   # A null with the contrast of the alternative sets the conflict aside, as does
   # setting the default contrast or leaving the null unspecified, and a
   # default-contrast alternative needs none of them.

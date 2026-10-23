@@ -694,6 +694,11 @@
     formula_parameter <- switch(parameter, "mods" = "mu", "scale" = "log_tau")
   }
 
+  # the terms with their own entry in the null list, as opposed to a global or
+  # default null that is built with the default contrast
+  term_null_entries <- if (!missing(prior_list_null) && is.list(prior_list_null) &&
+                           !BayesTools::is.prior(prior_list_null)) names(prior_list_null)
+
   # in contrast to effect/heterogeneity prior list settings terms currently only allow a single prior for alternative
   # and a single prior for the null hypothesis for each term
 
@@ -836,7 +841,10 @@
       null_contrast <- .prior_factor_contrast(temp_prior_list[[1L]])
       alt_contrast  <- .prior_factor_contrast(temp_prior_list[[2L]])
       if (!is.na(null_contrast) && !is.na(alt_contrast) && null_contrast != alt_contrast) {
-        .stop_prior_contrast_conflict(par, parameter, alt_contrast, null_contrast)
+        .stop_prior_contrast_conflict(
+          par, parameter, alt_contrast, null_contrast,
+          term_null = par %in% term_null_entries
+        )
       }
     }
 
@@ -883,21 +891,37 @@
 
 # BayesTools refuses a mixture of factor priors with different contrasts without
 # naming the term or the arguments, so the conflict is reported before the
-# mixture is built.
-.stop_prior_contrast_conflict <- function(term, parameter, alt_contrast, null_contrast) {
+# mixture is built. A null built from a global or default null takes the
+# contrast of `set_contrast_factor_predictors`, which then is a remedy; a null
+# given for the term itself does not, and the term can be left out of the null
+# list instead.
+.stop_prior_contrast_conflict <- function(term, parameter, alt_contrast, null_contrast,
+                                          term_null = FALSE) {
 
   argument      <- paste0("prior_", parameter)
   null_argument <- paste0(argument, "_null")
+  example <- paste0(
+    null_argument, " = list(", deparse(as.name(term), backtick = TRUE),
+    " = prior_factor(\"spike\", list(0), contrast = \"", alt_contrast, "\"))"
+  )
+  remedies <- if (term_null) {
+    paste0(
+      "Give the null of the term the contrast of the alternative, e.g. ", example,
+      ", change the contrast of one of the two priors, or leave the term out of '",
+      null_argument, "' so that the null follows the alternative."
+    )
+  } else {
+    paste0(
+      "Give the term a null with the contrast of the alternative, e.g. ", example,
+      ", set 'set_contrast_factor_predictors' to the contrast that both priors use, or ",
+      "leave '", null_argument, "' unspecified so that the null follows the alternative."
+    )
+  }
   stop(structure(
     list(message = paste0(
       "The factor term '", term, "' uses the '", alt_contrast, "' contrast in '",
       argument, "' but the '", null_contrast, "' contrast in '", null_argument,
-      "', and its null and alternative priors need the same contrast. Give the ",
-      "term a null with the contrast of the alternative, e.g. ", null_argument,
-      " = list(", deparse(as.name(term), backtick = TRUE),
-      " = prior_factor(\"spike\", list(0), contrast = \"", alt_contrast, "\")), set ",
-      "'set_contrast_factor_predictors' to the contrast that both priors use, or ",
-      "leave '", null_argument, "' unspecified so that the null follows the alternative."
+      "', and its null and alternative priors need the same contrast. ", remedies
     ), call = NULL),
     class = c("RoBMA_prior_contrast_conflict", "RoBMA_prior_error", "error", "condition")
   ))
