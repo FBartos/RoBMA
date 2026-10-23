@@ -8,12 +8,13 @@
   certificate fails, use a four-shift average of the finest rule (rank-two
   tensors and depth-one forests, at tolerances of at least 0.005) or the
   randomized fallback, which now proposes from the tilted moments of the finest
-  rule. Every randomized selection normalizer (this fallback, the dense
-  covariance blocks and the Gaussian event integrals) is now accepted only when
-  2.36 times its relative Monte Carlo standard error, the 97.5% quantile for
-  eight scrambles, and its relative change are within `relative_tolerance`,
-  instead of one standard error; a fit can stop with "rejected by diagnostics"
-  where it formerly finished, and then needs a larger
+  rule. Every randomized selection normalizer (this fallback, the
+  conditioned-sampling normalizer, the dense covariance blocks and the Gaussian
+  event integrals) is now accepted only when 2.36 times its relative Monte
+  Carlo standard error, the 97.5% quantile for eight scrambles, and, where one
+  is reported, its nested-design relative change are within
+  `relative_tolerance`, instead of one standard error; a fit can stop with
+  "rejected by diagnostics" where it formerly finished, and then needs a larger
   `max_points_per_scramble` or `points_per_scramble`. Fits with dependent
   estimates run faster (about 20% in a reduced assink2016 CCI benchmark against
   4.1.0.440), because nodes reuse their last evaluation and the node products

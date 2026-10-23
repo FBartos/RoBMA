@@ -1122,8 +1122,9 @@
         current_plan, K, return_normalizer = TRUE
       )
     }
-    # The reported error keeps the raw standard error; acceptance scales it by
-    # the multiplier of the randomized selection normalizers.
+    # The reported error keeps the raw combined error; only its MCSE component
+    # is scaled, by the multiplier of the randomized selection normalizers, for
+    # acceptance.
     error <- current$relative_mcse
     judged <- .selection_qmc_z() * error
     if (method %in% c("rank_one", "factor")) {

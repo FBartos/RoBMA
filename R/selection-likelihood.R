@@ -233,8 +233,9 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' @param relative_tolerance largest accepted successive relative quadrature
 #'   change for factor integration, or the largest nested-design relative
 #'   change and 2.36 times the relative Monte Carlo standard error for a factor
-#'   fallback. General covariance blocks and Gaussian event integrals use 2.36
-#'   times the relative Monte Carlo standard error. Dense covariance-envelope
+#'   fallback and for the conditioned-sampling normalizer. General covariance
+#'   blocks and Gaussian event integrals use 2.36 times the relative Monte
+#'   Carlo standard error alone. Dense covariance-envelope
 #'   quadrature additionally requires the
 #'   sum of covariance-bound width, twice the successive quadrature change,
 #'   the relative exterior-mass bound, and any post-fit CDF interpolation error
@@ -1567,9 +1568,11 @@ set_selection_likelihood_control <- function(
 
 # The clause of the rejection messages that names this rule (the native
 # wrappers carry the same wording, SELNORM_QMC_CRITERION_* in selnorm-qmc-z.h).
+# The multiplier is printed with "%g" as the native messages do, so the text does
+# not follow options(digits) or options(OutDec).
 .selection_qmc_criterion <- function(change = TRUE) {
 
-  paste0(" (accepted when ", format(.selection_qmc_z()), " times the standard error",
+  paste0(" (accepted when ", sprintf("%g", .selection_qmc_z()), " times the standard error",
          if (change) " and the change are" else " is", " within 'relative_tolerance')")
 }
 

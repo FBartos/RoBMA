@@ -50,8 +50,9 @@ the default eight scrambles and does not change with this number.}
 \item{relative_tolerance}{largest accepted successive relative quadrature
 change for factor integration, or the largest nested-design relative
 change and 2.36 times the relative Monte Carlo standard error for a factor
-fallback. General covariance blocks and Gaussian event integrals use 2.36
-times the relative Monte Carlo standard error. Dense covariance-envelope
+fallback and for the conditioned-sampling normalizer. General covariance
+blocks and Gaussian event integrals use 2.36 times the relative Monte
+Carlo standard error alone. Dense covariance-envelope
 quadrature additionally requires the
 sum of covariance-bound width, twice the successive quadrature change,
 the relative exterior-mass bound, and any post-fit CDF interpolation error

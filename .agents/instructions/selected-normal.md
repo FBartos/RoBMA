@@ -284,9 +284,14 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   change are within 'relative_tolerance'"; native wording
   `SELNORM_QMC_CRITERION_*` in the header, R wording
   `.selection_qmc_criterion()`), because a rejected result can show an MCSE
-  below `tol`. The zplot selection projection and density batches and the
-  retained-context and deletion-ratio QMC judge their own combined error and
-  are not scaled; deterministic rules do not use the multiplier.
+  below `tol`. Four checks judge their own combined error and are not scaled:
+  the zplot selection projection (`.selection_factor_projection`), the zplot
+  density batches (`.zplot_joint_block`), the retained-context integration
+  (`.zplot_full_event_context_draw`) and the deletion-ratio QMC
+  (`.selection_conditioned_sampling_deletion_loglik_chunk`). The zplot
+  full-event projection (`.zplot_full_event_projection`) judges its event
+  integrals through `.selection_joint_checked_event`, which is scaled.
+  Deterministic rules do not use the multiplier.
 - Last-evaluation memo: JAGS evaluates a node first at its current value, so
   about 17% of the node calls repeat the previous one. Each factor and cluster
   step node keeps owned copies of every input of a deterministic result (`x`,

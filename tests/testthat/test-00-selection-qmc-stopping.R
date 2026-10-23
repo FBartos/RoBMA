@@ -55,6 +55,21 @@ test_that("the stopping multiplier is one native constant, the t(7) quantile for
   expect_lt(abs(z - stats::qt(.975, 7)), .01)
 })
 
+test_that("the rejection clause names the multiplier whatever the number formatting options", {
+
+  withr::local_options(digits = 2, OutDec = ",")
+  expect_identical(.selection_qmc_criterion(),
+    " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')")
+  expect_identical(.selection_qmc_criterion(change = FALSE),
+    " (accepted when 2.36 times the standard error is within 'relative_tolerance')")
+  error <- tryCatch(
+    .selection_joint_dense_loglik_check_mcse(.003, list(relative_tolerance = .002)),
+    error = identity)
+  expect_s3_class(error, "error")
+  expect_match(conditionMessage(error), "(accepted when 2.36 times the standard error is within",
+    fixed = TRUE)
+})
+
 test_that("the native stop continues while the scaled error exceeds the tolerance", {
 
   for (spec in .test_qmc_band_specs) {
