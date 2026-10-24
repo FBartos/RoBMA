@@ -68,9 +68,10 @@ test_that("check_loo uses stored draw counts and reports observed Pareto values"
   result[["diagnostics"]][["pareto_k"]] <- c(.6, .5)
   object[["loo"]] <- list(estimate = result)
   expect_warning(check_loo(object), paste0(
-    "Some Pareto k values are high, indicating potentially unreliable LOO ",
-    "diagnostics for estimates: 1 (k = 0.6). ",
-    "Inspect the LOO result with 'loo(object, unit = \"estimate\")'."
+    "Some Pareto k values are high (> ", format(min(1 - 1 / log10(100L), 0.7), digits = 3),
+    "), indicating potentially unreliable LOO ",
+    "diagnostics for estimates: 1. ",
+    "Inspect the loo fit by using loo(object)."
   ), fixed = TRUE)
   result[["diagnostics"]][["pareto_k"]] <- c(.5, .5)
   object[["loo"]][["estimate"]] <- result
@@ -118,9 +119,10 @@ test_that("check_loo retains small-sample and capped Pareto boundaries", {
     expect_warning(check_loo(object), NA)
     result$diagnostics$pareto_k <- c(boundary + .01, boundary)
     object$loo$estimate <- result
-    expected <- paste0("Some Pareto k values are high, indicating potentially unreliable LOO ",
-      "diagnostics for estimates: 1 (k = ", format(boundary + .01, digits = 4), "). ",
-      "Inspect the LOO result with 'loo(object, unit = \"estimate\")'.")
+    expected <- paste0("Some Pareto k values are high (> ", format(min(1 - 1 / log10(S), 0.7), digits = 3),
+      "), indicating potentially unreliable LOO ",
+      "diagnostics for estimates: 1. ",
+      "Inspect the loo fit by using loo(object).")
     expect_warning(check_loo(object), expected, fixed = TRUE)
   }
 })

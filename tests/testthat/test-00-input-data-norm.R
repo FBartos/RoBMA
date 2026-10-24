@@ -1601,7 +1601,7 @@ test_that("An empty data set names the step that emptied it", {
 })
 
 
-test_that("An unknown moderator variable is named like a random-effect variable", {
+test_that("An unknown moderator variable keeps the model-frame error of 4.0.0", {
 
   skip_on_cran()
 
@@ -1613,7 +1613,7 @@ test_that("An unknown moderator variable is named like a random-effect variable"
   expect_error(
     brma.norm(yi = yi, sei = sei, mods = ~ nothere, data = complete,
               only_data = TRUE),
-    "Cannot find the 'mods' variable ('nothere').",
+    "Cannot create model frame from 'mods' formula: object 'nothere' not found",
     fixed = TRUE
   )
 })

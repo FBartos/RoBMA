@@ -25,6 +25,6 @@ warn if any values are high.
 LOO must first be computed with
 \code{object <- add_loo(object, unit = unit)}. With \eqn{S} posterior draws
 in the stored LOO result, the method warns when any Pareto \eqn{k} diagnostic
-is greater than \eqn{\min(1 - 1 / \log_{10}(S), 0.7)}. The warning reports
-the affected target indices and their observed \eqn{k} values.
+is greater than \eqn{\min(1 - 1 / \log_{10}(S), 0.7)}. The warning gives
+that cutoff and the affected target indices.
 }

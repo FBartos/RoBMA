@@ -570,8 +570,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   if (conditioning_depth == "cluster" && !is_multilevel) {
     if (requested_type == "cluster") {
       stop(
-        "type = 'cluster' is only available for specialized multilevel ",
-        "models fitted with 'cluster'.",
+        "type = 'cluster' is only available for multilevel (3-level) models. ",
+        "Use type = 'terms' for non-multilevel models.",
         call. = FALSE
       )
     }

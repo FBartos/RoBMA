@@ -558,8 +558,7 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' \code{\link{rstudent.brma}}, which uses LOO-PIT. Internally standardized
 #' residuals are unavailable for binomial and Poisson GLMMs because no
 #' count-likelihood standardization has been implemented. Use
-#' \code{residuals(type = "outcome")} only when a descriptive raw
-#' effect-size-scale residual is appropriate.
+#' \code{rstudent()} (the LOO-PIT residuals) for GLMMs.
 #'
 #' For known-\code{V} models, the standardized residuals require applying the
 #' inverse of the marginal covariance. A covariance that is too ill-conditioned
@@ -632,10 +631,7 @@ rstandard.brma <- function(model, unit = "estimate",
   if (outcome_type != "norm") {
     stop(
       "rstandard is only available for normal outcome models. ",
-      "Standardized residuals are unavailable for binomial or Poisson GLMMs ",
-      "because no count-likelihood standardization has been implemented. Use ",
-      "residuals(type = 'outcome') only for descriptive raw effect-size-scale ",
-      "residuals.",
+      "Use rstudent() for GLMM models.",
       call. = FALSE
     )
   }
@@ -1290,7 +1286,8 @@ rstudent.brma <- function(model, unit = "estimate",
   if (type == "pearson") {
     if (outcome_type != "norm") {
       stop(
-        "Pearson residuals are only available for normal outcome models.",
+        "Pearson residuals are only available for normal outcome models. ",
+        "Use type = 'LOO-PIT' for GLMM models.",
         call. = FALSE
       )
     }
@@ -1306,7 +1303,8 @@ rstudent.brma <- function(model, unit = "estimate",
   if (type == "rstandard") {
     if (outcome_type != "norm") {
       stop(
-        "Standardized residuals (rstandard) are only available for normal outcome models.",
+        "Standardized residuals (rstandard) are only available for normal outcome models. ",
+        "Use type = 'LOO-PIT' for GLMM models.",
         call. = FALSE
       )
     }

@@ -226,7 +226,9 @@ regplot.brma <- function(x, mod = NULL, pred = TRUE, ci = TRUE, pi = FALSE, si =
   BayesTools::check_bool(ci, "ci")
   BayesTools::check_bool(pi, "pi")
   BayesTools::check_bool(si, "si")
-  .check_plot_numeric(level, "level", check_length = 1, lower = 50, upper = 99.9, allow_null = FALSE)
+  # the range wording of 4.0.0, then the finite scalar check that refuses NA
+  BayesTools::check_real(level, "level", lower = 50, upper = 99.9)
+  .check_plot_numeric(level, "level", check_length = 1, allow_null = FALSE)
   BayesTools::check_int(digits, "digits", lower = 0)
   .check_plot_function(transf, "transf")
   .check_plot_numeric(refline, "refline", check_length = 1, allow_null = TRUE)

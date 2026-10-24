@@ -30,9 +30,10 @@ test_that("cached-context influence diagnostics warn at the check_loo() Pareto t
   pareto_k <- rep(0.1, 6L)
   pareto_k[3L] <- 0.6
   object[["loo"]][["estimate"]][["diagnostics"]][["pareto_k"]] <- pareto_k
-  expected <- paste0("Some Pareto k values are high, indicating potentially unreliable ",
-    "LOO diagnostics for estimates: 3 (k = 0.6). ",
-    "Inspect the LOO result with 'loo(object, unit = \"estimate\")'.")
+  expected <- paste0("Some Pareto k values are high (> ", format(threshold, digits = 3),
+    "), indicating potentially unreliable ",
+    "LOO diagnostics for estimates: 3. ",
+    "Inspect the loo fit by using loo(object).")
   expect_warning(check_loo(object), expected, fixed = TRUE)
   expect_warning(covratio(object), expected, fixed = TRUE)
   expect_warning(dfbetas(object), expected, fixed = TRUE)
@@ -59,9 +60,10 @@ test_that("the cached-context Pareto check follows the check_loo() cutoff for ev
     expect_warning(.diagnostic_check_loo(object, context = context, unit = "estimate"), NA)
     context[["loo_result"]][["diagnostics"]][["pareto_k"]] <- c(boundary + .01, boundary)
     object[["loo"]][["estimate"]] <- context[["loo_result"]]
-    expected <- paste0("Some Pareto k values are high, indicating potentially unreliable ",
-      "LOO diagnostics for estimates: 1 (k = ", format(boundary + .01, digits = 4), "). ",
-      "Inspect the LOO result with 'loo(object, unit = \"estimate\")'.")
+    expected <- paste0("Some Pareto k values are high (> ", format(boundary, digits = 3),
+      "), indicating potentially unreliable ",
+      "LOO diagnostics for estimates: 1. ",
+      "Inspect the loo fit by using loo(object).")
     expect_warning(.diagnostic_check_loo(object, context = context, unit = "estimate"),
       expected, fixed = TRUE)
     expect_warning(check_loo(object), expected, fixed = TRUE)

@@ -1298,19 +1298,9 @@ NULL
       )
     }
 
-    if (inherits(mf, "try-error")) {
-      condition_message <- conditionMessage(attr(mf, "condition"))
-      missing_variable  <- regmatches(
-        condition_message,
-        regexec("object '([^']+)' not found", condition_message)
-      )[[1L]]
-      # Name the missing variable the way the random-effect parser does.
-      if (length(missing_variable) == 2L)
-        stop(paste0("Cannot find the '", name, "' variable ('",
-                    missing_variable[[2L]], "')."), call. = FALSE)
+    if (inherits(mf, "try-error"))
       stop(paste0("Cannot create model frame from '", name, "' formula: ",
-                  condition_message), call. = FALSE)
-    }
+                  conditionMessage(attr(mf, "condition"))), call. = FALSE)
 
     if (nrow(mf) != k)
       stop(paste0("The number of rows in '", name, "' (", nrow(mf),

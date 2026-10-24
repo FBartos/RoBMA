@@ -783,7 +783,7 @@ expect_vif_matches_metafor <- function(case) {
     warning = function(condition) {
       expected <- startsWith(
         conditionMessage(condition),
-        "Some Pareto k values are high, indicating potentially unreliable "
+        "Some Pareto k values are high (> "
       )
       if (expected) {
         invokeRestart("muffleWarning")

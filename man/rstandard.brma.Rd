@@ -83,8 +83,7 @@ This function is only available for normal outcome models without selection
 \code{\link{rstudent.brma}}, which uses LOO-PIT. Internally standardized
 residuals are unavailable for binomial and Poisson GLMMs because no
 count-likelihood standardization has been implemented. Use
-\code{residuals(type = "outcome")} only when a descriptive raw
-effect-size-scale residual is appropriate.
+\code{rstudent()} (the LOO-PIT residuals) for GLMMs.
 
 For known-\code{V} models, the standardized residuals require applying the
 inverse of the marginal covariance. A covariance that is too ill-conditioned

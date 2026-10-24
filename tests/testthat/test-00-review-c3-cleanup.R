@@ -13,8 +13,8 @@ test_that("prediction validates probabilities and explicit row admission", {
   }
   expect_error(predict(object, type = "cluster", quiet = TRUE,
     .posterior_samples = samples), paste0(
-    "type = 'cluster' is only available for specialized multilevel models ",
-    "fitted with 'cluster'."
+    "type = 'cluster' is only available for multilevel (3-level) models. ",
+    "Use type = 'terms' for non-multilevel models."
   ), fixed = TRUE)
   for (newdata in list(data.frame(yi = numeric(), sei = numeric()),
                        list(yi = numeric(), sei = numeric()))) {

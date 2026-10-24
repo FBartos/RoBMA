@@ -1233,8 +1233,8 @@ check_loo <- function(object, ...) UseMethod("check_loo")
 #' @details LOO must first be computed with
 #' \code{object <- add_loo(object, unit = unit)}. With \eqn{S} posterior draws
 #' in the stored LOO result, the method warns when any Pareto \eqn{k} diagnostic
-#' is greater than \eqn{\min(1 - 1 / \log_{10}(S), 0.7)}. The warning reports
-#' the affected target indices and their observed \eqn{k} values.
+#' is greater than \eqn{\min(1 - 1 / \log_{10}(S), 0.7)}. The warning gives
+#' that cutoff and the affected target indices.
 #'
 #' @return NULL (throws warning if diagnostics are unreliable).
 #'
@@ -1263,11 +1263,10 @@ check_loo.brma <- function(object, unit = "estimate", ...) {
   bad_k     <- which(pareto_k > threshold)
   if (length(bad_k) > 0L) {
     warning(
-      "Some Pareto k values are high, indicating potentially unreliable ",
-      "LOO diagnostics for ", unit, "s: ",
-      paste0(bad_k, " (k = ", format(pareto_k[bad_k], digits = 4), ")",
-             collapse = ", "), ". ",
-      "Inspect the LOO result with 'loo(object, unit = \"", unit, "\")'.",
+      "Some Pareto k values are high (> ", format(threshold, digits = 3),
+      "), indicating potentially unreliable ",
+      "LOO diagnostics for ", unit, "s: ", paste(bad_k, collapse = ", "), ". ",
+      "Inspect the loo fit by using loo(object).",
       call. = FALSE
     )
   }
