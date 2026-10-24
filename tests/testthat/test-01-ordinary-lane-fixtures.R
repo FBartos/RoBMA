@@ -411,8 +411,7 @@ test_that("a fitted point-baserate GLMM supports log-likelihood criteria fit is 
       chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
       seed = 42, silent = TRUE
     ),
-    paste0("Only one chain was run. R-hat cannot be computed; ",
-           "checking the remaining enabled convergence criteria."),
+    "Only one chain was run. R-hat cannot be computed.",
     fixed = TRUE
   )
   save_fit("lane_glmm_point_baserate", fit, info = list(prior_baserate = prior_baserate))
@@ -443,8 +442,7 @@ test_that("boundary-concentrated beta priors support likelihood criteria fit is 
       seed           = 42L,
       silent         = TRUE
     ),
-    paste0("Only one chain was run. R-hat cannot be computed; ",
-           "checking the remaining enabled convergence criteria."),
+    "Only one chain was run. R-hat cannot be computed.",
     fixed = TRUE
   )
   save_fit("lane_glmm_boundary_beta", fit, info = NULL)
@@ -471,8 +469,7 @@ test_that("fitted truncated-nuisance GLMMs support likelihood criteria fits are 
       chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
       seed = 123L, silent = TRUE
     ),
-    paste0("Only one chain was run. R-hat cannot be computed; ",
-           "checking the remaining enabled convergence criteria."),
+    "Only one chain was run. R-hat cannot be computed.",
     fixed = TRUE
   )
   expect_warning(
@@ -486,8 +483,7 @@ test_that("fitted truncated-nuisance GLMMs support likelihood criteria fits are 
       chains = 1L, sample = 100L, burnin = 100L, adapt = 100L,
       seed = 123L, silent = TRUE
     ),
-    paste0("Only one chain was run. R-hat cannot be computed; ",
-           "checking the remaining enabled convergence criteria."),
+    "Only one chain was run. R-hat cannot be computed.",
     fixed = TRUE
   )
   save_fit("lane_glmm_truncated_beta", fit_bin)

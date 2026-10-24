@@ -240,7 +240,7 @@ test_that("marginal_means() reports rows with a zero prior ordinate at the null 
 
   # The summary prints the reason after the row label; the data frame has NA.
   table <- summary(means)
-  expect_true(all(c(paste0("intercept: ", reason), paste0("x[0SD]: ", reason)) %in%
+  expect_true(all(c(paste0("mu_intercept: ", reason), paste0("mu_x[0SD]: ", reason)) %in%
                     attr(table, "warnings")))
   frame <- as.data.frame(means)
   expect_identical(frame[["parameter"]], c("intercept", "x[-1SD]", "x[0SD]", "x[1SD]"))
