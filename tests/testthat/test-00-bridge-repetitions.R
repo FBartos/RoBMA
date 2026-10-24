@@ -592,3 +592,28 @@ test_that("legacy nonfinite repeated comparisons delegate upstream contracts", {
     expect_identical(actual$warnings, expected$warnings)
   }
 })
+
+test_that("bridge_sampler() unwraps stored results that carry the bridge class", {
+
+  # BayesTools classes its marginal-likelihood results as c("BayesTools_marglik",
+  # "bridge", "list") from 0.3.1.241 on; the wrapper must not pass for the
+  # upstream bridge-sampling object.
+  as_bridge_class <- function(x) {
+    class(x) <- unique(c("BayesTools_marglik", "bridge", class(x)))
+    x
+  }
+
+  stored <- as_bridge_class(.bridge_repetition_test_stored(
+    .bridge_repetition_test_raw(c(-2, -1))
+  ))
+  extracted <- bridge_sampler(.bridge_repetition_test_fit(stored))
+  expect_false(inherits(extracted, "BayesTools_marglik"))
+  expect_s3_class(extracted, "bridge_list")
+  expect_identical(extracted, stored$diagnostics$upstream)
+
+  exact <- as_bridge_class(BayesTools:::.bt_marglik_exact_result(
+    -1, list(count = 1L, draws = 1L, draws_per_chain = 1L)
+  ))
+  expect_error(bridge_sampler(.bridge_repetition_test_fit(exact)),
+    class = "RoBMA_exact_marglik_no_bridge")
+})

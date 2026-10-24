@@ -204,7 +204,10 @@ bridgesampling::bayes_factor
 #' @exportS3Method bridgesampling::bridge_sampler
 bridge_sampler.brma <- function(samples, ...) {
   marglik <- .brma_stored_marglik(samples)
-  if (inherits(marglik, c("bridge", "bridge_list"))) {
+  # a stored BayesTools result is the wrapper of its upstream object even when
+  # it carries the class of one
+  if (!inherits(marglik, "BayesTools_marglik") &&
+      inherits(marglik, c("bridge", "bridge_list"))) {
     return(marglik)
   }
 
