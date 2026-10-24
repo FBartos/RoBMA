@@ -73,9 +73,8 @@ ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings const &s
 struct SelectedChild {
   StochasticNode *node;
   ChildKind kind;
-  DSELNORMMVSTEP const *mv = nullptr;
-  DSELNORMCLUSTERSTEP const *cluster = nullptr;
-  DSELNORMFACTORSTEP const *factor = nullptr;
+  // The distribution of the child, of the class the kind names (checked once).
+  Distribution const *distribution;
   std::vector<Node const *> parents;
   std::vector<unsigned int> lengths;
   mutable std::vector<double const *> parameters;
@@ -92,13 +91,13 @@ struct SelectedChild {
   }
 
   SelectedChild(StochasticNode *child, ChildKind child_kind)
-    : node(child), kind(child_kind)
+    : node(child), kind(child_kind), distribution(child->distribution())
   {
-    Distribution const *distribution = child->distribution();
-    if (kind == ChildKind::mv) mv = dynamic_cast<DSELNORMMVSTEP const *>(distribution);
-    else if (kind == ChildKind::cluster) cluster = dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution);
-    else if (kind == ChildKind::factor) factor = dynamic_cast<DSELNORMFACTORSTEP const *>(distribution);
-    if (mv == nullptr && cluster == nullptr && factor == nullptr) {
+    const bool consistent =
+      (kind == ChildKind::mv && dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) ||
+      (kind == ChildKind::cluster && dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution) != nullptr) ||
+      (kind == ChildKind::factor && dynamic_cast<DSELNORMFACTORSTEP const *>(distribution) != nullptr);
+    if (!consistent) {
       throw std::logic_error("Selection child has no surrogate evaluator.");
     }
     const unsigned int count = distribution->npar();
@@ -119,16 +118,26 @@ struct SelectedChild {
 
   bool checkControl() const
   {
-    if (mv != nullptr) return mv->checkControlParameterValue(parameters, lengths);
-    if (cluster != nullptr) return cluster->checkControlParameterValue(parameters, lengths);
-    return factor->checkControlParameterValue(parameters, lengths);
+    switch (kind) {
+    case ChildKind::mv:
+      return static_cast<DSELNORMMVSTEP const *>(distribution)->checkControlParameterValue(parameters, lengths);
+    case ChildKind::cluster:
+      return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->checkControlParameterValue(parameters, lengths);
+    default:
+      return static_cast<DSELNORMFACTORSTEP const *>(distribution)->checkControlParameterValue(parameters, lengths);
+    }
   }
 
   bool checkDynamic() const
   {
-    if (mv != nullptr) return mv->checkDynamicParameterValue(parameters, lengths);
-    if (cluster != nullptr) return cluster->checkDynamicParameterValue(parameters, lengths);
-    return factor->checkDynamicParameterValue(parameters, lengths);
+    switch (kind) {
+    case ChildKind::mv:
+      return static_cast<DSELNORMMVSTEP const *>(distribution)->checkDynamicParameterValue(parameters, lengths);
+    case ChildKind::cluster:
+      return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->checkDynamicParameterValue(parameters, lengths);
+    default:
+      return static_cast<DSELNORMFACTORSTEP const *>(distribution)->checkDynamicParameterValue(parameters, lengths);
+    }
   }
 
   double surrogate(unsigned int chain, SelNormCoarseSettings const &settings) const
@@ -136,16 +145,17 @@ struct SelectedChild {
     double const *x = node->value(chain);
     double const *lower = node->lowerLimit(chain);
     double const *upper = node->upperLimit(chain);
-    if (mv != nullptr) {
-      return mv->surrogateLogDensity(x, node->length(), PDF_LIKELIHOOD, parameters,
-                                     lengths, lower, upper, settings);
+    switch (kind) {
+    case ChildKind::mv:
+      return static_cast<DSELNORMMVSTEP const *>(distribution)->surrogateLogDensity(
+        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings);
+    case ChildKind::cluster:
+      return static_cast<DSELNORMCLUSTERSTEP const *>(distribution)->surrogateLogDensity(
+        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings);
+    default:
+      return static_cast<DSELNORMFACTORSTEP const *>(distribution)->surrogateLogDensity(
+        x, node->length(), PDF_LIKELIHOOD, parameters, lengths, lower, upper, settings);
     }
-    if (cluster != nullptr) {
-      return cluster->surrogateLogDensity(x, node->length(), PDF_LIKELIHOOD, parameters,
-                                          lengths, lower, upper, settings);
-    }
-    return factor->surrogateLogDensity(x, node->length(), PDF_LIKELIHOOD, parameters,
-                                       lengths, lower, upper, settings);
   }
 
   double logDensity(unsigned int chain, SelNormCoarseSettings const &settings) const

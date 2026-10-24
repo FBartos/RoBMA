@@ -5507,6 +5507,39 @@ FactorColumnCompaction compact_factor_columns(const double *declared_loading,
   return out;
 }
 
+// Step-kernel data of a block with the arrays it points to (no segments and no
+// p-hacking): the one setup of the exact cluster and factor kernels and of the
+// corrected sampler's surrogates. The object owns the arrays, so it must outlive
+// every copy of `data` that is used.
+struct StepKernelSelection {
+  double phack_z_zero[2] = {0, 0};
+  double segment_bounds_zero[1] = {0};
+  int segment_zero[1] = {0};
+  SelNormKernelData data;
+
+  StepKernelSelection(int n_bins, int effect_sign, const double *z_lower,
+                      const double *z_upper, bool telescope_probabilities)
+  {
+    data.n_bins = n_bins;
+    data.n_segments = 0;
+    data.effect_sign = effect_sign;
+    data.q = 0;
+    data.z_lower = z_lower;
+    data.z_upper = z_upper;
+    data.phack_z_source = phack_z_zero;
+    data.phack_z_dest = phack_z_zero;
+    data.segment_bounds = segment_bounds_zero;
+    data.segment_step_bin = segment_zero;
+    data.segment_phack_region = segment_zero;
+    data.segment_step_bin_real = 0;
+    data.segment_phack_region_real = 0;
+    data.trusted_step_partition = true;
+    data.telescope_probabilities = telescope_probabilities;
+  }
+  StepKernelSelection(const StepKernelSelection &) = delete;
+  StepKernelSelection &operator=(const StepKernelSelection &) = delete;
+};
+
 }
 
 double cpp_selnorm_factor_step_lpdf(
@@ -5564,25 +5597,9 @@ double cpp_selnorm_factor_step_lpdf(
     qmc_column[factor] = compacted ? active_columns[factor] : factor;
   }
 
-  double phack_z_zero[2] = {0, 0};
-  double segment_bounds_zero[1] = {0};
-  int segment_zero[1] = {0};
-  SelNormKernelData selection;
-  selection.n_bins = n_bins;
-  selection.n_segments = 0;
-  selection.effect_sign = effect_sign;
-  selection.q = 0;
-  selection.z_lower = z_lower;
-  selection.z_upper = z_upper;
-  selection.phack_z_source = phack_z_zero;
-  selection.phack_z_dest = phack_z_zero;
-  selection.segment_bounds = segment_bounds_zero;
-  selection.segment_step_bin = segment_zero;
-  selection.segment_phack_region = segment_zero;
-  selection.segment_step_bin_real = 0;
-  selection.segment_phack_region_real = 0;
-  selection.trusted_step_partition = true;
-  selection.telescope_probabilities = telescope_probabilities;
+  const StepKernelSelection step_selection(n_bins, effect_sign, z_lower, z_upper,
+                                           telescope_probabilities);
+  const SelNormKernelData &selection = step_selection.data;
 
   std::vector<double> inverse_variance(static_cast<std::size_t>(dimension));
   std::vector<double> system(static_cast<std::size_t>(rank * rank), 0.0);
@@ -6201,37 +6218,6 @@ double cpp_selnorm_factor_step_lpdf(
 
 namespace {
 
-// Step-kernel data of a block with the arrays it points to, as every kernel
-// entry builds it (no segments and no p-hacking).
-struct StepKernelSelection {
-  double phack_z_zero[2] = {0, 0};
-  double segment_bounds_zero[1] = {0};
-  int segment_zero[1] = {0};
-  SelNormKernelData data;
-
-  StepKernelSelection(int n_bins, int effect_sign, const double *z_lower,
-                      const double *z_upper, bool telescope_probabilities)
-  {
-    data.n_bins = n_bins;
-    data.n_segments = 0;
-    data.effect_sign = effect_sign;
-    data.q = 0;
-    data.z_lower = z_lower;
-    data.z_upper = z_upper;
-    data.phack_z_source = phack_z_zero;
-    data.phack_z_dest = phack_z_zero;
-    data.segment_bounds = segment_bounds_zero;
-    data.segment_step_bin = segment_zero;
-    data.segment_phack_region = segment_zero;
-    data.segment_step_bin_real = 0;
-    data.segment_phack_region_real = 0;
-    data.trusted_step_partition = true;
-    data.telescope_probabilities = telescope_probabilities;
-  }
-  StepKernelSelection(const StepKernelSelection &) = delete;
-  StepKernelSelection &operator=(const StepKernelSelection &) = delete;
-};
-
 // Offset into the quadrature tables and order of rule min(max_rules, count) of
 // a schedule (1-based), the one rule the surrogate integrates over.
 void surrogate_rule_span(const double *orders, int rule_count, unsigned int max_rules,
@@ -6373,25 +6359,9 @@ double cpp_selnorm_cluster_step_lpdf(
     throw std::invalid_argument("An explicit selection normalizer must be finite.");
   }
 
-  double phack_z_zero[2] = {0, 0};
-  double segment_bounds_zero[1] = {0};
-  int segment_zero[1] = {0};
-  SelNormKernelData selection;
-  selection.n_bins = n_bins;
-  selection.n_segments = 0;
-  selection.effect_sign = effect_sign;
-  selection.q = 0;
-  selection.z_lower = z_lower;
-  selection.z_upper = z_upper;
-  selection.phack_z_source = phack_z_zero;
-  selection.phack_z_dest = phack_z_zero;
-  selection.segment_bounds = segment_bounds_zero;
-  selection.segment_step_bin = segment_zero;
-  selection.segment_phack_region = segment_zero;
-  selection.segment_step_bin_real = 0;
-  selection.segment_phack_region_real = 0;
-  selection.trusted_step_partition = true;
-  selection.telescope_probabilities = telescope_probabilities;
+  const StepKernelSelection step_selection(n_bins, effect_sign, z_lower, z_upper,
+                                           telescope_probabilities);
+  const SelNormKernelData &selection = step_selection.data;
 
   // The Gaussian numerator is the stable one-factor integral: the residual
   // after the latent projection is formed directly, never as a difference of

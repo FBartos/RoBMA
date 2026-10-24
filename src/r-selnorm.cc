@@ -27,6 +27,7 @@
 #include "samplers/CoarseCorrectedSlice.h"
 #include "distributions/DSELNORMCLUSTERSTEP.h"
 #include "distributions/DSELNORMFACTORSTEP.h"
+#include "distributions/selnorm-jags-bounds.h"
 
 #ifndef FCONE
 # define FCONE
@@ -437,11 +438,8 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   if (control_valid) {
     const int rows = static_cast<int>(length);
     const int rank = factor ? static_cast<int>(len[2] / len[0]) : 1;
-    std::vector<double> lower_bounds(par[5], par[5] + len[5]), upper_bounds(par[6], par[6] + len[6]);
-    for (double &value : lower_bounds) value = value == -1e300 ? -std::numeric_limits<double>::infinity() :
-      value == 1e300 ? std::numeric_limits<double>::infinity() : value;
-    for (double &value : upper_bounds) value = value == -1e300 ? -std::numeric_limits<double>::infinity() :
-      value == 1e300 ? std::numeric_limits<double>::infinity() : value;
+    const SelNormJagsBounds lower_bounds(par[5], len[5]);
+    const SelNormJagsBounds upper_bounds(par[6], len[6]);
     std::vector<int> obs_bin(static_cast<std::size_t>(rows));
     for (int i = 0; i < rows; ++i) obs_bin[static_cast<std::size_t>(i)] = static_cast<int>(par[7][i]);
     try {

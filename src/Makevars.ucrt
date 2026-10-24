@@ -120,7 +120,7 @@ RoBMA.o: $(DISTRIBUTION_OBJECTS:.o=.h) selnorm/selnorm-mv.h
 
 samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h selnorm/selnorm.h selnorm/selnorm-fma.h
 RoBMA.o r-selnorm.o: samplers/CoarseCorrectedSlice.h
-r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h
+r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h distributions/selnorm-jags-bounds.h
 
 glmm-aghq.o: glmm-binomial-loglik.h
 glmm-aghq.o init.o: glmm-aghq.h
