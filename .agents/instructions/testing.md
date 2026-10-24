@@ -60,7 +60,8 @@ much slower than the ordinary standard profile and does not run
   slow test whose evidence the standard profile does not need starts with
   `skip_if_not_certification()` naming its case, and the case runs its file and
   lists it in `required_tests`; the `tooling` case holds the slow checks of the
-  test tooling itself (scenario benchmark driver, fit-cache producer fixtures).
+  test tooling itself (scenario helpers, run safety and benchmark driver,
+  fit-cache producer fixtures).
 - `Rscript tools/test-profile.R release`: refresh standard fits, run the
   standard suite, run all certification cases, then call `devtools::check()`.
 

@@ -682,7 +682,11 @@ certification_cases <- function() {
           c(
             "regular signed fixed-total interior retains positive conditional contributions",
             "admitted nonpure share endpoints use the allocation group source",
-            "physical ordered block oracles cover shifted numerators and selected denominators"
+            "physical ordered block oracles cover shifted numerators and selected denominators",
+            "ordered partial uncertainty survives result assembly and public consumers",
+            "near-fit ordered Gaussian and observed step factors match full original replay",
+            "nonzero Bernoulli interior retains the regular conditional source",
+            "fixed allocations with multiple total slices do not certify constant contributions"
           )
         ),
         .required_tests(
@@ -701,18 +705,53 @@ certification_cases <- function() {
     ),
     "tooling" = list(
       description = paste(
-        "Scenario benchmark driver runs and fit-cache producer fixtures that",
-        "copy the package source tree or start child R processes."
+        "Maintainer scenario tooling (helpers, run safety, benchmark driver) and",
+        "fit-cache producer fixtures: runs that copy the package source tree,",
+        "start child R processes or build temporary scenario trees."
       ),
       fit_sources = character(),
-      test_filter = anchored("00-scenario-benchmark|02-cache-catalog"),
+      test_filter = anchored("00-scenario-(benchmark|helpers|safety)|02-cache-catalog"),
       required_tests = rbind(
         .required_tests(
           "test-00-scenario-benchmark.R",
           c(
             "benchmark workload and helpers belong to the driver tree",
             "BCG marginal preparation agrees for full and selected synthetic cached inputs",
-            "benchmark option defaults and missing call metadata remain explicit"
+            "benchmark option defaults and missing call metadata remain explicit",
+            "benchmark plots use the canonical scenario SVG renderer",
+            "benchmark memory reads MB maxima in ordinary and finite-heap layouts",
+            "Bem-shaped fit-list construction keeps its named outputs and loop binding",
+            "benchmark cache versions match literals without forcing expressions",
+            "benchmark cache loading validates genuine persisted fit contracts",
+            "benchmark tools record an unavailable git HEAD as NA"
+          )
+        ),
+        .required_tests(
+          "test-00-scenario-helpers.R",
+          c(
+            "scenario_fit invalidates changed calls and supports regeneration",
+            "scenario defaults distinguish direct and managed interactive runs",
+            "scenario_time returns values and records successful computations",
+            "scenario_fit supports optional targeted cache versions",
+            "scenario refitting and output updates are independent",
+            "scenario_fit stops at a cached RoBMA fit the current build refuses",
+            "scenario_fit loads current RoBMA fits and other cached objects",
+            "scenario_text adds, compares, and regenerates tracked output",
+            "scenario_text uses portable quotes and restores printing options",
+            "scenario_text seeds stochastic snapshots independently",
+            "scenario review combines table and figure decisions",
+            "scenario_text suppresses evaluation messages",
+            "scenario_plot locks interactive plots and seeds each rendering",
+            "scenario runs keep locked figures and still write candidates"
+          )
+        ),
+        .required_tests(
+          "test-00-scenario-safety.R",
+          c(
+            "scenario and text names reserve the candidate suffix before evaluation",
+            "ordinary text artifacts preserve locked bytes and candidate behavior",
+            "plot aliases fail before evaluating or writing a second artifact",
+            "default scenario loading prepares the release DLL without test helpers"
           )
         ),
         .required_tests(

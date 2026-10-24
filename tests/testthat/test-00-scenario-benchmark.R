@@ -109,6 +109,7 @@ test_that("benchmark workload and helpers belong to the driver tree", {
 
 test_that("benchmark plots use the canonical scenario SVG renderer", {
 
+  skip_if_not_certification("These benchmark-driver checks belong to the tooling case.")
   skip_if_not_installed("vdiffr")
   root <- .scenario_benchmark_fixture('scenario_plot("chosen", graphics::plot(1:3))')
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -126,6 +127,7 @@ test_that("benchmark plots use the canonical scenario SVG renderer", {
 
 test_that("benchmark memory reads MB maxima in ordinary and finite-heap layouts", {
 
+  skip_if_not_certification("These benchmark-driver checks belong to the tooling case.")
   root <- .scenario_benchmark_fixture('scenario_text("chosen", print(7))')
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   env <- new.env(parent = globalenv())
@@ -163,6 +165,7 @@ test_that("benchmark memory reads MB maxima in ordinary and finite-heap layouts"
 
 test_that("Bem-shaped fit-list construction keeps its named outputs and loop binding", {
 
+  skip_if_not_certification("These benchmark-driver checks belong to the tooling case.")
   root <- .scenario_benchmark_fixture(c(
     'mu0_seq <- c(-0.25, 0, 0.25)',
     'preparation_count <- 0L',
@@ -283,6 +286,7 @@ test_that("BCG marginal preparation agrees for full and selected synthetic cache
 
 test_that("benchmark cache versions match literals without forcing expressions", {
 
+  skip_if_not_certification("These benchmark-driver checks belong to the tooling case.")
   block <- c(
     'fit_needed <- scenario_fit("needed", stop("must never fit"), cache_version = 2L)',
     'scenario_text("chosen", print(fit_needed$value))'
@@ -325,6 +329,7 @@ test_that("benchmark cache versions match literals without forcing expressions",
 
 test_that("benchmark cache loading validates genuine persisted fit contracts", {
 
+  skip_if_not_certification("These benchmark-driver checks belong to the tooling case.")
   setup <- review_compile_object(brma(yi = c(.1, .2, -.1), sei = rep(.2, 3L),
     measure = "GEN", prior_unit_information_sd = 1,
     prior_effect = prior("normal", list(0, 1)),
@@ -414,6 +419,7 @@ test_that("benchmark option defaults and missing call metadata remain explicit",
 
 test_that("benchmark tools record an unavailable git HEAD as NA", {
 
+  skip_if_not_certification("These benchmark-driver checks belong to the tooling case.")
   package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
   tools <- file.path(package_root, "tools", c("bench-scenario.R", "bench-glmm-aghq.R"))
   skip_if_not(all(file.exists(tools)), "Developer benchmarks require a source checkout.")

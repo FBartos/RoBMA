@@ -232,6 +232,7 @@ test_that("nested helper sourcing reuses the runner state", {
 
 test_that("scenario_fit invalidates changed calls and supports regeneration", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   counter <- 0L
@@ -290,6 +291,7 @@ test_that("scenario_fit invalidates changed calls and supports regeneration", {
 
 test_that("scenario defaults distinguish direct and managed interactive runs", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   helper_env      <- environment(scenario_start)
@@ -444,6 +446,7 @@ test_that("interactive timing backfills but requires consent for slowdowns", {
 
 test_that("scenario_time returns values and records successful computations", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   helper_env <- environment(scenario_time)
@@ -496,6 +499,7 @@ test_that("scenario_time returns values and records successful computations", {
 
 test_that("scenario_fit supports optional targeted cache versions", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   counter <- 0L
@@ -534,6 +538,7 @@ test_that("scenario_fit supports optional targeted cache versions", {
 
 test_that("scenario refitting and output updates are independent", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   counter <- 0L
@@ -763,6 +768,7 @@ test_that("cached fits do not require timing metadata", {
 
 test_that("scenario_fit stops at a cached RoBMA fit the current build refuses", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   counter <- 0L
@@ -855,6 +861,7 @@ test_that("scenario_fit stops at a cached RoBMA fit the current build refuses", 
 
 test_that("scenario_fit loads current RoBMA fits and other cached objects", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   counter <- 0L
@@ -1236,6 +1243,7 @@ test_that("large absolute scenario timing regressions are highlighted in red", {
 
 test_that("scenario_text adds, compares, and regenerates tracked output", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
 
@@ -1278,6 +1286,7 @@ test_that("scenario_text adds, compares, and regenerates tracked output", {
 
 test_that("scenario_text uses portable quotes and restores printing options", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   custom_quotes <- c("<single>", "</single>", "<double>", "</double>")
@@ -1302,6 +1311,7 @@ test_that("scenario_text uses portable quotes and restores printing options", {
 
 test_that("scenario_text seeds stochastic snapshots independently", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
 
@@ -1316,6 +1326,7 @@ test_that("scenario_text seeds stochastic snapshots independently", {
 
 test_that("scenario review combines table and figure decisions", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   helper_env   <- environment(scenario_text)
@@ -1740,6 +1751,7 @@ test_that("scenario_text replays captured output when requested", {
 
 test_that("scenario_text suppresses evaluation messages", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   scenario_start("unit", root = root, create_missing = FALSE)
@@ -1789,6 +1801,7 @@ test_that("scenario plot evaluation restores base graphics parameters", {
 
 test_that("scenario_plot locks interactive plots and seeds each rendering", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
   helper_env   <- environment(scenario_plot)
@@ -2756,6 +2769,7 @@ test_that("scenario runs keep locked snapshots after a block stops early", {
 
 test_that("scenario runs keep locked figures and still write candidates", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   skip_if_not_installed("vdiffr")
   root <- .scenario_test_root()
   on.exit(unlink(root, recursive = TRUE), add = TRUE)

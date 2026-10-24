@@ -1440,10 +1440,28 @@ package_source_md5 <- function() {
     return(get("value", envir = .package_source_md5_cache, inherits = FALSE))
   }
 
-  file_hashes    <- vapply(source_files, .fit_cache_source_file_md5, character(1))
+  # A file is hashed again only when its size or modification time changed (the
+  # same signal as the fingerprint above), so the hash after one source edit
+  # reads that file and not the whole tree.
+  info        <- file.info(source_files, extra_cols = FALSE)
+  file_keys   <- paste(source_files, info[["size"]],
+                       sprintf("%.6f", as.numeric(info[["mtime"]])), sep = ":")
+  known       <- if (exists("file_hashes", envir = .package_source_md5_cache, inherits = FALSE)) {
+    get("file_hashes", envir = .package_source_md5_cache, inherits = FALSE)
+  } else {
+    character()
+  }
+  file_hashes <- unname(known[file_keys])
+  changed     <- is.na(file_hashes)
+  if (any(changed)) {
+    file_hashes[changed] <- vapply(source_files[changed], .fit_cache_source_file_md5,
+                                   character(1), USE.NAMES = FALSE)
+  }
   if (anyNA(file_hashes)) {
     return(NA_character_)
   }
+  assign("file_hashes", stats::setNames(file_hashes, file_keys),
+         envir = .package_source_md5_cache)
   relative_files <- substring(source_files, nchar(package_root) + 2L)
   hash_input     <- paste(
     paste0(relative_files, ":", unname(file_hashes)),

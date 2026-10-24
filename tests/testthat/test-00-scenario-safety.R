@@ -5,6 +5,7 @@ source(testthat::test_path("..", "scenarios", "helper-scenarios.R"))
 
 test_that("scenario and text names reserve the candidate suffix before evaluation", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- tempfile("robma-scenario-safety-")
   dir.create(root)
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -59,6 +60,7 @@ test_that("scenario and text names reserve the candidate suffix before evaluatio
 
 test_that("ordinary text artifacts preserve locked bytes and candidate behavior", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   root <- tempfile("robma-scenario-text-control-")
   dir.create(root)
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
@@ -80,6 +82,7 @@ test_that("ordinary text artifacts preserve locked bytes and candidate behavior"
 
 test_that("plot aliases fail before evaluating or writing a second artifact", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   skip_if_not_installed("vdiffr")
   root <- tempfile("robma-scenario-plot-alias-")
   dir.create(root)
@@ -302,6 +305,7 @@ test_that("direct timing warnings compare with the immutable run-start baseline"
 
 test_that("default scenario loading prepares the release DLL without test helpers", {
 
+  skip_if_not_certification("These maintainer scenario-tooling checks belong to the tooling case.")
   package_root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")
   skip_if_not(file.exists(file.path(package_root, "tools/optimized-dll.R")),
               "Developer release loader requires a source checkout.")

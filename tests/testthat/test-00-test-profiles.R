@@ -603,7 +603,8 @@ test_that("certification case verification filters select their intended files",
       "02-marginal_means", "02-random-parameters", "03-bridgesampling",
       "03-loo"
     ),
-    "tooling" = c("00-scenario-benchmark", "02-cache-catalog")
+    "tooling" = c("00-scenario-benchmark", "00-scenario-helpers",
+                  "00-scenario-safety", "02-cache-catalog")
   )
 
   expect_identical(names(expected), certification_case_names())

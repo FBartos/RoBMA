@@ -1112,6 +1112,7 @@ test_that("requested method reaches source-chart failures through actual plans",
 
 test_that("ordered partial uncertainty survives result assembly and public consumers", {
 
+  skip_if_not_certification("This ordered-target oracle runs in the iwmde-qcmde case.")
   fixture <- .ordered_target_fixture()
   context <- fixture[["context"]]
   context[["data"]] <- structure(list(outcome = data.frame(yi = .3, sei = .4)), outcome_type = "norm")
@@ -1524,6 +1525,7 @@ test_that("one-ulp alternate replay inputs retain the portable conditioning rela
 
 test_that("near-fit ordered Gaussian and observed step factors match full original replay", {
 
+  skip_if_not_certification("This ordered-target oracle runs in the iwmde-qcmde case.")
   grid <- expand.grid(total = c(-1, 0, 1), share = c(1e-6, 1e-4, .001, .5, 1))
   for (selected in c(FALSE, TRUE)) for (repetitions in c(1L, 30L)) for (direction in c("positive", "negative")) {
     fixture <- .ordered_narrow_gaussian_fixture(repetitions, selected, direction)
@@ -1947,6 +1949,7 @@ testthat::test_that("regular signed fixed-total interior retains positive condit
 }
 
 testthat::test_that("nonzero Bernoulli interior retains the regular conditional source", {
+  skip_if_not_certification("This ordered-target oracle runs in the iwmde-qcmde case.")
   fixture <- .ordered_review_declared_fixture(BayesTools::prior("bernoulli", list(.5)), c(1, 1, 1))
   testthat::expect_true(fixture$target$ordered_point_plan$descriptor$interior)
   testthat::expect_identical(fixture$target$ordered_point_plan$status, "raw")
@@ -2077,6 +2080,7 @@ dat$sei <- rep(c(.4, .5, .6), 6L)
 }
 
 testthat::test_that("fixed allocations with multiple total slices do not certify constant contributions", {
+  skip_if_not_certification("This ordered-target oracle runs in the iwmde-qcmde case.")
   multi <- .ordered_review_multi_fixture(TRUE)
   selected <- vapply(1:2, function(slice) multi$focal_spec$coefficient_names[
     which(multi$focal_spec$slice_index == slice)[1L]], character(1))
