@@ -5,13 +5,16 @@
 # Variance Inflation Factor (VIF) and Generalized VIF (GVIF) for brma objects.
 #
 # Two complementary diagnostics for multicollinearity:
-# 1. Posterior-averaged working VIF/GVIF from cov2cor(vcov)
+# 1. Classical VIF/GVIF from cov2cor(vcov) (matches metafor)
 # 2. Posterior correlation of regression coefficients (Bayesian diagnostic)
 #
-# VIF is computed from the correlation matrix of the posterior mean coefficient
-# variance-covariance matrix: vcov = mean_s((X'W_sX)^{-1}). brma.mv known-V
-# models use the full supplied sampling covariance plus any marginal
-# heterogeneity or formula random-effect covariance in each posterior draw.
+# VIF is computed from the correlation matrix of the coefficient
+# variance-covariance matrix: vcov = (X'WX)^{-1}. For simple models, W uses
+# diag(weight_i/(vi + tau^2)) at the posterior mean tau; scale and multilevel
+# models average this coefficient covariance over posterior heterogeneity
+# draws. brma.mv known-V models use the full supplied sampling covariance plus
+# any marginal heterogeneity or formula random-effect covariance in each
+# posterior draw.
 #
 # GVIF formula (Fox & Monette, 1992, for multi-df terms):
 #   GVIF = det(R_11) * det(R_22) / det(R)
@@ -69,13 +72,14 @@ vif <- function(object, ...) {
 #'
 #' @details
 #' VIF is computed from the correlation matrix derived from the
-#' coefficient variance-covariance matrix. The package computes
-#' \eqn{\mathrm{E}[(X'W_sX)^{-1} \mid y]} by averaging coefficient covariance
-#' across posterior heterogeneity draws. Standard models use
-#' \eqn{W_s = \mathrm{diag}(w_i/(v_i + \tau_s^2))}; scale and multilevel models
-#' use observation-specific \eqn{\tau_{is}} and block-structured multilevel
-#' covariance where applicable. Averaging occurs before conversion to a
-#' correlation matrix and computation of VIF/GVIF.
+#' coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
+#' meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
+#' with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
+#' and multilevel models, the coefficient covariance is averaged across
+#' posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
+#' and block-structured multilevel covariance where applicable. Averaging
+#' occurs before conversion to a correlation matrix and computation of
+#' VIF/GVIF.
 #'
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
@@ -97,13 +101,11 @@ vif <- function(object, ...) {
 #'
 #' When \code{posterior_correlation = TRUE}, the function also returns the
 #' posterior correlation matrix of the regression coefficients. This
-#' Bayesian diagnostic complements VIF: VIF summarizes collinearity under the
-#' posterior distribution of the marginal working covariance, whereas the
-#' posterior correlation shows the realized joint identification of the
-#' coefficients given the data and priors. Unlike a fixed-covariance design
-#' VIF, posterior-averaged VIF can therefore depend on the outcome and the
-#' heterogeneity prior. Informative coefficient priors can also reduce posterior
-#' correlations even when VIF is high.
+#' Bayesian diagnostic complements VIF: while VIF diagnoses the
+#' \emph{potential} for collinearity problems (a data property), the
+#' posterior correlation shows the \emph{realized} identification
+#' given the data and priors. Informative priors can mitigate
+#' collinearity, reducing posterior correlations even when VIF is high.
 #'
 #' Data-only objects created with \code{only_data = TRUE} are rejected because
 #' VIF depends on fitted heterogeneity information, not just the parsed data.
@@ -213,9 +215,10 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # .compute_vif
 # ---------------------------------------------------------------------------- #
 #
-# Compute VIF/GVIF after averaging solve(X'WX) over posterior heterogeneity
-# draws so scalar, observation-specific, and block covariances share one
-# package-wide estimand.
+# Compute VIF/GVIF from cov2cor(solve(X'WX)). Simple models use the posterior
+# mean tau plug-in. Scale and multilevel models average solve(X'WX) over
+# posterior heterogeneity draws so observation-specific and block covariances
+# are preserved.
 #
 # @param object brma object with moderators
 #
@@ -380,7 +383,12 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
-  if (!is.null(rows)) {
+  if (!is_scale && !is_multilevel) {
+    # simple models: the posterior mean heterogeneity of all draws is plugged
+    # in (the metafor-style VIF), whatever the design class of the rows
+    tau_within_samples  <- matrix(mean(tau_within_samples), nrow = 1L, ncol = 1L)
+    tau_between_samples <- NULL
+  } else if (!is.null(rows)) {
     tau_within_samples <- tau_within_samples[rows, , drop = FALSE]
     if (!is.null(tau_between_samples)) {
       tau_between_samples <- tau_between_samples[rows, , drop = FALSE]

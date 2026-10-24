@@ -291,7 +291,7 @@ test_that("VIF rejects models without moderators", {
   }
 })
 
-test_that("ordinary VIF uses posterior covariance averaging", {
+test_that("ordinary VIF plugs in the posterior mean heterogeneity", {
 
   name <- "bcg_meta-regression"
   skip_if_missing_fits(name)
@@ -313,17 +313,17 @@ test_that("ordinary VIF uses posterior covariance averaging", {
   vi <- .outcome_data_vi(object)
   weights <- .outcome_data_weights(object)
   if (is.null(weights)) weights <- rep(1, K)
-  # Each draw defines a weighted least-squares covariance. Average those
-  # independent dense solves, not the production covariance helper's output.
-  expected <- Reduce(`+`, lapply(seq_len(nrow(tau[["tau_within"]])), function(draw) {
-    precision <- weights / (vi + tau[["tau_within"]][draw, ]^2)
-    solve(crossprod(X, X * precision))
-  })) / nrow(tau[["tau_within"]])
+  # A simple model plugs the posterior mean heterogeneity into one weighted
+  # least-squares covariance (the metafor-style VIF), not the average of the
+  # covariances of the draws.
+  precision <- weights / (vi + mean(tau[["tau_within"]])^2)
+  expected  <- solve(crossprod(X, X * precision))
+  dimnames(expected) <- list(colnames(X), colnames(X))
 
   expect_equal(.vif_vcov_brma(object, X), expected, tolerance = 1e-12)
 })
 
-test_that("product-space VIF averages all posterior covariance states", {
+test_that("product-space VIF plugs in or averages the posterior covariance by model type", {
 
   names <- c(
     "dat.lehmann2018_BMA.norm_mods",
@@ -361,9 +361,14 @@ test_that("product-space VIF averages all posterior covariance states", {
     } else {
       list()
     }
-    expected <- Reduce(`+`, lapply(seq_len(nrow(tau[["tau_within"]])), function(s) {
+    tau_within <- tau[["tau_within"]]
+    if (!is_scale && !is_multilevel) {
+      # the posterior mean heterogeneity of all draws is plugged in
+      tau_within <- matrix(mean(tau_within), nrow = 1L, ncol = ncol(tau_within))
+    }
+    expected <- Reduce(`+`, lapply(seq_len(nrow(tau_within)), function(s) {
       M <- diag(
-        (vi + tau[["tau_within"]][s, ]^2) / weights,
+        (vi + tau_within[s, ]^2) / weights,
         nrow = length(vi)
       )
       for (index in block_indices) {
@@ -372,7 +377,7 @@ test_that("product-space VIF averages all posterior covariance states", {
         )
       }
       solve(crossprod(X, solve(M, X)))
-    })) / nrow(tau[["tau_within"]])
+    })) / nrow(tau_within)
     dimnames(expected) <- list(colnames(X), colnames(X))
 
     expect_equal(

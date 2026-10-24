@@ -35,13 +35,14 @@ returns the posterior correlation matrix of regression coefficients.
 }
 \details{
 VIF is computed from the correlation matrix derived from the
-coefficient variance-covariance matrix. The package computes
-\eqn{\mathrm{E}[(X'W_sX)^{-1} \mid y]} by averaging coefficient covariance
-across posterior heterogeneity draws. Standard models use
-\eqn{W_s = \mathrm{diag}(w_i/(v_i + \tau_s^2))}; scale and multilevel models
-use observation-specific \eqn{\tau_{is}} and block-structured multilevel
-covariance where applicable. Averaging occurs before conversion to a
-correlation matrix and computation of VIF/GVIF.
+coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
+meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
+with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
+and multilevel models, the coefficient covariance is averaged across
+posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
+and block-structured multilevel covariance where applicable. Averaging
+occurs before conversion to a correlation matrix and computation of
+VIF/GVIF.
 
 A VIF of 1 indicates no collinearity; values above 5 or 10 are
 commonly considered problematic.
@@ -63,13 +64,11 @@ value can be compared against the usual VIF thresholds (after squaring).
 
 When \code{posterior_correlation = TRUE}, the function also returns the
 posterior correlation matrix of the regression coefficients. This
-Bayesian diagnostic complements VIF: VIF summarizes collinearity under the
-posterior distribution of the marginal working covariance, whereas the
-posterior correlation shows the realized joint identification of the
-coefficients given the data and priors. Unlike a fixed-covariance design
-VIF, posterior-averaged VIF can therefore depend on the outcome and the
-heterogeneity prior. Informative coefficient priors can also reduce posterior
-correlations even when VIF is high.
+Bayesian diagnostic complements VIF: while VIF diagnoses the
+\emph{potential} for collinearity problems (a data property), the
+posterior correlation shows the \emph{realized} identification
+given the data and priors. Informative priors can mitigate
+collinearity, reducing posterior correlations even when VIF is high.
 
 Data-only objects created with \code{only_data = TRUE} are rejected because
 VIF depends on fitted heterogeneity information, not just the parsed data.

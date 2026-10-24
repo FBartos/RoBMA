@@ -71,6 +71,7 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
     yi      = c(.12, .30, .05, .41, .22, .18, .35, .10),
     sei     = c(.10, .12, .09, .15, .11, .10, .13, .12),
     x       = c(1, 2, 3, 4, 5, 6, 7, 8) / 8,
+    z       = c(.2, .1, .5, .3, .9, .4, .8, .6),
     cluster = rep(1:4, each = 2)
   )
 }
@@ -88,6 +89,7 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
       name,
       ordinary   = arguments,
       mods       = c(arguments, list(mods = ~ x)),
+      mods2      = c(arguments, list(mods = ~ x + z)),
       scale      = c(arguments, list(mods = ~ x, scale = ~ x)),
       multilevel = c(arguments, list(cluster = quote(cluster)))
     )
@@ -357,4 +359,41 @@ test_that("ranef() expands by default and blup() labels the true effects theta[i
   # the new depth-aware prediction keeps its own title
   estimate <- predict(multilevel, type = "estimate", conditioning_depth = "estimate")
   expect_false(identical(attr(estimate, "title"), "True Effects (BLUP Means)"))
+})
+
+test_that("vif() plugs in the posterior mean heterogeneity of a simple model", {
+
+  fit <- .surface_fit("mods2")
+
+  X   <- .get_model_matrix(fit)
+  vi  <- .surface_data()[["sei"]]^2
+  tau <- mean(as_draws_matrix(fit)[, "tau"])
+  covariance  <- solve(crossprod(X, X / (vi + tau^2)))
+  correlation <- stats::cov2cor(covariance)[-1L, -1L]
+  expected    <- diag(solve(correlation))
+
+  actual <- vif(fit, posterior_correlation = FALSE)[["vif"]]
+  expect_equal(actual[["GVIF"]], unname(expected), tolerance = 1e-8)
+})
+
+test_that("cooks.distance() divides by the rank of the model matrix", {
+
+  fit <- suppressWarnings(add_loo(.surface_fit("mods2")))
+  rank <- qr(.get_model_matrix(fit))[["rank"]]
+  expect_identical(rank, 3L)
+
+  distance <- suppressWarnings(cooks.distance(fit))
+  expect_identical(.cooks_distance_rank(fit), rank)
+  unscaled <- suppressWarnings(
+    .cooks.distance_internal(
+      .influence_fit_samples(fit),
+      .diagnostic_psis_context(fit)[["psis_weights"]]
+    )
+  )
+  expect_equal(unname(distance), unname(unscaled) / rank, tolerance = 1e-10)
+  expect_equal(
+    unname(suppressWarnings(influence(fit))[["inf"]][["cook.d"]]),
+    unname(distance),
+    tolerance = 1e-10
+  )
 })

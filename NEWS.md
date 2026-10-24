@@ -574,13 +574,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     with location or scale predictors stop, as a single unconditional curve
     is not a fitted estimand there. GLMM outcome-mode contours are marked as
     descriptive normal effect-size approximations.
-  - `cooks.distance()` reports the unscaled squared posterior Mahalanobis
-    distance, following metafor's chi-square-based convention; values were
-    previously divided by the fixed-effect model rank and increase by that
-    rank when it exceeds one.
-  - `vif()` averages the posterior coefficient covariance over the draws
-    instead of plugging the posterior mean heterogeneity into one covariance
-    matrix.
   - estimate-unit LOO and WAIC of Gaussian models are deletion-conditioned
     scores, p(y_i | y_{-i}, theta), with every local Gaussian random effect
     integrated: an estimate of a multilevel model is scored given the other
