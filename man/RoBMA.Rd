@@ -37,8 +37,6 @@ RoBMA(
   prior_informed_field,
   prior_informed_subfield,
   model_type = "PSMA",
-  selection = BayesTools::selection_model(),
-  selection_control = set_selection_likelihood_control(),
   sample = 5000,
   burnin = 2000,
   adapt = 500,
@@ -50,6 +48,8 @@ RoBMA(
   convergence_checks = set_convergence_checks(),
   seed = NULL,
   silent,
+  selection = BayesTools::selection_model(),
+  selection_control = set_selection_likelihood_control(),
   ...
 )
 }
@@ -255,22 +255,6 @@ Custom \code{prior_bias} replaces the preset alternative bias components. If
 \code{prior_bias} is omitted, \code{model_type} determines the default alternatives even
 when \code{prior_bias_null} is customized or omitted.}
 
-\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
-automatically constructed weightfunction priors. The default integrates
-estimate-level random effects and the complete sampling error, and conditions
-on other random effects. Each source can instead be conditioned upon or
-integrated through the corresponding selection-model setting. The default
-\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
-Publication grouping is active only for \code{weight_rule = "best"}. Explicit
-\code{prior_bias} objects retain their own selection specification; this argument
-does not overwrite it. Conditioning on sampling variation retains the entire
-sampling-error realization, including in ordinary univariate models.
-This sampling setting requires omitted or unit observation \code{weights}.}
-
-\item{selection_control}{numerical integration settings created by
-\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
-without changing the conditioning model or the vector weighting rule.}
-
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
 \item{burnin}{numeric. Number of burn-in iterations. Defaults to \code{2000}.}
@@ -294,6 +278,22 @@ Defaults to \code{FALSE}.}
 
 \item{silent}{logical. Whether to suppress output. When omitted,
 constructors use \code{RoBMA.get_option("silent")}.}
+
+\item{selection}{specification created by \code{\link[=selection_model]{selection_model()}} for
+automatically constructed weightfunction priors. The default integrates
+estimate-level random effects and the complete sampling error, and conditions
+on other random effects. Each source can instead be conditioned upon or
+integrated through the corresponding selection-model setting. The default
+\code{weight_rule = "product"} needs no publication groups and ignores \code{group}.
+Publication grouping is active only for \code{weight_rule = "best"}. Explicit
+\code{prior_bias} objects retain their own selection specification; this argument
+does not overwrite it. Conditioning on sampling variation retains the entire
+sampling-error realization, including in ordinary univariate models.
+This sampling setting requires omitted or unit observation \code{weights}.}
+
+\item{selection_control}{numerical integration settings created by
+\code{\link[=set_selection_likelihood_control]{set_selection_likelihood_control()}}. These affect numerical evaluation,
+without changing the conditioning model or the vector weighting rule.}
 
 \item{...}{additional advanced arguments. Fitting functions reject unused
 arguments; currently recognized internal arguments include \code{only_data},

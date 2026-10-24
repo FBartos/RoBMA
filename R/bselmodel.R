@@ -97,10 +97,6 @@ bselmodel <- function(
   prior_informed_field, prior_informed_subfield,
   effect_direction = "detect", steps,
 
-  # selection likelihood
-  selection = BayesTools::selection_model(),
-  selection_control = set_selection_likelihood_control(),
-
   # MCMC fitting settings
   sample = 5000, burnin = 2000, adapt = 500,
   chains = 3, thin = 1, parallel = FALSE,
@@ -108,7 +104,11 @@ bselmodel <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent, ...
+  seed = NULL, silent,
+
+  # selection likelihood
+  selection = BayesTools::selection_model(),
+  selection_control = set_selection_likelihood_control(), ...
 ) {
 
   BayesTools::check_selection_model(selection, name = "selection")

@@ -474,9 +474,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - `update()` stops when `seed` is supplied: extended chains continue their
     stored JAGS random-number state and cannot be reseeded (BayesTools'
     `JAGS_extend()` no longer takes `seed`). Omit `seed`.
-  - `RoBMA()` and `bselmodel()` take the new `selection` and
-    `selection_control` arguments before `sample`; pass `sample` and the
-    later arguments by name.
   - the generic `as_draws()` of `brma_samples` objects returns a
     `draws_array`, so chain dimensions are explicit; `as_draws_matrix()`
     remains available and keeps its chain-count metadata.
