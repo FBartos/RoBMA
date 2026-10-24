@@ -835,10 +835,44 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
     std::vector<long double> coarse_noninterpolated(L), cell_coarse(L), cell_gaussian(L);
     const long double half_log_two_pi = 0.5L * std::log(2 * std::acos(-1.0L));
 
+    // Cache one completed cell per repeated, finite SE. Selection, grid and
+    // rules are fixed within a row; mean, integrated SD and retained SD must
+    // also match exactly. Replaying cells leaves the original K-order sums and
+    // the full-row reference peak/interpolation allowance untouched.
+    std::vector<int> sei_group(K, -1), sei_order;
+    sei_order.reserve(K);
+    for (int k = 0; k < K; ++k) {
+      work.add();
+      if (sei_p[k] > 0 && std::isfinite(sei_p[k])) sei_order.push_back(k);
+    }
+    std::sort(sei_order.begin(), sei_order.end(), [&](int left, int right) {
+      return sei_p[left] < sei_p[right];
+    });
+    int n_sei_groups = 0;
+    // At most 8 MiB of long-double curves per row, even for very large grids.
+    const std::size_t max_cached_groups = L > 0 ?
+      (8 * 1024 * 1024) / (3 * sizeof(long double) * static_cast<std::size_t>(L)) : 0;
+    for (std::size_t first = 0; first < sei_order.size(); ) {
+      std::size_t last = first + 1;
+      while (last < sei_order.size() && sei_p[sei_order[last]] == sei_p[sei_order[first]]) ++last;
+      if (last - first > 1 && static_cast<std::size_t>(n_sei_groups) < max_cached_groups) {
+        for (std::size_t j = first; j < last; ++j) sei_group[sei_order[j]] = n_sei_groups;
+        ++n_sei_groups;
+      }
+      first = last;
+    }
+    struct DensityCellCache {
+      int column = -1;
+      bool interpolated = false;
+      bool resolved = true;
+      std::vector<long double> density, error, coarse;
+    };
+
     const SelNormRuleWeights quadrature_weights =
       selnorm_rule_weights(log_weights_p, n_nodes);
     for (int s = 0; s < S; ++s) {
       work.add();
+      std::vector<DensityCellCache> cache(n_sei_groups);
       std::fill(density.begin(), density.end(), 0.0L);
       std::fill(interpolation_error.begin(), interpolation_error.end(), 0.0L);
       std::fill(noninterpolated.begin(), noninterpolated.end(), 0.0L);
@@ -913,6 +947,42 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
         work.add();
         const int cell = s + S * k;
         bool cell_resolved = true;
+        DensityCellCache *cached = sei_group[k] >= 0 ? &cache[sei_group[k]] : nullptr;
+        if (cached != nullptr && cached->column >= 0) {
+          const int previous = s + S * cached->column;
+          if (std::memcmp(mean_p + cell, mean_p + previous, sizeof(double)) == 0 &&
+              std::memcmp(sd_p + cell, sd_p + previous, sizeof(double)) == 0 &&
+              std::memcmp(latent_p + cell, latent_p + previous, sizeof(double)) == 0) {
+            for (int ell = 0; ell < L; ++ell) {
+              work.add();
+              density[ell] += cached->density[ell];
+              if (cached->interpolated) {
+                interpolation_error[ell] += cached->error[ell];
+              } else if (requested) {
+                noninterpolated[ell] += cached->density[ell];
+                if (coarse_count > 0) coarse_noninterpolated[ell] += cached->coarse[ell];
+              }
+            }
+            row_resolved = row_resolved && cached->resolved;
+            continue;
+          }
+        }
+        const auto remember_cell = [&](bool interpolated_cell) {
+          if (cached == nullptr || !std::isfinite(mean_p[cell])) return;
+          for (int ell = 0; ell < L; ++ell) {
+            work.add();
+            if (!std::isfinite(cell_density[ell]) ||
+                (interpolated_cell && !std::isfinite(cell_error[ell])) ||
+                (!interpolated_cell && requested && coarse_count > 0 &&
+                  !std::isfinite(cell_coarse[ell]))) return;
+          }
+          cached->density = cell_density;
+          if (interpolated_cell) cached->error = cell_error;
+          if (!interpolated_cell && requested && coarse_count > 0) cached->coarse = cell_coarse;
+          cached->interpolated = interpolated_cell;
+          cached->resolved = cell_resolved;
+          cached->column = k;
+        };
         // One implementation serves original grid evaluation and Cheb nodes.
         const auto inverse_integral = [&](double value, const double *rule_nodes,
             const double *rule_logs, const long double *rule_weights, int count,
@@ -1029,6 +1099,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
                 interpolation_error[ell] += cell_error[ell];
               }
               row_resolved = row_resolved && cell_resolved;
+              remember_cell(true);
               continue;
             }
           }
@@ -1084,6 +1155,7 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             }
           }
           row_resolved = row_resolved && cell_resolved;
+          remember_cell(false);
           continue;
         }
 
@@ -1102,15 +1174,18 @@ extern "C" SEXP RoBMA_selnorm_zcurve_density_matrix(
             }
           }
           const long double value = std::exp(static_cast<long double>(gaussian + fine_inverse));
+          cell_density[ell] = value;
           density[ell] += value;
           if (requested) {
             noninterpolated[ell] += value;
             if (coarse_count > 0) {
-              coarse_noninterpolated[ell] += std::exp(static_cast<long double>(gaussian + coarse_inverse));
+              cell_coarse[ell] = std::exp(static_cast<long double>(gaussian + coarse_inverse));
+              coarse_noninterpolated[ell] += cell_coarse[ell];
             }
           }
         }
         row_resolved = row_resolved && cell_resolved;
+        remember_cell(false);
       }
       for (int ell = 0; ell < L; ++ell) {
         work.add();

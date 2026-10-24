@@ -225,6 +225,13 @@
   integration_rank <- if (geometry$groups == 1L) 1L else
     1L + sum(tabulate(geometry$type_index, nbins = geometry$groups) > 1L)
   static <- BayesTools::selection_native_static_args(selection)
+  # Reuse only the positive direct-product path, where collected and mass-only
+  # raw A use the same arithmetic. Monotone weights avoid cancellation; these
+  # absolute product limits leave ample room for row products and rule sums.
+  # Log-product fallbacks can round their two raw A calculations differently.
+  reuse_normalizer <- isTRUE(static$telescope_probabilities) && all(diff(omega) <= 0) &&
+    k * log(min(omega)) > log(.Machine$double.xmin) / 2 &&
+    k * log(max(omega)) < log(.Machine$double.xmax) / 2
   tolerance <- control$relative_tolerance
   stopifnot(is.finite(tolerance), tolerance > 0)
   context_orders <- c(3L, 7L, SELNORM_CLUSTER_QUADRATURE_ORDERS)
@@ -482,9 +489,15 @@
     if (exists(key, results, inherits = FALSE)) return(get(key, results))
     table <- context_table(outer_order)
     if (is.null(table)) return(NULL)
-    denominator <- raw_normalizer(outer_order, denominator_order)
-    if (is.null(denominator)) return(NULL)
-    log_D <- denominator$log_A
+    # When N and D are the same rule, its raw A and mixture can be evaluated
+    # together. Existing anchors and unequal rules retain the supplied-D path.
+    # Own-A mass is algebraic: the independent coarse comparisons below still
+    # decide accuracy, with the complete tail/CDF/covariance error ledger.
+    own_normalizer <- reuse_normalizer && inner_order == denominator_order &&
+      !exists(normalizer_key(outer_order, denominator_order), normalizers, inherits = FALSE)
+    denominator <- if (own_normalizer) NULL else raw_normalizer(outer_order, denominator_order)
+    if (!own_normalizer && is.null(denominator)) return(NULL)
+    log_D <- if (own_normalizer) NULL else denominator$log_A
     inner <- quadrature_rule(inner_order)
     denominator_rule <- quadrature_rule(denominator_order)
     pruned <- prune_context(table)
@@ -496,7 +509,7 @@
     out <- .Call("RoBMA_selnorm_context_star_zplot", table$means,
       packed, sei, omega,
       static$z_lower, static$z_upper, as.integer(static$sign),
-      as.logical(static$telescope_probabilities), as.double(log_D),
+      as.logical(static$telescope_probabilities), if (own_normalizer) NULL else as.double(log_D),
       as.double(context_weights), native_nodes(inner), as.double(inner$log_weights),
       as.double(z), as.double(allowance), PACKAGE = "RoBMA")
     if (!isTRUE(out$available)) return(NULL)
@@ -512,6 +525,10 @@
     # Reuse N15's raw A15 as the initial denominator's coarse comparison.
     record <- cdf_record(out, nrow(table$means))
     assign(normalizer_key(outer_order, inner_order), record, normalizers)
+    if (own_normalizer) {
+      denominator <- record
+      log_D <- record$log_A
+    }
     log_tail_A <- gaussian_tail(inner$nodes) + log(integration_rank) + k * log(max(omega))
     # Exact finite D is monotone under the structural gate. Its lower anchors
     # are Dhat*exp(-ED); monotonicity of the polynomial surrogate is not assumed.
@@ -623,7 +640,7 @@
 
     key <- paste(inner_order, denominator_order, outer_order, sep = "/")
     if (exists(key, selection_resolutions, inherits = FALSE)) return(get(key, selection_resolutions))
-    outer_nodes <- if (point_context) 0 else quadrature_rule(outer_order)$nodes
+    outer_nodes <- if (point_context) 0 else .gauss_hermite_nodes_only(outer_order)
     means <- if (point_context) point_means else {
       outer(outer_nodes, as.numeric(context_factor)) + rep(mean, each = length(outer_nodes))
     }
@@ -637,7 +654,7 @@
 
       key <- paste("sweep", order, outer_order, sep = "/")
       if (exists(key, selection_resolutions, inherits = FALSE)) return(get(key, selection_resolutions))
-      value <- .selection_transition_rule_resolves_rows(quadrature_rule(order)$nodes, means,
+      value <- .selection_transition_rule_resolves_rows(.gauss_hermite_nodes_only(order), means,
         geometry$residual_sd, loading, sei, selection, axes = inner_axes)
       assign(key, value, selection_resolutions)
       value

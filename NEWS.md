@@ -1,4 +1,11 @@
 ## version 4.1.0 (IN PROGRESS)
+- Marginal zplot densities avoid discarded Gaussian calculations and reuse
+  identical observation contributions without changing their accumulation
+  order. Quadrature checks obtain nodes without constructing unused weights,
+  and high-order log weights use a vectorized stable recurrence. Selected
+  context projections reuse same-rule normalizers while retaining their
+  independent coarse-rule and numerical-error checks. Draw budgets,
+  integration tolerances, statistical targets, and public defaults are unchanged.
 - Clustered selection `as_zplot()` and `zplot()` summaries run faster by
   vectorizing transition checks, reusing identical threshold calculations,
   and avoiding a redundant normalizer calculation for positive selection

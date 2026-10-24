@@ -2162,9 +2162,15 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   // cached direct-product branch and is an order of magnitude cheaper per node
   // probability. The work decides whether threads pay for themselves at all;
   // the team size stays the one context and mixture-row count the call can use.
+  int active_contexts = 0;
+  for (int context = 0; context < contexts; ++context) {
+    if (REAL(context_log_weights)[context] != R_NegInf) ++active_contexts;
+  }
   const int star_rows = std::max(contexts, k);
-  const double star_work = static_cast<double>(contexts) * k * order * order *
-    (log_normalizers == R_NilValue ? 0.4 : 10.0);
+  // Own-A normalization also collects the mixture. The supplied-denominator
+  // flag therefore says nothing about whether a context takes the cheap path.
+  const double star_work = static_cast<double>(k) * order * order *
+    (0.4 * (contexts - active_contexts) + 10.0 * active_contexts);
   const int star_threads =
     robma_work_threads(star_rows, star_work / star_rows) > 1 ?
       robma_batch_threads(star_rows, 2) : 1;

@@ -366,10 +366,6 @@
     matrix(rowMeans(stats::pnorm(q, mean, sd, lower.tail = FALSE) +
       stats::pnorm(-q, mean, sd)), S, 1L)
   }
-  reference <- normal(predictive[["mu_extrapolated"]])
-  result <- list(fitted = NULL, extrapolated = reference, weights = rep(1, S),
-    EDR = if (probability) reference[, 1L] else NULL)
-
   diagonal_kernel <- .block_covariance_diagonal_draws(parts[["covariance"]])
   zero_context <- .block_covariance_zero_draws(parts[["context_covariance"]])
   rules <- rep_len(selection[["vector_rule"]], S)
@@ -385,6 +381,9 @@
       selection, z, probability, control, extrapolate_only, fitted_only))
   }
 
+  reference <- normal(predictive[["mu_extrapolated"]])
+  result <- list(fitted = NULL, extrapolated = reference, weights = rep(1, S),
+    EDR = if (probability) reference[, 1L] else NULL)
   result[["fitted"]] <- normal(predictive[["mu"]])
   active <- which(!selection[["use_normal"]])
   # With no refreshed source, positive selection weights cancel at each
@@ -1273,7 +1272,7 @@
   }
   finest_resolved <- rep(TRUE, S)
   if (quadrature) {
-    finest_resolved <- rule_resolution(.gauss_hermite_nodes(utils::tail(orders, 1L))$nodes, active)
+    finest_resolved <- rule_resolution(.gauss_hermite_nodes_only(utils::tail(orders, 1L)), active)
     if (!any(finest_resolved)) quadrature <- FALSE
   }
   rule_index <- 1L
@@ -1383,16 +1382,19 @@
   S <- nrow(mean)
   normal_rows <- which(selection$use_normal)
   if (length(normal_rows)) {
-    total_sd <- .root_sum_squares(sd, latent_sd)
+    total_sd <- .root_sum_squares(sd[normal_rows, , drop = FALSE],
+      latent_sd[normal_rows, , drop = FALSE])
     normal_result <- function(location) {
 
+      location <- location[normal_rows, , drop = FALSE]
       if (!probability) return(.zplot_normal_density_matrix(z, location, total_sd, sei))
-      q <- matrix(z * sei, S, length(sei), byrow = TRUE)
+      q <- matrix(z * sei, length(normal_rows), length(sei), byrow = TRUE)
       matrix(rowMeans(stats::pnorm(q, location, total_sd, lower.tail = FALSE) +
-                        stats::pnorm(-q, location, total_sd)), S, 1L)
+                        stats::pnorm(-q, location, total_sd)), length(normal_rows), 1L)
     }
-    fitted       <- normal_result(mean)
-    extrapolated <- normal_result(mean_extrapolated)
+    fitted <- extrapolated <- matrix(0, S, length(z))
+    fitted[normal_rows, ] <- normal_result(mean)
+    if (!fitted_only) extrapolated[normal_rows, ] <- normal_result(mean_extrapolated)
     weights      <- rep(1, S)
     active       <- which(!selection$use_normal)
     if (length(active)) {
@@ -1427,8 +1429,10 @@
   unresolved <- function() stop(
     "Zplot marginal integration is unavailable: selection transitions remain unresolved at the available quadrature rules. Inspect the fitted selection and heterogeneity parameters.",
     call. = FALSE)
-  finest <- .gauss_hermite_nodes(utils::tail(SELNORM_CLUSTER_QUADRATURE_ORDERS, 1L))$nodes
-  if (any(!population_resolution(finest))) unresolved()
+  if (population_needed) {
+    finest <- .gauss_hermite_nodes_only(utils::tail(SELNORM_CLUSTER_QUADRATURE_ORDERS, 1L))
+    if (any(!population_resolution(finest))) unresolved()
+  }
   for (order in SELNORM_CLUSTER_QUADRATURE_ORDERS) {
     rule <- .gauss_hermite_nodes(order)
     fitted       <- matrix(0, S, length(z))

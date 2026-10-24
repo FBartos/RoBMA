@@ -534,51 +534,45 @@
 
 .gauss_hermite_log_weights_scaled <- function(nodes, n) {
 
-  log_weights <- numeric(length(nodes))
+  polynomial_previous <- rep(1, length(nodes))
+  polynomial          <- nodes
+  log_scale           <- numeric(length(nodes))
+  log_denominator     <- log1p(polynomial^2)
 
-  for (node_index in seq_along(nodes)) {
-    node                <- nodes[node_index]
-    polynomial_previous <- 1
-    polynomial          <- node
-    log_scale           <- 0
-    log_denominator     <- log1p(polynomial^2)
+  # Advance every node together, preserving each node's recurrence and
+  # log-sum order, including its individual rescaling decisions.
+  if (n > 2L) {
+    for (degree in seq_len(n - 2L)) {
+      polynomial_next <- (
+        nodes * polynomial - sqrt(degree) * polynomial_previous
+      ) / sqrt(degree + 1)
 
-    if (n > 2L) {
-      for (degree in seq_len(n - 2L)) {
-        polynomial_next <- (
-          node * polynomial - sqrt(degree) * polynomial_previous
-        ) / sqrt(degree + 1)
-
-        recurrence_scale <- max(abs(c(
-          polynomial_previous,
-          polynomial,
-          polynomial_next
-        )))
-        if (recurrence_scale > 1e100) {
-          polynomial_previous <- polynomial_previous / recurrence_scale
-          polynomial          <- polynomial / recurrence_scale
-          polynomial_next     <- polynomial_next / recurrence_scale
-          log_scale           <- log_scale + log(recurrence_scale)
-        }
-
-        if (polynomial_next != 0) {
-          log_term <- 2 * (log(abs(polynomial_next)) + log_scale)
-          if (log_term > log_denominator) {
-            log_denominator <- log_term +
-              log1p(exp(log_denominator - log_term))
-          } else {
-            log_denominator <- log_denominator +
-              log1p(exp(log_term - log_denominator))
-          }
-        }
-
-        polynomial_previous <- polynomial
-        polynomial          <- polynomial_next
+      recurrence_scale <- pmax(
+        abs(polynomial_previous), abs(polynomial), abs(polynomial_next)
+      )
+      rescale <- which(recurrence_scale > 1e100)
+      if (length(rescale)) {
+        polynomial_previous[rescale] <- polynomial_previous[rescale] / recurrence_scale[rescale]
+        polynomial[rescale]          <- polynomial[rescale] / recurrence_scale[rescale]
+        polynomial_next[rescale]     <- polynomial_next[rescale] / recurrence_scale[rescale]
+        log_scale[rescale]           <- log_scale[rescale] + log(recurrence_scale[rescale])
       }
-    }
 
-    log_weights[node_index] <- -log_denominator
+      nonzero <- which(polynomial_next != 0)
+      log_term <- 2 * (log(abs(polynomial_next[nonzero])) + log_scale[nonzero])
+      larger <- log_term > log_denominator[nonzero]
+      larger_index <- nonzero[larger]
+      smaller_index <- nonzero[!larger]
+      log_denominator[larger_index] <- log_term[larger] +
+        log1p(exp(log_denominator[larger_index] - log_term[larger]))
+      log_denominator[smaller_index] <- log_denominator[smaller_index] +
+        log1p(exp(log_term[!larger] - log_denominator[smaller_index]))
+
+      polynomial_previous <- polynomial
+      polynomial          <- polynomial_next
+    }
   }
+  log_weights <- -log_denominator
 
   if (any(!is.finite(log_weights))) {
     stop(
@@ -594,11 +588,11 @@
 }
 
 
-.gauss_hermite_nodes <- function(n) {
+.gauss_hermite_nodes_only <- function(n) {
 
   key <- as.character(n)
   if (exists(key, envir = .gauss_hermite_nodes_cache, inherits = FALSE)) {
-    return(get(key, envir = .gauss_hermite_nodes_cache, inherits = FALSE))
+    return(get(key, envir = .gauss_hermite_nodes_cache, inherits = FALSE)[["nodes"]])
   }
 
   # Golub-Welsch algorithm: eigenvalues of symmetric tridiagonal matrix
@@ -622,10 +616,32 @@
 
   # Transform for standard normal N(0,1):
   # ∫ f(z) φ(z) dz = (1/√π) ∫ f(√2 u) exp(-u²) du ≈ (1/√π) Σ w_i f(√2 u_i)
-  # So: nodes = √2 * raw_nodes. For standard-normal orthonormal Hermite
+  # So: nodes = √2 * raw_nodes.
+  nodes <- sqrt(2) * nodes_raw
+  out <- list(nodes = nodes[order(nodes)], nodes_raw = nodes)
+  assign(key, out, envir = .gauss_hermite_nodes_cache)
+
+  return(out[["nodes"]])
+}
+
+
+.gauss_hermite_nodes <- function(n) {
+
+  key <- as.character(n)
+  if (!exists(key, envir = .gauss_hermite_nodes_cache, inherits = FALSE)) {
+    .gauss_hermite_nodes_only(n)
+  }
+  cached <- get(key, envir = .gauss_hermite_nodes_cache, inherits = FALSE)
+  if (!is.null(cached[["weights"]])) {
+    return(cached)
+  }
+
+  # Preserve the original eigenvalue order through weight normalization before
+  # sorting the completed rule. A nodes-only request retains that raw order.
+  nodes <- cached[["nodes_raw"]]
+  # For standard-normal orthonormal Hermite
   # polynomials p_k, the normalized weight at node x_i is
   #   1 / sum_{k=0}^{n-1} p_k(x_i)^2.
-  nodes               <- sqrt(2) * nodes_raw
   polynomial_previous <- rep(1, n)
   weight_denominator  <- polynomial_previous^2
   if (n > 1L) {
