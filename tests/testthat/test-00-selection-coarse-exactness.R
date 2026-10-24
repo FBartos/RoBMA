@@ -281,7 +281,9 @@ test_that("the corrected chain is exact when a loading column of a factor block 
   allowance <- unname(exact[c("mean_error", "variance_error", "best_error")])
   uncorrected <- unname(surrogate_only[c("mean", "variance", "best")])
   expect_true(all(ess >= 200))
-  # the indicator visits both states, and the surrogate-only target is another law
+  # the indicator visits both states, and the surrogate-only law (the product state with
+  # the normalizer of rule 3, the best state exact) is a different law: a yardstick for the
+  # power of the test, not the law an uncorrected chain would reach
   expect_true(all(mean(best_state) > .05, mean(best_state) < .95))
   expect_true(all(abs(reference - uncorrected)[c(1L, 3L)] >= 8 * mcse[c(1L, 3L)]))
   expect_true(all(abs(estimate - reference) <= 6 * mcse + 2 * allowance))

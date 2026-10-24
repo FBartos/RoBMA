@@ -46,7 +46,8 @@
 }
 
 
-# `unchecked` evaluates blocks whose controls the validators refuse (test use only).
+# `unchecked` also evaluates blocks whose only refused controls are non-finite
+# quadrature nodes or log weights (test use only); any other invalid control is an error.
 .coarse_probe <- function(block, max_rules = 3L, unchecked = FALSE) {
 
   .Call("RoBMA_selnorm_surrogate_probe", block[["kind"]], block[["x"]],

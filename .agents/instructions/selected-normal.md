@@ -340,7 +340,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   terms. The vector rule and the kernel mode are dynamic parents of these
   children, because a mixture composes both from the bias indicator (a rule
   that is product in every state is still a node); a state with a best-weight
-  rule has the exact density as its surrogate. The classes' dynamic (kernel
+  rule has the exact density as its surrogate, so a model average with only
+  best-weight branches engages without any gain and is better run with the
+  default sampler. The classes' dynamic (kernel
   mode, vector rule, mean, residual SD, loadings, weights) and control
   validators split `checkParameterValue` for the sampler's fixed-control
   certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`

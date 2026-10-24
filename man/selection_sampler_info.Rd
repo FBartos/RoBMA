@@ -59,9 +59,12 @@ kernel mode fixed at the normal kernel, or, for a factor block, a rule beyond
 the node budget at the declared rank (rank two to six at the default
 setting). In model-averaged fits the weight rule and the kernel mode are
 nodes of the bias indicator, so their blocks take part, with the exact
-density in the states of the indicator that have a best-weight rule. Blocks
-fixed at a best-weight rule, blocks of higher rank and blocks with a fixed
-normal kernel keep the ordinary sampler.
+density in the states of the indicator that have a best-weight rule. A model
+average whose selection branches all use the best-weight rule takes part
+without any state that can gain: its surrogate is the exact density everywhere
+and every update pays two extra exact evaluations, so run such fits with the
+default sampler. Blocks fixed at a best-weight rule, blocks of higher rank and
+blocks with a fixed normal kernel keep the ordinary sampler.
 
 A scalar update is eligible when at least one stochastic child of the updated
 node is a dense multivariate block or a coarse-capable cluster or factor

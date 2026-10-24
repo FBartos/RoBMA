@@ -295,8 +295,8 @@ test_that("surrogate values do not depend on the call history or on exact evalua
 })
 
 
-# The validators were split into a dynamic part (kernel mode, mean, residual SD,
-# loadings, weights) and a control part (everything else) for the sampler's
+# The validators were split into a dynamic part (kernel mode, vector rule, mean,
+# residual SD, loadings, weights) and a control part (everything else) for the sampler's
 # fixed-control certificate; checkParameterValue is both. Each validated
 # parameter gets an invalid value that JAGS must refuse at compile time with
 # the same message as before the split.
