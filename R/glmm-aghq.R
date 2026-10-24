@@ -185,7 +185,7 @@
 .glmm_numerical_condition <- function(outcome_type, method, reason, observation,
     sample = NULL, order = NULL, change = NULL, mode_iterations = NULL,
     theta_changes = NULL, nuisance_changes = NULL, curvature = NULL,
-    native_observation = NULL) {
+    native_observation = NULL, noise = NULL) {
 
   label <- if (identical(outcome_type, "bin")) "Binomial" else "Poisson"
   prior <- if (identical(outcome_type, "bin")) "prior_baserate" else "prior_lograte"
@@ -211,11 +211,18 @@
     } else if (identical(reason, "mode_curvature")) {
       paste0("the mode curvature was ", format(curvature, digits = 8L))
     } else if (length(order) == 1L && !is.na(order)) {
-      # the native change is the larger of the difference between the last two
-      # orders and the rounding-noise bound of the prior density
-      paste0("the larger of the last log-likelihood change and the rounding-noise ",
-        "bound of the prior density was ", format(change, digits = 8L),
-        " at quadrature order ", order)
+      # On the beta base-rate route the native change is floored at the
+      # rounding-noise bound of the prior density (`noise`, 0 on the other
+      # routes); a refusal at that floor reports the bound, not a difference
+      # between two orders.
+      if (length(noise) == 1L && !is.na(noise) && noise > 0 &&
+          length(change) == 1L && !is.na(change) && change <= noise) {
+        paste0("the rounding-noise bound of the prior density was ",
+          format(change, digits = 8L), " at quadrature order ", order)
+      } else {
+        paste0("last log-likelihood change ", format(change, digits = 8L),
+          " at quadrature order ", order)
+      }
     } else {
       "quadrature did not produce a finite evaluated rule"
     }
@@ -237,6 +244,7 @@
       native_observation = native_observation,
       order            = order,
       change           = change,
+      noise            = noise,
       mode_iterations  = mode_iterations,
       curvature        = curvature,
       theta_changes    = theta_changes,
@@ -715,7 +723,7 @@
   stop(.glmm_numerical_condition(outcome_type, "aghq", result[["reason"]],
     observation, sample = result[["sample"]], order = result[["order"]],
     change = result[["change"]], mode_iterations = result[["mode_iterations"]],
-    native_observation = native_observation))
+    native_observation = native_observation, noise = result[["noise"]]))
 }
 
 

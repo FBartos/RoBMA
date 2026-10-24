@@ -76,6 +76,7 @@ struct QuadratureDiagnostics {
 struct IntegralResult {
   double value;
   double change;
+  double noise;
   int order;
   int rule_index;
   int mode_iterations;
@@ -675,6 +676,7 @@ IntegralResult integrate_problem(const Problem &problem,
   IntegralResult result;
   result.value                  = NA_REAL;
   result.change                 = std::numeric_limits<double>::infinity();
+  result.noise                  = problem.evaluation_noise();
   result.order                  = 0;
   result.rule_index             = -1;
   result.mode_iterations        = 0;
@@ -821,12 +823,12 @@ SEXP make_result(SEXP value, const QuadratureDiagnostics &diagnostics,
 SEXP make_failure_result(const IntegralResult &result, const char *reason,
                          int sample, int observation)
 {
-  const int n_fields = 7;
+  const int n_fields = 8;
   SEXP out = PROTECT(Rf_allocVector(VECSXP, n_fields));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, n_fields));
   const char *field_names[n_fields] = {
     "status", "reason", "sample", "observation", "order", "change",
-    "mode_iterations"
+    "mode_iterations", "noise"
   };
   for (int i = 0; i < n_fields; ++i) {
     SET_STRING_ELT(names, i, Rf_mkChar(field_names[i]));
@@ -839,6 +841,9 @@ SEXP make_failure_result(const IntegralResult &result, const char *reason,
   SET_VECTOR_ELT(out, 5, Rf_ScalarReal(result.order > 0 ? result.change : NA_REAL));
   SET_VECTOR_ELT(out, 6, Rf_ScalarInteger(result.mode_iterations > 0 ?
     result.mode_iterations : NA_INTEGER));
+  // The rounding-noise bound of the prior density that floors the change
+  // (0 where the density has none).
+  SET_VECTOR_ELT(out, 7, Rf_ScalarReal(result.noise));
   Rf_setAttrib(out, R_NamesSymbol, names);
   UNPROTECT(2);
   return out;
@@ -1061,6 +1066,7 @@ SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
           );
         }
         result.change               = 0.0;
+        result.noise                = 0.0;
         result.order                = 0;
         result.rule_index           = -1;
         result.mode_iterations      = 0;

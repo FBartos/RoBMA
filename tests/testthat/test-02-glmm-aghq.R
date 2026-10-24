@@ -396,9 +396,11 @@ test_that("binomial AGHQ does not report a change below the rounding noise of co
   # change between orders.
   condition <- tryCatch(aghq(1e21), error = identity)
   expect_gte(condition[["change"]], .Machine[["double.eps"]] * sqrt(2e21))
-  expect_match(conditionMessage(condition), paste0("the larger of the last log-likelihood ",
-    "change and the rounding-noise bound of the prior density was ", format(condition[["change"]], digits = 8L)),
-    fixed = TRUE)
+  expect_gt(condition[["noise"]], 0)
+  expect_identical(condition[["change"]], condition[["noise"]])
+  expect_match(conditionMessage(condition), paste0("the rounding-noise bound of the prior density was ",
+    format(condition[["change"]], digits = 8L), " at quadrature order"), fixed = TRUE)
+  expect_false(grepl("last log-likelihood change", conditionMessage(condition), fixed = TRUE))
 
   accepted <- aghq(1e18)
   expect_gte(accepted[["max_change"]], .Machine[["double.eps"]] * sqrt(2e18))
@@ -1493,9 +1495,43 @@ test_that("AGHQ reports failure when refinement is capped", {
   expect_identical(condition[["order"]], 13L)
   expect_true(is.finite(condition[["change"]]))
   expect_identical(conditionMessage(condition), paste0(
-    "Poisson AGHQ was rejected by diagnostics: the larger of the last ",
-    "log-likelihood change and the rounding-noise bound of the prior density was ",
+    "Poisson AGHQ was rejected by diagnostics: last log-likelihood change ",
     format(condition[["change"]], digits = 8L),
     " at quadrature order 13 at sample 1, observation 1. ",
     "Inspect the data and 'prior_lograte' before refitting the model."))
+  expect_identical(condition[["noise"]], 0)
+})
+
+
+test_that("AGHQ refusals name the rounding-noise bound only where it set the change", {
+
+  wording <- function(change, noise) conditionMessage(.glmm_numerical_condition(
+    "bin", "aghq", "quadrature_nonconvergence", 1L, sample = 1L, order = 13L,
+    change = change, noise = noise))
+  # no bound (Poisson, fixed base rate, closed-form beta route): the change
+  for (noise in list(NULL, 0)) {
+    expect_match(wording(3e-7, noise), "AGHQ was rejected by diagnostics: last log-likelihood change 3e-07 at quadrature order 13",
+      fixed = TRUE)
+  }
+  # a bound above the difference of the last two orders: the bound
+  expect_match(wording(3e-6, 3e-6), "diagnostics: the rounding-noise bound of the prior density was 3e-06 at quadrature order 13",
+    fixed = TRUE)
+  # a difference above the bound: the change
+  expect_match(wording(3e-6, 3e-7), "diagnostics: last log-likelihood change 3e-06 at quadrature order 13",
+    fixed = TRUE)
+
+  # Through the native route: a beta base rate on the density route (shape sum
+  # above 1e3) whose refinement cap is reached before the bound matters keeps
+  # the change; the point base-rate route has no bound.
+  control <- .glmm_aghq_control(orders = c(3L, 5L, 7L), tolerance = 1e-15, consecutive = 2L)
+  condition <- tryCatch(.glmm_binom_aghq(1L, 1L, 2L, 2L, matrix(-.45), matrix(.5), NULL,
+    c(alpha = 2e4, beta = 3e4), control = control), error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_aghq_nonconvergence")
+  expect_gt(condition[["noise"]], 0)
+  expect_gt(condition[["change"]], condition[["noise"]])
+  expect_match(conditionMessage(condition), "diagnostics: last log-likelihood change ", fixed = TRUE)
+  condition <- tryCatch(.glmm_binom_point_aghq(1L, 1L, 2L, 2L, matrix(-.45), matrix(.5), NULL, .3,
+    control = control), error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_aghq_nonconvergence")
+  expect_match(conditionMessage(condition), "diagnostics: last log-likelihood change ", fixed = TRUE)
 })

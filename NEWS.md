@@ -138,8 +138,8 @@
   Symmetric shape sums above about 2e19 are refused by the quadrature and use
   the grid, where an error several times the tolerance had been accepted;
   skewed priors, whose noise is far smaller, keep the quadrature. Accepted
-  values are unchanged. The refusal message reports the larger of the last
-  log-likelihood change and that bound.
+  values are unchanged. A refusal that is set by that bound names it in its
+  message and carries it in the `noise` field of the condition.
 - The qCMDE density line of joint selection models no longer keeps the
   sampling parts of its factor blocks, which no later chunk of the line reused:
   its peak memory grows about 3 times more slowly with the number of posterior
