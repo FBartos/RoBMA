@@ -374,8 +374,18 @@
       any(out[["grid"]] <= 0 | out[["grid"]] >= 1) ||
       anyNA(out[["log_weights"]]) ||
       any(!is.finite(out[["log_weights"]]))) {
+    # A prior this concentrated is at the representability limit of the doubles:
+    # its smaller shape is of the size of the spacing of alpha + beta, so the
+    # density cannot be normalized reliably and the rule puts nodes on 0 or 1
+    # or returns non-finite values. The quadrature for such a prior is refused
+    # by AGHQ for the same reason (see BETA_CLOSED_FORM_MAX_SHAPE_SUM in
+    # src/glmm-aghq.cc); no grid can serve it, so say what to change.
     stop(
-      "Beta baserate quadrature failed to produce finite interior nodes and weights.",
+      "The Beta(", format(alpha, digits = 6L), ", ", format(beta, digits = 6L),
+      ") base-rate prior in 'prior_baserate' is unavailable: it is too ",
+      "concentrated for its quadrature nodes and weights to be represented in ",
+      "double precision. Use a less concentrated beta prior or a fixed base ",
+      "rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'.",
       call. = FALSE
     )
   }

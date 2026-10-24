@@ -139,7 +139,9 @@
   `dbeta` at large shapes. A concentrated beta base rate is refused by the
   quadrature only when this bound exceeds the tolerance (symmetric shape sums
   above about 2e19, skewed priors at larger concentrations); the grid is then
-  used, which can itself fail at extreme concentrations. Errors several times
+  used, and a prior beyond double precision (shape sums above about 1e25) stops
+  there with an error that names the prior and suggests a less concentrated
+  beta prior or a point `prior_baserate`. Errors several times
   the tolerance had been accepted for these priors; accepted values are
   unchanged. A refusal that is set by the bound names it in its message and
   carries it in the `noise` field of the condition.

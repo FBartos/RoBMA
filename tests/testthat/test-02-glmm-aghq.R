@@ -482,6 +482,18 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
     c(alpha = 1e12, beta = 1e28), control = .glmm_aghq_control(tolerance = 1e-3))
   expect_gt(abs(loose[["value"]][1L, 1L] - reference_refused), 1e-4)
   expect_lte(abs(loose[["value"]][1L, 1L] - reference_refused), loose[["max_change"]])
+
+  # The public route then goes to the prior-CDF grid, which cannot represent a
+  # prior this concentrated; the error names the prior and the remedies.
+  condition <- tryCatch(.outcome_pdf.binom(19L, 6L, 27L, 17L, matrix(.738), matrix(0),
+    BayesTools::prior("beta", list(alpha = 1e12, beta = 1e28))), error = identity)
+  expect_s3_class(condition, "error")
+  expect_identical(conditionMessage(condition), paste0(
+    "The Beta(1e+12, 1e+28) base-rate prior in 'prior_baserate' is unavailable: ",
+    "it is too concentrated for its quadrature nodes and weights to be ",
+    "represented in double precision. Use a less concentrated beta prior or a ",
+    "fixed base rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
+  ))
 })
 
 
