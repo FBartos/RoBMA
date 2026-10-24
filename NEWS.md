@@ -1,4 +1,9 @@
 ## version 4.1.0 (IN PROGRESS)
+- Clustered selection `as_zplot()` and `zplot()` summaries run faster by
+  vectorizing transition checks, reusing identical threshold calculations,
+  and avoiding a redundant normalizer calculation for positive selection
+  weights. Marginal targets, quadrature settings, and numerical diagnostics
+  are unchanged.
 - Selection normalizers of dependent blocks under product weights (the factor
   and cluster kernels, in fitting and post-fit calculations) accept a
   deterministic quadrature rule only when shifting its nodes shows an aliasing

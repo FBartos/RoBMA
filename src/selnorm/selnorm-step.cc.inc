@@ -279,6 +279,31 @@ bool step_moments_trusted_telescoping(const double *omega,
   return true;
 }
 
+bool step_positive_score_partition(const double *omega,
+                                    const SelNormKernelData &data,
+                                    double mean, double sd, double sei,
+                                    int omega_stride)
+{
+  if (!data.trusted_step_partition || data.n_bins < 1 ||
+      !std::isfinite(mean) || !(sd > 0) || !std::isfinite(sd) ||
+      !(sei > 0) || !std::isfinite(sei)) {
+    return false;
+  }
+
+  double previous = INFINITY;
+  for (int b = 0; b < data.n_bins; ++b) {
+    const double weight = omega_at(omega, b + 1, omega_stride);
+    if (!(weight > 0) || !std::isfinite(weight)) return false;
+    if (b + 1 < data.n_bins &&
+        weight != omega_at(omega, b + 2, omega_stride)) {
+      const double score = stable_affine_score(data.z_lower[b], sei, mean, sd);
+      if (!std::isfinite(score) || !(score < previous)) return false;
+      previous = score;
+    }
+  }
+  return true;
+}
+
 bool step_cdf_pair_trusted_telescoping(const double *omega,
                                        const SelNormKernelData &data,
                                        double q1_z, bool q1_signed_lower_tail,
@@ -290,7 +315,11 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
                                        double *inverse_weight,
                                        double *log_normalizer = nullptr)
 {
-  if (!std::isfinite(step_log_normalizer_score_space(
+  // A full score-space partition with finite positive weights has finite
+  // log mass. Check its coalesced boundaries without evaluating that unused
+  // mass; retain the original gate for zero weights or collapsed/extreme scores.
+  if (!step_positive_score_partition(omega, data, signed_mean, sd, sei, omega_stride) &&
+      !std::isfinite(step_log_normalizer_score_space(
         omega, data, signed_mean, sd, sei, omega_stride
       ))) {
     return false;

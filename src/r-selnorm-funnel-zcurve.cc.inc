@@ -178,6 +178,28 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   std::vector<bool> row_active_phack(S);
   std::vector<bool> row_use_step(S);
 
+  // Repeated sampling SEs are common in clustered data. A group's last exact
+  // mean/SD pair can reuse its kernel result without regrouping the reduction.
+  std::vector<int> sei_group(K, -1), sei_order;
+  sei_order.reserve(K);
+  for (int k = 0; k < K; ++k) {
+    preparation.add();
+    if (sei_p[k] > 0 && std::isfinite(sei_p[k])) sei_order.push_back(k);
+  }
+  std::sort(sei_order.begin(), sei_order.end(), [&](int left, int right) {
+    return sei_p[left] < sei_p[right];
+  });
+  int n_sei_groups = 0;
+  for (std::size_t first = 0; first < sei_order.size(); ) {
+    std::size_t last = first + 1;
+    while (last < sei_order.size() && sei_p[sei_order[last]] == sei_p[sei_order[first]]) ++last;
+    if (last - first > 1) {
+      for (std::size_t j = first; j < last; ++j) sei_group[sei_order[j]] = n_sei_groups;
+      ++n_sei_groups;
+    }
+    first = last;
+  }
+
   for (int s = 0; s < S; ++s) {
     preparation.add();
     row_alpha[static_cast<size_t>(s)] = scalar_or_row_real(
@@ -208,14 +230,25 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
     robma_parallel::SerialWork row_work(schedule.threads <= 1);
     double threshold_sum = 0;
     double weight_sum = 0;
+    struct ThresholdCache {
+      double mean = std::numeric_limits<double>::quiet_NaN();
+      double sd = std::numeric_limits<double>::quiet_NaN();
+      double probability = 0;
+      double inverse_weight = 0;
+    };
+    std::vector<ThresholdCache> cache(n_sei_groups);
 
     for (int k = 0; k < K; ++k) {
       row_work.add(static_cast<double>(B));
       const int cell = s + S * k;
+      const int group = sei_group[k];
       double inverse_weight = 1;
       double threshold_prob;
 
-      if (row_active_phack[static_cast<size_t>(s)]) {
+      if (group >= 0 && cache[group].mean == mean_p[cell] && cache[group].sd == sd_p[cell]) {
+        threshold_prob = cache[group].probability;
+        inverse_weight = cache[group].inverse_weight;
+      } else if (row_active_phack[static_cast<size_t>(s)]) {
         threshold_prob = NA_REAL;
         inverse_weight = NA_REAL;
       } else if (row_use_step[static_cast<size_t>(s)] && extrapolate_b) {
@@ -264,6 +297,12 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
           S,
           false
         );
+      }
+
+      if (group >= 0 && std::isfinite(mean_p[cell]) &&
+          sd_p[cell] > 0 && std::isfinite(sd_p[cell]) &&
+          std::isfinite(threshold_prob) && std::isfinite(inverse_weight)) {
+        cache[group] = {mean_p[cell], sd_p[cell], threshold_prob, inverse_weight};
       }
 
       if (extrapolate_b) {

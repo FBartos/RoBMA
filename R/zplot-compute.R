@@ -1356,6 +1356,22 @@
 }
 
 
+# Each scalar display has one latent axis. Check its observations together
+# across posterior rows without constructing a selection context for each row.
+.zplot_latent_transition_resolves <- function(nodes, mean, sd, latent_sd, sei, selection) {
+
+  rows <- seq_len(nrow(mean))
+  resolved <- rep(TRUE, length(rows))
+  for (column in seq_along(sei)) {
+    resolved <- resolved & .selection_scalar_transition_rule_resolves(
+      nodes, mean[, column], sd[, column], latent_sd[, column],
+      sei[column], selection, rows
+    )
+  }
+  resolved
+}
+
+
 # Conditional selection normalizes before integrating the Gaussian latent
 # effect. Only its one-dimensional marginal is needed for this scalar display.
 .zplot_latent_mixture <- function(
@@ -1400,14 +1416,13 @@
   population_resolution <- function(nodes) {
 
     if (!population_needed) return(rep(TRUE, S))
-    vapply(seq_len(S), function(row) {
-      selection_row <- BayesTools::selection_context_subset_rows(selection, row)
-      loading <- matrix(latent_sd[row, ], ncol = 1L)
-      fitted <- .selection_transition_rule_resolves(nodes, mean[row, ], sd[row, ], loading, sei, selection_row)
-      extrapolated <- !probability || fitted_only || .selection_transition_rule_resolves(
-        nodes, mean_extrapolated[row, ], sd[row, ], loading, sei, selection_row)
-      fitted && extrapolated
-    }, logical(1))
+    resolved <- .zplot_latent_transition_resolves(nodes, mean, sd, latent_sd, sei, selection)
+    if (probability && !fitted_only && !identical(mean, mean_extrapolated)) {
+      resolved <- resolved & .zplot_latent_transition_resolves(
+        nodes, mean_extrapolated, sd, latent_sd, sei, selection
+      )
+    }
+    resolved
   }
   unresolved <- function() stop(
     "Zplot marginal integration is unavailable: selection transitions remain unresolved at the available quadrature rules. Inspect the fitted selection and heterogeneity parameters.",
