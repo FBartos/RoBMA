@@ -162,7 +162,7 @@ text	fit_simple_BF_marglik	0.000000000	0.317480	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_BF_normal	0.020000000	0.386035	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_BF_qCMDE	0.080000000	0.442188	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_fe	0.070000000	0.380078	4.6.0	Windows/x86_64-w64-mingw32
-text	fit_simple_fe0	0.080000000	0.369922	4.6.0	Windows/x86_64-w64-mingw32
+text	fit_simple_fe0	0.070000000	0.369922	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_influence	0.700000000	0.536328	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_interpret	0.080000000	0.381738	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_print_prior	0.000000000	0.302148	4.6.0	Windows/x86_64-w64-mingw32

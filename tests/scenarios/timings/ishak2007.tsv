@@ -21,11 +21,11 @@ text	summary-ar	0.800000000	0.956641	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-har	1.380000000	0.965527	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-heterogeneity-ar	0.650000000	1.082715	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-heterogeneity-har	0.890000000	1.082617	4.6.0	Windows/x86_64-w64-mingw32
-plot	funnel	1.930000000	1.488867	4.6.0	Windows/x86_64-w64-mingw32
-plot	marginal_diagnostics	31.170000000	1.560742	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm	1.810000000	1.488867	4.6.0	Windows/x86_64-w64-mingw32
+plot	funnel	1.930000000	1.403809	4.6.0	Windows/x86_64-w64-mingw32
+plot	marginal_diagnostics	31.170000000	1.410449	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm	1.810000000	1.410449	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-parameters	24.640000000	1.579981	4.6.0	Windows/x86_64-w64-mingw32
-plot	ranef-agreement	3.690000000	1.527148	4.6.0	Windows/x86_64-w64-mingw32
+plot	ranef-agreement	3.690000000	1.401660	4.6.0	Windows/x86_64-w64-mingw32
 plot	sd_common	5.330000000	1.061133	4.6.0	Windows/x86_64-w64-mingw32
 plot	time_factor	18.100000000	1.097559	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	1.560000000	1.315723	4.6.0	Windows/x86_64-w64-mingw32

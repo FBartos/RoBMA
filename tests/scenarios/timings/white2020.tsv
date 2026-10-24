@@ -23,7 +23,7 @@ text	summary-heterogeneity-observation	0.040000000	0.431641	4.6.0	Windows/x86_64
 text	summary-heterogeneity-study	0.050000000	0.532520	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel	0.110000000	0.765137	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_diagnostics	59.370000000	1.023438	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm	1.440000000	1.019141	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm	1.440000000	0.967676	4.6.0	Windows/x86_64-w64-mingw32
 plot	random	11.010000000	0.741309	4.6.0	Windows/x86_64-w64-mingw32
 plot	ranef-comparison	2.160000000	0.818750	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	1.940000000	0.920410	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	1.940000000	0.855762	4.6.0	Windows/x86_64-w64-mingw32
