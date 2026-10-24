@@ -591,12 +591,15 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `BayesTools_inexact_ordinate`).
 - labels, tables, and posterior draws:
   - `as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`,
-    `as_draws_matrix()`, and `as_draws_rvars()` of fitted models return the
-    model-parameter schema by default: backend-private latent effects,
-    random-effect simulation and Cholesky factors, and prior-parameterization
-    variables are omitted (4.0.0 returned every monitored column), and
-    parameters with point priors are exact constant columns. The new
-    `include_auxiliary = TRUE` adds the backend variables.
+    `as_draws_matrix()`, and `as_draws_rvars()` of fitted models return, by
+    default, the parameters that the default `print()` and `summary()` show
+    (with the model-inclusion indicators behind the inclusion probabilities),
+    and parameters with point priors are exact constant columns. The hidden
+    intermediate parameters that 4.0.0 returned with them (the latent effects
+    `gamma[k]` and the GLMM `theta[i]`, the selection latent variables `eta`,
+    the GLMM nuisance rates `pi[i]` and `phi[i]`, random-effect simulation and
+    Cholesky factors, and prior-parameterization variables) are returned by the
+    new `include_auxiliary = TRUE`.
   - labels are rendered by BayesTools from the parameter catalog: square
     brackets after a factor term hold a level label (`mu_g[5]`, `g[5]`, and
     `(mu) g[5]` mean the level labelled "5"), and contrast coefficients that

@@ -27,13 +27,25 @@
 #' @param x an object to convert. The \code{brma} methods expect a fitted
 #' \code{brma} object; default methods forward non-\code{brma} objects to the
 #' corresponding \pkg{posterior} conversion function.
-#' @param include_auxiliary logical; whether to include raw backend auxiliary
-#' variables in addition to the stable model-parameter schema. Formula-random
+#' @param include_auxiliary logical; whether to include the hidden
+#' intermediate parameters (see Details) in addition to the parameters shown by
+#' the default \code{print()} and \code{summary()} of the fit. Formula-random
 #' parameters retain their RoBMA semantic names in either case.
 #' @param ... additional arguments passed to the corresponding
 #' \pkg{posterior} function.
 #'
 #' @details
+#' By default, the draws hold exactly the parameters that the default
+#' \code{print()} and \code{summary()} of the fit show (the location, heterogeneity,
+#' and moderator coefficients, the multilevel allocation \code{rho}, and the
+#' publication-bias parameters), together with the model-inclusion indicators
+#' behind the reported inclusion probabilities. The hidden intermediate
+#' parameters are added by \code{include_auxiliary = TRUE}: the latent
+#' cluster and estimate effects (\code{gamma[k]} and the GLMM \code{theta[i]}),
+#' the selection-model latent variables (\code{eta}), the GLMM nuisance base
+#' rates and rates (\code{pi[i]} and \code{phi[i]}), and the other backend
+#' variables listed below.
+#'
 #' These functions are S3 generics. Their default methods forward to the
 #' corresponding \pkg{posterior} generics so attaching \pkg{RoBMA} preserves
 #' the usual \pkg{posterior} behavior for non-\code{brma} objects.
@@ -54,8 +66,8 @@
 #' \pkg{posterior} conversion function. By default, backend-private latent
 #' effects, known-\code{V} dependency factors, random-effect simulation and
 #' Cholesky factors, and prior-parameterization variables are omitted. Stable
-#' fitted coordinates such as model indicators and likelihood parameters
-#' remain available. Ordinary spike-and-slab backend slab and inclusion
+#' fitted coordinates such as model indicators remain available.
+#' Ordinary spike-and-slab backend slab and inclusion
 #' coordinates are omitted by default; \code{include_auxiliary = TRUE} retains
 #' them. Semantic random-effect indicators remain available as described below.
 #' Formula-random coordinates are replaced by their semantic
@@ -413,6 +425,8 @@ NULL
   category      <- rep(NA_character_, length(variables))
 
   category[variable_base %in% c("theta", "gamma")] <- "latent_effect"
+  # the GLMM nuisance base rates and rates are not shown by summary()
+  category[variable_base %in% c("pi", "phi")] <- "nuisance_rate"
   category[variable_base == "sampling_z"] <- "sampling_dependency"
   category[endsWith(variable_base, "_xRE_Zx")] <- "random_effect_latent"
   category[endsWith(variable_base, "_xRE_CORx_L")] <- "random_correlation_factor"

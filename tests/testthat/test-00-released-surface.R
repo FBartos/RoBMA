@@ -398,17 +398,25 @@ test_that("cooks.distance() divides by the rank of the model matrix", {
   )
 })
 
+.surface_glmm_fit <- function() {
+
+  if (!exists("glmm", envir = .surface_fit_env, inherits = FALSE)) {
+    data("dat.bcg", package = "metadat", envir = environment())
+    fit <- suppressWarnings(brma.glmm(
+      ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg[1:8, ],
+      measure = "OR", chains = 2, adapt = 100, burnin = 150, sample = 150,
+      seed = 1, silent = TRUE
+    ))
+    assign("glmm", suppressWarnings(add_loo(fit)), envir = .surface_fit_env)
+  }
+
+  return(get("glmm", envir = .surface_fit_env, inherits = FALSE))
+}
+
 test_that("GLMM LOO-PIT residuals are the labelled normal approximation", {
 
   skip_if_not_installed("metadat")
-  data("dat.bcg", package = "metadat", envir = environment())
-
-  fit <- suppressWarnings(brma.glmm(
-    ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg[1:8, ],
-    measure = "OR", chains = 2, adapt = 100, burnin = 150, sample = 150,
-    seed = 1, silent = TRUE
-  ))
-  fit <- suppressWarnings(add_loo(fit))
+  fit <- .surface_glmm_fit()
 
   count_messages <- function(expr) {
     messages <- character()
@@ -452,4 +460,40 @@ test_that("GLMM LOO-PIT residuals are the labelled normal approximation", {
   influence_result <- count_messages(suppressWarnings(influence(fit)))
   expect_length(influence_result$messages, 1L)
   expect_named(influence_result$value[["inf"]], c("rstudent", "cov.r", "tau.del"))
+})
+
+test_that("as_draws() returns the parameters shown by summary() and hides the intermediates", {
+
+  catalog <- .brma_auxiliary_variable_catalog(
+    structure(list(fit = NULL), class = "brma"),
+    c("mu", "tau", "pi[1]", "phi[2]", "theta[3]", "gamma[4]", "eta[1]", "omega[1]")
+  )
+  expect_identical(catalog[["variable"]], c("pi[1]", "phi[2]", "theta[3]", "gamma[4]", "eta[1]"))
+
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("posterior")
+
+  glmm <- .surface_glmm_fit()
+  shown <- rownames(summary(glmm, include_mcmc_diagnostics = FALSE)[["estimates"]])
+  expect_identical(shown, c("mu", "tau"))
+  expect_identical(colnames(as_draws_matrix(glmm)), shown)
+  auxiliary <- colnames(as_draws_matrix(glmm, include_auxiliary = TRUE))
+  expect_identical(head(auxiliary, 2L), shown)
+  expect_true(all(c("pi[1]", "theta[1]") %in% auxiliary))
+  expect_setequal(
+    sub("[[].*$", "", setdiff(auxiliary, shown)), c("pi", "theta")
+  )
+
+  multilevel <- .surface_fit("multilevel")
+  shown <- rownames(summary(multilevel, include_mcmc_diagnostics = FALSE)[["estimates"]])
+  expect_identical(shown, c("mu", "tau", "rho"))
+  expect_identical(colnames(as_draws_matrix(multilevel)), shown)
+  expect_true(all(
+    paste0("gamma[", 1:4, "]") %in%
+      colnames(as_draws_matrix(multilevel, include_auxiliary = TRUE))
+  ))
+
+  ordinary <- .surface_fit("ordinary")
+  expect_identical(colnames(as_draws_matrix(ordinary)), c("mu", "tau"))
+  expect_identical(colnames(as_draws_matrix(ordinary, include_auxiliary = TRUE)), c("mu", "tau"))
 })

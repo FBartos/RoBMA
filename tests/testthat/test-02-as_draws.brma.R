@@ -379,7 +379,13 @@ test_that("draw schemas filter model-family-specific auxiliary state", {
   expect_false(any(startsWith(schemas[["konstantopoulos2011_3lvl"]], "gamma[")))
   expect_true("rho" %in% schemas[["konstantopoulos2011_3lvl"]])
   expect_false(any(startsWith(schemas[["bcg_glmm_reg"]], "theta[")))
-  expect_true(any(startsWith(schemas[["bcg_glmm_reg"]], "pi[")))
+  expect_false(any(startsWith(schemas[["bcg_glmm_reg"]], "pi[")))
+  expect_true(any(startsWith(
+    posterior::variables(RoBMA::as_draws_matrix(
+      load_fit("bcg_glmm_reg", validate = FALSE), include_auxiliary = TRUE
+    )),
+    "pi["
+  )))
   expect_false(any(startsWith(schemas[["dat.lehmann2018-3PSM"]], "eta[")))
   expect_true(any(startsWith(schemas[["dat.lehmann2018-3PSM"]], "omega[")))
 
