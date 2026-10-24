@@ -1493,11 +1493,16 @@ plot_scenario_times <- function(scenario = NULL, functions = NULL,
       # A stand-in lets the review show the whole candidate as new. It never
       # equals the candidate, so an unchanged stand-in means that the candidate
       # was rejected and a stand-in equal to the candidate that it was accepted:
-      # empty, or one line for an empty candidate.
-      .scenario_write_lines(
-        if (file.size(changes[["candidate"]][[i]]) == 0) "No baseline yet." else character(),
-        staged_expected[[i]]
-      )
+      # an empty file, or one line for an empty candidate, for a table, and an
+      # empty but valid SVG for a figure, which the reviewer renders.
+      stand_in <- if (identical(changes[["type"]][[i]], "figure")) {
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
+      } else if (file.size(changes[["candidate"]][[i]]) == 0) {
+        "No baseline yet."
+      } else {
+        character()
+      }
+      .scenario_write_lines(stand_in, staged_expected[[i]])
     } else {
       .scenario_copy_file(
         changes[["expected"]][[i]], staged_expected[[i]], "review snapshot"

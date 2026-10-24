@@ -1487,12 +1487,19 @@ test_that("scenario review offers a figure candidate without a baseline", {
         full.names = TRUE
       )
       accept <- candidates[grepl("accept.*[.]new[.]svg$", candidates)]
+      # what the reviewer is shown as the expected figure of a candidate
+      for (candidate in candidates) {
+        staged[[basename(candidate)]] <- readLines(
+          sub("[.]new[.]svg$", ".svg", candidate), warn = FALSE
+        )
+      }
       file.copy(accept, sub("[.]new[.]", ".", accept), overwrite = TRUE)
       unlink(candidates)
       return(TRUE)
     },
     envir = helper_env
   )
+  staged  <- new.env(parent = emptyenv())
   figures <- file.path(root, "_snaps", "unit")
   .scenario_write_lines("old", file.path(figures, "kept.svg"))
   .scenario_write_lines("new", file.path(figures, "kept.new.svg"))
@@ -1513,6 +1520,14 @@ test_that("scenario review offers a figure candidate without a baseline", {
   expect_false(file.exists(file.path(figures, "reject.svg")))
   expect_identical(readLines(file.path(figures, "kept.svg"), warn = FALSE), "old")
   expect_length(list.files(figures, pattern = "[.]new[.]svg$"), 0L)
+
+  # The reviewer is shown an empty but valid SVG, not an empty file, as the
+  # expected figure of a candidate without a baseline; a figure with a baseline
+  # is shown as it is.
+  stand_in <- '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
+  expect_identical(staged[["accept.new.svg"]], stand_in)
+  expect_identical(staged[["reject.new.svg"]], stand_in)
+  expect_identical(staged[["kept.new.svg"]], "old")
 })
 
 
