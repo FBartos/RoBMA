@@ -1797,6 +1797,23 @@
     }
   }
 
+  # the location priors (mu, or the intercept and terms of the moderator
+  # formula) come first, then tau, then the scale formula priors, then the other
+  # parameters, as in 4.0.0 (a stable reorder of the catalog order)
+  block <- vapply(selected, function(entry) {
+    if (identical(entry[["label"]], "mu") ||
+        entry[["source"]] %in% c("mods", "location")) {
+      1L
+    } else if (identical(entry[["label"]], "tau")) {
+      2L
+    } else if (identical(entry[["source"]], "scale")) {
+      3L
+    } else {
+      4L
+    }
+  }, integer(1))
+  selected <- selected[order(block, seq_along(selected))]
+
   if (.has_print_prior_random(object)) {
     selected[["random"]] <- .select_print_prior_random(object)
   }

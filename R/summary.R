@@ -662,16 +662,18 @@ print.brma <- function(x, ...) {
 
 .summary_scale_footnotes <- function(object) {
 
-  target <- if (.is_random(object)) {
-    "heterogeneity SD (tau) of the indicated target"
-  } else {
-    "heterogeneity SD (tau)"
+  if (!.is_random(object)) {
+    return(paste0(
+      "exp(Intercept) corresponds to the between-study heterogeneity tau; ",
+      "the meta-regression coefficients correspond to the multiplicative ",
+      "effects on log-scale."
+    ))
   }
 
   paste0(
-    "exp(intercept) is the baseline ", target,
-    ", already exponentiated. Other coefficients are changes in log(SD); ",
-    "exp(coefficient) is an SD multiplier."
+    "exp(intercept) is the baseline heterogeneity SD (tau) of the indicated ",
+    "target, already exponentiated. Other coefficients are changes in ",
+    "log(SD); exp(coefficient) is an SD multiplier."
   )
 }
 

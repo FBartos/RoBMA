@@ -65,7 +65,7 @@ test_that("LOO-PIT funnels project normalized residuals by predictive scale", {
     expected_z
   )
   expect_equal(rstudent_alias[["points"]], loo_pit[["points"]])
-  expect_identical(loo_pit[["xlab"]], "LOO-PIT Residual")
+  expect_identical(loo_pit[["xlab"]], "Residual")
 
   # The points carry the estimate-unit LOO target (deletion unit and retained
   # context), not the unused default conditioning depth.

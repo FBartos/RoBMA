@@ -277,8 +277,6 @@
   # set axis labels
   if (!is.null(dots[["xlab"]])) {
     xlab <- dots[["xlab"]]
-  } else if (type == "LOO-PIT" || type == "rstudent") {
-    xlab <- "LOO-PIT Residual"
   } else {
     xlab <- "Residual"
   }

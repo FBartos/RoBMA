@@ -621,8 +621,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - summary tables of `BMA()`/`BMA.norm()` and `RoBMA()` fits label the
     intercept of a scale formula `exp(intercept)` (was `intercept`), as those
     of the other constructors already did, which makes its SD scale
-    explicit; the table note describes exponentiated scale slopes as
-    multipliers of the SD.
+    explicit.
   - a location intercept fixed at zero is omitted from meta-regression
     summaries, stored coefficients, marginal means, plots, density
     estimates, and hypotheses whenever moderators are present;

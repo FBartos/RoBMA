@@ -179,9 +179,9 @@ test_that("scalar multivariate summary labels respect declared SD priors", {
   )
   model_types <- c("Fixed-Effect", "Random-Effects", "Random-Effects")
   footnote <- paste0(
-    "exp(intercept) is the baseline heterogeneity SD (%s), already ",
-    "exponentiated. Other coefficients are changes in log(SD); ",
-    "exp(coefficient) is an SD multiplier."
+    "exp(Intercept) corresponds to the between-study heterogeneity tau; ",
+    "the meta-regression coefficients correspond to the multiplicative ",
+    "effects on log-scale."
   )
 
   for (i in seq_along(priors)) {
@@ -198,7 +198,7 @@ test_that("scalar multivariate summary labels respect declared SD priors", {
       paste("Bayesian Multivariate", model_types[i], "Selection Model (k = 4)")
     )
     expect_identical(.summary_scale_footnotes(object), if (is.null(priors[[i]])) {
-      sprintf(footnote, "tau")
+      footnote
     } else {
       paste0("exp(intercept) is the baseline heterogeneity SD (tau) of the ",
         "indicated target, already ",
@@ -211,7 +211,7 @@ test_that("scalar multivariate summary labels respect declared SD priors", {
     object <- do.call(
       brma, c(args, list(prior_heterogeneity = NULL, cluster = cluster))
     )
-    expect_identical(.summary_scale_footnotes(object), sprintf(footnote, "tau"))
+    expect_identical(.summary_scale_footnotes(object), footnote)
     expect_identical(
       .summary.brma_model_names(object),
       if (is.null(cluster)) {

@@ -88,6 +88,7 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
       name,
       ordinary   = arguments,
       mods       = c(arguments, list(mods = ~ x)),
+      scale      = c(arguments, list(mods = ~ x, scale = ~ x)),
       multilevel = c(arguments, list(cluster = quote(cluster)))
     )
     fit <- suppressWarnings(do.call(brma, arguments))
@@ -300,4 +301,36 @@ test_that("brma_samples coerce to the draws and as_draws() returns a draws_matri
   expect_s3_class(generic, "draws_matrix")
   expect_identical(posterior::nchains(generic), 2L)
   expect_s3_class(as_draws_array(pred), "draws_array")
+})
+
+test_that("print_prior() lists the location priors before tau and the scale priors", {
+
+  expect_identical(
+    names(print_prior(.surface_fit("mods"), silent = TRUE)),
+    c("mu_intercept", "mu_x", "tau")
+  )
+  expect_identical(
+    names(print_prior(.surface_fit("scale"), silent = TRUE)),
+    c("mu_intercept", "mu_x", "log_tau_intercept", "log_tau_x")
+  )
+  expect_identical(
+    names(print_prior(.surface_fit("ordinary"), silent = TRUE)),
+    c("mu", "tau")
+  )
+})
+
+test_that("the location-scale summary carries the released footnote", {
+
+  fit <- .surface_fit("scale")
+  footnote <- paste0(
+    "exp(Intercept) corresponds to the between-study heterogeneity tau; ",
+    "the meta-regression coefficients correspond to the multiplicative ",
+    "effects on log-scale."
+  )
+
+  expect_identical(.summary_scale_footnotes(fit), footnote)
+  expect_identical(
+    attr(summary(fit, include_mcmc_diagnostics = FALSE)[["estimates_scale"]], "footnotes"),
+    footnote
+  )
 })
