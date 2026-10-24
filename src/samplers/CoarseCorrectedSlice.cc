@@ -97,8 +97,8 @@ struct SelectedChild {
       i == cluster_factor_rule;
   }
 
-  SelectedChild(StochasticNode *child, ChildKind child_kind)
-    : node(child), kind(child_kind), distribution(child->distribution())
+  SelectedChild(StochasticNode *child, ChildKind kind_of_child)
+    : node(child), kind(kind_of_child), distribution(child->distribution())
   {
     const bool consistent =
       (kind == ChildKind::mv && dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) ||

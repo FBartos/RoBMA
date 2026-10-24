@@ -1025,7 +1025,8 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     return(tmp)
   })
 
-  # faster calculation using coarse corrected cache
+  # faster calculation with the coarse-corrected sampler: slice proposals on one quadrature rule of the
+  # cluster and factor selection blocks (a coarse normalizer cache for dense blocks), corrected against the exact target
   fit_bselmodel.mv_V_cond_coarse <- scenario_fit("fit_bselmodel.mv_V_cond_coarse", {
     (function() {
       previous_sampler <- RoBMA.options()[["selection.sampler"]]
@@ -1038,7 +1039,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
     })()
   })
 
-  # fit C-C-I model (coarsed for speed)
+  # fit C-C-I model with the coarse-corrected sampler (cluster and factor blocks, for speed)
   fit_bselmodel.mv_V_CCI_coarse <- scenario_fit("fit_bselmodel.mv_V_CCI_coarse", {
     (function() {
       previous_sampler <- RoBMA.options()[["selection.sampler"]]

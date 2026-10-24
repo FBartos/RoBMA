@@ -91,44 +91,20 @@
 }
 
 
-# Mean and variance of the posterior with the given log normalizer (a function of
-# mu), by QUADPACK over mu, and their error estimates in the manner of
-# test-00-selection-corrected-sampler.R (QUADPACK absolute errors of the moment
-# integrals, plus the largest relative error of the normalizer carried through).
+# Mean and variance of the posterior of mu with the given log normalizer (a function
+# of mu), by QUADPACK over mu, with the error allowances of .coarse_moments_1d.
 .coarse_exactness_moments <- function(setup, log_normalizer, tracker) {
 
   cache <- new.env()
   normalizer <- function(mu) {
-    vapply(mu, function(value) {
-      key <- sprintf("%.17g", value)
-      if (is.null(cache[[key]])) { cache[[key]] <- log_normalizer(value); tracker$evaluations <- (if (is.null(tracker$evaluations)) 0 else tracker$evaluations) + 1 }
-      cache[[key]]
-    }, numeric(1L))
+    key <- sprintf("%.17g", mu)
+    if (is.null(cache[[key]])) cache[[key]] <- log_normalizer(mu)
+    cache[[key]]
   }
-  centre  <- -1
-  density <- function(mu) {
-    exp(stats::dt(mu, df = 4, log = TRUE) - setup$information * mu^2 / 2 -
-          normalizer(mu) - (stats::dt(centre, df = 4, log = TRUE) -
-          setup$information * centre^2 / 2 - normalizer(centre)))
+  log_density <- function(mu) {
+    stats::dt(mu, df = 4, log = TRUE) - setup$information * mu^2 / 2 - normalizer(mu)
   }
-  moment <- function(power) {
-    result <- stats::integrate(function(mu) density(mu) * mu^power, -14, 8,
-                               rel.tol = 1e-6, abs.tol = 1e-9, subdivisions = 200L)
-    stopifnot(identical(result$message, "OK"))
-    result
-  }
-  integrals <- lapply(0:2, moment)
-  values <- vapply(integrals, `[[`, numeric(1L), "value")
-  errors <- vapply(integrals, `[[`, numeric(1L), "abs.error")
-  mean     <- values[2L] / values[1L]
-  variance <- values[3L] / values[1L] - mean^2
-  inner    <- tracker$relative_error
-  moment_error <- (errors[2:3] + abs(c(mean, values[3L] / values[1L])) * errors[1L]) /
-    (values[1L] - errors[1L]) + 2 * inner / (1 - inner) *
-    c(sqrt(values[3L] / values[1L]), values[3L] / values[1L])
-  list(mean = mean, variance = variance, mean_error = moment_error[1L],
-       variance_error = moment_error[2L] + 2 * abs(mean) * moment_error[1L] +
-         moment_error[1L]^2)
+  .coarse_moments_1d(log_density, -14, 8, tracker, rel.tol = 1e-6, abs.tol = 1e-9)
 }
 
 
@@ -200,30 +176,15 @@
 
 
 # Mean and variance of a density on a finite interval given by its log (a function
-# of the parameter, up to a constant), by QUADPACK, with the error estimates of the
-# moment integrals and the largest relative error of the normalizer integrals
-# relative error of the normalizer integrals (`tracker$relative_error`, read after
-# the integration) carried through as in .coarse_exactness_moments.
-.coarse_moments_1d <- function(log_density, lower, upper, tracker) {
+# of the parameter, up to a constant), by QUADPACK, with the error allowances of
+# .coarse_moment_summary (the relative error of the normalizer integrals is read
+# from `tracker$relative_error` after the integration).
+.coarse_moments_1d <- function(log_density, lower, upper, tracker,
+                               rel.tol = 1e-8, abs.tol = 1e-12) {
 
-  reference <- log_density((lower + upper) / 2)
-  density <- function(x) exp(vapply(x, log_density, numeric(1L)) - reference)
-  moment <- function(power) {
-    result <- stats::integrate(function(x) density(x) * x^power, lower, upper,
-                               rel.tol = 1e-8, abs.tol = 1e-12, subdivisions = 200L)
-    stopifnot(identical(result$message, "OK"))
-    result
-  }
-  integrals <- lapply(0:2, moment)
-  values <- vapply(integrals, `[[`, numeric(1L), "value")
-  errors <- vapply(integrals, `[[`, numeric(1L), "abs.error")
-  mean     <- values[2L] / values[1L]
-  second   <- values[3L] / values[1L]
-  relative_error <- tracker$relative_error
-  moment_error <- (errors[2:3] + abs(c(mean, second)) * errors[1L]) / (values[1L] - errors[1L]) +
-    2 * relative_error / (1 - relative_error) * c(sqrt(second), second)
-  list(mean = mean, variance = second - mean^2, mean_error = moment_error[1L],
-       variance_error = moment_error[2L] + 2 * abs(mean) * moment_error[1L] + moment_error[1L]^2)
+  raw <- .coarse_raw_moments(log_density, lower, upper, log_density((lower + upper) / 2),
+                             rel.tol = rel.tol, abs.tol = abs.tol)
+  .coarse_moment_summary(raw$values, raw$errors, tracker$relative_error)
 }
 
 

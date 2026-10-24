@@ -118,13 +118,8 @@
 .coarse_reference_numerator <- function(block) {
 
   p       <- block[["parameters"]]
-  k       <- length(p[[1L]])
-  loading <- matrix(p[[3L]], k, block[["rank"]])
-  covariance <- diag(p[[2L]]^2, k) + loading %*% t(loading)
-  factor  <- chol(covariance)
-  centered <- backsolve(factor, block[["x"]] - p[[1L]], transpose = TRUE)
-  gaussian <- -0.5 * (k * log(2 * pi) + 2 * sum(log(diag(factor))) + sum(centered^2))
-  gaussian + sum(log(p[[5L]][p[[8L]]]))
+  loading <- matrix(p[[3L]], length(p[[1L]]), block[["rank"]])
+  .coarse_gaussian_log_density(block[["x"]], p[[1L]], p[[2L]], loading) + sum(log(p[[5L]][p[[8L]]]))
 }
 
 
