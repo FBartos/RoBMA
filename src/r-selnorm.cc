@@ -386,9 +386,10 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
 // (numerator, log normalizer of the rung, whether it fell back to the exact
 // density). `settings` is the sampler's setting vector (three grid steps, rule
 // count). An exception of an evaluation is returned as its message. With
-// `unchecked` the evaluations also run on blocks whose controls the validators
-// refuse (a quadrature table with a missing value, say), to reach the branches
-// the validators otherwise guard.
+// `unchecked` the evaluations also run on blocks whose validators refuse them only
+// because the quadrature nodes or log weights have non-finite values, to reach the
+// branches those values guard; every other control (lengths, orders that sum to the
+// tables, bins, the QMC array) must pass, since the evaluators index with them.
 extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings,
                                               SEXP unchecked)
 {
@@ -440,7 +441,21 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   std::string surrogate_error, exact_error;
   // Invalid controls are refused; invalid dynamic values are evaluated, and the
   // evaluators give them the exact kernel's -Inf.
-  if (control_valid || LOGICAL(unchecked)[0] == TRUE) {
+  bool evaluate = control_valid;
+  if (!control_valid && LOGICAL(unchecked)[0] == TRUE) {
+    // the controls with the two tables replaced by finite ones
+    const std::vector<double> finite_nodes(len[11], 0.0), finite_log_weights(len[12], 0.0);
+    std::vector<double const *> finite_par(par);
+    finite_par[11] = finite_nodes.data();
+    finite_par[12] = finite_log_weights.data();
+    const bool structure_valid = factor ? factor_distribution.checkControlParameterValue(finite_par, len) :
+      cluster_distribution.checkControlParameterValue(finite_par, len);
+    if (!structure_valid) {
+      Rf_error("'unchecked' admits only non-finite values in the quadrature nodes and log weights.");
+    }
+    evaluate = true;
+  }
+  if (evaluate) {
     const int rows = static_cast<int>(length);
     const int rank = factor ? static_cast<int>(len[2] / len[0]) : 1;
     const SelNormJagsBounds lower_bounds(par[5], len[5]);

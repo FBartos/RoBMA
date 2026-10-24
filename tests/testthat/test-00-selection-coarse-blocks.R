@@ -152,6 +152,15 @@ test_that("blocks without an available rule fall back to the exact density", {
     expect_true(is.finite(broken[["exact"]]), info = kind)
     same_as_exact(broken, paste(kind, "non-finite normalizer"))
 
+    # `unchecked` admits nothing but such values: orders that do not sum to the node
+    # table, or an observation in no bin, are refused before anything is evaluated
+    longer <- block[["parameters"]][[14L]]
+    longer[3L] <- longer[3L] + 1
+    expect_error(.coarse_probe(.coarse_block_set(block, 14L, longer), 3L, unchecked = TRUE),
+                 "admits only non-finite values", info = kind)
+    expect_error(.coarse_probe(.coarse_block_set(block, 8L, c(9, rep(1, length(block[["x"]]) - 1L))), 3L,
+                               unchecked = TRUE), "admits only non-finite values", info = kind)
+
     # a best-weight vector rule has no product rung
     for (vector_rule in c(1, 2)) {
       best <- .coarse_probe(.coarse_block_set(block, 20L, vector_rule), 3L)
