@@ -40,7 +40,7 @@ test_that("log_lik returns finite pointwise matrices for cached fits", {
   }
 })
 
-test_that("logLik is absent and information criteria fail explicitly", {
+test_that("logLik returns the pointwise matrix and information criteria fail explicitly", {
 
   fit_name <- "brma.mv_block_mvn"
   skip_if_missing_fits(fit_name)
@@ -50,8 +50,14 @@ test_that("logLik is absent and information criteria fail explicitly", {
   expect_true("log_lik" %in% getNamespaceExports("RoBMA"))
   expect_true(is.matrix(draws))
   expect_equal(ncol(draws), nobs(fit_brma))
-  expect_null(getS3method("logLik", "brma", optional = TRUE))
-  expect_error(stats::logLik(fit_brma), "no applicable method")
+  log_likelihood <- stats::logLik(fit_brma)
+  expect_s3_class(log_likelihood, "logLik.brma")
+  expect_equal(unclass(log_likelihood), draws, ignore_attr = TRUE)
+  expect_output(
+    print(log_likelihood),
+    paste0(nrow(draws), "*", ncol(draws), " pointwise log-likelihood matrix"),
+    fixed = TRUE
+  )
   expect_error(stats::AIC(fit_brma), "AIC\\(\\) is not defined for brma")
   expect_error(stats::BIC(fit_brma), "BIC\\(\\) is not defined for brma")
 })

@@ -463,9 +463,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     posterior samples, such as `only_priors = TRUE` objects, are asked to be
     fitted instead).
 - removed and reordered arguments and methods:
-  - removes the `logLik()` method of `brma` objects; `AIC()` and `BIC()`
-    stop with an explanation. Use `log_lik()` for pointwise posterior
-    log-likelihood draws.
+  - `AIC()` and `BIC()` of `brma` objects stop with an explanation (4.0.0
+    returned `numeric(0)`): the pointwise log-likelihood matrix of `logLik()`
+    holds posterior draws, not a maximized scalar likelihood.
   - the generic `as_draws()` of `brma_samples` objects returns a
     `draws_array`, so chain dimensions are explicit; `as_draws_matrix()`
     remains available and keeps its chain-count metadata.
@@ -1103,7 +1103,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     after its own, and `hypothesis_quantities()` reports the same reasons.
 - predictions, diagnostics, and model comparison:
   - adds `log_lik()` for pointwise posterior log-likelihood draws, as used
-    by LOO and WAIC.
+    by LOO and WAIC (`logLik()` returns the same matrix).
   - re-exports `loo::loo_model_weights()` and adds a `brma` method that
     computes stacking or pseudo-BMA weights from compatible stored LOO
     results, also for fits with different numbers of posterior draws.

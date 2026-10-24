@@ -20,11 +20,12 @@
 These methods do not return a value.
 }
 \description{
-\code{brma} objects expose posterior pointwise log-likelihood draws,
-not a maximized scalar log-likelihood. AIC and BIC are therefore undefined
-and these methods always stop with an explicit error.
+\code{brma} objects expose posterior pointwise log-likelihood draws
+(\code{\link{logLik.brma}}, \code{\link{log_lik}}), not a maximized scalar
+log-likelihood. AIC and BIC are therefore undefined and these methods always
+stop with an explicit error.
 }
 \seealso{
-\code{\link{log_lik}}, \code{\link{loo.brma}},
-\code{\link{waic.brma}}
+\code{\link{log_lik}}, \code{\link{logLik.brma}},
+\code{\link{loo.brma}}, \code{\link{waic.brma}}
 }

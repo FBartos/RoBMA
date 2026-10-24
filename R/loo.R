@@ -679,7 +679,9 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #'
 #' @details
 #' This function returns posterior log-likelihood draws, not a scalar maximized
-#' log-likelihood. RoBMA therefore does not implement \code{stats::logLik()}.
+#' log-likelihood. The \code{\link{logLik.brma}} method returns the same matrix
+#' for the \code{stats::logLik()} generic; \code{AIC()} and \code{BIC()} are not
+#' defined for it.
 #'
 #' The log-likelihood is computed for each target at each posterior sample.
 #' For binomial and Poisson models, each observation consists of a pair of
@@ -727,11 +729,58 @@ log_lik.brma <- function(object, unit = "estimate", ...) {
 }
 
 
+#' @title Extract Log-Likelihood Matrix from brma Object
+#'
+#' @description Extract the pointwise log-likelihood matrix from a brma model
+#' object. This is an S x K or S x G matrix where S is the number of posterior
+#' samples, K is the number of estimates, and G is the number of clusters.
+#' This method implements the S3
+#' 'logLik' generic for \code{brma} objects and returns the matrix of
+#' pointwise log-likelihoods (one column per observation, one row per sample).
+#' It returns the draws of \code{\link{log_lik}}, which documents the
+#' targets of the columns; use \code{log_lik()} directly where the generic is
+#' not required.
+#'
+#' @param object a brma model object.
+#' @param unit output unit. See \code{\link{add_loo}}.
+#' @param ... currently unused.
+#'
+#' @details
+#' The log-likelihood is computed for each observation at each posterior sample.
+#' For binomial and Poisson models, each observation consists of a pair of
+#' counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
+#' The matrix holds posterior draws, not a scalar maximized log-likelihood, so
+#' \code{AIC()} and \code{BIC()} are not defined for \code{brma} objects (see
+#' \code{\link{information_criteria_brma}}).
+#'
+#' @return An S x K or S x G matrix of log-likelihood values.
+#'
+#' @seealso \code{\link{log_lik}}, \code{\link{loo.brma}}
+#'
+#' @export
+logLik.brma <- function(object, unit = "estimate", ...) {
+  out <- .log_lik.brma(object, unit = unit, caller = "logLik()")
+  class(out) <- c("logLik.brma", class(out))
+  return(out)
+}
+
+
+#' @export
+print.logLik.brma <- function(x, ...) {
+  S <- if (is.matrix(x)) nrow(x) else length(x)
+  K <- if (is.matrix(x)) ncol(x) else 1
+  cat(sprintf("%d*%d pointwise log-likelihood matrix
+", S, K))
+  invisible(x)
+}
+
+
 #' @title Unsupported Information Criteria for brma Objects
 #'
-#' @description `brma` objects expose posterior pointwise log-likelihood draws,
-#' not a maximized scalar log-likelihood. AIC and BIC are therefore undefined
-#' and these methods always stop with an explicit error.
+#' @description `brma` objects expose posterior pointwise log-likelihood draws
+#' (\code{\link{logLik.brma}}, \code{\link{log_lik}}), not a maximized scalar
+#' log-likelihood. AIC and BIC are therefore undefined and these methods always
+#' stop with an explicit error.
 #'
 #' @param object a brma model object.
 #' @param ... ignored.
@@ -739,8 +788,8 @@ log_lik.brma <- function(object, unit = "estimate", ...) {
 #'
 #' @return These methods do not return a value.
 #'
-#' @seealso \code{\link{log_lik}}, \code{\link{loo.brma}},
-#'   \code{\link{waic.brma}}
+#' @seealso \code{\link{log_lik}}, \code{\link{logLik.brma}},
+#'   \code{\link{loo.brma}}, \code{\link{waic.brma}}
 #'
 #' @rdname information_criteria_brma
 #' @export

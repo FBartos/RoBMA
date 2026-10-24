@@ -28,7 +28,9 @@ number of estimates, and \eqn{G} is the number of clusters.
 }
 \details{
 This function returns posterior log-likelihood draws, not a scalar maximized
-log-likelihood. RoBMA therefore does not implement \code{stats::logLik()}.
+log-likelihood. The \code{\link{logLik.brma}} method returns the same matrix
+for the \code{stats::logLik()} generic; \code{AIC()} and \code{BIC()} are not
+defined for it.
 
 The log-likelihood is computed for each target at each posterior sample.
 For binomial and Poisson models, each observation consists of a pair of

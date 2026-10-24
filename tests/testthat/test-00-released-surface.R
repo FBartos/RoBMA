@@ -264,3 +264,18 @@ test_that("pooled_effect() and pooled_heterogeneity() forward the dots to predic
   expect_null(attr(predicted, "prediction_samples"))
   expect_identical(attr(pooled_heterogeneity(mods), "title"), "Pooled Heterogeneity")
 })
+
+test_that("logLik() returns the pointwise log-likelihood matrix and AIC() and BIC() refuse", {
+
+  fit <- .surface_fit("multilevel")
+
+  log_likelihood <- stats::logLik(fit)
+  expect_s3_class(log_likelihood, "logLik.brma")
+  expect_identical(dim(log_likelihood), c(200L, 8L))
+  expect_equal(unclass(log_likelihood), log_lik(fit), ignore_attr = TRUE)
+  expect_output(print(log_likelihood), "200*8 pointwise log-likelihood matrix", fixed = TRUE)
+  expect_identical(ncol(stats::logLik(fit, unit = "cluster")), 4L)
+
+  expect_error(stats::AIC(fit), "AIC() is not defined for brma", fixed = TRUE)
+  expect_error(stats::BIC(fit), "BIC() is not defined for brma", fixed = TRUE)
+})
