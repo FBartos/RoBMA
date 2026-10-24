@@ -6,7 +6,7 @@ test_that("RoBMA options expose only public options", {
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
 
   expect_true("silent" %in% names(old_options))
-  expect_true(old_options[["silent"]])
+  expect_false(old_options[["silent"]])
   expect_equal(old_options[["default_lograte.sd"]], 1)
   expect_false("RoBMA_version" %in% names(old_options))
   expect_false("module_location" %in% names(old_options))
@@ -61,7 +61,7 @@ test_that("worker output is opt-in and reaches fitting and extension", {
 })
 
 
-test_that("fitting constructors inherit silent option when omitted", {
+test_that("brma-family constructors inherit the silent option and model averaging is quiet", {
 
   old_options <- RoBMA.options()
   on.exit(do.call(RoBMA.options, old_options), add = TRUE)
@@ -111,18 +111,26 @@ test_that("fitting constructors inherit silent option when omitted", {
     return(object[["fit_control"]][["silent"]])
   }
 
-  RoBMA.options(silent = TRUE)
-  for (constructor_name in names(constructors)) {
-    expect_true(
-      constructor_silent(constructors[[constructor_name]]),
-      info = constructor_name
-    )
+  # as in 4.0.0, the model-averaging constructors default to silent = TRUE
+  # whatever the option, the brma family follows the option
+  model_averaging <- c("RoBMA", "BMA", "BMA.glmm", "BMA.mv", "RoBMA.mv")
+  expect_false(RoBMA.get_option("silent"))
+  for (value in c(FALSE, TRUE)) {
+    RoBMA.options(silent = value)
+    for (constructor_name in names(constructors)) {
+      expected <- if (constructor_name %in% model_averaging) TRUE else value
+      expect_identical(
+        constructor_silent(constructors[[constructor_name]]),
+        expected,
+        info = paste(constructor_name, "option", value)
+      )
+    }
   }
 
   RoBMA.options(silent = FALSE)
-  for (constructor_name in names(constructors)) {
-    expect_false(
-      constructor_silent(constructors[[constructor_name]]),
+  for (constructor_name in c("BMA.norm", "BMA", "RoBMA", "BMA.glmm", "BMA.mv", "RoBMA.mv")) {
+    expect_true(
+      eval(formals(get(constructor_name))[["silent"]]),
       info = constructor_name
     )
   }
@@ -130,10 +138,12 @@ test_that("fitting constructors inherit silent option when omitted", {
   explicit_args             <- norm_args
   explicit_args[["silent"]] <- TRUE
   expect_true(constructor_silent(list(fun = BMA, args = explicit_args)))
+  expect_true(constructor_silent(list(fun = brma, args = explicit_args)))
 
   RoBMA.options(silent = TRUE)
   explicit_args[["silent"]] <- FALSE
   expect_false(constructor_silent(list(fun = RoBMA, args = explicit_args)))
+  expect_false(constructor_silent(list(fun = brma, args = explicit_args)))
 })
 
 

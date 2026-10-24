@@ -87,7 +87,7 @@ RoBMA <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent,
+  seed = NULL, silent = TRUE,
 
   # selection likelihood
   selection = BayesTools::selection_model(),

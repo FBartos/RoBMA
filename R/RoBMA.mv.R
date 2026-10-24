@@ -124,7 +124,7 @@ RoBMA.mv <- function(
     convergence_checks = set_convergence_checks(),
 
     # additional settings
-    seed = NULL, silent, ...,
+    seed = NULL, silent = TRUE, ...,
     vi = NULL, sei = NULL) {
 
   BayesTools::check_selection_model(selection, name = "selection")

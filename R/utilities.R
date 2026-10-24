@@ -13,7 +13,7 @@
 #'   \item{\code{max_cores}}{number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)}
 #'   \item{\code{native_threads}}{maximum number of native threads used to evaluate independent posterior rows of the compiled selection-likelihood batches in post-processing such as likelihood-aware densities, z-plots, and predictions. The default \code{NA} inherits the model's fitting setup: models fitted with \code{parallel = TRUE} evaluate their post-processing rows with up to \code{max_cores} native threads, unless this option sets an explicit thread count. Parallel work is arranged so that every reduction keeps its serial order, so results do not depend on the thread count; single-state fitting and bridge-sampling evaluations stay serial. A model fitted with \code{parallel = FALSE} does its post-processing serially unless this option sets an explicit thread count.}
 #'   \item{\code{check_scaling}}{whether to check scaling of predictors (default \code{TRUE})}
-#'   \item{\code{silent}}{whether to suppress JAGS output when fitting or extending models (default \code{TRUE}, the released constructor default)}
+#'   \item{\code{silent}}{whether to suppress JAGS output when fitting or extending models (default \code{FALSE}); the model-averaging constructors \code{RoBMA()}, \code{BMA()}, \code{BMA.norm()}, \code{BMA.glmm()}, \code{RoBMA.mv()}, and \code{BMA.mv()} default to \code{silent = TRUE} and ignore the option}
 #'   \item{\code{jags.worker_output}}{file path for parallel JAGS worker stdout and stderr when fitting or extending. The parent directory must exist; workers append to the same file and messages may interleave. The default empty string disables capture. Set this option inside any background job that fits the model. It does not change sampling or numerical integration settings.}
 #'   \item{\code{autocompute.loo}}{whether to automatically compute LOO (default \code{FALSE})}
 #'   \item{\code{autocompute.waic}}{whether to automatically compute WAIC (default \code{FALSE})}
@@ -350,7 +350,7 @@ assign("max_jags_major",  4,                              envir = RoBMA.private)
     validate = .RoBMA_check_option_bool
   ),
   "silent" = list(
-    default  = TRUE,
+    default  = FALSE,
     validate = .RoBMA_check_option_bool
   ),
   "jags.worker_output" = list(

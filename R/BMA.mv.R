@@ -119,7 +119,7 @@ BMA.mv <- function(
     convergence_checks = set_convergence_checks(),
 
     # additional settings
-    seed = NULL, silent, ...,
+    seed = NULL, silent = TRUE, ...,
     vi = NULL, sei = NULL) {
 
   initialized <- .initialize_mv_object(

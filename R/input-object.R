@@ -16,8 +16,9 @@
 #' @param autofit_control list of autofit control settings. See [set_autofit_control()] for details.
 #' @param convergence_checks list of convergence check settings. See [set_convergence_checks()] for details.
 #' @param seed numeric. Random seed for reproducibility. Defaults to `NULL`.
-#' @param silent logical. Whether to suppress output. When omitted,
-#' constructors use `RoBMA.get_option("silent")`.
+#' @param silent logical. Whether to suppress output. Constructors with no
+#' explicit default use `RoBMA.get_option("silent")` when `silent` is omitted.
+#' Model-averaging wrappers default to `TRUE` unless explicitly changed.
 #' @param ... additional advanced arguments. Fitting functions reject unused
 #' arguments; currently recognized internal arguments include `only_data`,
 #' `only_priors`, `is_JASP`, and `is_JASP_prefix`.

@@ -516,11 +516,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     (`set_contrast_factor_predictors = "meandif"`, was `"treatment"`), as
     the other model-averaging constructors do; moderator coefficients of
     calls without an explicit contrast change their interpretation.
-  - `RoBMA.options(silent = )` defaults to `TRUE` (was `FALSE`) and is the
-    default of `silent` in every constructor: `brma()`, `bselmodel()`,
-    `bPET()`, `bPEESE()`, and `brma.glmm()` no longer print the JAGS output
-    by default, and `BMA()`, `RoBMA()`, and `BMA.glmm()` follow the option
-    (their `silent = TRUE` default ignored it).
   - `plot()` of `zplot()` results defaults to `plot_extrapolation = FALSE`:
     the plot shows the observed z-statistics and the fitted selected density
     only, and draws the extrapolated curve, which rescales the display by an

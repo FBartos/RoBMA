@@ -67,7 +67,7 @@ BMA <- BMA.norm <- function(
   convergence_checks = set_convergence_checks(),
 
   # additional settings
-  seed = NULL, silent, ...
+  seed = NULL, silent = TRUE, ...
 ) {
 
   ### create the output object
