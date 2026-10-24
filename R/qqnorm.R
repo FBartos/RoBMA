@@ -343,7 +343,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   if (is.null(ylab)) {
     # the LOO-PIT residuals of GLMMs are a descriptive normal approximation
     ylab <- if (type %in% c("LOO-PIT", "rstudent") &&
-                .outcome_type(x) %in% c("bin", "pois")) {
+                isTRUE(.outcome_type(x) %in% c("bin", "pois"))) {
       "Sample Quantiles (Descriptive Normal Approximation)"
     } else {
       "Sample Quantiles"
