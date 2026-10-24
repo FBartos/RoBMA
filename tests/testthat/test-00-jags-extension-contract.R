@@ -1,26 +1,26 @@
 context("JAGS extension contract")
 
 
-test_that(".fit forwards only supported BayesTools extension controls", {
-
-  extend_formals <- formals(BayesTools::JAGS_extend)
-  expect_false("seed" %in% names(extend_formals))
+test_that(".fit forwards the extension controls and a seed only when one is supplied", {
 
   forwarded <- NULL
-  mock_extend <- function() NULL
-  formals(mock_extend) <- extend_formals
-  body(mock_extend) <- quote({
-    forwarded <<- list(
-      fit             = fit,
-      autofit_control = autofit_control,
-      parallel        = parallel,
-      cores           = cores,
-      silent          = silent,
-      worker_output   = worker_output,
-      runtime_cache   = runtime_cache
+  mock_extend <- function(fit, autofit_control, parallel = FALSE, cores = NULL,
+                          silent = TRUE, seed = NULL, runtime_setup = NULL,
+                          runtime_cache = NULL, worker_output = NULL) {
+    forwarded <<- c(
+      list(
+        fit             = fit,
+        autofit_control = autofit_control,
+        parallel        = parallel,
+        cores           = cores,
+        silent          = silent,
+        worker_output   = worker_output,
+        runtime_cache   = runtime_cache
+      ),
+      if (!missing(seed)) list(seed = seed)
     )
     return(fit)
-  })
+  }
 
   stored_fit <- structure(
     list(existing_chain = TRUE),
@@ -75,6 +75,7 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   )
   expect_identical(forwarded[["fit"]], stored_fit)
   expect_identical(forwarded[["autofit_control"]], object[["autofit_control"]])
+  # the stored fit seed (719) is not an extension seed: chains continue
   expect_false("seed" %in% names(forwarded))
   expect_null(forwarded[["runtime_cache"]])
   expected_output <- RoBMA.get_option("jags.worker_output")
@@ -85,10 +86,18 @@ test_that(".fit forwards only supported BayesTools extension controls", {
   # passes no prior list and excludes no parameters by name.
   expect_false("prior_list" %in% names(checked))
   expect_false("add_parameters" %in% names(checked))
+
+  expect_silent(.fit(object, extend = TRUE, extension_seed = 42L))
+  expect_identical(forwarded[["seed"]], 42L)
+  expect_identical(
+    names(forwarded),
+    c("fit", "autofit_control", "parallel", "cores", "silent",
+      "worker_output", "runtime_cache", "seed")
+  )
 })
 
 
-test_that("update.brma rejects reseeding a chain continuation", {
+test_that("update.brma passes a supplied seed to the extension and stores it", {
 
   object <- brma.norm(
     yi        = c(0.10, 0.20, 0.05),
@@ -96,15 +105,34 @@ test_that("update.brma rejects reseeding a chain continuation", {
     only_data = TRUE,
     silent    = TRUE
   )
-  object[["fit"]] <- structure(
+  object[["priors"]]       <- list(outcome = list())
+  object[["fit"]]          <- structure(
     list(has_posterior = TRUE),
     class = c("BayesTools_fit", "list")
   )
+  object[["summary"]]      <- data.frame(Mean = 1, row.names = "mu")
+  object[["coefficients"]] <- c(mu = 1)
 
-  expect_error(
-    update(object, sample_extend = 10, seed = 719),
-    "cannot reseed an existing JAGS fit"
+  calls <- list()
+  testthat::local_mocked_bindings(
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
+      calls[[length(calls) + 1L]] <<- list(seed = extension_seed)
+      object[["fit"]]
+    },
+    .stop_fit_errors = function(...) invisible(NULL),
+    .object_summary = function(...) data.frame(Mean = 1, row.names = "mu"),
+    .object_coefficients = function(...) c(mu = 1),
+    .refresh_selection_sensitivity_diagnostics = function(object) object,
+    .package = "RoBMA"
   )
+
+  updated <- update(object, sample_extend = 10, seed = 719)
+  expect_identical(calls[[1L]][["seed"]], 719)
+  expect_identical(updated[["fit_control"]][["seed"]], 719)
+
+  update(updated, sample_extend = 10)
+  expect_length(calls, 2L)
+  expect_null(calls[[2L]][["seed"]])
 })
 
 

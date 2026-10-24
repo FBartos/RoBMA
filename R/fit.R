@@ -720,7 +720,7 @@
   return(model_syntax)
 }
 
-.fit <- function(object, extend = FALSE) {
+.fit <- function(object, extend = FALSE, extension_seed = NULL) {
 
   fit_control        <- object[["fit_control"]]
   autofit_control    <- object[["autofit_control"]]
@@ -784,7 +784,9 @@
 
   } else {
 
-    fit <- BayesTools::JAGS_extend(
+    # a seed is supplied by update() only: extensions otherwise continue the
+    # stored chain states instead of restarting them from the fit's seed
+    extension_arguments <- list(
       fit                = object[["fit"]],
       autofit_control    = autofit_control,
       parallel           = fit_control[["parallel"]],
@@ -793,6 +795,10 @@
       worker_output      = worker_output,
       runtime_cache      = if (.is_priors_weightfunction(priors)) .selection_cache_runtime(object[["fit"]]) else NULL
     )
+    if (!is.null(extension_seed)) {
+      extension_arguments[["seed"]] <- extension_seed
+    }
+    fit <- do.call(BayesTools::JAGS_extend, extension_arguments)
 
   }
 

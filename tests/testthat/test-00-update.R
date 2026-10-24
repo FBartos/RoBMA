@@ -53,7 +53,7 @@ test_that("update.brma extends one sample chunk and recomputes stored caches", {
   calls <- list()
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       calls[["extend"]]          <<- extend
       calls[["sample_extend"]]   <<- object[["autofit_control"]][["sample_extend"]]
@@ -126,7 +126,7 @@ test_that("update.brma can drop stored caches after extension", {
   object[["marglik"]] <- "old-marglik"
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       object[["fit"]][["mock"]] <- "extended"
       return(object[["fit"]])
@@ -157,7 +157,7 @@ test_that("update.brma rejects adversarial extension inputs before fitting", {
   object <- mock_update_object()
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       stop(".fit should not be called", call. = FALSE)
     },
@@ -189,7 +189,7 @@ test_that("update.brma preserves extension fitting errors", {
   summary_called <- FALSE
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       return(list(
         errors        = "Original extension fitting diagnostic.",
@@ -220,7 +220,7 @@ test_that("update.brma recomputes all named cached units", {
   calls <- list()
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       return(object[["fit"]])
     },
@@ -267,7 +267,7 @@ test_that("update.brma rejects malformed multi-unit cache names", {
   object[["loo"]] <- list("old-loo-1", "old-loo-2")
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       return(object[["fit"]])
     },
@@ -295,7 +295,7 @@ test_that("update.brma does not recompute marginal likelihood for RoBMA objects"
   object[["marglik"]] <- "stale-marglik"
 
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
 
       return(object[["fit"]])
     },

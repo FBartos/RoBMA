@@ -183,3 +183,20 @@ test_that("marginal_means() accepts normal_approximation at its released positio
     "normal_approximation"
   )
 })
+
+test_that("update(seed = ) extends reproducibly", {
+
+  fit <- .surface_fit("ordinary")
+
+  extend <- function(seed) {
+    as.numeric(as_draws_matrix(update(fit, sample_extend = 20, seed = seed))[, "mu"])
+  }
+  first  <- extend(1)
+  second <- extend(1)
+  other  <- extend(2)
+
+  expect_length(first, 2 * (100 + 20))
+  expect_identical(first, second)
+  expect_false(identical(first, other))
+  expect_identical(update(fit, sample_extend = 20, seed = 3)[["fit_control"]][["seed"]], 3)
+})

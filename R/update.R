@@ -22,8 +22,12 @@
 #' @param parallel logical. Whether to extend chains in parallel.
 #' @param cores integer. Number of cores to use when \code{parallel = TRUE}.
 #' @param silent logical. Whether to suppress JAGS output during extension.
-#' @param seed retained for compatibility. Existing chains cannot be coherently
-#'   reseeded during continuation, so any non-\code{NULL} value is rejected.
+#' @param seed optional seed of the extension. The chains continue from their
+#'   stored end states with their random-number generators reseeded from
+#'   \code{seed}, so the same fit, \code{seed}, and R random-number generator
+#'   settings give the same extension. Without a \code{seed} the stored
+#'   generator states are continued. A supplied \code{seed} is stored with the
+#'   fit settings.
 #' @param evaluate unsupported; included for compatibility with
 #'   \code{\link[stats]{update}}.
 #'
@@ -40,9 +44,11 @@
 #' \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
 #' preserved because the fitted model structure is reused.
 #'
-#' Extensions continue the random-number generator state stored by JAGS. They
-#' cannot be restarted from a new seed without changing the meaning of chain
-#' continuation.
+#' Extensions continue the random-number generator state stored by JAGS unless a
+#' \code{seed} is supplied, which restarts the generators of the chains from
+#' that seed while keeping their parameter values (BayesTools'
+#' \code{JAGS_extend(seed = )}). The caller's random-number state is restored
+#' afterwards.
 #'
 #' Retained selection-normalizer caches are restored when compatible. Set
 #' \code{RoBMA.options(selection.cache_retain = TRUE)} to retain the cache after
@@ -82,13 +88,6 @@ update.brma <- function(
   if (!isTRUE(evaluate)) {
     stop("update.brma() does not support 'evaluate = FALSE'.", call. = FALSE)
   }
-  if (!is.null(seed)) {
-    stop(
-      "update.brma() cannot reseed an existing JAGS fit; omit 'seed' to continue the stored chain RNG state.",
-      call. = FALSE
-    )
-  }
-
   dots <- list(...)
   .check_unused_dots(
     dots    = dots,
@@ -140,7 +139,7 @@ update.brma <- function(
   cached       <- .collect_brma_fit_cache(object)
 
   if (fit_extended) {
-    object <- .extend_brma_fit_once(object)
+    object <- .extend_brma_fit_once(object, seed = seed)
     object[["summary"]]      <- .object_summary(object)
     object[["coefficients"]] <- .object_coefficients(object)
     object <- .refresh_selection_sensitivity_diagnostics(object)
@@ -193,7 +192,7 @@ update.brma <- function(
 
 
 # Extend exactly one sample_extend chunk, even when stored max_extend is larger.
-.extend_brma_fit_once <- function(object) {
+.extend_brma_fit_once <- function(object, seed = NULL) {
 
   if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0L) {
     stop("'object' does not contain a fitted model to extend.", call. = FALSE)
@@ -207,7 +206,7 @@ update.brma <- function(
   )
 
   object[["autofit_control"]] <- extend_autofit_control
-  object[["fit"]]             <- .fit(object, extend = TRUE)
+  object[["fit"]]             <- .fit(object, extend = TRUE, extension_seed = seed)
   object[["autofit_control"]] <- stored_autofit_control
   .stop_fit_errors(object[["fit"]])
 

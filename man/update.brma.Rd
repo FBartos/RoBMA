@@ -49,8 +49,12 @@ after extension (\code{"all"}) or dropped with a warning (\code{"drop"}).}
 
 \item{silent}{logical. Whether to suppress JAGS output during extension.}
 
-\item{seed}{retained for compatibility. Existing chains cannot be coherently
-reseeded during continuation, so any non-\code{NULL} value is rejected.}
+\item{seed}{optional seed of the extension. The chains continue from their
+stored end states with their random-number generators reseeded from
+\code{seed}, so the same fit, \code{seed}, and R random-number generator
+settings give the same extension. Without a \code{seed} the stored
+generator states are continued. A supplied \code{seed} is stored with the
+fit settings.}
 
 \item{evaluate}{unsupported; included for compatibility with
 \code{\link[stats]{update}}.}
@@ -74,9 +78,11 @@ supported by this method. For \code{brma.mv()} objects, the stored \code{V},
 \code{R}, known-\code{V} backend, and marginalized random-effect metadata are
 preserved because the fitted model structure is reused.
 
-Extensions continue the random-number generator state stored by JAGS. They
-cannot be restarted from a new seed without changing the meaning of chain
-continuation.
+Extensions continue the random-number generator state stored by JAGS unless a
+\code{seed} is supplied, which restarts the generators of the chains from
+that seed while keeping their parameter values (BayesTools'
+\code{JAGS_extend(seed = )}). The caller's random-number state is restored
+afterwards.
 
 Retained selection-normalizer caches are restored when compatible. Set
 \code{RoBMA.options(selection.cache_retain = TRUE)} to retain the cache after
