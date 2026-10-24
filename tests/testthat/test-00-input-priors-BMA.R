@@ -89,6 +89,38 @@ test_that("a factor term whose null and alternative contrasts differ is refused 
     expect_false(grepl("set_contrast_factor_predictors", message, fixed = TRUE))
   }
 
+  # An explicit global null that is a factor prior keeps its declared contrast
+  # as well: the default contrast is no remedy, changing the global null is.
+  global_factor_null <- BayesTools::prior_factor("spike", list(0), contrast = "meandif")
+  condition <- tryCatch(build(mods = ~ g, prior_mods = list(g = factor_prior("independent")),
+    prior_mods_null = global_factor_null), error = identity)
+  expect_s3_class(condition, "RoBMA_prior_contrast_conflict")
+  message <- conditionMessage(condition)
+  expect_match(message, "uses the 'independent' contrast in 'prior_mods' but the 'meandif' contrast in 'prior_mods_null'", fixed = TRUE)
+  expect_match(message, "Give 'prior_mods_null' the contrast of the alternative", fixed = TRUE)
+  expect_match(message, "give the term its own null", fixed = TRUE)
+  expect_match(message, "or a named list without the term", fixed = TRUE)
+  expect_false(grepl("set_contrast_factor_predictors", message, fixed = TRUE))
+  # The default contrast does not help (the message names no such remedy)
+  expect_error(build(mods = ~ g, prior_mods = list(g = factor_prior("independent")),
+    prior_mods_null = global_factor_null, set_contrast_factor_predictors = "independent"),
+    class = "RoBMA_prior_contrast_conflict")
+  # the remedies it names construct
+  for (object in list(
+    build(mods = ~ g, prior_mods = list(g = factor_prior("independent")),
+      prior_mods_null = BayesTools::prior_factor("spike", list(0), contrast = "independent")),
+    build(mods = ~ g, prior_mods = list(g = factor_prior("independent")),
+      prior_mods_null = list(g = BayesTools::prior_factor("spike", list(0), contrast = "independent"))),
+    build(mods = ~ g, prior_mods = list(g = factor_prior("independent")))
+  )) {
+    expect_s3_class(object, "BMA.norm")
+  }
+  dat[["x"]] <- c(.1, .5, .2, .9, .3, .6)
+  expect_s3_class(constructed <- BMA.norm(yi = yi, sei = sei, data = dat, measure = "SMD",
+    only_priors = TRUE, silent = TRUE, mods = ~ g + x, prior_mods = list(g = factor_prior("independent")),
+    prior_mods_null = list(x = spike)), "BMA.norm")
+  expect_true(BayesTools::is.prior.independent(constructed[["priors"]][["mods"]][["g"]][[1L]]))
+
   # A null with the contrast of the alternative sets the conflict aside, as does
   # setting the default contrast or leaving the null unspecified, and a
   # default-contrast alternative needs none of them.
