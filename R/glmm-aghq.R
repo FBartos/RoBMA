@@ -255,6 +255,37 @@
 }
 
 
+# A beta base-rate prior whose shapes the prior-CDF grid cannot represent. The
+# result is unavailable, not rejected by diagnostics; it shares the class of the
+# other GLMM numerical errors and no handler branches on it (the dispatch
+# branches on the AGHQ and grid nonconvergence subclasses only).
+.glmm_prior_unavailable_condition <- function(alpha, beta, outcome_type = "bin") {
+
+  message <- paste0(
+    "The Beta(", format(alpha, digits = 6L), ", ", format(beta, digits = 6L),
+    ") base-rate prior in 'prior_baserate' is unavailable: its shapes are too ",
+    "extreme for the quadrature nodes and weights of the prior-CDF grid to be ",
+    "represented in double precision (a very concentrated or an extremely ",
+    "diffuse prior). Use a beta prior with less extreme shapes or a fixed base ",
+    "rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
+  )
+
+  return(structure(
+    list(
+      message      = message,
+      call         = NULL,
+      outcome_type = outcome_type,
+      method       = "grid",
+      reason       = "prior_unavailable",
+      alpha        = alpha,
+      beta         = beta
+    ),
+    class = c("RoBMA_glmm_prior_unavailable", "RoBMA_glmm_numerical_error",
+              "error", "condition")
+  ))
+}
+
+
 .glmm_grid_nonconvergence_condition <- function(
     outcome_type, observation, theta_changes, nuisance_changes) {
 

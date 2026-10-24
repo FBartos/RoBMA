@@ -140,8 +140,9 @@
   quadrature only when this bound exceeds the tolerance (symmetric shape sums
   above about 2e19, skewed priors at larger concentrations); the grid is then
   used. A skewed prior beyond double precision that the quadrature refuses
-  stops in the grid with an error that names the prior and the remedy (a beta
-  prior with less extreme shapes or a point `prior_baserate`). Some of these
+  stops in the grid with an error of class `RoBMA_glmm_prior_unavailable` that
+  names the prior and the remedy (a beta prior with less extreme shapes or a
+  point `prior_baserate`). Some of these
   priors had been accepted with an error above the tolerance; accepted values
   are unchanged. A refusal that is set by the bound names it in its message and
   carries it in the `noise` field of the condition.

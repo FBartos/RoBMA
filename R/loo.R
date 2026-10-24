@@ -704,6 +704,9 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' AGHQ failures have class `RoBMA_glmm_aghq_nonconvergence`; prior-CDF refinement
 #' failures retain `RoBMA_glmm_grid_nonconvergence`. Their fields identify the
 #' outcome family, observation, and available sample/refinement diagnostics.
+#' A beta baserate prior whose shapes are too extreme for the prior-CDF grid to
+#' be represented in double precision is unavailable and raises
+#' `RoBMA_glmm_prior_unavailable`, also of class `RoBMA_glmm_numerical_error`.
 #' Cluster-unit GLMM draws are unavailable until certified nested
 #' adaptive quadrature is implemented.
 #'

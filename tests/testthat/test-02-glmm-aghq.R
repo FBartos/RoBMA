@@ -488,9 +488,27 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
   # prior with shapes this extreme; the error names the prior and the remedies.
   condition <- tryCatch(.outcome_pdf.binom(19L, 6L, 27L, 17L, matrix(.738), matrix(0),
     BayesTools::prior("beta", list(alpha = 1e12, beta = 1e28))), error = identity)
-  expect_s3_class(condition, "error")
+  expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
+  expect_s3_class(condition, "RoBMA_glmm_numerical_error")
+  expect_identical(c(condition[["alpha"]], condition[["beta"]]), c(1e12, 1e28))
+  # no fallback of the dispatch treats it as a quadrature nonconvergence
+  expect_false(.glmm_aghq_numerical_failure(condition, "bin"))
+  expect_false(.glmm_grid_numerical_failure(condition, "bin"))
   expect_identical(conditionMessage(condition), paste0(
     "The Beta(1e+12, 1e+28) base-rate prior in 'prior_baserate' is unavailable: ",
+    "its shapes are too extreme for the quadrature nodes and weights of the ",
+    "prior-CDF grid to be represented in double precision (a very concentrated ",
+    "or an extremely diffuse prior). Use a beta prior with less extreme shapes ",
+    "or a fixed base rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
+  ))
+
+  # The same unavailable error for absurdly small shapes, whose mass sits at 0
+  # and 1 and whose nodes underflow: the cause is neutral, not "concentrated".
+  condition <- tryCatch(.glmm_beta_prior_grid(
+    BayesTools::prior("beta", list(alpha = 1e-10, beta = 1e-10)), 1200L), error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
+  expect_identical(conditionMessage(condition), paste0(
+    "The Beta(1e-10, 1e-10) base-rate prior in 'prior_baserate' is unavailable: ",
     "its shapes are too extreme for the quadrature nodes and weights of the ",
     "prior-CDF grid to be represented in double precision (a very concentrated ",
     "or an extremely diffuse prior). Use a beta prior with less extreme shapes ",
