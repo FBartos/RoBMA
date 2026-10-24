@@ -492,7 +492,7 @@ for (option_name in names(.RoBMA_option_schema)) {
 #' Eligible indicators remain included when \code{monitor} selects a narrower
 #' parameter set; auxiliary inclusion-probability coordinates remain excluded
 #' unless requested explicitly.
-#' Defaults to \code{TRUE}.
+#' Defaults to \code{FALSE}.
 #' @param monitor optional character vector selecting the parameters used for
 #' convergence checks. A base name selects all indexed elements. Defaults to
 #' \code{NULL}, which checks every eligible parameter.
@@ -575,7 +575,7 @@ for (option_name in names(.RoBMA_option_schema)) {
 NULL
 
 #' @rdname RoBMA_control
-set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10, check_indicators = TRUE, monitor = NULL, allow_not_assessable = FALSE){
+set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, max_time = list(time = 60, unit = "mins"), sample_extend = 1000, restarts = 10, max_extend = 10, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE){
 
   autofit_settings <- list(
     max_Rhat      = max_Rhat,
@@ -595,7 +595,7 @@ set_autofit_control     <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   return(autofit_settings)
 }
 #' @rdname RoBMA_control
-set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, check_indicators = TRUE, monitor = NULL, allow_not_assessable = FALSE){
+set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = NULL, max_SD_error = NULL, check_indicators = FALSE, monitor = NULL, allow_not_assessable = FALSE){
 
   convergence_checks <- list(
     max_Rhat     = max_Rhat,
@@ -703,7 +703,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   check_indicators <- if(!is.null(autofit_control[["check_indicators"]])) {
     autofit_control[["check_indicators"]]
   } else if(is.null(old_autofit_control[["check_indicators"]])) {
-    TRUE
+    FALSE
   } else {
     isTRUE(old_autofit_control[["check_indicators"]])
   }
@@ -748,7 +748,7 @@ set_convergence_checks  <- function(max_Rhat = 1.05, min_ESS = 500, max_error = 
   check_indicators <- if(!is.null(convergence_checks[["check_indicators"]])) {
     convergence_checks[["check_indicators"]]
   } else if(is.null(old_convergence_checks[["check_indicators"]])) {
-    TRUE
+    FALSE
   } else {
     isTRUE(old_convergence_checks[["check_indicators"]])
   }

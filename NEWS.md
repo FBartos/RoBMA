@@ -521,15 +521,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     only, and draws the extrapolated curve, which rescales the display by an
     inferred selection convention, only with `plot_extrapolation = TRUE`.
     `lines()` keeps `extrapolate = FALSE`.
-  - convergence checks and autofit (`set_convergence_checks()`,
-    `set_autofit_control()`, `update()`) check the product-space model
-    indicators by default (new `check_indicators = TRUE`) through
-    BayesTools' label-invariant state-occupancy diagnostics; 4.0.0 left them
-    out. `monitor` restricts the checked parameters without dropping
-    eligible indicators, and `allow_not_assessable = FALSE` fails a sampled
-    parameter whose draws never change. Declared constants (point priors,
-    reference and fixed weight-function bins) are reported as structural
-    constants.
 - results:
   - selection-model p-value cuts compare exactly: an estimate is in the more
     significant bin when its one-sided z-score `sign * yi / sei` is at least
@@ -781,6 +772,14 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     density stop with the classes `RoBMA_hypothesis_target` and
     `RoBMA_hypothesis_unavailable`, and `only_priors = TRUE` objects, which
     have no fitted quantities, point to `print_prior(object, "random")`.
+- convergence checks and autofit (`set_convergence_checks()`,
+  `set_autofit_control()`, `update()`) can check the product-space model
+  indicators (new `check_indicators = TRUE`, off by default as in 4.0.0)
+  through BayesTools' label-invariant state-occupancy diagnostics. `monitor`
+  restricts the checked parameters without dropping eligible indicators, and
+  `allow_not_assessable = FALSE` fails a sampled parameter whose draws never
+  change. Declared constants (point priors, reference and fixed
+  weight-function bins) are reported as structural constants.
 - selection models:
   - `bselmodel()`, `RoBMA()`, `bselmodel.mv()`, and `RoBMA.mv()` fit
     conditional Gaussian vector selection models specified with

@@ -146,19 +146,20 @@ test_that("convergence checks expose BayesTools routing controls", {
     "max_Rhat", "min_ESS", "max_error", "max_SD_error",
     "check_indicators", "monitor", "allow_not_assessable"
   ) %in% names(checks)))
-  expect_true(checks[["check_indicators"]])
-  expect_true(autofit[["check_indicators"]])
+  # the product-space indicator checks are opt-in, as in 4.0.0
+  expect_false(checks[["check_indicators"]])
+  expect_false(autofit[["check_indicators"]])
   expect_null(checks[["monitor"]])
   expect_false(checks[["allow_not_assessable"]])
 
   routed <- set_convergence_checks(
-    check_indicators     = FALSE,
+    check_indicators     = TRUE,
     monitor              = c("mu", "tau"),
     allow_not_assessable = TRUE
   )
-  expect_false(routed[["check_indicators"]])
-  expect_false(set_autofit_control(
-    check_indicators = FALSE
+  expect_true(routed[["check_indicators"]])
+  expect_true(set_autofit_control(
+    check_indicators = TRUE
   )[["check_indicators"]])
   expect_identical(routed[["monitor"]], c("mu", "tau"))
   expect_true(routed[["allow_not_assessable"]])
@@ -261,31 +262,39 @@ test_that("control updates distinguish missing and explicit indicator settings",
 
   old_autofit <- set_autofit_control()
   old_autofit[["check_indicators"]] <- NULL
-  expect_true(RoBMA:::.update_autofit_control(
+  expect_false(RoBMA:::.update_autofit_control(
     old_autofit,
     list()
   )[["check_indicators"]])
-  expect_false(RoBMA:::.update_autofit_control(
-    set_autofit_control(check_indicators = FALSE),
+  expect_true(RoBMA:::.update_autofit_control(
+    set_autofit_control(check_indicators = TRUE),
     list()
   )[["check_indicators"]])
-  expect_false(RoBMA:::.update_autofit_control(
+  expect_true(RoBMA:::.update_autofit_control(
     set_autofit_control(),
+    list(check_indicators = TRUE)
+  )[["check_indicators"]])
+  expect_false(RoBMA:::.update_autofit_control(
+    set_autofit_control(check_indicators = TRUE),
     list(check_indicators = FALSE)
   )[["check_indicators"]])
 
   old_checks <- set_convergence_checks()
   old_checks[["check_indicators"]] <- NULL
-  expect_true(RoBMA:::.update_convergence_checks(
+  expect_false(RoBMA:::.update_convergence_checks(
     old_checks,
     list()
   )[["check_indicators"]])
-  expect_false(RoBMA:::.update_convergence_checks(
-    set_convergence_checks(check_indicators = FALSE),
+  expect_true(RoBMA:::.update_convergence_checks(
+    set_convergence_checks(check_indicators = TRUE),
     list()
   )[["check_indicators"]])
-  expect_false(RoBMA:::.update_convergence_checks(
+  expect_true(RoBMA:::.update_convergence_checks(
     set_convergence_checks(),
+    list(check_indicators = TRUE)
+  )[["check_indicators"]])
+  expect_false(RoBMA:::.update_convergence_checks(
+    set_convergence_checks(check_indicators = TRUE),
     list(check_indicators = FALSE)
   )[["check_indicators"]])
 })
