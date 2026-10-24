@@ -83,6 +83,64 @@ context("Adaptive GLMM quadrature")
 }
 
 
+# Independently integrate the binomial GLMM over the base rate and theta for a
+# concentrated beta prior. The base rate is integrated in the coordinate of the
+# smaller probability p (the mirror image of the prior when alpha > beta), so
+# that no exp() of a logit enters: dbeta(p, ..., log = TRUE) is accurate at a
+# given p and the likelihood is evaluated at log(p) and log1p(-p). The range is
+# the prior mean +/- `width` prior SDs, the integrand is scaled by its value at
+# the mean, and the theta integral (tau > 0) is nested. Valid while the prior SD
+# is resolved by the doubles around the mean of p, that is for skewed priors
+# (the symmetric prior at 0.5 is not).
+.binom_concentrated_reference <- function(a, c, n1, n2, mu, tau, alpha, beta,
+                                          weight = 1, width = 12, theta_range = 10) {
+
+  swapped <- alpha > beta
+  shapes  <- if (swapped) c(beta, alpha) else c(alpha, beta)
+  total   <- sum(shapes)
+  centre  <- shapes[[1L]] / total
+  spread  <- sqrt(shapes[[1L]] * shapes[[2L]] / (total^2 * (total + 1)))
+  lower   <- max(centre - width * spread, 0)
+  upper   <- min(centre + width * spread, 1)
+  logit   <- function(p) if (swapped) log1p(-p) - log(p) else log(p) - log1p(-p)
+  log1pexp <- function(x) pmax(x, 0) + log1p(exp(-abs(x)))
+  coefficient <- lchoose(n1, a) + lchoose(n2, c)
+  log_lik <- function(x, theta) {
+    effect <- mu + tau * theta
+    eta1   <- x + .5 * effect
+    eta2   <- x - .5 * effect
+    weight * (coefficient - a * log1pexp(-eta1) - (n1 - a) * log1pexp(eta1) -
+                c * log1pexp(-eta2) - (n2 - c) * log1pexp(eta2))
+  }
+  log_prior_centre <- stats::dbeta(centre, shapes[[1L]], shapes[[2L]], log = TRUE)
+  integrate_checked <- function(f, lower, upper) {
+    value <- stats::integrate(f, lower, upper, rel.tol = 1e-13, abs.tol = 0,
+      subdivisions = 1000L, stop.on.error = FALSE)
+    if (!identical(value[["message"]], "OK")) {
+      stop("The reference integral reported: ", value[["message"]], call. = FALSE)
+    }
+    value[["value"]]
+  }
+  inner <- function(theta) {
+    scale <- log_lik(logit(centre), theta)
+    integral <- integrate_checked(function(p) {
+      exp(stats::dbeta(p, shapes[[1L]], shapes[[2L]], log = TRUE) - log_prior_centre +
+            log_lik(logit(p), theta) - scale)
+    }, lower, upper)
+    log(integral) + log_prior_centre + scale
+  }
+  if (tau == 0) {
+    return(inner(0))
+  }
+  log_theta <- function(theta) {
+    vapply(theta, function(t) inner(t) + stats::dnorm(t, log = TRUE), numeric(1L))
+  }
+  log_max <- max(log_theta(seq(-theta_range, theta_range, length.out = 401L)))
+  log(integrate_checked(function(t) exp(log_theta(t) - log_max),
+    -theta_range, theta_range)) + log_max
+}
+
+
 # Independently integrate the Poisson GLMM over theta and the log base rate.
 # For an untruncated target, the default +/-10 SD nuisance interval is
 # renormalized; omitted prior mass is 2*pnorm(-10), about 1.524e-23. Positive
@@ -352,6 +410,32 @@ test_that("binomial AGHQ does not report a change below the rounding noise of co
   diagnostics <- attr(out, "glmm_aghq_diagnostics", exact = TRUE)
   expect_identical(diagnostics$grid_columns, 1L)
   expect_lt(abs(out[1L, 1L] - limit), 1e-9)
+})
+
+
+test_that("binomial AGHQ accepts skewed concentrated beta priors within its reported change", {
+
+  # The rounding noise of the beta log density scales with the curvature
+  # sqrt(alpha * beta / (alpha + beta)) of the logit-scale prior, not with the
+  # shape sum: skewed priors with shape sums far above 2e19 are computed
+  # accurately and their reported change bounds the error. Base AGHQ accepted
+  # these; a bound that grows with the shape sum refused them and the grid then
+  # failed to find finite interior nodes.
+  for (shapes in list(c(1e12, 1e20), c(1e3, 1e20), c(1e20, 1e3), c(1e10, 1e20))) {
+    label <- paste("shapes", shapes[[1L]], shapes[[2L]])
+    reference <- .binom_concentrated_reference(3L, 7L, 20L, 20L, .1, .2, shapes[[1L]], shapes[[2L]])
+    wider     <- .binom_concentrated_reference(3L, 7L, 20L, 20L, .1, .2, shapes[[1L]], shapes[[2L]],
+      width = 16, theta_range = 12)
+    expect_lt(abs(reference - wider), 1e-10, label = label)
+
+    out <- .outcome_pdf.binom(3L, 7L, 20L, 20L, matrix(.1), matrix(.2),
+      BayesTools::prior("beta", list(alpha = shapes[[1L]], beta = shapes[[2L]])))
+    diagnostics <- attr(out, "glmm_aghq_diagnostics", exact = TRUE)
+    expect_length(diagnostics$grid_columns, 0L)
+    expect_gte(diagnostics$max_change, 2 * .Machine[["double.eps"]] *
+      sqrt(shapes[[1L]] * shapes[[2L]] / (shapes[[1L]] + shapes[[2L]])))
+    expect_lte(abs(out[1L, 1L] - reference), diagnostics$max_change, label = label)
+  }
 })
 
 

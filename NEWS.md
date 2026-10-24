@@ -133,10 +133,13 @@
   observed sample, public observation, and refinement diagnostics.
 - Binomial GLMM AGHQ never reports a refinement change below the rounding noise
   of the beta density of a concentrated `prior_baserate`, about
-  `.Machine$double.eps * sqrt(alpha + beta)`. Shape sums above about 2e19 are
-  refused by the quadrature and use the grid, where an error several times the
-  tolerance had been accepted; accepted values are unchanged. The refusal
-  message reports the larger of the last log-likelihood change and that bound.
+  `.Machine$double.eps * sqrt(alpha * beta / (alpha + beta))` times a factor of
+  at least 2 that grows with the logarithm of the smaller prior probability.
+  Symmetric shape sums above about 2e19 are refused by the quadrature and use
+  the grid, where an error several times the tolerance had been accepted;
+  skewed priors, whose noise is far smaller, keep the quadrature. Accepted
+  values are unchanged. The refusal message reports the larger of the last
+  log-likelihood change and that bound.
 - The qCMDE density line of joint selection models no longer keeps the
   sampling parts of its factor blocks, which no later chunk of the line reused:
   its peak memory grows about 3 times more slowly with the number of posterior
