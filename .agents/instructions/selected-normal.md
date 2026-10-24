@@ -318,6 +318,30 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   is repeated unchanged in long double. Values agree to 1e-13 relative. Tensor
   direct sums, the tier, `best` and projection paths keep long double, and no
   scratch is static (the batch entries are threaded).
+- Corrected sampler: `selection.sampler = "coarse_corrected"`
+  (`src/samplers/CoarseCorrectedSlice.cc`) makes one slice transition per
+  eligible scalar update on a surrogate density and accepts it with the ratio
+  of the exact full conditional to the surrogate, so any surrogate that is a
+  deterministic function of the graph state leaves the exact target invariant;
+  its quality sets the acceptance and the cost only. A dense multivariate
+  child's surrogate is the exact numerator minus a rounded-anchor envelope
+  normalizer (the `coarse` cache component, unit normalizer where unavailable).
+  A cluster or factor child's is the exact numerator minus the log normalizer of
+  ONE rule of its own schedule, rule `min(selection.coarse_max_rules, rules)`,
+  at the actual parameters (`cpp_selnorm_cluster_step_surrogate_lpdf`,
+  `cpp_selnorm_factor_step_surrogate_lpdf`: no change test, certificate, tier,
+  sparse grid, QMC, memo or rounding), and its exact `logDensity` where that
+  rule is unavailable (best-weight rule, rung beyond the node budget, non-finite
+  value). The surrogate path neither reads nor stores the node memo, which holds
+  exact values only. A cluster or factor child is coarse-capable when its fixed
+  controls allow a rule (product rule, kernel not fixed at normal, rule
+  affordable at the declared rank) and a node is eligible when a child is dense
+  or coarse-capable; the others stay exact terms. The classes' dynamic and
+  control validators split `checkParameterValue` for the sampler's fixed-control
+  certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`
+  pins the surrogate values, fallbacks and purity, and
+  `test-00-selection-coarse-exactness.R` the exactness of the corrected chains
+  against QUADPACK references.
 
 Known limits: blocks routed to the Smolyak grid (chains of rank three or more
 and other supports the certificate rejects) keep the per-transition rule, so

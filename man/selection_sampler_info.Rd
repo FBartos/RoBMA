@@ -28,24 +28,47 @@ current and proposed states. The original likelihood keeps its existing
 numerical integration controls and diagnostics; the correction does not
 replace those numerical integrals by symbolic exact values.
 
-The surrogate rounds means and the logarithms of positive weights to fixed
-grids. Each covariance diagonal is rounded upward on a grid whose origin
-is that row's squared original sampling SE; off-diagonal covariances,
-original SEs, selection cutoffs, and zero weights are retained. These are
-proposal grids, not changes to fitted variance components or the input
-covariance. The Gaussian numerator and observed weights use the actual
-parameters.
+Dense multivariate step blocks. The surrogate rounds means and the
+logarithms of positive weights to fixed grids. Each covariance diagonal is
+rounded upward on a grid whose origin is that row's squared original
+sampling SE; off-diagonal covariances, original SEs, selection cutoffs, and
+zero weights are retained. These are proposal grids, not changes to fitted
+variance components or the input covariance. The Gaussian numerator and
+observed weights use the actual parameters. At most the first
+\code{selection.coarse_max_rules} rules of the fitted quadrature schedule
+are tried, with its existing integration criterion. If a valid anchor cannot
+be constructed or its covariance-envelope calculation is unsupported or
+unsuccessful, its prescribed normalizer is one; the proposal stage does not
+fall back to QMC. This fallback is independent of cache history and memory
+capacity and remains subject to the full-target correction. It does not
+replace full-target integration failures.
 
-At most the first \code{selection.coarse_max_rules} rules of the fitted
-quadrature schedule are tried, with its existing integration criterion.
-If a valid anchor cannot be constructed or its covariance-envelope calculation
-is unsupported or unsuccessful, its prescribed normalizer is one; the
-proposal stage does not fall back to QMC. This fallback is independent of
-cache history and memory capacity and remains subject to the full-target
-correction. It does not replace full-target integration failures.
+Rank-one cluster and factor step blocks. The surrogate is the exact
+numerator (Gaussian log density and observed log weights at the actual
+parameters) minus the log normalizer of one rule of the block's own
+Gauss-Hermite schedule: rule number \code{selection.coarse_max_rules}, or the
+last rule of a shorter schedule, evaluated at the actual parameters. No grid
+rounding, change test, certificate, refinement, sparse grid, QMC or cache
+enters, so the surrogate is a deterministic function of the sampled state;
+the correction evaluates the exact block, which keeps its ordinary numerical
+controls and diagnostics. Where that rule is unavailable at an update
+(a non-finite normalizer) the surrogate is the exact density of the block.
+A block takes part only when its fixed controls allow such a rule: the
+product weight rule, a kernel mode that is not fixed at the normal kernel,
+and, for a factor block, a rule that fits the node budget at the declared
+rank (rank two to six at the default setting). Best-weight blocks, blocks of
+higher rank and blocks with a normal kernel keep the ordinary sampler.
+
+A scalar update is eligible when at least one stochastic child of the updated
+node is a dense multivariate block or a coarse-capable cluster or factor
+block; its other children enter the surrogate through their exact densities.
+Discrete, vector-valued and unrelated updates, and updates whose selection
+children are all without a coarse rule, retain ordinary JAGS samplers, so the
+option can be set without effect: check that the counters grow. Whatever the
+surrogate, the corrected chain targets the exact full conditional; a coarser
+rule changes the acceptance rate and the cost, not the posterior.
 
 Already compiled samplers retain their grid and coarse rule-budget settings.
-Discrete, vector-valued, and unrelated updates retain ordinary JAGS samplers.
 Coarse settings can affect sampling efficiency even when correction
 acceptance is high. Compare effective samples per second for parameters of
 interest, not only iteration times or this acceptance rate.
