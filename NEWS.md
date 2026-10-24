@@ -463,11 +463,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     posterior samples, such as `only_priors = TRUE` objects, are asked to be
     fitted instead).
 - removed and reordered arguments and methods:
-  - removes the `normal_approximation` argument of `marginal_means()`.
-    Marginal-means Bayes factors are Savage-Dickey density ratios with a
-    kernel density estimate of the posterior ordinate (see the qCMDE/IWMDE
-    features for the other estimators). `n_samples` moves from the fourth to
-    the third position; pass it and the later arguments by name.
   - removes the `logLik()` method of `brma` objects; `AIC()` and `BIC()`
     stop with an explanation. Use `log_lik()` for pointwise posterior
     log-likelihood draws.

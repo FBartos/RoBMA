@@ -1065,14 +1065,18 @@ test_that("marginal_means stores BayesTools marginal inference", {
   expect_identical(class(mm), c("marginal_means.brma", "marginal_means"))
   expect_named(mm, c(
     "inference", "parameters", "term_map", "formula", "null_hypothesis",
-    "n_samples", "conditional_rule", "input_measure", "effect_transform",
-    "model_averaged", "density_method", "point_ordinate_supported", "bf",
-    "name", "source_object"
+    "normal_approximation", "n_samples", "conditional_rule", "input_measure",
+    "effect_transform", "model_averaged", "density_method",
+    "point_ordinate_supported", "bf", "name", "source_object"
   ))
   expect_s3_class(mm[["inference"]], "marginal_inference")
   expect_equal(mm[["parameters"]], c("mu_intercept", "mu_alloc"))
   expect_equal(mm[["term_map"]][["term"]], c("intercept", "alloc"))
-  expect_false("normal_approximation" %in% names(formals(marginal_means.brma)))
+  expect_identical(
+    head(names(formals(marginal_means.brma)), 4L),
+    c("object", "null_hypothesis", "normal_approximation", "n_samples")
+  )
+  expect_false(mm[["normal_approximation"]])
   expect_equal(mm[["density_method"]], "KDE")
   expect_identical(mm[["source_object"]], fits[["bcg_meta-regression2"]])
 })
@@ -1107,10 +1111,17 @@ test_that("marginal_means supports brma.mv moderator fits", {
 })
 
 
-test_that("marginal_means hides normal approximation density method", {
+test_that("marginal_means forwards the normal approximation and hides it as a density method", {
 
   captured <- NULL
+  bf_calls <- list()
   testthat::local_mocked_bindings(
+    Savage_Dickey_BF = function(posterior, null_hypothesis,
+                                normal_approximation, silent, density_method) {
+
+      bf_calls[[length(bf_calls) + 1L]] <<- normal_approximation
+      return(1)
+    },
     as_marginal_inference = function(model, marginal_parameters, parameters,
                                      conditional_list, conditional_rule,
                                      formula, null_hypothesis,
@@ -1149,8 +1160,28 @@ test_that("marginal_means hides normal approximation density method", {
     ),
     "must be one of"
   )
-
   expect_null(captured)
+
+  expect_error(
+    marginal_means(
+      fits[["bcg_meta-regression2"]],
+      normal_approximation = TRUE,
+      density_method       = "qCMDE"
+    ),
+    "'normal_approximation' is only available for 'density_method = \"KDE\"'",
+    fixed = TRUE
+  )
+  expect_null(captured)
+
+  mm <- marginal_means(
+    fits[["bcg_meta-regression2"]],
+    normal_approximation = TRUE,
+    bf                   = TRUE
+  )
+  expect_true(captured[["normal_approximation"]])
+  expect_true(mm[["normal_approximation"]])
+  expect_true(length(bf_calls) > 0L)
+  expect_true(all(unlist(bf_calls)))
 })
 
 
@@ -1168,10 +1199,11 @@ test_that("marginal_means attaches qCMDE densities and refreshes BFs", {
 
   expect_named(mm, c(
     "inference", "parameters", "term_map", "formula", "null_hypothesis",
-    "n_samples", "conditional_rule", "input_measure", "effect_transform",
-    "model_averaged", "density_method", "point_ordinate_supported", "bf",
-    "name", "source_object", "density_diagnostics", "ordinate_diagnostics",
-    "density_settings", "ordinate_settings"
+    "normal_approximation", "n_samples", "conditional_rule", "input_measure",
+    "effect_transform", "model_averaged", "density_method",
+    "point_ordinate_supported", "bf", "name", "source_object",
+    "density_diagnostics", "ordinate_diagnostics", "density_settings",
+    "ordinate_settings"
   ))
 
   averaged_density <- BayesTools::posterior_metadata(

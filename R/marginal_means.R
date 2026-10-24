@@ -55,6 +55,11 @@ marginal_means <- function(object, ...) {
 #' Declared unavailable formula measures (class
 #' \code{BayesTools_formula_measure_unavailable}) likewise give an \code{NA}
 #' row with the original reason, while available siblings are computed.
+#' @param normal_approximation whether the prior and posterior density at the
+#' null hypothesis should be approximated with a normal distribution (the
+#' BayesTools normal approximation of the Savage-Dickey density ratio) instead
+#' of a kernel density estimate. Defaults to \code{FALSE}. It requires
+#' \code{density_method = "KDE"}.
 #' @param n_samples number of samples/grid points used by BayesTools for
 #' marginal prior densities. Defaults to \code{10000}.
 #' @param bf whether inclusion Bayes factors should be shown by default in
@@ -145,7 +150,7 @@ marginal_means <- function(object, ...) {
 #'
 #' @return A list of class \code{marginal_means.brma}. Its stable fields are
 #' \code{inference}, \code{parameters}, \code{term_map}, \code{formula},
-#' \code{null_hypothesis}, \code{n_samples}, \code{conditional_rule},
+#' \code{null_hypothesis}, \code{normal_approximation}, \code{n_samples}, \code{conditional_rule},
 #' \code{input_measure}, \code{effect_transform}, \code{model_averaged},
 #' \code{density_method}, \code{point_ordinate_supported}, \code{bf},
 #' \code{name}, and \code{source_object}. qCMDE/IWMDE objects additionally
@@ -175,6 +180,7 @@ marginal_means <- function(object, ...) {
 #' @seealso [summary()], [plot()], [summary.brma()], [regplot()]
 #' @export
 marginal_means.brma <- function(object, null_hypothesis = 0,
+                                normal_approximation = FALSE,
                                 n_samples = 10000,
                                 output_measure = NULL, transform = NULL,
                                 bf = NULL,
@@ -192,6 +198,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   }
 
   BayesTools::check_real(null_hypothesis, "null_hypothesis", check_length = 1)
+  BayesTools::check_bool(normal_approximation, "normal_approximation")
   BayesTools::check_int(n_samples, "n_samples", lower = 2)
   .warn_unused_dots(
     dots    = list(...),
@@ -203,6 +210,12 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   )
   density_control_input <- density_control
   precompute_density <- .density_method_uses_precomputed(density_method)
+  if (normal_approximation && precompute_density) {
+    stop(
+      "'normal_approximation' is only available for 'density_method = \"KDE\"'.",
+      call. = FALSE
+    )
+  }
   if (!precompute_density &&
       (!is.null(parameter) || !is.null(type) || !is.null(levels))) {
     stop(
@@ -279,6 +292,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     conditional_rule    = "OR",
     formula             = formula,
     null_hypothesis     = null_hypothesis,
+    normal_approximation = normal_approximation,
     n_samples           = n_samples,
     bf                  = isTRUE(bf) && !precompute_density
   ))
@@ -312,6 +326,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     term_map               = term_map,
     formula                = formula,
     null_hypothesis        = null_hypothesis,
+    normal_approximation   = normal_approximation,
     n_samples              = n_samples,
     conditional_rule       = "OR",
     input_measure          = .measure(object),
@@ -354,7 +369,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 
 .marginal_means_inference <- function(
     model, marginal_parameters, parameters, conditional_list,
-    conditional_rule, formula, null_hypothesis, n_samples, bf) {
+    conditional_rule, formula, null_hypothesis, normal_approximation,
+    n_samples, bf) {
 
   out <- BayesTools::as_marginal_inference(
     model                 = model,
@@ -364,7 +380,7 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
     conditional_rule     = conditional_rule,
     formula              = formula,
     null_hypothesis      = null_hypothesis,
-    normal_approximation = FALSE,
+    normal_approximation = normal_approximation,
     n_samples            = n_samples,
     silent               = TRUE,
     force_plots          = TRUE,
@@ -378,9 +394,10 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
   )
   for (parameter in available) {
     out[["inference"]][[parameter]] <- .marginal_means_inclusion_bf(
-      posterior       = out[["conditional"]][[parameter]],
-      null_hypothesis = null_hypothesis,
-      compute          = bf
+      posterior            = out[["conditional"]][[parameter]],
+      null_hypothesis      = null_hypothesis,
+      compute              = bf,
+      normal_approximation = normal_approximation
     )
   }
 
@@ -388,7 +405,8 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 }
 
 
-.marginal_means_inclusion_bf <- function(posterior, null_hypothesis, compute) {
+.marginal_means_inclusion_bf <- function(posterior, null_hypothesis, compute,
+                                         normal_approximation = FALSE) {
 
   if (!isTRUE(compute)) {
     unavailable <- as.list(rep(NA_real_, length(posterior)))
@@ -399,20 +417,22 @@ marginal_means.brma <- function(object, null_hypothesis = 0,
 
     child <- posterior[[i]]
     class(child) <- unique(c(class(child), "marginal_posterior"))
-    .marginal_means_inclusion_bf_one(child, null_hypothesis)
+    .marginal_means_inclusion_bf_one(child, null_hypothesis, normal_approximation)
   })
   names(out) <- names(posterior)
   return(out)
 }
 
 
-.marginal_means_inclusion_bf_one <- function(posterior, null_hypothesis) {
+.marginal_means_inclusion_bf_one <- function(posterior, null_hypothesis,
+                                            normal_approximation = FALSE) {
 
   .marginal_means_row_bf(BayesTools::Savage_Dickey_BF(
-    posterior       = posterior,
-    null_hypothesis = null_hypothesis,
-    silent          = TRUE,
-    density_method  = "KDE"
+    posterior            = posterior,
+    null_hypothesis      = null_hypothesis,
+    normal_approximation = normal_approximation,
+    silent               = TRUE,
+    density_method       = "KDE"
   ))
 }
 
@@ -598,7 +618,8 @@ summary.marginal_means.brma <- function(object, type = NULL,
     for (parameter in parameters) {
       inference_object[["inference"]][[parameter]] <- .marginal_means_inclusion_bf(
         inference_object[["conditional"]][[parameter]],
-        object[["null_hypothesis"]], compute = TRUE
+        object[["null_hypothesis"]], compute = TRUE,
+        normal_approximation = isTRUE(object[["normal_approximation"]])
       )
     }
   }

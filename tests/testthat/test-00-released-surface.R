@@ -158,3 +158,28 @@ test_that("predict(newdata = TRUE, type = 'cluster') adds a new cluster effect",
   terms <- predict(multilevel, newdata = TRUE, type = "terms")
   expect_gt(sd(cluster[, "mu_cluster"]), sd(terms[, "mu"]))
 })
+
+test_that("marginal_means() accepts normal_approximation at its released position", {
+
+  expect_identical(
+    head(names(formals(marginal_means.brma)), 6L),
+    c("object", "null_hypothesis", "normal_approximation", "n_samples",
+      "output_measure", "transform")
+  )
+
+  mods <- .surface_fit("mods")
+  kde    <- marginal_means(mods, bf = TRUE, n_samples = 1000)
+  normal <- marginal_means(mods, normal_approximation = TRUE, bf = TRUE, n_samples = 1000)
+
+  expect_false(kde[["normal_approximation"]])
+  expect_true(normal[["normal_approximation"]])
+  expect_no_warning(summary(normal))
+  expect_s3_class(summary(normal), "summary.marginal_means.brma")
+  bf <- function(x) vapply(x[["inference"]][["inference"]], function(row) as.numeric(row[[1]]), numeric(1))
+  expect_true(all(is.finite(bf(normal))))
+  expect_false(isTRUE(all.equal(bf(kde), bf(normal))))
+  expect_error(
+    marginal_means(mods, normal_approximation = NA),
+    "normal_approximation"
+  )
+})

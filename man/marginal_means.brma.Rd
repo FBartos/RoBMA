@@ -7,6 +7,7 @@
 \method{marginal_means}{brma}(
   object,
   null_hypothesis = 0,
+  normal_approximation = FALSE,
   n_samples = 10000,
   output_measure = NULL,
   transform = NULL,
@@ -37,6 +38,12 @@ stops with the BayesTools class.
 Declared unavailable formula measures (class
 \code{BayesTools_formula_measure_unavailable}) likewise give an \code{NA}
 row with the original reason, while available siblings are computed.}
+
+\item{normal_approximation}{whether the prior and posterior density at the
+null hypothesis should be approximated with a normal distribution (the
+BayesTools normal approximation of the Savage-Dickey density ratio) instead
+of a kernel density estimate. Defaults to \code{FALSE}. It requires
+\code{density_method = "KDE"}.}
 
 \item{n_samples}{number of samples/grid points used by BayesTools for
 marginal prior densities. Defaults to \code{10000}.}
@@ -144,7 +151,7 @@ their convergence as the other remedy.}
 \value{
 A list of class \code{marginal_means.brma}. Its stable fields are
 \code{inference}, \code{parameters}, \code{term_map}, \code{formula},
-\code{null_hypothesis}, \code{n_samples}, \code{conditional_rule},
+\code{null_hypothesis}, \code{normal_approximation}, \code{n_samples}, \code{conditional_rule},
 \code{input_measure}, \code{effect_transform}, \code{model_averaged},
 \code{density_method}, \code{point_ordinate_supported}, \code{bf},
 \code{name}, and \code{source_object}. qCMDE/IWMDE objects additionally
