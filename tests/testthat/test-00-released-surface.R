@@ -187,21 +187,30 @@ test_that("marginal_means() accepts normal_approximation at its released positio
   )
 })
 
-test_that("update(seed = ) extends reproducibly", {
+test_that("update() has no seed argument and the extension continues the stored chain states", {
+
+  expect_false("seed" %in% names(formals(update.brma)))
+  expect_identical(
+    names(formals(update.brma)),
+    c("object", "formula.", "...", "sample_extend", "slab", "autofit_control",
+      "convergence_checks", "recompute", "parallel", "cores", "silent", "evaluate")
+  )
 
   fit <- .surface_fit("ordinary")
+  expect_error(
+    update(fit, sample_extend = 20, seed = 1),
+    "Unused argument in update.brma(): 'seed'", fixed = TRUE
+  )
 
-  extend <- function(seed) {
-    as.numeric(as_draws_matrix(update(fit, sample_extend = 20, seed = seed))[, "mu"])
-  }
-  first  <- extend(1)
-  second <- extend(1)
-  other  <- extend(2)
-
+  # the chains continue their stored generator states, so a repeated extension is identical
+  extend <- function() as.numeric(as_draws_matrix(update(fit, sample_extend = 20))[, "mu"])
+  first  <- extend()
   expect_length(first, 2 * (100 + 20))
-  expect_identical(first, second)
-  expect_false(identical(first, other))
-  expect_identical(update(fit, sample_extend = 20, seed = 3)[["fit_control"]][["seed"]], 3)
+  expect_identical(first, extend())
+  expect_identical(
+    update(fit, sample_extend = 20)[["fit_control"]][["seed"]],
+    fit[["fit_control"]][["seed"]]
+  )
 })
 
 test_that("unused arguments in the dots of released methods warn and never stop", {
