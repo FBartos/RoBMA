@@ -36,12 +36,17 @@
   rule, factors of rank seven and eight and fixed normal kernels keep the
   ordinary sampler, and a model average uses the exact density of a block in the
   states of its indicator with a best-weight rule; `selection.coarse_grid`
-  applies to the dense blocks only. On reduced assink2016 fits (one chain, 750
-  iterations) the cluster and factor kernels take about 60% of the wall time
-  of the condition-estimate fit and about 25% of the conditional-variance fit;
-  from these costs the new sampler is estimated to save 25-40% and 9-14% of
-  the wall time, with correction acceptance above 0.99 (an estimate from
-  measured kernel costs, not a measurement of the sampler).
+  applies to the dense blocks only. Measured on reduced assink2016 fits (one
+  chain with 250 adaptation, 1000 burn-in and 2500 sampling iterations, three
+  seeds, an otherwise idle machine): the condition-estimate fit took 0.42 of the
+  wall time of the default sampler (median of three, 80-82 s against 186-213 s)
+  and its bulk effective sample size per second was 3.3, 3.9 and 2.4 times
+  larger for `mu_intercept`, `tau_total` and `omega[2]` (pooled over the
+  seeds); the conditional-variance fit took 0.61 of the wall time, with 1.7, 1.3
+  and 1.4 times the effective samples per second. The correction accepted more
+  than 0.9998 of the proposals in every fit, and the posterior means agree with
+  the default sampler within Monte Carlo error. The figures come from one data
+  set and vary with the model.
 - The known-V deletion conditional mean of selection models keeps both variance
   shares, so a sampling share that rounds to one no longer drops the location
   term at extreme scales.
