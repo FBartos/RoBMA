@@ -4,7 +4,7 @@ test_that("zplot density defaults follow the model class and preserve explicit b
   calls <- list()
   grids <- list()
   intervals <- list()
-  summaries <- numeric()
+  preparations <- numeric()
   record <- function(max_samples, route){
 
     calls[[length(calls) + 1L]] <<- list(max_samples = max_samples, route = route)
@@ -28,9 +28,9 @@ test_that("zplot density defaults follow the model class and preserve explicit b
       data.frame(x = z_sequence, y = .1, y_lCI = .05, y_uCI = .15)
     },
     hist.zplot_brma = function(...) invisible(NULL),
-    as_zplot = function(object, max_samples, ...){
-      summaries <<- c(summaries, max_samples)
-      object
+    .zplot_prepare = function(object, max_samples, ...){
+      preparations <<- c(preparations, max_samples)
+      object[["zplot"]]
     },
     .package = "RoBMA"
   )
@@ -63,7 +63,7 @@ test_that("zplot density defaults follow the model class and preserve explicit b
     expect_equal(tail(calls, 1L)[[1L]]$max_samples, expected)
     zplot.brma(x)
     expect_equal(tail(calls, 1L)[[1L]]$max_samples, expected)
-    expect_equal(tail(summaries, 1L), 10000)
+    expect_equal(tail(preparations, 1L), 10000)
 
     for(budget in c(137, Inf)){
       plot.zplot_brma(x, max_samples = budget)

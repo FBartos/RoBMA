@@ -30,15 +30,16 @@ and 1. Zero (alpha = 1), a threshold so small that its alpha rounds to 1
 about 38.4) are refused because the Soric false discovery rate is undefined
 there.}
 
-\item{summary_max_samples}{maximum number of posterior samples used for the
-EDR and missing-study summaries stored in the generated zplot object.
-This is separate from the plot-density \code{max_samples} argument accepted
-by \code{plot.zplot_brma()} through \code{...}. The summary default is 10000;
-the density default is 1000 for \code{brma.mv} models and 10000 for other
-models. Use \code{Inf} for either budget to use all posterior samples.}
+\item{summary_max_samples}{retained for compatibility and validated as a
+posterior-sample budget, but unused by the default conversion path:
+direct plotting does not compute EDR
+or missing-study summaries. Use \code{as_zplot(max_samples = ...)} to
+compute those summaries. The plot-density \code{max_samples} argument is
+accepted through \code{...}; it defaults to 1000 for \code{brma.mv} models
+and 10000 for other models. Use \code{Inf} to use all posterior samples.}
 
-\item{conditioning_depth}{predictive conditioning depth passed to
-\code{as_zplot()}. Defaults to \code{"marginal"}.}
+\item{conditioning_depth}{predictive conditioning depth of the displayed
+densities. Defaults to \code{"marginal"}; see \code{as_zplot()} for details.}
 
 \item{integration_control}{numerical integration settings created by
 \code{set_selection_likelihood_control()}. These control integration within
@@ -60,6 +61,17 @@ Convenience wrapper for creating and plotting zplot diagnostics
 from a fitted \code{brma} object.
 }
 \details{
+For models using the default \code{as_zplot.brma()} method, direct
+plotting prepares the observed z-statistics and predictive target without
+computing EDR or missing-study summary integrals. It uses
+the same density computation and numerical checks as \code{plot(as_zplot(object))}.
+A failure confined to a summary integral therefore does not prevent a plot;
+density-integration failures still stop plotting. Use \code{as_zplot()}
+followed by \code{summary()} to obtain the summaries.
+
+Custom \code{as_zplot()} methods for subclasses retain their conversion
+and plotting dispatch, including any summaries those methods compute.
+
 When \code{object} already inherits from \code{zplot_brma},
 \code{zplot()} dispatches directly to \code{plot.zplot_brma()} without
 recomputing stored summaries.

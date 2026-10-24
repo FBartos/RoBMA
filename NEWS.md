@@ -1,4 +1,10 @@
 ## version 4.1.0 (IN PROGRESS)
+- Direct `zplot()` calls prepare the figure without computing undisplayed EDR
+  or missing-study summaries. `as_zplot()` and explicit summaries retain their
+  calculations; direct plots retain their figure-specific checks and no longer
+  fail solely because the unused summary integration failed.
+  `summary_max_samples` remains accepted and validated for compatibility.
+  Custom `as_zplot()` conversions retain their original dispatch.
 - Marginal zplot densities avoid discarded Gaussian calculations and reuse
   identical observation contributions without changing their accumulation
   order. Quadrature checks obtain nodes without constructing unused weights,

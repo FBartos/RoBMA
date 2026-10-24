@@ -165,6 +165,40 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                           conditioning_depth = "marginal",
                           integration_control = set_selection_likelihood_control(), ...) {
 
+  prepared <- .zplot_prepare(
+    object, significance_level, max_samples, conditioning_depth, integration_control
+  )
+
+  # compute the bias-adjusted expected discovery rate for the selected target
+  out_estimates <- .zplot_fun.brma(
+    object             = object,
+    z_threshold        = prepared[["data"]][["significance_level"]],
+    max_samples        = prepared[["max_samples"]],
+    extrapolate        = TRUE,
+    conditioning_depth = prepared[["data"]][["conditioning_depth"]],
+    integration_control = prepared[["data"]][["integration_control"]]
+  )
+
+  # store the complete public summary object
+  object[["zplot"]] <- list(
+    estimates = list(
+      EDR     = out_estimates[["EDR"]],
+      weights = if (prepared[["target"]][["missing_count"]] == "unavailable") {
+        NULL
+      } else out_estimates[["weights"]]
+    ),
+    data = prepared[["data"]],
+    target = prepared[["target"]]
+  )
+  class(object) <- c("zplot_brma", class(object)[class(object) != "zplot_brma"])
+
+  return(object)
+}
+
+
+.zplot_prepare <- function(object, significance_level, max_samples,
+                           conditioning_depth, integration_control) {
+
   .check_zplot_significance_level(significance_level)
   integration_control <- .check_selection_likelihood_control(
     integration_control, argument = "integration_control"
@@ -187,16 +221,6 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
     caller             = "as_zplot()"
   )
 
-  # compute the bias-adjusted expected discovery rate for the selected target
-  out_estimates <- .zplot_fun.brma(
-    object             = object,
-    z_threshold        = significance_level,
-    max_samples        = max_samples,
-    extrapolate        = TRUE,
-    conditioning_depth = conditioning_depth,
-    integration_control = integration_control
-  )
-
   # compute data summaries (observed z-stats)
   yi  <- .outcome_data_yi(object)
   sei <- .outcome_data_sei(object)
@@ -217,12 +241,7 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
     } else NULL
   )
 
-  # store zplot results
-  object[["zplot"]] <- list(
-    estimates = list(
-      EDR     = out_estimates[["EDR"]],
-      weights = if (vector_target) NULL else out_estimates[["weights"]]
-    ),
+  return(list(
     data = list(
       significance_level = significance_level,
       conditioning_depth  = conditioning_depth,
@@ -231,13 +250,9 @@ as_zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
       N_significant       = sum(abs(z) > significance_level),
       N_observed          = length(z)
     ),
-    target = target
-  )
-
-  # add class
-  class(object) <- c("zplot_brma", class(object)[class(object) != "zplot_brma"])
-
-  return(object)
+    target = target,
+    max_samples = max_samples
+  ))
 }
 
 
@@ -264,18 +279,30 @@ zplot <- function(object, ...) UseMethod("zplot")
 #' (below about 1e-16), and one so large that its alpha underflows to 0 (above
 #' about 38.4) are refused because the Soric false discovery rate is undefined
 #' there.
-#' @param summary_max_samples maximum number of posterior samples used for the
-#' EDR and missing-study summaries stored in the generated zplot object.
-#' This is separate from the plot-density \code{max_samples} argument accepted
-#' by \code{plot.zplot_brma()} through \code{...}. The summary default is 10000;
-#' the density default is 1000 for \code{brma.mv} models and 10000 for other
-#' models. Use \code{Inf} for either budget to use all posterior samples.
-#' @param conditioning_depth predictive conditioning depth passed to
-#' \code{as_zplot()}. Defaults to \code{"marginal"}.
+#' @param summary_max_samples retained for compatibility and validated as a
+#' posterior-sample budget, but unused by the default conversion path:
+#' direct plotting does not compute EDR
+#' or missing-study summaries. Use \code{as_zplot(max_samples = ...)} to
+#' compute those summaries. The plot-density \code{max_samples} argument is
+#' accepted through \code{...}; it defaults to 1000 for \code{brma.mv} models
+#' and 10000 for other models. Use \code{Inf} to use all posterior samples.
+#' @param conditioning_depth predictive conditioning depth of the displayed
+#' densities. Defaults to \code{"marginal"}; see \code{as_zplot()} for details.
 #' @inheritParams as_zplot.brma
 #' @param ... arguments passed to \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}.
 #'
-#' @details When \code{object} already inherits from \code{zplot_brma},
+#' @details For models using the default \code{as_zplot.brma()} method, direct
+#' plotting prepares the observed z-statistics and predictive target without
+#' computing EDR or missing-study summary integrals. It uses
+#' the same density computation and numerical checks as \code{plot(as_zplot(object))}.
+#' A failure confined to a summary integral therefore does not prevent a plot;
+#' density-integration failures still stop plotting. Use \code{as_zplot()}
+#' followed by \code{summary()} to obtain the summaries.
+#'
+#' Custom \code{as_zplot()} methods for subclasses retain their conversion
+#' and plotting dispatch, including any summaries those methods compute.
+#'
+#' When \code{object} already inherits from \code{zplot_brma},
 #' \code{zplot()} dispatches directly to \code{plot.zplot_brma()} without
 #' recomputing stored summaries.
 #'
@@ -299,7 +326,24 @@ zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
                        conditioning_depth = "marginal",
                        integration_control = set_selection_likelihood_control(), ...) {
 
-  zplot_object <- as_zplot(
+  # Preserve subclass conversions before using the default preparation path.
+  for (model_class in class(object)) {
+    transform <- utils::getS3method("as_zplot", model_class, optional = TRUE)
+    if (is.null(transform)) next
+    if (!identical(transform, as_zplot.brma)) {
+      zplot_object <- as_zplot(
+        object             = object,
+        significance_level = significance_level,
+        max_samples        = summary_max_samples,
+        conditioning_depth = conditioning_depth,
+        integration_control = integration_control
+      )
+      return(plot(zplot_object, ...))
+    }
+    break
+  }
+
+  prepared <- .zplot_prepare(
     object             = object,
     significance_level = significance_level,
     max_samples        = summary_max_samples,
@@ -307,7 +351,9 @@ zplot.brma <- function(object, significance_level = stats::qnorm(0.975),
     integration_control = integration_control
   )
 
-  return(plot(zplot_object, ...))
+  object[["zplot"]] <- prepared[c("data", "target")]
+
+  return(plot.zplot_brma(object, ...))
 }
 
 
