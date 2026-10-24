@@ -189,10 +189,10 @@ testthat::test_that("Kearon bivariate diagnostic-accuracy model", {
 
     par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
     # one of the groups is shrunk towards zero becuase the priors are too narrow for the data (systematic errors in first row)
-    scenario_agreement_plot(ranef_metafor_us[["intrcpt"]],   as.data.frame(ranef_brma_us)[["Mean"]], "UN: RoBMA vs metafor")
-    scenario_agreement_plot(ranef_metafor_diag[["intrcpt"]], as.data.frame(ranef_brma_diag)[["Mean"]], "DIAG: RoBMA vs metafor")
-    scenario_agreement_plot(as.data.frame(ranef_brma_us)[["Mean"]],  as.data.frame(ranef_brma_hcs)[["Mean"]], "RoBMA: US vs HCS")
-    scenario_agreement_plot(as.data.frame(ranef_brma_diag)[["Mean"]], as.data.frame(ranef_brma_hcs0)[["Mean"]], "RoBMA: DIAG vs HCS0")
+    scenario_agreement_plot(ranef_metafor_us[["intrcpt"]],   as.data.frame(summary(ranef_brma_us))[["Mean"]], "UN: RoBMA vs metafor")
+    scenario_agreement_plot(ranef_metafor_diag[["intrcpt"]], as.data.frame(summary(ranef_brma_diag))[["Mean"]], "DIAG: RoBMA vs metafor")
+    scenario_agreement_plot(as.data.frame(summary(ranef_brma_us))[["Mean"]],  as.data.frame(summary(ranef_brma_hcs))[["Mean"]], "RoBMA: US vs HCS")
+    scenario_agreement_plot(as.data.frame(summary(ranef_brma_diag))[["Mean"]], as.data.frame(summary(ranef_brma_hcs0))[["Mean"]], "RoBMA: DIAG vs HCS0")
   })
 
 

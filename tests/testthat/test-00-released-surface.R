@@ -279,3 +279,25 @@ test_that("logLik() returns the pointwise log-likelihood matrix and AIC() and BI
   expect_error(stats::AIC(fit), "AIC() is not defined for brma", fixed = TRUE)
   expect_error(stats::BIC(fit), "BIC() is not defined for brma", fixed = TRUE)
 })
+
+test_that("brma_samples coerce to the draws and as_draws() returns a draws_matrix", {
+
+  fit  <- .surface_fit("ordinary")
+  pred <- predict(fit, type = "estimate")
+
+  draws <- as.data.frame(pred)
+  expect_s3_class(draws, "data.frame")
+  expect_identical(dim(draws), c(200L, 8L))
+  expect_identical(names(draws), colnames(pred))
+  expect_equal(unname(as.matrix(draws)), unname(as.matrix(pred)))
+  expect_equal(unname(as.matrix(data.frame(pred))), unname(as.matrix(draws)))
+
+  table <- as.data.frame(summary(pred))
+  expect_identical(names(table)[1:2], c("component", "parameter"))
+  expect_identical(nrow(table), 8L)
+
+  generic <- as_draws(pred)
+  expect_s3_class(generic, "draws_matrix")
+  expect_identical(posterior::nchains(generic), 2L)
+  expect_s3_class(as_draws_array(pred), "draws_array")
+})

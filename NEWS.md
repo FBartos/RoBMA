@@ -466,13 +466,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - `AIC()` and `BIC()` of `brma` objects stop with an explanation (4.0.0
     returned `numeric(0)`): the pointwise log-likelihood matrix of `logLik()`
     holds posterior draws, not a maximized scalar likelihood.
-  - the generic `as_draws()` of `brma_samples` objects returns a
-    `draws_array`, so chain dimensions are explicit; `as_draws_matrix()`
-    remains available and keeps its chain-count metadata.
-  - `as.data.frame()` and `data.frame()` of `brma_samples` objects return the
-    printable posterior-summary table (one long data frame) instead of the
-    draws, so code such as `as.data.frame(x)[, "mu"]` changes meaning; use
-    `as.matrix()` or `as_draws()` for the draws.
   - LOO-PIT residuals of binomial and Poisson GLMMs stop because no discrete
     PIT convention is defined: `rstudent()`, `residuals(type = "LOO-PIT")`,
     the default `qqnorm()` (`type = "rstudent"`), and the residual-mode
@@ -1194,10 +1187,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     BayesTools 0.3.1 computes them; the prior lines are unchanged.
 - summaries and output:
   - `as.data.frame()` and `data.frame()` convert the printable results
-    (model and heterogeneity summaries, posterior, prediction, and pooled
-    results, marginal means, model weights, z-plots, VIFs, and influence
-    diagnostics) to one long data frame with leading `component` and
-    `parameter` columns and `CI_`/`PI_` interval columns.
+    (model and heterogeneity summaries, marginal means, model weights,
+    z-plots, VIFs, and influence diagnostics, and the summaries of posterior,
+    prediction, and pooled results) to one long data frame with leading
+    `component` and `parameter` columns and `CI_`/`PI_` interval columns. A
+    posterior, prediction, or pooled result itself keeps its coercion to the
+    draws (`as.data.frame(summary(x))` is its displayed table).
   - multivariate summaries follow the univariate layout (one table without
     predictors; common, regression, and scale sections with them), `BMA.mv()`
     and `brma.mv()` share one prior-parameterization summary, and models

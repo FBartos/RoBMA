@@ -57,11 +57,14 @@ test_that("posterior sample results and summaries satisfy the output contract", 
     )
   ))
 
-  samples_frame <- .expect_output_data_frame(
-    samples,
-    components = "location",
-    intervals  = TRUE
-  )
+  # the draws of a result are its matrix coercion (as in 4.0.0); the
+  # displayed table is the coercion of its summary
+  draws_frame <- as.data.frame(samples)
+  expect_identical(data.frame(samples), draws_frame)
+  expect_identical(dim(draws_frame), c(20L, 2L))
+  expect_identical(names(draws_frame), c("alpha", "beta"))
+  expect_equal(draws_frame[["alpha"]], 1:20)
+
   summary_frame <- .expect_output_data_frame(
     summary(samples),
     components = "location",
@@ -73,7 +76,10 @@ test_that("posterior sample results and summaries satisfy the output contract", 
     intervals  = TRUE
   )
 
-  expect_identical(samples_frame, summary_frame)
+  expect_identical(
+    summary_frame,
+    .brma_samples_summary_data_frame(samples)
+  )
   expect_identical(
     list_frame[["parameter"]],
     c("alpha", "beta", "tau")

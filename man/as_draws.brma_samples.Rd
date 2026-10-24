@@ -42,9 +42,9 @@ to be ordered with chains concatenated (i.e., all iterations from chain 1,
 then all from chain 2, etc.). Conditional RoBMA samples are intentionally
 stored as one flattened chain because conditioning subsets posterior rows
 across chains.
-The generic \code{as_draws()} returns a chain-preserving
-\code{draws_array}; request \code{as_draws_matrix()} explicitly for a
-draws-by-variable matrix, which retains chain counts in its metadata.
+The generic \code{as_draws()} returns a \code{draws_matrix}, which retains
+the chain counts in its metadata; request \code{as_draws_array()} for the
+chain-by-iteration array.
 }
 \seealso{
 \code{\link[posterior]{draws}}, \code{\link{as_draws.brma}}

@@ -452,16 +452,16 @@ testthat::test_that("Assink brma and brma.mv models", {
 
   scenario_plot("ranef_mv", {
     par(mfrow = c(1, 2))
-    scenario_agreement_plot(ranef_metafor$study[["intrcpt"]], as.data.frame(ranef_brma.mv$study)[["Mean"]], main = "study")
-    scenario_agreement_plot(ranef_metafor$`study/esid`[["intrcpt"]], as.data.frame(ranef_brma.mv$esid_study)[["Mean"]], main = "esid_study")
+    scenario_agreement_plot(ranef_metafor$study[["intrcpt"]], as.data.frame(summary(ranef_brma.mv$study))[["Mean"]], main = "study")
+    scenario_agreement_plot(ranef_metafor$`study/esid`[["intrcpt"]], as.data.frame(summary(ranef_brma.mv$esid_study))[["Mean"]], main = "esid_study")
   })
   scenario_plot("ranef_mv_diag", {
     par(mfrow = c(2, 2))
-    scenario_agreement_plot(ranef_metafor_diag$study[["intrcpt"]], as.data.frame(ranef_brma.mv_diag$study)[["Mean"]], main = "study")
-    scenario_agreement_plot(ranef_metafor_diag$`study/esid`[["intrcpt"]], as.data.frame(ranef_brma.mv_diag$esid_study)[["Mean"]], main = "esid_study")
+    scenario_agreement_plot(ranef_metafor_diag$study[["intrcpt"]], as.data.frame(summary(ranef_brma.mv_diag$study))[["Mean"]], main = "study")
+    scenario_agreement_plot(ranef_metafor_diag$`study/esid`[["intrcpt"]], as.data.frame(summary(ranef_brma.mv_diag$esid_study))[["Mean"]], main = "esid_study")
 
-    scenario_agreement_plot(ranef_metafor_diag$study[["intrcpt"]], as.data.frame(ranef_brma$cluster)[["Mean"]], main = "study")
-    scenario_agreement_plot(ranef_metafor_diag$`study/esid`[["intrcpt"]], as.data.frame(ranef_brma$estimate)[["Mean"]], main = "esid_study")
+    scenario_agreement_plot(ranef_metafor_diag$study[["intrcpt"]], as.data.frame(summary(ranef_brma$cluster))[["Mean"]], main = "study")
+    scenario_agreement_plot(ranef_metafor_diag$`study/esid`[["intrcpt"]], as.data.frame(summary(ranef_brma$estimate))[["Mean"]], main = "esid_study")
   })
 
   ### print priors ----
@@ -833,19 +833,19 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   ranef_bPET_metafor.mv_vi <- metafor::ranef(fit_bPET_metafor.mv_vi)
   ranef_bPET.mv             <- scenario_time("ranef_bPET.mv", ranef(fit_bPET.mv))
   ranef_bPET_cluster        <- scenario_time("ranef_bPET_cluster", ranef(fit_bPET_cluster))
-  scenario_text("bPET-random-effects", head(as.data.frame(ranef_bPET.mv_V), 12L))
+  scenario_text("bPET-random-effects", head(as.data.frame(summary(ranef_bPET.mv_V)), 12L))
 
   scenario_plot("bPET-ranef-mv-V", {
     par(mfrow = c(1, 2))
-    scenario_agreement_plot(ranef_bPET_metafor.mv_V$study[["intrcpt"]], as.data.frame(ranef_bPET.mv_V$study)[["Mean"]], main = "study")
-    scenario_agreement_plot(ranef_bPET_metafor.mv_V$`study/esid`[["intrcpt"]], as.data.frame(ranef_bPET.mv_V$esid_study)[["Mean"]], main = "esid_study")
+    scenario_agreement_plot(ranef_bPET_metafor.mv_V$study[["intrcpt"]], as.data.frame(summary(ranef_bPET.mv_V$study))[["Mean"]], main = "study")
+    scenario_agreement_plot(ranef_bPET_metafor.mv_V$`study/esid`[["intrcpt"]], as.data.frame(summary(ranef_bPET.mv_V$esid_study))[["Mean"]], main = "esid_study")
   })
   scenario_plot("bPET-ranef-mv-vi", {
     par(mfrow = c(2, 2))
-    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$study[["intrcpt"]], as.data.frame(ranef_bPET.mv$study)[["Mean"]], main = "study")
-    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$`study/esid`[["intrcpt"]], as.data.frame(ranef_bPET.mv$esid_study)[["Mean"]], main = "esid_study")
-    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$study[["intrcpt"]], as.data.frame(ranef_bPET_cluster$cluster)[["Mean"]], main = "study")
-    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$`study/esid`[["intrcpt"]], as.data.frame(ranef_bPET_cluster$estimate)[["Mean"]], main = "esid_study")
+    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$study[["intrcpt"]], as.data.frame(summary(ranef_bPET.mv$study))[["Mean"]], main = "study")
+    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$`study/esid`[["intrcpt"]], as.data.frame(summary(ranef_bPET.mv$esid_study))[["Mean"]], main = "esid_study")
+    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$study[["intrcpt"]], as.data.frame(summary(ranef_bPET_cluster$cluster))[["Mean"]], main = "study")
+    scenario_agreement_plot(ranef_bPET_metafor.mv_vi$`study/esid`[["intrcpt"]], as.data.frame(summary(ranef_bPET_cluster$estimate))[["Mean"]], main = "esid_study")
   })
 
   ### Diagnostics ----
@@ -1231,15 +1231,15 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   plot_bselmodel_ranef_equivalence <- function(ranef_mv, ranef_cluster) {
 
     par(mfrow = c(1, 2))
-    scenario_agreement_plot(as.data.frame(ranef_mv$study)[["Mean"]],      as.data.frame(ranef_cluster$cluster)[["Mean"]],  main = "study",      estimate_label = "cluster", reference_label = "mv-vi")
-    scenario_agreement_plot(as.data.frame(ranef_mv$esid_study)[["Mean"]], as.data.frame(ranef_cluster$estimate)[["Mean"]], main = "esid_study", estimate_label = "cluster", reference_label = "mv-vi")
+    scenario_agreement_plot(as.data.frame(summary(ranef_mv$study))[["Mean"]],      as.data.frame(summary(ranef_cluster$cluster))[["Mean"]],  main = "study",      estimate_label = "cluster", reference_label = "mv-vi")
+    scenario_agreement_plot(as.data.frame(summary(ranef_mv$esid_study))[["Mean"]], as.data.frame(summary(ranef_cluster$estimate))[["Mean"]], main = "esid_study", estimate_label = "cluster", reference_label = "mv-vi")
     return(invisible(NULL))
   }
   plot_bselmodel_ranef_equivalence2 <- function(ranef_mv, ranef_mv2) {
 
     par(mfrow = c(1, 2))
-    scenario_agreement_plot(as.data.frame(ranef_mv$study)[["Mean"]],      as.data.frame(ranef_mv2$study)[["Mean"]],      main = "study",      estimate_label = "mv-vi", reference_label = "mv-V")
-    scenario_agreement_plot(as.data.frame(ranef_mv$esid_study)[["Mean"]], as.data.frame(ranef_mv2$esid_study)[["Mean"]], main = "esid_study", estimate_label = "mv-vi", reference_label = "mv-V")
+    scenario_agreement_plot(as.data.frame(summary(ranef_mv$study))[["Mean"]],      as.data.frame(summary(ranef_mv2$study))[["Mean"]],      main = "study",      estimate_label = "mv-vi", reference_label = "mv-V")
+    scenario_agreement_plot(as.data.frame(summary(ranef_mv$esid_study))[["Mean"]], as.data.frame(summary(ranef_mv2$esid_study))[["Mean"]], main = "esid_study", estimate_label = "mv-vi", reference_label = "mv-V")
     return(invisible(NULL))
   }
   scenario_plot("bselmodel-ranef-mv-vi-cond",   plot_bselmodel_ranef_equivalence(ranef_bselmodel.mv_cond, ranef_bselmodel_cluster_cond))
@@ -1406,13 +1406,13 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
 
   scenario_plot("RoBMA-ranef-2", {
     par(mfrow = c(1, 2))
-    scenario_agreement_plot(as.data.frame(ranef_RoBMA_mv_diag_cond$study)[["Mean"]],      as.data.frame(ranef_RoBMA_cluster_cond$cluster)[["Mean"]],  main = "study",      estimate_label = "cluster", reference_label = "mv-vi")
-    scenario_agreement_plot(as.data.frame(ranef_RoBMA_mv_diag_cond$esid_study)[["Mean"]], as.data.frame(ranef_RoBMA_cluster_cond$estimate)[["Mean"]], main = "esid_study", estimate_label = "cluster", reference_label = "mv-vi")
+    scenario_agreement_plot(as.data.frame(summary(ranef_RoBMA_mv_diag_cond$study))[["Mean"]],      as.data.frame(summary(ranef_RoBMA_cluster_cond$cluster))[["Mean"]],  main = "study",      estimate_label = "cluster", reference_label = "mv-vi")
+    scenario_agreement_plot(as.data.frame(summary(ranef_RoBMA_mv_diag_cond$esid_study))[["Mean"]], as.data.frame(summary(ranef_RoBMA_cluster_cond$estimate))[["Mean"]], main = "esid_study", estimate_label = "cluster", reference_label = "mv-vi")
   })
   scenario_plot("RoBMA-ranef-4", {
     par(mfrow = c(1, 2))
-    scenario_agreement_plot(as.data.frame(ranef_RoBMA_mv_V_cond$study)[["Mean"]],      as.data.frame(ranef_RoBMA_mv_diag_cond$study)[["Mean"]],      main = "study",      estimate_label = "mv-vi", reference_label = "mv-V")
-    scenario_agreement_plot(as.data.frame(ranef_RoBMA_mv_V_cond$esid_study)[["Mean"]], as.data.frame(ranef_RoBMA_mv_diag_cond$esid_study)[["Mean"]], main = "esid_study", estimate_label = "mv-vi", reference_label = "mv-V")
+    scenario_agreement_plot(as.data.frame(summary(ranef_RoBMA_mv_V_cond$study))[["Mean"]],      as.data.frame(summary(ranef_RoBMA_mv_diag_cond$study))[["Mean"]],      main = "study",      estimate_label = "mv-vi", reference_label = "mv-V")
+    scenario_agreement_plot(as.data.frame(summary(ranef_RoBMA_mv_V_cond$esid_study))[["Mean"]], as.data.frame(summary(ranef_RoBMA_mv_diag_cond$esid_study))[["Mean"]], main = "esid_study", estimate_label = "mv-vi", reference_label = "mv-V")
   })
 
   scenario_plot("RoBMA-blup-2", scenario_agreement_plot(data.frame(blup(fit_RoBMA_mv_diag_cond))[,"Mean"], data.frame(blup(fit_RoBMA_cluster_cond))[,"Mean"], estimate_label = "cluster", reference_label = "mv-vi"))

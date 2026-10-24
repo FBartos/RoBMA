@@ -148,8 +148,8 @@ testthat::test_that("Ishak longitudinal heterogeneous AR model", {
   ranef_metafor_har <- metafor::ranef(fit_metafor_har)[[1L]][["intrcpt"]]
   ranef_metafor_ar  <- metafor::ranef(fit_metafor_ar)[[1L]][["intrcpt"]]
   scenario_plot("ranef-agreement", {
-    ranef_brma_har <- as.data.frame(ranef(fit_brma_har, component = "study"))[["Mean"]]
-    ranef_brma_ar  <- as.data.frame(ranef(fit_brma_ar, component = "study"))[["Mean"]]
+    ranef_brma_har <- as.data.frame(summary(ranef(fit_brma_har, component = "study")))[["Mean"]]
+    ranef_brma_ar  <- as.data.frame(summary(ranef(fit_brma_ar, component = "study")))[["Mean"]]
 
     par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
     scenario_agreement_plot(ranef_metafor_har, ranef_brma_har, "HAR: RoBMA vs metafor")

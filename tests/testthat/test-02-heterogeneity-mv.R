@@ -273,7 +273,7 @@ test_that("brma.mv heterogeneity resolves aliases and component errors", {
 
   expect_named(all_components, names(components))
   for (component in all_components) {
-    component_df <- as.data.frame(component)
+    component_df <- as.data.frame(summary(component))
     expect_identical(
       names(component_df),
       c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")

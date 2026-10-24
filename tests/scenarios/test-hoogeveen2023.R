@@ -176,17 +176,17 @@ testthat::test_that("Hoogeveen rank-one sampling covariance and diagonal R", {
     par(mfrow = c(1, 3), mar = c(4, 4, 2, 1))
     scenario_agreement_plot(
       metafor::ranef(fit_metafor_mv)[["analysis"]][["intrcpt"]],
-      as.data.frame(ranef(fit_brma_mv))[["Mean"]],
+      as.data.frame(summary(ranef(fit_brma_mv)))[["Mean"]],
       main = "No known R"
     )
     scenario_agreement_plot(
       metafor::ranef(fit_metafor_mv_quality)[["analysis"]][["intrcpt"]],
-      as.data.frame(ranef(fit_brma_mv_quality))[["Mean"]],
+      as.data.frame(summary(ranef(fit_brma_mv_quality)))[["Mean"]],
       main = "Known quality R"
     )
     scenario_agreement_plot(
       metafor::ranef(fit_metafor_mv_rcor)[["analysis"]][["intrcpt"]],
-      as.data.frame(ranef(fit_brma_mv_rcor))[["Mean"]],
+      as.data.frame(summary(ranef(fit_brma_mv_rcor)))[["Mean"]],
       main = "Varying diagonal R"
     )
   })

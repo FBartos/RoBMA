@@ -294,10 +294,13 @@ print.summary.brma_samples <- function(x, probs = NULL, ...) {
 
 #' @title Convert brma_samples Results to Data Frames
 #'
-#' @description Converts a \code{brma_samples} result to the posterior summary
-#' table displayed by \code{print()}. Results are returned in long form with
-#' component and parameter identifiers; multi-component paths use \code{/} as
-#' a separator. Printed quantile labels
+#' @description \code{as.data.frame()} and \code{data.frame()} of a
+#' \code{brma_samples} result return its posterior draws (one row per draw, one
+#' column per parameter), as for the underlying matrix. The posterior summary
+#' table displayed by \code{print()} is \code{as.data.frame(summary(x))}: a
+#' long data frame with component and parameter identifiers (multi-component
+#' paths use \code{/} as a separator), which is also the result for a
+#' multi-component \code{brma_samples_list}. Printed quantile labels
 #' such as \code{0.025} and \code{PI 0.025} are returned as the syntactic column
 #' names \code{CI_0.025} and \code{PI_0.025}, respectively.
 #'
@@ -311,17 +314,34 @@ print.summary.brma_samples <- function(x, probs = NULL, ...) {
 #' \code{"long"} data frame or a named, possibly nested \code{"list"} with a
 #' plain data frame at each leaf. Defaults to \code{"long"}.
 #' @param stringsAsFactors logical; passed to the output data frame.
-#' @param ... additional arguments passed to \code{summary.brma_samples()}
+#' @param ... for a \code{brma_samples} result, additional arguments passed to
+#' the matrix coercion; for a \code{brma_samples_list}, additional arguments
+#' passed to \code{summary.brma_samples()}
 #'
-#' @return For an individual \code{brma_samples} object, a plain long
-#' \code{data.frame} containing the displayed posterior summary statistics and
-#' leading \code{component} and \code{parameter} columns.
+#' @return For an individual \code{brma_samples} object, a \code{data.frame}
+#' of the posterior draws. For a \code{summary.brma_samples} object, a plain
+#' long \code{data.frame} containing the displayed posterior summary statistics
+#' and leading \code{component} and \code{parameter} columns.
 #' For a \code{brma_samples_list}, a long data frame by default or, with
 #' \code{format = "list"}, a named, possibly nested list of such data frames.
 #'
 #' @export
-as.data.frame.brma_samples <- function(x, row.names = NULL, optional = FALSE,
-                                       stringsAsFactors = FALSE, ...) {
+as.data.frame.brma_samples <- function(x, row.names = NULL, optional = FALSE, ...) {
+
+  return(as.data.frame(
+    as.matrix(x),
+    row.names = row.names,
+    optional  = optional,
+    ...
+  ))
+}
+
+
+# The posterior summary table of a brma_samples result as a plain long data
+# frame (what as.data.frame() of its summary returns).
+.brma_samples_summary_data_frame <- function(x, row.names = NULL,
+                                             optional = FALSE,
+                                             stringsAsFactors = FALSE, ...) {
 
   summary_table <- summary.brma_samples(x, ...)
   output <- .output_table_as_long_data_frame(
@@ -618,7 +638,7 @@ as.data.frame.brma_samples_list <- function(
     component      <- x[[i]]
 
     if (inherits(component, "brma_samples")) {
-      table <- as.data.frame(component, ...)
+      table <- .brma_samples_summary_data_frame(component, ...)
       table[["component"]] <- rep(
         .brma_samples_list_leaf_component(component, component_path),
         nrow(table)
@@ -665,7 +685,7 @@ as.data.frame.brma_samples_list <- function(
     component_path <- c(path, component_name)
     component      <- x[[i]]
     if (inherits(component, "brma_samples")) {
-      table <- as.data.frame(component, ...)
+      table <- .brma_samples_summary_data_frame(component, ...)
       table[["component"]] <- rep(
         .brma_samples_list_leaf_component(component, component_path),
         nrow(table)

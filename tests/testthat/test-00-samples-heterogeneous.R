@@ -4,8 +4,8 @@ test_that("nested sample exports retain heterogeneous prediction intervals", {
   plain <- .new_brma_samples(draws, 1L, 20L, "Plain")
   predictive <- .new_brma_samples(draws + .25, 1L, 20L, "Predictive",
     prediction_samples = draws * 2)
-  plain_table <- as.data.frame(plain)
-  predictive_table <- as.data.frame(predictive)
+  plain_table <- as.data.frame(summary(plain))
+  predictive_table <- as.data.frame(summary(predictive))
   columns <- c("component", "parameter", "Mean", "Median", "CI_0.025",
     "CI_0.975", "PI_0.025", "PI_0.975")
   plain_table[["PI_0.025"]] <- rep(NA_real_, 2L)

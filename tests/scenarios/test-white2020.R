@@ -115,8 +115,8 @@ testthat::test_that("White study and observation random-effects model", {
     ranef_brma    <- ranef(fit_brma)
 
     par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
-    scenario_agreement_plot(ranef_metafor[["study_id"]][["intrcpt"]], as.data.frame(ranef_brma$study)[["Mean"]], "Study effects")
-    scenario_agreement_plot(ranef_metafor[["obs"]][["intrcpt"]], as.data.frame(ranef_brma$observation)[["Mean"]], "Observation effects")
+    scenario_agreement_plot(ranef_metafor[["study_id"]][["intrcpt"]], as.data.frame(summary(ranef_brma$study))[["Mean"]], "Study effects")
+    scenario_agreement_plot(ranef_metafor[["obs"]][["intrcpt"]], as.data.frame(summary(ranef_brma$observation))[["Mean"]], "Observation effects")
   })
 
   ### diagnostics ----
