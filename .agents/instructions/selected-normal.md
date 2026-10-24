@@ -262,9 +262,41 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   rank-one cluster, at least three finite rungs, a finest rung that passes the
   tail gate (moments of a rule that misses the selected mode say nothing about
   it) and a positive definite covariance; every other block, and `best`, keep
-  the optimized Laplace proposals. Budgets and the reported diagnostics are
-  unchanged: the stop is `max(z * relative MCSE, relative change) <= tol` with
-  `z = 2.36`.
+  the optimized Laplace proposals. Product weights retain the unoptimized
+  boundary-start locations with unit covariance as well: optimizing every start
+  can move all proposals back to a dominant central mode and erase a smaller
+  but material joint tail. A further proposal covers intermediate combinations:
+  in an orthonormal basis formed from loading-row directions, each coordinate
+  independently mixes `N(0,1)` and the unit-variance normals centered at that
+  coordinate of every boundary start, equally. Its density is a product of
+  univariate mixture densities, so evaluation requires a quadratic rotation
+  and a sum over coordinates and boundaries, rather than enumerating their
+  exponentially many joint combinations. The basis is
+  only a proposal coordinate system; no loading direction is removed from the
+  model. Product weights also add a proposal that
+  conditions on selection transitions. First absorb every row with zero
+  loadings into its exact normalizer product `C`. For the remaining `N` rows,
+  write `m = min(omega)`, `F(z) = product_i w_i(z)` for conditional row weights,
+  `S(z) = sum_i (w_i(z) - m)`, and `D = E[S(z)]`, calculated from the
+  univariate marginal Gaussian bin probabilities. Its density is
+  `phi(z) S(z) / D`: select a row/bin with probability proportional to its
+  marginal bin probability times `omega_bin - m`, draw that row's outcome
+  within the bin, then draw the latent factors conditional on the outcome.
+  The categorical choice and within-bin quantile share one uniform by interval
+  remapping. The Gaussian proposals remain in the mixture to explore joint
+  selection events. The mixture integrates the nonnegative correction
+  `C (F(z) - m^N)`; the known baseline `C m^N` is added to each scramble before
+  calculating the raw standard error and nested-design change. Positive
+  recurrences avoid subtracting nearly equal products. Exactly identical rows
+  share bin-probability evaluations; their multiplicities remain in the product,
+  the proposal density and its component probabilities. The total point budget
+  and stop remain `max(z * relative MCSE, relative change) <= tol`, `z = 2.36`.
+  Finite MCSE values remain raw empirical standard errors. Unrepresentable
+  proposal calculations instead report infinite diagnostics, so numerical
+  unavailability cannot silently become an accepted zero likelihood. Exact
+  categorical boundaries in valid supplied uniforms use the conditional median;
+  this defines the transform on a measure-zero set without clipping interior
+  probabilities.
 - QMC stopping multiplier: every randomized selection normalizer is accepted
   only when `z` times its relative MCSE (and its relative change, where it
   reports one) is within `tol`, with `z = 2.36`, the 97.5% quantile of
@@ -357,11 +389,26 @@ are measured envelopes, validated by random, adversarial and hill-climbing
 searches, not a proof. The qCMDE normalizer grid anchors its error at
 `2 * relative_change` (`R/selection-normalizer-grid.R`), which is not an error
 bound for the accepted value. The scaled QMC stop is a standard-error
-criterion, not a bound: on 58 synthetic blocks deferred by the deterministic
-stages (10 designs each) it cut the accepted randomized runs outside `tol` from
-104 to 53 of 580 and raised the runs that exhaust the budget and are rejected
-from 41 to 65; most of the rest are blocks whose scrambles all miss the same
-mass (MCSE near zero), which no multiplier detects. On the real workloads
+criterion, not a bound. The transition-conditioned proposal addresses the
+failure in which every Gaussian proposal misses a material tail contribution;
+increasing a multiplier on the resulting near-zero MCSE cannot fix that
+failure. Conditioning on one row does not guarantee coverage of every rare
+intersection of several rows. Neither agreement between scrambles nor between
+nested designs certifies that all important mass was sampled. The construction
+is related to rare-event union importance sampling (Owen, Maximov and Chertkov,
+2019, doi:10.1214/18-ejs1527), but its union-probability relative-error theorem
+does not apply to this product correction. Check empirical uncertainty across
+predeclared independent designs, alongside independent reference integrals and
+mean-accuracy checks; do not treat three estimated standard errors as a bound
+that every individual randomized run must satisfy. In a predeclared check of
+200 fresh designs for each of four blocks under adaptive and fixed-maximum
+budgets, all eight 99% mean-error intervals were within +/-0.005. One adaptive
+tensor block failed the Student-reference tail-coverage screen: 12/200 errors
+exceeded three estimated standard errors (94% empirical coverage), and the
+2.36 multiplier covered 88%; its empirical variance was 1.04 times the mean
+reported variance. Four of its 139 diagnostically accepted results exceeded
+0.005 error. This is a documented limitation of the empirical criterion, not
+evidence for a confidence guarantee or a reason to change the raw MCSE. On the real workloads
 measured (assink2016 fits and post-fit calculations) no randomized fallback is
 reached, and the few of the V7-01 fit stop at their first stage under either
 multiplier. The certificate costs `1 + 2 rank` evaluations of

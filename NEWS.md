@@ -4,6 +4,17 @@
   and avoiding a redundant normalizer calculation for positive selection
   weights. Marginal targets, quadrature settings, and numerical diagnostics
   are unchanged.
+- The randomized fallback for factor and cluster product-selection normalizers
+  samples rare selection transitions explicitly. Previously, all scrambles
+  could miss the same tail and report a relative Monte Carlo standard error
+  near machine precision despite a material error (2.63% in a reproduced
+  example). The fallback now integrates the constant minimum-weight contribution
+  analytically and adds a transition-conditioned proposal to its Gaussian
+  importance mixture. Additional proposals cover combinations of central and
+  tail regions without enumerating them, using the existing point budget.
+  Exactly repeated rows share probability calculations. Reported standard errors
+  remain empirical estimates, not guaranteed error bounds; rare intersections
+  can still require more points or be rejected by diagnostics.
 - Selection normalizers of dependent blocks under product weights (the factor
   and cluster kernels, in fitting and post-fit calculations) accept a
   deterministic quadrature rule only when shifting its nodes shows an aliasing

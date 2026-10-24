@@ -2335,6 +2335,345 @@ struct FactorNormalizerContext {
   SelNormKernelData selection;
 };
 
+// For product weights write w_i(z) = m + delta_i(z), m = min(omega).
+// Sampling one row/bin with mass (omega_b - m) P(Y_i in b), then its
+// conditional Gaussian factor, gives q(z) = phi(z) sum_i delta_i(z) / D.
+// This proposal reaches rare transitions without asking the Gaussian mode
+// search to discover them. Gaussian proposals are retained for joint-selection
+// regions as well.
+struct FactorEventProposal {
+  struct RowGroup {
+    int row;
+    int count;
+    double log_count;
+    double marginal_sd;
+  };
+  struct Component {
+    int group;
+    int bin;
+    double log_mass;
+    long double mass;
+    long double cumulative;
+  };
+  const FactorNormalizerContext &context;
+  std::vector<double> log_excess;
+  std::vector<RowGroup> groups;
+  std::vector<EventInterval> intervals;
+  std::vector<Component> components;
+  double log_minimum = -std::numeric_limits<double>::infinity();
+  double log_baseline = -std::numeric_limits<double>::infinity();
+  double log_mass = -std::numeric_limits<double>::infinity();
+  double log_constant = 0.0;
+  bool valid = true;
+  bool exact = false;
+
+  explicit FactorEventProposal(const FactorNormalizerContext &value)
+    : context(value)
+  {
+    if (context.vector_rule != SELVECTOR_PRODUCT) return;
+    const double minimum = *std::min_element(context.omega,
+      context.omega + context.n_bins);
+    if (!(minimum >= 0.0) || !std::isfinite(minimum)) {
+      valid = false;
+      return;
+    }
+    log_excess.resize(context.n_bins);
+    bool nonconstant = false;
+    for (int bin = 0; bin < context.n_bins; ++bin) {
+      if (!std::isfinite(context.omega[bin])) { valid = false; return; }
+      log_excess[bin] = std::log(context.omega[bin] - minimum);
+      nonconstant = nonconstant || context.omega[bin] > minimum;
+    }
+    log_minimum = std::log(minimum);
+    log_baseline = context.dimension * log_minimum;
+    if (!nonconstant) { exact = true; return; }
+
+    std::vector<int> rows;
+    for (int row = 0; row < context.dimension; ++row) {
+      bool active = false;
+      for (int factor = 0; factor < context.rank; ++factor) {
+        active = active || context.loading[row + context.dimension * factor] != 0.0;
+      }
+      if (active) {
+        rows.push_back(row);
+      } else {
+        // A factor-free row is an exact multiplier. Including it in S would
+        // dilute the transition proposal with draws from the prior.
+        const double value = cpp_selnorm_step_log_norm(context.mean[row],
+          context.residual_sd[row], context.selection_se[row], context.omega,
+          context.selection, 1, false);
+        if (!std::isfinite(value)) { valid = false; return; }
+        log_constant += value;
+      }
+    }
+    if (rows.empty()) {
+      log_baseline = log_constant;
+      exact = true;
+      return;
+    }
+    log_baseline = log_constant + rows.size() * log_minimum;
+    const auto less = [&](int left, int right) {
+      if (context.mean[left] != context.mean[right]) return context.mean[left] < context.mean[right];
+      if (context.residual_sd[left] != context.residual_sd[right]) return context.residual_sd[left] < context.residual_sd[right];
+      if (context.selection_se[left] != context.selection_se[right]) return context.selection_se[left] < context.selection_se[right];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        const double a = context.loading[left + context.dimension * factor];
+        const double b = context.loading[right + context.dimension * factor];
+        if (a != b) return a < b;
+      }
+      return false;
+    };
+    std::stable_sort(rows.begin(), rows.end(), less);
+    for (int row : rows) {
+      if (!groups.empty() && !less(groups.back().row, row)) ++groups.back().count;
+      else groups.push_back({row, 1, 0.0, 0.0});
+    }
+    intervals.resize(groups.size() * context.n_bins);
+    const double infinity = std::numeric_limits<double>::infinity();
+    for (std::size_t group = 0; group < groups.size(); ++group) {
+      RowGroup &item = groups[group];
+      const int row = item.row;
+      item.log_count = std::log(static_cast<double>(item.count));
+      double sd = context.residual_sd[row];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        sd = std::hypot(sd, context.loading[row + context.dimension * factor]);
+      }
+      if (!std::isfinite(sd)) { valid = false; return; }
+      item.marginal_sd = sd;
+      for (int bin = 0; bin < context.n_bins; ++bin) {
+        EventInterval &interval = intervals[group * context.n_bins + bin];
+        interval = event_interval(context.selection.z_lower[bin],
+          context.selection.z_upper[bin], context.selection_se[row],
+          context.selection.effect_sign, -infinity, infinity);
+        if (log_excess[bin] == -infinity) continue;
+        const double mass = item.log_count + log_excess[bin] +
+          cpp_selnorm_normal_interval_log_prob(interval.lower, interval.upper,
+            context.mean[row], sd);
+        if (!std::isfinite(mass)) { valid = false; return; }
+        components.push_back({static_cast<int>(group), bin, mass, 0.0L, 0.0L});
+      }
+    }
+    // Ascending masses keep small categories from disappearing when added
+    // after large ones. Extended precision also protects the local remapping.
+    std::stable_sort(components.begin(), components.end(),
+      [](const Component &left, const Component &right) {
+        return left.log_mass < right.log_mass;
+      });
+    const double largest = components.back().log_mass;
+    long double total = 0.0L;
+    for (Component &component : components) {
+      component.mass = std::exp(static_cast<long double>(component.log_mass) - largest);
+      const long double next = total + component.mass;
+      if (!(next > total)) { valid = false; return; }
+      component.cumulative = total = next;
+    }
+    log_mass = largest + static_cast<double>(std::log(total));
+  }
+
+  bool active() const { return !components.empty(); }
+
+  bool draw(double uniform, const double *normal, double *latent) const
+  {
+    const long double target = uniform * components.back().cumulative;
+    const auto found = std::upper_bound(components.begin(), components.end(), target,
+      [](long double value, const Component &component) {
+        return value < component.cumulative;
+      });
+    if (found == components.end()) return false;
+    const long double previous = found == components.begin() ? 0.0L :
+      (found - 1)->cumulative;
+    double local = static_cast<double>((target - previous) / found->mass);
+    if (!(local >= 0.0 && local <= 1.0)) return false;
+    // Internal categorical boundaries have probability zero under a uniform
+    // draw. Define them by the interval median, avoiding infinite endpoints;
+    // interior probabilities are never moved or clipped.
+    if (local == 0.0 || local == 1.0) local = 0.5;
+    const RowGroup &group = groups[found->group];
+    const int row = group.row;
+    const double sd = group.marginal_sd;
+    const EventInterval &interval = intervals[found->group * context.n_bins + found->bin];
+    const double lower = static_cast<double>(
+      (static_cast<long double>(interval.lower) - context.mean[row]) / sd);
+    const double upper = static_cast<double>(
+      (static_cast<long double>(interval.upper) - context.mean[row]) / sd);
+    const double draw = cpp_selnorm_normal_interval_quantile(lower, upper, 0.0, 1.0, local);
+    if (!std::isfinite(draw)) return false;
+    double projection = 0.0;
+    for (int factor = 0; factor < context.rank; ++factor) {
+      projection += context.loading[row + context.dimension * factor] / sd * normal[factor];
+    }
+    const double shift = draw - projection / (1.0 + context.residual_sd[row] / sd);
+    for (int factor = 0; factor < context.rank; ++factor) {
+      latent[factor] = normal[factor] +
+        context.loading[row + context.dimension * factor] / sd * shift;
+      if (!std::isfinite(latent[factor])) return false;
+    }
+    return true;
+  }
+
+  // Compose positive products and corrections as C_AB = C_A P_B + B_A C_B,
+  // B = m^n, P = product w_i. Binary powering handles identical row groups
+  // with one probability evaluation and never subtracts nearly equal products.
+  void evaluate(const double *latent, double *log_target, double *log_density) const
+  {
+    double log_base = 0.0;
+    double log_correction = -std::numeric_limits<double>::infinity();
+    double log_sum = -std::numeric_limits<double>::infinity();
+    double log_prior = 0.0;
+    for (int factor = 0; factor < context.rank; ++factor) {
+      log_prior -= 0.5 * latent[factor] * latent[factor];
+    }
+    for (std::size_t group = 0; group < groups.size(); ++group) {
+      const RowGroup &item = groups[group];
+      const int row = item.row;
+      double mean = context.mean[row];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        mean += context.loading[row + context.dimension * factor] * latent[factor];
+      }
+      double delta = -std::numeric_limits<double>::infinity();
+      for (int bin = 0; bin < context.n_bins; ++bin) {
+        if (!std::isfinite(log_excess[bin])) continue;
+        const EventInterval &interval = intervals[group * context.n_bins + bin];
+        delta = log_add_exp(delta, log_excess[bin] +
+          cpp_selnorm_normal_interval_log_prob(interval.lower, interval.upper,
+            mean, context.residual_sd[row]));
+      }
+      log_sum = log_add_exp(log_sum, item.log_count + delta);
+      double power_base = log_minimum;
+      double power_product = log_add_exp(log_minimum, delta);
+      double power_correction = delta;
+      int count = item.count;
+      while (count > 0) {
+        if (count & 1) {
+          log_correction = log_add_exp(log_correction + power_product,
+            log_base + power_correction);
+          log_base += power_base;
+        }
+        count >>= 1;
+        if (count > 0) {
+          power_correction = log_add_exp(power_correction + power_product,
+            power_base + power_correction);
+          power_base *= 2.0;
+          power_product *= 2.0;
+        }
+      }
+    }
+    *log_target = log_prior + log_constant + log_correction;
+    *log_density = log_prior + log_sum - log_mass;
+  }
+};
+
+// In a basis aligned with loading rows, mix the origin and every structural
+// boundary location independently along each axis. The product represents
+// their subset combinations without enumerating exponentially many centers.
+// This is an importance proposal only; its basis never changes the covariance.
+struct FactorBoundaryProposal {
+  int rank;
+  std::vector<double> basis;
+  std::vector<std::vector<double>> locations;
+  bool valid = true;
+
+  FactorBoundaryProposal(const FactorNormalizerContext &context,
+                         const std::vector<std::vector<double>> &starts)
+    : rank(context.rank)
+  {
+    if (context.vector_rule != SELVECTOR_PRODUCT || starts.size() < 2) return;
+    basis.resize(static_cast<std::size_t>(rank) * rank);
+    std::vector<double> axis(rank);
+    int columns = 0;
+    const auto append = [&]() {
+      double scale = 0.0;
+      for (double value : axis) scale = std::max(scale, std::fabs(value));
+      if (!(scale > 0.0)) return;
+      for (double &value : axis) value /= scale;
+      for (int pass = 0; pass < 2; ++pass) {
+        for (int column = 0; column < columns; ++column) {
+          double projection = 0.0;
+          for (int factor = 0; factor < rank; ++factor) {
+            projection += axis[factor] * basis[factor + rank * column];
+          }
+          for (int factor = 0; factor < rank; ++factor) {
+            axis[factor] -= projection * basis[factor + rank * column];
+          }
+        }
+      }
+      double norm = 0.0;
+      for (double value : axis) norm = std::hypot(norm, value);
+      // Near-dependent rows only choose a proposal orientation. Complete the
+      // basis with coordinate axes rather than altering any model loadings.
+      if (!(norm > 64.0 * rank * std::numeric_limits<double>::epsilon())) return;
+      for (int factor = 0; factor < rank; ++factor) {
+        basis[factor + rank * columns] = axis[factor] / norm;
+      }
+      ++columns;
+    };
+    for (int row = 0; row < context.dimension && columns < rank; ++row) {
+      for (int factor = 0; factor < rank; ++factor) {
+        axis[factor] = context.loading[row + context.dimension * factor];
+      }
+      append();
+    }
+    for (int factor = 0; factor < rank && columns < rank; ++factor) {
+      std::fill(axis.begin(), axis.end(), 0.0);
+      axis[factor] = 1.0;
+      append();
+    }
+    if (columns != rank) { valid = false; return; }
+    locations.assign(starts.size(), std::vector<double>(rank, 0.0));
+    for (std::size_t start = 0; start < starts.size(); ++start) {
+      for (int column = 0; column < rank; ++column) {
+        for (int factor = 0; factor < rank; ++factor) {
+          locations[start][column] += basis[factor + rank * column] * starts[start][factor];
+        }
+      }
+    }
+  }
+
+  bool active() const { return !locations.empty(); }
+
+  bool draw(const double *uniform, double *coordinates, double *latent) const
+  {
+    for (int column = 0; column < rank; ++column) {
+      if (!(uniform[column] > 0.0 && uniform[column] < 1.0)) return false;
+      const long double position = static_cast<long double>(uniform[column]) * locations.size();
+      const std::size_t selected = static_cast<std::size_t>(position);
+      if (selected >= locations.size()) return false;
+      double local = static_cast<double>(position - selected);
+      // As for the event proposal, define exact categorical boundaries by the
+      // component median; no interior quantile is moved.
+      if (local == 0.0 || local == 1.0) local = 0.5;
+      coordinates[column] = locations[selected][column] + qnorm(local, 0.0, 1.0, true, false);
+      if (!std::isfinite(coordinates[column])) return false;
+    }
+    for (int factor = 0; factor < rank; ++factor) {
+      latent[factor] = 0.0;
+      for (int column = 0; column < rank; ++column) {
+        latent[factor] += basis[factor + rank * column] * coordinates[column];
+      }
+      if (!std::isfinite(latent[factor])) return false;
+    }
+    return true;
+  }
+
+  double log_density(const double *latent) const
+  {
+    double value = -rank * std::log(static_cast<double>(locations.size()));
+    for (int column = 0; column < rank; ++column) {
+      double coordinate = 0.0;
+      for (int factor = 0; factor < rank; ++factor) {
+        coordinate += basis[factor + rank * column] * latent[factor];
+      }
+      double kernel = -std::numeric_limits<double>::infinity();
+      for (const std::vector<double> &location : locations) {
+        const double centered = coordinate - location[column];
+        kernel = log_add_exp(kernel, -0.5 * centered * centered);
+      }
+      value += kernel;
+    }
+    return value;
+  }
+};
+
 double factor_log_integrand(const FactorNormalizerContext &context,
                             const double *latent, double *gradient)
 {
@@ -5975,6 +6314,29 @@ double cpp_selnorm_factor_step_lpdf(
     1, std::vector<double>(static_cast<std::size_t>(rank), 0.0));
   std::vector<std::vector<double> > proposal_factors(1, identity);
   std::vector<double> proposal_log_determinants(1, 0.0);
+  std::vector<std::vector<double> > starts(
+    1, std::vector<double>(static_cast<std::size_t>(rank), 0.0));
+  std::vector<double> boundaries;
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (std::isfinite(z_lower[bin])) boundaries.push_back(z_lower[bin]);
+    if (std::isfinite(z_upper[bin])) boundaries.push_back(z_upper[bin]);
+  }
+  std::sort(boundaries.begin(), boundaries.end());
+  boundaries.erase(
+    std::unique(boundaries.begin(), boundaries.end()), boundaries.end()
+  );
+  for (std::size_t boundary = 0; boundary < boundaries.size(); ++boundary) {
+    std::vector<double> start(static_cast<std::size_t>(rank), 0.0);
+    for (int i = 0; i < dimension; ++i) {
+      const double target = effect_sign * boundaries[boundary] *
+        selection_se[i] - mean[i];
+      for (int factor = 0; factor < rank; ++factor) {
+        start[factor] += loading[i + dimension * factor] *
+          inverse_variance[i] * target;
+      }
+    }
+    if (factor_solve_cholesky(cholesky, rank, &start)) starts.push_back(start);
+  }
   if (moment_proposals) {
     double moment_log_determinant = 0.0;
     for (int factor = 0; factor < rank; ++factor) {
@@ -5995,39 +6357,14 @@ double cpp_selnorm_factor_step_lpdf(
     proposal_log_determinants.push_back(moment_log_determinant +
       static_cast<double>(rank) * std::log(1.5));
   } else {
-    std::vector<std::vector<double> > starts;
-    starts.push_back(std::vector<double>(static_cast<std::size_t>(rank), 0.0));
-    std::vector<double> boundaries;
-    for (int bin = 0; bin < n_bins; ++bin) {
-      if (std::isfinite(z_lower[bin])) boundaries.push_back(z_lower[bin]);
-      if (std::isfinite(z_upper[bin])) boundaries.push_back(z_upper[bin]);
-    }
-    std::sort(boundaries.begin(), boundaries.end());
-    boundaries.erase(
-      std::unique(boundaries.begin(), boundaries.end()), boundaries.end()
-    );
-    for (std::size_t boundary = 0; boundary < boundaries.size(); ++boundary) {
-      std::vector<double> start(static_cast<std::size_t>(rank), 0.0);
-      for (int i = 0; i < dimension; ++i) {
-        const double target = effect_sign * boundaries[boundary] *
-          selection_se[i] - mean[i];
-        for (int factor = 0; factor < rank; ++factor) {
-          start[factor] += loading[i + dimension * factor] *
-            inverse_variance[i] * target;
-        }
-      }
-      if (factor_solve_cholesky(cholesky, rank, &start)) {
-        starts.push_back(start);
-      }
-    }
-
     // Keep the prior and every finite optimized start: opposing selection modes
     // need not have the same location or scale. No mode deduplication is needed.
     for (std::size_t candidate = 0; candidate < starts.size(); ++candidate) {
       std::vector<double> covariance;
-      factor_optimize_mode(context, &starts[candidate], &covariance);
+      std::vector<double> mode = starts[candidate];
+      factor_optimize_mode(context, &mode, &covariance);
       const double value = factor_log_integrand(
-        context, starts[candidate].data(), nullptr
+        context, mode.data(), nullptr
       );
       if (!std::isfinite(value)) continue;
       if (covariance.size() != identity.size() ||
@@ -6050,17 +6387,49 @@ double cpp_selnorm_factor_step_lpdf(
           covariance[factor + rank * factor]
         );
       }
-      proposals.push_back(starts[candidate]);
+      proposals.push_back(mode);
       proposal_factors.push_back(covariance);
       proposal_log_determinants.push_back(proposal_log_determinant);
     }
   }
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    // Optimization can move every boundary start back to the same plateau.
+    // Keep the structural starts as unit-scale proposals on both product
+    // paths, retaining proposals near joint-selection regions.
+    for (std::size_t candidate = 1; candidate < starts.size(); ++candidate) {
+      proposals.push_back(starts[candidate]);
+      proposal_factors.push_back(identity);
+      proposal_log_determinants.push_back(0.0);
+    }
+  }
 
+  const auto event_unavailable = [&]() {
+    *relative_mcse = *relative_change = std::numeric_limits<double>::infinity();
+    return negative_infinity;
+  };
+  const FactorEventProposal event_proposal(context);
+  if (!event_proposal.valid) return event_unavailable();
+  if (event_proposal.exact) {
+    if (!std::isfinite(event_proposal.log_baseline)) return event_unavailable();
+    if (log_normalizer_out != nullptr) *log_normalizer_out = event_proposal.log_baseline;
+    if (deterministic != nullptr) *deterministic = true;
+    return log_density - event_proposal.log_baseline;
+  }
+  const bool use_event = event_proposal.active();
+  const FactorBoundaryProposal boundary_proposal(context, starts);
+  if (!boundary_proposal.valid) return event_unavailable();
+  const bool use_boundary = boundary_proposal.active();
+  // Prior, event and subset points exist even when the remaining Gaussian
+  // proposals outnumber the smallest coarse prefix. Keep the total budget.
+  const int event_component = use_event ? 1 : -1;
+  const int boundary_component = use_boundary ? 1 + (use_event ? 1 : 0) : -1;
+  const int extra_components = (use_event ? 1 : 0) + (use_boundary ? 1 : 0);
+  const int gaussian_count = static_cast<int>(proposals.size());
   std::vector<double> scramble_log_mean(static_cast<std::size_t>(scrambles));
   std::vector<double> scramble_coarse_log_mean(
     static_cast<std::size_t>(scrambles)
   );
-  const int proposal_count = static_cast<int>(proposals.size());
+  const int proposal_count = gaussian_count + extra_components;
   const int qmc_dimensions = 2 * declared_rank;
   const int max_per_proposal =
     (2 * max_points + proposal_count - 1) / proposal_count;
@@ -6070,12 +6439,15 @@ double cpp_selnorm_factor_step_lpdf(
   std::vector<double> point_log_target(
     static_cast<std::size_t>(max_per_proposal) * proposal_count * scrambles
   );
+  std::vector<double> point_log_event(use_event ? point_log_target.size() : 0);
+  std::vector<double> point_log_boundary(use_boundary ? point_log_target.size() : 0);
   std::vector<double> point_latent(point_log_target.size() * rank);
   std::vector<int> fine_counts(static_cast<std::size_t>(proposal_count));
   std::vector<int> coarse_counts(static_cast<std::size_t>(proposal_count));
   std::vector<double> fine_log_counts(static_cast<std::size_t>(proposal_count));
   std::vector<double> coarse_log_counts(static_cast<std::size_t>(proposal_count));
   std::vector<double> latent(static_cast<std::size_t>(rank));
+  std::vector<double> uniform(static_cast<std::size_t>(rank));
   std::vector<double> standard_normal(static_cast<std::size_t>(rank));
   std::vector<double> centered(static_cast<std::size_t>(rank));
   int evaluated_points = 0;
@@ -6107,31 +6479,58 @@ double cpp_selnorm_factor_step_lpdf(
           const int stream = proposal_count == 1 ? point % 2 : component % 2;
           const int design_point = proposal_count == 1 ? point / 2 : point;
           for (int factor = 0; factor < rank; ++factor) {
-            standard_normal[factor] = qnorm(
-              qmc_value(
-                qmc, scrambles, max_points, qmc_dimensions, scramble,
-                design_point, qmc_column[factor] + declared_rank * stream
-              ),
-              0.0, 1.0, true, false
-            );
-            if (!std::isfinite(standard_normal[factor])) {
-              return negative_infinity;
+            uniform[factor] = qmc_value(qmc, scrambles, max_points, qmc_dimensions,
+              scramble, design_point, qmc_column[factor] + declared_rank * stream);
+            if (component != boundary_component) {
+              standard_normal[factor] = qnorm(uniform[factor], 0.0, 1.0, true, false);
+              if (!std::isfinite(standard_normal[factor])) return negative_infinity;
             }
           }
-          for (int factor = 0; factor < rank; ++factor) {
-            latent[factor] = proposals[component][factor];
-            for (int column = 0; column <= factor; ++column) {
-              latent[factor] +=
-                proposal_factors[component][factor + rank * column] *
-                standard_normal[column];
+          if (component == boundary_component) {
+            if (!boundary_proposal.draw(uniform.data(), standard_normal.data(), latent.data())) {
+              return event_unavailable();
             }
+          } else if (component == event_component) {
+            // The opposite stream supplies one extra coordinate for both the
+            // row/bin choice and its remapped truncated-normal quantile.
+            const double event_uniform = qmc_value(qmc, scrambles, max_points,
+              qmc_dimensions, scramble, design_point, declared_rank * (1 - stream));
+            if (!event_proposal.draw(event_uniform, standard_normal.data(), latent.data())) {
+              return event_unavailable();
+            }
+          } else {
+            const int gaussian = component > 0 ? component - extra_components : 0;
+            for (int factor = 0; factor < rank; ++factor) {
+              latent[factor] = proposals[gaussian][factor];
+              for (int column = 0; column <= factor; ++column) {
+                latent[factor] +=
+                  proposal_factors[gaussian][factor + rank * column] *
+                  standard_normal[column];
+              }
+            }
+          }
+          if (use_boundary) {
+            const double density = boundary_proposal.log_density(latent.data());
+            if (!std::isfinite(density)) return event_unavailable();
+            point_log_boundary[component_offset + point] = density;
+          }
+          for (int factor = 0; factor < rank; ++factor) {
             point_latent[(component_offset + point) * rank + factor] =
               latent[factor];
           }
-          const double target = factor_log_integrand(
-            context, latent.data(), nullptr
-          );
-          if (!std::isfinite(target)) return negative_infinity;
+          double target;
+          if (use_event) {
+            event_proposal.evaluate(latent.data(), &target,
+              &point_log_event[component_offset + point]);
+            const double density = point_log_event[component_offset + point];
+            if (std::isnan(target) || target == -negative_infinity ||
+                std::isnan(density) || density == -negative_infinity) {
+              return event_unavailable();
+            }
+          } else {
+            target = factor_log_integrand(context, latent.data(), nullptr);
+            if (!std::isfinite(target)) return negative_infinity;
+          }
           point_log_target[component_offset + point] = target;
         }
         for (int point = 0; point < fine_counts[component]; ++point) {
@@ -6140,19 +6539,27 @@ double cpp_selnorm_factor_step_lpdf(
           double coarse_mixture = negative_infinity;
           for (int proposal = 0; proposal < proposal_count; ++proposal) {
             if (fine_counts[proposal] == 0) continue;
-            double kernel = -proposal_log_determinants[proposal];
-            for (int factor = 0; factor < rank; ++factor) {
-              centered[factor] =
-                point_latent[(component_offset + point) * rank + factor] -
-                proposals[proposal][factor];
-              for (int column = 0; column < factor; ++column) {
-                centered[factor] -=
-                  proposal_factors[proposal][factor + rank * column] *
-                  centered[column];
+            double kernel;
+            if (proposal == boundary_component) {
+              kernel = point_log_boundary[component_offset + point];
+            } else if (proposal == event_component) {
+              kernel = point_log_event[component_offset + point];
+            } else {
+              const int gaussian = proposal > 0 ? proposal - extra_components : 0;
+              kernel = -proposal_log_determinants[gaussian];
+              for (int factor = 0; factor < rank; ++factor) {
+                centered[factor] =
+                  point_latent[(component_offset + point) * rank + factor] -
+                  proposals[gaussian][factor];
+                for (int column = 0; column < factor; ++column) {
+                  centered[factor] -=
+                    proposal_factors[gaussian][factor + rank * column] *
+                    centered[column];
+                }
+                centered[factor] /=
+                  proposal_factors[gaussian][factor + rank * factor];
+                kernel -= 0.5 * centered[factor] * centered[factor];
               }
-              centered[factor] /=
-                proposal_factors[proposal][factor + rank * factor];
-              kernel -= 0.5 * centered[factor] * centered[factor];
             }
             fine_mixture = log_add_exp(
               fine_mixture, kernel + fine_log_counts[proposal]
@@ -6176,6 +6583,15 @@ double cpp_selnorm_factor_step_lpdf(
             );
           }
         }
+      }
+      if (use_event) {
+        // Each independent scramble estimates the total normalizer. Its
+        // between-scramble variation, and the change below, include the exact
+        // baseline; neither diagnostic is relative to the correction alone.
+        scramble_log_mean[scramble] = log_add_exp(
+          event_proposal.log_baseline, scramble_log_mean[scramble]);
+        scramble_coarse_log_mean[scramble] = log_add_exp(
+          event_proposal.log_baseline, scramble_coarse_log_mean[scramble]);
       }
     }
     log_normalizer = factor_log_mean(scramble_log_mean, scrambles);
