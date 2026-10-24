@@ -318,6 +318,9 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
   // A full score-space partition with finite positive weights has finite
   // log mass. Check its coalesced boundaries without evaluating that unused
   // mass; retain the original gate for zero weights or collapsed/extreme scores.
+  // The skipped log-normalizer evaluation could also fail through rounding-level
+  // non-monotonicity of log pnorm; the telescoped value is then used. The
+  // review of this gate found that regime unreachable from fitted models.
   if (!step_positive_score_partition(omega, data, signed_mean, sd, sei, omega_stride) &&
       !std::isfinite(step_log_normalizer_score_space(
         omega, data, signed_mean, sd, sei, omega_stride
