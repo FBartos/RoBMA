@@ -59,7 +59,7 @@ DISTRIBUTION_OBJECTS = $(filter distributions/%.o,$(OBJECTS))
 $(DISTRIBUTION_OBJECTS): %.o: %.h
 RoBMA.o: $(DISTRIBUTION_OBJECTS:.o=.h) selnorm/selnorm-mv.h
 
-samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h distributions/DSELNORMMVSTEP.h selnorm/selnorm-mv.h
+samplers/CoarseCorrectedSlice.o: samplers/CoarseCorrectedSlice.h distributions/DSELNORMMVSTEP.h distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h selnorm/selnorm-mv.h
 RoBMA.o r-selnorm.o: samplers/CoarseCorrectedSlice.h
 r-selnorm.o: distributions/DSELNORMCLUSTERSTEP.h distributions/DSELNORMFACTORSTEP.h
 

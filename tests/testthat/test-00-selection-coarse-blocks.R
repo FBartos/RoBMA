@@ -314,3 +314,160 @@ test_that("the split validators refuse every invalid dynamic and control value a
       "control upper", "control qmc") %in% checked), info = name)
   }
 })
+
+
+# Fits of one cluster, one factor and one best-weight specification (Assink et
+# al. subsets) under selection.sampler = "coarse_corrected". Studies 1, 2 and 4
+# give two rank-one blocks and a singleton, studies 12, 4 and 5 one rank-two
+# block and two singletons; the best-weight rule has no product rung.
+.coarse_blocks_tiny_fit <- function(case) {
+
+  data("dat.assink2016", package = "metadat", envir = environment())
+  studies <- if (case == "factor") c(12, 4, 5) else c(1, 2, 4)
+  dat     <- dat.assink2016[dat.assink2016$study %in% studies, ]
+  dat[["study"]] <- as.integer(factor(dat[["study"]]))
+  V <- if (case == "factor") {
+    metafor::vcalc(vi, cluster = study, type = deltype, obs = esid, rho = c(.7, .5), data = dat)
+  } else {
+    metafor::vcalc(vi, cluster = study, obs = esid, rho = .6, data = dat)
+  }
+  selection <- if (case == "best") {
+    RoBMA::selection_model(weight_rule = "best", group = "study")
+  } else RoBMA::selection_model()
+  fit <- suppressWarnings(RoBMA::bselmodel.mv(
+    yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+    selection = selection, chains = 1L, adapt = 50L, burnin = 50L, sample = 100L,
+    seed = 1L, parallel = FALSE, silent = TRUE,
+    convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)))
+  list(fit = fit, samplers = fit[["fit"]][["samplers"]],
+       methods = RoBMA:::.data_selection_execution_plan(fit[["data"]])[["block_methods"]])
+}
+
+
+test_that("cluster and factor blocks give their nodes the corrected sampler", {
+
+  skip_on_cran()
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  coarse   <- "RoBMA::CoarseCorrectedSlice"
+  previous <- RoBMA::RoBMA.options()[c("selection.sampler")]
+  on.exit(do.call(RoBMA::RoBMA.options, previous), add = TRUE)
+  RoBMA::RoBMA.options(selection.sampler = "coarse_corrected")
+
+  for (case in c("cluster", "factor")) {
+    RoBMA::selection_sampler_info(clear = TRUE)
+    tiny     <- .coarse_blocks_tiny_fit(case)
+    samplers <- tiny[["samplers"]]
+    counters <- RoBMA::selection_sampler_info()
+    # a block of several rows makes its random-effect node and every global
+    # node eligible; a node with only singleton children keeps the stock sampler
+    expect_true(any(c("rank_one", "factor") %in% tiny[["methods"]]), info = case)
+    is_z <- grepl("_Zx[", samplers[["Node"]], fixed = TRUE)
+    expect_true(all(samplers[["Sampler"]][!is_z] == coarse), info = case)
+    expect_identical(sum(samplers[["Sampler"]][is_z] == coarse),
+                     sum(tiny[["methods"]] %in% c("rank_one", "factor")), info = case)
+    expect_true(all(samplers[["Sampler"]][is_z & samplers[["Sampler"]] != coarse] == "base::RealSlicer"),
+                info = case)
+    n_coarse <- sum(samplers[["Sampler"]] == coarse)
+    expect_gt(counters[["proposed"]], 0)
+    expect_identical(counters[["proposed"]] %% n_coarse, 0)
+    expect_identical(counters[["accepted"]] + counters[["correction_rejected"]],
+                     counters[["proposed"]], info = case)
+  }
+
+  # blocks without a product rung (best weight rule) are not coarse-capable
+  RoBMA::selection_sampler_info(clear = TRUE)
+  best <- .coarse_blocks_tiny_fit("best")
+  expect_true(any(c("rank_one", "factor") %in% best[["methods"]]))
+  expect_true(all(best[["samplers"]][["Sampler"]] == "base::RealSlicer"))
+  expect_identical(RoBMA::selection_sampler_info()[["proposed"]], 0)
+})
+
+
+# The node memo switch is read once per process, so each setting fits in a fresh
+# worker that loads the RoBMA under test (as in test-00-selection-node-memo.R).
+.coarse_blocks_memo_worker <- function(memo) {
+
+  withr::local_envvar(c(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep),
+                        ROBMA_SELNORM_NODE_MEMO = memo))
+  cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
+  on.exit(parallel::stopCluster(cluster), add = TRUE)
+  namespace_path <- getNamespaceInfo(asNamespace("RoBMA"), "path")
+  development    <- requireNamespace("pkgload", quietly = TRUE) &&
+    pkgload::is_dev_package("RoBMA")
+  parent_dll     <- normalizePath(getLoadedDLLs()[["RoBMA"]][["path"]],
+                                  winslash = "/", mustWork = TRUE)
+
+  fit_model <- function(paths, development, namespace_path) {
+
+    .libPaths(paths)
+    Sys.setenv(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
+    if (development) {
+      pkgload::load_all(namespace_path, compile = FALSE, helpers = FALSE, quiet = TRUE)
+    } else {
+      loadNamespace("RoBMA", lib.loc = dirname(namespace_path))
+    }
+    RoBMA::RoBMA.options(selection.sampler = "coarse_corrected")
+    RoBMA::selection_sampler_info(clear = TRUE)
+    # Five studies of the assink2016 data: four rank-one clusters and one
+    # two-factor block, so both selection nodes are evaluated.
+    data("dat.assink2016", package = "metadat", envir = environment())
+    dat <- dat.assink2016[dat.assink2016$study %in% c(2, 9, 12, 13, 15), ]
+    V   <- metafor::vcalc(vi, cluster = study, type = deltype, obs = esid,
+                          rho = c(.7, .5), data = dat)
+    fit <- suppressWarnings(RoBMA::bselmodel.mv(
+      yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+      selection = RoBMA::selection_model(estimate_random_effects = "condition"),
+      chains = 1L, adapt = 50L, burnin = 100L, sample = 200L, seed = 1L,
+      parallel = FALSE, silent = TRUE,
+      convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)
+    ))
+    list(
+      dll      = normalizePath(getLoadedDLLs()[["RoBMA"]][["path"]],
+                               winslash = "/", mustWork = TRUE),
+      memo     = Sys.getenv("ROBMA_SELNORM_NODE_MEMO", unset = "<unset>"),
+      methods  = RoBMA:::.data_selection_execution_plan(fit[["data"]])[["block_methods"]],
+      samplers = fit[["fit"]][["samplers"]][["Sampler"]],
+      counters = RoBMA::selection_sampler_info(),
+      draws    = as.data.frame(RoBMA::as_draws_df(fit))
+    )
+  }
+  environment(fit_model) <- globalenv()
+  result <- parallel::clusterCall(cluster, fit_model, .libPaths(), development,
+                                  namespace_path)[[1L]]
+  same_build <- if (.Platform$OS.type == "windows") {
+    identical(tolower(result[["dll"]]), tolower(parent_dll))
+  } else identical(result[["dll"]], parent_dll)
+  if (!same_build) {
+    stop("The memo worker loaded a different RoBMA build than the tests: worker library '",
+         result[["dll"]], "', tests '", parent_dll, "'.", call. = FALSE)
+  }
+
+  return(result)
+}
+
+
+test_that("a corrected chain draws identically with the node memo on and off", {
+
+  skip_on_cran()
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("metafor")
+
+  with_memo    <- .coarse_blocks_memo_worker("1")
+  without_memo <- .coarse_blocks_memo_worker("0")
+
+  expect_identical(with_memo[["memo"]], "1")
+  expect_identical(without_memo[["memo"]], "0")
+  expect_true(all(c("factor", "rank_one") %in% with_memo[["methods"]]))
+  # the memo holds exact densities only, so the corrected chain, which asks for
+  # them at every update, must not see any difference
+  expect_true("RoBMA::CoarseCorrectedSlice" %in% with_memo[["samplers"]])
+  expect_gt(with_memo[["counters"]][["proposed"]], 0)
+  expect_identical(with_memo[["samplers"]], without_memo[["samplers"]])
+  expect_identical(with_memo[["counters"]], without_memo[["counters"]])
+  expect_identical(dim(with_memo[["draws"]]), c(200L, ncol(with_memo[["draws"]])))
+  expect_identical(with_memo[["draws"]], without_memo[["draws"]])
+})

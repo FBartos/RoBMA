@@ -1,5 +1,8 @@
 #include "CoarseCorrectedSlice.h"
 #include "../distributions/DSELNORMMVSTEP.h"
+#include "../distributions/DSELNORMCLUSTERSTEP.h"
+#include "../distributions/DSELNORMFACTORSTEP.h"
+#include "../selnorm/selnorm.h"
 
 #include <sampler/Slicer.h>
 #include <sampler/SingletonGraphView.h>
@@ -24,9 +27,55 @@ std::atomic<std::uint64_t> coarse_proposed(0);
 std::atomic<std::uint64_t> coarse_accepted(0);
 std::atomic<std::uint64_t> coarse_correction_rejected(0);
 
+// How a stochastic child of the sampled node enters the surrogate density: a
+// selection block with a surrogate evaluator (the dense multivariate block, or a
+// cluster or factor block with a coarse rung), or an exact term.
+enum class ChildKind { other, mv, cluster, factor };
+
+// Parameter positions of the cluster and factor distributions (they share a
+// layout up to the loading): kernel mode, vector rule, quadrature orders.
+const unsigned int cluster_factor_mode = 10;
+const unsigned int cluster_factor_orders = 13;
+const unsigned int cluster_factor_rule = 19;
+
+// A cluster or factor child is coarse-capable when its fixed controls allow a
+// coarse rung: the product vector rule, a kernel mode not fixed at NORMAL, and,
+// for a factor block, rule min(max_rules, rules) of its schedule affordable at
+// the uncompacted rank (a compacted block or a forest only costs less). The
+// decision reads fixed parents only, so it is the same in every chain. Any
+// other cluster or factor child stays an exact term.
+ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings const &settings)
+{
+  Distribution const *distribution = child->distribution();
+  if (dynamic_cast<DSELNORMMVSTEP const *>(distribution) != nullptr) return ChildKind::mv;
+  const bool cluster = dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution) != nullptr;
+  const bool factor = !cluster && dynamic_cast<DSELNORMFACTORSTEP const *>(distribution) != nullptr;
+  if (!cluster && !factor) return ChildKind::other;
+  std::vector<Node const *> const &parents = child->parents();
+  if (parents.size() < distribution->npar()) return ChildKind::other;
+  Node const *rule = parents[cluster_factor_rule];
+  if (!rule->isFixed() || rule->value(0)[0] != SELVECTOR_PRODUCT) return ChildKind::other;
+  Node const *mode = parents[cluster_factor_mode];
+  if (mode->isFixed() && mode->value(0)[0] == SELKERNEL_NORMAL) return ChildKind::other;
+  Node const *orders = parents[cluster_factor_orders];
+  if (!orders->isFixed() || orders->length() < 1) return ChildKind::other;
+  if (factor) {
+    const unsigned int rank = parents[2]->length() / parents[0]->length();
+    const unsigned int rung = std::min(settings.max_rules, orders->length());
+    if (rung < 1 || !selnorm_factor_rule_affordable(
+          static_cast<int>(orders->value(0)[rung - 1]), static_cast<int>(rank))) {
+      return ChildKind::other;
+    }
+  }
+  return cluster ? ChildKind::cluster : ChildKind::factor;
+}
+
 struct SelectedChild {
   StochasticNode *node;
-  DSELNORMMVSTEP const *distribution;
+  ChildKind kind;
+  DSELNORMMVSTEP const *mv = nullptr;
+  DSELNORMCLUSTERSTEP const *cluster = nullptr;
+  DSELNORMFACTORSTEP const *factor = nullptr;
   std::vector<Node const *> parents;
   std::vector<unsigned int> lengths;
   mutable std::vector<double const *> parameters;
@@ -34,10 +83,25 @@ struct SelectedChild {
   mutable bool controls_checked = false;
   mutable bool controls_valid = false;
 
-  SelectedChild(StochasticNode *child, DSELNORMMVSTEP const *dist)
-    : node(child), distribution(dist)
+  // The parents that may change during sampling: mean, covariance (residual SD
+  // and loadings), weights and kernel mode. Everything else is a control.
+  static bool dynamic_parent(ChildKind kind, unsigned int i)
   {
-    const unsigned int count = dist->npar();
+    if (kind == ChildKind::mv) return i == 0 || i == 1 || i == 3 || i == 9;
+    return i == 0 || i == 1 || i == 2 || i == 4 || i == 10;
+  }
+
+  SelectedChild(StochasticNode *child, ChildKind child_kind)
+    : node(child), kind(child_kind)
+  {
+    Distribution const *distribution = child->distribution();
+    if (kind == ChildKind::mv) mv = dynamic_cast<DSELNORMMVSTEP const *>(distribution);
+    else if (kind == ChildKind::cluster) cluster = dynamic_cast<DSELNORMCLUSTERSTEP const *>(distribution);
+    else if (kind == ChildKind::factor) factor = dynamic_cast<DSELNORMFACTORSTEP const *>(distribution);
+    if (mv == nullptr && cluster == nullptr && factor == nullptr) {
+      throw std::logic_error("Selection child has no surrogate evaluator.");
+    }
+    const unsigned int count = distribution->npar();
     if (child->parents().size() < count) {
       throw std::logic_error("Selection child is missing distribution parameters.");
     }
@@ -47,11 +111,41 @@ struct SelectedChild {
     parameters.resize(count);
     for (unsigned int i = 0; i < count; ++i) {
       lengths[i] = parents[i]->length();
-      // Only mean, covariance, weights, and kernel mode remain dynamic.
-      if (i != 0 && i != 1 && i != 3 && i != 9 && !parents[i]->isFixed()) {
+      if (!dynamic_parent(kind, i) && !parents[i]->isFixed()) {
         controls_fixed = false;
       }
     }
+  }
+
+  bool checkControl() const
+  {
+    if (mv != nullptr) return mv->checkControlParameterValue(parameters, lengths);
+    if (cluster != nullptr) return cluster->checkControlParameterValue(parameters, lengths);
+    return factor->checkControlParameterValue(parameters, lengths);
+  }
+
+  bool checkDynamic() const
+  {
+    if (mv != nullptr) return mv->checkDynamicParameterValue(parameters, lengths);
+    if (cluster != nullptr) return cluster->checkDynamicParameterValue(parameters, lengths);
+    return factor->checkDynamicParameterValue(parameters, lengths);
+  }
+
+  double surrogate(unsigned int chain, SelNormCoarseSettings const &settings) const
+  {
+    double const *x = node->value(chain);
+    double const *lower = node->lowerLimit(chain);
+    double const *upper = node->upperLimit(chain);
+    if (mv != nullptr) {
+      return mv->surrogateLogDensity(x, node->length(), PDF_LIKELIHOOD, parameters,
+                                     lengths, lower, upper, settings);
+    }
+    if (cluster != nullptr) {
+      return cluster->surrogateLogDensity(x, node->length(), PDF_LIKELIHOOD, parameters,
+                                          lengths, lower, upper, settings);
+    }
+    return factor->surrogateLogDensity(x, node->length(), PDF_LIKELIHOOD, parameters,
+                                       lengths, lower, upper, settings);
   }
 
   double logDensity(unsigned int chain, SelNormCoarseSettings const &settings) const
@@ -64,19 +158,16 @@ struct SelectedChild {
       // The first surrogate call follows initialized-graph checkFinite().
       // This certificate belongs to one SelectedChild in one chain's sampler.
       if (!controls_checked) {
-        controls_valid = distribution->checkControlParameterValue(parameters, lengths);
+        controls_valid = checkControl();
         controls_checked = true;
       }
-      valid = controls_valid && distribution->checkDynamicParameterValue(parameters, lengths);
+      valid = controls_valid && checkDynamic();
     } else {
       // Any nonfixed control retains the complete original node gate.
       valid = node->checkParentValues(chain);
     }
     if (!valid) return -std::numeric_limits<double>::infinity();
-    return distribution->surrogateLogDensity(
-      node->value(chain), node->length(), PDF_LIKELIHOOD, parameters, lengths,
-      node->lowerLimit(chain), node->upperLimit(chain), settings
-    );
+    return surrogate(chain, settings);
   }
 };
 
@@ -97,9 +188,8 @@ public:
       _surrogate_valid(false), _surrogate_value(0.0)
   {
     for (StochasticNode *child : graph->stochasticChildren()) {
-      DSELNORMMVSTEP const *dist =
-        dynamic_cast<DSELNORMMVSTEP const *>(child->distribution());
-      if (dist != nullptr) _selected.emplace_back(child, dist);
+      const ChildKind kind = child_kind(child, settings);
+      if (kind != ChildKind::other) _selected.emplace_back(child, kind);
       else _other.push_back(child);
     }
     if (_selected.empty()) throw std::logic_error("Corrected slice has no selection child.");
@@ -193,10 +283,13 @@ public:
   }
 };
 
-bool hasSelectionChild(SingletonGraphView const &graph)
+// A node is eligible when at least one child has a surrogate evaluator, so a
+// node whose blocks would all fall back to the exact density keeps its stock
+// sampler instead of paying two exact evaluations per update.
+bool hasSelectionChild(SingletonGraphView const &graph, SelNormCoarseSettings const &settings)
 {
   for (StochasticNode *child : graph.stochasticChildren()) {
-    if (dynamic_cast<DSELNORMMVSTEP const *>(child->distribution()) != nullptr) return true;
+    if (child_kind(child, settings) != ChildKind::other) return true;
   }
   return false;
 }
@@ -240,7 +333,7 @@ std::vector<Sampler *> CoarseCorrectedSliceFactory::makeSamplers(
       if (node->length() != 1 || node->isDiscreteValued() || node->df() == 0 ||
           isObserved(node)) continue;
       std::unique_ptr<SingletonGraphView> view(new SingletonGraphView(node, graph));
-      if (!hasSelectionChild(*view)) continue;
+      if (!hasSelectionChild(*view, config.settings)) continue;
       std::vector<std::unique_ptr<MutableSampleMethod> > owned_methods;
       std::vector<MutableSampleMethod *> methods;
       for (unsigned int chain = 0; chain < node->nchain(); ++chain) {
