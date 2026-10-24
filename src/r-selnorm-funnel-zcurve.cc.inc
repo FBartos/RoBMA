@@ -65,14 +65,34 @@ extern "C" SEXP RoBMA_zcurve_normal_density_matrix(
   ROBMA_NATIVE_END
 }
 
-extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
+// The old quadrature controller performs these operations as R vectors: each
+// product rounds before the next addition, and NA takes precedence over NaN.
+static double zcurve_r_product(double left, double right)
+{
+  if ((std::isnan(left) || std::isnan(right)) && (R_IsNA(left) || R_IsNA(right))) {
+    return NA_REAL;
+  }
+  const volatile double value = left * right;
+  return value;
+}
+
+static double zcurve_r_sum(double left, double right)
+{
+  if ((std::isnan(left) || std::isnan(right)) && (R_IsNA(left) || R_IsNA(right))) {
+    return NA_REAL;
+  }
+  return left + right;
+}
+
+static SEXP zcurve_threshold_summary(
   SEXP z_threshold, SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha,
   SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
   SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
   SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
-  SEXP extrapolate, SEXP telescope_probabilities)
+  SEXP extrapolate, SEXP telescope_probabilities,
+  SEXP mean_extrapolated, SEXP latent_sd, SEXP nodes, SEXP node_weights,
+  SEXP fitted_only)
 {
-  ROBMA_NATIVE_BEGIN(z_threshold, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, extrapolate, telescope_probabilities)
   check_real(z_threshold, "z_threshold");
   check_real(mean, "mean");
   check_real(sd, "sd");
@@ -138,15 +158,41 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
     Rf_error("Segment arrays have incompatible lengths.");
   }
 
+  const bool quadrature = nodes != R_NilValue;
+  bool fitted_only_b = false;
+  int n_nodes = 1;
+  if (quadrature) {
+    check_real(mean_extrapolated, "mean_extrapolated");
+    check_real(latent_sd, "latent_sd");
+    check_real(nodes, "nodes");
+    check_real(node_weights, "node_weights");
+    check_logical(fitted_only, "fitted_only");
+    validate_matrix_dims_named(mean_extrapolated, "mean_extrapolated", S, K, "mean");
+    validate_matrix_dims_named(latent_sd, "latent_sd", S, K, "mean");
+    n_nodes = Rf_length(nodes);
+    if (n_nodes < 1 || Rf_length(node_weights) != n_nodes) {
+      Rf_error("'nodes' and 'node_weights' must have the same positive length.");
+    }
+    if (Rf_length(fitted_only) != 1 || LOGICAL(fitted_only)[0] == NA_LOGICAL) {
+      Rf_error("'fitted_only' must be TRUE or FALSE.");
+    }
+    fitted_only_b = LOGICAL(fitted_only)[0] == TRUE;
+  }
+
   SEXP out_edr = PROTECT(Rf_allocVector(REALSXP, S));
   SEXP out_weights = PROTECT(Rf_allocVector(REALSXP, S));
-  SEXP out = PROTECT(Rf_allocVector(VECSXP, 2));
-  SEXP names = PROTECT(Rf_allocVector(STRSXP, 2));
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, quadrature ? 3 : 2));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, quadrature ? 3 : 2));
+  SEXP out_extrapolated = PROTECT(quadrature ? Rf_allocVector(REALSXP, S) : R_NilValue);
 
-  SET_STRING_ELT(names, 0, Rf_mkChar("EDR"));
+  SET_STRING_ELT(names, 0, Rf_mkChar(quadrature ? "fitted" : "EDR"));
   SET_STRING_ELT(names, 1, Rf_mkChar("weights"));
   SET_VECTOR_ELT(out, 0, out_edr);
   SET_VECTOR_ELT(out, 1, out_weights);
+  if (quadrature) {
+    SET_STRING_ELT(names, 2, Rf_mkChar("extrapolated"));
+    SET_VECTOR_ELT(out, 2, out_extrapolated);
+  }
   Rf_setAttrib(out, R_NamesSymbol, names);
 
   SelNormKernelData data;
@@ -168,6 +214,11 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   const bool extrapolate_b = LOGICAL(extrapolate)[0] == TRUE;
   double *edr_p          = REAL(out_edr);
   double *weights_p      = REAL(out_weights);
+  const double *mean_ext_p = quadrature ? REAL(mean_extrapolated) : nullptr;
+  const double *latent_p = quadrature ? REAL(latent_sd) : nullptr;
+  const double *nodes_p = quadrature ? REAL(nodes) : nullptr;
+  const double *node_weights_p = quadrature ? REAL(node_weights) : nullptr;
+  double *ext_p = quadrature ? REAL(out_extrapolated) : nullptr;
 
   validate_omega_matrix(omega_p, S, B);
 
@@ -225,11 +276,9 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
   // row keeps its serial accumulation order and writes only its own EDR and
   // weight slot.
   const RobmaRowSchedule schedule = robma_row_schedule(
-    S, static_cast<double>(K) * B);
+    S, static_cast<double>(K) * B * n_nodes * (quadrature && !fitted_only_b ? 2 : 1));
   const auto compute_row = [&](int s) {
     robma_parallel::SerialWork row_work(schedule.threads <= 1);
-    double threshold_sum = 0;
-    double weight_sum = 0;
     struct ThresholdCache {
       double mean = std::numeric_limits<double>::quiet_NaN();
       double sd = std::numeric_limits<double>::quiet_NaN();
@@ -237,91 +286,161 @@ extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
       double inverse_weight = 0;
     };
     std::vector<ThresholdCache> cache(n_sei_groups);
+    const auto compute_node = [&](const double *location_p, double node, bool extrapolated) {
+      double threshold_sum = 0;
+      double weight_sum = 0;
+      if (quadrature) std::fill(cache.begin(), cache.end(), ThresholdCache{});
+      for (int k = 0; k < K; ++k) {
+        row_work.add(static_cast<double>(B));
+        const int cell = s + S * k;
+        double location = location_p[cell];
+        if (quadrature) {
+          // R materializes latent_sd * node before adding mean. Keep its double
+          // rounding even on compilers that can contract a multiply and add.
+          const double offset = zcurve_r_product(latent_p[cell], node);
+          location = zcurve_r_sum(location, offset);
+        }
+        const int group = sei_group[k];
+        double inverse_weight = 1;
+        double threshold_prob;
 
-    for (int k = 0; k < K; ++k) {
-      row_work.add(static_cast<double>(B));
-      const int cell = s + S * k;
-      const int group = sei_group[k];
-      double inverse_weight = 1;
-      double threshold_prob;
+        if (group >= 0 && cache[group].mean == location && cache[group].sd == sd_p[cell]) {
+          threshold_prob = cache[group].probability;
+          inverse_weight = cache[group].inverse_weight;
+        } else if (row_active_phack[static_cast<size_t>(s)]) {
+          threshold_prob = NA_REAL;
+          inverse_weight = NA_REAL;
+        } else if (row_use_step[static_cast<size_t>(s)] && extrapolated) {
+          double unused_inverse;
+          threshold_prob = cpp_selnorm_kernel_threshold(
+            threshold,
+            location,
+            sd_p[cell],
+            sei_p[k],
+            omega_p + s,
+            row_alpha[static_cast<size_t>(s)],
+            row_phack[static_cast<size_t>(s)],
+            SELKERNEL_NORMAL,
+            data,
+            &unused_inverse,
+            S,
+            false
+          );
 
-      if (group >= 0 && cache[group].mean == mean_p[cell] && cache[group].sd == sd_p[cell]) {
-        threshold_prob = cache[group].probability;
-        inverse_weight = cache[group].inverse_weight;
-      } else if (row_active_phack[static_cast<size_t>(s)]) {
-        threshold_prob = NA_REAL;
-        inverse_weight = NA_REAL;
-      } else if (row_use_step[static_cast<size_t>(s)] && extrapolate_b) {
-        double unused_inverse;
-        threshold_prob = cpp_selnorm_kernel_threshold(
-          threshold,
-          mean_p[cell],
-          sd_p[cell],
-          sei_p[k],
-          omega_p + s,
-          row_alpha[static_cast<size_t>(s)],
-          row_phack[static_cast<size_t>(s)],
-          SELKERNEL_NORMAL,
-          data,
-          &unused_inverse,
-          S,
-          false
-        );
+          const double log_norm = cpp_selnorm_kernel_log_norm(
+            location,
+            sd_p[cell],
+            sei_p[k],
+            omega_p + s,
+            row_alpha[static_cast<size_t>(s)],
+            row_phack[static_cast<size_t>(s)],
+            row_mode[static_cast<size_t>(s)],
+            data,
+            S,
+            false
+          );
+          inverse_weight = std::isfinite(log_norm) ?
+            std::exp(-log_norm) : NA_REAL;
+        } else {
+          threshold_prob = cpp_selnorm_kernel_threshold(
+            threshold,
+            location,
+            sd_p[cell],
+            sei_p[k],
+            omega_p + s,
+            row_alpha[static_cast<size_t>(s)],
+            row_phack[static_cast<size_t>(s)],
+            row_mode[static_cast<size_t>(s)],
+            data,
+            &inverse_weight,
+            S,
+            false
+          );
+        }
 
-        const double log_norm = cpp_selnorm_kernel_log_norm(
-          mean_p[cell],
-          sd_p[cell],
-          sei_p[k],
-          omega_p + s,
-          row_alpha[static_cast<size_t>(s)],
-          row_phack[static_cast<size_t>(s)],
-          row_mode[static_cast<size_t>(s)],
-          data,
-          S,
-          false
-        );
-        inverse_weight = std::isfinite(log_norm) ?
-          std::exp(-log_norm) : NA_REAL;
-      } else {
-        threshold_prob = cpp_selnorm_kernel_threshold(
-          threshold,
-          mean_p[cell],
-          sd_p[cell],
-          sei_p[k],
-          omega_p + s,
-          row_alpha[static_cast<size_t>(s)],
-          row_phack[static_cast<size_t>(s)],
-          row_mode[static_cast<size_t>(s)],
-          data,
-          &inverse_weight,
-          S,
-          false
-        );
+        if (group >= 0 && std::isfinite(location) &&
+            sd_p[cell] > 0 && std::isfinite(sd_p[cell]) &&
+            std::isfinite(threshold_prob) && std::isfinite(inverse_weight)) {
+          cache[group] = {location, sd_p[cell], threshold_prob, inverse_weight};
+        }
+
+        if (extrapolated) {
+          threshold_sum += threshold_prob * inverse_weight;
+        } else {
+          threshold_sum += threshold_prob;
+        }
+        weight_sum += inverse_weight;
       }
+      return std::make_pair(extrapolated ? threshold_sum / weight_sum : threshold_sum / K,
+                            weight_sum / K);
+    };
 
-      if (group >= 0 && std::isfinite(mean_p[cell]) &&
-          sd_p[cell] > 0 && std::isfinite(sd_p[cell]) &&
-          std::isfinite(threshold_prob) && std::isfinite(inverse_weight)) {
-        cache[group] = {mean_p[cell], sd_p[cell], threshold_prob, inverse_weight};
-      }
-
-      if (extrapolate_b) {
-        threshold_sum += threshold_prob * inverse_weight;
-      } else {
-        threshold_sum += threshold_prob;
-      }
-      weight_sum += inverse_weight;
+    if (!quadrature) {
+      const auto value = compute_node(mean_p, 0, extrapolate_b);
+      edr_p[s] = value.first;
+      weights_p[s] = value.second;
+      return;
     }
-
-    edr_p[s] = extrapolate_b ? threshold_sum / weight_sum : threshold_sum / K;
-    weights_p[s] = weight_sum / K;
+    double fitted = 0, extrapolated = 0, weights = 0;
+    for (int j = 0; j < n_nodes; ++j) {
+      const auto fit = compute_node(mean_p, nodes_p[j], false);
+      const double fitted_increment = zcurve_r_product(node_weights_p[j], fit.first);
+      fitted = zcurve_r_sum(fitted, fitted_increment);
+      if (!fitted_only_b) {
+        const auto ext = compute_node(mean_ext_p, nodes_p[j], true);
+        // Preserve the original left-to-right R node reduction, including the
+        // EDR division and subsequent multiplication by the mean weight.
+        const double weighted_edr = zcurve_r_product(node_weights_p[j], ext.first);
+        const double ext_increment = zcurve_r_product(weighted_edr, ext.second);
+        const double weight_increment = zcurve_r_product(node_weights_p[j], ext.second);
+        extrapolated = zcurve_r_sum(extrapolated, ext_increment);
+        weights = zcurve_r_sum(weights, weight_increment);
+      }
+    }
+    edr_p[s] = fitted;
+    weights_p[s] = weights;
+    ext_p[s] = extrapolated;
   };
 
   // One threshold or log-normalizer evaluation per observation and bin.
   robma_parallel::for_rows(S, schedule, compute_row);
 
-  UNPROTECT(4);
+  UNPROTECT(5);
   return out;
+}
+
+extern "C" SEXP RoBMA_selnorm_zcurve_threshold_summary(
+  SEXP z_threshold, SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP extrapolate, SEXP telescope_probabilities)
+{
+  ROBMA_NATIVE_BEGIN(z_threshold, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, extrapolate, telescope_probabilities)
+  return zcurve_threshold_summary(z_threshold, mean, sd, sei, omega, alpha,
+    phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source,
+    phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region,
+    extrapolate, telescope_probabilities, R_NilValue, R_NilValue, R_NilValue,
+    R_NilValue, R_NilValue);
+  ROBMA_NATIVE_END
+}
+
+extern "C" SEXP RoBMA_selnorm_zcurve_threshold_quadrature(
+  SEXP z_threshold, SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP extrapolate, SEXP telescope_probabilities,
+  SEXP mean_extrapolated, SEXP latent_sd, SEXP nodes, SEXP node_weights,
+  SEXP fitted_only)
+{
+  ROBMA_NATIVE_BEGIN(z_threshold, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, extrapolate, telescope_probabilities, mean_extrapolated, latent_sd, nodes, node_weights, fitted_only)
+  check_real(nodes, "nodes");
+  return zcurve_threshold_summary(z_threshold, mean, sd, sei, omega, alpha,
+    phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source,
+    phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region,
+    extrapolate, telescope_probabilities, mean_extrapolated, latent_sd, nodes,
+    node_weights, fitted_only);
   ROBMA_NATIVE_END
 }
 

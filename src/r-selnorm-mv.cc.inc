@@ -2139,6 +2139,82 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
     }
     bounded_cdf = LOGICAL(cdf_policy)[0] == TRUE;
   }
+  // Optional R-owned raw-rule storage. Copy bare numeric key values so node
+  // attributes cannot retain the cache recursively or mutate its identity.
+  SEXP input_cache = Rf_getAttrib(nodes, Rf_install("context_rule_cache"));
+  SEXP cache_budget = Rf_getAttrib(nodes, Rf_install("context_rule_cache_budget"));
+  SEXP output_cache = R_NilValue;
+  int cache_protect = 0;
+  const double *cached_rules = nullptr;
+  double *saved_rules = nullptr;
+  if (input_cache != R_NilValue || cache_budget != R_NilValue) {
+    double budget = 0.0;
+    if (cache_budget != R_NilValue) {
+      if (TYPEOF(cache_budget) != REALSXP || XLENGTH(cache_budget) != 1 ||
+          !std::isfinite(REAL(cache_budget)[0]) || REAL(cache_budget)[0] < 0) {
+        Rf_error("Context rule cache budget must be finite and nonnegative.");
+      }
+      budget = std::min(REAL(cache_budget)[0], 128.0 * 1024 * 1024);
+    }
+    SEXP inputs[] = {means, covariance_lower, selection_se, omega, lower, upper,
+      context_log_weights, nodes, log_weights};
+    double key_count = 8;
+    for (SEXP input : inputs) key_count += XLENGTH(input);
+    const double count = static_cast<double>(contexts) *
+      (1.0 + static_cast<double>(k) * order * (static_cast<double>(order) + 1.0));
+    // Include conservative structural overhead before copying even the key.
+    // An exhausted budget without a candidate uses the original workspace.
+    const bool can_store = (count + key_count) * sizeof(double) + 1024 <= budget;
+    std::vector<double> key;
+    if (input_cache != R_NilValue || can_store) {
+      key = {1.0, static_cast<double>(contexts), static_cast<double>(k),
+        static_cast<double>(bins), static_cast<double>(order), static_cast<double>(INTEGER(sign)[0]),
+        static_cast<double>(LOGICAL(telescope)[0]), static_cast<double>(bounded_cdf)};
+      key.reserve(static_cast<std::size_t>(key_count));
+      for (SEXP input : inputs) key.insert(key.end(), REAL(input), REAL(input) + XLENGTH(input));
+    }
+    if (input_cache != R_NilValue) {
+      if (TYPEOF(input_cache) != VECSXP || XLENGTH(input_cache) != 2 ||
+          TYPEOF(VECTOR_ELT(input_cache, 0)) != REALSXP ||
+          TYPEOF(VECTOR_ELT(input_cache, 1)) != REALSXP) {
+        Rf_error("Context rule cache must contain numeric key and payload vectors.");
+      }
+      SEXP old_key = VECTOR_ELT(input_cache, 0), values = VECTOR_ELT(input_cache, 1);
+      // A valid cache from another shape is simply a miss. Only a matching
+      // key permits interpretation of its payload in the current layout.
+      if (XLENGTH(old_key) == static_cast<R_xlen_t>(key.size()) &&
+          std::memcmp(REAL(old_key), key.data(), key.size() * sizeof(double)) == 0) {
+        if (static_cast<double>(XLENGTH(values)) != count) {
+          Rf_error("Context rule cache payload is invalid.");
+        }
+        // A zero raw row probability has log -Inf. Keep it rather than
+        // rescaling or dropping that component; every complete raw A is finite.
+        for (R_xlen_t index = 0; index < XLENGTH(values); ++index) {
+          if (std::isnan(REAL(values)[index]) || REAL(values)[index] == R_PosInf)
+            Rf_error("Context rule cache payload is invalid.");
+        }
+        const R_xlen_t stride = XLENGTH(values) / contexts;
+        for (int context = 0; context < contexts; ++context) {
+          if (!std::isfinite(REAL(values)[context * stride]))
+            Rf_error("Context rule cache raw normalizers are invalid.");
+        }
+        cached_rules = REAL(values);
+        output_cache = input_cache;
+      }
+    }
+    // The extra 1024 bytes cover list/vector headers and returned attributes;
+    // the R owner also checks actual object.size before retaining the entry.
+    if (cached_rules == nullptr && can_store) {
+      SEXP key_values = PROTECT(Rf_allocVector(REALSXP, key.size())); ++cache_protect;
+      SEXP values = PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(count))); ++cache_protect;
+      output_cache = PROTECT(Rf_allocVector(VECSXP, 2)); ++cache_protect;
+      std::copy(key.begin(), key.end(), REAL(key_values));
+      std::fill_n(REAL(values), static_cast<std::size_t>(count), 0.0);
+      SET_VECTOR_ELT(output_cache, 0, key_values);
+      SET_VECTOR_ELT(output_cache, 1, values);
+      saved_rules = REAL(values);
+    }
+  }
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 6));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
   SEXP density = PROTECT(Rf_allocVector(REALSXP, size));
@@ -2187,7 +2263,7 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
       log_normalizers == R_NilValue ? nullptr : REAL(log_normalizers),
       REAL(context_log_weights), REAL(nodes), REAL(log_weights), order,
       REAL(z), size, REAL(allowance)[0], REAL(density), &mass, &error, &components, REAL(compact),
-      bounded_cdf, REAL(cdf_factor), &omitted_mass_error, star_threads);
+      bounded_cdf, REAL(cdf_factor), &omitted_mass_error, star_threads, cached_rules, saved_rules);
   } catch (const std::exception &exception) {
     std::strncpy(error_message, exception.what(), sizeof(error_message) - 1);
   }
@@ -2215,7 +2291,13 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
   Rf_setAttrib(compact, Rf_install("cdf_factor_log_error"), cdf_factor);
   Rf_setAttrib(compact, Rf_install("cdf_log_error"), cdf_mass);
   Rf_setAttrib(compact, Rf_install("cdf_numerator_log_error"), cdf_numerator);
-  UNPROTECT(9);
+  if (available && output_cache != R_NilValue) {
+    Rf_setAttrib(result, Rf_install("context_rule_cache"), output_cache);
+    SEXP hit = PROTECT(Rf_ScalarLogical(cached_rules != nullptr));
+    Rf_setAttrib(result, Rf_install("context_rule_cache_hit"), hit);
+    UNPROTECT(1);
+  }
+  UNPROTECT(9 + cache_protect);
   return result;
   ROBMA_NATIVE_END
 }

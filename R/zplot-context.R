@@ -149,8 +149,9 @@
 # retained Gaussian factors. NULL delegates this cell to the existing full-event
 # implementation; no alternative target, partial result or false pass is returned.
 # Point contexts projected in one call. Each carries its own mixture over the
-# inner rules, so the native work and memory of a call grow with the batch;
-# this keeps a 22-row block near 40 MB per call.
+# inner rules, so the native work and memory of a call grow with the batch.
+# Nonsingleton children require order^2 components per row and context; at
+# order 31, 512 contexts and 22 rows, means and coefficients alone use 165 MiB.
 .zplot_context_batch_size <- function() 512L
 
 
@@ -271,6 +272,12 @@
   results <- new.env(parent = emptyenv())
   normalizers <- new.env(parent = emptyenv())
   rules <- new.env(parent = emptyenv())
+  raw_rules <- new.env(parent = emptyenv())
+  raw_rule_bytes <- 0
+  raw_rule_budget <- 128 * 1024^2
+  # Retain raw nested-child rules only for the expensive point-context batches.
+  # Single-group/continuous-context calls keep their small original workspace.
+  cache_raw_rules <- point_context && integration_rank > 1L
   # The two allowances take a handful of values per cell, so their exact keys
   # are written when they change instead of on every memo lookup.
   allowance_key <- NULL
@@ -426,10 +433,16 @@
     value[largest == -Inf] <- -Inf
     value
   }
-  native_nodes <- function(quadrature) {
+  native_nodes <- function(quadrature, key = NULL) {
 
     value <- as.double(quadrature$nodes)
     attr(value, "bounded_cdf") <- cdf_enabled
+    if (cache_raw_rules && !is.null(key)) {
+      if (exists(key, raw_rules, inherits = FALSE)) {
+        attr(value, "context_rule_cache") <- get(key, raw_rules, inherits = FALSE)
+      }
+      attr(value, "context_rule_cache_budget") <- as.double(raw_rule_budget - raw_rule_bytes)
+    }
     value
   }
   cdf_record <- function(value, contexts) {
@@ -504,15 +517,26 @@
     keep <- pruned$keep
     context_weights <- table$rule$log_weights
     context_weights[-keep] <- -Inf
+    raw_key <- paste(outer_order, inner_order, cdf_enabled, pruning_key, sep = "/")
     # Both numerator rules receive exactly the same context-specific D.
     # The explicit post-fit policy is carried only on this native node vector.
     out <- .Call("RoBMA_selnorm_context_star_zplot", table$means,
       packed, sei, omega,
       static$z_lower, static$z_upper, as.integer(static$sign),
       as.logical(static$telescope_probabilities), if (own_normalizer) NULL else as.double(log_D),
-      as.double(context_weights), native_nodes(inner), as.double(inner$log_weights),
+      as.double(context_weights), native_nodes(inner, raw_key), as.double(inner$log_weights),
       as.double(z), as.double(allowance), PACKAGE = "RoBMA")
     if (!isTRUE(out$available)) return(NULL)
+    raw <- attr(out, "context_rule_cache", exact = TRUE)
+    if (!is.null(raw) && !isTRUE(attr(out, "context_rule_cache_hit", exact = TRUE))) {
+      bytes <- as.double(utils::object.size(raw))
+      if (bytes <= raw_rule_budget - raw_rule_bytes) {
+        previous_bytes <- if (exists(raw_key, raw_rules, inherits = FALSE))
+          as.double(utils::object.size(get(raw_key, raw_rules, inherits = FALSE))) else 0
+        assign(raw_key, raw, raw_rules)
+        raw_rule_bytes <<- raw_rule_bytes - previous_bytes + bytes
+      }
+    }
     omitted_mass <- component_omission(out$compression_error)
     if (allowance == 0 && omitted_mass != 0) {
       stop("Zplot mixture omission diagnostics are inconsistent.", call. = FALSE)

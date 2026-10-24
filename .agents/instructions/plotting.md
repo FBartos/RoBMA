@@ -173,3 +173,15 @@ checks do not replace visual regression. See `testing.md`.
 
 Current split implementations live in `R/funnel-*.R`, `R/regplot-*.R`, and
 `R/zplot-*.R`. Inspect the current family before adding files or helpers.
+
+Direct zplots share validation and metadata preparation with `as_zplot()` but
+do not compute undisplayed summaries. Explicit `as_zplot()` objects retain their
+full summaries; custom `as_zplot()` conversions retain generic dispatch.
+`summary_max_samples` remains validated for compatibility in direct plotting.
+Figure-specific numerical failures still propagate.
+
+Point-context raw-rule caches are local to one projection controller and keyed
+by the complete original inputs and numerical policy. Reuse raw rule quantities,
+not normalized or compressed curves under a changed denominator. Preserve the
+original coefficient arithmetic, raw masses and complete error ledger; a memory
+cap or stale key returns to the uncached computation without relaxing checks.

@@ -1,4 +1,10 @@
 ## version 4.1.0 (IN PROGRESS)
+- Selected zplot summaries batch threshold quadrature in native code and reuse
+  identical transition checks, preserving node order and numerical results.
+  Context densities reuse exact probability logarithms and raw rule ingredients
+  across denominator refinement, with a bounded local cache and the original
+  error checks. Threaded mixture construction avoids retaining two full copies
+  of the component arrays. Numerical budgets and statistical targets are unchanged.
 - Direct `zplot()` calls prepare the figure without computing undisplayed EDR
   or missing-study summaries. `as_zplot()` and explicit summaries retain their
   calculations; direct plots retain their figure-specific checks and no longer

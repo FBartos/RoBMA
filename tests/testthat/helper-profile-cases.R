@@ -92,6 +92,7 @@ required_native_test_symbols <- function() {
     "RoBMA_plot_normal_mixture_quantiles",
     "RoBMA_plot_selnorm_mixture_quantiles",
     "RoBMA_selnorm_zcurve_threshold_summary",
+    "RoBMA_selnorm_zcurve_threshold_quadrature",
     "RoBMA_selnorm_zcurve_density_matrix"
   )
 }

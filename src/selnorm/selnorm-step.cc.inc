@@ -339,7 +339,9 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
   for (int i = 0; i < 2; ++i) {
     q_score[i] = stable_affine_score(q_z[i], sei, signed_mean, sd);
     tail_q[i]  = tail_at(q_score[i], 0, 1);
-    cdf_q[i]   = cdf_at(q_score[i], 0, 1);
+    // The upper-tail query never consumes its lower tail. For a unit normal,
+    // finite tail_q also establishes that the unused lower tail is finite.
+    cdf_q[i]   = signed_lower_tail[i] ? cdf_at(q_score[i], 0, 1) : 0;
     if (!std::isfinite(tail_q[i]) || !std::isfinite(cdf_q[i])) {
       return false;
     }
@@ -363,7 +365,15 @@ bool step_cdf_pair_trusted_telescoping(const double *omega,
     const double boundary_score = stable_affine_score(
       data.z_lower[b], sei, signed_mean, sd
     );
-    const double tail_boundary = tail_at(boundary_score, 0, 1);
+    // Significance queries often coincide exactly with a selection boundary.
+    // Reuse only the same score, including its zero sign, so every subsequent
+    // multiplication and accumulation remains unchanged.
+    const bool first_query = boundary_score == q_score[0] &&
+      std::signbit(boundary_score) == std::signbit(q_score[0]);
+    const bool second_query = boundary_score == q_score[1] &&
+      std::signbit(boundary_score) == std::signbit(q_score[1]);
+    const double tail_boundary = first_query ? tail_q[0] :
+      second_query ? tail_q[1] : tail_at(boundary_score, 0, 1);
     const double norm_contrib  = diff * tail_boundary;
     normalizer += norm_contrib;
     norm_abs   += std::abs(norm_contrib);

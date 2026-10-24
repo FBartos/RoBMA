@@ -214,15 +214,23 @@ double cluster_rule_log_integral(const ClusterNormalizerContext &context,
       }
       // Replay every original row in its original position. No power or
       // multiplicity regrouping changes the product's rounding order.
+      long double previous_probability = -1.0L;
+      double previous_log_probability = 0.0;
       for (int j = 0; j < order; ++j) {
         products[j] *= probability[j];
         if (projection != nullptr) {
           projection->means[static_cast<std::size_t>(i) * order + j] = means[j];
           // Equal row geometry already shares probability[]. Its logarithm
           // is identical too; retain the original product replay and row order.
+          // Consecutive tail nodes can also have exactly the same probability.
+          // Reuse that evaluated long-double logarithm, not a rescaled value.
+          const bool repeated = probability[j] == previous_probability;
           const double log_probability = cached ?
             scratch.projection_log_cache[static_cast<std::size_t>(slot) * order + j] :
-            static_cast<double>(std::log(probability[j]));
+            (repeated ? previous_log_probability :
+              static_cast<double>(std::log(probability[j])));
+          previous_probability = probability[j];
+          previous_log_probability = log_probability;
           projection->log_probability[static_cast<std::size_t>(i) * order + j] = log_probability;
           if (slot >= 0 && !cached)
             scratch.projection_log_cache[static_cast<std::size_t>(slot) * order + j] = log_probability;
@@ -739,10 +747,11 @@ struct EnvelopeRuleProjection {
 void append_cluster_projection(const EnvelopeGroupGeometry &group,
     const ClusterRuleProjection &rule, const double *log_weights, int offset,
     int order, double log_scale, EnvelopeRuleProjection *projection,
-    std::vector<std::vector<int>> *common_indices = nullptr, int common = -1)
+    std::vector<double> &prefix, std::vector<double> &suffix)
 {
   const int size = group.mean.size();
-  std::vector<double> prefix(size + 1), suffix(size + 1);
+  prefix.resize(size + 1);
+  suffix.resize(size + 1);
   for (int point = 0; point < order; ++point) {
     prefix[0] = 0.0;
     suffix[size] = 0.0;
@@ -757,7 +766,6 @@ void append_cluster_projection(const EnvelopeGroupGeometry &group,
       projection->means[original].push_back(rule.means[row * order + point]);
       projection->log_coefficient[original].push_back(
         log_scale + log_weights[offset + point] + prefix[row] + suffix[row + 1]);
-      if (common_indices != nullptr) (*common_indices)[original].push_back(common);
     }
   }
 }
@@ -767,6 +775,9 @@ struct EnvelopeRuleWorkspace {
   std::vector<double> conditional_mean;
   std::vector<double> log_products;
   std::vector<long double> singleton_probability;
+  ClusterRuleProjection row_projection;
+  std::vector<double> prefix, suffix, group_integrals;
+  std::vector<std::size_t> projection_starts;
 };
 
 // Repeat only the failure conditions of prepare_envelope_geometry for one
@@ -894,7 +905,8 @@ double envelope_rule_log_integral(
     const std::vector<EnvelopeGroupGeometry> &geometry, const double *omega,
     const SelNormKernelData &selection, const double *nodes, const double *log_weights,
     const long double *weights, int offset, int order, EnvelopeRuleWorkspace *workspace,
-    EnvelopeRuleProjection *projection = nullptr)
+    EnvelopeRuleProjection *projection = nullptr, const double *cached_rule = nullptr,
+    double *saved_rule = nullptr)
 {
   ClusterNormalizerContext context;
   context.vector_rule = SELVECTOR_PRODUCT;
@@ -902,6 +914,45 @@ double envelope_rule_log_integral(
   context.omega = omega;
   context.kernel_mode = SELKERNEL_STEP;
   context.selection = selection;
+  std::size_t dimension = 0;
+  if (cached_rule != nullptr || saved_rule != nullptr) {
+    for (const auto &group : geometry) dimension += group.mean.size();
+  }
+  // A private context-rule cache stores original raw integrals and row log
+  // probabilities, never coefficients containing a supplied denominator.
+  // Reconstruct means and replay every coefficient addition below unchanged.
+  const auto cluster_rule = [&](const EnvelopeGroupGeometry &group,
+                                std::size_t group_index, int common) {
+    ClusterRuleProjection &row_rule = workspace->row_projection;
+    double local;
+    if (cached_rule != nullptr) {
+      row_rule.means.resize(group.mean.size() * order);
+      row_rule.log_probability.resize(group.mean.size() * order);
+      for (std::size_t row = 0; row < group.mean.size(); ++row) {
+        const std::size_t start = 1 + dimension * order +
+          static_cast<std::size_t>(group.row_index[row]) * order * order + common * order;
+        for (int node = 0; node < order; ++node) {
+          row_rule.means[row * order + node] = context.mean[row] +
+            context.loading[row] * (nodes[offset + node] + 0.0);
+          row_rule.log_probability[row * order + node] = cached_rule[start + node];
+        }
+      }
+      local = cached_rule[geometry.size() == 1 ? 0 : 1 + group_index * order + common];
+    } else {
+      local = cluster_rule_log_integral(context, nodes, log_weights, offset, order,
+        &workspace->cluster, group.row_cache_slot.empty() ? nullptr : group.row_cache_slot.data(),
+        group.cache_slots, projection == nullptr ? nullptr : &row_rule);
+    }
+    if (saved_rule != nullptr && std::isfinite(local)) {
+      saved_rule[geometry.size() == 1 ? 0 : 1 + group_index * order + common] = local;
+      for (std::size_t row = 0; row < group.mean.size(); ++row) {
+        const std::size_t start = 1 + dimension * order +
+          static_cast<std::size_t>(group.row_index[row]) * order * order + common * order;
+        std::copy_n(row_rule.log_probability.data() + row * order, order, saved_rule + start);
+      }
+    }
+    return local;
+  };
   if (geometry.size() == 1) {
     const EnvelopeGroupGeometry &group = geometry[0];
     context.dimension = group.mean.size();
@@ -909,13 +960,11 @@ double envelope_rule_log_integral(
     context.residual_sd = group.residual_sd.data();
     context.loading = group.loading.data();
     context.selection_se = group.selection_se.data();
-    ClusterRuleProjection row_rule;
-    const double result = cluster_rule_log_integral(context, nodes, log_weights, offset, order,
-      &workspace->cluster, group.row_cache_slot.empty() ? nullptr : group.row_cache_slot.data(),
-      group.cache_slots, projection == nullptr ? nullptr : &row_rule);
+    ClusterRuleProjection &row_rule = workspace->row_projection;
+    const double result = cluster_rule(group, 0, 0);
     if (projection != nullptr && std::isfinite(result)) {
       append_cluster_projection(group, row_rule, log_weights, offset, order,
-        projection->log_scale, projection);
+        projection->log_scale, projection, workspace->prefix, workspace->suffix);
     }
     return result;
   }
@@ -923,13 +972,11 @@ double envelope_rule_log_integral(
   std::vector<double> &log_products = workspace->log_products;
   std::vector<double> &conditional_mean = workspace->conditional_mean;
   log_products.assign(order, 0.0);
-  std::vector<double> group_integrals;
-  std::vector<std::size_t> starts;
-  std::vector<std::vector<int>> common_indices;
+  std::vector<double> &group_integrals = workspace->group_integrals;
+  std::vector<std::size_t> &starts = workspace->projection_starts;
   if (projection != nullptr) {
     group_integrals.resize(geometry.size() * order);
     starts.resize(projection->means.size());
-    common_indices.resize(projection->means.size());
     for (std::size_t row = 0; row < starts.size(); ++row) starts[row] = projection->means[row].size();
   }
   for (std::size_t g = 0; g < geometry.size(); ++g) {
@@ -943,13 +990,15 @@ double envelope_rule_log_integral(
       for (int point = 0; point < order; ++point) {
         means[point] = group.mean[0] + group.common_loading[0] * nodes[offset + point];
       }
-      const bool direct = cpp_selnorm_step_normalizer_product(
+      const bool direct = cached_rule == nullptr && cpp_selnorm_step_normalizer_product(
         means.data(), means.size(), group.residual_sd[0], group.selection_se[0],
         omega, selection, probability.data());
       for (int point = 0; point < order; ++point) {
-        const double local = direct ? static_cast<double>(std::log(probability[point])) :
+        const double local = cached_rule != nullptr ? cached_rule[1 + g * order + point] :
+          direct ? static_cast<double>(std::log(probability[point])) :
           cpp_selnorm_step_log_norm(means[point], group.residual_sd[0],
             group.selection_se[0], omega, selection, 1, false);
+        if (saved_rule != nullptr) saved_rule[1 + g * order + point] = local;
         log_products[point] += local;
         if (projection != nullptr) {
           if (!std::isfinite(local)) return local;
@@ -957,7 +1006,6 @@ double envelope_rule_log_integral(
           const int row = group.row_index[0];
           projection->means[row].push_back(means[point]);
           projection->log_coefficient[row].push_back(projection->log_scale + log_weights[offset + point]);
-          common_indices[row].push_back(point);
         }
       }
       continue;
@@ -968,32 +1016,36 @@ double envelope_rule_log_integral(
     context.residual_sd = group.residual_sd.data();
     context.loading = group.loading.data();
     context.selection_se = group.selection_se.data();
-    ClusterRuleProjection row_rule;
+    ClusterRuleProjection &row_rule = workspace->row_projection;
     for (int point = 0; point < order; ++point) {
       for (int row = 0; row < size; ++row) {
         conditional_mean[row] = group.mean[row] +
           group.common_loading[row] * nodes[offset + point];
       }
-      const double local = cluster_rule_log_integral(
-        context, nodes, log_weights, offset, order, &workspace->cluster,
-        group.row_cache_slot.empty() ? nullptr : group.row_cache_slot.data(), group.cache_slots,
-        projection == nullptr ? nullptr : &row_rule);
+      const double local = cluster_rule(group, g, point);
       log_products[point] += local;
       if (projection != nullptr) {
         if (!std::isfinite(local)) return local;
         group_integrals[g * order + point] = local;
         append_cluster_projection(group, row_rule, log_weights, offset, order,
-          projection->log_scale + log_weights[offset + point], projection, &common_indices, point);
+          projection->log_scale + log_weights[offset + point], projection,
+          workspace->prefix, workspace->suffix);
       }
     }
   }
   if (projection != nullptr) {
     for (std::size_t g = 0; g < geometry.size(); ++g) {
       for (int row : geometry[g].row_index) {
-        for (std::size_t component = starts[row]; component < projection->means[row].size(); ++component) {
-          const int common = common_indices[row][component - starts[row]];
-          for (std::size_t other = 0; other < geometry.size(); ++other) {
-            if (other != g) projection->log_coefficient[row][component] += group_integrals[other * order + common];
+        std::size_t component = starts[row];
+        const int children = geometry[g].singleton_child ? 1 : order;
+        // Each common node emits one component for an absorbed singleton,
+        // otherwise one per child node. Replay that order without storing a
+        // common-node index beside every component.
+        for (int common = 0; common < order; ++common) {
+          for (int child = 0; child < children; ++child, ++component) {
+            for (std::size_t other = 0; other < geometry.size(); ++other) {
+              if (other != g) projection->log_coefficient[row][component] += group_integrals[other * order + common];
+            }
           }
         }
       }
@@ -1003,6 +1055,7 @@ double envelope_rule_log_integral(
   for (int point = 0; point < order; ++point) {
     result = log_add_exp(result, log_weights[offset + point] + log_products[point]);
   }
+  if (saved_rule != nullptr) saved_rule[0] = result;
   return result;
 }
 
@@ -8121,7 +8174,7 @@ bool cpp_selnorm_context_star_projection(
   double *mass, double *compression_error, std::size_t *components,
   double *compact_log_normalizers,
   bool bounded_cdf, double *cdf_factor_log_errors, double *input_omitted_mass_error,
-  int threads)
+  int threads, const double *cached_rules, double *saved_rules)
 {
   if (input_omitted_mass_error != nullptr) *input_omitted_mass_error = 0.0;
   std::vector<double> covariance(static_cast<std::size_t>(dimension) * dimension);
@@ -8158,7 +8211,10 @@ bool cpp_selnorm_context_star_projection(
   for (int context = 0; context < contexts; ++context) {
     if (context_log_weights[context] != -std::numeric_limits<double>::infinity()) ++active_contexts;
   }
+  const int context_workers = threads > 1 && contexts > 1 ?
+    std::min(threads, contexts) : 1;
   EnvelopeRuleProjection projection;
+  std::vector<std::size_t> row_components(dimension, 0);
   if (active_contexts > 0) {
     projection.means.resize(dimension);
     projection.log_coefficient.resize(dimension);
@@ -8166,9 +8222,11 @@ bool cpp_selnorm_context_star_projection(
     for (int row = 0; row < dimension; ++row) ++group_sizes[envelope.type_index[row]];
     for (int row = 0; row < dimension; ++row) {
       const bool child = envelope.groups > 1 && group_sizes[envelope.type_index[row]] > 1;
-      const std::size_t count = active_contexts * order * (child ? order : 1);
-      projection.means[row].reserve(count);
-      projection.log_coefficient[row].reserve(count);
+      row_components[row] = static_cast<std::size_t>(order) * (child ? order : 1);
+      if (context_workers == 1) {
+        projection.means[row].reserve(active_contexts * row_components[row]);
+        projection.log_coefficient[row].reserve(active_contexts * row_components[row]);
+      }
     }
   }
   std::vector<long double> weights(order);
@@ -8180,15 +8238,20 @@ bool cpp_selnorm_context_star_projection(
   // builds its own mixture fragment; the fragments are concatenated and the
   // masses reduced below in context order, so a threaded evaluation produces
   // the serial result element for element.
-  const int context_workers = threads > 1 && contexts > 1 ?
-    std::min(threads, contexts) : 1;
   std::vector<double> context_local(contexts,
     std::numeric_limits<double>::quiet_NaN());
   std::vector<EnvelopeRuleProjection> fragments(
     context_workers > 1 ? static_cast<std::size_t>(contexts) : 0);
-  for (EnvelopeRuleProjection &fragment : fragments) {
+  for (std::size_t context = 0; context < fragments.size(); ++context) {
+    EnvelopeRuleProjection &fragment = fragments[context];
     fragment.means.resize(dimension);
     fragment.log_coefficient.resize(dimension);
+    if (context_log_weights[context] != -std::numeric_limits<double>::infinity()) {
+      for (int row = 0; row < dimension; ++row) {
+        fragment.means[row].reserve(row_components[row]);
+        fragment.log_coefficient[row].reserve(row_components[row]);
+      }
+    }
   }
   std::atomic<bool> context_failed{false};
   const auto evaluate_context = [&](int context, EnvelopeRuleWorkspace &workspace,
@@ -8219,8 +8282,13 @@ bool cpp_selnorm_context_star_projection(
       for (int row = 0; row < dimension; ++row) starts[row] = target->log_coefficient[row].size();
     }
     target->log_scale = log_scale - std::log(static_cast<double>(dimension));
+    const std::size_t cache_stride = cached_rules != nullptr || saved_rules != nullptr ?
+      1 + static_cast<std::size_t>(dimension) * order * (static_cast<std::size_t>(order) + 1) : 0;
     const double local = envelope_rule_log_integral(geometry, omega, selection,
-      nodes, log_weights, weights.data(), 0, order, &workspace, collect ? target : nullptr);
+      nodes, log_weights, weights.data(), 0, order, &workspace, collect ? target : nullptr,
+      collect && cached_rules != nullptr ? cached_rules + context * cache_stride : nullptr,
+      collect && saved_rules != nullptr ? saved_rules + context * cache_stride : nullptr);
+    if (saved_rules != nullptr) saved_rules[context * cache_stride] = local;
     if (!std::isfinite(local)) return false;
     context_local[context] = local;
     if (log_normalizers == nullptr && collect) {
@@ -8256,13 +8324,20 @@ bool cpp_selnorm_context_star_projection(
     if (context_failed.load(std::memory_order_relaxed)) return false;
     // Nothing was collected when no context carries weight, and the shared
     // projection's row vectors are then not even sized.
-    for (int context = 0; active_contexts > 0 && context < contexts; ++context) {
-      EnvelopeRuleProjection &fragment = fragments[context];
-      for (int row = 0; row < dimension; ++row) {
+    // Materialize one aggregate row at a time and release the fragments it
+    // consumed. The original context/component order is unchanged; the full
+    // aggregate and all full fragments are never live together.
+    for (int row = 0; active_contexts > 0 && row < dimension; ++row) {
+      projection.means[row].reserve(active_contexts * row_components[row]);
+      projection.log_coefficient[row].reserve(active_contexts * row_components[row]);
+      for (int context = 0; context < contexts; ++context) {
+        EnvelopeRuleProjection &fragment = fragments[context];
         projection.means[row].insert(projection.means[row].end(),
           fragment.means[row].begin(), fragment.means[row].end());
         projection.log_coefficient[row].insert(projection.log_coefficient[row].end(),
           fragment.log_coefficient[row].begin(), fragment.log_coefficient[row].end());
+        std::vector<double>().swap(fragment.means[row]);
+        std::vector<double>().swap(fragment.log_coefficient[row]);
       }
     }
   } else

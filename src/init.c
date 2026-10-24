@@ -353,6 +353,13 @@ extern SEXP RoBMA_selnorm_zcurve_threshold_summary(SEXP z_threshold,
                                                    SEXP segment_phack_region,
                                                    SEXP extrapolate,
                                                    SEXP telescope_probabilities);
+extern SEXP RoBMA_selnorm_zcurve_threshold_quadrature(
+  SEXP z_threshold, SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP extrapolate, SEXP telescope_probabilities, SEXP mean_extrapolated,
+  SEXP latent_sd, SEXP nodes, SEXP node_weights, SEXP fitted_only);
 extern SEXP RoBMA_selnorm_zcurve_density_matrix(SEXP z_sequence,
                                                 SEXP mean, SEXP sd,
                                                 SEXP sei, SEXP omega,
@@ -455,6 +462,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_kernel_weighted_summary", (DL_FUNC) &RoBMA_selnorm_kernel_weighted_summary, 19},
     {"RoBMA_zcurve_normal_density_matrix", (DL_FUNC) &RoBMA_zcurve_normal_density_matrix, 4},
     {"RoBMA_selnorm_zcurve_threshold_summary", (DL_FUNC) &RoBMA_selnorm_zcurve_threshold_summary, 19},
+    {"RoBMA_selnorm_zcurve_threshold_quadrature", (DL_FUNC) &RoBMA_selnorm_zcurve_threshold_quadrature, 24},
     {"RoBMA_selnorm_zcurve_density_matrix", (DL_FUNC) &RoBMA_selnorm_zcurve_density_matrix, 21},
     {NULL, NULL, 0}
 };

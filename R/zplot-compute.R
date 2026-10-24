@@ -1361,7 +1361,14 @@
 
   rows <- seq_len(nrow(mean))
   resolved <- rep(TRUE, length(rows))
-  for (column in seq_along(sei)) {
+  columns <- seq_along(sei)
+  if (anyDuplicated(sei)) {
+    # The row decision is an AND: identical parameter columns add no new gate.
+    columns <- which(!duplicated(lapply(columns, function(column) {
+      list(sei[[column]], mean[, column], sd[, column], latent_sd[, column])
+    })))
+  }
+  for (column in columns) {
     resolved <- resolved & .selection_scalar_transition_rule_resolves(
       nodes, mean[, column], sd[, column], latent_sd[, column],
       sei[column], selection, rows
@@ -1456,25 +1463,18 @@
         }
       }
     }
-    if (probability || !fitted_only) {
+    if (probability) {
+      threshold <- .zplot_selnorm_threshold_quadrature(z, mean, sd, sei,
+        selection, mean_extrapolated, latent_sd, rule, fitted_only)
+      fitted[, 1L]       <- threshold$fitted
+      extrapolated[, 1L] <- threshold$extrapolated
+      weights           <- threshold$weights
+    } else if (!fitted_only) {
       for (j in seq_along(rule$nodes)) {
         conditional_mean <- mean + latent_sd * rule$nodes[j]
-        conditional_extrapolated <- mean_extrapolated + latent_sd * rule$nodes[j]
-        if (probability && fitted_only) {
-          fitted[, 1L] <- fitted[, 1L] + rule$weights[j] *
-            .zplot_selnorm_threshold_summary(z, conditional_mean, sd, sei,
-              selection, FALSE)$EDR
-        } else if (probability) {
-          fit <- .zplot_selnorm_threshold_summary(z, conditional_mean, sd, sei, selection, FALSE)
-          ext <- .zplot_selnorm_threshold_summary(z, conditional_extrapolated, sd, sei, selection, TRUE)
-          fitted[, 1L] <- fitted[, 1L] + rule$weights[j] * fit$EDR
-          extrapolated[, 1L] <- extrapolated[, 1L] + rule$weights[j] * ext$EDR * ext$weights
-          weights <- weights + rule$weights[j] * ext$weights
-        } else {
-          weights <- weights + rule$weights[j] * rowMeans(
-            .zplot_inverse_selection_weights(conditional_mean, sd, sei, selection)
-          )
-        }
+        weights <- weights + rule$weights[j] * rowMeans(
+          .zplot_inverse_selection_weights(conditional_mean, sd, sei, selection)
+        )
       }
     }
     current <- list(fitted = fitted, extrapolated = extrapolated,
@@ -2071,6 +2071,44 @@
     native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
+}
+
+
+.zplot_selnorm_threshold_quadrature <- function(z_threshold, mean, sd, sei,
+                                                selection_context, mean_extrapolated,
+                                                latent_sd, quadrature, fitted_only) {
+
+  .selection_require_step_evaluable(selection_context, ".zplot_threshold_vectorized()")
+  native_static <- BayesTools::selection_native_static_args(selection_context)
+
+  .Call(
+    "RoBMA_selnorm_zcurve_threshold_quadrature",
+    .native_numeric_vector(z_threshold),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(selection_context[["omega"]]),
+    .native_numeric_vector(selection_context[["alpha"]]),
+    .native_integer_vector(selection_context[["phack_kind"]]),
+    .native_integer_vector(selection_context[["kernel_mode"]]),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
+    FALSE,
+    native_static[["telescope_probabilities"]],
+    .native_numeric_matrix(mean_extrapolated),
+    .native_numeric_matrix(latent_sd),
+    .native_numeric_vector(quadrature$nodes),
+    .native_numeric_vector(quadrature$weights),
+    as.logical(fitted_only),
+    PACKAGE = "RoBMA"
+  )
 }
 
 
