@@ -94,9 +94,9 @@
   `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
   warn about high Pareto k values at the same draw-count-dependent cutoff and
   with the same message as `check_loo()`.
-- `loo_compare()` and `loo_model_weights()` label the first model by its
-  expression unless the call names `x`, so a named option or a named additional
-  model no longer renames it.
+- `loo_model_weights()` labels the first model by its expression unless the
+  call names `x`, so a named option or a named additional model no longer
+  renames it.
 - Unspecified ordinary factor null priors use each retained alternative term's
   declared contrast, including independent indicator-coded interactions. A
   factor term whose null and alternative priors still differ in contrast, such
@@ -1099,8 +1099,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - re-exports `loo::loo_model_weights()` and adds a `brma` method that
     computes stacking or pseudo-BMA weights from compatible stored LOO
     results, also for fits with different numbers of posterior draws.
-    `loo_compare()` tables of `brma` fits have the print class
-    `compare.loo.brma` and keep the numeric `compare.loo` matrix.
   - `add_marglik()` gains `parallel`, `cores` (defaulting to the fitted
     settings), `repetitions`, `method`, `maxiter`, and `silent`; repeated
     bridge estimates are kept in Bayes-factor and posterior-probability

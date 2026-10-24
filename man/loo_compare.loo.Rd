@@ -16,9 +16,11 @@ objects to compare.}
 \item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
-A numeric matrix of class \code{"compare.loo.brma"}, which also
-inherits from \code{"compare.loo"}. The matrix retains the comparison
-columns and printing contract returned by loo versions before 2.10.0.
+The comparison returned by \code{\link[loo]{loo_compare}} for the
+stored results: a data frame of class \code{"compare.loo"} with one row per
+model, ordered by expected predictive performance, which prints as loo
+prints it. The models are named \code{model1}, \code{model2}, ... unless
+the call names them.
 }
 \description{
 Method for comparing RoBMA-targeted \code{loo} or \code{waic}

@@ -111,7 +111,7 @@ test_that("outcome hashes use a cross-version canonical encoding", {
 })
 
 
-test_that("loo_compare preserves the released numeric comparison table", {
+test_that("loo_compare returns and prints the loo comparison", {
 
   set.seed(11)
   log_lik_a <- matrix(stats::rnorm(2000, mean = -2, sd = 0.3), ncol = 10)
@@ -131,38 +131,21 @@ test_that("loo_compare preserves the released numeric comparison table", {
   out      <- loo_compare(loo_a, loo_b)
   upstream <- do.call(
     get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE),
-    list(x = list(loo_a = loo_a, loo_b = loo_b))
-  )
-  legacy_columns <- c(
-    "elpd_diff", "se_diff", "elpd_loo", "se_elpd_loo",
-    "p_loo", "se_p_loo", "looic", "se_looic"
+    list(loo_a, loo_b)
   )
 
-  expect_identical(
-    class(out),
-    c("compare.loo.brma", "compare.loo", "matrix", "array")
-  )
-  expect_true(is.numeric(out))
-  expect_identical(colnames(out), legacy_columns)
-  expect_identical(rownames(out), as.character(upstream[["model"]]))
-  expect_equal(
-    as.vector(out),
-    as.vector(as.matrix(upstream[, legacy_columns, drop = FALSE]))
-  )
-  expect_true(all(is.finite(out)))
-  expect_true("candidate" %in% rownames(loo_compare(loo_a, candidate = loo_b)))
-
-  simplified     <- capture.output(print(out))
-  full           <- capture.output(print(out, simplify = FALSE))
-  upstream_print <- capture.output(print(upstream))
-  expect_match(paste(simplified, collapse = "\n"), "elpd_diff")
-  expect_false(any(grepl("elpd_loo", simplified, fixed = TRUE)))
-  expect_true(any(grepl("elpd_loo", full, fixed = TRUE)))
-  expect_true(any(grepl("model", upstream_print, fixed = TRUE)))
+  # the object is loo's own, with loo's rows, columns, and print method
+  expect_identical(out, upstream)
+  expect_s3_class(out, "compare.loo")
+  expect_false(inherits(out, "compare.loo.brma"))
+  expect_identical(sort(as.character(out[["model"]])), c("model1", "model2"))
+  expect_true(all(c("elpd_diff", "se_diff", "elpd_loo", "looic") %in% colnames(out)))
+  expect_identical(capture.output(print(out)), capture.output(print(upstream)))
+  expect_true("candidate" %in% loo_compare(loo_a, candidate = loo_b)[["model"]])
 })
 
 
-test_that("loo_compare preserves the released numeric WAIC table", {
+test_that("loo_compare returns the loo comparison of WAIC results", {
 
   set.seed(12)
   log_lik_a <- matrix(stats::rnorm(2000, mean = -2, sd = 0.3), ncol = 10)
@@ -182,28 +165,11 @@ test_that("loo_compare preserves the released numeric WAIC table", {
   out      <- loo_compare(waic_a, waic_b)
   upstream <- do.call(
     get("loo_compare.default", envir = asNamespace("loo"), inherits = FALSE),
-    list(x = list(waic_a = waic_a, waic_b = waic_b))
-  )
-  legacy_columns <- c(
-    "elpd_diff", "se_diff", "elpd_waic", "se_elpd_waic",
-    "p_waic", "se_p_waic", "waic", "se_waic"
+    list(waic_a, waic_b)
   )
 
-  expect_identical(
-    class(out),
-    c("compare.loo.brma", "compare.loo", "matrix", "array")
-  )
-  expect_true(is.numeric(out))
-  expect_identical(colnames(out), legacy_columns)
-  expect_identical(rownames(out), as.character(upstream[["model"]]))
-  expect_equal(
-    as.vector(out),
-    as.vector(as.matrix(upstream[, legacy_columns, drop = FALSE]))
-  )
-  expect_true(all(is.finite(out)))
-
-  simplified <- capture.output(print(out))
-  full       <- capture.output(print(out, simplify = FALSE))
-  expect_false(any(grepl("elpd_waic", simplified, fixed = TRUE)))
-  expect_true(any(grepl("elpd_waic", full, fixed = TRUE)))
+  expect_identical(out, upstream)
+  expect_s3_class(out, "compare.loo")
+  expect_true(all(c("elpd_diff", "se_diff", "elpd_waic", "waic") %in% colnames(out)))
+  expect_identical(capture.output(print(out)), capture.output(print(upstream)))
 })

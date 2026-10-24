@@ -8,10 +8,10 @@ test_that("LOO comparison retains model identities after ranking", {
   attr(fit_low, "RoBMA_target") <- metadata
   attr(fit_high, "RoBMA_target") <- metadata
   result <- loo_compare.loo(fit_low, fit_high)
-  expect_identical(rownames(result), c("fit_high", "fit_low"))
-  expect_equal(unname(result["fit_low", "elpd_diff"]), -5)
-  expect_identical(rownames(loo_compare.loo(fit_low, better = fit_high)),
-                   c("better", "fit_low"))
+  expect_identical(as.character(result[["model"]]), c("model2", "model1"))
+  expect_equal(result[["elpd_diff"]][result[["model"]] == "model1"], -5)
+  expect_identical(as.character(loo_compare.loo(fit_low, better = fit_high)[["model"]]),
+                   c("better", "model1"))
 })
 
 test_that("deterministic LOO merge matches pointwise columns by name", {
@@ -27,7 +27,7 @@ test_that("deterministic LOO merge matches pointwise columns by name", {
   expect_identical(actual$pointwise, baseline$pointwise)
 })
 
-test_that("LOO model labels remain bounded for expressions and do.call values", {
+test_that("LOO comparison labels follow loo for unnamed and named models", {
 
   scores <- matrix(seq(-2, -1, length.out = 200L), 40L, 5L)
   low <- loo::waic(scores)
@@ -35,25 +35,9 @@ test_that("LOO model labels remain bounded for expressions and do.call values", 
   metadata <- list(unit = "estimate", retained_context = "remaining_data",
     target = "estimate_log_score", data_hash = "same-data")
   attr(low, "RoBMA_target") <- attr(high, "RoBMA_target") <- metadata
-  expect_identical(rownames(do.call(loo_compare.loo, list(low, high))), c("model2", "model1"))
-  expect_identical(rownames(do.call(loo_compare.loo, list(x = low, second = high))), c("second", "x"))
-  expect_identical(rownames(loo_compare.loo(identity(low), identity(high))), c("model2", "model1"))
-  expect_identical(rownames(loo_compare.loo(low, low = high)), c("low.1", "low"))
-})
-
-test_that("LOO comparison labels the first model by its expression unless x is named", {
-
-  scores <- matrix(seq(-2, -1, length.out = 200L), 40L, 5L)
-  low <- loo::waic(scores)
-  high <- loo::waic(scores + 1)
-  metadata <- list(unit = "estimate", retained_context = "remaining_data",
-    target = "estimate_log_score", data_hash = "same-data")
-  attr(low, "RoBMA_target") <- attr(high, "RoBMA_target") <- metadata
-  # The first positional argument is `x`; a named `...` entry or a named
-  # option placed before it must not become its label.
-  expect_identical(rownames(loo_compare(a = low, high)), c("high", "a"))
-  expect_identical(rownames(loo_compare(unit = "estimate", low, high)), c("high", "low"))
-  expect_identical(rownames(loo_compare(low, unit = "estimate", high)), c("high", "low"))
-  expect_identical(rownames(loo_compare(x = low, second = high)), c("second", "x"))
-  expect_identical(rownames(loo_compare(low, second = high)), c("second", "low"))
+  labels <- function(x) as.character(x[["model"]])
+  expect_identical(labels(do.call(loo_compare.loo, list(low, high))), c("model2", "model1"))
+  expect_identical(labels(do.call(loo_compare.loo, list(x = low, second = high))), c("second", "model1"))
+  expect_identical(labels(loo_compare.loo(identity(low), identity(high))), c("model2", "model1"))
+  expect_identical(labels(loo_compare.loo(low, low = high)), c("low", "model1"))
 })
