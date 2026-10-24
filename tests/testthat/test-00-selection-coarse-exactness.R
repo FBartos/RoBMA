@@ -83,6 +83,7 @@ test_that("corrected chains on a cluster and a rank-two factor block run and cor
 
 test_that("the corrected chain on a rank-one cluster block targets the exact posterior", {
 
+  skip_if_not_certification("The 4 s cluster reference runs in the numerical-kernels case.")
   result <- .expect_corrected_chain_is_exact("cluster")
 })
 
@@ -200,6 +201,7 @@ test_that("the corrected chain is exact when the residual SD of a cluster block 
 
 test_that("the corrected chain is exact when a loading column of a factor block is sampled", {
 
+  skip_if_not_certification("The 3 s factor reference runs in the numerical-kernels case.")
   result <- .expect_sampled_parameter_chain_is_exact("factor")
 })
 
@@ -290,5 +292,6 @@ test_that("the corrected chain is exact when a loading column of a factor block 
 
 test_that("the corrected chain is exact when the weight rule is a mixture of product and best", {
 
+  skip_if_not_certification("The 5 s mixture chain runs in the numerical-kernels case.")
   result <- .expect_mixture_chain_is_exact()
 })

@@ -402,7 +402,7 @@ certification_cases <- function() {
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics|",
         "selection-factor-routing|selection-estimate-cells|",
-        "selection-coarse-exactness|jags-build-requirements)|",
+        "selection-coarse-blocks|selection-coarse-exactness|jags-build-requirements)|",
         "02-(distributions|glmm-aghq)"
       ),
       required_tests = rbind(
@@ -410,8 +410,16 @@ certification_cases <- function() {
           "covariance sampling factor preserves singular covariance"),
         .required_tests("test-00-selection-kernel-fit.R",
           "selection reference weights are structural convergence parameters"),
-        .required_tests("test-00-selection-coarse-exactness.R",
-          "the corrected chain on a rank-two factor block targets the exact posterior"),
+        .required_tests("test-00-selection-coarse-blocks.R", c(
+          "cluster and factor blocks give their nodes the corrected sampler",
+          "a corrected chain draws identically with the node memo on and off"
+        )),
+        .required_tests("test-00-selection-coarse-exactness.R", c(
+          "the corrected chain on a rank-one cluster block targets the exact posterior",
+          "the corrected chain on a rank-two factor block targets the exact posterior",
+          "the corrected chain is exact when a loading column of a factor block is sampled",
+          "the corrected chain is exact when the weight rule is a mixture of product and best"
+        )),
         .required_tests("test-02-glmm-aghq.R", c(
           "a fitted point-baserate GLMM supports log-likelihood criteria",
           "boundary-concentrated beta priors support likelihood criteria",

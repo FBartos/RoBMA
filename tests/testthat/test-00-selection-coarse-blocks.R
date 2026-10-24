@@ -1,4 +1,5 @@
 context("Coarse surrogates of cluster and factor selection blocks")
+source(testthat::test_path("common-functions.R"))
 
 # The corrected sampler (selection.sampler = "coarse_corrected") draws from the
 # exact full conditional through a surrogate: for a cluster or factor selection
@@ -424,6 +425,7 @@ test_that("the split validators refuse every invalid dynamic and control value a
 test_that("cluster and factor blocks give their nodes the corrected sampler", {
 
   skip_on_cran()
+  skip_if_not_certification("These fits (15 s) run in the numerical-kernels case.")
   skip_if_not_installed("rjags")
   skip_if_not_installed("metadat")
   skip_if_not_installed("metafor")
@@ -541,6 +543,7 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
 test_that("a corrected chain draws identically with the node memo on and off", {
 
   skip_on_cran()
+  skip_if_not_certification("These child-process fits (19 s) run in the numerical-kernels case.")
   skip_if_not_installed("rjags")
   skip_if_not_installed("metadat")
   skip_if_not_installed("metafor")
