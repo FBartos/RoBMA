@@ -202,3 +202,93 @@ test_that("the corrected chain is exact when a loading column of a factor block 
 
   result <- .expect_sampled_parameter_chain_is_exact("factor")
 })
+
+
+# A mixture of weight rules: the vector rule is a node of an indicator, product in
+# one state and the one-sided best-weight rule in the other. In the product state the
+# sampler corrects a (crude) coarse rule, in the best state its surrogate is the exact
+# density; the indicator itself is updated by the stock sampler, so the chain
+# targets the joint posterior of mu and the indicator, with the observed weights
+# equal to one under both rules. References: QUADPACK over mu for each state,
+# with the normalizer of the product rule by QUADPACK over the latent axis and the
+# one-sided best rule's by its closed form in the same integral.
+.expect_mixture_chain_is_exact <- function(draws = 5000L) {
+
+  skip_if_not_installed("rjags")
+  skip_if_not_installed("coda")
+  setup <- .coarse_exactness_setup("cluster")
+  y     <- c(.3, .1, .5, .2)
+  hand <- .coarse_hand_model("cluster", 4L, 1L, setup$rules,
+    data = list(y = y, residual_sd = setup$residual_sd, loading = as.numeric(setup$loading)),
+    definitions = "  mu ~ dt(0, 1, 4)\n  for (j in 1:4) { means[j] <- mu }\n  ind ~ dcat(c(.5, .5))\n  vr <- ind - 1",
+    vector_rule = "vr", inits = list(mu = -.25, ind = 1))
+  expect_true("RoBMA::CoarseCorrectedSlice" %in% hand$samplers)
+
+  tracker <- new.env()
+  tracker$relative_error <- 0
+  # the exact kernels' normalizers of both rules are the references' (log scale)
+  for (mu in c(-2, -.5, 1)) {
+    block <- .coarse_block("cluster", mean = rep(mu, 4L), residual_sd = setup$residual_sd,
+      loading = setup$loading, sei = rep(1, 4L), omega = setup$omega, obs_bin = rep(1L, 4L),
+      x = y, rules = setup$rules)
+    product <- .coarse_probe(block, 3L)
+    best    <- .coarse_probe(.coarse_block_set(block, 20L, 1), 3L)
+    expect_lte(abs(product[["numerator"]] - product[["exact"]] -
+      .coarse_exactness_quadpack_log_normalizer(setup, mu, tracker)), 1e-3)
+    expect_lte(abs(best[["numerator"]] - best[["exact"]] -
+      .coarse_exactness_best_log_normalizer(setup, mu, tracker)), 1e-3)
+    expect_true(best[["exact_fallback"]])
+  }
+
+  log_density <- function(normalizer) function(mu) {
+    stats::dt(mu, df = 4, log = TRUE) +
+      .coarse_gaussian_log_density(y, mu, setup$residual_sd, setup$loading) - normalizer(mu)
+  }
+  product_density <- log_density(function(mu) .coarse_exactness_quadpack_log_normalizer(setup, mu, tracker))
+  best_density    <- log_density(function(mu) .coarse_exactness_best_log_normalizer(setup, mu, tracker))
+  rule_density    <- log_density(function(mu) .coarse_exactness_rule_log_normalizer(setup, mu, setup$orders[3L]))
+  reference <- product_density(0)
+  parts <- list(product = .coarse_raw_moments(product_density, -14, 8, reference),
+                best    = .coarse_raw_moments(best_density, -14, 8, reference),
+                rule    = .coarse_raw_moments(rule_density, -14, 8, reference))
+  summarize <- function(components) {
+    values <- Reduce(`+`, lapply(parts[components], `[[`, "values"))
+    errors <- Reduce(`+`, lapply(parts[components], `[[`, "errors"))
+    summary <- .coarse_moment_summary(values, errors, tracker$relative_error)
+    best_weight <- parts$best$values[1L] / values[1L]
+    c(mean = summary$mean, variance = summary$variance, best = if ("best" %in% components) best_weight else 0,
+      mean_error = summary$mean_error, variance_error = summary$variance_error,
+      best_error = (sum(errors[1L]) / values[1L]) + 2 * tracker$relative_error)
+  }
+  exact <- summarize(c("product", "best"))
+  surrogate_only <- summarize(c("rule", "best"))
+
+  chain <- .coarse_hand_chain(hand, c("mu", "ind"), draws)
+  counters <- chain$counters
+  expect_identical(counters[["proposed"]], as.numeric(draws))
+  expect_identical(counters[["accepted"]] + counters[["correction_rejected"]], as.numeric(draws))
+  expect_gte(counters[["correction_rejected"]], 0.05 * draws)
+
+  mu <- chain$draws[, "mu"]
+  best_state <- as.numeric(chain$draws[, "ind"] == 2)
+  observables <- cbind(mean = mu, variance = (mu - mean(mu))^2, best = best_state)
+  ess  <- as.numeric(coda::effectiveSize(coda::mcmc(observables)))
+  mcse <- sqrt(apply(observables, 2L, stats::var) / ess)
+  estimate  <- c(mean(mu), stats::var(mu), mean(best_state))
+  reference <- unname(exact[c("mean", "variance", "best")])
+  allowance <- unname(exact[c("mean_error", "variance_error", "best_error")])
+  uncorrected <- unname(surrogate_only[c("mean", "variance", "best")])
+  expect_true(all(ess >= 200))
+  # the indicator visits both states, and the surrogate-only target is another law
+  expect_true(all(mean(best_state) > .05, mean(best_state) < .95))
+  expect_true(all(abs(reference - uncorrected)[c(1L, 3L)] >= 8 * mcse[c(1L, 3L)]))
+  expect_true(all(abs(estimate - reference) <= 6 * mcse + 2 * allowance))
+  invisible(list(estimate = estimate, reference = reference, uncorrected = uncorrected, mcse = mcse,
+                 ess = ess, counters = counters))
+}
+
+
+test_that("the corrected chain is exact when the weight rule is a mixture of product and best", {
+
+  result <- .expect_mixture_chain_is_exact()
+})

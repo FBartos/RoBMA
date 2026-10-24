@@ -334,10 +334,15 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   rule is unavailable (best-weight rule, rung beyond the node budget, non-finite
   value). The surrogate path neither reads nor stores the node memo, which holds
   exact values only. A cluster or factor child is coarse-capable when its fixed
-  controls allow a rule (product rule, kernel not fixed at normal, rule
-  affordable at the declared rank) and a node is eligible when a child is dense
-  or coarse-capable; the others stay exact terms. The classes' dynamic and
-  control validators split `checkParameterValue` for the sampler's fixed-control
+  controls allow a rule (vector rule not fixed at a best-weight rule, kernel
+  not fixed at normal, rule affordable at the declared rank) and a node is
+  eligible when a child is dense or coarse-capable; the others stay exact
+  terms. The vector rule and the kernel mode are dynamic parents of these
+  children, because a mixture composes both from the bias indicator (a rule
+  that is product in every state is still a node); a state with a best-weight
+  rule has the exact density as its surrogate. The classes' dynamic (kernel
+  mode, vector rule, mean, residual SD, loadings, weights) and control
+  validators split `checkParameterValue` for the sampler's fixed-control
   certificate and must stay equal to it. `test-00-selection-coarse-blocks.R`
   pins the surrogate values, fallbacks and purity, and
   `test-00-selection-coarse-exactness.R` the exactness of the corrected chains

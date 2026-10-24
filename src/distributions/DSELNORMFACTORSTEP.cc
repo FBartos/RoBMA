@@ -69,7 +69,8 @@ bool DSELNORMFACTORSTEP::checkDynamicParameterValue(
 {
   const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[4]);
-  if (!(*par[10] == SELKERNEL_NORMAL || *par[10] == SELKERNEL_STEP)) return false;
+  if (!(*par[10] == SELKERNEL_NORMAL || *par[10] == SELKERNEL_STEP) ||
+      !selnorm_jags_integer_in_range(*par[19], SELVECTOR_PRODUCT, SELVECTOR_BEST_TWO_SIDED)) return false;
   for (int i = 0; i < k; ++i) {
     if (!std::isfinite(par[0][i]) || !std::isfinite(par[1][i]) ||
         !(par[1][i] > 0.0)) return false;
@@ -96,7 +97,6 @@ bool DSELNORMFACTORSTEP::checkControlParameterValue(
       !selnorm_jags_integer_in_range(*par[15], 4, limit) ||
       !selnorm_jags_integer_in_range(*par[16], 4, limit) || *par[16] < *par[15] ||
       !selnorm_jags_integer_in_range(*par[17], 2, limit) ||
-      !selnorm_jags_integer_in_range(*par[19], SELVECTOR_PRODUCT, SELVECTOR_BEST_TWO_SIDED) ||
       !(tolerance > 0.0) || !std::isfinite(tolerance)) return false;
   if (!selnorm_jags_qmc_length(len[14], 2U * rank,
       static_cast<unsigned int>(*par[16]), static_cast<unsigned int>(*par[17]))) return false;

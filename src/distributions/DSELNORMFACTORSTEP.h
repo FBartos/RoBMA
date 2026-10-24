@@ -38,7 +38,7 @@ class DSELNORMFACTORSTEP : public VectorDist
                            std::vector<unsigned int> const &lengths) const;
   // Lengths are fixed by the compiled node. The full validator always calls
   // both helpers; only a caller with a fixed-control certificate may split it.
-  // Dynamic: kernel mode, mean, residual SD, loadings and weights.
+  // Dynamic: kernel mode, vector rule, mean, residual SD, loadings and weights.
   bool checkDynamicParameterValue(std::vector<double const *> const &parameters,
                                   std::vector<unsigned int> const &lengths) const;
   bool checkControlParameterValue(std::vector<double const *> const &parameters,

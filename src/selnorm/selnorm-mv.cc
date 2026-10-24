@@ -6250,7 +6250,8 @@ double cpp_selnorm_factor_step_surrogate_lpdf(
   if (log_normalizer_out != nullptr) *log_normalizer_out = unavailable;
   // Inputs the sampler's dynamic check refuses have the density of the exact
   // kernel, -Inf, and no surrogate.
-  if (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) {
+  if ((kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
     return -std::numeric_limits<double>::infinity();
   }
   for (int bin = 0; bin < n_bins; ++bin) {
@@ -6558,7 +6559,8 @@ double cpp_selnorm_cluster_step_surrogate_lpdf(
   if (log_normalizer_out != nullptr) *log_normalizer_out = unavailable;
   // Inputs the sampler's dynamic check refuses have the density of the exact
   // kernel, -Inf, and no surrogate.
-  if (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) {
+  if ((kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
     return -std::numeric_limits<double>::infinity();
   }
   for (int bin = 0; bin < n_bins; ++bin) {

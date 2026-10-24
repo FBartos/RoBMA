@@ -39,11 +39,15 @@ const unsigned int cluster_factor_orders = 13;
 const unsigned int cluster_factor_rule = 19;
 
 // A cluster or factor child is coarse-capable when its fixed controls allow a
-// coarse rung: the product vector rule, a kernel mode not fixed at NORMAL, and,
-// for a factor block, rule min(max_rules, rules) of its schedule affordable at
-// the uncompacted rank (a compacted block or a forest only costs less). The
-// decision reads fixed parents only, so it is the same in every chain. Any
-// other cluster or factor child stays an exact term.
+// coarse rule: a vector rule not fixed at a best-weight value, a kernel mode not
+// fixed at NORMAL, and, for a factor block, rule min(max_rules, rules) of its
+// schedule affordable at the uncompacted rank (a compacted block or a forest
+// only costs less). In model-averaged fits the vector rule is a node of the bias
+// indicator that is product in every state of a product-only model, so a
+// non-fixed rule counts as capable; in a state with a best-weight rule the
+// child's surrogate is its exact density. The decision reads fixed parents only,
+// so it is the same in every chain. Any other cluster or factor child stays an
+// exact term.
 ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings const &settings)
 {
   Distribution const *distribution = child->distribution();
@@ -54,7 +58,7 @@ ChildKind child_kind(StochasticNode const *child, SelNormCoarseSettings const &s
   std::vector<Node const *> const &parents = child->parents();
   if (parents.size() < distribution->npar()) return ChildKind::other;
   Node const *rule = parents[cluster_factor_rule];
-  if (!rule->isFixed() || rule->value(0)[0] != SELVECTOR_PRODUCT) return ChildKind::other;
+  if (rule->isFixed() && rule->value(0)[0] != SELVECTOR_PRODUCT) return ChildKind::other;
   Node const *mode = parents[cluster_factor_mode];
   if (mode->isFixed() && mode->value(0)[0] == SELKERNEL_NORMAL) return ChildKind::other;
   Node const *orders = parents[cluster_factor_orders];
@@ -83,11 +87,14 @@ struct SelectedChild {
   mutable bool controls_valid = false;
 
   // The parents that may change during sampling: mean, covariance (residual SD
-  // and loadings), weights and kernel mode. Everything else is a control.
+  // and loadings), weights, kernel mode and, for cluster and factor children,
+  // the vector rule (a mixture of weight rules composes it from the bias
+  // indicator). Everything else is a control.
   static bool dynamic_parent(ChildKind kind, unsigned int i)
   {
     if (kind == ChildKind::mv) return i == 0 || i == 1 || i == 3 || i == 9;
-    return i == 0 || i == 1 || i == 2 || i == 4 || i == 10;
+    return i == 0 || i == 1 || i == 2 || i == 4 || i == cluster_factor_mode ||
+      i == cluster_factor_rule;
   }
 
   SelectedChild(StochasticNode *child, ChildKind child_kind)

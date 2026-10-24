@@ -239,7 +239,9 @@ test_that("dynamic-invalid inputs have a -Inf surrogate and fail the dynamic che
       loading_infinite = first(3L, Inf),
       omega_negative   = .coarse_block_set(block, 5L, c(-1, .3)),
       omega_infinite   = .coarse_block_set(block, 5L, c(Inf, .3)),
-      kernel_mode      = .coarse_block_set(block, 11L, 2)
+      kernel_mode      = .coarse_block_set(block, 11L, 2),
+      rule_above       = .coarse_block_set(block, 20L, 3),
+      rule_below       = .coarse_block_set(block, 20L, -1)
     )
     for (case in names(invalid)) {
       probe <- .coarse_probe(invalid[[case]])
@@ -342,8 +344,8 @@ test_that("the split validators refuse every invalid dynamic and control value a
     list("tolerance","zero",                "control", at_first(0)),
     list("tolerance","infinite",            "control", at_first(Inf)),
     list("qmc",      "wrong length",        "control", function(x) x[-1L]),
-    list("rule",     "beyond the rules",    "control", at_first(3)),
-    list("rule",     "fractional",          "control", at_first(.5))
+    list("rule",     "beyond the rules",    "dynamic", at_first(3)),
+    list("rule",     "fractional",          "dynamic", at_first(.5))
   )
 
   for (name in c("cluster", "factor")) {
@@ -364,10 +366,10 @@ test_that("the split validators refuse every invalid dynamic and control value a
     }
     # every validated dynamic parameter and every control parameter is covered
     expect_true(all(c("dynamic mu", "dynamic sd", "dynamic omega", "dynamic mode",
-      "dynamic loading"[name == "cluster"], "dynamic factor_loading"[name == "factor"],
+      "dynamic loading"[name == "cluster"], "dynamic factor_loading"[name == "factor"], "dynamic rule",
       "control sei", "control bins", "control sign", "control telescope", "control nodes",
       "control log_weights", "control orders", "control points", "control maximum",
-      "control scrambles", "control tolerance", "control rule", "control lower",
+      "control scrambles", "control tolerance", "control lower",
       "control upper", "control qmc") %in% checked), info = name)
   }
 })
@@ -388,14 +390,23 @@ test_that("the split validators refuse every invalid dynamic and control value a
   } else {
     metafor::vcalc(vi, cluster = study, obs = esid, rho = .6, data = dat)
   }
-  selection <- if (case == "best") {
-    RoBMA::selection_model(weight_rule = "best", group = "study")
-  } else RoBMA::selection_model()
-  fit <- suppressWarnings(RoBMA::bselmodel.mv(
-    yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
-    selection = selection, chains = 1L, adapt = 50L, burnin = 50L, sample = 100L,
-    seed = 1L, parallel = FALSE, silent = TRUE,
-    convergence_checks = RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)))
+  convergence <- RoBMA::set_convergence_checks(max_Rhat = NULL, min_ESS = NULL)
+  fit <- if (case == "mixture") {
+    # a model-averaged fit: its vector rule is a node of the bias indicator
+    suppressWarnings(RoBMA::RoBMA.mv(
+      yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+      prior_bias = RoBMA::prior_weightfunction(steps = .025), chains = 1L, adapt = 50L,
+      burnin = 50L, sample = 100L, seed = 1L, parallel = FALSE, silent = TRUE,
+      convergence_checks = convergence))
+  } else {
+    selection <- if (case == "best") {
+      RoBMA::selection_model(weight_rule = "best", group = "study")
+    } else RoBMA::selection_model()
+    suppressWarnings(RoBMA::bselmodel.mv(
+      yi = yi, V = V, random = ~ 1 | study / esid, data = dat, measure = "SMD",
+      selection = selection, chains = 1L, adapt = 50L, burnin = 50L, sample = 100L,
+      seed = 1L, parallel = FALSE, silent = TRUE, convergence_checks = convergence))
+  }
   list(fit = fit, samplers = fit[["fit"]][["samplers"]],
        methods = RoBMA:::.data_selection_execution_plan(fit[["data"]])[["block_methods"]])
 }
@@ -434,7 +445,19 @@ test_that("cluster and factor blocks give their nodes the corrected sampler", {
                      counters[["proposed"]], info = case)
   }
 
-  # blocks without a product rung (best weight rule) are not coarse-capable
+  # a model-averaged fit composes its vector rule from the bias indicator (a node
+  # that is not fixed): its blocks take part, the discrete indicator does not
+  RoBMA::selection_sampler_info(clear = TRUE)
+  mixture  <- .coarse_blocks_tiny_fit("mixture")
+  counters <- RoBMA::selection_sampler_info()
+  expect_true(any(c("rank_one", "factor") %in% mixture[["methods"]]))
+  expect_true(any(mixture[["samplers"]][["Sampler"]] == coarse))
+  expect_false(any(mixture[["samplers"]][["Sampler"]][grepl("bias_indicator", mixture[["samplers"]][["Node"]])] == coarse))
+  expect_gt(counters[["proposed"]], 0)
+  expect_identical(counters[["accepted"]] + counters[["correction_rejected"]], counters[["proposed"]])
+
+  # blocks without a product rung (a best weight rule fixed in the model) are not
+  # coarse-capable
   RoBMA::selection_sampler_info(clear = TRUE)
   best <- .coarse_blocks_tiny_fit("best")
   expect_true(any(c("rank_one", "factor") %in% best[["methods"]]))
@@ -548,6 +571,19 @@ test_that("blocks without a coarse rule leave their nodes the stock sampler", {
   }
   # product rule and step kernel: the node of the cluster block is corrected
   expect_identical(cluster_assigned(), coarse)
+  # a vector rule that is a node (a mixture of weight rules composes it from the bias
+  # indicator, here product in every state or best in one) is a dynamic parameter:
+  # the block takes part, the discrete indicator keeps its sampler
+  mixture_assigned <- function(rule) {
+
+    .coarse_hand_model("cluster", 4L, 1L, .coarse_rules(c(7, 15, 31, 63, 127)),
+      data = list(residual_sd = rep(.5, 4), loading = rep(.7, 4)),
+      definitions = paste0(sub("ROWS", "4", location, fixed = TRUE),
+        "\n  ind ~ dcat(c(.5, .5))\n  vr <- ", rule),
+      vector_rule = "vr", inits = list(mu = .1, ind = 1))$samplers
+  }
+  expect_setequal(mixture_assigned("0 * equals(ind, 1) + 0 * equals(ind, 2)"), c(coarse, "base::Finite"))
+  expect_setequal(mixture_assigned("ind - 1"), c(coarse, "base::Finite"))
   # a kernel mode fixed at the normal kernel, and a best-weight vector rule, have no rung
   expect_identical(cluster_assigned(mode = 0), stock)
   expect_identical(cluster_assigned(vector_rule = 1), stock)

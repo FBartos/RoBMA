@@ -186,13 +186,17 @@ remove_selection_cache <- function(object) {
 #' rounding, change test, certificate, refinement, sparse grid, QMC or cache
 #' enters, so the surrogate is a deterministic function of the sampled state;
 #' the correction evaluates the exact block, which keeps its ordinary numerical
-#' controls and diagnostics. Where that rule is unavailable at an update
-#' (a non-finite normalizer) the surrogate is the exact density of the block.
-#' A block takes part only when its fixed controls allow such a rule: the
-#' product weight rule, a kernel mode that is not fixed at the normal kernel,
-#' and, for a factor block, a rule that fits the node budget at the declared
-#' rank (rank two to six at the default setting). Best-weight blocks, blocks of
-#' higher rank and blocks with a normal kernel keep the ordinary sampler.
+#' controls and diagnostics. Where that rule is unavailable at an update (a
+#' best-weight rule in the current state, or a non-finite normalizer) the
+#' surrogate is the exact density of the block. A block takes part unless its
+#' fixed controls rule it out: a weight rule fixed at a best-weight rule, a
+#' kernel mode fixed at the normal kernel, or, for a factor block, a rule beyond
+#' the node budget at the declared rank (rank two to six at the default
+#' setting). In model-averaged fits the weight rule and the kernel mode are
+#' nodes of the bias indicator, so their blocks take part, with the exact
+#' density in the states of the indicator that have a best-weight rule. Blocks
+#' fixed at a best-weight rule, blocks of higher rank and blocks with a fixed
+#' normal kernel keep the ordinary sampler.
 #'
 #' A scalar update is eligible when at least one stochastic child of the updated
 #' node is a dense multivariate block or a coarse-capable cluster or factor

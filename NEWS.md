@@ -24,17 +24,19 @@
   The weight rule `best`, sparse grids and z-curves keep the node-gap rule.
   Selection likelihoods remain somewhat slower than in 4.1.0.229.
 - `selection.sampler = "coarse_corrected"` now also engages for the rank-one
-  cluster and the rank-two to six factor step blocks of product weights, which
-  make up the multilevel (assink2016-type) fits, not only for dense
-  multivariate blocks. An eligible scalar update (the global parameters, and
+  cluster and the rank-two to six factor step blocks of product weights, in
+  single models and in model averages (the weight rule may depend on the bias
+  indicator), which make up the multilevel (assink2016-type) fits, not only for
+  dense multivariate blocks. An eligible scalar update (the global parameters, and
   the random-effect coordinates of blocks of several rows) proposes a slice
   move on the exact Gaussian numerator minus the log normalizer of one rule of
   the block's own quadrature schedule (rule `selection.coarse_max_rules`,
   default 3) at the actual parameters, and corrects it against the exact full
-  conditional: the posterior target is unchanged. Blocks without such a rule
-  (best-weight rules, factors of rank seven and eight, a normal kernel) keep
-  the ordinary sampler or their exact density; `selection.coarse_grid` applies
-  to the dense blocks only. On reduced assink2016 fits (one chain, 750
+  conditional: the posterior target is unchanged. Blocks fixed at a best-weight
+  rule, factors of rank seven and eight and fixed normal kernels keep the
+  ordinary sampler, and a model average uses the exact density of a block in the
+  states of its indicator with a best-weight rule; `selection.coarse_grid`
+  applies to the dense blocks only. On reduced assink2016 fits (one chain, 750
   iterations) the cluster and factor kernels take about 60% of the wall time
   of the condition-estimate fit and about 25% of the conditional-variance fit;
   from these costs the new sampler is estimated to save 25-40% and 9-14% of

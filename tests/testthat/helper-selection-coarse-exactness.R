@@ -168,8 +168,8 @@
 }
 
 
-# Adapts, burns in and draws `draws` values of `monitor`; returns them with the
-# sampler counters of the draws.
+# Adapts, burns in and draws `draws` values of `monitor`; returns them (a matrix for
+# several monitored nodes) with the sampler counters of the draws.
 .coarse_hand_chain <- function(hand, monitor, draws) {
 
   model <- hand$model
@@ -177,9 +177,10 @@
   stopifnot(isTRUE(ready), isTRUE(rjags::adapt(model, 0L, end.adaptation = TRUE)))
   for (batch in seq_len(5L)) stats::update(model, n.iter = 100L, progress.bar = "none")
   RoBMA::selection_sampler_info(clear = TRUE)
-  values <- as.numeric(as.matrix(rjags::coda.samples(model, monitor, n.iter = draws,
-    thin = 1L, progress.bar = "none")))
-  list(draws = values, samplers = hand$samplers, counters = RoBMA::selection_sampler_info())
+  values <- as.matrix(rjags::coda.samples(model, monitor, n.iter = draws,
+    thin = 1L, progress.bar = "none"))
+  list(draws = if (length(monitor) == 1L) as.numeric(values) else values,
+       samplers = hand$samplers, counters = RoBMA::selection_sampler_info())
 }
 
 
@@ -260,4 +261,57 @@
       gap = abs(exact_log_a - rung_log_a[max_rules]),
       accepted_rule = if (length(matched)) matched[1L] else NA_integer_)
   }))
+}
+
+
+# Raw moments (integrals of exp(log_density - reference) times x^0, x^1, x^2 over
+# [lower, upper]) by QUADPACK, with the absolute error estimates of the three.
+.coarse_raw_moments <- function(log_density, lower, upper, reference,
+                                rel.tol = 1e-8, abs.tol = 1e-12) {
+
+  density <- function(x) exp(vapply(x, log_density, numeric(1L)) - reference)
+  integrals <- lapply(0:2, function(power) {
+    result <- stats::integrate(function(x) density(x) * x^power, lower, upper,
+                               rel.tol = rel.tol, abs.tol = abs.tol, subdivisions = 200L)
+    stopifnot(identical(result$message, "OK"))
+    result
+  })
+  list(values = vapply(integrals, `[[`, numeric(1L), "value"),
+       errors = vapply(integrals, `[[`, numeric(1L), "abs.error"))
+}
+
+
+# log A of the one-sided best-weight rule of a rank-one block with two bins cut at
+# zero (weights 1 and omega_2) for rows of location mu: the weight of a vector is
+# that of its largest z, so A = 1 - (1 - omega_2) P(every row at or below zero),
+# and that probability is a one-dimensional integral over the shared latent axis.
+.coarse_exactness_best_log_normalizer <- function(setup, mu, tracker) {
+
+  result <- stats::integrate(function(z) {
+    probability <- rep(1, length(z))
+    for (i in seq_len(setup$rows)) {
+      probability <- probability * stats::pnorm(-(mu + setup$loading[i, 1L] * z) / setup$residual_sd[i])
+    }
+    stats::dnorm(z) * probability
+  }, -10, 10, rel.tol = 1e-9, abs.tol = 1e-14, subdivisions = 200L)
+  stopifnot(identical(result$message, "OK"))
+  # the error of A is the error of the probability, scaled, relative to A itself
+  normalizer <- 1 - (1 - setup$omega[2L]) * result$value
+  tracker$relative_error <- max(tracker$relative_error,
+                                (1 - setup$omega[2L]) * result$abs.error / normalizer)
+  log(normalizer)
+}
+
+
+# Mean, variance and their error allowances from the raw moments (values and
+# absolute error estimates of the integrals of 1, x and x^2, possibly summed over
+# components) and the largest relative error of the normalizers inside them.
+.coarse_moment_summary <- function(values, errors, relative_error) {
+
+  mean   <- values[2L] / values[1L]
+  second <- values[3L] / values[1L]
+  moment_error <- (errors[2:3] + abs(c(mean, second)) * errors[1L]) / (values[1L] - errors[1L]) +
+    2 * relative_error / (1 - relative_error) * c(sqrt(second), second)
+  list(mean = mean, variance = second - mean^2, mean_error = moment_error[1L],
+       variance_error = moment_error[2L] + 2 * abs(mean) * moment_error[1L] + moment_error[1L]^2)
 }
