@@ -242,7 +242,7 @@ test_that("LOO comparison and model weights support product-space fits", {
     fits[["dat.lehmann2018_RoBMA"]]
   ))
 
-  expect_true(is.matrix(out))
+  expect_s3_class(out, "compare.loo")
   expect_equal(nrow(out), 2)
   expect_true("elpd_diff" %in% colnames(out))
   expect_true("se_diff" %in% colnames(out))
@@ -449,7 +449,7 @@ test_that("loo_compare accepts brma.mv backends with the same known-V target", {
     fits[["brma.mv_block_mvn"]]
   ))
 
-  expect_true(is.matrix(out))
+  expect_s3_class(out, "compare.loo")
   expect_equal(nrow(out), 3)
   expect_true("elpd_diff" %in% colnames(out))
 })

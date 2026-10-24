@@ -337,14 +337,23 @@ test_that("brma.mv pooled heterogeneity validates forwarded arguments", {
     component          = "Study effects",
     .posterior_samples = posterior_samples
   ))
-  expect_warning(
-    pooled_heterogeneity(
-      object,
-      component          = "Study effects",
-      posterior_sample   = posterior_samples
+  # the misspelled argument is reported, then the call needs its samples
+  warned <- character()
+  expect_error(
+    withCallingHandlers(
+      pooled_heterogeneity(
+        object,
+        component          = "Study effects",
+        posterior_sample   = posterior_samples
+      ),
+      warning = function(w) {
+        warned <<- c(warned, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      }
     ),
-    "Unused argument.*posterior_sample"
+    "Posterior samples are required"
   )
+  expect_match(warned, "Unused argument.*posterior_sample")
 })
 
 

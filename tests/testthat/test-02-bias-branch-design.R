@@ -106,6 +106,10 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
   union <- .get_model_matrix(object)
   kinds <- .bbc_draw_kinds(object)
   tau   <- .bbc_tau(object)
+  if (!.is_scale(object) && !.is_multilevel(object)) {
+    # simple models plug in the posterior mean heterogeneity of all draws
+    tau[["tau_within"]][] <- mean(tau[["tau_within"]])
+  }
   gvif  <- list()
   count <- c(none = 0, PET = 0, PEESE = 0)
   for (kind in names(count)) {
@@ -419,9 +423,8 @@ delayedAssign("bbd_kv_input", load_info("bias_branch_known_v_ensemble"))
       next
     }
     X <- .bbd_design(d, kind)
-    vcov <- Reduce(`+`, lapply(selected, function(s) {
-      solve(crossprod(X, X / (vi + draws[["tau"]][s]^2)))
-    })) / length(selected)
+    # the coefficient covariance at the posterior mean heterogeneity of all draws
+    vcov <- solve(crossprod(X, X / (vi + mean(draws[["tau"]])^2)))
     gvif[[kind]] <- .bbd_gvif(vcov)
   }
   present <- names(count)[count > 0]

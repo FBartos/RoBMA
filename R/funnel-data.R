@@ -278,7 +278,7 @@
   if (!is.null(dots[["xlab"]])) {
     xlab <- dots[["xlab"]]
   } else if ((type == "LOO-PIT" || type == "rstudent") &&
-             .outcome_type(x) %in% c("bin", "pois")) {
+             isTRUE(.outcome_type(x) %in% c("bin", "pois"))) {
     # the LOO-PIT residuals of GLMMs are a descriptive normal approximation
     xlab <- "Residual (Descriptive Normal Approximation)"
   } else {
