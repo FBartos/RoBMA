@@ -13,8 +13,8 @@ plot_prior(x, ...)
 \method{plot_prior}{brma}(
   x,
   parameter = "mu",
-  parameter_mods = NULL,
-  parameter_scale = NULL,
+  parameter_mods,
+  parameter_scale,
   standardized_coefficients = TRUE,
   output_measure = NULL,
   transform = NULL,

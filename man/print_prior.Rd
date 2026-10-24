@@ -12,9 +12,9 @@ print_prior(x, ...)
 
 \method{print_prior}{brma}(
   x,
-  parameter = NULL,
-  parameter_mods = NULL,
-  parameter_scale = NULL,
+  parameter,
+  parameter_mods,
+  parameter_scale,
   component = "auto",
   ...
 )

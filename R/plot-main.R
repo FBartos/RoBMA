@@ -215,7 +215,7 @@
 #' @seealso [RoBMA()]
 #' @export
 plot.brma <- function(
-    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    x, parameter, parameter_mods, parameter_scale,
     prior = FALSE, standardized_coefficients = FALSE,
     conditional = FALSE,
     output_measure = NULL, transform = NULL,
@@ -297,7 +297,7 @@ lines.brma <- function(
 }
 
 .plot_brma <- function(
-    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    x, parameter, parameter_mods, parameter_scale,
     prior = FALSE, standardized_coefficients = FALSE,
     conditional = FALSE,
     output_measure = NULL, transform = NULL,

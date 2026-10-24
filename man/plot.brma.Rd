@@ -7,9 +7,9 @@
 \usage{
 \method{plot}{brma}(
   x,
-  parameter = NULL,
-  parameter_mods = NULL,
-  parameter_scale = NULL,
+  parameter,
+  parameter_mods,
+  parameter_scale,
   prior = FALSE,
   standardized_coefficients = FALSE,
   conditional = FALSE,

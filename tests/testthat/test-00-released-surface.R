@@ -41,3 +41,23 @@ test_that("selection arguments follow the released RoBMA() and bselmodel() argum
                      info = case[["name"]])
   }
 })
+
+test_that("parameter selectors of plot(), plot_prior(), and print_prior() have no default", {
+
+  no_default <- function(fun, name) identical(formals(fun)[[name]], quote(expr = ))
+
+  for (name in c("parameter", "parameter_mods", "parameter_scale")) {
+    expect_true(no_default(plot.brma, name), info = paste("plot.brma", name))
+    expect_true(no_default(print_prior.brma, name), info = paste("print_prior.brma", name))
+  }
+  expect_identical(formals(plot_prior.brma)[["parameter"]], "mu")
+  expect_true(no_default(plot_prior.brma, "parameter_mods"))
+  expect_true(no_default(plot_prior.brma, "parameter_scale"))
+
+  prior_object <- RoBMA(
+    yi = c(.1, .2, .3), sei = c(.1, .1, .1), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_no_error(utils::capture.output(print_prior(prior_object)))
+  expect_no_error(utils::capture.output(print_prior(prior_object, parameter = "tau")))
+  expect_no_error(plot_prior(prior_object))
+})

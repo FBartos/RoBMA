@@ -149,7 +149,7 @@ plot_prior.prior <- function(x, plot_type = "base", ...) {
 #' @export
 #' @rdname plot_prior
 plot_prior.brma <- function(
-    x, parameter = "mu", parameter_mods = NULL, parameter_scale = NULL,
+    x, parameter = "mu", parameter_mods, parameter_scale,
     standardized_coefficients = TRUE,
     output_measure = NULL, transform = NULL,
     plot_type = "base", component = "auto", ...) {
@@ -412,7 +412,7 @@ print_prior.prior <- function(x, ...) {
 #' @export
 #' @rdname print_prior
 print_prior.brma <- function(
-    x, parameter = NULL, parameter_mods = NULL, parameter_scale = NULL,
+    x, parameter, parameter_mods, parameter_scale,
     component = "auto", ...) {
 
   if (is.null(x[["priors"]])) {
