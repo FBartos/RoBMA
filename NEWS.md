@@ -443,7 +443,7 @@
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.227 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.247 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
     That BayesTools version is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,
