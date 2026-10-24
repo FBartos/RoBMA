@@ -497,3 +497,104 @@ test_that("as_draws() returns the parameters shown by summary() and hides the in
   expect_identical(colnames(as_draws_matrix(ordinary)), c("mu", "tau"))
   expect_identical(colnames(as_draws_matrix(ordinary, include_auxiliary = TRUE)), c("mu", "tau"))
 })
+
+test_that("parameter lookups of plot(), plot_prior(), and print_prior() use the released wording", {
+
+  ordinary   <- .surface_fit("ordinary")
+  mods       <- .surface_fit("mods")
+  scale      <- .surface_fit("scale")
+  multilevel <- .surface_fit("multilevel")
+
+  lookup <- function(expr, message, class = NULL) {
+    error <- tryCatch(expr, error = identity)
+    expect_identical(conditionMessage(error), message)
+    if (!is.null(class)) {
+      expect_s3_class(error, class)
+    }
+    invisible(error)
+  }
+  not_found <- "BayesTools_parameter_not_found"
+
+  # plot() describes a fitted object by its fitted structure
+  lookup(plot(ordinary, parameter = "bogus"),
+    "Unknown parameter 'bogus'. Valid base parameters are: 'mu', 'tau'.", not_found)
+  lookup(plot(multilevel, parameter = "bogus"),
+    "Unknown parameter 'bogus'. Valid base parameters are: 'mu', 'tau', 'rho'.")
+  lookup(plot(ordinary, parameter = "rho"),
+    "The 'rho' parameter is only available for multilevel models.", not_found)
+  lookup(plot(ordinary, parameter = "PET"),
+    "The 'PET' parameter is only available for PET models.")
+  lookup(plot(ordinary, parameter = "PEESE"),
+    "The 'PEESE' parameter is only available for PEESE models.")
+  lookup(plot(ordinary, parameter = "weightfunction"),
+    "The 'omega'/'weightfunction' parameter is only available for selection models.")
+  lookup(plot(ordinary, parameter_mods = "x"),
+    "The 'parameter_mods' argument can only be used for models with moderators.", not_found)
+  lookup(plot(mods, parameter_scale = "x"),
+    "The 'parameter_scale' argument can only be used for location-scale models.")
+  lookup(plot(mods, parameter_mods = "bogus"),
+    "The specified 'parameter_mods' term 'bogus' is not available. Available terms are: 'intercept', 'x'.")
+  lookup(plot(scale, parameter_scale = "bogus"),
+    "The specified 'parameter_scale' term 'bogus' is not available. Available terms are: 'intercept', 'x'.")
+
+  # the prior functions describe an object by its stored priors
+  unfitted <- brma(yi = yi, sei = sei, data = .surface_data(), measure = "GEN",
+    mods = ~ x, scale = ~ x, prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  pet <- bPET(yi = yi, sei = sei, data = .surface_data(), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  ordinary_priors <- brma(yi = yi, sei = sei, data = .surface_data(), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  for (object in list(ordinary, ordinary_priors)) {
+    lookup(print_prior(object, parameter = "bogus", silent = TRUE),
+      "Unknown prior parameter 'bogus'. Available parameters are: 'mu', 'tau'.")
+    lookup(plot_prior(object, parameter = "weightfunction"),
+      "Unknown prior parameter 'omega'. Available parameters are: 'mu', 'tau'.")
+  }
+  lookup(print_prior(mods, parameter = "bogus", silent = TRUE),
+    paste0("Unknown prior parameter 'bogus'. Available parameters are: 'tau', ",
+           "'parameter_mods = 'intercept'', 'parameter_mods = 'x''."))
+  lookup(plot_prior(mods, parameter_scale = "x"),
+    "The 'parameter_scale' argument can only be used when the object contains the corresponding priors.")
+  lookup(print_prior(mods, parameter_mods = "bogus", silent = TRUE),
+    "The specified 'parameter_mods' term 'bogus' is not available. Available terms are: 'intercept', 'x'.")
+  for (object in list(scale, unfitted)) {
+    lookup(plot_prior(object, parameter = "x"),
+      paste0("The term 'x' is available in both moderator and scale priors. ",
+             "Use 'parameter_mods' or 'parameter_scale'."))
+    lookup(print_prior(object, parameter = "intercept", silent = TRUE),
+      paste0("The term 'intercept' is available in both moderator and scale priors. ",
+             "Use 'parameter_mods' or 'parameter_scale'."))
+  }
+  lookup(print_prior(scale, parameter = "x", silent = TRUE),
+    paste0("The term 'x' is available in both moderator and scale priors. ",
+           "Use 'parameter_mods' or 'parameter_scale'."), "BayesTools_parameter_ambiguous")
+  lookup(print_prior(pet, parameter = "omega", silent = TRUE),
+    "The publication-bias prior does not contain a 'omega' component.")
+  lookup(plot_prior(pet, parameter = "PEESE"),
+    "The publication-bias prior does not contain a 'PEESE' component.")
+  lookup(plot(unfitted, parameter = "bogus"),
+    paste0("Unknown prior parameter 'bogus'. Available parameters are: ",
+           "'parameter_mods = 'intercept'', 'parameter_mods = 'x'', ",
+           "'parameter_scale = 'intercept'', 'parameter_scale = 'x''."))
+
+  # the hidden auxiliary priors keep their own message
+  glmm <- brma.glmm(ai = 1:3, ci = 2:4, n1i = rep(10, 3), n2i = rep(12, 3),
+    measure = "OR", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_error(print_prior(glmm, parameter = "theta", silent = TRUE),
+    "The specified parameter 'theta' is not available.", fixed = TRUE)
+})
+
+test_that("a stored LOO or WAIC of another unit names the released remedy", {
+
+  metadata <- list(unit = "cluster", retained_context = "none", target = "loo", data_hash = "hash")
+  expect_error(
+    RoBMA:::.check_cached_predictive_target(NULL, metadata, "estimate", "LOO"),
+    "Stored LOO was computed with unit = 'cluster'. Recompute with add_loo(object, unit = 'estimate').",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.check_cached_predictive_target(NULL, metadata, "estimate", "WAIC"),
+    "Stored WAIC was computed with unit = 'cluster'. Recompute with add_waic(object, unit = 'estimate').",
+    fixed = TRUE
+  )
+})

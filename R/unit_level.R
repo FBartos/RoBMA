@@ -623,7 +623,8 @@
 .check_cached_predictive_target <- function(object, metadata, unit, method) {
 
   metadata <- .normalize_predictive_target_metadata(metadata)
-  recompute <- if (identical(method, "LOO")) "add_loo()" else "add_waic()"
+  recompute_function <- if (identical(method, "LOO")) "add_loo" else "add_waic"
+  recompute <- paste0(recompute_function, "()")
   stored_fingerprint <- .predictive_target_fingerprint(metadata)
   if (is.null(stored_fingerprint)) {
     stop(
@@ -635,7 +636,7 @@
   if (!identical(metadata[["unit"]], unit)) {
     stop(
       "Stored ", method, " was computed with unit = '", metadata[["unit"]],
-      "'. Recompute with ", recompute, " using unit = '", unit, "'.",
+      "'. Recompute with ", recompute_function, "(object, unit = '", unit, "').",
       call. = FALSE
     )
   }

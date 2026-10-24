@@ -368,7 +368,8 @@ test_that("only_priors objects point to the random-effect specification", {
     error <- tryCatch(eval(call), error = identity)
     expect_identical(class(error), c("simpleError", "error", "condition"))
     expect_match(
-      conditionMessage(error), "The specified parameter 'tau' is not available."
+      conditionMessage(error), "Unknown prior parameter 'tau'. Available parameters are: ",
+      fixed = TRUE
     )
     expect_match(
       conditionMessage(error),
@@ -379,12 +380,13 @@ test_that("only_priors objects point to the random-effect specification", {
     print_prior(random, parameter = "random", silent = TRUE), "prior_random"
   )
 
-  # objects without random-effect priors give the original message only
+  # objects without random-effect priors give the released message only
   plain <- BMA(
     yi = yi, sei = sei, data = data, measure = "SMD", only_priors = TRUE
   )
   error <- tryCatch(print_prior(plain, "tau2", silent = TRUE), error = identity)
-  expect_match(conditionMessage(error), "is not available.")
+  expect_identical(conditionMessage(error),
+    "Unknown prior parameter 'tau2'. Available parameters are: 'mu', 'tau'.")
   expect_false(grepl("random", conditionMessage(error), fixed = TRUE))
 })
 

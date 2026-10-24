@@ -92,8 +92,9 @@ test_that("unfitted formula prior aliases retain their declared owners", {
     print_prior(object, "mu_intercept", silent = TRUE))
   expect_identical(print_prior(object, "heterogeneity", silent = TRUE),
     print_prior(object, "log_tau_intercept", silent = TRUE))
-  expect_error(print_prior(object, "intercept", silent = TRUE), "ambiguous")
-  expect_error(print_prior(object, "scale_var", silent = TRUE), "ambiguous")
+  both <- "is available in both moderator and scale priors. Use 'parameter_mods' or 'parameter_scale'."
+  expect_error(print_prior(object, "intercept", silent = TRUE), both, fixed = TRUE)
+  expect_error(print_prior(object, "scale_var", silent = TRUE), both, fixed = TRUE)
   no_intercept <- brma(yi = effect, sei = std_err, mods = ~ 0 + mod_cont,
     data = test_data, measure = "GEN", prior_unit_information_sd = 1,
     only_priors = TRUE, silent = TRUE)
@@ -229,7 +230,8 @@ test_that("plot_prior selects moderator and scale priors", {
 
   expect_error(
     plot_prior(both_priors, parameter = "scale_var", plot_type = "ggplot"),
-    regexp = "component"
+    "The term 'scale_var' is available in both moderator and scale priors. Use 'parameter_mods' or 'parameter_scale'.",
+    fixed = TRUE
   )
   expect_true(.is_ggplot(plot_prior(
     both_priors, parameter = "scale_var", component = "mods",

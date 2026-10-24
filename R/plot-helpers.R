@@ -20,7 +20,8 @@
       parameter = parameter_mods,
       component = "mods",
       argument  = "parameter_mods",
-      allow_factor_cells = allow_factor_cells
+      allow_factor_cells = allow_factor_cells,
+      context   = "plot"
     ))
   }
 
@@ -31,7 +32,8 @@
       parameter = parameter_scale,
       component = "scale",
       argument  = "parameter_scale",
-      allow_factor_cells = allow_factor_cells
+      allow_factor_cells = allow_factor_cells,
+      context   = "plot"
     ))
   }
 
@@ -48,7 +50,8 @@
     parameter = parameter,
     component = component,
     argument  = "parameter",
-    allow_factor_cells = allow_factor_cells
+    allow_factor_cells = allow_factor_cells,
+    context   = "plot"
   ))
 }
 
@@ -218,7 +221,8 @@
 .brma_parameter_select_entry <- function(object, parameter,
                                          component = "auto",
                                          argument = "parameter",
-                                         allow_factor_cells = FALSE) {
+                                         allow_factor_cells = FALSE,
+                                         context = NULL) {
 
   component <- .parameter_component_normalize(component)
   BayesTools::check_char(parameter, argument, check_length = 1, allow_NA = FALSE)
@@ -230,6 +234,10 @@
       matches <- matches[matches[["component"]] == component, , drop = FALSE]
     }
     if (nrow(matches) == 0L) {
+      release <- .brma_parameter_release_message(
+        object, parameter, argument, component, context
+      )
+      if (!is.null(release)) stop(release, call. = FALSE)
       stop(
         "The specified ", argument, " '", parameter, "' is not available. ",
         "Available quantities are: ",
@@ -245,6 +253,10 @@
     if (length(selected) == 1L) {
       return(as.list(matches[1L, , drop = FALSE]))
     }
+    release <- .brma_parameter_release_message(
+      object, parameter, argument, component, context, ambiguous = TRUE
+    )
+    if (!is.null(release)) stop(release, call. = FALSE)
     quantities <- unique(paste0(
       "'", matches[["parameter"]], "' (", matches[["component"]], ")"
     ))
@@ -257,49 +269,53 @@
   }
 
   metadata <- .brma_parameter_catalog_metadata(object)
-  selection <- tryCatch(
-    BayesTools::parameter_catalog_resolve(
-      catalog   = metadata[["catalog"]],
-      alias     = parameter,
-      component = if (identical(component, "auto")) NULL else component,
-      simplify_names = TRUE
-    ),
-    BayesTools_parameter_not_found = function(error) {
-      if (identical(component, "auto")) stop(error)
-      parents <- metadata[["entries"]]
-      parents <- parents[parents[["component"]] == component, , drop = FALSE]
-      allowed <- unique(c(parents[["quantity_id"]],
-        unlist(parents[["member_quantity_ids"]], use.names = FALSE)))
-      catalog <- metadata[["catalog"]]
-      quantities <- catalog[["quantities"]]
-      aliases <- catalog[["aliases"]]
-      candidates <- unique(c(
-        quantities[["quantity_id"]][quantities[["canonical_name"]] == parameter],
-        aliases[["quantity_id"]][aliases[["alias"]] == parameter]
-      ))
-      candidates <- intersect(candidates, allowed)
-      if (length(candidates) != 1L) stop(error)
-      quantity <- quantities[quantities[["quantity_id"]] == candidates, , drop = FALSE]
-      BayesTools::parameter_catalog_resolve(catalog,
-        alias = quantity[["canonical_name"]], namespace = quantity[["namespace"]],
-        component = quantity[["component"]], simplify_names = TRUE)
-    },
-    BayesTools_parameter_ambiguous = function(error) {
-      ambiguity <- .brma_parameter_catalog_group_ambiguity(
-        entries      = metadata[["entries"]],
-        quantity_ids = error[["candidates"]][["quantity_id"]],
-        component    = component
-      )
-      if (!is.null(ambiguity[["component"]])) {
-        return(BayesTools::parameter_catalog_resolve(
-          catalog   = metadata[["catalog"]],
-          alias     = parameter,
-          component = ambiguity[["component"]],
-          simplify_names = TRUE
+  selection <- .brma_parameter_release_wording(
+    object = object, parameter = parameter, argument = argument,
+    component = component, context = context,
+    tryCatch(
+      BayesTools::parameter_catalog_resolve(
+        catalog   = metadata[["catalog"]],
+        alias     = parameter,
+        component = if (identical(component, "auto")) NULL else component,
+        simplify_names = TRUE
+      ),
+      BayesTools_parameter_not_found = function(error) {
+        if (identical(component, "auto")) stop(error)
+        parents <- metadata[["entries"]]
+        parents <- parents[parents[["component"]] == component, , drop = FALSE]
+        allowed <- unique(c(parents[["quantity_id"]],
+          unlist(parents[["member_quantity_ids"]], use.names = FALSE)))
+        catalog <- metadata[["catalog"]]
+        quantities <- catalog[["quantities"]]
+        aliases <- catalog[["aliases"]]
+        candidates <- unique(c(
+          quantities[["quantity_id"]][quantities[["canonical_name"]] == parameter],
+          aliases[["quantity_id"]][aliases[["alias"]] == parameter]
         ))
+        candidates <- intersect(candidates, allowed)
+        if (length(candidates) != 1L) stop(error)
+        quantity <- quantities[quantities[["quantity_id"]] == candidates, , drop = FALSE]
+        BayesTools::parameter_catalog_resolve(catalog,
+          alias = quantity[["canonical_name"]], namespace = quantity[["namespace"]],
+          component = quantity[["component"]], simplify_names = TRUE)
+      },
+      BayesTools_parameter_ambiguous = function(error) {
+        ambiguity <- .brma_parameter_catalog_group_ambiguity(
+          entries      = metadata[["entries"]],
+          quantity_ids = error[["candidates"]][["quantity_id"]],
+          component    = component
+        )
+        if (!is.null(ambiguity[["component"]])) {
+          return(BayesTools::parameter_catalog_resolve(
+            catalog   = metadata[["catalog"]],
+            alias     = parameter,
+            component = ambiguity[["component"]],
+            simplify_names = TRUE
+          ))
+        }
+        stop(error)
       }
-      stop(error)
-    }
+    )
   )
   entry <- metadata[["entries"]][
     metadata[["entries"]][["quantity_id"]] == selection[["quantity_id"]],
@@ -352,6 +368,180 @@
   out <- as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE])
   out[["selection"]] <- selection
   return(out)
+}
+
+# Re-signal the catalog errors of a plot(), plot_prior(), or print_prior()
+# lookup with the wording of the 4.0.0 release. The classes of the catalog
+# conditions are kept, so that handlers keyed on them continue to work.
+.brma_parameter_release_wording <- function(expr, object, parameter, argument,
+                                            component, context) {
+
+  tryCatch(
+    expr,
+    BayesTools_parameter_not_found = function(error) {
+      message <- .brma_parameter_release_message(
+        object, parameter, argument, component, context
+      )
+      if (!is.null(message)) {
+        error[["message"]] <- message
+        error[["call"]]    <- NULL
+      }
+      stop(error)
+    },
+    BayesTools_parameter_ambiguous = function(error) {
+      message <- .brma_parameter_release_message(
+        object, parameter, argument, component, context, ambiguous = TRUE
+      )
+      if (!is.null(message)) {
+        error[["message"]] <- message
+        error[["call"]]    <- NULL
+      }
+      stop(error)
+    }
+  )
+}
+
+# The 4.0.0 wording of a parameter lookup that fails, or NULL to keep the
+# message of the catalog (selections that did not exist at the release: the
+# 'component' argument, the hidden auxiliary priors, and the ambiguity of a
+# term of a fitted object). plot() describes a fitted object by its fitted
+# structure, the prior functions (and any unfitted object) by the stored priors.
+.brma_parameter_release_message <- function(object, parameter, argument,
+                                            component, context,
+                                            ambiguous = FALSE) {
+
+  if (is.null(context)) {
+    return(NULL)
+  }
+
+  priors   <- object[["priors"]]
+  from_fit <- !is.null(object[["fit"]]) && identical(context, "plot")
+
+  if (argument %in% c("parameter_mods", "parameter_scale")) {
+    is_mods <- identical(argument, "parameter_mods")
+    if (from_fit) {
+      if (!(if (is_mods) .is_mods(object) else .is_scale(object))) {
+        return(paste0(
+          "The '", argument, "' argument can only be used for ",
+          if (is_mods) "models with moderators." else "location-scale models."
+        ))
+      }
+      terms <- .fitted_formula_terms(
+        object, if (is_mods) "mu" else "log_tau",
+        include_intercept = TRUE, display = TRUE
+      )
+    } else {
+      stored <- if (is_mods) priors[["mods"]] else priors[["scale"]]
+      if (is.null(stored)) {
+        return(paste0(
+          "The '", argument, "' argument can only be used when the object ",
+          "contains the corresponding priors."
+        ))
+      }
+      terms <- .plot_prior_term_names(stored)
+    }
+    return(sprintf(
+      "The specified '%s' term '%s' is not available. Available terms are: %s.",
+      argument, parameter, paste0("'", terms, "'", collapse = ", ")
+    ))
+  }
+
+  if (!identical(component, "auto")) {
+    return(NULL)
+  }
+
+  if (from_fit) {
+    if (ambiguous) {
+      return(NULL)
+    }
+    if (parameter == "rho") {
+      return("The 'rho' parameter is only available for multilevel models.")
+    }
+    if (parameter == "PET") {
+      return("The 'PET' parameter is only available for PET models.")
+    }
+    if (parameter == "PEESE") {
+      return("The 'PEESE' parameter is only available for PEESE models.")
+    }
+    if (parameter %in% c("omega", "weightfunction")) {
+      return("The 'omega'/'weightfunction' parameter is only available for selection models.")
+    }
+    valid <- c("'mu'", "'tau'")
+    if (.is_multilevel(object))     valid <- c(valid, "'rho'")
+    if (.is_PET(object))            valid <- c(valid, "'PET'")
+    if (.is_PEESE(object))          valid <- c(valid, "'PEESE'")
+    if (.is_weightfunction(object)) valid <- c(valid, "'omega'/'weightfunction'")
+    return(sprintf(
+      "Unknown parameter '%s'. Valid base parameters are: %s.",
+      parameter, paste(valid, collapse = ", ")
+    ))
+  }
+
+  parameter <- switch(
+    parameter,
+    "effect"         = "mu",
+    "heterogeneity"  = "tau",
+    "weightfunction" = "omega",
+    parameter
+  )
+  outcome <- priors[["outcome"]]
+  if (parameter %in% .plot_prior_auxiliary_outcome_priors() &&
+      !is.null(outcome[[parameter]])) {
+    return(NULL)
+  }
+
+  if (ambiguous) {
+    if (!(parameter %in% names(priors[["mods"]]) &&
+          parameter %in% .plot_prior_term_names(priors[["scale"]]))) {
+      return(NULL)
+    }
+    return(sprintf(paste0(
+      "The term '%s' is available in both moderator and scale priors. ",
+      "Use 'parameter_mods' or 'parameter_scale'."
+    ), parameter))
+  }
+
+  if (parameter %in% c("omega", "PET", "PEESE", "bias") &&
+      !is.null(outcome[["bias"]])) {
+    return(sprintf(
+      "The publication-bias prior does not contain a '%s' component.", parameter
+    ))
+  }
+
+  available <- setdiff(names(outcome), .plot_prior_auxiliary_outcome_priors())
+  if (!is.null(outcome[["bias"]])) {
+    available <- unique(c(available, "omega", "PET", "PEESE"))
+  }
+  if (!is.null(priors[["mods"]])) {
+    available <- c(available,
+      paste0("parameter_mods = '", names(priors[["mods"]]), "'"))
+  }
+  if (!is.null(priors[["scale"]])) {
+    available <- c(available, paste0(
+      "parameter_scale = '", .plot_prior_term_names(priors[["scale"]]), "'"))
+  }
+
+  return(paste0(
+    sprintf(
+      "Unknown prior parameter '%s'. Available parameters are: %s.",
+      parameter, paste0("'", available, "'", collapse = ", ")
+    ),
+    if (.has_print_prior_random(object)) paste0(
+      " The random-effect priors of the object are printed by ",
+      "print_prior(object, parameter = \"random\")."
+    )
+  ))
+}
+
+# Term names of a stored moderator or scale prior list (the scale priors of
+# component-specific scale models are one list per formula parameter).
+.plot_prior_term_names <- function(prior_list) {
+
+  if (inherits(prior_list, "RoBMA_scale_priors")) {
+    return(unique(unlist(lapply(prior_list, names), use.names = FALSE)))
+  }
+
+  return(names(prior_list))
 }
 
 # Catalog quantities that are factor contrast coefficients ('g{1}'): their
@@ -1524,7 +1714,8 @@
       object    = object,
       parameter = parameter_mods,
       component = "mods",
-      argument  = "parameter_mods"
+      argument  = "parameter_mods",
+      context   = "prior"
     )
     return(.select_plot_prior_entry(
       object, entry, allow_mixed_bias, standardized_coefficients
@@ -1538,7 +1729,8 @@
       object    = object,
       parameter = parameter_scale,
       component = "scale",
-      argument  = "parameter_scale"
+      argument  = "parameter_scale",
+      context   = "prior"
     )
     return(.select_plot_prior_entry(
       object, entry, allow_mixed_bias, standardized_coefficients
@@ -1566,7 +1758,8 @@
     object    = object,
     parameter = parameter,
     component = component,
-    argument  = "parameter"
+    argument  = "parameter",
+    context   = "prior"
   )
 
   return(.select_plot_prior_entry(
