@@ -24,6 +24,7 @@ extern SEXP RoBMA_selnorm_certificate_gap(SEXP nodes, SEXP mean);
 extern SEXP RoBMA_selnorm_cache_snapshot(void);
 extern SEXP RoBMA_selnorm_cache_restore(SEXP snapshots);
 extern SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP clear);
+extern SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings);
 extern SEXP RoBMA_glmm_binom_marginal_loglik(SEXP ai, SEXP ci,
                                              SEXP n1i, SEXP n2i,
                                              SEXP mu_samples,
@@ -403,6 +404,8 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_cache_snapshot", (DL_FUNC) &RoBMA_selnorm_cache_snapshot, 0},
     {"RoBMA_selnorm_cache_restore", (DL_FUNC) &RoBMA_selnorm_cache_restore, 1},
     {"RoBMA_selnorm_sampler_control", (DL_FUNC) &RoBMA_selnorm_sampler_control, 3},
+    /* Test hook: surrogate and exact density of a cluster or factor block. */
+    {"RoBMA_selnorm_surrogate_probe", (DL_FUNC) &RoBMA_selnorm_surrogate_probe, 4},
     {"RoBMA_glmm_binom_aghq", (DL_FUNC) &RoBMA_glmm_binom_aghq, 14},
     {"RoBMA_glmm_binom_aghq_row_sum", (DL_FUNC) &RoBMA_glmm_binom_aghq_row_sum, 14},
     {"RoBMA_glmm_pois_aghq", (DL_FUNC) &RoBMA_glmm_pois_aghq, 14},

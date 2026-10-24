@@ -5468,6 +5468,47 @@ double cpp_gaussian_latent_loglik(
   return norm - 0.5 * log_a - quadratic;
 }
 
+namespace {
+
+// The loading columns that carry dependence. A zero column only contributes a
+// latent axis that integrates to one, so the factor kernel and the corrected
+// sampler's surrogate drop it once, here: `active_columns` are the declared
+// indices kept, `loading` their dense copy (empty unless `compacted`, which
+// needs at least one active column and fewer than the declared ones).
+struct FactorColumnCompaction {
+  std::vector<int> active_columns;
+  std::vector<double> loading;
+  bool compacted = false;
+};
+
+FactorColumnCompaction compact_factor_columns(const double *declared_loading,
+                                              int dimension, int declared_rank)
+{
+  FactorColumnCompaction out;
+  out.active_columns.reserve(static_cast<std::size_t>(declared_rank));
+  for (int factor = 0; factor < declared_rank; ++factor) {
+    for (int i = 0; i < dimension; ++i) {
+      if (declared_loading[i + dimension * factor] != 0.0) {
+        out.active_columns.push_back(factor);
+        break;
+      }
+    }
+  }
+  const int active_rank = static_cast<int>(out.active_columns.size());
+  out.compacted = active_rank >= 1 && active_rank < declared_rank;
+  if (out.compacted) {
+    out.loading.resize(static_cast<std::size_t>(dimension) * active_rank);
+    for (int factor = 0; factor < active_rank; ++factor) {
+      const double *column = declared_loading + dimension * out.active_columns[factor];
+      std::copy(column, column + dimension,
+                out.loading.begin() + static_cast<std::size_t>(dimension) * factor);
+    }
+  }
+  return out;
+}
+
+}
+
 double cpp_selnorm_factor_step_lpdf(
     const double *x, const double *mean, const double *residual_sd,
     const double *declared_loading, int dimension, int declared_rank,
@@ -5479,7 +5520,8 @@ double cpp_selnorm_factor_step_lpdf(
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse,
     double *relative_change, double *log_normalizer_out, int vector_rule,
-    const SelNormTiltedMoments *proposal_moments, bool *deterministic)
+    const SelNormTiltedMoments *proposal_moments, bool *deterministic,
+    const double *log_normalizer_override)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   const double log_two_pi = std::log(6.283185307179586476925286766559);
@@ -5497,6 +5539,9 @@ double cpp_selnorm_factor_step_lpdf(
       !(relative_tolerance > 0.0)) {
     return negative_infinity;
   }
+  if (log_normalizer_override != nullptr && !std::isfinite(*log_normalizer_override)) {
+    throw std::invalid_argument("An explicit selection normalizer must be finite.");
+  }
 
   // Inactive product-space components keep their declared loading columns, and
   // a zero column only contributes a latent axis that integrates to one: it
@@ -5504,32 +5549,12 @@ double cpp_selnorm_factor_step_lpdf(
   // equal to the identity. Drop those columns once, here, so the support shape,
   // the node budget, the sparse grid and the randomized fallback all see the
   // columns that actually carry dependence.
-  std::vector<int> active_columns;
-  active_columns.reserve(static_cast<std::size_t>(declared_rank));
-  for (int factor = 0; factor < declared_rank; ++factor) {
-    for (int i = 0; i < dimension; ++i) {
-      if (declared_loading[i + dimension * factor] != 0.0) {
-        active_columns.push_back(factor);
-        break;
-      }
-    }
-  }
-  const int active_rank = static_cast<int>(active_columns.size());
-  const bool compacted = active_rank >= 1 && active_rank < declared_rank;
-  std::vector<double> compacted_loading;
-  if (compacted) {
-    compacted_loading.resize(
-      static_cast<std::size_t>(dimension) * active_rank
-    );
-    for (int factor = 0; factor < active_rank; ++factor) {
-      const double *column = declared_loading + dimension * active_columns[factor];
-      std::copy(column, column + dimension,
-                compacted_loading.begin() +
-                  static_cast<std::size_t>(dimension) * factor);
-    }
-  }
-  const double *loading = compacted ? compacted_loading.data() : declared_loading;
-  int rank = compacted ? active_rank : declared_rank;
+  const FactorColumnCompaction compaction =
+    compact_factor_columns(declared_loading, dimension, declared_rank);
+  const std::vector<int> &active_columns = compaction.active_columns;
+  const bool compacted = compaction.compacted;
+  const double *loading = compacted ? compaction.loading.data() : declared_loading;
+  int rank = compacted ? static_cast<int>(active_columns.size()) : declared_rank;
   // The randomized fallback reads a design the caller built for the declared
   // rank. Keep its layout and take the coordinates of the retained columns, so
   // compaction lowers the integration dimension without reinterpreting the
@@ -5646,6 +5671,11 @@ double cpp_selnorm_factor_step_lpdf(
       return negative_infinity;
     }
     log_density += log_weight;
+  }
+
+  if (log_normalizer_override != nullptr) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+    return log_density - *log_normalizer_override;
   }
 
   FactorNormalizerContext context;
@@ -6169,6 +6199,148 @@ double cpp_selnorm_factor_step_lpdf(
   return log_density - log_normalizer;
 }
 
+namespace {
+
+// Step-kernel data of a block with the arrays it points to, as every kernel
+// entry builds it (no segments and no p-hacking).
+struct StepKernelSelection {
+  double phack_z_zero[2] = {0, 0};
+  double segment_bounds_zero[1] = {0};
+  int segment_zero[1] = {0};
+  SelNormKernelData data;
+
+  StepKernelSelection(int n_bins, int effect_sign, const double *z_lower,
+                      const double *z_upper, bool telescope_probabilities)
+  {
+    data.n_bins = n_bins;
+    data.n_segments = 0;
+    data.effect_sign = effect_sign;
+    data.q = 0;
+    data.z_lower = z_lower;
+    data.z_upper = z_upper;
+    data.phack_z_source = phack_z_zero;
+    data.phack_z_dest = phack_z_zero;
+    data.segment_bounds = segment_bounds_zero;
+    data.segment_step_bin = segment_zero;
+    data.segment_phack_region = segment_zero;
+    data.segment_step_bin_real = 0;
+    data.segment_phack_region_real = 0;
+    data.trusted_step_partition = true;
+    data.telescope_probabilities = telescope_probabilities;
+  }
+  StepKernelSelection(const StepKernelSelection &) = delete;
+  StepKernelSelection &operator=(const StepKernelSelection &) = delete;
+};
+
+// Offset into the quadrature tables and order of rule min(max_rules, count) of
+// a schedule (1-based), the one rule the surrogate integrates over.
+void surrogate_rule_span(const double *orders, int rule_count, unsigned int max_rules,
+                         int *offset, int *order)
+{
+  const int rule = static_cast<int>(
+    std::min(max_rules, static_cast<unsigned int>(rule_count)));
+  *offset = 0;
+  for (int previous = 0; previous + 1 < rule; ++previous) {
+    *offset += static_cast<int>(orders[previous]);
+  }
+  *order = static_cast<int>(orders[rule - 1]);
+}
+
+}
+
+double cpp_selnorm_factor_step_surrogate_lpdf(
+    const double *x, const double *mean, const double *residual_sd,
+    const double *declared_loading, int dimension, int declared_rank,
+    const double *selection_se, const double *omega, int n_bins,
+    const double *z_lower, const double *z_upper, const int *obs_bin,
+    int effect_sign, bool telescope_probabilities, int kernel_mode,
+    const double *quadrature_nodes, const double *quadrature_log_weights,
+    const double *quadrature_orders, int quadrature_rule_count, int vector_rule,
+    const SelNormCoarseSettings &settings, bool *exact_fallback,
+    double *log_normalizer_out)
+{
+  const double unavailable = std::numeric_limits<double>::quiet_NaN();
+  *exact_fallback = false;
+  if (log_normalizer_out != nullptr) *log_normalizer_out = unavailable;
+  // Inputs the sampler's dynamic check refuses have the density of the exact
+  // kernel, -Inf, and no surrogate.
+  if (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) {
+    return -std::numeric_limits<double>::infinity();
+  }
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!std::isfinite(omega[bin]) || omega[bin] < 0.0) {
+      return -std::numeric_limits<double>::infinity();
+    }
+  }
+  // The numerator is the exact kernel's own, with the normalizer replaced by
+  // zero after its NORMAL early return and its observed weights. The QMC
+  // controls only satisfy the kernel's argument validation: nothing reads them.
+  const double unit_log_normalizer = 0.0;
+  double ignored_mcse, ignored_change;
+  const double numerator = cpp_selnorm_factor_step_lpdf(
+    x, mean, residual_sd, declared_loading, dimension, declared_rank,
+    selection_se, omega, n_bins, z_lower, z_upper, obs_bin, effect_sign,
+    telescope_probabilities, kernel_mode, quadrature_nodes,
+    quadrature_log_weights, quadrature_orders, quadrature_rule_count, nullptr,
+    2, 2, 2, 1.0, &ignored_mcse, &ignored_change, nullptr, vector_rule, nullptr,
+    nullptr, &unit_log_normalizer);
+  if (!std::isfinite(numerator)) return numerator;
+  if (kernel_mode == SELKERNEL_NORMAL) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return numerator;
+  }
+  // Rule min(max_rules, rule_count) of a product schedule; every other case
+  // (the numerator call has already refused a missing schedule) is the exact
+  // density's.
+  if (vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  int offset, order;
+  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings.max_rules,
+                      &offset, &order);
+
+  // The block the exact kernel integrates: zero loading columns dropped, its
+  // forest plan and its node budget.
+  const FactorColumnCompaction compaction =
+    compact_factor_columns(declared_loading, dimension, declared_rank);
+  const double *loading = compaction.compacted ? compaction.loading.data() : declared_loading;
+  const int rank = compaction.compacted ?
+    static_cast<int>(compaction.active_columns.size()) : declared_rank;
+  const StepKernelSelection selection(n_bins, effect_sign, z_lower, z_upper,
+                                      telescope_probabilities);
+  FactorNormalizerContext context;
+  context.vector_rule = vector_rule;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.rank = rank;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.n_bins = n_bins;
+  context.kernel_mode = kernel_mode;
+  context.selection = selection.data;
+  FactorForestPlan forest;
+  factor_forest_plan(context, nullptr, &forest);
+  const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
+  if (!selnorm_factor_rule_affordable(order, cost_exponent)) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  SelNormLeanScratch lean;
+  lean.configure(residual_sd, selection_se, dimension, omega, selection.data);
+  FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
+                  offset, order, &lean);
+  const double log_normalizer = rung.log_integral();
+  if (!std::isfinite(log_normalizer)) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  return numerator - log_normalizer;
+}
+
 double cpp_selnorm_cluster_step_lpdf(
     const double *x, const double *mean, const double *residual_sd,
     const double *loading, int dimension, const double *selection_se,
@@ -6180,7 +6352,7 @@ double cpp_selnorm_cluster_step_lpdf(
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse, double *relative_change,
     const long double *quadrature_weights, double *log_normalizer_out,
-    int vector_rule, bool *deterministic)
+    int vector_rule, bool *deterministic, const double *log_normalizer_override)
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
@@ -6196,6 +6368,9 @@ double cpp_selnorm_cluster_step_lpdf(
       (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
       vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
     return negative_infinity;
+  }
+  if (log_normalizer_override != nullptr && !std::isfinite(*log_normalizer_override)) {
+    throw std::invalid_argument("An explicit selection normalizer must be finite.");
   }
 
   double phack_z_zero[2] = {0, 0};
@@ -6254,6 +6429,11 @@ double cpp_selnorm_cluster_step_lpdf(
       return negative_infinity;
     }
     log_density += log_weight;
+  }
+
+  if (log_normalizer_override != nullptr) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+    return log_density - *log_normalizer_override;
   }
 
   ClusterNormalizerContext context;
@@ -6390,6 +6570,77 @@ double cpp_selnorm_cluster_step_lpdf(
     log_normalizer_out, vector_rule,
     vector_rule == SELVECTOR_PRODUCT ? &finest_moments : nullptr, deterministic
   );
+}
+
+double cpp_selnorm_cluster_step_surrogate_lpdf(
+    const double *x, const double *mean, const double *residual_sd,
+    const double *loading, int dimension, const double *selection_se,
+    const double *omega, int n_bins, const double *z_lower,
+    const double *z_upper, const int *obs_bin, int effect_sign,
+    bool telescope_probabilities, int kernel_mode,
+    const double *quadrature_nodes, const double *quadrature_log_weights,
+    const double *quadrature_orders, int quadrature_rule_count, int vector_rule,
+    const SelNormCoarseSettings &settings, bool *exact_fallback,
+    double *log_normalizer_out)
+{
+  const double unavailable = std::numeric_limits<double>::quiet_NaN();
+  *exact_fallback = false;
+  if (log_normalizer_out != nullptr) *log_normalizer_out = unavailable;
+  // Inputs the sampler's dynamic check refuses have the density of the exact
+  // kernel, -Inf, and no surrogate.
+  if (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) {
+    return -std::numeric_limits<double>::infinity();
+  }
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!std::isfinite(omega[bin]) || omega[bin] < 0.0) {
+      return -std::numeric_limits<double>::infinity();
+    }
+  }
+  // See the factor surrogate: the exact numerator, the QMC controls are
+  // placeholders for the kernel's argument validation.
+  const double unit_log_normalizer = 0.0;
+  double ignored_mcse, ignored_change;
+  const double numerator = cpp_selnorm_cluster_step_lpdf(
+    x, mean, residual_sd, loading, dimension, selection_se, omega, n_bins,
+    z_lower, z_upper, obs_bin, effect_sign, telescope_probabilities, kernel_mode,
+    quadrature_nodes, quadrature_log_weights, quadrature_orders,
+    quadrature_rule_count, nullptr, 2, 2, 2, 1.0, &ignored_mcse, &ignored_change,
+    nullptr, nullptr, vector_rule, nullptr, &unit_log_normalizer);
+  if (!std::isfinite(numerator)) return numerator;
+  if (kernel_mode == SELKERNEL_NORMAL) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return numerator;
+  }
+  if (vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  int offset, order;
+  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings.max_rules,
+                      &offset, &order);
+  const StepKernelSelection selection(n_bins, effect_sign, z_lower, z_upper,
+                                      telescope_probabilities);
+  ClusterNormalizerContext context;
+  context.vector_rule = vector_rule;
+  context.quadrature_weights = nullptr;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.kernel_mode = kernel_mode;
+  context.selection = selection.data;
+  SelNormLeanScratch lean;
+  lean.configure(residual_sd, selection_se, dimension, omega, selection.data);
+  const double log_normalizer = cluster_ladder_log_integral(
+    context, quadrature_nodes, quadrature_log_weights, offset, order, &lean);
+  if (!std::isfinite(log_normalizer)) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  return numerator - log_normalizer;
 }
 
 // Test hook: one rung of the product rule with its certificate, evaluated on the

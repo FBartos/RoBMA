@@ -56,12 +56,35 @@ bool DSELNORMCLUSTERSTEP::checkParameterValue(
     std::vector<double const *> const &par,
     std::vector<unsigned int> const &len) const
 {
+  return checkDynamicParameterValue(par, len) && checkControlParameterValue(par, len);
+}
+
+bool DSELNORMCLUSTERSTEP::checkDynamicParameterValue(
+    std::vector<double const *> const &par,
+    std::vector<unsigned int> const &len) const
+{
+  const int k = static_cast<int>(len[0]);
+  const int n_bins = static_cast<int>(len[4]);
+  if (!(*par[10] == SELKERNEL_NORMAL || *par[10] == SELKERNEL_STEP)) return false;
+  for (int i = 0; i < k; ++i) {
+    if (!std::isfinite(par[0][i]) || !std::isfinite(par[1][i]) ||
+        !(par[1][i] > 0.0) || !std::isfinite(par[2][i])) return false;
+  }
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!std::isfinite(par[4][bin]) || par[4][bin] < 0.0) return false;
+  }
+  return true;
+}
+
+bool DSELNORMCLUSTERSTEP::checkControlParameterValue(
+    std::vector<double const *> const &par,
+    std::vector<unsigned int> const &len) const
+{
   const int k = static_cast<int>(len[0]);
   const int n_bins = static_cast<int>(len[4]);
   const int limit = std::numeric_limits<int>::max();
   const double tolerance = *par[18];
   if (!(*par[8] == 1 || *par[8] == -1) || !(*par[9] == 0 || *par[9] == 1) ||
-      !(*par[10] == SELKERNEL_NORMAL || *par[10] == SELKERNEL_STEP) ||
       !selnorm_jags_integer_in_range(*par[15], 4, limit) ||
       !selnorm_jags_integer_in_range(*par[16], 4, limit) || *par[16] < *par[15] ||
       !selnorm_jags_integer_in_range(*par[17], 2, limit) ||
@@ -72,14 +95,11 @@ bool DSELNORMCLUSTERSTEP::checkParameterValue(
   const SelNormJagsBounds z_lower(par[5], len[5]);
   const SelNormJagsBounds z_upper(par[6], len[6]);
   for (int i = 0; i < k; ++i) {
-    if (!std::isfinite(par[0][i]) || !std::isfinite(par[1][i]) ||
-        !(par[1][i] > 0.0) || !std::isfinite(par[2][i]) ||
-        !std::isfinite(par[3][i]) || !(par[3][i] > 0.0) ||
+    if (!std::isfinite(par[3][i]) || !(par[3][i] > 0.0) ||
         !selnorm_jags_integer_in_range(par[7][i], 1, n_bins)) return false;
   }
   for (int bin = 0; bin < n_bins; ++bin) {
-    if (!std::isfinite(par[4][bin]) || par[4][bin] < 0.0 ||
-        !(z_lower[bin] < z_upper[bin])) return false;
+    if (!(z_lower[bin] < z_upper[bin])) return false;
   }
   for (unsigned int i = 0; i < len[11]; ++i) {
     if (!std::isfinite(par[11][i]) || !std::isfinite(par[12][i])) return false;
@@ -163,6 +183,38 @@ double DSELNORMCLUSTERSTEP::logDensity(
     cluster_node_memo().store(x, memo_inputs, selnorm_step_memo_inputs,
                               log_density);
   }
+  return log_density;
+}
+
+double DSELNORMCLUSTERSTEP::surrogateLogDensity(
+    double const *x, unsigned int length, PDFType type,
+    std::vector<double const *> const &par,
+    std::vector<unsigned int> const &len,
+    double const *lower, double const *upper,
+    SelNormCoarseSettings const &settings) const
+{
+  // Neither reads nor stores the node memo: a surrogate value is not the exact
+  // density the memo holds for these inputs.
+  const int k = static_cast<int>(length);
+  const int n_bins = static_cast<int>(len[4]);
+  const SelNormJagsBounds z_lower(par[5], len[5]);
+  const SelNormJagsBounds z_upper(par[6], len[6]);
+  std::vector<int> obs_bin(static_cast<std::size_t>(k));
+  for (int i = 0; i < k; ++i) {
+    obs_bin[static_cast<std::size_t>(i)] = static_cast<int>(par[7][i]);
+  }
+  bool exact_fallback = false;
+  const double log_density = cpp_selnorm_cluster_step_surrogate_lpdf(
+    x, par[0], par[1], par[2], k, par[3], par[4], n_bins,
+    z_lower.data(), z_upper.data(), obs_bin.data(),
+    static_cast<int>(*par[8]), static_cast<int>(*par[9]) == 1,
+    static_cast<int>(*par[10]), par[11], par[12], par[13],
+    static_cast<int>(len[13]), static_cast<int>(*par[19]), settings,
+    &exact_fallback
+  );
+  // Without an available rule the surrogate is the exact density, memo and
+  // diagnostics gate included; its exceptions propagate as the exact one's.
+  if (exact_fallback) return logDensity(x, length, type, par, len, lower, upper);
   return log_density;
 }
 

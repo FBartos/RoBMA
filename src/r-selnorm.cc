@@ -25,6 +25,8 @@
 #include "selnorm/selnorm-parallel.h"
 #include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CoarseCorrectedSlice.h"
+#include "distributions/DSELNORMCLUSTERSTEP.h"
+#include "distributions/DSELNORMFACTORSTEP.h"
 
 #ifndef FCONE
 # define FCONE
@@ -373,5 +375,155 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
   Rf_setAttrib(out, R_NamesSymbol, labels);
   UNPROTECT(2);
   return out;
+  ROBMA_NATIVE_END
+}
+
+// Test hook, not package interface: the surrogate and the exact density of one
+// cluster or factor selection block given as its JAGS parameter list (in the
+// parameter order of the distribution), evaluated through the distribution
+// classes the sampler uses, with the validators and the surrogate's pieces
+// (numerator, log normalizer of the rung, whether it fell back to the exact
+// density). `settings` is the sampler's setting vector (three grid steps, rule
+// count). An exception of an evaluation is returned as its message.
+extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings)
+{
+  ROBMA_NATIVE_BEGIN(kind, x, parameters, settings)
+  if (TYPEOF(kind) != STRSXP || Rf_length(kind) != 1) {
+    Rf_error("'kind' must be 'cluster' or 'factor'.");
+  }
+  const std::string name = CHAR(STRING_ELT(kind, 0));
+  const bool factor = name == "factor";
+  if (!factor && name != "cluster") Rf_error("'kind' must be 'cluster' or 'factor'.");
+  check_real(x, "x");
+  check_real(settings, "settings");
+  if (Rf_length(settings) != 4) Rf_error("'settings' must contain three grid steps and a rule count.");
+  if (TYPEOF(parameters) != VECSXP || Rf_length(parameters) != 20) {
+    Rf_error("'parameters' must be a list of the 20 distribution parameters.");
+  }
+  SelNormCoarseSettings coarse;
+  coarse.mean_step = REAL(settings)[0];
+  coarse.diagonal_step = REAL(settings)[1];
+  coarse.log_weight_step = REAL(settings)[2];
+  coarse.max_rules = static_cast<unsigned int>(REAL(settings)[3]);
+  std::vector<double const *> par(20);
+  std::vector<unsigned int> len(20);
+  for (int i = 0; i < 20; ++i) {
+    SEXP element = VECTOR_ELT(parameters, i);
+    check_real(element, "parameter");
+    par[static_cast<std::size_t>(i)] = REAL(element);
+    len[static_cast<std::size_t>(i)] = static_cast<unsigned int>(Rf_length(element));
+  }
+  jags::RoBMA::DSELNORMCLUSTERSTEP cluster_distribution;
+  jags::RoBMA::DSELNORMFACTORSTEP factor_distribution;
+  const bool lengths_valid = factor ? factor_distribution.checkParameterLength(len) :
+    cluster_distribution.checkParameterLength(len);
+  if (!lengths_valid) Rf_error("The parameter lengths do not match the distribution.");
+  const double *x_values = REAL(x);
+  const unsigned int length = static_cast<unsigned int>(Rf_length(x));
+  if (length != len[0]) Rf_error("'x' must have the length of the mean.");
+
+  const bool dynamic_valid = factor ? factor_distribution.checkDynamicParameterValue(par, len) :
+    cluster_distribution.checkDynamicParameterValue(par, len);
+  const bool control_valid = factor ? factor_distribution.checkControlParameterValue(par, len) :
+    cluster_distribution.checkControlParameterValue(par, len);
+  const bool valid = factor ? factor_distribution.checkParameterValue(par, len) :
+    cluster_distribution.checkParameterValue(par, len);
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  double surrogate = nan, exact = nan, numerator = nan, log_normalizer = nan;
+  bool exact_fallback = false;
+  std::string surrogate_error, exact_error;
+  // Invalid controls are refused; invalid dynamic values are evaluated, and the
+  // evaluators give them the exact kernel's -Inf.
+  if (control_valid) {
+    const int rows = static_cast<int>(length);
+    const int rank = factor ? static_cast<int>(len[2] / len[0]) : 1;
+    std::vector<double> lower_bounds(par[5], par[5] + len[5]), upper_bounds(par[6], par[6] + len[6]);
+    for (double &value : lower_bounds) value = value == -1e300 ? -std::numeric_limits<double>::infinity() :
+      value == 1e300 ? std::numeric_limits<double>::infinity() : value;
+    for (double &value : upper_bounds) value = value == -1e300 ? -std::numeric_limits<double>::infinity() :
+      value == 1e300 ? std::numeric_limits<double>::infinity() : value;
+    std::vector<int> obs_bin(static_cast<std::size_t>(rows));
+    for (int i = 0; i < rows; ++i) obs_bin[static_cast<std::size_t>(i)] = static_cast<int>(par[7][i]);
+    try {
+      surrogate = factor ?
+        factor_distribution.surrogateLogDensity(x_values, length, jags::PDF_LIKELIHOOD,
+          par, len, nullptr, nullptr, coarse) :
+        cluster_distribution.surrogateLogDensity(x_values, length, jags::PDF_LIKELIHOOD,
+          par, len, nullptr, nullptr, coarse);
+    } catch (const std::exception &failure) {
+      surrogate_error = failure.what();
+      if (surrogate_error.empty()) surrogate_error = "evaluation failed";
+    }
+    try {
+      exact = factor ?
+        factor_distribution.logDensity(x_values, length, jags::PDF_LIKELIHOOD,
+          par, len, nullptr, nullptr) :
+        cluster_distribution.logDensity(x_values, length, jags::PDF_LIKELIHOOD,
+          par, len, nullptr, nullptr);
+    } catch (const std::exception &failure) {
+      exact_error = failure.what();
+      if (exact_error.empty()) exact_error = "evaluation failed";
+    }
+    // The pieces of the surrogate: the exact kernel's numerator (its normalizer
+    // overridden by zero) and the log normalizer of the rung from the native
+    // evaluator the class calls.
+    try {
+      const int sign = static_cast<int>(*par[8]);
+      const bool telescope = static_cast<int>(*par[9]) == 1;
+      const int mode = static_cast<int>(*par[10]);
+      const int rule = static_cast<int>(*par[19]);
+      const int n_bins = static_cast<int>(len[4]);
+      const int initial_points = static_cast<int>(*par[15]);
+      const int maximum_points = static_cast<int>(*par[16]);
+      const int scrambles = static_cast<int>(*par[17]);
+      const double zero = 0.0;
+      double mcse = 0.0, change = 0.0;
+      if (factor) {
+        numerator = cpp_selnorm_factor_step_lpdf(x_values, par[0], par[1], par[2], rows, rank,
+          par[3], par[4], n_bins, lower_bounds.data(), upper_bounds.data(), obs_bin.data(),
+          sign, telescope, mode, par[11], par[12], par[13], static_cast<int>(len[13]), par[14],
+          initial_points, maximum_points, scrambles, *par[18], &mcse, &change, nullptr, rule,
+          nullptr, nullptr, &zero);
+        cpp_selnorm_factor_step_surrogate_lpdf(x_values, par[0], par[1], par[2], rows, rank,
+          par[3], par[4], n_bins, lower_bounds.data(), upper_bounds.data(), obs_bin.data(),
+          sign, telescope, mode, par[11], par[12], par[13], static_cast<int>(len[13]), rule,
+          coarse, &exact_fallback, &log_normalizer);
+      } else {
+        numerator = cpp_selnorm_cluster_step_lpdf(x_values, par[0], par[1], par[2], rows,
+          par[3], par[4], n_bins, lower_bounds.data(), upper_bounds.data(), obs_bin.data(),
+          sign, telescope, mode, par[11], par[12], par[13], static_cast<int>(len[13]), par[14],
+          initial_points, maximum_points, scrambles, *par[18], &mcse, &change, nullptr, nullptr,
+          rule, nullptr, &zero);
+        cpp_selnorm_cluster_step_surrogate_lpdf(x_values, par[0], par[1], par[2], rows,
+          par[3], par[4], n_bins, lower_bounds.data(), upper_bounds.data(), obs_bin.data(),
+          sign, telescope, mode, par[11], par[12], par[13], static_cast<int>(len[13]), rule,
+          coarse, &exact_fallback, &log_normalizer);
+      }
+    } catch (const std::exception &) {
+      numerator = nan;
+    }
+  }
+
+  const int slots = 11;
+  const char *labels[slots] = {"surrogate", "exact", "numerator", "log_normalizer", "exact_fallback",
+    "valid", "dynamic_valid", "control_valid", "surrogate_error", "exact_error", "rule"};
+  SEXP output = PROTECT(Rf_allocVector(VECSXP, slots));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, slots));
+  SET_VECTOR_ELT(output, 0, Rf_ScalarReal(surrogate));
+  SET_VECTOR_ELT(output, 1, Rf_ScalarReal(exact));
+  SET_VECTOR_ELT(output, 2, Rf_ScalarReal(numerator));
+  SET_VECTOR_ELT(output, 3, Rf_ScalarReal(log_normalizer));
+  SET_VECTOR_ELT(output, 4, Rf_ScalarLogical(exact_fallback));
+  SET_VECTOR_ELT(output, 5, Rf_ScalarLogical(valid));
+  SET_VECTOR_ELT(output, 6, Rf_ScalarLogical(dynamic_valid));
+  SET_VECTOR_ELT(output, 7, Rf_ScalarLogical(control_valid));
+  SET_VECTOR_ELT(output, 8, Rf_mkString(surrogate_error.c_str()));
+  SET_VECTOR_ELT(output, 9, Rf_mkString(exact_error.c_str()));
+  SET_VECTOR_ELT(output, 10, Rf_ScalarInteger(static_cast<int>(
+    std::min(coarse.max_rules, static_cast<unsigned int>(len[13])))));
+  for (int i = 0; i < slots; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+  Rf_setAttrib(output, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return output;
   ROBMA_NATIVE_END
 }

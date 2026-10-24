@@ -250,7 +250,8 @@ double cpp_selnorm_cluster_step_lpdf(
   const long double *quadrature_weights = nullptr,
   double *log_normalizer = nullptr,
   int vector_rule = 0,
-  bool *deterministic = nullptr
+  bool *deterministic = nullptr,
+  const double *log_normalizer_override = nullptr
 );
 
 // Mean and covariance (column-major) of the latent coordinates under the tilted
@@ -279,6 +280,12 @@ struct SelNormTiltedMoments {
 // The randomized fallback never sets it, whatever its Monte Carlo standard
 // error (which can be exactly zero), and neither does a call that returns
 // before a normalizer is computed. Only such results may be remembered.
+//
+// A non-null `log_normalizer_override` (finite, used by the corrected sampler's
+// surrogate and its test hook) replaces the selection normalizer: the call
+// returns the Gaussian log density plus the observed log weights minus the
+// override, after the NORMAL early return and before any normalizer work. The
+// cluster kernel takes the same argument at the same place.
 double cpp_selnorm_factor_step_lpdf(
   const double *x,
   const double *mean,
@@ -309,7 +316,44 @@ double cpp_selnorm_factor_step_lpdf(
   double *log_normalizer = nullptr,
   int vector_rule = 0,
   const SelNormTiltedMoments *proposal_moments = nullptr,
-  bool *deterministic = nullptr
+  bool *deterministic = nullptr,
+  const double *log_normalizer_override = nullptr
+);
+
+// Surrogates of the rank-one cluster and factor blocks of the corrected sampler:
+// the kernel's own numerator (Gaussian log density plus observed log weights)
+// minus the log normalizer of ONE rule of the block's own quadrature schedule,
+// rule min(settings.max_rules, rule_count) at the actual parameters, with no
+// change test, certificate, refinement, sparse grid, QMC, memo or rounding. The
+// result is a deterministic function of the arguments. `*exact_fallback` is set
+// (and NaN returned) when that rule is unavailable: a non-product vector rule,
+// a rule the node budget does not afford for the block, or a non-finite log
+// normalizer; the caller then evaluates the exact density. A NORMAL kernel
+// returns its numerator, and an invalid input -Inf, as the exact kernel does.
+// `log_normalizer_out` receives the rule's log normalizer (NaN when unavailable,
+// 0 for the NORMAL kernel).
+double cpp_selnorm_cluster_step_surrogate_lpdf(
+  const double *x, const double *mean, const double *residual_sd,
+  const double *loading, int dimension, const double *selection_se,
+  const double *omega, int n_bins, const double *z_lower,
+  const double *z_upper, const int *obs_bin, int effect_sign,
+  bool telescope_probabilities, int kernel_mode,
+  const double *quadrature_nodes, const double *quadrature_log_weights,
+  const double *quadrature_orders, int quadrature_rule_count, int vector_rule,
+  const SelNormCoarseSettings &settings, bool *exact_fallback,
+  double *log_normalizer_out = nullptr
+);
+
+double cpp_selnorm_factor_step_surrogate_lpdf(
+  const double *x, const double *mean, const double *residual_sd,
+  const double *declared_loading, int dimension, int declared_rank,
+  const double *selection_se, const double *omega, int n_bins,
+  const double *z_lower, const double *z_upper, const int *obs_bin,
+  int effect_sign, bool telescope_probabilities, int kernel_mode,
+  const double *quadrature_nodes, const double *quadrature_log_weights,
+  const double *quadrature_orders, int quadrature_rule_count, int vector_rule,
+  const SelNormCoarseSettings &settings, bool *exact_fallback,
+  double *log_normalizer_out = nullptr
 );
 
 double cpp_selnorm_gaussian_event_log_mass(
