@@ -41,7 +41,10 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 \item{conditional}{whether to return the pooled effect conditional on the
 effect component for RoBMA product-space objects. Defaults to \code{FALSE}.}
 
-\item{...}{reserved for internal posterior-sample reuse.}
+\item{...}{additional arguments passed to \code{\link{predict.brma}}
+(\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
+arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
+and other arguments are unused and trigger a warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
@@ -55,7 +58,11 @@ Computes the pooled effect and prediction interval at the
 average expanded moderator design of a fitted brma object.
 }
 \details{
-This function evaluates the fixed-location model at the average expanded
+This function is a convenience wrapper around \code{predict.brma(...,
+type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)} that
+adds the prediction interval columns.
+
+The fixed-location model is evaluated at the average expanded
 moderator design. Because the location predictor is linear in its design,
 this equals averaging its fitted-design posterior draws directly.
 

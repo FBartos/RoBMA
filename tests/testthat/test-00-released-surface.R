@@ -200,3 +200,67 @@ test_that("update(seed = ) extends reproducibly", {
   expect_false(identical(first, other))
   expect_identical(update(fit, sample_extend = 20, seed = 3)[["fit_control"]][["seed"]], 3)
 })
+
+test_that("unused arguments in the dots of released methods warn and never stop", {
+
+  ordinary   <- .surface_fit("ordinary")
+  multilevel <- .surface_fit("multilevel")
+
+  calls <- list(
+    predict              = function(x) predict(x, bogus_zz = 1),
+    fitted               = function(x) fitted(x, bogus_zz = 1),
+    blup                 = function(x) blup(x, bogus_zz = 1),
+    true_effects         = function(x) true_effects(x, bogus_zz = 1),
+    ranef                = function(x) ranef(x, bogus_zz = 1),
+    pooled_effect        = function(x) pooled_effect(x, bogus_zz = 1),
+    pooled_heterogeneity = function(x) pooled_heterogeneity(x, bogus_zz = 1),
+    summary              = function(x) summary(x, bogus_zz = 1),
+    marginal_means       = function(x) marginal_means(x, bogus_zz = 1),
+    plot                 = function(x) plot(x, bogus_zz = 1)
+  )
+  fits <- list(
+    ordinary = ordinary, multilevel = multilevel,
+    mods = .surface_fit("mods")
+  )
+  for (name in names(calls)) {
+    fit <- if (name == "marginal_means") fits[["mods"]] else if (name == "ranef") multilevel else ordinary
+    if (name == "plot") {
+      grDevices::pdf(NULL)
+      on.exit(grDevices::dev.off(), add = TRUE)
+    }
+    expect_warning(
+      suppressMessages(calls[[name]](fit)),
+      "Unused argument in .*'bogus_zz'",
+      info = name
+    )
+  }
+})
+
+test_that("pooled_effect() and pooled_heterogeneity() forward the dots to predict()", {
+
+  mods <- .surface_fit("mods")
+
+  # as_measure is an argument of predict() without a role for the pooled effect
+  expect_no_warning(pooled_effect(mods, as_measure = FALSE))
+  expect_error(
+    pooled_effect(mods, conditioning_depth = "estimate"),
+    "available only with newdata = NULL"
+  )
+  expect_error(
+    pooled_heterogeneity(mods, conditioning_depth = "cluster"),
+    "available only with newdata = NULL"
+  )
+  expect_warning(
+    pooled_effect(mods, newdata = TRUE),
+    "Unused argument in pooled_effect.brma(): 'newdata'",
+    fixed = TRUE
+  )
+
+  pooled    <- pooled_effect(mods)
+  predicted <- predict(mods, newdata = TRUE, type = "terms", bias_adjusted = TRUE, quiet = TRUE)
+  expect_identical(attr(pooled, "title"), "Pooled Effect Size")
+  expect_equal(unclass(pooled)[, "mu"], unclass(predicted)[, "mu"], ignore_attr = TRUE)
+  expect_false(is.null(attr(pooled, "prediction_samples")))
+  expect_null(attr(predicted, "prediction_samples"))
+  expect_identical(attr(pooled_heterogeneity(mods), "title"), "Pooled Heterogeneity")
+})

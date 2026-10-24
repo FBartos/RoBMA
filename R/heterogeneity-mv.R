@@ -19,7 +19,7 @@
   }
 
   dots <- list(...)
-  .check_unused_dots(
+  .warn_unused_dots(
     dots    = dots,
     allowed = ".posterior_samples",
     caller  = "pooled_heterogeneity.brma()"

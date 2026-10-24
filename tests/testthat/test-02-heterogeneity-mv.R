@@ -337,7 +337,7 @@ test_that("brma.mv pooled heterogeneity validates forwarded arguments", {
     component          = "Study effects",
     .posterior_samples = posterior_samples
   ))
-  expect_error(
+  expect_warning(
     pooled_heterogeneity(
       object,
       component          = "Study effects",

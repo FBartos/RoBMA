@@ -26,7 +26,10 @@ the heterogeneity component for RoBMA product-space objects. Defaults to
 models. Defaults to \code{"all"}. Use \code{"total"} for the
 variance-additive total heterogeneity.}
 
-\item{...}{reserved for internal posterior-sample forwarding.}
+\item{...}{additional arguments passed to \code{\link{predict.brma}}
+(\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
+arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
+and other arguments are unused and trigger a warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,

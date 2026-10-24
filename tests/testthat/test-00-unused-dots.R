@@ -111,12 +111,15 @@ test_that("unused-dot warning helper reports ignored arguments", {
   ))
 })
 
-test_that("predict.brma rejects unused dots before prediction setup", {
+test_that("predict.brma warns about unused dots before prediction setup", {
 
   object <- structure(list(), class = "brma")
 
-  expect_error(
-    predict.brma(object, legacy_argument = TRUE),
+  expect_warning(
+    expect_error(
+      predict.brma(object, legacy_argument = TRUE),
+      "Posterior samples are required"
+    ),
     "Unused argument.*legacy_argument"
   )
 })

@@ -392,7 +392,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     conditioning_depth_specified, as_measure, output_measure, transform,
     probs, bias_adjusted, quiet, conditional, dots) {
 
-  .check_unused_dots(
+  .warn_unused_dots(
     dots    = dots,
     allowed = ".posterior_samples",
     caller  = "predict.brma()"

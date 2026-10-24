@@ -120,7 +120,7 @@ fitted.brma <- function(object, unit = "estimate",
                         conditional = FALSE, ...) {
 
   dots                         <- list(...)
-  .check_unused_dots(dots, allowed = "quiet", caller = "fitted()")
+  .warn_unused_dots(dots, allowed = "quiet", caller = "fitted()")
   quiet                        <- .fitted_brma_quiet(dots)
   conditioning_depth_specified <- !missing(conditioning_depth)
 
@@ -302,10 +302,17 @@ pooled_effect <- function(object, ...) {
 #' @param conditional whether to return the pooled effect conditional on the
 #' effect component for RoBMA product-space objects. Defaults to \code{FALSE}.
 #' @inheritParams predict.brma
-#' @param ... reserved for internal posterior-sample reuse.
+#' @param ... additional arguments passed to \code{\link{predict.brma}}
+#' (\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
+#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
+#' and other arguments are unused and trigger a warning.
 #'
 #' @details
-#' This function evaluates the fixed-location model at the average expanded
+#' This function is a convenience wrapper around \code{predict.brma(...,
+#' type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)} that
+#' adds the prediction interval columns.
+#'
+#' The fixed-location model is evaluated at the average expanded
 #' moderator design. Because the location predictor is linear in its design,
 #' this equals averaging its fitted-design posterior draws directly.
 #'
@@ -357,80 +364,46 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
                                output_measure = NULL, transform = NULL,
                                probs = c(.025, .975),
                                conditional = FALSE, ...) {
-  dots <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = ".posterior_samples",
-    caller  = "pooled_effect.brma()"
-  )
-  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
-  BayesTools::check_bool(conditional, "conditional")
-  if (conditional && !.is_RoBMA(object)) {
-    stop("'conditional' pooled effects are available only for RoBMA objects.",
-         call. = FALSE)
-  }
 
-  data              <- object[["data"]]
-  posterior_samples <- .get_posterior_samples(
-    object[["fit"]],
-    dots[[".posterior_samples"]]
-  )
-  samples <- .pooled_location_samples(
-    object            = object,
-    bias_adjusted     = bias_adjusted,
-    posterior_samples = posterior_samples
-  )
+  forwarded <- .split_aggregate_dots(list(...))
 
-  tau_samples <- .pooled_heterogeneity_total_samples(
-    object            = object,
-    posterior_samples = posterior_samples
-  )
-  prediction_samples <- .with_preserved_rng(matrix(
-    stats::rnorm(
-      n    = nrow(samples),
-      mean = samples[, 1L],
-      sd   = tau_samples[, 1L]
+  # the aggregated prediction at the average fitted design, with the draws of
+  # one new true effect at the pooled reference (the PI columns)
+  return(do.call(.predict_brma_aggregate, c(
+    list(
+      object              = object,
+      type                = "terms",
+      probs               = probs,
+      bias_adjusted       = bias_adjusted,
+      output_measure      = output_measure,
+      transform           = transform,
+      conditional         = conditional,
+      quiet               = TRUE,
+      caller              = "pooled_effect.brma()",
+      dots                = forwarded[["unused"]],
+      title               = "Pooled Effect Size",
+      prediction_interval = TRUE
     ),
-    ncol     = 1L,
-    dimnames = list(NULL, "mu")
-  ))
+    forwarded[["predict"]]
+  )))
+}
 
-  chain_info <- .brma_samples_chain_info(
-    fit       = object[["fit"]],
-    n_samples = nrow(posterior_samples)
-  )
-  effect_transform <- .effect_output_setup(
-    object         = object,
-    output_measure = output_measure,
-    transform      = transform
-  )
-  out <- .new_effect_brma_samples(
-    samples            = samples,
-    n_chains           = chain_info[["n_chains"]],
-    n_iter             = chain_info[["n_iter"]],
-    title              = "Pooled Effect Size",
-    component          = "location",
-    probs              = probs,
-    data               = NULL,
-    effect_transform   = effect_transform,
-    prediction_samples = prediction_samples
-  )
-  out <- .condition_prediction_samples(
-    object            = object,
-    samples           = out,
-    conditional       = conditional,
-    parameters        = .conditional_effect_parameters(object),
-    posterior_samples = posterior_samples,
-    quiet             = TRUE
-  )
-  attr(out, "RoBMA_target") <- c(list(
-    method = "pooled_effect()",
-    reported_target = "fixed-location average-expanded-design reference",
-    prediction_target = "new unselected true effect at the pooled reference",
-    bias_adjusted = bias_adjusted,
-    rng_policy = "preserve_caller_state"
-  ), .selection_postfit_target_metadata(data))
-  return(out)
+
+# Split the dots of a pooled_*() wrapper: the arguments of predict() that the
+# wrapper does not fix are forwarded to it (as in 4.0.0), the posterior-sample
+# reuse argument is internal, and everything else is unused.
+.split_aggregate_dots <- function(dots) {
+
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    dot_names <- rep("", length(dots))
+  }
+  predict_arguments <- c("as_measure", "V_new", "conditioning_depth")
+
+  return(list(
+    predict = dots[dot_names %in% predict_arguments],
+    unused  = dots[!dot_names %in% predict_arguments]
+  ))
 }
 
 
@@ -506,7 +479,10 @@ pooled_heterogeneity <- function(object, ...) {
 #' @param component heterogeneity component to return for \code{brma.mv()}
 #' models. Defaults to \code{"all"}. Use \code{"total"} for the
 #' variance-additive total heterogeneity.
-#' @param ... reserved for internal posterior-sample forwarding.
+#' @param ... additional arguments passed to \code{\link{predict.brma}}
+#' (\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
+#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
+#' and other arguments are unused and trigger a warning.
 #'
 #' @details
 #' For location-scale models, the function averages the fitted log-scale linear
@@ -577,62 +553,49 @@ pooled_heterogeneity <- function(object, ...) {
 pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
                                       conditional = FALSE, component = "all",
                                       ...) {
+
+  forwarded <- .split_aggregate_dots(list(...))
   BayesTools::check_bool(conditional, "conditional")
   if (conditional && !.is_RoBMA(object)) {
-    stop("'conditional' pooled heterogeneity is available only for RoBMA objects.",
+    stop("'conditional' predictions are available only for RoBMA objects.",
          call. = FALSE)
   }
   if (inherits(object, "brma.mv")) {
+    .warn_unused_dots(
+      dots    = forwarded[["unused"]],
+      allowed = ".posterior_samples",
+      caller  = "pooled_heterogeneity.brma()"
+    )
     return(
       .pooled_heterogeneity_brma_mv(
-        object      = object,
-        probs       = probs,
-        conditional = conditional,
-        component   = component,
-        ...
+        object             = object,
+        probs              = probs,
+        conditional        = conditional,
+        component          = component,
+        .posterior_samples = forwarded[["unused"]][[".posterior_samples"]]
       )
     )
   }
 
   .check_univariate_heterogeneity_component(component)
 
-  dots <- list(...)
-  .check_unused_dots(
-    dots    = dots,
-    allowed = ".posterior_samples",
-    caller  = "pooled_heterogeneity.brma()"
-  )
-  posterior_samples <- .get_posterior_samples(
-    object[["fit"]],
-    dots[[".posterior_samples"]]
-  )
-  samples <- .pooled_heterogeneity_total_samples(
-    object            = object,
-    posterior_samples = posterior_samples
-  )
-  colnames(samples) <- "tau"
-
-  chain_info <- .brma_samples_chain_info(
-    fit       = object[["fit"]],
-    n_samples = nrow(posterior_samples)
-  )
-  out <- .new_brma_samples(
-    samples   = samples,
-    n_chains  = chain_info[["n_chains"]],
-    n_iter    = chain_info[["n_iter"]],
-    title     = "Pooled Heterogeneity",
-    component = "heterogeneity",
-    probs     = probs,
-    data      = NULL
-  )
-  return(.condition_prediction_samples(
-    object            = object,
-    samples           = out,
-    conditional       = conditional,
-    parameters        = .conditional_heterogeneity_parameters(object),
-    posterior_samples = posterior_samples,
-    quiet             = TRUE
-  ))
+  return(do.call(.predict_brma_aggregate, c(
+    list(
+      object                  = object,
+      type                    = "terms.scale",
+      probs                   = probs,
+      bias_adjusted           = FALSE,
+      output_measure          = NULL,
+      transform               = NULL,
+      conditional             = conditional,
+      quiet                   = TRUE,
+      caller                  = "pooled_heterogeneity.brma()",
+      dots                    = forwarded[["unused"]],
+      title                   = "Pooled Heterogeneity",
+      heterogeneity_component = "heterogeneity"
+    ),
+    forwarded[["predict"]]
+  )))
 }
 
 
@@ -994,7 +957,17 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   BayesTools::check_bool(expand, "expand")
   dots <- list(...)
   controlled <- intersect(names(dots), c("newdata", "type", "quiet"))
-  .check_unused_dots(dots[controlled], allowed = character(), caller = "ranef()")
+  if (length(controlled) > 0L) {
+    # the arguments the method fixes are unused: warn and continue without them
+    .warn_unused_dots(dots[controlled], allowed = character(), caller = "ranef()")
+    return(do.call(ranef.brma, c(
+      list(
+        object = object, bias_adjusted = bias_adjusted, probs = probs,
+        component = component, simplify = simplify, expand = expand
+      ),
+      dots[setdiff(names(dots), controlled)]
+    )))
+  }
   if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
     stop(
       "'output_measure' and 'transform' are not available for random-effect ",
@@ -1171,7 +1144,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
 .ranef_brma_multilevel_normal <- function(
     object, bias_adjusted, probs, component, simplify, expand, dots) {
 
-  .check_unused_dots(
+  .warn_unused_dots(
     dots    = dots,
     allowed = c("conditional", ".posterior_samples"),
     caller  = "ranef.brma()"

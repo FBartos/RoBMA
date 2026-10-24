@@ -1,16 +1,17 @@
-test_that("fitted and ranef reject unsupported and method-controlled dots", {
+test_that("fitted and ranef warn about unsupported and method-controlled dots", {
 
   object <- .review_cleanup_plain_replay()
   expect_identical(fitted(object, quiet = TRUE), fitted(object, quiet = FALSE))
   for (argument in c("type", "unrecognized", ".posterior_samples")) {
     args <- stats::setNames(list(TRUE), argument)
-    expect_error(do.call(fitted, c(list(object = object), args)),
+    expect_warning(result <- do.call(fitted, c(list(object = object), args)),
       paste0("Unused argument in fitted(): '", argument, "'"), fixed = TRUE)
+    expect_identical(result, fitted(object))
   }
   for (argument in c("newdata", "type", "quiet")) {
     for (value in list(TRUE, NULL)) {
       args <- stats::setNames(list(value), argument)
-      expect_error(do.call(ranef, c(list(object = object), args)),
+      expect_warning(do.call(ranef, c(list(object = object), args)),
         paste0("Unused argument in ranef(): '", argument, "'"), fixed = TRUE)
     }
   }
