@@ -8,7 +8,7 @@ test_that("selection conditioning comparisons are requested explicitly", {
     "Inspect 'selection_sensitivity_diagnostics()' for the fitted and reference specifications."
   )
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
       list(has_posterior = TRUE, generation = if (extend) 2L else 1L)
     },
     .object_summary = function(object) data.frame(Mean = 1, row.names = "mu"),
@@ -102,7 +102,7 @@ test_that("explicitly stored clustered diagnostics refresh without expanding aut
 
   calls <- list()
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) {
+    .fit = function(object, extend = FALSE, extension_seed = NULL) {
       list(has_posterior = TRUE, generation = if (extend) 2L else 1L)
     },
     .object_summary = function(object) data.frame(Mean = 1, row.names = "mu"),
@@ -159,7 +159,7 @@ test_that("unavailable refreshed comparisons preserve the fitted posterior", {
 
   fail <- FALSE
   testthat::local_mocked_bindings(
-    .fit = function(object, extend = FALSE) list(has_posterior = TRUE),
+    .fit = function(object, extend = FALSE, extension_seed = NULL) list(has_posterior = TRUE),
     .object_summary = function(object) data.frame(Mean = 1, row.names = "mu"),
     .autocompute_brma = function(object) object,
     .summary_estimates_pair = function(...) list(estimates = list(), conditional = list()),

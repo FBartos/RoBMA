@@ -51,7 +51,7 @@ test_that("pooled effect summaries include prediction intervals", {
     tolerance = 0
   )
   expect_true(all(c("PI 0.025", "PI 0.975") %in% colnames(estimates)))
-  pooled_df <- as.data.frame(pooled)
+  pooled_df <- as.data.frame(estimates)
   expect_identical(
     names(pooled_df),
     c(
@@ -61,14 +61,14 @@ test_that("pooled effect summaries include prediction intervals", {
   )
   expect_identical(pooled_df[["component"]], "location")
   expect_identical(pooled_df[["parameter"]], "mu")
-  expect_identical(data.frame(pooled), pooled_df)
+  expect_identical(data.frame(estimates), pooled_df)
   expect_equal(
     unname(as.matrix(pooled_df)),
     unname(as.matrix(estimates_df)),
     tolerance = 0
   )
   expect_identical(
-    names(as.data.frame(pooled, probs = c(.05, .95))),
+    names(as.data.frame(summary(pooled, probs = c(.05, .95)))),
     c(
       "component", "parameter", "Mean", "Median",
       "CI_0.05", "CI_0.95", "PI_0.05", "PI_0.95"
@@ -88,7 +88,7 @@ test_that("pooled effect summaries include prediction intervals", {
     .posterior_samples = posterior_samples
   )
   custom_summary <- summary(custom_pooled)
-  custom_df      <- as.data.frame(custom_pooled)
+  custom_df      <- as.data.frame(custom_summary)
   expect_identical(
     names(custom_summary),
     c("Mean", "Median", "0.6", "0.125", "0.9",
@@ -102,7 +102,7 @@ test_that("pooled effect summaries include prediction intervals", {
       "PI_0.6", "PI_0.125", "PI_0.9"
     )
   )
-  expect_identical(data.frame(custom_pooled), custom_df)
+  expect_identical(data.frame(custom_summary), custom_df)
   expect_equal(
     unname(as.numeric(custom_df[1L, paste0("CI_", custom_probs)])),
     unname(stats::quantile(as.matrix(custom_pooled)[, 1L], custom_probs)),
@@ -221,15 +221,15 @@ test_that("pooled heterogeneity evaluates the average scale design", {
   )
 
   expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
-  pooled_df  <- as.data.frame(pooled)
-  row_tau_df <- as.data.frame(row_tau)
+  pooled_df  <- as.data.frame(summary(pooled))
+  row_tau_df <- as.data.frame(summary(row_tau))
   expect_identical(
     names(pooled_df),
     c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")
   )
   expect_identical(pooled_df[["component"]], "heterogeneity")
   expect_identical(pooled_df[["parameter"]], "tau")
-  expect_identical(data.frame(pooled), pooled_df)
+  expect_identical(data.frame(summary(pooled)), pooled_df)
   expect_equal(
     unname(as.matrix(pooled_df)),
     unname(as.matrix(as.data.frame(summary(pooled)))),
@@ -240,7 +240,7 @@ test_that("pooled heterogeneity evaluates the average scale design", {
     c("component", "parameter", "Mean", "Median", "CI_0.025", "CI_0.975")
   )
   expect_identical(row_tau_df[["component"]], rep("scale", 3L))
-  expect_identical(data.frame(row_tau), row_tau_df)
+  expect_identical(data.frame(summary(row_tau)), row_tau_df)
   expect_equal(
     unname(as.matrix(row_tau_df)),
     unname(as.matrix(as.data.frame(summary(row_tau)))),

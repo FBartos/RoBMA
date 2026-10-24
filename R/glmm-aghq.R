@@ -59,8 +59,8 @@
   message  <- paste0(
     "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and ",
     "WAIC) are unavailable for a '", family, "' '", argument, "': they ",
-    "integrate the ", rate, " over point and ", supported, " priors. Refit ",
-    "with a point or ", supported, " '", argument, "' to compute them."
+    "integrate the ", rate, " over point and ", supported, " priors. Use a ",
+    "point or ", supported, " '", argument, "' to compute them."
   )
 
   stop(structure(

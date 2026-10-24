@@ -143,7 +143,7 @@ test_that("the estimate-unit GLMM likelihood is unavailable for other families",
   expect_identical(conditionMessage(error), paste0(
     "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and WAIC) ",
     "are unavailable for a 'uniform' 'prior_baserate': they integrate the base rate ",
-    "over point and beta priors. Refit with a point or beta 'prior_baserate' to ",
+    "over point and beta priors. Use a point or beta 'prior_baserate' to ",
     "compute them."
   ))
   expect_error(
@@ -164,7 +164,7 @@ test_that("the estimate-unit GLMM likelihood is unavailable for other families",
   expect_identical(conditionMessage(error), paste0(
     "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and WAIC) ",
     "are unavailable for a 't' 'prior_lograte': they integrate the log-rate ",
-    "over point and normal priors. Refit with a point or normal 'prior_lograte' to ",
+    "over point and normal priors. Use a point or normal 'prior_lograte' to ",
     "compute them."
   ))
   expect_error(
