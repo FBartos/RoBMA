@@ -53,6 +53,9 @@
   rung, and refinement still requires `relative_tolerance >= 0.005`; tighter
   tolerances retain the existing fallback because shift agreement can miss
   integration error.
+- Product selection normalizers evaluate Gaussian tails and two-weight
+  normalizers more efficiently on AVX2/FMA processors. Certificate checks,
+  integration tolerances, and fallback rules are unchanged.
 - Selection normalizers of dependent blocks under product weights (the factor
   and cluster kernels, in fitting and post-fit calculations) accept a
   deterministic quadrature rule only when shifting its nodes shows an aliasing

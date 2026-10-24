@@ -670,6 +670,11 @@ bool SelNormDoubleProducts::multiply(
     const std::size_t size = std::min(block, count - start);
     const double *location = mean + start;
     double *value = normalizer + start;
+    if (boundaries_ == 1) {
+      if (!selnorm_tail::single_boundary_normalizers(location, size, constants[1],
+            inverse_sd, last, difference_[0], value, tail, magnitude)) return false;
+      continue;
+    }
     std::fill(value, value + size, last);
     std::fill(magnitude, magnitude + size, absolute_last);
     for (int bin = 0; bin < boundaries_; ++bin) {

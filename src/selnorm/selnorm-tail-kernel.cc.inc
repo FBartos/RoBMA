@@ -2,9 +2,10 @@
 //
 // Included from selnorm-tail.h with SELNORM_TAIL_LANE naming the lane, inside a
 // namespace of its own. The AVX2 copy is included inside that header's target
-// region so the intrinsics inline there; both copies come from this one source,
-// so the two lanes evaluate the same expressions in the same order (the fused
-// multiply-add of each lane may still round differently in the last bits).
+// region so the intrinsics inline there. Both copies share the rational
+// kernels; the vector Gaussian ordinate uses a compensated square while the
+// scalar ordinate keeps Cody's split. Fused operations can also change the
+// last bits between lanes.
 
 typedef SELNORM_TAIL_LANE Lane;
 typedef Lane::Value Value;
@@ -34,18 +35,29 @@ SELNORM_TAIL_INLINE Value exponential(Value value)
 }
 
 
-// exp(-x^2/2) on Cody's split, so the squared argument's rounding error does
-// not grow with x^2. Requires 0 <= x <= 37.6.
+// exp(-x^2/2) without growing square-rounding error, for guarded outer-tail
+// arguments up to 37.5193. Hardware FMA recovers the exact square residual.
 SELNORM_TAIL_INLINE Value gaussian_ordinate(Value x)
 {
-  const Value coarse = Lane::sixteenth(x);
-  const Value difference = Lane::multiply(
-    Lane::subtract(x, coarse), Lane::add(x, coarse));
-  const Value coarse_exponent = Lane::multiply(
-    Lane::multiply(coarse, coarse), Lane::splat(-0.5));
-  const Value fine_exponent = Lane::multiply(difference, Lane::splat(-0.5));
-  return Lane::multiply(exponential(coarse_exponent),
-                        exponential(fine_exponent));
+  if constexpr (Lane::compensated_ordinate) {
+    // x^2 < 2^11 gives |residual| <= 2^-43. With delta = -residual/2,
+    // |delta| <= 2^-44 and exp(delta) - (1 + delta) < 2e-27: the linear
+    // correction removes the square error far below double rounding.
+    const Value square = Lane::multiply(x, x);
+    const Value residual = Lane::fused(x, x, Lane::subtract(Lane::splat(0.0), square));
+    const Value exponent = Lane::multiply(square, Lane::splat(-0.5));
+    const Value correction = Lane::fused(Lane::splat(-0.5), residual, Lane::splat(1.0));
+    return Lane::multiply(exponential(exponent), correction);
+  } else {
+    const Value coarse = Lane::sixteenth(x);
+    const Value difference = Lane::multiply(
+      Lane::subtract(x, coarse), Lane::add(x, coarse));
+    const Value coarse_exponent = Lane::multiply(
+      Lane::multiply(coarse, coarse), Lane::splat(-0.5));
+    const Value fine_exponent = Lane::multiply(difference, Lane::splat(-0.5));
+    return Lane::multiply(exponential(coarse_exponent),
+                          exponential(fine_exponent));
+  }
 }
 
 
@@ -95,23 +107,32 @@ SELNORM_TAIL_INLINE Value upper_tail(Value x)
     // Both outer branches evaluate the small tail at |x| and then reflect.
     Value small = Lane::splat(0.0);
     const Mask middle_region = Lane::conjunction(outer, Lane::negate(far));
+    const Mask usable = Lane::conjunction(
+      far, Lane::less_equal(magnitude, Lane::splat(tail_cut)));
+    // A vector can straddle the middle/far boundary. Both branches use the
+    // same Gaussian ordinate, with the same argument in every active lane.
+    // Compute the ordinate once, keeping unused lanes in range.
+    Value ordinate = Lane::splat(0.0);
+    if (Lane::any(middle_region) || Lane::any(usable)) {
+      const Value guarded = Lane::select(middle_region, magnitude,
+        Lane::select(usable, magnitude, Lane::splat(middle_cut)));
+      ordinate = gaussian_ordinate(guarded);
+    }
     if (Lane::any(middle_region)) {
       // Lanes outside this region are still evaluated; the rational stays
       // finite there and the blend below discards the value.
       const Value guarded = Lane::select(middle_region, magnitude,
                                          Lane::splat(middle_cut));
       small = Lane::select(middle_region,
-        Lane::multiply(gaussian_ordinate(guarded),
+        Lane::multiply(ordinate,
           rational(guarded, middle_numerator, middle_degree,
                          middle_denominator, middle_degree)),
         small);
     }
-    if (Lane::any(far)) {
+    if (Lane::any(usable)) {
       // Beyond the tail cut, intentionally omit subnormal probabilities;
       // the established algorithms return an exact zero there. The guarded
       // magnitude keeps the unused lanes inside the fitted range.
-      const Mask usable = Lane::conjunction(
-        far, Lane::less_equal(magnitude, Lane::splat(tail_cut)));
       const Value guarded = Lane::select(usable, magnitude,
                                          Lane::splat(middle_cut + 1.0));
       const Value inverse_square = Lane::divide(Lane::splat(1.0),
@@ -123,9 +144,7 @@ SELNORM_TAIL_INLINE Value upper_tail(Value x)
                            far_denominator, far_degree))),
         guarded);
       small = Lane::select(usable,
-        Lane::multiply(gaussian_ordinate(guarded), series), small);
-      small = Lane::select(Lane::conjunction(far, Lane::negate(usable)),
-                           Lane::splat(0.0), small);
+        Lane::multiply(ordinate, series), small);
     }
     const Mask reflect = Lane::conjunction(outer,
       Lane::less_equal(x, Lane::splat(0.0)));

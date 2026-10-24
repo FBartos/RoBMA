@@ -85,6 +85,40 @@ test_that("double node products agree with the long double rules on random block
   expect_gt(difference, 0)
 })
 
+test_that("single-boundary products preserve checks across vector and block remainders", {
+
+  # Cluster nodes leave three vector lanes; the forest and chain grids cross
+  # the 256-node block boundary and leave one and three lanes respectively.
+  # Reversed weights exercise negative contributions and the magnitude check.
+  for (omega in list(c(1, .4), c(.4, 1))) {
+    blocks <- list(
+      cluster = .test_cert_block(list(
+        .test_lean_group(2L, .8, .3, .2),
+        .test_lean_group(1L, -.6, .4, -.3)), omega, c(0, -Inf)),
+      forest = .test_cert_block(list(
+        .test_lean_group(2L, c(.8, .6, 0), .3, .2),
+        .test_lean_group(1L, c(.7, 0, -.5), .4, -.3)), omega, c(0, -Inf)),
+      chain = .test_cert_block(list(
+        .test_lean_group(2L, c(.8, .6, -.5), .3, .2),
+        .test_lean_group(1L, c(.7, .4, 0), .4, -.3),
+        .test_lean_group(1L, c(.6, 0, 0), .5, .1)), omega, c(0, -Inf)))
+    orders <- c(cluster = 31L, forest = 21L, chain = 7L)
+    for (kind in names(blocks)) {
+      probe <- .test_cert_probe(blocks[[kind]], orders[[kind]],
+        cluster = kind == "cluster", shift_axis = 1L, shift_delta = .3, refine = FALSE)
+      expect_true(probe[["lean"]], info = kind)
+      expect_lt(.test_lean_relative(probe[["log_normalizer"]],
+                                    probe[["reference_log_normalizer"]]),
+                .test_lean_tolerance, label = kind)
+      for (field in c("reuse_value", "full_value")) {
+        expect_lt(max(.test_lean_relative(probe[[field]], probe[["reference_value"]])),
+                  .test_lean_tolerance, label = paste(kind, field))
+      }
+    }
+  }
+})
+
+
 test_that("a rung whose node products leave the double range is evaluated in long double, unchanged", {
 
   # Rows far in the selection tail: the product of their normalizers (about

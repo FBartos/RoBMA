@@ -41,11 +41,11 @@
 // dense argument grid, where this is in fact closer to the exact tail than the
 // library erfc is beyond about eight standard deviations.
 //
-// The scalar and AVX2 lanes include one kernel source, so both evaluate the
-// same expressions in the same order. Their fused multiply-add differs: the
-// scalar lane rounds a product and a sum separately unless the build contracts
-// them, the AVX2 lane rounds once. A batch can therefore differ in the last
-// bits between lanes; the package tests assert relative agreement to 1e-14.
+// The scalar and AVX2 lanes share the region boundaries and rational kernels.
+// The vector lane uses hardware FMA to compensate the Gaussian square with one
+// exponential; the scalar lane keeps Cody's split to avoid software FMA cost.
+// Fused polynomial operations also round differently between lanes. The
+// package tests assert their relative agreement to 1e-14.
 
 namespace selnorm_tail {
 
@@ -121,6 +121,7 @@ const double exp_q[4] = {
 struct ScalarLane {
   typedef double Value;
   typedef bool Mask;
+  static constexpr bool compensated_ordinate = false;
 
   static SELNORM_TAIL_INLINE Value splat(double value) { return value; }
   static SELNORM_TAIL_INLINE Value add(Value a, Value b) { return a + b; }
@@ -196,6 +197,7 @@ namespace scalar_kernel {
 struct VectorLane {
   typedef __m256d Value;
   typedef __m256d Mask;
+  static constexpr bool compensated_ordinate = true;
 
   static SELNORM_TAIL_INLINE Value splat(double value) {
     return _mm256_set1_pd(value);
@@ -289,6 +291,58 @@ inline void upper_tail_affine_avx2(const double *mean, std::size_t count,
       out[index + lane] = padded_out[lane];
     }
   }
+}
+
+// One changed boundary: evaluate and validate the row in one pass. Products
+// remain untouched until the caller has validated every block of the row.
+inline bool single_boundary_normalizers_avx2(
+  const double *location, std::size_t count, double offset, double inverse_sd,
+  double last, double step, double *value)
+{
+  const __m256d intercept = _mm256_set1_pd(offset);
+  const __m256d slope = _mm256_set1_pd(-inverse_sd);
+  const __m256d scale = _mm256_set1_pd(step);
+  const __m256d base = _mm256_set1_pd(last);
+  const __m256d absolute_base = _mm256_set1_pd(std::fabs(last));
+  const __m256d sign = _mm256_set1_pd(-0.0);
+  const __m256d maximum = _mm256_set1_pd(std::numeric_limits<double>::max());
+  const __m256d minimum = _mm256_set1_pd(std::numeric_limits<double>::min());
+  const __m256d ratio = _mm256_set1_pd(1e-8);
+  __m256d valid = _mm256_castsi256_pd(_mm256_set1_epi64x(-1));
+  std::size_t index = 0;
+  for (; index + 4 <= count; index += 4) {
+    const __m256d mean = _mm256_loadu_pd(location + index);
+    const __m256d score = _mm256_fmadd_pd(mean, slope, intercept);
+    const __m256d contribution = _mm256_mul_pd(scale, vector_kernel::upper_tail(score));
+    const __m256d normalizer = _mm256_add_pd(base, contribution);
+    const __m256d magnitude = _mm256_add_pd(absolute_base,
+      _mm256_andnot_pd(sign, contribution));
+    _mm256_storeu_pd(value + index, normalizer);
+    __m256d ok = _mm256_cmp_pd(_mm256_andnot_pd(sign, mean), maximum, _CMP_LE_OQ);
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(normalizer, maximum, _CMP_LE_OQ));
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(normalizer, minimum, _CMP_GT_OQ));
+    ok = _mm256_and_pd(ok, _mm256_cmp_pd(normalizer,
+      _mm256_mul_pd(ratio, magnitude), _CMP_GT_OQ));
+    valid = _mm256_and_pd(valid, ok);
+  }
+  bool all = _mm256_movemask_pd(valid) == 15;
+  if (index < count) {
+    // Keep the existing padded tail evaluation and scalar remainder arithmetic.
+    double tail[4];
+    upper_tail_affine_avx2(location + index, count - index, offset, inverse_sd, tail);
+    for (std::size_t lane = 0; index < count; ++index, ++lane) {
+      const double contribution = step * tail[lane];
+      value[index] = last;
+      value[index] += contribution;
+      double magnitude = std::fabs(last);
+      magnitude += std::fabs(contribution);
+      all &= (std::fabs(location[index]) <= std::numeric_limits<double>::max()) &
+             (value[index] <= std::numeric_limits<double>::max()) &
+             (value[index] > std::numeric_limits<double>::min()) &
+             (value[index] > 1e-8 * magnitude);
+    }
+  }
+  return all;
 }
 
 // Elementwise helpers of the double-precision step normalizer products
@@ -449,6 +503,27 @@ inline bool validate_normalizers(const double *location, const double *value,
              (value[index] > 1e-8 * magnitude[index]);
   }
   return valid;
+}
+
+// The scalar fallback retains the general path's tail, accumulation and
+// validation passes. The two scratch arrays are unused by the vector path.
+inline bool single_boundary_normalizers(
+  const double *location, std::size_t count, double offset, double inverse_sd,
+  double last, double step, double *value, double *tail, double *magnitude)
+{
+#if SELNORM_TAIL_HAS_AVX2
+  if (avx2_available()) {
+    return single_boundary_normalizers_avx2(location, count, offset, inverse_sd,
+                                            last, step, value);
+  }
+#endif
+  for (std::size_t index = 0; index < count; ++index) {
+    value[index] = last;
+    magnitude[index] = std::fabs(last);
+  }
+  upper_tail_affine(location, count, offset, inverse_sd, tail);
+  accumulate_boundary(tail, count, step, value, magnitude);
+  return validate_normalizers(location, value, magnitude, count);
 }
 
 // product[i] *= value[i]; false when an updated product leaves [2^-960, 2^960].

@@ -51,6 +51,25 @@ test_that("the tail kernel matches an arbitrary-precision reference", {
 })
 
 
+test_that("Gaussian square compensation preserves tail accuracy", {
+
+  # Non-exact squares, including the outer region boundary and the last
+  # supported tail, distinguish compensation from exp(-round(x^2)/2).
+  scores <- c(sqrt(2), pi, 5.5304573779, sqrt(32) + c(-1e-12, 0, 1e-12),
+              20.1, 32.9360548699, 37.5193 - 1e-12, 37.5193)
+  grid <- c(scores, -scores)
+  kernel <- .selnorm_normal_upper_tail(grid)
+  reference <- stats::pnorm(grid, lower.tail = FALSE)
+  fallback <- .selnorm_normal_upper_tail(grid, scalar = TRUE)
+
+  # pnorm truncates at the exact cutoff; retain that score in the scalar
+  # parity check, and compare relative errors only for nonzero references.
+  comparable <- reference > 0
+  expect_lt(max(abs(kernel[comparable] / reference[comparable] - 1)), 1e-13)
+  expect_lt(max(abs(kernel / fallback - 1)), 1e-14)
+})
+
+
 test_that("a tail value does not depend on its position in the batch", {
 
   grid <- sort(unique(c(seq(-12, 12, by = 0.0007), 0, 0.67448975,
@@ -67,6 +86,32 @@ test_that("a tail value does not depend on its position in the batch", {
   probe <- sample(seq_along(grid), 40L)
   expect_identical(vapply(grid[probe], .selnorm_normal_upper_tail, numeric(1L)),
                    reference[probe])
+})
+
+
+test_that("mixed tail regions preserve each lane's value", {
+
+  # Each row is one vector batch, including batches with no usable far-tail
+  # lane. Mixed middle/far batches share their Gaussian ordinate evaluation.
+  batches <- list(
+    c(0, 2, 8, 40),
+    c(-0.5, -5, -20, -40),
+    c(sqrt(32), sqrt(32) + 1e-12, 37.5193, 37.5193 + 1e-12),
+    c(2, 5, 40, Inf),
+    c(-40, 40, -Inf, Inf)
+  )
+  for (scalar in c(FALSE, TRUE)) {
+    for (grid in batches) {
+      kernel <- .selnorm_normal_upper_tail(grid, scalar = scalar)
+      single <- vapply(grid, .selnorm_normal_upper_tail, numeric(1L), scalar = scalar)
+      expect_identical(kernel, single)
+      reference <- stats::pnorm(grid, lower.tail = FALSE)
+      comparable <- abs(grid) <= 37.5193 & reference > 0
+      expect_lt(max(abs(kernel[comparable] / reference[comparable] - 1), 0), 1e-13)
+      expect_true(all(kernel[grid > 37.5193] == 0))
+      expect_true(all(kernel[grid < -37.5193] == 1))
+    }
+  }
 })
 
 
