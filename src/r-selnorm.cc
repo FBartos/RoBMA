@@ -385,10 +385,14 @@ extern "C" SEXP RoBMA_selnorm_sampler_control(SEXP enabled, SEXP settings, SEXP 
 // classes the sampler uses, with the validators and the surrogate's pieces
 // (numerator, log normalizer of the rung, whether it fell back to the exact
 // density). `settings` is the sampler's setting vector (three grid steps, rule
-// count). An exception of an evaluation is returned as its message.
-extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings)
+// count). An exception of an evaluation is returned as its message. With
+// `unchecked` the evaluations also run on blocks whose controls the validators
+// refuse (a quadrature table with a missing value, say), to reach the branches
+// the validators otherwise guard.
+extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters, SEXP settings,
+                                              SEXP unchecked)
 {
-  ROBMA_NATIVE_BEGIN(kind, x, parameters, settings)
+  ROBMA_NATIVE_BEGIN(kind, x, parameters, settings, unchecked)
   if (TYPEOF(kind) != STRSXP || Rf_length(kind) != 1) {
     Rf_error("'kind' must be 'cluster' or 'factor'.");
   }
@@ -397,6 +401,7 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   if (!factor && name != "cluster") Rf_error("'kind' must be 'cluster' or 'factor'.");
   check_real(x, "x");
   check_real(settings, "settings");
+  check_logical(unchecked, "unchecked");
   if (Rf_length(settings) != 4) Rf_error("'settings' must contain three grid steps and a rule count.");
   if (TYPEOF(parameters) != VECSXP || Rf_length(parameters) != 20) {
     Rf_error("'parameters' must be a list of the 20 distribution parameters.");
@@ -435,7 +440,7 @@ extern "C" SEXP RoBMA_selnorm_surrogate_probe(SEXP kind, SEXP x, SEXP parameters
   std::string surrogate_error, exact_error;
   // Invalid controls are refused; invalid dynamic values are evaluated, and the
   // evaluators give them the exact kernel's -Inf.
-  if (control_valid) {
+  if (control_valid || LOGICAL(unchecked)[0] == TRUE) {
     const int rows = static_cast<int>(length);
     const int rank = factor ? static_cast<int>(len[2] / len[0]) : 1;
     const SelNormJagsBounds lower_bounds(par[5], len[5]);

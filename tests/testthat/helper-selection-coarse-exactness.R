@@ -56,7 +56,7 @@
 
   rule   <- .coarse_reference_rule(order)
   grid   <- as.matrix(expand.grid(rep(list(seq_len(order)), setup$rank)))
-  weight <- apply(matrix(rule$weights[grid], nrow(grid), setup$rank), 1L, prod)
+  weight <- Reduce(`*`, lapply(seq_len(setup$rank), function(axis) rule$weights[grid[, axis]]))
   latent <- matrix(rule$nodes[grid], nrow(grid), setup$rank)
   log(sum(weight * .coarse_exactness_product(setup, mu, latent)))
 }
@@ -132,46 +132,108 @@
 }
 
 
-# A short corrected chain of mu on the rjags model of the block, with the
-# schedule of the setup. Returns the draws and the sampler counters of them.
-.coarse_exactness_chain <- function(setup, draws, seed = 74891L) {
+# The rjags model of one selection block with the pieces a test varies: the
+# `definitions` (priors and deterministic nodes the arguments refer to), the
+# syntax of the residual SD and loading arguments, the constants of the kernel
+# mode and vector rule, and the data. The corrected sampler is switched on while
+# the model compiles and the options are restored. Returns the compiled model and
+# the samplers it was assigned.
+.coarse_hand_model <- function(kind, rows, rank, rules, data, definitions,
+                               residual_sd = paste0("residual_sd[1:", rows, "]"),
+                               loading = if (rank == 1L) paste0("loading[1:", rows, "]") else
+                                 paste0("loading[1:", rows, ", 1:", rank, "]"),
+                               mode = 1, vector_rule = 0, seed = 74891L, inits = list()) {
 
   old <- RoBMA::RoBMA.options()[c("selection.sampler", "selection.coarse_max_rules")]
   on.exit(do.call(RoBMA::RoBMA.options, old), add = TRUE)
   RoBMA::RoBMA.options(selection.sampler = "coarse_corrected", selection.coarse_max_rules = 3L)
-  rows   <- setup$rows
-  rank   <- setup$rank
   design <- BayesTools::selection_qmc_design(2L * rank, 512L, 8L, 9049L)
-  data <- list(y = rep(0, rows), residual_sd = setup$residual_sd, loading = setup$loading,
-    sei = rep(1, rows), omega = setup$omega, obs_bin = rep(1, rows),
-    z_lower = c(0, -1e300), z_upper = c(1e300, 0), qmc = as.numeric(design),
-    nqmc = length(design), nodes = setup$rules$nodes, log_weights = setup$rules$log_weights,
-    orders = setup$rules$orders, nq = length(setup$rules$nodes), nr = length(setup$rules$orders))
-  if (rank == 1L) data$loading <- as.numeric(setup$loading)
-  distribution <- if (rank == 1L) "dselnorm_cluster_step" else "dselnorm_factor_step"
-  loading_term <- if (rank == 1L) paste0("loading[1:", rows, "]") else
-    paste0("loading[1:", rows, ", 1:", rank, "]")
-  syntax <- paste0("model {
-    mu ~ dt(0, 1, 4)
-    for (j in 1:", rows, ") { means[j] <- mu }
-    y[1:", rows, "] ~ ", distribution, "(means[1:", rows, "], residual_sd[1:", rows, "], ",
-    loading_term, ", sei[1:", rows, "], omega[1:2], z_lower[1:2], z_upper[1:2],
-      obs_bin[1:", rows, "], 1, 1, 1, nodes[1:nq], log_weights[1:nq], orders[1:nr],
-      qmc[1:nqmc], 64, 512, 8, 0.005, 0)
-  }")
+  base <- list(y = rep(0, rows), sei = rep(1, rows), omega = c(1, .05),
+    obs_bin = rep(1, rows), z_lower = c(0, -1e300), z_upper = c(1e300, 0),
+    qmc = as.numeric(design), nqmc = length(design), nodes = rules$nodes,
+    log_weights = rules$log_weights, orders = rules$orders, nq = length(rules$nodes),
+    nr = length(rules$orders))
+  data <- utils::modifyList(base, data)
+  distribution <- if (kind == "cluster") "dselnorm_cluster_step" else "dselnorm_factor_step"
+  syntax <- paste0("model {\n", definitions, "\n  y[1:", rows, "] ~ ", distribution,
+    "(means[1:", rows, "], ", residual_sd, ", ", loading, ", sei[1:", rows, "], omega[1:2], ",
+    "z_lower[1:2], z_upper[1:2], obs_bin[1:", rows, "], 1, 1, ", mode, ", nodes[1:nq], ",
+    "log_weights[1:nq], orders[1:nr], qmc[1:nqmc], 64, 512, 8, 0.005, ", vector_rule, ")\n}")
   connection <- textConnection(syntax)
   on.exit(close(connection), add = TRUE)
   model <- rjags::jags.model(connection, data = data,
-    inits = list(mu = -.25, .RNG.name = "base::Mersenne-Twister", .RNG.seed = seed),
+    inits = c(inits, list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = seed)),
     n.chains = 1L, n.adapt = 0L, quiet = TRUE)
-  assigned <- names(rjags::list.samplers(model))
+  list(model = model, samplers = names(rjags::list.samplers(model)))
+}
+
+
+# Adapts, burns in and draws `draws` values of `monitor`; returns them with the
+# sampler counters of the draws.
+.coarse_hand_chain <- function(hand, monitor, draws) {
+
+  model <- hand$model
   for (batch in seq_len(5L)) ready <- rjags::adapt(model, 100L, end.adaptation = FALSE)
   stopifnot(isTRUE(ready), isTRUE(rjags::adapt(model, 0L, end.adaptation = TRUE)))
   for (batch in seq_len(5L)) stats::update(model, n.iter = 100L, progress.bar = "none")
   RoBMA::selection_sampler_info(clear = TRUE)
-  values <- as.numeric(as.matrix(rjags::coda.samples(model, "mu", n.iter = draws,
+  values <- as.numeric(as.matrix(rjags::coda.samples(model, monitor, n.iter = draws,
     thin = 1L, progress.bar = "none")))
-  list(draws = values, samplers = assigned, counters = RoBMA::selection_sampler_info())
+  list(draws = values, samplers = hand$samplers, counters = RoBMA::selection_sampler_info())
+}
+
+
+# A short corrected chain of mu on the rjags model of the block, with the
+# schedule of the setup. Returns the draws and the sampler counters of them.
+.coarse_exactness_chain <- function(setup, draws, seed = 74891L) {
+
+  rows <- setup$rows
+  rank <- setup$rank
+  data <- list(residual_sd = setup$residual_sd, loading = setup$loading, omega = setup$omega)
+  if (rank == 1L) data$loading <- as.numeric(setup$loading)
+  hand <- .coarse_hand_model(setup$kind, rows, rank, setup$rules, data,
+    definitions = paste0("  mu ~ dt(0, 1, 4)\n  for (j in 1:", rows, ") { means[j] <- mu }"),
+    seed = seed, inits = list(mu = -.25))
+  .coarse_hand_chain(hand, "mu", draws)
+}
+
+
+# Mean and variance of a density on a finite interval given by its log (a function
+# of the parameter, up to a constant), by QUADPACK, with the error estimates of the
+# moment integrals and the largest relative error of the normalizer integrals
+# relative error of the normalizer integrals (`tracker$relative_error`, read after
+# the integration) carried through as in .coarse_exactness_moments.
+.coarse_moments_1d <- function(log_density, lower, upper, tracker) {
+
+  reference <- log_density((lower + upper) / 2)
+  density <- function(x) exp(vapply(x, log_density, numeric(1L)) - reference)
+  moment <- function(power) {
+    result <- stats::integrate(function(x) density(x) * x^power, lower, upper,
+                               rel.tol = 1e-8, abs.tol = 1e-12, subdivisions = 200L)
+    stopifnot(identical(result$message, "OK"))
+    result
+  }
+  integrals <- lapply(0:2, moment)
+  values <- vapply(integrals, `[[`, numeric(1L), "value")
+  errors <- vapply(integrals, `[[`, numeric(1L), "abs.error")
+  mean     <- values[2L] / values[1L]
+  second   <- values[3L] / values[1L]
+  relative_error <- tracker$relative_error
+  moment_error <- (errors[2:3] + abs(c(mean, second)) * errors[1L]) / (values[1L] - errors[1L]) +
+    2 * relative_error / (1 - relative_error) * c(sqrt(second), second)
+  list(mean = mean, variance = second - mean^2, mean_error = moment_error[1L],
+       variance_error = moment_error[2L] + 2 * abs(mean) * moment_error[1L] + moment_error[1L]^2)
+}
+
+
+# Gaussian log density of x for the covariance diag(sd^2) + L L' around mean.
+.coarse_gaussian_log_density <- function(x, mean, sd, loading) {
+
+  loading    <- as.matrix(loading)
+  covariance <- diag(sd^2, length(x)) + loading %*% t(loading)
+  factor     <- chol(covariance)
+  centered   <- backsolve(factor, x - mean, transpose = TRUE)
+  -0.5 * (length(x) * log(2 * pi) + 2 * sum(log(diag(factor))) + sum(centered^2))
 }
 
 

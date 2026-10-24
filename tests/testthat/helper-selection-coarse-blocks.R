@@ -46,10 +46,11 @@
 }
 
 
-.coarse_probe <- function(block, max_rules = 3L) {
+# `unchecked` evaluates blocks whose controls the validators refuse (test use only).
+.coarse_probe <- function(block, max_rules = 3L, unchecked = FALSE) {
 
   .Call("RoBMA_selnorm_surrogate_probe", block[["kind"]], block[["x"]],
-        block[["parameters"]], c(.05, .05, .01, as.double(max_rules)),
+        block[["parameters"]], c(.05, .05, .01, as.double(max_rules)), unchecked,
         PACKAGE = "RoBMA")
 }
 
@@ -100,7 +101,7 @@
   loading <- matrix(p[[3L]], k, rank)
   rule   <- .coarse_reference_rule(order)
   grid   <- as.matrix(expand.grid(rep(list(seq_len(order)), rank)))
-  weight <- apply(matrix(rule$weights[grid], nrow(grid), rank), 1L, prod)
+  weight <- Reduce(`*`, lapply(seq_len(rank), function(axis) rule$weights[grid[, axis]]))
   latent <- matrix(rule$nodes[grid], nrow(grid), rank)
   product <- rep(1, nrow(grid))
   for (i in seq_len(k)) {

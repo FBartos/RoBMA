@@ -133,6 +133,25 @@ test_that("blocks without an available rule fall back to the exact density", {
     gaussian <- .coarse_reference_numerator(block) - sum(log(block[["parameters"]][[5L]][block[["parameters"]][[8L]]]))
     expect_lte(abs(normal[["surrogate"]] - gaussian), 1e-13)
 
+    # a rule budget below three is refused: the exact density, for either class
+    two <- .coarse_probe(block, 2L)
+    expect_true(two[["exact_fallback"]], info = kind)
+    expect_true(is.nan(two[["log_normalizer"]]), info = kind)
+    same_as_exact(two, paste(kind, "max_rules 2"))
+
+    # a quadrature table whose rule 3 has no values (which the validators refuse, so
+    # the probe is told to run anyway) gives a non-finite normalizer: the exact
+    # density, which passes over that rung
+    orders <- block[["rules"]][["orders"]]
+    nodes  <- block[["parameters"]][[12L]]
+    nodes[sum(orders[1:2]) + seq_len(orders[3L])] <- NaN
+    broken <- .coarse_probe(.coarse_block_set(block, 12L, nodes), 3L, unchecked = TRUE)
+    expect_false(broken[["control_valid"]], info = kind)
+    expect_true(broken[["exact_fallback"]], info = kind)
+    expect_true(is.nan(broken[["log_normalizer"]]), info = kind)
+    expect_true(is.finite(broken[["exact"]]), info = kind)
+    same_as_exact(broken, paste(kind, "non-finite normalizer"))
+
     # a best-weight vector rule has no product rung
     for (vector_rule in c(1, 2)) {
       best <- .coarse_probe(.coarse_block_set(block, 20L, vector_rule), 3L)
@@ -142,8 +161,9 @@ test_that("blocks without an available rule fall back to the exact density", {
     }
   }
 
-  # a rung the node budget does not afford: three axes, no forest (every column
-  # loads on every row), rule 3 of order 70 (70^3 nodes exceed the budget)
+  # a rung the node budget does not afford: three axes whose supports nest as a chain
+  # (every column loads on every row), a forest of depth 3, rule 3 of order 70
+  # (70^3 nodes exceed the budget)
   tensor_loading <- cbind(c(.5, .4, .45, .35), c(.3, -.3, .35, .25), c(.25, .3, -.3, .2))
   tensor <- .coarse_block("factor", mean = c(.1, -.2, .3, 0), residual_sd = rep(.6, 4),
     loading = tensor_loading, sei = rep(1, 4), omega = c(1, .3), x = c(.2, -.5, .1, .4),
@@ -159,6 +179,43 @@ test_that("blocks without an available rule fall back to the exact density", {
     as.double(affordable[["rules"]][["nodes"]]), as.double(affordable[["rules"]][["log_weights"]]),
     as.double(affordable[["rules"]][["orders"]]))
   .expect_coarse_value(.coarse_probe(affordable, 3L), affordable, 31L, info = "affordable rung")
+})
+
+
+# A support that is not a forest (two columns overlapping partially) is integrated
+# as a tensor and pays order^rank nodes; a forest pays order^(depth + 1).
+test_that("the node budget follows the tensor of overlapping supports and the depth of a forest", {
+
+  schedule <- function(order) .coarse_rules(c(7, 21, order, 95))
+  factor_block <- function(loading, order, rows = nrow(loading)) {
+    .coarse_block("factor", mean = seq(-.2, .3, length.out = rows), residual_sd = rep(.55, rows),
+      loading = loading, sei = rep(1, rows), omega = c(1, .3),
+      x = seq(.3, -.2, length.out = rows), obs_bin = rep(c(1L, 2L), length.out = rows),
+      rules = schedule(order), initial_points = 64, max_points = 512, scrambles = 8)
+  }
+
+  # two columns on rows 1-3 and 3-5 overlap in row 3 and neither nests in the other
+  overlap2 <- cbind(c(.5, .4, .45, 0, 0), c(0, 0, .35, .5, .4))
+  block <- factor_block(overlap2, 31L)
+  .expect_coarse_value(.coarse_probe(block, 3L), block, 31L, info = "overlapping supports, rank two")
+
+  # three overlapping columns: rule 3 of order 31 fits (31^3), order 65 does not
+  # (65^3 > the node budget) and the density is the exact one
+  overlap3 <- cbind(c(.5, .4, .45, 0, 0), c(0, 0, .35, .5, .4), c(.3, 0, .3, 0, .35))
+  block <- factor_block(overlap3, 31L)
+  .expect_coarse_value(.coarse_probe(block, 3L), block, 31L, info = "overlapping supports, rank three")
+  block <- factor_block(overlap3, 65L)
+  probe <- .coarse_probe(block, 3L)
+  expect_true(probe[["exact_fallback"]])
+  expect_identical(probe[["surrogate_error"]], probe[["exact_error"]])
+  expect_identical(probe[["surrogate"]], probe[["exact"]])
+
+  # one column on every row and two on disjoint pairs is a forest of depth one: order
+  # 65 costs 65^2 nodes there, so the same rank three block is not refused
+  forest3 <- cbind(c(.5, .4, .45, .35, .5, .3), c(.5, .4, 0, 0, 0, 0), c(0, 0, .4, .5, 0, 0))
+  block <- factor_block(forest3, 65L)
+  probe <- .coarse_probe(block, 3L)
+  .expect_coarse_value(probe, block, 65L, info = "forest of depth one at order 65")
 })
 
 
@@ -470,4 +527,45 @@ test_that("a corrected chain draws identically with the node memo on and off", {
   expect_identical(with_memo[["counters"]], without_memo[["counters"]])
   expect_identical(dim(with_memo[["draws"]]), c(200L, ncol(with_memo[["draws"]])))
   expect_identical(with_memo[["draws"]], without_memo[["draws"]])
+})
+
+
+# The classification of a block's controls at construction decides whether its
+# nodes get the corrected sampler: hand-written models, assignment only.
+test_that("blocks without a coarse rule leave their nodes the stock sampler", {
+
+  skip_if_not_installed("rjags")
+  coarse   <- "RoBMA::CoarseCorrectedSlice"
+  stock    <- "base::RealSlicer"
+  location <- "  mu ~ dt(0, 1, 4)\n  for (j in 1:ROWS) { means[j] <- mu }"
+  cluster_assigned <- function(mode = 1, vector_rule = 0) {
+
+    hand <- .coarse_hand_model("cluster", 4L, 1L, .coarse_rules(c(7, 15, 31, 63, 127)),
+      data = list(residual_sd = rep(.5, 4), loading = rep(.7, 4)),
+      definitions = sub("ROWS", "4", location, fixed = TRUE), mode = mode, vector_rule = vector_rule,
+      inits = list(mu = .1))
+    hand$samplers
+  }
+  # product rule and step kernel: the node of the cluster block is corrected
+  expect_identical(cluster_assigned(), coarse)
+  # a kernel mode fixed at the normal kernel, and a best-weight vector rule, have no rung
+  expect_identical(cluster_assigned(mode = 0), stock)
+  expect_identical(cluster_assigned(vector_rule = 1), stock)
+
+  # Factor blocks of disjoint columns (a forest of depth zero, cheap to integrate)
+  # of declared rank 6 and 7: rule 3 of the default schedule has order 7, and 7^6
+  # nodes fit the budget while 7^7 do not. The rank is the declared one: a seventh
+  # column without loadings does not make the block affordable.
+  factor_assigned <- function(declared_rank) {
+
+    rows <- 7L
+    loading <- matrix(0, rows, declared_rank)
+    for (column in 1:6) loading[column, column] <- .5
+    loading[7L, 1L] <- .3
+    .coarse_hand_model("factor", rows, declared_rank, .coarse_rules(c(3, 5, 7, 9, 11, 15, 21, 31, 43, 63, 95)),
+      data = list(residual_sd = rep(.6, rows), loading = loading),
+      definitions = sub("ROWS", as.character(rows), location, fixed = TRUE), inits = list(mu = .1))$samplers
+  }
+  expect_identical(factor_assigned(6L), coarse)
+  expect_identical(factor_assigned(7L), stock)
 })
