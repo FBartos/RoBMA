@@ -24,7 +24,17 @@
 \item{object}{a fitted brma object}
 
 \item{newdata}{prediction data. Defaults to \code{NULL}, which predicts the
-observed design rows. Marginal new-effect predictions may use an explicit data frame or
+observed design rows. \code{TRUE} returns a single aggregated prediction at
+the average fitted design (the scalar parameter for models without
+moderators or scale predictors, otherwise the average across the fitted
+model matrix): the pooled location (\code{type = "terms"}), the pooled
+heterogeneity (\code{"terms.scale"}), a new true effect (\code{"estimate"}),
+or a new cluster effect added to the pooled location (\code{"cluster"},
+multilevel models only). It is the quantity reported by
+\code{\link{pooled_effect}} and \code{\link{pooled_heterogeneity}} without
+the prediction interval columns, requires marginal depth, and is not
+available for \code{type = "response"}, which needs observation-level
+sampling variance. Marginal new-effect predictions may use an explicit data frame or
 named list with one row per target effect and every variable used by the
 requested fixed, scale, and random-effect designs. Missing ordinary
 grouping-only identifiers are synthesized as row-specific new levels;
@@ -278,6 +288,7 @@ if (requireNamespace("metadat", quietly = TRUE) &&
   )
 
   predict(fit, type = "terms")
+  predict(fit, newdata = TRUE, type = "terms")
   predict(fit, newdata = data.frame(ablat = 50, year = 1970),
           type = "estimate")
   predict(fit, type = "estimate")

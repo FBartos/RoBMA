@@ -6,7 +6,17 @@
 #' @param probs quantiles of the posterior samples to be displayed when the
 #' returned `brma_samples` object is printed. Defaults to `c(.025, .975)`.
 #' @param newdata prediction data. Defaults to \code{NULL}, which predicts the
-#'   observed design rows. Marginal new-effect predictions may use an explicit data frame or
+#'   observed design rows. \code{TRUE} returns a single aggregated prediction at
+#'   the average fitted design (the scalar parameter for models without
+#'   moderators or scale predictors, otherwise the average across the fitted
+#'   model matrix): the pooled location (\code{type = "terms"}), the pooled
+#'   heterogeneity (\code{"terms.scale"}), a new true effect (\code{"estimate"}),
+#'   or a new cluster effect added to the pooled location (\code{"cluster"},
+#'   multilevel models only). It is the quantity reported by
+#'   \code{\link{pooled_effect}} and \code{\link{pooled_heterogeneity}} without
+#'   the prediction interval columns, requires marginal depth, and is not
+#'   available for \code{type = "response"}, which needs observation-level
+#'   sampling variance. Marginal new-effect predictions may use an explicit data frame or
 #'   named list with one row per target effect and every variable used by the
 #'   requested fixed, scale, and random-effect designs. Missing ordinary
 #'   grouping-only identifiers are synthesized as row-specific new levels;
@@ -229,6 +239,7 @@
 #'   )
 #'
 #'   predict(fit, type = "terms")
+#'   predict(fit, newdata = TRUE, type = "terms")
 #'   predict(fit, newdata = data.frame(ablat = 50, year = 1970),
 #'           type = "estimate")
 #'   predict(fit, type = "estimate")
@@ -259,6 +270,24 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
                          V_new = NULL,
                          conditioning_depth = "marginal",
                          ...){
+
+  if (isTRUE(newdata)) {
+    return(.predict_brma_aggregate(
+      object             = object,
+      type               = type,
+      probs              = probs,
+      bias_adjusted      = bias_adjusted,
+      output_measure     = output_measure,
+      transform          = transform,
+      conditional        = conditional,
+      quiet              = quiet,
+      caller             = "predict.brma()",
+      dots               = list(...),
+      as_measure         = as_measure,
+      V_new              = V_new,
+      conditioning_depth = conditioning_depth
+    ))
+  }
 
   conditioning_depth_specified <- !missing(conditioning_depth)
 
@@ -417,7 +446,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   # check newdata: NULL or an explicit data.frame/list
   if (!is.null(newdata)) {
     if (!is.data.frame(newdata) && !is.list(newdata)) {
-      stop("'newdata' must be NULL, a data.frame, or a named list.", call. = FALSE)
+      stop("'newdata' must be NULL, TRUE, a data.frame, or a named list.", call. = FALSE)
     }
     newdata <- .prepare_newdata_as_data_frame(newdata)
   }
@@ -2376,4 +2405,215 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     immediate. = TRUE
   )
   return(rep(TRUE, S))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .predict_brma_aggregate
+# ---------------------------------------------------------------------------- #
+#
+# Aggregated prediction at the average fitted design (`newdata = TRUE`, the
+# 4.0.0 interface), also the engine of pooled_effect() and
+# pooled_heterogeneity(). The location is the fitted-design average of the
+# fixed location and the heterogeneity is the pooled heterogeneity at the
+# average scale design. A new true effect adds a draw from the pooled marginal
+# distribution, and a new cluster effect adds a draw of the between-cluster
+# component to the location. Marginal depth only; unused `dots` warn.
+#
+# @param type prediction type or alias; "response" needs observation-level
+#   sampling variance and stops.
+# @param title title of the result; NULL uses the aggregated prediction titles.
+# @param heterogeneity_component component name of "terms.scale" results.
+# @param prediction_interval whether the location result carries the draws of
+#   one new true effect at the pooled reference (the PI columns).
+# ---------------------------------------------------------------------------- #
+.predict_brma_aggregate <- function(
+    object, type, probs, bias_adjusted, output_measure, transform,
+    conditional, quiet, caller, dots,
+    as_measure = TRUE, V_new = NULL, conditioning_depth = "marginal",
+    title = NULL, heterogeneity_component = "scale",
+    prediction_interval = FALSE) {
+
+  .warn_unused_dots(
+    dots    = dots,
+    allowed = ".posterior_samples",
+    caller  = caller
+  )
+
+  type <- match.arg(type, c("terms", "marginal", "cluster", "estimate", "effect", "blup",
+                            "response", "outcome", "terms.scale"))
+  type <- switch(type,
+    "marginal" = "terms",
+    "effect"   = "estimate",
+    "blup"     = "estimate",
+    "outcome"  = "response",
+    type
+  )
+
+  BayesTools::check_bool(as_measure, "as_measure")
+  BayesTools::check_bool(bias_adjusted, "bias_adjusted")
+  BayesTools::check_bool(conditional, "conditional")
+  BayesTools::check_bool(quiet, "quiet")
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1,
+                         check_length = 0, allow_NULL = TRUE, allow_NA = FALSE)
+  if (conditional && !.is_RoBMA(object)) {
+    stop("'conditional' predictions are available only for RoBMA objects.",
+         call. = FALSE)
+  }
+  if (.normalize_conditioning_depth(conditioning_depth) != "marginal") {
+    stop(
+      "Non-marginal predictions require fitted observation identities and ",
+      "are currently available only with newdata = NULL.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(V_new)) {
+    stop(
+      "'V_new' is only available for known-V response or selected latent ",
+      "predictions with explicit 'newdata'.",
+      call. = FALSE
+    )
+  }
+  if (type == "response") {
+    stop("Aggregated predictions (newdata = TRUE) are not available for type = 'response' ",
+         "because observation-level sampling variance is required.", call. = FALSE)
+  }
+  if (type == "cluster" &&
+      (inherits(object, "brma.mv") || !.is_multilevel(object))) {
+    stop("type = 'cluster' is only available for multilevel (3-level) models. ",
+         "Use type = 'terms' for non-multilevel models.", call. = FALSE)
+  }
+
+  data              <- object[["data"]]
+  K                 <- nrow(data[["outcome"]])
+  posterior_samples <- .get_posterior_samples(object[["fit"]], dots[[".posterior_samples"]])
+  effect_transform  <- .effect_output_setup(
+    object         = object,
+    output_measure = output_measure,
+    transform      = transform
+  )
+  if (type == "terms.scale" && .effect_output_requested(effect_transform)) {
+    stop(
+      "'output_measure' and 'transform' are only available for effect-size ",
+      "predictions, not for type = 'terms.scale'.",
+      call. = FALSE
+    )
+  }
+  chain_info <- .brma_samples_chain_info(
+    fit       = object[["fit"]],
+    n_samples = nrow(posterior_samples)
+  )
+
+  ### heterogeneity at the average scale design
+  if (type == "terms.scale") {
+    if (inherits(object, "brma.mv")) {
+      return(.pooled_heterogeneity_brma_mv(
+        object             = object,
+        probs              = probs,
+        conditional        = conditional,
+        component          = "all",
+        .posterior_samples = posterior_samples
+      ))
+    }
+    if (.is_scale(object) && K > 1L && !quiet) {
+      message("Aggregated prediction averages tau across the scale model matrix (K = ", K, " observations).")
+    }
+    samples <- .pooled_heterogeneity_total_samples(object, posterior_samples)
+    colnames(samples) <- "tau"
+    out <- .new_brma_samples(
+      samples   = samples,
+      n_chains  = chain_info[["n_chains"]],
+      n_iter    = chain_info[["n_iter"]],
+      title     = if (is.null(title)) "Aggregated Scale Term Posterior Prediction:" else title,
+      component = heterogeneity_component,
+      probs     = probs,
+      data      = NULL
+    )
+    return(.condition_prediction_samples(
+      object            = object,
+      samples           = out,
+      conditional       = conditional,
+      parameters        = .conditional_heterogeneity_parameters(object),
+      posterior_samples = posterior_samples,
+      quiet             = quiet
+    ))
+  }
+
+  ### location at the average design, with the draws of one new effect
+  if (.is_mods(object) && K > 1L && !quiet) {
+    message("Aggregated prediction averages mu across the moderator model matrix (K = ", K, " observations).")
+  }
+  location <- .pooled_location_samples(
+    object            = object,
+    bias_adjusted     = bias_adjusted,
+    posterior_samples = posterior_samples
+  )
+  new_effect <- function(center, tau) {
+    matrix(
+      stats::rnorm(n = nrow(location), mean = center, sd = tau),
+      ncol     = 1L,
+      dimnames = list(NULL, "mu")
+    )
+  }
+
+  samples            <- location
+  prediction_samples <- NULL
+  if (type == "terms" && prediction_interval) {
+    prediction_samples <- .with_preserved_rng(new_effect(
+      center = location[, 1L],
+      tau    = .pooled_heterogeneity_total_samples(object, posterior_samples)[, 1L]
+    ))
+  } else if (type == "cluster") {
+    samples <- location + new_effect(
+      center = 0,
+      tau    = .pooled_tau_components(object, posterior_samples)[["tau_between"]][, 1L]
+    )
+    colnames(samples) <- "mu_cluster"
+  } else if (type == "estimate") {
+    samples <- new_effect(
+      center = location[, 1L],
+      tau    = .pooled_heterogeneity_total_samples(object, posterior_samples)[, 1L]
+    )
+    colnames(samples) <- "theta"
+  }
+
+  if (is.null(title)) {
+    title <- switch(
+      type,
+      terms    = "Aggregated Location Term Posterior Prediction:",
+      cluster  = "Aggregated Cluster-Level Posterior Prediction:",
+      estimate = "Aggregated True Effect Posterior Prediction:"
+    )
+  }
+  out <- .new_effect_brma_samples(
+    samples            = samples,
+    n_chains           = chain_info[["n_chains"]],
+    n_iter             = chain_info[["n_iter"]],
+    title              = title,
+    component          = if (type == "estimate") "estimate" else "location",
+    probs              = probs,
+    data               = NULL,
+    effect_transform   = effect_transform,
+    prediction_samples = prediction_samples
+  )
+  out <- .condition_prediction_samples(
+    object            = object,
+    samples           = out,
+    conditional       = conditional,
+    parameters        = .conditional_effect_parameters(object),
+    posterior_samples = posterior_samples,
+    quiet             = quiet
+  )
+  target <- list(
+    method            = if (prediction_interval) "pooled_effect()" else "predict(newdata = TRUE)",
+    reported_target   = "fixed-location average-expanded-design reference",
+    prediction_target = "new unselected true effect at the pooled reference",
+    bias_adjusted     = bias_adjusted
+  )
+  if (!is.null(prediction_samples)) {
+    target[["rng_policy"]] <- "preserve_caller_state"
+  }
+  attr(out, "RoBMA_target") <- c(target, .selection_postfit_target_metadata(data))
+
+  return(out)
 }

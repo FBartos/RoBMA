@@ -371,36 +371,15 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
   }
 
   data              <- object[["data"]]
-  priors            <- object[["priors"]]
   posterior_samples <- .get_posterior_samples(
     object[["fit"]],
     dots[[".posterior_samples"]]
   )
-  mu_samples <- .evaluate.brma.mu(
-    fit               = .object_formula_fit(object),
-    outcome_data      = data[["outcome"]],
-    mods_data         = data[["mods"]],
-    mods_formula      = if (.is_mods(object)) {
-      .create_fit_formula_list(data = data, "mods")
-    } else {
-      NULL
-    },
-    mods_priors       = if (.is_random(object)) {
-      priors[["location"]]
-    } else {
-      priors[["mods"]]
-    },
-    is_mods           = .is_mods(object),
-    is_PET            = .is_PET(object),
-    is_PEESE          = .is_PEESE(object),
-    effect_direction  = .effect_direction(object),
+  samples <- .pooled_location_samples(
+    object            = object,
     bias_adjusted     = bias_adjusted,
-    K                 = nrow(data[["outcome"]]),
-    posterior_samples = posterior_samples,
-    priors            = priors
+    posterior_samples = posterior_samples
   )
-  samples <- matrix(rowMeans(mu_samples), ncol = 1L)
-  colnames(samples) <- "mu"
 
   tau_samples <- .pooled_heterogeneity_total_samples(
     object            = object,
@@ -452,6 +431,42 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
     rng_policy = "preserve_caller_state"
   ), .selection_postfit_target_metadata(data))
   return(out)
+}
+
+
+# Fixed location at the average fitted design: the row mean of the fitted-design
+# location draws (S x 1, column "mu").
+.pooled_location_samples <- function(object, bias_adjusted, posterior_samples) {
+
+  data   <- object[["data"]]
+  priors <- object[["priors"]]
+  mu_samples <- .evaluate.brma.mu(
+    fit               = .object_formula_fit(object),
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(object)) {
+      .create_fit_formula_list(data = data, "mods")
+    } else {
+      NULL
+    },
+    mods_priors       = if (.is_random(object)) {
+      priors[["location"]]
+    } else {
+      priors[["mods"]]
+    },
+    is_mods           = .is_mods(object),
+    is_PET            = .is_PET(object),
+    is_PEESE          = .is_PEESE(object),
+    effect_direction  = .effect_direction(object),
+    bias_adjusted     = bias_adjusted,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = posterior_samples,
+    priors            = priors
+  )
+  samples <- matrix(rowMeans(mu_samples), ncol = 1L)
+  colnames(samples) <- "mu"
+
+  return(samples)
 }
 
 
@@ -632,6 +647,13 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
     return(.total_brma_mv_heterogeneity_samples(components))
   }
 
+  return(.pooled_tau_components(object, posterior_samples)[["tau_total"]])
+}
+
+# Total, within-, and between-cluster heterogeneity at the average fitted scale
+# design of a univariate model.
+.pooled_tau_components <- function(object, posterior_samples) {
+
   tau_result <- .evaluate.brma.pooled_tau(
     fit               = .object_formula_fit(object),
     scale_data        = object[["data"]][["scale"]],
@@ -649,7 +671,7 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
     fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
   )
 
-  return(tau_result[["tau_total"]])
+  return(tau_result)
 }
 
 

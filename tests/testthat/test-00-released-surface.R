@@ -61,3 +61,100 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
   expect_no_error(utils::capture.output(print_prior(prior_object, parameter = "tau")))
   expect_no_error(plot_prior(prior_object))
 })
+
+
+# Small fits shared by the tests below (two chains of 100 draws, built once).
+.surface_fit_env <- new.env()
+
+.surface_data <- function() {
+  data.frame(
+    yi      = c(.12, .30, .05, .41, .22, .18, .35, .10),
+    sei     = c(.10, .12, .09, .15, .11, .10, .13, .12),
+    x       = c(1, 2, 3, 4, 5, 6, 7, 8) / 8,
+    cluster = rep(1:4, each = 2)
+  )
+}
+
+.surface_fit <- function(name) {
+
+  if (!exists(name, envir = .surface_fit_env, inherits = FALSE)) {
+    arguments <- list(
+      yi = quote(yi), sei = quote(sei), data = .surface_data(), measure = "GEN",
+      prior_unit_information_sd = 1,
+      chains = 2, adapt = 50, burnin = 100, sample = 100,
+      seed = 1, silent = TRUE
+    )
+    arguments <- switch(
+      name,
+      ordinary   = arguments,
+      mods       = c(arguments, list(mods = ~ x)),
+      multilevel = c(arguments, list(cluster = quote(cluster)))
+    )
+    fit <- suppressWarnings(do.call(brma, arguments))
+    assign(name, fit, envir = .surface_fit_env)
+  }
+
+  return(get(name, envir = .surface_fit_env, inherits = FALSE))
+}
+
+test_that("predict(newdata = TRUE) returns the aggregated prediction", {
+
+  mods <- .surface_fit("mods")
+
+  terms <- predict(mods, newdata = TRUE, type = "terms", quiet = TRUE)
+  fixed <- predict(mods, type = "terms")
+  expect_s3_class(terms, "brma_samples")
+  expect_identical(colnames(terms), "mu")
+  expect_identical(attr(terms, "title"), "Aggregated Location Term Posterior Prediction:")
+  expect_equal(as.numeric(terms), unname(rowMeans(unclass(fixed))), tolerance = 1e-12)
+  expect_message(
+    predict(mods, newdata = TRUE, type = "terms"),
+    "Aggregated prediction averages mu across the moderator model matrix (K = 8 observations)",
+    fixed = TRUE
+  )
+  expect_equal(predict(mods, newdata = TRUE, type = "marginal", quiet = TRUE), terms)
+
+  scale <- predict(mods, newdata = TRUE, type = "terms.scale")
+  expect_identical(colnames(scale), "tau")
+  expect_identical(attr(scale, "title"), "Aggregated Scale Term Posterior Prediction:")
+  expect_equal(unclass(scale)[, "tau"], unclass(pooled_heterogeneity(mods))[, "tau"],
+               ignore_attr = TRUE)
+
+  set.seed(1)
+  estimate <- predict(mods, newdata = TRUE, type = "estimate", quiet = TRUE)
+  expect_identical(colnames(estimate), "theta")
+  expect_identical(attr(estimate, "title"), "Aggregated True Effect Posterior Prediction:")
+  expect_equal(unname(colMeans(unclass(estimate))), unname(colMeans(unclass(terms))),
+               tolerance = 1)
+  expect_gt(sd(estimate[, "theta"]), sd(terms[, "mu"]))
+  set.seed(1)
+  expect_equal(predict(mods, newdata = TRUE, type = "blup", quiet = TRUE), estimate)
+
+  expect_error(
+    predict(mods, newdata = TRUE, type = "response"),
+    "Aggregated predictions (newdata = TRUE) are not available for type = 'response'",
+    fixed = TRUE
+  )
+  expect_error(
+    predict(mods, newdata = TRUE, type = "cluster"),
+    "type = 'cluster' is only available for multilevel (3-level) models",
+    fixed = TRUE
+  )
+  expect_error(
+    predict(mods, newdata = TRUE, conditioning_depth = "estimate"),
+    "available only with newdata = NULL"
+  )
+  expect_error(predict(mods, newdata = FALSE), "'newdata' must be NULL, TRUE, a data.frame")
+})
+
+test_that("predict(newdata = TRUE, type = 'cluster') adds a new cluster effect", {
+
+  multilevel <- .surface_fit("multilevel")
+
+  set.seed(1)
+  cluster <- predict(multilevel, newdata = TRUE, type = "cluster")
+  expect_identical(colnames(cluster), "mu_cluster")
+  expect_identical(attr(cluster, "title"), "Aggregated Cluster-Level Posterior Prediction:")
+  terms <- predict(multilevel, newdata = TRUE, type = "terms")
+  expect_gt(sd(cluster[, "mu_cluster"]), sd(terms[, "mu"]))
+})
