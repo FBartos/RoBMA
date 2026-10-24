@@ -557,13 +557,16 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
     # cluster output would report the first row of each cluster, so the cluster
     # component is refused; the estimate component never collapses rows.
     expect_error(
-      ranef(fit_brma), class = "RoBMA_ranef_expand_required", info = name
-    )
-    expect_error(
-      ranef(fit_brma, component = "cluster"),
+      ranef(fit_brma, expand = FALSE),
       class = "RoBMA_ranef_expand_required", info = name
     )
-    unique_estimate <- ranef(fit_brma, component = "estimate")
+    expect_error(
+      ranef(fit_brma, component = "cluster", expand = FALSE),
+      class = "RoBMA_ranef_expand_required", info = name
+    )
+    # the default layout is the expanded one (one column per estimate)
+    expect_equal(ranef(fit_brma), out, info = name)
+    unique_estimate <- ranef(fit_brma, component = "estimate", expand = FALSE)
     expect_equal(ncol(unique_estimate), n_studies, info = name)
     expect_equal(
       unname(as.matrix(unique_estimate)),
@@ -581,7 +584,7 @@ test_that("Model-averaged multilevel ranef decomposes cluster and estimate effec
       info = paste(name, "component total")
     )
     expect_error(
-      ranef(fit_brma, component = "total"),
+      ranef(fit_brma, component = "total", expand = FALSE),
       "expand = TRUE",
       fixed = TRUE
     )

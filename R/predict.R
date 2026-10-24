@@ -354,7 +354,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     prefix <- if (context[["conditioning_depth"]] == "cluster") {
       "mu_cluster"
     } else {
-      "theta_blup"
+      "theta"
     }
     colnames(mu_samples) <- paste0(prefix, "[", seq_len(context[["K"]]), "]")
 

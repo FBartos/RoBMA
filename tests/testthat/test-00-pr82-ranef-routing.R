@@ -137,7 +137,7 @@ test_that("clustered unique random effects refuse a scale design that varies wit
 
   varying <- fit("x")
   expect_error(
-    ranef(varying, .posterior_samples = samples("x"), simplify = FALSE),
+    ranef(varying, .posterior_samples = samples("x"), simplify = FALSE, expand = FALSE),
     class = "RoBMA_ranef_expand_required"
   )
   expanded <- ranef(varying, .posterior_samples = samples("x"), simplify = FALSE,
@@ -145,7 +145,8 @@ test_that("clustered unique random effects refuse a scale design that varies wit
   expect_identical(ncol(expanded[["cluster"]]), 4L)
 
   constant <- fit("g")
-  unique   <- ranef(constant, .posterior_samples = samples("g"), simplify = FALSE)
+  unique   <- ranef(constant, .posterior_samples = samples("g"), simplify = FALSE,
+                    expand = FALSE)
   expanded <- ranef(constant, .posterior_samples = samples("g"), simplify = FALSE,
                     expand = TRUE)
   expect_equal(unname(as.matrix(unique[["cluster"]])),
@@ -276,13 +277,13 @@ test_that("the clustered unique-level refusal is judged only for returned compon
   )
   for (component in c("cluster", "all", "total")) {
     expect_error(
-      ranef(object, component = component, .posterior_samples = samples),
+      ranef(object, component = component, expand = FALSE, .posterior_samples = samples),
       class = "RoBMA_ranef_expand_required", info = component
     )
   }
   # the family class of the requests that an object cannot serve
   expect_error(
-    ranef(object, .posterior_samples = samples),
+    ranef(object, expand = FALSE, .posterior_samples = samples),
     class = "RoBMA_unsupported_request"
   )
   expect_error(
@@ -388,11 +389,13 @@ test_that("the clustered GLMM route refuses a scale design that varies within a 
 
   varying <- .ranef_routing_glmm("x")
   expect_error(
-    ranef(varying$object, simplify = FALSE, .posterior_samples = varying$samples),
+    ranef(varying$object, simplify = FALSE, expand = FALSE,
+          .posterior_samples = varying$samples),
     class = "RoBMA_ranef_expand_required"
   )
   expect_error(
-    ranef(varying$object, component = "cluster", .posterior_samples = varying$samples),
+    ranef(varying$object, component = "cluster", expand = FALSE,
+          .posterior_samples = varying$samples),
     class = "RoBMA_ranef_expand_required"
   )
   expanded <- ranef(varying$object, simplify = FALSE, expand = TRUE,
@@ -412,7 +415,8 @@ test_that("the clustered GLMM route refuses a scale design that varies within a 
   )
 
   constant <- .ranef_routing_glmm("g")
-  unique   <- ranef(constant$object, simplify = FALSE, .posterior_samples = constant$samples)
+  unique   <- ranef(constant$object, simplify = FALSE, expand = FALSE,
+                    .posterior_samples = constant$samples)
   expanded <- ranef(constant$object, simplify = FALSE, expand = TRUE,
                     .posterior_samples = constant$samples)
   expect_equal(unname(as.matrix(unique[["cluster"]])),

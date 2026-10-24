@@ -334,3 +334,27 @@ test_that("the location-scale summary carries the released footnote", {
     footnote
   )
 })
+
+test_that("ranef() expands by default and blup() labels the true effects theta[i]", {
+
+  multilevel <- .surface_fit("multilevel")
+
+  random <- ranef(multilevel)
+  expect_identical(names(random), c("cluster", "estimate"))
+  expect_identical(ncol(random[["cluster"]]), 8L)
+  expect_true(all(grepl("|", colnames(random[["cluster"]]), fixed = TRUE)))
+  expect_true(all(startsWith(colnames(random[["cluster"]]), "u_cluster[")))
+  expect_identical(ncol(ranef(multilevel, expand = FALSE)[["cluster"]]), 4L)
+  expect_identical(
+    ranef(multilevel, expand = TRUE)[["cluster"]],
+    random[["cluster"]]
+  )
+
+  for (effects in list(blup(multilevel), true_effects(multilevel))) {
+    expect_identical(colnames(effects), paste0("theta[", 1:8, "]"))
+    expect_identical(attr(effects, "title"), "True Effects (BLUP Means)")
+  }
+  # the new depth-aware prediction keeps its own title
+  estimate <- predict(multilevel, type = "estimate", conditioning_depth = "estimate")
+  expect_false(identical(attr(estimate, "title"), "True Effects (BLUP Means)"))
+})

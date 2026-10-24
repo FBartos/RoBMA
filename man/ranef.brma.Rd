@@ -10,7 +10,7 @@
   probs = c(0.025, 0.975),
   component = "all",
   simplify = TRUE,
-  expand = FALSE,
+  expand = TRUE,
   ...
 )
 }
@@ -33,9 +33,14 @@ block name. Use \code{"total"} for the summed random-effect deviation.}
 \code{TRUE}, matching standard 2-level \code{brma()} behavior.}
 
 \item{expand}{whether to repeat random-effect contributions for every fitted
-observation. Defaults to \code{FALSE}, returning one column per unique
+observation. Defaults to \code{TRUE} (one column per estimate; the cluster
+block of a multilevel model labels its columns
+\code{u_cluster[<cluster>|<estimate>]}), except for \code{brma.mv()}
+random-formula models, where it defaults to \code{FALSE}. \code{FALSE}
+returns one column per unique
 grouping-level contribution in the fitted grouping order used by
-\code{metafor::ranef()}. Nested groups follow their original outer-to-inner
+\code{metafor::ranef()} (\code{u_cluster[<cluster>]} for a multilevel
+model). Nested groups follow their original outer-to-inner
 order. Indicator-coded random coefficients retain one column per observed
 grouping-level and coefficient combination. Set to \code{TRUE} for
 observation-aligned output.}

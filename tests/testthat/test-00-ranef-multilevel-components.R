@@ -93,7 +93,7 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
   )
 
   observed <- ranef.brma(object, simplify = FALSE, expand = TRUE)
-  unique   <- ranef.brma(object, simplify = FALSE)
+  unique   <- ranef.brma(object, simplify = FALSE, expand = FALSE)
   observed_table  <- as.data.frame(observed)
   observed_tables <- as.data.frame(observed, format = "list")
 
@@ -134,7 +134,7 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
   for (component in names(observed)) {
     expect_identical(
       observed_tables[[component]],
-      as.data.frame(observed[[component]])
+      as.data.frame(summary(observed[[component]]))
     )
   }
   expect_identical(
@@ -171,7 +171,7 @@ test_that("ordinary-normal multilevel ranef uses one coherent joint BLUP", {
     tolerance = 1e-12
   )
   expect_error(
-    ranef.brma(object, component = "total"),
+    ranef.brma(object, component = "total", expand = FALSE),
     "expand = TRUE",
     fixed = TRUE
   )

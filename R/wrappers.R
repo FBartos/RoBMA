@@ -873,9 +873,14 @@ ranef <- function(object, ...) {
 #' \code{brma_samples} object instead of a one-element list. Defaults to
 #' \code{TRUE}, matching standard 2-level \code{brma()} behavior.
 #' @param expand whether to repeat random-effect contributions for every fitted
-#' observation. Defaults to \code{FALSE}, returning one column per unique
+#' observation. Defaults to \code{TRUE} (one column per estimate; the cluster
+#' block of a multilevel model labels its columns
+#' \code{u_cluster[<cluster>|<estimate>]}), except for \code{brma.mv()}
+#' random-formula models, where it defaults to \code{FALSE}. \code{FALSE}
+#' returns one column per unique
 #' grouping-level contribution in the fitted grouping order used by
-#' \code{metafor::ranef()}. Nested groups follow their original outer-to-inner
+#' \code{metafor::ranef()} (\code{u_cluster[<cluster>]} for a multilevel
+#' model). Nested groups follow their original outer-to-inner
 #' order. Indicator-coded random coefficients retain one column per observed
 #' grouping-level and coefficient combination. Set to \code{TRUE} for
 #' observation-aligned output.
@@ -952,8 +957,9 @@ ranef <- function(object, ...) {
 #' @export
 ranef.brma <- function(object, bias_adjusted = FALSE,
                        probs = c(.025, .975), component = "all",
-                       simplify = TRUE, expand = FALSE, ...) {
+                       simplify = TRUE, expand = TRUE, ...) {
 
+  expand_default <- missing(expand)
   BayesTools::check_bool(expand, "expand")
   dots <- list(...)
   controlled <- intersect(names(dots), c("newdata", "type", "quiet"))
@@ -963,8 +969,9 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
     return(do.call(ranef.brma, c(
       list(
         object = object, bias_adjusted = bias_adjusted, probs = probs,
-        component = component, simplify = simplify, expand = expand
+        component = component, simplify = simplify
       ),
+      if (!expand_default) list(expand = expand),
       dots[setdiff(names(dots), controlled)]
     )))
   }
@@ -985,7 +992,7 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
       probs         = probs,
       component     = component,
       simplify      = simplify,
-      expand        = expand,
+      expand        = if (expand_default) FALSE else expand,
       ...
     ))
   }

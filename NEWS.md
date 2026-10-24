@@ -601,10 +601,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     hypothesis on such a mean with `hypothesis()` stops with the BayesTools
     class (e.g., `BayesTools_zero_ordinate` or
     `BayesTools_inexact_ordinate`).
-  - `ranef()` of multilevel models returns the cluster-level effects with one
-    column per cluster by default (`u_cluster[<cluster>]`); 4.0.0 returned
-    one column per estimate (`u_cluster[<cluster>|<estimate>]`), which
-    `expand = TRUE` keeps.
 - labels, tables, and posterior draws:
   - `as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`,
     `as_draws_matrix()`, and `as_draws_rvars()` of fitted models return the
