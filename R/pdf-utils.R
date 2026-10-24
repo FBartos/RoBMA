@@ -374,17 +374,19 @@
       any(out[["grid"]] <= 0 | out[["grid"]] >= 1) ||
       anyNA(out[["log_weights"]]) ||
       any(!is.finite(out[["log_weights"]]))) {
-    # A prior this concentrated is at the representability limit of the doubles:
-    # its smaller shape is of the size of the spacing of alpha + beta, so the
-    # density cannot be normalized reliably and the rule puts nodes on 0 or 1
-    # or returns non-finite values. The quadrature for such a prior is refused
-    # by AGHQ for the same reason (see BETA_CLOSED_FORM_MAX_SHAPE_SUM in
-    # src/glmm-aghq.cc); no grid can serve it, so say what to change.
+    # The nodes of the rule are quantiles of the prior and its weights are log
+    # masses. For shapes this extreme (a prior far more concentrated than the
+    # doubles around its mean resolve, or one with absurdly small shapes whose
+    # mass sits at 0 and 1) a node underflows to 0 or rounds to 1, or a weight
+    # overflows or underflows to a non-finite log. AGHQ refuses the very
+    # concentrated ones as well (see BETA_CLOSED_FORM_MAX_SHAPE_SUM in
+    # src/glmm-aghq.cc); no grid can serve them, so say what to change.
     stop(
       "The Beta(", format(alpha, digits = 6L), ", ", format(beta, digits = 6L),
-      ") base-rate prior in 'prior_baserate' is unavailable: it is too ",
-      "concentrated for its quadrature nodes and weights to be represented in ",
-      "double precision. Use a less concentrated beta prior or a fixed base ",
+      ") base-rate prior in 'prior_baserate' is unavailable: its shapes are too ",
+      "extreme for the quadrature nodes and weights of the prior-CDF grid to be ",
+      "represented in double precision (a very concentrated or an extremely ",
+      "diffuse prior). Use a beta prior with less extreme shapes or a fixed base ",
       "rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'.",
       call. = FALSE
     )

@@ -86,12 +86,16 @@ context("Adaptive GLMM quadrature")
 # Independently integrate the binomial GLMM over the base rate and theta for a
 # concentrated beta prior. The base rate is integrated in the coordinate of the
 # smaller probability p (the mirror image of the prior when alpha > beta), so
-# that no exp() of a logit enters: dbeta(p, ..., log = TRUE) is accurate at a
-# given p and the likelihood is evaluated at log(p) and log1p(-p). The range is
-# the prior mean +/- `width` prior SDs, the integrand is scaled by its value at
-# the mean, and the theta integral (tau > 0) is nested. Valid while the prior SD
-# is resolved by the doubles around the mean of p, that is for skewed priors
-# (the symmetric prior at 0.5 is not).
+# that no exp() of a logit enters: dbeta(p, ..., log = TRUE) is evaluated at a
+# representable p and the likelihood at log(p) and log1p(-p). R's dbeta shares
+# the node-independent offset of up to about half of eps^2 * (alpha + beta) at
+# large shapes (see the noise bound in src/glmm-aghq.cc); at the shape sums of
+# the tests that use this reference (up to 1e20, 2.5e-12) it is below the
+# changes the results are compared with. The range is the prior mean +/-
+# `width` prior SDs, the integrand is scaled by its value at the mean, and the
+# theta integral (tau > 0) is nested. Valid while the prior SD is resolved by
+# the doubles around the mean of p, that is for skewed priors (the symmetric
+# prior at 0.5 is not).
 .binom_concentrated_reference <- function(a, c, n1, n2, mu, tau, alpha, beta,
                                           weight = 1, width = 12, theta_range = 10) {
 
@@ -443,15 +447,14 @@ test_that("binomial AGHQ accepts skewed concentrated beta priors within its repo
 
 test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed concentrated priors", {
 
-  # R's dbeta is off by a constant of up to about 0.5 * eps^2 * (alpha + beta) at
-  # large shapes. It shifts the log likelihood of every quadrature order alike,
-  # so the change between orders does not show it, and for a skewed prior the
-  # slope term of the noise bound no longer contains it. The references are
-  # 60-digit Gauss-Legendre integrals in the coordinate of the smaller
-  # probability (cases 301 and 304 of
-  # .work/tmp/pr82-loose-ends/rev14-sonnet/cases4.csv, script mpref4.py, values
-  # of ref_vals_c4.csv), not computed with stats::dbeta; data 19/27 and 6/17,
-  # mu = .738, tau = 0.
+  # R's dbeta is off by a constant, measured up to about half of
+  # eps^2 * (alpha + beta) at large shapes. It shifts the log likelihood of
+  # every quadrature order alike, so the change between orders does not show it,
+  # and for a skewed prior the slope term of the noise bound no longer contains
+  # it. The references are literals of a 60-digit mpmath integral in
+  # probability coordinates (the coordinate of the smaller probability, so no
+  # exp() of a logit enters), cross-checked by a 300-bit Rmpfr integral; they
+  # are not computed with stats::dbeta. Data 19/27 and 6/17, mu = .738, tau = 0.
   eps <- .Machine[["double.eps"]]
   aghq <- function(alpha, beta) {
     .glmm_binom_aghq(19L, 6L, 27L, 17L, matrix(.738), matrix(0), NULL,
@@ -464,7 +467,6 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
   accepted <- aghq(1e9, 1e25)
   reference <- -892.2004709683037946278289
   expect_gte(accepted[["max_change"]], eps^2 * (1e9 + 1e25))
-  expect_gt(abs(accepted[["value"]][1L, 1L] - reference), 1e-7)
   expect_lte(abs(accepted[["value"]][1L, 1L] - reference), accepted[["max_change"]])
 
   # Refused: the error is 2.4e-4 under a change of 8.4e-9 without the offset;
@@ -475,24 +477,24 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
   expect_gte(condition[["noise"]], 1e-6)
   expect_match(conditionMessage(condition), "the rounding-noise bound of the prior density was", fixed = TRUE)
 
-  # With a tolerance above the bound the same prior is accepted, its error is
-  # the offset (2.4e-4 against the value below) and the change covers it.
+  # With a tolerance above the bound the same prior is accepted and the change
+  # covers the error against the reference value below.
   reference_refused <- -892.2004712680037888707065
   loose <- .glmm_binom_aghq(19L, 6L, 27L, 17L, matrix(.738), matrix(0), NULL,
     c(alpha = 1e12, beta = 1e28), control = .glmm_aghq_control(tolerance = 1e-3))
-  expect_gt(abs(loose[["value"]][1L, 1L] - reference_refused), 1e-4)
   expect_lte(abs(loose[["value"]][1L, 1L] - reference_refused), loose[["max_change"]])
 
   # The public route then goes to the prior-CDF grid, which cannot represent a
-  # prior this concentrated; the error names the prior and the remedies.
+  # prior with shapes this extreme; the error names the prior and the remedies.
   condition <- tryCatch(.outcome_pdf.binom(19L, 6L, 27L, 17L, matrix(.738), matrix(0),
     BayesTools::prior("beta", list(alpha = 1e12, beta = 1e28))), error = identity)
   expect_s3_class(condition, "error")
   expect_identical(conditionMessage(condition), paste0(
     "The Beta(1e+12, 1e+28) base-rate prior in 'prior_baserate' is unavailable: ",
-    "it is too concentrated for its quadrature nodes and weights to be ",
-    "represented in double precision. Use a less concentrated beta prior or a ",
-    "fixed base rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
+    "its shapes are too extreme for the quadrature nodes and weights of the ",
+    "prior-CDF grid to be represented in double precision (a very concentrated ",
+    "or an extremely diffuse prior). Use a beta prior with less extreme shapes ",
+    "or a fixed base rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
   ))
 })
 

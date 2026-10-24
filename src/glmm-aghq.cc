@@ -44,22 +44,22 @@ const double LOG_DBL_MAX = std::log(std::numeric_limits<double>::max());
 // the logarithm matters only for a small p0. It is at least
 // 2 * DBL_EPSILON * sqrt(alpha * beta / (alpha + beta)), which for alpha = beta
 // is DBL_EPSILON * sqrt(alpha + beta).
-// A second error does not depend on the node at all: R's dbeta for large shapes
-// is off by a constant of up to about 0.5 * DBL_EPSILON^2 * (alpha + beta) (it
-// rounds alpha + beta and n - x, an ulp of size DBL_EPSILON * (alpha + beta),
-// and the deviance term of size beta is quadratic in that relative error;
-// measured against 60-digit values, not read from the R source). A constant
-// shifts the log likelihood of every order alike, so neither the change between
-// orders nor the slope term sees it, and for a skewed prior the slope term no
-// longer contains it. The bound adds DBL_EPSILON^2 * (alpha + beta); it is below
-// 1e-11 for shape sums up to 2e20 and passes the tolerance of 1e-6 at about
-// 2e25. In 645 comparisons with independent integrals (shape sums 1e3 to 1e23,
-// ratios alpha / (alpha + beta) from 0.5 down to 1e-17) the error was at most
-// 0.46 times the larger of the slope term and the consecutive-order change, and
-// in 321 comparisons beyond rounding of the value (shape sums up to 1e30) at
-// most 0.49 times the whole bound. The node positions repeat in consecutive
-// orders, so two consecutive changes can both be small while their common error
-// is not.
+// A second error does not depend on the node at all. R's dbeta at large shapes
+// is off by a constant, measured (not read from the R source) up to about half
+// of DBL_EPSILON^2 * (alpha + beta), adversarial rounding of alpha + beta
+// included; it comes from the cancellation between the log terms of dbeta and
+// its normalizer. A constant shifts the log likelihood of every order alike, so
+// neither the change between orders nor the slope term sees it, and for a
+// skewed prior the slope term no longer contains it. The bound adds
+// DBL_EPSILON^2 * (alpha + beta); it is below 1e-11 for shape sums up to 2e20
+// and passes the tolerance of 1e-6 at about 2e25. In 645 comparisons with
+// independent integrals (shape sums 1e3 to 1e23, ratios alpha / (alpha + beta)
+// from 0.5 down to 1e-17) the error was at most 0.46 times the larger of the
+// slope term and the consecutive-order change, and in 321 comparisons beyond
+// rounding of the value (shape sums up to 1e30) and an independent scan with
+// adversarial rounding of alpha + beta at most about half of the whole bound.
+// The node positions repeat in consecutive orders, so two consecutive changes
+// can both be small while their common error is not.
 // BinomialProblem::evaluation_noise() reports this bound and integrate_problem()
 // never reports a change below it: a prior whose bound exceeds the tolerance
 // (symmetric shape sums above (tolerance / DBL_EPSILON)^2, about 2e19 at the
