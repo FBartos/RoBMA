@@ -49,8 +49,10 @@ errors and random context for estimate deletion, including ordinary component
 branches and constant selection weights. Cluster deletion keeps its distinct
 joint target. Earlier affected estimate scores must be recomputed.
 Estimate-unit GLMM draws support point or beta baserate priors and point or
-normal log-rate priors, including their supported truncations. Other
-nuisance-prior families are rejected when the model input is validated.
+normal log-rate priors, including their supported truncations. For any other
+nuisance-prior family the draws are unavailable and the call stops with an
+error of class \code{RoBMA_glmm_prior_family_unavailable} (also of class
+\code{RoBMA_unsupported_request}).
 Numerical quadrature failures share class \code{RoBMA_glmm_numerical_error}.
 AGHQ failures have class \code{RoBMA_glmm_aghq_nonconvergence}; prior-CDF refinement
 failures retain \code{RoBMA_glmm_grid_nonconvergence}. Their fields identify the

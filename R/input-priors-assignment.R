@@ -1270,16 +1270,7 @@
       !BayesTools::is.prior.point(prior)) {
     stop(
       "Non-point discrete priors are not supported for 'prior_baserate'; use ",
-      "a point or beta prior.",
-      call. = FALSE
-    )
-  }
-  if (!BayesTools::is.prior.point(prior) &&
-      !identical(prior[["distribution"]], "beta")) {
-    stop(
-      "Only point and beta priors are supported for 'prior_baserate' because ",
-      "post-fit likelihood diagnostics require certified nuisance integration; ",
-      "received '", prior[["distribution"]], "'.",
+      "a point or continuous prior.",
       call. = FALSE
     )
   }
@@ -1320,16 +1311,7 @@
       !BayesTools::is.prior.point(prior)) {
     stop(
       "Non-point discrete priors are not supported for 'prior_lograte'; use ",
-      "a point or normal prior.",
-      call. = FALSE
-    )
-  }
-  if (!BayesTools::is.prior.point(prior) &&
-      !identical(prior[["distribution"]], "normal")) {
-    stop(
-      "Only point and normal priors are supported for 'prior_lograte' because ",
-      "post-fit likelihood diagnostics require certified nuisance integration; ",
-      "received '", prior[["distribution"]], "'.",
+      "a point or continuous prior.",
       call. = FALSE
     )
   }

@@ -172,9 +172,12 @@ can be specified only when \code{cluster} is specified.}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
 base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
-or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Only beta and point
-priors are supported; beta priors may be truncated within \verb{[0, 1]}, and point
-priors must lie strictly inside \verb{(0, 1)}.}
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Continuous priors
+are restricted to \verb{[0, 1]} (truncated to it where their support is wider) and
+point priors must lie strictly inside \verb{(0, 1)}. The estimate-unit
+log-likelihood of the model (\code{log_lik()}, LOO, WAIC) is available for point
+and beta priors only; it stops with an error of class
+\code{RoBMA_glmm_prior_family_unavailable} for another family.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
 log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
@@ -182,8 +185,10 @@ normal prior centered at the pooled crude log-rate is used independently for
 each estimate. Its standard deviation defaults to \code{1} and can be changed via
 \code{RoBMA.options(default_lograte.sd = ...)}. Rescaling all person-times shifts
 the prior mean by the corresponding log conversion while leaving its
-standard deviation unchanged. Only normal and point priors are supported;
-normal priors may be truncated.}
+standard deviation unchanged. The estimate-unit log-likelihood of the model
+(\code{log_lik()}, LOO, WAIC) is available for point and normal priors (normal
+priors may be truncated) only; it stops with an error of class
+\code{RoBMA_glmm_prior_family_unavailable} for another family.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}

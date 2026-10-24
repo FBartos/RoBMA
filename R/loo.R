@@ -58,7 +58,10 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' one contribution.
 #' Estimate-unit GLMM log-likelihoods support point or beta baserate priors and
 #' point or normal log-rate priors, including their supported truncations.
-#' Other nuisance-prior families are rejected when the model input is validated.
+#' For any other nuisance-prior family the model can be fitted, but its
+#' estimate-unit log-likelihood is unavailable and stops with an error of class
+#' \code{RoBMA_glmm_prior_family_unavailable} (also of class
+#' \code{RoBMA_unsupported_request}).
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For normal models without selection, weighted or not, this uses
@@ -700,8 +703,10 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' branches and constant selection weights. Cluster deletion keeps its distinct
 #' joint target. Earlier affected estimate scores must be recomputed.
 #' Estimate-unit GLMM draws support point or beta baserate priors and point or
-#' normal log-rate priors, including their supported truncations. Other
-#' nuisance-prior families are rejected when the model input is validated.
+#' normal log-rate priors, including their supported truncations. For any other
+#' nuisance-prior family the draws are unavailable and the call stops with an
+#' error of class \code{RoBMA_glmm_prior_family_unavailable} (also of class
+#' \code{RoBMA_unsupported_request}).
 #' Numerical quadrature failures share class `RoBMA_glmm_numerical_error`.
 #' AGHQ failures have class `RoBMA_glmm_aghq_nonconvergence`; prior-CDF refinement
 #' failures retain `RoBMA_glmm_grid_nonconvergence`. Their fields identify the

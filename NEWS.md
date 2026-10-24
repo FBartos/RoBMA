@@ -494,10 +494,15 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `prior_heterogeneity_allocation` stop when the model has no moderators,
     no scale formula, or no multilevel structure; 4.0.0 discarded them
     silently.
-  - binomial GLMM base-rate priors (`prior_baserate`) must be point or beta
-    priors and Poisson GLMM log-rate priors (`prior_lograte`) point or
-    normal priors, including their truncations, so every accepted nuisance
-    prior has a certified post-fit likelihood route.
+  - the estimate-unit log-likelihood of binomial and Poisson GLMMs (`log_lik()`,
+    `logLik()`, LOO, and WAIC) is available for point or beta base-rate
+    priors (`prior_baserate`) and point or normal log-rate priors
+    (`prior_lograte`), truncated or not, which have a certified nuisance
+    integration. The model accepts any continuous nuisance prior, as 4.0.0
+    did (a base-rate prior is restricted to `[0, 1]`); for another family
+    these functions stop with an error of class
+    `RoBMA_glmm_prior_family_unavailable`, and non-point discrete priors are
+    refused when the model is specified.
   - nonfinite `weights` are rejected when the data are validated; positive
     fractional weights and the existing missing-value handling are kept.
 - defaults:

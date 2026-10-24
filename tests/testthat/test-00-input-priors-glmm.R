@@ -71,54 +71,105 @@ test_that("Binomial GLMM baserate point priors exclude endpoints", {
 })
 
 
-test_that("GLMM nuisance priors reject unsupported families before fitting", {
+test_that("GLMM nuisance priors reject non-point discrete distributions only", {
 
   discrete <- BayesTools::prior("bernoulli", parameters = list(probability = 0.5))
 
   expect_error(
     .assign_prior.baserate(discrete),
-    "Non-point discrete priors are not supported for 'prior_baserate'"
+    "Non-point discrete priors are not supported for 'prior_baserate'; use a point or continuous prior"
   )
   expect_error(
     .assign_prior.lograte(discrete, test_data_pois),
-    "Non-point discrete priors are not supported for 'prior_lograte'"
+    "Non-point discrete priors are not supported for 'prior_lograte'; use a point or continuous prior"
   )
+})
 
-  unsupported <- list(
-    BayesTools::prior("gamma", list(shape = 2, rate = 1)),
-    BayesTools::prior("lognormal", list(meanlog = 0, sdlog = 1)),
-    BayesTools::prior("invgamma", list(shape = 2, scale = 1))
+
+test_that("GLMM nuisance priors accept the released continuous families", {
+
+  # 4.0.0 fitted any continuous base-rate and log-rate prior; a base-rate
+  # prior is restricted to [0, 1]
+  baserate <- list(
+    normal    = BayesTools::prior("normal", list(0.5, 0.1), truncation = list(0, 1)),
+    uniform   = BayesTools::prior("uniform", list(0, 1)),
+    lognormal = BayesTools::prior("lognormal", list(0, 1)),
+    gamma     = BayesTools::prior("gamma", list(shape = 2, rate = 1)),
+    beta      = BayesTools::prior("beta", list(2, 2))
   )
-  for (prior in unsupported) {
-    expect_error(
-      .assign_prior.baserate(prior),
-      paste0("Only point and beta priors.*'", prior[["distribution"]], "'")
-    )
-    expect_error(
-      .assign_prior.lograte(prior, test_data_pois),
-      paste0("Only point and normal priors.*'", prior[["distribution"]], "'")
-    )
-  }
-
-  expect_error(
-    brma.glmm(
+  for (name in names(baserate)) {
+    fitted_prior <- suppressWarnings(brma.glmm(
       ai = ai, bi = bi, ci = ci, di = di,
       data = test_data_bin, measure = "OR",
-      prior_baserate = BayesTools::prior(
-        "normal", list(0.5, 0.2), truncation = list(0, 1)
-      ),
-      only_priors = TRUE
-    ),
-    "Only point and beta priors.*post-fit likelihood diagnostics.*'normal'"
+      prior_baserate = baserate[[name]], only_priors = TRUE
+    ))[["priors"]][["outcome"]][["pi"]]
+    expect_identical(fitted_prior[["distribution"]], baserate[[name]][["distribution"]],
+                     info = name)
+    expect_lte(fitted_prior[["truncation"]][["upper"]], 1)
+    expect_gte(fitted_prior[["truncation"]][["lower"]], 0)
+  }
+
+  lograte <- list(
+    normal    = BayesTools::prior("normal", list(0, 1)),
+    cauchy    = BayesTools::prior("cauchy", list(0, 1)),
+    t         = BayesTools::prior("t", list(0, 1, 3)),
+    lognormal = BayesTools::prior("lognormal", list(0, 1))
   )
-  expect_error(
-    BMA.glmm(
+  for (name in names(lograte)) {
+    fitted_prior <- BMA.glmm(
       x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
       data = test_data_pois, measure = "IRR",
-      prior_lograte = BayesTools::prior("lognormal", list(0, 1)),
-      only_priors = TRUE
-    ),
-    "Only point and normal priors.*post-fit likelihood diagnostics.*'lognormal'"
+      prior_lograte = lograte[[name]], only_priors = TRUE
+    )[["priors"]][["outcome"]][["phi"]]
+    expect_identical(fitted_prior[["distribution"]], lograte[[name]][["distribution"]],
+                     info = name)
+  }
+})
+
+
+test_that("the estimate-unit GLMM likelihood is unavailable for other families", {
+
+  unsupported_pi <- brma.glmm(
+    ai = ai, bi = bi, ci = ci, di = di,
+    data = test_data_bin, measure = "OR",
+    prior_baserate = BayesTools::prior("uniform", list(0, 1)), only_priors = TRUE
+  )[["priors"]][["outcome"]][["pi"]]
+  error <- tryCatch(
+    .outcome_pdf.binom(4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), unsupported_pi),
+    error = identity
+  )
+  expect_s3_class(error, "RoBMA_glmm_prior_family_unavailable")
+  expect_s3_class(error, "RoBMA_unsupported_request")
+  expect_identical(conditionMessage(error), paste0(
+    "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and WAIC) ",
+    "are unavailable for a 'uniform' 'prior_baserate': they integrate the base rate ",
+    "over point and beta priors. Refit with a point or beta 'prior_baserate' to ",
+    "compute them."
+  ))
+  expect_error(
+    .outcome_pdf_sum.binom(4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), unsupported_pi),
+    class = "RoBMA_glmm_prior_family_unavailable"
+  )
+
+  unsupported_phi <- BMA.glmm(
+    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+    data = test_data_pois, measure = "IRR",
+    prior_lograte = BayesTools::prior("cauchy", list(0, 1)), only_priors = TRUE
+  )[["priors"]][["outcome"]][["phi"]]
+  error <- tryCatch(
+    .outcome_pdf.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), unsupported_phi),
+    error = identity
+  )
+  expect_s3_class(error, "RoBMA_glmm_prior_family_unavailable")
+  expect_identical(conditionMessage(error), paste0(
+    "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and WAIC) ",
+    "are unavailable for a 't' 'prior_lograte': they integrate the log-rate ",
+    "over point and normal priors. Refit with a point or normal 'prior_lograte' to ",
+    "compute them."
+  ))
+  expect_error(
+    .outcome_pdf_sum.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), unsupported_phi),
+    class = "RoBMA_glmm_prior_family_unavailable"
   )
 })
 

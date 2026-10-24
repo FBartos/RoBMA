@@ -40,7 +40,10 @@ effect-size estimate. For binomial and Poisson models, each pair of counts
 one contribution.
 Estimate-unit GLMM log-likelihoods support point or beta baserate priors and
 point or normal log-rate priors, including their supported truncations.
-Other nuisance-prior families are rejected when the model input is validated.
+For any other nuisance-prior family the model can be fitted, but its
+estimate-unit log-likelihood is unavailable and stops with an error of class
+\code{RoBMA_glmm_prior_family_unavailable} (also of class
+\code{RoBMA_unsupported_request}).
 
 With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 per cluster. For normal models without selection, weighted or not, this uses
