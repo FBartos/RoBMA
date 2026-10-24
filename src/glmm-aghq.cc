@@ -38,16 +38,28 @@ const double LOG_DBL_MAX = std::log(std::numeric_limits<double>::max());
 // curvature alpha * beta / (alpha + beta). With p <= 1/2 and u of order 1 the
 // value is off by up to about
 //   DBL_EPSILON * sqrt(alpha * beta / (alpha + beta)) * (1 + |log p0|),
-// p0 = min(alpha, beta) / (alpha + beta) the smaller probability at the prior
-// mode. The noise scales with the curvature, not with the shape sum, so it is
-// far smaller for a skewed prior; the logarithm matters only for a small p0.
-// The bound is at least 2 * DBL_EPSILON * sqrt(alpha * beta / (alpha + beta)),
-// which for alpha = beta is DBL_EPSILON * sqrt(alpha + beta). In 645
-// comparisons with independent integrals (shape sums 1e3 to 1e23, ratios
-// alpha / (alpha + beta) from 0.5 down to 1e-17) the error was at most 0.46
-// times the larger of the bound and the consecutive-order change. The node
-// positions repeat in consecutive orders, so two consecutive changes can both
-// be small while their common error is not.
+// p0 = min(alpha, beta) / (alpha + beta) the smaller probability at the
+// logit-scale prior mode. The noise of this slope term scales with the
+// curvature, not with the shape sum, so it is far smaller for a skewed prior;
+// the logarithm matters only for a small p0. It is at least
+// 2 * DBL_EPSILON * sqrt(alpha * beta / (alpha + beta)), which for alpha = beta
+// is DBL_EPSILON * sqrt(alpha + beta).
+// A second error does not depend on the node at all: R's dbeta for large shapes
+// is off by a constant of up to about 0.5 * DBL_EPSILON^2 * (alpha + beta) (it
+// rounds alpha + beta and n - x, an ulp of size DBL_EPSILON * (alpha + beta),
+// and the deviance term of size beta is quadratic in that relative error;
+// measured against 60-digit values, not read from the R source). A constant
+// shifts the log likelihood of every order alike, so neither the change between
+// orders nor the slope term sees it, and for a skewed prior the slope term no
+// longer contains it. The bound adds DBL_EPSILON^2 * (alpha + beta); it is below
+// 1e-11 for shape sums up to 2e20 and passes the tolerance of 1e-6 at about
+// 2e25. In 645 comparisons with independent integrals (shape sums 1e3 to 1e23,
+// ratios alpha / (alpha + beta) from 0.5 down to 1e-17) the error was at most
+// 0.46 times the larger of the slope term and the consecutive-order change, and
+// in 321 comparisons beyond rounding of the value (shape sums up to 1e30) at
+// most 0.49 times the whole bound. The node positions repeat in consecutive
+// orders, so two consecutive changes can both be small while their common error
+// is not.
 // BinomialProblem::evaluation_noise() reports this bound and integrate_problem()
 // never reports a change below it: a prior whose bound exceeds the tolerance
 // (symmetric shape sums above (tolerance / DBL_EPSILON)^2, about 2e19 at the
@@ -379,12 +391,16 @@ struct BinomialProblem {
       return 0.0;
     }
     // alpha * beta / (alpha + beta) without overflow, and the smaller
-    // probability at the prior mode (0 when the shape sum overflows, which
-    // makes the bound infinite)
+    // probability at the logit-scale prior mode (0 when the shape sum
+    // overflows, which makes the bound infinite)
+    const double epsilon   = std::numeric_limits<double>::epsilon();
     const double curvature = 1.0 / (1.0 / alpha + 1.0 / beta);
     const double smaller_mode = std::min(alpha, beta) / shape_sum;
-    return std::numeric_limits<double>::epsilon() * std::sqrt(curvature) *
-      std::max(2.0, 1.0 - std::log(smaller_mode));
+    // the rounding of the smaller probability times the slope of the log
+    // density, and the node-independent error of dbeta
+    return epsilon * std::sqrt(curvature) *
+      std::max(2.0, 1.0 - std::log(smaller_mode)) +
+      epsilon * epsilon * shape_sum;
   }
 
   double log_density(double theta, double logit_pi) const

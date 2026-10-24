@@ -441,6 +441,50 @@ test_that("binomial AGHQ accepts skewed concentrated beta priors within its repo
 })
 
 
+test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed concentrated priors", {
+
+  # R's dbeta is off by a constant of up to about 0.5 * eps^2 * (alpha + beta) at
+  # large shapes. It shifts the log likelihood of every quadrature order alike,
+  # so the change between orders does not show it, and for a skewed prior the
+  # slope term of the noise bound no longer contains it. The references are
+  # 60-digit Gauss-Legendre integrals in the coordinate of the smaller
+  # probability (cases 301 and 304 of
+  # .work/tmp/pr82-loose-ends/rev14-sonnet/cases4.csv, script mpref4.py, values
+  # of ref_vals_c4.csv), not computed with stats::dbeta; data 19/27 and 6/17,
+  # mu = .738, tau = 0.
+  eps <- .Machine[["double.eps"]]
+  aghq <- function(alpha, beta) {
+    .glmm_binom_aghq(19L, 6L, 27L, 17L, matrix(.738), matrix(0), NULL,
+      c(alpha = alpha, beta = beta))
+  }
+
+  # Accepted: the bound (4.9e-7 at the shape sum 1e25) is below the tolerance
+  # and covers the error of 2.3e-7, which a bound without the offset (2.7e-10)
+  # did not.
+  accepted <- aghq(1e9, 1e25)
+  reference <- -892.2004709683037946278289
+  expect_gte(accepted[["max_change"]], eps^2 * (1e9 + 1e25))
+  expect_gt(abs(accepted[["value"]][1L, 1L] - reference), 1e-7)
+  expect_lte(abs(accepted[["value"]][1L, 1L] - reference), accepted[["max_change"]])
+
+  # Refused: the error is 2.4e-4 under a change of 8.4e-9 without the offset;
+  # the bound (4.9e-4) refuses the prior.
+  condition <- tryCatch(aghq(1e12, 1e28), error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_aghq_nonconvergence")
+  expect_gte(condition[["change"]], eps^2 * (1e12 + 1e28))
+  expect_gte(condition[["noise"]], 1e-6)
+  expect_match(conditionMessage(condition), "the rounding-noise bound of the prior density was", fixed = TRUE)
+
+  # With a tolerance above the bound the same prior is accepted, its error is
+  # the offset (2.4e-4 against the value below) and the change covers it.
+  reference_refused <- -892.2004712680037888707065
+  loose <- .glmm_binom_aghq(19L, 6L, 27L, 17L, matrix(.738), matrix(0), NULL,
+    c(alpha = 1e12, beta = 1e28), control = .glmm_aghq_control(tolerance = 1e-3))
+  expect_gt(abs(loose[["value"]][1L, 1L] - reference_refused), 1e-4)
+  expect_lte(abs(loose[["value"]][1L, 1L] - reference_refused), loose[["max_change"]])
+})
+
+
 test_that("exact beta-binomial shortcut keeps event increments for large shapes", {
 
   # One event and one non-event: the sequence probability is
