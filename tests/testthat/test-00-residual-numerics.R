@@ -302,16 +302,23 @@ test_that("normal LOO-PIT tails remain finite after probability underflow", {
 })
 
 
-test_that("GLMM LOO-PIT is rejected before PSIS work", {
+test_that("GLMM LOO-PIT uses the normal approximation and says so once", {
 
-  expect_error(
-    .check_residual_type_availability("LOO-PIT", "bin", FALSE),
-    "discrete PIT convention"
-  )
-  expect_error(
-    .loo_predictive_log_tails_estimate(list(outcome_type = "pois")),
-    "discrete PIT convention"
-  )
+  for (outcome_type in c("bin", "pois")) {
+    expect_silent(.check_residual_type_availability("LOO-PIT", outcome_type, FALSE))
+    expect_silent(.check_residual_type_availability("rstudent", outcome_type, FALSE))
+    expect_error(
+      .check_residual_type_availability("pearson", outcome_type, FALSE),
+      "only available for normal outcome models"
+    )
+
+    expect_message(
+      .glmm_loo_pit_note(outcome_type),
+      "descriptive normal approximation on the effect-size scale"
+    )
+    expect_silent(.glmm_loo_pit_note(outcome_type, list(.approximation_note = FALSE)))
+  }
+  expect_silent(.glmm_loo_pit_note("norm"))
 })
 
 

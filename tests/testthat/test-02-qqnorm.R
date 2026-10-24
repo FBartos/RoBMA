@@ -186,18 +186,20 @@ test_that("Q-Q plot for 3-level meta-regression renders residual quantiles", {
 # Test: GLMM Model Q-Q Plot
 # ============================================================================ #
 
-test_that("Q-Q plot rejects GLMMs without a discrete PIT convention", {
+test_that("Q-Q plot labels the GLMM LOO-PIT residuals a descriptive approximation", {
 
   name     <- "nielweise2008_glmm"
-  fit_brma <- fits[[name]]
-  expect_error(
-    rstudent(fit_brma),
-    "discrete PIT convention"
+  fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+  expect_message(
+    suppressWarnings(rstudent(fit_brma)),
+    "descriptive normal approximation"
   )
-  expect_error(
-    qqnorm(fit_brma, envelope = FALSE, as_data = TRUE),
-    "discrete PIT convention"
+  # the plot labels the approximation instead of messaging
+  qq_data <- NULL
+  expect_no_message(
+    qq_data <- suppressWarnings(qqnorm(fit_brma, envelope = FALSE, as_data = TRUE))
   )
+  expect_identical(qq_data[["ylab"]], "Sample Quantiles (Descriptive Normal Approximation)")
 
   # rstandard should error for GLMM models
   expect_error(
@@ -207,16 +209,14 @@ test_that("Q-Q plot rejects GLMMs without a discrete PIT convention", {
   )
 })
 
-test_that("Q-Q plot rejects GLMM meta-regression without a PIT convention", {
+test_that("Q-Q plot labels the GLMM meta-regression LOO-PIT residuals", {
 
   skip_if_not_full_visuals("GLMM meta-regression duplicates the default GLMM Q-Q visual.")
 
   name     <- "bcg_glmm_reg"
-  fit_brma <- fits[[name]]
-  expect_error(
-    qqnorm(fit_brma),
-    "discrete PIT convention"
-  )
+  fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+  qq_data  <- suppressWarnings(qqnorm(fit_brma, envelope = FALSE, as_data = TRUE))
+  expect_identical(qq_data[["ylab"]], "Sample Quantiles (Descriptive Normal Approximation)")
 
   # rstandard should error for GLMM models
   expect_error(
@@ -362,11 +362,12 @@ test_that("Q-Q plot for BMA.norm meta-regression renders base output", {
 # Test: BMA.glmm Model Q-Q Plot
 # ============================================================================ #
 
-test_that("Q-Q plot rejects BMA.glmm without a discrete PIT convention", {
+test_that("Q-Q plot labels the BMA.glmm LOO-PIT residuals", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
-  fit_brma <- fits[[name]]
-  expect_error(qqnorm(fit_brma), "discrete PIT convention")
+  fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+  qq_data  <- suppressWarnings(qqnorm(fit_brma, envelope = FALSE, as_data = TRUE))
+  expect_identical(qq_data[["ylab"]], "Sample Quantiles (Descriptive Normal Approximation)")
 })
 
 # ============================================================================ #

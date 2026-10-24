@@ -466,11 +466,6 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - `AIC()` and `BIC()` of `brma` objects stop with an explanation (4.0.0
     returned `numeric(0)`): the pointwise log-likelihood matrix of `logLik()`
     holds posterior draws, not a maximized scalar likelihood.
-  - LOO-PIT residuals of binomial and Poisson GLMMs stop because no discrete
-    PIT convention is defined: `rstudent()`, `residuals(type = "LOO-PIT")`,
-    the default `qqnorm()` (`type = "rstudent"`), and the residual-mode
-    `funnel()` (`type = "LOO-PIT"`) that models with predictors use. The
-    outcome-mode `funnel(type = "outcome")` of an intercept-only GLMM remains.
   - `radial()` stops for likelihood-weighted fits, which have no single
     radial precision target.
   - cluster-unit LOO and WAIC of binomial and Poisson GLMMs
@@ -1084,6 +1079,12 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - predictions, diagnostics, and model comparison:
   - adds `log_lik()` for pointwise posterior log-likelihood draws, as used
     by LOO and WAIC (`logLik()` returns the same matrix).
+  - the LOO-PIT residuals of binomial and Poisson GLMMs (`rstudent()`,
+    `residuals(type = "LOO-PIT")`, `influence()`, the default `qqnorm()`, and
+    the residual-mode `funnel()`) remain the normal approximation on the
+    effect-size scale of 4.0.0, which is not a probability integral transform
+    of the fitted discrete likelihood: the functions say so in a message and
+    the plots label it "(Descriptive Normal Approximation)".
   - re-exports `loo::loo_model_weights()` and adds a `brma` method that
     computes stacking or pseudo-BMA weights from compatible stored LOO
     results, also for fits with different numbers of posterior draws.

@@ -390,15 +390,23 @@ test_that("DFFITS rejects unsupported model families", {
 })
 
 
-test_that("Influence rejects GLMMs without a discrete PIT convention", {
+test_that("Influence of GLMMs uses the approximate rstudent and the PIT-free columns", {
 
   model_names <- c("bcg_glmm", "bcg_BMA.glmm")
   skip_if_missing_fits(model_names)
 
   for (name in model_names) {
-    expect_error(
-      influence(fits[[name]]),
-      "discrete PIT convention",
+    fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+    expect_message(
+      influence_result <- suppressWarnings(influence(fit_brma)),
+      "descriptive normal approximation",
+      info = name
+    )
+    expect_named(influence_result[["inf"]], c("rstudent", "cov.r", "tau.del"), info = name)
+    expect_equal(
+      influence_result[["inf"]][["rstudent"]],
+      suppressMessages(suppressWarnings(rstudent(fit_brma)))[["z"]],
+      tolerance = 1e-12,
       info = name
     )
   }

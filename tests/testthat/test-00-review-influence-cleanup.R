@@ -234,13 +234,15 @@ test_that("undeclared missing and infinite influence draws remain invalid", {
   }
 })
 
-test_that("GLMM LOO-PIT availability is checked before posterior setup", {
+test_that("GLMM LOO-PIT is available through the effect-size normal approximation", {
 
+  for (outcome_type in c("bin", "pois")) {
+    expect_silent(.check_residual_type_availability("rstudent", outcome_type, FALSE))
+  }
   object <- brma.glmm(ai = c(1L, 2L), bi = c(9L, 8L),
     ci = c(3L, 4L), di = c(7L, 6L), measure = "OR", only_data = TRUE)
-  expect_error(rstudent(object), paste0("LOO-PIT residuals are not available ",
-    "for binomial or Poisson GLMMs because a discrete PIT convention has not ",
-    "been defined."), fixed = TRUE)
+  # an object without a fit stops at the missing posterior, not at the outcome
+  expect_error(suppressMessages(rstudent(object)), "fit|posterior|LOO", ignore.case = TRUE)
 })
 
 test_that("a declared empty fixed-scale set returns the existing undefined COVRATIO result", {

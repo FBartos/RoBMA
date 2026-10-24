@@ -40,9 +40,10 @@
 #'     specified model, these residuals should follow a standard normal distribution.
 #'     This is the recommended standardized residual for Bayesian models as it properly
 #'     accounts for estimation uncertainty and leverage. Available for normal
-#'     outcome models. Binomial and Poisson models require an explicit discrete
-#'     PIT convention, which is not implemented. Note: This requires that the loo
-#'     has been computed previously (see \code{add_loo()} function).
+#'     outcome models and, as a descriptive normal approximation on the
+#'     effect-size scale, for binomial and Poisson GLMMs (see Details).
+#'     Note: This requires that the loo has been computed previously (see
+#'     \code{add_loo()} function).
 #' }
 #' @param unit output unit. Only \code{"estimate"} is implemented currently.
 #' @param conditioning_depth conditioning depth for non-LOO residuals. \code{"marginal"}
@@ -122,11 +123,14 @@
 #' For meta-regression models, fitted values incorporate moderator effects.
 #' For models without moderators, all fitted values equal the pooled effect.
 #'
-#' LOO-PIT is not available for binomial or Poisson GLMMs. Their fitted
-#' predictive distributions are discrete, so a PIT diagnostic requires an
-#' explicit randomized, mid-P, or other discrete convention. The former normal
-#' approximation on a derived effect-size scale is not a PIT for the fitted
-#' count likelihood.
+#' For binomial and Poisson GLMMs the fitted predictive distributions are
+#' discrete, so the LOO-PIT residuals are a descriptive normal approximation on
+#' the effect-size scale: \eqn{F} is the normal distribution of the
+#' continuity-corrected log odds ratio or log incidence rate ratio with its
+#' approximate sampling standard error, as \pkg{metafor} computes residuals of
+#' GLMMs. They are not probability integral transforms of the fitted count
+#' likelihood, and the functions say so in a message (plots label the
+#' approximation).
 #'
 #' For correlated known-\code{V} \code{brma.mv()} models, LOO-PIT residuals use
 #' the same conditional estimate-unit target as LOO,
@@ -234,6 +238,9 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 
   # check for unsupported type/model combinations
   .check_residual_type_availability(type, outcome_type, is_weightfunction)
+  if (is.element(type, c("LOO-PIT", "rstudent"))) {
+    .glmm_loo_pit_note(outcome_type, dots)
+  }
 
   out <- .residuals_estimate.brma(
     object             = object,
@@ -708,11 +715,10 @@ rstandard.brma <- function(model, unit = "estimate",
 #'
 #' Unlike \code{\link{rstandard.brma}} (which uses the hat matrix), LOO-PIT
 #' residuals properly account for estimation uncertainty and leverage without
-#' requiring explicit hat matrix computation. Binomial and Poisson GLMMs are
-#' unavailable until a discrete PIT convention is defined.
-#' Use \code{residuals(type = "outcome")} only for descriptive raw
-#' effect-size-scale residuals; it is not a standardized count-likelihood
-#' diagnostic.
+#' requiring explicit hat matrix computation. For binomial and Poisson GLMMs the
+#' residuals are a descriptive normal approximation on the effect-size scale
+#' (see \code{\link{residuals.brma}}), not a PIT of the fitted count likelihood,
+#' and a message says so.
 #' For correlated known-\code{V} \code{brma.mv()} models, the PIT and companion
 #' residual moments are computed from the Schur-complement conditional
 #' predictive distribution used by estimate-unit LOO.
@@ -789,6 +795,7 @@ rstudent.brma <- function(model, unit = "estimate",
     outcome_type      = .outcome_type(model),
     is_weightfunction = .is_weightfunction(model)
   )
+  .glmm_loo_pit_note(.outcome_type(model), dots)
   setup <- .estimate_likelihood_setup.brma(
     object                  = model,
     condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
@@ -1117,18 +1124,33 @@ rstudent.brma <- function(model, unit = "estimate",
 }
 
 
+# The LOO-PIT residuals of binomial and Poisson GLMMs are a descriptive normal
+# approximation on the effect-size scale, not a PIT of the fitted discrete
+# likelihood. The numeric functions say so once per call; plots label it.
+.glmm_loo_pit_note <- function(outcome_type, dots = list()) {
+
+  if (!outcome_type %in% c("bin", "pois") ||
+      identical(dots[[".approximation_note"]], FALSE)) {
+    return(invisible(FALSE))
+  }
+
+  message(
+    "LOO-PIT residuals of binomial and Poisson GLMMs are a descriptive normal ",
+    "approximation on the effect-size scale (continuity-corrected log odds or ",
+    "incidence rate ratios with approximate sampling standard errors); they ",
+    "are not probability integral transforms of the fitted discrete likelihood."
+  )
+
+  return(invisible(TRUE))
+}
+
+
 # Compute paired log tails for the normal estimate-unit LOO target.
 .loo_predictive_log_tails_estimate <- function(
     setup, predictive_summary = NULL) {
 
-  if (!identical(setup[["outcome_type"]], "norm")) {
-    stop(
-      "LOO-PIT residuals are not available for binomial or Poisson GLMMs ",
-      "because a discrete PIT convention has not been defined.",
-      call. = FALSE
-    )
-  }
-
+  # binomial and Poisson GLMMs use the normal approximation on the effect-size
+  # scale (the setup holds their approximate effect sizes and standard errors)
   if (.setup_weighted_joint_selection(setup)) {
     return(.loo_predictive_log_tails_estimate(
       .setup_without_likelihood_weights(setup),
@@ -1264,14 +1286,6 @@ rstudent.brma <- function(model, unit = "estimate",
 #
 # ---------------------------------------------------------------------------- #
 .check_residual_type_availability <- function(type, outcome_type, is_weightfunction) {
-  if (is.element(type, c("LOO-PIT", "rstudent")) &&
-      outcome_type != "norm") {
-    stop(
-      "LOO-PIT residuals are not available for binomial or Poisson GLMMs ",
-      "because a discrete PIT convention has not been defined.",
-      call. = FALSE
-    )
-  }
 
   if (type == "pearson") {
     if (outcome_type != "norm") {

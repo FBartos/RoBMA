@@ -27,7 +27,8 @@
 #' \itemize{
 #'   \item \code{"rstudent"} (alias: \code{"LOO-PIT"}; default): Leave-one-out
 #'     probability integral transform residuals. Works for normal outcome
-#'     models, including selection models. This is the recommended type for
+#'     models, including selection models, and, as a descriptive normal
+#'     approximation, for binomial and Poisson GLMMs. This is the recommended type for
 #'     Bayesian models as it properly accounts for estimation uncertainty and
 #'     leverage. Note: requires that loo has been computed (see
 #'     \code{\link{add_loo}}).
@@ -114,10 +115,10 @@
 #' descriptive and does not model residual correlation induced by known sampling
 #' covariance.
 #'
-#' Q-Q residual plots are not available for binomial or Poisson GLMMs. Their
-#' fitted predictive distributions are discrete, so a randomized, mid-P, or
-#' other discrete PIT convention must be chosen before a normal Q-Q diagnostic
-#' is defined.
+#' For binomial and Poisson GLMMs the LOO-PIT residuals are a descriptive normal
+#' approximation on the effect-size scale rather than a PIT of the fitted
+#' discrete likelihood (see \code{\link{residuals.brma}}); the default
+#' y-axis label says so.
 #'
 #' @return For \code{plot_type = "base"}, returns an invisible list with
 #' components \code{x} (theoretical quantiles) and \code{y} (sorted
@@ -289,7 +290,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     z <- residuals.brma(
       object = x,
       type   = type,
-      unit   = unit
+      unit   = unit,
+      .approximation_note = FALSE
     )
   }
   if (length(z) == 0L || any(!is.finite(z))) {
@@ -338,7 +340,15 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
 
   # axis labels
   if (is.null(xlab)) xlab <- "Theoretical Quantiles"
-  if (is.null(ylab)) ylab <- "Sample Quantiles"
+  if (is.null(ylab)) {
+    # the LOO-PIT residuals of GLMMs are a descriptive normal approximation
+    ylab <- if (type %in% c("LOO-PIT", "rstudent") &&
+                .outcome_type(x) %in% c("bin", "pois")) {
+      "Sample Quantiles (Descriptive Normal Approximation)"
+    } else {
+      "Sample Quantiles"
+    }
+  }
 
   # points data frame
   deletion_type    <- type %in% c("LOO-PIT", "rstudent")

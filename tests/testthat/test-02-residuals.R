@@ -7,12 +7,12 @@ source(testthat::test_path("helper-metafor.R"))
 
 REFERENCE_DIR <<- testthat::test_path("..", "results", "residuals")
 
-test_that("production LOO tails reject discrete GLMM approximations", {
+test_that("production LOO tails accept GLMMs through the effect-size approximation", {
 
   for (outcome_type in c("bin", "pois")) {
-    expect_error(.loo_predictive_log_tails_estimate(list(outcome_type = outcome_type)),
-      "LOO-PIT residuals are not available for binomial or Poisson GLMMs because a discrete PIT convention has not been defined.",
-      fixed = TRUE)
+    expect_silent(.check_residual_type_availability("LOO-PIT", outcome_type, FALSE))
+    expect_error(.check_residual_type_availability("pearson", outcome_type, FALSE),
+      "normal outcome models")
   }
 })
 
@@ -138,23 +138,42 @@ test_that("Extended rstudent residuals without direct metafor oracle are calibra
   expect_true(cor(sel_resid, sel_rstudent$z) > 0.9)
 })
 
-test_that("GLMM residual methods reject undefined PIT diagnostics", {
+test_that("GLMM LOO-PIT residuals are a descriptive normal approximation", {
 
   model_names <- c("nielweise2008_glmm", "bcg_glmm_reg")
   skip_if_missing_fits(model_names)
 
+  count_messages <- function(expr) {
+    messages <- character()
+    value <- withCallingHandlers(expr, message = function(condition) {
+      messages <<- c(messages, conditionMessage(condition))
+      invokeRestart("muffleMessage")
+    })
+    list(value = value, messages = messages)
+  }
+
   for (name in model_names) {
-    fit_brma <- fits[[name]]
-    expect_error(
-      rstudent(fit_brma),
-      "discrete PIT convention",
-      info = name
-    )
-    expect_error(
-      residuals(fit_brma, type = "LOO-PIT"),
-      "discrete PIT convention",
-      info = name
-    )
+    fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+    n        <- nobs(fit_brma)
+
+    table <- count_messages(suppressWarnings(rstudent(fit_brma)))
+    expect_length(table$messages, 1L)
+    expect_match(table$messages, "descriptive normal approximation", info = name)
+    expect_residual_table(table$value, n)
+
+    vector <- count_messages(suppressWarnings(residuals(fit_brma, type = "LOO-PIT")))
+    expect_length(vector$messages, 1L)
+    expect_equal(vector$value, table$value[["z"]], tolerance = 1e-12, info = name)
+
+    # independent oracle: the PSIS-weighted normal CDF of the approximate
+    # effect sizes and standard errors
+    setup   <- .estimate_likelihood_setup.brma(fit_brma)
+    weights <- .diagnostic_psis_context(fit_brma)[["psis_weights"]]
+    yi      <- matrix(setup[["yi"]], nrow(setup[["mu"]]), n, byrow = TRUE)
+    sei     <- matrix(setup[["sei"]], nrow(setup[["mu"]]), n, byrow = TRUE)
+    cdf     <- stats::pnorm(yi, setup[["mu"]], sqrt(setup[["tau_within"]]^2 + sei^2))
+    expect_equal(table$value[["z"]], stats::qnorm(colSums(weights * cdf)),
+                 tolerance = 1e-10, info = name)
   }
 })
 
@@ -221,7 +240,10 @@ test_that("Residuals for BMA.glmm fits are internally consistent", {
     expect_residual_vector(residuals(fit_brma), n)
     expect_error(residuals(fit_brma, type = "pearson"), "normal outcome models")
     expect_error(rstandard(fit_brma), "normal outcome models")
-    expect_error(rstudent(fit_brma), "discrete PIT convention")
+    expect_message(
+      suppressWarnings(rstudent(suppressWarnings(add_loo(fit_brma)))),
+      "descriptive normal approximation"
+    )
   }
 })
 

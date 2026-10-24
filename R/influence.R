@@ -29,10 +29,9 @@
 #' Undefined COVRATIO and coefficient DFBETAS values are reported as
 #' \code{NaN} with an explanatory note. DFFITS returns \code{NA} when its
 #' leave-one-out posterior fitted-value SD is zero, without a separate note.
-#' Binomial and Poisson GLMMs are not supported because the aggregate includes
-#' an \code{rstudent} LOO-PIT component and no discrete PIT convention has been
-#' defined. Their PIT-independent COVRATIO and DFBETAS diagnostics remain
-#' available through \code{covratio()} and \code{dfbetas()}.
+#' For binomial and Poisson GLMMs the \code{rstudent} component is the
+#' descriptive normal approximation of \code{\link{rstudent.brma}} (and the
+#' DFFITS, Cook's distance, and hat columns are not available).
 #' For \code{brma.mv()} objects, influence returns only components with
 #' implemented estimate-unit targets. DFFITS and Cook's distance report
 #' influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}

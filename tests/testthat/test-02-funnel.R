@@ -753,22 +753,22 @@ test_that("Funnel plot for 3-level meta-regression renders residual views", {
 # Test: GLMM Model Funnel Plot
 # ============================================================================ #
 
-test_that("Funnel plot rejects undefined GLMM residuals", {
+test_that("Funnel plot labels the GLMM LOO-PIT residuals a descriptive approximation", {
 
   name <- "nielweise2008_glmm"
   skip_if_missing_fits(name)
 
-  fit_brma <- fits[[name]]
+  fit_brma <- suppressWarnings(add_loo(fits[[name]]))
 
-  expect_error(
-    rstudent(fit_brma),
-    "discrete PIT convention"
+  expect_message(
+    suppressWarnings(rstudent(fit_brma)),
+    "descriptive normal approximation"
   )
-  expect_error(
-    .test_funnel(fit_brma, residual = TRUE, as_data = TRUE),
-    "discrete PIT convention"
+  funnel_data <- NULL
+  expect_no_message(
+    funnel_data <- suppressWarnings(.test_funnel(fit_brma, residual = TRUE, as_data = TRUE))
   )
-
+  expect_identical(funnel_data[["xlab"]], "Residual (Descriptive Normal Approximation)")
 })
 
 test_that("Funnel plot for full-draw GLMM model remains stable", {
@@ -798,9 +798,14 @@ test_that("GLMM meta-regression exposes only a descriptive raw residual funnel",
   expected_residual <- residuals(fit_brma, type = "outcome")
   expected_se       <- .outcome_data_sei(fit_brma)
 
-  expect_error(
-    .test_funnel(fit_brma, plot_type = "ggplot"),
-    "discrete PIT convention"
+  loo_funnel_data <- suppressWarnings(.test_funnel(
+    suppressWarnings(add_loo(fit_brma)),
+    plot_type = "ggplot",
+    as_data   = TRUE
+  ))
+  expect_identical(
+    loo_funnel_data[["xlab"]],
+    "Residual (Descriptive Normal Approximation)"
   )
 
   funnel_data <- .test_funnel(
@@ -1078,16 +1083,21 @@ test_that("Funnel plot for BMA.norm meta-regression renders base output", {
 # Test: BMA.glmm Model Funnel Plot
 # ============================================================================ #
 
-test_that("BMA.glmm funnel respects the discrete PIT policy", {
+test_that("BMA.glmm funnel labels the LOO-PIT residuals a descriptive approximation", {
 
   name     <- "bcg_BMA.glmm_3lvl_location_scale"
   skip_if_missing_fits(name)
 
   fit_brma <- fits[[name]]
 
-  expect_error(
-    .test_funnel(fit_brma, plot_type = "base"),
-    "discrete PIT convention"
+  loo_funnel_data <- suppressWarnings(.test_funnel(
+    suppressWarnings(add_loo(fit_brma)),
+    plot_type = "base",
+    as_data   = TRUE
+  ))
+  expect_identical(
+    loo_funnel_data[["xlab"]],
+    "Residual (Descriptive Normal Approximation)"
   )
 
   expect_vdiffr_snapshot("funnel_BMA.glmm", function() {

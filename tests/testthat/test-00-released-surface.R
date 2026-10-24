@@ -397,3 +397,59 @@ test_that("cooks.distance() divides by the rank of the model matrix", {
     tolerance = 1e-10
   )
 })
+
+test_that("GLMM LOO-PIT residuals are the labelled normal approximation", {
+
+  skip_if_not_installed("metadat")
+  data("dat.bcg", package = "metadat", envir = environment())
+
+  fit <- suppressWarnings(brma.glmm(
+    ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg[1:8, ],
+    measure = "OR", chains = 2, adapt = 100, burnin = 150, sample = 150,
+    seed = 1, silent = TRUE
+  ))
+  fit <- suppressWarnings(add_loo(fit))
+
+  count_messages <- function(expr) {
+    messages <- character()
+    value <- withCallingHandlers(expr, message = function(condition) {
+      messages <<- c(messages, conditionMessage(condition))
+      invokeRestart("muffleMessage")
+    })
+    list(value = value, messages = messages)
+  }
+
+  table <- count_messages(suppressWarnings(rstudent(fit)))
+  expect_length(table$messages, 1L)
+  expect_match(table$messages, "descriptive normal approximation", fixed = TRUE)
+  expect_identical(dim(table$value), c(8L, 3L))
+  expect_true(all(is.finite(unlist(table$value))))
+
+  vector <- count_messages(suppressWarnings(residuals(fit, type = "LOO-PIT")))
+  expect_length(vector$messages, 1L)
+  expect_equal(vector$value, table$value[["z"]], tolerance = 1e-12)
+  expect_length(count_messages(residuals(fit, type = "outcome"))$messages, 0L)
+
+  # independent oracle: the PSIS-weighted normal CDF of the approximate
+  # effect sizes and standard errors
+  setup   <- .estimate_likelihood_setup.brma(fit)
+  weights <- .diagnostic_psis_context(fit)[["psis_weights"]]
+  S       <- nrow(setup[["mu"]])
+  yi      <- matrix(setup[["yi"]], S, 8L, byrow = TRUE)
+  sei     <- matrix(setup[["sei"]], S, 8L, byrow = TRUE)
+  cdf     <- stats::pnorm(yi, setup[["mu"]], sqrt(setup[["tau_within"]]^2 + sei^2))
+  expect_equal(table$value[["z"]], stats::qnorm(colSums(weights * cdf)), tolerance = 1e-10)
+
+  # plots label the approximation instead of messaging
+  qq <- count_messages(suppressWarnings(qqnorm(fit, envelope = FALSE, as_data = TRUE)))
+  expect_length(qq$messages, 0L)
+  expect_identical(qq$value[["ylab"]], "Sample Quantiles (Descriptive Normal Approximation)")
+  funnel_data <- count_messages(suppressWarnings(funnel(fit, residual = TRUE, as_data = TRUE)))
+  expect_length(funnel_data$messages, 0L)
+  expect_identical(funnel_data$value[["xlab"]], "Residual (Descriptive Normal Approximation)")
+
+  # influence() reports the approximate rstudent and the PIT-free columns
+  influence_result <- count_messages(suppressWarnings(influence(fit)))
+  expect_length(influence_result$messages, 1L)
+  expect_named(influence_result$value[["inf"]], c("rstudent", "cov.r", "tau.del"))
+})

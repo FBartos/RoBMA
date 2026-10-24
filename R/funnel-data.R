@@ -215,7 +215,7 @@
     res <- res_obj$resid
     se  <- res_obj$se
   } else if (type == "LOO-PIT" || type == "rstudent") {
-    res_obj <- rstudent.brma(x, unit = unit)
+    res_obj <- rstudent.brma(x, unit = unit, .approximation_note = FALSE)
     se  <- res_obj$se
     res <- res_obj$z * se
   } else if (type == "outcome") {
@@ -277,6 +277,10 @@
   # set axis labels
   if (!is.null(dots[["xlab"]])) {
     xlab <- dots[["xlab"]]
+  } else if ((type == "LOO-PIT" || type == "rstudent") &&
+             .outcome_type(x) %in% c("bin", "pois")) {
+    # the LOO-PIT residuals of GLMMs are a descriptive normal approximation
+    xlab <- "Residual (Descriptive Normal Approximation)"
   } else {
     xlab <- "Residual"
   }

@@ -195,10 +195,10 @@ funnel <- function(x, ...) UseMethod("funnel")
 #' target from \code{predict()}. Exact discrete-likelihood coverage cannot be
 #' indexed by a scalar standard error alone because it also depends on arm
 #' totals or exposures and nuisance rates.
-#' LOO-PIT residual mode is unavailable because the fitted predictive
-#' distribution is discrete and no discrete PIT convention has been defined.
-#' Use \code{type = "outcome"} for a descriptive effect-size-scale residual
-#' funnel when needed. Its sampling-error-only bands are not exact diagnostics
+#' LOO-PIT residual mode of GLMMs uses the descriptive normal approximation on
+#' the effect-size scale of \code{\link{residuals.brma}} (the fitted predictive
+#' distribution is discrete); the default x-axis label identifies it. The
+#' sampling-error-only bands of the residual funnel are not exact diagnostics
 #' for the fitted count likelihood.
 #'
 #' Outcome-mode plot data carry the canonical \code{RoBMA_target} attribute.
