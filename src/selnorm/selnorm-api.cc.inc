@@ -259,7 +259,7 @@ bool cpp_selnorm_step_rule_resolves_transitions(
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
   const double *omega, const SelNormKernelData &data, int omega_stride,
-  double width_scale)
+  double width_scale, const double *axis_width_scales)
 {
   const bool changed = cpp_selnorm_step_has_transitions(omega, data, omega_stride);
   if (!changed || rank == 0) return true;
@@ -284,6 +284,9 @@ bool cpp_selnorm_step_rule_resolves_transitions(
     }
   }
   for (int axis = 0; axis < rank; ++axis) {
+    const double axis_width_scale = axis_width_scales == nullptr ?
+      width_scale : axis_width_scales[axis];
+    if (!(axis_width_scale > 0.0) || !std::isfinite(axis_width_scale)) return false;
     bool coupled = false;
     for (int row = 0; any_coupled && row < dimension; ++row) {
       if (loading[row + dimension * axis] == 0.0) continue;
@@ -298,7 +301,7 @@ bool cpp_selnorm_step_rule_resolves_transitions(
           !std::isfinite(residual_sd[row]) || !std::isfinite(mean[row])) return false;
       if (coupled) {
         if (!(coupled_gap > 0.0) ||
-            coupled_gap * std::fabs(coefficient) > width_scale * residual_sd[row]) return false;
+            coupled_gap * std::fabs(coefficient) > axis_width_scale * residual_sd[row]) return false;
         continue;
       }
       for (int bin = 0; bin + 1 < data.n_bins; ++bin) {
@@ -316,7 +319,7 @@ bool cpp_selnorm_step_rule_resolves_transitions(
         if (z[upper] == center && upper + 1 < order) {
           gap = std::max(gap, z[upper + 1] - z[upper]);
         }
-        if (gap * std::fabs(coefficient) > width_scale * residual_sd[row]) return false;
+        if (gap * std::fabs(coefficient) > axis_width_scale * residual_sd[row]) return false;
       }
     }
   }

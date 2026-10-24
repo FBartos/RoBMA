@@ -44,8 +44,8 @@ skip_on_cran()
 .test_qmc_band_specs <- list(
   list(name = "crossing_20", seed = 3L),
   list(name = "tensor_77",   seed = 1L),
-  list(name = "cluster_733", seed = 1L),
-  list(name = "cluster_189", seed = 2L)
+  list(name = "cluster_733_sharp", seed = 1L),
+  list(name = "cluster_189_sharp", seed = 1L)
 )
 
 test_that("the stopping multiplier is one native constant, the t(7) quantile for eight scrambles", {
@@ -292,7 +292,7 @@ test_that("the factor and cluster JAGS wrappers judge the scaled error of an exh
 
   skip_if_not_installed("rjags")
   for (spec in list(list(kind = "factor", name = "crossing_20", seed = 3L),
-                    list(kind = "cluster", name = "cluster_189", seed = 2L))) {
+                    list(kind = "cluster", name = "cluster_189_sharp", seed = 1L))) {
     info <- paste(spec[["kind"]], spec[["name"]])
     band <- .test_qmc_band(spec[["name"]], spec[["seed"]])
     expect_lt(band[["low"]], band[["high"]], label = info)

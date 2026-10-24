@@ -53,7 +53,7 @@ test_that("the native gate equals the R rule at the scaled step widths", {
       expect_equal(probe[["tier_width_scale"]], .test_cert_tier_width_scale(block),
                    tolerance = 1e-14, info = info)
       expect_identical(probe[["resolves_tier"]],
-                       .test_cert_resolves(block, order, .test_cert_tier_width_scale(block)),
+                       .test_cert_tier_resolves(block, order),
                        info = info)
       decisions[["ladder"]] <- c(decisions[["ladder"]], probe[["resolves_ladder"]])
       decisions[["tier"]]   <- c(decisions[["tier"]], probe[["resolves_tier"]])

@@ -155,10 +155,10 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' Gaussian mass, must fit within it. A rung must also resolve the selection
 #' edges: the edge width (conditional residual SD divided by the absolute
 #' loading) is at least 0.15 times the node gap. When no rung is accepted,
-#' tensors of rank at most two and depth-one forests try the average of the
-#' finest rung over four shifts per axis before sparse grids and the randomized
-#' fallback. That average asks the edges for at least one eighth of the node
-#' gap, more when many rows load on the same axis, and is used only when
+#' rank-one clusters, tensors of rank at most two and depth-one forests try the
+#' average of the finest rung over four shifts per axis before sparse grids and
+#' the randomized fallback. That average asks the edges for at least one eighth
+#' of the node gap, with a separate penalty for each axis's row count, and is used only when
 #' `relative_tolerance` is at least 0.005, the tolerance at which its checks
 #' were calibrated. The best-p-value rule and the other deterministic routes
 #' instead require that the node gap across an interior transition not exceed

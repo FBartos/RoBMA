@@ -3639,6 +3639,8 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
 // the last the last gap, and exactly on a node the gap to its right.
 double certificate_node_gap(const double *nodes, int order, double mean)
 {
+  // A valid custom schedule can begin with a one-node rule, which has no gap.
+  if (order < 2) return std::numeric_limits<double>::quiet_NaN();
   const int not_above = static_cast<int>(
     std::upper_bound(nodes, nodes + order, mean) - nodes);
   const int upper = std::min(std::max(not_above, 1), order - 1);
@@ -3760,27 +3762,34 @@ const double selnorm_certificate_tier_min_tolerance = 0.005;
 // step, by about 1 / sqrt(2 ln N) (the extreme-value scaling of the product),
 // and the harmonics of the refined lattice that the tier's two checks cannot see
 // then carry errors beyond the tolerance. The tier gate therefore divides the
-// width scale above by sqrt(max(1, 2 ln N_max)), with N_max the largest number
-// over the latent axes of rows that carry a transition (the block has a finite
-// cutoff between differing weights) and load on that axis. A block without
-// transitions keeps the base scale; its gate is always resolved.
+// width scale of each axis by sqrt(max(1, 2 ln N)), with N the number of rows
+// that load on that axis. Every such row is counted, including rows shared
+// with other axes: their conditional transition centers may coincide.
+// A block without transitions keeps the base scale; its gate is always
+// resolved. The returned minimum preserves the scalar probe diagnostic.
 double selnorm_certificate_tier_width_scale(
     const double *omega, const SelNormKernelData &selection,
-    const double *loading, int dimension, int rank)
+    const double *loading, int dimension, int rank,
+    std::vector<double> *axis_scales = nullptr)
 {
+  if (axis_scales != nullptr) {
+    axis_scales->assign(static_cast<std::size_t>(rank), selnorm_certificate_width_scale_tier);
+  }
   if (!cpp_selnorm_step_has_transitions(omega, selection, 1)) {
     return selnorm_certificate_width_scale_tier;
   }
-  int rows_max = 1;
+  double minimum_scale = selnorm_certificate_width_scale_tier;
   for (int axis = 0; axis < rank; ++axis) {
     int rows = 0;
     for (int row = 0; row < dimension; ++row) {
       rows += loading[row + dimension * axis] != 0.0;
     }
-    rows_max = std::max(rows_max, rows);
+    const double scale = selnorm_certificate_width_scale_tier /
+      std::sqrt(std::max(1.0, 2.0 * std::log(static_cast<double>(std::max(1, rows)))));
+    minimum_scale = std::min(minimum_scale, scale);
+    if (axis_scales != nullptr) (*axis_scales)[static_cast<std::size_t>(axis)] = scale;
   }
-  return selnorm_certificate_width_scale_tier /
-    std::sqrt(std::max(1.0, 2.0 * std::log(static_cast<double>(rows_max))));
+  return minimum_scale;
 }
 
 // The combined allowance adds this multiple of the summed amplitude to the
@@ -4721,12 +4730,13 @@ bool factor_refinement_certified(
   // The lattice averages are defined for rungs whose edges the refined lattice
   // can resolve, with the edge of a wall of coincident rows narrowed by their
   // number; checked at the tier's rung before any lattice evaluation.
+  std::vector<double> axis_scales;
+  selnorm_certificate_tier_width_scale(context.omega, context.selection,
+    context.loading, context.dimension, context.rank, &axis_scales);
   if (!cpp_selnorm_step_rule_resolves_transitions(
         nodes, offset, order, context.mean, context.residual_sd, context.loading,
         context.dimension, context.rank, context.selection_se, context.omega,
-        context.selection, 1, selnorm_certificate_tier_width_scale(
-          context.omega, context.selection, context.loading, context.dimension,
-          context.rank))) {
+        context.selection, 1, 1.0, axis_scales.data())) {
     return false;
   }
   const auto refined = [&](int rung_offset, int rung_order, double *average_2,
@@ -4791,6 +4801,63 @@ bool cluster_rung_certified(const ClusterNormalizerContext &context,
       return std::isfinite(*value);
     });
   return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
+}
+
+// The factor tier's M = 2 / M = 4 and preceding-rung checks on the single
+// cluster axis, using the cluster evaluator and its shared row workspace.
+bool cluster_refinement_certified(
+    const ClusterNormalizerContext &context, const double *nodes,
+    const double *log_weights, int offset, int order,
+    int previous_offset, int previous_order, double relative_tolerance,
+    SelNormLeanScratch *scratch, double *log_value, double *relative_change)
+{
+  if (!(relative_tolerance >= selnorm_certificate_tier_min_tolerance) ||
+      order < 2 || previous_order < 2 ||
+      !selnorm_factor_rule_affordable(order, 1) ||
+      !selnorm_factor_rule_affordable(previous_order, 1) ||
+      !cpp_selnorm_step_rule_resolves_transitions(
+        nodes, offset, order, context.mean, context.residual_sd, context.loading,
+        context.dimension, 1, context.selection_se, context.omega,
+        context.selection, 1, selnorm_certificate_tier_width_scale(
+          context.omega, context.selection, context.loading, context.dimension, 1))) {
+    return false;
+  }
+  const auto refined = [&](int rung_offset, int rung_order, double *average_2,
+                           double *average_4) {
+    double mean = std::numeric_limits<double>::quiet_NaN();
+    const double base = cluster_ladder_log_integral(context, nodes, log_weights,
+      rung_offset, rung_order, scratch, 0.0, &mean);
+    if (!std::isfinite(base) || !std::isfinite(mean)) return false;
+    const double gap = certificate_node_gap(nodes + rung_offset, rung_order, mean);
+    if (!(gap > 0.0) || !std::isfinite(gap)) return false;
+    double sum_2 = base, sum_4 = base;
+    for (int shift = 1; shift < 4; ++shift) {
+      const double value = cluster_ladder_log_integral(context, nodes, log_weights,
+        rung_offset, rung_order, scratch, gap * (static_cast<double>(shift) / 4.0));
+      if (!std::isfinite(value)) return false;
+      sum_4 = log_add_exp(sum_4, value);
+      if (shift == 2) sum_2 = log_add_exp(sum_2, value);
+    }
+    if (average_2 != nullptr) *average_2 = sum_2 - std::log(2.0);
+    *average_4 = sum_4 - std::log(4.0);
+    return std::isfinite(*average_4);
+  };
+  double average_2 = 0.0, average_4 = 0.0;
+  if (!refined(offset, order, &average_2, &average_4)) return false;
+  const double shift_change = cluster_relative_change(average_4, average_2);
+  if (!(shift_change <= 0.5 * relative_tolerance) ||
+      !quadrature_covers_gaussian_tails(
+        nodes, offset, order, 1, context.omega, context.selection.n_bins,
+        context.dimension, SELVECTOR_PRODUCT, average_4, relative_tolerance)) {
+    return false;
+  }
+  double previous_4 = 0.0;
+  if (!refined(previous_offset, previous_order, nullptr, &previous_4)) return false;
+  const double order_change = cluster_relative_change(average_4, previous_4);
+  if (!(order_change <= 0.5 * relative_tolerance)) return false;
+  *log_value = average_4;
+  *relative_change = std::max(shift_change, order_change);
+  return true;
 }
 
 // Sparse-grid quadrature for factor supports that are not a forest. Such a
@@ -6879,7 +6946,22 @@ double cpp_selnorm_cluster_step_lpdf(
       previous = current;
       offset += order;
     }
-    // Every rung was rejected. The finest one (the last, which ends at `offset`)
+    // Every rung was rejected. Try the same four-shift refinement as the factor
+    // tier before handing this rank-one block to its randomized fallback.
+    if (quadrature_rule_count >= 2) {
+      const int previous_order = static_cast<int>(quadrature_orders[quadrature_rule_count - 2]);
+      double refined_value = negative_infinity, refined_change = 0.0;
+      if (cluster_refinement_certified(context, quadrature_nodes,
+            quadrature_log_weights, offset - order, order,
+            offset - order - previous_order, previous_order, relative_tolerance,
+            &lean, &refined_value, &refined_change)) {
+        *relative_change = refined_change;
+        if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
+        if (deterministic != nullptr) *deterministic = true;
+        return log_density - refined_value;
+      }
+    }
+    // The finest rung (the last, which ends at `offset`)
     // gives the randomized fallback its tilted mean and variance, when it covers
     // the exterior mass: moments of a rule that misses the selected mode say
     // nothing about it.
@@ -7081,11 +7163,12 @@ bool cpp_selnorm_certificate_probe(
   out->resolves_ladder = cpp_selnorm_step_rule_resolves_transitions(
     quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
     selection_se, omega, selection, 1, selnorm_certificate_width_scale_ladder);
+  std::vector<double> axis_scales;
   out->tier_width_scale = selnorm_certificate_tier_width_scale(
-    omega, selection, loading, dimension, rank);
+    omega, selection, loading, dimension, rank, &axis_scales);
   out->resolves_tier = cpp_selnorm_step_rule_resolves_transitions(
     quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
-    selection_se, omega, selection, 1, out->tier_width_scale);
+    selection_se, omega, selection, 1, 1.0, axis_scales.data());
 
   const auto certify = [&](double q0, const std::vector<double> &axis_mean,
                            const std::function<bool(int, double, double *)> &shifted) {

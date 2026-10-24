@@ -233,8 +233,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   1.76 in scans, and searches of the whole gated ladder found no accepted
   error above 77% of `tol`. The gate is conservative: sharp blocks go on to the
   next stage even when a deeper rule would be accurate.
-- Refinement tier: when the ladder rejects every affordable rung, tensors of
-  rank at most two and forests of depth at most one try, before Smolyak and
+- Refinement tier: when the ladder rejects every affordable rung, rank-one
+  clusters, tensors of rank at most two and forests of depth at most one try, before Smolyak and
   the randomized fallback, the average of the finest affordable rung over the
   shifts `(m/4) h` per axis, `m = 0..3` and `h` the gap above, which keeps only
   aliasing harmonics that are multiples of 4 (leaves are averaged
@@ -249,11 +249,15 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   errors of 1.5 and 1.2 times `tol`); below it, blocks the ladder rejects go on
   to the Smolyak grid and the randomized fallback. The tier's sharpness gate
   asks for an edge width of at least `sqrt(max(1, 2 log N)) / 8` times the node
-  gap, `N` the largest number over the axes of transition rows loading on one
-  axis: a wall of `N` coincident steps is narrower than one step by about that
+  gap on each axis, `N` the number of transition rows loading on that axis:
+  a wall of `N` coincident steps is narrower than one step by about that
   factor and keeps a harmonic-4 error (up to 44% over `tol`) that neither
-  check sees. Averaging eight shifts instead does not remove it. The cluster
-  kernel has no tier.
+  check sees. Averaging eight shifts instead does not remove it. Counting is
+  conservative within each axis: nearby or crossing transitions retain the
+  full penalty, while a large cluster on another axis adds no penalty here.
+  Cluster refinement uses its own finest and preceding rules and shared row
+  workspace; successful refinement reports the larger comparison as relative
+  change, zero relative MCSE, and a deterministic result.
 - Randomized fallback: for `product` weights the proposals are the prior, a
   Gaussian with the tilted mean and full covariance of the finest evaluated
   rung (tensor: weighted moments; depth-one forest: from the messages;

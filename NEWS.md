@@ -15,6 +15,13 @@
   Exactly repeated rows share probability calculations. Reported standard errors
   remain empirical estimates, not guaranteed error bounds; rare intersections
   can still require more points or be rejected by diagnostics.
+- Rank-one product-weight clusters now try four-shift quadrature refinement
+  before randomized integration. The refinement gate applies the coincident-row
+  penalty separately to each latent axis, allowing smaller branches of a
+  factor forest to refine without the penalty of its largest branch. The
+  existing change, tail and sharpness checks remain in place, and refinement
+  still requires `relative_tolerance >= 0.005`; tighter tolerances retain the
+  existing fallback because shift agreement can miss integration error.
 - Selection normalizers of dependent blocks under product weights (the factor
   and cluster kernels, in fitting and post-fit calculations) accept a
   deterministic quadrature rule only when shifting its nodes shows an aliasing
@@ -22,7 +29,7 @@
   values up to 2-4% off for coincident or crossing selection steps and
   rank-one clusters. Blocks with edges sharper than the nodes resolve, or whose
   certificate fails, use a four-shift average of the finest rule (rank-two
-  tensors and depth-one forests, at tolerances of at least 0.005) or the
+  tensors, rank-one clusters and depth-one forests, at tolerances of at least 0.005) or the
   randomized fallback, which now proposes from the tilted moments of the finest
   rule. Every randomized selection normalizer (this fallback, the
   conditioned-sampling normalizer, the dense covariance blocks and the Gaussian

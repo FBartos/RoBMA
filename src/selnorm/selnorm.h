@@ -88,12 +88,13 @@ bool cpp_selnorm_step_has_transitions(
 // rule compares with a node gap; the default 1 is the rule itself, a larger
 // scale relaxes it (the product-rule certificate asks for edges no narrower
 // than a fixed fraction of the gap, see selnorm-mv.cc).
+// Optional `axis_width_scales` replaces the scalar scale separately per axis.
 bool cpp_selnorm_step_rule_resolves_transitions(
   const double *nodes, int offset, int order,
   const double *mean, const double *residual_sd, const double *loading,
   int dimension, int rank, const double *selection_se,
   const double *omega, const SelNormKernelData &data, int omega_stride = 1,
-  double width_scale = 1.0
+  double width_scale = 1.0, const double *axis_width_scales = nullptr
 );
 
 double cpp_selnorm_bounded_cdf_absolute_error();

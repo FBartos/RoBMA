@@ -109,9 +109,9 @@ test_that("a forest whose rows narrow the tier gate beyond its edges reaches the
   # The 371-row forest of the research (a shared axis with loading .001 and two
   # leaf axes of opposite orientation, 115 and 256 coincident rows). Its tier
   # checks pass and its refined value is within 1e-4 of the reference, but the
-  # gate asks the 371 rows on the shared axis for edges of 0.43 of the node gap
-  # (the coupled rows are compared with the widest central gap, 0.33, against
-  # 2.33 x the leaf SD 0.10) and refuses the rung: the block is no longer
+  # gate asks the 256 rows on the sharper leaf axis for edges of 0.42 of the
+  # node gap (the coupled rows are compared with the widest central gap, 0.33,
+  # against 2.40 x the leaf SD 0.10) and refuses the rung: the block is no longer
   # certified by the tier. It reaches the randomized fallback, which is within
   # the tolerance of the reference.
   block <- .test_cert_block(list(

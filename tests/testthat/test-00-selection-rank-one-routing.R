@@ -305,10 +305,11 @@ test_that("nested intercept random effects use the exact rank-one kernel", {
 })
 
 
-test_that("rank-one quadrature rejection reuses controlled factor QMC", {
+test_that("rank-one refinement and its controlled QMC fallback match an independent integral", {
 
   # This valid five-row input triggered a GH1023 rejection during Assink
-  # adaptation. Independent one-dimensional integration certifies the fallback.
+  # adaptation. It now refines at the default tolerance; below the tier's
+  # calibrated tolerance it retains the controlled QMC fallback.
   yi <- c(.2994, .2992, .2989, .291, .217)
   sei <- sqrt(c(.0041, .0042, .0041, .0042, .0041))
   means <- matrix(-.0024773474653312366, 1L, 5L)
@@ -340,7 +341,8 @@ test_that("rank-one quadrature rejection reuses controlled factor QMC", {
     exp(stats::dnorm(z, log = TRUE) + rowSums(log(probability)))
   }, -Inf, Inf, rel.tol = 1e-10)
   expect_lt(reference$abs.error / reference$value, 1e-8)
-  expect_gt(actual$relative_mcse, 0)
+  expect_true(.test_cert_deterministic(actual))
+  expect_equal(actual$relative_mcse, 0)
   expect_lte(max(actual$relative_mcse, actual$relative_change),
                plan$relative_tolerance)
   expect_lt(abs(expm1(actual$log_normalizer - log(reference$value))),
@@ -348,6 +350,17 @@ test_that("rank-one quadrature rejection reuses controlled factor QMC", {
   expected <- mvtnorm::dmvnorm(yi, as.double(means),
     diag(sei^2) + tcrossprod(as.double(loading)), log = TRUE) - log(reference$value)
   expect_equal(actual$log_density, expected, tolerance = .005)
+
+  fallback_input <- input
+  fallback_input$execution_plan$relative_tolerance <- .005 * (1 - 1e-8)
+  fallback <- do.call(.selection_joint_cluster_loglik_block, fallback_input)
+  expect_false(.test_cert_deterministic(fallback))
+  expect_gt(fallback$relative_mcse, 0)
+  expect_lte(max(.selection_qmc_z() * fallback$relative_mcse, fallback$relative_change),
+    fallback_input$execution_plan$relative_tolerance)
+  expect_lt(abs(expm1(fallback$log_normalizer - log(reference$value))),
+    fallback_input$execution_plan$relative_tolerance)
+  expect_equal(fallback$log_density, expected, tolerance = .005)
 
   malformed <- plan
   malformed$designs$factor_1 <- numeric()

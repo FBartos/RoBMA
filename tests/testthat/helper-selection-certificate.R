@@ -517,18 +517,50 @@
 .test_cert_width_scale_ladder <- 1 / .15
 .test_cert_width_scale_tier   <- 8
 
-# The width scale of the tier gate of a block: the tier scale divided by
-# sqrt(max(1, 2 ln N)), N the largest number over the loading columns of rows
-# that load on it, when the block has a transition (the narrowing of a wall of N
-# coincident steps); the plain tier scale otherwise. Mirrors
-# selnorm_certificate_tier_width_scale in src/selnorm/selnorm-mv.cc.
-.test_cert_tier_width_scale <- function(block) {
+# Per-axis tier scales, with every row counted on each axis it loads on.
+# The scalar diagnostic is their minimum, retained for the native probe.
+.test_cert_tier_width_scales <- function(block) {
 
   omega <- block[["omega"]]
   transitions <- any(is.finite(block[["z_lower"]]) & c(omega[-length(omega)] != omega[-1L], FALSE))
-  if (!transitions) return(.test_cert_width_scale_tier)
-  rows <- max(1L, colSums(block[["loading"]] != 0))
-  .test_cert_width_scale_tier / sqrt(max(1, 2 * log(rows)))
+  if (!transitions) return(rep(.test_cert_width_scale_tier, block[["rank"]]))
+  rows <- pmax(1L, colSums(block[["loading"]] != 0))
+  .test_cert_width_scale_tier / sqrt(pmax(1, 2 * log(rows)))
+}
+
+.test_cert_tier_width_scale <- function(block) min(.test_cert_tier_width_scales(block))
+
+# Tier mirror: the geometry is unchanged, including the largest central node
+# gap for axes coupled through any row. Only the width scale varies by axis.
+.test_cert_tier_resolves <- function(block, order) {
+
+  omega <- block[["omega"]]
+  cuts <- which(is.finite(block[["z_lower"]]) & c(utils::head(omega, -1L) != omega[-1L], FALSE))
+  if (!length(cuts)) return(TRUE)
+  nodes <- .gauss_hermite_nodes(order)[["nodes"]]
+  loaded <- block[["loading"]] != 0
+  scales <- .test_cert_tier_width_scales(block)
+  central_gap <- max(diff(nodes)[utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3])
+  for (axis in seq_len(block[["rank"]])) {
+    rows <- which(loaded[, axis])
+    coupled <- any(rowSums(loaded[rows, , drop = FALSE]) >= 2L)
+    for (row in rows) {
+      coefficient <- block[["loading"]][row, axis]
+      if (coupled) {
+        if (central_gap * abs(coefficient) > scales[axis] * block[["sd"]][row]) return(FALSE)
+        next
+      }
+      for (cut in cuts) {
+        center <- (block[["z_lower"]][cut] * block[["sei"]][row] - block[["mean"]][row]) / coefficient
+        if (center <= nodes[1L] || center >= nodes[order]) next
+        upper <- which(nodes >= center)[1L]
+        gap <- nodes[upper] - nodes[upper - 1L]
+        if (nodes[upper] == center && upper < order) gap <- max(gap, nodes[upper + 1L] - nodes[upper])
+        if (gap * abs(coefficient) > scales[axis] * block[["sd"]][row]) return(FALSE)
+      }
+    }
+  }
+  TRUE
 }
 
 # The sharpness gate at a rung: the transition rule (its R mirror) with every
@@ -680,7 +712,7 @@
 # ---------------------------------------------------------------------------- #
 
 # Native fallback runs. Every block here is certified by neither the ladder nor the
-# refinement tier (the clusters have no tier: by no rung of their ladder), so it
+# refinement tier, so it
 # reaches the randomized fallback; the fixed design seeds make the runs repeatable.
 # The parameters come from the research battery (seeds 41 and 21) and random searches
 # over forests (a shared axis and two leaves) and rank-two partial overlaps (tensor
@@ -723,13 +755,14 @@
       g(127L, c(0.12399440036971428, 1.9003074081263616, 0), 0.0989997504638504, -2.5188992921523741),
       g(30L, c(0.12399440036971428, 0, 1.1540407331499025), 0.030234154411339583, 1.6193386859839336)),
       c(1, 0.050000000000000003), c(1.645, -Inf))),
-    # a cluster whose Laplace proposal sees only the bulk of the prior: all eight scrambles
-    # then agree, the MCSE is zero and the estimate sits 7% low
-    cluster_733 = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
-      g(4L, 1.8707955473336113, 0.042233265807645956, -6.8303662251056725, 0.22565989842880826)),
+    # The original cluster_733 and cluster_189 now pass the cluster refinement
+    # tier and are retained in its oracle tests. Halving their residual SDs
+    # leaves genuinely sharp blocks for these randomized-proposal checks.
+    cluster_733_sharp = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
+      g(4L, 1.8707955473336113, 0.042233265807645956 / 2, -6.8303662251056725, 0.22565989842880826)),
       c(1, 0.20000000000000001), c(0, -Inf))),
-    cluster_189 = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
-      g(100L, 0.65477525608481191, 0.026923363058843731, -2.5196777242881367, 0.20064200965816639)),
+    cluster_189_sharp = list(kind = "cluster", reference = .test_cert_reference_parallel, block = .test_cert_block(list(
+      g(100L, 0.65477525608481191, 0.026923363058843731 / 2, -2.5196777242881367, 0.20064200965816639)),
       c(1, 0.050000000000000003), c(1.645, -Inf)))
   )
 }
