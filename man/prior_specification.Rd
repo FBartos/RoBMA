@@ -52,8 +52,9 @@ log-likelihood of the model (\code{log_lik()}, LOO, WAIC) integrates the base ra
 over any of these priors: point priors and untruncated beta priors
 adaptively (a uniform(0, 1) prior is a Beta(1, 1) prior), other families on a
 refined prior-CDF grid. The grid is accepted only when its log-likelihood
-changes by less than \code{1e-6} between refinements; any family without an
-adaptive route (every one other than beta) can fail to reach this, especially
+changes by less than \code{1e-6} between refinements; any prior without an
+adaptive route (other than an untruncated beta prior; a truncated beta prior
+takes the grid too) can fail to reach this, especially
 with few events or very large arms, and then stops with an error of class
 \code{RoBMA_glmm_grid_nonconvergence}, as a lognormal base-rate prior does on
 cells with few events. A beta prior avoids it. The automatic computation of
@@ -69,8 +70,9 @@ standard deviation unchanged. The estimate-unit log-likelihood of the model
 (\code{log_lik()}, LOO, WAIC) integrates the log-rate over the prior: point
 priors and untruncated normal priors adaptively, other families on a refined
 prior-CDF grid. The grid is accepted only when its log-likelihood changes by
-less than \code{1e-6} between refinements; any family without an adaptive route
-(every one other than normal) can fail to reach this, especially with few
+less than \code{1e-6} between refinements; any prior without an adaptive route
+(other than an untruncated normal prior; a truncated normal prior takes the
+grid too) can fail to reach this, especially with few
 events or very large arms, and then stops with an error of class
 \code{RoBMA_glmm_grid_nonconvergence}, as gamma, lognormal, and inverse-gamma
 log-rate priors do on cells with few events. A normal prior avoids it. The

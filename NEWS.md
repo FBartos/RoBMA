@@ -573,8 +573,9 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     families (errors up to 0.35 log-likelihood units for a gamma log-rate
     prior); the refined grid now stops with an error of class
     `RoBMA_glmm_grid_nonconvergence` when it cannot reach a change of `1e-6`,
-    which can happen for any prior without an adaptive route (every family
-    other than beta and normal), especially with few events or very large
+    which can happen for any prior without an adaptive route (other than an
+    untruncated beta base rate or an untruncated normal log-rate; truncated
+    ones take the grid too), especially with few events or very large
     arms, for example gamma, lognormal, and inverse-gamma log-rate priors and
     lognormal base-rate priors. A uniform(0, 1) base-rate prior is a
     Beta(1, 1) prior and is integrated adaptively; a beta base-rate prior or a
