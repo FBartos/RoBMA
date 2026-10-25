@@ -40,37 +40,6 @@
 }
 
 
-# The estimate-unit GLMM log-likelihood integrates the nuisance base rate or
-# log-rate over its prior, which it certifies for point and beta (base rate)
-# and point and normal (log-rate) priors, truncated or not. Fitting accepts any
-# continuous prior (as in 4.0.0); the log-likelihood, and with it log_lik(),
-# logLik(), LOO, and WAIC, is unavailable for another family.
-.glmm_check_nuisance_prior_family <- function(prior, outcome_type) {
-
-  binomial  <- identical(outcome_type, "bin")
-  supported <- if (binomial) "beta" else "normal"
-  family    <- prior[["distribution"]]
-  if (identical(family, "point") || identical(family, supported)) {
-    return(invisible(TRUE))
-  }
-
-  argument <- if (binomial) "prior_baserate" else "prior_lograte"
-  rate     <- if (binomial) "base rate" else "log-rate"
-  message  <- paste0(
-    "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and ",
-    "WAIC) are unavailable for a '", family, "' '", argument, "': they ",
-    "integrate the ", rate, " over point and ", supported, " priors. Use a ",
-    "point or ", supported, " '", argument, "' to compute them."
-  )
-
-  stop(structure(
-    list(message = message, call = NULL, argument = argument, distribution = family),
-    class = c("RoBMA_glmm_prior_family_unavailable", "RoBMA_unsupported_request",
-              "error", "condition")
-  ))
-}
-
-
 # Extract an untruncated nuisance-prior specification supported by AGHQ.
 .glmm_aghq_prior_spec <- function(prior, outcome_type) {
 

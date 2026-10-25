@@ -28,7 +28,6 @@
                                weights = NULL, n_theta = 15, n_pi = 30) {
 
   use_aghq   <- missing(n_theta) && missing(n_pi)
-  .glmm_check_nuisance_prior_family(prior_pi, "bin")
   prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
   if (use_aghq) {
     return(.glmm_binom_marginal(
@@ -283,7 +282,6 @@
                                    n_theta = 15, n_pi = 30) {
 
   use_aghq   <- missing(n_theta) && missing(n_pi)
-  .glmm_check_nuisance_prior_family(prior_pi, "bin")
   prior_spec <- .glmm_aghq_prior_spec(prior_pi, "bin")
   if (use_aghq) {
     return(.glmm_binom_marginal(
@@ -358,7 +356,6 @@
                               weights = NULL, n_theta = 15, n_phi = 30) {
 
   use_aghq   <- missing(n_theta) && missing(n_phi)
-  .glmm_check_nuisance_prior_family(prior_phi, "pois")
   prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
   if (use_aghq) {
     return(.glmm_pois_marginal(
@@ -425,7 +422,6 @@
                                   n_theta = 15, n_phi = 30) {
 
   use_aghq   <- missing(n_theta) && missing(n_phi)
-  .glmm_check_nuisance_prior_family(prior_phi, "pois")
   prior_spec <- .glmm_aghq_prior_spec(prior_phi, "pois")
   if (use_aghq) {
     return(.glmm_pois_marginal(

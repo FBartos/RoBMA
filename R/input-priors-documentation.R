@@ -52,9 +52,9 @@
 #' or `NULL`, defaults to independent `Beta(1, 1)` priors. Continuous priors
 #' are restricted to `[0, 1]` (truncated to it where their support is wider) and
 #' point priors must lie strictly inside `(0, 1)`. The estimate-unit
-#' log-likelihood of the model (`log_lik()`, LOO, WAIC) is available for point
-#' and beta priors only; it stops with an error of class
-#' `RoBMA_glmm_prior_family_unavailable` for another family.
+#' log-likelihood of the model (`log_lik()`, LOO, WAIC) integrates the base rate
+#' over any of these priors: point and beta priors adaptively, other families
+#' on a refined prior-CDF grid.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
 #' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
 #' normal prior centered at the pooled crude log-rate is used independently for
@@ -62,9 +62,8 @@
 #' `RoBMA.options(default_lograte.sd = ...)`. Rescaling all person-times shifts
 #' the prior mean by the corresponding log conversion while leaving its
 #' standard deviation unchanged. The estimate-unit log-likelihood of the model
-#' (`log_lik()`, LOO, WAIC) is available for point and normal priors (normal
-#' priors may be truncated) only; it stops with an error of class
-#' `RoBMA_glmm_prior_family_unavailable` for another family.
+#' (`log_lik()`, LOO, WAIC) integrates the log-rate over the prior: point and
+#' normal priors adaptively, other families on a refined prior-CDF grid.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.

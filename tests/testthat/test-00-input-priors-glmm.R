@@ -127,50 +127,181 @@ test_that("GLMM nuisance priors accept the released continuous families", {
 })
 
 
-test_that("the estimate-unit GLMM likelihood is unavailable for other families", {
+# Independent oracles of the estimate-unit GLMM likelihood: the nuisance
+# parameter and the standard-normal latent effect are integrated by nested
+# stats::integrate() calls (the base rate on the logit scale, dp = p (1 - p) du).
+.glmm_oracle_binom <- function(a, n1, c, n2, mu, tau, density, lower = 0, upper = 1) {
 
-  unsupported_pi <- brma.glmm(
-    ai = ai, bi = bi, ci = ci, di = di,
-    data = test_data_bin, measure = "OR",
-    prior_baserate = BayesTools::prior("uniform", list(0, 1)), only_priors = TRUE
-  )[["priors"]][["outcome"]][["pi"]]
-  error <- tryCatch(
-    .outcome_pdf.binom(4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), unsupported_pi),
-    error = identity
-  )
-  expect_s3_class(error, "RoBMA_glmm_prior_family_unavailable")
-  expect_s3_class(error, "RoBMA_unsupported_request")
-  expect_identical(conditionMessage(error), paste0(
-    "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and WAIC) ",
-    "are unavailable for a 'uniform' 'prior_baserate': they integrate the base rate ",
-    "over point and beta priors. Use a point or beta 'prior_baserate' to ",
-    "compute them."
-  ))
-  expect_error(
-    .outcome_pdf_sum.binom(4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), unsupported_pi),
-    class = "RoBMA_glmm_prior_family_unavailable"
-  )
+  inner <- function(theta) {
+    vapply(theta, function(th) {
+      effect <- mu + tau * th
+      stats::integrate(function(u) {
+        p <- stats::plogis(u)
+        stats::dbinom(a, n1, stats::plogis(u + 0.5 * effect)) *
+          stats::dbinom(c, n2, stats::plogis(u - 0.5 * effect)) *
+          density(p) * p * (1 - p)
+      }, stats::qlogis(lower), stats::qlogis(upper), subdivisions = 5000L,
+      rel.tol = 1e-10, abs.tol = 0)[["value"]] * stats::dnorm(th)
+    }, numeric(1))
+  }
 
-  unsupported_phi <- BMA.glmm(
-    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
-    data = test_data_pois, measure = "IRR",
-    prior_lograte = BayesTools::prior("cauchy", list(0, 1)), only_priors = TRUE
-  )[["priors"]][["outcome"]][["phi"]]
-  error <- tryCatch(
-    .outcome_pdf.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), unsupported_phi),
-    error = identity
+  # the standard-normal mass outside (-10, 10) is 1.5e-23; an infinite range would
+  # evaluate the inner integral at effects that underflow every likelihood factor
+  return(log(stats::integrate(inner, -10, 10, subdivisions = 5000L,
+                              rel.tol = 1e-9, abs.tol = 0)[["value"]]))
+}
+
+.glmm_oracle_pois <- function(x1, t1, x2, t2, mu, tau, density) {
+
+  inner <- function(theta) {
+    vapply(theta, function(th) {
+      effect <- mu + tau * th
+      stats::integrate(function(phi) {
+        stats::dpois(x1, exp(phi + log(t1) + 0.5 * effect)) *
+          stats::dpois(x2, exp(phi + log(t2) - 0.5 * effect)) * density(phi)
+      }, -Inf, Inf, subdivisions = 5000L, rel.tol = 1e-9, abs.tol = 0)[["value"]] *
+        stats::dnorm(th)
+    }, numeric(1))
+  }
+
+  # the standard-normal mass outside (-10, 10) is 1.5e-23; an infinite range would
+  # evaluate the inner integral at effects that underflow every likelihood factor
+  return(log(stats::integrate(inner, -10, 10, subdivisions = 5000L,
+                              rel.tol = 1e-9, abs.tol = 0)[["value"]]))
+}
+
+# The refined prior-CDF grid stops at a relative change of 1e-6 between
+# successive rules (.glmm_grid_control()), and the oracle integrates to 1e-9;
+# a relative tolerance of 1e-6 therefore separates agreement from a wrong grid.
+.glmm_oracle_tolerance <- 1e-6
+
+.glmm_released_families <- function() {
+
+  list(
+    binomial = list(
+      uniform = list(
+        prior = BayesTools::prior("uniform", list(0, 1)),
+        density = function(p) stats::dunif(p), lower = 0, upper = 1),
+      `truncated normal` = list(
+        prior = BayesTools::prior("normal", list(0.3, 0.2), truncation = list(0.05, 0.95)),
+        density = function(p) stats::dnorm(p, 0.3, 0.2) /
+          (stats::pnorm(0.95, 0.3, 0.2) - stats::pnorm(0.05, 0.3, 0.2)),
+        lower = 0.05, upper = 0.95)
+    ),
+    poisson = list(
+      cauchy = list(
+        prior = BayesTools::prior("cauchy", list(0, 1)),
+        density = function(x) stats::dcauchy(x, 0, 1)),
+      t = list(
+        prior = BayesTools::prior("t", list(0, 1, 3)),
+        density = function(x) stats::dt(x, df = 3))
+    )
   )
-  expect_s3_class(error, "RoBMA_glmm_prior_family_unavailable")
-  expect_identical(conditionMessage(error), paste0(
-    "Estimate-unit GLMM log-likelihoods (used by log_lik(), logLik(), LOO, and WAIC) ",
-    "are unavailable for a 't' 'prior_lograte': they integrate the log-rate ",
-    "over point and normal priors. Use a point or normal 'prior_lograte' to ",
-    "compute them."
+}
+
+test_that("the estimate-unit GLMM likelihood of released nuisance families equals its integral", {
+
+  skip_on_cran()
+  families <- .glmm_released_families()
+
+  for (name in names(families[["binomial"]])) {
+    family <- families[["binomial"]][[name]]
+    stored <- brma.glmm(
+      ai = ai, bi = bi, ci = ci, di = di,
+      data = test_data_bin, measure = "OR",
+      prior_baserate = family[["prior"]], only_priors = TRUE
+    )[["priors"]][["outcome"]][["pi"]]
+    value <- .outcome_pdf.binom(4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), stored)
+    oracle <- .glmm_oracle_binom(4L, 20L, 3L, 20L, 0.2, 0.4, family[["density"]],
+                                 family[["lower"]], family[["upper"]])
+    expect_equal(as.numeric(value), oracle, tolerance = .glmm_oracle_tolerance, info = name)
+    expect_equal(
+      as.numeric(.outcome_pdf_sum.binom(4L, 3L, 20L, 20L, matrix(0.2), matrix(0.4), stored)),
+      oracle, tolerance = .glmm_oracle_tolerance, info = name
+    )
+  }
+
+  for (name in names(families[["poisson"]])) {
+    family <- families[["poisson"]][[name]]
+    stored <- BMA.glmm(
+      x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+      data = test_data_pois, measure = "IRR",
+      prior_lograte = family[["prior"]], only_priors = TRUE
+    )[["priors"]][["outcome"]][["phi"]]
+    value <- .outcome_pdf.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), stored)
+    oracle <- .glmm_oracle_pois(4L, 20, 3L, 21, 0.2, 0.4, family[["density"]])
+    expect_equal(as.numeric(value), oracle, tolerance = .glmm_oracle_tolerance, info = name)
+    expect_equal(
+      as.numeric(.outcome_pdf_sum.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), stored)),
+      oracle, tolerance = .glmm_oracle_tolerance, info = name
+    )
+  }
+})
+
+test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {
+
+  skip_on_cran()
+  families <- .glmm_released_families()
+  fit_bin <- function(prior) suppressWarnings(brma.glmm(
+    ai = c(4L, 6L, 3L, 5L), bi = c(119L, 300L, 228L, 99L),
+    ci = c(11L, 29L, 11L, 12L), di = c(128L, 274L, 209L, 90L),
+    measure = "OR", prior_baserate = prior, prior_unit_information_sd = 1,
+    chains = 2, adapt = 50, burnin = 100, sample = 100, seed = 1,
+    silent = TRUE, parallel = FALSE
   ))
-  expect_error(
-    .outcome_pdf_sum.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), unsupported_phi),
-    class = "RoBMA_glmm_prior_family_unavailable"
-  )
+  fit_pois <- function(prior) suppressWarnings(brma.glmm(
+    x1i = c(0L, 3L, 7L, 4L), x2i = c(0L, 4L, 11L, 6L),
+    t1i = c(20, 15, 18, 22), t2i = c(22, 19, 21, 20),
+    measure = "IRR", prior_lograte = prior, prior_unit_information_sd = 1,
+    chains = 2, adapt = 50, burnin = 100, sample = 100, seed = 1,
+    silent = TRUE, parallel = FALSE
+  ))
+  cells <- list(c(1L, 1L), c(60L, 2L), c(150L, 3L), c(200L, 4L))
+
+  for (type in names(families)) {
+    for (name in names(families[[type]])) {
+      family <- families[[type]][[name]]
+      info   <- paste(type, name)
+      fit    <- if (type == "binomial") fit_bin(family[["prior"]]) else fit_pois(family[["prior"]])
+      data   <- fit[["data"]][["outcome"]]
+      draws  <- posterior::as_draws_matrix(fit)
+      mu_draws  <- as.numeric(draws[, "mu"])
+      tau_draws <- as.numeric(draws[, "tau"])
+
+      log_lik_matrix <- log_lik(fit)
+      expect_identical(dim(log_lik_matrix), c(nrow(draws), 4L), info = info)
+      expect_true(all(is.finite(log_lik_matrix)), info = info)
+      for (cell in cells) {
+        s <- cell[[1L]]
+        k <- cell[[2L]]
+        oracle <- if (type == "binomial") {
+          .glmm_oracle_binom(data[["ai"]][k], data[["n1i"]][k], data[["ci"]][k],
+            data[["n2i"]][k], mu_draws[s], tau_draws[s], family[["density"]],
+            family[["lower"]], family[["upper"]])
+        } else {
+          .glmm_oracle_pois(data[["x1i"]][k], data[["t1i"]][k], data[["x2i"]][k],
+            data[["t2i"]][k], mu_draws[s], tau_draws[s], family[["density"]])
+        }
+        expect_equal(unname(log_lik_matrix[s, k]), unname(oracle),
+                     tolerance = .glmm_oracle_tolerance, info = paste(info, s, k))
+      }
+
+      with_loo <- suppressWarnings(add_loo(fit))
+      expect_s3_class(with_loo, "brma")
+      expect_true(is.finite(loo(with_loo)[["estimates"]]["elpd_loo", "Estimate"]), info = info)
+      with_waic <- suppressWarnings(add_waic(fit))
+      expect_true(is.finite(waic(with_waic)[["estimates"]]["elpd_waic", "Estimate"]), info = info)
+    }
+  }
+
+  # an automatic computation returns the fit, as at the 4.0.0 release
+  previous <- RoBMA.get_option("autocompute.loo")
+  RoBMA.options(autocompute.loo = TRUE)
+  on.exit(RoBMA.options(autocompute.loo = previous), add = TRUE)
+  automatic <- fit_bin(families[["binomial"]][["uniform"]][["prior"]])
+  expect_s3_class(automatic, "brma")
+  expect_false(is.null(automatic[["loo"]]))
+  expect_true(is.finite(loo(automatic)[["estimates"]]["elpd_loo", "Estimate"]))
 })
 
 

@@ -175,9 +175,9 @@ base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitte
 or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Continuous priors
 are restricted to \verb{[0, 1]} (truncated to it where their support is wider) and
 point priors must lie strictly inside \verb{(0, 1)}. The estimate-unit
-log-likelihood of the model (\code{log_lik()}, LOO, WAIC) is available for point
-and beta priors only; it stops with an error of class
-\code{RoBMA_glmm_prior_family_unavailable} for another family.}
+log-likelihood of the model (\code{log_lik()}, LOO, WAIC) integrates the base rate
+over any of these priors: point and beta priors adaptively, other families
+on a refined prior-CDF grid.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
 log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
@@ -186,9 +186,8 @@ each estimate. Its standard deviation defaults to \code{1} and can be changed vi
 \code{RoBMA.options(default_lograte.sd = ...)}. Rescaling all person-times shifts
 the prior mean by the corresponding log conversion while leaving its
 standard deviation unchanged. The estimate-unit log-likelihood of the model
-(\code{log_lik()}, LOO, WAIC) is available for point and normal priors (normal
-priors may be truncated) only; it stops with an error of class
-\code{RoBMA_glmm_prior_family_unavailable} for another family.}
+(\code{log_lik()}, LOO, WAIC) integrates the log-rate over the prior: point and
+normal priors adaptively, other families on a refined prior-CDF grid.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}

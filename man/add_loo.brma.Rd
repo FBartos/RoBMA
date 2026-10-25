@@ -38,12 +38,12 @@ With \code{unit = "estimate"}, LOO-CV is computed with one contribution per
 effect-size estimate. For binomial and Poisson models, each pair of counts
 (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 one contribution.
-Estimate-unit GLMM log-likelihoods support point or beta baserate priors and
-point or normal log-rate priors, including their supported truncations.
-For any other nuisance-prior family the model can be fitted, but its
-estimate-unit log-likelihood is unavailable and stops with an error of class
-\code{RoBMA_glmm_prior_family_unavailable} (also of class
-\code{RoBMA_unsupported_request}).
+Estimate-unit GLMM log-likelihoods integrate the nuisance base rate or
+log-rate over its prior, for every prior the model accepts: point and beta
+baserate priors and point and normal log-rate priors (with their supported
+truncations) adaptively, other families on a refined prior-CDF grid. A grid
+that does not converge stops with an error of class
+\code{RoBMA_glmm_numerical_error}.
 
 With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 per cluster. For normal models without selection, weighted or not, this uses

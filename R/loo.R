@@ -56,12 +56,12 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' effect-size estimate. For binomial and Poisson models, each pair of counts
 #' (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 #' one contribution.
-#' Estimate-unit GLMM log-likelihoods support point or beta baserate priors and
-#' point or normal log-rate priors, including their supported truncations.
-#' For any other nuisance-prior family the model can be fitted, but its
-#' estimate-unit log-likelihood is unavailable and stops with an error of class
-#' \code{RoBMA_glmm_prior_family_unavailable} (also of class
-#' \code{RoBMA_unsupported_request}).
+#' Estimate-unit GLMM log-likelihoods integrate the nuisance base rate or
+#' log-rate over its prior, for every prior the model accepts: point and beta
+#' baserate priors and point and normal log-rate priors (with their supported
+#' truncations) adaptively, other families on a refined prior-CDF grid. A grid
+#' that does not converge stops with an error of class
+#' \code{RoBMA_glmm_numerical_error}.
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For normal models without selection, weighted or not, this uses
@@ -702,11 +702,11 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' errors and random context for estimate deletion, including ordinary component
 #' branches and constant selection weights. Cluster deletion keeps its distinct
 #' joint target. Earlier affected estimate scores must be recomputed.
-#' Estimate-unit GLMM draws support point or beta baserate priors and point or
-#' normal log-rate priors, including their supported truncations. For any other
-#' nuisance-prior family the draws are unavailable and the call stops with an
-#' error of class \code{RoBMA_glmm_prior_family_unavailable} (also of class
-#' \code{RoBMA_unsupported_request}).
+#' Estimate-unit GLMM draws integrate the nuisance base rate or log-rate over
+#' its prior, for every prior the model accepts: point and beta baserate priors
+#' and point and normal log-rate priors (with their supported truncations)
+#' adaptively, other families on a refined prior-CDF grid. A grid that does not
+#' converge stops with an error of class \code{RoBMA_glmm_numerical_error}.
 #' Numerical quadrature failures share class `RoBMA_glmm_numerical_error`.
 #' AGHQ failures have class `RoBMA_glmm_aghq_nonconvergence`; prior-CDF refinement
 #' failures retain `RoBMA_glmm_grid_nonconvergence`. Their fields identify the
