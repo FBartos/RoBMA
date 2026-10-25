@@ -573,9 +573,15 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     families (errors up to 0.35 log-likelihood units for a gamma log-rate
     prior); the refined grid now stops with an error of class
     `RoBMA_glmm_grid_nonconvergence` when it cannot reach a change of `1e-6`,
-    which can happen for gamma, lognormal, and inverse-gamma log-rate priors
-    and lognormal base-rate priors on cells with few events. A beta base-rate
-    prior or a normal log-rate prior avoids it.
+    which can happen for any prior without an adaptive route (every family
+    other than beta and normal), especially with few events or very large
+    arms, for example gamma, lognormal, and inverse-gamma log-rate priors and
+    lognormal base-rate priors. A uniform(0, 1) base-rate prior is a
+    Beta(1, 1) prior and is integrated adaptively; a beta base-rate prior or a
+    normal log-rate prior avoids the error. When `autocompute.loo` or
+    `autocompute.waic` is on, such a failure warns and the fit is returned
+    without LOO/WAIC instead of being lost; `add_loo()` then gives the same
+    error.
   - nonfinite `weights` are rejected when the data are validated; positive
     fractional weights and the existing missing-value handling are kept.
 - defaults:

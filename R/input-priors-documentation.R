@@ -54,11 +54,14 @@
 #' point priors must lie strictly inside `(0, 1)`. The estimate-unit
 #' log-likelihood of the model (`log_lik()`, LOO, WAIC) integrates the base rate
 #' over any of these priors: point priors and untruncated beta priors
-#' adaptively, other families on a refined prior-CDF grid. The grid is accepted
-#' only when its log-likelihood changes by less than `1e-6` between refinements;
-#' a lognormal base-rate prior can fail to reach this on cells with few events
-#' and then stops with an error of class `RoBMA_glmm_grid_nonconvergence`. A
-#' beta prior avoids it.
+#' adaptively (a uniform(0, 1) prior is a Beta(1, 1) prior), other families on a
+#' refined prior-CDF grid. The grid is accepted only when its log-likelihood
+#' changes by less than `1e-6` between refinements; any family without an
+#' adaptive route (every one other than beta) can fail to reach this, especially
+#' with few events or very large arms, and then stops with an error of class
+#' `RoBMA_glmm_grid_nonconvergence`, as a lognormal base-rate prior does on
+#' cells with few events. A beta prior avoids it. The automatic computation of
+#' LOO/WAIC after fitting warns instead and returns the fit without them.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
 #' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
 #' normal prior centered at the pooled crude log-rate is used independently for
@@ -69,10 +72,13 @@
 #' (`log_lik()`, LOO, WAIC) integrates the log-rate over the prior: point
 #' priors and untruncated normal priors adaptively, other families on a refined
 #' prior-CDF grid. The grid is accepted only when its log-likelihood changes by
-#' less than `1e-6` between refinements; gamma, lognormal, and inverse-gamma
-#' log-rate priors can fail to reach this on cells with few events and then stop
-#' with an error of class `RoBMA_glmm_grid_nonconvergence`. A normal prior avoids
-#' it.
+#' less than `1e-6` between refinements; any family without an adaptive route
+#' (every one other than normal) can fail to reach this, especially with few
+#' events or very large arms, and then stops with an error of class
+#' `RoBMA_glmm_grid_nonconvergence`, as gamma, lognormal, and inverse-gamma
+#' log-rate priors do on cells with few events. A normal prior avoids it. The
+#' automatic computation of LOO/WAIC after fitting warns instead and returns the
+#' fit without them.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.

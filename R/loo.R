@@ -59,13 +59,18 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' Estimate-unit GLMM log-likelihoods integrate the nuisance base rate or
 #' log-rate over its prior: point priors and untruncated beta (base rate) and
 #' normal (log-rate) priors adaptively, other priors on a refined prior-CDF
-#' grid. The grid is accepted only when its log-likelihood changes by less than
-#' \code{1e-6} between refinements. Gamma, lognormal, and inverse-gamma log-rate
-#' priors and lognormal base-rate priors can fail to reach this on cells with
-#' few events and then stop with an error of class
-#' \code{RoBMA_glmm_grid_nonconvergence} (also of class
-#' \code{RoBMA_glmm_numerical_error}). A beta base-rate prior or a normal
-#' log-rate prior avoids it.
+#' grid; a uniform(0, 1) base-rate prior is a Beta(1, 1) prior and is integrated
+#' adaptively. The grid is accepted only when its log-likelihood changes by less
+#' than \code{1e-6} between refinements. Any nuisance prior without an adaptive
+#' route (every family other than beta and normal) can fail to reach this,
+#' especially with few events or very large arms, and then stops with an error of
+#' class \code{RoBMA_glmm_grid_nonconvergence} (also of class
+#' \code{RoBMA_glmm_numerical_error}); gamma, lognormal, and inverse-gamma
+#' log-rate priors and lognormal base-rate priors are examples. A beta base-rate
+#' prior or a normal log-rate prior avoids it. When the likelihood is computed
+#' automatically after fitting (the \code{autocompute.loo} and
+#' \code{autocompute.waic} options), such a failure gives a warning and the fit
+#' is returned without LOO/WAIC; \code{add_loo()} then gives the same error.
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For normal models without selection, weighted or not, this uses
@@ -708,12 +713,17 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' joint target. Earlier affected estimate scores must be recomputed.
 #' Estimate-unit GLMM draws integrate the nuisance base rate or log-rate over
 #' its prior: point priors and untruncated beta (base rate) and normal
-#' (log-rate) priors adaptively, other priors on a refined prior-CDF grid. The
-#' grid is accepted only when its log-likelihood changes by less than `1e-6`
-#' between refinements. Gamma, lognormal, and inverse-gamma log-rate priors and
-#' lognormal base-rate priors can fail to reach this on cells with few events
-#' and then stop with the error class `RoBMA_glmm_grid_nonconvergence` described
-#' below; a beta base-rate prior or a normal log-rate prior avoids it.
+#' (log-rate) priors adaptively, other priors on a refined prior-CDF grid; a
+#' uniform(0, 1) base-rate prior is a Beta(1, 1) prior and is integrated
+#' adaptively. The grid is accepted only when its log-likelihood changes by less
+#' than `1e-6` between refinements. Any nuisance prior without an adaptive route
+#' (every family other than beta and normal) can fail to reach this, especially
+#' with few events or very large arms, and then stops with the error class
+#' `RoBMA_glmm_grid_nonconvergence` described below; gamma, lognormal, and
+#' inverse-gamma log-rate priors and lognormal base-rate priors are examples. A
+#' beta base-rate prior or a normal log-rate prior avoids it. The automatic
+#' computation after fitting (the `autocompute.loo` and `autocompute.waic`
+#' options) warns instead and returns the fit without LOO/WAIC.
 #' Numerical quadrature failures share class `RoBMA_glmm_numerical_error`.
 #' AGHQ failures have class `RoBMA_glmm_aghq_nonconvergence`; prior-CDF refinement
 #' failures retain `RoBMA_glmm_grid_nonconvergence`. Their fields identify the

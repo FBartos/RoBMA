@@ -44,6 +44,14 @@
 .glmm_aghq_prior_spec <- function(prior, outcome_type) {
 
   if (outcome_type == "bin") {
+    # A uniform(0, 1) prior, untruncated or truncated exactly to [0, 1], is
+    # Beta(1, 1): it takes the beta route instead of the prior-CDF grid.
+    if (identical(prior[["distribution"]], "uniform") &&
+        identical(as.numeric(unlist(prior[["parameters"]], use.names = FALSE)), c(0, 1)) &&
+        !(as.numeric(prior[["truncation"]][["lower"]]) > 0) &&
+        !(as.numeric(prior[["truncation"]][["upper"]]) < 1)) {
+      return(c(alpha = 1, beta = 1))
+    }
     if (!identical(prior[["distribution"]], "beta") ||
         !identical(as.numeric(prior[["truncation"]][["lower"]]), 0) ||
         !identical(as.numeric(prior[["truncation"]][["upper"]]), 1)) {

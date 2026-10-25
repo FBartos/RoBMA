@@ -642,3 +642,79 @@ test_that("BMA.glmm declares mean-difference factor defaults", {
   expect_identical(attr(object[["data"]], "set_contrast_factor_predictors"), "meandif")
   expect_s3_class(object[["priors"]][["mods"]][["group"]][[1L]], "prior.meandif")
 })
+
+test_that("a uniform(0, 1) base-rate prior is Beta(1, 1) and takes the beta route", {
+
+  skip_on_cran()
+  stored_prior <- function(prior) brma.glmm(
+    ai = ai, bi = bi, ci = ci, di = di, data = test_data_bin, measure = "OR",
+    prior_baserate = prior, only_priors = TRUE
+  )[["priors"]][["outcome"]][["pi"]]
+  uniform   <- stored_prior(BayesTools::prior("uniform", list(0, 1)))
+  explicit  <- stored_prior(BayesTools::prior("uniform", list(0, 1), truncation = list(0, 1)))
+  beta      <- stored_prior(BayesTools::prior("beta", list(1, 1)))
+  half      <- stored_prior(BayesTools::prior("uniform", list(0, 0.5)))
+
+  expect_identical(.glmm_aghq_prior_spec(uniform, "bin"), c(alpha = 1, beta = 1))
+  expect_identical(.glmm_aghq_prior_spec(explicit, "bin"), c(alpha = 1, beta = 1))
+  expect_identical(.glmm_aghq_prior_spec(beta, "bin"), c(alpha = 1, beta = 1))
+  # a narrower uniform prior is not Beta(1, 1) and keeps the prior-CDF grid
+  expect_null(.glmm_aghq_prior_spec(half, "bin"))
+
+  # Large arms: the prior-CDF grid cannot certify the uniform density at this
+  # cell, whereas the beta route gives the explicit Beta(1, 1) value exactly.
+  value <- function(prior) .outcome_pdf.binom(
+    80L, 220L, 2460L, 2780L, matrix(0.2), matrix(0.4), prior)
+  expect_identical(value(uniform), value(beta))
+  expect_identical(value(explicit), value(beta))
+
+  # The same fitted draws give the same estimate-unit log-likelihood.
+  fit <- suppressWarnings(brma.glmm(
+    ai = c(4L, 6L, 3L, 5L), bi = c(119L, 300L, 228L, 99L),
+    ci = c(11L, 29L, 11L, 12L), di = c(128L, 274L, 209L, 90L),
+    measure = "OR", prior_baserate = BayesTools::prior("uniform", list(0, 1)),
+    prior_unit_information_sd = 1, chains = 2, adapt = 50, burnin = 100,
+    sample = 100, seed = 1, silent = TRUE, parallel = FALSE
+  ))
+  with_beta <- fit
+  with_beta[["priors"]][["outcome"]][["pi"]] <- beta
+  expect_identical(log_lik(fit), log_lik(with_beta))
+})
+
+test_that("the automatic LOO/WAIC of a GLMM with an uncertified likelihood warns and returns the fit", {
+
+  condition <- .glmm_grid_nonconvergence_condition("pois", 1L, c(2e-5, 3e-6), c(4e-7, 5e-8))
+  object <- structure(list(fit = NULL), class = c("brma.glmm", "brma"))
+  previous <- c(loo = RoBMA.get_option("autocompute.loo"),
+                waic = RoBMA.get_option("autocompute.waic"))
+  RoBMA.options(autocompute.loo = TRUE, autocompute.waic = TRUE)
+  on.exit(RoBMA.options(autocompute.loo = previous[["loo"]],
+                        autocompute.waic = previous[["waic"]]), add = TRUE)
+
+  calls <- character()
+  testthat::local_mocked_bindings(
+    add_loo  = function(object, ...) { calls <<- c(calls, "loo"); stop(condition) },
+    add_waic = function(object, ...) { calls <<- c(calls, "waic"); stop(condition) },
+    .package = "RoBMA"
+  )
+  messages <- character()
+  returned <- withCallingHandlers(
+    .autocompute_brma(object),
+    warning = function(w) {
+      messages <<- c(messages, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_identical(returned, object)
+  # one warning with the condition message; WAIC shares the failed log-likelihood
+  expect_identical(messages, paste(conditionMessage(condition),
+                                   "The fit is returned without LOO/WAIC."))
+  expect_identical(calls, "loo")
+
+  # other errors are not swallowed
+  testthat::local_mocked_bindings(
+    add_loo = function(object, ...) stop("Another error."),
+    .package = "RoBMA"
+  )
+  expect_error(.autocompute_brma(object), "Another error.", fixed = TRUE)
+})

@@ -196,11 +196,29 @@ NULL
 
   marglik <- !inherits(object, "RoBMA")
 
-  if (RoBMA.get_option("autocompute.loo")) {
-    object <- add_loo(object)
+  # A GLMM nuisance prior that the quadrature cannot certify
+  # (RoBMA_glmm_numerical_error, including the unavailable-prior condition)
+  # must not lose the sampled fit: the fit is valid, so it is returned with a
+  # warning and add_loo() or add_waic() later gives the same error. LOO and
+  # WAIC share the log-likelihood, so a failure of the first skips the second.
+  skipped <- NULL
+  for (criterion in c("loo", "waic")) {
+    if (!RoBMA.get_option(paste0("autocompute.", criterion)) || !is.null(skipped)) {
+      next
+    }
+    computed <- tryCatch(
+      if (criterion == "loo") add_loo(object) else add_waic(object),
+      RoBMA_glmm_numerical_error = function(condition) condition
+    )
+    if (inherits(computed, "RoBMA_glmm_numerical_error")) {
+      skipped <- computed
+    } else {
+      object <- computed
+    }
   }
-  if (RoBMA.get_option("autocompute.waic")) {
-    object <- add_waic(object)
+  if (!is.null(skipped)) {
+    warning(conditionMessage(skipped), " The fit is returned without LOO/WAIC.",
+            call. = FALSE)
   }
   if (marglik && RoBMA.get_option("autocompute.marglik")) {
     object <- add_marglik(object)
