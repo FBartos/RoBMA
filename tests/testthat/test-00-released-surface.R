@@ -127,8 +127,10 @@ test_that("predict(newdata = TRUE) returns the aggregated prediction", {
   estimate <- predict(mods, newdata = TRUE, type = "estimate", quiet = TRUE)
   expect_identical(colnames(estimate), "theta")
   expect_identical(attr(estimate, "title"), "Aggregated True Effect Posterior Prediction:")
-  expect_equal(unname(colMeans(unclass(estimate))), unname(colMeans(unclass(terms))),
-               tolerance = 1)
+  # a new true effect is the location plus tau * z, so the paired draws differ by a
+  # zero-mean term: the means agree within four Monte Carlo standard errors
+  difference <- unclass(estimate)[, "theta"] - unclass(terms)[, "mu"]
+  expect_lt(abs(mean(difference)), 4 * stats::sd(difference) / sqrt(length(difference)))
   expect_gt(sd(estimate[, "theta"]), sd(terms[, "mu"]))
   set.seed(1)
   expect_equal(predict(mods, newdata = TRUE, type = "blup", quiet = TRUE), estimate)
@@ -181,6 +183,28 @@ test_that("marginal_means() accepts normal_approximation at its released positio
   bf <- function(x) vapply(x[["inference"]][["inference"]], function(row) as.numeric(row[[1]]), numeric(1))
   expect_true(all(is.finite(bf(normal))))
   expect_false(isTRUE(all.equal(bf(kde), bf(normal))))
+
+  # independent oracle of the normal approximation: the prior density of the
+  # marginal mean at the null (a sum of independent normal priors) over the normal
+  # density of its posterior draws, which have a closed form
+  draws     <- as.matrix(posterior::as_draws_matrix(mods))
+  intercept <- as.numeric(draws[, "mu_intercept"])
+  slope     <- as.numeric(draws[, "mu_x"])
+  prior_sd  <- c(
+    mods[["priors"]][["mods"]][["intercept"]][["parameters"]][["sd"]],
+    mods[["priors"]][["mods"]][["x"]][["parameters"]][["sd"]]
+  )
+  inference <- normal[["inference"]][["inference"]]
+  cells     <- c(`-1SD` = -1, `0SD` = 0, `1SD` = 1)
+  for (level in names(cells)) {
+    marginal <- intercept + cells[[level]] * slope
+    oracle   <- stats::dnorm(0, 0, sqrt(prior_sd[[1L]]^2 + (cells[[level]] * prior_sd[[2L]])^2)) /
+      stats::dnorm(0, mean(marginal), stats::sd(marginal))
+    expect_equal(as.numeric(inference[["mu_x"]][[level]]), oracle,
+                 tolerance = 1e-8, info = level)
+  }
+  expect_equal(as.numeric(inference[["mu_intercept"]][[1L]]),
+               as.numeric(inference[["mu_x"]][["0SD"]]), tolerance = 1e-12)
   expect_error(
     marginal_means(mods, normal_approximation = NA),
     "normal_approximation"
