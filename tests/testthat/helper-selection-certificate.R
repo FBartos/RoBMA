@@ -776,10 +776,13 @@
   order_change <- abs(expm1(fine[["refined_4"]] - prior[["refined_4"]]))
   tail <- .test_cert_tail_bound(block, finest, fine[["refined_4"]])
   checks <- shift_change <= tolerance / 2 && tail <= tolerance && order_change <= tolerance / 2
+  # The preceding rung enters the order check, so it must pass the sharpness
+  # gate of an ordinary ladder rung.
   list(
     value = fine[["refined_4"]], shift_change = shift_change, order_change = order_change,
     tail = tail, resolves = fine[["resolves_tier"]], checks = checks,
-    accepted = fine[["resolves_tier"]] && checks
+    previous_resolves = prior[["resolves_ladder"]],
+    accepted = fine[["resolves_tier"]] && prior[["resolves_ladder"]] && checks
   )
 }
 

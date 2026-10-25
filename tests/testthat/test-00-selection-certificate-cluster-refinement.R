@@ -102,3 +102,27 @@ test_that("a cluster whose two-shift check fails keeps its randomized diagnostic
   expect_lt(.test_cert_relative_error(actual[["log_normalizer"]],
     .test_cert_reference_parallel(block)), 3 * actual[["relative_mcse"]])
 })
+
+test_that("a cluster whose preceding rung does not resolve its edge keeps the randomized fallback", {
+
+  # The finest rung resolves the edge and both refinement checks pass, but the
+  # 511-node preceding rung has a node gap above the edge-width allowance of an
+  # ordinary ladder rung, so its four-shift average is not trusted.
+  block <- .test_cert_block(list(.test_cert_parallel_group(2L, 1, .02, -.6)), c(1, 0))
+  expect_null(.test_cert_emulate_ladder(block,
+    orders = SELNORM_CLUSTER_QUADRATURE_ORDERS, changes = 1L))
+  expect_true(.test_cert_resolves(block, 1023L, .test_cert_tier_width_scale(block)))
+  expect_false(.test_cert_resolves(block, 511L, .test_cert_width_scale_ladder))
+  refined <- .test_cert_cluster_refinement(block)
+  expect_lte(max(refined[["shift_change"]], refined[["order_change"]]), .005 / 2)
+  actual <- .test_cert_native_cluster(block, points = 4096L)
+  expect_false(.test_cert_deterministic(actual))
+  expect_gt(actual[["relative_mcse"]], 0)
+  expect_lt(.test_cert_relative_error(actual[["log_normalizer"]],
+    .test_cert_reference_parallel(block)), .005)
+
+  # A somewhat wider edge is resolved by both rungs and refines.
+  wide <- .test_cert_block(list(.test_cert_parallel_group(2L, 1, .026, -.6)), c(1, 0))
+  expect_true(.test_cert_resolves(wide, 511L, .test_cert_width_scale_ladder))
+  expect_true(.test_cert_deterministic(.test_cert_native_cluster(wide)))
+})

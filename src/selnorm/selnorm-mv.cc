@@ -4738,7 +4738,9 @@ bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
 // axis) keeps only the aliasing harmonics that are multiples of M. The average
 // for M = 4 is accepted when it agrees with the average for M = 2 and with the
 // M = 4 average of the previous affordable rung, each within half the
-// tolerance, and the finest rung passes the tail gate for it. The shift of an
+// tolerance, and the finest rung passes the tail gate for it. The previous
+// rung must also pass the ladder's sharpness gate, so that a coarse comparison
+// rung which cannot resolve the edges does not vouch for the average. The shift of an
 // axis is a fraction m / M of the node gap at the rung's own tilted mean. Every
 // evaluation is a rule of an order the node budget affords. Only for a
 // relative tolerance of at least `selnorm_certificate_tier_min_tolerance`.
@@ -4761,10 +4763,16 @@ bool factor_refinement_certified(
   std::vector<double> axis_scales;
   selnorm_certificate_tier_width_scale(context.omega, context.selection,
     context.loading, context.dimension, context.rank, &axis_scales);
-  if (!cpp_selnorm_step_rule_resolves_transitions(
-        nodes, offset, order, context.mean, context.residual_sd, context.loading,
-        context.dimension, context.rank, context.selection_se, context.omega,
-        context.selection, 1, 1.0, axis_scales.data())) {
+  const auto resolves = [&](int rung_offset, int rung_order, double scale,
+                            const double *axis_width_scales) {
+    return cpp_selnorm_step_rule_resolves_transitions(
+      nodes, rung_offset, rung_order, context.mean, context.residual_sd,
+      context.loading, context.dimension, context.rank, context.selection_se,
+      context.omega, context.selection, 1, scale, axis_width_scales);
+  };
+  if (!resolves(offset, order, 1.0, axis_scales.data()) ||
+      !resolves(previous_offset, previous_order,
+                selnorm_certificate_width_scale_ladder, nullptr)) {
     return false;
   }
   const auto refined = [&](int rung_offset, int rung_order, double *average_2,
@@ -4842,12 +4850,20 @@ bool cluster_refinement_certified(
   if (!(relative_tolerance >= selnorm_certificate_tier_min_tolerance) ||
       order < 2 || previous_order < 2 ||
       !selnorm_factor_rule_affordable(order, 1) ||
-      !selnorm_factor_rule_affordable(previous_order, 1) ||
-      !cpp_selnorm_step_rule_resolves_transitions(
-        nodes, offset, order, context.mean, context.residual_sd, context.loading,
-        context.dimension, 1, context.selection_se, context.omega,
-        context.selection, 1, selnorm_certificate_tier_width_scale(
-          context.omega, context.selection, context.loading, context.dimension, 1))) {
+      !selnorm_factor_rule_affordable(previous_order, 1)) {
+    return false;
+  }
+  const double width_scale = selnorm_certificate_tier_width_scale(
+    context.omega, context.selection, context.loading, context.dimension, 1);
+  const auto resolves = [&](int rung_offset, int rung_order, double scale) {
+    return cpp_selnorm_step_rule_resolves_transitions(
+      nodes, rung_offset, rung_order, context.mean, context.residual_sd,
+      context.loading, context.dimension, 1, context.selection_se, context.omega,
+      context.selection, 1, scale);
+  };
+  if (!resolves(offset, order, width_scale) ||
+      !resolves(previous_offset, previous_order,
+                selnorm_certificate_width_scale_ladder)) {
     return false;
   }
   const auto refined = [&](int rung_offset, int rung_order, double *average_2,

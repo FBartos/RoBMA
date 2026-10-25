@@ -22,9 +22,11 @@
   before randomized integration. The refinement gate applies the coincident-row
   penalty separately to each latent axis, allowing smaller branches of a
   factor forest to refine without the penalty of its largest branch. The
-  existing change, tail and sharpness checks remain in place, and refinement
-  still requires `relative_tolerance >= 0.005`; tighter tolerances retain the
-  existing fallback because shift agreement can miss integration error.
+  existing change, tail and sharpness checks remain in place, the preceding
+  rung used for the order check must pass the sharpness gate of an ordinary
+  rung, and refinement still requires `relative_tolerance >= 0.005`; tighter
+  tolerances retain the existing fallback because shift agreement can miss
+  integration error.
 - Selection normalizers of dependent blocks under product weights (the factor
   and cluster kernels, in fitting and post-fit calculations) accept a
   deterministic quadrature rule only when shifting its nodes shows an aliasing

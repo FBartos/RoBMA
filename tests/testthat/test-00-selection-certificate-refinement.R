@@ -335,3 +335,33 @@ test_that("the tier is not consulted below the calibrated tolerance", {
     }
   }
 })
+
+test_that("a product block whose preceding rung does not resolve its edges keeps the randomized fallback", {
+
+  # Two single-axis groups. The 95-node rung resolves both edges and the shift,
+  # order and tail checks of the tier pass, but the 63-node preceding rung has a
+  # node gap above the edge-width allowance of an ordinary ladder rung, so its
+  # average is not trusted for the order check.
+  block <- .test_cert_block(list(
+    list(count = 1L, loading = c(1, 0), sd = .057, mean = -1.05, sei = 1),
+    list(count = 2L, loading = c(0, 1), sd = .068, mean = -.04, sei = 1)), c(1, 0))
+  tier <- .test_cert_tier(block)
+  expect_true(tier[["resolves"]])
+  expect_true(tier[["checks"]])
+  expect_false(tier[["previous_resolves"]])
+  expect_false(tier[["accepted"]])
+  expect_true(is.na(.test_cert_probe_ladder(block)))
+  actual <- .test_cert_native_factor(block)
+  expect_false(.test_cert_deterministic(actual))
+  expect_gt(actual[["relative_mcse"]], 0)
+  expect_lt(.test_cert_relative_error(actual[["log_normalizer"]],
+    .test_cert_reference_parallel(block)), .005)
+
+  # Wider edges are resolved by both rungs and refine.
+  wide <- .test_cert_block(list(
+    list(count = 1L, loading = c(1, 0), sd = .114, mean = -1.05, sei = 1),
+    list(count = 2L, loading = c(0, 1), sd = .136, mean = -.04, sei = 1)), c(1, 0))
+  tier <- .test_cert_tier(wide)
+  expect_true(tier[["accepted"]])
+  expect_true(.test_cert_deterministic(.test_cert_native_factor(wide)))
+})

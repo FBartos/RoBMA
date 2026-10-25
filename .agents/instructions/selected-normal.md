@@ -240,7 +240,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   aliasing harmonics that are multiples of 4 (leaves are averaged
   independently per leaf at each root shift, then multiplied). It is accepted
   when this average agrees within `tol/2` with the average over `(m/2) h` and
-  with the same average at the previous affordable rung, and the tail gate holds
+  with the same average at the previous affordable rung, which must itself pass
+  the ladder's edge-width gate (a coarser comparison rung that cannot resolve
+  the edges is not trusted to average out aliasing), and the tail gate holds
   for it; the result has relative change the larger check and relative MCSE 0.
   Every evaluation passes the node budget. The tier runs only when `tol` is at
   least 0.005: its gate and its checks were calibrated at the default, and the
