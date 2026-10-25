@@ -250,10 +250,12 @@
 #' @return A \code{brma_samples} object containing posterior samples. For
 #' \code{brma.mv()} random-formula \code{type = "terms.scale"} predictions,
 #' returns a named list of component-specific \code{brma_samples} objects; with
-#' \code{newdata = TRUE} this list is the \code{component = "all"} result of
-#' \code{\link{pooled_heterogeneity}}; its components are titled
-#' \dQuote{Pooled Heterogeneity (<block>)} and \dQuote{Total Pooled
-#' Heterogeneity}.
+#' \code{newdata = TRUE} this component result is the \code{component = "all"}
+#' result of \code{\link{pooled_heterogeneity}} (a named list for several
+#' components, one \code{brma_samples} object for a single component), computed
+#' with the arithmetic mean of the observation-specific tau of a scale formula;
+#' its components are titled \dQuote{Pooled Heterogeneity (<block>)} and
+#' \dQuote{Total Pooled Heterogeneity}.
 #' When printed, each \code{brma_samples} object displays a summary table via
 #' \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
 #' can be accessed directly because the object inherits from matrix. For a

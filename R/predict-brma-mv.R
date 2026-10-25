@@ -564,8 +564,10 @@
       )
       values <- source_samples[[source_name]]
       if (pooled) {
+        # The arithmetic mean of the row SDs, as pooled_heterogeneity() of the
+        # univariate models (maintainer decision of 2026-10-25).
         values <- matrix(
-          exp(rowMeans(log(values))),
+          rowMeans(values),
           nrow = nrow(values),
           ncol = 1L
         )

@@ -1494,8 +1494,11 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   prediction grid, derive the matching standard error or variance, and use
   pointwise precision in the sampling intervals.
 - `pooled_heterogeneity()` of `brma.mv()` random-formula models is evaluated
-  at the average expanded random design (scale-formula models keep the
-  arithmetic mean of the observation-specific tau of 4.0.0);
+  at the average expanded random design, and every scale formula, including
+  one that supplies the random-block SD, enters as the arithmetic mean of the
+  observation-specific tau of 4.0.0 (not the geometric mean);
+  `predict(newdata = TRUE, type = "terms.scale")` returns the same component
+  result and `pooled_effect()` intervals use it;
   `summary_heterogeneity()` keeps the within-draw RMS over the observed design.
 - cluster-level selection-model likelihood integrals are certified by
   successive 7-, 15-, and 31-node quadrature rules and fail explicitly when

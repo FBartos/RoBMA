@@ -517,7 +517,12 @@ pooled_heterogeneity <- function(object, ...) {
 #' reported \code{sd} is the fitted multiplier of that kernel. It need not equal
 #' every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
 #' one. Row-specific marginal standard deviations are available from
-#' \code{predict(type = "terms.scale")}.
+#' \code{predict(type = "terms.scale")}. A scale formula of a random-formula model
+#' enters the average random-effect design as the arithmetic mean of the
+#' observation-specific tau, as for the univariate models.
+#' \code{predict(object, newdata = TRUE, type = "terms.scale")} returns the same
+#' component result: a named list for several components and one
+#' \code{brma_samples} object for a single component.
 #'
 #' For \code{brma.mv()} models and models with factor-specific or random-slope
 #' terms, the average expanded random-effect design can be synthetic and need

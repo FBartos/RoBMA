@@ -164,6 +164,26 @@ test_that("prior-only known-V row SD sources read the sampled scale coefficients
     )
   }
 
+  # The pooled SD averages the scale source over the rows arithmetically,
+  # mean(tau_i), as for the univariate models (maintainer decision of
+  # 2026-10-25). The standardized predictor has mean 0, so a geometric mean would
+  # return the intercept, which tau_i = intercept * exp(b x_std) exceeds.
+  pooled <- pooled_heterogeneity(object, .posterior_samples = draws)
+  expect_equal(as.vector(unclass(pooled)), unname(rowMeans(tau)), tolerance = 1e-12)
+  expect_gt(min(as.vector(unclass(pooled)) - draws[, "log_tau_intercept"]), 1e-3)
+  # one random block: the component result of predict() is the pooled one
+  predicted <- predict(object, newdata = TRUE, type = "terms.scale",
+                       .posterior_samples = draws)
+  expect_equal(as.vector(unclass(predicted)), as.vector(unclass(pooled)), tolerance = 1e-12)
+  # the prediction interval of the pooled effect uses it: identical draws with
+  # tau_i = .5 exp(x_std) have arithmetic mean 0.7076 (geometric mean 0.5)
+  large <- cbind(mu_intercept = rep(0, 20000L), log_tau_intercept = 0.5, log_tau_x = 1)
+  expect_equal(mean(.5 * exp(x_std)), 0.7075951, tolerance = 1e-6)
+  set.seed(20261025)
+  interval <- as.data.frame(summary(pooled_effect(object, .posterior_samples = large)))
+  expect_equal(interval[["PI_0.975"]], stats::qnorm(.975) * 0.7075951, tolerance = .02)
+  expect_equal(interval[["PI_0.025"]], -stats::qnorm(.975) * 0.7075951, tolerance = .02)
+
   # Factor coefficients are read as their coordinates.
   factor_object <- brma.mv(
     yi                        = yi,
@@ -257,15 +277,18 @@ test_that("fitted known-V row SD sources read the coordinates of factor scale te
       tolerance = 1e-12
     )
   }
-  # The pooled tau of a random-design brma.mv() evaluates the average scale
-  # design: exp(mean(log(tau))). The arithmetic mean of 4.0.0 applies to the
-  # scale formulas of the univariate models and of brma.mv() fits without a
-  # random formula.
+  # The pooled tau averages the scale sources arithmetically, mean(tau_i), as
+  # for the univariate models (maintainer decision of 2026-10-25); it is not
+  # exp(mean(log(tau_i))). The composite random-design averaging is separate.
   pooled <- pooled_heterogeneity(fit, .posterior_samples = draws)
   expect_equal(
     unname(as.matrix(pooled))[, 1L],
-    exp(rowMeans(log_tau)),
+    rowMeans(exp(log_tau)),
     tolerance = 1e-12
+  )
+  expect_gt(
+    min(unname(as.matrix(pooled))[, 1L] - exp(rowMeans(log_tau))),
+    1e-6
   )
 })
 

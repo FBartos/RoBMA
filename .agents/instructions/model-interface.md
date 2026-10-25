@@ -308,7 +308,9 @@ prior point masses keep their existing classification.
 - `pooled_effect()` is the population average of the study means; for a linear
   location it equals the value at the average design.
 - `pooled_heterogeneity()` is the arithmetic mean of the observation-specific
-  `tau_i` over the fitted rows, as at 4.0.0.
+  `tau_i` over the fitted rows, as at 4.0.0. One arithmetic rule holds
+  everywhere: the scale sources of `brma.mv()` random-formula fits are averaged
+  as `mean(tau_i)` too, never as `exp(mean(log(tau_i)))` or a root mean square.
 - The prediction intervals of `pooled_effect()` plug in
   `pooled_heterogeneity(component = "total")`. They are not a mixture over
   studies and not based on the root mean square: composite designs, such as
@@ -319,10 +321,14 @@ prior point masses keep their existing classification.
   `summary_heterogeneity()` report the parameters, as the root mean square over
   the observed design, which the funnel plots also use (`plotting.md`). The
   pooled functions need not match them.
-- The `brma.mv()` random-design aggregation keeps its own definition: the
-  pooled tau of a random-formula fit evaluates the average expanded random
-  design, and its scale terms use `exp(mean(log(tau)))`.
+- The composite random-design average of `brma.mv()` stays: the pooled tau of
+  a random-formula fit evaluates the average expanded random design (random
+  slopes as `q' G q`), with the scale sources entering it arithmetically.
+  `predict(newdata = TRUE, type = "terms.scale")` returns the same component
+  result as `pooled_heterogeneity(component = "all")`.
 - History: 4.0.0 used the arithmetic mean; `5268ea2b` (2026-07-10) changed it to
   the root mean square; `e5d3e63f` (2026-08-11) evaluated tau at the average
   design; the release-surface review finding R13-02 (2026-10-25) returned it to
-  the arithmetic mean.
+  the arithmetic mean, except that the `brma.mv()` random-formula scale sources
+  were averaged geometrically; the maintainer decision of 2026-10-25 (final
+  review 22, F22-R-02) makes them arithmetic as well.
