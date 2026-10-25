@@ -6618,14 +6618,17 @@ double cpp_selnorm_factor_step_lpdf(
             event_proposal.evaluate(latent.data(), &target,
               &point_log_event[component_offset + point]);
             const double density = point_log_event[component_offset + point];
-            // NaN and +Inf are never valid log values. A point whose target and
-            // proposal density are both exactly zero contributes nothing (it is
-            // skipped below). Zero on one side only cannot be weighted, so it is
-            // rejected with the other invalid values.
+            // NaN and +Inf are never valid log values. A point with zero target
+            // contributes nothing, whatever its event density (it is skipped
+            // below; a zero-weight bin that a row cannot leave makes the target
+            // zero everywhere, and the non-finite normalizer then returns -Inf).
+            // A zero event density at a point with positive target cannot be
+            // weighted by this proposal and is rejected with the other invalid
+            // values; finite log-scale event probabilities do not produce it.
             const double positive_infinity = -negative_infinity;
             if (std::isnan(target) || target == positive_infinity ||
                 std::isnan(density) || density == positive_infinity ||
-                (target == negative_infinity) != (density == negative_infinity)) {
+                (density == negative_infinity && target != negative_infinity)) {
               return event_unavailable();
             }
           } else {
