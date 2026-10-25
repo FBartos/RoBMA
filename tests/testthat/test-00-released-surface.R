@@ -607,3 +607,43 @@ test_that("a stored LOO or WAIC of another unit names the released remedy", {
     fixed = TRUE
   )
 })
+
+test_that("the default draws of random-formula brma.mv() fits are the parameters shown by summary()", {
+
+  skip_on_cran()
+  dat <- data.frame(
+    yi    = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05, 0.11, 0.16),
+    study = factor(rep(c("s1", "s2", "s3", "s4"), each = 2L)),
+    obs   = factor(seq_len(8L))
+  )
+  V <- matrix(0, nrow = 8L, ncol = 8L)
+  for (g in 1:4) {
+    index <- ((g - 1L) * 2L + 1L):(g * 2L)
+    V[index, index] <- matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L)
+  }
+  fit <- function(random) suppressWarnings(brma.mv(
+    yi = yi, V = V, random = random, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, chains = 2, adapt = 50, burnin = 100,
+    sample = 100, seed = 1, silent = TRUE, parallel = FALSE
+  ))
+
+  # one random block: the SD is shown, its variance is a hidden intermediate
+  one <- fit(~ 1 | obs)
+  expect_identical(rownames(summary(one, include_mcmc_diagnostics = FALSE)[["estimates_random"]]), "tau")
+  expect_identical(colnames(as_draws_matrix(one)), c("mu_intercept", "tau"))
+  expect_identical(
+    setdiff(colnames(as_draws_matrix(one, include_auxiliary = TRUE)), colnames(as_draws_matrix(one))),
+    "tau2"
+  )
+
+  # two random blocks: the total SD and the variance proportions are shown; the
+  # component SDs, component variances, and the total variance are intermediates
+  two   <- fit(list(study = ~ 1 | study, observation = ~ 1 | obs))
+  shown <- rownames(summary(two, include_mcmc_diagnostics = FALSE)[["estimates_random"]])
+  expect_identical(shown, c("tau_total", "tau2_prop(study)", "tau2_prop(observation)"))
+  expect_identical(colnames(as_draws_matrix(two)), c("mu_intercept", shown))
+  expect_setequal(
+    setdiff(colnames(as_draws_matrix(two, include_auxiliary = TRUE)), colnames(as_draws_matrix(two))),
+    c("study: tau", "study: tau2", "tau2_total", "observation: tau", "observation: tau2")
+  )
+})

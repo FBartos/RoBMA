@@ -89,8 +89,10 @@ behind the reported inclusion probabilities. The hidden intermediate
 parameters are added by \code{include_auxiliary = TRUE}: the latent
 cluster and estimate effects (\code{gamma[k]} and the GLMM \code{theta[i]}),
 the selection-model latent variables (\code{eta}), the GLMM nuisance base
-rates and rates (\code{pi[i]} and \code{phi[i]}), and the other backend
-variables listed below.
+rates and rates (\code{pi[i]} and \code{phi[i]}), the random-effect
+variances, component SDs derived from a variance allocation, and total
+variance of formula-random models (for example \code{tau2} or
+\code{tau2_total}), and the other backend variables listed below.
 
 These functions are S3 generics. Their default methods forward to the
 corresponding \pkg{posterior} generics so attaching \pkg{RoBMA} preserves

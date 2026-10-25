@@ -43,8 +43,10 @@
 #' parameters are added by \code{include_auxiliary = TRUE}: the latent
 #' cluster and estimate effects (\code{gamma[k]} and the GLMM \code{theta[i]}),
 #' the selection-model latent variables (\code{eta}), the GLMM nuisance base
-#' rates and rates (\code{pi[i]} and \code{phi[i]}), and the other backend
-#' variables listed below.
+#' rates and rates (\code{pi[i]} and \code{phi[i]}), the random-effect
+#' variances, component SDs derived from a variance allocation, and total
+#' variance of formula-random models (for example \code{tau2} or
+#' \code{tau2_total}), and the other backend variables listed below.
 #'
 #' These functions are S3 generics. Their default methods forward to the
 #' corresponding \pkg{posterior} generics so attaching \pkg{RoBMA} preserves
@@ -168,7 +170,7 @@ NULL
     mcmc_list <- .brma_filter_auxiliary_variables(x, mcmc_list)
   }
   if (.is_random(x)) {
-    mcmc_list <- .brma_replace_random_coordinates(x, mcmc_list)
+    mcmc_list <- .brma_replace_random_coordinates(x, mcmc_list, include_auxiliary)
   }
   return(.brma_replace_ordered_coordinates(x, mcmc_list, include_auxiliary))
 }
@@ -298,8 +300,28 @@ NULL
 }
 
 
+# The semantic random-effect quantities that the default print() and summary()
+# show: correlations, inclusion probabilities, the SDs of the random blocks
+# (not those derived from an allocation of a total), and the SD totals and
+# variance allocations. The rule is the one of BayesTools' standard random-effect
+# summary; the remaining quantities (variances, derived component SDs, the
+# variance total) are auxiliary.
+.brma_random_standard_quantities <- function(specs) {
+
+  allocation_derived <- vapply(specs[["allocation_derived"]], isTRUE, logical(1))
+  quantity           <- specs[["quantity"]]
+  owner              <- specs[["owner_type"]]
+
+  return(
+    quantity %in% c("cor", "inclusion") |
+      (owner == "random_block" & quantity == "sd" & !allocation_derived) |
+      (owner == "variance_allocation" &
+         quantity %in% c("sd_total", "sd_common", "var_prop", "var_mult"))
+  )
+}
+
 # Replace fitted formula-random coordinates by RoBMA semantic quantities.
-.brma_replace_random_coordinates <- function(x, mcmc_list) {
+.brma_replace_random_coordinates <- function(x, mcmc_list, include_auxiliary = TRUE) {
 
   coordinates <- BayesTools::parameter_coordinates(x[["fit"]])
   random_coordinates <- coordinates[
@@ -310,6 +332,11 @@ NULL
   bundle          <- .brma_random_parameter_bundle(x, chains = TRUE)
   semantic_chains <- bundle[["samples"]]
   semantic_names  <- bundle[["specs"]][["label"]]
+  semantic_keep   <- if (include_auxiliary) {
+    rep(TRUE, length(semantic_names))
+  } else {
+    .brma_random_standard_quantities(bundle[["specs"]])
+  }
   # Heterogeneity-component inclusion gates live on private coordinates that
   # JAGS_materialize_draws() hides. Re-expose them beside the SD they switch on.
   gate_chains     <- .brma_random_inclusion_indicator_chains(x)
@@ -335,6 +362,7 @@ NULL
     ]
     semantic_values <- as.matrix(semantic_chain)
     colnames(semantic_values) <- semantic_names
+    semantic_values <- semantic_values[, semantic_keep, drop = FALSE]
     if (length(gate_chains) > 0L) {
       gate_values <- gate_chains[[chain_i]]
       if (nrow(gate_values) != nrow(semantic_values)) {
