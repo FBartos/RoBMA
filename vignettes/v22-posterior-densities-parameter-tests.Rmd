@@ -122,13 +122,14 @@ fit_meta_reg <- brma(
 vignette_cache_save(cached_fits)
 ```
 
-Bayesian meta-analysis produces posterior distributions for the average effect, the between-study heterogeneity, and any meta-regression coefficients, and Bayes factors quantify evidence for or against specific values of these parameters.
+Bayesian meta-analysis produces posterior distributions for the average effect, the between-study heterogeneity, and any meta-regression coefficients.
+Evidence for or against specific values of these parameters can be quantified via Bayes factors.
 
 The posterior distributions are usually summarized via posterior means and credible intervals, and visualized via (prior and) posterior density plots, usually obtained via kernel density estimation (KDE).
 The KDE visualization can be, however, quite "bumpy" even with a sizable number of posterior samples.
 In the first part of this vignette we describe the likelihood-aware q-grid conditional marginal density estimator (qCMDE) and importance-weighted marginal density estimator (IWMDE) implemented in the `RoBMA` R package [@RoBMA].
 
-In the second part of the vignette, we illustrate how to compute Bayes factors based on posterior distributions in the `RoBMA` R package, using qCMDE or IWMDE when testing a point null hypothesis.
+In the second part of the vignette, we illustrate how to compute Bayes factors based on posterior distributions in the `RoBMA` R package, using qCMDE or IWMDE when testing different hypotheses.
 This posterior samples route allows us to re-use a single model fit with a Savage--Dickey density ratio [@dickey1971weighted; @wagenmakers2010bayesian] to compute Bayes factors for compatible point-null hypotheses and encompassing-prior odds [@klugkist2005bayesian] for inequality and region hypotheses.
 It adds to the existing bridge sampling route [@gronau2017tutorial] which compares marginal likelihoods of separately fitted constrained and unconstrained models (see "Comparing Models with Bayes Factors" in [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html)),
 and the product-space route [@lodewyckx2011tutorial] which fits multiple models simultaneously in a single MCMC run and estimates the Bayes factor from the posterior inclusion probabilities (see [*Bayesian Model Averaging*](v20-bayesian-model-averaging.html)).
@@ -177,6 +178,7 @@ qCMDE and IWMDE are model-aware alternatives.
 They reuse the fitted likelihood and prior together with posterior nuisance-parameter draws to estimate a focal posterior density.
 The construction builds on conditional marginal density estimation and the importance-weighted marginal density estimator of @chen1994importance; it is closely related to Rao--Blackwellized marginal density estimation [@gelfand1992bayesian].
 
+<!--
 ### What the estimators compute
 
 Let $\theta$ denote the scalar focal parameter, $\xi$ all nuisance quantities, and $q(\theta,\xi)$ the unnormalized joint posterior kernel.
@@ -325,7 +327,8 @@ plot(fit_simple, parameter = "tau", prior = TRUE, density_method = "qCMDE", dens
 ```
 
 The qCMDE curves are visibly smoother on both panels, but otherwise track the KDE summary in shape and location.
-
+ -->
+ 
 ## Testing the Mean Effect
 
 Bayes factors compare two models by their prior predictive performance, usually through the ratio of marginal likelihoods [@kass1995bayes].
