@@ -515,3 +515,30 @@ test_that("as_draws methods preserve product-space BMA and RoBMA indicators", {
     }
   }
 })
+
+test_that("a scale formula that supplies every random-block SD still has draws", {
+
+  # The semantic random-effect chain has no column here: the SD of the random
+  # block is exp(log_tau_intercept + log_tau_x * x), which the location/scale
+  # coordinates already carry.
+  skip_if_missing_fits("plot_prior_random_scale")
+  fit_scale <- load_fit("plot_prior_random_scale")
+  raw <- as.matrix(fit_scale[["fit"]][["mcmc"]][[1L]])
+  coordinates <- c("mu_intercept", "log_tau_intercept", "log_tau_x")
+  semantic <- RoBMA:::.brma_random_parameter_bundle(fit_scale, chains = TRUE)[["samples"]][[1L]]
+  expect_identical(ncol(semantic), 0L)
+
+  for (auxiliary in c(FALSE, TRUE)) {
+    info <- paste("include_auxiliary =", auxiliary)
+    draws <- RoBMA::as_draws_matrix(fit_scale, include_auxiliary = auxiliary)
+    expect_s3_class(draws, "draws_matrix")
+    expect_identical(posterior::variables(draws), coordinates, info = info)
+    expect_equal(posterior::nchains(draws), length(fit_scale[["fit"]][["mcmc"]]), info = info)
+    expect_equal(posterior::niterations(draws), nrow(raw), info = info)
+    expect_equal(as.vector(unclass(draws)), as.vector(raw[, coordinates]), tolerance = 0, info = info)
+    expect_s3_class(RoBMA::as_draws_df(fit_scale, include_auxiliary = auxiliary), "draws_df")
+    expect_s3_class(RoBMA::as_draws_array(fit_scale, include_auxiliary = auxiliary), "draws_array")
+    expect_s3_class(RoBMA::as_draws_list(fit_scale, include_auxiliary = auxiliary), "draws_list")
+    expect_s3_class(RoBMA::as_draws_rvars(fit_scale, include_auxiliary = auxiliary), "draws_rvars")
+  }
+})

@@ -360,7 +360,13 @@ NULL
       , !colnames(coordinate_values) %in% random_coordinates,
       drop = FALSE
     ]
-    semantic_values <- as.matrix(semantic_chain)
+    # A scale formula can supply every random-block SD, which leaves no semantic
+    # quantity: coda cannot coerce a chain without columns to a matrix.
+    semantic_values <- if (ncol(semantic_chain) == 0L) {
+      matrix(numeric(), nrow = nrow(semantic_chain), ncol = 0L)
+    } else {
+      as.matrix(semantic_chain)
+    }
     colnames(semantic_values) <- semantic_names
     semantic_values <- semantic_values[, semantic_keep, drop = FALSE]
     if (length(gate_chains) > 0L) {
