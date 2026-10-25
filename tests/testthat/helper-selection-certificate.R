@@ -631,17 +631,23 @@
   omega <- block[["omega"]]
   cuts <- which(is.finite(block[["z_lower"]]) & c(utils::head(omega, -1L) != omega[-1L], FALSE))
   if (!length(cuts)) return(TRUE)
+  # as the native rule: fewer than two nodes resolve nothing
+  if (order < 2L) return(FALSE)
   nodes <- .gauss_hermite_nodes(order)[["nodes"]]
   loaded <- block[["loading"]] != 0
   scales <- .test_cert_tier_width_scales(block)
-  central_gap <- max(diff(nodes)[utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3])
+  central_gaps <- diff(nodes)[utils::head(nodes, -1L) <= 3 & utils::tail(nodes, -1L) >= -3]
+  # no central gap (all nodes beyond +-3) is a gap of zero, which the native
+  # rule rejects for any coupled row
+  central_gap <- if (length(central_gaps)) max(central_gaps) else 0
   for (axis in seq_len(block[["rank"]])) {
     rows <- which(loaded[, axis])
     coupled <- any(rowSums(loaded[rows, , drop = FALSE]) >= 2L)
     for (row in rows) {
       coefficient <- block[["loading"]][row, axis]
       if (coupled) {
-        if (central_gap * abs(coefficient) > scales[axis] * block[["sd"]][row]) return(FALSE)
+        if (!(central_gap > 0) ||
+            central_gap * abs(coefficient) > scales[axis] * block[["sd"]][row]) return(FALSE)
         next
       }
       for (cut in cuts) {

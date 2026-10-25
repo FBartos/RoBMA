@@ -61,3 +61,20 @@ test_that("a forest with unequal leaf counts can return its accurate refined val
   expect_equal(as.numeric(actual[["log_normalizer"]]), tier[["value"]], tolerance = 1e-13)
   expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference), .005)
 })
+
+test_that("the tier mirror rejects a rule without node gaps like the native gate", {
+
+  # A single node resolves no transition and has no central gap; the native rule
+  # returns false for order < 2 whenever the weights change, and accepts a block
+  # without transitions whatever the rule.
+  for (loading in list(c(1, 1), c(1, 0))) {
+    info <- paste("loading", paste(loading, collapse = ","))
+    block <- .test_cert_block(list(
+      list(count = 5L, loading = loading, sd = 1, mean = 0, sei = 1)), c(1, .1))
+    expect_false(.test_cert_tier_resolves(block, 1L), info = info)
+    expect_true(.test_cert_tier_resolves(block, 3L), info = info)
+    constant <- .test_cert_block(list(
+      list(count = 5L, loading = loading, sd = 1, mean = 0, sei = 1)), c(1, 1))
+    expect_true(.test_cert_tier_resolves(constant, 1L), info = info)
+  }
+})
