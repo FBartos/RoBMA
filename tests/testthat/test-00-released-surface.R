@@ -91,6 +91,7 @@ test_that("parameter selectors of plot(), plot_prior(), and print_prior() have n
       mods       = c(arguments, list(mods = ~ x)),
       mods2      = c(arguments, list(mods = ~ x + z)),
       scale      = c(arguments, list(mods = ~ x, scale = ~ x)),
+      multilevel_scale = c(arguments, list(scale = ~ x, cluster = quote(cluster))),
       multilevel = c(arguments, list(cluster = quote(cluster)))
     )
     fit <- suppressWarnings(do.call(brma, arguments))
@@ -753,4 +754,60 @@ test_that("parameter lookups of brma.mv() objects keep the message of the parame
   expect_match(conditionMessage(priors), "The specified parameter 'bogus' is not available.",
                fixed = TRUE)
   expect_false(grepl("Available parameters are", conditionMessage(priors), fixed = TRUE))
+})
+
+test_that("the aggregated heterogeneity of location-scale fits is the mean of the observation-specific tau", {
+
+  scale <- .surface_fit("scale")
+  rows  <- rowMeans(unclass(predict(scale, type = "terms.scale")))
+
+  # predict(newdata = TRUE) and pooled_heterogeneity() equal the row mean of the
+  # observation-specific tau exactly (the 4.0.0 rule, not exp(mean(log(tau))))
+  aggregated <- predict(scale, newdata = TRUE, type = "terms.scale", quiet = TRUE)
+  expect_identical(as.numeric(aggregated), as.numeric(rows))
+  expect_identical(as.numeric(pooled_heterogeneity(scale)), as.numeric(rows))
+  expect_identical(
+    as.numeric(.pooled_heterogeneity_total_samples(scale, .get_posterior_samples(scale[["fit"]]))),
+    as.numeric(rows)
+  )
+  geometric <- exp(rowMeans(log(unclass(predict(scale, type = "terms.scale")))))
+  expect_gt(max(abs(geometric - rows)), 1e-3)
+  expect_message(
+    predict(scale, newdata = TRUE, type = "terms.scale"),
+    "Aggregated prediction averages tau across the scale model matrix (K = 8 observations).",
+    fixed = TRUE
+  )
+
+  # the same tau is the SD of a new true effect (and enters the pooled_effect() interval)
+  location <- as.numeric(predict(scale, newdata = TRUE, type = "terms", quiet = TRUE))
+  set.seed(11)
+  estimate <- predict(scale, newdata = TRUE, type = "estimate", quiet = TRUE)
+  set.seed(11)
+  expect_equal(as.numeric(estimate), stats::rnorm(length(rows), location, rows), tolerance = 1e-12)
+
+  # ... and, scaled by sqrt(rho), the SD of a new cluster effect
+  multilevel <- .surface_fit("multilevel_scale")
+  rows_cluster <- rowMeans(unclass(predict(multilevel, type = "terms.scale")))
+  expect_equal(as.numeric(pooled_heterogeneity(multilevel)), as.numeric(rows_cluster),
+               tolerance = 1e-12)
+  rho <- as.numeric(posterior::as_draws_matrix(multilevel)[, "rho"])
+  location_cluster <- as.numeric(predict(multilevel, newdata = TRUE, type = "terms", quiet = TRUE))
+  set.seed(5)
+  cluster <- predict(multilevel, newdata = TRUE, type = "cluster", quiet = TRUE)
+  set.seed(5)
+  expect_equal(
+    as.numeric(cluster),
+    location_cluster + stats::rnorm(length(rho), 0, sqrt(rho) * rows_cluster),
+    tolerance = 1e-12
+  )
+
+  # a fit without a scale formula is unchanged: every row has the scalar tau
+  ordinary <- .surface_fit("ordinary")
+  tau <- as.numeric(posterior::as_draws_matrix(ordinary)[, "tau"])
+  expect_equal(as.numeric(pooled_heterogeneity(ordinary)), tau, tolerance = 1e-14)
+  expect_equal(
+    as.numeric(predict(ordinary, newdata = TRUE, type = "terms.scale", quiet = TRUE)),
+    as.numeric(rowMeans(unclass(predict(ordinary, type = "terms.scale")))),
+    tolerance = 1e-14
+  )
 })

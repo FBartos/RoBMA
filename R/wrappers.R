@@ -468,8 +468,9 @@ pooled_heterogeneity <- function(object, ...) {
 
 #' @title Pooled Heterogeneity for brma Objects
 #'
-#' @description Computes heterogeneity (tau) at the average expanded scale and
-#' random-effect design of a fitted brma object.
+#' @description Computes heterogeneity (tau) of a fitted brma object at the
+#' average fitted scale design (the mean of the observation-specific tau) and,
+#' for random-formula models, at the average expanded random-effect design.
 #'
 #' @param object a fitted brma object
 #' @param probs quantiles of the posterior distribution to be displayed.
@@ -486,10 +487,11 @@ pooled_heterogeneity <- function(object, ...) {
 #' and other arguments are unused and trigger a warning.
 #'
 #' @details
-#' For location-scale models, the function averages the fitted log-scale linear
-#' predictor and then applies the inverse link. This is heterogeneity at the
-#' average expanded scale design, rather than RMS heterogeneity across observed
-#' rows. Use \code{summary_heterogeneity()} for the latter.
+#' For location-scale models, the function returns the arithmetic mean over the
+#' fitted rows of the observation-specific tau, as in 4.0.0; it equals
+#' \code{rowMeans(predict(object, type = "terms.scale"))}. It is not the root
+#' mean square heterogeneity across the observed rows. Use
+#' \code{summary_heterogeneity()} for the latter.
 #'
 #' For models without scale regression, this returns the single tau parameter.
 #'
@@ -619,7 +621,8 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
 }
 
 # Total, within-, and between-cluster heterogeneity at the average fitted scale
-# design of a univariate model.
+# design of a univariate model: the arithmetic mean of the observation-specific
+# tau over the fitted rows (see .evaluate.brma.pooled_tau()).
 .pooled_tau_components <- function(object, posterior_samples) {
 
   tau_result <- .evaluate.brma.pooled_tau(

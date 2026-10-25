@@ -181,7 +181,7 @@ test_that("pooled prediction intervals are deterministic without an RNG state", 
 })
 
 
-test_that("pooled heterogeneity evaluates the average scale design", {
+test_that("pooled heterogeneity is the mean of the observation-specific tau", {
 
   dat <- data.frame(
     yi = c(-0.2, 0.1, 0.4),
@@ -208,12 +208,14 @@ test_that("pooled heterogeneity evaluates the average scale design", {
     quiet              = TRUE,
     .posterior_samples = posterior_samples
   )
-  expected <- matrix(
-    exp(rowMeans(log(as.matrix(row_tau)))),
+  # the arithmetic mean over the fitted rows, as at 4.0.0 (not exp(mean(log(tau))))
+  expected  <- matrix(
+    rowMeans(as.matrix(row_tau)),
     ncol     = 1L,
     dimnames = list(NULL, "tau")
   )
-  rms <- matrix(sqrt(rowMeans(as.matrix(row_tau)^2)), ncol = 1L)
+  geometric <- matrix(exp(rowMeans(log(as.matrix(row_tau)))), ncol = 1L)
+  rms       <- matrix(sqrt(rowMeans(as.matrix(row_tau)^2)), ncol = 1L)
 
   pooled <- pooled_heterogeneity(
     object,
@@ -221,6 +223,7 @@ test_that("pooled heterogeneity evaluates the average scale design", {
   )
 
   expect_equal(unname(as.matrix(pooled)), unname(expected), tolerance = 1e-12)
+  expect_false(isTRUE(all.equal(unname(expected), unname(geometric))))
   pooled_df  <- as.data.frame(summary(pooled))
   row_tau_df <- as.data.frame(summary(row_tau))
   expect_identical(
@@ -296,16 +299,17 @@ test_that("prior-only scale formulas evaluate the fitted standardization", {
     tolerance = 1e-12
   )
 
-  # The average standardized predictor is 0: the pooled tau is the intercept.
+  # The pooled tau is the arithmetic mean of the observation-specific tau, as at
+  # 4.0.0. The average standardized predictor is 0, so exp(mean(log(tau))) would
+  # be the intercept; the arithmetic mean is larger.
   pooled <- pooled_heterogeneity(
     object,
     .posterior_samples = posterior_samples
   )
-  expect_equal(
-    unname(as.matrix(pooled))[, 1L],
-    unname(posterior_samples[, "log_tau_intercept"]),
-    tolerance = 1e-12
-  )
+  expect_equal(unname(as.matrix(pooled))[, 1L], rowMeans(expected), tolerance = 1e-12)
+  expect_true(all(
+    unname(as.matrix(pooled))[, 1L] > unname(posterior_samples[, "log_tau_intercept"])
+  ))
 })
 
 test_that("pooled target metadata names its fixed reference and retains RNG behavior", {

@@ -1428,9 +1428,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - `regplot(mod = "vi")` and `regplot(mod = "sei")` keep the precision of the
   prediction grid, derive the matching standard error or variance, and use
   pointwise precision in the sampling intervals.
-- `pooled_heterogeneity()` is evaluated at the average expanded scale and
-  random design; `summary_heterogeneity()` keeps the within-draw RMS over
-  the observed design.
+- `pooled_heterogeneity()` of `brma.mv()` random-formula models is evaluated
+  at the average expanded random design (scale-formula models keep the
+  arithmetic mean of the observation-specific tau of 4.0.0);
+  `summary_heterogeneity()` keeps the within-draw RMS over the observed design.
 - cluster-level selection-model likelihood integrals are certified by
   successive 7-, 15-, and 31-node quadrature rules and fail explicitly when
   the requested accuracy is not established, instead of using heuristic

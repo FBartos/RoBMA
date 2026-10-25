@@ -257,11 +257,12 @@ test_that("fitted known-V row SD sources read the coordinates of factor scale te
       tolerance = 1e-12
     )
   }
-  # The pooled tau evaluates the average scale design: exp(mean(log(tau))).
+  # The pooled tau is the arithmetic mean of the observation-specific tau over
+  # the fitted rows, as for the univariate models.
   pooled <- pooled_heterogeneity(fit, .posterior_samples = draws)
   expect_equal(
     unname(as.matrix(pooled))[, 1L],
-    exp(rowMeans(log_tau)),
+    rowMeans(exp(log_tau)),
     tolerance = 1e-12
   )
 })

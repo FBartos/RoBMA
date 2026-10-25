@@ -541,9 +541,14 @@
 # .evaluate.brma.pooled_tau
 # ---------------------------------------------------------------------------- #
 #
-# Evaluate heterogeneity at the average expanded scale design. For a log-scale
-# regression this averages the linear predictor before applying exp(), rather
-# than averaging observation-level standard deviations or variances.
+# Evaluate heterogeneity at the average fitted design. For a log-scale
+# regression this is the arithmetic mean over the fitted rows of the
+# observation-specific standard deviations tau_i = exp(linear predictor), as at
+# the 4.0.0 release (not the exponential of the mean linear predictor, and not
+# the root mean square that summary_heterogeneity() reports). The same value
+# enters the within- and between-cluster components of multilevel models, the
+# new-effect SD of predict(newdata = TRUE), and the prediction interval of
+# pooled_effect().
 #
 # ---------------------------------------------------------------------------- #
 .evaluate.brma.pooled_tau <- function(
@@ -564,7 +569,7 @@
       posterior_samples = posterior_samples
     )
     tau_samples <- matrix(
-      exp(rowMeans(log_tau_samples)),
+      rowMeans(exp(log_tau_samples)),
       nrow = S,
       ncol = 1L
     )

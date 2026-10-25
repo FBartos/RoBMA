@@ -8,8 +8,9 @@
 #' @param newdata prediction data. Defaults to \code{NULL}, which predicts the
 #'   observed design rows. \code{TRUE} returns a single aggregated prediction at
 #'   the average fitted design (the scalar parameter for models without
-#'   moderators or scale predictors, otherwise the average across the fitted
-#'   model matrix): the pooled location (\code{type = "terms"}), the pooled
+#'   moderators or scale predictors, otherwise the arithmetic mean across the
+#'   fitted rows of the location and of the observation-specific
+#'   heterogeneity): the pooled location (\code{type = "terms"}), the pooled
 #'   heterogeneity (\code{"terms.scale"}), a new true effect (\code{"estimate"}),
 #'   or a new cluster effect added to the pooled location (\code{"cluster"},
 #'   multilevel models only). It is the quantity reported by
@@ -2421,7 +2422,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 # 4.0.0 interface), also the engine of pooled_effect() and
 # pooled_heterogeneity(). The location is the fitted-design average of the
 # fixed location and the heterogeneity is the pooled heterogeneity at the
-# average scale design. A new true effect adds a draw from the pooled marginal
+# average fitted design, the arithmetic mean of the observation-specific tau (as
+# at 4.0.0). A new true effect adds a draw from the pooled marginal
 # distribution, and a new cluster effect adds a draw of the between-cluster
 # component to the location. Marginal depth only; unused `dots` warn.
 #
@@ -2520,7 +2522,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     n_samples = nrow(posterior_samples)
   )
 
-  ### heterogeneity at the average scale design
+  ### heterogeneity at the average fitted design (mean of the observation-specific tau)
   if (type == "terms.scale") {
     if (inherits(object, "brma.mv")) {
       return(.pooled_heterogeneity_brma_mv(

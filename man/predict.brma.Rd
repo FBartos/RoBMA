@@ -26,8 +26,9 @@
 \item{newdata}{prediction data. Defaults to \code{NULL}, which predicts the
 observed design rows. \code{TRUE} returns a single aggregated prediction at
 the average fitted design (the scalar parameter for models without
-moderators or scale predictors, otherwise the average across the fitted
-model matrix): the pooled location (\code{type = "terms"}), the pooled
+moderators or scale predictors, otherwise the arithmetic mean across the
+fitted rows of the location and of the observation-specific
+heterogeneity): the pooled location (\code{type = "terms"}), the pooled
 heterogeneity (\code{"terms.scale"}), a new true effect (\code{"estimate"}),
 or a new cluster effect added to the pooled location (\code{"cluster"},
 multilevel models only). It is the quantity reported by

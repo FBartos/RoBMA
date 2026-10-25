@@ -369,9 +369,9 @@ expect_prediction_matches_metafor <- function(case) {
                            info = paste(name, "study tau predictions"))
     testthat::expect_equal(
       .sample_mean(pooled_heterogeneity(fit_brma), "tau"),
-      exp(mean(log(metafor_tau))),
+      mean(metafor_tau),
       tolerance = tau_tol,
-      info      = paste(name, "pooled tau at average scale design")
+      info      = paste(name, "pooled tau is the mean of the study taus")
     )
 
     theta_brma <- .sample_means(blup(fit_brma))

@@ -43,14 +43,16 @@ The samples can be converted to \pkg{posterior} draws formats using
 \code{as_draws()}.
 }
 \description{
-Computes heterogeneity (tau) at the average expanded scale and
-random-effect design of a fitted brma object.
+Computes heterogeneity (tau) of a fitted brma object at the
+average fitted scale design (the mean of the observation-specific tau) and,
+for random-formula models, at the average expanded random-effect design.
 }
 \details{
-For location-scale models, the function averages the fitted log-scale linear
-predictor and then applies the inverse link. This is heterogeneity at the
-average expanded scale design, rather than RMS heterogeneity across observed
-rows. Use \code{summary_heterogeneity()} for the latter.
+For location-scale models, the function returns the arithmetic mean over the
+fitted rows of the observation-specific tau, as in 4.0.0; it equals
+\code{rowMeans(predict(object, type = "terms.scale"))}. It is not the root
+mean square heterogeneity across the observed rows. Use
+\code{summary_heterogeneity()} for the latter.
 
 For models without scale regression, this returns the single tau parameter.
 
