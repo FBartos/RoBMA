@@ -158,6 +158,12 @@
   `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
   warn about high Pareto k values, which 4.0.0 did not, at the same
   draw-count-dependent cutoff and with the same message as `check_loo()`.
+- Released methods, among them `summary()`, `plot()`, `marginal_means()`,
+  `summary_models()`, `predict()`, `fitted()`, `blup()`, `true_effects()`,
+  `ranef()`, `pooled_effect()` and `pooled_heterogeneity()`, warn about unused
+  arguments in `...` instead of ignoring them silently. `pooled_*()` calls that
+  stopped at 4.0.0 with an error such as "matched by multiple actual
+  arguments" now warn about the argument and continue.
 - `loo_model_weights()` labels the first model by its expression unless the
   call names `x`, so a named option or a named additional model no longer
   renames it.
