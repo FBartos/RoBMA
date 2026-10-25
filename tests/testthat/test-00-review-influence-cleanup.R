@@ -244,7 +244,11 @@ test_that("GLMM LOO-PIT is available through the effect-size normal approximatio
   object <- brma.glmm(ai = c(1L, 2L), bi = c(9L, 8L),
     ci = c(3L, 4L), di = c(7L, 6L), measure = "OR", only_data = TRUE)
   # an object without a fit stops at the missing posterior, not at the outcome
-  expect_error(suppressMessages(rstudent(object)), "fit|posterior|LOO", ignore.case = TRUE)
+  expect_error(
+    suppressMessages(rstudent(object)),
+    "Posterior samples are required for this operation; fit the model or supply '.posterior_samples'.",
+    fixed = TRUE
+  )
 })
 
 test_that("a declared empty fixed-scale set returns the existing undefined COVRATIO result", {
