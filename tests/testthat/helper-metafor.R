@@ -968,8 +968,21 @@ expect_influence_matches_metafor <- function(case) {
                          info = paste(name, "rstudent"))
   testthat::expect_true(all(is.finite(inf_brma$inf$dffits[rows])),
                         info = paste(name, "dffits finite"))
-  testthat::expect_equal(inf_metafor$inf$cook.d[rows], inf_brma$inf$cook.d[rows],
-                         tolerance = tol, info = paste(name, "cook.d"))
+  # RoBMA divides Cook's distance by the rank p of the fixed-effect model matrix
+  # (the 4.0.0 convention) and metafor's cook.d is unscaled: divide it by the
+  # same p. The comparison is always relative (mean absolute difference over the
+  # mean absolute metafor value): the edition-2 tolerance of expect_equal() is
+  # absolute when that mean is below the tolerance, where a 1/p mismatch would pass.
+  # RoBMA's PSIS posterior deletion approximates metafor's classical deletion to
+  # about 13% in the BCG models (squared quantity), so the tolerance is 0.25: far
+  # below the 1 - 1/p >= 0.5 of a missing rank scaling.
+  cook_rank <- fit_metafor[["p"]]
+  testthat::expect_identical(as.integer(cook_rank), as.integer(.cooks_distance_rank(fit_brma)),
+                             info = paste(name, "Cook's distance rank"))
+  cook_metafor <- inf_metafor$inf$cook.d[rows] / cook_rank
+  cook_brma    <- inf_brma$inf$cook.d[rows]
+  testthat::expect_lt(mean(abs(cook_brma - cook_metafor)) / mean(abs(cook_metafor)), max(tol, 0.25),
+                      label = paste(name, "cook.d relative difference"))
 
   if (oracle == "equal") {
     testthat::expect_equal(inf_metafor$inf$cov.r[rows], inf_brma$inf$cov.r[rows],
