@@ -565,8 +565,21 @@ test_that("matched sampled and marginalized effects have equivalent scores", {
     loo_compare,
     unname(lapply(representation_fits, waic))
   ))
-  expect_true(all(is.finite(loo_comparison)))
-  expect_true(all(is.finite(waic_comparison)))
+  # The comparisons are data frames with a character model column: the numeric
+  # columns (elpd_diff, se_diff and the estimates) must be finite. loo reports
+  # p_worse as NA for the reference model, the first row, and as a probability
+  # for the others.
+  for (comparison in list(loo_comparison, waic_comparison)) {
+    comparison <- as.data.frame(comparison)
+    numeric_columns <- vapply(comparison, is.numeric, logical(1L))
+    expect_true(all(c("elpd_diff", "se_diff") %in% names(comparison)[numeric_columns]))
+    estimate_columns <- setdiff(names(comparison)[numeric_columns], "p_worse")
+    expect_true(all(is.finite(as.matrix(comparison[, estimate_columns, drop = FALSE]))))
+    if ("p_worse" %in% names(comparison)) {
+      expect_true(is.na(comparison[["p_worse"]][1L]))
+      expect_true(all(is.finite(comparison[["p_worse"]][-1L])))
+    }
+  }
 })
 
 test_that("marginalized normal score equals the sampled-effect convolution", {
