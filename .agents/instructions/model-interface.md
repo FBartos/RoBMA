@@ -302,3 +302,27 @@ public omission coordinate is available. Suggested omission commands resolve by
 the actual formula, allocation owner and component index, and quote the complete
 public selector. Eligibility is independent of whether that remedy is available;
 prior point masses keep their existing classification.
+
+## Pooled functions (maintainer decision 2026-10-25; do not change without one)
+
+- `pooled_effect()` is the population average of the study means; for a linear
+  location it equals the value at the average design.
+- `pooled_heterogeneity()` is the arithmetic mean of the observation-specific
+  `tau_i` over the fitted rows, as at 4.0.0.
+- The prediction intervals of `pooled_effect()` plug in
+  `pooled_heterogeneity(component = "total")`. They are not a mixture over
+  studies and not based on the root mean square: composite designs, such as
+  `brma.mv()` factor-specific or random-slope terms
+  (`tests/scenarios/test-kearon1998.R:70`), would make a mixture interval
+  confusing.
+- `predict()` is a specific design point. `summary()` and
+  `summary_heterogeneity()` report the parameters, as the root mean square over
+  the observed design, which the funnel plots also use (`plotting.md`). The
+  pooled functions need not match them.
+- The `brma.mv()` random-design aggregation keeps its own definition: the
+  pooled tau of a random-formula fit evaluates the average expanded random
+  design, and its scale terms use `exp(mean(log(tau)))`.
+- History: 4.0.0 used the arithmetic mean; `5268ea2b` (2026-07-10) changed it to
+  the root mean square; `e5d3e63f` (2026-08-11) evaluated tau at the average
+  design; the release-surface review finding R13-02 (2026-10-25) returned it to
+  the arithmetic mean.
