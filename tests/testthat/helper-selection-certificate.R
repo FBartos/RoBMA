@@ -396,6 +396,100 @@
   .test_cert_logsumexp(log_w + outer_value)
 }
 
+# Nested groups on the prefix sums of the latent axes: group g loads equally
+# (c_g) on axes 1..g, so its rows sit at mean_g + c_g S_g with the Gaussian random
+# walk S_g = z_1 + ... + z_g. The normalizer is a chain of one-dimensional
+# convolutions of the partial integrals on a composite Gauss-Legendre grid.
+.test_cert_reference_chain <- function(block, panel = .1, m = 8L) {
+
+  groups <- block[["groups"]]
+  count  <- length(groups)
+  stopifnot(block[["rank"]] == count)
+  scale <- vapply(groups, function(group) group[["loading"]][1L], numeric(1L))
+  for (g in seq_len(count)) {
+    stopifnot(identical(groups[[g]][["loading"]], c(rep(scale[g], g), rep(0, count - g))))
+  }
+  rule   <- .test_cert_composite_rule(8 * sqrt(count), panel, m)
+  weight <- exp(rule[["log_w"]])
+  kernel <- stats::dnorm(outer(rule[["x"]], rule[["x"]], `-`))
+  row_value <- function(g) {
+    group <- groups[[g]]
+    exp(group[["count"]] * .test_cert_log_probability(group[["mean"]] + scale[g] * rule[["x"]],
+      group[["sd"]], group[["sei"]], block[["omega"]], block[["z_lower"]]))
+  }
+  partial <- stats::dnorm(rule[["x"]]) * row_value(1L)
+  log_scale <- 0
+  for (g in seq_len(count)[-1L]) {
+    partial <- as.vector(kernel %*% (weight * partial)) * row_value(g)
+    top <- max(partial)
+    partial <- partial / top
+    log_scale <- log_scale + log(top)
+  }
+  log_scale + log(sum(weight * partial))
+}
+
+# Groups on adjacent axes of a cycle: group g loads a_g on axis g and b_g on
+# axis g + 1 (the last on axis 1), so Z = trace(prod_g diag(phi w) W_g) with
+# W_g[x, y] = P_g(mean_g + a_g x + b_g y)^count_g on a composite grid.
+.test_cert_reference_cycle <- function(block, limit = 8, panel = .2, m = 8L) {
+
+  groups <- block[["groups"]]
+  count  <- length(groups)
+  stopifnot(block[["rank"]] == count)
+  rule   <- .test_cert_composite_rule(limit, panel, m)
+  weight <- exp(stats::dnorm(rule[["x"]], log = TRUE) + rule[["log_w"]])
+  product <- diag(length(weight))
+  for (g in seq_len(count)) {
+    group <- groups[[g]]
+    next_axis <- g %% count + 1L
+    expected <- numeric(count)
+    expected[g] <- group[["loading"]][g]
+    expected[next_axis] <- group[["loading"]][next_axis]
+    stopifnot(identical(group[["loading"]], expected))
+    location <- group[["mean"]] + group[["loading"]][g] * rule[["x"]] +
+      rep(group[["loading"]][next_axis] * rule[["x"]], each = length(weight))
+    transition <- matrix(exp(group[["count"]] * .test_cert_log_probability(location,
+      group[["sd"]], group[["sei"]], block[["omega"]], block[["z_lower"]])),
+      length(weight))
+    product <- product %*% (weight * transition)
+  }
+  log(sum(diag(product)))
+}
+
+# Two groups on two independent loadings whose weights vanish outside a band
+# (zero outer bins). With m_g = a_g' z the normalizer is the integral over the two
+# row locations of phi_2(A^-1 m) / |det A| times the two band probabilities, taken
+# on the box where either band probability is not negligible (eight residual SDs
+# beyond the outer cuts) with a composite Gauss-Legendre rule in each location.
+.test_cert_reference_band_pair <- function(block, m = 8L) {
+
+  groups <- block[["groups"]]
+  stopifnot(length(groups) == 2L, block[["rank"]] == 2L,
+    block[["omega"]][1L] == 0, block[["omega"]][length(block[["omega"]])] == 0)
+  loading <- rbind(groups[[1L]][["loading"]], groups[[2L]][["loading"]])
+  inverse <- solve(loading)
+  cuts    <- block[["z_lower"]][is.finite(block[["z_lower"]])]
+  axis <- lapply(groups, function(group) {
+    low  <- min(cuts) * group[["sei"]] - 8 * group[["sd"]] - group[["mean"]]
+    high <- max(cuts) * group[["sei"]] + 8 * group[["sd"]] - group[["mean"]]
+    rule <- .test_cert_composite_rule((high - low) / 2, group[["sd"]] / 2, m)
+    list(x = rule[["x"]] + (high + low) / 2, log_w = rule[["log_w"]], group = group)
+  })
+  log_band <- function(item) item[["group"]][["count"]] * .test_cert_log_probability(
+    item[["group"]][["mean"]] + item[["x"]], item[["group"]][["sd"]],
+    item[["group"]][["sei"]], block[["omega"]], block[["z_lower"]])
+  first  <- axis[[1L]]
+  second <- axis[[2L]]
+  log_first  <- first[["log_w"]] + log_band(first)
+  log_second <- second[["log_w"]] + log_band(second)
+  grid <- as.matrix(expand.grid(first = first[["x"]], second = second[["x"]]))
+  latent <- grid %*% t(inverse)
+  log_density <- stats::dnorm(latent[, 1L], log = TRUE) + stats::dnorm(latent[, 2L], log = TRUE) -
+    log(abs(det(loading)))
+  .test_cert_logsumexp(log_density + rep(log_first, times = length(log_second)) +
+    rep(log_second, each = length(log_first)))
+}
+
 # ---------------------------------------------------------------------------- #
 # Plain-R shift-amplitude certificate (tensor Gauss-Hermite rung)
 # ---------------------------------------------------------------------------- #

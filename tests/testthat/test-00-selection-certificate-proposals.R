@@ -13,6 +13,19 @@ skip_on_cran()
 # checks the distant mass that the Gaussian proposals can all miss. The stopping
 # rule and its diagnostics are unchanged.
 
+# The native kernel of a deferred-geometry case: factor kernel, or the cluster
+# kernel with its two-rung ladder.
+.test_cert_proposals_run <- function(case, seed, initial, points) {
+
+  if (case[["kind"]] == "factor") {
+    .test_cert_native_factor(case[["block"]], seed = seed, initial = initial, points = points)
+  } else {
+    rules <- .selection_joint_cluster_quadrature_rules(c(15L, 31L))
+    .test_cert_native_cluster(case[["block"]], seed = seed, initial = initial,
+                              points = points, rules = rules)
+  }
+}
+
 test_that("the tilted moments of a rung equal the plain tensor moments in loading-column order", {
 
   blocks <- .test_cert_small_blocks()
@@ -169,6 +182,73 @@ test_that("randomized uncertainty and mean accuracy calibrate across independent
     mean_interval[1L], mean_interval[2L], sqrt(mean(error^2)), stats::median(mcse)))
 })
 
+test_that("the randomized fallback is calibrated and accurate against independent references on the deferred geometries", {
+
+  # Same policy as the forest_84 panel above. The reported MCSE is an empirical
+  # standard error, not a bound, so accuracy is judged across independent seeds
+  # fixed in advance. Every reference is independent of the production
+  # proposals: the helpers' composite Gauss-Legendre integrals, and for the
+  # stored geometries a transfer-matrix chain (chain3, chain4), a cyclic
+  # transfer matrix (cycle7, cycle8), the change of variables to the two
+  # row locations (band_a, band_b) and the one-dimensional reduction (cluster2).
+  # The 99% exceedance screen is that of the forest_84 panel; the budgets are
+  # those of the tests above.
+  tolerance <- .005
+  seeds <- 401:412
+  nominal <- 2 * stats::pt(-3, df = 7)
+  cases <- .test_cert_proposal_cases()
+  cases[["forest_84"]] <- NULL
+  stored <- readRDS(testthat::test_path("fixtures", "selection-certificate-laplace-reference.rds"))[["cases"]]
+  references <- list(
+    cycle7 = .test_cert_reference_cycle, cycle8 = .test_cert_reference_cycle,
+    chain3 = .test_cert_reference_chain, chain4 = .test_cert_reference_chain,
+    band_a = .test_cert_reference_band_pair, band_b = .test_cert_reference_band_pair,
+    cluster2 = .test_cert_reference_parallel)
+  stored <- Map(function(case, name) c(case, list(reference = references[[name]])),
+                stored, names(stored))
+  budget <- c(rep(list(4096L), length(cases)), rep(list(2048L), length(stored)))
+  cases <- c(cases, stored)
+  # At 2048 points per scramble the rank-seven and -eight cycles, the depth-four
+  # chain and the narrow band cannot reach the tolerance (their MCSE is larger
+  # than 0.4%); only their calibration is screened.
+  imprecise <- c("cycle7", "cycle8", "chain4", "band_b")
+
+  for (index in seq_along(cases)) {
+    name <- names(cases)[index]
+    case <- cases[[index]]
+    reference <- case[["reference"]](case[["block"]])
+    actual <- lapply(seeds, function(seed) {
+      .test_cert_proposals_run(case, seed, 256L, budget[[index]])
+    })
+    expect_false(any(vapply(actual, .test_cert_deterministic, logical(1L))), info = name)
+    log_ratio <- vapply(actual, function(result) result[["log_normalizer"]] - reference, numeric(1L))
+    mcse <- vapply(actual, function(result) result[["relative_mcse"]], numeric(1L))
+    change <- vapply(actual, function(result) result[["relative_change"]], numeric(1L))
+    error <- expm1(log_ratio)
+    studentized <- -expm1(-log_ratio) / mcse
+    expect_true(all(is.finite(c(error, mcse, change, studentized))), info = name)
+    expect_true(all(mcse > 0), info = name)
+
+    # False confidence is a run far from the reference under a small MCSE.
+    exceedances <- sum(abs(studentized) > 3)
+    coverage <- stats::binom.test(exceedances, length(seeds), p = nominal,
+      alternative = "greater", conf.level = .99)
+    expect_lte(unname(coverage[["conf.int"]][1L]), nominal,
+      label = paste(name, ": 99% lower exceedance limit from", exceedances, "of",
+        length(seeds), "designs"))
+    if (name %in% imprecise) next
+
+    # Runs that the scaled stopping rule accepts are within three tolerances, and
+    # the mean error over the seeds lies inside the tolerance with 99% confidence.
+    accepted <- pmax(.selection_qmc_z() * mcse, change) <= tolerance
+    expect_lt(max(0, abs(error[accepted])), 3 * tolerance,
+      label = paste(name, ": largest accepted error"))
+    half_width <- stats::qt(.995, df = length(seeds) - 1L) * stats::sd(error) / sqrt(length(seeds))
+    expect_lt(abs(mean(error)) + half_width, tolerance,
+      label = paste(name, ": mean error and its 99% half-width"))
+  }
+})
+
 test_that("blocks without usable moments retain finite diagnostics and nested stopping", {
 
   # Geometries from robma-claude-final7 (the build before the certificate) that
@@ -194,15 +274,7 @@ test_that("blocks without usable moments retain finite diagnostics and nested st
     covariance <- matrix(probe[["moment_covariance"]], cases[[name]][["block"]][["rank"]])
     expect_error(chol(covariance), info = name)
   }
-  run <- function(case, seed, initial, points) {
-    if (case[["kind"]] == "factor") {
-      .test_cert_native_factor(case[["block"]], seed = seed, initial = initial, points = points)
-    } else {
-      rules <- .selection_joint_cluster_quadrature_rules(c(15L, 31L))
-      .test_cert_native_cluster(case[["block"]], seed = seed, initial = initial,
-                                points = points, rules = rules)
-    }
-  }
+  run <- .test_cert_proposals_run
   for (name in names(cases)) for (seed in if (name %in% c("band_a", "band_b")) 1L else 1:2) {
     case <- cases[[name]]
     actual <- run(case, seed, 256L, 2048L)
