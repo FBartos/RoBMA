@@ -53,8 +53,12 @@
 #' are restricted to `[0, 1]` (truncated to it where their support is wider) and
 #' point priors must lie strictly inside `(0, 1)`. The estimate-unit
 #' log-likelihood of the model (`log_lik()`, LOO, WAIC) integrates the base rate
-#' over any of these priors: point and beta priors adaptively, other families
-#' on a refined prior-CDF grid.
+#' over any of these priors: point priors and untruncated beta priors
+#' adaptively, other families on a refined prior-CDF grid. The grid is accepted
+#' only when its log-likelihood changes by less than `1e-6` between refinements;
+#' a lognormal base-rate prior can fail to reach this on cells with few events
+#' and then stops with an error of class `RoBMA_glmm_grid_nonconvergence`. A
+#' beta prior avoids it.
 #' @param prior_lograte prior distribution for the estimate-specific midpoint
 #' log-rate in Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
 #' normal prior centered at the pooled crude log-rate is used independently for
@@ -62,8 +66,13 @@
 #' `RoBMA.options(default_lograte.sd = ...)`. Rescaling all person-times shifts
 #' the prior mean by the corresponding log conversion while leaving its
 #' standard deviation unchanged. The estimate-unit log-likelihood of the model
-#' (`log_lik()`, LOO, WAIC) integrates the log-rate over the prior: point and
-#' normal priors adaptively, other families on a refined prior-CDF grid.
+#' (`log_lik()`, LOO, WAIC) integrates the log-rate over the prior: point
+#' priors and untruncated normal priors adaptively, other families on a refined
+#' prior-CDF grid. The grid is accepted only when its log-likelihood changes by
+#' less than `1e-6` between refinements; gamma, lognormal, and inverse-gamma
+#' log-rate priors can fail to reach this on cells with few events and then stop
+#' with an error of class `RoBMA_glmm_grid_nonconvergence`. A normal prior avoids
+#' it.
 #' @param prior_unit_information_sd numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 #' Cannot be used together with `prior_informed_field`.
 #' @param rescale_priors numeric. A scaling factor for supported prior distributions.

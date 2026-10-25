@@ -57,11 +57,15 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' (ai/ci or x1i/x2i) that defines a single effect size estimate is treated as
 #' one contribution.
 #' Estimate-unit GLMM log-likelihoods integrate the nuisance base rate or
-#' log-rate over its prior, for every prior the model accepts: point and beta
-#' baserate priors and point and normal log-rate priors (with their supported
-#' truncations) adaptively, other families on a refined prior-CDF grid. A grid
-#' that does not converge stops with an error of class
-#' \code{RoBMA_glmm_numerical_error}.
+#' log-rate over its prior: point priors and untruncated beta (base rate) and
+#' normal (log-rate) priors adaptively, other priors on a refined prior-CDF
+#' grid. The grid is accepted only when its log-likelihood changes by less than
+#' \code{1e-6} between refinements. Gamma, lognormal, and inverse-gamma log-rate
+#' priors and lognormal base-rate priors can fail to reach this on cells with
+#' few events and then stop with an error of class
+#' \code{RoBMA_glmm_grid_nonconvergence} (also of class
+#' \code{RoBMA_glmm_numerical_error}). A beta base-rate prior or a normal
+#' log-rate prior avoids it.
 #'
 #' With \code{unit = "cluster"}, LOO-CV is computed with one joint contribution
 #' per cluster. For normal models without selection, weighted or not, this uses
@@ -703,10 +707,13 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' branches and constant selection weights. Cluster deletion keeps its distinct
 #' joint target. Earlier affected estimate scores must be recomputed.
 #' Estimate-unit GLMM draws integrate the nuisance base rate or log-rate over
-#' its prior, for every prior the model accepts: point and beta baserate priors
-#' and point and normal log-rate priors (with their supported truncations)
-#' adaptively, other families on a refined prior-CDF grid. A grid that does not
-#' converge stops with an error of class \code{RoBMA_glmm_numerical_error}.
+#' its prior: point priors and untruncated beta (base rate) and normal
+#' (log-rate) priors adaptively, other priors on a refined prior-CDF grid. The
+#' grid is accepted only when its log-likelihood changes by less than `1e-6`
+#' between refinements. Gamma, lognormal, and inverse-gamma log-rate priors and
+#' lognormal base-rate priors can fail to reach this on cells with few events
+#' and then stop with the error class `RoBMA_glmm_grid_nonconvergence` described
+#' below; a beta base-rate prior or a normal log-rate prior avoids it.
 #' Numerical quadrature failures share class `RoBMA_glmm_numerical_error`.
 #' AGHQ failures have class `RoBMA_glmm_aghq_nonconvergence`; prior-CDF refinement
 #' failures retain `RoBMA_glmm_grid_nonconvergence`. Their fields identify the

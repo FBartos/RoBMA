@@ -46,7 +46,12 @@ test_that("prior-CDF failures retain their specific class and numerical family",
   expect_identical(conditionMessage(condition), paste0(
     "Binomial prior-CDF quadrature was rejected by diagnostics at observation 7: ",
     "last theta changes 2e-05, 3e-06; last nuisance changes 4e-07, 5e-08. ",
-    "Inspect the data and 'prior_baserate' before refitting the model."))
+    "Inspect the data and 'prior_baserate' before refitting the model. ",
+    "The refined prior-CDF grid did not reach its tolerance for this prior; ",
+    "a beta 'prior_baserate' is integrated by adaptive quadrature instead."))
+  poisson <- .glmm_grid_nonconvergence_condition("pois", 3L, c(2e-5, 3e-6), c(4e-7, 5e-8))
+  expect_match(conditionMessage(poisson), "a normal 'prior_lograte' is integrated",
+    fixed = TRUE)
 })
 
 

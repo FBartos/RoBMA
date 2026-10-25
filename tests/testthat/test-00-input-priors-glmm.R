@@ -238,6 +238,26 @@ test_that("the estimate-unit GLMM likelihood of released nuisance families equal
   }
 })
 
+test_that("a gamma log-rate prior on a low-event cell stops with the grid nonconvergence class", {
+
+  skip_on_cran()
+  # At 1200 nodes (the end of the refinement ladder) the prior-CDF grid is still
+  # about 4e-6 from the nested-QUADPACK value of this cell, so it cannot certify
+  # its 1e-6 tolerance. The 30-node grid of 4.0.0 returned a value 0.2 too low.
+  # The documented outcome is the typed refusal, which names a remedy.
+  stored <- BMA.glmm(
+    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+    data = test_data_pois, measure = "IRR",
+    prior_lograte = BayesTools::prior("gamma", list(2, 1)), only_priors = TRUE
+  )[["priors"]][["outcome"]][["phi"]]
+  condition <- tryCatch(
+    .outcome_pdf.pois(4L, 3L, 20, 21, matrix(0.2), matrix(0.4), stored),
+    error = identity)
+  expect_s3_class(condition, "RoBMA_glmm_grid_nonconvergence")
+  expect_s3_class(condition, "RoBMA_glmm_numerical_error")
+  expect_match(conditionMessage(condition), "a normal 'prior_lograte'", fixed = TRUE)
+})
+
 test_that("fitted GLMMs with released nuisance families give log_lik(), LOO, WAIC, and autocompute", {
 
   skip_on_cran()

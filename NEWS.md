@@ -522,7 +522,13 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     computation) is available for all of them: point, beta (base rate), and
     normal (log-rate) priors by adaptive quadrature, other families on a refined
     prior-CDF grid. Non-point discrete priors are refused when the model is
-    specified.
+    specified. The fixed 30-node grid of 4.0.0 was inaccurate for the other
+    families (errors up to 0.35 log-likelihood units for a gamma log-rate
+    prior); the refined grid now stops with an error of class
+    `RoBMA_glmm_grid_nonconvergence` when it cannot reach a change of `1e-6`,
+    which can happen for gamma, lognormal, and inverse-gamma log-rate priors
+    and lognormal base-rate priors on cells with few events. A beta base-rate
+    prior or a normal log-rate prior avoids it.
   - nonfinite `weights` are rejected when the data are validated; positive
     fractional weights and the existing missing-value handling are kept.
 - defaults:

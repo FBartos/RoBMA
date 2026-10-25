@@ -232,6 +232,17 @@
   }
   message <- paste0(message, " Inspect the data and '", prior,
     "' before refitting the model.")
+  if (identical(method, "grid")) {
+    # The refined grid cannot certify some heavy-tailed priors on low-event
+    # cells; the adaptive routes of the beta and normal priors can.
+    message <- paste0(message, " The refined prior-CDF grid did not reach its ",
+      "tolerance for this prior; ",
+      if (identical(outcome_type, "bin")) {
+        "a beta 'prior_baserate'"
+      } else {
+        "a normal 'prior_lograte'"
+      }, " is integrated by adaptive quadrature instead.")
+  }
   return(structure(
     list(
       message          = message,
