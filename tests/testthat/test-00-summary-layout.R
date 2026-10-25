@@ -476,3 +476,40 @@ test_that("inclusion layout supports absent bias, random-only, and empty tables"
     out[["inclusion_components"]]
   )
 })
+
+test_that("the summary sections have one definition for printing, export and prior-only objects", {
+
+  sections <- c(
+    "inclusion_components", "inclusion_mods", "inclusion_scale", "inclusion_random",
+    "estimates", "estimates_conditional", "estimates_mods", "estimates_mods_conditional",
+    "estimates_scale", "estimates_scale_conditional", "estimates_random",
+    "estimates_random_conditional", "estimates_bias", "estimates_bias_conditional"
+  )
+  expect_identical(.summary_brma_sections, sections)
+
+  # the prior-only summary carries every section, in print order, and prints
+  # only the title; a table in any section is printed and exported
+  dat <- data.frame(yi = seq(-.1, .2, length.out = 6), sei = .1)
+  priors_only <- summary(brma(yi = yi, sei = sei, data = dat, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE))
+  expect_identical(names(priors_only)[names(priors_only) %in% sections], sections)
+  expect_identical(capture.output(print(priors_only)),
+                   c("", "Bayesian Random-Effects Model (k = 6)", ""))
+
+  filled <- priors_only
+  for (section in sections) {
+    filled[[section]] <- .summary_layout_estimates("p", paste(section, "title"), 1)
+  }
+  printed <- capture.output(print(filled))
+  for (section in sections) {
+    expect_true(any(grepl(paste(section, "title"), printed, fixed = TRUE)), info = section)
+  }
+  # the export labels sections with the names of .summary_brma_sections (random
+  # inclusion is consolidated with the common table, so not all 14 appear)
+  labels <- c("inclusion", "inclusion location", "inclusion scale", "inclusion random",
+    "common", "conditional common", "location", "conditional location", "scale",
+    "conditional scale", "random", "conditional random", "bias", "conditional bias")
+  exported <- unique(as.data.frame(filled)[["component"]])
+  expect_true(all(exported %in% labels))
+  expect_gt(length(exported), 10L)
+})

@@ -380,15 +380,7 @@ print.summary.brma <- function(x, ...) {
   cat(x_print[["name"]])
   cat("\n")
 
-  for (type in c(
-    "inclusion_components", "inclusion_mods", "inclusion_scale",
-    "inclusion_random",
-    "estimates", "estimates_conditional",
-    "estimates_mods", "estimates_mods_conditional",
-    "estimates_scale", "estimates_scale_conditional",
-    "estimates_random", "estimates_random_conditional",
-    "estimates_bias", "estimates_bias_conditional"
-  )) {
+  for (type in .summary_brma_sections) {
     if (length(x_print[[type]]) > 0) {
       cat("\n")
       print(x_print[[type]])
@@ -402,19 +394,26 @@ print.summary.brma <- function(x, ...) {
 }
 
 
+# The table sections of a summary.brma object in print order: the single
+# definition behind printing, the data-frame export and the summary of an
+# `only_priors` object. The construction of a fitted summary fills the same
+# elements.
+.summary_brma_sections <- c(
+  "inclusion_components", "inclusion_mods", "inclusion_scale",
+  "inclusion_random",
+  "estimates", "estimates_conditional",
+  "estimates_mods", "estimates_mods_conditional",
+  "estimates_scale", "estimates_scale_conditional",
+  "estimates_random", "estimates_random_conditional",
+  "estimates_bias", "estimates_bias_conditional"
+)
+
 # The summary of an `only_priors` object: the model title and no table, as the
 # release printed it, with the resolved priors in the `priors` element.
 .summary_brma_only_priors <- function(object) {
 
   out <- list(name = .summary.brma_model_names(object))
-  for (type in c(
-    "inclusion_components", "inclusion_mods", "inclusion_scale",
-    "inclusion_random", "estimates", "estimates_conditional",
-    "estimates_mods", "estimates_mods_conditional",
-    "estimates_scale", "estimates_scale_conditional",
-    "estimates_random", "estimates_random_conditional",
-    "estimates_bias", "estimates_bias_conditional"
-  )) {
+  for (type in .summary_brma_sections) {
     out[[type]] <- list()
   }
   out[["priors"]] <- object[["priors"]]
@@ -504,21 +503,13 @@ as.data.frame.summary.brma <- function(
     x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
 
   x_data <- .summary_brma_prepare_print_sections(x)
-  components <- c(
-    inclusion_components         = "inclusion",
-    inclusion_mods               = "inclusion location",
-    inclusion_scale              = "inclusion scale",
-    inclusion_random             = "inclusion random",
-    estimates                    = "common",
-    estimates_conditional        = "conditional common",
-    estimates_mods               = "location",
-    estimates_mods_conditional   = "conditional location",
-    estimates_scale              = "scale",
-    estimates_scale_conditional  = "conditional scale",
-    estimates_random             = "random",
-    estimates_random_conditional = "conditional random",
-    estimates_bias               = "bias",
-    estimates_bias_conditional   = "conditional bias"
+  # the labels of .summary_brma_sections, in the same order
+  components <- stats::setNames(
+    c("inclusion", "inclusion location", "inclusion scale", "inclusion random",
+      "common", "conditional common", "location", "conditional location",
+      "scale", "conditional scale", "random", "conditional random",
+      "bias", "conditional bias"),
+    .summary_brma_sections
   )
 
   tables <- lapply(names(components), function(section) {
