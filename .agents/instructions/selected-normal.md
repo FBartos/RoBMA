@@ -251,7 +251,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   errors of 1.5 and 1.2 times `tol`); below it, blocks the ladder rejects go on
   to the Smolyak grid and the randomized fallback. The tier's sharpness gate
   asks for an edge width of at least `sqrt(max(1, 2 log N)) / 8` times the node
-  gap on each axis, `N` the number of transition rows loading on that axis:
+  gap on each axis, `N` the number of rows with a nonzero loading on that axis
+  (all of them, including nearby and coupled rows):
   a wall of `N` coincident steps is narrower than one step by about that
   factor and keeps a harmonic-4 error (up to 44% over `tol`) that neither
   check sees. Averaging eight shifts instead does not remove it. Counting is

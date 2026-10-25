@@ -19,9 +19,11 @@
   exceed `relative_tolerance` (0.75% was observed against 0.005 in a
   calibration of an 84-row forest); the acceptance policy is unchanged.
 - Rank-one product-weight clusters now try four-shift quadrature refinement
-  before randomized integration. The refinement gate applies the coincident-row
-  penalty separately to each latent axis, allowing smaller branches of a
-  factor forest to refine without the penalty of its largest branch. The
+  before randomized integration. The refinement gate narrows its edge-width
+  allowance by the number of rows on each latent axis separately (all
+  nonzero-loading rows on that axis, including nearby and coupled rows),
+  allowing smaller branches of a factor forest to refine without the penalty of
+  its largest branch. The
   existing change, tail and sharpness checks remain in place, the preceding
   rung used for the order check must pass the sharpness gate of an ordinary
   rung, and refinement still requires `relative_tolerance >= 0.005`; tighter
