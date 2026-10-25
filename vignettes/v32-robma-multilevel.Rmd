@@ -1,7 +1,7 @@
 ---
 title: "Multilevel Robust Bayesian Meta-Analysis"
 author: "František Bartoš"
-date: "17th of December 2025 (updated: 20th of September 2026)"
+date: "17th of December 2025 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -91,10 +91,7 @@ The multilevel approach explicitly models the clustering structure through the `
 
  - accounts for dependencies among effect sizes from the same study,
  - partitions heterogeneity into within-study and between-study components,
- - adjusts for selective reporting of individual estimates, conditional on the shared study effect, in its weightfunction branches.
-
-These branches use `selection = selection_model()` by default: estimate random effects and known sampling variation are integrated, other random effects are conditioned upon, and weights are multiplied across estimates. For this specialized clustered model, within-study heterogeneity is the estimate source and the shared study effect is the other source; the usual `tau`, `rho` and `I2` summaries retain their meanings.
-Setting `selection = selection_model(other_random_effects = "integrate")` instead normalizes after averaging over the shared study effect. Setting `estimate_random_effects = "condition"` retains the within-study effect during normalization and defines another target. The `known_sampling_variance` field controls the complete sampling-error source, including the independent errors specified by `sei` here; setting it to `"condition"` retains their realization during selection normalization. Explicit weightfunction priors retain their own model specification.
+ - simultaneously adjusts for publication bias at the study level (corresponding to selective reporting).
 
 ## Loading the Data
 
