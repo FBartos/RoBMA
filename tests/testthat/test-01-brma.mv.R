@@ -311,8 +311,14 @@ test_that("brma.mv fits extended known-V backend smoke models", {
     waic(fit_block_random),
     waic(fit_block_random_sampled)
   )
-  expect_true(all(is.finite(loo_comparison)))
-  expect_true(all(is.finite(waic_comparison)))
+  # The comparison is a data frame with a character model column: the numeric
+  # columns (elpd_diff, se_diff and the estimates) must be finite.
+  for (comparison in list(loo_comparison, waic_comparison)) {
+    comparison <- as.data.frame(comparison)
+    numeric_columns <- vapply(comparison, is.numeric, logical(1L))
+    expect_true(all(c("elpd_diff", "se_diff") %in% names(comparison)[numeric_columns]))
+    expect_true(all(is.finite(as.matrix(comparison[, numeric_columns, drop = FALSE]))))
+  }
 
   fit_block_random_sampled_cache <- fit_block_random_sampled
   fit_block_random_sampled_cache[["waic"]] <- NULL
