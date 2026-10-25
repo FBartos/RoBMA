@@ -739,8 +739,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     `study: tau_indicator`, and `tau_total_indicator` for the component of an
     allocation-SD prior).
   - `ranef()` gains `component`, `simplify`, and metafor-compatible `expand`
-    (one column per unique grouping-level contribution by default,
-    `expand = TRUE` for observation-aligned output); for `brma.mv()`
+    (`expand = TRUE`, the default as at 4.0.0, gives observation-aligned
+    output; `expand = FALSE` one column per unique grouping-level
+    contribution, the default of `brma.mv()` random-formula models, which have
+    no 4.0.0 counterpart); for `brma.mv()`
     random-formula models it returns a flat list keyed by canonical block
     names, with nested blocks in metafor's outer-to-inner order.
     `pooled_heterogeneity()` gains `component`.
@@ -1536,7 +1538,8 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - default (unique-level) `ranef()` of `brma.mv()` random-formula models skips
   declared grouping levels that own no fitted rows instead of stopping with an
   internal error.
-- default (unique-level) `ranef()` of `brma.mv()` random-formula models and of
+- unique-level `ranef()` (the default of `brma.mv()` random-formula models,
+  `expand = FALSE` of clustered models) of `brma.mv()` random-formula models and of
   the cluster component of clustered models with a `scale` formula (normal,
   GLMM, and weight-function models, including `RoBMA()` ensembles) stops with
   an error of class `RoBMA_ranef_expand_required` (family class

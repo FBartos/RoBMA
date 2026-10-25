@@ -35,7 +35,8 @@ and other arguments are unused and trigger a warning.}
 A \code{brma_samples} object containing posterior samples. When printed,
 displays a summary table. For decomposed \code{brma.mv()} models, a named
 list of \code{brma_samples} objects is returned. Use \code{summary()} on an
-individual object or \code{as.data.frame()} on the complete result to obtain
+individual object (\code{as.data.frame()} of an individual object returns its
+draws) or \code{as.data.frame()} on the complete result to obtain
 a summary data frame with component and parameter identifiers. Use
 \code{as.data.frame(format = "list")} to retain separate component tables.
 The samples can be converted to \pkg{posterior} draws formats using

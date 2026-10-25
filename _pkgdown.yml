@@ -173,6 +173,7 @@ reference:
   - add_waic.brma
   - waic.brma
   - log_lik
+  - logLik.brma
   - AIC.brma
   - reexports
 - title: Diagnostics and influence
