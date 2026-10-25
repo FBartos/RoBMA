@@ -311,13 +311,22 @@ test_that("brma.mv fits extended known-V backend smoke models", {
     waic(fit_block_random),
     waic(fit_block_random_sampled)
   )
-  # The comparison is a data frame with a character model column: the numeric
-  # columns (elpd_diff, se_diff and the estimates) must be finite.
+  # The comparison is a data frame with a character model column: its numeric
+  # columns (elpd_diff, se_diff and the estimates) must be finite. loo defines
+  # p_worse as NA for the reference model (elpd_diff = 0) and as a probability
+  # for every other row.
   for (comparison in list(loo_comparison, waic_comparison)) {
     comparison <- as.data.frame(comparison)
     numeric_columns <- vapply(comparison, is.numeric, logical(1L))
     expect_true(all(c("elpd_diff", "se_diff") %in% names(comparison)[numeric_columns]))
-    expect_true(all(is.finite(as.matrix(comparison[, numeric_columns, drop = FALSE]))))
+    estimate_columns <- setdiff(names(comparison)[numeric_columns], "p_worse")
+    expect_true(all(is.finite(as.matrix(comparison[, estimate_columns, drop = FALSE]))))
+    reference <- comparison[["elpd_diff"]] == 0
+    expect_identical(sum(reference), 1L)
+    if ("p_worse" %in% names(comparison)) {
+      expect_true(is.na(comparison[["p_worse"]][reference]))
+      expect_true(all(is.finite(comparison[["p_worse"]][!reference])))
+    }
   }
 
   fit_block_random_sampled_cache <- fit_block_random_sampled
