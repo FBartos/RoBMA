@@ -304,8 +304,10 @@ pooled_effect <- function(object, ...) {
 #' @inheritParams predict.brma
 #' @param ... additional arguments passed to \code{\link{predict.brma}}
 #' (\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
-#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
-#' and other arguments are unused and trigger a warning.
+#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed
+#' (supplying one is R's error for an argument matched twice, as for
+#' \code{predict()}), and other unknown arguments are unused and trigger a
+#' warning.
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
@@ -368,6 +370,7 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
                                probs = c(.025, .975),
                                conditional = FALSE, ...) {
 
+  .check_method_fixed_arguments(list(...))
   forwarded <- .split_aggregate_dots(list(...))
 
   # the aggregated prediction at the average fitted design, with the draws of
@@ -418,6 +421,25 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
 .predict_forwarded_arguments <- c(
   "as_measure", "conditional", "V_new", "conditioning_depth", ".posterior_samples"
 )
+
+# The arguments of predict() that blup(), true_effects() and the pooled wrappers
+# set themselves. As at 4.0.0, supplying one in `...` is not an unused argument:
+# the call that sets it meets it twice and R raises its own error ("formal
+# argument ... matched by multiple actual arguments").
+.predict_fixed_arguments <- c("newdata", "type", "quiet")
+
+.check_method_fixed_arguments <- function(dots) {
+
+  repeated <- dots[names(dots) %in% .predict_fixed_arguments]
+  if (length(repeated) > 0L) {
+    do.call(
+      function(newdata, type, quiet) NULL,
+      c(list(newdata = NULL, type = NULL, quiet = NULL), repeated)
+    )
+  }
+
+  return(invisible(TRUE))
+}
 
 .forward_predict_dots <- function(dots, caller, allowed = .predict_forwarded_arguments) {
 
@@ -506,8 +528,10 @@ pooled_heterogeneity <- function(object, ...) {
 #' variance-additive total heterogeneity.
 #' @param ... additional arguments passed to \code{\link{predict.brma}}
 #' (\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
-#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
-#' and other arguments are unused and trigger a warning.
+#' arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed
+#' (supplying one is R's error for an argument matched twice, as for
+#' \code{predict()}), and other unknown arguments are unused and trigger a
+#' warning.
 #'
 #' @details
 #' For location-scale models, the function returns the arithmetic mean over the
@@ -586,6 +610,7 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
                                       conditional = FALSE, component = "all",
                                       ...) {
 
+  .check_method_fixed_arguments(list(...))
   forwarded <- .split_aggregate_dots(list(...))
   BayesTools::check_bool(conditional, "conditional")
   if (conditional && !.is_RoBMA(object)) {
@@ -714,7 +739,10 @@ blup <- function(object, ...) {
 #' @inheritParams predict.brma
 #' @param ... additional arguments passed to \code{\link{predict.brma}}; wrapper
 #' arguments such as \code{newdata}, \code{type}, \code{quiet},
-#' \code{output_measure}, and \code{transform} are fixed by this method.
+#' \code{output_measure}, and \code{transform} are fixed by this method
+#' (supplying one is R's error for an argument matched twice, as for
+#' \code{predict()}), and other unknown arguments are unused and trigger a
+#' warning.
 #'
 #' @details
 #' This function is a convenience wrapper around \code{predict.brma(...,
@@ -776,7 +804,10 @@ blup.brma <- function(object, bias_adjusted = FALSE,
                       output_measure = NULL, transform = NULL,
                       probs = c(.025, .975), ...) {
 
-  dots <- .forward_predict_dots(list(...), caller = "blup()")
+  dots <- .forward_predict_dots(
+    list(...), caller = "blup()",
+    allowed = c(.predict_forwarded_arguments, .predict_fixed_arguments)
+  )
   out <- do.call(predict.brma, c(
     list(
       object         = object,
@@ -863,7 +894,10 @@ true_effects.brma <- function(object, bias_adjusted = FALSE,
                               output_measure = NULL, transform = NULL,
                               probs = c(.025, .975), ...) {
 
-  dots <- .forward_predict_dots(list(...), caller = "true_effects()")
+  dots <- .forward_predict_dots(
+    list(...), caller = "true_effects()",
+    allowed = c(.predict_forwarded_arguments, .predict_fixed_arguments)
+  )
   do.call(blup.brma, c(
     list(
       object         = object,
@@ -1008,6 +1042,12 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   expand_default <- missing(expand)
   BayesTools::check_bool(expand, "expand")
   dots <- list(...)
+  # an explicit NULL is the default of predict() and stays silent, as at 4.0.0
+  for (argument in c("output_measure", "transform")) {
+    if (argument %in% names(dots) && is.null(dots[[argument]])) {
+      dots[[argument]] <- NULL
+    }
+  }
   if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
     stop(
       "'output_measure' and 'transform' are not available for random-effect ",

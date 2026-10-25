@@ -287,9 +287,11 @@ test_that("pooled_effect() and pooled_heterogeneity() forward the dots to predic
     pooled_heterogeneity(mods, conditioning_depth = "cluster"),
     "available only with newdata = NULL"
   )
-  expect_warning(
+  # the wrapper sets newdata itself: R's error for an argument matched twice,
+  # as at 4.0.0, not an unused-argument warning
+  expect_error(
     pooled_effect(mods, newdata = TRUE),
-    "Unused argument in pooled_effect.brma(): 'newdata'",
+    "formal argument \"newdata\" matched by multiple actual arguments",
     fixed = TRUE
   )
 

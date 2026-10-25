@@ -28,8 +28,10 @@ variance-additive total heterogeneity.}
 
 \item{...}{additional arguments passed to \code{\link{predict.brma}}
 (\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
-arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed,
-and other arguments are unused and trigger a warning.}
+arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed
+(supplying one is R's error for an argument matched twice, as for
+\code{predict()}), and other unknown arguments are unused and trigger a
+warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,

@@ -160,10 +160,11 @@
   draw-count-dependent cutoff and with the same message as `check_loo()`.
 - Released methods, among them `summary()`, `plot()`, `marginal_means()`,
   `summary_models()`, `predict()`, `fitted()`, `blup()`, `true_effects()`,
-  `ranef()`, `pooled_effect()` and `pooled_heterogeneity()`, warn about unused
-  arguments in `...` instead of ignoring them silently. `pooled_*()` calls that
-  stopped at 4.0.0 with an error such as "matched by multiple actual
-  arguments" now warn about the argument and continue.
+  `ranef()`, `pooled_effect()` and `pooled_heterogeneity()`, warn about unknown
+  arguments in `...` instead of ignoring them silently. Arguments that
+  `blup()`, `true_effects()`, `pooled_effect()` and `pooled_heterogeneity()` set
+  themselves (`newdata`, `type`, `quiet`) remain R's "matched by multiple actual
+  arguments" error, as at 4.0.0.
 - `loo_model_weights()` labels the first model by its expression unless the
   call names `x`, so a named option or a named additional model no longer
   renames it.

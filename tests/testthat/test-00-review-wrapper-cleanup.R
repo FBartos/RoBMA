@@ -37,15 +37,41 @@ test_that("blup, true_effects and ranef warn once under their own name and forwa
     # predict() arguments that the method does not fix are forwarded silently
     expect_no_warning(do.call(fun, list(object = object, as_measure = TRUE)))
   }
-  # the arguments that blup() and true_effects() fix are unused rather than a
-  # "matched by multiple actual arguments" error
-  for (fun in c("blup", "true_effects")) {
+  # an explicit NULL output_measure or transform of ranef() is silent, as at 4.0.0
+  for (argument in c("output_measure", "transform")) {
+    expect_no_warning(value <- do.call(ranef,
+      stats::setNames(list(object, NULL), c("object", argument))))
+    expect_equal(value, ranef(object))
+  }
+})
+
+test_that("the arguments that a method fixes are R's error, only unknown arguments warn", {
+
+  # As at 4.0.0, blup(), true_effects(), pooled_effect() and
+  # pooled_heterogeneity() set `newdata`, `type` and `quiet` themselves, so one
+  # supplied in `...` is an argument matched twice and R raises its own error;
+  # a fitted-data result must not stand in for a requested new-data one.
+  object <- .review_cleanup_plain_replay()
+  for (fun in c("blup", "true_effects", "pooled_effect", "pooled_heterogeneity")) {
     for (argument in c("newdata", "type", "quiet")) {
-      expect_warning(
-        do.call(fun, stats::setNames(list(object, TRUE), c("object", argument))),
-        paste0("Unused argument in ", fun, "(): '", argument, "'"), fixed = TRUE
+      expect_error(
+        do.call(fun, stats::setNames(list(object, "terms"), c("object", argument))),
+        paste0("formal argument \"", argument, "\" matched by multiple actual arguments"),
+        fixed = TRUE, info = paste(fun, argument)
       )
     }
+  }
+  expect_error(blup(object, newdata = data.frame(x = 1)),
+    "formal argument \"newdata\" matched by multiple actual arguments", fixed = TRUE)
+  expect_error(pooled_effect(object, type = "terms"),
+    "formal argument \"type\" matched by multiple actual arguments", fixed = TRUE)
+
+  # an unknown argument is unused and warns once under the name of the method
+  for (fun in c("pooled_effect", "pooled_heterogeneity")) {
+    expect_warning(
+      do.call(fun, list(object = object, unrecognized = TRUE)),
+      paste0("Unused argument in ", fun, ".brma(): 'unrecognized'"), fixed = TRUE
+    )
   }
 })
 
