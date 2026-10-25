@@ -156,8 +156,8 @@
   (bias-only curve, the mixture title and plotting grid).
 - Influence diagnostics that reuse the cached LOO result (`dfbetas()`,
   `covratio()`, `dffits()`, `cooks.distance()`, `rstudent()`, `influence()`)
-  warn about high Pareto k values at the same draw-count-dependent cutoff and
-  with the same message as `check_loo()`.
+  warn about high Pareto k values, which 4.0.0 did not, at the same
+  draw-count-dependent cutoff and with the same message as `check_loo()`.
 - `loo_model_weights()` labels the first model by its expression unless the
   call names `x`, so a named option or a named additional model no longer
   renames it.
