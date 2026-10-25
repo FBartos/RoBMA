@@ -17,6 +17,7 @@ extern SEXP RoBMA_selnorm_normal_upper_tail(SEXP x, SEXP scalar);
 extern SEXP RoBMA_selnorm_set_native_threads(SEXP threads);
 extern SEXP RoBMA_selnorm_row_schedule(SEXP rows, SEXP work_per_row);
 extern SEXP RoBMA_selnorm_qmc_z(void);
+extern SEXP RoBMA_selnorm_tail_lanes_check(SEXP locations, SEXP offset, SEXP inverse_sd, SEXP last, SEXP step);
 extern SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights);
 extern SEXP RoBMA_selnorm_double_rule_weights_check(SEXP nodes, SEXP log_weights, SEXP shift, SEXP evict);
 extern SEXP RoBMA_selnorm_certificate_probe(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP,
@@ -406,7 +407,8 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_set_native_threads", (DL_FUNC) &RoBMA_selnorm_set_native_threads, 1},
     {"RoBMA_selnorm_row_schedule", (DL_FUNC) &RoBMA_selnorm_row_schedule, 2},
     {"RoBMA_selnorm_qmc_z", (DL_FUNC) &RoBMA_selnorm_qmc_z, 0},
-    /* Test hooks (two rule-weight and two certificate entries), not package interface. */
+    /* Private test hooks, not package interface. */
+    {"RoBMA_selnorm_tail_lanes_check", (DL_FUNC) &RoBMA_selnorm_tail_lanes_check, 5},
     {"RoBMA_selnorm_rule_weights_check", (DL_FUNC) &RoBMA_selnorm_rule_weights_check, 1},
     {"RoBMA_selnorm_double_rule_weights_check", (DL_FUNC) &RoBMA_selnorm_double_rule_weights_check, 4},
     {"RoBMA_selnorm_certificate_probe", (DL_FUNC) &RoBMA_selnorm_certificate_probe, 20},

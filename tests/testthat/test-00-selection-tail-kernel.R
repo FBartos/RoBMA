@@ -156,3 +156,19 @@ test_that("the fallback lane is as accurate as the vectorized one", {
   expect_lt(max(abs(.selnorm_normal_upper_tail(as.numeric(names(exact)),
                                                scalar = TRUE) / exact - 1)), 1e-15)
 })
+
+
+
+test_that("mixed tail batches preserve values across vector widths", {
+
+  grid <- rep(c(-Inf, -40, -sqrt(32), -0.67448975, 0,
+                0.67448975, sqrt(32), 37.5193, 40, Inf, NaN), 4)
+  reference <- vapply(grid, .selnorm_normal_upper_tail, numeric(1L))
+  # A one-element request, a four-wide batch, and an eight-wide batch use
+  # different dispatch or remainder paths on supported machines. Check each
+  # remainder length with mixed regions and non-finite lanes.
+  for (size in 0:33) {
+    index <- seq_len(size)
+    expect_identical(.selnorm_normal_upper_tail(grid[index]), reference[index])
+  }
+})

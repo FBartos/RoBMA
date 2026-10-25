@@ -440,6 +440,169 @@ inline bool avx2_available()
 #endif
 
 
+// Eight-wide evaluation of the same kernel on CPUs and operating systems that
+// support the AVX-512 state. Keep this target region separate from AVX2 and
+// dispatch at runtime; small batches and other CPUs retain the existing lanes.
+#if SELNORM_TAIL_HAS_AVX2
+#pragma GCC push_options
+#pragma GCC target("avx512f,avx512dq,fma")
+struct WideLane {
+  typedef __m512d Value;
+  typedef __mmask8 Mask;
+  static constexpr bool compensated_ordinate = true;
+
+  static SELNORM_TAIL_INLINE Value splat(double value) {
+    return _mm512_set1_pd(value);
+  }
+  static SELNORM_TAIL_INLINE Value add(Value a, Value b) {
+    return _mm512_add_pd(a, b);
+  }
+  static SELNORM_TAIL_INLINE Value subtract(Value a, Value b) {
+    return _mm512_sub_pd(a, b);
+  }
+  static SELNORM_TAIL_INLINE Value multiply(Value a, Value b) {
+    return _mm512_mul_pd(a, b);
+  }
+  static SELNORM_TAIL_INLINE Value divide(Value a, Value b) {
+    return _mm512_div_pd(a, b);
+  }
+  static SELNORM_TAIL_INLINE Value fused(Value a, Value b, Value c) {
+    return _mm512_fmadd_pd(a, b, c);
+  }
+  static SELNORM_TAIL_INLINE Value absolute(Value a) {
+    return _mm512_andnot_pd(_mm512_set1_pd(-0.0), a);
+  }
+  static SELNORM_TAIL_INLINE Value round_nearest(Value a) {
+    return _mm512_roundscale_pd(a, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+  }
+  static SELNORM_TAIL_INLINE Value power_of_two(Value exponent) {
+    const __m512i wide = _mm512_cvtpd_epi64(exponent);
+    return _mm512_castsi512_pd(_mm512_slli_epi64(
+      _mm512_add_epi64(wide, _mm512_set1_epi64(1023)), 52));
+  }
+  static SELNORM_TAIL_INLINE Value sixteenth(Value a) {
+    return _mm512_mul_pd(
+      _mm512_roundscale_pd(_mm512_mul_pd(a, _mm512_set1_pd(16.0)),
+                      _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC),
+      _mm512_set1_pd(0.0625));
+  }
+  static SELNORM_TAIL_INLINE Mask less_equal(Value a, Value b) {
+    return _mm512_cmp_pd_mask(a, b, _CMP_LE_OQ);
+  }
+  static SELNORM_TAIL_INLINE Mask greater(Value a, Value b) {
+    return _mm512_cmp_pd_mask(a, b, _CMP_GT_OQ);
+  }
+  static SELNORM_TAIL_INLINE Value select(Mask mask, Value when_true,
+                                          Value when_false) {
+    return _mm512_mask_blend_pd(mask, when_false, when_true);
+  }
+  static SELNORM_TAIL_INLINE bool any(Mask mask) {
+    return mask != 0;
+  }
+  static SELNORM_TAIL_INLINE Mask negate(Mask mask) {
+    return static_cast<Mask>(~mask);
+  }
+  static SELNORM_TAIL_INLINE Mask conjunction(Mask left, Mask right) {
+    return left & right;
+  }
+};
+
+
+namespace wide_kernel {
+#define SELNORM_TAIL_LANE WideLane
+#include "selnorm-tail-kernel.cc.inc"
+#undef SELNORM_TAIL_LANE
+}
+inline void upper_tail_affine_avx512(const double *mean, std::size_t count,
+                                   double offset, double inverse_sd,
+                                   double *out)
+{
+  const __m512d intercept = _mm512_set1_pd(offset);
+  const __m512d slope = _mm512_set1_pd(-inverse_sd);
+  std::size_t index = 0;
+  for (; index + 8 <= count; index += 8) {
+    const __m512d score = _mm512_fmadd_pd(
+      _mm512_loadu_pd(mean + index), slope, intercept);
+    _mm512_storeu_pd(out + index, wide_kernel::upper_tail(score));
+  }
+  if (index < count) {
+    double padded_in[8] = {};
+    double padded_out[8];
+    const std::size_t remainder = count - index;
+    for (std::size_t lane = 0; lane < remainder; ++lane) {
+      padded_in[lane] = mean[index + lane];
+    }
+    const __m512d score = _mm512_fmadd_pd(
+      _mm512_loadu_pd(padded_in), slope, intercept);
+    _mm512_storeu_pd(padded_out, wide_kernel::upper_tail(score));
+    for (std::size_t lane = 0; lane < remainder; ++lane) {
+      out[index + lane] = padded_out[lane];
+    }
+  }
+}
+
+// One changed boundary: evaluate and validate the row in one pass. Products
+// remain untouched until the caller has validated every block of the row.
+inline bool single_boundary_normalizers_avx512(
+  const double *location, std::size_t count, double offset, double inverse_sd,
+  double last, double step, double *value)
+{
+  const __m512d intercept = _mm512_set1_pd(offset);
+  const __m512d slope = _mm512_set1_pd(-inverse_sd);
+  const __m512d scale = _mm512_set1_pd(step);
+  const __m512d base = _mm512_set1_pd(last);
+  const __m512d absolute_base = _mm512_set1_pd(std::fabs(last));
+  const __m512d sign = _mm512_set1_pd(-0.0);
+  const __m512d maximum = _mm512_set1_pd(std::numeric_limits<double>::max());
+  const __m512d minimum = _mm512_set1_pd(std::numeric_limits<double>::min());
+  const __m512d ratio = _mm512_set1_pd(1e-8);
+  __mmask8 valid = 255;
+  std::size_t index = 0;
+  for (; index + 8 <= count; index += 8) {
+    const __m512d mean = _mm512_loadu_pd(location + index);
+    const __m512d score = _mm512_fmadd_pd(mean, slope, intercept);
+    const __m512d contribution = _mm512_mul_pd(scale, wide_kernel::upper_tail(score));
+    const __m512d normalizer = _mm512_add_pd(base, contribution);
+    const __m512d magnitude = _mm512_add_pd(absolute_base,
+      _mm512_andnot_pd(sign, contribution));
+    _mm512_storeu_pd(value + index, normalizer);
+    __mmask8 ok = _mm512_cmp_pd_mask(_mm512_andnot_pd(sign, mean), maximum, _CMP_LE_OQ);
+    ok &= _mm512_cmp_pd_mask(normalizer, maximum, _CMP_LE_OQ);
+    ok &= _mm512_cmp_pd_mask(normalizer, minimum, _CMP_GT_OQ);
+    ok &= _mm512_cmp_pd_mask(normalizer,
+      _mm512_mul_pd(ratio, magnitude), _CMP_GT_OQ);
+    valid &= ok;
+  }
+  bool all = valid == 255;
+  if (index < count) {
+    // Keep the existing padded tail evaluation and scalar remainder arithmetic.
+    double tail[8];
+    upper_tail_affine_avx512(location + index, count - index, offset, inverse_sd, tail);
+    for (std::size_t lane = 0; index < count; ++index, ++lane) {
+      const double contribution = step * tail[lane];
+      value[index] = last;
+      value[index] += contribution;
+      double magnitude = std::fabs(last);
+      magnitude += std::fabs(contribution);
+      all &= (std::fabs(location[index]) <= std::numeric_limits<double>::max()) &
+             (value[index] <= std::numeric_limits<double>::max()) &
+             (value[index] > std::numeric_limits<double>::min()) &
+             (value[index] > 1e-8 * magnitude);
+    }
+  }
+  return all;
+}
+
+
+#pragma GCC pop_options
+inline bool avx512_available()
+{
+  static const bool supported = __builtin_cpu_supports("avx512f") &&
+    __builtin_cpu_supports("avx512dq") && __builtin_cpu_supports("fma");
+  return supported;
+}
+#endif
+
 // out[i] = Q(offset - mean[i] * inverse_sd). `scalar` forces the fallback lane
 // that builds without the vector region use, so the tests can certify it on
 // any machine.
@@ -448,6 +611,10 @@ inline void upper_tail_affine(const double *mean, std::size_t count,
                               bool scalar = false)
 {
 #if SELNORM_TAIL_HAS_AVX2
+  if (!scalar && count >= 8 && avx512_available()) {
+    upper_tail_affine_avx512(mean, count, offset, inverse_sd, out);
+    return;
+  }
   if (!scalar && avx2_available()) {
     upper_tail_affine_avx2(mean, count, offset, inverse_sd, out);
     return;
@@ -512,6 +679,10 @@ inline bool single_boundary_normalizers(
   double last, double step, double *value, double *tail, double *magnitude)
 {
 #if SELNORM_TAIL_HAS_AVX2
+  if (count >= 8 && avx512_available()) {
+    return single_boundary_normalizers_avx512(location, count, offset, inverse_sd,
+                                            last, step, value);
+  }
   if (avx2_available()) {
     return single_boundary_normalizers_avx2(location, count, offset, inverse_sd,
                                             last, step, value);

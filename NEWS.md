@@ -53,6 +53,10 @@
   rung, and refinement still requires `relative_tolerance >= 0.005`; tighter
   tolerances retain the existing fallback because shift agreement can miss
   integration error.
+- Selection normalizers use eight-wide AVX-512 tail evaluation when supported
+  by the processor and operating system, with results identical to the AVX2
+  path. AVX2 and scalar fallbacks remain available on other systems; the scalar
+  path agrees with the vector paths to rounding, not bit for bit.
 - Cluster selection normalizers reuse exact quadrature weights in JAGS through
   a bounded cache keyed by their values. Shifted weights and precomputed R
   weights retain their original arithmetic and certificate checks.

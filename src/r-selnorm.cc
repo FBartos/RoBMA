@@ -273,6 +273,95 @@ extern "C" SEXP RoBMA_selnorm_double_rule_weights_check(
   ROBMA_NATIVE_END
 }
 
+// Private direct-lane probe. Unsupported instructions are never called; guarded
+// local buffers also verify that full blocks and padded remainders stay in bounds.
+extern "C" SEXP RoBMA_selnorm_tail_lanes_check(
+    SEXP locations, SEXP offset, SEXP inverse_sd, SEXP last, SEXP step)
+{
+  ROBMA_NATIVE_BEGIN(locations, offset, inverse_sd, last, step)
+  if (TYPEOF(locations) != REALSXP || XLENGTH(locations) > 1000000) {
+    Rf_error("'locations' must be a numeric vector of at most 1000000 values.");
+  }
+  for (SEXP argument : {offset, inverse_sd, last, step}) {
+    if (TYPEOF(argument) != REALSXP || XLENGTH(argument) != 1) {
+      Rf_error("'offset', 'inverse_sd', 'last' and 'step' must each be one numeric value.");
+    }
+  }
+  const std::size_t count = static_cast<std::size_t>(XLENGTH(locations));
+  const double intercept = REAL(offset)[0], scale = REAL(inverse_sd)[0];
+  const double base = REAL(last)[0], change = REAL(step)[0];
+  const double sentinel = 1234567.25;
+  std::vector<double> input(count + 2, sentinel);
+  std::copy(REAL(locations), REAL(locations) + count, input.begin() + 1);
+  bool avx2 = false, avx512 = false;
+#if SELNORM_TAIL_HAS_AVX2
+  avx2 = selnorm_tail::avx2_available();
+  avx512 = selnorm_tail::avx512_available();
+#endif
+  // lane 0 is automatic dispatch, 1 AVX2, 2 AVX512. Call only after gating.
+  const auto evaluate = [&](int lane) -> SEXP {
+    std::vector<double> tails(count + 2, sentinel), values(count + 2, sentinel);
+    std::vector<double> scratch(count), magnitude(count);
+    bool valid = false;
+#if SELNORM_TAIL_HAS_AVX2
+    if (lane == 1) {
+      selnorm_tail::upper_tail_affine_avx2(input.data() + 1, count,
+        intercept, scale, tails.data() + 1);
+      valid = selnorm_tail::single_boundary_normalizers_avx2(input.data() + 1,
+        count, intercept, scale, base, change, values.data() + 1);
+    } else if (lane == 2) {
+      selnorm_tail::upper_tail_affine_avx512(input.data() + 1, count,
+        intercept, scale, tails.data() + 1);
+      valid = selnorm_tail::single_boundary_normalizers_avx512(input.data() + 1,
+        count, intercept, scale, base, change, values.data() + 1);
+    } else
+#endif
+    {
+      (void)lane;
+      selnorm_tail::upper_tail_affine(input.data() + 1, count,
+        intercept, scale, tails.data() + 1);
+      valid = selnorm_tail::single_boundary_normalizers(input.data() + 1,
+        count, intercept, scale, base, change, values.data() + 1,
+        scratch.data(), magnitude.data());
+    }
+    const bool guards = tails.front() == sentinel && tails.back() == sentinel &&
+      values.front() == sentinel && values.back() == sentinel &&
+      input.front() == sentinel && input.back() == sentinel;
+    SEXP result = PROTECT(Rf_allocVector(VECSXP, 4));
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
+    SEXP tail_values = PROTECT(Rf_allocVector(REALSXP, count));
+    SEXP normalizers = PROTECT(Rf_allocVector(REALSXP, count));
+    std::copy(tails.begin() + 1, tails.end() - 1, REAL(tail_values));
+    std::copy(values.begin() + 1, values.end() - 1, REAL(normalizers));
+    SET_VECTOR_ELT(result, 0, tail_values);
+    SET_VECTOR_ELT(result, 1, normalizers);
+    SET_VECTOR_ELT(result, 2, Rf_ScalarLogical(valid));
+    SET_VECTOR_ELT(result, 3, Rf_ScalarLogical(guards));
+    const char *labels[] = {"tail", "normalizers", "valid", "guards"};
+    for (int i = 0; i < 4; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+    Rf_setAttrib(result, R_NamesSymbol, names);
+    UNPROTECT(4);
+    return result;
+  };
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
+  SET_VECTOR_ELT(out, 0, Rf_ScalarLogical(avx2));
+  SET_VECTOR_ELT(out, 1, Rf_ScalarLogical(avx512));
+  if (avx2) SET_VECTOR_ELT(out, 2, evaluate(1));
+  if (avx512) SET_VECTOR_ELT(out, 3, evaluate(2));
+  SET_VECTOR_ELT(out, 4, evaluate(0));
+  SEXP scalar = PROTECT(Rf_allocVector(REALSXP, count));
+  selnorm_tail::upper_tail_affine(input.data() + 1, count, intercept, scale,
+    REAL(scalar), true);
+  SET_VECTOR_ELT(out, 5, scalar);
+  const char *labels[] = {"avx2_available", "avx512_available", "avx2", "avx512", "automatic", "scalar"};
+  for (int i = 0; i < 6; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(3);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
 {
   ROBMA_NATIVE_BEGIN(threads)
