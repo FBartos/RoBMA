@@ -6618,8 +6618,14 @@ double cpp_selnorm_factor_step_lpdf(
             event_proposal.evaluate(latent.data(), &target,
               &point_log_event[component_offset + point]);
             const double density = point_log_event[component_offset + point];
-            if (std::isnan(target) || target == -negative_infinity ||
-                std::isnan(density) || density == -negative_infinity) {
+            // NaN and +Inf are never valid log values. A point whose target and
+            // proposal density are both exactly zero contributes nothing (it is
+            // skipped below). Zero on one side only cannot be weighted, so it is
+            // rejected with the other invalid values.
+            const double positive_infinity = -negative_infinity;
+            if (std::isnan(target) || target == positive_infinity ||
+                std::isnan(density) || density == positive_infinity ||
+                (target == negative_infinity) != (density == negative_infinity)) {
               return event_unavailable();
             }
           } else {
@@ -6629,6 +6635,7 @@ double cpp_selnorm_factor_step_lpdf(
           point_log_target[component_offset + point] = target;
         }
         for (int point = 0; point < fine_counts[component]; ++point) {
+          if (point_log_target[component_offset + point] == negative_infinity) continue;
           const bool in_coarse = point < coarse_counts[component];
           double fine_mixture = negative_infinity;
           double coarse_mixture = negative_infinity;

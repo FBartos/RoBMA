@@ -301,7 +301,10 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   is left out of the draws and of the proposal density together, while the
   target keeps every row. NaN or infinite proposal masses, or no event mass at
   all, instead report infinite diagnostics, so numerical unavailability cannot
-  silently become an accepted zero likelihood. Exact
+  silently become an accepted zero likelihood. At a sampled point, a NaN or
+  `+Inf` log target or event density is rejected the same way, a point whose
+  target and event density are both exactly zero contributes nothing, and zero
+  on only one side is rejected rather than weighted. Exact
   categorical boundaries in valid supplied uniforms use the conditional median;
   this defines the transform on a measure-zero set without clipping interior
   probabilities.
