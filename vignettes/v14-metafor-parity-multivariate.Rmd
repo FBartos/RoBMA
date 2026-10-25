@@ -1,7 +1,7 @@
 ---
 title: "Multivariate and Multilevel Meta-Analysis"
 author: "František Bartoš"
-date: "22nd of June 2026"
+date: "25nd of October 2026"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -71,7 +71,6 @@ V_assink   <- metafor::vcalc(
   vi, cluster = study, type = deltype, obs = esid,
   rho = c(0.7, 0.5), data = dat_assink
 )
-V_assink[lower.tri(V_assink)] <- t(V_assink)[lower.tri(V_assink)]
 
 fit2_brma <- brma.mv(
   yi = yi, V = V_assink, measure = "SMD",
@@ -98,7 +97,6 @@ V_ishak <- metafor::vcalc(
   vi, cluster = study, time1 = time,
   phi = 0.97, data = dat_ishak
 )
-V_ishak[lower.tri(V_ishak)] <- t(V_ishak)[lower.tri(V_ishak)]
 ishak_unit_information_sd <- estimate_unit_information_sd(sei = sqrt(14.3), ni = 15)
 ishak_time_prior <- BayesTools::prior_factor(
   distribution = "normal",
@@ -166,85 +164,6 @@ The examples move from a simple three-level model to known sampling covariance m
 The first two examples rely on default prior distributions and the last two examples rely on unit-information-scaled prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for more details.
 For generic summaries, plots, and diagnostics that also apply to `brma.mv()` objects, see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
 
-## Formula Semantics and Random-Effect Structures
-
-In `brma.mv()` and its .mv wrappers, omitted or NULL `random` specifies no random-effects structure and no implicit heterogeneity. The resulting fixed-effect model still uses the full known sampling covariance `V`. Declare a random term before supplying heterogeneity priors or scale formulas; the specialized univariate `brma()` interface retains its implicit heterogeneity and clustered `tau`/`rho`/`I2` behavior.
-
-
-BayesTools deliberately separates a formula's intercept from its factor contrast.
-For fixed moderators, `prior_factor()` owns the factor basis.
-Consequently, `mods = ~ 0 + group` does not invoke base R's automatic full-indicator coding: it fixes the intercept structurally at zero while preserving the contrast selected by `prior_mods`.
-With `contrast = "independent"`, the result is one coefficient per `group` level.
-
-Random-effect formulas then divide into two families:
-
-| Structure syntax | Left-side role | Marginal SDs | Correlation |
-|---|---|---|---|
-| Plain bar, `us()` / `un()` | coefficient formula | one per generated coefficient | unrestricted LKJ correlation matrix |
-| Double bar, `diag()` | coefficient formula | one per generated coefficient | independent |
-| `id()` | coefficient formula | one shared SD | independent |
-| `cs()` | one or more discrete indices | one shared SD | one common pairwise correlation |
-| `hcs()` | one or more discrete indices | one per index level | one common pairwise correlation |
-| `ar1()` / `ar()` | one discrete ordered index | one shared SD | AR(1), `cor^abs(i - j)` |
-| `har()` | one discrete ordered index | one per index level | AR(1), `cor^abs(i - j)` |
-| `car()` | one numeric-distance coordinate | one shared SD | continuous AR(1), `cor^abs(t_i - t_j)` |
-
-For `id()`, `diag()`, and `us()`, `1`, `0`, and `-1` control the random intercept; continuous slopes, factor slopes, and interactions are coefficient-formula terms.
-A factor's random basis defaults to its already resolved contrast when the same factor is in the fixed model.
-Use `random_block(contrasts = ...)` to make the random basis explicit or to let it differ from the fixed basis.
-In particular, removing the random intercept does not itself request one coefficient per factor level.
-
-The structured `cs()`, `hcs()`, `ar1()`, and `har()` tags work differently.
-Their left side names index columns, so they reject `1`, `0`, `-1`, and `random_block(contrasts = ...)`.
-They accept factor, character, numeric/integer, or logical indices.
-Factor level order is preserved; otherwise sorted unique values define the levels and AR(1) order.
-`cs()` and `hcs()` can combine several index columns with `+`, whereas `ar1()` and `har()` require exactly one.
-`car()` requires one finite numeric/integer coordinate, or an ordered factor with numeric labels, because actual distances determine its correlation.
-
-A bare random formula and an unnamed one-entry formula list both represent one top-level component and therefore omit a redundant component prefix from public parameter names.
-An explicitly named one-entry list retains its name.
-For lists with two or more formulas, missing names are generated as `component 1`, `component 2`, and so on; explicit names are clearer when component-specific `scale` models are used.
-Within each component, public random-effect names follow `owner: quantity(arguments)`: parentheses contain coefficient names and square brackets contain their levels.
-The optional formula prefix is accepted when needed to disambiguate namespaces.
-
-This distinction matters for the sensitivity/specificity model motivating this interface.
-To estimate one group-level random deviation for each outcome and their unrestricted correlation, both level bases are stated explicitly:
-
-```{r coefficient-basis-example, eval = FALSE}
-group_prior <- BayesTools::prior_factor(
-  distribution = "normal",
-  parameters   = list(mean = 0, sd = 1),
-  contrast     = "independent"
-)
-random_prior <- BayesTools::prior_random(
-  study = BayesTools::random_block(
-    contrasts = c(group = "independent")
-  )
-)
-
-fit <- brma.mv(
-  yi = yi, V = vi, ni = out1 + out2,
-  mods   = ~ 0 + group,
-  random = ~ us(0 + group | study),
-  prior_effect              = NULL,
-  prior_mods                = group_prior,
-  prior_heterogeneity       = random_prior,
-  prior_unit_information_sd = 1,
-  data = dat, measure = "GEN", seed = 1
-)
-```
-
-Here the fixed `0 +` sets the average-effect intercept to zero, while the random `0 +` removes the random intercept.
-The two independent contrast declarations create one fixed and one random coefficient per `group` level.
-Because `random_prior` specifies no SD or variance allocation, RoBMA completes it with the usual UISD-scaled common-SD prior and a mean-variance Dirichlet allocation across the two random coefficients.
-Because no US correlation prior is supplied, BayesTools completes the block with `LKJ(1)` after its dimension is resolved.
-Because this is a bare one-component random formula, RoBMA suppresses the redundant block prefix and reports `tau(group[sensitivity])`, `tau(group[specificity])`, `tau_common`, `tau2_common`, the corresponding `tau2_mult(...)` and `tau_mult(...)` quantities, and `rho(group[sensitivity],group[specificity])`.
-These same semantic names select parameters in summaries, plots, density estimation, and hypotheses; internal LKJ construction coordinates are not public aliases.
-
-This is not interchangeable with `hcs(group | study)`.
-For two levels both models contain one correlation parameter, but HCS uses a structure-owned level basis and a scalar-correlation prior.
-With three or more levels, HCS constrains every pairwise correlation to be equal, whereas US estimates an unrestricted correlation matrix.
-
 ## Three-Level Model
 
 The `dat.konstantopoulos2011` dataset from the `metadat` package contains 56 standardized mean differences from studies of modified school calendars and student achievement.
@@ -285,9 +204,8 @@ fit1_brma <- brma.mv(
 ```
 
 `summary()` reports the pooled effect and the random-effect parameters monitored by the fitted Bayesian model.
-Here `district: tau` is the shared marginal heterogeneity SD corresponding to
-the `metafor` package variance component, and `district: rho` is the
-compound-symmetric correlation. It is not a `tau_total` allocation quantity.
+Here `tau` is the shared marginal heterogeneity SD corresponding to the `metafor` package variance component, 
+and `district: rho` is the compound-symmetric correlation.
 
 ```{r fit1-brma-summary}
 summary(fit1_brma, include_mcmc_diagnostics = FALSE)
@@ -297,7 +215,10 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 
 The `dat.assink2016` dataset from the `metadat` package contains standardized mean differences from 17 studies on recidivism and mental health among delinquent juveniles.
 Most studies contributed multiple estimates for different delinquent behaviors, so the example needs both a working sampling covariance matrix and random effect specification.
-The `metafor::vcalc()` call constructs a working sampling covariance matrix from the effect-size variances, study labels, delinquency type, and effect-size identifiers. We copy its upper triangle to the lower triangle because floating-point evaluation can otherwise leave the two triangles microscopically different.
+The working sampling covariance matrix and the random-effects formula address different sources of dependence.
+The working sampling covariance matrix encodes sampling-error dependence that is treated as known, while the random-effects formula estimates residual heterogeneity across the levels named in `random`.
+
+The `metafor::vcalc()` call constructs a working sampling covariance matrix from the effect-size variances, study labels, delinquency type, and effect-size identifiers.
 
 ```{r data-assink}
 data("dat.assink2016", package = "metadat")
@@ -306,11 +227,10 @@ V_assink   <- metafor::vcalc(
   vi, cluster = study, type = deltype, obs = esid,
   rho = c(0.7, 0.5), data = dat_assink
 )
-V_assink[lower.tri(V_assink)] <- t(V_assink)[lower.tri(V_assink)]
 head(dat_assink)
 ```
 
-The `metafor` package model uses the full `V` matrix and a nested random intercept for studies and effect sizes within studies.
+The `metafor::rma.mv` function then specifies the `V` matrix and nested random intercept for studies and effect sizes within studies as the input.
 
 ```{r fit2-metafor}
 fit2_metafor <- metafor::rma.mv(
@@ -321,8 +241,7 @@ fit2_metafor <- metafor::rma.mv(
 fit2_metafor
 ```
 
-The `brma.mv()` call mirrors the same inputs: `V` is the known sampling covariance matrix and `random` describes the additional heterogeneity.
-The nested variance allocation can mix slowly, so inspect its convergence diagnostics before interpreting the results.
+The `brma.mv()` call mirrors the same inputs: `V` is the known sampling covariance matrix and `random` describes the multilevel specification.
 
 ```{r fit2-brma, eval = FALSE}
 fit2_brma <- brma.mv(
@@ -332,25 +251,25 @@ fit2_brma <- brma.mv(
   chains = 4, adapt = 2000, burnin = 5000, sample = 10000
 )
 ```
+The `summary` function here deviates from the metafor input because it summarizes parameters with directly specified prior distributions. 
+Here, it is the total between-study heterogeneity tau and variance allocation of tau^2 into the individual levels. 
 
 ```{r fit2-brma-summary}
 summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 ```
 
-The known `V` matrix and the random-effects formula address different sources of dependence.
-The `V` matrix encodes sampling-error dependence that is treated as known, while the random-effects formula estimates residual heterogeneity across the levels named in `random`.
+A more detailed summary of the between-study heterogeneity can be obtained via the `summary_heterogeneity` function.
+The first heterogeneity table summarizes the shared `study/esid` heterogeneity allocation, including the total heterogeneity and variance fractions; the following tables summarize the block-specific standard deviations.
 
 ```{r fit2-brma-heterogeneity}
 summary_heterogeneity(fit2_brma)
 ```
 
-The first heterogeneity table summarizes the shared `study/esid` heterogeneity allocation, including the total heterogeneity and variance fractions; the following tables summarize the block-specific standard deviations.
-
 ## Heterogeneous AR(1) Structure
 
 The `dat.ishak2007` dataset from the `metadat` package contains results from 46 studies of deep-brain stimulation for Parkinson's disease.
 Negative mean differences indicate improvements in UPDRS motor-function scores, and repeated follow-up measurements within studies motivate a temporal correlation model.
-The data are first reshaped to long format, and `metafor::vcalc()` uses a working autocorrelation of `0.97` for the sampling errors. We again copy the upper triangle to construct the exactly symmetric covariance matrix required by `brma.mv()`.
+The data are first reshaped to long format, and `metafor::vcalc()` uses a working autocorrelation of `0.97` for the sampling errors.
 
 ```{r data-ishak}
 data("dat.ishak2007", package = "metadat")
@@ -370,7 +289,6 @@ V_ishak <- metafor::vcalc(
   vi, cluster = study, time1 = time,
   phi = 0.97, data = dat_ishak
 )
-V_ishak[lower.tri(V_ishak)] <- t(V_ishak)[lower.tri(V_ishak)]
 head(dat_ishak)
 ```
 
@@ -388,11 +306,11 @@ fit3_metafor <- metafor::rma.mv(
 fit3_metafor
 ```
 
-The `brma.mv()` call uses the BayesTools `har()` wrapper in the random-effects formula.
+The `brma.mv()` call uses the `har()` random-effects formula tag.
+To obtain separate parameters for each time_factor level, we specify the independent factor contrast via `prior_mods` argument (only suppressing the intercept via -1 would fix the default's level coefficient 0).
 Because this outcome is a generic continuous outcome and sample sizes are not reported in the source table, we use one of the primary-study sample sizes to estimate the unit-information scale.
 The Alegret (2001) row reports a 3-month sampling variance of `14.3`, and the primary study reports `15` patients.
 We compute the corresponding unit-information standard deviation with `estimate_unit_information_sd()` and use it directly in the prior distribution specification.
-The independent factor prior distribution gives each time point its own location coefficient on this UPDRS scale.
 
 ```{r fit3-brma, eval = FALSE}
 ishak_unit_information_sd <- estimate_unit_information_sd(sei = sqrt(14.3), ni = 15)
@@ -426,6 +344,7 @@ This separates the temporal structure of the true effects from the working tempo
 The `dat.begg1989` dataset from the `metadat` package contains 20 estimates of two-year disease-free survival rates for acute nonlymphocytic leukemia.
 The studies compare allogeneic bone-marrow transplantation (BMT) and conventional chemotherapy (CMO), with both controlled two-arm studies and uncontrolled one-arm studies.
 The example uses the reported survival rates and their sampling variances directly on the raw rate scale.
+Because the source table reports survival rates and standard errors but not sample sizes, we recover effective sample sizes and use them to scale the prior distributions.
 
 ```{r data-begg}
 data("dat.begg1989", package = "metadat")
@@ -456,7 +375,6 @@ fit4_metafor
 ```
 
 The `brma.mv()` sets names for the two random structures explicitly.
-Because the source table reports survival rates and standard errors but not sample sizes, we recover effective sample sizes and use them to scale the prior distributions.
 The `prior_random()` call specifies the study and treatment blocks directly because it fixes the treatment-level correlation at zero.
 
 ```{r fit4-brma, eval = FALSE}
@@ -505,15 +423,6 @@ The study component captures baseline heterogeneity across studies, while the tr
 ```{r fit4-brma-heterogeneity}
 summary_heterogeneity(fit4_brma)
 ```
-
-
-## General Considerations and Reporting
-
-**Report both covariance layers.** State how sampling covariance `V` was constructed and separately describe every estimated or known-`R` random component. Also report the effective known-`V` backend shown by `summary()`.
-
-**Name the downstream target.** Distinguish conditional fitted effects, marginal new-effect predictions, Schur-conditional estimate diagnostics, marginal GLS diagnostics, and the full joint marginal likelihood. For LOO, report Pareto-k diagnostics and note that dependency-block deletion is unavailable.
-
-**Make future designs explicit.** Report the covariate and random-component levels used for prediction, and provide `V_new` when predicting future observed estimates. Unseen known-`R` levels require a future covariance interface and are therefore rejected.
 
 
 ## References
