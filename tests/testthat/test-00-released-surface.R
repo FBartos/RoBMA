@@ -286,6 +286,9 @@ test_that("logLik() returns the pointwise log-likelihood matrix and AIC() and BI
   expect_identical(dim(log_likelihood), c(200L, 8L))
   expect_equal(unclass(log_likelihood), log_lik(fit), ignore_attr = TRUE)
   expect_output(print(log_likelihood), "200*8 pointwise log-likelihood matrix", fixed = TRUE)
+  # the line is exactly the released one, without a carriage return of the source
+  expect_identical(utils::capture.output(print(log_likelihood)),
+                   "200*8 pointwise log-likelihood matrix")
   expect_identical(ncol(stats::logLik(fit, unit = "cluster")), 4L)
 
   expect_error(stats::AIC(fit), "AIC() is not defined for brma", fixed = TRUE)

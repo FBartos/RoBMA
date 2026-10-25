@@ -774,8 +774,7 @@ logLik.brma <- function(object, unit = "estimate", ...) {
 print.logLik.brma <- function(x, ...) {
   S <- if (is.matrix(x)) nrow(x) else length(x)
   K <- if (is.matrix(x)) ncol(x) else 1
-  cat(sprintf("%d*%d pointwise log-likelihood matrix
-", S, K))
+  cat(sprintf("%d*%d pointwise log-likelihood matrix\n", S, K))
   invisible(x)
 }
 
