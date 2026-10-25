@@ -18,6 +18,37 @@ test_that("fitted and ranef warn about unsupported and method-controlled dots", 
   expect_s3_class(ranef(object), "brma_samples")
 })
 
+test_that("blup, true_effects and ranef warn once under their own name and forward only predict arguments", {
+
+  object <- .review_cleanup_plain_replay()
+  for (fun in c("blup", "true_effects", "ranef")) {
+    messages <- character()
+    value <- withCallingHandlers(
+      do.call(fun, list(object = object, unrecognized = TRUE)),
+      warning = function(w) {
+        messages <<- c(messages, conditionMessage(w))
+        invokeRestart("muffleWarning")
+      }
+    )
+    # one warning, named after the method that was called, not after the
+    # predict() calls inside it (ranef() makes several)
+    expect_identical(messages, paste0("Unused argument in ", fun, "(): 'unrecognized'"), info = fun)
+    expect_equal(value, do.call(fun, list(object = object)), info = fun)
+    # predict() arguments that the method does not fix are forwarded silently
+    expect_no_warning(do.call(fun, list(object = object, as_measure = TRUE)))
+  }
+  # the arguments that blup() and true_effects() fix are unused rather than a
+  # "matched by multiple actual arguments" error
+  for (fun in c("blup", "true_effects")) {
+    for (argument in c("newdata", "type", "quiet")) {
+      expect_warning(
+        do.call(fun, stats::setNames(list(object, TRUE), c("object", argument))),
+        paste0("Unused argument in ", fun, "(): '", argument, "'"), fixed = TRUE
+      )
+    }
+  }
+})
+
 test_that("analogous unique-level refusals retain the existing expansion condition", {
 
   slope <- review_scaled_allocation_replay(standardized = FALSE)

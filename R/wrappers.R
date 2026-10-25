@@ -410,6 +410,27 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
 }
 
 
+# The arguments of predict() that blup(), true_effects() and ranef() forward:
+# its named arguments that those methods do not fix, and the posterior-sample
+# reuse argument. Anything else in `...` is unused; it warns once under the name
+# of the calling method and is dropped, so that the predict() calls of the
+# method do not repeat the warning under their own name.
+.predict_forwarded_arguments <- c(
+  "as_measure", "conditional", "V_new", "conditioning_depth", ".posterior_samples"
+)
+
+.forward_predict_dots <- function(dots, caller, allowed = .predict_forwarded_arguments) {
+
+  .warn_unused_dots(dots, allowed = allowed, caller = caller)
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    dot_names <- rep("", length(dots))
+  }
+
+  return(dots[dot_names %in% allowed])
+}
+
+
 # Fixed location at the average fitted design: the row mean of the fitted-design
 # location draws (S x 1, column "mu").
 .pooled_location_samples <- function(object, bias_adjusted, posterior_samples) {
@@ -754,17 +775,21 @@ blup <- function(object, ...) {
 blup.brma <- function(object, bias_adjusted = FALSE,
                       output_measure = NULL, transform = NULL,
                       probs = c(.025, .975), ...) {
-  out <- predict.brma(
-    object         = object,
-    newdata        = NULL,
-    type           = "blup",
-    output_measure = output_measure,
-    transform      = transform,
-    probs          = probs,
-    bias_adjusted  = bias_adjusted,
-    quiet          = TRUE,
-    ...
-  )
+
+  dots <- .forward_predict_dots(list(...), caller = "blup()")
+  out <- do.call(predict.brma, c(
+    list(
+      object         = object,
+      newdata        = NULL,
+      type           = "blup",
+      output_measure = output_measure,
+      transform      = transform,
+      probs          = probs,
+      bias_adjusted  = bias_adjusted,
+      quiet          = TRUE
+    ),
+    dots
+  ))
   attr(out, "title") <- .effect_output_title(
     title            = "True Effects (BLUP Means)",
     effect_transform = attr(out, "effect_transform")
@@ -837,14 +862,18 @@ true_effects <- function(object, ...) {
 true_effects.brma <- function(object, bias_adjusted = FALSE,
                               output_measure = NULL, transform = NULL,
                               probs = c(.025, .975), ...) {
-  blup.brma(
-    object         = object,
-    bias_adjusted  = bias_adjusted,
-    output_measure = output_measure,
-    transform      = transform,
-    probs          = probs,
-    ...
-  )
+
+  dots <- .forward_predict_dots(list(...), caller = "true_effects()")
+  do.call(blup.brma, c(
+    list(
+      object         = object,
+      bias_adjusted  = bias_adjusted,
+      output_measure = output_measure,
+      transform      = transform,
+      probs          = probs
+    ),
+    dots
+  ))
 }
 
 
@@ -979,19 +1008,6 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   expand_default <- missing(expand)
   BayesTools::check_bool(expand, "expand")
   dots <- list(...)
-  controlled <- intersect(names(dots), c("newdata", "type", "quiet"))
-  if (length(controlled) > 0L) {
-    # the arguments the method fixes are unused: warn and continue without them
-    .warn_unused_dots(dots[controlled], allowed = character(), caller = "ranef()")
-    return(do.call(ranef.brma, c(
-      list(
-        object = object, bias_adjusted = bias_adjusted, probs = probs,
-        component = component, simplify = simplify
-      ),
-      if (!expand_default) list(expand = expand),
-      dots[setdiff(names(dots), controlled)]
-    )))
-  }
   if (!is.null(dots[["output_measure"]]) || !is.null(dots[["transform"]])) {
     stop(
       "'output_measure' and 'transform' are not available for random-effect ",
@@ -1001,21 +1017,37 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   is_multilevel <- .is_multilevel(object)
+  random_mv     <- inherits(object, "brma.mv") && .is_random(object)
+  multilevel_normal <- !random_mv && is_multilevel &&
+    .outcome_type(object) == "norm" && !.is_weightfunction(object)
 
-  if (inherits(object, "brma.mv") && .is_random(object)) {
-    return(.ranef_brma_mv_random(
-      object        = object,
-      bias_adjusted = bias_adjusted,
-      probs         = probs,
-      component     = component,
-      simplify      = simplify,
-      expand        = if (expand_default) FALSE else expand,
-      ...
-    ))
+  # Arguments that the method fixes (newdata, type, quiet) or does not use are
+  # unused: one warning under the name of ranef(), then they are dropped, so
+  # that the internal predict() calls do not repeat it.
+  dots <- .forward_predict_dots(
+    dots, caller = "ranef()",
+    allowed = if (multilevel_normal) {
+      c("conditional", ".posterior_samples")
+    } else {
+      .predict_forwarded_arguments
+    }
+  )
+
+  if (random_mv) {
+    return(do.call(.ranef_brma_mv_random, c(
+      list(
+        object        = object,
+        bias_adjusted = bias_adjusted,
+        probs         = probs,
+        component     = component,
+        simplify      = simplify,
+        expand        = if (expand_default) FALSE else expand
+      ),
+      dots
+    )))
   }
 
-  if (is_multilevel && .outcome_type(object) == "norm" &&
-      !.is_weightfunction(object)) {
+  if (multilevel_normal) {
     return(.ranef_brma_multilevel_normal(
       object        = object,
       bias_adjusted = bias_adjusted,
@@ -1028,15 +1060,17 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   }
 
   # get BLUPs (fixed + all random effects)
-  blup_samples <- predict.brma(
-    object        = object,
-    newdata       = NULL,
-    type          = "blup",
-    probs         = probs,
-    bias_adjusted = bias_adjusted,
-    quiet         = TRUE,
-    ...
-  )
+  blup_samples <- do.call(predict.brma, c(
+    list(
+      object        = object,
+      newdata       = NULL,
+      type          = "blup",
+      probs         = probs,
+      bias_adjusted = bias_adjusted,
+      quiet         = TRUE
+    ),
+    dots
+  ))
 
   # extract MCMC chain info from the returned samples
   n_chains <- attr(blup_samples, "nchains")
@@ -1045,15 +1079,17 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   labels   <- .get_estimate_labels(object)
 
   # get fixed-effect predictions only
-  terms_samples <- predict.brma(
-    object        = object,
-    newdata       = NULL,
-    type          = "terms",
-    probs         = probs,
-    bias_adjusted = bias_adjusted,
-    quiet         = TRUE,
-    ...
-  )
+  terms_samples <- do.call(predict.brma, c(
+    list(
+      object        = object,
+      newdata       = NULL,
+      type          = "terms",
+      probs         = probs,
+      bias_adjusted = bias_adjusted,
+      quiet         = TRUE
+    ),
+    dots
+  ))
 
   if (!is_multilevel) {
 
@@ -1087,15 +1123,17 @@ ranef.brma <- function(object, bias_adjusted = FALSE,
   } else {
 
     # 3-level: decompose into cluster-level and estimate-level
-    cluster_samples <- predict.brma(
-      object        = object,
-      newdata       = NULL,
-      type          = "cluster",
-      probs         = probs,
-      bias_adjusted = bias_adjusted,
-      quiet         = TRUE,
-      ...
-    )
+    cluster_samples <- do.call(predict.brma, c(
+      list(
+        object        = object,
+        newdata       = NULL,
+        type          = "cluster",
+        probs         = probs,
+        bias_adjusted = bias_adjusted,
+        quiet         = TRUE
+      ),
+      dots
+    ))
 
     # cluster-level random effects: cluster predictions - fixed effects
     cluster_ranef_mat <- unclass(cluster_samples) - unclass(terms_samples)
