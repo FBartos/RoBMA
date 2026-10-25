@@ -81,9 +81,11 @@ when the composite has a meaningful scientific interpretation. Use
 
 For models without moderators, this returns the single mu parameter. The
 prediction interval is marginal over one new true effect at the same average
-location, scale, and random-effect design. It therefore uses
-\code{pooled_heterogeneity(component = "total")}, rather than the observed-design RMS heterogeneity
-reported by \code{summary_heterogeneity()}. For known-\eqn{R} random
+location and random-effect design, with the scale given by the mean of the
+observation-specific tau, as in \code{pooled_heterogeneity()}. It therefore
+uses \code{pooled_heterogeneity(component = "total")}, rather than the
+observed-design RMS heterogeneity reported by
+\code{summary_heterogeneity()}. For known-\eqn{R} random
 effects this is a unit-kernel reference interval; use \code{predict()} for
 an interval tied to a fitted group and its known covariance multiplier.
 }
