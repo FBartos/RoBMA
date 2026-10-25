@@ -136,9 +136,13 @@ test_that("pooled totals and prediction intervals use full allocation covariance
     time = c(1, 1, 1, 2), direct = TRUE)
   expect_equal(as.numeric(pooled_heterogeneity(direct$object, component = "total")),
     rep(expected, 120L), tolerance = 1e-13)
+  # The row SDs of the scale source are 2 * 2^time = 4, 8, 4, 8. The pooled
+  # anchor is their arithmetic mean, 6 (maintainer decision of 2026-10-25), not
+  # their geometric mean sqrt(32) of the earlier pooled rule, and the equal-weight
+  # total is anchor / sqrt(2).
   row <- review_heterogeneity_har_replay(scaled = TRUE)
   expect_equal(as.numeric(pooled_heterogeneity(row$object, component = "total")),
-    rep(4, 120L), tolerance = 1e-13)
+    rep(6 / sqrt(2), 120L), tolerance = 1e-13)
 })
 
 test_that("row-source allocation anchors use prepared pooled source values", {
@@ -149,10 +153,11 @@ test_that("row-source allocation anchors use prepared pooled source values", {
       anchor <- pooled_heterogeneity(object, component = component,
         .posterior_samples = x$samples)
       expect_identical(colnames(anchor), "tau_common")
-      expect_equal(as.numeric(anchor), rep(sqrt(32), 120L), tolerance = 1e-13)
+      # arithmetic mean of the row SDs 4, 8, 4, 8 (the geometric mean was sqrt(32))
+      expect_equal(as.numeric(anchor), rep(6, 120L), tolerance = 1e-13)
     }
     expect_equal(as.numeric(pooled_heterogeneity(object, component = "total",
-      .posterior_samples = x$samples)), rep(4, 120L), tolerance = 1e-13)
+      .posterior_samples = x$samples)), rep(6 / sqrt(2), 120L), tolerance = 1e-13)
     missing <- x$samples[, colnames(x$samples) != "log_tau_time", drop = FALSE]
     expect_error(pooled_heterogeneity(object, .posterior_samples = missing),
       "Pooled SD-component allocation is unavailable; missing source coordinates: log_tau_time.",
@@ -166,7 +171,9 @@ test_that("row-source anchors retain admitted parent weights and gates once", {
 
   for (role in c("mean_variance", "total_variance")) {
     x <- review_heterogeneity_parent_replay(role)
-    expected <- sqrt(32) * sqrt(.25) * c(0, 1, 0, 1)
+    # the anchor is the arithmetic mean 6 of the row SDs 4, 8, 4, 8 (the
+    # geometric mean sqrt(32) of the earlier pooled rule)
+    expected <- 6 * sqrt(.25) * c(0, 1, 0, 1)
     for (object in list(x$object, x$setup$object)) {
       anchor <- pooled_heterogeneity(object, component = x$blocks[1L],
         .posterior_samples = x$samples)
@@ -180,8 +187,8 @@ test_that("row-source anchors retain admitted parent weights and gates once", {
       expect_error(pooled_heterogeneity(object, component = x$blocks[1L], .posterior_samples = missing),
         paste0("Cannot evaluate marginalized random-effect allocation; missing posterior column: ", weight), fixed = TRUE)
       multiplier <- if (role == "mean_variance") 2 else 1
-      study_variance <- 32 * .25 * multiplier * sum(c(.5, .5)^2 * c(.2, .8)) * c(0, 1, 0, 1)
-      total <- sqrt(study_variance + 32 * .75)
+      study_variance <- 36 * .25 * multiplier * sum(c(.5, .5)^2 * c(.2, .8)) * c(0, 1, 0, 1)
+      total <- sqrt(study_variance + 36 * .75)
       expect_equal(as.numeric(pooled_heterogeneity(object, component = "total", .posterior_samples = x$samples)),
         total, tolerance = 1e-13)
     }
