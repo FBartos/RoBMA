@@ -608,27 +608,42 @@ test_that("a stored LOO or WAIC of another unit names the released remedy", {
   )
 })
 
+# Small random-formula brma.mv() fits (one and two random blocks), built once.
+.surface_mv_fit <- function(name) {
+
+  if (!exists(name, envir = .surface_fit_env, inherits = FALSE)) {
+    dat <- data.frame(
+      yi    = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05, 0.11, 0.16),
+      study = factor(rep(c("s1", "s2", "s3", "s4"), each = 2L)),
+      obs   = factor(seq_len(8L))
+    )
+    V <- matrix(0, nrow = 8L, ncol = 8L)
+    for (g in 1:4) {
+      index <- ((g - 1L) * 2L + 1L):(g * 2L)
+      V[index, index] <- matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L)
+    }
+    random <- switch(
+      name,
+      mv_one = ~ 1 | obs,
+      mv_two = list(study = ~ 1 | study, observation = ~ 1 | obs)
+    )
+    fit <- suppressWarnings(brma.mv(
+      yi = yi, V = V, random = random, data = dat, measure = "GEN",
+      prior_unit_information_sd = 1, chains = 2, adapt = 50, burnin = 100,
+      sample = 100, seed = 1, silent = TRUE, parallel = FALSE
+    ))
+    assign(name, fit, envir = .surface_fit_env)
+  }
+
+  return(get(name, envir = .surface_fit_env, inherits = FALSE))
+}
+
 test_that("the default draws of random-formula brma.mv() fits are the parameters shown by summary()", {
 
   skip_on_cran()
-  dat <- data.frame(
-    yi    = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05, 0.11, 0.16),
-    study = factor(rep(c("s1", "s2", "s3", "s4"), each = 2L)),
-    obs   = factor(seq_len(8L))
-  )
-  V <- matrix(0, nrow = 8L, ncol = 8L)
-  for (g in 1:4) {
-    index <- ((g - 1L) * 2L + 1L):(g * 2L)
-    V[index, index] <- matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L)
-  }
-  fit <- function(random) suppressWarnings(brma.mv(
-    yi = yi, V = V, random = random, data = dat, measure = "GEN",
-    prior_unit_information_sd = 1, chains = 2, adapt = 50, burnin = 100,
-    sample = 100, seed = 1, silent = TRUE, parallel = FALSE
-  ))
 
   # one random block: the SD is shown, its variance is a hidden intermediate
-  one <- fit(~ 1 | obs)
+  one <- .surface_mv_fit("mv_one")
   expect_identical(rownames(summary(one, include_mcmc_diagnostics = FALSE)[["estimates_random"]]), "tau")
   expect_identical(colnames(as_draws_matrix(one)), c("mu_intercept", "tau"))
   expect_identical(
@@ -638,7 +653,7 @@ test_that("the default draws of random-formula brma.mv() fits are the parameters
 
   # two random blocks: the total SD and the variance proportions are shown; the
   # component SDs, component variances, and the total variance are intermediates
-  two   <- fit(list(study = ~ 1 | study, observation = ~ 1 | obs))
+  two   <- .surface_mv_fit("mv_two")
   shown <- rownames(summary(two, include_mcmc_diagnostics = FALSE)[["estimates_random"]])
   expect_identical(shown, c("tau_total", "tau2_prop(study)", "tau2_prop(observation)"))
   expect_identical(colnames(as_draws_matrix(two)), c("mu_intercept", shown))
@@ -646,4 +661,29 @@ test_that("the default draws of random-formula brma.mv() fits are the parameters
     setdiff(colnames(as_draws_matrix(two, include_auxiliary = TRUE)), colnames(as_draws_matrix(two))),
     c("study: tau", "study: tau2", "tau2_total", "observation: tau", "observation: tau2")
   )
+})
+
+test_that("pooled_heterogeneity() of brma.mv() fits validates the forwarded aggregate arguments", {
+
+  skip_on_cran()
+  two <- .surface_mv_fit("mv_two")
+
+  expect_error(
+    pooled_heterogeneity(two, conditioning_depth = "estimate"),
+    "Non-marginal predictions require fitted observation identities", fixed = TRUE
+  )
+  expect_error(
+    pooled_heterogeneity(two, V_new = diag(2)),
+    "'V_new' is only available", fixed = TRUE
+  )
+  expect_error(pooled_heterogeneity(two, as_measure = NA), "as_measure")
+  # the same refusals as the univariate aggregated prediction, which `component` keeps selecting
+  expect_error(
+    predict(two, newdata = TRUE, type = "terms.scale", conditioning_depth = "estimate"),
+    "Non-marginal predictions require fitted observation identities", fixed = TRUE
+  )
+  all_components <- pooled_heterogeneity(two, component = "all", as_measure = FALSE)
+  expect_identical(names(all_components), names(pooled_heterogeneity(two, component = "all")))
+  expect_s3_class(pooled_heterogeneity(two, component = "total", conditioning_depth = "marginal"),
+                  "brma_samples")
 })

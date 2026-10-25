@@ -566,6 +566,9 @@ pooled_heterogeneity.brma <- function(object, probs = c(.025, .975),
       allowed = ".posterior_samples",
       caller  = "pooled_heterogeneity.brma()"
     )
+    # the arguments of the aggregated prediction are validated as for the
+    # univariate models, although the multivariate result uses none of them
+    do.call(.check_aggregate_prediction_arguments, forwarded[["predict"]])
     return(
       .pooled_heterogeneity_brma_mv(
         object             = object,

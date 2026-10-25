@@ -2427,6 +2427,31 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 # @param prediction_interval whether the location result carries the draws of
 #   one new true effect at the pooled reference (the PI columns).
 # ---------------------------------------------------------------------------- #
+# The arguments of the aggregated prediction (predict(newdata = TRUE) and the
+# pooled wrappers) that this prediction refuses or restricts.
+.check_aggregate_prediction_arguments <- function(conditioning_depth = "marginal",
+                                                  V_new = NULL, as_measure = TRUE) {
+
+  BayesTools::check_bool(as_measure, "as_measure")
+  if (.normalize_conditioning_depth(conditioning_depth) != "marginal") {
+    stop(
+      "Non-marginal predictions require fitted observation identities and ",
+      "are currently available only with newdata = NULL.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(V_new)) {
+    stop(
+      "'V_new' is only available for known-V response or selected latent ",
+      "predictions with explicit 'newdata'.",
+      call. = FALSE
+    )
+  }
+
+  return(invisible(TRUE))
+}
+
+
 .predict_brma_aggregate <- function(
     object, type, probs, bias_adjusted, output_measure, transform,
     conditional, quiet, caller, dots,
@@ -2450,7 +2475,6 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     type
   )
 
-  BayesTools::check_bool(as_measure, "as_measure")
   BayesTools::check_bool(bias_adjusted, "bias_adjusted")
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(quiet, "quiet")
@@ -2460,20 +2484,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     stop("'conditional' predictions are available only for RoBMA objects.",
          call. = FALSE)
   }
-  if (.normalize_conditioning_depth(conditioning_depth) != "marginal") {
-    stop(
-      "Non-marginal predictions require fitted observation identities and ",
-      "are currently available only with newdata = NULL.",
-      call. = FALSE
-    )
-  }
-  if (!is.null(V_new)) {
-    stop(
-      "'V_new' is only available for known-V response or selected latent ",
-      "predictions with explicit 'newdata'.",
-      call. = FALSE
-    )
-  }
+  .check_aggregate_prediction_arguments(conditioning_depth, V_new, as_measure)
   if (type == "response") {
     stop("Aggregated predictions (newdata = TRUE) are not available for type = 'response' ",
          "because observation-level sampling variance is required.", call. = FALSE)
