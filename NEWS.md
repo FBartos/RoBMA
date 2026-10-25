@@ -14,7 +14,10 @@
   tail regions without enumerating them, using the existing point budget.
   Exactly repeated rows share probability calculations. Reported standard errors
   remain empirical estimates, not guaranteed error bounds; rare intersections
-  can still require more points or be rejected by diagnostics.
+  can still require more points or be rejected by diagnostics. An accepted
+  estimate is accepted on its raw empirical standard error and can still
+  exceed `relative_tolerance` (0.75% was observed against 0.005 in a
+  calibration of an 84-row forest); the acceptance policy is unchanged.
 - Rank-one product-weight clusters now try four-shift quadrature refinement
   before randomized integration. The refinement gate applies the coincident-row
   penalty separately to each latent axis, allowing smaller branches of a

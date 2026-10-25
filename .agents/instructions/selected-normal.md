@@ -400,7 +400,9 @@ are measured envelopes, validated by random, adversarial and hill-climbing
 searches, not a proof. The qCMDE normalizer grid anchors its error at
 `2 * relative_change` (`R/selection-normalizer-grid.R`), which is not an error
 bound for the accepted value. The scaled QMC stop is a standard-error
-criterion, not a bound. The transition-conditioned proposal addresses the
+criterion, not a bound: an accepted fallback estimate can exceed
+`relative_tolerance` (the `forest_84` calibration accepted an error of 0.75%
+at `relative_tolerance = 0.005`). The transition-conditioned proposal addresses the
 failure in which every Gaussian proposal misses a material tail contribution;
 increasing a multiplier on the resulting near-zero MCSE cannot fix that
 failure. Conditioning on one row does not guarantee coverage of every rare
