@@ -514,6 +514,20 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
     "or an extremely diffuse prior). Use a beta prior with less extreme shapes ",
     "or a fixed base rate, e.g. 'prior_baserate = BayesTools::prior(\"point\", list(0.1))'."
   ))
+
+  # Shapes whose Jacobi recurrence overflows stop inside statmod with a raw
+  # foreign-function error; they are the same unavailable prior.
+  for (prior in list(
+    BayesTools::prior("beta", list(alpha = 1e300, beta = 1e300)),
+    BayesTools::prior("beta", list(alpha = 1e300, beta = 1)))) {
+    condition <- tryCatch(.glmm_beta_prior_grid(prior, 1200L), error = identity)
+    expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
+    expect_s3_class(condition, "RoBMA_glmm_numerical_error")
+    expect_false(grepl("foreign function", conditionMessage(condition), fixed = TRUE))
+    condition <- tryCatch(.outcome_pdf.binom(19L, 6L, 27L, 17L, matrix(.738), matrix(0),
+      prior), error = identity)
+    expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
+  }
 })
 
 

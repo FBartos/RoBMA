@@ -329,13 +329,22 @@
   alpha <- as.numeric(prior[["parameters"]][["alpha"]])
   beta  <- as.numeric(prior[["parameters"]][["beta"]])
 
+  # statmod stops with a foreign-function error ("NA/NaN/Inf in foreign function
+  # call") when the Jacobi recurrence of an extreme shape overflows. That is the
+  # same unavailable prior as the non-finite nodes and weights checked below.
   if (lower == 0 && upper == 1) {
-    rule <- statmod::gauss.quad.prob(
-      n     = n,
-      dist  = "beta",
-      alpha = alpha,
-      beta  = beta
+    rule <- tryCatch(
+      statmod::gauss.quad.prob(
+        n     = n,
+        dist  = "beta",
+        alpha = alpha,
+        beta  = beta
+      ),
+      error = function(condition) NULL
     )
+    if (is.null(rule)) {
+      stop(.glmm_prior_unavailable_condition(alpha, beta))
+    }
     out <- list(
       grid        = rule[["nodes"]],
       log_weights = log(rule[["weights"]])
@@ -345,12 +354,18 @@
     # smooth and is carried explicitly in the quadrature weights below.
     left_exponent  <- if (lower == 0) alpha - 1 else 0
     right_exponent <- if (upper == 1) beta - 1 else 0
-    rule <- statmod::gauss.quad(
-      n     = n,
-      kind  = "jacobi",
-      alpha = right_exponent,
-      beta  = left_exponent
+    rule <- tryCatch(
+      statmod::gauss.quad(
+        n     = n,
+        kind  = "jacobi",
+        alpha = right_exponent,
+        beta  = left_exponent
+      ),
+      error = function(condition) NULL
     )
+    if (is.null(rule)) {
+      stop(.glmm_prior_unavailable_condition(alpha, beta))
+    }
 
     half_width <- (upper - lower) / 2
     nodes      <- lower + half_width * (rule[["nodes"]] + 1)
