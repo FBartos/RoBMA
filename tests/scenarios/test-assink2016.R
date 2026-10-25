@@ -448,7 +448,7 @@ testthat::test_that("Assink brma and brma.mv models", {
 
   ranef_metafor_diag <- metafor::ranef(fit_metafor_diag)
   ranef_brma.mv_diag <- scenario_time("ranef_brma.mv_diag", ranef(fit_brma.mv_diag))
-  ranef_brma         <- scenario_time("ranef_brma", ranef(fit_brma_cluster))
+  ranef_brma         <- scenario_time("ranef_brma", ranef(fit_brma_cluster, expand = FALSE))
 
   scenario_plot("ranef_mv", {
     par(mfrow = c(1, 2))
@@ -832,7 +832,7 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   ranef_bPET.mv_V           <- scenario_time("ranef_bPET.mv_V", ranef(fit_bPET.mv_V))
   ranef_bPET_metafor.mv_vi <- metafor::ranef(fit_bPET_metafor.mv_vi)
   ranef_bPET.mv             <- scenario_time("ranef_bPET.mv", ranef(fit_bPET.mv))
-  ranef_bPET_cluster        <- scenario_time("ranef_bPET_cluster", ranef(fit_bPET_cluster))
+  ranef_bPET_cluster        <- scenario_time("ranef_bPET_cluster", ranef(fit_bPET_cluster, expand = FALSE))
   scenario_text("bPET-random-effects", head(as.data.frame(ranef_bPET.mv_V), 12L))
 
   scenario_plot("bPET-ranef-mv-V", {
@@ -1226,7 +1226,7 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   ### Random effects ----
   ranef_bselmodel.mv_V_cond    <- scenario_time("ranef_bselmodel.mv_V_cond",    ranef(fit_bselmodel.mv_V_cond))
   ranef_bselmodel.mv_cond      <- scenario_time("ranef_bselmodel.mv_cond",      ranef(fit_bselmodel.mv_cond))
-  ranef_bselmodel_cluster_cond <- scenario_time("ranef_bselmodel_cluster_cond", ranef(fit_bselmodel_cluster_cond))
+  ranef_bselmodel_cluster_cond <- scenario_time("ranef_bselmodel_cluster_cond", ranef(fit_bselmodel_cluster_cond, expand = FALSE))
 
   plot_bselmodel_ranef_equivalence <- function(ranef_mv, ranef_cluster) {
 
@@ -1400,7 +1400,7 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
   })
 
   ### Random effects and BLUPs ----
-  ranef_RoBMA_cluster_cond <- scenario_time("ranef-RoBMA_cluster_cond", ranef(fit_RoBMA_cluster_cond))
+  ranef_RoBMA_cluster_cond <- scenario_time("ranef-RoBMA_cluster_cond", ranef(fit_RoBMA_cluster_cond, expand = FALSE))
   ranef_RoBMA_mv_diag_cond <- scenario_time("ranef-RoBMA_mv_diag_cond", ranef(fit_RoBMA_mv_diag_cond))
   ranef_RoBMA_mv_V_cond    <- scenario_time("ranef-RoBMA_mv_V_cond",    ranef(fit_RoBMA_mv_V_cond))
 
