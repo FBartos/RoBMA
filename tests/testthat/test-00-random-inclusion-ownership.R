@@ -309,6 +309,10 @@ for (.inclusion_mode in c("children", "root", "gate_only", "lab", "common")) {
         quantities$canonical_name[rows], quantities$canonical_name[rows]), expected)
       internal <- as.matrix(BayesTools::JAGS_materialize_draws(object$fit, include_internal = TRUE))
       public <- as.matrix(posterior::as_draws_matrix(as_draws(object)))
+      # the component SDs derived from an allocation are auxiliary draws
+      public_all <- as.matrix(posterior::as_draws_matrix(
+        as_draws(object, include_auxiliary = TRUE)
+      ))
       for (i in seq_along(replay$gates)) {
         gate <- replay$gates[[i]]
         label <- paste0(expected[[i]], "_indicator")
@@ -324,14 +328,14 @@ for (.inclusion_mode in c("children", "root", "gate_only", "lab", "common")) {
         expect_identical(replay$allocations$split$inclusion$lab$index, 2L)
         inactive <- replay$sources[, replay$gates] == 0
         expect_identical(sum(inactive), 12L)
-        expect_true(all(public[inactive, "lab: tau"] == 0))
-        expect_true(all(public[inactive, "study: tau"] > 0))
+        expect_true(all(public_all[inactive, "lab: tau"] == 0))
+        expect_true(all(public_all[inactive, "study: tau"] > 0))
         expect_true(all(public[inactive, "split: tau_total"] > 0))
         expect_false("split: tau_total_indicator" %in% colnames(public))
       }
       if (mode != "common") {
         expect_equal(unname(public[, "split: tau_total"]^2),
-          unname(public[, "study: tau"]^2 + public[, "lab: tau"]^2))
+          unname(public_all[, "study: tau"]^2 + public_all[, "lab: tau"]^2))
         result <- summary(object)
         expect_s3_class(result, "summary.brma")
         # These genuine brma carriers do not exercise RoBMA's Component Inclusion table.

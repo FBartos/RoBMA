@@ -2142,8 +2142,14 @@ test_that("scenario RoBMA selectors use the tau I/O vocabulary", {
 
 test_that("ex_p selects stable pooled-effect comparison statistics", {
 
+  # the helper reads the summary table of the pooled result (as.data.frame() of
+  # a brma_samples object returns its draws)
   local_mocked_s3_method(
     "pooled_effect", "scenario_pooled_fit",
+    function(object, ...) structure(list(), class = "scenario_pooled_result")
+  )
+  local_mocked_s3_method(
+    "summary", "scenario_pooled_result",
     function(object, ...) data.frame(
       component = "location",
       parameter = "mu",
