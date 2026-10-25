@@ -2252,8 +2252,10 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     envir = helper_env
   )
 
+  # metafor's Cook's distance is unscaled and RoBMA's is divided by the rank p of
+  # the fixed-effect model matrix, so the helper divides the reference by its p.
   reference <- structure(
-    list(role = "reference", offset = 0),
+    list(role = "reference", offset = 0, p = 2),
     class = "scenario_diagnostic_fit"
   )
   estimate <- structure(
@@ -2270,20 +2272,22 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     names(state[["plots"]]),
     c("Residuals", "Rstandard", "Hat values", "Cooks distance", "DFBETAS")
   )
-  expected_reference <- list(
+  expected_estimate <- list(
     Residuals        = c(1, 2),
     Rstandard        = c(3, 4),
     `Hat values`     = c(5, 6),
     `Cooks distance` = c(7, 8),
     DFBETAS          = matrix(c(9, 10), ncol = 1L)
   )
+  expected_reference <- expected_estimate
+  expected_reference[["Cooks distance"]] <- c(7, 8) / 2
   expect_equal(
     lapply(state[["plots"]], `[[`, "reference"),
     expected_reference
   )
   expect_equal(
     lapply(state[["plots"]], `[[`, "estimate"),
-    lapply(expected_reference, function(x) x + 10)
+    lapply(expected_estimate, function(x) x + 10)
   )
   expect_identical(
     state[["residual_args_estimate"]],
@@ -2318,7 +2322,7 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
   )
   expect_equal(
     lapply(state[["plots"]], `[[`, "reference"),
-    lapply(expected_reference, function(x) x + 20)
+    lapply(expected_estimate, function(x) x + 20)
   )
   expect_identical(
     unique(vapply(state[["plots"]], `[[`, character(1), "reference_label")),
