@@ -1072,7 +1072,8 @@ rstudent.brma <- function(model, unit = "estimate",
 # Unlike traditional standardized residuals, LOO-PIT residuals:
 # - Account for estimation uncertainty (integrate over posterior)
 # - Account for leverage (PSIS effectively removes yi from posterior)
-# - Work for continuous normal outcomes, including selection models
+# - Work for all model types, selection models included; binomial and Poisson
+#   GLMMs use a descriptive normal approximation (see .glmm_loo_pit_note())
 #
 # @param object             brma object.
 # @param predictive_summary optional precomputed known-V conditional summary.

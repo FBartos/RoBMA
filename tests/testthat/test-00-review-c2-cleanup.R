@@ -57,7 +57,7 @@ test_that("cluster log scores expose user labels while retaining row partitions"
 })
 
 
-test_that("check_loo uses stored draw counts and reports observed Pareto values", {
+test_that("check_loo uses stored draw counts and reports its cutoff and the affected targets", {
 
   object <- brma(yi = c(.1, -.2), sei = c(.3, .4), measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE)
