@@ -250,8 +250,8 @@ testthat::test_that("Bangertdrowns location-scale models", {
 
   ### prediction comparisons ----
   scenario_plot("fit_ls_prediction_agreement", {
-    brma_terms       <- data.frame(predict(fit_ls, type = "terms"))[["Mean"]]
-    brma_estimate    <- data.frame(predict(fit_ls, type = "estimate", conditioning_depth = "estimate"))[["Mean"]]
+    brma_terms       <- as.data.frame(summary(predict(fit_ls, type = "terms")))[["Mean"]]
+    brma_estimate    <- as.data.frame(summary(predict(fit_ls, type = "estimate", conditioning_depth = "estimate")))[["Mean"]]
     brma_ranef       <- colMeans(ranef(fit_ls))
     metafor_terms    <- predict(metafor_ls)[["pred"]]
     metafor_estimate <- metafor::blup(metafor_ls)[["pred"]]

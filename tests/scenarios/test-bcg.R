@@ -618,7 +618,7 @@ testthat::test_that("BCG Meta-Regression", {
   newmods <- stats::model.matrix(~ alloc * ablat, data = newdata)[, -1, drop = FALSE]
   scenario_text("fit_reg3_prediction_comparison", {data.frame(
     newdata,
-    RoBMA   = data.frame(predict(fit_reg3, newdata = newdata, type = "terms"))[,"Mean"],
+    RoBMA   = as.data.frame(summary(predict(fit_reg3, newdata = newdata, type = "terms")))[,"Mean"],
     metafor = predict(fit_reg3_metafor, newmods = newmods)[["pred"]]
   )})
 

@@ -2242,7 +2242,7 @@ ex_r <- function(fit, parameter, component = NULL, statistic = "Mean") {
 # Extract pooled-effect statistics aligned with metafor::predict().
 ex_p <- function(fit) {
 
-  output     <- data.frame(pooled_effect(fit))
+  output     <- as.data.frame(summary(pooled_effect(fit)))
   statistics <- c("Mean", "CI_0.025", "CI_0.975", "PI_0.025", "PI_0.975")
   values     <- as.data.frame(t(output[, statistics, drop = FALSE]), check.names = FALSE)
   names(values)    <- output[["parameter"]]

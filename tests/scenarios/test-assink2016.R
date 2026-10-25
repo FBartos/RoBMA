@@ -409,14 +409,14 @@ testthat::test_that("Assink brma and brma.mv models", {
   compare_preds_reg <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
       "metafor"  = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "ci.lb", "ci.ub")]),
-      "brma.mv"  = unlist(data.frame(predict(fit_RoBMA))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(data.frame(predict(fit_RoBMA2))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L))
+      "brma.mv"  = unlist(as.data.frame(summary(predict(fit_RoBMA)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L))
   }
   compare_preds_reg_pi <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
       "metafor"  = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "pi.lb", "pi.ub")]),
-      "brma.mv"  = unlist(data.frame(predict(fit_RoBMA, type = "estimate"))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(data.frame(predict(fit_RoBMA2, type = "estimate"))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L))
+      "brma.mv"  = unlist(as.data.frame(summary(predict(fit_RoBMA, type = "estimate")))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "brma.uni" = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2, type = "estimate")))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L))
   }
 
   scenario_text("pooled-effect-reg",          compare_preds_reg(fit_metafor_reg,      fit_brma.mv_reg))
@@ -800,15 +800,15 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   compare_bPET_preds_reg <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
       "metafor" = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "ci.lb", "ci.ub")]),
-      "bPET.mv" = unlist(data.frame(predict(fit_RoBMA))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(data.frame(predict(fit_RoBMA2))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
+      "bPET.mv" = unlist(as.data.frame(summary(predict(fit_RoBMA)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
     )
   }
   compare_bPET_preds_reg_pi <- function(fit_metafor, fit_RoBMA, fit_RoBMA2 = NULL) {
     cbind.data.frame(
       "metafor" = unlist(data.frame(predict(fit_metafor))[c(1, 50, 80), c("pred", "pi.lb", "pi.ub")]),
-      "bPET.mv" = unlist(data.frame(predict(fit_RoBMA, type = "estimate"))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(data.frame(predict(fit_RoBMA2, type = "estimate"))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
+      "bPET.mv" = unlist(as.data.frame(summary(predict(fit_RoBMA, type = "estimate")))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bPET"    = if (!is.null(fit_RoBMA2)) unlist(as.data.frame(summary(predict(fit_RoBMA2, type = "estimate")))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE) else rep(NA_real_, 9L)
     )
   }
   scenario_text("bPET-predictions-reg",         compare_bPET_preds_reg(fit_bPET_metafor.mv_V_reg,  fit_bPET.mv_V_reg))
@@ -833,7 +833,7 @@ testthat::test_that("Assink bPET and bPET.mv models", {
   ranef_bPET_metafor.mv_vi <- metafor::ranef(fit_bPET_metafor.mv_vi)
   ranef_bPET.mv             <- scenario_time("ranef_bPET.mv", ranef(fit_bPET.mv))
   ranef_bPET_cluster        <- scenario_time("ranef_bPET_cluster", ranef(fit_bPET_cluster))
-  scenario_text("bPET-random-effects", head(as.data.frame(summary(ranef_bPET.mv_V)), 12L))
+  scenario_text("bPET-random-effects", head(as.data.frame(ranef_bPET.mv_V), 12L))
 
   scenario_plot("bPET-ranef-mv-V", {
     par(mfrow = c(1, 2))
@@ -1200,8 +1200,8 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   compare_bselmodel_preds_reg <- function(fit_mv, fit_specialized = NULL, type = "terms") {
 
     cbind.data.frame(
-      "bselmodel.mv" = unlist(data.frame(predict(fit_mv, type = type))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
-      "bselmodel"    = if (!is.null(fit_specialized)) { unlist(data.frame(predict(fit_specialized, type = type))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE)
+      "bselmodel.mv" = unlist(as.data.frame(summary(predict(fit_mv, type = type)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE),
+      "bselmodel"    = if (!is.null(fit_specialized)) { unlist(as.data.frame(summary(predict(fit_specialized, type = type)))[c(1, 50, 80), c("Mean", "CI_0.025", "CI_0.975")], use.names = FALSE)
       } else { rep(NA_real_, 9L)}
     )
   }
@@ -1246,8 +1246,8 @@ testthat::test_that("Assink bselmodel and bselmodel.mv models", {
   scenario_plot("bselmodel-ranef-mv-V-vi-cond", plot_bselmodel_ranef_equivalence2(ranef_bselmodel.mv_V_cond,  ranef_bselmodel.mv_cond))
 
   # blups
-  scenario_plot("bselmodel-blup-mv-vi-cond",   scenario_agreement_plot(data.frame(blup(fit_bselmodel.mv_cond))[,"Mean"],    data.frame(blup(fit_bselmodel_cluster_cond))[,"Mean"],   estimate_label = "cluster", reference_label = "mv-vi"))
-  scenario_plot("bselmodel-blup-mv-V-vi-cond", scenario_agreement_plot(data.frame(blup(fit_bselmodel.mv_V_cond))[,"Mean"],  data.frame(blup(fit_bselmodel.mv_cond))[,"Mean"],   estimate_label = "mv-vi", reference_label = "mv-V"))
+  scenario_plot("bselmodel-blup-mv-vi-cond",   scenario_agreement_plot(as.data.frame(summary(blup(fit_bselmodel.mv_cond)))[,"Mean"],    as.data.frame(summary(blup(fit_bselmodel_cluster_cond)))[,"Mean"],   estimate_label = "cluster", reference_label = "mv-vi"))
+  scenario_plot("bselmodel-blup-mv-V-vi-cond", scenario_agreement_plot(as.data.frame(summary(blup(fit_bselmodel.mv_V_cond)))[,"Mean"],  as.data.frame(summary(blup(fit_bselmodel.mv_cond)))[,"Mean"],   estimate_label = "mv-vi", reference_label = "mv-V"))
 
 
   ### Diagnostics ----
@@ -1415,8 +1415,8 @@ testthat::test_that("Assink RoBMA and RoBMA.mv models", {
     scenario_agreement_plot(as.data.frame(summary(ranef_RoBMA_mv_V_cond$esid_study))[["Mean"]], as.data.frame(summary(ranef_RoBMA_mv_diag_cond$esid_study))[["Mean"]], main = "esid_study", estimate_label = "mv-vi", reference_label = "mv-V")
   })
 
-  scenario_plot("RoBMA-blup-2", scenario_agreement_plot(data.frame(blup(fit_RoBMA_mv_diag_cond))[,"Mean"], data.frame(blup(fit_RoBMA_cluster_cond))[,"Mean"], estimate_label = "cluster", reference_label = "mv-vi"))
-  scenario_plot("RoBMA-blup-mv-V-cond-vs-diag", scenario_agreement_plot(data.frame(blup(fit_RoBMA_mv_V_cond))[,"Mean"], data.frame(blup(fit_RoBMA_mv_diag_cond))[,"Mean"], estimate_label = "mv-vi", reference_label = "mv-V"))
+  scenario_plot("RoBMA-blup-2", scenario_agreement_plot(as.data.frame(summary(blup(fit_RoBMA_mv_diag_cond)))[,"Mean"], as.data.frame(summary(blup(fit_RoBMA_cluster_cond)))[,"Mean"], estimate_label = "cluster", reference_label = "mv-vi"))
+  scenario_plot("RoBMA-blup-mv-V-cond-vs-diag", scenario_agreement_plot(as.data.frame(summary(blup(fit_RoBMA_mv_V_cond)))[,"Mean"], as.data.frame(summary(blup(fit_RoBMA_mv_diag_cond)))[,"Mean"], estimate_label = "mv-vi", reference_label = "mv-V"))
 
   ### Diagnostics ----
   scenario_plot("RoBMA-funnel-mv-V-cond", funnel(fit_RoBMA_mv_V_cond, main = "default"))
