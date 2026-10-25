@@ -471,7 +471,9 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
         } else "purple")
     }
   }, finally = grDevices::dev.off())
-  expect_error(.plot_brma_factor_cell_samples(ordered, entry, FALSE, TRUE, FALSE),
+  # BayesTools 0.3.0 warned and used all draws for a parameter that is not
+  # conditional (restored in 0.3.1.258): the warning, not an error.
+  expect_warning(.plot_brma_factor_cell_samples(ordered, entry, FALSE, TRUE, FALSE),
     "The parameter 'mu_g' is not a conditional parameter.", fixed = TRUE)
   entry <- .brma_parameter_select_entry(ordered, "g[mid]", allow_factor_cells = TRUE)
   expect_error(BayesTools::parameter_draws(ordered[["fit"]], entry[["selection"]],
