@@ -258,8 +258,9 @@ test_that("fitted known-V row SD sources read the coordinates of factor scale te
     )
   }
   # The pooled tau of a random-design brma.mv() evaluates the average scale
-  # design: exp(mean(log(tau))). Only the scale formulas of the univariate models
-  # use the arithmetic mean of 4.0.0.
+  # design: exp(mean(log(tau))). The arithmetic mean of 4.0.0 applies to the
+  # scale formulas of the univariate models and of brma.mv() fits without a
+  # random formula.
   pooled <- pooled_heterogeneity(fit, .posterior_samples = draws)
   expect_equal(
     unname(as.matrix(pooled))[, 1L],
