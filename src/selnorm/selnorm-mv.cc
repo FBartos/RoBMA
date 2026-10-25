@@ -40,6 +40,95 @@
 #endif
 
 namespace {
+// Generalization of r-selnorm-common.cc.inc's existing 32-entry rule cache.
+// Separate template instances preserve double and long-double arithmetic.
+template<class Real> class SelNormRuleWeightMemo {
+  struct Entry {
+    std::vector<double> nodes, logs;
+    std::uint64_t shift;
+    bool shifted;
+    std::shared_ptr<const std::vector<Real>> weights;
+    std::size_t bytes() const {
+      return sizeof(Entry) + (nodes.capacity() + logs.capacity()) * sizeof(double) +
+        weights->capacity() * sizeof(Real);
+    }
+  };
+  std::mutex mutex_;
+  std::vector<Entry> entries_;
+  std::size_t bytes_ = 0;
+  static constexpr std::size_t max_entries = 32;
+  static constexpr std::size_t max_bytes = 1024 * 1024;
+ public:
+  using Result = std::shared_ptr<const std::vector<Real>>;
+  Result get(const double *nodes, const double *logs, int count, double shift) {
+    const std::size_t n = static_cast<std::size_t>(count);
+    std::uint64_t bits;
+    std::memcpy(&bits, &shift, sizeof(bits));
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      for (std::size_t i = 0; i < entries_.size(); ++i) {
+        const Entry &e = entries_[i];
+        if (e.shift != bits || e.shifted != (nodes != nullptr) || e.logs.size() != n) continue;
+        if (n && std::memcmp(e.logs.data(), logs, n * sizeof(double))) continue;
+        if (nodes && n && std::memcmp(e.nodes.data(), nodes, n * sizeof(double))) continue;
+        Result result = e.weights;
+        std::rotate(entries_.begin(), entries_.begin() + i, entries_.begin() + i + 1);
+        return result;
+      }
+    }
+    auto values = std::make_shared<std::vector<Real>>(n);
+    const Real delta = shift;
+    for (int i = 0; i < count; ++i) {
+      (*values)[i] = nodes ? std::exp(static_cast<Real>(logs[i]) -
+        delta * nodes[i] - static_cast<Real>(0.5) * delta * delta) :
+        std::exp(static_cast<Real>(logs[i]));
+    }
+    Result result = values;
+    const std::size_t estimate = sizeof(Entry) +
+      n * ((nodes ? 2 : 1) * sizeof(double) + sizeof(Real));
+    if (estimate > max_bytes || !std::isfinite(shift)) return result;
+    try {
+      Entry entry;
+      entry.logs.assign(logs, logs + count);
+      if (nodes) entry.nodes.assign(nodes, nodes + count);
+      entry.shift = bits;
+      entry.shifted = nodes != nullptr;
+      entry.weights = result;
+      const std::size_t bytes = entry.bytes();
+      if (bytes > max_bytes) return result;
+      std::lock_guard<std::mutex> lock(mutex_);
+      while (!entries_.empty() &&
+             (entries_.size() >= max_entries || bytes_ + bytes > max_bytes)) {
+        bytes_ -= entries_.back().bytes();
+        entries_.pop_back();
+      }
+      entries_.insert(entries_.begin(), std::move(entry));
+      bytes_ += bytes;
+    } catch (const std::bad_alloc &) {
+      // A failed memo insertion must not change the already computed result.
+    }
+    return result;
+  }
+};
+
+}
+
+std::shared_ptr<const std::vector<double> > cpp_selnorm_rule_weights_double(
+    const double *nodes, const double *log_weights, int count, double shift)
+{
+  static SelNormRuleWeightMemo<double> remembered;
+  return remembered.get(nodes, log_weights, count, shift);
+}
+
+std::shared_ptr<const std::vector<long double> > cpp_selnorm_rule_weights_long_double(
+    const double *log_weights, int count)
+{
+  static SelNormRuleWeightMemo<long double> remembered;
+  return remembered.get(nullptr, log_weights, count, 0.0);
+}
+
+
+namespace {
 
 double log_add_exp(double x, double y)
 {
@@ -360,11 +449,14 @@ bool cluster_rule_log_integral_double(const ClusterNormalizerContext &context,
       return false;
     }
   }
+  std::shared_ptr<const std::vector<double> > weights;
+  if (shift != 0.0 || context.quadrature_weights == nullptr) {
+    weights = cpp_selnorm_rule_weights_double(
+      nodes + offset, log_weights + offset, order, shift);
+  }
   const auto node_weight = [&](int j) -> double {
-    return shift == 0.0 && context.quadrature_weights ?
-      static_cast<double>(context.quadrature_weights[offset + j]) :
-      std::exp(log_weights[offset + j] - shift * nodes[offset + j] -
-        0.5 * shift * shift);
+    return weights ? (*weights)[static_cast<std::size_t>(j)] :
+      static_cast<double>(context.quadrature_weights[offset + j]);
   };
   long double integral = 0.0L;
   long double moment = 0.0L;

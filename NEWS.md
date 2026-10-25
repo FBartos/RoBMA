@@ -53,6 +53,9 @@
   rung, and refinement still requires `relative_tolerance >= 0.005`; tighter
   tolerances retain the existing fallback because shift agreement can miss
   integration error.
+- Cluster selection normalizers reuse exact quadrature weights in JAGS through
+  a bounded cache keyed by their values. Shifted weights and precomputed R
+  weights retain their original arithmetic and certificate checks.
 - Product selection normalizers evaluate Gaussian tails and two-weight
   normalizers more efficiently on AVX2/FMA processors. Certificate checks,
   integration tolerances, and fallback rules are unchanged.

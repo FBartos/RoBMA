@@ -181,6 +181,98 @@ extern "C" SEXP RoBMA_selnorm_rule_weights_check(SEXP log_weights)
   ROBMA_NATIVE_END
 }
 
+// Private cache probe: all owners are local, so repeated test runs retain no
+// test-only registry. Mutations deliberately reuse the same input allocations.
+extern "C" SEXP RoBMA_selnorm_double_rule_weights_check(
+    SEXP nodes, SEXP log_weights, SEXP shift, SEXP evict)
+{
+  ROBMA_NATIVE_BEGIN(nodes, log_weights, shift, evict)
+  if (TYPEOF(nodes) != REALSXP || TYPEOF(log_weights) != REALSXP ||
+      XLENGTH(nodes) < 1 || XLENGTH(nodes) != XLENGTH(log_weights) ||
+      XLENGTH(nodes) > 100000) {
+    Rf_error("'nodes' and 'log_weights' must be equal nonempty numeric vectors of at most 100000 values.");
+  }
+  if (TYPEOF(shift) != REALSXP || XLENGTH(shift) != 1) {
+    Rf_error("'shift' must be one numeric value.");
+  }
+  if (TYPEOF(evict) != INTSXP || XLENGTH(evict) != 1 ||
+      INTEGER(evict)[0] == NA_INTEGER || INTEGER(evict)[0] < 0 || INTEGER(evict)[0] > 64) {
+    Rf_error("'evict' must be one integer between 0 and 64.");
+  }
+  const int count = static_cast<int>(XLENGTH(nodes));
+  const double delta = REAL(shift)[0];
+  std::vector<double> x(REAL(nodes), REAL(nodes) + count);
+  std::vector<double> logs(REAL(log_weights), REAL(log_weights) + count);
+  const auto get = [&](double d) {
+    return cpp_selnorm_rule_weights_double(x.data(), logs.data(), count, d);
+  };
+  int mismatches = 0;
+  const auto check = [&](const std::vector<double> &values, double d) {
+    for (int i = 0; i < count; ++i) {
+      const double fresh = std::exp(logs[i] - d * x[i] - 0.5 * d * d);
+      const double served = values[i];
+      if (!(std::isnan(fresh) && std::isnan(served)) &&
+          (fresh != served || (fresh == 0.0 && std::signbit(fresh) != std::signbit(served)))) {
+        ++mismatches;
+      }
+    }
+  };
+  const auto held = get(delta);
+  const std::vector<double> saved = *held;
+  check(*held, delta);
+  // Distinct source allocations with the same bytes must hit a retained entry.
+  const auto copied = cpp_selnorm_rule_weights_double(
+    REAL(nodes), REAL(log_weights), count, delta);
+  const bool reused = copied == held;
+  bool distinct[3];
+  x[0] = std::isfinite(x[0]) ? x[0] + 0.125 : 0.125;
+  const auto changed_node = get(delta);
+  distinct[0] = changed_node != held;
+  check(*changed_node, delta);
+  x[0] = REAL(nodes)[0];
+  logs[0] = std::isfinite(logs[0]) ? logs[0] + 0.25 : -0.25;
+  const auto changed_log = get(delta);
+  distinct[1] = changed_log != held;
+  check(*changed_log, delta);
+  logs[0] = REAL(log_weights)[0];
+  const double changed_delta = std::isfinite(delta) ? delta + 0.375 : 0.375;
+  const auto changed_shift = get(changed_delta);
+  distinct[2] = changed_shift != held;
+  check(*changed_shift, changed_delta);
+  bool evicted = false;
+  if (INTEGER(evict)[0] > 0) {
+    // Churn distinct keys; the original owner must remain readable.
+    for (int i = 0; i < INTEGER(evict)[0]; ++i) {
+      logs[0] = -1000.0 - i;
+      const auto value = get(0.125);
+      check(*value, 0.125);
+    }
+    logs[0] = REAL(log_weights)[0];
+    evicted = get(delta) != held;
+  }
+  // Compare bytes: this also preserves the exact NaN payload in held storage.
+  const bool retained = std::memcmp(saved.data(), held->data(),
+    static_cast<std::size_t>(count) * sizeof(double)) == 0;
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, 6));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
+  SEXP values = PROTECT(Rf_allocVector(REALSXP, count));
+  std::copy(held->begin(), held->end(), REAL(values));
+  SEXP mutations = PROTECT(Rf_allocVector(LGLSXP, 3));
+  for (int i = 0; i < 3; ++i) LOGICAL(mutations)[i] = distinct[i];
+  SET_VECTOR_ELT(out, 0, values);
+  SET_VECTOR_ELT(out, 1, Rf_ScalarInteger(mismatches));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarLogical(reused));
+  SET_VECTOR_ELT(out, 3, mutations);
+  SET_VECTOR_ELT(out, 4, Rf_ScalarLogical(retained));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarLogical(evicted));
+  const char *labels[] = {"values", "mismatches", "reused", "mutation_distinct", "retained", "evicted"};
+  for (int i = 0; i < 6; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(4);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 extern "C" SEXP RoBMA_selnorm_set_native_threads(SEXP threads)
 {
   ROBMA_NATIVE_BEGIN(threads)

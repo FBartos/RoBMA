@@ -7,6 +7,17 @@
 #include <memory>
 #include <vector>
 
+// Immutable quadrature weights shared by R and JAGS. A null node pointer
+// requests exp(log weight); otherwise preserve the typed shifted expression.
+// Exact owned keys (including node values and shift) decide reuse. Cache
+// entries are limited to 32 and their accounted payload to 1 MiB per
+// precision, plus bounded container metadata; caller owners
+// remain valid after eviction. Double and long-double arithmetic stay separate.
+std::shared_ptr<const std::vector<double> > cpp_selnorm_rule_weights_double(
+  const double *nodes, const double *log_weights, int count, double shift);
+std::shared_ptr<const std::vector<long double> > cpp_selnorm_rule_weights_long_double(
+  const double *log_weights, int count);
+
 // One process-wide exact/coarse budget. Global bytes include all directly
 // allocated shared blocks; component counters do not duplicate that storage.
 struct SelNormCacheStats {
