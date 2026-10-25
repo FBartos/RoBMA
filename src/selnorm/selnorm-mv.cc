@@ -2360,6 +2360,10 @@ struct FactorEventProposal {
   std::vector<RowGroup> groups;
   std::vector<EventInterval> intervals;
   std::vector<Component> components;
+  // Indexed like intervals: 1 for the (group, bin) pairs the proposal samples.
+  // A pair whose mass relative to the largest is exactly zero cannot be drawn
+  // and is left out of the mixture density as well; the target keeps every row.
+  std::vector<char> sampled;
   double log_minimum = -std::numeric_limits<double>::infinity();
   double log_baseline = -std::numeric_limits<double>::infinity();
   double log_mass = -std::numeric_limits<double>::infinity();
@@ -2449,10 +2453,14 @@ struct FactorEventProposal {
         const double mass = item.log_count + log_excess[bin] +
           cpp_selnorm_normal_interval_log_prob(interval.lower, interval.upper,
             context.mean[row], sd);
-        if (!std::isfinite(mass)) { valid = false; return; }
+        if (std::isnan(mass) || mass == infinity) { valid = false; return; }
+        // An event of probability exactly zero is never sampled.
+        if (mass == -infinity) continue;
         components.push_back({static_cast<int>(group), bin, mass, 0.0L, 0.0L});
       }
     }
+    // Without any event mass the proposal has no support to build.
+    if (components.empty()) { valid = false; return; }
     // Ascending masses keep small categories from disappearing when added
     // after large ones. Extended precision also protects the local remapping.
     std::stable_sort(components.begin(), components.end(),
@@ -2460,14 +2468,30 @@ struct FactorEventProposal {
         return left.log_mass < right.log_mass;
       });
     const double largest = components.back().log_mass;
+    // A far row can have an event whose mass relative to the largest underflows
+    // even long double (below about exp(-11000)). Its sampling probability is
+    // exactly zero, so it is omitted from both the draws and the mixture
+    // density; the target still contains every row. The largest component has
+    // relative mass one, hence a positive total remains.
+    std::size_t first = 0;
+    while (first < components.size() &&
+           !(std::exp(static_cast<long double>(components[first].log_mass) - largest) > 0.0L)) {
+      ++first;
+    }
+    components.erase(components.begin(), components.begin() + first);
     long double total = 0.0L;
     for (Component &component : components) {
       component.mass = std::exp(static_cast<long double>(component.log_mass) - largest);
       const long double next = total + component.mass;
+      // Ascending order makes every mass at least as large as each one before it.
       if (!(next > total)) { valid = false; return; }
       component.cumulative = total = next;
     }
     log_mass = largest + static_cast<double>(std::log(total));
+    sampled.assign(intervals.size(), 0);
+    for (const Component &component : components) {
+      sampled[static_cast<std::size_t>(component.group) * context.n_bins + component.bin] = 1;
+    }
   }
 
   bool active() const { return !components.empty(); }
@@ -2531,14 +2555,18 @@ struct FactorEventProposal {
         mean += context.loading[row + context.dimension * factor] * latent[factor];
       }
       double delta = -std::numeric_limits<double>::infinity();
+      double delta_sampled = -std::numeric_limits<double>::infinity();
       for (int bin = 0; bin < context.n_bins; ++bin) {
         if (!std::isfinite(log_excess[bin])) continue;
-        const EventInterval &interval = intervals[group * context.n_bins + bin];
-        delta = log_add_exp(delta, log_excess[bin] +
+        const std::size_t index = group * context.n_bins + bin;
+        const EventInterval &interval = intervals[index];
+        const double term = log_excess[bin] +
           cpp_selnorm_normal_interval_log_prob(interval.lower, interval.upper,
-            mean, context.residual_sd[row]));
+            mean, context.residual_sd[row]);
+        delta = log_add_exp(delta, term);
+        if (sampled[index]) delta_sampled = log_add_exp(delta_sampled, term);
       }
-      log_sum = log_add_exp(log_sum, item.log_count + delta);
+      log_sum = log_add_exp(log_sum, item.log_count + delta_sampled);
       double power_base = log_minimum;
       double power_product = log_add_exp(log_minimum, delta);
       double power_correction = delta;

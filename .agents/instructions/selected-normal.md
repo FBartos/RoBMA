@@ -295,9 +295,13 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   share bin-probability evaluations; their multiplicities remain in the product,
   the proposal density and its component probabilities. The total point budget
   and stop remain `max(z * relative MCSE, relative change) <= tol`, `z = 2.36`.
-  Finite MCSE values remain raw empirical standard errors. Unrepresentable
-  proposal calculations instead report infinite diagnostics, so numerical
-  unavailability cannot silently become an accepted zero likelihood. Exact
+  Finite MCSE values remain raw empirical standard errors. A row/bin event
+  whose mass relative to the largest underflows even extended precision (a row
+  hundreds of SD from its transition) has exactly zero sampling probability: it
+  is left out of the draws and of the proposal density together, while the
+  target keeps every row. NaN or infinite proposal masses, or no event mass at
+  all, instead report infinite diagnostics, so numerical unavailability cannot
+  silently become an accepted zero likelihood. Exact
   categorical boundaries in valid supplied uniforms use the conditional median;
   this defines the transform on a measure-zero set without clipping interior
   probabilities.

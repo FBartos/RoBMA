@@ -199,15 +199,46 @@ test_that("an unrepresentable event probability cannot silently become zero like
   expect_gt(reference, block[["rows"]] * log(.5))
   rules <- .selection_joint_cluster_quadrature_rules(c(3L, 5L, 7L))
   actual <- .test_qmc_tail_native(block, rules)
-  finite <- all(is.finite(unlist(actual[c("log_density", "log_normalizer")])))
-  error <- if (finite) abs(expm1(actual[["log_normalizer"]] - reference)) else Inf
-  if (finite && error <= .005) {
-    expect_lte(error, .005)
-  } else {
-    expect_identical(actual[["relative_mcse"]], Inf)
-    expect_identical(actual[["relative_change"]], Inf)
-    expect_error(.selection_joint_factor_check_diagnostics(actual,
-      list(relative_tolerance = .005), "factor"), "rejected by diagnostics")
+  # The distant event has no sampling probability, but its row stays in the
+  # target. The fallback must neither reject the block nor lose the factor.
+  expect_true(all(is.finite(unlist(actual[c("log_density", "log_normalizer",
+    "relative_mcse", "relative_change")]))))
+  expect_lte(abs(expm1(actual[["log_normalizer"]] - reference)), .005)
+  expect_error(.selection_joint_factor_check_diagnostics(actual,
+    list(relative_tolerance = .005), "factor"), NA)
+})
+
+test_that("a negligible event component is dropped from the proposal without rejecting the block", {
+
+  # Ten coincident rows put a transition at one or two SD on the first
+  # coordinate. One row on the independent second coordinate sits so far below
+  # its transition that the relative mass of its event underflows even long
+  # double (about exp(-11400) at -160, exactly zero probability at -1e200), so
+  # it is never sampled. The target factor of that row is still
+  # .5 + .5 pnorm(far / sqrt(1 + .04^2)), the product of independent
+  # coordinates gives the reference, and every run is accepted.
+  rules <- .selection_joint_cluster_quadrature_rules(c(3L, 5L, 7L))
+  for (transition in c(1, 2)) {
+    ordinary <- .test_cert_block(list(
+      .test_cert_parallel_group(10L, c(1, 0), .04, -transition)), c(1, .5))
+    for (far in c(-150, -160, -1000, -1e200)) {
+      block <- .test_cert_block(c(ordinary[["groups"]], list(
+        .test_cert_parallel_group(1L, c(0, 1), .04, far))), c(1, .5))
+      reference <- .test_cert_reference_parallel(ordinary) +
+        log(.5 + .5 * stats::pnorm(far / sqrt(1 + .04^2)))
+      for (seed in 1:2) {
+        info <- paste("transition", transition, "far", far, "seed", seed)
+        actual <- .test_qmc_tail_native(block, rules, seed = seed)
+        expect_false(.test_cert_deterministic(actual), info = info)
+        # The data density of a row at -1e200 is itself exactly zero; only the
+        # normalizer and its diagnostics must be finite.
+        expect_true(all(is.finite(unlist(actual[c("log_normalizer",
+          "relative_mcse", "relative_change")]))), info = info)
+        expect_lte(abs(expm1(actual[["log_normalizer"]] - reference)), .005, label = info)
+        expect_error(.selection_joint_factor_check_diagnostics(actual,
+          list(relative_tolerance = .005), "factor"), NA, info = info)
+      }
+    }
   }
 })
 
