@@ -59,8 +59,10 @@ publication-bias estimates, and optional conditional estimates.
 \code{selection_sensitivity_diagnostics} retain selection-target metadata
 and optional sensitivity diagnostics. The printed
 form displays the non-empty tables. Objects created with \code{only_data = TRUE}
-return the resolved data and objects created with \code{only_priors = TRUE}
-return the resolved prior list, because neither carries a posterior.
+return the resolved data, and objects created with \code{only_priors = TRUE}
+return a \code{summary.brma} object that prints only the model title, as at 4.0.0,
+and holds the resolved prior list in its \code{priors} element, because neither
+carries a posterior.
 Intercept-only multivariate location
 models label their sole coefficient \code{mu}, consistently with ordinary
 meta-analysis models. Once location moderators are present, the coefficient

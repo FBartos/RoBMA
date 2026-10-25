@@ -1477,8 +1477,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   evaluations used the raw predictor values, so scale formulas gave wrong
   heterogeneity (in a test model, row-specific `tau` was 0.58 to 2.07 times
   the correct value) and moderator formulas gave wrong predictions.
-- `summary()` of an `only_priors = TRUE` object returns the resolved priors,
-  as for `only_data = TRUE`, instead of failing.
+- `summary()` of an `only_priors = TRUE` object prints the model title only
+  (for example "Bayesian Random-Effects Model (k = 13)"), as at 4.0.0, instead
+  of failing for models with moderators, a scale formula, or product-space
+  priors; the resolved priors are in the `priors` element of the summary.
 - weighted residual diagnostics use the original outcome variances, keeping
   the likelihood weights for fitting and PSIS deletion; internally
   standardized residuals combine the fitted projection with the original

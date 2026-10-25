@@ -951,7 +951,7 @@ test_that("only_priors objects print and plot via prior methods", {
 })
 
 
-test_that("summary returns the priors of an only_priors object", {
+test_that("summary of an only_priors object prints its title and keeps its priors", {
 
   skip_on_cran()
 
@@ -960,12 +960,15 @@ test_that("summary returns the priors of an only_priors object", {
     measure = "SMD", only_priors = TRUE
   )
 
-  # No posterior exists, so summary() reports the resolved priors instead of
-  # failing inside the BayesTools fit accessors.
+  # No posterior exists, so summary() shows the model title, as at 4.0.0,
+  # instead of failing inside the BayesTools fit accessors, and holds the
+  # resolved priors.
   summarized <- summary(priors)
 
-  expect_identical(summarized, priors[["priors"]])
-  expect_true(length(summarized) > 0L)
+  expect_s3_class(summarized, "summary.brma")
+  expect_match(summarized[["name"]], "^Bayesian Model-Averaged Random-Effects Model [(]k = [0-9]+[)]$")
+  expect_identical(summarized[["priors"]], priors[["priors"]])
+  expect_true(length(summarized[["priors"]]) > 0L)
 })
 
 test_that("print_prior of a prior object prints the text of the prior and one line break", {

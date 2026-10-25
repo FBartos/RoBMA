@@ -38,7 +38,8 @@ A plain \code{data.frame} containing all displayed summary rows.
 An object created with \code{only_data = TRUE} or \code{only_priors = TRUE}
 has no fitted model to export and stops with an error of class
 \code{RoBMA_unfitted_object} (also of class
-\code{RoBMA_unsupported_request}); \code{summary()} shows its data or priors.
+\code{RoBMA_unsupported_request}); \code{summary()} shows its data, or the
+\code{priors} element of its summary the priors.
 }
 \description{
 Converts the non-empty tables displayed by a fitted

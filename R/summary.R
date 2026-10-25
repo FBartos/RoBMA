@@ -35,8 +35,10 @@
 #' \code{selection_sensitivity_diagnostics} retain selection-target metadata
 #' and optional sensitivity diagnostics. The printed
 #' form displays the non-empty tables. Objects created with `only_data = TRUE`
-#' return the resolved data and objects created with `only_priors = TRUE`
-#' return the resolved prior list, because neither carries a posterior.
+#' return the resolved data, and objects created with `only_priors = TRUE`
+#' return a `summary.brma` object that prints only the model title, as at 4.0.0,
+#' and holds the resolved prior list in its `priors` element, because neither
+#' carries a posterior.
 #' Intercept-only multivariate location
 #' models label their sole coefficient `mu`, consistently with ordinary
 #' meta-analysis models. Once location moderators are present, the coefficient
@@ -121,13 +123,13 @@ summary.brma       <- function(
   }
 
   # deal with `only_priors` fit: prior resolution stopped before fitting, so
-  # there is no posterior to summarize and the resolved priors are reported
-  # instead, mirroring the `only_data` branch above.
+  # there is no posterior to summarize; the summary prints the model title, as
+  # at 4.0.0, and keeps the resolved priors.
   if (.brma_is_only_priors(object)) {
     if (is.null(object[["priors"]])) {
       stop("'summary' requires a fitted brma object.", call. = FALSE)
     }
-    return(object[["priors"]])
+    return(.summary_brma_only_priors(object))
   }
 
   ### provide common estimates
@@ -400,9 +402,39 @@ print.summary.brma <- function(x, ...) {
 }
 
 
-# The constructions without a fitted model, which summary() shows as data or
-# priors: an `only_data` object (no priors, no fit) and an `only_priors` object
-# without a BayesTools fit.
+# The summary of an `only_priors` object: the model title and no table, as the
+# release printed it, with the resolved priors in the `priors` element.
+.summary_brma_only_priors <- function(object) {
+
+  out <- list(name = .summary.brma_model_names(object))
+  for (type in c(
+    "inclusion_components", "inclusion_mods", "inclusion_scale",
+    "inclusion_random", "estimates", "estimates_conditional",
+    "estimates_mods", "estimates_mods_conditional",
+    "estimates_scale", "estimates_scale_conditional",
+    "estimates_random", "estimates_random_conditional",
+    "estimates_bias", "estimates_bias_conditional"
+  )) {
+    out[[type]] <- list()
+  }
+  out[["priors"]] <- object[["priors"]]
+
+  class(out) <- "summary.brma"
+  attr(out, "mods")         <- .is_mods(object)
+  attr(out, "scale")        <- .is_scale(object)
+  attr(out, "random")       <- .is_random(object)
+  attr(out, "multilevel")   <- .is_multilevel(object)
+  attr(out, "bias")         <- .is_bias(object)
+  attr(out, "RoBMA")        <- .is_RoBMA(object)
+  attr(out, "outcome_type") <- .outcome_type(object)
+
+  return(out)
+}
+
+
+# The constructions without a fitted model: an `only_data` object (no priors,
+# no fit), which summary() shows as its data, and an `only_priors` object
+# without a BayesTools fit, which summary() shows by its title.
 .brma_is_only_data <- function(object) {
 
   return(is.null(object[["priors"]]) && is.null(object[["fit"]]))
@@ -435,7 +467,8 @@ print.summary.brma <- function(x, ...) {
 #' An object created with \code{only_data = TRUE} or \code{only_priors = TRUE}
 #' has no fitted model to export and stops with an error of class
 #' \code{RoBMA_unfitted_object} (also of class
-#' \code{RoBMA_unsupported_request}); \code{summary()} shows its data or priors.
+#' \code{RoBMA_unsupported_request}); \code{summary()} shows its data, or the
+#' \code{priors} element of its summary the priors.
 #'
 #' @export
 as.data.frame.brma <- function(
@@ -448,7 +481,8 @@ as.data.frame.brma <- function(
                 "error", "condition"),
       list(message = paste0(
         "An object created with 'only_data = TRUE' or 'only_priors = TRUE' has ",
-        "no fitted model to export. Use summary() to show its data or priors."
+        "no fitted model to export. Use summary() to show its data, or the ",
+        "'priors' element of its summary to show its priors."
       ), call = NULL)
     ))
   }
