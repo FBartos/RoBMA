@@ -546,13 +546,20 @@ bool cpp_selnorm_step_normalizer_product(
     const double difference = bounded ? std::max(omega[0], omega[1]) - last : omega[0] - last;
     const double direction = bounded && omega[0] < omega[1] ? -1.0 : 1.0;
     const double absolute_last = std::abs(last);
+    // Keep the original direct/log routing at the strict normal-minimum floor.
+    const bool bounded_tail = bounded && last > std::numeric_limits<double>::min();
     for (std::size_t i = 0; i < count; ++i) {
       if (!std::isfinite(mean[i])) return false;
       const double score = stable_affine_score(
         data.z_lower[0], sei, data.effect_sign * mean[i], sd
       );
       double probability;
-      if (!bounded || !selnorm_cdf_table::evaluate(-direction * score, &probability)) {
+      if (bounded_tail && std::isfinite(score) && std::abs(score) >= 8.0) {
+        // Q(8) <= phi(8)/8 < 2^-35 < the existing absolute CDF error.
+        // This disjoint tail region keeps that same uniform error bound;
+        // it need not reproduce the ordinary erfc result bit for bit.
+        probability = direction * score > 0.0 ? 0.0 : 1.0;
+      } else if (!bounded || !selnorm_cdf_table::evaluate(-direction * score, &probability)) {
         probability = 0.5 * std::erfc(direction * score * M_SQRT1_2);
       }
       const double contribution = difference * probability;

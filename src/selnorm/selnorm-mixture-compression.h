@@ -211,7 +211,9 @@ inline bool selnorm_compress_gaussian_mixture_accumulate(
     std::vector<Bin<Accumulation>> bins(bin_count);
     for (Assignment<Accumulation> &assignment : assignments) {
       const std::size_t i = assignment.original;
-      const long double position = std::floor((static_cast<long double>(mean[i]) - minimum) / width);
+      // The guards admit nonnegative positions below an integer bound. The
+      // conversion then has the same result as floor followed by conversion.
+      const long double position = (static_cast<long double>(mean[i]) - minimum) / width;
       if (!(position >= 0) || position >= bin_count) return false;
       const std::size_t index = static_cast<std::size_t>(position);
       Bin<Accumulation> &bin = bins[index];
@@ -226,11 +228,16 @@ inline bool selnorm_compress_gaussian_mixture_accumulate(
       const Accumulation offset = static_cast<Accumulation>(original_offset);
       if (!normal_or_zero(offset) || (offset == 0 && original_offset != 0)) return false;
       Accumulation power = 1.0, term = 0.0;
-      for (int k = 0; k <= 8; ++k) {
+      term = weight * power;
+      bin.moment[0] += term;
+      for (int k = 1; k <= 7; k += 2) {
+        power *= offset;
         term = weight * power;
         bin.moment[k] += term;
         bin.absolute_moment[k] += std::abs(term);
-        if (k < 8) power *= offset;
+        power *= offset;
+        term = weight * power;
+        bin.moment[k + 1] += term;
       }
       // Magnitudes of successive powers/terms are monotone: for |offset|<=1
       // the last ones are smallest, otherwise largest. Starting weight and
@@ -261,6 +268,9 @@ inline bool selnorm_compress_gaussian_mixture_accumulate(
     for (std::size_t index = 0; index < bin_count; ++index) {
       Bin<Accumulation> &bin = bins[index];
       if (bin.count == 0) continue;
+      // Positive weights and even powers give identical signed/absolute sums.
+      // Retain the original source order and conservative arithmetic bound.
+      for (int k = 0; k <= 8; k += 2) bin.absolute_moment[k] = bin.moment[k];
       // Positive absolute sums cannot recover from overflow. An overflowed
       // signed sum remains nonfinite too; check once before any exact-mean
       // reset or coefficient construction, preserving the failure path.

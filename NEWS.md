@@ -1,4 +1,9 @@
 ## version 4.1.0 (IN PROGRESS)
+- Single-threaded selected-density evaluation avoids redundant compression
+  arithmetic and uses the existing Gaussian recurrence for safe singleton
+  components, retaining the original scalar fallback. The bounded post-fit CDF
+  policy evaluates far tails within its unchanged certified absolute error;
+  ordinary CDF evaluation and all integration budgets remain unchanged.
 - Selected zplot summaries batch threshold quadrature in native code and reuse
   identical transition checks, preserving node order and numerical results.
   Context densities reuse exact probability logarithms and raw rule ingredients

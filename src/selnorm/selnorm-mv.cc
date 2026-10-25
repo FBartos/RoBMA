@@ -2844,6 +2844,7 @@ double factor_log_integrand(const FactorNormalizerContext &context,
 struct NormalProjectionGrid {
   const double *z;
   int size;
+  bool normal_multipliers = false;
   void (*poll)();
   std::size_t poll_interval, remaining_work;
   std::vector<long double> gaps;
@@ -2925,6 +2926,7 @@ struct NormalProjectionGrid {
 
   void prepare(double sei, double sd)
   {
+    normal_multipliers = true;
     for (std::size_t g = 0; g < positions.size(); ++g) {
       account_work();
       delta[g] = gaps[g] * sei / sd;
@@ -2935,6 +2937,7 @@ struct NormalProjectionGrid {
       // neither the grid nor its gaps are rounded to a regular sequence.
       const long double distance = entry.value * sei / sd;
       const long double multiplier = std::exp(-delta[entry.gap] * distance);
+      normal_multipliers = normal_multipliers && std::isnormal(multiplier);
       for (auto const &occurrence : entry.occurrences) {
         account_work();
         forward[occurrence.first] = multiplier;
@@ -2943,11 +2946,15 @@ struct NormalProjectionGrid {
     }
   }
 
+  template<bool require_normal_range = false>
   bool add(double mean, double sei, double sd, double log_scale,
            long double weight, const std::vector<double> &z_weight,
            std::vector<long double> &density)
   {
     if (positions.empty()) return false;
+    if constexpr (require_normal_range) {
+      if (!normal_multipliers || !std::isnormal(weight)) return false;
+    }
     if (weight == 0.0L) return true;
     if (!(weight > 0.0L) || !std::isfinite(weight)) return false;
     int anchor = static_cast<int>(std::lower_bound(z, z + size, mean / sei,
@@ -2978,6 +2985,9 @@ struct NormalProjectionGrid {
     const long double initial = std::exp(std::log(weight) +
       cpp_selnorm_affine_normal_lpdf_log_scale(z[anchor], sei, mean, sd, log_scale));
     if (!std::isfinite(initial)) return false;
+    if constexpr (require_normal_range) {
+      if (!std::isnormal(initial)) return false;
+    }
     density[anchor] += initial * z_weight[anchor];
     long double value = initial;
     // f(s + d) / f(s) = exp(-s*d - d*d/2). For another occurrence
@@ -2985,7 +2995,13 @@ struct NormalProjectionGrid {
     for (int i = anchor + 1; i < size; ++i) {
       account_work();
       const int g = gap_index[i - 1];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(right[g])) return false;
+      }
       value *= right[g];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(value)) return false;
+      }
       density[i] += value * z_weight[i];
       right[g] *= forward[i - 1];
     }
@@ -2993,7 +3009,13 @@ struct NormalProjectionGrid {
     for (int i = anchor - 1; i >= 0; --i) {
       account_work();
       const int g = gap_index[i];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(left[g])) return false;
+      }
       value *= left[g];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(value)) return false;
+      }
       density[i] += value * z_weight[i];
       left[g] *= backward[i];
     }
@@ -3090,9 +3112,34 @@ inline void selnorm_evaluate_gaussian_mixture_row(
     std::vector<double> unit_weight(workspace.size, 1.0);
     std::vector<long double> gaussian(workspace.size);
     for (SelNormGaussianMomentGroup const &group : compressed.groups) {
+      if (group.source_count == 1) {
+        const std::size_t original = compressed.source_index[group.source_begin];
+        const long double coefficient = std::exp(static_cast<long double>(logs[original]));
+        std::fill(gaussian.begin(), gaussian.end(), 0.0L);
+        // Reuse the original-mixture Gaussian recurrence with its original
+        // coefficient and actual grid weights. Normal intermediates prevent
+        // a later large weight from hiding an earlier underflow loss.
+        bool singleton_ok = workspace.recurrence.add<true>(means[original],
+          row.sei, row.sd, log_scale, coefficient, workspace.weight, gaussian);
+        if (singleton_ok) {
+          for (int point = 0; point < workspace.size; ++point) {
+            if (!std::isfinite(gaussian[point]) || gaussian[point] < 0.0L ||
+                (workspace.weight[point] > 0.0 && !std::isnormal(gaussian[point]))) {
+              singleton_ok = false;
+            }
+          }
+        }
+        if (singleton_ok) {
+          // Merge only a completed recurrence. A failure leaves the row
+          // untouched and uses the original scalar expression below.
+          for (int point = 0; point < workspace.size; ++point) {
+            if (workspace.weight[point] > 0.0) workspace.row_density[point] += gaussian[point];
+          }
+          continue;
+        }
+      }
       std::fill(gaussian.begin(), gaussian.end(), 0.0L);
-      // Singleton points always use the original component below; avoid
-      // preparing a recurrence whose output cannot be consumed.
+      // Singletons that declined the recurrence use their original component.
       bool recurrence_ok = group.source_count > 1 &&
         workspace.recurrence.add(group.mean, row.sei, row.sd,
           log_scale, common_scale, unit_weight, gaussian);

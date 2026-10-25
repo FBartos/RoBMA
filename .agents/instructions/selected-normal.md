@@ -447,6 +447,18 @@ an inverse-integrand or focal-Gaussian error bound. Keep all existing Gaussian
 basis, covariance, interpolation, compression, mass, exterior and change gates.
 Factor-only rank-two event partition/quantile integration is outside this rule.
 
+The opt-in bounded post-fit CDF primitive may return endpoints for finite
+scores with absolute value at least eight: the Gaussian Mills bound is below
+the existing uniform CDF error. Preserve positive-blend/product error
+propagation, the normal-minimum floor guard and the ordinary exact-mode retry.
+JAGS and sampling copies do not opt into this approximation. Raw-rule cache
+identity includes the primitive policy version.
+
+Singleton mixture components may use the existing Gaussian recurrence only
+with normal intermediate values and a transactional output buffer; otherwise
+retain the original scalar expression. Compression, omission and tail bounds
+remain charged, and partial failed recurrences must never enter the row sum.
+
 ## Unsupported Paths
 
 Publication-bias weight functions are unsupported for binomial and Poisson

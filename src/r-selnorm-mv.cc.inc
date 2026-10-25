@@ -2167,7 +2167,8 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
     const bool can_store = (count + key_count) * sizeof(double) + 1024 <= budget;
     std::vector<double> key;
     if (input_cache != R_NilValue || can_store) {
-      key = {1.0, static_cast<double>(contexts), static_cast<double>(k),
+      // Version two includes bounded far tails; older primitive caches miss.
+      key = {2.0, static_cast<double>(contexts), static_cast<double>(k),
         static_cast<double>(bins), static_cast<double>(order), static_cast<double>(INTEGER(sign)[0]),
         static_cast<double>(LOGICAL(telescope)[0]), static_cast<double>(bounded_cdf)};
       key.reserve(static_cast<std::size_t>(key_count));
