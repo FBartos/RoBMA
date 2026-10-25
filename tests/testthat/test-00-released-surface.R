@@ -609,9 +609,10 @@ test_that("a stored LOO or WAIC of another unit names the released remedy", {
 })
 
 # Small random-formula brma.mv() fits (one and two random blocks), built once.
-.surface_mv_fit <- function(name) {
+.surface_mv_fit <- function(name, only_priors = FALSE) {
 
-  if (!exists(name, envir = .surface_fit_env, inherits = FALSE)) {
+  key <- paste0(name, if (only_priors) "_priors")
+  if (!exists(key, envir = .surface_fit_env, inherits = FALSE)) {
     dat <- data.frame(
       yi    = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05, 0.11, 0.16),
       study = factor(rep(c("s1", "s2", "s3", "s4"), each = 2L)),
@@ -630,12 +631,13 @@ test_that("a stored LOO or WAIC of another unit names the released remedy", {
     fit <- suppressWarnings(brma.mv(
       yi = yi, V = V, random = random, data = dat, measure = "GEN",
       prior_unit_information_sd = 1, chains = 2, adapt = 50, burnin = 100,
-      sample = 100, seed = 1, silent = TRUE, parallel = FALSE
+      sample = 100, seed = 1, silent = TRUE, parallel = FALSE,
+      only_priors = only_priors
     ))
-    assign(name, fit, envir = .surface_fit_env)
+    assign(key, fit, envir = .surface_fit_env)
   }
 
-  return(get(name, envir = .surface_fit_env, inherits = FALSE))
+  return(get(key, envir = .surface_fit_env, inherits = FALSE))
 }
 
 test_that("the default draws of random-formula brma.mv() fits are the parameters shown by summary()", {
@@ -686,4 +688,26 @@ test_that("pooled_heterogeneity() of brma.mv() fits validates the forwarded aggr
   expect_identical(names(all_components), names(pooled_heterogeneity(two, component = "all")))
   expect_s3_class(pooled_heterogeneity(two, component = "total", conditioning_depth = "marginal"),
                   "brma_samples")
+})
+
+test_that("parameter lookups of brma.mv() objects keep the message of the parameter catalog", {
+
+  skip_on_cran()
+
+  # the multivariate models did not exist at 4.0.0 and keep no released wording:
+  # their location prior is outside the layout that the released message lists
+  fitted <- tryCatch(
+    print_prior(.surface_mv_fit("mv_one"), parameter = "bogus", silent = TRUE),
+    error = identity
+  )
+  expect_s3_class(fitted, "BayesTools_parameter_not_found")
+  expect_identical(conditionMessage(fitted), "No public parameter quantity matches 'bogus'.")
+
+  priors <- tryCatch(
+    plot_prior(.surface_mv_fit("mv_one", only_priors = TRUE), parameter = "bogus"),
+    error = identity
+  )
+  expect_match(conditionMessage(priors), "The specified parameter 'bogus' is not available.",
+               fixed = TRUE)
+  expect_false(grepl("Available parameters are", conditionMessage(priors), fixed = TRUE))
 })

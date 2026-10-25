@@ -404,13 +404,16 @@
 # The 4.0.0 wording of a parameter lookup that fails, or NULL to keep the
 # message of the catalog (selections that did not exist at the release: the
 # 'component' argument, the hidden auxiliary priors, and the ambiguity of a
-# term of a fitted object). plot() describes a fitted object by its fitted
-# structure, the prior functions (and any unfitted object) by the stored priors.
+# term of a fitted object; objects of a class without a 4.0.0 counterpart, such
+# as the multivariate models, whose location prior is not in the layout that
+# the wording lists; and a lookup with nothing to list). plot() describes a
+# fitted object by its fitted structure, the prior functions (and any unfitted
+# object) by the stored priors.
 .brma_parameter_release_message <- function(object, parameter, argument,
                                             component, context,
                                             ambiguous = FALSE) {
 
-  if (is.null(context)) {
+  if (is.null(context) || inherits(object, "brma.mv") || .is_random(object)) {
     return(NULL)
   }
 
@@ -521,15 +524,13 @@
       "parameter_scale = '", .plot_prior_term_names(priors[["scale"]]), "'"))
   }
 
-  return(paste0(
-    sprintf(
-      "Unknown prior parameter '%s'. Available parameters are: %s.",
-      parameter, paste0("'", available, "'", collapse = ", ")
-    ),
-    if (.has_print_prior_random(object)) paste0(
-      " The random-effect priors of the object are printed by ",
-      "print_prior(object, parameter = \"random\")."
-    )
+  if (length(available) == 0L) {
+    return(NULL)
+  }
+
+  return(sprintf(
+    "Unknown prior parameter '%s'. Available parameters are: %s.",
+    parameter, paste0("'", available, "'", collapse = ", ")
   ))
 }
 

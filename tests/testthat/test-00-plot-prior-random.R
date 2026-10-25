@@ -368,8 +368,7 @@ test_that("only_priors objects point to the random-effect specification", {
     error <- tryCatch(eval(call), error = identity)
     expect_identical(class(error), c("simpleError", "error", "condition"))
     expect_match(
-      conditionMessage(error), "Unknown prior parameter 'tau'. Available parameters are: ",
-      fixed = TRUE
+      conditionMessage(error), "The specified parameter 'tau' is not available."
     )
     expect_match(
       conditionMessage(error),
