@@ -10,6 +10,13 @@ test_that("heterogeneity deletion preserves small remaining scale rows", {
   observed <- .influence_tau_del_from_samples(tau, weights)
   expect_equal(observed / expected, rep(1, ncol(tau)), tolerance = 1e-14)
 
+  # It is the root mean square over the remaining rows (maintainer decision of
+  # 2026-10-25), larger than the arithmetic mean that 4.0.0 used.
+  arithmetic <- vapply(seq_len(ncol(tau)), function(i) {
+    sum(weights[, i] * rowMeans(tau[, -i, drop = FALSE]))
+  }, numeric(1))
+  expect_true(all(observed > arithmetic))
+
   # The deletion target is independent of observation ordering.
   order <- c(3L, 1L, 2L)
   permuted <- .influence_tau_del_from_samples(tau[, order], weights[, order])

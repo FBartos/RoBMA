@@ -23,8 +23,10 @@
 #' \code{cook.d}, \code{cov.r}, \code{tau.del}, and \code{hat}, where available.
 #' The \code{tau.del} column is the PSIS leave-one-out posterior mean of the
 #' root mean square of total row-level heterogeneity over the remaining
-#' scale-model rows after each deletion. It is not a pooled log-scale design
-#' prediction.}
+#' scale-model rows after each deletion, the root mean square over the observed
+#' design that \code{\link{summary_heterogeneity}} reports. It differs from the
+#' arithmetic mean of the observation-specific tau that 4.0.0 used, which is never
+#' larger. It is not a pooled log-scale design prediction.}
 #' \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
 #' Undefined COVRATIO and coefficient DFBETAS values are reported as
 #' \code{NaN} with an explanatory note. DFFITS returns \code{NA} when its

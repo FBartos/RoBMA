@@ -1488,7 +1488,10 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - plug-in funnel contours, model-averaged funnel contours, and deleted-row
   location-scale influence heterogeneity use the within-draw (within-model)
   root mean square heterogeneity, averaging integrated and conditioned
-  heterogeneity on the variance scale.
+  heterogeneity on the variance scale. The `tau.del` column of `influence()`
+  for location-scale fits is therefore the root mean square over the observed
+  design, as `summary_heterogeneity()` reports, and differs from the arithmetic
+  mean of the observation-specific tau that 4.0.0 used (never larger than it).
 - selected-normal funnel and regression-plot CDF tails are normalized
   jointly, so valid low-standard-error contours no longer fail through
   separately rounded normalization masses.
