@@ -33,7 +33,7 @@ For binomial and Poisson models, each observation consists of a pair of
 counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
 The matrix holds posterior draws, not a scalar maximized log-likelihood, so
 \code{AIC()} and \code{BIC()} are not defined for \code{brma} objects (see
-\code{\link{information_criteria_brma}}).
+\code{\link{AIC.brma}}).
 }
 \seealso{
 \code{\link{log_lik}}, \code{\link{loo.brma}}

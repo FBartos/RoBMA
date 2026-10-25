@@ -775,7 +775,7 @@ log_lik.brma <- function(object, unit = "estimate", ...) {
 #' counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
 #' The matrix holds posterior draws, not a scalar maximized log-likelihood, so
 #' \code{AIC()} and \code{BIC()} are not defined for \code{brma} objects (see
-#' \code{\link{information_criteria_brma}}).
+#' \code{\link{AIC.brma}}).
 #'
 #' @return An S x K or S x G matrix of log-likelihood values.
 #'
