@@ -1,7 +1,7 @@
 ---
 title: "Multilevel Meta-Analysis"
 author: "František Bartoš"
-date: "28th of April 2026 (updated 22nd of June 2026)"
+date: "28th of April 2026 (updated 25nd of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -68,16 +68,14 @@ fit1_brma <- brma(
 vignette_cache_save(cached_fits)
 ```
 
-This vignette illustrates how to use the `RoBMA` R package [@RoBMA] with multilevel meta-analytic data.
-We walk through the school-calendar dataset from @konstantopoulos2011fixed, showing the `brma()` call with the `cluster` argument alongside its `metafor::rma.mv()` counterpart [@metafor].
+This vignette illustrates how to use the `RoBMA` R package [@RoBMA] with simple multilevel meta-analytic data.
+We walk through the school-calendar dataset from @konstantopoulos2011fixed, showing the `brma()` call with the `cluster` argument and compare the results with the more general  `metafor::rma.mv()` function [@metafor].
+The `cluster` argument provides a specialized way to fit three-level models through the univariate `brma()` interface, without requiring the more general `brma.mv()` specification.
+It supports one cluster grouping above the estimate level and parameterizes the model by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$.
+See the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette for complex multilevel and multivariate models fully matching features its `metafor::rma.mv()` counterpart.
 
 All `brma()` calls keep the default prior distributions; see the [*Prior Distributions*](v01-prior-distributions.html) vignette for the prior definitions and customization options.
 For the non-multilevel workflow showing more features (also applicable to the multilevel models) see the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette.
-
-The `cluster` argument provides a specialized way to fit three-level models through the univariate `brma()` interface, without requiring the more general `brma.mv()` specification.
-It supports one cluster grouping above the estimate level and parameterizes the model by total heterogeneity $\tau^2$ and cluster-level allocation $\rho$.
-Known sampling covariance matrices and richer random-formula structures use the separate `brma.mv(..., V = ..., random = ...)` interface; `brma.mv()` intentionally does not accept `cluster`.
-See the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette for those models.
 
 ## Multilevel Random-Effects Model
 
@@ -100,7 +98,6 @@ fit1_metafor
 The matching Bayesian fit replaces the `random = ...` argument with `cluster = district`.
 `brma()` parameterizes the multilevel model in the same compound-symmetric form: a total heterogeneity $\tau$ and a cluster-level allocation $\rho$ where $\tau_{between} = \tau\sqrt{\rho}$ and $\tau_{within} = \tau\sqrt{1 - \rho}$.
 `brma(..., cluster = ...)` is the specialized interface for this model.
-The same covariance can be represented with `brma.mv()`, but the narrower `cluster` parameterization provides dedicated output for $I^2$ and its within- and between-cluster components.
 `measure = "SMD"` selects the default prior distributions for standardized mean differences.
 
 ```{r fit1-brma, eval = FALSE}
