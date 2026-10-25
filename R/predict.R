@@ -251,14 +251,16 @@
 #' \code{brma.mv()} random-formula \code{type = "terms.scale"} predictions,
 #' returns a named list of component-specific \code{brma_samples} objects; with
 #' \code{newdata = TRUE} this list is the \code{component = "all"} result of
-#' \code{\link{pooled_heterogeneity}} and keeps its title
-#' \dQuote{Pooled Heterogeneity}.
+#' \code{\link{pooled_heterogeneity}}; its components are titled
+#' \dQuote{Pooled Heterogeneity (<block>)} and \dQuote{Total Pooled
+#' Heterogeneity}.
 #' When printed, each \code{brma_samples} object displays a summary table via
 #' \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
-#' can be accessed directly because the object inherits from matrix. Use
-#' \code{summary()}, or \code{as.data.frame(summary(x))}, to obtain the summary
-#' table with component and parameter identifiers; \code{as.data.frame(x)}
-#' returns the posterior draws. A list of results coerces directly:
+#' can be accessed directly because the object inherits from matrix. For a
+#' single \code{brma_samples} object, use \code{summary()}, or
+#' \code{as.data.frame(summary(x))}, to obtain the summary table with component
+#' and parameter identifiers; \code{as.data.frame(x)} returns the posterior
+#' draws. A list of results (a \code{brma_samples_list}) coerces directly:
 #' \code{as.data.frame()} of the list gives the summary table, and
 #' \code{as.data.frame(format = "list")} retains separate tables. The samples
 #' can also be converted to \pkg{posterior} draws formats
@@ -2435,12 +2437,23 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 #   one new true effect at the pooled reference (the PI columns).
 # ---------------------------------------------------------------------------- #
 # The arguments of the aggregated prediction (predict(newdata = TRUE) and the
-# pooled wrappers) that this prediction refuses or restricts.
+# pooled wrappers) that this prediction refuses or restricts. `multivariate`
+# selects the wording for the brma.mv() pooled heterogeneity, which uses the
+# average random design rather than fitted observations.
 .check_aggregate_prediction_arguments <- function(conditioning_depth = "marginal",
-                                                  V_new = NULL, as_measure = TRUE) {
+                                                  V_new = NULL, as_measure = TRUE,
+                                                  multivariate = FALSE) {
 
   BayesTools::check_bool(as_measure, "as_measure")
   if (.normalize_conditioning_depth(conditioning_depth) != "marginal") {
+    if (multivariate) {
+      stop(
+        "Non-marginal pooled heterogeneity is not available for brma.mv() fits: ",
+        "it is evaluated at the average random design and has no fitted ",
+        "observation to condition on. Use conditioning_depth = \"marginal\".",
+        call. = FALSE
+      )
+    }
     stop(
       "Non-marginal predictions require fitted observation identities and ",
       "are currently available only with newdata = NULL.",

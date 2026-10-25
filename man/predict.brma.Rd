@@ -161,14 +161,16 @@ A \code{brma_samples} object containing posterior samples. For
 \code{brma.mv()} random-formula \code{type = "terms.scale"} predictions,
 returns a named list of component-specific \code{brma_samples} objects; with
 \code{newdata = TRUE} this list is the \code{component = "all"} result of
-\code{\link{pooled_heterogeneity}} and keeps its title
-\dQuote{Pooled Heterogeneity}.
+\code{\link{pooled_heterogeneity}}; its components are titled
+\dQuote{Pooled Heterogeneity (\if{html}{\out{<block>}})} and \dQuote{Total Pooled
+Heterogeneity}.
 When printed, each \code{brma_samples} object displays a summary table via
 \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
-can be accessed directly because the object inherits from matrix. Use
-\code{summary()}, or \code{as.data.frame(summary(x))}, to obtain the summary
-table with component and parameter identifiers; \code{as.data.frame(x)}
-returns the posterior draws. A list of results coerces directly:
+can be accessed directly because the object inherits from matrix. For a
+single \code{brma_samples} object, use \code{summary()}, or
+\code{as.data.frame(summary(x))}, to obtain the summary table with component
+and parameter identifiers; \code{as.data.frame(x)} returns the posterior
+draws. A list of results (a \code{brma_samples_list}) coerces directly:
 \code{as.data.frame()} of the list gives the summary table, and
 \code{as.data.frame(format = "list")} retains separate tables. The samples
 can also be converted to \pkg{posterior} draws formats

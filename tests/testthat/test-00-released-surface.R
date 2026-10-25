@@ -716,7 +716,7 @@ test_that("pooled_heterogeneity() of brma.mv() fits validates the forwarded aggr
 
   expect_error(
     pooled_heterogeneity(two, conditioning_depth = "estimate"),
-    "Non-marginal predictions require fitted observation identities", fixed = TRUE
+    "Non-marginal pooled heterogeneity is not available for brma.mv() fits", fixed = TRUE
   )
   expect_error(
     pooled_heterogeneity(two, V_new = diag(2)),
