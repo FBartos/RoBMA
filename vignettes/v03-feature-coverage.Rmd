@@ -1,7 +1,7 @@
 ---
 title: "Feature Coverage"
 author: "František Bartoš"
-date: "29th of April 2026"
+date: "29th of April 2026 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes

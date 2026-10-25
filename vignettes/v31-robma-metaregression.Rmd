@@ -1,7 +1,7 @@
 ---
 title: "Robust Bayesian Model-Averaged Meta-Regression"
 author: "František Bartoš"
-date: "11th of December 2024 (updated: 29th of April 2026)"
+date: "11th of December 2024 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes

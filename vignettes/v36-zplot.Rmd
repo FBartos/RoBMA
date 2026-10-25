@@ -1,7 +1,7 @@
 ---
 title: "Zplot Publication-Bias Diagnostics"
 author: "František Bartoš"
-date: "8th of September 2025 (updated: 29th of April 2026)"
+date: "8th of September 2025 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -143,14 +143,7 @@ The methodology overlays model-implied posterior predictive distributions of z-s
 The approach builds on earlier work by @brunner2020estimating for assessing the quality of research.
 
 The zplot approach complements statistical tests of publication bias (such as inclusion Bayes factors) with intuitive visualizations that can highlight model misfit due to publication bias.
-The method also provides a bias-adjusted reference for the expected discovery rate and, for the univariate product models used here, the conventional `Missing N` diagnostic.
-
-`Missing N` retains reference-bin-normalized inverse-weight extrapolation for independent models and the released conditional-cluster product model with estimate random effects integrated.
-Resolving the same publication groups automatically or explicitly does not change this diagnostic or the reference distribution.
-Its literal count interpretation additionally treats the reference bin as fully observed and requires a reporting/stopping design linking attempted to observed estimates.
-Those assumptions are not part of the fitted relative-weight likelihood: the model conditions on the reported vector and does not identify an absolute publication probability or a finite pool of missing studies.
-Valid relative weights above one can even produce a negative diagnostic, which cannot be read as a literal count.
-Multivariate selection models, models conditioning on estimate random effects, models integrating applicable other random effects or sampling context, and best-rule selection models instead use a normalized pre-selection Gaussian reference and do not report `Missing N`.
+The method also allows extrapolation to the pre-publication bias state, providing estimates of key metrics such as the expected discovery rate and the number of missing studies.
 
 We illustrate the zplot diagnostics using four empirical examples from recent meta-analyses that exhibit different degrees of publication bias.
 The examples demonstrate how to interpret zplots and use them to guide model selection in meta-analytic practice.
@@ -277,13 +270,12 @@ These results provide extreme evidence for the presence of publication bias and 
 **Extrapolation to pre-publication bias.**
 The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias.
 This is achieved by calling the `zplot()` function with `plot_extrapolation = TRUE`, which accepts either a fitted model or a prepared `zplot_brma` object.
-The extrapolated curve is not drawn by default because it rescales the display by an inferred selection convention rather than describing the observed literature.
 
 ```{r, fig.cap="Ease-of-Retrieval Effect: Extrapolation Analysis"}
 zplot(zplot_RoBMA_Weingarten2018, from = -3, to = 6, by.hist = 0.25, plot_extrapolation = TRUE)
 ```
 
-Under the inverse-weight convention, the blue line extrapolates the fitted display after removing publication-bias adjustments; it need not integrate to one.
+The extrapolated distribution (blue line) shows what we would expect to observe if studies were published regardless of their results.
 Comparing the fitted distribution (accounting for publication bias) with the extrapolated distribution reveals the extent of the bias.
 The large discrepancy between these distributions quantifies the substantial impact of publication bias in this literature.
 
@@ -296,7 +288,8 @@ summary(zplot_RoBMA_Weingarten2018)
 
 The summary provides several key results.
 The observed discovery rate (ODR) substantially exceeds the expected discovery rate (EDR), indicating that many more significant results appear in the published literature than we would expect.
-The large `Missing N` diagnostic describes substantial extrapolation under the convention above; it does not identify how many studies are absent from the literature.
+The estimated number of missing studies suggests that a substantial number of non-significant or negative results may be absent from the published literature, under the publication bias interpretation.
+However, the large missing N diagnostic might also reflect a large number of analytic paths that were possible and the results were selected over.
 The false discovery risk (FDR) provides an upper bound on the proportion of statistically significant results that may be false positives, though this risk remains moderate due to evidence for a genuine underlying effect despite the extreme publication bias.
 
 ### Example 2: Social Comparison and Behavior Change
@@ -376,7 +369,7 @@ This is achieved by either setting `extrapolate = TRUE` in the `lines()` functio
 zplot(fit_RoBMA_Hoppen2025, plot_extrapolation = TRUE)
 ```
 
-Under the inverse-weight convention, the blue line extrapolates the fitted display after removing publication-bias adjustments; it need not integrate to one.
+The extrapolated distribution (blue line) shows what we would expect to observe if studies were published regardless of their results.
 Comparing the fitted distribution (accounting for publication bias) with the extrapolated distribution reveals the extent of the bias.
 The large discrepancy between these distributions describes the model's adjustment for publication bias and its conventional inverse-weight extrapolation.
 
@@ -389,7 +382,7 @@ summary(as_zplot(fit_RoBMA_Hoppen2025))
 
 The summary provides several results.
 The observed discovery rate (ODR, i.e., the observed proportion of statistically significant results) in the dataset matches the expected discovery rate (EDR) due to the one-sided selection for marginally significant results (instead of statistically significant results).
-The large `Missing N` diagnostic indicates substantial conventional extrapolation, subject to the reporting assumptions above; it is not an identified count of absent studies.
+The estimated number of missing studies suggests that a considerable number of non-significant or negative results may be absent from the published literature.
 The false discovery risk (FDR), which corresponds to the upper bound on the false positive rate, is not extremely inflated due to the possible small positive and negative effects under the moderate heterogeneity.
 
 
@@ -433,11 +426,11 @@ legend(
   lty = 2, lwd = 2)
 ```
 
-The ChatGPT histogram contains mainly positive z-statistics.
-Both fitted density curves are smooth across zero and the conventional significance thresholds.
+The zplot for the ChatGPT data shows a different pattern than the extreme publication bias observed in the social comparison example.
+While we do not see strong selection at conventional significance thresholds, there is a moderate discontinuity at the transition to non-conforming results (z = 0), suggesting some degree of selection against negative findings.
 
-RoBMA (blue dashed line) places more predictive mass near the positive peak than the random-effects model (black dashed line), with substantial overlap between their uncertainty bands.
-The model comparison below provides extreme evidence for publication bias; the extrapolation panel shows its effect on the implied distribution.
+The random-effects model (black dashed line) provides a better fit to the data than in the previous example; however, RoBMA (blue dashed line) captures the discontinuity at zero slightly better.
+This visual pattern corresponds to moderate statistical evidence for publication bias, highlighting a case where both models might be considered, though the RoBMA model incorporates the uncertainty about the best model and provides a more complete account of the data patterns.
 
 **Extrapolation to pre-publication bias.**
 We can examine the extrapolation to assess the impact of publication bias:
@@ -446,7 +439,7 @@ We can examine the extrapolation to assess the impact of publication bias:
 zplot(fit_RoBMA_Wang2025, from = -2, to = 8, plot_extrapolation = TRUE)
 ```
 
-The extrapolated distribution (blue line) shows the model-implied change after removing publication-bias adjustments; this comparison should be read alongside the effect estimates and diagnostics below.
+The extrapolated distribution (blue line) shows a more modest difference between the fitted and extrapolated distributions compared to the extreme bias example, reflecting the moderate degree of publication bias in this literature.
 
 **Model results.**
 To quantify these visual patterns, we examine the model summaries:
@@ -456,19 +449,18 @@ summary(fit_RE_Wang2025)
 summary(fit_RoBMA_Wang2025)
 ```
 
-The random-effects model yields a substantial positive effect size estimate, while RoBMA produces a smaller estimate with a wider credible interval that includes zero.
-Both models retain substantial between-study heterogeneity.
-The Bayes factor for the effect is 1.06, leaving the evidence undecided, whereas the Bayes factor of roughly 3,000 indicates extreme evidence for publication bias.
+Importantly, the results show an extreme degree of between-study heterogeneity that greatly complicates feasible implications and recommendations.
+This demonstrates the moderate nature of the publication bias, where the adjusted estimate is meaningfully smaller but not completely reduced.
+The Bayes factor for publication bias provides moderate evidence for publication bias, and the evidence for the effect becomes weak.
 
 **Zplot summary metrics.**
-The zplot summary statistics describe a different aspect of the adjustment:
+This moderate publication-bias pattern is reflected in the summary statistics,
 
 ```{r}
 summary(as_zplot(fit_RoBMA_Wang2025))
 ```
 
-The summary shows a moderate-to-high EDR and a small conventional `Missing N` diagnostic.
-The small `Missing N` diagnostic describes the inverse-weight extrapolation convention and does not imply weak evidence for publication bias.
+which show a moderate-to-high EDR and a small number of missing estimates.
 
 ### Example 4: Framing Effects from Many Labs 2
 
@@ -534,12 +526,12 @@ summary(fit_RE_ManyLabs16)
 summary(fit_RoBMA_ManyLabs16)
 ```
 
-Both models yield similar effect size estimates.
+Both models yield virtually identical size estimates.
 The Bayes factor for publication bias provides moderate evidence against the presence of publication bias, appropriately penalizing the more complex model when it offers no advantage.
 This demonstrates the method's ability to distinguish between necessary and unnecessary model complexity.
 
 **Zplot summary metrics.**
-The publication-bias assessment statistics show a moderate EDR matching the ODR and a near-zero conventional `Missing N` diagnostic; the latter does not establish that no studies are missing.
+The absence of publication bias is reflected in the publication-bias assessment statistics: a moderate EDR matching the ODR and no missing studies.
 
 ```{r}
 summary(as_zplot(fit_RoBMA_ManyLabs16))

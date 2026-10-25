@@ -1,7 +1,7 @@
 ---
 title: "Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes"
 author: "František Bartoš"
-date: "13th of June 2023 (updated: 4th of May 2026)"
+date: "13th of June 2023 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
