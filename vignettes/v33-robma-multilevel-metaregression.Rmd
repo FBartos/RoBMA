@@ -1,7 +1,7 @@
 ---
 title: "Multilevel Robust Bayesian Model-Averaged Meta-Regression"
 author: "František Bartoš"
-date: "17th of December 2025 (updated: 20th of September 2026)"
+date: "17th of December 2025 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -185,7 +185,6 @@ summary(mm_reg)
 ```
 
 The estimated marginal means reveal moderate evidence for the absence of an effect for jobs with no consumer contact ($\text{BF}_{10} = 0.10$) and extreme evidence for an effect for jobs with some or direct consumer contact.
-The Bayes factors for the latter two groups rely on estimates from the tails of the posterior distributions and should not be interpreted precisely.
 
 ## Visual Fit Assessment
 
