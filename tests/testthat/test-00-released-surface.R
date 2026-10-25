@@ -450,6 +450,22 @@ test_that("GLMM LOO-PIT residuals are the labelled normal approximation", {
   expect_equal(vector$value, table$value[["z"]], tolerance = 1e-12)
   expect_length(count_messages(residuals(fit, type = "outcome"))$messages, 0L)
 
+  # without a stored LOO result the error comes without the note
+  without_loo <- fit
+  without_loo[["loo"]] <- NULL
+  for (call in list(quote(rstudent(without_loo)), quote(residuals(without_loo, type = "LOO-PIT")))) {
+    messages <- character()
+    error <- tryCatch(
+      withCallingHandlers(eval(call), message = function(condition) {
+        messages <<- c(messages, conditionMessage(condition))
+        invokeRestart("muffleMessage")
+      }),
+      error = identity
+    )
+    expect_match(conditionMessage(error), "LOO has not been computed", fixed = TRUE)
+    expect_length(messages, 0L)
+  }
+
   # independent oracle: the PSIS-weighted normal CDF of the approximate
   # effect sizes and standard errors
   setup   <- .estimate_likelihood_setup.brma(fit)

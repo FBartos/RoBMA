@@ -238,9 +238,6 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 
   # check for unsupported type/model combinations
   .check_residual_type_availability(type, outcome_type, is_weightfunction)
-  if (is.element(type, c("LOO-PIT", "rstudent"))) {
-    .glmm_loo_pit_note(outcome_type, dots)
-  }
 
   out <- .residuals_estimate.brma(
     object             = object,
@@ -249,6 +246,11 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
     bias_adjusted      = bias_adjusted,
     max_samples        = max_samples
   )
+  # the note follows the stored LOO check of the computation, so that a missing
+  # LOO result is reported without it
+  if (is.element(type, c("LOO-PIT", "rstudent"))) {
+    .glmm_loo_pit_note(outcome_type, dots)
+  }
 
   # clean names
   if (!is.data.frame(out)) {
@@ -791,7 +793,6 @@ rstudent.brma <- function(model, unit = "estimate",
     outcome_type      = .outcome_type(model),
     is_weightfunction = .is_weightfunction(model)
   )
-  .glmm_loo_pit_note(.outcome_type(model), dots)
   setup <- .estimate_likelihood_setup.brma(
     object                  = model,
     condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
@@ -804,6 +805,10 @@ rstudent.brma <- function(model, unit = "estimate",
   psis_context <- .diagnostic_psis_context(model, .psis_context)
   psis_object  <- psis_context[["psis_object"]]
   psis_weights <- psis_context[["psis_weights"]]
+
+  # the note follows the stored LOO check, so that a missing LOO result is
+  # reported without it
+  .glmm_loo_pit_note(.outcome_type(model), dots)
 
   # get LOO-PIT z values using the estimate-unit LOO target
   .diagnostic_check_loo(model, psis_context, unit = "estimate")
