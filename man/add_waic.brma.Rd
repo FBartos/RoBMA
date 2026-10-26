@@ -35,9 +35,10 @@ values) that indicate when the approximation may be unreliable.
 For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
 estimate-unit WAIC uses the same integrated conditional log-likelihood matrix
 as estimate-unit LOO, \eqn{p(y_i \mid y_{-i}, \theta)}. Estimate deletion
-retains the fitted grouping and dependency structure. As for LOO, Gaussian
-models with non-unit likelihood \code{weights} score the powered row
-densities given the sampled local effects instead of integrating them.
+retains the fitted grouping and dependency structure. Weighted Gaussian
+cluster models integrate the powered row likelihood, with its normalizing
+constant, over the retained-data cluster-effect distribution. Earlier stored
+weighted estimate-unit WAIC results require recomputation with \code{add_waic()}.
 
 For \code{brma.mv()} models with known random-effect group covariance
 \code{R}, the known \code{R} matrix and fitted random-effect covariance enter

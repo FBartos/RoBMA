@@ -1454,6 +1454,10 @@
     several.ok = TRUE
   )
 
+  if (.estimate_weighted_normal_cluster(setup[["data"]], setup[["priors"]])) {
+    return(.weighted_normal_cluster_summary_from_setup(setup, components))
+  }
+
   if (!identical(setup[["outcome_type"]], "norm")) {
     stop(
       "Gaussian covariance estimate target is only available for normal ",

@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- Estimate-unit LOO and WAIC for non-selection Gaussian cluster models with likelihood weights now integrate the cluster effect under the retained weighted data. The complete powered likelihood and its normalization are preserved, while LOO-PIT and predictive residuals retain the original observation variance. Previously stored weighted estimate-level LOO/WAIC results must be recomputed with `add_loo()`/`add_waic()`; the model need not be refitted. Unweighted, whole-cluster, selection-model and GLMM paths retain their existing behavior.
 - `vif()` now computes design-based VIF/GVIF in each posterior draw and reports posterior means consistently for simple, location-scale, multilevel, and known-V models. GVIF and its adjusted root are averaged separately. Optional `probs` adds GVIF credible intervals, and `include_samples = TRUE` adds aligned diagnostic draws; the default result layout and separate posterior coefficient correlation are retained.
 - Product-selection cluster and factor quadrature no longer loosen their
   calibrated deterministic acceptance checks above `relative_tolerance = 0.005`.

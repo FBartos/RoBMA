@@ -96,10 +96,17 @@ add_loo <- function(object, ...) UseMethod("add_loo")
 #' \eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
 #' deleting one estimate retains the other estimates in its cluster or random-
 #' effect block; it does not represent prediction for a wholly new group.
-#' Gaussian models with non-unit likelihood \code{weights} are the exception:
-#' they score the powered row densities given the sampled local effects
-#' (\code{latent_effect_handling = "sampled"} in the target metadata) instead
-#' of integrating them.
+#' Gaussian \code{brma(..., cluster = ...)} models with non-unit likelihood
+#' \code{weights} also integrate the cluster effect. Their score integrates the
+#' entire powered row density against the cluster-effect distribution given
+#' the retained weighted observations, including the power-dependent normalizing
+#' constant. It is not the power of an unweighted marginal density. Earlier
+#' stored weighted estimate-unit LOO results must be recomputed with
+#' \code{add_loo()}; the fitted posterior does not need refitting for this
+#' post-fit calculation. Selection and GLMM models retain their supported routes.
+#' Numerically unresolved weighted Gaussian retained moments stop with
+#' \code{RoBMA_weighted_gaussian_unavailable}, a
+#' \code{RoBMA_numerical_unavailable} condition.
 #'
 #' For \code{brma.mv()} models with known random-effect group covariance
 #' \code{R}, the known \code{R} matrix and fitted random-effect covariance enter
@@ -586,9 +593,10 @@ add_waic <- function(object, ...) UseMethod("add_waic")
 #' For Gaussian multilevel and known-\code{V} \code{brma.mv()} models,
 #' estimate-unit WAIC uses the same integrated conditional log-likelihood matrix
 #' as estimate-unit LOO, \eqn{p(y_i \mid y_{-i}, \theta)}. Estimate deletion
-#' retains the fitted grouping and dependency structure. As for LOO, Gaussian
-#' models with non-unit likelihood \code{weights} score the powered row
-#' densities given the sampled local effects instead of integrating them.
+#' retains the fitted grouping and dependency structure. Weighted Gaussian
+#' cluster models integrate the powered row likelihood, with its normalizing
+#' constant, over the retained-data cluster-effect distribution. Earlier stored
+#' weighted estimate-unit WAIC results require recomputation with \code{add_waic()}.
 #'
 #' For \code{brma.mv()} models with known random-effect group covariance
 #' \code{R}, the known \code{R} matrix and fitted random-effect covariance enter
@@ -705,6 +713,11 @@ loo.brma <- function(x, unit = "estimate", ...) {
 #' \code{brma.mv()} and specialized multilevel normal models, these are
 #' Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}; their row sum
 #' generally is not the full joint likelihood. Likelihood powers and
+#' their normalizing constants are retained inside the local-effect integral
+#' for weighted Gaussian cluster models. The observation CDF used by residuals
+#' remains unpowered. Numerically unresolved retained moments raise
+#' \code{RoBMA_weighted_gaussian_unavailable}.
+#' Likelihood powers and
 #' retained-sampling context follow the declared target. Independent
 #' observations reduce to ordinary pointwise contributions. Cluster-unit
 #' columns delete each complete cluster jointly.
@@ -1198,6 +1211,11 @@ loo_weights <- function(object, ...) UseMethod("loo_weights")
 #' across models. For predictive model weights, use
 #' \code{loo_model_weights(model_1, model_2)}; for a model comparison table,
 #' use \code{loo_compare(model_1, model_2)}.
+#'
+#' When the score integrates local random effects, these weights reweight
+#' global-parameter draws. They must not be applied to full-data sampled local
+#' effects as though those were draws from the deletion posterior; local-effect
+#' calculations require the corresponding retained-data reconstruction.
 #'
 #' @return An \code{S x K} matrix for estimate-unit LOO, or \code{S x G}
 #' matrix for cluster-unit LOO, with posterior samples in rows and LOO targets

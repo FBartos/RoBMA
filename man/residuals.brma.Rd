@@ -121,6 +121,12 @@ value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
 cumulative distribution function of the estimate-unit outcome distribution
 under the leave-one-out fit. With likelihood weights, PSIS removes the
 weighted likelihood contribution while this CDF remains unpowered.
+For weighted Gaussian cluster models, the cluster effect is integrated given
+the retained weighted rows. These retained moments are paired with the
+integrated powered-likelihood PSIS ratios; full-data sampled cluster effects
+are not reused. Numerically unresolved retained moments raise
+\code{RoBMA_weighted_gaussian_unavailable}, a
+\code{RoBMA_numerical_unavailable} condition.
 Lower and upper probabilities are accumulated
 separately on the log scale, and the smaller tail is passed directly to the
 normal quantile function. Therefore extreme residuals are not truncated by

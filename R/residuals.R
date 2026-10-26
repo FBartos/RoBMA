@@ -111,6 +111,12 @@
 #' cumulative distribution function of the estimate-unit outcome distribution
 #' under the leave-one-out fit. With likelihood weights, PSIS removes the
 #' weighted likelihood contribution while this CDF remains unpowered.
+#' For weighted Gaussian cluster models, the cluster effect is integrated given
+#' the retained weighted rows. These retained moments are paired with the
+#' integrated powered-likelihood PSIS ratios; full-data sampled cluster effects
+#' are not reused. Numerically unresolved retained moments raise
+#' \code{RoBMA_weighted_gaussian_unavailable}, a
+#' \code{RoBMA_numerical_unavailable} condition.
 #' Lower and upper probabilities are accumulated
 #' separately on the log scale, and the smaller tail is passed directly to the
 #' normal quantile function. Therefore extreme residuals are not truncated by
@@ -795,7 +801,7 @@ rstudent.brma <- function(model, unit = "estimate",
   )
   setup <- .estimate_likelihood_setup.brma(
     object                  = model,
-    condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
+    condition_local_effects = !.estimate_normal_target_integrates_local_effects(
       model[["data"]],
       model[["priors"]]
     )
@@ -832,7 +838,7 @@ rstudent.brma <- function(model, unit = "estimate",
   }
 
   predictive_summary <- NULL
-  if (.estimate_normal_target_uses_covariance_backend(
+  if (.estimate_normal_target_integrates_local_effects(
       setup[["data"]], setup[["priors"]])) {
     predictive_summary <- .normal_covariance_estimate_target_summary_from_setup(
       setup      = setup,
@@ -954,7 +960,7 @@ rstudent.brma <- function(model, unit = "estimate",
     ))
   }
 
-  if (.estimate_normal_target_uses_covariance_backend(
+  if (.estimate_normal_target_integrates_local_effects(
       setup[["data"]], setup[["priors"]])) {
     if (is.null(predictive_summary)) {
       predictive_summary <- .normal_covariance_estimate_target_summary_from_setup(
@@ -962,14 +968,31 @@ rstudent.brma <- function(model, unit = "estimate",
         components = c("mean", "variance")
       )
     }
+    retained_residual <- attr(predictive_summary, "retained_residual", exact = TRUE)
+    moment_values <- predictive_summary[["mean"]]
+    residual_columns <- rep(FALSE, ncol(moment_values))
+    if (!is.null(retained_residual)) {
+      residual_columns <- vapply(seq_len(ncol(moment_values)), function(column) {
+        max(abs(retained_residual[, column])) < max(abs(moment_values[, column]))
+      }, logical(1))
+      moment_values[, residual_columns] <- retained_residual[, residual_columns, drop = FALSE]
+    }
     moments <- .weighted_predictive_moments(
-      mean     = predictive_summary[["mean"]],
+      mean     = moment_values,
       variance = predictive_summary[["variance"]],
       weights  = psis_weights
     )
 
+    residual <- yi - moments[["mean"]]
+    if (!is.null(retained_residual)) {
+      # Recover the residual mean from the retained residuals even when the
+      # mean representation was better for its variance. A negligible-weight
+      # extreme draw must not force subtraction of two rounded large means.
+      normalized_weights <- sweep(psis_weights, 2L, colSums(psis_weights), "/")
+      residual <- colSums(normalized_weights * retained_residual)
+    }
     return(list(
-      resid = yi - moments[["mean"]],
+      resid = residual,
       se    = moments[["se"]]
     ))
   }
@@ -1098,7 +1121,7 @@ rstudent.brma <- function(model, unit = "estimate",
   if (is.null(setup)) {
     setup <- .estimate_likelihood_setup.brma(
       object                  = object,
-      condition_local_effects = !.estimate_normal_target_uses_covariance_backend(
+      condition_local_effects = !.estimate_normal_target_integrates_local_effects(
         object[["data"]],
         object[["priors"]]
       )
@@ -1160,7 +1183,7 @@ rstudent.brma <- function(model, unit = "estimate",
     ))
   }
 
-  if (.estimate_normal_target_uses_covariance_backend(
+  if (.estimate_normal_target_integrates_local_effects(
       setup[["data"]], setup[["priors"]])) {
     if (is.null(predictive_summary)) {
       predictive_summary <- .normal_covariance_estimate_target_summary_from_setup(

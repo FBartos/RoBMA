@@ -642,6 +642,12 @@
   }
 
   current <- .current_predictive_target_key(object, unit)
+  if (unit == "estimate" &&
+      .estimate_weighted_normal_cluster(object[["data"]], object[["priors"]]) &&
+      !identical(metadata[["weighted_cluster_integration"]], 1L)) {
+    stop("Stored ", method, " predates integrated weighted Gaussian cluster deletion. ",
+         "Recompute with ", recompute, ".", call. = FALSE)
+  }
   if (!identical(metadata[["data_hash"]], current[["data_hash"]])) {
     stop(
       "Stored ", method, " does not match the current outcome data. ",

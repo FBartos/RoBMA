@@ -90,8 +90,18 @@ dependencies from posterior draws or reconstruct a random structure in RoBMA.
 
 The specialized `brma(..., cluster = ...)` interface uses the same Gaussian
 covariance scorer for estimate deletion. Cluster-unit scoring deletes the
-whole cluster jointly and retains its distinct new-cluster target. Non-Gaussian,
-selection-model, and weighted likelihoods retain their supported conditional
+whole cluster jointly and retains its distinct new-cluster target. For weighted
+non-selection Gaussian specialized clusters, integrate the powered row density
+over the retained weighted cluster-effect distribution, including its
+power-dependent normalizing constant. Keep this dispatch separate from the
+known-V backend; public `brma.mv()` still rejects likelihood weights.
+The shared retained moments feed unpowered observation CDFs and predictive
+variances as well as the powered score. In particular, divide the whole fitted
+within variance by the power only in the normalized score kernel, never in the
+observation law. Do not pair integrated PSIS weights with full-data sampled
+cluster effects. Older stored weighted estimate-unit LOO/WAIC must be recomputed;
+the representation marker is a cache-freshness guard, not a comparison key.
+Non-Gaussian and selection likelihoods retain their supported conditional
 representations; do not silently approximate their local-effect integrals.
 
 ## Known Random-Effect Correlation R

@@ -60,7 +60,7 @@
     data_hash               = data_hash,
     condition_local_effects = !(
       unit == "estimate" &&
-        .estimate_normal_target_uses_covariance_backend(data, priors)
+        .estimate_normal_target_integrates_local_effects(data, priors)
     )
   )
 
@@ -459,6 +459,15 @@
       ),
       data_weights
     ))
+  }
+
+  if (.estimate_weighted_normal_cluster(data, priors)) {
+    integrated <- .weighted_normal_cluster_summary_from_setup(setup, "log_density")
+    log_lik <- integrated[["log_density"]]
+    if (isTRUE(add_dependency_metadata)) {
+      attr(log_lik, "RoBMA_dependency_blocks") <- attr(integrated, "dependency_blocks")
+    }
+    return(log_lik)
   }
 
   if (.estimate_normal_target_uses_covariance_backend(data, priors)) {
@@ -1067,7 +1076,7 @@
   } else {
     NULL
   }
-  covariance_backend <- .estimate_normal_target_uses_covariance_backend(
+  covariance_backend <- .estimate_normal_target_integrates_local_effects(
     setup[["data"]],
     setup[["priors"]]
   )
@@ -1141,5 +1150,7 @@
     known_r_semantics    = known_r_metadata[["known_r_semantics"]],
     random_effect_representation = random_representation,
     latent_effect_handling       = latent_effect_handling
-  ), .selection_estimate_context_metadata(setup[["data"]]))
+  ), if (.estimate_weighted_normal_cluster(setup[["data"]], setup[["priors"]])) {
+    list(weighted_cluster_integration = 1L)
+  }, .selection_estimate_context_metadata(setup[["data"]]))
 }

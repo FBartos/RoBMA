@@ -868,6 +868,16 @@ fit_catalog <- function() {
   )
   catalog <- rbind(catalog, plot_prior_random_catalog)
 
+  weighted_cluster_catalog <- data.frame(
+    name = "weighted_gaussian_cluster_loo", class = "brma.norm", family = "norm",
+    source_file = "test-01-weighted-cluster-loo.R", has_metafor = FALSE,
+    has_loo = TRUE, has_waic = TRUE, has_marglik = FALSE,
+    tier = "core", profile = "standard",
+    features = I(list(c("normal", "multilevel", "weights", "loo_oracle"))),
+    stringsAsFactors = FALSE
+  )
+  catalog <- rbind(catalog, weighted_cluster_catalog)
+
   catalog[["dependencies"]] <- rep(list(data.frame(
     name = character(), artifact = character()
   )), nrow(catalog))
@@ -1180,6 +1190,7 @@ if (!is.environment(.package_source_md5_cache)) {
     "R/log-lik-cluster.R",
     "R/log-lik-cluster-glmm.R",
     "R/log-lik-cluster-normal.R",
+    "R/log-lik-weighted-cluster.R",
     "R/log-lik.R",
     "R/log-lik-known-v.R",
     "R/pdf-outcome-glmm.R",

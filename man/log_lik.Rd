@@ -41,6 +41,11 @@ declared local Gaussian sources, including correlated known-\code{V}
 \code{brma.mv()} and specialized multilevel normal models, these are
 Schur conditional scores \eqn{p(y_i \mid y_{-i}, \theta)}; their row sum
 generally is not the full joint likelihood. Likelihood powers and
+their normalizing constants are retained inside the local-effect integral
+for weighted Gaussian cluster models. The observation CDF used by residuals
+remains unpowered. Numerically unresolved retained moments raise
+\code{RoBMA_weighted_gaussian_unavailable}.
+Likelihood powers and
 retained-sampling context follow the declared target. Independent
 observations reduce to ordinary pointwise contributions. Cluster-unit
 columns delete each complete cluster jointly.

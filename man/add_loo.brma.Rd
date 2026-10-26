@@ -78,10 +78,17 @@ estimate-unit LOO integrates Gaussian local effects and uses
 \eqn{p(y_i \mid y_{-i}, \theta)} within each fitted dependency block. Thus
 deleting one estimate retains the other estimates in its cluster or random-
 effect block; it does not represent prediction for a wholly new group.
-Gaussian models with non-unit likelihood \code{weights} are the exception:
-they score the powered row densities given the sampled local effects
-(\code{latent_effect_handling = "sampled"} in the target metadata) instead
-of integrating them.
+Gaussian \code{brma(..., cluster = ...)} models with non-unit likelihood
+\code{weights} also integrate the cluster effect. Their score integrates the
+entire powered row density against the cluster-effect distribution given
+the retained weighted observations, including the power-dependent normalizing
+constant. It is not the power of an unweighted marginal density. Earlier
+stored weighted estimate-unit LOO results must be recomputed with
+\code{add_loo()}; the fitted posterior does not need refitting for this
+post-fit calculation. Selection and GLMM models retain their supported routes.
+Numerically unresolved weighted Gaussian retained moments stop with
+\code{RoBMA_weighted_gaussian_unavailable}, a
+\code{RoBMA_numerical_unavailable} condition.
 
 For \code{brma.mv()} models with known random-effect group covariance
 \code{R}, the known \code{R} matrix and fitted random-effect covariance enter

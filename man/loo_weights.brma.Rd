@@ -30,6 +30,11 @@ stored PSIS object and does not compute LOO. It does not compute weights
 across models. For predictive model weights, use
 \code{loo_model_weights(model_1, model_2)}; for a model comparison table,
 use \code{loo_compare(model_1, model_2)}.
+
+When the score integrates local random effects, these weights reweight
+global-parameter draws. They must not be applied to full-data sampled local
+effects as though those were draws from the deletion posterior; local-effect
+calculations require the corresponding retained-data reconstruction.
 }
 \seealso{
 \code{\link{loo.brma}}, \code{\link{loo_compare.brma}},
