@@ -272,12 +272,34 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   Cluster refinement uses its own finest and preceding rules and shared row
   workspace; successful refinement reports the larger comparison as relative
   change, zero relative MCSE, and a deterministic result.
-- Randomized fallback: for `product` weights the proposals are the prior, a
+- Rank-one product fallback: after the ladder/refinement declines and the
+  existing exact event/constant returns, bound each exact row group using
+  `P(t) = min(omega) + sum((omega - min(omega)) * bin_probability(t))`.
+  Endpoint minima and endpoint/interior-peak maxima enclose each bin over a
+  latent interval; finite peaks use standardized width, with ambiguous peak
+  membership included. Outward mean/bin arithmetic and an explicit `64*eps`
+  log allowance precede intersection with the true global weight range.
+  Both Gaussian tails remain in the partition. A fixed-capacity segment tree
+  maintains log totals, and a deterministic heap splits the largest absolute
+  uncertainty. The actual returned midpoint is accepted only against both
+  conservative endpoints at the requested tolerance. Success reports raw MCSE
+  zero, relative change equal to the conservative radius, and deterministic
+  true. Unresolved arithmetic, zero mass or exhausted work reports NaN log
+  normalizer, Inf/Inf diagnostics, deterministic false and density -Inf;
+  no QMC rescue or failed-result memo insertion. This is working-precision
+  engineering evidence, not universal libm certification.
+  Every helper scalar probability call, including preparation and latent
+  segment masses, counts against `2*max_points*scrambles*active_groups*excess_bins`.
+  Active leaves obey `min(SELNORM_FACTOR_NODE_BUDGET,2*max_points*scrambles)`;
+  the tree has `2*next_power_of_two(leaf_cap)` slots and heap at most leaf_cap.
+  There are no group/bin arrays per leaf. Initial points still initialize QMC
+  routes only. Nonfinite transition hints may be omitted while retaining full
+  domain coverage; nonfinite actual bound arithmetic refuses.
+- Randomized fallback: for higher-rank `product` weights the proposals are the prior, a
   Gaussian with the tilted mean and full covariance of the finest evaluated
-  rung (tensor: weighted moments; depth-one forest: from the messages;
-  rank-one cluster: its own finest rung, handed to the factor kernel) and a copy
-  with standard deviations times 1.5. They require a tensor, depth-one forest or
-  rank-one cluster, at least three finite rungs, a finest rung that passes the
+  rung (tensor: weighted moments; depth-one forest: from the messages) and a
+  copy with standard deviations times 1.5. They require a tensor or depth-one
+  forest, at least three finite rungs, a finest rung that passes the
   tail gate (moments of a rule that misses the selected mode say nothing about
   it) and a positive definite covariance; every other block, and `best`, keep
   the optimized Laplace proposals. Product weights retain the unoptimized
@@ -356,7 +378,7 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   and flags) and its log density, and answers a call only when every stored
   value is equal (pointer identity never suffices: JAGS mutates in place). The
   QMC design is not an input. Only results the kernel flags `deterministic`
-  (ladders, tier, sparse grid; the batch results carry the flag as an attribute
+  (ladders, tier, rank-one interval refinement, sparse grid; the batch results carry the flag as an attribute
   of that name) are stored, never a randomized, non-finite or thrown one. The
   memo is a function-local map keyed by node, never deleted, and cleared as a
   whole above 4096 keys. Each entry copies the quadrature tables (about 32 KB

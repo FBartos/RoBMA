@@ -2736,6 +2736,8 @@ struct FactorEventProposal {
   }
 };
 
+#include "selnorm-rank-one.h"
+
 // In a basis aligned with loading rows, mix the origin and every structural
 // boundary location independently along each axis. The product represents
 // their subset combinations without enumerating exponentially many centers.
@@ -6202,7 +6204,7 @@ double cpp_selnorm_factor_step_lpdf(
     double relative_tolerance, double *relative_mcse,
     double *relative_change, double *log_normalizer_out, int vector_rule,
     const SelNormTiltedMoments *proposal_moments, bool *deterministic,
-    const double *log_normalizer_override)
+    const double *log_normalizer_override, void (*check_interrupt)())
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   const double log_two_pi = std::log(6.283185307179586476925286766559);
@@ -6569,6 +6571,33 @@ double cpp_selnorm_factor_step_lpdf(
         have_previous = true;
       }
     }
+  }
+
+  // A rank-one product fallback keeps the existing exact event returns, then
+  // bounds the integral before constructing any randomized proposals.
+  if (rank == 1 && vector_rule == SELVECTOR_PRODUCT) {
+    const FactorEventProposal event(context);
+    const auto unavailable = [&]() {
+      *relative_mcse = *relative_change = std::numeric_limits<double>::infinity();
+      if (log_normalizer_out != nullptr) *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
+      return negative_infinity;
+    };
+    if (!event.valid) return unavailable();
+    if (event.exact) {
+      if (!std::isfinite(event.log_baseline)) return unavailable();
+      *relative_mcse = *relative_change = 0.0;
+      if (log_normalizer_out != nullptr) *log_normalizer_out = event.log_baseline;
+      if (deterministic != nullptr) *deterministic = true;
+      return log_density - event.log_baseline;
+    }
+    const rank_one_bounds::Result bounded = rank_one_bounds::integrate(
+      context, event, max_points, scrambles, relative_tolerance, check_interrupt);
+    if (!bounded.accepted) return unavailable();
+    *relative_mcse = 0.0;
+    *relative_change = bounded.radius;
+    if (log_normalizer_out != nullptr) *log_normalizer_out = bounded.value;
+    if (deterministic != nullptr) *deterministic = true;
+    return log_density - bounded.value;
   }
 
   // Tilted moments of the finest deterministic rung propose for the product
@@ -7076,7 +7105,8 @@ double cpp_selnorm_cluster_step_lpdf(
     const double *qmc, int initial_points, int max_points, int scrambles,
     double relative_tolerance, double *relative_mcse, double *relative_change,
     const long double *quadrature_weights, double *log_normalizer_out,
-    int vector_rule, bool *deterministic, const double *log_normalizer_override)
+    int vector_rule, bool *deterministic, const double *log_normalizer_override,
+    void (*check_interrupt)())
 {
   const double negative_infinity = -std::numeric_limits<double>::infinity();
   *relative_mcse = 0.0;
@@ -7156,9 +7186,6 @@ double cpp_selnorm_cluster_step_lpdf(
   context.kernel_mode = kernel_mode;
   context.selection = selection;
 
-  // The tilted moments of the finest rung, handed to the randomized fallback of
-  // the factor kernel with the number of finite rungs behind them.
-  SelNormTiltedMoments finest_moments;
   if (vector_rule == SELVECTOR_PRODUCT) {
     // Acceptance by the shift-amplitude certificate on the one latent axis,
     // compared with one rung before it. The ladder starts at its first rung;
@@ -7176,7 +7203,6 @@ double cpp_selnorm_cluster_step_lpdf(
     double previous = cluster_ladder_log_integral(
       context, quadrature_nodes, quadrature_log_weights, offset, order, &lean
     );
-    if (std::isfinite(previous)) ++finest_moments.finite_rungs;
     offset += order;
     for (int rule = 1; rule < quadrature_rule_count; ++rule) {
       order = static_cast<int>(quadrature_orders[rule]);
@@ -7185,7 +7211,6 @@ double cpp_selnorm_cluster_step_lpdf(
         context, quadrature_nodes, quadrature_log_weights, offset, order,
         &lean, 0.0, &tilted_mean
       );
-      if (std::isfinite(current)) ++finest_moments.finite_rungs;
       *relative_change = cluster_relative_change(previous, current);
       if (log_normalizer_out != nullptr) *log_normalizer_out = current;
       double tail_bound = std::numeric_limits<double>::quiet_NaN();
@@ -7203,7 +7228,7 @@ double cpp_selnorm_cluster_step_lpdf(
       offset += order;
     }
     // Every rung was rejected. Try the same four-shift refinement as the factor
-    // tier before handing this rank-one block to its randomized fallback.
+    // tier before handing this rank-one block to its bounded fallback.
     if (quadrature_rule_count >= 2) {
       const int previous_order = static_cast<int>(quadrature_orders[quadrature_rule_count - 2]);
       double refined_value = negative_infinity, refined_change = 0.0;
@@ -7215,26 +7240,6 @@ double cpp_selnorm_cluster_step_lpdf(
         if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
         if (deterministic != nullptr) *deterministic = true;
         return log_density - refined_value;
-      }
-    }
-    // The finest rung (the last, which ends at `offset`)
-    // gives the randomized fallback its tilted mean and variance, when it covers
-    // the exterior mass: moments of a rule that misses the selected mode say
-    // nothing about it.
-    if (finest_moments.finite_rungs >= 3 && std::isfinite(previous)) {
-      double tilted_mean = std::numeric_limits<double>::quiet_NaN();
-      double tilted_variance = std::numeric_limits<double>::quiet_NaN();
-      const double finest = cluster_ladder_log_integral(
-        context, quadrature_nodes, quadrature_log_weights, offset - order, order,
-        &lean, 0.0, &tilted_mean, &tilted_variance
-      );
-      if (std::isfinite(finest) && std::isfinite(tilted_mean) &&
-          std::isfinite(tilted_variance) &&
-          quadrature_covers_gaussian_tails(
-            quadrature_nodes, offset - order, order, 1, omega, n_bins, dimension,
-            vector_rule, finest, relative_tolerance)) {
-        finest_moments.mean.assign(1, tilted_mean);
-        finest_moments.covariance.assign(1, tilted_variance);
       }
     }
   } else {
@@ -7292,8 +7297,7 @@ double cpp_selnorm_cluster_step_lpdf(
     z_lower, z_upper, obs_bin, effect_sign, telescope_probabilities, kernel_mode,
     nullptr, nullptr, nullptr, 0, qmc, initial_points, max_points,
     scrambles, relative_tolerance, relative_mcse, relative_change,
-    log_normalizer_out, vector_rule,
-    vector_rule == SELVECTOR_PRODUCT ? &finest_moments : nullptr, deterministic
+    log_normalizer_out, vector_rule, nullptr, deterministic, nullptr, check_interrupt
   );
 }
 

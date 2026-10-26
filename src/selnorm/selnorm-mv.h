@@ -262,7 +262,8 @@ double cpp_selnorm_cluster_step_lpdf(
   double *log_normalizer = nullptr,
   int vector_rule = 0,
   bool *deterministic = nullptr,
-  const double *log_normalizer_override = nullptr
+  const double *log_normalizer_override = nullptr,
+  void (*check_interrupt)() = nullptr
 );
 
 // Mean and covariance (column-major) of the latent coordinates under the tilted
@@ -272,8 +273,7 @@ double cpp_selnorm_cluster_step_lpdf(
 // Gaussian with these moments and a copy with 1.5 times their standard
 // deviations) when at least three rungs were finite, the finest covers the
 // exterior mass (the tail gate of the ladder) and the covariance is positive
-// definite. The rank-one cluster kernel carries its own to the factor kernel it
-// delegates to, empty when its finest rung does not cover the exterior mass.
+// definite. Rank-one product fallbacks instead use interval refinement.
 struct SelNormTiltedMoments {
   int finite_rungs = 0;
   std::vector<double> mean;
@@ -287,7 +287,7 @@ struct SelNormTiltedMoments {
 // The optional `deterministic` flag of the factor and cluster kernels is set
 // exactly when the returned density is a function of the call's inputs alone: it
 // came from a deterministic ladder (of the product or the best weight rule), the
-// refinement tier or the sparse grid.
+// refinement tier, rank-one interval refinement or the sparse grid.
 // The randomized fallback never sets it, whatever its Monte Carlo standard
 // error (which can be exactly zero), and neither does a call that returns
 // before a normalizer is computed. Only such results may be remembered.
@@ -297,6 +297,8 @@ struct SelNormTiltedMoments {
 // returns the Gaussian log density plus the observed log weights minus the
 // override, after the NORMAL early return and before any normalizer work. The
 // cluster kernel takes the same argument at the same place.
+// Optional polling belongs only to known main-thread R callers; shared JAGS
+// and parallel callers leave it null. Rank-one refinement charges scalar work.
 double cpp_selnorm_factor_step_lpdf(
   const double *x,
   const double *mean,
@@ -328,7 +330,8 @@ double cpp_selnorm_factor_step_lpdf(
   int vector_rule = 0,
   const SelNormTiltedMoments *proposal_moments = nullptr,
   bool *deterministic = nullptr,
-  const double *log_normalizer_override = nullptr
+  const double *log_normalizer_override = nullptr,
+  void (*check_interrupt)() = nullptr
 );
 
 // Surrogates of the rank-one cluster and factor blocks of the corrected sampler:

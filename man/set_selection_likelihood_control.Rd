@@ -20,8 +20,8 @@ blocks.
 Factor likelihood-normalizer fallbacks under product weights combine the
 prior Gaussian with a Gaussian at the tilted mean and covariance of the
 finest quadrature rung and a copy with 1.5 times its standard deviations,
-where the quadrature provides them (tensors, depth-one forests and
-rank-one clusters with at least three finite rules, exterior mass covered
+where the quadrature provides them (tensors and depth-one forests
+with at least three finite rules, exterior mass covered
 and a positive definite covariance). Otherwise, and for the best-p-value
 rule, they combine the prior Gaussian with proposals optimized from zero
 and selection-boundary starting points. Every finite optimized candidate is
@@ -40,12 +40,15 @@ and one proposal optimized from zero.}
 certified factor fallback, including fitting-time refinement, or a post-fit Gaussian event
 calculation, when the initial \code{points_per_scramble} budget fails its
 integration diagnostic. Refinement doubles the point count up to this
-value while reusing the same fixed design.}
+value while reusing the same fixed design.
+Rank-one product fallback instead uses this maximum and \code{scrambles} as
+the deterministic scalar-probability work ceiling described above.}
 
 \item{scrambles}{number of independent randomized shifts used to estimate
 integration error for certified factors and general covariance
 blocks. The stopping multiplier of \code{relative_tolerance} (2.36) is that of
-the default eight scrambles and does not change with this number.}
+the default eight scrambles and does not change with this number.
+It also scales the rank-one product deterministic work ceiling.}
 
 \item{relative_tolerance}{largest accepted successive relative quadrature
 change for factor integration, or the largest nested-design relative
@@ -88,8 +91,9 @@ Creates numerical integration settings for the product and best-p-value
 selection likelihoods used by \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=bselmodel.mv]{bselmodel.mv()}}, \code{\link[=RoBMA]{RoBMA()}}, and
 \code{\link[=RoBMA.mv]{RoBMA.mv()}}. Covariance factors use deterministic sequences of
 Gauss-Hermite rules. Certified factors of structural rank one through eight
-fall back to randomized quasi-Monte Carlo in the factor dimension when the
-quadrature sequence does not converge. General covariance blocks with
+use deterministic interval refinement for rank-one product fallbacks and
+randomized quasi-Monte Carlo for other unresolved factor integrals.
+General covariance blocks with
 product weights first try same-diagonal covariance approximations with a
 common Gaussian factor and independent group factors. Monotone weights
 permit covariance bounds on the normalizer. Two-sided and other nonmonotone
@@ -123,9 +127,15 @@ of the node gap, with a separate penalty for each axis's row count, and is used 
 were calibrated. For product weights with selection transitions, the ladder
 and this refinement tier use the smaller of \code{relative_tolerance} and 0.005
 for their acceptance checks: a loose request must not relax the calibration
-of these deterministic rules. If they fail, the randomized fallback retains
-the requested tolerance and reports its usual diagnostics. Default and tighter
-requests are unchanged. The best-p-value rule and the other deterministic routes
+of these deterministic rules. After these checks decline, rank-one product
+integrals refine bounds over the complete Gaussian line, including both tails.
+Exact row groups and nonnegative excess weights give interval extrema; the
+returned midpoint must satisfy the requested relative tolerance against both
+bounds. Floating arithmetic uses an explicit working-precision allowance,
+rather than a universal guarantee for library probability evaluations.
+Insufficient work or unresolved arithmetic is rejected without a QMC retry.
+Other randomized fallbacks retain the requested tolerance and their empirical
+diagnostics. The best-p-value rule and the other deterministic routes
 instead require that the node gap across an interior transition not exceed
 its conditional residual SD divided by the absolute loading; coupled axes use
 conservative central node spacing. Unresolved candidates refine or use the
@@ -159,7 +169,13 @@ The default \code{NULL} retains the fitted integration settings. An explicit
 control rebuilds a temporary execution plan from the stored covariance
 metadata without changing the fitted object or its posterior draws.
 In fitting and qCMDE/IWMDE likelihood evaluation, the maximum point budget
-controls factor QMC fallback. Post-fit full-event and partial-event
+controls factor QMC fallback and the rank-one product refinement work ceiling.
+For rank-one refinement, \code{max_points_per_scramble} and \code{scrambles} allow at
+most twice their product times the active exact row-group count times the
+positive excess-weight bin count in scalar probability evaluations. This
+includes latent interval masses and bound preparation. Active intervals also
+obey the existing native node ceiling. \code{points_per_scramble} initializes QMC
+routes only. Post-fit full-event and partial-event
 calculations, including z-plots and sensitivity diagnostics, also refine
 dense QMC evaluations up to that budget. Analytic and deterministic
 quadrature rules remain unchanged.

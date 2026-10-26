@@ -4,9 +4,12 @@
 - Product-selection cluster and factor quadrature no longer loosen their
   calibrated deterministic acceptance checks above `relative_tolerance = 0.005`.
   This fixes reproduced cases where coarse rules were accepted with errors far
-  larger than a requested 2% or 5% tolerance. Rejected rules refine or use the existing QMC
-  fallback, whose requested tolerance and informative failure diagnostics are
-  unchanged. Default and tighter tolerances retain their numerical results.
+  larger than a requested 2% or 5% tolerance. After the existing fast rules
+  decline, rank-one product normalizers now refine deterministic interval
+  bounds over the complete Gaussian line. This fixes observed accepted QMC
+  errors without increasing numerical defaults. The maximum point count and
+  scrambles set a scalar-probability work ceiling; unresolved bounds fail
+  explicitly. Other ranks and best rules retain empirical QMC diagnostics.
 - `cooks.distance()` and the Cook's distance column of `influence()` use the
   unscaled squared posterior Mahalanobis distance, matching metafor's scaling
   convention. Compared with 4.0.0, values are multiplied by the fixed-effect

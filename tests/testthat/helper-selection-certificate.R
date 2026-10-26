@@ -48,7 +48,7 @@
 .test_cert_native_factor <- function(block, tolerance = .005, initial = 256L,
                                      points = 2048L, scrambles = 8L, seed = 1L,
                                      rules = .selection_joint_factor_quadrature_rules(),
-                                     design = NULL) {
+                                     design = NULL, sign = 1L) {
 
   K   <- block[["rows"]]
   qmc <- if (is.null(design)) BayesTools::selection_qmc_design(
@@ -56,7 +56,7 @@
 
   .Call("RoBMA_selnorm_factor_step_loglik_batch", rep(0, K), matrix(block[["mean"]], 1L),
     matrix(block[["sd"]], 1L), matrix(as.double(block[["loading"]]), 1L), block[["sei"]],
-    matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], rep(1L, K), 1L,
+    matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], rep(1L, K), as.integer(sign),
     TRUE, 1L, rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]),
     as.double(qmc), as.integer(initial), as.integer(points), as.integer(scrambles),
     tolerance, TRUE, 0L, PACKAGE = "RoBMA")
@@ -65,7 +65,7 @@
 .test_cert_native_cluster <- function(block, tolerance = .005, initial = 256L,
                                       points = 2048L, scrambles = 8L, seed = 1L,
                                       rules = .selection_joint_cluster_quadrature_rules(
-                                        SELNORM_CLUSTER_QUADRATURE_ORDERS)) {
+                                        SELNORM_CLUSTER_QUADRATURE_ORDERS), sign = 1L) {
 
   K     <- block[["rows"]]
   qmc   <- BayesTools::selection_qmc_design(
@@ -73,7 +73,7 @@
 
   .Call("RoBMA_selnorm_cluster_step_loglik_batch", rep(0, K), matrix(block[["mean"]], 1L),
     matrix(block[["sd"]], 1L), matrix(as.double(block[["loading"]]), 1L), block[["sei"]],
-    matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], rep(1L, K), 1L,
+    matrix(block[["omega"]], 1L), block[["z_lower"]], block[["z_upper"]], rep(1L, K), as.integer(sign),
     TRUE, 1L, rules[["nodes"]], rules[["log_weights"]], as.double(rules[["orders"]]),
     as.double(qmc), as.integer(initial), as.integer(points), as.integer(scrambles),
     tolerance, TRUE, 0L, PACKAGE = "RoBMA")

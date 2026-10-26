@@ -2,6 +2,8 @@
 #define ROBMA_SELNORM_QMC_Z_H
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 // Stopping multiplier of the randomized quasi-Monte Carlo (QMC) selection
 // normalizers: a randomized estimate is accepted only when
@@ -22,6 +24,8 @@ constexpr double selnorm_qmc_z = 2.36;
 // conditioned-sampling normalizers, which return both diagnostics.
 inline double selnorm_qmc_diagnostic(double relative_mcse, double relative_change)
 {
+  if (!std::isfinite(relative_mcse) || !std::isfinite(relative_change) ||
+      relative_mcse < 0.0 || relative_change < 0.0) return std::numeric_limits<double>::infinity();
   return std::max(selnorm_qmc_z * relative_mcse, relative_change);
 }
 
@@ -31,5 +35,9 @@ inline double selnorm_qmc_diagnostic(double relative_mcse, double relative_chang
   " (accepted when %g times the standard error and the change are within 'relative_tolerance')"
 #define SELNORM_QMC_CRITERION_ERROR_ONLY \
   " (accepted when %g times the standard error is within 'relative_tolerance')"
+
+#define SELNORM_INTEGRATION_METHODS \
+  " Diagnostics cover deterministic refinement or randomized integration; " \
+  "rank-one product fallback uses a deterministic work budget."
 
 #endif

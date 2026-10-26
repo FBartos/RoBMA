@@ -873,7 +873,7 @@ extern "C" SEXP RoBMA_selnorm_cluster_step_loglik_batch(
       REAL(relative_tolerance)[0], &mcse, &error, quadrature_weights->data(),
       LOGICAL(return_normalizer)[0] ? REAL(log_normalizer) + s : nullptr,
       scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule"),
-      &row_deterministic
+      &row_deterministic, nullptr, threads <= 1 ? robma_native::check_interrupt : nullptr
     );
     REAL(relative_mcse)[s] = mcse;
     REAL(relative_change)[s] = error;
@@ -1072,7 +1072,7 @@ extern "C" SEXP RoBMA_selnorm_factor_step_loglik_batch(
       REAL(relative_tolerance)[0], &mcse, &change,
       LOGICAL(return_normalizer)[0] ? REAL(log_normalizer) + s : nullptr,
       scalar_or_row_int(INTEGER(vector_rule), vector_length, s, "vector_rule"),
-      nullptr, &row_deterministic
+      nullptr, &row_deterministic, nullptr, threads <= 1 ? robma_native::check_interrupt : nullptr
     );
     REAL(relative_mcse)[s] = mcse;
     REAL(relative_change)[s] = change;

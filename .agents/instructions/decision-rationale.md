@@ -131,9 +131,21 @@ material default slowdown. Implemented in `208a3af5`; see
 `tests/testthat/test-00-selection-certificate-acceptance.R` and the related
 selection-certificate tests.
 
-**Remaining limitation.** Randomized QMC still uses an empirical error diagnostic,
-not a guaranteed bound. Broader probes found outliers, including unchanged
-default-tolerance cases. The deterministic fix did not solve that problem.
-No universal detector or global budget increase was approved; investigate QMC
-reliability separately and do not describe accepted estimates as certified solely
-because the empirical MCSE passes.
+**Rank-one follow-up.** Fourteen saved accepted errors all came from rank-one
+product fallbacks, including ten still outside tolerance at actual default
+budgets. After the existing fast rules decline, these integrals now use bounds
+from exact row groups and nonnegative excess-weight bin extrema over the full
+Gaussian line. The actual returned midpoint must meet tolerance against both
+endpoints. The existing maximum point count and scramble count set a scalar
+probability work ceiling; numerical defaults are unchanged. Exhausted work or
+arithmetic ambiguity refuses, with no QMC rescue. Outward arithmetic and explicit
+working-precision allowances are tested engineering safeguards, not a universal
+libm theorem. First matched four-round release-DLL measurements gave median
+CPU seconds before/after of .655/.205 for the fourteen outliers, 1.215/.380 for
+the mixed 22 controls and 1.625/.325 for 21 heterogeneous controls. The one
+explicitly refused mixed control already failed the baseline diagnostic.
+These synthetic measurements do not promise universal speed or availability.
+
+**Remaining limitation.** Higher-rank and best-rule randomized QMC retains an
+empirical error diagnostic, not a guaranteed bound. Do not describe accepted
+estimates as certified solely because the empirical MCSE passes.

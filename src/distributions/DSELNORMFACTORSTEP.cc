@@ -185,9 +185,9 @@ double DSELNORMFACTORSTEP::logDensity(
     char message[512];
     std::snprintf(message, sizeof(message),
       "Selection factor normalizer was rejected by diagnostics: "
-      "relative Monte Carlo standard error was %g and nested-design "
+      "relative Monte Carlo standard error was %g and refinement/design "
       "relative change was %g" SELNORM_QMC_CRITERION_WITH_CHANGE
-      ". Increase 'max_points_per_scramble' "
+      "." SELNORM_INTEGRATION_METHODS " Increase 'max_points_per_scramble' "
       "or 'scrambles' in 'selection_control'.", relative_mcse, relative_change,
       selnorm_qmc_z);
     throw std::runtime_error(message);
