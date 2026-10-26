@@ -3,6 +3,9 @@
 Use this guide for model constructors, random-effect prior completion,
 parameter metadata, summaries, selectors, and public result interfaces.
 
+See [maintainer decisions](decision-rationale.md) for the reasons behind the
+Cook's distance, posterior VIF, and pooled-heterogeneity conventions below.
+
 ## Formula ownership
 
 Cook's distance uses the unscaled squared posterior Mahalanobis distance,

@@ -3,6 +3,9 @@
 Use this guide when changing posterior evaluation, publication-bias selection
 kernels, PIT/CDF/PDF/RNG paths, or effect-direction handling.
 
+See [maintainer decisions](decision-rationale.md) for why loose requests retain
+the deterministic calibration cap and why this does not certify QMC accuracy.
+
 ## Effect Direction
 
 JAGS returns `mu`, `theta`, and random effects on the original fitted scale,

@@ -17,6 +17,9 @@ Check [pending workspace decisions](../.agents/decisions.md) when present.
 
 Read the guide relevant to the change and maintain it with the implementation:
 
+- [Decision rationale](.agents/instructions/decision-rationale.md): settled
+  diagnostic, weighted-LOO, pooling, and numerical-acceptance choices; consult
+  before proposing a semantic reversal during review.
 - [Model interfaces](.agents/instructions/model-interface.md): BayesTools
   integration, scale completion, semantic names, classes, and public selectors.
 - [Predictive targets](.agents/instructions/multivariate-targets.md): prediction,

@@ -3,6 +3,9 @@
 Use this guide when changing prediction, `brma.mv()`, `log_lik()`, LOO/WAIC,
 residuals, marginal covariance diagnostics, or marginal likelihood.
 
+The [maintainer decision record](decision-rationale.md) explains the powered
+Gaussian cluster LOO target, observation-law distinction, and recomputation policy.
+
 ## Keep Targets Distinct
 
 - `unit` is the deletion/output unit: `"estimate"` or `"cluster"`.
