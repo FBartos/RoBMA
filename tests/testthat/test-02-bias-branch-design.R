@@ -113,8 +113,9 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
     count[kind] <- length(rows)
     X           <- .bbc_design(union, kind)
     gvif[[kind]] <- if (length(rows)) {
-      rowMeans(vapply(rows, function(s) .bbc_gvif(.bbc_vcov(object, X, tau, s)),
-                      numeric(ncol(X) - 1L)))
+      rowMeans(matrix(vapply(rows, function(s) .bbc_gvif(.bbc_vcov(object, X, tau, s)),
+                             numeric(ncol(X) - 1L)),
+                      nrow = ncol(X) - 1L, ncol = length(rows)))
     } else {
       rep(NA_real_, ncol(X) - 1L)
     }
@@ -428,6 +429,7 @@ delayedAssign("bbd_kv_input", load_info("bias_branch_known_v_ensemble"))
       covariance <- solve(crossprod(X, X / (vi + draws[["tau"]][s]^2)))
       .bbd_gvif(covariance)
     }, numeric(ncol(X) - 1L))
+    values <- matrix(values, nrow = ncol(X) - 1L, ncol = length(selected))
     if (adjusted) values <- sqrt(values)
     gvif[[kind]] <- rowMeans(values)
   }
