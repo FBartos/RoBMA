@@ -3976,6 +3976,12 @@ const double selnorm_certificate_width_scale_tier = 8.0;
 // with an error of 1.2 to 1.5 times the tolerance. Below it, blocks that the
 // ladder rejects go on to the sparse grid and the randomized fallback.
 const double selnorm_certificate_tier_min_tolerance = 0.005;
+// The shift-amplitude envelope was calibrated at 0.005. Relaxing its checks
+// together with the requested tolerance can accept a coarse rule that misses
+// most of the mass. Keep that calibration for loose requests; the randomized
+// fallback still uses the requested tolerance. Default and tighter calls keep
+// exactly the same gates and arithmetic.
+const double selnorm_certificate_max_tolerance = 0.005;
 
 // The single-row edge width understates how sharp a block is when many rows
 // share an edge: the product of N coincident steps is a wall narrower than one
@@ -6379,6 +6385,8 @@ double cpp_selnorm_factor_step_lpdf(
     // returned value is the accepted rung itself.
     if (quadrature_rule_count >= 3) {
       const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+      const double certificate_tolerance = transitions ?
+        std::min(relative_tolerance, selnorm_certificate_max_tolerance) : relative_tolerance;
       double previous_quadrature = negative_infinity;
       double previous_quadrature_change = std::numeric_limits<double>::infinity();
       int quadrature_offset = 0;
@@ -6397,14 +6405,14 @@ double cpp_selnorm_factor_step_lpdf(
           cluster_relative_change(previous_quadrature, current_quadrature);
         double tail_bound = std::numeric_limits<double>::quiet_NaN();
         if (std::isfinite(current_quadrature) &&
-            current_quadrature_change <= relative_tolerance &&
-            previous_quadrature_change <= relative_tolerance &&
+            current_quadrature_change <= certificate_tolerance &&
+            previous_quadrature_change <= certificate_tolerance &&
             quadrature_covers_gaussian_tails(
               quadrature_nodes, quadrature_offset, quadrature_order, rank,
               omega, n_bins, dimension, vector_rule, current_quadrature,
-              relative_tolerance, &tail_bound
+              certificate_tolerance, &tail_bound
             ) && factor_rung_certified(rung, transitions, current_quadrature,
-              tail_bound, relative_tolerance, [&](double width_scale) {
+              tail_bound, certificate_tolerance, [&](double width_scale) {
                 return cpp_selnorm_step_rule_resolves_transitions(
                   quadrature_nodes, quadrature_offset, quadrature_order, mean,
                   residual_sd, loading, dimension, rank, selection_se, omega,
@@ -6430,7 +6438,7 @@ double cpp_selnorm_factor_step_lpdf(
           factor_refinement_certified(
             context, forest, quadrature_nodes, quadrature_log_weights,
             finest_offset, finest_order, previous_offset, previous_order,
-            cost_exponent, relative_tolerance, &refined_value, &refined_change)) {
+            cost_exponent, certificate_tolerance, &refined_value, &refined_change)) {
         *relative_change = refined_change;
         if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
         if (deterministic != nullptr) *deterministic = true;
@@ -7157,6 +7165,8 @@ double cpp_selnorm_cluster_step_lpdf(
     // the certificate is consulted only at a finite rung whose change and
     // exterior mass already pass. The accepted rung itself is returned.
     const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+    const double certificate_tolerance = transitions ?
+      std::min(relative_tolerance, selnorm_certificate_max_tolerance) : relative_tolerance;
     // Double precision node products, with workspaces shared by every rung and
     // shifted copy of this call.
     SelNormLeanScratch lean;
@@ -7179,13 +7189,13 @@ double cpp_selnorm_cluster_step_lpdf(
       *relative_change = cluster_relative_change(previous, current);
       if (log_normalizer_out != nullptr) *log_normalizer_out = current;
       double tail_bound = std::numeric_limits<double>::quiet_NaN();
-      if (std::isfinite(current) && *relative_change <= relative_tolerance &&
+      if (std::isfinite(current) && *relative_change <= certificate_tolerance &&
           quadrature_covers_gaussian_tails(
             quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
-            vector_rule, current, relative_tolerance, &tail_bound
+            vector_rule, current, certificate_tolerance, &tail_bound
           ) && cluster_rung_certified(context, quadrature_nodes,
             quadrature_log_weights, offset, order, current, tilted_mean,
-            transitions, tail_bound, relative_tolerance, &lean)) {
+            transitions, tail_bound, certificate_tolerance, &lean)) {
         if (deterministic != nullptr) *deterministic = true;
         return log_density - current;
       }
@@ -7199,7 +7209,7 @@ double cpp_selnorm_cluster_step_lpdf(
       double refined_value = negative_infinity, refined_change = 0.0;
       if (cluster_refinement_certified(context, quadrature_nodes,
             quadrature_log_weights, offset - order, order,
-            offset - order - previous_order, previous_order, relative_tolerance,
+            offset - order - previous_order, previous_order, certificate_tolerance,
             &lean, &refined_value, &refined_change)) {
         *relative_change = refined_change;
         if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;

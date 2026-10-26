@@ -695,6 +695,7 @@
 
   transitions <- any(is.finite(block[["z_lower"]]) &
     c(block[["omega"]][-length(block[["omega"]])] != block[["omega"]][-1L], FALSE))
+  if (transitions) tolerance <- min(tolerance, .005)
   previous <- -Inf
   previous_change <- Inf
   for (k in seq_along(orders)) {
@@ -770,6 +771,7 @@
 # the tail gate and the order check. `checks` is the decision without the gate.
 .test_cert_tier <- function(block, tolerance = .005, finest = 95L, previous = 63L) {
 
+  tolerance <- min(tolerance, .005)
   fine <- .test_cert_probe(block, finest, tolerance = tolerance)
   prior <- .test_cert_probe(block, previous, tolerance = tolerance)
   shift_change <- abs(expm1(fine[["refined_4"]] - fine[["refined_2"]]))
@@ -792,6 +794,7 @@
 # rung is rejected.
 .test_cert_probe_ladder <- function(block, tolerance = .005) {
 
+  tolerance <- min(tolerance, .005)
   previous <- -Inf
   previous_change <- Inf
   for (order in SELNORM_FACTOR_QUADRATURE_ORDERS) {

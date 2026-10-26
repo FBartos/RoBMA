@@ -233,6 +233,14 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   1.76 in scans, and searches of the whole gated ladder found no accepted
   error above 77% of `tol`. The gate is conservative: sharp blocks go on to the
   next stage even when a deeper rule would be accurate.
+- Loose requests do not relax the calibration of product ladders with
+  transitions: the successive-change, tail, shift-amplitude, and refinement-tier
+  checks use `min(relative_tolerance, 0.005)` in both the cluster and factor
+  kernels. Larger requested tolerances previously accepted coarse rules with
+  5% and nearly 100% errors. The default and tighter requests, constant-weight
+  blocks, best rules, sparse grids and randomized fallback retain their existing
+  policies; in particular QMC still uses the requested tolerance and its
+  empirical diagnostic, not a claimed error bound.
 - Refinement tier: when the ladder rejects every affordable rung, rank-one
   clusters, tensors of rank at most two and forests of depth at most one try, before Smolyak and
   the randomized fallback, the average of the finest affordable rung over the

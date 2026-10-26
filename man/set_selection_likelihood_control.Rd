@@ -120,7 +120,12 @@ average of the finest rung over four shifts per axis before sparse grids and
 the randomized fallback. That average asks the edges for at least one eighth
 of the node gap, with a separate penalty for each axis's row count, and is used only when
 \code{relative_tolerance} is at least 0.005, the tolerance at which its checks
-were calibrated. The best-p-value rule and the other deterministic routes
+were calibrated. For product weights with selection transitions, the ladder
+and this refinement tier use the smaller of \code{relative_tolerance} and 0.005
+for their acceptance checks: a loose request must not relax the calibration
+of these deterministic rules. If they fail, the randomized fallback retains
+the requested tolerance and reports its usual diagnostics. Default and tighter
+requests are unchanged. The best-p-value rule and the other deterministic routes
 instead require that the node gap across an interior transition not exceed
 its conditional residual SD divided by the absolute loading; coupled axes use
 conservative central node spacing. Unresolved candidates refine or use the

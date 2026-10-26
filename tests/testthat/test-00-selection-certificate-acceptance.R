@@ -62,13 +62,15 @@ test_that("the combined exterior and amplitude allowance decides at its exact bo
     tolerance <- threshold * (1 + side * 1e-6)
     expect_identical(.test_cert_probe(block, 9L, tolerance = tolerance)[["accepted"]], side > 0,
                      info = as.character(side))
-    # the kernel moves up the ladder exactly when the rung is refused
+    # The probe exposes the raw rung criterion; the full ladder also caps a
+    # loose request at the tolerance of its calibration.
     orders <- SELNORM_FACTOR_QUADRATURE_ORDERS
     values <- vapply(orders, function(order) .test_cert_probe(block, order)[["log_normalizer"]], numeric(1L))
     actual <- .test_cert_native_factor(block, tolerance = tolerance)
     accepted <- orders[which.min(abs(values - actual[["log_normalizer"]]))]
     expect_identical(actual[["relative_mcse"]], 0, info = as.character(side))
-    expect_identical(accepted, if (side > 0) 9L else 11L, info = as.character(side))
+    expected <- .test_cert_emulate_ladder(block, tolerance)
+    expect_identical(accepted, expected[["order"]], info = as.character(side))
   }
 })
 
@@ -142,6 +144,70 @@ test_that("the cluster kernel follows the one-change R certificate ladder", {
     }
   }
   expect_true("deterministic" %in% routes)
+})
+
+test_that("loose requests do not accept unresolved product quadrature walls", {
+
+  # These opposing walls were accepted with 5.09% error at tolerance .02 and
+  # 99.998% error at .05. References integrate the one-dimensional Gaussian
+  # expectation independently of the native Gauss-Hermite ladder.
+  group <- function(count, loading, mean, sd) {
+    list(count = count, loading = loading, sd = sd, mean = mean, sei = 1)
+  }
+  blocks <- list(
+    .test_cert_block(list(
+      group(21L, -.331695895502344, 1.41240275628494, .105668749149233),
+      group(11L, 1.65803034252021, -7.03005380219133, .105668749149233)
+    ), c(1, .0897774216356852)),
+    .test_cert_block(list(
+      group(10L, 1.37901563644409, -4.65666543654929, .0908403173702142),
+      group(30L, -1.62369661589619, 9.74595427356444, .0908403173702142),
+      group(18L, -.833751429128460, 5.95677370447769, .0908403173702142),
+      group(19L, -.374783916166052, 3.75651554236848, .0908403173702142),
+      group(31L, -1.83758793340530, 10.7586220994678, .0908403173702142),
+      group(20L, -1.85229506243486, 10.8354220438896, .0908403173702142)
+    ), c(1, .001090973524444), c(1.96, -Inf))
+  )
+
+  for (block in blocks) {
+    reference <- .test_cert_reference_parallel(block)
+    for (evaluate in list(.test_cert_native_cluster)) {
+      strict <- evaluate(block, tolerance = .005)
+      for (tolerance in c(.005, .02, .05)) {
+        value <- evaluate(block, tolerance = tolerance)
+        expect_silent(.selection_joint_factor_check_diagnostics(
+          value, list(relative_tolerance = tolerance), "test"))
+        expect_lt(.test_cert_relative_error(value[["log_normalizer"]], reference), tolerance)
+        if (isTRUE(as.logical(attr(value, "deterministic")))) {
+          expect_identical(value[["log_normalizer"]], strict[["log_normalizer"]])
+        }
+      }
+    }
+  }
+
+  # The same calibration applies to tensor and forest product ladders, not
+  # just the scalar cluster entry point.
+  for (block in .test_cert_small_blocks()[-1L]) {
+    strict <- .test_cert_native_factor(block)
+    for (tolerance in c(.02, .05)) {
+      loose <- .test_cert_native_factor(block, tolerance = tolerance)
+      expect_identical(attr(loose, "deterministic"), attr(strict, "deterministic"))
+      if (isTRUE(as.logical(attr(strict, "deterministic")))) {
+        expect_identical(loose[["log_normalizer"]], strict[["log_normalizer"]])
+      }
+    }
+  }
+
+  # With deliberately inadequate QMC budgets, the second wall now reaches the
+  # normal diagnostic refusal rather than reporting a wrong deterministic value.
+  for (tolerance in c(.02, .05)) {
+    value <- .test_cert_native_cluster(blocks[[2L]], tolerance = tolerance,
+                                      initial = 16L, points = 32L, scrambles = 2L)
+    expect_false(isTRUE(as.logical(attr(value, "deterministic"))))
+    expect_error(.selection_joint_factor_check_diagnostics(
+      value, list(relative_tolerance = tolerance), "cluster"),
+      "Increase 'max_points_per_scramble' or 'scrambles'", fixed = TRUE)
+  }
 })
 
 test_that("the best weight rule keeps its geometric acceptance, decisions and values", {
