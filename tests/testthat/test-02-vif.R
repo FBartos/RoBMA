@@ -49,14 +49,15 @@ test_that("VIF rejects data-only objects", {
 .vif_known_v_table_oracle <- function(object, covariance_samples) {
 
   X            <- .get_model_matrix(object)
-  expected_cov <- .vif_full_gls_vcov_oracle(X, covariance_samples)
-
-  .vif_table_from_vcov(
-    vcov   = expected_cov,
-    assign = attr(X, "assign"),
-    object = object,
-    X      = X
-  )
+  tables <- lapply(seq_len(dim(covariance_samples)[1L]), function(s) {
+    covariance <- solve(crossprod(X, solve(covariance_samples[s, , ], X)))
+    .vif_table_from_vcov(covariance, attr(X, "assign"), object, X)
+  })
+  result <- tables[[1L]]
+  for(column in c("GVIF", "GVIF^(1/(2*df))")) {
+    result[[column]] <- rowMeans(vapply(tables, `[[`, numeric(nrow(result)), column))
+  }
+  result
 }
 
 test_that("the live factor-plan VIF backend matches an independent dense oracle", {
@@ -87,7 +88,7 @@ test_that("the live factor-plan VIF backend matches an independent dense oracle"
 })
 
 
-test_that("diagonal VIF averages coefficient covariance over posterior draws", {
+test_that("the diagonal covariance helper retains its mean-covariance default", {
 
   X <- cbind(
     intercept = 1,
@@ -120,7 +121,7 @@ test_that("diagonal VIF averages coefficient covariance over posterior draws", {
   expect_false(isTRUE(all.equal(actual, plug_in, tolerance = 1e-8)))
 })
 
-test_that("diagonal brma and known-V covariance paths use the same estimand", {
+test_that("diagonal and known-V covariance helpers agree before applying a functional", {
 
   X <- cbind(
     intercept = 1,
@@ -235,6 +236,204 @@ test_that("fixed location coefficient extraction requires declared location colu
   }
 })
 
+.vif_draw_replay <- function(kind = "simple") {
+
+  data <- data.frame(yi = c(.2, -.1, .4, .1, .6, -.2),
+    sei = c(.1, .3, .2, .4, .15, .5), x = c(-2, -1, 0, 1, 2, .5),
+    z = c(0, 1, 0, 2, 1, -.5), cluster = rep(1:3, each = 2))
+  if (kind == "mv_diagonal") data$cluster <- seq_len(nrow(data))
+  args <- list(yi = quote(yi), mods = ~ x + z, data = data, measure = "GEN",
+    prior_unit_information_sd = 1, standardize_continuous_predictors = FALSE,
+    only_priors = TRUE, silent = TRUE)
+  if (kind == "factor") {
+    data$f <- factor(rep(letters[1:3], each = 2L))
+    args$data <- data
+    args$mods <- ~ x + f
+  }
+  if (kind == "ensemble") {
+    args[c("prior_effect_null", "prior_heterogeneity_null", "prior_mods_null")] <- list(NULL, NULL, NULL)
+    args$prior_bias <- list(
+      BayesTools::prior_PET("normal", list(0, 1), list(0, Inf)),
+      BayesTools::prior_PEESE("normal", list(0, 1), list(0, Inf)))
+  }
+  if (kind %in% c("mv", "mv_diagonal")) {
+    args$V <- diag(data$sei^2)
+    args$random <- ~ 1 | cluster
+  } else {
+    args$sei <- quote(sei)
+  }
+  if (kind == "scale") args$scale <- ~ x
+  if (kind == "cluster") args$cluster <- quote(cluster)
+  constructor <- switch(kind, mv = brma.mv, mv_diagonal = brma.mv, ensemble = RoBMA, brma)
+  setup <- review_compile_object(do.call(constructor, args))
+  priors <- list()
+  for (compiled in setup$compiled) priors <- c(priors, compiled$prior_list)
+  priors <- c(priors, .create_fit_priors(setup$object$data, setup$object$priors))
+  columns <- unique(unlist(lapply(names(priors), function(name) {
+    BayesTools:::.prior_linear_prior_columns(name, priors[[name]])
+  })))
+  if (kind == "ensemble") columns <- unique(c(columns, "bias_indicator", "PET", "PEESE"))
+  tau <- rep(c(.05, .2, .8, 1.2, 2), 3L)
+  slope <- rep(c(-.3, .2, .1, -.1, .4), 3L)
+  samples <- matrix(0, length(tau), length(columns), dimnames = list(NULL, columns))
+  samples[, grepl("tau|xREx.*intercept$", columns)] <- tau
+  if ("log_tau_x" %in% columns) samples[, "log_tau_x"] <- slope
+  if ("rho" %in% columns) samples[, "rho"] <- .4
+  if (kind == "ensemble") {
+    samples[, grepl("indicator", columns)] <- 1
+    samples[, "bias_indicator"] <- match(rep(1:3, length.out = length(tau)),
+      .bias_design_member_classes(setup$object$priors))
+  }
+  object <- review_attach_replay(setup, samples)
+  class(object) <- setdiff(class(object), "only_priors.brma")
+  covariance <- array(0, c(length(tau), nrow(data), nrow(data)))
+  for (s in seq_along(tau)) {
+    within <- if (kind == "scale") tau[s] * exp(slope[s] * data$x) else tau[s]
+    covariance[s, , ] <- diag(data$sei^2 + switch(kind,
+      cluster = .6 * within^2, mv = 0, mv_diagonal = 0, within^2), nrow(data))
+    if (kind %in% c("cluster", "mv", "mv_diagonal")) for (rows in split(seq_len(nrow(data)), data$cluster)) {
+      covariance[s, rows, rows] <- covariance[s, rows, rows] +
+        tau[s]^2 * if (kind == "cluster") .4 else 1
+    }
+  }
+  list(object = object, covariance = covariance, data = data)
+}
+
+test_that("public VIF summarizes nonlinear draw-wise diagnostics in every covariance class", {
+
+  for (kind in c("simple", "scale", "cluster", "mv")) {
+    setup <- .vif_draw_replay(kind)
+    object <- setup$object
+    X <- .get_model_matrix(object)
+    expected <- t(vapply(seq_len(dim(setup$covariance)[1L]), function(s) {
+      covariance <- solve(crossprod(X, solve(setup$covariance[s, , ], X)))
+      diag(solve(stats::cov2cor(covariance)[-1L, -1L]))
+    }, numeric(2L)))
+    actual <- vif(object, posterior_correlation = FALSE,
+                  probs = c(.025, .975), include_samples = TRUE)
+    expect_equal(actual$vif$GVIF, unname(colMeans(expected)), tolerance = 1e-11, info = kind)
+    expect_equal(actual$vif[["GVIF^(1/(2*df))"]], unname(colMeans(sqrt(expected))),
+                 tolerance = 1e-11, info = kind)
+    expect_equal(actual$vif$CI_0.025, unname(apply(expected, 2, stats::quantile, .025)),
+                 tolerance = 1e-11, info = kind)
+    expect_equal(actual$vif$CI_0.975, unname(apply(expected, 2, stats::quantile, .975)),
+                 tolerance = 1e-11, info = kind)
+    expect_equal(actual$samples$GVIF, as.vector(expected), tolerance = 1e-11, info = kind)
+    expect_equal(actual$samples$draw, rep(1:15, 2L), info = kind)
+    expect_equal(as.data.frame(actual), data.frame(actual, check.names = FALSE))
+    expect_true(all(c("CI_0.025", "CI_0.975") %in% names(data.frame(actual))))
+    expect_output(print(actual), "CI_0.025", fixed = TRUE)
+    averaged <- .vif_known_v_table_oracle(object, setup$covariance)
+    expect_equal(actual$vif$GVIF, averaged$GVIF, tolerance = 1e-11)
+    old <- .vif_table_from_vcov(.vif_full_gls_vcov_oracle(X, setup$covariance),
+                               attr(X, "assign"), object, X)
+    expect_gt(max(abs(actual$vif$GVIF - old$GVIF)), 1e-5, label = kind)
+    thinned <- expect_warning(vif(object, posterior_correlation = FALSE,
+      max_samples = 10, include_samples = TRUE), "deterministically thinned")
+    rows <- .thin_sample_rows(15, 10)
+    expect_equal(thinned$samples$draw, rep(rows, 2L))
+    expect_equal(thinned$vif$GVIF, unname(colMeans(expected[rows, , drop = FALSE])), tolerance = 1e-11)
+  }
+})
+
+test_that("posterior VIF options validate probabilities without hiding numerical missingness", {
+
+  object <- .vif_draw_replay()$object
+  expect_error(vif(object, probs = c(.5, .5)), "'probs' must not contain duplicate probabilities.", fixed = TRUE)
+  expect_error(vif(object, probs = NA_real_), "probs")
+  expect_error(vif(object, probs = 1.1), "probs")
+  expect_error(vif(object, include_samples = NA), "include_samples")
+  template <- data.frame(term = "x", df = 1, GVIF = 0, "GVIF^(1/(2*df))" = 0, check.names = FALSE)
+  summary <- .vif_summarize_draws(matrix(c(1, NaN), ncol = 1), template, 1:2, probs = .5)
+  expect_true(is.nan(summary$GVIF))
+  expect_true(is.na(summary$CI_0.5))
+})
+
+test_that("posterior VIF is invariant to equivalent simple and known-V representations", {
+
+  ordinary <- vif(.vif_draw_replay("simple")$object, posterior_correlation = FALSE,
+    probs = c(.025, .975), include_samples = TRUE)
+  known_v <- vif(.vif_draw_replay("mv_diagonal")$object, posterior_correlation = FALSE,
+    probs = c(.025, .975), include_samples = TRUE)
+  expect_equal(ordinary$vif, known_v$vif, tolerance = 1e-11)
+  expect_equal(ordinary$samples, known_v$samples, tolerance = 1e-11)
+})
+
+
+
+test_that("posterior GVIF preserves factor groups and interval meanings", {
+
+  setup <- .vif_draw_replay("factor")
+  object <- setup$object
+  X <- .get_model_matrix(object)
+  expected <- t(vapply(seq_len(dim(setup$covariance)[1L]), function(s) {
+    covariance <- solve(crossprod(X, solve(setup$covariance[s, , ], X)))
+    R <- stats::cov2cor(covariance)[-1L, -1L]
+    c(det(R[2:3, 2:3]) / det(R), det(R[2:3, 2:3]) / det(R))
+  }, numeric(2L)))
+  result <- vif(object, posterior_correlation = FALSE, probs = c(.1, .9), include_samples = TRUE)
+  expect_identical(result$vif$df, c(1L, 2L))
+  expect_equal(result$vif$GVIF, colMeans(expected), tolerance = 1e-11)
+  expect_equal(result$vif[["GVIF^(1/(2*df))"]],
+    c(mean(sqrt(expected[, 1])), mean(expected[, 2]^.25)), tolerance = 1e-11)
+  expect_equal(result$vif$CI_0.1, unname(apply(expected, 2, stats::quantile, .1)), tolerance = 1e-11)
+  expect_equal(result$vif$CI_0.9, unname(apply(expected, 2, stats::quantile, .9)), tolerance = 1e-11)
+  expect_equal(as.data.frame(result), data.frame(result, check.names = FALSE))
+  expect_true(all(vapply(result$samples[c("draw", "df", "GVIF", "GVIF^(1/(2*df))")], is.numeric, logical(1))))
+})
+
+test_that("posterior VIF aligns model-specific draws and conditions bias intervals", {
+
+  setup <- .vif_draw_replay("ensemble")
+  object <- setup$object
+  data <- setup$data
+  samples <- .get_posterior_samples(object$fit)
+  classes <- .bias_design_member_classes(object$priors)[samples[, "bias_indicator"]]
+  selected <- .thin_sample_rows(nrow(samples), 10)
+  expected <- matrix(NA_real_, length(selected), 4L)
+  for(i in seq_along(selected)){
+    row <- selected[i]
+    X <- cbind(1, data$x, data$z)
+    if(classes[row] == 2L) X <- cbind(X, data$sei)
+    if(classes[row] == 3L) X <- cbind(X, data$sei^2)
+    covariance <- solve(crossprod(X, solve(setup$covariance[row, , ], X)))
+    values <- diag(solve(stats::cov2cor(covariance)[-1L, -1L]))
+    columns <- c(1:2, if(classes[row] != 1L) classes[row] + 1L)
+    expected[i, columns] <- values
+  }
+  result <- expect_warning(vif(object, posterior_correlation = FALSE, max_samples = 10,
+    probs = c(.25, .75), include_samples = TRUE), "deterministically thinned")
+  expect_identical(result$vif$term, c("x", "z", "PET", "PEESE"))
+  expect_equal(result$samples$draw, rep(selected, 4L))
+  expect_equal(result$samples$GVIF, as.vector(expected), tolerance = 1e-10)
+  expect_equal(result$vif$GVIF, unname(colMeans(expected, na.rm = TRUE)), tolerance = 1e-10)
+  expect_equal(result$vif[["GVIF^(1/(2*df))"]], unname(colMeans(sqrt(expected), na.rm = TRUE)), tolerance = 1e-10)
+  expect_equal(result$vif$CI_0.25, unname(apply(expected, 2, stats::quantile, .25, na.rm = TRUE)), tolerance = 1e-10)
+  expect_equal(result$vif$CI_0.75, unname(apply(expected, 2, stats::quantile, .75, na.rm = TRUE)), tolerance = 1e-10)
+  samples[classes == 3L, "bias_indicator"] <- match(1L, .bias_design_member_classes(object$priors))
+  object$fit <- BayesTools::JAGS_with_draws(object$fit, samples)
+  absent <- vif(object, posterior_correlation = FALSE, probs = .5, include_samples = TRUE)
+  expect_true(all(is.na(absent$samples$GVIF[absent$samples$term == "PEESE"])))
+  expect_true(all(is.na(as.matrix(absent$vif[absent$vif$term == "PEESE", c("GVIF", "GVIF^(1/(2*df))", "CI_0.5")]))))
+  expect_equal(nrow(absent$samples), nrow(samples) * 4L)
+})
+
+test_that("posterior VIF sample rows distinguish colliding display labels", {
+
+  template <- data.frame(term = c("PET", "PET"), df = 1L,
+    GVIF = NA_real_, "GVIF^(1/(2*df))" = NA_real_, check.names = FALSE)
+  values <- matrix(c(1, 4, NA, 2), nrow = 2L)
+  included <- matrix(c(TRUE, TRUE, FALSE, TRUE), nrow = 2L)
+  result <- .vif_summarize_draws(values, template, c(2L, 9L),
+    probs = .5, include_samples = TRUE, included = included)
+  samples <- attr(result, "posterior_samples")
+  expect_identical(samples$term_index, c(1L, 1L, 2L, 2L))
+  expect_identical(samples$draw, c(2L, 9L, 2L, 9L))
+  expect_identical(samples$term, rep("PET", 4L))
+  expect_equal(result$GVIF, c(2.5, 2))
+  expect_equal(samples$GVIF[samples$term_index == 2L], c(NA_real_, 2))
+})
+
 skip_if_no_fits()
 skip_if_not_installed("metafor")
 
@@ -291,7 +490,7 @@ test_that("VIF rejects models without moderators", {
   }
 })
 
-test_that("ordinary VIF plugs in the posterior mean heterogeneity", {
+test_that("ordinary covariance helper averages posterior GLS covariances", {
 
   name <- "bcg_meta-regression"
   skip_if_missing_fits(name)
@@ -313,17 +512,16 @@ test_that("ordinary VIF plugs in the posterior mean heterogeneity", {
   vi <- .outcome_data_vi(object)
   weights <- .outcome_data_weights(object)
   if (is.null(weights)) weights <- rep(1, K)
-  # A simple model plugs the posterior mean heterogeneity into one weighted
-  # least-squares covariance (the metafor-style VIF), not the average of the
-  # covariances of the draws.
-  precision <- weights / (vi + mean(tau[["tau_within"]])^2)
-  expected  <- solve(crossprod(X, X * precision))
+  expected <- Reduce(`+`, lapply(seq_len(nrow(tau[["tau_within"]])), function(s) {
+    precision <- weights / (vi + tau[["tau_within"]][s, ]^2)
+    solve(crossprod(X, X * precision))
+  })) / nrow(tau[["tau_within"]])
   dimnames(expected) <- list(colnames(X), colnames(X))
 
   expect_equal(.vif_vcov_brma(object, X), expected, tolerance = 1e-12)
 })
 
-test_that("product-space VIF plugs in or averages the posterior covariance by model type", {
+test_that("product-space covariance helpers average posterior covariance", {
 
   names <- c(
     "dat.lehmann2018_BMA.norm_mods",
@@ -362,10 +560,6 @@ test_that("product-space VIF plugs in or averages the posterior covariance by mo
       list()
     }
     tau_within <- tau[["tau_within"]]
-    if (!is_scale && !is_multilevel) {
-      # the posterior mean heterogeneity of all draws is plugged in
-      tau_within <- matrix(mean(tau_within), nrow = 1L, ncol = ncol(tau_within))
-    }
     expected <- Reduce(`+`, lapply(seq_len(nrow(tau_within)), function(s) {
       M <- diag(
         (vi + tau_within[s, ]^2) / weights,

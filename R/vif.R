@@ -5,14 +5,13 @@
 # Variance Inflation Factor (VIF) and Generalized VIF (GVIF) for brma objects.
 #
 # Two complementary diagnostics for multicollinearity:
-# 1. Classical VIF/GVIF from cov2cor(vcov) (matches metafor)
+# 1. Posterior summaries of the design-based VIF/GVIF from cov2cor(vcov)
 # 2. Posterior correlation of regression coefficients (Bayesian diagnostic)
 #
 # VIF is computed from the correlation matrix of the coefficient
-# variance-covariance matrix: vcov = (X'WX)^{-1}. For simple models, W uses
-# diag(weight_i/(vi + tau^2)) at the posterior mean tau; scale and multilevel
-# models average this coefficient covariance over posterior heterogeneity
-# draws. brma.mv known-V models use the full supplied sampling covariance plus
+# variance-covariance matrix: vcov = (X'WX)^{-1}, calculated separately in
+# each posterior draw before computing and summarizing VIF/GVIF. brma.mv
+# known-V models use the full supplied sampling covariance plus
 # any marginal heterogeneity or formula random-effect covariance in each
 # posterior draw.
 #
@@ -64,22 +63,33 @@ vif <- function(object, ...) {
 #' @param posterior_correlation logical; whether to also compute and return
 #' the posterior correlation matrix of regression coefficients. Defaults
 #' to \code{TRUE}.
-#' @param max_samples maximum posterior draws used for known-\code{V}
-#' \code{brma.mv()} marginal GLS covariance computations. Defaults to
+#' @param max_samples maximum posterior draws used for the VIF/GVIF
+#' computation in every model class. Defaults to
 #' \code{Inf}. Finite values deterministically thin draws across posterior row
-#' order.
+#' order. The optional posterior coefficient correlation still uses all draws.
+#' @param probs optional credible-interval probabilities for GVIF (ordinary
+#' VIF for one-df terms). Defaults to \code{NULL}, which retains the point-summary
+#' table. Requested empirical quantiles appear as \code{CI_<probability>} columns.
+#' These intervals describe GVIF, not its adjusted root.
+#' @param include_samples whether to include a \code{samples} data frame with
+#' posterior \code{draw} row indices before thinning, \code{term_index} (the row
+#' of the \code{vif} table, also distinguishing repeated display labels),
+#' \code{term}, \code{df}, \code{GVIF},
+#' and \code{GVIF^(1/(2*df))}. Defaults to \code{FALSE}.
 #' @param ... additional arguments (currently ignored)
 #'
 #' @details
 #' VIF is computed from the correlation matrix derived from the
 #' coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
-#' meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
-#' with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
-#' and multilevel models, the coefficient covariance is averaged across
-#' posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
-#' and block-structured multilevel covariance where applicable. Averaging
-#' occurs before conversion to a correlation matrix and computation of
-#' VIF/GVIF.
+#' meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \tau^2))}
+#' at each posterior heterogeneity draw. Scale and multilevel models use
+#' observation-specific \eqn{\tau_i} and block-structured covariance where
+#' applicable. VIF/GVIF and its adjusted root are computed in each draw and
+#' averaged separately. These posterior means are generally different from
+#' applying VIF to an averaged covariance or to a posterior-mean heterogeneity.
+#' The mean adjusted GVIF is likewise generally different from transforming
+#' the mean GVIF. The diagnostic retains its GLS design-based meaning; it is
+#' not calculated from the empirical posterior covariance of the coefficients.
 #'
 #' A VIF of 1 indicates no collinearity; values above 5 or 10 are
 #' commonly considered problematic.
@@ -87,10 +97,12 @@ vif <- function(object, ...) {
 #' The members of a \code{RoBMA()} ensemble can differ in their bias terms (PET
 #' adds a \code{PET} column, PEESE a \code{PEESE} column, and the null and
 #' weight-function members add none), so each posterior draw uses the design of
-#' its member and the coefficient covariance is averaged within each design
-#' class. A location term reports the GVIF of the classes weighted by their
-#' share of the posterior draws; the \code{PET} and \code{PEESE} terms report
-#' the GVIF of their own class (\code{NA} when no draw belongs to it).
+#' its member. A location term summarizes all selected posterior draws;
+#' \code{PET} and \code{PEESE} summarize only draws in their own class
+#' (\code{NA} when no selected draw belongs to it). Their samples are \code{NA}
+#' outside that class, not zero, and their credible intervals are conditional
+#' on class membership. Location terms keep the specified location design,
+#' including terms with spike-and-slab priors.
 #'
 #' For multi-column terms, such as factor contrasts,
 #' the Generalized VIF (GVIF) of \insertCite{fox1992generalized;textual}{RoBMA}
@@ -136,6 +148,9 @@ vif <- function(object, ...) {
 #' terms, GVIF equals the standard VIF.}
 #' \item{posterior_correlation}{A correlation matrix of posterior regression
 #' coefficient samples when requested and available; otherwise \code{NULL}.}
+#' \item{samples}{The optional long data frame of draw-wise diagnostics when
+#' \code{include_samples = TRUE}. Printing and data-frame coercion of the result
+#' retain the summary-table view; extract this element explicitly for draws.}
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE) &&
@@ -169,10 +184,16 @@ vif <- function(object, ...) {
 #' @seealso [regplot()], [summary.brma()]
 #' @exportS3Method
 vif.brma <- function(object, posterior_correlation = TRUE,
-                     max_samples = Inf, ...) {
+                     max_samples = Inf, ..., probs = NULL, include_samples = FALSE) {
 
   BayesTools::check_bool(posterior_correlation, "posterior_correlation")
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
+  BayesTools::check_bool(include_samples, "include_samples")
+  BayesTools::check_real(probs, "probs", lower = 0, upper = 1,
+                         allow_NULL = TRUE, allow_NA = FALSE, check_length = 0)
+  if (anyDuplicated(probs)) {
+    stop("'probs' must not contain duplicate probabilities.", call. = FALSE)
+  }
 
   # require moderators
   if (is.null(object[["priors"]]) && is.null(object[["fit"]])) {
@@ -186,7 +207,8 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   }
 
   # compute VIF from vcov correlation matrix
-  vif_df <- .compute_vif(object, max_samples = max_samples)
+  vif_df <- .compute_vif(object, max_samples = max_samples, probs = probs,
+                         include_samples = include_samples)
 
   # posterior correlation of regression coefficients
   post_cor <- NULL
@@ -198,6 +220,10 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     vif                  = vif_df,
     posterior_correlation = post_cor
   )
+  if (include_samples) {
+    output[["samples"]] <- attr(vif_df, "posterior_samples")
+    attr(output[["vif"]], "posterior_samples") <- NULL
+  }
   if (!is.null(attr(vif_df, "known_v_diagnostic"))) {
     output <- .known_v_attach_diagnostic_metadata(
       output,
@@ -215,133 +241,110 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # .compute_vif
 # ---------------------------------------------------------------------------- #
 #
-# Compute VIF/GVIF from cov2cor(solve(X'WX)). Simple models use the posterior
-# mean tau plug-in. Scale and multilevel models average solve(X'WX) over
-# posterior heterogeneity draws so observation-specific and block covariances
-# are preserved.
+# Compute VIF/GVIF from cov2cor(solve(X'WX)) in each posterior draw, preserving
+# its design class and covariance, then summarize the diagnostic values.
 #
 # @param object brma object with moderators
 #
 # @return data frame with columns: term, df, GVIF, GVIF^(1/(2*df))
 #
 # ---------------------------------------------------------------------------- #
-.compute_vif <- function(object, max_samples = Inf) {
+.compute_vif <- function(object, max_samples = Inf, probs = NULL,
+                          include_samples = FALSE) {
 
-  # extract model matrix
-  X      <- .get_model_matrix(object)
-  assign <- attr(X, "assign")
+  X <- .get_model_matrix(object)
+  is_known_v <- inherits(object, "brma.mv")
+  sample_info <- if (is_known_v) {
+    .vif_known_v_sample_info(object, max_samples)
+  } else {
+    .known_v_diagnostic_posterior_samples(object, max_samples = max_samples,
+                                          caller = "VIF")
+  }
+  draw_rows <- .thin_sample_rows(sample_info[["n_total"]], max_samples)
+  if (is.null(draw_rows)) draw_rows <- seq_len(sample_info[["n_total"]])
+  bias_classes <- .bias_design_classes(object, X = X,
+    posterior_samples = sample_info[["posterior_samples"]])
 
-  is_known_v  <- inherits(object, "brma.mv")
-  sample_info <- if (is_known_v) .vif_known_v_sample_info(object, max_samples)
-
-  # design of each posterior draw; NULL when the matrix above applies to all
-  bias_classes <- .bias_design_classes(
-    object,
-    X                 = X,
-    posterior_samples = sample_info[["posterior_samples"]]
-  )
-
-  vcov_of <- function(design, rows = NULL) {
-    if (is_known_v) {
-      return(.vif_vcov_brma_mv(
-        object      = object,
-        X           = design,
-        sample_info = sample_info,
-        rows        = rows
-      ))
+  values_of <- function(design, rows) {
+    assign <- attr(design, "assign")
+    keep <- assign != 0L
+    groups <- split(seq_len(sum(keep)), assign[keep])
+    transform <- function(covariance) {
+      .vif_gvif(covariance[keep, keep, drop = FALSE], groups)
     }
-    return(.vif_vcov_brma(object, design, rows = rows))
+    if (is_known_v) {
+      return(.vif_vcov_brma_mv(object, design, sample_info, rows, transform))
+    }
+    .vif_vcov_brma(object, design, rows = rows, transform = transform,
+                   posterior_samples = sample_info[["posterior_samples"]])
+  }
+  template_of <- function(design) {
+    if (is.null(design)) return(NULL)
+    .vif_table_from_vcov(diag(ncol(design)), attr(design, "assign"), object, design)
   }
 
   if (is.null(bias_classes)) {
-    vif_df <- .vif_table_from_vcov(
-      vcov   = vcov_of(X),
-      assign = assign,
-      object = object,
-      X      = X
-    )
+    template <- template_of(X)
+    values <- values_of(X, seq_along(draw_rows))
+    included <- matrix(TRUE, nrow(values), ncol(values))
   } else {
-    class_tables <- vector("list", 3L)
+    templates <- lapply(bias_classes[["designs"]], template_of)
+    first_class <- which(!vapply(templates, is.null, logical(1L)))[1L]
+    n_location <- nrow(templates[[first_class]]) - (first_class != 1L)
+    bias_terms <- which(!vapply(templates, is.null, logical(1L)) & seq_len(3L) != 1L)
+    template <- templates[[first_class]][seq_len(n_location), , drop = FALSE]
+    for (design_class in bias_terms) {
+      template <- rbind(template, templates[[design_class]][n_location + 1L, , drop = FALSE])
+    }
+    values <- matrix(NA_real_, nrow = length(draw_rows), ncol = nrow(template))
+    included <- matrix(FALSE, nrow = length(draw_rows), ncol = nrow(template))
     for (design_class in which(bias_classes[["n_draws"]] > 0L)) {
       design <- bias_classes[["designs"]][[design_class]]
-      class_tables[[design_class]] <- .vif_table_from_vcov(
-        vcov   = vcov_of(
-          design,
-          rows = which(bias_classes[["class"]] == design_class)
-        ),
-        assign = attr(design, "assign"),
-        object = object,
-        X      = design
-      )
+      rows <- which(bias_classes[["class"]] == design_class)
+      columns <- c(seq_len(n_location),
+        if (design_class != 1L) n_location + match(design_class, bias_terms))
+      values[rows, columns] <- values_of(design, rows)
+      included[rows, columns] <- TRUE
     }
-    vif_df <- .vif_ensemble_table(
-      tables  = class_tables,
-      n_draws = bias_classes[["n_draws"]],
-      designs = bias_classes[["designs"]]
-    )
   }
+  vif_df <- .vif_summarize_draws(values, template, draw_rows, probs, include_samples, included)
   if (is_known_v) {
-    vif_df <- .known_v_attach_diagnostic_metadata(
-      vif_df,
-      .known_v_diagnostic_metadata(sample_info = sample_info)
-    )
+    vif_df <- .known_v_attach_diagnostic_metadata(vif_df,
+      .known_v_diagnostic_metadata(sample_info = sample_info))
   }
-
-  return(vif_df)
+  vif_df
 }
 
 
-# ---------------------------------------------------------------------------- #
-# .vif_ensemble_table
-# ---------------------------------------------------------------------------- #
-#
-# GVIF table of an ensemble whose members differ in their bias terms, from the
-# GVIF table of every design class with draws (see .bias_design_classes()). A
-# location term is shared by all classes and reports the draw-weighted mean of
-# its class GVIFs; the PET and PEESE terms belong to one class each and report
-# its GVIF, NA when no draw belongs to that class.
-#
-# @param tables list of three class tables (NULL for classes without draws).
-# @param n_draws number of draws of each class.
-# @param designs list of three class designs (NULL for classes without member).
-#
-# ---------------------------------------------------------------------------- #
-.vif_ensemble_table <- function(tables, n_draws, designs) {
+.vif_summarize_draws <- function(values, template, draw_rows, probs = NULL,
+                                 include_samples = FALSE,
+                                 included = matrix(TRUE, nrow(values), ncol(values))) {
 
-  present    <- which(n_draws > 0L)
-  share      <- n_draws[present] / sum(n_draws[present])
-  first      <- tables[[present[1L]]]
-  n_location <- nrow(first) - (present[1L] != 1L)
-  location   <- seq_len(n_location)
-
-  location_gvif <- Reduce(`+`, Map(
-    function(design_class, weight) {
-      weight * tables[[design_class]][["GVIF"]][location]
-    },
-    present,
-    share
-  ))
-
-  bias_classes <- setdiff(which(!vapply(designs, is.null, logical(1L))), 1L)
-  bias_gvif    <- vapply(bias_classes, function(design_class) {
-    if (is.null(tables[[design_class]])) {
-      return(NA_real_)
-    }
-    return(tables[[design_class]][["GVIF"]][n_location + 1L])
+  adjusted <- values^rep(1 / (2 * template[["df"]]), each = nrow(values))
+  summarize <- function(x, fun) vapply(seq_len(ncol(x)), function(j) {
+    selected <- x[included[, j], j]
+    if (!length(selected)) NA_real_ else fun(selected)
   }, numeric(1L))
-
-  term <- c(first[["term"]][location], c(NA, "PET", "PEESE")[bias_classes])
-  df   <- c(first[["df"]][location], rep(1L, length(bias_classes)))
-  gvif <- c(location_gvif, bias_gvif)
-
-  return(data.frame(
-    term               = term,
-    df                 = df,
-    GVIF               = gvif,
-    "GVIF^(1/(2*df))"  = gvif^(1 / (2 * df)),
-    stringsAsFactors   = FALSE,
-    check.names        = FALSE
-  ))
+  template[["GVIF"]] <- summarize(values, mean)
+  template[["GVIF^(1/(2*df))"]] <- summarize(adjusted, mean)
+  for (prob in probs) {
+    template[[paste0("CI_", prob)]] <- summarize(values, function(x) {
+      if (anyNA(x)) return(NA_real_)
+      stats::quantile(x, probs = prob, names = FALSE)
+    })
+  }
+  rownames(template) <- NULL
+  if (include_samples) {
+    attr(template, "posterior_samples") <- data.frame(
+      draw = rep(draw_rows, times = ncol(values)),
+      term_index = rep(seq_len(ncol(values)), each = nrow(values)),
+      term = rep(template[["term"]], each = nrow(values)),
+      df = rep(template[["df"]], each = nrow(values)),
+      GVIF = as.vector(values),
+      "GVIF^(1/(2*df))" = as.vector(adjusted), check.names = FALSE
+    )
+  }
+  template
 }
 
 
@@ -351,10 +354,13 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 #
 # Coefficient covariance for standard brma objects.
 #
-# @param rows optional posterior rows to average over (default: all draws).
+# @param rows optional posterior rows (default: all draws).
+# @param transform optional scalar/vector functional evaluated before averaging;
+#   returns one row of functional values per selected posterior draw.
 #
 # ---------------------------------------------------------------------------- #
-.vif_vcov_brma <- function(object, X, rows = NULL) {
+.vif_vcov_brma <- function(object, X, rows = NULL, transform = NULL,
+                            posterior_samples = NULL) {
 
   # extract sampling variances
   vi      <- .outcome_data_vi(object)
@@ -365,9 +371,12 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   is_scale      <- .is_scale(object)
   is_multilevel <- .is_multilevel(object)
   tau_K         <- if (!is_scale && !is_multilevel) 1L else K
+  posterior_samples <- .get_posterior_samples(object[["fit"]], posterior_samples)
+  if (!is.null(rows)) posterior_samples <- posterior_samples[rows, , drop = FALSE]
 
   tau_result <- .evaluate.brma.tau(
     fit               = object[["fit"]],
+    posterior_samples = posterior_samples,
     scale_data        = object[["data"]][["scale"]],
     scale_formula     = if (is_scale) .create_fit_formula_list(
       data = object[["data"]],
@@ -383,17 +392,6 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
-  if (!is_scale && !is_multilevel) {
-    # simple models: the posterior mean heterogeneity of all draws is plugged
-    # in (the metafor-style VIF), whatever the design class of the rows
-    tau_within_samples  <- matrix(mean(tau_within_samples), nrow = 1L, ncol = 1L)
-    tau_between_samples <- NULL
-  } else if (!is.null(rows)) {
-    tau_within_samples <- tau_within_samples[rows, , drop = FALSE]
-    if (!is.null(tau_between_samples)) {
-      tau_between_samples <- tau_between_samples[rows, , drop = FALSE]
-    }
-  }
 
   # compute posterior-averaged vcov = (X'WX)^{-1} using meta-analytic weights
   vcov <- .vif_vcov_from_tau_samples(
@@ -402,7 +400,8 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     weights             = weights,
     tau_within_samples  = tau_within_samples,
     tau_between_samples = tau_between_samples,
-    cluster             = if (is_multilevel) object[["data"]][["outcome"]][["cluster"]] else NULL
+    cluster             = if (is_multilevel) object[["data"]][["outcome"]][["cluster"]] else NULL,
+    transform           = transform
   )
 
   return(vcov)
@@ -447,7 +446,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # @param rows optional rows of the selected draws to average over.
 #
 # ---------------------------------------------------------------------------- #
-.vif_vcov_brma_mv <- function(object, X, sample_info, rows = NULL) {
+.vif_vcov_brma_mv <- function(object, X, sample_info, rows = NULL, transform = NULL) {
 
   posterior_samples <- sample_info[["posterior_samples"]]
   if (!is.null(rows)) {
@@ -459,7 +458,8 @@ vif.brma <- function(object, posterior_correlation = TRUE,
       object            = object,
       X                 = X,
       posterior_samples = posterior_samples,
-      known_V           = known_V
+      known_V           = known_V,
+      transform         = transform
     ),
     rows = rows
   )
@@ -479,6 +479,20 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # Compute GVIF/GVIF-adjusted table from the fixed-effect covariance.
 #
 # ---------------------------------------------------------------------------- #
+.vif_gvif <- function(vcov, groups) {
+
+  p <- ncol(vcov)
+  if (p <= 1L) return(rep(1, length(groups)))
+  correlation <- stats::cov2cor(vcov)
+  determinant <- det(correlation)
+  vapply(groups, function(columns) {
+    if (length(columns) == p) return(1)
+    det(correlation[columns, columns, drop = FALSE]) *
+      det(correlation[-columns, -columns, drop = FALSE]) / determinant
+  }, numeric(1L), USE.NAMES = FALSE)
+}
+
+
 .vif_table_from_vcov <- function(vcov, assign, object, X) {
 
   # identify and remove intercept (assign == 0)
@@ -488,8 +502,6 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     vcov   <- vcov[keep, keep, drop = FALSE]
     assign <- assign[keep]
   }
-
-  p <- ncol(vcov)
 
   term_labels <- attr(X, "term_labels")
   if (is.null(term_labels)) {
@@ -505,15 +517,11 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   terms_unique <- sort(unique(assign))
   n_terms      <- length(terms_unique)
 
-  gvif_values    <- numeric(n_terms)
+  groups <- lapply(terms_unique, function(term) which(assign == term))
+  gvif_values    <- .vif_gvif(vcov, groups)
   gvif_df_values <- numeric(n_terms)
   df_values      <- integer(n_terms)
   term_names     <- character(n_terms)
-
-  if (p > 1) {
-    R    <- stats::cov2cor(vcov)
-    detR <- det(R)
-  }
 
   for (k in seq_len(n_terms)) {
 
@@ -524,18 +532,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
     df_values[k]  <- m
     term_names[k] <- if (term_index <= length(term_labels)) term_labels[term_index] else colnames(vcov)[cols[1]]
 
-    if (p <= 1 || m == p) {
-      # single predictor or all columns belong to one term
-      gvif_values[k]    <- 1
-      gvif_df_values[k] <- 1
-    } else {
-      # Fox & Monette (1992) formula
-      gvif <- det(R[cols, cols, drop = FALSE]) *
-              det(R[-cols, -cols, drop = FALSE]) / detR
-
-      gvif_values[k]    <- gvif
-      gvif_df_values[k] <- gvif^(1 / (2 * m))
-    }
+    gvif_df_values[k] <- gvif_values[k]^(1 / (2 * m))
   }
 
   vif_df <- data.frame(
@@ -551,7 +548,8 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 }
 
 
-.vif_vcov_from_factor_plan <- function(object, X, posterior_samples, known_V) {
+.vif_vcov_from_factor_plan <- function(object, X, posterior_samples, known_V,
+                                       transform = NULL) {
 
   S <- nrow(posterior_samples)
   K <- nrow(X)
@@ -567,13 +565,23 @@ vif.brma <- function(object, posterior_correlation = TRUE,
   )
 
   vcov_sum <- matrix(0, nrow = P, ncol = P)
+  values <- NULL
   for (s in seq_len(S)) {
     W_X <- matrix(precision_X[s, , ], nrow = K, ncol = P)
-    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+    covariance <- .hat_solve_crossprod(
       crossprod(X, W_X),
       rank = attr(X, "rank")
     )
+    if (is.null(transform)) {
+      vcov_sum <- vcov_sum + covariance
+    } else {
+      value <- transform(covariance)
+      if (is.null(values)) values <- matrix(NA_real_, nrow = S, ncol = length(value))
+      values[s, ] <- value
+    }
   }
+
+  if (!is.null(transform)) return(values)
 
   vcov <- vcov_sum / S
   if (!is.null(colnames(X))) {
@@ -603,7 +611,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 # ---------------------------------------------------------------------------- #
 .vif_vcov_from_tau_samples <- function(X, vi, weights, tau_within_samples,
                                        tau_between_samples = NULL,
-                                       cluster = NULL) {
+                                       cluster = NULL, transform = NULL) {
 
   K <- length(vi)
   P <- ncol(X)
@@ -632,6 +640,7 @@ vif.brma <- function(object, posterior_correlation = TRUE,
 
   S        <- nrow(tau_within_samples)
   vcov_sum <- matrix(0, nrow = P, ncol = P)
+  values <- NULL
 
   for (s in seq_len(S)) {
     tau_within_s  <- tau_within_samples[s, ]
@@ -647,11 +656,20 @@ vif.brma <- function(object, posterior_correlation = TRUE,
       block_indices = block_indices
     )
 
-    vcov_sum <- vcov_sum + .hat_solve_crossprod(
+    covariance <- .hat_solve_crossprod(
       crossprod(X, WX),
       rank = attr(X, "rank")
     )
+    if (is.null(transform)) {
+      vcov_sum <- vcov_sum + covariance
+    } else {
+      value <- transform(covariance)
+      if (is.null(values)) values <- matrix(NA_real_, nrow = S, ncol = length(value))
+      values[s, ] <- value
+    }
   }
+
+  if (!is.null(transform)) return(values)
 
   vcov <- vcov_sum / S
   if (!is.null(colnames(X))) {
@@ -741,14 +759,21 @@ print.vif.brma <- function(x, digits = 3, ...) {
 
   cat("\nVariance Inflation Factors:\n")
 
-  if (all(vif_df$df == 1)) {
+  intervals <- grep("^CI_", names(vif_df), value = TRUE)
+  if (all(vif_df$df == 1) && !length(intervals)) {
     # simple VIF display (no GVIF columns needed)
     out        <- vif_df$GVIF
     names(out) <- vif_df$term
     print(round(out, digits))
   } else {
     # full GVIF display with term as rownames
-    print_df           <- vif_df[, -1, drop = FALSE]
+    print_df <- if (all(vif_df$df == 1)) {
+      out <- vif_df[, c("GVIF", intervals), drop = FALSE]
+      names(out)[1L] <- "VIF"
+      out
+    } else {
+      vif_df[, -1, drop = FALSE]
+    }
     rownames(print_df) <- vif_df$term
     print(round(print_df, digits))
   }
@@ -785,10 +810,8 @@ as.data.frame.vif.brma <- function(
   vif_table <- x[["vif"]]
   vif_parameter <- vif_table[["term"]]
   if (all(vif_table[["df"]] == 1)) {
-    vif_table <- data.frame(
-      VIF         = vif_table[["GVIF"]],
-      check.names = FALSE
-    )
+    vif_table <- vif_table[, c("GVIF", grep("^CI_", names(vif_table), value = TRUE)), drop = FALSE]
+    names(vif_table)[1L] <- "VIF"
   } else {
     vif_table[["term"]] <- NULL
   }

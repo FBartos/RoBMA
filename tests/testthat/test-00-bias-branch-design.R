@@ -111,21 +111,17 @@ test_that("models with one design use the union design", {
   ))
 })
 
-test_that("the ensemble table weights class GVIFs by their draw counts", {
+test_that("posterior VIF summaries retain absent-class draws as missing", {
 
-  tables <- list(
-    data.frame(term = "a", df = 1L, GVIF = 1, "GVIF^(1/(2*df))" = 1, check.names = FALSE),
-    data.frame(term = c("a", "PET"), df = c(1L, 1L), GVIF = c(2, 3),
-               "GVIF^(1/(2*df))" = sqrt(c(2, 3)), check.names = FALSE),
-    NULL
-  )
-  designs <- list(matrix(0), matrix(0), matrix(0))
-
-  full <- .vif_ensemble_table(tables, n_draws = c(2L, 6L, 0L), designs = designs)
+  template <- data.frame(term = c("a", "PET", "PEESE"), df = 1L,
+    GVIF = NA_real_, "GVIF^(1/(2*df))" = NA_real_, check.names = FALSE)
+  values <- cbind(c(1, 1, rep(2, 6)), c(NA, NA, rep(3, 6)), rep(NA_real_, 8))
+  included <- cbind(rep(TRUE, 8), c(FALSE, FALSE, rep(TRUE, 6)), rep(FALSE, 8))
+  full <- .vif_summarize_draws(values, template, 1:8, included = included)
 
   expect_identical(full[["term"]], c("a", "PET", "PEESE"))
   expect_equal(full[["GVIF"]], c(0.25 * 1 + 0.75 * 2, 3, NA_real_))
-  expect_equal(full[["GVIF^(1/(2*df))"]], sqrt(full[["GVIF"]]))
+  expect_equal(full[["GVIF^(1/(2*df))"]], c(.25 + .75 * sqrt(2), sqrt(3), NA_real_))
   expect_identical(names(full), c("term", "df", "GVIF", "GVIF^(1/(2*df))"))
 })
 

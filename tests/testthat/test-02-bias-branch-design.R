@@ -106,22 +106,23 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
   union <- .get_model_matrix(object)
   kinds <- .bbc_draw_kinds(object)
   tau   <- .bbc_tau(object)
-  if (!.is_scale(object) && !.is_multilevel(object)) {
-    # simple models plug in the posterior mean heterogeneity of all draws
-    tau[["tau_within"]][] <- mean(tau[["tau_within"]])
-  }
   gvif  <- list()
   count <- c(none = 0, PET = 0, PEESE = 0)
   for (kind in names(count)) {
     rows        <- which(kinds == kind)
     count[kind] <- length(rows)
     X           <- .bbc_design(union, kind)
-    gvif[[kind]] <- .bbc_gvif(.bbc_vcov(object, X, tau, rows))
+    gvif[[kind]] <- if (length(rows)) {
+      rowMeans(vapply(rows, function(s) .bbc_gvif(.bbc_vcov(object, X, tau, s)),
+                      numeric(ncol(X) - 1L)))
+    } else {
+      rep(NA_real_, ncol(X) - 1L)
+    }
   }
 
   list(
     gvif  = c(
-      sum(count * vapply(gvif, `[`, numeric(1L), 1L)) / sum(count),
+      sum(count[count > 0L] * vapply(gvif[count > 0L], `[`, numeric(1L), 1L)) / sum(count),
       gvif[["PET"]][2L],
       gvif[["PEESE"]][2L]
     ),
@@ -411,7 +412,7 @@ delayedAssign("bbd_kv_input", load_info("bias_branch_known_v_ensemble"))
 }
 
 # reference VIF table of the ensemble: location term x, then PET, PEESE
-.bbd_vif <- function(d, draws, rows = seq_along(draws[["tau"]])) {
+.bbd_vif <- function(d, draws, rows = seq_along(draws[["tau"]]), adjusted = FALSE) {
 
   vi    <- d[["sei"]]^2
   gvif  <- list()
@@ -423,9 +424,12 @@ delayedAssign("bbd_kv_input", load_info("bias_branch_known_v_ensemble"))
       next
     }
     X <- .bbd_design(d, kind)
-    # the coefficient covariance at the posterior mean heterogeneity of all draws
-    vcov <- solve(crossprod(X, X / (vi + mean(draws[["tau"]])^2)))
-    gvif[[kind]] <- .bbd_gvif(vcov)
+    values <- vapply(selected, function(s) {
+      covariance <- solve(crossprod(X, X / (vi + draws[["tau"]][s]^2)))
+      .bbd_gvif(covariance)
+    }, numeric(ncol(X) - 1L))
+    if (adjusted) values <- sqrt(values)
+    gvif[[kind]] <- rowMeans(values)
   }
   present <- names(count)[count > 0]
   x_gvif  <- sum(vapply(present, function(kind) {
@@ -610,7 +614,8 @@ test_that("VIF reports each member design's GVIF", {
   expect_identical(table[["term"]], c("x", "PET", "PEESE"))
   expect_identical(table[["df"]], c(1L, 1L, 1L))
   expect_equal(table[["GVIF"]], unname(expected), tolerance = 1e-10)
-  expect_equal(table[["GVIF^(1/(2*df))"]], unname(sqrt(expected)), tolerance = 1e-10)
+  expect_equal(table[["GVIF^(1/(2*df))"]],
+               unname(.bbd_vif(bbd_data, draws, adjusted = TRUE)), tolerance = 1e-10)
   expect_true(all(table[["GVIF"]] < 1.5))
 
   # the union design with both columns is nearly collinear

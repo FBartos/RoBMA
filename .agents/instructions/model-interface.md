@@ -11,6 +11,17 @@ by the fixed-effect rank or rescale metafor's reference values in comparisons.
 This deliberately changes the 4.0.0 convention; PSIS posterior deletion remains
 the Bayesian calculation, so classical refits need not give identical values.
 
+VIF/GVIF uses the design-based GLS covariance in each posterior draw, then
+summarizes the resulting diagnostic values (maintainer decision, 2026-10-26).
+Use the same convention for simple, scale, multilevel, and known-V models;
+neither a posterior-mean heterogeneity plug-in nor VIF of an averaged covariance
+is the posterior mean VIF. Average GVIF and its adjusted root separately.
+Retain the fitted location design and each draw's PET/PEESE design class.
+PET/PEESE summaries condition on their class being present; absent-class draws
+are unavailable, not zero. Optional credible intervals describe GVIF and
+optional diagnostic draws retain their original posterior row indices. Keep
+the empirical posterior coefficient correlation as its separate diagnostic.
+
 Coefficient influence diagnostics request coefficient-only tables, excluding
 declared inclusion indicators. COVRATIO retains ordered fitted totals and one
 independent basis per metadata-declared Dirichlet allocation source, deduplicating

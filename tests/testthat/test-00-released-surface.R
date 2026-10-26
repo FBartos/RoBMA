@@ -400,19 +400,22 @@ test_that("ranef() expands by default and blup() labels the true effects theta[i
   expect_false(identical(attr(estimate, "title"), "True Effects (BLUP Means)"))
 })
 
-test_that("vif() plugs in the posterior mean heterogeneity of a simple model", {
+test_that("vif() summarizes draw-wise variance inflation", {
 
   fit <- .surface_fit("mods2")
 
   X   <- .get_model_matrix(fit)
   vi  <- .surface_data()[["sei"]]^2
-  tau <- mean(as_draws_matrix(fit)[, "tau"])
-  covariance  <- solve(crossprod(X, X / (vi + tau^2)))
-  correlation <- stats::cov2cor(covariance)[-1L, -1L]
-  expected    <- diag(solve(correlation))
+  tau <- as_draws_matrix(fit)[, "tau"]
+  values <- vapply(tau, function(value) {
+    covariance <- solve(crossprod(X, X / (vi + value^2)))
+    correlation <- stats::cov2cor(covariance)[-1L, -1L]
+    diag(solve(correlation))
+  }, numeric(ncol(X) - 1L))
 
   actual <- vif(fit, posterior_correlation = FALSE)[["vif"]]
-  expect_equal(actual[["GVIF"]], unname(expected), tolerance = 1e-8)
+  expect_equal(actual[["GVIF"]], unname(rowMeans(values)), tolerance = 1e-8)
+  expect_equal(actual[["GVIF^(1/(2*df))"]], unname(rowMeans(sqrt(values))), tolerance = 1e-8)
 })
 
 test_that("cooks.distance() retains metafor's unscaled convention at rank three", {

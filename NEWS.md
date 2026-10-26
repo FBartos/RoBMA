@@ -1,4 +1,5 @@
 ## version 4.1.0 (IN PROGRESS)
+- `vif()` now computes design-based VIF/GVIF in each posterior draw and reports posterior means consistently for simple, location-scale, multilevel, and known-V models. GVIF and its adjusted root are averaged separately. Optional `probs` adds GVIF credible intervals, and `include_samples = TRUE` adds aligned diagnostic draws; the default result layout and separate posterior coefficient correlation are retained.
 - Product-selection cluster and factor quadrature no longer loosen their
   calibrated deterministic acceptance checks above `relative_tolerance = 0.005`.
   This fixes reproduced cases where coarse rules were accepted with errors far
