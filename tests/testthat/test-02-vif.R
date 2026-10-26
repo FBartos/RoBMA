@@ -660,9 +660,11 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
 
   object      <- fits[[name]]
   known_V     <- .data_known_v_data(object[["data"]])
-  random_vcov <- BayesTools::random_effects_marginal_vcov(
-    fit       = object[["fit"]],
-    parameter = "mu"
+  # The scale formula supplies row-specific external SDs through RoBMA's
+  # adapter; these derived values are not monitored columns in the raw fit.
+  random_vcov <- .brma_mv_random_effects_marginal_vcov(
+    object            = object,
+    posterior_samples = .get_posterior_samples(object[["fit"]])
   )
   covariance_samples <- .known_v_marginal_covariance_samples(object)
 
