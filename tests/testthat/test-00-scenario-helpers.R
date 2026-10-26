@@ -2252,8 +2252,7 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     envir = helper_env
   )
 
-  # metafor's Cook's distance is unscaled and RoBMA's is divided by the rank p of
-  # the fixed-effect model matrix, so the helper divides the reference by its p.
+  # Keep raw Cook's distances even when the reference has more than one coefficient.
   reference <- structure(
     list(role = "reference", offset = 0, p = 2),
     class = "scenario_diagnostic_fit"
@@ -2280,7 +2279,6 @@ test_that("plot_marginal_diagnostics compares the shared marginal targets", {
     DFBETAS          = matrix(c(9, 10), ncol = 1L)
   )
   expected_reference <- expected_estimate
-  expected_reference[["Cooks distance"]] <- c(7, 8) / 2
   expect_equal(
     lapply(state[["plots"]], `[[`, "reference"),
     expected_reference

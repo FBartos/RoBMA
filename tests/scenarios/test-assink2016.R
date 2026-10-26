@@ -854,8 +854,7 @@ testthat::test_that("Assink bPET and bPET.mv models", {
       "Residuals"      = as.numeric(stats::residuals(fit_metafor)),
       "Rstandard"      = stats::rstandard(fit_metafor)[["z"]],
       "Hat values"     = as.numeric(stats::hatvalues(fit_metafor)),
-      # metafor's Cook's distance is unscaled; RoBMA's is divided by the rank p
-      "Cooks distance" = stats::cooks.distance(fit_metafor) / fit_metafor[["p"]],
+      "Cooks distance" = stats::cooks.distance(fit_metafor),
       "DFBETAS"        = unlist(stats::dfbetas(fit_metafor))
     )
     bPET_values <- list(

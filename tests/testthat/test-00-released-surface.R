@@ -415,21 +415,21 @@ test_that("vif() plugs in the posterior mean heterogeneity of a simple model", {
   expect_equal(actual[["GVIF"]], unname(expected), tolerance = 1e-8)
 })
 
-test_that("cooks.distance() divides by the rank of the model matrix", {
+test_that("cooks.distance() retains metafor's unscaled convention at rank three", {
 
   fit <- suppressWarnings(add_loo(.surface_fit("mods2")))
   rank <- qr(.get_model_matrix(fit))[["rank"]]
   expect_identical(rank, 3L)
 
   distance <- suppressWarnings(cooks.distance(fit))
-  expect_identical(.cooks_distance_rank(fit), rank)
   unscaled <- suppressWarnings(
     .cooks.distance_internal(
       .influence_fit_samples(fit),
       .diagnostic_psis_context(fit)[["psis_weights"]]
     )
   )
-  expect_equal(unname(distance), unname(unscaled) / rank, tolerance = 1e-10)
+  expect_equal(unname(distance), unname(unscaled), tolerance = 1e-10)
+  expect_gt(max(unscaled), 0)
   expect_equal(
     unname(suppressWarnings(influence(fit))[["inf"]][["cook.d"]]),
     unname(distance),

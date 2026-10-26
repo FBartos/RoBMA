@@ -114,7 +114,7 @@ influence.brma <- function(model, ...) {
     )
     dffits_val  <- .dffits_internal(fit_samples, loo_wts, fit_summary)
     cook_val    <- .cooks.distance_internal(
-      fit_samples, loo_wts, fit_summary, P = .cooks_distance_rank(model)
+      fit_samples, loo_wts, fit_summary
     )
     cov_val     <- covratio.brma(model, .weights = loo_wts)
     cov_note    <- attr(cov_val, "note")
@@ -174,7 +174,7 @@ influence.brma <- function(model, ...) {
   # Cook's Distance
   if (outcome_type == "norm" && !is_weightfunction) {
     cook_val <- .cooks.distance_internal(
-      fit_samples, loo_wts, fit_summary, P = .cooks_distance_rank(model)
+      fit_samples, loo_wts, fit_summary
     )
   }
 

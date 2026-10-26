@@ -5,6 +5,12 @@ parameter metadata, summaries, selectors, and public result interfaces.
 
 ## Formula ownership
 
+Cook's distance uses the unscaled squared posterior Mahalanobis distance,
+matching metafor's convention (maintainer decision, 2026-10-26). Do not divide
+by the fixed-effect rank or rescale metafor's reference values in comparisons.
+This deliberately changes the 4.0.0 convention; PSIS posterior deletion remains
+the Bayesian calculation, so classical refits need not give identical values.
+
 Coefficient influence diagnostics request coefficient-only tables, excluding
 declared inclusion indicators. COVRATIO retains ordered fitted totals and one
 independent basis per metadata-declared Dirichlet allocation source, deduplicating

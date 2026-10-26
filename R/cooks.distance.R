@@ -22,17 +22,17 @@
 #' @details
 #' Cook's distance is computed as a PSIS leave-one-out deletion diagnostic. For
 #' each observation \eqn{i}, normalized PSIS weights estimate the fitted values
-#' under the leave-one-out posterior. The distance is the posterior Mahalanobis
-#' distance between the full-data and leave-one-out fitted-value vectors,
-#' divided by the rank of the fixed-effect model matrix:
-#' \deqn{D_i = \frac{\Delta_i' V_\mu^+ \Delta_i}{P}}
+#' under the leave-one-out posterior. The distance is the squared posterior
+#' Mahalanobis distance between the full-data and leave-one-out fitted-value
+#' vectors:
+#' \deqn{D_i = \Delta_i' V_\mu^+ \Delta_i}
 #'
 #' where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
-#' generalized inverse of the full-posterior fitted-value covariance, and
-#' \eqn{P} is the rank of the fixed-effect model matrix (the convention of
-#' Cook's distance for linear models; the unscaled squared Mahalanobis distance
-#' used for meta-analysis by \insertCite{viechtbauer2010outlier;textual}{RoBMA}
-#' is \eqn{P} times this value).
+#' generalized inverse of the full-posterior fitted-value covariance. This uses
+#' the unscaled meta-analytic convention of \pkg{metafor} and
+#' \insertCite{viechtbauer2010outlier;textual}{RoBMA}, without division by the
+#' fixed-effect model rank. Values can differ from \pkg{metafor} because RoBMA
+#' uses posterior moments and PSIS deletion rather than classical refits.
 #' For \code{brma.mv()} known-\code{V} models, Cook's distance uses
 #' estimate-unit PSIS weights. With correlated known-\code{V}, deletion is
 #' conditional estimate deletion and the reported fitted-value target is the
@@ -69,8 +69,7 @@ cooks.distance.brma <- function(model, ...) {
 
   fit_samples <- .influence_fit_samples(model)
   weights     <- psis_context[["psis_weights"]]
-  P           <- .cooks_distance_rank(model)
-  d_vec       <- .cooks.distance_internal(fit_samples, weights, P = P)
+  d_vec       <- .cooks.distance_internal(fit_samples, weights)
   d_vec       <- .diagnostic_set_names(d_vec, model)
   if (inherits(model, "brma.mv")) {
     d_vec <- .brma_mv_attach_target_metadata(d_vec, "cooks.distance()")
@@ -79,14 +78,7 @@ cooks.distance.brma <- function(model, ...) {
   return(d_vec)
 }
 
-# The rank of the fixed-effect model matrix that scales Cook's distance.
-.cooks_distance_rank <- function(model) {
-
-  return(qr(.get_model_matrix(model))[["rank"]])
-}
-
-.cooks.distance_internal <- function(fit_samples, weights, summary = NULL,
-                                     P = 1L) {
+.cooks.distance_internal <- function(fit_samples, weights, summary = NULL) {
 
   if (is.null(summary)) {
     summary <- .psis_influence_summary(
@@ -109,7 +101,7 @@ cooks.distance.brma <- function(model, ...) {
   vcov_fit <- stats::cov(summary[["samples"]][, variable, drop = FALSE])
   vcov_inv <- .symmetric_ginv(vcov_fit)
 
-  d_vec <- rowSums((delta %*% vcov_inv) * delta) / max(P, 1L)
+  d_vec <- rowSums((delta %*% vcov_inv) * delta)
   names(d_vec) <- colnames(fit_samples)
 
   return(d_vec)

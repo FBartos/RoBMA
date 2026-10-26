@@ -2341,14 +2341,12 @@ ex.default <- function(fit, parameter, component = NULL, statistic = NULL, ...) 
     return(values)
   }
 
-  # RoBMA divides Cook's distance by the rank p of the fixed-effect model matrix
-  # (the 4.0.0 convention); metafor's value is unscaled, so divide it by the
-  # same p to compare like with like.
+  # Both packages use the unscaled meta-analytic Cook's distance convention.
   return(list(
     "Residuals"      = as.numeric(stats::residuals(fit)),
     "Rstandard"      = stats::rstandard(fit)[["z"]],
     "Hat values"     = as.numeric(stats::hatvalues(fit)),
-    "Cooks distance" = stats::cooks.distance(fit) / fit[["p"]],
+    "Cooks distance" = stats::cooks.distance(fit),
     "DFBETAS"        = unlist(stats::dfbetas(fit))
   ))
 }

@@ -587,8 +587,7 @@ testthat::test_that("BCG Meta-Regression", {
     "Hat values"          = metafor::hatvalues.rma.uni(fit_reg3_metafor),
     "DFBETAS"             = unlist(unclass(fit_reg3_dfbetas_metafor)[seq_len(ncol(fit_reg3_dfbetas))], use.names = FALSE),
     "DFFITS"              = fit_reg3_influence_metafor[["inf"]][["dffits"]],
-    # metafor's Cook's distance is unscaled; RoBMA's is divided by the rank p
-    "Cook's distance"     = fit_reg3_influence_metafor[["inf"]][["cook.d"]] / fit_reg3_metafor[["p"]],
+    "Cook's distance"     = fit_reg3_influence_metafor[["inf"]][["cook.d"]],
     "COVRATIO"            = fit_reg3_influence_metafor[["inf"]][["cov.r"]]
   )
   scenario_plot("fit_reg3_diagnostic_comparison", {

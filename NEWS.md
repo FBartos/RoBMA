@@ -1,4 +1,9 @@
 ## version 4.1.0 (IN PROGRESS)
+- `cooks.distance()` and the Cook's distance column of `influence()` use the
+  unscaled squared posterior Mahalanobis distance, matching metafor's scaling
+  convention. Compared with 4.0.0, values are multiplied by the fixed-effect
+  model rank; intercept-only models are unchanged. Bayesian PSIS deletion can
+  still differ numerically from metafor's classical refits.
 - Single-threaded selected-density evaluation avoids redundant compression
   arithmetic and uses the existing Gaussian recurrence for safe singleton
   components, retaining the original scalar fallback. The bounded post-fit CDF

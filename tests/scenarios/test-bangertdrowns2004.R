@@ -121,8 +121,7 @@ testthat::test_that("Bangertdrowns location-scale models", {
     "Hat values"          = metafor::hatvalues.rma.uni(metafor_l),
     "DFBETAS"             = unlist(unclass(fit_l_dfbetas_metafor)[seq_len(ncol(fit_l_dfbetas))], use.names = FALSE),
     "DFFITS"              = fit_l_influence_metafor[["inf"]][["dffits"]],
-    # metafor's Cook's distance is unscaled; RoBMA's is divided by the rank p
-    "Cook's distance"     = fit_l_influence_metafor[["inf"]][["cook.d"]] / metafor_l[["p"]],
+    "Cook's distance"     = fit_l_influence_metafor[["inf"]][["cook.d"]],
     "COVRATIO"            = fit_l_influence_metafor[["inf"]][["cov.r"]]
   )
   scenario_plot("fit_l_diagnostic_comparison", {
