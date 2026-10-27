@@ -478,19 +478,19 @@ test_that("JAGS reports the failed sampling-normalizer diagnostic and applicable
     diagnostic <- .sampling_native_mass(args)
     if (criterion == "mcse") {
       expect_gt(diagnostic$relative_mcse, args$relative_tolerance)
-      expected <- sprintf(paste0(
-        "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %g",
-        " (accepted when 2.36 times the standard error is within 'relative_tolerance'). ",
-        "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
-      ), diagnostic$relative_mcse)
     } else {
       expect_lte(diagnostic$relative_mcse, args$relative_tolerance)
       expect_gt(diagnostic$relative_change, args$relative_tolerance)
-      expected <- sprintf(paste0(
-        "Selection normalizer was rejected by diagnostics: relative nested-design change was %g. ",
-        "Increase 'max_points_per_scramble' in 'selection_control'."
-      ), diagnostic$relative_change)
     }
+    # one message for either criterion, as the cluster and factor nodes
+    expected <- sprintf(paste0(
+      "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %g",
+      " and refinement/design relative change was %g",
+      " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance').",
+      " Diagnostics cover deterministic refinement or randomized integration; ",
+      "rank-one product fallback uses a deterministic work budget. ",
+      "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
+    ), diagnostic$relative_mcse, diagnostic$relative_change)
     V <- diag(4)
     data <- list(y = rep(0, 4), m = rep(0, 4), C = V[lower.tri(V, diag = TRUE)],
                  d = rep(0, 4), L = as.vector(loading), e0 = rep(0, 4), u0 = rep(0, 4),

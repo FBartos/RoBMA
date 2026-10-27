@@ -287,3 +287,80 @@ test_that("JAGS reports a positive diagnostic smaller than one millionth", {
   expect_identical(trimws(sub("^RUNTIME ERROR:\n", "", conditionMessage(condition))),
     expected)
 })
+
+
+test_that("the conditioned-sampling JAGS node reports a refused rank-one work budget as the R judge does", {
+
+  skip_if_not_installed("rjags")
+  K     <- 8L
+  mean  <- .1 * seq_len(K)
+  rules <- .selection_joint_cluster_quadrature_rules(c(1L, 3L, 5L))
+  factor_rules <- .selection_joint_factor_quadrature_rules()
+  design <- function(points, scrambles) {
+    BayesTools::selection_qmc_design(
+      dimensions = 2L * K, points = points, scrambles = scrambles, seed = 341L
+    )
+  }
+  # Eight parallel rows with distinct means and positive residuals: the fast
+  # rules decline, so the integral goes to the rank-one bounds, which a budget
+  # of four points and two scrambles cannot resolve. The refusal is
+  # deterministic: no Monte Carlo error is involved.
+  native <- function(points, scrambles) {
+    .Call("RoBMA_selnorm_conditioned_normalizer_batch",
+      matrix(mean, 1L), matrix(rep(.04, K), 1L), matrix(rep(1, K), 1L), 1L,
+      rep(1, K), matrix(c(1, .2), 1L), c(0, -Inf), c(Inf, 0), 1L, 1L, FALSE, 0L,
+      rep(1L, K), as.double(design(points, scrambles)), as.integer(points),
+      as.integer(points), as.integer(scrambles), .005,
+      as.double(rules$nodes), as.double(rules$log_weights), as.double(rules$orders),
+      as.double(factor_rules$nodes), as.double(factor_rules$log_weights),
+      as.double(factor_rules$orders), PACKAGE = "RoBMA")
+  }
+  refused <- native(4L, 2L)
+  expect_true(is.nan(refused$log_normalizer))
+  expect_identical(refused$relative_mcse, Inf)
+  expect_identical(refused$relative_change, Inf)
+  accepted <- native(64L, 8L)
+  expect_true(is.finite(accepted$log_normalizer))
+  expect_lte(max(.selection_qmc_z() * accepted$relative_mcse, accepted$relative_change), .005)
+
+  syntax <- paste0(
+    "model {\n beta ~ dnorm(0,1)\n for (j in 1:", K, ") {location[j] <- m[j]+beta}\n",
+    "y[1:", K, "] ~ dselnorm_sampling_conditioned(",
+    "location[1:", K, "],C[1:", K * (K + 1L) / 2L, "],d[1:", K, "],L[1:", K, "],1,",
+    "e0[1:", K, "],u0[1:", K, "],se[1:", K, "],w[1:2],lo[1:2],hi[1:2],bins[1:", K,
+    "],1,1,0,0,grp[1:", K, "],qmc[1:Q],4,4,2,tol,cn,cl,co,fn,fl,fo) }"
+  )
+  V <- diag(K)
+  data <- list(y = rep(0, K), m = mean, C = V[lower.tri(V, diag = TRUE)],
+    d = rep(.04, K), L = rep(1, K), e0 = rep(0, K), u0 = rep(0, K), se = rep(1, K),
+    w = c(1, .2), lo = c(0, -1e300), hi = c(1e300, 0), bins = rep(1, K),
+    grp = rep(1, K), qmc = as.double(design(4L, 2L)), Q = length(design(4L, 2L)),
+    tol = .005, cn = as.double(rules$nodes), cl = as.double(rules$log_weights),
+    co = as.double(rules$orders), fn = as.double(factor_rules$nodes),
+    fl = as.double(factor_rules$log_weights), fo = as.double(factor_rules$orders))
+  connection <- textConnection(syntax)
+  on.exit(close(connection), add = TRUE)
+  condition <- tryCatch(rjags::jags.model(
+    connection, data = data, n.chains = 1L, n.adapt = 0L, quiet = TRUE,
+    inits = list(beta = 0, .RNG.name = "base::Wichmann-Hill", .RNG.seed = 1L)
+  ), error = identity)
+  expect_s3_class(condition, "error")
+  expect_true(startsWith(conditionMessage(condition), "RUNTIME ERROR:\n"))
+  message <- trimws(sub("^RUNTIME ERROR:\n", "", conditionMessage(condition)))
+  expect_identical(message, paste0(
+    "Selection normalizer was rejected by diagnostics: relative Monte Carlo ",
+    "standard error was inf and refinement/design relative change was inf",
+    " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance').",
+    " Diagnostics cover deterministic refinement or randomized integration; ",
+    "rank-one product fallback uses a deterministic work budget. ",
+    "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
+  ))
+
+  # the R judge of the same diagnostics gives the same diagnosis; only its
+  # remedy names the controls of the R entry points
+  judge <- tryCatch(.selection_conditioned_sampling_diagnostics(
+    refused, list(relative_tolerance = .005)), error = identity)
+  diagnosis <- function(text) sub(" Increase .*$", "", text)
+  expect_identical(diagnosis(gsub("Inf", "inf", conditionMessage(judge), fixed = TRUE)),
+    diagnosis(message))
+})

@@ -445,8 +445,11 @@ test_that("the conditioned-sampling JAGS wrapper and loop judge the scaled error
   }
   expect_identical(.test_qmc_jags(syntax, data(inside)), sprintf(paste0(
     "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error was %g",
-    " (accepted when 2.36 times the standard error is within 'relative_tolerance'). ",
-    "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."), mcse))
+    " and refinement/design relative change was %g",
+    " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance').",
+    " Diagnostics cover deterministic refinement or randomized integration; ",
+    "rank-one product fallback uses a deterministic work budget. ",
+    "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."), mcse, change))
   expect_null(.test_qmc_jags(syntax, data(z * mcse * (1 + 1e-9))))
 
   # the loop itself, with room to refine from 64 to 256 points: the first stage is

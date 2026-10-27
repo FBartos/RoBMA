@@ -118,20 +118,17 @@ double DSELNORMSAMPLINGCONDITIONED::logDensity(double const *x,
     groups.data(), par[17], static_cast<int>(*par[18]), static_cast<int>(*par[19]),
     static_cast<int>(*par[20]), *par[21], &mcse, &change, e.data(), delta.data(),
     &normalizer, quadrature);
-  if (!std::isfinite(mcse) || selnorm_qmc_z * mcse > *par[21]) {
+  // One judge and one message for every rejection, as the cluster and factor
+  // nodes: a refusal of the deterministic rank-one work budget reports the
+  // diagnostics as infinite, which is not a Monte Carlo error.
+  if (selnorm_qmc_diagnostic(mcse, change) > *par[21]) {
     char message[512];
     std::snprintf(message, sizeof(message),
-      "Selection normalizer was rejected by diagnostics: relative Monte Carlo standard error "
-      "was %g" SELNORM_QMC_CRITERION_ERROR_ONLY
-      ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'.",
-      mcse, selnorm_qmc_z);
-    throw std::runtime_error(message);
-  }
-  if (!std::isfinite(change) || change > *par[21]) {
-    char message[512];
-    std::snprintf(message, sizeof(message),
-      "Selection normalizer was rejected by diagnostics: relative nested-design change "
-      "was %g. Increase 'max_points_per_scramble' in 'selection_control'.", change);
+      "Selection normalizer was rejected by diagnostics: "
+      "relative Monte Carlo standard error was %g and refinement/design "
+      "relative change was %g" SELNORM_QMC_CRITERION_WITH_CHANGE
+      "." SELNORM_INTEGRATION_METHODS " Increase 'max_points_per_scramble' "
+      "or 'scrambles' in 'selection_control'.", mcse, change, selnorm_qmc_z);
     throw std::runtime_error(message);
   }
   return std::isfinite(value) ? value : JAGS_NEGINF;
