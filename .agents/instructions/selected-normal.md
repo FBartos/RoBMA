@@ -295,6 +295,11 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   segment masses, counts against `2*max_points*scrambles*active_groups*excess_bins`.
   Active leaves obey `min(SELNORM_FACTOR_NODE_BUDGET,2*max_points*scrambles)`;
   the tree has `2*next_power_of_two(leaf_cap)` slots and heap at most leaf_cap.
+  `max_points` is the kernel argument: R passes `ceiling(max_points_per_scramble/2)`
+  (the execution plan's `factor_max_points_per_proposal`), so the user-facing ceiling
+  is `max_points_per_scramble` (rounded up to even) `*scrambles*active_groups*excess_bins`
+  scalar calls and `min(SELNORM_FACTOR_NODE_BUDGET, max_points_per_scramble*scrambles)`
+  leaves, half of what a reading of `max_points` as the R value would give.
   There are no group/bin arrays per leaf. Initial points still initialize QMC
   routes only. Nonfinite transition hints may be omitted while retaining full
   domain coverage; nonfinite actual bound arithmetic refuses.

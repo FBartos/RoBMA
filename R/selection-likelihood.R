@@ -208,10 +208,12 @@ SELNORM_FACTOR_NODE_BUDGET <- 262144
 #' In fitting and qCMDE/IWMDE likelihood evaluation, the maximum point budget
 #' controls factor QMC fallback and the rank-one product refinement work ceiling.
 #' For rank-one refinement, `max_points_per_scramble` and `scrambles` allow at
-#' most twice their product times the active exact row-group count times the
-#' positive excess-weight bin count in scalar probability evaluations. This
-#' includes latent interval masses and bound preparation. Active intervals also
-#' obey the existing native node ceiling. `points_per_scramble` initializes QMC
+#' most their product (with `max_points_per_scramble` rounded up to an even
+#' number) times the active exact row-group count times the positive
+#' excess-weight bin count in scalar probability evaluations. This includes
+#' latent interval masses and bound preparation. Active intervals are limited
+#' to the same product and to the existing native node ceiling.
+#' `points_per_scramble` initializes QMC
 #' routes only. Post-fit full-event and partial-event
 #' calculations, including z-plots and sensitivity diagnostics, also refine
 #' dense QMC evaluations up to that budget. Analytic and deterministic
