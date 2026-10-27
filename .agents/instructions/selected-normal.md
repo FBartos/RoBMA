@@ -246,7 +246,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   empirical diagnostic, not a claimed error bound.
 - Refinement tier: when the ladder rejects every affordable rung, rank-one
   clusters, tensors of rank at most two and forests of depth at most one try, before Smolyak and
-  the randomized fallback, the average of the finest affordable rung over the
+  the randomized fallback (for rank-one product clusters, the bounded product
+  fallback below), the average of the finest affordable rung over the
   shifts `(m/4) h` per axis, `m = 0..3` and `h` the gap above, which keeps only
   aliasing harmonics that are multiples of 4 (leaves are averaged
   independently per leaf at each root shift, then multiplied). It is accepted
@@ -260,7 +261,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   error of the harmonics they cannot see does not shrink with `tol` (at `tol`
   of 1e-3 and 3e-4 walls of about a thousand coincident rows were accepted with
   errors of 1.5 and 1.2 times `tol`); below it, blocks the ladder rejects go on
-  to the Smolyak grid and the randomized fallback. The tier's sharpness gate
+  to the Smolyak grid and the randomized fallback, except rank-one product
+  clusters, which go to the bounded product fallback below at every tolerance
+  (best rules and higher ranks keep the randomized fallback). The tier's sharpness gate
   asks for an edge width of at least `sqrt(max(1, 2 log N)) / 8` times the node
   gap on each axis, `N` the number of rows with a nonzero loading on that axis
   (all of them, including nearby and coupled rows):
