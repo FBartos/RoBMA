@@ -544,14 +544,22 @@
 # The random-effect quantities that summary() reports as NA on the original
 # scale because the fitted random block cannot represent them, by catalog name,
 # with the note of the row under RoBMA's argument. BayesTools owns the rule: it
-# is read from the table summary() is built from, so both tables agree.
-.brma_mv_original_scale_unavailable <- function(object) {
+# is read from the table summary() is built from, so both tables agree. The set
+# depends on the design alone, so the table is built on a few draws of the fit,
+# not on all of them.
+.brma_mv_original_scale_unavailable <- function(object, n_draws = 3L) {
 
-  if (!.is_random(object) || is.null(object[["fit"]]) ||
-      length(attr(object[["fit"]], "formula_scale", exact = TRUE)) == 0L) {
+  fit <- object[["fit"]]
+  if (!.is_random(object) || is.null(fit) ||
+      length(attr(fit, "formula_scale", exact = TRUE)) == 0L) {
     return(character())
   }
 
+  draws <- as.matrix(.get_posterior_samples(fit))
+  keep  <- unique(round(seq(1, nrow(draws), length.out = min(nrow(draws), n_draws))))
+  object[["fit"]] <- BayesTools::JAGS_with_draws(
+    fit, coda::mcmc.list(coda::mcmc(draws[keep, , drop = FALSE]))
+  )
   table <- .summary_estimates_table(
     object                   = object,
     probs                    = c(.025, .975),
@@ -562,22 +570,26 @@
     random_effects_summary   = "full",
     formula_prefix           = FALSE
   )
-  table <- .summary_translate_scale_advice(table)
+  table      <- .summary_translate_scale_advice(table)
   footnotes  <- attr(table, "footnotes", exact = TRUE)
   parameters <- attr(table, "parameters", exact = TRUE)
-  rows       <- match(names(footnotes), rownames(table))
-  rows       <- rows[!is.na(rows) & is.na(table[rows, "Mean"])]
-  if (length(rows) == 0L) {
+  if (length(footnotes) == 0L) {
     return(character())
   }
 
-  notes <- vapply(rows, function(row) {
-    note   <- footnotes[[rownames(table)[row]]]
-    prefix <- paste0(rownames(table)[row], ": ")
-    if (startsWith(note, prefix)) substring(note, nchar(prefix) + 1L) else note
-  }, character(1))
+  # A row is unavailable when it is NA with the BayesTools note of an NA row
+  # ("<row>: NA: <reason>").
+  notes <- stats::setNames(rep(NA_character_, nrow(table)), parameters)
+  for (row in seq_len(nrow(table))) {
+    prefix    <- paste0(rownames(table)[row], ": NA: ")
+    note      <- footnotes[names(footnotes) == rownames(table)[row]]
+    note      <- note[startsWith(note, prefix)]
+    if (length(note) > 0L && is.na(table[row, "Mean"])) {
+      notes[[row]] <- substring(note[[1L]], nchar(prefix) - 3L)
+    }
+  }
 
-  return(stats::setNames(notes, parameters[rows]))
+  return(notes[!is.na(notes)])
 }
 
 
