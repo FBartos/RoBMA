@@ -104,7 +104,7 @@ summary_heterogeneity <- function(object, ...) {
 #' original predictor scale (a fitted block that cannot represent it, for
 #' example the intercept SD and the intercept correlations of a block with
 #' factor-specific slopes of a standardized predictor) is \code{NA} here too,
-#' with the same row note.
+#' with a row note.
 #' Public random-effect correlations (`rho`) are included in their component's
 #' table,
 #' including homogeneous structures such as \code{ar()}, \code{cs()}, and

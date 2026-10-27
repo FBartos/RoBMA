@@ -122,9 +122,13 @@ test_that("summary_heterogeneity() reports the rows that summary() shows as NA a
   notes <- attr(estimates, "footnotes", exact = TRUE)
   expect_identical(names(notes), na_rows)
   expect_true(all(startsWith(notes, paste0(na_rows, ": NA: "))))
+  # summary() adds the remedy of its own argument; this table has none to name
+  # (standardized_coefficients does not change it, and summary() never shows
+  # its tau rows)
   summary_notes <- attr(random, "footnotes", exact = TRUE)
-  expect_identical(notes[summary_na], summary_notes[summary_na])
-  expect_true(all(endsWith(notes, " Use 'standardized_coefficients = TRUE' for fitted-scale values.")))
+  expect_identical(notes[summary_na], sub("\\. Use .*$", ".", summary_notes[summary_na]))
+  expect_false(any(grepl("Use '", notes, fixed = TRUE)))
+  expect_false(any(grepl("standardized_coefficients|transform_scaled", notes)))
 
   printed <- utils::capture.output(print(result))
   expect_equal(sum(grepl(": NA: the original-scale value is unavailable", printed, fixed = TRUE)), 4L)

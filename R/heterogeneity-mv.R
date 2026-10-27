@@ -543,10 +543,9 @@
 
 # The random-effect quantities that summary() reports as NA on the original
 # scale because the fitted random block cannot represent them, by catalog name,
-# with the note of the row under RoBMA's argument. BayesTools owns the rule: it
-# is read from the table summary() is built from, so both tables agree. The set
-# depends on the design alone, so the table is built on a few draws of the fit,
-# not on all of them.
+# with the note of the row. BayesTools owns the rule: it is read from the table
+# summary() is built from, so both tables agree. The set depends on the design
+# alone, so the table is built on a few draws of the fit, not on all of them.
 .brma_mv_original_scale_unavailable <- function(object, n_draws = 3L) {
 
   fit <- object[["fit"]]
@@ -570,7 +569,6 @@
     random_effects_summary   = "full",
     formula_prefix           = FALSE
   )
-  table      <- .summary_translate_scale_advice(table)
   footnotes  <- attr(table, "footnotes", exact = TRUE)
   parameters <- attr(table, "parameters", exact = TRUE)
   if (length(footnotes) == 0L) {
@@ -578,14 +576,15 @@
   }
 
   # A row is unavailable when it is NA with the BayesTools note of an NA row
-  # ("<row>: NA: <reason>").
+  # ("<row>: NA: <reason>"). The remedy sentence of that note names an argument
+  # of the BayesTools table, which this table does not have.
   notes <- stats::setNames(rep(NA_character_, nrow(table)), parameters)
   for (row in seq_len(nrow(table))) {
     prefix    <- paste0(rownames(table)[row], ": NA: ")
     note      <- footnotes[names(footnotes) == rownames(table)[row]]
     note      <- note[startsWith(note, prefix)]
     if (length(note) > 0L && is.na(table[row, "Mean"])) {
-      notes[[row]] <- substring(note[[1L]], nchar(prefix) - 3L)
+      notes[[row]] <- sub("\\. Use .*$", ".", substring(note[[1L]], nchar(prefix) - 3L))
     }
   }
 
