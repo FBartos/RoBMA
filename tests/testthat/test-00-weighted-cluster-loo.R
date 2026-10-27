@@ -47,34 +47,26 @@ test_that("weighted deletion preserves singleton priors and whole-row replicatio
   }
 })
 
-test_that("weighted deletion does not lose dominant-row exclusions or aligned extremes", {
+test_that("weighted deletion refuses representability limits and preserves ordinary cancellation", {
 
-  # Precision and latent variance exceed the double range, but all predictive
-  # log scores and SDs remain representable. The small prior residual matters.
   for(power in c(100, 150)){
     a <- rep(10^power, 3L)
     sd <- rep(10^(-power), 3L)
-    w <- c(.5, 1, 2)
-    value <- .weighted_normal_cluster_deletion(matrix(a, 1L), matrix(sd, 1L),
-      matrix(a, 1L), w, list(1:3))
-    for(i in 1:3){
-      retained <- sum(w[-i])
-      expected <- -w[i] * (log(2 * pi) / 2 + log(sd[i])) - .5 * log1p(w[i] / retained)
-      expect_equal(value$log_score[1L, i], expected, tolerance = 1e-10)
-      expect_equal(value$log_sd[1L, i], log(sd[i]) + .5 * log1p(1 / retained), tolerance = 1e-12)
-    }
+    expect_error(.weighted_normal_cluster_deletion(matrix(a, 1L), matrix(sd, 1L),
+      matrix(a, 1L), c(.5, 1, 2), list(1:3)),
+      class = "RoBMA_weighted_gaussian_unavailable")
   }
-  w <- c(1e200, 1, 2)
-  value <- .weighted_normal_cluster_deletion(matrix(c(1, 2, 3), 1L),
-    matrix(1, 1L, 3L), matrix(1, 1L, 3L), w, list(1:3))
-  expect_equal(value$shift[1L, 1L], 2, tolerance = 1e-12)
-  expect_equal(value$log_sd[1L, 1L], .5 * log(1.25), tolerance = 1e-12)
-  cancelling <- .weighted_normal_cluster_deletion(matrix(c(1, 1e300, -1e300, 1), 1L),
-    matrix(1, 1L, 4L), matrix(1, 1L, 4L), rep(1, 4L), list(1:4))
-  expect_equal(cancelling$shift[1L, c(1, 4)], c(.25, .25), tolerance = 1e-12)
-  mantissa <- .weighted_normal_cluster_deletion(matrix(c(0, 2^52 + 1, -2^52), 1L),
-    matrix(c(.01, 1, 1), 1L), matrix(1, 1L, 3L), c(2, 1, 1), list(1:3))
-  expect_equal(mantissa$shift[1L, 1L], 1 / 3, tolerance = 1e-12)
+  for(w in c(2^120, 1e200)){
+    expect_error(.weighted_normal_cluster_deletion(matrix(c(1, 2, 3), 1L),
+      matrix(1, 1L, 3L), matrix(1, 1L, 3L), c(w, 1, 2), list(1:3)),
+      class = "RoBMA_weighted_gaussian_unavailable")
+  }
+  expect_error(.weighted_normal_cluster_deletion(matrix(c(1, 1e300, -1e300, 1), 1L),
+    matrix(1, 1L, 4L), matrix(1, 1L, 4L), rep(1, 4L), list(1:4)),
+    class = "RoBMA_weighted_gaussian_unavailable")
+  expect_error(.weighted_normal_cluster_deletion(matrix(c(0, 2^52 + 1, -2^52), 1L),
+    matrix(c(.01, 1, 1), 1L), matrix(1, 1L, 3L), c(2, 1, 1), list(1:3)),
+    class = "RoBMA_weighted_gaussian_unavailable")
   equivalent <- .weighted_normal_cluster_deletion(matrix(c(0, 1, -1), 1L),
     matrix(c(1, 1, 2), 1L), matrix(1, 1L, 3L), c(2, 1, 4), list(1:3))
   expect_equal(equivalent$shift[1L, 1L], 0, tolerance = 0)
@@ -83,21 +75,21 @@ test_that("weighted deletion does not lose dominant-row exclusions or aligned ex
   expect_equal(unequal$shift[1L, 1L], 0, tolerance = 0)
 })
 
-test_that("a large location does not erase the focal observation before deletion", {
+test_that("large locations are refused before deletion loses observation-scale information", {
 
   setup <- list(S = 1L, K = 2L, yi = c(1, 0), mu = matrix(-2^100, 1L, 2L),
     sei = c(2^-40, 1), tau_within = matrix(0, 1L, 2L), tau_between = matrix(1, 1L, 2L),
     weights = c(1, 2^120), cluster = list(1:2), data = list(), effect_direction = "positive")
-  actual <- .weighted_normal_cluster_summary_from_setup(setup)
-  mean <- -2^100 / (1 + 2^120)
-  sd <- sqrt(2^-80 + 1 / (1 + 2^120))
-  expect_equal(actual$mean[1L, 1L], mean, tolerance = 1e-12)
-  expect_equal(actual$log_density[1L, 1L], stats::dnorm(1, mean, sd, log = TRUE), tolerance = 1e-12)
-  expect_equal(actual$log_upper[1L, 1L], stats::pnorm(1, mean, sd, log.p = TRUE, lower.tail = FALSE), tolerance = 1e-12)
+  expect_error(.weighted_normal_cluster_summary_from_setup(setup),
+    class = "RoBMA_weighted_gaussian_unavailable")
   setup$yi <- rep(2^52 + 1, 2L)
   setup$mu[,] <- 2^52
   setup$sei <- c(1, 1)
   setup$weights <- c(2, 1)
+  expect_error(.weighted_normal_cluster_summary_from_setup(setup),
+    class = "RoBMA_weighted_gaussian_unavailable")
+  setup$yi <- rep(101, 2L)
+  setup$mu[,] <- 100
   actual <- .weighted_normal_cluster_summary_from_setup(setup)
   expected <- .weighted_normal_cluster_deletion(matrix(1, 1L, 2L), matrix(1, 1L, 2L),
     matrix(1, 1L, 2L), setup$weights, list(1:2))
@@ -114,6 +106,34 @@ test_that("a large location does not erase the focal observation before deletion
     predictive_summary = .weighted_normal_cluster_summary_from_setup(setup))
   expect_equal(moments$resid, as.numeric(expected$residual), tolerance = 1e-12)
   expect_equal(moments$se, as.numeric(exp(expected$log_sd)), tolerance = 1e-12)
+})
+
+test_that("weighted deletion handles flagged draws and dominating retained powers", {
+
+  residual <- rbind(c(.2, .3, -.1), c(0, 1, -1 + 1e-10), c(1, 1.5, 1.5))
+  weights <- c(2, 1, 1)
+  value <- .weighted_normal_cluster_deletion(residual, matrix(1, 3L, 3L),
+    matrix(1, 3L, 3L), weights, list(1:3))
+  for(i in 1:3){
+    precision <- 1 + sum(weights[-i])
+    shift <- rowSums(sweep(residual[, -i, drop = FALSE], 2L, weights[-i], `*`)) / precision
+    expect_equal(value$shift[, i], shift, tolerance = 1e-14)
+    expect_equal(value$residual[, i], residual[, i] - shift, tolerance = 1e-14)
+  }
+  value <- .weighted_normal_cluster_deletion(matrix(c(1, 2, 3), 1L),
+    matrix(1, 1L, 3L), matrix(1, 1L, 3L), c(1e12, 1, 2), list(1:3))
+  expect_equal(value$shift[1L, 1L], 2, tolerance = 1e-12)
+  expect_equal(value$log_sd[1L, 1L], .5 * log(1.25), tolerance = 1e-12)
+})
+
+test_that("ordinary weighted deletion does not invoke the fallback", {
+
+  testthat::local_mocked_bindings(
+    .weighted_cluster_deletion_fallback = function(...) stop("Unexpected fallback."),
+    .package = "RoBMA")
+  value <- .weighted_normal_cluster_deletion(matrix(c(.2, .3, .5), 2L, 3L, byrow = TRUE),
+    matrix(1, 2L, 3L), matrix(.4, 2L, 3L), c(.5, 1, 2), list(1:3))
+  expect_true(all(is.finite(value$log_score)))
 })
 
 .weighted_cluster_loo_replay <- function(direction = "positive", weights = c(.5, 1.5, 2, 1)) {
@@ -210,7 +230,7 @@ test_that("weighted location-scale regression scores use the evaluated row-speci
   }
 })
 
-test_that("weighted predictive residual means survive a negligible extreme PSIS draw", {
+test_that("weighted predictive residual moments refuse extreme location draws", {
 
   object <- brma(yi = c(2^53, 1), sei = c(1, 1), weights = c(2, 1), cluster = c(1, 1),
     measure = "GEN", only_data = TRUE)
@@ -219,23 +239,19 @@ test_that("weighted predictive residual means survive a negligible extreme PSIS 
     sei = c(1, 1), tau_within = matrix(0, 2L, 2L), tau_between = rbind(c(1, 1), c(0, 0)),
     weights = c(2, 1), cluster = list(1:2), data = object$data, priors = object$priors,
     effect_direction = "positive", outcome_type = "norm", is_weightfunction = FALSE)
-  summary <- .weighted_normal_cluster_summary_from_setup(setup)
-  actual <- .loo_predictive_moments_estimate(object, setup, NULL,
-    cbind(c(1, 2^-112), c(.5, .5)), summary)
-  expect_equal(actual$resid[1L], .5, tolerance = 1e-14)
-  expect_equal(actual$se[1L], 1.25, tolerance = 1e-14)
+  expect_error(.weighted_normal_cluster_summary_from_setup(setup),
+    class = "RoBMA_weighted_gaussian_unavailable")
 })
 
-test_that("weighted scores and tails do not require representable covariance variances", {
+test_that("weighted scores and tails refuse unrepresentable covariance variances", {
 
   for(power in c(-600, 600)){
     setup <- list(S = 1L, K = 2L, yi = c(0, 0), mu = matrix(0, 1L, 2L),
       sei = rep(2^power, 2L), tau_within = matrix(0, 1L, 2L),
       tau_between = matrix(2^600, 1L, 2L), weights = c(1, 2), cluster = list(1:2),
       data = list(), effect_direction = "positive")
-    scores <- .weighted_normal_cluster_summary_from_setup(setup, c("log_density", "cdf"))
-    expect_true(all(is.finite(scores$log_density)))
-    expect_equal(scores$cdf, matrix(.5, 1L, 2L))
+    expect_error(.weighted_normal_cluster_summary_from_setup(setup, c("log_density", "cdf")),
+      class = "RoBMA_weighted_gaussian_unavailable")
     expect_error(.weighted_normal_cluster_summary_from_setup(setup, "variance"),
       class = "RoBMA_weighted_gaussian_unavailable")
   }

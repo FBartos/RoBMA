@@ -104,6 +104,13 @@ within variance by the power only in the normalized score kernel, never in the
 observation law. Do not pair integrated PSIS weights with full-data sampled
 cluster effects. Older stored weighted estimate-unit LOO/WAIC must be recomputed;
 the representation marker is a cache-freshness guard, not a comparison key.
+Representability-limit scales are unavailable with class
+`RoBMA_weighted_gaussian_unavailable`; the implementation does not reconstruct
+lost information with exact arithmetic. In particular, squared observation SDs
+must be normal finite doubles, powers cannot exceed `1 / .Machine$double.eps`,
+and locations or residuals beyond `1 / sqrt(.Machine$double.eps)` observation
+SDs are refused. Positive fractional powers, including very small powers,
+retain their score normalization.
 Non-Gaussian and selection likelihoods retain their supported conditional
 representations; do not silently approximate their local-effect integrals.
 

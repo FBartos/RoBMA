@@ -80,8 +80,12 @@ row; update those consumers together. Global influence moments may use the
 integrated weights directly.
 
 The exact Gaussian helper avoids general quadrature and dense covariance
-inversion; a representative 6,000-draw/12-row call cost 0.16 seconds CPU versus
-0.02 seconds conditionally. It preserves unweighted routes. This does not promise
+inversion. Linear prefix/suffix sums exclude the focal row without subtracting
+a dominating contribution; only non-finite or severely cancelling draws use
+the guarded log-domain fallback. The 2026-10-27 maintainer decision removes
+the second rounding-remainder pass and exact-arithmetic machinery: inputs at
+representability limits raise `RoBMA_weighted_gaussian_unavailable`.
+It preserves unweighted routes. This does not promise
 universal Pareto-k improvement or authorize approximate selection/GLMM integration.
 Public `brma.mv()` still rejects weights. See
 [predictive targets](multivariate-targets.md), `R/log-lik-weighted-cluster.R`,
