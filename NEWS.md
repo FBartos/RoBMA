@@ -139,7 +139,7 @@
   shares, so a sampling share that rounds to one no longer drops the location
   term at extreme scales.
 - Posterior density curves of `tau2_prop(...)` in allocations with inclusion
-  gates stay within [0, 1] (BayesTools 0.3.1.227).
+  gates stay within [0, 1] (BayesTools 0.4.0).
 - `print_prior()` and `plot_prior()` no longer list the internal non-centred
   auxiliary priors of multilevel and GLMM models; `print()` of a COVRATIO result
   hides internal attributes; clustered z-curve conditional variances no longer
@@ -217,7 +217,7 @@
 - Covariance density grids distinguish conditional random-effect dependencies
   from fixed-mean dependencies while retaining conservative mean-update guards.
 - Formula coefficient hypotheses and linear-context readers admit current
-  BayesTools coefficient-transform metadata, requiring BayesTools >= 0.3.1.223.
+  BayesTools coefficient-transform metadata, requiring BayesTools >= 0.4.0.
 - Central normal-interval log masses avoid cancellation while preserving the existing subnormal tail path.
 - Native plot quantiles preserve empty log masses and resolve collapsed positive-scale brackets on the representable grid.
 - Allocation-derived SD zero refusals identify the unique public omission
@@ -533,7 +533,7 @@
 ### Breaking changes
 These changes affect code and saved objects written for RoBMA 4.0.0.
 - installation and saved objects:
-  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.3.1.269 (was 0.3.0), and
+  - requires R >= 4.3.0 (was 4.0.0), BayesTools >= 0.4.0 (was 0.3.0), and
     loo >= 2.10.0, and imports Matrix (>= 1.6-2), ps, and statmod.
     That BayesTools version is required for coherent selected terms, scalar point-expression and natural bridge state replay, hypothesis log carriers, corrected contribution combinations, fitted declaration ownership and
     coefficient/contribution measure metadata, the fitted ordered source metadata,
@@ -551,7 +551,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     stops when `JAGS_ROOT`, `JAGS_VERSION`, `JAGS_MAJOR_VERSION`, or the
     headers name another major version.
   - models fitted with RoBMA 4.0.0 must be refitted: their fits lack the
-    parameter map and the fitted-object contract of BayesTools 0.3.1.
+    parameter map and the fitted-object contract of BayesTools 0.4.0.
     `summary()`, `print()`, `plot()`, `as_draws()`, `hypothesis()`,
     `update()`, and the other functions that read the fitted parameters stop
     on them with an error of class `BayesTools_refit_required`. RoBMA's own
@@ -691,7 +691,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     use the matching conditional distribution. Models with non-unit
     likelihood `weights` keep conditioning on their sampled local effects.
   - marginal-means Bayes factors follow the Savage-Dickey rules of
-    BayesTools 0.3.1 (see also Fixes): a null hypothesis outside the
+    BayesTools 0.4.0 (see also Fixes): a null hypothesis outside the
     posterior draws gives a finite Bayes factor instead of `Inf`; and a
     marginal mean structurally fixed at the null hypothesis, or whose prior
     density at the null is a point mass, zero (a null outside the prior
@@ -1277,7 +1277,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   - the credible bands of `regplot()` for continuous moderators and of the
     density lines of `zplot()` (`plot()` and `lines()` of zplot objects) are
     pointwise Harrell-Davis quantiles of the posterior draws
-    (`BayesTools::harrell_davis_quantile()`, through BayesTools 0.3.1) instead
+    (`BayesTools::harrell_davis_quantile()`, through BayesTools 0.4.0) instead
     of empirical quantiles. They estimate the same quantiles but attenuate the
     kinks of the empirical quantile along the moderator or the z grid and, in
     simulations of smooth curves, are about as accurate. The bands remain
@@ -1288,7 +1288,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
     mixture) are unchanged.
   - `plot_pet_peese()` draws the posterior median and credible band of the
     PET-PEESE line from Harrell-Davis quantiles of the draws of the line, as
-    BayesTools 0.3.1 computes them; the prior lines are unchanged.
+    BayesTools 0.4.0 computes them; the prior lines are unchanged.
 - summaries and output:
   - `as.data.frame()` and `data.frame()` convert the printable results
     (model and heterogeneity summaries, marginal means, model weights,
@@ -1449,7 +1449,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
 - ordered block integration uses reliable namespace lookup for polynomial trimming.
 - marginal-means Bayes factors use the exact Gaussian kernel sum at the null
   hypothesis (bandwidth `bw.nrd0()` of the continuous draws) as the
-  posterior ordinate, through BayesTools 0.3.1. The 512-point grid estimate
+  posterior ordinate, through BayesTools 0.4.0. The 512-point grid estimate
   of 4.0.0 overestimated the posterior density at the null of long-tailed
   posteriors up to several-fold and so understated their Bayes factors.
 - qCMDE ordinates of known-V joint selection models evaluate every grid value of a
@@ -1710,7 +1710,7 @@ These changes affect code and saved objects written for RoBMA 4.0.0.
   and `bPEESE()` fits. Models with a single design are unchanged.
 
 ### Performance
-- saved fits are smaller: through BayesTools 0.3.1, fits no longer carry
+- saved fits are smaller: through BayesTools 0.4.0, fits no longer carry
   runjags' compiled rjags model, which held another copy of the model and
   its data; `update()` recompiles the model from the stored chain states, as
   for a reloaded fit.
