@@ -16,8 +16,8 @@ test_that("factor quadrature agreement cannot hide an uncovered selection tail",
     stats::pnorm(-10 / sqrt(2)) + (1 - weight)^2 * joint_tail)
 
   # All deliberately short rules miss the distant mode and agree near w^2.
-  # The exterior-mass bound must route these cases to the ordinary QMC
-  # fallback. The public error criterion and integration budget are unchanged.
+  # The exterior-mass bound routes rank one to interval refinement and rank
+  # two to QMC. The public tolerance and integration budget are unchanged.
   quadrature <- .selection_joint_cluster_quadrature_rules(c(1L, 2L, 3L))
   for (rank in 1:2) {
     loading <- if (rank == 1L) matrix(1, 2L, 1L) else
@@ -37,7 +37,12 @@ test_that("factor quadrature agreement cannot hide an uncovered selection tail",
       symbol <- paste0("RoBMA_selnorm_", if (rank == 1L) "cluster" else "factor",
                        "_step_loglik_batch")
       observed <- do.call(.Call, c(list(symbol), arguments, list(PACKAGE = "RoBMA")))
-      expect_gt(observed[["relative_mcse"]], 0)
+      if (rank == 1L) {
+        expect_true(.test_cert_deterministic(observed))
+        expect_identical(observed$relative_mcse, 0)
+        expect_lte(abs(expm1(observed$log_normalizer - reference)),
+          observed$relative_change + 1e-10)
+      } else expect_gt(observed[["relative_mcse"]], 0)
       expect_lte(observed[["relative_mcse"]], .005)
       expect_lte(observed[["relative_change"]], .005)
       expect_equal(observed[["log_normalizer"]], reference, tolerance = .005)

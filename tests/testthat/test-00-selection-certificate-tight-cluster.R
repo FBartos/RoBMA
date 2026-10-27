@@ -62,12 +62,15 @@ test_that("cluster refinement agreement does not authorize tighter tolerances", 
   expect_equal(default[["log_normalizer"]], fine[["m4"]], tolerance = 1e-11)
   expect_lt(.test_cert_relative_error(default[["log_normalizer"]], reference), .005)
 
-  # At the tighter tolerance the calibrated tier is bypassed. A small fallback
-  # budget may be inaccurate, but it must retain its randomized diagnostics.
+  # At the tighter tolerance the calibrated tier is bypassed. The unchanged
+  # small work budget cannot resolve interval refinement and must refuse.
   actual <- .test_cert_native_cluster(block, tolerance = tolerance,
     initial = 64L, points = 512L, scrambles = 4L)
   expect_false(.test_cert_deterministic(actual))
-  expect_gt(actual[["relative_mcse"]], 0)
-  expect_true(.test_cert_relative_error(actual[["log_normalizer"]], reference) <= tolerance ||
-    max(.selection_qmc_z() * actual[["relative_mcse"]], actual[["relative_change"]]) > tolerance)
+  expect_identical(actual[["relative_mcse"]], Inf)
+  expect_identical(actual[["relative_change"]], Inf)
+  expect_true(is.nan(actual[["log_normalizer"]]))
+  expect_identical(actual[["log_density"]], -Inf)
+  expect_error(.selection_joint_factor_check_diagnostics(actual,
+    list(relative_tolerance = tolerance), "cluster"), "rejected by diagnostics")
 })

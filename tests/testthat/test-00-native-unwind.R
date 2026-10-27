@@ -5,6 +5,12 @@ context("Native C++ unwinding across R conditions")
   .Call("RoBMA_native_unwind_probe", action, callback, threads, PACKAGE = "RoBMA")
 }
 
+test_that("finite outward rounding refuses both representational extremes", {
+
+  expect_identical(.native_unwind_probe("rank_one_rounding"), 3L)
+  expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+})
+
 test_that("rank-one refinement polling unwinds through the native entry boundary", {
 
   before <- .native_unwind_probe("counts")

@@ -188,7 +188,7 @@ test_that("randomized uncertainty and mean accuracy calibrate across independent
     mean_interval[1L], mean_interval[2L], sqrt(mean(error^2)), stats::median(mcse)))
 })
 
-test_that("the randomized fallback is calibrated and accurate against independent references on the deferred geometries", {
+test_that("the fallbacks retain their uncertainty and accuracy on deferred geometries", {
 
   # Same policy as the forest_84 panel above. The reported MCSE is an empirical
   # standard error, not a bound, so accuracy is judged across independent seeds

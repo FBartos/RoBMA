@@ -5919,6 +5919,16 @@ int cpp_selnorm_factor_box_rng(
   return 0;
 }
 
+int cpp_selnorm_rank_one_rounding_probe()
+{
+  int refused = 0;
+  try { rank_one_bounds::down(-std::numeric_limits<double>::max()); }
+  catch (const rank_one_bounds::Refusal &) { refused |= 1; }
+  try { rank_one_bounds::up(std::numeric_limits<double>::max()); }
+  catch (const rank_one_bounds::Refusal &) { refused |= 2; }
+  return refused;
+}
+
 // Stable powered one-factor Gaussian integral with a per-row loading,
 //   log int prod_i N(residual_i; loading_i g, sd_i)^power_i N(g; 0, 1) dg.
 // With z_i = residual_i / sd_i, b_i = loading_i / sd_i, A = 1 + sum(power_i

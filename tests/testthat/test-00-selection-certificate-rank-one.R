@@ -79,6 +79,11 @@ test_that("arithmetic ambiguity and inadequate work refuse rather than accept", 
   overflow$z_lower <- c(1e308, 0, -Inf)
   overflow$z_upper <- c(Inf, 1e308, 0)
   .test_rank_one_refusal(.test_rank_one_fallback(overflow))
+  negative_edge <- block
+  negative_edge$sei <- 2
+  negative_edge$z_lower <- c(0, -.Machine$double.xmax / 2, -Inf)
+  negative_edge$z_upper <- c(Inf, 0, -.Machine$double.xmax / 2)
+  .test_rank_one_refusal(.test_rank_one_fallback(negative_edge))
   .test_rank_one_refusal(.test_rank_one_fallback(block, initial = 4L, points = 4L, scrambles = 2L))
   initial <- .test_cert_block(lapply(seq_len(8L), function(j) {
     .test_cert_parallel_group(1L, 1, .2, .1 * j)

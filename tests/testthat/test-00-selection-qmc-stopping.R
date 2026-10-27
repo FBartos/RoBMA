@@ -227,7 +227,7 @@ test_that("the normalizer-only zplot block judges the scaled error", {
     expect_s3_class(failure, "error")
     # the message reports the raw error, as every judge does
     expect_match(conditionMessage(failure),
-      paste0("relative integration error was ", format(mcse, digits = 4),
+      paste0("relative integration diagnostic was ", format(mcse, digits = 4),
              " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
              if (method == "rank_one") paste0(
                ". Diagnostics cover deterministic refinement or randomized integration; ",
@@ -240,6 +240,9 @@ test_that("the normalizer-only zplot block judges the scaled error", {
   }
   failure <- block("rank_one", Inf, Inf, NaN)
   expect_s3_class(failure, "error")
+  expect_match(conditionMessage(failure),
+    "Zplot marginal integration was rejected by diagnostics: relative integration diagnostic was Inf",
+    fixed = TRUE)
   expect_match(conditionMessage(failure), "deterministic work budget", fixed = TRUE)
 })
 

@@ -51,6 +51,9 @@ extern "C" SEXP RoBMA_native_unwind_probe(SEXP action, SEXP callback, SEXP threa
   NativeProbeWorkspace outer;
   {
     NativeProbeWorkspace inner;
+    if (std::strcmp(mode, "rank_one_rounding") == 0) {
+      return Rf_ScalarInteger(cpp_selnorm_rank_one_rounding_probe());
+    }
     if (std::strcmp(mode, "rank_one_poll") == 0) {
       const int rows = 64;
       std::vector<double> values(rows, 0.0), means(rows), sd(rows), se(rows), loading(rows);

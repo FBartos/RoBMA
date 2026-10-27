@@ -22,7 +22,7 @@ skip_on_cran()
     as.double(design), 512L, 8192L, 8L, .005, TRUE, 0L, PACKAGE = "RoBMA")
 }
 
-test_that("the randomized fallback resolves a tail missed by every Gaussian proposal", {
+test_that("the fallbacks resolve a tail missed by every Gaussian proposal", {
 
   # Coincident rows reduce exactly to one standard normal coordinate, whatever
   # the number or orientation of the loading columns. Splitting around its

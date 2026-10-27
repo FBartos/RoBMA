@@ -8,8 +8,20 @@ constexpr double zero = -infinity;
 constexpr double allowance = 64.0 * std::numeric_limits<double>::epsilon();
 struct Interval { double lower, upper; };
 struct Refusal {};
-inline double down(double x) { return std::nextafter(x, -infinity); }
-inline double up(double x) { return std::nextafter(x, infinity); }
+// Structural infinities bypass these finite-arithmetic rounders. In particular,
+// a finite -DBL_MAX must not become a zero-mass/one-sided structural -Inf.
+inline double down(double x) {
+  if (!std::isfinite(x)) throw Refusal{};
+  const double result = std::nextafter(x, -infinity);
+  if (!std::isfinite(result)) throw Refusal{};
+  return result;
+}
+inline double up(double x) {
+  if (!std::isfinite(x)) throw Refusal{};
+  const double result = std::nextafter(x, infinity);
+  if (!std::isfinite(result)) throw Refusal{};
+  return result;
+}
 inline double finite(double x) {
   if (!std::isfinite(x)) throw Refusal{};
   return x;

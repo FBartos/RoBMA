@@ -891,8 +891,10 @@ test_that("zplot reports unavailable targets and failed integration explicitly",
     expect_null(conditionCall(failure))
     expect_identical(conditionMessage(failure), paste0(
       "Zplot marginal integration was rejected by diagnostics: ",
-      "relative integration error was 0.02",
+      "relative integration diagnostic was 0.02",
       " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
+      ". Diagnostics cover deterministic refinement or randomized integration; ",
+      "rank-one product fallback uses a deterministic work budget",
       ". Increase 'max_points_per_scramble' ",
       "in 'integration_control = set_selection_likelihood_control()'."
     ))

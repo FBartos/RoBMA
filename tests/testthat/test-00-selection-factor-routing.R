@@ -1577,12 +1577,17 @@ test_that("exact compaction to rank one retains deterministic factor rules", {
     expect_equal(actual$log_density, expected_density, tolerance = 1e-6)
     expect_equal(actual$log_normalizer, cluster$log_normalizer, tolerance = 1e-6)
   }
-  # Exhausted cluster rules pass a NULL/count-zero rule to the factor QMC
+  # Exhausted cluster rules pass a NULL/count-zero rule to the bounded rank-one
   # fallback. It must not dereference or restart a nonexistent factor ladder.
   coarse <- .selection_joint_cluster_quadrature_rules(c(3L, 5L))
   fallback <- evaluate(matrix(loading, K), TRUE, coarse, tolerance = 1e-8)
-  expect_true(is.finite(fallback$log_normalizer))
-  expect_gt(fallback$relative_mcse, 0)
+  expect_true(is.nan(fallback$log_normalizer))
+  expect_identical(fallback$log_density, -Inf)
+  expect_identical(fallback$relative_mcse, Inf)
+  expect_identical(fallback$relative_change, Inf)
+  expect_false(.test_cert_deterministic(fallback))
+  expect_error(.selection_joint_factor_check_diagnostics(fallback,
+    list(relative_tolerance = 1e-8), "cluster"), "rejected by diagnostics")
 })
 
 test_that("zero loading columns do not charge the budget on a non-forest support", {

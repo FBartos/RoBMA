@@ -288,6 +288,9 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   normalizer, Inf/Inf diagnostics, deterministic false and density -Inf;
   no QMC rescue or failed-result memo insertion. This is working-precision
   engineering evidence, not universal libm certification.
+  Outward rounding of finite `-DBL_MAX` can itself produce `-Inf`; refuse that
+  finite-arithmetic failure rather than reclassifying it as an infinite bin or
+  zero bound, and preserve this distinction with the private rounding probe.
   Every helper scalar probability call, including preparation and latent
   segment masses, counts against `2*max_points*scrambles*active_groups*excess_bins`.
   Active leaves obey `min(SELNORM_FACTOR_NODE_BUDGET,2*max_points*scrambles)`;

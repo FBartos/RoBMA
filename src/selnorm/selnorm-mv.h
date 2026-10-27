@@ -232,6 +232,10 @@ double cpp_gaussian_latent_loglik(
   double *work = nullptr
 );
 
+// Private regression hook for the existing native-unwind probe. Bits 1 and 2
+// report refusal of finite lower/upper rounding beyond the representable range.
+int cpp_selnorm_rank_one_rounding_probe();
+
 double cpp_selnorm_cluster_step_lpdf(
   const double *x,
   const double *mean,

@@ -132,7 +132,7 @@ test_that("F3-3 raw normalizers retain downstream zplot diagnostic ownership", {
     zplot <- .review_grid_diagnostic_transport(method, 0, .02, "constant", consumer = "zplot")
     expect_s3_class(zplot$first, "error")
     expect_identical(conditionMessage(zplot$first), paste0(
-      "Zplot marginal integration was rejected by diagnostics: relative integration error was 0.02",
+      "Zplot marginal integration was rejected by diagnostics: relative integration diagnostic was 0.02",
       " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance'). ",
       "Diagnostics cover deterministic refinement or randomized integration; ",
       "rank-one product fallback uses a deterministic work budget. ",

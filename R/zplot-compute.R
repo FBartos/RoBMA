@@ -1143,7 +1143,7 @@
     if (method %in% c("rank_one", "factor") ||
         points >= control$max_points_per_scramble) {
       stop(
-        "Zplot marginal integration was rejected by diagnostics: relative integration error was ",
+        "Zplot marginal integration was rejected by diagnostics: relative integration diagnostic was ",
         format(error[failed[1L]], digits = 4), .selection_qmc_criterion(),
         if (method %in% c("rank_one", "factor")) paste0(
           ". Diagnostics cover deterministic refinement or randomized integration; ",
