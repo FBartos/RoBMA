@@ -5,6 +5,17 @@ context("Native C++ unwinding across R conditions")
   .Call("RoBMA_native_unwind_probe", action, callback, threads, PACKAGE = "RoBMA")
 }
 
+test_that("rank-one refinement polling unwinds through the native entry boundary", {
+
+  before <- .native_unwind_probe("counts")
+  expect_error(.native_unwind_probe("rank_one_poll"), "native rank-one poll", fixed = TRUE)
+  after <- .native_unwind_probe("counts")
+  expect_identical(after[[1L]], 0L)
+  expect_identical(after[[2L]] - before[[2L]], 2L)
+  expect_identical(.native_unwind_probe("state"), rep(FALSE, 3L))
+  expect_identical(.native_unwind_probe("normal"), 42L)
+})
+
 test_that("projection polling is opt-in and unwinds construction and density", {
 
   default <- .native_unwind_probe("projection_disabled")

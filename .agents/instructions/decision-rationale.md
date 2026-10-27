@@ -149,3 +149,7 @@ These synthetic measurements do not promise universal speed or availability.
 **Remaining limitation.** Higher-rank and best-rule randomized QMC retains an
 empirical error diagnostic, not a guaranteed bound. Do not describe accepted
 estimates as certified solely because the empirical MCSE passes.
+
+The maintainer deferred positive-prior GLMM quadrature work and release-wide
+verification to separate future work. Neither is a numerical pass from this
+rank-one correction or its targeted relink benchmark.

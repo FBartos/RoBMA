@@ -220,7 +220,7 @@ test_that("a block without transitions is always resolved", {
 
 test_that("sharp-edged blocks that the certificate alone accepted wrongly are not certified", {
 
-  # Native outcome: every block reaches the randomized fallback. The edges are
+  # Native outcome: every block reaches fallback (bounded at rank one). The edges are
   # narrower than 0.15 of the gap at every rung of their ladder (the finest rung
   # of the cluster and factor ladders still has gaps above 0.1 and 0.3), and the
   # refinement tier needs at least 0.125 of the gap (more for many rows) at the
@@ -240,7 +240,13 @@ test_that("sharp-edged blocks that the certificate alone accepted wrongly are no
       expect_lt(.test_cert_relative_error(actual[["log_normalizer"]], reference),
                 .test_sharp_tolerance, label = paste(name, "relative error"))
     }
-    expect_false(.test_cert_deterministic(actual), label = paste(name, "deterministic"))
+    expect_identical(.test_cert_deterministic(actual), case$kind == "cluster",
+      label = paste(name, "deterministic"))
+    if (case$kind == "cluster") {
+      expect_identical(actual$relative_mcse, 0)
+      expect_lte(.test_cert_relative_error(actual$log_normalizer, reference),
+        actual$relative_change + 1e-10, label = name)
+    }
   }
 })
 

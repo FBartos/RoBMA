@@ -307,3 +307,22 @@ test_that("recovered rank-one and factor blocks reach the normalizer grid", {
   expect_lte(max(abs(result$actual - result$reference)),
     diagnostic$max_log_likelihood_error + 1e-9)
 })
+
+test_that("normalizer-grid anchors reject the unavailable rank-one diagnostics", {
+
+  fixture <- .normalizer_grid_test_fixture(V = .normalizer_grid_tree_covariance(),
+    study = c("a", "a", "a", "a", "b", "b"))
+  original <- .selection_joint_cluster_loglik_block
+  anchors <- 0L
+  testthat::local_mocked_bindings(
+    .selection_joint_cluster_loglik_block = function(yi, means, ..., return_normalizer = FALSE) {
+      if (!return_normalizer) return(original(yi, means, ..., return_normalizer = FALSE))
+      anchors <<- anchors + 1L
+      S <- nrow(means)
+      list(log_density = rep(-Inf, S), log_normalizer = rep(NaN, S),
+        relative_mcse = rep(Inf, S), relative_change = rep(Inf, S))
+    }, .package = "RoBMA")
+  expect_error(.normalizer_grid_test_joint(fixture, seq(-.4, .4, length.out = 81L)),
+    "normalizer was rejected by diagnostics", fixed = TRUE)
+  expect_gt(anchors, 0L)
+})

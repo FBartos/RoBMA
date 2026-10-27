@@ -171,6 +171,9 @@ test_that("loose requests do not accept unresolved product quadrature walls", {
 
   for (block in blocks) {
     reference <- .test_cert_reference_parallel(block)
+    fast <- !is.null(.test_cert_emulate_ladder(block,
+      orders = SELNORM_CLUSTER_QUADRATURE_ORDERS, changes = 1L)) ||
+      .test_cert_tier(block, finest = 1023L, previous = 511L, cluster = TRUE)$accepted
     for (evaluate in list(.test_cert_native_cluster)) {
       strict <- evaluate(block, tolerance = .005)
       for (tolerance in c(.005, .02, .05)) {
@@ -178,8 +181,13 @@ test_that("loose requests do not accept unresolved product quadrature walls", {
         expect_silent(.selection_joint_factor_check_diagnostics(
           value, list(relative_tolerance = tolerance), "test"))
         expect_lt(.test_cert_relative_error(value[["log_normalizer"]], reference), tolerance)
-        if (isTRUE(as.logical(attr(value, "deterministic")))) {
+        if (fast) {
           expect_identical(value[["log_normalizer"]], strict[["log_normalizer"]])
+        } else {
+          expect_true(.test_cert_deterministic(value))
+          expect_identical(value$relative_mcse, 0)
+          expect_lte(.test_cert_relative_error(value$log_normalizer, reference),
+            value$relative_change + 1e-10)
         }
       }
     }

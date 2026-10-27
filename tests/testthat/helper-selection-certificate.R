@@ -765,23 +765,54 @@
 # Native refinement tier
 # ---------------------------------------------------------------------------- #
 
+# Independent four-shift averages of the scalar rule, with gaps at each rung's
+# own tilted mean. Shared by cluster refinement and fast-path preservation tests.
+.test_cert_cluster_refinement <- function(block, orders = c(511L, 1023L)) {
+
+  average <- function(order) {
+    base <- .test_cert_tensor_log_integral(block, order, moments = TRUE)
+    gap <- .test_cert_node_gap(order, base[["mean"]])
+    values <- vapply(0:3, function(m) {
+      .test_cert_tensor_log_integral(block, order, shift = m * gap / 4)
+    }, numeric(1L))
+    c(two = .test_cert_logsumexp(values[c(1L, 3L)]) - log(2),
+      four = .test_cert_logsumexp(values) - log(4))
+  }
+  prior <- average(orders[[1L]])
+  fine <- average(orders[[2L]])
+  list(value = fine[["four"]],
+    shift_change = abs(expm1(fine[["four"]] - fine[["two"]])),
+    order_change = abs(expm1(fine[["four"]] - prior[["four"]])))
+}
+
 # The decision of the tier recomputed from the probe: the sharpness gate at the
 # finest rung, the M = 4 average of the finest and previous affordable rung
 # (orders 95 and 63 at rank two and for forests of depth one), the shift check,
 # the tail gate and the order check. `checks` is the decision without the gate.
-.test_cert_tier <- function(block, tolerance = .005, finest = 95L, previous = 63L) {
+.test_cert_tier <- function(block, tolerance = .005, finest = 95L, previous = 63L,
+                            cluster = FALSE) {
 
   tolerance <- min(tolerance, .005)
-  fine <- .test_cert_probe(block, finest, tolerance = tolerance)
-  prior <- .test_cert_probe(block, previous, tolerance = tolerance)
-  shift_change <- abs(expm1(fine[["refined_4"]] - fine[["refined_2"]]))
-  order_change <- abs(expm1(fine[["refined_4"]] - prior[["refined_4"]]))
-  tail <- .test_cert_tail_bound(block, finest, fine[["refined_4"]])
+  fine <- .test_cert_probe(block, finest, tolerance = tolerance, cluster = cluster)
+  prior <- .test_cert_probe(block, previous, tolerance = tolerance, cluster = cluster)
+  if (cluster) {
+    # Cluster probes expose rungs and gates, not shifted averages. Use the
+    # existing plain-R scalar calculation for its refinement values.
+    refined <- .test_cert_cluster_refinement(block, c(previous, finest))
+    value <- refined$value
+    shift_change <- refined$shift_change
+    order_change <- refined$order_change
+  } else {
+    value <- fine[["refined_4"]]
+    shift_change <- abs(expm1(fine[["refined_4"]] - fine[["refined_2"]]))
+    order_change <- abs(expm1(fine[["refined_4"]] - prior[["refined_4"]]))
+  }
+  tail <- .test_cert_tail_bound(block, finest, value)
   checks <- shift_change <= tolerance / 2 && tail <= tolerance && order_change <= tolerance / 2
   # The preceding rung enters the order check, so it must pass the sharpness
   # gate of an ordinary ladder rung.
   list(
-    value = fine[["refined_4"]], shift_change = shift_change, order_change = order_change,
+    value = value, shift_change = shift_change, order_change = order_change,
     tail = tail, resolves = fine[["resolves_tier"]], checks = checks,
     previous_resolves = prior[["resolves_ladder"]],
     accepted = fine[["resolves_tier"]] && prior[["resolves_ladder"]] && checks

@@ -1,27 +1,6 @@
 context("Rank-one cluster certificate refinement")
 skip_on_cran()
 
-# Independent four-shift averages of the scalar Gauss-Hermite rule. The gap is
-# taken at each unshifted rung's own tilted mean; the native cluster probe does
-# not supply these averages.
-.test_cert_cluster_refinement <- function(block, orders = c(511L, 1023L)) {
-
-  average <- function(order) {
-    base <- .test_cert_tensor_log_integral(block, order, moments = TRUE)
-    gap <- .test_cert_node_gap(order, base[["mean"]])
-    values <- vapply(0:3, function(m) {
-      .test_cert_tensor_log_integral(block, order, shift = m * gap / 4)
-    }, numeric(1L))
-    c(two = .test_cert_logsumexp(values[c(1L, 3L)]) - log(2),
-      four = .test_cert_logsumexp(values) - log(4))
-  }
-  prior <- average(orders[[1L]])
-  fine <- average(orders[[2L]])
-  list(value = fine[["four"]],
-    shift_change = abs(expm1(fine[["four"]] - fine[["two"]])),
-    order_change = abs(expm1(fine[["four"]] - prior[["four"]])))
-}
-
 .test_cert_cluster_refinement_cases <- function() {
 
   list(
@@ -71,22 +50,25 @@ test_that("cluster refinement retains the calibrated tolerance and preceding-run
   block <- .test_cert_cluster_refinement_cases()[["rare_tail"]]
   expect_true(.test_cert_deterministic(.test_cert_native_cluster(block)))
   strict <- .test_cert_native_cluster(block, tolerance = .005 * (1 - 1e-8))
-  expect_false(.test_cert_deterministic(strict))
-  expect_gt(strict[["relative_mcse"]], 0)
+  expect_true(.test_cert_deterministic(strict))
+  expect_identical(strict[["relative_mcse"]], 0)
+  expect_lte(.test_cert_relative_error(strict$log_normalizer, .test_cert_reference_parallel(block)),
+    strict$relative_change + 1e-10)
 
   # A one-node preceding rung has no gap for its shifted average. This valid
-  # two-rung schedule must retain QMC rather than access a missing node gap.
+  # two-rung schedule must use interval refinement rather than a missing gap.
   no_previous_gap <- .test_cert_native_cluster(block,
     rules = .selection_joint_cluster_quadrature_rules(c(1L, 1023L)))
-  # QMC scrambles can coincide and report zero MCSE; the explicit route flag
-  # identifies fallback. This schedule retains its baseline QMC output.
-  expect_false(.test_cert_deterministic(no_previous_gap))
+  expect_true(.test_cert_deterministic(no_previous_gap))
+  expect_identical(no_previous_gap$relative_mcse, 0)
+  expect_lte(.test_cert_relative_error(no_previous_gap$log_normalizer, .test_cert_reference_parallel(block)),
+    no_previous_gap$relative_change + 1e-10)
   expect_error(.test_cert_native_cluster(block,
     rules = .selection_joint_cluster_quadrature_rules(1023L)),
     "Cluster selection controls are invalid", fixed = TRUE)
 })
 
-test_that("a cluster whose two-shift check fails keeps its randomized diagnostics", {
+test_that("a cluster whose two-shift check fails uses bounded interval refinement", {
 
   block <- .test_cert_block(list(.test_cert_parallel_group(2L,
     1, 0.0157304352195527, -1.31269414862618)), c(1, 0))
@@ -97,13 +79,13 @@ test_that("a cluster whose two-shift check fails keeps its randomized diagnostic
   expect_gt(refined[["shift_change"]], .005 / 2)
   expect_lt(refined[["order_change"]], .005 / 2)
   actual <- .test_cert_native_cluster(block, points = 4096L)
-  expect_false(.test_cert_deterministic(actual))
-  expect_gt(actual[["relative_mcse"]], 0)
-  expect_lt(.test_cert_relative_error(actual[["log_normalizer"]],
-    .test_cert_reference_parallel(block)), 3 * actual[["relative_mcse"]])
+  expect_true(.test_cert_deterministic(actual))
+  expect_identical(actual[["relative_mcse"]], 0)
+  expect_lte(.test_cert_relative_error(actual[["log_normalizer"]],
+    .test_cert_reference_parallel(block)), actual[["relative_change"]] + 1e-10)
 })
 
-test_that("a cluster whose preceding rung does not resolve its edge keeps the randomized fallback", {
+test_that("a cluster whose preceding rung does not resolve its edge uses interval refinement", {
 
   # The finest rung resolves the edge and both refinement checks pass, but the
   # 511-node preceding rung has a node gap above the edge-width allowance of an
@@ -116,8 +98,8 @@ test_that("a cluster whose preceding rung does not resolve its edge keeps the ra
   refined <- .test_cert_cluster_refinement(block)
   expect_lte(max(refined[["shift_change"]], refined[["order_change"]]), .005 / 2)
   actual <- .test_cert_native_cluster(block, points = 4096L)
-  expect_false(.test_cert_deterministic(actual))
-  expect_gt(actual[["relative_mcse"]], 0)
+  expect_true(.test_cert_deterministic(actual))
+  expect_identical(actual[["relative_mcse"]], 0)
   expect_lt(.test_cert_relative_error(actual[["log_normalizer"]],
     .test_cert_reference_parallel(block)), .005)
 

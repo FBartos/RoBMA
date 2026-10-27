@@ -5,7 +5,7 @@ skip_on_cran()
 # prior, a Gaussian with the tilted moments of the finest deterministic rung (mean and covariance
 # of the latent coordinates under the selected integrand) and a copy with 1.5
 # times their standard deviations. The moments are used for tensors, forests of
-# depth at most one and rank-one clusters when at least three rungs were finite
+# depth at most one when at least three rungs were finite
 # and the covariance is positive definite; every other block keeps the
 # optimized-mode proposals. A finest rung that misses the exterior mass gives no
 # moments either (test-00-selection-factor-tail-coverage.R keeps that case). The
@@ -111,7 +111,7 @@ test_that("the rank-two reference agrees with the two-group reference", {
   expect_lt(abs(.test_cert_reference_rank_two(block) - .test_cert_reference_two_groups(block)), 1e-5)
 })
 
-test_that("the randomized fallback returns finite estimates on deferred geometries", {
+test_that("the fallbacks return finite estimates on deferred geometries", {
 
   cases <- .test_cert_proposal_cases()
   for (name in names(cases)) {
@@ -125,9 +125,15 @@ test_that("the randomized fallback returns finite estimates on deferred geometri
         .test_cert_native_cluster(case[["block"]], seed = seed, initial = 256L, points = 4096L)
       }
       info <- paste(name, "seed", seed)
-      # the randomized fallback ran, with a positive spread across the scrambles
-      expect_false(.test_cert_deterministic(actual), info = info)
-      expect_gt(actual[["relative_mcse"]], 0, label = info)
+      if (case$block$rank == 1L) {
+        expect_true(.test_cert_deterministic(actual), info = info)
+        expect_identical(actual$relative_mcse, 0, info = info)
+        expect_lte(abs(expm1(actual$log_normalizer - reference)), actual$relative_change + 1e-10,
+          label = info)
+      } else {
+        expect_false(.test_cert_deterministic(actual), info = info)
+        expect_gt(actual[["relative_mcse"]], 0, label = info)
+      }
       error <- abs(expm1(actual[["log_normalizer"]] - reference))
       expect_true(all(is.finite(c(error, actual[["relative_mcse"]], actual[["relative_change"]]))),
                   info = info)
@@ -220,6 +226,15 @@ test_that("the randomized fallback is calibrated and accurate against independen
     actual <- lapply(seeds, function(seed) {
       .test_cert_proposals_run(case, seed, 256L, budget[[index]])
     })
+    if (case$block$rank == 1L) {
+      expect_true(all(vapply(actual, .test_cert_deterministic, logical(1L))), info = name)
+      expect_true(all(vapply(actual, identical, logical(1L), actual[[1L]])), info = name)
+      expect_identical(actual[[1L]]$relative_mcse, 0, info = name)
+      expect_lte(abs(expm1(actual[[1L]]$log_normalizer - reference)),
+        actual[[1L]]$relative_change + 1e-10, label = name)
+      expect_lte(actual[[1L]]$relative_change, tolerance, label = name)
+      next
+    }
     expect_false(any(vapply(actual, .test_cert_deterministic, logical(1L))), info = name)
     log_ratio <- vapply(actual, function(result) result[["log_normalizer"]] - reference, numeric(1L))
     mcse <- vapply(actual, function(result) result[["relative_mcse"]], numeric(1L))
@@ -279,6 +294,13 @@ test_that("blocks without usable moments retain finite diagnostics and nested st
     case <- cases[[name]]
     actual <- run(case, seed, 256L, 2048L)
     info <- paste(name, "seed", seed)
+    if (case$block$rank == 1L) {
+      expect_true(.test_cert_deterministic(actual), info = info)
+      expect_identical(actual$relative_mcse, 0, info = info)
+      expect_lte(abs(expm1(actual$log_normalizer - .test_cert_reference_parallel(case$block))),
+        actual$relative_change + 1e-10, label = info)
+      next
+    }
     expect_false(.test_cert_deterministic(actual), info = info)
     expect_gt(actual[["relative_mcse"]], 0, label = info)
     expect_true(all(is.finite(unlist(actual[c("log_normalizer", "relative_mcse", "relative_change")]))),

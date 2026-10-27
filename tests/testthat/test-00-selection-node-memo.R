@@ -213,16 +213,18 @@ test_that("the kernels flag only ladder, tier and sparse-grid results as determi
   expect_true(.test_cert_deterministic(result))
   expect_identical(flagged(result), TRUE)
 
-  # a block forced to the randomized fallback by rules too short to certify it,
-  # for the factor and the cluster kernel: flagged FALSE with a Monte Carlo error
+  # Short rules leave a randomized higher-rank fallback and bounded rank-one
+  # refinement: only the latter is eligible for the deterministic memo.
   short  <- .selection_joint_cluster_quadrature_rules(c(3L, 5L, 7L))
   result <- .test_cert_native_factor(fed80, rules = short)
   expect_gt(result[["relative_mcse"]], 0)
   expect_identical(flagged(result), FALSE)
   sharp  <- .test_cert_block(list(group(100L, .5, .1, -.1)), c(1, .1))
   result <- .test_cert_native_cluster(sharp, rules = .selection_joint_cluster_quadrature_rules(c(15L, 31L)))
-  expect_gt(result[["relative_mcse"]], 0)
-  expect_identical(flagged(result), FALSE)
+  expect_identical(result[["relative_mcse"]], 0)
+  expect_identical(flagged(result), TRUE)
+  expect_lte(abs(expm1(result$log_normalizer - .test_cert_reference_parallel(sharp))),
+    result$relative_change + 1e-10)
 
   # a randomized result whose Monte Carlo standard error is exactly zero (the
   # scrambles of the design are copies of one another) is not flagged either

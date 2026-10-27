@@ -57,10 +57,14 @@ test_that("the randomized fallback resolves a tail missed by every Gaussian prop
       actual <- .test_qmc_tail_native(.test_qmc_tail_block(case[["loading"]]),
         case[["rules"]], case[["kind"]], seed = seed)
       info <- paste(name, "seed", seed)
-      expect_false(.test_cert_deterministic(actual), info = info)
+      expect_identical(.test_cert_deterministic(actual), name == "cluster", info = info)
       expect_lt(abs(expm1(actual[["log_normalizer"]] - reference)), .005, label = info)
       # The old fallback reported about 3e-16 despite missing 2.6% of the mass.
-      expect_gt(actual[["relative_mcse"]], 1e-10, label = info)
+      if (name == "cluster") {
+        expect_identical(actual$relative_mcse, 0)
+        expect_lte(abs(expm1(actual$log_normalizer - reference)), actual$relative_change + 1e-10,
+          label = info)
+      } else expect_gt(actual[["relative_mcse"]], 1e-10, label = info)
       expect_true(is.finite(actual[["relative_mcse"]]), info = info)
     }
   }

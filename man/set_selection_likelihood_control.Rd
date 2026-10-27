@@ -53,7 +53,10 @@ It also scales the rank-one product deterministic work ceiling.}
 \item{relative_tolerance}{largest accepted successive relative quadrature
 change for factor integration, or the largest nested-design relative
 change and 2.36 times the relative Monte Carlo standard error for a factor
-fallback and for the conditioned-sampling normalizer. General covariance
+fallback and for the conditioned-sampling normalizer.
+Rank-one product interval refinement instead checks the conservative
+relative radius of the actual returned midpoint against both bounds.
+General covariance
 blocks and Gaussian event integrals use 2.36 times the relative Monte
 Carlo standard error alone. Dense covariance-envelope
 quadrature additionally requires the

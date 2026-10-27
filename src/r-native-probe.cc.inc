@@ -51,6 +51,31 @@ extern "C" SEXP RoBMA_native_unwind_probe(SEXP action, SEXP callback, SEXP threa
   NativeProbeWorkspace outer;
   {
     NativeProbeWorkspace inner;
+    if (std::strcmp(mode, "rank_one_poll") == 0) {
+      const int rows = 64;
+      std::vector<double> values(rows, 0.0), means(rows), sd(rows), se(rows), loading(rows);
+      std::vector<int> bins(rows, 1);
+      for (int row = 0; row < rows; ++row) {
+        const int j = row + 1;
+        const double x = (j - (rows + 1) / 2.0) / rows;
+        means[row] = 2 * x + .15 * std::sin(j);
+        sd[row] = .03 + .02 * (j % 4);
+        se[row] = .5 + .25 * (j % 5);
+        loading[row] = (j % 3 == 1 ? -1.0 : 1.0) * (.5 + .1 * (j % 7));
+      }
+      const double omega[] = {.4, 1.0, .4};
+      const double lower[] = {1.0, -1.0, -std::numeric_limits<double>::infinity()};
+      const double upper[] = {std::numeric_limits<double>::infinity(), 1.0, -1.0};
+      double mcse, change;
+      const auto failure = +[]() { throw std::runtime_error("native rank-one poll"); };
+      // No QMC data are read on rank-one PRODUCT fallback. The unchanged
+      // scalar-work poll threshold must throw through the real entry boundary.
+      cpp_selnorm_factor_step_lpdf(values.data(), means.data(), sd.data(), loading.data(),
+        rows, 1, se.data(), omega, 3, lower, upper, bins.data(), 1, true, SELKERNEL_STEP,
+        nullptr, nullptr, nullptr, 0, nullptr, 4, 8192, 8, 1e-12,
+        &mcse, &change, nullptr, SELVECTOR_PRODUCT, nullptr, nullptr, nullptr, failure);
+      Rf_error("The rank-one work poll was not reached.");
+    }
     if (std::strncmp(mode, "projection_", 11) == 0) {
       std::vector<double> grid(64), means(1024, 0.0), logs(1024, -std::log(1024.0));
       std::vector<long double> density(64);

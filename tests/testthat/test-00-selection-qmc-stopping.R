@@ -40,12 +40,10 @@ skip_on_cran()
 }
 
 # Fixtures whose single-stage diagnostics leave a band: a depth-one forest, a rank-two
-# tensor and two rank-one clusters (seeds of the fixed QMC designs).
+# tensor (rank-one product fallback now uses deterministic interval bounds).
 .test_qmc_band_specs <- list(
   list(name = "crossing_20", seed = 3L),
-  list(name = "tensor_77",   seed = 1L),
-  list(name = "cluster_733_sharp", seed = 1L),
-  list(name = "cluster_189_sharp", seed = 1L)
+  list(name = "tensor_77",   seed = 1L)
 )
 
 test_that("the stopping multiplier is one native constant, the t(7) quantile for eight scrambles", {
@@ -125,6 +123,8 @@ test_that("a budget-exhausted fallback is judged by the scaled error in R", {
   raw <- function(error, mcse_text) expect_match(conditionMessage(error), mcse_text, fixed = TRUE)
   with_change <- " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')"
   error_only  <- " (accepted when 2.36 times the standard error is within 'relative_tolerance')"
+  methods <- paste0(". Diagnostics cover deterministic refinement or randomized integration; ",
+    "rank-one product fallback uses a deterministic work budget.")
   expect_identical(.selection_qmc_criterion(), with_change)
   expect_identical(.selection_qmc_criterion(change = FALSE), error_only)
 
@@ -132,8 +132,8 @@ test_that("a budget-exhausted fallback is judged by the scaled error in R", {
   for (method in c("factor", "cluster")) {
     error <- tryCatch(factor_judge(band, plan, method), error = identity)
     expect_s3_class(error, "error")
-    raw(error, paste0("relative Monte Carlo standard error was 0.003 and nested-design relative change was 0.001",
-                      with_change, ". Increase 'max_points_per_scramble' or 'scrambles' in "))
+    raw(error, paste0("relative Monte Carlo standard error was 0.003 and refinement/design relative change was 0.001",
+                      with_change, methods, " Increase 'max_points_per_scramble' or 'scrambles' in "))
     expect_null(factor_judge(accepted, plan, method))
     expect_null(factor_judge(boundary, boundary_plan, method))
     boundary_plan_below <- list(relative_tolerance = boundary_plan[["relative_tolerance"]] * (1 - 1e-9))
@@ -148,8 +148,8 @@ test_that("a budget-exhausted fallback is judged by the scaled error in R", {
 
   error <- tryCatch(.selection_conditioned_sampling_diagnostics(band, plan), error = identity)
   expect_s3_class(error, "error")
-  raw(error, paste0("relative Monte Carlo standard error was 0.003 and nested-design relative change was 0.001",
-                    with_change, ". Increase 'max_points_per_scramble' or 'scrambles' with "))
+  raw(error, paste0("relative Monte Carlo standard error was 0.003 and refinement/design relative change was 0.001",
+                    with_change, methods, " Increase 'max_points_per_scramble' or 'scrambles' with "))
   expect_null(.selection_conditioned_sampling_diagnostics(accepted, plan))
   expect_null(.selection_conditioned_sampling_diagnostics(boundary, boundary_plan))
   expect_error(.selection_conditioned_sampling_diagnostics(
@@ -207,10 +207,10 @@ test_that("the normalizer-only zplot block judges the scaled error", {
   expect_gt(.selection_qmc_z() * mcse, .005)
   factors <- list(residual_sd = matrix(1, 1L, 2L), loading = matrix(0, 1L, 2L))
   control <- set_selection_likelihood_control(points_per_scramble = 8L, max_points_per_scramble = 8L)
-  block <- function(method, relative_mcse) {
+  block <- function(method, relative_mcse, relative_change = 0, log_normalizer = log(.8)) {
     testthat::local_mocked_bindings(
       .selection_joint_cluster_loglik_block = function(...) {
-        list(log_density = 0, relative_mcse = relative_mcse, relative_change = 0, log_normalizer = log(.8))
+        list(log_density = 0, relative_mcse = relative_mcse, relative_change = relative_change, log_normalizer = log_normalizer)
       },
       .selection_joint_dense_loglik_block = function(...) {
         list(log_density = 0, relative_mcse = relative_mcse, log_normalizer = log(.8))
@@ -229,12 +229,18 @@ test_that("the normalizer-only zplot block judges the scaled error", {
     expect_match(conditionMessage(failure),
       paste0("relative integration error was ", format(mcse, digits = 4),
              " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
+             if (method == "rank_one") paste0(
+               ". Diagnostics cover deterministic refinement or randomized integration; ",
+               "rank-one product fallback uses a deterministic work budget"),
              ". Increase"),
       fixed = TRUE, info = method)
     accepted <- block(method, .002)
     expect_false(inherits(accepted, "error"), info = method)
     expect_identical(accepted[["log_density"]], -log(.8), info = method)
   }
+  failure <- block("rank_one", Inf, Inf, NaN)
+  expect_s3_class(failure, "error")
+  expect_match(conditionMessage(failure), "deterministic work budget", fixed = TRUE)
 })
 
 # ---------------------------------------------------------------------------- #
@@ -288,11 +294,11 @@ test_that("the normalizer-only zplot block judges the scaled error", {
   .test_qmc_jags(syntax, data)
 }
 
-test_that("the factor and cluster JAGS wrappers judge the scaled error of an exhausted budget", {
+test_that("higher-rank factor JAGS wrappers judge the scaled error of an exhausted budget", {
 
   skip_if_not_installed("rjags")
   for (spec in list(list(kind = "factor", name = "crossing_20", seed = 3L),
-                    list(kind = "cluster", name = "cluster_189_sharp", seed = 1L))) {
+                    list(kind = "factor", name = "tensor_77", seed = 1L))) {
     info <- paste(spec[["kind"]], spec[["name"]])
     band <- .test_qmc_band(spec[["name"]], spec[["seed"]])
     expect_lt(band[["low"]], band[["high"]], label = info)
@@ -304,10 +310,30 @@ test_that("the factor and cluster JAGS wrappers judge the scaled error of an exh
     expect_identical(rejected, paste0(
       "Selection ", spec[["kind"]], " normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ", sprintf("%g", band[["mcse"]]),
-      " and nested-design relative change was ", sprintf("%g", band[["change"]]),
+      " and refinement/design relative change was ", sprintf("%g", band[["change"]]),
       " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
-      ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."), info = info)
+      ". Diagnostics cover deterministic refinement or randomized integration; ",
+      "rank-one product fallback uses a deterministic work budget. ",
+      "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."), info = info)
     expect_null(.test_qmc_jags_step(spec[["kind"]], band, band[["high"]] * (1 + 1e-9)), info = info)
+  }
+})
+
+test_that("rank-one factor and cluster JAGS wrappers reject unavailable deterministic refinement", {
+
+  skip_if_not_installed("rjags")
+  band <- list(case = .test_cert_proposal_cases()[["cluster_189_sharp"]], seed = 1L)
+  for (kind in c("factor", "cluster")) {
+    current <- band
+    if (kind == "factor") {
+      # JAGS drops singleton matrix dimensions. A zero second column keeps the
+      # factor interface's matrix shape and compacts to this same rank-one law.
+      current$case$block$loading <- cbind(current$case$block$loading, 0)
+      current$case$block$rank <- 2L
+    }
+    rejected <- .test_qmc_jags_step(kind, current, .005, points = 4L)
+    expect_match(rejected, "normalizer was rejected by diagnostics", fixed = TRUE)
+    expect_match(rejected, "deterministic work budget", fixed = TRUE)
   }
 })
 

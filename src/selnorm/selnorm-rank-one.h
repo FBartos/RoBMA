@@ -72,6 +72,14 @@ inline Interval midpoint(double l, double u) {
   const Interval a = rounded(finite(l / 2.0)), b = rounded(finite(u / 2.0));
   return checked({down(finite(a.lower + b.lower)), up(finite(a.upper + b.upper))});
 }
+inline double split_point(double lower, double upper) {
+  double split;
+  if (lower == -infinity) split = upper - std::max(1.0, std::fabs(upper));
+  else if (upper == infinity) split = lower + std::max(1.0, std::fabs(lower));
+  else split = lower / 2.0 + upper / 2.0;
+  if (!std::isfinite(split) || !(lower < split && split < upper)) throw Refusal{};
+  return split;
+}
 struct Result {
   bool accepted = false;
   double value = std::numeric_limits<double>::quiet_NaN();
@@ -86,7 +94,7 @@ inline std::size_t multiply(std::size_t a, std::size_t b) {
 class Enclosure {
   struct Bin {
     double inner_lower, inner_upper, outer_lower, outer_upper;
-    Interval excess, center;
+    Interval excess, inner_center, center;
     double peak;
     bool finite_bin;
   };
@@ -119,19 +127,16 @@ class Enclosure {
     const double delta = allowance * std::max(1.0, std::fabs(value));
     return checked({down(value - delta), up(value + delta)});
   }
-  Interval at_mean(double lower, double upper, double mean, double sd) {
-    if (mean == infinity) return upper == infinity ? Interval{0.0, 0.0} : Interval{zero, zero};
-    if (mean == -infinity) return lower == -infinity ? Interval{0.0, 0.0} : Interval{zero, zero};
+  double at_mean(double lower, double upper, double mean, double sd, bool lower_bound) {
+    if (mean == infinity) return upper == infinity ? 0.0 : zero;
+    if (mean == -infinity) return lower == -infinity ? 0.0 : zero;
     const auto standardized = [&](double endpoint) {
       if (std::isinf(endpoint)) return Interval{endpoint, endpoint};
       const Interval residual = rounded(finite(endpoint - mean));
       return checked({down(finite(residual.lower / sd)), up(finite(residual.upper / sd))});
     };
     const Interval l = standardized(lower), u = standardized(upper);
-    const Interval inner = probability(l.upper, u.lower);
-    if (l.lower == l.upper && u.lower == u.upper) return inner;
-    const Interval outer = probability(l.lower, u.upper);
-    return checked({inner.lower, outer.upper});
+    return lower_bound ? probability(l.upper, u.lower).lower : probability(l.lower, u.upper).upper;
   }
   Group prepare_group(int row, int count, std::vector<double> &knots) {
     Group group{row, count, {}};
@@ -148,18 +153,24 @@ class Enclosure {
       const Interval l = scaled_endpoint(signed_event.lower, se);
       const Interval u = scaled_endpoint(signed_event.upper, se);
       if (!(l.upper < u.lower) || !(l.lower < u.upper)) throw Refusal{};
-      const double excess = finite(context.omega[b] - *std::min_element(
-        context.omega, context.omega + context.n_bins));
+      const double minimum_weight = *std::min_element(context.omega, context.omega + context.n_bins);
+      const double excess = finite(context.omega[b] - minimum_weight);
       Interval excess_log = log_value(excess);
-      // The subtraction defining a positive excess is rounded too.
-      if (minimum.lower != zero) {
+      // Sterbenz subtraction is exact, including the smallest positive
+      // subnormal excess. Subtracting zero is exact as well. Outside that
+      // proven range carry the subtraction outward rather than lose mass.
+      const bool exact_excess = minimum_weight == 0.0 ||
+        minimum_weight > std::numeric_limits<double>::max() / 2.0 ||
+        context.omega[b] <= 2.0 * minimum_weight;
+      if (!exact_excess) {
         const Interval excess_value = rounded(excess);
         if (!(excess_value.lower > 0.0)) throw Refusal{};
         excess_log = {log_value(excess_value.lower).lower, log_value(excess_value.upper).upper};
       }
-      Bin bin{l.upper, u.lower, l.lower, u.upper, excess_log, {0.0, 0.0}, zero,
+      Bin bin{l.upper, u.lower, l.lower, u.upper, excess_log, {0.0, 0.0}, {0.0, 0.0}, zero,
               std::isfinite(l.lower) && std::isfinite(u.upper)};
       if (bin.finite_bin) {
+        bin.inner_center = midpoint(bin.inner_lower, bin.inner_upper);
         bin.center = midpoint(bin.outer_lower, bin.outer_upper);
         // Width, not a rounded midpoint mean, determines the peak.
         const Interval width = rounded(finite(bin.outer_upper - bin.outer_lower));
@@ -185,16 +196,30 @@ class Enclosure {
     Interval total = minimum;
     double scale = 1.0;
     for (const Bin &bin : group.bins) {
-      const Interval a = at_mean(bin.inner_lower, bin.inner_upper, means.lower, context.residual_sd[row]);
-      const Interval b = at_mean(bin.inner_lower, bin.inner_upper, means.upper, context.residual_sd[row]);
-      double lo = std::min(a.lower, b.lower), hi;
-      if (bin.inner_lower == bin.outer_lower && bin.inner_upper == bin.outer_upper) {
-        hi = std::max(a.upper, b.upper);
+      double lo, hi;
+      if (!bin.finite_bin) {
+        const bool increasing = bin.outer_upper == infinity;
+        lo = at_mean(bin.inner_lower, bin.inner_upper,
+          increasing ? means.lower : means.upper, context.residual_sd[row], true);
+        hi = at_mean(bin.outer_lower, bin.outer_upper,
+          increasing ? means.upper : means.lower, context.residual_sd[row], false);
       } else {
-        hi = std::max(at_mean(bin.outer_lower, bin.outer_upper, means.lower, context.residual_sd[row]).upper,
-                      at_mean(bin.outer_lower, bin.outer_upper, means.upper, context.residual_sd[row]).upper);
+        // Inner and outer bins can have different rounded centers. Classify
+        // their monotonic regions separately, and include any ambiguous peak.
+        if (bin.inner_center.upper < means.lower) {
+          lo = at_mean(bin.inner_lower, bin.inner_upper, means.upper, context.residual_sd[row], true);
+        } else if (bin.inner_center.lower > means.upper) {
+          lo = at_mean(bin.inner_lower, bin.inner_upper, means.lower, context.residual_sd[row], true);
+        } else {
+          lo = std::min(at_mean(bin.inner_lower, bin.inner_upper, means.lower, context.residual_sd[row], true),
+                        at_mean(bin.inner_lower, bin.inner_upper, means.upper, context.residual_sd[row], true));
+        }
+        if (bin.center.upper < means.lower) {
+          hi = at_mean(bin.outer_lower, bin.outer_upper, means.lower, context.residual_sd[row], false);
+        } else if (bin.center.lower > means.upper) {
+          hi = at_mean(bin.outer_lower, bin.outer_upper, means.upper, context.residual_sd[row], false);
+        } else hi = bin.peak;
       }
-      if (bin.finite_bin && bin.center.lower <= means.upper && bin.center.upper >= means.lower) hi = std::max(hi, bin.peak);
       const Interval term = log_product({lo, hi}, bin.excess);
       for (double x : {term.lower, term.upper}) if (std::isfinite(x)) scale = std::max(scale, std::fabs(x));
       total = log_add(total, term);
@@ -291,11 +316,7 @@ class Enclosure {
       const std::size_t slot = heap.back().slot; heap.pop_back();
       const Leaf parent = leaves[slot];
       if (parent.gap == zero) throw Refusal{};
-      double split;
-      if (parent.lower == -infinity) split = parent.upper - std::max(1.0, std::fabs(parent.upper));
-      else if (parent.upper == infinity) split = parent.lower + std::max(1.0, std::fabs(parent.lower));
-      else split = parent.lower / 2.0 + parent.upper / 2.0;
-      if (!std::isfinite(split) || !(parent.lower < split && split < parent.upper)) throw Refusal{};
+      const double split = split_point(parent.lower, parent.upper);
       const Interval left = segment(parent.lower, split), right = segment(split, parent.upper);
       leaves[slot] = {parent.lower, split, gap(left), left, order++};
       const std::size_t next = leaves.size();

@@ -171,7 +171,8 @@ $(filter distributions/DSELNORM%.o,$(OBJECTS)) r-regplot.o r-selnorm.o selnorm/s
 r-regplot.o r-selnorm.o: plot-root.h
 r-selnorm.o selnorm/selnorm.o: selnorm/selnorm-tail.h selnorm/selnorm-tail-kernel.cc.inc
 selnorm/selnorm.o: selnorm/selnorm-cdf-table-data.h
-selnorm/selnorm-mv.o: selnorm/selnorm-mixture-compression.h
+selnorm/selnorm-mv.o: selnorm/selnorm-mixture-compression.h selnorm/selnorm-rank-one.h
+selnorm/selnorm-mv.o r-selnorm.o $(filter distributions/DSELNORM%.o,$(OBJECTS)): selnorm/selnorm-qmc-z.h
 
 # R API calls and entry boundaries must be rebuilt together.
 r-glmm.o r-known-v.o r-regplot.o r-selnorm.o glmm-aghq.o: r-native-api.h r-native-boundary.h

@@ -1145,6 +1145,9 @@
       stop(
         "Zplot marginal integration was rejected by diagnostics: relative integration error was ",
         format(error[failed[1L]], digits = 4), .selection_qmc_criterion(),
+        if (method %in% c("rank_one", "factor")) paste0(
+          ". Diagnostics cover deterministic refinement or randomized integration; ",
+          "rank-one product fallback uses a deterministic work budget"),
         ". Increase 'max_points_per_scramble' in 'integration_control = set_selection_likelihood_control()'.",
         call. = FALSE
       )
