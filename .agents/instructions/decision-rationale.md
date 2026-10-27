@@ -20,8 +20,10 @@ compatibility regression to repair. Matching the convention does not make PSIS
 posterior deletion identical to a classical refit.
 
 `0daab96c` supersedes the rank-divisor restoration in `d5b0f0e0`. See
-[model interfaces](model-interface.md), `R/cooks.distance.R`, and
-`tests/testthat/test-02-influence.R`.
+[model interfaces](model-interface.md), `R/cooks.distance.R`, and the tests:
+the unscaled quadratic form and the metafor comparison are in
+`tests/testthat/test-02-influence.R` (oracle in `helper-metafor.R`), the
+rank-three equality in `tests/testthat/test-00-released-surface.R`.
 
 ## One posterior-based VIF interface
 
@@ -128,8 +130,9 @@ been calibrated at the tighter level; a looser user request did not validate
 their coarser quadrature. Capping these checks fixed the reproduced cases while
 22 default-result probes stayed bit-identical and matched timing showed no
 material default slowdown. Implemented in `208a3af5`; see
-`tests/testthat/test-00-selection-certificate-acceptance.R` and the related
-selection-certificate tests.
+`tests/testthat/test-00-selection-certificate-acceptance.R` (the ladders at
+default and relaxed tolerances and the loose-request walls) and
+`test-00-selection-certificate-cluster-refinement.R`.
 
 **Rank-one follow-up.** Fourteen saved accepted errors all came from rank-one
 product fallbacks, including ten still outside tolerance at actual default
@@ -145,6 +148,10 @@ CPU seconds before/after of .655/.205 for the fourteen outliers, 1.215/.380 for
 the mixed 22 controls and 1.625/.325 for 21 heterogeneous controls. The one
 explicitly refused mixed control already failed the baseline diagnostic.
 These synthetic measurements do not promise universal speed or availability.
+The fourteen outliers, the independent integrals, the refusals and the
+work-ceiling behavior are tested in
+`tests/testthat/test-00-selection-certificate-rank-one.R` and
+`test-00-selection-rank-one-routing.R`.
 
 **Remaining limitation.** Higher-rank and best-rule randomized QMC retains an
 empirical error diagnostic, not a guaranteed bound. Do not describe accepted
