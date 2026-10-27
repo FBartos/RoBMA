@@ -66,3 +66,40 @@ test_that("summary() translates the BayesTools scale advice to standardized_coef
   expect_true(all(na_rows %in% rownames(standardized)))
   expect_length(attr(standardized, "footnotes", exact = TRUE), 0L)
 })
+
+
+test_that("summary_heterogeneity() reports the rows that summary() shows as NA as NA with the same note", {
+
+  skip_on_cran()
+  fit      <- .random_na_rows_fit()
+  random   <- summary(fit)[["estimates_random"]]
+  result   <- summary_heterogeneity(fit)
+  estimates <- result[["estimates"]]
+  na_rows  <- rownames(estimates)[is.na(estimates[, "Mean"])]
+
+  # the intercept of the block and its correlations have no original-scale
+  # value; nothing else is lost
+  expect_identical(na_rows, c(
+    "tau(intercept)", "tau2(intercept)",
+    "rho(intercept,f[a]:x)", "rho(intercept,f[b]:x)"
+  ))
+  expect_true(all(is.finite(as.matrix(estimates[setdiff(rownames(estimates), na_rows), ]))))
+  expect_true(all(c("tau(f[a]:x)", "tau(f[b]:x)", "rho(f[a]:x,f[b]:x)") %in% rownames(estimates)))
+
+  # every row that summary() reports as NA is NA here, with the identical note
+  summary_na <- rownames(random)[is.na(random[, "Mean"])]
+  expect_true(all(summary_na %in% na_rows))
+  notes <- attr(estimates, "footnotes", exact = TRUE)
+  expect_identical(names(notes), na_rows)
+  expect_true(all(startsWith(notes, paste0(na_rows, ": NA: "))))
+  summary_notes <- attr(random, "footnotes", exact = TRUE)
+  expect_identical(notes[summary_na], summary_notes[summary_na])
+  expect_true(all(endsWith(notes, " Use 'standardized_coefficients = TRUE' for fitted-scale values.")))
+
+  printed <- utils::capture.output(print(result))
+  expect_equal(sum(grepl(": NA: the original-scale value is unavailable", printed, fixed = TRUE)), 4L)
+
+  # the data-frame export keeps the NA rows instead of values at the predictor mean
+  exported <- as.data.frame(result)
+  expect_true(all(is.na(exported[match(na_rows, exported[["parameter"]]), "Mean"])))
+})

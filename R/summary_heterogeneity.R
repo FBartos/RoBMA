@@ -100,6 +100,11 @@ summary_heterogeneity <- function(object, ...) {
 #' random-effect names without changing the fitted quantities. Formula-random
 #' summaries are present only when a
 #' \code{random} formula is declared.
+#' A random-effect row that \code{\link{summary.brma}} reports as \code{NA} on the
+#' original predictor scale (a fitted block that cannot represent it, for
+#' example the intercept SD and the intercept correlations of a block with
+#' factor-specific slopes of a standardized predictor) is \code{NA} here too,
+#' with the same row note.
 #' Public random-effect correlations (`rho`) are included in their component's
 #' table,
 #' including homogeneous structures such as \code{ar()}, \code{cs()}, and

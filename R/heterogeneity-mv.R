@@ -416,11 +416,13 @@
     posterior_samples              = posterior_samples,
     include_known_group_covariance = FALSE
   )
+  unavailable <- .brma_mv_original_scale_unavailable(object)
   allocation_summaries <- .summary_heterogeneity_brma_mv_allocations(
     object            = object,
     posterior_samples = posterior_samples,
     probs             = probs,
-    component         = component
+    component         = component,
+    unavailable       = unavailable
   )
   correlation_samples <- .brma_mv_correlation_sample_lists(
     object            = object,
@@ -441,7 +443,8 @@
         probs               = probs,
         component           = name,
         aggregate           = FALSE,
-        correlation_samples = correlation_samples[[name]]
+        correlation_samples = correlation_samples[[name]],
+        unavailable         = unavailable
       )
     })
     names(out) <- names(selected)
@@ -472,7 +475,8 @@
           component           = name,
           aggregate           = identical(name, "total") &&
             length(components) > 1L,
-          correlation_samples = correlation_samples[[name]]
+          correlation_samples = correlation_samples[[name]],
+          unavailable         = unavailable
         )
       })
       names(out) <- names(selected)
@@ -503,7 +507,8 @@
 
 .summary_heterogeneity_brma_mv_one <- function(sd_samples, probs, component,
                                                aggregate = FALSE,
-                                               correlation_samples = NULL) {
+                                               correlation_samples = NULL,
+                                               unavailable = character()) {
 
   var_samples <- rowMeans(sd_samples^2)
   sd_name     <- if (aggregate) "tau_total" else "tau"
@@ -525,11 +530,88 @@
       paste0("Heterogeneity Estimates (", component, "):")
     }
   )
+  estimates <- .summary_heterogeneity_mark_unavailable(
+    estimates, samples_list, unavailable
+  )
 
   output <- list(estimates = estimates, component = component)
   class(output) <- "summary_heterogeneity.brma"
 
   return(output)
+}
+
+
+# The random-effect quantities that summary() reports as NA on the original
+# scale because the fitted random block cannot represent them, by catalog name,
+# with the note of the row under RoBMA's argument. BayesTools owns the rule: it
+# is read from the table summary() is built from, so both tables agree.
+.brma_mv_original_scale_unavailable <- function(object) {
+
+  if (!.is_random(object) || is.null(object[["fit"]]) ||
+      length(attr(object[["fit"]], "formula_scale", exact = TRUE)) == 0L) {
+    return(character())
+  }
+
+  table <- .summary_estimates_table(
+    object                   = object,
+    probs                    = c(.025, .975),
+    include_mcmc_diagnostics = FALSE,
+    is_robma                 = .is_robust_RoBMA(object),
+    keep_parameters          = "random",
+    transform_scaled         = TRUE,
+    random_effects_summary   = "full",
+    formula_prefix           = FALSE
+  )
+  table <- .summary_translate_scale_advice(table)
+  footnotes  <- attr(table, "footnotes", exact = TRUE)
+  parameters <- attr(table, "parameters", exact = TRUE)
+  rows       <- match(names(footnotes), rownames(table))
+  rows       <- rows[!is.na(rows) & is.na(table[rows, "Mean"])]
+  if (length(rows) == 0L) {
+    return(character())
+  }
+
+  notes <- vapply(rows, function(row) {
+    note   <- footnotes[[rownames(table)[row]]]
+    prefix <- paste0(rownames(table)[row], ": ")
+    if (startsWith(note, prefix)) substring(note, nchar(prefix) + 1L) else note
+  }, character(1))
+
+  return(stats::setNames(notes, parameters[rows]))
+}
+
+
+# Rows of a heterogeneity table whose quantity is unavailable on the original
+# scale are NA, with the note summary() gives the same row. The draws of those
+# quantities carry their catalog name.
+.summary_heterogeneity_mark_unavailable <- function(estimates, samples,
+                                                    unavailable) {
+
+  if (length(unavailable) == 0L) {
+    return(estimates)
+  }
+  names_catalog <- vapply(samples, function(values) {
+    name <- attr(values, "catalog_name", exact = TRUE)
+    if (is.null(name)) NA_character_ else name
+  }, character(1))
+  marked <- which(names_catalog %in% names(unavailable))
+  if (length(marked) == 0L) {
+    return(estimates)
+  }
+
+  labels <- names(samples)[marked]
+  rows   <- match(labels, rownames(estimates))
+  rows   <- rows[!is.na(rows)]
+  estimates[rows, ] <- NA_real_
+  notes <- stats::setNames(
+    paste0(labels, ": ", unavailable[names_catalog[marked]]),
+    labels
+  )
+  attr(estimates, "footnotes") <- c(
+    attr(estimates, "footnotes", exact = TRUE), notes
+  )
+
+  return(estimates)
 }
 
 
@@ -567,7 +649,9 @@
       selected[i, , drop = FALSE],
       "label"
     )
-    out[[block]][[label]] <- .brma_mv_catalog_draw_values(draws)
+    values <- .brma_mv_catalog_draw_values(draws)
+    attr(values, "catalog_name") <- selected[["canonical_name"]][i]
+    out[[block]][[label]] <- values
   }
 
   return(out)
@@ -593,7 +677,8 @@
 .summary_heterogeneity_brma_mv_allocations <- function(object,
                                                        posterior_samples,
                                                        probs,
-                                                       component = "all") {
+                                                       component = "all",
+                                                       unavailable = character()) {
 
   if (identical(component, "total")) {
     return(list())
@@ -622,6 +707,9 @@
       parameters = names(samples_list),
       probs      = probs,
       title      = paste0("Heterogeneity Estimates (", name, "):")
+    )
+    estimates <- .summary_heterogeneity_mark_unavailable(
+      estimates, samples_list, unavailable
     )
 
     output <- list(estimates = estimates, component = name)
@@ -921,7 +1009,9 @@
         selection,
         model_samples = posterior_samples
       )
-      .brma_mv_catalog_draw_values(draws)
+      values <- .brma_mv_catalog_draw_values(draws)
+      attr(values, "catalog_name") <- selected[["canonical_name"]][j]
+      values
     })
     names(samples_list) <- .brma_random_parameter_io_labels(selected, "label")
     if (identical(target, "sd_component") &&
