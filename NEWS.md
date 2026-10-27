@@ -11,11 +11,13 @@
   errors without increasing numerical defaults. The maximum point count and
   scrambles set a scalar-probability work ceiling; unresolved bounds fail
   explicitly. Other ranks and best rules retain empirical QMC diagnostics.
-  Rules that the calibrated checks reject now refine or fall back, so post-fit
-  densities that request a loose tolerance (for example qCMDE) on
-  product-selection blocks with selection transitions can take about twice as
-  long (one multivariate qCMDE plot call: 10.1 s to 20.4 s, plotted densities
-  within 0.2% relative).
+  Rules that the calibrated checks reject now refine or fall back, so fits
+  whose selection control requests a `relative_tolerance` above 0.005, and
+  every post-fit calculation on them, can take longer on product-selection
+  blocks with selection transitions (a multivariate fit with
+  `relative_tolerance = 0.02`: fitting about 30% longer, a qCMDE plot 10.1 s
+  to 20.4 s, plotted densities within 0.2% relative). The default tolerance
+  is unaffected.
 - `cooks.distance()` and the Cook's distance column of `influence()` use the
   unscaled squared posterior Mahalanobis distance, matching metafor's scaling
   convention. Compared with 4.0.0, values are multiplied by the fixed-effect
