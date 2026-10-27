@@ -79,11 +79,13 @@ mean-variance allocation scale is reported as \code{tau_common} and
 random-effect names without changing the fitted quantities. Formula-random
 summaries are present only when a
 \code{random} formula is declared.
-A random-effect row that \code{\link{summary.brma}} reports as \code{NA} on the
-original predictor scale (a fitted block that cannot represent it, for
-example the intercept SD and the intercept correlations of a block with
-factor-specific slopes of a standardized predictor) is \code{NA} here too,
-with a row note.
+A random-effect quantity that the fitted block cannot represent on the
+original predictor scale (for example the intercept SD, variance and
+correlations of a block with factor-specific slopes of a standardized
+predictor) is \code{NA}, with a row note, in the row that shows it. This
+table shows the SDs, variances and correlations, so all of them can be
+\code{NA} here; \code{\link{summary.brma}} shows the correlations and the
+fitted-scale multipliers, so only its correlation rows can be \code{NA}.
 Public random-effect correlations (\code{rho}) are included in their component's
 table,
 including homogeneous structures such as \code{ar()}, \code{cs()}, and
