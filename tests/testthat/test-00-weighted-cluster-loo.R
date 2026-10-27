@@ -108,7 +108,7 @@ test_that("large locations are refused before deletion loses observation-scale i
   expect_equal(moments$se, as.numeric(exp(expected$log_sd)), tolerance = 1e-12)
 })
 
-test_that("weighted deletion handles flagged draws and dominating retained powers", {
+test_that("weighted deletion handles cancelling draws and dominating retained powers", {
 
   residual <- rbind(c(.2, .3, -.1), c(0, 1, -1 + 1e-10), c(1, 1.5, 1.5))
   weights <- c(2, 1, 1)
@@ -126,14 +126,37 @@ test_that("weighted deletion handles flagged draws and dominating retained power
   expect_equal(value$log_sd[1L, 1L], .5 * log(1.25), tolerance = 1e-12)
 })
 
-test_that("ordinary weighted deletion does not invoke the fallback", {
+test_that("ordinary weighted deletion remains finite", {
 
-  testthat::local_mocked_bindings(
-    .weighted_cluster_deletion_fallback = function(...) stop("Unexpected fallback."),
-    .package = "RoBMA")
   value <- .weighted_normal_cluster_deletion(matrix(c(.2, .3, .5), 2L, 3L, byrow = TRUE),
     matrix(1, 2L, 3L), matrix(.4, 2L, 3L), c(.5, 1, 2), list(1:3))
   expect_true(all(is.finite(value$log_score)))
+})
+
+test_that("large ordinary clusters retain nearly cancelling residuals and numerators", {
+
+  n <- 300L
+  residual <- rbind(1 + sin(seq_len(n)), cos(seq_len(n)))
+  residual[1L, 1L] <- sum(residual[1L, -1L]) / n * (1 + 1e-10)
+  residual[2L, n] <- -sum(residual[2L, 2L:(n - 1L)]) * (1 + 1e-12)
+  value <- .weighted_normal_cluster_deletion(residual, matrix(1, 2L, n),
+    matrix(1, 2L, n), rep(1, n), list(seq_len(n)))
+  shift <- vapply(seq_len(n), function(i) rowSums(residual[, -i, drop = FALSE]) / n,
+    numeric(2L))
+  error <- residual - shift
+  score <- stats::dnorm(error, sd = sqrt(1 + 1 / n), log = TRUE)
+  expect_lt(max(abs(value$shift - shift)), 1e-12)
+  expect_lt(max(abs(value$residual - error)), 1e-12)
+  expect_lt(max(abs(value$log_score - score)), 1e-12)
+})
+
+test_that("weighted deletion refuses non-finite intermediates after finite entry checks", {
+
+  for(loading in c(8e153, 1e200)){
+    expect_error(.weighted_normal_cluster_deletion(matrix(1, 1L, 3L),
+      matrix(1, 1L, 3L), matrix(loading, 1L, 3L), c(.5, 1, 2), list(1:3)),
+      class = "RoBMA_weighted_gaussian_unavailable")
+  }
 })
 
 .weighted_cluster_loo_replay <- function(direction = "positive", weights = c(.5, 1.5, 2, 1)) {

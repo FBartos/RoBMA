@@ -81,8 +81,9 @@ integrated weights directly.
 
 The exact Gaussian helper avoids general quadrature and dense covariance
 inversion. Linear prefix/suffix sums exclude the focal row without subtracting
-a dominating contribution; only non-finite or severely cancelling draws use
-the guarded log-domain fallback. The 2026-10-27 maintainer decision removes
+a dominating contribution, including when numerators or residuals nearly cancel.
+Non-finite intermediates raise the typed unavailability condition directly.
+The 2026-10-27 maintainer decision removes
 the second rounding-remainder pass and exact-arithmetic machinery: inputs at
 representability limits raise `RoBMA_weighted_gaussian_unavailable`.
 It preserves unweighted routes. This does not promise
