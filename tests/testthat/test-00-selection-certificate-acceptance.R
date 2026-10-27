@@ -74,6 +74,51 @@ test_that("the combined exterior and amplitude allowance decides at its exact bo
   }
 })
 
+test_that("the allowance boundary decides at the calibrated cap of loose requests", {
+
+  # A request above .005 is held to .005 when the weight has transitions, so
+  # the kernel's allowance rule has its boundary at a threshold of .005 for
+  # every such request; the test above sits far from it. Twenty rows with a
+  # latent mean of -1 and the residual SD as the free parameter: the combined
+  # allowance of order 31 falls through .005 between SDs of .275 and .3, and
+  # the other gates of that rung hold on both sides. The threshold belongs to
+  # the block, not to the tolerance.
+  order <- 31L
+  block_at <- function(sd) .test_cert_block(list(
+    list(count = 20L, loading = c(.4, .8), sd = sd, mean = -1, sei = 1)), c(1, 0))
+  threshold <- function(sd) {
+    probe <- .test_cert_probe(block_at(sd), order, tolerance = 1)
+    allowance <- probe[["tail_bound"]] + .test_cert_allowance_factor * probe[["amplitude_sum"]]
+    max(2 * probe[["amplitude_sum"]], allowance / (1 - allowance))
+  }
+  expect_gt(threshold(.275), .005)
+  expect_lt(threshold(.3), .005)
+  orders <- SELNORM_FACTOR_QUADRATURE_ORDERS
+  for (side in c(1, -1)) {
+    # side 1: the threshold just inside the cap; -1: just outside
+    sd <- stats::uniroot(function(x) log(threshold(x)) - log(.005 * (1 - side * 1e-6)),
+                         c(.275, .3), tol = 1e-13)$root
+    block <- block_at(sd)
+    expect_lt(abs(threshold(sd) / .005 - (1 - side * 1e-6)), 1e-9)
+    values <- vapply(orders, function(o) .test_cert_probe(block, o)[["log_normalizer"]], numeric(1L))
+    strict <- .test_cert_native_factor(block, tolerance = .005)
+    for (tolerance in c(.005, .02, .05)) {
+      info   <- paste(side, tolerance)
+      actual <- .test_cert_native_factor(block, tolerance = tolerance)
+      accepted <- orders[which.min(abs(values - actual[["log_normalizer"]]))]
+      expect_identical(actual[["relative_mcse"]], 0, info = info)
+      # the rung is kept inside the cap; outside it the kernel moves up
+      expect_identical(accepted, if (side > 0) order else 43L, info = info)
+      expect_identical(accepted, .test_cert_emulate_ladder(block, tolerance)[["order"]], info = info)
+      expect_identical(actual[["log_normalizer"]], strict[["log_normalizer"]], info = info)
+      # the raw criterion of a loose request accepts the rung on both sides:
+      # outside, the cap is what refuses it
+      expect_identical(.test_cert_probe(block, order, tolerance = tolerance)[["accepted"]],
+                       side > 0 || tolerance > .005, info = info)
+    }
+  }
+})
+
 test_that("a block with a constant selection weight is accepted without a certificate", {
 
   # No transition: no aliasing to certify. Equal weights leave only the exterior
