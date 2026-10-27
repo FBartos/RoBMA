@@ -143,6 +143,8 @@ test_that("the fallbacks return finite estimates on deferred geometries", {
 
 test_that("randomized uncertainty and mean accuracy calibrate across independent seeds", {
 
+  skip_if_not_certification("The 10 s forest_84 seed panel runs in the numerical-kernels case.")
+
   # Empirical MCSE is not a bound on each design. These seeds and criteria were
   # fixed before their results were inspected; deeper multi-case verification
   # uses separate seeds. The former isolated forest_84 outlier motivates this
@@ -189,6 +191,8 @@ test_that("randomized uncertainty and mean accuracy calibrate across independent
 })
 
 test_that("the fallbacks retain their uncertainty and accuracy on deferred geometries", {
+
+  skip_if_not_certification("The 33 s deferred-geometry seed panels run in the numerical-kernels case.")
 
   # Same policy as the forest_84 panel above. The reported MCSE is an empirical
   # standard error, not a bound, so accuracy is judged across independent seeds

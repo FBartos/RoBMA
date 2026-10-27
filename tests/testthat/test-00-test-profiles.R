@@ -567,7 +567,8 @@ test_that("certification case verification filters select their intended files",
       "00-selection-probability-numerics", "00-selection-factor-routing",
       "00-selection-estimate-cells", "00-selection-coarse-blocks",
       "00-selection-coarse-exactness", "00-jags-build-requirements",
-      "02-distributions", "02-glmm-aghq"
+      "00-selection-certificate-proposals", "00-selection-certificate-acceptance",
+      "00-selection-node-memo", "02-distributions", "02-glmm-aghq"
     ),
     "normal-models" = c(
       "02-dfbetas", "02-forest", "02-funnel", "02-hatvalues", "02-influence",

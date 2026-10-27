@@ -140,6 +140,7 @@ test_that("the node memo key covers every input and the map stays bounded", {
 
 test_that("a selection fit with factor and cluster blocks draws identically with the node memo on and off", {
 
+  skip_if_not_certification("These 20 s child-process fits run in the numerical-kernels case.")
   skip_if_not_installed("rjags")
   skip_if_not_installed("metadat")
   skip_if_not_installed("metafor")

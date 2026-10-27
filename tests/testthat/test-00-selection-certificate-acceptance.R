@@ -10,6 +10,8 @@ skip_on_cran()
 
 test_that("random two-group blocks follow the R certificate ladder at default and relaxed tolerances", {
 
+  skip_if_not_certification("The 13 s random two-group ladder comparison runs in the numerical-kernels case.")
+
   set.seed(4711)
   routes <- character()
   for (i in seq_len(8L)) {

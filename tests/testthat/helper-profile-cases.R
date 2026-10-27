@@ -395,7 +395,7 @@ certification_cases <- function() {
     "numerical-kernels" = list(
       description = paste(
         "Independent selected-normal, known-V, distribution, and GLMM",
-        "quadrature oracles."
+        "quadrature oracles and selection-certificate calibration."
       ),
       fit_sources = "test-01-ordinary-lane-fixtures.R",
       fit_names = c("lane_glmm_point_baserate", "lane_glmm_boundary_beta", "lane_glmm_truncated_beta", "lane_glmm_truncated_lograte", "lane_selection_reference"),
@@ -403,7 +403,9 @@ certification_cases <- function() {
         "00-(covariance-factorization|known-v-joint-loglik|",
         "selection-kernel.*|selection-probability-numerics|",
         "selection-factor-routing|selection-estimate-cells|",
-        "selection-coarse-blocks|selection-coarse-exactness|jags-build-requirements)|",
+        "selection-coarse-blocks|selection-coarse-exactness|jags-build-requirements|",
+        "selection-certificate-proposals|selection-certificate-acceptance|",
+        "selection-node-memo)|",
         "02-(distributions|glmm-aghq)"
       ),
       required_tests = rbind(
@@ -411,6 +413,14 @@ certification_cases <- function() {
           "covariance sampling factor preserves singular covariance"),
         .required_tests("test-00-selection-kernel-fit.R",
           "selection reference weights are structural convergence parameters"),
+        .required_tests("test-00-selection-certificate-proposals.R", c(
+          "randomized uncertainty and mean accuracy calibrate across independent seeds",
+          "the fallbacks retain their uncertainty and accuracy on deferred geometries"
+        )),
+        .required_tests("test-00-selection-certificate-acceptance.R",
+          "random two-group blocks follow the R certificate ladder at default and relaxed tolerances"),
+        .required_tests("test-00-selection-node-memo.R",
+          "a selection fit with factor and cluster blocks draws identically with the node memo on and off"),
         .required_tests("test-00-selection-coarse-blocks.R", c(
           "cluster and factor blocks give their nodes the corrected sampler",
           "a corrected chain draws identically with the node memo on and off"
