@@ -73,9 +73,11 @@ test_that("integration rejections name fitting and supported post-fit remedies",
       "Selection factor normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ",
       if (is.finite(mcse)) "0.006" else "Inf",
-      " and nested-design relative change was 0.007",
+      " and refinement/design relative change was 0.007",
       " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
-      ". Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
+      ". Diagnostics cover deterministic refinement or randomized integration; ",
+      "rank-one product fallback uses a deterministic work budget. ",
+      "Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
     ))
     expect_null(conditionCall(condition))
 
@@ -90,9 +92,11 @@ test_that("integration rejections name fitting and supported post-fit remedies",
       "Selection cluster normalizer was rejected by diagnostics: ",
       "relative Monte Carlo standard error was ",
       if (is.finite(mcse)) "0.006" else "Inf",
-      " and nested-design relative change was 0.007",
+      " and refinement/design relative change was 0.007",
       " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
-      ". Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
+      ". Diagnostics cover deterministic refinement or randomized integration; ",
+      "rank-one product fallback uses a deterministic work budget. ",
+      "Increase 'max_points_per_scramble' or 'scrambles' in ", remedies
     ))
     expect_null(conditionCall(condition))
   }
@@ -130,7 +134,7 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
                 common, list(as.double(qmc), 8L, 2L, .005, FALSE)),
     cluster = c(list(data$y, matrix(data$offset, 1L), matrix(residual_sd, 1L),
                       matrix(loading[, 1L], 1L)), common, rules,
-                  list(as.double(cluster_qmc), 8L, 8L, 2L, .005, FALSE)),
+                  list(as.double(cluster_qmc), 8L, 8L, 2L, .005, TRUE)),
     factor = c(list(data$y, matrix(data$offset, 1L), matrix(residual_sd, 1L),
                      matrix(as.double(loading), 1L)), common, rules,
                  list(as.double(qmc), 8L, 8L, 2L, .005, FALSE))
@@ -141,8 +145,17 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
       paste0("RoBMA_selnorm_", method, "_step_loglik_batch")
     ), inputs[[method]], tail_arguments, list(PACKAGE = "RoBMA")))
     metrics <- unlist(raw[intersect(c("relative_mcse", "relative_change"), names(raw))])
-    expect_true(all(is.finite(metrics)), info = method)
-    expect_gt(max(metrics), .005)
+    if (method == "cluster") {
+      expect_true(is.nan(raw$log_normalizer))
+      expect_identical(raw$log_density, -Inf)
+      expect_identical(raw$relative_mcse, Inf)
+      expect_identical(raw$relative_change, Inf)
+      expect_false(.test_cert_deterministic(raw))
+    } else {
+      expect_true(all(is.finite(metrics)), info = method)
+      expect_gt(max(metrics), .005)
+    }
+    metric <- function(x) tolower(sprintf("%g", x))
     message <- switch(method,
       mnorm = paste0(
         "Selection normalizer was rejected by diagnostics: relative Monte Carlo ",
@@ -152,17 +165,21 @@ test_that("JAGS selection rejections report complete model-neutral diagnostics",
       ),
       cluster = paste0(
         "Selection cluster normalizer was rejected by diagnostics: relative Monte Carlo ",
-        "standard error was ", sprintf("%g", raw$relative_mcse),
-        " and nested-design relative change was ", sprintf("%g", raw$relative_change),
+        "standard error was ", metric(raw$relative_mcse),
+        " and refinement/design relative change was ", metric(raw$relative_change),
         " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
-        ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
+        ". Diagnostics cover deterministic refinement or randomized integration; ",
+        "rank-one product fallback uses a deterministic work budget. ",
+        "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       ),
       factor = paste0(
         "Selection factor normalizer was rejected by diagnostics: relative Monte Carlo ",
-        "standard error was ", sprintf("%g", raw$relative_mcse),
-        " and nested-design relative change was ", sprintf("%g", raw$relative_change),
+        "standard error was ", metric(raw$relative_mcse),
+        " and refinement/design relative change was ", metric(raw$relative_change),
         " (accepted when 2.36 times the standard error and the change are within 'relative_tolerance')",
-        ". Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
+        ". Diagnostics cover deterministic refinement or randomized integration; ",
+        "rank-one product fallback uses a deterministic work budget. ",
+        "Increase 'max_points_per_scramble' or 'scrambles' in 'selection_control'."
       )
     )
     current_data <- data
