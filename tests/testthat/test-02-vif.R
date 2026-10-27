@@ -681,12 +681,38 @@ test_that("VIF supports brma.mv random-formula marginal GLS covariance", {
   expect_equal(colnames(post_cor), c("(mu) intercept", "(mu) x", "(mu) z"))
   expect_false(any(grepl("tau", colnames(post_cor), fixed = TRUE)))
   expect_false(any(grepl("tau2_prop(", colnames(post_cor), fixed = TRUE)))
-  expect_equal(
-    covariance_samples,
-    .known_v_add_base_covariance(
+  # The adapter and the helper above share their inputs, so they cannot check
+  # each other. The reference is built from the posterior draws and the fitted
+  # design alone: the total heterogeneity of a row is the scale intercept (the
+  # baseline SD) times exp(slope * standardized x), split between the two
+  # nested levels by the variance weights of the heterogeneity allocation, and
+  # the rows of a group share the effect of every level.
+  allocation <- .brma_mv_random_effects_formula_design(object)[["random_allocations"]][["heterogeneity"]]
+  expect_identical(allocation[["component_names"]], c("effect_study", "study"))
+  data  <- load_info(name)[["data"]]
+  draws <- as.matrix(.get_posterior_samples(object[["fit"]]))
+  x_std <- (data[["x"]] - mean(data[["x"]])) / stats::sd(data[["x"]])
+  tau   <- draws[, "log_tau_intercept"] * exp(outer(draws[, "log_tau_x"], x_std))
+  weights <- draws[, paste0("mu__xRE_ALLOCx_heterogeneity__weight[", 1:2, "]")]
+  same_study  <- outer(data[["study"]], data[["study"]], "==")
+  same_effect <- same_study & outer(data[["effect"]], data[["effect"]], "==")
+  reference <- array(0, dim = dim(random_vcov[["samples"]]))
+  for (draw in seq_len(nrow(draws))) {
+    reference[draw, , ] <- tcrossprod(tau[draw, ]) *
+      (weights[draw, 1L] * same_effect + weights[draw, 2L] * same_study)
+  }
+  # relative to the largest entry: the edition-2 tolerance is absolute for
+  # small values
+  expect_lt(
+    max(abs(random_vcov[["samples"]] - reference)) / max(abs(reference)),
+    1e-12
+  )
+  expect_lt(
+    max(abs(covariance_samples - .known_v_add_base_covariance(
       known_V            = known_V,
-      covariance_samples = random_vcov[["samples"]]
-    )
+      covariance_samples = reference
+    ))) / max(abs(covariance_samples)),
+    1e-12
   )
   expect_equal(random_vcov[["metadata"]][["n_rows"]], nobs(object))
   expect_true(length(random_vcov[["metadata"]][["included_blocks"]]) > 0)
