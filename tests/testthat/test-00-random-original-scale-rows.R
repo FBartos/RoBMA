@@ -48,6 +48,21 @@ context("Random-effect rows without an original-scale value")
   return(.random_na_rows_env[[key]])
 }
 
+# The same block under model averaging: the heterogeneity null puts a spike on
+# the total SD, so some draws have no correlation defined.
+.random_na_rows_bma_fit <- function() {
+
+  if (is.null(.random_na_rows_env[["bma"]])) {
+    .random_na_rows_env[["bma"]] <- suppressWarnings(BMA.mv(
+      yi = yi, V = vi, mods = ~ x, random = ~ us(1 + f:x | study),
+      data = .random_na_rows_data(), measure = "SMD", chains = 2, adapt = 300,
+      burnin = 300, sample = 500, seed = 1, silent = TRUE, parallel = FALSE
+    ))
+  }
+
+  return(.random_na_rows_env[["bma"]])
+}
+
 # The unavailable rows as the table of all draws gives them (the rule before the
 # set was read from a few draws): catalog name -> row label.
 .random_na_rows_reference <- function(object) {
@@ -170,4 +185,34 @@ test_that("the unavailable rows are read from a few draws and equal those of the
   shifted <- summary_heterogeneity(.random_na_rows_fit("diag_zfxz"))[["estimates"]]
   expect_identical(rownames(shifted)[is.na(shifted[, "Mean"])],
                    c("tau(intercept)", "tau(z)", "tau2(intercept)", "tau2(z)"))
+})
+
+
+test_that("model-averaged heterogeneity rows without an original-scale value carry that note alone", {
+
+  skip_on_cran()
+  fit       <- .random_na_rows_bma_fit()
+  result    <- summary_heterogeneity(fit)
+  estimates <- result[["estimates"]]
+  na_rows   <- rownames(estimates)[is.na(estimates[, "Mean"])]
+  notes     <- attr(estimates, "footnotes", exact = TRUE)
+
+  expect_identical(na_rows, c(
+    "tau(intercept)", "tau2(intercept)",
+    "rho(intercept,f[a]:x)", "rho(intercept,f[b]:x)"
+  ))
+  # the spike on the total SD leaves the correlation undefined in some draws:
+  # the available correlation says so, the rows that are NA do not
+  expect_true(any(grepl("summarized over", notes[names(notes) == "rho(f[a]:x,f[b]:x)"], fixed = TRUE)))
+  expect_false(anyDuplicated(names(notes)) > 0L)
+  expect_identical(sort(names(notes)), sort(c(na_rows, "rho(f[a]:x,f[b]:x)")))
+  expect_false(any(grepl("summarized over", notes[na_rows], fixed = TRUE)))
+  expect_true(all(startsWith(notes[na_rows], paste0(na_rows, ": NA: "))))
+
+  # summary() carries the same note for its rows (with its own remedy)
+  random <- summary(fit)[["estimates_random"]]
+  summary_notes <- attr(random, "footnotes", exact = TRUE)
+  summary_na    <- intersect(na_rows, names(summary_notes))
+  expect_identical(summary_na, c("rho(intercept,f[a]:x)", "rho(intercept,f[b]:x)"))
+  expect_identical(notes[summary_na], sub("\\. Use .*$", ".", summary_notes[summary_na]))
 })

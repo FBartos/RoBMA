@@ -593,8 +593,9 @@
 
 
 # Rows of a heterogeneity table whose quantity is unavailable on the original
-# scale are NA, with the note summary() gives the same row. The draws of those
-# quantities carry their catalog name.
+# scale are NA, with the note of the unavailable quantity in place of any other
+# note of the row (such as the share of draws a correlation is defined in). The
+# draws of those quantities carry their catalog name.
 .summary_heterogeneity_mark_unavailable <- function(estimates, samples,
                                                     unavailable) {
 
@@ -618,9 +619,8 @@
     paste0(labels, ": ", unavailable[names_catalog[marked]]),
     labels
   )
-  attr(estimates, "footnotes") <- c(
-    attr(estimates, "footnotes", exact = TRUE), notes
-  )
+  footnotes <- attr(estimates, "footnotes", exact = TRUE)
+  attr(estimates, "footnotes") <- c(footnotes[!names(footnotes) %in% labels], notes)
 
   return(estimates)
 }
