@@ -994,8 +994,10 @@ test_that("fit catalog is internally consistent", {
   )
   expect_equal(catalog[["name"]][!catalog[["has_loo"]]], no_loo_fits,
                info = "selected brma.mv cache fixtures omit pre-computed LOO")
-  expect_true(all(!catalog[["has_waic"]]),
-              info = "WAIC is not pre-computed for cached test fits")
+  # the weighted cluster LOO fixture stores both criteria: its test compares
+  # the LOO and WAIC deletion scores
+  expect_identical(catalog[["name"]][catalog[["has_waic"]]], "weighted_gaussian_cluster_loo",
+                   info = "WAIC is pre-computed only for the weighted cluster LOO fixture")
   expect_true(all(!catalog[catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv"), "has_marglik"]),
               info = "product-space model averaging fits must not cache marginal likelihoods")
   v14_marglik_fits <- c(
@@ -1047,7 +1049,8 @@ test_that("fit catalog is internally consistent", {
     "lane_glmm_boundary_beta",
     "lane_glmm_truncated_beta",
     "lane_glmm_truncated_lograte",
-    "bias_branch_bPET_mods"
+    "bias_branch_bPET_mods",
+    "weighted_gaussian_cluster_loo"
   )
   expect_true(all(!catalog[catalog[["name"]] %in% no_marglik_single_fits, "has_marglik"]))
   expect_true(all(catalog[!catalog[["class"]] %in% c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA", "RoBMA.mv", "brma.mv") &
@@ -1159,7 +1162,8 @@ test_that("fit catalog is internally consistent", {
       "bias_branch_bPET_mods",
       "bias_branch_known_v_ensemble",
       "plot_prior_random_allocated",
-      "plot_prior_random_scale"
+      "plot_prior_random_scale",
+      "weighted_gaussian_cluster_loo"
     )
   )
 })
