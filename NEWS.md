@@ -11,6 +11,11 @@
   errors without increasing numerical defaults. The maximum point count and
   scrambles set a scalar-probability work ceiling; unresolved bounds fail
   explicitly. Other ranks and best rules retain empirical QMC diagnostics.
+  Rules that the calibrated checks reject now refine or fall back, so post-fit
+  densities that request a loose tolerance (for example qCMDE) on
+  product-selection blocks with selection transitions can take about twice as
+  long (one multivariate qCMDE plot call: 10.1 s to 20.4 s, plotted densities
+  within 0.2% relative).
 - `cooks.distance()` and the Cook's distance column of `influence()` use the
   unscaled squared posterior Mahalanobis distance, matching metafor's scaling
   convention. Compared with 4.0.0, values are multiplied by the fixed-effect
