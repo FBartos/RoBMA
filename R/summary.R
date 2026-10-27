@@ -17,7 +17,11 @@
 #' coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
 #' meta-regression coefficients and random-component summaries are returned on
 #' the standardized scale on which prior distributions are specified by default
-#' (i.e., `standardize_continuous_predictors = TRUE`).
+#' (i.e., `standardize_continuous_predictors = TRUE`). A random-effect row whose
+#' original-scale value the fitted random block cannot represent (for example the
+#' intercept of a block with factor-specific slopes of a standardized predictor)
+#' is `NA` in the default original-scale table, with a footnote; its value on the
+#' fitted scale is shown with `standardized_coefficients = TRUE`.
 #' @param conditional whether to include conditional estimates for RoBMA
 #'   product-space objects. Defaults to \code{FALSE}.
 #' @param logBF whether to show inclusion Bayes factors on the log scale.
@@ -751,6 +755,7 @@ print.brma <- function(x, ...) {
 # (without the formula prefix, simplified).
 .summary_random_repair_parameter_names <- function(estimates, object) {
 
+  estimates  <- .summary_translate_scale_advice(estimates)
   parameters <- attr(estimates, "parameters", exact = TRUE)
   if (length(estimates) == 0L || is.null(parameters) ||
       is.null(rownames(estimates)) || is.null(object[["fit"]])) {
@@ -790,6 +795,23 @@ print.brma <- function(x, ...) {
   attr(estimates, "parameters") <- parameters
 
   estimates
+}
+
+# BayesTools explains a row it reports as NA on the original scale with its own
+# argument, 'transform_scaled = FALSE'. summary() has no such argument: the
+# fitted-scale values of the random table are those of
+# 'standardized_coefficients = TRUE'.
+.summary_translate_scale_advice <- function(estimates) {
+
+  footnotes <- attr(estimates, "footnotes", exact = TRUE)
+  if (length(footnotes) > 0L) {
+    attr(estimates, "footnotes") <- sub(
+      "'transform_scaled = FALSE'", "'standardized_coefficients = TRUE'",
+      footnotes, fixed = TRUE
+    )
+  }
+
+  return(estimates)
 }
 
 .summary_location_repair_row_labels <- function(estimates, object) {

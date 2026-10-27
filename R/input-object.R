@@ -309,6 +309,7 @@ NULL
     labels = rownames(estimates),
     object = object
   )
+  estimates <- .summary_translate_scale_advice(estimates)
 
   return(estimates)
 }

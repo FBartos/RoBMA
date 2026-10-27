@@ -34,7 +34,11 @@ Defaults to \code{TRUE}.}
 coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
 meta-regression coefficients and random-component summaries are returned on
 the standardized scale on which prior distributions are specified by default
-(i.e., \code{standardize_continuous_predictors = TRUE}).}
+(i.e., \code{standardize_continuous_predictors = TRUE}). A random-effect row whose
+original-scale value the fitted random block cannot represent (for example the
+intercept of a block with factor-specific slopes of a standardized predictor)
+is \code{NA} in the default original-scale table, with a footnote; its value on the
+fitted scale is shown with \code{standardized_coefficients = TRUE}.}
 
 \item{conditional}{whether to include conditional estimates for RoBMA
 product-space objects. Defaults to \code{FALSE}.}
