@@ -406,7 +406,7 @@ rows <- list(
   feature_row("Priors", "Default prior distributions", "YYYYYYYYYYYY"),
   feature_row("Priors", "Empirical/informed prior distributions (`prior_informed()`)", "YYYYYYYYYYYY"),
   feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYYYYYYY"),
-  feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_ordered()`)", "YLYYLYLYLYYL"),
+  feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_ordered()`)", "YYYYYYYYYYYY"),
 
   feature_row("Publication Bias", "Selection models (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
   feature_row("Publication Bias", "PET / PEESE models (`prior_PET()`, `prior_PEESE()`)", "NNNNNYYNNNYY"),
