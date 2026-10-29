@@ -46,8 +46,8 @@ priors it refers to. A quantity without a prior density stops as in
 \code{\link[=plot_prior]{plot_prior()}}. A character vector requests multiple base parameters. A
 quantity of the fitted model that is no model parameter (e.g. an inclusion
 indicator or a weight-function coordinate such as \code{"omega[1]"}) stops
-with the classes \code{RoBMA_hypothesis_target} and
-\code{RoBMA_hypothesis_unavailable}, as in \code{\link[=plot.brma]{plot.brma()}}.}
+with the classes \code{BayesTools_hypothesis_target} and
+\code{BayesTools_hypothesis_unavailable}, as in \code{\link[=plot.brma]{plot.brma()}}.}
 
 \item{parameter_mods}{legacy moderator selector. Prefer \code{parameter}
 with \code{component = "mods"}. Use \code{"intercept"} for the

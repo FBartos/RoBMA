@@ -17,7 +17,7 @@
 #' requests multiple base parameters. A quantity of the fitted model that is no
 #' model parameter (e.g. an inclusion indicator or a weight-function
 #' coordinate such as \code{"omega[1]"}) stops with the classes
-#' \code{RoBMA_hypothesis_target} and \code{RoBMA_hypothesis_unavailable}, as
+#' \code{BayesTools_hypothesis_target} and \code{BayesTools_hypothesis_unavailable}, as
 #' in [plot.brma()].
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
@@ -73,7 +73,7 @@
 #' \code{xlim}, \code{n_points}, \code{par_name}, and graphical arguments
 #' apply as for other priors, while \code{x_seq} and \code{x_range_quant}
 #' stop. A quantity without a prior density stops with the classes
-#' \code{RoBMA_hypothesis_target} and \code{RoBMA_hypothesis_unavailable}.
+#' \code{BayesTools_hypothesis_target} and \code{BayesTools_hypothesis_unavailable}.
 #' \code{standardized_coefficients} selects the fitted (default) or the
 #' original predictor scale of these laws. Objects created with
 #' \code{only_priors = TRUE} have no fitted random-effect quantities; print
@@ -353,8 +353,8 @@ plot.only_priors.brma <- function(x, ...) {
 #' [plot_prior()]. A character vector requests multiple base parameters. A
 #' quantity of the fitted model that is no model parameter (e.g. an inclusion
 #' indicator or a weight-function coordinate such as \code{"omega[1]"}) stops
-#' with the classes \code{RoBMA_hypothesis_target} and
-#' \code{RoBMA_hypothesis_unavailable}, as in [plot.brma()].
+#' with the classes \code{BayesTools_hypothesis_target} and
+#' \code{BayesTools_hypothesis_unavailable}, as in [plot.brma()].
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #' with \code{component = "mods"}. Use \code{"intercept"} for the
 #' adjusted effect in meta-regression models.

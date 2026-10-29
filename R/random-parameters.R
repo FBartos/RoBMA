@@ -1184,6 +1184,45 @@
 }
 
 
+# The standard deviation whose square is the selected variance quantity (the
+# catalog quantity with the same owner and component, and the standard
+# deviation evaluator of the variance's extraction key), or NULL.
+.brma_random_parameter_sd_pair <- function(object, selected) {
+
+  quantity <- selected[["entry"]][["selection"]][["quantities"]]
+  key      <- quantity[["extraction_key"]][[1L]]
+  sd_evaluator <- switch(
+    as.character(key[["evaluator"]]),
+    sd_variance    = "sd",
+    allocation_var = "allocation_sd",
+    NULL
+  )
+  if (is.null(sd_evaluator)) {
+    return(NULL)
+  }
+  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  same <- function(field) {
+    vapply(quantities[[field]], identical, logical(1), y = quantity[[field]][[1L]])
+  }
+  candidates <- which(
+    !quantities[["internal"]] &
+      same("formula_parameter") & same("owner_type") & same("owner_name") &
+      same("component") &
+      vapply(quantities[["extraction_key"]], function(other) {
+        is.list(other) && identical(other[["type"]], key[["type"]]) &&
+          identical(other[["evaluator"]], sd_evaluator) &&
+          identical(other[["random_block"]], key[["random_block"]]) &&
+          identical(other[["dependencies"]], key[["dependencies"]])
+      }, logical(1))
+  )
+  if (length(candidates) != 1L) {
+    return(NULL)
+  }
+
+  .brma_random_parameter_io_labels(quantities[candidates, , drop = FALSE], "selector")
+}
+
+
 .brma_random_parameter_zero_boundary <- function(object, selected) {
 
   spec <- selected[["spec"]]

@@ -41,6 +41,7 @@ NULL
   .check_max_cores()
   .register_posterior_methods()
   .register_loo_methods()
+  .hypothesis_density_backends_register()
 }
 
 .onAttach <- function(libname, pkgname) {
@@ -59,6 +60,10 @@ NULL
         rjags::unload.module("RoBMA")
       }
     },
+    error = function(e) NULL
+  )
+  tryCatch(
+    .hypothesis_density_backends_unregister(),
     error = function(e) NULL
   )
 }

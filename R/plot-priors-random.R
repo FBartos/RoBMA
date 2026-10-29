@@ -47,7 +47,7 @@
         "'standardized_coefficients = TRUE'."
       )
     }
-    .hypothesis_stop(.hypothesis_refusal(reason, "target"))
+    BayesTools::hypothesis_stop(reason, "target")
   }
 
   selected[["prior"]]      <- law

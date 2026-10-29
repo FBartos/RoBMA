@@ -637,7 +637,7 @@ as.data.frame.summary.brma <- function(
     values <- unlist(unname(lapply(tables, attr, which = attribute, exact = TRUE)),
                      use.names = attribute %in% c("warnings", "footnotes"))
     attr(out, attribute) <- if (attribute == "footnotes") {
-      .hypothesis_brma_unique_named_warnings(values)
+      BayesTools::hypothesis_unique_named_warnings(values)
     } else values
   }
   attr(out, "title") <- title

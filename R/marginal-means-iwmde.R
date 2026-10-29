@@ -980,7 +980,9 @@
       weights <- .iwmde_linear_weights(
         BayesTools::posterior_metadata(level_sample, "linear_weights")
       )
-      weights <- .brma_fitted_linear_weights(level_sample, weights)
+      weights <- BayesTools::posterior_fitted_linear_weights(
+        level_sample, weights, ordinate_label = "qCMDE/IWMDE"
+      )
       specs[[key]] <- c(
         list(
           type      = "linear",

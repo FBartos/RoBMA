@@ -13,8 +13,8 @@
 #'   and \code{"omega"} or \code{"weightfunction"} when present. A quantity
 #'   of the fitted model that is no model parameter (e.g. an inclusion
 #'   indicator or a weight-function coordinate such as \code{"omega[1]"})
-#'   stops with the classes \code{RoBMA_hypothesis_target} and
-#'   \code{RoBMA_hypothesis_unavailable}, as in [plot.brma()].
+#'   stops with the classes \code{BayesTools_hypothesis_target} and
+#'   \code{BayesTools_hypothesis_unavailable}, as in [plot.brma()].
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
 #'   with \code{component = "mods"}.
 #' @param parameter_scale legacy scale-regression selector. Prefer

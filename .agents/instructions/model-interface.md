@@ -301,6 +301,23 @@ independent region-prior diagnostics and legitimate boundary infinities. Scalar 
 exp-affine discovery catches only declared formula-measure refusals; requested
 hypotheses, missing owners, refit conditions and programming errors stay strict.
 
+`hypothesis()` is a thin entry over the BayesTools hypothesis engine
+(`BayesTools::hypothesis_BF_model()`; its contract is the BayesTools
+`hypothesis.md`). RoBMA supplies only (a) the providers in
+`R/hypothesis-provider.R` (`hypothesis_provider.brma()` and
+`hypothesis_provider.marginal_means.brma()`: parameter-catalog entries and the
+component vocabulary with the publication-bias refusal, the product-space draws,
+the random-effect callbacks of `R/random-parameters.R`, the wording of refusals
+and refit requests, and the selection of marginal-means parameters), and (b)
+the qCMDE and IWMDE density backends in `R/hypothesis-backends.R` (capability
+refusals, controls, the attachment of ordinates with their thresholds and
+failures, reuse of stored marginal-means ordinates, warnings and diagnostics),
+registered in `.onLoad()`. Conditions raised by the pipeline carry
+`BayesTools_hypothesis_*` classes; the backend-owned `RoBMA_density_method_*`
+refusal classes and `RoBMA_density_ordinate_error` stay RoBMA's and are shared
+with `plot()` and `marginal_means()`. Do not rebuild planning, routes, binding,
+or label restoration in RoBMA; fix them in BayesTools.
+
 Hypothesis wrappers bind named and positional statements identically. Refusal
 messages retain literal semantic labels and distinguish requested variance values
 from the SD values used for evaluation. Warning attribution uses exact declared

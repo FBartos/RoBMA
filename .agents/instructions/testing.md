@@ -176,12 +176,14 @@ skip reports in profile-runner output.
 
 Two session caches persist across the tests of one R session: the plans of
 `hypothesis()`, `hypothesis_quantities()`, and the marginal-means methods (per
-object), and the display-independent qCMDE normalizations (per fit, target, and
-control). A reload of the RoBMA or the BayesTools code empties both. A test
-that mocks a function they are built with between two requests on one fit calls
-`.hypothesis_plan_cache_clear()` and `.iwmde_qcmde_cache_clear()` first and
-defers them on exit, so that no plan or normalization built under a mock is
-read by another test.
+object; kept by the BayesTools hypothesis engine), and the display-independent
+qCMDE normalizations (per fit, target, and control; kept by RoBMA and dropped by
+the `clear_cache()` of its density backends). A reload of the RoBMA or the
+BayesTools code empties both. A test that mocks a function they are built with
+between two requests on one fit calls `BayesTools::hypothesis_cache_clear()`
+(which also calls `.iwmde_qcmde_cache_clear()` through the backends) first and
+defers it on exit, so that no plan or normalization built under a mock is read
+by another test.
 
 ## Correctness Evidence
 

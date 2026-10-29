@@ -494,7 +494,7 @@
 
 
 # The BayesTools namespace the session caches (the normalizations above and the
-# hypothesis plans, .hypothesis_plan_registry) were filled under.
+# hypothesis plans of BayesTools::hypothesis_BF_model()) were filled under.
 .session_caches_code <- new.env(parent = emptyenv())
 
 
@@ -508,7 +508,7 @@
   namespace <- asNamespace("BayesTools")
   if (!identical(.session_caches_code[["BayesTools"]], namespace)) {
     .iwmde_qcmde_cache_clear()
-    .hypothesis_plan_cache_clear()
+    BayesTools::hypothesis_cache_clear()
     assign("BayesTools", namespace, envir = .session_caches_code)
   }
 

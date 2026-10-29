@@ -600,7 +600,7 @@
   ]
 
   return(list(
-    label  = .hypothesis_brma_alias_label(aliases, entry[["parameter"]]),
+    label  = BayesTools::hypothesis_alias_label(aliases, entry[["parameter"]]),
     levels = levels[["component"]]
   ))
 }
@@ -652,15 +652,15 @@
   }
 
   # hypothesis(): a statement to restate on factor levels
-  # ("RoBMA_hypothesis_statement").
+  # ("BayesTools_hypothesis_statement").
   if (hypothesis) {
-    .hypothesis_stop(list(
-      reason = paste0(
+    BayesTools::hypothesis_stop(
+      paste0(
         "Hypotheses on factor contrast coefficients such as '", selector,
         "' are not supported. State them on factor levels by ", example, "."
       ),
-      class  = "RoBMA_hypothesis_statement"
-    ))
+      type = "statement"
+    )
   }
   stop(
     "Factor contrast coefficients such as '", selector, "' cannot be ",
@@ -678,8 +678,8 @@
 # variance allocations, latent cluster effects, and the publication-bias
 # quantities 'omega[1]' and 'bias_indicator') are refused as targets, with a
 # message naming the quantity and, for one cause the same classes at every
-# entry point, the classes "RoBMA_hypothesis_target" and
-# "RoBMA_hypothesis_unavailable". hypothesis() refuses publication-bias
+# entry point, the classes "BayesTools_hypothesis_target" and
+# "BayesTools_hypothesis_unavailable". hypothesis() refuses publication-bias
 # quantities by its publication-bias refusal; the parameter selection of
 # plot() and the prior functions refuses every quantity by the selecting
 # 'argument'.
@@ -712,7 +712,54 @@
     )
   }
 
-  .hypothesis_stop(.hypothesis_refusal(reason, "target"))
+  BayesTools::hypothesis_stop(reason, "target")
+}
+
+# The reason with which hypothesis() refuses publication-bias parameters.
+.hypothesis_brma_bias_reason <- function() {
+
+  "Hypothesis tests for publication-bias parameters are not supported."
+}
+
+# Publication-bias parameters are no hypothesis targets
+# ("BayesTools_hypothesis_target").
+.hypothesis_brma_check_supported_component <- function(component) {
+
+  if (identical(component, "bias")) {
+    BayesTools::hypothesis_stop(.hypothesis_brma_bias_reason(), "target")
+  }
+
+  invisible(TRUE)
+}
+
+# The catalog quantities among 'quantity_ids' of the publication-bias prior:
+# those whose fitted coordinates are all nodes that BayesTools monitors for
+# that prior (BayesTools::JAGS_to_monitor(), e.g. 'omega', 'bias_indicator',
+# 'PET', and 'PEESE').
+.hypothesis_brma_bias_quantity_ids <- function(object, metadata,
+                                               quantity_ids) {
+
+  prior <- object[["priors"]][["outcome"]][["bias"]]
+  if (is.null(prior) || length(quantity_ids) == 0L) {
+    return(character())
+  }
+  monitors    <- BayesTools::JAGS_to_monitor(list(bias = prior))
+  coordinates <- BayesTools::parameter_coordinates(object[["fit"]])
+  bias_coordinates <- coordinates[["coordinate_name"]][
+    coordinates[["monitor_name"]] %in% monitors
+  ]
+  quantities  <- metadata[["catalog"]][["quantities"]]
+  rows        <- quantities[
+    quantities[["quantity_id"]] %in% quantity_ids,
+    ,
+    drop = FALSE
+  ]
+  bias <- vapply(rows[["extraction_key"]], function(key) {
+    dependencies <- if (is.list(key)) key[["dependencies"]]
+    length(dependencies) > 0L && all(dependencies %in% bias_coordinates)
+  }, logical(1))
+
+  rows[["quantity_id"]][bias]
 }
 
 .brma_parameter_catalog <- function(object) {

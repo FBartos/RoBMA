@@ -17,8 +17,8 @@
 #' is no model parameter (an inclusion indicator such as
 #' \code{"mu_x_indicator"}, \code{"bias_indicator"}, a weight-function
 #' coordinate such as \code{"omega[1]"}, or a latent cluster effect) stops
-#' with the classes \code{RoBMA_hypothesis_target} and
-#' \code{RoBMA_hypothesis_unavailable}, with which [hypothesis()] refuses it.
+#' with the classes \code{BayesTools_hypothesis_target} and
+#' \code{BayesTools_hypothesis_unavailable}, with which [hypothesis()] refuses it.
 #' Ordered level cells retain their semantic marginal draws and prior metadata
 #' on the requested predictor scale, including conditional row alignment.
 #' @param parameter_mods legacy moderator selector. Prefer \code{parameter}
@@ -724,17 +724,22 @@ lines.brma <- function(
   if (standardized_coefficients) {
     return(NULL)
   }
-  route <- .brma_formula_coefficient_route(
-    object = object,
-    selected = list(
-      parameter = parameter,
-      component = parameter_entry[["component"]],
-      entry     = parameter_entry
-    )
-  )
-  if (is.null(route)) {
+  # Random-effect, publication-bias, and whole factor-term entries and
+  # entries without a formula parameter have no formula coefficient route.
+  formula_parameter <- parameter_entry[["formula_parameter"]]
+  if (parameter_entry[["component"]] %in% c("random", "bias") ||
+      identical(parameter_entry[["role"]], "formula_coefficient_group") ||
+      is.null(formula_parameter) || length(formula_parameter) != 1L ||
+      is.na(formula_parameter) || !nzchar(formula_parameter)) {
     return(NULL)
   }
+  route <- BayesTools::JAGS_formula_coefficient_route(
+    fit         = object[["fit"]],
+    parameter   = formula_parameter,
+    target      = parameter,
+    caller      = "hypothesis()",
+    refit_class = "RoBMA_refit_required"
+  )
   if (identical(route[["type"]], "identity")) {
     return(list(type = "primitive"))
   }
@@ -975,7 +980,9 @@ lines.brma <- function(
 
   if(identical(type, "linear") && !is.null(weights)){
     raw_weights <- .iwmde_linear_weights(weights)
-    if(!is.null(raw_weights)) weights <- .brma_fitted_linear_weights(samples, raw_weights)
+    if(!is.null(raw_weights)) weights <- BayesTools::posterior_fitted_linear_weights(
+      samples, raw_weights, ordinate_label = "qCMDE/IWMDE"
+    )
   }
   condition_metadata <- .iwmde_sample_condition_metadata(samples)
   if (!is.null(conditional)) {
@@ -1293,9 +1300,9 @@ lines.brma <- function(
     )
   }
   value <- marginal[[level]]
-  .brma_formula_measure_check(value, "prior_density")
-  .brma_formula_measure_check(value, "atoms")
-  .brma_linear_weight_space(value)
+  BayesTools::posterior_formula_measure_check(value, "prior_density")
+  BayesTools::posterior_formula_measure_check(value, "atoms")
+  BayesTools::posterior_linear_weight_space(value)
   if (!is.numeric(value) || is.null(BayesTools::posterior_metadata(
     value,
     "prior_density"

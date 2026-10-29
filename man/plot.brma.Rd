@@ -55,8 +55,8 @@ Structural point masses are retained. A quantity of the fitted model that
 is no model parameter (an inclusion indicator such as
 \code{"mu_x_indicator"}, \code{"bias_indicator"}, a weight-function
 coordinate such as \code{"omega[1]"}, or a latent cluster effect) stops
-with the classes \code{RoBMA_hypothesis_target} and
-\code{RoBMA_hypothesis_unavailable}, with which \code{\link[=hypothesis]{hypothesis()}} refuses it.
+with the classes \code{BayesTools_hypothesis_target} and
+\code{BayesTools_hypothesis_unavailable}, with which \code{\link[=hypothesis]{hypothesis()}} refuses it.
 Ordered level cells retain their semantic marginal draws and prior metadata
 on the requested predictor scale, including conditional row alignment.}
 
