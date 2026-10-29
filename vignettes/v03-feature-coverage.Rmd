@@ -104,7 +104,6 @@ reference_links <- c(
   "prior()"                              = "../reference/prior.html",
   "prior_factor()"                       = "../reference/prior_factor.html",
   "prior_informed()"                     = "../reference/prior_informed.html",
-  "prior_none()"                         = "../reference/prior_none.html",
   "prior_ordered()"                      = "../reference/prior_ordered.html",
   "prior_PEESE()"                        = "../reference/prior_PEESE.html",
   "prior_PET()"                          = "../reference/prior_PET.html",
@@ -409,10 +408,10 @@ rows <- list(
 
   feature_row("Priors", "Default prior distributions", "YYYYYYYYYYYY"),
   feature_row("Priors", "Empirical/informed prior distributions (`prior_informed()`)", "YYYYYYYYYYYY"),
-  feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_weightfunction()`, `prior_ordered()`, `prior_none()`)", "YLYYLYLYLYYL"),
+  feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_ordered()`)", "YLYYLYLYLYYL"),
   feature_row("Priors", "PET / PEESE prior distributions (`prior_PET()`, `prior_PEESE()`)", "NNNNNYYNNNYY"),
   feature_row("Priors", "Prior-only inspection (`only_priors = TRUE`)", "YYYYYYYYYYYY"),
-  feature_row("Priors", "Weight-function shape (`wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
+  feature_row("Priors", "Weight-function prior distributions (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
   feature_row("Priors", "Factor contrasts (`contr.treatment()`, `contr.meandif()`, `contr.orthonormal()`)", "YYYYYYYYYYYY"),
   feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYYYYYYY"),
 
@@ -489,7 +488,7 @@ rows <- list(
 
 # Intentionally skipped exported functions in this feature table:
 # BMA.norm() (alias of BMA()), bridge_sampler(), contr.independent(),
-# RoBMA.options(), RoBMA.get_option(), set_autofit_control(), set_convergence_checks().
+# prior_none() (omits a model component), RoBMA.options(), RoBMA.get_option(), set_autofit_control(), set_convergence_checks().
 
 feature_table(rows)
 ```
