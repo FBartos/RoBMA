@@ -46,6 +46,7 @@ reference_links <- c(
   "as_draws_list()"                      = "../reference/as_draws.brma.html",
   "as_draws_matrix()"                    = "../reference/as_draws.brma.html",
   "as_draws_rvars()"                     = "../reference/as_draws.brma.html",
+  "as_metafor_forest()"                  = "../reference/as_metafor_forest.html",
   "as_zplot()"                           = "../reference/as_zplot.brma.html",
   "bayes_factor()"                       = "../reference/bf.brma.html",
   "bf()"                                 = "../reference/bf.brma.html",
@@ -439,7 +440,7 @@ rows <- list(
   feature_row("Plots", "Weight-function plots (`plot_weightfunction()`)", "NNNYYNNNNNYY"),
   feature_row("Plots", "PET-PEESE plots (`plot_pet_peese()`)", "NNNNNYYNNNYY"),
   feature_row("Plots", "Radial / Galbraith plots (`radial()`, `galbraith()`)", "YYLYYYYYYLYY"),
-  feature_row("Plots", "Forest plots (`metafor::forest()`)", "YLYYLYLYLYYL"),
+  feature_row("Plots", "Forest plots (`metafor::forest()`, `as_metafor_forest()`)", "YLYYLYLYLYYL"),
   feature_row("Plots", "Baujat plots (`baujat()`)", "NNNNNNNNNNNN"),
   feature_row("Plots", "GOSH plots (`gosh()`)", "NNNNNNNNNNNN"),
   feature_row("Plots", "L'Abbe plots (`labbe()`)", "NNNNNNNNNNNN"),
@@ -451,7 +452,7 @@ rows <- list(
   feature_row("Residuals / Diagnostics", "Cook's distances (`cooks.distance()`)", "YYNNNYYYYNLL"),
   feature_row("Residuals / Diagnostics", "DFBETAS (`dfbetas()`)", "YYYYYYYYYYYY"),
   feature_row("Residuals / Diagnostics", "DFFITS (`dffits()`)", "YYNNNYYYYNLL"),
-  feature_row("Residuals / Diagnostics", "Covariance multipliers (`covratio()`)", "YLYYLYLYLYYL"),
+  feature_row("Residuals / Diagnostics", "Covariance ratios (`covratio()`)", "YLYYLYLYLYYL"),
   feature_row("Residuals / Diagnostics", "Hat values (`hatvalues()`)", "YYNNNYYYYNLL"),
   feature_row("Residuals / Diagnostics", "Combined influence summary (`influence()`)", "YLLLNYLYLLLL"),
   feature_row("Residuals / Diagnostics", "LOO / WAIC diagnostics (`check_loo()`, `loo_weights()`, `loo::pareto_k_ids()`, `loo::pareto_k_table()`)", "YLLYLYLYLLYL"),
@@ -468,7 +469,7 @@ rows <- list(
   feature_row("Model Comparison", "WAIC/LOO (`add_waic()`, `add_loo()`, `waic()`, `loo()`)", "YLLYLYLYLLYL"),
   feature_row("Model Comparison", "Bayes factors (`bf()`, `bayes_factor()`, `post_prob()`)", "YYYYYYYYYYYY"),
   feature_row("Model Comparison", "WAIC comparison (`loo_compare()`)", "YLLYLYLYLLYL"),
-  feature_row("Model Comparison", "LOO comparison / predictive model weights (`loo_compare()`, `loo_model_weights()`)", "YLLYLYLYLLYL"),
+  feature_row("Model Comparison", "LOO comparison (`loo_compare()`, `loo_model_weights()`)", "YLLYLYLYLLYL"),
   feature_row("Model Comparison", "Parameter hypothesis tests (`hypothesis()`)", "YYYYYYYYYYYY"),
   feature_row("Model Comparison", "AIC / BIC", "NNNNNNNNNNNN"),
 
@@ -496,7 +497,6 @@ feature_table(rows)
 ## Additional interfaces
 
 - [hypothesis()](../reference/hypothesis.html) is also available as `bf_hypothesis()` and `BF_hypothesis()`. [hypothesis_quantities()](../reference/hypothesis_quantities.html) lists supported quantities, and [density_diagnostics()](../reference/density_diagnostics.html) extracts density-estimation diagnostics.
-- [as_metafor_forest()](../reference/as_metafor_forest.html) extracts the forest-plot data passed to the `metafor` package's forest plotting functions.
 - [known_v_factor()](../reference/known_v_factor.html) represents known sampling covariance. The [prior_random() family](../reference/prior_random.html) specifies random-effect priors and includes `allocation_ref()`, `prior_lkj()`, `random_block()`, `random_covariance()`, `random_monitor()`, `random_new_levels()`, `random_sd_source()`, and `random_variance_allocation()`.
 - [selection_model()](../reference/selection_model.html) specifies the selection target. [set_selection_likelihood_control()](../reference/set_selection_likelihood_control.html) supplies numerical integration controls, while [selection_sensitivity_diagnostics()](../reference/selection_sensitivity_diagnostics.html) examines sensitivity to selection settings.
 - [selection_cache_info()](../reference/selection_cache_info.html), [remove_selection_cache()](../reference/remove_selection_cache.html), and [selection_sampler_info()](../reference/selection_sampler_info.html) inspect and manage selection computation.
