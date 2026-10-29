@@ -383,14 +383,11 @@ feature_table <- function(rows) {
 
 This vignette overviews selected features of the `RoBMA` R package [@RoBMA].
 The table is organized by substantive capability and covers the model families named in its columns.
-Each normal-outcome model family is followed by its multivariate (`.mv`) counterpart for known sampling covariances and structured random effects.
 It is not a complete inventory of exported functions; additional interfaces are listed below.
 Some rows point to additional features not (yet) available in the `RoBMA` R package but featured in the `metafor` package [@metafor] as reference points.
 
 Green ticks mark available features.
 Cells marked `limited` mean the feature exists but with narrower model coverage.
-For example, GLMM residual diagnostics use a descriptive normal approximation on the effect-size scale, models with selection components omit the hat-value-based diagnostics, and some random-effect and known sampling covariance structures of the multivariate models are not supported.
-Radial, Galbraith, Bayesian funnel, and PET-PEESE plots require models without moderators, and the residual and influence diagnostics require stored LOO results (`add_loo()`).
 The constructor and post-fit reference pages describe the method-specific restrictions.
 
 
@@ -403,8 +400,8 @@ rows <- list(
   feature_row("Model / Structure", "Three-level models (`cluster`)", "YNYYNYNYNYYN"),
   feature_row("Model / Structure", "Likelihood weights (`weights`)", "YNYYNYNYNYYN"),
   feature_row("Model / Structure", "Model averaging", "NNNNNNNYYYYY"),
-  feature_row("Model / Structure", "Inclusion Bayes factors", "NNNNNNNYYYYY"),
-  feature_row("Model / Structure", "General multivariate / covariance models", "NYNNYNYNYNNY"),
+  feature_row("Model / Structure", "Multivariate models (`V`)", "NYNNYNYNYNNY"),
+  feature_row("Model / Structure", "General random-effects models (`random`)", "NYNNYNYNYNNY"),
   feature_row("Model / Structure", "Robust / sandwich inference", "NNNNNNNNNNNN"),
   feature_row("Model / Structure", "Extend MCMC sampling (`update()`)", "YYYYYYYYYYYY"),
 
@@ -468,7 +465,8 @@ rows <- list(
 
   feature_row("Model Comparison", "Marginal likelihood (`add_marglik()`, `logml()`)", "YYYYYYYNNNNN"),
   feature_row("Model Comparison", "WAIC/LOO (`add_waic()`, `add_loo()`, `waic()`, `loo()`)", "YLLYLYLYLLYL"),
-  feature_row("Model Comparison", "Bayes factor tests (`bf()`, `bayes_factor()`, `post_prob()`; inclusion Bayes factors for model-averaged fits)", "YYYYYYYYYYYY"),
+  feature_row("Model Comparison", "Bayes factors (`bf()`, `bayes_factor()`, `post_prob()`)", "YYYYYYYYYYYY"),
+  feature_row("Model Comparison", "Inclusion Bayes factors", "NNNNNNNYYYYY"),
   feature_row("Model Comparison", "WAIC comparison (`loo_compare()`)", "YLLYLYLYLLYL"),
   feature_row("Model Comparison", "LOO comparison / predictive model weights (`loo_compare()`, `loo_model_weights()`)", "YLLYLYLYLLYL"),
   feature_row("Model Comparison", "Parameter hypothesis tests (`hypothesis()`)", "YYYYYYYYYYYY"),
