@@ -18,12 +18,10 @@ test_that("model probability diagnostics survive RoBMA refusal transport", {
   BayesTools::posterior_metadata(draws, "measure_unavailable") <- unavailable
   replaced <- .brma_draws_with_values(draws, as.numeric(draws))
   expect_identical(BayesTools::posterior_metadata(replaced, "measure_unavailable")$diagnostics[[1L]], diagnostics)
+  # the refusal of the draws carries these diagnostics, which the engine
+  # transports (BayesTools test-hypothesis-BF-model.R)
   condition <- tryCatch(BayesTools::posterior_atoms_free(draws), error = identity)
-  refusal <- BayesTools:::.hypothesis_model_refusal_from_condition(condition)
-  expect_identical(refusal$fields$diagnostics, diagnostics)
-  expect_identical(refusal$reason, condition$message)
-  returned <- tryCatch(BayesTools:::.hypothesis_model_stop(refusal), error = identity)
-  expect_identical(returned$diagnostics, diagnostics)
+  expect_identical(condition$diagnostics, diagnostics)
   malformed <- unavailable
   malformed$diagnostics[[1L]]$model_indices <- c(1L, 1L)
   expect_error(BayesTools::posterior_metadata(draws, "measure_unavailable") <- malformed, "invalid")

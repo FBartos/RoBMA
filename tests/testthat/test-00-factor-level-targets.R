@@ -617,23 +617,6 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   error <- plot_spec("mu_x", fixed_fit)
   expect_identical(conditionMessage(error), route("mu_x", fixed_fit)[["reason"]])
   expect_false(inherits(error, "RoBMA_density_method_unavailable"))
-
-  # Point values outside the open support of a transformed coefficient are
-  # refused, naming the coefficient.
-  refusal <- BayesTools:::.hypothesis_model_plan_support_refusal(
-    0, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
-  )
-  expect_identical(
-    refusal[["reason"]],
-    paste0(
-      "Point-null value 0 is outside or on the boundary of the open support ",
-      "for transformed coefficient 'log_tau_intercept'."
-    )
-  )
-  expect_identical(refusal[["class"]], c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable"))
-  expect_null(BayesTools:::.hypothesis_model_plan_support_refusal(
-    0.5, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
-  ))
 })
 
 

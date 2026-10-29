@@ -17,28 +17,15 @@ test_that("variance point-region identities retain canonical logs and row diagno
   expect_length(attr(mixed, "prior_numerical_diagnostics"), 1L)
 })
 
-test_that("parameter groups bind producer logs in statement order and export visible values", {
+test_that("exported hypothesis tables carry the visible values, not the canonical logs", {
 
-  statements <- c("a = 356 vs a != 356", "b > 0", "a = 0")
-  make_table <- function(parameter, hypothesis) BayesTools::hypothesis_BF(
-    c(1, 2, 3), BayesTools::prior("normal", list(0, 1)), hypothesis,
-    parameter = parameter, density_method = "normal", columns = "all")
-  first <- make_table("a", statements[c(1L, 3L)])
-  second <- make_table("b", statements[2L])
-  out <- BayesTools:::.hypothesis_model_bind_parameter_results(list(first, second),
-    list(c(1L, 3L), 2L), BayesTools::hypothesis_parse(statements))
-  expected <- c(attr(first, "raw_log_BF")[1L], attr(second, "raw_log_BF"),
-    attr(first, "raw_log_BF")[2L])
-  expect_equal(expected[1L], 710, tolerance = 1e-12)
-  expect_identical(attr(out, "raw_log_BF"), expected)
-  expect_length(attr(out, "numerical_diagnostics"), 3L)
-  expect_identical(attr(out$BF_error, "name"), "error%(BF)")
-  expect_true(any(grepl("error%(BF)", capture.output(print(out)), fixed = TRUE)))
-  expect_identical(as.numeric(out$BF_error),
-    c(as.numeric(first$BF_error)[1L], as.numeric(second$BF_error), as.numeric(first$BF_error)[2L]))
-  expect_length(attr(out, "prior_numerical_diagnostics"), 3L)
-  inverse <- update(out, BF01 = TRUE)
-  expect_equal(as.numeric(inverse$BF)[1L], exp(-710), tolerance = 1e-14)
+  # The engine binds the tables of the parameters of one call
+  # (BayesTools test-hypothesis-BF-model.R); this is the export of such a table.
+  out <- BayesTools::hypothesis_BF(
+    c(1, 2, 3), BayesTools::prior("normal", list(0, 1)),
+    c("a = 356 vs a != 356", "a = 0"),
+    parameter = "a", density_method = "normal", columns = "all")
+  expect_equal(attr(out, "raw_log_BF")[1L], 710, tolerance = 1e-12)
   plain <- .output_table_as_long_data_frame(out, "location")
   bound <- .output_bind_long_data_frames(list(plain, plain[2L, , drop = FALSE]))
   expect_identical(as.numeric(bound$BF), c(as.numeric(out$BF), as.numeric(out$BF)[2L]))

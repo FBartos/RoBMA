@@ -103,29 +103,3 @@ test_that("scalar discovery retains declared refusal rows and usable sibling qua
   expect_error(hypothesis(object, "mu_x = 0", density_method = "KDE"), class = "BayesTools_formula_measure_unavailable")
 })
 
-test_that("scalar and exp-affine plans catch only declared measure refusal conditions", {
-
-  condition <- tryCatch(BayesTools:::.bt_formula_density_stop("Declared law unavailable.", reason = "numerical_scale_unavailable"), error = identity)
-  plan <- list(parameter = "mu_x", selected = list(entry = list()), transform_scaled = TRUE)
-  plan_of <- function(exp) {
-    if(exp) BayesTools:::.hypothesis_model_plan_exp_affine(plan, list(), list(), list()) else
-      BayesTools:::.hypothesis_model_plan_scalar(plan, list(), list())
-  }
-  for(exp in c(FALSE, TRUE)){
-    testthat::with_mocked_bindings({
-      result <- plan_of(exp)
-      expect_identical(result$refusal, BayesTools:::.hypothesis_model_refusal_from_condition(condition))
-      expect_identical(result$kind, if(exp) "exp_affine" else "scalar")
-    }, .hypothesis_model_plan_scalar_available = function(...) stop(condition),
-       .hypothesis_model_plan_exp_affine_available = function(...) stop(condition),
-       .package = "BayesTools")
-    for(class in c("BayesTools_refit_required", "BayesTools_formula_transform_unavailable", "simpleError")){
-      error <- structure(list(message = "Strict owner or programming failure.", call = NULL), class = c(class, "error", "condition"))
-      testthat::with_mocked_bindings({
-        expect_error(plan_of(exp), class = class)
-      }, .hypothesis_model_plan_scalar_available = function(...) stop(error),
-         .hypothesis_model_plan_exp_affine_available = function(...) stop(error),
-         .package = "BayesTools")
-    }
-  }
-})

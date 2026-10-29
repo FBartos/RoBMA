@@ -301,46 +301,6 @@ test_that("cross-level point densities ignore child-level ordinates", {
 })
 
 
-test_that("hypothesis labels retain expanded factor levels", {
-
-  display <- BayesTools::hypothesis_parse("Preregistered > 0")
-  transformed <- BayesTools::hypothesis_parse("mu_Preregistered > 0")
-  out <- data.frame(
-    Alternative = rep("mu_Preregistered > 0", 2L),
-    Null        = rep("mu_Preregistered <= 0", 2L),
-    BF          = c(2, 3),
-    row.names   = c(
-      "mu_Preregistered[Not Pre-Registered]",
-      "mu_Preregistered[Pre-Registered]"
-    ),
-    check.names = FALSE
-  )
-  attr(out, "hypothesis_ast") <- transformed
-
-  restored <- BayesTools:::.hypothesis_model_restore_hypothesis_labels(
-    out             = out,
-    hypothesis      = display,
-    parameter_label = "Preregistered",
-    producer_parameter = "mu_Preregistered",
-    route = "levels"
-  )
-
-  expect_identical(
-    restored[["Alternative"]],
-    rep("Preregistered > 0", 2L)
-  )
-  expect_identical(restored[["Null"]], rep("Preregistered <= 0", 2L))
-  expect_identical(
-    rownames(restored),
-    c(
-      "Preregistered[Not Pre-Registered]",
-      "Preregistered[Pre-Registered]"
-    )
-  )
-  expect_identical(attr(restored, "hypothesis_ast", exact = TRUE), display)
-})
-
-
 test_that("the plans of a marginal-means object are built once and shared by its methods", {
 
   BayesTools::hypothesis_cache_clear()

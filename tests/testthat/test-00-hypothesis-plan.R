@@ -514,7 +514,8 @@ test_that("BayesTools resolution errors that escape planning are statement error
       hypothesis(fit, statement, component = "mods", density_method = "KDE"),
       error = identity
     )
-    expect_identical(class(error), c(BayesTools:::.hypothesis_model_not_found_class(), "error", "condition"),
+    expect_identical(class(error), c("BayesTools_hypothesis_statement", "BayesTools_parameter_not_found",
+                                     "BayesTools_parameter_resolution_error", "error", "condition"),
                      info = statement)
     expect_identical(error[["alias"]], "log_tau_intercept", info = statement)
   }
@@ -551,7 +552,8 @@ test_that("BayesTools resolution errors that escape planning are statement error
     list(message = "Unresolved reference.", call = NULL, alias = "z")
   )
   ambiguous_statement <- structure(
-    class = c(BayesTools:::.hypothesis_model_ambiguous_class(), "BayesTools_parameter_ambiguous",
+    class = c("BayesTools_hypothesis_ambiguous", "BayesTools_hypothesis_statement",
+              "BayesTools_parameter_ambiguous",
               "BayesTools_parameter_resolution_error", "error", "condition"),
     list(message = "Ambiguous reference.", call = NULL)
   )
@@ -1378,22 +1380,6 @@ test_that("region prior probabilities come from prior draws only for densities w
     "`(mu) tau(intercept)` > 0.4"
   )[[1L]]
   expect_false(ungated[["prior_draws"]])
-  # A combination without a structural ordinate route (three gamma terms) has
-  # provenance: BayesTools evaluates its region probabilities, although its
-  # ordinate method is "unsupported_provenance" like that of a grid without
-  # provenance. The method field does not route regions.
-  gammas <- BayesTools:::.prior_linear_combination_density(
-    list(
-      x = BayesTools::prior("gamma", list(2, 1)),
-      y = BayesTools::prior("gamma", list(2, 1)),
-      z = BayesTools::prior("gamma", list(2, 1))
-    ),
-    c(x = 1, y = 1, z = 1)
-  )
-  expect_identical(BayesTools::prior_density_ordinate(gammas, 6)[["method"]],
-                   "unsupported_provenance")
-  expect_true(BayesTools:::.hypothesis_model_plan_density_has_provenance(gammas))
-  expect_false(BayesTools:::.hypothesis_model_plan_density_has_provenance(NULL))
 })
 
 

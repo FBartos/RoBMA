@@ -457,25 +457,3 @@ test_that("marginal-means discovery keeps sampled siblings of a fixed level", {
 })
 
 
-test_that("hypothesis ordinate metadata is limited to requested values", {
-
-  ordinate <- function(value) BayesTools::posterior_ordinate_attribute(
-    value          = value,
-    ordinate       = value + 1,
-    method         = "qCMDE",
-    density_method = "qCMDE",
-    diagnostics    = list(marker = value)
-  )
-  posterior <- stats::rnorm(10)
-  BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
-    BayesTools::posterior_ordinate_append(ordinate(0), ordinate(1))
-  refs <- data.frame(level = NA_character_, value = 1)
-
-  out <- BayesTools:::.hypothesis_model_keep_requested_ordinates(posterior, refs)
-  entries <- .iwmde_posterior_ordinate_entries(
-    BayesTools::posterior_metadata(out, "posterior_ordinate")
-  )
-
-  expect_length(entries, 1L)
-  expect_equal(entries[[1L]][["value"]], 1)
-})

@@ -495,18 +495,13 @@ test_that("E3-2 inclusion warnings follow actual relabel and row selection", {
 test_that("E1-1 multiple declared atomic locations are not one fixed scalar", {
 
   means <- marginal_means(.review_h_atomic(), bf = FALSE, density_method = "KDE", n_samples = 128)
-  cell <- means$inference$averaged$mu_intercept$intercept
-  expect_false(BayesTools:::.hypothesis_model_plan_draws_fixed(cell))
+  # a cell with several declared atomic locations is no fixed scalar: it is
+  # tested (BayesTools test-hypothesis-BF-model.R tests the fixed-draws rule)
   result <- hypothesis(means, "intercept > 0", density_method = "KDE", seed = 19)
   direct <- BayesTools::hypothesis_BF(means$inference$averaged$mu_intercept,
     hypothesis = "intercept > 0", parameter = "intercept", density_method = "KDE")
   expect_equal(as.numeric(result$BF), as.numeric(direct$BF), tolerance = 1e-14)
   expect_equal(as.numeric(result$BF), 1.5, tolerance = 1e-14)
-  duplicate <- BayesTools::posterior_atom_attribute(data.frame(x = c(.2, .2), mass = c(.4, .6)))
-  fixed <- with_draw_metadata(rep(.2, 3), atoms = duplicate)
-  expect_true(BayesTools:::.hypothesis_model_plan_draws_fixed(fixed))
-  expect_error(BayesTools::posterior_atom_attribute(data.frame(x = c(-.2, .2), mass = c(0, 1))))
-  expect_false(BayesTools:::.hypothesis_model_plan_draws_fixed(numeric()))
 })
 
 test_that("E1-2 indexed scalar labels do not acquire factor suffixes", {
@@ -611,38 +606,6 @@ test_that("E1-c1 default named and positional hypotheses share the actual carrie
   positional <- hypothesis(posterior, "mu_intercept > 0", parameter = "mu_intercept", seed = 17)
   expect_identical(positional, named)
   expect_identical(posterior, original)
-})
-
-test_that("E2-c2 warning ownership distinguishes exact references and expressions", {
-
-  statements <- c("tau = 0", "tau_total = 0", "2 * tau = 0",
-    "g[A] = 0", "g[AA] = 0")
-  ast <- BayesTools::hypothesis_parse(statements)
-  table <- data.frame(
-    Alternative = statements,
-    Null = c("tau != 0", "tau_total != 0", "2 * tau != 0",
-      "g[A] != 0", "g[AA] != 0"),
-    row.names = c("tau", "tau_total", "scaled_tau", "g[A]", "g[AA]"),
-    check.names = FALSE
-  )
-  attr(table, "hypothesis_ast") <- ast
-  record <- function(parameter, label = parameter, level = NA_character_, value = 0) {
-    data.frame(parameter = parameter, label = label, level = level, value = value,
-      warning = "Declared ordinate warning.", stringsAsFactors = FALSE)
-  }
-  warning_rows <- BayesTools:::.hypothesis_model_warning_rows
-  expect_identical(warning_rows(table, record("tau")), "tau")
-  expect_identical(warning_rows(table, record("tau_total")), "tau_total")
-  expect_identical(warning_rows(table, record("2 * tau")), "scaled_tau")
-  expect_identical(warning_rows(table, record("g", "g[A]", "A")), "g[A]")
-  expect_identical(warning_rows(table, record("tau", value = .1)), character())
-  expanded <- table[rep(4L, 4L), , drop = FALSE]
-  rownames(expanded) <- c("g[A] (1)", "g[B] (1)", "g[A] (2)", "g[B] (2)")
-  expanded$Alternative <- "g = 0"
-  expanded$Null <- "g != 0"
-  attr(expanded, "hypothesis_ast") <- BayesTools::hypothesis_parse(c("g = 0", "g = 0"))
-  expect_identical(warning_rows(expanded, record("g", "g[A]", "A")),
-    c("g[A] (1)", "g[A] (2)"))
 })
 
 test_that("E1-c1 unsupported random comparisons refuse before SD-pair work", {

@@ -953,26 +953,6 @@ test_that("structurally unavailable plot densities retain their reason", {
 })
 
 
-test_that("primitive AST symbols match qCMDE/IWMDE warning records", {
-
-  record <- data.frame(
-    label     = "mu_intercept",
-    parameter = "mu_intercept",
-    value     = 0,
-    stringsAsFactors = FALSE
-  )
-  side <- BayesTools::hypothesis_parse(
-    "mu_intercept = 0"
-  )$statements[[1L]][["left"]]
-
-  expect_true(BayesTools:::.hypothesis_model_warning_side_matches(side, record))
-  side <- BayesTools::hypothesis_parse(
-    "tau = 0"
-  )$statements[[1L]][["left"]]
-  expect_false(BayesTools:::.hypothesis_model_warning_side_matches(side, record))
-})
-
-
 test_that("IWMDE BF diagnostics retain the exact boundary ordinate", {
 
   evaluation_value  <- 0

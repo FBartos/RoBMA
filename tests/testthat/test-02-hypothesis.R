@@ -560,22 +560,6 @@ test_that("factor-level ordinates use exact displayed-scale specifications", {
 })
 
 
-test_that("hypothesis alias rewriting preserves trailing level-reference backticks", {
-
-  rewritten <- BayesTools:::.hypothesis_model_rewrite(
-    hypothesis = "alloc > alloc[random]",
-    aliases    = list(alloc = "mu_alloc", mu_alloc = "mu_alloc"),
-    parameter  = "mu_alloc"
-  )
-
-  expect_s3_class(rewritten, "BayesTools_hypothesis_ast")
-  expect_equal(
-    BayesTools::hypothesis_render(rewritten),
-    "mu_alloc > `mu_alloc[random]`"
-  )
-})
-
-
 test_that("hypothesis quantities do not advertise normal point tests", {
 
   skip_on_cran()

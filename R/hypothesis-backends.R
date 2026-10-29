@@ -209,13 +209,6 @@
     )
   }
 
-  raw_values <- as.numeric(posterior)
-  display_values <- as.numeric(posterior)
-  if (is.null(parameter_spec) &&
-      !.plot_brma_same_sample_scale(raw_values, display_values)) {
-    stop("Could not align qCMDE/IWMDE ordinate to the displayed coefficient scale.",
-         call. = FALSE)
-  }
   if (!is.null(parameter_spec) &&
       identical(parameter_spec[["type"]], "unsupported_formula_transform")) {
     .iwmde_stop_unavailable(.iwmde_unavailable(parameter_spec[["reason"]], "original_scale"))
@@ -386,16 +379,6 @@
     )
   }
 
-  raw_values     <- as.numeric(posterior[[level]])
-  display_values <- as.numeric(posterior[[level]])
-  if (is.null(parameter_spec) &&
-      !.plot_brma_same_sample_scale(raw_values, display_values)) {
-    stop(
-      "Could not align qCMDE/IWMDE ordinate for '", parameter, "[", level,
-      "]' to the displayed scale.",
-      call. = FALSE
-    )
-  }
   if (is.null(parameter_spec)) {
     parameter_spec <- list(
       type          = "linear",
