@@ -407,11 +407,9 @@ rows <- list(
   feature_row("Priors", "Empirical/informed prior distributions (`prior_informed()`)", "YYYYYYYYYYYY"),
   feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYYYYYYY"),
   feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_ordered()`)", "YLYYLYLYLYYL"),
-  feature_row("Priors", "PET / PEESE prior distributions (`prior_PET()`, `prior_PEESE()`)", "NNNNNYYNNNYY"),
-  feature_row("Priors", "Selection model weight-functions (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
 
-  feature_row("Publication Bias", "Selection models", "NNNYYNNNNNYY"),
-  feature_row("Publication Bias", "PET / PEESE models", "NNNNNYYNNNYY"),
+  feature_row("Publication Bias", "Selection models (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
+  feature_row("Publication Bias", "PET / PEESE models (`prior_PET()`, `prior_PEESE()`)", "NNNNNYYNNNYY"),
   feature_row("Publication Bias", "Model averaging over bias models", "NNNNNNNNNNYY"),
   feature_row("Publication Bias", "Bias-adjusted summaries / predictions", "NNNYYYYNNNYY"),
   feature_row("Publication Bias", "Trim-fill / fail-safe N", "NNNNNNNNNNNN"),
