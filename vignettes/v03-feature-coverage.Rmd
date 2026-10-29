@@ -380,14 +380,9 @@ feature_table <- function(rows) {
 
 This vignette overviews selected features of the `RoBMA` R package [@RoBMA].
 The table is organized by substantive capability and covers the model families named in its columns.
-It is not a complete inventory of exported functions; additional interfaces are listed below.
-Some rows point to additional features not (yet) available in the `RoBMA` R package but featured in the `metafor` package [@metafor] as reference points.
 
 Green ticks mark available features.
 Cells marked `limited` mean the feature exists but with narrower model coverage.
-The constructor and post-fit reference pages describe the method-specific restrictions.
-
-
 
 ```{r feature-matrix, echo = FALSE, results = "asis"}
 rows <- list(
