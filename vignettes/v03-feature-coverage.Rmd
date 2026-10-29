@@ -62,9 +62,6 @@ reference_links <- c(
   "bselmodel()"                          = "../reference/bselmodel.html",
   "check_loo()"                          = "../reference/check_loo.brma.html",
   "coef()"                               = "../reference/coef.brma.html",
-  "contr.meandif()"                      = "../reference/contr.BayesTools.html",
-  "contr.orthonormal()"                  = "../reference/contr.BayesTools.html",
-  "contr.treatment()"                    = "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/contrast.html",
   "cooks.distance()"                     = "../reference/cooks.distance.brma.html",
   "covratio()"                           = "../reference/covratio.brma.html",
   "dfbetas()"                            = "../reference/dfbetas.brma.html",
@@ -408,12 +405,10 @@ rows <- list(
 
   feature_row("Priors", "Default prior distributions", "YYYYYYYYYYYY"),
   feature_row("Priors", "Empirical/informed prior distributions (`prior_informed()`)", "YYYYYYYYYYYY"),
+  feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYYYYYYY"),
   feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_ordered()`)", "YLYYLYLYLYYL"),
   feature_row("Priors", "PET / PEESE prior distributions (`prior_PET()`, `prior_PEESE()`)", "NNNNNYYNNNYY"),
-  feature_row("Priors", "Prior-only inspection (`only_priors = TRUE`)", "YYYYYYYYYYYY"),
-  feature_row("Priors", "Weight-function prior distributions (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
-  feature_row("Priors", "Factor contrasts (`contr.treatment()`, `contr.meandif()`, `contr.orthonormal()`)", "YYYYYYYYYYYY"),
-  feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYYYYYYY"),
+  feature_row("Priors", "Selection model weight-functions (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
 
   feature_row("Publication Bias", "Selection models", "NNNYYNNNNNYY"),
   feature_row("Publication Bias", "PET / PEESE models", "NNNNNYYNNNYY"),
@@ -488,7 +483,8 @@ rows <- list(
 
 # Intentionally skipped exported functions in this feature table:
 # BMA.norm() (alias of BMA()), bridge_sampler(), contr.independent(),
-# prior_none() (omits a model component), RoBMA.options(), RoBMA.get_option(), set_autofit_control(), set_convergence_checks().
+# contr.meandif(), contr.orthonormal(), prior_none() (omits a model component),
+# RoBMA.options(), RoBMA.get_option(), set_autofit_control(), set_convergence_checks().
 
 feature_table(rows)
 ```
