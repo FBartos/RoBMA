@@ -67,7 +67,9 @@ much slower than the ordinary standard profile and does not run
   and it skips everywhere else. It checks native-routine, S3-method, and export
   registration, and fits a minimal `brma()` and a selection model, whose
   likelihood is a RoBMA JAGS module distribution. Keep it well under 30
-  seconds; do not add behavioral tests to it.
+  seconds; do not add behavioral tests to it. `.Rbuildignore` keeps every
+  other test file, fixture, and scenario out of the built package, so the
+  other profiles run only from the source tree.
 - `Rscript tools/test-profile.R release`: refresh standard fits, run the
   standard suite, run all certification cases, then call `devtools::check()`.
 
