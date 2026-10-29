@@ -238,7 +238,12 @@
     fit, standardized_coefficients = FALSE, selections = NULL) {
 
   if (is.null(selections)) {
-    catalog    <- BayesTools::parameter_catalog(fit)
+    # Standardized coefficients are the fitted scale: the catalog of the
+    # fitted scale describes the fitted coordinates of the blocks with scaled
+    # predictors, the catalog of the fit their original scale.
+    catalog    <- BayesTools::parameter_catalog(
+      fit, transform_scaled = !standardized_coefficients
+    )
     quantities <- catalog[["quantities"]]
     supported  <- .brma_random_parameter_supported_quantities()
     keep <- startsWith(quantities[["role"]], "random_") &
@@ -279,10 +284,6 @@
     ))
   }
 
-  extraction_fit <- fit
-  if (standardized_coefficients) {
-    attr(extraction_fit, "formula_scale") <- list()
-  }
   model_samples <- NULL
   if (length(selections) > 1L) {
     dependencies <- unique(unlist(lapply(
@@ -292,7 +293,7 @@
     ), use.names = FALSE))
     model_samples <- if (length(dependencies) > 0L) {
       as.matrix(BayesTools::JAGS_materialize_draws(
-        extraction_fit,
+        fit,
         parameters       = dependencies,
         include_internal = TRUE
       ))
@@ -307,7 +308,7 @@
   }
   draws <- lapply(selections, function(selection) {
     BayesTools::parameter_draws(
-      extraction_fit,
+      fit,
       selection,
       model_samples = model_samples
     )
@@ -330,7 +331,7 @@
   }
   specs  <- .brma_random_parameter_specs(quantities)
   specs[["display_transform"]] <- I(lapply(selections, function(selection) {
-    BayesTools::parameter_transform(extraction_fit, selection)
+    BayesTools::parameter_transform(fit, selection)
   }))
   priors <- stats::setNames(
     rep(list(NULL), nrow(quantities)),
@@ -579,9 +580,7 @@
     chains                    = TRUE
   )
   # The diagnostic density is bounded by the catalog's plotting limits.
-  support <- .brma_random_parameter_support(
-    selected, limits = TRUE, object = object
-  )
+  support <- .brma_random_parameter_support(selected, limits = TRUE)
   diagnostic_prior <- BayesTools::prior(
     distribution = "normal",
     parameters   = list(mean = 0, sd = 1),
@@ -603,6 +602,35 @@
   )
 }
 
+# The catalog selection of the scale of the draws of a random-effect quantity.
+# The catalog of a fit with scaled predictors describes the original scale of
+# the SDs, variances, and correlations of their random effects (support,
+# status, extraction); standardized coefficients are the fitted scale, whose
+# catalog BayesTools builds from the same coordinates. The quantity identifiers
+# do not depend on the scale.
+.brma_random_parameter_scale_selection <- function(
+    object, selection, standardized_coefficients = FALSE) {
+
+  if (!standardized_coefficients) {
+    return(selection)
+  }
+  quantity <- selection[["quantities"]]
+  fitted   <- BayesTools::parameter_catalog_resolve(
+    BayesTools::parameter_catalog(object[["fit"]], transform_scaled = FALSE),
+    alias     = quantity[["canonical_name"]],
+    namespace = quantity[["namespace"]]
+  )
+  if (!identical(fitted[["quantity_id"]], selection[["quantity_id"]])) {
+    stop(
+      "Random-effect quantity '", quantity[["canonical_name"]],
+      "' is not the same quantity on the fitted scale.",
+      call. = FALSE
+    )
+  }
+
+  fitted
+}
+
 .brma_random_parameter_select <- function(
     object, parameter, standardized_coefficients = FALSE,
     chains = FALSE, prior = FALSE, n_prior_samples = 10000L,
@@ -612,6 +640,11 @@
     object    = object,
     parameter = parameter,
     component = "random"
+  )
+  # The quantity of the scale of the draws: the selection of the entry is that
+  # of the original scale.
+  entry[["selection"]] <- .brma_random_parameter_scale_selection(
+    object, entry[["selection"]], standardized_coefficients
   )
   bundle <- .brma_random_parameter_bundle(
     object                    = object,
@@ -1130,36 +1163,11 @@
   unique(exclusions)
 }
 
-# Whether the draws of a selected random-effect quantity are on the fitted
-# scale of a fit with scaled predictors (standardized coefficients), where the
-# catalog selection, which describes the original scale, does not describe the
-# draws. A structural (fixed) quantity has no draws to describe. 'object' is
-# the fitted model.
-.brma_random_parameter_on_fitted_scale <- function(selected, object) {
-
-  isTRUE(selected[["standardized_coefficients"]]) && !is.null(object) &&
-    !identical(selected[["spec"]][["status"]], "structural") &&
-    length(attr(object[["fit"]], "formula_scale", exact = TRUE)) > 0L
-}
-
 # Exact support of a selected random-effect quantity as declared by the
 # parameter catalog (derived by BayesTools from prior provenance), or NULL
-# when the catalog cannot derive it. 'object' is the fitted model, which
-# standardized coefficients of scaled predictors need.
-.brma_random_parameter_catalog_support <- function(selected, object = NULL) {
-
-  # The catalog of a fit with scaled predictors declares the original-scale
-  # support of the SDs, variances, and correlations of its random effects;
-  # their standardized draws (the fitted scale) have the support of the fitted
-  # scale, which BayesTools declares with those draws.
-  if (.brma_random_parameter_on_fitted_scale(selected, object)) {
-    draws <- BayesTools::parameter_mixed_posterior(
-      object[["fit"]],
-      selected[["entry"]][["selection"]],
-      transform_scaled = FALSE
-    )
-    return(BayesTools::posterior_metadata(draws, "support"))
-  }
+# when the catalog cannot derive it. The selection is that of the scale of the
+# draws (.brma_random_parameter_scale_selection()).
+.brma_random_parameter_catalog_support <- function(selected) {
 
   quantities <- selected[["entry"]][["selection"]][["quantities"]]
   if (!is.data.frame(quantities) || nrow(quantities) != 1L ||
@@ -1178,10 +1186,9 @@
 # unbounded when the catalog declares no exact support. With 'limits', the
 # bounds of a support declared only as plotting limits (not exact) are
 # returned as well: they bound plotted densities but exclude no hypothesis.
-.brma_random_parameter_support <- function(selected, limits = FALSE,
-                                           object = NULL) {
+.brma_random_parameter_support <- function(selected, limits = FALSE) {
 
-  support <- .brma_random_parameter_catalog_support(selected, object)
+  support <- .brma_random_parameter_catalog_support(selected)
   if (is.null(support) || !(isTRUE(support[["exact"]]) || isTRUE(limits))) {
     return(c(-Inf, Inf))
   }
@@ -1230,7 +1237,12 @@
   if (is.null(sd_evaluator)) {
     return(NULL)
   }
-  quantities <- BayesTools::parameter_catalog(object[["fit"]])[["quantities"]]
+  # The catalog of the scale of the selected quantity (its extraction key is
+  # compared with the keys of that catalog).
+  quantities <- BayesTools::parameter_catalog(
+    object[["fit"]],
+    transform_scaled = !isTRUE(selected[["standardized_coefficients"]])
+  )[["quantities"]]
   same <- function(field) {
     vapply(quantities[[field]], identical, logical(1), y = quantity[[field]][[1L]])
   }
