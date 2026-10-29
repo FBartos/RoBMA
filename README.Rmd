@@ -18,12 +18,14 @@ if (.Platform$OS.type == "windows") {
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
 }
 
+site_url <- "https://fbartos.github.io/RoBMA/"
+
 article_url <- function(page) {
-  paste0("vignettes/", page, ".Rmd")
+  paste0(site_url, "articles/", page, ".html")
 }
 
 reference_url <- function(page) {
-  paste0("man/", page, ".Rd")
+  paste0(site_url, "reference/", page, ".html")
 }
 ```
 
