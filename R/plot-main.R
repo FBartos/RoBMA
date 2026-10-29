@@ -980,9 +980,7 @@ lines.brma <- function(
 
   if(identical(type, "linear") && !is.null(weights)){
     raw_weights <- .iwmde_linear_weights(weights)
-    if(!is.null(raw_weights)) weights <- BayesTools::posterior_fitted_linear_weights(
-      samples, raw_weights, ordinate_label = "qCMDE/IWMDE"
-    )
+    if(!is.null(raw_weights)) weights <- .iwmde_fitted_linear_weights(samples, raw_weights)
   }
   condition_metadata <- .iwmde_sample_condition_metadata(samples)
   if (!is.null(conditional)) {
@@ -1302,7 +1300,9 @@ lines.brma <- function(
   value <- marginal[[level]]
   BayesTools::posterior_formula_measure_check(value, "prior_density")
   BayesTools::posterior_formula_measure_check(value, "atoms")
-  BayesTools::posterior_linear_weight_space(value)
+  BayesTools::posterior_linear_weight_space(
+    value, build = "RoBMA/BayesTools", refit_class = "RoBMA_refit_required"
+  )
   if (!is.numeric(value) || is.null(BayesTools::posterior_metadata(
     value,
     "prior_density"

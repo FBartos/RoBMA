@@ -370,9 +370,7 @@
   }
   linear_weights <- .iwmde_linear_weights(weights)
   if(is.null(parameter_spec) && !is.null(linear_weights)){
-    linear_weights <- BayesTools::posterior_fitted_linear_weights(
-      posterior[[level]], linear_weights, ordinate_label = "qCMDE/IWMDE"
-    )
+    linear_weights <- .iwmde_fitted_linear_weights(posterior[[level]], linear_weights)
     weights <- linear_weights
   }
   if (is.null(linear_weights) || length(linear_weights) == 0L) {

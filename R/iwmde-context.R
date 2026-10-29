@@ -200,6 +200,29 @@
 }
 
 
+# The weights of a linear target on the fitted coordinates
+# (BayesTools::posterior_fitted_linear_weights()) for a qCMDE/IWMDE request,
+# with RoBMA's build and refit class for stale metadata. Its stochastic
+# formula contribution products are the original-scale refusal of
+# qCMDE/IWMDE requests.
+.iwmde_fitted_linear_weights <- function(sample, weights) {
+
+  tryCatch(
+    BayesTools::posterior_fitted_linear_weights(
+      sample, weights,
+      ordinate_label = "qCMDE/IWMDE",
+      build          = "RoBMA/BayesTools",
+      refit_class    = "RoBMA_refit_required"
+    ),
+    BayesTools_fitted_linear_weights_unavailable = function(condition) {
+      .iwmde_stop_unavailable(.iwmde_unavailable(
+        conditionMessage(condition), condition[["cause"]]
+      ))
+    }
+  )
+}
+
+
 # qCMDE/IWMDE evaluate the heterogeneity of one scale formula ('log_tau',
 # .iwmde_formula_inputs()); component-specific scale formulas (a named
 # 'scale' list of brma.mv(), one formula and 'log_tau_<component>' parameter
