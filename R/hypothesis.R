@@ -456,6 +456,17 @@ hypothesis.brma <- function(object, hypothesis,
     density_method = density_method,
     allow_normal   = TRUE
   )
+  # The settings of the density method are validated before the engine reads
+  # the fitted metadata (the provider requests a refit for outdated metadata).
+  if (.density_method_uses_precomputed(density_method, allow_normal = TRUE) ||
+      !is.null(density_control)) {
+    .density_control_normalize(
+      density_method  = density_method,
+      density_control = density_control,
+      allow_normal    = TRUE,
+      purpose         = "ordinate"
+    )
+  }
   if (conditional && !.is_RoBMA(object)) {
     stop("'conditional' hypotheses are available only for RoBMA objects.",
          call. = FALSE)

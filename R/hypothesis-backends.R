@@ -69,7 +69,10 @@
       c(paste0("RoBMA_density_method_", cause), .iwmde_unavailable_class())
     },
     clear_cache      = .iwmde_qcmde_cache_clear,
-    policy           = .hypothesis_density_policy(name),
+    policy           = c(
+      .hypothesis_density_policy(name),
+      list(instance = .hypothesis_density_backends_instance())
+    ),
     package          = "RoBMA"
   )
 }
@@ -94,6 +97,25 @@
 }
 
 
+# The identity of this namespace instance of RoBMA, declared with the backends
+# it registers (as the "instance" of their policy) so that the registry shows
+# which instance provides them. It is made once per namespace instance and uses
+# no random numbers.
+.hypothesis_density_backends_instance <- function() {
+
+  instance <- RoBMA.private[["hypothesis_backends_instance"]]
+  if (is.null(instance)) {
+    instance <- paste(
+      format(Sys.time(), "%Y%m%d%H%M%OS6"), Sys.getpid(),
+      proc.time()[["elapsed"]], sep = "-"
+    )
+    RoBMA.private[["hypothesis_backends_instance"]] <- instance
+  }
+
+  instance
+}
+
+
 # Registers the backends of RoBMA (replacing the ones of a previous load) and
 # drops the plans of the engine, which were built with the previous code.
 .hypothesis_density_backends_register <- function() {
@@ -107,6 +129,30 @@
   BayesTools::hypothesis_cache_clear()
 
   invisible(NULL)
+}
+
+
+# Registers the backends again when the registry of BayesTools lacks them or
+# holds the ones of another instance of the RoBMA namespace: reloading
+# BayesTools alone empties its registry, while RoBMA registers them when it
+# loads. The providers call it, so that every call of the engine finds them.
+# Nothing happens (and no plan is dropped) while the registry holds the
+# backends of this instance. Returns whether they were registered.
+.hypothesis_density_backends_ensure <- function() {
+
+  registered <- BayesTools::hypothesis_density_backends()
+  instance   <- .hypothesis_density_backends_instance()
+  current    <- vapply(.hypothesis_density_backend_names(), function(name) {
+    row <- match(name, registered[["name"]])
+    !is.na(row) && identical(registered[["package"]][[row]], "RoBMA") &&
+      identical(registered[["policy"]][[row]][["instance"]], instance)
+  }, logical(1))
+  if (all(current)) {
+    return(invisible(FALSE))
+  }
+  .hypothesis_density_backends_register()
+
+  invisible(TRUE)
 }
 
 

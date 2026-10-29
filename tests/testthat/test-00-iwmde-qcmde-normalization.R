@@ -388,6 +388,68 @@ test_that("the session caches are emptied when BayesTools was reloaded since the
   expect_identical(.session_caches_code[["BayesTools"]], asNamespace("BayesTools"))
 })
 
+test_that("the engine finds the density backends again after a reload of BayesTools emptied its registry", {
+
+  # RoBMA registers the backends when it loads; reloading BayesTools alone
+  # replaces its registry (and its plans), and its reload does not load RoBMA
+  # again. The providers register the backends when the registry lacks them.
+  object    <- gated_random_object()
+  statement <- "`(mu) study: tau(intercept)` > 0.1"
+  backends  <- .hypothesis_density_backend_names()
+  registered <- function() backends %in% BayesTools::hypothesis_density_backends()$name
+  call <- function() {
+    hypothesis(object, statement, density_method = "qCMDE", seed = 1, columns = "all")
+  }
+  withr::defer({
+    .hypothesis_density_backends_register()
+    .iwmde_qcmde_cache_clear()
+  })
+  expected   <- call()
+  quantities <- hypothesis_quantities(object)
+  expect_true(all(registered()))
+
+  # while the registry holds the backends of this instance nothing is registered
+  # and no cache is dropped
+  env <- .iwmde_qcmde_cache_env(list())
+  assign("entry", 1, envir = env)
+  expect_false(.hypothesis_density_backends_ensure())
+  expect_true(exists("entry", envir = env, inherits = FALSE))
+  expect_identical(call(), expected)
+  expect_true(exists("entry", envir = env, inherits = FALSE))
+
+  # the registry of a reloaded BayesTools holds no backend of RoBMA
+  for (backend in backends) {
+    expect_true(BayesTools::unregister_hypothesis_density_backend(backend))
+  }
+  expect_false(any(registered()))
+  expect_identical(call(), expected)
+  expect_true(all(registered()))
+  # the registration drops the caches that the previous code of BayesTools
+  # filled, among them the normalizations
+  expect_false(exists("entry", envir = env, inherits = FALSE))
+  for (backend in backends) {
+    expect_true(BayesTools::unregister_hypothesis_density_backend(backend))
+  }
+  expect_identical(hypothesis_quantities(object), quantities)
+  expect_true(all(registered()))
+
+  # the backends of another instance of the RoBMA namespace are replaced
+  instance <- .hypothesis_density_backends_instance()
+  RoBMA.private[["hypothesis_backends_instance"]] <- "another-instance"
+  .hypothesis_density_backends_register()
+  RoBMA.private[["hypothesis_backends_instance"]] <- instance
+  policies <- BayesTools::hypothesis_density_backends()
+  policies <- policies[["policy"]][match(backends, policies[["name"]])]
+  expect_identical(unname(vapply(policies, `[[`, character(1), "instance")),
+                   rep("another-instance", length(backends)))
+  expect_true(.hypothesis_density_backends_ensure())
+  policies <- BayesTools::hypothesis_density_backends()
+  policies <- policies[["policy"]][match(backends, policies[["name"]])]
+  expect_identical(unname(vapply(policies, `[[`, character(1), "instance")),
+                   rep(instance, length(backends)))
+  expect_false(.hypothesis_density_backends_ensure())
+})
+
 test_that("normalization failures propagate instead of retrying optional grids", {
 
   failures <- lapply(c("programming_error", "memory_error", "refit_required"), function(kind) {

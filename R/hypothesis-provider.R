@@ -28,6 +28,7 @@ hypothesis_provider.brma <- function(object, ...) {
   if (is.null(object[["fit"]]) || length(object[["fit"]]) == 0L) {
     stop("'hypothesis' requires a fitted brma object.", call. = FALSE)
   }
+  .hypothesis_density_backends_ensure()
   # A fit without the current BayesTools metadata is a request to refit.
   .brma_parameter_catalog_metadata(object)
   fit      <- object[["fit"]]
@@ -260,6 +261,7 @@ hypothesis_provider.marginal_means.brma <- function(object, ...) {
          paste0("'", names(list(...)), "'", collapse = ", "), ".",
          call. = FALSE)
   }
+  .hypothesis_density_backends_ensure()
   source_object <- object[["source_object"]]
   source_valid  <- !is.null(source_object) && inherits(source_object, "brma") &&
     !is.null(source_object[["fit"]])

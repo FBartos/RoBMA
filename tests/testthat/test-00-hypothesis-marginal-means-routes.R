@@ -598,3 +598,28 @@ test_that("model-averaged requests count point levels across parameters", {
     expect_null(refusal(single, statements))
   }
 })
+
+test_that("the settings of a density method are validated after the statements of marginal means", {
+
+  object <- .marginal_means_route_test_object(model_averaged = FALSE)
+  # settings of a method that has none
+  expect_error(
+    hypothesis(object, "alloc[A] > 0", density_method = "KDE",
+               density_control = list(foo = 1)),
+    "'density_control' is only used when 'density_method' is 'qCMDE' or 'IWMDE'.",
+    fixed = TRUE
+  )
+  # and unrecognized settings of an ordinate method, also for a region
+  expect_error(
+    hypothesis(object, "alloc[A] > 0", density_method = "qCMDE",
+               density_control = list(foo = 1)),
+    "'density_control' contains unrecognized setting(s): 'foo'.",
+    fixed = TRUE
+  )
+  # a statement the plans refuse is reported before the settings
+  expect_error(
+    hypothesis(object, "alloc[A] * alloc[B] = 0", density_method = "KDE",
+               density_control = list(foo = 1)),
+    class = "BayesTools_hypothesis_statement"
+  )
+})

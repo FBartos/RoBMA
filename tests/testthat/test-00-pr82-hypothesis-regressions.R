@@ -132,3 +132,32 @@ test_that("qCMDE and IWMDE are RoBMA's precomputed density methods", {
   expect_false(.density_method_uses_precomputed("KDE"))
   expect_false(.density_method_uses_precomputed("normal", allow_normal = TRUE))
 })
+
+test_that("the settings of the density method are validated before the fitted metadata", {
+
+  # An object whose fit has no metadata of this build: the engine requests a
+  # refit when the settings are valid; invalid settings are refused first,
+  # whatever the method, with the wording of the settings of the methods.
+  stale <- structure(
+    list(fit = structure(list(sentinel = TRUE), class = "BayesTools_fit")),
+    class = c("brma.norm", "brma")
+  )
+  for (method in c("KDE", "normal", "qCMDE", "IWMDE")) {
+    expect_error(
+      hypothesis(stale, "mu = 0", density_method = method,
+                 density_control = list(foo = 1)),
+      "'density_control' contains unrecognized setting(s): 'foo'.",
+      fixed = TRUE, info = method
+    )
+  }
+  expect_error(
+    hypothesis(stale, "mu = 0", density_method = "qCMDE",
+               density_control = list(n_points = -1)),
+    "n_points", info = "qCMDE settings"
+  )
+  for (method in c("KDE", "qCMDE")) {
+    error <- tryCatch(hypothesis(stale, "mu = 0", density_method = method), error = identity)
+    expect_s3_class(error, "BayesTools_refit_required")
+    expect_false(inherits(error, "simpleError"))
+  }
+})
