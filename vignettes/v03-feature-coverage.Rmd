@@ -426,7 +426,7 @@ rows <- list(
   feature_row("Plots", "Prior plots (`plot_prior()`)", "YYYYYYYYYYYY"),
   feature_row("Plots", "Marginal means plots (`marginal_means()` + `plot()`)", "YYYYYYYYYYYY"),
   feature_row("Plots", "Regression plots (`regplot()`)", "YYYYYYYYYYYY"),
-  feature_row("Plots", "Funnel plots (`funnel()`)", "YYLYLYYYYLYL"),
+  feature_row("Plots", "Funnel plots (`funnel()`)", "YYLYYYYYYLYY"),
   feature_row("Plots", "Bayesian funnel plots (`bfunnel()`)", "YYNYYYYYYNYY"),
   feature_row("Plots", "zplot diagnostics (`as_zplot()`/`zplot()`)", "YYNYYYYYYNYY"),
   feature_row("Plots", "Weight-function plots (`plot_weightfunction()`)", "NNNYYNNNNNYY"),
