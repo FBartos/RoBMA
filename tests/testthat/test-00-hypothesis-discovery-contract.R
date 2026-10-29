@@ -182,6 +182,26 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
 })
 
 
+test_that("the RoBMA providers name 'component' as the argument of their component vocabulary", {
+
+  # The engine words its messages with the argument through which the caller
+  # selects a component (the default of a BayesTools fit is 'namespace').
+  model <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))
+  means <- structure(
+    list(inference = list(), source_object = NULL, term_map = NULL),
+    class = c("marginal_means.brma", "marginal_means")
+  )
+  expect_identical(BayesTools::hypothesis_provider(model)[["component_argument"]], "component")
+  expect_identical(BayesTools::hypothesis_provider(means)[["component_argument"]], "component")
+
+  expect_error(
+    hypothesis(model, "mu_intercept = 0", component = "scale", density_method = "KDE"),
+    "The 'hypothesis' argument selects component = 'mods' but 'component' was set to 'scale'.",
+    fixed = TRUE
+  )
+})
+
+
 test_that("qCMDE/IWMDE are refused for objects that are no RoBMA models", {
 
   # With RoBMA loaded, a BayesTools fit is described by the default provider of

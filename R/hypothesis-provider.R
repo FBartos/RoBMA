@@ -44,6 +44,7 @@ hypothesis_provider.brma <- function(object, ...) {
       "exclusion and inclusion of gated components."
     ),
     density_methods          = c("KDE", "normal", .hypothesis_density_backend_names()),
+    component_argument       = "component",
     components               = list(
       values   = c("auto", "mods", "location", "scale", "bias", "random"),
       synonyms = c(location = "mods"),
@@ -274,6 +275,7 @@ hypothesis_provider.marginal_means.brma <- function(object, ...) {
     caller                = "hypothesis()",
     ordinate_label        = "qCMDE/IWMDE",
     density_methods       = c("KDE", .hypothesis_density_backend_names()),
+    component_argument    = "component",
     inference             = object[["inference"]],
     model_averaged        = isTRUE(object[["model_averaged"]]) ||
       inherits(source_object, "RoBMA"),
