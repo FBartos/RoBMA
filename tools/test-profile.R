@@ -448,6 +448,17 @@ if (identical(profile, "standard")) {
   finish_profile()
 }
 
+if (identical(profile, "cran")) {
+  # The smoke test runs only where testthat's on_cran() holds; it must not skip.
+  Sys.setenv(NOT_CRAN = "false")
+  source_profile_helpers("standard")
+  results <- as.data.frame(run_tests("cran-smoke"))
+  if (nrow(results) == 0L || any(results[["skipped"]])) {
+    stop("The CRAN smoke test did not run completely.", call. = FALSE)
+  }
+  finish_profile()
+}
+
 if (identical(profile, "quick")) {
   source_profile_helpers("standard")
   run_tests("00-|02-")
@@ -465,6 +476,6 @@ if (identical(profile, "filter")) {
 
 stop(
   "Unknown profile: ", profile,
-  ". Use standard, refresh-standard, certification, quick, filter, or release.",
+  ". Use standard, refresh-standard, certification, quick, cran, filter, or release.",
   call. = FALSE
 )

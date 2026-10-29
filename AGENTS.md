@@ -101,5 +101,5 @@ matching `Makevars*` source lists consistent when native sources change.
   recording changes to unreleased work.
 - Preserve released interfaces, including the compatibility periods documented
   in the model-interface guide.
-- Use `skip_on_cran()` for computationally intensive tests. Keep `AGENTS.md`,
+- CRAN runs only the smoke test (see the testing guide). Keep `AGENTS.md`,
   `.agents/`, and development-only material excluded through `.Rbuildignore`.

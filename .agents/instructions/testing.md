@@ -62,6 +62,12 @@ much slower than the ordinary standard profile and does not run
   lists it in `required_tests`; the `tooling` case holds the slow checks of the
   test tooling itself (scenario helpers, run safety and benchmark driver,
   fit-cache producer fixtures).
+- `Rscript tools/test-profile.R cran`: run `test-cran-smoke.R`, the only tests
+  CRAN runs. `tests/testthat.R` selects it when testthat's `on_cran()` holds,
+  and it skips everywhere else. It checks native-routine, S3-method, and export
+  registration, and fits a minimal `brma()` and a selection model, whose
+  likelihood is a RoBMA JAGS module distribution. Keep it well under 30
+  seconds; do not add behavioral tests to it.
 - `Rscript tools/test-profile.R release`: refresh standard fits, run the
   standard suite, run all certification cases, then call `devtools::check()`.
 
