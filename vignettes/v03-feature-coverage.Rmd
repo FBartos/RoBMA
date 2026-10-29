@@ -39,7 +39,6 @@ reference_links <- c(
   "add_loo()"                            = "../reference/add_loo.brma.html",
   "add_marglik()"                        = "../reference/add_marglik.brma.html",
   "add_waic()"                           = "../reference/add_waic.brma.html",
-  "as.data.frame()"                      = "../reference/as.data.frame.brma.html",
   "as_draws()"                           = "../reference/as_draws.brma.html",
   "as_draws_array()"                     = "../reference/as_draws.brma.html",
   "as_draws_df()"                        = "../reference/as_draws.brma.html",
@@ -76,7 +75,6 @@ reference_links <- c(
   "hypothesis()"                         = "../reference/hypothesis.html",
   "influence()"                          = "../reference/influence.brma.html",
   "interpret()"                          = "../reference/interpret.html",
-  "lines()"                              = "../reference/plot.brma.html",
   "log_lik()"                            = "../reference/log_lik.html",
   "logLik()"                             = "../reference/logLik.brma.html",
   "logml()"                              = "../reference/logml.brma.html",
@@ -117,7 +115,6 @@ reference_links <- c(
   "RoBMA()"                              = "../reference/RoBMA.html",
   "rstandard()"                          = "../reference/rstandard.brma.html",
   "rstudent()"                           = "../reference/rstudent.brma.html",
-  "selection_sensitivity_diagnostics()"  = "../reference/selection_sensitivity_diagnostics.html",
   "simulate()"                           = "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/simulate.html",
   "summary()"                            = "../reference/summary.brma.html",
   "summary_heterogeneity()"              = "../reference/summary_heterogeneity.brma.html",
@@ -422,7 +419,6 @@ rows <- list(
   feature_row("Publication Bias", "PET / PEESE models", "NNNYNNYN"),
   feature_row("Publication Bias", "Model averaging over bias models", "NNNNNNYN"),
   feature_row("Publication Bias", "Bias-adjusted summaries / predictions", "NNYYNNYN"),
-  feature_row("Publication Bias", "Selection sensitivity diagnostics (`selection_sensitivity_diagnostics()`)", "NNYNNNYN"),
   feature_row("Publication Bias", "Trim-fill / fail-safe N", "NNNNNNNN"),
 
   feature_row("Prediction", "Pooled effect / heterogeneity summaries (`pooled_effect()`, `pooled_heterogeneity()`)", "YYYYYYYY"),
@@ -434,7 +430,6 @@ rows <- list(
   feature_row("Prediction", "Estimated marginal means (`marginal_means()`)", "YYYYYYYY"),
 
   feature_row("Plots", "Posterior plots (`plot()`)", "YYYYYYYY"),
-  feature_row("Plots", "Posterior density overlays (`lines()`)", "YYYYYYYY"),
   feature_row("Plots", "Prior plots (`plot_prior()`)", "YYYYYYYY"),
   feature_row("Plots", "Marginal means plots (`marginal_means()` + `plot()`)", "YYYYYYYY"),
   feature_row("Plots", "Regression plots (`regplot()`)", "YYYYYYYL"),
@@ -471,7 +466,7 @@ rows <- list(
 
   feature_row("Model Comparison", "Marginal likelihood (`add_marglik()`, `logml()`)", "YYYYNNNY"),
   feature_row("Model Comparison", "WAIC/LOO (`add_waic()`, `add_loo()`, `waic()`, `loo()`)", "YLYYYLYL"),
-  feature_row("Model Comparison", "Bayes factors (`bf()`, `bayes_factor()`, `post_prob()`)", "YYYYNNNY"),
+  feature_row("Model Comparison", "Bayes factor tests (`bf()`, `bayes_factor()`, `post_prob()`; inclusion Bayes factors for model-averaged fits)", "YYYYYYYY"),
   feature_row("Model Comparison", "WAIC comparison (`loo_compare()`)", "YLYYYLYL"),
   feature_row("Model Comparison", "LOO comparison / predictive model weights (`loo_compare()`, `loo_model_weights()`)", "YLYYYLYL"),
   feature_row("Model Comparison", "Parameter hypothesis tests (`hypothesis()`)", "YYYYYYYY"),
@@ -483,7 +478,6 @@ rows <- list(
 
   feature_row("Extraction", "Posterior draw extraction (`as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`, `as_draws_matrix()`, `as_draws_rvars()`)", "YYYYYYYY"),
   feature_row("Extraction", "Coefficients (`coef()`)", "YYYYYYYY"),
-  feature_row("Extraction", "Tabular output (`as.data.frame()`)", "YYYYYYYY"),
   feature_row("Extraction", "Point-wise log-likelihood (`log_lik()`, `logLik()`)", "YLYYYLYL"),
   feature_row("Extraction", "Sample size (`nobs()`)", "YYYYYYYY"),
   feature_row("Extraction", "Variance-covariance matrix (`vcov()`)", "NNNNNNNN"),
@@ -507,7 +501,7 @@ Their method-specific restrictions are described in the constructor and post-fit
 - [hypothesis()](../reference/hypothesis.html) is also available as `bf_hypothesis()` and `BF_hypothesis()`. [hypothesis_quantities()](../reference/hypothesis_quantities.html) lists supported quantities, and [density_diagnostics()](../reference/density_diagnostics.html) extracts density-estimation diagnostics.
 - [as_metafor_forest()](../reference/as_metafor_forest.html) extracts the forest-plot data passed to the `metafor` package's forest plotting functions.
 - [known_v_factor()](../reference/known_v_factor.html) represents known sampling covariance. The [prior_random() family](../reference/prior_random.html) specifies random-effect priors and includes `allocation_ref()`, `prior_lkj()`, `random_block()`, `random_covariance()`, `random_monitor()`, `random_new_levels()`, `random_sd_source()`, and `random_variance_allocation()`.
-- [selection_model()](../reference/selection_model.html) specifies the selection target. [set_selection_likelihood_control()](../reference/set_selection_likelihood_control.html) supplies numerical integration controls, while [add_selection_sensitivity_diagnostics()](../reference/selection_sensitivity_diagnostics.html) computes and stores the selection sensitivity diagnostics in a fitted object.
+- [selection_model()](../reference/selection_model.html) specifies the selection target. [set_selection_likelihood_control()](../reference/set_selection_likelihood_control.html) supplies numerical integration controls, while [selection_sensitivity_diagnostics()](../reference/selection_sensitivity_diagnostics.html) examines sensitivity to selection settings.
 - [selection_cache_info()](../reference/selection_cache_info.html), [remove_selection_cache()](../reference/remove_selection_cache.html), and [selection_sampler_info()](../reference/selection_sampler_info.html) inspect and manage selection computation.
 
 ## References
