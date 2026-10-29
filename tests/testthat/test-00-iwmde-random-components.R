@@ -778,9 +778,17 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+# A fitted-object stand-in that is a brma model (the density backends refuse
+# objects of other classes).
+.random_component_object <- function() {
+
+  structure(list(), class = "brma")
+}
+
+
 # The provider of the hypothesis engine for a stand-in object: the random-effect
 # callbacks of RoBMA, which the plans of random-effect quantities read.
-.random_component_provider <- function(object = list()) {
+.random_component_provider <- function(object = .random_component_object()) {
 
   list(
     object                   = object,
@@ -796,7 +804,7 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
 # mixed posterior; 'values' are the posterior draws with the prior density
 # 'prior_density' of the quantity.
 .random_component_plan <- function(statement, selected, values, prior_density,
-                                   object = list(), captured = NULL) {
+                                   object = .random_component_object(), captured = NULL) {
 
   BayesTools::posterior_metadata(values, "prior_density") <- prior_density
   testthat::local_mocked_bindings(
@@ -873,7 +881,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   # selection it resolved once.
   expect_identical(captured[["selected"]], selected)
   for (plan in plans) {
-    expect_null(engine_plan_status(plan, list(), "qCMDE", .random_component_provider()))
+    expect_null(engine_plan_status(plan, .random_component_object(), "qCMDE", .random_component_provider()))
     expect_identical(plan[["density_target"]][["parameter_spec"]], target_spec)
   }
 
@@ -969,9 +977,9 @@ test_that("semantic random point hypotheses reject singular display boundaries",
     values        = seq(0.01, 0.99, length.out = 100L),
     prior_density = BayesTools::prior("beta", list(alpha = 1, beta = 1))
   )
-  expect_null(engine_plan_status(plan, list(), "KDE", .random_component_provider()))
+  expect_null(engine_plan_status(plan, .random_component_object(), "KDE", .random_component_provider()))
   for (method in c("qCMDE", "IWMDE")) {
-    refusal <- engine_plan_status(plan, list(), method, .random_component_provider())
+    refusal <- engine_plan_status(plan, .random_component_object(), method, .random_component_provider())
     expect_match(
       refusal[["reason"]],
       "public transformation is singular at that support boundary",

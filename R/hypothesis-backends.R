@@ -29,7 +29,7 @@
     name             = name,
     type             = "ordinate",
     available        = function(object, plan, control) {
-      capability <- .iwmde_capability(object = object, density_method = name)
+      capability <- .hypothesis_density_object_capability(object, name)
       if (capability[["available"]]) {
         return(NULL)
       }
@@ -75,6 +75,29 @@
     ),
     package          = "RoBMA"
   )
+}
+
+
+# Whether the backend 'density_method' can evaluate ordinates of 'object', the
+# capability object of the provider: the fitted brma object, or the source of
+# stored marginal means (.iwmde_capability()). qCMDE/IWMDE evaluate the
+# likelihood of RoBMA models, so an object of another package (a BayesTools fit
+# once RoBMA is loaded) is refused as a method, and the discovery of
+# hypothesis_quantities() lists the other methods only.
+.hypothesis_density_object_capability <- function(object, density_method) {
+
+  if (!inherits(object, "brma")) {
+    return(.iwmde_unavailable(
+      reason = paste0(
+        "qCMDE/IWMDE evaluate ordinates of RoBMA models (fitted 'brma' ",
+        "objects and their marginal means), not of an object of class '",
+        class(object)[[1L]], "'. Use density_method = 'KDE'."
+      ),
+      type   = "model_class"
+    ))
+  }
+
+  .iwmde_capability(object = object, density_method = density_method)
 }
 
 

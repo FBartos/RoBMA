@@ -182,6 +182,97 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
 })
 
 
+test_that("qCMDE/IWMDE are refused for objects that are no RoBMA models", {
+
+  # With RoBMA loaded, a BayesTools fit is described by the default provider of
+  # BayesTools, which offers the registered ordinate backends of RoBMA.
+  model <- single_sd_random_object(BayesTools::prior("gamma", list(2, 2)))
+  fit   <- model[["fit"]]
+  expect_s3_class(fit, "BayesTools_fit")
+  expect_false(inherits(fit, "brma"))
+  expect_true(all(
+    c("KDE", "qCMDE", "IWMDE") %in%
+      BayesTools:::.hypothesis_model_quantities_methods(engine_provider(fit))
+  ))
+
+  # Both backends refuse the object as a method, naming the supported objects.
+  plan <- BayesTools:::.hypothesis_model_plan_finish(
+    list(point = TRUE, refusal = NULL, targets = list(), method_refusals = list())
+  )
+  for (method in c("qCMDE", "IWMDE")) {
+    backend <- BayesTools:::.hypothesis_model_backend(method)
+    for (object in list(fit, list(), NULL)) {
+      refusal <- backend[["available"]](object, plan, NULL)
+      expect_identical(refusal[["type"]], "method", info = method)
+      expect_match(
+        refusal[["reason"]],
+        "qCMDE/IWMDE evaluate ordinates of RoBMA models (fitted 'brma' objects and their marginal means)",
+        fixed = TRUE, info = method
+      )
+      expect_match(refusal[["reason"]], "Use density_method = 'KDE'.", fixed = TRUE, info = method)
+      expect_identical(
+        refusal[["class"]],
+        c("RoBMA_density_method_model_class", "RoBMA_density_method_unavailable"),
+        info = method
+      )
+    }
+    expect_match(backend[["available"]](fit, plan, NULL)[["reason"]],
+                 "class 'BayesTools_fit'", fixed = TRUE, info = method)
+    # The engine stops with that refusal before any statement is evaluated.
+    expect_identical(
+      engine_plan_status(plan, fit, method)[["reason"]],
+      backend[["available"]](fit, plan, NULL)[["reason"]],
+      info = method
+    )
+    expect_error(
+      BayesTools::hypothesis_BF(fit, "mu_intercept = 0", density_method = method, seed = 1),
+      "evaluate ordinates of RoBMA models", fixed = TRUE,
+      class = "BayesTools_hypothesis_method", info = method
+    )
+    expect_error(
+      BayesTools::hypothesis_BF(fit, "mu_intercept = 0", density_method = method, seed = 1),
+      class = "RoBMA_density_method_unavailable", info = method
+    )
+  }
+
+  # Discovery lists the methods that evaluate the fit, none of qCMDE/IWMDE.
+  quantities <- hypothesis_quantities(fit)
+  expect_gt(nrow(quantities), 0L)
+  expect_true(all(quantities[["point_test"]]))
+  expect_false(any(grepl("qCMDE|IWMDE", quantities[["point_test_methods"]])))
+  expect_true(all(grepl("^KDE", quantities[["point_test_methods"]])))
+  expect_match(unique(quantities[["reason"]]), "evaluate ordinates of RoBMA models", fixed = TRUE)
+  expect_s3_class(
+    BayesTools::hypothesis_BF(fit, "mu_intercept = 0", density_method = "KDE", seed = 1),
+    "BayesTools_hypothesis_BF"
+  )
+
+  # The RoBMA models keep their methods: the fitted brma objects (the capability
+  # objects of both providers) are available up to their own capability.
+  known_v_model <- model
+  attr(known_v_model[["data"]], "known_V") <- TRUE
+  glmm <- structure(list(), class = c("brma.glmm", "brma"))
+  for (method in c("qCMDE", "IWMDE")) {
+    backend <- BayesTools:::.hypothesis_model_backend(method)
+    expect_null(backend[["available"]](known_v_model, plan, NULL), info = method)
+    expect_identical(
+      backend[["available"]](model, plan, NULL)[["class"]],
+      .iwmde_capability(model, density_method = method)[["class"]],
+      info = method
+    )
+  }
+  expect_null(BayesTools:::.hypothesis_model_backend("qCMDE")[["available"]](glmm, plan, NULL))
+  expect_identical(
+    BayesTools:::.hypothesis_model_backend("IWMDE")[["available"]](glmm, plan, NULL)[["class"]],
+    c("RoBMA_density_method_glmm", "RoBMA_density_method_unavailable")
+  )
+  expect_match(
+    unique(hypothesis_quantities(known_v_model)[["point_test_methods"]])[[1L]],
+    "KDE, qCMDE, IWMDE", fixed = TRUE
+  )
+})
+
+
 test_that("qCMDE/IWMDE are unavailable for component-specific scale formulas", {
 
   # The IWMDE context evaluates one scale formula ('log_tau'): a named
