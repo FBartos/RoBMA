@@ -365,7 +365,6 @@ The defaults for other random-effect structures follow the same logic:
 
 Use `print_prior(..., parameter = "random")` to display the allocation implied by a particular `random` formula.
 For applications, including correlated sampling errors, multivariate structures, and custom random-effect prior distributions via `prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
-For publication-bias-adjusted multilevel models, see the [*Multilevel Robust Bayesian Meta-Analysis*](v32-robma-multilevel.html) and [*Multilevel Robust Bayesian Model-Averaged Meta-Regression*](v33-robma-multilevel-metaregression.html) vignettes.
 
 ## Informed Empirical Prior Distributions
 

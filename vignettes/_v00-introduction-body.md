@@ -1,5 +1,5 @@
 The `RoBMA` R package fits a comprehensive collection of Bayesian meta-analytic models [@RoBMA].
-It provides single-model fits, meta-regression, location-scale models, multilevel models, fully Bayesian model-averaged ensembles, and built-in publication-bias adjustment using selection models, PET-PEESE, and Robust Bayesian Meta-Analysis (RoBMA).
+It provides single-model fits, meta-regression, location-scale models, multilevel and multivariate models, fully Bayesian model-averaged ensembles, and built-in publication-bias adjustment using selection models, PET-PEESE, and Robust Bayesian Meta-Analysis (RoBMA).
 Posterior sampling is performed by JAGS through a custom C++ module that implements the weighted distributions used in selection models.
 Prior handling, plotting, and Bayesian diagnostics are delegated to the companion `BayesTools` package.
 
