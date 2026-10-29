@@ -122,7 +122,7 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
     hypothesis(fit, "intercept = 0.5", component = "scale"),
     "Hypothesis references multiple model parameters",
     fixed = TRUE,
-    class = "RoBMA_hypothesis_ambiguous"
+    class = "BayesTools_hypothesis_ambiguous"
   )
   # An ambiguous statement is a statement problem that 'component' resolves,
   # not an unavailable test.
@@ -132,7 +132,7 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
   )
   expect_identical(
     class(error),
-    c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement", "error",
+    c("BayesTools_hypothesis_ambiguous", "BayesTools_hypothesis_statement", "error",
       "condition")
   )
   # qCMDE/IWMDE are refused for every quantity (several scale formulas), and
@@ -158,7 +158,7 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
   metadata <- .brma_parameter_catalog_metadata(fit)
   entries  <- metadata[["entries"]]
   roots <- vapply(seq_len(nrow(entries)), function(i) {
-    .hypothesis_quantities_reference_root(
+    BayesTools:::.hypothesis_model_quantities_reference_root(
       metadata,
       as.list(entries[i, setdiff(names(entries), "aliases"), drop = FALSE])
     )
@@ -209,14 +209,14 @@ test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas",
     hypothesis(fit, "intercept = 0", component = "mods"),
     reason,
     fixed = TRUE,
-    class = "RoBMA_hypothesis_method"
+    class = "BayesTools_hypothesis_method"
   )
   expect_error(
     hypothesis(fit, "log_tau_study_x = 0", component = "scale",
                density_method = "IWMDE"),
     reason,
     fixed = TRUE,
-    class = "RoBMA_hypothesis_method"
+    class = "BayesTools_hypothesis_method"
   )
   # The hypothesis() refusal also carries the parent class of the
   # capability refusals.
@@ -267,7 +267,7 @@ test_that("qCMDE/IWMDE point hypotheses are refused for several scale formulas",
   # classes of the capability refusal after their own: one cause has the same
   # classes at every entry point.
   refusal_classes <- c(
-    "RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable", classes,
+    "BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable", classes,
     "error", "condition"
   )
   for (method in c("qCMDE", "IWMDE")) {
@@ -340,11 +340,11 @@ test_that("levels of a factor alias shared by the location and scale formulas re
   # stays ambiguous (the same statement resolves with 'component' above).
   expect_error(
     suppressWarnings(hypothesis(fit, "g1[10] = 0.1", density_method = "KDE")),
-    class = "RoBMA_hypothesis_ambiguous"
+    class = "BayesTools_hypothesis_ambiguous"
   )
   expect_error(
-    .hypothesis_brma_select_parameter(fit, "g1[10] = 0.1", component = "auto"),
-    class = "RoBMA_hypothesis_ambiguous"
+    BayesTools:::.hypothesis_model_select_parameter(engine_provider(fit), "g1[10] = 0.1", component = "auto"),
+    class = "BayesTools_hypothesis_ambiguous"
   )
   # The contrast coefficient 'g1{1}' of both formulas: its quantities have
   # no RoBMA parameter entries, so BayesTools' ambiguity is re-raised with
@@ -355,7 +355,7 @@ test_that("levels of a factor alias shared by the location and scale formulas re
   )
   expect_identical(
     class(error),
-    c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement",
+    c("BayesTools_hypothesis_ambiguous", "BayesTools_hypothesis_statement",
       "BayesTools_parameter_ambiguous", "BayesTools_parameter_resolution_error",
       "error", "condition")
   )
@@ -373,7 +373,7 @@ test_that("statements that do not match 'component' are component mismatches at 
 
   skip_on_cran()
   fit <- .plan_fits()[["location_scale"]]
-  mismatch <- c("RoBMA_hypothesis_statement", "RoBMA_component_mismatch",
+  mismatch <- c("BayesTools_hypothesis_statement", "BayesTools_hypothesis_component_mismatch",
                 "error", "condition")
   # A reference of one parameter of another component, references of
   # parameters of other components, and a level alias of several parameters
@@ -479,7 +479,7 @@ test_that("BayesTools resolution errors that escape planning are statement error
   # 'component', where the shared alias is ambiguous, so it stops with
   # BayesTools' refusal of its first unresolved reference (its message,
   # classes, and fields) after the statement class.
-  ambiguous <- c("RoBMA_hypothesis_statement", "BayesTools_parameter_ambiguous",
+  ambiguous <- c("BayesTools_hypothesis_statement", "BayesTools_parameter_ambiguous",
                  "BayesTools_parameter_resolution_error", "error", "condition")
   cases <- list(
     list(statement = "g1 > log_tau_intercept",  component = "mods"),
@@ -514,7 +514,7 @@ test_that("BayesTools resolution errors that escape planning are statement error
       hypothesis(fit, statement, component = "mods", density_method = "KDE"),
       error = identity
     )
-    expect_identical(class(error), c(.hypothesis_not_found_class(), "error", "condition"),
+    expect_identical(class(error), c(BayesTools:::.hypothesis_model_not_found_class(), "error", "condition"),
                      info = statement)
     expect_identical(error[["alias"]], "log_tau_intercept", info = statement)
   }
@@ -551,7 +551,7 @@ test_that("BayesTools resolution errors that escape planning are statement error
     list(message = "Unresolved reference.", call = NULL, alias = "z")
   )
   ambiguous_statement <- structure(
-    class = c(.hypothesis_ambiguous_class(), "BayesTools_parameter_ambiguous",
+    class = c(BayesTools:::.hypothesis_model_ambiguous_class(), "BayesTools_parameter_ambiguous",
               "BayesTools_parameter_resolution_error", "error", "condition"),
     list(message = "Ambiguous reference.", call = NULL)
   )
@@ -562,7 +562,7 @@ test_that("BayesTools resolution errors that escape planning are statement error
       error <- tryCatch(calls[[route]](), error = identity)
       expect_identical(
         class(error),
-        c("RoBMA_hypothesis_statement", "BayesTools_parameter_other",
+        c("BayesTools_hypothesis_statement", "BayesTools_parameter_other",
           "BayesTools_parameter_resolution_error", "error", "condition"),
         info = info
       )
@@ -576,17 +576,17 @@ test_that("BayesTools resolution errors that escape planning are statement error
   refusal <- NULL
   local({
     testthat::local_mocked_bindings(
-      .hypothesis_plan                = function(...) stop(refusal),
-      .hypothesis_plan_marginal_means = function(...) stop(refusal),
-      .package = "RoBMA"
+      .hypothesis_model_plan                = function(...) stop(refusal),
+      .hypothesis_model_plan_marginal_means = function(...) stop(refusal),
+      .package = "BayesTools"
     )
     check_routes("planning")
   })
   local({
     testthat::local_mocked_bindings(
-      .hypothesis_plan_execute                = function(...) stop(refusal),
-      .hypothesis_plan_execute_marginal_means = function(...) stop(refusal),
-      .package = "RoBMA"
+      .hypothesis_model_plan_execute                = function(...) stop(refusal),
+      .hypothesis_model_plan_execute_marginal_means = function(...) stop(refusal),
+      .package = "BayesTools"
     )
     check_routes("evaluation")
   })
@@ -603,7 +603,7 @@ test_that("publication-bias parameters are refused as hypothesis targets", {
   )
   expect_identical(
     class(error),
-    c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable", "error",
+    c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable", "error",
       "condition")
   )
   expect_identical(
@@ -617,7 +617,7 @@ test_that("catalog quantities without a RoBMA parameter are refused as targets, 
 
   skip_on_cran()
   fit    <- .plan_fits()[["robma_mixture"]]
-  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+  target <- c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable",
               "error", "condition")
   # Quantities of the publication-bias prior (weight-function coordinates by
   # their interval or index, and the mixture indicator) have the
@@ -685,7 +685,7 @@ test_that("catalog quantities without a RoBMA parameter are refused as targets, 
   metadata <- .brma_parameter_catalog_metadata(fit)
   metadata[["entries"]] <- metadata[["entries"]][0L, , drop = FALSE]
   error <- tryCatch(
-    .hypothesis_brma_select_parameter(fit, "mu_g1 > 0", "auto", metadata),
+    BayesTools:::.hypothesis_model_select_parameter(engine_provider(fit), "mu_g1 > 0", "auto", metadata),
     error = identity
   )
   expect_identical(
@@ -700,7 +700,7 @@ test_that("the selection of plot() refuses catalog quantities without a RoBMA pa
 
   skip_on_cran()
   fit    <- .plan_fits()[["robma_mixture"]]
-  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+  target <- c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable",
               "error", "condition")
   unavailable <- function(argument, quantity) {
     paste0(
@@ -823,7 +823,7 @@ test_that("display labels of parameters are evaluable with and without 'componen
   # A display label of the component next to a name of another component's
   # parameter is a component mismatch in either order, as a name known only
   # outside the component is.
-  mismatch <- c("RoBMA_hypothesis_statement", "RoBMA_component_mismatch",
+  mismatch <- c("BayesTools_hypothesis_statement", "BayesTools_hypothesis_component_mismatch",
                 "error", "condition")
   cases <- list(
     list(component = "mods", other = "scale", statements = c(
@@ -864,7 +864,7 @@ test_that("statement refusals of the plans are statement errors, not unavailable
   skip_on_cran()
   fits      <- .plan_fits()
   gated     <- gated_random_object()
-  statement <- c("RoBMA_hypothesis_statement", "error", "condition")
+  statement <- c("BayesTools_hypothesis_statement", "error", "condition")
   # Each statement has to be restated; the tests themselves are available.
   cases <- list(
     list(
@@ -953,7 +953,7 @@ test_that("unresolved references have the same classes on fits and marginal mean
   skip_on_cran()
   fit   <- .two_scale_fit()
   means <- marginal_means(fit, density_method = "KDE")
-  not_found <- c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+  not_found <- c("BayesTools_hypothesis_statement", "BayesTools_parameter_not_found",
                  "BayesTools_parameter_resolution_error", "error", "condition")
   # An unknown name: the statement class followed by BayesTools' condition,
   # whose message and fields the fit path keeps.
@@ -1032,10 +1032,10 @@ test_that("unresolved references have the same classes on fits and marginal mean
     conditionMessage(refusal),
     "The hypothesis contains no parameter symbols to resolve."
   )
-  no_parameters <- unique(c("RoBMA_hypothesis_statement", class(refusal)))
+  no_parameters <- unique(c("BayesTools_hypothesis_statement", class(refusal)))
   expect_identical(
     no_parameters,
-    c("RoBMA_hypothesis_statement", "BayesTools_hypothesis_no_parameters",
+    c("BayesTools_hypothesis_statement", "BayesTools_hypothesis_no_parameters",
       "BayesTools_parameter_resolution_error", "error", "condition")
   )
   on_fit <- list(
@@ -1080,7 +1080,7 @@ test_that("statements on every level of a term with a fixed level are refused as
       suppressWarnings(hypothesis(fits[["treatment"]], statement, density_method = "KDE")),
       "The quantity 'g1[5]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
       fixed = TRUE,
-      class = "RoBMA_hypothesis_fixed",
+      class = "BayesTools_hypothesis_fixed",
       info  = statement
     )
   }
@@ -1219,7 +1219,7 @@ test_that("a two-level ordered factor tests its level and the level contrast ali
     suppressWarnings(hypothesis(fit, "g[a] = 0", density_method = "KDE")),
     "The quantity 'g[a]' is fixed by the fitted model; posterior hypothesis tests are undefined.",
     fixed = TRUE,
-    class = "RoBMA_hypothesis_fixed"
+    class = "BayesTools_hypothesis_fixed"
   )
 })
 
@@ -1368,12 +1368,12 @@ test_that("region prior probabilities come from prior draws only for densities w
   # The provenance signal is BayesTools::prior_density_has_provenance(): the
   # plotting grid of a nested-allocation SD has none, so its region prior
   # probabilities come from prior draws; the ungated SD has its exact prior.
-  nested <- .hypothesis_plans(
+  nested <- engine_plans(
     nested_allocation_random_object(), "`(mu) study: tau(x)` > 0.4"
   )[[1L]]
   expect_false(BayesTools::prior_density_has_provenance(nested[["prior_density"]]))
   expect_true(nested[["prior_draws"]])
-  ungated <- .hypothesis_plans(
+  ungated <- engine_plans(
     single_sd_random_object(BayesTools::prior("gamma", list(2, 2))),
     "`(mu) tau(intercept)` > 0.4"
   )[[1L]]
@@ -1392,8 +1392,8 @@ test_that("region prior probabilities come from prior draws only for densities w
   )
   expect_identical(BayesTools::prior_density_ordinate(gammas, 6)[["method"]],
                    "unsupported_provenance")
-  expect_true(.hypothesis_plan_density_has_provenance(gammas))
-  expect_false(.hypothesis_plan_density_has_provenance(NULL))
+  expect_true(BayesTools:::.hypothesis_model_plan_density_has_provenance(gammas))
+  expect_false(BayesTools:::.hypothesis_model_plan_density_has_provenance(NULL))
 })
 
 

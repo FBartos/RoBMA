@@ -14,18 +14,19 @@ source(testthat::test_path("common-functions.R"))
 }
 
 
-# The number of plans `expr` builds.
+# The number of plans `expr` builds (the plans of the BayesTools hypothesis
+# engine).
 .plan_cache_builds <- function(expr) {
 
   builds   <- 0L
-  original <- .hypothesis_plan
+  original <- BayesTools:::.hypothesis_model_plan
   value    <- testthat::with_mocked_bindings(
     expr,
-    .hypothesis_plan = function(...) {
+    .hypothesis_model_plan = function(...) {
       builds <<- builds + 1L
       original(...)
     },
-    .package = "RoBMA"
+    .package = "BayesTools"
   )
 
   list(value = value, builds = builds)
@@ -37,20 +38,20 @@ test_that("hypothesis() and hypothesis_quantities() build the plan of a statemen
   fit_names <- .plan_cache_fit_names()
   skip_if(length(fit_names) == 0L, "No cached fitted model is active.")
 
-  withr::defer(.hypothesis_plan_cache_clear())
+  withr::defer(BayesTools::hypothesis_cache_clear())
   for (fit_name in fit_names) {
     fit <- load_fit(fit_name, validate = FALSE)
-    .hypothesis_plan_cache_clear()
+    BayesTools::hypothesis_cache_clear()
     metadata <- .brma_parameter_catalog_metadata(fit)
     entries  <- metadata[["entries"]]
     entries  <- entries[entries[["component"]] != "bias", , drop = FALSE]
     entry    <- as.list(entries[1L, setdiff(names(entries), "aliases"),
                                 drop = FALSE])
-    root      <- .hypothesis_quantities_reference_root(metadata, entry)
+    root      <- BayesTools:::.hypothesis_model_quantities_reference_root(metadata, entry)
     statement <- paste0("`", root, "` = 0")
     plan_of   <- function(...) {
-      .hypothesis_plans(fit, statement, component = entry[["component"]],
-                        metadata = metadata, ...)[[1L]]
+      engine_plans(fit, statement, component = entry[["component"]],
+                   metadata = metadata, ...)[[1L]]
     }
 
     first <- .plan_cache_builds(plan_of())
@@ -68,7 +69,7 @@ test_that("hypothesis() and hypothesis_quantities() build the plan of a statemen
 
     # hypothesis_quantities() plans every statement of the fit once, the
     # statement above among them, and once again for the next call.
-    .hypothesis_plan_cache_clear()
+    BayesTools::hypothesis_cache_clear()
     quantities <- .plan_cache_builds(suppressWarnings(hypothesis_quantities(fit)))
     expect_gt(quantities$builds, 1L)
     expect_identical(.plan_cache_builds(plan_of())$builds, 0L, info = fit_name)
@@ -93,7 +94,7 @@ test_that("the results of a cache are those of a call without one", {
   fit_names <- .plan_cache_fit_names()
   skip_if(length(fit_names) == 0L, "No cached fitted model is active.")
 
-  withr::defer(.hypothesis_plan_cache_clear())
+  withr::defer(BayesTools::hypothesis_cache_clear())
   for (fit_name in fit_names) {
     fit <- load_fit(fit_name, validate = FALSE)
     metadata <- .brma_parameter_catalog_metadata(fit)
@@ -101,7 +102,7 @@ test_that("the results of a cache are those of a call without one", {
     entries  <- utils::head(entries[entries[["component"]] != "bias", ,
                                     drop = FALSE], 3L)
     run <- function(cached) {
-      .hypothesis_plan_cache_clear()
+      BayesTools::hypothesis_cache_clear()
       testthat::with_mocked_bindings(
         {
           # Each statement twice: the second time from the cache.
@@ -109,7 +110,7 @@ test_that("the results of a cache are those of a call without one", {
             entry     <- as.list(entries[i, setdiff(names(entries), "aliases"),
                                          drop = FALSE])
             statement <- paste0(
-              "`", .hypothesis_quantities_reference_root(metadata, entry),
+              "`", BayesTools:::.hypothesis_model_quantities_reference_root(metadata, entry),
               "` > 0"
             )
             call <- function() {
@@ -124,12 +125,12 @@ test_that("the results of a cache are those of a call without one", {
           list(statements = statements,
                quantities = suppressWarnings(hypothesis_quantities(fit)))
         },
-        .hypothesis_plan_cache = if (cached) {
-          .hypothesis_plan_cache
+        .hypothesis_model_plan_cache = if (cached) {
+          BayesTools:::.hypothesis_model_plan_cache
         } else {
-          function(object = NULL) new.env(parent = emptyenv())
+          function(provider = NULL) new.env(parent = emptyenv())
         },
-        .package = "RoBMA"
+        .package = "BayesTools"
       )
     }
     cached   <- run(TRUE)

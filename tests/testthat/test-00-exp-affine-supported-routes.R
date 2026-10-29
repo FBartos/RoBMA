@@ -42,7 +42,7 @@ test_that("atom-free averaged exp-affine posteriors are certified", {
 
   sample <- exp_affine_test_sample(mixture = TRUE)
 
-  expect_null(.hypothesis_plan_exp_affine_certify(
+  expect_null(BayesTools:::.hypothesis_model_plan_exp_affine_certify(
     sample        = sample,
     prior_density = exp_affine_test_prior_density()
   ))
@@ -51,7 +51,7 @@ test_that("atom-free averaged exp-affine posteriors are certified", {
   BayesTools::posterior_metadata(atomic, "atoms") <- BayesTools::posterior_atom_attribute(
     point_masses = data.frame(x = 0, mass = .1)
   )
-  refusal <- .hypothesis_plan_exp_affine_certify(
+  refusal <- BayesTools:::.hypothesis_model_plan_exp_affine_certify(
     sample        = atomic,
     prior_density = exp_affine_test_prior_density()
   )
@@ -71,8 +71,9 @@ test_that("exp-affine targets are tested on their own scale with the certified p
     support       = BayesTools::posterior_support_attribute(c(0, Inf))
   )
   captured <- NULL
+  # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, hypothesis, ...) {
+    hypothesis_BF.default = function(posterior, hypothesis, ...) {
       captured <<- list(posterior = posterior, hypothesis = hypothesis, ...)
       structure(
         data.frame(BF = 2, check.names = FALSE),
@@ -90,14 +91,14 @@ test_that("exp-affine targets are tested on their own scale with the certified p
     targets     = list()
   )
   hypothesis <- BayesTools::hypothesis_parse("log_tau_intercept = 0.2")
-  .hypothesis_plan_execute_scalar(
+  BayesTools:::.hypothesis_model_plan_execute_scalar(
     plans           = list(plan),
     hypothesis      = hypothesis,
-    object          = list(),
+    provider        = list(),
+    backend         = BayesTools:::.hypothesis_model_backend("KDE"),
     logBF           = FALSE,
     BF01            = FALSE,
     seed            = 1,
-    density_method  = "KDE",
     density_control = NULL,
     columns         = "all"
   )
@@ -119,7 +120,7 @@ test_that("exp-affine coefficients refuse qCMDE/IWMDE with the original-scale cl
 
   skip_on_cran()
   fit <- load_fit("lane_exp_affine")
-  plan <- .hypothesis_plans(fit, "intercept = 0.5", component = "scale")[[1L]]
+  plan <- engine_plans(fit, "intercept = 0.5", component = "scale")[[1L]]
   expect_identical(plan[["kind"]], "exp_affine")
 
   classes <- c("RoBMA_density_method_original_scale",
@@ -147,7 +148,7 @@ test_that("exp-affine coefficients refuse qCMDE/IWMDE with the original-scale cl
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable", classes,
+      c("BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable", classes,
         "error", "condition"),
       info = method
     )
@@ -161,7 +162,7 @@ test_that("exp-affine coefficients refuse qCMDE/IWMDE with the original-scale cl
   )
   expect_identical(
     class(error),
-    c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable", "error",
+    c("BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable", "error",
       "condition")
   )
   kde <- suppressWarnings(hypothesis(

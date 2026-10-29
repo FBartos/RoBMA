@@ -57,7 +57,7 @@ test_that("tests of the fixed marginal mean itself stay refused", {
   for (statement in c("g[a] > 0", "g[a] = 0", "g > 0", "g = 0")) {
     expect_error(
       hypothesis(mm, statement, density_method = "KDE"),
-      class = "RoBMA_hypothesis_fixed", info = statement
+      class = "BayesTools_hypothesis_fixed", info = statement
     )
   }
 })

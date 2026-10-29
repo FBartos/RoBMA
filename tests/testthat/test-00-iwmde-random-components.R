@@ -778,6 +778,20 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
   expect_equal(actual, expected, tolerance = 1e-12)
 })
 
+# The provider of the hypothesis engine for a stand-in object: the random-effect
+# callbacks of RoBMA, which the plans of random-effect quantities read.
+.random_component_provider <- function(object = list()) {
+
+  list(
+    object                   = object,
+    capability_object        = object,
+    ordinate_label           = "qCMDE/IWMDE",
+    random_point_mass_advice = "Use a region or directional hypothesis.",
+    random                   = .hypothesis_brma_random_callbacks(object)
+  )
+}
+
+
 # The plan of a random-effect statement built from a mocked selection and
 # mixed posterior; 'values' are the posterior draws with the prior density
 # 'prior_density' of the quantity.
@@ -798,7 +812,7 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
     .package = "RoBMA"
   )
   ast  <- BayesTools::hypothesis_parse(statement)
-  plan <- .hypothesis_plan_new(
+  plan <- BayesTools:::.hypothesis_model_plan_new(
     statement = ast,
     hypothesis = ast,
     parameter = "theta",
@@ -806,9 +820,11 @@ test_that("diagonal allocation grid equals the full marginal covariance", {
     component = "random",
     selected  = list(entry = selected[["entry"]])
   )
-  plan <- .hypothesis_plan_random(plan, object, .hypothesis_plan_cache())
+  plan <- BayesTools:::.hypothesis_model_plan_random(
+    plan, .random_component_provider(object), BayesTools:::.hypothesis_model_plan_cache()
+  )
 
-  .hypothesis_plan_finish(plan, object)
+  BayesTools:::.hypothesis_model_plan_finish(plan)
 }
 
 
@@ -857,7 +873,7 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   # selection it resolved once.
   expect_identical(captured[["selected"]], selected)
   for (plan in plans) {
-    expect_null(.hypothesis_plan_status(plan, "qCMDE"))
+    expect_null(engine_plan_status(plan, list(), "qCMDE", .random_component_provider()))
     expect_identical(plan[["density_target"]][["parameter_spec"]], target_spec)
   }
 
@@ -867,40 +883,48 @@ test_that("semantic random qCMDE hypotheses use the plotting density target", {
   testthat::local_mocked_bindings(
     .iwmde_check_point_ordinate_supported = function(...) invisible(TRUE),
     .iwmde_context = function(...) list(),
-    .hypothesis_brma_attach_iwmde_scalar = function(
-        posterior, raw_posterior, value, parameter, parameter_spec, ...) {
+    .hypothesis_density_attach_scalar = function(
+        posterior, request, control, context, estimate_cache) {
       attachment_calls <<- attachment_calls + 1L
-      attached_values  <<- c(attached_values, value)
-      expect_identical(parameter, "rho[2]")
-      expect_identical(parameter_spec, target_spec)
+      attached_values  <<- c(attached_values, request[["values"]])
+      expect_identical(request[["parameter"]], "rho[2]")
+      expect_identical(request[["spec"]], target_spec)
       expect_identical(
-        BayesTools::posterior_metadata(raw_posterior, "prior_density"),
+        BayesTools::posterior_metadata(posterior, "prior_density"),
         semantic_prior_density
       )
+      # The engine requires a valid ordinate at every requested value.
+      BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
+        BayesTools::posterior_ordinate_attribute(
+          value          = request[["values"]],
+          ordinate       = rep(1, length(request[["values"]])),
+          method         = "qCMDE",
+          density_method = "qCMDE"
+        )
       posterior
     },
-    .hypothesis_brma_append_iwmde_warnings = function(table, ...) table,
     .package = "RoBMA"
   )
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(..., density_method) {
+    hypothesis_BF.default = function(..., density_method) {
       used_density_method <<- density_method
       structure(data.frame(BF = c(1, 1)), class = c(
         "BayesTools_hypothesis_BF",
         "data.frame"
       ))
     },
+    .hypothesis_model_append_ordinate_warnings = function(table, ...) table,
     .package = "BayesTools"
   )
 
-  out <- .hypothesis_plan_execute_random(
+  out <- BayesTools:::.hypothesis_model_plan_execute_random(
     plans           = plans,
-    hypothesis      = .hypothesis_plan_group_ast(plans, "hypothesis"),
-    object          = list(),
+    hypothesis      = BayesTools:::.hypothesis_model_plan_group_ast(plans, "hypothesis"),
+    provider        = .random_component_provider(),
+    backend         = BayesTools:::.hypothesis_model_backend("qCMDE"),
     logBF           = FALSE,
     BF01            = FALSE,
     seed            = 1,
-    density_method  = "qCMDE",
     density_control = list(
       n_points             = 20L,
       samples              = 50L,
@@ -945,15 +969,15 @@ test_that("semantic random point hypotheses reject singular display boundaries",
     values        = seq(0.01, 0.99, length.out = 100L),
     prior_density = BayesTools::prior("beta", list(alpha = 1, beta = 1))
   )
-  expect_null(.hypothesis_plan_status(plan, "KDE"))
+  expect_null(engine_plan_status(plan, list(), "KDE", .random_component_provider()))
   for (method in c("qCMDE", "IWMDE")) {
-    refusal <- .hypothesis_plan_status(plan, method)
+    refusal <- engine_plan_status(plan, list(), method, .random_component_provider())
     expect_match(
       refusal[["reason"]],
       "public transformation is singular at that support boundary",
       fixed = TRUE
     )
-    expect_identical(refusal[["class"]][[1L]], "RoBMA_hypothesis_target")
+    expect_identical(refusal[["class"]][[1L]], "BayesTools_hypothesis_target")
   }
 })
 
@@ -1111,7 +1135,7 @@ test_that("allocation-derived SD zero remedies resolve the intended owner", {
         error = identity)
     })
     for (error in errors) {
-      expect_s3_class(error, "RoBMA_hypothesis_target")
+      expect_s3_class(error, "BayesTools_hypothesis_target")
       expect_identical(conditionMessage(error), message)
     }
     expect_identical(class(errors[[1L]]), class(errors[[2L]]))
@@ -1147,7 +1171,7 @@ test_that("a missing public allocation remedy preserves the zero-boundary refusa
     paste0(deparse1(as.name(replay$selector), backtick = TRUE), " = 0"),
     component = "random", density_method = "KDE", n_samples = 1000L, seed = 1),
     error = identity)
-  expect_s3_class(error, "RoBMA_hypothesis_target")
+  expect_s3_class(error, "BayesTools_hypothesis_target")
   selected <- .brma_random_parameter_select(object, replay$selector)
   expect_identical(conditionMessage(error), paste0(
     "Point-null Bayes factors are unavailable for allocation-derived random-effect quantity '",
@@ -1250,10 +1274,17 @@ test_that("separate random targets share one hypothesis result", {
   calls <- list()
   testthat::local_mocked_bindings(
     .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
-    .hypothesis_plans = function(...) {
-      lapply(groups, function(group) list(group = group, methods = list()))
+    .package = "RoBMA"
+  )
+  # The engine of BayesTools plans every statement, then executes the
+  # statements group by group and binds the results in statement order.
+  testthat::local_mocked_bindings(
+    .hypothesis_model_plans = function(...) {
+      lapply(groups, function(group) {
+        list(group = group, point = FALSE, refusal = NULL)
+      })
     },
-    .hypothesis_plan_execute = function(plans, ...) {
+    .hypothesis_model_plan_execute = function(plans, ...) {
 
       n <- length(plans)
       is_allocation <- identical(plans[[1L]][["group"]], groups[[1L]])
@@ -1277,11 +1308,11 @@ test_that("separate random targets share one hypothesis result", {
       )
       out
     },
-    .package = "RoBMA"
+    .package = "BayesTools"
   )
 
   out <- hypothesis.brma(
-    object         = structure(list(fit = list(TRUE)), class = "brma"),
+    object         = gated_random_object(),
     hypothesis     = BayesTools::hypothesis_render(hypothesis),
     density_method = "KDE",
     seed           = 1

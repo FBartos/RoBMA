@@ -91,19 +91,31 @@ test_that("hypothesis warns only for omitted conditioning on null-component ense
   )
 
   statement <- BayesTools::hypothesis_parse("mu > 0")
+  # The provider of a stand-in object: the default provider of a small
+  # BayesTools fit with the object, the catalog, and the full-ensemble
+  # predicate of hypothesis_provider.brma().
+  base_provider <- BayesTools::hypothesis_provider(gated_random_object()[["fit"]])
   testthat::local_mocked_bindings(
-    .brma_parameter_catalog_metadata = .mock_hypothesis_mu_catalog_metadata,
-    .hypothesis_plans = function(...) {
+    hypothesis_provider = function(object, ...) {
+      utils::modifyList(base_provider, list(
+        object        = object,
+        metadata      = .mock_hypothesis_mu_catalog_metadata,
+        full_ensemble = function(parameter) {
+          .hypothesis_brma_full_ensemble(object, parameter)
+        }
+      ))
+    },
+    .hypothesis_model_plans = function(...) {
       list(list(
         parameter = "mu", label = "mu", route = "scalar",
-        group = "scalar\rmu", methods = list(),
+        group = "scalar\rmu", point = FALSE, refusal = NULL,
         statement = statement, hypothesis = statement
       ))
     },
-    .hypothesis_plan_execute_scalar = function(...) {
+    .hypothesis_model_plan_execute_scalar = function(...) {
       stop("downstream sentinel", call. = FALSE)
     },
-    .package = "RoBMA"
+    .package = "BayesTools"
   )
 
   capture_warnings <- function(object, ...) {
@@ -172,14 +184,14 @@ test_that("hypothesis warns only for omitted conditioning on null-component ense
 test_that("qCMDE factor point guards use display aliases", {
 
   expect_equal(
-    .hypothesis_brma_alias_label(
+    BayesTools::hypothesis_alias_label(
       aliases   = list(mu_alloc = "mu_alloc", alloc = "mu_alloc"),
       parameter = "mu_alloc"
     ),
     "alloc"
   )
   expect_error(
-    .hypothesis_brma_attach_iwmde_scalar(
+    engine_attach_scalar(
       posterior                = list(random = 0),
       raw_posterior            = list(random = 0),
       context                  = NULL,
@@ -213,18 +225,18 @@ test_that("qCMDE factor point guards use display aliases", {
     term_map  = data.frame(term = "alloc", parameter = "mu_alloc"),
     inference = list(averaged = means, conditional = means)
   ), class = "marginal_means.brma")
-  plan <- .hypothesis_plan_marginal_means(object, "alloc = 0")
-  expect_null(.hypothesis_plan_status(plan, "KDE"))
+  plan <- engine_plan_marginal_means(object, "alloc = 0")
+  expect_null(engine_plan_status(plan, object, "KDE"))
   for (method in c("qCMDE", "IWMDE")) {
     expect_match(
-      .hypothesis_plan_status(plan, method)[["reason"]],
+      engine_plan_status(plan, object, method)[["reason"]],
       "alloc\\[level\\] = 0",
       info = method
     )
     # The same method refusal as for the factor terms of fitted objects.
     expect_identical(
-      .hypothesis_plan_status(plan, method)[["class"]][[1L]],
-      "RoBMA_hypothesis_method",
+      engine_plan_status(plan, object, method)[["class"]][[1L]],
+      "BayesTools_hypothesis_method",
       info = method
     )
   }
@@ -248,7 +260,7 @@ test_that("qCMDE scalar rejection uses the public parameter label", {
   )
 
   error <- expect_error(
-    .hypothesis_brma_attach_iwmde_scalar(
+    engine_attach_scalar(
       posterior            = stats::rnorm(20),
       raw_posterior        = stats::rnorm(20),
       context              = list(),
@@ -285,7 +297,7 @@ test_that("hypothesis defaults to qCMDE and guards unsupported random formulas",
       density_control = list(n_points = 20, samples = 20)
     ),
     "random-formula",
-    class = "RoBMA_hypothesis_method"
+    class = "BayesTools_hypothesis_method"
   )
   for (class in c("RoBMA_density_method_random_unknown_v",
                   "RoBMA_density_method_unavailable")) {
@@ -372,7 +384,7 @@ test_that("qCMDE point attachment drops stale same-value ordinates", {
     .package = "RoBMA"
   )
 
-  out <- .hypothesis_brma_attach_iwmde_scalar(
+  out <- engine_attach_scalar(
     posterior            = posterior,
     raw_posterior        = raw_posterior,
     context              = list(),
@@ -438,7 +450,7 @@ test_that("transformed point attachment retains the exact requested value", {
     .package = "RoBMA"
   )
 
-  out <- .hypothesis_brma_attach_iwmde_scalar(
+  out <- engine_attach_scalar(
     posterior            = posterior,
     raw_posterior        = raw_posterior,
     context              = list(),
@@ -503,26 +515,31 @@ test_that("factor-level ordinates use exact displayed-scale specifications", {
     .package = "RoBMA"
   )
 
-  out <- .hypothesis_brma_attach_iwmde_level(
-    posterior            = posterior,
-    raw_posterior        = raw_posterior,
-    context              = list(),
-    estimate_cache       = .iwmde_estimate_cache(),
-    parameter            = "mu_interaction",
-    level                = "random",
-    value                = 0,
-    conditional          = NULL,
-    n_points             = 20,
-    samples              = 20,
-    target_relative_mcse = .05,
-    normalization_points = 20,
-    normalization_prob   = .99,
-    density_method       = "qCMDE",
-    parameter_spec       = list(
-      type          = "linear",
-      weights       = c(mu_interaction = 2),
-      prior_density = display_prior
-    )
+  # The engine attaches the ordinates to the draws it evaluates (the displayed
+  # scale), with the target the provider declares.
+  out <- .hypothesis_density_attach_level(
+    posterior      = posterior,
+    request        = list(
+      parameter      = "mu_interaction",
+      level          = "random",
+      values         = 0,
+      conditional    = NULL,
+      density_method = "qCMDE",
+      spec           = list(
+        type          = "linear",
+        weights       = c(mu_interaction = 2),
+        prior_density = display_prior
+      )
+    ),
+    control        = list(
+      n_points             = 20,
+      samples              = 20,
+      target_relative_mcse = .05,
+      normalization_points = 20,
+      normalization_prob   = .99
+    ),
+    context        = list(),
+    estimate_cache = .iwmde_estimate_cache()
   )
 
   expect_identical(
@@ -540,31 +557,12 @@ test_that("factor-level ordinates use exact displayed-scale specifications", {
     )[["iwmde_provenance"]][["request_key"]],
     "display-scale"
   )
-  expect_error(
-    .hypothesis_brma_attach_iwmde_level(
-      posterior            = posterior,
-      raw_posterior        = raw_posterior,
-      context              = list(),
-      estimate_cache       = .iwmde_estimate_cache(),
-      parameter            = "mu_interaction",
-      level                = "random",
-      value                = 0,
-      conditional          = NULL,
-      n_points             = 20,
-      samples              = 20,
-      target_relative_mcse = .05,
-      normalization_points = 20,
-      normalization_prob   = .99,
-      density_method       = "qCMDE"
-    ),
-    "displayed scale"
-  )
 })
 
 
 test_that("hypothesis alias rewriting preserves trailing level-reference backticks", {
 
-  rewritten <- .hypothesis_brma_rewrite(
+  rewritten <- BayesTools:::.hypothesis_model_rewrite(
     hypothesis = "alloc > alloc[random]",
     aliases    = list(alloc = "mu_alloc", mu_alloc = "mu_alloc"),
     parameter  = "mu_alloc"
@@ -797,7 +795,7 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       n_samples      = 1000
     ),
     "multiple model parameters",
-    class = "RoBMA_hypothesis_ambiguous"
+    class = "BayesTools_hypothesis_ambiguous"
   )
   # Without 'component', a level of the shared factor alias stays ambiguous
   # (the same statement resolves with 'component' above).
@@ -808,7 +806,7 @@ test_that("hypothesis component disambiguates shared location-scale terms", {
       density_method = "KDE",
       n_samples      = 1000
     )),
-    class = "RoBMA_hypothesis_ambiguous"
+    class = "BayesTools_hypothesis_ambiguous"
   )
 
   expect_warning(
@@ -884,7 +882,7 @@ test_that("hypothesis_quantities() renders the plans of fits with two scale form
     entries  <- metadata[["entries"]]
     scale    <- entries[entries[["component"]] == "scale", , drop = FALSE]
     roots    <- vapply(seq_len(nrow(scale)), function(i) {
-      .hypothesis_quantities_reference_root(
+      BayesTools:::.hypothesis_model_quantities_reference_root(
         metadata,
         as.list(scale[i, setdiff(names(scale), "aliases"), drop = FALSE])
       )
@@ -922,7 +920,7 @@ test_that("hypothesis does not advertise or test publication-bias parameters", {
       n_samples      = 1000
     ),
     "publication-bias parameters are not supported",
-    class = "RoBMA_hypothesis_target"
+    class = "BayesTools_hypothesis_target"
   )
 })
 
@@ -932,7 +930,7 @@ test_that("catalog quantities without a RoBMA parameter are target refusals on c
   skip_on_cran()
   skip_if_missing_fits(c("RoBMA.mv_marg_product_space", "konstantopoulos2011_3lvl"))
 
-  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+  target <- c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable",
               "error", "condition")
   unavailable <- function(name) {
     paste0(
@@ -1030,7 +1028,7 @@ test_that("plot() refuses catalog quantities without a RoBMA parameter with the 
   skip_on_cran()
   skip_if_missing_fits(c("RoBMA.mv_marg_product_space", "konstantopoulos2011_3lvl"))
 
-  target <- c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+  target <- c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable",
               "error", "condition")
   # One cause, the same classes at every entry point: a quantity of the
   # current fit without a RoBMA parameter, named in the message.
@@ -1625,9 +1623,10 @@ test_that("marginal means qCMDE hypotheses compute missing ordinates on demand",
     },
     .package = "RoBMA"
   )
+  # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, hypothesis, parameter,
-                             density_method, ...) {
+    hypothesis_BF.default = function(posterior, hypothesis, parameter,
+                                     density_method, ...) {
 
       captured <<- list(
         posterior      = posterior,
@@ -1831,7 +1830,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
 
   compatible_sample <- sample
   BayesTools::posterior_metadata(compatible_sample, "posterior_ordinate") <- compatible
-  reused <- .hypothesis_marginal_means_attach_iwmde(
+  reused <- engine_marginal_attach(
     object          = make_object(compatible_sample),
     parameter       = "mu_alloc",
     hypothesis      = "mu_alloc[alternate] = 0",
@@ -1851,7 +1850,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
     incompatible_sample,
     "posterior_ordinate"
   ) <- incompatible
-  recomputed <- .hypothesis_marginal_means_attach_iwmde(
+  recomputed <- engine_marginal_attach(
     object          = make_object(incompatible_sample),
     parameter       = "mu_alloc",
     hypothesis      = "mu_alloc[alternate] = 0",
@@ -1881,7 +1880,7 @@ test_that("marginal means qCMDE hypotheses reuse only compatible ordinates", {
       ),
       density_control = density_control
     )
-  legacy <- .hypothesis_marginal_means_attach_iwmde(
+  legacy <- engine_marginal_attach(
     object          = make_object(legacy_sample),
     parameter       = "mu_alloc",
     hypothesis      = "mu_alloc[alternate] = 0",
@@ -1942,8 +1941,8 @@ test_that("marginal means hypotheses select averaged or conditioned marginals", 
 
   captured <- list()
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, hypothesis, parameter, density_method,
-                             ...) {
+    hypothesis_BF.default = function(posterior, hypothesis, parameter,
+                                     density_method, ...) {
 
       captured[[length(captured) + 1L]] <<- list(
         posterior      = posterior,
@@ -2057,7 +2056,7 @@ test_that("marginal means routes level-contrast KDE through the certified target
         weights    = c(random = 1, alternate = -1)
       )
     },
-    hypothesis_BF = function(posterior, density_method, ...) {
+    hypothesis_BF.default = function(posterior, density_method, ...) {
       used <<- list(posterior = posterior, density_method = density_method)
       data.frame(BF = 1)
     },
@@ -2111,7 +2110,7 @@ test_that("marginal means region hypotheses use KDE with stored density methods"
 
   captured <- character()
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(..., density_method) {
+    hypothesis_BF.default = function(..., density_method) {
       captured <<- c(captured, density_method)
       return("ok")
     },
@@ -2269,20 +2268,30 @@ test_that("qCMDE/IWMDE infer the sole marginal-means factor level", {
       conditional = list(mu_alloc = list(random = stats::rnorm(20)))
     )
   )
+  class(object) <- "marginal_means.brma"
   testthat::local_mocked_bindings(
     .check_iwmde_available = function(...) invisible(TRUE),
     .iwmde_check_point_ordinate_supported = function(...) invisible(TRUE),
     .iwmde_context = function(...) list(),
-    .hypothesis_marginal_means_attach_iwmde_ref = function(
-        object, ref, ...) {
+    .hypothesis_density_attach_marginal_level = function(
+        posterior, request, ...) {
 
-      captured_level <<- ref[["level"]]
-      object
+      captured_level <<- request[["level"]]
+      # The engine requires a valid ordinate at every requested value.
+      BayesTools::posterior_metadata(
+        posterior[[request[["level"]]]], "posterior_ordinate"
+      ) <- BayesTools::posterior_ordinate_attribute(
+        value          = request[["values"]],
+        ordinate       = rep(1, length(request[["values"]])),
+        method         = "qCMDE",
+        density_method = "qCMDE"
+      )
+      posterior
     },
     .package = "RoBMA"
   )
 
-  out <- .hypothesis_marginal_means_attach_iwmde(
+  out <- engine_marginal_attach(
     object          = object,
     parameter       = "mu_alloc",
     hypothesis      = "mu_alloc = 0",
@@ -2363,7 +2372,7 @@ test_that("certified exp-affine KDE respects its open support", {
   # fitted draws of the intercept with the exact support of the map, atom-free
   # and unconditional, and the prior density of the fitted coefficient
   # transform (JAGS_formula_prior_density() in the same prior context).
-  plan <- .hypothesis_plans(
+  plan <- engine_plans(
     fit, "log_tau_intercept = 0.2", component = "scale", n_samples = 500
   )[[1L]]
   posterior <- plan[["draws"]][["posterior"]]

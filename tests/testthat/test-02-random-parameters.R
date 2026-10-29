@@ -313,7 +313,7 @@ test_that("random point hypotheses follow quantity-specific policy", {
         .random_parameter_hypothesis(mixed_label, "=", 0, "!="),
         component = "random", n_samples = 1000, seed = 23
       ),
-      class = "RoBMA_hypothesis_fixed"
+      class = "BayesTools_hypothesis_fixed"
     )
   }
 
@@ -578,13 +578,13 @@ test_that("nonlinear transformed scale intercepts test points with KDE and fail 
 
   # The exp(affine) target admits KDE only; qCMDE/IWMDE are refused by the
   # plan's method refusal.
-  plan <- .hypothesis_plans(
+  plan <- engine_plans(
     fit, "intercept = 0.2 vs intercept != 0.2", component = "scale"
   )[[1L]]
   expect_identical(plan[["kind"]], "exp_affine")
   for (method in c("qCMDE", "IWMDE", "normal")) {
     expect_match(
-      plan[["method_refusals"]][[method]][["reason"]],
+      engine_plan_status(plan, fit, method)[["reason"]],
       "supported only with density_method = 'KDE'",
       fixed = TRUE,
       info  = method
@@ -611,7 +611,7 @@ test_that("nonlinear transformed scale intercepts test points with KDE and fail 
       ),
       "supported only with density_method = 'KDE'",
       fixed = TRUE,
-      class = "RoBMA_hypothesis_method",
+      class = "BayesTools_hypothesis_method",
       info  = method
     )
   }

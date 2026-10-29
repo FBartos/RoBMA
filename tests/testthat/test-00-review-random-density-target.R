@@ -107,7 +107,7 @@ test_that("random SD point hypotheses plan their density target on the statement
   object <- replay[["object"]]
 
   for (standardized in c(FALSE, TRUE)) {
-    plan <- .hypothesis_plans(object, "tau = .5", standardized = standardized)[[1L]]
+    plan <- engine_plans(object, "tau = .5", standardized = standardized)[[1L]]
     target <- plan[["density_target"]]
     expect_false(is.null(target), info = paste("standardized:", standardized))
     transformed <- BayesTools::parameter_transform_forward(

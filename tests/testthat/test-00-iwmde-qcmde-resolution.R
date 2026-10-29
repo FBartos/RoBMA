@@ -1,6 +1,6 @@
 .resolution_seed_fit <- function(divisor, prior_effect, offset_fraction = .25, tau_broad = 1) {
   control <- .density_control_normalize("qCMDE")
-  control <- .hypothesis_plan_density_control(control)
+  control <- .hypothesis_density_control_fill(control)
   N <- control[["normalization_points"]]
   S <- control[["samples"]]
   K <- 2L

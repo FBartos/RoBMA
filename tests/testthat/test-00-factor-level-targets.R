@@ -20,7 +20,7 @@ context("Factor-level hypothesis targets and plots")
 # plans for a point statement on one level.
 .factor_level_target_weights <- function(fit, hypothesis) {
 
-  plan <- .hypothesis_plans(fit, hypothesis)[[1L]]
+  plan <- engine_plans(fit, hypothesis)[[1L]]
   expect_identical(plan[["kind"]], "linear")
   expect_identical(plan[["route"]], "levels")
 
@@ -147,7 +147,7 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_statement", "error", "condition"),
+      c("BayesTools_hypothesis_statement", "error", "condition"),
       info = selector
     )
   }
@@ -163,7 +163,7 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
       "term 'g1'."
     )
   )
-  expect_false(inherits(error, "RoBMA_hypothesis_statement"))
+  expect_false(inherits(error, "BayesTools_hypothesis_statement"))
 
   # Treatment levels are the coefficients: BayesTools refuses the contrast
   # selector of a level coordinate and names its level form. hypothesis()
@@ -187,7 +187,7 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
   expect_s3_class(bayestools, "BayesTools_selector_unavailable")
   expect_identical(
     class(refusal),
-    c("RoBMA_hypothesis_statement", class(bayestools))
+    c("BayesTools_hypothesis_statement", class(bayestools))
   )
   expect_identical(conditionMessage(refusal), conditionMessage(bayestools))
   plotted <- tryCatch(
@@ -195,7 +195,7 @@ test_that("contrast-coefficient selectors stop naming the level-label form", {
     error = identity
   )
   expect_s3_class(plotted, "BayesTools_selector_unavailable")
-  expect_false(inherits(plotted, "RoBMA_hypothesis_statement"))
+  expect_false(inherits(plotted, "BayesTools_hypothesis_statement"))
 
   # Random-slope quantities such as 'tau(g1{3})' are no fixed contrast
   # coefficients: a parse error, not the coefficient message.
@@ -353,9 +353,10 @@ test_that("hypothesis_quantities reports point and contrast tests for the levels
   )
   # Observe the actual public BF input without replacing its computation.
   captured <- NULL
-  compute <- BayesTools::hypothesis_BF
+  compute <- BayesTools:::hypothesis_BF.default
+  # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, ...) {
+    hypothesis_BF.default = function(posterior, ...) {
       captured <<- c(list(posterior = posterior), list(...))
       do.call(compute, captured)
     },
@@ -541,11 +542,7 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
   scale_fit <- fit
   route <- function(parameter, fit = location_fit, formula_parameter = "mu",
                     component = "mods") {
-    .brma_formula_coefficient_route(
-      object = list(fit = fit),
-      selected = list(parameter = parameter, component = component,
-        entry = list(formula_parameter = formula_parameter, role = "fixed_coefficient"))
-    )
+    engine_formula_route(fit, formula_parameter, parameter)
   }
   plot_spec <- function(parameter, fit = location_fit, formula_parameter = "mu",
                         component = "mods") {
@@ -623,7 +620,7 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
 
   # Point values outside the open support of a transformed coefficient are
   # refused, naming the coefficient.
-  refusal <- .hypothesis_plan_support_refusal(
+  refusal <- BayesTools:::.hypothesis_model_plan_support_refusal(
     0, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
   )
   expect_identical(
@@ -633,8 +630,8 @@ test_that("formula coefficient routes follow the fitted coefficient transform", 
       "for transformed coefficient 'log_tau_intercept'."
     )
   )
-  expect_identical(refusal[["class"]], c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable"))
-  expect_null(.hypothesis_plan_support_refusal(
+  expect_identical(refusal[["class"]], c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable"))
+  expect_null(BayesTools:::.hypothesis_model_plan_support_refusal(
     0.5, c(0, Inf), "transformed coefficient 'log_tau_intercept'"
   ))
 })
@@ -681,11 +678,11 @@ test_that("linear-target refusals of BayesTools keep their classes", {
     )
   )
   statement <- function(condition) {
-    c("RoBMA_hypothesis_statement",
+    c("BayesTools_hypothesis_statement",
       setdiff(class(condition), c("error", "condition")))
   }
   expected <- list(
-    unclassed          = "RoBMA_hypothesis_statement",
+    unclassed          = "BayesTools_hypothesis_statement",
     classed            = "BayesTools_stale_metadata",
     not_found          = statement(refusals[["not_found"]]),
     no_parameters      = statement(refusals[["no_parameters"]]),
@@ -695,16 +692,16 @@ test_that("linear-target refusals of BayesTools keep their classes", {
     unclass(condition)[setdiff(names(condition), c("message", "call"))]
   }
   # The plans are built with the mocked function, so none of them is kept.
-  withr::defer(.hypothesis_plan_cache_clear())
+  withr::defer(BayesTools::hypothesis_cache_clear())
   for (name in names(refusals)) {
     testthat::local_mocked_bindings(
       hypothesis_linear_target = function(...) stop(refusals[[name]]),
       .package = "BayesTools"
     )
-    .hypothesis_plan_cache_clear()
+    BayesTools::hypothesis_cache_clear()
     if (name == "classed") {
       for (read in list(
-          function() .hypothesis_plans(fit, "g1[10] = g1[20]"),
+          function() engine_plans(fit, "g1[10] = g1[20]"),
           function() hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),
           function() hypothesis(means, "g1[10] = g1[20]"))) {
         condition <- expect_error(read(), "Draw metadata are stale.", fixed = TRUE,
@@ -714,7 +711,7 @@ test_that("linear-target refusals of BayesTools keep their classes", {
       }
       next
     }
-    plan <- .hypothesis_plans(fit, "g1[10] = g1[20]")[[1L]]
+    plan <- engine_plans(fit, "g1[10] = g1[20]")[[1L]]
     expect_identical(plan[["route"]], "combination", info = name)
     expect_identical(plan[["refusal"]][["class"]], expected[[name]], info = name)
     expect_identical(
@@ -752,9 +749,9 @@ test_that("linear-target refusals of BayesTools keep their classes", {
     hypothesis_linear_target = function(...) stop(refit),
     .package = "BayesTools"
   )
-  .hypothesis_plan_cache_clear()
+  BayesTools::hypothesis_cache_clear()
   for (error in list(
-    tryCatch(.hypothesis_plans(fit, "g1[10] = g1[20]"), error = identity),
+    tryCatch(engine_plans(fit, "g1[10] = g1[20]"), error = identity),
     tryCatch(hypothesis(fit, "g1[10] = g1[20]", density_method = "KDE"),
              error = identity),
     tryCatch(hypothesis(means, "g1[10] = g1[20]"), error = identity)
@@ -777,7 +774,7 @@ test_that("level refusals name the level by its selector", {
     suppressWarnings(hypothesis(fit, "g1[5] > 0", density_method = "KDE")),
     error = function(error) error
   )
-  expect_s3_class(refusal, "RoBMA_hypothesis_fixed")
+  expect_s3_class(refusal, "BayesTools_hypothesis_fixed")
   expect_identical(
     conditionMessage(refusal),
     "The quantity 'g1[5]' is fixed by the fitted model; posterior hypothesis tests are undefined."
@@ -825,13 +822,14 @@ test_that("point hypotheses on the fixed reference level give one reason for eve
   }
   expect_error(
     suppressWarnings(hypothesis(fit, "g1[5] = 0", density_method = "KDE")),
-    class = "RoBMA_hypothesis_fixed"
+    class = "BayesTools_hypothesis_fixed"
   )
 
   captured <- NULL
-  compute <- BayesTools::hypothesis_BF
+  compute <- BayesTools:::hypothesis_BF.default
+  # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, ...) {
+    hypothesis_BF.default = function(posterior, ...) {
       captured <<- c(list(posterior = posterior), list(...))
       do.call(compute, captured)
     },

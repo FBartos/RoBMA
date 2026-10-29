@@ -25,7 +25,7 @@ test_that("parameter groups bind producer logs in statement order and export vis
     parameter = parameter, density_method = "normal", columns = "all")
   first <- make_table("a", statements[c(1L, 3L)])
   second <- make_table("b", statements[2L])
-  out <- .hypothesis_brma_bind_parameter_results(list(first, second),
+  out <- BayesTools:::.hypothesis_model_bind_parameter_results(list(first, second),
     list(c(1L, 3L), 2L), BayesTools::hypothesis_parse(statements))
   expected <- c(attr(first, "raw_log_BF")[1L], attr(second, "raw_log_BF"),
     attr(first, "raw_log_BF")[2L])
@@ -47,19 +47,19 @@ test_that("parameter groups bind producer logs in statement order and export vis
   expect_null(attr(bound$BF, "producer_values"))
 })
 
-test_that("declared numerical measure causes preserve detail through the RoBMA reader", {
+test_that("declared numerical measure causes preserve detail through the BayesTools measure check", {
 
   reason <- "Numerical scale arithmetic is unavailable for this contribution."
   sample <- with_draw_metadata(c(1, 2), measure_unavailable =
     data.frame(column = "mu", measure = "prior_density", reason = reason,
       cause = "numerical_scale_unavailable"))
-  condition <- tryCatch(.brma_formula_measure_check(sample, "prior_density"), error = identity)
+  condition <- tryCatch(BayesTools::posterior_formula_measure_check(sample, "prior_density"), error = identity)
   expect_s3_class(condition, "BayesTools_formula_measure_unavailable")
   expect_identical(condition$reason, "numerical_scale_unavailable")
   expect_identical(condition$detail, reason)
   unknown <- with_draw_metadata(c(1, 2), measure_unavailable =
     data.frame(column = "mu", measure = "prior_density", reason = "Missing source metadata."))
-  condition <- tryCatch(.brma_formula_measure_check(unknown, "prior_density"), error = identity)
+  condition <- tryCatch(BayesTools::posterior_formula_measure_check(unknown, "prior_density"), error = identity)
   expect_s3_class(condition, "BayesTools_formula_prior_density_unavailable")
   expect_false(inherits(condition, "BayesTools_formula_measure_unavailable"))
 })

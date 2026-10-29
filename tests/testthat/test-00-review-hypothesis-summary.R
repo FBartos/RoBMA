@@ -192,9 +192,9 @@ test_that("E2-1 complete declared monitors admit public empty-cell estimation", 
     .iwmde_diagnostics_density_failure_reason(record$diagnostics), character(1L))
   expect_true(all(grepl("120 estimator rows across.*2 active states", failures)))
   captured <- NULL
-  compute <- BayesTools::hypothesis_BF
+  compute <- BayesTools:::hypothesis_BF.default
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, ...) {
+    hypothesis_BF.default = function(posterior, ...) {
       captured <<- posterior
       compute(posterior = posterior, ...)
     },
@@ -293,7 +293,7 @@ test_that("E2-3 marginal specs use the actual fitted contribution target", {
     projection <- as.numeric(draws[, names(weights), drop = FALSE] %*% weights)
     expect_equal(projection, as.numeric(means$inference$conditional$mu_g$B), tolerance = 1e-14)
     expect_identical(weights, c(mu_intercept = 1, mu_g = multiplier))
-    combination <- .hypothesis_plan_marginal_means_build(means, "1 * g[B] = 0.1")$targets[[1L]]$spec
+    combination <- engine_plan_marginal_means(means, "1 * g[B] = 0.1")$targets[[1L]]$spec
     spec$weights <- weights
     expect_identical(weights[order(names(weights))], combination$weights[order(names(combination$weights))])
   }
@@ -305,19 +305,28 @@ test_that("E2-3 marginal specs use the actual fitted contribution target", {
 
 test_that("E2-4 method switches resolve fresh controls and same methods inherit", {
 
+  # The control that a marginal-means request of the engine evaluates with: the
+  # settings of the call, or the stored ones of the marginal means (those of
+  # the same method are inherited), normalized by the density backend.
+  request_control <- function(means, method, density_control) {
+    BayesTools:::.hypothesis_model_marginal_means_control(
+      engine_provider(means), BayesTools:::.hypothesis_model_backend(method),
+      method, density_control
+    )$normalized
+  }
   object <- .review_h_contribution(1)
   for (method in c("qCMDE", "IWMDE")) {
     means <- marginal_means(object, bf = FALSE, parameter = "g", density_method = method,
       density_control = list(n_points = 80L, samples = 120L))
     other <- setdiff(c("qCMDE", "IWMDE"), method)
-    fresh <- .hypothesis_marginal_means_density_control(means, other, NULL)
+    fresh <- request_control(means, other, NULL)
     expect_identical(fresh$samples, .density_control_normalize(other, purpose = "ordinate")$samples)
-    expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 120L)
-    expect_identical(.hypothesis_marginal_means_density_control(means, other, list(samples = 321L))$samples, 321L)
+    expect_identical(request_control(means, method, NULL)$samples, 120L)
+    expect_identical(request_control(means, other, list(samples = 321L))$samples, 321L)
     means$ordinate_settings$samples <- 119L
-    expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 119L)
+    expect_identical(request_control(means, method, NULL)$samples, 119L)
     means$ordinate_settings <- NULL
-    expect_identical(.hypothesis_marginal_means_density_control(means, method, NULL)$samples, 120L)
+    expect_identical(request_control(means, method, NULL)$samples, 120L)
   }
 })
 
@@ -487,7 +496,7 @@ test_that("E1-1 multiple declared atomic locations are not one fixed scalar", {
 
   means <- marginal_means(.review_h_atomic(), bf = FALSE, density_method = "KDE", n_samples = 128)
   cell <- means$inference$averaged$mu_intercept$intercept
-  expect_false(.hypothesis_plan_draws_fixed(cell))
+  expect_false(BayesTools:::.hypothesis_model_plan_draws_fixed(cell))
   result <- hypothesis(means, "intercept > 0", density_method = "KDE", seed = 19)
   direct <- BayesTools::hypothesis_BF(means$inference$averaged$mu_intercept,
     hypothesis = "intercept > 0", parameter = "intercept", density_method = "KDE")
@@ -495,9 +504,9 @@ test_that("E1-1 multiple declared atomic locations are not one fixed scalar", {
   expect_equal(as.numeric(result$BF), 1.5, tolerance = 1e-14)
   duplicate <- BayesTools::posterior_atom_attribute(data.frame(x = c(.2, .2), mass = c(.4, .6)))
   fixed <- with_draw_metadata(rep(.2, 3), atoms = duplicate)
-  expect_true(.hypothesis_plan_draws_fixed(fixed))
+  expect_true(BayesTools:::.hypothesis_model_plan_draws_fixed(fixed))
   expect_error(BayesTools::posterior_atom_attribute(data.frame(x = c(-.2, .2), mass = c(0, 1))))
-  expect_false(.hypothesis_plan_draws_fixed(numeric()))
+  expect_false(BayesTools:::.hypothesis_model_plan_draws_fixed(numeric()))
 })
 
 test_that("E1-2 indexed scalar labels do not acquire factor suffixes", {
@@ -544,18 +553,22 @@ test_that("E1-3 whole-term and explicit-level modes form compatible groups", {
 test_that("E1-4 model-average request limits count actual expanded targets", {
 
   means <- marginal_means(.review_h_empty_condition(), bf = FALSE, density_method = "KDE", n_samples = 128)
-  plan <- .hypothesis_plan_marginal_means(means, "x = 0")
+  plan <- engine_plan_marginal_means(means, "x = 0")
   expect_gt(length(plan$targets), 1L)
-  refusal <- .hypothesis_plan_marginal_means_request_refusal(list(plan), means)
+  refusal <- BayesTools:::.hypothesis_model_plan_marginal_means_request_refusal(
+    list(plan), engine_provider(means)
+  )
   expect_true(!is.null(refusal))
   expect_error(hypothesis(means, "x = 0", density_method = "KDE", seed = 19),
-    "spanning multiple marginal-means levels", class = "RoBMA_hypothesis_statement")
+    "spanning multiple marginal-means levels", class = "BayesTools_hypothesis_statement")
   one <- hypothesis(means, "intercept = 0", density_method = "KDE", seed = 19)
   alias <- hypothesis(means, "mu_intercept = 0", density_method = "KDE", seed = 19)
   expect_equal(attr(one, "raw_log_BF"), attr(alias, "raw_log_BF"), tolerance = 1e-14)
   repeated <- lapply(c("intercept = 0", "mu_intercept = 0.1"), function(statement)
-    .hypothesis_plan_marginal_means(means, statement))
-  expect_null(.hypothesis_plan_marginal_means_request_refusal(repeated, means))
+    engine_plan_marginal_means(means, statement))
+  expect_null(BayesTools:::.hypothesis_model_plan_marginal_means_request_refusal(
+    repeated, engine_provider(means)
+  ))
 })
 
 test_that("E2-7 actual structural point-mass conditions keep their source identity", {
@@ -617,17 +630,18 @@ test_that("E2-c2 warning ownership distinguishes exact references and expression
     data.frame(parameter = parameter, label = label, level = level, value = value,
       warning = "Declared ordinate warning.", stringsAsFactors = FALSE)
   }
-  expect_identical(.hypothesis_brma_warning_rows(table, record("tau")), "tau")
-  expect_identical(.hypothesis_brma_warning_rows(table, record("tau_total")), "tau_total")
-  expect_identical(.hypothesis_brma_warning_rows(table, record("2 * tau")), "scaled_tau")
-  expect_identical(.hypothesis_brma_warning_rows(table, record("g", "g[A]", "A")), "g[A]")
-  expect_identical(.hypothesis_brma_warning_rows(table, record("tau", value = .1)), character())
+  warning_rows <- BayesTools:::.hypothesis_model_warning_rows
+  expect_identical(warning_rows(table, record("tau")), "tau")
+  expect_identical(warning_rows(table, record("tau_total")), "tau_total")
+  expect_identical(warning_rows(table, record("2 * tau")), "scaled_tau")
+  expect_identical(warning_rows(table, record("g", "g[A]", "A")), "g[A]")
+  expect_identical(warning_rows(table, record("tau", value = .1)), character())
   expanded <- table[rep(4L, 4L), , drop = FALSE]
   rownames(expanded) <- c("g[A] (1)", "g[B] (1)", "g[A] (2)", "g[B] (2)")
   expanded$Alternative <- "g = 0"
   expanded$Null <- "g != 0"
   attr(expanded, "hypothesis_ast") <- BayesTools::hypothesis_parse(c("g = 0", "g = 0"))
-  expect_identical(.hypothesis_brma_warning_rows(expanded, record("g", "g[A]", "A")),
+  expect_identical(warning_rows(expanded, record("g", "g[A]", "A")),
     c("g[A] (1)", "g[A] (2)"))
 })
 
@@ -640,10 +654,11 @@ test_that("E1-c1 unsupported random comparisons refuse before SD-pair work", {
   for (statement in c("tau2 != 0 vs tau2 > 0", "tau2 = -1 vs tau2 = 0",
     "tau2 = 0 vs tau2 = .1")) {
     ast <- BayesTools::hypothesis_parse(statement)
-    plan <- .hypothesis_plan_new(ast, ast, "tau2", "tau2", "random")
-    result <- .hypothesis_plan_random_evaluation(plan, object = NULL, cache = NULL,
-      selected = list(spec = list(label = "tau2")))
-    expect_identical(result$refusal$class, "RoBMA_hypothesis_statement")
+    plan <- BayesTools:::.hypothesis_model_plan_new(ast, ast, "tau2", "tau2", "random")
+    result <- BayesTools:::.hypothesis_model_plan_random_evaluation(
+      plan, provider = list(random = .hypothesis_brma_random_callbacks(NULL)),
+      cache = NULL, selected = list(spec = list(label = "tau2")))
+    expect_identical(result$refusal$class, "BayesTools_hypothesis_statement")
     expect_match(result$refusal$reason, "Unsupported hypothesis comparison.", fixed = TRUE)
   }
 })
@@ -656,14 +671,14 @@ test_that("E1-c1 a variance refusal preserves SD evaluation evidence", {
   original <- .iwmde_ordinate_unavailable_condition("Original SD message.",
     list(ordinate_failures = diagnostics))
   testthat::local_mocked_bindings(
-    .hypothesis_plan_random_evaluate = function(...) stop(original),
-    .package = "RoBMA"
+    .hypothesis_model_plan_random_evaluate = function(...) stop(original),
+    .package = "BayesTools"
   )
   plan <- list(label = "50% study: tau2",
     evaluation = list(parameter = "tau", samples = list(tau = c(.2, .3))))
-  result <- tryCatch(.hypothesis_plan_random_sd_points(plan,
+  result <- tryCatch(BayesTools:::.hypothesis_model_plan_random_sd_points(plan,
     BayesTools::hypothesis_parse("tau2 = .09"), values = .09,
-    density_method = "qCMDE"), error = identity)
+    backend = BayesTools:::.hypothesis_model_backend("qCMDE")), error = identity)
   expect_s3_class(result, "RoBMA_density_ordinate_error")
   expect_match(conditionMessage(result), "50% study: tau2 = 0.09", fixed = TRUE)
   expect_identical(result$density_diagnostics$requested_value, .09)
@@ -859,13 +874,13 @@ test_that("E3-c4 fixed-zero formulas retain actual mods and location owners", {
 test_that("E2-c2 actual scaled-expression warnings retain their rewritten identity", {
 
   records <- list()
-  append <- .hypothesis_brma_append_iwmde_warnings
-  testthat::local_mocked_bindings(.hypothesis_brma_append_iwmde_warnings = function(table, posterior, ...) {
+  append <- BayesTools:::.hypothesis_model_append_ordinate_warnings
+  testthat::local_mocked_bindings(.hypothesis_model_append_ordinate_warnings = function(table, posterior, ...) {
     records[[length(records) + 1L]] <<- list(
       record = .iwmde_collect_posterior_ordinate_warning_records(posterior),
       table = table, ast = attr(table, "hypothesis_ast"))
     append(table, posterior, ...)
-  }, .package = "RoBMA")
+  }, .package = "BayesTools")
   fixture <- .review_h_contribution(2)
   result <- hypothesis(fixture, c("2 * g[B] = 0.1", "2 * g[B] = 0.2"),
     density_method = "qCMDE", n_samples = 128L, seed = 19)
@@ -910,7 +925,7 @@ test_that("E2-c2 actual scaled-expression warnings retain their rewritten identi
   expect_identical(names(warnings), rownames(result))
   expect_identical(unname(warnings), record$warning)
   for (i in 1:2) {
-    expect_identical(.hypothesis_brma_warning_rows(records[[1L]]$table, record[i, , drop = FALSE]),
+    expect_identical(BayesTools:::.hypothesis_model_warning_rows(records[[1L]]$table, record[i, , drop = FALSE]),
       rownames(records[[1L]]$table)[i])
   }
 })
@@ -926,8 +941,10 @@ test_that("marginal-means requests count the genuine singleton intercept target"
   slope <- paste0("`x[", level, "]` = 0.1")
   refusal <- function(statements) {
     plans <- lapply(statements, function(statement)
-      .hypothesis_plan_marginal_means(means, statement))
-    .hypothesis_plan_marginal_means_request_refusal(plans, means)
+      engine_plan_marginal_means(means, statement))
+    BayesTools:::.hypothesis_model_plan_marginal_means_request_refusal(
+      plans, engine_provider(means)
+    )
   }
   reason <- paste0("Point hypotheses spanning multiple marginal-means levels are not ",
     "supported because the levels need not share one conditioning event.")
@@ -935,9 +952,9 @@ test_that("marginal-means requests count the genuine singleton intercept target"
   for (statements in list(c("intercept = 0.2", slope), c(slope, "intercept = 0.2"),
                            c(slope, other))) {
     expect_identical(refusal(statements)$reason, reason)
-    expect_identical(refusal(statements)$class, "RoBMA_hypothesis_statement")
+    expect_identical(refusal(statements)$class, "BayesTools_hypothesis_statement")
     expect_error(hypothesis(means, statements, seed = 913),
-      "spanning multiple marginal-means levels", class = "RoBMA_hypothesis_statement")
+      "spanning multiple marginal-means levels", class = "BayesTools_hypothesis_statement")
   }
   repeated <- c("intercept = 0.2", "mu_intercept = 0.3")
   expect_null(refusal("intercept = 0.2"))
@@ -946,7 +963,7 @@ test_that("marginal-means requests count the genuine singleton intercept target"
   expect_identical(rownames(result),
     c("mu_intercept[intercept] (1)", "mu_intercept[intercept] (2)"))
   expect_identical(refusal(c("intercept = 0.2", "x > 0"))$class,
-    "RoBMA_hypothesis_statement")
+    "BayesTools_hypothesis_statement")
   expect_null(refusal(c("intercept > 0", "x > 0")))
   expect_identical(means$inference, original)
 
@@ -954,6 +971,8 @@ test_that("marginal-means requests count the genuine singleton intercept target"
     bf = FALSE, density_method = "KDE", n_samples = 128L)
   statements <- c("intercept = 0.2", "g[A] = 0.1")
   plans <- lapply(statements, function(statement)
-    .hypothesis_plan_marginal_means(single, statement))
-  expect_null(.hypothesis_plan_marginal_means_request_refusal(plans, single))
+    engine_plan_marginal_means(single, statement))
+  expect_null(BayesTools:::.hypothesis_model_plan_marginal_means_request_refusal(
+    plans, engine_provider(single)
+  ))
 })

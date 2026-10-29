@@ -252,7 +252,7 @@ test_that("every message that asks for a refit is raised through .stop_refit_req
     "  stop(\"Refit the model.\", call. = FALSE)",
     "  .stop_refit_required(\"Refit the model.\")",
     "  .stop_refit_required(paste0(\"a\", \" or refit the model.\"))",
-    "  .hypothesis_refusal(paste0(\"Please \", \"REFIT.\"), \"target\")",
+    "  BayesTools::hypothesis_stop(paste0(\"Please \", \"REFIT.\"), \"target\")",
     "  message(\"refitting and refitted are other words\")",
     "}"
   ), planted)

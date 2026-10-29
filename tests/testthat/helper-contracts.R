@@ -659,6 +659,187 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
   )
 }
 
+# hypothesis() is a thin entry over the BayesTools hypothesis engine
+# (BayesTools::hypothesis_BF_model()); the plans, their statuses, and the
+# session cache live in BayesTools. These helpers read them through the RoBMA
+# providers (hypothesis_provider() of a fit or of marginal means): the plans of
+# the statements of a hypothesis (RoBMA's 'standardized' is the opposite of the
+# engine's 'transform_scaled'), the cache of an object's plans, the plan of a
+# marginal-means statement, and the status of a density method for a plan with
+# the default settings of the method (NULL when the method evaluates the
+# statement, otherwise the refusal). The engine functions are BayesTools
+# internals, so a change of the engine shows in these helpers first.
+engine_provider <- function(object) {
+
+  BayesTools::hypothesis_provider(object)
+}
+
+
+# The provider fields that the selection of a parameter and the fitted formula
+# metadata read, for a stand-in object that is no fitted brma object: the
+# component vocabulary of the brma objects, the wording of a request to refit,
+# and the catalog metadata of 'object' (when given).
+engine_selection_provider <- function(object = NULL) {
+
+  list(
+    object      = object,
+    fit         = if (is.null(object)) list() else object[["fit"]],
+    build       = "RoBMA/BayesTools",
+    refit_class = "RoBMA_refit_required",
+    components  = list(
+      values   = c("auto", "mods", "location", "scale", "bias", "random"),
+      synonyms = c(location = "mods"),
+      default  = "auto",
+      refused  = c(bias = "Hypothesis tests for publication-bias parameters are not supported."),
+      random   = "random",
+      advice   = "Set 'component' to 'mods'/'location', 'scale', or 'random'."
+    ),
+    metadata    = function() .brma_parameter_catalog_metadata(object)
+  )
+}
+
+
+engine_plan_cache <- function(object = NULL) {
+
+  BayesTools:::.hypothesis_model_plan_cache(
+    if (!is.null(object)) engine_provider(object)
+  )
+}
+
+
+engine_plans <- function(object, hypothesis, component = "auto",
+                         standardized = FALSE, conditional = FALSE,
+                         metadata = NULL, n_samples = 10000L,
+                         provider = engine_provider(object),
+                         cache = BayesTools:::.hypothesis_model_plan_cache(provider)) {
+
+  BayesTools:::.hypothesis_model_plans(
+    provider         = provider,
+    hypothesis       = hypothesis,
+    component        = component,
+    transform_scaled = !standardized,
+    conditional      = conditional,
+    metadata         = metadata,
+    n_samples        = n_samples,
+    cache            = cache
+  )
+}
+
+
+engine_plan_marginal_means <- function(means, statement, parameter = NULL,
+                                       cache = NULL) {
+
+  BayesTools:::.hypothesis_model_plan_marginal_means(
+    provider  = engine_provider(means),
+    statement = statement,
+    parameter = parameter,
+    cache     = cache
+  )
+}
+
+
+engine_plan_status <- function(plan, object, method,
+                               provider = engine_provider(object)) {
+
+  BayesTools:::.hypothesis_model_quantities_status(plan, provider, method)
+}
+
+
+# The ordinates of scalar point values, computed by the qCMDE/IWMDE backend of
+# the hypothesis engine for the request the engine makes: 'posterior' are the
+# draws of the evaluated quantity, which carry its prior density (taken from
+# 'raw_posterior' when that has one), 'value' the requested values (on the
+# displayed scale when a 'display_transform' maps the evaluated quantity), and
+# 'parameter_spec' the target the provider declares (NULL: the primitive
+# target of the draws).
+engine_attach_scalar <- function(posterior, raw_posterior = posterior, context,
+                                 estimate_cache, parameter, parameter_label,
+                                 value, conditional = NULL, n_points, samples,
+                                 target_relative_mcse, normalization_points,
+                                 normalization_prob, density_method,
+                                 integration_control = NULL,
+                                 parameter_spec = NULL,
+                                 display_transform = NULL) {
+
+  prior_density <- BayesTools::posterior_metadata(raw_posterior, "prior_density")
+  if (!is.null(prior_density)) {
+    BayesTools::posterior_metadata(posterior, "prior_density") <- prior_density
+  }
+
+  .hypothesis_density_attach_scalar(
+    posterior      = posterior,
+    request        = list(
+      parameter         = parameter,
+      label             = parameter_label,
+      values            = value,
+      conditional       = conditional,
+      density_method    = density_method,
+      spec              = parameter_spec,
+      display_transform = display_transform
+    ),
+    control        = list(
+      n_points             = n_points,
+      samples              = samples,
+      target_relative_mcse = target_relative_mcse,
+      normalization_points = normalization_points,
+      normalization_prob   = normalization_prob,
+      integration_control  = integration_control
+    ),
+    context        = context,
+    estimate_cache = estimate_cache
+  )
+}
+
+
+# The table with the warnings and diagnostics of the ordinates stored on
+# 'posterior' lifted to its rows, as the engine does after a qCMDE/IWMDE group
+# is evaluated.
+engine_append_warnings <- function(table, posterior, density_method = "qCMDE") {
+
+  BayesTools:::.hypothesis_model_append_ordinate_warnings(
+    table     = table,
+    posterior = posterior,
+    backend   = BayesTools:::.hypothesis_model_backend(density_method),
+    request   = list()
+  )
+}
+
+
+# The marginal means of a marginal-means object with the ordinates that the
+# qCMDE/IWMDE backend of the hypothesis engine attaches (or keeps) for the point
+# values of 'hypothesis' on the 'inference_type' marginal means of 'parameter'.
+# 'density_control' are the normalized settings of the method.
+engine_marginal_attach <- function(object, parameter, hypothesis,
+                                   density_method, density_control,
+                                   inference_type = "conditional") {
+
+  BayesTools:::.hypothesis_model_marginal_attach(
+    provider        = engine_provider(object),
+    backend         = BayesTools:::.hypothesis_model_backend(density_method),
+    plan            = list(kind = "marginal_mean", inference_type = inference_type),
+    parameter       = parameter,
+    hypothesis      = hypothesis,
+    inference_type  = inference_type,
+    density_control = density_control
+  )[["provider"]]
+}
+
+
+# The original-scale route of a fitted formula coefficient (its map type,
+# support, weights, and the refusal of an unsupported map), as hypothesis()
+# words it. 'fit' is a brma object or its BayesTools fit.
+engine_formula_route <- function(fit, parameter, target) {
+
+  BayesTools::JAGS_formula_coefficient_route(
+    fit         = if (inherits(fit, "BayesTools_fit")) fit else fit[["fit"]],
+    parameter   = parameter,
+    target      = target,
+    caller      = "hypothesis()",
+    refit_class = "RoBMA_refit_required"
+  )
+}
+
+
 # Every alias hypothesis_quantities() lists names its row's quantity: the
 # plan of '<alias> = 0' with the row's component, which hypothesis()
 # executes, is the plan of that quantity. The alias of a factor term (a row
@@ -667,11 +848,11 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
 # row's quantity.
 .expect_aliases_resolve <- function(object, quantities, info,
                                     metadata = .brma_parameter_catalog_metadata(object),
-                                    cache = .hypothesis_plan_cache(object)) {
+                                    cache = engine_plan_cache(object)) {
 
   plan_of <- function(reference, component) {
     tryCatch(
-      .hypothesis_plans(
+      engine_plans(
         object     = object,
         hypothesis = paste0("`", reference, "` = 0"),
         component  = component,
@@ -706,7 +887,7 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
     entry <- entries[entries[["parameter"]] == row[["parameter"]] &
                        entries[["component"]] == row[["component"]], ,
                      drop = FALSE]
-    levels <- .hypothesis_plan_term_levels(
+    levels <- BayesTools:::.hypothesis_model_plan_term_levels(
       metadata,
       as.list(entry[1L, setdiff(names(entry), "aliases"), drop = FALSE])
     )
@@ -750,7 +931,8 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
 
   metadata   <- .brma_parameter_catalog_metadata(object)
   quantities <- hypothesis_quantities(object)
-  cache      <- .hypothesis_plan_cache(object)
+  provider   <- engine_provider(object)
+  cache      <- BayesTools:::.hypothesis_model_plan_cache(provider)
   .expect_aliases_resolve(object, quantities, info, metadata, cache)
   control    <- list(n_points = 20, samples = 50)
   run <- function(statement, component, method) {
@@ -773,10 +955,13 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
     rows  <- quantities[quantities[["parameter"]] == entry[["parameter"]] &
                           quantities[["component"]] == entry[["component"]], ,
                         drop = FALSE]
-    plans <- .hypothesis_quantities_plans(object, entry, metadata, cache)
-    rendered <- .hypothesis_quantities_render_plans(
-      plans   = plans,
-      bracket = identical(entry[["role"]], "formula_coefficient_group")
+    plans <- BayesTools:::.hypothesis_model_quantities_plans(
+      provider, entry, metadata, cache, transform_scaled = TRUE
+    )
+    rendered <- BayesTools:::.hypothesis_model_quantities_render_plans(
+      plans    = plans,
+      bracket  = identical(entry[["role"]], "formula_coefficient_group"),
+      provider = provider
     )
     row_info <- paste(info, entry[["parameter"]])
     expect_gt(nrow(rows), 0L)
@@ -790,8 +975,8 @@ exp_affine_scale_intercept_reference <- function(fit, slope, value) {
     for (type in c("point", "region", "contrast")) {
       for (plan in plans[[type]]) {
         statement <- BayesTools::hypothesis_render(plan[["statement"]])
-        for (method in .hypothesis_plan_advertised_methods()) {
-          refusal <- .hypothesis_plan_status(plan, method)
+        for (method in BayesTools:::.hypothesis_model_quantities_methods(provider)) {
+          refusal <- engine_plan_status(plan, object, method, provider)
           case    <- paste(row_info, statement, method)
           precomputed <- method %in% c("qCMDE", "IWMDE")
           if (is.null(refusal) && precomputed &&

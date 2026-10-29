@@ -243,7 +243,7 @@ test_that("qCMDE/IWMDE stops for the correlation name the requested operation", 
       suppressWarnings(hypothesis(
         fit, "rho(intercept,x) = 0", density_method = method, seed = 1
       )),
-      class = "RoBMA_hypothesis_target",
+      class = "BayesTools_hypothesis_target",
       info  = method
     )
   }
@@ -331,7 +331,7 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
         )),
         error = function(e) e
       )
-      expect_s3_class(refusal, "RoBMA_hypothesis_target")
+      expect_s3_class(refusal, "BayesTools_hypothesis_target")
       expect_match(
         conditionMessage(refusal), no_prior_density,
         fixed = TRUE, info = paste(name, method)

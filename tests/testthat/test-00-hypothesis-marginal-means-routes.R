@@ -179,22 +179,22 @@ test_that("marginal-means point routes fail closed when events are incoherent", 
   expect_error(
     hypothesis(object, "alloc[A] = 0 vs alloc[A] > 0"),
     "cannot mix point and region",
-    class = "RoBMA_hypothesis_statement"
+    class = "BayesTools_hypothesis_statement"
   )
   expect_error(
     hypothesis(object, "alloc[A] = 0 vs alloc[B] != 0"),
     "spanning multiple marginal-means levels",
-    class = "RoBMA_hypothesis_statement"
+    class = "BayesTools_hypothesis_statement"
   )
   expect_error(
     hypothesis(object, c("alloc[A] = 0", "alloc[A] > 0")),
     "cannot mix point-null and region statements",
-    class = "RoBMA_hypothesis_statement"
+    class = "BayesTools_hypothesis_statement"
   )
   expect_error(
     hypothesis(object, c("alloc[A] = 0", "alloc[B] = 0")),
     "spanning multiple marginal-means levels",
-    class = "RoBMA_hypothesis_statement"
+    class = "BayesTools_hypothesis_statement"
   )
   # These are statements to restate, not unavailable tests: the statement
   # class only, as for a nonlinear expression of the levels.
@@ -210,7 +210,7 @@ test_that("marginal-means point routes fail closed when events are incoherent", 
     error <- tryCatch(hypothesis(request[[1L]], request[[2L]]), error = identity)
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_statement", "error", "condition"),
+      c("BayesTools_hypothesis_statement", "error", "condition"),
       info = paste(request[[2L]], collapse = "; ")
     )
   }
@@ -226,8 +226,9 @@ test_that("single-model point hypotheses use averaged marginal draws", {
 
   object <- .marginal_means_route_test_object(model_averaged = FALSE)
   captured <- NULL
+  # The engine evaluates a group with the draw-based method directly.
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(posterior, ...) {
+    hypothesis_BF.default = function(posterior, ...) {
 
       captured <<- posterior[["conditional"]]
       return("ok")
@@ -245,7 +246,7 @@ test_that("single-model marginal hypotheses share one averaged posterior", {
   object <- .marginal_means_route_test_object(model_averaged = FALSE)
   plans <- function(statements) {
     lapply(statements, function(statement) {
-      .hypothesis_plan_marginal_means(object, statement, parameter = "mu_alloc")
+      engine_plan_marginal_means(object, statement, parameter = "mu_alloc")
     })
   }
 
@@ -258,8 +259,8 @@ test_that("single-model marginal hypotheses share one averaged posterior", {
       expect_identical(plan[["inference_type"]], "averaged")
       expect_null(plan[["refusal"]])
     }
-    expect_null(.hypothesis_plan_marginal_means_request_refusal(
-      plans = request, object = object
+    expect_null(BayesTools:::.hypothesis_model_plan_marginal_means_request_refusal(
+      plans = request, provider = engine_provider(object)
     ))
   }
 })
@@ -316,7 +317,7 @@ test_that("hypothesis labels retain expanded factor levels", {
   )
   attr(out, "hypothesis_ast") <- transformed
 
-  restored <- .hypothesis_brma_restore_hypothesis_labels(
+  restored <- BayesTools:::.hypothesis_model_restore_hypothesis_labels(
     out             = out,
     hypothesis      = display,
     parameter_label = "Preregistered",
@@ -342,17 +343,17 @@ test_that("hypothesis labels retain expanded factor levels", {
 
 test_that("the plans of a marginal-means object are built once and shared by its methods", {
 
-  .hypothesis_plan_cache_clear()
-  withr::defer(.hypothesis_plan_cache_clear())
+  BayesTools::hypothesis_cache_clear()
+  withr::defer(BayesTools::hypothesis_cache_clear())
   object   <- .marginal_means_route_test_object(model_averaged = FALSE)
-  original <- .hypothesis_plan_marginal_means_build
+  original <- BayesTools:::.hypothesis_model_plan_marginal_means_build
   builds   <- 0L
   testthat::local_mocked_bindings(
-    .hypothesis_plan_marginal_means_build = function(...) {
+    .hypothesis_model_plan_marginal_means_build = function(...) {
       builds <<- builds + 1L
       original(...)
     },
-    .package = "RoBMA"
+    .package = "BayesTools"
   )
 
   first  <- hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913)
@@ -384,8 +385,8 @@ test_that("the plans of a marginal-means object are built once and shared by its
 
   # The plans of the cache are those of a call without one.
   testthat::local_mocked_bindings(
-    .hypothesis_plan_cache = function(object = NULL) new.env(parent = emptyenv()),
-    .package = "RoBMA"
+    .hypothesis_model_plan_cache = function(provider = NULL) new.env(parent = emptyenv()),
+    .package = "BayesTools"
   )
   expect_identical(
     hypothesis(object, "alloc[A] > alloc[B]", columns = "all", seed = 913),
@@ -396,19 +397,19 @@ test_that("the plans of a marginal-means object are built once and shared by its
 
 test_that("marginal-means statements on several parameters are tested in one call", {
 
-  .hypothesis_plan_cache_clear()
-  withr::defer(.hypothesis_plan_cache_clear())
+  BayesTools::hypothesis_cache_clear()
+  withr::defer(BayesTools::hypothesis_cache_clear())
   call <- function(object, statements, ...) {
     hypothesis(object, statements, columns = "all", seed = 913, ...)
   }
-  original <- .hypothesis_plan_marginal_means_build
+  original <- BayesTools:::.hypothesis_model_plan_marginal_means_build
   builds   <- 0L
   testthat::local_mocked_bindings(
-    .hypothesis_plan_marginal_means_build = function(...) {
+    .hypothesis_model_plan_marginal_means_build = function(...) {
       builds <<- builds + 1L
       original(...)
     },
-    .package = "RoBMA"
+    .package = "BayesTools"
   )
 
   # Region statements are available to single-model and model-averaged
@@ -454,7 +455,7 @@ test_that("marginal-means statements on several parameters are tested in one cal
   # parameter each statement names: a plan is shared with the call that names
   # the parameter itself.
   object <- .marginal_means_route_two_parameter_object(TRUE)
-  .hypothesis_plan_cache_clear()
+  BayesTools::hypothesis_cache_clear()
   builds <- 0L
   call(object, c("alloc[A] > 0", "other[A] > 0"))
   expect_identical(builds, 2L)
@@ -468,7 +469,7 @@ test_that("marginal-means statements on several parameters are tested in one cal
 test_that("a parameter that does not hold for a statement is refused with the statement and parameters", {
 
   mismatch <- c(
-    "RoBMA_hypothesis_parameter_mismatch", "RoBMA_hypothesis_statement",
+    "BayesTools_hypothesis_parameter_mismatch", "BayesTools_hypothesis_statement",
     "error", "condition"
   )
   for (model_averaged in c(FALSE, TRUE)) {
@@ -520,7 +521,7 @@ test_that("a statement on the marginal means of two parameters is refused withou
       error <- tryCatch(hypothesis(object, statement), error = identity)
       expect_identical(
         class(error),
-        c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement",
+        c("BayesTools_hypothesis_ambiguous", "BayesTools_hypothesis_statement",
           "error", "condition"),
         info = statement
       )
@@ -541,7 +542,7 @@ test_that("a statement on the marginal means of two parameters is refused withou
         )
         expect_identical(
           class(selected),
-          c("RoBMA_hypothesis_parameter_mismatch", "RoBMA_hypothesis_statement",
+          c("BayesTools_hypothesis_parameter_mismatch", "BayesTools_hypothesis_statement",
             "error", "condition"),
           info = paste(statement, parameter)
         )
@@ -565,7 +566,7 @@ test_that("an unknown name in a marginal-means request is named in the refusal",
     error <- tryCatch(hypothesis(object, statements), error = identity)
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+      c("BayesTools_hypothesis_statement", "BayesTools_parameter_not_found",
         "BayesTools_parameter_resolution_error", "error", "condition"),
       info = paste(statements, collapse = " | ")
     )
@@ -598,9 +599,11 @@ test_that("model-averaged requests count point levels across parameters", {
   single <- .marginal_means_route_two_parameter_object(model_averaged = FALSE)
   refusal <- function(object, statements) {
     plans <- lapply(statements, function(statement) {
-      .hypothesis_plan_marginal_means(object, statement)
+      engine_plan_marginal_means(object, statement)
     })
-    .hypothesis_plan_marginal_means_request_refusal(plans = plans, object = object)
+    BayesTools:::.hypothesis_model_plan_marginal_means_request_refusal(
+      plans = plans, provider = engine_provider(object)
+    )
   }
 
   # The same level label of two parameters is two levels.
@@ -615,7 +618,7 @@ test_that("model-averaged requests count point levels across parameters", {
   expect_error(
     hypothesis(object, levels),
     "spanning multiple marginal-means levels",
-    class = "RoBMA_hypothesis_statement"
+    class = "BayesTools_hypothesis_statement"
   )
   # One level of one parameter, and region statements on several parameters,
   # are not refused; points and regions do not mix across parameters either.
@@ -623,12 +626,12 @@ test_that("model-averaged requests count point levels across parameters", {
   expect_null(refusal(object, c("alloc[A] > 0", "other[A] > 0", "alloc[B] > 0")))
   expect_identical(
     refusal(object, c("alloc[A] = 0", "other[A] > 0"))[["class"]],
-    "RoBMA_hypothesis_statement"
+    "BayesTools_hypothesis_statement"
   )
   expect_error(
     hypothesis(object, c("alloc[A] = 0", "other[A] > 0")),
     "cannot mix point-null and region statements",
-    class = "RoBMA_hypothesis_statement"
+    class = "BayesTools_hypothesis_statement"
   )
   # Single-model objects use one averaged posterior for all of them.
   for (statements in list(levels, c("alloc[A] = 0", "other[A] > 0"))) {

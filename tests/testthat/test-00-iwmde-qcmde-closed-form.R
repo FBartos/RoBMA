@@ -465,7 +465,7 @@ test_that("a cached normalization with closed-form rows serves a second ordinate
 .cf_seed <- function(divisor = 32) {
 
   control <- .density_control_normalize("qCMDE")
-  control <- .hypothesis_plan_density_control(control)
+  control <- .hypothesis_density_control_fill(control)
   N <- control[["normalization_points"]]
   S <- control[["samples"]]
   K <- 2L

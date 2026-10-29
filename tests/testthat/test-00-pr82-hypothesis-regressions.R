@@ -1,3 +1,9 @@
+# The provider fields that the selection of a parameter and the fitted
+# formula metadata read (the component vocabulary of the fitted brma objects
+# and the wording of a request to refit).
+.selection_provider <- function() engine_selection_provider()
+
+
 test_that("coefficient transform routes follow the declared BayesTools map type", {
 
   compiled <- BayesTools::JAGS_formula(
@@ -27,11 +33,7 @@ test_that("coefficient transform routes follow the declared BayesTools map type"
       JAGS_formula_coefficient_transform = function(...) transform,
       .package = "BayesTools"
     )
-    .brma_formula_coefficient_route(
-      object = list(fit = fit),
-      selected = list(parameter = "mu_intercept", component = "mods",
-        entry = list(formula_parameter = "mu"))
-    )
+    engine_formula_route(fit, "mu", "mu_intercept")
   }
   targets <- declared[["targets"]]
   targets[["map_type"]][targets[["target"]] == "mu_intercept"] <- "unsupported"
@@ -59,17 +61,25 @@ test_that("cross-level hypotheses keep all rows and build one shared context", {
   calls    <- 0L
   attached <- NULL
   testthat::local_mocked_bindings(
-    hypothesis_BF = function(...) data.frame(BF = c(2, 3)),
+    hypothesis_BF.default = function(...) data.frame(BF = c(2, 3)),
+    .hypothesis_model_append_ordinate_warnings = function(table, ...) table,
     .package = "BayesTools"
   )
   testthat::local_mocked_bindings(
     .iwmde_check_point_ordinate_supported = function(...) NULL,
     .iwmde_context = function(...) { calls <<- calls + 1L; list() },
-    .hypothesis_brma_attach_iwmde_scalar = function(posterior, value, parameter_spec, ...) {
-      attached <<- list(value = value, spec = parameter_spec)
+    .hypothesis_density_attach_scalar = function(posterior, request, ...) {
+      attached <<- list(value = request[["values"]], spec = request[["spec"]])
+      # The engine requires a valid ordinate at every requested value.
+      BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
+        BayesTools::posterior_ordinate_attribute(
+          value          = request[["values"]],
+          ordinate       = rep(1, length(request[["values"]])),
+          method         = "qCMDE",
+          density_method = "qCMDE"
+        )
       posterior
     },
-    .hypothesis_brma_append_iwmde_warnings = function(table, ...) table,
     .package = "RoBMA"
   )
   spec <- list(type = "linear", weights = c(a = 1, b = -1), prior_density = NULL)
@@ -87,9 +97,12 @@ test_that("cross-level hypotheses keep all rows and build one shared context", {
       list(value = 1, spec = spec)
     )
   )
-  result <- .hypothesis_plan_execute_combination(
-    plans = list(plan), hypothesis = NULL, object = structure(list(fit = list(TRUE)), class = "brma"),
-    logBF = FALSE, BF01 = FALSE, seed = NULL, density_method = "qCMDE",
+  object <- structure(list(fit = list(TRUE)), class = "brma")
+  result <- BayesTools:::.hypothesis_model_plan_execute_combination(
+    plans = list(plan), hypothesis = NULL,
+    provider = list(object = object, capability_object = object),
+    backend = BayesTools:::.hypothesis_model_backend("qCMDE"),
+    logBF = FALSE, BF01 = FALSE, seed = NULL,
     density_control = list(n_points = 50L), columns = NULL
   )
   expect_identical(result[["BF"]], c(2, 3))
@@ -105,14 +118,11 @@ test_that("empty resolved hypothesis quantities fail with a metadata message", {
 
   testthat::local_mocked_bindings(
     hypothesis_resolve = function(...) list(occurrences = data.frame(quantity_id = character())),
+    .hypothesis_model_entries_for_quantities = function(...) data.frame(),
     .package = "BayesTools"
   )
-  testthat::local_mocked_bindings(
-    .brma_parameter_catalog_entries_for_quantities = function(...) data.frame(),
-    .package = "RoBMA"
-  )
-  expect_error(.hypothesis_brma_select_parameter(
-    list(), "mu = 0", "auto", list(catalog = NULL, entries = data.frame())
+  expect_error(BayesTools:::.hypothesis_model_select_parameter(
+    .selection_provider(), "mu = 0", "auto", list(catalog = NULL, entries = data.frame())
   ), paste0("Resolved hypothesis metadata are unavailable. Refit the model with ",
             "the current RoBMA/BayesTools build."), fixed = TRUE,
   class = "RoBMA_refit_required")
@@ -123,7 +133,9 @@ test_that("BayesTools resolution refusals are statement errors by their class", 
   metadata <- list(catalog = NULL, entries = data.frame())
   select   <- function(hypothesis) {
     tryCatch(
-      .hypothesis_brma_select_parameter(list(), hypothesis, "auto", metadata),
+      BayesTools:::.hypothesis_model_select_parameter(
+        .selection_provider(), hypothesis, "auto", metadata
+      ),
       error = identity
     )
   }
@@ -150,7 +162,7 @@ test_that("BayesTools resolution refusals are statement errors by their class", 
       .package = "BayesTools"
     )
     expected <- refusals[[name]]
-    class(expected) <- c("RoBMA_hypothesis_statement", class(expected))
+    class(expected) <- c("BayesTools_hypothesis_statement", class(expected))
     for (statement in c("1 > 0", "mu = 0")) {
       expect_identical(select(statement), expected,
                        info = paste(name, statement))
@@ -190,7 +202,7 @@ test_that("stale fitted metadata of hypothesis targets require a refit", {
   )
   # A coefficient transform of an unsupported schema.
   error <- tryCatch(
-    .hypothesis_brma_formula_coefficient_target(list(fit = list()), selected),
+    BayesTools:::.hypothesis_model_formula_coefficient_target(.selection_provider(), selected),
     error = identity
   )
   expect_identical(class(error), refit)
@@ -199,28 +211,24 @@ test_that("stale fitted metadata of hypothesis targets require a refit", {
   transform[["schema_version"]] <- 3L
   transform[["target_names"]]   <- "mu_z"
   error <- tryCatch(
-    .hypothesis_brma_formula_coefficient_target(list(fit = list()), selected),
+    BayesTools:::.hypothesis_model_formula_coefficient_target(.selection_provider(), selected),
     error = identity
   )
   expect_identical(class(error), refit)
   # Weights on coordinates absent from the fitted coordinate table.
   error <- tryCatch(
-    .hypothesis_brma_target_prior_parameters(list(fit = list()), c(mu_x = 1)),
+    BayesTools:::.hypothesis_model_target_prior_parameters(.selection_provider(), c(mu_x = 1)),
     error = identity
   )
   expect_identical(class(error), refit)
   expect_match(conditionMessage(error), "Refit the model", fixed = TRUE)
   # A factor level without fitted linear weights is stale fitted metadata,
   # not a target refusal of a current fit.
-  testthat::local_mocked_bindings(
-    .iwmde_linear_weights = function(...) numeric(),
-    .package = "RoBMA"
-  )
   error <- tryCatch(
-    .hypothesis_plan_level_target(
-      plan   = list(draws = list(posterior = list(a = NULL)), label = "g"),
-      object = NULL,
-      level  = "a",
+    BayesTools:::.hypothesis_model_plan_level_target(
+      plan     = list(draws = list(posterior = list(a = NULL)), label = "g"),
+      provider = .selection_provider(),
+      level    = "a",
       value  = 0,
       label  = "g[a]"
     ),
@@ -245,7 +253,10 @@ test_that("BayesTools refusals are matched by their condition class", {
       continuous_behavior = "regular", stringsAsFactors = FALSE
     )
   }
-  robma <- structure(list(), class = c("RoBMA", "brma"))
+  # The providers of a model-averaged object and of a single model; only the
+  # former words a prior point mass as an inclusion Bayes factor.
+  robma  <- engine_provider(gated_random_object())
+  single_model <- engine_provider(single_sd_random_object(BayesTools::prior("gamma", list(2, 2))))
 
   # A prior point mass at the value names the inclusion Bayes factor for
   # model-averaged objects whatever the wording of the BayesTools message;
@@ -254,9 +265,9 @@ test_that("BayesTools refusals are matched by their condition class", {
   target <- list(
     prior_density     = density,
     status            = status("BayesTools_point_mass_at_null", "Reworded refusal."),
-    point_mass_reason = .hypothesis_plan_point_mass_reason(robma)
+    point_mass_reason = BayesTools:::.hypothesis_model_plan_point_mass_reason(robma)
   )
-  refusal <- .hypothesis_plan_target_refusal(target)
+  refusal <- BayesTools:::.hypothesis_model_plan_target_refusal(target)
   expect_identical(
     refusal[["class"]],
     c("BayesTools_point_mass_at_null", "BayesTools_hypothesis_ordinate")
@@ -271,21 +282,21 @@ test_that("BayesTools refusals are matched by their condition class", {
     fixed = TRUE
   )
   expect_true(refusal[["value_specific"]])
-  expect_error(.hypothesis_stop(refusal), class = "BayesTools_point_mass_at_null")
+  expect_error(BayesTools:::.hypothesis_model_stop(refusal), class = "BayesTools_point_mass_at_null")
 
   # Other classes, and point masses of single models, keep the BayesTools
   # message.
-  infinite <- .hypothesis_plan_target_refusal(list(
+  infinite <- BayesTools:::.hypothesis_model_plan_target_refusal(list(
     prior_density     = density,
     status            = status("BayesTools_infinite_ordinate", "Infinite ordinate."),
-    point_mass_reason = .hypothesis_plan_point_mass_reason(robma)
+    point_mass_reason = BayesTools:::.hypothesis_model_plan_point_mass_reason(robma)
   ))
   expect_identical(infinite[["reason"]], "Infinite ordinate.")
   expect_identical(infinite[["class"]][[1L]], "BayesTools_infinite_ordinate")
-  single <- .hypothesis_plan_target_refusal(list(
+  single <- BayesTools:::.hypothesis_model_plan_target_refusal(list(
     prior_density     = density,
     status            = status("BayesTools_point_mass_at_null", "Point mass."),
-    point_mass_reason = .hypothesis_plan_point_mass_reason(structure(list(), class = "brma"))
+    point_mass_reason = BayesTools:::.hypothesis_model_plan_point_mass_reason(single_model)
   ))
   expect_identical(single[["reason"]], "Point mass.")
 

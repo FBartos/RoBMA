@@ -4,12 +4,26 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
   # the capability of the fitted model.
   plan <- list(point = TRUE, refusal = NULL, targets = list(), method_refusals = list())
   glmm <- structure(list(), class = c("brma.glmm", "brma"))
-  plan <- .hypothesis_plan_finish(plan, glmm)
+  # The engine checks a plan against the density backend and the model's
+  # capability on every call: the provider names the model (a stand-in here)
+  # and the density methods it offers.
+  provider <- list(
+    object            = glmm,
+    capability_object = glmm,
+    density_methods   = c("KDE", "normal", "qCMDE", "IWMDE")
+  )
+  status <- function(plan, method) engine_plan_status(plan, glmm, method, provider)
+  check <- function(plan, method) {
+    BayesTools:::.hypothesis_model_plan_check(
+      plan, provider, BayesTools:::.hypothesis_model_backend(method)
+    )
+  }
+  plan <- BayesTools:::.hypothesis_model_plan_finish(plan)
   capability <- .iwmde_capability(object = glmm, density_method = "IWMDE")
 
-  expect_null(.hypothesis_plan_status(plan, "KDE"))
-  expect_null(.hypothesis_plan_status(plan, "qCMDE"))
-  expect_null(.hypothesis_plan_status(plan, "normal"))
+  expect_null(status(plan, "KDE"))
+  expect_null(status(plan, "qCMDE"))
+  expect_null(status(plan, "normal"))
   expect_identical(
     capability[["class"]],
     c("RoBMA_density_method_glmm", "RoBMA_density_method_unavailable")
@@ -17,24 +31,24 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
   # A capability refusal keeps the hypothesis classes and also carries the
   # classes of the capability refusal: the cause and the parent class.
   expect_identical(
-    .hypothesis_plan_status(plan, "IWMDE"),
+    status(plan, "IWMDE"),
     list(
       reason = capability[["reason"]],
-      class  = c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+      class  = c("BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable",
                  "RoBMA_density_method_glmm",
                  "RoBMA_density_method_unavailable")
     )
   )
   expect_error(
-    .hypothesis_plan_check(plan, "IWMDE"),
+    check(plan, "IWMDE"),
     capability[["reason"]],
     fixed = TRUE,
-    class = "RoBMA_hypothesis_method"
+    class = "BayesTools_hypothesis_method"
   )
   for (class in c("RoBMA_density_method_glmm",
                   "RoBMA_density_method_unavailable")) {
     expect_error(
-      .hypothesis_plan_check(plan, "IWMDE"),
+      check(plan, "IWMDE"),
       class = class
     )
   }
@@ -49,9 +63,9 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
     class = "RoBMA_density_method_unavailable"
   )
   expect_invisible(.iwmde_check_density_method_supported(glmm, "qCMDE"))
-  rendered <- .hypothesis_quantities_render_plans(
+  rendered <- BayesTools:::.hypothesis_model_quantities_render_plans(
     list(point = list(plan), region = list(plan), contrast = NULL),
-    bracket = FALSE
+    bracket = FALSE, provider = provider
   )
   expect_identical(rendered[["point_test_methods"]], "KDE, qCMDE")
   expect_identical(rendered[["reason"]], capability[["reason"]])
@@ -60,42 +74,39 @@ test_that("hypothesis plans refuse methods by the runtime qCMDE/IWMDE capability
   # The capability of the fitted model comes before the quantity's own
   # refusal of the method, as in plot(); a method the model supports keeps
   # the quantity's refusal.
-  own <- .hypothesis_refusal("The quantity refuses the method.", "method")
-  plan_own <- .hypothesis_plan_finish(
+  own <- BayesTools:::.hypothesis_model_refusal("The quantity refuses the method.", "method")
+  plan_own <- BayesTools:::.hypothesis_model_plan_finish(
     list(point = TRUE, refusal = NULL, targets = list(),
-         method_refusals = list(qCMDE = own, IWMDE = own)),
-    glmm
+         method_refusals = list(qCMDE = own, IWMDE = own))
   )
-  expect_identical(.hypothesis_plan_status(plan_own, "qCMDE"), own)
+  expect_identical(status(plan_own, "qCMDE"), own)
   expect_identical(
-    .hypothesis_plan_status(plan_own, "IWMDE"),
-    .hypothesis_plan_status(plan, "IWMDE")
+    status(plan_own, "IWMDE"),
+    status(plan, "IWMDE")
   )
-  expect_null(.hypothesis_plan_status(plan_own, "KDE"))
+  expect_null(status(plan_own, "KDE"))
   # An object without the fitted model the method needs (a marginal-means
   # object without its source fit) is refused before the capability.
-  missing_source <- .hypothesis_refusal("The source fit is missing.", "target")
-  plan_source <- .hypothesis_plan_finish(
+  missing_source <- BayesTools:::.hypothesis_model_refusal("The source fit is missing.", "target")
+  plan_source <- BayesTools:::.hypothesis_model_plan_finish(
     list(point = TRUE, refusal = NULL, targets = list(),
          method_refusals = list(qCMDE = own, IWMDE = own),
-         source_refusals = list(qCMDE = missing_source, IWMDE = missing_source)),
-    glmm
+         source_refusals = list(ordinate = missing_source))
   )
   for (method in c("qCMDE", "IWMDE")) {
-    expect_identical(.hypothesis_plan_status(plan_source, method), missing_source,
+    expect_identical(status(plan_source, method), missing_source,
                      info = method)
   }
 
   # A refusal of the whole plan (a fixed quantity) applies to point and
   # region statements and every method.
-  fixed <- .hypothesis_plan_finish(
-    list(point = FALSE, refusal = .hypothesis_plan_fixed_refusal("mu"),
-         targets = list(), method_refusals = list()),
-    glmm
+  fixed <- BayesTools:::.hypothesis_model_plan_finish(
+    list(point = FALSE, refusal = BayesTools:::.hypothesis_model_plan_fixed_refusal("mu"),
+         targets = list(), method_refusals = list())
   )
-  rendered <- .hypothesis_quantities_render_plans(
+  rendered <- BayesTools:::.hypothesis_model_quantities_render_plans(
     list(point = list(fixed), region = list(fixed), contrast = NULL),
-    bracket = FALSE
+    bracket = FALSE, provider = provider
   )
   expect_false(rendered[["point_test"]])
   expect_false(rendered[["direction_test"]])
@@ -121,7 +132,7 @@ test_that("hypothesis discovery shares the runtime qCMDE/IWMDE capability", {
     hypothesis(object, "mu_intercept = 0", density_method = "qCMDE"),
     capability[["reason"]],
     fixed = TRUE,
-    class = "RoBMA_hypothesis_method"
+    class = "BayesTools_hypothesis_method"
   )
   expect_error(
     hypothesis(object, "mu_intercept = 0", density_method = "qCMDE"),
@@ -257,10 +268,10 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
   parameter <- "(mu) tau(intercept)"
   # The plans are built with the mocked density target, so none is kept.
   plan_of <- function() {
-    .hypothesis_plan_cache_clear()
-    .hypothesis_plans(object, paste0("`", parameter, "` = 0.3"))[[1L]]
+    BayesTools::hypothesis_cache_clear()
+    engine_plans(object, paste0("`", parameter, "` = 0.3"))[[1L]]
   }
-  withr::defer(.hypothesis_plan_cache_clear())
+  withr::defer(BayesTools::hypothesis_cache_clear())
 
   # A quantity without a scalar random-component coordinate: the refusal
   # of the density target (as plot() raises it) follows the hypothesis
@@ -272,14 +283,15 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
     .package = "RoBMA"
   )
   unsupported <- plan_of()
-  expect_null(.hypothesis_plan_status(unsupported, "KDE"))
+  expect_null(engine_plan_status(unsupported, object, "KDE"))
   for (method in c("qCMDE", "IWMDE")) {
     expect_identical(
-      .hypothesis_plan_status(unsupported, method),
+      engine_plan_status(unsupported, object, method),
       list(reason = "unsupported",
-           class  = c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+           class  = c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable",
                       "RoBMA_density_method_random_target",
-                      "RoBMA_density_method_unavailable"))
+                      "RoBMA_density_method_unavailable"),
+           cause  = "random_target")
     )
   }
 
@@ -291,7 +303,7 @@ test_that("random discovery uses the authoritative likelihood-aware target", {
   )
   supported <- plan_of()
   for (method in c("KDE", "qCMDE", "IWMDE")) {
-    expect_null(.hypothesis_plan_status(supported, method), info = method)
+    expect_null(engine_plan_status(supported, object, method), info = method)
   }
 })
 
@@ -408,7 +420,7 @@ test_that("marginal-means discovery rejects a fixed no-intercept scalar", {
   expect_match(out[["reason"]], "fixed by the fitted model")
   expect_error(
     hypothesis(object, "mu_intercept[intercept] > 0"),
-    class = "RoBMA_hypothesis_fixed"
+    class = "BayesTools_hypothesis_fixed"
   )
 })
 
@@ -459,7 +471,7 @@ test_that("hypothesis ordinate metadata is limited to requested values", {
     BayesTools::posterior_ordinate_append(ordinate(0), ordinate(1))
   refs <- data.frame(level = NA_character_, value = 1)
 
-  out <- .hypothesis_brma_keep_requested_ordinates(posterior, refs)
+  out <- BayesTools:::.hypothesis_model_keep_requested_ordinates(posterior, refs)
   entries <- .iwmde_posterior_ordinate_entries(
     BayesTools::posterior_metadata(out, "posterior_ordinate")
   )

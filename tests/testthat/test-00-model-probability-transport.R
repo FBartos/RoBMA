@@ -19,10 +19,10 @@ test_that("model probability diagnostics survive RoBMA refusal transport", {
   replaced <- .brma_draws_with_values(draws, as.numeric(draws))
   expect_identical(BayesTools::posterior_metadata(replaced, "measure_unavailable")$diagnostics[[1L]], diagnostics)
   condition <- tryCatch(BayesTools::posterior_atoms_free(draws), error = identity)
-  refusal <- .hypothesis_refusal_from_condition(condition)
+  refusal <- BayesTools:::.hypothesis_model_refusal_from_condition(condition)
   expect_identical(refusal$fields$diagnostics, diagnostics)
   expect_identical(refusal$reason, condition$message)
-  returned <- tryCatch(.hypothesis_stop(refusal), error = identity)
+  returned <- tryCatch(BayesTools:::.hypothesis_model_stop(refusal), error = identity)
   expect_identical(returned$diagnostics, diagnostics)
   malformed <- unavailable
   malformed$diagnostics[[1L]]$model_indices <- c(1L, 1L)
@@ -30,6 +30,13 @@ test_that("model probability diagnostics survive RoBMA refusal transport", {
 })
 
 test_that("linear coordinate readers distinguish current model and primitive contexts", {
+  # The reader of BayesTools words the refit request with the build and the
+  # condition class RoBMA passes (as the RoBMA entry points do).
+  linear_weight_space <- function(draws) {
+    BayesTools::posterior_linear_weight_space(
+      draws, build = "RoBMA/BayesTools", refit_class = "RoBMA_refit_required"
+    )
+  }
   compiled <- BayesTools::JAGS_formula(~ x, "mu", data.frame(x = c(10, 20, 30)),
     list(intercept = BayesTools::prior("normal", list(0, 1)),
       x = BayesTools::prior("normal", list(0, 1))), formula_scale = TRUE)
@@ -44,9 +51,9 @@ test_that("linear coordinate readers distinguish current model and primitive con
   draws <- function(context, space = "coefficient") with_draw_metadata(c(1, 2),
     linear_weights = c(mu_intercept = 1, mu_x = 1), linear_weight_space = space,
     prior_context = context)
-  expect_identical(.brma_linear_weight_space(draws(primitive)), "coefficient")
-  expect_identical(.brma_linear_weight_space(draws(model)), "coefficient")
-  expect_identical(.brma_linear_weight_space(draws(conditional)), "coefficient")
+  expect_identical(linear_weight_space(draws(primitive)), "coefficient")
+  expect_identical(linear_weight_space(draws(model)), "coefficient")
+  expect_identical(linear_weight_space(draws(conditional)), "coefficient")
   old <- model
   old$schema_version <- 1L
   expect_error(draws(old), "Recompute or refit")
@@ -58,14 +65,14 @@ test_that("linear coordinate readers distinguish current model and primitive con
   expect_error(draws(corrupt), "ownership")
   old <- primitive
   old$schema_version <- 2L
-  expect_error(.brma_linear_weight_space(draws(old)), class = "RoBMA_refit_required")
+  expect_error(linear_weight_space(draws(old)), class = "RoBMA_refit_required")
   for(context in list(primitive, model, conditional)){
     for(version in c(2L, 3L)){
       context$transforms$mu$descriptor$schema_version <- version
-      expect_error(.brma_linear_weight_space(draws(context)), class = "RoBMA_refit_required")
+      expect_error(linear_weight_space(draws(context)), class = "RoBMA_refit_required")
     }
   }
-  expect_error(.brma_linear_weight_space(draws(model, "formula_contribution")),
+  expect_error(linear_weight_space(draws(model, "formula_contribution")),
     class = "RoBMA_refit_required")
 })
 

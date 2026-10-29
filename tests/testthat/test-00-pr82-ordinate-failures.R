@@ -283,12 +283,19 @@ test_that("transformed hypotheses preserve early typed errors on the displayed s
     stage = "density aggregation", density_diagnostics = record),
     class = c("RoBMA_density_ordinate_error", "iwmde_ordinate_numerical_error", "error", "condition"))
   testthat::local_mocked_bindings(.iwmde_estimate = function(...) stop(original), .package = "RoBMA")
-  error <- tryCatch(.hypothesis_brma_attach_iwmde_scalar(
-    posterior = c(1, 4), raw_posterior = c(1, 2), context = list(), estimate_cache = NULL,
-    parameter = "tau", parameter_label = "tau2", value = 4, conditional = FALSE,
-    n_points = 20L, samples = 20L, target_relative_mcse = .05,
-    normalization_points = 20L, normalization_prob = .999, density_method = "qCMDE",
-    parameter_spec = list(type = "primitive"), display_transform = list(type = "square")
+  # The engine evaluates the variance through the draws of its standard
+  # deviation ('posterior'); 'values' are the requested values of the variance.
+  error <- tryCatch(.hypothesis_density_attach_scalar(
+    posterior = c(1, 2), context = list(), estimate_cache = NULL,
+    request = list(
+      parameter = "tau", label = "tau2", values = 4, conditional = NULL,
+      density_method = "qCMDE", spec = list(type = "primitive"),
+      display_transform = list(type = "square")
+    ),
+    control = list(
+      n_points = 20L, samples = 20L, target_relative_mcse = .05,
+      normalization_points = 20L, normalization_prob = .999
+    )
   ), error = identity)
   expect_identical(class(error), class(original))
   expect_identical(conditionMessage(error), conditionMessage(original))

@@ -193,6 +193,7 @@ test_that("plot and hypothesis helpers pass the explicit post-fit control", {
   control <- set_selection_likelihood_control(max_points_per_scramble = 32768)
   captured <- list()
   testthat::local_mocked_bindings(
+    .iwmde_check_point_ordinate_supported = function(...) invisible(TRUE),
     .iwmde_context = function(object, integration_control = NULL) {
       expect_identical(integration_control, control)
       list()
@@ -216,14 +217,22 @@ test_that("plot and hypothesis helpers pass the explicit post-fit control", {
     ),
     "Captured estimator input.", fixed = TRUE
   )
+  # The qCMDE/IWMDE backend of the hypothesis engine builds the context and
+  # the estimator control from the control of the request.
   expect_error(
-    .hypothesis_brma_attach_iwmde_scalar(
-      posterior = values, raw_posterior = values, context = list(),
-      estimate_cache = NULL, parameter = "mu", parameter_label = "mu",
-      value = 0, conditional = FALSE, n_points = 20L, samples = 20L,
-      target_relative_mcse = .05, normalization_points = 20L,
-      normalization_prob = .99, density_method = "qCMDE",
-      integration_control = control
+    .hypothesis_density_attach(
+      posterior = values,
+      request   = list(
+        kind = "scalar", object = list(), parameter = "mu", label = "mu",
+        values = 0, conditional = NULL, density_method = "qCMDE",
+        spec = NULL, display_transform = NULL
+      ),
+      control   = list(
+        n_points = 20L, samples = 20L, target_relative_mcse = .05,
+        normalization_points = 20L, normalization_prob = .99,
+        integration_control = control
+      ),
+      cache     = new.env(parent = emptyenv())
     ),
     "Captured estimator input.", fixed = TRUE
   )

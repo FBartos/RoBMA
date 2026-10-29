@@ -28,9 +28,9 @@ test_that("public no-intercept moderator means use the fitted contrast basis", {
 test_that("whole marginal-means regions retain structural fixed-cell refusal", {
   skip_on_cran()
   means <- marginal_means(.carrier_integration_fits()$nonzero, bf = FALSE)
-  expect_error(hypothesis(means, "g1 > 0", density_method = "KDE"), class = "RoBMA_hypothesis_fixed")
-  expect_error(hypothesis(means, "g1[5] > 0", density_method = "KDE"), class = "RoBMA_hypothesis_fixed")
-  expect_error(hypothesis(means, "g1 = 0", density_method = "KDE"), class = "RoBMA_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1 > 0", density_method = "KDE"), class = "BayesTools_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1[5] > 0", density_method = "KDE"), class = "BayesTools_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1 = 0", density_method = "KDE"), class = "BayesTools_hypothesis_fixed")
   expect_s3_class(hypothesis(means, "g1[10] > 0", density_method = "KDE"), "BayesTools_hypothesis_BF")
 })
 
@@ -75,7 +75,7 @@ test_that("point and region marginal groups select their own execution method", 
 test_that("derived public OR targets carry their effective declaration to scalar attachment", {
   skip_on_cran()
   means <- marginal_means(.carrier_integration_fits()$averaged, bf = FALSE)
-  plan <- .hypothesis_plan_marginal_means(means, "2 * g1[10] = 0")
+  plan <- engine_plan_marginal_means(means, "2 * g1[10] = 0")
   declared <- .iwmde_sample_condition_metadata(plan$linear_target$posterior)
   expect_identical(declared$conditional_rule, "OR")
   expect_length(declared$conditional, 2L)
@@ -121,16 +121,17 @@ test_that("declared stochastic contribution refusals are planned for levels and 
     fit <- load_fit(if (is.numeric(multiplier)) "lane_contribution_constant2" else "lane_contribution_tau")
     means <- marginal_means(fit, bf = FALSE)
     for(statement in c("g[B] = 0.1", "g[B] - g[A] = 0.1")){
-      plan <- .hypothesis_plan_marginal_means(means, statement)
-      expect_null(plan$methods$KDE)
+      plan <- engine_plan_marginal_means(means, statement)
+      expect_null(engine_plan_status(plan, means, "KDE"))
       if(is.numeric(multiplier)){
-        expect_null(plan$methods$qCMDE)
-        expect_null(plan$methods$IWMDE)
+        expect_null(engine_plan_status(plan, means, "qCMDE"))
+        expect_null(engine_plan_status(plan, means, "IWMDE"))
       }else{
         for(method in c("qCMDE", "IWMDE")){
-          expect_match(plan$methods[[method]]$reason, "stochastic formula contribution products", fixed = TRUE)
-          expect_true("RoBMA_density_method_original_scale" %in% plan$methods[[method]]$class)
-          expect_error(hypothesis(means, statement, density_method = method), class = "RoBMA_hypothesis_method")
+          refusal <- engine_plan_status(plan, means, method)
+          expect_match(refusal$reason, "stochastic formula contribution products", fixed = TRUE)
+          expect_true("RoBMA_density_method_original_scale" %in% refusal$class)
+          expect_error(hypothesis(means, statement, density_method = method), class = "BayesTools_hypothesis_method")
         }
       }
     }
@@ -144,10 +145,10 @@ test_that("random groups select point-owned attachment metadata independently of
   attr(object$data, "known_V") <- TRUE
   attr(object$data, "measure") <- "GEN"
   statements <- paste0("`(mu) study: tau(intercept)`", c(" > 0.1", " = 0.2"))
-  target <- .hypothesis_plans(object, statements)[[2L]]$density_target
+  target <- engine_plans(object, statements)[[2L]]$density_target
   captured <- list()
-  local_mocked_bindings(.hypothesis_plan_attach_scalar = function(parameter, spec, display_transform = NULL, ...){
-    captured[[length(captured) + 1L]] <<- list(parameter = parameter, spec = spec, display_transform = display_transform)
+  local_mocked_bindings(.hypothesis_density_attach = function(posterior, request, control, cache){
+    captured[[length(captured) + 1L]] <<- list(parameter = request$parameter, spec = request$spec, display_transform = request$display_transform)
     stop("Captured random point attachment", call. = FALSE)
   }, .package = "RoBMA")
   for(hypothesis in list(statements, rev(statements), statements[2L])){

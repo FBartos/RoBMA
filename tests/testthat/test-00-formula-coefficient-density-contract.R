@@ -81,14 +81,7 @@ test_that("transformed coefficient routes use exact structural weights", {
   attr(fit, "formula_scale") <- list(mu = compiled[["formula_scale"]])
   fit <- as_bayestools_fit(fit)
 
-  route <- .brma_formula_coefficient_route(
-    object   = list(fit = fit),
-    selected = list(
-      parameter = "mu_intercept",
-      component = "mods",
-      entry     = list(formula_parameter = "mu")
-    )
-  )
+  route <- engine_formula_route(fit, "mu", "mu_intercept")
 
   expect_identical(route[["type"]], "affine")
   expect_identical(route[["formula_parameter"]], "mu")
@@ -186,14 +179,14 @@ test_that("exp-affine KDE requires continuous unconditional structure", {
     points = data.frame(x = numeric(), p = numeric())
   ), class = c("prior_linear_density", "prior_density"))
 
-  expect_null(.hypothesis_plan_exp_affine_certify(posterior, prior_density))
+  expect_null(BayesTools:::.hypothesis_model_plan_exp_affine_certify(posterior, prior_density))
   # The marginal posterior of a certified target is BayesTools'
   # (test-02-hypothesis.R, "certified exp-affine KDE respects its open
   # support").
 
   refusal <- function(sample, density = prior_density) {
-    out <- .hypothesis_plan_exp_affine_certify(sample, density)
-    expect_identical(out[["class"]], c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable"))
+    out <- BayesTools:::.hypothesis_model_plan_exp_affine_certify(sample, density)
+    expect_identical(out[["class"]], c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable"))
     out[["reason"]]
   }
   atomic <- posterior
@@ -243,30 +236,23 @@ test_that("unit log-intercepts are identity maps on their positive support", {
   attr(fit, "formula_scale") <- list(log_tau = compiled[["formula_scale"]])
   fit <- as_bayestools_fit(fit)
 
-  route <- .brma_formula_coefficient_route(
-    object   = list(fit = fit),
-    selected = list(
-      parameter = "log_tau_intercept",
-      component = "scale",
-      entry     = list(formula_parameter = "log_tau")
-    )
-  )
+  route <- engine_formula_route(fit, "log_tau", "log_tau_intercept")
 
   # An identity map keeps the primitive qCMDE/IWMDE target of the
-  # coefficient itself (.hypothesis_plan_scalar()).
+  # coefficient itself (.hypothesis_model_plan_scalar()).
   expect_identical(route[["type"]], "identity")
   expect_identical(route[["weights"]], c(log_tau_intercept = 1))
   expect_identical(route[["support"]], c(0, Inf))
   description <- "transformed coefficient 'log_tau_intercept'"
   for (value in c(0, -1)) {
     expect_match(
-      .hypothesis_plan_support_refusal(value, route[["support"]], description)[["reason"]],
+      BayesTools:::.hypothesis_model_plan_support_refusal(value, route[["support"]], description)[["reason"]],
       "outside or on the boundary",
       fixed = TRUE,
       info = value
     )
   }
-  expect_null(.hypothesis_plan_support_refusal(1, route[["support"]], description))
+  expect_null(BayesTools:::.hypothesis_model_plan_support_refusal(1, route[["support"]], description))
 })
 
 
@@ -290,7 +276,7 @@ test_that("variance point statements keep their Bayes factor orientation through
       BayesTools::hypothesis_parse(statement),
       c(theta = parameter)
     )
-    transformed <- .hypothesis_plan_sd_hypothesis(original, sd)
+    transformed <- BayesTools:::.hypothesis_model_plan_sd_hypothesis(original, sd)
     expect_equal(
       transformed[["statements"]][[1L]][["left"]][["value"]],
       sqrt(original[["statements"]][[1L]][["left"]][["value"]])
@@ -314,14 +300,14 @@ test_that("variance point statements keep their Bayes factor orientation through
       }
     )
     expect_true(warned, info = statement)
-    restored <- .hypothesis_plan_sd_restore(out, original)
+    restored <- BayesTools:::.hypothesis_model_plan_sd_restore(out, original)
     # The densities are those of the variance: the SD densities over 2 * sd.
     expect_equal(
       as.numeric(restored[["prior"]]),
       as.numeric(out[["prior"]]) / (2 * 0.3),
       tolerance = 1e-12
     )
-    .hypothesis_brma_restore_hypothesis_labels(
+    BayesTools:::.hypothesis_model_restore_hypothesis_labels(
       out        = restored,
       hypothesis = original
     )
@@ -381,7 +367,7 @@ test_that("hypothesis results restore public interaction labels", {
     "alloc:ablat[random] < 0",
     "alloc:ablat[random] < alloc:ablat[systematic]"
   ))
-  out <- .hypothesis_brma_restore_hypothesis_labels(
+  out <- BayesTools:::.hypothesis_model_restore_hypothesis_labels(
     out             = out,
     hypothesis      = display_hypothesis,
     parameter_label = "alloc:ablat",

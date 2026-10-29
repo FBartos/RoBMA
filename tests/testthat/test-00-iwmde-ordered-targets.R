@@ -1237,9 +1237,10 @@ test_that("ordered partial uncertainty survives result assembly and public consu
       subset <- mixed[2:1, c("ordinate", "relative_mcse", "ess"), drop = FALSE]
       expect_identical(attr(subset, "footnotes"), attr(mixed, "footnotes"))
       expect_identical(subset[["ordinate"]], mixed[["ordinate"]][2:1])
-      combined <- .hypothesis_brma_bind_parameter_results(
+      combined <- BayesTools:::.hypothesis_model_bind_parameter_results(
         list(make_bf("one", frames[[1L]]), make_bf("two", frames[[2L]])), list(1L, 2L),
-        structure(list(statements = list(list(), list())), class = "BayesTools_hypothesis_ast"))
+        structure(list(statements = list(list(), list())), class = "BayesTools_hypothesis_ast"),
+        backend = BayesTools:::.hypothesis_model_backend("qCMDE"))
       expect_identical(density_diagnostics(combined)[["ordinate"]], mixed[["ordinate"]])
       expect_identical(attr(density_diagnostics(combined), "footnotes"), attr(mixed, "footnotes"))
       expect_match(paste(capture.output(print(density_diagnostics(combined))), collapse = " "),

@@ -38,26 +38,22 @@ test_that("fitted hypotheses resolve and rewrite the structured AST", {
   entries[["aliases"]] <- I(list(c("x", "mu_x")))
   entries[["member_quantity_ids"]] <- I(list(character()))
   ast <- BayesTools::hypothesis_parse("x > abs(x)")
-  testthat::local_mocked_bindings(
-    .brma_parameter_catalog_metadata = function(object) {
-      list(catalog = catalog, entries = entries)
-    },
-    .brma_parameter_catalog = function(...) {
-      stop("legacy catalog resolution is forbidden")
-    },
-    .package = "RoBMA"
-  )
+  # The engine resolves statements against the catalog of the provider
+  # (hypothesis_provider.brma() supplies it through 'metadata()' and the
+  # component vocabulary of the fitted brma objects).
+  provider <- engine_selection_provider()
+  provider[["metadata"]] <- function() list(catalog = catalog, entries = entries)
   testthat::local_mocked_bindings(
     hypothesis_parse = function(...) stop("hypothesis was parsed twice"),
     .package = "BayesTools"
   )
 
-  selected <- .hypothesis_brma_select_parameter(
-    object     = list(),
+  selected <- BayesTools:::.hypothesis_model_select_parameter(
+    provider   = provider,
     hypothesis = ast,
     component  = "mods"
   )
-  rewritten <- .hypothesis_brma_rewrite(
+  rewritten <- BayesTools:::.hypothesis_model_rewrite(
     hypothesis = ast,
     aliases    = selected[["aliases"]],
     parameter  = selected[["parameter"]]
@@ -105,7 +101,7 @@ test_that("marginal-means aliases never silently resolve collisions", {
   expect_error(
     .hypothesis_marginal_means_select_parameter(object, hypothesis, NULL),
     "alias 'mu' is ambiguous.*Specify 'parameter'",
-    class = "RoBMA_hypothesis_ambiguous"
+    class = "BayesTools_hypothesis_ambiguous"
   )
   # Statements resolved together that name several marginal-means parameters
   # are ambiguous too (hypothesis() resolves each statement on its own, so one
@@ -117,7 +113,7 @@ test_that("marginal-means aliases never silently resolve collisions", {
     .hypothesis_marginal_means_select_parameter(object, several, NULL),
     "multiple marginal-means parameters (mu_intercept, mu_mu), but one statement must refer to the marginal means of one parameter",
     fixed = TRUE,
-    class = "RoBMA_hypothesis_ambiguous"
+    class = "BayesTools_hypothesis_ambiguous"
   )
   for (statement in list(hypothesis, several)) {
     error <- tryCatch(
@@ -126,7 +122,7 @@ test_that("marginal-means aliases never silently resolve collisions", {
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement",
+      c("BayesTools_hypothesis_ambiguous", "BayesTools_hypothesis_statement",
         "error", "condition")
     )
   }
@@ -158,7 +154,7 @@ test_that("marginal-means aliases never silently resolve collisions", {
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_statement", "BayesTools_hypothesis_no_parameters",
+      c("BayesTools_hypothesis_statement", "BayesTools_hypothesis_no_parameters",
         "BayesTools_parameter_resolution_error", "error", "condition")
     )
     expect_identical(
@@ -174,7 +170,7 @@ test_that("marginal-means aliases never silently resolve collisions", {
   )
   expect_identical(
     class(error),
-    c("RoBMA_hypothesis_statement", "BayesTools_parameter_not_found",
+    c("BayesTools_hypothesis_statement", "BayesTools_parameter_not_found",
       "BayesTools_parameter_resolution_error", "error", "condition")
   )
   expect_match(
@@ -188,7 +184,7 @@ test_that("marginal-means aliases never silently resolve collisions", {
 test_that("hypothesis plans rewrite aliases independently by statement", {
 
   object <- review_factor_replay(c("A", "B"), "treatment", distribution = "normal")
-  plans <- .hypothesis_plans(
+  plans <- engine_plans(
     object,
     c("intercept > 0", "mu_intercept < 0"),
     component = "mods"
@@ -205,14 +201,14 @@ test_that("hypothesis plans rewrite aliases independently by statement", {
 test_that("point-null references must be direct", {
 
   expect_error(
-    .hypothesis_brma_point_refs(
+    BayesTools:::.hypothesis_model_point_refs(
       BayesTools::hypothesis_parse("2 * mu = 0"),
       parameter = "mu"
     ),
     "direct parameter or level reference"
   )
   expect_equal(
-    .hypothesis_brma_point_refs(
+    BayesTools:::.hypothesis_model_point_refs(
       BayesTools::hypothesis_parse("mu = 0"),
       parameter = "mu"
     )[["value"]],
@@ -220,11 +216,11 @@ test_that("point-null references must be direct", {
   )
   precise <- BayesTools::hypothesis_parse("mu = 0.701406683025")
   expect_identical(
-    .hypothesis_brma_point_refs(precise, parameter = "mu")[["value"]],
+    BayesTools:::.hypothesis_model_point_refs(precise, parameter = "mu")[["value"]],
     precise[["statements"]][[1L]][["left"]][["value"]]
   )
   expect_equal(
-    nrow(.hypothesis_brma_point_refs(
+    nrow(BayesTools:::.hypothesis_model_point_refs(
       BayesTools::hypothesis_parse("2 * mu > 0"),
       parameter = "mu"
     )),
@@ -237,20 +233,20 @@ test_that("only linear combinations of factor levels bypass the direct guard", {
 
   plan_of <- function(statement) {
     ast <- BayesTools::hypothesis_parse(statement)
-    .hypothesis_plan_new(
+    BayesTools:::.hypothesis_model_plan_new(
       statement = ast, hypothesis = ast, parameter = "mu", label = "mu",
       component = "mods"
     )
   }
   # Scalar parameters need a direct point reference; factor levels are
   # linear targets whose combinations BayesTools compiles
-  # (.hypothesis_plan_linear()).
+  # (.hypothesis_model_plan_linear()).
   # The statement has to be restated: a statement error, not an unavailable
   # test.
-  refusal <- .hypothesis_plan_direct_refusal(plan_of("2 * mu = 0"))
-  expect_identical(refusal[["class"]], "RoBMA_hypothesis_statement")
+  refusal <- BayesTools:::.hypothesis_model_plan_direct_refusal(plan_of("2 * mu = 0"))
+  expect_identical(refusal[["class"]], "BayesTools_hypothesis_statement")
   expect_match(refusal[["reason"]], "direct parameter or level reference", fixed = TRUE)
-  expect_null(.hypothesis_plan_direct_refusal(plan_of("mu = 0")))
-  expect_null(.hypothesis_plan_direct_refusal(plan_of("mu > 0")))
+  expect_null(BayesTools:::.hypothesis_model_plan_direct_refusal(plan_of("mu = 0")))
+  expect_null(BayesTools:::.hypothesis_model_plan_direct_refusal(plan_of("mu > 0")))
 })
 

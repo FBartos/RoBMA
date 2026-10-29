@@ -429,7 +429,7 @@ test_that("density_diagnostics exposes fixed-sample numerical diagnostics", {
     data.frame(BF = 1, row.names = "mu = 0"),
     class = c("BayesTools_hypothesis_BF", "data.frame")
   )
-  table <- .hypothesis_brma_append_iwmde_warnings(table, posterior)
+  table <- engine_append_warnings(table, posterior, "IWMDE")
   out   <- density_diagnostics(table)
 
   expect_identical(class(out), c("RoBMA_density_diagnostics", "data.frame"))

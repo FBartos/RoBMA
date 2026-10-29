@@ -12,7 +12,7 @@ test_that("actual brma coefficients and static-method routes use the compiled ow
   expect_equal(as.numeric(original$mu_x), rep(.2, nrow(draws)), tolerance = 1e-14)
   selected <- list(parameter = "mu_intercept", component = "mods",
     entry = list(formula_parameter = "mu", component = "mods", role = "fixed_coefficient", status = "structural", fixed_value = 5))
-  route <- .brma_formula_coefficient_route(fit, selected)
+  route <- engine_formula_route(fit, "mu", "mu_intercept")
   expect_identical(route$type, "state_dependent")
   expect_null(route$cause)
   expect_true("tau" %in% names(route$state_sources))
@@ -38,19 +38,19 @@ test_that("formula contribution weights fold constants and refuse stochastic pro
     sample <- with_draw_metadata(c(1, 2), linear_weights = c(mu_intercept = 1, mu_x = 1),
       linear_weight_space = "formula_contribution", prior_context = context)
     if(is.numeric(multiplier)){
-      expect_identical(.brma_fitted_linear_weights(sample, c(mu_intercept = 1, mu_x = 1)),
+      expect_identical(.iwmde_fitted_linear_weights(sample, c(mu_intercept = 1, mu_x = 1)),
         c(mu_intercept = 1, mu_x = -3))
     }else{
-      expect_error(.brma_fitted_linear_weights(sample, c(mu_intercept = 1, mu_x = 1)),
+      expect_error(.iwmde_fitted_linear_weights(sample, c(mu_intercept = 1, mu_x = 1)),
         class = "RoBMA_density_method_original_scale")
     }
   }
   unavailable <- data.frame(column = "mu_intercept", measure = "prior_density",
     reason = "unsupported_contribution_measure")
   sample <- with_draw_metadata(c(1, 2), measure_unavailable = unavailable)
-  expect_error(.brma_formula_measure_check(sample, "prior_density"),
+  expect_error(BayesTools::posterior_formula_measure_check(sample, "prior_density"),
     class = "BayesTools_formula_prior_density_unavailable")
-  expect_silent(.brma_formula_measure_check(sample, "atoms"))
+  expect_silent(BayesTools::posterior_formula_measure_check(sample, "atoms"))
 })
 
 test_that("public contribution combinations fold constants once for both ordinate methods", {
@@ -64,7 +64,7 @@ test_that("public contribution combinations fold constants once for both ordinat
     key <- if (is.numeric(multiplier)) paste0("lane_contribution_constant", multiplier) else "lane_contribution_tau"
     fit <- load_fit(key)
     means <- marginal_means(fit, bf = FALSE)
-    plan <- .hypothesis_plan_marginal_means_build(means, "g[B] - g[A] = 0.1")
+    plan <- engine_plan_marginal_means(means, "g[B] - g[A] = 0.1")
     spec <- plan$targets[[1L]]$spec
     if(is.numeric(multiplier)){
       expect_equal(as.numeric(spec$weights), multiplier, tolerance = 1e-14)
@@ -106,20 +106,26 @@ test_that("scalar discovery retains declared refusal rows and usable sibling qua
 test_that("scalar and exp-affine plans catch only declared measure refusal conditions", {
 
   condition <- tryCatch(BayesTools:::.bt_formula_density_stop("Declared law unavailable.", reason = "numerical_scale_unavailable"), error = identity)
-  plan <- list(parameter = "mu_x", selected = list(entry = list()), standardized = FALSE)
+  plan <- list(parameter = "mu_x", selected = list(entry = list()), transform_scaled = TRUE)
+  plan_of <- function(exp) {
+    if(exp) BayesTools:::.hypothesis_model_plan_exp_affine(plan, list(), list(), list()) else
+      BayesTools:::.hypothesis_model_plan_scalar(plan, list(), list())
+  }
   for(exp in c(FALSE, TRUE)){
     testthat::with_mocked_bindings({
-      result <- if(exp) .hypothesis_plan_exp_affine(plan, list(), list(), list()) else .hypothesis_plan_scalar(plan, list(), list())
-      expect_identical(result$refusal, .hypothesis_refusal_from_condition(condition))
+      result <- plan_of(exp)
+      expect_identical(result$refusal, BayesTools:::.hypothesis_model_refusal_from_condition(condition))
       expect_identical(result$kind, if(exp) "exp_affine" else "scalar")
-    }, .hypothesis_plan_scalar_available = function(...) stop(condition),
-       .hypothesis_plan_exp_affine_available = function(...) stop(condition))
+    }, .hypothesis_model_plan_scalar_available = function(...) stop(condition),
+       .hypothesis_model_plan_exp_affine_available = function(...) stop(condition),
+       .package = "BayesTools")
     for(class in c("BayesTools_refit_required", "BayesTools_formula_transform_unavailable", "simpleError")){
       error <- structure(list(message = "Strict owner or programming failure.", call = NULL), class = c(class, "error", "condition"))
       testthat::with_mocked_bindings({
-        expect_error(if(exp) .hypothesis_plan_exp_affine(plan, list(), list(), list()) else .hypothesis_plan_scalar(plan, list(), list()), class = class)
-      }, .hypothesis_plan_scalar_available = function(...) stop(error),
-         .hypothesis_plan_exp_affine_available = function(...) stop(error))
+        expect_error(plan_of(exp), class = class)
+      }, .hypothesis_model_plan_scalar_available = function(...) stop(error),
+         .hypothesis_model_plan_exp_affine_available = function(...) stop(error),
+         .package = "BayesTools")
     }
   }
 })

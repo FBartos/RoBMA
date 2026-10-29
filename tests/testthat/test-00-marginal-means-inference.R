@@ -434,7 +434,7 @@ test_that("declared unavailable marginal measures retain valid sibling BFs and l
     statement <- paste0("g[", name, "] = 0")
     original_refusal <- tryCatch(hypothesis(stored, statement), error = identity)
     refusal <- expect_error(hypothesis(direct, statement),
-      class = "RoBMA_hypothesis_target")
+      class = "BayesTools_hypothesis_target")
     expect_identical(class(refusal), class(original_refusal))
     expect_identical(conditionMessage(refusal), conditionMessage(original_refusal))
   }

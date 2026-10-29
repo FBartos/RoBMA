@@ -219,13 +219,13 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
   )
   native_factor <- factor[["selection"]][["quantities"]][["extraction_key"]][[1L]]
   expect_identical(native_factor[["dependencies"]], c("mu_f[1]", "mu_f[2]"))
-  factor_hypothesis <- .hypothesis_brma_select_parameter(
-    object     = object,
+  factor_hypothesis <- BayesTools:::.hypothesis_model_select_parameter(
+    provider   = engine_selection_provider(object),
     hypothesis = "f[B] > f[C]",
     component  = "auto"
   )
-  factor_hypothesis_explicit <- .hypothesis_brma_select_parameter(
-    object     = object,
+  factor_hypothesis_explicit <- BayesTools:::.hypothesis_model_select_parameter(
+    provider   = engine_selection_provider(object),
     hypothesis = "f[B] > f[C]",
     component  = "mods"
   )
@@ -281,8 +281,8 @@ test_that("fitted parameter discovery is metadata-only and component-aware", {
     catalog        = resolved_catalog,
     simplify_names = TRUE
   )
-  selected_random_hypothesis <- .hypothesis_brma_select_parameter(
-    object     = object,
+  selected_random_hypothesis <- BayesTools:::.hypothesis_model_select_parameter(
+    provider   = engine_selection_provider(object),
     hypothesis = random_hypothesis,
     component  = "random"
   )

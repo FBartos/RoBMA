@@ -129,7 +129,7 @@ test_that("hypothesis discovery lists point tests of gated random quantities", {
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+      c("BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable",
         class(plotted)),
       info = method
     )
@@ -150,7 +150,7 @@ test_that("hypothesis discovery lists point tests of gated random quantities", {
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_target", "RoBMA_hypothesis_unavailable",
+      c("BayesTools_hypothesis_target", "BayesTools_hypothesis_unavailable",
         "RoBMA_density_method_random_target",
         "RoBMA_density_method_unavailable", "error", "condition"),
       info = method

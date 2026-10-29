@@ -118,7 +118,7 @@ test_that("conditional random-effect plots refuse qCMDE/IWMDE with the density-m
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+      c("BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable",
         "RoBMA_density_method_conditional_random",
         "RoBMA_density_method_unavailable", "error", "condition"),
       info = method
@@ -149,7 +149,7 @@ test_that("conditional random-effect plots refuse qCMDE/IWMDE with the density-m
     )
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_method", "RoBMA_hypothesis_unavailable",
+      c("BayesTools_hypothesis_method", "BayesTools_hypothesis_unavailable",
         class(plotted)),
       info = method
     )

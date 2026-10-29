@@ -39,7 +39,7 @@ test_that("different level expressions with equal fitted weights are separate gr
   exact_pair <- c("g[A] - g[B] = 0.1", "2 * g[A] = 0.1")
 
   groups <- function(object, statements) {
-    vapply(.hypothesis_plans(object, statements), `[[`, character(1), "group")
+    vapply(engine_plans(object, statements), `[[`, character(1), "group")
   }
   expect_length(unique(groups(three, seed_pair)), 2L)
   expect_length(unique(groups(two, exact_pair)), 2L)
@@ -62,8 +62,9 @@ test_that("different level expressions with equal fitted weights are separate gr
 
 # The group key of a level combination reads the level coefficients of a
 # statement side from this public BayesTools helper
-# (.hypothesis_plan_combination_group). A rename or a changed return value
-# there must fail here, with the reason, instead of in every grouped call.
+# (BayesTools:::.hypothesis_model_plan_combination_group). A rename or a
+# changed return value there must fail here, with the reason, instead of in
+# every grouped call.
 test_that("the BayesTools linear-target side helper the group key uses is unchanged", {
 
   side_function <- tryCatch(
@@ -73,8 +74,8 @@ test_that("the BayesTools linear-target side helper the group key uses is unchan
   expect_true(
     is.function(side_function),
     info = paste(
-      "BayesTools::hypothesis_linear_target_side is gone; RoBMA's",
-      ".hypothesis_plan_combination_group() depends on it."
+      "BayesTools::hypothesis_linear_target_side is gone; the engine's",
+      ".hypothesis_model_plan_combination_group() depends on it."
     )
   )
   if (!is.function(side_function)) {
@@ -186,7 +187,7 @@ test_that("a marginal-means parameter is refused for statements of another param
   skip_on_cran()
   means <- marginal_means(load_fit("hypothesis_plan_treatment"), bf = FALSE)
   mismatch <- c(
-    "RoBMA_hypothesis_parameter_mismatch", "RoBMA_hypothesis_statement",
+    "BayesTools_hypothesis_parameter_mismatch", "BayesTools_hypothesis_statement",
     "error", "condition"
   )
   requests <- list(
@@ -274,7 +275,7 @@ test_that("one marginal-means statement names the marginal means of one paramete
     error <- tryCatch(hypothesis(means, statement), error = identity)
     expect_identical(
       class(error),
-      c("RoBMA_hypothesis_ambiguous", "RoBMA_hypothesis_statement",
+      c("BayesTools_hypothesis_ambiguous", "BayesTools_hypothesis_statement",
         "error", "condition"),
       info = statement
     )

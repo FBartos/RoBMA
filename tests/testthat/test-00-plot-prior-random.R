@@ -333,8 +333,8 @@ test_that("random correlations without an original-scale prior retain target ref
     plot_prior(fit, "rho(intercept,x)", standardized_coefficients = FALSE),
     error = identity
   )
-  expect_s3_class(error, "RoBMA_hypothesis_target")
-  expect_s3_class(error, "RoBMA_hypothesis_unavailable")
+  expect_s3_class(error, "BayesTools_hypothesis_target")
+  expect_s3_class(error, "BayesTools_hypothesis_unavailable")
 
   # the correlation has its exact prior on the fitted scale
   expect_error(

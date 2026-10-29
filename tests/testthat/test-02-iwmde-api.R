@@ -965,11 +965,11 @@ test_that("primitive AST symbols match qCMDE/IWMDE warning records", {
     "mu_intercept = 0"
   )$statements[[1L]][["left"]]
 
-  expect_true(.hypothesis_brma_warning_side_matches(side, record))
+  expect_true(BayesTools:::.hypothesis_model_warning_side_matches(side, record))
   side <- BayesTools::hypothesis_parse(
     "tau = 0"
   )$statements[[1L]][["left"]]
-  expect_false(.hypothesis_brma_warning_side_matches(side, record))
+  expect_false(BayesTools:::.hypothesis_model_warning_side_matches(side, record))
 })
 
 
@@ -1858,7 +1858,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     posterior_ordinate = qcmde_warn
   )
   table <- data.frame(BF = "1", row.names = "mu")
-  table <- .hypothesis_brma_append_iwmde_warnings(
+  table <- engine_append_warnings(
     table     = table,
     posterior = posterior
   )
@@ -1893,7 +1893,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     "theta = 0",
     "theta = 1"
   ))
-  table <- .hypothesis_brma_append_iwmde_warnings(
+  table <- engine_append_warnings(
     table     = table,
     posterior = posterior
   )
@@ -1911,7 +1911,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     "hypothesis_ast",
     exact = TRUE
   )
-  compact_table <- .hypothesis_brma_append_iwmde_warnings(
+  compact_table <- engine_append_warnings(
     table     = compact_table,
     posterior = posterior
   )
@@ -1942,7 +1942,7 @@ test_that("qCMDE ordinate and IWMDE mass thresholds warn before failing", {
     check.names = FALSE
   )
   attr(table, "hypothesis_ast") <- BayesTools::hypothesis_parse("mu = 0")
-  table <- .hypothesis_brma_append_iwmde_warnings(
+  table <- engine_append_warnings(
     table     = table,
     posterior = factor_posterior
   )
@@ -2157,7 +2157,7 @@ test_that("density_control validates public density settings", {
   expect_equal(valid_iwmde[["samples"]], 1000)
   expect_equal(valid_iwmde[["normalization_points"]], 40)
   expect_equal(valid_iwmde[["normalization_prob"]], .95)
-  mm_iwmde <- .hypothesis_marginal_means_density_control(
+  mm_iwmde <- .marginal_means_iwmde_settings_control(
     object = list(density_settings = list(
       density_method       = "IWMDE",
       n_points             = 20,
@@ -2166,18 +2166,18 @@ test_that("density_control validates public density settings", {
       normalization_prob   = .95,
       display_grid         = "uniform"
     )),
-    density_method  = "IWMDE",
-    density_control = NULL
+    density_method = "IWMDE",
+    display_grid   = "ordinate"
   )
   expect_equal(mm_iwmde[["normalization_points"]], 40)
   expect_equal(mm_iwmde[["normalization_prob"]], .95)
   for (stored_method in list(NULL, "qCMDE")) {
-    fresh <- .hypothesis_marginal_means_density_control(
+    fresh <- .marginal_means_iwmde_settings_control(
       object = list(density_settings = list(density_method = stored_method,
         normalization_points = 40, normalization_prob = .95)),
-      density_method = "IWMDE", density_control = NULL)
-    defaults <- .hypothesis_marginal_means_density_control(
-      object = list(), density_method = "IWMDE", density_control = NULL)
+      density_method = "IWMDE", display_grid = "ordinate")
+    defaults <- .marginal_means_iwmde_settings_control(
+      object = list(), density_method = "IWMDE", display_grid = "ordinate")
     expect_identical(fresh$normalization_points, defaults$normalization_points)
     expect_identical(fresh$normalization_prob, defaults$normalization_prob)
   }
