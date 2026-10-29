@@ -96,7 +96,9 @@ matching `Makevars*` source lists consistent when native sources change.
 - Use the fourth DESCRIPTION version component for development revisions and
   keep NEWS under the intended three-component release. The maintainer sets the
   final DESCRIPTION release version immediately before merging the release PR.
-  Update NEWS for the final feature state.
+  Update NEWS for the final feature state: one short line per user-visible
+  change since the last release, revising existing entries instead of
+  recording changes to unreleased work.
 - Preserve released interfaces, including the compatibility periods documented
   in the model-interface guide.
 - Use `skip_on_cran()` for computationally intensive tests. Keep `AGENTS.md`,
