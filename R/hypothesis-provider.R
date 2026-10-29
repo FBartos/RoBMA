@@ -173,7 +173,7 @@ hypothesis_provider.brma <- function(object, ...) {
       )
     },
     support          = function(selected) {
-      .brma_random_parameter_support(selected)
+      .brma_random_parameter_support(selected, object = object)
     },
     density_target   = function(parameter, transform_scaled, operation) {
       .brma_random_parameter_density_target(
