@@ -164,7 +164,7 @@ returns a named list of component-specific \code{brma_samples} objects; with
 result of \code{\link{pooled_heterogeneity}} (a named list for several
 components, one \code{brma_samples} object for a single component), computed
 with the arithmetic mean of the observation-specific tau of a scale formula;
-its components are titled \dQuote{Pooled Heterogeneity (\if{html}{\out{<block>}})} and
+its components are titled \dQuote{Pooled Heterogeneity (\verb{<block>})} and
 \dQuote{Total Pooled Heterogeneity}.
 When printed, each \code{brma_samples} object displays a summary table via
 \code{BayesTools::ensemble_estimates_table}. The underlying samples matrix
