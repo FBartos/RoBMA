@@ -360,11 +360,11 @@ test_that("print_prior() lists the location priors before tau and the scale prio
   )
 })
 
-test_that("the location-scale summary carries the released footnote", {
+test_that("the location-scale summary carries the released footnote wording with the exp(intercept) label", {
 
   fit <- .surface_fit("scale")
   footnote <- paste0(
-    "exp(Intercept) corresponds to the between-study heterogeneity tau; ",
+    "exp(intercept) corresponds to the between-study heterogeneity tau; ",
     "the meta-regression coefficients correspond to the multiplicative ",
     "effects on log-scale."
   )

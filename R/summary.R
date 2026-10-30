@@ -694,7 +694,7 @@ print.brma <- function(x, ...) {
 
   if (!.is_random(object)) {
     return(paste0(
-      "exp(Intercept) corresponds to the between-study heterogeneity tau; ",
+      "exp(intercept) corresponds to the between-study heterogeneity tau; ",
       "the meta-regression coefficients correspond to the multiplicative ",
       "effects on log-scale."
     ))

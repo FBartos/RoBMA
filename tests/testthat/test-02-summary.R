@@ -179,7 +179,7 @@ test_that("scalar multivariate summary labels respect declared SD priors", {
   )
   model_types <- c("Fixed-Effect", "Random-Effects", "Random-Effects")
   footnote <- paste0(
-    "exp(Intercept) corresponds to the between-study heterogeneity tau; ",
+    "exp(intercept) corresponds to the between-study heterogeneity tau; ",
     "the meta-regression coefficients correspond to the multiplicative ",
     "effects on log-scale."
   )
