@@ -1,7 +1,7 @@
 ---
 title: "Prior Distributions"
 author: "František Bartoš"
-date: "28th of April 2026 (updated: 25th of October 2026)"
+date: "28th of April 2026 (updated: 29th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -329,76 +329,42 @@ The named list extends naturally: with multiple moderators, each entry can speci
 
 ### Random-effect component prior distributions
 
-The `brma.mv()` function uses random-effect formulas to decompose residual heterogeneity into named components.
-The default prior distributions follow the same unit-information scaling as the scalar heterogeneity prior distribution, but the printed random-effect prior distribution makes the allocation logic explicit.
-It shows the standard-deviation prior distributions, the allocation weights, and the implied component standard deviations.
+Many meta-analyses report several effect sizes per study, and `brma.mv()` decomposes the heterogeneity into named random-effect components, such as between-study and within-study heterogeneity.
+Instead of placing an independent prior distribution on each component, the default prior distribution specifies the total heterogeneity with the usual unit-information scale and allocates its variance among the components.
 
-For illustration, we use a small display-only dataset.
+The `Havrankova2025` dataset contains 1,159 estimates from 67 studies, identified by `study_id`.
+We add an estimate identifier and specify a three-level model with estimates nested within studies:
 
-```{r mv-prior-data}
-mv_dat <- data.frame(
-  yi      = c(0.10, 0.20, 0.30, 0.40),
-  study   = c("s1", "s1", "s2", "s2"),
-  esid    = paste0("e", 1:4),
-  outcome = factor(c("c1", "c2", "c1", "c2"))
-)
-mv_V <- diag(rep(0.04, nrow(mv_dat)))
-```
+```{r Havrankova-multilevel}
+Havrankova2025$estimate_id <- seq_len(nrow(Havrankova2025))
 
-A single homogeneous random-effect component receives the default positive-normal prior distribution directly on its standard deviation:
-
-```{r mv-random-single-default}
-mv_random_single <- brma.mv(
-  yi = yi, V = mv_V, measure = "GEN",
-  random = ~ 1 | study,
-  prior_unit_information_sd = 1,
-  data = mv_dat, only_priors = TRUE
+Havrankova_multilevel_priors <- brma.mv(
+  yi = y, sei = se, ni = N, measure = "GEN",
+  random = ~ 1 | study_id / estimate_id,
+  data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(mv_random_single, parameter = "random")
+print_prior(Havrankova_multilevel_priors, parameter = "random")
 ```
 
-The printed output shows one block, `study`, and one standard-deviation prior distribution.
-There is no allocation layer because there is only one homogeneous random-effect standard deviation.
+The total heterogeneity `sigma_total` receives the same positive `Normal(0, 12.9)` prior distribution as `tau` in the single-level model above.
+The `Dirichlet(1, 1)` prior distribution on the weights `w` splits the total variance uniformly between the estimate-within-study and the study components, and each component standard deviation equals `sigma_total` multiplied by the square root of its weight.
+As a result, adding components does not inflate the prior distribution on the total heterogeneity.
+The single-cluster interface, `brma(..., cluster = study_id)` and `RoBMA(..., cluster = study_id)`, specifies the same model through `tau` and the between-study proportion of the heterogeneity variance `rho`, where the `Beta(1, 1)` prior distribution on `rho` is the two-component case of this allocation.
 
-Nested random intercepts need more than one variance component.
-In that case, the default prior distribution uses one total standard deviation and a `Dirichlet(1, 1)` allocation prior distribution:
+The defaults for other random-effect structures follow the same logic:
 
-```{r mv-random-nested-default}
-mv_random_nested <- brma.mv(
-  yi = yi, V = mv_V, measure = "GEN",
-  random = ~ 1 | study / esid,
-  prior_unit_information_sd = 1,
-  data = mv_dat, only_priors = TRUE
-)
+| Random-effect structure | Default prior distribution |
+|:--|:--|
+| One component with a single standard deviation | positive `Normal(0, 0.25 * UISD)` on the component standard deviation |
+| Several components (nested or listed terms) | positive `Normal(0, 0.25 * UISD)` on the total standard deviation and `Dirichlet(1, ..., 1)` allocation of its variance among the components |
+| One standard deviation per level or coefficient (`hcs()`, `har()`, `diag()`, `us()`) | positive `Normal(0, 0.25 * UISD)` on the common standard deviation and `Dirichlet(1, ..., 1)` allocation of the mean variance among the levels |
+| Compound-symmetric correlation (`cs()`, `hcs()`) | uniform on `(-1 / (K - 1), 1)`, with `K` index levels |
+| Autoregressive correlation (`ar1()`, `har()`, `car()`) | uniform on `(-1, 1)`, or `[0, 1)` for `car()` |
+| Unstructured correlation (`us()` and random slopes) | `LKJ(1)`, uniform over correlation matrices |
 
-print_prior(mv_random_nested, parameter = "random")
-```
-
-The output reports the total standard-deviation prior distribution, the allocation weights `w`, and the implied component standard deviations.
-For this nested model, the two components are the estimate-within-study component (`esid_study`) and the study component (`study`).
-The allocation is on the variance scale, so `sigma_esid_study` and `sigma_study` are computed by multiplying `sigma_total` by the square root of the corresponding weight.
-
-Heterogeneous random-effect structures use the same idea inside a single block.
-For example, `hcs(outcome | study)` estimates one standard deviation per outcome level and one common correlation parameter:
-
-```{r mv-random-heterogeneous-default}
-mv_random_heterogeneous <- brma.mv(
-  yi = yi, V = mv_V, measure = "GEN",
-  random = ~ hcs(outcome | study),
-  prior_unit_information_sd = 1,
-  data = mv_dat, only_priors = TRUE
-)
-
-print_prior(mv_random_heterogeneous, parameter = "random")
-```
-
-The prior display now uses `sigma_common` and shows `scale: mean_variance`.
-For a heterogeneous block with $q$ standard-deviation components and allocation weight $w_j$, the $j$th component standard deviation is `sigma_common * sqrt(q * w[j])`.
-Equal weights make each component SD equal to the common scale, while unequal weights move variance among the components without changing the average component variance.
-The block also receives a uniform prior on the complete valid raw-correlation interval, `(-1 / (K - 1), 1)`, where `K` is the number of outcome levels.
-
-For custom random-effect prior distributions via `prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
+Use `print_prior(..., parameter = "random")` to display the allocation implied by a particular `random` formula.
+For applications, including correlated sampling errors, multivariate structures, and custom random-effect prior distributions via `prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 
 ## Informed Empirical Prior Distributions
 
