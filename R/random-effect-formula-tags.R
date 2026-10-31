@@ -69,6 +69,13 @@
 #'     specifying an explicit `name` for prior matching and summaries.
 #' }
 #'
+#' Under `diag()`, `us()`, and plain bars, the contrast columns of a
+#' mean-difference or orthonormal factor term are one exchangeable unit: they
+#' share one standard deviation and are uncorrelated with each other, while
+#' `us()` keeps the unit's correlations with the other columns. A `us()` block
+#' that is a single such unit therefore has no correlation parameter, and a
+#' `us()` block cannot hold two such terms with three or more levels.
+#'
 #' The discrete structured tags `cs()`, `hcs()`, `ar1()`, and `har()` accept
 #' factor, character, numeric/integer, or logical index columns. Existing factor
 #' level order is retained; otherwise sorted unique values determine the levels

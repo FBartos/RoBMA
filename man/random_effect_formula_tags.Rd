@@ -71,6 +71,13 @@ default this uses an unstructured covariance, and it can be useful when
 specifying an explicit \code{name} for prior matching and summaries.
 }
 
+Under \code{diag()}, \code{us()}, and plain bars, the contrast columns of a
+mean-difference or orthonormal factor term are one exchangeable unit: they
+share one standard deviation and are uncorrelated with each other, while
+\code{us()} keeps the unit's correlations with the other columns. A \code{us()} block
+that is a single such unit therefore has no correlation parameter, and a
+\code{us()} block cannot hold two such terms with three or more levels.
+
 The discrete structured tags \code{cs()}, \code{hcs()}, \code{ar1()}, and \code{har()} accept
 factor, character, numeric/integer, or logical index columns. Existing factor
 level order is retained; otherwise sorted unique values determine the levels

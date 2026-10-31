@@ -313,7 +313,7 @@ NULL
   owner              <- specs[["owner_type"]]
 
   return(
-    quantity %in% c("cor", "inclusion") |
+    quantity %in% c("cor", "cor_total", "inclusion") |
       (owner == "random_block" & quantity == "sd" & !allocation_derived) |
       (owner == "variance_allocation" &
          quantity %in% c("sd_total", "sd_common", "var_prop", "var_mult"))

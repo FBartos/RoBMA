@@ -206,13 +206,21 @@
 
 
 # Influence retains the complete posterior request. A semantic correlation
-# declared undefined at zero SD is unavailable, rather than a malformed draw.
+# declared undefined (at zero SD, or for a multiple correlation also at a
+# singular factor-term correlation matrix) is unavailable, rather than a
+# malformed draw.
 .diagnostic_check_random_defined <- function(samples, diagnostic) {
 
   declared <- BayesTools::posterior_metadata(samples, "undefined_draws")
   if (is.null(declared)) return(invisible(NULL))
+  explanations <- c(
+    correlation          = "the correlation is undefined when either SD is zero",
+    multiple_correlation = paste0("the multiple correlation is undefined when an ",
+      "SD is zero or the correlation matrix of the factor term is singular")
+  )
   samples <- as.matrix(samples)
-  correlation <- colnames(samples) %in% names(declared)[declared == "correlation"]
+  reason <- unname(declared[match(colnames(samples), names(declared))])
+  correlation <- reason %in% names(explanations)
   missing <- is.na(samples)
   allowed <- matrix(correlation, nrow(samples), ncol(samples), byrow = TRUE)
   # Leave undeclared missing or infinite values to the ordinary validator.
@@ -226,7 +234,7 @@
   stop(
     diagnostic, " is unavailable for random-effect quantity ",
     paste(quantities, collapse = ", "),
-    " because the correlation is undefined when either SD is zero. ",
+    " because ", paste(unique(explanations[reason[affected]]), collapse = " and "), ". ",
     "Use 'component = \"random\"' and 'parameter' to explicitly select an ",
     "everywhere-defined quantity.",
     call. = FALSE

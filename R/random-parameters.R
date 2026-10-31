@@ -10,6 +10,7 @@
     sd_common  = "tau_common",
     var_common = "tau2_common",
     cor        = "rho",
+    cor_total  = "rho_total",
     var_prop   = "tau2_prop",
     sd_mult    = "tau_mult",
     var_mult   = "tau2_mult"
@@ -1055,6 +1056,10 @@
 }
 
 
+# The first design column of the SD leaf of a random-effect SD quantity (the
+# leaf components are unique; a leaf such as an exchangeable unit or the
+# indicator columns of a logical predictor's interaction spans several
+# columns, whose allocation factors and SD nodes are the same).
 .brma_random_parameter_component_column <- function(term, spec) {
 
   components <- term[["sd_component_terms"]]
@@ -1070,12 +1075,17 @@
     unname(components),
     term
   )
-  matches <- which(
+  leaf <- which(
     !is.na(components) &
       components == BayesTools::JAGS_parameter_names(spec[["random_component"]])
   )
+  leaf_index_by_column <- term[["sd_leaves"]][["leaf_index_by_column"]]
+  if (length(leaf) != 1L || is.null(leaf_index_by_column)) {
+    return(NA_integer_)
+  }
+  column <- which(leaf_index_by_column == leaf)
 
-  if (length(matches) == 1L) as.integer(matches) else NA_integer_
+  if (length(column) >= 1L) as.integer(column[[1L]]) else NA_integer_
 }
 
 

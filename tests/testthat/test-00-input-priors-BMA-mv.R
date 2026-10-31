@@ -576,3 +576,74 @@ test_that("an unused heterogeneity root does not reserve a component allocation 
   expect_identical(allocations$heterogeneity$label, "heterogeneity")
 })
 
+
+
+test_that("BMA.mv mean-difference factor slopes are exchangeable units with one SD component", {
+
+  dat <- data.frame(
+    yi    = c(-0.2, 0.1, 0.3, 0.5, 0.0, 0.2, 0.4, -0.1, 0.25),
+    group = factor(rep(c("a", "b", "c"), 3L)),
+    pair  = factor(rep(c("u", "v", "u"), 3L)),
+    study = factor(rep(c("s1", "s2", "s3"), each = 3L))
+  )
+  stage <- function(mods, random){
+    BMA.mv(
+      yi = yi, V = diag(0.04, nrow(dat)), mods = mods, random = random,
+      data = dat, measure = "GEN", prior_unit_information_sd = 1,
+      only_priors = TRUE
+    )
+  }
+  random_term <- function(object){
+    .fitted_formula_design(object, "mu", required = TRUE)[["random_effects"]][[1L]]
+  }
+  component_weights <- function(object){
+    allocations <- object[["priors"]][["random"]][["allocation"]]
+    components  <- Filter(function(allocation) {
+      identical(allocation[["target"]], "sd_component")
+    }, allocations)
+    expect_length(components, 1L)
+    components[[1L]][["weights"]][["parameters"]][["alpha"]]
+  }
+
+  # three levels: two contrast columns that share one SD, so the block has
+  # two SD components (the intercept and the factor)
+  for (random in list(~ diag(1 + group | study), ~ us(1 + group | study))) {
+    object <- stage(~ group, random)
+    term   <- random_term(object)
+    expect_identical(term[["n_columns"]], 3L, info = deparse(random))
+    expect_identical(term[["sd_leaves"]][["n_leaves"]], 2L, info = deparse(random))
+    expect_identical(
+      unique(term[["sd_parameter_names"]]),
+      # the allocated SD component nodes, one per leaf
+      paste0(term[["parameter_stem"]], c("_intercept", "_group[1]")),
+      info = deparse(random)
+    )
+    expect_equal(component_weights(object), c(1, 1), info = deparse(random))
+  }
+  expect_identical(
+    random_term(stage(~ group, ~ us(1 + group | study)))[["correlation"]][["unit_columns"]],
+    2:3
+  )
+
+  # a block that is one unit has one SD component and no correlation
+  object <- stage(~ group, ~ us(0 + group | study))
+  term   <- random_term(object)
+  expect_identical(term[["sd_leaves"]][["n_leaves"]], 1L)
+  expect_null(term[["correlation"]])
+  expect_false(any(vapply(object[["priors"]][["random"]][["allocation"]], function(allocation) {
+    identical(allocation[["target"]], "sd_component")
+  }, logical(1))))
+
+  # a two-level factor is one column: an ordinary column of the LKJ block
+  term <- random_term(stage(~ pair, ~ us(1 + pair | study)))
+  expect_identical(term[["n_columns"]], 2L)
+  expect_identical(term[["correlation"]][["unit_columns"]], integer())
+
+  # the SD component of a column after the unit is found at its own column
+  dat$x <- seq(-1, 1, length.out = nrow(dat))
+  term <- random_term(stage(~ group + x, ~ diag(1 + group + x | study)))
+  expect_identical(term[["sd_leaves"]][["leaf_index_by_column"]], c(1L, 2L, 2L, 3L))
+  expect_identical(vapply(c("intercept", "group", "x"), function(component) {
+    .brma_random_parameter_component_column(term, list(random_component = component))
+  }, integer(1)), c(intercept = 1L, group = 2L, x = 4L))
+})

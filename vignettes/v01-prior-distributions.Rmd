@@ -358,7 +358,7 @@ The defaults for other random-effect structures follow the same logic:
 |:--|:--|
 | One component with a single standard deviation | positive `Normal(0, 0.25 * UISD)` on the component standard deviation |
 | Several components (nested or listed terms) | positive `Normal(0, 0.25 * UISD)` on the total standard deviation and `Dirichlet(1, ..., 1)` allocation of its variance among the components |
-| One standard deviation per level or coefficient (`hcs()`, `har()`, `diag()`, `us()`) | positive `Normal(0, 0.25 * UISD)` on the common standard deviation and `Dirichlet(1, ..., 1)` allocation of the mean variance among the levels |
+| One standard deviation per level or coefficient (`hcs()`, `har()`, `diag()`, `us()`; the coefficients of a mean-difference or orthonormal factor term share one) | positive `Normal(0, 0.25 * UISD)` on the common standard deviation and `Dirichlet(1, ..., 1)` allocation of the mean variance among the levels |
 | Compound-symmetric correlation (`cs()`, `hcs()`) | uniform on `(-1 / (K - 1), 1)`, with `K` index levels |
 | Autoregressive correlation (`ar1()`, `har()`, `car()`) | uniform on `(-1, 1)`, or `[0, 1)` for `car()` |
 | Unstructured correlation (`us()` and random slopes) | `LKJ(1)`, uniform over correlation matrices |

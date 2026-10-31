@@ -624,12 +624,23 @@
       )
     }
     homogeneous <- .assign_prior.random_homogeneous_sd(term, structure)
+    # The SD components of the block are its SD leaves: a mean-difference or
+    # orthonormal factor term is one exchangeable unit with one SD.
+    n_components <- term[["sd_leaves"]][["n_leaves"]]
+    if (!is.numeric(n_components) || length(n_components) != 1L ||
+        is.na(n_components) || n_components < 1L || n_components > n_columns) {
+      stop(
+        "Internal error: compiled random-effect term is missing its SD components.",
+        call. = FALSE
+      )
+    }
 
     list(
       block         = term[["block_name"]],
       structure     = structure,
       n_columns     = as.integer(n_columns),
-      heterogeneous = !homogeneous && n_columns > 1L
+      n_components  = as.integer(n_components),
+      heterogeneous = !homogeneous && n_components > 1L
     )
   })
 }
@@ -686,7 +697,7 @@
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
-  n_columns     <- vapply(block_info, `[[`, integer(1), "n_columns")
+  n_components  <- vapply(block_info, `[[`, integer(1), "n_components")
   groups        <- .assign_prior.random_component_groups(terms, block_names)
   allocate_name <- .assign_prior.random_allocation_names(
     block_names, groups, allocation_name
@@ -721,7 +732,7 @@
         display_name = "",
         terms      = block_names,
         sd         = sd,
-        weights    = .assign_prior.random_dirichlet(n_columns[[1L]]),
+        weights    = .assign_prior.random_dirichlet(n_components[[1L]]),
         target     = "sd_component",
         scale      = "mean_variance"
       ))
@@ -763,7 +774,7 @@
           parent[["allocation"]],
           parent[["component"]]
         ),
-        weights    = .assign_prior.random_dirichlet(n_columns[[i]]),
+        weights    = .assign_prior.random_dirichlet(n_components[[i]]),
         target     = "sd_component",
         scale      = "mean_variance"
       )
@@ -927,7 +938,7 @@
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
-  n_columns     <- vapply(block_info, `[[`, integer(1), "n_columns")
+  n_components  <- vapply(block_info, `[[`, integer(1), "n_components")
   allocations   <- list()
   parent_for_block <- stats::setNames(
     vector("list", length(group[["blocks"]])),
@@ -970,7 +981,7 @@
       ),
       terms        = block,
       parent       = parent_for_block[[block]],
-      weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+      weights      = .assign_prior.random_dirichlet(n_components[[index]]),
       target       = "sd_component",
       scale        = "mean_variance"
     )
@@ -985,7 +996,7 @@
 
   block_names   <- vapply(block_info, `[[`, character(1), "block")
   heterogeneous <- vapply(block_info, `[[`, logical(1), "heterogeneous")
-  n_columns     <- vapply(block_info, `[[`, integer(1), "n_columns")
+  n_components  <- vapply(block_info, `[[`, integer(1), "n_components")
   groups        <- .assign_prior.random_component_groups(terms, block_names)
   allocations   <- list()
 
@@ -1009,7 +1020,7 @@
             groups = groups
           ),
           terms        = block,
-          weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+          weights      = .assign_prior.random_dirichlet(n_components[[index]]),
           target       = "sd_component",
           scale        = "mean_variance"
         )
@@ -1068,7 +1079,7 @@
             ),
             terms        = block,
             parent       = parent_for_block[[block]],
-            weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+            weights      = .assign_prior.random_dirichlet(n_components[[index]]),
             target       = "sd_component",
             scale        = "mean_variance"
           )
@@ -1084,7 +1095,7 @@
         name         = allocate_name(paste0(block, "_components")),
         display_name = if (length(groups) == 1L) "" else group[["name"]],
         terms        = block,
-        weights      = .assign_prior.random_dirichlet(n_columns[[index]]),
+        weights      = .assign_prior.random_dirichlet(n_components[[index]]),
         target       = "sd_component",
         scale        = "mean_variance"
       )

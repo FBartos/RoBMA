@@ -124,14 +124,24 @@ correlation prior:
 \tabular{llll}{
 Structure \tab Basis \tab Marginal SDs \tab Default correlation prior \cr
 \code{id()} \tab coefficients \tab one shared SD \tab none \cr
-\code{diag()} or \code{||} \tab coefficients \tab one per column \tab none \cr
-plain \code{|}, \code{us()} / \code{un()} \tab coefficients \tab one per column \tab \code{LKJ(1)} matrix \cr
+\code{diag()} or \code{||} \tab coefficients \tab one per column or factor unit \tab none \cr
+plain \code{|}, \code{us()} / \code{un()} \tab coefficients \tab one per column or factor unit \tab \code{LKJ(1)} matrix \cr
 \code{cs()} \tab index levels \tab one shared SD \tab \code{Uniform(-1 / (K - 1), 1)} on raw \code{cor} \cr
 \code{hcs()} \tab index levels \tab one per level \tab \code{Uniform(-1 / (K - 1), 1)} on raw \code{cor} \cr
 \code{ar1()} / \code{ar()} \tab ordered index \tab one shared SD \tab \code{Uniform(-1, 1)} on raw \code{cor} \cr
 \code{har()} \tab ordered index \tab one per level \tab \code{Uniform(-1, 1)} on raw \code{cor} \cr
 \code{car()} \tab numeric coordinates \tab one shared SD \tab \code{Uniform(0, 1)} on raw \code{cor}, supported on \verb{[0, 1)}
 }
+
+A mean-difference or orthonormal factor term (the default coding of factor
+moderators in model-averaging constructors) is one exchangeable unit: its
+contrast columns share one SD, \code{tau(f)}, and are uncorrelated, so the model
+of the level deviations does not depend on the arbitrary contrast basis.
+Under \code{us()} the unit keeps its correlations with the other coefficients,
+reported per level (\code{rho(intercept, f[a])}) and as the multiple
+correlation \code{rho_total(intercept, f)}; a \code{us()} block can hold at most one
+such term with three or more levels. SD-component allocations count units,
+not columns: \eqn{K} below is the number of SD components.
 
 Correlation priors are added after the formula basis and \eqn{K} are
 resolved, and only when the block has more than one random coefficient. The
@@ -140,7 +150,7 @@ includes all admissible negative correlations. \code{LKJ(1)} is uniform over
 correlation matrices and does not favor positive correlations. In
 particular, \code{hcs(index | group)} has one common pairwise correlation, while
 \code{us(0 + index | group)} can estimate a different correlation for every pair
-of resolved coefficient columns.
+of resolved coefficient columns outside an exchangeable factor unit.
 }
 
 \subsection{Automatic variance allocation}{

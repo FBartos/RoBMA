@@ -97,7 +97,7 @@ test_that("the random semantic interface exposes every public quantity", {
     .brma_random_parameter_supported_quantities(),
     c(
       "sd", "var", "sd_total", "var_total", "sd_common", "var_common",
-      "cor", "var_prop", "var_mult", "sd_mult"
+      "cor", "cor_total", "var_prop", "var_mult", "sd_mult"
     )
   )
 })
@@ -115,6 +115,7 @@ test_that("RoBMA renders BayesTools random quantities by its I/O names", {
       sd_common  = "tau_common",
       var_common = "tau2_common",
       cor        = "rho",
+      cor_total  = "rho_total",
       var_prop   = "tau2_prop",
       sd_mult    = "tau_mult",
       var_mult   = "tau2_mult"
@@ -782,6 +783,7 @@ test_that("allocated component SD targets use declared catalog provenance", {
     group_label        = "study",
     structure          = "diag",
     sd_component_terms = c("a", "b"),
+    sd_leaves          = list(leaf_terms = c("a", "b"), leaf_index_by_column = 1:2),
     sd_binding = list(
       true_allocation = TRUE,
       allocations     = list(allocation)
