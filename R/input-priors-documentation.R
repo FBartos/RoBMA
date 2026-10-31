@@ -345,14 +345,24 @@ NULL
 #' \tabular{llll}{
 #' Structure \tab Basis \tab Marginal SDs \tab Default correlation prior \cr
 #' `id()` \tab coefficients \tab one shared SD \tab none \cr
-#' `diag()` or `||` \tab coefficients \tab one per column \tab none \cr
-#' plain `|`, `us()` / `un()` \tab coefficients \tab one per column \tab `LKJ(1)` matrix \cr
+#' `diag()` or `||` \tab coefficients \tab one per column or factor unit \tab none \cr
+#' plain `|`, `us()` / `un()` \tab coefficients \tab one per column or factor unit \tab `LKJ(1)` matrix \cr
 #' `cs()` \tab index levels \tab one shared SD \tab `Uniform(-1 / (K - 1), 1)` on raw `cor` \cr
 #' `hcs()` \tab index levels \tab one per level \tab `Uniform(-1 / (K - 1), 1)` on raw `cor` \cr
 #' `ar1()` / `ar()` \tab ordered index \tab one shared SD \tab `Uniform(-1, 1)` on raw `cor` \cr
 #' `har()` \tab ordered index \tab one per level \tab `Uniform(-1, 1)` on raw `cor` \cr
 #' `car()` \tab numeric coordinates \tab one shared SD \tab `Uniform(0, 1)` on raw `cor`, supported on `[0, 1)`
 #' }
+#'
+#' A mean-difference or orthonormal factor term (the default coding of factor
+#' moderators in model-averaging constructors) is one exchangeable unit: its
+#' contrast columns share one SD, `tau(f)`, and are uncorrelated, so the model
+#' of the level deviations does not depend on the arbitrary contrast basis.
+#' Under `us()` the unit keeps its correlations with the other coefficients,
+#' reported per level (`rho(intercept, f[a])`) and as the multiple
+#' correlation `rho_total(intercept, f)`; a `us()` block can hold at most one
+#' such term with three or more levels. SD-component allocations count units,
+#' not columns: \eqn{K} below is the number of SD components.
 #'
 #' Correlation priors are added after the formula basis and \eqn{K} are
 #' resolved, and only when the block has more than one random coefficient. The
@@ -361,7 +371,7 @@ NULL
 #' correlation matrices and does not favor positive correlations. In
 #' particular, `hcs(index | group)` has one common pairwise correlation, while
 #' `us(0 + index | group)` can estimate a different correlation for every pair
-#' of resolved coefficient columns.
+#' of resolved coefficient columns outside an exchangeable factor unit.
 #'
 #' ## Automatic variance allocation
 #'

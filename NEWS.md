@@ -26,7 +26,7 @@
 - adds `brma.mv()` for meta-analysis with a known sampling covariance matrix `V` and formula random effects (`random`, e.g., `~ 1 | study / esid`) with diagonal, unstructured, compound-symmetry, AR(1), heterogeneous, and continuous-time AR(1) structures, and known random-effect group covariance (`R`)
 - adds `BMA.mv()`, `RoBMA.mv()`, `bPET.mv()`, `bPEESE.mv()`, and `bselmodel.mv()` for model-averaged and publication-bias-adjusted multivariate and multilevel models
 - re-exports BayesTools' `prior_random()` interface for structured random-effect priors (variance allocations, inclusion gates, and LKJ priors), completed with RoBMA's default priors
-- random-effect quantities (`tau`, `tau2`, `rho`, `tau_total`, `tau2_prop`, ...) are named consistently across summaries, plots, hypotheses, and `as_draws()`, and random-effect inclusion is reported in the component inclusion table
+- random-effect quantities (`tau`, `tau2`, `rho`, `rho_total`, `tau_total`, `tau2_prop`, ...) are named consistently across summaries, plots, hypotheses, and `as_draws()`; a mean-difference or orthonormal factor in a random-effect formula has one SD and, under `us()`, is correlated with the other coefficients by level (`rho(intercept, f[a])`) and as a whole (`rho_total(intercept, f)`), and random-effect inclusion is reported in the component inclusion table
 - adds `component` to `summary_heterogeneity()`, `pooled_heterogeneity()`, `ranef()` (also `expand` and `simplify`), `plot()`, `plot_prior()`, `print_prior()`, and `plot_diagnostic()`
 - re-exports BayesTools' `prior_ordered()` for ordered-factor moderators
 - `mods`, `scale`, and `yi ~` formulas accept `^` crossing (e.g., `(x + z)^2`)

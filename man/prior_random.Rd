@@ -259,7 +259,8 @@ The \code{cs()} / \code{hcs()}, \code{ar1()} / \code{ar()} / \code{har()}, and \
 instead own an index basis. Their blocks reject intercept controls and
 \code{random_block(contrasts = ...)}. HCS estimates one common pairwise
 correlation; US estimates an unrestricted correlation matrix among the
-selected coefficient columns. See \code{\link[=random_effect_formula_tags]{random_effect_formula_tags()}} for the
+selected coefficient columns, except within an exchangeable mean-difference
+or orthonormal factor unit. See \code{\link[=random_effect_formula_tags]{random_effect_formula_tags()}} for the
 full formula and index-type contract.
 }
 

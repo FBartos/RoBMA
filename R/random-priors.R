@@ -44,7 +44,8 @@
 #' instead own an index basis. Their blocks reject intercept controls and
 #' `random_block(contrasts = ...)`. HCS estimates one common pairwise
 #' correlation; US estimates an unrestricted correlation matrix among the
-#' selected coefficient columns. See [random_effect_formula_tags()] for the
+#' selected coefficient columns, except within an exchangeable mean-difference
+#' or orthonormal factor unit. See [random_effect_formula_tags()] for the
 #' full formula and index-type contract.
 #'
 #' ## RoBMA completion of partial specifications

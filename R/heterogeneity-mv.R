@@ -637,7 +637,7 @@
   selected <- quantities[
     quantities[["namespace"]] == "mu" &
       quantities[["owner_type"]] == "random_block" &
-      quantities[["quantity"]] == "cor" &
+      quantities[["quantity"]] %in% c("cor", "cor_total") &
       !quantities[["internal"]] &
       quantities[["status"]] != "unavailable",
     ,
@@ -976,7 +976,7 @@
         isTRUE(key[["allocation_derived"]])
       }, logical(1))
       component_rows <- block_rows & (
-        quantities[["quantity"]] == "cor" |
+        quantities[["quantity"]] %in% c("cor", "cor_total") |
           (quantities[["quantity"]] %in% c("sd", "var", "sd_mult") &
             allocation_derived)
       )
@@ -989,7 +989,7 @@
       selected[["quantity"]],
       c(
         "sd_total", "sd_common", "var_total", "var_common", "sd", "var",
-        "cor", "sd_mult", "var_prop", "var_mult", "inclusion"
+        "cor", "cor_total", "sd_mult", "var_prop", "var_mult", "inclusion"
       )
     )
 

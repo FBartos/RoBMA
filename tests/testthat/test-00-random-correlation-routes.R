@@ -353,3 +353,68 @@ test_that("original-scale correlations of allocated blocks are atom-free and plo
     expect_equal(point[["prior"]], 0.5, tolerance = 1e-10, info = name)
   }
 })
+
+
+# A replayed us(1 + group | study) block with a three-level mean-difference
+# factor: the factor is one exchangeable unit, reported by its per-level
+# correlations with the intercept and their multiple correlation. The
+# expectations are basis-free identities on the replayed draws.
+test_that("an exchangeable factor unit reports per-level and multiple correlations", {
+
+  dat <- data.frame(
+    yi    = seq(-.2, .5, length.out = 9L),
+    group = factor(rep(c("a", "b", "c"), 3L)),
+    study = factor(rep(c("s1", "s2", "s3"), each = 3L))
+  )
+  setup <- review_compile_object(brma.mv(
+    yi = yi, V = diag(.04, 9L), mods = ~ group, random = ~ us(1 + group | study),
+    data = dat, measure = "GEN", prior_unit_information_sd = 1,
+    prior_heterogeneity = BayesTools::prior_random(
+      sd = BayesTools::prior("gamma", list(shape = 2, rate = 4))),
+    set_contrast_factor_predictors = "meandif", only_priors = TRUE, silent = TRUE
+  ))
+  term <- setup$compiled$mu$formula_design$random_effects[[1L]]
+  expect_identical(term$correlation$unit_columns, 2:3)
+  primitives <- term$correlation$primitive_names
+  expect_length(primitives, 2L)
+  columns <- unique(c(review_prior_columns(setup$compiled$mu$prior_list), primitives))
+  samples <- matrix(.3, 24L, length(columns), dimnames = list(NULL, columns))
+  samples[, primitives] <- cbind(seq(.1, .9, length.out = 24L), rev(seq(.2, .8, length.out = 24L)))
+  object <- review_attach_replay(setup, samples)
+
+  levels <- paste0("rho(intercept,group[", c("a", "b", "c"), "])")
+  total  <- "rho_total(intercept,group)"
+  bundle <- .brma_random_parameter_bundle(object)
+  correlations <- bundle$specs[bundle$specs$quantity %in% c("cor", "cor_total"), , drop = FALSE]
+  expect_identical(correlations$parameter, paste("(mu)", c(levels, total)))
+  expect_identical(correlations$quantity, c(rep("cor", 3L), "cor_total"))
+  draws <- bundle$samples[, correlations$parameter, drop = FALSE]
+  expect_true(all(is.finite(draws)))
+  # the level deviations sum to zero, so do their correlations with the
+  # intercept; with an identity unit block, the squared multiple correlation
+  # is (K - 1) / K times the sum of the squared level correlations
+  expect_equal(unname(rowSums(draws[, 1:3])), rep(0, 24L), tolerance = 1e-12)
+  expect_equal(unname(draws[, 4L]^2), unname(rowSums(draws[, 1:3]^2)) * 2 / 3, tolerance = 1e-12)
+  expect_identical(
+    BayesTools::posterior_metadata(bundle$samples, "undefined_draws")[correlations$parameter],
+    stats::setNames(c(rep("correlation", 3L), "multiple_correlation"), correlations$parameter)
+  )
+
+  expect_true(all(c(levels, total) %in% posterior::variables(posterior::as_draws_matrix(object))))
+  expect_true(all(c(levels, total) %in% rownames(summary_heterogeneity(object)[["estimates"]])))
+
+  # the multiple correlation has no scalar conditional update, and its prior
+  # density at zero is zero for a unit with two coordinates
+  target <- .brma_random_parameter_density_target(object, paste("(mu)", total))
+  expect_false(target$available)
+  expect_true("RoBMA_density_method_unavailable" %in% target$class)
+  expect_error(
+    hypothesis(object, paste0("`", total, "` = 0"), component = "random",
+      density_method = "KDE", seed = 19),
+    class = "BayesTools_zero_ordinate"
+  )
+  region <- hypothesis(object, paste0("`", total, "` > 0.5"), component = "random",
+    density_method = "KDE", seed = 19)
+  expect_identical(nrow(region), 1L)
+  expect_true(is.finite(attr(region, "raw_log_BF")))
+})

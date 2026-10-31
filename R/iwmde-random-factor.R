@@ -73,7 +73,13 @@
     posterior_samples = samples,
     prior_list        = inputs[["location_priors"]]
   ), error = function(e) NULL)
-  if (is.null(update_grid)) {
+  # The native grid replaces the scale of one column. An SD shared by several
+  # columns (an exchangeable factor unit, or the indicator columns of a
+  # logical predictor's interaction) drives all of them, and an
+  # allocation-derived SD multiplies the scale of every column its allocation
+  # scale drives: those grids take the general route.
+  if (is.null(update_grid) || !is.null(update_grid[["driven_columns"]]) ||
+      !is.null(update_grid[["column_factor"]])) {
     return(NULL)
   }
   factor_names <- names(random_factors[["factor_plans"]])

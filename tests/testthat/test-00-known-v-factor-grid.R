@@ -132,3 +132,95 @@ test_that("compact factor and Markov grids match dense covariance likelihoods", 
   }
   expect_equal(observed, expected, tolerance = 1e-12)
 })
+
+
+# A direct SD shared by several columns of a us() block drives all of them: the
+# exchangeable unit of a three-level mean-difference factor, and the indicator
+# columns of a logical predictor's interaction. The native factor grid writes
+# the scale of one column, so their q-grids take the general route. The
+# reference is the dense likelihood of the BayesTools covariance of the draws
+# with the SD coordinate replaced, plus the declared SD prior; differences to
+# the first grid value cancel the prior of the other coordinates.
+test_that("known-V q-grids of an SD that drives several us() columns follow the replaced covariance", {
+
+  dat <- data.frame(
+    yi    = c(-.2, .1, .3, .5, 0, .2, .4, -.1, .25, .15, -.05, .35),
+    group = factor(rep(c("a", "b", "c"), 4L)),
+    flag  = rep(c(TRUE, FALSE, TRUE), 4L),
+    x     = c(-1, .5, 2, 1, -.5, .3, 1.2, -1.4, .8, .1, -.7, 1.6),
+    study = factor(rep(paste0("s", 1:4), each = 3L))
+  )
+  sd_prior <- BayesTools::prior("gamma", list(shape = 2, rate = 4))
+  cases <- list(
+    unit   = list(mods = ~ group, random = ~ us(1 + group | study), sd = "(mu) sd(group)", driven = 2:3),
+    flag   = list(mods = ~ x, random = ~ us(1 + flag:x | study), sd = "(mu) sd(flag:x)", driven = 2:3),
+    # the single-column SD of the same block keeps the native grid
+    single = list(mods = ~ group, random = ~ us(1 + group | study), sd = "(mu) sd(intercept)", driven = NULL)
+  )
+  values <- c(.1, .25, .4, .7, 1.1)
+
+  for (name in names(cases)) {
+    case  <- cases[[name]]
+    setup <- review_compile_object(brma.mv(
+      yi = yi, V = diag(.04, 12L), mods = case$mods, random = case$random, data = dat,
+      measure = "GEN", prior_unit_information_sd = 1,
+      prior_heterogeneity = BayesTools::prior_random(sd = sd_prior),
+      set_contrast_factor_predictors = "meandif", standardize_continuous_predictors = FALSE,
+      only_priors = TRUE, silent = TRUE
+    ))
+    term       <- setup$compiled$mu$formula_design$random_effects[[1L]]
+    primitives <- term$correlation$primitive_names
+    sds        <- unique(term$sd_parameter_names)
+    columns    <- unique(c(review_prior_columns(setup$compiled$mu$prior_list), primitives))
+    # zero slopes: every estimate has the intercept as its mean
+    samples <- matrix(0, 6L, length(columns), dimnames = list(NULL, columns))
+    samples[, "mu_intercept"] <- .1
+    samples[, sds]        <- seq(.2, .6, length.out = 6L * length(sds))
+    samples[, primitives] <- seq(.3, .7, length.out = 6L * length(primitives))
+    object <- review_attach_replay(setup, samples)
+
+    catalog  <- BayesTools::parameter_catalog(object$fit)
+    selected <- catalog$quantities[catalog$quantities$canonical_name == case$sd, , drop = FALSE]
+    plan     <- BayesTools::random_effects_marginal_update_plan(
+      object$fit, BayesTools::parameter_catalog_resolve(catalog, case$sd, "mu")
+    )
+    expect_identical(plan$family, "factor", info = name)
+    expect_identical(plan$driven_columns, case$driven, info = name)
+
+    target  <- .brma_random_parameter_density_target(
+      object, .brma_random_parameter_io_labels(selected, "selector")
+    )
+    context <- .iwmde_context(object)
+    spec    <- .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+    states  <- .iwmde_row_states(context, seq_len(nrow(samples)),
+      parameter = target$parameter, parameter_spec = spec)
+    replacement <- .iwmde_replacement_spec(context, target$parameter, spec)
+    native <- .iwmde_log_q_grid_known_v_random_factor(
+      context, target$parameter, values, states, replacement, states[[1L]]$active_setup
+    )
+    observed <- .iwmde_log_q_grid(context, target$parameter, values, states, replacement)
+
+    expected <- matrix(NA_real_, length(values), nrow(samples))
+    for (g in seq_along(values)) {
+      candidate <- samples
+      candidate[, plan$source_parameter] <- values[[g]]
+      covariance <- BayesTools::random_effects_marginal_vcov(
+        object$fit, parameter = "mu", posterior_samples = candidate
+      )$samples
+      for (s in seq_len(nrow(samples))) {
+        expected[g, s] <- .factor_grid_dense_loglik(
+          dat$yi, rep(.1, 12L), diag(.04, 12L) + covariance[s, , ]
+        ) + stats::dgamma(values[[g]], 2, 4, log = TRUE)
+      }
+    }
+    expect_equal(
+      sweep(observed, 2L, observed[1L, ]), sweep(expected, 2L, expected[1L, ]),
+      tolerance = 1e-10, info = name
+    )
+    if (is.null(case$driven)) {
+      expect_true(is.matrix(native), info = name)
+    } else {
+      expect_null(native, info = name)
+    }
+  }
+})

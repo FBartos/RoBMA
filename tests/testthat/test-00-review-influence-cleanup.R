@@ -223,6 +223,30 @@ test_that("declared undefined correlations refuse the complete influence request
     parameter = everywhere, .weights = weights)))))
 })
 
+test_that("declared undefined multiple correlations name their singular boundary", {
+
+  draws <- function(rows, columns) {
+    samples <- cbind(rho = c(NA, 0.2, 0.3), rho_total = c(0.5, NA, 0.4),
+      tau = c(0.1, 0.2, 0.3))[rows, columns, drop = FALSE]
+    BayesTools::posterior_metadata(samples, "undefined_draws") <- c(
+      rho = "correlation", rho_total = "multiple_correlation")[
+        intersect(columns, c("rho", "rho_total"))]
+    samples
+  }
+  expect_error(.diagnostic_check_random_defined(draws(1:3, c("rho_total", "tau")), "DFBETAS"),
+    paste0("DFBETAS is unavailable for random-effect quantity 'rho_total' ",
+      "(2 of 3 posterior draws defined) because the multiple correlation is ",
+      "undefined when an SD is zero or the correlation matrix of the factor term ",
+      "is singular. Use 'component = \"random\"' and 'parameter' to explicitly ",
+      "select an everywhere-defined quantity."), fixed = TRUE)
+  expect_error(.diagnostic_check_random_defined(draws(1:3, c("rho", "rho_total", "tau")),
+    "COVRATIO"),
+    paste0("'rho' (2 of 3 posterior draws defined), 'rho_total' (2 of 3 ",
+      "posterior draws defined) because the correlation is undefined when either ",
+      "SD is zero and the multiple correlation is undefined"), fixed = TRUE)
+  expect_null(.diagnostic_check_random_defined(draws(2:3, c("rho", "tau")), "DFBETAS"))
+})
+
 test_that("undeclared missing and infinite influence draws remain invalid", {
 
   weights <- matrix(1 / 24, 24L, 6L)
