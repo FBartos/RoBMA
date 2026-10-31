@@ -76,8 +76,8 @@
   # The native grid replaces the scale of one column. An SD shared by several
   # columns (an exchangeable factor unit, or the indicator columns of a
   # logical predictor's interaction) drives all of them, and an
-  # allocation-derived SD moves every column through the allocation scale:
-  # those grids take the general route.
+  # allocation-derived SD multiplies the scale of every column its allocation
+  # scale drives: those grids take the general route.
   if (is.null(update_grid) || !is.null(update_grid[["driven_columns"]]) ||
       !is.null(update_grid[["column_factor"]])) {
     return(NULL)
