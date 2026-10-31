@@ -4,7 +4,15 @@
 \alias{ranef.brma}
 \title{Random Effects for brma Objects}
 \usage{
-\method{ranef}{brma}(object, bias_adjusted = FALSE, probs = c(0.025, 0.975), ...)
+\method{ranef}{brma}(
+  object,
+  bias_adjusted = FALSE,
+  probs = c(0.025, 0.975),
+  component = "all",
+  simplify = TRUE,
+  expand = TRUE,
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -15,15 +23,40 @@
 \item{probs}{quantiles of the posterior distribution to be displayed.
 Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
+\item{component}{random-effect component to return. Defaults to
+\code{"all"}. For decomposed models, use a component name such as
+\code{"cluster"}, \code{"estimate"}, or a \code{brma.mv()} random-effect
+block name. Use \code{"total"} for the summed random-effect deviation.}
+
+\item{simplify}{whether \code{component = "all"} should return a single
+\code{brma_samples} object instead of a one-element list. Defaults to
+\code{TRUE}, matching standard 2-level \code{brma()} behavior.}
+
+\item{expand}{whether to repeat random-effect contributions for every fitted
+observation. Defaults to \code{TRUE} (one column per estimate; the cluster
+block of a multilevel model labels its columns
+\code{u_cluster[<cluster>|<estimate>]}), except for \code{brma.mv()}
+random-formula models, where it defaults to \code{FALSE}. \code{FALSE}
+returns one column per unique
+grouping-level contribution in the fitted grouping order used by
+\code{metafor::ranef()} (\code{u_cluster[<cluster>]} for a multilevel
+model). Nested groups follow their original outer-to-inner
+order. Indicator-coded random coefficients retain one column per observed
+grouping-level and coefficient combination. Set to \code{TRUE} for
+observation-aligned output.}
+
 \item{...}{additional arguments forwarded to \code{\link{predict.brma}} for
 supported options such as \code{conditional}. \code{newdata}, \code{type},
 \code{quiet}, \code{output_measure}, and \code{transform} are controlled by
 this method.}
 }
 \value{
-For 2-level models, a \code{brma_samples} object. For 3-level
-models, a named list of \code{brma_samples} objects (one per variance
-component).
+A \code{brma_samples} object for a single selected/simplified
+component, or a named list of \code{brma_samples} objects for decomposed
+\code{component = "all"} output. Use \code{summary()} on a single component
+(\code{as.data.frame()} of it returns its draws), or \code{as.data.frame()}
+on the list, to obtain the displayed summary table in long form, or
+\code{as.data.frame(format = "list")} to retain separate component tables.
 }
 \description{
 Extracts random effect deviations from a fitted brma object.
@@ -38,8 +71,8 @@ effects (BLUPs) and the fixed-effect predictions:
 For standard (2-level) models, returns a single \code{brma_samples}
 object with the estimate-level random effects.
 
-For multilevel (3-level) models, returns a list with two observation-aligned
-\code{brma_samples} matrices, one column per estimate row:
+For multilevel (3-level) models, returns a list with two
+\code{brma_samples} matrices:
 \describe{
 \item{\code{cluster}}{Cluster-level random effects
 (\eqn{\gamma_j \cdot \tau_{between}}), representing between-cluster
@@ -48,6 +81,29 @@ deviations from the fixed effects.}
 (\eqn{\theta_i - \mu_i - \gamma_j \cdot \tau_{between}}),
 representing within-cluster deviations from the cluster means.}
 }
+
+For \code{brma.mv()} random-formula models, decomposes the Gaussian
+conditional means by random-effect block. The result is invariant to whether
+each block was sampled or marginalized during fitting. If there is only one
+block and \code{simplify = TRUE}, returns a single \code{brma_samples} object.
+Multiple blocks are returned in one flat list under their canonical fitted
+block names; no additional location layer or component-name prefix is added.
+Unique-level output is available when a block's contribution is constant
+within each grouping level or observed grouping-level and indicator-
+coefficient combination. Other random slopes generally require
+\code{expand = TRUE}. When the random-effect standard deviation of a block
+varies across the rows of one returned cell (a grouping level, or a grouping
+level and indicator coefficient) through a \code{scale} formula
+(also for the cluster component of a clustered model with a \code{scale}
+formula, whether normal, GLMM, or with a weight function), the unique-level
+output is refused with an error of class
+\code{RoBMA_ranef_expand_required} (also of class
+\code{RoBMA_unsupported_request}); use \code{expand = TRUE}. Only the
+components that are returned are judged: \code{component = "estimate"} of a
+clustered model and a block name whose own scale does not vary are returned,
+whereas \code{"all"} and \code{"total"} include every block. Summed
+\code{component = "total"} output across multiple blocks also requires
+\code{expand = TRUE} because different blocks need not share grouping levels.
 }
 \examples{
 \dontrun{

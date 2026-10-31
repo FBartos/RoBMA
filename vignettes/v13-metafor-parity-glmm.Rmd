@@ -1,7 +1,7 @@
 ---
 title: "Generalized Linear Mixed-Effects Meta-Analysis"
 author: "František Bartoš"
-date: "28th of April 2026"
+date: "28th of April 2026 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Generalized Linear Mixed-Effects Meta-Analysis}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -60,7 +59,8 @@ data("dat.bcg", package = "metadat")
 
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 
 vignette_cache_save(cached_fits)
@@ -90,8 +90,9 @@ We use `model = "UM.FS"` to obtain the unconditional model with fixed study-spec
 
 ```{r fit1-metafor}
 fit1_metafor <- metafor::rma.glmm(
-  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR", 
-  model = "UM.FS", data = dat.bcg
+  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
+  model = "UM.FS",
+  data = dat.bcg
 )
 fit1_metafor
 ```
@@ -101,7 +102,8 @@ The matching Bayesian fit takes the same count columns and `measure = "OR"`.
 ```{r fit1-brma, eval = FALSE}
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 ```
 
@@ -125,7 +127,9 @@ Beyond `mu` and `tau`, GLMM models include estimate-specific nuisance parameters
 For binomial outcomes (`measure = "OR"`), `logit(pi[i])` is the midpoint of the two arm logits before applying half of the study-specific log odds ratio to each arm.
 The default `prior_baserate = Beta(1, 1)` is placed independently on each `pi[i]`.
 For Poisson outcomes (`measure = "IRR"`), `phi[i]` is the midpoint of the two arm log incidence rates before applying half of the study-specific log incidence rate ratio to each arm.
-Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper data-based unit-information normal used independently for each `phi[i]`.
+Because this midpoint log-rate is unbounded, there is no bounded flat default analogous to `Beta(1, 1)`, so the default `prior_lograte` is a proper normal distribution centered at the pooled crude log-rate and used independently for each `phi[i]`.
+Its standard deviation defaults to `1`, matching the default IRR effect-prior scale, and can be changed with `RoBMA.options(default_lograte.sd = ...)`.
+The fixed standard deviation makes the default equivariant to exposure-unit changes: rescaling every person-time shifts the prior mean by the corresponding log conversion while retaining its informativeness.
 Thus the default nuisance-parameter prior distributions are exchangeable in the iid sense, but they are not hierarchical prior distributions with a learned common baseline-rate distribution.
 Both defaults can be overridden via the corresponding `prior_*` argument; see the [*Prior Distributions*](v01-prior-distributions.html) vignette.
 The Poisson model corresponds to @bagos2009mixed and uses event counts and exposure times (`x1i`, `t1i`, `x2i`, `t2i`) in place of the four-way count layout.
@@ -133,8 +137,7 @@ The Poisson model corresponds to @bagos2009mixed and uses event counts and expos
 ## Other Inference Helpers
 
 All inference helpers available for any other `brma()` fit work the same way for a `brma.glmm()` fit.
-Meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, predictions, residuals, influence, and LOO comparisons all carry over.
+Meta-regression via `mods`, multilevel structures via `cluster`, location-scale models via `scale`, posterior summaries, plots, predictions, residuals, influence, and LOO comparisons with small exceptions where unavailable for the model specification (i.e., LOO-PIT residuals) all carry over.
 See the [*Bayesian Meta-Analysis*](v02-bayesian-meta-analysis.html) vignette for the full walkthrough and the [*Multilevel Meta-Analysis*](v10-metafor-parity-multilevel.html) vignette for the multilevel extension; the only thing that changes here is the count-based input and the auxiliary baseline-rate prior.
-
 
 ## References

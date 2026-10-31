@@ -17,15 +17,47 @@ structure of \code{metafor::influence} objects. It is a list containing:
 \item{inf}{A data frame with columns: \code{rstudent}, \code{dffits},
 \code{cook.d}, \code{cov.r}, \code{tau.del}, and \code{hat}, where available.
 The \code{tau.del} column is the PSIS leave-one-out posterior mean of the
-aggregate heterogeneity. For scale models, aggregation is over the remaining
-scale-model rows after each deletion.}
+root mean square of total row-level heterogeneity over the remaining
+scale-model rows after each deletion, the root mean square over the observed
+design that \code{\link{summary_heterogeneity}} reports. It differs from the
+arithmetic mean of the observation-specific tau that 4.0.0 used, which is never
+larger. It is not a pooled log-scale design prediction.}
 \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
-Undefined determinant- or variance-standardized diagnostics are reported as
-\code{NaN} and printed with an explanatory note.
+Undefined COVRATIO and coefficient DFBETAS values are reported as
+\code{NaN} with an explanatory note. DFFITS returns \code{NA} when its
+leave-one-out posterior fitted-value SD is zero, without a separate note.
+For binomial and Poisson GLMMs the \code{rstudent} component is the
+descriptive normal approximation of \code{\link{rstudent.brma}} (and the
+DFFITS, Cook's distance, and hat columns are not available).
+For \code{brma.mv()} objects, influence returns only components with
+implemented estimate-unit targets. DFFITS and Cook's distance report
+influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}
+is currently deferred.
+With correlated known-\code{V} data, the returned PSIS influence components
+use conditional estimate deletion rather than independent-study deletion.
 }
 \description{
 Computes DFFITS, Cook's distance, COVRATIO, and other
 influence diagnostics for a fitted brma object.
+}
+\details{
+The \code{hat} column uses the design of each draw's member for ensembles
+whose members differ in their PET and PEESE terms, as described in
+\code{\link{hatvalues.brma}}.
+
+Selection \code{brma.mv()} models are currently unavailable through this
+aggregate diagnostic. Standalone DFFITS and Cook's distance are available
+for normal outcomes without a weightfunction component.
+
+For known-\code{V} models, the hat values require applying the inverse of
+the marginal covariance. DFFITS and Cook's distance use PSIS fixed-location
+moments and do not apply this inverse. A covariance that is too
+ill-conditioned for that (a reciprocal condition number of about \code{2e-10}
+or less in any posterior draw used) is unavailable: the call stops with an
+error of class \code{RoBMA_known_v_precision_unavailable}, whose parent class
+is \code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+The condition carries the draw positions (\code{rows}) and their
+\code{reciprocal_condition}.
 }
 \examples{
 \dontrun{

@@ -16,8 +16,8 @@ Method-specific return value, typically a summary table or
 posterior samples of the pooled heterogeneity.
 }
 \description{
-Computes the pooled (aggregated) heterogeneity estimate (tau)
-from a fitted model.
+Computes method-specific pooled (aggregated) heterogeneity from
+a fitted model.
 }
 \seealso{
 \code{\link[=predict.brma]{predict.brma()}}

@@ -1,0 +1,4 @@
+  Alternative:         Null:      BF error%(BF)
+ ablat < -0.25     ablat = 0 198.712         NA
+ ablat > -0.25     ablat = 0  10.167         NA
+ ablat < -0.25 ablat > -0.25  19.545      2.688

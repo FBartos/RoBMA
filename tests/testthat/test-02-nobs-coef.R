@@ -41,7 +41,22 @@ test_that("coef returns model coefficients across cached fits", {
                 info = paste0("coef is non-empty numeric for '", name, "'"))
     expect_true(!is.null(names(cf)),
                 info = paste0("coef is named for '", name, "'"))
-    expect_identical(cf, fit$coefficients,
-                     info = paste0("coef matches $coefficients for '", name, "'"))
+    expect_identical(
+      unname(cf),
+      unname(fit$coefficients),
+      info = paste0("coef preserves fitted coefficients for '", name, "'")
+    )
   }
+})
+
+
+test_that("fitted multivariate coefficients retain semantic labels", {
+
+  skip_if_missing_fits("brma.mv_latent")
+  object <- fits[["brma.mv_latent"]]
+  coefficients <- coef(object)
+  expect_s3_class(object, "brma.mv")
+  expect_true("mu" %in% names(coefficients))
+  expect_false(any(names(coefficients) %in% c("intercept", "(mu) intercept")))
+  expect_identical(unname(coefficients), unname(object[["coefficients"]]))
 })

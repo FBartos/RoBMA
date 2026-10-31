@@ -1,0 +1,28 @@
+
+Bayesian Model-Averaged Location-Scale Model (k = 48)
+
+Component Inclusion
+              Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect              0.500       0.998      624.000               50.354
+Heterogeneity       1.000       1.000           NA                   NA
+[0;31mBayes factor MC error for (mu) intercept is based on 24 posterior samples from the less frequent model.[0m
+
+Location Inclusion
+      Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+ni100       0.500       0.608        1.549                5.094
+
+Scale Inclusion
+      Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+ni100       0.500       0.633        1.725                3.258
+
+Location
+            Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+intercept  0.264 0.085  0.111  0.264 0.425     0.00174          0.020 2382 1.001
+ni100     -0.036 0.036 -0.108 -0.037 0.000     0.00080          0.023 1984 1.002
+
+Scale
+                 Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+exp(intercept)  0.300 0.119  0.129  0.275 0.581     0.00158          0.013 5728 1.001
+ni100          -0.220 0.248 -0.776 -0.163 0.029     0.00362          0.015 4719 1.000
+exp(intercept) is the baseline heterogeneity SD (tau), already exponentiated. Other coefficients are changes in log(SD); exp(coefficient) is an SD multiplier.
+

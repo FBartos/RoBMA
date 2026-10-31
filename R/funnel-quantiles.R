@@ -1,0 +1,993 @@
+# ============================================================================ #
+# funnel-quantiles.R
+# ============================================================================ #
+
+# .get_radial_tau
+# ---------------------------------------------------------------------------- #
+#
+# Extract mean scalar tau (heterogeneity) estimate for the radial plot.
+#
+# For multilevel models, returns total tau (combining within and between components).
+#
+# @param object       brma object
+# @return numeric scalar representing the mean tau estimate
+#
+# ---------------------------------------------------------------------------- #
+.get_radial_tau <- function(object) {
+
+  if (.is_data_known_v(object[["data"]])) {
+    return(.get_radial_tau_known_v(object))
+  }
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  tau_samples <- .radial_heterogeneity_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  return(mean(tau_samples))
+}
+
+
+# Posterior-mean row-marginal heterogeneity used by radial coordinates. Models
+# with common heterogeneity return the same value for every row, preserving the
+# released scalar calculation exactly.
+.get_radial_tau_rows <- function(object) {
+
+  K <- nrow(object[["data"]][["outcome"]])
+  if (!inherits(object, "brma.mv")) {
+    return(rep(.get_radial_tau(object), K))
+  }
+
+  posterior_samples <- .get_posterior_samples(object[["fit"]])
+  tau_samples <- .funnel_row_heterogeneity_samples(
+    object            = object,
+    posterior_samples = posterior_samples
+  )
+
+  return(colMeans(tau_samples))
+}
+
+
+.get_radial_tau_known_v <- function(object) {
+
+  extra_variance <- .known_v_extra_variance_samples(object)
+  tau_samples    <- sqrt(rowMeans(extra_variance))
+
+  return(mean(tau_samples))
+}
+
+
+.radial_heterogeneity_samples <- function(object, posterior_samples) {
+
+  if (inherits(object, "brma.mv")) {
+    components <- .brma_mv_heterogeneity_components(
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      include_known_group_covariance = TRUE
+    )
+    total <- .total_brma_mv_heterogeneity_samples(components)
+    return(.brma_mv_rms_sd_samples(total))
+  }
+
+  return(.radial_tau_samples(object, posterior_samples))
+}
+
+
+# Determine whether the fitted model has one row-invariant marginal
+# heterogeneity distribution. For random-formula brma.mv models this evaluates
+# the same row-marginal ZGZ' variances used by prediction and bridge likelihoods.
+.funnel_common_heterogeneity <- function(object, posterior_samples = NULL,
+                                          commonness_only = FALSE) {
+
+  posterior_samples <- .get_posterior_samples(
+    object[["fit"]],
+    posterior_samples
+  )
+  tau <- .funnel_row_heterogeneity_samples(object, posterior_samples)
+
+  if (any(!is.finite(tau))) {
+    stop("Funnel plots require finite row-marginal heterogeneity draws.",
+         call. = FALSE)
+  }
+
+  reference <- matrix(
+    tau[, 1L],
+    nrow = nrow(tau),
+    ncol = ncol(tau)
+  )
+  total_common <- all(.equal_within_double_roundoff(tau, reference))
+  common       <- total_common
+
+  # A selected target also needs one common split of the total into integrated
+  # and conditioned sources: the same total can be split differently by row.
+  sources <- if (!commonness_only || total_common) {
+    .funnel_selection_source_variances(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+  } else NULL
+  if (!is.null(sources)) {
+    common <- common && sources[["common"]]
+  }
+
+  return(list(
+    common            = common,
+    total_common      = total_common,
+    posterior_samples = posterior_samples,
+    tau                = if (common) tau[, 1L] else NULL,
+    sources           = sources
+  ))
+}
+
+
+.funnel_row_heterogeneity_samples <- function(object, posterior_samples) {
+
+  if (.is_data_known_v(object[["data"]])) {
+    return(sqrt(.known_v_extra_variance_samples(
+      object            = object,
+      posterior_samples = posterior_samples
+    )))
+  }
+
+  if (inherits(object, "brma.mv")) {
+    components <- .brma_mv_heterogeneity_components(
+      object                         = object,
+      posterior_samples              = posterior_samples,
+      include_known_group_covariance = TRUE
+    )
+    return(.total_brma_mv_heterogeneity_samples(components))
+  }
+
+  tau_result <- .evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) {
+      .create_fit_formula_list(data = object[["data"]], "scale")
+    } else {
+      NULL
+    },
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = .is_multilevel(object),
+    is_random         = .is_random(object),
+    K                 = nrow(object[["data"]][["outcome"]]),
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  )
+
+  return(.expand_brma_mv_heterogeneity_samples(
+    samples = tau_result[["tau_total"]],
+    S       = nrow(posterior_samples),
+    K       = nrow(object[["data"]][["outcome"]])
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_selection_source_variances
+# ---------------------------------------------------------------------------- #
+#
+# Split the fitted random sources by the role the selection normalizer gives
+# them. An integrated source widens the candidate law the normalizer averages
+# over. A conditioned source does not: it shifts the candidate mean and keeps
+# its own population law outside the normalization, so the observed marginal is
+# a mixture over that variance rather than one selected normal.
+#
+# The two buckets sum to the total heterogeneity the band already used, so a
+# model whose sources are all integrated reproduces the previous contour.
+#
+# @param object            brma object.
+# @param posterior_samples posterior draw matrix.
+#
+# @return list with per-draw 'integrated' and 'conditioned' random variances,
+#   whether the sampling error itself is retained, and whether the split is
+#   common across fitted rows; NULL without a joint selection model.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_selection_source_variances <- function(object, posterior_samples) {
+
+  data <- object[["data"]]
+  if (!.is_data_joint_selection(data)) {
+    return(NULL)
+  }
+  sources <- .data_selection_model(data)[["sources"]][["random"]]
+  S <- nrow(posterior_samples)
+  K <- nrow(data[["outcome"]])
+  integrated  <- matrix(0, nrow = S, ncol = K)
+  conditioned <- matrix(0, nrow = S, ncol = K)
+
+  for (source in sources) {
+    variance <- .funnel_selection_source_row_variance(
+      object            = object,
+      posterior_samples = posterior_samples,
+      source            = source,
+      S                 = S,
+      K                 = K
+    )
+    if (isTRUE(source[["retained"]])) {
+      conditioned <- conditioned + variance
+    } else {
+      integrated  <- integrated + variance
+    }
+  }
+
+  # The split is common when every row has the same integrated and conditioned
+  # variance (to the tolerance of the total heterogeneity). Only then does one
+  # row stand for all of them.
+  common <- all(.equal_within_double_roundoff(
+    integrated, matrix(integrated[, 1L], nrow = S, ncol = K)
+  )) && all(.equal_within_double_roundoff(
+    conditioned, matrix(conditioned[, 1L], nrow = S, ncol = K)
+  ))
+
+  return(list(
+    integrated       = if (common) integrated[, 1L] else NULL,
+    conditioned      = if (common) conditioned[, 1L] else NULL,
+    retains_sampling = .selection_retains_sampling(data),
+    common           = common
+  ))
+}
+
+
+# Per-source marginal row variances, taken from the same metadata-defined
+# covariance the selection likelihood itself uses. Random formulas delegate to
+# BayesTools; the specialized clustered interface uses its fitted allocation.
+.funnel_selection_source_row_variance <- function(object, posterior_samples,
+                                                  source, S, K) {
+
+  if (.is_data_random(object[["data"]])) {
+    samples <- .brma_mv_random_effects_marginal_vcov(
+      object            = object,
+      posterior_samples = posterior_samples,
+      blocks            = source[["name"]],
+      diagonal_only     = TRUE
+    )[["samples"]]
+    if (length(dim(samples)) == 3L) {
+      if (!identical(dim(samples), c(S, K, K))) {
+        stop("Funnel random-source covariance samples must have dimensions S x K x K.", call. = FALSE)
+      }
+      samples <- t(vapply(seq_len(S), function(draw) {
+        diag(matrix(samples[draw, , ], K, K))
+      }, numeric(K)))
+    }
+    if (!is.matrix(samples) || !identical(dim(samples), c(S, K))) {
+      stop("Funnel random-source variance samples must have dimensions S x K.", call. = FALSE)
+    }
+    return(samples)
+  }
+
+  components <- .evaluate.brma.tau(
+    fit               = object[["fit"]],
+    scale_data        = object[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(object)) {
+      .create_fit_formula_list(data = object[["data"]], "scale")
+    } else {
+      NULL
+    },
+    scale_priors      = object[["priors"]][["scale"]],
+    is_scale          = .is_scale(object),
+    is_multilevel     = .is_multilevel(object),
+    is_random         = .is_random(object),
+    K                 = K,
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(object[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(object[["priors"]])
+  )
+  scale <- if (identical(source[["role"]], "estimate")) {
+    components[["tau_within"]]
+  } else {
+    components[["tau_between"]]
+  }
+  matrix(as.numeric(.expand_brma_mv_heterogeneity_samples(
+    samples = scale, S = S, K = K
+  )), nrow = S, ncol = K)^2
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .get_funnel_quantiles
+# ---------------------------------------------------------------------------- #
+#
+# Compute quantiles for funnel plot contours based on the sampling distribution.
+#
+# Plug-in contours use one conditional posterior-mean row per complete joint
+# model. Posterior-predictive contours use posterior rows directly. In both
+# cases the active bias model supplies the row CDF and the mixture is inverted.
+#
+# @param x                      brma object
+# @param se_sequence            numeric vector of SE values for funnel contours
+# @param sampling_heterogeneity logical; whether to incorporate tau
+# @param sampling_bias          logical; whether to incorporate bias into sampling dist
+# @param effect_direction       character; "positive" or "negative"
+# @param max_samples             posterior-row budget for Bayesian contours
+# @param estimand                plug-in or posterior-predictive construction
+# @param common_heterogeneity    validated common-heterogeneity setup
+#
+# @return list with 'lower' and 'upper' quantile vectors
+#
+# ---------------------------------------------------------------------------- #
+.get_funnel_quantiles <- function(x, se_sequence,
+                                  sampling_heterogeneity, sampling_bias,
+                                  effect_direction, max_samples, estimand,
+                                  common_heterogeneity) {
+
+  setup <- .funnel_sampling_setup(
+    x                      = x,
+    sampling_heterogeneity = sampling_heterogeneity,
+    sampling_bias          = sampling_bias,
+    max_samples            = max_samples,
+    estimand               = estimand,
+    common_heterogeneity   = common_heterogeneity
+  )
+
+  return(.get_funnel_quantiles_from_setup(
+    se_sequence      = se_sequence,
+    setup            = setup,
+    effect_direction = effect_direction
+  ))
+}
+
+
+.get_funnel_quantiles_from_setup <- function(se_sequence, setup,
+                                             effect_direction) {
+
+  if (length(setup[["mu"]]) == 1L &&
+      !any(setup[["is_weightfunction"]])) {
+    location <- vapply(
+      se_sequence,
+      .funnel_row_location,
+      numeric(1),
+      setup            = setup,
+      effect_direction = effect_direction
+    )
+    total_sd <- .root_sum_squares(se_sequence, setup[["tau"]])
+    lower    <- stats::qnorm(0.025, mean = location, sd = total_sd)
+    upper    <- stats::qnorm(0.975, mean = location, sd = total_sd)
+    lower[total_sd == 0] <- location[total_sd == 0]
+    upper[total_sd == 0] <- location[total_sd == 0]
+
+    return(list(lower = lower, upper = upper, mid = location))
+  }
+
+  return(.get_funnel_quantiles_model_averaged(
+    se_sequence      = se_sequence,
+    setup            = setup,
+    effect_direction = effect_direction
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .get_funnel_quantiles_model_averaged
+# ---------------------------------------------------------------------------- #
+#
+# Compute mixture funnel contours.
+#
+# Each plug-in model row or posterior row dispatches to its active bias model:
+# - no-bias rows use a normal CDF
+# - PET/PEESE rows use a normal CDF with the row-specific bias offset
+# - selection-model rows use the selected-normal CDF
+#
+# Quantiles are obtained from the weighted row CDF.
+#
+# @return list with 'lower', 'upper', and 'mid' quantile vectors
+#
+# ---------------------------------------------------------------------------- #
+.get_funnel_quantiles_model_averaged <- function(se_sequence, setup,
+                                                 effect_direction) {
+
+  return(.funnel_model_averaged_quantiles_native(
+    se_sequence      = se_sequence,
+    setup            = setup,
+    effect_direction = effect_direction
+  ))
+}
+
+.funnel_model_averaged_quantiles_native <- function(se_sequence, setup,
+                                                    effect_direction) {
+
+  S <- length(setup[["mu"]])
+  L <- length(se_sequence)
+  if (length(setup[["is_weightfunction"]]) != S ||
+      !is.logical(setup[["is_weightfunction"]]) ||
+      anyNA(setup[["is_weightfunction"]])) {
+    stop("Funnel selection flags must contain one logical value per posterior row.",
+      call. = FALSE)
+  }
+  location <- vapply(
+    se_sequence,
+    .funnel_row_location,
+    numeric(S),
+    setup            = setup,
+    effect_direction = effect_direction
+  )
+  location <- matrix(location, nrow = S, ncol = L)
+  # Carry standard deviations, not variances: a subnormal heterogeneity scale
+  # squares to zero, which is why the combination goes through
+  # `.root_sum_squares()` rather than through a sum of squares.
+  sources <- setup[["sources"]]
+  if (!is.null(sources)) {
+    for (field in c("integrated", "conditioned")) {
+      values <- sources[[field]]
+      if (!is.numeric(values) || !is.null(dim(values)) || length(values) != S ||
+          any(!is.finite(values)) || any(values < 0)) {
+        stop("Funnel source variances must contain one finite non-negative ",
+          "value per posterior row.", call. = FALSE)
+      }
+    }
+  }
+  add_sampling <- function(scale) {
+    matrix(vapply(se_sequence, function(se) {
+
+      .root_sum_squares(scale, rep_len(se, S))
+    }, numeric(S)), nrow = S, ncol = L)
+  }
+  if (is.null(sources)) {
+    integrated  <- add_sampling(setup[["tau"]])
+    conditioned <- matrix(0, nrow = S, ncol = L)
+  } else if (isTRUE(sources[["retains_sampling"]])) {
+    integrated  <- matrix(sqrt(sources[["integrated"]]), nrow = S, ncol = L)
+    conditioned <- add_sampling(sqrt(sources[["conditioned"]]))
+  } else {
+    integrated  <- add_sampling(sqrt(sources[["integrated"]]))
+    conditioned <- matrix(sqrt(sources[["conditioned"]]), nrow = S, ncol = L)
+  }
+
+  # A cell whose integrated variance is zero has its selection cancel (see
+  # .funnel_conditioned_expansion()). The native mixture flags a row, not a cell,
+  # so the columns are inverted in groups with the same cancelling rows; without
+  # such a cell that is one group, and the call is the plain one.
+  cancelled <- .funnel_selection_cancelled_cells(integrated, setup)
+  pattern   <- apply(cancelled, 2L, function(column) {
+    paste(which(column), collapse = ",")
+  })
+  quantiles <- matrix(NA_real_, nrow = L, ncol = 3L)
+  for (columns in split(seq_len(L), match(pattern, unique(pattern)))) {
+    expansion <- .funnel_conditioned_expansion(
+      location       = location[, columns, drop = FALSE],
+      integrated_sd  = integrated[, columns, drop = FALSE],
+      conditioned_sd = conditioned[, columns, drop = FALSE],
+      setup          = setup
+    )
+    quantiles[columns, ] <- .plot_mixture_quantiles_native(
+      mean_samples      = expansion[["mean"]],
+      sd_samples        = expansion[["sd"]],
+      se                = se_sequence[columns],
+      probs             = c(0.025, 0.975, 0.5),
+      weights           = expansion[["weights"]],
+      selected_rows     = expansion[["selected_rows"]],
+      selection_context = expansion[["selection"]],
+      caller            = ".funnel_model_averaged_quantiles()"
+    )
+  }
+
+  return(list(
+    lower = quantiles[, 1L],
+    upper = quantiles[, 2L],
+    mid   = quantiles[, 3L]
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_selection_cancelled_cells
+# ---------------------------------------------------------------------------- #
+#
+# The (row, standard error) cells whose selection cancels. A conditioned source
+# keeps its population law outside the selection normalization, and a cell with
+# no integrated variance has nothing left to select among: the selected normal
+# at a candidate location m is a point mass at m weighted by w(m) / w(m), so
+# under a step weight function with every weight positive the
+# observed law is the retained Normal itself, at the conditioned spread. The
+# limit is continuous in the integrated SD, which an underflowed positive SD
+# approximates to O(sd). A weight function with a zero bin (a candidate in it is
+# never observed) or a p-hacking kernel keeps the selected route.
+#
+# @return logical matrix of the dimensions of `integrated_sd`.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_selection_cancelled_cells <- function(integrated_sd, setup) {
+
+  S         <- nrow(integrated_sd)
+  selection <- setup[["selection"]]
+  rows      <- rep_len(as.logical(setup[["is_weightfunction"]]), S)
+  if (is.null(selection) || !any(rows)) {
+    return(matrix(FALSE, nrow = S, ncol = ncol(integrated_sd)))
+  }
+  omega <- selection[["omega"]]
+  if (!is.matrix(omega) || !nrow(omega) %in% c(1L, S)) {
+    return(matrix(FALSE, nrow = S, ncol = ncol(integrated_sd)))
+  }
+  positive <- rep_len(apply(is.finite(omega) & omega > 0, 1L, all), S)
+  mode     <- rep_len(selection[["kernel_mode"]], S)
+  rows     <- rows & positive & mode %in% SELKERNEL_STEP
+
+  return((integrated_sd == 0) & rows)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_conditioned_expansion
+# ---------------------------------------------------------------------------- #
+#
+# A conditioned source keeps its population law outside the selection
+# normalization, so the observed band is a mixture over it of selected normals
+# that each carry their own normalizer. The posterior mixture the native
+# inverter already evaluates normalizes every component on its own, so the
+# mixture is obtained by widening the draw set with a Gauss-Hermite rule on the
+# conditioned offset rather than by a new kernel. The order of the rule follows
+# the ratio of the draw (see .funnel_conditioned_order()), so draws with the
+# same order share one rule and a few extreme draws do not set the rows of all.
+#
+# With no conditioned variance the expansion is the identity and the previous
+# contour is reproduced exactly.
+#
+# @return list with expanded mean, sd, weights, selected rows and selection
+#   context, ready for `.plot_mixture_quantiles_native()`.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_conditioned_expansion <- function(location, integrated_sd,
+                                          conditioned_sd, setup) {
+
+  S <- nrow(location)
+  if (!is.matrix(location) || !is.matrix(integrated_sd) ||
+      !is.matrix(conditioned_sd) || !identical(dim(location), dim(integrated_sd)) ||
+      !identical(dim(location), dim(conditioned_sd)) ||
+      !length(location) || any(!is.finite(location)) ||
+      any(!is.finite(integrated_sd)) || any(integrated_sd < 0) ||
+      any(!is.finite(conditioned_sd)) || any(conditioned_sd < 0)) {
+    stop("Funnel mixture locations and source SDs must be finite aligned ",
+      "matrices with non-negative SDs.",
+      call. = FALSE)
+  }
+  weights       <- .funnel_setup_weights(setup)
+  selected_rows <- setup[["is_weightfunction"]]
+  selection     <- setup[["selection"]]
+  total_sd      <- .root_sum_squares(integrated_sd, conditioned_sd)
+  if (length(weights) != S || any(!is.finite(weights)) || any(weights < 0) ||
+      sum(weights) <= 0 || length(selected_rows) != S ||
+      !is.logical(selected_rows) || anyNA(selected_rows)) {
+    stop("Funnel mixture weights and selection flags must align with posterior rows.",
+      call. = FALSE)
+  }
+
+  certified <- .funnel_selection_cancelled_cells(integrated_sd, setup)
+  if (!is.null(selection) &&
+      any((integrated_sd == 0) & selected_rows & !certified)) {
+    stop(
+      "Selected funnel contours are unavailable for exact-zero integrated ",
+      "cells without a valid selection-cancellation support certificate. ",
+      "Use 'sampling_bias = FALSE' for an unselected reference.",
+      call. = FALSE
+    )
+  }
+  cancelled <- rowSums(certified) == ncol(integrated_sd)
+
+  if (is.null(selection) || !any(selected_rows)) {
+    return(list(
+      mean = location, sd = total_sd, weights = weights,
+      selected_rows = selected_rows, selection = selection
+    ))
+  }
+
+  # Ordinary and certified cancelling rows retain one exact Gaussian component.
+  # Finite equal positive step weights also cancel at any integrated spread.
+  omega <- selection[["omega"]]
+  constant <- rep(FALSE, S)
+  if (is.matrix(omega) && nrow(omega) == S && ncol(omega) > 0L) {
+    constant <- apply(is.finite(omega) & omega > 0, 1L, all) &
+      rowSums(omega != omega[, 1L]) == 0L &
+      rep_len(selection[["kernel_mode"]], S) == SELKERNEL_STEP
+  }
+  gaussian <- !selected_rows | cancelled | constant
+  expanded <- which(!gaussian & rowSums(conditioned_sd > 0) > 0L)
+  retained <- setdiff(seq_len(S), expanded)
+  index     <- integer()
+  mean      <- location[0L, , drop = FALSE]
+  sd        <- mean
+  node_weight <- numeric()
+  if (length(expanded) > 0L) {
+    # The order is checked once for all expanded draws, so that a draw that no
+    # rule resolves is refused with the largest ratio before any node is built.
+    .funnel_conditioned_order(
+      integrated_sd[expanded, , drop = FALSE],
+      conditioned_sd[expanded, , drop = FALSE]
+    )
+    # Each draw gets the order its own ratio needs and the draws with the same
+    # order share one rule: most draws need the floor, and the single most
+    # extreme draw would otherwise set the order (and the rows the native
+    # inverter evaluates) of all of them.
+    orders <- vapply(expanded, function(draw) {
+      .funnel_conditioned_order(
+        integrated_sd[draw, , drop = FALSE],
+        conditioned_sd[draw, , drop = FALSE]
+      )
+    }, integer(1L))
+    n_rows      <- sum(orders)
+    index       <- integer(n_rows)
+    mean        <- matrix(0, nrow = n_rows, ncol = ncol(location))
+    sd          <- mean
+    node_weight <- numeric(n_rows)
+    filled      <- 0L
+    for (order in sort(unique(orders))) {
+      draws <- expanded[orders == order]
+      rule  <- .gauss_hermite_nodes(order)
+      rows  <- filled + seq_len(length(draws) * order)
+      group <- rep(draws, times = order)
+      index[rows] <- group
+      mean[rows, ] <- location[group, , drop = FALSE] +
+        rep(rule[["nodes"]], each = length(draws)) *
+        conditioned_sd[group, , drop = FALSE]
+      sd[rows, ] <- integrated_sd[group, , drop = FALSE]
+      node_weight[rows] <- rep(
+        rule[["weights"]] / sum(rule[["weights"]]), each = length(draws)
+      )
+      filled <- filled + length(rows)
+    }
+  }
+
+  # The expanded matrices are the largest objects of a model-averaged funnel
+  # (draws x nodes rows), so they are only copied when rows are retained.
+  if (length(retained) > 0L) {
+    mean <- rbind(mean, location[retained, , drop = FALSE])
+    sd   <- rbind(sd, total_sd[retained, , drop = FALSE])
+  }
+
+  return(list(
+    mean          = mean,
+    sd            = sd,
+    weights       = c(weights[index] * node_weight, weights[retained]),
+    selected_rows = c(selected_rows[index], selected_rows[retained] & !gaussian[retained]),
+    selection     = .funnel_expand_selection_context(selection, c(index, retained))
+  ))
+}
+
+
+# Quadrature order for the conditioned mixture. The kernel being mixed has
+# standard deviation `integrated_sd` while the offset has `conditioned_sd`, so
+# the rule has to resolve a narrow kernel smeared over a wide offset and the
+# order has to grow with their ratio. The constant comes from a convergence
+# sweep: at standard-deviation ratios of 1, 2, 3, 4 and 6 the resulting orders
+# hold the band to better than 4e-8 against a 501-node rule, where a fixed
+# 21-node rule drifted to 3e-2 at the widest ratio. The expansion applies the
+# rule to the ratio of each draw; a call over several draws gives the order of
+# the largest ratio and refuses what no rule resolves.
+.funnel_conditioned_order <- function(integrated_sd, conditioned_sd,
+                                      minimum = 21L, maximum = 401L) {
+
+  active <- conditioned_sd > 0
+  if (!any(active)) return(minimum)
+  ratio <- max(conditioned_sd[active] / integrated_sd[active])
+  order <- if (is.finite(ratio)) ceiling(48 * max(ratio, 1)) else Inf
+  if (is.finite(order)) order <- max(order + 1L - order %% 2L, minimum)
+  if (!is.finite(order) || order > maximum) {
+    observed <- if (is.finite(order)) {
+      paste0("the conditioned-to-integrated standard deviation ratio of ",
+        format(signif(ratio, 3L), trim = TRUE), " requires a quadrature order of ",
+        format(order, scientific = FALSE, trim = TRUE),
+        " that the funnel quadrature cannot resolve")
+    } else {
+      "the conditioned-to-integrated standard deviation ratio is not finite"
+    }
+    stop(errorCondition(
+      message = paste0("Selected funnel contours were rejected by diagnostics: ",
+        observed, ". Use 'sampling_bias = FALSE' for an unselected reference."),
+      class          = c("RoBMA_funnel_quadrature_rejected", "RoBMA_numerical_unavailable"),
+      call           = NULL,
+      ratio          = ratio,
+      required_order = order,
+      maximum        = maximum
+    ))
+  }
+  as.integer(order)
+}
+
+
+.funnel_expand_selection_context <- function(selection, index) {
+
+  if (is.null(selection)) return(NULL)
+  BayesTools::selection_context_subset_rows(selection, index)
+}
+
+
+.funnel_setup_weights <- function(setup) {
+
+  weights <- setup[["weights"]]
+  if (is.null(weights)) {
+    return(rep(1 / length(setup[["mu"]]), length(setup[["mu"]])))
+  }
+
+  return(weights / sum(weights))
+}
+
+
+.funnel_row_location <- function(se, setup, effect_direction) {
+
+  return(
+    setup[["mu"]] +
+      setup[["PET"]] * .bias_regression_predictor(
+        sei              = se,
+        parameter        = "PET",
+        effect_direction = effect_direction
+      ) +
+      setup[["PEESE"]] * .bias_regression_predictor(
+        sei              = se,
+        parameter        = "PEESE",
+        effect_direction = effect_direction
+      )
+  )
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_sampling_setup
+# ---------------------------------------------------------------------------- #
+#
+# Prepare plug-in model rows or posterior rows for funnel contours.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_sampling_setup <- function(x, sampling_heterogeneity, sampling_bias,
+                                   max_samples, estimand,
+                                   common_heterogeneity) {
+
+  estimand          <- match.arg(estimand, c("plugin", "posterior_predictive"))
+  posterior_samples <- common_heterogeneity[["posterior_samples"]]
+  tau_samples       <- common_heterogeneity[["tau"]]
+
+  if (estimand == "posterior_predictive") {
+    selected_rows <- .nested_srs_rows(
+      rows        = seq_len(nrow(posterior_samples)),
+      max_samples = max_samples
+    )
+    posterior_samples <- posterior_samples[selected_rows, , drop = FALSE]
+    tau_samples       <- tau_samples[selected_rows]
+
+    return(.funnel_setup_from_samples(
+      x                      = x,
+      posterior_samples      = posterior_samples,
+      tau_samples            = tau_samples,
+      sampling_heterogeneity = sampling_heterogeneity,
+      sampling_bias          = sampling_bias,
+      weights                = NULL,
+      sources                = .funnel_subset_sources(
+        common_heterogeneity[["sources"]], selected_rows
+      )
+    ))
+  }
+
+  groups     <- .funnel_joint_model_groups(x, posterior_samples)
+  group_rows <- split(seq_len(nrow(posterior_samples)), groups)
+  model_samples <- t(vapply(group_rows, function(rows) {
+
+    colMeans(posterior_samples[rows, , drop = FALSE])
+  }, numeric(ncol(posterior_samples))))
+  colnames(model_samples) <- colnames(posterior_samples)
+
+  model_tau <- vapply(group_rows, function(rows) {
+
+    values <- tau_samples[rows]
+    scale  <- max(values)
+    if (scale == 0) return(0)
+    scale * sqrt(mean((values / scale)^2))
+  }, numeric(1))
+  model_weights <- lengths(group_rows) / nrow(posterior_samples)
+
+  return(.funnel_setup_from_samples(
+    x                      = x,
+    posterior_samples      = model_samples,
+    tau_samples            = model_tau,
+    sampling_heterogeneity = sampling_heterogeneity,
+    sampling_bias          = sampling_bias,
+    weights                = model_weights,
+    sources                = .funnel_average_sources(
+      common_heterogeneity[["sources"]], group_rows
+    )
+  ))
+}
+
+
+# Keep the source split on the same rows, and averaged the same way, as the
+# total heterogeneity it decomposes.
+.funnel_subset_sources <- function(sources, rows) {
+
+  if (is.null(sources)) return(NULL)
+  sources[["integrated"]]  <- sources[["integrated"]][rows]
+  sources[["conditioned"]] <- sources[["conditioned"]][rows]
+  sources
+}
+
+
+.funnel_average_sources <- function(sources, group_rows) {
+
+  if (is.null(sources)) return(NULL)
+  sources[["integrated"]] <- vapply(group_rows, function(rows) {
+
+    mean(sources[["integrated"]][rows])
+  }, numeric(1))
+  sources[["conditioned"]] <- vapply(group_rows, function(rows) {
+
+    mean(sources[["conditioned"]][rows])
+  }, numeric(1))
+  sources
+}
+
+
+.funnel_joint_model_groups <- function(x, posterior_samples) {
+
+  components <- .summary_models_components(x)
+  if (length(components) == 0L) {
+    return(rep(1L, nrow(posterior_samples)))
+  }
+
+  indicators <- lapply(components, function(info) {
+
+    .summary_models_indicators(
+      posterior_samples = posterior_samples,
+      parameter         = info[["parameter"]],
+      prior             = info[["prior"]],
+      column            = info[["indicator"]],
+      offset            = info[["indicator_offset"]]
+    )
+  })
+  keys <- do.call(paste, c(indicators, sep = ":"))
+
+  return(match(keys, unique(keys)))
+}
+
+
+.funnel_setup_from_samples <- function(x, posterior_samples, tau_samples,
+                                       sampling_heterogeneity, sampling_bias,
+                                       weights, sources = NULL) {
+
+  priors_bias <- x[["priors"]][["outcome"]][["bias"]]
+
+  if (!BayesTools::is.prior.mixture(priors_bias)) {
+    priors_bias <- list(priors_bias)
+  }
+
+  branch_is_PET   <- vapply(priors_bias, BayesTools::is.prior.PET,   logical(1))
+  branch_is_PEESE <- vapply(priors_bias, BayesTools::is.prior.PEESE, logical(1))
+  bias_indicator  <- .extract_bias_indicator(x, posterior_samples = posterior_samples)
+
+  if (any(is.na(bias_indicator)) ||
+      any(bias_indicator < 1L | bias_indicator > length(priors_bias))) {
+    stop("Invalid 'bias_indicator' values in posterior samples.", call. = FALSE)
+  }
+
+  S <- nrow(posterior_samples)
+
+  mu_samples <- .funnel_mu_samples(x, posterior_samples)
+
+  if (!sampling_heterogeneity) {
+    tau_samples <- rep(0, S)
+    if (!is.null(sources)) {
+      sources[["integrated"]]  <- rep(0, S)
+      sources[["conditioned"]] <- rep(0, S)
+    }
+  }
+
+  PET_samples   <- .funnel_posterior_column(posterior_samples, "PET",   S)
+  PEESE_samples <- .funnel_posterior_column(posterior_samples, "PEESE", S)
+
+  PET_samples[!branch_is_PET[bias_indicator]]     <- 0
+  PEESE_samples[!branch_is_PEESE[bias_indicator]] <- 0
+
+  if (!sampling_bias) {
+    PET_samples[]   <- 0
+    PEESE_samples[] <- 0
+  }
+
+  # Positive weights cancel pointwise when all applicable sources are
+  # retained; marginal mixing therefore follows the ordinary Gaussian law.
+  selection <- if (sampling_bias && !.selection_all_sources_conditioned(x[["data"]])) {
+    .selection_context(
+      object            = x,
+      posterior_samples = posterior_samples
+    )
+  } else {
+    NULL
+  }
+  .plot_check_scalar_selection_target(x, selection, "funnel")
+  use_normal <- if (is.null(selection)) {
+    rep(TRUE, S)
+  } else {
+    selection[["use_normal"]]
+  }
+
+  return(list(
+    mu                    = mu_samples,
+    tau                   = tau_samples,
+    PET                   = PET_samples,
+    PEESE                 = PEESE_samples,
+    bias_indicator        = bias_indicator,
+    is_weightfunction     = !use_normal,
+    selection             = selection,
+    weights               = weights,
+    sources               = sources
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_mu_samples
+# ---------------------------------------------------------------------------- #
+#
+# Extract pooled location samples without PET/PEESE bias offsets.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_mu_samples <- function(x, posterior_samples) {
+
+  data   <- x[["data"]]
+  priors <- x[["priors"]]
+  mu_samples <- .evaluate.brma.mu(
+    fit               = x[["fit"]],
+    outcome_data      = data[["outcome"]],
+    mods_data         = data[["mods"]],
+    mods_formula      = if (.is_mods(x)) {
+      .create_fit_formula_list(data = data, "mods")
+    } else {
+      NULL
+    },
+    mods_priors       = if (.is_random(x)) {
+      priors[["location"]]
+    } else {
+      priors[["mods"]]
+    },
+    priors            = priors,
+    is_mods           = .is_mods(x),
+    is_PET            = .is_PET(x),
+    is_PEESE          = .is_PEESE(x),
+    effect_direction  = .effect_direction(x),
+    bias_adjusted     = TRUE,
+    K                 = nrow(data[["outcome"]]),
+    posterior_samples = posterior_samples
+  )
+
+  return(rowMeans(mu_samples))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .radial_tau_samples
+# ---------------------------------------------------------------------------- #
+#
+# Extract RMS total heterogeneity samples for the radial plot.
+#
+# ---------------------------------------------------------------------------- #
+.radial_tau_samples <- function(x, posterior_samples) {
+
+  tau_result <- .evaluate.brma.tau(
+    fit               = x[["fit"]],
+    scale_data        = x[["data"]][["scale"]],
+    scale_formula     = if (.is_scale(x)) .create_fit_formula_list(data = x[["data"]], "scale") else NULL,
+    scale_priors      = x[["priors"]][["scale"]],
+    is_scale          = .is_scale(x),
+    is_multilevel     = .is_multilevel(x),
+    is_random         = .is_random(x),
+    K                 = nrow(x[["data"]][["outcome"]]),
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(x[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(x[["priors"]])
+  )
+
+  return(.brma_mv_rms_sd_samples(tau_result[["tau_total"]]))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .funnel_posterior_column
+# ---------------------------------------------------------------------------- #
+#
+# Extract an optional posterior column, returning zeros when absent.
+#
+# ---------------------------------------------------------------------------- #
+.funnel_posterior_column <- function(posterior_samples, column, S) {
+
+  if (column %in% colnames(posterior_samples)) {
+    return(as.numeric(posterior_samples[, column]))
+  }
+
+  return(rep(0, S))
+}

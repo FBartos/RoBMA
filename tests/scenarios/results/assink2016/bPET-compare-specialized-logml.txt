@@ -1,0 +1,4 @@
+                 [,1]
+fit_bPET_cluster    1
+fit_bPET            0
+fit_bPET_fixed      0

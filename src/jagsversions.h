@@ -32,13 +32,11 @@
 #define JAGS_MAJOR_ASSUMED 0
 #endif // JAGS_MAJOR_ASSUMED
 
-// Check version of JAGS is OK:
-#if JAGS_MAJOR_USED > 4
-#warning "Compiling against a later version of JAGS than has been tested for this version of RoBMA ... you should probably update the RoBMA package!"
-#endif
-
-#if JAGS_MAJOR_USED < 4
-#error "This version of the RoBMA package requires compilation against JAGS version 4 or later"
+// RoBMA builds against the JAGS 4 module interface only; its native
+// distributions are abstract under JAGS 5. Both the headers and a forced
+// major version must be JAGS 4:
+#if JAGS_MAJOR != 4 || JAGS_MAJOR_USED != 4
+#error "RoBMA requires JAGS 4.x (>= 4.3.1, < 5.0.0); JAGS 5 is not supported. Install JAGS 4.3.x and reinstall RoBMA."
 #endif
 
 

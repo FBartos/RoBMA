@@ -1,0 +1,13 @@
+
+Bayesian Multilevel Random-Effects PET Model (k = 100, clusters = 17)
+
+Estimates
+     Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu  0.046 0.151 -0.246 0.048 0.339     0.00650          0.043  542 1.000
+tau 0.477 0.063  0.371 0.471 0.619     0.00159          0.025 1572 1.000
+rho 0.542 0.115  0.312 0.544 0.755     0.00282          0.024 1670 1.000
+
+Publication Bias
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+PET 1.794 0.561 0.691 1.786 2.903     0.02438          0.043 533 1.001
+

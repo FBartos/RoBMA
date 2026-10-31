@@ -13,7 +13,6 @@ src/boost
 Meta
 RoBMA.Rcheck
 .Rhistory
-.Rprofile
 /doc/
 /Meta/
 config.log
@@ -22,14 +21,15 @@ src/Makevars
 models/MetaRegression/*
 .RData
 Rplots.pdf
-.RData
+*.new.svg
+/tests/scenarios/results/**/*.new.txt
+/tests/results/**/*.new.txt
+/tests/scenarios/timings/*.new.tsv
 /tests/testthat/test_files
-.RData
-.RData
+/tests/scenarios/cache
 knowledge-base/
 /.StatsVault
 /resources
-.RData
 /docs_check
 /-
 /cran-check-decision-log.md
@@ -38,3 +38,15 @@ knowledge-base/
 /AGENTS.html
 /docs/AGENTS.html
 /build/
+.positai
+CLAUDE.md
+
+# Agent scratch, logs, and task notes
+/.work/
+
+# StatsVault local workspace and generated agent bridges
+.StatsVault/
+/tools/rma-mv-parity
+/.agents/tmp
+*.Rout.fail
+src/.optimized-dll

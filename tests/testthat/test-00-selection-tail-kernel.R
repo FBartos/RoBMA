@@ -1,0 +1,174 @@
+context("(00) Standard-normal tail kernel")
+
+# The selection kernels evaluate the standard-normal upper tail millions of
+# times per density line, through a batched approximation instead of the
+# library's scalar erfc. These tests certify that approximation against
+# `pnorm()` over a dense argument grid, including the far tail where the
+# library routine itself loses relative accuracy, and assert that the batched
+# result does not depend on how the arguments are grouped.
+
+test_that("the tail kernel agrees with pnorm across the supported range", {
+
+  grid <- sort(unique(c(
+    seq(-40, 40, by = 0.001),
+    seq(-1, 1, by = 1e-5),
+    seq(0.6, 0.75, by = 1e-6),          # the central/middle boundary
+    seq(5.5, 5.8, by = 1e-6),           # the middle/far boundary
+    c(0, -0.5, 0.5, 8, 20, 30, 37, 37.5)
+  )))
+  kernel    <- .selnorm_normal_upper_tail(grid)
+  reference <- stats::pnorm(grid, lower.tail = FALSE)
+
+  expect_true(all(is.finite(kernel)))
+  expect_true(all(kernel >= 0 & kernel <= 1))
+
+  # Relative agreement wherever the reference is representable. Cody's ranges
+  # are shared with pnorm, so this is double rounding, not approximation error.
+  comparable <- reference > 0 & abs(grid) <= 37.5
+  expect_lt(max(abs(kernel[comparable] - reference[comparable]) /
+                  reference[comparable]), 1e-13)
+
+  # The kernel intentionally truncates tails beyond its supported range;
+  # pnorm still returns nonzero subnormal probabilities immediately beyond it.
+  expect_true(all(kernel[grid > 37.5193] == 0))
+  expect_identical(.selnorm_normal_upper_tail(0), 0.5)
+})
+
+
+test_that("the tail kernel matches an arbitrary-precision reference", {
+
+  # Reference values computed to 20 significant digits with an
+  # arbitrary-precision implementation of the complementary error function.
+  exact <- c(
+    `2`  = 0.0227501319481792072,
+    `5`  = 2.8665157187919391167e-7,
+    `8`  = 6.2209605742717841235e-16,
+    `20` = 2.7536241186062336951e-89,
+    `37` = 5.7255712225245768227e-300
+  )
+  kernel <- .selnorm_normal_upper_tail(as.numeric(names(exact)))
+  expect_lt(max(abs(kernel / exact - 1)), 1e-15)
+})
+
+
+test_that("Gaussian square compensation preserves tail accuracy", {
+
+  # Non-exact squares, including the outer region boundary and the last
+  # supported tail, distinguish compensation from exp(-round(x^2)/2).
+  scores <- c(sqrt(2), pi, 5.5304573779, sqrt(32) + c(-1e-12, 0, 1e-12),
+              20.1, 32.9360548699, 37.5193 - 1e-12, 37.5193)
+  grid <- c(scores, -scores)
+  kernel <- .selnorm_normal_upper_tail(grid)
+  reference <- stats::pnorm(grid, lower.tail = FALSE)
+  fallback <- .selnorm_normal_upper_tail(grid, scalar = TRUE)
+
+  # pnorm truncates at the exact cutoff; retain that score in the scalar
+  # parity check, and compare relative errors only for nonzero references.
+  comparable <- reference > 0
+  expect_lt(max(abs(kernel[comparable] / reference[comparable] - 1)), 1e-13)
+  expect_lt(max(abs(kernel / fallback - 1)), 1e-14)
+})
+
+
+test_that("a tail value does not depend on its position in the batch", {
+
+  grid <- sort(unique(c(seq(-12, 12, by = 0.0007), 0, 0.67448975,
+                        5.656854249492380195)))
+  reference <- .selnorm_normal_upper_tail(grid)
+
+  for (offset in 1:5) {
+    shifted <- .selnorm_normal_upper_tail(c(rep(0, offset), grid))
+    expect_identical(shifted[-seq_len(offset)], reference)
+  }
+
+  # Length-one requests take the same path as a full batch.
+  withr::local_seed(20260922)
+  probe <- sample(seq_along(grid), 40L)
+  expect_identical(vapply(grid[probe], .selnorm_normal_upper_tail, numeric(1L)),
+                   reference[probe])
+})
+
+
+test_that("mixed tail regions preserve each lane's value", {
+
+  # Each row is one vector batch, including batches with no usable far-tail
+  # lane. Mixed middle/far batches share their Gaussian ordinate evaluation.
+  batches <- list(
+    c(0, 2, 8, 40),
+    c(-0.5, -5, -20, -40),
+    c(sqrt(32), sqrt(32) + 1e-12, 37.5193, 37.5193 + 1e-12),
+    c(2, 5, 40, Inf),
+    c(-40, 40, -Inf, Inf)
+  )
+  for (scalar in c(FALSE, TRUE)) {
+    for (grid in batches) {
+      kernel <- .selnorm_normal_upper_tail(grid, scalar = scalar)
+      single <- vapply(grid, .selnorm_normal_upper_tail, numeric(1L), scalar = scalar)
+      expect_identical(kernel, single)
+      reference <- stats::pnorm(grid, lower.tail = FALSE)
+      comparable <- abs(grid) <= 37.5193 & reference > 0
+      expect_lt(max(abs(kernel[comparable] / reference[comparable] - 1), 0), 1e-13)
+      expect_true(all(kernel[grid > 37.5193] == 0))
+      expect_true(all(kernel[grid < -37.5193] == 1))
+    }
+  }
+})
+
+
+test_that("the tail kernel handles non-finite and extreme arguments", {
+
+  expect_identical(.selnorm_normal_upper_tail(Inf), 0)
+  expect_identical(.selnorm_normal_upper_tail(-Inf), 1)
+  expect_true(is.na(.selnorm_normal_upper_tail(NaN)))
+  expect_true(is.na(.selnorm_normal_upper_tail(NA_real_)))
+  expect_identical(.selnorm_normal_upper_tail(numeric(0)), numeric(0))
+})
+
+
+test_that("the fallback lane is as accurate as the vectorized one", {
+
+  # Builds without the vector region -- other compilers, other architectures --
+  # take the scalar lane. It must be certified on every machine, not only where
+  # it happens to be the dispatched path.
+  grid <- sort(unique(c(seq(-40, 40, by = 0.002), seq(-1, 1, by = 1e-4),
+                        seq(0.6, 0.75, by = 1e-5), seq(5.5, 5.8, by = 1e-5))))
+  expect_identical(.selnorm_normal_upper_tail(Inf, scalar = TRUE), 0)
+  expect_identical(.selnorm_normal_upper_tail(-Inf, scalar = TRUE), 1)
+  expect_true(is.na(.selnorm_normal_upper_tail(NaN, scalar = TRUE)))
+  expect_true(is.na(.selnorm_normal_upper_tail(NA_real_, scalar = TRUE)))
+  expect_identical(.selnorm_normal_upper_tail(numeric(0), scalar = TRUE), numeric(0))
+  fallback  <- .selnorm_normal_upper_tail(grid, scalar = TRUE)
+  reference <- stats::pnorm(grid, lower.tail = FALSE)
+
+  expect_true(all(is.finite(fallback)))
+  expect_true(all(fallback >= 0 & fallback <= 1))
+  comparable <- reference > 0 & abs(grid) <= 37.5
+  expect_lt(max(abs(fallback[comparable] - reference[comparable]) /
+                  reference[comparable]), 1e-13)
+
+  # And it agrees with whatever lane this build dispatches to.
+  dispatched <- .selnorm_normal_upper_tail(grid)
+  positive   <- dispatched > 0
+  expect_lt(max(abs(fallback[positive] / dispatched[positive] - 1)), 1e-14)
+
+  exact <- c(`8` = 6.2209605742717841235e-16, `20` = 2.7536241186062336951e-89,
+             `37` = 5.7255712225245768227e-300)
+  expect_lt(max(abs(.selnorm_normal_upper_tail(as.numeric(names(exact)),
+                                               scalar = TRUE) / exact - 1)), 1e-15)
+})
+
+
+
+test_that("mixed tail batches preserve values across vector widths", {
+
+  grid <- rep(c(-Inf, -40, -sqrt(32), -0.67448975, 0,
+                0.67448975, sqrt(32), 37.5193, 40, Inf, NaN), 4)
+  reference <- vapply(grid, .selnorm_normal_upper_tail, numeric(1L))
+  # A one-element request, a four-wide batch, and an eight-wide batch use
+  # different dispatch or remainder paths on supported machines. Check each
+  # remainder length with mixed regions and non-finite lanes.
+  for (size in 0:33) {
+    index <- seq_len(size)
+    expect_identical(.selnorm_normal_upper_tail(grid[index]), reference[index])
+  }
+})

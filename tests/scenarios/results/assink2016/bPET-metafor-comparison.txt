@@ -1,0 +1,9 @@
+            model implementation          mu      PET tau_total study_tau2_prop
+1          simple        metafor -0.05876374 2.687019 0.5328162              NA
+2          simple          RoBMA -0.01993163 2.517000 0.5305292              NA
+3         cluster        metafor  0.00994097 1.972869 0.4716690       0.5456492
+4         cluster          RoBMA  0.04627441 1.794402 0.4771281       0.5423798
+5           mv_vi        metafor  0.00994097 1.972869 0.4716690       0.5456492
+6           mv_vi          RoBMA  0.06915636 1.689530 0.4788443       0.5442289
+7 mv_correlated_V        metafor  0.06875011 1.635545 0.4466219       0.2649283
+8 mv_correlated_V          RoBMA  0.11234405 1.376389 0.4578340       0.2863595

@@ -63,7 +63,23 @@ test_that("brma.norm fits metafor-reference normal models", {
   fit_mods3.brma <- brma(yi, vi, mods = ~ alloc * year, data = dat, measure = "RR", seed = 1, silent = TRUE)
   fit_mods3.brma <- add_marglik(fit_mods3.brma)
   fit_mods3.brma <- suppressWarnings(add_loo(fit_mods3.brma))
-  save_fit("bcg_meta-regression3", fit_mods3.brma, info = list(mods = c("alloc", "year", "alloc:year"), metafor = fit_mods3.metafor))
+  fit_mods3_vif_X       <- RoBMA:::.get_model_matrix(fit_mods3.brma)
+  fit_mods3_vif.metafor <- metafor::rma(
+    yi   = yi,
+    vi   = vi,
+    mods = fit_mods3_vif_X[, attr(fit_mods3_vif_X, "assign") != 0, drop = FALSE],
+    data = dat,
+    tau2 = fit_mods3.brma[["summary"]]["tau", "Mean"]^2
+  )
+  save_fit(
+    "bcg_meta-regression3",
+    fit_mods3.brma,
+    info = list(
+      mods        = c("alloc", "year", "alloc:year"),
+      metafor     = fit_mods3.metafor,
+      metafor_vif = fit_mods3_vif.metafor
+    )
+  )
   expect_s3_class(fit_mods3.brma, "brma.norm")
 
   # using RoBMA package (meandif coding)

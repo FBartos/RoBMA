@@ -1,0 +1,6 @@
+
+Pooled Effect Size (incidence rate ratio)
+    Mean Median 0.025 0.975 PI 0.025 PI 0.975
+mu 0.649  0.634 0.384 1.000    0.220    1.720
+Effect estimates are summarized on the incidence rate ratio scale using EXP on the log incidence rate ratio measure.
+

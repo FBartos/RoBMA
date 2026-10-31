@@ -21,14 +21,20 @@ Extract the pointwise log-likelihood matrix from a brma model
 object. This is an S x K or S x G matrix where S is the number of posterior
 samples, K is the number of estimates, and G is the number of clusters.
 This method implements the S3
-\'logLik\' generic for \code{brma} objects and returns the matrix of
+'logLik' generic for \code{brma} objects and returns the matrix of
 pointwise log-likelihoods (one column per observation, one row per sample).
+It returns the draws of \code{\link{log_lik}}, which documents the
+targets of the columns; use \code{log_lik()} directly where the generic is
+not required.
 }
 \details{
 The log-likelihood is computed for each observation at each posterior sample.
 For binomial and Poisson models, each observation consists of a pair of
 counts (ai/ci or x1i/x2i) that together define a single effect size estimate.
+The matrix holds posterior draws, not a scalar maximized log-likelihood, so
+\code{AIC()} and \code{BIC()} are not defined for \code{brma} objects (see
+\code{\link{AIC.brma}}).
 }
 \seealso{
-\code{\link{loo.brma}}
+\code{\link{log_lik}}, \code{\link{loo.brma}}
 }

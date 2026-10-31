@@ -91,7 +91,8 @@ the plot}
 If \code{as_data = TRUE}, returns a list with the computed plot data
 including: \code{points}, \code{refline}, \code{band}, \code{arc},
 \code{arc_ticks}, \code{ci_arc}, \code{ci_ticks}, \code{xlim}, and
-\code{zlim}.
+\code{zlim}. Returned arc coordinates use plain trigonometry; both renderers
+recompute arcs for their aspect ratio, so the data do not encode final device geometry.
 }
 \description{
 \code{radial.brma} creates a radial (Galbraith) plot for a
@@ -107,19 +108,28 @@ The radial (Galbraith) plot transforms each study's effect size and
 standard error into a point in precision-standardized space:
 
 \itemize{
-\item x-axis: precision = \eqn{1/\sqrt{v_i + \hat{\tau}^2}}
-\item z-axis: standardized effect = \eqn{y_i/\sqrt{v_i + \hat{\tau}^2}}
+\item x-axis: precision = \eqn{1/\sqrt{v_i + \hat{\tau}_i^2}}
+\item z-axis: standardized effect = \eqn{y_i/\sqrt{v_i + \hat{\tau}_i^2}}
 }
+For ordinary and specialized multilevel models, the marginal heterogeneity
+is common and \eqn{\hat{\tau}_i = \hat{\tau}}. Random-formula models use
+each row's marginal random-effect standard deviation. Known sampling
+covariance uses its diagonal for \eqn{v_i}; plotted points can therefore be
+dependent.
 
-Under the random-effects model, studies consistent with the pooled effect
-should fall within the sloped parallelogram confidence band around the
-pooled-effect line. The arc on the right side allows reading individual
-effect sizes by projecting from the origin through a point to the arc; when
-\code{center = TRUE}, the plotted slope is relative to the pooled effect.
+For a single normal model, the sloped parallelogram is the usual marginal
+Gaussian reference band around the pooled-effect line. For GLMMs it is a
+continuity-corrected effect-size approximation; for selection, PET/PEESE,
+and product-space models it remains a bias-adjusted posterior-mean reference
+rather than an exact envelope of the fitted observation law. The arc on the
+right side allows reading individual effect sizes by projecting from the
+origin through a point to the arc; when \code{center = TRUE}, the plotted
+slope is relative to the pooled effect.
 
-This function requires an intercept-only model; radial plots are not
-meaningful for meta-regression or location-scale models where the
-pooled effect varies across studies.
+This function requires an intercept-only model without scale regression or
+likelihood weights. Likelihood-weighted fits do not have a single radial
+precision target because the observational variance and power-likelihood
+information scales differ.
 
 \code{galbraith()} is a same-argument alias for \code{radial()}.
 }

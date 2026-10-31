@@ -10,6 +10,7 @@
   unit = "estimate",
   conditioning_depth = "marginal",
   bias_adjusted = FALSE,
+  max_samples = Inf,
   ...
 )
 }
@@ -21,11 +22,13 @@
 \item \code{"outcome"} (default): Raw residuals (observed - fitted).
 Available for all model types.
 \item \code{"pearson"}: Pearson (semi-standardized) residuals, dividing
-raw residuals by the marginal standard error \eqn{\sqrt{v_i + \tau^2}}.
+raw residuals by the SD of the corresponding outcome target: marginal
+includes all applicable heterogeneity, cluster depth includes within-
+cluster heterogeneity, and estimate depth uses sampling variance only.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
-\item \code{"rstandard"}: Internally standardized residuals, dividing
-raw residuals by their standard errors computed using the hat matrix.
+\item \code{"rstandard"}: Internally standardized projection residuals,
+divided by their corresponding SDs computed using the hat matrix.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
 \item \code{"LOO-PIT"} (alias: \code{"rstudent"}): Leave-one-out probability
@@ -34,12 +37,14 @@ sampling. The LOO-CDF value for each observation is computed and transformed
 to standard normal quantiles via \eqn{\Phi^{-1}(u_i)}. Under a correctly
 specified model, these residuals should follow a standard normal distribution.
 This is the recommended standardized residual for Bayesian models as it properly
-accounts for estimation uncertainty and leverage. Available for all model
-types. Note: This requires that the loo has been computed previously (see
+accounts for estimation uncertainty and leverage. Available for normal
+outcome models and, as a descriptive normal approximation on the
+effect-size scale, for binomial and Poisson GLMMs (see Details).
+Note: This requires that the loo has been computed previously (see
 \code{add_loo()} function).
 }}
 
-\item{unit}{output unit. Only \code{"estimate"} is implemented currently..}
+\item{unit}{output unit. Only \code{"estimate"} is implemented currently.}
 
 \item{conditioning_depth}{conditioning depth for non-LOO residuals. \code{"marginal"}
 uses fixed effects only, \code{"cluster"} conditions on cluster-level random
@@ -52,6 +57,11 @@ as the difference between observed values and raw (biased) predictions
 including PET/PEESE terms. Set to \code{TRUE} to compute residuals from
 bias-corrected fitted values. Applies to outcome and Pearson residuals. Note
 that bias-adjusted residuals are not residuals in the traditional sense.}
+
+\item{max_samples}{maximum posterior draws used for known-\code{V}
+\code{brma.mv()} marginal covariance computations in Pearson and internally
+standardized residuals. Defaults to \code{Inf}. Finite values
+deterministically thin draws across posterior row order.}
 
 \item{...}{additional arguments.}
 }
@@ -80,9 +90,27 @@ compute residual standard errors that account for the uncertainty in
 estimated coefficients:
 \deqn{z_i = \frac{e_i}{\sqrt{[(I-H)M(I-H)']_{ii}}}}
 where \eqn{H} is the hat matrix and \eqn{M} is the marginal variance-covariance
-matrix. For models without moderators, this simplifies to the Pearson formula.
+matrix. Without additional likelihood weights, the GLS projection satisfies
+\eqn{HM = MH' = HMH'}, so the
+denominator equals
+\eqn{M_{ii} - [X(X'M^{-1}X)^{-1}X']_{ii}}, which is strictly smaller than the
+Pearson denominator \eqn{\sqrt{M_{ii}}}. This holds with no moderators too,
+where fitting the pooled effect alone removes \eqn{1/(1'M^{-1}1)} from every
+residual variance, so standardized and Pearson residuals do not coincide.
 Only available for normal outcome models without selection (weightfunction)
 bias adjustment.
+
+Likelihood \code{weights} affect fitting, the fitted projection, and PSIS
+deletion weights; they do not divide the observation variance used for
+diagnostic scaling. Pearson residuals and the predictive CDF/moments in
+\code{rstudent()} use the original outcome law. Internally standardized
+residuals combine the fitted weighted projection \eqn{H} with that law's
+covariance \eqn{M}, as in \pkg{metafor} diagnostics with custom fitting weights.
+RoBMA retains its Bayesian posterior averaging and LOO-PIT transformation;
+these are not identical to frequentist deleted-residual z-statistics.
+Each retained row produces one residual, without multiplying or repeating it
+by its observation weight. Estimate-unit LOO removes the row's entire
+weighted likelihood contribution, for integer and non-integer weights alike.
 
 LOO-PIT residuals (\code{type = "LOO-PIT"}) are the Bayesian equivalent of
 studentized deleted residuals \insertCite{vehtari2017practical}{RoBMA}. They
@@ -90,8 +118,19 @@ are computed via leave-one-out probability integral transformation:
 \deqn{r_i = \Phi^{-1}(u_i)}
 where \eqn{u_i = \sum_s w_{is} F(y_i | \theta^{(s)})} is the LOO-weighted CDF
 value, \eqn{w_{is}} are the normalized PSIS weights, and \eqn{F} is the
-cumulative distribution function of the estimate-unit predictive
-distribution used by LOO. Under a correctly specified model, LOO-PIT
+cumulative distribution function of the estimate-unit outcome distribution
+under the leave-one-out fit. With likelihood weights, PSIS removes the
+weighted likelihood contribution while this CDF remains unpowered.
+For weighted Gaussian cluster models, the cluster effect is integrated given
+the retained weighted rows. These retained moments are paired with the
+integrated powered-likelihood PSIS ratios; full-data sampled cluster effects
+are not reused. Numerically unresolved retained moments raise
+\code{RoBMA_weighted_gaussian_unavailable}, a
+\code{RoBMA_numerical_unavailable} condition.
+Lower and upper probabilities are accumulated
+separately on the log scale, and the smaller tail is passed directly to the
+normal quantile function. Therefore extreme residuals are not truncated by
+probability clipping. Under a correctly specified model, LOO-PIT
 residuals should follow a standard normal distribution. Unlike traditional
 standardized residuals, LOO-PIT residuals properly account for estimation
 uncertainty and leverage without requiring a hat matrix. This is the
@@ -100,12 +139,27 @@ recommended method for standardized residuals in Bayesian meta-analysis.
 For meta-regression models, fitted values incorporate moderator effects.
 For models without moderators, all fitted values equal the pooled effect.
 
-For GLMM models (binomial or Poisson), observed effect sizes and their
-sampling variances are computed from the raw frequency data using the
-same formulas as \code{metafor::escalc} with the default zero-cell
-adjustment (adding 0.5 to all cells when any cell is zero). GLMM residuals
-and LOO-PIT values are therefore approximate effect-size-scale diagnostics,
-not exact PIT diagnostics for the raw count likelihood.
+For binomial and Poisson GLMMs the fitted predictive distributions are
+discrete, so the LOO-PIT residuals are a descriptive normal approximation on
+the effect-size scale: \eqn{F} is the normal distribution of the
+continuity-corrected log odds ratio or log incidence rate ratio with its
+approximate sampling standard error, as \pkg{metafor} computes residuals of
+GLMMs. They are not probability integral transforms of the fitted count
+likelihood, and the functions say so in a message (plots label the
+approximation).
+
+For correlated known-\code{V} \code{brma.mv()} models, LOO-PIT residuals use
+the same conditional estimate-unit target as LOO,
+\eqn{p(y_i \mid y_{-i}, \theta)}. Random-formula \code{brma.mv()} models
+support marginal Pearson and internally standardized residuals through the
+marginal covariance \eqn{V + ZGZ'} and estimate-depth residuals through the
+fitted existing-level random-effect target.
+Selection models retain their declared context and original publication
+event during deletion. Retained product weights cancel; best selection also
+retains the best p-value among the observed outcomes in that event.
+Pearson and hat-matrix standardized residuals remain unavailable for
+selection models; use LOO-PIT residuals for a likelihood-aware standardized
+diagnostic.
 
 The residuals are computed separately for each posterior sample,
 naturally propagating uncertainty in model parameters to the residuals.

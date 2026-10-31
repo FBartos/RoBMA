@@ -1,5 +1,3 @@
-context("Summary models")
-
 source(testthat::test_path("common-functions.R"))
 
 skip_if_no_fits()
@@ -8,7 +6,7 @@ fits      <- lazy_fits(fit_names, validate = FALSE)
 
 summary_model_names <- intersect(
   names(fits),
-  catalog_fits(class = c("BMA.norm", "BMA.glmm", "RoBMA"))
+  catalog_fits(class = c("BMA.norm", "BMA.glmm", "BMA.mv", "RoBMA"))
 )
 
 expect_summary_models_marginal_table <- function(table, name, component) {
@@ -95,6 +93,8 @@ expect_printed_summary_models <- function(out, name) {
               info = paste0("printed summary_models for '", name, "'"))
   expect_false(any(grepl("__xXx__", output, fixed = TRUE)),
                info = paste0("printed summary_models labels for '", name, "'"))
+  expect_false(any(grepl("__xRE_", output, fixed = TRUE)),
+               info = paste0("printed random-effect backend labels for '", name, "'"))
 }
 
 

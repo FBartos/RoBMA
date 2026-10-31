@@ -1,5 +1,74 @@
 context("Prior input handling for RoBMA (mixture priors)")
 
+test_that("complete scale intercepts preserve support and reject unconsumed globals", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4), x = c(-1, 0, 1, 2))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  positive <- BayesTools::prior("point", list(0.3))
+  base <- list(yi = quote(yi), sei = quote(sei), scale = ~ x, data = dat, measure = "GEN",
+    prior_effect = normal, prior_scale = list(intercept = positive, x = normal), only_priors = TRUE, silent = TRUE)
+  for (constructor in list(brma, BMA)) {
+    expect_silent(object <- do.call(constructor, base))
+    expect_identical(object$priors$scale$intercept$parameters$location, 0.3)
+    for (value in list(NULL, FALSE, BayesTools::prior("gamma", list(2, 2)))) {
+      args <- base
+      args["prior_heterogeneity"] <- list(value)
+      expect_error(do.call(constructor, args), "prior_heterogeneity", class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+    }
+    for (value in list(NULL, FALSE, BayesTools::prior("point", list(-0.2)), BayesTools::prior("point", list(0)))) {
+      args <- base
+      args$prior_scale <- list(intercept = value, x = normal)
+      condition <- tryCatch(do.call(constructor, args), error = identity)
+      expect_s3_class(condition, "RoBMA_prior_error")
+      expect_match(conditionMessage(condition), "prior_scale", fixed = TRUE)
+      expect_null(conditionCall(condition))
+    }
+  }
+  for (name in c("prior_scale_null", "prior_heterogeneity_null")) {
+    args <- base
+    args[name] <- if (name == "prior_scale_null") list(list(intercept = NULL)) else list(NULL)
+    expect_error(do.call(BMA, args), name, class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+  }
+})
+
+
+test_that("complete formula intercept overrides reject every lost declaration", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), sei = rep(0.2, 4), x = c(-1, 0, 1, 2))
+  normal <- BayesTools::prior("normal", list(0, 1))
+  zero <- BayesTools::prior("point", list(0))
+  base <- list(yi = quote(yi), sei = quote(sei), mods = ~ x, data = dat, measure = "SMD",
+    prior_mods = list(intercept = normal, x = normal), prior_heterogeneity = zero,
+    prior_heterogeneity_null = NULL, only_priors = TRUE, silent = TRUE)
+  expect_silent(object <- do.call(BMA, base))
+  expect_identical(object$priors$mods$intercept$parameters, normal$parameters)
+  expect_identical(object$priors$mods$intercept$distribution, "normal")
+  for (name in c("prior_effect", "prior_effect_null")) for (value in list(normal, NULL, FALSE)) {
+    args <- base
+    args[name] <- list(value)
+    condition <- tryCatch(do.call(BMA, args), error = identity)
+    expect_s3_class(condition, "RoBMA_prior_intercept_conflict")
+    expect_s3_class(condition, "RoBMA_prior_error")
+    expect_match(conditionMessage(condition), name, fixed = TRUE)
+    expect_null(conditionCall(condition))
+  }
+  for (name in c("prior_mods", "prior_mods_null")) for (value in list(NULL, FALSE, normal)) {
+    if (name == "prior_mods" && BayesTools::is.prior(value)) next
+    args <- base
+    args[[name]] <- if (name == "prior_mods") list(intercept = value, x = normal) else list(intercept = value)
+    expect_error(do.call(BMA, args), "'intercept' entry", class = "RoBMA_prior_intercept_conflict", fixed = TRUE)
+  }
+  args <- base
+  args$prior_mods_null <- list(intercept = BayesTools::prior("normal", list(1, 1)))
+  condition <- tryCatch(do.call(BMA, args), error = identity)
+  expect_identical(conditionMessage(condition), paste0(
+    "The 'intercept' entry in 'prior_mods_null' is unavailable. Supply the complete intercept prior ",
+    "in 'prior_mods', or use the global prior arguments without a formula-list intercept."
+  ))
+  expect_silent(brma(yi = yi, sei = sei, mods = ~ 0 + x, data = dat, measure = "GEN",
+    prior_effect = normal, prior_mods = list(x = normal), prior_heterogeneity = zero, only_priors = TRUE, silent = TRUE))
+})
+
 skip_on_cran()
 source(testthat::test_path("helper-contracts.R"))
 
@@ -525,6 +594,21 @@ test_that("Custom prior_mods_null replaces null for terms", {
   expect_equal(mean(result$mods$mod_cont[[null_idx]]), 0.1)
 })
 
+test_that("User intercept entries in moderator prior lists are honored", {
+
+  custom_intercept <- BayesTools::prior("normal", parameters = list(mean = 0.4, sd = 0.2))
+
+  result <- RoBMA(
+    yi = effect, sei = std_err, mods = ~ mod_cont,
+    prior_mods = list(intercept = custom_intercept),
+    data = test_data, measure = "SMD", only_priors = TRUE,
+    silent = TRUE
+  )[["priors"]]
+
+  expect_equal(result$mods$intercept$parameters$mean, 0.4)
+  expect_equal(result$mods$intercept$parameters$sd, 0.2)
+})
+
 
 # ============================================================================
 # Tests for informed priors with mixtures
@@ -591,6 +675,14 @@ test_that("Invalid model_type is rejected", {
 
 test_that("Conflicting prior specifications are rejected", {
 
+  expect_error(
+    RoBMA(
+      yi = effect, sei = std_err, data = test_data, measure = "SMD",
+      prior_informed_subfield = "neonatal", only_priors = TRUE
+    ),
+    regexp = "prior_informed_subfield.*prior_informed_field"
+  )
+
   # Both UISD and informed priors
   expect_error(
     RoBMA(
@@ -628,7 +720,8 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
 
   expect_error(
     RoBMA(yi = effect, sei = std_err, data = test_data, measure = "GEN", only_priors = TRUE),
-    regexp = "ni|unit_information_sd|UISD|Sample size"
+    regexp = "Sample size 'ni' or unit information sd 'prior_unit_information_sd' must be specified to set-up prior distributions without known UISD.",
+    fixed = TRUE
   )
 
   # Should work with ni
@@ -640,6 +733,81 @@ test_that("GEN measure requires ni or prior_unit_information_sd for RoBMA", {
   expect_no_error(
     RoBMA(yi = effect, sei = std_err, data = test_data, measure = "GEN", prior_unit_information_sd = 1.5, only_priors = TRUE)
   )
+})
+
+test_that("GEN RoBMA accepts fully specified named formula priors without UISD", {
+
+  explicit_effect <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 10)
+  )
+  explicit_heterogeneity <- BayesTools::prior(
+    distribution = "normal",
+    parameters   = list(mean = 0, sd = 1),
+    truncation   = list(0, Inf)
+  )
+  explicit_mods <- list(
+    mod_cont   = BayesTools::prior("normal", parameters = list(mean = 0, sd = 2)),
+    mod_factor = BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list(mean = 0, sd = 3),
+      contrast     = "treatment"
+    )
+  )
+  explicit_scale <- list(
+    scale_var = BayesTools::prior("normal", parameters = list(mean = 0, sd = 4))
+  )
+
+  result <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err,
+    mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
+    data = test_data, measure = "GEN", model_type = "6w",
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    prior_scale         = explicit_scale,
+    only_priors         = TRUE,
+    silent              = TRUE
+  )[["priors"]])
+
+  is_null_cont <- .get_is_null(result[["mods"]][["mod_cont"]])
+  alt_cont     <- which(!is_null_cont)[1]
+  is_null_fact <- .get_is_null(result[["mods"]][["mod_factor"]])
+  alt_fact     <- which(!is_null_fact)[1]
+  is_null_scale <- .get_is_null(result[["scale"]][["scale_var"]])
+  alt_scale     <- which(!is_null_scale)[1]
+
+  expect_equal(result[["mods"]][["mod_cont"]][[alt_cont]][["parameters"]][["sd"]], 2)
+  expect_equal(result[["mods"]][["mod_factor"]][[alt_fact]][["parameters"]][["sd"]], 3)
+  expect_equal(result[["scale"]][["scale_var"]][[alt_scale]][["parameters"]][["sd"]], 4)
+
+  matching <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err,
+    mods = ~ mod_cont + mod_factor, scale = ~ scale_var,
+    data = test_data, measure = "GEN", model_type = "6w",
+    prior_effect        = explicit_effect,
+    prior_heterogeneity = explicit_heterogeneity,
+    prior_mods          = explicit_mods,
+    prior_mods_null     = list(mod_factor = BayesTools::prior_factor(
+      "point", list(0), contrast = "treatment"
+    )),
+    prior_scale         = explicit_scale,
+    only_priors         = TRUE,
+    silent              = TRUE
+  )[["priors"]])
+  expect_identical(result, matching)
+  factor_prior <- result[["mods"]][["mod_factor"]]
+  expect_identical(.get_is_null(factor_prior), c(TRUE, FALSE))
+  expect_identical(attr(factor_prior, "prior_weights"), c(1, 1))
+  expect_identical(attr(factor_prior, "K"), 1L)
+  expect_identical(attr(factor_prior, "factor_design"), matrix(c(0, 1), 2L))
+  for (component in factor_prior) {
+    expect_true(BayesTools::is.prior.treatment(component))
+    expect_identical(attr(component, "factor_design"), matrix(c(0, 1), 2L))
+    expect_identical(component[["prior_weights"]], 1)
+  }
+  expect_true(BayesTools::is.prior.point(factor_prior[[1L]]))
+  expect_equal(factor_prior[[1L]][["parameters"]][["location"]], 0)
 })
 
 
@@ -705,6 +873,21 @@ test_that("Custom prior_scale replaces alternative for scale terms", {
   is_null <- .get_is_null(result$scale$scale_var)
   alt_indices <- which(!is_null)
   expect_equal(result$scale$scale_var[[alt_indices[1]]]$parameters$sd, 0.4)
+})
+
+test_that("User intercept entries in scale prior lists are honored", {
+
+  custom_intercept <- BayesTools::prior("normal", parameters = list(mean = 0.4, sd = 0.2))
+
+  result <- suppressWarnings(RoBMA(
+    yi = effect, sei = std_err, scale = ~ scale_var,
+    prior_scale = list(intercept = custom_intercept),
+    data = test_data, measure = "SMD", only_priors = TRUE,
+    silent = TRUE
+  )[["priors"]])
+
+  expect_equal(result$scale$intercept$parameters$mean, 0.4)
+  expect_equal(result$scale$intercept$parameters$sd, 0.2)
 })
 
 
@@ -832,6 +1015,42 @@ test_that("Different moderators can have different null specifications", {
   # mod_factor should still have null component
   is_null_factor <- .get_is_null(result$mods$mod_factor)
   expect_equal(sum(is_null_factor), 1)
+})
+
+test_that("Unknown NULL/FALSE moderator omission names warn", {
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont + mod_factor,
+      prior_mods_null = list(mod_typo = NULL),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods_null'.*'mod_typo'"
+  )
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont * scale_var,
+      prior_mods_null = list("scale_var:mod_cont" = NULL),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods_null'.*'scale_var:mod_cont'"
+  )
+
+  expect_warning(
+    RoBMA(
+      yi = effect, sei = std_err,
+      mods = ~ mod_cont + mod_factor,
+      prior_mods = list(mod_typo = FALSE),
+      data = test_data, measure = "SMD", only_priors = TRUE,
+      silent = TRUE
+    ),
+    "Unknown term\\(s\\) in 'prior_mods'.*'mod_typo'"
+  )
 })
 
 
@@ -999,4 +1218,168 @@ test_that("Both mods and scale use mixture priors together", {
 
   # mods intercept should be mixture
   expect_true(BayesTools::is.prior.mixture(result$mods$intercept))
+})
+
+
+test_that("unspecified factor nulls follow ordinary alternative contrasts", {
+
+  for (contrast in c("treatment", "independent", "meandif", "orthonormal")) {
+    distribution <- if (contrast %in% c("meandif", "orthonormal")) "mnormal" else "normal"
+    alternative <- BayesTools::prior_factor(
+      distribution, list(0, 3), contrast = contrast, prior_weights = 3
+    )
+    zero <- BayesTools::prior_factor("point", list(0), contrast = contrast)
+    base <- list(yi = quote(effect), sei = quote(std_err), data = test_data,
+      mods = ~ mod_cont + mod_factor, measure = "SMD", only_priors = TRUE, silent = TRUE,
+      prior_mods = list(mod_factor = alternative),
+      set_contrast_factor_predictors = if (contrast == "treatment") "meandif" else "treatment")
+    for (input in c("missing", "NULL", "empty", "partial")) {
+      args <- base
+      named_null <- list()
+      if (input == "NULL") args["prior_mods_null"] <- list(NULL)
+      if (input == "empty") args$prior_mods_null <- list()
+      if (input == "partial") {
+        named_null <- list(mod_cont = BayesTools::prior("point", list(0.125), prior_weights = 2))
+        args$prior_mods_null <- named_null
+      }
+      object <- do.call(RoBMA, args)
+      control <- args
+      control$prior_mods_null <- c(named_null, list(mod_factor = zero))
+      matching <- do.call(RoBMA, control)
+      expect_identical(object[["priors"]], matching[["priors"]])
+      expect_identical(object[["data"]], matching[["data"]])
+      prior <- object[["priors"]][["mods"]][["mod_factor"]]
+      K <- if (contrast == "independent") 2L else 1L
+      expect_identical(attr(prior, "K"), K)
+      expect_identical(dim(attr(prior, "factor_design")), c(2L, K))
+      expect_identical(.get_is_null(prior), c(TRUE, FALSE))
+      expect_identical(attr(prior, "prior_weights"), c(1, 3))
+      expect_true(BayesTools::is.prior.point(prior[[1L]]))
+      expect_equal(prior[[1L]][["parameters"]][["location"]], 0)
+      expect_identical(prior[[1L]][["prior_weights"]], 1)
+      expect_identical(prior[[2L]][["prior_weights"]], 3)
+      expect_identical(prior[[2L]][["distribution"]], distribution)
+      expect_equal(prior[[2L]][["parameters"]][["sd"]], 3)
+      predicate <- switch(contrast,
+        treatment = BayesTools::is.prior.treatment,
+        independent = BayesTools::is.prior.independent,
+        meandif = BayesTools::is.prior.meandif,
+        orthonormal = BayesTools::is.prior.orthonormal)
+      expect_true(all(vapply(prior, predicate, logical(1))))
+      for (component in prior) {
+        expect_identical(attr(component, "factor_design"), attr(prior, "factor_design"))
+        expect_identical(attr(component, "factor_contrasts"), c(mod_factor = paste0("contr.", contrast)))
+        expect_equal(attr(component, "levels"), 2)
+      }
+    }
+    global <- base
+    global$prior_mods <- alternative
+    global$rescale_priors <- 2
+    object <- do.call(RoBMA, global)
+    global$prior_mods_null <- list(mod_factor = zero)
+    matching <- do.call(RoBMA, global)
+    expect_identical(object[["priors"]], matching[["priors"]])
+    prior <- object[["priors"]][["mods"]][["mod_factor"]]
+    expect_identical(attr(prior, "prior_weights"), c(1, 3))
+    expect_equal(prior[[2L]][["parameters"]][["sd"]], 6)
+    expect_equal(prior[[1L]][["parameters"]][["location"]], 0)
+  }
+})
+
+
+test_that("explicit factor null declarations and omissions retain their semantics", {
+
+  alternative <- BayesTools::prior_factor("normal", list(0, 3), contrast = "treatment", prior_weights = 3)
+  base <- list(yi = quote(effect), sei = quote(std_err), data = test_data,
+    mods = ~ mod_factor, measure = "SMD", only_priors = TRUE, silent = TRUE,
+    prior_mods = list(mod_factor = alternative))
+  matching <- BayesTools::prior_factor("point", list(0), contrast = "treatment", prior_weights = 4)
+  for (global in c(TRUE, FALSE)) {
+    args <- base
+    args$prior_mods_null <- if (global) matching else list(mod_factor = matching)
+    prior <- do.call(RoBMA, args)[["priors"]][["mods"]][["mod_factor"]]
+    expect_identical(attr(prior, "prior_weights"), c(4, 3))
+    expect_true(all(vapply(prior, BayesTools::is.prior.treatment, logical(1))))
+    expect_equal(prior[[1L]][["parameters"]][["location"]], 0)
+    for (null in list(
+      BayesTools::prior_factor("point", list(0), contrast = "meandif"),
+      BayesTools::prior("point", list(0))
+    )) {
+      args$prior_mods_null <- if (global) null else list(mod_factor = null)
+      if (global || BayesTools::is.prior.factor(null)) {
+        expect_error(do.call(RoBMA, args), paste0("The factor term 'mod_factor' uses the ",
+          "'treatment' contrast in 'prior_mods' but the 'meandif' contrast in 'prior_mods_null'"),
+          class = "RoBMA_prior_contrast_conflict", fixed = TRUE)
+      } else {
+        expect_error(do.call(RoBMA, args),
+          "Unsupported prior distribution defined for 'mod_factor' factor variable.", fixed = TRUE)
+      }
+    }
+  }
+  args <- base
+  args$prior_mods_null <- list(mod_factor = BayesTools::prior_factor(
+    "point", list(0.2), contrast = "treatment", prior_weights = 5
+  ))
+  prior <- do.call(RoBMA, args)[["priors"]][["mods"]][["mod_factor"]]
+  expect_equal(prior[[1L]][["parameters"]][["location"]], 0.2)
+  expect_identical(attr(prior, "prior_weights"), c(5, 3))
+  for (omit in list(NULL, FALSE)) {
+    args <- base
+    args$prior_mods_null <- list(mod_factor = omit)
+    prior <- do.call(RoBMA, args)[["priors"]][["mods"]][["mod_factor"]]
+    expect_identical(.get_is_null(prior), FALSE)
+    expect_identical(attr(prior, "prior_weights"), 3)
+    expect_true(BayesTools::is.prior.treatment(prior[[1L]]))
+
+    # The discarded alternative is default meandif; the retained explicit null
+    # is independent and must not be rewritten from that discarded prior.
+    args$prior_mods <- list(mod_factor = omit)
+    args$prior_mods_null <- list(mod_factor = BayesTools::prior_factor(
+      "point", list(0), contrast = "independent", prior_weights = 4
+    ))
+    prior <- do.call(RoBMA, args)[["priors"]][["mods"]][["mod_factor"]]
+    expect_identical(.get_is_null(prior), TRUE)
+    expect_identical(attr(prior, "prior_weights"), 4)
+    expect_true(BayesTools::is.prior.independent(prior[[1L]]))
+    expect_identical(attr(prior, "K"), 2L)
+    expect_identical(attr(prior, "factor_design"), diag(2))
+  }
+  for (malformed in list(list(mod_factor = 3), list(mod_factor = list()))) {
+    args <- base
+    args$prior_mods_null <- malformed
+    expect_error(do.call(RoBMA, args))
+  }
+})
+
+
+test_that("factor null completion stays within its component scale formula", {
+
+  dat <- data.frame(yi = c(0.1, 0.2, 0.3, 0.4), x = c(-1, 0, 1, 2),
+    g = factor(c("a", "b", "a", "b")),
+    study = factor(c("a", "a", "b", "b")), obs = factor(seq_len(4)))
+  args <- list(yi = quote(yi), V = diag(0.04, 4),
+    random = list(study_effect = ~ 1 | study, observation_effect = ~ 1 | obs),
+    scale = list(study = ~ x + g, obs = ~ x),
+    prior_scale = list(study = list(intercept = BayesTools::prior("point", list(0.3)),
+      g = BayesTools::prior_factor("normal", list(0, 2), contrast = "treatment", prior_weights = 3)),
+      obs = list(intercept = BayesTools::prior("point", list(0.4)))),
+    data = dat, measure = "GEN", prior_effect = BayesTools::prior("normal", list(0, 1)),
+    only_priors = TRUE, silent = TRUE)
+  object <- do.call(BMA.mv, args)
+  args$prior_scale_null <- list(study = list(g = BayesTools::prior_factor(
+    "point", list(0), contrast = "treatment"
+  )), obs = list())
+  matching <- do.call(BMA.mv, args)
+  expect_identical(object[["priors"]], matching[["priors"]])
+  scale <- object[["priors"]][["scale"]]
+  expect_named(scale, c("log_tau_study_effect", "log_tau_observation_effect"))
+  prior <- scale[["log_tau_study_effect"]][["g"]]
+  expect_identical(attr(prior, "K"), 1L)
+  expect_identical(attr(prior, "factor_design"), matrix(c(0, 1), 2L))
+  expect_identical(.get_is_null(prior), c(TRUE, FALSE))
+  expect_identical(attr(prior, "prior_weights"), c(1, 3))
+  expect_equal(prior[[1L]][["parameters"]][["location"]], 0)
+  expect_true(all(vapply(prior, BayesTools::is.prior.treatment, logical(1))))
+  expect_identical(scale[["log_tau_study_effect"]][["intercept"]][["parameters"]][["location"]], 0.3)
+  expect_identical(scale[["log_tau_observation_effect"]][["intercept"]][["parameters"]][["location"]], 0.4)
 })

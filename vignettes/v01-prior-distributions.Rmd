@@ -1,7 +1,7 @@
 ---
 title: "Prior Distributions"
 author: "František Bartoš"
-date: "28th of April 2026"
+date: "28th of April 2026 (updated: 29th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Prior Distributions}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -267,7 +266,7 @@ Havrankova_treatment <- brma(
   data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(Havrankova_treatment, parameter_mods = "facing_customer")
+print_prior(Havrankova_treatment, parameter = "facing_customer")
 ```
 
 ```{r Havrankova-meandif}
@@ -278,7 +277,7 @@ Havrankova_meandif <- brma(
   data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(Havrankova_meandif, parameter_mods = "facing_customer")
+print_prior(Havrankova_meandif, parameter = "facing_customer")
 ```
 
 The treatment-contrast version places a `Normal(0, 12.9)` prior distribution on each non-reference level's deviation from the reference level.
@@ -293,9 +292,8 @@ By default, `plot_prior()` displays the prior distribution on this standardized 
 We inspect the prior distribution on the continuous moderator `N` from the same `Havrankova_meandif` fit:
 
 ```{r Havrankova-continuous}
-plot_prior(Havrankova_meandif, parameter_mods = "N")
-plot_prior(Havrankova_meandif, parameter_mods = "N", 
-  standardized_coefficients = FALSE)
+plot_prior(Havrankova_meandif, parameter = "N")
+plot_prior(Havrankova_meandif, parameter = "N", standardized_coefficients = FALSE)
 ```
 
 The first plot shows the prior distribution on the standardized scale used internally (a plausible change per one standard deviation of `N`).
@@ -328,6 +326,45 @@ print_prior(Havrankova_per_mod)
 
 The `facing_customer` prior distribution is now the user-specified `mNormal(0, 5)` mean-difference contrast, while `N` retains the default per-standard-deviation prior distribution.
 The named list extends naturally: with multiple moderators, each entry can specify its own prior family, scale, and (for categorical moderators) `contrast` value.
+
+### Random-effect component prior distributions
+
+Many meta-analyses report several effect sizes per study, and `brma.mv()` decomposes the heterogeneity into named random-effect components, such as between-study and within-study heterogeneity.
+Instead of placing an independent prior distribution on each component, the default prior distribution specifies the total heterogeneity with the usual unit-information scale and allocates its variance among the components.
+
+The `Havrankova2025` dataset contains 1,159 estimates from 67 studies, identified by `study_id`.
+We add an estimate identifier and specify a three-level model with estimates nested within studies:
+
+```{r Havrankova-multilevel}
+Havrankova2025$estimate_id <- seq_len(nrow(Havrankova2025))
+
+Havrankova_multilevel_priors <- brma.mv(
+  yi = y, sei = se, ni = N, measure = "GEN",
+  random = ~ 1 | study_id / estimate_id,
+  data = Havrankova2025, only_priors = TRUE
+)
+
+print_prior(Havrankova_multilevel_priors, parameter = "random")
+```
+
+The total heterogeneity `sigma_total` receives the same positive `Normal(0, 12.9)` prior distribution as `tau` in the single-level model above.
+The `Dirichlet(1, 1)` prior distribution on the weights `w` splits the total variance uniformly between the estimate-within-study and the study components, and each component standard deviation equals `sigma_total` multiplied by the square root of its weight.
+As a result, adding components does not inflate the prior distribution on the total heterogeneity.
+The single-cluster interface, `brma(..., cluster = study_id)` and `RoBMA(..., cluster = study_id)`, specifies the same model through `tau` and the between-study proportion of the heterogeneity variance `rho`, where the `Beta(1, 1)` prior distribution on `rho` is the two-component case of this allocation.
+
+The defaults for other random-effect structures follow the same logic:
+
+| Random-effect structure | Default prior distribution |
+|:--|:--|
+| One component with a single standard deviation | positive `Normal(0, 0.25 * UISD)` on the component standard deviation |
+| Several components (nested or listed terms) | positive `Normal(0, 0.25 * UISD)` on the total standard deviation and `Dirichlet(1, ..., 1)` allocation of its variance among the components |
+| One standard deviation per level or coefficient (`hcs()`, `har()`, `diag()`, `us()`; the coefficients of a mean-difference or orthonormal factor term share one) | positive `Normal(0, 0.25 * UISD)` on the common standard deviation and `Dirichlet(1, ..., 1)` allocation of the mean variance among the levels |
+| Compound-symmetric correlation (`cs()`, `hcs()`) | uniform on `(-1 / (K - 1), 1)`, with `K` index levels |
+| Autoregressive correlation (`ar1()`, `har()`, `car()`) | uniform on `(-1, 1)`, or `[0, 1)` for `car()` |
+| Unstructured correlation (`us()` and random slopes) | `LKJ(1)`, uniform over correlation matrices |
+
+Use `print_prior(..., parameter = "random")` to display the allocation implied by a particular `random` formula.
+For applications, including correlated sampling errors, multivariate structures, and custom random-effect prior distributions via `prior_random()`, see the [*Multivariate and Multilevel Meta-Analysis*](v14-metafor-parity-multivariate.html) vignette.
 
 ## Informed Empirical Prior Distributions
 

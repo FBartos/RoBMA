@@ -116,3 +116,125 @@ test_that("Poisson raw response RNG allows zero exposure as zero counts", {
   expect_true(all(out >= 0))
   expect_true(all(out == floor(out)))
 })
+
+
+test_that("raw GLMM response predictions omit effect-size metadata", {
+
+  fitted_backend <- list()
+  attr(fitted_backend, "prior_list") <- list(mu = NULL)
+  outcome_data <- data.frame(
+    ai  = c(0L, 0L),
+    ci  = c(0L, 0L),
+    n1i = c(10L, 12L),
+    n2i = c(11L, 13L)
+  )
+  context <- list(
+    object            = list(fit = fitted_backend),
+    type              = "response",
+    conditioning_depth = "marginal",
+    as_measure        = FALSE,
+    probs             = c(.025, .975),
+    bias_adjusted     = TRUE,
+    quiet             = TRUE,
+    conditional       = FALSE,
+    same_data         = FALSE,
+    new_data          = list(outcome = outcome_data),
+    known_V_new       = NULL,
+    priors            = list(outcome = list(pi = NULL)),
+    is_weightfunction = FALSE,
+    is_known_v        = FALSE,
+    outcome_type      = "bin",
+    posterior_samples = matrix(0, nrow = 2L, ncol = 1L),
+    effect_transform  = .effect_output_setup_measure(input_measure = "OR"),
+    outcome_data      = outcome_data,
+    K                 = 2L,
+    n_chains          = 1L,
+    n_iter            = 2L,
+    random_mv         = FALSE
+  )
+  expected <- matrix(
+    c(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L),
+    nrow = 2L,
+    dimnames = list(NULL, c("ai[1]", "ci[1]", "ai[2]", "ci[2]"))
+  )
+
+  testthat::local_mocked_bindings(
+    .predict_brma_estimate_draws = function(...) matrix(0, nrow = 2L, ncol = 2L),
+    .evaluate.brma.baserate_newdata = function(...) matrix(0, nrow = 2L, ncol = 2L),
+    .outcome_rng.binom = function(...) expected,
+    .package = "RoBMA"
+  )
+
+  result <- .predict_brma_response(
+    context        = context,
+    location_state = list(mu = matrix(0, nrow = 2L, ncol = 2L)),
+    scale_state    = list(within = matrix(0, nrow = 2L, ncol = 2L))
+  )
+
+  expect_s3_class(result, "brma_samples")
+  expect_equal(unname(as.matrix(result)), unname(expected))
+  expect_identical(attr(result, "title"), "Observed Counts Posterior Prediction:")
+  expect_null(attr(result, "effect_transform", exact = TRUE))
+  expect_null(attr(result, "footnotes", exact = TRUE))
+})
+
+
+test_that("GLMM response nuisance rates follow conditioning depth", {
+
+  fitted_backend <- list()
+  attr(fitted_backend, "prior_list") <- list(mu = NULL)
+  outcome_data <- data.frame(
+    ai  = 0L,
+    ci  = 0L,
+    n1i = 10L,
+    n2i = 11L
+  )
+  context <- list(
+    object             = list(
+      fit  = fitted_backend,
+      data = list(outcome = outcome_data)
+    ),
+    type               = "response",
+    conditioning_depth = "marginal",
+    as_measure         = FALSE,
+    probs              = c(.025, .975),
+    bias_adjusted      = TRUE,
+    quiet              = TRUE,
+    conditional        = FALSE,
+    same_data          = TRUE,
+    new_data           = list(outcome = outcome_data),
+    known_V_new        = NULL,
+    priors             = list(outcome = list(pi = NULL)),
+    is_weightfunction  = FALSE,
+    is_known_v         = FALSE,
+    outcome_type       = "bin",
+    posterior_samples  = matrix(0, nrow = 2L, ncol = 1L),
+    effect_transform   = .effect_output_setup_measure(input_measure = "OR"),
+    outcome_data       = outcome_data,
+    K                  = 1L,
+    n_chains           = 1L,
+    n_iter             = 2L,
+    random_mv          = FALSE
+  )
+
+  testthat::local_mocked_bindings(
+    .predict_brma_estimate_draws = function(...) matrix(0, nrow = 2L, ncol = 1L),
+    .evaluate.brma.baserate = function(...) matrix(11, nrow = 2L, ncol = 1L),
+    .evaluate.brma.baserate_newdata = function(...) matrix(-7, nrow = 2L, ncol = 1L),
+    .outcome_rng.binom = function(mu_samples, logit_baserate, ...) logit_baserate,
+    .package = "RoBMA"
+  )
+
+  predict_at_depth <- function(depth) {
+    context[["conditioning_depth"]] <- depth
+    as.matrix(.predict_brma_response(
+      context        = context,
+      location_state = list(mu = matrix(0, nrow = 2L, ncol = 1L)),
+      scale_state    = list(within = matrix(0, nrow = 2L, ncol = 1L))
+    ))
+  }
+
+  expect_equal(unname(predict_at_depth("estimate")), matrix(11, 2L, 1L))
+  expect_equal(unname(predict_at_depth("marginal")), matrix(-7, 2L, 1L))
+  expect_equal(unname(predict_at_depth("cluster")), matrix(-7, 2L, 1L))
+})

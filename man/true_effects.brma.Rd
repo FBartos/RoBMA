@@ -37,14 +37,18 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
 \item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
 arguments such as \code{newdata}, \code{type}, \code{quiet},
-\code{output_measure}, and \code{transform} are fixed by this method.}
+\code{output_measure}, and \code{transform} are fixed by this method
+(supplying one is R's error for an argument matched twice, as for
+\code{predict()}), and other unknown arguments are unused and trigger a
+warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior draws of BLUP or
 empirical-Bayes true-effect summaries with one column per estimate. For
 existing normal data, these are conditional BLUP means, not simulated
 latent-effect draws. When printed, displays a summary table. Use
-\code{summary()} to obtain the summary table directly. The samples can be
+\code{summary()}, or \code{as.data.frame(summary(x))}, to obtain the summary
+table; \code{as.data.frame(x)} returns the posterior draws. The samples can be
 converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{

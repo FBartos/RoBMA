@@ -10,6 +10,8 @@
   standardized_coefficients = FALSE,
   transform_factors = TRUE,
   return_loo_estimates = FALSE,
+  component = NULL,
+  parameter = NULL,
   ...
 )
 }
@@ -21,11 +23,13 @@
 \code{"scale"} (for the heterogeneity and scale-regression coefficients) and
 \code{"bias"} (for omega, PET, and PEESE publication-bias parameters).}
 
-\item{standardized_coefficients}{whether to show standardized meta-regression coefficients.
-Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
-coefficients are returned for the intercept and continuous predictors. These coefficients
-correspond to the standardized scale on which prior distributions are specified by default
-(i.e., \code{standardize_continuous_predictors = TRUE}).}
+\item{standardized_coefficients}{whether to show standardized meta-regression
+and scale-regression coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
+standardized coefficients are returned for the intercept and continuous predictors of
+the location (\code{type = "mods"}) and scale (\code{type = "scale"}) formulas. These
+coefficients correspond to the standardized scale on which prior distributions are
+specified by default (i.e., \code{standardize_continuous_predictors = TRUE}). Otherwise,
+the coefficients are returned on the original scale of the predictors.}
 
 \item{transform_factors}{whether to transform factors to their original names.
 Defaults to \code{TRUE}.}
@@ -33,6 +37,12 @@ Defaults to \code{TRUE}.}
 \item{return_loo_estimates}{whether to return the leave-one-out coefficient
 estimates used to compute DFBETAS instead of standardized DFBETAS values.
 Defaults to \code{FALSE}.}
+
+\item{component}{optional parameter namespace. Use \code{"random"} for
+semantic random-effect SD, correlation, and allocation quantities.}
+
+\item{parameter}{optional semantic random-effect quantity. When omitted with
+\code{component = "random"}, all available random quantities are returned.}
 
 \item{...}{additional arguments (currently ignored).}
 }
@@ -70,6 +80,13 @@ weighted standard deviation of the posterior samples.
 
 This approximation allows computing influence statistics without refitting
 the model \eqn{K} times, making it computationally efficient.
+For \code{brma.mv()} objects, DFBETAS use estimate-unit PSIS weights. With
+correlated known-\code{V} data, this is influence under conditional estimate
+deletion, not independent-study deletion.
+A requested random-effect correlation must be defined in every posterior
+draw. If either SD is zero in some draws, the complete influence request is
+unavailable; explicitly select an everywhere-defined quantity with
+\code{component = "random"} and \code{parameter} instead.
 For \code{type = "bias"}, fixed identification parameters (e.g., the reference
 \eqn{\omega = 1} interval) can have zero LOO posterior standard deviation.
 These parameters are retained in the output, but their DFBETAS values are

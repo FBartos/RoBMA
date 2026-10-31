@@ -1,0 +1,3 @@
+         RoBMA RoBMA_weighted RoBMA_duplicated    metafor metafor_weighted metafor_duplicated
+mu  -0.6892259     -0.4121094       -0.4111388 -0.7145323       -0.4098610         -0.4201454
+tau  0.5720449      0.5982904        0.5998268  0.5596815        0.5596815          0.5907922

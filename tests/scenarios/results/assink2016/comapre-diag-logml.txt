@@ -1,0 +1,5 @@
+                           [,1]
+fit_brma.mv_diag              1
+fit_brma.mv_diag_no_study     0
+fit_brma.mv_diag_no_effect    0
+fit_brma.mv_diag_fixed        0

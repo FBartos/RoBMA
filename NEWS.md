@@ -1,3 +1,94 @@
+## version 4.1.0 (IN PROGRESS)
+### Breaking changes
+- requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod
+- models fitted with RoBMA 4.0.0 must be refitted; functions that read the fitted parameters stop on them with a `BayesTools_refit_required` error
+- `AIC()` and `BIC()` stop with an explanation instead of returning `numeric(0)`
+- removes the ineffective `seed` argument of `update()`
+- `radial()` stops for likelihood-weighted fits, and cluster-unit LOO and WAIC of binomial and Poisson GLMMs stop (use `unit = "estimate"`)
+- fits with mean-difference or orthonormal contrasts stop when a factor interacts with a predictor whose main effect is missing (e.g., `mods = ~ g + g:x`); use `mods = ~ g * x`, an independent prior for the term, or treatment contrasts
+- explicitly supplied `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation` stop when the model has no corresponding component instead of being ignored
+- nonfinite `weights` are rejected
+- the default Poisson GLMM `prior_lograte` is `Normal(log(pooled crude rate), 1)`, independent of the exposure-time unit (set its SD with `RoBMA.options(default_lograte.sd = )`)
+- `BMA.glmm()` uses mean-difference contrasts by default, as the other model-averaging constructors do
+- `plot()` of `zplot()` results no longer draws the extrapolated curve by default (`plot_extrapolation = FALSE`)
+- selection-model p-value cut points are compared exactly instead of with a 1e-12 tolerance
+- seeded fits give different draws than 4.0.0 (chain seeding of BayesTools 0.4.0), and seeded fitting no longer resets R's global random-number stream
+- `predict()` gains `conditioning_depth` (`"marginal"` by default, `"cluster"`, or `"estimate"`), which changes the default same-data `type = "estimate"` predictions and the clustered and GLMM response predictions
+- `zplot()` targets the marginal posterior predictive distribution by default (`conditioning_depth`)
+- `funnel()` draws plug-in contours; the posterior-averaged contours of 4.0.0 are drawn by the new `bfunnel()`
+- estimate-unit LOO and WAIC of Gaussian models integrate the local random effects, conditioning each estimate on the other estimates of its cluster
+- marginal-means Bayes factors follow the Savage-Dickey rules of BayesTools 0.4.0: a null hypothesis outside the posterior draws gives a finite Bayes factor, and means fixed at the null or without an exact prior ordinate give `NA` with the reason
+- `as_draws()` returns the parameters shown by `print()` and `summary()` by default; auxiliary parameters require `include_auxiliary = TRUE`
+- labels are rendered from the BayesTools parameter catalog: factor levels are selected by their labels, and contrast coefficients that are not levels are labelled `g{j}`
+- the scale intercept of `BMA()` and `RoBMA()` summaries is labelled `exp(intercept)`, and a location intercept fixed at zero is omitted from meta-regression output
+
+### Features
+- adds `brma.mv()` for meta-analysis with a known sampling covariance matrix `V` and formula random effects (`random`, e.g., `~ 1 | study / esid`) with diagonal, unstructured, compound-symmetry, AR(1), heterogeneous, and continuous-time AR(1) structures, and known random-effect group covariance (`R`)
+- adds `BMA.mv()`, `RoBMA.mv()`, `bPET.mv()`, `bPEESE.mv()`, and `bselmodel.mv()` for model-averaged and publication-bias-adjusted multivariate and multilevel models
+- re-exports BayesTools' `prior_random()` interface for structured random-effect priors (variance allocations, inclusion gates, and LKJ priors), completed with RoBMA's default priors
+- random-effect quantities (`tau`, `tau2`, `rho`, `rho_total`, `tau_total`, `tau2_prop`, ...) are named consistently across summaries, plots, hypotheses, and `as_draws()`; a mean-difference or orthonormal factor in a random-effect formula has one SD and, under `us()`, is correlated with the other coefficients by level (`rho(intercept, f[a])`) and as a whole (`rho_total(intercept, f)`), and random-effect inclusion is reported in the component inclusion table
+- adds `component` to `summary_heterogeneity()`, `pooled_heterogeneity()`, `ranef()` (also `expand` and `simplify`), `plot()`, `plot_prior()`, `print_prior()`, and `plot_diagnostic()`
+- re-exports BayesTools' `prior_ordered()` for ordered-factor moderators
+- `mods`, `scale`, and `yi ~` formulas accept `^` crossing (e.g., `(x + z)^2`)
+- adds conditional Gaussian vector selection models specified with `selection = selection_model(...)`, with product or best p-value weight rules, publication groups, and deterministic quadrature with a controlled QMC fallback (`set_selection_likelihood_control()`)
+- adds caching of selection normalizers (`selection_cache_info()`, `remove_selection_cache()`) and a coarse-corrected selection sampler (`RoBMA.options(selection.sampler = "coarse_corrected")`)
+- adds `selection_sensitivity_diagnostics()` and `add_selection_sensitivity_diagnostics()`
+- adds `hypothesis()` (aliases `bf_hypothesis()` and `BF_hypothesis()`) for point, interval, and directional hypotheses on parameters, factor levels, and their linear combinations in fitted models and marginal means, and `hypothesis_quantities()`, which lists the testable quantities
+- adds the likelihood-aware qCMDE and IWMDE posterior density and ordinate estimators (`density_method`, `density_control`) for plots, hypotheses, and marginal means, with `density_diagnostics()`
+- adds `check_indicators`, `monitor`, and `allow_not_assessable` to convergence checks and autofit
+- adds `log_lik()`, a `loo_model_weights()` method, and `parallel`, `cores`, `repetitions`, `method`, `maxiter`, and `silent` to `add_marglik()`
+- supports fully fixed point-prior models
+- adds prediction intervals to `pooled_effect()`
+- adds `max_samples` to `hatvalues()`, `residuals()`, `rstandard()`, `qqnorm()`, and `vif()`, and `component` and `parameter` to `dfbetas()` and `covratio()`
+- `vif()` computes design-based VIF/GVIF in each posterior draw, with optional credible intervals (`probs`) and draws
+- adds `bfunnel()`, a `metafor::forest()` method with `as_metafor_forest()`, and `lines()` methods for fitted models and marginal means
+- `transform = "EXP"` and `"LOG"` apply to individual coefficients and heterogeneity parameters in plots
+- `regplot()` accepts moderators that appear only in the scale formula, and `radial()` supports `brma.mv()` models
+- credible bands of `regplot()`, `zplot()`, and `plot_pet_peese()` use Harrell-Davis quantiles
+- `as.data.frame()` converts printable results to long data frames
+- `update()` accepts named `NULL` values to clear convergence and autofit settings
+- `set_contrast_factor_predictors = "independent"` defines one coefficient per factor level
+- adds the `Hoogeveen2023` data set
+- adds the options `RoBMA.options(native_threads = )` and `RoBMA.options(jags.worker_output = )`
+
+### Changes
+- `cooks.distance()` uses the unscaled squared Mahalanobis distance, matching metafor (values are multiplied by the fixed-effect rank relative to 4.0.0)
+- influence diagnostics that reuse the cached LOO result warn about high Pareto k values
+- methods warn about unknown arguments in `...` instead of ignoring them
+- row selection (`subset`, missing values) drops unused factor levels, except for the index factor of structured random-effect terms
+- unspecified factor null priors use the contrast of the alternative prior; conflicting contrasts stop with an error
+
+### Fixes
+- marginal-means Bayes factors use the exact kernel density at the null; the grid estimate understated Bayes factors of long-tailed posteriors
+- estimate-unit GLMM log-likelihoods use adaptive Gauss-Hermite quadrature or a convergence-checked grid instead of a fixed 30-node grid, which was inaccurate for some nuisance priors and failed for sparse data
+- GLMM predictions accept the four-cell binomial count representation and return raw count samples
+- `predict()` stops when `newdata` lacks a formula variable instead of filling outcome-named columns with zeros
+- a response formula without an intercept (`yi ~ 0`) fixes the location intercept at zero
+- prior-only objects evaluate formulas with standardized predictors, and their `summary()` no longer fails
+- weighted residual diagnostics use the original outcome variances
+- funnel contours and location-scale influence heterogeneity use the root mean square heterogeneity
+- cluster-level selection likelihood integrals are certified by successive quadrature rules instead of heuristic fallbacks
+- numerically stable cluster, known-covariance, and selected-normal likelihoods for precise or aligned estimates
+- cached LOO/WAIC results and marginal-likelihood comparisons check that the data and targets match
+- `plot_weightfunction()` marks two-sided p-values for two-sided weight functions
+- transformed posterior plots take `xlim` on the displayed scale
+- `ranef(component = "total")` keeps the estimate names
+- `vif()`, `hatvalues()`, and related diagnostics of `RoBMA()` ensembles use the bias design of each member
+- `dfbetas()`, `influence()`, and `vif()` omit a fixed-zero intercept, and `covratio()` is finite for mean-difference and orthonormal contrasts
+- `as_zplot()` and `zplot()` validate `significance_level`
+- fitted objects no longer store the calling environment of their formulas
+- the RoBMA JAGS module is unregistered at process exit, preventing intermittent crashes on Windows
+- clearer input and diagnostic messages
+
+### Performance
+- saved fits no longer contain the compiled rjags model
+- post-fit native kernels run in parallel (`RoBMA.options(native_threads = )`) and use AVX2/AVX-512 for selection normalizers
+- faster multilevel cluster likelihoods, selection normalizers, funnel, regplot, and zplot computations, and LOO
+
+### Documentation
+- adds the vignettes "Posterior Densities and Parameter Tests" and "Multivariate and Multilevel Meta-Analysis"
+- documents the qCMDE/IWMDE estimators, their diagnostics, and the Savage-Dickey requirements
+
 ## version 4.0.0
 ### Breaking changes
 - rewrites the package around the unified `brma` class hierarchy. Single-model fits now use `brma()`, `brma.glmm()`, `bselmodel()`, `bPET()`, and `bPEESE()`; model-averaged fits use `BMA()`, `BMA.glmm()`, and `RoBMA()`.
@@ -23,7 +114,7 @@
 - adds the `brma_samples` posterior-sample class with print, summary, matrix, and `posterior` conversion methods.
 - adds `predict.brma()` for posterior predictions of fixed terms, cluster effects, latent true effects, observed responses, and scale terms, with `newdata`, `conditional`, `bias_adjusted`, `output_measure`, and `transform` support.
 - adds convenience wrappers `fitted()`, `pooled_effect()`, `pooled_heterogeneity()`, `blup()`, `true_effects()`, and `ranef()` for `brma` objects.
-- adds model-comparison helpers `add_loo()`, `loo()`, `loo_compare()`, `loo_weights()`, `check_loo()`, `add_waic()`, `waic()`, and `logLik()` using the `loo` package.
+- adds model-comparison helpers `add_loo()`, `loo()`, `loo_compare()`, `loo_weights()`, `check_loo()`, `add_waic()`, and `waic()` using the `loo` package.
 - adds bridge-sampling marginal likelihood support for single-model `brma` fits via `add_marglik()`, `bridge_sampler()`, `logml()`, `bf()`, `bayes_factor()`, and `post_prob()`.
 - adds residual and influence diagnostics: `residuals()`, `rstandard()`, `rstudent()` / `LOO-PIT`, `hatvalues()`, `influence()`, `dfbetas()`, `dffits()`, `cooks.distance()`, `covratio()`, and `vif()`.
 - adds plotting methods for `brma` objects: posterior/prior plots, `funnel()`, `regplot()`, `qqnorm()`, `radial()` / `galbraith()`, MCMC diagnostic plots, weightfunction plots, and PET-PEESE plots.
@@ -36,14 +127,14 @@
 ### Changes
 - renames the multilevel clustering argument to `cluster`.
 - renames study labels to `slab`, matching `metafor` naming.
-- renames likelihood weights to `weights` and applies them consistently to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics.
+- renames likelihood weights to `weights` for supported constructors and applies them consistently to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics; `brma.mv()` currently rejects likelihood weights.
 - uses `measure`, `output_measure`, and `transform` for effect-size scale handling. Supported conversions include `SMD`, `COR`, `ZCOR`, and `OR`; `transform = "EXP"` exponentiates log ratio measures for display.
 - standardizes continuous predictors by default and transforms reported coefficients back to the original scale unless standardized coefficients are requested.
 - uses treatment contrasts by default for single-model constructors and mean-difference contrasts by default for model-averaged constructors.
 - changes `predict.brma()` default to `type = "terms"`. GLMM `type = "response"` predictions return continuity-corrected effect-size estimators by default via `as_measure = TRUE`.
 - separates output `unit` from `conditioning_depth` for residuals, fitted values, LOO, WAIC, and related diagnostics.
-- supports estimate-level and, for multilevel models, cluster-level LOO/WAIC targets with target metadata to prevent invalid comparisons.
-- keeps bridge-sampling marginal likelihoods for single-model `brma` objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects relly on product-space only.
+- supports estimate-level LOO/WAIC targets for `brma.mv()` and estimate-/cluster-level LOO/WAIC targets for multilevel `brma()` models, with target metadata to prevent invalid comparisons.
+- keeps bridge-sampling marginal likelihoods for single-model `brma` objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects rely on product-space only.
 - routes selection-weightfunction priors through the BayesTools selection backend and selected-normal kernel, removing legacy weighted-normal mapping paths.
 - uses `bias_indicator` and branch-aware selected-normal contexts for RoBMA publication-bias mixtures instead of inferring selection branches from `omega`.
 - increases zplot default posterior thinning controls to `10000` samples and accepts `Inf` where full posterior evaluation is requested.
@@ -59,7 +150,7 @@
 - moves fitting to JAGS product-space models with mixture-prior indicators for model averaging.
 - replaces legacy weighted-normal and multivariate-normal native code with selected-normal kernels shared by JAGS and R-native calls.
 - adds native selected-normal routines for log likelihoods, normalizers, CDFs, moments, RNG, weighted summaries, funnel contours, regplot intervals, and zplot densities/threshold summaries.
-- adds native GLMM marginal and cluster log-likelihood helpers for binomial and Poisson models.
+- adds native estimate-unit GLMM marginal log-likelihood helpers for binomial and Poisson models.
 - caches selected-normal normalizers and uses telescoping selection probabilities with log-space fallbacks for better numerical stability.
 - relocates selected-normal C++ code to `src/selnorm/` and updates `Makevars*`, native registration, cleanup rules, and JAGS distribution registration.
 - removes unused native matrix/LAPACK helper sources and older source-level transformation helpers.

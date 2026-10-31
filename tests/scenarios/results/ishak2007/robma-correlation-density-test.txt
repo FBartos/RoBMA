@@ -1,0 +1,2 @@
+    bridge KDE    qCMDE
+1 24753.39 Inf 52974.52

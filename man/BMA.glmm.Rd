@@ -36,7 +36,7 @@ BMA.glmm(
   prior_scale_null,
   prior_heterogeneity_allocation_null,
   standardize_continuous_predictors = TRUE,
-  set_contrast_factor_predictors = "treatment",
+  set_contrast_factor_predictors = "meandif",
   prior_unit_information_sd,
   rescale_priors = 1,
   prior_informed_field,
@@ -83,17 +83,28 @@ binomial GLMMs, it is computed as \code{ci + di}.}
 
 \item{t2i}{a vector of the person-time in the control group.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+conditional likelihood contribution \eqn{w} times, with the declared
+latent-effect and grouping structure held fixed. Positive fractional
+likelihood powers are also supported.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators, including
+\code{^} as R's crossing operator with a literal whole exponent of at least 2:
+\code{(x + z)^2} expands to \code{x + z + x:z}, and \code{x^2} is not a quadratic term
+(\code{x + x^2} is \code{x}). Precompute transformed predictors, such as a squared
+predictor, as columns in \code{data}; inline calls such as \code{I()}, \code{poly()},
+spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}
@@ -103,7 +114,20 @@ meta-analysis.}
 \item{slab}{an optional vector of study labels.}
 
 \item{subset}{an optional logical or numeric vector specifying a subset of
-data to be used.}
+data to be used. Subsetting precedes missing-row removal; retained-row
+outcome and predictor checks follow these steps. Type, shape, and existing
+extraction checks can still reject malformed inputs before subsetting.
+Row selection (by \code{subset} or missing-row removal) drops factor levels left
+without rows from \code{mods}, \code{scale}, and random-effect grouping factors. The
+index variable of a structured random-effect term (\code{cs()}, \code{hcs()}, \code{ar1()},
+\code{har()} with one index variable) keeps its declared levels, which define the
+covariance structure; the variables of a multi-variable \code{cs(a + b | group)}
+index follow the ordinary rule, because that index is built from their
+observed combinations. If an index variable that keeps its levels is also used
+in \code{mods} or \code{scale} and loses one of its levels to the selection, the fit
+stops with an error of class \code{RoBMA_structured_index_level_removed} (also
+\code{RoBMA_data_error}); remove the level from the data with \code{droplevels()} or use
+a separate column for the moderator.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support
@@ -120,22 +144,64 @@ heterogeneity component(s).}
 
 \item{prior_mods}{prior distribution(s) for alternative moderator
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{mods} is
+specified. For a formula without an intercept (\code{~ 0 + x}), an \code{intercept}
+entry other than a point prior at zero stops with an error of class
+\code{RoBMA_prior_intercept_conflict} (also of class \code{RoBMA_prior_error}).
+A named alternative \code{intercept} must be a single simple or point prior; it is
+the complete intercept prior and replaces the global effect mixture. Specify
+it in one place: null-list intercepts and explicit global effect declarations
+left without a consumer are refused. Ordinary term entries replace only their
+alternative component.}
 
 \item{prior_scale}{prior distribution(s) for alternative scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified. A named alternative \code{intercept} must be a single positive
+simple or point prior; it is the complete SD prior used by \code{log(intercept)}.
+Global heterogeneity declarations remain meaningful when they supply another
+random root or its inclusion weights; declarations replaced without a
+consumer are refused. Null-list intercept declarations are unavailable.}
 
 \item{prior_heterogeneity_allocation}{prior distribution(s) for the
-alternative cluster-level heterogeneity allocation component(s).}
+alternative cluster-level heterogeneity allocation component(s). This
+argument can be specified only when \code{cluster} is specified.}
 
 \item{prior_baserate}{prior distribution for the estimate-specific midpoint
-base-rate probability in binomial GLMM models. If omitted or \code{NULL}, defaults
-to independent \code{Beta(1, 1)} priors.}
+base-rate probability in binomial GLMM models (\code{measure = "OR"}). If omitted
+or \code{NULL}, defaults to independent \code{Beta(1, 1)} priors. Continuous priors
+are restricted to \verb{[0, 1]} (truncated to it where their support is wider) and
+point priors must lie strictly inside \verb{(0, 1)}. The estimate-unit
+log-likelihood of the model (\code{log_lik()}, LOO, WAIC) integrates the base rate
+over any of these priors: point priors and untruncated beta priors
+adaptively (a uniform(0, 1) prior is a Beta(1, 1) prior), other families on a
+refined prior-CDF grid. The grid is accepted only when its log-likelihood
+changes by less than \code{1e-6} between refinements; any prior without an
+adaptive route (other than an untruncated beta prior; a truncated beta prior
+takes the grid too) can fail to reach this, especially
+with few events or very large arms, and then stops with an error of class
+\code{RoBMA_glmm_grid_nonconvergence}, as a lognormal base-rate prior does on
+cells with few events. A beta prior avoids it. The automatic computation of
+LOO/WAIC after fitting warns instead and returns the fit without them.}
 
 \item{prior_lograte}{prior distribution for the estimate-specific midpoint
-log-rate in Poisson GLMM models. If omitted or \code{NULL}, a data-based
-unit-information normal prior is used independently for each estimate.}
+log-rate in Poisson GLMM models (\code{measure = "IRR"}). If omitted or \code{NULL}, a
+normal prior centered at the pooled crude log-rate is used independently for
+each estimate. Its standard deviation defaults to \code{1} and can be changed via
+\code{RoBMA.options(default_lograte.sd = ...)}. Rescaling all person-times shifts
+the prior mean by the corresponding log conversion while leaving its
+standard deviation unchanged. The estimate-unit log-likelihood of the model
+(\code{log_lik()}, LOO, WAIC) integrates the log-rate over the prior: point
+priors and untruncated normal priors adaptively, other families on a refined
+prior-CDF grid. The grid is accepted only when its log-likelihood changes by
+less than \code{1e-6} between refinements; any prior without an adaptive route
+(other than an untruncated normal prior; a truncated normal prior takes the
+grid too) can fail to reach this, especially with few
+events or very large arms, and then stops with an error of class
+\code{RoBMA_glmm_grid_nonconvergence}, as gamma, lognormal, and inverse-gamma
+log-rate priors do on cells with few events. A normal prior avoids it. The
+automatic computation of LOO/WAIC after fitting warns instead and returns the
+fit without them.}
 
 \item{prior_effect_null}{prior distribution(s) for the null effect
 component(s).}
@@ -144,37 +210,60 @@ component(s).}
 heterogeneity component(s).}
 
 \item{prior_mods_null}{prior distribution(s) for null moderator components.
+A named \code{intercept} entry, including \code{NULL} or \code{FALSE}, is unavailable: put
+the complete intercept prior in \code{prior_mods}, or use global prior arguments
+without a formula-list intercept. The same rule applies to \code{prior_scale_null}.
 A single prior applies to all terms; a named list can specify term-specific
-components.}
+components. This argument can be specified only when \code{mods} is specified.
+The null and the alternative prior of a factor term need the same contrast;
+a conflict stops with an error of class \code{RoBMA_prior_contrast_conflict}
+(also of class \code{RoBMA_prior_error}) that names the term and the remedies.
+The same rule applies to \code{prior_scale_null}.}
 
 \item{prior_scale_null}{prior distribution(s) for null scale-regression
 components. A single prior applies to all terms; a named list can specify
-term-specific components.}
+term-specific components. This argument can be specified only when \code{scale}
+is specified.}
 
 \item{prior_heterogeneity_allocation_null}{prior distribution(s) for the
-null cluster-level heterogeneity allocation component(s).}
+null cluster-level heterogeneity allocation component(s). This argument can
+be specified only when \code{cluster} is specified.}
 
 \item{standardize_continuous_predictors}{logical. Whether to standardize continuous predictors.
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified. With \code{"meandif"} or \code{"orthonormal"} contrasts, a
+formula term that interacts a factor with a predictor whose own term is
+missing, such as \code{g:x} in \code{~ g + g:x} or \code{~ g / x}, stops the fit: the term
+codes \code{g} by level indicators, with one coefficient per level, on which
+mean-difference and orthonormal priors are not defined. Specify an
+independent prior for that term, e.g., \code{prior_mods = list("g:x" = prior_factor("normal", list(0, 1), contrast = "independent"))} (or
+\code{prior_scale} for a scale formula), include the missing term (\code{~ g * x}),
+or use \code{set_contrast_factor_predictors = "treatment"}.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged. For constructors with publication-bias
-prior distributions, \code{rescale_priors} does not rescale them except for the
-default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged; supplied \code{prior_random()} scale
+architectures and publication-bias priors are not rescaled. The default
+PEESE prior separately uses its documented UISD adjustment, independently of
+\code{rescale_priors}. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{sample}{numeric. Number of MCMC samples to save. Defaults to \code{5000}.}
 
@@ -230,6 +319,11 @@ model as described in \insertCite{bagos2009mixed;textual}{RoBMA}.
 
 When \code{weights} are supplied, they are treated as likelihood weights on
 the paired two-arm study contribution.
+
+For factor moderators, \code{BMA.glmm()} defaults to
+\code{set_contrast_factor_predictors = "meandif"}, matching the other
+model-averaging constructors. This differs from \code{\link{brma.glmm}()},
+which defaults to \code{"treatment"} as a single-model constructor.
 }
 \examples{
 \dontrun{

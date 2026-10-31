@@ -22,11 +22,43 @@
 #' \item{inf}{A data frame with columns: \code{rstudent}, \code{dffits},
 #' \code{cook.d}, \code{cov.r}, \code{tau.del}, and \code{hat}, where available.
 #' The \code{tau.del} column is the PSIS leave-one-out posterior mean of the
-#' aggregate heterogeneity. For scale models, aggregation is over the remaining
-#' scale-model rows after each deletion.}
+#' root mean square of total row-level heterogeneity over the remaining
+#' scale-model rows after each deletion, the root mean square over the observed
+#' design that \code{\link{summary_heterogeneity}} reports. It differs from the
+#' arithmetic mean of the observation-specific tau that 4.0.0 used, which is never
+#' larger. It is not a pooled log-scale design prediction.}
 #' \item{dfbs}{A data frame with DFBETAS values for the model coefficients.}
-#' Undefined determinant- or variance-standardized diagnostics are reported as
-#' \code{NaN} and printed with an explanatory note.
+#' Undefined COVRATIO and coefficient DFBETAS values are reported as
+#' \code{NaN} with an explanatory note. DFFITS returns \code{NA} when its
+#' leave-one-out posterior fitted-value SD is zero, without a separate note.
+#' For binomial and Poisson GLMMs the \code{rstudent} component is the
+#' descriptive normal approximation of \code{\link{rstudent.brma}} (and the
+#' DFFITS, Cook's distance, and hat columns are not available).
+#' For \code{brma.mv()} objects, influence returns only components with
+#' implemented estimate-unit targets. DFFITS and Cook's distance report
+#' influence on fixed-location fitted values \eqn{\mu = X\beta}; \code{tau.del}
+#' is currently deferred.
+#' With correlated known-\code{V} data, the returned PSIS influence components
+#' use conditional estimate deletion rather than independent-study deletion.
+#'
+#' @details
+#' The \code{hat} column uses the design of each draw's member for ensembles
+#' whose members differ in their PET and PEESE terms, as described in
+#' \code{\link{hatvalues.brma}}.
+#'
+#' Selection \code{brma.mv()} models are currently unavailable through this
+#' aggregate diagnostic. Standalone DFFITS and Cook's distance are available
+#' for normal outcomes without a weightfunction component.
+#'
+#' For known-\code{V} models, the hat values require applying the inverse of
+#' the marginal covariance. DFFITS and Cook's distance use PSIS fixed-location
+#' moments and do not apply this inverse. A covariance that is too
+#' ill-conditioned for that (a reciprocal condition number of about \code{2e-10}
+#' or less in any posterior draw used) is unavailable: the call stops with an
+#' error of class \code{RoBMA_known_v_precision_unavailable}, whose parent class
+#' is \code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+#' The condition carries the draw positions (\code{rows}) and their
+#' \code{reciprocal_condition}.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -55,6 +87,14 @@ influence.brma <- function(model, ...) {
   # hatvalues, dffit, and cooks distance are possible only for normal-normal models
   outcome_type       <- .outcome_type(model)
   is_weightfunction  <- .is_weightfunction(model)
+  .check_residual_type_availability(
+    type              = "rstudent",
+    outcome_type      = outcome_type,
+    is_weightfunction = is_weightfunction
+  )
+  if (inherits(model, "brma.mv")) {
+    .check_fixed_location_influence_available(model, "influence")
+  }
   psis_context       <- .diagnostic_psis_context(model)
   loo_wts            <- psis_context[["psis_weights"]]
 
@@ -63,6 +103,45 @@ influence.brma <- function(model, ...) {
   # rstudent (LOO-PIT residuals)
   rstud_df     <- rstudent.brma(model, .psis_context = psis_context)
   rstudent_val <- rstud_df[["z"]]
+
+  if (inherits(model, "brma.mv")) {
+    fit_samples <- .influence_fit_samples(model)
+    fit_summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = loo_wts,
+      fit_moments = "all",
+      variance    = "matching"
+    )
+    dffits_val  <- .dffits_internal(fit_samples, loo_wts, fit_summary)
+    cook_val    <- .cooks.distance_internal(
+      fit_samples, loo_wts, fit_summary
+    )
+    cov_val     <- covratio.brma(model, .weights = loo_wts)
+    cov_note    <- attr(cov_val, "note")
+    cov_val     <- as.numeric(cov_val)
+    dfb_val     <- dfbetas.brma(model, .weights = loo_wts)
+    dfb_note    <- attr(dfb_val, "note")
+
+    inf_df <- data.frame(
+      rstudent = rstudent_val,
+      dffits   = dffits_val,
+      cook.d   = cook_val,
+      cov.r    = cov_val,
+      hat      = hatvalues.brma(model)
+    )
+    inf_df <- .diagnostic_set_rownames(inf_df, model)
+
+    res <- list(
+      inf  = inf_df,
+      dfbs = dfb_val
+    )
+    note <- .diagnostic_collect_notes(cov_note, dfb_note)
+    if (!is.null(note)) {
+      attr(res, "note") <- note
+    }
+    class(res) <- "infl.brma"
+    return(res)
+  }
 
   # Hat Matrix Samples (S x K)
   if (outcome_type == "norm" && !is_weightfunction) {
@@ -83,15 +162,20 @@ influence.brma <- function(model, ...) {
   ### Compute Individual Diagnostics using Shared Components
   # DFFITS
   if (outcome_type == "norm" && !is_weightfunction) {
-    dffits_val <- .dffits_internal(fit_samples, loo_wts)
+    fit_summary <- .psis_influence_summary(
+      samples     = fit_samples,
+      weights     = loo_wts,
+      fit_moments = "all",
+      variance    = "matching"
+    )
+    dffits_val <- .dffits_internal(fit_samples, loo_wts, fit_summary)
   }
 
   # Cook's Distance
-  # Need P (number of coefficients)
   if (outcome_type == "norm" && !is_weightfunction) {
-    X        <- .get_model_matrix(model)
-    P        <- qr(X)[["rank"]]
-    cook_val <- .cooks.distance_internal(fit_samples, loo_wts, P)
+    cook_val <- .cooks.distance_internal(
+      fit_samples, loo_wts, fit_summary
+    )
   }
 
   # COVRATIO
@@ -147,11 +231,10 @@ influence.brma <- function(model, ...) {
 # .influence_tau_del
 # ---------------------------------------------------------------------------- #
 #
-# PSIS leave-one-out aggregate tau estimates for influence diagnostics.
+# PSIS leave-one-out remaining-row RMS heterogeneity for influence diagnostics.
 #
-.influence_tau_del <- function(model, weights = NULL) {
+.influence_tau_del <- function(model, weights) {
 
-  weights           <- .diagnostic_psis_weights(model, weights)
   is_scale          <- .is_scale(model)
   is_multilevel     <- .is_multilevel(model)
   K                 <- ncol(weights)
@@ -164,10 +247,16 @@ influence.brma <- function(model, ...) {
     scale_priors      = model[["priors"]][["scale"]],
     is_scale          = is_scale,
     is_multilevel     = is_multilevel,
+    is_random         = .is_random(model),
     K                 = K,
-    posterior_samples = posterior_samples
+    posterior_samples = posterior_samples,
+    fixed_tau         = .fixed_tau_prior_value(model[["priors"]]),
+    fixed_rho         = .fixed_rho_prior_value(model[["priors"]])
   )
-  tau_total <- sqrt(tau_result[["tau_within"]]^2 + tau_result[["tau_between"]]^2)
+  tau_total <- .root_sum_squares(
+    tau_result[["tau_within"]],
+    tau_result[["tau_between"]]
+  )
 
   return(.influence_tau_del_from_samples(tau_total, weights))
 }
@@ -195,7 +284,25 @@ influence.brma <- function(model, ...) {
 
   K <- ncol(tau_samples)
   if (K > 1L) {
-    tau_deleted <- (rowSums(tau_samples) - tau_samples) / (K - 1L)
+    # Accumulate each side of a deletion separately. Subtracting its square
+    # from the total loses smaller remaining scales when one row dominates.
+    # Scaling before the stable norm also avoids squaring finite large SDs.
+    divisor     <- sqrt(K - 1L)
+    tau_deleted <- matrix(0, nrow(tau_samples), K)
+    left        <- numeric(nrow(tau_samples))
+    for (i in seq_len(K)) {
+      tau_deleted[, i] <- left
+      if (i < K) {
+        left <- .root_sum_squares(left, tau_samples[, i] / divisor)
+      }
+    }
+    right <- numeric(nrow(tau_samples))
+    for (i in rev(seq_len(K))) {
+      tau_deleted[, i] <- .root_sum_squares(tau_deleted[, i], right)
+      if (i > 1L) {
+        right <- .root_sum_squares(right, tau_samples[, i] / divisor)
+      }
+    }
   } else {
     tau_deleted <- tau_samples
   }
@@ -211,4 +318,44 @@ print.infl.brma <- function(x, digits = 3, ...) {
   print(x$dfbs, digits = digits, ...)
   .print_diagnostic_note(attr(x, "note"))
   invisible(x)
+}
+
+
+#' @title Convert Influence Results to a Data Frame
+#'
+#' @description Converts the influence and DFBETAS tables displayed by an
+#' \code{infl.brma} object to one component-aware long data frame.
+#'
+#' @param x an \code{infl.brma} object.
+#' @param row.names \code{NULL} or a character vector giving the row names.
+#' @param optional logical; passed to the final data-frame coercion.
+#' @param stringsAsFactors accepted for compatibility with \code{data.frame()}.
+#' @param ... unused additional arguments.
+#'
+#' @return A plain \code{data.frame} with leading \code{component} and
+#' \code{parameter} columns.
+#'
+#' @export
+as.data.frame.infl.brma <- function(
+    x, row.names = NULL, optional = FALSE, stringsAsFactors = FALSE, ...) {
+
+  tables <- list(
+    .output_table_as_long_data_frame(
+      table            = x[["inf"]],
+      component        = "influence",
+      stringsAsFactors = stringsAsFactors
+    ),
+    .output_table_as_long_data_frame(
+      table            = x[["dfbs"]],
+      component        = "dfbetas",
+      stringsAsFactors = stringsAsFactors
+    )
+  )
+  output <- .output_bind_long_data_frames(
+    tables    = tables,
+    row.names = row.names,
+    optional  = optional
+  )
+
+  return(output)
 }

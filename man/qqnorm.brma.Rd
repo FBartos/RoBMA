@@ -19,6 +19,7 @@
   xlab,
   ylab,
   plot_type = "base",
+  max_samples = Inf,
   ...
 )
 }
@@ -28,8 +29,9 @@
 \item{type}{the type of standardized residuals to use. Options are:
 \itemize{
 \item \code{"rstudent"} (alias: \code{"LOO-PIT"}; default): Leave-one-out
-probability integral transform residuals. Works for all model types
-including GLMMs and selection models. This is the recommended type for
+probability integral transform residuals. Works for normal outcome
+models, including selection models, and, as a descriptive normal
+approximation, for binomial and Poisson GLMMs. This is the recommended type for
 Bayesian models as it properly accounts for estimation uncertainty and
 leverage. Note: requires that loo has been computed (see
 \code{\link{add_loo}}).
@@ -41,14 +43,16 @@ matrix. Only available for normal outcome models without selection
 \item{unit}{output unit. Only \code{"estimate"} is implemented currently.}
 
 \item{conditioning_depth}{residual conditioning depth. Options are
-\code{"marginal"}, \code{"cluster"}, and \code{"estimate"}.}
+\code{"marginal"}, \code{"cluster"}, and \code{"estimate"}. It does not
+apply to LOO-PIT residuals, whose metadata record the deletion unit and
+retained context instead; leave it omitted for those residuals.}
 
 \item{envelope}{logical indicating whether to add a pseudo confidence
-envelope to the plot. The envelope is created by simulating sets of
-standard normal quantiles, providing a reference for the expected variability
+envelope to the plot. The deterministic envelope uses Beta order-statistic
+quantiles transformed to the standard normal scale, providing a reference
 under a correctly specified model. Defaults to \code{TRUE}.}
 
-\item{conf_level}{numeric value between 0 and 100 specifying the confidence level
+\item{conf_level}{finite numeric value strictly between 0 and 100 specifying the confidence level
 for the envelope bounds. Defaults to \code{95}.}
 
 \item{bonferroni}{logical indicating whether to apply Bonferroni correction
@@ -75,6 +79,10 @@ Friedman's SuperSmoother (\code{\link[stats]{supsmu}}). Defaults to
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}
+
+\item{max_samples}{maximum posterior draws used to compute known-\code{V}
+internally standardized residuals. Defaults to \code{Inf}. Finite values
+select draws deterministically and are ignored for other residual types.}
 
 \item{...}{additional graphical arguments to customize the plot appearance:
 \describe{
@@ -117,11 +125,14 @@ under a correctly specified model. Each point represents one estimate,
 plotted at coordinates \eqn{(\Phi^{-1}(p_i), z_{(i)})} where
 \eqn{p_i} are the plotting positions and \eqn{z_{(i)}} are the sorted
 standardized residuals.
+Each retained input row contributes one point, irrespective of its likelihood
+weight. Weights affect fitting and the residual calculation; they do not
+replicate points or multiply residual values in this plot.
 
 The default residual type is \code{"rstudent"} (LOO-PIT), which differs
 from \code{metafor::qqnorm} (which defaults to \code{"rstandard"}).
-LOO-PIT residuals are preferred because they are available for all model
-types (including GLMMs and selection models) and properly account for
+LOO-PIT residuals are preferred for normal outcome models because they
+properly account for
 estimation uncertainty via leave-one-out cross-validation.
 
 The confidence envelope is computed in closed form from the distribution of
@@ -132,9 +143,15 @@ with \eqn{\Phi^{-1}}. When \code{smooth = TRUE}, bounds are smoothed using
 Friedman's SuperSmoother. When \code{bonferroni = TRUE}, the confidence
 level is adjusted for simultaneous inference across all \eqn{k} comparisons.
 
-For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
-approximate effect-size scale used by \code{loo}; they are not exact
-count-scale PIT diagnostics.
+For correlated known-\code{V} \code{brma.mv()} \code{"rstandard"} residuals,
+this envelope remains an independent order-statistic reference band. It is
+descriptive and does not model residual correlation induced by known sampling
+covariance.
+
+For binomial and Poisson GLMMs the LOO-PIT residuals are a descriptive normal
+approximation on the effect-size scale rather than a PIT of the fitted
+discrete likelihood (see \code{\link{residuals.brma}}); the default
+y-axis label says so.
 }
 \examples{
 \dontrun{

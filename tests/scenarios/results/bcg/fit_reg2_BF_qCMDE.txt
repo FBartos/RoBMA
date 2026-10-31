@@ -1,0 +1,10 @@
+  Alternative:         Null:     BF error%(BF)
+ ablat < -0.25     ablat = 0 47.126     12.067
+ ablat > -0.25     ablat = 0  2.411     12.302
+ ablat < -0.25 ablat > -0.25 19.545      2.688
+[0;31mqCMDE relative MCSE is 12.1% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE relative MCSE is 12.1% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 9.76% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE finite-population row-sampling relative error is 9.76% (requested precision target 5%). Higher precision can be obtained by increasing 'samples' in the 'density_control' argument.[0m
+[0;31mqCMDE effective sample size is 57.2 (warning threshold 100).[0m
+[0;31mqCMDE effective sample size is 57.2 (warning threshold 100).[0m

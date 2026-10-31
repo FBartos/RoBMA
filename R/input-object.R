@@ -91,7 +91,9 @@ NULL
 
 .validate_constructor_dots <- function(dots, caller) {
 
-  allowed <- c("only_data", "only_priors", "is_JASP", "is_JASP_prefix")
+  allowed <- c(
+    "only_data", "only_priors", "is_JASP", "is_JASP_prefix"
+  )
   .check_unused_dots(
     dots    = dots,
     allowed = allowed,
@@ -147,13 +149,76 @@ NULL
   )
 }
 
-.autocompute_brma <- function(object, marglik = !inherits(object, "RoBMA")) {
+.warn_unused_dots <- function(dots, allowed, caller) {
 
-  if (RoBMA.get_option("autocompute.loo")) {
-    object <- add_loo(object)
+  if (length(dots) == 0L) {
+    return(invisible(TRUE))
   }
-  if (RoBMA.get_option("autocompute.waic")) {
-    object <- add_waic(object)
+
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    dot_names <- rep("", length(dots))
+  }
+
+  unused <- dot_names[!nzchar(dot_names) | !dot_names %in% allowed]
+  if (length(unused) == 0L) {
+    return(invisible(TRUE))
+  }
+
+  unused[!nzchar(unused)] <- "<unnamed>"
+  warning(
+    "Unused argument", if (length(unused) > 1L) "s" else "",
+    " in ", caller, ": ",
+    paste0("'", unused, "'", collapse = ", "),
+    call. = FALSE
+  )
+
+  return(invisible(TRUE))
+}
+
+.keep_allowed_dots <- function(dots, allowed) {
+
+  if (length(dots) == 0L) {
+    return(list())
+  }
+
+  dot_names <- names(dots)
+  if (is.null(dot_names)) {
+    return(list())
+  }
+
+  keep <- nzchar(dot_names) & dot_names %in% allowed
+
+  return(dots[keep])
+}
+
+.autocompute_brma <- function(object) {
+
+  marglik <- !inherits(object, "RoBMA")
+
+  # A GLMM nuisance prior that the quadrature cannot certify
+  # (RoBMA_glmm_numerical_error, including the unavailable-prior condition)
+  # must not lose the sampled fit: the fit is valid, so it is returned with a
+  # warning and add_loo() or add_waic() later gives the same error. LOO and
+  # WAIC share the log-likelihood, so a failure of the first skips the second.
+  skipped <- NULL
+  for (criterion in c("loo", "waic")) {
+    if (!RoBMA.get_option(paste0("autocompute.", criterion)) || !is.null(skipped)) {
+      next
+    }
+    computed <- tryCatch(
+      if (criterion == "loo") add_loo(object) else add_waic(object),
+      RoBMA_glmm_numerical_error = function(condition) condition
+    )
+    if (inherits(computed, "RoBMA_glmm_numerical_error")) {
+      skipped <- computed
+    } else {
+      object <- computed
+    }
+  }
+  if (!is.null(skipped)) {
+    warning(conditionMessage(skipped), " The fit is returned without LOO/WAIC.",
+            call. = FALSE)
   }
   if (marglik && RoBMA.get_option("autocompute.marglik")) {
     object <- add_marglik(object)
@@ -161,6 +226,26 @@ NULL
 
   return(object)
 }
+
+
+# Validate model indicators without changing their represented values.
+.as_exact_model_indicator <- function(value, name, scalar = FALSE) {
+
+  if ((!is.numeric(value) && !is.integer(value)) ||
+      (scalar && length(value) != 1L) ||
+      any(!is.finite(value))) {
+    stop("'", name, "' must contain finite model indicators.", call. = FALSE)
+  }
+  if (any(value != trunc(value))) {
+    stop("'", name, "' must be integer-valued.", call. = FALSE)
+  }
+  if (any(abs(value) > .Machine$integer.max)) {
+    stop("'", name, "' exceeds R's supported integer range.", call. = FALSE)
+  }
+
+  return(as.integer(value))
+}
+
 
 .extract_posterior_indicator <- function(posterior_samples, parameter,
                                          prior = NULL, column = NULL) {
@@ -173,18 +258,16 @@ NULL
          call. = FALSE)
   }
 
-  indicator <- posterior_samples[, column]
-  if (!is.numeric(indicator) && !is.integer(indicator)) {
-    stop("Invalid posterior model indicator: '", column, "'.",
-         call. = FALSE)
-  }
-  if (any(!is.finite(indicator)) ||
-      any(abs(indicator - round(indicator)) > sqrt(.Machine$double.eps))) {
-    stop("Invalid posterior model indicator: '", column, "'.",
-         call. = FALSE)
-  }
-
-  indicator <- as.integer(round(indicator))
+  indicator <- tryCatch(
+    .as_exact_model_indicator(posterior_samples[, column], column),
+    error = function(error) {
+      stop(
+        "Invalid posterior model indicator: '", column, "'. ",
+        conditionMessage(error),
+        call. = FALSE
+      )
+    }
+  )
   if (!is.null(prior)) {
     valid_values <- seq_len(length(prior))
     if (any(!indicator %in% valid_values)) {
@@ -202,18 +285,31 @@ NULL
 # (this differ from more customizable user facing summary function)
 .object_summary      <- function(object) {
 
+  remove_parameters <- c(
+    "theta",      # remove random-effects (estimate-level)
+    "gamma",      # remove random-effects (cluster-level)
+    "sampling_z", # remove known-V sampling dependency factors
+    "pi",         # remove baserate for OR models
+    "phi"          # remove lograte for IRR models
+  )
+  if (.location_omit_fixed_zero_intercept(object)) {
+    remove_parameters <- c(remove_parameters, "mu_intercept")
+  }
+
   # provide a simple summary
   estimates <- BayesTools::JAGS_estimates_table(
     fit               = object[["fit"]],
     transform_factors = TRUE,
     transform_scaled  = TRUE,
-    remove_parameters = c(
-      "theta", # remove random-effects (estimate-level)
-      "gamma", # remove random-effects (cluster-level)
-      "pi",    # remove baserate for OR models
-      "phi"    # remove lograte for IRR models
-    )
+    remove_spike_0    = FALSE,
+    remove_parameters = remove_parameters,
+    random_effects_summary = "standard"
   )
+  rownames(estimates) <- .location_repair_intercept_labels(
+    labels = rownames(estimates),
+    object = object
+  )
+  estimates <- .summary_translate_scale_advice(estimates)
 
   return(estimates)
 }

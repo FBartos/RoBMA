@@ -1,7 +1,7 @@
 ---
 title: "Feature Coverage"
 author: "František Bartoš"
-date: "29th of April 2026"
+date: "29th of April 2026 (updated: 29th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Feature Coverage}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -32,8 +31,9 @@ no      <- '<span class="no">No</span>'
 na_cell <- '<span class="na-cell">n/a</span>'
 
 model_columns <- c(
-  "brma.norm", "brma.glmm", "bselmodel", "bPET/bPEESE",
-  "BMA.norm", "BMA.glmm", "RoBMA"
+  "brma.norm", "brma.mv", "brma.glmm", "bselmodel", "bselmodel.mv",
+  "bPET/bPEESE", "bPET.mv/bPEESE.mv", "BMA.norm", "BMA.mv", "BMA.glmm",
+  "RoBMA", "RoBMA.mv"
 )
 
 reference_links <- c(
@@ -46,9 +46,11 @@ reference_links <- c(
   "as_draws_list()"                      = "../reference/as_draws.brma.html",
   "as_draws_matrix()"                    = "../reference/as_draws.brma.html",
   "as_draws_rvars()"                     = "../reference/as_draws.brma.html",
+  "as_metafor_forest()"                  = "../reference/as_metafor_forest.html",
   "as_zplot()"                           = "../reference/as_zplot.brma.html",
   "bayes_factor()"                       = "../reference/bf.brma.html",
   "bf()"                                 = "../reference/bf.brma.html",
+  "bfunnel()"                            = "../reference/funnel.html",
   "blup()"                               = "../reference/blup.brma.html",
   "bPET()"                               = "../reference/bPET.html",
   "bPEESE()"                             = "../reference/bPEESE.html",
@@ -60,9 +62,6 @@ reference_links <- c(
   "bselmodel()"                          = "../reference/bselmodel.html",
   "check_loo()"                          = "../reference/check_loo.brma.html",
   "coef()"                               = "../reference/coef.brma.html",
-  "contr.meandif()"                      = "../reference/contr.BayesTools.html",
-  "contr.orthonormal()"                  = "../reference/contr.BayesTools.html",
-  "contr.treatment()"                    = "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/contrast.html",
   "cooks.distance()"                     = "../reference/cooks.distance.brma.html",
   "covratio()"                           = "../reference/covratio.brma.html",
   "dfbetas()"                            = "../reference/dfbetas.brma.html",
@@ -72,14 +71,17 @@ reference_links <- c(
   "funnel()"                             = "../reference/funnel.html",
   "galbraith()"                          = "../reference/radial.html",
   "hatvalues()"                          = "../reference/hatvalues.brma.html",
+  "hypothesis()"                         = "../reference/hypothesis.html",
   "influence()"                          = "../reference/influence.brma.html",
   "interpret()"                          = "../reference/interpret.html",
+  "log_lik()"                            = "../reference/log_lik.html",
   "logLik()"                             = "../reference/logLik.brma.html",
   "logml()"                              = "../reference/logml.brma.html",
   "loo()"                                = "../reference/loo.brma.html",
   "loo::pareto_k_ids()"                  = "https://mc-stan.org/loo/reference/pareto-k-diagnostic.html",
   "loo::pareto_k_table()"                = "https://mc-stan.org/loo/reference/pareto-k-diagnostic.html",
   "loo_compare()"                        = "../reference/loo_compare.brma.html",
+  "loo_model_weights()"                  = "../reference/loo_model_weights.brma.html",
   "loo_weights()"                        = "../reference/loo_weights.brma.html",
   "marginal_means()"                     = "../reference/marginal_means.brma.html",
   "nobs()"                               = "../reference/nobs.brma.html",
@@ -99,7 +101,7 @@ reference_links <- c(
   "prior()"                              = "../reference/prior.html",
   "prior_factor()"                       = "../reference/prior_factor.html",
   "prior_informed()"                     = "../reference/prior_informed.html",
-  "prior_none()"                         = "../reference/prior_none.html",
+  "prior_ordered()"                      = "../reference/prior_ordered.html",
   "prior_PEESE()"                        = "../reference/prior_PEESE.html",
   "prior_PET()"                          = "../reference/prior_PET.html",
   "prior_weightfunction()"               = "../reference/prior_weightfunction.html",
@@ -124,20 +126,26 @@ reference_links <- c(
   "wf_cumulative()"                      = "../reference/prior_weightfunction.html",
   "wf_fixed()"                           = "../reference/prior_weightfunction.html",
   "wf_independent()"                     = "../reference/prior_weightfunction.html",
-  "forest()"                             = "https://wviechtb.github.io/metafor/reference/forest.rma.html",
+  "zplot()"                              = "../reference/zplot.brma.html",
+  "metafor::forest()"                    = "../reference/forest.html",
   "baujat()"                             = "https://wviechtb.github.io/metafor/reference/baujat.html",
   "gosh()"                               = "https://wviechtb.github.io/metafor/reference/gosh.html",
   "labbe()"                              = "https://wviechtb.github.io/metafor/reference/labbe.html"
 )
 
 model_column_links <- list(
-  "brma.norm"   = "../reference/brma.html",
-  "brma.glmm"   = "../reference/brma.glmm.html",
-  "bselmodel"   = "../reference/bselmodel.html",
-  "bPET/bPEESE" = c("../reference/bPET.html", "../reference/bPEESE.html"),
-  "BMA.norm"    = "../reference/BMA.html",
-  "BMA.glmm"    = "../reference/BMA.glmm.html",
-  "RoBMA"       = "../reference/RoBMA.html"
+  "brma.norm"         = "../reference/brma.html",
+  "brma.mv"           = "../reference/brma.mv.html",
+  "brma.glmm"         = "../reference/brma.glmm.html",
+  "bselmodel"         = "../reference/bselmodel.html",
+  "bselmodel.mv"      = "../reference/bselmodel.mv.html",
+  "bPET/bPEESE"       = c("../reference/bPET.html", "../reference/bPEESE.html"),
+  "bPET.mv/bPEESE.mv" = c("../reference/bPET.mv.html", "../reference/bPEESE.mv.html"),
+  "BMA.norm"          = "../reference/BMA.html",
+  "BMA.mv"            = "../reference/BMA.mv.html",
+  "BMA.glmm"          = "../reference/BMA.glmm.html",
+  "RoBMA"             = "../reference/RoBMA.html",
+  "RoBMA.mv"          = "../reference/RoBMA.mv.html"
 )
 
 status_map <- c(
@@ -197,7 +205,7 @@ feature_table <- function(rows) {
   min-width: 25em;
 }
 .feature-matrix .model-head {
-  height: 118px;
+  height: 136px;
   min-width: 34px;
   max-width: 34px;
   width: 34px;
@@ -322,19 +330,14 @@ feature_table <- function(rows) {
 
   format_model_column <- function(model_column) {
 
-    link <- model_column_links[[model_column]]
-
-    if (length(link) == 2L) {
-      return(paste0(
-        '<a href="', escape_html_text(link[[1]]), '">bPET</a>/',
-        '<a href="', escape_html_text(link[[2]]), '">bPEESE</a>'
-      ))
-    }
+    links  <- model_column_links[[model_column]]
+    labels <- strsplit(model_column, "/", fixed = TRUE)[[1]]
 
     return(paste0(
-      '<a href="', escape_html_text(link), '">',
-      escape_html_text(model_column),
-      "</a>"
+      '<a href="', escape_html_text(links), '">',
+      escape_html_text(labels),
+      "</a>",
+      collapse = "/"
     ))
   }
 
@@ -375,108 +378,106 @@ feature_table <- function(rows) {
 }
 ```
 
-This vignette overviews current features of the `RoBMA` R package [@RoBMA].
-The table is organized by substantive capability.
-Some rows point to additional features not (yet) available in the `RoBMA` R package but featured in the `metafor` package [@metafor] as reference points.
+This vignette overviews selected features of the `RoBMA` R package [@RoBMA].
+The table is organized by substantive capability and covers the model families named in its columns.
 
 Green ticks mark available features.
 Cells marked `limited` mean the feature exists but with narrower model coverage.
 
-
-
 ```{r feature-matrix, echo = FALSE, results = "asis"}
 rows <- list(
-  feature_row("Model / Structure", "Fixed- and random-effects models", "YYYYYYY"),
-  feature_row("Model / Structure", "Moderation (`mods`)", "YYYYYYY"),
-  feature_row("Model / Structure", "Location-scale models (`scale`)", "YYYYYYY"),
-  feature_row("Model / Structure", "Multilevel models (`cluster`)", "YYYYYYY"),
-  feature_row("Model / Structure", "Model averaging", "NNNNYYY"),
-  feature_row("Model / Structure", "Inclusion Bayes factors", "NNNNYYY"),
-  feature_row("Model / Structure", "General multivariate / covariance structures", "NNNNNNN"),
-  feature_row("Model / Structure", "Robust / sandwich inference", "NNNNNNN"),
-  feature_row("Model / Structure", "Refit / update (`update()`)", "YYYYYYY"),
+  feature_row("Model / Structure", "Fixed- and random-effects models", "YYYYYYYYYYYY"),
+  feature_row("Model / Structure", "Moderation (`mods`)", "YYYYYYYYYYYY"),
+  feature_row("Model / Structure", "Location-scale models (`scale`)", "YYYYYYYYYYYY"),
+  feature_row("Model / Structure", "Three-level models (`cluster`)", "YNYYNYNYNYYN"),
+  feature_row("Model / Structure", "Likelihood weights (`weights`)", "YNYYNYNYNYYN"),
+  feature_row("Model / Structure", "Model averaging", "NNNNNNNYYYYY"),
+  feature_row("Model / Structure", "Inclusion Bayes factors", "NNNNNNNYYYYY"),
+  feature_row("Model / Structure", "Multivariate models (`V`)", "NYNNYNYNYNNY"),
+  feature_row("Model / Structure", "General random-effects models (`random`)", "NYNNYNYNYNNY"),
+  feature_row("Model / Structure", "Robust / sandwich inference", "NNNNNNNNNNNN"),
+  feature_row("Model / Structure", "Extend MCMC sampling (`update()`)", "YYYYYYYYYYYY"),
 
-  feature_row("Priors", "Default prior distributions", "YYYYYYY"),
-  feature_row("Priors", "Empirical/informed prior distributions (`prior_informed()`)", "YYYYYYY"),
-  feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_weightfunction()`, `prior_none()`)", "YYYYYYY"),
-  feature_row("Priors", "PET / PEESE prior distributions (`prior_PET()`, `prior_PEESE()`)", "NNNYNNY"),
-  feature_row("Priors", "Prior-only inspection (`only_priors = TRUE`)", "YYYYYYY"),
-  feature_row("Priors", "Weight-function shape (`wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNYNNNY"),
-  feature_row("Priors", "Factor contrasts (`contr.treatment()`, `contr.meandif()`, `contr.orthonormal()`)", "YYYYYYY"),
-  feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYY"),
+  feature_row("Priors", "Default prior distributions", "YYYYYYYYYYYY"),
+  feature_row("Priors", "Empirical/informed prior distributions (`prior_informed()`)", "YYYYYYYYYYYY"),
+  feature_row("Priors", "UISD estimation (`estimate_unit_information_sd()`)", "YYYYYYYYYYYY"),
+  feature_row("Priors", "Custom prior distributions (`prior()`, `prior_factor()`, `prior_ordered()`)", "YYYYYYYYYYYY"),
 
-  feature_row("Publication Bias", "Selection models", "NNYNNNY"),
-  feature_row("Publication Bias", "PET / PEESE models", "NNNYNNY"),
-  feature_row("Publication Bias", "Model averaging over bias models", "NNNNNNY"),
-  feature_row("Publication Bias", "Bias-adjusted summaries / predictions", "NNYYNNY"),
-  feature_row("Publication Bias", "Trim-fill / fail-safe N", "NNNNNNN"),
+  feature_row("Publication Bias", "Selection models (`prior_weightfunction()`, `wf_cumulative()`, `wf_fixed()`, `wf_independent()`)", "NNNYYNNNNNYY"),
+  feature_row("Publication Bias", "PET / PEESE models (`prior_PET()`, `prior_PEESE()`)", "NNNNNYYNNNYY"),
+  feature_row("Publication Bias", "Model averaging over bias models", "NNNNNNNNNNYY"),
+  feature_row("Publication Bias", "Bias-adjusted summaries / predictions", "NNNYYYYNNNYY"),
+  feature_row("Publication Bias", "Trim-fill / fail-safe N", "NNNNNNNNNNNN"),
 
-  feature_row("Prediction", "Pooled effect / heterogeneity summaries (`pooled_effect()`, `pooled_heterogeneity()`)", "YYYYYYY"),
-  feature_row("Prediction", "Heterogeneity decomposition (`summary_heterogeneity()`, tau², I², H²)", "YYYYYYY"),
-  feature_row("Prediction", "Fitted-value extraction (`fitted()`)", "YYYYYYY"),
-  feature_row("Prediction", "Prediction for new covariate values (`predict()`)", "YYYYYYY"),
-  feature_row("Prediction", "Posterior predictive response summaries (`predict()`)", "YYYYYYY"),
-  feature_row("Prediction", "True effects / BLUPs / random effects (`true_effects()`, `blup()`, `ranef()`)", "YYYYYYY"),
-  feature_row("Prediction", "Estimated marginal means (`marginal_means()`)", "YYYYYYY"),
+  feature_row("Prediction", "Pooled effect / heterogeneity summaries (`pooled_effect()`, `pooled_heterogeneity()`)", "YYYYYYYYYYYY"),
+  feature_row("Prediction", "Heterogeneity decomposition (`summary_heterogeneity()`, tau², I², H²)", "YLYYLYLYLYYL"),
+  feature_row("Prediction", "Fitted-value extraction (`fitted()`)", "YYYYYYYYYYYY"),
+  feature_row("Prediction", "Prediction for new covariate values (`predict()`)", "YYYYYYYYYYYY"),
+  feature_row("Prediction", "Posterior predictive response summaries (`predict()`)", "YYYYYYYYYYYY"),
+  feature_row("Prediction", "True effects / BLUPs / random effects (`true_effects()`, `blup()`, `ranef()`)", "YYYYYYYYYYYY"),
+  feature_row("Prediction", "Estimated marginal means (`marginal_means()`)", "YYYYYYYYYYYY"),
 
-  feature_row("Plots", "Posterior plots (`plot()`)", "YYYYYYY"),
-  feature_row("Plots", "Prior plots (`plot_prior()`)", "YYYYYYY"),
-  feature_row("Plots", "Marginal means plots (`marginal_means()` + `plot()`)", "YYYYYYY"),
-  feature_row("Plots", "Regression plots (`regplot()`)", "YYYYYYY"),
-  feature_row("Plots", "Funnel plots (`funnel()`)", "YYYYYYY"),
-  feature_row("Plots", "zplot diagnostics (`as_zplot()`/`zplot()`)", "YYYYYYY"),
-  feature_row("Plots", "Weight-function plots (`plot_weightfunction()`)", "NNYNNNY"),
-  feature_row("Plots", "PET-PEESE plots (`plot_pet_peese()`)", "NNNYNNY"),
-  feature_row("Plots", "Radial / Galbraith plots (`radial()`, `galbraith()`)", "YLYYYLY"),
-  feature_row("Plots", "Forest plots (`forest()`)", "NNNNNNN"),
-  feature_row("Plots", "Baujat plots (`baujat()`)", "NNNNNNN"),
-  feature_row("Plots", "GOSH plots (`gosh()`)", "NNNNNNN"),
-  feature_row("Plots", "L'Abbe plots (`labbe()`)", "NNNNNNN"),
+  feature_row("Plots", "Posterior plots (`plot()`)", "YYYYYYYYYYYY"),
+  feature_row("Plots", "Prior plots (`plot_prior()`)", "YYYYYYYYYYYY"),
+  feature_row("Plots", "Marginal means plots (`marginal_means()` + `plot()`)", "YYYYYYYYYYYY"),
+  feature_row("Plots", "Regression plots (`regplot()`)", "YYYYYYYYYYYY"),
+  feature_row("Plots", "Funnel plots (`funnel()`)", "YYLYYYYYYLYY"),
+  feature_row("Plots", "Bayesian funnel plots (`bfunnel()`)", "YYNYYYYYYNYY"),
+  feature_row("Plots", "zplot diagnostics (`as_zplot()`/`zplot()`)", "YYNYYYYYYNYY"),
+  feature_row("Plots", "Weight-function plots (`plot_weightfunction()`)", "NNNYYNNNNNYY"),
+  feature_row("Plots", "PET-PEESE plots (`plot_pet_peese()`)", "NNNNNYYNNNYY"),
+  feature_row("Plots", "Radial / Galbraith plots (`radial()`, `galbraith()`)", "YYLYYYYYYLYY"),
+  feature_row("Plots", "Forest plots (`metafor::forest()`, `as_metafor_forest()`)", "YYYYYYYYYYYY"),
+  feature_row("Plots", "Baujat plots (`baujat()`)", "NNNNNNNNNNNN"),
+  feature_row("Plots", "GOSH plots (`gosh()`)", "NNNNNNNNNNNN"),
+  feature_row("Plots", "L'Abbe plots (`labbe()`)", "NNNNNNNNNNNN"),
 
-  feature_row("Residuals / Diagnostics", "Raw residuals (`residuals()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "Pearson / standardized residuals (`rstandard()`)", "YNNYYNL"),
-  feature_row("Residuals / Diagnostics", "Studentized residuals (LOO-PIT) (`rstudent()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "Q-Q plots (`qqnorm()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "Cook's distances (`cooks.distance()`)", "YNNYYNN"),
-  feature_row("Residuals / Diagnostics", "DFBETAS (`dfbetas()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "DFFITS (`dffits()`)", "YNNYYNN"),
-  feature_row("Residuals / Diagnostics", "Covariance ratios (`covratio()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "Hat values (`hatvalues()`)", "YNNYYNN"),
-  feature_row("Residuals / Diagnostics", "Combined influence summary (`influence()`)", "YLLYYLL"),
-  feature_row("Residuals / Diagnostics", "LOO / WAIC diagnostics (`check_loo()`, `loo::pareto_k_ids()`, `loo::pareto_k_table()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "Moderator collinearity diagnostics (`vif()`)", "YYYYYYY"),
-  feature_row("Residuals / Diagnostics", "Refit leave-one-out / permutation tests", "NNNNNNN"),
+  feature_row("Residuals / Diagnostics", "Raw residuals (`residuals()`)", "YYYYYYYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Pearson / standardized residuals (`rstandard()`)", "YYNNNYYYYNLL"),
+  feature_row("Residuals / Diagnostics", "Studentized residuals (LOO-PIT) (`rstudent()`)", "YYLYYYYYYLYY"),
+  feature_row("Residuals / Diagnostics", "Q-Q plots (`qqnorm()`)", "YYLYYYYYYLYY"),
+  feature_row("Residuals / Diagnostics", "Cook's distances (`cooks.distance()`)", "YYNNNYYYYNLL"),
+  feature_row("Residuals / Diagnostics", "DFBETAS (`dfbetas()`)", "YYYYYYYYYYYY"),
+  feature_row("Residuals / Diagnostics", "DFFITS (`dffits()`)", "YYNNNYYYYNLL"),
+  feature_row("Residuals / Diagnostics", "Covariance ratios (`covratio()`)", "YYYYYYYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Hat values (`hatvalues()`)", "YYNNNYYYYNLL"),
+  feature_row("Residuals / Diagnostics", "Combined influence summary (`influence()`)", "YLLLNYLYLLLL"),
+  feature_row("Residuals / Diagnostics", "LOO / WAIC diagnostics (`check_loo()`, `loo_weights()`, `loo::pareto_k_ids()`, `loo::pareto_k_table()`)", "YLLYLYLYLLYL"),
+  feature_row("Residuals / Diagnostics", "Moderator collinearity diagnostics (`vif()`)", "YYYYYYYYYYYY"),
+  feature_row("Residuals / Diagnostics", "Refit leave-one-out / permutation tests", "NNNNNNNNNNNN"),
 
-  feature_row("MCMC Diagnostics", "Posterior summaries (Rhat, ESS, MCMC error) (`summary()`)", "YYYYYYY"),
-  feature_row("MCMC Diagnostics", "Trace plots (`plot_diagnostic_trace()`)", "YYYYYYY"),
-  feature_row("MCMC Diagnostics", "Density plots (`plot_diagnostic_density()`)", "YYYYYYY"),
-  feature_row("MCMC Diagnostics", "Autocorrelation plots (`plot_diagnostic_autocorrelation()`)", "YYYYYYY"),
-  feature_row("MCMC Diagnostics", "Diagnostic-plot wrapper (`plot_diagnostic()`)", "YYYYYYY"),
+  feature_row("MCMC Diagnostics", "Posterior summaries (Rhat, ESS, MCMC error) (`summary()`)", "YYYYYYYYYYYY"),
+  feature_row("MCMC Diagnostics", "Trace plots (`plot_diagnostic_trace()`)", "YYYYYYYYYYYY"),
+  feature_row("MCMC Diagnostics", "Density plots (`plot_diagnostic_density()`)", "YYYYYYYYYYYY"),
+  feature_row("MCMC Diagnostics", "Autocorrelation plots (`plot_diagnostic_autocorrelation()`)", "YYYYYYYYYYYY"),
+  feature_row("MCMC Diagnostics", "Diagnostic-plot wrapper (`plot_diagnostic()`)", "YYYYYYYYYYYY"),
 
-  feature_row("Model Comparison", "Marginal likelihood (`add_marglik()`, `logml()`)", "YYYYNNN"),
-  feature_row("Model Comparison", "WAIC/LOO (`add_waic()`, `add_loo()`, `waic()`, `loo()`)", "YYYYYYY"),
-  feature_row("Model Comparison", "Bayes factors (`bf()`, `bayes_factor()`, `post_prob()`)", "YYYYYYY"),
-  feature_row("Model Comparison", "WAIC comparison (`loo_compare()`, `loo_weights()`)", "YYYYYYY"),
-  feature_row("Model Comparison", "LOO comparison (`loo_compare()`, `loo_weights()`)", "YYYYYYY"),
-  feature_row("Model Comparison", "AIC / BIC", "NNNNNNN"),
+  feature_row("Model Comparison", "Marginal likelihood (`add_marglik()`, `logml()`)", "YYYYYYYNNNNN"),
+  feature_row("Model Comparison", "WAIC/LOO (`add_waic()`, `add_loo()`, `waic()`, `loo()`)", "YLLYLYLYLLYL"),
+  feature_row("Model Comparison", "Bayes factors (`bf()`, `bayes_factor()`, `post_prob()`)", "YYYYYYYYYYYY"),
+  feature_row("Model Comparison", "WAIC comparison (`loo_compare()`)", "YLLYLYLYLLYL"),
+  feature_row("Model Comparison", "LOO comparison (`loo_compare()`, `loo_model_weights()`)", "YLLYLYLYLLYL"),
+  feature_row("Model Comparison", "Parameter hypothesis tests (`hypothesis()`)", "YYYYYYYYYYYY"),
+  feature_row("Model Comparison", "AIC / BIC", "NNNNNNNNNNNN"),
 
-  feature_row("Reporting", "Plain-text interpretation (`interpret()`)", "YYYYYYY"),
-  feature_row("Reporting", "Sub-model summary (`summary_models()`)", "NNNNYYY"),
-  feature_row("Reporting", "Prior inspection (`print_prior()`)", "YYYYYYY"),
+  feature_row("Reporting", "Plain-text interpretation (`interpret()`)", "YYYYYYYYYYYY"),
+  feature_row("Reporting", "Sub-model summary (`summary_models()`)", "NNNNNNNYYYYY"),
+  feature_row("Reporting", "Prior inspection (`print_prior()`)", "YYYYYYYYYYYY"),
 
-  feature_row("Extraction", "Posterior draw extraction (`as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`, `as_draws_matrix()`, `as_draws_rvars()`)", "YYYYYYY"),
-  feature_row("Extraction", "Coefficients (`coef()`)", "YYYYYYY"),
-  feature_row("Extraction", "Point-wise log-likelihood (`logLik()`)", "YYYYYYY"),
-  feature_row("Extraction", "Sample size (`nobs()`)", "YYYYYYY"),
-  feature_row("Extraction", "Variance-covariance matrix (`vcov()`)", "NNNNNNN"),
-  feature_row("Extraction", "Credible intervals (`summary()`, `summary_heterogeneity()`, `pooled_effect()`, `pooled_heterogeneity()`)", "YYYYYYY"),
-  feature_row("Extraction", "Model weights (`weights()`)", "NNNNNNN"),
-  feature_row("Extraction", "Simulated responses (`simulate()`)", "NNNNNNN")
+  feature_row("Extraction", "Posterior draw extraction (`as_draws()`, `as_draws_array()`, `as_draws_df()`, `as_draws_list()`, `as_draws_matrix()`, `as_draws_rvars()`)", "YYYYYYYYYYYY"),
+  feature_row("Extraction", "Coefficients (`coef()`)", "YYYYYYYYYYYY"),
+  feature_row("Extraction", "Point-wise log-likelihood (`log_lik()`, `logLik()`)", "YLLYLYLYLLYL"),
+  feature_row("Extraction", "Sample size (`nobs()`)", "YYYYYYYYYYYY"),
+  feature_row("Extraction", "Variance-covariance matrix (`vcov()`)", "NNNNNNNNNNNN"),
+  feature_row("Extraction", "Credible intervals (`summary()`, `summary_heterogeneity()`, `pooled_effect()`, `pooled_heterogeneity()`)", "YYYYYYYYYYYY"),
+  feature_row("Extraction", "Model weights (`weights()`)", "NNNNNNNNNNNN"),
+  feature_row("Extraction", "Simulated responses (`simulate()`)", "NNNNNNNNNNNN")
 )
 
 # Intentionally skipped exported functions in this feature table:
-# bridge_sampler(), contr.independent(), RoBMA.options(), RoBMA.get_option(),
-# set_autofit_control(), set_convergence_checks().
+# BMA.norm() (alias of BMA()), bridge_sampler(), contr.independent(),
+# contr.meandif(), contr.orthonormal(), prior_none() (omits a model component),
+# RoBMA.options(), RoBMA.get_option(), set_autofit_control(), set_convergence_checks().
 
 feature_table(rows)
 ```

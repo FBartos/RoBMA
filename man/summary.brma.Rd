@@ -30,11 +30,15 @@ Defaults to \code{c(.025, .50, .975)}}
 \item{include_mcmc_diagnostics}{whether to include MCMC diagnostics in the output.
 Defaults to \code{TRUE}.}
 
-\item{standardized_coefficients}{whether to show standardized meta-regression coefficients.
-Defaults to \code{FALSE}. When set to \code{TRUE}, standardized meta-regression
-coefficients are returned for the intercept and continuous predictors. These coefficients
-correspond to the standardized scale on which prior distributions are specified by default
-(i.e., \code{standardize_continuous_predictors = TRUE}).}
+\item{standardized_coefficients}{whether to show standardized formula
+coefficients. Defaults to \code{FALSE}. When set to \code{TRUE},
+meta-regression coefficients and random-component summaries are returned on
+the standardized scale on which prior distributions are specified by default
+(i.e., \code{standardize_continuous_predictors = TRUE}). A random-effect row whose
+original-scale value the fitted random block cannot represent (for example the
+intercept of a block with factor-specific slopes of a standardized predictor)
+is \code{NA} in the default original-scale table, with a footnote; its value on the
+fitted scale is shown with \code{standardized_coefficients = TRUE}.}
 
 \item{conditional}{whether to include conditional estimates for RoBMA
 product-space objects. Defaults to \code{FALSE}.}
@@ -45,20 +49,59 @@ Defaults to \code{FALSE}.}
 \item{BF01}{whether to show inverse inclusion Bayes factors. Defaults to
 \code{FALSE}.}
 
-\item{...}{additional arguments}
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 
 \item{x}{a \code{summary.brma} or fitted \code{brma} object.}
 }
 \value{
 A list of class \code{summary.brma} with model name, optional RoBMA
 inclusion tables, common estimates, moderator estimates, scale estimates,
-publication-bias estimates, and optional conditional estimates. The printed
-form displays the non-empty tables.
+publication-bias estimates, and optional conditional estimates.
+\code{known_v_backend} records the known-sampling-covariance backend.
+\code{inclusion_random} contains random-effect inclusion tables;
+\code{selection_model}, \code{selection_sampling}, and
+\code{selection_sensitivity_diagnostics} retain selection-target metadata
+and optional sensitivity diagnostics. The printed
+form displays the non-empty tables. Objects created with \code{only_data = TRUE}
+return the resolved data, and objects created with \code{only_priors = TRUE}
+return a \code{summary.brma} object that prints only the model title, as at 4.0.0,
+and holds the resolved prior list in its \code{priors} element, because neither
+carries a posterior.
+Intercept-only multivariate location
+models label their sole coefficient \code{mu}, consistently with ordinary
+meta-analysis models. Once location moderators are present, the coefficient
+is labeled \code{intercept}; an intercept fixed at zero is omitted.
+Multivariate models without \code{mods} or \code{scale} display location and random
+estimates together in one \code{Estimates} table. With predictors, random estimates
+join \verb{Common Estimates}, location coefficients appear in \code{Meta-Regression}
+(or \code{Location} when \code{scale} is present), and scale coefficients appear in
+\code{Scale}. Without location moderators, \code{mu} remains in the common table.
+Conditional estimates follow the same layout. Data-frame conversion follows
+these displayed sections; the returned list retains its separate raw tables.
+Scale tables label the baseline SD as \code{exp(intercept)}; its estimates are
+already exponentiated. Other scale coefficients remain on the log-SD scale.
+Multivariate scale rows identify their targeted random-effect heterogeneity
+(\code{tau}), total heterogeneity (\code{tau_total}), or mean-variance allocation scale
+(\code{tau_common}). The baseline
+corresponds to zero non-intercept design columns under the fitted contrasts
+and the requested predictor standardization.
+The random table reports the quantities aligned with prior specification;
+use \code{\link[=summary_heterogeneity]{summary_heterogeneity()}} for aggregate variances and the complete family
+of deterministic allocation transforms.
+This reporting rule is the same for \code{brma.mv()} and \code{BMA.mv()}: component
+\code{tau} values derived from a variance allocation appear only in
+\code{\link[=summary_heterogeneity]{summary_heterogeneity()}}.
+Optional selection-conditioning comparisons are inspected explicitly with
+\code{\link[=selection_sensitivity_diagnostics]{selection_sensitivity_diagnostics()}}. Printing a model or its summary does
+not emit sensitivity notifications.
 }
 \description{
 \code{summary.brma} creates summary tables for a
 brma object. For RoBMA objects, inclusion summaries are printed before
-parameter estimates.
+parameter estimates. Random-effect inclusion rows are included in
+\verb{Component Inclusion}, immediately before \verb{Publication Bias} when present.
+Their labels prefix the corresponding SD quantity with \verb{Heterogeneity:}, retaining
+component names where needed. Data-frame exports use the same layout.
 }
 \examples{
 \dontrun{

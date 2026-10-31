@@ -1,0 +1,6 @@
+                          Alternative:                                 Null:    BF error%(BF)
+     alloc[random] < alloc[systematic] alloc[random] - alloc[systematic] = 0 1.649      1.089
+ alloc[random] - alloc[systematic] < 0 alloc[random] - alloc[systematic] = 0 1.649      1.089
+     alloc[random] < alloc[systematic] alloc[random] - alloc[systematic] = 0 1.651      1.316
+ alloc[random] - alloc[systematic] < 0 alloc[random] - alloc[systematic] = 0 1.651      1.316
+     alloc[random] < alloc[systematic] alloc[random] - alloc[systematic] = 0 1.649      1.089

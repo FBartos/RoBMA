@@ -26,6 +26,8 @@ test_that("BMA.norm handles default model", {
 })
 
 test_that("BMA.norm handles custom priors", {
+
+  skip_if_fit_not_active("dat.lehmann2018_BMA.norm_custom")
   data(dat.lehmann2018, package = "metadat")
   fit <- BMA.norm(
     yi = yi, vi = vi,
@@ -48,6 +50,8 @@ test_that("BMA.norm handles custom priors", {
 })
 
 test_that("BMA.norm handles meta-regression", {
+
+  skip_if_fit_not_active("dat.lehmann2018_BMA.norm_mods")
   data(dat.lehmann2018, package = "metadat")
   fit <- BMA.norm(
     yi = yi, vi = vi, mods = ~ Preregistered,
@@ -63,6 +67,8 @@ test_that("BMA.norm handles meta-regression", {
 })
 
 test_that("BMA.norm handles scale-regression", {
+
+  skip_if_fit_not_active("dat.lehmann2018_BMA.norm_scale")
   data(dat.lehmann2018, package = "metadat")
   fit <- suppressWarnings(BMA.norm(
     yi = yi, vi = vi, scale = ~ Preregistered,

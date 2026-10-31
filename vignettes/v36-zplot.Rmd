@@ -1,7 +1,7 @@
 ---
 title: "Zplot Publication-Bias Diagnostics"
 author: "František Bartoš"
-date: "8th of September 2025 (updated: 29th of April 2026)"
+date: "8th of September 2025 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
@@ -10,7 +10,6 @@ csl: ../inst/apa.csl
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Zplot Publication-Bias Diagnostics}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -72,12 +71,7 @@ fit_RE_Weingarten2018 <- brma(
   sample = 10000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1
 )
-fit_RoBMA_Weingarten2018 <- RoBMA(
-  yi = yi, vi = vi, measure = "ZCOR",
-  cluster = paper_id, data = Weingarten2018_z,
-  sample = 10000, burnin = 10000, adapt = 10000,
-  chains = 5, parallel = TRUE, seed = 1
-)
+vignette_cache_save(cached_fits["fit_RE_Weingarten2018"])
 
 # Social comparison - Hoppen2025
 data("Hoppen2025", package = "RoBMA")
@@ -87,12 +81,14 @@ fit_RE_Hoppen2025 <- brma(
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RE_Hoppen2025"])
 fit_RoBMA_Hoppen2025 <- RoBMA(
   yi = d, sei = sqrt(v), measure = "SMD",
   data = Hoppen2025,
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RoBMA_Hoppen2025"])
 
 # ChatGPT - Wang2025
 data("Wang2025", package = "RoBMA")
@@ -103,12 +99,14 @@ fit_RE_Wang2025 <- brma(
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RE_Wang2025"])
 fit_RoBMA_Wang2025 <- RoBMA(
   yi = g, sei = se, measure = "SMD",
   data = Wang2025,
-  sample = 10000, burnin = 5000, adapt = 5000,
+  sample = 20000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RoBMA_Wang2025"])
 
 # Many Labs 2 - ManyLabs16
 data("ManyLabs16", package = "RoBMA")
@@ -118,14 +116,22 @@ fit_RE_ManyLabs16 <- brma(
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RE_ManyLabs16"])
 fit_RoBMA_ManyLabs16 <- RoBMA(
   yi = y, sei = se, measure = "SMD",
   data = ManyLabs16,
   sample = 10000, burnin = 5000, adapt = 5000,
   chains = 5, parallel = TRUE, seed = 1
 )
+vignette_cache_save(cached_fits["fit_RoBMA_ManyLabs16"])
 
-vignette_cache_save(cached_fits)
+fit_RoBMA_Weingarten2018 <- RoBMA(
+  yi = yi, vi = vi, measure = "ZCOR",
+  cluster = paper_id, data = Weingarten2018_z,
+  sample = 10000, burnin = 10000, adapt = 10000,
+  chains = 5, parallel = TRUE, seed = 1
+)
+vignette_cache_save(cached_fits["fit_RoBMA_Weingarten2018"])
 ```
 
 **This vignette accompanies the manuscript "Zplot: A Visual Diagnostic for Publication Bias in Meta-Analysis" [@bartos2025zcurve].**
@@ -168,7 +174,7 @@ We demonstrate the zplot diagnostics on four empirical meta-analyses that repres
 
 1. **Ease-of-retrieval effect in the few/many paradigm** [@weingarten2018does]: an example with extreme publication bias.
 2. **Social comparison as behavior change technique** [@hoppen2025meta]: an example with strong publication bias.
-3. **ChatGPT effects on learning performance** [@wang2025effect]: an example with moderate publication bias.
+3. **ChatGPT effects on learning performance** [@wang2025effect]: an example with extreme evidence for publication bias but a small conventional `Missing N` diagnostic.
 4. **Framing effects from Many Labs 2** [@klein2018many]: an example with no publication bias (registered replication reports).
 
 For each example, we fit both a simple random-effects model using `brma()` and a publication-bias-adjusted ensemble using `RoBMA()` [@maier2020robust; @bartos2021no].
@@ -230,13 +236,17 @@ However, RoBMA still finds extreme evidence for the presence of an effect, with 
 **Zplot diagnostics.**
 We now generate zplots to assess how well each model captures the observed distribution of z-statistics.
 The `hist()` function creates a histogram of the observed z-statistics, while `lines()` overlays the model-implied posterior predictive distributions [@gabry2019visualization].
-The `as_zplot()` function transforms a fitted `brma`/`RoBMA` object into a `zplot_brma` object that `hist()`, `lines()`, and `plot()` can consume:
+The `as_zplot()` function transforms a fitted `brma`/`RoBMA` object into a `zplot_brma` object that `hist()`, `lines()`, and `plot()` can consume.
+We prepare each diagnostic once and reuse it to avoid repeated calculations for this large multilevel example:
 
 ```{r, fig.cap="Ease-of-Retrieval Effect: Model Fit Assessment"}
-hist(as_zplot(fit_RoBMA_Weingarten2018), from = -3, to = 6, by = 0.25)
+zplot_RE_Weingarten2018    <- as_zplot(fit_RE_Weingarten2018)
+zplot_RoBMA_Weingarten2018 <- as_zplot(fit_RoBMA_Weingarten2018)
 
-lines(as_zplot(fit_RE_Weingarten2018),    from = -3, to = 6, col = "black", lty = 2, lwd = 2)
-lines(as_zplot(fit_RoBMA_Weingarten2018), from = -3, to = 6, col = "blue",  lty = 2, lwd = 2)
+hist(zplot_RoBMA_Weingarten2018, from = -3, to = 6, by = 0.25)
+
+lines(zplot_RE_Weingarten2018,    from = -3, to = 6, col = "black", lty = 2, lwd = 2)
+lines(zplot_RoBMA_Weingarten2018, from = -3, to = 6, col = "blue",  lty = 2, lwd = 2)
 
 legend(
   "topright",
@@ -259,10 +269,10 @@ These results provide extreme evidence for the presence of publication bias and 
 
 **Extrapolation to pre-publication bias.**
 The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias.
-This is achieved by calling the `zplot()` function (with the default `plot_extrapolation = TRUE` argument), which builds the diagnostic plot directly from a fitted model.
+This is achieved by calling the `zplot()` function with `plot_extrapolation = TRUE`, which accepts either a fitted model or a prepared `zplot_brma` object.
 
 ```{r, fig.cap="Ease-of-Retrieval Effect: Extrapolation Analysis"}
-zplot(fit_RoBMA_Weingarten2018, from = -3, to = 6, by.hist = 0.25)
+zplot(zplot_RoBMA_Weingarten2018, from = -3, to = 6, by.hist = 0.25, plot_extrapolation = TRUE)
 ```
 
 The extrapolated distribution (blue line) shows what we would expect to observe if studies were published regardless of their results.
@@ -273,12 +283,13 @@ The large discrepancy between these distributions quantifies the substantial imp
 This discrepancy can be summarized with the additional statistics provided by the `summary()` function applied to a `zplot_brma` object.
 
 ```{r}
-summary(as_zplot(fit_RoBMA_Weingarten2018))
+summary(zplot_RoBMA_Weingarten2018)
 ```
 
 The summary provides several key results.
 The observed discovery rate (ODR) substantially exceeds the expected discovery rate (EDR), indicating that many more significant results appear in the published literature than we would expect.
-The estimated number of missing studies suggests that a substantial number of non-significant or negative results may be absent from the published literature.
+The estimated number of missing studies suggests that a substantial number of non-significant or negative results may be absent from the published literature, under the publication bias interpretation.
+However, the large missing N diagnostic might also reflect a large number of analytic paths that were possible and the results were selected over.
 The false discovery risk (FDR) provides an upper bound on the proportion of statistically significant results that may be false positives, though this risk remains moderate due to evidence for a genuine underlying effect despite the extreme publication bias.
 
 ### Example 2: Social Comparison and Behavior Change
@@ -352,15 +363,15 @@ This visual assessment aligns with the statistical evidence: RoBMA yields extrem
 
 **Extrapolation to pre-publication bias.**
 The package also allows us to extrapolate what the distribution of z-statistics might have looked like in the absence of publication bias.
-This is achieved by either setting `extrapolate = TRUE` in the `lines()` function, or calling the `zplot()` function (with the default `plot_extrapolation = TRUE` argument).
+This is achieved by either setting `extrapolate = TRUE` in the `lines()` function, or setting `plot_extrapolation = TRUE` in the `zplot()` function.
 
 ```{r, fig.cap="Social Comparison: Extrapolation Analysis"}
-zplot(fit_RoBMA_Hoppen2025)
+zplot(fit_RoBMA_Hoppen2025, plot_extrapolation = TRUE)
 ```
 
 The extrapolated distribution (blue line) shows what we would expect to observe if studies were published regardless of their results.
 Comparing the fitted distribution (accounting for publication bias) with the extrapolated distribution reveals the extent of the bias.
-The large discrepancy between these distributions quantifies the substantial impact of publication bias in this literature, with implications for the estimated effect size and number of missing studies.
+The large discrepancy between these distributions describes the model's adjustment for publication bias and its conventional inverse-weight extrapolation.
 
 **Zplot summary metrics.**
 This discrepancy can be summarized with the additional statistics provided by the `summary()` function.
@@ -398,7 +409,7 @@ fit_RE_Wang2025 <- brma(
 fit_RoBMA_Wang2025 <- RoBMA(
   yi = g, sei = se, measure = "SMD",
   data = Wang2025,
-  sample = 10000, burnin = 5000, adapt = 5000,
+  sample = 20000, burnin = 10000, adapt = 10000,
   chains = 5, parallel = TRUE, seed = 1)
 ```
 
@@ -425,7 +436,7 @@ This visual pattern corresponds to moderate statistical evidence for publication
 We can examine the extrapolation to assess the impact of publication bias:
 
 ```{r, fig.cap="ChatGPT: Extrapolation Analysis"}
-zplot(fit_RoBMA_Wang2025, from = -2, to = 8)
+zplot(fit_RoBMA_Wang2025, from = -2, to = 8, plot_extrapolation = TRUE)
 ```
 
 The extrapolated distribution (blue line) shows a more modest difference between the fitted and extrapolated distributions compared to the extreme bias example, reflecting the moderate degree of publication bias in this literature.
@@ -438,7 +449,6 @@ summary(fit_RE_Wang2025)
 summary(fit_RoBMA_Wang2025)
 ```
 
-The random-effects model yields a substantial positive effect size estimate, while the RoBMA model accounting for selection produces a more conservative estimate with a wider credible interval.
 Importantly, the results show an extreme degree of between-study heterogeneity that greatly complicates feasible implications and recommendations.
 This demonstrates the moderate nature of the publication bias, where the adjusted estimate is meaningfully smaller but not completely reduced.
 The Bayes factor for publication bias provides moderate evidence for publication bias, and the evidence for the effect becomes weak.
@@ -502,7 +512,7 @@ The absence of publication bias is further confirmed by the statistical evidence
 We can examine whether there would be any difference in the absence of publication bias:
 
 ```{r, fig.cap="Framing Effects: Extrapolation Analysis"}
-zplot(fit_RoBMA_ManyLabs16)
+zplot(fit_RoBMA_ManyLabs16, plot_extrapolation = TRUE)
 ```
 
 The extrapolated distribution (blue line) shows virtually no difference between the fitted and extrapolated distributions, confirming that publication bias has minimal impact in this well-designed replication project.
@@ -516,7 +526,7 @@ summary(fit_RE_ManyLabs16)
 summary(fit_RoBMA_ManyLabs16)
 ```
 
-Both models yield virtually identical effect size estimates.
+Both models yield virtually identical size estimates.
 The Bayes factor for publication bias provides moderate evidence against the presence of publication bias, appropriately penalizing the more complex model when it offers no advantage.
 This demonstrates the method's ability to distinguish between necessary and unnecessary model complexity.
 

@@ -42,6 +42,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-jags-
 
+      # Cache the JAGS 4.3.2 installer (macOS). RoBMA requires JAGS 4.x;
+      # Homebrew's jags formula installs JAGS 5, so the official universal
+      # package is used instead.
+      - name: Cache JAGS installer (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: ~/jags-installer
+          key: ${{ runner.os }}-jags-pkg-4.3.2
+
       - name: Install JAGS and system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -69,37 +79,48 @@ jobs:
           echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
           echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
 
+      # Install JAGS 4.3.2 on macOS from the official universal package, which
+      # installs into /usr/local (library, JAGS headers, jags.pc, jags binary)
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
+          # Remove a Homebrew jags first: on Intel runners Homebrew also links
+          # into /usr/local, where the package installs JAGS 4.3.2.
+          if brew list --formula jags > /dev/null 2>&1; then
+            brew uninstall --ignore-dependencies jags
+          fi
           brew update
-          brew install jags openblas automake
-          brew link --overwrite jags
+          brew install openblas automake
           command -v aclocal
+          mkdir -p ~/jags-installer
+          if [ ! -f ~/jags-installer/JAGS-4.3.2.pkg ]; then
+            echo "JAGS installer not found in cache, downloading..."
+            curl --retry 3 --fail -L -o ~/jags-installer/JAGS-4.3.2.pkg \
+              https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Mac%20OS%20X/JAGS-4.3.2.pkg/download
+          fi
+          sudo installer -pkg ~/jags-installer/JAGS-4.3.2.pkg -target /
 
+      # Point pkg-config at the JAGS 4.3.2 installation; configure rejects any
+      # JAGS major version other than 4 with a clear message
       - name: Set JAGS environment variables (macOS)
         if: runner.os == 'macOS'
         run: |
-          JAGS_PREFIX=$(brew --prefix jags)
           OPENBLAS_PREFIX=$(brew --prefix openblas)
-          JAGS_BIN="$JAGS_PREFIX/bin"
-          echo "JAGS_ROOT=$JAGS_PREFIX" >> $GITHUB_ENV
-          echo "PATH=$JAGS_BIN:$PATH" >> $GITHUB_ENV
-          echo "PKG_CONFIG_PATH=$JAGS_PREFIX/lib/pkgconfig" >> $GITHUB_ENV
-          echo "DYLD_FALLBACK_LIBRARY_PATH=$JAGS_PREFIX/lib:$OPENBLAS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib:$OPENBLAS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
+          if command -v pkg-config > /dev/null 2>&1; then
+            echo "pkg-config reports JAGS $(PKG_CONFIG_PATH=/usr/local/lib/pkgconfig pkg-config --modversion jags)"
+          fi
 
       - name: Verify JAGS runtime files (macOS)
         if: runner.os == 'macOS'
         run: |
-          JAGS_PREFIX=$(brew --prefix jags)
-          BREW_PREFIX=$(brew --prefix)
-          sudo mkdir -p "$BREW_PREFIX/libexec"
-          sudo ln -sf "$JAGS_PREFIX/bin/jags" "$BREW_PREFIX/libexec/jags-terminal"
-          test -f "$BREW_PREFIX/lib/JAGS/modules-4/basemod.so"
-          test -f "$BREW_PREFIX/lib/JAGS/modules-4/bugs.so"
+          command -v jags
+          test -f /usr/local/lib/JAGS/modules-4/basemod.so
+          test -f /usr/local/lib/JAGS/modules-4/bugs.so
           test -f "$(brew --prefix openblas)/lib/libopenblas.0.dylib"
-          ls -l "$BREW_PREFIX"/lib/libjags*.dylib
-          ls -l "$BREW_PREFIX"/lib/JAGS/modules-4/basemod.so
+          ls -l /usr/local/lib/libjags*.dylib
+          ls -l /usr/local/lib/JAGS/modules-4/basemod.so
 
       - name: Resolve BayesTools source
         id: bayestools

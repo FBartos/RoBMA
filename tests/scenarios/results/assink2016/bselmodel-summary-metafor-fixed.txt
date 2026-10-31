@@ -1,0 +1,20 @@
+
+Fixed-Effects Model (k = 100)
+
+Model Results:
+
+estimate      se     zval    pval   ci.lb   ci.ub      
+  0.2345  0.0184  12.7664  <.0001  0.1985  0.2705  *** 
+
+Test for Selection Model Parameters:
+LRT(df = 1) = 43.1777, p-val < .0001
+
+Selection Model Results:
+
+                     k  estimate      se      zval    pval   ci.lb   ci.ub      
+0     < p <= 0.025  59    1.0000     ---       ---     ---     ---     ---      
+0.025 < p <= 1      41    0.1701  0.0451  -18.3823  <.0001  0.0816  0.2586  *** 
+
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+

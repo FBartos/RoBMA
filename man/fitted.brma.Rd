@@ -26,9 +26,10 @@
 cluster-level random effects, and \code{"estimate"} conditions on the full
 estimate-level fitted value.}
 
-\item{component}{fitted component to return. \code{"location"} returns
-location fitted values, \code{"scale"} returns fitted heterogeneity
-\eqn{\tau_i}, and \code{"all"} returns both as a named list.}
+\item{component}{fitted component to return. \code{"location"} (alias
+\code{"mods"}) returns location fitted values, \code{"scale"} returns
+fitted heterogeneity \eqn{\tau_i}, and \code{"all"} returns both as a
+named list.}
 
 \item{bias_adjusted}{whether location fitted values should adjust for
 publication bias. Defaults to \code{FALSE}.}

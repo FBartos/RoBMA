@@ -1,0 +1,3 @@
+  omitted_component     qCMDE_BF    bridge_BF
+1             study 3.332222e+00 3.342130e+00
+2       observation 1.260158e+37 2.968937e+36

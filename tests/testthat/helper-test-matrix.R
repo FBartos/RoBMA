@@ -1,7 +1,7 @@
 test_tier <- function() {
 
   tier <- "core"
-  if (is_true_env("ROBMA_TEST_EXTENDED")) {
+  if (is_certification_profile()) {
     tier <- c(tier, "extended")
   }
 
@@ -11,11 +11,20 @@ test_tier <- function() {
 visual_test_tier <- function() {
 
   tier <- test_tier()
-  if (is_true_env("ROBMA_TEST_FULL_VISUALS")) {
+  if (is_certification_profile()) {
     tier <- c(tier, "visual-gallery")
   }
 
   return(tier)
+}
+
+test_profile_value <- function(standard, certification) {
+
+  if (is_certification_profile()) {
+    return(certification)
+  }
+
+  return(standard)
 }
 
 case_value <- function(case, name, default = NULL) {
@@ -53,18 +62,25 @@ case_has_check <- function(case, check) {
 
 filter_cases <- function(cases, tier = test_tier()) {
 
-  if (!"tier" %in% names(cases)) {
-    return(cases)
+  if ("tier" %in% names(cases)) {
+    cases <- cases[cases[["tier"]] %in% tier, , drop = FALSE]
   }
 
-  return(cases[cases[["tier"]] %in% tier, , drop = FALSE])
+  if ("name" %in% names(cases)) {
+    catalog_names <- fit_catalog()[["name"]]
+    cached_case   <- cases[["name"]] %in% catalog_names
+    active_case   <- cases[["name"]] %in% active_fit_catalog()[["name"]]
+    cases <- cases[!cached_case | active_case, , drop = FALSE]
+  }
+
+  return(cases)
 }
 
 for_each_case <- function(cases, callback, tier = test_tier()) {
 
   cases <- filter_cases(cases, tier = tier)
   if (nrow(cases) == 0L) {
-    return(invisible(NULL))
+    testthat::skip("No cases are active in this test profile.")
   }
 
   for (i in seq_len(nrow(cases))) {
@@ -345,7 +361,7 @@ residual_metafor_cases <- function() {
   out[["rstudent"]] <- I(list(
     "equal", "rank", NULL, NULL, "rank", NULL, "selection_pos", NULL,
     "selection_neg", "equal", NULL, "equal", "equal", NULL, "equal",
-    "glmm_align", NULL
+    NULL, NULL
   ))
 
   return(out)
@@ -519,14 +535,42 @@ marginal_means_interaction_plot_cases <- function() {
   )
 }
 
+.announce_existing_visual_snapshots <- function() {
+
+  snapshotter <- getOption("testthat.snapshotter")
+  if (is.null(snapshotter) || !snapshotter$is_active() ||
+      is.null(snapshotter$file) || !nzchar(snapshotter$file)) {
+    return(invisible(FALSE))
+  }
+
+  snapshot_dir <- testthat::test_path("_snaps", snapshotter$file)
+  if (!dir.exists(snapshot_dir)) {
+    return(invisible(FALSE))
+  }
+
+  snapshots <- list.files(snapshot_dir)
+  snapshots <- snapshots[!grepl(".new.", snapshots, fixed = TRUE)]
+  for (snapshot in snapshots) {
+    # Equivalent to announce_snapshot_file(), without requiring edition 3.
+    snapshotter$announce_file_snapshot(snapshot)
+  }
+
+  return(invisible(TRUE))
+}
+
 skip_if_not_full_visuals <- function(reason = NULL) {
 
-  if (!is_true_env("ROBMA_TEST_FULL_VISUALS")) {
+  if (!is_certification_profile()) {
+    # Conditional file snapshots must be announced before skipping or testthat
+    # treats their committed baselines as obsolete. Full-visual runs still
+    # exercise every snapshot and therefore retain normal stale-file cleanup.
+    .announce_existing_visual_snapshots()
+
     detail <- if (is.null(reason)) "" else paste0(" ", reason)
     testthat::skip(paste0(
       "Skipping extended visual gallery by default.",
       detail,
-      " Set ROBMA_TEST_FULL_VISUALS=TRUE to run it."
+      " Run the certification profile to include it."
     ))
   }
 }

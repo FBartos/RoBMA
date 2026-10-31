@@ -14,14 +14,17 @@
 \item{prior_prob}{numeric vector with prior model probabilities or weights.
 Values must be finite, nonnegative, have the same length as the retained
 models, and have a positive total. If omitted, a uniform prior is used.
-Supplied values are normalized internally.}
+Finite comparisons combine the original weights with marginal likelihoods
+in log space and normalize the resulting probabilities. An exactly zero
+prior weight excludes that model.}
 
 \item{model_names}{character vector with model names. If \code{NULL}
 (the default), names will be derived from deparsing the call.}
 }
 \value{
-A named numeric vector with posterior model probabilities
-(i.e., which sum to one).
+A named numeric vector with posterior model probabilities for single
+estimates, or a repetition-by-model numeric matrix when any model has repeated
+estimates. Each successfully evaluated comparison sums to one.
 }
 \description{
 Compute posterior model probabilities from marginal
@@ -32,7 +35,20 @@ The marginal likelihoods must first be computed using \code{\link{add_marglik}}.
 \code{x} and at least one additional \code{brma} model must be supplied.
 Non-\code{brma} objects in \code{...} are ignored with a warning. All retained
 models must be fitted to the same outcome target/data, including outcome type
-and, when present, weights and cluster identifiers.
+and, when present, likelihood weights. Cluster identifiers define model
+structure and are not part of the outcome-data identity. A known sampling
+covariance without correlated blocks (e.g., \code{V = diag(sei^2)} in
+\code{\link{brma.mv}}) is the outcome data of its standard errors, whereas a
+correlated \code{V} is a different target.
+
+If any model contains repeated bridge estimates, comparisons retain those
+repetitions regardless of model order. Models with fewer repetitions are
+recycled to the largest repetition count with a warning, following
+\pkg{bridgesampling}.
+Standardized marginal-likelihood results must be finite. Legacy raw
+\code{"bridge_list"} results retain non-finite repetitions and use upstream
+comparison behavior through \pkg{bridgesampling}, with normalized prior
+probabilities and its missing-value propagation, warnings, and errors.
 }
 \examples{
 \dontrun{

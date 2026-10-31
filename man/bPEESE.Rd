@@ -55,20 +55,31 @@ supplied for normal models.}
 \item{sei}{a vector of standard errors. Either \code{vi} or \code{sei} must be
 supplied for normal models.}
 
-\item{weights}{an optional vector of positive likelihood weights. For
+\item{weights}{an optional vector of finite positive likelihood weights. For
 normal/effect-size models, each weight powers the estimate likelihood. For
 constructors with GLMM raw-count input, each weight powers the paired
-two-arm likelihood for one study.}
+two-arm likelihood for one study. An integer weight \eqn{w} repeats that
+conditional likelihood contribution \eqn{w} times, with the declared
+latent-effect and grouping structure held fixed. Positive fractional
+likelihood powers are also supported.}
 
-\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"}
-or when estimating \code{"UISD"}).}
+\item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
+when estimating the unit information standard deviation.}
 
 \item{mods}{an optional matrix, data.frame, or formula specifying
-location moderators (meta-regressors). Formula input is evaluated in \code{data}.}
+location moderators (meta-regressors). Formula input is evaluated in \code{data}
+and supports explicit columns and standard formula operators, including
+\code{^} as R's crossing operator with a literal whole exponent of at least 2:
+\code{(x + z)^2} expands to \code{x + z + x:z}, and \code{x^2} is not a quadratic term
+(\code{x + x^2} is \code{x}). Precompute transformed predictors, such as a squared
+predictor, as columns in \code{data}; inline calls such as \code{I()}, \code{poly()},
+spline constructors, and user functions are not supported.}
 
 \item{scale}{an optional matrix, data.frame, or formula specifying
 scale predictors for location-scale models. Formula input is evaluated in
-\code{data}.}
+\code{data} and follows the same explicit-column formula grammar as \code{mods}.
+Random-formula models also accept a named list targeting top-level random
+components or concrete random-effect blocks; see \code{\link[=brma.mv]{brma.mv()}}.}
 
 \item{cluster}{an optional vector of cluster identifiers for multilevel
 meta-analysis.}
@@ -78,7 +89,20 @@ meta-analysis.}
 \item{slab}{an optional vector of study labels.}
 
 \item{subset}{an optional logical or numeric vector specifying a subset of
-data to be used.}
+data to be used. Subsetting precedes missing-row removal; retained-row
+outcome and predictor checks follow these steps. Type, shape, and existing
+extraction checks can still reject malformed inputs before subsetting.
+Row selection (by \code{subset} or missing-row removal) drops factor levels left
+without rows from \code{mods}, \code{scale}, and random-effect grouping factors. The
+index variable of a structured random-effect term (\code{cs()}, \code{hcs()}, \code{ar1()},
+\code{har()} with one index variable) keeps its declared levels, which define the
+covariance structure; the variables of a multi-variable \code{cs(a + b | group)}
+index follow the ordinary rule, because that index is built from their
+observed combinations. If an index variable that keeps its levels is also used
+in \code{mods} or \code{scale} and loses one of its levels to the selection, the fit
+stops with an error of class \code{RoBMA_structured_index_level_removed} (also
+\code{RoBMA_data_error}); remove the level from the data with \code{droplevels()} or use
+a separate column for the moderator.}
 
 \item{measure}{a character string specifying the effect size measure.
 Normal/effect-size constructors require an explicit value and support
@@ -88,24 +112,43 @@ standard deviation. GLMM raw-count constructors support only \code{"OR"} and
 \code{"IRR"} and default to \code{"OR"}.}
 
 \item{prior_effect}{prior distribution for the effect size (\eqn{\mu}) parameter
-(the intercept). If omitted, a default prior is constructed. In single-model
+(the intercept). If omitted and consumed, a default prior is constructed. In single-model
 functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
 
 \item{prior_heterogeneity}{prior distribution for the heterogeneity (\eqn{\tau})
-parameter. If omitted, a default prior is constructed. In single-model
-functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero.}
+parameter. If omitted and consumed, a default prior is constructed. In single-model
+functions, explicit \code{NULL} or \code{FALSE} sets a spike at zero. For
+\code{\link{brma.mv}} random-effect formulas, this can also be a partial or
+complete \code{\link{prior_random}} object; see
+\code{\link{random_effect_prior_specification}}.}
 
 \item{prior_mods}{prior distribution for the moderators (\eqn{\beta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{mods} is specified. A formula without an intercept
+(\code{~ 0 + x}) fixes the location intercept at zero, so an \code{intercept} entry of
+the list is accepted only as a point prior at zero; any other \code{intercept}
+prior stops with an error of class \code{RoBMA_prior_intercept_conflict} (also of
+class \code{RoBMA_prior_error}).
+A named \code{intercept} entry supplies the complete intercept prior. Explicit
+competing global effect declarations are refused when this would discard
+them. Named \code{NULL} or \code{FALSE} intercept entries are invalid; specify the
+complete prior in one place.}
 
 \item{prior_scale}{prior distribution for the scale (\eqn{\delta}) parameters.
 A single prior applies to all terms; a named list can specify term-specific
-priors. If omitted or \code{NULL}, default priors are used.}
+priors. If omitted or \code{NULL}, default priors are used. This argument can be
+specified only when \code{scale} is specified.
+A named \code{intercept} entry supplies the complete positive SD prior used by
+\code{log(intercept)}. Global heterogeneity declarations remain meaningful when
+they supply another random root or its model-inclusion weights; declarations
+fully replaced without a consumer raise \code{RoBMA_prior_intercept_conflict}.}
 
 \item{prior_heterogeneity_allocation}{prior distribution for the fraction of
 heterogeneity allocated to the cluster-level component in multilevel models
-(\eqn{\rho}). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}.}
+(\eqn{\rho}, a variance fraction rather than a random-coefficient
+correlation). If omitted or \code{NULL}, defaults to \code{Beta(1, 1)}. This argument
+can be specified only when \code{cluster} is specified.}
 
 \item{prior_bias}{PEESE regression-coefficient prior created by
 \code{prior_PEESE()}. If omitted or \code{NULL}, the default is a Cauchy
@@ -116,23 +159,37 @@ prior centered at 0, truncated to positive values, with scale from
 Defaults to \code{TRUE}.}
 
 \item{set_contrast_factor_predictors}{character. How to set contrast for factor predictors.
-Defaults are constructor-specific and shown in each function usage; single-model
-constructors use \code{"treatment"}, while model-averaging constructors use \code{"meandif"}.}
+Defaults are constructor-specific and shown in each function usage. Single-model
+constructors use \code{"treatment"}; model-averaging constructors use \code{"meandif"}.
+Accepted values are \code{"treatment"}, \code{"meandif"}, \code{"orthonormal"}, and
+\code{"independent"}. Independent coding creates one coefficient per factor
+level. Random-coefficient blocks reuse the resolved fixed-factor contrast
+unless \code{random_block(contrasts = ...)} overrides it. A warning is issued
+when default or inherited independent contrasts make a fixed or random
+design overspecified. With \code{"meandif"} or \code{"orthonormal"} contrasts, a
+formula term that interacts a factor with a predictor whose own term is
+missing, such as \code{g:x} in \code{~ g + g:x} or \code{~ g / x}, stops the fit: the term
+codes \code{g} by level indicators, with one coefficient per level, on which
+mean-difference and orthonormal priors are not defined. Specify an
+independent prior for that term, e.g., \code{prior_mods = list("g:x" = prior_factor("normal", list(0, 1), contrast = "independent"))} (or
+\code{prior_scale} for a scale formula), include the missing term (\code{~ g * x}),
+or use \code{set_contrast_factor_predictors = "treatment"}.}
 
 \item{prior_unit_information_sd}{numeric. The unit information standard deviation (\eqn{\sigma_{unit}}).
 Cannot be used together with \code{prior_informed_field}.}
 
 \item{rescale_priors}{numeric. A scaling factor for supported prior distributions.
-Point and none priors are unchanged. For constructors with publication-bias
-prior distributions, \code{rescale_priors} does not rescale them except for the
-default PEESE prior's UISD adjustment. Defaults to 1.}
+Point and none priors are unchanged; supplied \code{prior_random()} scale
+architectures and publication-bias priors are not rescaled. The default
+PEESE prior separately uses its documented UISD adjustment, independently of
+\code{rescale_priors}. Defaults to 1.}
 
 \item{prior_informed_field}{character. The field of the informed prior distributions.
 Omit to use the standard default prior specification; explicit \code{NULL} is invalid.}
 
 \item{prior_informed_subfield}{character. The subfield of the informed prior distributions.
-Omit to use the field-specific default, such as \code{"Cochrane"} for
-\code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
+Can only be specified together with \code{prior_informed_field}. Omit to use the
+field-specific default, such as \code{"Cochrane"} for \code{prior_informed_field = "medicine"}; explicit \code{NULL} is invalid.}
 
 \item{effect_direction}{direction used by publication-bias adjustments.
 \code{"positive"} assumes statistically significant positive estimates are more
@@ -197,6 +254,6 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 
 }
 \seealso{
-\link{publication_bias_prior_specification}, \code{\link[=RoBMA]{RoBMA()}}, \code{\link[=bPET]{bPET()}},
-\code{\link[=bselmodel]{bselmodel()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=funnel.brma]{funnel.brma()}}
+\code{\link[=bPEESE.mv]{bPEESE.mv()}}, \link{publication_bias_prior_specification}, \code{\link[=RoBMA]{RoBMA()}},
+\code{\link[=bPET]{bPET()}}, \code{\link[=bselmodel]{bselmodel()}}, \code{\link[=summary.brma]{summary.brma()}}, \code{\link[=funnel.brma]{funnel.brma()}}
 }

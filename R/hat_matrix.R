@@ -15,12 +15,20 @@
 #
 # Computes hat matrix components for each posterior sample.
 #
+# Every draw uses the design of the bias member it belongs to when the members
+# of a RoBMA() ensemble differ in their PET / PEESE terms (.hat_design_plan()),
+# and the union design otherwise.
+#
 # Returns a list containing:
 # - H_diag: S x K matrix of hat matrix diagonals (leverages)
 # - H: S x K x K array of full hat matrices (only if return_full_H = TRUE)
-# - se_components: S x K matrix of standard errors components for residuals (if return_se = TRUE)
-# - resid_components: S x K matrix of GLS residuals (if return_resid = TRUE)
+# - se: S x K matrix of residual SDs (if return_se = TRUE)
+# - resid: S x K matrix of projection residuals (if return_resid = TRUE)
+# - z: posterior mean of draw-wise resid/se (if both are requested and summarize)
 # - M_diag: S x K matrix of marginal variance diagonals
+# - known_v_diagnostic: selected-draw metadata for known-V computations
+# With summarize = TRUE, se and resid are posterior mean vectors; H_diag,
+# optional H, and M_diag retain their posterior-draw dimensions.
 #
 # @param object brma object
 # @param conditioning_depth character; conditioning depth for residual SEs:
@@ -29,13 +37,18 @@
 #                           - "estimate": Uses sampling variance V
 # @param return_full_H logical; whether to return the full hat matrix for each sample
 # @param return_se logical; whether to compute and return standard error components
-# @param return_resid logical; whether to compute and return GLS residual components
+# @param return_resid logical; whether to compute and return projection residuals
+# @param summarize logical; whether to average residuals and SDs, retaining
+#                  draw-wise ratios for their posterior mean z
+# @param max_samples maximum known-V posterior draws; finite values use the
+#                    existing deterministic thinning across posterior row order
 #
 # ---------------------------------------------------------------------------- #
 .compute_hat_matrix_samples <- function(object, conditioning_depth = "marginal",
                                         return_full_H = FALSE,
                                         return_se = FALSE, return_resid = FALSE,
-                                        summarize = FALSE) {
+                                        summarize = FALSE,
+                                        max_samples = Inf) {
   # check inputs
   conditioning_depth <- .normalize_conditioning_depth(conditioning_depth)
 
@@ -54,6 +67,19 @@
   # get design matrix X
   X <- .get_model_matrix(object)
 
+  if (.is_data_known_v(object[["data"]])) {
+    return(.compute_known_v_hat_matrix_samples(
+      object             = object,
+      conditioning_depth = conditioning_depth,
+      return_full_H      = return_full_H,
+      return_se          = return_se,
+      return_resid       = return_resid,
+      summarize          = summarize,
+      X                  = X,
+      max_samples        = max_samples
+    ))
+  }
+
   # get tau samples (heterogeneity)
   # tau_within: estimate-level heterogeneity (used for cluster and estimate residuals)
   # tau_between: cluster-level heterogeneity (only for multilevel models)
@@ -63,13 +89,25 @@
     scale_formula = if (is_scale) .create_fit_formula_list(data = object[["data"]], "scale") else NULL,
     scale_priors  = priors[["scale"]],
     is_scale      = is_scale,
-    is_multilevel = is_multilevel,
-    K             = K
+    is_multilevel     = is_multilevel,
+    is_random         = .is_random(object),
+    K                 = K,
+    fixed_tau         = .fixed_tau_prior_value(priors),
+    fixed_rho         = .fixed_rho_prior_value(priors)
   )
   tau_within_samples  <- tau_result[["tau_within"]]
   tau_between_samples <- tau_result[["tau_between"]]
 
   S <- nrow(tau_within_samples)
+
+  # design of each posterior draw: the union design, or the design of the
+  # draw's bias member for ensembles whose members differ in bias terms
+  design_plan <- .hat_design_plan(
+    object         = object,
+    X              = X,
+    S              = S,
+    with_zero_rows = return_se || return_resid
+  )
 
   # get cluster for multilevel structure
   ids <- NULL
@@ -78,16 +116,15 @@
   }
 
   # initialize outputs
-  H_diag_samples <- matrix(0, nrow = S, ncol = K)
-  H_samples      <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
-  se_samples     <- if (return_se && !summarize) matrix(0, nrow = S, ncol = K) else NULL
-  resid_samples  <- if (return_resid && !summarize) matrix(0, nrow = S, ncol = K) else NULL
-  se_sum         <- if (return_se && summarize) rep(0, K) else NULL
-  resid_sum      <- if (return_resid && summarize) rep(0, K) else NULL
-  z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
-  M_diag_samples <- matrix(0, nrow = S, ncol = K) # useful debug/checking
-  I_K            <- diag(K)
-  residual_tol   <- 100 * .Machine$double.eps * max(1, max(abs(yi)))
+  H_diag_samples    <- matrix(0, nrow = S, ncol = K)
+  H_samples         <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
+  se_samples        <- if (return_se && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  resid_samples     <- if (return_resid && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  se_sum            <- if (return_se && summarize) rep(0, K) else NULL
+  resid_sum         <- if (return_resid && summarize) rep(0, K) else NULL
+  z_sum             <- if (return_se && return_resid && summarize) rep(0, K) else NULL
+  M_diag_samples    <- matrix(0, nrow = S, ncol = K) # useful debug/checking
+  I_K               <- diag(K)
 
   # Pre-calculate indices for multilevel blocks to avoid repeating inside loop
   block_indices <- list()
@@ -96,20 +133,29 @@
   }
 
   for (s in seq_len(S)) {
+    X_s                 <- design_plan[["designs"]][[design_plan[["draw_class"]][s]]]
+    zero_residual_rows  <- design_plan[["zero_residual_rows"]][[design_plan[["draw_class"]][s]]]
     tau_w_s             <- tau_within_samples[s, ]
     tau_b_s             <- tau_between_samples[s, ]
     sampling_diagonal_s <- vi / weights
     diagonal_s          <- (vi + tau_w_s^2) / weights
-    M_diag_s            <- diagonal_s
+    outcome_diagonal_s  <- vi + tau_w_s^2
+    M_diag_s            <- outcome_diagonal_s
 
     if (is_multilevel) {
       M_diag_s <- M_diag_s + tau_b_s^2
+      if (conditioning_depth == "marginal" && length(zero_residual_rows) < K) {
+        zero_residual_rows <- zero_residual_rows[vapply(zero_residual_rows, function(i) {
+          partners <- block_indices[[which(vapply(block_indices, function(index) i %in% index, logical(1)))]]
+          all(tau_b_s[i] * tau_b_s[setdiff(partners, i)] == 0)
+        }, logical(1))]
+      }
     }
 
     M_diag_samples[s, ] <- M_diag_s
 
     WX <- .hat_apply_precision(
-      x             = X,
+      x             = X_s,
       diagonal      = diagonal_s,
       rank_one      = if (is_multilevel) tau_b_s else NULL,
       block_indices = block_indices
@@ -121,25 +167,59 @@
       block_indices = block_indices
     )
 
-    XtWX     <- crossprod(X, WX)
-    XtWX_inv <- .hat_solve_crossprod(XtWX)
-    XB       <- X %*% XtWX_inv
-    Q_diag   <- rowSums(XB * X)
+    XtWX     <- crossprod(X_s, WX)
+    XtWX_inv <- .hat_solve_crossprod(XtWX, rank = attr(X_s, "rank"))
+    XB       <- X_s %*% XtWX_inv
+    variance_transform <- NULL
+    if (return_se) {
+      residual_projection <- I_K - XB %*% t(WX)
+      variance_transform   <- residual_projection
+
+      if (conditioning_depth == "estimate") {
+        W <- .hat_precision_matrix(
+          diagonal      = diagonal_s,
+          rank_one      = if (is_multilevel) tau_b_s else NULL,
+          block_indices = block_indices
+        )
+        variance_transform <- sweep(
+          W - WX %*% XtWX_inv %*% t(WX),
+          1L,
+          sampling_diagonal_s,
+          "*"
+        )
+
+      } else if (conditioning_depth == "cluster" && is_multilevel) {
+        W <- .hat_precision_matrix(
+          diagonal      = diagonal_s,
+          rank_one      = tau_b_s,
+          block_indices = block_indices
+        )
+        between_covariance <- matrix(0, nrow = K, ncol = K)
+        for (idx in block_indices) {
+          between_covariance[idx, idx] <- tcrossprod(tau_b_s[idx])
+        }
+        variance_transform <-
+          (I_K - between_covariance %*% W) %*% residual_projection
+      }
+    }
 
     H_diag_samples[s, ] <- rowSums(XB * WX)
 
     if (return_full_H) {
-      H_samples[s, , ] <- X %*% XtWX_inv %*% t(WX)
+      H_samples[s, , ] <- X_s %*% XtWX_inv %*% t(WX)
     }
 
     if (return_se || return_resid) {
       residual_s <- NULL
       se_s       <- NULL
 
-      beta_hat <- as.vector(XtWX_inv %*% crossprod(X, Wy))
-      residual <- yi - as.vector(X %*% beta_hat)
+      beta_hat <- as.vector(XtWX_inv %*% crossprod(X_s, Wy))
+      residual <- yi - as.vector(X_s %*% beta_hat)
 
-      if (conditioning_depth == "estimate") {
+      if (!is.null(variance_transform)) {
+        residual <- as.vector(variance_transform %*% yi)
+
+      } else if (conditioning_depth == "estimate") {
         weighted_residual <- .hat_apply_precision(
           x             = residual,
           diagonal      = diagonal_s,
@@ -161,9 +241,9 @@
         }
         residual <- residual - cluster_adjust
       }
+      residual[zero_residual_rows] <- 0
 
       if (return_resid) {
-        residual[abs(residual) < residual_tol] <- 0
         residual_s <- residual
         if (summarize) {
           resid_sum <- resid_sum + residual
@@ -173,32 +253,18 @@
       }
 
       if (return_se) {
-        if (conditioning_depth == "marginal" ||
-            (conditioning_depth == "cluster" && !is_multilevel)) {
-          se2 <- M_diag_s - Q_diag
+        # Likelihood weights determine the fitted projection above. Residual
+        # variability is under the original outcome law, as in metafor's
+        # (I - H) M (I - H)' diagnostic with custom estimation weights.
+        se2 <- .hat_transformed_covariance_diag(
+          transform     = variance_transform,
+          diagonal      = outcome_diagonal_s,
+          rank_one      = if (is_multilevel) tau_b_s else NULL,
+          block_indices = block_indices
+        )
+        se2[zero_residual_rows] <- 0
 
-        } else if (conditioning_depth == "estimate") {
-          W_diag  <- .hat_precision_diag(
-            diagonal      = diagonal_s,
-            rank_one      = if (is_multilevel) tau_b_s else NULL,
-            block_indices = block_indices
-          )
-          QW_diag <- rowSums((WX %*% XtWX_inv) * WX)
-          se2     <- sampling_diagonal_s^2 * (W_diag - QW_diag)
-
-        } else {
-          se2 <- .hat_cluster_se2(
-            X             = X,
-            XtWX_inv      = XtWX_inv,
-            diagonal      = diagonal_s,
-            tau_between   = tau_b_s,
-            vi            = sampling_diagonal_s,
-            block_indices = block_indices,
-            I_K           = I_K
-          )
-        }
-
-        se_s <- sqrt(pmax(se2, 0))
+        se_s <- .hat_variance_sd(se2, "Residual variance")
         if (summarize) {
           se_sum <- se_sum + se_s
         } else {
@@ -233,6 +299,483 @@
   }
 
   return(result)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .hat_design_plan
+# ---------------------------------------------------------------------------- #
+#
+# Design used by each posterior draw. One design (the union design from
+# .get_model_matrix()) applies to every draw unless the members of a bias
+# ensemble differ in their bias terms (see .bias_design_classes()); then a draw
+# uses the design of its member's class.
+#
+# @param posterior_samples the posterior rows the diagnostic uses, or NULL for
+#   the full posterior.
+# @param S number of posterior draws the diagnostic uses.
+# @param with_zero_rows whether to find the rows that every projection fits
+#   exactly (only residual diagnostics need them).
+#
+# @return list with the class designs (`designs`), the design class of every
+#   draw (`draw_class`), and the exactly fitted rows of each design
+#   (`zero_residual_rows`).
+#
+# ---------------------------------------------------------------------------- #
+.hat_design_plan <- function(object, X, S, posterior_samples = NULL,
+                             with_zero_rows = FALSE) {
+
+  bias_classes <- .bias_design_classes(
+    object,
+    X                 = X,
+    posterior_samples = posterior_samples
+  )
+  designs    <- if (is.null(bias_classes)) list(X) else bias_classes[["designs"]]
+  draw_class <- if (is.null(bias_classes)) rep(1L, S) else bias_classes[["class"]]
+  if (length(draw_class) != S) {
+    stop("Design classes do not match the posterior draws.", call. = FALSE)
+  }
+
+  zero_residual_rows <- lapply(designs, function(design) {
+    if (is.null(design) || !with_zero_rows) {
+      return(integer())
+    }
+    return(.hat_zero_residual_rows(design))
+  })
+
+  return(list(
+    designs            = designs,
+    draw_class         = draw_class,
+    zero_residual_rows = zero_residual_rows
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .compute_known_v_hat_matrix_samples
+# ---------------------------------------------------------------------------- #
+#
+# Known-V residual projection for correlated sampling covariance targets.
+#
+# ---------------------------------------------------------------------------- #
+.compute_known_v_hat_matrix_samples <- function(object, conditioning_depth,
+                                                return_full_H, return_se,
+                                                return_resid, summarize, X,
+                                                max_samples = Inf) {
+
+  sample_info <- .known_v_diagnostic_posterior_samples(
+    object      = object,
+    max_samples = max_samples,
+    caller      = "known-V hat/residual diagnostics"
+  )
+  setup <- .estimate_likelihood_setup.brma(
+    object            = object,
+    posterior_samples = sample_info[["posterior_samples"]]
+  )
+  known_V            <- .data_known_v_data(setup[["data"]])
+  yi                 <- setup[["yi"]]
+  S                  <- setup[["S"]]
+  K                  <- setup[["K"]]
+
+  # design of each (thinned) posterior draw, aligned with the rows of the
+  # posterior samples used below
+  design_plan <- .hat_design_plan(
+    object            = object,
+    X                 = X,
+    S                 = S,
+    posterior_samples = setup[["posterior_samples"]],
+    with_zero_rows    = return_se || return_resid
+  )
+
+  if (conditioning_depth == "estimate") {
+    extra_variance <- .known_v_extra_variance_from_setup(setup)
+  }
+
+  H_diag_samples <- matrix(0, nrow = S, ncol = K)
+  H_samples      <- if (return_full_H) array(0, dim = c(S, K, K)) else NULL
+  se_samples     <- if (return_se && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  resid_samples  <- if (return_resid && !summarize) matrix(0, nrow = S, ncol = K) else NULL
+  se_sum         <- if (return_se && summarize) rep(0, K) else NULL
+  resid_sum      <- if (return_resid && summarize) rep(0, K) else NULL
+  z_sum          <- if (return_se && return_resid && summarize) rep(0, K) else NULL
+  M_diag_samples <- matrix(0, nrow = S, ncol = K)
+  chunk_info     <- NULL
+
+  if (conditioning_depth == "estimate") {
+    offset_samples <- setup[["mu_random"]]
+    if (is.null(offset_samples)) {
+      offset_samples <- matrix(0, nrow = S, ncol = K)
+    }
+
+    for (s in seq_len(S)) {
+      X_s                <- design_plan[["designs"]][[design_plan[["draw_class"]][s]]]
+      zero_residual_rows <- design_plan[["zero_residual_rows"]][[design_plan[["draw_class"]][s]]]
+      if (length(zero_residual_rows) < K) {
+        zero_residual_rows <- zero_residual_rows[vapply(zero_residual_rows, function(i) {
+          all(vapply(.known_v_correlated_blocks(known_V), function(block) {
+            local <- match(i, block[["index"]])
+            is.na(local) || all(block[["covariance"]][local, -local] == 0)
+          }, logical(1)))
+        }, logical(1))]
+      }
+      y_offset  <- yi - offset_samples[s, ]
+      projection <- .known_v_with_request_rows(
+        .known_v_gls_projection_blocks(
+          X              = X_s,
+          y              = y_offset,
+          known_V        = known_V,
+          extra_variance = extra_variance[s, ],
+          return_full_H  = return_full_H
+        ),
+        rows = s
+      )
+      residual   <- projection[["sampling_residual"]]
+      residual[zero_residual_rows] <- 0
+      projection[["sampling_residual_variance"]][zero_residual_rows] <- 0
+      se         <- .hat_variance_sd(
+        projection[["sampling_residual_variance"]],
+        "Known-V sampling residual variance"
+      )
+
+      H_diag_samples[s, ] <- projection[["H_diag"]]
+      M_diag_samples[s, ] <- .known_v_diagonal(known_V) + extra_variance[s, ]
+
+      if (return_full_H) {
+        H_samples[s, , ] <- projection[["H"]]
+      }
+      if (return_resid) {
+        if (summarize) {
+          resid_sum <- resid_sum + residual
+        } else {
+          resid_samples[s, ] <- residual
+        }
+      }
+      if (return_se) {
+        if (summarize) {
+          se_sum <- se_sum + se
+        } else {
+          se_samples[s, ] <- se
+        }
+      }
+      if (summarize && return_se && return_resid) {
+        z_s <- residual / se
+        z_s[residual == 0 & se == 0] <- 0
+        z_sum <- z_sum + z_s
+      }
+    }
+
+  } else if (conditioning_depth == "marginal") {
+    projection <- .known_v_hat_projection_batch(
+      object            = object,
+      posterior_samples = setup[["posterior_samples"]],
+      known_V           = known_V,
+      design_plan       = design_plan,
+      y                 = yi,
+      return_full_H     = return_full_H,
+      return_se         = return_se,
+      return_resid      = return_resid
+    )
+
+    H_diag_samples <- projection[["H_diag"]]
+    M_diag_samples <- projection[["M_diag"]]
+    if (return_full_H) {
+      H_samples <- projection[["H"]]
+    }
+    if (return_resid) {
+      residual <- projection[["residual"]]
+      if (summarize) {
+        resid_sum <- colSums(residual)
+      } else {
+        resid_samples <- residual
+      }
+    }
+    if (return_se) {
+      residual_variance <- projection[["residual_variance"]]
+      se <- .hat_variance_sd(
+        residual_variance,
+        "Known-V marginal residual variance"
+      )
+      if (summarize) {
+        se_sum <- colSums(se)
+      } else {
+        se_samples <- se
+      }
+    }
+    if (summarize && return_se && return_resid) {
+      z <- residual / se
+      z[residual == 0 & se == 0] <- 0
+      z_sum <- colSums(z)
+    }
+    chunk_info <- list(covariance_path = projection[["covariance_path"]])
+
+  } else {
+    .check_cluster_unit_deferred("rstandard()", argument = "conditioning_depth")
+  }
+
+  result <- list(
+    H_diag = H_diag_samples,
+    M_diag = M_diag_samples
+  )
+
+  if (return_full_H) {
+    result[["H"]] <- H_samples
+  }
+  if (return_se) {
+    result[["se"]] <- if (summarize) se_sum / S else se_samples
+  }
+  if (return_resid) {
+    result[["resid"]] <- if (summarize) resid_sum / S else resid_samples
+  }
+  if (summarize && return_se && return_resid) {
+    result[["z"]] <- z_sum / S
+  }
+  result[["known_v_diagnostic"]] <- .known_v_diagnostic_metadata(
+    sample_info = sample_info,
+    chunk_info  = chunk_info
+  )
+
+  return(result)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .known_v_hat_projection_batch
+# ---------------------------------------------------------------------------- #
+#
+# Known-V marginal GLS projections of all draws. The draws of each design class
+# are projected together on the class design, then placed at their rows.
+#
+# ---------------------------------------------------------------------------- #
+.known_v_hat_projection_batch <- function(object, posterior_samples, known_V,
+                                          design_plan, y, return_full_H,
+                                          return_se, return_resid) {
+
+  draw_class <- design_plan[["draw_class"]]
+  present    <- sort(unique(draw_class))
+  batch      <- function(design_class, rows = NULL) {
+    .known_v_with_request_rows(
+      .known_v_factor_gls_projection_batch(
+        object            = object,
+        posterior_samples = if (is.null(rows)) {
+          posterior_samples
+        } else {
+          posterior_samples[rows, , drop = FALSE]
+        },
+        known_V           = known_V,
+        X                 = design_plan[["designs"]][[design_class]],
+        y                 = y,
+        return_full_H     = return_full_H,
+        return_se         = return_se,
+        return_resid      = return_resid,
+        zero_candidates   = design_plan[["zero_residual_rows"]][[design_class]]
+      ),
+      rows = rows
+    )
+  }
+
+  if (length(present) == 1L) {
+    return(batch(present))
+  }
+
+  S <- length(draw_class)
+  K <- length(y)
+  projection <- list(
+    H_diag            = matrix(NA_real_, nrow = S, ncol = K),
+    M_diag            = matrix(NA_real_, nrow = S, ncol = K),
+    H                 = if (return_full_H) array(NA_real_, dim = c(S, K, K)),
+    residual          = if (return_resid) matrix(NA_real_, nrow = S, ncol = K),
+    residual_variance = if (return_se) matrix(NA_real_, nrow = S, ncol = K)
+  )
+  for (design_class in present) {
+    rows   <- which(draw_class == design_class)
+    result <- batch(design_class, rows)
+
+    projection[["H_diag"]][rows, ] <- result[["H_diag"]]
+    projection[["M_diag"]][rows, ] <- result[["M_diag"]]
+    if (return_full_H) {
+      projection[["H"]][rows, , ] <- result[["H"]]
+    }
+    if (return_resid) {
+      projection[["residual"]][rows, ] <- result[["residual"]]
+    }
+    if (return_se) {
+      projection[["residual_variance"]][rows, ] <- result[["residual_variance"]]
+    }
+    projection[["covariance_path"]] <- result[["covariance_path"]]
+  }
+
+  return(projection)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .known_v_with_request_rows
+# ---------------------------------------------------------------------------- #
+#
+# Evaluate the known-V computation of one design class. It sees only the draws
+# of its class, so that an unavailable precision application names draws by
+# their positions among those. The diagnostic reports positions among the draws
+# of its request (the thinned draws when 'max_samples' was set): the condition
+# is raised again with the positions mapped through `rows`, the positions of
+# the class draws in the request, and the message rebuilt from them.
+#
+# @param expr the computation of the class draws.
+# @param rows positions of the class draws among the draws of the request, or
+#   NULL when the computation covers all of them.
+#
+# ---------------------------------------------------------------------------- #
+.known_v_with_request_rows <- function(expr, rows = NULL) {
+
+  if (is.null(rows)) {
+    return(expr)
+  }
+
+  tryCatch(
+    expr,
+    RoBMA_known_v_precision_unavailable = function(condition) {
+      positions   <- rows[condition[["rows"]]]
+      unavailable <- rep(NA_real_, max(positions))
+      unavailable[positions] <- condition[["reciprocal_condition"]]
+      .known_v_precision_check_available(unavailable)
+    }
+  )
+}
+
+
+.known_v_gls_projection_blocks <- function(X, y, known_V, extra_variance,
+                                           return_full_H = FALSE) {
+
+  K <- .known_v_nrow(known_V)
+  p <- ncol(X)
+  if (nrow(X) != K || length(y) != K || length(extra_variance) != K) {
+    stop("Known-V block GLS inputs have inconsistent dimensions.", call. = FALSE)
+  }
+
+  if (!is.numeric(extra_variance) || any(!is.finite(extra_variance)) ||
+      any(extra_variance < 0)) {
+    stop("'extra_variance' must contain finite, non-negative variances.",
+         call. = FALSE)
+  }
+
+  W_X               <- matrix(0, nrow = K, ncol = p)
+  W_y               <- numeric(K)
+  covariance_blocks <- .known_v_blocks(known_V)
+  projection_blocks <- vector("list", length(covariance_blocks))
+
+  for (b in seq_along(covariance_blocks)) {
+    block        <- covariance_blocks[[b]]
+    index        <- block[["index"]]
+    V_block      <- block[["covariance"]]
+    block_extra  <- extra_variance[index]
+    rank_one     <- .covariance_exact_rank_one_factor(V_block)
+
+    if (!is.null(rank_one) && all(block_extra > 0)) {
+      n <- length(index)
+      covariance_factor <- cbind(
+        diag(sqrt(block_extra), nrow = n),
+        rank_one
+      )
+      plan_data <- list(
+        sampling_covariance = matrix(0, n, n),
+        random_covariance_plans = list(list(
+          type = "group", model_matrix = matrix(rank_one, n, 1L),
+          group_map = rep(1L, n), coefficient_structure = "diagonal")),
+        random_covariance_states = list(list(list(coefficient_factor = matrix(1)))),
+        block_indices = list(seq_len(n)), extra_variances = matrix(block_extra, 1L)
+      )
+      applied <- .known_v_covariance_plan_precision_rhs_batch(
+        plan_data, cbind(X[index, , drop = FALSE], y[index], covariance_factor)
+      )
+      local_W_X <- matrix(applied[1L, , seq_len(p)], n, p)
+      local_W_y <- applied[1L, , p + 1L]
+      W_L <- matrix(applied[1L, , p + 1L + seq_len(n + 1L)], n, n + 1L)
+
+      # Direct A = V M^-1 products avoid cancellation in I - D M^-1.
+      # The scaled norm keeps the rank-one shrinkage stable for small D.
+      z <- rank_one / sqrt(block_extra)
+      if (all(rank_one == 0)) {
+        a <- numeric(n)
+        A_L <- matrix(0, n, n + 1L)
+      } else {
+        z_scale <- max(abs(z))
+        scale <- z_scale * sqrt(sum((z / z_scale)^2))
+        q <- z / scale
+        h <- if (scale >= 1) 1 / (1 + (1 / scale)^2) else scale^2 / (1 + scale^2)
+        a <- h * (q / scale) / sqrt(block_extra)
+        A_L <- cbind(tcrossprod(rank_one, h * q / scale), rank_one * h)
+      }
+      A_X <- tcrossprod(rank_one, as.vector(crossprod(a, X[index, , drop = FALSE])))
+      A_y <- rank_one * sum(a * y[index])
+    } else {
+      covariance <- V_block
+      diag(covariance) <- diag(covariance) + block_extra
+      chol_covariance <- .covariance_cholesky(
+        .covariance_factorization(covariance), "Known-V residual covariance"
+      )
+      if (is.null(chol_covariance)) {
+        stop("Known-V residual covariance is not positive definite.",
+             call. = FALSE)
+      }
+      covariance_factor <- t(chol_covariance)
+      n <- length(index)
+      applied <- .known_v_covariance_plan_precision_rhs_batch(
+        list(sampling_covariance = V_block, random_covariance_plans = list(),
+          random_covariance_states = list(list()), block_indices = list(seq_len(n)),
+          extra_variances = matrix(block_extra, 1L)),
+        cbind(X[index, , drop = FALSE], y[index], covariance_factor)
+      )
+      local_W_X <- matrix(applied[1L, , seq_len(p)], n, p)
+      local_W_y <- applied[1L, , p + 1L]
+      W_L <- matrix(applied[1L, , p + 1L + seq_len(n)], n, n)
+      A_X <- V_block %*% local_W_X
+      A_y <- as.vector(V_block %*% local_W_y)
+      A_L <- V_block %*% W_L
+    }
+
+    W_X[index, ] <- local_W_X
+    W_y[index]   <- local_W_y
+    projection_blocks[[b]] <- list(
+      index = index, A_X = A_X, A_y = A_y, A_L = A_L, W_L = W_L
+    )
+  }
+
+  XtWX_inv <- .hat_solve_crossprod(
+    crossprod(X, W_X),
+    rank = attr(X, "rank")
+  )
+  beta_hat <- as.vector(XtWX_inv %*% crossprod(X, W_y))
+
+  sampling_residual <- numeric(K)
+  V_W_X             <- matrix(0, nrow = K, ncol = p)
+  for (block in projection_blocks) {
+    index   <- block[["index"]]
+    V_W_X[index, ] <- block[["A_X"]]
+    sampling_residual[index] <- block[["A_y"]] - as.vector(block[["A_X"]] %*% beta_hat)
+  }
+
+  V_W_X_B                  <- V_W_X %*% XtWX_inv
+  sampling_residual_variance <- numeric(K)
+  for (block in projection_blocks) {
+    index <- block[["index"]]
+    residual_factor <- -V_W_X_B %*%
+      crossprod(X[index, , drop = FALSE], block[["W_L"]])
+    residual_factor[index, ] <- residual_factor[index, , drop = FALSE] +
+      block[["A_L"]]
+    sampling_residual_variance <- sampling_residual_variance +
+      rowSums(residual_factor^2)
+  }
+
+  H_diag <- rowSums((X %*% XtWX_inv) * W_X)
+
+  out <- list(
+    H_diag                       = H_diag,
+    sampling_residual            = sampling_residual,
+    sampling_residual_variance   = sampling_residual_variance
+  )
+  if (isTRUE(return_full_H)) {
+    out[["H"]] <- X %*% XtWX_inv %*% t(W_X)
+  }
+  out
 }
 
 
@@ -274,32 +817,6 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .hat_precision_diag
-# ---------------------------------------------------------------------------- #
-#
-# Diagonal of the inverse marginal covariance.
-#
-# ---------------------------------------------------------------------------- #
-.hat_precision_diag <- function(diagonal, rank_one = NULL, block_indices = list()) {
-
-  if (is.null(rank_one)) {
-    return(1 / diagonal)
-  }
-
-  out <- rep(NA_real_, length(diagonal))
-  for (idx in block_indices) {
-    inv_diag <- 1 / diagonal[idx]
-    inv_u    <- rank_one[idx] * inv_diag
-    denom    <- 1 + sum(rank_one[idx] * inv_u)
-
-    out[idx] <- inv_diag - inv_u^2 / denom
-  }
-
-  return(out)
-}
-
-
-# ---------------------------------------------------------------------------- #
 # .hat_precision_matrix
 # ---------------------------------------------------------------------------- #
 #
@@ -336,7 +853,17 @@
 # Stable inverse for the small fixed-effect crossproduct.
 #
 # ---------------------------------------------------------------------------- #
-.hat_solve_crossprod <- function(x) {
+.hat_solve_crossprod <- function(x, rank = NULL) {
+
+  if (!is.null(rank)) {
+    if (!is.numeric(rank) || length(rank) != 1L || is.na(rank) ||
+        rank < 0L || rank > nrow(x)) {
+      stop("Fixed-effect design rank metadata are invalid.", call. = FALSE)
+    }
+    if (rank < nrow(x)) {
+      return(MASS::ginv(x))
+    }
+  }
 
   chk <- try(chol(x), silent = TRUE)
   if (!inherits(chk, "try-error")) {
@@ -348,35 +875,61 @@
 
 
 # ---------------------------------------------------------------------------- #
-# .hat_cluster_se2
+# .hat_transformed_covariance_diag
 # ---------------------------------------------------------------------------- #
 #
-# Fallback cluster-level residual variance using block-structured W and M.
+# Compute diag(T M T') from a diagonal-plus-rank-one covariance factor. This
+# avoids subtracting algebraically equivalent positive-semidefinite matrices.
 #
 # ---------------------------------------------------------------------------- #
-.hat_cluster_se2 <- function(X, XtWX_inv, diagonal, tau_between, vi,
-                             block_indices, I_K) {
+.hat_transformed_covariance_diag <- function(transform, diagonal, rank_one,
+                                             block_indices) {
 
-  K <- length(vi)
-  W <- .hat_precision_matrix(
-    diagonal      = diagonal,
-    rank_one      = tau_between,
-    block_indices = block_indices
-  )
-  M <- .build_multilevel_marginal_covariance(
-    tau_within    = sqrt(pmax(diagonal - vi, 0)),
-    tau_between   = tau_between,
-    vi            = vi,
-    block_indices = block_indices
-  )
+  diagonal_factor <- sweep(transform, 2L, sqrt(diagonal), "*")
+  variance        <- rowSums(diagonal_factor^2)
 
-  between_cov <- matrix(0, nrow = K, ncol = K)
-  for (idx in block_indices) {
-    between_cov[idx, idx] <- tcrossprod(tau_between[idx])
+  if (!is.null(rank_one)) {
+    for (idx in block_indices) {
+      block_factor <- as.vector(
+        transform[, idx, drop = FALSE] %*% rank_one[idx]
+      )
+      variance <- variance + block_factor^2
+    }
   }
 
-  Q <- X %*% XtWX_inv %*% t(X)
-  A <- (I_K - between_cov %*% W)
+  return(variance)
+}
 
-  return(diag(A %*% (M - Q) %*% t(A)))
+
+# ---------------------------------------------------------------------------- #
+# .hat_zero_residual_rows
+# ---------------------------------------------------------------------------- #
+#
+# Rows whose removal lowers the design rank are fitted exactly by every
+# weighted projection: e_i belongs to the column space of X, so both their
+# residual and residual variance are identically zero.
+#
+# ---------------------------------------------------------------------------- #
+.hat_zero_residual_rows <- function(X) {
+
+  zero_tolerance <- max(dim(X)) * .Machine$double.eps
+  full_rank      <- qr(X, tol = zero_tolerance)[["rank"]]
+  return(which(vapply(
+    seq_len(nrow(X)),
+    function(i) {
+      qr(X[-i, , drop = FALSE], tol = zero_tolerance)[["rank"]] < full_rank
+    },
+    logical(1L)
+  )))
+}
+
+
+.hat_variance_sd <- function(variance, context) {
+
+  if (!is.numeric(variance) || any(!is.finite(variance)) ||
+      any(variance < 0)) {
+    stop(context, " must be finite and non-negative.", call. = FALSE)
+  }
+
+  return(sqrt(variance))
 }

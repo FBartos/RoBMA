@@ -24,6 +24,8 @@ test_that("bPET fits PET metafor-reference model", {
 
 
 test_that("bPET fits negative-direction PET metafor-reference model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-PET_neg")
   ### fit PET model
   data(dat.lehmann2018, package = "metadat")
   dat.lehmann2018$yi <- -dat.lehmann2018$yi
@@ -39,6 +41,8 @@ test_that("bPET fits negative-direction PET metafor-reference model", {
 })
 
 test_that("bPET fits PET meta-regression model", {
+
+  skip_if_fit_not_active("dat.lehmann2018-PETreg")
   ### fit PET model
   data(dat.lehmann2018, package = "metadat")
   fit_PET.metafor <- metafor::rma(yi, vi, mods = ~ sqrt(vi) + Preregistered, data = dat.lehmann2018)

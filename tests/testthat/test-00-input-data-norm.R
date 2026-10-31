@@ -147,6 +147,33 @@ test_that("Input generates default slab when not provided", {
 })
 
 
+test_that("normal input requires representable and consistent sampling variances", {
+
+  for (sei in c(1e-200, 1e200)) {
+    expect_error(
+      brma.norm(yi = 0, sei = sei, only_data = TRUE),
+      "positive finite squared sampling variances"
+    )
+  }
+
+  expect_silent(brma.norm(
+    yi        = c(-1, 0, 1),
+    vi        = c(1e-300, .04, 1e300),
+    sei       = sqrt(c(1e-300, .04, 1e300)),
+    only_data = TRUE
+  ))
+  expect_error(
+    brma.norm(
+      yi        = 0,
+      vi        = 1e-300,
+      sei       = 1e-150 * (1 + 1e-10),
+      only_data = TRUE
+    ),
+    "inconsistent"
+  )
+})
+
+
 test_that("Input handles subset argument", {
 
   skip_on_cran()
@@ -244,7 +271,7 @@ test_that("Input rejects invalid outcome specifications", {
     list(
       label  = "missing variance",
       expr   = quote(brma.norm(yi = c(0.1, 0.2), only_data = TRUE)),
-      regexp = "vi|sei|variance|standard error"
+      regexp = "Either 'vi' .* or 'sei' .* must be provided"
     ),
     list(
       label  = "length mismatch",
@@ -266,6 +293,87 @@ test_that("Input rejects invalid outcome specifications", {
       regexp = "nonexistent_column|Cannot find"
     )
   ))
+})
+
+
+test_that("Input rejects unresolved supplied optional variables", {
+
+  skip_on_cran()
+
+  expect_error_cases(list(
+    list(
+      label  = "unresolved weights",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        weights   = wights,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*weights"
+    ),
+    list(
+      label  = "unresolved cluster",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        cluster   = cluser,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*cluster"
+    ),
+    list(
+      label  = "unresolved slab",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        slab      = lables,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*slab"
+    ),
+    list(
+      label  = "unresolved subset",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        subset    = subest,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*subset"
+    ),
+    list(
+      label  = "unresolved sample size",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        ni        = sample_size,
+        data      = test_data,
+        only_data = TRUE
+      )),
+      regexp = "Cannot find.*ni"
+    )
+  ))
+
+  result <- brma.norm(
+    yi        = effect,
+    sei       = std_err,
+    ni        = NULL,
+    weights   = NULL,
+    cluster   = NULL,
+    slab      = NULL,
+    subset    = NULL,
+    data      = test_data,
+    only_data = TRUE
+  )[["data"]]
+
+  expect_equal(nrow(result$outcome), nrow(test_data))
+  expect_false(attr(result, "weights"))
+  expect_false(attr(result, "cluster"))
+  expect_false(attr(result, "slab"))
 })
 
 
@@ -576,6 +684,48 @@ test_that("Mods formula attribute can be evaluated in clean environment", {
 })
 
 
+test_that("Persisted formula metadata does not retain caller frames", {
+
+  make_object <- function(payload_size) {
+
+    local({
+      unrelated_payload <- raw(payload_size)
+      temp_var <- c(100, 200, 300, 400, 500)
+
+      brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ temp_var,
+        data      = test_data_mods,
+        only_data = TRUE
+      )
+    })
+  }
+
+  baseline <- make_object(0L)
+  payload  <- make_object(5e6L)
+
+  expect_lt(
+    abs(length(serialize(payload, NULL)) - length(serialize(baseline, NULL))),
+    10000L
+  )
+  expect_identical(
+    environment(attr(payload[["data"]][["mods"]], "formula")),
+    baseenv()
+  )
+  expect_identical(
+    attr(attr(payload[["data"]][["mods"]], "terms"), ".Environment"),
+    baseenv()
+  )
+
+  model_frame <- stats::model.frame(
+    attr(payload[["data"]][["mods"]], "formula"),
+    data = payload[["data"]][["mods"]]
+  )
+  expect_equal(model_frame[["temp_var"]], c(100, 200, 300, 400, 500))
+})
+
+
 test_that("Mods handles formula with LHS (with warning)", {
 
   skip_on_cran()
@@ -602,29 +752,103 @@ test_that("Mods handles formula with LHS (with warning)", {
 })
 
 
-test_that("Mods accepts inline transformations in formula", {
+test_that("Fixed and scale formulas reject calls that cannot be replayed", {
 
   skip_on_cran()
 
-  result <- brma.norm(
-    yi   = effect,
-    sei  = std_err,
-    mods = ~ I(mod_cont - 2) + I(mod_cont^2),
-    data = test_data_mods,
-    only_data = TRUE
-  )[["data"]]
+  custom_transform <- function(x) x^2
 
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
+  expect_error(
+    brma.norm(
+      yi        = effect,
+      sei       = std_err,
+      mods      = ~ I(mod_cont^2),
+      data      = test_data_mods,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+  expect_error(
+    brma.norm(
+      yi        = effect,
+      sei       = std_err,
+      scale     = ~ stats::poly(mod_cont, degree = 2),
+      data      = test_data_mods,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+  expect_error(
+    brma.norm(
+      yi        = effect ~ custom_transform(mod_cont),
+      sei       = std_err,
+      data      = test_data_mods,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+})
 
-  # Check that transformations are correctly applied (as.numeric to strip AsIs class)
-  expect_equal(as.numeric(result$mods$`I(mod_cont - 2)`), test_data_mods$mod_cont - 2)
-  expect_equal(as.numeric(result$mods$`I(mod_cont^2)`), test_data_mods$mod_cont^2)
 
-  # Check formula attribute preserves transformations
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ I(mod_cont - 2) + I(mod_cont^2)")
+test_that("Formulas accept '^' as R's crossing operator with a literal whole exponent", {
+
+  skip_on_cran()
+
+  dat <- data.frame(
+    yi = c(.1, .3, .2, .4, .0, .25), sei = rep(.2, 6),
+    x = c(1, 2, 4, 3, 5, 7), z = c(.5, -1, 2, 0, 1, -2)
+  )
+  construct <- function(yi = dat[["yi"]], ...) {
+    do.call(brma, c(
+      list(
+        yi = yi, sei = dat[["sei"]], data = dat, measure = "GEN",
+        prior_unit_information_sd = 1, only_priors = TRUE
+      ),
+      list(...)
+    ))
+  }
+  design <- function(object, parameter) {
+    design <- .fitted_formula_design(object, parameter, required = TRUE)
+    design[c("column_names", "raw_column_names", "model_terms", "model_matrix")]
+  }
+
+  # (x + z)^2 expands to x + z + x:z in the location, scale, and yi formulas
+  expanded <- construct(mods = ~ x + z + x:z, scale = ~ x + z + x:z)
+  crossed  <- construct(mods = ~ (x + z)^2, scale = ~ (x + z)^2)
+  for (parameter in c("mu", "log_tau")) {
+    expect_identical(
+      design(crossed, parameter)[["raw_column_names"]],
+      c("(Intercept)", "x", "z", "x:z")
+    )
+    expect_equal(design(crossed, parameter), design(expanded, parameter))
+  }
+  from_yi <- construct(yi ~ (x + z)^2)
+  expect_equal(design(from_yi, "mu"), design(expanded, "mu"))
+
+  # x^2 is the crossing of x with itself, not a quadratic term
+  linear <- construct(mods = ~ x)
+  powered <- construct(mods = ~ x + x^2)
+  expect_identical(design(powered, "mu")[["raw_column_names"]], c("(Intercept)", "x"))
+  expect_equal(design(powered, "mu"), design(linear, "mu"))
+
+  # other exponents fail with the RoBMA error instead of the base-R message
+  for (formula in list(~ x^0, ~ x^1, ~ x^1.5, ~ x^-1, ~ (x + z)^2.5, ~ x^power)) {
+    for (argument in c("mods", "scale")) {
+      error <- tryCatch(
+        do.call(construct, stats::setNames(list(formula), argument)),
+        error = function(condition) condition
+      )
+      expect_s3_class(error, "error")
+      expect_match(conditionMessage(error), "Unsupported power", fixed = TRUE)
+      expect_match(conditionMessage(error), paste0("in the '", argument, "' formula"), fixed = TRUE)
+      expect_false(grepl("invalid power", conditionMessage(error), fixed = TRUE))
+    }
+  }
+  expect_error(construct(yi ~ x^1.5), "Unsupported power.*'yi' formula")
+
+  # inline arithmetic powers stay unsupported
+  expect_error(construct(mods = ~ I(x^2)), "Unsupported call.*Precompute transformed predictors")
+  expect_error(construct(mods = ~ poly(x, 2)), "Unsupported call.*Precompute transformed predictors")
 })
 
 
@@ -690,25 +914,34 @@ test_that("yi formula auto-converts character moderators to factor", {
 })
 
 
-test_that("Mods accepts data$column syntax", {
+test_that("Fixed formulas require literal data-column names", {
 
   skip_on_cran()
 
-  # Using $ syntax directly
+  expect_error(
+    brma.norm(
+      yi        = test_data_mods$effect,
+      sei       = test_data_mods$std_err,
+      mods      = ~ test_data_mods$mod_cont,
+      only_data = TRUE
+    ),
+    "Unsupported call.*Precompute transformed predictors"
+  )
+
+  nonstandard_data <- data.frame(
+    yi                = c(0.1, 0.2, 0.3),
+    sei               = c(0.1, 0.1, 0.1),
+    "moderator value" = c(1, 2, 3),
+    check.names       = FALSE
+  )
   result <- brma.norm(
-    yi   = test_data_mods$effect,
-    sei  = test_data_mods$std_err,
-    mods = ~ test_data_mods$mod_cont,
+    yi        = yi,
+    sei       = sei,
+    mods      = ~ `moderator value`,
+    data      = nonstandard_data,
     only_data = TRUE
   )[["data"]]
-
-  expect_true(!is.null(result$mods))
-  expect_equal(nrow(result$mods), 5)
-
-  # Check formula attribute
-  expect_equal(
-    paste0(as.character(attr(result$mods, "formula")), collapse = " "),
-    "~ test_data_mods$mod_cont")
+  expect_equal(result[["mods"]][["moderator value"]], c(1, 2, 3))
 })
 
 
@@ -753,6 +986,13 @@ test_that("Degenerate moderator and scale designs are rejected", {
     std_err    = c(0.2, 0.25, 0.22),
     mod_cont   = c(1.5, 2.3, 1.8),
     const_scale = c(1, 1, 1)
+  )
+
+  test_data_infinite <- data.frame(
+    effect   = c(0.10, 0.25, 0.15),
+    std_err  = c(0.2, 0.25, 0.22),
+    inf_var  = c(1, Inf, 3),
+    mod_cont = c(1.5, 2.3, 1.8)
   )
 
   expect_error_cases(list(
@@ -801,6 +1041,29 @@ test_that("Degenerate moderator and scale designs are rejected", {
         only_data = TRUE
       )),
       regexp = "zero variance"
+    ),
+    list(
+      label  = "infinite moderator",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ inf_var,
+        data      = test_data_infinite,
+        only_data = TRUE
+      )),
+      regexp = "The 'mods' variable 'inf_var' contains infinite values. Continuous predictors must be finite or missing."
+    ),
+    list(
+      label  = "infinite scale predictor",
+      expr   = quote(brma.norm(
+        yi        = effect,
+        sei       = std_err,
+        mods      = ~ mod_cont,
+        scale     = ~ inf_var,
+        data      = test_data_infinite,
+        only_data = TRUE
+      )),
+      regexp = "The 'scale' variable 'inf_var' contains infinite values."
     )
   ))
 })
@@ -1295,7 +1558,63 @@ test_that("NA handling rejects empty post-drop data", {
       ),
       only_data = TRUE
     )),
-    regexp = "No observations remaining"
+    regexp = "No observations remaining after removing missing values"
+  )
+})
+
+
+test_that("An empty data set names the step that emptied it", {
+
+  skip_on_cran()
+
+  complete <- data.frame(
+    yi  = c(0.10, 0.25, 0.15),
+    sei = c(0.20, 0.10, 0.22),
+    x   = c(1, 2, 3)
+  )
+
+  # An exhaustive subset must not be reported as missing values.
+  expect_error(
+    brma.norm(yi = yi, sei = sei, data = complete, subset = x > 10,
+              only_data = TRUE),
+    "No observations remaining after applying 'subset'.",
+    fixed = TRUE
+  )
+
+  # Both steps contributed.
+  expect_error(
+    suppressWarnings(brma.norm(
+      yi   = yi,
+      sei  = sei,
+      data = data.frame(
+        yi  = c(0.10, NA),
+        sei = c(0.20, 0.10),
+        x   = c(1, 20)
+      ),
+      subset    = x > 10,
+      only_data = TRUE
+    )),
+    paste0("No observations remaining after applying 'subset' and removing ",
+           "missing values."),
+    fixed = TRUE
+  )
+})
+
+
+test_that("An unknown moderator variable keeps the model-frame error of 4.0.0", {
+
+  skip_on_cran()
+
+  complete <- data.frame(
+    yi  = c(0.10, 0.25, 0.15),
+    sei = c(0.20, 0.10, 0.22)
+  )
+
+  expect_error(
+    brma.norm(yi = yi, sei = sei, mods = ~ nothere, data = complete,
+              only_data = TRUE),
+    "Cannot create model frame from 'mods' formula: object 'nothere' not found",
+    fixed = TRUE
   )
 })
 
@@ -1325,6 +1644,32 @@ test_that("NA handling supports yi ~ mods formula syntax", {
   expect_equal(nrow(result$mods), 4)
   expect_equal(result$outcome$yi, c(0.10, 0.15, 0.30, 0.05))
   expect_equal(result$mods$mod_cont, c(1.5, 2.5, 3.0, 1.0))
+})
+
+
+test_that("yi formulas do not change NA policy while evaluating other inputs", {
+
+  observed_na_action <- NULL
+  sampling_se <- function() {
+    observed_na_action <<- getOption("na.action")
+    rep(.2, 4L)
+  }
+  data <- data.frame(
+    yi = c(.1, .2, .3, .4),
+    x  = c(1, 2, 3, 4)
+  )
+  withr::local_options(na.action = "na.exclude")
+
+  brma.norm(
+    yi        = yi ~ x,
+    sei       = sampling_se(),
+    data      = data,
+    measure   = "GEN",
+    only_data = TRUE
+  )
+
+  expect_identical(observed_na_action, "na.exclude")
+  expect_identical(getOption("na.action"), "na.exclude")
 })
 
 
@@ -1419,4 +1764,32 @@ test_that("NA in subset argument is rejected", {
     ),
     regexp = "must not contain NA"
   )
+})
+
+
+test_that("retained normal outcomes and optional sample sizes must be finite", {
+
+  for (constructor in list(brma, brma.mv)) {
+    args <- list(yi = c(.1, .2, .3), ni = c(20, 30, 40), only_data = TRUE)
+    if (identical(constructor, brma.mv)) args[["V"]] <- diag(rep(.04, 3)) else args[["sei"]] <- rep(.2, 3)
+    for (argument in c("yi", "ni")) {
+      invalid <- args
+      invalid[[argument]][1L] <- Inf
+      expect_error(do.call(constructor, invalid),
+        paste0("The '", argument, "' argument must contain only finite non-missing values."), fixed = TRUE)
+      excluded <- invalid
+      excluded[["subset"]] <- 2:3
+      expect_silent(result <- do.call(constructor, excluded))
+      expect_equal(nrow(result[["data"]][["outcome"]]), 2L)
+      excluded[["subset"]] <- NULL
+      excluded[["data"]] <- data.frame(x = c(NA, 1, 2))
+      excluded[["mods"]] <- ~ x
+      expect_warning(result <- do.call(constructor, excluded), "1 observation(s) removed", fixed = TRUE)
+      expect_equal(nrow(result[["data"]][["outcome"]]), 2L)
+    }
+    valid <- args
+    valid[["yi"]][1L] <- -.Machine$double.xmax
+    valid[["ni"]] <- c(NA, .Machine$double.xmin, .Machine$double.xmax)
+    expect_silent(do.call(constructor, valid))
+  }
 })

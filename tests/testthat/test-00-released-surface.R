@@ -1,0 +1,818 @@
+# Argument order, defaults, and entry points of RoBMA 4.0.0 that later
+# development must keep. New arguments follow the released ones.
+
+.released_arguments_norm <- c(
+  "yi", "vi", "sei", "weights", "ni", "mods", "scale", "cluster", "data",
+  "slab", "subset", "measure"
+)
+
+test_that("selection arguments follow the released RoBMA() and bselmodel() arguments", {
+
+  released_RoBMA <- c(
+    .released_arguments_norm, "effect_direction",
+    "prior_effect", "prior_heterogeneity", "prior_mods", "prior_scale",
+    "prior_heterogeneity_allocation", "prior_bias",
+    "prior_effect_null", "prior_heterogeneity_null", "prior_mods_null",
+    "prior_scale_null", "prior_heterogeneity_allocation_null", "prior_bias_null",
+    "standardize_continuous_predictors", "set_contrast_factor_predictors",
+    "prior_unit_information_sd", "rescale_priors",
+    "prior_informed_field", "prior_informed_subfield", "model_type",
+    "sample", "burnin", "adapt", "chains", "thin", "parallel", "autofit",
+    "autofit_control", "convergence_checks", "seed", "silent"
+  )
+  released_bselmodel <- c(
+    .released_arguments_norm,
+    "prior_effect", "prior_heterogeneity", "prior_mods", "prior_scale",
+    "prior_heterogeneity_allocation", "prior_bias",
+    "standardize_continuous_predictors", "set_contrast_factor_predictors",
+    "prior_unit_information_sd", "rescale_priors",
+    "prior_informed_field", "prior_informed_subfield",
+    "effect_direction", "steps",
+    "sample", "burnin", "adapt", "chains", "thin", "parallel", "autofit",
+    "autofit_control", "convergence_checks", "seed", "silent"
+  )
+
+  for (case in list(
+    list(name = "RoBMA",     fun = RoBMA,     released = released_RoBMA),
+    list(name = "bselmodel", fun = bselmodel, released = released_bselmodel)
+  )) {
+    arguments <- names(formals(case[["fun"]]))
+    expect_identical(arguments, c(case[["released"]], "selection", "selection_control", "..."),
+                     info = case[["name"]])
+  }
+})
+
+test_that("parameter selectors of plot(), plot_prior(), and print_prior() have no default", {
+
+  no_default <- function(fun, name) identical(formals(fun)[[name]], quote(expr = ))
+
+  for (name in c("parameter", "parameter_mods", "parameter_scale")) {
+    expect_true(no_default(plot.brma, name), info = paste("plot.brma", name))
+    expect_true(no_default(print_prior.brma, name), info = paste("print_prior.brma", name))
+  }
+  expect_identical(formals(plot_prior.brma)[["parameter"]], "mu")
+  expect_true(no_default(plot_prior.brma, "parameter_mods"))
+  expect_true(no_default(plot_prior.brma, "parameter_scale"))
+
+  prior_object <- RoBMA(
+    yi = c(.1, .2, .3), sei = c(.1, .1, .1), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_no_error(utils::capture.output(print_prior(prior_object)))
+  expect_no_error(utils::capture.output(print_prior(prior_object, parameter = "tau")))
+  expect_no_error(plot_prior(prior_object))
+})
+
+
+# Small fits shared by the tests below (two chains of 100 draws, built once).
+.surface_fit_env <- new.env()
+
+.surface_data <- function() {
+  data.frame(
+    yi      = c(.12, .30, .05, .41, .22, .18, .35, .10),
+    sei     = c(.10, .12, .09, .15, .11, .10, .13, .12),
+    x       = c(1, 2, 3, 4, 5, 6, 7, 8) / 8,
+    z       = c(.2, .1, .5, .3, .9, .4, .8, .6),
+    cluster = rep(1:4, each = 2)
+  )
+}
+
+.surface_fit <- function(name) {
+
+  if (!exists(name, envir = .surface_fit_env, inherits = FALSE)) {
+    arguments <- list(
+      yi = quote(yi), sei = quote(sei), data = .surface_data(), measure = "GEN",
+      prior_unit_information_sd = 1,
+      chains = 2, adapt = 50, burnin = 100, sample = 100,
+      seed = 1, silent = TRUE
+    )
+    arguments <- switch(
+      name,
+      ordinary   = arguments,
+      mods       = c(arguments, list(mods = ~ x)),
+      mods2      = c(arguments, list(mods = ~ x + z)),
+      scale      = c(arguments, list(mods = ~ x, scale = ~ x)),
+      multilevel_scale = c(arguments, list(scale = ~ x, cluster = quote(cluster))),
+      multilevel = c(arguments, list(cluster = quote(cluster)))
+    )
+    fit <- suppressWarnings(do.call(brma, arguments))
+    assign(name, fit, envir = .surface_fit_env)
+  }
+
+  return(get(name, envir = .surface_fit_env, inherits = FALSE))
+}
+
+test_that("predict(newdata = TRUE) returns the aggregated prediction", {
+
+  mods <- .surface_fit("mods")
+
+  terms <- predict(mods, newdata = TRUE, type = "terms", quiet = TRUE)
+  fixed <- predict(mods, type = "terms")
+  expect_s3_class(terms, "brma_samples")
+  expect_identical(colnames(terms), "mu")
+  expect_identical(attr(terms, "title"), "Aggregated Location Term Posterior Prediction:")
+  expect_equal(as.numeric(terms), unname(rowMeans(unclass(fixed))), tolerance = 1e-12)
+  expect_message(
+    predict(mods, newdata = TRUE, type = "terms"),
+    "Aggregated prediction averages mu across the moderator model matrix (K = 8 observations)",
+    fixed = TRUE
+  )
+  expect_equal(predict(mods, newdata = TRUE, type = "marginal", quiet = TRUE), terms)
+
+  scale <- predict(mods, newdata = TRUE, type = "terms.scale")
+  expect_identical(colnames(scale), "tau")
+  expect_identical(attr(scale, "title"), "Aggregated Scale Term Posterior Prediction:")
+  expect_equal(unclass(scale)[, "tau"], unclass(pooled_heterogeneity(mods))[, "tau"],
+               ignore_attr = TRUE)
+
+  set.seed(1)
+  estimate <- predict(mods, newdata = TRUE, type = "estimate", quiet = TRUE)
+  expect_identical(colnames(estimate), "theta")
+  expect_identical(attr(estimate, "title"), "Aggregated True Effect Posterior Prediction:")
+  # a new true effect is the location plus tau * z, so the paired draws differ by a
+  # zero-mean term: the means agree within four Monte Carlo standard errors
+  difference <- unclass(estimate)[, "theta"] - unclass(terms)[, "mu"]
+  expect_lt(abs(mean(difference)), 4 * stats::sd(difference) / sqrt(length(difference)))
+  expect_gt(sd(estimate[, "theta"]), sd(terms[, "mu"]))
+  set.seed(1)
+  expect_equal(predict(mods, newdata = TRUE, type = "blup", quiet = TRUE), estimate)
+
+  expect_error(
+    predict(mods, newdata = TRUE, type = "response"),
+    "Aggregated predictions (newdata = TRUE) are not available for type = 'response'",
+    fixed = TRUE
+  )
+  expect_error(
+    predict(mods, newdata = TRUE, type = "cluster"),
+    "type = 'cluster' is only available for multilevel (3-level) models",
+    fixed = TRUE
+  )
+  expect_error(
+    predict(mods, newdata = TRUE, conditioning_depth = "estimate"),
+    "available only with newdata = NULL"
+  )
+  expect_error(predict(mods, newdata = FALSE), "'newdata' must be NULL, TRUE, a data.frame")
+})
+
+test_that("predict(newdata = TRUE, type = 'cluster') adds a new cluster effect", {
+
+  multilevel <- .surface_fit("multilevel")
+
+  set.seed(1)
+  cluster <- predict(multilevel, newdata = TRUE, type = "cluster")
+  expect_identical(colnames(cluster), "mu_cluster")
+  expect_identical(attr(cluster, "title"), "Aggregated Cluster-Level Posterior Prediction:")
+  terms <- predict(multilevel, newdata = TRUE, type = "terms")
+  expect_gt(sd(cluster[, "mu_cluster"]), sd(terms[, "mu"]))
+})
+
+test_that("marginal_means() accepts normal_approximation at its released position", {
+
+  expect_identical(
+    head(names(formals(marginal_means.brma)), 6L),
+    c("object", "null_hypothesis", "normal_approximation", "n_samples",
+      "output_measure", "transform")
+  )
+
+  mods <- .surface_fit("mods")
+  kde    <- marginal_means(mods, bf = TRUE, n_samples = 1000)
+  normal <- marginal_means(mods, normal_approximation = TRUE, bf = TRUE, n_samples = 1000)
+
+  expect_false(kde[["normal_approximation"]])
+  expect_true(normal[["normal_approximation"]])
+  expect_no_warning(summary(normal))
+  expect_s3_class(summary(normal), "summary.marginal_means.brma")
+  bf <- function(x) vapply(x[["inference"]][["inference"]], function(row) as.numeric(row[[1]]), numeric(1))
+  expect_true(all(is.finite(bf(normal))))
+  expect_false(isTRUE(all.equal(bf(kde), bf(normal))))
+
+  # independent oracle of the normal approximation: the prior density of the
+  # marginal mean at the null (a sum of independent normal priors) over the normal
+  # density of its posterior draws, which have a closed form
+  draws     <- as.matrix(posterior::as_draws_matrix(mods))
+  intercept <- as.numeric(draws[, "mu_intercept"])
+  slope     <- as.numeric(draws[, "mu_x"])
+  prior_sd  <- c(
+    mods[["priors"]][["mods"]][["intercept"]][["parameters"]][["sd"]],
+    mods[["priors"]][["mods"]][["x"]][["parameters"]][["sd"]]
+  )
+  inference <- normal[["inference"]][["inference"]]
+  cells     <- c(`-1SD` = -1, `0SD` = 0, `1SD` = 1)
+  for (level in names(cells)) {
+    marginal <- intercept + cells[[level]] * slope
+    oracle   <- stats::dnorm(0, 0, sqrt(prior_sd[[1L]]^2 + (cells[[level]] * prior_sd[[2L]])^2)) /
+      stats::dnorm(0, mean(marginal), stats::sd(marginal))
+    expect_equal(as.numeric(inference[["mu_x"]][[level]]), oracle,
+                 tolerance = 1e-8, info = level)
+  }
+  expect_equal(as.numeric(inference[["mu_intercept"]][[1L]]),
+               as.numeric(inference[["mu_x"]][["0SD"]]), tolerance = 1e-12)
+  expect_error(
+    marginal_means(mods, normal_approximation = NA),
+    "normal_approximation"
+  )
+})
+
+test_that("update() has no seed argument and the extension continues the stored chain states", {
+
+  expect_false("seed" %in% names(formals(update.brma)))
+  expect_identical(
+    names(formals(update.brma)),
+    c("object", "formula.", "...", "sample_extend", "slab", "autofit_control",
+      "convergence_checks", "recompute", "parallel", "cores", "silent", "evaluate")
+  )
+
+  fit <- .surface_fit("ordinary")
+  expect_error(
+    update(fit, sample_extend = 20, seed = 1),
+    "Unused argument in update.brma(): 'seed'", fixed = TRUE
+  )
+
+  # the chains continue their stored generator states, so a repeated extension is identical
+  extend <- function() as.numeric(as_draws_matrix(update(fit, sample_extend = 20))[, "mu"])
+  first  <- extend()
+  expect_length(first, 2 * (100 + 20))
+  expect_identical(first, extend())
+  expect_identical(
+    update(fit, sample_extend = 20)[["fit_control"]][["seed"]],
+    fit[["fit_control"]][["seed"]]
+  )
+})
+
+test_that("unused arguments in the dots of released methods warn and never stop", {
+
+  ordinary   <- .surface_fit("ordinary")
+  multilevel <- .surface_fit("multilevel")
+
+  calls <- list(
+    predict              = function(x) predict(x, bogus_zz = 1),
+    fitted               = function(x) fitted(x, bogus_zz = 1),
+    blup                 = function(x) blup(x, bogus_zz = 1),
+    true_effects         = function(x) true_effects(x, bogus_zz = 1),
+    ranef                = function(x) ranef(x, bogus_zz = 1),
+    pooled_effect        = function(x) pooled_effect(x, bogus_zz = 1),
+    pooled_heterogeneity = function(x) pooled_heterogeneity(x, bogus_zz = 1),
+    summary              = function(x) summary(x, bogus_zz = 1),
+    marginal_means       = function(x) marginal_means(x, bogus_zz = 1),
+    plot                 = function(x) plot(x, bogus_zz = 1)
+  )
+  fits <- list(
+    ordinary = ordinary, multilevel = multilevel,
+    mods = .surface_fit("mods")
+  )
+  for (name in names(calls)) {
+    fit <- if (name == "marginal_means") fits[["mods"]] else if (name == "ranef") multilevel else ordinary
+    if (name == "plot") {
+      grDevices::pdf(NULL)
+      on.exit(grDevices::dev.off(), add = TRUE)
+    }
+    expect_warning(
+      suppressMessages(calls[[name]](fit)),
+      "Unused argument in .*'bogus_zz'",
+      info = name
+    )
+  }
+})
+
+test_that("pooled_effect() and pooled_heterogeneity() forward the dots to predict()", {
+
+  mods <- .surface_fit("mods")
+
+  # as_measure is an argument of predict() without a role for the pooled effect
+  expect_no_warning(pooled_effect(mods, as_measure = FALSE))
+  expect_error(
+    pooled_effect(mods, conditioning_depth = "estimate"),
+    "available only with newdata = NULL"
+  )
+  expect_error(
+    pooled_heterogeneity(mods, conditioning_depth = "cluster"),
+    "available only with newdata = NULL"
+  )
+  # the wrapper sets newdata itself: R's error for an argument matched twice,
+  # as at 4.0.0, not an unused-argument warning
+  expect_error(
+    pooled_effect(mods, newdata = TRUE),
+    "formal argument \"newdata\" matched by multiple actual arguments",
+    fixed = TRUE
+  )
+
+  pooled    <- pooled_effect(mods)
+  predicted <- predict(mods, newdata = TRUE, type = "terms", bias_adjusted = TRUE, quiet = TRUE)
+  expect_identical(attr(pooled, "title"), "Pooled Effect Size")
+  expect_equal(unclass(pooled)[, "mu"], unclass(predicted)[, "mu"], ignore_attr = TRUE)
+  expect_false(is.null(attr(pooled, "prediction_samples")))
+  expect_null(attr(predicted, "prediction_samples"))
+  expect_identical(attr(pooled_heterogeneity(mods), "title"), "Pooled Heterogeneity")
+})
+
+test_that("logLik() returns the pointwise log-likelihood matrix and AIC() and BIC() refuse", {
+
+  fit <- .surface_fit("multilevel")
+
+  log_likelihood <- stats::logLik(fit)
+  expect_s3_class(log_likelihood, "logLik.brma")
+  expect_identical(dim(log_likelihood), c(200L, 8L))
+  expect_equal(unclass(log_likelihood), log_lik(fit), ignore_attr = TRUE)
+  expect_output(print(log_likelihood), "200*8 pointwise log-likelihood matrix", fixed = TRUE)
+  # the line is exactly the released one, without a carriage return of the source
+  expect_identical(utils::capture.output(print(log_likelihood)),
+                   "200*8 pointwise log-likelihood matrix")
+  expect_identical(ncol(stats::logLik(fit, unit = "cluster")), 4L)
+
+  expect_error(stats::AIC(fit), "AIC() is not defined for brma", fixed = TRUE)
+  expect_error(stats::BIC(fit), "BIC() is not defined for brma", fixed = TRUE)
+})
+
+test_that("brma_samples coerce to the draws and as_draws() returns a draws_matrix", {
+
+  fit  <- .surface_fit("ordinary")
+  pred <- predict(fit, type = "estimate")
+
+  draws <- as.data.frame(pred)
+  expect_s3_class(draws, "data.frame")
+  expect_identical(dim(draws), c(200L, 8L))
+  expect_identical(names(draws), colnames(pred))
+  expect_equal(unname(as.matrix(draws)), unname(as.matrix(pred)))
+  expect_equal(unname(as.matrix(data.frame(pred))), unname(as.matrix(draws)))
+
+  table <- as.data.frame(summary(pred))
+  expect_identical(names(table)[1:2], c("component", "parameter"))
+  expect_identical(nrow(table), 8L)
+
+  generic <- as_draws(pred)
+  expect_s3_class(generic, "draws_matrix")
+  expect_identical(posterior::nchains(generic), 2L)
+  expect_s3_class(as_draws_array(pred), "draws_array")
+})
+
+test_that("print_prior() lists the location priors before tau and the scale priors", {
+
+  expect_identical(
+    names(print_prior(.surface_fit("mods"), silent = TRUE)),
+    c("mu_intercept", "mu_x", "tau")
+  )
+  expect_identical(
+    names(print_prior(.surface_fit("scale"), silent = TRUE)),
+    c("mu_intercept", "mu_x", "log_tau_intercept", "log_tau_x")
+  )
+  expect_identical(
+    names(print_prior(.surface_fit("ordinary"), silent = TRUE)),
+    c("mu", "tau")
+  )
+})
+
+test_that("the location-scale summary carries the released footnote wording with the exp(intercept) label", {
+
+  fit <- .surface_fit("scale")
+  footnote <- paste0(
+    "exp(intercept) corresponds to the between-study heterogeneity tau; ",
+    "the meta-regression coefficients correspond to the multiplicative ",
+    "effects on log-scale."
+  )
+
+  expect_identical(.summary_scale_footnotes(fit), footnote)
+  expect_identical(
+    attr(summary(fit, include_mcmc_diagnostics = FALSE)[["estimates_scale"]], "footnotes"),
+    footnote
+  )
+})
+
+test_that("ranef() expands by default and blup() labels the true effects theta[i]", {
+
+  multilevel <- .surface_fit("multilevel")
+
+  random <- ranef(multilevel)
+  expect_identical(names(random), c("cluster", "estimate"))
+  expect_identical(ncol(random[["cluster"]]), 8L)
+  expect_true(all(grepl("|", colnames(random[["cluster"]]), fixed = TRUE)))
+  expect_true(all(startsWith(colnames(random[["cluster"]]), "u_cluster[")))
+  expect_identical(ncol(ranef(multilevel, expand = FALSE)[["cluster"]]), 4L)
+  expect_identical(
+    ranef(multilevel, expand = TRUE)[["cluster"]],
+    random[["cluster"]]
+  )
+
+  for (effects in list(blup(multilevel), true_effects(multilevel))) {
+    expect_identical(colnames(effects), paste0("theta[", 1:8, "]"))
+    expect_identical(attr(effects, "title"), "True Effects (BLUP Means)")
+  }
+  # the new depth-aware prediction keeps its own title
+  estimate <- predict(multilevel, type = "estimate", conditioning_depth = "estimate")
+  expect_false(identical(attr(estimate, "title"), "True Effects (BLUP Means)"))
+})
+
+test_that("vif() summarizes draw-wise variance inflation", {
+
+  fit <- .surface_fit("mods2")
+
+  X   <- .get_model_matrix(fit)
+  vi  <- .surface_data()[["sei"]]^2
+  tau <- as_draws_matrix(fit)[, "tau"]
+  values <- vapply(tau, function(value) {
+    covariance <- solve(crossprod(X, X / (vi + value^2)))
+    correlation <- stats::cov2cor(covariance)[-1L, -1L]
+    diag(solve(correlation))
+  }, numeric(ncol(X) - 1L))
+
+  actual <- vif(fit, posterior_correlation = FALSE)[["vif"]]
+  expect_equal(actual[["GVIF"]], unname(rowMeans(values)), tolerance = 1e-8)
+  expect_equal(actual[["GVIF^(1/(2*df))"]], unname(rowMeans(sqrt(values))), tolerance = 1e-8)
+})
+
+test_that("cooks.distance() retains metafor's unscaled convention at rank three", {
+
+  fit <- suppressWarnings(add_loo(.surface_fit("mods2")))
+  rank <- qr(.get_model_matrix(fit))[["rank"]]
+  expect_identical(rank, 3L)
+
+  distance <- suppressWarnings(cooks.distance(fit))
+  unscaled <- suppressWarnings(
+    .cooks.distance_internal(
+      .influence_fit_samples(fit),
+      .diagnostic_psis_context(fit)[["psis_weights"]]
+    )
+  )
+  expect_equal(unname(distance), unname(unscaled), tolerance = 1e-10)
+  expect_gt(max(unscaled), 0)
+  expect_equal(
+    unname(suppressWarnings(influence(fit))[["inf"]][["cook.d"]]),
+    unname(distance),
+    tolerance = 1e-10
+  )
+})
+
+.surface_glmm_fit <- function() {
+
+  if (!exists("glmm", envir = .surface_fit_env, inherits = FALSE)) {
+    data("dat.bcg", package = "metadat", envir = environment())
+    fit <- suppressWarnings(brma.glmm(
+      ai = tpos, bi = tneg, ci = cpos, di = cneg, data = dat.bcg[1:8, ],
+      measure = "OR", chains = 2, adapt = 100, burnin = 150, sample = 150,
+      seed = 1, silent = TRUE
+    ))
+    assign("glmm", suppressWarnings(add_loo(fit)), envir = .surface_fit_env)
+  }
+
+  return(get("glmm", envir = .surface_fit_env, inherits = FALSE))
+}
+
+test_that("GLMM LOO-PIT residuals are the labelled normal approximation", {
+
+  skip_if_not_installed("metadat")
+  fit <- .surface_glmm_fit()
+
+  count_messages <- function(expr) {
+    messages <- character()
+    value <- withCallingHandlers(expr, message = function(condition) {
+      messages <<- c(messages, conditionMessage(condition))
+      invokeRestart("muffleMessage")
+    })
+    list(value = value, messages = messages)
+  }
+
+  table <- count_messages(suppressWarnings(rstudent(fit)))
+  expect_length(table$messages, 1L)
+  expect_match(table$messages, "descriptive normal approximation", fixed = TRUE)
+  expect_identical(dim(table$value), c(8L, 3L))
+  expect_true(all(is.finite(unlist(table$value))))
+
+  vector <- count_messages(suppressWarnings(residuals(fit, type = "LOO-PIT")))
+  expect_length(vector$messages, 1L)
+  expect_equal(vector$value, table$value[["z"]], tolerance = 1e-12)
+  expect_length(count_messages(residuals(fit, type = "outcome"))$messages, 0L)
+
+  # without a stored LOO result the error comes without the note
+  without_loo <- fit
+  without_loo[["loo"]] <- NULL
+  for (call in list(quote(rstudent(without_loo)), quote(residuals(without_loo, type = "LOO-PIT")))) {
+    messages <- character()
+    error <- tryCatch(
+      withCallingHandlers(eval(call), message = function(condition) {
+        messages <<- c(messages, conditionMessage(condition))
+        invokeRestart("muffleMessage")
+      }),
+      error = identity
+    )
+    expect_match(conditionMessage(error), "LOO has not been computed", fixed = TRUE)
+    expect_length(messages, 0L)
+  }
+
+  # independent oracle: the PSIS-weighted normal CDF of the approximate
+  # effect sizes and standard errors
+  setup   <- .estimate_likelihood_setup.brma(fit)
+  weights <- .diagnostic_psis_context(fit)[["psis_weights"]]
+  S       <- nrow(setup[["mu"]])
+  yi      <- matrix(setup[["yi"]], S, 8L, byrow = TRUE)
+  sei     <- matrix(setup[["sei"]], S, 8L, byrow = TRUE)
+  cdf     <- stats::pnorm(yi, setup[["mu"]], sqrt(setup[["tau_within"]]^2 + sei^2))
+  expect_equal(table$value[["z"]], stats::qnorm(colSums(weights * cdf)), tolerance = 1e-10)
+
+  # plots label the approximation instead of messaging
+  qq <- count_messages(suppressWarnings(qqnorm(fit, envelope = FALSE, as_data = TRUE)))
+  expect_length(qq$messages, 0L)
+  expect_identical(qq$value[["ylab"]], "Sample Quantiles (Descriptive Normal Approximation)")
+  funnel_data <- count_messages(suppressWarnings(funnel(fit, residual = TRUE, as_data = TRUE)))
+  expect_length(funnel_data$messages, 0L)
+  expect_identical(funnel_data$value[["xlab"]], "Residual (Descriptive Normal Approximation)")
+
+  # influence() reports the approximate rstudent and the PIT-free columns
+  influence_result <- count_messages(suppressWarnings(influence(fit)))
+  expect_length(influence_result$messages, 1L)
+  expect_named(influence_result$value[["inf"]], c("rstudent", "cov.r", "tau.del"))
+})
+
+test_that("as_draws() returns the parameters shown by summary() and hides the intermediates", {
+
+  catalog <- .brma_auxiliary_variable_catalog(
+    structure(list(fit = NULL), class = "brma"),
+    c("mu", "tau", "pi[1]", "phi[2]", "theta[3]", "gamma[4]", "eta[1]", "omega[1]")
+  )
+  expect_identical(catalog[["variable"]], c("pi[1]", "phi[2]", "theta[3]", "gamma[4]", "eta[1]"))
+
+  skip_if_not_installed("metadat")
+  skip_if_not_installed("posterior")
+
+  glmm <- .surface_glmm_fit()
+  shown <- rownames(summary(glmm, include_mcmc_diagnostics = FALSE)[["estimates"]])
+  expect_identical(shown, c("mu", "tau"))
+  expect_identical(colnames(as_draws_matrix(glmm)), shown)
+  auxiliary <- colnames(as_draws_matrix(glmm, include_auxiliary = TRUE))
+  expect_identical(head(auxiliary, 2L), shown)
+  expect_true(all(c("pi[1]", "theta[1]") %in% auxiliary))
+  expect_setequal(
+    sub("[[].*$", "", setdiff(auxiliary, shown)), c("pi", "theta")
+  )
+
+  multilevel <- .surface_fit("multilevel")
+  shown <- rownames(summary(multilevel, include_mcmc_diagnostics = FALSE)[["estimates"]])
+  expect_identical(shown, c("mu", "tau", "rho"))
+  expect_identical(colnames(as_draws_matrix(multilevel)), shown)
+  expect_true(all(
+    paste0("gamma[", 1:4, "]") %in%
+      colnames(as_draws_matrix(multilevel, include_auxiliary = TRUE))
+  ))
+
+  ordinary <- .surface_fit("ordinary")
+  expect_identical(colnames(as_draws_matrix(ordinary)), c("mu", "tau"))
+  expect_identical(colnames(as_draws_matrix(ordinary, include_auxiliary = TRUE)), c("mu", "tau"))
+})
+
+test_that("parameter lookups of plot(), plot_prior(), and print_prior() use the released wording", {
+
+  ordinary   <- .surface_fit("ordinary")
+  mods       <- .surface_fit("mods")
+  scale      <- .surface_fit("scale")
+  multilevel <- .surface_fit("multilevel")
+
+  lookup <- function(expr, message, class = NULL) {
+    error <- tryCatch(expr, error = identity)
+    expect_identical(conditionMessage(error), message)
+    if (!is.null(class)) {
+      expect_s3_class(error, class)
+    }
+    invisible(error)
+  }
+  not_found <- "BayesTools_parameter_not_found"
+
+  # plot() describes a fitted object by its fitted structure
+  lookup(plot(ordinary, parameter = "bogus"),
+    "Unknown parameter 'bogus'. Valid base parameters are: 'mu', 'tau'.", not_found)
+  lookup(plot(multilevel, parameter = "bogus"),
+    "Unknown parameter 'bogus'. Valid base parameters are: 'mu', 'tau', 'rho'.")
+  lookup(plot(ordinary, parameter = "rho"),
+    "The 'rho' parameter is only available for multilevel models.", not_found)
+  lookup(plot(ordinary, parameter = "PET"),
+    "The 'PET' parameter is only available for PET models.")
+  lookup(plot(ordinary, parameter = "PEESE"),
+    "The 'PEESE' parameter is only available for PEESE models.")
+  lookup(plot(ordinary, parameter = "weightfunction"),
+    "The 'omega'/'weightfunction' parameter is only available for selection models.")
+  lookup(plot(ordinary, parameter_mods = "x"),
+    "The 'parameter_mods' argument can only be used for models with moderators.", not_found)
+  lookup(plot(mods, parameter_scale = "x"),
+    "The 'parameter_scale' argument can only be used for location-scale models.")
+  lookup(plot(mods, parameter_mods = "bogus"),
+    "The specified 'parameter_mods' term 'bogus' is not available. Available terms are: 'intercept', 'x'.")
+  lookup(plot(scale, parameter_scale = "bogus"),
+    "The specified 'parameter_scale' term 'bogus' is not available. Available terms are: 'intercept', 'x'.")
+
+  # the prior functions describe an object by its stored priors
+  unfitted <- brma(yi = yi, sei = sei, data = .surface_data(), measure = "GEN",
+    mods = ~ x, scale = ~ x, prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  pet <- bPET(yi = yi, sei = sei, data = .surface_data(), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  ordinary_priors <- brma(yi = yi, sei = sei, data = .surface_data(), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  for (object in list(ordinary, ordinary_priors)) {
+    lookup(print_prior(object, parameter = "bogus", silent = TRUE),
+      "Unknown prior parameter 'bogus'. Available parameters are: 'mu', 'tau'.")
+    lookup(plot_prior(object, parameter = "weightfunction"),
+      "Unknown prior parameter 'omega'. Available parameters are: 'mu', 'tau'.")
+  }
+  lookup(print_prior(mods, parameter = "bogus", silent = TRUE),
+    paste0("Unknown prior parameter 'bogus'. Available parameters are: 'tau', ",
+           "'parameter_mods = 'intercept'', 'parameter_mods = 'x''."))
+  lookup(plot_prior(mods, parameter_scale = "x"),
+    "The 'parameter_scale' argument can only be used when the object contains the corresponding priors.")
+  lookup(print_prior(mods, parameter_mods = "bogus", silent = TRUE),
+    "The specified 'parameter_mods' term 'bogus' is not available. Available terms are: 'intercept', 'x'.")
+  for (object in list(scale, unfitted)) {
+    lookup(plot_prior(object, parameter = "x"),
+      paste0("The term 'x' is available in both moderator and scale priors. ",
+             "Use 'parameter_mods' or 'parameter_scale'."))
+    lookup(print_prior(object, parameter = "intercept", silent = TRUE),
+      paste0("The term 'intercept' is available in both moderator and scale priors. ",
+             "Use 'parameter_mods' or 'parameter_scale'."))
+  }
+  lookup(print_prior(scale, parameter = "x", silent = TRUE),
+    paste0("The term 'x' is available in both moderator and scale priors. ",
+           "Use 'parameter_mods' or 'parameter_scale'."), "BayesTools_parameter_ambiguous")
+  lookup(print_prior(pet, parameter = "omega", silent = TRUE),
+    "The publication-bias prior does not contain a 'omega' component.")
+  lookup(plot_prior(pet, parameter = "PEESE"),
+    "The publication-bias prior does not contain a 'PEESE' component.")
+  lookup(plot(unfitted, parameter = "bogus"),
+    paste0("Unknown prior parameter 'bogus'. Available parameters are: ",
+           "'parameter_mods = 'intercept'', 'parameter_mods = 'x'', ",
+           "'parameter_scale = 'intercept'', 'parameter_scale = 'x''."))
+
+  # the hidden auxiliary priors keep their own message
+  glmm <- brma.glmm(ai = 1:3, ci = 2:4, n1i = rep(10, 3), n2i = rep(12, 3),
+    measure = "OR", prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  expect_error(print_prior(glmm, parameter = "theta", silent = TRUE),
+    "The specified parameter 'theta' is not available.", fixed = TRUE)
+})
+
+test_that("a stored LOO or WAIC of another unit names the released remedy", {
+
+  metadata <- list(unit = "cluster", retained_context = "none", target = "loo", data_hash = "hash")
+  expect_error(
+    RoBMA:::.check_cached_predictive_target(NULL, metadata, "estimate", "LOO"),
+    "Stored LOO was computed with unit = 'cluster'. Recompute with add_loo(object, unit = 'estimate').",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.check_cached_predictive_target(NULL, metadata, "estimate", "WAIC"),
+    "Stored WAIC was computed with unit = 'cluster'. Recompute with add_waic(object, unit = 'estimate').",
+    fixed = TRUE
+  )
+})
+
+# Small random-formula brma.mv() fits (one and two random blocks), built once.
+.surface_mv_fit <- function(name, only_priors = FALSE) {
+
+  key <- paste0(name, if (only_priors) "_priors")
+  if (!exists(key, envir = .surface_fit_env, inherits = FALSE)) {
+    dat <- data.frame(
+      yi    = c(0.08, 0.13, 0.18, 0.20, 0.01, 0.05, 0.11, 0.16),
+      study = factor(rep(c("s1", "s2", "s3", "s4"), each = 2L)),
+      obs   = factor(seq_len(8L))
+    )
+    V <- matrix(0, nrow = 8L, ncol = 8L)
+    for (g in 1:4) {
+      index <- ((g - 1L) * 2L + 1L):(g * 2L)
+      V[index, index] <- matrix(c(0.04, 0.018, 0.018, 0.05), nrow = 2L)
+    }
+    random <- switch(
+      name,
+      mv_one = ~ 1 | obs,
+      mv_two = list(study = ~ 1 | study, observation = ~ 1 | obs)
+    )
+    fit <- suppressWarnings(brma.mv(
+      yi = yi, V = V, random = random, data = dat, measure = "GEN",
+      prior_unit_information_sd = 1, chains = 2, adapt = 50, burnin = 100,
+      sample = 100, seed = 1, silent = TRUE, parallel = FALSE,
+      only_priors = only_priors
+    ))
+    assign(key, fit, envir = .surface_fit_env)
+  }
+
+  return(get(key, envir = .surface_fit_env, inherits = FALSE))
+}
+
+test_that("the default draws of random-formula brma.mv() fits are the parameters shown by summary()", {
+
+  skip_on_cran()
+
+  # one random block: the SD is shown, its variance is a hidden intermediate
+  one <- .surface_mv_fit("mv_one")
+  expect_identical(rownames(summary(one, include_mcmc_diagnostics = FALSE)[["estimates_random"]]), "tau")
+  expect_identical(colnames(as_draws_matrix(one)), c("mu_intercept", "tau"))
+  expect_identical(
+    setdiff(colnames(as_draws_matrix(one, include_auxiliary = TRUE)), colnames(as_draws_matrix(one))),
+    "tau2"
+  )
+
+  # two random blocks: the total SD and the variance proportions are shown; the
+  # component SDs, component variances, and the total variance are intermediates
+  two   <- .surface_mv_fit("mv_two")
+  shown <- rownames(summary(two, include_mcmc_diagnostics = FALSE)[["estimates_random"]])
+  expect_identical(shown, c("tau_total", "tau2_prop(study)", "tau2_prop(observation)"))
+  expect_identical(colnames(as_draws_matrix(two)), c("mu_intercept", shown))
+  expect_setequal(
+    setdiff(colnames(as_draws_matrix(two, include_auxiliary = TRUE)), colnames(as_draws_matrix(two))),
+    c("study: tau", "study: tau2", "tau2_total", "observation: tau", "observation: tau2")
+  )
+})
+
+test_that("pooled_heterogeneity() of brma.mv() fits validates the forwarded aggregate arguments", {
+
+  skip_on_cran()
+  two <- .surface_mv_fit("mv_two")
+
+  expect_error(
+    pooled_heterogeneity(two, conditioning_depth = "estimate"),
+    "Non-marginal pooled heterogeneity is not available for brma.mv() fits", fixed = TRUE
+  )
+  expect_error(
+    pooled_heterogeneity(two, V_new = diag(2)),
+    "'V_new' is only available", fixed = TRUE
+  )
+  expect_error(pooled_heterogeneity(two, as_measure = NA), "as_measure")
+  # the same refusals as the univariate aggregated prediction, which `component` keeps selecting
+  expect_error(
+    predict(two, newdata = TRUE, type = "terms.scale", conditioning_depth = "estimate"),
+    "Non-marginal predictions require fitted observation identities", fixed = TRUE
+  )
+  all_components <- pooled_heterogeneity(two, component = "all", as_measure = FALSE)
+  expect_identical(names(all_components), names(pooled_heterogeneity(two, component = "all")))
+  expect_s3_class(pooled_heterogeneity(two, component = "total", conditioning_depth = "marginal"),
+                  "brma_samples")
+})
+
+test_that("parameter lookups of brma.mv() objects keep the message of the parameter catalog", {
+
+  skip_on_cran()
+
+  # the multivariate models did not exist at 4.0.0 and keep no released wording:
+  # their location prior is outside the layout that the released message lists
+  fitted <- tryCatch(
+    print_prior(.surface_mv_fit("mv_one"), parameter = "bogus", silent = TRUE),
+    error = identity
+  )
+  expect_s3_class(fitted, "BayesTools_parameter_not_found")
+  expect_identical(conditionMessage(fitted), "No public parameter quantity matches 'bogus'.")
+
+  priors <- tryCatch(
+    plot_prior(.surface_mv_fit("mv_one", only_priors = TRUE), parameter = "bogus"),
+    error = identity
+  )
+  expect_match(conditionMessage(priors), "The specified parameter 'bogus' is not available.",
+               fixed = TRUE)
+  expect_false(grepl("Available parameters are", conditionMessage(priors), fixed = TRUE))
+})
+
+test_that("the aggregated heterogeneity of location-scale fits is the mean of the observation-specific tau", {
+
+  scale <- .surface_fit("scale")
+  rows  <- rowMeans(unclass(predict(scale, type = "terms.scale")))
+
+  # predict(newdata = TRUE) and pooled_heterogeneity() equal the row mean of the
+  # observation-specific tau exactly (the 4.0.0 rule, not exp(mean(log(tau))))
+  aggregated <- predict(scale, newdata = TRUE, type = "terms.scale", quiet = TRUE)
+  expect_identical(as.numeric(aggregated), as.numeric(rows))
+  expect_identical(as.numeric(pooled_heterogeneity(scale)), as.numeric(rows))
+  expect_identical(
+    as.numeric(.pooled_heterogeneity_total_samples(scale, .get_posterior_samples(scale[["fit"]]))),
+    as.numeric(rows)
+  )
+  geometric <- exp(rowMeans(log(unclass(predict(scale, type = "terms.scale")))))
+  expect_gt(max(abs(geometric - rows)), 1e-3)
+  expect_message(
+    predict(scale, newdata = TRUE, type = "terms.scale"),
+    "Aggregated prediction averages tau across the scale model matrix (K = 8 observations).",
+    fixed = TRUE
+  )
+
+  # the same tau is the SD of a new true effect (and enters the pooled_effect() interval)
+  location <- as.numeric(predict(scale, newdata = TRUE, type = "terms", quiet = TRUE))
+  set.seed(11)
+  estimate <- predict(scale, newdata = TRUE, type = "estimate", quiet = TRUE)
+  set.seed(11)
+  expect_equal(as.numeric(estimate), stats::rnorm(length(rows), location, rows), tolerance = 1e-12)
+
+  # ... and, scaled by sqrt(rho), the SD of a new cluster effect
+  multilevel <- .surface_fit("multilevel_scale")
+  rows_cluster <- rowMeans(unclass(predict(multilevel, type = "terms.scale")))
+  expect_equal(as.numeric(pooled_heterogeneity(multilevel)), as.numeric(rows_cluster),
+               tolerance = 1e-12)
+  rho <- as.numeric(posterior::as_draws_matrix(multilevel)[, "rho"])
+  location_cluster <- as.numeric(predict(multilevel, newdata = TRUE, type = "terms", quiet = TRUE))
+  set.seed(5)
+  cluster <- predict(multilevel, newdata = TRUE, type = "cluster", quiet = TRUE)
+  set.seed(5)
+  expect_equal(
+    as.numeric(cluster),
+    location_cluster + stats::rnorm(length(rho), 0, sqrt(rho) * rows_cluster),
+    tolerance = 1e-12
+  )
+
+  # a fit without a scale formula is unchanged: every row has the scalar tau
+  ordinary <- .surface_fit("ordinary")
+  tau <- as.numeric(posterior::as_draws_matrix(ordinary)[, "tau"])
+  expect_equal(as.numeric(pooled_heterogeneity(ordinary)), tau, tolerance = 1e-14)
+  expect_equal(
+    as.numeric(predict(ordinary, newdata = TRUE, type = "terms.scale", quiet = TRUE)),
+    as.numeric(rowMeans(unclass(predict(ordinary, type = "terms.scale")))),
+    tolerance = 1e-14
+  )
+})

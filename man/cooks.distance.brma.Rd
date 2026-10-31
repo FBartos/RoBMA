@@ -7,7 +7,8 @@
 \method{cooks.distance}{brma}(model, ...)
 }
 \arguments{
-\item{model}{a fitted brma object.}
+\item{model}{a fitted normal-outcome \code{brma} object without a
+weightfunction component.}
 
 \item{...}{additional arguments (currently ignored).}
 }
@@ -22,13 +23,25 @@ model coefficients.
 \details{
 Cook's distance is computed as a PSIS leave-one-out deletion diagnostic. For
 each observation \eqn{i}, normalized PSIS weights estimate the fitted values
-under the leave-one-out posterior. The distance is the posterior Mahalanobis
-distance between the full-data and leave-one-out fitted-value vectors:
-\deqn{D_i = \frac{\Delta_i' V_\mu^+ \Delta_i}{P}}
+under the leave-one-out posterior. The distance is the squared posterior
+Mahalanobis distance between the full-data and leave-one-out fitted-value
+vectors:
+\deqn{D_i = \Delta_i' V_\mu^+ \Delta_i}
 
 where \eqn{\Delta_i = \hat{\mu} - \hat{\mu}_{(-i)}}, \eqn{V_\mu^+} is the
-generalized inverse of the full-posterior fitted-value covariance, and
-\eqn{P} is the rank of the fixed-effect model matrix.
+generalized inverse of the full-posterior fitted-value covariance. This uses
+the unscaled meta-analytic convention of \pkg{metafor} and
+\insertCite{viechtbauer2010outlier;textual}{RoBMA}, without division by the
+fixed-effect model rank. Values can differ from \pkg{metafor} because RoBMA
+uses posterior moments and PSIS deletion rather than classical refits.
+For \code{brma.mv()} known-\code{V} models, Cook's distance uses
+estimate-unit PSIS weights. With correlated known-\code{V}, deletion is
+conditional estimate deletion and the reported fitted-value target is the
+fixed-location mean \eqn{\mu = X\beta}; sampled or marginalized random
+effects are not included in the reported fitted value.
+Selection \code{brma.mv()} influence is currently unavailable. The PSIS
+fixed-location moments do not require the inverse marginal covariance used
+by \code{hatvalues()}.
 }
 \examples{
 \dontrun{
@@ -41,6 +54,9 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 }
 }
 
+}
+\references{
+\insertCite{viechtbauer2010outlier}{RoBMA}
 }
 \seealso{
 \code{\link{influence.brma}}, \code{\link{dffits.brma}}, \code{\link{hatvalues.brma}}

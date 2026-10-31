@@ -1,0 +1,14 @@
+
+Bayesian Multilevel Mixed-Effect Model (k = 100, clusters = 17)
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.519 0.072 0.400 0.511 0.685     0.00208          0.029 1223 1.001
+rho 0.655 0.102 0.441 0.661 0.834     0.00267          0.026 1464 1.002
+
+Meta-Regression
+                   Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+intercept        -0.030 0.184 -0.411 -0.025 0.325     0.00975          0.053 363 1.005
+deltype[general]  0.501 0.159  0.190  0.499 0.816     0.00701          0.044 512 1.005
+deltype[overt]    0.277 0.174 -0.066  0.277 0.617     0.00569          0.033 934 1.002
+

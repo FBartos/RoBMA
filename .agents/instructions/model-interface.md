@@ -1,0 +1,371 @@
+# Model Interfaces and BayesTools Integration
+
+Use this guide for model constructors, random-effect prior completion,
+parameter metadata, summaries, selectors, and public result interfaces.
+
+See [maintainer decisions](decision-rationale.md) for the reasons behind the
+Cook's distance, posterior VIF, and pooled-heterogeneity conventions below.
+
+## Formula ownership
+
+Cook's distance uses the unscaled squared posterior Mahalanobis distance,
+matching metafor's convention (maintainer decision, 2026-10-26). Do not divide
+by the fixed-effect rank or rescale metafor's reference values in comparisons.
+This deliberately changes the 4.0.0 convention; PSIS posterior deletion remains
+the Bayesian calculation, so classical refits need not give identical values.
+
+VIF/GVIF uses the design-based GLS covariance in each posterior draw, then
+summarizes the resulting diagnostic values (maintainer decision, 2026-10-26).
+Use the same convention for simple, scale, multilevel, and known-V models;
+neither a posterior-mean heterogeneity plug-in nor VIF of an averaged covariance
+is the posterior mean VIF. Average GVIF and its adjusted root separately.
+Retain the fitted location design and each draw's PET/PEESE design class.
+PET/PEESE summaries condition on their class being present; absent-class draws
+are unavailable, not zero. Optional credible intervals describe GVIF and
+optional diagnostic draws retain their original posterior row indices. Keep
+the empirical posterior coefficient correlation as its separate diagnostic.
+
+Coefficient influence diagnostics request coefficient-only tables, excluding
+declared inclusion indicators. COVRATIO retains ordered fitted totals and one
+independent basis per metadata-declared Dirichlet allocation source, deduplicating
+shared aliases; DFBETAS keeps the individual share coordinates. Every COVRATIO
+return carries its result class, including successful results without notes.
+
+Named alternative-list intercepts supply the complete prior, while ordinary
+term alternative/null entries remain separate components. Reject named null-list
+intercepts (including NULL/FALSE) and explicit global declarations left without
+a consumer by that override. Resolve supplied argument presence before defaults
+or omission filtering. Component scale retains actual global SD and inclusion/
+omission-gate consumers, including gate-only roots with local SD sources; unused
+scale-intercept defaults need no UISD. Complete or structural-zero location intercepts leave an
+omitted effect default unused; missing slope/global SD consumers retain UISD.
+Scale intercepts retain the positive SD contract because their model uses
+log(intercept). Structural-zero mods retain
+their existing point-zero validation and explicit-global compatibility.
+
+Unspecified ordinary factor null terms use a zero prior in the retained
+alternative term's declared contrast before formula binding. Explicit global
+and named null priors, NULL/FALSE term omissions, omitted alternatives,
+continuous defaults, and intercept policy retain their existing semantics.
+The formula compiler owns all dimensions, levels, and bound design metadata.
+
+Ordered term containers pass through when they are the sole retained component.
+Their mixture/inclusion declaration belongs on total; combining a container with
+a separate term component refuses with the prior_ordered(total=...) and named
+NULL omission remedy. Constructor/binding support does not establish downstream
+ordered inclusion/export compatibility with an unaccepted dependency.
+
+Marginal-means BF rows localize declared BayesTools formula-measure and
+ordinate refusals to NA with the original measure reason, structured condition
+diagnostics, and matching unavailable posterior-density source. Missing-source,
+refit, other transform, invalid-context and programming errors remain strict.
+An explicit late KDE summary BF request computes skipped BFs from stored
+conditional cells at the stored null; existing computed results are retained.
+Factor-level qCMDE/IWMDE producers declare the exact parent[level] child identity
+in posterior metadata before request/plan provenance is created, retaining the
+separate level and declared condition, including the empty averaged event.
+Marginal-means display labels are not target aliases; wrong-level metadata
+remains ineligible for the requested child.
+
+Expanded hypothesis results retain positional statement identity in the
+producer's uniform statement-major quantity loop. Identical statement text
+does not merge repeated statement numbers or row-owned diagnostics.
+
+Selected and prior-only formula draw carriers retain the actual full prior
+declarations with the BayesTools design and scaling. Numeric point readers
+require a finite numeric scalar; expression points use BayesTools' owned
+monitor/replay route and do not become numeric constants by their wrapper.
+
+BayesTools integration uses public accessors and wrappers. The fixed-zero
+marginal-likelihood rebuild takes backend names from persisted
+`parameter_coordinates(fit)$coordinate_name`; `JAGS_parameter_names()` encodes
+declared character names and does not retrieve them from a fit.
+
+BayesTools owns formula semantics and compiled metadata. When its source is
+available, consult its `jags-formula.md` guide for the detailed shared contract.
+RoBMA consumes the resolved column counts, bases, levels, covariance ownership,
+and labels. Do not introduce a separate parser or reconstruct a basis with
+`stats::model.matrix()`, fixed formulas, or posterior draws.
+Formula-design 6, unscale-design 2 and coefficient-transform 4 require refitting
+older formats. Select active targets/recipes before finite C access. Dynamic
+numeric targets use original fitted state; prior laws use public BayesTools APIs.
+Static qCMDE/IWMDE refuse state-dependent raw maps or stochastic formula products.
+Declared measure_unavailable entries use BayesTools_formula_measure_unavailable;
+Their optional structured model/log diagnostics survive replacement draw
+wrappers and hypothesis refusal conversion. Malformed metadata, refit,
+programming and other numerical failures remain strict. RoBMA's empirical
+product-space model summaries retain their natural zero meaning. linear_weight_space distinguishes
+coefficient recipes from fitted formula_contribution rows. Constant products fold
+once into raw fitted weights; contribution weights never pass through C/A again.
+Fitted and prior-only plots supply full ordinary multiplier laws. Current compiler
+copies complete only through supported public prior/plot entry points; empty
+scaling intentionally selects fitted coordinates.
+
+Factor contrasts belong to `prior_factor()` and stored metadata, independently
+of intercept syntax. Thus `mods = ~ 0 + group` with an independent factor
+prior means a structural zero intercept and one coefficient per group level.
+In random-coefficient blocks, `random_block(contrasts = ...)` overrides the
+default reuse of a fixed factor's concrete contrasts; `0 + group` alone does
+not force level indicators.
+
+Keep random-coefficient structures (`id()`, `diag()`, `us()`/`un()`) separate
+from structure-owned index specifications (`cs()`/`hcs()`,
+`ar1()`/`ar()`/`har()`, `car()`). Coefficient formulas support intercept controls,
+slopes, and interactions. Plain bars mean US; double bars mean diagonal.
+ID shares one SD, diagonal uses independent column-specific SDs, and US adds
+an unrestricted correlation matrix. Index structures reject intercept controls
+and block contrast overrides. CS/HCS combines discrete columns by observed
+interaction; AR1/HAR orders one discrete column by factor levels or sorted
+values; CAR uses one finite numeric coordinate or ordered factor with numeric
+labels and actual distances. Discrete indices may be factor, character,
+numeric/integer, or logical. HCS has level-specific SDs and one common pairwise
+correlation; it is not US in a level-indicator basis. Never relabel
+coefficient-basis covariance as level-basis covariance.
+
+Treat `prior_random()` with no global/block SD, SD source, term-specific SD
+override, covariance-owned SD, or variance allocation as a partial override.
+Complete its scale with RoBMA's ordinary UISD/allocation rules while preserving
+the user's contrasts, covariance priors, and policies. When any scale
+architecture is supplied, do not merge additional scale defaults. Correlation
+defaults remain BayesTools-owned: omitted US/UN uses `LKJ(1)` and omitted scalar
+correlations use the complete structure-specific raw interval (CAR includes
+zero and excludes one). Component-specific or partial scale models have
+independent SD roots; allocations split within each component and unscaled
+components retain their own base SD. A global total prior applies only to
+the shared architecture without component-specific scale roots.
+
+## Parameter metadata and naming
+
+BayesTools stores one versioned `parameter_map()` with linked coordinate,
+quantity, and alias tables. `parameter_coordinates()` exposes backend rows
+keyed by `coordinate_name`; `parameter_catalog()` exposes semantic quantities
+keyed by `canonical_name`. Resolve public selectors through the catalog and
+obtain draws through `parameter_draws()`.
+RoBMA-owned selections must match a fresh public catalog resolution by the
+current canonical name, namespace and component: wrapper fields and their order,
+schema/map versions, outer quantity identity and the complete quantity row.
+Only row names are normalized. BayesTools-owned rows remain delegated; matching
+metadata does not establish a physical fit's origin.
+
+Ordered `as_draws()` exports consume `JAGS_ordered_parameter_spec()` source
+coordinates and sampled-parameter labels. Read only declared sampled or
+structural sources in one targeted materialization, separately from the public
+draw schema. Export fitted totals and Gamma-normalized sampled shares, including
+zero-total states; never recover shares from increments. Omit deterministic
+increments and nested total components by default, retaining declared event
+indicators and inclusion probabilities. Auxiliary exports retain raw increments
+without exposing unrelated internals. For rvars, map only declared allocation
+labels through reversible opaque scalar names; preserve ordinary vector indices.
+Entirely fixed numeric-point terms with no available sources reuse the public
+chain solely for row count. Guard that exception with declared point totals,
+no total event node and fixed allocations; never substitute for missing
+stochastic, discrete, mixture or expression sources. A named input-only row
+column may supply geometry when the public chain has zero coordinates.
+Missing required ordered sources, including partial source loss, raise
+`RoBMA_ordered_draws_unavailable`, `BayesTools_ordered_coordinates_unavailable`
+and `BayesTools_ordered_unavailable` through the shared refit helper, retaining
+`RoBMA_refit_required` and `BayesTools_refit_required` with the supported refit
+message.
+
+Internal LKJ primitives, compact scalar-correlation coordinates, allocation
+weights, and covariance-construction dependencies remain coordinate-only.
+Monitoring them does not make them public aliases or allow them through
+plotting, density, or hypothesis gates.
+
+Random-effect density and marginal-diagnostic fast paths consume BayesTools'
+`random_effects_marginal_update_plan()`. Route metadata-declared affine families
+through exact covariance algebra and retain the generic evaluator for factor,
+Markov, and unsupported families. Do not infer affineness from posterior draws
+or evaluated covariance candidates.
+Covariance q-grid shortcuts, including group-IID, certify fixed-mean invariance
+from the complete replacement-coordinate dependency metadata, including declared
+regenerated SD nodes regardless of candidate validity or numerical equality, using
+at most one candidate per row. The public dependency query includes the
+conditional random predictor: only 'random_effect' rows are excluded when
+checking fixed-mu dependence. Every other mu dependency type, including unknown
+types, and query failures retain the generic evaluator. Algorithm version 40
+invalidates older density requests and plans; result schema 6 and fit-cache
+schema 8 are unchanged.
+
+Allocated component SD density targets in predictor-scaled blocks require the
+standardized view or KDE for original-scale requests, following the structured
+scaled-component capability. The restriction is block-wide, including centered
+intercepts with accidental draw parity; direct one-to-one transforms remain supported.
+Positive point sources times stochastic allocation weights have continuous target
+laws but cannot use the source-held-weight density chart. Refuse that chart through
+the existing random-target cause and KDE remedy; source-zero and gate atoms retain
+their declared laws. Classify active source components from priors and indicators,
+never from the apparent variation of replayed draws.
+Allocated SD proposals resolve active source-prior row bounds and multiply by
+the declared positive component multiplier. Fit by finite-bound pattern after
+standardizing each row to its own interval, applying the row Jacobian once.
+Unknown bounds, invalid multipliers and nonempty all-invalid support populations
+fail construction; do not widen unsupported populations to the real line.
+
+Post-fit mixture likelihoods keep random-source indicators with their persisted
+compiled priors, including externally bound SD sources; localize only indicators
+whose consuming priors were localized. Compute internally generated point-only
+linear targets from declared point-prior locations using the same matrix
+transformation as target draws and atom metadata. User-supplied null values
+retain exact equality semantics.
+
+BayesTools canonical names are `(formula) owner: quantity(arguments)`.
+Parentheses hold coefficient/parameter names; square brackets hold factor/index
+levels. RoBMA maps `sd`/`var`/`cor` at its I/O boundary to `tau`/`tau2`/`rho`,
+including `tau_total`, `tau2_total`, `tau_common`, `tau2_common`,
+`tau2_prop(...)`, `tau_mult(...)`, and `tau2_mult(...)`. Simplification removes
+only a sole `intercept` argument and omits an owner only when resolution stays
+unique. Keep other arguments explicit, for example
+`study: rho(group[sensitivity],group[specificity])`.
+
+A bare random formula or unnamed one-entry list omits a redundant component
+prefix; a named one-entry list retains its name. Lists with multiple entries
+generate missing names as `component 1`, `component 2`, etc. Generated
+allocations keep a stable internal `name`, use `display_name = ""` when no
+public owner is needed, and carry public `component_names` separately.
+Generated allocation IDs are unique within one prior-completion graph. Keep
+valid preferred IDs; resolve actual collisions with a locally reserved suffix.
+Consumed symbolic term values avoid actual block names without changing their
+component keys, public labels, or parent component references.
+Allocation inclusion labels resolve the exact formula, allocation and compiled
+indicator source to its component key. A uniquely consuming child supplies its
+public total/common SD; otherwise a uniquely identified scalar block SD owns
+the label. Ambiguous or unavailable scalar counterparts remain unmapped. Direct
+SD-prior mixture indicators retain their separate handling.
+Allocation component labels address term positions even when the public term
+vector is unnamed. Traverse descendants through their declared labels; only
+absent or empty label metadata falls back to the legacy named-term declaration.
+Ambiguous or missing label correspondence remains an error or an unmapped scalar
+counterpart under the existing consumer contract.
+
+Ordinary and specialized `brma(..., cluster = ...)` models use `tau`/`tau2`
+(plus specialized `rho`/`I2`). `brma.mv()` uses `tau`/`tau2` for one component,
+`tau_total`/`tau2_total` for a genuine additive aggregate, and
+`tau_common`/`tau2_common` for a mean-variance allocation scale.
+
+Printed summaries and their data-frame exports follow the univariate layout.
+Without `mods` or `scale`, combine location and random estimates in `Estimates`.
+With predictors, random estimates join `Common Estimates`; location coefficients
+use `Meta-Regression` without scale predictors and `Location` with them. Scale
+coefficients retain their own table. Without location moderators, `mu` stays in
+the common table. Apply the same layout to conditional estimates while retaining
+the separate raw summary tables and their parameter metadata.
+Merge random-effect inclusion rows into the displayed `Component Inclusion`
+table with `Heterogeneity: ` labels, matching the univariate `Heterogeneity`
+row, before `Publication Bias`. Model-overview components in `summary_models()`
+keep their own `Random: ` labels. Preserve bounded BF
+markers and diagnostics when combining and ordering rows. Data-frame exports
+follow this layout; raw inclusion subtables remain available.
+
+## Classes and public arguments
+
+`brma` is the base class; `brma.norm`, `brma.glmm`, and `brma.mv` specialize the
+likelihood/model. `RoBMA` extends `brma` for product-space model averaging.
+Wrappers prepend their class, for example `c("BMA.norm", "RoBMA", "brma")` and
+`c("BMA.glmm", "RoBMA", "brma.glmm", "brma")`.
+
+Primary constructors are `brma()`, `brma.norm()`, `brma.glmm()`, `brma.mv()`,
+`bselmodel()`, `bselmodel.mv()`, `bPET()`, `bPET.mv()`, `bPEESE()`,
+`bPEESE.mv()`, `RoBMA()`, `RoBMA.mv()`, `BMA()`, `BMA.norm()`, `BMA.mv()`,
+and `BMA.glmm()`.
+
+Follow existing S3 result families. For method-specific results, prefer
+`<generic>.<input_class>` with matching print/summary methods and retain useful
+underlying classes. In BayesToolsVerse, the shared public API guide owns
+diagnostic-message and tabular-coercion conventions.
+
+Use `component` to distinguish post-fit model parts. Normalize `"mods"` and
+`"location"` through shared helpers; `"bias"` selects publication-bias
+parameters. Retain released `parameter_mods` and `parameter_scale` plotting
+arguments through 4.x. Reserve `type` for output or prediction kind.
+
+If shared implementation, documentation, and tests conflict, repair the
+BayesTools-owned behavior there; avoid downstream compatibility workarounds.
+
+
+Contribution-space hypothesis combination specs fold known constant multipliers
+once into fitted weights; coefficient-space specs retain their existing units.
+Stochastic contribution products and dynamic original combinations retain the
+typed static qCMDE/IWMDE refusal and row reason. Point/transitive/group consumers
+transport producer log ordinates and canonical logs with aligned diagnostics;
+plain exports strip hidden column carriers.
+Model and conditional prior contexts use schema 2 with validated model log owners;
+primitive contexts use schema 1. Coefficient transformation descriptors use schema 4, requiring BayesTools >= 0.3.1.223.
+Variance point numerical diagnostics retain SD evaluation provenance and apply
+the common Jacobian to requested variance log heights. Point-region results
+reuse the actual point producer's diagnostics in statement order. Variance
+unit-part composition detects only the admitted real point logBF -Inf together
+with its directional unit infinity before arithmetic. It retains canonical NA
+and the existing undefined warning for that numerical-zero pair, preserving
+independent region-prior diagnostics and legitimate boundary infinities. Scalar and
+exp-affine discovery catches only declared formula-measure refusals; requested
+hypotheses, missing owners, refit conditions and programming errors stay strict.
+
+`hypothesis()` is a thin entry over the BayesTools hypothesis engine
+(`BayesTools::hypothesis_BF_model()`; its contract is the BayesTools
+`hypothesis.md`). RoBMA supplies only (a) the providers in
+`R/hypothesis-provider.R` (`hypothesis_provider.brma()` and
+`hypothesis_provider.marginal_means.brma()`: parameter-catalog entries and the
+component vocabulary with the publication-bias refusal, the product-space draws,
+the random-effect callbacks of `R/random-parameters.R`, the wording of refusals
+and refit requests, and the selection of marginal-means parameters), and (b)
+the qCMDE and IWMDE density backends in `R/hypothesis-backends.R` (capability
+refusals, controls, the attachment of ordinates with their thresholds and
+failures, reuse of stored marginal-means ordinates, warnings and diagnostics),
+registered in `.onLoad()`. Conditions raised by the pipeline carry
+`BayesTools_hypothesis_*` classes; the backend-owned `RoBMA_density_method_*`
+refusal classes and `RoBMA_density_ordinate_error` stay RoBMA's and are shared
+with `plot()` and `marginal_means()`. Do not rebuild planning, routes, binding,
+or label restoration in RoBMA; fix them in BayesTools.
+
+Hypothesis wrappers bind named and positional statements identically. Refusal
+messages retain literal semantic labels and distinguish requested variance values
+from the SD values used for evaluation. Warning attribution uses exact declared
+statement/reference identity, including factor levels and full expressions.
+Summary combinations retain keyed row footnotes through relabeling and keep
+ordinary global notes. Explicitly hidden Bayes factors are not refreshed; requested
+precomputed BFs skip preliminary KDE work. Defined-draw notes count undefinedness
+within the declared conditioning event; conditioning exclusions are not undefined
+draws, and the resulting count records are never positional draw masks.
+
+Prior-only allocation summaries use declared parent factors once and retain
+visible component owners. Block allocation shares condition on declared own
+and parent gate activity; inactive shares carry allocation_active undefined-draw
+metadata. Zero numerical SD alone does not deactivate an allocation. Ungated
+shares retain the declared weights without renormalization.
+
+Allocation-derived SD zero boundaries remain nonregular even when no unique
+public omission coordinate is available. Suggested omission commands resolve by
+the actual formula, allocation owner and component index, and quote the complete
+public selector. Eligibility is independent of whether that remedy is available;
+prior point masses keep their existing classification.
+
+## Pooled functions (maintainer decision 2026-10-25; do not change without one)
+
+- `pooled_effect()` is the population average of the study means; for a linear
+  location it equals the value at the average design.
+- `pooled_heterogeneity()` is the arithmetic mean of the observation-specific
+  `tau_i` over the fitted rows, as at 4.0.0. One arithmetic rule holds
+  everywhere: the scale sources of `brma.mv()` random-formula fits are averaged
+  as `mean(tau_i)` too, never as `exp(mean(log(tau_i)))` or a root mean square.
+- The prediction intervals of `pooled_effect()` plug in
+  `pooled_heterogeneity(component = "total")`. They are not a mixture over
+  studies and not based on the root mean square: composite designs, such as
+  `brma.mv()` factor-specific or random-slope terms
+  (`tests/scenarios/test-kearon1998.R:70`), would make a mixture interval
+  confusing.
+- `predict()` is a specific design point. `summary()` and
+  `summary_heterogeneity()` report the parameters, as the root mean square over
+  the observed design, which the funnel plots also use (`plotting.md`). The
+  pooled functions need not match them.
+- The composite random-design average of `brma.mv()` stays: the pooled tau of
+  a random-formula fit evaluates the average expanded random design (random
+  slopes as `q' G q`), with the scale sources entering it arithmetically.
+  `predict(newdata = TRUE, type = "terms.scale")` returns the same component
+  result as `pooled_heterogeneity(component = "all")`.
+- History: 4.0.0 used the arithmetic mean; `5268ea2b` (2026-07-10) changed it to
+  the root mean square; `e5d3e63f` (2026-08-11) evaluated tau at the average
+  design; the release-surface review finding R13-02 (2026-10-25) returned it to
+  the arithmetic mean, except that the `brma.mv()` random-formula scale sources
+  were averaged geometrically; the maintainer decision of 2026-10-25 (final
+  review 22, F22-R-02) makes them arithmetic as well.

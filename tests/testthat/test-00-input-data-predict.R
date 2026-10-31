@@ -32,7 +32,8 @@ test_data_glmm <- data.frame(
 )
 
 compare_data_lists <- function(data1, data2, check_slab = FALSE,
-                               structure_only = FALSE, info = NULL) {
+                               structure_only = FALSE, info = NULL,
+                               unused_outcome_columns = character()) {
 
   expect_s3_class(data1, "RoBMA_data")
   expect_s3_class(data2, "RoBMA_data")
@@ -46,8 +47,13 @@ compare_data_lists <- function(data1, data2, check_slab = FALSE,
   if (!structure_only) {
     outcome_cols <- setdiff(names(data1$outcome), if (check_slab) character() else "slab")
     for (col in outcome_cols) {
-      expect_equal(data1$outcome[[col]], data2$outcome[[col]],
-                   info = paste(info, "outcome", col))
+      if (col %in% unused_outcome_columns) {
+        expect_equal(data2$outcome[[col]], rep(0, nrow(data2$outcome)),
+          info = paste(info, "unused outcome", col))
+      } else {
+        expect_equal(data1$outcome[[col]], data2$outcome[[col]],
+          info = paste(info, "outcome", col))
+      }
     }
   }
 
@@ -135,7 +141,8 @@ prepare_newdata_cases <- list(
       yi = yi, sei = sei, scale = ~ scale_var,
       data = test_data_norm, only_data = TRUE
     )),
-    newdata = quote(test_data_norm)
+    newdata = quote(test_data_norm),
+    type = "terms.scale"
   ),
   list(
     label = "normal moderators and scale",
@@ -143,7 +150,8 @@ prepare_newdata_cases <- list(
       yi = yi, sei = sei, mods = ~ mod_cont, scale = ~ scale_var,
       data = test_data_norm, only_data = TRUE
     )),
-    newdata = quote(test_data_norm)
+    newdata = quote(test_data_norm),
+    type = "terms.scale"
   ),
   list(
     label = "GLMM same data",
@@ -170,14 +178,16 @@ test_that(".prepare_newdata reconstructs response, moderator, and scale data", {
     result <- RoBMA:::.prepare_newdata(
       object  = fit,
       newdata = eval(case[["newdata"]]),
-      type    = "terms"
+      type    = if (!is.null(case[["type"]])) case[["type"]] else "terms"
     )
 
     compare_data_lists(
       fit[["data"]],
       result,
       structure_only = isTRUE(case[["structure_only"]]),
-      info           = case[["label"]]
+      info           = case[["label"]],
+      unused_outcome_columns = switch(attr(fit[["data"]], "outcome_type"),
+        norm = c("yi", "sei"), bin = c("ai", "ci", "n1i", "n2i"))
     )
   }
 })
@@ -209,6 +219,238 @@ test_that(".prepare_newdata inserts dummy outcomes only when the response is unu
   )
   expect_equal(response[["outcome"]][["yi"]], c(0, 0))
   expect_equal(response[["outcome"]][["sei"]], c(0.1, 0.2))
+})
+
+
+test_that("newdata parser placeholders do not satisfy fitted formulas", {
+
+  fit_mods <- brma.norm(
+    yi = yi, sei = sei, mods = ~ sei,
+    data = test_data_norm, only_data = TRUE
+  )
+  fit_scale <- brma.norm(
+    yi = yi, sei = sei, scale = ~ sei,
+    data = test_data_norm, only_data = TRUE
+  )
+  fit_counts <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i, mods = ~ ai,
+    data = test_data_glmm, only_data = TRUE
+  )
+  mv_data <- data.frame(
+    yi    = c(.10, .20, .30),
+    sei   = c(.20, .25, .30),
+    study = c("s1", "s2", "s3")
+  )
+  fit_random <- brma.mv(
+    yi                        = yi,
+    V                         = diag(mv_data[["sei"]]^2),
+    random                    = ~ diag(0 + sei | study),
+    data                      = mv_data,
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_data                 = TRUE
+  )
+
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_mods, data.frame(row = 1:2), type = "terms"
+    ),
+    "moderator variables. Missing: sei",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_scale, data.frame(row = 1:2), type = "terms.scale"
+    ),
+    "scale variables. Missing: sei",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_random, data.frame(row = 1:2), type = "estimate",
+      include_random = TRUE
+    ),
+    "random-effect variables. Missing: sei",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      fit_counts, data.frame(row = 1:2), type = "terms"
+    ),
+    "moderator variables. Missing: ai",
+    fixed = TRUE
+  )
+
+  supplied <- data.frame(sei = c(.20, .30))
+  expect_no_error(RoBMA:::.prepare_newdata(
+    fit_mods, supplied, type = "terms"
+  ))
+  expect_no_error(RoBMA:::.prepare_newdata(
+    fit_scale, supplied, type = "terms.scale"
+  ))
+  expect_no_error(RoBMA:::.prepare_newdata(
+    fit_random, supplied, type = "estimate", include_random = TRUE
+  ))
+})
+
+
+test_that("newdata rejects internal parser placeholder collisions", {
+
+  fit <- brma.norm(
+    yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
+  )
+  collision <- data.frame(row = 1:2)
+  collision[[".RoBMA_newdata_parser_yi"]] <- 0
+
+  expect_error(
+    RoBMA:::.prepare_newdata(fit, collision, type = "terms"),
+    "reserved for internal prediction parsing",
+    fixed = TRUE
+  )
+})
+
+
+test_that("unused outcome-named predictors keep their own newdata values", {
+
+  bin <- data.frame(ai = c(1L, 2L, 3L), ci = c(1L, 2L, 2L), n1i = c(10L, 20L, 30L), n2i = c(12L, 22L, 32L))
+  for (variable in c("n1i", "ai")) {
+    object <- brma.glmm(
+      ai = ai, ci = ci, n1i = n1i, n2i = n2i, mods = reformulate(variable),
+      data = bin, measure = "OR", only_priors = TRUE, silent = TRUE
+    )
+    newdata <- setNames(data.frame(c(15L, 25L)), variable)
+    expect_silent(prepared <- .prepare_newdata(object, newdata, type = "terms"))
+    expect_identical(prepared[["mods"]][[variable]], newdata[[variable]])
+    expect_equal(nrow(prepared[["outcome"]]), 2L)
+    expect_error(predict(object, newdata = newdata, type = "terms"),
+      "Posterior samples are required for this operation; fit the model or supply '.posterior_samples'.", fixed = TRUE)
+    expect_error(.prepare_newdata(object, newdata, type = "response"), "For GLMM models, provide either", fixed = TRUE)
+  }
+  normal <- data.frame(yi = c(0.1, 0.2, 0.3), sei = c(0.1, 0.2, 0.3))
+  object <- brma(yi = yi, sei = sei, mods = ~ sei, data = normal, measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  newdata <- data.frame(sei = c(-1, 2))
+  expect_silent(prepared <- .prepare_newdata(object, newdata, type = "terms"))
+  expect_identical(prepared[["mods"]][["sei"]], newdata[["sei"]])
+  expect_equal(prepared[["outcome"]][["sei"]], c(0, 0))
+  expect_error(.prepare_newdata(object, newdata, type = "response"), "The 'sei' must be equal or higher than 0.", fixed = TRUE)
+  poisson <- data.frame(x1i = c(2L, 3L, 4L), x2i = c(1L, 4L, 2L), t1i = c(10, 12, 14), t2i = c(11, 13, 15))
+  for (variable in c("x1i", "t1i")) {
+    object <- brma.glmm(x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+      mods = reformulate(variable), data = poisson, measure = "IRR", only_priors = TRUE, silent = TRUE)
+    newdata <- setNames(data.frame(c(-1, 2)), variable)
+    expect_silent(prepared <- .prepare_newdata(object, newdata, type = "terms"))
+    expect_identical(prepared[["mods"]][[variable]], newdata[[variable]])
+    expect_equal(prepared[["outcome"]][[variable]], c(0, 0))
+    expect_error(.prepare_newdata(object, newdata, type = "response"), "The 'newdata' must contain columns:", fixed = TRUE)
+  }
+})
+
+
+test_that(".prepare_newdata accepts binomial cells for every prediction mode", {
+
+  fit <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
+  )
+  cells <- data.frame(
+    ai = c(2L, 3L),
+    bi = c(8L, 9L),
+    ci = c(1L, 4L),
+    di = c(9L, 8L)
+  )
+
+  for (type in c("terms", "estimate", "response")) {
+    result <- RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = cells,
+      type    = type
+    )
+
+    if (type == "response") {
+      expect_equal(result[["outcome"]][["ai"]], cells[["ai"]], info = type)
+      expect_equal(result[["outcome"]][["ci"]], cells[["ci"]], info = type)
+      expect_equal(result[["outcome"]][["n1i"]], c(10L, 12L), info = type)
+      expect_equal(result[["outcome"]][["n2i"]], c(10L, 12L), info = type)
+    } else {
+      expect_equal(result[["outcome"]][["ai"]], c(0L, 0L), info = type)
+      expect_equal(result[["outcome"]][["ci"]], c(0L, 0L), info = type)
+    }
+  }
+})
+
+
+test_that(".prepare_newdata accepts GLMM response sampling sizes without events", {
+
+  fit_bin <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
+  )
+  bin_totals <- data.frame(
+    n1i = c(10L, 12L),
+    n2i = c(11L, 13L)
+  )
+  bin_result <- RoBMA:::.prepare_newdata(
+    object  = fit_bin,
+    newdata = bin_totals,
+    type    = "response"
+  )
+
+  expect_equal(bin_result[["outcome"]]["n1i"], bin_totals["n1i"])
+  expect_equal(bin_result[["outcome"]]["n2i"], bin_totals["n2i"])
+  expect_equal(bin_result[["outcome"]][["ai"]], c(0L, 0L))
+  expect_equal(bin_result[["outcome"]][["ci"]], c(0L, 0L))
+
+  poisson_data <- data.frame(
+    x1i = c(2L, 3L),
+    x2i = c(1L, 4L),
+    t1i = c(10, 12),
+    t2i = c(11, 13)
+  )
+  fit_pois <- brma.glmm(
+    x1i = x1i, x2i = x2i, t1i = t1i, t2i = t2i,
+    data = poisson_data, measure = "IRR", only_data = TRUE
+  )
+  exposures <- data.frame(
+    t1i = c(20, 22),
+    t2i = c(21, 23)
+  )
+  pois_result <- RoBMA:::.prepare_newdata(
+    object  = fit_pois,
+    newdata = exposures,
+    type    = "response"
+  )
+
+  expect_equal(pois_result[["outcome"]]["t1i"], exposures["t1i"])
+  expect_equal(pois_result[["outcome"]]["t2i"], exposures["t2i"])
+  expect_equal(pois_result[["outcome"]][["x1i"]], c(0, 0))
+  expect_equal(pois_result[["outcome"]][["x2i"]], c(0, 0))
+})
+
+
+test_that(".prepare_newdata rejects inconsistent binomial cells and totals", {
+
+  fit <- brma.glmm(
+    ai = ai, ci = ci, n1i = n1i, n2i = n2i,
+    data = test_data_glmm, only_data = TRUE
+  )
+  newdata <- data.frame(
+    ai  = c(2L, 3L),
+    bi  = c(8L, 9L),
+    ci  = c(1L, 4L),
+    di  = c(9L, 8L),
+    n1i = c(10L, 99L),
+    n2i = c(10L, 12L)
+  )
+
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object  = fit,
+      newdata = newdata,
+      type    = "response"
+    ),
+    "n1i.*ai [+] bi"
+  )
 })
 
 test_that(".prepare_newdata rejects missing required variables", {
@@ -255,7 +497,7 @@ test_that(".prepare_newdata rejects missing required variables", {
       expr   = quote(RoBMA:::.prepare_newdata(
         object = fit_scale,
         newdata = data.frame(yi = c(0.1, 0.2), sei = c(0.1, 0.2)),
-        type = "terms"
+        type = "terms.scale"
       )),
       regexp = "scale_var"
     ),
@@ -268,6 +510,12 @@ test_that(".prepare_newdata rejects missing required variables", {
       )),
       regexp = "n2i"
     )
+  ))
+
+  expect_no_error(RoBMA:::.prepare_newdata(
+    object = fit_scale,
+    newdata = data.frame(yi = c(0.1, 0.2), sei = c(0.1, 0.2)),
+    type = "terms"
   ))
 })
 
@@ -291,6 +539,32 @@ test_that(".prepare_newdata permits bias-adjusted PET/PEESE terms without new st
     object = fit, newdata = new_df, type = "terms", bias_adjusted = TRUE
   ))
 })
+
+test_that("selected latent newdata requires sampling information before selection context", {
+
+  object <- bselmodel(yi = c(.2, .5), sei = c(.2, .3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE,
+    prior_bias = BayesTools::prior_weightfunction("one-sided", .05,
+      BayesTools::wf_fixed(c(1, .4))))
+  samples <- cbind(mu = c(.1, -.1), tau = .3)
+  expect_error(predict(object, newdata = data.frame(row = 1L), type = "estimate",
+    quiet = TRUE, .posterior_samples = samples), paste0(
+      "The 'newdata' must contain either 'sei' (standard error) or 'vi' (variance) column."),
+    fixed = TRUE)
+  for (newdata in list(data.frame(sei = .2), data.frame(vi = .04))) {
+    expect_no_error(predict(object, newdata = newdata, type = "estimate", quiet = TRUE,
+      .posterior_samples = samples))
+  }
+  for (type in c("terms", "estimate")) {
+    expect_no_error(predict(object, newdata = data.frame(row = 1L), type = type,
+      bias_adjusted = TRUE, quiet = TRUE, .posterior_samples = samples))
+  }
+  ordinary <- brma(yi = c(.2, .5), sei = c(.2, .3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE)
+  expect_no_error(predict(ordinary, newdata = data.frame(row = 1L), type = "estimate",
+    quiet = TRUE, .posterior_samples = samples))
+})
+
 
 test_that(".prepare_newdata preserves predictor transformation settings", {
 
@@ -332,27 +606,34 @@ test_that(".prepare_newdata preserves predictor transformation settings", {
   expect_equal(attr(result_meandif, "set_contrast_factor_predictors"), "meandif")
 })
 
-test_that(".prepare_newdata drops rows with missing outcome or moderator values", {
+test_that(".prepare_newdata validates required precision and predictor values", {
 
   fit_norm <- brma.norm(
     yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
   )
-  expect_warning(
-    result_norm <- RoBMA:::.prepare_newdata(
+  expect_silent(
+    unused <- RoBMA:::.prepare_newdata(
       object = fit_norm,
       newdata = data.frame(yi = c(0.1, NA, 0.3), sei = c(0.1, 0.2, 0.15)),
       type = "terms"
-    ),
-    regexp = "removed"
+    )
   )
-  expect_equal(nrow(result_norm[["outcome"]]), 2L)
+  expect_equal(unused[["outcome"]][["yi"]], rep(0, 3))
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object = fit_norm,
+      newdata = data.frame(yi = c(0.1, 0.2, 0.3), sei = c(0.1, NA, 0.15)),
+      type = "response"
+    ),
+    regexp = "row\\(s\\): 2.*outcome_required\\$sei"
+  )
 
   fit_mods <- brma.norm(
     yi = yi, sei = sei, mods = ~ mod_cont,
     data = test_data_norm, only_data = TRUE
   )
-  expect_warning(
-    result_mods <- RoBMA:::.prepare_newdata(
+  expect_error(
+    RoBMA:::.prepare_newdata(
       object = fit_mods,
       newdata = data.frame(
         yi = c(0.1, 0.2, 0.3), sei = c(0.1, 0.2, 0.15),
@@ -360,10 +641,24 @@ test_that(".prepare_newdata drops rows with missing outcome or moderator values"
       ),
       type = "terms"
     ),
-    regexp = "removed"
+    regexp = "row\\(s\\): 2.*mods\\$mod_cont"
   )
-  expect_equal(nrow(result_mods[["outcome"]]), 2L)
-  expect_equal(nrow(result_mods[["mods"]]), 2L)
+
+  fit_scale <- brma.norm(
+    yi = yi, sei = sei, scale = ~ scale_var,
+    data = test_data_norm, only_data = TRUE
+  )
+  expect_error(
+    RoBMA:::.prepare_newdata(
+      object = fit_scale,
+      newdata = data.frame(
+        yi = c(0.1, 0.2), sei = c(0.1, 0.2),
+        scale_var = c(1, NA)
+      ),
+      type = "terms.scale"
+    ),
+    regexp = "row\\(s\\): 2.*scale\\$scale_var"
+  )
 })
 
 test_that(".prepare_newdata accepts prediction-only edge cases", {
@@ -377,7 +672,7 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
       newdata = quote(data.frame(yi = 0.5, sei = 0.1)),
       check = function(result) {
         expect_equal(nrow(result[["outcome"]]), 1L)
-        expect_equal(result[["outcome"]][["yi"]], 0.5)
+        expect_equal(result[["outcome"]][["yi"]], 0)
       }
     ),
     list(
@@ -442,6 +737,7 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
       newdata = quote(data.frame(
         yi = c(0.1, 0.2), sei = c(0.1, 0.1), scale_var = c(1, 1)
       )),
+      type = "terms.scale",
       check = function(result) expect_equal(result[["scale"]][["scale_var"]], c(1, 1))
     ),
     list(
@@ -450,7 +746,7 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
         yi = yi, sei = sei, data = test_data_norm, only_data = TRUE
       )),
       newdata = quote(data.frame(yi = c(0.1, 0.2, 0.3), sei = c(0, 0.1, 0))),
-      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0.1, 0))
+      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0, 0))
     ),
     list(
       label = "zero vi",
@@ -470,7 +766,7 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
         only_data = TRUE
       )),
       newdata = quote(data.frame(yi = c(0.1, 0.2), sei = c(0, 0.1))),
-      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0.1))
+      check = function(result) expect_equal(result[["outcome"]][["sei"]], c(0, 0))
     )
   )
 
@@ -479,8 +775,20 @@ test_that(".prepare_newdata accepts prediction-only edge cases", {
     result <- RoBMA:::.prepare_newdata(
       object  = fit,
       newdata = eval(case[["newdata"]]),
-      type    = "terms"
+      type    = if (!is.null(case[["type"]])) case[["type"]] else "terms"
     )
     case[["check"]](result)
   }
+})
+
+
+test_that("missing binomial response totals name the newdata remedy", {
+
+  object <- brma.glmm(ai = c(1, 2), ci = c(2, 1), n1i = c(10, 10),
+    n2i = c(10, 10), only_data = TRUE)
+  expect_error(.prepare_newdata(object, newdata = data.frame(x = 1), type = "response"),
+    "For response predictions, supply 'n1i' and 'n2i' in 'newdata', or provide the complete four cell counts.",
+    fixed = TRUE)
+  expect_silent(.prepare_newdata(object,
+    newdata = data.frame(n1i = 10, n2i = 20), type = "response"))
 })

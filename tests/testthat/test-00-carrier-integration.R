@@ -1,0 +1,162 @@
+source(testthat::test_path("common-functions.R"))
+
+.carrier_integration_fits <- function(){
+
+  list(
+    treatment = load_fit("lane_carrier_treatment"),
+    meandif = load_fit("lane_carrier_meandif"),
+    nonzero = load_fit("lane_carrier_nonzero"),
+    averaged = load_fit("lane_carrier_averaged"),
+    ordinary = load_fit("lane_carrier_ordinary"),
+    gated = load_fit("lane_carrier_gated")
+  )
+}
+
+test_that("public no-intercept moderator means use the fitted contrast basis", {
+  skip_on_cran()
+  fits <- .carrier_integration_fits()
+  for(name in c("treatment", "meandif")){
+    fit <- fits[[name]]
+    means <- marginal_means(fit, bf = FALSE)
+    prediction <- BayesTools::JAGS_predict_formula(fit$fit, "mu",
+      data = data.frame(g1 = factor(c(5, 10, 20), levels = c(5, 10, 20))), formula_target = "fixed")
+    for(i in seq_len(3L)) expect_equal(as.numeric(means$inference$averaged$mu_g1[[i]]),
+      unname(prediction$value[i, ]), tolerance = 1e-12)
+  }
+})
+
+test_that("whole marginal-means regions retain structural fixed-cell refusal", {
+  skip_on_cran()
+  means <- marginal_means(.carrier_integration_fits()$nonzero, bf = FALSE)
+  expect_error(hypothesis(means, "g1 > 0", density_method = "KDE"), class = "BayesTools_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1[5] > 0", density_method = "KDE"), class = "BayesTools_hypothesis_fixed")
+  expect_error(hypothesis(means, "g1 = 0", density_method = "KDE"), class = "BayesTools_hypothesis_fixed")
+  expect_s3_class(hypothesis(means, "g1[10] > 0", density_method = "KDE"), "BayesTools_hypothesis_BF")
+})
+
+test_that("expanded public factor groups retain every statement-major result row", {
+  skip_on_cran()
+  fit <- .carrier_integration_fits()$ordinary
+  statements <- c("g1 > 0", "mu > 0", "g1 > 0")
+  separate <- lapply(statements, function(statement) hypothesis(fit, statement, density_method = "KDE", columns = "all", seed = 1, standardized_coefficients = TRUE))
+  combined <- hypothesis(fit, statements, density_method = "KDE", columns = "all", seed = 1, standardized_coefficients = TRUE)
+  expect_identical(nrow(combined), 7L)
+  expected <- unlist(lapply(separate, function(result) attr(result, "raw_log_BF")), use.names = FALSE)
+  expect_identical(attr(combined, "raw_log_BF"), expected)
+  expect_length(attr(combined, "numerical_diagnostics"), 7L)
+  expect_length(attr(combined, "prior_numerical_diagnostics"), 7L)
+  expect_length(attr(combined, "hypothesis_ast")$statements, 3L)
+  for(logBF in c(FALSE, TRUE)) for(BF01 in c(FALSE, TRUE)){
+    viewed <- update(combined, logBF = logBF, BF01 = BF01)
+    expect_identical(attr(viewed, "raw_log_BF"), expected)
+    expected_view <- unlist(lapply(separate, function(result) as.numeric(update(result, logBF = logBF, BF01 = BF01)$BF)), use.names = FALSE)
+    expect_identical(as.numeric(viewed$BF), expected_view)
+  }
+  plain <- .output_table_as_long_data_frame(combined, "location")
+  expect_identical(nrow(plain), 7L)
+  expect_null(attr(plain$BF, "canonical_log_BF"))
+})
+
+test_that("point and region marginal groups select their own execution method", {
+  skip_on_cran()
+  means <- marginal_means(.carrier_integration_fits()$ordinary, bf = FALSE)
+  statements <- c("g1[10] - g1[20] = 0", "g1[10] > 0")
+  for(method in c("qCMDE", "IWMDE")){
+    separate <- lapply(statements, function(statement) hypothesis(means, statement, density_method = method, columns = "all", seed = 1))
+    combined <- hypothesis(means, statements, density_method = method, columns = "all", seed = 1)
+    reversed <- hypothesis(means, rev(statements), density_method = method, columns = "all", seed = 1)
+    expected <- unlist(lapply(separate, function(result) attr(result, "raw_log_BF")), use.names = FALSE)
+    expect_equal(attr(combined, "raw_log_BF"), expected, tolerance = 1e-12)
+    expect_equal(attr(reversed, "raw_log_BF"), rev(expected), tolerance = 1e-12)
+    expect_length(attr(combined, "numerical_diagnostics"), 2L)
+  }
+})
+
+test_that("derived public OR targets carry their effective declaration to scalar attachment", {
+  skip_on_cran()
+  means <- marginal_means(.carrier_integration_fits()$averaged, bf = FALSE)
+  plan <- engine_plan_marginal_means(means, "2 * g1[10] = 0")
+  declared <- .iwmde_sample_condition_metadata(plan$linear_target$posterior)
+  expect_identical(declared$conditional_rule, "OR")
+  expect_length(declared$conditional, 2L)
+  captured <- NULL
+  local_mocked_bindings(.iwmde_estimate = function(context, parameter_spec, ...){
+    captured <<- list(context = context, spec = parameter_spec)
+    stop("Captured actual public scalar attach", call. = FALSE)
+  }, .package = "RoBMA")
+  expect_error(hypothesis(means, "2 * g1[10] = 0", density_method = "qCMDE", seed = 1), "Captured actual public scalar attach", fixed = TRUE)
+  for(field in names(declared)) expect_identical(captured$spec[[field]], declared[[field]])
+  expected_rows <- .iwmde_parameter_condition_rows(captured$context, declared)
+  expect_identical(.iwmde_parameter_condition_rows(captured$context, captured$spec), expected_rows)
+  and <- declared; and$conditional_rule <- "AND"
+  expect_gt(sum(expected_rows), sum(.iwmde_parameter_condition_rows(captured$context, and)))
+})
+
+test_that("ordered global totals participate in marginal inclusion conditioning", {
+  skip_on_cran()
+  fit <- .carrier_integration_fits()$gated
+  prior <- attr(fit$fit, "prior_list")$mu_g1
+  expect_true(.marginal_means_prior_is_conditional(prior))
+  expect_false(.marginal_means_prior_is_conditional(BayesTools::prior_ordered(BayesTools::prior("gamma", list(2, 2)))))
+  means <- marginal_means(fit, bf = FALSE)
+  conditional <- means$inference$conditional$mu_g1[[3L]]
+  condition <- BayesTools::posterior_metadata(conditional, "condition")
+  expect_identical(condition$effective_conditional, "mu_g1")
+  expect_false(condition$averaged)
+  expect_lt(length(conditional), length(means$inference$averaged$mu_g1[[3L]]))
+})
+
+test_that("single-model default curves request only averaged targets", {
+  expect_identical(.marginal_means_precompute_type(NULL, FALSE), "averaged")
+  expect_identical(.marginal_means_precompute_type(NULL, TRUE), c("averaged", "conditional"))
+  expect_error(.marginal_means_precompute_type("conditional", FALSE))
+})
+
+test_that("declared stochastic contribution refusals are planned for levels and combinations", {
+  skip_on_cran()
+  data <- data.frame(g = factor(rep(c("A", "B"), 3L)), yi = c(-.2, .3, 0, .4, .1, .2), sei = rep(.5, 6L))
+  for(multiplier in list(2, "tau")){
+    slope <- BayesTools::prior_factor("normal", list(0, 1), contrast = "treatment")
+    attr(slope, "multiply_by") <- multiplier
+    fit <- load_fit(if (is.numeric(multiplier)) "lane_contribution_constant2" else "lane_contribution_tau")
+    means <- marginal_means(fit, bf = FALSE)
+    for(statement in c("g[B] = 0.1", "g[B] - g[A] = 0.1")){
+      plan <- engine_plan_marginal_means(means, statement)
+      expect_null(engine_plan_status(plan, means, "KDE"))
+      if(is.numeric(multiplier)){
+        expect_null(engine_plan_status(plan, means, "qCMDE"))
+        expect_null(engine_plan_status(plan, means, "IWMDE"))
+      }else{
+        for(method in c("qCMDE", "IWMDE")){
+          refusal <- engine_plan_status(plan, means, method)
+          expect_match(refusal$reason, "stochastic formula contribution products", fixed = TRUE)
+          expect_true("RoBMA_density_method_original_scale" %in% refusal$class)
+          expect_error(hypothesis(means, statement, density_method = method), class = "BayesTools_hypothesis_method")
+        }
+      }
+    }
+  }
+})
+
+test_that("random groups select point-owned attachment metadata independently of order", {
+  # Existing compiled stand-in: routing only. The saved actual known-V fit
+  # separately verifies this public path; the estimator is not executed here.
+  object <- gated_random_object()
+  attr(object$data, "known_V") <- TRUE
+  attr(object$data, "measure") <- "GEN"
+  statements <- paste0("`(mu) study: tau(intercept)`", c(" > 0.1", " = 0.2"))
+  target <- engine_plans(object, statements)[[2L]]$density_target
+  captured <- list()
+  local_mocked_bindings(.hypothesis_density_attach = function(posterior, request, control, cache){
+    captured[[length(captured) + 1L]] <<- list(parameter = request$parameter, spec = request$spec, display_transform = request$display_transform)
+    stop("Captured random point attachment", call. = FALSE)
+  }, .package = "RoBMA")
+  for(hypothesis in list(statements, rev(statements), statements[2L])){
+    expect_error(hypothesis(object, hypothesis, density_method = "qCMDE"), "Captured random point attachment", fixed = TRUE)
+  }
+  for(record in captured){
+    expect_identical(record$parameter, target$parameter)
+    expect_identical(record$spec, target$parameter_spec)
+    expect_identical(record$display_transform, target$display_transform)
+  }
+})

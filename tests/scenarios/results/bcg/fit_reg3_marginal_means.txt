@@ -1,0 +1,20 @@
+
+Marginal Means:
+                                Mean    SD  0.025    0.5  0.975
+intercept                     -0.603 0.227 -1.059 -0.603 -0.145
+alloc[alternate]              -0.603 0.227 -1.059 -0.603 -0.145
+alloc[random]                 -0.840 0.189 -1.241 -0.831 -0.478
+alloc[systematic]             -0.571 0.239 -1.026 -0.581 -0.069
+ablat[-1SD]                   -0.346 0.291 -0.930 -0.342  0.227
+ablat[0SD]                    -0.603 0.227 -1.059 -0.603 -0.145
+ablat[1SD]                    -0.860 0.316 -1.487 -0.864 -0.215
+alloc:ablat[alternate, -1SD]  -0.346 0.291 -0.930 -0.342  0.227
+alloc:ablat[random, -1SD]     -0.415 0.261 -0.986 -0.389  0.052
+alloc:ablat[systematic, -1SD] -0.202 0.330 -0.853 -0.215  0.501
+alloc:ablat[alternate, 0SD]   -0.603 0.227 -1.059 -0.603 -0.145
+alloc:ablat[random, 0SD]      -0.840 0.189 -1.241 -0.831 -0.478
+alloc:ablat[systematic, 0SD]  -0.571 0.239 -1.026 -0.581 -0.069
+alloc:ablat[alternate, 1SD]   -0.860 0.316 -1.487 -0.864 -0.215
+alloc:ablat[random, 1SD]      -1.265 0.250 -1.759 -1.269 -0.749
+alloc:ablat[systematic, 1SD]  -0.941 0.428 -1.766 -0.952 -0.067
+

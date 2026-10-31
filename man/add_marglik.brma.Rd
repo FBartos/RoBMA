@@ -5,12 +5,39 @@
 \alias{add_marglik}
 \title{Add Marginal Likelihood to brma Objects}
 \usage{
-\method{add_marglik}{brma}(object, ...)
+\method{add_marglik}{brma}(
+  object,
+  parallel = NULL,
+  cores = NULL,
+  repetitions = 1L,
+  method = c("normal", "warp3"),
+  maxiter = 10000L,
+  silent = TRUE,
+  ...
+)
 }
 \arguments{
 \item{object}{a brma model object.}
 
-\item{...}{additional arguments (currently not used).}
+\item{parallel}{whether bridge-density evaluations run in parallel. The
+default, \code{NULL}, inherits the setting used to fit \code{object}.}
+
+\item{cores}{number of bridge-sampling worker processes. The default,
+\code{NULL}, inherits the fitted core count and is capped by
+\code{RoBMA.get_option("max_cores")}. It is used only when
+\code{parallel = TRUE}.}
+
+\item{repetitions}{number of independent bridge-sampling repetitions.}
+
+\item{method}{bridge transformation; either \code{"normal"} or
+\code{"warp3"}.}
+
+\item{maxiter}{maximum number of bridge iterations per repetition.}
+
+\item{silent}{whether bridge-sampling progress is suppressed. The typed
+iteration-limit diagnostic remains visible even when \code{silent = TRUE}.}
+
+\item{...}{reserved for future use. Unused arguments produce a warning.}
 }
 \value{
 The brma object with the marginal likelihood result stored in
@@ -24,10 +51,73 @@ bridge sampling and store the result in the object.
 The marginal likelihood is computed using the \code{bridgesampling} package
 via the \code{BayesTools::JAGS_bridgesampling} wrapper. The result is stored
 in the object and can be extracted using \code{\link{bridge_sampler.brma}}.
+Proposal draws use the seed stored with the fit. When that seed is non-NULL,
+the caller's random-number state is restored after the call; a NULL fit seed
+uses and advances the caller's random-number stream.
+A finite bridge estimate remains available when observed iteration counts
+exceed \code{maxiter}. The stored result's \code{success} records finite
+availability, not certified convergence. Its optional
+\code{iteration_limit_exceeded} is \code{TRUE} for observed excess,
+\code{FALSE} for complete counts without excess, and \code{NA} or absent
+when telemetry is unavailable. Counts may include upstream retries.
+Observed excess raises \code{BayesTools_marglik_iteration_limit}, inheriting
+from \code{BayesTools_marglik_diagnostic}, under either \code{silent} setting.
+Inspect \code{print(object[["marglik"]])} and its repetition diagnostics.
+\code{bridge_sampler(object)} returns the original upstream bridge object;
+it does not promise the stored wrapper's optional telemetry field.
 
 Product-space model-averaging objects (\code{BMA.norm}, \code{BMA.glmm},
-and \code{RoBMA}) do not expose a bridge-sampling marginal likelihood;
+\code{BMA.mv}, \code{RoBMA}, and \code{RoBMA.mv}) do not expose a
+bridge-sampling marginal likelihood;
 use predictive comparison methods such as \code{\link{loo.brma}} instead.
+For a single model whose bridge parameters are all fixed by point priors,
+the log marginal likelihood is evaluated exactly at those fixed values;
+no bridge-sampling repetitions are required.
+For \code{brma.mv()} known-\code{V} objects, bridge sampling evaluates the
+joint likelihood corresponding to the fitted known-\code{V} backend, not the
+conditional estimate-wise target used by LOO/WAIC diagnostics. Sampled
+Gaussian location random-effect blocks are integrated exactly during bridge
+evaluation as their draw-specific \eqn{ZGZ'} covariance. Their SD,
+allocation, and correlation parameters remain bridge coordinates; only the
+standardized latent effects are removed. This is a reparameterization of the
+same marginal-likelihood target, not a likelihood approximation. Fitted
+estimate-level marginalized blocks remain in the diagonal row variance.
+For Gaussian models fitted with the specialized \code{cluster} interface,
+the standardized cluster effects are likewise integrated exactly. The bridge
+retains total heterogeneity and its allocation while evaluating the implied
+diagonal-plus-cluster-rank-one covariance, including row-specific scale
+regression and likelihood weights.
+Selection models retain every context that the fitted model conditions on,
+including its normalized prior, and integrate only the Gaussian sources
+declared by that model. The likelihood uses the same full publication events
+and integration plan as fitting. A context integrated before selection
+normalization cannot be replaced by a retained-context parameterization.
+With \code{known_sampling_variance = "condition"}, the bridge retains the
+independent Gaussian augmentation coordinates and their normalized priors.
+The complete sampling error and random effects are reconstructed for each
+proposed bridge state before evaluating its selection normalizer.
+
+A non-finite bridge repetition raises a
+\code{RoBMA_marglik_repetition_failure} error, inheriting from
+\code{RoBMA_marglik_error}. Its \code{parent} retains the complete upstream
+condition, including the failed \code{repetitions} table. Increase
+\code{maxiter} when a failed repetition reached its iteration limit;
+otherwise inspect the posterior samples and priors for non-finite densities.
+Fitting more posterior draws (for example with a larger \code{sample} or
+\code{update()}) may help in either case. These actions do not guarantee
+that the diagnostics will pass.
+
+A checked posterior sample that cannot form a full-rank bridge proposal
+raises \code{RoBMA_marglik_rank_deficiency}, inheriting from
+\code{RoBMA_marglik_error}. Its unchanged upstream \code{parent} and exposed
+\code{reason}, \code{rank}, \code{n_coordinates}, \code{n_draws}, and
+\code{dependent_coordinates} describe the observed sample. For
+\code{reason = "insufficient_draws"}, fit more posterior draws with a larger
+\code{sample} or \code{update()}; dependence may persist. For
+\code{reason = "dependent_coordinates"}, inspect the parameterization and
+sampling; more draws alone need not resolve dependence. The message names the
+first reported pivot coordinates; they identify one dependent set, not
+uniquely faulty nodes.
 }
 \examples{
 \dontrun{

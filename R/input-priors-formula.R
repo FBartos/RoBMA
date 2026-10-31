@@ -1,0 +1,1029 @@
+.term_default_continuous_prior         <- function(prior, parameter = "mods") {
+
+  if (!BayesTools::is.prior.factor(prior)) {
+    return(prior)
+  }
+  if (BayesTools::is.prior.ordered(prior)) {
+    stop(structure(
+      list(message = paste0(
+        "An ordered default in 'prior_", parameter,
+        "' cannot supply a continuous term. Use a named 'prior_", parameter,
+        "' list with a separate scalar prior for each continuous term."
+      ), call = NULL),
+      class = c("RoBMA_prior_error", "error", "condition")
+    ))
+  }
+
+  distribution <- prior[["distribution"]]
+  parameters <- prior[["parameters"]]
+  if (distribution %in% c("mnormal", "mcauchy", "mt", "mpoint")) {
+    distribution <- switch(distribution,
+      mnormal = "normal", mcauchy = "cauchy", mt = "t", mpoint = "point")
+    parameters[["K"]] <- NULL
+  }
+
+  return(BayesTools::prior(
+    distribution = distribution,
+    parameters   = parameters,
+    truncation   = prior[["truncation"]],
+    prior_weights = prior[["prior_weights"]]
+  ))
+}
+.term_default_factor_prior             <- function(prior, contrast) {
+
+  if (BayesTools::is.prior.factor(prior)) {
+    return(prior)
+  }
+
+  distribution <- prior[["distribution"]]
+  if (!contrast %in% c("treatment", "independent") &&
+      !distribution %in% c("spike", "mnormal", "mcauchy", "mt")) {
+    distribution <- paste0("m", distribution)
+  }
+
+  return(BayesTools::prior_factor(
+    distribution = distribution,
+    parameters   = prior[["parameters"]],
+    truncation   = prior[["truncation"]],
+    contrast     = contrast
+  ))
+}
+.term_default_prior_sd                 <- function(parameter, measure, data, prior_unit_information_sd) {
+
+  if (parameter == "mods") {
+    if (is.null(prior_unit_information_sd)) {
+      prior_unit_information_sd <- .get_unit_information_sd(data = data, measure = measure)
+    }
+    return(prior_unit_information_sd * RoBMA.get_option("default_UISD.mods"))
+  }
+
+  if (parameter == "scale") {
+    return(RoBMA.get_option("default_UISD.scale"))
+  }
+}
+.term_default_continuous_normal_prior  <- function(prior_sd, rescale_priors) {
+
+  prior <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = prior_sd))
+  return(.rescale_prior_object(prior, rescale_priors))
+}
+.term_default_factor_normal_prior      <- function(prior_sd, contrast, rescale_priors) {
+
+  if (contrast %in% c("treatment", "independent")) {
+    prior <- BayesTools::prior_factor(
+      distribution = "normal",
+      parameters   = list("mean" = 0, "sd" = prior_sd),
+      contrast     = contrast
+    )
+  } else {
+    prior <- BayesTools::prior_factor(
+      distribution = "mnormal",
+      parameters   = list("mean" = 0, "sd" = prior_sd),
+      contrast     = contrast
+    )
+  }
+
+  return(.rescale_prior_object(prior, rescale_priors))
+}
+.warn_default_independent_fixed_overspecification <- function(
+    formula_design, formula, explicit_prior_names, parameter, contrast) {
+
+  if (!identical(contrast, "independent")) {
+    return(invisible(FALSE))
+  }
+
+  model_terms      <- formula_design[["model_terms"]]
+  model_terms_type <- formula_design[["model_terms_type"]]
+  default_factor_terms <- model_terms[
+    model_terms_type == "factor" &
+      !.formula_design_term_labels(formula_design) %in% explicit_prior_names
+  ]
+  if (length(default_factor_terms) == 0L) {
+    return(invisible(FALSE))
+  }
+
+  has_compiled_intercept <- "intercept" %in% model_terms
+  term_positions <- match(default_factor_terms, model_terms)
+  term_assign <- term_positions - as.integer(has_compiled_intercept)
+  selected_assign <- term_assign
+  has_formula_intercept <- has_compiled_intercept &&
+    (parameter == "scale" || attr(stats::terms(formula), "intercept") == 1L)
+  if (has_formula_intercept) {
+    selected_assign <- c(0L, selected_assign)
+  }
+
+  model_matrix <- formula_design[["model_matrix"]]
+  selected <- formula_design[["assign"]] %in% selected_assign
+  affected_matrix <- model_matrix[, selected, drop = FALSE]
+  affected_rank <- qr(affected_matrix)[["rank"]]
+  if (affected_rank == ncol(affected_matrix)) {
+    return(invisible(FALSE))
+  }
+
+  remedy <- if (parameter == "scale") {
+    "Set identifiable contrasts with 'prior_scale'; scale regression retains an intercept."
+  } else if (has_formula_intercept) {
+    paste0(
+      "Suppress the intercept with '", parameter,
+      " = ~ 0 + ...', use independent coding for at most one factor term, "
+    )
+  } else {
+    "Use independent coding for at most one factor term "
+  }
+  warning(
+    "The '", parameter,
+    "' formula is overspecified by default independent factor contrasts: ",
+    "the affected design has ", ncol(affected_matrix),
+    " columns but rank ", affected_rank, ". ",
+    remedy,
+    if (parameter != "scale") paste0("or set identifiable contrasts with 'prior_", parameter, "'."),
+    call. = FALSE
+  )
+
+  invisible(TRUE)
+}
+.assign_prior_list.terms               <- function(
+    prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors,
+    set_default_spike = FALSE, formula_parameter = NULL) {
+
+  # set_default_spike argument is used when calling from .assign_prior_list.terms_mixture
+  # to set-up prior distributions under the null hypotheses
+  if (is.null(formula_parameter)) {
+    formula_parameter <- switch(parameter, "mods" = "mu", "scale" = "log_tau")
+  }
+
+  structural_zero_intercept <- parameter == "mods" &&
+    attr(stats::terms(attr(data[[parameter]], "formula")), "intercept") == 0
+  if (structural_zero_intercept) {
+    prior_intercept <- BayesTools::prior("spike", parameters = list(0))
+  }
+
+  ### check the user-specified priors
+  user_default_prior <- NULL
+  if (!missing(prior_list) && BayesTools::is.prior(prior_list)) {
+    .check_prior.term(prior_list)
+    user_default_prior <- prior_list
+    prior_list         <- list()
+  } else if (!missing(prior_list) && is.null(prior_list)) {
+    prior_list <- list()
+  } else if (!missing(prior_list)) {
+    # check the priors and apply rescaling if specified
+    for (i in seq_along(prior_list)) {
+      prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
+      if (!is.null(names(prior_list)) && identical(names(prior_list)[[i]], "intercept")) {
+        prior_list[[i]] <- .check_prior.formula_intercept(prior_list[[i]], parameter)
+      } else {
+        .check_prior.term(prior_list[[i]])
+      }
+    }
+  } else {
+    # create an empty placeholder instead
+    prior_list <- list()
+  }
+
+  if ("intercept" %in% names(prior_list)) {
+    if (structural_zero_intercept) {
+      # the formula declares the intercept as zero: only a point prior at zero
+      # repeats that declaration, any other prior would contradict it
+      explicit_intercept <- prior_list[["intercept"]]
+      if (!BayesTools::is.prior.point(explicit_intercept) ||
+          !isTRUE(mean(explicit_intercept) == 0)) {
+        stop(structure(
+          class = c("RoBMA_prior_intercept_conflict", "RoBMA_prior_error",
+                    "error", "condition"),
+          list(message = paste0(
+            "The 'intercept' prior in 'prior_", parameter, "' contradicts the ",
+            "formula '", paste(deparse(attr(data[[parameter]], "formula")), collapse = " "),
+            "', which has no intercept. Drop the 'intercept' prior or add an ",
+            "intercept to the formula."
+          ), call = NULL)
+        ))
+      }
+    } else {
+      prior_intercept <- prior_list[["intercept"]]
+    }
+    prior_list[["intercept"]] <- NULL
+  }
+
+  ### for scale regression, the intercept cannot be spike(0) since it's used as log(intercept)
+  # in exp( log(intercept) + sum(beta_i * x_i) )
+  if (parameter == "scale") {
+    if (BayesTools::is.prior.point(prior_intercept) && mean(prior_intercept) == 0) {
+      stop("Intercept prior distribution for scale regression cannot be set to 0 since the model is parameterized as tau = exp( log(intercept) + sum(beta_i * x_i) ).", call. = FALSE)
+    }
+  }
+
+  ### add intercept to be beginning of the list (parsed previously)
+  prior_list <- c(list(intercept = prior_intercept), prior_list)
+
+  ### add default priors for remaining terms if left unspecified
+  # the assignment of missing priors is performed within BayesTools::JAGS_formula
+  # (it's easier to check and fill in the formula on assignment when it's being parsed)
+
+  # use user-specified default priors when available; otherwise construct defaults
+  if (!is.null(user_default_prior)) {
+
+    default_prior_continuous <- function() {
+      .rescale_prior_object(
+        .term_default_continuous_prior(user_default_prior, parameter), rescale_priors)
+    }
+    default_prior_factor <- function() {
+      .rescale_prior_object(.term_default_factor_prior(
+        prior = user_default_prior,
+        contrast = attr(data, "set_contrast_factor_predictors")
+      ), rescale_priors)
+    }
+
+  } else if (set_default_spike) {
+
+    # set_default_spike argument is used when calling from .assign_prior_list.terms_mixture
+    # to set-up prior distributions under the null hypotheses
+    default_prior_continuous <- BayesTools::prior("spike", parameters = list(0))
+    default_prior_factor     <- BayesTools::prior_factor("spike", parameters = list(0), contrast = attr(data, "set_contrast_factor_predictors"))
+
+  } else if (!missing(prior_informed_field)) {
+
+    if (prior_informed_field == "medicine") {
+
+      # input translation for BayesTools::prior_informed
+      if (missing(prior_informed_subfield)) {
+        prior_name <- "Cochrane"
+      } else {
+        prior_name <- prior_informed_subfield
+      }
+
+      type <- switch(
+        tolower(measure),
+        "smd"   = "smd",
+        "or"    = "logOR",
+        "rr"    = "logRR",
+        "rd"    = "RD",
+        "hr"    = "logHR"
+      )
+      if (is.null(type)) {
+        stop("Informed medicine priors are only available for measures 'SMD', 'OR', 'RR', 'RD', and 'HR'.", call. = FALSE)
+      }
+
+      if (parameter == "mods") {
+        # treat moderators by scaling them according to 1/2 of the effect
+        default_prior_continuous <- BayesTools::prior_informed(prior_name, parameter = "effect", type = type)
+        default_prior_continuous <- .rescale_prior_object(default_prior_continuous, RoBMA.get_option("default_informed_priors.mods"))
+      } else if (parameter == "scale") {
+        # scale parameters use the default scaling (no informed priors exist)
+        default_prior_continuous <- BayesTools::prior("normal", parameters = list("mean" = 0, "sd" = RoBMA.get_option("default_informed_priors.scale")))
+      }
+
+      # transform the continuous prior distributions into prior distributions for factors
+      if (attr(data, "set_contrast_factor_predictors") %in%
+          c("treatment", "independent")) {
+        default_prior_factor <- BayesTools::prior_factor(
+          distribution = default_prior_continuous[["distribution"]],
+          parameters   = default_prior_continuous[["parameters"]],
+          contrast     = attr(data, "set_contrast_factor_predictors")
+        )
+      } else {
+        default_prior_factor <- BayesTools::prior_factor(
+          distribution = paste0("m", default_prior_continuous[["distribution"]]),
+          parameters   = default_prior_continuous[["parameters"]],
+          contrast     = attr(data, "set_contrast_factor_predictors")
+        )
+      }
+
+    }
+
+  } else {
+
+    ### use prior_unit_information_sd otherwise
+    if (!missing(prior_unit_information_sd)) {
+      default_prior_unit_information_sd <- prior_unit_information_sd
+    } else {
+      default_prior_unit_information_sd <- NULL
+    }
+
+    default_prior_sd <- local({
+      prior_sd <- NULL
+      function() {
+        if (is.null(prior_sd)) {
+          prior_sd <<- .term_default_prior_sd(
+            parameter                 = parameter,
+            measure                   = measure,
+            data                      = data,
+            prior_unit_information_sd = default_prior_unit_information_sd
+          )
+        }
+        return(prior_sd)
+      }
+    })
+
+    default_prior_continuous <- function() {
+
+      return(.term_default_continuous_normal_prior(
+        prior_sd       = default_prior_sd(),
+        rescale_priors = rescale_priors
+      ))
+    }
+    default_prior_factor <- function() {
+
+      return(.term_default_factor_normal_prior(
+        prior_sd       = default_prior_sd(),
+        contrast       = attr(data, "set_contrast_factor_predictors"),
+        rescale_priors = rescale_priors
+      ))
+    }
+  }
+
+  # apply rescaling if specified
+  if (!is.function(default_prior_continuous)) {
+    default_prior_continuous <- .rescale_prior_object(default_prior_continuous, rescale_priors)
+  }
+  if (!is.function(default_prior_factor)) {
+    default_prior_factor <- .rescale_prior_object(default_prior_factor, rescale_priors)
+  }
+
+  # list the priors into the default positions
+  explicit_prior_names <- names(prior_list)
+  prior_list[["__default_continuous"]] <- default_prior_continuous
+  prior_list[["__default_factor"]]     <- default_prior_factor
+
+  ### use BayesTools::JAGS_formula to obtain the assigned list of priors
+  formula <- attr(data[[parameter]], "formula")
+  formula_result <- BayesTools::JAGS_formula(
+    parameter  = formula_parameter,
+    data       = data[[parameter]],
+    formula    = formula,
+    prior_list = prior_list
+  )
+  if (!set_default_spike) {
+    .warn_default_independent_fixed_overspecification(
+      formula_design       = formula_result[["formula_design"]],
+      formula              = formula,
+      explicit_prior_names = explicit_prior_names,
+      parameter            = parameter,
+      contrast             = attr(data, "set_contrast_factor_predictors")
+    )
+  }
+  # The assigned priors are named by their formula terms (the name map of the
+  # formula relates the coefficient names to the terms).
+  prior_list <- formula_result[["prior_list"]]
+  name_map   <- formula_result[["formula_design"]][["name_map"]]
+  terms      <- name_map[["term"]][
+    match(names(prior_list), name_map[["jags_name"]])
+  ]
+  if (anyNA(terms) || !all(name_map[["kind"]][
+    match(names(prior_list), name_map[["jags_name"]])
+  ] == "fixed")) {
+    stop(
+      "The priors assigned to the '", parameter, "' formula do not all ",
+      "belong to its formula terms.",
+      call. = FALSE
+    )
+  }
+  names(prior_list) <- terms
+
+  return(prior_list)
+}
+
+.assign_prior_list.scale <- function(
+    prior_list, prior_intercept, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors) {
+
+  has_prior_list <- !missing(prior_list) && !is.null(prior_list)
+  if (!has_prior_list) {
+    prior_list <- list()
+  }
+
+  scale_specs <- .data_scale_component_specs(data)
+  if (length(scale_specs) == 0L) {
+    return(NULL)
+  }
+  has_prior_unit_information_sd <- !missing(prior_unit_information_sd)
+  has_prior_informed_field      <- !missing(prior_informed_field)
+  has_prior_informed_subfield   <- !missing(prior_informed_subfield)
+
+  is_component_scale <- inherits(data[["scale"]], "RoBMA_scale_components")
+  if (is_component_scale && has_prior_list) {
+    prior_list <- .assign_prior_list.scale_match_components(
+      prior_list   = prior_list,
+      scale_specs  = scale_specs
+    )
+  }
+
+  assign_one <- function(scale_data, formula_parameter, component) {
+    component_prior_list <- if (is_component_scale && has_prior_list) {
+      prior_list[[component]]
+    } else {
+      prior_list
+    }
+    args <- list(
+      prior_list        = component_prior_list,
+      prior_intercept   = prior_intercept,
+      parameter         = "scale",
+      measure           = measure,
+      data              = scale_data,
+      rescale_priors    = rescale_priors,
+      formula_parameter = formula_parameter
+    )
+    if (has_prior_unit_information_sd) {
+      args[["prior_unit_information_sd"]] <- prior_unit_information_sd
+    }
+    if (has_prior_informed_field) {
+      args[["prior_informed_field"]] <- prior_informed_field
+    }
+    if (has_prior_informed_subfield) {
+      args[["prior_informed_subfield"]] <- prior_informed_subfield
+    }
+
+    do.call(.assign_prior_list.terms, args)
+  }
+
+  .assign_prior_list.scale_apply(
+    data        = data,
+    scale_specs = scale_specs,
+    assign_one  = assign_one
+  )
+}
+
+.assign_prior_list.scale_mixture <- function(
+    prior_list, prior_list_null, prior_intercept, measure, data,
+    prior_unit_information_sd, prior_informed_field,
+    prior_informed_subfield, rescale_priors) {
+
+  has_prior_list      <- !missing(prior_list)
+  has_prior_list_null <- !missing(prior_list_null)
+  has_prior_unit_information_sd <- !missing(prior_unit_information_sd)
+  has_prior_informed_field      <- !missing(prior_informed_field)
+  has_prior_informed_subfield   <- !missing(prior_informed_subfield)
+  scale_specs         <- .data_scale_component_specs(data)
+  if (length(scale_specs) == 0L) {
+    return(NULL)
+  }
+
+  is_component_scale <- inherits(data[["scale"]], "RoBMA_scale_components")
+  component_prior_list <- if (has_prior_list) prior_list else NULL
+  component_prior_null <- if (has_prior_list_null) prior_list_null else NULL
+  if (is_component_scale && has_prior_list &&
+      !is.null(prior_list) && !isFALSE(prior_list)) {
+    component_prior_list <- .assign_prior_list.scale_match_components(
+      prior_list  = prior_list,
+      scale_specs = scale_specs,
+      argument    = "prior_scale"
+    )
+  }
+  if (is_component_scale && has_prior_list_null &&
+      !is.null(prior_list_null) && !isFALSE(prior_list_null)) {
+    component_prior_null <- .assign_prior_list.scale_match_components(
+      prior_list  = prior_list_null,
+      scale_specs = scale_specs,
+      argument    = "prior_scale_null"
+    )
+  }
+
+  assign_one <- function(scale_data, formula_parameter, component) {
+    alternative <- if (is_component_scale && has_prior_list &&
+                       !is.null(component_prior_list) &&
+                       !isFALSE(component_prior_list)) {
+      component_prior_list[[component]]
+    } else {
+      component_prior_list
+    }
+    null <- if (is_component_scale && has_prior_list_null &&
+                !is.null(component_prior_null) &&
+                !isFALSE(component_prior_null)) {
+      component_prior_null[[component]]
+    } else {
+      component_prior_null
+    }
+    args <- list(
+      prior_intercept   = prior_intercept,
+      parameter         = "scale",
+      measure           = measure,
+      data              = scale_data,
+      rescale_priors    = rescale_priors,
+      formula_parameter = formula_parameter
+    )
+    if (has_prior_list) {
+      args["prior_list"] <- list(alternative)
+    }
+    if (has_prior_list_null) {
+      args["prior_list_null"] <- list(null)
+    }
+    if (has_prior_unit_information_sd) {
+      args[["prior_unit_information_sd"]] <- prior_unit_information_sd
+    }
+    if (has_prior_informed_field) {
+      args[["prior_informed_field"]] <- prior_informed_field
+    }
+    if (has_prior_informed_subfield) {
+      args[["prior_informed_subfield"]] <- prior_informed_subfield
+    }
+
+    do.call(.assign_prior_list.terms_mixture, args)
+  }
+
+  .assign_prior_list.scale_apply(
+    data        = data,
+    scale_specs = scale_specs,
+    assign_one  = assign_one
+  )
+}
+
+.assign_prior_list.scale_apply <- function(data, scale_specs, assign_one) {
+
+  if (length(scale_specs) == 1L &&
+      identical(scale_specs[[1L]][["parameter"]], "log_tau")) {
+    return(assign_one(
+      scale_data        = data,
+      formula_parameter = "log_tau",
+      component         = names(scale_specs)[[1L]]
+    ))
+  }
+
+  out <- lapply(names(scale_specs), function(component) {
+    scale_spec            <- scale_specs[[component]]
+    scale_data            <- data
+    scale_data[["scale"]] <- scale_spec[["data"]]
+
+    assign_one(
+      scale_data        = scale_data,
+      formula_parameter = scale_spec[["parameter"]],
+      component         = component
+    )
+  })
+  names(out) <- vapply(scale_specs, `[[`, character(1), "parameter")
+  class(out) <- c("RoBMA_scale_priors", "list")
+
+  out
+}
+
+.assign_prior_list.scale_match_components <- function(prior_list, scale_specs,
+                                                       argument = "prior_scale") {
+
+  if (!is.list(prior_list) || BayesTools::is.prior(prior_list)) {
+    stop(
+      "When 'scale' is a named list of formulas, '", argument, "' must either ",
+      "be omitted or be a named list with one prior list per scale component.",
+      call. = FALSE
+    )
+  }
+  if (is.null(names(prior_list)) || any(!nzchar(names(prior_list)))) {
+    stop(
+      "When 'scale' is a named list of formulas, '", argument, "' component ",
+      "lists must be named.",
+      call. = FALSE
+    )
+  }
+
+  expected <- names(scale_specs)
+  supplied <- names(prior_list)
+  component_map <- .assign_prior_list.scale_component_map(scale_specs)
+  mapped_components <- unname(component_map[supplied])
+  unknown_components <- supplied[is.na(mapped_components)]
+  missing_components <- setdiff(
+    expected,
+    mapped_components[!is.na(mapped_components)]
+  )
+  if (length(missing_components) > 0L || length(unknown_components) > 0L) {
+    stop(
+      "When 'scale' is a named list of formulas, '", argument, "' names must ",
+      "exactly match the scale components. Missing: ",
+      .check_and_list_data.collapse_or_none(missing_components),
+      "; unknown: ",
+      .check_and_list_data.collapse_or_none(unknown_components),
+      ".",
+      call. = FALSE
+    )
+  }
+  if (anyDuplicated(supplied) || anyDuplicated(mapped_components)) {
+    stop(
+      "'", argument, "' component names must uniquely match scale components.",
+      call. = FALSE
+    )
+  }
+
+  prior_list <- prior_list[match(expected, mapped_components)]
+  names(prior_list) <- expected
+  for (component in expected) {
+    if (is.null(prior_list[[component]])) {
+      prior_list[[component]] <- list()
+    }
+    if (!is.list(prior_list[[component]]) ||
+        BayesTools::is.prior(prior_list[[component]])) {
+      stop(
+        "Each '", argument, "' component must be a list of priors for that ",
+        "component's scale formula.",
+        call. = FALSE
+      )
+    }
+  }
+
+  prior_list
+}
+
+.assign_prior_list.scale_component_map <- function(scale_specs) {
+
+  aliases <- unlist(lapply(scale_specs, function(scale_spec) {
+    scale_spec[["aliases"]]
+  }), use.names = FALSE)
+  components <- rep(names(scale_specs), vapply(scale_specs, function(scale_spec) {
+    length(scale_spec[["aliases"]])
+  }, integer(1)))
+
+  keep <- !is.na(aliases) & nzchar(aliases)
+  aliases    <- aliases[keep]
+  components <- components[keep]
+
+  duplicated_aliases <- unique(aliases[duplicated(aliases)])
+  if (length(duplicated_aliases) > 0L) {
+    components <- components[!aliases %in% duplicated_aliases]
+    aliases    <- aliases[!aliases %in% duplicated_aliases]
+  }
+
+  stats::setNames(components, aliases)
+}
+
+# Remove invalid fixed-effect heterogeneity components for scale regression.
+.remove_zero_scale_intercept_prior <- function(prior_intercept) {
+
+  is_zero_point <- function(prior) {
+    BayesTools::is.prior.point(prior) && mean(prior) == 0
+  }
+
+  if (!BayesTools::is.prior.mixture(prior_intercept)) {
+    if (is_zero_point(prior_intercept)) {
+      stop(
+        "At least one non-zero between-study heterogeneity prior must be defined for scale regression.",
+        call. = FALSE
+      )
+    }
+    return(prior_intercept)
+  }
+
+  keep <- !vapply(prior_intercept, is_zero_point, logical(1))
+
+  if (all(keep))
+    return(prior_intercept)
+
+  warning(
+    "Spike(0) prior distribution for between-study heterogeneity tau was removed since scale regression requires non-zero between-study heterogeneity.",
+    immediate. = TRUE
+  )
+
+  if (!any(keep)) {
+    stop(
+      "At least one non-zero between-study heterogeneity prior must be defined for scale regression.",
+      call. = FALSE
+    )
+  }
+
+  components <- attr(prior_intercept, "components")
+  prior_list <- prior_intercept[keep]
+  attributes(prior_list) <- NULL
+
+  return(BayesTools::prior_mixture(
+    prior_list = prior_list,
+    components = components[keep]
+  ))
+}
+
+.assign_prior_list.terms_mixture               <- function(
+    prior_list, prior_list_null, prior_intercept, parameter, measure, data, prior_unit_information_sd,
+    prior_informed_field, prior_informed_subfield, rescale_priors,
+    formula_parameter = NULL) {
+
+  if (is.null(formula_parameter)) {
+    formula_parameter <- switch(parameter, "mods" = "mu", "scale" = "log_tau")
+  }
+
+  # where the null of a term comes from: its own entry in a named null list or
+  # an explicit global factor prior keep their declared contrast, while a global
+  # null of another kind and the default null are built with the default contrast
+  term_null_entries  <- if (!missing(prior_list_null) && is.list(prior_list_null) &&
+                            !BayesTools::is.prior(prior_list_null)) names(prior_list_null)
+  global_factor_null <- !missing(prior_list_null) && BayesTools::is.prior.factor(prior_list_null)
+
+  # in contrast to effect/heterogeneity prior list settings terms currently only allow a single prior for alternative
+  # and a single prior for the null hypothesis for each term
+
+  # one issue when re-using .assign_prior_list.terms is that we need to forward prior for the intercept which is
+  # an already parsed mixture prior - when merging mixture priors for terms, we ought to not duplicate the intercept
+
+  # we want to allow NULL/FALSE to omit prior distribution for a given component, .assign_prior_list.terms
+  # fills all missing prior distributions with default priors
+  # as such, we store names of parameters that should be omited and remove them manually
+  if (!missing(prior_list) && !BayesTools::is.prior(prior_list) && length(prior_list) > 0 && is.list(prior_list)) {
+    par_alt_omit <- names(prior_list)[sapply(prior_list, function(x) is.null(x) || isFALSE(x))]
+    # filter out NULL/FALSE values before passing to .assign_prior_list.terms
+    prior_list <- prior_list[!sapply(prior_list, function(x) is.null(x) || isFALSE(x))]
+  } else {
+    par_alt_omit <- NULL
+  }
+  if (!missing(prior_list_null) && !BayesTools::is.prior(prior_list_null) && length(prior_list_null) > 0 && is.list(prior_list_null)) {
+    par_null_omit <- names(prior_list_null)[sapply(prior_list_null, function(x) is.null(x) || isFALSE(x))]
+    # filter out NULL/FALSE values before passing to .assign_prior_list.terms
+    prior_list_null <- prior_list_null[!sapply(prior_list_null, function(x) is.null(x) || isFALSE(x))]
+  } else {
+    par_null_omit <- NULL
+  }
+
+
+  if (parameter == "scale") {
+    # in the case of scale moderation, spike at zero prior (i.e., fixed-effect model) is not possible since the intercept
+    # is on a log scale
+    # remove spike(0) priors and rebuild mixture metadata
+    prior_intercept <- .remove_zero_scale_intercept_prior(prior_intercept)
+  }
+  if (parameter == "mods" &&
+      attr(stats::terms(attr(data[[parameter]], "formula")), "intercept") == 0) {
+    prior_intercept <- BayesTools::prior("spike", parameters = list(0))
+  }
+
+  prior_list_alt <- .assign_prior_list.terms(
+    prior_list = prior_list, prior_intercept = prior_intercept, parameter = parameter,
+    measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors, formula_parameter = formula_parameter)
+
+  refuse_ordered_mixture <- function(term, omit_null) {
+    argument <- paste0("prior_", parameter, if (!omit_null) "_null" else "")
+    omission <- paste0("prior_", parameter, if (omit_null) "_null" else "")
+    stop(structure(
+      list(message = paste0(
+        "The ordered prior for term '", term, "' in '", argument,
+        "' cannot be combined with a separate term prior. Put the complete ",
+        "mixture in 'prior_ordered(total = ...)' and omit the separate ",
+        "component with '", omission, " = list(",
+        deparse(as.name(term), backtick = TRUE), " = NULL)'."
+      ), call = NULL),
+      class = c("RoBMA_prior_error", "error", "condition")
+    ))
+  }
+  ordered_alt <- setdiff(names(prior_list_alt)[vapply(
+    prior_list_alt, BayesTools::is.prior.ordered, logical(1))], c("intercept", par_alt_omit))
+  for (term in setdiff(ordered_alt, par_null_omit)) {
+    refuse_ordered_mixture(term, omit_null = TRUE)
+  }
+  # Unspecified factor nulls use the retained alternative's declared contrast.
+  # Explicit defaults and term omissions keep their existing meaning.
+  if (missing(prior_list_null) || is.null(prior_list_null)) {
+    prior_list_null <- list()
+  }
+  if (is.list(prior_list_null) && !BayesTools::is.prior(prior_list_null) &&
+      (length(prior_list_null) == 0L || !is.null(names(prior_list_null)))) {
+    unspecified_null <- setdiff(names(prior_list_alt),
+      c("intercept", names(prior_list_null), par_null_omit, par_alt_omit))
+    for (term in unspecified_null) {
+      contrast <- .prior_factor_contrast(prior_list_alt[[term]])
+      if (!is.na(contrast)) {
+        prior_list_null[[term]] <- BayesTools::prior_factor(
+          "spike", parameters = list(0), contrast = contrast
+        )
+      }
+    }
+  }
+
+  # The alternative intercept is the complete prior; the null-side builder
+  # needs the same effective intercept even when its unused global default is absent.
+  prior_intercept <- prior_list_alt[["intercept"]]
+
+  prior_list_null <- .assign_prior_list.terms(
+    prior_list = prior_list_null, prior_intercept = prior_intercept, parameter = parameter,
+    measure = measure, data = data,  prior_unit_information_sd = prior_unit_information_sd,
+    prior_informed_field = prior_informed_field, prior_informed_subfield = prior_informed_subfield,
+    rescale_priors = rescale_priors, set_default_spike = TRUE,
+    formula_parameter = formula_parameter)
+  ordered_null <- setdiff(names(prior_list_null)[vapply(
+    prior_list_null, BayesTools::is.prior.ordered, logical(1))], c("intercept", par_null_omit))
+  for (term in setdiff(ordered_null, par_alt_omit)) {
+    refuse_ordered_mixture(term, omit_null = FALSE)
+  }
+
+  available_terms <- names(prior_list_alt)
+  .warn_unmatched_prior_omissions(
+    omitted   = par_alt_omit,
+    available = available_terms,
+    argument  = paste0("prior_", parameter)
+  )
+  .warn_unmatched_prior_omissions(
+    omitted   = par_null_omit,
+    available = available_terms,
+    argument  = paste0("prior_", parameter, "_null")
+  )
+
+  prior_intercept <- prior_list_alt[["intercept"]]
+
+  ### initiate the list of prior mixtures with the intercept
+  prior_list <- list(intercept = prior_intercept)
+  for (par in names(prior_list_alt)) {
+
+    # skip the already assigned intercept
+    if (par == "intercept") {
+      next
+    }
+
+    # create temporal holder for the parameter
+    temp_prior_list  <- list()
+    temp_is_null     <- NULL
+
+    if (!par %in% par_null_omit) {
+      temp_prior_list <- c(temp_prior_list, list(prior_list_null[[par]]))
+      temp_is_null    <- c(temp_is_null, TRUE)
+    }
+
+    if (!par %in% par_alt_omit) {
+      temp_prior_list <- c(temp_prior_list, list(prior_list_alt[[par]]))
+      temp_is_null    <- c(temp_is_null, FALSE)
+    }
+
+    if (length(temp_prior_list) == 0) {
+      stop(sprintf("At least one prior distribution needs to be defined for '%1$s' parameter in the '%2$s' model.", par, parameter))
+    }
+
+    # the null and the alternative of a term share one factor contrast
+    if (length(temp_prior_list) == 2L) {
+      null_contrast <- .prior_factor_contrast(temp_prior_list[[1L]])
+      alt_contrast  <- .prior_factor_contrast(temp_prior_list[[2L]])
+      if (!is.na(null_contrast) && !is.na(alt_contrast) && null_contrast != alt_contrast) {
+        .stop_prior_contrast_conflict(
+          par, parameter, alt_contrast, null_contrast,
+          null_source = if (par %in% term_null_entries) {
+            "term"
+          } else if (global_factor_null) {
+            "global_factor"
+          } else {
+            "default"
+          }
+        )
+      }
+    }
+
+    prior_list[[par]] <- if (length(temp_prior_list) == 1L &&
+        BayesTools::is.prior.ordered(temp_prior_list[[1L]])) {
+      temp_prior_list[[1L]]
+    } else {
+      BayesTools::prior_mixture(
+        prior_list = temp_prior_list,
+        is_null    = temp_is_null
+      )
+    }
+  }
+
+  prior_list <- .repair_formula_prior_list(
+    prior_list = prior_list,
+    parameter  = formula_parameter
+  )
+
+  return(prior_list)
+}
+
+
+# The contrast ("treatment", "independent", "meandif" or "orthonormal") declared
+# by a factor prior, NA for any other prior, an ordered one included.
+.prior_factor_contrast <- function(prior) {
+
+  if (!BayesTools::is.prior.factor(prior) || BayesTools::is.prior.ordered(prior)) {
+    return(NA_character_)
+  }
+  contrasts <- c(
+    treatment   = BayesTools::is.prior.treatment(prior),
+    independent = BayesTools::is.prior.independent(prior),
+    meandif     = BayesTools::is.prior.meandif(prior),
+    orthonormal = BayesTools::is.prior.orthonormal(prior)
+  )
+  if (sum(contrasts) != 1L) {
+    return(NA_character_)
+  }
+
+  names(contrasts)[contrasts]
+}
+
+
+# BayesTools refuses a mixture of factor priors with different contrasts without
+# naming the term or the arguments, so the conflict is reported before the
+# mixture is built. A null built from a global null of another kind or from the
+# default takes the contrast of `set_contrast_factor_predictors`, which then is
+# a remedy; a null given for the term itself or an explicit global factor prior
+# keeps its declared contrast, and the term can be left out of the null list.
+.stop_prior_contrast_conflict <- function(term, parameter, alt_contrast, null_contrast,
+                                          null_source = c("default", "term", "global_factor")) {
+
+  null_source   <- match.arg(null_source)
+
+  argument      <- paste0("prior_", parameter)
+  null_argument <- paste0(argument, "_null")
+  example <- paste0(
+    null_argument, " = list(", deparse(as.name(term), backtick = TRUE),
+    " = prior_factor(\"spike\", list(0), contrast = \"", alt_contrast, "\"))"
+  )
+  remedies <- switch(null_source,
+    term = paste0(
+      "Give the null of the term the contrast of the alternative, e.g. ", example,
+      ", change the contrast of one of the two priors, or leave the term out of '",
+      null_argument, "' so that the null follows the alternative."
+    ),
+    global_factor = paste0(
+      "Give '", null_argument, "' the contrast of the alternative, give the term its own ",
+      "null, e.g. ", example, ", or leave '", null_argument, "' unspecified (or a named ",
+      "list without the term) so that the null follows the alternative."
+    ),
+    default = paste0(
+      "Give the term a null with the contrast of the alternative, e.g. ", example,
+      ", set 'set_contrast_factor_predictors' to the contrast that both priors use, or ",
+      "leave '", null_argument, "' unspecified so that the null follows the alternative."
+    )
+  )
+  stop(structure(
+    list(message = paste0(
+      "The factor term '", term, "' uses the '", alt_contrast, "' contrast in '",
+      argument, "' but the '", null_contrast, "' contrast in '", null_argument,
+      "', and its null and alternative priors need the same contrast. ", remedies
+    ), call = NULL),
+    class = c("RoBMA_prior_contrast_conflict", "RoBMA_prior_error", "error", "condition")
+  ))
+}
+
+
+.warn_unmatched_prior_omissions <- function(omitted, available, argument) {
+
+  if (is.null(omitted) || length(omitted) == 0L) {
+    return(invisible(NULL))
+  }
+
+  omitted <- omitted[!is.na(omitted) & nzchar(omitted)]
+  unknown <- setdiff(omitted, available)
+  if (length(unknown) == 0L) {
+    return(invisible(NULL))
+  }
+
+  warning(
+    "Unknown term(s) in '", argument, "' were ignored: ",
+    paste0("'", unknown, "'", collapse = ", "),
+    ". Available terms are: ",
+    paste0("'", available, "'", collapse = ", "),
+    ".",
+    call. = FALSE
+  )
+
+  invisible(NULL)
+}
+
+
+# Restore BayesTools formula metadata lost when formula prior mixtures are rebuilt.
+.repair_formula_prior_list <- function(prior_list, parameter) {
+
+  if (is.null(prior_list)) {
+    return(prior_list)
+  }
+
+  for (i in seq_along(prior_list)) {
+    prior_list[[i]] <- .repair_formula_prior(
+      prior    = prior_list[[i]],
+      parameter = parameter
+    )
+  }
+
+  return(prior_list)
+}
+.repair_formula_prior <- function(prior, parameter) {
+
+  attr(prior, "parameter") <- parameter
+
+  formula_attributes <- c(
+    "interaction", "interaction_terms", "levels", "level_names",
+    "term_components", "factor_terms", "factor_contrasts",
+    "factor_design", "factor_cell_names", "multiply_by"
+  )
+
+  if (.has_formula_prior_components(prior)) {
+    source_attributes <- NULL
+    for (i in seq_along(prior)) {
+      if (!is.null(attr(prior[[i]], "parameter"))) {
+        source_attributes <- attributes(prior[[i]])
+        break
+      }
+    }
+
+    if (!is.null(source_attributes)) {
+      for (attribute in formula_attributes) {
+        if (is.null(attr(prior, attribute)) && !is.null(source_attributes[[attribute]])) {
+          attr(prior, attribute) <- source_attributes[[attribute]]
+        }
+      }
+    }
+
+    for (i in seq_along(prior)) {
+      attr(prior[[i]], "parameter") <- parameter
+      for (attribute in formula_attributes) {
+        if (is.null(attr(prior[[i]], attribute)) && !is.null(attr(prior, attribute))) {
+          attr(prior[[i]], attribute) <- attr(prior, attribute)
+        }
+      }
+    }
+  }
+
+  return(prior)
+}
+.has_formula_prior_components <- function(prior) {
+
+  return(BayesTools::is.prior.mixture(prior) ||
+    BayesTools::is.prior.spike_and_slab(prior))
+}

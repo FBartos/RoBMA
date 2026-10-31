@@ -37,14 +37,18 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 
 \item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
 arguments such as \code{newdata}, \code{type}, \code{quiet},
-\code{output_measure}, and \code{transform} are fixed by this method.}
+\code{output_measure}, and \code{transform} are fixed by this method
+(supplying one is R's error for an argument matched twice, as for
+\code{predict()}), and other unknown arguments are unused and trigger a
+warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior draws of BLUP or
 empirical-Bayes true-effect summaries with one column per estimate. For
 existing normal data, these are conditional BLUP means, not simulated
 latent-effect draws. When printed, displays a summary table. Use
-\code{summary()} to obtain the summary table directly. The samples can be
+\code{summary()}, or \code{as.data.frame(summary(x))}, to obtain the summary
+table; \code{as.data.frame(x)} returns the posterior draws. The samples can be
 converted to \pkg{posterior} draws formats using \code{as_draws()}.
 }
 \description{
@@ -54,7 +58,9 @@ fitted brma object. These correspond to Best Linear Unbiased Predictions
 }
 \details{
 This function is a convenience wrapper around \code{predict.brma(...,
-type = "effect", newdata = NULL)}.
+type = "blup", newdata = NULL)}. Unlike \code{predict(..., type =
+"estimate", conditioning_depth = "estimate")}, it returns conditional
+location/BLUP means rather than adding conditional latent-effect uncertainty.
 
 For unweighted two-level normal models, true effects are computed using
 empirical Bayes shrinkage:
@@ -69,6 +75,15 @@ are extracted directly from the posterior samples.
 For multilevel (3-level) normal models, cluster-level effects are estimated
 jointly within cluster blocks and estimate-level effects are then shrunk
 conditional on those cluster effects.
+
+For known-\code{V} models, the conditional means require applying the
+inverse of the marginal covariance. A covariance that is too ill-conditioned
+for that (a reciprocal condition number of about \code{2e-10} or less in any
+posterior draw used) is unavailable: the call stops with an error of class
+\code{RoBMA_known_v_precision_unavailable}, whose parent class is
+\code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+The condition carries the draw positions (\code{rows}) and their
+\code{reciprocal_condition}.
 }
 \examples{
 \dontrun{

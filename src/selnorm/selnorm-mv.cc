@@ -1,0 +1,8582 @@
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include "selnorm-mv.h"
+#include "selnorm-mixture-compression.h"
+
+#include <R_ext/Lapack.h>
+#include <R_ext/BLAS.h>
+#include <JRmath.h>
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cmath>
+#include <cstring>
+#include <functional>
+#include <iterator>
+#include <list>
+#include <memory>
+#include <mutex>
+#include <new>
+#include <optional>
+#include <string_view>
+#include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <limits>
+#include <stdexcept>
+#include <vector>
+
+#include "selnorm.h"
+#include "selnorm-qmc-z.h"
+
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
+
+#ifndef FCONE
+# define FCONE
+#endif
+
+namespace {
+// Generalization of r-selnorm-common.cc.inc's existing 32-entry rule cache.
+// Separate template instances preserve double and long-double arithmetic.
+template<class Real> class SelNormRuleWeightMemo {
+  struct Entry {
+    std::vector<double> nodes, logs;
+    std::uint64_t shift;
+    bool shifted;
+    std::shared_ptr<const std::vector<Real>> weights;
+    std::size_t bytes() const {
+      return sizeof(Entry) + (nodes.capacity() + logs.capacity()) * sizeof(double) +
+        weights->capacity() * sizeof(Real);
+    }
+  };
+  std::mutex mutex_;
+  std::vector<Entry> entries_;
+  std::size_t bytes_ = 0;
+  static constexpr std::size_t max_entries = 32;
+  static constexpr std::size_t max_bytes = 1024 * 1024;
+ public:
+  using Result = std::shared_ptr<const std::vector<Real>>;
+  Result get(const double *nodes, const double *logs, int count, double shift) {
+    const std::size_t n = static_cast<std::size_t>(count);
+    std::uint64_t bits;
+    std::memcpy(&bits, &shift, sizeof(bits));
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      for (std::size_t i = 0; i < entries_.size(); ++i) {
+        const Entry &e = entries_[i];
+        if (e.shift != bits || e.shifted != (nodes != nullptr) || e.logs.size() != n) continue;
+        if (n && std::memcmp(e.logs.data(), logs, n * sizeof(double))) continue;
+        if (nodes && n && std::memcmp(e.nodes.data(), nodes, n * sizeof(double))) continue;
+        Result result = e.weights;
+        std::rotate(entries_.begin(), entries_.begin() + i, entries_.begin() + i + 1);
+        return result;
+      }
+    }
+    auto values = std::make_shared<std::vector<Real>>(n);
+    const Real delta = shift;
+    for (int i = 0; i < count; ++i) {
+      (*values)[i] = nodes ? std::exp(static_cast<Real>(logs[i]) -
+        delta * nodes[i] - static_cast<Real>(0.5) * delta * delta) :
+        std::exp(static_cast<Real>(logs[i]));
+    }
+    Result result = values;
+    const std::size_t estimate = sizeof(Entry) +
+      n * ((nodes ? 2 : 1) * sizeof(double) + sizeof(Real));
+    if (estimate > max_bytes || !std::isfinite(shift)) return result;
+    try {
+      Entry entry;
+      entry.logs.assign(logs, logs + count);
+      if (nodes) entry.nodes.assign(nodes, nodes + count);
+      entry.shift = bits;
+      entry.shifted = nodes != nullptr;
+      entry.weights = result;
+      const std::size_t bytes = entry.bytes();
+      if (bytes > max_bytes) return result;
+      std::lock_guard<std::mutex> lock(mutex_);
+      while (!entries_.empty() &&
+             (entries_.size() >= max_entries || bytes_ + bytes > max_bytes)) {
+        bytes_ -= entries_.back().bytes();
+        entries_.pop_back();
+      }
+      entries_.insert(entries_.begin(), std::move(entry));
+      bytes_ += bytes;
+    } catch (const std::bad_alloc &) {
+      // A failed memo insertion must not change the already computed result.
+    }
+    return result;
+  }
+};
+
+}
+
+std::shared_ptr<const std::vector<double> > cpp_selnorm_rule_weights_double(
+    const double *nodes, const double *log_weights, int count, double shift)
+{
+  static SelNormRuleWeightMemo<double> remembered;
+  return remembered.get(nodes, log_weights, count, shift);
+}
+
+std::shared_ptr<const std::vector<long double> > cpp_selnorm_rule_weights_long_double(
+    const double *log_weights, int count)
+{
+  static SelNormRuleWeightMemo<long double> remembered;
+  return remembered.get(nullptr, log_weights, count, 0.0);
+}
+
+
+namespace {
+
+double log_add_exp(double x, double y)
+{
+  if (x == -std::numeric_limits<double>::infinity()) return y;
+  if (y == -std::numeric_limits<double>::infinity()) return x;
+  const double maximum = std::max(x, y);
+  return maximum + std::log(std::exp(x - maximum) + std::exp(y - maximum));
+}
+
+double qmc_value(const double *values, int scrambles, int points,
+                 int dimensions, int scramble, int point, int dimension)
+{
+  const std::size_t index = static_cast<std::size_t>(scramble) +
+    static_cast<std::size_t>(scrambles) *
+    (static_cast<std::size_t>(point) +
+     static_cast<std::size_t>(points) * static_cast<std::size_t>(dimension));
+  const std::size_t total = static_cast<std::size_t>(scrambles) *
+    static_cast<std::size_t>(points) * static_cast<std::size_t>(dimensions);
+  if (index >= total) return std::numeric_limits<double>::quiet_NaN();
+  const double value = values[index];
+  return value > 0.0 && value < 1.0 ? value :
+    std::numeric_limits<double>::quiet_NaN();
+}
+
+#include "selnorm-event.cc.inc"
+
+struct ClusterNormalizerContext {
+  int vector_rule = SELVECTOR_PRODUCT;
+  const long double *quadrature_weights;
+  const double *mean;
+  const double *residual_sd;
+  const double *loading;
+  int dimension;
+  const double *selection_se;
+  const double *omega;
+  int kernel_mode;
+  SelNormKernelData selection;
+};
+
+double cluster_log_integrand(const ClusterNormalizerContext &context,
+                             double gamma)
+{
+  double value = -0.5 * gamma * gamma;
+  if (context.vector_rule != SELVECTOR_PRODUCT) {
+    std::vector<double> means(context.dimension);
+    for (int i = 0; i < context.dimension; ++i) {
+      means[i] = context.mean[i] + context.loading[i] * gamma;
+    }
+    return value + independent_best_log_mass(means.data(), context.residual_sd,
+      context.dimension, context.selection_se, context.omega,
+      context.selection, context.vector_rule);
+  }
+  for (int i = 0; i < context.dimension; ++i) {
+    const double conditional_mean =
+      context.mean[i] + context.loading[i] * gamma;
+    const double local = cpp_selnorm_step_log_norm(
+      conditional_mean, context.residual_sd[i], context.selection_se[i],
+      context.omega, context.selection, 1, false
+    );
+    if (!std::isfinite(local)) return -std::numeric_limits<double>::infinity();
+    value += local;
+  }
+  return value;
+}
+
+// Optional projection state shared with the existing scalar/group rules.
+struct ClusterRuleProjection {
+  std::vector<double> means;
+  std::vector<double> log_probability;
+};
+
+
+struct ClusterRuleWorkspace {
+  std::vector<long double> products;
+  std::vector<double> means;
+  std::vector<long double> probability_cache;
+  std::vector<double> projection_log_cache;
+  std::vector<unsigned char> cache_ready;
+  std::vector<long double> projection_probability;
+};
+
+// Workspaces of the double-precision node products of the product ladders. One
+// set belongs to one kernel call (the batch entries are threaded, so nothing is
+// static) and is reused by every rung and shifted copy of that call: the row
+// constants of the step normalizers and the buffers of the node products, the
+// normalizers of a row and the conditional means.
+struct SelNormLeanScratch {
+  SelNormDoubleProducts plan;
+  std::vector<double> product, means, normalizer;
+
+  void configure(const double *residual_sd, const double *selection_se, int rows,
+                 const double *omega, const SelNormKernelData &selection)
+  {
+    plan.build(residual_sd, selection_se, rows, omega, selection);
+  }
+  bool attempted() const { return plan.usable(); }
+  // Room for rows of `count` nodes.
+  void reserve(std::size_t count)
+  {
+    if (means.size() < count) means.resize(count);
+    if (normalizer.size() < count) normalizer.resize(count);
+  }
+};
+
+// A nonzero `shift` evaluates the same integral through the exactly shifted
+// rule: nodes x_j + shift and weights w_j exp(-shift x_j - shift^2 / 2). The
+// shifted weights are built here from the log weights and never read
+// `context.quadrature_weights`, which hold the unshifted rule. A `tilted_mean`
+// is the rule's own posterior mean of the latent coordinate under the selected
+// integrand, returned from the same direct or log-scale evaluation that
+// produced the value (the mean of the shifted nodes x_j + shift under a shift),
+// and `tilted_variance` (which needs `tilted_mean`) the variance of that
+// coordinate about it.
+double cluster_rule_log_integral(const ClusterNormalizerContext &context,
+                                 const double *nodes,
+                                 const double *log_weights,
+                                 int offset, int order,
+                                 ClusterRuleWorkspace *workspace = nullptr,
+                                 const int *row_cache_slot = nullptr,
+                                 int cache_slots = 0,
+                                 ClusterRuleProjection *projection = nullptr,
+                                 double shift = 0.0,
+                                 double *tilted_mean = nullptr,
+                                 double *tilted_variance = nullptr)
+{
+  ClusterRuleWorkspace local;
+  ClusterRuleWorkspace &scratch = workspace ? *workspace : local;
+  std::vector<long double> &products = scratch.products;
+  std::vector<double> &means = scratch.means;
+  products.assign(static_cast<std::size_t>(order), 1.0L);
+  means.resize(static_cast<std::size_t>(order));
+  if (projection != nullptr) {
+    projection->means.resize(static_cast<std::size_t>(context.dimension) * order);
+    projection->log_probability.resize(static_cast<std::size_t>(context.dimension) * order);
+    scratch.projection_probability.resize(order);
+  }
+  bool direct_ok = context.vector_rule == SELVECTOR_PRODUCT;
+  const bool reuse = direct_ok && row_cache_slot != nullptr && cache_slots > 0;
+  if (reuse) {
+    scratch.probability_cache.resize(static_cast<std::size_t>(cache_slots) * order);
+    if (projection != nullptr)
+      scratch.projection_log_cache.resize(static_cast<std::size_t>(cache_slots) * order);
+    scratch.cache_ready.assign(cache_slots, 0);
+  }
+  for (int i = 0; i < context.dimension && direct_ok; ++i) {
+    const int slot = reuse ? row_cache_slot[i] : -1;
+    const bool cached = slot >= 0 && scratch.cache_ready[slot];
+    if (!cached || projection != nullptr) {
+      for (int j = 0; j < order; ++j) {
+        means[j] = context.mean[i] + context.loading[i] * (nodes[offset + j] + shift);
+      }
+    }
+    if (slot < 0 && projection == nullptr) {
+      // No repetition: retain the original multiplication and fallback path.
+      direct_ok = cpp_selnorm_step_normalizer_product(
+        means.data(), means.size(), context.residual_sd[i],
+        context.selection_se[i], context.omega, context.selection,
+        products.data()
+      );
+    } else {
+      long double *probability = slot < 0 ? scratch.projection_probability.data() :
+        scratch.probability_cache.data() + static_cast<std::size_t>(slot) * order;
+      if (!cached) {
+        std::fill_n(probability, order, 1.0L);
+        direct_ok = cpp_selnorm_step_normalizer_product(
+          means.data(), means.size(), context.residual_sd[i],
+          context.selection_se[i], context.omega, context.selection,
+          probability
+        );
+        if (!direct_ok) break;
+        if (slot >= 0) scratch.cache_ready[slot] = 1;
+      }
+      // Replay every original row in its original position. No power or
+      // multiplicity regrouping changes the product's rounding order.
+      long double previous_probability = -1.0L;
+      double previous_log_probability = 0.0;
+      for (int j = 0; j < order; ++j) {
+        products[j] *= probability[j];
+        if (projection != nullptr) {
+          projection->means[static_cast<std::size_t>(i) * order + j] = means[j];
+          // Equal row geometry already shares probability[]. Its logarithm
+          // is identical too; retain the original product replay and row order.
+          // Consecutive tail nodes can also have exactly the same probability.
+          // Reuse that evaluated long-double logarithm, not a rescaled value.
+          const bool repeated = probability[j] == previous_probability;
+          const double log_probability = cached ?
+            scratch.projection_log_cache[static_cast<std::size_t>(slot) * order + j] :
+            (repeated ? previous_log_probability :
+              static_cast<double>(std::log(probability[j])));
+          previous_probability = probability[j];
+          previous_log_probability = log_probability;
+          projection->log_probability[static_cast<std::size_t>(i) * order + j] = log_probability;
+          if (slot >= 0 && !cached)
+            scratch.projection_log_cache[static_cast<std::size_t>(slot) * order + j] = log_probability;
+        }
+        if (!(products[j] > 0.0L) || !std::isfinite(products[j])) {
+          direct_ok = false;
+          break;
+        }
+      }
+    }
+  }
+  if (direct_ok) {
+    const auto node_weight = [&](int j) -> long double {
+      return shift == 0.0 && context.quadrature_weights ?
+        context.quadrature_weights[offset + j] :
+        std::exp(static_cast<long double>(log_weights[offset + j]) -
+          static_cast<long double>(shift) * nodes[offset + j] -
+          0.5L * static_cast<long double>(shift) * shift);
+    };
+    long double integral = 0.0L;
+    long double moment = 0.0L;
+    for (int j = 0; j < order; ++j) {
+      const long double weight = node_weight(j);
+      integral += products[j] * weight;
+      if (tilted_mean != nullptr) {
+        moment += products[j] * weight * (nodes[offset + j] + shift);
+      }
+    }
+    if (integral > 0.0L && std::isfinite(integral)) {
+      if (tilted_mean != nullptr) {
+        *tilted_mean = static_cast<double>(moment / integral);
+      }
+      if (tilted_variance != nullptr) {
+        const long double center = moment / integral;
+        long double spread = 0.0L;
+        for (int j = 0; j < order; ++j) {
+          const long double deviation = (nodes[offset + j] + shift) - center;
+          spread += products[j] * node_weight(j) * deviation * deviation;
+        }
+        *tilted_variance = static_cast<double>(spread / integral);
+      }
+      return static_cast<double>(std::log(integral));
+    }
+  }
+
+  // A failed direct product discards the cache and uses the unchanged full
+  // log-scale evaluator, including all rows and its existing tail safeguards.
+  const double negative_infinity = -std::numeric_limits<double>::infinity();
+  double out = negative_infinity;
+  std::vector<double> terms;
+  if (tilted_mean != nullptr) terms.assign(static_cast<std::size_t>(order), negative_infinity);
+  for (int j = 0; j < order; ++j) {
+    const int index = offset + j;
+    const double z = nodes[index] + shift;
+    double term;
+    if (projection == nullptr) {
+      term = (log_weights[index] - shift * nodes[index] - 0.5 * shift * shift) +
+        cluster_log_integrand(context, z) + 0.5 * z * z;
+    } else {
+      term = log_weights[index];
+      for (int row = 0; row < context.dimension; ++row) {
+        const double location = context.mean[row] + context.loading[row] * z;
+        const double local = cpp_selnorm_step_log_norm(location, context.residual_sd[row],
+          context.selection_se[row], context.omega, context.selection, 1, false);
+        projection->means[static_cast<std::size_t>(row) * order + j] = location;
+        projection->log_probability[static_cast<std::size_t>(row) * order + j] = local;
+        term += local;
+      }
+    }
+    if (tilted_mean != nullptr) terms[static_cast<std::size_t>(j)] = term;
+    out = log_add_exp(out, term);
+  }
+  if (tilted_mean != nullptr) {
+    // The mean of the node under the normalised terms; non-finite terms carry
+    // no mass.
+    double moment = 0.0;
+    for (int j = 0; j < order; ++j) {
+      if (std::isfinite(terms[static_cast<std::size_t>(j)])) {
+        moment += std::exp(terms[static_cast<std::size_t>(j)] - out) *
+          (nodes[offset + j] + shift);
+      }
+    }
+    *tilted_mean = std::isfinite(out) ? moment :
+      std::numeric_limits<double>::quiet_NaN();
+    if (tilted_variance != nullptr) {
+      double spread = 0.0;
+      for (int j = 0; j < order; ++j) {
+        if (std::isfinite(terms[static_cast<std::size_t>(j)])) {
+          const double deviation = (nodes[offset + j] + shift) - moment;
+          spread += std::exp(terms[static_cast<std::size_t>(j)] - out) * deviation * deviation;
+        }
+      }
+      *tilted_variance = std::isfinite(out) ? spread :
+        std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+  return out;
+}
+
+// The direct rule of cluster_rule_log_integral for the product rule with the
+// node products (SelNormDoubleProducts) and the weights in double. The rule is
+// computed only when the caller's plan is usable and every row stays in range;
+// false leaves the outputs untouched and the caller evaluates the rule with
+// cluster_rule_log_integral, unchanged.
+bool cluster_rule_log_integral_double(const ClusterNormalizerContext &context,
+                                      const double *nodes,
+                                      const double *log_weights,
+                                      int offset, int order,
+                                      SelNormLeanScratch *scratch, double shift,
+                                      double *tilted_mean, double *tilted_variance,
+                                      double *value)
+{
+  if (scratch == nullptr || !scratch->attempted() ||
+      context.vector_rule != SELVECTOR_PRODUCT) {
+    return false;
+  }
+  const std::size_t count = static_cast<std::size_t>(order);
+  scratch->reserve(count);
+  scratch->product.assign(count, 1.0);
+  for (int i = 0; i < context.dimension; ++i) {
+    for (int j = 0; j < order; ++j) {
+      scratch->means[static_cast<std::size_t>(j)] =
+        context.mean[i] + context.loading[i] * (nodes[offset + j] + shift);
+    }
+    if (!scratch->plan.multiply(i, scratch->means.data(), count,
+                                scratch->product.data(), scratch->normalizer.data())) {
+      return false;
+    }
+  }
+  std::shared_ptr<const std::vector<double> > weights;
+  if (shift != 0.0 || context.quadrature_weights == nullptr) {
+    weights = cpp_selnorm_rule_weights_double(
+      nodes + offset, log_weights + offset, order, shift);
+  }
+  const auto node_weight = [&](int j) -> double {
+    return weights ? (*weights)[static_cast<std::size_t>(j)] :
+      static_cast<double>(context.quadrature_weights[offset + j]);
+  };
+  long double integral = 0.0L;
+  long double moment = 0.0L;
+  for (int j = 0; j < order; ++j) {
+    const long double term = static_cast<long double>(
+      scratch->product[static_cast<std::size_t>(j)]) * node_weight(j);
+    integral += term;
+    if (tilted_mean != nullptr || tilted_variance != nullptr) {
+      moment += term * (nodes[offset + j] + shift);
+    }
+  }
+  if (!(integral > 0.0L) || !std::isfinite(integral)) return false;
+  if (tilted_mean != nullptr) {
+    *tilted_mean = static_cast<double>(moment / integral);
+  }
+  if (tilted_variance != nullptr) {
+    const long double center = moment / integral;
+    long double spread = 0.0L;
+    for (int j = 0; j < order; ++j) {
+      const long double deviation = (nodes[offset + j] + shift) - center;
+      spread += static_cast<long double>(
+        scratch->product[static_cast<std::size_t>(j)]) * node_weight(j) *
+        deviation * deviation;
+    }
+    *tilted_variance = static_cast<double>(spread / integral);
+  }
+  *value = static_cast<double>(std::log(integral));
+  return true;
+}
+
+// The rule of a rank-one product ladder rung: in double when that is allowed
+// and in range, else cluster_rule_log_integral. `lean_used` reports which.
+double cluster_ladder_log_integral(const ClusterNormalizerContext &context,
+                                   const double *nodes,
+                                   const double *log_weights,
+                                   int offset, int order,
+                                   SelNormLeanScratch *scratch,
+                                   double shift = 0.0,
+                                   double *tilted_mean = nullptr,
+                                   double *tilted_variance = nullptr,
+                                   bool *lean_used = nullptr)
+{
+  double value = 0.0;
+  const bool lean = cluster_rule_log_integral_double(context, nodes,
+    log_weights, offset, order, scratch, shift, tilted_mean, tilted_variance,
+    &value);
+  if (lean_used != nullptr) *lean_used = lean;
+  if (lean) return value;
+  return cluster_rule_log_integral(context, nodes, log_weights, offset, order,
+    nullptr, nullptr, 0, nullptr, shift, tilted_mean, tilted_variance);
+}
+
+double cluster_relative_change(double coarse, double fine)
+{
+  const double difference = coarse - fine;
+  if (!std::isfinite(difference) || std::fabs(difference) > 50.0) {
+    return std::numeric_limits<double>::infinity();
+  }
+  return std::fabs(std::expm1(difference));
+}
+
+double quadrature_log_gaussian_tail_bound(
+    const double *nodes, int offset, int order, int rank,
+    const double *omega, int n_bins, int dimension, int vector_rule)
+{
+  if (order < 1 || rank < 1 || n_bins < 1) {
+    return std::numeric_limits<double>::infinity();
+  }
+  const double *begin = nodes + offset;
+  const double *end = begin + order;
+  const double lower = *std::min_element(begin, end);
+  const double upper = *std::max_element(begin, end);
+  const double maximum_weight = *std::max_element(omega, omega + n_bins);
+  if (!(maximum_weight > 0.0) || !std::isfinite(maximum_weight)) {
+    return std::numeric_limits<double>::infinity();
+  }
+
+  // Successive Gaussian rules can agree while both miss a displaced selection
+  // mode. Bound the entire omitted node-box region using the maximum possible
+  // publication weight and a union bound over independent standard factors.
+  // This is a coverage requirement in addition to the interior rule comparison;
+  // it does not turn successive-rule differences into rigorous error bounds.
+  const double log_tail = log_add_exp(
+    pnorm(lower, 0.0, 1.0, true, true),
+    pnorm(upper, 0.0, 1.0, false, true)
+  ) + std::log(static_cast<double>(rank));
+  const double log_weight_bound = std::log(maximum_weight) *
+    static_cast<double>(vector_rule == SELVECTOR_PRODUCT ? dimension : 1);
+  return log_tail + log_weight_bound;
+}
+
+// The optional `relative_bound` receives the compared quantity on the relative
+// scale, exp(log bound - log normalizer); the boolean is decided on the log
+// scale exactly as before.
+bool quadrature_covers_gaussian_tails(
+    const double *nodes, int offset, int order, int rank,
+    const double *omega, int n_bins, int dimension, int vector_rule,
+    double log_normalizer, double relative_tolerance,
+    double *relative_bound = nullptr)
+{
+  const double log_bound = quadrature_log_gaussian_tail_bound(nodes, offset,
+    order, rank, omega, n_bins, dimension, vector_rule);
+  if (relative_bound != nullptr) {
+    *relative_bound = std::exp(log_bound - log_normalizer);
+  }
+  return std::isfinite(log_normalizer) &&
+    log_bound - log_normalizer <= std::log(relative_tolerance);
+}
+
+struct SelNormCovarianceEnvelope {
+  std::vector<int> type_index;
+  int groups;
+  double within_lower;
+  double within_upper;
+  double between_lower;
+  double between_upper;
+};
+
+// One representable step encloses each correctly rounded basic operation.
+// All interval operations using these have nonnegative operands. Handle exact
+// zero products separately; underflowed positive products retain an upper
+// bound of the least positive representable number. Overflow rejects the
+// optional paths. These directed endpoints modify only auxiliary bounds.
+// Shared by the covariance envelope and both covariance gap bounds so the
+// outward-rounding convention has exactly one definition.
+inline double mul_down(double x, double y)
+{
+  if (x == 0.0 || y == 0.0) return 0.0;
+  const double value = x * y;
+  return value == 0.0 ? 0.0 :
+    std::nextafter(value, -std::numeric_limits<double>::infinity());
+}
+
+inline double mul_up(double x, double y)
+{
+  if (x == 0.0 || y == 0.0) return 0.0;
+  return std::nextafter(x * y, std::numeric_limits<double>::infinity());
+}
+
+inline double add_down(double x, double y)
+{
+  if (x == 0.0) return y;
+  if (y == 0.0) return x;
+  return std::nextafter(x + y, -std::numeric_limits<double>::infinity());
+}
+
+inline double add_up(double x, double y)
+{
+  if (x == 0.0) return y;
+  if (y == 0.0) return x;
+  return std::nextafter(x + y, std::numeric_limits<double>::infinity());
+}
+
+// Equal means and diagonals with ordered off-diagonals order Gaussian
+// expectations of nonnegative product weights monotone in one common direction.
+// Along the covariance segment, the derivative is
+// E[w_i' w_j' product_{l != i,j} w_l] >= 0; smooth monotone limits cover steps.
+// The dense caller has already validated the target covariance by Cholesky.
+// Positive residuals and common/type factors validate the auxiliary covariances.
+bool covariance_envelope(const std::vector<double>& covariance, int dimension,
+    const double* selection_se, SelNormCovarianceEnvelope* envelope)
+{
+  if (dimension < 2 || selection_se == nullptr || envelope == nullptr ||
+      covariance.size() != static_cast<std::size_t>(dimension) * dimension) {
+    return false;
+  }
+  const double infinity = std::numeric_limits<double>::infinity();
+
+  std::vector<double> correlation(static_cast<std::size_t>(dimension) * dimension);
+  std::vector<double> values;
+  double common_lower = 0.0;
+  double common_upper = infinity;
+  for (int i = 0; i < dimension; ++i) {
+    const double diagonal = covariance[i + dimension * i];
+    if (!(selection_se[i] > 0.0) || !std::isfinite(selection_se[i]) ||
+        !(diagonal > 0.0) || !std::isfinite(diagonal)) return false;
+  }
+  for (int j = 0; j < dimension; ++j) {
+    for (int i = j + 1; i < dimension; ++i) {
+      const double value = covariance[i + dimension * j];
+      if (!(value >= 0.0) || !std::isfinite(value) ||
+          value != covariance[j + dimension * i]) return false;
+      const double scale = selection_se[i] * selection_se[j];
+      if (!(scale > 0.0) || !std::isfinite(scale)) return false;
+      const double ratio = value / scale;
+      if (!std::isfinite(ratio)) return false;
+      const double scale_lower = mul_down(selection_se[i], selection_se[j]);
+      const double scale_upper = mul_up(selection_se[i], selection_se[j]);
+      if (!(scale_lower > 0.0) || !std::isfinite(scale_upper)) return false;
+      common_lower = std::max(common_lower, value == 0.0 ? 0.0 :
+        std::nextafter(value / scale_upper, -infinity));
+      common_upper = std::min(common_upper, value == 0.0 ? 0.0 :
+        std::nextafter(value / scale_lower, infinity));
+      correlation[i + dimension * j] = ratio;
+      correlation[j + dimension * i] = ratio;
+      values.push_back(ratio);
+    }
+  }
+
+  // A largest-gap partition only proposes an efficient common/type factor
+  // pattern. It never establishes an equality or discards a matrix residual.
+  // Every off-diagonal is checked independently below. A failed or expensive
+  // partition falls back to a one-factor covariance envelope.
+  std::sort(values.begin(), values.end());
+  double gap = 0.0;
+  double split = values.front();
+  for (std::size_t i = 1; i < values.size(); ++i) {
+    const double difference = values[i] - values[i - 1];
+    if (difference > gap) {
+      gap = difference;
+      split = values[i - 1];
+    }
+  }
+  std::vector<int> types(static_cast<std::size_t>(dimension), -1);
+  int groups = 0;
+  // Overlapping arithmetic enclosures favour the cheaper compound proposal;
+  // the final envelopes still retain and check the complete observed spread.
+  if (gap > 0.0 && common_lower > common_upper) {
+    for (int root = 0; root < dimension; ++root) {
+      if (types[root] >= 0) continue;
+      std::vector<int> pending(1, root);
+      types[root] = groups;
+      while (!pending.empty()) {
+        const int row = pending.back();
+        pending.pop_back();
+        for (int column = 0; column < dimension; ++column) {
+          if (column != row && types[column] < 0 &&
+              correlation[row + dimension * column] > split) {
+            types[column] = groups;
+            pending.push_back(column);
+          }
+        }
+      }
+      ++groups;
+    }
+    for (int j = 0; j < dimension && groups <= 3; ++j) {
+      for (int i = j + 1; i < dimension; ++i) {
+        if ((types[i] == types[j]) !=
+            (correlation[i + dimension * j] > split)) {
+          groups = 4;
+          break;
+        }
+      }
+    }
+  }
+  if (groups < 2 || groups > 3) {
+    groups = 1;
+    std::fill(types.begin(), types.end(), 0);
+  }
+
+  // Trying the compound envelope second also handles an unsuitable proposed
+  // type partition. Its potentially greater integration width is exposed to
+  // the caller's unchanged numerical diagnostic, not silently accepted.
+  for (int attempt = 0; attempt < 2; ++attempt) {
+    double within_lower = infinity;
+    double within_upper = 0.0;
+    double between_lower = infinity;
+    double between_upper = 0.0;
+    for (int j = 0; j < dimension; ++j) {
+      for (int i = j + 1; i < dimension; ++i) {
+        const double value = covariance[i + dimension * j];
+        const double scale_lower = mul_down(selection_se[i], selection_se[j]);
+        const double scale_upper = mul_up(selection_se[i], selection_se[j]);
+        if (!(scale_lower > 0.0) || !std::isfinite(scale_upper)) return false;
+        const double lower = value == 0.0 ? 0.0 :
+          std::nextafter(value / scale_upper, -infinity);
+        const double upper = value == 0.0 ? 0.0 :
+          std::nextafter(value / scale_lower, infinity);
+        if (!(lower >= 0.0) || !std::isfinite(upper)) return false;
+        if (types[i] == types[j]) {
+          within_lower = std::min(within_lower, lower);
+          within_upper = std::max(within_upper, upper);
+        } else {
+          between_lower = std::min(between_lower, lower);
+          between_upper = std::max(between_upper, upper);
+        }
+      }
+    }
+    if (groups == 1) between_lower = between_upper = 0.0;
+    bool valid = std::isfinite(within_lower) &&
+      std::isfinite(between_lower) && between_lower <= within_lower &&
+      between_upper <= within_upper;
+
+    // The coefficient-defined envelope is already outward. Rounded square
+    // roots and loading products can widen its numerical representation;
+    // verify those products too. Move auxiliary coefficients outward by one
+    // representable step per pass and accept only a verified result. The
+    // bounded pass count is a work limit, never a numerical tolerance.
+    for (int side = 0; side < 2 && valid; ++side) {
+      double& within = side == 0 ? within_lower : within_upper;
+      double& between = side == 0 ? between_lower : between_upper;
+      bool certified = false;
+      for (int pass = 0; pass < 32 && !certified; ++pass) {
+        if (!(within >= between) || !(between >= 0.0) ||
+            !std::isfinite(within)) break;
+        const double common_root = std::sqrt(between);
+        const double type_root = std::sqrt(within - between);
+        std::vector<double> common(static_cast<std::size_t>(dimension));
+        std::vector<double> type(static_cast<std::size_t>(dimension));
+        certified = true;
+        for (int i = 0; i < dimension; ++i) {
+          common[i] = common_root * selection_se[i];
+          type[i] = type_root * selection_se[i];
+          const double nominal_variance = mul_up(
+            mul_up(within, selection_se[i]), selection_se[i]);
+          const double loading_variance = add_up(
+            mul_up(common[i], common[i]), mul_up(type[i], type[i]));
+          if (!std::isfinite(nominal_variance) ||
+              !std::isfinite(loading_variance) ||
+              !(covariance[i + dimension * i] > nominal_variance) ||
+              !(covariance[i + dimension * i] > loading_variance)) {
+            valid = false;
+            certified = false;
+            break;
+          }
+        }
+        for (int j = 0; j < dimension && valid; ++j) {
+          for (int i = j + 1; i < dimension; ++i) {
+            const double coefficient = types[i] == types[j] ? within : between;
+            const double nominal = side == 0 ?
+              mul_up(mul_up(coefficient, selection_se[i]), selection_se[j]) :
+              mul_down(mul_down(coefficient, selection_se[i]), selection_se[j]);
+            double represented = side == 0 ?
+              mul_up(common[i], common[j]) : mul_down(common[i], common[j]);
+            if (types[i] == types[j]) {
+              represented = side == 0 ?
+                add_up(represented, mul_up(type[i], type[j])) :
+                add_down(represented, mul_down(type[i], type[j]));
+            }
+            const double supplied = covariance[i + dimension * j];
+            if (side == 0 ? (nominal > supplied || represented > supplied) :
+                            (nominal < supplied || represented < supplied)) {
+              certified = false;
+            }
+          }
+        }
+        if (!valid || certified) break;
+        const double direction = side == 0 ? -infinity : infinity;
+        if (within != 0.0 || side == 1) within = std::nextafter(within, direction);
+        if (groups > 1 && (between != 0.0 || side == 1)) {
+          between = std::nextafter(between, direction);
+        }
+      }
+      valid = valid && certified;
+    }
+    if (valid) {
+      envelope->type_index = types;
+      envelope->groups = groups;
+      envelope->within_lower = within_lower;
+      envelope->within_upper = within_upper;
+      envelope->between_lower = between_lower;
+      envelope->between_upper = between_upper;
+      return true;
+    }
+    if (groups == 1) break;
+    groups = 1;
+    std::fill(types.begin(), types.end(), 0);
+  }
+  return false;
+}
+
+struct EnvelopeGroupGeometry {
+  std::vector<int> row_index;
+  std::vector<double> mean;
+  std::vector<double> common_loading;
+  std::vector<double> loading;
+  std::vector<double> residual_sd;
+  std::vector<double> selection_se;
+  std::vector<int> row_cache_slot;
+  int cache_slots = 0;
+  bool singleton_child = false;
+};
+
+struct EnvelopeRuleProjection {
+  std::vector<std::vector<double>> means;
+  std::vector<std::vector<double>> log_coefficient;
+  double log_scale = 0.0; // context GH weight / full A / number of pooled rows
+};
+
+void append_cluster_projection(const EnvelopeGroupGeometry &group,
+    const ClusterRuleProjection &rule, const double *log_weights, int offset,
+    int order, double log_scale, EnvelopeRuleProjection *projection,
+    std::vector<double> &prefix, std::vector<double> &suffix)
+{
+  const int size = group.mean.size();
+  prefix.resize(size + 1);
+  suffix.resize(size + 1);
+  for (int point = 0; point < order; ++point) {
+    prefix[0] = 0.0;
+    suffix[size] = 0.0;
+    for (int row = 0; row < size; ++row) {
+      prefix[row + 1] = prefix[row] + rule.log_probability[row * order + point];
+    }
+    for (int row = size - 1; row >= 0; --row) {
+      suffix[row] = suffix[row + 1] + rule.log_probability[row * order + point];
+    }
+    for (int row = 0; row < size; ++row) {
+      const int original = group.row_index[row];
+      projection->means[original].push_back(rule.means[row * order + point]);
+      projection->log_coefficient[original].push_back(
+        log_scale + log_weights[offset + point] + prefix[row] + suffix[row + 1]);
+    }
+  }
+}
+
+struct EnvelopeRuleWorkspace {
+  ClusterRuleWorkspace cluster;
+  std::vector<double> conditional_mean;
+  std::vector<double> log_products;
+  std::vector<long double> singleton_probability;
+  ClusterRuleProjection row_projection;
+  std::vector<double> prefix, suffix, group_integrals;
+  std::vector<std::size_t> projection_starts;
+};
+
+// Repeat only the failure conditions of prepare_envelope_geometry for one
+// envelope side without materializing its geometry. The residual arithmetic
+// matches that function exactly, so feasibility here agrees with its success.
+bool envelope_geometry_feasible(
+    const std::vector<double> &covariance, const double* selection_se, int dimension,
+    const SelNormCovarianceEnvelope &envelope, bool upper)
+{
+  const double within = upper ? envelope.within_upper : envelope.within_lower;
+  const double between = upper ? envelope.between_upper : envelope.between_lower;
+  const double common = std::sqrt(envelope.groups == 1 ? within : between);
+  const double child = envelope.groups == 1 ? 0.0 : std::sqrt(within - between);
+  const bool absorb_singleton = envelope.groups > 1;
+  std::vector<int> group_sizes;
+  if (absorb_singleton) {
+    group_sizes.assign(envelope.groups, 0);
+    for (int row = 0; row < dimension; ++row) ++group_sizes[envelope.type_index[row]];
+  }
+  for (int row = 0; row < dimension; ++row) {
+    if (!(selection_se[row] > 0.0) || !std::isfinite(selection_se[row]) ||
+        !(covariance[row + dimension * row] > 0.0) ||
+        !std::isfinite(covariance[row + dimension * row])) return false;
+    const bool singleton = absorb_singleton && group_sizes[envelope.type_index[row]] == 1;
+    const double common_loading = common * selection_se[row];
+    const double child_loading = singleton ? 0.0 : child * selection_se[row];
+    const long double residual = static_cast<long double>(covariance[row + dimension * row]) -
+      static_cast<long double>(common_loading) * common_loading -
+      static_cast<long double>(child_loading) * child_loading;
+    if (!(residual > 0.0) || !std::isfinite(residual)) return false;
+    const double sd = std::sqrt(static_cast<double>(residual));
+    if (!(sd > 0.0) || !std::isfinite(sd)) return false;
+  }
+  return true;
+}
+
+bool prepare_envelope_geometry(
+    const std::vector<double> &covariance, const double *mean,
+    const double *selection_se, int dimension, const SelNormCovarianceEnvelope &envelope,
+    bool upper, std::vector<EnvelopeGroupGeometry> *geometry)
+{
+  const double within = upper ? envelope.within_upper : envelope.within_lower;
+  const double between = upper ? envelope.between_upper : envelope.between_lower;
+  const double common = std::sqrt(envelope.groups == 1 ? within : between);
+  const double child = envelope.groups == 1 ? 0.0 : std::sqrt(within - between);
+  const bool absorb_singleton = envelope.groups > 1;
+  std::vector<int> group_sizes;
+  if (absorb_singleton) {
+    group_sizes.assign(envelope.groups, 0);
+    for (int row = 0; row < dimension; ++row) ++group_sizes[envelope.type_index[row]];
+  }
+  geometry->resize(envelope.groups);
+  for (int row = 0; row < dimension; ++row) {
+    const bool singleton = absorb_singleton && group_sizes[envelope.type_index[row]] == 1;
+    const double common_loading = common * selection_se[row];
+    const double child_loading = singleton ? 0.0 : child * selection_se[row];
+    // A unique-support child contributes only to this diagonal. Integrating it
+    // analytically leaves the authoritative diagonal minus the common square.
+    const long double residual = static_cast<long double>(covariance[row + dimension * row]) -
+      static_cast<long double>(common_loading) * common_loading -
+      static_cast<long double>(child_loading) * child_loading;
+    if (!(residual > 0.0) || !std::isfinite(residual)) return false;
+    const double sd = std::sqrt(static_cast<double>(residual));
+    if (!(sd > 0.0) || !std::isfinite(sd)) return false;
+    EnvelopeGroupGeometry &group = (*geometry)[envelope.type_index[row]];
+    group.row_index.push_back(row);
+    group.mean.push_back(mean[row]);
+    group.common_loading.push_back(common_loading);
+    group.loading.push_back(envelope.groups == 1 ? common_loading : child_loading);
+    group.residual_sd.push_back(sd);
+    group.selection_se.push_back(selection_se[row]);
+    group.singleton_child = singleton;
+  }
+  // Exact complete geometry, including signed zero. Fixed cutoffs, weights,
+  // direction, and kernel belong to the common call, never a sampled key.
+  const auto equal = [](double x, double y) {
+    return x == y && std::signbit(x) == std::signbit(y);
+  };
+  for (EnvelopeGroupGeometry &group : *geometry) {
+    const int size = group.mean.size();
+    group.row_cache_slot.assign(size, -1);
+    for (int row = 1; row < size; ++row) {
+      for (int previous = 0; previous < row; ++previous) {
+        if (equal(group.mean[row], group.mean[previous]) &&
+            equal(group.common_loading[row], group.common_loading[previous]) &&
+            equal(group.loading[row], group.loading[previous]) &&
+            equal(group.residual_sd[row], group.residual_sd[previous]) &&
+            equal(group.selection_se[row], group.selection_se[previous])) {
+          if (group.row_cache_slot[previous] < 0) {
+            group.row_cache_slot[previous] = group.cache_slots++;
+          }
+          group.row_cache_slot[row] = group.row_cache_slot[previous];
+          break;
+        }
+      }
+    }
+    if (group.cache_slots == 0) group.row_cache_slot.clear();
+  }
+  return true;
+}
+
+bool envelope_rule_resolves_transitions(
+    const std::vector<EnvelopeGroupGeometry> &geometry, const double *omega,
+    const SelNormKernelData &selection, const double *nodes, int offset, int order)
+{
+  int dimension = 0;
+  for (const auto &group : geometry) dimension += group.mean.size();
+  const int rank = geometry.size() == 1 ? 1 : geometry.size() + 1;
+  std::vector<double> mean(dimension), sd(dimension), sei(dimension);
+  std::vector<double> loading(dimension * rank, 0.0);
+  for (std::size_t group = 0; group < geometry.size(); ++group) {
+    const auto &g = geometry[group];
+    for (std::size_t i = 0; i < g.mean.size(); ++i) {
+      const int row = g.row_index[i];
+      mean[row] = g.mean[i]; sd[row] = g.residual_sd[i]; sei[row] = g.selection_se[i];
+      loading[row] = g.common_loading[i];
+      if (rank > 1) loading[row + dimension * (group + 1)] = g.loading[i];
+    }
+  }
+  return cpp_selnorm_step_rule_resolves_transitions(nodes, offset, order,
+    mean.data(), sd.data(), loading.data(), dimension, rank, sei.data(), omega, selection);
+}
+
+double envelope_rule_log_integral(
+    const std::vector<EnvelopeGroupGeometry> &geometry, const double *omega,
+    const SelNormKernelData &selection, const double *nodes, const double *log_weights,
+    const long double *weights, int offset, int order, EnvelopeRuleWorkspace *workspace,
+    EnvelopeRuleProjection *projection = nullptr, const double *cached_rule = nullptr,
+    double *saved_rule = nullptr)
+{
+  ClusterNormalizerContext context;
+  context.vector_rule = SELVECTOR_PRODUCT;
+  context.quadrature_weights = weights;
+  context.omega = omega;
+  context.kernel_mode = SELKERNEL_STEP;
+  context.selection = selection;
+  std::size_t dimension = 0;
+  if (cached_rule != nullptr || saved_rule != nullptr) {
+    for (const auto &group : geometry) dimension += group.mean.size();
+  }
+  // A private context-rule cache stores original raw integrals and row log
+  // probabilities, never coefficients containing a supplied denominator.
+  // Reconstruct means and replay every coefficient addition below unchanged.
+  const auto cluster_rule = [&](const EnvelopeGroupGeometry &group,
+                                std::size_t group_index, int common) {
+    ClusterRuleProjection &row_rule = workspace->row_projection;
+    double local;
+    if (cached_rule != nullptr) {
+      row_rule.means.resize(group.mean.size() * order);
+      row_rule.log_probability.resize(group.mean.size() * order);
+      for (std::size_t row = 0; row < group.mean.size(); ++row) {
+        const std::size_t start = 1 + dimension * order +
+          static_cast<std::size_t>(group.row_index[row]) * order * order + common * order;
+        for (int node = 0; node < order; ++node) {
+          row_rule.means[row * order + node] = context.mean[row] +
+            context.loading[row] * (nodes[offset + node] + 0.0);
+          row_rule.log_probability[row * order + node] = cached_rule[start + node];
+        }
+      }
+      local = cached_rule[geometry.size() == 1 ? 0 : 1 + group_index * order + common];
+    } else {
+      local = cluster_rule_log_integral(context, nodes, log_weights, offset, order,
+        &workspace->cluster, group.row_cache_slot.empty() ? nullptr : group.row_cache_slot.data(),
+        group.cache_slots, projection == nullptr ? nullptr : &row_rule);
+    }
+    if (saved_rule != nullptr && std::isfinite(local)) {
+      saved_rule[geometry.size() == 1 ? 0 : 1 + group_index * order + common] = local;
+      for (std::size_t row = 0; row < group.mean.size(); ++row) {
+        const std::size_t start = 1 + dimension * order +
+          static_cast<std::size_t>(group.row_index[row]) * order * order + common * order;
+        std::copy_n(row_rule.log_probability.data() + row * order, order, saved_rule + start);
+      }
+    }
+    return local;
+  };
+  if (geometry.size() == 1) {
+    const EnvelopeGroupGeometry &group = geometry[0];
+    context.dimension = group.mean.size();
+    context.mean = group.mean.data();
+    context.residual_sd = group.residual_sd.data();
+    context.loading = group.loading.data();
+    context.selection_se = group.selection_se.data();
+    ClusterRuleProjection &row_rule = workspace->row_projection;
+    const double result = cluster_rule(group, 0, 0);
+    if (projection != nullptr && std::isfinite(result)) {
+      append_cluster_projection(group, row_rule, log_weights, offset, order,
+        projection->log_scale, projection, workspace->prefix, workspace->suffix);
+    }
+    return result;
+  }
+
+  std::vector<double> &log_products = workspace->log_products;
+  std::vector<double> &conditional_mean = workspace->conditional_mean;
+  log_products.assign(order, 0.0);
+  std::vector<double> &group_integrals = workspace->group_integrals;
+  std::vector<std::size_t> &starts = workspace->projection_starts;
+  if (projection != nullptr) {
+    group_integrals.resize(geometry.size() * order);
+    starts.resize(projection->means.size());
+    for (std::size_t row = 0; row < starts.size(); ++row) starts[row] = projection->means[row].size();
+  }
+  for (std::size_t g = 0; g < geometry.size(); ++g) {
+    const EnvelopeGroupGeometry &group = geometry[g];
+    const int size = group.mean.size();
+    if (group.singleton_child) {
+      std::vector<double> &means = workspace->cluster.means;
+      std::vector<long double> &probability = workspace->singleton_probability;
+      means.resize(order);
+      probability.assign(order, 1.0L);
+      for (int point = 0; point < order; ++point) {
+        means[point] = group.mean[0] + group.common_loading[0] * nodes[offset + point];
+      }
+      const bool direct = cached_rule == nullptr && cpp_selnorm_step_normalizer_product(
+        means.data(), means.size(), group.residual_sd[0], group.selection_se[0],
+        omega, selection, probability.data());
+      for (int point = 0; point < order; ++point) {
+        const double local = cached_rule != nullptr ? cached_rule[1 + g * order + point] :
+          direct ? static_cast<double>(std::log(probability[point])) :
+          cpp_selnorm_step_log_norm(means[point], group.residual_sd[0],
+            group.selection_se[0], omega, selection, 1, false);
+        if (saved_rule != nullptr) saved_rule[1 + g * order + point] = local;
+        log_products[point] += local;
+        if (projection != nullptr) {
+          if (!std::isfinite(local)) return local;
+          group_integrals[g * order + point] = local;
+          const int row = group.row_index[0];
+          projection->means[row].push_back(means[point]);
+          projection->log_coefficient[row].push_back(projection->log_scale + log_weights[offset + point]);
+        }
+      }
+      continue;
+    }
+    conditional_mean.resize(size);
+    context.dimension = size;
+    context.mean = conditional_mean.data();
+    context.residual_sd = group.residual_sd.data();
+    context.loading = group.loading.data();
+    context.selection_se = group.selection_se.data();
+    ClusterRuleProjection &row_rule = workspace->row_projection;
+    for (int point = 0; point < order; ++point) {
+      for (int row = 0; row < size; ++row) {
+        conditional_mean[row] = group.mean[row] +
+          group.common_loading[row] * nodes[offset + point];
+      }
+      const double local = cluster_rule(group, g, point);
+      log_products[point] += local;
+      if (projection != nullptr) {
+        if (!std::isfinite(local)) return local;
+        group_integrals[g * order + point] = local;
+        append_cluster_projection(group, row_rule, log_weights, offset, order,
+          projection->log_scale + log_weights[offset + point], projection,
+          workspace->prefix, workspace->suffix);
+      }
+    }
+  }
+  if (projection != nullptr) {
+    for (std::size_t g = 0; g < geometry.size(); ++g) {
+      for (int row : geometry[g].row_index) {
+        std::size_t component = starts[row];
+        const int children = geometry[g].singleton_child ? 1 : order;
+        // Each common node emits one component for an absorbed singleton,
+        // otherwise one per child node. Replay that order without storing a
+        // common-node index beside every component.
+        for (int common = 0; common < order; ++common) {
+          for (int child = 0; child < children; ++child, ++component) {
+            for (std::size_t other = 0; other < geometry.size(); ++other) {
+              if (other != g) projection->log_coefficient[row][component] += group_integrals[other * order + common];
+            }
+          }
+        }
+      }
+    }
+  }
+  double result = -std::numeric_limits<double>::infinity();
+  for (int point = 0; point < order; ++point) {
+    result = log_add_exp(result, log_weights[offset + point] + log_products[point]);
+  }
+  if (saved_rule != nullptr) saved_rule[0] = result;
+  return result;
+}
+
+// Absolute Price-theorem bound |A(covariance) - A(lower envelope)|.
+// The caller has certified equal diagonals, 0 <= lower_ij <= covariance_ij,
+// positive definite covariance, and nonnegative product step weights.
+// Off-diagonal differentiation has coefficient one (Price's theorem,
+// Voigtlaender, 2021, Theorem 1, doi:10.1007/s10959-020-01017-w):
+// each derivative measure has total variation
+// sum |omega[b] - omega[b-1]|. Bound the remaining weights by their maximum
+// and each bivariate density by its largest prefactor along the segment.
+// Every actual lower loading uses the same double arithmetic as quadrature.
+double covariance_price_gap_bound(const std::vector<double>& covariance,
+    const double* selection_se, int dimension,
+    const SelNormCovarianceEnvelope& envelope, const double* omega, int n_bins,
+    bool monotone)
+{
+  const double infinity = std::numeric_limits<double>::infinity();
+  if (dimension < 2 || n_bins < 1 || selection_se == nullptr || omega == nullptr ||
+      covariance.size() != static_cast<std::size_t>(dimension) * dimension ||
+      envelope.type_index.size() != static_cast<std::size_t>(dimension) ||
+      envelope.groups < 1 || envelope.groups > 3) return infinity;
+  double minimum = infinity, maximum = 0.0;
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!(omega[bin] >= 0.0) || !std::isfinite(omega[bin])) return infinity;
+    minimum = std::min(minimum, omega[bin]);
+    maximum = std::max(maximum, omega[bin]);
+  }
+  if (!(maximum > 0.0)) return infinity;
+  if (minimum == maximum) return 0.0;
+  const double common_variance = envelope.groups == 1 ?
+    envelope.within_lower : envelope.between_lower;
+  const double child_variance = envelope.groups == 1 ? 0.0 :
+    envelope.within_lower - envelope.between_lower;
+  if (!(common_variance >= 0.0) || !(child_variance >= 0.0) ||
+      !std::isfinite(common_variance) || !std::isfinite(child_variance)) return infinity;
+  const double common = std::sqrt(common_variance);
+  const double child = std::sqrt(child_variance);
+  std::vector<double> common_loading(dimension), child_loading(dimension);
+  for (int i = 0; i < dimension; ++i) {
+    if (!(selection_se[i] > 0.0) || !std::isfinite(selection_se[i]) ||
+        envelope.type_index[i] < 0 || envelope.type_index[i] >= envelope.groups ||
+        !(covariance[i + dimension * i] > 0.0) ||
+        !std::isfinite(covariance[i + dimension * i])) return infinity;
+    common_loading[i] = common * selection_se[i];
+    child_loading[i] = child * selection_se[i];
+    if (!std::isfinite(common_loading[i]) || !std::isfinite(child_loading[i])) return infinity;
+  }
+  // This binary64 constant is strictly below mathematical 2*pi. Downward
+  // products/square roots preserve a lower density-prefactor denominator.
+  const double two_pi_lower = 6.283185307179586;
+  double sum = 0.0;
+  for (int j = 0; j < dimension; ++j) {
+    for (int i = j + 1; i < dimension; ++i) {
+      const double value = covariance[i + dimension * j];
+      if (!(value >= 0.0) || !std::isfinite(value) ||
+          value != covariance[j + dimension * i]) return infinity;
+      double lower = mul_down(common_loading[i], common_loading[j]);
+      if (envelope.type_index[i] == envelope.type_index[j]) {
+        lower = add_down(lower, mul_down(child_loading[i], child_loading[j]));
+      }
+      if (!(lower <= value)) return infinity;
+      if (lower == value) continue;
+      const double gap = std::nextafter(value - lower, infinity);
+      const double determinant = std::nextafter(
+        mul_down(covariance[i + dimension * i], covariance[j + dimension * j]) -
+        mul_up(value, value), -infinity);
+      if (!(determinant > 0.0) || !std::isfinite(determinant)) return infinity;
+      const double root = std::nextafter(std::sqrt(determinant), -infinity);
+      const double denominator = mul_down(two_pi_lower, root);
+      if (!(denominator > 0.0) || !std::isfinite(denominator)) return infinity;
+      const double term = std::nextafter(gap / denominator, infinity);
+      sum = add_up(sum, term);
+      if (!std::isfinite(sum)) return infinity;
+    }
+  }
+  if (sum == 0.0) return 0.0;
+  // Both branches compute the same quantity: for a monotone weight sequence
+  // the total variation sum |omega[b] - omega[b-1]| equals max - min exactly.
+  // The closed form is kept only because it is one rounding step, whereas the
+  // summed form accumulates outward rounding across every bin and is therefore
+  // slightly looser. Dropping either branch changes only that slack, so do not
+  // collapse them without accepting the wider monotone bound.
+  double variation = std::nextafter(maximum - minimum, infinity);
+  if (!monotone) {
+    variation = 0.0;
+    for (int bin = 1; bin < n_bins; ++bin) {
+      if (omega[bin] == omega[bin - 1]) continue;
+      variation = add_up(variation,
+        std::nextafter(std::fabs(omega[bin] - omega[bin - 1]), infinity));
+    }
+  }
+  double multiplier = mul_up(variation, variation);
+  for (int i = 0; i < dimension - 2; ++i) multiplier = mul_up(multiplier, maximum);
+  const double result = mul_up(sum, multiplier);
+  return std::isfinite(result) ? result : infinity;
+}
+
+// Relative covariance perturbation for strictly positive product weights.
+// The auxiliary covariance C0 = D + U U' uses the emitted SDs/loadings,
+// including their diagonal rounding. Since C0 >= D, the maximum absolute row
+// sum of D^(-1/2) (C-C0) D^(-1/2) bounds the whitened spectral error epsilon.
+// Along the Gaussian covariance segment, Jensen and the chi-square MGF give
+// E_selected[||Z||^2] <= 4*k*log(M/m) + 2*k*log(2). Integrating the Gaussian
+// log-density derivative bounds |log A(C) - log A(C0)| without dividing an
+// absolute error by a possibly tiny A. This is the bound used by zplot context
+// integration. Zero weights retain the absolute Price bound instead.
+double covariance_relative_gap_bound(const std::vector<double>& covariance,
+    int dimension, const std::vector<EnvelopeGroupGeometry>& geometry,
+    const double* omega, int n_bins)
+{
+  const double infinity = std::numeric_limits<double>::infinity();
+  // Re-validate every input rather than relying on the caller's ordering:
+  // the loops below index fixed-size vectors by geometry-supplied row indices.
+  if (dimension < 2 || n_bins < 1 || omega == nullptr ||
+      covariance.size() != static_cast<std::size_t>(dimension) * dimension ||
+      geometry.empty()) return infinity;
+  double minimum = infinity, maximum = 0.0;
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!(omega[bin] > 0.0) || !std::isfinite(omega[bin])) return infinity;
+    minimum = std::min(minimum, omega[bin]);
+    maximum = std::max(maximum, omega[bin]);
+  }
+  if (!(minimum > 0.0) || !std::isfinite(minimum)) return infinity;
+  if (minimum == maximum) return 0.0;
+  // One group means the single common factor carries the whole loading, so
+  // there is no separate child contribution. This matches the sibling bound's
+  // envelope.groups == 1 test: prepare_envelope_geometry() resizes the
+  // geometry to envelope.groups, so the two predicates are the same.
+  const bool single_group = geometry.size() == 1;
+  std::vector<double> sd(dimension), common(dimension), child(dimension);
+  std::vector<int> groups(dimension);
+  for (std::size_t group = 0; group < geometry.size(); ++group) {
+    const EnvelopeGroupGeometry& part = geometry[group];
+    if (part.residual_sd.size() != part.row_index.size() ||
+        part.common_loading.size() != part.row_index.size() ||
+        part.loading.size() != part.row_index.size()) return infinity;
+    for (std::size_t local = 0; local < part.row_index.size(); ++local) {
+      const int row = part.row_index[local];
+      if (row < 0 || row >= dimension) return infinity;
+      sd[row] = part.residual_sd[local];
+      common[row] = part.common_loading[local];
+      child[row] = single_group ? 0.0 : part.loading[local];
+      groups[row] = static_cast<int>(group);
+    }
+  }
+  std::vector<double> row_sum(dimension, 0.0);
+  for (int column = 0; column < dimension; ++column) {
+    for (int row = column; row < dimension; ++row) {
+      double lower = row == column ? mul_down(sd[row], sd[row]) : 0.0;
+      double upper = row == column ? mul_up(sd[row], sd[row]) : 0.0;
+      lower = add_down(lower, mul_down(common[row], common[column]));
+      upper = add_up(upper, mul_up(common[row], common[column]));
+      if (groups[row] == groups[column]) {
+        lower = add_down(lower, mul_down(child[row], child[column]));
+        upper = add_up(upper, mul_up(child[row], child[column]));
+      }
+      const double value = covariance[row + dimension * column];
+      // C0 = D + U U' can only represent nonnegative off-diagonals, so a
+      // negative supplied entry is outside the envelope family. Reject it here
+      // as the absolute bound does, instead of relying on epsilon reaching one.
+      if (!std::isfinite(value) || (row != column && !(value >= 0.0))) return infinity;
+      const double difference = std::nextafter(std::max(
+        std::fabs(value - lower), std::fabs(value - upper)), infinity);
+      const double scale = mul_down(sd[row], sd[column]);
+      if (!(scale > 0.0) || !std::isfinite(scale) || !std::isfinite(difference)) return infinity;
+      const double error = std::nextafter(difference / scale, infinity);
+      row_sum[row] = add_up(row_sum[row], error);
+      if (row != column) row_sum[column] = add_up(row_sum[column], error);
+    }
+  }
+  const double epsilon = *std::max_element(row_sum.begin(), row_sum.end());
+  if (!(epsilon >= 0.0) || !(epsilon < 1.0)) return infinity;
+  const double complement = std::nextafter(1.0 - epsilon, -infinity);
+  if (!(complement > 0.0)) return infinity;
+  const double log_ratio = std::nextafter(
+    std::nextafter(std::log(maximum), infinity) -
+    std::nextafter(std::log(minimum), -infinity), infinity);
+  const double log_two = std::nextafter(std::log(2.0), infinity);
+  const double moment = add_up(mul_up(4.0 * dimension, log_ratio),
+                              mul_up(2.0 * dimension, log_two));
+  const double beta = std::nextafter(epsilon / (2.0 * complement), infinity);
+  const double determinant = mul_up(0.5 * dimension,
+    -std::nextafter(std::log1p(-epsilon), -infinity));
+  const double log_bound = add_up(determinant, mul_up(beta, moment));
+  if (!std::isfinite(log_bound)) return infinity;
+  return std::nextafter(std::expm1(log_bound), infinity);
+}
+
+// Selection-envelope memoization. Hashes only select candidates: complete
+// owned values, including the numerical controls, establish every cache hit.
+// All container rebinds share this direct-allocation accounting state. The
+// resource outlives storage; allocator metadata and process RSS are not counted.
+struct EnvelopeMemoResource {
+  std::size_t capacity, allocated = 0, peak = 0;
+  explicit EnvelopeMemoResource(std::size_t bytes) : capacity(bytes) {}
+};
+
+template<class T> class EnvelopeMemoAllocator {
+  template<class U> friend class EnvelopeMemoAllocator;
+  EnvelopeMemoResource *resource;
+public:
+  using value_type = T;
+  using propagate_on_container_copy_assignment = std::false_type;
+  using propagate_on_container_move_assignment = std::false_type;
+  using propagate_on_container_swap = std::false_type;
+  using is_always_equal = std::false_type;
+  template<class U> struct rebind { using other = EnvelopeMemoAllocator<U>; };
+
+  explicit EnvelopeMemoAllocator(EnvelopeMemoResource *owner) noexcept : resource(owner) {}
+  template<class U> EnvelopeMemoAllocator(const EnvelopeMemoAllocator<U> &other) noexcept
+    : resource(other.resource) {}
+
+  T *allocate(std::size_t count)
+  {
+    if (count > std::numeric_limits<std::size_t>::max() / sizeof(T)) throw std::bad_alloc();
+    const std::size_t bytes = count * sizeof(T);
+    if (bytes > resource->capacity - resource->allocated) throw std::bad_alloc();
+    T *result = std::allocator<T>{}.allocate(count);
+    resource->allocated += bytes;
+    resource->peak = std::max(resource->peak, resource->allocated);
+    return result;
+  }
+  void deallocate(T *value, std::size_t count) noexcept
+  {
+    std::allocator<T>{}.deallocate(value, count);
+    resource->allocated -= count * sizeof(T);
+  }
+  template<class U> bool operator==(const EnvelopeMemoAllocator<U> &other) const noexcept
+  {
+    return resource == other.resource;
+  }
+  template<class U> bool operator!=(const EnvelopeMemoAllocator<U> &other) const noexcept
+  {
+    return !(*this == other);
+  }
+};
+
+using EnvelopeMemoValues = std::vector<double, EnvelopeMemoAllocator<double>>;
+
+struct EnvelopeMemoSpan {
+  const double *data;
+  std::size_t size;
+};
+
+struct EnvelopeMemoView {
+  const EnvelopeMemoSpan *parts;
+  std::size_t count;
+  std::size_t size() const
+  {
+    std::size_t result = 0;
+    for (std::size_t i = 0; i < count; ++i) result += parts[i].size;
+    return result;
+  }
+  std::size_t hash() const
+  {
+    std::size_t value = 0;
+    for (std::size_t i = 0; i < count; ++i) {
+      const std::string_view bytes(reinterpret_cast<const char *>(parts[i].data),
+        parts[i].size * sizeof(double));
+      value ^= std::hash<std::string_view>{}(bytes) +
+        static_cast<std::size_t>(0x9e3779b97f4a7c15ULL) +
+        (value << 6) + (value >> 2) + parts[i].size;
+    }
+    return value;
+  }
+  bool equals(const EnvelopeMemoValues &stored) const
+  {
+    if (stored.size() != size()) return false;
+    std::size_t offset = 0;
+    for (std::size_t i = 0; i < count; ++i) {
+      if (std::memcmp(stored.data() + offset, parts[i].data,
+                      parts[i].size * sizeof(double)) != 0) return false;
+      offset += parts[i].size;
+    }
+    return true;
+  }
+  void copy_to(EnvelopeMemoValues *stored) const
+  {
+    stored->reserve(size());
+    for (std::size_t i = 0; i < count; ++i) {
+      stored->insert(stored->end(), parts[i].data, parts[i].data + parts[i].size);
+    }
+  }
+};
+
+struct EnvelopeMemoResult {
+  bool success = false, used_envelope = false;
+  double value = 0.0, change = 0.0, width = 0.0, tail = 0.0;
+};
+
+enum class EnvelopeMemoComponent : unsigned char { exact = 0, coarse = 1 };
+
+// Portable fieldwise snapshot framing; double bytes are bound to this ABI.
+// FNV-1a detects accidental corruption, not deliberate modification/authenticity.
+constexpr std::uint64_t snapshot_magic = UINT64_C(0x315041434d424f52);
+constexpr std::size_t snapshot_header = 48, snapshot_record = 48;
+std::uint64_t snapshot_checksum(const unsigned char *data, std::size_t size)
+{
+  std::uint64_t value = UINT64_C(14695981039346656037);
+  for (std::size_t i = 0; i < size; ++i) value = (value ^ data[i]) * UINT64_C(1099511628211);
+  return value;
+}
+std::uint64_t snapshot_abi()
+{
+  const std::uint16_t one = 1;
+  std::uint64_t value = sizeof(double) | (std::uint64_t(sizeof(long double)) << 8) |
+    (std::uint64_t(std::numeric_limits<long double>::digits) << 16) |
+    (std::uint64_t(sizeof(std::size_t)) << 24) | (std::uint64_t(sizeof(int)) << 32) |
+    (std::uint64_t(*reinterpret_cast<const unsigned char *>(&one)) << 40);
+#if defined(__MINGW32__) && defined(__GNUC__) && defined(__x86_64__)
+  value |= std::uint64_t(selnorm_fma_detail::supported()) << 48;
+#endif
+  return value;
+}
+struct SnapshotWriter {
+  unsigned char *data; std::size_t offset = 0;
+  void integer(std::uint64_t value) {
+    for (int i = 0; i < 8; ++i) data[offset++] = static_cast<unsigned char>(value >> (8 * i));
+  }
+  void bytes(const void *value, std::size_t size) {
+    if (size) std::memcpy(data + offset, value, size);
+    offset += size;
+  }
+  void real(double value) { bytes(&value, sizeof(value)); }
+};
+struct SnapshotReader {
+  const unsigned char *data; std::size_t size, offset = 0;
+  const unsigned char *bytes(std::size_t count) {
+    if (count > size - offset) throw std::invalid_argument("Selection cache snapshot is truncated.");
+    const unsigned char *value = data + offset; offset += count; return value;
+  }
+  std::uint64_t integer() {
+    const unsigned char *value = bytes(8); std::uint64_t out = 0;
+    for (int i = 0; i < 8; ++i) out |= std::uint64_t(value[i]) << (8 * i);
+    return out;
+  }
+  std::size_t count() {
+    const std::uint64_t value = integer();
+    if (value > std::numeric_limits<std::size_t>::max()) throw std::invalid_argument("Selection cache snapshot size is unsupported.");
+    return static_cast<std::size_t>(value);
+  }
+  const unsigned char *reals(std::size_t count) {
+    if (count > (size - offset) / sizeof(double)) throw std::invalid_argument("Selection cache snapshot array is truncated.");
+    return bytes(count * sizeof(double));
+  }
+  double real() { double value; std::memcpy(&value, bytes(sizeof(value)), sizeof(value)); return value; }
+};
+double snapshot_real(const unsigned char *data, std::size_t index)
+{
+  double value; std::memcpy(&value, data + index * sizeof(value), sizeof(value)); return value;
+}
+std::size_t snapshot_count(double value, std::size_t minimum)
+{
+  if (!std::isfinite(value) || value < minimum || value > std::numeric_limits<int>::max() || value != std::floor(value))
+    throw std::invalid_argument("Selection cache snapshot has an invalid dimension.");
+  return static_cast<std::size_t>(value);
+}
+void snapshot_controls(const unsigned char *data, std::size_t count)
+{
+  if (count == 0) return;
+  if (count < 2) throw std::invalid_argument("Selection cache snapshot controls are incomplete.");
+  const std::size_t rules = snapshot_count(snapshot_real(data, 0), 3);
+  const std::size_t nodes = snapshot_count(snapshot_real(data, 1), 1);
+  if (rules > count - 2 || nodes > (count - 2 - rules) / 2 || count != 2 + rules + 2 * nodes)
+    throw std::invalid_argument("Selection cache snapshot controls have invalid lengths.");
+  std::size_t total = 0, previous = 0;
+  for (std::size_t i = 0; i < rules; ++i) {
+    const std::size_t order = snapshot_count(snapshot_real(data, 2 + i), 1);
+    if (order <= previous || order > nodes - total) throw std::invalid_argument("Selection cache snapshot quadrature orders are invalid.");
+    total += order; previous = order;
+  }
+  if (total != nodes) throw std::invalid_argument("Selection cache snapshot quadrature length is invalid.");
+  for (std::size_t i = 0; i < nodes; ++i) {
+    const double node = snapshot_real(data, 2 + rules + i);
+    const double weight = snapshot_real(data, 2 + rules + nodes + i);
+    if (!std::isfinite(node) || std::isnan(weight) || weight == std::numeric_limits<double>::infinity())
+      throw std::invalid_argument("Selection cache snapshot quadrature values are invalid.");
+  }
+}
+struct SnapshotHeader {
+  std::size_t entries = 0;
+  std::array<std::size_t, 2> controls_size{{0, 0}};
+  std::array<const unsigned char *, 2> controls{{nullptr, nullptr}};
+};
+SnapshotHeader snapshot_header_read(SnapshotReader &reader)
+{
+  SnapshotHeader out;
+  if (reader.size == 0) return out;
+  if (sizeof(double) != 8 || !std::numeric_limits<double>::is_iec559 ||
+      reader.size < snapshot_header || reader.integer() != snapshot_magic ||
+      reader.integer() != 1 || reader.integer() != snapshot_abi())
+    throw std::invalid_argument("Selection cache snapshot format or numerical ABI is incompatible.");
+  out.entries = reader.count();
+  for (int component = 0; component < 2; ++component) out.controls_size[component] = reader.count();
+  for (int component = 0; component < 2; ++component)
+    out.controls[component] = reader.reals(out.controls_size[component]);
+  if (out.entries > (reader.size - reader.offset) / snapshot_record)
+    throw std::invalid_argument("Selection cache snapshot entry count is invalid.");
+  return out;
+}
+struct SnapshotEntry {
+  EnvelopeMemoComponent component;
+  const unsigned char *key;
+  std::size_t size;
+  EnvelopeMemoResult result;
+  EnvelopeMemoView view(EnvelopeMemoSpan (&parts)[7]) const {
+    const std::size_t k = snapshot_count(snapshot_real(key, 0), 1);
+    const std::size_t bins = snapshot_count(snapshot_real(key, 1), 1);
+    if (size < 8 || k > (size - 8) / k) throw std::invalid_argument("Selection cache snapshot key shape is invalid.");
+    const std::size_t counts[] = {8, k, k * k, k, bins, bins, bins};
+    std::size_t offset = 0;
+    for (int i = 0; i < 7; ++i) {
+      if (counts[i] > size - offset) throw std::invalid_argument("Selection cache snapshot key shape is invalid.");
+      // Hash/equality use byte representations only. Insertion memcpy-copies
+      // into actual owned doubles, never dereferencing raw-buffer doubles.
+      parts[i] = {reinterpret_cast<const double *>(key + offset * sizeof(double)), counts[i]};
+      offset += counts[i];
+    }
+    if (offset != size) throw std::invalid_argument("Selection cache snapshot key length is invalid.");
+    return {parts, 7};
+  }
+};
+SnapshotEntry snapshot_entry_read(SnapshotReader &reader)
+{
+  SnapshotEntry out;
+  const std::uint64_t flags = reader.integer();
+  if (flags & ~UINT64_C(0x301)) throw std::invalid_argument("Selection cache snapshot flags are invalid.");
+  out.component = static_cast<EnvelopeMemoComponent>(flags & 1);
+  out.result.success = (flags & 0x100) != 0; out.result.used_envelope = (flags & 0x200) != 0;
+  out.size = reader.count();
+  out.result.value = reader.real(); out.result.change = reader.real();
+  out.result.width = reader.real(); out.result.tail = reader.real();
+  out.key = reader.reals(out.size);
+  if (out.size < 8) throw std::invalid_argument("Selection cache snapshot key is incomplete.");
+  return out;
+}
+void snapshot_entry_validate(const SnapshotEntry &entry, const SnapshotHeader &header)
+{
+  const auto valid_diagnostic = [&](double value) {
+    return !std::isnan(value) && value >= 0.0 &&
+      (!entry.result.success || std::isfinite(value));
+  };
+  if (!header.controls_size[static_cast<std::size_t>(entry.component)] ||
+      (!entry.result.success && entry.component == EnvelopeMemoComponent::exact) ||
+      !std::isfinite(entry.result.value) || (!entry.result.success && entry.result.value != 0.0) ||
+      !valid_diagnostic(entry.result.change) || !valid_diagnostic(entry.result.width) ||
+      !valid_diagnostic(entry.result.tail))
+    throw std::invalid_argument("Selection cache snapshot result is invalid.");
+  EnvelopeMemoSpan parts[7]; entry.view(parts);
+  const double sign = snapshot_real(entry.key, 2), tolerance = snapshot_real(entry.key, 7);
+  if (!(sign == -1 || sign == 1) || !(tolerance > 0) || !std::isfinite(tolerance))
+    throw std::invalid_argument("Selection cache snapshot key controls are invalid.");
+  for (std::size_t i = 3; i <= 6; ++i) snapshot_count(snapshot_real(entry.key, i), 0);
+  for (std::size_t i = 8; i < entry.size; ++i) {
+    const double value = snapshot_real(entry.key, i);
+    if (std::isnan(value)) throw std::invalid_argument("Selection cache snapshot key contains missing values.");
+  }
+}
+
+struct EnvelopeMemoEntry {
+  EnvelopeMemoValues key;
+  std::size_t hash;
+  EnvelopeMemoComponent component;
+  EnvelopeMemoResult result;
+  EnvelopeMemoEntry(EnvelopeMemoResource *resource, const EnvelopeMemoView &view,
+      std::size_t hash_value, EnvelopeMemoComponent owner, const EnvelopeMemoResult &value)
+    : key(EnvelopeMemoAllocator<double>(resource)), hash(hash_value), component(owner), result(value)
+  {
+    view.copy_to(&key);
+  }
+  EnvelopeMemoEntry(EnvelopeMemoResource *resource, const unsigned char *data,
+      std::size_t count, std::size_t hash_value, EnvelopeMemoComponent owner, const EnvelopeMemoResult &value)
+    : key(EnvelopeMemoAllocator<double>(resource)), hash(hash_value), component(owner), result(value)
+  {
+    key.resize(count);
+    if (count) std::memcpy(key.data(), data, count * sizeof(double));
+  }
+};
+
+using EnvelopeMemoEntries = std::list<EnvelopeMemoEntry, EnvelopeMemoAllocator<EnvelopeMemoEntry>>;
+using EnvelopeMemoIndex =
+  std::unordered_multimap<std::size_t, EnvelopeMemoEntries::iterator,
+    std::hash<std::size_t>, std::equal_to<std::size_t>,
+    EnvelopeMemoAllocator<std::pair<const std::size_t, EnvelopeMemoEntries::iterator>>>;
+
+// Conservative direct-allocation allowance for one LRU node, one index node,
+// and bucket storage (including the old-plus-new arrays during rehash).
+constexpr std::size_t envelope_entry_overhead = 512;
+
+struct EnvelopeMemoStorage {
+  std::array<EnvelopeMemoValues, 2> controls;
+  std::array<bool, 2> controls_ready{{false, false}};
+  EnvelopeMemoEntries entries;
+  EnvelopeMemoIndex index;
+  explicit EnvelopeMemoStorage(EnvelopeMemoResource *resource)
+    : controls{{EnvelopeMemoValues(EnvelopeMemoAllocator<double>(resource)),
+        EnvelopeMemoValues(EnvelopeMemoAllocator<double>(resource))}},
+      entries(EnvelopeMemoEntries::allocator_type(resource)),
+      index(EnvelopeMemoIndex::allocator_type(resource))
+  {
+    // Rehash's old and new buckets both count against the one shared cap.
+    index.max_load_factor(1.0f);
+  }
+};
+
+bool envelope_memo_add(std::size_t left, std::size_t right, std::size_t *result)
+{
+  if (right > std::numeric_limits<std::size_t>::max() - left) return false;
+  *result = left + right;
+  return true;
+}
+
+bool envelope_memo_entry_bytes(std::size_t key_doubles, std::size_t controls_doubles,
+    std::size_t *result)
+{
+  std::size_t bytes = envelope_entry_overhead;
+  if (key_doubles > (std::numeric_limits<std::size_t>::max() - bytes) / sizeof(double) ||
+      controls_doubles > (std::numeric_limits<std::size_t>::max() - bytes) / sizeof(double))
+    return false;
+  if (!envelope_memo_add(bytes, key_doubles * sizeof(double), &bytes) ||
+      !envelope_memo_add(bytes, controls_doubles * sizeof(double), result)) return false;
+  return true;
+}
+
+struct EnvelopeMemoTicket {
+  std::uint64_t generation = 0;
+  std::size_t hash = 0;
+  EnvelopeMemoComponent component = EnvelopeMemoComponent::exact;
+  bool cacheable = false;
+};
+
+// Exact and coarse entries share one budget and global recency order, without
+// sharing numerical identity or admission policy. Evaluation and borrowed-key
+// hashing stay outside the mutex; no entry or owned pointer escapes its lock.
+class EnvelopeMemo {
+  std::mutex mutex;
+  std::atomic<std::size_t> capacity;
+  EnvelopeMemoResource resource;
+  std::optional<EnvelopeMemoStorage> storage;
+  std::array<std::uint64_t, 2> generation{{0, 0}};
+  std::array<SelNormCacheStats, 2> counters{};
+
+  static std::size_t slot(EnvelopeMemoComponent component)
+  {
+    return static_cast<std::size_t>(component);
+  }
+  bool make_room(std::size_t required)
+  {
+    if (required > resource.capacity) return false;
+    while (storage && resource.capacity - resource.allocated < required &&
+           !storage->entries.empty()) {
+      erase(std::prev(storage->entries.end()), true);
+    }
+    if (storage && storage->entries.empty() &&
+        resource.capacity - resource.allocated < required) {
+      // Unordered-map buckets do not shrink when nodes are erased. Return that
+      // retained capacity before declaring an otherwise empty cache full.
+      EnvelopeMemoIndex empty{EnvelopeMemoIndex::allocator_type(&resource)};
+      storage->index.swap(empty);
+    }
+    return resource.capacity - resource.allocated >= required;
+  }
+  SelNormCacheInfo info_unlocked() const
+  {
+    SelNormCacheInfo out;
+    out.capacity_bytes = resource.capacity;
+    out.allocated_bytes = resource.allocated;
+    out.peak_bytes = resource.peak;
+    out.exact = counters[0];
+    out.coarse = counters[1];
+    return out;
+  }
+  void release_storage()
+  {
+    storage.reset();
+    for (std::size_t component = 0; component < 2; ++component) {
+      ++generation[component];
+      counters[component].entries = 0;
+    }
+  }
+  void erase(EnvelopeMemoEntries::iterator entry, bool eviction)
+  {
+    const std::size_t component = slot(entry->component);
+    const auto range = storage->index.equal_range(entry->hash);
+    for (auto found = range.first; found != range.second; ++found) {
+      if (found->second == entry) {
+        storage->index.erase(found);
+        storage->entries.erase(entry);
+        --counters[component].entries;
+        if (eviction) ++counters[component].evictions;
+        return;
+      }
+    }
+    throw std::logic_error("Selection cache index invariant failed.");
+  }
+  void clear_component(EnvelopeMemoComponent component)
+  {
+    const std::size_t owner = slot(component);
+    ++generation[owner];
+    if (!storage) return;
+    for (auto entry = storage->entries.begin(); entry != storage->entries.end();) {
+      auto current = entry++;
+      if (current->component == component) erase(current, false);
+    }
+    EnvelopeMemoValues empty{EnvelopeMemoAllocator<double>(&resource)};
+    storage->controls[owner].swap(empty);
+    storage->controls_ready[owner] = false;
+  }
+  void initialize_controls(EnvelopeMemoComponent component, const EnvelopeMemoView &controls)
+  {
+    if (!storage) storage.emplace(&resource);
+    const std::size_t owner = slot(component);
+    controls.copy_to(&storage->controls[owner]);
+    storage->controls_ready[owner] = true;
+  }
+  bool ensure_controls(EnvelopeMemoComponent component, const EnvelopeMemoView &controls)
+  {
+    const std::size_t owner = slot(component);
+    std::size_t required = 0;
+    if (storage && storage->controls_ready[owner]) {
+      if (controls.equals(storage->controls[owner])) return true;
+      ++counters[owner].resets;
+      clear_component(component);
+    }
+    if (!envelope_memo_entry_bytes(0, controls.size(), &required) ||
+        !make_room(required)) return false;
+    try {
+      initialize_controls(component, controls);
+      return true;
+    } catch (const std::bad_alloc &) {
+      ++counters[owner].allocation_failures;
+      return false;
+    }
+  }
+  void insert(const EnvelopeMemoView &key, const EnvelopeMemoView &controls,
+      const EnvelopeMemoTicket &ticket, const EnvelopeMemoResult &result)
+  {
+    const std::size_t owner = slot(ticket.component);
+    std::size_t required = 0;
+    if (!envelope_memo_entry_bytes(key.size(), 0, &required) || !make_room(required)) {
+      ++counters[owner].allocation_failures;
+      return;
+    }
+    bool restarted = false;
+    while (storage) {
+      auto created = storage->entries.end();
+      try {
+        storage->entries.emplace_front(&resource, key, ticket.hash, ticket.component, result);
+        created = storage->entries.begin();
+        storage->index.emplace(ticket.hash, created);
+        ++counters[owner].entries;
+        return;
+      } catch (const std::bad_alloc &) {
+        ++counters[owner].allocation_failures;
+        if (created != storage->entries.end()) storage->entries.erase(created);
+        if (!storage->entries.empty()) {
+          // Evict several LRU records before retrying. This is only a fallback
+          // for a rehash's temporary old-plus-new bucket requirement or an
+          // allocator failure; ordinary admission evicted proactively above.
+          const std::size_t batch = std::max<std::size_t>(16, storage->entries.size() / 16);
+          for (std::size_t evicted = 0; evicted < batch && !storage->entries.empty(); ++evicted)
+            erase(std::prev(storage->entries.end()), true);
+          continue;
+        }
+        if (restarted) return;
+        restarted = true;
+        ++counters[owner].resets;
+        release_storage();
+        try {
+          initialize_controls(ticket.component, controls);
+        } catch (const std::bad_alloc &) {
+          ++counters[owner].allocation_failures;
+          release_storage();
+          return;
+        }
+      }
+    }
+  }
+public:
+  // R resolves the total automatic budget and assigns this process its share.
+  EnvelopeMemo() : capacity(0), resource(0) {}
+  std::size_t limit() const { return capacity.load(std::memory_order_relaxed); }
+
+  SelNormCacheInfo control(bool set_capacity, std::size_t bytes, unsigned int clear_mask)
+  {
+    if (clear_mask > 3) throw std::invalid_argument("Invalid selection cache clear mask.");
+    const std::lock_guard<std::mutex> lock(mutex);
+    const std::size_t requested = set_capacity ? bytes : resource.capacity;
+    if (requested != resource.capacity || clear_mask == 3) {
+      release_storage();
+      resource.capacity = requested;
+      resource.peak = 0;
+      counters = {};
+      capacity.store(requested, std::memory_order_relaxed);
+    } else {
+      for (std::size_t component = 0; component < 2; ++component) {
+        if (clear_mask & (1U << component)) {
+          clear_component(static_cast<EnvelopeMemoComponent>(component));
+          counters[component] = {};
+        }
+      }
+    }
+    return info_unlocked();
+  }
+  bool lookup(EnvelopeMemoComponent component, const EnvelopeMemoView &key,
+      const EnvelopeMemoView &controls, EnvelopeMemoTicket *ticket, EnvelopeMemoResult *result)
+  {
+    const std::size_t owner = slot(component);
+    ticket->component = component;
+    ticket->hash = key.hash() ^ (static_cast<std::size_t>(0x9e3779b97f4a7c15ULL) * owner);
+    const std::lock_guard<std::mutex> lock(mutex);
+    if (resource.capacity == 0) return false;
+    std::size_t required = 0;
+    bool usable = envelope_memo_entry_bytes(key.size(), controls.size(), &required) &&
+      required <= resource.capacity;
+    if (usable) usable = ensure_controls(component, controls);
+    ticket->cacheable = usable;
+    ticket->generation = generation[owner];
+    if (usable) {
+      const auto range = storage->index.equal_range(ticket->hash);
+      for (auto found = range.first; found != range.second; ++found) {
+        if (found->second->component != component || !key.equals(found->second->key)) continue;
+        *result = found->second->result;
+        storage->entries.splice(storage->entries.begin(), storage->entries, found->second);
+        ++counters[owner].hits;
+        return true;
+      }
+    }
+    ++counters[owner].misses;
+    return false;
+  }
+  void remember(const EnvelopeMemoView &key, const EnvelopeMemoView &controls,
+      const EnvelopeMemoTicket &ticket, const EnvelopeMemoResult &result)
+  {
+    const std::lock_guard<std::mutex> lock(mutex);
+    const std::size_t owner = slot(ticket.component);
+    if (!ticket.cacheable || !storage || !storage->controls_ready[owner] ||
+        ticket.generation != generation[owner]) return;
+    const auto range = storage->index.equal_range(ticket.hash);
+    for (auto found = range.first; found != range.second; ++found) {
+      if (found->second->component == ticket.component && key.equals(found->second->key)) {
+        storage->entries.splice(storage->entries.begin(), storage->entries, found->second);
+        return;
+      }
+    }
+    insert(key, controls, ticket, result);
+  }
+  std::size_t snapshot_size_unlocked() const
+  {
+    if (!storage || storage->entries.empty()) return 0;
+    std::size_t bytes = snapshot_header + 8;
+    const auto add = [&](std::size_t count, std::size_t unit) {
+      if (count > (std::numeric_limits<std::size_t>::max() - bytes) / unit)
+        throw std::length_error("Selection cache snapshot is too large.");
+      bytes += count * unit;
+    };
+    for (int component = 0; component < 2; ++component)
+      add(storage->controls_ready[component] ? storage->controls[component].size() : 0, sizeof(double));
+    for (const auto &entry : storage->entries) { add(1, snapshot_record); add(entry.key.size(), sizeof(double)); }
+    if (bytes > resource.capacity) throw std::length_error("Selection cache snapshot exceeds the configured byte budget.");
+    return bytes;
+  }
+  std::size_t snapshot_size()
+  {
+    const std::lock_guard<std::mutex> lock(mutex);
+    return snapshot_size_unlocked();
+  }
+  bool snapshot_write(unsigned char *data, std::size_t size)
+  {
+    const std::lock_guard<std::mutex> lock(mutex);
+    if (snapshot_size_unlocked() != size) return false;
+    if (!size) return true;
+    SnapshotWriter writer{data};
+    writer.integer(snapshot_magic); writer.integer(1); writer.integer(snapshot_abi());
+    writer.integer(storage->entries.size());
+    for (int component = 0; component < 2; ++component)
+      writer.integer(storage->controls_ready[component] ? storage->controls[component].size() : 0);
+    for (int component = 0; component < 2; ++component)
+      if (storage->controls_ready[component]) writer.bytes(storage->controls[component].data(), storage->controls[component].size() * sizeof(double));
+    for (const auto &entry : storage->entries) {
+      writer.integer(static_cast<std::uint64_t>(entry.component) |
+        (std::uint64_t(entry.result.success) << 8) | (std::uint64_t(entry.result.used_envelope) << 9));
+      writer.integer(entry.key.size());
+      writer.real(entry.result.value); writer.real(entry.result.change);
+      writer.real(entry.result.width); writer.real(entry.result.tail);
+      writer.bytes(entry.key.data(), entry.key.size() * sizeof(double));
+    }
+    if (writer.offset != size - 8) throw std::logic_error("Selection cache snapshot size invariant failed.");
+    writer.integer(snapshot_checksum(data, size - 8));
+    return true;
+  }
+  SelNormCacheRestoreInfo restore(const SelNormCacheBlob *blobs, std::size_t count)
+  {
+    SelNormCacheRestoreInfo out; out.snapshots = count;
+    // Validate every shard, including all later/cold records, before clearing.
+    for (std::size_t shard = 0; shard < count; ++shard) {
+      if (!blobs[shard].size) continue;
+      if (blobs[shard].size < snapshot_header + 8) throw std::invalid_argument("Selection cache snapshot is truncated.");
+      SnapshotReader checksum{blobs[shard].data + blobs[shard].size - 8, 8};
+      if (checksum.integer() != snapshot_checksum(blobs[shard].data, blobs[shard].size - 8))
+        throw std::invalid_argument("Selection cache snapshot checksum does not match.");
+      SnapshotReader reader{blobs[shard].data, blobs[shard].size - 8};
+      const auto header = snapshot_header_read(reader);
+      for (int component = 0; component < 2; ++component) snapshot_controls(header.controls[component], header.controls_size[component]);
+      for (std::size_t i = 0; i < header.entries; ++i) {
+        const auto entry = snapshot_entry_read(reader); snapshot_entry_validate(entry, header);
+        if (entry.component == EnvelopeMemoComponent::exact) ++out.available_exact; else ++out.available_coarse;
+      }
+      if (reader.offset != reader.size) throw std::invalid_argument("Selection cache snapshot has trailing records.");
+    }
+    const std::lock_guard<std::mutex> lock(mutex);
+    release_storage(); resource.peak = 0; counters = {};
+    bool full = resource.capacity == 0;
+    for (std::size_t shard = 0; shard < count && !full; ++shard) {
+      if (!blobs[shard].size) continue;
+      SnapshotReader reader{blobs[shard].data, blobs[shard].size - 8};
+      const auto header = snapshot_header_read(reader);
+      for (std::size_t i = 0; i < header.entries && !full; ++i) {
+        const auto entry = snapshot_entry_read(reader);
+        const std::size_t owner = slot(entry.component);
+        if (storage && storage->controls_ready[owner] &&
+            (storage->controls[owner].size() != header.controls_size[owner] ||
+             std::memcmp(storage->controls[owner].data(), header.controls[owner], header.controls_size[owner] * sizeof(double)) != 0)) continue;
+        EnvelopeMemoSpan parts[7]; const auto key = entry.view(parts);
+        const std::size_t hash = key.hash() ^ (static_cast<std::size_t>(0x9e3779b97f4a7c15ULL) * owner);
+        if (storage) {
+          bool duplicate = false;
+          const auto range = storage->index.equal_range(hash);
+          for (auto found = range.first; found != range.second; ++found)
+            if (found->second->component == entry.component && key.equals(found->second->key)) { duplicate = true; break; }
+          if (duplicate) continue;
+        }
+        std::size_t required = 0;
+        if (!envelope_memo_entry_bytes(entry.size,
+              storage && storage->controls_ready[owner] ? 0 : header.controls_size[owner],
+              &required) ||
+            required > resource.capacity - resource.allocated) {
+          if (resource.capacity != 0) ++counters[owner].allocation_failures;
+          full = true;
+          break;
+        }
+        bool created = false;
+        try {
+          if (!storage) storage.emplace(&resource);
+          if (!storage->controls_ready[owner]) {
+            storage->controls[owner].resize(header.controls_size[owner]);
+            std::memcpy(storage->controls[owner].data(), header.controls[owner], header.controls_size[owner] * sizeof(double));
+            storage->controls_ready[owner] = true;
+          }
+          // Input order is MRU-first. Admission never evicts restored entries,
+          // so a smaller budget retains only the warm prefix in that order.
+          storage->entries.emplace_back(&resource, entry.key, entry.size, hash, entry.component, entry.result);
+          created = true;
+          storage->index.emplace(hash, std::prev(storage->entries.end()));
+          ++counters[owner].entries;
+        } catch (const std::bad_alloc &) {
+          if (created) storage->entries.pop_back();
+          ++counters[owner].allocation_failures; full = true;
+        }
+      }
+    }
+    if (storage && storage->entries.empty()) release_storage();
+    out.restored_exact = counters[slot(EnvelopeMemoComponent::exact)].entries;
+    out.restored_coarse = counters[slot(EnvelopeMemoComponent::coarse)].entries;
+    out.skipped = out.available_exact + out.available_coarse - out.restored_exact - out.restored_coarse;
+    return out;
+  }
+};
+
+EnvelopeMemo &envelope_memo()
+{
+  static EnvelopeMemo memo;
+  return memo;
+}
+
+double bounded_cdf_product_log_error(const SelNormKernelData &selection,
+    const double *omega, int dimension, double tolerance)
+{
+  if (selection.n_bins != 2 || !selection.trusted_step_partition ||
+      !selection.telescope_probabilities || !std::isfinite(selection.z_lower[0]) ||
+      dimension < 1) return 0.0;
+  const double minimum = std::min(omega[0], omega[1]);
+  const double maximum = std::max(omega[0], omega[1]);
+  if (!(minimum >= std::numeric_limits<double>::min()) ||
+      !std::isfinite(maximum) || !(maximum > minimum)) return 0.0;
+  const long double u = std::numeric_limits<double>::epsilon() / 2.0L;
+  const long double gamma_blend = 5 * u / (1 - 5 * u);
+  // Positive blending admits a relative operation-count bound independent
+  // of cancellation. Five roundings also cover a subnormal difference*CDF
+  // product, since the positive base is at least the normal minimum.
+  const long double u_long = std::numeric_limits<long double>::epsilon() / 2.0L;
+  const long double guard = 1 - 8 * u_long;
+  const long double delta = ((static_cast<long double>(maximum) - minimum) /
+    minimum * cpp_selnorm_bounded_cdf_absolute_error()) / guard;
+  if (!(delta >= 0 && delta < 1)) return 0.0;
+  const long double bound = -static_cast<long double>(dimension) *
+    (std::log1p(-delta) + std::log1p(-gamma_blend)) / guard;
+  const double upper = std::nextafter(static_cast<double>(bound),
+    std::numeric_limits<double>::infinity());
+  if (!std::isfinite(upper) || !(upper > 0)) return 0.0;
+  // Even perfect quadrature cannot beat the two-envelope CDF-only score.
+  // If it already exhausts the requested budget, use the ordinary primitive
+  // immediately rather than refining an impossible approximate calculation.
+  const double minimum_score = 3 * std::exp(upper) * std::expm1(2 * upper) + std::expm1(upper);
+  if (!std::isfinite(minimum_score) || !(minimum_score < tolerance)) return 0.0;
+  return upper;
+}
+
+bool dense_envelope_log_integral(
+    const std::vector<double> &covariance, const double *mean,
+    const double *selection_se, const double *omega, int dimension,
+    const SelNormKernelData &selection, SelNormDenseIntegration *integration,
+    double *log_normalizer)
+{
+  if (integration == nullptr || integration->rule_count < 3 ||
+      !(integration->tolerance > 0.0)) return false;
+  integration->cdf_log_error = 0.0;
+  integration->cdf_relative_error = 0.0;
+  const double cdf_log_error = integration->bounded_cdf ?
+    bounded_cdf_product_log_error(selection, omega, dimension, integration->tolerance) : 0.0;
+  SelNormKernelData evaluation_selection = selection;
+  evaluation_selection.bounded_cdf = cdf_log_error > 0.0;
+  const double cdf_scale = cdf_log_error > 0 ? std::exp(cdf_log_error) : 1.0;
+  const double cdf_scale_twice = cdf_log_error > 0 ? std::exp(2 * cdf_log_error) : 1.0;
+  const double cdf_relative_error = cdf_log_error > 0 ? std::expm1(cdf_log_error) : 0.0;
+  const double cdf_change_error = cdf_log_error > 0 ? std::expm1(2 * cdf_log_error) : 0.0;
+  const auto change_bound = [&](double raw) {
+    // Exact-primitive sensitivity first, then convert its denominator to
+    // the returned approximate integral. L=0 retains the original arithmetic.
+    return cdf_log_error > 0 ? cdf_scale * (cdf_scale_twice * raw + cdf_change_error) : raw;
+  };
+  // Covariance ordering brackets normalizers only for monotone row weights.
+  // Nonmonotone product weights instead require an absolute perturbation
+  // bound; agreement of two auxiliary integrals cannot replace that bound.
+  bool increasing = true;
+  bool decreasing = true;
+  for (int bin = 1; bin < selection.n_bins; ++bin) {
+    increasing = increasing && omega[bin - 1] >= omega[bin];
+    decreasing = decreasing && omega[bin - 1] <= omega[bin];
+  }
+  const bool monotone = increasing || decreasing;
+  SelNormCovarianceEnvelope envelope;
+  if (!covariance_envelope(covariance, dimension, selection_se, &envelope)) return false;
+  // The absolute bound needs only the envelope, so evaluate it before any
+  // geometry work: a nonmonotone case whose weights already rule out the
+  // relative bound can then stop without preparing quadrature geometry.
+  const double gap_bound = covariance_price_gap_bound(
+    covariance, selection_se, dimension, envelope, omega, selection.n_bins, monotone
+  );
+  const double log_gap = gap_bound > 0.0 ? std::log(gap_bound) :
+    -std::numeric_limits<double>::infinity();
+  bool positive_weights = true;
+  double maximum_weight = 0.0;
+  for (int bin = 0; bin < selection.n_bins; ++bin) {
+    positive_weights = positive_weights && omega[bin] > 0.0 && std::isfinite(omega[bin]);
+    maximum_weight = std::max(maximum_weight, omega[bin]);
+  }
+  if (!monotone && !std::isfinite(gap_bound) && !positive_weights) return false;
+  std::vector<EnvelopeGroupGeometry> lower_geometry, upper_geometry;
+  if (!prepare_envelope_geometry(covariance, mean, selection_se, dimension,
+                                 envelope, false, &lower_geometry)) return false;
+  int finest_offset = 0;
+  for (int rule = 0; rule + 1 < integration->rule_count; ++rule) {
+    finest_offset += static_cast<int>(integration->orders[rule]);
+  }
+  const int finest_order = static_cast<int>(integration->orders[integration->rule_count - 1]);
+  if (!envelope_rule_resolves_transitions(lower_geometry, omega, selection,
+        integration->nodes, finest_offset, finest_order)) return false;
+  // The upper geometry is only consumed by a monotone direct comparison. The
+  // covariance-bound route below accepts many states without ever evaluating
+  // it, so its matrices stay lazy. The original eager rejection semantics are
+  // preserved by the matching feasibility check below: it repeats the exact
+  // residual arithmetic of prepare_envelope_geometry's upper pass.
+  if (monotone && !envelope_geometry_feasible(covariance, selection_se, dimension,
+                                              envelope, true)) return false;
+  bool upper_prepared = false;
+  bool upper_resolvable = false;
+  const auto prepare_upper = [&]() {
+    if (upper_prepared) return upper_resolvable;
+    upper_prepared = prepare_envelope_geometry(covariance, mean, selection_se,
+                                               dimension, envelope, true, &upper_geometry);
+    upper_resolvable = upper_prepared && envelope_rule_resolves_transitions(
+      upper_geometry, omega, selection, integration->nodes, finest_offset, finest_order);
+    return upper_resolvable;
+  };
+
+  const double relative_gap_bound = monotone ?
+    std::numeric_limits<double>::infinity() : covariance_relative_gap_bound(
+      covariance, dimension, lower_geometry, omega, selection.n_bins);
+  if (!monotone && !std::isfinite(gap_bound) && !std::isfinite(relative_gap_bound)) return false;
+  // The product normalizer is at most max(omega)^dimension, so the absolute
+  // bound can never yield a relative gap below this rule-independent value.
+  // If neither that floor nor the relative bound can reach the tolerance, no
+  // amount of refinement will accept, so stop before evaluating any rule.
+  const bool use_relative_bound = !monotone && std::isfinite(relative_gap_bound);
+  if (!monotone) {
+    const double gap_floor = std::exp(log_gap -
+      static_cast<double>(dimension) * std::log(maximum_weight));
+    if (!(gap_floor <= integration->tolerance) &&
+        !(use_relative_bound && relative_gap_bound <= integration->tolerance)) return false;
+  }
+  EnvelopeRuleWorkspace workspace;
+  double previous_lower = std::numeric_limits<double>::quiet_NaN();
+  double previous_upper = std::numeric_limits<double>::quiet_NaN();
+  int previous_offset = 0;
+  int previous_order = 0;
+  std::vector<long double> weights;
+  int offset = 0;
+  for (int rule = 0; rule < integration->rule_count; ++rule) {
+    const int order = static_cast<int>(integration->orders[rule]);
+    // These weights are identical for both envelopes and every conditional
+    // integral. Prepare only the rules actually visited by refinement.
+    weights.resize(offset + order);
+    for (int point = 0; point < order; ++point) {
+      weights[offset + point] = std::exp(
+        static_cast<long double>(integration->log_weights[offset + point])
+      );
+    }
+    const double lower = envelope_rule_log_integral(lower_geometry, omega, evaluation_selection,
+      integration->nodes, integration->log_weights, weights.data(), offset, order, &workspace);
+    if (!std::isfinite(lower)) return false;
+    const double raw_lower_change = cluster_relative_change(previous_lower, lower);
+    const double lower_change = change_bound(raw_lower_change);
+    const double log_tail = quadrature_log_gaussian_tail_bound(
+      integration->nodes, offset, order,
+      envelope.groups == 1 ? 1 : envelope.groups + 1,
+      omega, selection.n_bins, dimension, SELVECTOR_PRODUCT);
+    double relative_gap = cdf_log_error > 0 ?
+      cdf_scale_twice * std::exp(log_gap - lower) : std::exp(log_gap - lower);
+    const double lower_tail = cdf_log_error > 0 ?
+      cdf_scale_twice * std::exp(log_tail - lower) : std::exp(log_tail - lower);
+    // The relative covariance bound uses the exact auxiliary mass A(C0). The
+    // returned denominator is the quadrature value A_hat, and
+    // A(C0)/A_hat <= 1/(1 - quadrature_error), so divide by the complement
+    // rather than multiplying by the first-order factor 1 + quadrature_error,
+    // which understates the converted bound by O(quadrature_error^2). Round
+    // every step outward, as elsewhere in this file. Nonmonotone weights never
+    // use bounded CDFs: they need at least three bins, while the bounded-CDF
+    // path requires exactly two.
+    const double quadrature_error = add_up(mul_up(2.0, lower_change), lower_tail);
+    if (use_relative_bound && std::isfinite(quadrature_error) && quadrature_error < 1.0) {
+      const double complement = std::nextafter(1.0 - quadrature_error,
+        -std::numeric_limits<double>::infinity());
+      if (complement > 0.0) {
+        relative_gap = std::min(relative_gap, std::nextafter(
+          relative_gap_bound / complement, std::numeric_limits<double>::infinity()));
+      }
+    }
+    const bool use_gap_bound = std::isfinite(relative_gap) && relative_gap >= 0.0 &&
+      relative_gap <= integration->tolerance;
+    if (use_gap_bound &&
+        relative_gap + 2.0 * lower_change + lower_tail + cdf_relative_error <= integration->tolerance &&
+        envelope_rule_resolves_transitions(lower_geometry, omega, selection,
+          integration->nodes, offset, order)) {
+      // The derivative bound measures uncertainty; adding a fraction of that
+      // deliberately loose bound would introduce an artificial correction.
+      *log_normalizer = lower;
+      integration->used_envelope = true;
+      integration->quadrature_change = lower_change;
+      integration->covariance_width = relative_gap;
+      integration->tail_bound = lower_tail;
+      integration->cdf_log_error = cdf_log_error;
+      integration->cdf_relative_error = cdf_relative_error;
+      return true;
+    }
+
+    double upper = std::numeric_limits<double>::quiet_NaN();
+    if (monotone && (!use_gap_bound || rule + 1 == integration->rule_count) &&
+        prepare_upper()) {
+      // A loose bound restores the two actual envelope quadratures. A deferred
+      // previous upper value is evaluated at its original rule, not replaced
+      // by a lower-covariance value. The final rule always tries this route.
+      upper = envelope_rule_log_integral(upper_geometry, omega, evaluation_selection,
+        integration->nodes, integration->log_weights, weights.data(), offset, order, &workspace);
+      if (rule > 0 && std::isnan(previous_upper)) {
+        previous_upper = envelope_rule_log_integral(upper_geometry, omega, evaluation_selection,
+          integration->nodes, integration->log_weights, weights.data(),
+          previous_offset, previous_order, &workspace);
+      }
+      if (!std::isfinite(upper)) return false;
+      const double change = change_bound(std::max(raw_lower_change,
+        cluster_relative_change(previous_upper, upper)));
+      // Finite quadrature endpoints can cross. Count their absolute discrepancy
+      // and estimated interior errors; do not manufacture a rigorous interval.
+      const double width = cdf_log_error > 0 ?
+        cdf_scale * std::expm1(std::fabs(upper - lower) + 2 * cdf_log_error) :
+        std::expm1(std::fabs(upper - lower));
+      const double tail = cdf_log_error > 0 ?
+        cdf_scale_twice * std::exp(log_tail - std::min(lower, upper)) :
+        std::exp(log_tail - std::min(lower, upper));
+      if (width + 2.0 * change + tail + cdf_relative_error <= integration->tolerance &&
+          envelope_rule_resolves_transitions(lower_geometry, omega, selection,
+            integration->nodes, offset, order) &&
+          envelope_rule_resolves_transitions(upper_geometry, omega, selection,
+            integration->nodes, offset, order)) {
+        *log_normalizer = log_add_exp(lower, upper) - std::log(2.0);
+        integration->used_envelope = true;
+        integration->quadrature_change = change;
+        integration->covariance_width = width;
+        integration->tail_bound = tail;
+        integration->cdf_log_error = cdf_log_error;
+        integration->cdf_relative_error = cdf_relative_error;
+        return true;
+      }
+      if (2.0 * change + tail + cdf_relative_error <= integration->tolerance && width > integration->tolerance) {
+        return false;
+      }
+    }
+    previous_lower = lower;
+    previous_upper = upper;
+    previous_offset = offset;
+    previous_order = order;
+    offset += order;
+  }
+  return false;
+}
+
+// Component identity separates exact and surrogate values in the shared pool.
+// Only coarse anchors may store the prescribed failed-envelope fallback.
+bool memoized_envelope_log_integral(
+    const std::vector<double> &covariance, const double *mean,
+    const double *selection_se, const double *omega, int dimension,
+    const SelNormKernelData &selection, SelNormDenseIntegration *integration,
+    double *log_normalizer, EnvelopeMemoComponent component)
+{
+  EnvelopeMemo &memo = envelope_memo();
+  const bool cache_failures = component == EnvelopeMemoComponent::coarse;
+  const std::size_t capacity = memo.limit();
+  if (capacity == 0 || integration == nullptr || integration->bounded_cdf || integration->rule_count < 3 ||
+      !(integration->tolerance > 0.0)) {
+    const bool success = dense_envelope_log_integral(covariance, mean, selection_se,
+      omega, dimension, selection, integration, log_normalizer);
+    if (!success && cache_failures) *log_normalizer = 0.0;
+    return success;
+  }
+  std::size_t nodes = 0;
+  for (int rule = 0; rule < integration->rule_count; ++rule) {
+    const double order = integration->orders[rule];
+    if (!(order >= 1) || !std::isfinite(order) || order != std::floor(order) ||
+        order > capacity / sizeof(double) - nodes) {
+      const bool success = dense_envelope_log_integral(covariance, mean, selection_se,
+        omega, dimension, selection, integration, log_normalizer);
+      if (!success && cache_failures) *log_normalizer = 0.0;
+      return success;
+    }
+    nodes += static_cast<std::size_t>(order);
+  }
+  const double state_meta[] = {static_cast<double>(dimension), static_cast<double>(selection.n_bins),
+    static_cast<double>(selection.effect_sign), static_cast<double>(selection.n_segments),
+    static_cast<double>(selection.q), static_cast<double>(selection.trusted_step_partition),
+    static_cast<double>(selection.telescope_probabilities), integration->tolerance};
+  const double control_meta[] = {static_cast<double>(integration->rule_count),
+    static_cast<double>(nodes)};
+  const EnvelopeMemoSpan state_parts[] = {{state_meta, 8},
+    {mean, static_cast<std::size_t>(dimension)}, {covariance.data(), covariance.size()},
+    {selection_se, static_cast<std::size_t>(dimension)},
+    {omega, static_cast<std::size_t>(selection.n_bins)},
+    {selection.z_lower, static_cast<std::size_t>(selection.n_bins)},
+    {selection.z_upper, static_cast<std::size_t>(selection.n_bins)}};
+  const EnvelopeMemoSpan control_parts[] = {{control_meta, 2},
+    {integration->orders, static_cast<std::size_t>(integration->rule_count)},
+    {integration->nodes, nodes}, {integration->log_weights, nodes}};
+  const EnvelopeMemoView key{state_parts, 7}, controls{control_parts, 4};
+  EnvelopeMemoTicket ticket;
+  EnvelopeMemoResult result;
+  if (memo.lookup(component, key, controls, &ticket, &result)) {
+    *log_normalizer = result.value;
+    integration->used_envelope = result.used_envelope;
+    integration->quadrature_change = result.change;
+    integration->covariance_width = result.width;
+    integration->tail_bound = result.tail;
+    return result.success;
+  }
+  result.success = dense_envelope_log_integral(covariance, mean, selection_se,
+    omega, dimension, selection, integration, log_normalizer);
+  if (!result.success && cache_failures) *log_normalizer = 0.0;
+  if (result.success || cache_failures) {
+    result.value = *log_normalizer;
+    result.used_envelope = integration->used_envelope;
+    result.change = integration->quadrature_change;
+    result.width = integration->covariance_width;
+    result.tail = integration->tail_bound;
+    memo.remember(key, controls, ticket, result);
+  }
+  return result.success;
+}
+
+bool exact_envelope_log_integral(
+    const std::vector<double> &covariance, const double *mean,
+    const double *selection_se, const double *omega, int dimension,
+    const SelNormKernelData &selection, SelNormDenseIntegration *integration,
+    double *log_normalizer)
+{
+  const bool retry_ordinary = integration != nullptr && integration->bounded_cdf &&
+    bounded_cdf_product_log_error(selection, omega, dimension, integration->tolerance) > 0.0;
+  if (memoized_envelope_log_integral(covariance, mean, selection_se, omega,
+      dimension, selection, integration, log_normalizer, EnvelopeMemoComponent::exact)) return true;
+  if (!retry_ordinary) return false;
+  // Exhausting the bounded-CDF budget does not bypass the original envelope
+  // algorithm. Retry it with its exact primitive, same rules and criterion,
+  // before the caller's original QMC fallback. Neither attempt touches caches.
+  SelNormDenseIntegration ordinary = *integration;
+  ordinary.bounded_cdf = false;
+  ordinary.used_envelope = false;
+  ordinary.quadrature_change = ordinary.covariance_width = ordinary.tail_bound = 0.0;
+  ordinary.cdf_log_error = ordinary.cdf_relative_error = 0.0;
+  const bool success = dense_envelope_log_integral(covariance, mean, selection_se,
+    omega, dimension, selection, &ordinary, log_normalizer);
+  *integration = ordinary;
+  integration->bounded_cdf = true;
+  return success;
+}
+
+bool coarse_envelope_log_integral(
+    const std::vector<double> &covariance, const double *mean,
+    const double *selection_se, const double *omega, int dimension,
+    const SelNormKernelData &selection, SelNormDenseIntegration *integration,
+    double *log_normalizer)
+{
+  return memoized_envelope_log_integral(covariance, mean, selection_se, omega,
+    dimension, selection, integration, log_normalizer, EnvelopeMemoComponent::coarse);
+}
+
+// Called only by the explicit corrected-sampler interface. Arithmetic-range or
+// unsupported-anchor failures prescribe A=1. Allocation failures propagate;
+// cache allocation cannot choose a different surrogate value.
+double coarse_anchor_log_normalizer(
+    const double *mean, const double *covariance_lower, int dimension,
+    const double *selection_se, const double *omega, int n_bins,
+    const double *z_lower, const double *z_upper, int effect_sign,
+    bool telescope_probabilities, int kernel_mode, int vector_rule,
+    const SelNormDenseIntegration &quadrature, const SelNormCoarseSettings &settings)
+{
+  if (!(settings.mean_step >= 0.0) || !std::isfinite(settings.mean_step) ||
+      !(settings.diagonal_step >= 0.0) || !std::isfinite(settings.diagonal_step) ||
+      !(settings.log_weight_step >= 0.0) || !std::isfinite(settings.log_weight_step)) {
+    throw std::invalid_argument("Coarse selection-grid steps must be finite and nonnegative.");
+  }
+  if (dimension < 1 || n_bins < 1 || kernel_mode != SELKERNEL_STEP ||
+      vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3 ||
+      quadrature.rule_count < 3) return 0.0;
+  double scale = 0.0;
+  for (int row = 0; row < dimension; ++row) {
+    if (!(selection_se[row] > 0.0) || !std::isfinite(selection_se[row]) ||
+        !std::isfinite(mean[row])) return 0.0;
+    scale = std::max(scale, selection_se[row]);
+  }
+  const long double mean_step = static_cast<long double>(settings.mean_step) * scale;
+  const long double diagonal_step = static_cast<long double>(settings.diagonal_step) * scale * scale;
+  std::vector<double> anchor_mean(mean, mean + dimension);
+  std::vector<double> anchor_weight(omega, omega + n_bins);
+  std::vector<double> anchor_covariance(static_cast<std::size_t>(dimension) * dimension);
+  if (settings.mean_step > 0.0) {
+    if (!(mean_step > 0.0L) || !std::isfinite(mean_step)) return 0.0;
+    for (int row = 0; row < dimension; ++row) {
+      const long double coordinate = static_cast<long double>(mean[row]) / mean_step;
+      const double value = static_cast<double>(std::round(coordinate) * mean_step);
+      if (!std::isfinite(value)) return 0.0;
+      anchor_mean[row] = value;
+    }
+  }
+  if (settings.diagonal_step > 0.0 &&
+      (!(diagonal_step > 0.0L) || !std::isfinite(diagonal_step))) return 0.0;
+  int position = 0;
+  for (int column = 0; column < dimension; ++column) {
+    for (int row = column; row < dimension; ++row) {
+      const double original = covariance_lower[position++];
+      if (!std::isfinite(original)) return 0.0;
+      double value = original;
+      if (row == column) {
+        if (!(original > 0.0)) return 0.0;
+        if (settings.diagonal_step > 0.0) {
+          const long double origin = static_cast<long double>(selection_se[row]) * selection_se[row];
+          const long double coordinate = (static_cast<long double>(original) - origin) / diagonal_step;
+          value = static_cast<double>(origin + std::ceil(coordinate) * diagonal_step);
+          // The returned matrix equals the actual covariance plus a
+          // nonnegative diagonal. Never nudge a failed rounded candidate.
+          if (!std::isfinite(value) || value < original) return 0.0;
+        }
+      }
+      // Every off-diagonal assignment copies the supplied double unchanged.
+      anchor_covariance[row + dimension * column] = value;
+      anchor_covariance[column + dimension * row] = value;
+    }
+  }
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!(omega[bin] >= 0.0) || !std::isfinite(omega[bin])) return 0.0;
+    if (omega[bin] == 0.0 || settings.log_weight_step == 0.0) continue;
+    const long double coordinate = std::log(static_cast<long double>(omega[bin])) /
+      static_cast<long double>(settings.log_weight_step);
+    const double value = static_cast<double>(std::exp(std::round(coordinate) *
+      static_cast<long double>(settings.log_weight_step)));
+    if (!(value > 0.0) || !std::isfinite(value)) return 0.0;
+    anchor_weight[bin] = value;
+  }
+  SelNormDenseIntegration integration = quadrature;
+  integration.rule_count = std::min<unsigned int>(settings.max_rules, quadrature.rule_count);
+  integration.used_envelope = false;
+  integration.quadrature_change = 0.0;
+  integration.covariance_width = 0.0;
+  integration.tail_bound = 0.0;
+  SelNormKernelData selection = {};
+  selection.n_bins = n_bins;
+  selection.effect_sign = effect_sign;
+  selection.z_lower = z_lower;
+  selection.z_upper = z_upper;
+  selection.trusted_step_partition = true;
+  selection.telescope_probabilities = telescope_probabilities;
+  double log_normalizer = 0.0;
+  // The independent process-owned coarse memo stores both accepted anchors
+  // and their prescribed deterministic unit-normalizer fallback. Its boolean
+  // distinguishes those outcomes; either output is the surrogate definition.
+  coarse_envelope_log_integral(anchor_covariance, anchor_mean.data(), selection_se,
+    anchor_weight.data(), dimension, selection, &integration, &log_normalizer);
+  return log_normalizer;
+}
+
+struct FactorNormalizerContext {
+  int vector_rule = SELVECTOR_PRODUCT;
+  const double *mean;
+  const double *residual_sd;
+  const double *loading;
+  int dimension;
+  int rank;
+  const double *selection_se;
+  const double *omega;
+  int n_bins;
+  int kernel_mode;
+  SelNormKernelData selection;
+};
+
+// For product weights write w_i(z) = m + delta_i(z), m = min(omega).
+// Sampling one row/bin with mass (omega_b - m) P(Y_i in b), then its
+// conditional Gaussian factor, gives q(z) = phi(z) sum_i delta_i(z) / D.
+// This proposal reaches rare transitions without asking the Gaussian mode
+// search to discover them. Gaussian proposals are retained for joint-selection
+// regions as well.
+struct FactorEventProposal {
+  struct RowGroup {
+    int row;
+    int count;
+    double log_count;
+    double marginal_sd;
+  };
+  struct Component {
+    int group;
+    int bin;
+    double log_mass;
+    long double mass;
+    long double cumulative;
+  };
+  const FactorNormalizerContext &context;
+  std::vector<double> log_excess;
+  std::vector<RowGroup> groups;
+  std::vector<EventInterval> intervals;
+  std::vector<Component> components;
+  // Indexed like intervals: 1 for the (group, bin) pairs the proposal samples.
+  // A pair whose mass relative to the largest is exactly zero cannot be drawn
+  // and is left out of the mixture density as well; the target keeps every row.
+  std::vector<char> sampled;
+  double log_minimum = -std::numeric_limits<double>::infinity();
+  double log_baseline = -std::numeric_limits<double>::infinity();
+  double log_mass = -std::numeric_limits<double>::infinity();
+  double log_constant = 0.0;
+  bool valid = true;
+  bool exact = false;
+
+  explicit FactorEventProposal(const FactorNormalizerContext &value)
+    : context(value)
+  {
+    if (context.vector_rule != SELVECTOR_PRODUCT) return;
+    const double minimum = *std::min_element(context.omega,
+      context.omega + context.n_bins);
+    if (!(minimum >= 0.0) || !std::isfinite(minimum)) {
+      valid = false;
+      return;
+    }
+    log_excess.resize(context.n_bins);
+    bool nonconstant = false;
+    for (int bin = 0; bin < context.n_bins; ++bin) {
+      if (!std::isfinite(context.omega[bin])) { valid = false; return; }
+      log_excess[bin] = std::log(context.omega[bin] - minimum);
+      nonconstant = nonconstant || context.omega[bin] > minimum;
+    }
+    log_minimum = std::log(minimum);
+    log_baseline = context.dimension * log_minimum;
+    if (!nonconstant) { exact = true; return; }
+
+    std::vector<int> rows;
+    for (int row = 0; row < context.dimension; ++row) {
+      bool active = false;
+      for (int factor = 0; factor < context.rank; ++factor) {
+        active = active || context.loading[row + context.dimension * factor] != 0.0;
+      }
+      if (active) {
+        rows.push_back(row);
+      } else {
+        // A factor-free row is an exact multiplier. Including it in S would
+        // dilute the transition proposal with draws from the prior.
+        const double value = cpp_selnorm_step_log_norm(context.mean[row],
+          context.residual_sd[row], context.selection_se[row], context.omega,
+          context.selection, 1, false);
+        if (!std::isfinite(value)) { valid = false; return; }
+        log_constant += value;
+      }
+    }
+    if (rows.empty()) {
+      log_baseline = log_constant;
+      exact = true;
+      return;
+    }
+    log_baseline = log_constant + rows.size() * log_minimum;
+    const auto less = [&](int left, int right) {
+      if (context.mean[left] != context.mean[right]) return context.mean[left] < context.mean[right];
+      if (context.residual_sd[left] != context.residual_sd[right]) return context.residual_sd[left] < context.residual_sd[right];
+      if (context.selection_se[left] != context.selection_se[right]) return context.selection_se[left] < context.selection_se[right];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        const double a = context.loading[left + context.dimension * factor];
+        const double b = context.loading[right + context.dimension * factor];
+        if (a != b) return a < b;
+      }
+      return false;
+    };
+    std::stable_sort(rows.begin(), rows.end(), less);
+    for (int row : rows) {
+      if (!groups.empty() && !less(groups.back().row, row)) ++groups.back().count;
+      else groups.push_back({row, 1, 0.0, 0.0});
+    }
+    intervals.resize(groups.size() * context.n_bins);
+    const double infinity = std::numeric_limits<double>::infinity();
+    for (std::size_t group = 0; group < groups.size(); ++group) {
+      RowGroup &item = groups[group];
+      const int row = item.row;
+      item.log_count = std::log(static_cast<double>(item.count));
+      double sd = context.residual_sd[row];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        sd = std::hypot(sd, context.loading[row + context.dimension * factor]);
+      }
+      if (!std::isfinite(sd)) { valid = false; return; }
+      item.marginal_sd = sd;
+      for (int bin = 0; bin < context.n_bins; ++bin) {
+        EventInterval &interval = intervals[group * context.n_bins + bin];
+        interval = event_interval(context.selection.z_lower[bin],
+          context.selection.z_upper[bin], context.selection_se[row],
+          context.selection.effect_sign, -infinity, infinity);
+        if (log_excess[bin] == -infinity) continue;
+        const double mass = item.log_count + log_excess[bin] +
+          cpp_selnorm_normal_interval_log_prob(interval.lower, interval.upper,
+            context.mean[row], sd);
+        if (std::isnan(mass) || mass == infinity) { valid = false; return; }
+        // An event of probability exactly zero is never sampled.
+        if (mass == -infinity) continue;
+        components.push_back({static_cast<int>(group), bin, mass, 0.0L, 0.0L});
+      }
+    }
+    // Without any event mass the proposal has no support to build.
+    if (components.empty()) { valid = false; return; }
+    // Ascending masses keep small categories from disappearing when added
+    // after large ones. Extended precision also protects the local remapping.
+    std::stable_sort(components.begin(), components.end(),
+      [](const Component &left, const Component &right) {
+        return left.log_mass < right.log_mass;
+      });
+    const double largest = components.back().log_mass;
+    // A far row can have an event whose mass relative to the largest underflows
+    // even long double (below about exp(-11000)). Its sampling probability is
+    // exactly zero, so it is omitted from both the draws and the mixture
+    // density; the target still contains every row. The largest component has
+    // relative mass one, hence a positive total remains.
+    std::size_t first = 0;
+    while (first < components.size() &&
+           !(std::exp(static_cast<long double>(components[first].log_mass) - largest) > 0.0L)) {
+      ++first;
+    }
+    components.erase(components.begin(), components.begin() + first);
+    long double total = 0.0L;
+    for (Component &component : components) {
+      component.mass = std::exp(static_cast<long double>(component.log_mass) - largest);
+      const long double next = total + component.mass;
+      // Ascending order makes every mass at least as large as each one before it.
+      if (!(next > total)) { valid = false; return; }
+      component.cumulative = total = next;
+    }
+    log_mass = largest + static_cast<double>(std::log(total));
+    sampled.assign(intervals.size(), 0);
+    for (const Component &component : components) {
+      sampled[static_cast<std::size_t>(component.group) * context.n_bins + component.bin] = 1;
+    }
+  }
+
+  bool active() const { return !components.empty(); }
+
+  bool draw(double uniform, const double *normal, double *latent) const
+  {
+    const long double target = uniform * components.back().cumulative;
+    const auto found = std::upper_bound(components.begin(), components.end(), target,
+      [](long double value, const Component &component) {
+        return value < component.cumulative;
+      });
+    if (found == components.end()) return false;
+    const long double previous = found == components.begin() ? 0.0L :
+      (found - 1)->cumulative;
+    double local = static_cast<double>((target - previous) / found->mass);
+    if (!(local >= 0.0 && local <= 1.0)) return false;
+    // Internal categorical boundaries have probability zero under a uniform
+    // draw. Define them by the interval median, avoiding infinite endpoints;
+    // interior probabilities are never moved or clipped.
+    if (local == 0.0 || local == 1.0) local = 0.5;
+    const RowGroup &group = groups[found->group];
+    const int row = group.row;
+    const double sd = group.marginal_sd;
+    const EventInterval &interval = intervals[found->group * context.n_bins + found->bin];
+    const double lower = static_cast<double>(
+      (static_cast<long double>(interval.lower) - context.mean[row]) / sd);
+    const double upper = static_cast<double>(
+      (static_cast<long double>(interval.upper) - context.mean[row]) / sd);
+    const double draw = cpp_selnorm_normal_interval_quantile(lower, upper, 0.0, 1.0, local);
+    if (!std::isfinite(draw)) return false;
+    double projection = 0.0;
+    for (int factor = 0; factor < context.rank; ++factor) {
+      projection += context.loading[row + context.dimension * factor] / sd * normal[factor];
+    }
+    const double shift = draw - projection / (1.0 + context.residual_sd[row] / sd);
+    for (int factor = 0; factor < context.rank; ++factor) {
+      latent[factor] = normal[factor] +
+        context.loading[row + context.dimension * factor] / sd * shift;
+      if (!std::isfinite(latent[factor])) return false;
+    }
+    return true;
+  }
+
+  // Compose positive products and corrections as C_AB = C_A P_B + B_A C_B,
+  // B = m^n, P = product w_i. Binary powering handles identical row groups
+  // with one probability evaluation and never subtracts nearly equal products.
+  void evaluate(const double *latent, double *log_target, double *log_density) const
+  {
+    double log_base = 0.0;
+    double log_correction = -std::numeric_limits<double>::infinity();
+    double log_sum = -std::numeric_limits<double>::infinity();
+    double log_prior = 0.0;
+    for (int factor = 0; factor < context.rank; ++factor) {
+      log_prior -= 0.5 * latent[factor] * latent[factor];
+    }
+    for (std::size_t group = 0; group < groups.size(); ++group) {
+      const RowGroup &item = groups[group];
+      const int row = item.row;
+      double mean = context.mean[row];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        mean += context.loading[row + context.dimension * factor] * latent[factor];
+      }
+      double delta = -std::numeric_limits<double>::infinity();
+      double delta_sampled = -std::numeric_limits<double>::infinity();
+      for (int bin = 0; bin < context.n_bins; ++bin) {
+        if (!std::isfinite(log_excess[bin])) continue;
+        const std::size_t index = group * context.n_bins + bin;
+        const EventInterval &interval = intervals[index];
+        const double term = log_excess[bin] +
+          cpp_selnorm_normal_interval_log_prob(interval.lower, interval.upper,
+            mean, context.residual_sd[row]);
+        delta = log_add_exp(delta, term);
+        if (sampled[index]) delta_sampled = log_add_exp(delta_sampled, term);
+      }
+      log_sum = log_add_exp(log_sum, item.log_count + delta_sampled);
+      double power_base = log_minimum;
+      double power_product = log_add_exp(log_minimum, delta);
+      double power_correction = delta;
+      int count = item.count;
+      while (count > 0) {
+        if (count & 1) {
+          log_correction = log_add_exp(log_correction + power_product,
+            log_base + power_correction);
+          log_base += power_base;
+        }
+        count >>= 1;
+        if (count > 0) {
+          power_correction = log_add_exp(power_correction + power_product,
+            power_base + power_correction);
+          power_base *= 2.0;
+          power_product *= 2.0;
+        }
+      }
+    }
+    *log_target = log_prior + log_constant + log_correction;
+    *log_density = log_prior + log_sum - log_mass;
+  }
+};
+
+#include "selnorm-rank-one.h"
+
+// In a basis aligned with loading rows, mix the origin and every structural
+// boundary location independently along each axis. The product represents
+// their subset combinations without enumerating exponentially many centers.
+// This is an importance proposal only; its basis never changes the covariance.
+struct FactorBoundaryProposal {
+  int rank;
+  std::vector<double> basis;
+  std::vector<std::vector<double>> locations;
+  bool valid = true;
+
+  FactorBoundaryProposal(const FactorNormalizerContext &context,
+                         const std::vector<std::vector<double>> &starts)
+    : rank(context.rank)
+  {
+    if (context.vector_rule != SELVECTOR_PRODUCT || starts.size() < 2) return;
+    basis.resize(static_cast<std::size_t>(rank) * rank);
+    std::vector<double> axis(rank);
+    int columns = 0;
+    const auto append = [&]() {
+      double scale = 0.0;
+      for (double value : axis) scale = std::max(scale, std::fabs(value));
+      if (!(scale > 0.0)) return;
+      for (double &value : axis) value /= scale;
+      for (int pass = 0; pass < 2; ++pass) {
+        for (int column = 0; column < columns; ++column) {
+          double projection = 0.0;
+          for (int factor = 0; factor < rank; ++factor) {
+            projection += axis[factor] * basis[factor + rank * column];
+          }
+          for (int factor = 0; factor < rank; ++factor) {
+            axis[factor] -= projection * basis[factor + rank * column];
+          }
+        }
+      }
+      double norm = 0.0;
+      for (double value : axis) norm = std::hypot(norm, value);
+      // Near-dependent rows only choose a proposal orientation. Complete the
+      // basis with coordinate axes rather than altering any model loadings.
+      if (!(norm > 64.0 * rank * std::numeric_limits<double>::epsilon())) return;
+      for (int factor = 0; factor < rank; ++factor) {
+        basis[factor + rank * columns] = axis[factor] / norm;
+      }
+      ++columns;
+    };
+    for (int row = 0; row < context.dimension && columns < rank; ++row) {
+      for (int factor = 0; factor < rank; ++factor) {
+        axis[factor] = context.loading[row + context.dimension * factor];
+      }
+      append();
+    }
+    for (int factor = 0; factor < rank && columns < rank; ++factor) {
+      std::fill(axis.begin(), axis.end(), 0.0);
+      axis[factor] = 1.0;
+      append();
+    }
+    if (columns != rank) { valid = false; return; }
+    locations.assign(starts.size(), std::vector<double>(rank, 0.0));
+    for (std::size_t start = 0; start < starts.size(); ++start) {
+      for (int column = 0; column < rank; ++column) {
+        for (int factor = 0; factor < rank; ++factor) {
+          locations[start][column] += basis[factor + rank * column] * starts[start][factor];
+        }
+      }
+    }
+  }
+
+  bool active() const { return !locations.empty(); }
+
+  bool draw(const double *uniform, double *coordinates, double *latent) const
+  {
+    for (int column = 0; column < rank; ++column) {
+      if (!(uniform[column] > 0.0 && uniform[column] < 1.0)) return false;
+      const long double position = static_cast<long double>(uniform[column]) * locations.size();
+      const std::size_t selected = static_cast<std::size_t>(position);
+      if (selected >= locations.size()) return false;
+      double local = static_cast<double>(position - selected);
+      // As for the event proposal, define exact categorical boundaries by the
+      // component median; no interior quantile is moved.
+      if (local == 0.0 || local == 1.0) local = 0.5;
+      coordinates[column] = locations[selected][column] + qnorm(local, 0.0, 1.0, true, false);
+      if (!std::isfinite(coordinates[column])) return false;
+    }
+    for (int factor = 0; factor < rank; ++factor) {
+      latent[factor] = 0.0;
+      for (int column = 0; column < rank; ++column) {
+        latent[factor] += basis[factor + rank * column] * coordinates[column];
+      }
+      if (!std::isfinite(latent[factor])) return false;
+    }
+    return true;
+  }
+
+  double log_density(const double *latent) const
+  {
+    double value = -rank * std::log(static_cast<double>(locations.size()));
+    for (int column = 0; column < rank; ++column) {
+      double coordinate = 0.0;
+      for (int factor = 0; factor < rank; ++factor) {
+        coordinate += basis[factor + rank * column] * latent[factor];
+      }
+      double kernel = -std::numeric_limits<double>::infinity();
+      for (const std::vector<double> &location : locations) {
+        const double centered = coordinate - location[column];
+        kernel = log_add_exp(kernel, -0.5 * centered * centered);
+      }
+      value += kernel;
+    }
+    return value;
+  }
+};
+
+double factor_log_integrand(const FactorNormalizerContext &context,
+                            const double *latent, double *gradient)
+{
+  double value = 0.0;
+  for (int factor = 0; factor < context.rank; ++factor) {
+    value -= 0.5 * latent[factor] * latent[factor];
+    if (gradient != nullptr) gradient[factor] = -latent[factor];
+  }
+
+  if (context.vector_rule != SELVECTOR_PRODUCT) {
+    std::vector<double> means(context.dimension);
+    std::vector<double> selection_gradient(context.rank);
+    for (int i = 0; i < context.dimension; ++i) {
+      means[i] = context.mean[i];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        means[i] += context.loading[i + context.dimension * factor] * latent[factor];
+      }
+    }
+    value += independent_best_log_mass(means.data(), context.residual_sd,
+      context.dimension, context.selection_se, context.omega,
+      context.selection, context.vector_rule, nullptr, nullptr,
+      context.loading, context.rank,
+      gradient == nullptr ? nullptr : selection_gradient.data());
+    if (gradient != nullptr) {
+      for (int factor = 0; factor < context.rank; ++factor) {
+        gradient[factor] += selection_gradient[factor];
+      }
+    }
+    return value;
+  }
+
+  for (int i = 0; i < context.dimension; ++i) {
+    double conditional_mean = context.mean[i];
+    for (int factor = 0; factor < context.rank; ++factor) {
+      conditional_mean +=
+        context.loading[i + context.dimension * factor] * latent[factor];
+    }
+    const double local = cpp_selnorm_step_log_norm(
+      conditional_mean, context.residual_sd[i], context.selection_se[i],
+      context.omega, context.selection, 1, false
+    );
+    if (!std::isfinite(local)) {
+      return -std::numeric_limits<double>::infinity();
+    }
+    value += local;
+
+    if (gradient != nullptr) {
+      double derivative_numerator = 0.0;
+      const double signed_mean = context.selection.effect_sign *
+        conditional_mean;
+      for (int bin = 0; bin < context.n_bins; ++bin) {
+        const double lower = context.selection.z_lower[bin] *
+          context.selection_se[i];
+        const double upper = context.selection.z_upper[bin] *
+          context.selection_se[i];
+        const double lower_score =
+          (lower - signed_mean) / context.residual_sd[i];
+        const double upper_score =
+          (upper - signed_mean) / context.residual_sd[i];
+        const double lower_density = std::isfinite(lower_score) ?
+          dnorm(lower_score, 0.0, 1.0, false) : 0.0;
+        const double upper_density = std::isfinite(upper_score) ?
+          dnorm(upper_score, 0.0, 1.0, false) : 0.0;
+        derivative_numerator += context.omega[bin] *
+          (lower_density - upper_density);
+      }
+      const double local_probability = std::exp(local);
+      if (!(local_probability > 0.0) ||
+          !std::isfinite(derivative_numerator)) {
+        return -std::numeric_limits<double>::infinity();
+      }
+      const double derivative = context.selection.effect_sign *
+        derivative_numerator /
+        (context.residual_sd[i] * local_probability);
+      if (!std::isfinite(derivative)) {
+        return -std::numeric_limits<double>::infinity();
+      }
+      for (int factor = 0; factor < context.rank; ++factor) {
+        gradient[factor] +=
+          context.loading[i + context.dimension * factor] * derivative;
+      }
+    }
+  }
+  return value;
+}
+
+struct NormalProjectionGrid {
+  const double *z;
+  int size;
+  bool normal_multipliers = false;
+  void (*poll)();
+  std::size_t poll_interval, remaining_work;
+  std::vector<long double> gaps;
+  std::vector<int> gap_index;
+  std::vector<std::vector<int>> positions;
+  std::vector<long double> delta, forward, backward, right, left;
+  struct RepeatedDistance {
+    int gap;
+    long double value;
+    std::vector<std::pair<int, int>> occurrences;
+  };
+  std::vector<RepeatedDistance> distances;
+
+  // This plain, instance-owned hook is opt-in. Shared and worker workspaces
+  // never supply it; this translation unit does not call the R API.
+  void account_work()
+  {
+    if (poll && --remaining_work == 0) {
+      poll();
+      remaining_work = poll_interval;
+    }
+  }
+
+  NormalProjectionGrid(const double *grid, int length,
+                       void (*poll_function)() = nullptr,
+                       std::size_t interval = 1000000)
+    : z(grid), size(length), poll(poll_function),
+      poll_interval(std::max<std::size_t>(1, interval)), remaining_work(poll_interval)
+  {
+    if (size < 2 || !std::isfinite(z[0])) return;
+    for (int i = 1; i < size; ++i) {
+      account_work();
+      const long double gap = static_cast<long double>(z[i]) - z[i - 1];
+      if (!(gap > 0.0L) || !std::isfinite(z[i])) {
+        positions.clear();
+        return;
+      }
+      const auto found = std::find_if(gaps.begin(), gaps.end(),
+        [this, gap](long double value) { account_work(); return value == gap; });
+      gap_index.push_back(static_cast<int>(found - gaps.begin()));
+      if (found == gaps.end()) {
+        gaps.push_back(gap);
+        positions.emplace_back();
+      }
+      // Ratio initialization only pays for itself when spacings repeat.
+      // Compare actual spacings exactly; never replace a rounded grid by seq.
+      if (gaps.size() * 4 > static_cast<std::size_t>(size)) {
+        positions.clear();
+        return;
+      }
+      positions[gap_index.back()].push_back(i - 1);
+    }
+    delta.resize(gaps.size());
+    right.resize(gaps.size());
+    left.resize(gaps.size());
+    forward.resize(size - 1);
+    backward.resize(size - 1);
+    for (std::size_t g = 0; g < positions.size(); ++g) {
+      account_work();
+      const std::size_t first_distance = distances.size();
+      for (std::size_t j = 1; j < positions[g].size(); ++j) {
+        account_work();
+        const int previous = positions[g][j - 1];
+        const int next = positions[g][j];
+        const long double distance = static_cast<long double>(z[next]) - z[previous];
+        auto found = std::find_if(distances.begin() + first_distance, distances.end(),
+          [this, distance](RepeatedDistance const &entry) {
+            account_work();
+            return entry.value == distance;
+          });
+        if (found == distances.end()) {
+          distances.push_back({static_cast<int>(g), distance, {}});
+          found = distances.end() - 1;
+        }
+        found->occurrences.emplace_back(previous, next);
+      }
+    }
+  }
+
+  void prepare(double sei, double sd)
+  {
+    normal_multipliers = true;
+    for (std::size_t g = 0; g < positions.size(); ++g) {
+      account_work();
+      delta[g] = gaps[g] * sei / sd;
+    }
+    for (RepeatedDistance const &entry : distances) {
+      account_work();
+      // Identical actual grid distances share the exact original arithmetic;
+      // neither the grid nor its gaps are rounded to a regular sequence.
+      const long double distance = entry.value * sei / sd;
+      const long double multiplier = std::exp(-delta[entry.gap] * distance);
+      normal_multipliers = normal_multipliers && std::isnormal(multiplier);
+      for (auto const &occurrence : entry.occurrences) {
+        account_work();
+        forward[occurrence.first] = multiplier;
+        backward[occurrence.second] = multiplier;
+      }
+    }
+  }
+
+  template<bool require_normal_range = false>
+  bool add(double mean, double sei, double sd, double log_scale,
+           long double weight, const std::vector<double> &z_weight,
+           std::vector<long double> &density)
+  {
+    if (positions.empty()) return false;
+    if constexpr (require_normal_range) {
+      if (!normal_multipliers || !std::isnormal(weight)) return false;
+    }
+    if (weight == 0.0L) return true;
+    if (!(weight > 0.0L) || !std::isfinite(weight)) return false;
+    int anchor = static_cast<int>(std::lower_bound(z, z + size, mean / sei,
+      [this](double value, double target) { account_work(); return value < target; }) - z);
+    anchor = std::min(anchor, size - 1);
+    const auto score = [this, sei, mean, sd](int i) {
+      return selnorm_fma(z[i], sei, -mean) / sd;
+    };
+    if (anchor > 0 && std::abs(score(anchor - 1)) < std::abs(score(anchor))) --anchor;
+    if (!std::isfinite(score(anchor))) return false;
+    for (std::size_t g = 0; g < positions.size(); ++g) {
+      account_work();
+      const auto first = std::lower_bound(positions[g].begin(), positions[g].end(), anchor,
+        [this](int value, int target) { account_work(); return value < target; });
+      if (first != positions[g].end()) {
+        const double first_score = score(*first);
+        if (!std::isfinite(first_score)) return false;
+        right[g] = std::exp(-delta[g] * first_score - 0.5L * delta[g] * delta[g]);
+        if (!std::isfinite(right[g]) || right[g] > 1.0L) return false;
+      }
+      if (first != positions[g].begin()) {
+        const double first_score = score(*(first - 1) + 1);
+        if (!std::isfinite(first_score)) return false;
+        left[g] = std::exp(delta[g] * first_score - 0.5L * delta[g] * delta[g]);
+        if (!std::isfinite(left[g]) || left[g] > 1.0L) return false;
+      }
+    }
+    const long double initial = std::exp(std::log(weight) +
+      cpp_selnorm_affine_normal_lpdf_log_scale(z[anchor], sei, mean, sd, log_scale));
+    if (!std::isfinite(initial)) return false;
+    if constexpr (require_normal_range) {
+      if (!std::isnormal(initial)) return false;
+    }
+    density[anchor] += initial * z_weight[anchor];
+    long double value = initial;
+    // f(s + d) / f(s) = exp(-s*d - d*d/2). For another occurrence
+    // of that exact gap, the ratio changes by exp(-d * distance).
+    for (int i = anchor + 1; i < size; ++i) {
+      account_work();
+      const int g = gap_index[i - 1];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(right[g])) return false;
+      }
+      value *= right[g];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(value)) return false;
+      }
+      density[i] += value * z_weight[i];
+      right[g] *= forward[i - 1];
+    }
+    value = initial;
+    for (int i = anchor - 1; i >= 0; --i) {
+      account_work();
+      const int g = gap_index[i];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(left[g])) return false;
+      }
+      value *= left[g];
+      if constexpr (require_normal_range) {
+        if (!std::isnormal(value)) return false;
+      }
+      density[i] += value * z_weight[i];
+      left[g] *= backward[i];
+    }
+    return true;
+  }
+};
+
+// Project positive Gaussian mixtures without normalizing their coefficients.
+
+struct SelNormGaussianMixtureRow {
+  const double *mean;
+  const double *log_coefficient;
+  std::size_t count;
+  double sd;
+  double sei;
+};
+
+struct SelNormMixtureProjectionWorkspace {
+  const double *z;
+  int size;
+  NormalProjectionGrid recurrence;
+  std::vector<double> weight;
+  std::vector<double> log_weight;
+  double maximum_weight;
+  std::vector<long double> row_density;
+
+  static int checked_size(const double *grid, int length, const double *omega_on_grid)
+  {
+    if (grid == nullptr || omega_on_grid == nullptr || length < 1) {
+      throw std::invalid_argument("Gaussian mixture projection requires a nonempty grid.");
+    }
+    return length;
+  }
+
+  SelNormMixtureProjectionWorkspace(const double *grid, int length,
+                                   const double *omega_on_grid)
+    : z(grid), size(checked_size(grid, length, omega_on_grid)), recurrence(grid, size), weight(size),
+      log_weight(size), maximum_weight(0.0), row_density(size)
+  {
+    for (int point = 0; point < size; ++point) {
+      if (!std::isfinite(z[point]) || !std::isfinite(omega_on_grid[point]) ||
+          omega_on_grid[point] < 0.0) {
+        throw std::invalid_argument("Gaussian mixture grid and step weights are invalid.");
+      }
+      weight[point] = omega_on_grid[point];
+      log_weight[point] = std::log(weight[point]);
+      maximum_weight = std::max(maximum_weight, weight[point]);
+    }
+  }
+
+  // Worker copy: same grid and step weights, its own recurrence and buffers.
+  SelNormMixtureProjectionWorkspace(const SelNormMixtureProjectionWorkspace &other)
+    : SelNormMixtureProjectionWorkspace(other.z, other.size, other.weight.data()) {}
+  SelNormMixtureProjectionWorkspace &operator=(
+    const SelNormMixtureProjectionWorkspace &) = delete;
+};
+
+// Each view has physical-coordinate means and one fixed physical SD/original SE.
+// Its coefficients already contain 1/K, quadrature/context/importance weights,
+// inverse A, and any sample reduction required by the caller. Never divide by
+// count, number of views, sum of weights, or number of proposals here.
+// Returns a pooled z-density and an all-grid absolute compression-error bound.
+// Allowance zero disables compression but still permits the exact Gaussian
+// recurrence; a caller needing its historical raw-loop mode should branch before
+// collecting mixtures. Probability/CDF projections do not call this helper.
+// One mixture row's contribution, left in the workspace's row buffer, with its
+// compression error and omitted mass reported separately. The caller reduces
+// the rows in their original order, so a threaded evaluation accumulates
+// exactly what a serial one does.
+inline void selnorm_evaluate_gaussian_mixture_row(
+    SelNormGaussianMixtureRow const &row, double compression_allowance,
+    long double row_allowance, SelNormMixtureProjectionWorkspace &workspace,
+    long double &error, long double &omitted_mass)
+{
+  error = 0.0L;
+  omitted_mass = 0.0L;
+  const double *means = row.mean;
+  const double *logs = row.log_coefficient;
+  std::size_t count = row.count;
+  SelNormMixtureCompression compressed;
+  const bool grouped = compression_allowance > 0.0 && workspace.size >= 16 &&
+    selnorm_compress_gaussian_mixture(means, logs, count, row.sd,
+      row_allowance / row.sei, &compressed);
+  // The moment planner keeps the original input arrays and source indices.
+  // Its error covers both the polynomial and explicit bounded tail omission;
+  // unsafe points use the original Gaussian sum, never a clipped polynomial.
+  const long double common_scale = grouped ? std::exp(compressed.log_scale) : 0.0L;
+  if (grouped && common_scale > 0.0L && std::isfinite(common_scale)) {
+    omitted_mass = compressed.input_omission_mass;
+    error = compressed.absolute_error * row.sei * workspace.maximum_weight;
+    std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
+    workspace.recurrence.prepare(row.sei, row.sd);
+    const double log_scale = std::log(row.sei) - std::log(row.sd);
+    std::vector<double> unit_weight(workspace.size, 1.0);
+    std::vector<long double> gaussian(workspace.size);
+    for (SelNormGaussianMomentGroup const &group : compressed.groups) {
+      if (group.source_count == 1) {
+        const std::size_t original = compressed.source_index[group.source_begin];
+        const long double coefficient = std::exp(static_cast<long double>(logs[original]));
+        std::fill(gaussian.begin(), gaussian.end(), 0.0L);
+        // Reuse the original-mixture Gaussian recurrence with its original
+        // coefficient and actual grid weights. Normal intermediates prevent
+        // a later large weight from hiding an earlier underflow loss.
+        bool singleton_ok = workspace.recurrence.add<true>(means[original],
+          row.sei, row.sd, log_scale, coefficient, workspace.weight, gaussian);
+        if (singleton_ok) {
+          for (int point = 0; point < workspace.size; ++point) {
+            if (!std::isfinite(gaussian[point]) || gaussian[point] < 0.0L ||
+                (workspace.weight[point] > 0.0 && !std::isnormal(gaussian[point]))) {
+              singleton_ok = false;
+            }
+          }
+        }
+        if (singleton_ok) {
+          // Merge only a completed recurrence. A failure leaves the row
+          // untouched and uses the original scalar expression below.
+          for (int point = 0; point < workspace.size; ++point) {
+            if (workspace.weight[point] > 0.0) workspace.row_density[point] += gaussian[point];
+          }
+          continue;
+        }
+      }
+      std::fill(gaussian.begin(), gaussian.end(), 0.0L);
+      // Singletons that declined the recurrence use their original component.
+      bool recurrence_ok = group.source_count > 1 &&
+        workspace.recurrence.add(group.mean, row.sei, row.sd,
+          log_scale, common_scale, unit_weight, gaussian);
+      if (recurrence_ok) {
+        for (long double value : gaussian) {
+          if (!std::isfinite(value) || value < 0.0L) recurrence_ok = false;
+        }
+      }
+      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+        if (!(workspace.weight[grid_point] > 0.0)) continue;
+        const long double t = static_cast<long double>(selnorm_fma(
+          workspace.z[grid_point], row.sei, -group.mean)) / row.sd;
+        long double polynomial = 0.0L;
+        SelNormGaussianMomentPoint action = selnorm_gaussian_moment_point(group, t, &polynomial);
+        if (action == SelNormGaussianMomentPoint::omitted) continue;
+        if (action == SelNormGaussianMomentPoint::polynomial) {
+          const long double base_density = recurrence_ok ? gaussian[grid_point] :
+            std::exp(compressed.log_scale + cpp_selnorm_affine_normal_lpdf_log_scale(
+              workspace.z[grid_point], row.sei, group.mean, row.sd, log_scale));
+          const long double value = base_density * polynomial * workspace.weight[grid_point];
+          if (value > 0.0L && std::isfinite(value)) {
+            workspace.row_density[grid_point] += value;
+            continue;
+          }
+        }
+        // Original group summation also handles extreme scaling and any
+        // polynomial range/positivity failure. No extra coefficient factor.
+        for (std::size_t index = group.source_begin;
+             index < group.source_begin + group.source_count; ++index) {
+          const std::size_t original = compressed.source_index[index];
+          const long double log_value = static_cast<long double>(logs[original]) +
+            workspace.log_weight[grid_point] + cpp_selnorm_affine_normal_lpdf_log_scale(
+              workspace.z[grid_point], row.sei, means[original], row.sd, log_scale);
+          workspace.row_density[grid_point] += std::exp(log_value);
+        }
+      }
+    }
+    return;
+  }
+  // Original outcome units retain the affine Gaussian FMA calculation. SE
+  // appears once in the projected density and once in the error bound.
+  std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
+  workspace.recurrence.prepare(row.sei, row.sd);
+  const double log_scale = std::log(row.sei) - std::log(row.sd);
+  bool recurrence_ok = true;
+  for (std::size_t point = 0; point < count; ++point) {
+    const long double coefficient = std::exp(static_cast<long double>(logs[point]));
+    if ((coefficient == 0.0L && std::isfinite(logs[point])) ||
+        !workspace.recurrence.add(means[point], row.sei, row.sd, log_scale,
+          coefficient, workspace.weight, workspace.row_density)) {
+      recurrence_ok = false;
+      break;
+    }
+  }
+  if (recurrence_ok) {
+    for (long double value : workspace.row_density) {
+      if (!std::isfinite(value)) recurrence_ok = false;
+    }
+  }
+  if (!recurrence_ok) {
+    std::fill(workspace.row_density.begin(), workspace.row_density.end(), 0.0L);
+    for (std::size_t point = 0; point < count; ++point) {
+      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+        if (!(workspace.weight[grid_point] > 0.0)) continue;
+        const long double log_value = static_cast<long double>(logs[point]) +
+          workspace.log_weight[grid_point] + cpp_selnorm_affine_normal_lpdf_log_scale(
+            workspace.z[grid_point], row.sei, means[point], row.sd, log_scale);
+        workspace.row_density[grid_point] += std::exp(log_value);
+      }
+    }
+  }
+}
+
+
+inline void selnorm_evaluate_gaussian_mixtures(
+    std::vector<SelNormGaussianMixtureRow> const &rows,
+    double compression_allowance,
+    SelNormMixtureProjectionWorkspace &workspace,
+    std::vector<long double> &density,
+    long double &absolute_error, long double &input_omitted_mass,
+    int threads)
+{
+  if (!std::isfinite(compression_allowance) || compression_allowance < 0.0) {
+    throw std::invalid_argument("Gaussian mixture compression allowance is invalid.");
+  }
+  for (SelNormGaussianMixtureRow const &row : rows) {
+    if (!(row.sd > 0.0) || !std::isfinite(row.sd) ||
+        !(row.sei > 0.0) || !std::isfinite(row.sei) ||
+        (row.count > 0 && (row.mean == nullptr || row.log_coefficient == nullptr))) {
+      throw std::invalid_argument("Gaussian mixture row parameters are invalid.");
+    }
+  }
+  density.assign(workspace.size, 0.0L);
+  absolute_error = 0.0L;
+  input_omitted_mass = 0.0L;
+  if (rows.empty() || !(workspace.maximum_weight > 0.0)) return;
+  const long double row_allowance = static_cast<long double>(compression_allowance) /
+    (static_cast<long double>(rows.size()) * workspace.maximum_weight);
+
+  // Rows are independent: each one projects its own mixture onto the whole
+  // grid. Only the reduction below is ordered, so the threaded result is the
+  // serial result. A row's own buffer is kept and summed afterwards.
+  const int count = static_cast<int>(rows.size());
+  const int workers = threads > 1 && count > 1 ? std::min(threads, count) : 1;
+  std::vector<long double> row_error(rows.size(), 0.0L);
+  std::vector<long double> row_omitted(rows.size(), 0.0L);
+  const auto accumulate = [&](int index) {
+    if (row_omitted[index] > 0) {
+      input_omitted_mass = selnorm_mixture_compression_detail::round_up(
+        input_omitted_mass + row_omitted[index]);
+    }
+    if (row_error[index] > 0) {
+      absolute_error = selnorm_mixture_compression_detail::round_up(
+        absolute_error + row_error[index]);
+    }
+  };
+  if (workers <= 1) {
+    // Serial rows accumulate straight into the output, as before.
+    for (int index = 0; index < count; ++index) {
+      if (rows[index].count == 0) continue;
+      selnorm_evaluate_gaussian_mixture_row(rows[index], compression_allowance,
+        row_allowance, workspace, row_error[index], row_omitted[index]);
+      accumulate(index);
+      for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+        density[grid_point] += workspace.row_density[grid_point];
+      }
+    }
+    return;
+  }
+
+  std::vector<std::vector<long double>> row_density(rows.size());
+  std::atomic<bool> failed{false};
+  const auto evaluate = [&](int index, SelNormMixtureProjectionWorkspace &scratch) {
+    if (rows[index].count == 0) return;
+    selnorm_evaluate_gaussian_mixture_row(rows[index], compression_allowance,
+      row_allowance, scratch, row_error[index], row_omitted[index]);
+    row_density[index] = scratch.row_density;
+  };
+#if defined(_OPENMP)
+  {
+    #pragma omp parallel num_threads(workers)
+    {
+      std::optional<SelNormMixtureProjectionWorkspace> scratch;
+      try {
+        scratch.emplace(workspace);
+      } catch (...) {
+        failed.store(true, std::memory_order_relaxed);
+      }
+      #pragma omp for schedule(dynamic, 1)
+      for (int index = 0; index < count; ++index) {
+        if (failed.load(std::memory_order_relaxed)) continue;
+        try {
+          evaluate(index, *scratch);
+        } catch (...) {
+          failed.store(true, std::memory_order_relaxed);
+        }
+      }
+    }
+    if (failed.load(std::memory_order_relaxed)) {
+      throw std::runtime_error("Gaussian mixture row projection failed.");
+    }
+  }
+#else
+  for (int index = 0; index < count; ++index) evaluate(index, workspace);
+#endif
+
+  for (int index = 0; index < count; ++index) {
+    if (row_density[index].empty()) continue;
+    accumulate(index);
+    for (int grid_point = 0; grid_point < workspace.size; ++grid_point) {
+      density[grid_point] += row_density[index][grid_point];
+    }
+  }
+}
+
+// Deterministic quadrature over a forest of factor supports. The factors are
+// sorted by decreasing support size; every pair of supports must then be
+// nested or disjoint, which is what block-constant covariance structures on a
+// nesting tree produce. A chain (each support inside the previous one) is the
+// special case with one child per level and keeps its previous arithmetic.
+//
+// Each factor integrates over the tensor of its own axis and the axes of its
+// ancestors only, so a root with disjoint children costs one rule per child
+// rather than one full rank-dimensional tensor.
+// Structural analysis of the factor supports, built once per likelihood state.
+// When the supports form a forest the nested rule expands one axis per tree
+// level, so its cost is `rows x order^(depth + 1)` and does not grow with the
+// factor rank. The tensor fallback costs `order^rank`, which is what the rank
+// cap used to encode.
+struct FactorForestPlan {
+  bool valid = false;
+  int effective_rank = 0;
+  int max_depth = 0;
+  std::vector<int> permutation;
+  std::vector<int> parent;
+  std::vector<int> depth;
+  std::vector<std::vector<int> > children;
+  std::vector<int> roots;
+  std::vector<std::vector<int> > axes;
+  std::vector<std::vector<int> > node_rows;
+  std::vector<int> free_rows;
+};
+
+bool factor_forest_plan(const FactorNormalizerContext &context,
+                        const int *declared_support, FactorForestPlan *out)
+{
+  out->valid = false;
+  if (context.vector_rule != SELVECTOR_PRODUCT) return false;
+  const auto supported = [&context, declared_support](int row, int factor) {
+    const int index = row + context.dimension * factor;
+    return declared_support == nullptr ? context.loading[index] != 0.0 :
+      declared_support[index] != 0;
+  };
+  std::vector<int> support_size(static_cast<std::size_t>(context.rank), 0);
+  std::vector<int> &permutation = out->permutation;
+  permutation.assign(static_cast<std::size_t>(context.rank), 0);
+  for (int factor = 0; factor < context.rank; ++factor) {
+    permutation[factor] = factor;
+    for (int i = 0; i < context.dimension; ++i) {
+      if (supported(i, factor)) {
+        ++support_size[factor];
+      }
+    }
+  }
+  std::stable_sort(
+    permutation.begin(), permutation.end(),
+    [&support_size](int left, int right) {
+      return support_size[left] > support_size[right];
+    }
+  );
+
+  int effective_rank = context.rank;
+  while (effective_rank > 0 &&
+         support_size[permutation[effective_rank - 1]] == 0) {
+    --effective_rank;
+  }
+  out->effective_rank = effective_rank;
+
+  // Supports must form a forest: the closest containing support is a factor
+  // parent, and a partial overlap is rejected.
+  const std::size_t node_count = static_cast<std::size_t>(effective_rank);
+  std::vector<int> &parent = out->parent;
+  std::vector<int> &depth = out->depth;
+  std::vector<std::vector<int> > &children = out->children;
+  std::vector<int> &roots = out->roots;
+  parent.assign(node_count, -1);
+  depth.assign(node_count, 0);
+  children.assign(node_count, std::vector<int>());
+  roots.clear();
+  for (int q = 0; q < effective_rank; ++q) {
+    for (int p = 0; p < q; ++p) {
+      bool inside = true;
+      bool disjoint = true;
+      for (int i = 0; i < context.dimension; ++i) {
+        if (!supported(i, permutation[q])) continue;
+        if (supported(i, permutation[p])) disjoint = false;
+        else inside = false;
+      }
+      if (disjoint) continue;
+      if (!inside) return false;
+      parent[q] = p;
+    }
+    if (parent[q] < 0) {
+      roots.push_back(q);
+    } else {
+      depth[q] = depth[parent[q]] + 1;
+      children[parent[q]].push_back(q);
+    }
+  }
+
+  // The axes of a factor are its ancestors, root first, then itself.
+  std::vector<std::vector<int> > &axes = out->axes;
+  axes.assign(node_count, std::vector<int>());
+  for (int q = 0; q < effective_rank; ++q) {
+    if (parent[q] >= 0) axes[q] = axes[parent[q]];
+    axes[q].push_back(q);
+  }
+
+  // Every row belongs to the deepest factor supporting it, and that factor
+  // axes must be exactly the factors supporting the row.
+  std::vector<std::vector<int> > &node_rows = out->node_rows;
+  std::vector<int> &free_rows = out->free_rows;
+  node_rows.assign(node_count, std::vector<int>());
+  free_rows.clear();
+  for (int i = 0; i < context.dimension; ++i) {
+    int owner = -1;
+    int active = 0;
+    for (int q = 0; q < effective_rank; ++q) {
+      if (!supported(i, permutation[q])) continue;
+      ++active;
+      if (owner < 0 || depth[q] > depth[owner]) owner = q;
+    }
+    if (owner < 0) {
+      free_rows.push_back(i);
+      continue;
+    }
+    if (active != static_cast<int>(axes[owner].size())) return false;
+    node_rows[owner].push_back(i);
+  }
+
+  out->max_depth = 0;
+  for (int q = 0; q < effective_rank; ++q) {
+    if (depth[q] > out->max_depth) out->max_depth = depth[q];
+  }
+  out->valid = true;
+  return true;
+}
+
+bool factor_nested_rule_log_integral(
+    const FactorNormalizerContext &context, const FactorForestPlan &plan,
+    const double *nodes, const double *log_weights, int offset, int order,
+    double *result, SelNormZProjection *projection = nullptr)
+{
+  if (!plan.valid) return false;
+  const int effective_rank = plan.effective_rank;
+  const std::vector<int> &permutation = plan.permutation;
+  const std::vector<int> &parent = plan.parent;
+  const std::vector<int> &depth = plan.depth;
+  const std::vector<std::vector<int> > &children = plan.children;
+  const std::vector<int> &roots = plan.roots;
+  const std::vector<std::vector<int> > &axes = plan.axes;
+  const std::vector<std::vector<int> > &node_rows = plan.node_rows;
+  const std::vector<int> &free_rows = plan.free_rows;
+  const std::size_t node_count = static_cast<std::size_t>(effective_rank);
+
+  std::vector<std::size_t> power(node_count + 2, 1);
+  for (std::size_t j = 1; j < power.size(); ++j) {
+    power[j] = power[j - 1] * static_cast<std::size_t>(order);
+  }
+
+  std::vector<std::vector<long double>> own(node_count);
+  std::vector<std::vector<long double>> integral(node_count);
+  std::vector<std::vector<double>> row_means;
+  std::vector<std::vector<long double>> row_normalizers;
+  if (projection != nullptr) {
+    row_means.resize(static_cast<std::size_t>(context.dimension));
+    row_normalizers.resize(static_cast<std::size_t>(context.dimension));
+  }
+  const std::vector<int> no_axes;
+
+  const auto accumulate_rows = [&](const std::vector<int> &rows,
+                                   std::size_t size,
+                                   const std::vector<int> &row_axes,
+                                   std::vector<long double> &target) {
+    std::vector<double> conditional_means(size);
+    for (int row : rows) {
+      conditional_means[0] = context.mean[row];
+      for (std::size_t position = 0; position < row_axes.size(); ++position) {
+        const double coefficient = context.loading[
+          row + context.dimension * permutation[row_axes[position]]
+        ];
+        const std::size_t lower_size = power[position];
+        // Expand one axis at a time. Visit node zero last so the prefix is
+        // still available while filling the other slices of the same buffer.
+        for (int point = order - 1; point >= 0; --point) {
+          const double shift = coefficient * nodes[offset + point];
+          for (std::size_t lower = 0; lower < lower_size; ++lower) {
+            conditional_means[
+              lower + static_cast<std::size_t>(point) * lower_size
+            ] = conditional_means[lower] + shift;
+          }
+        }
+      }
+      if (projection != nullptr) {
+        row_means[row] = conditional_means;
+        row_normalizers[row].assign(size, 1.0L);
+      }
+      if (!cpp_selnorm_step_normalizer_product(
+            conditional_means.data(), size, context.residual_sd[row],
+            context.selection_se[row], context.omega, context.selection,
+            projection == nullptr ? target.data() :
+              row_normalizers[row].data())) return false;
+      if (projection != nullptr) {
+        for (std::size_t point = 0; point < size; ++point) {
+          target[point] *= row_normalizers[row][point];
+        }
+      }
+    }
+    return true;
+  };
+
+  std::vector<long double> base(1, 1.0L);
+  if (!accumulate_rows(free_rows, 1, no_axes, base)) return false;
+
+  std::vector<long double> weights(static_cast<std::size_t>(order));
+  for (int point = 0; point < order; ++point) {
+    weights[point] =
+      std::exp(static_cast<long double>(log_weights[offset + point]));
+  }
+
+  std::vector<int> by_depth(node_count);
+  for (int q = 0; q < effective_rank; ++q) by_depth[q] = q;
+  std::stable_sort(by_depth.begin(), by_depth.end(),
+                   [&depth](int left, int right) {
+                     return depth[left] > depth[right];
+                   });
+
+  for (int q : by_depth) {
+    const std::size_t prefix = power[depth[q]];
+    const std::size_t size = power[depth[q] + 1];
+    own[q].assign(size, 1.0L);
+    if (!accumulate_rows(node_rows[q], size, axes[q], own[q])) return false;
+    for (int child : children[q]) {
+      for (std::size_t point = 0; point < size; ++point) {
+        own[q][point] *= integral[child][point];
+      }
+    }
+    integral[q].assign(prefix, 0.0L);
+    for (std::size_t lower = 0; lower < prefix; ++lower) {
+      for (int point = 0; point < order; ++point) {
+        integral[q][lower] += weights[point] * own[q][
+          lower + static_cast<std::size_t>(point) * prefix
+        ];
+      }
+      if (!(integral[q][lower] > 0.0L) ||
+          !std::isfinite(integral[q][lower])) {
+        return false;
+      }
+    }
+  }
+
+  long double total = base[0];
+  for (int root : roots) total *= integral[root][0];
+  if (!(total > 0.0L) || !std::isfinite(total)) return false;
+  *result = static_cast<double>(std::log(total));
+
+  if (projection != nullptr) {
+    // The upward messages already integrate every deeper factor. Their
+    // conditional quadrature weights project each row using only its own
+    // axes, without rebuilding a full tensor for every density-grid point.
+    std::vector<long double> density(projection->size, 0.0L);
+    std::vector<double> z_weight(projection->size, context.omega[0]);
+    if (!projection->probability) {
+      for (int z = 0; z < projection->size; ++z) {
+        const double signed_z = context.selection.effect_sign * projection->z[z];
+        for (int bin = 0; bin < context.n_bins; ++bin) {
+          if (signed_z >= context.selection.z_lower[bin] &&
+              signed_z <= context.selection.z_upper[bin]) {
+            z_weight[z] = context.omega[bin];
+            break;
+          }
+        }
+      }
+    }
+    NormalProjectionGrid recurrence(projection->z,
+      projection->probability ? 0 : projection->size);
+    std::vector<std::vector<long double>> marginal(node_count);
+    const std::vector<long double> unit(1, 1.0L);
+
+    const auto project_rows = [&](const std::vector<int> &rows,
+                                  const std::vector<long double> &weight,
+                                  std::size_t size) {
+      for (int row : rows) {
+        const double log_scale = std::log(context.selection_se[row]) -
+          std::log(context.residual_sd[row]);
+        recurrence.prepare(context.selection_se[row], context.residual_sd[row]);
+        for (std::size_t point = 0; point < size; ++point) {
+          const long double scaled = weight[point] / row_normalizers[row][point];
+          if (recurrence.add(row_means[row][point], context.selection_se[row],
+                context.residual_sd[row], log_scale, scaled, z_weight, density)) continue;
+          for (int z = 0; z < projection->size; ++z) {
+            if (projection->probability) {
+              double inverse;
+              density[z] += weight[point] * cpp_selnorm_kernel_threshold(
+                projection->z[z], row_means[row][point], context.residual_sd[row],
+                context.selection_se[row], context.omega, 0, 0,
+                context.kernel_mode, context.selection, &inverse, 1, false
+              );
+            } else if (z_weight[z] > 0.0) {
+              const double value = cpp_selnorm_affine_normal_pdf_log_scale(
+                projection->z[z], context.selection_se[row], row_means[row][point],
+                context.residual_sd[row], log_scale
+              );
+              const long double extended_value = value > 0.0 ?
+                static_cast<long double>(value) :
+                std::exp(static_cast<long double>(
+                  cpp_selnorm_affine_normal_lpdf_log_scale(
+                    projection->z[z], context.selection_se[row],
+                    row_means[row][point], context.residual_sd[row], log_scale
+                  )
+                ));
+              density[z] += scaled * z_weight[z] * extended_value;
+            }
+          }
+        }
+      }
+    };
+
+    project_rows(free_rows, unit, 1);
+    std::vector<int> visit(node_count);
+    for (int q = 0; q < effective_rank; ++q) visit[q] = q;
+    std::stable_sort(visit.begin(), visit.end(),
+                     [&depth](int left, int right) {
+                       return depth[left] < depth[right];
+                     });
+    for (int q : visit) {
+      const std::size_t prefix = power[depth[q]];
+      const std::size_t size = power[depth[q] + 1];
+      const std::vector<long double> &upper =
+        parent[q] < 0 ? unit : marginal[parent[q]];
+      marginal[q].assign(size, 0.0L);
+      for (int point = 0; point < order; ++point) {
+        for (std::size_t lower = 0; lower < prefix; ++lower) {
+          const std::size_t index =
+            lower + static_cast<std::size_t>(point) * prefix;
+          marginal[q][index] = upper[lower] * weights[point] *
+            own[q][index] / integral[q][lower];
+        }
+      }
+      project_rows(node_rows[q], marginal[q], size);
+    }
+    for (int z = 0; z < projection->size; ++z) {
+      projection->density[z] = static_cast<double>(density[z] / context.dimension);
+      if (!std::isfinite(projection->density[z])) return false;
+    }
+    projection->relative_error = 0.0;
+  }
+  return std::isfinite(*result);
+}
+
+double factor_rule_log_integral(const FactorNormalizerContext &context,
+                                const FactorForestPlan &plan,
+                                const double *nodes,
+                                const double *log_weights,
+                                int offset, int order)
+{
+  double nested = 0.0;
+  if (factor_nested_rule_log_integral(
+        context, plan, nodes, log_weights, offset, order, &nested
+      )) {
+    return nested;
+  }
+  // A forest plan that fails numerically leaves only the tensor rule, which
+  // the budget may refuse at this rank. Declining the rung keeps the ladder
+  // and its randomized fallback in charge rather than spending the nodes.
+  if (!selnorm_factor_rule_affordable(order, context.rank)) {
+    return -std::numeric_limits<double>::infinity();
+  }
+  std::size_t total = 1;
+  for (int factor = 0; factor < context.rank; ++factor) {
+    total *= static_cast<std::size_t>(order);
+  }
+
+  // Factor quadrature only reaches this kernel for an ordered step partition.
+  // Accumulating its positive normalizers avoids a log/exp pair for every row
+  // and quadrature point. Retain the log-scale path below for rare numerical
+  // fallback cases.
+  std::vector<long double> weights(static_cast<std::size_t>(order));
+  for (int j = 0; j < order; ++j) {
+    weights[static_cast<std::size_t>(j)] =
+      std::exp(static_cast<long double>(log_weights[offset + j]));
+  }
+  long double direct_sum = 0.0L;
+  bool direct_ok = context.vector_rule == SELVECTOR_PRODUCT;
+  std::vector<double> latent(static_cast<std::size_t>(context.rank));
+  for (std::size_t point = 0; point < total && direct_ok; ++point) {
+    std::size_t remaining = point;
+    long double term = 1.0L;
+    for (int factor = 0; factor < context.rank; ++factor) {
+      const int index = static_cast<int>(remaining % order);
+      remaining /= static_cast<std::size_t>(order);
+      latent[factor] = nodes[offset + index];
+      term *= weights[static_cast<std::size_t>(index)];
+    }
+    for (int i = 0; i < context.dimension; ++i) {
+      double conditional_mean = context.mean[i];
+      for (int factor = 0; factor < context.rank; ++factor) {
+        conditional_mean +=
+          context.loading[i + context.dimension * factor] * latent[factor];
+      }
+      double omega_last = 0.0;
+      double normalizer = 0.0;
+      direct_ok = cpp_selnorm_step_cdf_telescope_plan(
+        conditional_mean, context.residual_sd[i], context.selection_se[i],
+        context.omega, context.selection, nullptr, nullptr, &omega_last,
+        &normalizer, 1, false
+      );
+      if (!direct_ok) break;
+      term *= static_cast<long double>(normalizer);
+    }
+    direct_sum += term;
+    direct_ok = direct_ok && std::isfinite(direct_sum) && direct_sum > 0.0L;
+  }
+  if (direct_ok) return static_cast<double>(std::log(direct_sum));
+
+  double out = -std::numeric_limits<double>::infinity();
+  for (std::size_t point = 0; point < total; ++point) {
+    std::size_t remaining = point;
+    double log_weight = 0.0;
+    double normal_kernel = 0.0;
+    for (int factor = 0; factor < context.rank; ++factor) {
+      const int index = offset + static_cast<int>(remaining % order);
+      remaining /= static_cast<std::size_t>(order);
+      latent[factor] = nodes[index];
+      normal_kernel += 0.5 * latent[factor] * latent[factor];
+      log_weight += log_weights[index];
+    }
+    const double log_integrand = factor_log_integrand(
+      context, latent.data(), nullptr
+    );
+    if (std::isfinite(log_integrand)) {
+      out = log_add_exp(out, log_weight + log_integrand + normal_kernel);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Shift-amplitude certificate of a product-rule rung
+//
+// Moving the nodes of one latent axis by `delta` and multiplying that axis's
+// weights by exp(-delta x - delta^2 / 2) is an exact change of variables: the
+// shifted rule estimates the same integral, and its error is the aliasing
+// error of the rule at another lattice phase. Two shifted copies of a rung
+// per axis (half and quarter of the node gap around the rung's own tilted
+// mean of that axis) measure the amplitude of the first harmonic of that
+// error, and the summed amplitudes bound the rung's aliasing error up to a
+// small factor under the stated local-lattice assumptions, which the sharpness
+// gate below keeps true. Every axis is its own group. Weights are never
+// renormalized.
+// ---------------------------------------------------------------------------
+
+// The gap of the order-n nodes around a mean: R's findInterval clamped to the
+// interior intervals, so a mean below the first node uses the first gap, above
+// the last the last gap, and exactly on a node the gap to its right.
+double certificate_node_gap(const double *nodes, int order, double mean)
+{
+  // A valid custom schedule can begin with a one-node rule, which has no gap.
+  if (order < 2) return std::numeric_limits<double>::quiet_NaN();
+  const int not_above = static_cast<int>(
+    std::upper_bound(nodes, nodes + order, mean) - nodes);
+  const int upper = std::min(std::max(not_above, 1), order - 1);
+  return nodes[upper] - nodes[upper - 1];
+}
+
+// Weights of one axis at a shift. A zero shift reproduces exp(log weight).
+void certificate_shifted_weights(const double *nodes, const double *log_weights,
+                                 int order, double shift,
+                                 std::vector<long double> *weights)
+{
+  weights->resize(static_cast<std::size_t>(order));
+  const long double delta = shift;
+  for (int point = 0; point < order; ++point) {
+    (*weights)[static_cast<std::size_t>(point)] = std::exp(
+      static_cast<long double>(log_weights[point]) -
+      delta * nodes[point] - 0.5L * delta * delta);
+  }
+}
+
+struct ShiftCertificate {
+  bool finite = false;
+  // The half shifts alone already exceed half the tolerance, so the rung is
+  // rejected without the quarter shifts (amplitude >= |half-shift term|).
+  bool early_reject = false;
+  double amplitude_sum = 0.0;
+  std::vector<double> gap, half, quarter, amplitude;
+};
+
+// `shifted(group, delta, &log_value)` evaluates the rung with one group's axis
+// shifted and returns false for an unusable value; a non-finite shifted value
+// leaves the certificate not finite, which rejects the rung.
+template <class Shifted>
+ShiftCertificate shift_certificate(double log_normalizer,
+                                   const std::vector<double> &mean,
+                                   const double *nodes, int order,
+                                   double relative_tolerance, bool early_exit,
+                                   Shifted &&shifted)
+{
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const std::size_t groups = mean.size();
+  ShiftCertificate out;
+  out.gap.assign(groups, nan);
+  out.half.assign(groups, nan);
+  out.quarter.assign(groups, nan);
+  out.amplitude.assign(groups, nan);
+  if (!std::isfinite(log_normalizer) || order < 2) return out;
+  for (std::size_t group = 0; group < groups; ++group) {
+    if (!std::isfinite(mean[group])) return out;
+    out.gap[group] = certificate_node_gap(nodes, order, mean[group]);
+    if (!(out.gap[group] > 0.0) || !std::isfinite(out.gap[group])) return out;
+  }
+  std::vector<double> e2(groups, nan);
+  double half_sum = 0.0;
+  for (std::size_t group = 0; group < groups; ++group) {
+    if (!shifted(static_cast<int>(group), 0.5 * out.gap[group], &out.half[group]) ||
+        !std::isfinite(out.half[group])) return out;
+    e2[group] = std::expm1(out.half[group] - log_normalizer);
+    if (!std::isfinite(e2[group])) return out;
+    half_sum += 0.5 * std::fabs(e2[group]);
+  }
+  if (early_exit && half_sum > 0.5 * relative_tolerance) {
+    out.finite = true;
+    out.early_reject = true;
+    out.amplitude_sum = half_sum;
+    return out;
+  }
+  double amplitude_sum = 0.0;
+  for (std::size_t group = 0; group < groups; ++group) {
+    if (!shifted(static_cast<int>(group), 0.25 * out.gap[group], &out.quarter[group]) ||
+        !std::isfinite(out.quarter[group])) return out;
+    const double e4 = std::expm1(out.quarter[group] - log_normalizer);
+    if (!std::isfinite(e4)) return out;
+    out.amplitude[group] = std::hypot(0.5 * e2[group], 0.5 * e2[group] - e4);
+    amplitude_sum += out.amplitude[group];
+  }
+  out.finite = std::isfinite(amplitude_sum);
+  out.amplitude_sum = amplitude_sum;
+  return out;
+}
+
+// Sharpness gate of the certificate. The two shifted copies sample the aliasing
+// error of a rung at three phases of the node lattice and read its first
+// harmonic; an edge of the selection weight much narrower than the node gap
+// makes the error profile sawtooth-like, with harmonics that those phases
+// cannot see (multiples of 4 vanish at all three), and the amplitude then
+// underestimates the error by more than the allowance covers. Native blocks
+// with edge width / gap between 0.018 and 0.102 were accepted with errors up to
+// 2.04e-2 and 5.3e-3 before the gate existed, and no violation was found at
+// width / gap >= 1/8. Before a rung is certified, the transition rule must
+// therefore resolve its transitions with every step width relaxed by 1 / 0.15:
+// the edge width (residual SD / |loading|) is at least 0.15 x the node gap.
+//
+// The gate does not make the amplitude a bound of the error. In scans of the
+// guarded amplitude the error of a rung stayed below 1.76 x the summed
+// amplitude at width / gap 0.15 (about 43,000 evaluations), but the ratio of
+// error to amplitude of a rung that passes the gate, the amplitude limit and
+// the allowance reached 2.79 (and 2.69 at width / gap 0.27 with two cuts) in a
+// search that ignored the ladder's change tests; those tests reject such rungs,
+// and searches of the whole gated ladder found no accepted value above 77% of
+// the tolerance. The acceptance rules are described in the acceptance section
+// of .agents/instructions/selected-normal.md.
+const double selnorm_certificate_width_scale_ladder = 1.0 / 0.15;
+// The refinement tier averages four shifts per axis. That refines the lattice
+// to a quarter of the gap but leaves errors periodic in a quarter gap, and its
+// check against the two-shift average sees only half of them, so its rung has
+// to resolve the edges on the refined lattice spacing: edge width >= 0.125 x gap.
+const double selnorm_certificate_width_scale_tier = 8.0;
+// The tier runs only at or above this relative tolerance. Its gate and its two
+// checks were calibrated at the default tolerance of 0.005, and the residual
+// error of the harmonics they cannot see does not scale with the tolerance: at
+// smaller tolerances a wall of about a thousand coincident rows was accepted
+// with an error of 1.2 to 1.5 times the tolerance. Below it, blocks that the
+// ladder rejects go on to the sparse grid and the randomized fallback.
+const double selnorm_certificate_tier_min_tolerance = 0.005;
+// The shift-amplitude envelope was calibrated at 0.005. Relaxing its checks
+// together with the requested tolerance can accept a coarse rule that misses
+// most of the mass. Keep that calibration for loose requests; the randomized
+// fallback still uses the requested tolerance. Default and tighter calls keep
+// exactly the same gates and arithmetic.
+const double selnorm_certificate_max_tolerance = 0.005;
+
+// The single-row edge width understates how sharp a block is when many rows
+// share an edge: the product of N coincident steps is a wall narrower than one
+// step, by about 1 / sqrt(2 ln N) (the extreme-value scaling of the product),
+// and the harmonics of the refined lattice that the tier's two checks cannot see
+// then carry errors beyond the tolerance. The tier gate therefore divides the
+// width scale of each axis by sqrt(max(1, 2 ln N)), with N the number of rows
+// that load on that axis. Every such row is counted, including rows shared
+// with other axes: their conditional transition centers may coincide.
+// A block without transitions keeps the base scale; its gate is always
+// resolved. The returned minimum preserves the scalar probe diagnostic.
+double selnorm_certificate_tier_width_scale(
+    const double *omega, const SelNormKernelData &selection,
+    const double *loading, int dimension, int rank,
+    std::vector<double> *axis_scales = nullptr)
+{
+  if (axis_scales != nullptr) {
+    axis_scales->assign(static_cast<std::size_t>(rank), selnorm_certificate_width_scale_tier);
+  }
+  if (!cpp_selnorm_step_has_transitions(omega, selection, 1)) {
+    return selnorm_certificate_width_scale_tier;
+  }
+  double minimum_scale = selnorm_certificate_width_scale_tier;
+  for (int axis = 0; axis < rank; ++axis) {
+    int rows = 0;
+    for (int row = 0; row < dimension; ++row) {
+      rows += loading[row + dimension * axis] != 0.0;
+    }
+    const double scale = selnorm_certificate_width_scale_tier /
+      std::sqrt(std::max(1.0, 2.0 * std::log(static_cast<double>(std::max(1, rows)))));
+    minimum_scale = std::min(minimum_scale, scale);
+    if (axis_scales != nullptr) (*axis_scales)[static_cast<std::size_t>(axis)] = scale;
+  }
+  return minimum_scale;
+}
+
+// The combined allowance adds this multiple of the summed amplitude to the
+// exterior bound. It follows the envelope of error / amplitude measured on
+// guarded rungs (1.76 at edge / gap 0.15), not a proved bound; the ladder's
+// change tests are the second protection (see the gate above).
+const double selnorm_certificate_allowance_factor = 2.0;
+
+// A rung is accepted when its summed amplitude is at most half the tolerance
+// and the exterior mass together with the amplitude (up to its factor)
+// fits the tolerance on the scale of the true normalizer.
+bool shift_certificate_accepts(const ShiftCertificate &certificate,
+                               double tail_bound, double relative_tolerance)
+{
+  return certificate.finite && !certificate.early_reject &&
+    certificate.amplitude_sum <= 0.5 * relative_tolerance &&
+    tail_bound + selnorm_certificate_allowance_factor * certificate.amplitude_sum <=
+      relative_tolerance / (1.0 + relative_tolerance);
+}
+
+// The nested forest rule of one rung, with the messages of its unshifted
+// evaluation retained. A shifted copy of one axis recomputes the row products
+// of that axis and its descendants, then the messages of its ancestors, and
+// reuses every other message and the free rows: for a depth-one forest a leaf
+// shift costs the rows owned by that leaf, a root shift the whole tree, and
+// other roots are reused. Evaluating without a retained state recomputes
+// everything with the same arithmetic.
+class FactorNestedRung {
+ public:
+  struct Messages {
+    long double free_product = 1.0L;
+    std::vector<std::vector<long double> > rows, own, integral;
+  };
+
+  // `scratch` (call-owned, may be null) holds the workspaces of the double
+  // precision node products; without it, or when it is not attempted, every
+  // product is accumulated in long double.
+  FactorNestedRung(const FactorNormalizerContext &context,
+                   const FactorForestPlan &plan, const double *nodes,
+                   const double *log_weights, int offset, int order,
+                   SelNormLeanScratch *scratch = nullptr)
+    : context_(context), plan_(plan), nodes_(nodes + offset),
+      log_weights_(log_weights + offset), order_(order),
+      node_count_(static_cast<std::size_t>(plan.valid ? plan.effective_rank : 0)),
+      scratch_(scratch)
+  {
+    power_.assign(node_count_ + 2, 1);
+    for (std::size_t j = 1; j < power_.size(); ++j) {
+      power_[j] = power_[j - 1] * static_cast<std::size_t>(order_);
+    }
+    certificate_shifted_weights(nodes_, log_weights_, order_, 0.0, &weights_);
+    by_depth_.resize(node_count_);
+    for (std::size_t q = 0; q < node_count_; ++q) by_depth_[q] = static_cast<int>(q);
+    std::stable_sort(by_depth_.begin(), by_depth_.end(),
+      [this](int left, int right) { return plan_.depth[left] > plan_.depth[right]; });
+  }
+
+  // Unshifted rule. False for an invalid plan or a rung that leaves the direct
+  // range, where the caller's tensor rule takes over exactly as before.
+  bool evaluate(double *log_value)
+  {
+    ready_ = false;
+    if (!plan_.valid) return false;
+    long double total = 0.0L;
+    if (!run(-1, 0.0, nullptr, &base_, &total)) return false;
+    *log_value = static_cast<double>(std::log(total));
+    ready_ = std::isfinite(*log_value);
+    return ready_;
+  }
+
+  // Whether the last run (evaluate() or a shifted copy) accumulated its node
+  // products in double rather than falling back to long double.
+  bool lean_used() const { return lean_used_; }
+
+  // Tilted mean of every axis (plan order) from the retained messages.
+  bool means(std::vector<double> *out) const
+  {
+    if (!ready_) return false;
+    out->assign(node_count_, std::numeric_limits<double>::quiet_NaN());
+    std::vector<std::vector<long double> > marginal(node_count_);
+    const std::vector<long double> unit(1, 1.0L);
+    for (std::size_t visit = node_count_; visit-- > 0;) {
+      const int q = by_depth_[visit];
+      const std::size_t prefix = power_[plan_.depth[q]];
+      const std::size_t size = power_[plan_.depth[q] + 1];
+      const std::vector<long double> &upper =
+        plan_.parent[q] < 0 ? unit : marginal[plan_.parent[q]];
+      marginal[q].assign(size, 0.0L);
+      long double moment = 0.0L;
+      for (int point = 0; point < order_; ++point) {
+        for (std::size_t lower = 0; lower < prefix; ++lower) {
+          const std::size_t index = lower + static_cast<std::size_t>(point) * prefix;
+          marginal[q][index] = upper[lower] * weights_[point] *
+            base_.own[q][index] / base_.integral[q][lower];
+          moment += marginal[q][index] * nodes_[point];
+        }
+      }
+      (*out)[q] = static_cast<double>(moment);
+    }
+    return true;
+  }
+
+  // Mean and covariance (column-major, plan-axis order) of the latent
+  // coordinates under the tilted rule, for forests of depth at most one. Given
+  // the node of its root the leaves of a tree are independent, so the root
+  // marginal and the leaf conditional means and variances (all from the
+  // retained messages) give the exact rung moments: leaf-leaf covariances run
+  // through the root, and trees are independent of each other.
+  bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
+  {
+    if (!ready_ || plan_.max_depth > 1) return false;
+    const std::size_t axes = node_count_;
+    const std::size_t order = static_cast<std::size_t>(order_);
+    mean->assign(axes, 0.0);
+    covariance->assign(axes * axes, 0.0);
+    for (int root : plan_.roots) {
+      std::vector<long double> probability(order, 0.0L);
+      long double total = 0.0L;
+      for (std::size_t node = 0; node < order; ++node) {
+        probability[node] = weights_[node] * base_.own[static_cast<std::size_t>(root)][node];
+        total += probability[node];
+      }
+      if (!(total > 0.0L) || !std::isfinite(total)) return false;
+      long double root_mean = 0.0L;
+      for (std::size_t node = 0; node < order; ++node) {
+        probability[node] /= total;
+        root_mean += probability[node] * nodes_[node];
+      }
+      long double root_variance = 0.0L;
+      for (std::size_t node = 0; node < order; ++node) {
+        const long double deviation = nodes_[node] - root_mean;
+        root_variance += probability[node] * deviation * deviation;
+      }
+      const std::size_t r = static_cast<std::size_t>(root);
+      (*mean)[r] = static_cast<double>(root_mean);
+      (*covariance)[r + axes * r] = static_cast<double>(root_variance);
+
+      const std::vector<int> &leaves = plan_.children[r];
+      std::vector<std::vector<long double> > conditional(leaves.size(),
+        std::vector<long double>(order, 0.0L));
+      std::vector<long double> leaf_mean(leaves.size(), 0.0L);
+      for (std::size_t l = 0; l < leaves.size(); ++l) {
+        const std::size_t leaf = static_cast<std::size_t>(leaves[l]);
+        const std::vector<long double> &rows = base_.own[leaf];
+        const std::vector<long double> &integral = base_.integral[leaf];
+        long double within_variance = 0.0L;
+        for (std::size_t node = 0; node < order; ++node) {
+          long double first = 0.0L;
+          for (std::size_t point = 0; point < order; ++point) {
+            first += weights_[point] * rows[node + point * order] * nodes_[point];
+          }
+          conditional[l][node] = first / integral[node];
+          long double second = 0.0L;
+          for (std::size_t point = 0; point < order; ++point) {
+            const long double deviation = nodes_[point] - conditional[l][node];
+            second += weights_[point] * rows[node + point * order] * deviation * deviation;
+          }
+          within_variance += probability[node] * (second / integral[node]);
+          leaf_mean[l] += probability[node] * conditional[l][node];
+        }
+        long double between_variance = 0.0L;
+        long double cross = 0.0L;
+        for (std::size_t node = 0; node < order; ++node) {
+          const long double deviation = conditional[l][node] - leaf_mean[l];
+          between_variance += probability[node] * deviation * deviation;
+          cross += probability[node] * (nodes_[node] - root_mean) * deviation;
+        }
+        (*mean)[leaf] = static_cast<double>(leaf_mean[l]);
+        (*covariance)[leaf + axes * leaf] = static_cast<double>(within_variance + between_variance);
+        (*covariance)[r + axes * leaf] = (*covariance)[leaf + axes * r] = static_cast<double>(cross);
+      }
+      for (std::size_t l = 0; l < leaves.size(); ++l) {
+        for (std::size_t other = 0; other < l; ++other) {
+          long double cross = 0.0L;
+          for (std::size_t node = 0; node < order; ++node) {
+            cross += probability[node] * (conditional[l][node] - leaf_mean[l]) *
+              (conditional[other][node] - leaf_mean[other]);
+          }
+          const std::size_t a = static_cast<std::size_t>(leaves[l]);
+          const std::size_t b = static_cast<std::size_t>(leaves[other]);
+          (*covariance)[a + axes * b] = (*covariance)[b + axes * a] = static_cast<double>(cross);
+        }
+      }
+    }
+    return true;
+  }
+
+  // The rule with one axis shifted. `reuse` keeps the unshifted messages that
+  // the shift cannot change; otherwise everything is evaluated afresh.
+  bool shifted(int axis, double delta, double *log_value, bool reuse = true) const
+  {
+    if (!ready_) return false;
+    long double total = 0.0L;
+    if (!run(axis, delta, reuse ? &base_ : nullptr, &shifted_messages_, &total)) return false;
+    *log_value = static_cast<double>(std::log(total));
+    return std::isfinite(*log_value);
+  }
+
+  // The averages of the rule over the grid of shifts (m / M) h_a of every axis
+  // a, m = 0..M-1, for M = 2 and M = 4 (the M = 2 grid is the even sub-grid of
+  // the other); `gap` holds h_a per plan axis; a null `log_average_2` skips the
+  // M = 2 average. Forests of depth at most one only. Given a root shift, the
+  // leaves of a tree are independent, so the average over all shifts of the
+  // product of the leaf integrals is the product of the leaf integrals averaged
+  // over their own shifts: the tree costs M^2 evaluations of each leaf instead
+  // of M^(1 + leaves). Trees are independent of each other and multiply.
+  bool refined(const std::vector<double> &gap, double *log_average_2,
+               double *log_average_4) const
+  {
+    constexpr int grid = 4;
+    if (!ready_ || plan_.max_depth > 1 || gap.size() != node_count_) return false;
+    const auto delta = [&gap](int axis, int index) {
+      return gap[static_cast<std::size_t>(axis)] *
+        (static_cast<double>(index) / static_cast<double>(grid));
+    };
+    std::vector<std::vector<std::vector<long double> > > weights(
+      node_count_, std::vector<std::vector<long double> >(grid));
+    for (std::size_t q = 0; q < node_count_; ++q) {
+      for (int index = 0; index < grid; ++index) {
+        certificate_shifted_weights(nodes_, log_weights_, order_,
+          delta(static_cast<int>(q), index), &weights[q][static_cast<std::size_t>(index)]);
+      }
+    }
+    const std::size_t pairs = static_cast<std::size_t>(order_) * static_cast<std::size_t>(order_);
+    const bool coarse_average = log_average_2 != nullptr;
+    long double total_2 = base_.free_product;
+    long double total_4 = base_.free_product;
+    for (int root : plan_.roots) {
+      long double sum_2 = 0.0L;
+      long double sum_4 = 0.0L;
+      for (int root_index = 0; root_index < grid; ++root_index) {
+        const bool coarse_root = root_index % 2 == 0;
+        const double root_delta = delta(root, root_index);
+        std::vector<long double> own_4(static_cast<std::size_t>(order_), 1.0L);
+        if (!accumulate_rows(plan_.node_rows[root], static_cast<std::size_t>(order_),
+                             plan_.axes[root], own_4, root, root_delta)) return false;
+        std::vector<long double> own_2;
+        if (coarse_average) own_2 = own_4;
+        for (int leaf : plan_.children[root]) {
+          std::vector<long double> inner_2(
+            coarse_average ? static_cast<std::size_t>(order_) : 0, 0.0L);
+          std::vector<long double> inner_4(static_cast<std::size_t>(order_), 0.0L);
+          for (int leaf_index = 0; leaf_index < grid; ++leaf_index) {
+            std::vector<long double> rows(pairs, 1.0L);
+            if (!accumulate_rows(plan_.node_rows[leaf], pairs, plan_.axes[leaf], rows,
+                                 root, root_delta, leaf, delta(leaf, leaf_index))) {
+              return false;
+            }
+            const std::vector<long double> &leaf_weights =
+              weights[static_cast<std::size_t>(leaf)][static_cast<std::size_t>(leaf_index)];
+            for (int lower = 0; lower < order_; ++lower) {
+              long double value = 0.0L;
+              for (int point = 0; point < order_; ++point) {
+                value += leaf_weights[static_cast<std::size_t>(point)] *
+                  rows[static_cast<std::size_t>(lower) +
+                       static_cast<std::size_t>(point) * static_cast<std::size_t>(order_)];
+              }
+              if (!(value > 0.0L) || !std::isfinite(value)) return false;
+              inner_4[static_cast<std::size_t>(lower)] += value;
+              if (coarse_average && coarse_root && leaf_index % 2 == 0) {
+                inner_2[static_cast<std::size_t>(lower)] += value;
+              }
+            }
+          }
+          for (std::size_t lower = 0; lower < static_cast<std::size_t>(order_); ++lower) {
+            own_4[lower] *= inner_4[lower] / grid;
+            if (coarse_average) own_2[lower] *= inner_2[lower] / 2.0L;
+          }
+        }
+        const std::vector<long double> &root_weights =
+          weights[static_cast<std::size_t>(root)][static_cast<std::size_t>(root_index)];
+        for (std::size_t point = 0; point < static_cast<std::size_t>(order_); ++point) {
+          sum_4 += root_weights[point] * own_4[point];
+          if (coarse_average && coarse_root) sum_2 += root_weights[point] * own_2[point];
+        }
+      }
+      total_4 *= sum_4 / grid;
+      total_2 *= sum_2 / 2.0L;
+    }
+    if (!(total_4 > 0.0L) || !std::isfinite(total_4)) return false;
+    if (coarse_average) {
+      if (!(total_2 > 0.0L) || !std::isfinite(total_2)) return false;
+      *log_average_2 = static_cast<double>(std::log(total_2));
+    }
+    *log_average_4 = static_cast<double>(std::log(total_4));
+    return true;
+  }
+
+ private:
+  // The conditional means of one row at every node of the axes it loads.
+  // `shifted_axis` (and the optional `second_axis`) are plan axes whose nodes
+  // move by `delta` (`second_delta`).
+  void expand_means(int row, const std::vector<int> &row_axes, int shifted_axis,
+                    double delta, int second_axis, double second_delta,
+                    double *conditional_means) const
+  {
+    conditional_means[0] = context_.mean[row];
+    for (std::size_t position = 0; position < row_axes.size(); ++position) {
+      const int axis = row_axes[position];
+      const double coefficient = context_.loading[
+        row + context_.dimension * plan_.permutation[axis]
+      ];
+      const std::size_t lower_size = power_[position];
+      // Expand one axis at a time. Visit node zero last so the prefix is
+      // still available while filling the other slices of the same buffer.
+      for (int point = order_ - 1; point >= 0; --point) {
+        const double node = axis == shifted_axis ? nodes_[point] + delta :
+          axis == second_axis ? nodes_[point] + second_delta : nodes_[point];
+        const double shift = coefficient * node;
+        for (std::size_t lower = 0; lower < lower_size; ++lower) {
+          conditional_means[
+            lower + static_cast<std::size_t>(point) * lower_size
+          ] = conditional_means[lower] + shift;
+        }
+      }
+    }
+  }
+
+  // The product of the normalizers of `rows` at every node, multiplied into
+  // `target`. With `lean` the products are accumulated in double and the call
+  // is all or nothing: false leaves `target` untouched (a normalizer failed
+  // its checks or the node products left the double range), and the caller
+  // evaluates the rung with the long double products.
+  bool accumulate_rows(const std::vector<int> &rows, std::size_t size,
+                       const std::vector<int> &row_axes,
+                       std::vector<long double> &target, int shifted_axis,
+                       double delta, int second_axis = -1,
+                       double second_delta = 0.0, bool lean = false) const
+  {
+    if (lean) {
+      SelNormLeanScratch &scratch = *scratch_;
+      scratch.reserve(size);
+      scratch.product.assign(size, 1.0);
+      for (int row : rows) {
+        expand_means(row, row_axes, shifted_axis, delta, second_axis,
+                     second_delta, scratch.means.data());
+        if (!scratch.plan.multiply(row, scratch.means.data(), size,
+                                   scratch.product.data(),
+                                   scratch.normalizer.data())) return false;
+      }
+      for (std::size_t point = 0; point < size; ++point) {
+        target[point] *= scratch.product[point];
+      }
+      return true;
+    }
+    std::vector<double> conditional_means(size);
+    for (int row : rows) {
+      expand_means(row, row_axes, shifted_axis, delta, second_axis,
+                   second_delta, conditional_means.data());
+      if (!cpp_selnorm_step_normalizer_product(
+            conditional_means.data(), size, context_.residual_sd[row],
+            context_.selection_se[row], context_.omega, context_.selection,
+            target.data())) return false;
+    }
+    return true;
+  }
+
+  bool in_axes(int q, int axis) const
+  {
+    const std::vector<int> &axes = plan_.axes[q];
+    return std::find(axes.begin(), axes.end(), axis) != axes.end();
+  }
+
+  // One evaluation of the nested rule. `base` is the retained unshifted
+  // evaluation to reuse (null: evaluate everything); `axis` is the shifted
+  // plan axis (negative: none).
+  bool run(int axis, double delta, const Messages *base, Messages *out,
+           long double *total) const
+  {
+    // The double products first; any row out of range discards that attempt and
+    // the whole evaluation is repeated with the long double products.
+    lean_used_ = false;
+    if (scratch_ != nullptr && scratch_->attempted() &&
+        run_pass(axis, delta, base, out, total, true)) {
+      lean_used_ = true;
+      return true;
+    }
+    return run_pass(axis, delta, base, out, total, false);
+  }
+
+  bool run_pass(int axis, double delta, const Messages *base, Messages *out,
+                long double *total, bool lean) const
+  {
+    Messages &m = *out;
+    m.rows.assign(node_count_, std::vector<long double>());
+    m.own.assign(node_count_, std::vector<long double>());
+    m.integral.assign(node_count_, std::vector<long double>());
+    std::vector<const std::vector<long double> *> integral_view(node_count_, nullptr);
+    std::vector<long double> shifted_weights;
+    if (axis >= 0) {
+      certificate_shifted_weights(nodes_, log_weights_, order_, delta, &shifted_weights);
+    }
+
+    if (base == nullptr) {
+      std::vector<long double> free_product(1, 1.0L);
+      const std::vector<int> no_axes;
+      if (!accumulate_rows(plan_.free_rows, 1, no_axes, free_product, -1, 0.0,
+                           -1, 0.0, lean)) return false;
+      m.free_product = free_product[0];
+    } else {
+      m.free_product = base->free_product;
+    }
+
+    for (int q : by_depth_) {
+      // Rows owned by the shifted axis or by one of its descendants see a
+      // different node; its ancestors only see a different message.
+      const bool rows_changed = base == nullptr || (axis >= 0 && in_axes(q, axis));
+      const bool message_changed = rows_changed ||
+        (axis >= 0 && q != axis && in_axes(axis, q));
+      if (!message_changed) {
+        integral_view[q] = &base->integral[q];
+        continue;
+      }
+      const std::size_t prefix = power_[plan_.depth[q]];
+      const std::size_t size = power_[plan_.depth[q] + 1];
+      if (rows_changed) {
+        m.rows[q].assign(size, 1.0L);
+        if (!accumulate_rows(plan_.node_rows[q], size, plan_.axes[q], m.rows[q],
+                             axis, delta, -1, 0.0, lean)) return false;
+      }
+      m.own[q] = rows_changed ? m.rows[q] : base->rows[q];
+      for (int child : plan_.children[q]) {
+        const std::vector<long double> &message = *integral_view[child];
+        for (std::size_t point = 0; point < size; ++point) {
+          m.own[q][point] *= message[point];
+        }
+      }
+      const std::vector<long double> &weights = q == axis ? shifted_weights : weights_;
+      m.integral[q].assign(prefix, 0.0L);
+      for (std::size_t lower = 0; lower < prefix; ++lower) {
+        for (int point = 0; point < order_; ++point) {
+          m.integral[q][lower] += weights[point] * m.own[q][
+            lower + static_cast<std::size_t>(point) * prefix
+          ];
+        }
+        if (!(m.integral[q][lower] > 0.0L) ||
+            !std::isfinite(m.integral[q][lower])) {
+          return false;
+        }
+      }
+      integral_view[q] = &m.integral[q];
+    }
+
+    long double result = m.free_product;
+    for (int root : plan_.roots) result *= (*integral_view[root])[0];
+    if (!(result > 0.0L) || !std::isfinite(result)) return false;
+    *total = result;
+    return true;
+  }
+
+  const FactorNormalizerContext &context_;
+  const FactorForestPlan &plan_;
+  const double *nodes_;
+  const double *log_weights_;
+  int order_;
+  std::size_t node_count_;
+  SelNormLeanScratch *scratch_;
+  std::vector<std::size_t> power_;
+  std::vector<long double> weights_;
+  std::vector<int> by_depth_;
+  Messages base_;
+  // The messages of the shifted copies, reused from one copy to the next.
+  mutable Messages shifted_messages_;
+  mutable bool lean_used_ = false;
+  bool ready_ = false;
+};
+
+double factor_log_mean(const std::vector<double> &log_values, int count);
+
+// The tensor rule of one rung (a support that is not a forest, or a nested
+// rule that left the direct range), summed directly from positive normalizers
+// and otherwise on the log scale, as factor_rule_log_integral does. A shifted
+// copy re-evaluates the full grid with one axis shifted, on the same path.
+class FactorTensorRung {
+ public:
+  FactorTensorRung(const FactorNormalizerContext &context, const double *nodes,
+                   const double *log_weights, int offset, int order)
+    : context_(context), nodes_(nodes + offset),
+      log_weights_(log_weights + offset), order_(order)
+  {
+    total_ = 1;
+    for (int factor = 0; factor < context_.rank; ++factor) {
+      total_ *= static_cast<std::size_t>(order_);
+    }
+  }
+
+  bool direct() const { return direct_; }
+  const std::vector<double> &mean() const { return mean_; }
+
+  // The value factor_rule_log_integral returns for an affordable tensor rule;
+  // false only when the log-scale sum is not finite.
+  bool evaluate(double *log_value)
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    std::vector<long double> moments(rank, 0.0L);
+    long double sum = 0.0L;
+    if (context_.vector_rule == SELVECTOR_PRODUCT &&
+        direct_sum(nullptr, &sum, &moments)) {
+      direct_ = true;
+      *log_value = static_cast<double>(std::log(sum));
+      mean_.resize(rank);
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        mean_[factor] = static_cast<double>(moments[factor] / sum);
+      }
+      return true;
+    }
+    direct_ = false;
+    std::vector<double> terms;
+    log_sum(nullptr, log_value, &terms);
+    mean_.assign(rank, std::numeric_limits<double>::quiet_NaN());
+    if (std::isfinite(*log_value)) {
+      std::fill(mean_.begin(), mean_.end(), 0.0);
+      for (std::size_t point = 0; point < total_; ++point) {
+        if (!std::isfinite(terms[point])) continue;
+        std::size_t remaining = point;
+        const double weight = std::exp(terms[point] - *log_value);
+        for (std::size_t factor = 0; factor < rank; ++factor) {
+          mean_[factor] += weight * nodes_[remaining % static_cast<std::size_t>(order_)];
+          remaining /= static_cast<std::size_t>(order_);
+        }
+      }
+    }
+    return std::isfinite(*log_value);
+  }
+
+  // Mean and covariance (column-major, loading-column order) of the latent
+  // coordinates under the tilted rule, from the weights of the grid points on
+  // the path that produced the value. False for a degenerate grid.
+  bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    std::vector<long double> weight(total_, 0.0L);
+    long double sum = 0.0L;
+    if (direct_) {
+      if (!direct_sum(nullptr, &sum, nullptr, &weight)) return false;
+    } else {
+      double value = 0.0;
+      std::vector<double> terms;
+      log_sum(nullptr, &value, &terms);
+      if (!std::isfinite(value)) return false;
+      for (std::size_t point = 0; point < total_; ++point) {
+        if (!std::isfinite(terms[point])) continue;
+        weight[point] = std::exp(static_cast<long double>(terms[point] - value));
+        sum += weight[point];
+      }
+    }
+    if (!(sum > 0.0L) || !std::isfinite(sum)) return false;
+    const auto node_of = [this](std::size_t point, std::size_t factor) {
+      for (std::size_t skip = 0; skip < factor; ++skip) {
+        point /= static_cast<std::size_t>(order_);
+      }
+      return nodes_[point % static_cast<std::size_t>(order_)];
+    };
+    std::vector<long double> center(rank, 0.0L);
+    for (std::size_t point = 0; point < total_; ++point) {
+      if (!(weight[point] > 0.0L)) continue;
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        center[factor] += weight[point] * node_of(point, factor);
+      }
+    }
+    mean->assign(rank, 0.0);
+    covariance->assign(rank * rank, 0.0);
+    for (std::size_t factor = 0; factor < rank; ++factor) {
+      center[factor] /= sum;
+      (*mean)[factor] = static_cast<double>(center[factor]);
+    }
+    std::vector<long double> deviation(rank);
+    std::vector<long double> second(rank * rank, 0.0L);
+    for (std::size_t point = 0; point < total_; ++point) {
+      if (!(weight[point] > 0.0L)) continue;
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        deviation[factor] = node_of(point, factor) - center[factor];
+      }
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        for (std::size_t other = 0; other <= factor; ++other) {
+          second[factor + rank * other] += weight[point] * deviation[factor] * deviation[other];
+        }
+      }
+    }
+    for (std::size_t factor = 0; factor < rank; ++factor) {
+      for (std::size_t other = 0; other <= factor; ++other) {
+        const double value = static_cast<double>(second[factor + rank * other] / sum);
+        (*covariance)[factor + rank * other] = value;
+        (*covariance)[other + rank * factor] = value;
+      }
+    }
+    return true;
+  }
+
+  bool shifted(int axis, double delta, double *log_value) const
+  {
+    std::vector<double> deltas(static_cast<std::size_t>(context_.rank), 0.0);
+    deltas[static_cast<std::size_t>(axis)] = delta;
+    return shifted_grid(deltas, log_value);
+  }
+
+  // The rule with every axis a moved by deltas[a], on the path of the value.
+  bool shifted_grid(const std::vector<double> &deltas, double *log_value) const
+  {
+    if (direct_) {
+      long double sum = 0.0L;
+      if (!direct_sum(&deltas, &sum, nullptr)) return false;
+      *log_value = static_cast<double>(std::log(sum));
+      return std::isfinite(*log_value);
+    }
+    log_sum(&deltas, log_value, nullptr);
+    return std::isfinite(*log_value);
+  }
+
+  // The averages over the grid of shifts (m / M) h_a of every axis, M = 2 and
+  // M = 4 (the M = 2 grid is the even sub-grid of the other); `gap` holds h_a
+  // per axis; a null `log_average_2` skips the M = 2 average. Rank at most two:
+  // the average costs M^rank shifted rules.
+  bool refined(const std::vector<double> &gap, double *log_average_2,
+               double *log_average_4) const
+  {
+    constexpr int grid = 4;
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    if (rank > 2 || gap.size() != rank) return false;
+    std::size_t count = 1;
+    for (std::size_t axis = 0; axis < rank; ++axis) count *= grid;
+    std::vector<double> values_4(count);
+    std::vector<double> values_2;
+    std::vector<double> deltas(rank);
+    for (std::size_t point = 0; point < count; ++point) {
+      std::size_t remaining = point;
+      bool coarse = true;
+      for (std::size_t axis = 0; axis < rank; ++axis) {
+        const int index = static_cast<int>(remaining % grid);
+        remaining /= grid;
+        deltas[axis] = gap[axis] * (static_cast<double>(index) / grid);
+        coarse = coarse && index % 2 == 0;
+      }
+      if (!shifted_grid(deltas, &values_4[point])) return false;
+      if (coarse) values_2.push_back(values_4[point]);
+    }
+    *log_average_4 = factor_log_mean(values_4, static_cast<int>(values_4.size()));
+    if (log_average_2 == nullptr) return std::isfinite(*log_average_4);
+    *log_average_2 = factor_log_mean(values_2, static_cast<int>(values_2.size()));
+    return std::isfinite(*log_average_2) && std::isfinite(*log_average_4);
+  }
+
+ private:
+  bool direct_sum(const std::vector<double> *deltas, long double *sum,
+                  std::vector<long double> *moments,
+                  std::vector<long double> *point_terms = nullptr) const
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    if (weights_.empty()) {
+      certificate_shifted_weights(nodes_, log_weights_, order_, 0.0, &weights_);
+    }
+    std::vector<std::vector<long double> > shifted_weights(rank);
+    std::vector<char> moved(rank, 0);
+    for (std::size_t factor = 0; factor < rank; ++factor) {
+      if (deltas != nullptr && (*deltas)[factor] != 0.0) {
+        moved[factor] = 1;
+        certificate_shifted_weights(nodes_, log_weights_, order_, (*deltas)[factor],
+                                    &shifted_weights[factor]);
+      }
+    }
+    std::vector<double> latent(rank);
+    std::vector<int> index(rank);
+    long double direct_sum = 0.0L;
+    for (std::size_t point = 0; point < total_; ++point) {
+      std::size_t remaining = point;
+      long double term = 1.0L;
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        index[factor] = static_cast<int>(remaining % static_cast<std::size_t>(order_));
+        remaining /= static_cast<std::size_t>(order_);
+        latent[factor] = moved[factor] ? nodes_[index[factor]] + (*deltas)[factor] :
+          nodes_[index[factor]];
+        term *= moved[factor] ? shifted_weights[factor][index[factor]] :
+          weights_[index[factor]];
+      }
+      for (int i = 0; i < context_.dimension; ++i) {
+        double conditional_mean = context_.mean[i];
+        for (std::size_t factor = 0; factor < rank; ++factor) {
+          conditional_mean +=
+            context_.loading[i + context_.dimension * static_cast<int>(factor)] * latent[factor];
+        }
+        double omega_last = 0.0;
+        double normalizer = 0.0;
+        if (!cpp_selnorm_step_cdf_telescope_plan(
+              conditional_mean, context_.residual_sd[i], context_.selection_se[i],
+              context_.omega, context_.selection, nullptr, nullptr, &omega_last,
+              &normalizer, 1, false)) return false;
+        term *= static_cast<long double>(normalizer);
+      }
+      direct_sum += term;
+      if (!std::isfinite(direct_sum) || !(direct_sum > 0.0L)) return false;
+      if (point_terms != nullptr) (*point_terms)[point] = term;
+      if (moments != nullptr) {
+        for (std::size_t factor = 0; factor < rank; ++factor) {
+          (*moments)[factor] += term * nodes_[index[factor]];
+        }
+      }
+    }
+    *sum = direct_sum;
+    return true;
+  }
+
+  // Log-scale sum; the terms of the unshifted grid are kept for its means.
+  void log_sum(const std::vector<double> *deltas, double *value,
+               std::vector<double> *terms) const
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    std::vector<double> latent(rank);
+    double out = -std::numeric_limits<double>::infinity();
+    if (terms != nullptr) {
+      terms->assign(total_, -std::numeric_limits<double>::infinity());
+    }
+    for (std::size_t point = 0; point < total_; ++point) {
+      std::size_t remaining = point;
+      double log_weight = 0.0;
+      double normal_kernel = 0.0;
+      for (std::size_t factor = 0; factor < rank; ++factor) {
+        const int index = static_cast<int>(remaining % static_cast<std::size_t>(order_));
+        remaining /= static_cast<std::size_t>(order_);
+        if (deltas != nullptr && (*deltas)[factor] != 0.0) {
+          const double delta = (*deltas)[factor];
+          latent[factor] = nodes_[index] + delta;
+          log_weight += log_weights_[index] - delta * nodes_[index] - 0.5 * delta * delta;
+        } else {
+          latent[factor] = nodes_[index];
+          log_weight += log_weights_[index];
+        }
+        normal_kernel += 0.5 * latent[factor] * latent[factor];
+      }
+      const double log_integrand = factor_log_integrand(context_, latent.data(), nullptr);
+      if (std::isfinite(log_integrand)) {
+        const double term = log_weight + log_integrand + normal_kernel;
+        out = log_add_exp(out, term);
+        if (terms != nullptr) (*terms)[point] = term;
+      }
+    }
+    *value = out;
+  }
+
+  const FactorNormalizerContext &context_;
+  const double *nodes_;
+  const double *log_weights_;
+  int order_;
+  std::size_t total_ = 1;
+  // The unshifted weights, built on first use (the nested rule does not need them).
+  mutable std::vector<long double> weights_;
+  std::vector<double> mean_;
+  bool direct_ = false;
+};
+
+// One product-rule rung of the factor kernel: the nested forest rule when the
+// support is a forest, else the tensor rule, with the value factor_rule_log_
+// integral returns; its tilted means and shifted copies follow the path that
+// produced the value.
+class FactorRung {
+ public:
+  enum Path { DECLINED, NESTED, TENSOR_DIRECT, TENSOR_LOG };
+
+  // `scratch` (call-owned, may be null) enables the double precision node
+  // products of the nested rule.
+  FactorRung(const FactorNormalizerContext &context, const FactorForestPlan &plan,
+             const double *nodes, const double *log_weights, int offset, int order,
+             SelNormLeanScratch *scratch = nullptr)
+    : context_(context), plan_(plan), order_(order), nodes_(nodes + offset),
+      nested_(context, plan, nodes, log_weights, offset, order, scratch),
+      tensor_(context, nodes, log_weights, offset, order) {}
+
+  Path path() const { return path_; }
+
+  // Whether a rung evaluated on `path` has the refinement averages: a nested
+  // forest of depth at most one, or a tensor of rank at most two. Decided from
+  // the path, so a caller can skip evaluating a rung it could not refine.
+  static bool supports_refinement(Path path, const FactorForestPlan &plan, int rank)
+  {
+    if (path == NESTED) return plan.max_depth <= 1;
+    return (path == TENSOR_DIRECT || path == TENSOR_LOG) && rank <= 2;
+  }
+
+  // Whether it has tilted moments: any tensor, or a nested forest of depth at
+  // most one whose axes are all the loading columns.
+  static bool supports_moments(Path path, const FactorForestPlan &plan, int rank)
+  {
+    if (path == TENSOR_DIRECT || path == TENSOR_LOG) return true;
+    return path == NESTED && plan.max_depth <= 1 && plan.effective_rank == rank;
+  }
+
+  // Whether the value came from the nested rule with double node products.
+  bool lean_used() const { return lean_; }
+
+  // Loading column of a certified axis.
+  int column(int axis) const
+  {
+    return path_ == NESTED ? plan_.permutation[static_cast<std::size_t>(axis)] : axis;
+  }
+
+  double log_integral()
+  {
+    double value = 0.0;
+    if (nested_.evaluate(&value)) {
+      path_ = NESTED;
+      lean_ = nested_.lean_used();
+      return value;
+    }
+    // A forest plan that fails numerically leaves only the tensor rule, which
+    // the budget may refuse at this rank.
+    if (!selnorm_factor_rule_affordable(order_, context_.rank)) {
+      path_ = DECLINED;
+      return -std::numeric_limits<double>::infinity();
+    }
+    tensor_.evaluate(&value);
+    path_ = tensor_.direct() ? TENSOR_DIRECT : TENSOR_LOG;
+    return value;
+  }
+
+  // Tilted mean per certified axis, in the axis order shifted() takes.
+  bool means(std::vector<double> *out) const
+  {
+    if (path_ == NESTED) return nested_.means(out);
+    if (path_ == TENSOR_DIRECT || path_ == TENSOR_LOG) {
+      *out = tensor_.mean();
+      return true;
+    }
+    return false;
+  }
+
+  bool shifted(int axis, double delta, double *log_value, bool reuse = true) const
+  {
+    if (path_ == NESTED) return nested_.shifted(axis, delta, log_value, reuse);
+    if (path_ == TENSOR_DIRECT || path_ == TENSOR_LOG) {
+      return tensor_.shifted(axis, delta, log_value);
+    }
+    return false;
+  }
+
+  // Mean and covariance of the latent coordinates under the tilted rule in the
+  // order of the loading columns, for tensors and forests of depth at most one
+  // (the rule that produced the value). False for a deeper forest.
+  bool moments(std::vector<double> *mean, std::vector<double> *covariance) const
+  {
+    const std::size_t rank = static_cast<std::size_t>(context_.rank);
+    if (!supports_moments(path_, plan_, context_.rank)) return false;
+    if (path_ != NESTED) return tensor_.moments(mean, covariance);
+    std::vector<double> axis_mean, axis_covariance;
+    if (!nested_.moments(&axis_mean, &axis_covariance)) return false;
+    mean->assign(rank, 0.0);
+    covariance->assign(rank * rank, 0.0);
+    for (std::size_t a = 0; a < rank; ++a) {
+      const std::size_t column = static_cast<std::size_t>(plan_.permutation[a]);
+      (*mean)[column] = axis_mean[a];
+      for (std::size_t b = 0; b < rank; ++b) {
+        (*covariance)[column + rank * static_cast<std::size_t>(plan_.permutation[b])] =
+          axis_covariance[a + rank * b];
+      }
+    }
+    return true;
+  }
+
+  // Whether the refinement average is defined for this rung: a forest of
+  // depth at most one, or a tensor of rank at most two.
+  bool refinable() const
+  {
+    return supports_refinement(path_, plan_, context_.rank);
+  }
+
+  // Averages over the shift grids (m / M) h_a, M = 2 and 4, in the axis order
+  // of means(); a null `log_average_2` skips the M = 2 average.
+  bool refined(const std::vector<double> &gap, double *log_average_2,
+               double *log_average_4) const
+  {
+    if (!refinable()) return false;
+    return path_ == NESTED ? nested_.refined(gap, log_average_2, log_average_4) :
+      tensor_.refined(gap, log_average_2, log_average_4);
+  }
+
+  const double *nodes() const { return nodes_; }
+  int order() const { return order_; }
+
+ private:
+  const FactorNormalizerContext &context_;
+  const FactorForestPlan &plan_;
+  int order_;
+  const double *nodes_;
+  FactorNestedRung nested_;
+  FactorTensorRung tensor_;
+  Path path_ = DECLINED;
+  bool lean_ = false;
+};
+
+// Whether a factor rung is certified: no transition, or the rung resolves its
+// transitions (the sharpness gate) and the summed amplitudes of its shifted
+// copies and the exterior mass fit the tolerance. `q0` is the rung's value and
+// `tail_bound` the relative exterior bound of the tail gate. `resolves(scale)`
+// is the transition rule at the rung with every step width multiplied by
+// `scale`; it is consulted before any shifted evaluation.
+template <class Resolves>
+bool factor_rung_certified(FactorRung &rung, bool transitions, double q0,
+                           double tail_bound, double relative_tolerance,
+                           Resolves &&resolves)
+{
+  if (!transitions) {
+    // A constant selection weight has no aliasing: amplitude zero, no shifts.
+    return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
+  }
+  if (!resolves(selnorm_certificate_width_scale_ladder)) return false;
+  std::vector<double> mean;
+  if (!rung.means(&mean)) return false;
+  const ShiftCertificate certificate = shift_certificate(
+    q0, mean, rung.nodes(), rung.order(), relative_tolerance, true,
+    [&rung](int axis, double delta, double *value) {
+      return rung.shifted(axis, delta, value);
+    });
+  return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
+}
+
+
+// Refinement tier of the factor product ladder, for tensors of rank at most two
+// and forests of depth at most one. At the finest affordable rung, the average
+// of the rule over M shifts per axis (a lattice M times finer along every
+// axis) keeps only the aliasing harmonics that are multiples of M. The average
+// for M = 4 is accepted when it agrees with the average for M = 2 and with the
+// M = 4 average of the previous affordable rung, each within half the
+// tolerance, and the finest rung passes the tail gate for it. The previous
+// rung must also pass the ladder's sharpness gate, so that a coarse comparison
+// rung which cannot resolve the edges does not vouch for the average. The shift of an
+// axis is a fraction m / M of the node gap at the rung's own tilted mean. Every
+// evaluation is a rule of an order the node budget affords. Only for a
+// relative tolerance of at least `selnorm_certificate_tier_min_tolerance`.
+// Returns the log of the M = 4 average and the larger of the two relative
+// checks.
+bool factor_refinement_certified(
+    const FactorNormalizerContext &context, const FactorForestPlan &plan,
+    const double *nodes, const double *log_weights, int offset, int order,
+    int previous_offset, int previous_order, int cost_exponent,
+    double relative_tolerance, double *log_value, double *relative_change)
+{
+  const double infinity = std::numeric_limits<double>::infinity();
+  *log_value = -infinity;
+  *relative_change = infinity;
+  // The tier is calibrated at the default tolerance (see the constant).
+  if (!(relative_tolerance >= selnorm_certificate_tier_min_tolerance)) return false;
+  // The lattice averages are defined for rungs whose edges the refined lattice
+  // can resolve, with the edge of a wall of coincident rows narrowed by their
+  // number; checked at the tier's rung before any lattice evaluation.
+  std::vector<double> axis_scales;
+  selnorm_certificate_tier_width_scale(context.omega, context.selection,
+    context.loading, context.dimension, context.rank, &axis_scales);
+  const auto resolves = [&](int rung_offset, int rung_order, double scale,
+                            const double *axis_width_scales) {
+    return cpp_selnorm_step_rule_resolves_transitions(
+      nodes, rung_offset, rung_order, context.mean, context.residual_sd,
+      context.loading, context.dimension, context.rank, context.selection_se,
+      context.omega, context.selection, 1, scale, axis_width_scales);
+  };
+  if (!resolves(offset, order, 1.0, axis_scales.data()) ||
+      !resolves(previous_offset, previous_order,
+                selnorm_certificate_width_scale_ladder, nullptr)) {
+    return false;
+  }
+  const auto refined = [&](int rung_offset, int rung_order, double *average_2,
+                           double *average_4) {
+    if (!selnorm_factor_rule_affordable(rung_order, cost_exponent)) return false;
+    FactorRung rung(context, plan, nodes, log_weights, rung_offset, rung_order);
+    if (!std::isfinite(rung.log_integral())) return false;
+    std::vector<double> mean;
+    if (!rung.refinable() || !rung.means(&mean)) return false;
+    std::vector<double> gap(mean.size());
+    for (std::size_t axis = 0; axis < mean.size(); ++axis) {
+      if (!std::isfinite(mean[axis])) return false;
+      gap[axis] = certificate_node_gap(nodes + rung_offset, rung_order, mean[axis]);
+      if (!(gap[axis] > 0.0) || !std::isfinite(gap[axis])) return false;
+    }
+    return rung.refined(gap, average_2, average_4);
+  };
+  double average_2 = 0.0, average_4 = 0.0;
+  if (!refined(offset, order, &average_2, &average_4)) return false;
+  // |Qbar_4 / Qbar_2 - 1| and |Qbar_4(n) / Qbar_4(n_prev) - 1|
+  const double shift_change = cluster_relative_change(average_4, average_2);
+  if (!(shift_change <= 0.5 * relative_tolerance)) return false;
+  if (!quadrature_covers_gaussian_tails(
+        nodes, offset, order, context.rank, context.omega, context.n_bins,
+        context.dimension, SELVECTOR_PRODUCT, average_4, relative_tolerance)) {
+    return false;
+  }
+  // only the M = 4 average of the previous rung enters the order check
+  double previous_4 = 0.0;
+  if (!refined(previous_offset, previous_order, nullptr, &previous_4)) return false;
+  const double order_change = cluster_relative_change(average_4, previous_4);
+  if (!(order_change <= 0.5 * relative_tolerance)) return false;
+  *log_value = average_4;
+  *relative_change = std::max(shift_change, order_change);
+  return true;
+}
+
+// The same for a rung of the rank-one cluster rule: a single group whose
+// shifted copies are the one-dimensional rule at a shift.
+bool cluster_rung_certified(const ClusterNormalizerContext &context,
+                            const double *nodes, const double *log_weights,
+                            int offset, int order, double q0, double tilted_mean,
+                            bool transitions, double tail_bound,
+                            double relative_tolerance,
+                            SelNormLeanScratch *scratch = nullptr)
+{
+  if (!transitions) {
+    return tail_bound <= relative_tolerance / (1.0 + relative_tolerance);
+  }
+  if (!cpp_selnorm_step_rule_resolves_transitions(
+        nodes, offset, order, context.mean, context.residual_sd, context.loading,
+        context.dimension, 1, context.selection_se, context.omega,
+        context.selection, 1, selnorm_certificate_width_scale_ladder)) {
+    return false;
+  }
+  const std::vector<double> mean(1, tilted_mean);
+  const ShiftCertificate certificate = shift_certificate(
+    q0, mean, nodes + offset, order, relative_tolerance, true,
+    [&](int, double delta, double *value) {
+      *value = cluster_ladder_log_integral(context, nodes, log_weights, offset,
+        order, scratch, delta);
+      return std::isfinite(*value);
+    });
+  return shift_certificate_accepts(certificate, tail_bound, relative_tolerance);
+}
+
+// The factor tier's M = 2 / M = 4 and preceding-rung checks on the single
+// cluster axis, using the cluster evaluator and its shared row workspace.
+bool cluster_refinement_certified(
+    const ClusterNormalizerContext &context, const double *nodes,
+    const double *log_weights, int offset, int order,
+    int previous_offset, int previous_order, double relative_tolerance,
+    SelNormLeanScratch *scratch, double *log_value, double *relative_change)
+{
+  if (!(relative_tolerance >= selnorm_certificate_tier_min_tolerance) ||
+      order < 2 || previous_order < 2 ||
+      !selnorm_factor_rule_affordable(order, 1) ||
+      !selnorm_factor_rule_affordable(previous_order, 1)) {
+    return false;
+  }
+  const double width_scale = selnorm_certificate_tier_width_scale(
+    context.omega, context.selection, context.loading, context.dimension, 1);
+  const auto resolves = [&](int rung_offset, int rung_order, double scale) {
+    return cpp_selnorm_step_rule_resolves_transitions(
+      nodes, rung_offset, rung_order, context.mean, context.residual_sd,
+      context.loading, context.dimension, 1, context.selection_se, context.omega,
+      context.selection, 1, scale);
+  };
+  if (!resolves(offset, order, width_scale) ||
+      !resolves(previous_offset, previous_order,
+                selnorm_certificate_width_scale_ladder)) {
+    return false;
+  }
+  const auto refined = [&](int rung_offset, int rung_order, double *average_2,
+                           double *average_4) {
+    double mean = std::numeric_limits<double>::quiet_NaN();
+    const double base = cluster_ladder_log_integral(context, nodes, log_weights,
+      rung_offset, rung_order, scratch, 0.0, &mean);
+    if (!std::isfinite(base) || !std::isfinite(mean)) return false;
+    const double gap = certificate_node_gap(nodes + rung_offset, rung_order, mean);
+    if (!(gap > 0.0) || !std::isfinite(gap)) return false;
+    double sum_2 = base, sum_4 = base;
+    for (int shift = 1; shift < 4; ++shift) {
+      const double value = cluster_ladder_log_integral(context, nodes, log_weights,
+        rung_offset, rung_order, scratch, gap * (static_cast<double>(shift) / 4.0));
+      if (!std::isfinite(value)) return false;
+      sum_4 = log_add_exp(sum_4, value);
+      if (shift == 2) sum_2 = log_add_exp(sum_2, value);
+    }
+    if (average_2 != nullptr) *average_2 = sum_2 - std::log(2.0);
+    *average_4 = sum_4 - std::log(4.0);
+    return std::isfinite(*average_4);
+  };
+  double average_2 = 0.0, average_4 = 0.0;
+  if (!refined(offset, order, &average_2, &average_4)) return false;
+  const double shift_change = cluster_relative_change(average_4, average_2);
+  if (!(shift_change <= 0.5 * relative_tolerance) ||
+      !quadrature_covers_gaussian_tails(
+        nodes, offset, order, 1, context.omega, context.selection.n_bins,
+        context.dimension, SELVECTOR_PRODUCT, average_4, relative_tolerance)) {
+    return false;
+  }
+  double previous_4 = 0.0;
+  if (!refined(previous_offset, previous_order, nullptr, &previous_4)) return false;
+  const double order_change = cluster_relative_change(average_4, previous_4);
+  if (!(order_change <= 0.5 * relative_tolerance)) return false;
+  *log_value = average_4;
+  *relative_change = std::max(shift_change, order_change);
+  return true;
+}
+
+// Sparse-grid quadrature for factor supports that are not a forest. Such a
+// block has no cheaper exact structure, and its tensor rule costs
+// `order^rank`, which the node budget refuses above a low order once the rank
+// passes four. A Smolyak combination of the same Gauss-Hermite sequence
+// reaches a comparable total-degree exactness in far fewer nodes.
+//
+// The combination coefficients are signed. Every tensor rule it combines is a
+// positive product integral evaluated exactly as the dense rules are, so the
+// row kernels keep their unsigned accumulation and only the outer sum is
+// signed; a combination that leaves the positive orthant is declined rather
+// than reported.
+#define SELNORM_FACTOR_SMOLYAK_MAX_LEVELS 8
+
+struct FactorSmolyakLevels {
+  int count = 0;
+  const double *nodes[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+  const double *log_weights[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+  int offset[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+  int order[SELNORM_FACTOR_SMOLYAK_MAX_LEVELS];
+};
+
+// The one-point rule anchors the coarsest sparse-grid level. The shared
+// sequence starts at three because the dense rules never need a coarser rule,
+// but without it every level difference costs a factor of order three per
+// axis and the grid cannot climb at all above rank five.
+const double selnorm_smolyak_single_node = 0.0;
+const double selnorm_smolyak_single_log_weight = 0.0;
+
+// Take a roughly doubling subsequence of the shared rule sequence. Successive
+// sparse-grid levels must gain enough exactness to make their level difference
+// an error estimate; consecutive rungs of the dense ladder do not.
+bool factor_smolyak_levels(const double *nodes, const double *log_weights,
+                           const double *orders, int rule_count,
+                           FactorSmolyakLevels *out)
+{
+  out->count = 1;
+  out->nodes[0] = &selnorm_smolyak_single_node;
+  out->log_weights[0] = &selnorm_smolyak_single_log_weight;
+  out->offset[0] = -1;
+  out->order[0] = 1;
+  int offset = 0;
+  int previous = 1;
+  for (int rule = 0; rule < rule_count; ++rule) {
+    const double raw = orders[rule];
+    const int order = static_cast<int>(raw);
+    if (!std::isfinite(raw) || raw != static_cast<double>(order) || order < 1) {
+      return false;
+    }
+    if (order >= 2 * previous &&
+        out->count < SELNORM_FACTOR_SMOLYAK_MAX_LEVELS) {
+      out->nodes[out->count] = nodes + offset;
+      out->log_weights[out->count] = log_weights + offset;
+      out->offset[out->count] = offset;
+      out->order[out->count] = order;
+      previous = order;
+      ++out->count;
+    }
+    offset += order;
+  }
+  return out->count >= 3;
+}
+
+// One anisotropic tensor rule over the factor axes, expanded one axis at a
+// time so each row's normalizers are evaluated in one batched pass.
+bool factor_anisotropic_rule_integral(
+    const FactorNormalizerContext &context, const double *const *nodes,
+    const double *const *log_weights, const int *order,
+    std::vector<long double> *value, std::vector<double> *conditional,
+    long double *result)
+{
+  std::size_t total = 1;
+  for (int axis = 0; axis < context.rank; ++axis) {
+    total *= static_cast<std::size_t>(order[axis]);
+  }
+  value->assign(total, 1.0L);
+  conditional->resize(total);
+
+  std::size_t lower_size = 1;
+  for (int axis = 0; axis < context.rank; ++axis) {
+    const int points = order[axis];
+    // Visit node zero last: it reuses the prefix that the other slices read.
+    for (int point = points - 1; point >= 0; --point) {
+      const long double weight = std::exp(
+        static_cast<long double>(log_weights[axis][point])
+      );
+      for (std::size_t lower = 0; lower < lower_size; ++lower) {
+        (*value)[lower + static_cast<std::size_t>(point) * lower_size] =
+          (*value)[lower] * weight;
+      }
+    }
+    lower_size *= static_cast<std::size_t>(points);
+  }
+
+  for (int row = 0; row < context.dimension; ++row) {
+    (*conditional)[0] = context.mean[row];
+    lower_size = 1;
+    for (int axis = 0; axis < context.rank; ++axis) {
+      const double coefficient =
+        context.loading[row + context.dimension * axis];
+      const int points = order[axis];
+      for (int point = points - 1; point >= 0; --point) {
+        const double shift = coefficient * nodes[axis][point];
+        for (std::size_t lower = 0; lower < lower_size; ++lower) {
+          (*conditional)[lower + static_cast<std::size_t>(point) * lower_size] =
+            (*conditional)[lower] + shift;
+        }
+      }
+      lower_size *= static_cast<std::size_t>(points);
+    }
+    if (!cpp_selnorm_step_normalizer_product(
+          conditional->data(), total, context.residual_sd[row],
+          context.selection_se[row], context.omega, context.selection,
+          value->data())) {
+      return false;
+    }
+  }
+
+  long double sum = 0.0L;
+  for (std::size_t point = 0; point < total; ++point) sum += (*value)[point];
+  if (!(sum > 0.0L) || !std::isfinite(sum)) return false;
+  *result = sum;
+  return true;
+}
+
+// Visit every level multi-index of the Smolyak combination at level `total`.
+// Indices are one-based level numbers; an index vector contributes when its
+// sum lies in [total - rank + 1, total].
+template <typename Visit>
+void factor_smolyak_indices(int rank, int level_count, int total, Visit visit)
+{
+  std::vector<int> index(static_cast<std::size_t>(rank), 1);
+  const int lower = total - rank + 1;
+  // Depth-first walk with the remaining-axes bounds used for pruning.
+  const auto recurse = [&](auto &&self, int position, int prefix) -> void {
+    const int remaining = rank - position;
+    if (remaining == 0) {
+      if (prefix >= lower) visit(index.data());
+      return;
+    }
+    for (int level = 1; level <= level_count; ++level) {
+      const int next = prefix + level;
+      // Every remaining axis contributes at least one and at most level_count.
+      if (next + (remaining - 1) > total) break;
+      if (next + (remaining - 1) * level_count < lower) continue;
+      index[static_cast<std::size_t>(position)] = level;
+      self(self, position + 1, next);
+    }
+  };
+  recurse(recurse, 0, 0);
+}
+
+double factor_smolyak_binomial(int n, int k)
+{
+  if (k < 0 || k > n) return 0.0;
+  double out = 1.0;
+  for (int step = 0; step < k; ++step) {
+    out = out * (n - step) / (step + 1);
+  }
+  return out;
+}
+
+// The sparse-grid integral at one level, or false when the level exceeds the
+// node budget, a sub-rule fails, or the signed combination is not positive.
+bool factor_smolyak_rule_affordable(int rank, const FactorSmolyakLevels &levels, int total)
+{
+  if (rank < 1 || total < rank) return false;
+  double nodes_used = 0.0;
+  factor_smolyak_indices(rank, levels.count, total, [&](const int *index) {
+    double size = 1.0;
+    for (int axis = 0; axis < rank; ++axis) {
+      size *= levels.order[index[axis] - 1];
+    }
+    nodes_used += size;
+  });
+  return nodes_used > 0.0 && nodes_used <= SELNORM_FACTOR_NODE_BUDGET;
+}
+
+bool factor_smolyak_log_integral(
+    const FactorNormalizerContext &context, const FactorSmolyakLevels &levels,
+    int total, double *result)
+{
+  const int rank = context.rank;
+  if (!factor_smolyak_rule_affordable(rank, levels, total)) return false;
+
+  std::vector<const double *> axis_nodes(static_cast<std::size_t>(rank));
+  std::vector<const double *> axis_log_weights(static_cast<std::size_t>(rank));
+  std::vector<int> order(static_cast<std::size_t>(rank));
+  std::vector<long double> value;
+  std::vector<double> conditional;
+  long double combination = 0.0L;
+  bool ok = true;
+  factor_smolyak_indices(rank, levels.count, total, [&](const int *index) {
+    if (!ok) return;
+    int sum = 0;
+    for (int axis = 0; axis < rank; ++axis) {
+      const int level = index[axis] - 1;
+      axis_nodes[static_cast<std::size_t>(axis)] = levels.nodes[level];
+      axis_log_weights[static_cast<std::size_t>(axis)] =
+        levels.log_weights[level];
+      order[static_cast<std::size_t>(axis)] = levels.order[level];
+      sum += index[axis];
+    }
+    long double partial = 0.0L;
+    if (!factor_anisotropic_rule_integral(context, axis_nodes.data(),
+          axis_log_weights.data(), order.data(), &value, &conditional,
+          &partial)) {
+      ok = false;
+      return;
+    }
+    const int difference = total - sum;
+    const double coefficient = factor_smolyak_binomial(rank - 1, difference) *
+      ((difference % 2 == 0) ? 1.0 : -1.0);
+    combination += static_cast<long double>(coefficient) * partial;
+  });
+  if (!ok || !(combination > 0.0L) || !std::isfinite(combination)) return false;
+
+  *result = static_cast<double>(std::log(combination));
+  return std::isfinite(*result);
+}
+
+double vector_dot(const std::vector<double> &x,
+                  const std::vector<double> &y)
+{
+  double out = 0.0;
+  for (std::size_t i = 0; i < x.size(); ++i) out += x[i] * y[i];
+  return out;
+}
+
+void factor_optimize_mode(const FactorNormalizerContext &context,
+                          std::vector<double> *position,
+                          std::vector<double> *proposal_covariance = nullptr)
+{
+  const int rank = context.rank;
+  std::vector<double> gradient(static_cast<std::size_t>(rank));
+  double value = factor_log_integrand(
+    context, position->data(), gradient.data()
+  );
+  if (!std::isfinite(value)) return;
+
+  std::vector<double> inverse_hessian(
+    static_cast<std::size_t>(rank * rank), 0.0
+  );
+  for (int factor = 0; factor < rank; ++factor) {
+    inverse_hessian[factor + rank * factor] = 1.0;
+  }
+  std::vector<double> best = *position;
+  std::vector<double> best_covariance;
+  if (proposal_covariance != nullptr) best_covariance = inverse_hessian;
+  double best_value = value;
+  const double gradient_tolerance =
+    std::sqrt(std::numeric_limits<double>::epsilon());
+
+  for (int iteration = 0; iteration < 100; ++iteration) {
+    const double gradient_norm = std::sqrt(vector_dot(gradient, gradient));
+    double position_norm = 0.0;
+    for (int factor = 0; factor < rank; ++factor) {
+      position_norm += (*position)[factor] * (*position)[factor];
+    }
+    position_norm = std::sqrt(position_norm);
+    if (gradient_norm <= gradient_tolerance * (1.0 + position_norm)) break;
+
+    std::vector<double> direction(static_cast<std::size_t>(rank), 0.0);
+    for (int column = 0; column < rank; ++column) {
+      for (int row = 0; row < rank; ++row) {
+        direction[row] += inverse_hessian[row + rank * column] *
+          gradient[column];
+      }
+    }
+    double directional_derivative = vector_dot(gradient, direction);
+    if (!(directional_derivative > 0.0) ||
+        !std::isfinite(directional_derivative)) {
+      direction = gradient;
+      directional_derivative = vector_dot(gradient, direction);
+    }
+
+    std::vector<double> candidate(static_cast<std::size_t>(rank));
+    std::vector<double> candidate_gradient(static_cast<std::size_t>(rank));
+    double candidate_value = -std::numeric_limits<double>::infinity();
+    double step = 1.0;
+    bool accepted = false;
+    for (int line_search = 0; line_search < 30; ++line_search) {
+      for (int factor = 0; factor < rank; ++factor) {
+        candidate[factor] = (*position)[factor] + step * direction[factor];
+      }
+      candidate_value = factor_log_integrand(
+        context, candidate.data(), candidate_gradient.data()
+      );
+      if (std::isfinite(candidate_value) &&
+          candidate_value >= value + 1e-4 * step * directional_derivative) {
+        accepted = true;
+        break;
+      }
+      step *= 0.5;
+    }
+    if (!accepted) break;
+
+    std::vector<double> displacement(static_cast<std::size_t>(rank));
+    std::vector<double> curvature(static_cast<std::size_t>(rank));
+    for (int factor = 0; factor < rank; ++factor) {
+      displacement[factor] = candidate[factor] - (*position)[factor];
+      curvature[factor] = gradient[factor] - candidate_gradient[factor];
+    }
+    const double displacement_curvature =
+      vector_dot(displacement, curvature);
+    if (displacement_curvature > 0.0 &&
+        std::isfinite(displacement_curvature)) {
+      std::vector<double> h_curvature(static_cast<std::size_t>(rank), 0.0);
+      for (int column = 0; column < rank; ++column) {
+        for (int row = 0; row < rank; ++row) {
+          h_curvature[row] += inverse_hessian[row + rank * column] *
+            curvature[column];
+        }
+      }
+      const double curvature_h_curvature =
+        vector_dot(curvature, h_curvature);
+      const double rho = 1.0 / displacement_curvature;
+      const double scale =
+        (1.0 + curvature_h_curvature * rho) * rho;
+      for (int column = 0; column < rank; ++column) {
+        for (int row = 0; row < rank; ++row) {
+          inverse_hessian[row + rank * column] +=
+            scale * displacement[row] * displacement[column] -
+            rho * (displacement[row] * h_curvature[column] +
+                   h_curvature[row] * displacement[column]);
+        }
+      }
+    } else {
+      std::fill(inverse_hessian.begin(), inverse_hessian.end(), 0.0);
+      for (int factor = 0; factor < rank; ++factor) {
+        inverse_hessian[factor + rank * factor] = 1.0;
+      }
+    }
+
+    *position = candidate;
+    gradient = candidate_gradient;
+    value = candidate_value;
+    if (value > best_value) {
+      best = *position;
+      best_value = value;
+      if (proposal_covariance != nullptr) best_covariance = inverse_hessian;
+    }
+  }
+  *position = best;
+  if (proposal_covariance != nullptr) *proposal_covariance = best_covariance;
+}
+
+bool factor_solve_cholesky(const std::vector<double> &cholesky, int rank,
+                           std::vector<double> *value)
+{
+  for (int row = 0; row < rank; ++row) {
+    for (int column = 0; column < row; ++column) {
+      (*value)[row] -= cholesky[row + rank * column] * (*value)[column];
+    }
+    const double diagonal = cholesky[row + rank * row];
+    if (!(diagonal > 0.0) || !std::isfinite(diagonal)) return false;
+    (*value)[row] /= diagonal;
+  }
+  for (int row = rank - 1; row >= 0; --row) {
+    for (int column = row + 1; column < rank; ++column) {
+      (*value)[row] -= cholesky[column + rank * row] * (*value)[column];
+    }
+    (*value)[row] /= cholesky[row + rank * row];
+  }
+  return true;
+}
+
+double factor_log_mean(const double *log_values, int count)
+{
+  double out = -std::numeric_limits<double>::infinity();
+  for (int i = 0; i < count; ++i) out = log_add_exp(out, log_values[i]);
+  return out - std::log(static_cast<double>(count));
+}
+
+double factor_log_mean(const std::vector<double> &log_values, int count)
+{
+  return factor_log_mean(log_values.data(), count);
+}
+
+}
+
+struct SelNormNormalProjectionWorkspace::Impl {
+  NormalProjectionGrid recurrence;
+  std::vector<double> weights;
+  std::vector<long double> output;
+
+  Impl(const double *z, int size, void (*poll)(), std::size_t poll_interval)
+    : recurrence(z, size, poll, poll_interval), weights(size, 1.0), output(size) {}
+};
+
+SelNormNormalProjectionWorkspace::SelNormNormalProjectionWorkspace(
+    const double *z, int size, void (*poll)(), std::size_t poll_interval)
+  : impl(new Impl(z, size, poll, poll_interval)) {}
+
+SelNormNormalProjectionWorkspace::~SelNormNormalProjectionWorkspace() = default;
+
+bool SelNormNormalProjectionWorkspace::density(
+    const double *mean, int count, double sd, double sei,
+    const double *log_coefficients, long double *density)
+{
+  impl->recurrence.prepare(sei, sd);
+  std::fill(impl->output.begin(), impl->output.end(), 0.0L);
+  const double log_scale = std::log(sei) - std::log(sd);
+  for (int point = 0; point < count; ++point) {
+    impl->recurrence.account_work();
+    const long double weight = std::exp(static_cast<long double>(log_coefficients[point]));
+    if (!impl->recurrence.add(mean[point], sei, sd, log_scale, weight,
+                             impl->weights, impl->output)) {
+      return false;
+    }
+  }
+  std::copy(impl->output.begin(), impl->output.end(), density);
+  return true;
+}
+
+int cpp_selnorm_factor_box_rng(
+    const double *mean, const double *supplied, int n,
+    const double *selection_se, const double *omega, int bins,
+    const double *z_lower, const double *z_upper, int effect_sign,
+    int max_attempts, double (*uniform)(), double *output)
+{
+  const bool profile_box = std::getenv("ROBMA_DEBUG_FACTOR_BOX") != nullptr;
+  const auto profile_tick = []() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); };
+  const double profile_start = profile_box ? profile_tick() : 0.0;
+  double profile_geometry = 0.0, profile_correction = 0.0, profile_integrands = 0.0, profile_intervals = 0.0, profile_totals = 0.0, profile_sampling = 0.0, profile_late_preparation = 0.0;
+  std::uint64_t profile_queries = 0, profile_hits = 0, profile_interval_queries = 0;
+  std::uint64_t preparation_work = 0;
+  double log_lower = 0.0, log_upper = 0.0;
+  const double infinity = std::numeric_limits<double>::infinity();
+  const double negative_infinity = -infinity;
+  const long double long_infinity = std::numeric_limits<long double>::infinity();
+  if (n < 2 || bins < 1 || max_attempts < 1 || uniform == nullptr) return -1;
+  bool increasing_signed = true, decreasing_signed = true;
+  for (int bin = 1; bin < bins; ++bin) {
+    increasing_signed = increasing_signed && omega[bin - 1] >= omega[bin];
+    decreasing_signed = decreasing_signed && omega[bin - 1] <= omega[bin];
+  }
+  if (!increasing_signed && !decreasing_signed) return -1;
+  const bool increasing = effect_sign > 0 ? increasing_signed : decreasing_signed;
+  std::vector<double> covariance(supplied, supplied + static_cast<std::size_t>(n) * n);
+  std::vector<double> target_cholesky = covariance;
+  int info = 0;
+  F77_CALL(dpotrf)("L", &n, target_cholesky.data(), &n, &info FCONE);
+  if (info != 0) return -1;
+  SelNormCovarianceEnvelope envelope;
+  if (!covariance_envelope(covariance, n, selection_se, &envelope)) return -1;
+  const int extracted_rank = envelope.groups == 1 ? 1 : envelope.groups + 1;
+  std::vector<EnvelopeGroupGeometry> geometry;
+  if (!prepare_envelope_geometry(covariance, mean, selection_se, n,
+                                 envelope, false, &geometry)) return -1;
+  std::vector<double> loading(static_cast<std::size_t>(n) * extracted_rank, 0.0), sd(n);
+  std::vector<int> local(envelope.groups, 0);
+  for (int row = 0; row < n; ++row) {
+    const int group = envelope.type_index[row], position = local[group]++;
+    sd[row] = geometry[group].residual_sd[position];
+    loading[row] = geometry[group].common_loading[position];
+    if (extracted_rank > 1) loading[row + n * (group + 1)] = geometry[group].loading[position];
+  }
+  // Exactly zero columns do not define a random coordinate. Removing them is
+  // algebraic elimination, not numerical rank truncation or covariance repair.
+  int rank = 0;
+  for (int axis = 0; axis < extracted_rank; ++axis) {
+    const double *column = loading.data() + n * axis;
+    if (std::all_of(column, column + n, [](double value) { return value == 0.0; })) continue;
+    if (rank != axis) std::copy_n(column, n, loading.data() + n * rank);
+    ++rank;
+  }
+  if (rank < 1 || rank > 4) return -1;
+  loading.resize(static_cast<std::size_t>(n) * rank);
+  if (profile_box) profile_geometry = profile_tick() - profile_start;
+  // Radius of each elementary long-double operation. This applies only to
+  // the auxiliary covariance construction, never to modification of target C.
+  const auto radius = [long_infinity](long double value) {
+    if (!std::isfinite(value)) return long_infinity;
+    return std::max(std::nextafter(value, long_infinity) - value,
+                    value - std::nextafter(value, -long_infinity));
+  };
+  const auto up_add = [long_infinity](long double a, long double b) {
+    return std::nextafter(a + b, long_infinity);
+  };
+  const auto represented_difference = [&](int row, int column) {
+    long double represented = row == column ? static_cast<long double>(sd[row]) * sd[row] : 0.0L;
+    long double error = row == column ? radius(represented) : 0.0L;
+    for (int factor = 0; factor < rank; ++factor) {
+      const long double product = static_cast<long double>(loading[row + n * factor]) *
+        loading[column + n * factor];
+      error = up_add(error, radius(product));
+      represented += product;
+      error = up_add(error, radius(represented));
+    }
+    const long double value = represented - covariance[row + n * column];
+    return std::make_pair(value, up_add(error, radius(value)));
+  };
+  long double delta = 0.0L;
+  for (int row = 0; row < n; ++row) {
+    long double bound = 0.0L;
+    for (int column = 0; column < n; ++column) {
+      const auto residual = represented_difference(row, column);
+      if (!std::isfinite(residual.first) || !std::isfinite(residual.second)) return -1;
+      bound = up_add(bound, up_add(std::fabs(residual.first), residual.second));
+    }
+    delta = std::max(delta, bound);
+  }
+  if (!(delta > 0.0L) || !std::isfinite(delta)) return -1;
+  for (int row = 0; row < n; ++row) {
+    const long double old_square = static_cast<long double>(sd[row]) * sd[row];
+    const long double required = up_add(std::nextafter(old_square, long_infinity),
+                                       up_add(delta, delta));
+    double candidate_sd = std::sqrt(static_cast<double>(required));
+    bool adequate = false;
+    for (int pass = 0; pass < 8; ++pass) {
+      const long double square = static_cast<long double>(candidate_sd) * candidate_sd;
+      if (std::isfinite(candidate_sd) && candidate_sd > 0.0 &&
+          std::nextafter(square, -long_infinity) >= required) {
+        adequate = true;
+        break;
+      }
+      candidate_sd = std::nextafter(candidate_sd, infinity);
+    }
+    if (!adequate) return -1;
+    sd[row] = candidate_sd;
+  }
+  // Verify domination for the actually emitted double SDs/loadings. A strict
+  // diagonal-dominance margin also makes the Woodbury update factor positive.
+  std::vector<double> update(static_cast<std::size_t>(n) * n);
+  long double minimum_margin = long_infinity;
+  for (int row = 0; row < n; ++row) {
+    long double off_diagonal = 0.0L, diagonal_lower = 0.0L;
+    for (int column = 0; column < n; ++column) {
+      const auto value = represented_difference(row, column);
+      if (!std::isfinite(value.first) || !std::isfinite(value.second)) return -1;
+      update[row + n * column] = static_cast<double>(value.first);
+      if (row == column) diagonal_lower = std::nextafter(value.first - value.second, -long_infinity);
+      else off_diagonal = up_add(off_diagonal, up_add(std::fabs(value.first), value.second));
+    }
+    minimum_margin = std::min(minimum_margin, diagonal_lower - off_diagonal);
+  }
+  if (!(minimum_margin > 0.0L) || !std::isfinite(minimum_margin)) return -1;
+  F77_CALL(dpotrf)("L", &n, update.data(), &n, &info FCONE);
+  if (info != 0) return -1;
+  for (int column = 0; column < n; ++column) {
+    for (int row = 0; row < column; ++row) update[row + n * column] = 0.0;
+  }
+  const double one = 1.0, zero = 0.0;
+  const int stride = 1;
+  // J=L_C^-1 L_H, K=I+J'J. The correction is a sum of squares, not subtraction
+  // of nearly equal inverse quadratic forms.
+  F77_CALL(dtrsm)("L", "L", "N", "N", &n, &n, &one,
+    target_cholesky.data(), &n, update.data(), &n FCONE FCONE FCONE FCONE);
+  if (!std::all_of(update.begin(), update.end(), [](double value) { return std::isfinite(value); })) return -1;
+  std::vector<double> correction(static_cast<std::size_t>(n) * n, 0.0);
+  for (int row = 0; row < n; ++row) correction[row + n * row] = 1.0;
+  F77_CALL(dsyrk)("L", "T", &n, &n, &one, update.data(), &n, &one,
+    correction.data(), &n FCONE FCONE);
+  F77_CALL(dpotrf)("L", &n, correction.data(), &n, &info FCONE);
+  if (info != 0 || !std::all_of(correction.begin(), correction.end(),
+      [](double value) { return std::isfinite(value); })) return -1;
+
+  if (profile_box) profile_correction = profile_tick() - profile_start - profile_geometry;
+  SelNormKernelData selection = {};
+  selection.n_bins = bins;
+  selection.effect_sign = effect_sign;
+  selection.z_lower = z_lower;
+  selection.z_upper = z_upper;
+  selection.trusted_step_partition = true;
+  selection.telescope_probabilities = true;
+  struct Cell {
+    std::array<double, 4> lower{}, upper{}, axis_mass{};
+    double lower_corner = 0, upper_corner = 0, mass = 0, gap = 0;
+  };
+  const auto difference = [&](double upper, double lower) {
+    if (upper < lower || std::isnan(upper) || std::isnan(lower)) {
+      throw std::runtime_error("Factor-box bounds are not ordered");
+    }
+    if (upper == lower) return negative_infinity;
+    if (lower == negative_infinity) return upper;
+    return upper + std::log(-std::expm1(lower - upper));
+  };
+  std::vector<double> location(n);
+  const auto integrand = [&](const std::array<double, 4> &point, bool preparation) {
+    const double profile_integrand_start = profile_box ? profile_tick() : 0.0;
+    for (int row = 0; row < n; ++row) {
+      location[row] = mean[row];
+      for (int axis = 0; axis < rank; ++axis) {
+        if (loading[row + n * axis] != 0.0) location[row] += loading[row + n * axis] * point[axis];
+      }
+      if (std::isnan(location[row]) || (!preparation && !std::isfinite(location[row]))) {
+        throw std::runtime_error("A factor-box mean is non-finite");
+      }
+    }
+    long double product = 1.0L;
+    bool direct = true;
+    for (int row = 0; row < n && direct; ++row) {
+      if (location[row] == infinity) product *= omega[effect_sign > 0 ? 0 : bins - 1];
+      else if (location[row] == negative_infinity) product *= omega[effect_sign > 0 ? bins - 1 : 0];
+      else {
+        direct = cpp_selnorm_step_normalizer_product(location.data() + row, 1, sd[row],
+          selection_se[row], omega, selection, &product);
+        if (preparation) ++preparation_work;
+      }
+      direct = direct && product > 0.0L && std::isfinite(product);
+    }
+    if (direct) {
+      const double value = static_cast<double>(std::log(product));
+      if (profile_box && preparation) profile_integrands += profile_tick() - profile_integrand_start;
+      return value;
+    }
+    // Unsafe direct products retain the complete existing scalar log path.
+    // Preparation cost includes both attempted mass evaluations and fallback work.
+    double total = 0.0;
+    for (int row = 0; row < n; ++row) {
+      double value;
+      if (location[row] == infinity) value = std::log(omega[effect_sign > 0 ? 0 : bins - 1]);
+      else if (location[row] == negative_infinity) value = std::log(omega[effect_sign > 0 ? bins - 1 : 0]);
+      else {
+        value = cpp_selnorm_step_log_norm(location[row], sd[row], selection_se[row], omega, selection, 1, false);
+        if (preparation) ++preparation_work;
+        if (!std::isfinite(value)) throw std::runtime_error("A factor-box normalizer is non-finite");
+      }
+      total += value;
+    }
+    if (std::isnan(total)) throw std::runtime_error("A factor-box corner is undefined");
+    if (profile_box && preparation) profile_integrands += profile_tick() - profile_integrand_start;
+    return total;
+  };
+  auto corner_hash = [rank](const std::array<double, 4> &point) {
+    std::size_t hash = 0;
+    for (int axis = 0; axis < rank; ++axis) {
+      hash ^= std::hash<double>{}(point[axis]) + static_cast<std::size_t>(0x9e3779b9) +
+        (hash << 6) + (hash >> 2);
+    }
+    return hash;
+  };
+  std::unordered_map<std::array<double, 4>, std::pair<double, std::uint64_t>,
+                     decltype(corner_hash)> corner_cache(0, corner_hash);
+  std::unordered_map<std::array<double, 4>, int, decltype(corner_hash)> profile_interval_keys(0, corner_hash);
+  const auto corner = [&](const std::array<double, 4> &point) {
+    if (profile_box) ++profile_queries;
+    std::array<double, 4> key = point;
+    std::fill(key.begin() + rank, key.end(), 0.0);
+    const auto cached = corner_cache.find(key);
+    if (cached != corner_cache.end()) {
+      if (profile_box) ++profile_hits;
+      // Preserve the original refinement decisions and RNG stream. This is
+      // the same corner's logical preparation cost, even when its value is
+      // already available from a neighbouring cell.
+      preparation_work += cached->second.second;
+      return cached->second.first;
+    }
+    const std::uint64_t before = preparation_work;
+    const double value = integrand(point, true);
+    corner_cache.emplace(key, std::make_pair(value, preparation_work - before));
+    return value;
+  };
+  const auto low = [&](const Cell &cell) { return increasing ? cell.lower_corner : cell.upper_corner; };
+  const auto high = [&](const Cell &cell) { return increasing ? cell.upper_corner : cell.lower_corner; };
+  const auto set_mass_gap = [&](Cell &cell) {
+    cell.mass = 0.0;
+    for (int axis = 0; axis < rank; ++axis) cell.mass += cell.axis_mass[axis];
+    cell.gap = cell.mass + difference(high(cell), low(cell));
+  };
+  std::vector<Cell> cells;
+  cells.reserve(2000);
+  Cell initial;
+  initial.lower.fill(negative_infinity);
+  initial.upper.fill(infinity);
+  initial.lower_corner = corner(initial.lower);
+  initial.upper_corner = corner(initial.upper);
+  set_mass_gap(initial);
+  cells.push_back(initial);
+  const auto totals = [&]() {
+    const double profile_total_start = profile_box ? profile_tick() : 0.0;
+    log_lower = log_upper = negative_infinity;
+    for (const Cell &cell : cells) {
+      log_lower = log_add_exp(log_lower, cell.mass + low(cell));
+      log_upper = log_add_exp(log_upper, cell.mass + high(cell));
+    }
+    if (profile_box) profile_totals += profile_tick() - profile_total_start;
+  };
+  const auto refine = [&]() {
+    if (cells.size() >= 2000) return false;
+    std::size_t selected = 0;
+    for (std::size_t cell = 1; cell < cells.size(); ++cell) {
+      if (cells[cell].gap > cells[selected].gap) selected = cell;
+    }
+    if (cells[selected].gap == negative_infinity) return false;
+    const Cell parent = cells[selected];
+    Cell best_left, best_right;
+    double best_gap = infinity, widest = negative_infinity;
+    bool found = false;
+    for (int axis = 0; axis < rank; ++axis) {
+      if (profile_box) {
+        ++profile_interval_queries;
+        ++profile_interval_keys[std::array<double, 4>{parent.lower[axis], parent.upper[axis], 0.0, 0.0}];
+      }
+      const double profile_interval_start = profile_box ? profile_tick() : 0.0;
+      const double median = cpp_selnorm_normal_interval_quantile(
+        parent.lower[axis], parent.upper[axis], 0.0, 1.0, 0.5);
+      if (!std::isfinite(median) || median <= parent.lower[axis] || median >= parent.upper[axis]) continue;
+      Cell left = parent, right = parent;
+      left.upper[axis] = right.lower[axis] = median;
+      left.axis_mass[axis] = cpp_selnorm_normal_interval_log_prob(parent.lower[axis], median, 0.0, 1.0);
+      right.axis_mass[axis] = cpp_selnorm_normal_interval_log_prob(median, parent.upper[axis], 0.0, 1.0);
+      if (profile_box) profile_intervals += profile_tick() - profile_interval_start;
+      if (!std::isfinite(left.axis_mass[axis]) || !std::isfinite(right.axis_mass[axis])) continue;
+      left.upper_corner = corner(left.upper);
+      right.lower_corner = corner(right.lower);
+      set_mass_gap(left);
+      set_mass_gap(right);
+      const double gap = log_add_exp(left.gap, right.gap);
+      if (!found || gap < best_gap || (gap == best_gap && parent.axis_mass[axis] > widest)) {
+        best_gap = gap; widest = parent.axis_mass[axis]; best_left = left; best_right = right; found = true;
+      }
+    }
+    if (!found) return false;
+    cells[selected] = best_left;
+    cells.push_back(best_right);
+    return true;
+  };
+  // Coarse groups of refinements avoid unbounded-corner zero-gain ties.
+  // Stop preparation when its observed scalar-normalizer work plus the
+  // conservative remaining proposal work ceases improving. This chooses an
+  // exact finite proposal, not an integration accuracy or sample budget.
+  double previous_cost = infinity;
+  bool refinable = true;
+  while (refinable && cells.size() < 2000) {
+    for (int i = 0; i < 32 && cells.size() < 2000; ++i) {
+      if (!refine()) { refinable = false; break; }
+    }
+    totals();
+    const double cost = static_cast<double>(preparation_work) +
+      n * std::exp(log_upper - log_lower);
+    if (std::isfinite(previous_cost) && cost >= previous_cost) break;
+    previous_cost = cost;
+  }
+  totals();
+  const double profile_prepared = profile_box ? profile_tick() : 0.0;
+  const auto profile_report = [&]() {
+    if (!profile_box) return;
+    static std::array<double, 7> times{};
+    static std::array<std::uint64_t, 6> counts{};
+    times[0] += profile_geometry; times[1] += profile_correction;
+    times[2] += profile_integrands; times[3] += profile_intervals; times[4] += profile_totals;
+    times[5] += profile_prepared - profile_start - profile_geometry - profile_correction + profile_late_preparation;
+    times[6] += profile_sampling;
+    ++counts[0]; counts[1] += profile_queries; counts[2] += profile_hits;
+    counts[3] += profile_interval_queries; counts[4] += profile_interval_keys.size(); counts[5] += cells.size();
+    if (counts[0] % 100 == 0) std::fprintf(stderr, "Box profile: calls %llu geometry %.6f correction %.6f integrands %.6f intervals %.6f totals %.6f preparation %.6f sampling %.6f corners %llu hits %llu interval_queries %llu unique_intervals %llu cells %llu\n", (unsigned long long) counts[0], times[0], times[1], times[2], times[3], times[4], times[5], times[6], (unsigned long long) counts[1], (unsigned long long) counts[2], (unsigned long long) counts[3], (unsigned long long) counts[4], (unsigned long long) counts[5]);
+  };
+  std::array<double, 4> factors{};
+  std::vector<double> residual(n), transformed(n);
+  std::vector<double> mass(bins), lower(bins), upper(bins);
+  int completed_failures = 0;
+  for (int attempt = 0; attempt < max_attempts; ++attempt) {
+    // Adapt only before the next candidate, after previous rejections have
+    // fully completed. An outer covariance rejection redraws both F and Y.
+    if (completed_failures >= 64 && refinable && cells.size() < 2000) {
+      const double profile_late_start = profile_box ? profile_tick() : 0.0;
+      for (int i = 0; i < 32 && cells.size() < 2000; ++i) {
+        if (!refine()) { refinable = false; break; }
+      }
+      totals();
+      completed_failures = 0;
+      if (profile_box) profile_late_preparation += profile_tick() - profile_late_start;
+    }
+    const double profile_sampling_start = profile_box ? profile_tick() : 0.0;
+    const double threshold = std::log(uniform()) + log_upper;
+    double cumulative = negative_infinity;
+    std::size_t selected = cells.size();
+    for (std::size_t cell = 0; cell < cells.size(); ++cell) {
+      const double weight = cells[cell].mass + high(cells[cell]);
+      if (!std::isfinite(weight)) continue;
+      selected = cell;
+      cumulative = log_add_exp(cumulative, weight);
+      if (threshold <= cumulative) break;
+    }
+    if (selected == cells.size()) return -2;
+    const Cell &cell = cells[selected];
+    for (int axis = 0; axis < rank; ++axis) {
+      factors[axis] = cpp_selnorm_normal_interval_quantile(
+        cell.lower[axis], cell.upper[axis], 0.0, 1.0, uniform());
+      if (!std::isfinite(factors[axis]) || factors[axis] < cell.lower[axis] || factors[axis] > cell.upper[axis]) return -2;
+    }
+    const double log_F = integrand(factors, false);
+    if (log_F > high(cell) || std::isnan(log_F)) return -2;
+    if (std::log(uniform()) > log_F - high(cell)) {
+      if (profile_box) profile_sampling += profile_tick() - profile_sampling_start;
+      ++completed_failures; continue;
+    }
+    for (int row = 0; row < n; ++row) {
+      const double bin_uniform = uniform();
+      const double interval_uniform = uniform();
+      output[row] = cpp_selnorm_kernel_rng_workspace(location[row], sd[row], selection_se[row], omega,
+        bin_uniform, interval_uniform, 0.0, 0, SELKERNEL_STEP, selection,
+        mass.data(), lower.data(), upper.data(), 1, false);
+      if (!std::isfinite(output[row])) return -2;
+      residual[row] = output[row] - mean[row];
+    }
+    F77_CALL(dtrsv)("L", "N", "N", &n, target_cholesky.data(), &n, residual.data(), &stride FCONE FCONE FCONE);
+    F77_CALL(dgemv)("T", &n, &n, &one, update.data(), &n, residual.data(), &stride,
+      &zero, transformed.data(), &stride FCONE);
+    F77_CALL(dtrsv)("L", "N", "N", &n, correction.data(), &n, transformed.data(), &stride FCONE FCONE FCONE);
+    long double quadratic = 0.0L;
+    for (double value : transformed) quadratic += static_cast<long double>(value) * value;
+    if (!std::isfinite(quadratic)) return -2;
+    if (std::log(uniform()) <= -0.5L * quadratic) {
+      if (profile_box) profile_sampling += profile_tick() - profile_sampling_start;
+      profile_report();
+      return 1;
+    }
+    if (profile_box) profile_sampling += profile_tick() - profile_sampling_start;
+    ++completed_failures;
+  }
+  return 0;
+}
+
+int cpp_selnorm_rank_one_rounding_probe()
+{
+  int refused = 0;
+  try { rank_one_bounds::down(-std::numeric_limits<double>::max()); }
+  catch (const rank_one_bounds::Refusal &) { refused |= 1; }
+  try { rank_one_bounds::up(std::numeric_limits<double>::max()); }
+  catch (const rank_one_bounds::Refusal &) { refused |= 2; }
+  return refused;
+}
+
+// Stable powered one-factor Gaussian integral with a per-row loading,
+//   log int prod_i N(residual_i; loading_i g, sd_i)^power_i N(g; 0, 1) dg.
+// With z_i = residual_i / sd_i, b_i = loading_i / sd_i, A = 1 + sum(power_i
+// b_i^2) and the latent location m = sum(power_i b_i z_i) / A, the Gaussian is
+// completed in the unit-normal latent,
+//   log L = norm - log(A) / 2 - (sum(power_i (z_i - b_i m)^2) + m^2) / 2,
+//   norm = sum(-power_i (log 2 pi + 2 log sd_i) / 2),
+// each row adding its own term, so that no sum overflows before its half.
+// The residual after the latent projection is formed directly, so nothing is
+// subtracted from an explained quadratic, and m is refined by one correction
+// step on that residual (a residual along the loadings then cancels to second
+// order in the rounding, not to first). With t = max |loading_i| and s_min =
+// min sd_i over the rows of positive power the form is evaluated in the regime
+// where it neither overflows nor loses an aligned residual:
+//  * t = 0: the independent Gaussian densities.
+//  * t <= s_min: every |b_i| <= 1 and the form above is evaluated as written.
+//  * t > s_min: the same form in raw units scaled by T, the power of two not
+//    above t (so that a_i = loading_i / T is exact), with p_i = power_i
+//    (s_min / sd_i)^2, D = (s_min / T)^2 + sum(p_i a_i^2), c = sum(p_i a_i
+//    residual_i) / D (= T m), d_i = residual_i - a_i c,
+//      log A = 2 (log T - log s_min) + log D,
+//      quadratic = sum(power_i (d_i / sd_i)^2) + (c / T)^2.
+//    A D below 1e-290 (or not finite), or a numerator term of c below 1e-290,
+//    is carried with a common log-scale factor in D and c.
+// No quotient by a loading is formed, and a scale is squared only after it is
+// divided by the one it is compared with. Rows with power 0 are omitted and
+// `work` (2 n values) may be null. Invalid rows give NaN; a result beyond the
+// representable range is -Inf.
+double cpp_gaussian_latent_loglik(
+    int n, const double *residual, const double *sd, const double *loading,
+    const double *power, double *work)
+{
+  const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+  const double infinity = std::numeric_limits<double>::infinity();
+  const double log_two_pi = std::log(6.283185307179586476925286766559);
+  std::vector<double> local_work;
+  if (work == nullptr) {
+    local_work.resize(static_cast<std::size_t>(2 * std::max(n, 1)));
+    work = local_work.data();
+  }
+  double *first = work;
+  double *second = work + n;
+  double norm = 0.0;
+  double top = 0.0;
+  double bottom = infinity;
+  int used = 0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (!(weight >= 0.0) || !std::isfinite(weight)) return not_a_number;
+    if (weight == 0.0) continue;
+    ++used;
+    if (!(sd[i] > 0.0) || !std::isfinite(sd[i]) ||
+        !std::isfinite(residual[i]) || !std::isfinite(loading[i])) {
+      return not_a_number;
+    }
+    norm += -0.5 * weight * (log_two_pi + 2.0 * std::log(sd[i]));
+    top = std::max(top, std::fabs(loading[i]));
+    bottom = std::min(bottom, sd[i]);
+  }
+  if (used == 0) return 0.0;
+
+  if (top == 0.0) {
+    double quadratic = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0) continue;
+      const double standardized = residual[i] / sd[i];
+      const double weighted = std::sqrt(weight) * standardized;
+      quadratic += (0.5 * weighted) * weighted;
+    }
+    return norm - quadratic;
+  }
+
+  if (top <= bottom) {
+    // Every |loading_i| / sd_i <= 1; an overflowing z_i is an unrepresentable
+    // quadratic. first = z_i, second = b_i.
+    double information = 0.0;
+    double projection = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0) continue;
+      first[i] = residual[i] / sd[i];
+      if (!std::isfinite(first[i])) return -infinity;
+      second[i] = loading[i] / sd[i];
+      information += weight * second[i] * second[i];
+      projection += weight * second[i] * first[i];
+    }
+    const double total = 1.0 + information;
+    double latent = projection / total;
+    double gradient = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0) continue;
+      gradient += weight * second[i] * (first[i] - second[i] * latent);
+    }
+    double step = (gradient - latent) / total;
+    if (!std::isfinite(step)) step = 0.0;
+    double quadratic = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0) continue;
+      const double remainder = (first[i] - second[i] * latent) -
+        second[i] * step;
+      const double weighted = std::sqrt(weight) * remainder;
+      quadratic += (0.5 * weighted) * weighted;
+    }
+    latent += step;
+    quadratic += (0.5 * latent) * latent;
+    return norm - 0.5 * std::log1p(information) - quadratic;
+  }
+
+  // first = a_i = loading_i / T, second = p_i a_i (or its scaled version).
+  const double scale = std::ldexp(1.0, std::ilogb(top));
+  const double ratio_zero = bottom / scale;
+  double prior = ratio_zero * ratio_zero;
+  double denominator = prior;
+  double numerator = 0.0;
+  bool underflow = false;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0) continue;
+    const double ratio = bottom / sd[i];
+    first[i] = loading[i] / scale;
+    second[i] = weight * (ratio * ratio) * first[i];
+    denominator += second[i] * first[i];
+    numerator += second[i] * residual[i];
+    underflow = underflow || (loading[i] != 0.0 && residual[i] != 0.0 &&
+      !(std::fabs(second[i] * residual[i]) >= 1e-290));
+  }
+  double log_factor = 0.0;
+  if (!std::isfinite(denominator) || denominator < 1e-290 || underflow) {
+    // The denominator or a numerator term underflows: carry a common
+    // log-scale factor.
+    const double log_bottom = std::log(bottom);
+    const double log_scale = std::log(scale);
+    const double log_zero = 2.0 * (log_bottom - log_scale);
+    log_factor = log_zero;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0 || loading[i] == 0.0) continue;
+      const double log_term = std::log(weight) +
+        2.0 * (log_bottom - std::log(sd[i])) +
+        2.0 * (std::log(std::fabs(loading[i])) - log_scale);
+      log_factor = std::max(log_factor, log_term);
+    }
+    prior = std::exp(log_zero - log_factor);
+    denominator = prior;
+    numerator = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double weight = power == nullptr ? 1.0 : power[i];
+      if (weight == 0.0 || loading[i] == 0.0) {
+        second[i] = 0.0;
+        continue;
+      }
+      const double log_weight = std::log(weight) +
+        2.0 * (log_bottom - std::log(sd[i]));
+      const double log_ratio = std::log(std::fabs(loading[i])) - log_scale;
+      denominator += std::exp(log_weight + 2.0 * log_ratio - log_factor);
+      const double log_term = log_weight + log_ratio - log_factor;
+      second[i] = std::copysign(std::exp(log_term), loading[i]);
+      numerator += log_term > 700.0 && residual[i] != 0.0 ?
+        std::copysign(std::exp(log_term + std::log(std::fabs(residual[i]))),
+          loading[i]) * std::copysign(1.0, residual[i]) :
+        second[i] * residual[i];
+    }
+  }
+  // The shift a_i c of row i; loading_i c / T equals it and does not
+  // underflow with a_i.
+  const auto shift = [&](int i, double center_value) {
+    return loading[i] == 0.0 ? 0.0 :
+      std::fabs(first[i]) >= 1e-290 ? first[i] * center_value :
+        loading[i] * (center_value / scale);
+  };
+  double center = numerator / denominator;
+  double gradient = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0) continue;
+    gradient += second[i] * (residual[i] - shift(i, center));
+  }
+  double step = (gradient - prior * center) / denominator;
+  if (!std::isfinite(step)) step = 0.0;
+  double quadratic = 0.0;
+  for (int i = 0; i < n; ++i) {
+    const double weight = power == nullptr ? 1.0 : power[i];
+    if (weight == 0.0) continue;
+    const double standardized =
+      ((residual[i] - shift(i, center)) - shift(i, step)) / sd[i];
+    const double weighted = std::sqrt(weight) * standardized;
+    quadratic += (0.5 * weighted) * weighted;
+  }
+  center += step;
+  const double latent = center / scale;
+  quadratic += (0.5 * latent) * latent;
+  const double log_a = 2.0 * (std::log(scale) - std::log(bottom)) +
+    log_factor + std::log(denominator);
+  return norm - 0.5 * log_a - quadratic;
+}
+
+namespace {
+
+// The loading columns that carry dependence. A zero column only contributes a
+// latent axis that integrates to one, so the factor kernel and the corrected
+// sampler's surrogate drop it once, here: `active_columns` are the declared
+// indices kept, `loading` their dense copy (empty unless `compacted`, which
+// needs at least one active column and fewer than the declared ones).
+struct FactorColumnCompaction {
+  std::vector<int> active_columns;
+  std::vector<double> loading;
+  bool compacted = false;
+};
+
+FactorColumnCompaction compact_factor_columns(const double *declared_loading,
+                                              int dimension, int declared_rank)
+{
+  FactorColumnCompaction out;
+  out.active_columns.reserve(static_cast<std::size_t>(declared_rank));
+  for (int factor = 0; factor < declared_rank; ++factor) {
+    for (int i = 0; i < dimension; ++i) {
+      if (declared_loading[i + dimension * factor] != 0.0) {
+        out.active_columns.push_back(factor);
+        break;
+      }
+    }
+  }
+  const int active_rank = static_cast<int>(out.active_columns.size());
+  out.compacted = active_rank >= 1 && active_rank < declared_rank;
+  if (out.compacted) {
+    out.loading.resize(static_cast<std::size_t>(dimension) * active_rank);
+    for (int factor = 0; factor < active_rank; ++factor) {
+      const double *column = declared_loading + dimension * out.active_columns[factor];
+      std::copy(column, column + dimension,
+                out.loading.begin() + static_cast<std::size_t>(dimension) * factor);
+    }
+  }
+  return out;
+}
+
+// Step-kernel data of a block with the arrays it points to (no segments and no
+// p-hacking): the one setup of the exact cluster and factor kernels and of the
+// corrected sampler's surrogates. The object owns the arrays, so it must outlive
+// every copy of `data` that is used.
+struct StepKernelSelection {
+  double phack_z_zero[2] = {0, 0};
+  double segment_bounds_zero[1] = {0};
+  int segment_zero[1] = {0};
+  SelNormKernelData data;
+
+  StepKernelSelection(int n_bins, int effect_sign, const double *z_lower,
+                      const double *z_upper, bool telescope_probabilities)
+  {
+    data.n_bins = n_bins;
+    data.n_segments = 0;
+    data.effect_sign = effect_sign;
+    data.q = 0;
+    data.z_lower = z_lower;
+    data.z_upper = z_upper;
+    data.phack_z_source = phack_z_zero;
+    data.phack_z_dest = phack_z_zero;
+    data.segment_bounds = segment_bounds_zero;
+    data.segment_step_bin = segment_zero;
+    data.segment_phack_region = segment_zero;
+    data.segment_step_bin_real = 0;
+    data.segment_phack_region_real = 0;
+    data.trusted_step_partition = true;
+    data.telescope_probabilities = telescope_probabilities;
+  }
+  StepKernelSelection(const StepKernelSelection &) = delete;
+  StepKernelSelection &operator=(const StepKernelSelection &) = delete;
+};
+
+}
+
+double cpp_selnorm_factor_step_lpdf(
+    const double *x, const double *mean, const double *residual_sd,
+    const double *declared_loading, int dimension, int declared_rank,
+    const double *selection_se, const double *omega, int n_bins,
+    const double *z_lower, const double *z_upper, const int *obs_bin,
+    int effect_sign, bool telescope_probabilities, int kernel_mode,
+    const double *quadrature_nodes, const double *quadrature_log_weights,
+    const double *quadrature_orders, int quadrature_rule_count,
+    const double *qmc, int initial_points, int max_points, int scrambles,
+    double relative_tolerance, double *relative_mcse,
+    double *relative_change, double *log_normalizer_out, int vector_rule,
+    const SelNormTiltedMoments *proposal_moments, bool *deterministic,
+    const double *log_normalizer_override, void (*check_interrupt)())
+{
+  const double negative_infinity = -std::numeric_limits<double>::infinity();
+  const double log_two_pi = std::log(6.283185307179586476925286766559);
+  *relative_mcse = 0.0;
+  *relative_change = 0.0;
+  if (deterministic != nullptr) *deterministic = false;
+  if (log_normalizer_out != nullptr) {
+    *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
+  }
+  if (dimension < 1 || declared_rank < 1 ||
+      declared_rank > SELNORM_FACTOR_MAX_RANK ||
+      (declared_rank > 1 && quadrature_rule_count < 3) ||
+      initial_points < 2 ||
+      max_points < initial_points || scrambles < 2 ||
+      !(relative_tolerance > 0.0)) {
+    return negative_infinity;
+  }
+  if (log_normalizer_override != nullptr && !std::isfinite(*log_normalizer_override)) {
+    throw std::invalid_argument("An explicit selection normalizer must be finite.");
+  }
+
+  // Inactive product-space components keep their declared loading columns, and
+  // a zero column only contributes a latent axis that integrates to one: it
+  // leaves the density unchanged and its row and column of `I + U' S^-1 U`
+  // equal to the identity. Drop those columns once, here, so the support shape,
+  // the node budget, the sparse grid and the randomized fallback all see the
+  // columns that actually carry dependence.
+  const FactorColumnCompaction compaction =
+    compact_factor_columns(declared_loading, dimension, declared_rank);
+  const std::vector<int> &active_columns = compaction.active_columns;
+  const bool compacted = compaction.compacted;
+  const double *loading = compacted ? compaction.loading.data() : declared_loading;
+  int rank = compacted ? static_cast<int>(active_columns.size()) : declared_rank;
+  // The randomized fallback reads a design the caller built for the declared
+  // rank. Keep its layout and take the coordinates of the retained columns, so
+  // compaction lowers the integration dimension without reinterpreting the
+  // supplied low-discrepancy points.
+  std::vector<int> qmc_column(static_cast<std::size_t>(rank));
+  for (int factor = 0; factor < rank; ++factor) {
+    qmc_column[factor] = compacted ? active_columns[factor] : factor;
+  }
+
+  const StepKernelSelection step_selection(n_bins, effect_sign, z_lower, z_upper,
+                                           telescope_probabilities);
+  const SelNormKernelData &selection = step_selection.data;
+
+  std::vector<double> inverse_variance(static_cast<std::size_t>(dimension));
+  std::vector<double> system(static_cast<std::size_t>(rank * rank), 0.0);
+  std::vector<double> score(static_cast<std::size_t>(rank), 0.0);
+  double log_det = 0.0;
+  for (int i = 0; i < dimension; ++i) {
+    if (!(residual_sd[i] > 0.0) || !std::isfinite(residual_sd[i]) ||
+        !std::isfinite(x[i]) || !std::isfinite(mean[i])) {
+      return negative_infinity;
+    }
+    const double inverse = 1.0 / (residual_sd[i] * residual_sd[i]);
+    inverse_variance[i] = inverse;
+    log_det += 2.0 * std::log(residual_sd[i]);
+    const double residual = x[i] - mean[i];
+    for (int factor = 0; factor < rank; ++factor) {
+      const double coefficient = loading[i + dimension * factor];
+      if (!std::isfinite(coefficient)) return negative_infinity;
+      score[factor] += coefficient * residual * inverse;
+      for (int other = 0; other <= factor; ++other) {
+        system[factor + rank * other] += coefficient *
+          loading[i + dimension * other] * inverse;
+      }
+    }
+  }
+  for (int factor = 0; factor < rank; ++factor) {
+    system[factor + rank * factor] += 1.0;
+    for (int other = 0; other < factor; ++other) {
+      system[other + rank * factor] = system[factor + rank * other];
+    }
+  }
+  std::vector<double> cholesky = system;
+  int info = 0;
+  F77_CALL(dpotrf)("L", &rank, cholesky.data(), &rank, &info FCONE);
+  if (info != 0) return negative_infinity;
+  for (int factor = 0; factor < rank; ++factor) {
+    const double diagonal = cholesky[factor + rank * factor];
+    if (!(diagonal > 0.0) || !std::isfinite(diagonal)) {
+      return negative_infinity;
+    }
+    log_det += 2.0 * std::log(diagonal);
+  }
+  std::vector<double> solved_score = score;
+  for (int row = 0; row < rank; ++row) {
+    for (int column = 0; column < row; ++column) {
+      solved_score[row] -= cholesky[row + rank * column] *
+        solved_score[column];
+    }
+    solved_score[row] /= cholesky[row + rank * row];
+  }
+  // The latent posterior mean m solves A m = U' S^-1 r with A = L L'; the
+  // numerator is the residual quadratic at m plus m'm, so nothing is
+  // subtracted from the total quadratic.
+  std::vector<double> latent_mean = solved_score;
+  for (int row = rank - 1; row >= 0; --row) {
+    for (int column = row + 1; column < rank; ++column) {
+      latent_mean[row] -= cholesky[column + rank * row] * latent_mean[column];
+    }
+    latent_mean[row] /= cholesky[row + rank * row];
+  }
+  double quadratic = vector_dot(latent_mean, latent_mean);
+  for (int i = 0; i < dimension; ++i) {
+    double fitted = 0.0;
+    for (int factor = 0; factor < rank; ++factor) {
+      fitted += loading[i + dimension * factor] * latent_mean[factor];
+    }
+    const double standardized = (x[i] - mean[i] - fitted) / residual_sd[i];
+    quadratic += standardized * standardized;
+  }
+  double log_density = -0.5 * (
+    static_cast<double>(dimension) * log_two_pi + log_det + quadratic
+  );
+  if (kernel_mode == SELKERNEL_NORMAL) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return log_density;
+  }
+  if (vector_rule != SELVECTOR_PRODUCT) {
+    const double weight = vector_observed_log_weight(x, dimension, selection_se,
+      omega, z_lower, n_bins, effect_sign, vector_rule, obs_bin);
+    if (!std::isfinite(weight) && log_normalizer_out == nullptr) return negative_infinity;
+    log_density += weight;
+  }
+  for (int i = 0; i < dimension && vector_rule == SELVECTOR_PRODUCT; ++i) {
+    const double log_weight = std::log(omega[obs_bin[i] - 1]);
+    if (!std::isfinite(log_weight) &&
+        (log_normalizer_out == nullptr || log_weight != negative_infinity)) {
+      return negative_infinity;
+    }
+    log_density += log_weight;
+  }
+
+  if (log_normalizer_override != nullptr) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+    return log_density - *log_normalizer_override;
+  }
+
+  FactorNormalizerContext context;
+  context.vector_rule = vector_rule;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.rank = rank;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.n_bins = n_bins;
+  context.kernel_mode = kernel_mode;
+  context.selection = selection;
+
+  FactorForestPlan forest;
+  factor_forest_plan(context, nullptr, &forest);
+  // The nested rule expands one axis per tree level, so a forest support pays
+  // `order^(depth + 1)` and its ladder length does not depend on the rank.
+  const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
+  // Workspaces of the double precision node products, shared by every rung and
+  // shifted copy of this call.
+  SelNormLeanScratch lean;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    lean.configure(residual_sd, selection_se, dimension, omega, selection);
+  }
+
+  const auto resolves = [&](int offset, int order) {
+    return cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
+      mean, residual_sd, loading, dimension, rank, selection_se, omega, selection);
+  };
+  // The finest affordable rung the product ladder evaluated, the one before it,
+  // and the number of rungs with a finite value: the randomized fallback
+  // proposes from the tilted moments of the finest rung.
+  int finest_offset = 0, finest_order = 0, previous_offset = 0, previous_order = 0;
+  int finite_rungs = 0;
+  FactorRung::Path finest_path = FactorRung::DECLINED;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    // Acceptance by the shift-amplitude certificate. The ladder runs from its
+    // first affordable rung; the certificate is consulted only at a rung that
+    // is finite, has both successive changes and passes the tail gate. The
+    // returned value is the accepted rung itself.
+    if (quadrature_rule_count >= 3) {
+      const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+      const double certificate_tolerance = transitions ?
+        std::min(relative_tolerance, selnorm_certificate_max_tolerance) : relative_tolerance;
+      double previous_quadrature = negative_infinity;
+      double previous_quadrature_change = std::numeric_limits<double>::infinity();
+      int quadrature_offset = 0;
+      for (int rule = 0; rule < quadrature_rule_count; ++rule) {
+        const int quadrature_order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
+        previous_offset = finest_offset; previous_order = finest_order;
+        finest_offset = quadrature_offset; finest_order = quadrature_order;
+        FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
+                        quadrature_offset, quadrature_order, &lean);
+        const double current_quadrature = rung.log_integral();
+        finest_path = rung.path();
+        if (std::isfinite(current_quadrature)) ++finite_rungs;
+        const double current_quadrature_change = rule == 0 ?
+          std::numeric_limits<double>::infinity() :
+          cluster_relative_change(previous_quadrature, current_quadrature);
+        double tail_bound = std::numeric_limits<double>::quiet_NaN();
+        if (std::isfinite(current_quadrature) &&
+            current_quadrature_change <= certificate_tolerance &&
+            previous_quadrature_change <= certificate_tolerance &&
+            quadrature_covers_gaussian_tails(
+              quadrature_nodes, quadrature_offset, quadrature_order, rank,
+              omega, n_bins, dimension, vector_rule, current_quadrature,
+              certificate_tolerance, &tail_bound
+            ) && factor_rung_certified(rung, transitions, current_quadrature,
+              tail_bound, certificate_tolerance, [&](double width_scale) {
+                return cpp_selnorm_step_rule_resolves_transitions(
+                  quadrature_nodes, quadrature_offset, quadrature_order, mean,
+                  residual_sd, loading, dimension, rank, selection_se, omega,
+                  selection, 1, width_scale);
+              })) {
+          *relative_change = current_quadrature_change;
+          if (log_normalizer_out != nullptr) {
+            *log_normalizer_out = current_quadrature;
+          }
+          if (deterministic != nullptr) *deterministic = true;
+          return log_density - current_quadrature;
+        }
+        previous_quadrature = current_quadrature;
+        previous_quadrature_change = current_quadrature_change;
+        quadrature_offset += quadrature_order;
+      }
+      // The ladder rejected every affordable rung. Refine the finest one before
+      // the sparse grid and the randomized fallback, unless its path has no
+      // refinement (a rank-three tensor, a forest of depth two).
+      double refined_value = negative_infinity, refined_change = 0.0;
+      if (previous_order > 0 &&
+          FactorRung::supports_refinement(finest_path, forest, rank) &&
+          factor_refinement_certified(
+            context, forest, quadrature_nodes, quadrature_log_weights,
+            finest_offset, finest_order, previous_offset, previous_order,
+            cost_exponent, certificate_tolerance, &refined_value, &refined_change)) {
+        *relative_change = refined_change;
+        if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
+        if (deterministic != nullptr) *deterministic = true;
+        return log_density - refined_value;
+      }
+    }
+  } else {
+    bool quadrature_resolvable = false;
+    if (quadrature_rule_count >= 3) {
+      int finest_offset = 0, finest_order = 0, next_offset = 0;
+      for (int rule = 0; rule < quadrature_rule_count; ++rule) {
+        const int order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
+        finest_offset = next_offset; finest_order = order; next_offset += order;
+      }
+      quadrature_resolvable = finest_order > 0 && resolves(finest_offset, finest_order);
+    }
+
+    // The cluster evaluator enters at rank one only after its own unchanged
+    // quadrature sequence rejects. Share the QMC fallback below in that case.
+    if (quadrature_resolvable) {
+      // No rung below the first one that resolves the transitions can be
+      // accepted, and acceptance compares a rung with the two before it. Start
+      // two rungs below that one: values and decisions are the full ladder's.
+      int start = 0, start_offset = 0;
+      for (int rule = 1, offset = static_cast<int>(quadrature_orders[0]);
+           rule < quadrature_rule_count; ++rule) {
+        const int order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(order, cost_exponent)) break;
+        if (resolves(offset, order)) { start = std::max(0, rule - 2); break; }
+        offset += order;
+      }
+      for (int rule = 0; rule < start; ++rule) {
+        start_offset += static_cast<int>(quadrature_orders[rule]);
+      }
+      int quadrature_offset = start_offset;
+      int quadrature_order = static_cast<int>(quadrature_orders[start]);
+      if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) {
+        quadrature_order = 0;
+      }
+      double previous_quadrature = quadrature_order == 0 ? negative_infinity :
+        factor_rule_log_integral(
+          context, forest, quadrature_nodes, quadrature_log_weights,
+          quadrature_offset, quadrature_order
+        );
+      double previous_quadrature_change =
+        std::numeric_limits<double>::infinity();
+      quadrature_offset += static_cast<int>(quadrature_orders[start]);
+      for (int rule = start + 1; rule < quadrature_rule_count; ++rule) {
+        quadrature_order = static_cast<int>(quadrature_orders[rule]);
+        if (!selnorm_factor_rule_affordable(quadrature_order, cost_exponent)) break;
+        const double current_quadrature = factor_rule_log_integral(
+          context, forest, quadrature_nodes, quadrature_log_weights,
+          quadrature_offset, quadrature_order
+        );
+        const double current_quadrature_change = cluster_relative_change(
+          previous_quadrature, current_quadrature
+        );
+        if (std::isfinite(current_quadrature) &&
+            current_quadrature_change <= relative_tolerance &&
+            previous_quadrature_change <= relative_tolerance &&
+            quadrature_covers_gaussian_tails(
+              quadrature_nodes, quadrature_offset, quadrature_order, rank,
+              omega, n_bins, dimension, vector_rule, current_quadrature,
+              relative_tolerance
+            ) && resolves(quadrature_offset, quadrature_order)) {
+          *relative_change = current_quadrature_change;
+          if (log_normalizer_out != nullptr) {
+            *log_normalizer_out = current_quadrature;
+          }
+          if (deterministic != nullptr) *deterministic = true;
+          return log_density - current_quadrature;
+        }
+        previous_quadrature = current_quadrature;
+        previous_quadrature_change = current_quadrature_change;
+        quadrature_offset += quadrature_order;
+      }
+    }
+  }
+
+  // A support the nested rule cannot reduce keeps the tensor cost, which the
+  // node budget stops at a low order once the rank passes four. That is both a
+  // support that is not a forest and one whose forest is a chain, which is what
+  // minimum-rank recovery produces. Try the sparse grid before the randomized
+  // fallback; nothing that accepted above reaches this.
+  if (vector_rule == SELVECTOR_PRODUCT && rank >= 3 &&
+      (!forest.valid || forest.max_depth + 1 >= rank)) {
+    FactorSmolyakLevels levels;
+    if (factor_smolyak_levels(quadrature_nodes, quadrature_log_weights,
+                              quadrature_orders, quadrature_rule_count,
+                              &levels)) {
+      double previous_sparse = 0.0;
+      double previous_sparse_change = std::numeric_limits<double>::infinity();
+      bool have_previous = false;
+      int finest_total = rank;
+      while (factor_smolyak_rule_affordable(rank, levels, finest_total + 1)) ++finest_total;
+      const int finest_top = std::min(finest_total - rank, levels.count - 1);
+      const bool sparse_resolvable = resolves(levels.offset[finest_top], levels.order[finest_top]);
+      for (int total = rank; sparse_resolvable && total <= finest_total; ++total) {
+        double current_sparse = 0.0;
+        if (!factor_smolyak_log_integral(context, levels, total,
+                                         &current_sparse)) break;
+        if (have_previous) {
+          const double change = cluster_relative_change(
+            previous_sparse, current_sparse
+          );
+          // The largest single-axis rule the combination reaches is the level
+          // that leaves every other axis at the coarsest rule. Its tails are
+          // what the grid can see; the one-point anchor certifies nothing.
+          const int top = std::min(total - rank, levels.count - 1);
+          if (top >= 1 && change <= relative_tolerance &&
+              previous_sparse_change <= relative_tolerance &&
+              quadrature_covers_gaussian_tails(
+                quadrature_nodes, levels.offset[top], levels.order[top], rank,
+                omega, n_bins, dimension, vector_rule, current_sparse,
+                relative_tolerance
+              ) && resolves(levels.offset[top], levels.order[top])) {
+            *relative_change = change;
+            if (log_normalizer_out != nullptr) {
+              *log_normalizer_out = current_sparse;
+            }
+            if (deterministic != nullptr) *deterministic = true;
+            return log_density - current_sparse;
+          }
+          previous_sparse_change = change;
+        }
+        previous_sparse = current_sparse;
+        have_previous = true;
+      }
+    }
+  }
+
+  // A rank-one product fallback keeps the existing exact event returns, then
+  // bounds the integral before constructing any randomized proposals.
+  if (rank == 1 && vector_rule == SELVECTOR_PRODUCT) {
+    const FactorEventProposal event(context);
+    const auto unavailable = [&]() {
+      *relative_mcse = *relative_change = std::numeric_limits<double>::infinity();
+      if (log_normalizer_out != nullptr) *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
+      return negative_infinity;
+    };
+    if (!event.valid) return unavailable();
+    if (event.exact) {
+      if (!std::isfinite(event.log_baseline)) return unavailable();
+      *relative_mcse = *relative_change = 0.0;
+      if (log_normalizer_out != nullptr) *log_normalizer_out = event.log_baseline;
+      if (deterministic != nullptr) *deterministic = true;
+      return log_density - event.log_baseline;
+    }
+    const rank_one_bounds::Result bounded = rank_one_bounds::integrate(
+      context, event, max_points, scrambles, relative_tolerance, check_interrupt);
+    if (!bounded.accepted) return unavailable();
+    *relative_mcse = 0.0;
+    *relative_change = bounded.radius;
+    if (log_normalizer_out != nullptr) *log_normalizer_out = bounded.value;
+    if (deterministic != nullptr) *deterministic = true;
+    return log_density - bounded.value;
+  }
+
+  // Tilted moments of the finest deterministic rung propose for the product
+  // rule: the prior, a Gaussian with those moments and a copy with 1.5 times
+  // their standard deviations. They need at least three finite rungs, a block
+  // that is a tensor, a forest of depth at most one or a rank-one cluster
+  // (which hands its own over), a finest rung that covers the exterior mass
+  // (the moments of a rule that misses the selected mode say nothing about it)
+  // and a positive definite covariance; every other block keeps the optimized
+  // modes below.
+  std::vector<double> moment_mean, moment_factor;
+  bool moment_proposals = false;
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    SelNormTiltedMoments finest;
+    const SelNormTiltedMoments *moments = proposal_moments;
+    if (moments == nullptr && finite_rungs >= 3 && finest_order > 0 &&
+        FactorRung::supports_moments(finest_path, forest, rank)) {
+      FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
+                      finest_offset, finest_order, &lean);
+      const double finest_value = rung.log_integral();
+      if (std::isfinite(finest_value) &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, finest_offset, finest_order, rank, omega, n_bins,
+            dimension, vector_rule, finest_value, relative_tolerance) &&
+          rung.moments(&finest.mean, &finest.covariance)) {
+        finest.finite_rungs = finite_rungs;
+        moments = &finest;
+      }
+    }
+    const std::size_t axes = static_cast<std::size_t>(rank);
+    if (moments != nullptr && moments->finite_rungs >= 3 &&
+        moments->mean.size() == axes && moments->covariance.size() == axes * axes &&
+        std::all_of(moments->mean.begin(), moments->mean.end(),
+                    [](double x) { return std::isfinite(x); }) &&
+        std::all_of(moments->covariance.begin(), moments->covariance.end(),
+                    [](double x) { return std::isfinite(x); })) {
+      moment_factor = moments->covariance;
+      int moment_info = 0;
+      F77_CALL(dpotrf)("L", &rank, moment_factor.data(), &rank, &moment_info FCONE);
+      moment_proposals = moment_info == 0;
+      for (int factor = 0; factor < rank && moment_proposals; ++factor) {
+        const double diagonal = moment_factor[factor + rank * factor];
+        moment_proposals = diagonal > 0.0 && std::isfinite(diagonal);
+      }
+      if (moment_proposals) moment_mean = moments->mean;
+    }
+  }
+
+  std::vector<double> identity(static_cast<std::size_t>(rank * rank), 0.0);
+  for (int factor = 0; factor < rank; ++factor) {
+    identity[factor + rank * factor] = 1.0;
+  }
+  std::vector<std::vector<double> > proposals(
+    1, std::vector<double>(static_cast<std::size_t>(rank), 0.0));
+  std::vector<std::vector<double> > proposal_factors(1, identity);
+  std::vector<double> proposal_log_determinants(1, 0.0);
+  std::vector<std::vector<double> > starts(
+    1, std::vector<double>(static_cast<std::size_t>(rank), 0.0));
+  std::vector<double> boundaries;
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (std::isfinite(z_lower[bin])) boundaries.push_back(z_lower[bin]);
+    if (std::isfinite(z_upper[bin])) boundaries.push_back(z_upper[bin]);
+  }
+  std::sort(boundaries.begin(), boundaries.end());
+  boundaries.erase(
+    std::unique(boundaries.begin(), boundaries.end()), boundaries.end()
+  );
+  for (std::size_t boundary = 0; boundary < boundaries.size(); ++boundary) {
+    std::vector<double> start(static_cast<std::size_t>(rank), 0.0);
+    for (int i = 0; i < dimension; ++i) {
+      const double target = effect_sign * boundaries[boundary] *
+        selection_se[i] - mean[i];
+      for (int factor = 0; factor < rank; ++factor) {
+        start[factor] += loading[i + dimension * factor] *
+          inverse_variance[i] * target;
+      }
+    }
+    if (factor_solve_cholesky(cholesky, rank, &start)) starts.push_back(start);
+  }
+  if (moment_proposals) {
+    double moment_log_determinant = 0.0;
+    for (int factor = 0; factor < rank; ++factor) {
+      moment_log_determinant += std::log(moment_factor[factor + rank * factor]);
+    }
+    proposals.push_back(moment_mean);
+    proposal_factors.push_back(moment_factor);
+    proposal_log_determinants.push_back(moment_log_determinant);
+    // Scaling the Cholesky factor scales the standard deviations.
+    std::vector<double> wide_factor = moment_factor;
+    for (int factor = 0; factor < rank; ++factor) {
+      for (int column = 0; column <= factor; ++column) {
+        wide_factor[factor + rank * column] *= 1.5;
+      }
+    }
+    proposals.push_back(moment_mean);
+    proposal_factors.push_back(wide_factor);
+    proposal_log_determinants.push_back(moment_log_determinant +
+      static_cast<double>(rank) * std::log(1.5));
+  } else {
+    // Keep the prior and every finite optimized start: opposing selection modes
+    // need not have the same location or scale. No mode deduplication is needed.
+    for (std::size_t candidate = 0; candidate < starts.size(); ++candidate) {
+      std::vector<double> covariance;
+      std::vector<double> mode = starts[candidate];
+      factor_optimize_mode(context, &mode, &covariance);
+      const double value = factor_log_integrand(
+        context, mode.data(), nullptr
+      );
+      if (!std::isfinite(value)) continue;
+      if (covariance.size() != identity.size() ||
+          !std::all_of(covariance.begin(), covariance.end(),
+                       [](double x) { return std::isfinite(x); })) {
+        covariance = identity;
+      }
+      F77_CALL(dpotrf)("L", &rank, covariance.data(), &rank, &info FCONE);
+      bool valid_factor = info == 0;
+      for (int factor = 0; factor < rank && valid_factor; ++factor) {
+        const double diagonal = covariance[factor + rank * factor];
+        valid_factor = diagonal > 0.0 && std::isfinite(diagonal);
+      }
+      // An optimizer covariance only defines an importance proposal. A failed
+      // approximation leaves the model covariance intact and uses unit scale.
+      if (!valid_factor) covariance = identity;
+      double proposal_log_determinant = 0.0;
+      for (int factor = 0; factor < rank; ++factor) {
+        proposal_log_determinant += std::log(
+          covariance[factor + rank * factor]
+        );
+      }
+      proposals.push_back(mode);
+      proposal_factors.push_back(covariance);
+      proposal_log_determinants.push_back(proposal_log_determinant);
+    }
+  }
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    // Optimization can move every boundary start back to the same plateau.
+    // Keep the structural starts as unit-scale proposals on both product
+    // paths, retaining proposals near joint-selection regions.
+    for (std::size_t candidate = 1; candidate < starts.size(); ++candidate) {
+      proposals.push_back(starts[candidate]);
+      proposal_factors.push_back(identity);
+      proposal_log_determinants.push_back(0.0);
+    }
+  }
+
+  const auto event_unavailable = [&]() {
+    *relative_mcse = *relative_change = std::numeric_limits<double>::infinity();
+    return negative_infinity;
+  };
+  const FactorEventProposal event_proposal(context);
+  if (!event_proposal.valid) return event_unavailable();
+  if (event_proposal.exact) {
+    if (!std::isfinite(event_proposal.log_baseline)) return event_unavailable();
+    if (log_normalizer_out != nullptr) *log_normalizer_out = event_proposal.log_baseline;
+    if (deterministic != nullptr) *deterministic = true;
+    return log_density - event_proposal.log_baseline;
+  }
+  const bool use_event = event_proposal.active();
+  const FactorBoundaryProposal boundary_proposal(context, starts);
+  if (!boundary_proposal.valid) return event_unavailable();
+  const bool use_boundary = boundary_proposal.active();
+  // Prior, event and subset points exist even when the remaining Gaussian
+  // proposals outnumber the smallest coarse prefix. Keep the total budget.
+  const int event_component = use_event ? 1 : -1;
+  const int boundary_component = use_boundary ? 1 + (use_event ? 1 : 0) : -1;
+  const int extra_components = (use_event ? 1 : 0) + (use_boundary ? 1 : 0);
+  const int gaussian_count = static_cast<int>(proposals.size());
+  std::vector<double> scramble_log_mean(static_cast<std::size_t>(scrambles));
+  std::vector<double> scramble_coarse_log_mean(
+    static_cast<std::size_t>(scrambles)
+  );
+  const int proposal_count = gaussian_count + extra_components;
+  const int qmc_dimensions = 2 * declared_rank;
+  const int max_per_proposal =
+    (2 * max_points + proposal_count - 1) / proposal_count;
+  const auto component_count = [proposal_count](int total, int component) {
+    return total / proposal_count + (component < total % proposal_count ? 1 : 0);
+  };
+  std::vector<double> point_log_target(
+    static_cast<std::size_t>(max_per_proposal) * proposal_count * scrambles
+  );
+  std::vector<double> point_log_event(use_event ? point_log_target.size() : 0);
+  std::vector<double> point_log_boundary(use_boundary ? point_log_target.size() : 0);
+  std::vector<double> point_latent(point_log_target.size() * rank);
+  std::vector<int> fine_counts(static_cast<std::size_t>(proposal_count));
+  std::vector<int> coarse_counts(static_cast<std::size_t>(proposal_count));
+  std::vector<double> fine_log_counts(static_cast<std::size_t>(proposal_count));
+  std::vector<double> coarse_log_counts(static_cast<std::size_t>(proposal_count));
+  std::vector<double> latent(static_cast<std::size_t>(rank));
+  std::vector<double> uniform(static_cast<std::size_t>(rank));
+  std::vector<double> standard_normal(static_cast<std::size_t>(rank));
+  std::vector<double> centered(static_cast<std::size_t>(rank));
+  int evaluated_points = 0;
+  int current_points = initial_points;
+  int comparison_points = std::max(2, initial_points / 2);
+  double log_normalizer = negative_infinity;
+  while (true) {
+    for (int component = 0; component < proposal_count; ++component) {
+      fine_counts[component] = component_count(2 * current_points, component);
+      coarse_counts[component] = component_count(
+        2 * comparison_points, component
+      );
+      fine_log_counts[component] = std::log(
+        static_cast<double>(fine_counts[component])
+      );
+      coarse_log_counts[component] = std::log(
+        static_cast<double>(coarse_counts[component])
+      );
+    }
+    for (int scramble = 0; scramble < scrambles; ++scramble) {
+      scramble_log_mean[scramble] = negative_infinity;
+      scramble_coarse_log_mean[scramble] = negative_infinity;
+      for (int component = 0; component < proposal_count; ++component) {
+        const int evaluated = component_count(2 * evaluated_points, component);
+        const std::size_t component_offset = static_cast<std::size_t>(
+          scramble * proposal_count + component
+        ) * max_per_proposal;
+        for (int point = evaluated; point < fine_counts[component]; ++point) {
+          const int stream = proposal_count == 1 ? point % 2 : component % 2;
+          const int design_point = proposal_count == 1 ? point / 2 : point;
+          for (int factor = 0; factor < rank; ++factor) {
+            uniform[factor] = qmc_value(qmc, scrambles, max_points, qmc_dimensions,
+              scramble, design_point, qmc_column[factor] + declared_rank * stream);
+            if (component != boundary_component) {
+              standard_normal[factor] = qnorm(uniform[factor], 0.0, 1.0, true, false);
+              if (!std::isfinite(standard_normal[factor])) return negative_infinity;
+            }
+          }
+          if (component == boundary_component) {
+            if (!boundary_proposal.draw(uniform.data(), standard_normal.data(), latent.data())) {
+              return event_unavailable();
+            }
+          } else if (component == event_component) {
+            // The opposite stream supplies one extra coordinate for both the
+            // row/bin choice and its remapped truncated-normal quantile.
+            const double event_uniform = qmc_value(qmc, scrambles, max_points,
+              qmc_dimensions, scramble, design_point, declared_rank * (1 - stream));
+            if (!event_proposal.draw(event_uniform, standard_normal.data(), latent.data())) {
+              return event_unavailable();
+            }
+          } else {
+            const int gaussian = component > 0 ? component - extra_components : 0;
+            for (int factor = 0; factor < rank; ++factor) {
+              latent[factor] = proposals[gaussian][factor];
+              for (int column = 0; column <= factor; ++column) {
+                latent[factor] +=
+                  proposal_factors[gaussian][factor + rank * column] *
+                  standard_normal[column];
+              }
+            }
+          }
+          if (use_boundary) {
+            const double density = boundary_proposal.log_density(latent.data());
+            if (!std::isfinite(density)) return event_unavailable();
+            point_log_boundary[component_offset + point] = density;
+          }
+          for (int factor = 0; factor < rank; ++factor) {
+            point_latent[(component_offset + point) * rank + factor] =
+              latent[factor];
+          }
+          double target;
+          if (use_event) {
+            event_proposal.evaluate(latent.data(), &target,
+              &point_log_event[component_offset + point]);
+            const double density = point_log_event[component_offset + point];
+            // NaN and +Inf are never valid log values. A point with zero target
+            // contributes nothing, whatever its event density (it is skipped
+            // below; a zero-weight bin that a row cannot leave makes the target
+            // zero everywhere, and the non-finite normalizer then returns -Inf).
+            // A zero event density at a point with positive target cannot be
+            // weighted by this proposal and is rejected with the other invalid
+            // values; finite log-scale event probabilities do not produce it.
+            const double positive_infinity = -negative_infinity;
+            if (std::isnan(target) || target == positive_infinity ||
+                std::isnan(density) || density == positive_infinity ||
+                (density == negative_infinity && target != negative_infinity)) {
+              return event_unavailable();
+            }
+          } else {
+            target = factor_log_integrand(context, latent.data(), nullptr);
+            if (!std::isfinite(target)) return negative_infinity;
+          }
+          point_log_target[component_offset + point] = target;
+        }
+        for (int point = 0; point < fine_counts[component]; ++point) {
+          if (point_log_target[component_offset + point] == negative_infinity) continue;
+          const bool in_coarse = point < coarse_counts[component];
+          double fine_mixture = negative_infinity;
+          double coarse_mixture = negative_infinity;
+          for (int proposal = 0; proposal < proposal_count; ++proposal) {
+            if (fine_counts[proposal] == 0) continue;
+            double kernel;
+            if (proposal == boundary_component) {
+              kernel = point_log_boundary[component_offset + point];
+            } else if (proposal == event_component) {
+              kernel = point_log_event[component_offset + point];
+            } else {
+              const int gaussian = proposal > 0 ? proposal - extra_components : 0;
+              kernel = -proposal_log_determinants[gaussian];
+              for (int factor = 0; factor < rank; ++factor) {
+                centered[factor] =
+                  point_latent[(component_offset + point) * rank + factor] -
+                  proposals[gaussian][factor];
+                for (int column = 0; column < factor; ++column) {
+                  centered[factor] -=
+                    proposal_factors[gaussian][factor + rank * column] *
+                    centered[column];
+                }
+                centered[factor] /=
+                  proposal_factors[gaussian][factor + rank * factor];
+                kernel -= 0.5 * centered[factor] * centered[factor];
+              }
+            }
+            fine_mixture = log_add_exp(
+              fine_mixture, kernel + fine_log_counts[proposal]
+            );
+            if (in_coarse && coarse_counts[proposal] > 0) {
+              coarse_mixture = log_add_exp(
+                coarse_mixture, kernel + coarse_log_counts[proposal]
+              );
+            }
+          }
+          // For N points the mixture weights are n_j/N. Its N cancels the
+          // pooled mean denominator. Coarse and fine counts define separate
+          // valid mixtures, including when some proposals receive no points.
+          const double target = point_log_target[component_offset + point];
+          scramble_log_mean[scramble] = log_add_exp(
+            scramble_log_mean[scramble], target - fine_mixture
+          );
+          if (in_coarse) {
+            scramble_coarse_log_mean[scramble] = log_add_exp(
+              scramble_coarse_log_mean[scramble], target - coarse_mixture
+            );
+          }
+        }
+      }
+      if (use_event) {
+        // Each independent scramble estimates the total normalizer. Its
+        // between-scramble variation, and the change below, include the exact
+        // baseline; neither diagnostic is relative to the correction alone.
+        scramble_log_mean[scramble] = log_add_exp(
+          event_proposal.log_baseline, scramble_log_mean[scramble]);
+        scramble_coarse_log_mean[scramble] = log_add_exp(
+          event_proposal.log_baseline, scramble_coarse_log_mean[scramble]);
+      }
+    }
+    log_normalizer = factor_log_mean(scramble_log_mean, scrambles);
+    const double coarse_log_normalizer = factor_log_mean(
+      scramble_coarse_log_mean, scrambles
+    );
+    if (!std::isfinite(log_normalizer) ||
+        !std::isfinite(coarse_log_normalizer)) return negative_infinity;
+    *relative_change = cluster_relative_change(
+      coarse_log_normalizer, log_normalizer
+    );
+
+    // Components reuse the two declared streams. Combine them before MCSE so
+    // covariance between proposals stays within each independent scramble.
+    double squared_relative = 0.0;
+    for (int scramble = 0; scramble < scrambles; ++scramble) {
+      const double ratio = std::exp(
+        scramble_log_mean[scramble] - log_normalizer
+      );
+      const double difference = ratio - 1.0;
+      squared_relative += difference * difference;
+    }
+    *relative_mcse = std::sqrt(
+      squared_relative /
+      (static_cast<double>(scrambles) * static_cast<double>(scrambles - 1))
+    );
+    // The reported MCSE is the raw standard error; the stop scales it by the
+    // fixed multiplier of selnorm-qmc-z.h, as does every judge of this result.
+    if (selnorm_qmc_diagnostic(*relative_mcse, *relative_change) <= relative_tolerance ||
+        current_points == max_points) {
+      break;
+    }
+    evaluated_points = current_points;
+    comparison_points = current_points;
+    current_points = std::min(max_points, 2 * current_points);
+  }
+  if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  return log_density - log_normalizer;
+}
+
+namespace {
+
+// Offset into the quadrature tables and order of rule min(max_rules, count) of
+// a schedule (1-based), the one rule the surrogate integrates over.
+void surrogate_rule_span(const double *orders, int rule_count, unsigned int max_rules,
+                         int *offset, int *order)
+{
+  const int rule = static_cast<int>(
+    std::min(max_rules, static_cast<unsigned int>(rule_count)));
+  *offset = 0;
+  for (int previous = 0; previous + 1 < rule; ++previous) {
+    *offset += static_cast<int>(orders[previous]);
+  }
+  *order = static_cast<int>(orders[rule - 1]);
+}
+
+}
+
+double cpp_selnorm_factor_step_surrogate_lpdf(
+    const double *x, const double *mean, const double *residual_sd,
+    const double *declared_loading, int dimension, int declared_rank,
+    const double *selection_se, const double *omega, int n_bins,
+    const double *z_lower, const double *z_upper, const int *obs_bin,
+    int effect_sign, bool telescope_probabilities, int kernel_mode,
+    const double *quadrature_nodes, const double *quadrature_log_weights,
+    const double *quadrature_orders, int quadrature_rule_count, int vector_rule,
+    const SelNormCoarseSettings &settings, bool *exact_fallback,
+    double *log_normalizer_out)
+{
+  const double unavailable = std::numeric_limits<double>::quiet_NaN();
+  *exact_fallback = false;
+  if (log_normalizer_out != nullptr) *log_normalizer_out = unavailable;
+  // Inputs the sampler's dynamic check refuses have the density of the exact
+  // kernel, -Inf, and no surrogate.
+  if ((kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
+    return -std::numeric_limits<double>::infinity();
+  }
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!std::isfinite(omega[bin]) || omega[bin] < 0.0) {
+      return -std::numeric_limits<double>::infinity();
+    }
+  }
+  // The numerator is the exact kernel's own, with the normalizer replaced by
+  // zero after its NORMAL early return and its observed weights. The QMC
+  // controls only satisfy the kernel's argument validation: nothing reads them.
+  const double unit_log_normalizer = 0.0;
+  double ignored_mcse, ignored_change;
+  const double numerator = cpp_selnorm_factor_step_lpdf(
+    x, mean, residual_sd, declared_loading, dimension, declared_rank,
+    selection_se, omega, n_bins, z_lower, z_upper, obs_bin, effect_sign,
+    telescope_probabilities, kernel_mode, quadrature_nodes,
+    quadrature_log_weights, quadrature_orders, quadrature_rule_count, nullptr,
+    2, 2, 2, 1.0, &ignored_mcse, &ignored_change, nullptr, vector_rule, nullptr,
+    nullptr, &unit_log_normalizer);
+  if (!std::isfinite(numerator)) return numerator;
+  if (kernel_mode == SELKERNEL_NORMAL) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return numerator;
+  }
+  // Rule min(max_rules, rule_count) of a product schedule; every other case
+  // (the numerator call has already refused a missing schedule) is the exact
+  // density's.
+  if (vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  int offset, order;
+  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings.max_rules,
+                      &offset, &order);
+
+  // The block the exact kernel integrates: zero loading columns dropped, its
+  // forest plan and its node budget.
+  const FactorColumnCompaction compaction =
+    compact_factor_columns(declared_loading, dimension, declared_rank);
+  const double *loading = compaction.compacted ? compaction.loading.data() : declared_loading;
+  const int rank = compaction.compacted ?
+    static_cast<int>(compaction.active_columns.size()) : declared_rank;
+  const StepKernelSelection selection(n_bins, effect_sign, z_lower, z_upper,
+                                      telescope_probabilities);
+  FactorNormalizerContext context;
+  context.vector_rule = vector_rule;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.rank = rank;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.n_bins = n_bins;
+  context.kernel_mode = kernel_mode;
+  context.selection = selection.data;
+  FactorForestPlan forest;
+  factor_forest_plan(context, nullptr, &forest);
+  const int cost_exponent = forest.valid ? forest.max_depth + 1 : rank;
+  if (!selnorm_factor_rule_affordable(order, cost_exponent)) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  SelNormLeanScratch lean;
+  lean.configure(residual_sd, selection_se, dimension, omega, selection.data);
+  FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights,
+                  offset, order, &lean);
+  const double log_normalizer = rung.log_integral();
+  if (!std::isfinite(log_normalizer)) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  return numerator - log_normalizer;
+}
+
+double cpp_selnorm_cluster_step_lpdf(
+    const double *x, const double *mean, const double *residual_sd,
+    const double *loading, int dimension, const double *selection_se,
+    const double *omega, int n_bins, const double *z_lower,
+    const double *z_upper, const int *obs_bin, int effect_sign,
+    bool telescope_probabilities, int kernel_mode,
+    const double *quadrature_nodes, const double *quadrature_log_weights,
+    const double *quadrature_orders, int quadrature_rule_count,
+    const double *qmc, int initial_points, int max_points, int scrambles,
+    double relative_tolerance, double *relative_mcse, double *relative_change,
+    const long double *quadrature_weights, double *log_normalizer_out,
+    int vector_rule, bool *deterministic, const double *log_normalizer_override,
+    void (*check_interrupt)())
+{
+  const double negative_infinity = -std::numeric_limits<double>::infinity();
+  *relative_mcse = 0.0;
+  *relative_change = 0.0;
+  if (deterministic != nullptr) *deterministic = false;
+  if (log_normalizer_out != nullptr) {
+    *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
+  }
+  if (dimension < 1 || n_bins < 1 || quadrature_rule_count < 1 ||
+      initial_points < 2 || max_points < initial_points || scrambles < 2 ||
+      !(relative_tolerance > 0.0) || !std::isfinite(relative_tolerance) ||
+      (effect_sign != 1 && effect_sign != -1) ||
+      (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
+    return negative_infinity;
+  }
+  if (log_normalizer_override != nullptr && !std::isfinite(*log_normalizer_override)) {
+    throw std::invalid_argument("An explicit selection normalizer must be finite.");
+  }
+
+  const StepKernelSelection step_selection(n_bins, effect_sign, z_lower, z_upper,
+                                           telescope_probabilities);
+  const SelNormKernelData &selection = step_selection.data;
+
+  // The Gaussian numerator is the stable one-factor integral: the residual
+  // after the latent projection is formed directly, never as a difference of
+  // the total and the explained quadratic.
+  std::vector<double> numerator_work(static_cast<std::size_t>(3 * dimension));
+  double *residual_values = numerator_work.data();
+  double *latent_work = residual_values + dimension;
+  for (int i = 0; i < dimension; ++i) {
+    if (!(residual_sd[i] > 0.0) || !std::isfinite(residual_sd[i]) ||
+        !std::isfinite(loading[i]) || !std::isfinite(x[i]) ||
+        !std::isfinite(mean[i]) || !(selection_se[i] > 0.0) ||
+        !std::isfinite(selection_se[i]) || obs_bin[i] < 1 ||
+        obs_bin[i] > n_bins) return negative_infinity;
+    residual_values[i] = x[i] - mean[i];
+  }
+  double log_density = cpp_gaussian_latent_loglik(
+    dimension, residual_values, residual_sd, loading, nullptr, latent_work
+  );
+  if (std::isnan(log_density)) return negative_infinity;
+  if (kernel_mode == SELKERNEL_NORMAL) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return log_density;
+  }
+
+  if (vector_rule != SELVECTOR_PRODUCT) {
+    const double weight = vector_observed_log_weight(x, dimension, selection_se,
+      omega, z_lower, n_bins, effect_sign, vector_rule, obs_bin);
+    if (!std::isfinite(weight) && log_normalizer_out == nullptr) return negative_infinity;
+    log_density += weight;
+  }
+  for (int i = 0; i < dimension && vector_rule == SELVECTOR_PRODUCT; ++i) {
+    const double log_weight = std::log(omega[obs_bin[i] - 1]);
+    if (!std::isfinite(log_weight) &&
+        (log_normalizer_out == nullptr || log_weight != negative_infinity)) {
+      return negative_infinity;
+    }
+    log_density += log_weight;
+  }
+
+  if (log_normalizer_override != nullptr) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+    return log_density - *log_normalizer_override;
+  }
+
+  ClusterNormalizerContext context;
+  context.vector_rule = vector_rule;
+  context.quadrature_weights = quadrature_weights;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.kernel_mode = kernel_mode;
+  context.selection = selection;
+
+  if (vector_rule == SELVECTOR_PRODUCT) {
+    // Acceptance by the shift-amplitude certificate on the one latent axis,
+    // compared with one rung before it. The ladder starts at its first rung;
+    // the certificate is consulted only at a finite rung whose change and
+    // exterior mass already pass. The accepted rung itself is returned.
+    const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+    const double certificate_tolerance = transitions ?
+      std::min(relative_tolerance, selnorm_certificate_max_tolerance) : relative_tolerance;
+    // Double precision node products, with workspaces shared by every rung and
+    // shifted copy of this call.
+    SelNormLeanScratch lean;
+    lean.configure(residual_sd, selection_se, dimension, omega, selection);
+    int offset = 0;
+    int order = static_cast<int>(quadrature_orders[0]);
+    double previous = cluster_ladder_log_integral(
+      context, quadrature_nodes, quadrature_log_weights, offset, order, &lean
+    );
+    offset += order;
+    for (int rule = 1; rule < quadrature_rule_count; ++rule) {
+      order = static_cast<int>(quadrature_orders[rule]);
+      double tilted_mean = std::numeric_limits<double>::quiet_NaN();
+      const double current = cluster_ladder_log_integral(
+        context, quadrature_nodes, quadrature_log_weights, offset, order,
+        &lean, 0.0, &tilted_mean
+      );
+      *relative_change = cluster_relative_change(previous, current);
+      if (log_normalizer_out != nullptr) *log_normalizer_out = current;
+      double tail_bound = std::numeric_limits<double>::quiet_NaN();
+      if (std::isfinite(current) && *relative_change <= certificate_tolerance &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
+            vector_rule, current, certificate_tolerance, &tail_bound
+          ) && cluster_rung_certified(context, quadrature_nodes,
+            quadrature_log_weights, offset, order, current, tilted_mean,
+            transitions, tail_bound, certificate_tolerance, &lean)) {
+        if (deterministic != nullptr) *deterministic = true;
+        return log_density - current;
+      }
+      previous = current;
+      offset += order;
+    }
+    // Every rung was rejected. Try the same four-shift refinement as the factor
+    // tier before handing this rank-one block to its bounded fallback.
+    if (quadrature_rule_count >= 2) {
+      const int previous_order = static_cast<int>(quadrature_orders[quadrature_rule_count - 2]);
+      double refined_value = negative_infinity, refined_change = 0.0;
+      if (cluster_refinement_certified(context, quadrature_nodes,
+            quadrature_log_weights, offset - order, order,
+            offset - order - previous_order, previous_order, certificate_tolerance,
+            &lean, &refined_value, &refined_change)) {
+        *relative_change = refined_change;
+        if (log_normalizer_out != nullptr) *log_normalizer_out = refined_value;
+        if (deterministic != nullptr) *deterministic = true;
+        return log_density - refined_value;
+      }
+    }
+  } else {
+    int finest_offset = 0;
+    for (int rule = 0; rule + 1 < quadrature_rule_count; ++rule) {
+      finest_offset += static_cast<int>(quadrature_orders[rule]);
+    }
+    const bool ladder_resolvable = cpp_selnorm_step_rule_resolves_transitions(
+      quadrature_nodes, finest_offset, static_cast<int>(quadrature_orders[quadrature_rule_count - 1]),
+      mean, residual_sd, loading, dimension, 1, selection_se, omega, selection);
+    // As in the factor ladder, but acceptance compares a rung with one before it:
+    // start one rung below the first that resolves the transitions.
+    int start = 0, offset = 0;
+    for (int rule = 1, rung_offset = static_cast<int>(quadrature_orders[0]);
+         ladder_resolvable && rule < quadrature_rule_count; ++rule) {
+      const int rung_order = static_cast<int>(quadrature_orders[rule]);
+      if (cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, rung_offset, rung_order,
+            mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
+        start = rule - 1;
+        break;
+      }
+      rung_offset += rung_order;
+    }
+    for (int rule = 0; rule < start; ++rule) offset += static_cast<int>(quadrature_orders[rule]);
+    int order = static_cast<int>(quadrature_orders[start]);
+    double previous = ladder_resolvable ? cluster_rule_log_integral(
+      context, quadrature_nodes, quadrature_log_weights,
+      offset, order
+    ) : std::numeric_limits<double>::quiet_NaN();
+    offset += order;
+    for (int rule = start + 1; ladder_resolvable && rule < quadrature_rule_count; ++rule) {
+      order = static_cast<int>(quadrature_orders[rule]);
+      const double current = cluster_rule_log_integral(
+        context, quadrature_nodes, quadrature_log_weights,
+        offset, order
+      );
+      *relative_change = cluster_relative_change(previous, current);
+      if (log_normalizer_out != nullptr) *log_normalizer_out = current;
+      if (std::isfinite(current) && *relative_change <= relative_tolerance &&
+          quadrature_covers_gaussian_tails(
+            quadrature_nodes, offset, order, 1, omega, n_bins, dimension,
+            vector_rule, current, relative_tolerance
+          ) && cpp_selnorm_step_rule_resolves_transitions(quadrature_nodes, offset, order,
+            mean, residual_sd, loading, dimension, 1, selection_se, omega, selection)) {
+        if (deterministic != nullptr) *deterministic = true;
+        return log_density - current;
+      }
+      previous = current;
+      offset += order;
+    }
+  }
+
+  return cpp_selnorm_factor_step_lpdf(
+    x, mean, residual_sd, loading, dimension, 1, selection_se, omega, n_bins,
+    z_lower, z_upper, obs_bin, effect_sign, telescope_probabilities, kernel_mode,
+    nullptr, nullptr, nullptr, 0, qmc, initial_points, max_points,
+    scrambles, relative_tolerance, relative_mcse, relative_change,
+    log_normalizer_out, vector_rule, nullptr, deterministic, nullptr, check_interrupt
+  );
+}
+
+double cpp_selnorm_cluster_step_surrogate_lpdf(
+    const double *x, const double *mean, const double *residual_sd,
+    const double *loading, int dimension, const double *selection_se,
+    const double *omega, int n_bins, const double *z_lower,
+    const double *z_upper, const int *obs_bin, int effect_sign,
+    bool telescope_probabilities, int kernel_mode,
+    const double *quadrature_nodes, const double *quadrature_log_weights,
+    const double *quadrature_orders, int quadrature_rule_count, int vector_rule,
+    const SelNormCoarseSettings &settings, bool *exact_fallback,
+    double *log_normalizer_out)
+{
+  const double unavailable = std::numeric_limits<double>::quiet_NaN();
+  *exact_fallback = false;
+  if (log_normalizer_out != nullptr) *log_normalizer_out = unavailable;
+  // Inputs the sampler's dynamic check refuses have the density of the exact
+  // kernel, -Inf, and no surrogate.
+  if ((kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP) ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED) {
+    return -std::numeric_limits<double>::infinity();
+  }
+  for (int bin = 0; bin < n_bins; ++bin) {
+    if (!std::isfinite(omega[bin]) || omega[bin] < 0.0) {
+      return -std::numeric_limits<double>::infinity();
+    }
+  }
+  // See the factor surrogate: the exact numerator, the QMC controls are
+  // placeholders for the kernel's argument validation.
+  const double unit_log_normalizer = 0.0;
+  double ignored_mcse, ignored_change;
+  const double numerator = cpp_selnorm_cluster_step_lpdf(
+    x, mean, residual_sd, loading, dimension, selection_se, omega, n_bins,
+    z_lower, z_upper, obs_bin, effect_sign, telescope_probabilities, kernel_mode,
+    quadrature_nodes, quadrature_log_weights, quadrature_orders,
+    quadrature_rule_count, nullptr, 2, 2, 2, 1.0, &ignored_mcse, &ignored_change,
+    nullptr, nullptr, vector_rule, nullptr, &unit_log_normalizer);
+  if (!std::isfinite(numerator)) return numerator;
+  if (kernel_mode == SELKERNEL_NORMAL) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return numerator;
+  }
+  if (vector_rule != SELVECTOR_PRODUCT || settings.max_rules < 3) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  int offset, order;
+  surrogate_rule_span(quadrature_orders, quadrature_rule_count, settings.max_rules,
+                      &offset, &order);
+  const StepKernelSelection selection(n_bins, effect_sign, z_lower, z_upper,
+                                      telescope_probabilities);
+  ClusterNormalizerContext context;
+  context.vector_rule = vector_rule;
+  context.quadrature_weights = nullptr;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.kernel_mode = kernel_mode;
+  context.selection = selection.data;
+  SelNormLeanScratch lean;
+  lean.configure(residual_sd, selection_se, dimension, omega, selection.data);
+  const double log_normalizer = cluster_ladder_log_integral(
+    context, quadrature_nodes, quadrature_log_weights, offset, order, &lean);
+  if (!std::isfinite(log_normalizer)) {
+    *exact_fallback = true;
+    return unavailable;
+  }
+  if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  return numerator - log_normalizer;
+}
+
+// Test hook: one rung of the product rule with its certificate, evaluated on the
+// same routines the kernels use. `shift_axis` are loading columns (0-based).
+bool cpp_selnorm_certificate_probe(
+    bool cluster, const double *mean, const double *residual_sd,
+    const double *loading, int dimension, int rank, const double *selection_se,
+    const double *omega, int n_bins, const double *z_lower, const double *z_upper,
+    int effect_sign, bool telescope_probabilities, const double *quadrature_nodes,
+    const double *quadrature_log_weights, const double *quadrature_orders,
+    int quadrature_rule_count, int rule, double relative_tolerance,
+    const int *shift_axis, const double *shift_delta, int shift_count,
+    bool precomputed_weights, bool refinement, SelNormCertificateProbe *out)
+{
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  if (dimension < 1 || rank < 1 || rule < 0 || rule >= quadrature_rule_count ||
+      !(relative_tolerance > 0.0) || (cluster && rank != 1)) {
+    return false;
+  }
+  double phack_z_zero[2] = {0, 0};
+  double segment_bounds_zero[1] = {0};
+  int segment_zero[1] = {0};
+  SelNormKernelData selection;
+  selection.n_bins = n_bins;
+  selection.n_segments = 0;
+  selection.effect_sign = effect_sign;
+  selection.q = 0;
+  selection.z_lower = z_lower;
+  selection.z_upper = z_upper;
+  selection.phack_z_source = phack_z_zero;
+  selection.phack_z_dest = phack_z_zero;
+  selection.segment_bounds = segment_bounds_zero;
+  selection.segment_step_bin = segment_zero;
+  selection.segment_phack_region = segment_zero;
+  selection.segment_step_bin_real = 0;
+  selection.segment_phack_region_real = 0;
+  selection.trusted_step_partition = true;
+  selection.telescope_probabilities = telescope_probabilities;
+
+  int offset = 0;
+  int total = 0;
+  for (int k = 0; k < quadrature_rule_count; ++k) {
+    if (k < rule) offset += static_cast<int>(quadrature_orders[k]);
+    total += static_cast<int>(quadrature_orders[k]);
+  }
+  const int order = static_cast<int>(quadrature_orders[rule]);
+  const bool transitions = cpp_selnorm_step_has_transitions(omega, selection);
+  *out = SelNormCertificateProbe();
+  out->transitions = transitions;
+  out->resolves_ladder = cpp_selnorm_step_rule_resolves_transitions(
+    quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
+    selection_se, omega, selection, 1, selnorm_certificate_width_scale_ladder);
+  std::vector<double> axis_scales;
+  out->tier_width_scale = selnorm_certificate_tier_width_scale(
+    omega, selection, loading, dimension, rank, &axis_scales);
+  out->resolves_tier = cpp_selnorm_step_rule_resolves_transitions(
+    quadrature_nodes, offset, order, mean, residual_sd, loading, dimension, rank,
+    selection_se, omega, selection, 1, 1.0, axis_scales.data());
+
+  const auto certify = [&](double q0, const std::vector<double> &axis_mean,
+                           const std::function<bool(int, double, double *)> &shifted) {
+    const ShiftCertificate early = shift_certificate(q0, axis_mean,
+      quadrature_nodes + offset, order, relative_tolerance, true, shifted);
+    const ShiftCertificate full = shift_certificate(q0, axis_mean,
+      quadrature_nodes + offset, order, relative_tolerance, false, shifted);
+    out->mean = axis_mean;
+    out->gap = full.gap;
+    out->half = full.half;
+    out->quarter = full.quarter;
+    out->amplitude = full.amplitude;
+    out->amplitude_sum = full.amplitude_sum;
+    out->finite = full.finite;
+    out->accepted_without_early_exit =
+      shift_certificate_accepts(full, out->tail_bound, relative_tolerance);
+    out->early_reject = early.early_reject;
+    out->accepted = shift_certificate_accepts(early, out->tail_bound, relative_tolerance);
+  };
+
+  if (cluster) {
+    std::vector<long double> weights;
+    if (precomputed_weights) {
+      weights.resize(static_cast<std::size_t>(total));
+      for (int k = 0; k < total; ++k) {
+        weights[static_cast<std::size_t>(k)] =
+          std::exp(static_cast<long double>(quadrature_log_weights[k]));
+      }
+    }
+    ClusterNormalizerContext context;
+    context.vector_rule = SELVECTOR_PRODUCT;
+    context.quadrature_weights = precomputed_weights ? weights.data() : nullptr;
+    context.mean = mean;
+    context.residual_sd = residual_sd;
+    context.loading = loading;
+    context.dimension = dimension;
+    context.selection_se = selection_se;
+    context.omega = omega;
+    context.kernel_mode = SELKERNEL_STEP;
+    context.selection = selection;
+    double tilted = nan, variance = nan;
+    out->path = 4;
+    SelNormLeanScratch lean;
+    lean.configure(residual_sd, selection_se, dimension, omega, selection);
+    out->log_normalizer = cluster_ladder_log_integral(context, quadrature_nodes,
+      quadrature_log_weights, offset, order, &lean, 0.0, &tilted, &variance, &out->lean);
+    out->has_moments = std::isfinite(tilted) && std::isfinite(variance);
+    out->moment_mean.assign(1, tilted);
+    out->moment_covariance.assign(1, variance);
+    out->reference_log_normalizer = cluster_rule_log_integral(context, quadrature_nodes,
+      quadrature_log_weights, offset, order);
+    quadrature_covers_gaussian_tails(quadrature_nodes, offset, order, 1, omega,
+      n_bins, dimension, SELVECTOR_PRODUCT, out->log_normalizer, relative_tolerance,
+      &out->tail_bound);
+    out->column.assign(1, 0);
+    const auto shifted = [&](int, double delta, double *value) {
+      *value = cluster_ladder_log_integral(context, quadrature_nodes,
+        quadrature_log_weights, offset, order, &lean, delta);
+      return std::isfinite(*value);
+    };
+    certify(out->log_normalizer, std::vector<double>(1, tilted), shifted);
+    for (int k = 0; k < shift_count; ++k) {
+      double value = nan;
+      shifted(0, shift_delta[k], &value);
+      out->reuse_value.push_back(value);
+      out->full_value.push_back(value);
+      out->reference_value.push_back(cluster_rule_log_integral(context,
+        quadrature_nodes, quadrature_log_weights, offset, order, nullptr, nullptr,
+        0, nullptr, shift_delta[k]));
+      double shifted_mean = nan, shifted_variance = nan;
+      cluster_ladder_log_integral(context, quadrature_nodes, quadrature_log_weights,
+        offset, order, &lean, shift_delta[k], &shifted_mean, &shifted_variance);
+      out->shifted_moment_mean.push_back(shifted_mean);
+      out->shifted_moment_variance.push_back(shifted_variance);
+      cluster_rule_log_integral(context, quadrature_nodes, quadrature_log_weights,
+        offset, order, nullptr, nullptr, 0, nullptr, shift_delta[k], &shifted_mean,
+        &shifted_variance);
+      out->reference_shifted_moment_mean.push_back(shifted_mean);
+      out->reference_shifted_moment_variance.push_back(shifted_variance);
+    }
+    return true;
+  }
+
+  FactorNormalizerContext context;
+  context.vector_rule = SELVECTOR_PRODUCT;
+  context.mean = mean;
+  context.residual_sd = residual_sd;
+  context.loading = loading;
+  context.dimension = dimension;
+  context.rank = rank;
+  context.selection_se = selection_se;
+  context.omega = omega;
+  context.n_bins = n_bins;
+  context.kernel_mode = SELKERNEL_STEP;
+  context.selection = selection;
+  FactorForestPlan forest;
+  factor_forest_plan(context, nullptr, &forest);
+
+  SelNormLeanScratch lean;
+  lean.configure(residual_sd, selection_se, dimension, omega, selection);
+  FactorRung rung(context, forest, quadrature_nodes, quadrature_log_weights, offset, order, &lean);
+  out->log_normalizer = rung.log_integral();
+  out->lean = rung.lean_used();
+  out->reference_log_normalizer = factor_rule_log_integral(context, forest,
+    quadrature_nodes, quadrature_log_weights, offset, order);
+  out->path = static_cast<int>(rung.path());
+  quadrature_covers_gaussian_tails(quadrature_nodes, offset, order, rank, omega,
+    n_bins, dimension, SELVECTOR_PRODUCT, out->log_normalizer, relative_tolerance,
+    &out->tail_bound);
+  out->has_moments = rung.moments(&out->moment_mean, &out->moment_covariance);
+  std::vector<double> axis_mean;
+  if (!rung.means(&axis_mean)) return true;
+  for (std::size_t group = 0; group < axis_mean.size(); ++group) {
+    out->column.push_back(rung.column(static_cast<int>(group)));
+  }
+  // The same rung with long double node products, for the shifted references.
+  FactorRung rung_long_double(context, forest, quadrature_nodes, quadrature_log_weights, offset, order);
+  rung_long_double.log_integral();
+  certify(out->log_normalizer, axis_mean,
+    [&rung](int axis, double delta, double *value) { return rung.shifted(axis, delta, value); });
+  if (refinement && rung.refinable()) {
+    std::vector<double> refinement_gap(axis_mean.size());
+    for (std::size_t group = 0; group < axis_mean.size(); ++group) {
+      refinement_gap[group] = certificate_node_gap(quadrature_nodes + offset, order, axis_mean[group]);
+    }
+    out->refined = rung.refined(refinement_gap, &out->refined_2, &out->refined_4);
+  }
+  for (int k = 0; k < shift_count; ++k) {
+    int group = -1;
+    for (std::size_t g = 0; g < out->column.size(); ++g) {
+      if (out->column[g] == shift_axis[k]) group = static_cast<int>(g);
+    }
+    double reuse_value = nan, full_value = nan, reference_value = nan;
+    if (group >= 0) {
+      rung.shifted(group, shift_delta[k], &reuse_value, true);
+      rung.shifted(group, shift_delta[k], &full_value, false);
+      if (rung_long_double.path() == rung.path()) {
+        rung_long_double.shifted(group, shift_delta[k], &reference_value, true);
+      }
+    }
+    out->reuse_value.push_back(reuse_value);
+    out->full_value.push_back(full_value);
+    out->reference_value.push_back(reference_value);
+  }
+  return true;
+}
+
+double cpp_selnorm_certificate_node_gap(const double *nodes, int order, double mean)
+{
+  return certificate_node_gap(nodes, order, mean);
+}
+
+double cpp_selnorm_mnorm_step_lpdf(
+    const double *x, const double *mean, const double *covariance_lower,
+    int dimension, const double *selection_se, const double *omega,
+    int n_bins, const double *z_lower, const double *z_upper,
+    const int *obs_bin, int effect_sign, bool telescope_probabilities,
+    int kernel_mode, const double *qmc, int points, int scrambles,
+    double *relative_mcse, SelNormZProjection *projection,
+    double *log_normalizer_out, int vector_rule,
+    SelNormDenseIntegration *integration, const double *log_normalizer_override)
+{
+  const int k = dimension;
+  const int dimensions = 2 * k;
+  const double two_pi = 6.283185307179586476925286766559;
+  const double negative_infinity = -std::numeric_limits<double>::infinity();
+  *relative_mcse = 0.0;
+  if (dimension < 1 || n_bins < 1 || scrambles < 2) {
+    *relative_mcse = std::numeric_limits<double>::infinity();
+    return negative_infinity;
+  }
+  if (log_normalizer_override != nullptr &&
+      (!std::isfinite(*log_normalizer_override) || projection != nullptr)) {
+    throw std::invalid_argument("An explicit selection normalizer must be finite and cannot project outcomes.");
+  }
+  if (log_normalizer_out != nullptr) {
+    *log_normalizer_out = std::numeric_limits<double>::quiet_NaN();
+  }
+
+  double phack_z_zero[2] = {0, 0};
+  double segment_bounds_zero[1] = {0};
+  int segment_zero[1] = {0};
+  SelNormKernelData selection;
+  selection.n_bins = n_bins;
+  selection.n_segments = 0;
+  selection.effect_sign = effect_sign;
+  selection.q = 0;
+  selection.z_lower = z_lower;
+  selection.z_upper = z_upper;
+  selection.phack_z_source = phack_z_zero;
+  selection.phack_z_dest = phack_z_zero;
+  selection.segment_bounds = segment_bounds_zero;
+  selection.segment_step_bin = segment_zero;
+  selection.segment_phack_region = segment_zero;
+  selection.segment_step_bin_real = 0;
+  selection.segment_phack_region_real = 0;
+  selection.trusted_step_partition = true;
+  selection.telescope_probabilities = telescope_probabilities;
+
+  if (k == 1 && projection == nullptr) {
+    const double variance = covariance_lower[0];
+    if (!(variance > 0.0) || !std::isfinite(variance)) {
+      return negative_infinity;
+    }
+    if (log_normalizer_override != nullptr) {
+      double numerator = cpp_selnorm_kernel_lpdf(
+        x[0], mean[0], std::sqrt(variance), mean[0], std::sqrt(variance),
+        selection_se[0], 1.0, omega, obs_bin[0], 0.0, 0, SELKERNEL_NORMAL,
+        selection, 1, false);
+      if (kernel_mode != SELKERNEL_NORMAL) numerator += vector_observed_log_weight(
+        x, 1, selection_se, omega, z_lower, n_bins, effect_sign, vector_rule, obs_bin);
+      if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+      return numerator - *log_normalizer_override;
+    }
+    if (log_normalizer_out != nullptr) {
+      *log_normalizer_out = cpp_selnorm_kernel_log_norm(
+        mean[0], std::sqrt(variance), selection_se[0], omega,
+        0, 0, kernel_mode, selection, 1, false
+      );
+    }
+    return cpp_selnorm_kernel_lpdf(
+      x[0], mean[0], std::sqrt(variance), mean[0], std::sqrt(variance),
+      selection_se[0], 1.0, omega, obs_bin[0], 0.0, 0, kernel_mode,
+      selection, 1, false
+    );
+  }
+
+  std::vector<double> covariance(static_cast<std::size_t>(k * k), 0.0);
+  int position = 0;
+  for (int column = 0; column < k; ++column) {
+    for (int row = column; row < k; ++row) {
+      const double value = covariance_lower[position++];
+      covariance[static_cast<std::size_t>(row + k * column)] = value;
+      covariance[static_cast<std::size_t>(column + k * row)] = value;
+    }
+  }
+  std::vector<double> cholesky = covariance;
+  int info = 0;
+  F77_CALL(dpotrf)("L", &k, cholesky.data(), &k, &info FCONE);
+  if (info != 0) return negative_infinity;
+
+  double log_det = 0.0;
+  std::vector<double> residual(static_cast<std::size_t>(k));
+  for (int i = 0; i < k; ++i) {
+    const double diagonal = cholesky[static_cast<std::size_t>(i + k * i)];
+    if (!(diagonal > 0) || !std::isfinite(diagonal) ||
+        !std::isfinite(x[i])) {
+      return negative_infinity;
+    }
+    log_det += 2.0 * std::log(diagonal);
+    residual[static_cast<std::size_t>(i)] = x[i] - mean[i];
+  }
+  for (int i = 0; i < k; ++i) {
+    double value = residual[static_cast<std::size_t>(i)];
+    for (int j = 0; j < i; ++j) {
+      value -= cholesky[static_cast<std::size_t>(i + k * j)] *
+        residual[static_cast<std::size_t>(j)];
+    }
+    residual[static_cast<std::size_t>(i)] =
+      value / cholesky[static_cast<std::size_t>(i + k * i)];
+  }
+  double quadratic = 0.0;
+  for (int i = 0; i < k; ++i) {
+    const double value = residual[static_cast<std::size_t>(i)];
+    if (!std::isfinite(value)) return negative_infinity;
+    quadratic += value * value;
+  }
+  double log_density = -0.5 *
+    (static_cast<double>(k) * std::log(two_pi) + log_det + quadratic);
+
+  if (kernel_mode == SELKERNEL_NORMAL && projection == nullptr) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = 0.0;
+    return log_density;
+  }
+
+  if (vector_rule != SELVECTOR_PRODUCT) {
+    if (projection != nullptr) {
+      *relative_mcse = std::numeric_limits<double>::infinity();
+      projection->relative_error = *relative_mcse;
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+    const double weight = vector_observed_log_weight(x, k, selection_se,
+      omega, z_lower, n_bins, effect_sign, vector_rule, obs_bin);
+    if (!std::isfinite(weight) && log_normalizer_out == nullptr) return negative_infinity;
+    if (log_normalizer_override != nullptr) {
+      if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+      return log_density + weight - *log_normalizer_override;
+    }
+    const double normalizer = gaussian_event_log_mass(mean, cholesky, k,
+      selection_se, omega, selection, kernel_mode, vector_rule,
+      nullptr, nullptr, qmc, points, scrambles, relative_mcse);
+    if (log_normalizer_out != nullptr) *log_normalizer_out = normalizer;
+    return log_density + weight - normalizer;
+  }
+
+  for (int i = 0; i < k && projection == nullptr; ++i) {
+    const double observed_weight = omega[obs_bin[i] - 1];
+    const double log_weight = std::log(observed_weight);
+    if (!std::isfinite(log_weight) &&
+        (log_normalizer_out == nullptr || log_weight != negative_infinity)) {
+      return negative_infinity;
+    }
+    log_density += log_weight;
+  }
+
+  if (log_normalizer_override != nullptr) {
+    if (log_normalizer_out != nullptr) *log_normalizer_out = *log_normalizer_override;
+    return log_density - *log_normalizer_override;
+  }
+
+  bool diagonal_covariance = true;
+  for (int column = 0; column < k && diagonal_covariance; ++column) {
+    for (int row = column + 1; row < k; ++row) {
+      if (covariance[static_cast<std::size_t>(row + k * column)] != 0) {
+        diagonal_covariance = false;
+        break;
+      }
+    }
+  }
+  if (diagonal_covariance || kernel_mode == SELKERNEL_NORMAL) {
+    double log_normalizer = 0.0;
+    for (int i = 0; i < k; ++i) {
+      log_normalizer += cpp_selnorm_kernel_log_norm(
+        mean[i], std::sqrt(covariance[static_cast<std::size_t>(i + k * i)]),
+        selection_se[i], omega, 0, 0, kernel_mode, selection, 1, false
+      );
+    }
+    if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+    if (projection != nullptr) {
+      for (int z = 0; z < projection->size; ++z) {
+        double value = 0.0;
+        for (int i = 0; i < k; ++i) {
+          const double sd = std::sqrt(covariance[i + k * i]);
+          if (projection->probability) {
+            double inverse;
+            value += cpp_selnorm_kernel_threshold(projection->z[z], mean[i],
+              sd, selection_se[i], omega, 0, 0, kernel_mode, selection,
+              &inverse, 1, false);
+          } else {
+            int bin = 1;
+            for (int b = 0; b < n_bins; ++b) {
+              const double signed_z = effect_sign * projection->z[z];
+              if (signed_z >= z_lower[b] && signed_z <= z_upper[b]) {
+                bin = b + 1;
+                break;
+              }
+            }
+            value += selection_se[i] * std::exp(cpp_selnorm_kernel_lpdf(
+              projection->z[z] * selection_se[i], mean[i], sd, mean[i], sd,
+              selection_se[i], 1.0, omega, bin, 0.0, 0, kernel_mode,
+              selection, 1, false
+            ));
+          }
+        }
+        projection->density[z] = value / k;
+      }
+      projection->relative_error = 0.0;
+      return -log_normalizer;
+    }
+    return log_density - log_normalizer;
+  }
+
+  if (projection == nullptr && integration != nullptr && kernel_mode == SELKERNEL_STEP) {
+    double log_normalizer = 0.0;
+    if (exact_envelope_log_integral(covariance, mean, selection_se, omega, k,
+                                    selection, integration, &log_normalizer)) {
+      if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+      return log_density - log_normalizer;
+    }
+  }
+
+  std::vector<double> precision;
+  std::vector<double> conditional_sd;
+  std::vector<double> conditional_mean(static_cast<std::size_t>(k));
+  std::vector<double> conditional_log_norm(static_cast<std::size_t>(k));
+  std::vector<double> projection_log_sum;
+  std::vector<double> projection_scale(static_cast<std::size_t>(scrambles), negative_infinity);
+  const int factor_rank = projection == nullptr ? 0 : projection->rank;
+  FactorNormalizerContext factor_context;
+  std::vector<double> factor_mode(static_cast<std::size_t>(factor_rank), 0.0);
+  std::vector<double> factor_latent(static_cast<std::size_t>(factor_rank));
+  std::vector<double> factor_normal(static_cast<std::size_t>(factor_rank));
+  std::vector<double> factor_centered(static_cast<std::size_t>(factor_rank));
+  std::vector<double> proposal_factor(static_cast<std::size_t>(factor_rank * factor_rank), 0.0);
+  double proposal_log_det = 0.0;
+  const bool quadrature = projection != nullptr && projection->order > 0;
+  if (factor_rank) {
+    factor_context.mean = mean;
+    factor_context.residual_sd = projection->residual_sd;
+    factor_context.loading = projection->factor_loading;
+    factor_context.dimension = k;
+    factor_context.rank = factor_rank;
+    factor_context.selection_se = selection_se;
+    factor_context.omega = omega;
+    factor_context.n_bins = n_bins;
+    factor_context.kernel_mode = kernel_mode;
+    factor_context.selection = selection;
+  }
+  if (quadrature && factor_rank > 0 && projection->loading_support != nullptr) {
+    double log_normalizer = 0.0;
+    FactorForestPlan forest;
+    factor_forest_plan(factor_context, projection->loading_support, &forest);
+    if (forest.valid &&
+        selnorm_factor_rule_affordable(projection->order, forest.max_depth + 1) &&
+        factor_nested_rule_log_integral(
+          factor_context, forest, projection->nodes, projection->log_weights,
+          0, projection->order, &log_normalizer, projection
+        )) {
+      *relative_mcse = 0.0;
+      return -log_normalizer;
+    }
+  }
+  if (points < 1) {
+    *relative_mcse = std::numeric_limits<double>::infinity();
+    return negative_infinity;
+  }
+  if (factor_rank && !quadrature) {
+    for (int i = 0; i < factor_rank; ++i) proposal_factor[i + factor_rank * i] = 1.0;
+    factor_optimize_mode(factor_context, &factor_mode, &proposal_factor);
+    F77_CALL(dpotrf)("L", &factor_rank, proposal_factor.data(), &factor_rank, &info FCONE);
+    if (info != 0) {
+      // Only the importance proposal changes here; the model covariance is
+      // untouched. The prior component always retains full Gaussian support.
+      std::fill(proposal_factor.begin(), proposal_factor.end(), 0.0);
+      for (int i = 0; i < factor_rank; ++i) proposal_factor[i + factor_rank * i] = 1.0;
+    }
+    for (int i = 0; i < factor_rank; ++i) {
+      proposal_log_det += std::log(proposal_factor[i + factor_rank * i]);
+    }
+  }
+  if (projection != nullptr) {
+    precision = cholesky;
+    F77_CALL(dpotri)("L", &k, precision.data(), &k, &info FCONE);
+    if (info != 0) return negative_infinity;
+    conditional_sd.resize(k);
+    for (int column = 0; column < k; ++column) {
+      conditional_sd[column] = factor_rank ? projection->residual_sd[column] :
+        1.0 / std::sqrt(precision[column + k * column]);
+      for (int row = column + 1; row < k; ++row) {
+        precision[column + k * row] = precision[row + k * column];
+      }
+    }
+    projection_log_sum.assign(
+      static_cast<std::size_t>(scrambles * projection->size), 0.0
+    );
+  }
+
+  std::vector<double> scramble_log_mean(static_cast<std::size_t>(scrambles));
+  std::vector<double> latent(static_cast<std::size_t>(k));
+  std::vector<double> mass(static_cast<std::size_t>(n_bins));
+  std::vector<double> lower(static_cast<std::size_t>(n_bins));
+  std::vector<double> upper(static_cast<std::size_t>(n_bins));
+  // The first conditional has no preceding latent coordinates. Prepare its
+  // unchanged partition once, with the existing per-particle fallback intact.
+  std::vector<double> first_mass, first_lower, first_upper;
+  int first_groups = 0;
+  double first_normalizer = 0.0;
+  double first_log_normalizer = 0.0;
+  bool first_prepared = false;
+  if (projection == nullptr && kernel_mode == SELKERNEL_STEP &&
+      vector_rule == SELVECTOR_PRODUCT && selection.telescope_probabilities) {
+    first_mass.resize(n_bins);
+    first_lower.resize(n_bins);
+    first_upper.resize(n_bins);
+    first_prepared = cpp_selnorm_step_rng_prepare_partition(
+      mean[0], cholesky[0], selection_se[0], omega, selection,
+      first_mass.data(), first_lower.data(), first_upper.data(),
+      &first_groups, &first_normalizer, &first_log_normalizer
+    );
+  }
+  for (int scramble = 0; scramble < scrambles; ++scramble) {
+    // Deterministic quadrature has identical nodes in every scramble.
+    if (quadrature && scramble > 0) {
+      scramble_log_mean[scramble] = scramble_log_mean[0];
+      for (int z = 0; z < projection->size; ++z) {
+        projection_log_sum[scramble + scrambles * z] =
+          projection_log_sum[scrambles * z];
+      }
+      continue;
+    }
+    double log_sum = negative_infinity;
+    for (int point = 0; point < points; ++point) {
+      for (int component = 0; component < (factor_rank && !quadrature ? 2 : 1); ++component) {
+        double log_particle = 0.0;
+        if (factor_rank) {
+          double log_prior = 0.0;
+          double log_mode = 0.0;
+          int remaining = point;
+          for (int factor = 0; factor < factor_rank; ++factor) {
+            const int node = quadrature ? remaining % projection->order : 0;
+            if (quadrature) remaining /= projection->order;
+            const double normal = quadrature ? projection->nodes[node] :
+              qnorm(qmc_value(qmc, scrambles, points, dimensions, scramble, point,
+                factor + factor_rank * component), 0, 1, true, false);
+            if (quadrature) log_particle += projection->log_weights[node];
+            factor_normal[factor] = normal;
+            factor_latent[factor] = normal;
+            if (component == 1) {
+              factor_latent[factor] = factor_mode[factor];
+              for (int j = 0; j <= factor; ++j) {
+                factor_latent[factor] += proposal_factor[factor + factor_rank * j] * factor_normal[j];
+              }
+            }
+            log_prior -= .5 * factor_latent[factor] * factor_latent[factor];
+            if (!quadrature) {
+              factor_centered[factor] = factor_latent[factor] - factor_mode[factor];
+              for (int j = 0; j < factor; ++j) {
+                factor_centered[factor] -= proposal_factor[factor + factor_rank * j] * factor_centered[j];
+              }
+              factor_centered[factor] /= proposal_factor[factor + factor_rank * factor];
+              log_mode -= .5 * factor_centered[factor] * factor_centered[factor];
+            }
+          }
+          // Two equally allocated Gaussian proposals, including their mixture
+          // importance correction. The outer reduction divides by 'points'.
+          log_particle = quadrature ? log_particle + std::log(points) :
+            log_prior - log_add_exp(log_prior, log_mode - proposal_log_det);
+          for (int i = 0; i < k; ++i) {
+            conditional_mean[i] = mean[i];
+            for (int factor = 0; factor < factor_rank; ++factor) {
+              conditional_mean[i] += projection->factor_loading[i + k * factor] *
+                factor_latent[factor];
+            }
+            conditional_log_norm[i] = cpp_selnorm_step_log_norm(
+              conditional_mean[i], conditional_sd[i], selection_se[i], omega,
+              selection, 1, false);
+            log_particle += conditional_log_norm[i];
+          }
+        }
+        for (int i = 0; i < k && !factor_rank; ++i) {
+          double conditional_mean = mean[i];
+          for (int j = 0; j < i; ++j) {
+            conditional_mean +=
+              cholesky[static_cast<std::size_t>(i + k * j)] *
+              latent[static_cast<std::size_t>(j)];
+          }
+          const double conditional_sd =
+            cholesky[static_cast<std::size_t>(i + k * i)];
+          // Only the final normalizer contributes to the path weight; no later
+          // coordinate consumes a draw from this conditional.
+          if (i == k - 1 && projection == nullptr) {
+            const double log_local = cpp_selnorm_step_log_norm(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              selection, 1, false
+            );
+            if (!std::isfinite(log_local)) return negative_infinity;
+            log_particle += log_local;
+            break;
+          }
+          double log_local = 0.0;
+          double sampled = 0.0;
+          const double u_bin = qmc_value(
+            qmc, scrambles, points, dimensions, scramble, point, 2 * i
+          );
+          const double u_interval = qmc_value(
+            qmc, scrambles, points, dimensions, scramble, point, 2 * i + 1
+          );
+          if (selection.telescope_probabilities) {
+            if (i == 0 && first_prepared) {
+              log_local = first_log_normalizer;
+              sampled = cpp_selnorm_step_rng_from_partition(
+                conditional_mean, conditional_sd, effect_sign, u_bin, u_interval,
+                first_mass.data(), first_lower.data(), first_upper.data(),
+                first_groups, first_normalizer
+              );
+            } else {
+              sampled = cpp_selnorm_step_log_norm_rng_workspace(
+                conditional_mean, conditional_sd, selection_se[i], omega,
+                u_bin, u_interval, selection, mass.data(), lower.data(),
+                upper.data(), &log_local, 1, false
+              );
+            }
+          } else {
+            log_local = cpp_selnorm_kernel_log_norm(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              0, 0, kernel_mode, selection, 1, false
+            );
+            sampled = cpp_selnorm_kernel_rng_workspace(
+              conditional_mean, conditional_sd, selection_se[i], omega,
+              u_bin, u_interval, 0, 0, kernel_mode, selection,
+              mass.data(), lower.data(), upper.data(), 1, false
+            );
+          }
+          if (!std::isfinite(log_local) || !std::isfinite(sampled)) {
+            return negative_infinity;
+          }
+          log_particle += log_local;
+          latent[static_cast<std::size_t>(i)] =
+            (sampled - conditional_mean) / conditional_sd;
+          if (projection != nullptr) {
+            // Preserve the full proposal vector for all-coordinate conditionals.
+            // 'residual' is no longer needed by the Gaussian likelihood here.
+            residual[i] = sampled - mean[i];
+          }
+        }
+        log_sum = log_add_exp(log_sum, log_particle);
+        if (projection != nullptr) {
+          if (log_particle > projection_scale[scramble]) {
+            const double scale = std::exp(projection_scale[scramble] - log_particle);
+            for (int z = 0; z < projection->size; ++z) {
+              projection_log_sum[scramble + scrambles * z] *= scale;
+            }
+            projection_scale[scramble] = log_particle;
+          }
+          const double particle_weight = std::exp(log_particle - projection_scale[scramble]);
+          for (int i = 0; i < k && !factor_rank; ++i) {
+            double score = 0.0;
+            for (int j = 0; j < k; ++j) {
+              if (j != i) score += precision[i + k * j] * residual[j];
+            }
+            conditional_mean[i] = mean[i] - score / precision[i + k * i];
+            conditional_log_norm[i] = cpp_selnorm_step_log_norm(
+              conditional_mean[i], conditional_sd[i], selection_se[i], omega,
+              selection, 1, false
+            );
+          }
+          for (int z = 0; z < projection->size; ++z) {
+            double local_sum = 0.0;
+            int bin = 1;
+            for (int b = 0; b < n_bins; ++b) {
+              const double signed_z = effect_sign * projection->z[z];
+              if (signed_z >= z_lower[b] && signed_z <= z_upper[b]) {
+                bin = b + 1;
+                break;
+              }
+            }
+            if (!projection->probability && !(omega[bin - 1] > 0.0)) continue;
+            const double log_weight = std::log(omega[bin - 1]);
+            for (int i = 0; i < k; ++i) {
+              double local;
+              if (projection->probability) {
+                double inverse;
+                local = std::log(cpp_selnorm_kernel_threshold(
+                  projection->z[z], conditional_mean[i], conditional_sd[i],
+                  selection_se[i], omega, 0, 0, kernel_mode, selection,
+                  &inverse, 1, false));
+              } else {
+                local = std::log(selection_se[i]) + log_weight +
+                  dnorm(projection->z[z] * selection_se[i], conditional_mean[i],
+                        conditional_sd[i], true) - conditional_log_norm[i];
+              }
+              local_sum += std::exp(local);
+            }
+            const int index = scramble + scrambles * z;
+            projection_log_sum[index] += particle_weight * local_sum / k;
+          }
+        }
+      }
+    }
+    scramble_log_mean[static_cast<std::size_t>(scramble)] =
+      log_sum - std::log(static_cast<double>(points));
+    if (projection != nullptr) {
+      for (int z = 0; z < projection->size; ++z) {
+        const int index = scramble + scrambles * z;
+        projection_log_sum[index] = std::log(projection_log_sum[index]) +
+          projection_scale[scramble];
+      }
+    }
+  }
+
+  double log_normalizer = negative_infinity;
+  for (int scramble = 0; scramble < scrambles; ++scramble) {
+    log_normalizer = log_add_exp(
+      log_normalizer,
+      scramble_log_mean[static_cast<std::size_t>(scramble)]
+    );
+  }
+  log_normalizer -= std::log(static_cast<double>(scrambles));
+  if (log_normalizer_out != nullptr) *log_normalizer_out = log_normalizer;
+  if (!std::isfinite(log_normalizer)) return negative_infinity;
+
+  double squared_relative = 0.0;
+  for (int scramble = 0; scramble < scrambles; ++scramble) {
+    const double ratio = std::exp(
+      scramble_log_mean[static_cast<std::size_t>(scramble)] - log_normalizer
+    );
+    const double difference = ratio - 1.0;
+    squared_relative += difference * difference;
+  }
+  *relative_mcse = std::sqrt(
+    squared_relative /
+    (static_cast<double>(scrambles) * static_cast<double>(scrambles - 1))
+  );
+
+  if (projection != nullptr) {
+    double peak = 0.0;
+    double max_mcse = 0.0;
+    for (int z = 0; z < projection->size; ++z) {
+      double numerator = negative_infinity;
+      for (int scramble = 0; scramble < scrambles; ++scramble) {
+        numerator = log_add_exp(numerator, projection_log_sum[scramble + scrambles * z]);
+      }
+      const double value = std::exp(numerator - std::log(points * scrambles) - log_normalizer);
+      projection->density[z] = value;
+      peak = std::max(peak, value);
+      double squared = 0.0;
+      for (int scramble = 0; scramble < scrambles; ++scramble) {
+        const double centered = std::exp(
+          projection_log_sum[scramble + scrambles * z] - std::log(points) - log_normalizer
+        ) - value * std::exp(scramble_log_mean[scramble] - log_normalizer);
+        squared += centered * centered;
+      }
+      max_mcse = std::max(max_mcse, std::sqrt(squared / (scrambles * (scrambles - 1.0))));
+    }
+    projection->relative_error = peak > 0.0 ? max_mcse / peak : 0.0;
+    return -log_normalizer;
+  }
+
+  return log_density - log_normalizer;
+}
+
+double cpp_selnorm_mnorm_step_surrogate_lpdf(
+    const double *x, const double *mean, const double *covariance_lower,
+    int dimension, const double *selection_se, const double *omega, int n_bins,
+    const double *z_lower, const double *z_upper, const int *obs_bin,
+    int effect_sign, bool telescope_probabilities, int kernel_mode, int vector_rule,
+    const SelNormDenseIntegration &quadrature, const SelNormCoarseSettings &settings)
+{
+  const double unit_log_normalizer = 0.0;
+  double ignored_mcse;
+  // The existing body still evaluates the actual Gaussian density and actual
+  // observed weights, validating actual covariance before anchor integration.
+  const double numerator = cpp_selnorm_mnorm_step_lpdf(x, mean, covariance_lower, dimension,
+    selection_se, omega, n_bins, z_lower, z_upper, obs_bin, effect_sign,
+    telescope_probabilities, kernel_mode, nullptr, 1, 2, &ignored_mcse,
+    nullptr, nullptr, vector_rule, nullptr, &unit_log_normalizer);
+  if (!std::isfinite(numerator)) return numerator;
+  const double log_normalizer = coarse_anchor_log_normalizer(mean, covariance_lower,
+    dimension, selection_se, omega, n_bins, z_lower, z_upper, effect_sign,
+    telescope_probabilities, kernel_mode, vector_rule, quadrature, settings);
+  return numerator - log_normalizer;
+}
+
+double cpp_selnorm_gaussian_event_log_mass(
+    const double *mean, const double *covariance_lower, int dimension,
+    const double *selection_se, const double *omega, int n_bins,
+    const double *z_lower, const double *z_upper, int effect_sign,
+    int kernel_mode, int vector_rule, const double *lower,
+    const double *upper, const double *qmc, int points, int scrambles,
+    double *relative_mcse, const double *rank_one_loading,
+    SelNormDenseIntegration *integration)
+{
+  *relative_mcse = std::numeric_limits<double>::infinity();
+  const double invalid = std::numeric_limits<double>::quiet_NaN();
+  if (dimension < 1 || points < 1 || scrambles < 2 ||
+      vector_rule < SELVECTOR_PRODUCT || vector_rule > SELVECTOR_BEST_TWO_SIDED ||
+      (kernel_mode != SELKERNEL_NORMAL && kernel_mode != SELKERNEL_STEP)) return invalid;
+  SelNormKernelData selection = {};
+  selection.n_bins = n_bins;
+  selection.effect_sign = effect_sign;
+  selection.z_lower = z_lower;
+  selection.z_upper = z_upper;
+  selection.trusted_step_partition = true;
+  if (rank_one_loading != nullptr) {
+    *relative_mcse = 0.0;
+    return rank_one_event_log_mass(mean, rank_one_loading, dimension,
+      selection_se, omega, selection, kernel_mode, vector_rule, lower, upper);
+  }
+  std::vector<double> cholesky(static_cast<std::size_t>(dimension * dimension));
+  int position = 0;
+  bool deterministic = true;
+  bool diagonal = true;
+  for (int column = 0; column < dimension; ++column) {
+    for (int row = column; row < dimension; ++row) {
+      const double value = covariance_lower[position++];
+      if (!std::isfinite(value)) return invalid;
+      deterministic = deterministic && value == 0.0;
+      diagonal = diagonal && (row == column || value == 0.0);
+      cholesky[row + dimension * column] = value;
+      cholesky[column + dimension * row] = value;
+    }
+  }
+  if (deterministic) {
+    std::vector<double> loading(dimension, 0.0);
+    *relative_mcse = 0.0;
+    return rank_one_event_log_mass(mean, loading.data(), dimension,
+      selection_se, omega, selection, kernel_mode, vector_rule, lower, upper);
+  }
+  bool full_space = true;
+  for (int row = 0; row < dimension; ++row) {
+    full_space = full_space &&
+      (lower == nullptr || lower[row] == -std::numeric_limits<double>::infinity()) &&
+      (upper == nullptr || upper[row] == std::numeric_limits<double>::infinity());
+  }
+  bool constant = true;
+  for (int bin = 1; bin < n_bins; ++bin) constant = constant && omega[bin] == omega[0];
+  const bool try_envelope = integration != nullptr && full_space && !diagonal &&
+    !constant && kernel_mode == SELKERNEL_STEP && vector_rule == SELVECTOR_PRODUCT &&
+    selnorm_is_descending_step_partition(z_lower, z_upper, n_bins);
+  // Keep the supplied covariance before Cholesky overwrites it. The event
+  // normalizer uses the same envelope and error gate as the dense likelihood.
+  std::vector<double> covariance;
+  if (try_envelope) covariance = cholesky;
+  int info = 0;
+  F77_CALL(dpotrf)("L", &dimension, cholesky.data(), &dimension, &info FCONE);
+  if (info != 0) return invalid;
+  if (try_envelope) {
+    SelNormKernelData normalizer_selection = selection;
+    normalizer_selection.telescope_probabilities = true;
+    double log_mass;
+    if (exact_envelope_log_integral(covariance, mean, selection_se, omega,
+        dimension, normalizer_selection, integration, &log_mass)) {
+      *relative_mcse = 0.0;
+      return log_mass;
+    }
+  }
+  return gaussian_event_log_mass(mean, cholesky, dimension, selection_se,
+    omega, selection, kernel_mode, vector_rule, lower, upper, qmc,
+    points, scrambles, relative_mcse);
+}
+
+#include "selnorm-sampling-conditioned.cc.inc"
+
+std::size_t cpp_selnorm_cache_snapshot_size()
+{
+  return envelope_memo().snapshot_size();
+}
+
+bool cpp_selnorm_cache_snapshot_write(unsigned char *data, std::size_t size)
+{
+  return envelope_memo().snapshot_write(data, size);
+}
+
+SelNormCacheRestoreInfo cpp_selnorm_cache_restore(const SelNormCacheBlob *snapshots, std::size_t count)
+{
+  return envelope_memo().restore(snapshots, count);
+}
+
+SelNormCacheInfo cpp_selnorm_cache_control(
+    bool set_capacity, std::size_t capacity_bytes, unsigned int clear_mask)
+{
+  return envelope_memo().control(set_capacity, capacity_bytes, clear_mask);
+}
+
+
+bool cpp_selnorm_covariance_envelope_components(
+    const double *covariance_lower, int dimension, const double *selection_se,
+    bool upper, double *residual_sd, double *loading, int *groups, int *type_index)
+{
+  if (dimension < 2 || covariance_lower == nullptr || selection_se == nullptr ||
+      residual_sd == nullptr || loading == nullptr || groups == nullptr ||
+      type_index == nullptr) return false;
+  std::vector<double> covariance(static_cast<std::size_t>(dimension) * dimension);
+  std::size_t position = 0;
+  for (int column = 0; column < dimension; ++column) {
+    for (int row = column; row < dimension; ++row) {
+      const double value = covariance_lower[position++];
+      if (!std::isfinite(value)) return false;
+      covariance[row + dimension * column] = value;
+      covariance[column + dimension * row] = value;
+    }
+  }
+  // The existing envelope helper assumes the actual target passed Cholesky.
+  // Validate an owned copy; never overwrite or repair the actual covariance.
+  std::vector<double> cholesky = covariance;
+  int info = 0;
+  F77_CALL(dpotrf)("L", &dimension, cholesky.data(), &dimension, &info FCONE);
+  if (info != 0) return false;
+  SelNormCovarianceEnvelope envelope;
+  if (!covariance_envelope(covariance, dimension, selection_se, &envelope)) {
+    return false;
+  }
+  std::vector<double> mean(dimension, 0.0);
+  std::vector<EnvelopeGroupGeometry> geometry;
+  if (!prepare_envelope_geometry(covariance, mean.data(), selection_se,
+                                 dimension, envelope, upper, &geometry)) return false;
+  std::fill_n(loading, static_cast<std::size_t>(dimension) * 4, 0.0);
+  std::vector<int> local_index(envelope.groups, 0);
+  for (int row = 0; row < dimension; ++row) {
+    const int group = envelope.type_index[row];
+    const int local = local_index[group]++;
+    const EnvelopeGroupGeometry &part = geometry[group];
+    residual_sd[row] = part.residual_sd[local];
+    const long double variance = static_cast<long double>(residual_sd[row]) * residual_sd[row];
+    if (!(variance > 0.0L) || !std::isfinite(variance) ||
+        !(static_cast<double>(variance) > 0.0)) return false;
+    loading[row] = part.common_loading[local];
+    if (envelope.groups > 1) {
+      loading[row + dimension * (group + 1)] = part.loading[local];
+    }
+    type_index[row] = group;
+  }
+  *groups = envelope.groups;
+  return true;
+}
+
+
+
+bool cpp_selnorm_context_star_projection(
+  const double *means, int contexts, const double *covariance_lower, int dimension,
+  const double *selection_se, const double *omega, int n_bins,
+  const double *lower, const double *upper, int effect_sign, bool telescope,
+  const double *log_normalizers, const double *context_log_weights,
+  const double *nodes, const double *log_weights, int order,
+  const double *z, int size, double allowance, double *density,
+  double *mass, double *compression_error, std::size_t *components,
+  double *compact_log_normalizers,
+  bool bounded_cdf, double *cdf_factor_log_errors, double *input_omitted_mass_error,
+  int threads, const double *cached_rules, double *saved_rules)
+{
+  if (input_omitted_mass_error != nullptr) *input_omitted_mass_error = 0.0;
+  std::vector<double> covariance(static_cast<std::size_t>(dimension) * dimension);
+  std::size_t position = 0;
+  for (int column = 0; column < dimension; ++column) {
+    for (int row = column; row < dimension; ++row) {
+      const double value = covariance_lower[position++];
+      if (!std::isfinite(value)) return false;
+      covariance[row + dimension * column] = value;
+      covariance[column + dimension * row] = value;
+    }
+  }
+  std::vector<double> cholesky = covariance;
+  int info = 0;
+  F77_CALL(dpotrf)("L", &dimension, cholesky.data(), &dimension, &info FCONE);
+  if (info != 0) return false;
+  SelNormCovarianceEnvelope envelope;
+  if (!covariance_envelope(covariance, dimension, selection_se, &envelope)) return false;
+  SelNormKernelData selection = {};
+  selection.n_bins = n_bins;
+  selection.effect_sign = effect_sign;
+  selection.z_lower = lower;
+  selection.z_upper = upper;
+  selection.trusted_step_partition = true;
+  selection.telescope_probabilities = telescope;
+  const double cdf_factor_error = bounded_cdf ?
+    bounded_cdf_product_log_error(selection, omega, 1,
+      std::numeric_limits<double>::infinity()) : 0.0;
+  selection.bounded_cdf = cdf_factor_error > 0.0;
+  if (cdf_factor_log_errors != nullptr) {
+    std::fill_n(cdf_factor_log_errors, contexts, cdf_factor_error);
+  }
+  std::size_t active_contexts = 0;
+  for (int context = 0; context < contexts; ++context) {
+    if (context_log_weights[context] != -std::numeric_limits<double>::infinity()) ++active_contexts;
+  }
+  const int context_workers = threads > 1 && contexts > 1 ?
+    std::min(threads, contexts) : 1;
+  EnvelopeRuleProjection projection;
+  std::vector<std::size_t> row_components(dimension, 0);
+  if (active_contexts > 0) {
+    projection.means.resize(dimension);
+    projection.log_coefficient.resize(dimension);
+    std::vector<int> group_sizes(envelope.groups, 0);
+    for (int row = 0; row < dimension; ++row) ++group_sizes[envelope.type_index[row]];
+    for (int row = 0; row < dimension; ++row) {
+      const bool child = envelope.groups > 1 && group_sizes[envelope.type_index[row]] > 1;
+      row_components[row] = static_cast<std::size_t>(order) * (child ? order : 1);
+      if (context_workers == 1) {
+        projection.means[row].reserve(active_contexts * row_components[row]);
+        projection.log_coefficient[row].reserve(active_contexts * row_components[row]);
+      }
+    }
+  }
+  std::vector<long double> weights(order);
+  for (int node = 0; node < order; ++node) weights[node] = std::exp(static_cast<long double>(log_weights[node]));
+  std::vector<double> residual_sd(active_contexts > 0 ? dimension : 0);
+  double log_mass = -std::numeric_limits<double>::infinity();
+
+  // Contexts are independent quadrature nodes of the retained axis. Each one
+  // builds its own mixture fragment; the fragments are concatenated and the
+  // masses reduced below in context order, so a threaded evaluation produces
+  // the serial result element for element.
+  std::vector<double> context_local(contexts,
+    std::numeric_limits<double>::quiet_NaN());
+  std::vector<EnvelopeRuleProjection> fragments(
+    context_workers > 1 ? static_cast<std::size_t>(contexts) : 0);
+  for (std::size_t context = 0; context < fragments.size(); ++context) {
+    EnvelopeRuleProjection &fragment = fragments[context];
+    fragment.means.resize(dimension);
+    fragment.log_coefficient.resize(dimension);
+    if (context_log_weights[context] != -std::numeric_limits<double>::infinity()) {
+      for (int row = 0; row < dimension; ++row) {
+        fragment.means[row].reserve(row_components[row]);
+        fragment.log_coefficient[row].reserve(row_components[row]);
+      }
+    }
+  }
+  std::atomic<bool> context_failed{false};
+  const auto evaluate_context = [&](int context, EnvelopeRuleWorkspace &workspace,
+                                    EnvelopeRuleProjection *target) {
+    std::vector<double> mean(dimension);
+    for (int row = 0; row < dimension; ++row) mean[row] = means[context + contexts * row];
+    std::vector<EnvelopeGroupGeometry> geometry;
+    if (!prepare_envelope_geometry(covariance, mean.data(), selection_se, dimension,
+        envelope, false, &geometry)) return false;
+    // Residual standard deviations come from the covariance and the selection
+    // scales, not from the context mean, so every context wrote the same
+    // values into this shared vector and the serial loop kept the last
+    // context's. Only that context writes now: the values are unchanged and
+    // the threaded loop no longer writes the same addresses from every worker.
+    if (active_contexts > 0 && context == contexts - 1) {
+      for (const EnvelopeGroupGeometry &group : geometry) {
+        for (std::size_t row = 0; row < group.row_index.size(); ++row) {
+          residual_sd[group.row_index[row]] = group.residual_sd[row];
+        }
+      }
+    }
+    const bool collect = context_log_weights[context] != -std::numeric_limits<double>::infinity();
+    const double log_scale = context_log_weights[context] -
+      (log_normalizers == nullptr ? 0.0 : log_normalizers[context]);
+    std::vector<std::size_t> starts(
+      log_normalizers == nullptr && collect ? dimension : 0);
+    if (log_normalizers == nullptr && collect) {
+      for (int row = 0; row < dimension; ++row) starts[row] = target->log_coefficient[row].size();
+    }
+    target->log_scale = log_scale - std::log(static_cast<double>(dimension));
+    const std::size_t cache_stride = cached_rules != nullptr || saved_rules != nullptr ?
+      1 + static_cast<std::size_t>(dimension) * order * (static_cast<std::size_t>(order) + 1) : 0;
+    const double local = envelope_rule_log_integral(geometry, omega, selection,
+      nodes, log_weights, weights.data(), 0, order, &workspace, collect ? target : nullptr,
+      collect && cached_rules != nullptr ? cached_rules + context * cache_stride : nullptr,
+      collect && saved_rules != nullptr ? saved_rules + context * cache_stride : nullptr);
+    if (saved_rules != nullptr) saved_rules[context * cache_stride] = local;
+    if (!std::isfinite(local)) return false;
+    context_local[context] = local;
+    if (log_normalizers == nullptr && collect) {
+      // Explicit private own-A0 mode. The caller must validate raw cross-rule
+      // A0 changes/tails; this same-rule mass is algebraically normalized and
+      // is not a diagnostic. The actual full-C law is covered separately.
+      for (int row = 0; row < dimension; ++row) {
+        for (std::size_t index = starts[row]; index < target->log_coefficient[row].size(); ++index) {
+          target->log_coefficient[row][index] -= local;
+        }
+      }
+    }
+    return true;
+  };
+
+#if defined(_OPENMP)
+  if (context_workers > 1) {
+    #pragma omp parallel num_threads(context_workers)
+    {
+      EnvelopeRuleWorkspace workspace;
+      #pragma omp for schedule(dynamic, 1)
+      for (int context = 0; context < contexts; ++context) {
+        if (context_failed.load(std::memory_order_relaxed)) continue;
+        bool ok = false;
+        try {
+          ok = evaluate_context(context, workspace, &fragments[context]);
+        } catch (...) {
+          ok = false;
+        }
+        if (!ok) context_failed.store(true, std::memory_order_relaxed);
+      }
+    }
+    if (context_failed.load(std::memory_order_relaxed)) return false;
+    // Nothing was collected when no context carries weight, and the shared
+    // projection's row vectors are then not even sized.
+    // Materialize one aggregate row at a time and release the fragments it
+    // consumed. The original context/component order is unchanged; the full
+    // aggregate and all full fragments are never live together.
+    for (int row = 0; active_contexts > 0 && row < dimension; ++row) {
+      projection.means[row].reserve(active_contexts * row_components[row]);
+      projection.log_coefficient[row].reserve(active_contexts * row_components[row]);
+      for (int context = 0; context < contexts; ++context) {
+        EnvelopeRuleProjection &fragment = fragments[context];
+        projection.means[row].insert(projection.means[row].end(),
+          fragment.means[row].begin(), fragment.means[row].end());
+        projection.log_coefficient[row].insert(projection.log_coefficient[row].end(),
+          fragment.log_coefficient[row].begin(), fragment.log_coefficient[row].end());
+        std::vector<double>().swap(fragment.means[row]);
+        std::vector<double>().swap(fragment.log_coefficient[row]);
+      }
+    }
+  } else
+#endif
+  {
+    EnvelopeRuleWorkspace workspace;
+    for (int context = 0; context < contexts; ++context) {
+      if (!evaluate_context(context, workspace, &projection)) return false;
+    }
+  }
+
+  for (int context = 0; context < contexts; ++context) {
+    const double local = context_local[context];
+    if (compact_log_normalizers != nullptr) compact_log_normalizers[context] = local;
+    const bool collect = context_log_weights[context] != -std::numeric_limits<double>::infinity();
+    if (log_normalizers == nullptr && collect) {
+      log_mass = log_add_exp(log_mass, context_log_weights[context]);
+    } else if (log_normalizers != nullptr) {
+      log_mass = log_add_exp(log_mass, context_log_weights[context] -
+        log_normalizers[context] + local);
+    }
+  }
+  if (active_contexts == 0) {
+    // All raw anchors above were evaluated normally. Preserve the existing
+    // zero-mass/unavailable result without building an unused mixture plan.
+    std::fill_n(density, size, 0.0);
+    *mass = 0.0;
+    *compression_error = 0.0;
+    *components = 0;
+    return false;
+  }
+  std::vector<double> grid_weight(size);
+  for (int point = 0; point < size; ++point) {
+    int bin = 0;
+    for (int candidate = 0; candidate < n_bins; ++candidate) {
+      const double value = effect_sign * z[point];
+      if (value >= lower[candidate] && value <= upper[candidate]) {
+        bin = candidate;
+        break;
+      }
+    }
+    grid_weight[point] = omega[bin];
+  }
+  SelNormMixtureProjectionWorkspace mixture(z, size, grid_weight.data());
+  std::vector<SelNormGaussianMixtureRow> rows;
+  *components = 0;
+  for (int row = 0; row < dimension; ++row) {
+    const std::size_t count = projection.means[row].size();
+    *components += count;
+    rows.push_back({projection.means[row].data(), projection.log_coefficient[row].data(),
+      count, residual_sd[row], selection_se[row]});
+  }
+  std::vector<long double> values;
+  long double error = 0.0L, input_omitted_mass = 0.0L;
+  selnorm_evaluate_gaussian_mixtures(rows, allowance, mixture, values, error,
+    input_omitted_mass, threads);
+  for (int point = 0; point < size; ++point) {
+    density[point] = static_cast<double>(values[point]);
+    if (!std::isfinite(density[point]) || density[point] < 0.0) return false;
+  }
+  // Mass uses the largest selection weight over ALL bins, not only grid
+  // weights. The z-coordinate SE Jacobian cancels from the integrated loss.
+  if (input_omitted_mass > 0) {
+    const long double weighted = input_omitted_mass * *std::max_element(omega, omega + n_bins);
+    if (!(weighted > 0) || !std::isfinite(weighted)) return false;
+    input_omitted_mass = selnorm_mixture_compression_detail::round_up(weighted);
+  }
+  double represented_omission = static_cast<double>(input_omitted_mass);
+  if (static_cast<long double>(represented_omission) < input_omitted_mass)
+    represented_omission = std::nextafter(represented_omission, std::numeric_limits<double>::infinity());
+  if (!std::isfinite(represented_omission)) return false;
+  if (input_omitted_mass_error != nullptr) *input_omitted_mass_error = represented_omission;
+  *mass = std::exp(log_mass);
+  *compression_error = static_cast<double>(error);
+  if (static_cast<long double>(*compression_error) < error) {
+    *compression_error = std::nextafter(*compression_error, std::numeric_limits<double>::infinity());
+  }
+  return std::isfinite(*mass) && *mass > 0.0 && std::isfinite(*compression_error);
+}

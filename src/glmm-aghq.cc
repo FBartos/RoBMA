@@ -1,0 +1,1312 @@
+#include "glmm-aghq.h"
+
+#include <R_ext/Error.h>
+#include <R_ext/Utils.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <limits>
+
+#include "glmm-binomial-loglik.h"
+
+#include "r-native-api.h"
+
+namespace {
+
+const double LOG_2PI = std::log(2.0 * std::acos(-1.0));
+const double LOG_DBL_MAX = std::log(std::numeric_limits<double>::max());
+
+// Beta shapes with alpha + beta up to this bound use the closed-form log
+// density alpha * lp + beta * lq - log_beta. Its rounding noise, about
+// DBL_EPSILON * (alpha * |lp| + beta * |lq|), must stay well below what the
+// mode search of find_mode() resolves: the Armijo test and the convergence
+// criterion work at mode_tolerance = 1e-12, so noise at that level stops the
+// Newton steps near the mode (nonconvergence), long before it matters for the
+// integral. At the bound the noise is about 1.4e-13. Concentrated priors beyond
+// it evaluate the density at the smaller probability, which is accurate to
+// rounding of the value itself and retains the tail the closed form would lose.
+// That route still carries rounding noise that the consecutive-order change
+// does not see. The smaller probability p = exp(min(lp, lq)) is rounded: lp is
+// a double of size |lp|, so p has a relative error of about (1 + |lp|) *
+// DBL_EPSILON / 2. This moves log dbeta(p) by that error times
+// |(a - 1) - (b - 1) p / (1 - p)|, with a and b the shapes of the smaller and
+// the larger probability. At a quadrature node u prior SDs from the prior mode
+// this factor is about |u| * sqrt(alpha * beta / (alpha + beta)) / (1 - p): the
+// logit-scale prior SD is sqrt((alpha + beta) / (alpha * beta)) and the slope
+// of the log density grows with the distance from the mode at the rate of its
+// curvature alpha * beta / (alpha + beta). With p <= 1/2 and u of order 1 the
+// value is off by up to about
+//   DBL_EPSILON * sqrt(alpha * beta / (alpha + beta)) * (1 + |log p0|),
+// p0 = min(alpha, beta) / (alpha + beta) the smaller probability at the
+// logit-scale prior mode. The noise of this slope term scales with the
+// curvature, not with the shape sum, so it is far smaller for a skewed prior;
+// the logarithm matters only for a small p0. It is at least
+// 2 * DBL_EPSILON * sqrt(alpha * beta / (alpha + beta)), which for alpha = beta
+// is DBL_EPSILON * sqrt(alpha + beta).
+// A second error does not depend on the node at all. R's dbeta at large shapes
+// is off by a constant, measured (not read from the R source) up to about half
+// of DBL_EPSILON^2 * (alpha + beta), adversarial rounding of alpha + beta
+// included; it comes from the cancellation between the log terms of dbeta and
+// its normalizer. A constant shifts the log likelihood of every order alike, so
+// neither the change between orders nor the slope term sees it, and for a
+// skewed prior the slope term no longer contains it. The bound adds
+// DBL_EPSILON^2 * (alpha + beta); it is below 1e-11 for shape sums up to 2e20
+// and passes the tolerance of 1e-6 at about 2e25. In 645 comparisons with
+// independent integrals (shape sums 1e3 to 1e23, ratios alpha / (alpha + beta)
+// from 0.5 down to 1e-17) the error was at most 0.46 times the larger of the
+// slope term and the consecutive-order change, and in 321 comparisons beyond
+// rounding of the value (shape sums up to 1e30) and an independent scan with
+// adversarial rounding of alpha + beta at most about half of the whole bound.
+// The node positions repeat in consecutive orders, so two consecutive changes
+// can both be small while their common error is not.
+// BinomialProblem::evaluation_noise() reports this bound and integrate_problem()
+// never reports a change below it: a prior whose bound exceeds the tolerance
+// (symmetric shape sums above (tolerance / DBL_EPSILON)^2, about 2e19 at the
+// default tolerance of 1e-6) is not accepted, and where it is accepted the
+// reported change bounds the error.
+const double BETA_CLOSED_FORM_MAX_SHAPE_SUM = 1e3;
+
+
+struct QuadratureRules {
+  const double **nodes;
+  const double **log_weights;
+  int *orders;
+  int n_rules;
+};
+
+
+struct QuadratureDiagnostics {
+  int max_order;
+  int max_mode_iterations;
+  int exact_count;
+  double max_change;
+  int *order_counts;
+};
+
+
+struct IntegralResult {
+  double value;
+  double change;
+  double noise;
+  int order;
+  int rule_index;
+  int mode_iterations;
+  bool mode_converged;
+  bool quadrature_converged;
+};
+
+
+struct Cholesky2 {
+  double r11;
+  double r12;
+  double r22;
+};
+
+
+int matrix_nrow(SEXP x, const char *name)
+{
+  SEXP dim = Rf_getAttrib(x, R_DimSymbol);
+  if (TYPEOF(dim) != INTSXP || Rf_length(dim) != 2) {
+    Rf_error("'%s' must be a matrix.", name);
+  }
+  return INTEGER(dim)[0];
+}
+
+
+int matrix_ncol(SEXP x, const char *name)
+{
+  SEXP dim = Rf_getAttrib(x, R_DimSymbol);
+  if (TYPEOF(dim) != INTSXP || Rf_length(dim) != 2) {
+    Rf_error("'%s' must be a matrix.", name);
+  }
+  return INTEGER(dim)[1];
+}
+
+
+void check_real(SEXP x, const char *name)
+{
+  if (TYPEOF(x) != REALSXP) {
+    Rf_error("'%s' must be numeric.", name);
+  }
+}
+
+
+void check_integer(SEXP x, const char *name)
+{
+  if (TYPEOF(x) != INTSXP) {
+    Rf_error("'%s' must be integer.", name);
+  }
+}
+
+
+double scalar_real(SEXP x, const char *name, bool positive)
+{
+  check_real(x, name);
+  if (Rf_length(x) != 1) {
+    Rf_error("'%s' must have length one.", name);
+  }
+
+  const double value = REAL(x)[0];
+  if (!std::isfinite(value) || (positive && value <= 0.0)) {
+    Rf_error("'%s' must be %s.", name,
+             positive ? "finite and positive" : "finite");
+  }
+  return value;
+}
+
+
+int scalar_integer(SEXP x, const char *name, int lower)
+{
+  check_integer(x, name);
+  if (Rf_length(x) != 1 || INTEGER(x)[0] < lower) {
+    Rf_error("'%s' must be an integer greater than or equal to %d.",
+             name, lower);
+  }
+  return INTEGER(x)[0];
+}
+
+
+void validate_common(SEXP mu_samples, SEXP tau_within, SEXP weights,
+                     int *S, int *K)
+{
+  check_real(mu_samples, "mu_samples");
+  check_real(tau_within, "tau_within");
+
+  *S = matrix_nrow(mu_samples, "mu_samples");
+  *K = matrix_ncol(mu_samples, "mu_samples");
+  if (*S <= 0 || *K <= 0) {
+    Rf_error("'mu_samples' must have positive dimensions.");
+  }
+  if (matrix_nrow(tau_within, "tau_within") != *S ||
+      matrix_ncol(tau_within, "tau_within") != *K) {
+    Rf_error("'tau_within' dimensions must match 'mu_samples'.");
+  }
+
+  // Diagnostic counts are returned as R integers. Cap the cell count before
+  // multiplication so neither those counts nor native indexes can overflow.
+  const int max_cells = std::numeric_limits<int>::max();
+  if (*S > max_cells / *K) {
+    Rf_error("AGHQ supports at most %d matrix cells.", max_cells);
+  }
+  const R_xlen_t n_cells = static_cast<R_xlen_t>(*S) *
+    static_cast<R_xlen_t>(*K);
+  if (XLENGTH(mu_samples) != n_cells || XLENGTH(tau_within) != n_cells) {
+    Rf_error("AGHQ matrix dimensions do not match their storage lengths.");
+  }
+
+  const double *mu_p  = REAL(mu_samples);
+  const double *tau_p = REAL(tau_within);
+  for (R_xlen_t i = 0; i < n_cells; ++i) {
+    if (!std::isfinite(mu_p[i]) || !std::isfinite(tau_p[i])) {
+      Rf_error("'mu_samples' and 'tau_within' must contain finite values.");
+    }
+  }
+
+  if (weights != R_NilValue) {
+    check_real(weights, "weights");
+    if (Rf_length(weights) != *K) {
+      Rf_error("'weights' must have one value per observation.");
+    }
+    const double *weights_p = REAL(weights);
+    for (int k = 0; k < *K; ++k) {
+      if (!std::isfinite(weights_p[k]) || weights_p[k] <= 0.0) {
+        Rf_error("'weights' must contain finite positive values.");
+      }
+    }
+  }
+}
+
+
+QuadratureRules validate_rules(SEXP nodes, SEXP log_weights, int consecutive)
+{
+  if (TYPEOF(nodes) != VECSXP || TYPEOF(log_weights) != VECSXP ||
+      Rf_length(nodes) != Rf_length(log_weights)) {
+    Rf_error("Quadrature nodes and log weights must be lists of equal length.");
+  }
+
+  const int n_rules = Rf_length(nodes);
+  if (n_rules < consecutive + 1) {
+    Rf_error("Too few quadrature rules for the convergence requirement.");
+  }
+
+  QuadratureRules out;
+  out.nodes = reinterpret_cast<const double **>(R_alloc(
+    static_cast<size_t>(n_rules),
+    sizeof(const double *)
+  ));
+  out.log_weights = reinterpret_cast<const double **>(R_alloc(
+    static_cast<size_t>(n_rules),
+    sizeof(const double *)
+  ));
+  out.orders = reinterpret_cast<int *>(R_alloc(
+    static_cast<size_t>(n_rules),
+    sizeof(int)
+  ));
+  out.n_rules = n_rules;
+
+  int previous_order = 0;
+  for (int r = 0; r < n_rules; ++r) {
+    SEXP nodes_r       = VECTOR_ELT(nodes, r);
+    SEXP log_weights_r = VECTOR_ELT(log_weights, r);
+    check_real(nodes_r, "nodes[[r]]");
+    check_real(log_weights_r, "log_weights[[r]]");
+
+    const int order = Rf_length(nodes_r);
+    if (order < 3 || order % 2 == 0 || order <= previous_order ||
+        Rf_length(log_weights_r) != order) {
+      Rf_error("Quadrature rules must have matching, increasing odd orders.");
+    }
+
+    const double *nodes_p = REAL(nodes_r);
+    const double *log_w_p = REAL(log_weights_r);
+    double max_log_weight = -std::numeric_limits<double>::infinity();
+    for (int j = 0; j < order; ++j) {
+      if (!std::isfinite(nodes_p[j]) || std::isnan(log_w_p[j]) ||
+          log_w_p[j] == std::numeric_limits<double>::infinity()) {
+        Rf_error("Quadrature nodes and nonzero weights must be finite.");
+      }
+      max_log_weight = std::max(max_log_weight, log_w_p[j]);
+    }
+
+    if (!std::isfinite(max_log_weight)) {
+      Rf_error("Each quadrature rule must contain a positive weight.");
+    }
+
+    double weight_sum = 0.0;
+    for (int j = 0; j < order; ++j) {
+      weight_sum += std::exp(log_w_p[j] - max_log_weight);
+    }
+    const double log_weight_sum = max_log_weight + std::log(weight_sum);
+    if (std::fabs(log_weight_sum) > 1e-8) {
+      Rf_error("Each quadrature rule must have weights summing to one.");
+    }
+
+    out.nodes[r]       = nodes_p;
+    out.log_weights[r] = log_w_p;
+    out.orders[r]      = order;
+    previous_order = order;
+  }
+
+  return out;
+}
+
+
+double softplus(double x)
+{
+  if (x >= 0.0) {
+    return x + std::log1p(std::exp(-x));
+  }
+  return std::log1p(std::exp(x));
+}
+
+
+double log_inv_logit(double x)
+{
+  return -softplus(-x);
+}
+
+
+double log_one_minus_inv_logit(double x)
+{
+  return -softplus(x);
+}
+
+
+void logistic_pair(double x, double *p, double *q)
+{
+  const double smaller_odds = std::exp(-std::fabs(x));
+  const double denominator = 1.0 + smaller_odds;
+  const double major = 1.0 / denominator;
+  const double minor = smaller_odds / denominator;
+  *p = x >= 0.0 ? major : minor;
+  *q = x >= 0.0 ? minor : major;
+}
+
+
+double log_add_exp(double x, double y)
+{
+  const double maximum = std::max(x, y);
+  return maximum + std::log(std::exp(x - maximum) + std::exp(y - maximum));
+}
+
+
+bool cholesky2(double h11, double h12, double h22, Cholesky2 *out)
+{
+  if (!std::isfinite(h11) || !std::isfinite(h12) || !std::isfinite(h22) ||
+      h11 <= 0.0) {
+    return false;
+  }
+
+  out->r11 = std::sqrt(h11);
+  out->r12 = h12 / out->r11;
+  const double remainder = h22 - out->r12 * out->r12;
+  if (!std::isfinite(remainder) || remainder <= 0.0) {
+    return false;
+  }
+  out->r22 = std::sqrt(remainder);
+  return true;
+}
+
+
+void solve_hessian(const Cholesky2 &chol, double g1, double g2,
+                   double *step1, double *step2)
+{
+  const double y1 = g1 / chol.r11;
+  const double y2 = (g2 - chol.r12 * y1) / chol.r22;
+  *step2 = y2 / chol.r22;
+  *step1 = (y1 - chol.r12 * *step2) / chol.r11;
+}
+
+
+void solve_cholesky(const Cholesky2 &chol, double z1, double z2,
+                    double *delta1, double *delta2)
+{
+  *delta2 = z2 / chol.r22;
+  *delta1 = (z1 - chol.r12 * *delta2) / chol.r11;
+}
+
+
+struct BinomialProblem {
+  int a;
+  int c;
+  int n1;
+  int n2;
+  double mu;
+  double tau;
+  double weight;
+  double alpha;
+  double beta;
+  double log_coefficient;
+  double log_beta;
+
+  // Bound on the rounding noise of log_density() that two consecutive
+  // quadrature orders do not reveal (see BETA_CLOSED_FORM_MAX_SHAPE_SUM): the
+  // density at the smaller probability for shape sums above the closed-form
+  // bound, nothing on the closed-form and uniform routes.
+  double evaluation_noise() const
+  {
+    const double shape_sum = alpha + beta;
+    if (!(shape_sum > BETA_CLOSED_FORM_MAX_SHAPE_SUM)) {
+      return 0.0;
+    }
+    // alpha * beta / (alpha + beta) without overflow, and the smaller
+    // probability at the logit-scale prior mode (0 when the shape sum
+    // overflows, which makes the bound infinite)
+    const double epsilon   = std::numeric_limits<double>::epsilon();
+    const double curvature = 1.0 / (1.0 / alpha + 1.0 / beta);
+    const double smaller_mode = std::min(alpha, beta) / shape_sum;
+    // the rounding of the smaller probability times the slope of the log
+    // density, and the node-independent error of dbeta
+    return epsilon * std::sqrt(curvature) *
+      std::max(2.0, 1.0 - std::log(smaller_mode)) +
+      epsilon * epsilon * shape_sum;
+  }
+
+  double log_density(double theta, double logit_pi) const
+  {
+    const double effect = mu + tau * theta;
+    const double eta1   = logit_pi + 0.5 * effect;
+    const double eta2   = logit_pi - 0.5 * effect;
+    const double log_likelihood = glmm_binomial_log_likelihood(
+      a, c, n1, n2, log_coefficient,
+      log_inv_logit(eta1), log_one_minus_inv_logit(eta1),
+      log_inv_logit(eta2), log_one_minus_inv_logit(eta2)
+    );
+    const double lp = log_inv_logit(logit_pi);
+    const double lq = log_one_minus_inv_logit(logit_pi);
+    double log_beta_logit;
+    if (alpha == 1.0 && beta == 1.0) {
+      // The uniform beta density leaves only the logit Jacobian.
+      log_beta_logit = lp + lq;
+    } else if (alpha + beta <= BETA_CLOSED_FORM_MAX_SHAPE_SUM) {
+      log_beta_logit = alpha * lp + beta * lq - log_beta;
+    } else {
+      const double smaller_probability = std::exp(std::min(lp, lq));
+      // Evaluate the density at the smaller probability to retain its tail.
+      // Subnormal probabilities instead retain the original log coordinates.
+      log_beta_logit = smaller_probability >= std::numeric_limits<double>::min()
+        ? robma_native::call(
+          &(Rf_dbeta), smaller_probability,
+          logit_pi >= 0.0 ? beta : alpha,
+          logit_pi >= 0.0 ? alpha : beta, 1
+        ) + lp + lq
+        : alpha * lp + beta * lq - log_beta;
+    }
+    const double log_prior =
+      -0.5 * theta * theta - 0.5 * LOG_2PI + log_beta_logit;
+
+    return weight * log_likelihood + log_prior;
+  }
+
+  bool derivatives(double theta, double logit_pi, double *value,
+                   double *g1, double *g2,
+                   double *h11, double *h12, double *h22) const
+  {
+    *value = log_density(theta, logit_pi);
+    if (!std::isfinite(*value)) {
+      return false;
+    }
+
+    const double effect = mu + tau * theta;
+    const double eta1   = logit_pi + 0.5 * effect;
+    const double eta2   = logit_pi - 0.5 * effect;
+    double p1, q1, p2, q2, pi0, qi0;
+    logistic_pair(eta1, &p1, &q1);
+    logistic_pair(eta2, &p2, &q2);
+    logistic_pair(logit_pi, &pi0, &qi0);
+    const double r1     = a * q1 - (n1 - a) * p1;
+    const double r2     = c * q2 - (n2 - c) * p2;
+    const double v1     = n1 * p1 * q1;
+    const double v2     = n2 * p2 * q2;
+
+    *g1  = weight * 0.5 * tau * (r1 - r2) - theta;
+    *g2  = weight * (r1 + r2) + alpha * qi0 - beta * pi0;
+    *h11 = 1.0 + weight * 0.25 * tau * tau * (v1 + v2);
+    *h12 = weight * 0.5 * tau * (v1 - v2);
+    *h22 = weight * (v1 + v2) +
+      (alpha * pi0) * qi0 + (beta * pi0) * qi0;
+
+    return std::isfinite(*g1) && std::isfinite(*g2) &&
+      std::isfinite(*h11) && std::isfinite(*h12) && std::isfinite(*h22);
+  }
+
+  void initial(double *theta, double *nuisance) const
+  {
+    *theta = 0.0;
+    const double events     = static_cast<double>(a) + c;
+    const double non_events = static_cast<double>(n1 - a) + n2 - c;
+    const double log_events = events > 0.0
+      ? std::log(weight) + std::log(events)
+      : -std::numeric_limits<double>::infinity();
+    const double log_non_events = non_events > 0.0
+      ? std::log(weight) + std::log(non_events)
+      : -std::numeric_limits<double>::infinity();
+    *nuisance = log_add_exp(std::log(alpha), log_events) -
+      log_add_exp(std::log(beta), log_non_events);
+  }
+};
+
+
+struct PoissonProblem {
+  int x1;
+  int x2;
+  double log_t1;
+  double log_t2;
+  double mu;
+  double tau;
+  double weight;
+  double mean;
+  double sd;
+  double variance;
+  double log_factorial;
+
+  // The Poisson log density has no route with unobserved rounding noise.
+  double evaluation_noise() const
+  {
+    return 0.0;
+  }
+
+  bool rates(double theta, double phi, double *log_lambda1,
+             double *log_lambda2, double *lambda1, double *lambda2) const
+  {
+    const double effect = mu + tau * theta;
+    *log_lambda1 = log_t1 + phi + 0.5 * effect;
+    *log_lambda2 = log_t2 + phi - 0.5 * effect;
+    if (!std::isfinite(*log_lambda1) || !std::isfinite(*log_lambda2) ||
+        *log_lambda1 > LOG_DBL_MAX || *log_lambda2 > LOG_DBL_MAX) {
+      return false;
+    }
+
+    *lambda1 = std::exp(*log_lambda1);
+    *lambda2 = std::exp(*log_lambda2);
+    return std::isfinite(*lambda1) && std::isfinite(*lambda2);
+  }
+
+  double log_density(double theta, double phi) const
+  {
+    double log_lambda1, log_lambda2, lambda1, lambda2;
+    if (!rates(theta, phi, &log_lambda1, &log_lambda2,
+               &lambda1, &lambda2)) {
+      return -std::numeric_limits<double>::infinity();
+    }
+
+    const double log_likelihood =
+      x1 * log_lambda1 - lambda1 +
+      x2 * log_lambda2 - lambda2 - log_factorial;
+    const double standardized = (phi - mean) / sd;
+    const double log_prior =
+      -0.5 * theta * theta - 0.5 * LOG_2PI -
+      0.5 * standardized * standardized - std::log(sd) - 0.5 * LOG_2PI;
+
+    return weight * log_likelihood + log_prior;
+  }
+
+  bool derivatives(double theta, double phi, double *value,
+                   double *g1, double *g2,
+                   double *h11, double *h12, double *h22) const
+  {
+    double log_lambda1, log_lambda2, lambda1, lambda2;
+    if (!rates(theta, phi, &log_lambda1, &log_lambda2,
+               &lambda1, &lambda2)) {
+      return false;
+    }
+    *value = log_density(theta, phi);
+    if (!std::isfinite(*value)) {
+      return false;
+    }
+
+    const double r1 = x1 - lambda1;
+    const double r2 = x2 - lambda2;
+    *g1  = weight * 0.5 * tau * (r1 - r2) - theta;
+    *g2  = weight * (r1 + r2) - (phi - mean) / variance;
+    *h11 = 1.0 + weight * 0.25 * tau * tau * (lambda1 + lambda2);
+    *h12 = weight * 0.5 * tau * (lambda1 - lambda2);
+    *h22 = weight * (lambda1 + lambda2) + 1.0 / variance;
+
+    return std::isfinite(*g1) && std::isfinite(*g2) &&
+      std::isfinite(*h11) && std::isfinite(*h12) && std::isfinite(*h22);
+  }
+
+  void initial(double *theta, double *nuisance) const
+  {
+    *theta = 0.0;
+    const double log_exposure = log_add_exp(
+      log_t1 + 0.5 * mu,
+      log_t2 - 0.5 * mu
+    );
+    *nuisance = std::log(static_cast<double>(x1) + x2 + 0.5) -
+      log_exposure;
+  }
+};
+
+
+template <typename Problem>
+bool find_mode(const Problem &problem, double tolerance,
+               double *theta, double *nuisance, Cholesky2 *chol,
+               int *iterations)
+{
+  problem.initial(theta, nuisance);
+  const int max_iterations = 60;
+
+  for (int iteration = 1; iteration <= max_iterations; ++iteration) {
+    *iterations = iteration;
+    double value, g1, g2, h11, h12, h22;
+    if (!problem.derivatives(*theta, *nuisance, &value, &g1, &g2,
+                             &h11, &h12, &h22) ||
+        !cholesky2(h11, h12, h22, chol)) {
+      return false;
+    }
+
+    double step1, step2;
+    solve_hessian(*chol, g1, g2, &step1, &step2);
+    const double improvement = g1 * step1 + g2 * step2;
+    if (!std::isfinite(improvement) || improvement < 0.0) {
+      return false;
+    }
+    if (0.5 * improvement <= tolerance) {
+      *iterations = iteration;
+      return true;
+    }
+
+    bool accepted     = false;
+    double step_scale = 1.0;
+    for (int backtrack = 0; backtrack < 60; ++backtrack) {
+      const double candidate_theta    = *theta + step_scale * step1;
+      const double candidate_nuisance = *nuisance + step_scale * step2;
+      const double candidate_value = problem.log_density(
+        candidate_theta,
+        candidate_nuisance
+      );
+      if (std::isfinite(candidate_value) &&
+          candidate_value >= value + 1e-4 * step_scale * improvement) {
+        *theta    = candidate_theta;
+        *nuisance = candidate_nuisance;
+        accepted  = true;
+        break;
+      }
+      step_scale *= 0.5;
+    }
+    if (!accepted) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+
+template <typename Problem>
+double evaluate_rule(const Problem &problem, double theta, double nuisance,
+                     const Cholesky2 &chol, const double *nodes,
+                     const double *log_weights, int order)
+{
+  double term_max = -std::numeric_limits<double>::infinity();
+  double term_sum = 0.0;
+
+  for (int j = 0; j < order; ++j) {
+    for (int i = 0; i < order; ++i) {
+      double delta_theta, delta_nuisance;
+      solve_cholesky(chol, nodes[i], nodes[j],
+                     &delta_theta, &delta_nuisance);
+      const double log_density = problem.log_density(
+        theta + delta_theta,
+        nuisance + delta_nuisance
+      );
+      if (!std::isfinite(log_density)) {
+        continue;
+      }
+
+      const double term = log_density +
+        0.5 * (nodes[i] * nodes[i] + nodes[j] * nodes[j]) +
+        log_weights[i] + log_weights[j];
+      if (!std::isfinite(term)) {
+        continue;
+      }
+
+      if (term > term_max) {
+        term_sum = std::isfinite(term_max) ?
+          term_sum * std::exp(term_max - term) + 1.0 : 1.0;
+        term_max = term;
+      } else {
+        term_sum += std::exp(term - term_max);
+      }
+    }
+  }
+
+  if (!std::isfinite(term_max) || !std::isfinite(term_sum) || term_sum <= 0.0) {
+    return -std::numeric_limits<double>::infinity();
+  }
+
+  return LOG_2PI - std::log(chol.r11) - std::log(chol.r22) +
+    term_max + std::log(term_sum);
+}
+
+
+template <typename Problem>
+IntegralResult integrate_problem(const Problem &problem,
+                                 const QuadratureRules &rules,
+                                 double tolerance, int consecutive,
+                                 double mode_tolerance)
+{
+  IntegralResult result;
+  result.value                  = NA_REAL;
+  result.change                 = std::numeric_limits<double>::infinity();
+  result.noise                  = problem.evaluation_noise();
+  result.order                  = 0;
+  result.rule_index             = -1;
+  result.mode_iterations        = 0;
+  result.mode_converged         = false;
+  result.quadrature_converged   = false;
+
+  double theta, nuisance;
+  Cholesky2 chol;
+  result.mode_converged = find_mode(
+    problem,
+    mode_tolerance,
+    &theta,
+    &nuisance,
+    &chol,
+    &result.mode_iterations
+  );
+  if (!result.mode_converged) {
+    return result;
+  }
+
+  double previous = NA_REAL;
+  int below_count = 0;
+  for (int r = 0; r < rules.n_rules; ++r) {
+    const double current = evaluate_rule(
+      problem,
+      theta,
+      nuisance,
+      chol,
+      rules.nodes[r],
+      rules.log_weights[r],
+      rules.orders[r]
+    );
+    if (!std::isfinite(current)) {
+      return result;
+    }
+
+    if (r > 0) {
+      // The change is not reported below the evaluation noise, which the
+      // difference of two orders can fall under by chance.
+      result.change = std::max(
+        std::fabs(current - previous),
+        problem.evaluation_noise()
+      );
+      below_count = result.change <= tolerance ? below_count + 1 : 0;
+    }
+    previous          = current;
+    result.value      = current;
+    result.order      = rules.orders[r];
+    result.rule_index = r;
+
+    if (below_count >= consecutive) {
+      result.quadrature_converged = true;
+      return result;
+    }
+  }
+
+  return result;
+}
+
+
+void update_diagnostics(const IntegralResult &result,
+                        QuadratureDiagnostics *diagnostics)
+{
+  diagnostics->max_order = std::max(diagnostics->max_order, result.order);
+  diagnostics->max_mode_iterations = std::max(
+    diagnostics->max_mode_iterations,
+    result.mode_iterations
+  );
+  diagnostics->max_change = std::max(
+    diagnostics->max_change,
+    result.change
+  );
+  diagnostics->order_counts[result.rule_index] += 1;
+}
+
+
+QuadratureDiagnostics initialize_diagnostics(int n_rules)
+{
+  QuadratureDiagnostics diagnostics;
+  diagnostics.max_order           = 0;
+  diagnostics.max_mode_iterations = 0;
+  diagnostics.exact_count         = 0;
+  diagnostics.max_change          = 0.0;
+  diagnostics.order_counts = reinterpret_cast<int *>(R_alloc(
+    static_cast<size_t>(n_rules),
+    sizeof(int)
+  ));
+  std::fill(
+    diagnostics.order_counts,
+    diagnostics.order_counts + n_rules,
+    0
+  );
+  return diagnostics;
+}
+
+
+SEXP make_result(SEXP value, const QuadratureDiagnostics &diagnostics,
+                 const QuadratureRules &rules)
+{
+  const int n_fields = 6;
+  SEXP out       = PROTECT(Rf_allocVector(VECSXP, n_fields));
+  SEXP names     = PROTECT(Rf_allocVector(STRSXP, n_fields));
+  SEXP max_order = PROTECT(Rf_ScalarInteger(diagnostics.max_order));
+  SEXP max_change = PROTECT(Rf_ScalarReal(diagnostics.max_change));
+  SEXP max_mode_iterations = PROTECT(
+    Rf_ScalarInteger(diagnostics.max_mode_iterations)
+  );
+  SEXP exact_count = PROTECT(Rf_ScalarInteger(diagnostics.exact_count));
+  SEXP order_counts = PROTECT(
+    Rf_allocVector(INTSXP, rules.n_rules)
+  );
+  SEXP order_names = PROTECT(
+    Rf_allocVector(STRSXP, rules.n_rules)
+  );
+
+  for (int r = 0; r < rules.n_rules; ++r) {
+    INTEGER(order_counts)[r] = diagnostics.order_counts[r];
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%d", rules.orders[r]);
+    SET_STRING_ELT(order_names, r, Rf_mkChar(buffer));
+  }
+  Rf_setAttrib(order_counts, R_NamesSymbol, order_names);
+
+  SET_VECTOR_ELT(out, 0, value);
+  SET_VECTOR_ELT(out, 1, max_order);
+  SET_VECTOR_ELT(out, 2, max_change);
+  SET_VECTOR_ELT(out, 3, max_mode_iterations);
+  SET_VECTOR_ELT(out, 4, order_counts);
+  SET_VECTOR_ELT(out, 5, exact_count);
+  SET_STRING_ELT(names, 0, Rf_mkChar("value"));
+  SET_STRING_ELT(names, 1, Rf_mkChar("max_order"));
+  SET_STRING_ELT(names, 2, Rf_mkChar("max_change"));
+  SET_STRING_ELT(names, 3, Rf_mkChar("max_mode_iterations"));
+  SET_STRING_ELT(names, 4, Rf_mkChar("order_counts"));
+  SET_STRING_ELT(names, 5, Rf_mkChar("exact_count"));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+
+  UNPROTECT(8);
+  return out;
+}
+
+
+// Numerical failures carry diagnostics only: no partially filled value escapes.
+SEXP make_failure_result(const IntegralResult &result, const char *reason,
+                         int sample, int observation)
+{
+  const int n_fields = 8;
+  SEXP out = PROTECT(Rf_allocVector(VECSXP, n_fields));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, n_fields));
+  const char *field_names[n_fields] = {
+    "status", "reason", "sample", "observation", "order", "change",
+    "mode_iterations", "noise"
+  };
+  for (int i = 0; i < n_fields; ++i) {
+    SET_STRING_ELT(names, i, Rf_mkChar(field_names[i]));
+  }
+  SET_VECTOR_ELT(out, 0, Rf_mkString("numerical_failure"));
+  SET_VECTOR_ELT(out, 1, Rf_mkString(reason));
+  SET_VECTOR_ELT(out, 2, Rf_ScalarInteger(sample));
+  SET_VECTOR_ELT(out, 3, Rf_ScalarInteger(observation));
+  SET_VECTOR_ELT(out, 4, Rf_ScalarInteger(result.order > 0 ? result.order : NA_INTEGER));
+  SET_VECTOR_ELT(out, 5, Rf_ScalarReal(result.order > 0 ? result.change : NA_REAL));
+  SET_VECTOR_ELT(out, 6, Rf_ScalarInteger(result.mode_iterations > 0 ?
+    result.mode_iterations : NA_INTEGER));
+  // The rounding-noise bound of the prior density that floors the change
+  // (0 where the density has none).
+  SET_VECTOR_ELT(out, 7, Rf_ScalarReal(result.noise));
+  Rf_setAttrib(out, R_NamesSymbol, names);
+  UNPROTECT(2);
+  return out;
+}
+
+
+// log Gamma(z + t) - log Gamma(z) for z >= 16 and t > 0 given as r = t / z,
+// log z and 1 / z (so that a z beyond the largest double can be passed
+// without being formed): with L = log1p(r) and h(r) = ((1 + r) L - r) / r the
+// Stirling difference is
+//   t (log z + h) - L / 2 + sum_k c_k z^-(2k-1) expm1(-(2k-1) L),
+// the first omitted term being below 3617 / (122400 z^15) per log-gamma value
+// (a truncation bound, not a rounding bound).
+double log_gamma_increment_lifted(double t, double ratio, double log_z,
+                                  double inverse)
+{
+  static const double coefficients[7] = {
+    1.0 / 12.0, -1.0 / 360.0, 1.0 / 1260.0, -1.0 / 1680.0, 1.0 / 1188.0,
+    -691.0 / 360360.0, 1.0 / 156.0
+  };
+  const double log_ratio = std::log1p(ratio);
+  double h;
+  if (ratio <= 0.01) {
+    h = 0.0;
+    double power = ratio;
+    for (int n = 1; n <= 12; ++n) {
+      const double term = power / (static_cast<double>(n) * (n + 1.0));
+      h += (n % 2 == 1) ? term : -term;
+      power *= ratio;
+    }
+  } else {
+    h = (1.0 + 1.0 / ratio) * log_ratio - 1.0;
+  }
+  const double inverse_2 = inverse * inverse;
+  double inverse_power   = inverse;
+  double series          = 0.0;
+  for (int k = 1; k <= 7; ++k) {
+    series += coefficients[k - 1] * inverse_power *
+      std::expm1(-(2.0 * k - 1.0) * log_ratio);
+    inverse_power *= inverse_2;
+  }
+  return t * (log_z + h) - 0.5 * log_ratio + series;
+}
+
+
+// log Gamma(z + t) - log Gamma(z) for z > 0 and t >= 0. Below z = 16 it is the
+// plain difference of the two log-gamma values, whose error is a few ulp of
+// lgamma(z + t): the result keeps relative accuracy and loses it only for
+// t << z, where the increment itself is tiny; from z = 16 it is the
+// Stirling-series difference of log_gamma_increment_lifted, so that no two
+// large log-gamma values are subtracted. A non-finite or non-positive argument
+// gives NaN.
+double log_gamma_increment(double z, double t)
+{
+  if (!(z > 0.0) || !(t >= 0.0) || !std::isfinite(z) || !std::isfinite(t)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (t == 0.0) {
+    return 0.0;
+  }
+  if (z < 16.0) {
+    return std::lgamma(z + t) - std::lgamma(z);
+  }
+  return log_gamma_increment_lifted(t, t / z, std::log(z), 1.0 / z);
+}
+
+
+// log Gamma(a + b + t) - log Gamma(a + b) for a, b > 0 and t >= 0, without
+// forming a + b when it overflows: with hi >= lo, a + b = hi (1 + lo / hi),
+// log(a + b) = log(hi) + log1p(lo / hi), and no recurrence is needed because
+// the sum exceeds 16.
+double log_gamma_increment_sum(double a, double b, double t)
+{
+  const double sum = a + b;
+  if (std::isfinite(sum)) {
+    return log_gamma_increment(sum, t);
+  }
+  if (!(a > 0.0) || !(b > 0.0) || !(t >= 0.0) || !std::isfinite(a) ||
+      !std::isfinite(b) || !std::isfinite(t)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  if (t == 0.0) {
+    return 0.0;
+  }
+  const double high  = std::max(a, b);
+  const double low   = std::min(a, b);
+  const double scale = 1.0 + low / high;
+  return log_gamma_increment_lifted(
+    t, t / high / scale, std::log(high) + std::log1p(low / high),
+    1.0 / high / scale
+  );
+}
+
+
+// Historical g++ 14 -O2 builds were about a third slower with the exact
+// (mu = tau = 0) helper inlined, even for calls that never reached that branch.
+// Keep the measured layout choice; a causal placement mechanism was not proved.
+#if defined(__GNUC__) || defined(__clang__)
+#define ROBMA_GLMM_NOINLINE __attribute__((noinline))
+#else
+#define ROBMA_GLMM_NOINLINE
+#endif
+
+// log B(alpha + e, beta + n) - log B(alpha, beta) plus the powered binomial
+// coefficient, as the sum of log-gamma increments, which keeps the events and
+// non-events when the shapes are large.
+ROBMA_GLMM_NOINLINE double exact_beta_binomial_value(
+  const BinomialProblem &problem, double events, double nonevents)
+{
+  return problem.weight * problem.log_coefficient +
+    log_gamma_increment(problem.alpha, events) +
+    log_gamma_increment(problem.beta, nonevents) -
+    log_gamma_increment_sum(problem.alpha, problem.beta, events + nonevents);
+}
+
+
+SEXP run_binomial(SEXP ai, SEXP ci, SEXP n1i, SEXP n2i,
+                  SEXP mu_samples, SEXP tau_within, SEXP weights,
+                  SEXP alpha, SEXP beta, SEXP nodes, SEXP log_weights,
+                  SEXP tolerance, SEXP consecutive, SEXP mode_tolerance,
+                  bool row_sum)
+{
+  check_integer(ai, "ai");
+  check_integer(ci, "ci");
+  check_integer(n1i, "n1i");
+  check_integer(n2i, "n2i");
+
+  int S, K;
+  validate_common(mu_samples, tau_within, weights, &S, &K);
+  if (Rf_length(ai) != K || Rf_length(ci) != K ||
+      Rf_length(n1i) != K || Rf_length(n2i) != K) {
+    Rf_error("Binomial outcome vectors must have length K.");
+  }
+
+  const double alpha_value = scalar_real(alpha, "alpha", true);
+  const double beta_value  = scalar_real(beta, "beta", true);
+  const double log_beta_value = robma_native::call(
+    &(Rf_lbeta), alpha_value, beta_value
+  );
+  const double tolerance_value = scalar_real(tolerance, "tolerance", true);
+  const double mode_tolerance_value = scalar_real(
+    mode_tolerance,
+    "mode_tolerance",
+    true
+  );
+  const int consecutive_value = scalar_integer(consecutive, "consecutive", 1);
+  const QuadratureRules rules = validate_rules(
+    nodes,
+    log_weights,
+    consecutive_value
+  );
+
+  const int *a_p         = INTEGER(ai);
+  const int *c_p         = INTEGER(ci);
+  const int *n1_p        = INTEGER(n1i);
+  const int *n2_p        = INTEGER(n2i);
+  const double *mu_p     = REAL(mu_samples);
+  const double *tau_p    = REAL(tau_within);
+  const double *weight_p = weights == R_NilValue ? NULL : REAL(weights);
+
+  for (int k = 0; k < K; ++k) {
+    if (n1_p[k] < 0 || n2_p[k] < 0 || a_p[k] < 0 || c_p[k] < 0 ||
+        a_p[k] > n1_p[k] || c_p[k] > n2_p[k]) {
+      Rf_error("Invalid binomial counts at observation %d.", k + 1);
+    }
+  }
+
+  SEXP value = PROTECT(row_sum ?
+    Rf_allocVector(REALSXP, S) : Rf_allocMatrix(REALSXP, S, K));
+  double *value_p = REAL(value);
+  if (row_sum) {
+    std::fill(value_p, value_p + S, 0.0);
+  }
+
+  QuadratureDiagnostics diagnostics = initialize_diagnostics(rules.n_rules);
+  for (int k = 0; k < K; ++k) {
+    R_CheckUserInterrupt();
+
+    const double log_coefficient =
+      std::lgamma(n1_p[k] + 1.0) - std::lgamma(a_p[k] + 1.0) -
+      std::lgamma(n1_p[k] - a_p[k] + 1.0) +
+      std::lgamma(n2_p[k] + 1.0) - std::lgamma(c_p[k] + 1.0) -
+      std::lgamma(n2_p[k] - c_p[k] + 1.0);
+
+    for (int s = 0; s < S; ++s) {
+      if ((s & 255) == 0) {
+        R_CheckUserInterrupt();
+      }
+      const R_xlen_t cell = static_cast<R_xlen_t>(s) +
+        static_cast<R_xlen_t>(S) * static_cast<R_xlen_t>(k);
+      BinomialProblem problem;
+      problem.a               = a_p[k];
+      problem.c               = c_p[k];
+      problem.n1              = n1_p[k];
+      problem.n2              = n2_p[k];
+      problem.mu              = mu_p[cell];
+      problem.tau             = tau_p[cell];
+      problem.weight          = weight_p == NULL ? 1.0 : weight_p[k];
+      problem.alpha           = alpha_value;
+      problem.beta            = beta_value;
+      problem.log_coefficient = log_coefficient;
+      problem.log_beta        = log_beta_value;
+
+      IntegralResult result;
+      const bool exact = problem.mu == 0.0 && problem.tau == 0.0;
+      if (exact) {
+        const double total      = static_cast<double>(problem.n1) + problem.n2;
+        const double observed   = static_cast<double>(problem.a) + problem.c;
+        const double events     = problem.weight * observed;
+        const double nonevents  = problem.weight * (
+          total - observed
+        );
+
+        result.value = exact_beta_binomial_value(problem, events, nonevents);
+        if (!std::isfinite(result.value)) {
+          Rf_error(
+            "Exact powered beta-binomial value is nonfinite at sample %d, "
+            "observation %d.",
+            s + 1, k + 1
+          );
+        }
+        result.change               = 0.0;
+        result.noise                = 0.0;
+        result.order                = 0;
+        result.rule_index           = -1;
+        result.mode_iterations      = 0;
+        result.mode_converged       = true;
+        result.quadrature_converged = true;
+      } else {
+        result = integrate_problem(
+          problem,
+          rules,
+          tolerance_value,
+          consecutive_value,
+          mode_tolerance_value
+        );
+      }
+      if (!result.mode_converged) {
+        SEXP failure = PROTECT(make_failure_result(result, "mode_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
+      }
+      if (!result.quadrature_converged) {
+        SEXP failure = PROTECT(make_failure_result(result, "quadrature_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
+      }
+
+      if (row_sum) {
+        value_p[s] += result.value;
+      } else {
+        value_p[cell] = result.value;
+      }
+      if (exact) {
+        diagnostics.exact_count += 1;
+      } else {
+        update_diagnostics(result, &diagnostics);
+      }
+    }
+  }
+
+  SEXP out = PROTECT(make_result(value, diagnostics, rules));
+  UNPROTECT(2);
+  return out;
+}
+
+
+SEXP run_poisson(SEXP x1i, SEXP x2i, SEXP t1i, SEXP t2i,
+                 SEXP mu_samples, SEXP tau_within, SEXP weights,
+                 SEXP mean, SEXP sd, SEXP nodes, SEXP log_weights,
+                 SEXP tolerance, SEXP consecutive, SEXP mode_tolerance,
+                 bool row_sum)
+{
+  check_integer(x1i, "x1i");
+  check_integer(x2i, "x2i");
+  check_real(t1i, "t1i");
+  check_real(t2i, "t2i");
+
+  int S, K;
+  validate_common(mu_samples, tau_within, weights, &S, &K);
+  if (Rf_length(x1i) != K || Rf_length(x2i) != K ||
+      Rf_length(t1i) != K || Rf_length(t2i) != K) {
+    Rf_error("Poisson outcome vectors must have length K.");
+  }
+
+  const double mean_value = scalar_real(mean, "mean", false);
+  const double sd_value   = scalar_real(sd, "sd", true);
+  const double tolerance_value = scalar_real(tolerance, "tolerance", true);
+  const double mode_tolerance_value = scalar_real(
+    mode_tolerance,
+    "mode_tolerance",
+    true
+  );
+  const int consecutive_value = scalar_integer(consecutive, "consecutive", 1);
+  const QuadratureRules rules = validate_rules(
+    nodes,
+    log_weights,
+    consecutive_value
+  );
+
+  const int *x1_p        = INTEGER(x1i);
+  const int *x2_p        = INTEGER(x2i);
+  const double *t1_p     = REAL(t1i);
+  const double *t2_p     = REAL(t2i);
+  const double *mu_p     = REAL(mu_samples);
+  const double *tau_p    = REAL(tau_within);
+  const double *weight_p = weights == R_NilValue ? NULL : REAL(weights);
+
+  for (int k = 0; k < K; ++k) {
+    if (x1_p[k] < 0 || x2_p[k] < 0 ||
+        !std::isfinite(t1_p[k]) || !std::isfinite(t2_p[k]) ||
+        t1_p[k] <= 0.0 || t2_p[k] <= 0.0) {
+      Rf_error("Invalid Poisson data at observation %d.", k + 1);
+    }
+  }
+
+  SEXP value = PROTECT(row_sum ?
+    Rf_allocVector(REALSXP, S) : Rf_allocMatrix(REALSXP, S, K));
+  double *value_p = REAL(value);
+  if (row_sum) {
+    std::fill(value_p, value_p + S, 0.0);
+  }
+
+  QuadratureDiagnostics diagnostics = initialize_diagnostics(rules.n_rules);
+  for (int k = 0; k < K; ++k) {
+    R_CheckUserInterrupt();
+
+    const double log_factorial =
+      std::lgamma(x1_p[k] + 1.0) + std::lgamma(x2_p[k] + 1.0);
+
+    for (int s = 0; s < S; ++s) {
+      if ((s & 255) == 0) {
+        R_CheckUserInterrupt();
+      }
+      const R_xlen_t cell = static_cast<R_xlen_t>(s) +
+        static_cast<R_xlen_t>(S) * static_cast<R_xlen_t>(k);
+      PoissonProblem problem;
+      problem.x1            = x1_p[k];
+      problem.x2            = x2_p[k];
+      problem.log_t1        = std::log(t1_p[k]);
+      problem.log_t2        = std::log(t2_p[k]);
+      problem.mu            = mu_p[cell];
+      problem.tau           = tau_p[cell];
+      problem.weight        = weight_p == NULL ? 1.0 : weight_p[k];
+      problem.mean          = mean_value;
+      problem.sd            = sd_value;
+      problem.variance      = sd_value * sd_value;
+      problem.log_factorial = log_factorial;
+
+      const IntegralResult result = integrate_problem(
+        problem,
+        rules,
+        tolerance_value,
+        consecutive_value,
+        mode_tolerance_value
+      );
+      if (!result.mode_converged) {
+        SEXP failure = PROTECT(make_failure_result(result, "mode_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
+      }
+      if (!result.quadrature_converged) {
+        SEXP failure = PROTECT(make_failure_result(result, "quadrature_nonconvergence",
+          s + 1, k + 1));
+        UNPROTECT(2);
+        return failure;
+      }
+
+      if (row_sum) {
+        value_p[s] += result.value;
+      } else {
+        value_p[cell] = result.value;
+      }
+      update_diagnostics(result, &diagnostics);
+    }
+  }
+
+  SEXP out = PROTECT(make_result(value, diagnostics, rules));
+  UNPROTECT(2);
+  return out;
+}
+
+} // namespace
+
+
+extern "C" SEXP RoBMA_glmm_binom_aghq(
+  SEXP ai, SEXP ci, SEXP n1i, SEXP n2i, SEXP mu_samples,
+  SEXP tau_within, SEXP weights, SEXP alpha, SEXP beta,
+  SEXP nodes, SEXP log_weights, SEXP tolerance,
+  SEXP consecutive, SEXP mode_tolerance)
+{
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, tau_within, weights, alpha, beta, nodes, log_weights, tolerance, consecutive, mode_tolerance)
+  return run_binomial(
+    ai, ci, n1i, n2i, mu_samples, tau_within, weights,
+    alpha, beta, nodes, log_weights, tolerance, consecutive,
+    mode_tolerance, false
+  );
+  ROBMA_NATIVE_END
+}
+
+
+extern "C" SEXP RoBMA_glmm_binom_aghq_row_sum(
+  SEXP ai, SEXP ci, SEXP n1i, SEXP n2i, SEXP mu_samples,
+  SEXP tau_within, SEXP weights, SEXP alpha, SEXP beta,
+  SEXP nodes, SEXP log_weights, SEXP tolerance,
+  SEXP consecutive, SEXP mode_tolerance)
+{
+  ROBMA_NATIVE_BEGIN(ai, ci, n1i, n2i, mu_samples, tau_within, weights, alpha, beta, nodes, log_weights, tolerance, consecutive, mode_tolerance)
+  return run_binomial(
+    ai, ci, n1i, n2i, mu_samples, tau_within, weights,
+    alpha, beta, nodes, log_weights, tolerance, consecutive,
+    mode_tolerance, true
+  );
+  ROBMA_NATIVE_END
+}
+
+
+extern "C" SEXP RoBMA_glmm_pois_aghq(
+  SEXP x1i, SEXP x2i, SEXP t1i, SEXP t2i, SEXP mu_samples,
+  SEXP tau_within, SEXP weights, SEXP mean, SEXP sd,
+  SEXP nodes, SEXP log_weights, SEXP tolerance,
+  SEXP consecutive, SEXP mode_tolerance)
+{
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights, mean, sd, nodes, log_weights, tolerance, consecutive, mode_tolerance)
+  return run_poisson(
+    x1i, x2i, t1i, t2i, mu_samples, tau_within, weights,
+    mean, sd, nodes, log_weights, tolerance, consecutive,
+    mode_tolerance, false
+  );
+  ROBMA_NATIVE_END
+}
+
+
+extern "C" SEXP RoBMA_glmm_pois_aghq_row_sum(
+  SEXP x1i, SEXP x2i, SEXP t1i, SEXP t2i, SEXP mu_samples,
+  SEXP tau_within, SEXP weights, SEXP mean, SEXP sd,
+  SEXP nodes, SEXP log_weights, SEXP tolerance,
+  SEXP consecutive, SEXP mode_tolerance)
+{
+  ROBMA_NATIVE_BEGIN(x1i, x2i, t1i, t2i, mu_samples, tau_within, weights, mean, sd, nodes, log_weights, tolerance, consecutive, mode_tolerance)
+  return run_poisson(
+    x1i, x2i, t1i, t2i, mu_samples, tau_within, weights,
+    mean, sd, nodes, log_weights, tolerance, consecutive,
+    mode_tolerance, true
+  );
+  ROBMA_NATIVE_END
+}
