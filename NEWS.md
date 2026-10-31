@@ -59,7 +59,7 @@
 - methods warn about unknown arguments in `...` instead of ignoring them
 - row selection (`subset`, missing values) drops unused factor levels, except for the index factor of structured random-effect terms
 - unspecified factor null priors use the contrast of the alternative prior; conflicting contrasts stop with an error
-- with `prior_informed_field = "medicine"`, interactions with a mean-difference or orthonormal factor use the multivariate t version of the informed prior
+- with `prior_informed_field = "medicine"`, default interaction priors that would depend on a mean-difference or orthonormal basis use the multivariate t version of the informed prior
 
 ### Fixes
 - marginal-means Bayes factors use the exact kernel density at the null; the grid estimate understated Bayes factors of long-tailed posteriors
