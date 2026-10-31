@@ -768,6 +768,91 @@ test_that("Informed priors are accepted for medicine field with rescaling", {
 })
 
 
+test_that("Informed defaults give interactions of mean-difference factors the multivariate t", {
+
+  skip_on_cran()
+
+  # a two-level f crossed with a three-level g; BayesTools refuses the univariate
+  # informed t on 'f:g' when a factor of three or more levels is coded by a
+  # mean-difference or orthonormal contrast, because the t is not invariant to
+  # the basis of that contrast
+  dat <- expand.grid(f = c("a", "b"), g = c("x", "y", "z"), rep = 1:2)
+  dat[["yi"]]  <- seq(0.05, 0.4, length.out = nrow(dat))
+  dat[["sei"]] <- rep(c(0.12, 0.2, 0.15), length.out = nrow(dat))
+
+  informed_priors <- function(prior_mods, ...) {
+    brma(
+      yi = yi, sei = sei, mods = ~ f * g, data = dat, measure = "SMD",
+      prior_informed_field = "medicine", prior_mods = prior_mods,
+      only_priors = TRUE, ...
+    )[["priors"]][["mods"]]
+  }
+  meandif     <- BayesTools::prior_factor("mnormal", list(0, 1), contrast = "meandif")
+  orthonormal <- BayesTools::prior_factor("mnormal", list(0, 1), contrast = "orthonormal")
+  informed_parameters <- c("location", "scale", "df")
+
+  # a mean-difference three-level factor: the interaction gets the mt analog of
+  # the informed t (the parameters of the default term 'f'), other defaults stay
+  priors <- informed_priors(list(g = meandif))
+  expect_identical(priors[["f"]][["distribution"]], "t")
+  expect_true(BayesTools::is.prior.treatment(priors[["f"]]))
+  expect_identical(priors[["f:g"]][["distribution"]], "mt")
+  expect_true(BayesTools::is.prior.meandif(priors[["f:g"]]))
+  expect_equal(
+    priors[["f:g"]][["parameters"]][informed_parameters],
+    priors[["f"]][["parameters"]][informed_parameters]
+  )
+  expect_identical(priors[["g"]][["distribution"]], "mnormal")
+
+  # the analog is rescaled like the default
+  priors_rescaled <- informed_priors(list(g = meandif), rescale_priors = 2)
+  expect_equal(priors_rescaled[["f:g"]][["parameters"]][["scale"]], 2 * priors[["f:g"]][["parameters"]][["scale"]])
+  expect_equal(priors_rescaled[["f:g"]][["parameters"]][["location"]], priors[["f:g"]][["parameters"]][["location"]])
+
+  # orthonormal only when every coded factor of the term has an orthonormal prior
+  priors <- informed_priors(list(g = orthonormal))
+  expect_true(BayesTools::is.prior.orthonormal(priors[["f:g"]]))
+  priors <- informed_priors(list(f = orthonormal, g = orthonormal))
+  expect_identical(priors[["f:g"]][["distribution"]], "mt")
+  expect_true(BayesTools::is.prior.orthonormal(priors[["f:g"]]))
+  priors <- informed_priors(list(f = meandif, g = orthonormal))
+  expect_true(BayesTools::is.prior.meandif(priors[["f:g"]]))
+
+  # a two-level coded factor is accepted by BayesTools: the treatment t stays
+  priors <- informed_priors(list(f = meandif))
+  expect_identical(priors[["f:g"]][["distribution"]], "t")
+  expect_true(BayesTools::is.prior.treatment(priors[["f:g"]]))
+
+  # no other default path changes
+  priors <- brma(
+    yi = yi, sei = sei, mods = ~ f * g, data = dat, measure = "SMD",
+    prior_mods = list(g = meandif), only_priors = TRUE
+  )[["priors"]][["mods"]]
+  expect_identical(priors[["f:g"]][["distribution"]], "normal")
+  expect_true(BayesTools::is.prior.treatment(priors[["f:g"]]))
+  priors <- informed_priors(list(), set_contrast_factor_predictors = "meandif")
+  expect_true(all(vapply(priors[c("f", "g", "f:g")], BayesTools::is.prior.meandif, logical(1))))
+
+  # the refusals of the terms that the user specified propagate
+  explicit_t <- BayesTools::prior_factor("t", list(0, 1, 3), contrast = "treatment")
+  refused <- tryCatch(
+    informed_priors(list(g = meandif, "f:g" = explicit_t)),
+    BayesTools_formula_transform_unavailable = function(condition) condition
+  )
+  expect_s3_class(refused, "BayesTools_formula_transform_unavailable")
+  expect_identical(refused[["reason"]], "basis_dependent_factor_prior")
+  expect_identical(refused[["terms"]], "f:g")
+  expect_identical(refused[["predictors"]], "g")
+  explicit_ordered <- BayesTools::prior_ordered(total = BayesTools::prior("normal", list(0, 1)))
+  refused <- tryCatch(
+    informed_priors(list(g = meandif, "f:g" = explicit_ordered)),
+    BayesTools_formula_transform_unavailable = function(condition) condition
+  )
+  expect_s3_class(refused, "BayesTools_ordered_unavailable")
+  expect_identical(refused[["reason"]], "basis_dependent_factor_prior")
+})
+
+
 test_that("Conflicting prior specifications are rejected", {
 
   skip_on_cran()

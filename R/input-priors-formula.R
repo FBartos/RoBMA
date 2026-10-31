@@ -141,6 +141,38 @@
 
   invisible(TRUE)
 }
+# BayesTools refuses a term of two or more factors whose prior depends on the
+# basis of a mean-difference or orthonormal factor of three or more levels, which
+# the univariate (t) informed default does. A default term refused that way
+# gets the multivariate version of the informed prior, with the orthonormal
+# contrast when every coded factor of the term has an explicit orthonormal
+# prior and the mean-difference contrast otherwise. Refusals of terms with a
+# prior that the user specified, and all other refusals, propagate unchanged.
+.JAGS_formula_informed_default         <- function(
+    jags_formula, prior_list, informed_factor_analog, n_terms) {
+
+  # every refusal that is not rethrown gives one more term its own prior
+  for (attempt in seq_len(n_terms + 1L)) {
+    formula_result <- tryCatch(
+      jags_formula(prior_list),
+      BayesTools_formula_transform_unavailable = function(condition) condition
+    )
+    if (!inherits(formula_result, "BayesTools_formula_transform_unavailable")) {
+      return(formula_result)
+    }
+    refused_term <- formula_result[["terms"]]
+    if (attempt > n_terms ||
+        !identical(formula_result[["reason"]], "basis_dependent_factor_prior") ||
+        refused_term %in% names(prior_list)) {
+      stop(formula_result)
+    }
+    orthonormal <- all(vapply(formula_result[["predictors"]], function(predictor) {
+      identical(.prior_factor_contrast(prior_list[[predictor]]), "orthonormal")
+    }, logical(1)))
+    prior_list[[refused_term]] <- informed_factor_analog(
+      if (orthonormal) "orthonormal" else "meandif")
+  }
+}
 .assign_prior_list.terms               <- function(
     prior_list, prior_intercept, parameter, measure, data, prior_unit_information_sd,
     prior_informed_field, prior_informed_subfield, rescale_priors,
@@ -220,6 +252,9 @@
   # the assignment of missing priors is performed within BayesTools::JAGS_formula
   # (it's easier to check and fill in the formula on assignment when it's being parsed)
 
+  # the multivariate informed prior for interactions, set with the informed defaults
+  informed_factor_analog <- NULL
+
   # use user-specified default priors when available; otherwise construct defaults
   if (!is.null(user_default_prior)) {
 
@@ -289,6 +324,20 @@
         )
       }
 
+      # the multivariate version of the informed prior for the interactions that
+      # BayesTools refuses the default for (see .JAGS_formula_informed_default)
+      informed_factor_analog <- local({
+        distribution <- paste0("m", default_prior_continuous[["distribution"]])
+        parameters   <- default_prior_continuous[["parameters"]]
+        function(contrast) {
+          .rescale_prior_object(BayesTools::prior_factor(
+            distribution = distribution,
+            parameters   = parameters,
+            contrast     = contrast
+          ), rescale_priors)
+        }
+      })
+
     }
 
   } else {
@@ -347,12 +396,24 @@
 
   ### use BayesTools::JAGS_formula to obtain the assigned list of priors
   formula <- attr(data[[parameter]], "formula")
-  formula_result <- BayesTools::JAGS_formula(
-    parameter  = formula_parameter,
-    data       = data[[parameter]],
-    formula    = formula,
-    prior_list = prior_list
-  )
+  jags_formula <- function(prior_list) {
+    BayesTools::JAGS_formula(
+      parameter  = formula_parameter,
+      data       = data[[parameter]],
+      formula    = formula,
+      prior_list = prior_list
+    )
+  }
+  formula_result <- if (is.null(informed_factor_analog)) {
+    jags_formula(prior_list)
+  } else {
+    .JAGS_formula_informed_default(
+      jags_formula           = jags_formula,
+      prior_list             = prior_list,
+      informed_factor_analog = informed_factor_analog,
+      n_terms                = length(attr(stats::terms(formula), "term.labels"))
+    )
+  }
   if (!set_default_spike) {
     .warn_default_independent_fixed_overspecification(
       formula_design       = formula_result[["formula_design"]],

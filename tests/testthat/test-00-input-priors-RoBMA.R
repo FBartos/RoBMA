@@ -657,6 +657,39 @@ test_that("Informed priors with rescaling apply to alternative", {
 })
 
 
+test_that("Informed alternative of an interaction of a mean-difference factor is the multivariate t", {
+
+  # a three-level mean-difference g crossed with a two-level treatment f, as in
+  # brma: the univariate informed t on 'f:g' is refused by BayesTools, so the
+  # alternative is the mt analog and the null the spike of the same contrast
+  dat <- expand.grid(f = c("a", "b"), g = c("x", "y", "z"), rep = 1:2)
+  dat[["yi"]]  <- seq(0.05, 0.4, length.out = nrow(dat))
+  dat[["sei"]] <- rep(c(0.12, 0.2, 0.15), length.out = nrow(dat))
+
+  priors <- RoBMA(
+    yi = yi, sei = sei, mods = ~ f * g, data = dat, measure = "SMD",
+    prior_informed_field = "medicine",
+    prior_mods = list(g = BayesTools::prior_factor("mnormal", list(0, 1), contrast = "meandif")),
+    set_contrast_factor_predictors = "treatment", only_priors = TRUE, silent = TRUE
+  )[["priors"]][["mods"]]
+
+  interaction <- priors[["f:g"]]
+  expect_true(BayesTools::is.prior.mixture(interaction))
+  expect_identical(attr(interaction, "components"), c("null", "alternative"))
+  expect_true(BayesTools::is.prior.meandif(interaction[[1]]))
+  expect_true(BayesTools::is.prior.point(interaction[[1]]))
+  expect_identical(interaction[[2]][["distribution"]], "mt")
+  expect_true(BayesTools::is.prior.meandif(interaction[[2]]))
+  informed_parameters <- c("location", "scale", "df")
+  expect_equal(
+    interaction[[2]][["parameters"]][informed_parameters],
+    priors[["f"]][[2]][["parameters"]][informed_parameters]
+  )
+  expect_identical(priors[["f"]][[2]][["distribution"]], "t")
+  expect_true(BayesTools::is.prior.treatment(priors[["f"]][[2]]))
+})
+
+
 # ============================================================================
 # Tests for error conditions
 # ============================================================================
