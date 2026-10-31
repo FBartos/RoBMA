@@ -1,4 +1,4 @@
-## version 4.1.0 (IN PROGRESS)
+## version 4.1.0
 ### Breaking changes
 - requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod
 - models fitted with RoBMA 4.0.0 must be refitted; functions that read the fitted parameters stop on them with a `BayesTools_refit_required` error
@@ -6,6 +6,8 @@
 - removes the ineffective `seed` argument of `update()`
 - `radial()` stops for likelihood-weighted fits, and cluster-unit LOO and WAIC of binomial and Poisson GLMMs stop (use `unit = "estimate"`)
 - fits with mean-difference or orthonormal contrasts stop when a factor interacts with a predictor whose main effect is missing (e.g., `mods = ~ g + g:x`); use `mods = ~ g * x`, an independent prior for the term, or treatment contrasts
+- mean-difference and orthonormal contrasts use the closed-form basis of BayesTools 0.4.0, identical on every platform; raw coefficients and seeded results of models with such factors differ from 4.0.0
+- interaction priors that are not invariant to the basis of a mean-difference or orthonormal factor are rejected (accepted are mean-difference and orthonormal priors, zero-mean normal and zero spike priors, and symmetric priors for two-level factors)
 - explicitly supplied `prior_mods`, `prior_scale`, and `prior_heterogeneity_allocation` stop when the model has no corresponding component instead of being ignored
 - nonfinite `weights` are rejected
 - the default Poisson GLMM `prior_lograte` is `Normal(log(pooled crude rate), 1)`, independent of the exposure-time unit (set its SD with `RoBMA.options(default_lograte.sd = )`)
@@ -57,6 +59,7 @@
 - methods warn about unknown arguments in `...` instead of ignoring them
 - row selection (`subset`, missing values) drops unused factor levels, except for the index factor of structured random-effect terms
 - unspecified factor null priors use the contrast of the alternative prior; conflicting contrasts stop with an error
+- with `prior_informed_field = "medicine"`, interactions with a mean-difference or orthonormal factor use the multivariate t version of the informed prior
 
 ### Fixes
 - marginal-means Bayes factors use the exact kernel density at the null; the grid estimate understated Bayes factors of long-tailed posteriors

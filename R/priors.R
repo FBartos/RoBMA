@@ -311,10 +311,13 @@ prior_informed <- BayesTools::prior_informed
 #' @details
 #' The package includes the following contrast functions:
 #' \describe{
-#'   \item{\code{contr.orthonormal}}{Return a matrix of orthonormal contrasts.
-#'     Code is based on \code{stanova::contr.bayes} and corresponding to description
-#'     by \insertCite{rouder2012default;textual}{BayesTools}. Returns a matrix with n rows and
-#'     k columns, with k = n - 1 if \code{contrasts = TRUE} and k = n if \code{contrasts = FALSE}.}
+#'   \item{\code{contr.orthonormal}}{Return a matrix of orthonormal contrasts: a normalised
+#'     Helmert basis, whose columns have unit length and sum to zero and which is identical on
+#'     every platform. Any orthonormal basis of the centred space implies the same exchangeable
+#'     prior on the factor level effects under a spherical prior on the coefficients, which
+#'     corresponds to the description by \insertCite{rouder2012default;textual}{BayesTools}.
+#'     Returns a matrix with n rows and k columns, with k = n - 1 if \code{contrasts = TRUE}
+#'     and k = n if \code{contrasts = FALSE}.}
 #'   \item{\code{contr.meandif}}{Return a matrix of mean difference contrasts.
 #'     This is an adjustment to the \code{contr.orthonormal} that ascertains that the prior
 #'     distributions on difference between the grand mean and factor level are identical independent
