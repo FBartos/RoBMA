@@ -153,7 +153,7 @@ test_that("GLMM LOO-PIT residuals are a descriptive normal approximation", {
   }
 
   for (name in model_names) {
-    fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+    fit_brma <- with_estimate_loo(fits[[name]])
     n        <- nobs(fit_brma)
 
     table <- count_messages(suppressWarnings(rstudent(fit_brma)))
@@ -241,7 +241,7 @@ test_that("Residuals for BMA.glmm fits are internally consistent", {
     expect_error(residuals(fit_brma, type = "pearson"), "normal outcome models")
     expect_error(rstandard(fit_brma), "normal outcome models")
     expect_message(
-      suppressWarnings(rstudent(suppressWarnings(add_loo(fit_brma)))),
+      suppressWarnings(rstudent(with_estimate_loo(fit_brma))),
       "descriptive normal approximation"
     )
   }

@@ -2058,6 +2058,17 @@ skip_if_missing_fits <- function(names, active_only = TRUE) {
   }
 }
 
+# Cached fits store their estimate-level LOO. Recomputing it repeats the GLMM
+# quadrature of every draw and study (about 20 s per fit) for the same result.
+with_estimate_loo <- function(fit) {
+
+  if (!is.null(fit[["loo"]][["estimate"]])) {
+    return(fit)
+  }
+
+  return(suppressWarnings(add_loo(fit)))
+}
+
 skip_if_not_full_diagnostics <- function(reason) {
 
   if (!is_certification_profile()) {

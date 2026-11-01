@@ -396,7 +396,7 @@ test_that("Influence of GLMMs uses the approximate rstudent and the PIT-free col
   skip_if_missing_fits(model_names)
 
   for (name in model_names) {
-    fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+    fit_brma <- with_estimate_loo(fits[[name]])
     expect_message(
       influence_result <- suppressWarnings(influence(fit_brma)),
       "descriptive normal approximation",

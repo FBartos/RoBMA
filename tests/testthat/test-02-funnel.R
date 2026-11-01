@@ -758,7 +758,7 @@ test_that("Funnel plot labels the GLMM LOO-PIT residuals a descriptive approxima
   name <- "nielweise2008_glmm"
   skip_if_missing_fits(name)
 
-  fit_brma <- suppressWarnings(add_loo(fits[[name]]))
+  fit_brma <- with_estimate_loo(fits[[name]])
 
   expect_message(
     suppressWarnings(rstudent(fit_brma)),
@@ -799,7 +799,7 @@ test_that("GLMM meta-regression exposes only a descriptive raw residual funnel",
   expected_se       <- .outcome_data_sei(fit_brma)
 
   loo_funnel_data <- suppressWarnings(.test_funnel(
-    suppressWarnings(add_loo(fit_brma)),
+    with_estimate_loo(fit_brma),
     plot_type = "ggplot",
     as_data   = TRUE
   ))
@@ -1091,7 +1091,7 @@ test_that("BMA.glmm funnel labels the LOO-PIT residuals a descriptive approximat
   fit_brma <- fits[[name]]
 
   loo_funnel_data <- suppressWarnings(.test_funnel(
-    suppressWarnings(add_loo(fit_brma)),
+    with_estimate_loo(fit_brma),
     plot_type = "base",
     as_data   = TRUE
   ))
