@@ -234,6 +234,9 @@ test_that("test cache roots isolate profiles", {
     dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
     stopifnot(file.copy(file.path(real_root, path), target))
   }
+  # Windows temp paths may use 8.3 short names (C:/Users/RUNNER~1 on CI); the
+  # source discovery resolves the long form, so the fixture root must as well.
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
   on.exit(unlink(root, recursive = TRUE), add = TRUE)
 
   cache_names <- ls(envir = .package_source_md5_cache)
