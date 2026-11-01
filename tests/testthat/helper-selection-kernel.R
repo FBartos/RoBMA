@@ -343,17 +343,12 @@
 }
 
 
-# OpenMP limits and the complete private library list precede namespace import.
-# Every numerical comparison executes in the same fresh two-core worker, which
-# loads the RoBMA under test: the checkout when the tests run under pkgload,
-# the installed namespace of the tests otherwise. The worker's native library
-# must be the parent's; a different build would test other code.
-.with_kernel_thread_worker <- function(code) {
+# A fresh worker loads the RoBMA under test: the checkout when the tests run
+# under pkgload, the installed namespace of the tests otherwise. A bare
+# loadNamespace() would find any other RoBMA in the library, so the worker's
+# native library must be the parent's; a different build would test other code.
+.load_robma_in_worker <- function(cluster) {
 
-  withr::local_envvar(c(OMP_NUM_THREADS = "2", OMP_THREAD_LIMIT = "2",
-    OMP_DYNAMIC = "FALSE", R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)))
-  cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
-  on.exit(parallel::stopCluster(cluster), add = TRUE)
   namespace_path <- getNamespaceInfo(asNamespace("RoBMA"), "path")
   development    <- requireNamespace("pkgload", quietly = TRUE) &&
     pkgload::is_dev_package("RoBMA")
@@ -367,27 +362,41 @@
     } else {
       loadNamespace("RoBMA", lib.loc = dirname(namespace_path))
     }
-    RoBMA::RoBMA.options(max_cores = 2L, native_threads = 1L)
-    list(
-      dll    = normalizePath(getLoadedDLLs()[["RoBMA"]][["path"]],
-        winslash = "/", mustWork = TRUE),
-      openmp = .Call("RoBMA_native_unwind_probe", "openmp", NULL, 1L, PACKAGE = "RoBMA")
-    )
+    normalizePath(getLoadedDLLs()[["RoBMA"]][["path"]], winslash = "/", mustWork = TRUE)
   }
   # Under pkgload this helper descends from the RoBMA namespace; unserializing
   # such a closure would load the installed package in the worker before the
   # build under test, so the function is sent without its defining environment.
   environment(load_worker) <- globalenv()
-  loaded <- parallel::clusterCall(cluster, load_worker,
+  worker_dll <- parallel::clusterCall(cluster, load_worker,
     .libPaths(), development, namespace_path)[[1L]]
   same_build <- if (.Platform$OS.type == "windows") {
-    identical(tolower(loaded[["dll"]]), tolower(parent_dll))
-  } else identical(loaded[["dll"]], parent_dll)
+    identical(tolower(worker_dll), tolower(parent_dll))
+  } else identical(worker_dll, parent_dll)
   if (!same_build) {
-    stop("The kernel-thread worker loaded a different RoBMA build than the tests: ",
-      "worker library '", loaded[["dll"]], "', tests '", parent_dll, "'.", call. = FALSE)
+    stop("The worker loaded a different RoBMA build than the tests: ",
+      "worker library '", worker_dll, "', tests '", parent_dll, "'.", call. = FALSE)
   }
-  testthat::skip_if_not(isTRUE(loaded[["openmp"]]), "This build has no OpenMP support.")
+
+  return(invisible(worker_dll))
+}
+
+
+# OpenMP limits and the complete private library list precede namespace import.
+# Every numerical comparison executes in the same fresh two-core worker, which
+# loads the RoBMA under test.
+.with_kernel_thread_worker <- function(code) {
+
+  withr::local_envvar(c(OMP_NUM_THREADS = "2", OMP_THREAD_LIMIT = "2",
+    OMP_DYNAMIC = "FALSE", R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)))
+  cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
+  on.exit(parallel::stopCluster(cluster), add = TRUE)
+  .load_robma_in_worker(cluster)
+  openmp <- parallel::clusterEvalQ(cluster, {
+    RoBMA::RoBMA.options(max_cores = 2L, native_threads = 1L)
+    .Call("RoBMA_native_unwind_probe", "openmp", NULL, 1L, PACKAGE = "RoBMA")
+  })[[1L]]
+  testthat::skip_if_not(isTRUE(openmp), "This build has no OpenMP support.")
 
   result <- parallel::clusterCall(cluster, function(code, helper) {
     env <- new.env(parent = asNamespace("RoBMA"))

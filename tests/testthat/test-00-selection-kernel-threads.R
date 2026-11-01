@@ -273,11 +273,7 @@ test_that("a fresh RoBMA worker starts with one native thread", {
   skip_on_cran()
   cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
   on.exit(parallel::stopCluster(cluster), add = TRUE)
-  parallel::clusterCall(cluster, function(paths) {
-    .libPaths(paths)
-    Sys.setenv(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
-  }, .libPaths())
-  parallel::clusterEvalQ(cluster, loadNamespace("RoBMA"))
+  .load_robma_in_worker(cluster)
 
   initial <- parallel::clusterEvalQ(cluster, {
     configure <- getFromNamespace(".native_threads_configure", "RoBMA")
@@ -319,11 +315,7 @@ test_that("the row schedule keeps small batches serial and sizes large regions",
       OMP_DYNAMIC = "FALSE"))
     cluster <- parallel::makePSOCKcluster(1L, rscript_args = "--vanilla")
     on.exit(parallel::stopCluster(cluster), add = TRUE)
-    parallel::clusterCall(cluster, function(paths) {
-      .libPaths(paths)
-      Sys.setenv(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
-    }, .libPaths())
-    parallel::clusterEvalQ(cluster, loadNamespace("RoBMA"))
+    .load_robma_in_worker(cluster)
     parallel::clusterCall(cluster, function(small, large) {
       row_schedule <- function(rows, work_per_row) {
         .Call("RoBMA_selnorm_row_schedule", as.numeric(rows),
