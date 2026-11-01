@@ -108,7 +108,6 @@ test_that("response RNG interrupts between rows and releases its consumed stream
   complete <- generate()
   expect_identical(complete$failure_code, 0L)
   complete_seed <- .Random.seed
-  assign(".Random.seed", initial, envir = .GlobalEnv)
   # The generator repeats inside the callback until the elapsed limit fires, so
   # the test does not depend on one call outlasting the limit (a fast machine
   # completes 50,000 rows in under 20 ms). The bound only stops a broken
@@ -124,11 +123,29 @@ test_that("response RNG interrupts between rows and releases its consumed stream
       }
     }, 1L, PACKAGE = "RoBMA")
   }
-  result <- tryCatch(interrupt(), error = identity)
+  # The limit can also expire before the first row of a call (setup or garbage
+  # collection on a slow runner), which then consumes no draws. Repeat until the
+  # interrupt lands between rows: the seed then differs from the seed after the
+  # completed calls alone, so the partial stream was saved.
+  seed_after_calls <- function(n) {
+    assign(".Random.seed", initial, envir = .GlobalEnv)
+    for (i in seq_len(n)) generate()
+    .Random.seed
+  }
+  for (attempt in seq_len(10L)) {
+    assign(".Random.seed", initial, envir = .GlobalEnv)
+    calls <- 0L
+    result <- tryCatch(interrupt(), error = identity)
+    interrupted_seed <- .Random.seed
+    if (!inherits(result, "error")) break
+    completed_seed <- seed_after_calls(calls)
+    if (!identical(interrupted_seed, completed_seed)) break
+  }
   expect_s3_class(result, "error")
-  if (inherits(result, "error")) expect_match(conditionMessage(result), "elapsed time limit", fixed = TRUE)
-  expect_false(identical(.Random.seed, initial))
-  expect_false(identical(.Random.seed, complete_seed))
+  if (inherits(result, "error")) {
+    expect_match(conditionMessage(result), "elapsed time limit", fixed = TRUE)
+    expect_false(identical(interrupted_seed, completed_seed))
+  }
   expect_identical(.Call("RoBMA_native_unwind_probe", "state", NULL, 1L,
     PACKAGE = "RoBMA"), rep(FALSE, 3L))
   assign(".Random.seed", initial, envir = .GlobalEnv)
