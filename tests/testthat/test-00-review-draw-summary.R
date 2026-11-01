@@ -17,7 +17,8 @@ test_that("completed allocations resolve to the authoritative prepared binding",
   expect_gt(length(complete$leaf_terms), 1L)
   prepared <- .brma_mv_pooled_formula_design(x$object)
   allocation <- .brma_mv_resolve_sd_component_allocation(complete, prepared)
-  expect_true(is.function(allocation$source$source$values))
+  # The pooled design reads the batched pooled row SD columns, not values functions.
+  expect_null(allocation$source$source$values)
   expect_identical(allocation$source,
     prepared$random_effects[[1L]]$sd_binding$allocations[[1L]]$source)
 })
@@ -160,7 +161,7 @@ test_that("row-source allocation anchors use prepared pooled source values", {
       .posterior_samples = x$samples)), rep(6 / sqrt(2), 120L), tolerance = 1e-13)
     missing <- x$samples[, colnames(x$samples) != "log_tau_time", drop = FALSE]
     expect_error(pooled_heterogeneity(object, .posterior_samples = missing),
-      "Pooled SD-component allocation is unavailable; missing source coordinates: log_tau_time.",
+      "Pooled heterogeneity is unavailable; missing row SD source coordinates: log_tau_time.",
       fixed = TRUE)
   }
   observed <- summary_heterogeneity(x$object, component = "total")

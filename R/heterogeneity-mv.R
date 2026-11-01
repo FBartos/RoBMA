@@ -146,6 +146,12 @@
   }
 
   formula_design <- .brma_mv_pooled_formula_design(object)
+  if (.is_scale(object)) {
+    posterior_samples <- .brma_mv_pooled_row_source_samples(
+      object            = object,
+      posterior_samples = posterior_samples
+    )
+  }
   blocks <- unique(vapply(
     formula_design[["random_effects"]],
     `[[`,
@@ -249,23 +255,12 @@
 
     source <- allocation[["source"]]
     if (identical(source[["shape"]], "row")) {
-      evaluator <- source[["source"]][["values"]]
-      inputs <- source[["source"]][["inputs"]]
-      if (!is.function(evaluator)) {
-        stop("Pooled SD-component allocation requires its prepared row-source evaluator.",
-             call. = FALSE)
+      column <- paste0(source[["source"]][["name"]], "[1]")
+      if (!column %in% colnames(posterior_samples)) {
+        stop("Pooled SD-component allocation requires the pooled row SD '",
+             column, "'.", call. = FALSE)
       }
-      missing <- setdiff(inputs, colnames(posterior_samples))
-      if (length(missing) > 0L) {
-        stop("Pooled SD-component allocation is unavailable; missing source coordinates: ",
-             paste(missing, collapse = ", "), ".", call. = FALSE)
-      }
-      samples <- vapply(seq_len(nrow(posterior_samples)), function(i) {
-        evaluator(parameters = as.list(stats::setNames(
-          as.numeric(posterior_samples[i, inputs, drop = FALSE]), inputs)),
-          data = formula_design[["source_data"]], n_rows = 1L)
-      }, numeric(1L))
-      samples <- matrix(samples, ncol = 1L)
+      samples <- unname(posterior_samples[, column, drop = FALSE])
       for (factor in allocation[["parent_factors"]]) {
         samples <- samples * .random_allocation_factor_samples(
           factor = factor, posterior_samples = posterior_samples
@@ -340,16 +335,51 @@
 }
 
 
+# The pooled known-V row SD of each source: the arithmetic mean of its row SDs,
+# as pooled_heterogeneity() of the univariate models (maintainer decision of
+# 2026-10-25). The scale formulas are evaluated once for all draws and the
+# result is appended as the 'source[1]' column the pooled design reads.
+.brma_mv_pooled_row_source_samples <- function(object, posterior_samples) {
+
+  inputs  <- unique(unlist(.predict_known_v_tau_source_inputs(
+    object = object,
+    data   = object[["data"]]
+  ), use.names = FALSE))
+  missing <- setdiff(inputs, colnames(posterior_samples))
+  if (length(missing) > 0L) {
+    stop("Pooled heterogeneity is unavailable; missing row SD source coordinates: ",
+         paste(missing, collapse = ", "), ".", call. = FALSE)
+  }
+
+  source_samples <- .predict_known_v_scale_source_samples(
+    fit               = .object_formula_fit(object),
+    data              = object[["data"]],
+    priors            = object[["priors"]],
+    posterior_samples = posterior_samples
+  )
+  pooled <- do.call(cbind, lapply(source_samples, rowMeans))
+  colnames(pooled) <- paste0(names(source_samples), "[1]")
+
+  return(cbind(
+    posterior_samples[, !colnames(posterior_samples) %in% colnames(pooled),
+                      drop = FALSE],
+    pooled
+  ))
+}
+
+
 .brma_mv_pooled_formula_design <- function(object) {
 
-  formula_design <- if (.is_scale(object)) {
-    .predict_known_v_formula_design_with_row_source_values(
-      object = object,
-      data   = object[["data"]],
-      pooled = TRUE
+  formula_design <- .fitted_formula_design(object, "mu", required = TRUE)
+  if (.is_scale(object)) {
+    # Without values functions, BayesTools reads the pooled row SDs from the
+    # columns of .brma_mv_pooled_row_source_samples().
+    sources <- unname(.data_scale_formula_sources(object[["data"]]))
+    formula_design[["random_effects"]] <- lapply(
+      formula_design[["random_effects"]],
+      .predict_known_v_random_term_with_tau_source_values,
+      values = stats::setNames(rep(list(NULL), length(sources)), sources)
     )
-  } else {
-    .fitted_formula_design(object, "mu", required = TRUE)
   }
 
   terms <- formula_design[["random_effects"]]
