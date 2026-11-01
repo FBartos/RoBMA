@@ -403,16 +403,10 @@ struct BinomialProblem {
       epsilon * epsilon * shape_sum;
   }
 
-  double log_density(double theta, double logit_pi) const
+  // The log beta density of the baserate on the logit scale, including the
+  // Jacobian: the part of log_density() that depends on logit_pi only.
+  double log_nuisance_prior(double logit_pi) const
   {
-    const double effect = mu + tau * theta;
-    const double eta1   = logit_pi + 0.5 * effect;
-    const double eta2   = logit_pi - 0.5 * effect;
-    const double log_likelihood = glmm_binomial_log_likelihood(
-      a, c, n1, n2, log_coefficient,
-      log_inv_logit(eta1), log_one_minus_inv_logit(eta1),
-      log_inv_logit(eta2), log_one_minus_inv_logit(eta2)
-    );
     const double lp = log_inv_logit(logit_pi);
     const double lq = log_one_minus_inv_logit(logit_pi);
     double log_beta_logit;
@@ -433,10 +427,30 @@ struct BinomialProblem {
         ) + lp + lq
         : alpha * lp + beta * lq - log_beta;
     }
+
+    return log_beta_logit;
+  }
+
+  double log_density_given(double theta, double logit_pi,
+                           double log_beta_logit) const
+  {
+    const double effect = mu + tau * theta;
+    const double eta1   = logit_pi + 0.5 * effect;
+    const double eta2   = logit_pi - 0.5 * effect;
+    const double log_likelihood = glmm_binomial_log_likelihood(
+      a, c, n1, n2, log_coefficient,
+      log_inv_logit(eta1), log_one_minus_inv_logit(eta1),
+      log_inv_logit(eta2), log_one_minus_inv_logit(eta2)
+    );
     const double log_prior =
       -0.5 * theta * theta - 0.5 * LOG_2PI + log_beta_logit;
 
     return weight * log_likelihood + log_prior;
+  }
+
+  double log_density(double theta, double logit_pi) const
+  {
+    return log_density_given(theta, logit_pi, log_nuisance_prior(logit_pi));
   }
 
   bool derivatives(double theta, double logit_pi, double *value,
@@ -542,6 +556,18 @@ struct PoissonProblem {
     return weight * log_likelihood + log_prior;
   }
 
+  // The normal prior of phi is cheap, and splitting it from the theta prior
+  // would reorder the sum, so the whole density is evaluated per node.
+  double log_nuisance_prior(double) const
+  {
+    return 0.0;
+  }
+
+  double log_density_given(double theta, double phi, double) const
+  {
+    return log_density(theta, phi);
+  }
+
   bool derivatives(double theta, double phi, double *value,
                    double *g1, double *g2,
                    double *h11, double *h12, double *h22) const
@@ -645,13 +671,18 @@ double evaluate_rule(const Problem &problem, double theta, double nuisance,
   double term_sum = 0.0;
 
   for (int j = 0; j < order; ++j) {
+    // The nuisance coordinate of solve_cholesky() depends on node j only, so
+    // its prior term is evaluated once per j.
+    const double nuisance_prior =
+      problem.log_nuisance_prior(nuisance + nodes[j] / chol.r22);
     for (int i = 0; i < order; ++i) {
       double delta_theta, delta_nuisance;
       solve_cholesky(chol, nodes[i], nodes[j],
                      &delta_theta, &delta_nuisance);
-      const double log_density = problem.log_density(
+      const double log_density = problem.log_density_given(
         theta + delta_theta,
-        nuisance + delta_nuisance
+        nuisance + delta_nuisance,
+        nuisance_prior
       );
       if (!std::isfinite(log_density)) {
         continue;
