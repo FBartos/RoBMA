@@ -3,8 +3,10 @@
 
   # Controlled diagnostic transport only: retain the actual native numerical
   # values and all original wrappers/grid/cache, replace reported diagnostics
-  # immediately after .Call, and restore the exact wrapper afterwards.
-  name <- paste0(".selection_joint_", if (method == "rank_one") "cluster" else "factor", "_loglik_block")
+  # immediately after .Call, and restore the exact wrapper afterwards. covr
+  # wraps every statement of an instrumented body, hiding the .Call statement.
+  testthat::skip_on_covr()
+  name <-paste0(".selection_joint_", if (method == "rank_one") "cluster" else "factor", "_loglik_block")
   namespace <- asNamespace("RoBMA")
   original <- get(name, namespace)
   pieces <- as.list(body(original))

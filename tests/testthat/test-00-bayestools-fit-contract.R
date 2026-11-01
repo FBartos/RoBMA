@@ -260,10 +260,11 @@ test_that("every message that asks for a refit is raised through .stop_refit_req
   expect_identical(planted_sites[["line"]], c(2L, 3L, 4L, 5L))
   expect_identical(planted_sites[["enclosed"]], c(FALSE, TRUE, TRUE, FALSE))
 
-  package_r_dir <- testthat::test_path("..", "..", "R")
-  skip_if_not(dir.exists(package_r_dir), "Package sources are not available.")
+  # An installed package also has an R/ directory, without the sources.
+  package_root <- .fit_cache_source_root()
+  skip_if(is.na(package_root), "Package sources are not available.")
   sites <- .refit_message_sites(
-    list.files(package_r_dir, pattern = "[.][Rr]$", full.names = TRUE)
+    list.files(file.path(package_root, "R"), pattern = "[.][Rr]$", full.names = TRUE)
   )
   expect_gt(sum(sites[["enclosed"]]), 0L)
   labels <- paste0(sites[["file"]], ":", sites[["line"]])
