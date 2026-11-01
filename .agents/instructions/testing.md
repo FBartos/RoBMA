@@ -91,6 +91,9 @@ elapsed values as including Rprof sampling and allocation profiling. An explicit
 The complete standard profile gates its test phase at 1200 seconds, after
 cache validation, including `run_tests()` preparation and required-evidence checks;
 the runner separately reports the full profile wall time.
+`ROBMA_STANDARD_GATE_SECONDS` overrides the budget only for slower machines:
+the GitHub Windows runner takes about 1.7 times as long, and the unit-test
+workflow sets 2400.
 Standard uses the explicit `profile == "standard"` catalog membership, rather
 than every `tier == "core"` entry. Certification extends the catalog and
 selects its own declared fit subsets; excluded core entries are not standard

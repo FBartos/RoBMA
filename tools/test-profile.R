@@ -40,6 +40,21 @@ finish_profile <- function(status = 0L) {
 }
 
 
+standard_gate_seconds <- function() {
+
+  value   <- Sys.getenv("ROBMA_STANDARD_GATE_SECONDS", unset = "1200")
+  seconds <- suppressWarnings(as.numeric(value))
+  if (length(seconds) != 1L || !is.finite(seconds) || seconds <= 0) {
+    stop(
+      "'ROBMA_STANDARD_GATE_SECONDS' must be a positive number of seconds.",
+      call. = FALSE
+    )
+  }
+
+  return(seconds)
+}
+
+
 .rscript <- function() {
 
   command <- file.path(
@@ -432,16 +447,22 @@ if (identical(profile, "standard")) {
     finish_profile()
   }
 
+  # The 1200-second budget holds on the reference machine; CI sets
+  # ROBMA_STANDARD_GATE_SECONDS for its slower runner.
+  budget <- standard_gate_seconds()
   validate_fit_cache("standard")
   started <- proc.time()[["elapsed"]]
   results <- run_tests("00-|02-|03-")
   validate_standard_evidence(results)
   elapsed <- proc.time()[["elapsed"]] - started
-  message("Gated standard test phase completed in ", round(elapsed, 1), " seconds.")
-  if (elapsed > 20 * 60) {
+  message(
+    "Gated standard test phase completed in ", round(elapsed, 1),
+    " seconds (budget ", budget, " seconds)."
+  )
+  if (elapsed > budget) {
     stop(
-      "The standard test profile exceeded its 20-minute runtime budget (",
-      round(elapsed, 1), " seconds).",
+      "The standard test profile exceeded its ", budget,
+      "-second runtime budget (", round(elapsed, 1), " seconds).",
       call. = FALSE
     )
   }

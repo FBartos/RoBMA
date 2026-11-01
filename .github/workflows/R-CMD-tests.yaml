@@ -95,5 +95,9 @@ jobs:
           Rscript tools/test-profile.R refresh-standard
 
       - name: Run Unit Tests
+        env:
+          # The hosted Windows runner takes about 1.7 times as long as the
+          # reference machine, where the standard budget is 1200 seconds.
+          ROBMA_STANDARD_GATE_SECONDS: "2400"
         run: |
           Rscript tools/test-profile.R standard
