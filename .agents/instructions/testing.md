@@ -56,8 +56,13 @@ much slower than the ordinary standard profile and does not run
   standard cached fits. Use `--clean` only for an intentional full refresh.
 - `Rscript tools/test-profile.R certification --list`: list independently
   runnable expensive numerical and extended-regression cases. Run named cases
-  by appending their names; omitting names runs every case in sequence. A
-  slow test whose evidence the standard profile does not need starts with
+  by appending their names; omitting names runs every case in sequence. A test
+  belongs in certification when it checks results against separately computed
+  ground truth at certification budgets, or is extended regression evidence the
+  standard profile does not need; runtime alone is not the reason. When the
+  standard budget is tight, profile the slow tests and fix product hotspots or
+  redundant test work first, keeping contract tests in standard. A
+  certification test starts with
   `skip_if_not_certification()` naming its case, and the case runs its file and
   lists it in `required_tests`; the `tooling` case holds the slow checks of the
   test tooling itself (scenario helpers, run safety and benchmark driver,
