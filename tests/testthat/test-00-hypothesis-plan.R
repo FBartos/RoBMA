@@ -120,7 +120,7 @@ test_that("hypothesis_quantities() names quantities with shared aliases by their
 
   expect_error(
     hypothesis(fit, "intercept = 0.5", component = "scale"),
-    "Hypothesis references multiple model parameters",
+    "The hypothesis references several parameters of 'scale'",
     fixed = TRUE,
     class = "BayesTools_hypothesis_ambiguous"
   )
