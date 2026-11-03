@@ -91,7 +91,8 @@ fewer posterior draws than workers uses serial computation. Parallel workers
 require matching installed package/native builds and share the configured
 selection-cache budget. Worker count is reported when parallel work starts.}
 
-\item{...}{additional graphical parameters passed to components.}
+\item{...}{additional graphical parameters passed to components, such as
+\code{xlim} and \code{ylim} for the displayed axis ranges.}
 }
 \value{
 \code{NULL} invisibly for base graphics, or a ggplot2 object.

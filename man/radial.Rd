@@ -61,8 +61,9 @@ arc labels. Defaults to \code{2}.}
 \item{transf}{optional transformation function applied to the y-axis arc
 labels (e.g., \code{transf = exp} when effect sizes are on a log scale).}
 
-\item{targs}{optional list of additional arguments passed to the
-\code{transf} function.}
+\item{targs}{optional list passed to \code{transf} as its second argument,
+\code{transf(x, targs)}, as in \pkg{metafor} (e.g.,
+\code{transf = metafor::transf.exp.int, targs = list(tau2 = 0)}).}
 
 \item{plot_type}{whether to use a base plot \code{"base"} or ggplot2
 \code{"ggplot"} for plotting. Defaults to \code{"base"}.}

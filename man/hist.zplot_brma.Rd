@@ -44,8 +44,9 @@ Defaults to \code{TRUE}.}
 
 \item{dots_all}{graphical parameters passed to all components (list).}
 
-\item{...}{additional graphical parameters. Use \code{as_data = TRUE} to
-return histogram data without drawing.}
+\item{...}{additional graphical parameters, such as \code{xlim} and
+\code{ylim}. Use \code{as_data = TRUE} to return histogram data without
+drawing.}
 }
 \value{
 \code{NULL} invisibly for base graphics, a ggplot2 object, or a data
@@ -58,8 +59,11 @@ Plots a histogram of observed z-values from the meta-analysis.
 \details{
 Z-statistics are computed as effect size divided by standard error
 (\code{yi / sei}). Histogram bins are adjusted to align with significance
-thresholds when selection model priors are present. Standalone ggplot
-histograms scale automatically to added layers unless \code{ylim} is supplied.
+thresholds when selection model priors are present. The bins cover
+\code{from} to \code{to}; when \code{by} does not divide that range, the last
+bin ends at \code{to}. \code{xlim} and \code{ylim} set the displayed axis
+ranges without changing the bins. Standalone ggplot histograms scale
+automatically to added layers unless \code{ylim} is supplied.
 }
 \seealso{
 \code{\link[=plot.zplot_brma]{plot.zplot_brma()}}, \code{\link[=lines.zplot_brma]{lines.zplot_brma()}}

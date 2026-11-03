@@ -98,7 +98,9 @@ Row-specific marginal standard deviations remain available from
 \code{predict(type = "terms.scale")} and in covariance-based prediction and
 diagnostics.
 Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
-known-V covariance structures. For \code{component = "total"}, independent
+known-V covariance structures, nor for a meta-regression whose location
+design leaves no residual degrees of freedom (as many estimable coefficients
+as estimates), where the typical sampling variance is undefined. For \code{component = "total"}, independent
 component variances are summed before reporting \code{tau2_total};
 \code{tau_total} is the square root of this variance draw.
 When a random-formula model uses a shared total-SD plus variance-allocation
