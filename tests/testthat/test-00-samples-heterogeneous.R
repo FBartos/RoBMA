@@ -3,7 +3,7 @@ test_that("nested sample exports retain heterogeneous prediction intervals", {
   draws <- matrix(seq_len(40L), 20L, dimnames = list(NULL, c("a", "b")))
   plain <- .new_brma_samples(draws, 1L, 20L, "Plain")
   predictive <- .new_brma_samples(draws + .25, 1L, 20L, "Predictive",
-    prediction_samples = draws * 2)
+    prediction_mixture = list(location = draws * 2, scale = 0 * draws))
   plain_table <- as.data.frame(summary(plain))
   predictive_table <- as.data.frame(summary(predictive))
   columns <- c("component", "parameter", "Mean", "Median", "CI_0.025",
@@ -31,8 +31,9 @@ test_that("nested sample exports retain heterogeneous prediction intervals", {
       expect_true(all(vapply(actual[-(1:2)], is.double, logical(1L))))
       expect_true(all(is.na(actual[actual$component == "outer/plain",
         c("PI_0.025", "PI_0.975")])))
+      # point masses: the inverse of the empirical CDF (type-1 quantile)
       expect_equal(as.numeric(actual[actual$component == "outer/predictive",
-        "PI_0.025"]), unname(apply(draws * 2, 2L, stats::quantile, probs = .025)))
+        "PI_0.025"]), unname(apply(draws * 2, 2L, stats::quantile, probs = .025, type = 1L)))
     }
   }
 })

@@ -2261,9 +2261,11 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
 
   metadata <- attr(samples, "brma_mv_prediction_target", exact = TRUE)
-  prediction_samples <- attr(samples, "prediction_samples", exact = TRUE)
-  if (!is.null(prediction_samples)) {
-    prediction_samples <- prediction_samples[keep, , drop = FALSE]
+  prediction_mixture <- attr(samples, "prediction_mixture", exact = TRUE)
+  if (!is.null(prediction_mixture)) {
+    prediction_mixture <- lapply(prediction_mixture, function(component) {
+      component[keep, , drop = FALSE]
+    })
   }
   out <- .new_brma_samples(
     samples            = sample_matrix,
@@ -2274,7 +2276,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     probs              = attr(samples, "probs"),
     data               = attr(samples, "data"),
     effect_transform   = attr(samples, "effect_transform"),
-    prediction_samples = prediction_samples
+    prediction_mixture = prediction_mixture
   )
   if (!is.null(metadata)) {
     attr(out, "brma_mv_prediction_target") <- metadata
@@ -2435,8 +2437,9 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
 #   sampling variance and stops.
 # @param title title of the result; NULL uses the aggregated prediction titles.
 # @param heterogeneity_component component name of "terms.scale" results.
-# @param prediction_interval whether the location result carries the draws of
-#   one new true effect at the pooled reference (the PI columns).
+# @param prediction_interval whether the location result carries the
+#   predictive mixture of one new true effect at the pooled reference (the PI
+#   columns).
 # ---------------------------------------------------------------------------- #
 # The arguments of the aggregated prediction (predict(newdata = TRUE) and the
 # pooled wrappers) that this prediction refuses or restricts. `multivariate`
@@ -2572,7 +2575,8 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     ))
   }
 
-  ### location at the average design, with the draws of one new effect
+  ### location at the average design, with one new effect (the PI columns
+  ### use its exact predictive mixture, the other types draw it)
   if (.is_mods(object) && K > 1L && !quiet) {
     message("Aggregated prediction averages mu across the moderator model matrix (K = ", K, " observations).")
   }
@@ -2590,12 +2594,12 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
   }
 
   samples            <- location
-  prediction_samples <- NULL
+  prediction_mixture <- NULL
   if (type == "terms" && prediction_interval) {
-    prediction_samples <- .with_preserved_rng(new_effect(
-      center = location[, 1L],
-      tau    = .pooled_heterogeneity_total_samples(object, posterior_samples)[, 1L]
-    ))
+    prediction_mixture <- list(
+      location = location,
+      scale    = .pooled_heterogeneity_total_samples(object, posterior_samples)
+    )
   } else if (type == "cluster") {
     samples <- location + new_effect(
       center = 0,
@@ -2627,7 +2631,7 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     probs              = probs,
     data               = NULL,
     effect_transform   = effect_transform,
-    prediction_samples = prediction_samples
+    prediction_mixture = prediction_mixture
   )
   out <- .condition_prediction_samples(
     object            = object,
@@ -2643,9 +2647,6 @@ predict.brma <- function(object, newdata = NULL, type = "terms",
     prediction_target = "new unselected true effect at the pooled reference",
     bias_adjusted     = bias_adjusted
   )
-  if (!is.null(prediction_samples)) {
-    target[["rng_policy"]] <- "preserve_caller_state"
-  }
   attr(out, "RoBMA_target") <- c(target, .selection_postfit_target_metadata(data))
 
   return(out)

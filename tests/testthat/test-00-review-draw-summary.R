@@ -117,12 +117,14 @@ test_that("pooled totals and prediction intervals use full allocation covariance
   expect_identical(colnames(total), "tau_total")
   expect_equal(as.numeric(total), rep(sqrt(2), 120L), tolerance = 1e-14)
   withr::local_seed(2401)
-  expected <- rnorm(120L, 0, sqrt(2))
-  set.seed(2401)
   seed <- .Random.seed
   kind <- RNGkind()
   effect <- pooled_effect(x$object)
-  expect_equal(as.numeric(attr(effect, "prediction_samples")), expected, tolerance = 1e-14)
+  mixture <- attr(effect, "prediction_mixture", exact = TRUE)
+  expect_equal(as.numeric(mixture[["location"]]), rep(0, 120L), tolerance = 0)
+  expect_equal(as.numeric(mixture[["scale"]]), rep(sqrt(2), 120L), tolerance = 1e-14)
+  expect_lt(max(abs(unlist(summary(effect)[1L, c("PI 0.025", "PI 0.975")]) -
+                    stats::qnorm(c(0.025, 0.975), 0, sqrt(2)))), 1e-9)
   expect_identical(.Random.seed, seed)
   expect_identical(RNGkind(), kind)
   unequal <- review_heterogeneity_har_replay(weights = c(.2, .8), rho = .4,

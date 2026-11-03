@@ -152,14 +152,10 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
   summary_mlab <- "Pooled Effect"
   if (addpred) {
     if (is.null(newdata)) {
-      prediction                <- pooled
-      prediction_effect_samples <- attr(
-        pooled_samples,
-        "prediction_samples",
-        exact = TRUE
-      )
-      if (is.null(prediction_effect_samples)) {
-        stop("Pooled effect samples do not contain predictive draws.",
+      prediction         <- pooled
+      prediction_mixture <- attr(pooled_samples, "prediction_mixture", exact = TRUE)
+      if (is.null(prediction_mixture)) {
+        stop("Pooled effect samples do not contain the predictive distribution.",
              call. = FALSE)
       }
     } else {
@@ -223,12 +219,21 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
     mlab      = summary_mlab
   )
   if (addpred) {
-    prediction_distribution <- .forest_prediction_distribution(
-      prediction_samples = prediction_effect_samples,
-      pi.lb              = prediction[["pi.lb"]],
-      pi.ub              = prediction[["pi.ub"]],
-      level              = level
-    )
+    prediction_distribution <- if (is.null(newdata)) {
+      .forest_prediction_mixture_distribution(
+        prediction_mixture = prediction_mixture,
+        pi.lb              = prediction[["pi.lb"]],
+        pi.ub              = prediction[["pi.ub"]],
+        level              = level
+      )
+    } else {
+      .forest_prediction_distribution(
+        prediction_samples = prediction_effect_samples,
+        pi.lb              = prediction[["pi.lb"]],
+        pi.ub              = prediction[["pi.ub"]],
+        level              = level
+      )
+    }
     addpoly_args[["pi.lb"]] <- prediction[["pi.lb"]]
     addpoly_args[["pi.ub"]] <- prediction[["pi.ub"]]
     if (!is.null(prediction_distribution)) {
@@ -315,11 +320,14 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #' \code{\link{predict.brma}} with \code{type = "estimate"} and
 #' \code{conditioning_depth = "marginal"}. For
 #' \pkg{metafor}'s \code{predstyle = "shade"} and
-#' \code{predstyle = "dist"}, the adapter supplies a deterministic kernel
-#' density estimate computed from those posterior predictive draws. This is a
-#' display approximation that can smooth point masses. The
-#' displayed prediction-interval endpoints remain the posterior quantiles of
-#' the corresponding predictive draws.
+#' \code{predstyle = "dist"}, the adapter supplies the predictive density.
+#' Without \code{newdata} it is the exact posterior predictive density, a
+#' normal mixture over the posterior draws whose point masses (draws without
+#' heterogeneity) are smoothed by a kernel for display. With \code{newdata} it
+#' is a kernel density estimate of the predictive draws from
+#' \code{\link{predict.brma}}. The displayed prediction-interval endpoints are
+#' the quantiles reported by \code{\link{pooled_effect}} or
+#' \code{\link{predict.brma}}.
 #'
 #' Additional study-level columns can be added with metafor's \code{ilab}
 #' interface. When supplied to \code{as_metafor_forest()} or to
@@ -546,6 +554,48 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
 }
 
 
+# The pooled predictive density (fitted scale, as pooled_effect() is called
+# untransformed): the exact normal mixture over the posterior draws on a grid
+# from its 0.05% to 99.95% quantiles, padded like stats::density(). Point
+# masses (scale 0) have no density and are smoothed by a normal kernel with the
+# bw.nrd0() rule applied to the mixture's exact SD and IQR.
+.forest_prediction_mixture_distribution <- function(prediction_mixture, pi.lb,
+                                                    pi.ub, level, n = 512L) {
+
+  location <- prediction_mixture[["location"]][, 1L]
+  scale    <- prediction_mixture[["scale"]][, 1L]
+  if (all(scale == 0) && diff(range(location)) == 0) {
+    return(NULL)
+  }
+
+  quantiles <- .prediction_mixture_quantiles(prediction_mixture, c(5e-4, .25, .75, 1 - 5e-4))[, 1L]
+  spread    <- sqrt(mean(scale^2) + mean((location - mean(location))^2))
+  bandwidth <- min(spread, (quantiles[[3L]] - quantiles[[2L]]) / 1.34)
+  if (!(bandwidth > 0)) {
+    bandwidth <- spread
+  }
+  bandwidth <- 0.9 * bandwidth * length(location)^(-1 / 5)
+
+  x         <- seq(quantiles[[1L]] - 3 * bandwidth, quantiles[[4L]] + 3 * bandwidth,
+                   length.out = n)
+  component <- ifelse(scale > 0, scale, bandwidth)
+  density   <- vapply(x, function(x_i) mean(stats::dnorm(x_i, location, component)),
+                      numeric(1))
+  if (any(!is.finite(density)) || any(density < 0)) {
+    stop("Could not construct a finite forest predictive density.",
+         call. = FALSE)
+  }
+
+  return(list(
+    x       = x,
+    density = density,
+    pi.lb   = pi.lb,
+    pi.ub   = pi.ub,
+    level   = 100 * level
+  ))
+}
+
+
 .forest_prediction_distribution <- function(prediction_samples, pi.lb, pi.ub,
                                             level) {
 
@@ -703,8 +753,8 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
   if (predstyle %in% c("shade", "dist") &&
       is.null(addpoly_args[["preddist"]])) {
     stop(
-      "'predstyle = ", predstyle, "' requires at least two distinct ",
-      "posterior predictive draws.",
+      "'predstyle = ", predstyle, "' requires a predictive distribution that ",
+      "is not a single point.",
       call. = FALSE
     )
   }

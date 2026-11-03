@@ -1,7 +1,7 @@
 context("Pooled prediction targets")
 
 
-test_that("pooled effect summaries include prediction intervals", {
+test_that("pooled effect prediction intervals are exact predictive mixture quantiles", {
 
   object <- brma(
     yi                        = c(-0.2, 0.1, 0.4),
@@ -14,43 +14,40 @@ test_that("pooled effect summaries include prediction intervals", {
     mu  = c(-0.2, 0.0, 0.2, 0.4),
     tau = c(0.1, 0.2, 0.3, 0.4)
   )
+  # independent reference: bisection on the generalized inverse of
+  # F(x) = mean(pnorm(x, mu, tau))
+  reference_quantile <- function(p, location, scale) {
+    lower <- -20
+    upper <- 20
+    for (i in 1:200) {
+      middle <- (lower + upper) / 2
+      if (mean(stats::pnorm(middle, location, scale)) < p) lower <- middle else upper <- middle
+    }
+    upper
+  }
+  reference <- function(probs) {
+    vapply(probs, reference_quantile, numeric(1),
+           location = posterior_samples[, "mu"], scale = posterior_samples[, "tau"])
+  }
 
-  set.seed(481)
-  expected_prediction <- matrix(
-    stats::rnorm(
-      n    = nrow(posterior_samples),
-      mean = posterior_samples[, "mu"],
-      sd   = posterior_samples[, "tau"]
-    ),
-    ncol = 1L
-  )
   set.seed(481)
   seed_before <- .Random.seed
   kind_before <- RNGkind()
-  pooled <- pooled_effect(
-    object,
-    .posterior_samples = posterior_samples
-  )
+  pooled <- pooled_effect(object, .posterior_samples = posterior_samples)
   expect_identical(.Random.seed, seed_before)
   expect_identical(RNGkind(), kind_before)
-  pooled_again <- pooled_effect(
-    object,
-    .posterior_samples = posterior_samples
-  )
-  expect_identical(
-    attr(pooled_again, "prediction_samples"),
-    attr(pooled, "prediction_samples")
-  )
-  expect_identical(.Random.seed, seed_before)
-  estimates <- summary(pooled)
-  estimates_df <- as.data.frame(estimates)
+  mixture <- attr(pooled, "prediction_mixture", exact = TRUE)
+  expect_named(mixture, c("location", "scale"))
+  expect_identical(unname(mixture[["location"]][, 1L]), unname(posterior_samples[, "mu"]))
+  expect_identical(unname(mixture[["scale"]][, 1L]), unname(posterior_samples[, "tau"]))
+  expect_identical(colnames(mixture[["location"]]), "mu")
+  expect_identical(summary(pooled_effect(object, .posterior_samples = posterior_samples)),
+                   summary(pooled))
 
-  expect_equal(
-    unname(attr(pooled, "prediction_samples")),
-    unname(expected_prediction),
-    tolerance = 0
-  )
+  estimates <- summary(pooled)
   expect_true(all(c("PI 0.025", "PI 0.975") %in% colnames(estimates)))
+  expect_lt(max(abs(unlist(estimates["mu", c("PI 0.025", "PI 0.975")]) -
+                    reference(c(0.025, 0.975)))), 1e-9)
   pooled_df <- as.data.frame(estimates)
   expect_identical(
     names(pooled_df),
@@ -62,11 +59,6 @@ test_that("pooled effect summaries include prediction intervals", {
   expect_identical(pooled_df[["component"]], "location")
   expect_identical(pooled_df[["parameter"]], "mu")
   expect_identical(data.frame(estimates), pooled_df)
-  expect_equal(
-    unname(as.matrix(pooled_df)),
-    unname(as.matrix(estimates_df)),
-    tolerance = 0
-  )
   expect_identical(
     names(as.data.frame(summary(pooled, probs = c(.05, .95)))),
     c(
@@ -108,21 +100,10 @@ test_that("pooled effect summaries include prediction intervals", {
     unname(stats::quantile(as.matrix(custom_pooled)[, 1L], custom_probs)),
     tolerance = 0
   )
-  expect_equal(
-    unname(as.numeric(custom_df[1L, paste0("PI_", custom_probs)])),
-    unname(stats::quantile(
-      attr(custom_pooled, "prediction_samples")[, 1L],
-      custom_probs
-    )),
-    tolerance = 0
-  )
-  expect_equal(
-    unname(as.numeric(estimates["mu", c("PI 0.025", "PI 0.975")])),
-    unname(stats::quantile(expected_prediction[, 1L], c(0.025, 0.975))),
-    tolerance = 1e-12
-  )
+  expect_lt(max(abs(as.numeric(custom_df[1L, paste0("PI_", custom_probs)]) -
+                    reference(custom_probs))), 1e-9)
 
-  set.seed(481)
+  # strictly increasing transformations map the quantiles exactly
   transformed <- pooled_effect(
     object,
     transform          = "EXP",
@@ -133,15 +114,23 @@ test_that("pooled effect summaries include prediction intervals", {
     unname(exp(posterior_samples[, "mu", drop = FALSE])),
     tolerance = 1e-12
   )
+  expect_identical(attr(transformed, "prediction_mixture"), mixture)
   expect_equal(
-    unname(attr(transformed, "prediction_samples")),
-    unname(exp(expected_prediction)),
-    tolerance = 1e-12
+    unlist(summary(transformed)["mu", c("PI 0.025", "PI 0.975")], use.names = FALSE),
+    exp(unlist(estimates["mu", c("PI 0.025", "PI 0.975")], use.names = FALSE)),
+    tolerance = 1e-14
   )
+
+  # a mixture of identical components is that normal distribution
+  identical_rows <- cbind(mu = rep(0.3, 4L), tau = rep(0.2, 4L))
+  expect_lt(max(abs(
+    unlist(summary(pooled_effect(object, .posterior_samples = identical_rows))[
+      "mu", c("PI 0.025", "PI 0.975")]) - stats::qnorm(c(0.025, 0.975), 0.3, 0.2)
+  )), 1e-9)
 })
 
 
-test_that("pooled prediction intervals are deterministic without an RNG state", {
+test_that("pooled prediction intervals use no random numbers", {
 
   had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   if (had_seed) {
@@ -170,13 +159,50 @@ test_that("pooled prediction intervals are deterministic without an RNG state", 
     tau = c(0.1, 0.2, 0.3, 0.4)
   )
 
-  first <- pooled_effect(object, .posterior_samples = posterior_samples)
+  first <- summary(pooled_effect(object, .posterior_samples = posterior_samples))
   expect_false(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
-  second <- pooled_effect(object, .posterior_samples = posterior_samples)
-  expect_false(exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE))
-  expect_identical(
-    attr(first, "prediction_samples"),
-    attr(second, "prediction_samples")
+  set.seed(1)
+  second <- summary(pooled_effect(object, .posterior_samples = posterior_samples))
+  set.seed(2)
+  third <- summary(pooled_effect(object, .posterior_samples = posterior_samples))
+  expect_identical(first, second)
+  expect_identical(first, third)
+})
+
+
+test_that("pooled prediction quantiles are generalized inverses at point masses", {
+
+  quantile <- function(p, location, scale) {
+    .prediction_mixture_quantile(p, location = location, scale = scale)
+  }
+  location <- c(-0.2, 0.0, 0.2, 0.4)
+
+  # without heterogeneity the predictive distribution is the location draws
+  atoms <- rep(0, 4L)
+  expect_identical(quantile(0.025, location, atoms), -0.2)
+  expect_identical(quantile(0.25, location, atoms), -0.2)
+  expect_identical(quantile(0.5, location, atoms), 0.0)
+  expect_identical(quantile(0.975, location, atoms), 0.4)
+  expect_identical(quantile(0, location, atoms), -0.2)
+  expect_identical(quantile(1, location, atoms), 0.4)
+
+  # half the mass at zero: quantiles inside its jump are zero exactly, others
+  # solve the continuous part
+  mixed_location <- c(0, 0.5, 0, 0.8)
+  mixed_scale    <- c(0, 0.2, 0, 0.3)
+  below_zero     <- mean(stats::pnorm(0, mixed_location, mixed_scale)) - 0.5
+  expect_gt(below_zero, 0)
+  expect_lt(below_zero, 0.025)
+  expect_identical(quantile(0.025, mixed_location, mixed_scale), 0)
+  expect_identical(quantile(0.3, mixed_location, mixed_scale), 0)
+  upper <- quantile(0.975, mixed_location, mixed_scale)
+  expect_lt(abs(mean(stats::pnorm(upper, mixed_location, mixed_scale)) - 0.975), 1e-10)
+  expect_identical(quantile(0, mixed_location, mixed_scale), -Inf)
+  expect_identical(quantile(1, mixed_location, mixed_scale), Inf)
+
+  expect_error(
+    .new_prediction_mixture(matrix(0, 2L, 1L), matrix(-1, 2L, 1L), matrix(0, 2L, 1L)),
+    "non-negative finite scale"
   )
 })
 
@@ -312,7 +338,7 @@ test_that("prior-only scale formulas evaluate the fitted standardization", {
   ))
 })
 
-test_that("pooled target metadata names its fixed reference and retains RNG behavior", {
+test_that("pooled target metadata names its fixed reference and leaves the RNG untouched", {
 
   object <- brma(yi = c(-.1, 0, .1), sei = rep(.1, 3), measure = "GEN",
     prior_effect = prior("point", list(location = 0)),
@@ -325,6 +351,6 @@ test_that("pooled target metadata names its fixed reference and retains RNG beha
   target <- attr(pooled, "RoBMA_target", exact = TRUE)
   expect_identical(target$reported_target, "fixed-location average-expanded-design reference")
   expect_identical(target$prediction_target, "new unselected true effect at the pooled reference")
-  expect_identical(target$rng_policy, "preserve_caller_state")
+  expect_null(target$rng_policy)
   expect_identical(.Random.seed, before)
 })

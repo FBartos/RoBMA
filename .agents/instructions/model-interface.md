@@ -353,7 +353,10 @@ prior point masses keep their existing classification.
   studies and not based on the root mean square: composite designs, such as
   `brma.mv()` factor-specific or random-slope terms
   (`tests/scenarios/test-kearon1998.R:70`), would make a mixture interval
-  confusing.
+  confusing. Their quantiles are exact for the posterior draws: the normal
+  mixture over draws of the pooled location and that heterogeneity is
+  inverted (`prediction_mixture`), with no simulated predictive draws, so
+  printed intervals are reproducible.
 - `predict()` is a specific design point. `summary()` and
   `summary_heterogeneity()` report the parameters, as the root mean square over
   the observed design, which the funnel plots also use (`plotting.md`). The

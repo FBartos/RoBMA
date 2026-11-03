@@ -299,8 +299,8 @@ test_that("pooled_effect() and pooled_heterogeneity() forward the dots to predic
   predicted <- predict(mods, newdata = TRUE, type = "terms", bias_adjusted = TRUE, quiet = TRUE)
   expect_identical(attr(pooled, "title"), "Pooled Effect Size")
   expect_equal(unclass(pooled)[, "mu"], unclass(predicted)[, "mu"], ignore_attr = TRUE)
-  expect_false(is.null(attr(pooled, "prediction_samples")))
-  expect_null(attr(predicted, "prediction_samples"))
+  expect_false(is.null(attr(pooled, "prediction_mixture")))
+  expect_null(attr(predicted, "prediction_mixture"))
   expect_identical(attr(pooled_heterogeneity(mods), "title"), "Pooled Heterogeneity")
 })
 

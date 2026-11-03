@@ -579,17 +579,13 @@
                                      component = "location",
                                      probs = c(.025, .975), data = NULL,
                                      effect_transform = NULL,
-                                     prediction_samples = NULL) {
+                                     prediction_mixture = NULL) {
 
+  # the predictive mixture stays on the fitted scale; summary() transforms its
+  # quantiles
   if (!is.null(effect_transform)) {
     samples <- .transform_effect_matrix(samples, effect_transform)
-    if (!is.null(prediction_samples)) {
-      prediction_samples <- .transform_effect_matrix(
-        prediction_samples,
-        effect_transform
-      )
-    }
-    title <- .effect_output_title(title, effect_transform)
+    title   <- .effect_output_title(title, effect_transform)
   }
 
   return(.new_brma_samples(
@@ -601,7 +597,7 @@
     probs              = probs,
     data               = data,
     effect_transform   = effect_transform,
-    prediction_samples = prediction_samples
+    prediction_mixture = prediction_mixture
   ))
 }
 

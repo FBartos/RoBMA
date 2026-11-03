@@ -111,11 +111,14 @@ to that one prediction row and the prediction interval uses
 \code{\link{predict.brma}} with \code{type = "estimate"} and
 \code{conditioning_depth = "marginal"}. For
 \pkg{metafor}'s \code{predstyle = "shade"} and
-\code{predstyle = "dist"}, the adapter supplies a deterministic kernel
-density estimate computed from those posterior predictive draws. This is a
-display approximation that can smooth point masses. The
-displayed prediction-interval endpoints remain the posterior quantiles of
-the corresponding predictive draws.
+\code{predstyle = "dist"}, the adapter supplies the predictive density.
+Without \code{newdata} it is the exact posterior predictive density, a
+normal mixture over the posterior draws whose point masses (draws without
+heterogeneity) are smoothed by a kernel for display. With \code{newdata} it
+is a kernel density estimate of the predictive draws from
+\code{\link{predict.brma}}. The displayed prediction-interval endpoints are
+the quantiles reported by \code{\link{pooled_effect}} or
+\code{\link{predict.brma}}.
 
 Additional study-level columns can be added with metafor's \code{ilab}
 interface. When supplied to \code{as_metafor_forest()} or to

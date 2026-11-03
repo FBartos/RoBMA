@@ -358,9 +358,7 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       object     = fit_brma,
       parameters = .conditional_effect_parameters(fit_brma)
     )
-    set.seed(247)
     pooled_effect_averaged <- pooled_effect(fit_brma)
-    set.seed(247)
     pooled_effect_cond     <- expect_silent(
       pooled_effect(fit_brma, conditional = TRUE)
     )
@@ -384,12 +382,10 @@ test_that("Conditional pooled wrappers condition RoBMA draws", {
       info = paste(name, "pooled_effect conditional rows")
     )
     expect_equal(
-      unname(attr(pooled_effect_cond, "prediction_samples")),
-      unname(attr(pooled_effect_averaged, "prediction_samples")[
-        effect_rows,
-        ,
-        drop = FALSE
-      ]),
+      lapply(attr(pooled_effect_cond, "prediction_mixture"), unname),
+      lapply(attr(pooled_effect_averaged, "prediction_mixture"), function(component) {
+        unname(component[effect_rows, , drop = FALSE])
+      }),
       info = paste(name, "pooled prediction conditional rows")
     )
     expect_equal(

@@ -342,7 +342,9 @@ pooled_effect <- function(object, ...) {
 #'
 #' @return A \code{brma_samples} object containing posterior samples. When printed,
 #' displays a one-row summary table whose \code{PI} columns contain posterior
-#' prediction quantiles. Use \code{summary()}, or
+#' prediction quantiles. They are computed exactly from the posterior draws of
+#' the pooled location and heterogeneity, as quantiles of the normal mixture
+#' over the draws, so they involve no random numbers. Use \code{summary()}, or
 #' \code{as.data.frame(summary(x))}, to obtain the table; \code{as.data.frame(x)}
 #' returns the posterior draws.
 #' The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
@@ -373,8 +375,8 @@ pooled_effect.brma <- function(object, bias_adjusted = TRUE,
   .check_method_fixed_arguments(list(...))
   forwarded <- .split_aggregate_dots(list(...))
 
-  # the aggregated prediction at the average fitted design, with the draws of
-  # one new true effect at the pooled reference (the PI columns)
+  # the aggregated prediction at the average fitted design, with the predictive
+  # mixture of one new true effect at the pooled reference (the PI columns)
   return(do.call(.predict_brma_aggregate, c(
     list(
       object              = object,

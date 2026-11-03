@@ -143,9 +143,44 @@ test_that("forest predictive distributions retain actual draw geometry", {
       border      = NULL,
       constarea   = NULL
     ),
-    "at least two distinct posterior predictive draws",
+    "requires a predictive distribution that is not a single point",
     fixed = TRUE
   )
+})
+
+test_that("forest pooled predictive densities are the exact predictive mixture", {
+
+  samples  <- matrix(0, 4L, 1L, dimnames = list(NULL, "mu"))
+  location <- matrix(c(-0.4, 0.0, 0.3, 0.5), ncol = 1L)
+  scale    <- matrix(c(0.2, 0.3, 0.25, 0.4), ncol = 1L)
+  mixture  <- .new_prediction_mixture(location, scale, samples)
+  preddist <- .forest_prediction_mixture_distribution(mixture, pi.lb = -1, pi.ub = 1,
+                                                      level = .95)
+
+  expect_named(preddist, c("x", "density", "pi.lb", "pi.ub", "level"))
+  expect_length(preddist[["x"]], 512L)
+  expected <- vapply(preddist[["x"]], function(x) {
+    mean(stats::dnorm(x, location[, 1L], scale[, 1L]))
+  }, numeric(1))
+  expect_lt(max(abs(preddist[["density"]] - expected)), 1e-15)
+  # the grid covers the mixture from its 0.05% to 99.95% quantiles
+  spacing <- diff(preddist[["x"]])[[1L]]
+  mass    <- sum(preddist[["density"]]) * spacing
+  expect_lt(abs(mass - 1), 2e-3)
+  expect_identical(
+    .forest_prediction_mixture_distribution(mixture, -1, 1, .95),
+    preddist
+  )
+
+  # point masses are smoothed; a single point has no density
+  atoms <- .new_prediction_mixture(location, matrix(0, 4L, 1L), samples)
+  smoothed <- .forest_prediction_mixture_distribution(atoms, -0.4, 0.5, .95)
+  expect_true(all(is.finite(smoothed[["density"]])))
+  expect_lt(abs(sum(smoothed[["density"]]) * diff(smoothed[["x"]])[[1L]] - 1), 1e-2)
+  expect_null(.forest_prediction_mixture_distribution(
+    .new_prediction_mixture(matrix(0.2, 4L, 1L), matrix(0, 4L, 1L), samples),
+    0.2, 0.2, .95
+  ))
 })
 
 

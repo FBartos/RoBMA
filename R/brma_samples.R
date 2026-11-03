@@ -34,9 +34,13 @@
 #' @param data optional data associated with the predictions (e.g., for
 #' non-aggregated predictions)
 #' @param effect_transform optional effect-size transformation metadata
-#' @param prediction_samples optional posterior predictive samples with the
-#' same dimensions as \code{samples}. When supplied, their posterior quantiles
-#' are appended as prediction-interval columns by \code{summary()}.
+#' @param prediction_mixture optional posterior predictive distribution of one
+#' new value per column: a list of \code{location} and \code{scale} matrices
+#' with the dimensions of \code{samples}, on the fitted (untransformed) scale.
+#' Each posterior draw contributes a normal component (a point mass where the
+#' scale is zero). When supplied, \code{summary()} appends the exact quantiles
+#' of this mixture, transformed by \code{effect_transform}, as
+#' prediction-interval columns.
 #'
 #' @return An object of class \code{brma_samples} which inherits from
 #' \code{matrix}.
@@ -46,7 +50,7 @@
                               component = "result",
                               probs = c(.025, .975), data = NULL,
                               effect_transform = NULL,
-                              prediction_samples = NULL) {
+                              prediction_mixture = NULL) {
 
   # ensure samples is a matrix with proper column names
   if (!is.matrix(samples)) {
@@ -68,19 +72,12 @@
          call. = FALSE)
   }
 
-  if (!is.null(prediction_samples)) {
-    if (!is.matrix(prediction_samples)) {
-      prediction_samples <- as.matrix(prediction_samples)
-    }
-    if (!is.numeric(prediction_samples) ||
-        !identical(dim(prediction_samples), dim(samples)) ||
-        any(!is.finite(prediction_samples))) {
-      stop(
-        "'prediction_samples' must be a finite numeric matrix with the same dimensions as 'samples'.",
-        call. = FALSE
-      )
-    }
-    colnames(prediction_samples) <- colnames(samples)
+  if (!is.null(prediction_mixture)) {
+    prediction_mixture <- .new_prediction_mixture(
+      location = prediction_mixture[["location"]],
+      scale    = prediction_mixture[["scale"]],
+      samples  = samples
+    )
   }
 
   # add attributes for MCMC structure
@@ -93,8 +90,8 @@
   attr(samples, "probs")     <- probs
   attr(samples, "data")      <- data
 
-  if (!is.null(prediction_samples)) {
-    attr(samples, "prediction_samples") <- prediction_samples
+  if (!is.null(prediction_mixture)) {
+    attr(samples, "prediction_mixture") <- prediction_mixture
   }
 
   if (!is.null(effect_transform)) {
@@ -218,24 +215,20 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
     )
   )
 
-  prediction_samples <- attr(object, "prediction_samples", exact = TRUE)
-  if (!is.null(prediction_samples)) {
-    prediction_table <- BayesTools::ensemble_estimates_table(
-      samples    = .brma_samples_columns(prediction_samples),
-      parameters = colnames(object),
-      probs      = probs,
-      title      = attr(object, "title")
+  prediction_mixture <- attr(object, "prediction_mixture", exact = TRUE)
+  if (!is.null(prediction_mixture)) {
+    # transforming the quantiles is exact: every effect transformation is
+    # strictly increasing
+    prediction_quantiles <- .transform_effect_matrix(
+      .prediction_mixture_quantiles(prediction_mixture, probs),
+      attr(object, "effect_transform", exact = TRUE)
     )
-    quantile_columns <- utils::tail(
-      colnames(prediction_table),
-      length(probs)
-    )
-    for (column in quantile_columns) {
-      summary_table[[paste("PI", column)]] <- prediction_table[[column]]
+    for (i in seq_along(probs)) {
+      summary_table[[paste("PI", probs[i])]] <- unname(prediction_quantiles[i, ])
     }
     attr(summary_table, "type") <- c(
       attr(summary_table, "type"),
-      rep("estimate", length(quantile_columns))
+      rep("estimate", length(probs))
     )
   }
 
@@ -254,6 +247,103 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
     lapply(seq_len(ncol(samples)), function(i) as.numeric(samples[, i])),
     colnames(samples)
   )
+}
+
+
+# ---------------------------------------------------------------------------- #
+# Posterior predictive mixtures
+# ---------------------------------------------------------------------------- #
+
+# The posterior predictive distribution of one new value is the equally
+# weighted normal mixture over the posterior draws,
+#   F(x) = mean_s pnorm(x, location_s, scale_s),
+# with a point mass where scale_s = 0 (pnorm(sd = 0) is its right-continuous
+# step). Its quantiles are computed from the draws directly rather than from
+# one simulated predictive draw per posterior draw, which removes that
+# simulation error and needs no random numbers.
+.new_prediction_mixture <- function(location, scale, samples) {
+
+  location <- as.matrix(location)
+  scale    <- as.matrix(scale)
+  if (!is.numeric(location) || !is.numeric(scale) ||
+      !identical(dim(location), dim(samples)) ||
+      !identical(dim(scale), dim(samples)) ||
+      any(!is.finite(location)) || any(!is.finite(scale)) || any(scale < 0)) {
+    stop(
+      "The predictive mixture needs finite location and non-negative finite ",
+      "scale matrices with the dimensions of the samples.",
+      call. = FALSE
+    )
+  }
+  dimnames(location) <- dimnames(scale) <- list(NULL, colnames(samples))
+
+  return(list(location = location, scale = scale))
+}
+
+# Quantiles (rows) of each column's predictive mixture, on the fitted scale.
+.prediction_mixture_quantiles <- function(prediction_mixture, probs) {
+
+  location <- prediction_mixture[["location"]]
+  scale    <- prediction_mixture[["scale"]]
+  out <- vapply(seq_len(ncol(location)), function(j) {
+    vapply(probs, .prediction_mixture_quantile, numeric(1),
+           location = location[, j], scale = scale[, j])
+  }, numeric(length(probs)))
+
+  return(matrix(out, nrow = length(probs), dimnames = list(probs, colnames(location))))
+}
+
+# The generalized inverse inf{x : F(x) >= p}. Brent's method narrows the
+# bracket; where F is flat at p (between point masses) a root of F(x) - p is
+# not unique, and bisection on F(x) >= p finds the left end. A quantile that
+# falls in the jump of a point mass is that location exactly.
+.prediction_mixture_quantile <- function(p, location, scale) {
+
+  continuous <- any(scale > 0)
+  if (p <= 0) {
+    return(if (continuous) -Inf else min(location))
+  }
+  if (p >= 1) {
+    return(if (continuous) Inf else max(location))
+  }
+
+  cdf <- function(x) mean(stats::pnorm(x, location, scale))
+  # F(lower) < p <= F(upper): every component lies below p at lower (above
+  # 1 - p at upper), and lower is strictly below every point mass
+  width <- 2 - stats::qnorm(min(p, 1 - p))
+  lower <- min(location - width * scale)
+  upper <- max(location + width * scale)
+  lower <- lower - 1e-8 * max(1, abs(lower))
+  tol   <- 1e-10 * max(1, upper - lower)
+  root  <- stats::uniroot(function(x) cdf(x) - p, lower = lower, upper = upper,
+                          tol = tol)[["root"]]
+  if (cdf(root) >= p) {
+    upper <- root
+    if (cdf(root - tol) < p) {
+      lower <- root - tol
+    }
+  } else {
+    lower <- root
+    if (cdf(root + tol) >= p) {
+      upper <- root + tol
+    }
+  }
+  while (upper - lower > tol) {
+    middle <- lower + (upper - lower) / 2
+    if (cdf(middle) >= p) {
+      upper <- middle
+    } else {
+      lower <- middle
+    }
+  }
+
+  atoms <- location[scale == 0 & location > lower & location <= upper]
+  atoms <- atoms[vapply(atoms, cdf, numeric(1)) >= p]
+  if (length(atoms) > 0L) {
+    return(min(atoms))
+  }
+
+  return(upper)
 }
 
 

@@ -51,7 +51,9 @@ warning.}
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
 displays a one-row summary table whose \code{PI} columns contain posterior
-prediction quantiles. Use \code{summary()}, or
+prediction quantiles. They are computed exactly from the posterior draws of
+the pooled location and heterogeneity, as quantiles of the normal mixture
+over the draws, so they involve no random numbers. Use \code{summary()}, or
 \code{as.data.frame(summary(x))}, to obtain the table; \code{as.data.frame(x)}
 returns the posterior draws.
 The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
