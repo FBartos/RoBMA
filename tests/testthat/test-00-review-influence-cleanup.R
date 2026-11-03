@@ -320,3 +320,15 @@ test_that("diagnostic printers return the object they print unchanged", {
   }
   expect_true(any(grepl("a note", capture.output(print(cov_result)), fixed = TRUE)))
 })
+
+test_that("dfbetas and interpret validate their controls", {
+
+  object <- .review_cleanup_plain_replay(known_v = TRUE)
+  for (argument in c("standardized_coefficients", "transform_factors", "return_loo_estimates")) {
+    for (value in list(NA, "yes", c(TRUE, FALSE))) {
+      args <- stats::setNames(list(value), argument)
+      expect_error(do.call(dfbetas, c(list(object), args)), argument, fixed = TRUE)
+    }
+  }
+  expect_error(interpret(object, digits = NA), "'digits' argument", fixed = TRUE)
+})

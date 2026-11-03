@@ -106,6 +106,9 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
   dots <- list(...)
   .weights <- dots[[".weights"]]
   BayesTools::check_char(type, "type", allow_values = c("mods", "scale", "bias"))
+  BayesTools::check_bool(standardized_coefficients, "standardized_coefficients")
+  BayesTools::check_bool(transform_factors, "transform_factors")
+  BayesTools::check_bool(return_loo_estimates, "return_loo_estimates")
   BayesTools::check_char(component, "component", check_length = 1,
                          allow_NULL = TRUE)
   BayesTools::check_char(parameter, "parameter", check_length = 1,

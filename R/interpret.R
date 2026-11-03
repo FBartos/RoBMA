@@ -87,7 +87,7 @@ interpret.brma <- function(object, output_measure = NULL, transform = NULL,
                          check_length = 2, allow_NA = FALSE)
   probs <- sort(probs)
   BayesTools::check_bool(priors, "priors")
-  BayesTools::check_int(digits, "digits", lower = 0)
+  BayesTools::check_int(digits, "digits", lower = 0, allow_NA = FALSE)
 
   effect_transform <- .effect_output_setup(
     object         = object,
