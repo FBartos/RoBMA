@@ -10,7 +10,6 @@ csl: "`r normalizePath('../inst/apa.csl', winslash = '/', mustWork = TRUE)`"
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Posterior Densities and Parameter Tests}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -42,7 +41,7 @@ knitr::opts_chunk$set(
   fig.width   = 7,
   fig.height  = 3.5,
   dev         = "png",
-  fig.retina  = 3
+  fig.retina  = vignette_fig_retina()
 )
 if (.Platform$OS.type == "windows") {
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
