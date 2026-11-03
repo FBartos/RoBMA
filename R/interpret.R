@@ -287,15 +287,13 @@ print.interpret.brma <- function(x, ...) {
   }
 
   if ("estimates" %in% scope) {
-    effect <- tryCatch(
-      pooled_effect(
-        object         = object,
-        output_measure = effect_transform[["output_measure"]],
-        transform      = effect_transform[["transform"]],
-        probs          = probs,
-        conditional    = conditional
-      ),
-      error = function(e) NULL
+    # errors propagate: every supported model reports a pooled effect
+    effect <- pooled_effect(
+      object         = object,
+      output_measure = effect_transform[["output_measure"]],
+      transform      = effect_transform[["transform"]],
+      probs          = probs,
+      conditional    = conditional
     )
     if (!is.null(effect)) {
       sources[["pooled_effect"]] <- .interpret_record_source(
@@ -313,13 +311,10 @@ print.interpret.brma <- function(x, ...) {
       )
     }
 
-    heterogeneity <- tryCatch(
-      pooled_heterogeneity(
-        object      = object,
-        probs       = probs,
-        conditional = conditional
-      ),
-      error = function(e) NULL
+    heterogeneity <- pooled_heterogeneity(
+      object      = object,
+      probs       = probs,
+      conditional = conditional
     )
     if (!is.null(heterogeneity)) {
       sources <- .interpret_add_heterogeneity_sources(

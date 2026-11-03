@@ -47,3 +47,27 @@ test_that("interpret includes multivariate heterogeneity inclusion evidence", {
   bias_only <- attr(interpret(object, scope = "bias"), "records")
   expect_equal(sum(bias_only[["kind"]] == "evidence"), 0L)
 })
+
+test_that("interpret surfaces errors of the pooled summaries", {
+
+  object <- structure(
+    list(fit = list(1), data = structure(list(), measure = "GEN")),
+    class = c("brma.norm", "brma")
+  )
+  testthat::local_mocked_bindings(
+    summary.brma = function(...) list(name = "Bayesian Random-Effects Model"),
+    pooled_effect = function(...) stop("pooled effect failed", call. = FALSE),
+    .package = "RoBMA"
+  )
+  expect_error(interpret(object, scope = "estimates"), "pooled effect failed", fixed = TRUE)
+
+  testthat::local_mocked_bindings(
+    pooled_effect = function(...) "pooled effect draws",
+    .interpret_samples_record = function(...) NULL,
+    .interpret_record_source = function(record) record,
+    pooled_heterogeneity = function(...) stop("pooled heterogeneity failed", call. = FALSE),
+    .package = "RoBMA"
+  )
+  expect_error(interpret(object, scope = "estimates"), "pooled heterogeneity failed",
+               fixed = TRUE)
+})
