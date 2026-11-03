@@ -662,11 +662,15 @@ inline bool validate_normalizers(const double *location, const double *value,
 #if SELNORM_TAIL_HAS_AVX2
   if (avx2_available()) return validate_normalizers_avx2(location, value, magnitude, count);
 #endif
+  // Constants keep the branch-free '&' operands free of calls, which clang
+  // reports as -Wbitwise-instead-of-logical.
+  constexpr double largest  = std::numeric_limits<double>::max();
+  constexpr double smallest = std::numeric_limits<double>::min();
   bool valid = true;
   for (std::size_t index = 0; index < count; ++index) {
-    valid &= (std::fabs(location[index]) <= std::numeric_limits<double>::max()) &
-             (value[index] <= std::numeric_limits<double>::max()) &
-             (value[index] > std::numeric_limits<double>::min()) &
+    valid &= (std::fabs(location[index]) <= largest) &
+             (value[index] <= largest) &
+             (value[index] > smallest) &
              (value[index] > 1e-8 * magnitude[index]);
   }
   return valid;

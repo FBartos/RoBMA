@@ -3365,7 +3365,6 @@ inline void selnorm_evaluate_gaussian_mixtures(
   }
 
   std::vector<std::vector<long double>> row_density(rows.size());
-  std::atomic<bool> failed{false};
   const auto evaluate = [&](int index, SelNormMixtureProjectionWorkspace &scratch) {
     if (rows[index].count == 0) return;
     selnorm_evaluate_gaussian_mixture_row(rows[index], compression_allowance,
@@ -3374,6 +3373,7 @@ inline void selnorm_evaluate_gaussian_mixtures(
   };
 #if defined(_OPENMP)
   {
+    std::atomic<bool> failed{false};
     #pragma omp parallel num_threads(workers)
     {
       std::optional<SelNormMixtureProjectionWorkspace> scratch;
@@ -8416,7 +8416,6 @@ bool cpp_selnorm_context_star_projection(
       }
     }
   }
-  std::atomic<bool> context_failed{false};
   const auto evaluate_context = [&](int context, EnvelopeRuleWorkspace &workspace,
                                     EnvelopeRuleProjection *target) {
     std::vector<double> mean(dimension);
@@ -8469,6 +8468,7 @@ bool cpp_selnorm_context_star_projection(
 
 #if defined(_OPENMP)
   if (context_workers > 1) {
+    std::atomic<bool> context_failed{false};
     #pragma omp parallel num_threads(context_workers)
     {
       EnvelopeRuleWorkspace workspace;

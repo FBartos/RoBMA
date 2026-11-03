@@ -3,6 +3,9 @@
 #include <R_ext/Lapack.h>
 #include <R_ext/Utils.h>
 #include <Rinternals.h>
+// The AS_CHM_* alloca macros are unused; Matrix's alloca macro would break the
+// macOS SDK's alloca.h declaration in the standard headers included below.
+#define R_MATRIX_NO_ALLOCA
 #include <Matrix/Matrix.h>
 #include <Matrix/stubs.c>
 
