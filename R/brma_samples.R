@@ -444,10 +444,11 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
 #' @export
 print.summary.brma_samples <- function(x, probs = NULL, ...) {
 
-  class(x) <- setdiff(class(x), "summary.brma_samples")
+  printed <- x
+  class(printed) <- setdiff(class(printed), "summary.brma_samples")
 
   cat("\n")
-  print(x)
+  print(printed)
   cat("\n")
 
   return(invisible(x))

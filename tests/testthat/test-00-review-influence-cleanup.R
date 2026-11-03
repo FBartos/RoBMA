@@ -305,3 +305,18 @@ test_that("a declared empty fixed-scale set returns the existing undefined COVRA
   expect_error(.covratio_internal(matrix(numeric(), 0L, 0L), weights),
     "'samples' must be a non-empty matrix of finite values.", fixed = TRUE)
 })
+
+test_that("diagnostic printers return the object they print unchanged", {
+
+  cov_result <- structure(c(`1` = 1.1, `2` = 0.9), note = "a note",
+                          RoBMA_target = list(method = "covratio()"), class = "covratio.brma")
+  dfb_result <- structure(data.frame(x = c(.1, -.2)), note = "a note",
+                          class = c("dfbetas.brma", "data.frame"))
+  smp_result <- structure(data.frame(Mean = 1), class = c("summary.brma_samples", "data.frame"))
+  for (result in list(cov_result, dfb_result, smp_result)) {
+    printed <- capture.output(returned <- withVisible(print(result)))
+    expect_false(returned$visible)
+    expect_identical(returned$value, result)
+  }
+  expect_true(any(grepl("a note", capture.output(print(cov_result)), fixed = TRUE)))
+})

@@ -380,11 +380,12 @@ covratio.brma <- function(model, type = "mods", component = NULL,
 #' @exportS3Method
 print.covratio.brma <- function(x, ...) {
 
-  note <- attr(x, "note")
-  attr(x, "note") <- NULL
-  attr(x, "RoBMA_target") <- NULL
-  class(x) <- NULL
-  print(x, ...)
+  note    <- attr(x, "note")
+  printed <- x
+  attr(printed, "note") <- NULL
+  attr(printed, "RoBMA_target") <- NULL
+  class(printed) <- NULL
+  print(printed, ...)
   .print_diagnostic_note(note)
 
   return(invisible(x))

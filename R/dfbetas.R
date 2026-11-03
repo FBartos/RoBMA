@@ -279,9 +279,10 @@ dfbetas.brma <- function(model, type = "mods", standardized_coefficients = FALSE
 #' @exportS3Method
 print.dfbetas.brma <- function(x, ...) {
 
-  note <- attr(x, "note")
-  class(x) <- "data.frame"
-  print(x, ...)
+  note    <- attr(x, "note")
+  printed <- x
+  class(printed) <- "data.frame"
+  print(printed, ...)
   .print_diagnostic_note(note)
 
   return(invisible(x))
