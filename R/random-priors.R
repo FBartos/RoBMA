@@ -154,14 +154,17 @@
 #' back to noncentering.
 #'
 #' A named `random_block()` may instead request `"mean_centered"` for a sampled
-#' scalar random intercept; the top-level `parameterization` does not accept it
-#' and `"auto"` never selects it. It samples the group locations around the
-#' compiled contribution of the fixed intercept, so the original effect, SD,
-#' allocation, and correlation priors are unchanged. At most one block per
-#' formula may take the intercept. The mode needs the positive SD coordinates of
-#' centered blocks and is rejected for marginalized blocks, random slopes, known
-#' between-group covariance, and selection models in which the block is
-#' integrated rather than retained in the selection normalizer.
+#' block; the top-level `parameterization` does not accept it and `"auto"` never
+#' selects it. It samples the group effects around the compiled contribution of
+#' the fixed terms the block absorbs (the intercept and any moderator its
+#' random-effect design spans or that is constant within its groups, and the
+#' group locations of an enclosing mean-centered block), so the original effect,
+#' SD, allocation, and correlation priors are unchanged; see
+#' [BayesTools::prior_random()]. A block that absorbs nothing is rejected. The
+#' mode needs the positive SD coordinates of centered blocks and is rejected for
+#' marginalized blocks, known between-group covariance, and selection models in
+#' which the block is integrated rather than retained in the selection
+#' normalizer.
 #'
 #' @param ... named `random_block()` overrides and, optionally,
 #'   `random_variance_allocation()` objects. Override names must match resolved
