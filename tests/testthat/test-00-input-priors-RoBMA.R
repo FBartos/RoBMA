@@ -1417,7 +1417,7 @@ test_that("factor null completion stays within its component scale formula", {
   expect_identical(scale[["log_tau_observation_effect"]][["intercept"]][["parameters"]][["location"]], 0.4)
 })
 
-test_that("scalar priors reject PET, PEESE, and non-point discrete distributions", {
+test_that("scalar priors reject PET and PEESE distributions", {
 
   pet   <- BayesTools::prior_PET("cauchy", list(0, 1))
   peese <- BayesTools::prior_PEESE("cauchy", list(0, 5))
@@ -1427,14 +1427,6 @@ test_that("scalar priors reject PET, PEESE, and non-point discrete distributions
                "'prior_heterogeneity' argument must not be a PET or PEESE prior")
   expect_error(RoBMA:::.check_prior.term(pet),
                "'prior_mods' / 'prior_scale' argument must not be a PET or PEESE prior")
-  expect_error(
-    RoBMA:::.check_prior.heterogeneity(BayesTools::prior("bernoulli", list(.5))),
-    "Non-point discrete priors are not supported for 'prior_heterogeneity'"
-  )
-  expect_error(
-    RoBMA:::.check_prior.effect(BayesTools::prior("bernoulli", list(.5))),
-    "Non-point discrete priors are not supported for 'prior_effect'"
-  )
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("point", list(0))), "prior")
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("normal", list(0, 1))), "prior")
   expect_null(RoBMA:::.check_prior.term(BayesTools::prior("normal", list(0, 1))))

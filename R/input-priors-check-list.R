@@ -40,8 +40,6 @@
   if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
     stop(sprintf("The '%s' argument must be a either a simple or point prior distribution.", prior_name), call. = FALSE)
   .check_prior.not_bias(prior, prior_name)
-  if (BayesTools::is.prior.discrete(prior) && !BayesTools::is.prior.point(prior))
-    stop(sprintf("Non-point discrete priors are not supported for '%s'; use a point or continuous prior.", prior_name), call. = FALSE)
 
   return(prior)
 }
