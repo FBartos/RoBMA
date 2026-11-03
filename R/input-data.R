@@ -998,6 +998,23 @@ NULL
 }
 
 
+# GLMM likelihoods pass the counts to native code as integers, so they must be
+# exact whole numbers within the integer range (check_int() allows a tolerance)
+.check_glmm_counts <- function(x, name) {
+
+  observed <- x[!is.na(x)]
+  if (any(observed != floor(observed))) {
+    stop("The '", name, "' argument must contain exact whole-number counts.", call. = FALSE)
+  }
+  if (any(observed > .Machine$integer.max)) {
+    stop("The '", name, "' argument must not exceed ", .Machine$integer.max, ".",
+         call. = FALSE)
+  }
+
+  return(invisible(TRUE))
+}
+
+
 # Internal helper to validate and canonicalize binomial arm counts.
 .canonicalize_binomial_counts <- function(ai, bi = NULL, ci = NULL, di = NULL,
                                           n1i = NULL, n2i = NULL,
@@ -1020,6 +1037,7 @@ NULL
         count_args[[arg_name]], arg_name,
         check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0
       )
+      .check_glmm_counts(count_args[[arg_name]], arg_name)
     }
   }
 
@@ -1051,9 +1069,11 @@ NULL
 
   if (!is.null(bi)) {
     n1i <- ai + bi
+    .check_glmm_counts(n1i, "n1i")
   }
   if (!is.null(di)) {
     n2i <- ci + di
+    .check_glmm_counts(n2i, "n2i")
   }
 
   if (!skip_validation) {
@@ -1183,9 +1203,11 @@ NULL
   ### Validate inputs
   # x1i: event counts in treatment group
   BayesTools::check_int(x1i, "x1i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
+  .check_glmm_counts(x1i, "x1i")
 
   # x2i: event counts in control group
   BayesTools::check_int(x2i, "x2i", check_length = k, allow_NULL = FALSE, allow_NA = TRUE, lower = 0)
+  .check_glmm_counts(x2i, "x2i")
 
   # t1i: person-time in treatment group
   # When skip_validation = TRUE (newdata), allow t1i = 0

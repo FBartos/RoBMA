@@ -1069,3 +1069,44 @@ test_that("retained Poisson exposures must be finite with excluded-row controls"
   expect_error(brma.glmm(ai = c(Inf, 2, 3), ci = c(1, 1, 1),
     n1i = rep(10, 3), n2i = rep(10, 3), subset = 2:3, only_data = TRUE), "'ai'.*finite")
 })
+
+test_that("GLMM counts must be exact whole numbers within the integer range", {
+
+  expect_error(
+    brma.glmm(ai = c(3 - 1e-9, 5), n1i = c(20, 25), ci = c(2, 6), n2i = c(21, 24),
+              measure = "OR", only_data = TRUE),
+    "'ai' argument must contain exact whole-number counts"
+  )
+  expect_error(
+    brma.glmm(ai = c(3, 5), bi = c(17, 20), ci = c(2, 6), di = c(19, 18 + 1e-10),
+              measure = "OR", only_data = TRUE),
+    "'di' argument must contain exact whole-number counts"
+  )
+  expect_error(
+    brma.glmm(ai = c(2e9, 5), bi = c(2e9, 20), ci = c(2, 6), di = c(19, 18),
+              measure = "OR", only_data = TRUE),
+    "'n1i' argument must not exceed 2147483647"
+  )
+  expect_error(
+    brma.glmm(x1i = c(4, 5 + 1e-9), x2i = c(3, 2), t1i = c(10, 12), t2i = c(11, 9),
+              measure = "IRR", only_data = TRUE),
+    "'x1i' argument must contain exact whole-number counts"
+  )
+  expect_error(
+    brma.glmm(x1i = c(4, 3e9), x2i = c(3, 2), t1i = c(10, 12), t2i = c(11, 9),
+              measure = "IRR", only_data = TRUE),
+    "'x1i' argument must not exceed 2147483647"
+  )
+
+  object <- brma.glmm(ai = c(3, 5), n1i = c(20, 25), ci = c(2, 6), n2i = c(21, 24),
+                      measure = "OR", only_data = TRUE)
+  expect_identical(object$data$outcome$ai, c(3, 5))
+})
+
+test_that("the default log-rate prior sums integer event counts without overflow", {
+
+  prior <- RoBMA:::.get_default_lograte_prior(
+    x1i = c(.Machine$integer.max, 5L), x2i = c(10L, 2L), t1i = c(1, 1), t2i = c(1, 1)
+  )
+  expect_true(BayesTools::is.prior(prior))
+})

@@ -253,7 +253,7 @@
     stop("Default 'prior_lograte' requires complete Poisson event counts and person-times.", call. = FALSE)
   }
 
-  total_events <- sum(x1i + x2i)
+  total_events <- sum(as.numeric(x1i) + as.numeric(x2i))
   total_time   <- sum(t1i + t2i)
   if (!is.finite(total_events) || total_events <= 0) {
     stop("Default 'prior_lograte' requires at least one observed Poisson event. Specify 'prior_lograte' manually for all-zero event counts.", call. = FALSE)
