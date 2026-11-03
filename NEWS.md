@@ -81,6 +81,15 @@
 - `as_zplot()` and `zplot()` validate `significance_level`
 - fitted objects no longer store the calling environment of their formulas
 - the RoBMA JAGS module is unregistered at process exit, preventing intermittent crashes on Windows
+- zplot histograms show empty plotting ranges, honour `xlim`, count `length.out` as bins, and keep the `to` limit when `by` does not divide the range
+- `summary_heterogeneity()` omits I2 and H2 for saturated meta-regressions instead of failing
+- GLMM counts must be exact whole numbers within the integer range
+- `radial()` passes `targs` to `transf` as its second argument, as in metafor
+- `prior_effect`, `prior_heterogeneity`, and predictor priors reject PET, PEESE, and non-point discrete distributions
+- `interpret()` reports errors of the pooled summaries instead of omitting the sentences
+- residual funnel plots extend the reference region to an explicit `ylim`
+- `forest()` accepts `predstyle = "polygon"`
+- print methods of `covratio()`, `dfbetas()`, and posterior-sample summaries return the printed object
 - clearer input and diagnostic messages
 
 ### Performance
