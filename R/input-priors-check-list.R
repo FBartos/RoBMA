@@ -39,8 +39,19 @@
     stop(sprintf("The '%s' argument must be a prior distribution.", prior_name), call. = FALSE)
   if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior)))
     stop(sprintf("The '%s' argument must be a either a simple or point prior distribution.", prior_name), call. = FALSE)
+  .check_prior.not_bias(prior, prior_name)
+  if (BayesTools::is.prior.discrete(prior) && !BayesTools::is.prior.point(prior))
+    stop(sprintf("Non-point discrete priors are not supported for '%s'; use a point or continuous prior.", prior_name), call. = FALSE)
 
   return(prior)
+}
+.check_prior.not_bias                 <- function(prior, prior_name) {
+
+  # PET and PEESE priors carry the simple-prior class but define bias terms
+  if (BayesTools::is.prior.PET(prior) || BayesTools::is.prior.PEESE(prior))
+    stop(sprintf("The '%s' argument must not be a PET or PEESE prior distribution; these specify publication bias adjustments.", prior_name), call. = FALSE)
+
+  return(invisible(TRUE))
 }
 .check_prior.restricted_01            <- function(prior, prior_name) {
 
@@ -78,6 +89,7 @@
     stop("The 'prior_mods' / 'prior_scale' arguments must be a prior distribution.", call. = FALSE)
   if (!(BayesTools::is.prior.simple(prior) || BayesTools::is.prior.point(prior) || BayesTools::is.prior.factor(prior)))
     stop("The 'prior_mods' / 'prior_scale' arguments for predictors must be a either a simple, factor, or point prior distribution.", call. = FALSE)
+  .check_prior.not_bias(prior, "prior_mods' / 'prior_scale")
 
   return()
 }

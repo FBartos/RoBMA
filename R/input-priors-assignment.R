@@ -1277,14 +1277,6 @@
     prior,
     prior_name = "prior_baserate"
   )
-  if (BayesTools::is.prior.discrete(prior) &&
-      !BayesTools::is.prior.point(prior)) {
-    stop(
-      "Non-point discrete priors are not supported for 'prior_baserate'; use ",
-      "a point or continuous prior.",
-      call. = FALSE
-    )
-  }
 
   prior <- .check_prior.restricted_01(
     prior,
@@ -1318,14 +1310,6 @@
 
   # check the user specified prior distribution
   prior <- .check_prior.simple_or_point(prior, prior_name = "prior_lograte")
-  if (BayesTools::is.prior.discrete(prior) &&
-      !BayesTools::is.prior.point(prior)) {
-    stop(
-      "Non-point discrete priors are not supported for 'prior_lograte'; use ",
-      "a point or continuous prior.",
-      call. = FALSE
-    )
-  }
 
   # transform the prior into independent factor prior
   prior <- BayesTools::prior_factor(prior[["distribution"]], parameters = prior[["parameters"]], truncation = prior[["truncation"]], contrast = "independent")
