@@ -393,7 +393,7 @@ forest.brma <- function(x, addfit = TRUE, addpred = FALSE,
   BayesTools::check_bool(conditional, "conditional")
   BayesTools::check_bool(as_data, "as_data")
   BayesTools::check_char(predstyle, "predstyle",
-                         allow_values = c("line", "bar", "shade", "dist"))
+                         allow_values = c("line", "polygon", "bar", "shade", "dist"))
   BayesTools::check_real(row, "row", check_length = 1, allow_NA = FALSE)
 
   if (addpred && !addfit) {
@@ -644,7 +644,7 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
 
   BayesTools::check_bool(addfit, "addfit")
   BayesTools::check_char(predstyle, "predstyle",
-                         allow_values = c("line", "bar", "shade", "dist"))
+                         allow_values = c("line", "polygon", "bar", "shade", "dist"))
   BayesTools::check_real(row, "row", check_length = 1, allow_NA = FALSE)
 
   if (addfit && predstyle != "line" && !isTRUE(forest_data[["addpred"]])) {

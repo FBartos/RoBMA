@@ -136,3 +136,16 @@ test_that("admitted known-V QQ data retain actual LOO deletion context", {
   expect_identical(standard$conditioning_depth, "marginal")
   expect_null(standard$retained_context)
 })
+
+test_that("forest supports metafor's polygon prediction-interval style", {
+
+  fit <- .review_plot_adapter_replay()
+  prepared <- forest.brma(fit, addpred = TRUE, predstyle = "polygon", as_data = TRUE)
+  expect_identical(prepared$addpoly_args$predstyle, "polygon")
+  .with_temp_plot_device({
+    expect_silent(forest.brma(fit, addpred = TRUE, predstyle = "polygon"))
+    expect_silent(forest.metafor_forest.brma(prepared))
+  })
+  expect_error(forest.brma(fit, predstyle = "polygon"),
+               "'predstyle' values other than 'line' require 'addpred = TRUE'.", fixed = TRUE)
+})
