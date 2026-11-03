@@ -80,7 +80,9 @@ jobs:
           echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
 
       # Install JAGS 4.3.2 on macOS from the official universal package, which
-      # installs into /usr/local (library, JAGS headers, jags.pc, jags binary)
+      # installs into /usr/local (library, JAGS headers, jags.pc, jags binary).
+      # Nothing is installed with Homebrew: it no longer has bottles for Intel
+      # macOS and builds formulae such as gcc from source past the job timeout.
       - name: Install JAGS (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -89,9 +91,6 @@ jobs:
           if brew list --formula jags > /dev/null 2>&1; then
             brew uninstall --ignore-dependencies jags
           fi
-          brew update
-          brew install openblas automake
-          command -v aclocal
           mkdir -p ~/jags-installer
           if [ ! -f ~/jags-installer/JAGS-4.3.2.pkg ]; then
             echo "JAGS installer not found in cache, downloading..."
@@ -105,9 +104,8 @@ jobs:
       - name: Set JAGS environment variables (macOS)
         if: runner.os == 'macOS'
         run: |
-          OPENBLAS_PREFIX=$(brew --prefix openblas)
           echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
-          echo "DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib:$OPENBLAS_PREFIX/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
           if command -v pkg-config > /dev/null 2>&1; then
             echo "pkg-config reports JAGS $(PKG_CONFIG_PATH=/usr/local/lib/pkgconfig pkg-config --modversion jags)"
           fi
@@ -118,8 +116,8 @@ jobs:
           command -v jags
           test -f /usr/local/lib/JAGS/modules-4/basemod.so
           test -f /usr/local/lib/JAGS/modules-4/bugs.so
-          test -f "$(brew --prefix openblas)/lib/libopenblas.0.dylib"
           ls -l /usr/local/lib/libjags*.dylib
+          otool -L /usr/local/lib/libjags*.dylib
           ls -l /usr/local/lib/JAGS/modules-4/basemod.so
 
       - name: Resolve BayesTools source
