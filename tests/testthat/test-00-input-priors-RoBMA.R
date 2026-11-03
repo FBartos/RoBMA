@@ -1427,6 +1427,13 @@ test_that("scalar priors reject PET and PEESE distributions", {
                "'prior_heterogeneity' argument must not be a PET or PEESE prior")
   expect_error(RoBMA:::.check_prior.term(pet),
                "'prior_mods' / 'prior_scale' argument must not be a PET or PEESE prior")
+  # non-point discrete scalar priors stay accepted, as in 4.0.0
+  bernoulli <- BayesTools::prior("bernoulli", list(.5))
+  expect_s3_class(RoBMA:::.check_prior.effect(bernoulli), "prior")
+  expect_s3_class(RoBMA:::.check_prior.heterogeneity(bernoulli), "prior")
+  priors <- brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+                 prior_effect = bernoulli, only_priors = TRUE)[["priors"]]
+  expect_identical(priors$outcome$mu$distribution, "bernoulli")
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("point", list(0))), "prior")
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("normal", list(0, 1))), "prior")
   expect_null(RoBMA:::.check_prior.term(BayesTools::prior("normal", list(0, 1))))
