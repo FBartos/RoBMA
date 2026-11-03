@@ -380,7 +380,8 @@ galbraith.brma <- function(x, ...) {
       }
       label_values <- vapply(aty.c, transf, numeric(1L), targs)
     } else {
-      label_values <- transf(aty.c)
+      # elementwise, as metafor, so scalar-only transformations work
+      label_values <- vapply(aty.c, transf, numeric(1L))
     }
     aty_label_text <- formatC(label_values, digits = digits, format = "f")
   } else {

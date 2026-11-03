@@ -363,6 +363,11 @@ test_that("Radial plot data and alias interface are stable", {
     radial(fit_brma, transf = exp, as_data = TRUE)$aty_labels,
     info = "'targs' reaches the transformation as its second argument (metafor convention)"
   )
+  expect_identical(
+    radial(fit_brma, transf = function(x) if (x < 0) -x else x, as_data = TRUE)$aty_labels,
+    radial(fit_brma, transf = abs, as_data = TRUE)$aty_labels,
+    info = "scalar-only transformations are applied elementwise"
+  )
 
   # --------------------------------------------------
   # Test galbraith alias works
