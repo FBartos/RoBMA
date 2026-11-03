@@ -13,7 +13,10 @@ A cache directory under `models/` must match the vignette filename without
 
 Keep sources UTF-8. Use a literal human-readable date, the actual author name,
 and the standard `html_vignette` header used by neighboring files. Do not copy
-an old date from a template.
+an old date from a template. The header's `bibliography` and `csl` resolve
+`../inst/REFERENCES.bib` and `../inst/apa.csl` with inline `normalizePath()`,
+because pkgdown runs Pandoc from a temporary intermediates directory and
+rmarkdown (>= 2.32) does not copy files outside it.
 
 Immediately after YAML, include:
 

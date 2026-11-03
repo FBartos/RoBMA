@@ -5,8 +5,8 @@ date: "4th of May 2026 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
-bibliography: ../inst/REFERENCES.bib
-csl: ../inst/apa.csl
+bibliography: "`r normalizePath('../inst/REFERENCES.bib', winslash = '/', mustWork = TRUE)`"
+csl: "`r normalizePath('../inst/apa.csl', winslash = '/', mustWork = TRUE)`"
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Robust Bayesian Meta-Analysis}
