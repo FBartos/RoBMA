@@ -294,14 +294,16 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
                 dimnames = list(probs, colnames(location))))
 }
 
-# The generalized inverse inf{x : F(x) >= p}, solved in standardized
-# coordinates (the center and extent of the mixture) so that the bracket and
-# tolerance follow the distribution's own scale. F(x) - p is assembled from the
-# small tail pnorm(-|z|) of every normal component and an exact count of point
-# masses, so its sign stays accurate where F rounds to p (low-density gaps).
-# Brent's method narrows the bracket; where F is flat at p (between point
-# masses) a root is not unique, and bisection on F(x) >= p finds the left end.
-# A quantile in the jump of a point mass is that location exactly.
+# The generalized inverse inf{x : F(x) >= p}. Point masses alone are the
+# empirical distribution of their locations. Otherwise the solve runs in
+# standardized coordinates (the center and extent of the mixture), so that the
+# bracket and tolerance follow the distribution's own scale. F(x) - p is
+# assembled from an exact count and the small tails pnorm(-|z|) of the normal
+# components, so its sign stays accurate where F rounds to p (low-density
+# gaps); where every tail underflows, the log tails decide the sign. Brent's
+# method narrows the bracket; where F is flat at p (between point masses) a
+# root is not unique, and bisection on F(x) >= p finds the left end. A quantile
+# in the jump of a point mass is that location exactly.
 .prediction_mixture_quantile <- function(p, location, scale) {
 
   continuous <- scale > 0
@@ -312,24 +314,55 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
     return(if (any(continuous)) Inf else max(location))
   }
 
+  n <- length(location)
+  if (!any(continuous)) {
+    # smallest k with k / n >= p (one step corrects the rounding of p * n)
+    k <- min(max(ceiling(p * n), 1), n)
+    if (k > 1 && (k - 1) / n >= p) {
+      k <- k - 1
+    } else if (k < n && k / n < p) {
+      k <- k + 1
+    }
+    return(sort(location)[[k]])
+  }
+
   center <- min(location) / 2 + max(location) / 2
   extent <- max(scale, abs(location - center))
-  if (extent == 0) {
-    return(center)
-  }
   normal_location <- (location[continuous] - center) / extent
   normal_scale    <- scale[continuous] / extent
   atom_location   <- location[!continuous]
   atom_position   <- (atom_location - center) / extent
-  n               <- length(location)
+  if (any(normal_scale == 0)) {
+    stop("The predictive mixture spans too wide a range relative to its ",
+         "smallest scale to compute its quantiles in double precision.",
+         call. = FALSE)
+  }
+
+  log_sum_exp <- function(x) {
+    if (length(x) == 0L) {
+      return(-Inf)
+    }
+    top <- max(x)
+    top + log(sum(exp(x - top)))
+  }
 
   # F(z) - p in standardized coordinates
   residual <- function(z) {
     standardized <- (z - normal_location) / normal_scale
     tail         <- stats::pnorm(-abs(standardized))
     above        <- standardized >= 0
-    (sum(above) + sum(atom_position <= z)) / n - p +
+    value <- (sum(above) + sum(atom_position <= z)) / n - p +
       (sum(tail[!above]) - sum(tail[above])) / n
+    if (value == 0) {
+      # only the sign is needed: compare the tails on the log scale
+      log_tail <- stats::pnorm(-abs(standardized), log.p = TRUE)
+      value    <- sign(log_sum_exp(log_tail[!above]) - log_sum_exp(log_tail[above])) *
+        .Machine$double.xmin
+      if (is.nan(value)) {
+        value <- 0
+      }
+    }
+    value
   }
 
   # F(lower) < p <= F(upper): every component lies below p at lower (above
@@ -372,6 +405,10 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
   }
 
   quantile <- center + extent * upper
+  if (!is.finite(quantile)) {
+    # extent * upper can overflow while the sum is representable
+    quantile <- extent * (center / extent + upper)
+  }
   # (a finite mixture can have a quantile beyond the double range, e.g. scales
   # near .Machine$double.xmax; report it instead of returning Inf)
   if (!is.finite(quantile)) {

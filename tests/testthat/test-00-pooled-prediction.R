@@ -250,6 +250,28 @@ test_that("pooled prediction quantiles follow the scale of the mixture", {
   expect_lt(abs(quantile(0.025, separated_location, separated_scale) - reference), 1e-6)
   symmetric_location <- rep(c(-10, 10), each = 20L)
   expect_lt(abs(quantile(0.5, symmetric_location, rep(1, 40L))), 1e-8)
+
+  # gaps where every tail underflows: the log tails keep the sign
+  expect_lt(abs(quantile(0.5, rep(c(-40, 40), each = 20L), rep(1, 40L))), 1e-8)
+  expect_lt(abs(quantile(0.5, rep(c(-0.4, 0.4), each = 20L), rep(0.01, 40L))), 1e-12)
+  wide_reference <- stats::uniroot(function(x) {
+    stats::pnorm(x + 40, lower.tail = FALSE, log.p = TRUE) - log(39) -
+      stats::pnorm(x - 40, log.p = TRUE)
+  }, lower = -20, upper = 20, tol = 1e-12)[["root"]]
+  expect_lt(abs(quantile(0.025, c(-40, rep(40, 39L)), rep(1, 40L)) - wide_reference), 1e-6)
+
+  # point masses far apart stay distinct
+  expect_identical(quantile(0.5, c(1, 2, 1e20), c(0, 0, 0)), 2)
+
+  # an affine reconstruction that would overflow on the way
+  expect_lt(abs(quantile(0.975, rep(-1e308, 4L), rep(1e308, 4L)) /
+                  (1e308 * (stats::qnorm(0.975) - 1)) - 1), 1e-9)
+  expect_error(quantile(0.5, c(-1e308, 1e308), c(1e-308, 1e-308)), "too wide a range")
+
+  # many duplicated point masses next to normals stay cheap
+  mixed_location <- c(rep(0, 5e4), stats::qnorm(seq(0.01, 0.99, length.out = 5e4)))
+  mixed_scale    <- c(rep(0, 5e4), rep(0.5, 5e4))
+  expect_identical(quantile(0.3, mixed_location, mixed_scale), 0)
 })
 
 

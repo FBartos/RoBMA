@@ -322,10 +322,10 @@ as_metafor_forest.brma <- function(x, level = 95, addpred = FALSE,
 #' \pkg{metafor}'s \code{predstyle = "shade"} and
 #' \code{predstyle = "dist"}, the adapter supplies the predictive density.
 #' Without \code{newdata} it is the posterior predictive density, a normal
-#' mixture over the posterior draws, smoothed by a normal kernel for display
-#' (the expected kernel density estimate of predictive draws, without their
-#' simulation noise); the smoothing keeps point masses (draws without
-#' heterogeneity) visible. With \code{newdata} it is a kernel density estimate
+#' mixture over the posterior draws, smoothed by a normal kernel for display (a
+#' kernel density estimate of predictive draws without their simulation
+#' noise); the smoothing keeps point masses (draws without heterogeneity)
+#' visible. With \code{newdata} it is a kernel density estimate
 #' of the predictive draws from \code{\link{predict.brma}}. The displayed prediction-interval endpoints are
 #' the quantiles reported by \code{\link{pooled_effect}} or
 #' \code{\link{predict.brma}}.
@@ -557,14 +557,18 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
 
 # The pooled predictive density for display (fitted scale, as pooled_effect()
 # is called untransformed): the normal mixture over the posterior draws
-# smoothed by a normal kernel, i.e. the expected kernel density estimate of
-# predictive draws, without their simulation noise. The bandwidth applies the
-# bw.nrd0() rule to the mixture's exact SD and IQR; smoothing every component
-# keeps point masses and components narrower than the grid visible. The grid
-# runs from the 0.05% to 99.95% quantiles, padded like stats::density(), and is
-# refined until its trapezoid mass matches the exact mass over its range.
+# smoothed by a normal kernel, i.e. a kernel density estimate of predictive
+# draws with this bandwidth, without their simulation noise. The bandwidth
+# applies the bw.nrd0() rule to the mixture's exact SD and IQR; smoothing every
+# component keeps point masses and narrow components visible. The grid runs
+# from the 0.05% to 99.95% quantiles, padded like stats::density(), with at
+# least four points per bandwidth, so that every smoothed component (SD at
+# least the bandwidth) and the regional mass metafor accumulates from the
+# trapezoids are resolved; where that would need more than `max_points`, the
+# display kernel is widened to the grid instead.
 .forest_prediction_mixture_distribution <- function(prediction_mixture, pi.lb,
-                                                    pi.ub, level, n = 512L) {
+                                                    pi.ub, level, min_points = 512L,
+                                                    max_points = 2049L) {
 
   location <- prediction_mixture[["location"]][, 1L]
   scale    <- prediction_mixture[["scale"]][, 1L]
@@ -580,27 +584,20 @@ forest.metafor_forest.brma <- function(x, addfit = TRUE,
   }
   bandwidth <- 0.9 * bandwidth * length(location)^(-1 / 5)
 
-  from      <- quantiles[[1L]] - 3 * bandwidth
-  to        <- quantiles[[4L]] + 3 * bandwidth
+  # spacing (span + 6 * bandwidth) / (n - 1) <= bandwidth / 4 holds exactly
+  # when bandwidth >= 4 * span / (n - 25)
+  span      <- quantiles[[4L]] - quantiles[[1L]]
+  n         <- as.integer(min(max(min_points, ceiling(4 * span / bandwidth) + 25L), max_points))
+  bandwidth <- max(bandwidth, 4 * span / (n - 25L))
+
+  x         <- seq(quantiles[[1L]] - 3 * bandwidth, quantiles[[4L]] + 3 * bandwidth,
+                   length.out = n)
   component <- sqrt(scale^2 + bandwidth^2)
-  mass      <- mean(stats::pnorm(to, location, component) - stats::pnorm(from, location, component))
-  repeat {
-    x       <- seq(from, to, length.out = n)
-    density <- vapply(x, function(x_i) mean(stats::dnorm(x_i, location, component)),
+  density   <- vapply(x, function(x_i) mean(stats::dnorm(x_i, location, component)),
                       numeric(1))
-    if (any(!is.finite(density)) || any(density < 0)) {
-      stop("Could not construct a finite forest predictive density.",
-           call. = FALSE)
-    }
-    grid_mass <- sum(density[-1L] + density[-n]) / 2 * (x[[2L]] - x[[1L]])
-    if (abs(grid_mass - mass) <= 1e-3 * mass) {
-      break
-    }
-    if (n >= 8193L) {
-      stop("Could not resolve the forest predictive density on a grid of ",
-           n, " points.", call. = FALSE)
-    }
-    n <- 2L * n - 1L
+  if (any(!is.finite(density)) || any(density < 0)) {
+    stop("Could not construct a finite forest predictive density.",
+         call. = FALSE)
   }
 
   return(list(

@@ -187,6 +187,31 @@ test_that("forest pooled predictive densities smooth the predictive mixture", {
                                             narrow_density[["density"]][-length(narrow_x)]) / 2)
   expect_lt(abs(narrow_mass - 1), 2e-3)
 
+  # regional mass between separated narrow modes (metafor accumulates the
+  # trapezoids into its displayed CDF), and a grid capped at 2049 points
+  trapezoid_mass <- function(dist, upto = Inf) {
+    keep <- dist[["x"]] <= upto
+    x    <- dist[["x"]][keep]
+    y    <- dist[["density"]][keep]
+    sum(diff(x) * (y[-1L] + y[-length(y)]) / 2)
+  }
+  modes <- .new_prediction_mixture(
+    matrix(c(rep(0, 800L), rep(0.50936793970754757, 200L)), ncol = 1L),
+    matrix(0.0003, 1000L, 1L),
+    matrix(0, 1000L, 1L, dimnames = list(NULL, "mu"))
+  )
+  modes_density <- .forest_prediction_mixture_distribution(modes, -1, 1, .95)
+  expect_lt(abs(trapezoid_mass(modes_density, upto = 0.25) - 0.8), 2e-3)
+  expect_lt(abs(trapezoid_mass(modes_density) - 1), 2e-3)
+  spike <- .new_prediction_mixture(
+    matrix(0, 1000L, 1L), matrix(rep(c(1e-5, 1), c(900L, 100L)), ncol = 1L),
+    matrix(0, 1000L, 1L, dimnames = list(NULL, "mu"))
+  )
+  spike_density <- .forest_prediction_mixture_distribution(spike, -1, 1, .95)
+  expect_lte(length(spike_density[["x"]]), 2049L)
+  expect_true(all(is.finite(spike_density[["density"]])))
+  expect_lt(abs(trapezoid_mass(spike_density) - 1), 2e-3)
+
   # point masses are smoothed; a single point has no density
   atoms <- .new_prediction_mixture(location, matrix(0, 4L, 1L), samples)
   smoothed <- .forest_prediction_mixture_distribution(atoms, -0.4, 0.5, .95)
