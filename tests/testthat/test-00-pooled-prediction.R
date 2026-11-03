@@ -260,8 +260,10 @@ test_that("pooled prediction quantiles follow the scale of the mixture", {
   }, lower = -20, upper = 20, tol = 1e-12)[["root"]]
   expect_lt(abs(quantile(0.025, c(-40, rep(40, 39L)), rep(1, 40L)) - wide_reference), 1e-6)
 
-  # point masses far apart stay distinct
+  # point masses far apart stay distinct; next to a normal whose range merges
+  # them in double precision, the quantile fails clearly
   expect_identical(quantile(0.5, c(1, 2, 1e20), c(0, 0, 0)), 2)
+  expect_error(quantile(0.5, c(1, 2, 1e20), c(0, 0, 1)), "spacing of its point masses")
 
   # an affine reconstruction that would overflow on the way
   expect_lt(abs(quantile(0.975, rep(-1e308, 4L), rep(1e308, 4L)) /

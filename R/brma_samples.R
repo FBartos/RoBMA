@@ -332,9 +332,12 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
   normal_scale    <- scale[continuous] / extent
   atom_location   <- location[!continuous]
   atom_position   <- (atom_location - center) / extent
-  if (any(normal_scale == 0)) {
+  distinct_atoms <- unique(atom_location)
+  if (any(normal_scale == 0) ||
+      anyDuplicated((distinct_atoms - center) / extent) > 0L) {
     stop("The predictive mixture spans too wide a range relative to its ",
-         "smallest scale to compute its quantiles in double precision.",
+         "smallest scale or the spacing of its point masses to compute its ",
+         "quantiles in double precision.",
          call. = FALSE)
   }
 
