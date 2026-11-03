@@ -201,12 +201,12 @@
   } else if (!missing(prior_list)) {
     # check the priors and apply rescaling if specified
     for (i in seq_along(prior_list)) {
-      prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
       if (!is.null(names(prior_list)) && identical(names(prior_list)[[i]], "intercept")) {
         prior_list[[i]] <- .check_prior.formula_intercept(prior_list[[i]], parameter)
       } else {
         .check_prior.term(prior_list[[i]])
       }
+      prior_list[[i]] <- .rescale_prior_object(prior_list[[i]], rescale_priors)
     }
   } else {
     # create an empty placeholder instead

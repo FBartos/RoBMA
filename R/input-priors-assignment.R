@@ -11,15 +11,15 @@
       return(BayesTools::prior("spike", parameters = list(0)))
     }
 
-    # apply rescaling if specified
-    prior <- .rescale_prior_object(prior, rescale_priors)
-
-    # check the specified prior distribution
+    # check the specified prior distribution before rescaling it
     prior <- switch(
       parameter,
       "effect"        = .check_prior.effect(prior),
       "heterogeneity" = .check_prior.heterogeneity(prior)
     )
+
+    # apply rescaling if specified
+    prior <- .rescale_prior_object(prior, rescale_priors)
 
     return(prior)
   }

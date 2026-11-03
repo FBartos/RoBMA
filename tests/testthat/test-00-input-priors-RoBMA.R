@@ -1439,3 +1439,23 @@ test_that("scalar priors reject PET, PEESE, and non-point discrete distributions
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("normal", list(0, 1))), "prior")
   expect_null(RoBMA:::.check_prior.term(BayesTools::prior("normal", list(0, 1))))
 })
+
+test_that("user priors are validated before rescaling", {
+
+  expect_error(
+    brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+         prior_effect = "not a prior", rescale_priors = 2, only_priors = TRUE),
+    "The 'prior_effect' argument must be a prior distribution"
+  )
+  expect_error(
+    brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+         prior_heterogeneity = list(1), rescale_priors = 2, only_priors = TRUE),
+    "'prior_heterogeneity' argument must be a prior distribution"
+  )
+  rescaled <- brma(
+    yi = effect, sei = std_err, data = test_data, measure = "SMD",
+    prior_effect = BayesTools::prior("normal", list(0, 1)), rescale_priors = 2,
+    only_priors = TRUE
+  )[["priors"]]
+  expect_equal(rescaled$outcome$mu$parameters$sd, 2)
+})
