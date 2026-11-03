@@ -62,7 +62,14 @@ test_that("QQ confidence levels and limits are checked before residual evaluatio
     args <- stats::setNames(list(c(0, Inf)), argument)
     expect_error(do.call(qqnorm.brma, c(list(y = object), args)),
       paste0("'", argument, "'"), fixed = TRUE)
+    args <- stats::setNames(list(c(1, 0)), argument)
+    expect_error(do.call(qqnorm.brma, c(list(y = object), args)),
+      paste0("'", argument, "' must be an increasing numeric vector of length 2."), fixed = TRUE)
   }
+  expect_error(qqnorm.brma(object, xlab = 1), "'xlab' must be a single character string")
+  expect_error(qqnorm.brma(object, as_data = NA), "as_data")
+  expect_error(qqnorm.brma(object, las = 5), "'las' must be one of 0, 1, 2, or 3.", fixed = TRUE)
+  expect_error(qqnorm.brma(object, cex = -1), "'cex'")
 })
 
 test_that("row-varying radial coordinates use a declared random source", {

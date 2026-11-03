@@ -180,8 +180,10 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   if (conf_level <= 0 || conf_level >= 100) {
     stop("'conf_level' must be greater than 0 and less than 100.", call. = FALSE)
   }
-  .check_plot_numeric(if (missing(xlim)) NULL else xlim, "xlim", check_length = 2)
-  .check_plot_numeric(if (missing(ylim)) NULL else ylim, "ylim", check_length = 2)
+  .check_plot_limits(if (missing(xlim)) NULL else xlim, "xlim")
+  .check_plot_limits(if (missing(ylim)) NULL else ylim, "ylim")
+  .check_plot_label(if (missing(xlab)) NULL else xlab, "xlab")
+  .check_plot_label(if (missing(ylab)) NULL else ylab, "ylab")
   BayesTools::check_bool(bonferroni, "bonferroni")
   BayesTools::check_int(reps, "reps", lower = 1)
   BayesTools::check_bool(smooth, "smooth")
@@ -632,9 +634,17 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   # title
   if (is.null(dots[["main"]])) dots[["main"]] <- NULL
   if (is.null(dots[["las"]]))  dots[["las"]]  <- 1
+  .check_plot_label(dots[["main"]], "main")
+  BayesTools::check_int(dots[["las"]], "las", lower = 0)
+  if (!dots[["las"]] %in% 0:3) {
+    stop("'las' must be one of 0, 1, 2, or 3.", call. = FALSE)
+  }
 
   # data return flag
   if (is.null(dots[["as_data"]])) dots[["as_data"]] <- FALSE
+  BayesTools::check_bool(dots[["as_data"]], "as_data")
+  .check_plot_positive_scalar(dots[["cex"]], "cex")
+  .check_plot_positive_scalar(dots[["size"]], "size")
 
   return(dots)
 }
