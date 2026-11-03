@@ -70,6 +70,7 @@ test_that("QQ confidence levels and limits are checked before residual evaluatio
   expect_error(qqnorm.brma(object, as_data = NA), "as_data")
   expect_error(qqnorm.brma(object, las = 5), "'las' must be one of 0, 1, 2, or 3.", fixed = TRUE)
   expect_error(qqnorm.brma(object, cex = -1), "'cex'")
+  expect_type(.set_dots_qqnorm(list(cex = c(.5, 1, 1.5), size = 0)), "list")
 })
 
 test_that("row-varying radial coordinates use a declared random source", {

@@ -643,8 +643,9 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
   # data return flag
   if (is.null(dots[["as_data"]])) dots[["as_data"]] <- FALSE
   BayesTools::check_bool(dots[["as_data"]], "as_data")
-  .check_plot_positive_scalar(dots[["cex"]], "cex")
-  .check_plot_positive_scalar(dots[["size"]], "size")
+  # point sizes may be vectors, and zero hides points
+  .check_plot_numeric(dots[["cex"]], "cex", lower = 0)
+  .check_plot_numeric(dots[["size"]], "size", lower = 0)
 
   return(dots)
 }
