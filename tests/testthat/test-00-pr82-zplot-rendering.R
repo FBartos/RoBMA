@@ -114,6 +114,7 @@ test_that("zplot grids keep the requested range and bin count", {
     bins <- .zplot_bins(-6, 6, .7, NULL, type = type, thresholds = numeric())
     expect_identical(range(bins), c(-6, 6))
     expect_true(all(diff(bins) > 0))
+    expect_identical(.zplot_bins(0, 1, 1e12, NULL, type = type, thresholds = numeric()), c(0, 1))
   }
 
   object <- list(zplot = list(data = list(z = c(-1, 0, 1))), priors = NULL)

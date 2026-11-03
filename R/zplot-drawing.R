@@ -182,8 +182,9 @@
 
   if(is.null(length.out)){
     bins <- seq(from = from, to = to, by = by)
-    # keep the requested upper limit when 'by' does not divide the range
-    if (to - bins[length(bins)] > 1e-10 * by) {
+    # keep the requested upper limit when 'by' does not divide the range,
+    # including a step wider than the range (a single boundary)
+    if (length(bins) == 1L || to - bins[length(bins)] > 1e-10 * by) {
       bins <- c(bins, to)
     } else {
       bins[length(bins)] <- to
