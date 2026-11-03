@@ -168,3 +168,20 @@ test_that("automatic public funnel routing avoids ineligible source splitting", 
   expect_identical(tryCatch(funnel.brma(replay$object, residual = FALSE,
     as_data = TRUE), error = identity), error)
 })
+
+test_that("residual funnels widen the reference region to an explicit ylim", {
+
+  testthat::local_mocked_bindings(
+    rstandard.brma = function(...) data.frame(resid = c(-.1, .05, .1), se = c(.1, .15, .2)),
+    .package = "RoBMA"
+  )
+  object <- structure(list(), class = c("brma.norm", "brma"))
+  default  <- .funnel_data_residual(object, type = "rstandard", unit = "estimate",
+                                    conditioning_depth = "marginal", dots = list())
+  extended <- .funnel_data_residual(object, type = "rstandard", unit = "estimate",
+                                    conditioning_depth = "marginal", dots = list(ylim = c(0, 1)))
+  expect_lt(max(default$xlim), stats::qnorm(.975) * 1)
+  expect_gte(max(extended$xlim), stats::qnorm(.975) * 1)
+  expect_lte(min(extended$xlim), stats::qnorm(.025) * 1)
+  expect_identical(extended$ylim, c(0, 1))
+})

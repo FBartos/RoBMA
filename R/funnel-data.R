@@ -256,12 +256,13 @@
   se_range    <- pretty(c(0, max(se)))
 
   # determine plot limits
-  # For xlim: pretty range of residuals + quantiles
   # For ylim: defaults to se_range range
-  x_init_range <- pretty(c(stats::qnorm(0.025) * max(se_range), stats::qnorm(0.975) * max(se_range), res))
+  # For xlim: pretty range of residuals + the reference region at the largest
+  # displayed standard error, so a user ylim beyond the data widens it too
+  if (!is.null(dots[["ylim"]])) ylim <- dots[["ylim"]] else ylim <- range(se_range)
+  x_init_range <- pretty(c(stats::qnorm(0.025) * max(ylim), stats::qnorm(0.975) * max(ylim), res))
 
   if (!is.null(dots[["xlim"]])) xlim <- dots[["xlim"]] else xlim <- range(x_init_range)
-  if (!is.null(dots[["ylim"]])) ylim <- dots[["ylim"]] else ylim <- range(se_range)
 
   # generate sequence strictly within ylim for clean polygons
   se_sequence_clipped <- seq(min(ylim), max(ylim), length.out = 100)
