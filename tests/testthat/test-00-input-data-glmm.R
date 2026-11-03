@@ -1087,6 +1087,22 @@ test_that("GLMM counts must be exact whole numbers within the integer range", {
               measure = "OR", only_data = TRUE),
     "'n1i' argument must not exceed 2147483647"
   )
+  # integer-typed cells must not overflow to NA and drop the study
+  expect_error(
+    brma.glmm(ai = c(2000000000L, 5L, 7L), bi = c(2000000000L, 20L, 23L),
+              ci = c(2L, 6L, 3L), di = c(19L, 18L, 27L), measure = "OR", only_data = TRUE),
+    "'n1i' argument must not exceed 2147483647"
+  )
+  expect_error(
+    brma.glmm(ai = c(5L, 7L), bi = c(20L, 23L), ci = c(2L, 2000000000L),
+              di = c(19L, 2000000000L), measure = "OR", only_data = TRUE),
+    "'n2i' argument must not exceed 2147483647"
+  )
+  expect_error(
+    brma.glmm(ai = c(2000000000L, 5L), bi = c(2000000000L, 20L), n1i = c(2000000000, 25),
+              ci = c(2L, 6L), di = c(19L, 18L), measure = "OR", only_data = TRUE),
+    "The provided 'n1i' values must equal 'ai + bi' when both are supplied.", fixed = TRUE
+  )
   expect_error(
     brma.glmm(x1i = c(4, 5 + 1e-9), x2i = c(3, 2), t1i = c(10, 12), t2i = c(11, 9),
               measure = "IRR", only_data = TRUE),

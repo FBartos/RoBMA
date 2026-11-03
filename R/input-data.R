@@ -1060,19 +1060,22 @@ NULL
     stop("Invalid data: some values of 'di' (= n2i - ci) are negative.", call. = FALSE)
   }
 
-  if (!is.null(bi) && !is.null(n1i) && any(n1i != ai + bi, na.rm = TRUE)) {
+  # totals in double arithmetic: integer sums beyond the integer range give NA
+  if (!is.null(bi) && !is.null(n1i) &&
+      any(n1i != as.numeric(ai) + as.numeric(bi), na.rm = TRUE)) {
     stop("The provided 'n1i' values must equal 'ai + bi' when both are supplied.", call. = FALSE)
   }
-  if (!is.null(di) && !is.null(n2i) && any(n2i != ci + di, na.rm = TRUE)) {
+  if (!is.null(di) && !is.null(n2i) &&
+      any(n2i != as.numeric(ci) + as.numeric(di), na.rm = TRUE)) {
     stop("The provided 'n2i' values must equal 'ci + di' when both are supplied.", call. = FALSE)
   }
 
   if (!is.null(bi)) {
-    n1i <- ai + bi
+    n1i <- as.numeric(ai) + as.numeric(bi)
     .check_glmm_counts(n1i, "n1i")
   }
   if (!is.null(di)) {
-    n2i <- ci + di
+    n2i <- as.numeric(ci) + as.numeric(di)
     .check_glmm_counts(n2i, "n2i")
   }
 
