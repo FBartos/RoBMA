@@ -1,9 +1,14 @@
 .get_dots_hist_zplot <- function(dots, plot_type = "base", max_density = NULL) {
 
+  .check_plot_limits(dots[["xlim"]], "xlim")
   ylim <- dots[["ylim"]]
   if (is.null(ylim) && !is.null(max_density) &&
       (plot_type == "base" || !is.null(dots[[".zplot_auto_ymax"]]))) {
     ylim <- c(0, max(c(max_density, dots[[".zplot_auto_ymax"]])))
+    # an empty plotting range has no density to scale the axis to
+    if (ylim[2] == 0) {
+      ylim[2] <- 1
+    }
   }
   if (plot_type == "base") {
     hist_dots <- list(
@@ -12,6 +17,7 @@
       xlab   = if (!is.null(dots[["xlab"]]))   dots[["xlab"]]   else "Z-Statistic",
       ylab   = if (!is.null(dots[["ylab"]]))   dots[["ylab"]]   else "Density",
       main   = if (!is.null(dots[["main"]]))   dots[["main"]]   else "",
+      xlim   = dots[["xlim"]],
       ylim   = ylim,
       xaxt   = if (!is.null(dots[["xaxt"]]))   dots[["xaxt"]]   else "s",
       yaxt   = if (!is.null(dots[["yaxt"]]))   dots[["yaxt"]]   else "s",
@@ -25,6 +31,7 @@
       xlab  = if (!is.null(dots[["xlab"]]))  dots[["xlab"]]  else "Z-Statistic",
       ylab  = if (!is.null(dots[["ylab"]]))  dots[["ylab"]]  else "Density",
       main  = if (!is.null(dots[["main"]]))  dots[["main"]]  else "",
+      xlim  = dots[["xlim"]],
       ylim  = ylim
     )
   }
@@ -120,6 +127,36 @@
 
 
 # ---------------------------------------------------------------------------- #
+# .zplot_check_grid
+# ---------------------------------------------------------------------------- #
+#
+# Validates the z-value range and grid controls shared by the zplot methods.
+#
+# @param names argument names of the step and length controls in messages
+#
+# ---------------------------------------------------------------------------- #
+.zplot_check_grid <- function(from, to, by, length.out,
+                              names = c("by", "length.out")) {
+
+  BayesTools::check_real(from, "from", allow_NA = FALSE)
+  BayesTools::check_real(to, "to", allow_NA = FALSE)
+  if (!is.finite(from) || !is.finite(to) || from >= to) {
+    stop("'from' and 'to' must be finite with 'from' smaller than 'to'.", call. = FALSE)
+  }
+  BayesTools::check_int(length.out, names[2], lower = 1,
+                        allow_NULL = TRUE, allow_NA = FALSE)
+  if (is.null(length.out)) {
+    BayesTools::check_real(by, names[1], allow_NA = FALSE)
+    if (!is.finite(by) || by <= 0) {
+      stop("'", names[1], "' must be a positive finite number.", call. = FALSE)
+    }
+  }
+
+  return(invisible(TRUE))
+}
+
+
+# ---------------------------------------------------------------------------- #
 # .zplot_bins
 # ---------------------------------------------------------------------------- #
 #
@@ -145,8 +182,17 @@
 
   if(is.null(length.out)){
     bins <- seq(from = from, to = to, by = by)
+    # keep the requested upper limit when 'by' does not divide the range
+    if (to - bins[length(bins)] > 1e-10 * by) {
+      bins <- c(bins, to)
+    } else {
+      bins[length(bins)] <- to
+    }
   }else{
-    bins <- seq(from = from, to = to, length.out = length.out)
+    # histogram 'length.out' counts bins, which have one more boundary
+    length.out <- as.integer(round(length.out))
+    bins <- seq(from = from, to = to,
+                length.out = if (type == "hist") length.out + 1L else length.out)
   }
 
   # return simple binning in case of no weightfunctions

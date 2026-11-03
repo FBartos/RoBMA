@@ -613,7 +613,8 @@ print.zplot_brma <- function(x, ...) {
 #' @param dots_fit graphical parameters for fit lines (list).
 #' @param dots_extrapolation graphical parameters for extrapolation lines (list).
 #' @param dots_thresholds graphical parameters for threshold lines (list).
-#' @param ... additional graphical parameters passed to components.
+#' @param ... additional graphical parameters passed to components, such as
+#' \code{xlim} and \code{ylim} for the displayed axis ranges.
 #'
 #' @details
 #' All model-implied curves use the \code{conditioning_depth} stored by
@@ -676,6 +677,10 @@ plot.zplot_brma <- function(x, plot_type = "base",
   max_samples <- .normalize_max_samples(max_samples, "max_samples")
   BayesTools::check_bool(parallel, "parallel", allow_NA = FALSE)
   BayesTools::check_int(cores, "cores", lower = 1L, allow_NA = FALSE)
+  .zplot_check_grid(from, to, by.hist, length.out.hist,
+                    names = c("by.hist", "length.out.hist"))
+  .zplot_check_grid(from, to, by.lines, length.out.lines,
+                    names = c("by.lines", "length.out.lines"))
   has_integration_control <- !missing(integration_control) ||
     "integration_control" %in% names(x[["zplot"]][["data"]])
   if (has_integration_control) {
@@ -923,14 +928,18 @@ plot.zplot_brma <- function(x, plot_type = "base",
 #' @param dots_thresholds graphical parameters for threshold lines (list).
 #' @param dots_hist graphical parameters for histogram (list).
 #' @param dots_all graphical parameters passed to all components (list).
-#' @param ... additional graphical parameters. Use \code{as_data = TRUE} to
-#' return histogram data without drawing.
+#' @param ... additional graphical parameters, such as \code{xlim} and
+#' \code{ylim}. Use \code{as_data = TRUE} to return histogram data without
+#' drawing.
 #'
 #' @details
 #' Z-statistics are computed as effect size divided by standard error
 #' (\code{yi / sei}). Histogram bins are adjusted to align with significance
-#' thresholds when selection model priors are present. Standalone ggplot
-#' histograms scale automatically to added layers unless \code{ylim} is supplied.
+#' thresholds when selection model priors are present. The bins cover
+#' \code{from} to \code{to}; when \code{by} does not divide that range, the last
+#' bin ends at \code{to}. \code{xlim} and \code{ylim} set the displayed axis
+#' ranges without changing the bins. Standalone ggplot histograms scale
+#' automatically to added layers unless \code{ylim} is supplied.
 #'
 #' @return \code{NULL} invisibly for base graphics, a ggplot2 object, or a data
 #' frame with columns \code{x}, \code{density}, and \code{breaks} (bin widths)
@@ -945,9 +954,7 @@ hist.zplot_brma <- function(x, plot_type = "base",
                              dots_thresholds = NULL, dots_hist = NULL, dots_all = NULL, ...) {
 
   BayesTools::check_char(plot_type, "plot_type", allow_values = c("base", "ggplot"))
-  BayesTools::check_real(from, "from")
-  BayesTools::check_real(to, "to")
-  BayesTools::check_real(by, "by", allow_NULL = TRUE)
+  .zplot_check_grid(from, to, by, length.out)
   BayesTools::check_bool(add, "add")
   if (plot_type == "ggplot" && add) {
     stop(
@@ -982,7 +989,12 @@ hist.zplot_brma <- function(x, plot_type = "base",
 
   # create histogram data
   z_hist <- graphics::hist(z[z_in_range], breaks = z_sequence, plot = FALSE)
-  z_hist$density <- z_hist$density * mean(z_in_range)
+  if (any(z_in_range)) {
+    z_hist$density <- z_hist$density * mean(z_in_range)
+  } else {
+    # no z-statistic falls in the plotting range, so every bin is empty
+    z_hist$density <- rep(0, length(z_hist$mids))
+  }
 
   df_hist <- data.frame(
     x       = z_hist$mids,
@@ -1022,7 +1034,7 @@ hist.zplot_brma <- function(x, plot_type = "base",
       ) +
       ggplot2::labs(x = dots_hist_params$xlab, y = dots_hist_params$ylab) +
       ggplot2::ggtitle(dots_hist_params$main) +
-      ggplot2::coord_cartesian(ylim = dots_hist_params$ylim)
+      ggplot2::coord_cartesian(xlim = dots_hist_params$xlim, ylim = dots_hist_params$ylim)
   } else {
     if (add) {
       graphics::rect(
@@ -1042,6 +1054,7 @@ hist.zplot_brma <- function(x, plot_type = "base",
         xlab   = dots_hist_params$xlab,
         ylab   = dots_hist_params$ylab,
         main   = dots_hist_params$main,
+        xlim   = if (!is.null(dots_hist_params$xlim)) dots_hist_params$xlim else range(z_hist$breaks),
         ylim   = dots_hist_params$ylim,
         xaxt   = dots_hist_params$xaxt,
         yaxt   = dots_hist_params$yaxt,
@@ -1196,9 +1209,7 @@ lines.zplot_brma <- function(x, plot_type = "base",
   }
   BayesTools::check_bool(plot_ci, "plot_ci")
   BayesTools::check_bool(extrapolate, "extrapolate")
-  BayesTools::check_real(from, "from")
-  BayesTools::check_real(to, "to")
-  BayesTools::check_real(by, "by", allow_NULL = TRUE)
+  .zplot_check_grid(from, to, by, length.out)
 
 
   dots <- list(...)
