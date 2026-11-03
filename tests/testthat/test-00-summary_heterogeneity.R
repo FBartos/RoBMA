@@ -490,3 +490,61 @@ test_that("unlabeled heterogeneity summaries use the heterogeneity component", {
   expect_identical(frame[["parameter"]], c("tau", "tau2"))
   expect_identical(data.frame(object), frame)
 })
+
+test_that("saturated and aliased designs leave the typical variance undefined or unchanged", {
+
+  vi <- c(.01, .02, .015, .03)
+  X  <- cbind(1, c(0, 1, 0, 1))
+  w  <- 1 / vi
+  P  <- diag(w) - diag(w) %*% X %*% solve(t(X) %*% diag(w) %*% X) %*% t(X) %*% diag(w)
+  expect_equal(RoBMA:::.heterogeneity_typical_variance(X, vi), 2 / sum(diag(P)))
+  expect_equal(RoBMA:::.heterogeneity_typical_variance(cbind(X, 2 * X[, 2]), vi),
+               RoBMA:::.heterogeneity_typical_variance(X, vi))
+  expect_identical(RoBMA:::.heterogeneity_typical_variance(diag(4), vi), NA_real_)
+  expect_identical(RoBMA:::.heterogeneity_typical_variance(cbind(diag(4), 1), vi), NA_real_)
+
+  single <- RoBMA:::.summary_heterogeneity_samples(
+    tau_within_samples = matrix(.1, 3, 4), tau_between_samples = NULL,
+    v_tilde = NA_real_, is_multilevel = FALSE
+  )
+  expect_identical(names(single), c("tau", "tau2"))
+  multilevel <- RoBMA:::.summary_heterogeneity_samples(
+    tau_within_samples = matrix(.1, 3, 4), tau_between_samples = matrix(.05, 3, 4),
+    v_tilde = NA_real_, is_multilevel = TRUE
+  )
+  expect_false(any(c("I2", "I2 [within]", "I2 [between]", "H2") %in% names(multilevel)))
+  expect_true(all(c("tau", "tau [within]", "tau2 [between]") %in% names(multilevel)))
+  expect_error(
+    RoBMA:::.summary_heterogeneity_samples(matrix(.1, 3, 4), NULL, v_tilde = -1,
+                                           is_multilevel = FALSE),
+    "'v_tilde' must be a positive finite number or NA"
+  )
+})
+
+test_that("saturated meta-regressions report tau without relative heterogeneity", {
+
+  testthat::local_mocked_bindings(
+    .outcome_data_vi = function(object) c(.01, .02),
+    .get_model_matrix = function(object) diag(2),
+    .get_posterior_samples = function(fit) matrix(
+      c(.2, .4), ncol = 1L, dimnames = list(NULL, "tau")
+    ),
+    .bias_design_classes = function(...) NULL,
+    .evaluate.brma.tau = function(...) list(
+      tau_within  = matrix(c(.2, .4, .2, .4), nrow = 2L),
+      tau_between = NULL
+    ),
+    .package = "RoBMA"
+  )
+
+  data <- list(scale = NULL)
+  attr(data, "cluster") <- FALSE
+  attr(data, "scale")   <- FALSE
+  object <- structure(list(
+    fit = NULL, data = data,
+    priors = list(outcome = list(), scale = NULL)
+  ), class = "brma")
+
+  summary <- summary_heterogeneity.brma(object)
+  expect_identical(rownames(summary$estimates), c("tau", "tau2"))
+})

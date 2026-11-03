@@ -119,7 +119,9 @@ summary_heterogeneity <- function(object, ...) {
 #' \code{predict(type = "terms.scale")} and in covariance-based prediction and
 #' diagnostics.
 #' Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
-#' known-V covariance structures. For \code{component = "total"}, independent
+#' known-V covariance structures, nor for a meta-regression whose location
+#' design leaves no residual degrees of freedom (as many estimable coefficients
+#' as estimates), where the typical sampling variance is undefined. For \code{component = "total"}, independent
 #' component variances are summed before reporting \code{tau2_total};
 #' \code{tau_total} is the square root of this variance draw.
 #' When a random-formula model uses a shared total-SD plus variance-allocation
@@ -236,7 +238,15 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
     )
   } else {
     samples_list <- NULL
-    for (design_class in which(bias_classes[["n_draws"]] > 0L)) {
+    active_classes <- which(bias_classes[["n_draws"]] > 0L)
+    v_tilde_classes <- vapply(active_classes, function(design_class) {
+      .heterogeneity_typical_variance(bias_classes[["designs"]][[design_class]], vi)
+    }, numeric(1L))
+    # the relative summaries are defined for every draw or reported for none
+    if (anyNA(v_tilde_classes)) {
+      v_tilde_classes[] <- NA_real_
+    }
+    for (design_class in active_classes) {
       rows <- which(bias_classes[["class"]] == design_class)
       class_samples <- .summary_heterogeneity_samples(
         tau_within_samples  = tau_result[["tau_within"]][rows, , drop = FALSE],
@@ -250,10 +260,7 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
             context   = "Heterogeneity summary"
           )[rows]
         },
-        v_tilde             = .heterogeneity_typical_variance(
-          bias_classes[["designs"]][[design_class]],
-          vi
-        ),
+        v_tilde             = v_tilde_classes[[match(design_class, active_classes)]],
         is_multilevel       = is_multilevel
       )
       if (is.null(samples_list)) {
@@ -294,13 +301,24 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
 # ---------------------------------------------------------------------------- #
 #
 # Typical sampling variance (Higgins & Thompson, 2002, eq. 9) of a design,
-# generalized to meta-regression with the projection matrix.
+# generalized to meta-regression with the projection matrix. Returns NA when
+# the design has no residual degrees of freedom.
 #
 # ---------------------------------------------------------------------------- #
 .heterogeneity_typical_variance <- function(X, vi) {
 
-  K <- length(vi)
-  p <- ncol(X)
+  K    <- length(vi)
+  qr_X <- qr(X)
+  p    <- qr_X[["rank"]]
+
+  # the projection needs residual degrees of freedom: a saturated design fits
+  # every estimate exactly and leaves the typical variance undefined
+  if (K - p <= 0) {
+    return(NA_real_)
+  }
+
+  # aliased columns span no additional directions; project onto the rest
+  X <- X[, qr_X[["pivot"]][seq_len(p)], drop = FALSE]
   W <- diag(1/vi, nrow = K)
   P <- W - W %*% X %*% solve(t(X) %*% W %*% X) %*% t(X) %*% W
 
@@ -331,9 +349,12 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
     stop("'tau_within_samples' and 'tau_between_samples' must have matching dimensions.",
          call. = FALSE)
   }
-  if (!is.numeric(v_tilde) || length(v_tilde) != 1 || !is.finite(v_tilde) || v_tilde <= 0) {
-    stop("'v_tilde' must be a positive finite number.", call. = FALSE)
+  # NA marks an undefined typical variance (saturated design): no I2 and H2
+  if (!is.numeric(v_tilde) || length(v_tilde) != 1 ||
+      (!is.na(v_tilde) && (!is.finite(v_tilde) || v_tilde <= 0))) {
+    stop("'v_tilde' must be a positive finite number or NA.", call. = FALSE)
   }
+  relative <- !is.na(v_tilde)
   sigma2_within_matrix  <- tau_within_samples^2
   sigma2_between_matrix <- tau_between_samples^2
   sigma2_total_matrix   <- sigma2_within_matrix + sigma2_between_matrix
@@ -346,6 +367,7 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
 
   I2_total <- rowMeans(100 * sigma2_total_matrix / denominator_matrix)
   H2       <- rowMeans(denominator_matrix / v_tilde)
+  relative_names <- c("I2", "I2 [within]", "I2 [between]", "H2")
 
   if (is_multilevel) {
 
@@ -364,7 +386,7 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
       )
     }
 
-    return(list(
+    out <- list(
       "tau"             = sqrt(sigma2_total),
       "rho"             = rho_samples,
       "tau [within]"    = sqrt(sigma2_within),
@@ -376,15 +398,21 @@ summary_heterogeneity.brma <- function(object, probs = c(.025, .975),
       "I2 [within]"     = I2_within,
       "I2 [between]"    = I2_between,
       "H2"              = H2
-    ))
+    )
+  } else {
+    out <- list(
+      "tau"  = sqrt(sigma2_total),
+      "tau2" = sigma2_total,
+      "I2"   = I2_total,
+      "H2"   = H2
+    )
   }
 
-  return(list(
-    "tau"  = sqrt(sigma2_total),
-    "tau2" = sigma2_total,
-    "I2"   = I2_total,
-    "H2"   = H2
-  ))
+  if (!relative) {
+    out <- out[!names(out) %in% relative_names]
+  }
+
+  return(out)
 }
 
 
