@@ -56,8 +56,9 @@ galbraith <- function(x, ...) UseMethod("galbraith")
 #' arc labels. Defaults to \code{2}.
 #' @param transf optional transformation function applied to the y-axis arc
 #' labels (e.g., \code{transf = exp} when effect sizes are on a log scale).
-#' @param targs optional list of additional arguments passed to the
-#' \code{transf} function.
+#' @param targs optional list passed to \code{transf} as its second argument,
+#' \code{transf(x, targs)}, as in \pkg{metafor} (e.g.,
+#' \code{transf = metafor::transf.exp.int, targs = list(tau2 = 0)}).
 #' @param plot_type whether to use a base plot \code{"base"} or ggplot2
 #' \code{"ggplot"} for plotting. Defaults to \code{"base"}.
 #' @param ... additional graphical arguments to customize the plot appearance:
@@ -372,7 +373,12 @@ galbraith.brma <- function(x, ...) {
   # arc tick labels (optionally transformed)
   if (!is.null(transf)) {
     if (!is.null(targs)) {
-      label_values <- do.call(transf, c(list(aty.c), targs))
+      # metafor convention: 'targs' is the second argument, transf(value, targs)
+      if (!is.primitive(transf) && length(formals(transf)) == 1L) {
+        stop("The function specified via 'transf' does not appear to have an argument for 'targs'.",
+             call. = FALSE)
+      }
+      label_values <- vapply(aty.c, transf, numeric(1L), targs)
     } else {
       label_values <- transf(aty.c)
     }

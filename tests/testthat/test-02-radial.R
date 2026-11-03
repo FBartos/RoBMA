@@ -353,6 +353,16 @@ test_that("Radial plot data and alias interface are stable", {
     regexp = "transf",
     info = "invalid transformation is rejected"
   )
+  expect_error(radial(fit_brma, transf = function(x) exp(x), targs = list(tau2 = 0)),
+    regexp = "argument for 'targs'",
+    info = "a transformation without a 'targs' argument is rejected"
+  )
+  expect_identical(
+    radial(fit_brma, transf = metafor::transf.exp.int, targs = list(tau2 = 0),
+           as_data = TRUE)$aty_labels,
+    radial(fit_brma, transf = exp, as_data = TRUE)$aty_labels,
+    info = "'targs' reaches the transformation as its second argument (metafor convention)"
+  )
 
   # --------------------------------------------------
   # Test galbraith alias works
