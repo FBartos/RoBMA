@@ -99,6 +99,21 @@ jobs:
           fi
           sudo installer -pkg ~/jags-installer/JAGS-4.3.2.pkg -target /
 
+      # R CMD check --as-cran regenerates configure with autoreconf, which needs
+      # aclocal; the runner has autoconf but not automake, so automake is built
+      # from its GNU release (plain Perl scripts, no compiler involved)
+      - name: Install automake (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl --retry 3 --fail -L -o "$RUNNER_TEMP/automake-1.18.1.tar.gz" \
+            https://ftp.gnu.org/gnu/automake/automake-1.18.1.tar.gz
+          tar -xzf "$RUNNER_TEMP/automake-1.18.1.tar.gz" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/automake-1.18.1"
+          ./configure --prefix="$RUNNER_TEMP/automake" > /dev/null
+          make install > /dev/null
+          echo "$RUNNER_TEMP/automake/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/automake/bin/aclocal" --version | head -n 1
+
       # Point pkg-config at the JAGS 4.3.2 installation; configure rejects any
       # JAGS major version other than 4 with a clear message
       - name: Set JAGS environment variables (macOS)
