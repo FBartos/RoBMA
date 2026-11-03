@@ -30,8 +30,9 @@ The shared child owns print-width and no-wrap CSS.
 ## Setup and Dependencies
 
 Use `knitr::opts_chunk$set()` consistently with neighboring vignettes. For
-plots, use `fig.retina = 3`; do not increase `dpi` to sharpen figures. Use
-the existing Windows cairo setup where applicable.
+plots, use `fig.retina = vignette_fig_retina()`: 3 on the pkgdown site, 2 in
+built package vignettes to keep the CRAN tarball small. Do not increase `dpi`
+to sharpen figures. Use the existing Windows cairo setup where applicable.
 
 Vignettes may attach packages because they are user-facing examples. Gate
 Suggests-only packages with `requireNamespace(..., quietly = TRUE)` flags.

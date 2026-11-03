@@ -32,7 +32,7 @@ knitr::opts_chunk$set(
   message    = FALSE,
   warning    = FALSE,
   dev        = "png",
-  fig.retina = 3
+  fig.retina = vignette_fig_retina()
 )
 if (.Platform$OS.type == "windows") {
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
