@@ -290,60 +290,96 @@ summary.brma_samples <- function(object, probs = NULL, ...) {
            location = location[, j], scale = scale[, j])
   }, numeric(length(probs)))
 
-  return(matrix(out, nrow = length(probs), dimnames = list(probs, colnames(location))))
+  return(matrix(out, nrow = length(probs), ncol = ncol(location),
+                dimnames = list(probs, colnames(location))))
 }
 
-# The generalized inverse inf{x : F(x) >= p}. Brent's method narrows the
-# bracket; where F is flat at p (between point masses) a root of F(x) - p is
-# not unique, and bisection on F(x) >= p finds the left end. A quantile that
-# falls in the jump of a point mass is that location exactly.
+# The generalized inverse inf{x : F(x) >= p}, solved in standardized
+# coordinates (the center and extent of the mixture) so that the bracket and
+# tolerance follow the distribution's own scale. F(x) - p is assembled from the
+# small tail pnorm(-|z|) of every normal component and an exact count of point
+# masses, so its sign stays accurate where F rounds to p (low-density gaps).
+# Brent's method narrows the bracket; where F is flat at p (between point
+# masses) a root is not unique, and bisection on F(x) >= p finds the left end.
+# A quantile in the jump of a point mass is that location exactly.
 .prediction_mixture_quantile <- function(p, location, scale) {
 
-  continuous <- any(scale > 0)
+  continuous <- scale > 0
   if (p <= 0) {
-    return(if (continuous) -Inf else min(location))
+    return(if (any(continuous)) -Inf else min(location))
   }
   if (p >= 1) {
-    return(if (continuous) Inf else max(location))
+    return(if (any(continuous)) Inf else max(location))
   }
 
-  cdf <- function(x) mean(stats::pnorm(x, location, scale))
+  center <- min(location) / 2 + max(location) / 2
+  extent <- max(scale, abs(location - center))
+  if (extent == 0) {
+    return(center)
+  }
+  normal_location <- (location[continuous] - center) / extent
+  normal_scale    <- scale[continuous] / extent
+  atom_location   <- location[!continuous]
+  atom_position   <- (atom_location - center) / extent
+  n               <- length(location)
+
+  # F(z) - p in standardized coordinates
+  residual <- function(z) {
+    standardized <- (z - normal_location) / normal_scale
+    tail         <- stats::pnorm(-abs(standardized))
+    above        <- standardized >= 0
+    (sum(above) + sum(atom_position <= z)) / n - p +
+      (sum(tail[!above]) - sum(tail[above])) / n
+  }
+
   # F(lower) < p <= F(upper): every component lies below p at lower (above
   # 1 - p at upper), and lower is strictly below every point mass
   width <- 2 - stats::qnorm(min(p, 1 - p))
-  lower <- min(location - width * scale)
-  upper <- max(location + width * scale)
-  lower <- lower - 1e-8 * max(1, abs(lower))
-  tol   <- 1e-10 * max(1, upper - lower)
-  root  <- stats::uniroot(function(x) cdf(x) - p, lower = lower, upper = upper,
-                          tol = tol)[["root"]]
-  if (cdf(root) >= p) {
+  lower <- min(c(normal_location - width * normal_scale, atom_position)) - 1e-8
+  upper <- max(c(normal_location + width * normal_scale, atom_position))
+  # near machine precision of the standardized coordinate, so that nearly
+  # equal probabilities (0.025 and (1 - 0.95) / 2) give nearly equal quantiles
+  tol   <- 1e-14
+  root  <- stats::uniroot(residual, lower = lower, upper = upper, tol = tol)[["root"]]
+  if (residual(root) >= 0) {
     upper <- root
-    if (cdf(root - tol) < p) {
+    if (residual(root - tol) < 0) {
       lower <- root - tol
     }
   } else {
     lower <- root
-    if (cdf(root + tol) >= p) {
+    if (residual(root + tol) >= 0) {
       upper <- root + tol
     }
   }
   while (upper - lower > tol) {
     middle <- lower + (upper - lower) / 2
-    if (cdf(middle) >= p) {
+    if (middle <= lower || middle >= upper) {
+      break
+    }
+    if (residual(middle) >= 0) {
       upper <- middle
     } else {
       lower <- middle
     }
   }
 
-  atoms <- location[scale == 0 & location > lower & location <= upper]
-  atoms <- atoms[vapply(atoms, cdf, numeric(1)) >= p]
+  in_bracket <- atom_position > lower & atom_position <= upper
+  atoms      <- unique(atom_location[in_bracket])
+  atoms      <- atoms[vapply((atoms - center) / extent, residual, numeric(1)) >= 0]
   if (length(atoms) > 0L) {
     return(min(atoms))
   }
 
-  return(upper)
+  quantile <- center + extent * upper
+  # (a finite mixture can have a quantile beyond the double range, e.g. scales
+  # near .Machine$double.xmax; report it instead of returning Inf)
+  if (!is.finite(quantile)) {
+    stop("The ", p, " prediction quantile is outside the double-precision range.",
+         call. = FALSE)
+  }
+
+  return(quantile)
 }
 
 

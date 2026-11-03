@@ -148,7 +148,7 @@ test_that("forest predictive distributions retain actual draw geometry", {
   )
 })
 
-test_that("forest pooled predictive densities are the exact predictive mixture", {
+test_that("forest pooled predictive densities smooth the predictive mixture", {
 
   samples  <- matrix(0, 4L, 1L, dimnames = list(NULL, "mu"))
   location <- matrix(c(-0.4, 0.0, 0.3, 0.5), ncol = 1L)
@@ -159,10 +159,6 @@ test_that("forest pooled predictive densities are the exact predictive mixture",
 
   expect_named(preddist, c("x", "density", "pi.lb", "pi.ub", "level"))
   expect_length(preddist[["x"]], 512L)
-  expected <- vapply(preddist[["x"]], function(x) {
-    mean(stats::dnorm(x, location[, 1L], scale[, 1L]))
-  }, numeric(1))
-  expect_lt(max(abs(preddist[["density"]] - expected)), 1e-15)
   # the grid covers the mixture from its 0.05% to 99.95% quantiles
   spacing <- diff(preddist[["x"]])[[1L]]
   mass    <- sum(preddist[["density"]]) * spacing
@@ -171,6 +167,25 @@ test_that("forest pooled predictive densities are the exact predictive mixture",
     .forest_prediction_mixture_distribution(mixture, -1, 1, .95),
     preddist
   )
+
+  # identical N(0.3, 0.2) components: N(0.3, sqrt(0.2^2 + h^2)) with the
+  # bw.nrd0() rule h = 0.9 * min(SD, IQR / 1.34) * S^(-1/5)
+  identical_rows <- .new_prediction_mixture(matrix(0.3, 4L, 1L), matrix(0.2, 4L, 1L), samples)
+  bandwidth <- 0.9 * min(0.2, 0.2 * diff(stats::qnorm(c(.25, .75))) / 1.34) * 4^(-1 / 5)
+  normal    <- .forest_prediction_mixture_distribution(identical_rows, 0, 0.6, .95)
+  expect_lt(max(abs(normal[["density"]] -
+                    stats::dnorm(normal[["x"]], 0.3, sqrt(0.2^2 + bandwidth^2)))), 1e-9)
+
+  # a component far narrower than the grid keeps its mass
+  narrow <- .new_prediction_mixture(
+    matrix(0, 1000L, 1L), matrix(rep(c(0.001, 1), each = 500L), ncol = 1L),
+    matrix(0, 1000L, 1L, dimnames = list(NULL, "mu"))
+  )
+  narrow_density <- .forest_prediction_mixture_distribution(narrow, -2, 2, .95)
+  narrow_x       <- narrow_density[["x"]]
+  narrow_mass    <- sum(diff(narrow_x) * (narrow_density[["density"]][-1L] +
+                                            narrow_density[["density"]][-length(narrow_x)]) / 2)
+  expect_lt(abs(narrow_mass - 1), 2e-3)
 
   # point masses are smoothed; a single point has no density
   atoms <- .new_prediction_mixture(location, matrix(0, 4L, 1L), samples)
@@ -213,16 +228,16 @@ test_that("forest uses the pooled average design when newdata is omitted", {
     .package = "RoBMA"
   )
 
-  set.seed(531)
   expected <- .forest_summary_row(pooled_effect(
     object,
     .posterior_samples = posterior_draws
   ))
-  set.seed(531)
   out <- as_metafor_forest(object, addpred = TRUE)
 
-  expect_equal(out[["pooled"]], expected, tolerance = 1e-14)
-  expect_equal(out[["prediction"]], expected, tolerance = 1e-14)
+  # the forest's probs are (1 - 0.95) / 2, not 0.025, so the solved PI bounds
+  # agree to the root-finder precision rather than bit for bit
+  expect_equal(out[["pooled"]], expected, tolerance = 1e-12)
+  expect_equal(out[["prediction"]], expected, tolerance = 1e-12)
   expect_identical(out[["addpoly_args"]][["mlab"]], "Pooled Effect")
 })
 

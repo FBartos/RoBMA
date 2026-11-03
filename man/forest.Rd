@@ -112,11 +112,12 @@ to that one prediction row and the prediction interval uses
 \code{conditioning_depth = "marginal"}. For
 \pkg{metafor}'s \code{predstyle = "shade"} and
 \code{predstyle = "dist"}, the adapter supplies the predictive density.
-Without \code{newdata} it is the exact posterior predictive density, a
-normal mixture over the posterior draws whose point masses (draws without
-heterogeneity) are smoothed by a kernel for display. With \code{newdata} it
-is a kernel density estimate of the predictive draws from
-\code{\link{predict.brma}}. The displayed prediction-interval endpoints are
+Without \code{newdata} it is the posterior predictive density, a normal
+mixture over the posterior draws, smoothed by a normal kernel for display
+(the expected kernel density estimate of predictive draws, without their
+simulation noise); the smoothing keeps point masses (draws without
+heterogeneity) visible. With \code{newdata} it is a kernel density estimate
+of the predictive draws from \code{\link{predict.brma}}. The displayed prediction-interval endpoints are
 the quantiles reported by \code{\link{pooled_effect}} or
 \code{\link{predict.brma}}.
 

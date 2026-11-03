@@ -204,6 +204,69 @@ test_that("pooled prediction quantiles are generalized inverses at point masses"
     .new_prediction_mixture(matrix(0, 2L, 1L), matrix(-1, 2L, 1L), matrix(0, 2L, 1L)),
     "non-negative finite scale"
   )
+
+  # many duplicated point masses (null-effect, null-heterogeneity draws)
+  duplicated_location <- c(rep(0, 1e4), rep(1, 1e4))
+  duplicated_scale    <- c(rep(0, 1e4), rep(0.5, 1e4))
+  expect_identical(quantile(0.025, duplicated_location, duplicated_scale), 0)
+  expect_identical(quantile(0.4, duplicated_location, duplicated_scale), 0)
+})
+
+
+test_that("pooled prediction quantiles follow the scale of the mixture", {
+
+  quantile <- function(p, location, scale) {
+    .prediction_mixture_quantile(p, location = location, scale = scale)
+  }
+  probs <- c(0.025, 0.5, 0.975)
+
+  # translated and tiny-scale normals: the bracket and tolerance are relative
+  translated <- vapply(probs, quantile, numeric(1), location = rep(1e7, 4L), scale = rep(0.1, 4L))
+  expect_lt(max(abs(translated - (1e7 + 0.1 * stats::qnorm(probs)))), 1e-8)
+  tiny <- vapply(probs, quantile, numeric(1), location = rep(0, 4L), scale = rep(1e-12, 4L))
+  expect_lt(max(abs(tiny - 1e-12 * stats::qnorm(probs))), 1e-21)
+  expect_true(all(diff(tiny) > 0))
+
+  # equivariance under a + b * x for a mixture with a point mass
+  location <- c(-0.2, 0.1, 0.1, 0.6)
+  scale    <- c(0.3, 0, 0.1, 0.4)
+  base     <- vapply(probs, quantile, numeric(1), location = location, scale = scale)
+  moved    <- vapply(probs, quantile, numeric(1), location = 5 + 1e-6 * location, scale = 1e-6 * scale)
+  expect_lt(max(abs((moved - 5) / 1e-6 - base)), 1e-6)
+
+  # finite scales near the double range: representable quantiles are found,
+  # unrepresentable ones fail clearly
+  expect_lt(abs(quantile(0.5, rep(0, 4L), rep(1e308, 4L))) / 1e308, 1e-9)
+  expect_error(quantile(0.975, rep(0, 4L), rep(1e308, 4L)), "outside the double-precision range")
+
+  # a quantile in the low-density gap of a separated mixture, against a
+  # log-scale reference that does not subtract from a rounded CDF
+  separated_location <- c(-10, rep(10, 39L))
+  separated_scale    <- rep(1, 40L)
+  reference <- stats::uniroot(function(x) {
+    stats::pnorm(x + 10, lower.tail = FALSE, log.p = TRUE) - log(39) -
+      stats::pnorm(x - 10, log.p = TRUE)
+  }, lower = -5, upper = 5, tol = 1e-12)[["root"]]
+  expect_lt(abs(quantile(0.025, separated_location, separated_scale) - reference), 1e-6)
+  symmetric_location <- rep(c(-10, 10), each = 20L)
+  expect_lt(abs(quantile(0.5, symmetric_location, rep(1, 40L))), 1e-8)
+})
+
+
+test_that("pooled prediction summaries accept empty probabilities", {
+
+  object <- brma(
+    yi                        = c(-0.2, 0.1, 0.4),
+    sei                       = c(0.2, 0.2, 0.2),
+    measure                   = "GEN",
+    prior_unit_information_sd = 1,
+    only_priors               = TRUE
+  )
+  posterior_samples <- cbind(mu = c(-0.2, 0.0, 0.2, 0.4), tau = c(0.1, 0.2, 0.3, 0.4))
+  for (probs in list(NULL, numeric(0))) {
+    pooled <- pooled_effect(object, probs = probs, .posterior_samples = posterior_samples)
+    expect_identical(colnames(summary(pooled)), c("Mean", "Median"))
+  }
 })
 
 
