@@ -42,9 +42,12 @@ test_that("known-V residual zeros use the covariance multiplier", {
     expect_equal(as.numeric(actual[1, ]), c(.5, sqrt(.125), sqrt(2)), tolerance = 1e-12)
   }
   diagonal <- .review_gls_replay(diag(3), c(0, 1, -1), c(1, 0, 0))
-  expect_identical(as.numeric(rstandard(diagonal)[1, ]), c(0, 0, 0))
+  # an exactly fitted row has zero residual and SD and an undefined z
+  expect_identical(as.numeric(rstandard(diagonal)[1, ]), c(0, 0, NA))
   saturated <- .review_gls_replay(V, c(0, 1, -1), c(1, 0, 0), saturated = TRUE)
-  expect_true(all(as.matrix(rstandard(saturated)) == 0))
+  saturated_residuals <- rstandard(saturated)
+  expect_true(all(as.matrix(saturated_residuals[c("resid", "se")]) == 0))
+  expect_true(all(is.na(saturated_residuals[["z"]])))
 })
 
 test_that("estimate precision refusals number thinned public request positions", {
@@ -71,9 +74,12 @@ test_that("marginal zero certification uses full random covariance beyond diagon
   actual <- rstandard(object, conditioning_depth = "marginal")
   expect_equal(as.numeric(actual[1, ]), c(1/3, sqrt(1/12), 2/sqrt(3)), tolerance = 1e-12)
   diagonal <- .review_gls_replay(diag(3), c(0, 1, -1), c(1, 0, 0), sd = 0)
-  expect_identical(as.numeric(rstandard(diagonal)[1, ]), c(0, 0, 0))
+  # an exactly fitted row has zero residual and SD and an undefined z
+  expect_identical(as.numeric(rstandard(diagonal)[1, ]), c(0, 0, NA))
   saturated <- .review_gls_replay(diag(3), c(0, 1, -1), c(1, 0, 0), sd = sqrt(.5), saturated = TRUE)
-  expect_true(all(as.matrix(rstandard(saturated)) == 0))
+  saturated_residuals <- rstandard(saturated)
+  expect_true(all(as.matrix(saturated_residuals[c("resid", "se")]) == 0))
+  expect_true(all(is.na(saturated_residuals[["z"]])))
 })
 
 test_that("zero certificates follow random covariance states and saturation", {
