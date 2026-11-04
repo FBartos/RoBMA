@@ -287,6 +287,16 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
       max_samples        = max_samples
     )
     z <- res_obj$z
+    # exactly fitted estimates have an undefined standardized residual
+    undefined <- is.na(z) & !is.nan(z)
+    if (any(undefined)) {
+      message(sprintf(
+        "%i exactly fitted estimate(s) with an undefined standardized residual are omitted.",
+        sum(undefined)
+      ))
+      z       <- z[!undefined]
+      res_obj <- res_obj[!undefined, , drop = FALSE]
+    }
   } else {
     # type == "rstudent" or "LOO-PIT"
     z <- residuals.brma(

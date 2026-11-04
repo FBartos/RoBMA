@@ -123,3 +123,29 @@ test_that("radial labels follow declared designs even when row means coincide", 
   actual <- radial.brma(ordinary, as_data = TRUE)
   expect_identical(actual$xlab, expression(x[i] == 1 / sqrt(v[i] + tau^2)))
 })
+
+test_that("QQ plots omit exactly fitted estimates with undefined standardized residuals", {
+
+  object <- brma(yi = c(.1, .2, .3), sei = rep(.2, 3), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  testthat::local_mocked_bindings(
+    .check_unit_conditioning_depth = function(...) invisible(TRUE),
+    rstandard.brma = function(...) data.frame(resid = c(.1, 0, -.2), se = c(.1, 0, .1),
+                                              z = c(1, NA, -2)),
+    .package = "RoBMA"
+  )
+  expect_message(
+    data <- qqnorm.brma(object, type = "rstandard", envelope = FALSE, as_data = TRUE),
+    "1 exactly fitted estimate(s) with an undefined standardized residual are omitted.",
+    fixed = TRUE
+  )
+  expect_identical(data$K, 2L)
+  expect_identical(data$y, c(-2, 1))
+
+  testthat::local_mocked_bindings(
+    rstandard.brma = function(...) data.frame(resid = 0, se = 0, z = NaN),
+    .package = "RoBMA"
+  )
+  expect_error(qqnorm.brma(object, type = "rstandard", envelope = FALSE, as_data = TRUE),
+               "non-finite")
+})

@@ -274,7 +274,9 @@
 
       if (summarize && return_se && return_resid) {
         z_s <- residual_s / se_s
-        z_s[residual_s == 0 & se_s == 0] <- 0
+        # an exactly fitted row (zero residual and SD) has no defined z; NA
+        # carries through the posterior mean
+        z_s[residual_s == 0 & se_s == 0] <- NA_real_
         z_sum <- z_sum + z_s
       }
     }
@@ -459,7 +461,7 @@
       }
       if (summarize && return_se && return_resid) {
         z_s <- residual / se
-        z_s[residual == 0 & se == 0] <- 0
+        z_s[residual == 0 & se == 0] <- NA_real_
         z_sum <- z_sum + z_s
       }
     }
@@ -503,7 +505,7 @@
     }
     if (summarize && return_se && return_resid) {
       z <- residual / se
-      z[residual == 0 & se == 0] <- 0
+      z[residual == 0 & se == 0] <- NA_real_
       z_sum <- colSums(z)
     }
     chunk_info <- list(covariance_path = projection[["covariance_path"]])

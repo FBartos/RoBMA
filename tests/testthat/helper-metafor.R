@@ -161,8 +161,8 @@ expect_residuals_match_metafor <- function(case) {
                           info = paste(name, "saturated residuals are zero"))
     testthat::expect_true(all(brma_conditional$se[!valid] < 1e-8),
                           info = paste(name, "saturated SEs collapse"))
-    testthat::expect_true(all(abs(brma_conditional$z[!valid]) < 1e-8),
-                          info = paste(name, "saturated z values are zero"))
+    testthat::expect_true(all(is.na(brma_conditional$z[!valid])),
+                          info = paste(name, "saturated z values are undefined"))
   }
 
   if (kind %in% c("multilevel", "multilevel_no_loo")) {

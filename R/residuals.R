@@ -556,7 +556,10 @@ residuals.brma <- function(object, type = "outcome", unit = "estimate",
 #' residuals should approximately follow a standard normal distribution.
 #' A design-exactly fitted row is set to zero only when its covariance
 #' multiplier has no other partners; fully saturated designs remain exactly
-#' zero under correlated covariance as well.
+#' zero under correlated covariance as well. Such a row has residual and
+#' standard error zero and an undefined standardized residual, so its \code{z}
+#' is \code{NA} (also when it is exactly fitted in only some posterior draws);
+#' \code{qqnorm()} omits these rows with a message.
 #'
 #' For ensembles whose members differ in their PET and PEESE terms, each draw
 #' uses the design of its member, as described in \code{\link{hatvalues.brma}}.
