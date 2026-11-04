@@ -1,8 +1,14 @@
+# a BayesTools fit carrying only the current fitted-object contract
+.bridge_repetition_test_bt_fit <- function() {
+
+  BayesTools:::.bt_attach_fit_contract(structure(list(), class = "BayesTools_fit"))
+}
+
 .bridge_repetition_test_fit <- function(marglik) {
 
   data <- list(outcome = data.frame(yi = c(.1, -.2), sei = c(.2, .3)))
   attr(data, "outcome_type") <- "norm"
-  fit <- structure(list(data = data), class = "brma")
+  fit <- structure(list(data = data, fit = .bridge_repetition_test_bt_fit()), class = "brma")
   if (!is.null(marglik)) {
     attr(marglik, "RoBMA_marglik_identity") <- .marglik_identity(fit)
     fit[["marglik"]] <- marglik
@@ -635,6 +641,7 @@ test_that("stored marginal likelihoods are bound to the data, priors, and model"
 
   object <- brma(yi = c(.1, -.2, .3), sei = c(.2, .3, .25), measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  object[["fit"]] <- .bridge_repetition_test_bt_fit()
   stored <- .bridge_repetition_test_stored(.bridge_repetition_test_raw(-2))
   testthat::local_mocked_bindings(
     .marglik = function(...) stored,
@@ -666,4 +673,52 @@ test_that("stored marginal likelihoods are bound to the data, priors, and model"
     expect_error(bridge_sampler(stale), class = "RoBMA_marglik_stale")
   }
   expect_error(logml(legacy), "Recompute it with 'object <- add_marglik(object)'.", fixed = TRUE)
+})
+
+test_that("the marginal-likelihood identity does not depend on formula environments", {
+
+  formula_object <- function(env) {
+    f <- y ~ x + z
+    environment(f) <- env
+    data <- list(outcome = data.frame(yi = c(.1, .2)), formula = f, terms = stats::terms(f))
+    structure(list(data = data, priors = list(mu = BayesTools::prior("normal", list(0, 1)))),
+              class = "brma")
+  }
+  reference <- .marglik_identity(formula_object(baseenv()))
+  expect_identical(.marglik_identity(formula_object(new.env())), reference)
+  expect_identical(.marglik_identity(formula_object(globalenv())), reference)
+  other <- formula_object(baseenv())
+  other[["data"]][["formula"]] <- y ~ x
+  expect_false(identical(.marglik_identity(other), reference))
+
+  # the normalized payload of a saved object hashes the same in a new R process
+  testthat::skip_if_not_installed("processx")
+  root <- withr::local_tempdir("robma-marglik-identity-")
+  object <- formula_object(new.env())
+  saveRDS(object[c("data", "priors")], file.path(root, "object.rds"))
+  writeLines(c(
+    paste(".marglik_identity_normalize <-",
+          paste(deparse(.marglik_identity_normalize), collapse = "\n")),
+    sprintf('x <- readRDS("%s")', normalizePath(file.path(root, "object.rds"), winslash = "/")),
+    'cat(rlang::hash(.marglik_identity_normalize(x)))'
+  ), file.path(root, "hash.R"))
+  executable <- file.path(R.home("bin"),
+                          if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  withr::local_envvar(R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep))
+  run <- processx::run(executable, c("--vanilla", file.path(root, "hash.R")),
+                       error_on_status = FALSE, timeout = 60000)
+  expect_identical(run$status, 0L)
+  expect_identical(run$stdout, rlang::hash(.marglik_identity_normalize(object[c("data", "priors")])))
+})
+
+test_that("stored marginal likelihoods of an outdated fit require refitting", {
+
+  fit <- .bridge_repetition_test_fit(.bridge_repetition_test_stored(.bridge_repetition_test_raw(-2)))
+  expect_identical(logml(fit), -2)
+  contract <- attr(fit[["fit"]], "fit_contract")
+  contract[["formula_design_version"]] <- contract[["formula_design_version"]] - 1L
+  attr(fit[["fit"]], "fit_contract") <- contract
+  expect_error(logml(fit), class = "BayesTools_refit_required")
+  expect_error(bridge_sampler(fit), class = "BayesTools_refit_required")
+  expect_error(add_marglik(fit), class = "BayesTools_refit_required")
 })

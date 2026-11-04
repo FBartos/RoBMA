@@ -270,9 +270,45 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   return(list(
     version = .MARGLIK_IDENTITY_VERSION,
     class   = class(object)[1L],
-    hash    = rlang::hash(list(data = data, priors = object[["priors"]]))
+    hash    = rlang::hash(.marglik_identity_normalize(
+      list(data = data, priors = object[["priors"]])
+    ))
   ))
 }
+
+# rlang::hash() hashes an environment, and so a formula or terms object, by its
+# identity in the current session. The identity therefore hashes a copy without
+# formula environments, with other environments, pointers, and closures replaced
+# by stable text, so a fit saved and reloaded in a new session keeps it.
+.marglik_identity_normalize <- function(x) {
+
+  if (is.environment(x) || typeof(x) %in% c("externalptr", "weakref", "bytecode")) {
+    return(paste0("<", typeof(x), ">"))
+  }
+  if (is.function(x)) {
+    return(deparse(x))
+  }
+  if (is.list(x)) {
+    attrs <- attributes(x)
+    x     <- lapply(x, .marglik_identity_normalize)
+    attributes(x) <- attrs
+  }
+  attrs <- attributes(x)
+  if (length(attrs) > 0L) {
+    attrs[[".Environment"]] <- NULL
+    attributes(x) <- lapply(attrs, .marglik_identity_normalize)
+  }
+
+  return(x)
+}
+
+
+# Fitted-object metadata the marginal likelihood reads: an object whose fit
+# predates them must be refitted, not only have its marginal likelihood
+# recomputed.
+.MARGLIK_FIT_CONTRACT <- c(
+  "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"
+)
 
 
 # ---------------------------------------------------------------------------- #
@@ -1086,6 +1122,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   if (inherits(object, "RoBMA")) {
     .stop_product_space_marglik()
   }
+  .brma_validate_fit_contract(object, requires = .MARGLIK_FIT_CONTRACT)
   if (.is_random(object) &&
       !(inherits(object, "brma.mv") && .is_data_known_v(object[["data"]]))) {
     .check_random_formula_postfit_deferred(object, caller)

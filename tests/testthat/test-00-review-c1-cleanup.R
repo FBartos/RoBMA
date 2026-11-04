@@ -3,6 +3,8 @@ test_that("bridge extraction distinguishes a missing raw upstream result", {
   # A supplied scalar is a real standardized result with no raw bridge object.
   object <- brma(yi = c(.1, -.2), sei = c(.2, .3), measure = "GEN",
     prior_unit_information_sd = 1, only_priors = TRUE)
+  object[["fit"]] <- BayesTools:::.bt_attach_fit_contract(
+    structure(list(), class = "BayesTools_fit"))
   marglik <- BayesTools::bridgesampling_object(-2)
   attr(marglik, "RoBMA_marglik_identity") <- .marglik_identity(object)
   object[["marglik"]] <- marglik

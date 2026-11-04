@@ -59,7 +59,8 @@ test_that("an ordinary fit and an identical diagonal known-V fit compare", {
     )
   }
   with_marglik <- function(object, logml) {
-    fit <- structure(list(data = object[["data"]]), class = "brma")
+    fit <- structure(list(data = object[["data"]], fit = BayesTools:::.bt_attach_fit_contract(
+      structure(list(), class = "BayesTools_fit"))), class = "brma")
     marglik <- stored_marglik(logml)
     attr(marglik, "RoBMA_marglik_identity") <- .marglik_identity(fit)
     fit[["marglik"]] <- marglik

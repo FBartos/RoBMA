@@ -240,6 +240,7 @@ bridge_sampler.brma <- function(samples, ...) {
       call. = FALSE
     )
   }
+  .brma_validate_fit_contract(object, requires = .MARGLIK_FIT_CONTRACT)
   stored <- attr(marglik, "RoBMA_marglik_identity", exact = TRUE)
   if (!identical(stored, .marglik_identity(object))) {
     stop(errorCondition(
