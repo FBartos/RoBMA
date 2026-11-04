@@ -1313,13 +1313,18 @@ test_that("set_contrast_factor_predictors options are applied", {
 test_that("support restriction rejects empty continuous truncation intervals", {
 
   negative <- BayesTools::prior("normal", list(0, 1), list(-Inf, -1))
-  above <- BayesTools::prior("normal", list(0, 1), list(1.2, 2))
+  above <- BayesTools::prior("normal", list(0, 1), list(1.2, Inf))
   expect_warning(expect_error(.check_prior.heterogeneity(negative),
     "The 'prior_heterogeneity' prior has an empty truncation interval after support restriction.", fixed = TRUE),
     "Lower truncation point", fixed = TRUE)
   expect_warning(expect_error(.check_prior.restricted_01(above, "prior_heterogeneity_allocation"),
     "The 'prior_heterogeneity_allocation' prior has an empty truncation interval after support restriction.", fixed = TRUE),
     "Upper truncation point", fixed = TRUE)
+  # a finite truncation point outside the support is refused rather than moved
+  expect_error(.check_prior.restricted_01(BayesTools::prior("normal", list(0, 1), list(1.2, 2)),
+    "prior_heterogeneity_allocation"),
+    "upper truncation point of the 'prior_heterogeneity_allocation' prior distribution (2) is above 1",
+    fixed = TRUE)
   expect_silent(.check_prior.heterogeneity(BayesTools::prior("normal", list(0, 1), list(0, Inf))))
   expect_silent(.check_prior.restricted_01(BayesTools::prior("normal", list(0, 1), list(0, 1)), "allocation"))
   for (boundary in c(0, 1)) {

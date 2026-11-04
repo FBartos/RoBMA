@@ -1458,3 +1458,39 @@ test_that("user priors are validated before rescaling", {
   )[["priors"]]
   expect_equal(rescaled$outcome$mu$parameters$sd, 2)
 })
+
+test_that("finite truncation points outside the parameter support are refused", {
+
+  expect_warning(
+    prior <- RoBMA:::.check_prior.heterogeneity(BayesTools::prior("normal", list(0, 1))),
+    "The prior distribution was modified"
+  )
+  expect_identical(prior$truncation$lower, 0)
+  expect_error(
+    RoBMA:::.check_prior.heterogeneity(
+      BayesTools::prior("normal", list(0, 1), truncation = list(-1, Inf))),
+    "lower truncation point of the 'prior_heterogeneity' prior distribution (-1) is below 0",
+    fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.check_prior.restricted_01(
+      BayesTools::prior("normal", list(.5, 1), truncation = list(0, 2)), "rho"),
+    "upper truncation point of the 'rho' prior distribution (2) is above 1", fixed = TRUE
+  )
+  expect_error(
+    RoBMA:::.check_prior.restricted_01(
+      BayesTools::prior("normal", list(.5, 1), truncation = list(-.5, 1)), "rho"),
+    "lower truncation point of the 'rho' prior distribution (-0.5) is below 0", fixed = TRUE
+  )
+  warnings <- testthat::capture_warnings(
+    prior <- RoBMA:::.check_prior.restricted_01(BayesTools::prior("normal", list(.5, 1)), "rho")
+  )
+  expect_true(any(grepl("at least 0", warnings)) && any(grepl("at most 1", warnings)))
+  expect_identical(unlist(prior$truncation, use.names = FALSE), c(0, 1))
+  expect_error(
+    brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+         prior_heterogeneity = BayesTools::prior("normal", list(0, 1), truncation = list(-1, 2)),
+         only_priors = TRUE),
+    "outside the parameter support"
+  )
+})

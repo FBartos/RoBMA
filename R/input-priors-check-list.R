@@ -13,17 +13,44 @@
   if (BayesTools::is.prior.point(prior) && mean(prior) < 0) {
     stop("Point prior distribution for '", prior_name, "' must be at least 0.", call. = FALSE)
   }
-  if (prior[["truncation"]][["lower"]] < 0) {
-    warning(paste0("Lower truncation point for '", prior_name, "' prior distribution must be at least 0. The prior distribution was modified."),
-            immediate. = TRUE, call. = FALSE)
-    prior[["truncation"]][["lower"]] <- 0
-  }
+  prior <- .restrict_prior_support(prior, prior_name, lower = 0)
 
   if (!BayesTools::is.prior.point(prior) &&
       prior[["truncation"]][["lower"]] >= prior[["truncation"]][["upper"]]) {
     stop("The '", prior_name,
          "' prior has an empty truncation interval after support restriction.",
          call. = FALSE)
+  }
+
+  return(prior)
+}
+# Completes an unbounded truncation to the parameter support with a warning
+# (e.g., the default (-Inf, Inf) of prior("normal")), but refuses a finite
+# truncation point outside the support instead of silently rewriting it.
+.restrict_prior_support               <- function(prior, prior_name, lower = -Inf, upper = Inf) {
+
+  truncation <- prior[["truncation"]]
+  if (truncation[["lower"]] < lower) {
+    if (is.finite(truncation[["lower"]])) {
+      stop(sprintf(
+        "The lower truncation point of the '%s' prior distribution (%s) is below %s, outside the parameter support. Specify a truncation within [%s, %s].",
+        prior_name, format(truncation[["lower"]]), format(lower), format(lower), format(upper)
+      ), call. = FALSE)
+    }
+    warning(sprintf("Lower truncation point for '%s' prior distribution must be at least %s. The prior distribution was modified.", prior_name, format(lower)),
+            immediate. = TRUE, call. = FALSE)
+    prior[["truncation"]][["lower"]] <- lower
+  }
+  if (truncation[["upper"]] > upper) {
+    if (is.finite(truncation[["upper"]])) {
+      stop(sprintf(
+        "The upper truncation point of the '%s' prior distribution (%s) is above %s, outside the parameter support. Specify a truncation within [%s, %s].",
+        prior_name, format(truncation[["upper"]]), format(upper), format(lower), format(upper)
+      ), call. = FALSE)
+    }
+    warning(sprintf("Upper truncation point for '%s' prior distribution must be at most %s. The prior distribution was modified.", prior_name, format(upper)),
+            immediate. = TRUE, call. = FALSE)
+    prior[["truncation"]][["upper"]] <- upper
   }
 
   return(prior)
@@ -59,17 +86,7 @@
   if (BayesTools::is.prior.point(prior) && (mean(prior) < 0 || mean(prior) > 1)) {
     stop(sprintf("Point prior distribution for '%s' must be within [0, 1].", prior_name), call. = FALSE)
   }
-  if (prior[["truncation"]][["lower"]] < 0) {
-    warning(sprintf("Lower truncation point for '%s' prior distribution must be at least 0. The prior distribution was modified.", prior_name),
-            immediate. = TRUE, call. = FALSE)
-    prior[["truncation"]][["lower"]] <- 0
-  }
-
-  if (prior[["truncation"]][["upper"]] > 1) {
-    warning(sprintf("Upper truncation point for '%s' prior distribution must be at most 1. The prior distribution was modified.", prior_name),
-            immediate. = TRUE, call. = FALSE)
-    prior[["truncation"]][["upper"]] <- 1
-  }
+  prior <- .restrict_prior_support(prior, prior_name, lower = 0, upper = 1)
 
   if (!BayesTools::is.prior.point(prior) &&
       prior[["truncation"]][["lower"]] >= prior[["truncation"]][["upper"]]) {

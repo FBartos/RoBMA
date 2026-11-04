@@ -13,6 +13,13 @@
 #' corresponds to the intercept of the scale regression, and additional prior
 #' distributions for the scale regression coefficients are required.
 #'
+#' Priors of parameters with a restricted support are truncated to it: priors of
+#' the heterogeneity and of scale intercepts to \eqn{[0, \infty)}, priors of the
+#' heterogeneity allocation and of the base rate to \eqn{[0, 1]}. An unbounded
+#' truncation point, such as the default of \code{prior("normal", ...)}, is moved
+#' to the support boundary with a warning; a finite truncation point outside the
+#' support is an error.
+#'
 #' @param prior_effect prior distribution for the effect size (\eqn{\mu}) parameter
 #' (the intercept). If omitted and consumed, a default prior is constructed. In single-model
 #' functions, explicit `NULL` or `FALSE` sets a spike at zero.
@@ -50,7 +57,7 @@
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
 #' base-rate probability in binomial GLMM models (`measure = "OR"`). If omitted
 #' or `NULL`, defaults to independent `Beta(1, 1)` priors. Continuous priors
-#' are restricted to `[0, 1]` (truncated to it where their support is wider) and
+#' are restricted to `[0, 1]` (see Description) and
 #' point priors must lie strictly inside `(0, 1)`. The estimate-unit
 #' log-likelihood of the model (`log_lik()`, LOO, WAIC) integrates the base rate
 #' over any of these priors: point priors and untruncated beta priors
