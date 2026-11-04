@@ -1,13 +1,12 @@
 name: pkgdown
 
 on:
-  workflow_run:
-    workflows: [R-CMD-check]
-    types: [completed]
-    branches: [master]
+  push:
+    branches: [main, master]
+    tags: ['*']
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_sha }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -15,11 +14,6 @@ permissions:
 
 jobs:
   build:
-    if: >-
-      ${{ github.event.workflow_run.conclusion == 'success' &&
-          github.event.workflow_run.event == 'push' &&
-          github.event.workflow_run.head_repository.full_name == github.repository &&
-          github.event.workflow_run.head_branch == 'master' }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
@@ -31,7 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Setup R

@@ -7,13 +7,14 @@ RoBMA
 
 The `RoBMA` R package fits a comprehensive collection of Bayesian
 meta-analytic models (Bartoš & Maier, 2020). It provides single-model
-fits, meta-regression, location-scale models, multilevel models, fully
-Bayesian model-averaged ensembles, and built-in publication-bias
-adjustment using selection models, PET-PEESE, and Robust Bayesian
-Meta-Analysis (RoBMA). Posterior sampling is performed by JAGS through a
-custom C++ module that implements the weighted distributions used in
-selection models. Prior handling, plotting, and Bayesian diagnostics are
-delegated to the companion `BayesTools` package.
+fits, meta-regression, location-scale models, multilevel and
+multivariate models, fully Bayesian model-averaged ensembles, and
+built-in publication-bias adjustment using selection models, PET-PEESE,
+and Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is
+performed by JAGS through a custom C++ module that implements the
+weighted distributions used in selection models. Prior handling,
+plotting, and Bayesian diagnostics are delegated to the companion
+`BayesTools` package.
 
 This introduction maps the package at a high level and points to the
 more detailed vignettes that follow.
@@ -21,9 +22,8 @@ more detailed vignettes that follow.
 ## System Requirements
 
 The `RoBMA` R package requires JAGS 4.x (4.3.1 or newer; JAGS 5 is not
-supported) (Plummer, 2003).
-Install JAGS from <https://mcmc-jags.sourceforge.io/> before installing
-the R package.
+supported) (Plummer, 2003). Install JAGS from
+<https://mcmc-jags.sourceforge.io/> before installing the R package.
 
 ``` r
 install.packages("RoBMA")
@@ -50,29 +50,35 @@ The package exposes a small set of high-level fitting functions.
 
 | Function | What it fits |
 |:---|:---|
-| [`brma()`](reference/brma.html), [`brma.norm()`](reference/brma.html) | Bayesian random-effects meta-analysis |
+| [`brma()`](reference/brma.html), [`brma.norm()`](reference/brma.html), [`brma.mv()`](reference/brma.mv.html) | Bayesian random-effects meta-analysis |
 | [`brma.glmm()`](reference/brma.glmm.html) | Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR) |
-| [`bselmodel()`](reference/bselmodel.html) | Bayesian weight-function selection model |
-| [`bPET()`](reference/bPET.html), [`bPEESE()`](reference/bPEESE.html) | Bayesian PET / PEESE publication-bias adjustment |
-| [`BMA()`](reference/BMA.html), [`BMA.norm()`](reference/BMA.html) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
+| [`bselmodel()`](reference/bselmodel.html), [`bselmodel.mv()`](reference/bselmodel.mv.html) | Bayesian weight-function selection model |
+| [`bPET()`](reference/bPET.html), [`bPEESE()`](reference/bPEESE.html), [`bPET.mv()`](reference/bPET.mv.html), [`bPEESE.mv()`](reference/bPEESE.mv.html) | Bayesian PET / PEESE publication-bias adjustment |
+| [`BMA()`](reference/BMA.html), [`BMA.norm()`](reference/BMA.html), [`BMA.mv()`](reference/BMA.mv.html) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
 | [`BMA.glmm()`](reference/BMA.glmm.html) | Bayesian model-averaging for GLMM meta-analysis |
-| [`RoBMA()`](reference/RoBMA.html) | Robust Bayesian model-averaging including publication-bias models |
+| [`RoBMA()`](reference/RoBMA.html), [`RoBMA.mv()`](reference/RoBMA.mv.html) | Robust Bayesian model-averaging including publication-bias models |
 
 `brma()` and `RoBMA()` are the main workhorses. `brma()` fits a single
 model in the same spirit as `metafor::rma()`; `RoBMA()` averages across
 an ensemble that includes publication-bias adjustment. `BMA()` is
-`RoBMA()` without the bias-adjustment models.
+`RoBMA()` without the bias-adjustment models. The `.mv` variants extend
+these models to multivariate and multilevel data with a known sampling
+covariance matrix (`V`) and random-effect formulas (`random`, e.g.,
+`~ 1 | study / esid`), in the same spirit as `metafor::rma.mv()`.
 
 All fitting functions
 
 - share an effect-size interface (`yi`, `sei` / `vi`, `measure`
-  arguments; apart from glmm),
+  arguments; the `.mv` variants also accept `V`, and the `.glmm`
+  variants take outcome counts),
 - can be extended into a meta-regression (`mods` argument),
 - can be extended into a location-scale model (`scale` argument),
-- can be extended into a multilevel model (`cluster` argument),
-- and all produce objects that work with the same set of inference
-  helpers (`summary()`, `plot()`, `predict()`, `loo()`, `funnel()`,
-  `regplot()`, residuals and influence diagnostics, …).
+- can be extended into a multilevel model (`cluster` argument; `random`
+  in the `.mv` variants),
+- and produce objects that work with the same set of inference helpers
+  (`summary()`, `plot()`, `predict()`, `loo()`, `funnel()`, `regplot()`,
+  residuals and influence diagnostics, …); see [*Feature
+  Coverage*](articles/v03-feature-coverage.html) for the exceptions.
 
 ## Vignette Map
 
