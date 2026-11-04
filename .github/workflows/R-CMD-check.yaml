@@ -24,9 +24,11 @@ on:
         type: boolean
         default: false
 
-# Called workflows share the caller's github.workflow, hence the literal prefix.
+# A called workflow sees the caller's github.workflow: the literal prefix keeps
+# two workflows called by one caller apart, github.workflow keeps the callers
+# (and a direct run) apart.
 concurrency:
-  group: R-CMD-check-${{ github.event_name }}-${{ github.ref }}
+  group: R-CMD-check-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

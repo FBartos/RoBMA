@@ -10,9 +10,10 @@ Keep each section short; write "None" rather than deleting a section.
 ## Try it
 
 <!--
-One install command and a short script that shows the change. The R-CMD-check
-run of this pull request also uploads a Windows binary (artifact
-"<package>-windows-binary"): install.packages("<file>.zip", repos = NULL).
+One install command and a short script that shows the change. Where the
+package's R-CMD-check workflow builds one, the pull request's run has a Windows
+binary (artifact "<package>-windows-binary"):
+install.packages("<file>.zip", repos = NULL).
 -->
 
 ```r

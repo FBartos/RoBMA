@@ -8,7 +8,9 @@ on:
     tags: ['*']
   workflow_dispatch:
 
-# Deployments push to gh-pages one at a time.
+# Deployments run one at a time: each force-pushes gh-pages, so two at once
+# would drop the earlier one's pages. A newer push replaces a pending
+# deployment; re-run a release deployment that was cancelled that way.
 concurrency:
   group: pkgdown-deploy
   cancel-in-progress: false
