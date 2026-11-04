@@ -1,10 +1,10 @@
 type	name	elapsed	memory_gb	r_version	platform
-fit	fit_brma_mv	5.150000000	0.613867	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_mv	5.150000000	0.610742	4.6.0	Windows/x86_64-w64-mingw32
 fit	fit_brma_mv_null	4.600000000	0.614160	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_mv_quality	5.720000000	0.663281	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_mv_quality_null	5.570000000	0.722266	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_mv_rcor	5.420000000	0.722266	4.6.0	Windows/x86_64-w64-mingw32
-fit	fit_brma_mv_rcor_null	5.250000000	0.722266	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_mv_quality	5.720000000	0.659570	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_mv_quality_null	5.570000000	0.677051	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_mv_rcor	5.420000000	0.718262	4.6.0	Windows/x86_64-w64-mingw32
+fit	fit_brma_mv_rcor_null	5.250000000	0.718262	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_mv	1.610000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_mv_null	1.510000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_model	fit_brma_mv_quality	1.550000000	NA	4.6.0	Windows/x86_64-w64-mingw32
@@ -27,7 +27,7 @@ text	effect-bayes-factors	1.790000000	0.621387	4.6.0	Windows/x86_64-w64-mingw32
 text	model-comparison	0.660000000	0.621387	4.6.0	Windows/x86_64-w64-mingw32
 text	model-fit-loo	0.190000000	0.496680	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-cor-R	0.060000000	0.398535	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-known-R	0.070000000	0.485547	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-known-R	0.070000000	0.444141	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-no-known-R	0.070000000	0.436523	4.6.0	Windows/x86_64-w64-mingw32
 text	summary_het-cor-R	0.220000000	0.607422	4.6.0	Windows/x86_64-w64-mingw32
 text	summary_het-known-R	0.200000000	0.613672	4.6.0	Windows/x86_64-w64-mingw32
@@ -40,4 +40,4 @@ plot	posterior-mu	0.940000000	0.670996	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-tau	4.630000000	0.674219	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm	2.240000000	0.771387	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-effects	7.520000000	0.722266	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	0.570000000	0.813379	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	0.150000000	0.540332	4.6.0	Windows/x86_64-w64-mingw32
