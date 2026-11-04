@@ -269,6 +269,10 @@ scenario_fit <- function(name, code, cache_version = NULL) {
     )
     .scenario_check_cached_fit(name, fit)
     .scenario_mark_cached_fit(name)
+    # the summary stored at fitting reflects the summary code of that time
+    if (inherits(fit, "brma")) {
+      fit[["print_summary"]] <- NULL
+    }
     return(fit)
   }
   if (file.exists(paths[["fit"]]) && !config[["refit"]]) {

@@ -34,8 +34,6 @@ context("Random-slope correlation routes")
     chain[3:4, "mu__xRE_ALLOCx_heterogeneity__allocation_sd"]
   chain[3:4, "mu__xREx__study_x"] <- 0
   fit[["fit"]][["mcmc"]][[1L]] <- chain
-  # the summary stored at fitting describes the unedited draws
-  fit[["print_summary"]] <- NULL
 
   return(fit)
 }

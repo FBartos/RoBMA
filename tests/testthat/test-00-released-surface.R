@@ -246,7 +246,7 @@ test_that("fitted objects store the default summary shown by print() and summary
   uncached[["print_summary"]] <- NULL
   expect_s3_class(stored, "summary.brma")
   expect_identical(stored, summary(uncached))
-  expect_identical(fit[["print_summary"]][["OutDec"]], getOption("OutDec"))
+  expect_identical(fit[["print_summary"]][["context"]], RoBMA:::.summary_stored_context())
 
   # print() and summary() without arguments return the stored summary
   original_pair <- RoBMA:::.summary_estimates_pair
@@ -268,11 +268,19 @@ test_that("fitted objects store the default summary shown by print() and summary
   expect_identical(summary(fit, probs = c(.1, .9)), summary(uncached, probs = c(.1, .9)))
   expect_false(identical(summary(fit, probs = c(.1, .9)), stored))
 
-  # another decimal separator formats the labels anew
-  withr::with_options(list(OutDec = ","), {
-    expect_identical(summary(fit), summary(uncached))
-    expect_false(identical(summary(fit), stored))
-  })
+  # other number-formatting options format the labels anew
+  for (label_options in list(list(OutDec = ","), list(scipen = -3))) {
+    withr::with_options(label_options, {
+      expect_identical(summary(fit), summary(uncached))
+      expect_false(identical(summary(fit), stored))
+    })
+  }
+
+  # a summary stored by other package versions is not reused
+  other_version <- fit
+  other_version[["print_summary"]][["context"]][["RoBMA"]] <- "0.0.0"
+  other_version[["print_summary"]][["summary"]][["name"]] <- "stale"
+  expect_identical(summary(other_version), stored)
 
   # update() stores the summary of the extended fit
   extended <- update(fit, sample_extend = 20)

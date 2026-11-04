@@ -1682,6 +1682,10 @@ read_cached_fit <- function(name) {
   if (inherits(fit, "try-error")) {
     return(NULL)
   }
+  # the summary stored at refresh reflects the summary code of that time
+  if (inherits(fit, "brma")) {
+    fit[["print_summary"]] <- NULL
+  }
 
   return(fit)
 }

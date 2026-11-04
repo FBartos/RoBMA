@@ -105,14 +105,15 @@ summary.brma       <- function(
   .warn_unused_dots(list(...), allowed = character(), caller = "summary.brma()")
 
   # the default summary stored by fitting, update(), and
-  # add_selection_sensitivity_diagnostics() (see .brma_store_print_summary());
-  # its quantile labels follow the decimal separator in use when it was stored
+  # add_selection_sensitivity_diagnostics() (see .brma_store_print_summary()),
+  # reused under the package versions and number-formatting options it was
+  # computed with
   stored <- object[["print_summary"]]
   if (missing(probs) && missing(include_mcmc_diagnostics) &&
       missing(standardized_coefficients) && missing(conditional) &&
       missing(logBF) && missing(BF01) && ...length() == 0L &&
       inherits(stored[["summary"]], "summary.brma") &&
-      identical(stored[["OutDec"]], getOption("OutDec"))) {
+      identical(stored[["context"]], .summary_stored_context())) {
     return(stored[["summary"]])
   }
 
@@ -698,8 +699,10 @@ print.brma <- function(x, ...) {
 # Store the default summary that print() and summary() show, so printing a fit
 # does not recompute it. Every function that changes what summary() reads (the
 # fit, data, priors, or selection-sensitivity diagnostics) stores it again. The
-# decimal separator its labels were formatted with is stored beside it. A
-# summary that fails is not stored; summary() then gives the same error.
+# package versions that computed it and the number-formatting options of its
+# labels (quantiles, selection intervals) are stored beside it, so a fit saved
+# under other versions or options is summarized anew. A summary that fails is
+# not stored; summary() then gives the same error.
 .brma_store_print_summary <- function(object) {
 
   object[["print_summary"]] <- NULL
@@ -714,11 +717,22 @@ print.brma <- function(x, ...) {
   if (!is.null(stored_summary)) {
     object[["print_summary"]] <- list(
       summary = stored_summary,
-      OutDec  = getOption("OutDec")
+      context = .summary_stored_context()
     )
   }
 
   return(object)
+}
+
+# What a stored summary depends on besides the fitted object.
+.summary_stored_context <- function() {
+
+  return(list(
+    RoBMA      = as.character(utils::packageVersion("RoBMA")),
+    BayesTools = as.character(utils::packageVersion("BayesTools")),
+    OutDec     = getOption("OutDec"),
+    scipen     = getOption("scipen")
+  ))
 }
 
 .summary_scale_formula_parameters <- function(object) {
