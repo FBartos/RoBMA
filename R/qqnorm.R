@@ -235,6 +235,13 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     return(qq_data)
   }
 
+  # per-estimate point styles follow their estimates through omission and sorting
+  for (style in c("pch", "col", "bg", "cex", "size")) {
+    if (length(dots[[style]]) > 1L && length(dots[[style]]) == qq_data[["n_rows"]]) {
+      dots[[style]] <- dots[[style]][qq_data[["rows"]]]
+    }
+  }
+
   # create plot
   if (plot_type == "ggplot") {
     return(.qqnorm_plot_ggplot(qq_data, dots))
@@ -286,7 +293,9 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
       conditioning_depth = conditioning_depth,
       max_samples        = max_samples
     )
-    z <- res_obj$z
+    z      <- res_obj$z
+    n_rows <- length(z)
+    rows   <- seq_len(n_rows)
     # exactly fitted estimates have an undefined standardized residual
     undefined <- is.na(z) & !is.nan(z)
     if (any(undefined)) {
@@ -295,6 +304,7 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
         sum(undefined)
       ))
       z       <- z[!undefined]
+      rows    <- rows[!undefined]
       res_obj <- res_obj[!undefined, , drop = FALSE]
     }
   } else {
@@ -305,6 +315,8 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
       unit   = unit,
       .approximation_note = FALSE
     )
+    n_rows <- length(z)
+    rows   <- seq_len(n_rows)
   }
   if (length(z) == 0L || any(!is.finite(z))) {
     stop("Normal QQ plots are unavailable because the requested standardized residuals are non-finite. ",
@@ -398,7 +410,10 @@ qqnorm.brma <- function(y, type = "rstudent", unit = "estimate",
     level              = conf_level,
     unit               = unit,
     conditioning_depth = conditioning_depth,
-    K                  = K
+    K                  = K,
+    # original estimate of each plotted point, for per-estimate styles
+    rows               = rows[sort_order],
+    n_rows             = n_rows
   )
   if (deletion_type) {
     out[["conditioning_depth"]] <- NULL

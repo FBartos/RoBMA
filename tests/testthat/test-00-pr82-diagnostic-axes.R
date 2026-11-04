@@ -149,3 +149,28 @@ test_that("QQ plots omit exactly fitted estimates with undefined standardized re
   expect_error(qqnorm.brma(object, type = "rstandard", envelope = FALSE, as_data = TRUE),
                "non-finite")
 })
+
+test_that("QQ point styles follow their estimates through omission and sorting", {
+
+  testthat::skip_if_not_installed("ggplot2")
+  object <- brma(yi = c(.1, .2, .3, .4), sei = rep(.2, 4), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  testthat::local_mocked_bindings(
+    .check_unit_conditioning_depth = function(...) invisible(TRUE),
+    rstandard.brma = function(...) data.frame(resid = c(.1, 0, -.2, .05),
+                                              se = c(.1, 0, .1, .1), z = c(1, NA, -2, .5)),
+    .package = "RoBMA"
+  )
+  expect_message(
+    plot <- qqnorm.brma(object, type = "rstandard", envelope = FALSE, plot_type = "ggplot",
+                        size = c(1, 2, 3, 4), col = c("red", "green", "blue", "black")),
+    "omitted"
+  )
+  built  <- ggplot2::ggplot_build(plot)
+  points <- built$data[[which(vapply(plot$layers, function(layer) {
+    inherits(layer$geom, "GeomPoint")
+  }, logical(1)))[1L]]]
+  # rows 3, 4, 1 in increasing z order; row 2 is omitted
+  expect_identical(points$size, c(3, 4, 1))
+  expect_identical(points$colour, c("blue", "black", "red"))
+})
