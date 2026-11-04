@@ -57,11 +57,11 @@ jobs:
 
       - name: Set JAGS environment variables (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: pwsh
         run: |
-          echo JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1>> %GITHUB_ENV%
-          echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
-          echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
+          "JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1" >> $env:GITHUB_ENV
+          "JAGS_MAJOR_VERSION=4" >> $env:GITHUB_ENV
+          "C:\Program Files\JAGS\JAGS-4.3.1\bin" >> $env:GITHUB_PATH
 
       - name: Resolve BayesTools source
         id: bayestools
