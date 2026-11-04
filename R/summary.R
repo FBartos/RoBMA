@@ -105,12 +105,15 @@ summary.brma       <- function(
   .warn_unused_dots(list(...), allowed = character(), caller = "summary.brma()")
 
   # the default summary stored by fitting, update(), and
-  # add_selection_sensitivity_diagnostics() (see .brma_store_print_summary())
+  # add_selection_sensitivity_diagnostics() (see .brma_store_print_summary());
+  # its quantile labels follow the decimal separator in use when it was stored
+  stored <- object[["print_summary"]]
   if (missing(probs) && missing(include_mcmc_diagnostics) &&
       missing(standardized_coefficients) && missing(conditional) &&
       missing(logBF) && missing(BF01) && ...length() == 0L &&
-      inherits(object[["print_summary"]], "summary.brma")) {
-    return(object[["print_summary"]])
+      inherits(stored[["summary"]], "summary.brma") &&
+      identical(stored[["OutDec"]], getOption("OutDec"))) {
+    return(stored[["summary"]])
   }
 
   ### model information
@@ -694,7 +697,8 @@ print.brma <- function(x, ...) {
 
 # Store the default summary that print() and summary() show, so printing a fit
 # does not recompute it. Every function that changes what summary() reads (the
-# fit, data, priors, or selection-sensitivity diagnostics) stores it again. A
+# fit, data, priors, or selection-sensitivity diagnostics) stores it again. The
+# decimal separator its labels were formatted with is stored beside it. A
 # summary that fails is not stored; summary() then gives the same error.
 .brma_store_print_summary <- function(object) {
 
@@ -703,10 +707,16 @@ print.brma <- function(x, ...) {
     return(object)
   }
 
-  object[["print_summary"]] <- tryCatch(
+  stored_summary <- tryCatch(
     summary.brma(object),
     error = function(error) NULL
   )
+  if (!is.null(stored_summary)) {
+    object[["print_summary"]] <- list(
+      summary = stored_summary,
+      OutDec  = getOption("OutDec")
+    )
+  }
 
   return(object)
 }

@@ -66,7 +66,7 @@ test_that("selection conditioning comparisons are requested explicitly", {
     object, max_posterior_samples = 256, latent_samples = 512, seed = 1
   ), warning_text, fixed = TRUE), stored)
   summarized <- summary(object)
-  expect_identical(summarized, object[["print_summary"]])
+  expect_identical(summarized, object[["print_summary"]][["summary"]])
   expect_identical(summarized[["selection_sensitivity_diagnostics"]], stored)
   expect_silent(capture.output(print(object)))
   expect_silent(capture.output(print(summarized)))
