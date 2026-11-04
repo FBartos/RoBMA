@@ -60,7 +60,7 @@
 "Poulsen2006"
 
 #' @title 881 estimates from 69 studies of a relationship between employment and
-#' educational outcomes collected by \insertCite{kroupova2021student;textual}{RoBMA}
+#' educational outcomes collected by \insertCite{kroupova2024student;textual}{RoBMA}
 #'
 #' @description The data set contains partial correlation coefficients, standard errors,
 #' study labels, sample sizes, type of the educational outcome, intensity of the
