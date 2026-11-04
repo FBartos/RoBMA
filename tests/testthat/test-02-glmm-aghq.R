@@ -1625,3 +1625,28 @@ test_that("AGHQ refusals name the rounding-noise bound only where it set the cha
   expect_s3_class(condition, "RoBMA_glmm_aghq_nonconvergence")
   expect_match(conditionMessage(condition), "diagnostics: last log-likelihood change ", fixed = TRUE)
 })
+
+test_that("AGHQ convergence is an empirical check that can meet accidental plateaus", {
+
+  # In both cases orders 49 and 65 agree within the tolerance by accident: a
+  # ladder that ends at order 65 accepts the plateau, the change to order 81
+  # exceeds the tolerance, and the default ladder refuses both cases.
+  run <- function(family, orders) {
+    control <- .glmm_aghq_control(orders = orders, tolerance = 1e-6, consecutive = 2L)
+    if (family == "bin") {
+      .glmm_binom_aghq(20L, 32L, 50L, 50L, matrix(11.4904983155429),
+        matrix(22.0314182357), .0057277245966389,
+        c(alpha = 965.107363310169, beta = 35.4785406068269), control = control)
+    } else {
+      .glmm_pois_aghq(20L, 0L, .328114211489737, 2.29433847937373,
+        matrix(27.8310414031148), matrix(5.98917656611457), 31.8177491890552,
+        c(mean = -29.607054409571, sd = 226.486799106862), control = control)
+    }
+  }
+  for (family in c("bin", "pois")) {
+    accepted <- run(family, c(41L, 49L, 65L, 81L))
+    expect_equal(as.numeric(accepted[["max_order"]]), 65, info = family)
+    expect_error(run(family, c(49L, 65L, 81L)), "rejected by diagnostics", info = family)
+    expect_error(run(family, NULL), "rejected by diagnostics", info = family)
+  }
+})
