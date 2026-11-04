@@ -1,16 +1,15 @@
 ---
 title: "Robust Bayesian Meta-Analysis"
 author: "František Bartoš"
-date: "4th of May 2026"
+date: "4th of May 2026 (updated: 25th of October 2026)"
 output:
   rmarkdown::html_vignette:
     self_contained: yes
-bibliography: ../inst/REFERENCES.bib
-csl: ../inst/apa.csl
+bibliography: "`r normalizePath('../inst/REFERENCES.bib', winslash = '/', mustWork = TRUE)`"
+csl: "`r normalizePath('../inst/apa.csl', winslash = '/', mustWork = TRUE)`"
 link-citations: true
 vignette: >
   %\VignetteIndexEntry{Robust Bayesian Meta-Analysis}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown_notangle}
 ---
@@ -36,7 +35,7 @@ knitr::opts_chunk$set(
   fig.width   = 7,
   fig.height  = 3.5,
   dev         = "png",
-  fig.retina  = 3
+  fig.retina  = vignette_fig_retina()
 )
 if (.Platform$OS.type == "windows") {
   knitr::opts_chunk$set(dev.args = list(type = "cairo"))
@@ -139,7 +138,7 @@ summary_models(fit_RoBMA)
 ```
 
 The posterior model weights show which sub-models the data prefer within each component's mixture.
-The bias side of the ensemble concentrates posterior mass on PET (posterior probability $0.77$, individual inclusion BF $\approx 23$) with a smaller share on PEESE; the weight functions and the no-bias spike all receive negligible posterior weight.
+The bias side of the ensemble concentrates posterior mass on PET (posterior probability $0.68$, individual inclusion BF $\approx 15$), followed by PEESE (posterior probability $0.21$); the remaining bias components together account for about $0.10$.
 The `inclusion BF` column is the Bayes factor for that one sub-model against the rest of its mixture, so it does not need to agree with the component-level inclusion BF reported by `summary()`.
 
 `plot()` overlays the prior and the model-averaged posterior of any model parameter.

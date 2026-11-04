@@ -1,0 +1,16 @@
+
+Bayesian Model-Averaged Multivariate Random-Effects Model (k = 100)
+
+Component Inclusion
+                               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect                               0.500       0.983       59.484               27.267
+Heterogeneity: study: tau            0.500       0.934       14.213               13.553
+Heterogeneity: study:esid: tau       0.500       1.000   >14999.000                   NA
+
+Estimates
+                       Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+mu                    0.348 0.105 0.117 0.351 0.548     0.00228          0.022 2219 1.002
+tau_total             0.476 0.067 0.365 0.469 0.628     0.00160          0.024 1781 1.001
+tau2_prop(study)      0.310 0.159 0.000 0.313 0.612     0.00407          0.026 1530 1.001
+tau2_prop(study:esid) 0.690 0.159 0.388 0.687 1.000     0.00407          0.026 1530 1.001
+

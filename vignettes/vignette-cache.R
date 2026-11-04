@@ -125,3 +125,10 @@ vignette_cache_save <- function(cache, envir = parent.frame(), compress = "xz") 
 
   invisible(cache)
 }
+
+# Built package vignettes embed their figures at retina 2 to keep the CRAN
+# tarball small; the pkgdown site (pkgdown sets IN_PKGDOWN while rendering
+# articles) keeps retina 3.
+vignette_fig_retina <- function() {
+  if (identical(Sys.getenv("IN_PKGDOWN"), "true")) 3 else 2
+}

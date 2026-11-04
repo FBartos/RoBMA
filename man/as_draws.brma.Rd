@@ -45,17 +45,17 @@ as_draws_rvars(x, ...)
 
 \method{as_draws_rvars}{default}(x, ...)
 
-\method{as_draws}{brma}(x, ...)
+\method{as_draws}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_array}{brma}(x, ...)
+\method{as_draws_array}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_df}{brma}(x, ...)
+\method{as_draws_df}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_list}{brma}(x, ...)
+\method{as_draws_list}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_matrix}{brma}(x, ...)
+\method{as_draws_matrix}{brma}(x, include_auxiliary = FALSE, ...)
 
-\method{as_draws_rvars}{brma}(x, ...)
+\method{as_draws_rvars}{brma}(x, include_auxiliary = FALSE, ...)
 }
 \arguments{
 \item{x}{an object to convert. The \code{brma} methods expect a fitted
@@ -64,6 +64,11 @@ corresponding \pkg{posterior} conversion function.}
 
 \item{...}{additional arguments passed to the corresponding
 \pkg{posterior} function.}
+
+\item{include_auxiliary}{logical; whether to include the hidden
+intermediate parameters (see Details) in addition to the parameters shown by
+the default \code{print()} and \code{summary()} of the fit. Formula-random
+parameters retain their RoBMA semantic names in either case.}
 }
 \value{
 An object of the corresponding \pkg{posterior} draws class.
@@ -76,6 +81,19 @@ by the \pkg{posterior} package, enabling the use of posterior's
 rich set of diagnostics and summary functions.
 }
 \details{
+By default, the draws hold exactly the parameters that the default
+\code{print()} and \code{summary()} of the fit show (the location, heterogeneity,
+and moderator coefficients, the multilevel allocation \code{rho}, and the
+publication-bias parameters), together with the model-inclusion indicators
+behind the reported inclusion probabilities. The hidden intermediate
+parameters are added by \code{include_auxiliary = TRUE}: the latent
+cluster and estimate effects (\code{gamma[k]} and the GLMM \code{theta[i]}),
+the selection-model latent variables (\code{eta}), the GLMM nuisance base
+rates and rates (\code{pi[i]} and \code{phi[i]}), the random-effect
+variances, component SDs derived from a variance allocation, and total
+variance of formula-random models (for example \code{tau2} or
+\code{tau2_total}), and the other backend variables listed below.
+
 These functions are S3 generics. Their default methods forward to the
 corresponding \pkg{posterior} generics so attaching \pkg{RoBMA} preserves
 the usual \pkg{posterior} behavior for non-\code{brma} objects.
@@ -93,7 +111,63 @@ The following conversion functions are available:
 These methods require the \pkg{posterior} package to be installed.
 For \code{brma} methods, conversion is performed by first extracting the MCMC
 samples as a \code{mcmc.list} object and then using the corresponding
-\pkg{posterior} conversion function. \code{brma_samples} objects have
+\pkg{posterior} conversion function. By default, backend-private latent
+effects, known-\code{V} dependency factors, random-effect simulation and
+Cholesky factors, and prior-parameterization variables are omitted. Stable
+fitted coordinates such as model indicators remain available.
+Ordinary spike-and-slab backend slab and inclusion
+coordinates are omitted by default; \code{include_auxiliary = TRUE} retains
+them. Semantic random-effect indicators remain available as described below.
+Formula-random coordinates are replaced by their semantic
+RoBMA quantities using the same names as summaries, plots, and hypotheses,
+such as \code{tau_total}, \code{tau_common}, \code{rho(...)}, and \code{tau2_prop(...)}.
+A \code{rho(...)} column can contain \code{NA} draws: an original-scale correlation
+is undefined in draws where one of its standard deviations is zero, e.g.
+where an inclusion gate or a point prior sets it to zero. Summaries
+and hypothesis tests of the correlation use its defined draws; summaries
+computed from the exported draws need to handle the \code{NA} values.
+Random-effect SD switches are exposed as exact columns named after the
+standard deviation they act on, with an \verb{_indicator} suffix, pairing with
+the semantic SD column the same way \code{mu_x_indicator} pairs with \code{mu_x}. A
+heterogeneity-component inclusion gate is 0/1, such as \code{study: tau_indicator}
+and \code{observation: tau_indicator}, and carries the inclusion state the
+summary reports under \verb{Heterogeneity:}. An allocation-SD prior indicator,
+such as \code{tau_total_indicator}, records which mixture component allocated the
+total standard deviation and therefore takes one value per component,
+matching the order of that prior's components.
+Ordered predictor terms return their fitted totals and normalized sampled
+allocation shares by default, replacing their deterministic increment
+coordinates. Shares are normalized from the sampled Gamma primitives and
+remain defined when a total is zero or its inclusion event is off. Totals
+with point priors are exact constants for every fitted slice; fixed
+allocations do not create share columns. The labels come from the fitted
+BayesTools ordered specification, including reached factor levels and
+interaction slices. These quantities remain on the fitted predictor scale.
+Ordered-total mixture indicators and inclusion probabilities remain
+available, while nested slab and pseudo-prior coordinates are omitted.
+With \code{include_auxiliary = TRUE}, raw ordered increments and eligible
+total auxiliaries are also retained. Internal Gamma coordinates are never
+exported. \code{as_draws_rvars()} preserves allocation labels as scalar
+random variables and keeps ordinary vector and multi-slice total indices.
+If an ordered sampled parameter conflicts with an existing fitted column,
+conversion stops with classes \code{RoBMA_ordered_draws_conflict} and
+\code{RoBMA_ordered_draws_unavailable}, with the message
+\code{Ordered sampled parameter '<name>' conflicts with existing fitted draws. Refit the model with the current RoBMA/BayesTools build.}
+Missing required ordered sources stop with
+\code{RoBMA_ordered_draws_unavailable} and
+\code{BayesTools_ordered_coordinates_unavailable}, with parent class
+\code{BayesTools_ordered_unavailable} and the message
+\code{Ordered source draws are unavailable. Refit the model with the current RoBMA/BayesTools build.}
+Entirely fixed numeric-point terms need only the existing chain row count
+to materialize their declared totals.
+Both RoBMA ordered refit errors also inherit \code{RoBMA_refit_required}
+and \code{BayesTools_refit_required}.
+Structural point-prior coordinates are returned as exact constant columns,
+with chain timing taken from the fitted draw geometry. Private backend
+anchors are never exposed. Use \code{include_auxiliary = TRUE} to skip RoBMA
+auxiliary filtering; added backend variables retain their coordinate names,
+while public random-effect parameters retain their RoBMA names.
+\code{brma_samples} objects have
 separate methods documented at \code{\link{as_draws.brma_samples}}.
 }
 \seealso{

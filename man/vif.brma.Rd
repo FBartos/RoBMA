@@ -4,7 +4,14 @@
 \alias{vif.brma}
 \title{Variance Inflation Factors for brma Objects}
 \usage{
-\method{vif}{brma}(object, posterior_correlation = TRUE, ...)
+\method{vif}{brma}(
+  object,
+  posterior_correlation = TRUE,
+  max_samples = Inf,
+  ...,
+  probs = NULL,
+  include_samples = FALSE
+)
 }
 \arguments{
 \item{object}{a fitted brma object with moderators}
@@ -13,7 +20,23 @@
 the posterior correlation matrix of regression coefficients. Defaults
 to \code{TRUE}.}
 
+\item{max_samples}{maximum posterior draws used for the VIF/GVIF
+computation in every model class. Defaults to
+\code{Inf}. Finite values deterministically thin draws across posterior row
+order. The optional posterior coefficient correlation still uses all draws.}
+
 \item{...}{additional arguments (currently ignored)}
+
+\item{probs}{optional credible-interval probabilities for GVIF (ordinary
+VIF for one-df terms). Defaults to \code{NULL}, which retains the point-summary
+table. Requested empirical quantiles appear as \code{CI_<probability>} columns.
+These intervals describe GVIF, not its adjusted root.}
+
+\item{include_samples}{whether to include a \code{samples} data frame with
+posterior \code{draw} row indices before thinning, \code{term_index} (the row
+of the \code{vif} table, also distinguishing repeated display labels),
+\code{term}, \code{df}, \code{GVIF},
+and \code{GVIF^(1/(2*df))}. Defaults to \code{FALSE}.}
 }
 \value{
 An object of class \code{vif.brma} containing:
@@ -22,6 +45,9 @@ and \code{GVIF^(1/(2*df))} (= \eqn{GVIF^{1/(2 \cdot df)}}). For single-df
 terms, GVIF equals the standard VIF.}
 \item{posterior_correlation}{A correlation matrix of posterior regression
 coefficient samples when requested and available; otherwise \code{NULL}.}
+\item{samples}{The optional long data frame of draw-wise diagnostics when
+\code{include_samples = TRUE}. Printing and data-frame coercion of the result
+retain the summary-table view; extract this element explicitly for draws.}
 }
 \description{
 Computes variance inflation factors (VIF) and generalized
@@ -31,14 +57,28 @@ returns the posterior correlation matrix of regression coefficients.
 \details{
 VIF is computed from the correlation matrix derived from the
 coefficient variance-covariance matrix \eqn{(X'WX)^{-1}}. For standard
-meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \hat\tau^2))}
-with \eqn{\hat\tau} equal to the posterior mean heterogeneity. For scale
-and multilevel models, the coefficient covariance is averaged across
-posterior heterogeneity draws, using observation-specific \eqn{\tau_i}
-and block-structured multilevel covariance where applicable.
+meta-regression models, \eqn{W = \mathrm{diag}(w_i/(v_i + \tau^2))}
+at each posterior heterogeneity draw. Scale and multilevel models use
+observation-specific \eqn{\tau_i} and block-structured covariance where
+applicable. VIF/GVIF and its adjusted root are computed in each draw and
+averaged separately. These posterior means are generally different from
+applying VIF to an averaged covariance or to a posterior-mean heterogeneity.
+The mean adjusted GVIF is likewise generally different from transforming
+the mean GVIF. The diagnostic retains its GLS design-based meaning; it is
+not calculated from the empirical posterior covariance of the coefficients.
 
 A VIF of 1 indicates no collinearity; values above 5 or 10 are
 commonly considered problematic.
+
+The members of a \code{RoBMA()} ensemble can differ in their bias terms (PET
+adds a \code{PET} column, PEESE a \code{PEESE} column, and the null and
+weight-function members add none), so each posterior draw uses the design of
+its member. A location term summarizes all selected posterior draws;
+\code{PET} and \code{PEESE} summarize only draws in their own class
+(\code{NA} when no selected draw belongs to it). Their samples are \code{NA}
+outside that class, not zero, and their credible intervals are conditional
+on class membership. Location terms keep the specified location design,
+including terms with spike-and-slab priors.
 
 For multi-column terms, such as factor contrasts,
 the Generalized VIF (GVIF) of \insertCite{fox1992generalized;textual}{RoBMA}
@@ -54,6 +94,29 @@ Bayesian diagnostic complements VIF: while VIF diagnoses the
 posterior correlation shows the \emph{realized} identification
 given the data and priors. Informative priors can mitigate
 collinearity, reducing posterior correlations even when VIF is high.
+
+Data-only objects created with \code{only_data = TRUE} are rejected because
+VIF depends on fitted heterogeneity information, not just the parsed data.
+
+For \code{brma.mv()} known-\code{V} models, VIF is computed from the full
+marginal GLS covariance. Formula random effects are marginalized through
+BayesTools' random-effect covariance metadata rather than treated as
+conditioned fitted effects.
+
+For known-\code{V} models, the VIF requires applying the inverse of the
+marginal covariance. A covariance that is too ill-conditioned for that (a
+reciprocal condition number of about \code{2e-10} or less in any posterior
+draw used) is unavailable: the call stops with an error of class
+\code{RoBMA_known_v_precision_unavailable}, whose parent class is
+\code{RoBMA_numerical_unavailable}, instead of returning a rounded number.
+The condition carries the draw positions (\code{rows}) and their
+\code{reciprocal_condition}.
+
+For generalized linear mixed models, this is a working effect-size-scale
+diagnostic based on the fitted model's approximate sampling variances. It is
+not a VIF derived directly from the binomial or Poisson information matrix.
+When the marginal covariance is fixed, the calculation reduces to the
+conventional fixed-covariance VIF used by \pkg{metafor}.
 }
 \examples{
 \dontrun{

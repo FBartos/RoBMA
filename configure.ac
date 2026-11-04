@@ -23,6 +23,15 @@ LAPACK_LIBS=`"${R_HOME}/bin/R" CMD config LAPACK_LIBS`
 BLAS_LIBS=`"${R_HOME}/bin/R" CMD config BLAS_LIBS`
 FLIBS=`"${R_HOME}/bin/R" CMD config FLIBS`
 
+# RoBMA builds against the JAGS 4 module interface only: its native
+# distributions implement the JAGS 4 virtual signatures and are abstract under
+# JAGS 5. The pkg-config version and the JAGS_MAJOR declared by the selected
+# headers are checked against this range before src/Makevars is written.
+JAGS_MIN_VERSION="4.3.1"
+JAGS_REQUIRED_MAJOR="4"
+JAGS_SUPPORTED_RANGE="JAGS 4.x (>= ${JAGS_MIN_VERSION}, < 5.0.0)"
+JAGS_VERSION_HINT="Install JAGS 4.3.x (JAGS 5 is not supported) and select it with PKG_CONFIG_PATH, JAGS_PREFIX, or --with-jags-prefix."
+
 # Try using pkg-config to set compiler flags
 
 PKG_CONFIG_OK="FALSE"
@@ -30,7 +39,10 @@ PKG_CONFIG_OK="FALSE"
 AC_PATH_PROG([PKG_CONFIG], [pkg-config], [], [$PATH:/usr/local/bin])
 if test [ -n "${PKG_CONFIG}" ] ; then
    if `${PKG_CONFIG} --exists jags`; then
-       if `${PKG_CONFIG} --exists --atleast-version=4.0.0 jags`; then
+       jags_installed_version=`${PKG_CONFIG} --modversion jags`
+       jags_installed_major=`echo "${jags_installed_version}" | sed 's/\..*$//'`
+       if test "${jags_installed_major}" = "${JAGS_REQUIRED_MAJOR}" &&
+          `${PKG_CONFIG} --exists --atleast-version=${JAGS_MIN_VERSION} jags`; then
          JAGS_LIBS=`${PKG_CONFIG} --libs jags`
          JAGS_CFLAGS=`${PKG_CONFIG} --cflags jags`
          JAGS_LIBDIR=`${PKG_CONFIG} --variable libdir jags`
@@ -43,8 +55,7 @@ if test [ -n "${PKG_CONFIG}" ] ; then
             PKG_CONFIG_OK="TRUE"
          fi
       else
-         jags_installed_version=`${PKG_CONFIG} --modversion jags`
-         AC_MSG_ERROR([pkg-config found JAGS ${jags_installed_version} but rjags requires JAGS >= 4.x.y])
+         AC_MSG_ERROR([RoBMA requires ${JAGS_SUPPORTED_RANGE}; pkg-config reported ${jags_installed_version}. ${JAGS_VERSION_HINT}])
       fi
    else
       AC_MSG_WARN([pkg-config file for jags ${PACKAGE_VERSION} unavailable])
@@ -146,6 +157,22 @@ AC_MSG_NOTICE([Link flags are $JAGS_LIBS])
 
 fi
 ####################### END legacy configuration ##########################
+
+# The selected JAGS headers must declare JAGS 4 (version.h defines JAGS_MAJOR).
+for jags_flag in ${JAGS_CFLAGS}; do
+   case "${jags_flag}" in
+      -I*)
+         jags_header_dir=`echo "${jags_flag}" | sed 's/^-I//'`
+         if test -f "${jags_header_dir}/version.h"; then
+            jags_header_major=`awk '$1 == "#define" && $2 == "JAGS_MAJOR" { print $3; exit }' "${jags_header_dir}/version.h"`
+            if test -n "${jags_header_major}" &&
+               test "${jags_header_major}" != "${JAGS_REQUIRED_MAJOR}"; then
+               AC_MSG_ERROR([RoBMA requires ${JAGS_SUPPORTED_RANGE}; the JAGS headers in '${jags_header_dir}' declare JAGS_MAJOR ${jags_header_major}. ${JAGS_VERSION_HINT}])
+            fi
+         fi
+         ;;
+   esac
+done
 
 # Support for private installations of JAGS. If the jags library is not
 # on the linker path then it helps to hard-code the location of JAGS into

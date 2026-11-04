@@ -4,7 +4,13 @@
 \alias{pooled_heterogeneity.brma}
 \title{Pooled Heterogeneity for brma Objects}
 \usage{
-\method{pooled_heterogeneity}{brma}(object, probs = c(0.025, 0.975), conditional = FALSE, ...)
+\method{pooled_heterogeneity}{brma}(
+  object,
+  probs = c(0.025, 0.975),
+  conditional = FALSE,
+  component = "all",
+  ...
+)
 }
 \arguments{
 \item{object}{a fitted brma object}
@@ -16,30 +22,77 @@ Defaults to \code{c(.025, .975)} for 95\% credible intervals.}
 the heterogeneity component for RoBMA product-space objects. Defaults to
 \code{FALSE}.}
 
-\item{...}{additional arguments passed to \code{\link{predict.brma}}; wrapper
-arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed.}
+\item{component}{heterogeneity component to return for \code{brma.mv()}
+models. Defaults to \code{"all"}. Use \code{"total"} for the
+variance-additive total heterogeneity.}
+
+\item{...}{additional arguments passed to \code{\link{predict.brma}}
+(\code{as_measure}, \code{V_new}, and \code{conditioning_depth}); wrapper
+arguments such as \code{newdata}, \code{type}, and \code{quiet} are fixed
+(supplying one is R's error for an argument matched twice, as for
+\code{predict()}), and other unknown arguments are unused and trigger a
+warning.}
 }
 \value{
 A \code{brma_samples} object containing posterior samples. When printed,
-displays a summary table. Use \code{summary()} to obtain the summary table directly.
-The samples can be converted to \pkg{posterior} draws formats using \code{as_draws()}.
+displays a summary table. For decomposed \code{brma.mv()} models, a named
+list of \code{brma_samples} objects is returned. Use \code{summary()} on an
+individual object (\code{as.data.frame()} of an individual object returns its
+draws) or \code{as.data.frame()} on the complete result to obtain
+a summary data frame with component and parameter identifiers. Use
+\code{as.data.frame(format = "list")} to retain separate component tables.
+The samples can be converted to \pkg{posterior} draws formats using
+\code{as_draws()}.
 }
 \description{
-Computes the pooled (aggregated) heterogeneity estimate (tau)
-from a fitted brma object by averaging across the scale model matrix.
+Computes heterogeneity (tau) of a fitted brma object at the
+average fitted scale design (the mean of the observation-specific tau) and,
+for random-formula models, at the average expanded random-effect design.
 }
 \details{
-This function is a convenience wrapper around \code{predict.brma(...,
-type = "terms.scale", newdata = TRUE)}.
-
-For location-scale models (with scale regression), the pooled heterogeneity
-averages tau across the scale model matrix proportionately to the levels
-observed in the data.
+For location-scale models, the function returns the arithmetic mean over the
+fitted rows of the observation-specific tau, as in 4.0.0; it equals
+\code{rowMeans(predict(object, type = "terms.scale"))}. It is not the root
+mean square heterogeneity across the observed rows. Use
+\code{summary_heterogeneity()} for the latter.
 
 For models without scale regression, this returns the single tau parameter.
 
 For multilevel (3-level) models, the returned tau is the total heterogeneity:
 \code{tau = sqrt(tau_within^2 + tau_between^2)}.
+
+For \code{brma.mv()} models, one ordinary selected component is named
+\code{tau}; a genuine variance-additive total is named \code{tau_total}; and a
+mean-variance allocation anchor is named \code{tau_common}. These quantities
+are available when a random formula is declared. For random-formula models,
+\code{component = "all"}
+returns one \code{brma_samples} object when there is a single heterogeneity
+component and a named list when there are multiple components.
+\code{component = "total"} computes the variance-additive total at the
+average random-effect design. Random slopes are evaluated as
+\eqn{\bar q^T G \bar q}, including within-block correlations. Default and
+named allocation components retain their declared scale anchors; explicit
+totals and pooled-effect prediction intervals use the full covariance of
+the average design, including allocation-owned blocks.
+With a known group covariance \eqn{R}, the
+reported \code{sd} is the fitted multiplier of that kernel. It need not equal
+every row's marginal standard deviation when \eqn{\mathrm{diag}(R)} is not
+one. Row-specific marginal standard deviations are available from
+\code{predict(type = "terms.scale")}. A scale formula of a random-formula model
+enters the average random-effect design as the arithmetic mean of the
+observation-specific tau, as for the univariate models.
+\code{predict(object, newdata = TRUE, type = "terms.scale")} returns the same
+component result: a named list for several components and one
+\code{brma_samples} object for a single component.
+
+For \code{brma.mv()} models and models with factor-specific or random-slope
+terms, the average expanded random-effect design can be synthetic and need
+not correspond to a single realizable outcome or study. The result is the
+heterogeneity of that linear composite, not typical heterogeneity across the
+observed designs. Interpret it only when the composite has a meaningful
+scientific interpretation; use \code{summary_heterogeneity()} for
+observed-design heterogeneity or \code{predict(..., newdata = ...)} for a
+specified realizable design.
 }
 \examples{
 \dontrun{

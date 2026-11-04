@@ -27,10 +27,10 @@ bool DWN::checkParameterValue(std::vector<double const *> const &par,
 			    std::vector<unsigned int> const &len) const
 {
   // var and weight is positive
-  bool var_OK = *par[1] > 0.0;
-  bool weight_OK = *par[2] > 0.0;
+  bool var_OK = std::isfinite(*par[1]) && *par[1] > 0.0;
+  bool weight_OK = std::isfinite(*par[2]) && *par[2] > 0.0;
 
-  return var_OK && weight_OK;
+  return std::isfinite(*par[0]) && var_OK && weight_OK;
 }
 
 double DWN::logDensity(double const *x, unsigned int length, PDFType type,

@@ -15,7 +15,11 @@ permissions:
 
 jobs:
   build:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      ${{ github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.head_repository.full_name == github.repository &&
+          github.event.workflow_run.head_branch == 'master' }}
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
@@ -62,11 +66,11 @@ jobs:
 
       - name: Set JAGS environment variables (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: pwsh
         run: |
-          echo JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1>> %GITHUB_ENV%
-          echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
-          echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
+          "JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1" >> $env:GITHUB_ENV
+          "JAGS_MAJOR_VERSION=4" >> $env:GITHUB_ENV
+          "C:\Program Files\JAGS\JAGS-4.3.1\bin" >> $env:GITHUB_PATH
 
       - name: Resolve BayesTools source
         id: bayestools

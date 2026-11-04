@@ -9,7 +9,7 @@
 \arguments{
 \item{x}{a \code{summary.marginal_means.brma} object.}
 
-\item{...}{additional arguments (currently ignored).}
+\item{...}{unused additional arguments. Supplied arguments trigger a warning.}
 }
 \value{
 Returns \code{x} invisibly.

@@ -1,0 +1,6 @@
+mu:
+  Normal(0, 0.71)
+tau:
+  Spike(0)
+bias:
+  omega[one-sided: .025] ~ CumDirichlet(1, 1)

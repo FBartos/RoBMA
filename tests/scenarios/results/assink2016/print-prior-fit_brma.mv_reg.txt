@@ -1,0 +1,10 @@
+mu_intercept:
+  Normal(0, 0.71)
+mu_deltype:
+  treatment contrast: Normal(0, 0.35)
+random:
+  allocation: heterogeneity
+    sigma_total ~ Normal(0, 0.35)[0, Inf]
+    w ~ Dirichlet(1, 1)
+    sigma_esid_study = sigma_total * sqrt(w[1])
+    sigma_study = sigma_total * sqrt(w[2])

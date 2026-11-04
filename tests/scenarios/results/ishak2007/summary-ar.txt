@@ -1,0 +1,15 @@
+
+Bayesian Multivariate Mixed-Effect Model (k = 82)
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+tau 4.873 0.717 3.592 4.823 6.409     0.02895          0.040 625 1.002
+rho 0.808 0.084 0.590 0.824 0.921     0.00505          0.060 278 1.013
+
+Meta-Regression
+                  Mean    SD   0.025     0.5   0.975 error(MCMC) error(MCMC)/SD ESS R-hat
+time_factor[1] -25.516 1.056 -27.600 -25.516 -23.401     0.05725          0.054 349 1.006
+time_factor[2] -27.007 1.002 -28.896 -27.012 -24.992     0.06873          0.069 216 1.013
+time_factor[3] -28.285 1.003 -30.239 -28.289 -26.302     0.05814          0.058 309 1.006
+time_factor[4] -25.872 1.336 -28.512 -25.859 -23.263     0.05084          0.038 689 1.003
+

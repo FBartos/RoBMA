@@ -15,8 +15,11 @@
 \item{unit}{output/deletion unit used when extracting LOO from brma objects.}
 }
 \value{
-A matrix of class \code{"compare.loo"} as returned by
-\code{\link[loo]{loo_compare}}.
+The comparison returned by \code{\link[loo]{loo_compare}} for the
+stored results: a data frame of class \code{"compare.loo"} with one row per
+model, ordered by expected predictive performance, which prints as loo
+prints it. The models are named \code{model1}, \code{model2}, ... unless
+the call names them.
 }
 \description{
 Compare multiple brma models using LOO-PSIS cross-validation.
@@ -28,10 +31,18 @@ predictive performance (ELPD).
 
 \strong{Important for model comparison:} When comparing models via
 \code{\link[loo]{loo_compare}}, the selection is based on expected
-out-of-sample predictive performance. This evaluates how well models predict
-\emph{new} observations, not how well they fit the observed data.
+predictive performance for the documented deletion target, not in-sample
+fit. For dependent estimates, deleting one estimate may retain other
+observations from its fitted dependency block; this is not new-group
+prediction.
 RoBMA rejects comparisons with different outcome targets/data, \code{unit},
-or implied \code{conditioning_depth}.
+or retained context. A known sampling covariance without correlated blocks
+(e.g., \code{V = diag(sei^2)} in \code{\link{brma.mv}}) is the outcome data
+of its standard errors, whereas a correlated \code{V} is a different target.
+The same compatibility key is applied
+separately to LOO and WAIC; the two criteria cannot be mixed in one
+comparison table. Sampled versus marginalized local-effect provenance does
+not by itself block comparison.
 }
 \examples{
 \dontrun{

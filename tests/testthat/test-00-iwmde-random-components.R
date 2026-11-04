@@ -1,0 +1,1448 @@
+test_that("shared random inclusion preserves SD atoms and defined proportions", {
+
+  object  <- shared_gate_random_object()
+  samples <- as.matrix(object[["fit"]][[1L]])
+  context <- list(
+    object            = object,
+    posterior_samples = samples,
+    flat_prior_list   = list(),
+    evaluator_cache   = new.env(parent = emptyenv())
+  )
+  # SD 1:4 times the gate (0, 1, 0, 1); the study SD also times sqrt(.25),
+  # and the study share .25 is undefined where the gate is off.
+  expected <- list(
+    "(mu) split: tau_total"        = c(0, 2, 0, 4),
+    "(mu) study: tau(intercept)"   = c(0, 1, 0, 2),
+    "(mu) split: tau2_prop(study)" = c(NA, .25, NA, .25)
+  )
+
+  for (quantity in names(expected)) {
+    target <- .brma_random_parameter_density_target(object, quantity)
+    expect_null(target[["reason"]], info = quantity)
+    spec <- .iwmde_parameter_spec(context, target[["parameter"]], target[["parameter_spec"]])
+    expect_identical(spec[["status"]], "ok")
+    expect_equal(.iwmde_parameter_values(context, target[["parameter"]], spec),
+                 expected[[quantity]], info = quantity)
+    component <- .iwmde_parameter_components(context, target[["parameter"]], spec)
+    expect_identical(component[["active"]], c(FALSE, TRUE, FALSE, TRUE))
+    proportion <- grepl("tau2_prop", quantity, fixed = TRUE)
+    expect_identical(.iwmde_parameter_condition_rows(context, spec),
+                     if (proportion) c(FALSE, TRUE, FALSE, TRUE) else rep(TRUE, 4))
+    if (proportion) {
+      expect_equal(nrow(component[["point_masses"]]), 0L)
+    } else {
+      expect_equal(component[["point_masses"]], data.frame(x = 0, mass = .5))
+    }
+    # The shared gate of the root allocation puts every quantity on atoms.
+    expect_false(is.null(spec[["gate_selection"]]), info = quantity)
+    expect_identical(.iwmde_plan_parameter_spec(spec)[["gate_selection"]],
+                     spec[["gate_selection"]])
+    ungated <- spec
+    ungated[["gate_selection"]] <- NULL
+    expect_false(identical(.iwmde_target_key(target[["parameter"]], spec),
+                           .iwmde_target_key(target[["parameter"]], ungated)))
+  }
+
+  # The study SD is the root SD times its allocation chain: the IWMDE target
+  # replaces the root SD through the multiplier of the BayesTools node with
+  # the chain's gate set to one.
+  target <- .brma_random_parameter_density_target(object, "(mu) study: tau(intercept)")
+  spec   <- target[["parameter_spec"]]
+  expect_identical(spec[["type"]], "random_component_sd")
+  expect_identical(spec[["node"]], "mu__xREx__study_intercept")
+  expect_identical(spec[["gate_columns"]], colnames(samples)[[3L]])
+  expect_equal(.iwmde_random_component_sd_multiplier(context, samples, spec),
+               rep(sqrt(.25), 4L), tolerance = 1e-15)
+})
+
+
+test_that("shared-gate allocation grids use declared continuous covariance plans", {
+
+  mods <- data.frame(study = factor(c("a", "a", "b", "b")),
+                      esid = factor(1:4))
+  result <- BayesTools::JAGS_formula(
+    formula = ~ 1 + random(1 | study, name = "study", covariance = "diag") +
+      random(1 | esid, name = "esid", covariance = "diag"),
+    parameter = "mu",
+    data = mods,
+    prior_list = list(intercept = BayesTools::prior("normal", list(0, 1))),
+    prior_random = BayesTools::prior_random(allocation = list(
+      BayesTools::random_variance_allocation(
+        name = "root", terms = c(component = "component_gated"),
+        sd = BayesTools::prior("gamma", list(2, 2)),
+        inclusion = list(component = BayesTools::prior("spike", list(location = .5)))
+      ),
+      BayesTools::random_variance_allocation(
+        name = "split", terms = c(study = "study", esid = "esid"),
+        parent = BayesTools::allocation_ref("root", "component"),
+        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
+      )
+    ))
+  )
+  design <- result$formula_design
+  root   <- design$random_allocations$root
+  split  <- design$random_allocations$split
+  source <- root$source_node
+  gate   <- root$inclusion$component$indicator_name
+  weight <- split$weight_name
+  samples <- matrix(c(.1, .4, 1, .2, .8, -.1, .6, 0, .7, .3,
+                       .2, .8, 1, .6, .4), nrow = 3L, byrow = TRUE,
+                    dimnames = list(NULL, c("mu_intercept", source, gate,
+                                            paste0(weight, "[", 1:2, "]"))))
+  fit <- coda::mcmc.list(coda::mcmc(samples))
+  class(fit) <- c("BayesTools_fit", class(fit))
+  attr(fit, "prior_list") <- result$prior_list
+  attr(fit, "formula_design") <- list(mu = design)
+  fit <- BayesTools:::.bt_attach_parameter_map(fit)
+  fit <- BayesTools:::.bt_attach_draw_geometry(fit)
+  fit <- BayesTools:::.bt_attach_fit_contract(fit)
+  catalog <- BayesTools::parameter_catalog(fit)
+  prior_selection <- BayesTools::parameter_catalog_resolve(
+    catalog, "(mu) split: var_prop(study)"
+  )
+  selected <- list(
+    spec = list(quantity = "var_prop", allocation_index = 1L,
+                label = "split: tau2_prop(study)"),
+    entry = list(parameter = "(mu) split: tau2_prop(study)",
+                 selection = prior_selection),
+    allocation_definition = split,
+    samples = as.matrix(BayesTools::parameter_draws(fit, prior_selection))
+  )
+  withr::local_seed(1)
+  prior_seed <- .Random.seed
+  prior_samples <- .brma_random_parameter_mixed_posterior(
+    list(fit = fit), "split: tau2_prop(study)",
+    selected = selected
+  )[[1L]]
+  prior_density <- BayesTools::posterior_metadata(prior_samples, "prior_density")
+  expect_s3_class(prior_density, "prior_linear_density")
+  expect_equal(vapply(c(0, .5, 1), function(value) {
+    BayesTools::prior_density_ordinate(prior_density, value)$log_density
+  }, numeric(1)), rep(0, 3L))
+  expect_equal(as.numeric(prior_samples), c(.2, .6))
+  expect_identical(.Random.seed, prior_seed)
+  targets <- list(
+    list(selector = "(mu) split: sd_total", index = NA_integer_, type = "scalar"),
+    list(selector = "(mu) esid: sd(intercept)", index = 2L, type = "random_component_sd"),
+    list(selector = "(mu) split: var_prop(study)", index = 1L, type = "simplex_pair"),
+    list(selector = "(mu) split: var_prop(esid)", index = 2L, type = "simplex_pair")
+  )
+  values <- c(0, .4, 1)
+  rows   <- c(3L, 1L)
+  states <- lapply(rows, function(row) list(row_index = row))
+  yi     <- c(.1, -.2, .3, .05)
+  context <- list(posterior_samples = samples,
+                   data = list(outcome = data.frame(yi = yi)))
+  testthat::local_mocked_bindings(
+    .iwmde_uses_known_v_random_marginal_likelihood = function(...) TRUE,
+    # These covariance-only fixtures supply fixed means directly.
+    .iwmde_build_replacement_samples = function(context, parameter, values, ...) {
+      expect_length(values, 1L)
+      list(changed_parameters = parameter)
+    },
+    .iwmde_q_grid_fixed_mu_is_invariant = function(...) TRUE,
+    .is_data_weights = function(...) FALSE,
+    .fitted_formula_design = function(...) design,
+    .iwmde_known_v_random_marginal_setup = function(...) list(
+      sampling_covariance = sampling,
+      dependency_blocks = list(1:2, 3:4),
+      group_iid_plan_cache = new.env(parent = emptyenv())
+    ),
+    .iwmde_predictor_evaluate_fixed_mu = function(context, active_setup, samples) {
+
+      matrix(samples[, "mu_intercept"], nrow = nrow(samples), ncol = 4L)
+    },
+    .iwmde_predictor_log_prior = function(context, parameter, values, row_states, ...) {
+
+      numeric(length(values) * length(row_states))
+    },
+    .data_effect_direction = function(...) "positive",
+    .package = "RoBMA"
+  )
+
+  for (target in targets) {
+    selection <- BayesTools::parameter_catalog_resolve(
+      catalog, target$selector, "mu"
+    )
+    update <- BayesTools::random_effects_marginal_update_plan(fit, selection)
+    parameter <- if (identical(target$type, "simplex_pair")) {
+      paste0(weight, "[", target$index, "]")
+    } else source
+    replacement <- list(type = target$type, covariance_update = update)
+    if (identical(target$type, "simplex_pair")) {
+      replacement <- c(replacement, list(parameter = weight,
+        index = target$index, n_targets = 2L))
+    } else if (identical(target$type, "random_component_sd")) {
+      replacement <- c(replacement, list(source_parameter = source,
+        factors = list(list(weight_name = weight, index = 2L,
+          n_targets = 2L, scale = "total_variance"))))
+    }
+    plan <- .iwmde_known_v_random_group_iid_plan(context, parameter, replacement)
+    expect_identical(plan$required_active, gate)
+
+    for (correlated in c(FALSE, TRUE)) {
+      sampling <- diag(c(.04, .05, .06, .07))
+      if (correlated) {
+        sampling[1, 2] <- sampling[2, 1] <- .01
+        sampling[3, 4] <- sampling[4, 3] <- .02
+      }
+      actual <- .iwmde_log_q_grid_known_v_random_group_iid(
+        context, parameter, values, states, replacement, list()
+      )
+      expected <- matrix(NA_real_, nrow = length(values), ncol = length(rows))
+      for (j in seq_along(rows)) {
+        row <- rows[[j]]
+        for (i in seq_along(values)) {
+          sd <- if (target$type == "scalar") values[[i]] else samples[row, source]
+          p  <- samples[row, paste0(weight, "[1]")]
+          if (target$type == "simplex_pair") {
+            p <- if (target$index == 1L) values[[i]] else 1 - values[[i]]
+          } else if (target$type == "random_component_sd") {
+            sd <- values[[i]] / sqrt(1 - p)
+          }
+          covariance <- sampling + sd^2 * ((1 - p) * diag(4L) +
+            p * outer(mods$study, mods$study, "=="))
+          residual <- yi - samples[row, "mu_intercept"]
+          factor   <- chol(covariance)
+          solved   <- forwardsolve(t(factor), residual)
+          expected[i, j] <- -.5 * (4 * log(2 * pi) +
+            2 * sum(log(diag(factor))) + sum(solved^2))
+        }
+      }
+      expect_equal(actual, expected, tolerance = 1e-12)
+    }
+    expect_equal(.iwmde_log_q_grid_known_v_random_group_iid(
+      context, parameter, values, states[1L], replacement, list()
+    ), actual[, 1L, drop = FALSE], tolerance = 1e-12)
+    expect_null(.iwmde_log_q_grid_known_v_random_group_iid(
+      context, parameter, values, list(list(row_index = 2L)), replacement, list()
+    ))
+    undeclared <- replacement
+    undeclared$covariance_update$conditional <- NULL
+    expect_null(.iwmde_known_v_random_group_iid_plan(context, parameter, undeclared))
+  }
+  missing_gate <- context
+  missing_gate$posterior_samples <- samples[, colnames(samples) != gate, drop = FALSE]
+  expect_null(.iwmde_log_q_grid_known_v_random_group_iid(
+    missing_gate, parameter, values, states, replacement, list()
+  ))
+  replacement$covariance_update$conditional$required_active <- c(gate, "another_gate")
+  expect_null(.iwmde_known_v_random_group_iid_plan(context, parameter, replacement))
+})
+
+
+test_that("simplex endpoint replacement uses its conditional beta prior", {
+
+  parameter <- "rho"
+  eta <- .iwmde_simplex_auxiliary_columns(parameter, 2L)
+  samples <- matrix(
+    c(0, 0, 4, 1, 2, 0),
+    nrow = 2L,
+    byrow = TRUE,
+    dimnames = list(NULL, c("theta", eta))
+  )
+  prior_list <- list(
+    theta = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+    rho   = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
+  )
+  replacement <- list(
+    type              = "simplex_pair",
+    parameter         = parameter,
+    index             = 1L,
+    auxiliary_columns = eta
+  )
+
+  actual <- .iwmde_replacement_log_prior_rows(
+    samples     = samples,
+    prior_list  = prior_list,
+    replacement = replacement
+  )
+  expected <- stats::dnorm(samples[, "theta"], log = TRUE) +
+    stats::dbeta(c(0, 1), 1, 1, log = TRUE)
+
+  expect_equal(actual, expected, tolerance = 0)
+  expect_true(all(is.finite(actual)))
+})
+
+test_that("simplex component replacement supports more than two targets", {
+
+  parameter <- "weight"
+  columns   <- paste0(parameter, "[", 1:3, "]")
+  eta       <- .iwmde_simplex_auxiliary_columns(parameter, 3L)
+  row <- c(theta = 0.2, stats::setNames(c(.2, .3, .5), columns),
+           stats::setNames(c(2, 3, 5), eta))
+  replacement <- list(
+    type              = "simplex_pair",
+    parameter         = parameter,
+    index             = 2L,
+    n_targets         = 3L,
+    auxiliary_columns = eta
+  )
+
+  replaced <- .iwmde_replace_row_for_value(
+    context     = list(object = NULL),
+    state       = list(row = row),
+    parameter   = columns[[2L]],
+    value       = 0.6,
+    replacement = replacement
+  )
+
+  expect_true(replaced[["valid"]])
+  expect_equal(unname(replaced[["row"]][columns]), c(.114285714, .6, .285714286))
+  expect_equal(sum(replaced[["row"]][eta]), sum(row[eta]))
+  expect_equal(
+    replaced[["row"]][eta[[1L]]] / replaced[["row"]][eta[[3L]]],
+    row[eta[[1L]]] / row[eta[[3L]]]
+  )
+
+  prior_list <- list(
+    theta  = BayesTools::prior("normal", list(mean = 0, sd = 1)),
+    weight = BayesTools::prior("dirichlet", list(alpha = c(1, 2, 3)))
+  )
+  samples <- matrix(
+    replaced[["row"]],
+    nrow = 1L,
+    dimnames = list(NULL, names(replaced[["row"]]))
+  )
+  expect_true(is.finite(.iwmde_replacement_log_prior_rows(
+    samples,
+    prior_list,
+    replacement
+  )))
+})
+
+test_that("simplex conditional kernels include the allocation Jacobian", {
+
+  weights <- c(.05, .2, .6, .95)
+  cases <- list(
+    list(alpha = c(2, 3), density = function(w) 12 * w * (1 - w)^2),
+    list(alpha = rep(1, 4L), density = function(w) 3 * (1 - w)^2),
+    list(alpha = rep(.5, 3L), density = function(w) .5 / sqrt(w))
+  )
+  for (case in cases) {
+    alpha <- case[["alpha"]]
+    n     <- length(alpha)
+    eta   <- .iwmde_simplex_auxiliary_columns("weight", n)
+    other <- seq_len(n - 1L) / sum(seq_len(n - 1L))
+    samples <- 4 * cbind(weights, outer(1 - weights, other))
+    colnames(samples) <- eta
+    prior_list <- list(weight = BayesTools::prior("dirichlet", list(alpha)))
+    replacement <- list(type = "simplex_pair", parameter = "weight",
+                         index = 1L, auxiliary_columns = eta)
+    actual <- exp(.iwmde_replacement_log_prior_rows(
+      samples, prior_list, replacement
+    ))
+    expect_equal(actual, case[["density"]](weights), tolerance = 1e-12)
+
+    # Independently transform the joint gamma density. For two components the
+    # Jacobian is constant, so its normalized conditional density is unchanged.
+    gamma_kernel <- function(w) {
+
+      coordinates <- 4 * cbind(w, outer(1 - w, other))
+      log_density <- rowSums(vapply(seq_len(n), function(j) {
+        stats::dgamma(coordinates[, j], alpha[[j]], log = TRUE)
+      }, numeric(length(w))))
+      exp(log_density) * (1 - w)^(n - 2L)
+    }
+    normalizer <- stats::integrate(gamma_kernel, 0, 1, rel.tol = 1e-10)$value
+    expect_equal(actual, gamma_kernel(weights) / normalizer, tolerance = 1e-10)
+  }
+
+  samples <- rbind(c(0, 1, 3), c(4, 0, 0))
+  colnames(samples) <- eta
+  expect_equal(.iwmde_replacement_log_prior_rows(
+    samples, prior_list, replacement
+  ), c(Inf, log(.5)), tolerance = 1e-14)
+})
+
+test_that("simplex baselines use the same conditional prior as replacements", {
+
+  eta <- .iwmde_simplex_auxiliary_columns("weight", 3L)
+  samples <- cbind(center = c(.2, -.4), rbind(c(1, 2, 1), c(3, 2, 1)))
+  colnames(samples)[-1L] <- eta
+  priors <- list(
+    center = BayesTools::prior("normal", list(0, 1)),
+    weight = BayesTools::prior("dirichlet", list(alpha = c(2, 1, 1)))
+  )
+  context <- .iwmde_context_ensure_caches(structure(
+    list(posterior_samples = samples, flat_prior_list = priors),
+    class = "iwmde_context"
+  ))
+  spec <- list(type = "simplex_pair", parameter = "weight", index = 1L,
+               auxiliary_columns = eta)
+  testthat::local_mocked_bindings(
+    .iwmde_active_setup = function(...) list(),
+    .iwmde_row_parameters = function(...) list(),
+    .iwmde_baseline_log_likelihood = function(...) 0,
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch =
+      function(context, posterior_samples, ...) numeric(nrow(posterior_samples)),
+    .package = "RoBMA"
+  )
+  grouped <- .iwmde_row_states_grouped_marginal(context, 1:2, "weight[1]", spec)
+  scalar  <- .iwmde_row_states(context, 1:2, "weight[1]", spec)
+  w <- samples[, eta[[1L]]] / rowSums(samples[, eta, drop = FALSE])
+  expected <- stats::dnorm(samples[, "center"], log = TRUE) + log(6 * w * (1 - w))
+  expect_equal(vapply(grouped, `[[`, numeric(1), "baseline_log_q"), expected)
+  expect_equal(vapply(scalar, `[[`, numeric(1), "baseline_log_q"), expected)
+  expect_equal(.iwmde_replacement_log_prior_rows(samples, priors, spec), expected)
+})
+
+test_that("retained selection baselines preserve local states and scalar diagnostics", {
+
+  withr::local_seed(17)
+  original_rng_kind <- RNGkind()
+  withr::defer(do.call(RNGkind, as.list(original_rng_kind)))
+
+  samples <- cbind(mu = c(.2, -.1, .4, .5, -.3),
+                   gamma = c(.1, .3, -.2, .7, -.5),
+                   mu_indicator = c(1, 2, 1, 2, 1))
+  priors <- list(
+    mu = BayesTools::prior_mixture(list(
+      BayesTools::prior("normal", list(0, 1)),
+      BayesTools::prior("normal", list(0, 2))
+    )),
+    gamma = BayesTools::prior("normal", list(0, 1))
+  )
+  data <- structure(list(), selection_model = structure(list(
+    schema_version = 3L, estimate_random_effects = "integrate",
+    other_random_effects = "condition", known_sampling_variance = "integrate",
+    applicability = list(estimate_random_effects = FALSE,
+                         other_random_effects = TRUE,
+                         known_sampling_variance = FALSE)
+  ), class = "RoBMA_selection_model"))
+  new_context <- function() {
+
+    .iwmde_context_ensure_caches(structure(list(
+      data = data, posterior_samples = samples, flat_prior_list = priors,
+      indicator_names = "mu_indicator"
+    ), class = "iwmde_context"))
+  }
+  mode <- "ok"
+  evaluations <- list()
+  likelihood <- function(context, posterior_samples, active_setup, ...) {
+
+    evaluations[[length(evaluations) + 1L]] <<-
+      match(posterior_samples[, "mu"], samples[, "mu"])
+    if (nrow(posterior_samples) > 1L && mode != "ok") {
+      RNGkind("Wichmann-Hill")
+      stats::runif(3L)
+      if (mode == "error") stop("Synthetic batch failure.", call. = FALSE)
+      if (mode == "warning") warning("Synthetic batch warning.", call. = FALSE)
+      if (mode == "nonfinite") return(rep(NA_real_, nrow(posterior_samples)))
+      if (mode == "shape") return(matrix(0, nrow(posterior_samples), 1L))
+    }
+    if (nrow(posterior_samples) == 1L && posterior_samples[1L, "mu"] == -.1) {
+      if (mode == "warning") warning("Synthetic row warning.", call. = FALSE)
+      if (mode == "error") stop("Synthetic row failure.", call. = FALSE)
+    }
+    stats::dnorm(.15, posterior_samples[, "mu"] + posterior_samples[, "gamma"],
+                 .3 + .1 * active_setup[["branch"]], log = TRUE)
+  }
+  testthat::local_mocked_bindings(
+    .iwmde_active_setup = function(context, row, ...) {
+      list(branch = row[["mu_indicator"]])
+    },
+    .iwmde_row_parameters = function(context, row, ...) {
+      list(mu = row[["mu"]], gamma = row[["gamma"]])
+    },
+    .iwmde_log_lik_from_posterior_samples_sum_active_branch = likelihood,
+    .package = "RoBMA"
+  )
+  rows <- c(5L, 1L, 4L, 2L, 1L)
+  evaluate <- function(context, batch) {
+
+    warnings <- character()
+    value <- withCallingHandlers(tryCatch({
+      if (batch) {
+        .iwmde_row_states(context, rows, "mu", estimator = "q_grid_cmde")
+      } else {
+        lapply(rows, function(row) {
+          .iwmde_row_states(context, row, "mu", estimator = "q_grid_cmde")[[1L]]
+        })
+      }
+    }, error = identity), warning = function(w) {
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+    list(value = value, warnings = warnings, kind = RNGkind(), seed = .Random.seed)
+  }
+  for (mode in c("ok", "warning", "error", "nonfinite", "shape")) {
+    scalar_context <- new_context()
+    batch_context  <- new_context()
+    do.call(RNGkind, as.list(original_rng_kind))
+    set.seed(17)
+    scalar <- evaluate(scalar_context, FALSE)
+    evaluations <- list()
+    do.call(RNGkind, as.list(original_rng_kind))
+    set.seed(17)
+    batched <- evaluate(batch_context, TRUE)
+    expect_identical(batched[["warnings"]], scalar[["warnings"]], info = mode)
+    expect_identical(batched[["kind"]], scalar[["kind"]], info = mode)
+    expect_identical(batched[["seed"]], scalar[["seed"]], info = mode)
+    if (mode == "error") {
+      expected <- paste0("qCMDE construction failed for target 'mu' at posterior row 2 ",
+        "during baseline joint-density evaluation: Synthetic row failure.")
+      expect_identical(conditionMessage(batched[["value"]]), expected)
+      expect_identical(conditionMessage(scalar[["value"]]), expected)
+      expect_null(conditionCall(batched[["value"]]))
+    } else {
+      fields <- c("row_index", "row", "parameters", "prior_list",
+        "baseline_log_lik", "baseline_log_prior", "baseline_focal_log_prior",
+        "use_focal_prior_delta", "baseline_log_q", "likelihood_mode", "state_scope")
+      expect_equal(lapply(batched[["value"]], `[`, fields),
+                   lapply(scalar[["value"]], `[`, fields), tolerance = 0, info = mode)
+      expected_lik <- stats::dnorm(.15, samples[rows, "mu"] + samples[rows, "gamma"],
+        .3 + .1 * samples[rows, "mu_indicator"], log = TRUE)
+      expected_prior <- stats::dnorm(samples[rows, "mu"], 0,
+        samples[rows, "mu_indicator"], log = TRUE) +
+        stats::dnorm(samples[rows, "gamma"], log = TRUE)
+      expect_equal(vapply(batched[["value"]], `[[`, numeric(1), "baseline_log_q"),
+                   expected_lik + expected_prior, tolerance = 1e-14)
+      expect_true(all(vapply(batched[["value"]], function(state) {
+        identical(state[["likelihood_mode"]], "conditional") &&
+          identical(state[["state_scope"]], "local")
+      }, logical(1))))
+      if (mode == "ok") {
+        expected_batches <- list(c(5L, 1L), c(4L, 2L))
+        expect_identical(evaluations, expected_batches)
+        repeated <- evaluate(batch_context, TRUE)
+        expect_identical(evaluations, expected_batches)
+        expect_equal(lapply(repeated[["value"]], `[`, fields),
+                     lapply(batched[["value"]], `[`, fields), tolerance = 0)
+      }
+    }
+  }
+})
+
+test_that("allocated SDs of scalar sources are the BayesTools nodes of the fit", {
+
+  # Each component SD of the 'gc' allocation is the source SD times
+  # sqrt(2 * weight).
+  object <- sd_component_allocation_object(list(
+    source = c(.5, .8, 1.2),
+    weight = cbind(c(.25, .5, .9), c(.75, .5, .1))
+  ))
+  fit        <- object[["fit"]]
+  term       <- attr(fit, "formula_design")[["mu"]][["random_effects"]][[1L]]
+  allocation <- term[["sd_binding"]][["allocations"]][[1L]]
+  source     <- allocation[["source"]][["name"]]
+  weights    <- paste0(allocation[["weight_name"]], "[", 1:2, "]")
+  samples    <- as.matrix(fit[[1L]])[, c(source, weights)]
+
+  nodes <- .marginalized_random_effect_allocated_sd_nodes(term)
+  expect_identical(nodes, c("mu__xREx__g_intercept", "mu__xREx__g_x"))
+  evaluator <- .marginalized_random_sd_evaluator(fit, list(term))
+  actual <- .marginalized_random_effect_allocated_sd_samples(
+    term, samples, K = 4L, sd_evaluator = evaluator
+  )
+  expect_equal(actual, unname(samples[, source] * sqrt(2 * samples[, weights])),
+               tolerance = 1e-15)
+  expect_equal(
+    .marginalized_random_effect_sd_samples(term, samples, K = 4L,
+                                           sd_evaluator = evaluator),
+    actual
+  )
+
+  # External samples of the scalar source replace its draws.
+  external <- stats::setNames(list(matrix(2, nrow = 3L, ncol = 1L)), source)
+  expect_equal(
+    .marginalized_random_effect_allocated_sd_samples(
+      term, samples, K = 4L, source_samples = external, sd_evaluator = evaluator
+    ),
+    unname(2 * sqrt(2 * samples[, weights])),
+    tolerance = 1e-15
+  )
+
+  # Without the fit's evaluator the allocated SDs are unavailable.
+  expect_error(
+    .marginalized_random_effect_allocated_sd_samples(term, samples, K = 4L),
+    paste0(
+      "Allocated random-effect SDs of block 'g' are evaluated from the ",
+      "deterministic nodes of the fitted model, which are unavailable without ",
+      "a fit."
+    ),
+    fixed = TRUE
+  )
+  expect_null(.marginalized_random_sd_evaluator(NULL, list(term)))
+})
+
+
+test_that("IWMDE SD synchronization recomputes the BayesTools SD nodes", {
+
+  object  <- shared_gate_random_object()
+  samples <- as.matrix(object[["fit"]][[1L]])
+  source  <- colnames(samples)[[2L]]
+  weights <- colnames(samples)[4:5]
+  sds     <- c("mu__xREx__study_intercept", "mu__xREx__esid_intercept")
+  samples <- cbind(samples, matrix(9, nrow = 4L, ncol = 2L,
+                                   dimnames = list(NULL, sds)))
+  context <- list(
+    object          = object,
+    data            = structure(list(), random = TRUE),
+    evaluator_cache = new.env(parent = emptyenv())
+  )
+
+  # SD 1:4 times the gate (0, 1, 0, 1) times sqrt(.25) and sqrt(.75).
+  synced <- .iwmde_sync_random_allocation_sd_matrix(context, samples, source)
+  expect_identical(synced[["valid"]], rep(TRUE, 4L))
+  expect_equal(unname(synced[["samples"]][, sds]),
+               outer(1:4 * c(0, 1, 0, 1), sqrt(c(.25, .75))), tolerance = 1e-15)
+
+  samples[, weights[[1L]]] <- .4
+  samples[, weights[[2L]]] <- .6
+  synced <- .iwmde_sync_random_allocation_sd_matrix(context, samples, weights)
+  expect_equal(unname(synced[["samples"]][, sds]),
+               outer(1:4 * c(0, 1, 0, 1), sqrt(c(.4, .6))), tolerance = 1e-15)
+
+  # Coordinates the SDs do not depend on leave the samples unchanged.
+  unchanged <- .iwmde_sync_random_allocation_sd_matrix(context, samples, "mu_intercept")
+  expect_identical(unchanged[["samples"]], samples)
+})
+
+
+test_that("semantic density transformations apply their Jacobians", {
+
+  source_x <- c(-.5, 0, .5)
+  density <- list(
+    x = source_x,
+    y = c(.2, .4, .2)
+  )
+  transform <- list(type = "tanh")
+  actual <- .plot_brma_transform_iwmde_density(density, transform)
+
+  expect_equal(actual[["x"]], tanh(source_x))
+  expect_equal(actual[["y"]], density[["y"]] / (1 - tanh(source_x)^2))
+  # the point masses of the estimate move to their display locations, masses
+  # unchanged
+  point_masses <- .plot_brma_transform_iwmde_point_masses(
+    data.frame(x = .25, mass = .1),
+    transform
+  )
+  expect_equal(point_masses, data.frame(x = tanh(.25), mass = .1))
+  empty <- data.frame(x = numeric(), mass = numeric())
+  expect_identical(.plot_brma_transform_iwmde_point_masses(empty, transform), empty)
+  expect_null(.plot_brma_transform_iwmde_point_masses(NULL, transform))
+
+  ordinate <- list(
+    value            = .5,
+    evaluation_value = .5,
+    ordinate         = .3,
+    diagnostics      = list(mcse = .03, relative_mcse = .1),
+    iwmde_provenance = list(value = .5, evaluation_value = .5)
+  )
+  transformed <- .hypothesis_brma_transform_iwmde_ordinate(
+    ordinate,
+    transform
+  )
+  jacobian <- 1 - tanh(.5)^2
+
+  expect_equal(transformed[["value"]], tanh(.5))
+  expect_equal(transformed[["ordinate"]], .3 / jacobian)
+  expect_equal(transformed[["diagnostics"]][["mcse"]], .03 / jacobian)
+  expect_equal(transformed[["diagnostics"]][["relative_mcse"]], .1)
+})
+
+test_that("qCMDE/IWMDE point masses are atoms of the draws, not of the density", {
+
+  diagnostic <- list(
+    status       = "ok",
+    point_masses = data.frame(x = 0, mass = .25),
+    iwmde        = list(
+      x         = c(.1, .3, .5),
+      y         = c(.5, 1, .5),
+      estimator = "q_grid_cmde"
+    ),
+    diagnostics  = .mock_iwmde_good_diagnostics(
+      estimator = "q_grid_cmde",
+      rows      = 500L
+    )
+  )
+  # The density is the continuous part of the estimate.
+  density <- .iwmde_posterior_density_attribute(
+    diagnostic     = diagnostic,
+    density_method = "qCMDE"
+  )
+  expect_s3_class(density, "BayesTools_posterior_density")
+  expect_false("point_masses" %in% names(density))
+
+  draws <- structure(
+    c(0, .2, .3, .4),
+    class = c("marginal_posterior.simple", "marginal_posterior")
+  )
+  attached <- .iwmde_attach_posterior_density(
+    draws,
+    density,
+    point_masses = diagnostic[["point_masses"]]
+  )
+  expect_identical(
+    BayesTools::posterior_metadata(attached, "posterior_density"),
+    density
+  )
+  expect_identical(
+    BayesTools::posterior_metadata(attached, "atoms"),
+    BayesTools::posterior_atom_attribute(
+      point_masses = data.frame(x = 0, mass = .25),
+      source       = "RoBMA qCMDE/IWMDE density"
+    )
+  )
+  expect_false(BayesTools::posterior_atoms_free(attached))
+
+  # An empty table declares the draws atom-free; without a table the draws
+  # keep their own atom declaration.
+  atom_free <- .iwmde_attach_posterior_density(
+    draws,
+    density,
+    point_masses = data.frame(x = numeric(), mass = numeric())
+  )
+  expect_true(BayesTools::posterior_atoms_free(atom_free))
+  undeclared <- .iwmde_attach_posterior_density(draws, density)
+  expect_null(BayesTools::posterior_metadata(undeclared, "atoms"))
+})
+
+test_that("diagonal allocation grid equals the full marginal covariance", {
+
+  yi <- c(0.1, -0.2, 0.3, 0.05)
+  vi <- c(0.04, 0.05, 0.06, 0.07)
+  cluster_map <- c(1L, 1L, 2L, 2L)
+  posterior_samples <- matrix(
+    c(0.2, 0.45),
+    ncol = 1L,
+    dimnames = list(NULL, "tau")
+  )
+  mu_samples <- rbind(
+    c(0.02, 0.02, -0.01, -0.01),
+    c(-0.03, 0.01, 0.04, 0.02)
+  )
+  values <- c(0, 0.4, 1)
+  row_states <- list(list(row_index = 1L), list(row_index = 2L))
+  context <- list(
+    posterior_samples = posterior_samples,
+    data = list(outcome = data.frame(yi = yi))
+  )
+  testthat::local_mocked_bindings(
+    .iwmde_build_replacement_samples = function(context, parameter, values, ...) {
+      expect_length(values, 1L)
+      list(changed_parameters = parameter)
+    },
+    .iwmde_q_grid_fixed_mu_is_invariant = function(...) TRUE,
+    .iwmde_known_v_random_group_iid_plan = function(...) {
+      list(
+        source_parameter   = "tau",
+        target_mode        = "proportion",
+        target_index       = 2L,
+        unique_factor      = 1L,
+        group_maps         = list(seq_along(cluster_map), cluster_map),
+        cluster_weight_index = 2L,
+        source_to_total_sd = 1,
+        factor_indices     = 1:2
+      )
+    },
+    .iwmde_known_v_random_marginal_setup = function(...) {
+      list(
+        sampling_covariance = diag(vi),
+        dependency_blocks   = unname(split(seq_along(cluster_map), cluster_map)),
+        group_iid_plan_cache = new.env(parent = emptyenv())
+      )
+    },
+    .iwmde_predictor_evaluate_fixed_mu = function(...) mu_samples,
+    .iwmde_predictor_log_prior = function(...) {
+      numeric(length(values) * length(row_states))
+    },
+    .data_effect_direction = function(...) "positive",
+    .package = "RoBMA"
+  )
+
+  actual <- .iwmde_log_q_grid_known_v_random_group_iid(
+    context      = context,
+    parameter    = "rho[2]",
+    values       = values,
+    row_states   = row_states,
+    replacement  = list(),
+    active_setup = list()
+  )
+  expected <- matrix(NA_real_, nrow = length(values), ncol = nrow(mu_samples))
+  same_cluster <- outer(cluster_map, cluster_map, "==")
+  for (value_i in seq_along(values)) {
+    for (draw in seq_len(nrow(mu_samples))) {
+      tau <- posterior_samples[draw, "tau"]
+      covariance <- diag(vi + tau^2 * (1 - values[[value_i]])) +
+        tau^2 * values[[value_i]] * same_cluster
+      expected[value_i, draw] <- .marglik_mvn_log_density(
+        y          = yi,
+        mean       = mu_samples[draw, ],
+        covariance = covariance
+      )
+    }
+  }
+
+  expect_equal(actual, expected, tolerance = 1e-12)
+})
+
+# A fitted-object stand-in that is a brma model (the density backends refuse
+# objects of other classes).
+.random_component_object <- function() {
+
+  structure(list(), class = "brma")
+}
+
+
+# The provider of the hypothesis engine for a stand-in object: the random-effect
+# callbacks of RoBMA, which the plans of random-effect quantities read.
+.random_component_provider <- function(object = .random_component_object()) {
+
+  list(
+    object                   = object,
+    capability_object        = object,
+    ordinate_label           = "qCMDE/IWMDE",
+    random_point_mass_advice = "Use a region or directional hypothesis.",
+    random                   = .hypothesis_brma_random_callbacks(object)
+  )
+}
+
+
+# The plan of a random-effect statement built from a mocked selection and
+# mixed posterior; 'values' are the posterior draws with the prior density
+# 'prior_density' of the quantity.
+.random_component_plan <- function(statement, selected, values, prior_density,
+                                   object = .random_component_object(), captured = NULL) {
+
+  BayesTools::posterior_metadata(values, "prior_density") <- prior_density
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_select = function(...) selected,
+    .brma_random_parameter_mixed_posterior = function(..., selected = NULL) {
+      if (is.environment(captured)) {
+        captured[["selected"]] <- selected
+      }
+      list(theta = values)
+    },
+    .brma_random_parameter_support = function(...) c(0, Inf),
+    .brma_random_parameter_sd_pair = function(...) NULL,
+    .package = "RoBMA"
+  )
+  ast  <- BayesTools::hypothesis_parse(statement)
+  plan <- BayesTools:::.hypothesis_model_plan_new(
+    statement = ast,
+    hypothesis = ast,
+    parameter = "theta",
+    label     = "theta",
+    component = "random",
+    selected  = list(entry = selected[["entry"]])
+  )
+  plan <- BayesTools:::.hypothesis_model_plan_random(
+    plan, .random_component_provider(object), BayesTools:::.hypothesis_model_plan_cache()
+  )
+
+  BayesTools:::.hypothesis_model_plan_finish(plan)
+}
+
+
+test_that("semantic random qCMDE hypotheses use the plotting density target", {
+
+  selected <- list(
+    entry = list(term = "study variance proportion"),
+    spec = list(
+      quantity     = "var_prop",
+      source_parameter = "rho",
+      label            = "tau2_prop(study)",
+      status           = "sampled"
+    )
+  )
+  target_spec <- list(
+    type                 = "simplex_pair",
+    parameter            = "rho",
+    index                = 2L,
+    n_targets            = 2L,
+    target_columns       = paste0("rho[", 1:2, "]"),
+    auxiliary_columns    = paste0("rho_eta[", 1:2, "]"),
+    conditioning_exclude = paste0("rho[", 1:2, "]")
+  )
+  semantic_prior_density <- BayesTools::prior("uniform", list(a = 0, b = 1))
+  captured <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_density_target = function(...) {
+      list(parameter = "rho[2]", parameter_spec = target_spec)
+    },
+    .package = "RoBMA"
+  )
+  statements <- c(
+    "theta != 0.701406683025 vs theta = 0.701406683025",
+    "theta != 0.9 vs theta = 0.9"
+  )
+  plans <- lapply(statements, function(statement) {
+    .random_component_plan(
+      statement     = statement,
+      selected      = selected,
+      values        = seq(0.01, 0.99, length.out = 100L),
+      prior_density = semantic_prior_density,
+      captured      = captured
+    )
+  })
+  # The plan evaluates the quantity through its own mixed posterior with the
+  # selection it resolved once.
+  expect_identical(captured[["selected"]], selected)
+  for (plan in plans) {
+    expect_null(engine_plan_status(plan, .random_component_object(), "qCMDE", .random_component_provider()))
+    expect_identical(plan[["density_target"]][["parameter_spec"]], target_spec)
+  }
+
+  attached_values     <- numeric()
+  attachment_calls    <- 0L
+  used_density_method <- NULL
+  testthat::local_mocked_bindings(
+    .iwmde_check_point_ordinate_supported = function(...) invisible(TRUE),
+    .iwmde_context = function(...) list(),
+    .hypothesis_density_attach_scalar = function(
+        posterior, request, control, context, estimate_cache) {
+      attachment_calls <<- attachment_calls + 1L
+      attached_values  <<- c(attached_values, request[["values"]])
+      expect_identical(request[["parameter"]], "rho[2]")
+      expect_identical(request[["spec"]], target_spec)
+      expect_identical(
+        BayesTools::posterior_metadata(posterior, "prior_density"),
+        semantic_prior_density
+      )
+      # The engine requires a valid ordinate at every requested value.
+      BayesTools::posterior_metadata(posterior, "posterior_ordinate") <-
+        BayesTools::posterior_ordinate_attribute(
+          value          = request[["values"]],
+          ordinate       = rep(1, length(request[["values"]])),
+          method         = "qCMDE",
+          density_method = "qCMDE"
+        )
+      posterior
+    },
+    .package = "RoBMA"
+  )
+  testthat::local_mocked_bindings(
+    hypothesis_BF.default = function(..., density_method) {
+      used_density_method <<- density_method
+      structure(data.frame(BF = c(1, 1)), class = c(
+        "BayesTools_hypothesis_BF",
+        "data.frame"
+      ))
+    },
+    .hypothesis_model_append_ordinate_warnings = function(table, ...) table,
+    .package = "BayesTools"
+  )
+
+  out <- BayesTools:::.hypothesis_model_plan_execute_random(
+    plans           = plans,
+    hypothesis      = BayesTools:::.hypothesis_model_plan_group_ast(plans, "hypothesis"),
+    provider        = .random_component_provider(),
+    backend         = BayesTools:::.hypothesis_model_backend("qCMDE"),
+    logBF           = FALSE,
+    BF01            = FALSE,
+    seed            = 1,
+    density_control = list(
+      n_points             = 20L,
+      samples              = 50L,
+      target_relative_mcse = 0.05,
+      normalization_points = 50L,
+      normalization_prob   = 0.999
+    ),
+    columns         = "default"
+  )
+
+  expect_s3_class(out, "BayesTools_hypothesis_BF")
+  expect_identical(attachment_calls, 1L)
+  expect_identical(attached_values, c(0.701406683025, 0.9))
+  expect_identical(used_density_method, "precomputed")
+})
+
+
+test_that("semantic random point hypotheses reject singular display boundaries", {
+
+  selected <- list(
+    entry = list(term = "tau2_common"),
+    spec = list(
+      quantity         = "var_common",
+      source_parameter = "tau",
+      label            = "tau2_common",
+      status           = "sampled"
+    )
+  )
+  testthat::local_mocked_bindings(
+    .brma_random_parameter_density_target = function(...) list(
+      parameter         = "tau",
+      parameter_spec    = list(type = "primitive"),
+      display_transform = list(type = "square")
+    ),
+    .package = "RoBMA"
+  )
+  # The prior ordinate at 0 is regular (Beta(1, 1)); the square display
+  # transform of the qCMDE/IWMDE source is singular there.
+  plan <- .random_component_plan(
+    statement     = "theta = 0",
+    selected      = selected,
+    values        = seq(0.01, 0.99, length.out = 100L),
+    prior_density = BayesTools::prior("beta", list(alpha = 1, beta = 1))
+  )
+  expect_null(engine_plan_status(plan, .random_component_object(), "KDE", .random_component_provider()))
+  for (method in c("qCMDE", "IWMDE")) {
+    refusal <- engine_plan_status(plan, .random_component_object(), method, .random_component_provider())
+    expect_match(
+      refusal[["reason"]],
+      "public transformation is singular at that support boundary",
+      fixed = TRUE
+    )
+    expect_identical(refusal[["class"]][[1L]], "BayesTools_hypothesis_target")
+  }
+})
+
+
+# Two independent declared allocations deliberately reuse the public component
+# labels. This is a constructor/compiler replay, not a fitted posterior sample.
+.random_boundary_replay <- function(target, scale) {
+
+  dat <- data.frame(
+    yi = seq(-.1, .2, length.out = 8L),
+    x = rep(c(-1, 1), 4L),
+    study = factor(rep(letters[1:4], each = 2L)),
+    other = factor(seq_len(8L)),
+    third = factor(rep(c("a", "b"), each = 4L)),
+    fourth = factor(rep(c("a", "b"), 4L))
+  )
+  random <- if (identical(target, "block")) {
+    list(first = ~ id(1 | study), second = ~ id(1 | other),
+      third = ~ id(1 | third), fourth = ~ id(1 | fourth))
+  } else {
+    list(first = ~ diag(1 + x | study), second = ~ diag(1 + x | other))
+  }
+  args <- list(
+    yi = quote(yi), V = diag(.1, 8L), random = random, data = dat,
+    measure = "GEN", prior_unit_information_sd = 1,
+    prior_effect = BayesTools::prior("point", list(location = 0)),
+    standardize_continuous_predictors = FALSE,
+    only_priors = TRUE, silent = TRUE
+  )
+  discovery <- review_compile_object(do.call(brma.mv, args))
+  blocks <- vapply(discovery$compiled$mu$formula_design$random_effects,
+    `[[`, character(1), "block_name")
+  allocation_terms <- if (identical(target, "block")) {
+    list(c(shared = blocks[[1L]], other = blocks[[2L]]),
+      c(shared = blocks[[3L]], other = blocks[[4L]]))
+  } else {
+    as.list(blocks)
+  }
+  args$prior_heterogeneity <- BayesTools::prior_random(allocation =
+    lapply(seq_along(allocation_terms), function(i) {
+      BayesTools::random_variance_allocation(
+        name = c("first_split", "second_split")[[i]],
+        terms = allocation_terms[[i]], target = target, scale = scale,
+        sd = BayesTools::prior("normal", list(mean = 0, sd = 1),
+          truncation = list(lower = 0, upper = Inf)),
+        weights = BayesTools::prior("dirichlet", list(alpha = c(1, 1)))
+      )
+    }))
+  setup <- review_compile_object(do.call(brma.mv, args))
+  design <- setup$compiled$mu$formula_design
+  allocations <- lapply(design$random_allocations, function(allocation) {
+    resolved <- .brma_mv_resolve_sd_component_allocation(allocation, design)
+    if (identical(resolved$target, "sd_component")) {
+      stopifnot(length(resolved$n_targets) == 1L, is.finite(resolved$n_targets),
+        resolved$n_targets > 0L, length(resolved$leaf_index_by_column) > 0L,
+        !anyNA(resolved$leaf_index_by_column))
+    }
+    resolved
+  })
+  priors <- c(setup$compiled$mu$prior_list,
+    .create_fit_priors(setup$object$data, setup$object$priors))
+  additional <- setup$compiled$mu$add_parameters
+  latent_bases <- vapply(design$random_effects,
+    function(term) paste0(term$parameter_stem, "_xRE_Zx"), character(1))
+  latent <- unlist(lapply(design$random_effects, function(term) {
+    base <- paste0(term$parameter_stem, "_xRE_Zx")
+    if (!base %in% additional) return(character())
+    index <- expand.grid(group = seq_len(term$n_groups),
+      column = seq_len(term$n_columns))
+    paste0(base, "[", index$group, ",", index$column, "]")
+  }), use.names = FALSE)
+  auxiliary <- unlist(lapply(allocations, function(allocation) {
+    .iwmde_simplex_auxiliary_columns(allocation$weight_name, allocation$n_targets)
+  }), use.names = FALSE)
+  columns <- unique(c(review_prior_columns(priors),
+    setdiff(additional, latent_bases), latent, auxiliary))
+  samples <- matrix(0, 24L, length(columns), dimnames = list(NULL, columns))
+  for (name in names(priors)) {
+    if (BayesTools::is.prior.point(priors[[name]])) {
+      samples[, name] <- priors[[name]]$parameters$location
+    }
+  }
+  for (allocation in allocations) {
+    weights <- paste0(allocation$weight_name, "[", seq_len(allocation$n_targets), "]")
+    samples[, allocation$source$name] <- seq(.8, 1.2, length.out = nrow(samples))
+    samples[, weights] <- rep(c(.25, .75), each = nrow(samples))
+    samples[, .iwmde_simplex_auxiliary_columns(allocation$weight_name,
+      allocation$n_targets)] <- 2 * samples[, weights]
+  }
+  preliminary <- review_attach_replay(setup, samples)
+  registry <- BayesTools::JAGS_deterministic_nodes(preliminary$fit)
+  nodes <- registry$node[registry$family == "random_sd"]
+  generated <- BayesTools::JAGS_evaluate_deterministic(
+    preliminary$fit, draws = samples, nodes = nodes)
+  existing <- intersect(nodes, colnames(samples))
+  if (length(existing)) samples[, existing] <- generated[, existing, drop = FALSE]
+  extra <- setdiff(nodes, colnames(samples))
+  if (length(extra)) samples <- cbind(samples, generated[, extra, drop = FALSE])
+  monitors <- BayesTools::JAGS_to_monitor(priors)
+  required <- unlist(lapply(monitors, function(base) {
+    expanded <- colnames(samples)[startsWith(colnames(samples), paste0(base, "["))]
+    if (length(expanded)) expanded else base
+  }), use.names = FALSE)
+  stopifnot(!anyDuplicated(required), all(required %in% colnames(samples)),
+    all(is.finite(samples)))
+  object <- review_attach_replay(setup, samples)
+  BayesTools::JAGS_validate_fit_contract(object$fit, requires = c(
+    "name_encoding", "formula_name_map", "formula_design", "parameter_map", "draw_geometry"))
+  quantities <- BayesTools::parameter_catalog(object$fit)$quantities
+  component <- if (identical(target, "block")) "intercept" else "x"
+  rows <- which(quantities$quantity == "sd" &
+    (identical(target, "block") | quantities$component == component) &
+    vapply(quantities$extraction_key, function(key) {
+      identical(key$random_block, design$random_effects[[1L]]$block_name)
+    }, logical(1)))
+  stopifnot(length(rows) == 1L)
+  selector <- .brma_random_parameter_io_labels(quantities[rows, , drop = FALSE], "selector")
+  list(object = object, selector = selector, target = target, scale = scale)
+}
+
+
+test_that("allocation-derived SD zero remedies resolve the intended owner", {
+
+  cases <- list(c("block", "total_variance"),
+    c("sd_component", "total_variance"), c("sd_component", "mean_variance"))
+  for (case in cases) {
+    target <- case[[1L]]
+    scale <- case[[2L]]
+    replay <- .random_boundary_replay(target, scale)
+    object <- replay$object
+    quantity <- if (scale == "total_variance") "tau2_prop" else "tau2_mult"
+    component <- if (target == "block") "shared" else "x"
+    short <- paste0(quantity, "(", component, ")")
+    selector <- paste0("(mu) first_split: ", short)
+    expected <- .brma_parameter_select_entry(object, selector, component = "random")
+    key <- expected$selection$quantities$extraction_key[[1L]]
+    expect_identical(key$allocation_label, "first_split")
+    expect_equal(key$index, if (target == "block") 1L else 2L)
+    expect_identical(expected$formula_parameter, "mu")
+    expect_error(.brma_parameter_select_entry(object, short, component = "random"),
+      class = "BayesTools_parameter_ambiguous")
+
+    command <- paste0(deparse1(as.name(selector), backtick = TRUE), " = 0")
+    expect_true(is.list(BayesTools::hypothesis_parse(command)))
+    selected <- .brma_random_parameter_select(object, replay$selector)
+    message <- paste0(
+      "Point-null Bayes factors are unavailable for allocation-derived random-effect quantity '",
+      selected$spec$label, "' at 0 because zero is a nonregular product boundary of the ",
+      "common scale and allocation weight. Test '", command,
+      "' to compare omission of this component.")
+    errors <- lapply(c("KDE", "qCMDE"), function(method) {
+      tryCatch(hypothesis(object,
+        paste0(deparse1(as.name(replay$selector), backtick = TRUE), " = 0"),
+        component = "random", density_method = method, n_samples = 1000L, seed = 1),
+        error = identity)
+    })
+    for (error in errors) {
+      expect_s3_class(error, "BayesTools_hypothesis_target")
+      expect_identical(conditionMessage(error), message)
+    }
+    expect_identical(class(errors[[1L]]), class(errors[[2L]]))
+    expect_identical(conditionMessage(errors[[1L]]), conditionMessage(errors[[2L]]))
+    resolved <- .brma_parameter_select_entry(object, selector, component = "random")
+    expect_identical(resolved$quantity_id, expected$quantity_id)
+  }
+})
+
+
+test_that("block mean-variance allocation retains its constructor boundary", {
+
+  expect_error(.random_boundary_replay("block", "mean_variance"),
+    '\'scale = "mean_variance"\' is supported only with target = "sd_component".', fixed = TRUE)
+})
+
+
+test_that("a missing public allocation remedy preserves the zero-boundary refusal", {
+
+  replay <- .random_boundary_replay("sd_component", "mean_variance")
+  object <- replay$object
+  metadata <- .brma_parameter_catalog_metadata(object)
+  counterpart <- .brma_parameter_select_entry(object,
+    "(mu) first_split: tau2_mult(x)", component = "random")
+  # Synthetic absence control only: retain the genuine compiled catalog but
+  # make this counterpart unavailable in RoBMA's public selection entries.
+  metadata$entries <- metadata$entries[
+    metadata$entries$quantity_id != counterpart$quantity_id, , drop = FALSE]
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog_metadata = function(...) metadata,
+    .package = "RoBMA")
+  error <- tryCatch(hypothesis(object,
+    paste0(deparse1(as.name(replay$selector), backtick = TRUE), " = 0"),
+    component = "random", density_method = "KDE", n_samples = 1000L, seed = 1),
+    error = identity)
+  expect_s3_class(error, "BayesTools_hypothesis_target")
+  selected <- .brma_random_parameter_select(object, replay$selector)
+  expect_identical(conditionMessage(error), paste0(
+    "Point-null Bayes factors are unavailable for allocation-derived random-effect quantity '",
+    selected$spec$label, "' at 0 because zero is a nonregular product boundary of the ",
+    "common scale and allocation weight. Use a region or directional hypothesis."))
+})
+
+
+test_that("batched ordinates retain value-specific diagnostics", {
+
+  values <- c(0, 1)
+  prior_ordinates <- .iwmde_prior_ordinate_classifications(
+    prior_density = BayesTools::prior("beta", list(alpha = 1, beta = 1)),
+    values        = values
+  )
+  density <- list(
+    x                                = values,
+    evaluation_x                     = values,
+    y                                = c(0.25, 0.5),
+    pilot_y                          = c(0.24, 0.48),
+    validation_y                     = c(0.26, 0.52),
+    ordinate_relative_change         = c(0.01, 0.02),
+    # Hand-constructed exact-normalizer fixture: isolate value-specific
+    # uncertainty from numerical lattice resolution.
+    lattice_resolution_relative_error = c(0, 0),
+    ordinate_log_change              = c(0.01, 0.02),
+    pilot_ordinate_relative_change   = c(0.01, 0.02),
+    pilot_ordinate_log_change        = c(0.01, 0.02),
+    mcse                             = c(0.01, 0.02),
+    relative_mcse                    = c(0.04, 0.08),
+    active_branch_mcse               = c(0.01, 0.02),
+    active_branch_relative_mcse      = c(0.04, 0.08),
+    active_mass_component_mcse       = c(0, 0),
+    sampling_mcse                    = c(0.03, 0.04),
+    sampling_relative_mcse           = c(0.12, 0.16),
+    finite_terms                     = c(500L, 450L),
+    ess                              = c(300, 40),
+    max_weight_share                 = c(0.02, 0.25),
+    max_log_ratio                    = c(1, 2),
+    estimator                        = "q_grid_cmde"
+  )
+  diagnostics <- .mock_iwmde_good_diagnostics(
+    estimator  = "q_grid_cmde",
+    rows       = 500L,
+    value      = 0,
+    include_bf = TRUE
+  )
+  diagnostics[["prior_ordinates"]]   <- prior_ordinates
+  diagnostics[["ordinate_warnings"]] <- character()
+  diagnostic <- list(
+    status       = "ok",
+    parameter    = "rho[2]",
+    target_key   = "simplex_pair|rho|2",
+    point_masses = .mock_iwmde_empty_point_masses(),
+    iwmde        = density,
+    diagnostics  = diagnostics,
+    plan = list(
+      plan_key           = "shared-plan",
+      source_fingerprint = list(source = "test"),
+      prior_ordinates    = prior_ordinates,
+      target = list(
+        target_key = "simplex_pair|rho|2",
+        metadata   = list(parameter = "rho[2]")
+      )
+    )
+  )
+
+  attributes <- .iwmde_posterior_ordinate_attributes(
+    diagnostic      = diagnostic,
+    density_method  = "qCMDE",
+    density_control = list(samples = 500L)
+  )
+  entries <- .iwmde_posterior_ordinate_entries(attributes[["accepted"]])
+
+  expect_equal(vapply(entries, `[[`, numeric(1), "value"), values)
+  expect_equal(vapply(entries, `[[`, numeric(1), "ordinate"), density[["y"]])
+  expect_equal(vapply(entries, function(entry) {
+    entry[["diagnostics"]][["relative_mcse"]]
+  }, numeric(1)), density[["relative_mcse"]])
+  expect_equal(vapply(entries, function(entry) {
+    entry[["diagnostics"]][["sampling_relative_mcse"]]
+  }, numeric(1)), density[["sampling_relative_mcse"]])
+  expect_equal(vapply(entries, function(entry) {
+    entry[["diagnostics"]][["ess"]]
+  }, numeric(1)), density[["ess"]])
+  expect_true(all(vapply(entries, function(entry) {
+    length(entry[["iwmde_provenance"]][["prior_ordinates"]]) == 1L
+  }, logical(1))))
+  expect_identical(attributes[["rejected"]], NULL)
+})
+
+test_that("separate random targets share one hypothesis result", {
+
+  hypothesis <- BayesTools::hypothesis_parse(c(
+    "`tau2_prop(study)` != 0 vs `tau2_prop(study)` = 0",
+    "tau_total = 0",
+    "`tau2_prop(study)` != 1 vs `tau2_prop(study)` = 1"
+  ))
+  groups <- c("random\rrho[2]", "random\rtau", "random\rrho[2]")
+  calls <- list()
+  testthat::local_mocked_bindings(
+    .brma_parameter_catalog_metadata = function(...) list(catalog = NULL),
+    .package = "RoBMA"
+  )
+  # The engine of BayesTools plans every statement, then executes the
+  # statements group by group and binds the results in statement order.
+  testthat::local_mocked_bindings(
+    .hypothesis_model_plans = function(...) {
+      lapply(groups, function(group) {
+        list(group = group, point = FALSE, refusal = NULL)
+      })
+    },
+    .hypothesis_model_plan_execute = function(plans, ...) {
+
+      n <- length(plans)
+      is_allocation <- identical(plans[[1L]][["group"]], groups[[1L]])
+      out <- BayesTools::hypothesis_BF(
+        posterior  = if (is_allocation) {
+          seq(-1, 2, length.out = 101L)
+        } else {
+          seq(-2, 1, length.out = 101L)
+        },
+        prior      = seq(-2, 2, length.out = 101L),
+        hypothesis = paste("theta >", seq_len(n) / 10),
+        parameter  = "theta"
+      )
+      attr(out, "warnings") <- stats::setNames(
+        paste("warning", seq_len(n)),
+        rownames(out)
+      )
+      calls[[length(calls) + 1L]] <<- list(
+        hypothesis = plans,
+        result     = out
+      )
+      out
+    },
+    .package = "BayesTools"
+  )
+
+  out <- hypothesis.brma(
+    object         = gated_random_object(),
+    hypothesis     = BayesTools::hypothesis_render(hypothesis),
+    density_method = "KDE",
+    seed           = 1
+  )
+
+  expect_length(calls, 2L)
+  expect_identical(lengths(lapply(calls, `[[`, "hypothesis")), c(2L, 1L))
+  allocation_BF <- attr(calls[[1L]][["result"]], "raw_BF", exact = TRUE)
+  total_BF      <- attr(calls[[2L]][["result"]], "raw_BF", exact = TRUE)
+  expect_identical(
+    attr(out, "raw_BF"),
+    c(allocation_BF[[1L]], total_BF, allocation_BF[[2L]])
+  )
+  # Rows of repeated statements on one quantity carry their statement number
+  # in the full hypothesis (the mocked groups share the label 'theta'); the
+  # warnings follow their rows into statement order.
+  expect_identical(rownames(out), c("theta (1)", "theta (2)", "theta (3)"))
+  expect_identical(
+    names(attr(out, "warnings")),
+    c("theta (1)", "theta (2)", "theta (3)")
+  )
+  expect_identical(attr(out, "hypothesis_ast"), hypothesis)
+  expect_s3_class(out, "BayesTools_hypothesis_BF")
+})
+test_that("positive point sources with stochastic shares refuse source density charts", {
+
+  selector <- "(mu) study: tau"
+  for (kind in c("mixture", "point", "zero", "uniform")) {
+    fixture <- review_allocated_source_replay(kind)
+    object <- fixture$object
+    expected <- fixture$samples[, fixture$source_parameter] * sqrt(fixture$samples[, fixture$weights[1L]])
+    public <- as.numeric(.brma_random_parameter_mixed_posterior(object, selector)[[1L]])
+    expect_lt(max(abs(public - expected)), 1e-14)
+    expect_s3_class(object, "only_priors.brma")
+    target <- .brma_random_parameter_density_target(object, selector)
+    if (kind %in% c("mixture", "point")) {
+      expect_false(target$available)
+      expect_identical(target$class, c("RoBMA_density_method_random_target", "RoBMA_density_method_unavailable"))
+      expect_identical(target$reason, paste0(
+        "qCMDE/IWMDE densities are unavailable for random-effect quantity 'study: tau' ",
+        "because its positive point source is multiplied by stochastic allocation weights ",
+        "and cannot be swept by the scalar source chart. Use density_method = 'KDE'."))
+      # Declared Dirichlet weights remain stochastic even in a constant replay.
+      constant <- review_allocated_source_replay(kind, constant_weights = TRUE)$object
+      expect_true(isFALSE(.brma_random_parameter_density_target(constant, selector)$available))
+    } else {
+      expect_false(isFALSE(target$available))
+      context <- .iwmde_context(object)
+      spec <- .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+      components <- .iwmde_parameter_components(context, target$parameter, spec)
+      if (kind == "zero") {
+        expect_equal(components$point_masses, data.frame(x = 0, mass = 1))
+      } else {
+        expect_true(all(components$active))
+      }
+    }
+    if (kind == "mixture") {
+      # A direct registered method on an unchanged synthetic prior-only carrier,
+      # not ordinary generic posterior dispatch or fitted posterior samples.
+      outcome <- tryCatch(getS3method("plot", "brma")(object, parameter = selector,
+        component = "random", prior = FALSE, density_method = "IWMDE", plot_type = "ggplot"), error = identity)
+      expect_s3_class(outcome, "RoBMA_density_method_random_target")
+      expect_s3_class(outcome, "RoBMA_density_method_unavailable")
+      expect_s3_class(object, "only_priors.brma")
+    }
+  }
+})
+
+test_that("allocated SD metadata preserves evaluator failures and numeric refusals", {
+
+  object <- shared_gate_random_object()
+  samples <- as.matrix(object$fit[[1L]])
+  context <- list(object = object, posterior_samples = samples,
+    flat_prior_list = list(), evaluator_cache = new.env(parent = emptyenv()))
+  target <- .brma_random_parameter_density_target(object, "(mu) study: tau(intercept)")
+  evaluate <- function() .iwmde_parameter_spec(context, target$parameter, target$parameter_spec)
+  expect_identical(evaluate()$status, "ok")
+  for (kind in c("programming_error", "memory_error", "refit_required")) {
+    failure <- structure(list(message = paste("synthetic", kind), call = NULL),
+      class = c(kind, "error", "condition"))
+    testthat::local_mocked_bindings(.iwmde_random_component_sd_multiplier = function(...) stop(failure),
+      .package = "RoBMA")
+    expect_identical(tryCatch(evaluate(), error = identity), failure)
+  }
+  for (value in list(NULL, c(0, 1, 1, 1), rep(NA_real_, 4L))) {
+    testthat::local_mocked_bindings(.iwmde_random_component_sd_multiplier = function(...) value,
+      .package = "RoBMA")
+    expect_identical(evaluate()$status, "unsupported")
+    expect_match(evaluate()$reason, "must be positive", fixed = TRUE)
+  }
+})
+
+test_that("an affine predictor basis must declare its coordinate", {
+
+  expect_null(.iwmde_predictor_basis_coordinate(list(status = "affine")))
+  coordinate <- NULL
+  testthat::local_mocked_bindings(JAGS_formula_predictor_basis = function(...) {
+    list(status = "affine", parameter = "mu", basis = matrix(1, 1L, 2L),
+      coordinate = coordinate)
+  }, .package = "BayesTools")
+  materialize <- function() .iwmde_predictor_materialize_formula_basis(
+    context = list(), setup = list(posterior_samples = matrix(0, 1L, 1L)),
+    basis = list(formula_mu = TRUE, scale_update = "none"),
+    formula_mu_directions = matrix(1, 1L, 1L))
+  missing <- materialize()
+  expect_true(missing$formula_mu)
+  expect_identical(missing$formula_mu_status, "non_affine")
+  coordinate <- "identity"
+  declared <- materialize()
+  expect_false(declared$formula_mu)
+  expect_identical(declared$mu_basis, matrix(1, 1L, 2L))
+})
+
+test_that("missing row supports remain unavailable and mixed valid supports remain usable", {
+
+  supports <- matrix(NA_real_, 2L, 2L)
+  testthat::local_mocked_bindings(.iwmde_parameter_row_supports = function(...) supports,
+    .package = "RoBMA")
+  expect_warning(failure <- tryCatch(.iwmde_parameter_support(list(), "mu", 1:2),
+    error = identity), NA)
+  expect_s3_class(failure, "iwmde_construction_error")
+  expect_match(conditionMessage(failure), "no valid row supports", fixed = TRUE)
+  supports[2L, ] <- c(-1, 2)
+  expect_identical(.iwmde_parameter_support(list(), "mu", 1:2), c(-1, 2))
+})

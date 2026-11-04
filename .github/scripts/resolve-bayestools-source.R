@@ -31,8 +31,16 @@ use_github   <- !is.na(required_version) &&
   (is.na(cran_version) ||
      utils::compareVersion(required_version, cran_version) > 0)
 
+development_spec <- Sys.getenv(
+  "BAYESTOOLS_PAK_SPEC",
+  "github::FBartos/BayesTools@0.3.1-add-random"
+)
+if (!nzchar(development_spec)) {
+  stop("'BAYESTOOLS_PAK_SPEC' must not be empty.", call. = FALSE)
+}
+
 pak_spec     <- if (use_github) {
-  "github::FBartos/BayesTools@major-refactoring"
+  development_spec
 } else {
   "any::BayesTools"
 }

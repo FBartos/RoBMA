@@ -42,11 +42,17 @@ test_that("VIF uses likelihood weights in the meta-regression precision", {
     data      = dat,
     only_data = TRUE
   )
-  object[["priors"]]  <- list(outcome = list(bias = NULL))
-  object[["summary"]] <- matrix(
-    .20,
-    nrow     = 1,
-    dimnames = list("tau", "Mean")
+  object[["priors"]] <- list(outcome = list(bias = NULL))
+  object[["fit"]] <- coda::mcmc.list(coda::mcmc(
+    matrix(
+      rep(.20, 4),
+      ncol     = 1,
+      dimnames = list(NULL, "tau")
+    )
+  ))
+  class(object) <- c(
+    "brma.norm",
+    "brma"
   )
 
   brma_vif <- .compute_vif(object)

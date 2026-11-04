@@ -1,0 +1,237 @@
+# Predictive and Multivariate Targets
+
+Use this guide when changing prediction, `brma.mv()`, `log_lik()`, LOO/WAIC,
+residuals, marginal covariance diagnostics, or marginal likelihood.
+
+The [maintainer decision record](decision-rationale.md) explains the powered
+Gaussian cluster LOO target, observation-law distinction, and recomputation policy.
+
+## Keep Targets Distinct
+
+- `unit` is the deletion/output unit: `"estimate"` or `"cluster"`.
+- `conditioning_depth` records which fitted latent effects are retained by
+  prediction and residual targets: `"marginal"`, `"cluster"`, or
+  `"estimate"`. LOO target metadata instead records the deletion `unit` and
+  `retained_context`; do not equate these axes.
+- `log_lik()`, LOO, WAIC, and LOO-PIT use predictive log-score targets.
+- `hatvalues()` and `vif()` use the fitted GLS projection; Pearson and
+  standardized residual scaling use the marginal outcome covariance. For
+  known-V models the projection applies the inverse marginal covariance; a
+  covariance too ill-conditioned for that application is unavailable (error
+  class `RoBMA_known_v_precision_unavailable`), never a rounded number.
+  Precision-only structured shortcuts use their existing refined or gated
+  routes; this availability rule does not gate log scores or conditional laws.
+  The dense location-quadratic shortcut declines ill-conditioned covariance
+  applications so density consumers can use their general evaluator.
+  `RoBMA()` ensembles whose members differ in bias terms use, for each draw,
+  the design of the draw's member (location columns plus the PET or PEESE
+  column of PET or PEESE members; `R/bias-branch-design.R`), not one design
+  with both columns.
+- `add_marglik()` and `bridge_sampler()` use the full joint fitted
+  likelihood and prior, not a pointwise predictive score.
+
+Do not reuse one target's covariance or likelihood merely because dimensions
+match.
+
+An integer likelihood weight `w` repeats the conditional likelihood contribution
+`w` times with the declared latent-effect and grouping structure held fixed.
+Positive fractional likelihood powers remain supported. Each original retained
+row remains one observation for estimate-level diagnostics; do not expand it into
+copies or multiply its residual or Q-Q contribution by its likelihood weight.
+Estimate-unit LOO removes the row's entire powered contribution, `f_i^w_i`, for
+every positive real weight (`w_i -> 0`, never `w_i -> w_i - 1`). Cluster deletion
+removes the complete weighted contributions of its member rows. Replication is
+the interpretation of the fitting factor, not a change of diagnostic identity.
+
+Likelihood weights affect fitting and PSIS deletion, not the observation law
+used to scale diagnostics. Pearson and LOO-PIT/rstudent use the original outcome
+variance/CDF. Internally standardized residuals use the fitted weighted
+projection with the original covariance in `(I-H) M (I-H)'`; the ordinary GLS
+subtraction identity applies only without extra likelihood weights. Keep
+Bayesian posterior averaging and LOO-PIT distinct from metafor's refit z-score.
+
+## Known Sampling Covariance V
+
+Exact diagonal-plus-factor recovery is selection-only during model construction.
+Gaussian known-V preparation keeps the supplied covariance without running that
+search; selection preparation persists any certified representation it requests.
+Minimum-rank recovery requires strictly more off-diagonal observations than free
+loadings; integer Ledermann boundary ranks are excluded except for the explicit
+two-row special case.
+Integrated generator columns with exactly one finite nonzero each certify
+full-row support when their row set covers the block. All other generator
+supports retain the existing error-bounded null-space projection policy.
+
+Covariance classification, sampling support, and numerical representations are
+distinct. Preserve the accepted sampling factor and PSD/PD status when a
+positive direction cannot be represented by a Cholesky pivot or squared
+singular value. Operations requiring that unavailable representation fail with
+their target context; they must not treat underflow as a structural zero, add
+jitter, or silently use a lower-rank inverse. Genuine PSD targets retain their
+supported spectral paths, and sampling may use the accepted factor directly.
+Post-fit covariance plans reuse positive stored whitening variances and rotation
+when an accepted block contains an exact zero. Only that block is converted to
+a fixed sampling factor; independent rows and positive-definite blocks retain
+their base covariance. Retained sampling factors are never appended twice.
+
+For correlated known `V`, estimate-unit log scores are Schur conditionals
+`p(y_i | y_-i, theta)` within dependency blocks. Their column sum is a
+composite score, not the full joint likelihood.
+
+Full-joint Gaussian bridge likelihoods include latent sampling factors as well
+as residual sampling covariance. An omitted private dependency partition uses
+one complete block when sampling factors are present and the random-effect
+covariance is dense or absent; residual covariance alone does not establish row
+independence.
+
+For Gaussian estimate-unit scores, integrate every local Gaussian random
+effect through BayesTools' compiled marginal covariance plan. The target is
+`p(y_i | y_-i, theta)`: retained rows from the same dependency block remain
+available after deleting estimate `i`. This is the same target whether the
+fitting parameterization sampled or marginalized a local effect. Never infer
+dependencies from posterior draws or reconstruct a random structure in RoBMA.
+
+The specialized `brma(..., cluster = ...)` interface uses the same Gaussian
+covariance scorer for estimate deletion. Cluster-unit scoring deletes the
+whole cluster jointly and retains its distinct new-cluster target. For weighted
+non-selection Gaussian specialized clusters, integrate the powered row density
+over the retained weighted cluster-effect distribution, including its
+power-dependent normalizing constant. Keep this dispatch separate from the
+known-V backend; public `brma.mv()` still rejects likelihood weights.
+The shared retained moments feed unpowered observation CDFs and predictive
+variances as well as the powered score. In particular, divide the whole fitted
+within variance by the power only in the normalized score kernel, never in the
+observation law. Do not pair integrated PSIS weights with full-data sampled
+cluster effects. Older stored weighted estimate-unit LOO/WAIC must be recomputed;
+the representation marker is a cache-freshness guard, not a comparison key.
+Representability-limit scales are unavailable with class
+`RoBMA_weighted_gaussian_unavailable`; the implementation does not reconstruct
+lost information with exact arithmetic. In particular, squared observation SDs
+must be normal finite doubles, powers cannot exceed `1 / .Machine$double.eps`,
+and locations or residuals beyond `1 / sqrt(.Machine$double.eps)` observation
+SDs are refused. Positive fractional powers, including very small powers,
+retain their score normalization.
+Non-Gaussian and selection likelihoods retain their supported conditional
+representations; do not silently approximate their local-effect integrals.
+
+## Known Random-Effect Correlation R
+
+Known `R` describes group-axis latent random-effect covariance, not sampling
+covariance. BayesTools owns its scaling and metadata.
+
+- Sampled and marginalized known-`R` effects enter Gaussian estimate scores
+  through the same BayesTools metadata-defined marginal `ZGZ'` covariance.
+- Delegate covariance factor plans and states to BayesTools. RoBMA may combine
+  them with known sampling covariance and validated row variance, but must not
+  recompile or special-case individual random structures.
+- The full joint fitted likelihood used by marginal likelihood remains distinct
+  from the estimate-wise Schur score.
+
+## Diagnostics and Prediction
+
+The specialized `brma(..., cluster = ...)` interface remains supported. Its
+two-level allocation permits within- and between-cluster I2 even though its
+covariance can also be represented by `brma.mv()`. Use
+`y = X beta + u_cluster + u_estimate + epsilon` as its canonical notation;
+random-formula models replace the named effects with their fitted Gaussian
+blocks.
+
+Marginal covariance consumers use `M = V + ZGZ'`. Same-data
+`predict.brma.mv()` follows the same two-axis contract as `brma()`:
+
+- `type = "terms"` returns fixed location, `type = "estimate"` returns latent
+  true-effect draws, and `type = "response"` adds sampling error;
+- `conditioning_depth = "marginal"` draws all applicable random effects anew,
+  irrespective of `newdata = NULL` versus an equivalent explicit design;
+- `conditioning_depth = "estimate"` draws fitted latent effects from their
+  conditional posterior, including conditional uncertainty rather than only
+  Gaussian BLUP means;
+- `conditioning_depth = "cluster"` retains the specialized multilevel model's
+  fitted cluster effect and predicts a new estimate within it;
+- cluster depth is unavailable for arbitrary random formulas because their
+  hierarchy does not identify one canonical cluster level.
+
+Marginal is the canonical prediction default. Response prediction adds only
+the sampling layer to the corresponding latent target. For GLMM responses,
+estimate depth uses fitted posterior `pi`/`phi`; marginal and cluster depths
+draw a new nuisance rate from its prior and are partly prior predictive.
+Document this wherever those GLMM targets are exposed.
+
+`newdata` selects design and identity, not conditioning. Non-marginal explicit
+rows must be rejected unless fitted identities can be validated. Marginal
+matching labels preserve joint new-draw dependence and never reuse fitted BLUPs.
+Response prediction preserves full `V`/`V_new` and joint `ZGZ'` dependence.
+Conditional means remain available through `blup()` and
+`fitted(..., conditioning_depth = "estimate")`.
+
+For admitted Gaussian selection models, fitted integrated truth is reconstructed
+conditional on the supplied global and retained-source posterior row using the
+normalized kernel `N(u;0,tau²) N(y;c+u,s²)^w`. Conditioning uses represented
+positive finite `s²/w`; underflow/overflow is numerical unavailability, never a
+structural zero. This chosen post-fit augmentation preserves the global
+posterior and does not interchange likelihood powering and latent integration.
+Estimate-depth estimate and response truth targets alone attach prediction-only
+`latent_augmentation` metadata with policy `normalized_powered_gaussian` and
+row-aligned `likelihood_weights` (omission/unit weights become ones). A retained
+complete sampling error identifies truth by `y-e` and carries no such marker,
+including when a random source is declared integrated. Fully retained truth,
+conditional means, terms, marginal/newdata and fresh cluster
+effects carry no reconstruction claim. Response sampling retains raw `s²`;
+log-score, full-joint and LOO metadata do not acquire this prediction marker.
+
+Declared singleton prediction sampling batches row-ordered normals only when
+all variances are finite and nonnegative; otherwise the original per-draw
+classifier preserves the failure point. Other whole matrices of at most 32 rows
+use the original assembled sampling and Cholesky solve. This private execution
+boundary changes no support/rank policy. Above 32 rows the block route is used
+from measured break-even sizes (`R/block-covariance.R`): sampling when every
+block is draw-invariant (its guard is cached once) and, for covariance that
+varies by draw, from K = 150 rows; total solves, which recompute each block's
+factor per draw, from K = 400 rows for draw-invariant blocks and K = 700 for
+draw-varying blocks. Smaller whole matrices keep the assembled route.
+Block sampling uses block factors only after whole-draw
+eligibility checks: exact diagonal/rank-one support or a positive correlation
+eigenvalue above the conservative whole-K gamma margin. Uncertain, near-boundary,
+invalid and unexpectedly unavailable block factors retain the original assembled
+classifier. Total solves require safely PD blocks and fall back to the original
+assembled Cholesky on any block failure. Each reached draw retains exactly K
+normals in row order and random-source then sampling-source phases; eligible
+arithmetic can change realization bits.
+
+Normal-model funnel/sampling bands, regression/forest prediction intervals,
+default z-plots, and default residual diagnostics use explicit marginal
+targets. GLMM funnel and regression sampling bands are descriptive normal
+effect-size approximations and must be labeled accordingly. LOO and LOO-PIT
+keep deletion-conditioned predictive-score targets and must not be routed
+through generic response prediction.
+
+Keep target metadata in `attr(x, "RoBMA_target")`. LOO comparisons must reject
+mismatched data, unit, retained context, or likelihood target. Known-`R`
+metadata is informative and is not itself a comparison key.
+Sampling-conditioned estimate scores additionally declare
+`sampling_deletion_policy="declared_retained_context"` and a canonical retained
+random-source identity. Normalize proven unchanged legacy metadata on a copy
+before completeness checks; affected or unknown old contexts require recomputation.
+The policy marker is estimate-only, while empty ordinary/integrated random
+context has one identity and cluster cache semantics remain unchanged.
+Cluster-unit scores also retain the ordered row partition; matching cluster
+counts or labels alone do not make pointwise scores comparable. Recompute old
+cluster diagnostics that lack this partition metadata.
+
+Residual diagnostics certify an individual exact zero only if its design
+certificate and the actual covariance multiplier leave that row isolated.
+Marginal targets include every random covariance source in that check;
+fully saturated designs retain their exact zero independently of covariance.
+
+## Relevant Files
+
+- Target availability and metadata: `R/unit_level.R`,
+  `R/brma-mv-targets.R`.
+- Known-`V` scores: `R/log-lik.R`, `R/log-lik-known-v.R`.
+- Marginal covariance: `R/known-v-gls.R`,
+  `R/random-marginal-vcov.R`.
+- Prediction: `R/predict-brma-mv.R`.
+- Marginal likelihood: `R/marglik.R`.
+
+Any semantic change must update the target registry, metadata, documentation,
+and the focused consumers of the same target.

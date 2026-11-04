@@ -1,0 +1,2 @@
+  bridge_BF  qCMDE_BF qCMDE_error_percent
+1 0.5990278 0.5980573            7.264782

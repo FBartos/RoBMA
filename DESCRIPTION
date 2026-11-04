@@ -1,6 +1,6 @@
 Package: RoBMA
 Title: Robust Bayesian Meta-Analyses
-Version: 4.0.0
+Version: 4.1.0
 Maintainer: František Bartoš <f.bartos96@gmail.com>
 Authors@R: c( 
     person("František", "Bartoš",     role = c("aut", "cre"),
@@ -18,8 +18,8 @@ Authors@R: c(
 Description: A framework for Bayesian meta-analysis, including model estimation,
       prior specification, model comparison, prediction, summaries, visualizations,
       and diagnostics. The package fits single and model-averaged meta-analytic,
-      meta-regression, multilevel, publication bias adjusted, and generalized linear 
-      mixed models The model-averaged meta-analytic models combine competing models 
+      meta-regression, multilevel and multivariate, publication bias adjusted, and generalized linear 
+      mixed models. The model-averaged meta-analytic models combine competing models 
       based on their predictive performance, weight inference by posterior model probabilities, 
       and test model components using Bayes factors (e.g., effect vs. no effect; 
       Bartoš et al., 2022, <doi:10.1002/jrsm.1594>; Maier, Bartoš & Wagenmakers, 2022,
@@ -33,18 +33,21 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-SystemRequirements: JAGS >= 4.3.1 (https://mcmc-jags.sourceforge.io/)
+SystemRequirements: JAGS (>= 4.3.1, < 5.0.0) (https://mcmc-jags.sourceforge.io/)
 NeedsCompilation: yes
 Depends:
-    R (>= 4.0.0)
+    R (>= 4.3.0)
 Imports:
-    BayesTools (>= 0.3.0),
+    BayesTools (>= 0.4.0),
     bridgesampling,
-    loo,
+    loo (>= 2.10.0),
     MASS,
+    Matrix (>= 1.6-2),
     parallel,
+    ps,
     runjags,
     rjags,
+    statmod,
     stats,
     graphics,
     mvtnorm,
@@ -54,7 +57,7 @@ Imports:
     coda,
     ggplot2
 Suggests:
-    metafor,
+    metafor (>= 5.0-1),
     posterior,
     weightr,
     lme4,
@@ -62,12 +65,18 @@ Suggests:
     metaBMA,
     emmeans,
     metadat,
-    testthat,
+    testthat (>= 3.3.2),
+    R6,
+    withr,
+    cli,
     vdiffr,
     knitr,
     rmarkdown,
-    covr
+    covr,
+    pkgload,
+    processx
 LinkingTo:
+    Matrix (>= 1.6-2),
     mvtnorm
 RdMacros: Rdpack
 VignetteBuilder: knitr

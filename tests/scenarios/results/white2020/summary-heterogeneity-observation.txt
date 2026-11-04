@@ -1,0 +1,6 @@
+
+Heterogeneity Estimates (observation):
+      Mean Median 0.025 0.975
+tau  0.284  0.284 0.239 0.334
+tau2 0.081  0.080 0.057 0.111
+

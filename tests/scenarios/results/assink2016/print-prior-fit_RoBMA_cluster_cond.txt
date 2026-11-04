@@ -1,0 +1,25 @@
+mu:
+  alternative:
+    (1/2) * Normal(0, 0.71)
+  null:
+    (1/2) * Spike(0)
+tau:
+  alternative:
+    (1/2) * Normal(0, 0.35)[0, Inf]
+  null:
+    (1/2) * Spike(0)
+rho:
+  alternative:
+    (1/1) * Beta(1, 1)
+bias:
+  alternative:
+    (0.08/2) * omega[two-sided: .05] ~ CumDirichlet(1, 1)
+    (0.08/2) * omega[two-sided: .05, .1] ~ CumDirichlet(1, 1, 1)
+    (0.08/2) * omega[one-sided: .05] ~ CumDirichlet(1, 1)
+    (0.08/2) * omega[one-sided: .025, .05] ~ CumDirichlet(1, 1, 1)
+    (0.08/2) * omega[one-sided: .05, .5] ~ CumDirichlet(1, 1, 1)
+    (0.08/2) * omega[one-sided: .025, .05, .5] ~ CumDirichlet(1, 1, 1, 1)
+    (0.25/2) * PET ~ Cauchy(0, 1)[0, Inf]
+    (0.25/2) * PEESE ~ Cauchy(0, 5)[0, Inf]
+  null:
+    (1/2) * None

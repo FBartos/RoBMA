@@ -4,7 +4,7 @@
 \name{Kroupova2021}
 \alias{Kroupova2021}
 \title{881 estimates from 69 studies of a relationship between employment and
-educational outcomes collected by \insertCite{kroupova2021student;textual}{RoBMA}}
+educational outcomes collected by \insertCite{kroupova2024student;textual}{RoBMA}}
 \format{
 A data.frame with 11 columns and 881 observations:
 \describe{
@@ -22,7 +22,7 @@ A data.frame with 11 columns and 881 observations:
 }
 }
 \source{
-\url{http://meta-analysis.cz/students}
+\url{https://meta-analysis.cz/students/}
 }
 \usage{
 Kroupova2021

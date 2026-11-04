@@ -57,11 +57,11 @@ jobs:
 
       - name: Set JAGS environment variables (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
+        shell: pwsh
         run: |
-          echo JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1>> %GITHUB_ENV%
-          echo JAGS_MAJOR_VERSION=4>> %GITHUB_ENV%
-          echo C:\Program Files\JAGS\JAGS-4.3.1\bin>> %GITHUB_PATH%
+          "JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1" >> $env:GITHUB_ENV
+          "JAGS_MAJOR_VERSION=4" >> $env:GITHUB_ENV
+          "C:\Program Files\JAGS\JAGS-4.3.1\bin" >> $env:GITHUB_PATH
 
       - name: Resolve BayesTools source
         id: bayestools
@@ -88,8 +88,17 @@ jobs:
           install_path <- normalizePath(file.path(Sys.getenv("RUNNER_TEMP"), "R_LIBS"), winslash = "/", mustWork = FALSE)
           unlink(install_path, recursive = TRUE, force = TRUE)
 
+          # Run the checkout's tests against the instrumented installation. The
+          # fit-cache provenance hashes the package sources, which the installed
+          # copy of the tests that covr runs by default cannot reach.
+          test_code <- sprintf(
+            'testthat::test_dir(%s, package = "RoBMA", load_package = "installed", stop_on_failure = TRUE)',
+            deparse(file.path(repo_path, "tests", "testthat"))
+          )
           coverage <- covr::package_coverage(
             path         = repo_path,
+            type         = "none",
+            code         = test_code,
             quiet        = FALSE,
             clean        = FALSE,
             install_path = install_path
@@ -101,12 +110,12 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          $failFiles = Get-ChildItem -Path $env:RUNNER_TEMP -Recurse -Filter "testthat.Rout.fail" -ErrorAction SilentlyContinue
+          $failFiles = Get-ChildItem -Path $env:RUNNER_TEMP -Recurse -Filter "*.Rout.fail" -ErrorAction SilentlyContinue
           if ($failFiles) {
             foreach ($file in $failFiles) {
               Write-Host "`n=== Contents of $($file.FullName) ===`n"
               Get-Content $file.FullName
             }
           } else {
-            Write-Host "No testthat.Rout.fail files found in $env:RUNNER_TEMP"
+            Write-Host "No .Rout.fail files found in $env:RUNNER_TEMP"
           }

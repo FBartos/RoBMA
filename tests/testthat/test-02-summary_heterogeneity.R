@@ -91,3 +91,18 @@ test_that("summary_heterogeneity print keeps leading blank line", {
 
   expect_equal(output[[1]], "")
 })
+
+
+test_that("ordinary heterogeneity exports retain their values and component", {
+
+  skip_if_missing_fits("bcg_meta-analysis")
+  result <- summary_heterogeneity(fits[["bcg_meta-analysis"]])
+  frame <- as.data.frame(result)
+  raw <- as.data.frame(result[["estimates"]])
+  expect_identical(result[["component"]], "heterogeneity")
+  expect_identical(frame[["component"]], rep("heterogeneity", nrow(raw)))
+  expect_identical(frame[["parameter"]], rownames(raw))
+  expect_identical(data.frame(result), frame)
+  expect_equal(unname(as.matrix(frame[-c(1L, 2L)])),
+    unname(as.matrix(raw)), tolerance = 0)
+})

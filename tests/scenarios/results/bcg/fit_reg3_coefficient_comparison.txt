@@ -1,0 +1,7 @@
+                     term        RoBMA      metafor
+1               intercept -0.008135430  0.020884530
+2           alloc[random]  0.152119000  0.006801249
+3       alloc[systematic]  0.292666726  0.471053756
+4                   ablat -0.017787138 -0.018340912
+5     alloc[random]:ablat -0.011622683 -0.009814402
+6 alloc[systematic]:ablat -0.007786665 -0.012491743

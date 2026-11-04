@@ -1,0 +1,5 @@
+                         [,1]
+fit_bPET.mv_V           0.779
+fit_bPET.mv_V_no_study  0.221
+fit_bPET.mv_V_no_effect 0.000
+fit_bPET.mv_V_fixed     0.000

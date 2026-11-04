@@ -20,6 +20,7 @@ test_that("as_draws methods return posterior draws for brma_samples", {
   # test as_draws and consistency between methods
   draws <- RoBMA::as_draws(brma_samples)
   expect_s3_class(draws, "draws")
+  expect_s3_class(draws, "draws_matrix")
   expect_true(posterior::ndraws(draws)      == n_draws)
   expect_true(posterior::nchains(draws)     == n_chains)
   expect_true(posterior::niterations(draws) == n_iter)
