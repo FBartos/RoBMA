@@ -2,9 +2,9 @@ name: R-CMD-check
 
 on:
   push:
-    branches: [main, master, pre-release]
+    branches: [main, master, development]
   pull_request:
-    branches: [main, master, pre-release]
+    branches: [main, master, development]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
