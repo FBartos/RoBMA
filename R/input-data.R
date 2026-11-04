@@ -25,7 +25,11 @@
 #' stored symmetrically by averaging off-diagonal pairs; the supplied object
 #' and its diagonal are unchanged. Dependency blocks that are block constant
 #' on nested partitions are represented exactly as a diagonal-plus-factor
-#' structure without a [known_v_factor()] declaration.
+#' structure without a [known_v_factor()] declaration. Dimensions and row
+#' alignment are checked on the complete input; when rows are dropped
+#' (`subset` or missing values), the numerical covariance checks apply to the
+#' retained rows only, so acceptance says nothing about the entries of the
+#' dropped rows.
 #' @param known_v_parameterization known-`V` backend used by `brma.mv()`.
 #' `"auto"` chooses an exact backend when feasible; `"latent"` uses a latent
 #' `D + BB'` decomposition; `"whitened"` uses an eigen-rotated normal

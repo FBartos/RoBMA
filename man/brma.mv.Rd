@@ -59,7 +59,11 @@ Matrix symmetry uses base R's numerical tolerance. Accepted matrices are
 stored symmetrically by averaging off-diagonal pairs; the supplied object
 and its diagonal are unchanged. Dependency blocks that are block constant
 on nested partitions are represented exactly as a diagonal-plus-factor
-structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration.}
+structure without a \code{\link[=known_v_factor]{known_v_factor()}} declaration. Dimensions and row
+alignment are checked on the complete input; when rows are dropped
+(\code{subset} or missing values), the numerical covariance checks apply to the
+retained rows only, so acceptance says nothing about the entries of the
+dropped rows.}
 
 \item{ni}{an optional vector of sample sizes. Used for \code{measure = "GEN"} or
 when estimating the unit information standard deviation.}

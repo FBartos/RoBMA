@@ -87,7 +87,7 @@
 - `summary_heterogeneity()` omits I2 and H2 for saturated meta-regressions instead of failing
 - GLMM counts must be exact whole numbers within the integer range
 - `radial()` passes `targs` to `transf` as its second argument, as in metafor
-- `prior_effect`, `prior_heterogeneity`, and predictor priors reject PET and PEESE prior distributions
+- `prior_effect`, `prior_heterogeneity`, and predictor priors reject PET, PEESE, and non-point discrete (e.g., Bernoulli) prior distributions
 - `interpret()` reports errors of the pooled summaries instead of omitting the sentences
 - residual funnel plots extend the reference region to an explicit `ylim`
 - `forest()` accepts `predstyle = "polygon"`

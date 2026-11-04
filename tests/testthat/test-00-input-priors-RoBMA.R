@@ -1417,7 +1417,7 @@ test_that("factor null completion stays within its component scale formula", {
   expect_identical(scale[["log_tau_observation_effect"]][["intercept"]][["parameters"]][["location"]], 0.4)
 })
 
-test_that("scalar priors reject PET and PEESE distributions", {
+test_that("scalar priors reject PET, PEESE, and non-point discrete distributions", {
 
   pet   <- BayesTools::prior_PET("cauchy", list(0, 1))
   peese <- BayesTools::prior_PEESE("cauchy", list(0, 5))
@@ -1427,13 +1427,21 @@ test_that("scalar priors reject PET and PEESE distributions", {
                "'prior_heterogeneity' argument must not be a PET or PEESE prior")
   expect_error(RoBMA:::.check_prior.term(pet),
                "'prior_mods' / 'prior_scale' argument must not be a PET or PEESE prior")
-  # non-point discrete scalar priors stay accepted, as in 4.0.0
+  # non-point discrete scalar priors are rejected
   bernoulli <- BayesTools::prior("bernoulli", list(.5))
-  expect_s3_class(RoBMA:::.check_prior.effect(bernoulli), "prior")
-  expect_s3_class(RoBMA:::.check_prior.heterogeneity(bernoulli), "prior")
-  priors <- brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
-                 prior_effect = bernoulli, only_priors = TRUE)[["priors"]]
-  expect_identical(priors$outcome$mu$distribution, "bernoulli")
+  discrete_message <- "Non-point discrete priors are not supported for '%s'; use a point or continuous prior"
+  expect_error(RoBMA:::.check_prior.effect(bernoulli),
+               sprintf(discrete_message, "prior_effect"), fixed = TRUE)
+  expect_error(RoBMA:::.check_prior.heterogeneity(bernoulli),
+               sprintf(discrete_message, "prior_heterogeneity"), fixed = TRUE)
+  expect_error(RoBMA:::.check_prior.term(bernoulli),
+               sprintf(discrete_message, "prior_mods' / 'prior_scale"), fixed = TRUE)
+  expect_error(brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+                    prior_effect = bernoulli, only_priors = TRUE),
+               sprintf(discrete_message, "prior_effect"), fixed = TRUE)
+  # an ordered-factor prior with a discrete total is not a scalar prior
+  expect_null(RoBMA:::.check_prior.term(
+    BayesTools::prior_ordered(bernoulli, allocation = c(.25, .75))))
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("point", list(0))), "prior")
   expect_s3_class(RoBMA:::.check_prior.effect(BayesTools::prior("normal", list(0, 1))), "prior")
   expect_null(RoBMA:::.check_prior.term(BayesTools::prior("normal", list(0, 1))))
