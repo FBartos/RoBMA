@@ -33,7 +33,7 @@ use_github   <- !is.na(required_version) &&
 
 development_spec <- Sys.getenv(
   "BAYESTOOLS_PAK_SPEC",
-  "github::FBartos/BayesTools@0.3.1-add-random"
+  "github::FBartos/BayesTools@development"
 )
 if (!nzchar(development_spec)) {
   stop("'BAYESTOOLS_PAK_SPEC' must not be empty.", call. = FALSE)
