@@ -116,6 +116,14 @@ add_marglik <- function(object, ...) UseMethod("add_marglik")
 #' first reported pivot coordinates; they identify one dependent set, not
 #' uniquely faulty nodes.
 #'
+#' The stored result records an identity of the data, weights, priors, and
+#' model it was computed for. \code{bridge_sampler()}, \code{logml()},
+#' \code{bf()}, and \code{post_prob()} refuse a stored result that no longer
+#' matches the object, or that an earlier RoBMA version stored, with an error of
+#' class \code{RoBMA_marglik_stale} (inheriting from \code{RoBMA_marglik_error});
+#' recompute it with \code{add_marglik()}. \code{update(slab = )} keeps it, and
+#' extending the fit with \code{update()} recomputes or drops it.
+#'
 #' @return The brma object with the marginal likelihood result stored in
 #' \code{object[["marglik"]]}.
 #'
@@ -234,8 +242,36 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     ))
   })
   marglik <- .brma_mv_attach_marglik_target_metadata(marglik, object)
+  attr(marglik, "RoBMA_marglik_identity") <- .marglik_identity(object)
   object[["marglik"]] <- marglik
   return(object)
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .marglik_identity
+# ---------------------------------------------------------------------------- #
+#
+# Identity of the inputs a stored marginal likelihood depends on: the persisted
+# data (outcomes, weights, designs) and priors and the model class, plus a
+# version that changes with the stored-result contract. Study labels are
+# excluded, so update(slab = ) keeps the stored result. Posterior draws are not
+# hashed: the marginal likelihood is a property of the model and data.
+#
+# ---------------------------------------------------------------------------- #
+.MARGLIK_IDENTITY_VERSION <- 1L
+
+.marglik_identity <- function(object) {
+
+  data <- object[["data"]]
+  data[["outcome"]][["slab"]] <- NULL
+  attr(data, "slab") <- NULL
+
+  return(list(
+    version = .MARGLIK_IDENTITY_VERSION,
+    class   = class(object)[1L],
+    hash    = rlang::hash(list(data = data, priors = object[["priors"]]))
+  ))
 }
 
 

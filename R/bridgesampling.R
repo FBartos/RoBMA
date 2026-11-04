@@ -208,6 +208,7 @@ bridge_sampler.brma <- function(samples, ...) {
   # it carries the class of one
   if (!inherits(marglik, "BayesTools_marglik") &&
       inherits(marglik, c("bridge", "bridge_list"))) {
+    attr(marglik, "RoBMA_marglik_identity") <- NULL
     return(marglik)
   }
 
@@ -238,6 +239,18 @@ bridge_sampler.brma <- function(samples, ...) {
       "'object <- add_marglik(object)' first.",
       call. = FALSE
     )
+  }
+  stored <- attr(marglik, "RoBMA_marglik_identity", exact = TRUE)
+  if (!identical(stored, .marglik_identity(object))) {
+    stop(errorCondition(
+      message = paste0(
+        "The stored marginal likelihood does not match the current data, priors, ",
+        "and model, or was computed by an earlier RoBMA version. Recompute it ",
+        "with 'object <- add_marglik(object)'."
+      ),
+      class = c("RoBMA_marglik_stale", "RoBMA_marglik_error"),
+      call  = NULL
+    ))
   }
 
   return(marglik)

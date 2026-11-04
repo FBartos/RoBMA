@@ -2,7 +2,20 @@
 
   data <- list(outcome = data.frame(yi = c(.1, -.2), sei = c(.2, .3)))
   attr(data, "outcome_type") <- "norm"
-  structure(list(data = data, marglik = marglik), class = "brma")
+  fit <- structure(list(data = data), class = "brma")
+  if (!is.null(marglik)) {
+    attr(marglik, "RoBMA_marglik_identity") <- .marglik_identity(fit)
+    fit[["marglik"]] <- marglik
+  }
+  fit
+}
+
+# a stored result as returned by the bridge sampler, without the identity
+# add_marglik() records
+.without_marglik_identity <- function(marglik) {
+
+  attr(marglik, "RoBMA_marglik_identity") <- NULL
+  marglik
 }
 
 .bridge_repetition_test_raw <- function(logml) {
@@ -107,7 +120,7 @@ test_that("add_marglik warns about unused dots after existing argument validatio
     .package = "RoBMA")
   expect_warning(result <- add_marglik(fit, unknown = TRUE),
     "Unused argument in add_marglik(): 'unknown'", fixed = TRUE)
-  expect_identical(result$marglik, stored)
+  expect_identical(.without_marglik_identity(result$marglik), stored)
   expect_warning(add_marglik(fit, nonfinite = "drop"),
     "Unused argument in add_marglik(): 'nonfinite'", fixed = TRUE)
   # Supply an unnamed entry to dots after every ordinary formal argument.
@@ -196,7 +209,7 @@ test_that("real bridge repetitions survive extraction and model comparisons", {
   expect_equal(actual$bf_median_based, expected$bf_median_based)
   expect_equal(post_prob(fit, other_fit, model_names = c("one", "two")),
                bridgesampling::post_prob(raw, other, model_names = c("one", "two")))
-  expect_identical(fit$marglik, stored)
+  expect_identical(.without_marglik_identity(fit$marglik), stored)
 })
 
 test_that("repeated Bayes factors use separate medians before upstream recycling", {
@@ -412,7 +425,7 @@ test_that("add_marglik retains finite public retry results and typed warnings un
         warnings[[length(warnings) + 1L]] <<- w
         invokeRestart("muffleWarning")
       }))
-    expect_identical(actual$marglik, original)
+    expect_identical(.without_marglik_identity(actual$marglik), original)
     expect_length(warnings, 1L)
     expect_identical(warnings[[1L]], upstream_warning)
     expect_true(actual$marglik$success)
@@ -442,7 +455,7 @@ test_that("optional iteration telemetry is separate from finite marginal-likelih
       fit <- .bridge_repetition_test_fit(NULL)
       testthat::local_mocked_bindings(.marglik = function(...) stored, .package = "RoBMA")
       expect_warning(actual <- add_marglik(fit), NA)
-      expect_identical(actual$marglik, stored)
+      expect_identical(.without_marglik_identity(actual$marglik), stored)
       expect_true(actual$marglik$success)
       expect_identical(logml(actual), -2)
       expect_identical(actual$marglik$iteration_limit_exceeded, flag)
@@ -616,4 +629,41 @@ test_that("bridge_sampler() unwraps stored results that carry the bridge class",
   ))
   expect_error(bridge_sampler(.bridge_repetition_test_fit(exact)),
     class = "RoBMA_exact_marglik_no_bridge")
+})
+
+test_that("stored marginal likelihoods are bound to the data, priors, and model", {
+
+  object <- brma(yi = c(.1, -.2, .3), sei = c(.2, .3, .25), measure = "GEN",
+    prior_unit_information_sd = 1, only_priors = TRUE, silent = TRUE)
+  stored <- .bridge_repetition_test_stored(.bridge_repetition_test_raw(-2))
+  testthat::local_mocked_bindings(
+    .marglik = function(...) stored,
+    .check_marglik_available = function(...) invisible(TRUE),
+    .package = "RoBMA"
+  )
+  fit <- add_marglik(object)
+  expect_identical(logml(fit), -2)
+
+  # labels and serialization keep the stored result
+  relabelled <- fit
+  relabelled[["data"]][["outcome"]][["slab"]] <- c("a", "b", "c")
+  attr(relabelled[["data"]], "slab") <- TRUE
+  expect_identical(logml(relabelled), -2)
+  path <- tempfile(fileext = ".rds")
+  on.exit(unlink(path), add = TRUE)
+  saveRDS(fit, path)
+  expect_identical(logml(readRDS(path)), -2)
+
+  # changed data, priors, or a result without identity are refused
+  changed_data <- fit
+  changed_data[["data"]][["outcome"]][["yi"]][1] <- .5
+  changed_prior <- fit
+  changed_prior[["priors"]][["outcome"]][["mu"]] <- BayesTools::prior("normal", list(0, 2))
+  legacy <- fit
+  attr(legacy[["marglik"]], "RoBMA_marglik_identity") <- NULL
+  for (stale in list(changed_data, changed_prior, legacy)) {
+    expect_error(logml(stale), class = "RoBMA_marglik_stale")
+    expect_error(bridge_sampler(stale), class = "RoBMA_marglik_stale")
+  }
+  expect_error(logml(legacy), "Recompute it with 'object <- add_marglik(object)'.", fixed = TRUE)
 })

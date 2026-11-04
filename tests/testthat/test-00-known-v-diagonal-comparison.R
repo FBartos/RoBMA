@@ -59,8 +59,11 @@ test_that("an ordinary fit and an identical diagonal known-V fit compare", {
     )
   }
   with_marglik <- function(object, logml) {
-    structure(list(data = object[["data"]], marglik = stored_marglik(logml)),
-              class = "brma")
+    fit <- structure(list(data = object[["data"]]), class = "brma")
+    marglik <- stored_marglik(logml)
+    attr(marglik, "RoBMA_marglik_identity") <- .marglik_identity(fit)
+    fit[["marglik"]] <- marglik
+    fit
   }
   model_ordinary   <- with_marglik(ordinary, 0)
   model_diagonal   <- with_marglik(diagonal, log(2))

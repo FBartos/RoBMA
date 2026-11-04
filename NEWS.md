@@ -72,7 +72,7 @@
 - funnel contours and location-scale influence heterogeneity use the root mean square heterogeneity
 - cluster-level selection likelihood integrals are certified by successive quadrature rules instead of heuristic fallbacks
 - numerically stable cluster, known-covariance, and selected-normal likelihoods for precise or aligned estimates
-- cached LOO/WAIC results and marginal-likelihood comparisons check that the data and targets match
+- cached LOO/WAIC results, stored marginal likelihoods, and marginal-likelihood comparisons check that the data and targets match
 - `plot_weightfunction()` marks two-sided p-values for two-sided weight functions
 - transformed posterior plots take `xlim` on the displayed scale
 - `ranef(component = "total")` keeps the estimate names
