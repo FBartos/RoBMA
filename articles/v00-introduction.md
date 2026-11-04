@@ -47,13 +47,13 @@ The package exposes a small set of high-level fitting functions.
 
 | Function | What it fits |
 |:---|:---|
-| [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md), [`brma.norm()`](https://fbartos.github.io/RoBMA/reference/brma.md) | Bayesian random-effects meta-analysis |
+| [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md), [`brma.norm()`](https://fbartos.github.io/RoBMA/reference/brma.md), [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md) | Bayesian random-effects meta-analysis |
 | [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md) | Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR) |
-| [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md) | Bayesian weight-function selection model |
-| [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md), [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) | Bayesian PET / PEESE publication-bias adjustment |
-| [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md), [`BMA.norm()`](https://fbartos.github.io/RoBMA/reference/BMA.md) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
+| [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md), [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/reference/bselmodel.mv.md) | Bayesian weight-function selection model |
+| [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md), [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md), [`bPET.mv()`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md), [`bPEESE.mv()`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md) | Bayesian PET / PEESE publication-bias adjustment |
+| [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md), [`BMA.norm()`](https://fbartos.github.io/RoBMA/reference/BMA.md), [`BMA.mv()`](https://fbartos.github.io/RoBMA/reference/BMA.mv.md) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
 | [`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md) | Bayesian model-averaging for GLMM meta-analysis |
-| [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) | Robust Bayesian model-averaging including publication-bias models |
+| [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md), [`RoBMA.mv()`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md) | Robust Bayesian model-averaging including publication-bias models |
 
 [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) and
 [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) are the
@@ -65,23 +65,31 @@ single model in the same spirit as
 across an ensemble that includes publication-bias adjustment.
 [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md) is
 [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) without
-the bias-adjustment models.
+the bias-adjustment models. The `.mv` variants extend these models to
+multivariate and multilevel data with a known sampling covariance matrix
+(`V`) and random-effect formulas (`random`, e.g., `~ 1 | study / esid`),
+in the same spirit as
+[`metafor::rma.mv()`](https://wviechtb.github.io/metafor/reference/rma.mv.html).
 
 All fitting functions
 
 - share an effect-size interface (`yi`, `sei` / `vi`, `measure`
-  arguments; apart from glmm),
+  arguments; the `.mv` variants also accept `V`, and the `.glmm`
+  variants take outcome counts),
 - can be extended into a meta-regression (`mods` argument),
 - can be extended into a location-scale model (`scale` argument),
-- can be extended into a multilevel model (`cluster` argument),
-- and all produce objects that work with the same set of inference
-  helpers ([`summary()`](https://rdrr.io/r/base/summary.html),
+- can be extended into a multilevel model (`cluster` argument; `random`
+  in the `.mv` variants),
+- and produce objects that work with the same set of inference helpers
+  ([`summary()`](https://rdrr.io/r/base/summary.html),
   [`plot()`](https://rdrr.io/r/graphics/plot.default.html),
   [`predict()`](https://rdrr.io/r/stats/predict.html),
   [`loo()`](https://fbartos.github.io/RoBMA/reference/loo.brma.md),
   [`funnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md),
   [`regplot()`](https://fbartos.github.io/RoBMA/reference/regplot.md),
-  residuals and influence diagnostics, …).
+  residuals and influence diagnostics, …); see [*Feature
+  Coverage*](https://fbartos.github.io/RoBMA/articles/v03-feature-coverage.md)
+  for the exceptions.
 
 ## Vignette Map
 

@@ -85,7 +85,7 @@
 <div class="section level1">
 <h1 id="robust-bayesian-meta-analysis-robma">Robust Bayesian Meta-Analysis (RoBMA)<a class="anchor" aria-label="anchor" href="#robust-bayesian-meta-analysis-robma"></a>
 </h1>
-<p>The <code>RoBMA</code> R package fits a comprehensive collection of Bayesian meta-analytic models (Bartoš &amp; Maier, 2020). It provides single-model fits, meta-regression, location-scale models, multilevel models, fully Bayesian model-averaged ensembles, and built-in publication-bias adjustment using selection models, PET-PEESE, and Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is performed by JAGS through a custom C++ module that implements the weighted distributions used in selection models. Prior handling, plotting, and Bayesian diagnostics are delegated to the companion <code>BayesTools</code> package.</p>
+<p>The <code>RoBMA</code> R package fits a comprehensive collection of Bayesian meta-analytic models (Bartoš &amp; Maier, 2020). It provides single-model fits, meta-regression, location-scale models, multilevel and multivariate models, fully Bayesian model-averaged ensembles, and built-in publication-bias adjustment using selection models, PET-PEESE, and Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is performed by JAGS through a custom C++ module that implements the weighted distributions used in selection models. Prior handling, plotting, and Bayesian diagnostics are delegated to the companion <code>BayesTools</code> package.</p>
 <p>This introduction maps the package at a high level and points to the more detailed vignettes that follow.</p>
 <div class="section level2">
 <h2 id="system-requirements">System Requirements<a class="anchor" aria-label="anchor" href="#system-requirements"></a>
@@ -114,7 +114,7 @@
 <tbody>
 <tr>
 <td align="left">
-<a href="reference/brma.html"><code>brma()</code></a>, <a href="reference/brma.html"><code>brma.norm()</code></a>
+<a href="reference/brma.html"><code>brma()</code></a>, <a href="reference/brma.html"><code>brma.norm()</code></a>, <a href="reference/brma.mv.html"><code>brma.mv()</code></a>
 </td>
 <td align="left">Bayesian random-effects meta-analysis</td>
 </tr>
@@ -123,18 +123,20 @@
 <td align="left">Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR)</td>
 </tr>
 <tr>
-<td align="left"><a href="reference/bselmodel.html"><code>bselmodel()</code></a></td>
+<td align="left">
+<a href="reference/bselmodel.html"><code>bselmodel()</code></a>, <a href="reference/bselmodel.mv.html"><code>bselmodel.mv()</code></a>
+</td>
 <td align="left">Bayesian weight-function selection model</td>
 </tr>
 <tr>
 <td align="left">
-<a href="reference/bPET.html"><code>bPET()</code></a>, <a href="reference/bPEESE.html"><code>bPEESE()</code></a>
+<a href="reference/bPET.html"><code>bPET()</code></a>, <a href="reference/bPEESE.html"><code>bPEESE()</code></a>, <a href="reference/bPET.mv.html"><code>bPET.mv()</code></a>, <a href="reference/bPEESE.mv.html"><code>bPEESE.mv()</code></a>
 </td>
 <td align="left">Bayesian PET / PEESE publication-bias adjustment</td>
 </tr>
 <tr>
 <td align="left">
-<a href="reference/BMA.html"><code>BMA()</code></a>, <a href="reference/BMA.html"><code>BMA.norm()</code></a>
+<a href="reference/BMA.html"><code>BMA()</code></a>, <a href="reference/BMA.html"><code>BMA.norm()</code></a>, <a href="reference/BMA.mv.html"><code>BMA.mv()</code></a>
 </td>
 <td align="left">Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment)</td>
 </tr>
@@ -143,19 +145,21 @@
 <td align="left">Bayesian model-averaging for GLMM meta-analysis</td>
 </tr>
 <tr>
-<td align="left"><a href="reference/RoBMA.html"><code>RoBMA()</code></a></td>
+<td align="left">
+<a href="reference/RoBMA.html"><code>RoBMA()</code></a>, <a href="reference/RoBMA.mv.html"><code>RoBMA.mv()</code></a>
+</td>
 <td align="left">Robust Bayesian model-averaging including publication-bias models</td>
 </tr>
 </tbody>
 </table>
-<p><code><a href="reference/brma.html">brma()</a></code> and <code><a href="reference/RoBMA.html">RoBMA()</a></code> are the main workhorses. <code><a href="reference/brma.html">brma()</a></code> fits a single model in the same spirit as <code><a href="https://wviechtb.github.io/metafor/reference/rma.uni.html" class="external-link">metafor::rma()</a></code>; <code><a href="reference/RoBMA.html">RoBMA()</a></code> averages across an ensemble that includes publication-bias adjustment. <code><a href="reference/BMA.html">BMA()</a></code> is <code><a href="reference/RoBMA.html">RoBMA()</a></code> without the bias-adjustment models.</p>
+<p><code><a href="reference/brma.html">brma()</a></code> and <code><a href="reference/RoBMA.html">RoBMA()</a></code> are the main workhorses. <code><a href="reference/brma.html">brma()</a></code> fits a single model in the same spirit as <code><a href="https://wviechtb.github.io/metafor/reference/rma.uni.html" class="external-link">metafor::rma()</a></code>; <code><a href="reference/RoBMA.html">RoBMA()</a></code> averages across an ensemble that includes publication-bias adjustment. <code><a href="reference/BMA.html">BMA()</a></code> is <code><a href="reference/RoBMA.html">RoBMA()</a></code> without the bias-adjustment models. The <code>.mv</code> variants extend these models to multivariate and multilevel data with a known sampling covariance matrix (<code>V</code>) and random-effect formulas (<code>random</code>, e.g., <code>~ 1 | study / esid</code>), in the same spirit as <code><a href="https://wviechtb.github.io/metafor/reference/rma.mv.html" class="external-link">metafor::rma.mv()</a></code>.</p>
 <p>All fitting functions</p>
 <ul>
-<li>share an effect-size interface (<code>yi</code>, <code>sei</code> / <code>vi</code>, <code>measure</code> arguments; apart from glmm),</li>
+<li>share an effect-size interface (<code>yi</code>, <code>sei</code> / <code>vi</code>, <code>measure</code> arguments; the <code>.mv</code> variants also accept <code>V</code>, and the <code>.glmm</code> variants take outcome counts),</li>
 <li>can be extended into a meta-regression (<code>mods</code> argument),</li>
 <li>can be extended into a location-scale model (<code>scale</code> argument),</li>
-<li>can be extended into a multilevel model (<code>cluster</code> argument),</li>
-<li>and all produce objects that work with the same set of inference helpers (<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, <code><a href="reference/loo.brma.html">loo()</a></code>, <code><a href="reference/funnel.html">funnel()</a></code>, <code><a href="reference/regplot.html">regplot()</a></code>, residuals and influence diagnostics, …).</li>
+<li>can be extended into a multilevel model (<code>cluster</code> argument; <code>random</code> in the <code>.mv</code> variants),</li>
+<li>and produce objects that work with the same set of inference helpers (<code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>, <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code>, <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code>, <code><a href="reference/loo.brma.html">loo()</a></code>, <code><a href="reference/funnel.html">funnel()</a></code>, <code><a href="reference/regplot.html">regplot()</a></code>, residuals and influence diagnostics, …); see <a href="articles/v03-feature-coverage.html"><em>Feature Coverage</em></a> for the exceptions.</li>
 </ul>
 </div>
 <div class="section level2">
