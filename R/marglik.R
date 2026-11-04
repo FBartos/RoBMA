@@ -153,6 +153,7 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
                              maxiter = 10000L, silent = TRUE, ...) {
 
   .check_marglik_available(object, "add_marglik()")
+  .brma_validate_fit_contract(object, requires = .MARGLIK_FIT_CONTRACT)
   method <- match.arg(method)
   parallel_control <- .marglik_parallel_control(
     object   = object,
@@ -1122,7 +1123,6 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
   if (inherits(object, "RoBMA")) {
     .stop_product_space_marglik()
   }
-  .brma_validate_fit_contract(object, requires = .MARGLIK_FIT_CONTRACT)
   if (.is_random(object) &&
       !(inherits(object, "brma.mv") && .is_data_known_v(object[["data"]]))) {
     .check_random_formula_postfit_deferred(object, caller)
