@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Generalized Linear Mixed-Effects Meta-Analysis • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Generalized Linear Mixed-Effects Meta-Analysis">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -83,7 +85,8 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">28th of April 2026</h4>
+            <h4 data-toc-skip class="date">28th of April 2026 (updated:
+25th of October 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v13-metafor-parity-glmm.Rmd" class="external-link"><code>vignettes/v13-metafor-parity-glmm.Rmd</code></a></small>
       <div class="d-none name"><code>v13-metafor-parity-glmm.Rmd</code></div>
@@ -152,8 +155,9 @@ corresponds to the binomial GLMM in <code><a href="../reference/brma.glmm.html">
 <span class="citation">Jackson et al. (<a href="#ref-jackson2018comparison">2018</a>)</span>).</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit1_metafor</span> <span class="op">&lt;-</span> <span class="fu">metafor</span><span class="fu">::</span><span class="fu"><a href="https://wviechtb.github.io/metafor/reference/rma.glmm.html" class="external-link">rma.glmm</a></span><span class="op">(</span></span>
-<span>  ai <span class="op">=</span> <span class="va">tpos</span>, bi <span class="op">=</span> <span class="va">tneg</span>, ci <span class="op">=</span> <span class="va">cpos</span>, di <span class="op">=</span> <span class="va">cneg</span>, measure <span class="op">=</span> <span class="st">"OR"</span>, </span>
-<span>  model <span class="op">=</span> <span class="st">"UM.FS"</span>, data <span class="op">=</span> <span class="va">dat.bcg</span></span>
+<span>  ai <span class="op">=</span> <span class="va">tpos</span>, bi <span class="op">=</span> <span class="va">tneg</span>, ci <span class="op">=</span> <span class="va">cpos</span>, di <span class="op">=</span> <span class="va">cneg</span>, measure <span class="op">=</span> <span class="st">"OR"</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"UM.FS"</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat.bcg</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">fit1_metafor</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -172,7 +176,7 @@ corresponds to the binomial GLMM in <code><a href="../reference/brma.glmm.html">
 <span><span class="co">#&gt; Model Results:</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; estimate      se     zval    pval    ci.lb    ci.ub      </span></span>
-<span><span class="co">#&gt;  -0.7450  0.1756  -4.2434  &lt;.0001  -1.0891  -0.4009  *** </span></span>
+<span><span class="co">#&gt;  -0.7450  0.1756  -4.2435  &lt;.0001  -1.0891  -0.4009  *** </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; ---</span></span>
 <span><span class="co">#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1</span></span></code></pre></div>
@@ -181,7 +185,8 @@ corresponds to the binomial GLMM in <code><a href="../reference/brma.glmm.html">
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit1_brma</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/brma.glmm.html">brma.glmm</a></span><span class="op">(</span></span>
 <span>  ai <span class="op">=</span> <span class="va">tpos</span>, bi <span class="op">=</span> <span class="va">tneg</span>, ci <span class="op">=</span> <span class="va">cpos</span>, di <span class="op">=</span> <span class="va">cneg</span>, measure <span class="op">=</span> <span class="st">"OR"</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">dat.bcg</span>, seed <span class="op">=</span> <span class="fl">1</span></span>
+<span>  data <span class="op">=</span> <span class="va">dat.bcg</span>, seed <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  sample <span class="op">=</span> <span class="fl">15000</span>, burnin <span class="op">=</span> <span class="fl">3000</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> reports posterior means, credible intervals,
 and (suppressed here) MCMC convergence diagnostics for the pooled log
@@ -193,8 +198,8 @@ odds ratio <code>mu</code> and the heterogeneity <code>tau</code>.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;       Mean    SD  0.025    0.5  0.975</span></span>
-<span><span class="co">#&gt; mu  -0.719 0.183 -1.089 -0.718 -0.353</span></span>
-<span><span class="co">#&gt; tau  0.589 0.141  0.361  0.569  0.922</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  -0.700 0.186 -1.072 -0.702 -0.328</span></span>
+<span><span class="co">#&gt; tau  0.586 0.144  0.356  0.568  0.916</span></span></code></pre></div>
 <p>The posterior mean for <code>mu</code> tracks the maximum-likelihood
 estimate from the <code>metafor</code> package, with comparable
 heterogeneity <code>tau</code>. <code><a href="../reference/pooled_effect.html">pooled_effect()</a></code> returns the
@@ -204,8 +209,8 @@ same summary backtransformed to the odds-ratio scale via
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit1_brma</span>, transform <span class="op">=</span> <span class="st">"EXP"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pooled Effect Size (odds ratio)</span></span>
-<span><span class="co">#&gt;     Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; mu 0.495  0.488 0.337 0.703</span></span>
+<span><span class="co">#&gt;     Mean Median 0.025 0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 0.505  0.496 0.342 0.721    0.141    1.758</span></span>
 <span><span class="co">#&gt; Effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.</span></span></code></pre></div>
 </div>
 <div class="section level2">
@@ -227,8 +232,14 @@ the two arm log incidence rates before applying half of the
 study-specific log incidence rate ratio to each arm. Because this
 midpoint log-rate is unbounded, there is no bounded flat default
 analogous to <code>Beta(1, 1)</code>, so the default
-<code>prior_lograte</code> is a proper data-based unit-information
-normal used independently for each <code>phi[i]</code>. Thus the default
+<code>prior_lograte</code> is a proper normal distribution centered at
+the pooled crude log-rate and used independently for each
+<code>phi[i]</code>. Its standard deviation defaults to <code>1</code>,
+matching the default IRR effect-prior scale, and can be changed with
+<code>RoBMA.options(default_lograte.sd = ...)</code>. The fixed standard
+deviation makes the default equivariant to exposure-unit changes:
+rescaling every person-time shifts the prior mean by the corresponding
+log conversion while retaining its informativeness. Thus the default
 nuisance-parameter prior distributions are exchangeable in the iid
 sense, but they are not hierarchical prior distributions with a learned
 common baseline-rate distribution. Both defaults can be overridden via
@@ -246,8 +257,9 @@ four-way count layout.</p>
 work the same way for a <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code> fit. Meta-regression
 via <code>mods</code>, multilevel structures via <code>cluster</code>,
 location-scale models via <code>scale</code>, posterior summaries,
-plots, predictions, residuals, influence, and LOO comparisons all carry
-over. See the <a href="v02-bayesian-meta-analysis.html"><em>Bayesian
+plots, predictions, residuals, influence, and LOO comparisons with small
+exceptions where unavailable for the model specification (i.e., LOO-PIT
+residuals) all carry over. See the <a href="v02-bayesian-meta-analysis.html"><em>Bayesian
 Meta-Analysis</em></a> vignette for the full walkthrough and the <a href="v10-metafor-parity-multilevel.html"><em>Multilevel
 Meta-Analysis</em></a> vignette for the multilevel extension; the only
 thing that changes here is the count-based input and the auxiliary
@@ -292,7 +304,7 @@ Statistical Software</em>, <em>36</em>(3), 1–48. <a href="https://doi.org/10.1
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

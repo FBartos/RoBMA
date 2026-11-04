@@ -1,6 +1,333 @@
 # Changelog
 
+## version 4.1.0
+
+### Breaking changes
+
+- requires R \>= 4.3.0, BayesTools \>= 0.4.0, loo \>= 2.10.0, and JAGS
+  4.x (\>= 4.3.1), and imports Matrix, ps, and statmod
+- models fitted with RoBMA 4.0.0 must be refitted; functions that read
+  the fitted parameters stop on them with a `BayesTools_refit_required`
+  error
+- [`AIC()`](https://rdrr.io/r/stats/AIC.html) and
+  [`BIC()`](https://rdrr.io/r/stats/AIC.html) stop with an explanation
+  instead of returning `numeric(0)`
+- removes the ineffective `seed` argument of
+  [`update()`](https://rdrr.io/r/stats/update.html)
+- [`radial()`](https://fbartos.github.io/RoBMA/reference/radial.md)
+  stops for likelihood-weighted fits, and cluster-unit LOO and WAIC of
+  binomial and Poisson GLMMs stop (use `unit = "estimate"`)
+- fits with mean-difference or orthonormal contrasts stop when a factor
+  interacts with a predictor whose main effect is missing (e.g.,
+  `mods = ~ g + g:x`); use `mods = ~ g * x`, an independent prior for
+  the term, or treatment contrasts
+- mean-difference and orthonormal contrasts use the closed-form basis of
+  BayesTools 0.4.0, identical on every platform; raw coefficients and
+  seeded results of models with such factors differ from 4.0.0
+- interaction priors that are not invariant to the basis of a
+  mean-difference or orthonormal factor are rejected (accepted are
+  mean-difference and orthonormal priors, zero-mean normal and zero
+  spike priors, and symmetric priors for two-level factors)
+- explicitly supplied `prior_mods`, `prior_scale`, and
+  `prior_heterogeneity_allocation` stop when the model has no
+  corresponding component instead of being ignored
+- nonfinite `weights` are rejected
+- the default Poisson GLMM `prior_lograte` is
+  `Normal(log(pooled crude rate), 1)`, independent of the exposure-time
+  unit (set its SD with `RoBMA.options(default_lograte.sd = )`)
+- [`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md)
+  uses mean-difference contrasts by default, as the other
+  model-averaging constructors do
+- [`plot()`](https://rdrr.io/r/graphics/plot.default.html) of
+  [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md)
+  results no longer draws the extrapolated curve by default
+  (`plot_extrapolation = FALSE`)
+- selection-model p-value cut points are compared exactly instead of
+  with a 1e-12 tolerance
+- seeded fits give different draws than 4.0.0 (chain seeding of
+  BayesTools 0.4.0), and seeded fitting no longer resets R’s global
+  random-number stream
+- [`predict()`](https://rdrr.io/r/stats/predict.html) gains
+  `conditioning_depth` (`"marginal"` by default, `"cluster"`, or
+  `"estimate"`), which changes the default same-data `type = "estimate"`
+  predictions and the clustered and GLMM response predictions
+- [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md)
+  targets the marginal posterior predictive distribution by default
+  (`conditioning_depth`)
+- [`funnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md)
+  draws plug-in contours; the posterior-averaged contours of 4.0.0 are
+  drawn by the new
+  [`bfunnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md)
+- estimate-unit LOO and WAIC of Gaussian models integrate the local
+  random effects, conditioning each estimate on the other estimates of
+  its cluster
+- marginal-means Bayes factors follow the Savage-Dickey rules of
+  BayesTools 0.4.0: a null hypothesis outside the posterior draws gives
+  a finite Bayes factor, and means fixed at the null or without an exact
+  prior ordinate give `NA` with the reason
+- [`as_draws()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md)
+  returns the parameters shown by
+  [`print()`](https://rdrr.io/r/base/print.html) and
+  [`summary()`](https://rdrr.io/r/base/summary.html) by default;
+  auxiliary parameters require `include_auxiliary = TRUE`
+- labels are rendered from the BayesTools parameter catalog: factor
+  levels are selected by their labels, and contrast coefficients that
+  are not levels are labelled `g{j}`
+- the scale intercept of
+  [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md) and
+  [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md)
+  summaries is labelled `exp(intercept)`, and a location intercept fixed
+  at zero is omitted from meta-regression output
+
+### Features
+
+- adds
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  for meta-analysis with a known sampling covariance matrix `V` and
+  formula random effects (`random`, e.g., `~ 1 | study / esid`) with
+  diagonal, unstructured, compound-symmetry, AR(1), heterogeneous, and
+  continuous-time AR(1) structures, and known random-effect group
+  covariance (`R`)
+- adds
+  [`BMA.mv()`](https://fbartos.github.io/RoBMA/reference/BMA.mv.md),
+  [`RoBMA.mv()`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md),
+  [`bPET.mv()`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md),
+  [`bPEESE.mv()`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md),
+  and
+  [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/reference/bselmodel.mv.md)
+  for model-averaged and publication-bias-adjusted multivariate and
+  multilevel models
+- re-exports BayesTools’
+  [`prior_random()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  interface for structured random-effect priors (variance allocations,
+  inclusion gates, and LKJ priors), completed with RoBMA’s default
+  priors
+- random-effect quantities (`tau`, `tau2`, `rho`, `rho_total`,
+  `tau_total`, `tau2_prop`, …) are named consistently across summaries,
+  plots, hypotheses, and
+  [`as_draws()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md);
+  a mean-difference or orthonormal factor in a random-effect formula has
+  one SD and, under `us()`, is correlated with the other coefficients by
+  level (`rho(intercept, f[a])`) and as a whole
+  (`rho_total(intercept, f)`), and random-effect inclusion is reported
+  in the component inclusion table
+- adds `component` to
+  [`summary_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.md),
+  [`pooled_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/pooled_heterogeneity.md),
+  [`ranef()`](https://fbartos.github.io/RoBMA/reference/ranef.md) (also
+  `expand` and `simplify`),
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html),
+  [`plot_prior()`](https://fbartos.github.io/RoBMA/reference/plot_prior.md),
+  [`print_prior()`](https://fbartos.github.io/RoBMA/reference/print_prior.md),
+  and
+  [`plot_diagnostic()`](https://fbartos.github.io/RoBMA/reference/plot_diagnostic.md)
+- re-exports BayesTools’
+  [`prior_ordered()`](https://fbartos.github.io/RoBMA/reference/prior_ordered.md)
+  for ordered-factor moderators
+- `mods`, `scale`, and `yi ~` formulas accept `^` crossing (e.g.,
+  `(x + z)^2`)
+- adds conditional Gaussian vector selection models specified with
+  `selection = selection_model(...)`, with product or best p-value
+  weight rules, publication groups, and deterministic quadrature with a
+  controlled QMC fallback
+  ([`set_selection_likelihood_control()`](https://fbartos.github.io/RoBMA/reference/set_selection_likelihood_control.md))
+- adds caching of selection normalizers
+  ([`selection_cache_info()`](https://fbartos.github.io/RoBMA/reference/selection_cache_info.md),
+  [`remove_selection_cache()`](https://fbartos.github.io/RoBMA/reference/remove_selection_cache.md))
+  and a coarse-corrected selection sampler
+  (`RoBMA.options(selection.sampler = "coarse_corrected")`)
+- adds
+  [`selection_sensitivity_diagnostics()`](https://fbartos.github.io/RoBMA/reference/selection_sensitivity_diagnostics.md)
+  and
+  [`add_selection_sensitivity_diagnostics()`](https://fbartos.github.io/RoBMA/reference/selection_sensitivity_diagnostics.md)
+- adds
+  [`hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  (aliases
+  [`bf_hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  and
+  [`BF_hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md))
+  for point, interval, and directional hypotheses on parameters, factor
+  levels, and their linear combinations in fitted models and marginal
+  means, and
+  [`hypothesis_quantities()`](https://fbartos.github.io/BayesTools/reference/hypothesis_quantities.html),
+  which lists the testable quantities
+- adds the likelihood-aware qCMDE and IWMDE posterior density and
+  ordinate estimators (`density_method`, `density_control`) for plots,
+  hypotheses, and marginal means, with
+  [`density_diagnostics()`](https://fbartos.github.io/RoBMA/reference/density_diagnostics.md)
+- adds `check_indicators`, `monitor`, and `allow_not_assessable` to
+  convergence checks and autofit
+- adds
+  [`log_lik()`](https://fbartos.github.io/RoBMA/reference/log_lik.md), a
+  [`loo_model_weights()`](https://mc-stan.org/loo/reference/loo_model_weights.html)
+  method, and `parallel`, `cores`, `repetitions`, `method`, `maxiter`,
+  and `silent` to
+  [`add_marglik()`](https://fbartos.github.io/RoBMA/reference/add_marglik.brma.md)
+- supports fully fixed point-prior models
+- adds prediction intervals to
+  [`pooled_effect()`](https://fbartos.github.io/RoBMA/reference/pooled_effect.md)
+- adds `max_samples` to
+  [`hatvalues()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`residuals()`](https://rdrr.io/r/stats/residuals.html),
+  [`rstandard()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`qqnorm()`](https://rdrr.io/r/stats/qqnorm.html), and
+  [`vif()`](https://fbartos.github.io/RoBMA/reference/vif.md), and
+  `component` and `parameter` to
+  [`dfbetas()`](https://rdrr.io/r/stats/influence.measures.html) and
+  [`covratio()`](https://fbartos.github.io/RoBMA/reference/covratio.brma.md)
+- [`vif()`](https://fbartos.github.io/RoBMA/reference/vif.md) computes
+  design-based VIF/GVIF in each posterior draw, with optional credible
+  intervals (`probs`) and draws
+- adds
+  [`bfunnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md), a
+  [`metafor::forest()`](https://wviechtb.github.io/metafor/reference/forest.html)
+  method with
+  [`as_metafor_forest()`](https://fbartos.github.io/RoBMA/reference/as_metafor_forest.md),
+  and [`lines()`](https://rdrr.io/r/graphics/lines.html) methods for
+  fitted models and marginal means
+- `transform = "EXP"` and `"LOG"` apply to individual coefficients and
+  heterogeneity parameters in plots
+- [`regplot()`](https://fbartos.github.io/RoBMA/reference/regplot.md)
+  accepts moderators that appear only in the scale formula, and
+  [`radial()`](https://fbartos.github.io/RoBMA/reference/radial.md)
+  supports
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  models
+- credible bands of
+  [`regplot()`](https://fbartos.github.io/RoBMA/reference/regplot.md),
+  [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md),
+  and
+  [`plot_pet_peese()`](https://fbartos.github.io/RoBMA/reference/plot_pet_peese.md)
+  use Harrell-Davis quantiles
+- [`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html)
+  converts printable results to long data frames
+- [`update()`](https://rdrr.io/r/stats/update.html) accepts named `NULL`
+  values to clear convergence and autofit settings
+- `set_contrast_factor_predictors = "independent"` defines one
+  coefficient per factor level
+- adds the `Hoogeveen2023` data set
+- adds the options `RoBMA.options(native_threads = )` and
+  `RoBMA.options(jags.worker_output = )`
+
+### Changes
+
+- [`cooks.distance()`](https://rdrr.io/r/stats/influence.measures.html)
+  uses the unscaled squared Mahalanobis distance, matching metafor
+  (values are multiplied by the fixed-effect rank relative to 4.0.0)
+- influence diagnostics that reuse the cached LOO result warn about high
+  Pareto k values
+- methods warn about unknown arguments in `...` instead of ignoring them
+- row selection (`subset`, missing values) drops unused factor levels,
+  except for the index factor of structured random-effect terms
+- unspecified factor null priors use the contrast of the alternative
+  prior; conflicting contrasts stop with an error
+- with `prior_informed_field = "medicine"`, default interaction priors
+  that would depend on a mean-difference or orthonormal basis use the
+  multivariate t version of the informed prior
+- a finite prior truncation point outside the support of the
+  heterogeneity, scale intercepts, heterogeneity allocation, or base
+  rate is an error instead of being moved to the boundary
+- [`rstandard()`](https://rdrr.io/r/stats/influence.measures.html)
+  reports `NA` instead of 0 for the standardized residuals of exactly
+  fitted estimates, and
+  [`qqnorm()`](https://rdrr.io/r/stats/qqnorm.html) omits them
+
+### Fixes
+
+- marginal-means Bayes factors use the exact kernel density at the null;
+  the grid estimate understated Bayes factors of long-tailed posteriors
+- estimate-unit GLMM log-likelihoods use adaptive Gauss-Hermite
+  quadrature or a convergence-checked grid instead of a fixed 30-node
+  grid, which was inaccurate for some nuisance priors and failed for
+  sparse data
+- GLMM predictions accept the four-cell binomial count representation
+  and return raw count samples
+- [`predict()`](https://rdrr.io/r/stats/predict.html) stops when
+  `newdata` lacks a formula variable instead of filling outcome-named
+  columns with zeros
+- a response formula without an intercept (`yi ~ 0`) fixes the location
+  intercept at zero
+- prior-only objects evaluate formulas with standardized predictors, and
+  their [`summary()`](https://rdrr.io/r/base/summary.html) no longer
+  fails
+- weighted residual diagnostics use the original outcome variances
+- funnel contours and location-scale influence heterogeneity use the
+  root mean square heterogeneity
+- cluster-level selection likelihood integrals are certified by
+  successive quadrature rules instead of heuristic fallbacks
+- numerically stable cluster, known-covariance, and selected-normal
+  likelihoods for precise or aligned estimates
+- cached LOO/WAIC results, stored marginal likelihoods, and
+  marginal-likelihood comparisons check that the data and targets match
+- [`plot_weightfunction()`](https://fbartos.github.io/RoBMA/reference/plot_weightfunction.md)
+  marks two-sided p-values for two-sided weight functions
+- transformed posterior plots take `xlim` on the displayed scale
+- `ranef(component = "total")` keeps the estimate names
+- [`vif()`](https://fbartos.github.io/RoBMA/reference/vif.md),
+  [`hatvalues()`](https://rdrr.io/r/stats/influence.measures.html), and
+  related diagnostics of
+  [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md)
+  ensembles use the bias design of each member
+- [`dfbetas()`](https://rdrr.io/r/stats/influence.measures.html),
+  [`influence()`](https://rdrr.io/r/stats/lm.influence.html), and
+  [`vif()`](https://fbartos.github.io/RoBMA/reference/vif.md) omit a
+  fixed-zero intercept, and
+  [`covratio()`](https://fbartos.github.io/RoBMA/reference/covratio.brma.md)
+  is finite for mean-difference and orthonormal contrasts
+- [`as_zplot()`](https://fbartos.github.io/RoBMA/reference/as_zplot.brma.md)
+  and
+  [`zplot()`](https://fbartos.github.io/RoBMA/reference/zplot.brma.md)
+  validate `significance_level`
+- fitted objects no longer store the calling environment of their
+  formulas
+- the RoBMA JAGS module is unregistered at process exit, preventing
+  intermittent crashes on Windows
+- zplot histograms show empty plotting ranges, honour `xlim`, count
+  `length.out` as bins, and keep the `to` limit when `by` does not
+  divide the range
+- [`summary_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.md)
+  omits I2 and H2 for saturated meta-regressions instead of failing
+- GLMM counts must be exact whole numbers within the integer range
+- [`radial()`](https://fbartos.github.io/RoBMA/reference/radial.md)
+  passes `targs` to `transf` as its second argument, as in metafor
+- `prior_effect`, `prior_heterogeneity`, and predictor priors reject
+  PET, PEESE, and non-point discrete (e.g., Bernoulli) prior
+  distributions
+- [`interpret()`](https://fbartos.github.io/RoBMA/reference/interpret.md)
+  reports errors of the pooled summaries instead of omitting the
+  sentences
+- residual funnel plots extend the reference region to an explicit
+  `ylim`
+- [`forest()`](https://wviechtb.github.io/metafor/reference/forest.html)
+  accepts `predstyle = "polygon"`
+- print methods of
+  [`covratio()`](https://fbartos.github.io/RoBMA/reference/covratio.brma.md),
+  [`dfbetas()`](https://rdrr.io/r/stats/influence.measures.html), and
+  posterior-sample summaries return the printed object
+- clearer input and diagnostic messages
+
+### Performance
+
+- saved fits no longer contain the compiled rjags model
+- faster repeated [`print()`](https://rdrr.io/r/base/print.html) and
+  default [`summary()`](https://rdrr.io/r/base/summary.html) of fitted
+  models
+- post-fit native kernels run in parallel
+  (`RoBMA.options(native_threads = )`) and use AVX2/AVX-512 for
+  selection normalizers
+- faster multilevel cluster likelihoods, selection normalizers, funnel,
+  regplot, and zplot computations, and LOO
+
+### Documentation
+
+- adds the vignettes “Posterior Densities and Parameter Tests” and
+  “Multivariate and Multilevel Meta-Analysis”
+- documents the qCMDE/IWMDE estimators, their diagnostics, and the
+  Savage-Dickey requirements
+
 ## version 4.0.0
+
+CRAN release: 2026-05-07
 
 ### Breaking changes
 
@@ -118,9 +445,8 @@
   [`loo_weights()`](https://fbartos.github.io/RoBMA/reference/loo_weights.brma.md),
   [`check_loo()`](https://fbartos.github.io/RoBMA/reference/check_loo.brma.md),
   [`add_waic()`](https://fbartos.github.io/RoBMA/reference/add_waic.brma.md),
-  [`waic()`](https://fbartos.github.io/RoBMA/reference/waic.brma.md),
-  and [`logLik()`](https://rdrr.io/r/stats/logLik.html) using the `loo`
-  package.
+  and [`waic()`](https://fbartos.github.io/RoBMA/reference/waic.brma.md)
+  using the `loo` package.
 - adds bridge-sampling marginal likelihood support for single-model
   `brma` fits via
   [`add_marglik()`](https://fbartos.github.io/RoBMA/reference/add_marglik.brma.md),
@@ -181,8 +507,11 @@
 
 - renames the multilevel clustering argument to `cluster`.
 - renames study labels to `slab`, matching `metafor` naming.
-- renames likelihood weights to `weights` and applies them consistently
-  to posterior fitting, log-likelihoods, LOO, WAIC, and diagnostics.
+- renames likelihood weights to `weights` for supported constructors and
+  applies them consistently to posterior fitting, log-likelihoods, LOO,
+  WAIC, and diagnostics;
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  currently rejects likelihood weights.
 - uses `measure`, `output_measure`, and `transform` for effect-size
   scale handling. Supported conversions include `SMD`, `COR`, `ZCOR`,
   and `OR`; `transform = "EXP"` exponentiates log ratio measures for
@@ -199,10 +528,13 @@
   `as_measure = TRUE`.
 - separates output `unit` from `conditioning_depth` for residuals,
   fitted values, LOO, WAIC, and related diagnostics.
-- supports estimate-level and, for multilevel models, cluster-level
-  LOO/WAIC targets with target metadata to prevent invalid comparisons.
+- supports estimate-level LOO/WAIC targets for
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  and estimate-/cluster-level LOO/WAIC targets for multilevel
+  [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) models,
+  with target metadata to prevent invalid comparisons.
 - keeps bridge-sampling marginal likelihoods for single-model `brma`
-  objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects relly on
+  objects; product-space `RoBMA`, `BMA`, and `BMA.glmm` objects rely on
   product-space only.
 - routes selection-weightfunction priors through the BayesTools
   selection backend and selected-normal kernel, removing legacy
@@ -235,7 +567,7 @@
 - adds native selected-normal routines for log likelihoods, normalizers,
   CDFs, moments, RNG, weighted summaries, funnel contours, regplot
   intervals, and zplot densities/threshold summaries.
-- adds native GLMM marginal and cluster log-likelihood helpers for
+- adds native estimate-unit GLMM marginal log-likelihood helpers for
   binomial and Poisson models.
 - caches selected-normal normalizers and uses telescoping selection
   probabilities with log-space fallbacks for better numerical stability.
@@ -561,8 +893,7 @@ CRAN release: 2021-11-03
   field of medicine and psychology
 - adding a vignette reproducing the example of dentine sensitivity with
   the informed Bayesian model-averaged meta-analysis from Bartoš et al.,
-  2021
-  ([open-access](https://onlinelibrary.wiley.com/doi/10.1002/sim.9170)),
+  2021 ([open-access](https://doi.org/10.1002/sim.9170)),
 - further reductions of fitted object size when setting `save = "min"`
 
 ## version 2.1

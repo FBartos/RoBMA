@@ -25,6 +25,7 @@ qqnorm(
   xlab,
   ylab,
   plot_type = "base",
+  max_samples = Inf,
   ...
 )
 ```
@@ -40,11 +41,12 @@ qqnorm(
   the type of standardized residuals to use. Options are:
 
   - `"rstudent"` (alias: `"LOO-PIT"`; default): Leave-one-out
-    probability integral transform residuals. Works for all model types
-    including GLMMs and selection models. This is the recommended type
-    for Bayesian models as it properly accounts for estimation
-    uncertainty and leverage. Note: requires that loo has been computed
-    (see
+    probability integral transform residuals. Works for normal outcome
+    models, including selection models, and, as a descriptive normal
+    approximation, for binomial and Poisson GLMMs. This is the
+    recommended type for Bayesian models as it properly accounts for
+    estimation uncertainty and leverage. Note: requires that loo has
+    been computed (see
     [`add_loo`](https://fbartos.github.io/RoBMA/reference/add_loo.brma.md)).
 
   - `"rstandard"`: Internally standardized residuals using the hat
@@ -58,19 +60,21 @@ qqnorm(
 - conditioning_depth:
 
   residual conditioning depth. Options are `"marginal"`, `"cluster"`,
-  and `"estimate"`.
+  and `"estimate"`. It does not apply to LOO-PIT residuals, whose
+  metadata record the deletion unit and retained context instead; leave
+  it omitted for those residuals.
 
 - envelope:
 
   logical indicating whether to add a pseudo confidence envelope to the
-  plot. The envelope is created by simulating sets of standard normal
-  quantiles, providing a reference for the expected variability under a
-  correctly specified model. Defaults to `TRUE`.
+  plot. The deterministic envelope uses Beta order-statistic quantiles
+  transformed to the standard normal scale, providing a reference under
+  a correctly specified model. Defaults to `TRUE`.
 
 - conf_level:
 
-  numeric value between 0 and 100 specifying the confidence level for
-  the envelope bounds. Defaults to `95`.
+  finite numeric value strictly between 0 and 100 specifying the
+  confidence level for the envelope bounds. Defaults to `95`.
 
 - bonferroni:
 
@@ -111,6 +115,12 @@ qqnorm(
 
   whether to use a base plot `"base"` or ggplot2 `"ggplot"` for
   plotting. Defaults to `"base"`.
+
+- max_samples:
+
+  maximum posterior draws used to compute known-`V` internally
+  standardized residuals. Defaults to `Inf`. Finite values select draws
+  deterministically and are ignored for other residual types.
 
 - ...:
 
@@ -174,14 +184,16 @@ standardized residuals follow a standard normal distribution, as
 expected under a correctly specified model. Each point represents one
 estimate, plotted at coordinates \\(\Phi^{-1}(p_i), z\_{(i)})\\ where
 \\p_i\\ are the plotting positions and \\z\_{(i)}\\ are the sorted
-standardized residuals.
+standardized residuals. Each retained input row contributes one point,
+irrespective of its likelihood weight. Weights affect fitting and the
+residual calculation; they do not replicate points or multiply residual
+values in this plot.
 
 The default residual type is `"rstudent"` (LOO-PIT), which differs from
 [`metafor::qqnorm`](https://wviechtb.github.io/metafor/reference/qqnorm.rma.html)
-(which defaults to `"rstandard"`). LOO-PIT residuals are preferred
-because they are available for all model types (including GLMMs and
-selection models) and properly account for estimation uncertainty via
-leave-one-out cross-validation.
+(which defaults to `"rstandard"`). LOO-PIT residuals are preferred for
+normal outcome models because they properly account for estimation
+uncertainty via leave-one-out cross-validation.
 
 The confidence envelope is computed in closed form from the distribution
 of normal order statistics. For the \\i\\-th sorted residual,
@@ -191,9 +203,17 @@ with \\\Phi^{-1}\\. When `smooth = TRUE`, bounds are smoothed using
 Friedman's SuperSmoother. When `bonferroni = TRUE`, the confidence level
 is adjusted for simultaneous inference across all \\k\\ comparisons.
 
-For GLMM models, LOO-PIT residuals and the QQ plot are computed on the
-approximate effect-size scale used by `loo`; they are not exact
-count-scale PIT diagnostics.
+For correlated known-`V`
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+`"rstandard"` residuals, this envelope remains an independent
+order-statistic reference band. It is descriptive and does not model
+residual correlation induced by known sampling covariance.
+
+For binomial and Poisson GLMMs the LOO-PIT residuals are a descriptive
+normal approximation on the effect-size scale rather than a PIT of the
+fitted discrete likelihood (see
+[`residuals.brma`](https://fbartos.github.io/RoBMA/reference/residuals.brma.md));
+the default y-axis label says so.
 
 ## See also
 

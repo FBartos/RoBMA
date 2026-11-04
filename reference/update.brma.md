@@ -20,7 +20,6 @@ update(
   parallel = NULL,
   cores = NULL,
   silent = NULL,
-  seed = NULL,
   evaluate = TRUE
 )
 ```
@@ -77,10 +76,6 @@ update(
 
   logical. Whether to suppress JAGS output during extension.
 
-- seed:
-
-  optional seed used before extending.
-
 - evaluate:
 
   unsupported; included for compatibility with
@@ -92,9 +87,43 @@ The updated `brma` object.
 
 ## Details
 
-Extending a fit adds posterior samples only. It does not rerun
-adaptation or burn-in. Prior, data, and model-structure updates are
-intentionally not supported by this method.
+Extending a fit preserves the fitted model and adds posterior samples.
+No additional burn-in is requested. Rebuilding the compiled JAGS model,
+for example after loading a saved fit, for parallel workers, or under
+runjags' repeatable-method settings, can rerun adaptation before
+collecting those samples. Retained selection caches store normalizer
+calculations, not JAGS model pointers or sampler tuning. Prior, data,
+and model-structure updates are intentionally not supported by this
+method. For
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+objects, the stored `V`, `R`, known-`V` backend, and marginalized
+random-effect metadata are preserved because the fitted model structure
+is reused.
+
+Extensions continue the random-number generator state stored by JAGS.
+They cannot be restarted from a new seed without changing the meaning of
+chain continuation, so [`update()`](https://rdrr.io/r/stats/update.html)
+has no `seed` argument.
+
+Retained selection-normalizer caches are restored when compatible. Set
+`RoBMA.options(selection.cache_retain = TRUE)` to retain the cache after
+extension, or use
+[`remove_selection_cache()`](https://fbartos.github.io/RoBMA/reference/remove_selection_cache.md)
+to remove saved cache entries.
+
+Only explicitly stored selection-sensitivity diagnostics are refreshed
+after chain extension, silently and using their stored simulation
+settings, independently of `recompute`. Models without a stored
+comparison do not compute one. Label-only updates retain the stored
+diagnostic. Use
+[`selection_sensitivity_diagnostics()`](https://fbartos.github.io/RoBMA/reference/selection_sensitivity_diagnostics.md)
+to inspect the refreshed result or error.
+
+Named `NULL` elements in `autofit_control` and `convergence_checks`
+explicitly disable or clear the corresponding nullable setting. Omitted
+elements, a top-level `NULL`, and an empty
+[`list()`](https://rdrr.io/r/base/list.html) inherit the setting stored
+in `object`.
 
 ## Examples
 

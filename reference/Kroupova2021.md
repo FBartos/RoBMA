@@ -1,4 +1,4 @@
-# 881 estimates from 69 studies of a relationship between employment and educational outcomes collected by Kroupova et al. (2021)
+# 881 estimates from 69 studies of a relationship between employment and educational outcomes collected by Kroupova et al. (2024)
 
 The data set contains partial correlation coefficients, standard errors,
 study labels, sample sizes, type of the educational outcome, intensity
@@ -65,10 +65,12 @@ A data.frame with 11 columns and 881 observations:
 
 ## Source
 
-<http://meta-analysis.cz/students>
+<https://meta-analysis.cz/students/>
 
 ## References
 
-Kroupova K, Havranek T, Irsova Z (2021). “Student employment and
-education: A meta-analysis.” *CEPR Discussion Paper*.
-<https://www.ssrn.com/abstract=3928863>.
+Kroupova K, Havranek T, Irsova Z (2024). “Student employment and
+education: A meta-analysis.” *Economics of Education Review*, **100**,
+102539.
+[doi:10.1016/j.econedurev.2024.102539](https://doi.org/10.1016/j.econedurev.2024.102539)
+.

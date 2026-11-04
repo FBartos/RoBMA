@@ -109,24 +109,24 @@ summary(fit_reg, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 4.525 0.380 3.863 4.495 5.344
-#> rho 0.819 0.033 0.748 0.821 0.879
+#> tau 4.529 0.377 3.863 4.500 5.341
+#> rho 0.820 0.033 0.750 0.821 0.878
 #> 
 #> Meta-Regression
 #>                                Mean    SD  0.025    0.5  0.975
-#> intercept                     3.030 0.556  1.941  3.027  4.123
-#> facing_customer[dif: No]     -2.224 0.435 -3.083 -2.222 -1.384
-#> facing_customer[dif: Some]    1.010 0.514  0.000  1.006  2.008
-#> facing_customer[dif: Direct]  1.214 0.407  0.420  1.211  2.015
+#> intercept                     3.012 0.559  1.916  3.012  4.107
+#> facing_customer[dif: No]     -2.224 0.444 -3.102 -2.224 -1.362
+#> facing_customer[dif: Some]    1.006 0.523 -0.009  1.001  2.033
+#> facing_customer[dif: Direct]  1.218 0.406  0.426  1.214  2.031
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5 0.975
 #> omega[0,0.025]    1.000 0.000 1.000 1.000 1.000
-#> omega[0.025,0.05] 0.891 0.107 0.669 0.905 1.000
-#> omega[0.05,0.5]   0.494 0.054 0.395 0.492 0.606
-#> omega[0.5,0.95]   0.222 0.038 0.156 0.219 0.305
-#> omega[0.95,0.975] 0.222 0.038 0.156 0.219 0.305
-#> omega[0.975,1]    0.222 0.038 0.156 0.219 0.305
+#> omega[0.025,0.05] 0.892 0.107 0.671 0.907 1.000
+#> omega[0.05,0.5]   0.495 0.054 0.394 0.493 0.607
+#> omega[0.5,0.95]   0.222 0.039 0.155 0.220 0.306
+#> omega[0.95,0.975] 0.222 0.039 0.155 0.220 0.306
+#> omega[0.975,1]    0.222 0.039 0.155 0.220 0.306
 #> PET               0.000 0.000 0.000 0.000 0.000
 #> PEESE             0.000 0.000 0.000 0.000 0.000
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
@@ -141,21 +141,21 @@ for the moderator levels.
 The multilevel RoBMA meta-regression finds extreme evidence for the
 presence of the average effect, moderation by the degree of consumer
 contact, between-study heterogeneity, and publication bias (all BFs \>
-10,000).
+59,999).
 
 ``` r
 
 pooled_effect(fit_reg)
 #> 
 #> Pooled Effect Size
-#>     Mean Median 0.025 0.975
-#> mu 3.230  3.227 2.146 4.319
+#>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
+#> mu 3.213  3.212 2.120 4.313   -5.779   12.219
 ```
 
 The model-averaged effect estimate is accompanied by considerable
-overall heterogeneity and a cluster-level allocation close to 1,
-indicating a high degree of similarity among estimates from the same
-study. MCMC diagnostics are included in
+overall heterogeneity and a cluster-level allocation of about 0.82,
+indicating that most modeled heterogeneity is at the study level. MCMC
+diagnostics are included in
 [`summary()`](https://rdrr.io/r/base/summary.html) by default, and
 chain-level checks are available via
 [`plot_diagnostic_trace()`](https://fbartos.github.io/RoBMA/reference/plot_diagnostic.md),
@@ -174,18 +174,19 @@ summary(mm_reg)
 #> 
 #> Model-Averaged Marginal Means:
 #>                          Mean    SD  0.025   0.5 0.975 Inclusion BF
-#> intercept               3.030 0.556  1.941 3.027 4.123          Inf
-#> facing_customer[No]     0.805 0.712 -0.606 0.807 2.199        0.108
-#> facing_customer[Some]   4.040 0.792  2.494 4.037 5.589          Inf
-#> facing_customer[Direct] 4.244 0.643  2.992 4.240 5.515          Inf
+#> intercept               3.012 0.559  1.916 3.012 4.107 2.645197e+40
+#> facing_customer[No]     0.789 0.716 -0.629 0.789 2.182 1.020000e-01
+#> facing_customer[Some]   4.018 0.800  2.472 4.008 5.632 1.575202e+27
+#> facing_customer[Direct] 4.230 0.648  2.970 4.225 5.514 7.169201e+98
 #> mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_facing_customer[Some]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_facing_customer[Direct]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 ```
 
 The estimated marginal means reveal moderate evidence for the absence of
-an effect for jobs with no consumer contact and extreme evidence for an
-effect for jobs with some or direct consumer contact.
+an effect for jobs with no consumer contact ($`\text{BF}_{10} = 0.10`$)
+and extreme evidence for an effect for jobs with some or direct consumer
+contact.
 
 ## Visual Fit Assessment
 
@@ -195,16 +196,16 @@ Publication-Bias
 Diagnostics*](https://fbartos.github.io/RoBMA/articles/v36-zplot.md)
 vignette for more details. The zplot shows the distribution of the
 observed $`z`$-statistics, computed as the effect size divided by the
-standard error, with dotted red horizontal lines highlighting the
-typical steps on which publication bias operates. These are
-$`z = \pm 1.65`$ and $`z = \pm 1.96`$, corresponding to marginally
-significant and statistically significant $`p`$-values, and $`z = 0`$,
-corresponding to selection on the direction of the effect.
+standard error, with dotted red vertical lines highlighting the typical
+steps on which publication bias operates. These are $`z = \pm 1.65`$ and
+$`z = \pm 1.96`$, corresponding to marginally significant and
+statistically significant $`p`$-values, and $`z = 0`$, corresponding to
+selection on the direction of the effect.
 
 ``` r
 
 par(mar = c(4, 4, 0, 0))
-zplot(fit_reg, by.hist = 0.25, plot_extrapolation = FALSE, from = -4, to = 8)
+zplot(fit_reg, by.hist = 0.25, from = -4, to = 8)
 ```
 
 ![](v33-robma-multilevel-metaregression_files/figure-html/zplot-1.png)

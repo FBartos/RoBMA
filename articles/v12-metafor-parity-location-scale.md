@@ -83,8 +83,8 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.220 0.048 0.130 0.220 0.317
-#> tau 0.227 0.053 0.131 0.224 0.340
+#> mu  0.220 0.047 0.129 0.218 0.316
+#> tau 0.226 0.052 0.130 0.224 0.336
 ```
 
 The pooled effect and the single heterogeneity parameter `tau` track the
@@ -152,14 +152,14 @@ summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Location
 #>             Mean    SD  0.025    0.5  0.975
-#> intercept  0.303 0.068  0.171  0.302  0.437
+#> intercept  0.302 0.067  0.171  0.303  0.434
 #> ni100     -0.056 0.023 -0.103 -0.056 -0.013
 #> 
 #> Scale
 #>                  Mean    SD  0.025    0.5 0.975
-#> exp(intercept)  0.348 0.118  0.148  0.338 0.608
-#> ni100          -0.375 0.225 -0.865 -0.366 0.042
-#> exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
+#> exp(intercept)  0.349 0.117  0.150  0.340 0.607
+#> ni100          -0.374 0.222 -0.841 -0.362 0.035
+#> exp(intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
 ```
 
 The location coefficient on `ni100` matches the REML estimate from the
@@ -259,16 +259,16 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Location
 #>             Mean    SD  0.025    0.5  0.975
-#> intercept  0.229 0.069  0.095  0.228  0.369
-#> ni100     -0.058 0.023 -0.106 -0.058 -0.016
-#> meta[1]    0.173 0.078  0.026  0.171  0.336
+#> intercept  0.230 0.069  0.096  0.229  0.369
+#> ni100     -0.059 0.023 -0.106 -0.058 -0.016
+#> meta[1]    0.173 0.077  0.026  0.173  0.328
 #> 
 #> Scale
 #>                  Mean    SD  0.025    0.5 0.975
-#> exp(intercept)  0.291 0.113  0.100  0.281 0.542
-#> ni100          -0.338 0.237 -0.826 -0.333 0.108
-#> imag[1]         0.361 0.447 -0.600  0.383 1.180
-#> exp(Intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
+#> exp(intercept)  0.292 0.114  0.098  0.281 0.543
+#> ni100          -0.342 0.238 -0.829 -0.334 0.108
+#> imag[1]         0.367 0.447 -0.572  0.380 1.208
+#> exp(intercept) corresponds to the between-study heterogeneity tau; the meta-regression coefficients correspond to the multiplicative effects on log-scale.
 ```
 
 Each scale coefficient is again roughly half of its `metafor` package
@@ -291,14 +291,13 @@ doubling, which the prior distribution treats as extreme.
 
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) with
 `prior = TRUE` overlays the prior distribution on the posterior so the
-shift is visible. `parameter_scale = "ni100"` selects the scale-side
-coefficient (the analogous selector on the location side is
-`parameter_mods = "ni100"`).
+shift is visible. `parameter = "ni100", component = "scale"` selects the
+scale-side coefficient (use `component = "mods"` for the location side).
 
 ``` r
 
 par(mar = c(4, 4, 1, 1))
-plot(fit2_brma, parameter_scale = "ni100", prior = TRUE, xlim = c(-2, 2))
+plot(fit2_brma, parameter = "ni100", component = "scale", prior = TRUE, xlim = c(-2, 2))
 ```
 
 ![](v12-metafor-parity-location-scale_files/figure-html/scale-posterior-1.png)

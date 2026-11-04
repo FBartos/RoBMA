@@ -21,6 +21,8 @@
   Meta-Analysis](https://fbartos.github.io/RoBMA/articles/v12-metafor-parity-location-scale.md):
 - [Generalized Linear Mixed-Effects
   Meta-Analysis](https://fbartos.github.io/RoBMA/articles/v13-metafor-parity-glmm.md):
+- [Multivariate and Multilevel
+  Meta-Analysis](https://fbartos.github.io/RoBMA/articles/v14-metafor-parity-multivariate.md):
 
 ### Bayesian Model Averaging
 
@@ -28,6 +30,8 @@
   Averaging](https://fbartos.github.io/RoBMA/articles/v20-bayesian-model-averaging.md):
 - [Robust Bayesian
   Meta-Analysis](https://fbartos.github.io/RoBMA/articles/v21-robust-bayesian-meta-analysis.md):
+- [Posterior Densities and Parameter
+  Tests](https://fbartos.github.io/RoBMA/articles/v22-posterior-densities-parameter-tests.md):
 
 ### Manuscript Companions
 

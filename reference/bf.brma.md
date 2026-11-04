@@ -33,12 +33,21 @@ bayes_factor(x1, x2, log = FALSE, ...)
 
 ## Value
 
-A list of class `"bf_default"` with components:
+For single estimates, a list of class `"bf_default"` with components:
 
 - `bf`: (scalar) value of the Bayes factor in favor of `x1` over `x2`.
 
 - `log`: Boolean indicating whether `bf` corresponds to the log Bayes
   factor.
+
+For repeated estimates, a list of class `c("bf.brma", "bf_bridge_list")`
+with a vector `bf`, scalar `bf_median_based`, and `log`. It uses the
+upstream repeated-Bayes-factor print method. Both
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html) and
+[`data.frame()`](https://rdrr.io/r/base/data.frame.html) return a long
+data frame with `component`, `parameter`, and full-precision numeric
+`value` columns, containing every repetition and the displayed
+median-based, range, and interquartile-range summaries.
 
 ## Details
 
@@ -46,7 +55,22 @@ Computes the Bayes factor in favor of the model `x1` over the model
 `x2`. The marginal likelihoods must first be computed using
 [`add_marglik`](https://fbartos.github.io/RoBMA/reference/add_marglik.brma.md).
 Both models must be fitted to the same outcome target/data, including
-outcome type and, when present, weights and cluster identifiers.
+outcome type and, when present, likelihood weights. Cluster identifiers
+define model structure and are not part of the outcome-data identity. A
+known sampling covariance without correlated blocks (e.g.,
+`V = diag(sei^2)` in
+[`brma.mv`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)) is
+the outcome data of its standard errors, whereas a correlated `V` is a
+different target.
+
+When either model contains repeated bridge estimates, the shorter
+sequence is recycled with a warning, following bridgesampling.
+Repetitions are compared in order. The median-based estimate is computed
+from the separate medians of the log marginal likelihoods before
+recycling, rather than the median of the repetition-wise Bayes factors.
+Standardized marginal-likelihood results must be finite. Legacy raw
+`"bridge_list"` results retain failed repetitions in the returned
+estimates, with upstream missing-value behavior when printed.
 
 ## See also
 

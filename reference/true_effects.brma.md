@@ -54,7 +54,10 @@ true_effects(
   additional arguments passed to
   [`predict.brma`](https://fbartos.github.io/RoBMA/reference/predict.brma.md);
   wrapper arguments such as `newdata`, `type`, `quiet`,
-  `output_measure`, and `transform` are fixed by this method.
+  `output_measure`, and `transform` are fixed by this method (supplying
+  one is R's error for an argument matched twice, as for
+  [`predict()`](https://rdrr.io/r/stats/predict.html)), and other
+  unknown arguments are unused and trigger a warning.
 
 ## Value
 
@@ -62,9 +65,10 @@ A `brma_samples` object containing posterior draws of BLUP or
 empirical-Bayes true-effect summaries with one column per estimate. For
 existing normal data, these are conditional BLUP means, not simulated
 latent-effect draws. When printed, displays a summary table. Use
-[`summary()`](https://rdrr.io/r/base/summary.html) to obtain the summary
-table directly. The samples can be converted to posterior draws formats
-using
+[`summary()`](https://rdrr.io/r/base/summary.html), or
+`as.data.frame(summary(x))`, to obtain the summary table;
+`as.data.frame(x)` returns the posterior draws. The samples can be
+converted to posterior draws formats using
 [`as_draws()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md).
 
 ## Details

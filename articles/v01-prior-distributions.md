@@ -394,7 +394,7 @@ Havrankova_treatment <- brma(
   data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(Havrankova_treatment, parameter_mods = "facing_customer")
+print_prior(Havrankova_treatment, parameter = "facing_customer")
 #> mu_facing_customer:
 #>   treatment contrast: Normal(0, 12.9)
 ```
@@ -408,7 +408,7 @@ Havrankova_meandif <- brma(
   data = Havrankova2025, only_priors = TRUE
 )
 
-print_prior(Havrankova_meandif, parameter_mods = "facing_customer")
+print_prior(Havrankova_meandif, parameter = "facing_customer")
 #> mu_facing_customer:
 #>   mean difference contrast: mNormal(0, 12.9)
 ```
@@ -436,15 +436,14 @@ the same `Havrankova_meandif` fit:
 
 ``` r
 
-plot_prior(Havrankova_meandif, parameter_mods = "N")
+plot_prior(Havrankova_meandif, parameter = "N")
 ```
 
 ![](v01-prior-distributions_files/figure-html/Havrankova-continuous-1.png)
 
 ``` r
 
-plot_prior(Havrankova_meandif, parameter_mods = "N", 
-  standardized_coefficients = FALSE)
+plot_prior(Havrankova_meandif, parameter = "N", standardized_coefficients = FALSE)
 ```
 
 ![](v01-prior-distributions_files/figure-html/Havrankova-continuous-2.png)
@@ -504,6 +503,72 @@ The `facing_customer` prior distribution is now the user-specified
 per-standard-deviation prior distribution. The named list extends
 naturally: with multiple moderators, each entry can specify its own
 prior family, scale, and (for categorical moderators) `contrast` value.
+
+### Random-effect component prior distributions
+
+Many meta-analyses report several effect sizes per study, and
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+decomposes the heterogeneity into named random-effect components, such
+as between-study and within-study heterogeneity. Instead of placing an
+independent prior distribution on each component, the default prior
+distribution specifies the total heterogeneity with the usual
+unit-information scale and allocates its variance among the components.
+
+The `Havrankova2025` dataset contains 1,159 estimates from 67 studies,
+identified by `study_id`. We add an estimate identifier and specify a
+three-level model with estimates nested within studies:
+
+``` r
+
+Havrankova2025$estimate_id <- seq_len(nrow(Havrankova2025))
+
+Havrankova_multilevel_priors <- brma.mv(
+  yi = y, sei = se, ni = N, measure = "GEN",
+  random = ~ 1 | study_id / estimate_id,
+  data = Havrankova2025, only_priors = TRUE
+)
+
+print_prior(Havrankova_multilevel_priors, parameter = "random")
+#> random:
+#>   allocation: heterogeneity
+#>     sigma_total ~ Normal(0, 12.9)[0, Inf]
+#>     w ~ Dirichlet(1, 1)
+#>     sigma_estimate_id_study_id = sigma_total * sqrt(w[1])
+#>     sigma_study_id = sigma_total * sqrt(w[2])
+```
+
+The total heterogeneity `sigma_total` receives the same positive
+`Normal(0, 12.9)` prior distribution as `tau` in the single-level model
+above. The `Dirichlet(1, 1)` prior distribution on the weights `w`
+splits the total variance uniformly between the estimate-within-study
+and the study components, and each component standard deviation equals
+`sigma_total` multiplied by the square root of its weight. As a result,
+adding components does not inflate the prior distribution on the total
+heterogeneity. The single-cluster interface,
+`brma(..., cluster = study_id)` and `RoBMA(..., cluster = study_id)`,
+specifies the same model through `tau` and the between-study proportion
+of the heterogeneity variance `rho`, where the `Beta(1, 1)` prior
+distribution on `rho` is the two-component case of this allocation.
+
+The defaults for other random-effect structures follow the same logic:
+
+| Random-effect structure | Default prior distribution |
+|:---|:---|
+| One component with a single standard deviation | positive `Normal(0, 0.25 * UISD)` on the component standard deviation |
+| Several components (nested or listed terms) | positive `Normal(0, 0.25 * UISD)` on the total standard deviation and `Dirichlet(1, ..., 1)` allocation of its variance among the components |
+| One standard deviation per level or coefficient (`hcs()`, `har()`, [`diag()`](https://rdrr.io/r/base/diag.html), `us()`; the coefficients of a mean-difference or orthonormal factor term share one) | positive `Normal(0, 0.25 * UISD)` on the common standard deviation and `Dirichlet(1, ..., 1)` allocation of the mean variance among the levels |
+| Compound-symmetric correlation (`cs()`, `hcs()`) | uniform on `(-1 / (K - 1), 1)`, with `K` index levels |
+| Autoregressive correlation (`ar1()`, `har()`, `car()`) | uniform on `(-1, 1)`, or `[0, 1)` for `car()` |
+| Unstructured correlation (`us()` and random slopes) | `LKJ(1)`, uniform over correlation matrices |
+
+Use `print_prior(..., parameter = "random")` to display the allocation
+implied by a particular `random` formula. For applications, including
+correlated sampling errors, multivariate structures, and custom
+random-effect prior distributions via
+[`prior_random()`](https://fbartos.github.io/RoBMA/reference/prior_random.md),
+see the [*Multivariate and Multilevel
+Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v14-metafor-parity-multivariate.md)
+vignette.
 
 ## Informed Empirical Prior Distributions
 

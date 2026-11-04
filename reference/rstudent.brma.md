@@ -68,16 +68,21 @@ The `z` column is the primary standardized diagnostic. The `resid` and
 `se` columns are raw-scale companions computed from LOO predictive
 moments using the normalized PSIS weights. For selection models, these
 moments are computed from the fitted selected-normal predictive
-distribution. For GLMMs, they are computed on the approximate
-effect-size scale used by the LOO-PIT diagnostic; they are not exact PIT
-diagnostics for the raw count likelihood.
+distribution.
 
 Unlike
 [`rstandard.brma`](https://fbartos.github.io/RoBMA/reference/rstandard.brma.md)
 (which uses the hat matrix), LOO-PIT residuals properly account for
 estimation uncertainty and leverage without requiring explicit hat
-matrix computation. This makes `rstudent.brma` suitable for all model
-types including selection models and GLMMs.
+matrix computation. For binomial and Poisson GLMMs the residuals are a
+descriptive normal approximation on the effect-size scale (see
+[`residuals.brma`](https://fbartos.github.io/RoBMA/reference/residuals.brma.md)),
+not a PIT of the fitted count likelihood, and a message says so. For
+correlated known-`V`
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+models, the PIT and companion residual moments are computed from the
+Schur-complement conditional predictive distribution used by
+estimate-unit LOO.
 
 ## See also
 

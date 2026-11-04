@@ -1,7 +1,7 @@
 # Summary of Heterogeneity
 
-Computes the absolute heterogeneity (tau, tau^2) and relative measures
-of heterogeneity (I^2, H^2) for a fitted model.
+Computes method-specific absolute and relative heterogeneity summaries
+for a fitted model.
 
 ## Usage
 

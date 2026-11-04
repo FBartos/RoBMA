@@ -8,7 +8,7 @@ observation \\i\\ is removed.
 
 ``` r
 # S3 method for class 'brma'
-covratio(model, type = "mods", ...)
+covratio(model, type = "mods", component = NULL, parameter = NULL, ...)
 ```
 
 ## Arguments
@@ -22,6 +22,15 @@ covratio(model, type = "mods", ...)
   type of parameters to be summarized. Defaults to `"mods"` (for the
   effect size and meta-regression coefficients). Use `"scale"` for
   heterogeneity and scale-regression coefficients.
+
+- component:
+
+  optional parameter namespace. Use `"random"` with one explicitly
+  selected semantic random-effect quantity.
+
+- parameter:
+
+  semantic random-effect quantity used when `component = "random"`.
 
 - ...:
 
@@ -44,10 +53,22 @@ are supplied.
 
 Values \> 1 indicate that the observation improves precision (decreases
 variance), while values \< 1 indicate that the observation decreases
-precision (increases variance). If any included parameter has zero
-posterior variance, or if a full or LOO covariance determinant is zero
-or non-finite, COVRATIO is undefined. In that case, values are reported
-as `NaN` with a printed note when available.
+precision (increases variance). For
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+objects, COVRATIO uses estimate-unit PSIS weights. With correlated
+known-`V` data, this is influence under conditional estimate deletion,
+not independent-study deletion. A requested random-effect correlation
+must be defined in every posterior draw. If either SD is zero in some
+draws, the complete influence request is unavailable; explicitly select
+an everywhere-defined quantity with `component = "random"` and
+`parameter` instead. Parameters with zero posterior variance are
+excluded from the covariance determinant and reported in a printed note
+when available. Ordered terms retain their fitted totals and omit one
+share per metadata-declared Dirichlet simplex. Aliases of a shared
+allocation source contribute its independent coordinates only once. If
+no estimable parameters remain, or if a full or LOO covariance
+determinant is zero or non-finite after exclusion, COVRATIO is undefined
+and values are reported as `NaN`.
 
 ## See also
 

@@ -19,18 +19,30 @@
   Bayesian Meta-Analysis
 - [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md)
   : Bayesian Generalized Meta-Analysis
+- [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md) :
+  Bayesian Meta-Analysis With Known Sampling Covariance
 - [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) :
   Robust Bayesian Model-Averaged Meta-Analysis
+- [`RoBMA.mv()`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md)
+  : Robust Bayesian Model-Averaged Multivariate Meta-Analysis
 - [`BMA()`](https://fbartos.github.io/RoBMA/reference/BMA.md) : Bayesian
   Model-Averaged Meta-Analysis
 - [`BMA.glmm()`](https://fbartos.github.io/RoBMA/reference/BMA.glmm.md)
   : Bayesian Model-Averaged Generalized Meta-Analysis
+- [`BMA.mv()`](https://fbartos.github.io/RoBMA/reference/BMA.mv.md) :
+  Bayesian Model-Averaged Multivariate Meta-Analysis
 - [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md)
   : Bayesian Selection Model
+- [`bselmodel.mv()`](https://fbartos.github.io/RoBMA/reference/bselmodel.mv.md)
+  : Bayesian Multivariate and Multilevel Selection Model
 - [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md) :
   Bayesian Precision-Effect Test (PET) Model
+- [`bPET.mv()`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md) :
+  Bayesian Multivariate and Multilevel PET Model
 - [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) :
   Bayesian Precision-Effect Estimate with Standard Errors (PEESE) Model
+- [`bPEESE.mv()`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md)
+  : Bayesian Multivariate and Multilevel PEESE Model
 - [`update(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/update.brma.md)
   : Update a brma Fit
 
@@ -47,12 +59,19 @@
 - [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
   [`bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
   : Publication-bias prior specification
+- [`random_effect_formula_tags`](https://fbartos.github.io/RoBMA/reference/random_effect_formula_tags.md)
+  : Random-Effect Formula Structure Tags
+- [`random_effect_prior_specification`](https://fbartos.github.io/RoBMA/reference/random_effect_prior_specification.md)
+  [`random_prior_specification`](https://fbartos.github.io/RoBMA/reference/random_effect_prior_specification.md)
+  : Random-effect prior specification
 - [`prior()`](https://fbartos.github.io/RoBMA/reference/prior.md) :
   Prior Distribution
 - [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md)
   : Empty Prior
 - [`prior_factor()`](https://fbartos.github.io/RoBMA/reference/prior_factor.md)
   : Factor Prior
+- [`prior_ordered()`](https://fbartos.github.io/RoBMA/reference/prior_ordered.md)
+  : Ordered Factor Prior
 - [`prior_informed()`](https://fbartos.github.io/RoBMA/reference/prior_informed.md)
   : Informed Prior
 - [`prior_PET()`](https://fbartos.github.io/RoBMA/reference/prior_PET.md)
@@ -64,6 +83,22 @@
   [`wf_fixed()`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md)
   [`wf_independent()`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md)
   : Weightfunction Prior
+- [`prior_random()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`random_block()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`random_variance_allocation()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`allocation_ref()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`random_covariance()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`prior_lkj()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`random_monitor()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`random_new_levels()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  [`random_sd_source()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  : Random-effect prior constructors
+- [`selection_model()`](https://fbartos.github.io/RoBMA/reference/selection_model.md)
+  : Selection Model
+- [`known_v_factor()`](https://fbartos.github.io/RoBMA/reference/known_v_factor.md)
+  : Declare a diagonal-plus-factor sampling covariance
+- [`set_selection_likelihood_control()`](https://fbartos.github.io/RoBMA/reference/set_selection_likelihood_control.md)
+  : Control numerical integration of selection likelihoods
 - [`estimate_unit_information_sd()`](https://fbartos.github.io/RoBMA/reference/estimate_unit_information_sd.md)
   : Estimate Unit Information Standard Deviation
 - [`contr.orthonormal()`](https://fbartos.github.io/RoBMA/reference/contr.BayesTools.md)
@@ -86,6 +121,7 @@
 - [`summary_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.md)
   : Summary of Heterogeneity
 - [`summary_heterogeneity(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.brma.md)
+  [`print(`*`<summary_heterogeneity.brma_list>`*`)`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.brma.md)
   : Summary of Heterogeneity for brma Objects
 - [`pooled_effect()`](https://fbartos.github.io/RoBMA/reference/pooled_effect.md)
   : Pooled Effect Size
@@ -121,6 +157,19 @@
   : Number of Observations for brma Objects
 - [`predict(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/predict.brma.md)
   : Predict From brma Object
+- [`hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  [`bf_hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  [`BF_hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  : Hypothesis Bayes Factors
+- [`reexports`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`bridge_sampler`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`logml`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`post_prob`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`bf`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`bayes_factor`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`hypothesis_quantities`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`loo_model_weights`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  : Objects exported from other packages
 
 ## Model comparison
 
@@ -143,6 +192,8 @@
   : Compare brma Models Using LOO
 - [`loo_compare(`*`<loo>`*`)`](https://fbartos.github.io/RoBMA/reference/loo_compare.loo.md)
   : Compare loo Objects Using LOO
+- [`loo_model_weights(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/loo_model_weights.brma.md)
+  : Predictive Model Weights for brma Objects
 - [`loo_weights(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/loo_weights.brma.md)
   : Extract Normalized PSIS Weights from brma Object
 - [`check_loo(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/check_loo.brma.md)
@@ -151,14 +202,21 @@
   : Add WAIC to brma Objects
 - [`waic(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/waic.brma.md)
   : WAIC for brma Objects
+- [`log_lik()`](https://fbartos.github.io/RoBMA/reference/log_lik.md) :
+  Extract Pointwise Log-Likelihood Draws
 - [`logLik(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/logLik.brma.md)
   : Extract Log-Likelihood Matrix from brma Object
+- [`AIC(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/information_criteria_brma.md)
+  [`BIC(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/information_criteria_brma.md)
+  : Unsupported Information Criteria for brma Objects
 - [`reexports`](https://fbartos.github.io/RoBMA/reference/reexports.md)
   [`bridge_sampler`](https://fbartos.github.io/RoBMA/reference/reexports.md)
   [`logml`](https://fbartos.github.io/RoBMA/reference/reexports.md)
   [`post_prob`](https://fbartos.github.io/RoBMA/reference/reexports.md)
   [`bf`](https://fbartos.github.io/RoBMA/reference/reexports.md)
   [`bayes_factor`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`hypothesis_quantities`](https://fbartos.github.io/RoBMA/reference/reexports.md)
+  [`loo_model_weights`](https://fbartos.github.io/RoBMA/reference/reexports.md)
   : Objects exported from other packages
 
 ## Diagnostics and influence
@@ -185,13 +243,31 @@
   Inflation Factors
 - [`vif(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/vif.brma.md)
   : Variance Inflation Factors for brma Objects
+- [`density_diagnostics()`](https://fbartos.github.io/RoBMA/reference/density_diagnostics.md)
+  : Extract qCMDE/IWMDE Density Diagnostics
+- [`selection_sensitivity_diagnostics()`](https://fbartos.github.io/RoBMA/reference/selection_sensitivity_diagnostics.md)
+  [`add_selection_sensitivity_diagnostics()`](https://fbartos.github.io/RoBMA/reference/selection_sensitivity_diagnostics.md)
+  : Diagnose Selection Conditioning Sensitivity
+- [`selection_cache_info()`](https://fbartos.github.io/RoBMA/reference/selection_cache_info.md)
+  : Inspect or clear the native selection cache
+- [`selection_sampler_info()`](https://fbartos.github.io/RoBMA/reference/selection_sampler_info.md)
+  : Inspect corrected selection-sampler counters
+- [`remove_selection_cache()`](https://fbartos.github.io/RoBMA/reference/remove_selection_cache.md)
+  : Remove a fitted model's selection cache
 
 ## Plots
 
 - [`plot(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/plot.brma.md)
+  [`lines(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/plot.brma.md)
   : Plots brma Object
+- [`forest(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/forest.md)
+  [`forest(`*`<metafor_forest.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/forest.md)
+  : Forest Plot for brma Objects Using metafor
+- [`as_metafor_forest()`](https://fbartos.github.io/RoBMA/reference/as_metafor_forest.md)
+  : Prepare brma Data for metafor Forest Plots
 - [`funnel(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/funnel.md)
-  : Funnel Plot for brma Object
+  [`bfunnel()`](https://fbartos.github.io/RoBMA/reference/funnel.md) :
+  Frequentist-Style and Bayesian Funnel Plots for brma Objects
 - [`radial(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/radial.md)
   [`galbraith(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/radial.md)
   : Radial (Galbraith) Plot for brma Object
@@ -213,6 +289,7 @@
   [`plot_diagnostic_density()`](https://fbartos.github.io/RoBMA/reference/plot_diagnostic.md)
   : Plot MCMC Diagnostics
 - [`plot(`*`<marginal_means.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/plot.marginal_means.brma.md)
+  [`lines(`*`<marginal_means.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/plot.marginal_means.brma.md)
   : Plot Estimated Marginal Means
 
 ## Posterior samples and zplot diagnostics
@@ -268,6 +345,9 @@
 - [`Havrankova2025`](https://fbartos.github.io/RoBMA/reference/Havrankova2025.md)
   : 1159 effect sizes from a meta-analysis of beauty and professional
   success by Havránková et al. (2025)
+- [`Hoogeveen2023`](https://fbartos.github.io/RoBMA/reference/Hoogeveen2023.md)
+  : 106 analyst-team effect-size estimates of the relation between
+  religiosity and well-being from Hoogeveen et al. (2023)
 - [`Hoppen2025`](https://fbartos.github.io/RoBMA/reference/Hoppen2025.md)
   : 37 studies from a meta-analysis of social comparison as a behavior
   change technique by Hoppen et al. (2025)
@@ -276,7 +356,7 @@
   family-based treatments by Johnides et al. (2025)
 - [`Kroupova2021`](https://fbartos.github.io/RoBMA/reference/Kroupova2021.md)
   : 881 estimates from 69 studies of a relationship between employment
-  and educational outcomes collected by Kroupova et al. (2021)
+  and educational outcomes collected by Kroupova et al. (2024)
 - [`Lui2015`](https://fbartos.github.io/RoBMA/reference/Lui2015.md) : 18
   studies of a relationship between acculturation mismatch and
   intergenerational cultural conflict collected by Lui (2015)
@@ -306,3 +386,32 @@
   : Print Summary of Heterogeneity
 - [`print(`*`<vif.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/print.vif.brma.md)
   : Print VIF Results
+
+## Data frame coercion
+
+- [`as.data.frame(`*`<brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.brma.md)
+  [`as.data.frame(`*`<summary.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.brma.md)
+  : Convert brma Summaries to a Data Frame
+- [`as.data.frame(`*`<brma_samples>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.brma_samples.md)
+  [`as.data.frame(`*`<summary.brma_samples>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.brma_samples.md)
+  [`as.data.frame(`*`<brma_samples_list>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.brma_samples.md)
+  : Convert brma_samples Results to Data Frames
+- [`as.data.frame(`*`<summary_heterogeneity.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.summary_heterogeneity.brma.md)
+  [`as.data.frame(`*`<summary_heterogeneity.brma_list>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.summary_heterogeneity.brma.md)
+  : Convert Heterogeneity Summaries to Data Frames
+- [`as.data.frame(`*`<summary_models.RoBMA>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.summary_models.RoBMA.md)
+  : Convert Model-Weight Summaries to a Data Frame
+- [`as.data.frame(`*`<marginal_means.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.marginal_means.brma.md)
+  [`as.data.frame(`*`<summary.marginal_means.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.marginal_means.brma.md)
+  : Convert Marginal Means to a Data Frame
+- [`as.data.frame(`*`<zplot_brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.zplot_brma.md)
+  [`as.data.frame(`*`<summary.zplot_brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.zplot_brma.md)
+  : Convert Z-Plot Summaries to a Data Frame
+- [`as.data.frame(`*`<vif.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.vif.brma.md)
+  : Convert VIF Results to a Data Frame
+- [`as.data.frame(`*`<infl.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.infl.brma.md)
+  : Convert Influence Results to a Data Frame
+- [`as.data.frame(`*`<dfbetas.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.dfbetas.brma.md)
+  : Convert DFBETAS Results to a Data Frame
+- [`as.data.frame(`*`<covratio.brma>`*`)`](https://fbartos.github.io/RoBMA/reference/as.data.frame.covratio.brma.md)
+  : Convert COVRATIO Results to a Data Frame

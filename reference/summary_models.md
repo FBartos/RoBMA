@@ -20,11 +20,11 @@ print(x, ...)
 - object:
 
   a fitted RoBMA-class product-space object, including `RoBMA`,
-  `BMA`/`BMA.norm`, and `BMA.glmm`.
+  `RoBMA.mv`, `BMA`/`BMA.norm`, `BMA.glmm`, and `BMA.mv`.
 
 - ...:
 
-  additional arguments
+  unused additional arguments. Supplied arguments trigger a warning.
 
 - type:
 
@@ -50,8 +50,9 @@ combinations and posterior probabilities.
 
 ## Details
 
-Only mixture-prior components are summarized; non-mixture components are
-omitted.
+Model families include ordinary mixtures, spike-and-slab priors, and
+declared Bernoulli inclusion gates of random-effect components. Fixed
+components without a model choice are omitted.
 
 ## Examples
 

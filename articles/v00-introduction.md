@@ -3,21 +3,21 @@
 The `RoBMA` R package fits a comprehensive collection of Bayesian
 meta-analytic models ([Bartoš & Maier, 2020](#ref-RoBMA)). It provides
 single-model fits, meta-regression, location-scale models, multilevel
-models, fully Bayesian model-averaged ensembles, and built-in
-publication-bias adjustment using selection models, PET-PEESE, and
-Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is performed
-by JAGS through a custom C++ module that implements the weighted
-distributions used in selection models. Prior handling, plotting, and
-Bayesian diagnostics are delegated to the companion `BayesTools`
-package.
+and multivariate models, fully Bayesian model-averaged ensembles, and
+built-in publication-bias adjustment using selection models, PET-PEESE,
+and Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is
+performed by JAGS through a custom C++ module that implements the
+weighted distributions used in selection models. Prior handling,
+plotting, and Bayesian diagnostics are delegated to the companion
+`BayesTools` package.
 
 This introduction maps the package at a high level and points to the
 more detailed vignettes that follow.
 
 ## System Requirements
 
-The `RoBMA` R package requires JAGS 4.3.1 or newer ([Plummer,
-2003](#ref-plummer2003jags)). Install JAGS from
+The `RoBMA` R package requires JAGS 4.x (4.3.1 or newer; JAGS 5 is not
+supported) ([Plummer, 2003](#ref-plummer2003jags)). Install JAGS from
 <https://mcmc-jags.sourceforge.io/> before installing the R package.
 
 ``` r
@@ -114,6 +114,7 @@ and the standard meta-analytic plots.
 | [*Publication-Bias Adjustment*](https://fbartos.github.io/RoBMA/articles/v11-metafor-parity-publication-bias.md) | [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md) / [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md) / [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) and [`metafor::selmodel()`](https://wviechtb.github.io/metafor/reference/selmodel.html) |
 | [*Location-Scale Models*](https://fbartos.github.io/RoBMA/articles/v12-metafor-parity-location-scale.md) | [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) with `scale` and `metafor::rma.ls()` |
 | [*Generalized Linear Mixed-Effects Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v13-metafor-parity-glmm.md) | [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md) and [`metafor::rma.glmm()`](https://wviechtb.github.io/metafor/reference/rma.glmm.html) for binomial and Poisson outcomes |
+| [*Multivariate and Multilevel Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v14-metafor-parity-multivariate.md) | [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md) with known sampling covariance matrices and structured random effects |
 
 Each vignette starts from a `metafor` package analysis and shows the
 matching `RoBMA` R package syntax, output, and diagnostics.
@@ -124,6 +125,7 @@ matching `RoBMA` R package syntax, output, and diagnostics.
 |:---|:---|
 | [*Bayesian Model Averaging*](https://fbartos.github.io/RoBMA/articles/v20-bayesian-model-averaging.md) | Accounting for model uncertainty across presence and absence of effect and heterogeneity, with posterior model probabilities and inclusion Bayes factors |
 | [*Robust Bayesian Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v21-robust-bayesian-meta-analysis.md) | Extending the ensemble to publication-bias models used in [`RoBMA()`](https://fbartos.github.io/RoBMA/reference/RoBMA.md), with `PSMA`, `PP`, and bespoke ensemble specifications |
+| [*Posterior Densities and Parameter Tests*](https://fbartos.github.io/RoBMA/articles/v22-posterior-densities-parameter-tests.md) | Likelihood-aware posterior densities and hypothesis tests with qCMDE and IWMDE |
 
 The first vignette introduces model averaging on an ensemble of models
 with and without effect and heterogeneity. The second extends the

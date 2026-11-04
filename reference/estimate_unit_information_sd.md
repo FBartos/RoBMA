@@ -14,13 +14,13 @@ estimate_unit_information_sd(sei, ni)
 
 - sei:
 
-  a complete numeric vector of strictly positive standard errors for
-  each study.
+  a non-empty complete numeric vector of finite strictly positive
+  standard errors for each study.
 
 - ni:
 
-  a complete numeric vector of strictly positive sample sizes for each
-  study, with the same length as `sei`.
+  a complete numeric vector of finite strictly positive sample sizes for
+  each study, with the same length as `sei`.
 
 ## Value
 

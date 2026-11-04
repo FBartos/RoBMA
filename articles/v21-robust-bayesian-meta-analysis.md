@@ -92,25 +92,25 @@ summary(fit_RoBMA)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Effect                 0.500       0.175        0.212                7.411
+#> Effect                 0.500       0.163        0.195                7.140
 #> Heterogeneity          0.500       1.000   >14999.000                   NA
-#> Publication Bias       0.500       0.960       24.126               16.142
+#> Publication Bias       0.500       0.971       33.562               17.894
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> mu  0.012 0.057 -0.064 0.000 0.203     0.00187          0.033  986 1.015
-#> tau 0.305 0.041  0.229 0.303 0.391     0.00046          0.011 8238 1.000
+#> mu  0.009 0.051 -0.064 0.000 0.184     0.00163          0.032 1131 1.018
+#> tau 0.305 0.041  0.230 0.304 0.389     0.00046          0.011 7863 1.000
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
 #> omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA    NA
-#> omega[0.025,0.05] 0.990 0.064 0.871 1.000 1.000     0.00094          0.015 5753 1.015
-#> omega[0.05,0.5]   0.978 0.109 0.508 1.000 1.000     0.00162          0.015 5103 1.004
-#> omega[0.5,0.95]   0.971 0.140 0.315 1.000 1.000     0.00215          0.015 4842 1.002
-#> omega[0.95,0.975] 0.971 0.140 0.315 1.000 1.000     0.00215          0.015 4848 1.002
-#> omega[0.975,1]    0.971 0.140 0.315 1.000 1.000     0.00215          0.015 4848 1.002
-#> PET               0.703 0.431 0.000 0.844 1.305     0.01067          0.025 1713 1.005
-#> PEESE             0.370 0.920 0.000 0.000 3.074     0.01949          0.021 2352 1.001
+#> omega[0.025,0.05] 0.990 0.065 0.838 1.000 1.000     0.00099          0.015 4553 1.001
+#> omega[0.05,0.5]   0.976 0.113 0.492 1.000 1.000     0.00185          0.016 4129 1.000
+#> omega[0.5,0.95]   0.968 0.147 0.300 1.000 1.000     0.00248          0.017 3986 1.001
+#> omega[0.95,0.975] 0.968 0.146 0.300 1.000 1.000     0.00248          0.017 3986 1.001
+#> omega[0.975,1]    0.968 0.146 0.300 1.000 1.000     0.00247          0.017 3990 1.001
+#> PET               0.692 0.435 0.000 0.833 1.308     0.01132          0.026 1485 1.001
+#> PEESE             0.417 0.972 0.000 0.000 3.140     0.02243          0.023 1881 1.000
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
@@ -131,8 +131,8 @@ summary_models(fit_RoBMA)
 #> 
 #> Effect
 #>                 Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> Spike(0)        Null              0.500       0.825        4.712                7.411
-#> Normal(0, 0.71) Alternative       0.500       0.175        0.212                7.411
+#> Spike(0)        Null              0.500       0.837        5.132                7.140
+#> Normal(0, 0.71) Alternative       0.500       0.163        0.195                7.140
 #> 
 #> Heterogeneity
 #>                         Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
@@ -141,25 +141,25 @@ summary_models(fit_RoBMA)
 #> 
 #> Publication Bias
 #>                                 Hypothesis  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> None                            Null              0.500       0.040        0.041               16.142
-#> omega[two-sided: .05]           Alternative       0.042       0.001        0.026               33.781
-#> omega[two-sided: .05, .1]       Alternative       0.042       0.000        0.005               57.747
-#> omega[one-sided: .05]           Alternative       0.042       0.004        0.095               17.724
-#> omega[one-sided: .025, .05]     Alternative       0.042       0.006        0.136               13.589
-#> omega[one-sided: .05, .5]       Alternative       0.042       0.009        0.220               10.720
-#> omega[one-sided: .025, .05, .5] Alternative       0.042       0.025        0.578                9.286
-#> PET                             Alternative       0.125       0.766       22.923                6.008
-#> PEESE                           Alternative       0.125       0.149        1.224                6.237
+#> None                            Null              0.500       0.029        0.030               17.894
+#> omega[two-sided: .05]           Alternative       0.042       0.001        0.015               38.105
+#> omega[two-sided: .05, .1]       Alternative       0.042       0.000        0.009               40.832
+#> omega[one-sided: .05]           Alternative       0.042       0.004        0.088               18.767
+#> omega[one-sided: .025, .05]     Alternative       0.042       0.006        0.140               13.028
+#> omega[one-sided: .05, .5]       Alternative       0.042       0.011        0.254               11.676
+#> omega[one-sided: .025, .05, .5] Alternative       0.042       0.026        0.625                9.984
+#> PET                             Alternative       0.125       0.757       21.767                6.304
+#> PEESE                           Alternative       0.125       0.166        1.394                6.410
 ```
 
 The posterior model weights show which sub-models the data prefer within
 each component’s mixture. The bias side of the ensemble concentrates
-posterior mass on PET (posterior probability $`0.77`$, individual
-inclusion BF $`\approx 23`$) with a smaller share on PEESE; the weight
-functions and the no-bias spike all receive negligible posterior weight.
-The `inclusion BF` column is the Bayes factor for that one sub-model
-against the rest of its mixture, so it does not need to agree with the
-component-level inclusion BF reported by
+posterior mass on PET (posterior probability $`0.68`$, individual
+inclusion BF $`\approx 15`$), followed by PEESE (posterior probability
+$`0.21`$); the remaining bias components together account for about
+$`0.10`$. The `inclusion BF` column is the Bayes factor for that one
+sub-model against the rest of its mixture, so it does not need to agree
+with the component-level inclusion BF reported by
 [`summary()`](https://rdrr.io/r/base/summary.html).
 
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) overlays the
@@ -184,19 +184,19 @@ distills the components and the pooled estimates into prose. With
 
 interpret(fit_RoBMA, scope = "all")
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
-#> Effect inclusion: moderate evidence against the effect (BF01 = 4.712).
+#> Effect inclusion: moderate evidence against the effect (BF01 = 5.132).
 #> Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf > 14999.000).
-#> Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 24.126).
-#> Pooled effect: model-averaged mean standardized mean difference = 0.012, 95% CrI [-0.064, 0.203].
-#> Pooled heterogeneity: model-averaged mean tau = 0.305, 95% CrI [0.229, 0.391].
+#> Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 33.562).
+#> Pooled effect: model-averaged mean standardized mean difference = 0.009, 95% CrI [-0.064, 0.184].
+#> Pooled heterogeneity: model-averaged mean tau = 0.305, 95% CrI [0.230, 0.389].
 #> Publication-bias estimate (omega[0,0.025]): model-averaged mean omega[0,0.025] = 1.000, 95% CrI [1.000, 1.000].
-#> Publication-bias estimate (omega[0.025,0.05]): model-averaged mean omega[0.025,0.05] = 0.990, 95% CrI [0.871, 1.000].
-#> Publication-bias estimate (omega[0.05,0.5]): model-averaged mean omega[0.05,0.5] = 0.978, 95% CrI [0.508, 1.000].
-#> Publication-bias estimate (omega[0.5,0.95]): model-averaged mean omega[0.5,0.95] = 0.971, 95% CrI [0.315, 1.000].
-#> Publication-bias estimate (omega[0.95,0.975]): model-averaged mean omega[0.95,0.975] = 0.971, 95% CrI [0.315, 1.000].
-#> Publication-bias estimate (omega[0.975,1]): model-averaged mean omega[0.975,1] = 0.971, 95% CrI [0.315, 1.000].
-#> Publication-bias estimate (PET): model-averaged mean PET = 0.703, 95% CrI [0.000, 1.305].
-#> Publication-bias estimate (PEESE): model-averaged mean PEESE = 0.370, 95% CrI [0.000, 3.074].
+#> Publication-bias estimate (omega[0.025,0.05]): model-averaged mean omega[0.025,0.05] = 0.990, 95% CrI [0.838, 1.000].
+#> Publication-bias estimate (omega[0.05,0.5]): model-averaged mean omega[0.05,0.5] = 0.976, 95% CrI [0.492, 1.000].
+#> Publication-bias estimate (omega[0.5,0.95]): model-averaged mean omega[0.5,0.95] = 0.968, 95% CrI [0.300, 1.000].
+#> Publication-bias estimate (omega[0.95,0.975]): model-averaged mean omega[0.95,0.975] = 0.968, 95% CrI [0.300, 1.000].
+#> Publication-bias estimate (omega[0.975,1]): model-averaged mean omega[0.975,1] = 0.968, 95% CrI [0.300, 1.000].
+#> Publication-bias estimate (PET): model-averaged mean PET = 0.692, 95% CrI [0.000, 1.308].
+#> Publication-bias estimate (PEESE): model-averaged mean PEESE = 0.417, 95% CrI [0.000, 3.140].
 ```
 
 ## Preset Ensembles
@@ -285,11 +285,11 @@ fit_RoBMA_custom <- RoBMA(
 
 interpret(fit_RoBMA_custom, scope = c("components", "estimates"))
 #> Robust Bayesian Model-Averaged Random-Effects Model (k = 81).
-#> Effect inclusion: moderate evidence against the effect (BF01 = 4.894).
+#> Effect inclusion: moderate evidence against the effect (BF01 = 5.219).
 #> Heterogeneity inclusion: strong evidence in favor of heterogeneity (BFrf > 14999.000).
-#> Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 22.189).
-#> Pooled effect: model-averaged mean standardized mean difference = 0.009, 95% CrI [-0.076, 0.171].
-#> Pooled heterogeneity: model-averaged mean tau = 0.304, 95% CrI [0.229, 0.392].
+#> Publication Bias inclusion: strong evidence in favor of publication bias (BFpb = 23.821).
+#> Pooled effect: model-averaged mean standardized mean difference = 0.008, 95% CrI [-0.071, 0.168].
+#> Pooled heterogeneity: model-averaged mean tau = 0.304, 95% CrI [0.227, 0.391].
 ```
 
 The two ensembles agree on all three component inclusion conclusions:

@@ -46,7 +46,9 @@ hist(
 
 - add:
 
-  whether to add to existing plot. Defaults to `FALSE`.
+  whether to add to an existing base plot. Defaults to `FALSE`. For
+  ggplot, combine the histogram and density layers with `+`;
+  `add = TRUE` is unsupported.
 
 - plot_thresholds:
 
@@ -66,17 +68,24 @@ hist(
 
 - ...:
 
-  additional graphical parameters.
+  additional graphical parameters, such as `xlim` and `ylim`. Use
+  `as_data = TRUE` to return histogram data without drawing.
 
 ## Value
 
-`NULL` invisibly for base graphics, or a ggplot2 object.
+`NULL` invisibly for base graphics, a ggplot2 object, or a data frame
+with columns `x`, `density`, and `breaks` (bin widths) when
+`as_data = TRUE`.
 
 ## Details
 
 Z-statistics are computed as effect size divided by standard error
 (`yi / sei`). Histogram bins are adjusted to align with significance
-thresholds when selection model priors are present.
+thresholds when selection model priors are present. The bins cover
+`from` to `to`; when `by` does not divide that range, the last bin ends
+at `to`. `xlim` and `ylim` set the displayed axis ranges without
+changing the bins. Standalone ggplot histograms scale automatically to
+added layers unless `ylim` is supplied.
 
 ## See also
 

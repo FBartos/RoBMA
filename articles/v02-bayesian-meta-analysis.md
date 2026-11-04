@@ -93,8 +93,8 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>       Mean    SD  0.025    0.5  0.975
-#> mu  -0.688 0.186 -1.056 -0.682 -0.292
-#> tau  0.563 0.136  0.334  0.552  0.858
+#> mu  -0.689 0.182 -1.057 -0.688 -0.330
+#> tau  0.572 0.143  0.342  0.554  0.897
 ```
 
 The posterior mean for the log risk ratio is close to the REML estimate
@@ -109,8 +109,8 @@ returns the same summary, backtransformed to the risk-ratio scale via
 pooled_effect(fit1_brma, transform = "EXP")
 #> 
 #> Pooled Effect Size (risk ratio)
-#>     Mean Median 0.025 0.975
-#> mu 0.511  0.506 0.348 0.747
+#>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
+#> mu 0.510  0.503 0.348 0.719    0.145    1.722
 #> Effect estimates are summarized on the risk ratio scale using EXP on the log risk ratio measure.
 ```
 
@@ -152,10 +152,10 @@ summary_heterogeneity(fit1_brma)
 #> 
 #> Heterogeneity Estimates:
 #>        Mean Median  0.025  0.975
-#> tau   0.563  0.552  0.334  0.858
-#> tau2  0.336  0.305  0.112  0.735
-#> I2   91.153 92.030 80.883 96.532
-#> H2   13.712 12.547  5.231 28.832
+#> tau   0.572  0.554  0.342  0.897
+#> tau2  0.348  0.307  0.117  0.805
+#> I2   91.356 92.072 81.601 96.821
+#> H2   14.162 12.614  5.435 31.452
 ```
 
 ## Funnel Plot
@@ -173,6 +173,48 @@ funnel(fit1_brma, main = "RoBMA", xlim = c(-2, 1), ylim = c(0, 0.8), sampling_he
 ```
 
 ![](v02-bayesian-meta-analysis_files/figure-html/funnel-plot-1.png)
+
+## Forest Plot
+
+[`metafor::forest()`](https://wviechtb.github.io/metafor/reference/forest.html)
+uses the `metafor` package’s forest-plot layout for
+[`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) objects.
+The `ilab` arguments add study-level columns, following the same pattern
+used in the `metafor` package documentation. Here we plot the simple
+random-effects fit and add the study labels and tuberculosis counts.
+
+``` r
+
+study_labels  <- paste(dat[["author"]], dat[["year"]], sep = ", ")
+study_columns <- dat[, c("tpos", "tneg", "cpos", "cneg")]
+colnames(study_columns) <- c("TB+", "TB-", "TB+", "TB-")
+
+par(mar = c(4, 4, 2, 1))
+forest_info <- metafor::forest(
+  fit1_brma,
+  addpred = TRUE, predstyle = "bar",
+  mlab = "Posterior estimate", header = c("Study", "Risk Ratio [95% CI]"),
+  slab = study_labels, ilab = study_columns,
+  ilab.lab = colnames(study_columns),
+  ilab.xpos = c(-9.5, -8.0, -6.0, -4.5),
+  xlim = c(-16, 6), alim = c(-3, 2), at = log(c(0.05, 0.25, 1, 4)),
+  atransf = exp,
+  cex = 0.75, top = 4
+)
+op <- par(cex = forest_info[["cex"]], font = 2)
+text(
+  x      = c(-8.75, -5.25),
+  y      = forest_info[["ylim"]][2] - 0.2,
+  labels = c("Vaccinated", "Control")
+)
+```
+
+![](v02-bayesian-meta-analysis_files/figure-html/forest-plot-1.png)
+
+``` r
+
+par(op)
+```
 
 ## Meta-Regression with a Continuous Moderator
 
@@ -226,12 +268,12 @@ summary(fit2_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 0.303 0.131 0.088 0.289 0.587
+#> tau 0.310 0.143 0.087 0.291 0.646
 #> 
 #> Meta-Regression
 #>             Mean    SD  0.025    0.5  0.975
-#> intercept  0.217 0.275 -0.362  0.237  0.712
-#> ablat     -0.028 0.008 -0.043 -0.028 -0.011
+#> intercept  0.208 0.285 -0.412  0.229  0.736
+#> ablat     -0.027 0.008 -0.043 -0.028 -0.010
 ```
 
 [`regplot()`](https://fbartos.github.io/RoBMA/reference/regplot.md)
@@ -256,9 +298,9 @@ predict(fit2_brma, newdata = new_data, type = "terms")
 #> 
 #> Location Term Posterior Prediction:
 #>         Mean Median  0.025  0.975
-#> mu[1] -0.196 -0.182 -0.587  0.123
-#> mu[2] -0.746 -0.743 -0.994 -0.506
-#> mu[3] -1.297 -1.307 -1.722 -0.835
+#> mu[1] -0.202 -0.188 -0.601  0.136
+#> mu[2] -0.749 -0.745 -0.999 -0.509
+#> mu[3] -1.295 -1.301 -1.727 -0.821
 ```
 
 ## Comparing Models with Bayes Factors
@@ -279,7 +321,7 @@ fit2_brma <- add_marglik(fit2_brma)
 ``` r
 
 bf(fit2_brma, fit1_brma)
-#> Bayes factor in favor of Model 1 over Model 2: 14.76119
+#> Bayes factor in favor of Model 1 over Model 2: 15.22299
 ```
 
 The Bayes factor quantifies how much the data shift the relative
@@ -314,14 +356,14 @@ summary(fit3_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> tau 0.344 0.144 0.100 0.330 0.674
+#> tau 0.360 0.149 0.112 0.342 0.700
 #> 
 #> Meta-Regression
 #>                     Mean    SD  0.025    0.5  0.975
-#> intercept          0.287 0.355 -0.468  0.312  0.929
-#> ablat             -0.026 0.009 -0.042 -0.027 -0.008
-#> alloc[random]     -0.249 0.251 -0.749 -0.248  0.251
-#> alloc[systematic]  0.003 0.276 -0.489 -0.017  0.580
+#> intercept          0.258 0.362 -0.508  0.277  0.925
+#> ablat             -0.026 0.009 -0.042 -0.027 -0.006
+#> alloc[random]     -0.222 0.260 -0.751 -0.218  0.281
+#> alloc[systematic]  0.029 0.280 -0.498  0.021  0.606
 ```
 
 The `RoBMA` R package also allows direct visualization of categorical
@@ -350,13 +392,13 @@ summary(emm)
 #> 
 #> Marginal Means:
 #>                     Mean    SD  0.025    0.5  0.975
-#> intercept         -0.592 0.217 -1.061 -0.585 -0.180
-#> ablat[-1SD]       -0.212 0.247 -0.737 -0.197  0.234
-#> ablat[0SD]        -0.592 0.217 -1.061 -0.585 -0.180
-#> ablat[1SD]        -0.971 0.254 -1.494 -0.971 -0.429
-#> alloc[alternate]  -0.592 0.217 -1.061 -0.585 -0.180
-#> alloc[random]     -0.841 0.177 -1.192 -0.833 -0.516
-#> alloc[systematic] -0.588 0.214 -0.999 -0.605 -0.154
+#> intercept         -0.613 0.223 -1.058 -0.609 -0.169
+#> ablat[-1SD]       -0.237 0.250 -0.755 -0.229  0.236
+#> ablat[0SD]        -0.613 0.223 -1.058 -0.609 -0.169
+#> ablat[1SD]        -0.989 0.267 -1.505 -0.993 -0.432
+#> alloc[alternate]  -0.613 0.223 -1.058 -0.609 -0.169
+#> alloc[random]     -0.835 0.181 -1.214 -0.828 -0.491
+#> alloc[systematic] -0.583 0.227 -1.016 -0.592 -0.103
 ```
 
 The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
@@ -394,7 +436,7 @@ fit3_brma <- add_loo(fit3_brma)
 head(rstudent(fit3_metafor)$z)
 #> [1]  0.4369227 -0.2024807 -0.3084436 -0.1187827 -0.4726194  0.4726194
 head(rstudent(fit3_brma)$z)
-#> [1]  0.3515262 -0.3483678 -0.3940142 -0.4052585 -0.5379945  0.3420329
+#> [1]  0.3340480 -0.3631891 -0.4012927 -0.4301325 -0.4448620  0.4307321
 ```
 
 [`qqnorm()`](https://rdrr.io/r/stats/qqnorm.html) checks the residuals
@@ -417,13 +459,13 @@ diagnostic is available.
 
 inf_brma <- influence(fit3_brma)
 head(inf_brma$inf)
-#>           rstudent      dffits      cook.d    cov.r   tau.del        hat
-#> Study 1  0.3515262  0.09742742 0.003051713 1.352210 0.3611943 0.08676324
-#> Study 2 -0.3483678 -0.16031362 0.009344464 1.672075 0.3683854 0.19988035
-#> Study 3 -0.3940142 -0.09201147 0.002596289 1.247964 0.3566583 0.06776189
-#> Study 4 -0.4052585 -0.25448939 0.028780571 2.209083 0.3775556 0.42974702
-#> Study 5 -0.5379945 -0.24916951 0.024724592 1.683551 0.3457254 0.53991804
-#> Study 6  0.3420329  0.21231431 0.022986373 2.516078 0.3785678 0.69164774
+#>           rstudent      dffits     cook.d    cov.r   tau.del        hat
+#> Study 1  0.3340480  0.09066758 0.01079896 1.389756 0.3781569 0.08940512
+#> Study 2 -0.3631891 -0.16662852 0.04063976 1.784436 0.3869998 0.20434930
+#> Study 3 -0.4012927 -0.09603475 0.01117284 1.292404 0.3740040 0.07010807
+#> Study 4 -0.4301325 -0.26295606 0.12076321 2.283518 0.3901040 0.42241446
+#> Study 5 -0.4448620 -0.22113760 0.08359183 1.925780 0.3715541 0.54476639
+#> Study 6  0.4307321  0.26637007 0.14271841 2.399854 0.3832925 0.68674031
 ```
 
 ## References

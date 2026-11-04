@@ -27,8 +27,12 @@ loo_compare(x, ..., unit = "estimate")
 
 ## Value
 
-A matrix of class `"compare.loo"` as returned by
-[`loo_compare`](https://mc-stan.org/loo/reference/loo_compare.html).
+The comparison returned by
+[`loo_compare`](https://mc-stan.org/loo/reference/loo_compare.html) for
+the stored results: a data frame of class `"compare.loo"` with one row
+per model, ordered by expected predictive performance, which prints as
+loo prints it. The models are named `model1`, `model2`, ... unless the
+call names them.
 
 ## Details
 
@@ -37,10 +41,18 @@ predictive performance (ELPD).
 
 **Important for model comparison:** When comparing models via
 [`loo_compare`](https://mc-stan.org/loo/reference/loo_compare.html), the
-selection is based on expected out-of-sample predictive performance.
-This evaluates how well models predict *new* observations, not how well
-they fit the observed data. RoBMA rejects comparisons with different
-outcome targets/data, `unit`, or implied `conditioning_depth`.
+selection is based on expected predictive performance for the documented
+deletion target, not in-sample fit. For dependent estimates, deleting
+one estimate may retain other observations from its fitted dependency
+block; this is not new-group prediction. RoBMA rejects comparisons with
+different outcome targets/data, `unit`, or retained context. A known
+sampling covariance without correlated blocks (e.g., `V = diag(sei^2)`
+in [`brma.mv`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)) is
+the outcome data of its standard errors, whereas a correlated `V` is a
+different target. The same compatibility key is applied separately to
+LOO and WAIC; the two criteria cannot be mixed in one comparison table.
+Sampled versus marginalized local-effect provenance does not by itself
+block comparison.
 
 ## See also
 

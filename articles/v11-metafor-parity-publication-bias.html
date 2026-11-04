@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Publication-Bias Adjustment • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Publication-Bias Adjustment">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -193,15 +195,15 @@ distributions for meta-analytic parameters, the bias-adjustment prior
 distributions are not affected by <code>rescale_priors</code>; they can
 be replaced via <code>prior_bias</code>, and the weight-function
 <code>steps</code> can be changed directly via the <code>steps</code>
-argument. The bias-adjustment models rely on the
-<code>effect_direction</code> argument. Selection models penalize
-one-sided p-values evaluated against the expected sign of the effect,
-and the truncated PET and PEESE prior distributions constrain the
-small-study coefficient to pull the estimate toward zero from the
-dominant direction. The <code>effect_direction</code> argument tells the
-model which side that is. The default
-<code>effect_direction = "detect"</code> infers the direction from the
-median of <code>yi</code> (positive median yields
+argument.</p>
+<p>The bias-adjustment models rely on the <code>effect_direction</code>
+argument. Selection models penalize one-sided p-values evaluated against
+the expected sign of the effect, and the truncated PET and PEESE prior
+distributions constrain the small-study coefficient to pull the estimate
+toward zero from the dominant direction. The
+<code>effect_direction</code> argument tells the model which side that
+is. The default <code>effect_direction = "detect"</code> infers the
+direction from the median of <code>yi</code> (positive median yields
 <code>"positive"</code>, negative median yields
 <code>"negative"</code>). Set <code>effect_direction = "positive"</code>
 or <code>effect_direction = "negative"</code> explicitly when the
@@ -296,12 +298,12 @@ standardized mean differences.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;       Mean    SD  0.025    0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  -0.004 0.097 -0.196 -0.002 0.181</span></span>
-<span><span class="co">#&gt; tau  0.307 0.040  0.233  0.305 0.391</span></span>
+<span><span class="co">#&gt; mu  -0.003 0.098 -0.200 -0.003 0.182</span></span>
+<span><span class="co">#&gt; tau  0.308 0.040  0.234  0.306 0.393</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; PET 0.932 0.386 0.214 0.924 1.699</span></span></code></pre></div>
+<span><span class="co">#&gt; PET 0.930 0.394 0.189 0.922 1.722</span></span></code></pre></div>
 <p>The posterior mean of <code>mu</code> is the bias-corrected average
 effect; the <code>PET</code> coefficient quantifies how strongly small
 studies pull the meta-analytic mean. The left panel shows the prior and
@@ -372,12 +374,12 @@ scale rescaled to the effect-size measure.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.092 0.063 -0.031 0.092 0.216</span></span>
-<span><span class="co">#&gt; tau 0.304 0.041  0.230 0.302 0.389</span></span>
+<span><span class="co">#&gt; mu  0.092 0.063 -0.033 0.092 0.217</span></span>
+<span><span class="co">#&gt; tau 0.305 0.040  0.231 0.303 0.390</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;        Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; PEESE 1.840 0.759 0.376 1.837 3.350</span></span></code></pre></div>
+<span><span class="co">#&gt; PEESE 1.844 0.753 0.407 1.833 3.368</span></span></code></pre></div>
 <p>As for PET, the left panel shows the prior and posterior of the
 <code>PEESE</code> coefficient and the right panel shows the implied
 PEESE regression of effect on sampling variance.</p>
@@ -449,13 +451,13 @@ above.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.141 0.057 0.029 0.142 0.252</span></span>
-<span><span class="co">#&gt; tau 0.293 0.043 0.212 0.292 0.380</span></span>
+<span><span class="co">#&gt; mu  0.142 0.057 0.029 0.142 0.252</span></span>
+<span><span class="co">#&gt; tau 0.294 0.044 0.213 0.293 0.385</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                 Mean    SD 0.025   0.5 0.975</span></span>
 <span><span class="co">#&gt; omega[0,0.025] 1.000 0.000 1.000 1.000 1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,1] 0.621 0.192 0.273 0.614 0.969</span></span>
+<span><span class="co">#&gt; omega[0.025,1] 0.621 0.194 0.267 0.617 0.969</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>The omega vector is reported with <code>omega[0, 0.025]</code> fixed
 to
@@ -562,12 +564,12 @@ estimate <em>up</em> rather than down.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;       Mean    SD  0.025    0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  -0.004 0.102 -0.207 -0.004 0.191</span></span>
-<span><span class="co">#&gt; tau  0.308 0.040  0.234  0.305 0.391</span></span>
+<span><span class="co">#&gt; mu  -0.002 0.100 -0.207 -0.002 0.193</span></span>
+<span><span class="co">#&gt; tau  0.308 0.041  0.234  0.306 0.395</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; PET 0.933 0.408 0.167 0.929 1.755</span></span></code></pre></div>
+<span><span class="co">#&gt; PET 0.926 0.405 0.147 0.920 1.753</span></span></code></pre></div>
 <p>The two panels below show the prior and posterior of the
 <code>PET</code> coefficient under the default truncated prior
 distribution (left) and the relaxed full-real-line prior distribution
@@ -607,12 +609,12 @@ zero.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.093 0.064 -0.034 0.093 0.219</span></span>
-<span><span class="co">#&gt; tau 0.305 0.041  0.228 0.303 0.392</span></span>
+<span><span class="co">#&gt; mu  0.094 0.064 -0.031 0.093 0.220</span></span>
+<span><span class="co">#&gt; tau 0.305 0.041  0.228 0.303 0.391</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;        Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; PEESE 1.827 0.780 0.306 1.825 3.351</span></span></code></pre></div>
+<span><span class="co">#&gt; PEESE 1.816 0.775 0.288 1.819 3.317</span></span></code></pre></div>
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">2</span>, <span class="fl">1</span><span class="op">)</span>, cex.axis <span class="op">=</span> <span class="fl">0.8</span>, cex.lab <span class="op">=</span> <span class="fl">0.8</span>, cex.main <span class="op">=</span> <span class="fl">0.85</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_PEESE_brma</span>, parameter <span class="op">=</span> <span class="st">"PEESE"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, main <span class="op">=</span> <span class="st">"PEESE (default)"</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">5</span>, <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span>
@@ -707,13 +709,13 @@ and
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.167 0.060 0.057 0.165 0.291</span></span>
-<span><span class="co">#&gt; tau 0.306 0.045 0.223 0.303 0.402</span></span>
+<span><span class="co">#&gt; mu  0.167 0.060 0.054 0.164 0.291</span></span>
+<span><span class="co">#&gt; tau 0.305 0.045 0.224 0.302 0.399</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                 Mean    SD 0.025   0.5 0.975</span></span>
 <span><span class="co">#&gt; omega[0,0.025] 1.000 0.000 1.000 1.000 1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,1] 0.767 0.266 0.371 0.726 1.384</span></span>
+<span><span class="co">#&gt; omega[0.025,1] 0.766 0.261 0.378 0.726 1.390</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>The dashed line at <code>omega = 1</code> marks the upper bound of
 the default Dirichlet weight, where the <code>log_omega</code> prior
@@ -789,7 +791,7 @@ Statistical Software</em>, <em>36</em>(3), 1–48. <a href="https://doi.org/10.1
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

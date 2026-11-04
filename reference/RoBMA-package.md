@@ -4,12 +4,18 @@ RoBMA provides Bayesian meta-analysis, meta-regression, multilevel
 meta-analysis, model averaging, and publication-bias adjustment. The
 main user-facing fitters are
 [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md),
+[`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md),
 [`BMA`](https://fbartos.github.io/RoBMA/reference/BMA.md),
+[`BMA.mv`](https://fbartos.github.io/RoBMA/reference/BMA.mv.md),
 [`brma`](https://fbartos.github.io/RoBMA/reference/brma.md),
+[`brma.mv`](https://fbartos.github.io/RoBMA/reference/brma.mv.md),
 [`brma.glmm`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md),
 [`bselmodel`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
-[`bPET`](https://fbartos.github.io/RoBMA/reference/bPET.md), and
-[`bPEESE`](https://fbartos.github.io/RoBMA/reference/bPEESE.md).
+[`bselmodel.mv`](https://fbartos.github.io/RoBMA/reference/bselmodel.mv.md),
+[`bPET`](https://fbartos.github.io/RoBMA/reference/bPET.md),
+[`bPEESE`](https://fbartos.github.io/RoBMA/reference/bPEESE.md),
+[`bPET.mv`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md), and
+[`bPEESE.mv`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md).
 
 ## User guide
 

@@ -95,7 +95,9 @@ galbraith(x, ...)
 
 - targs:
 
-  optional list of additional arguments passed to the `transf` function.
+  optional list passed to `transf` as its second argument,
+  `transf(x, targs)`, as in metafor (e.g.,
+  `transf = metafor::transf.exp.int, targs = list(tau2 = 0)`).
 
 - plot_type:
 
@@ -155,27 +157,39 @@ ggplot object if `plot_type = "ggplot"`.
 
 If `as_data = TRUE`, returns a list with the computed plot data
 including: `points`, `refline`, `band`, `arc`, `arc_ticks`, `ci_arc`,
-`ci_ticks`, `xlim`, and `zlim`.
+`ci_ticks`, `xlim`, and `zlim`. Returned arc coordinates use plain
+trigonometry; both renderers recompute arcs for their aspect ratio, so
+the data do not encode final device geometry.
 
 ## Details
 
 The radial (Galbraith) plot transforms each study's effect size and
 standard error into a point in precision-standardized space:
 
-- x-axis: precision = \\1/\sqrt{v_i + \hat{\tau}^2}\\
+- x-axis: precision = \\1/\sqrt{v_i + \hat{\tau}\_i^2}\\
 
-- z-axis: standardized effect = \\y_i/\sqrt{v_i + \hat{\tau}^2}\\
+- z-axis: standardized effect = \\y_i/\sqrt{v_i + \hat{\tau}\_i^2}\\
 
-Under the random-effects model, studies consistent with the pooled
-effect should fall within the sloped parallelogram confidence band
-around the pooled-effect line. The arc on the right side allows reading
+For ordinary and specialized multilevel models, the marginal
+heterogeneity is common and \\\hat{\tau}\_i = \hat{\tau}\\.
+Random-formula models use each row's marginal random-effect standard
+deviation. Known sampling covariance uses its diagonal for \\v_i\\;
+plotted points can therefore be dependent.
+
+For a single normal model, the sloped parallelogram is the usual
+marginal Gaussian reference band around the pooled-effect line. For
+GLMMs it is a continuity-corrected effect-size approximation; for
+selection, PET/PEESE, and product-space models it remains a
+bias-adjusted posterior-mean reference rather than an exact envelope of
+the fitted observation law. The arc on the right side allows reading
 individual effect sizes by projecting from the origin through a point to
 the arc; when `center = TRUE`, the plotted slope is relative to the
 pooled effect.
 
-This function requires an intercept-only model; radial plots are not
-meaningful for meta-regression or location-scale models where the pooled
-effect varies across studies.
+This function requires an intercept-only model without scale regression
+or likelihood weights. Likelihood-weighted fits do not have a single
+radial precision target because the observational variance and
+power-likelihood information scales differ.
 
 `galbraith()` is a same-argument alias for `radial()`.
 

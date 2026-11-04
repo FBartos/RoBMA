@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Tutorial: Adjusting for Publication Bias in JASP and R - Selection Models, PET-PEESE, and Robust Bayesian Meta-Analysis">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -85,7 +87,7 @@ Bartoš, Maximilian Maier, Daniel S. Quintana &amp; Eric-Jan
 Wagenmakers</h4>
             
             <h4 data-toc-skip class="date">31st of May 2023 (updated:
-30th of April 2026)</h4>
+25th of October 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v30-tutorial.Rmd" class="external-link"><code>vignettes/v30-tutorial.Rmd</code></a></small>
       <div class="d-none name"><code>v30-tutorial.Rmd</code></div>
@@ -597,7 +599,8 @@ PEESE prior scale was 5.</p>
 <span>  prior_effect                 <span class="op">=</span> <span class="va">prior_effect_361</span>,</span>
 <span>  prior_heterogeneity          <span class="op">=</span> <span class="va">prior_heterogeneity_361</span>,</span>
 <span>  prior_bias                   <span class="op">=</span> <span class="va">prior_bias_361</span>,</span>
-<span>  data <span class="op">=</span> <span class="va">dfz</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  data <span class="op">=</span> <span class="va">dfz</span>, seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  burnin <span class="op">=</span> <span class="fl">3000</span>, sample <span class="op">=</span> <span class="fl">8000</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>This step used to take some time depending on your CPU. The 4.0
 version of the package uses product-space parameterization, which
@@ -612,25 +615,26 @@ fitted model.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
-<span><span class="co">#&gt; Effect                 0.500       0.544        1.192                8.035</span></span>
-<span><span class="co">#&gt; Heterogeneity          0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Publication Bias       0.500       0.839        5.193                6.826</span></span>
+<span><span class="co">#&gt; Effect                 0.500       0.586        1.417                6.320</span></span>
+<span><span class="co">#&gt; Heterogeneity          0.500       1.000    23999.000              100.004</span></span>
+<span><span class="co">#&gt; Publication Bias       0.500       0.838        5.179                4.912</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">Bayes factor MC error for tau is based on only 1 posterior samples from the less frequent model.</span></span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.098 0.113 -0.007 0.039 0.300     0.00479          0.042  560 1.002</span></span>
-<span><span class="co">#&gt; tau 0.166 0.057  0.085 0.156 0.300     0.00157          0.028 1460 1.002</span></span>
+<span><span class="co">#&gt; mu  0.106 0.114 -0.002 0.092 0.301     0.00372          0.033  935 1.002</span></span>
+<span><span class="co">#&gt; tau 0.163 0.056  0.082 0.153 0.297     0.00116          0.021 2340 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000  1.000          NA             NA   NA    NA</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.929 0.164 0.400 1.000  1.000     0.00267          0.016 4078 1.004</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.724 0.366 0.058 1.000  1.000     0.00985          0.027 1478 1.005</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.679 0.410 0.026 1.000  1.000     0.01142          0.028 1414 1.005</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.685 0.408 0.026 1.000  1.000     0.01149          0.028 1387 1.005</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.696 0.410 0.026 1.000  1.000     0.01150          0.028 1392 1.005</span></span>
-<span><span class="co">#&gt; PET               0.820 1.232 0.000 0.000  3.331     0.05421          0.044  551 1.003</span></span>
-<span><span class="co">#&gt; PEESE             1.194 4.682 0.000 0.000 19.863     0.08932          0.019 2614 1.084</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.935 0.155 0.425 1.000  1.000     0.00183          0.012 7153 1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.739 0.359 0.059 1.000  1.000     0.00719          0.020 2525 1.000</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.699 0.400 0.028 1.000  1.000     0.00822          0.021 2403 1.000</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.707 0.398 0.028 1.000  1.000     0.00824          0.021 2354 1.000</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.718 0.399 0.028 1.000  1.000     0.00836          0.021 2344 1.000</span></span>
+<span><span class="co">#&gt; PET               0.771 1.209 0.000 0.000  3.299     0.03924          0.032  951 1.002</span></span>
+<span><span class="co">#&gt; PEESE             1.574 5.165 0.000 0.000 21.352     0.07784          0.015 4496 1.000</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>The printed output consists of three parts. The first table called
 <code>Component Inclusion</code> contains information about the fitted
@@ -642,10 +646,10 @@ posterior model probabilities of models assuming the presence of an
 effect slightly increased. The last column contains information about
 the evidence in favor of the presence of any of those components.
 Evidence for the presence of an effect is undecided; the models assuming
-the presence of an effect are only ~1.2 times more likely given the data
-than the models assuming the absence of an effect. However, we find
+the presence of an effect are only about 1.3 times more likely given the
+data than the models assuming the absence of an effect. However, we find
 overwhelming evidence in favor of heterogeneity, with the models
-assuming the presence of heterogeneity being more than 10,000 times more
+assuming the presence of heterogeneity being about 8,000 times more
 likely given the data than models assuming the absence of heterogeneity,
 and moderate evidence in favor of publication bias.</p>
 <p>The second table called <code>Estimates</code> contains information
@@ -661,8 +665,8 @@ effect size estimate on the correlation scale with
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, output_measure <span class="op">=</span> <span class="st">"COR"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pooled Effect Size (correlation)</span></span>
-<span><span class="co">#&gt;     Mean Median  0.025 0.975</span></span>
-<span><span class="co">#&gt; mu 0.096  0.039 -0.007 0.291</span></span>
+<span><span class="co">#&gt;     Mean Median  0.025 0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 0.104  0.092 -0.002 0.292   -0.303    0.464</span></span>
 <span><span class="co">#&gt; Effect estimates are transformed from Fisher's z to correlation.</span></span></code></pre></div>
 <p>Now, we have obtained the model-averaged effect size estimate on the
 correlation scale. If we were interested in estimates model-averaged
@@ -677,42 +681,43 @@ function.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
-<span><span class="co">#&gt; Effect                 0.500       0.544        1.192                8.035</span></span>
-<span><span class="co">#&gt; Heterogeneity          0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Publication Bias       0.500       0.839        5.193                6.826</span></span>
+<span><span class="co">#&gt; Effect                 0.500       0.586        1.417                6.320</span></span>
+<span><span class="co">#&gt; Heterogeneity          0.500       1.000    23999.000              100.004</span></span>
+<span><span class="co">#&gt; Publication Bias       0.500       0.838        5.179                4.912</span></span>
+<span><span class="co">#&gt; <span style="color: #BB0000;">Bayes factor MC error for tau is based on only 1 posterior samples from the less frequent model.</span></span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.098 0.113 -0.007 0.039 0.300     0.00479          0.042  560 1.002</span></span>
-<span><span class="co">#&gt; tau 0.166 0.057  0.085 0.156 0.300     0.00157          0.028 1460 1.002</span></span>
+<span><span class="co">#&gt; mu  0.106 0.114 -0.002 0.092 0.301     0.00372          0.033  935 1.002</span></span>
+<span><span class="co">#&gt; tau 0.163 0.056  0.082 0.153 0.297     0.00116          0.021 2340 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.180 0.094 -0.052 0.199 0.316</span></span>
-<span><span class="co">#&gt; tau 0.166 0.057  0.085 0.156 0.300</span></span>
+<span><span class="co">#&gt; mu  0.180 0.092 -0.046 0.197 0.314</span></span>
+<span><span class="co">#&gt; tau 0.163 0.056  0.082 0.153 0.297</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5  0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000  1.000          NA             NA   NA    NA</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.929 0.164 0.400 1.000  1.000     0.00267          0.016 4078 1.004</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.724 0.366 0.058 1.000  1.000     0.00985          0.027 1478 1.005</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.679 0.410 0.026 1.000  1.000     0.01142          0.028 1414 1.005</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.685 0.408 0.026 1.000  1.000     0.01149          0.028 1387 1.005</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.696 0.410 0.026 1.000  1.000     0.01150          0.028 1392 1.005</span></span>
-<span><span class="co">#&gt; PET               0.820 1.232 0.000 0.000  3.331     0.05421          0.044  551 1.003</span></span>
-<span><span class="co">#&gt; PEESE             1.194 4.682 0.000 0.000 19.863     0.08932          0.019 2614 1.084</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.935 0.155 0.425 1.000  1.000     0.00183          0.012 7153 1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.739 0.359 0.059 1.000  1.000     0.00719          0.020 2525 1.000</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.699 0.400 0.028 1.000  1.000     0.00822          0.021 2403 1.000</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.707 0.398 0.028 1.000  1.000     0.00824          0.021 2354 1.000</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.718 0.399 0.028 1.000  1.000     0.00836          0.021 2344 1.000</span></span>
+<span><span class="co">#&gt; PET               0.771 1.209 0.000 0.000  3.299     0.03924          0.032  951 1.002</span></span>
+<span><span class="co">#&gt; PEESE             1.574 5.165 0.000 0.000 21.352     0.07784          0.015 4496 1.000</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Publication Bias</span></span>
 <span><span class="co">#&gt;                     Mean    SD 0.025    0.5  0.975</span></span>
 <span><span class="co">#&gt; omega[0,0.025]     1.000 0.000 1.000  1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05]  0.824 0.219 0.301  0.930  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]    0.317 0.231 0.038  0.257  0.881</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]    0.207 0.203 0.016  0.130  0.797</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975]  0.222 0.228 0.016  0.131  0.884</span></span>
-<span><span class="co">#&gt; omega[0.975,1]     0.249 0.283 0.016  0.131  1.000</span></span>
-<span><span class="co">#&gt; PET                2.340 0.881 0.234  2.557  3.609</span></span>
-<span><span class="co">#&gt; PEESE             14.307 8.665 1.077 13.022 30.374</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05]  0.832 0.211 0.320  0.939  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]    0.327 0.235 0.039  0.269  0.894</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]    0.223 0.211 0.016  0.141  0.804</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975]  0.242 0.239 0.016  0.144  0.902</span></span>
+<span><span class="co">#&gt; omega[0.975,1]     0.271 0.294 0.016  0.144  1.000</span></span>
+<span><span class="co">#&gt; PET                2.313 0.903 0.253  2.532  3.656</span></span>
+<span><span class="co">#&gt; PEESE             13.413 8.276 0.925 11.818 29.284</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>We can also obtain summary information about the individual models
 with <code><a href="../reference/summary_models.html">summary_models()</a></code>. The resulting table shows the prior
@@ -725,40 +730,40 @@ individual models.</p>
 <span><span class="co">#&gt;  Effect         Heterogeneity     Publication Bias                Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          None                                  0.125       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          None                                  0.125       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) None                                  0.125       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) None                                  0.125       0.161        1.348                6.826</span></span>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) None                                  0.125       0.000        0.000              100.004</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) None                                  0.125       0.162        1.351                4.911</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.013        1.258                8.325</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.015        1.434                6.734</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.020        1.919                7.333</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.021        2.017                5.631</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.034        3.364               10.331</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.049        4.944                5.385</span></span>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.034        3.373                7.603</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.052        5.158                3.909</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.046        4.539                9.147</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.044        4.414                5.362</span></span>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.040        3.928                7.158</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.046        4.594                4.285</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.042        4.172               10.041</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.044        4.352                5.399</span></span>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.036        3.556                8.249</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.044        4.338                4.129</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.066        6.720                8.382</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.046        4.581                5.185</span></span>
-<span><span class="co">#&gt;  Spike(0)       Spike(0)          PET                                   0.031       0.000        0.000                   NA</span></span>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.053        5.286                6.819</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.048        4.746                3.955</span></span>
+<span><span class="co">#&gt;  Spike(0)       Spike(0)          PET                                   0.031       0.000        0.001              100.004</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          PET                                   0.031       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) PET                                   0.031       0.242        9.919                9.488</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) PET                                   0.031       0.108        3.761                4.979</span></span>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) PET                                   0.031       0.220        8.744                7.731</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) PET                                   0.031       0.113        3.966                3.899</span></span>
 <span><span class="co">#&gt;  Spike(0)       Spike(0)          PEESE                                 0.031       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.5) Spike(0)          PEESE                                 0.031       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) PEESE                                 0.031       0.026        0.821               11.822</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) PEESE                                 0.031       0.058        1.897                7.284</span></span></code></pre></div>
+<span><span class="co">#&gt;  Spike(0)       InvGamma(1, 0.07) PEESE                                 0.031       0.031        0.985                9.356</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.5) InvGamma(1, 0.07) PEESE                                 0.031       0.087        2.939                4.365</span></span></code></pre></div>
 <p>MCMC diagnostics are included in the summary output. Visual
 diagnostics can be requested with <code><a href="../reference/plot_diagnostic.html">plot_diagnostic_trace()</a></code>,
 <code><a href="../reference/plot_diagnostic.html">plot_diagnostic_density()</a></code>, and
@@ -818,40 +823,40 @@ settings.</p>
 <span><span class="co">#&gt;  Effect                   Heterogeneity     Publication Bias                Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          None                                  0.125       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          None                                  0.125       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) None                                  0.125       0.001        0.004               43.714</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) None                                  0.125       0.335        3.529                3.941</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) None                                  0.125       0.001        0.007               26.741</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) None                                  0.125       0.336        3.542                3.953</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[two-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.000        0.019               57.735</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.020        1.965                6.890</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.000        0.044               37.802</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05]                 0.010       0.022        2.124                6.094</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[two-sided: .05, .1]             0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.001        0.089               26.739</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.029        2.797                5.445</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.001        0.057               33.346</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[two-sided: .05, .1]             0.010       0.031        2.992                5.238</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .05]                 0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.020        1.926               10.985</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.061        6.207                3.910</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.019        1.866               11.637</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05]                 0.010       0.061        6.171                4.599</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .025, .05]           0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.023        2.250                9.523</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.048        4.748                4.417</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.025        2.396               10.475</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05]           0.010       0.047        4.636                4.285</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .05, .5]             0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.023        2.243               11.087</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.054        5.387                4.043</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.019        1.800               12.223</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .05, .5]             0.010       0.046        4.622                4.382</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          omega[one-sided: .025, .05, .5]       0.010       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.032        3.093                9.838</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.043        4.303                4.545</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.032        3.188               10.879</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) omega[one-sided: .025, .05, .5]       0.010       0.046        4.595                4.431</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          PET                                   0.031       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          PET                                   0.031       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) PET                                   0.031       0.103        3.572               13.580</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PET                                   0.031       0.076        2.559                4.542</span></span>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) PET                                   0.031       0.108        3.735               13.878</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PET                                   0.031       0.078        2.630                4.661</span></span>
 <span><span class="co">#&gt;  Normal(0, 0.05)          Spike(0)          PEESE                                 0.031       0.000        0.000                   NA</span></span>
 <span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] Spike(0)          PEESE                                 0.031       0.000        0.000                   NA</span></span>
-<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) PEESE                                 0.031       0.031        0.981               11.427</span></span>
-<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PEESE                                 0.031       0.100        3.462                3.999</span></span></code></pre></div>
+<span><span class="co">#&gt;  Normal(0, 0.05)          InvGamma(1, 0.07) PEESE                                 0.031       0.036        1.144               12.139</span></span>
+<span><span class="co">#&gt;  Normal(0.3, 0.1)[0, Inf] InvGamma(1, 0.07) PEESE                                 0.031       0.093        3.189                4.133</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level3 unnumbered">
@@ -933,7 +938,7 @@ Statistical Software</em>, <em>36</em>(3), 1–48. <a href="https://doi.org/10.1
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

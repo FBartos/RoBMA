@@ -92,18 +92,18 @@ summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF
-#> Effect              0.500       0.996      240.935
-#> Heterogeneity       0.500       0.779        3.529
+#> Effect              0.500       0.996      257.993
+#> Heterogeneity       0.500       0.772        3.383
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  1.076 0.203 0.631 1.092 1.423
-#> tau 0.236 0.220 0.000 0.206 0.769
+#> mu  1.079 0.194 0.666 1.090 1.422
+#> tau 0.228 0.211 0.000 0.202 0.730
 #> 
 #> Conditional Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  1.080 0.191 0.661 1.092 1.424
-#> tau 0.303 0.205 0.073 0.257 0.822
+#> mu  1.083 0.183 0.690 1.091 1.422
+#> tau 0.296 0.194 0.071 0.253 0.793
 ```
 
 The output from the [`summary()`](https://rdrr.io/r/base/summary.html)
@@ -113,8 +113,8 @@ heterogeneity). The table summarizes the prior and posterior
 probabilities and the inclusion Bayes factors of the individual
 components. The results show that the inclusion Bayes factor for the
 effect is similar to the one reported in Bartoš et al.
-([2021](#ref-bartos2021bayesian)), $`\text{BF}_{10} = 240.9`$ and
-$`\text{BF}_{\text{rf}} = 3.53`$ (minor differences are a consequence of
+([2021](#ref-bartos2021bayesian)), $`\text{BF}_{10} = 250`$ and
+$`\text{BF}_{\text{rf}} = 3.60`$ (minor differences are a consequence of
 the product-space estimation algorithm in the new version of the
 package).
 
@@ -125,8 +125,8 @@ to the last part.
 
 The third part under the ‘Conditional estimates’ heading displays the
 conditional effect size estimate corresponding to the one reported in
-Bartoš et al. ([2021](#ref-bartos2021bayesian)), d = 1.080, 95% CI
-\[0.661, 1.424\], and a heterogeneity estimate (not reported
+Bartoš et al. ([2021](#ref-bartos2021bayesian)), d = 1.082, 95% CI
+\[0.663, 1.420\], and a heterogeneity estimate (not reported
 previously).
 
 The dedicated helper functions can be used to extract the pooled effect
@@ -138,13 +138,13 @@ effect and heterogeneity respectively):
 pooled_effect(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
-#>     Mean Median 0.025 0.975
-#> mu 1.080  1.092 0.661 1.424
+#>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
+#> mu 1.083  1.091 0.690 1.422    0.311    1.776
 pooled_heterogeneity(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Heterogeneity
 #>      Mean Median 0.025 0.975
-#> tau 0.303  0.257 0.073 0.822
+#> tau 0.296  0.253 0.071 0.793
 ```
 
 ## Visualizing the Results
@@ -165,8 +165,8 @@ By default, the function plots the model-averaged estimates across all
 models; the arrows represent the probability of a spike, and the lines
 represent the posterior density under models assuming a non-zero effect.
 The secondary y-axis (right) shows the probability of the spike (at
-zero) decreasing from 0.50 to 0.005 (also obtainable from the model
-summary).
+zero) decreasing from 0.50 to approximately 0.004 (also obtainable from
+the model summary).
 
 To visualize the conditional effect size estimate, we can add the
 `conditional = TRUE` argument,
@@ -228,83 +228,83 @@ summary(fit_RoBMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>                  Prior prob. Post. prob. Inclusion BF
-#> Effect                 0.500       0.708        2.424
-#> Heterogeneity          0.500       0.644        1.806
-#> Publication Bias       0.500       0.833        4.974
+#> Effect                 0.500       0.741        2.863
+#> Heterogeneity          0.500       0.677        2.092
+#> Publication Bias       0.500       0.822        4.613
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.464 0.509 -0.267 0.413 1.300
-#> tau 0.165 0.190  0.000 0.129 0.623
+#> mu  0.518 0.491 -0.231 0.526 1.306
+#> tau 0.202 0.249  0.000 0.148 0.870
 #> 
 #> Conditional Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.655 0.491 -0.384 0.720 1.330
-#> tau 0.257 0.180  0.062 0.214 0.698
+#> mu  0.699 0.447 -0.303 0.786 1.334
+#> tau 0.299 0.250  0.062 0.229 0.992
 #> 
 #> Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
-#> PET               1.801 2.150 0.000 0.000  5.534
-#> PEESE             2.440 4.800 0.000 0.000 15.923
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.977 0.115 0.590 1.000  1.000
-#> omega[0.05,0.5]   0.957 0.164 0.294 1.000  1.000
-#> omega[0.5,0.95]   0.950 0.182 0.211 1.000  1.000
-#> omega[0.95,0.975] 0.957 0.165 0.283 1.000  1.000
-#> omega[0.975,1]    0.975 0.130 0.475 1.000  1.000
+#> omega[0.025,0.05] 0.960 0.146 0.399 1.000  1.000
+#> omega[0.05,0.5]   0.911 0.239 0.095 1.000  1.000
+#> omega[0.5,0.95]   0.898 0.264 0.058 1.000  1.000
+#> omega[0.95,0.975] 0.906 0.252 0.067 1.000  1.000
+#> omega[0.975,1]    0.925 0.233 0.073 1.000  1.000
+#> PET               1.475 1.994 0.000 0.000  5.371
+#> PEESE             2.351 4.703 0.000 0.000 15.815
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 #> 
 #> Conditional Publication Bias
 #>                    Mean    SD 0.025   0.5  0.975
-#> PET               3.642 1.624 0.387 3.968  6.348
-#> PEESE             9.539 4.729 1.083 9.519 17.695
 #> omega[0,0.025]    1.000 0.000 1.000 1.000  1.000
-#> omega[0.025,0.05] 0.717 0.296 0.058 0.812  1.000
-#> omega[0.05,0.5]   0.481 0.280 0.029 0.479  0.971
-#> omega[0.5,0.95]   0.397 0.264 0.019 0.360  0.940
-#> omega[0.95,0.975] 0.474 0.278 0.029 0.476  0.968
-#> omega[0.975,1]    0.693 0.345 0.049 0.875  1.000
+#> omega[0.025,0.05] 0.727 0.287 0.092 0.815  1.000
+#> omega[0.05,0.5]   0.394 0.276 0.012 0.353  0.942
+#> omega[0.5,0.95]   0.305 0.253 0.007 0.238  0.894
+#> omega[0.95,0.975] 0.356 0.282 0.008 0.289  0.942
+#> omega[0.975,1]    0.490 0.386 0.008 0.383  1.000
+#> PET               3.511 1.520 0.331 3.907  6.041
+#> PEESE             9.207 4.847 1.000 8.904 17.916
 #> P-value intervals for publication bias weights omega correspond to one-sided p-values.
 ```
 
 We notice the additional values in the ‘Component Inclusion’ table in
 the ‘Publication Bias’ row. The model is now extended with 32
 publication bias adjustment models that account for 50% of the prior
-model probability. When comparing the RoBMA to the second BMA fit, we
-notice a large decrease in the inclusion Bayes factor for the presence
-of the effect $`\text{BF}_{10} = 2.42`$ vs. $`\text{BF}_{10} = 240.9`$,
-which still presents weak evidence for the presence of the effect. We
-can further quantify the evidence in favor of the publication bias with
-the inclusion Bayes factor for publication bias
-$`\text{BF}_{pb} = 4.97`$, which can be interpreted as moderate evidence
-in favor of publication bias.
+model probability. When comparing RoBMA to the second BMA fit, we notice
+a large decrease in the inclusion Bayes factor for the presence of the
+effect, $`\text{BF}_{10} = 2.77`$ vs. $`\text{BF}_{10} = 250`$, which
+still presents weak evidence for the presence of the effect. We can
+further quantify the evidence in favor of publication bias with the
+inclusion Bayes factor for publication bias $`\text{BF}_{pb} = 4.74`$,
+which can be interpreted as moderate evidence in favor of publication
+bias.
 
 We can also compare the unadjusted and publication-bias-adjusted
 conditional effect size estimates. Including models assuming publication
 bias into our model-averaged estimate (assuming the presence of the
-effect) decreases the estimated effect to d = 0.655, 95% CI \[-0.384,
-1.330\] with a much wider credible interval.
+effect) decreases the estimated effect to d = 0.704, 95% CI \[-0.327,
+1.338\] with a much wider credible interval.
 
 ``` r
 
 pooled_effect(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
-#>     Mean Median 0.025 0.975
-#> mu 1.080  1.092 0.661 1.424
+#>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
+#> mu 1.083  1.091 0.690 1.422    0.311    1.776
 pooled_effect(fit_RoBMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Effect Size
-#>     Mean Median  0.025 0.975
-#> mu 0.655  0.720 -0.384 1.330
+#>     Mean Median  0.025 0.975 PI 0.025 PI 0.975
+#> mu 0.699  0.786 -0.303 1.334   -0.438    1.610
 ```
 
 The same shift is visible in the prior and posterior plot below.
 
 ``` r
 
-par(mar = c(4, 4, 0, 4))
-plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), lwd = 2)
+par(mar = c(4, 4, 1, 4))
+plot(fit_RoBMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlim = c(-2, 2), ylim = c(0, 1.35), lwd = 2)
 ```
 
 ![](v34-bma-norm-medicine_files/figure-html/fig_mu_RoBMA_cond-1.png)

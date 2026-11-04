@@ -32,5 +32,7 @@ NULL (throws warning if diagnostics are unreliable).
 ## Details
 
 LOO must first be computed with
-`object <- add_loo(object, unit = unit)`. The method warns when any
-Pareto \\k\\ diagnostic is greater than 0.7.
+`object <- add_loo(object, unit = unit)`. With \\S\\ posterior draws in
+the stored LOO result, the method warns when any Pareto \\k\\ diagnostic
+is greater than \\\min(1 - 1 / \log\_{10}(S), 0.7)\\. The warning gives
+that cutoff and the affected target indices.

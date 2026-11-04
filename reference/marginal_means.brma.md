@@ -3,6 +3,10 @@
 Computes estimated marginal means for a fitted `brma` object with
 moderators using
 [`BayesTools::as_marginal_inference()`](https://fbartos.github.io/BayesTools/reference/as_marginal_inference.html).
+Alternative-conditioned marginal means condition on the union of every
+nonzero formula coefficient contributing to the corresponding output
+cell. A location intercept fixed at zero is omitted whenever moderators
+are present.
 
 ## Usage
 
@@ -16,6 +20,11 @@ marginal_means(
   output_measure = NULL,
   transform = NULL,
   bf = NULL,
+  parameter = NULL,
+  type = NULL,
+  levels = NULL,
+  density_method = c("KDE", "qCMDE", "IWMDE"),
+  density_control = NULL,
   ...
 )
 ```
@@ -28,13 +37,29 @@ marginal_means(
 
 - null_hypothesis:
 
-  point null hypothesis used for inclusion Bayes factors. Defaults to
-  `0`.
+  point null hypothesis used for inclusion Bayes factors, specified on
+  the fitted linear-predictor scale. Defaults to `0`. This remains on
+  the fitted scale when `output_measure` or `transform` changes the
+  displayed scale. A marginal mean whose Savage-Dickey Bayes factor at
+  the null hypothesis is undefined (BayesTools refuses it with a
+  condition of class `BayesTools_hypothesis_ordinate`: its posterior has
+  a point mass at the null, or its prior density there is a point mass,
+  zero (for example a null outside a truncated prior), infinite,
+  undefined, or without an exact value) has an `NA` inclusion Bayes
+  factor, whose reason the summary prints below the table; the other
+  marginal means are computed. A point hypothesis on that mean with
+  [`hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  stops with the BayesTools class. Declared unavailable formula measures
+  (class `BayesTools_formula_measure_unavailable`) likewise give an `NA`
+  row with the original reason, while available siblings are computed.
 
 - normal_approximation:
 
-  whether prior and posterior density at the null should be approximated
-  with a normal distribution. Defaults to `FALSE`.
+  whether the prior and posterior density at the null hypothesis should
+  be approximated with a normal distribution (the BayesTools normal
+  approximation of the Savage-Dickey density ratio) instead of a kernel
+  density estimate. Defaults to `FALSE`. It requires
+  `density_method = "KDE"`.
 
 - n_samples:
 
@@ -58,16 +83,115 @@ marginal_means(
 
   whether inclusion Bayes factors should be shown by default in
   summaries. Defaults to `TRUE` for RoBMA/BMA objects and `FALSE` for
-  single-model `brma` objects.
+  single-model `brma` objects. With qCMDE/IWMDE, setting `bf = FALSE`
+  also skips point-ordinate precomputation; point hypotheses can still
+  compute requested ordinates on demand. With KDE,
+  `summary(..., bf = TRUE)` computes previously skipped inclusion Bayes
+  factors from the stored conditional marginal posteriors.
+
+- parameter, type, levels:
+
+  optional selectors restricting qCMDE/IWMDE density precomputation to a
+  marginal-means parameter, output type, or factor levels. `parameter`
+  and `levels` also restrict the conditional ordinates used for
+  inclusion Bayes factors. These ordinates are always computed from
+  conditional marginal means, even when `type` excludes `"conditional"`.
+
+- density_method:
+
+  posterior density method. `"KDE"` uses the standard BayesTools kernel
+  density estimate. `"qCMDE"` attaches RoBMA row-normalized q-grid
+  conditional densities. `"IWMDE"` attaches Chen-style moment-matched
+  IWMDE densities for plotting. RoBMA stores separate precomputed
+  posterior ordinates at `null_hypothesis`; these ordinates do not alter
+  the plotting grid. qCMDE is preferred when its additional
+  normalization cost is acceptable; IWMDE can be faster but is more
+  sensitive to its fitted conditional weights. Matching is
+  case-insensitive. Selected weightfunction models near zero cumulative
+  ordered effects can take more than 10 minutes with qCMDE or IWMDE.
+  Ordered effects use normalized conditional-source contributions for
+  both methods, with their respective row budgets; regular exact offsets
+  can require positive conditional blocks. Their numerical proof is
+  reported separately from the chain MCSE. When an ordinate is used for
+  a Bayes factor, `BF_error` is a conditional Monte Carlo error
+  estimate. It excludes uncertainty in the prior ordinate and, for
+  IWMDE, uncertainty from estimating the conditional weight function.
+  Use
+  [`density_diagnostics()`](https://fbartos.github.io/RoBMA/reference/density_diagnostics.md)
+  on a subsequent
+  [`hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  result to inspect the ordinate diagnostics. IWMDE is unavailable for
+  binomial and Poisson GLMMs because its high-dimensional conditional
+  weights did not meet the bridge-sampling certification tolerance. Use
+  qCMDE for GLMM density curves and Bayes factors.
+
+- density_control:
+
+  named list of density-estimation settings for precomputed qCMDE/IWMDE
+  methods. It is rejected with an error when `density_method` is
+  `"KDE"`. Supported entries are `n_points` (default `100`), `samples`
+  for density curves and point ordinates, `target_relative_mcse`
+  (default `0.05`), `display_grid` (default `"adaptive"`),
+  `normalization_points` (default `NULL`, resolved to
+  `max(50, n_points)`), and `normalization_prob` (default `0.999`; see
+  [`hypothesis()`](https://fbartos.github.io/RoBMA/reference/hypothesis.md)
+  for the per-row truncation it permits and the ordinate bound reported
+  for it). `integration_control` (default `NULL`) retains the fitted
+  selection-integration settings. Supply a control created by
+  [`set_selection_likelihood_control()`](https://fbartos.github.io/RoBMA/reference/set_selection_likelihood_control.md)
+  to change those settings for this post-fit calculation, for example
+  `list(integration_control = set_selection_likelihood_control(max_points_per_scramble = 32768))`.
+  This entry is available for Gaussian selection models with a fitted
+  integration plan. The fitted object and posterior draws are unchanged.
+  The maximum point budget controls factor QMC fallback; analytic and
+  deterministic quadrature rules remain unchanged. `samples` defaults to
+  `500` for qCMDE and `1000` for IWMDE density curves and point
+  ordinates. Point ordinates use one fixed state-independent simple
+  random sample chosen before contributions are evaluated. Sample
+  diagnostics do not decide whether a finite ordinate is returned. An
+  unmet relative-MCSE target produces a warning; increase `samples` or
+  use `Inf` for the census. The normalization entries are used with
+  `density_method = "qCMDE"` and `density_method = "IWMDE"`. Curve
+  diagnostics apply local reliability gates over the empirical 5–95
+  percent bulk, report the 5 and 95 percent tail checkpoints, and retain
+  a whole-curve absolute MCSE safeguard relative to the density peak.
+  Point ordinates retain separate numerical-stability gates; their
+  sample precision, effective-sample-size, and
+  contribution-concentration checks are warnings. qCMDE/IWMDE are
+  unavailable for non-known-`V`
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  random-formula models, for
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  models with component-specific scale formulas (a named `scale` list),
+  and for derived semantic random-effect quantities. A qCMDE/IWMDE
+  request that the fitted model does not support stops before any
+  density is estimated with an error of class
+  `RoBMA_density_method_unavailable` and one class naming the cause:
+  `RoBMA_density_method_random_unknown_v`
+  ([`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  random-formula models without known `V`),
+  `RoBMA_density_method_scale_components` (component-specific scale
+  formulas), or `RoBMA_density_method_glmm` (IWMDE for binomial and
+  Poisson GLMMs). A density whose construction fails stops with an error
+  of class `RoBMA_density_construction_error` (a `RoBMA_density_error`);
+  use `density_method = "KDE"` to estimate it from the posterior draws.
+  A fitted chain with no eligible row of the target adds the class
+  `RoBMA_density_chain_coverage`, and the message names longer chains
+  and their convergence as the other remedy.
 
 - ...:
 
-  additional arguments (currently ignored).
+  unused additional arguments. Supplied arguments trigger a warning.
 
 ## Value
 
-A list of class `marginal_means.brma` containing the BayesTools
-`marginal_inference` object and parameter metadata.
+A list of class `marginal_means.brma`. Its stable fields are
+`inference`, `parameters`, `term_map`, `formula`, `null_hypothesis`,
+`normal_approximation`, `n_samples`, `conditional_rule`,
+`input_measure`, `effect_transform`, `model_averaged`, `density_method`,
+`point_ordinate_supported`, `bf`, `name`, and `source_object`.
+qCMDE/IWMDE objects additionally contain `density_diagnostics`,
+`ordinate_diagnostics`, `density_settings`, and `ordinate_settings`.
 
 ## See also
 

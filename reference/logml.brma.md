@@ -30,8 +30,18 @@ A scalar numeric value representing the log marginal likelihood.
 This function extracts the log marginal likelihood from the bridge
 sampling object that was previously computed and stored using
 [`add_marglik`](https://fbartos.github.io/RoBMA/reference/add_marglik.brma.md).
-Product-space model-averaging objects (`BMA.norm`, `BMA.glmm`, and
-`RoBMA`) do not expose bridge-sampling marginal likelihoods.
+Product-space model-averaging objects (`BMA.norm`, `BMA.glmm`, `BMA.mv`,
+`RoBMA`, and `RoBMA.mv`) do not expose bridge-sampling marginal
+likelihoods.
+
+For repeated standardized results, this method returns the stored scalar
+median of the included log marginal likelihoods. Legacy raw bridge lists
+use the upstream scalar median method. Use
+[`bridge_sampler`](https://rdrr.io/pkg/bridgesampling/man/bridge_sampler.html)
+to extract the raw bridge repetitions, or
+[`bf`](https://rdrr.io/pkg/bridgesampling/man/bf.html) and
+[`post_prob`](https://rdrr.io/pkg/bridgesampling/man/post_prob.html) to
+compare models across repetitions.
 
 ## See also
 

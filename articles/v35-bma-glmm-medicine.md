@@ -69,7 +69,7 @@ fit_BMA <- BMA.glmm(
   slab = study_names, measure = "OR",
   prior_informed_field    = "medicine",
   prior_informed_subfield = "Acute Respiratory Infections",
-  seed = 1, parallel = TRUE
+  seed = 1, parallel = TRUE, autofit = TRUE
 )
 ```
 
@@ -100,18 +100,18 @@ summary(fit_BMA, conditional = TRUE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF
-#> Effect              0.500       0.726        2.643
-#> Heterogeneity       0.500       0.559        1.269
+#> Effect              0.500       0.722        2.595
+#> Heterogeneity       0.500       0.573        1.340
 #> 
 #> Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.704 0.838 -0.180 0.506 2.732
-#> tau 0.399 0.734  0.000 0.149 2.487
+#> mu  0.691 0.806 -0.192 0.492 2.708
+#> tau 0.409 0.687  0.000 0.161 2.483
 #> 
 #> Conditional Estimates
 #>      Mean    SD  0.025   0.5 0.975
-#> mu  0.971 0.843 -0.255 0.835 2.933
-#> tau 0.713 0.859  0.096 0.412 3.089
+#> mu  0.957 0.804 -0.266 0.826 2.870
+#> tau 0.714 0.778  0.097 0.426 3.003
 ```
 
 The output from the [`summary()`](https://rdrr.io/r/base/summary.html)
@@ -121,8 +121,8 @@ heterogeneity). The table summarizes the prior and posterior
 probabilities and the inclusion Bayes factors of the individual
 components. The results show that the inclusion Bayes factor for the
 effect is similar to the one reported in Bartoš et al.
-([2023](#ref-bartos2023empirical)), $`\text{BF}_{10} = 2.63`$ and
-$`\text{BF}_{\text{rf}} = 1.30`$ (minor differences are a consequence of
+([2023](#ref-bartos2023empirical)), $`\text{BF}_{10} = 2.65`$ and
+$`\text{BF}_{\text{rf}} = 1.27`$ (minor differences are a consequence of
 the product-space estimation algorithm in the new version of the
 package), giving weak/undecided evidence for the presence of the effect
 and heterogeneity.
@@ -133,18 +133,18 @@ the parameter estimates model-averaged across all specified models
 estimates are shrunk towards the null hypotheses of no effect or no
 heterogeneity in accordance with the posterior uncertainty about the
 presence of the effect or heterogeneity. We find the model-averaged mean
-effect OR = 3.39, 95% CI \[0.84, 15.14\], and a heterogeneity estimate
-$`\tau_\text{logOR} = 0.42`$, 95% CI \[0.00, 2.59\].
+effect OR = 3.83, 95% CI \[0.82, 15.19\], and a heterogeneity estimate
+$`\tau_\text{logOR} = 0.43`$, 95% CI \[0.00, 2.66\].
 
 The third part under the ‘Conditional estimates’ heading displays the
 conditional effect size and heterogeneity estimates (i.e., estimates
 assuming presence of the effect or heterogeneity) corresponding to the
 ones reported in Bartoš et al. ([2023](#ref-bartos2023empirical)), OR =
-4.24, 95% CI \[0.78, 17.61\], and a heterogeneity estimate
-$`\tau_\text{logOR} = 0.75`$, 95% CI \[0.10, 3.23\].
+4.89, 95% CI \[0.77, 18.90\], and a heterogeneity estimate
+$`\tau_\text{logOR} = 0.77`$, 95% CI \[0.10, 3.62\].
 
-The dedicated helper functions can be used to extract the pooled effect
-and heterogeneity estimates directly on the odds-ratio scale (assuming
+The dedicated helper functions extract the pooled effect on the
+odds-ratio scale and heterogeneity on the log-odds-ratio scale (assuming
 the presence of the effect and heterogeneity respectively):
 
 ``` r
@@ -152,14 +152,14 @@ the presence of the effect and heterogeneity respectively):
 pooled_effect(fit_BMA, conditional = TRUE, transform = "EXP")
 #> 
 #> Conditional Pooled Effect Size (odds ratio)
-#>     Mean Median 0.025  0.975
-#> mu 6.241  2.304 0.775 18.780
+#>     Mean Median 0.025  0.975 PI 0.025 PI 0.975
+#> mu 4.026  2.284 0.766 17.640    0.397   22.526
 #> Effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.
 pooled_heterogeneity(fit_BMA, conditional = TRUE)
 #> 
 #> Conditional Pooled Heterogeneity
 #>      Mean Median 0.025 0.975
-#> tau 0.713  0.412 0.096 3.089
+#> tau 0.714  0.426 0.097 3.003
 ```
 
 We can also visualize the posterior distributions of the effect size and
@@ -171,8 +171,8 @@ distribution in the plot.
 
 ``` r
 
-par(mar = c(4, 4, 0, 4))
-plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE, lwd = 2)
+par(mar = c(4, 4, 1, 4))
+plot(fit_BMA, parameter = "mu", prior = TRUE, conditional = TRUE, xlab = "Log odds ratio", ylim = c(0, 0.9), lwd = 2)
 ```
 
 ![](v35-bma-glmm-medicine_files/figure-html/fig_mu_BMA-1.png)

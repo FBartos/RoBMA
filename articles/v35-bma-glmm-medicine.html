@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Informed Bayesian Model-Averaged Meta-Analysis with Binary Outcomes">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -84,7 +86,7 @@
 Bartoš</h4>
             
             <h4 data-toc-skip class="date">13th of June 2023 (updated:
-4th of May 2026)</h4>
+25th of October 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v35-bma-glmm-medicine.Rmd" class="external-link"><code>vignettes/v35-bma-glmm-medicine.Rmd</code></a></small>
       <div class="d-none name"><code>v35-bma-glmm-medicine.Rmd</code></div>
@@ -169,7 +171,7 @@ automatically.</p>
 <span>  slab <span class="op">=</span> <span class="va">study_names</span>, measure <span class="op">=</span> <span class="st">"OR"</span>,</span>
 <span>  prior_informed_field    <span class="op">=</span> <span class="st">"medicine"</span>,</span>
 <span>  prior_informed_subfield <span class="op">=</span> <span class="st">"Acute Respiratory Infections"</span>,</span>
-<span>  seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  seed <span class="op">=</span> <span class="fl">1</span>, parallel <span class="op">=</span> <span class="cn">TRUE</span>, autofit <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>with <code>prior_informed_field = "medicine"</code> and
 <code>prior_informed_subfield = "Acute Respiratory Infections"</code>
@@ -196,27 +198,27 @@ scale.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect              0.500       0.726        2.643</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.559        1.269</span></span>
+<span><span class="co">#&gt; Effect              0.500       0.722        2.595</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.573        1.340</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.704 0.838 -0.180 0.506 2.732</span></span>
-<span><span class="co">#&gt; tau 0.399 0.734  0.000 0.149 2.487</span></span>
+<span><span class="co">#&gt; mu  0.691 0.806 -0.192 0.492 2.708</span></span>
+<span><span class="co">#&gt; tau 0.409 0.687  0.000 0.161 2.483</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.971 0.843 -0.255 0.835 2.933</span></span>
-<span><span class="co">#&gt; tau 0.713 0.859  0.096 0.412 3.089</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.957 0.804 -0.266 0.826 2.870</span></span>
+<span><span class="co">#&gt; tau 0.714 0.778  0.097 0.426 3.003</span></span></code></pre></div>
 <p>The output from the <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> function has three parts.
 The first one provides a basic summary of the fitted models by component
 types (presence of the effect and heterogeneity). The table summarizes
 the prior and posterior probabilities and the inclusion Bayes factors of
 the individual components. The results show that the inclusion Bayes
 factor for the effect is similar to the one reported in <span class="citation">Bartoš et al. (<a href="#ref-bartos2023empirical">2023</a>)</span>,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>2.63</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 2.63</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>2.65</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 2.65</annotation></semantics></math>
 and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">rf</mtext></msub><mo>=</mo><mn>1.30</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{rf}} = 1.30</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">rf</mtext></msub><mo>=</mo><mn>1.27</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{rf}} = 1.27</annotation></semantics></math>
 (minor differences are a consequence of the product-space estimation
 algorithm in the new version of the package), giving weak/undecided
 evidence for the presence of the effect and heterogeneity.</p>
@@ -226,40 +228,39 @@ the parameter estimates model-averaged across all specified models
 estimates are shrunk towards the null hypotheses of no effect or no
 heterogeneity in accordance with the posterior uncertainty about the
 presence of the effect or heterogeneity. We find the model-averaged mean
-effect OR = 3.39, 95% CI [0.84, 15.14], and a heterogeneity estimate
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>τ</mi><mtext mathvariant="normal">logOR</mtext></msub><mo>=</mo><mn>0.42</mn></mrow><annotation encoding="application/x-tex">\tau_\text{logOR} = 0.42</annotation></semantics></math>,
-95% CI [0.00, 2.59].</p>
+effect OR = 3.83, 95% CI [0.82, 15.19], and a heterogeneity estimate
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>τ</mi><mtext mathvariant="normal">logOR</mtext></msub><mo>=</mo><mn>0.43</mn></mrow><annotation encoding="application/x-tex">\tau_\text{logOR} = 0.43</annotation></semantics></math>,
+95% CI [0.00, 2.66].</p>
 <p>The third part under the ‘Conditional estimates’ heading displays the
 conditional effect size and heterogeneity estimates (i.e., estimates
 assuming presence of the effect or heterogeneity) corresponding to the
-ones reported in <span class="citation">Bartoš et al. (<a href="#ref-bartos2023empirical">2023</a>)</span>, OR = 4.24, 95% CI
-[0.78, 17.61], and a heterogeneity estimate
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>τ</mi><mtext mathvariant="normal">logOR</mtext></msub><mo>=</mo><mn>0.75</mn></mrow><annotation encoding="application/x-tex">\tau_\text{logOR} = 0.75</annotation></semantics></math>,
-95% CI [0.10, 3.23].</p>
-<p>The dedicated helper functions can be used to extract the pooled
-effect and heterogeneity estimates directly on the odds-ratio scale
-(assuming the presence of the effect and heterogeneity
-respectively):</p>
+ones reported in <span class="citation">Bartoš et al. (<a href="#ref-bartos2023empirical">2023</a>)</span>, OR = 4.89, 95% CI
+[0.77, 18.90], and a heterogeneity estimate
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>τ</mi><mtext mathvariant="normal">logOR</mtext></msub><mo>=</mo><mn>0.77</mn></mrow><annotation encoding="application/x-tex">\tau_\text{logOR} = 0.77</annotation></semantics></math>,
+95% CI [0.10, 3.62].</p>
+<p>The dedicated helper functions extract the pooled effect on the
+odds-ratio scale and heterogeneity on the log-odds-ratio scale (assuming
+the presence of the effect and heterogeneity respectively):</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span>, transform <span class="op">=</span> <span class="st">"EXP"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Pooled Effect Size (odds ratio)</span></span>
-<span><span class="co">#&gt;     Mean Median 0.025  0.975</span></span>
-<span><span class="co">#&gt; mu 6.241  2.304 0.775 18.780</span></span>
+<span><span class="co">#&gt;     Mean Median 0.025  0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 4.026  2.284 0.766 17.640    0.397   22.526</span></span>
 <span><span class="co">#&gt; Effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.</span></span>
 <span><span class="fu"><a href="../reference/pooled_heterogeneity.html">pooled_heterogeneity</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Pooled Heterogeneity</span></span>
 <span><span class="co">#&gt;      Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; tau 0.713  0.412 0.096 3.089</span></span></code></pre></div>
+<span><span class="co">#&gt; tau 0.714  0.426 0.097 3.003</span></span></code></pre></div>
 <p>We can also visualize the posterior distributions of the effect size
 and heterogeneity parameters using the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function.
 Here, we set the <code>conditional = TRUE</code> argument to display the
 conditional effect size estimate and <code>prior = TRUE</code> to
 include the prior distribution in the plot.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">0</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_BMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span>, xlab <span class="op">=</span> <span class="st">"Log odds ratio"</span>, ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.9</span><span class="op">)</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 <p><img src="v35-bma-glmm-medicine_files/figure-html/fig_mu_BMA-1.png" class="r-plt" alt="" width="75%" style="display: block; margin: auto;"></p>
 <p>Additional visualizations and summaries are demonstrated in the <a href="v02-bayesian-meta-analysis.html"><em>Bayesian
 Meta-Analysis</em></a> and <a href="v34-bma-norm-medicine.html"><em>Informed Bayesian Model-Averaged
@@ -299,7 +300,7 @@ Reviews</em>, <em>4</em>. <a href="https://doi.org/10.1002/14651858.CD007094.pub
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

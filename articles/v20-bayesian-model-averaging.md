@@ -119,8 +119,8 @@ summary(fit_RE, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.554 0.070 0.424 0.551 0.701
-#> tau 0.140 0.084 0.008 0.134 0.318
+#> mu  0.554 0.070 0.424 0.552 0.700
+#> tau 0.140 0.083 0.008 0.134 0.318
 ```
 
 Setting the heterogeneity prior distribution to a spike at zero turns
@@ -140,11 +140,12 @@ fit_FE <- add_marglik(fit_FE)
 
 summary(fit_FE, include_mcmc_diagnostics = FALSE)
 #> 
-#> Bayesian Random-Effects Model (k = 23)
+#> Bayesian Fixed-Effect Model (k = 23)
 #> 
 #> Estimates
-#>     Mean    SD 0.025   0.5 0.975
-#> mu 0.525 0.055 0.418 0.525 0.633
+#>      Mean    SD 0.025   0.5 0.975
+#> mu  0.526 0.055 0.418 0.526 0.634
+#> tau 0.000 0.000 0.000 0.000 0.000
 ```
 
 With marginal likelihoods attached to the models via
@@ -155,7 +156,7 @@ Bayes factor between the two fits.
 ``` r
 
 bf(fit_RE, fit_FE)
-#> Bayes factor in favor of Model 1 over Model 2: 0.76191
+#> Bayes factor in favor of Model 1 over Model 2: 0.76130
 ```
 
 The Bayes factor is close to one and neither model is decisively
@@ -191,12 +192,12 @@ summary(fit_BMA_he)
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
 #> Effect              1.000       1.000           NA                   NA
-#> Heterogeneity       0.500       0.429        0.752                2.363
+#> Heterogeneity       0.500       0.434        0.766                2.344
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-#> mu  0.538 0.063 0.421 0.536 0.670     0.00058          0.009 11883 1.000
-#> tau 0.060 0.088 0.000 0.000 0.280     0.00095          0.011  8757 1.000
+#> mu  0.538 0.063 0.421 0.536 0.670     0.00057          0.009 12056 1.000
+#> tau 0.061 0.088 0.000 0.000 0.278     0.00094          0.011  8836 1.000
 ```
 
 The *Components* table reports the posterior probability and inclusion
@@ -240,12 +241,12 @@ summary(fit_BMA)
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
 #> Effect              0.500       1.000   >14999.000                   NA
-#> Heterogeneity       0.500       0.429        0.752                2.351
+#> Heterogeneity       0.500       0.431        0.757                2.368
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-#> mu  0.538 0.063 0.421 0.536 0.671     0.00058          0.009 11972 1.000
-#> tau 0.060 0.089 0.000 0.000 0.284     0.00096          0.011  8682 1.000
+#> mu  0.538 0.063 0.420 0.536 0.668     0.00057          0.009 12033 1.000
+#> tau 0.060 0.088 0.000 0.000 0.277     0.00094          0.011  8696 1.000
 ```
 
 Both inclusion Bayes factors come from the same MCMC. The effect BF is
@@ -292,17 +293,17 @@ summary(fit_BMA, conditional = TRUE)
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
 #> Effect              0.500       1.000   >14999.000                   NA
-#> Heterogeneity       0.500       0.429        0.752                2.351
+#> Heterogeneity       0.500       0.431        0.757                2.368
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
-#> mu  0.538 0.063 0.421 0.536 0.671     0.00058          0.009 11972 1.000
-#> tau 0.060 0.089 0.000 0.000 0.284     0.00096          0.011  8682 1.000
+#> mu  0.538 0.063 0.420 0.536 0.668     0.00057          0.009 12033 1.000
+#> tau 0.060 0.088 0.000 0.000 0.277     0.00094          0.011  8696 1.000
 #> 
 #> Conditional Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.538 0.063 0.421 0.536 0.671
-#> tau 0.141 0.084 0.008 0.136 0.319
+#> mu  0.538 0.063 0.420 0.536 0.668
+#> tau 0.140 0.083 0.009 0.133 0.312
 ```
 
 ## Meta-Regression with Model Averaging
@@ -363,21 +364,21 @@ summary(fit_BMA_mod)
 #> Component Inclusion
 #>               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
 #> Effect              0.500       1.000   >14999.000                   NA
-#> Heterogeneity       0.500       0.370        0.588                2.516
+#> Heterogeneity       0.500       0.366        0.577                2.457
 #> 
 #> Meta-Regression Inclusion
 #>        Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
-#> tailor       0.500       0.557        1.257                3.513
+#> tailor       0.500       0.546        1.204                3.471
 #> 
 #> Common Estimates
 #>      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> tau 0.047 0.079 0.000 0.000 0.259     0.00092          0.012 7317 1.000
+#> tau 0.046 0.079 0.000 0.000 0.261     0.00089          0.011 7862 1.001
 #> 
 #> Meta-Regression
 #>                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
-#> intercept       0.510 0.069  0.379  0.509 0.651     0.00085          0.012 6576 1.000
-#> tailor[dif: 0] -0.067 0.075 -0.224 -0.043 0.000     0.00119          0.016 4066 1.001
-#> tailor[dif: 1]  0.067 0.075  0.000  0.043 0.224     0.00119          0.016 4066 1.001
+#> intercept       0.510 0.068  0.378  0.508 0.649     0.00082          0.012 6956 1.000
+#> tailor[dif: 0] -0.066 0.076 -0.227 -0.036 0.000     0.00118          0.016 4159 1.000
+#> tailor[dif: 1]  0.066 0.076  0.000  0.036 0.227     0.00118          0.016 4159 1.000
 ```
 
 The *Components* table now also lists `tailor` and its inclusion BF.
@@ -407,10 +408,10 @@ emm <- marginal_means(fit_BMA_mod)
 emm
 #> 
 #> Model-Averaged Marginal Means:
-#>            Mean    SD 0.025   0.5 0.975 Inclusion BF
-#> intercept 0.510 0.069 0.379 0.509 0.651          Inf
-#> tailor[0] 0.443 0.124 0.191 0.459 0.649      130.849
-#> tailor[1] 0.577 0.075 0.440 0.575 0.731          Inf
+#>            Mean    SD 0.025   0.5 0.975  Inclusion BF
+#> intercept 0.510 0.068 0.378 0.508 0.649 6.194632e+192
+#> tailor[0] 0.443 0.123 0.193 0.462 0.646  1.921280e+02
+#> tailor[1] 0.576 0.075 0.439 0.573 0.731 1.251480e+214
 #> mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 #> mu_tailor[1]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.
 
@@ -475,7 +476,7 @@ fit_priors <- BMA(
   prior_mods_null = list(tailor = NULL),
   data = dat, only_priors = TRUE
 )
-print_prior(fit_priors, parameter_mods = "tailor")
+print_prior(fit_priors, parameter = "tailor")
 #> mu_tailor:
 #>   alternative:
 #>     (1/1) * mean difference contrast: mNormal(0, 0.35)

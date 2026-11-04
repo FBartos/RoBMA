@@ -1,7 +1,7 @@
 # Pooled Effect Size for brma Objects
 
-Computes the pooled (aggregated) effect size estimate from a fitted brma
-object by averaging across the moderator model matrix.
+Computes the pooled effect and prediction interval at the average
+expanded moderator design of a fitted brma object.
 
 ## Usage
 
@@ -28,8 +28,11 @@ pooled_effect(
 
   whether to adjust for publication bias. Defaults to `TRUE`. For
   PET/PEESE models this removes the regression bias term from the pooled
-  location effect. Selection-model weighting affects response
-  predictions, not this `type = "terms"` wrapper.
+  location effect. This reference declares no new-publication standard
+  error or selection event; explicit unadjusted
+  [`predict()`](https://rdrr.io/r/stats/predict.html) rows instead
+  target a selected new publication. Selection-model weighting affects
+  response predictions, not this fixed-location posterior summary.
 
 - output_measure:
 
@@ -57,29 +60,60 @@ pooled_effect(
 - ...:
 
   additional arguments passed to
-  [`predict.brma`](https://fbartos.github.io/RoBMA/reference/predict.brma.md);
-  wrapper arguments such as `newdata`, `type`, and `quiet` are fixed.
+  [`predict.brma`](https://fbartos.github.io/RoBMA/reference/predict.brma.md)
+  (`as_measure`, `V_new`, and `conditioning_depth`); wrapper arguments
+  such as `newdata`, `type`, and `quiet` are fixed (supplying one is R's
+  error for an argument matched twice, as for
+  [`predict()`](https://rdrr.io/r/stats/predict.html)), and other
+  unknown arguments are unused and trigger a warning.
 
 ## Value
 
 A `brma_samples` object containing posterior samples. When printed,
-displays a summary table. Use
-[`summary()`](https://rdrr.io/r/base/summary.html) to obtain the summary
-table directly. The samples can be converted to posterior draws formats
-using
+displays a one-row summary table whose `PI` columns contain posterior
+prediction quantiles. They are computed exactly from the posterior draws
+of the pooled location and heterogeneity, as quantiles of the normal
+mixture over the draws, so they involve no random numbers. Use
+[`summary()`](https://rdrr.io/r/base/summary.html), or
+`as.data.frame(summary(x))`, to obtain the table; `as.data.frame(x)`
+returns the posterior draws. The samples can be converted to posterior
+draws formats using
 [`as_draws()`](https://fbartos.github.io/RoBMA/reference/as_draws.brma.md).
 
 ## Details
 
 This function is a convenience wrapper around
-`predict.brma(..., type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)`.
+`predict.brma(..., type = "terms", newdata = TRUE, bias_adjusted = TRUE, quiet = TRUE)`
+that adds the prediction interval columns.
+
+The fixed-location model is evaluated at the average expanded moderator
+design. Because the location predictor is linear in its design, this
+equals averaging its fitted-design posterior draws directly.
 
 For meta-regression models, the pooled effect averages the effect size
 estimate across moderator levels proportionately to the levels observed
 in the data. This provides an estimate representative of the sample of
 studies.
 
-For models without moderators, this returns the single mu parameter.
+For [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+models and models with factor-specific or random-slope terms, the
+average expanded design can be synthetic and need not correspond to a
+single realizable outcome or study. The pooled effect and its prediction
+interval then describe that linear composite and should be interpreted
+only when the composite has a meaningful scientific interpretation. Use
+`predict(..., newdata = ...)` for a specified realizable design.
+
+For models without moderators, this returns the single mu parameter. The
+prediction interval is marginal over one new true effect at the same
+average location and random-effect design, with the scale given by the
+mean of the observation-specific tau, as in
+[`pooled_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/pooled_heterogeneity.md).
+It therefore uses `pooled_heterogeneity(component = "total")`, rather
+than the observed-design RMS heterogeneity reported by
+[`summary_heterogeneity()`](https://fbartos.github.io/RoBMA/reference/summary_heterogeneity.md).
+For known-\\R\\ random effects this is a unit-kernel reference interval;
+use [`predict()`](https://rdrr.io/r/stats/predict.html) for an interval
+tied to a fitted group and its known covariance multiplier.
 
 ## See also
 

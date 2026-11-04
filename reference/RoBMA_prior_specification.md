@@ -1,7 +1,8 @@
 # Prior specification for model-averaging
 
-The [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md)
-function extends the prior specification described in
+The [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) and
+[`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md)
+functions extend the prior specification described in
 [`prior_specification`](https://fbartos.github.io/RoBMA/reference/prior_specification.md)
 by allowing mixture priors that define competing hypotheses for Bayesian
 model-averaging. This enables multimodel inference via the product space
@@ -22,18 +23,34 @@ MCMC chain explores a joint model space containing all competing models.
 
   prior distribution(s) for alternative moderator components. A single
   prior applies to all terms; a named list can specify term-specific
-  components.
+  components. This argument can be specified only when `mods` is
+  specified. For a formula without an intercept (`~ 0 + x`), an
+  `intercept` entry other than a point prior at zero stops with an error
+  of class `RoBMA_prior_intercept_conflict` (also of class
+  `RoBMA_prior_error`). A named alternative `intercept` must be a single
+  simple or point prior; it is the complete intercept prior and replaces
+  the global effect mixture. Specify it in one place: null-list
+  intercepts and explicit global effect declarations left without a
+  consumer are refused. Ordinary term entries replace only their
+  alternative component.
 
 - prior_scale:
 
   prior distribution(s) for alternative scale-regression components. A
   single prior applies to all terms; a named list can specify
-  term-specific components.
+  term-specific components. This argument can be specified only when
+  `scale` is specified. A named alternative `intercept` must be a single
+  positive simple or point prior; it is the complete SD prior used by
+  `log(intercept)`. Global heterogeneity declarations remain meaningful
+  when they supply another random root or its inclusion weights;
+  declarations replaced without a consumer are refused. Null-list
+  intercept declarations are unavailable.
 
 - prior_heterogeneity_allocation:
 
   prior distribution(s) for the alternative cluster-level heterogeneity
-  allocation component(s).
+  allocation component(s). This argument can be specified only when
+  `cluster` is specified.
 
 - prior_bias:
 
@@ -66,20 +83,30 @@ MCMC chain explores a joint model space containing all competing models.
 
 - prior_mods_null:
 
-  prior distribution(s) for null moderator components. A single prior
-  applies to all terms; a named list can specify term-specific
-  components.
+  prior distribution(s) for null moderator components. A named
+  `intercept` entry, including `NULL` or `FALSE`, is unavailable: put
+  the complete intercept prior in `prior_mods`, or use global prior
+  arguments without a formula-list intercept. The same rule applies to
+  `prior_scale_null`. A single prior applies to all terms; a named list
+  can specify term-specific components. This argument can be specified
+  only when `mods` is specified. The null and the alternative prior of a
+  factor term need the same contrast; a conflict stops with an error of
+  class `RoBMA_prior_contrast_conflict` (also of class
+  `RoBMA_prior_error`) that names the term and the remedies. The same
+  rule applies to `prior_scale_null`.
 
 - prior_scale_null:
 
   prior distribution(s) for null scale-regression components. A single
   prior applies to all terms; a named list can specify term-specific
-  components.
+  components. This argument can be specified only when `scale` is
+  specified.
 
 - prior_heterogeneity_allocation_null:
 
   prior distribution(s) for the null cluster-level heterogeneity
-  allocation component(s).
+  allocation component(s). This argument can be specified only when
+  `cluster` is specified.
 
 - prior_bias_null:
 
@@ -206,10 +233,35 @@ For top-level mixture components, setting a prior argument to `NULL` or
 - `prior_bias = NULL` or `FALSE`: No bias model (assumes no bias
   mechanism)
 
-For moderator and scale regression terms, an omitted or whole-argument
-`NULL` `prior_mods` / `prior_scale` means "use defaults". To omit a
-component for a specific term, use a named list entry such as
-`prior_mods_null = list(x1 = NULL)`.
+For moderator and scale formula priors, an omitted or whole-argument
+`NULL` uses the corresponding default. Whole-argument `FALSE` is not a
+supported shortcut for omitting every term. Omit a particular
+alternative or null component with a named `NULL` or `FALSE` entry, for
+example `prior_mods_null = list(x1 = NULL)`. Ordinary named terms
+replace only that alternative or null component. A named alternative
+`intercept` instead supplies the complete intercept prior, which must be
+a single simple or point prior (for `prior_scale`, a single positive
+prior). Null-list intercept declarations are refused, as are explicit
+global priors discarded without a consumer. A global heterogeneity
+declaration can still supply an unscaled root or component-inclusion
+weights when scale intercepts have their own priors; retain it when it
+has such a consumer.
+
+An ordered term's mixture belongs on its scalar total. Supply the
+complete `prior_ordered(total = ...)` in one term component and omit the
+separate term component with a named `NULL` entry. For example:
+
+
+    total <- BayesTools::prior_mixture(list(prior("point", list(0)),
+                                             prior("normal", list(0, 1))),
+                                        is_null = c(TRUE, FALSE))
+    BMA(yi = yi, sei = sei, mods = ~ f, data = dat, measure = "SMD",
+        prior_mods = list(f = prior_ordered(total = total)),
+        prior_mods_null = list(f = NULL), only_priors = TRUE)
+
+Combining an ordered container with a separate term null or alternative
+is unavailable and raises `RoBMA_prior_error` with the corresponding
+omission.
 
 #### Parameter-specific customization for moderators
 
@@ -326,8 +378,9 @@ method.” *Journal of Mathematical Psychology*, **55**(5), 331–347.
 for base prior specification options,
 [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md)
 for publication-bias priors,
-[`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) for the
-main model-averaging function,
+[`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) and
+[`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md) for
+the main model-averaging functions,
 [`prior`](https://fbartos.github.io/BayesTools/reference/prior.html) for
 creating prior distribution objects
 

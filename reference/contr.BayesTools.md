@@ -30,10 +30,14 @@ The package includes the following contrast functions:
 
 - `contr.orthonormal`:
 
-  Return a matrix of orthonormal contrasts. Code is based on
-  `stanova::contr.bayes` and corresponding to description by Rouder et
-  al. (2012) . Returns a matrix with n rows and k columns, with k = n -
-  1 if `contrasts = TRUE` and k = n if `contrasts = FALSE`.
+  Return a matrix of orthonormal contrasts: a normalised Helmert basis,
+  whose columns have unit length and sum to zero and which is identical
+  on every platform. Any orthonormal basis of the centred space implies
+  the same exchangeable prior on the factor level effects under a
+  spherical prior on the coefficients, which corresponds to the
+  description by Rouder et al. (2012) . Returns a matrix with n rows and
+  k columns, with k = n - 1 if `contrasts = TRUE` and k = n if
+  `contrasts = FALSE`.
 
 - `contr.meandif`:
 
@@ -72,9 +76,9 @@ contr.orthonormal(c(1, 2))
 #> [2,]  0.7071068
 contr.orthonormal(c(1, 2, 3))
 #>            [,1]       [,2]
-#> [1,]  0.0000000  0.8164966
-#> [2,] -0.7071068 -0.4082483
-#> [3,]  0.7071068 -0.4082483
+#> [1,] -0.7071068 -0.4082483
+#> [2,]  0.7071068 -0.4082483
+#> [3,]  0.0000000  0.8164966
 
 # Mean difference contrasts
 contr.meandif(c(1, 2))
@@ -83,9 +87,9 @@ contr.meandif(c(1, 2))
 #> [2,]    1
 contr.meandif(c(1, 2, 3))
 #>            [,1] [,2]
-#> [1,]  0.0000000  1.0
-#> [2,] -0.8660254 -0.5
-#> [3,]  0.8660254 -0.5
+#> [1,] -0.8660254 -0.5
+#> [2,]  0.8660254 -0.5
+#> [3,]  0.0000000  1.0
 
 # Independent contrasts
 contr.independent(c(1, 2))

@@ -11,7 +11,8 @@ prior_weightfunction(
   steps = c(0.025, 0.05),
   weights = wf_cumulative(),
   reference = "most_significant",
-  prior_weights = 1
+  prior_weights = 1,
+  model = selection_model()
 )
 
 wf_cumulative(alpha = NULL)
@@ -44,6 +45,15 @@ wf_independent(prior, scale = "omega")
 - prior_weights:
 
   numeric prior model weight.
+
+- model:
+
+  fixed likelihood choices from
+  [`selection_model()`](https://fbartos.github.io/RoBMA/reference/selection_model.md).
+  The default integrates estimate random effects and the complete
+  sampling error, conditions on other random effects, and uses product
+  weights. These choices do not change the weight-height prior or
+  `prior_weights`.
 
 - alpha:
 

@@ -25,8 +25,12 @@ loo_compare(x, ..., unit = "estimate")
 
 ## Value
 
-A matrix of class `"compare.loo"` as returned by
-[`loo_compare`](https://mc-stan.org/loo/reference/loo_compare.html).
+The comparison returned by
+[`loo_compare`](https://mc-stan.org/loo/reference/loo_compare.html) for
+the stored results: a data frame of class `"compare.loo"` with one row
+per model, ordered by expected predictive performance, which prints as
+loo prints it. The models are named `model1`, `model2`, ... unless the
+call names them.
 
 ## See also
 

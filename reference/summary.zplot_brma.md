@@ -1,7 +1,7 @@
 # Summarize Zplot Results
 
 Creates summary tables for zplot estimates including EDR, Soric FDR, and
-estimated missing studies.
+the conventional missing-count diagnostic when applicable.
 
 ## Usage
 
@@ -36,7 +36,8 @@ The summary includes:
 
 - EDR:
 
-  Expected Discovery Rate - average power of significant studies
+  Expected Discovery Rate - the posterior average probability of
+  significance for a new outcome from the bias-adjusted reference
 
 - Soric FDR:
 
@@ -45,10 +46,16 @@ The summary includes:
 
 - Missing N:
 
-  Estimated number of studies suppressed by publication bias, computed
-  from the selection model weights
+  The retained reference-bin-normalized inverse-weight diagnostic for
+  independent univariate and conditional-cluster product models. See
+  [`as_zplot.brma()`](https://fbartos.github.io/RoBMA/reference/as_zplot.brma.md)
+  for the additional assumptions required by a literal count
+  interpretation. Unavailable for multivariate models, retained
+  estimate-level or sampling-error sources, applicable integrated
+  contexts, or best-rule selection models because relative weights do
+  not identify a missing count
 
-The footer reports the Observed Discovery Rate (ODR) with 95\\
+The footer reports the Observed Discovery Rate (ODR) with 95% CI for
 comparison with the model-estimated EDR.
 
 ## See also

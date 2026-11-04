@@ -35,4 +35,19 @@ columns. Columns are normalized to sum to one.
 
 LOO must first be computed with
 `object <- add_loo(object, unit = unit)`. This method extracts the
-stored PSIS object and does not compute LOO.
+stored PSIS object and does not compute LOO. It does not compute weights
+across models. For predictive model weights, use
+`loo_model_weights(model_1, model_2)`; for a model comparison table, use
+`loo_compare(model_1, model_2)`.
+
+When the score integrates local random effects, these weights reweight
+global-parameter draws. They must not be applied to full-data sampled
+local effects as though those were draws from the deletion posterior;
+local-effect calculations require the corresponding retained-data
+reconstruction.
+
+## See also
+
+[`loo.brma`](https://fbartos.github.io/RoBMA/reference/loo.brma.md),
+[`loo_compare.brma`](https://fbartos.github.io/RoBMA/reference/loo_compare.brma.md),
+[`loo_model_weights.brma`](https://fbartos.github.io/RoBMA/reference/loo_model_weights.brma.md)

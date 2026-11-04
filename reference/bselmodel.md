@@ -44,6 +44,8 @@ bselmodel(
   convergence_checks = set_convergence_checks(),
   seed = NULL,
   silent,
+  selection = BayesTools::selection_model(),
+  selection_control = set_selection_likelihood_control(),
   ...
 )
 ```
@@ -69,25 +71,40 @@ bselmodel(
 
 - weights:
 
-  an optional vector of positive likelihood weights. For
+  an optional vector of finite positive likelihood weights. For
   normal/effect-size models, each weight powers the estimate likelihood.
   For constructors with GLMM raw-count input, each weight powers the
-  paired two-arm likelihood for one study.
+  paired two-arm likelihood for one study. An integer weight \\w\\
+  repeats that conditional likelihood contribution \\w\\ times, with the
+  declared latent-effect and grouping structure held fixed. Positive
+  fractional likelihood powers are also supported.
 
 - ni:
 
   an optional vector of sample sizes. Used for `measure = "GEN"` or when
-  estimating `"UISD"`).
+  estimating the unit information standard deviation.
 
 - mods:
 
   an optional matrix, data.frame, or formula specifying location
-  moderators (meta-regressors). Formula input is evaluated in `data`.
+  moderators (meta-regressors). Formula input is evaluated in `data` and
+  supports explicit columns and standard formula operators, including
+  `^` as R's crossing operator with a literal whole exponent of at least
+  2: `(x + z)^2` expands to `x + z + x:z`, and `x^2` is not a quadratic
+  term (`x + x^2` is `x`). Precompute transformed predictors, such as a
+  squared predictor, as columns in `data`; inline calls such as
+  [`I()`](https://rdrr.io/r/base/AsIs.html),
+  [`poly()`](https://rdrr.io/r/stats/poly.html), spline constructors,
+  and user functions are not supported.
 
 - scale:
 
   an optional matrix, data.frame, or formula specifying scale predictors
-  for location-scale models. Formula input is evaluated in `data`.
+  for location-scale models. Formula input is evaluated in `data` and
+  follows the same explicit-column formula grammar as `mods`.
+  Random-formula models also accept a named list targeting top-level
+  random components or concrete random-effect blocks; see
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md).
 
 - cluster:
 
@@ -105,7 +122,22 @@ bselmodel(
 - subset:
 
   an optional logical or numeric vector specifying a subset of data to
-  be used.
+  be used. Subsetting precedes missing-row removal; retained-row outcome
+  and predictor checks follow these steps. Type, shape, and existing
+  extraction checks can still reject malformed inputs before subsetting.
+  Row selection (by `subset` or missing-row removal) drops factor levels
+  left without rows from `mods`, `scale`, and random-effect grouping
+  factors. The index variable of a structured random-effect term
+  (`cs()`, `hcs()`, `ar1()`, `har()` with one index variable) keeps its
+  declared levels, which define the covariance structure; the variables
+  of a multi-variable `cs(a + b | group)` index follow the ordinary
+  rule, because that index is built from their observed combinations. If
+  an index variable that keeps its levels is also used in `mods` or
+  `scale` and loses one of its levels to the selection, the fit stops
+  with an error of class `RoBMA_structured_index_level_removed` (also
+  `RoBMA_data_error`); remove the level from the data with
+  [`droplevels()`](https://rdrr.io/r/base/droplevels.html) or use a
+  separate column for the moderator.
 
 - measure:
 
@@ -119,33 +151,55 @@ bselmodel(
 - prior_effect:
 
   prior distribution for the effect size (\\\mu\\) parameter (the
-  intercept). If omitted, a default prior is constructed. In
-  single-model functions, explicit `NULL` or `FALSE` sets a spike at
+  intercept). If omitted and consumed, a default prior is constructed.
+  In single-model functions, explicit `NULL` or `FALSE` sets a spike at
   zero.
 
 - prior_heterogeneity:
 
   prior distribution for the heterogeneity (\\\tau\\) parameter. If
-  omitted, a default prior is constructed. In single-model functions,
-  explicit `NULL` or `FALSE` sets a spike at zero.
+  omitted and consumed, a default prior is constructed. In single-model
+  functions, explicit `NULL` or `FALSE` sets a spike at zero. For
+  [`brma.mv`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  random-effect formulas, this can also be a partial or complete
+  [`prior_random`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  object; see
+  [`random_effect_prior_specification`](https://fbartos.github.io/RoBMA/reference/random_effect_prior_specification.md).
 
 - prior_mods:
 
   prior distribution for the moderators (\\\beta\\) parameters. A single
   prior applies to all terms; a named list can specify term-specific
-  priors. If omitted or `NULL`, default priors are used.
+  priors. If omitted or `NULL`, default priors are used. This argument
+  can be specified only when `mods` is specified. A formula without an
+  intercept (`~ 0 + x`) fixes the location intercept at zero, so an
+  `intercept` entry of the list is accepted only as a point prior at
+  zero; any other `intercept` prior stops with an error of class
+  `RoBMA_prior_intercept_conflict` (also of class `RoBMA_prior_error`).
+  A named `intercept` entry supplies the complete intercept prior.
+  Explicit competing global effect declarations are refused when this
+  would discard them. Named `NULL` or `FALSE` intercept entries are
+  invalid; specify the complete prior in one place.
 
 - prior_scale:
 
   prior distribution for the scale (\\\delta\\) parameters. A single
   prior applies to all terms; a named list can specify term-specific
-  priors. If omitted or `NULL`, default priors are used.
+  priors. If omitted or `NULL`, default priors are used. This argument
+  can be specified only when `scale` is specified. A named `intercept`
+  entry supplies the complete positive SD prior used by
+  `log(intercept)`. Global heterogeneity declarations remain meaningful
+  when they supply another random root or its model-inclusion weights;
+  declarations fully replaced without a consumer raise
+  `RoBMA_prior_intercept_conflict`.
 
 - prior_heterogeneity_allocation:
 
   prior distribution for the fraction of heterogeneity allocated to the
-  cluster-level component in multilevel models (\\\rho\\). If omitted or
-  `NULL`, defaults to `Beta(1, 1)`.
+  cluster-level component in multilevel models (\\\rho\\, a variance
+  fraction rather than a random-coefficient correlation). If omitted or
+  `NULL`, defaults to `Beta(1, 1)`. This argument can be specified only
+  when `cluster` is specified.
 
 - prior_bias:
 
@@ -162,9 +216,23 @@ bselmodel(
 - set_contrast_factor_predictors:
 
   character. How to set contrast for factor predictors. Defaults are
-  constructor-specific and shown in each function usage; single-model
-  constructors use `"treatment"`, while model-averaging constructors use
-  `"meandif"`.
+  constructor-specific and shown in each function usage. Single-model
+  constructors use `"treatment"`; model-averaging constructors use
+  `"meandif"`. Accepted values are `"treatment"`, `"meandif"`,
+  `"orthonormal"`, and `"independent"`. Independent coding creates one
+  coefficient per factor level. Random-coefficient blocks reuse the
+  resolved fixed-factor contrast unless `random_block(contrasts = ...)`
+  overrides it. A warning is issued when default or inherited
+  independent contrasts make a fixed or random design overspecified.
+  With `"meandif"` or `"orthonormal"` contrasts, a formula term that
+  interacts a factor with a predictor whose own term is missing, such as
+  `g:x` in `~ g + g:x` or `~ g / x`, stops the fit: the term codes `g`
+  by level indicators, with one coefficient per level, on which
+  mean-difference and orthonormal priors are not defined. Specify an
+  independent prior for that term, e.g.,
+  `prior_mods = list("g:x" = prior_factor("normal", list(0, 1), contrast = "independent"))`
+  (or `prior_scale` for a scale formula), include the missing term
+  (`~ g * x`), or use `set_contrast_factor_predictors = "treatment"`.
 
 - prior_unit_information_sd:
 
@@ -174,9 +242,11 @@ bselmodel(
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged. For constructors with publication-bias
-  prior distributions, `rescale_priors` does not rescale them except for
-  the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged; supplied
+  [`prior_random()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  scale architectures and publication-bias priors are not rescaled. The
+  default PEESE prior separately uses its documented UISD adjustment,
+  independently of `rescale_priors`. Defaults to 1.
 
 - prior_informed_field:
 
@@ -185,8 +255,9 @@ bselmodel(
 
 - prior_informed_subfield:
 
-  character. The subfield of the informed prior distributions. Omit to
-  use the field-specific default, such as `"Cochrane"` for
+  character. The subfield of the informed prior distributions. Can only
+  be specified together with `prior_informed_field`. Omit to use the
+  field-specific default, such as `"Cochrane"` for
   `prior_informed_field = "medicine"`; explicit `NULL` is invalid.
 
 - effect_direction:
@@ -254,6 +325,29 @@ bselmodel(
   default use `RoBMA.get_option("silent")` when `silent` is omitted.
   Model-averaging wrappers default to `TRUE` unless explicitly changed.
 
+- selection:
+
+  specification created by
+  [`selection_model()`](https://fbartos.github.io/RoBMA/reference/selection_model.md)
+  for automatically constructed weightfunction priors. The default
+  integrates estimate-level random effects and the complete sampling
+  error, and conditions on other random effects. Each source can instead
+  be conditioned upon or integrated through the corresponding
+  selection-model setting. The default `weight_rule = "product"` needs
+  no publication groups and ignores `group`. Publication grouping is
+  active only for `weight_rule = "best"`. Explicit `prior_bias` objects
+  retain their own selection specification; this argument does not
+  overwrite it. Conditioning on sampling variation retains the entire
+  sampling-error realization, including in ordinary univariate models.
+  This sampling setting requires omitted or unit observation `weights`.
+
+- selection_control:
+
+  numerical integration settings created by
+  [`set_selection_likelihood_control()`](https://fbartos.github.io/RoBMA/reference/set_selection_likelihood_control.md).
+  These affect numerical evaluation, without changing the conditioning
+  model or the vector weighting rule.
+
 - ...:
 
   additional advanced arguments. Fitting functions reject unused
@@ -270,7 +364,31 @@ Bayesian selection model fit.
 `bselmodel()` is a normal/effect-size selection-model constructor.
 Custom `prior_bias` can be a weightfunction prior or a supported
 BayesTools selection-kernel prior; p-hacking kernels are not supported
-in active RoBMA.
+in active RoBMA. By default, the model conditions on contextual cluster
+effects and uses the product of estimate weights. For independent rows
+conditional on these effects, this gives the usual selected-normal
+likelihood with within-cluster heterogeneity integrated. Use
+`selection = selection_model(...)` to choose `weight_rule = "best"`,
+which uses the weight at the smallest p-value in each publication group.
+For `"best"`, `group` identifies a data column; when `group = NULL`, the
+specialized `cluster` argument supplies publication groups, or an
+unclustered model uses one group per estimate. Product models use
+neither input to define selection groups.
+
+All conditioning choices use the same Gaussian source model. Conditioned
+sources remain latent; their population distributions stay outside
+selection normalization. Integrated sources may be reweighted by
+selection. With all sources conditioned and positive weights, the
+weights cancel and the observed law is the ordinary Gaussian model. See
+[`bselmodel.mv()`](https://fbartos.github.io/RoBMA/reference/bselmodel.mv.md)
+for the complete source and covariance contract.
+
+Product normalizers factorize only for conditionally independent rows.
+Dependent events use supported covariance-factor quadrature or fixed
+randomized quasi-Monte Carlo integration with explicit error
+diagnostics. Non-unit observation `weights` require
+`known_sampling_variance = "integrate"` and independent product factors.
+Unit weights are equivalent to omitting `weights`.
 
 ## See also
 

@@ -12,50 +12,112 @@ of a location-scale model, the between-study heterogeneity corresponds
 to the intercept of the scale regression, and additional prior
 distributions for the scale regression coefficients are required.
 
+Priors of parameters with a restricted support are truncated to it:
+priors of the heterogeneity and of scale intercepts to \\\[0, \infty)\\,
+priors of the heterogeneity allocation and of the base rate to \\\[0,
+1\]\\. An unbounded truncation point, such as the default of
+`prior("normal", ...)`, is moved to the support boundary with a warning;
+a finite truncation point outside the support is an error.
+
 ## Arguments
 
 - prior_effect:
 
   prior distribution for the effect size (\\\mu\\) parameter (the
-  intercept). If omitted, a default prior is constructed. In
-  single-model functions, explicit `NULL` or `FALSE` sets a spike at
+  intercept). If omitted and consumed, a default prior is constructed.
+  In single-model functions, explicit `NULL` or `FALSE` sets a spike at
   zero.
 
 - prior_heterogeneity:
 
   prior distribution for the heterogeneity (\\\tau\\) parameter. If
-  omitted, a default prior is constructed. In single-model functions,
-  explicit `NULL` or `FALSE` sets a spike at zero.
+  omitted and consumed, a default prior is constructed. In single-model
+  functions, explicit `NULL` or `FALSE` sets a spike at zero. For
+  [`brma.mv`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  random-effect formulas, this can also be a partial or complete
+  [`prior_random`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  object; see
+  [`random_effect_prior_specification`](https://fbartos.github.io/RoBMA/reference/random_effect_prior_specification.md).
 
 - prior_mods:
 
   prior distribution for the moderators (\\\beta\\) parameters. A single
   prior applies to all terms; a named list can specify term-specific
-  priors. If omitted or `NULL`, default priors are used.
+  priors. If omitted or `NULL`, default priors are used. This argument
+  can be specified only when `mods` is specified. A formula without an
+  intercept (`~ 0 + x`) fixes the location intercept at zero, so an
+  `intercept` entry of the list is accepted only as a point prior at
+  zero; any other `intercept` prior stops with an error of class
+  `RoBMA_prior_intercept_conflict` (also of class `RoBMA_prior_error`).
+  A named `intercept` entry supplies the complete intercept prior.
+  Explicit competing global effect declarations are refused when this
+  would discard them. Named `NULL` or `FALSE` intercept entries are
+  invalid; specify the complete prior in one place.
 
 - prior_scale:
 
   prior distribution for the scale (\\\delta\\) parameters. A single
   prior applies to all terms; a named list can specify term-specific
-  priors. If omitted or `NULL`, default priors are used.
+  priors. If omitted or `NULL`, default priors are used. This argument
+  can be specified only when `scale` is specified. A named `intercept`
+  entry supplies the complete positive SD prior used by
+  `log(intercept)`. Global heterogeneity declarations remain meaningful
+  when they supply another random root or its model-inclusion weights;
+  declarations fully replaced without a consumer raise
+  `RoBMA_prior_intercept_conflict`.
 
 - prior_heterogeneity_allocation:
 
   prior distribution for the fraction of heterogeneity allocated to the
-  cluster-level component in multilevel models (\\\rho\\). If omitted or
-  `NULL`, defaults to `Beta(1, 1)`.
+  cluster-level component in multilevel models (\\\rho\\, a variance
+  fraction rather than a random-coefficient correlation). If omitted or
+  `NULL`, defaults to `Beta(1, 1)`. This argument can be specified only
+  when `cluster` is specified.
 
 - prior_baserate:
 
   prior distribution for the estimate-specific midpoint base-rate
-  probability in binomial GLMM models. If omitted or `NULL`, defaults to
-  independent `Beta(1, 1)` priors.
+  probability in binomial GLMM models (`measure = "OR"`). If omitted or
+  `NULL`, defaults to independent `Beta(1, 1)` priors. Continuous priors
+  are restricted to `[0, 1]` (see `prior_specification`) and point
+  priors must lie strictly inside `(0, 1)`. The estimate-unit
+  log-likelihood of the model
+  ([`log_lik()`](https://fbartos.github.io/RoBMA/reference/log_lik.md),
+  LOO, WAIC) integrates the base rate over any of these priors: point
+  priors and untruncated beta priors adaptively (a uniform(0, 1) prior
+  is a Beta(1, 1) prior), other families on a refined prior-CDF grid.
+  The grid is accepted only when its log-likelihood changes by less than
+  `1e-6` between refinements; any prior without an adaptive route (other
+  than an untruncated beta prior; a truncated beta prior takes the grid
+  too) can fail to reach this, especially with few events or very large
+  arms, and then stops with an error of class
+  `RoBMA_glmm_grid_nonconvergence`, as a lognormal base-rate prior does
+  on cells with few events. A beta prior avoids it. The automatic
+  computation of LOO/WAIC after fitting warns instead and returns the
+  fit without them.
 
 - prior_lograte:
 
   prior distribution for the estimate-specific midpoint log-rate in
-  Poisson GLMM models. If omitted or `NULL`, a data-based
-  unit-information normal prior is used independently for each estimate.
+  Poisson GLMM models (`measure = "IRR"`). If omitted or `NULL`, a
+  normal prior centered at the pooled crude log-rate is used
+  independently for each estimate. Its standard deviation defaults to
+  `1` and can be changed via `RoBMA.options(default_lograte.sd = ...)`.
+  Rescaling all person-times shifts the prior mean by the corresponding
+  log conversion while leaving its standard deviation unchanged. The
+  estimate-unit log-likelihood of the model
+  ([`log_lik()`](https://fbartos.github.io/RoBMA/reference/log_lik.md),
+  LOO, WAIC) integrates the log-rate over the prior: point priors and
+  untruncated normal priors adaptively, other families on a refined
+  prior-CDF grid. The grid is accepted only when its log-likelihood
+  changes by less than `1e-6` between refinements; any prior without an
+  adaptive route (other than an untruncated normal prior; a truncated
+  normal prior takes the grid too) can fail to reach this, especially
+  with few events or very large arms, and then stops with an error of
+  class `RoBMA_glmm_grid_nonconvergence`, as gamma, lognormal, and
+  inverse-gamma log-rate priors do on cells with few events. A normal
+  prior avoids it. The automatic computation of LOO/WAIC after fitting
+  warns instead and returns the fit without them.
 
 - prior_unit_information_sd:
 
@@ -65,9 +127,11 @@ distributions for the scale regression coefficients are required.
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged. For constructors with publication-bias
-  prior distributions, `rescale_priors` does not rescale them except for
-  the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged; supplied
+  [`prior_random()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  scale architectures and publication-bias priors are not rescaled. The
+  default PEESE prior separately uses its documented UISD adjustment,
+  independently of `rescale_priors`. Defaults to 1.
 
 - standardize_continuous_predictors:
 
@@ -77,9 +141,23 @@ distributions for the scale regression coefficients are required.
 - set_contrast_factor_predictors:
 
   character. How to set contrast for factor predictors. Defaults are
-  constructor-specific and shown in each function usage; single-model
-  constructors use `"treatment"`, while model-averaging constructors use
-  `"meandif"`.
+  constructor-specific and shown in each function usage. Single-model
+  constructors use `"treatment"`; model-averaging constructors use
+  `"meandif"`. Accepted values are `"treatment"`, `"meandif"`,
+  `"orthonormal"`, and `"independent"`. Independent coding creates one
+  coefficient per factor level. Random-coefficient blocks reuse the
+  resolved fixed-factor contrast unless `random_block(contrasts = ...)`
+  overrides it. A warning is issued when default or inherited
+  independent contrasts make a fixed or random design overspecified.
+  With `"meandif"` or `"orthonormal"` contrasts, a formula term that
+  interacts a factor with a predictor whose own term is missing, such as
+  `g:x` in `~ g + g:x` or `~ g / x`, stops the fit: the term codes `g`
+  by level indicators, with one coefficient per level, on which
+  mean-difference and orthonormal priors are not defined. Specify an
+  independent prior for that term, e.g.,
+  `prior_mods = list("g:x" = prior_factor("normal", list(0, 1), contrast = "independent"))`
+  (or `prior_scale` for a scale formula), include the missing term
+  (`~ g * x`), or use `set_contrast_factor_predictors = "treatment"`.
 
 - prior_informed_field:
 
@@ -88,8 +166,9 @@ distributions for the scale regression coefficients are required.
 
 - prior_informed_subfield:
 
-  character. The subfield of the informed prior distributions. Omit to
-  use the field-specific default, such as `"Cochrane"` for
+  character. The subfield of the informed prior distributions. Can only
+  be specified together with `prior_informed_field`. Omit to use the
+  field-specific default, such as `"Cochrane"` for
   `prior_informed_field = "medicine"`; explicit `NULL` is invalid.
 
 ## Details
@@ -223,6 +302,9 @@ distribution objects created via
 [`BayesTools::prior()`](https://fbartos.github.io/BayesTools/reference/prior.html)
 or related functions (e.g.,
 [`prior_factor()`](https://fbartos.github.io/RoBMA/reference/prior_factor.md)).
+For [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+random-effect formulas, see
+[`random_effect_prior_specification`](https://fbartos.github.io/RoBMA/reference/random_effect_prior_specification.md).
 
 ### Rescaling prior distributions
 
@@ -263,6 +345,7 @@ clinical trials and health-care evaluation*. John Wiley and Sons.
 ## See also
 
 [`publication_bias_prior_specification`](https://fbartos.github.io/RoBMA/reference/publication_bias_prior_specification.md),
+[`random_effect_prior_specification`](https://fbartos.github.io/RoBMA/reference/random_effect_prior_specification.md),
 [`prior`](https://fbartos.github.io/BayesTools/reference/prior.html),
 [`RoBMA.options`](https://fbartos.github.io/RoBMA/reference/RoBMA_options.md),
 [`brma`](https://fbartos.github.io/RoBMA/reference/brma.md)

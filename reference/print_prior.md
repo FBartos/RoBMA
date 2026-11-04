@@ -13,7 +13,14 @@ print_prior(x, ...)
 print_prior(x, ...)
 
 # S3 method for class 'brma'
-print_prior(x, parameter, parameter_mods, parameter_scale, ...)
+print_prior(
+  x,
+  parameter,
+  parameter_mods,
+  parameter_scale,
+  component = "auto",
+  ...
+)
 ```
 
 ## Arguments
@@ -35,24 +42,53 @@ print_prior(x, parameter, parameter_mods, parameter_scale, ...)
   `"effect"` = `"mu"`, `"heterogeneity"` = `"tau"`, and
   `"weightfunction"` = `"omega"`. GLMM outcome priors `"pi"` and `"phi"`
   are available when present. Moderator and scale terms can also be
-  selected by name when unambiguous. A character vector requests
-  multiple base parameters.
+  selected by name when unambiguous. For
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  objects with random-effect formulas, `"random"` prints the structured
+  random-effect prior specification, and the random-effect quantities of
+  fitted objects (such as `"tau"`, `"tau_total"`, `"tau2"`,
+  `"tau2_prop(study)"`, or `"study: tau"`) print their declared prior,
+  or, for a quantity that follows from several declared priors, one line
+  giving the derivation (for example `tau2 = tau^2` or
+  `study: tau = sigma_total * sqrt(w[1])`, in the notation of the
+  `"random"` specification) followed by the declared priors it refers
+  to. A quantity without a prior density stops as in
+  [`plot_prior()`](https://fbartos.github.io/RoBMA/reference/plot_prior.md).
+  A character vector requests multiple base parameters. A quantity of
+  the fitted model that is no model parameter (e.g. an inclusion
+  indicator or a weight-function coordinate such as `"omega[1]"`) stops
+  with the classes `BayesTools_hypothesis_target` and
+  `BayesTools_hypothesis_unavailable`, as in
+  [`plot.brma()`](https://fbartos.github.io/RoBMA/reference/plot.brma.md).
 
 - parameter_mods:
 
-  character. Moderator term to print. Use `"intercept"` for the adjusted
-  effect in meta-regression models.
+  legacy moderator selector. Prefer `parameter` with
+  `component = "mods"`. Use `"intercept"` for the adjusted effect in
+  meta-regression models.
 
 - parameter_scale:
 
-  character. Scale-regression term to print. Use `"intercept"` for the
-  heterogeneity intercept in location-scale models.
+  legacy scale-regression selector. Prefer `parameter` with
+  `component = "scale"`. Use `"intercept"` for the heterogeneity
+  intercept in location-scale models.
+
+- component:
+
+  parameter component. Defaults to `"auto"`, which infers the component
+  when possible. Use `"mods"` (alias `"location"`), `"scale"`, `"bias"`,
+  or `"random"` (the random-effect quantities of fitted objects) to
+  disambiguate terms used in multiple prior components. A
+  `parameter_mods` or `parameter_scale` selection with another
+  `component` stops with an error of class `RoBMA_component_mismatch`.
 
 ## Value
 
-`print_prior` invisibly returns the selected prior distribution. If
-multiple parameters are requested, a named list of prior distributions
-is returned invisibly.
+`print_prior` invisibly returns the selected prior distribution (for a
+random-effect quantity that is not one declared prior, its prior
+density, a BayesTools `prior_linear_density`). If multiple parameters
+are requested, a named list of prior distributions is returned
+invisibly.
 
 ## See also
 
@@ -80,7 +116,7 @@ if (requireNamespace("metadat", quietly = TRUE)) {
   print_prior(priors)
   print_prior(priors, parameter = "mu")
   print_prior(priors, parameter = "tau")
-  print_prior(priors, parameter_mods = "Preregistered")
+  print_prior(priors, parameter = "Preregistered", component = "mods")
 }
 } # }
 ```

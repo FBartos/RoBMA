@@ -15,14 +15,20 @@ set_autofit_control(
   max_time = list(time = 60, unit = "mins"),
   sample_extend = 1000,
   restarts = 10,
-  max_extend = 10
+  max_extend = 10,
+  check_indicators = FALSE,
+  monitor = NULL,
+  allow_not_assessable = FALSE
 )
 
 set_convergence_checks(
   max_Rhat = 1.05,
   min_ESS = 500,
   max_error = NULL,
-  max_SD_error = NULL
+  max_SD_error = NULL,
+  check_indicators = FALSE,
+  monitor = NULL,
+  allow_not_assessable = FALSE
 )
 ```
 
@@ -70,14 +76,35 @@ set_convergence_checks(
   number of times after which the automatic fitting function is stopped.
   Defaults to `10`.
 
+- check_indicators:
+
+  whether model indicator variables should be included in convergence
+  checks. Binary indicators are checked as state occupancies and
+  categorical indicators are checked separately for every observed
+  state. Eligible indicators remain included when `monitor` selects a
+  narrower parameter set; auxiliary inclusion-probability coordinates
+  remain excluded unless requested explicitly. Defaults to `FALSE`.
+
+- monitor:
+
+  optional character vector selecting the parameters used for
+  convergence checks. A base name selects all indexed elements. Defaults
+  to `NULL`, which checks every eligible parameter.
+
+- allow_not_assessable:
+
+  whether requested sampled parameters with undefined diagnostics may be
+  ignored. Defaults to `FALSE`.
+
 ## Value
 
 `set_autofit_control` returns a list of autofit control settings
 including `max_Rhat`, `min_ESS`, `max_error`, `max_SD_error`,
-`max_time`, `sample_extend`, `restarts`, `max_extend`, and delegated
-`check_indicators`. `set_convergence_checks` returns a list with
-convergence thresholds `max_Rhat`, `min_ESS`, `max_error`,
-`max_SD_error`, and delegated `check_indicators`.
+`max_time`, `sample_extend`, `restarts`, `max_extend`,
+`check_indicators`, `monitor`, and `allow_not_assessable`.
+`set_convergence_checks` returns a list with convergence thresholds
+`max_Rhat`, `min_ESS`, `max_error`, `max_SD_error`, `check_indicators`,
+`monitor`, and `allow_not_assessable`.
 
 ## Details
 
@@ -92,9 +119,11 @@ convergence criteria are not met. The convergence checks determine the
 quality standards that fitted models must meet. Autofit thresholds
 `max_Rhat`, `min_ESS`, `max_error`, `max_SD_error`, `max_time`,
 `restarts`, and `max_extend` can be set to `NULL`; `sample_extend` must
-be a positive integer. Thresholds can be disabled with `NULL`; otherwise
-`max_Rhat` must be at least 1, `min_ESS` and `max_error` must be
-nonnegative, and `max_SD_error` must be between 0 and 1.
+be a positive integer. The routing controls are delegated to
+[`BayesTools::JAGS_check_convergence()`](https://fbartos.github.io/BayesTools/reference/JAGS_check_convergence.html).
+Thresholds can be disabled with `NULL`; otherwise `max_Rhat` must be at
+least 1, `min_ESS` and `max_error` must be nonnegative, and
+`max_SD_error` must be between 0 and 1.
 
 ## See also
 

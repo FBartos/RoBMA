@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Introduction to RoBMA • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Introduction to RoBMA">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -83,7 +85,8 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">28th of April 2026</h4>
+            <h4 data-toc-skip class="date">28th of April 2026 (updated
+22nd of June 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v00-introduction.Rmd" class="external-link"><code>vignettes/v00-introduction.Rmd</code></a></small>
       <div class="d-none name"><code>v00-introduction.Rmd</code></div>
@@ -112,20 +115,21 @@ div.sourceCode {
 <p>The <code>RoBMA</code> R package fits a comprehensive collection of
 Bayesian meta-analytic models <span class="citation">(<a href="#ref-RoBMA">Bartoš &amp; Maier, 2020</a>)</span>. It provides
 single-model fits, meta-regression, location-scale models, multilevel
-models, fully Bayesian model-averaged ensembles, and built-in
-publication-bias adjustment using selection models, PET-PEESE, and
-Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is performed
-by JAGS through a custom C++ module that implements the weighted
-distributions used in selection models. Prior handling, plotting, and
-Bayesian diagnostics are delegated to the companion
+and multivariate models, fully Bayesian model-averaged ensembles, and
+built-in publication-bias adjustment using selection models, PET-PEESE,
+and Robust Bayesian Meta-Analysis (RoBMA). Posterior sampling is
+performed by JAGS through a custom C++ module that implements the
+weighted distributions used in selection models. Prior handling,
+plotting, and Bayesian diagnostics are delegated to the companion
 <code>BayesTools</code> package.</p>
 <p>This introduction maps the package at a high level and points to the
 more detailed vignettes that follow.</p>
 <div class="section level2">
 <h2 id="system-requirements">System Requirements<a class="anchor" aria-label="anchor" href="#system-requirements"></a>
 </h2>
-<p>The <code>RoBMA</code> R package requires JAGS 4.3.1 or newer <span class="citation">(<a href="#ref-plummer2003jags">Plummer,
-2003</a>)</span>. Install JAGS from <a href="https://mcmc-jags.sourceforge.io/" class="external-link uri">https://mcmc-jags.sourceforge.io/</a> before installing the
+<p>The <code>RoBMA</code> R package requires JAGS 4.x (4.3.1 or newer;
+JAGS 5 is not supported) <span class="citation">(<a href="#ref-plummer2003jags">Plummer, 2003</a>)</span>. Install JAGS from
+<a href="https://mcmc-jags.sourceforge.io/" class="external-link uri">https://mcmc-jags.sourceforge.io/</a> before installing the
 R package.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"RoBMA"</span><span class="op">)</span></span></code></pre></div>
@@ -312,6 +316,13 @@ Linear Mixed-Effects Meta-Analysis</em></a></td>
 <code><a href="../reference/brma.glmm.html">brma.glmm()</a></code> and
 <code><a href="https://wviechtb.github.io/metafor/reference/rma.glmm.html" class="external-link">metafor::rma.glmm()</a></code> for binomial and Poisson outcomes</td>
 </tr>
+<tr class="odd">
+<td align="left"><a href="v14-metafor-parity-multivariate.html"><em>Multivariate and
+Multilevel Meta-Analysis</em></a></td>
+<td align="left">
+<code><a href="../reference/brma.mv.html">brma.mv()</a></code> with known sampling covariance
+matrices and structured random effects</td>
+</tr>
 </tbody>
 </table>
 <p>Each vignette starts from a <code>metafor</code> package analysis and
@@ -344,6 +355,12 @@ Meta-Analysis</em></a></td>
 <td align="left">Extending the ensemble to publication-bias models used
 in <code><a href="../reference/RoBMA.html">RoBMA()</a></code>, with <code>PSMA</code>, <code>PP</code>, and
 bespoke ensemble specifications</td>
+</tr>
+<tr class="odd">
+<td align="left"><a href="v22-posterior-densities-parameter-tests.html"><em>Posterior
+Densities and Parameter Tests</em></a></td>
+<td align="left">Likelihood-aware posterior densities and hypothesis
+tests with qCMDE and IWMDE</td>
 </tr>
 </tbody>
 </table>
@@ -503,7 +520,7 @@ Distributed Statistical Computing (DSC 2003)</em>, 1–10.
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

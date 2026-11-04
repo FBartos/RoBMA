@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Informed Bayesian Model-Averaged Meta-Analysis in Medicine • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Informed Bayesian Model-Averaged Meta-Analysis in Medicine">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -84,7 +86,7 @@
 Bartoš</h4>
             
             <h4 data-toc-skip class="date">3rd of November 2021
-(updated: 29th of April 2026)</h4>
+(updated: 25th of October 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v34-bma-norm-medicine.Rmd" class="external-link"><code>vignettes/v34-bma-norm-medicine.Rmd</code></a></small>
       <div class="d-none name"><code>v34-bma-norm-medicine.Rmd</code></div>
@@ -192,27 +194,27 @@ true<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect              0.500       0.996      240.935</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.779        3.529</span></span>
+<span><span class="co">#&gt; Effect              0.500       0.996      257.993</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.772        3.383</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  1.076 0.203 0.631 1.092 1.423</span></span>
-<span><span class="co">#&gt; tau 0.236 0.220 0.000 0.206 0.769</span></span>
+<span><span class="co">#&gt; mu  1.079 0.194 0.666 1.090 1.422</span></span>
+<span><span class="co">#&gt; tau 0.228 0.211 0.000 0.202 0.730</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  1.080 0.191 0.661 1.092 1.424</span></span>
-<span><span class="co">#&gt; tau 0.303 0.205 0.073 0.257 0.822</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  1.083 0.183 0.690 1.091 1.422</span></span>
+<span><span class="co">#&gt; tau 0.296 0.194 0.071 0.253 0.793</span></span></code></pre></div>
 <p>The output from the <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> function has 3 parts. The
 first one provides a basic summary of the fitted models by component
 types (presence of the effect and heterogeneity). The table summarizes
 the prior and posterior probabilities and the inclusion Bayes factors of
 the individual components. The results show that the inclusion Bayes
 factor for the effect is similar to the one reported in <span class="citation">Bartoš et al. (<a href="#ref-bartos2021bayesian">2021</a>)</span>,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>240.9</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 240.9</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>250</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 250</annotation></semantics></math>
 and
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">rf</mtext></msub><mo>=</mo><mn>3.53</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{rf}} = 3.53</annotation></semantics></math>
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mtext mathvariant="normal">rf</mtext></msub><mo>=</mo><mn>3.60</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{\text{rf}} = 3.60</annotation></semantics></math>
 (minor differences are a consequence of the product-space estimation
 algorithm in the new version of the package).</p>
 <p>The second part under the ‘Model-averaged estimates’ heading displays
@@ -221,8 +223,8 @@ the parameter estimates model-averaged across all specified models
 to the last part.</p>
 <p>The third part under the ‘Conditional estimates’ heading displays the
 conditional effect size estimate corresponding to the one reported in
-<span class="citation">Bartoš et al. (<a href="#ref-bartos2021bayesian">2021</a>)</span>, d = 1.080, 95% CI
-[0.661, 1.424], and a heterogeneity estimate (not reported
+<span class="citation">Bartoš et al. (<a href="#ref-bartos2021bayesian">2021</a>)</span>, d = 1.082, 95% CI
+[0.663, 1.420], and a heterogeneity estimate (not reported
 previously).</p>
 <p>The dedicated helper functions can be used to extract the pooled
 effect and heterogeneity estimates directly (assuming the presence of
@@ -231,13 +233,13 @@ the effect and heterogeneity respectively):</p>
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Pooled Effect Size</span></span>
-<span><span class="co">#&gt;     Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; mu 1.080  1.092 0.661 1.424</span></span>
+<span><span class="co">#&gt;     Mean Median 0.025 0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 1.083  1.091 0.690 1.422    0.311    1.776</span></span>
 <span><span class="fu"><a href="../reference/pooled_heterogeneity.html">pooled_heterogeneity</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Pooled Heterogeneity</span></span>
 <span><span class="co">#&gt;      Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; tau 0.303  0.257 0.073 0.822</span></span></code></pre></div>
+<span><span class="co">#&gt; tau 0.296  0.253 0.071 0.793</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="visualizing-the-results">Visualizing the Results<a class="anchor" aria-label="anchor" href="#visualizing-the-results"></a>
@@ -253,8 +255,8 @@ visualizing the results. Here, we visualize the prior distribution
 all models; the arrows represent the probability of a spike, and the
 lines represent the posterior density under models assuming a non-zero
 effect. The secondary y-axis (right) shows the probability of the spike
-(at zero) decreasing from 0.50 to 0.005 (also obtainable from the model
-summary).</p>
+(at zero) decreasing from 0.50 to approximately 0.004 (also obtainable
+from the model summary).</p>
 <p>To visualize the conditional effect size estimate, we can add the
 <code>conditional = TRUE</code> argument,</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -303,77 +305,77 @@ model.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;                  Prior prob. Post. prob. Inclusion BF</span></span>
-<span><span class="co">#&gt; Effect                 0.500       0.708        2.424</span></span>
-<span><span class="co">#&gt; Heterogeneity          0.500       0.644        1.806</span></span>
-<span><span class="co">#&gt; Publication Bias       0.500       0.833        4.974</span></span>
+<span><span class="co">#&gt; Effect                 0.500       0.741        2.863</span></span>
+<span><span class="co">#&gt; Heterogeneity          0.500       0.677        2.092</span></span>
+<span><span class="co">#&gt; Publication Bias       0.500       0.822        4.613</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.464 0.509 -0.267 0.413 1.300</span></span>
-<span><span class="co">#&gt; tau 0.165 0.190  0.000 0.129 0.623</span></span>
+<span><span class="co">#&gt; mu  0.518 0.491 -0.231 0.526 1.306</span></span>
+<span><span class="co">#&gt; tau 0.202 0.249  0.000 0.148 0.870</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD  0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.655 0.491 -0.384 0.720 1.330</span></span>
-<span><span class="co">#&gt; tau 0.257 0.180  0.062 0.214 0.698</span></span>
+<span><span class="co">#&gt; mu  0.699 0.447 -0.303 0.786 1.334</span></span>
+<span><span class="co">#&gt; tau 0.299 0.250  0.062 0.229 0.992</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5  0.975</span></span>
-<span><span class="co">#&gt; PET               1.801 2.150 0.000 0.000  5.534</span></span>
-<span><span class="co">#&gt; PEESE             2.440 4.800 0.000 0.000 15.923</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.977 0.115 0.590 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.957 0.164 0.294 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.950 0.182 0.211 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.957 0.165 0.283 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.975 0.130 0.475 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.960 0.146 0.399 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.911 0.239 0.095 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.898 0.264 0.058 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.906 0.252 0.067 1.000  1.000</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.925 0.233 0.073 1.000  1.000</span></span>
+<span><span class="co">#&gt; PET               1.475 1.994 0.000 0.000  5.371</span></span>
+<span><span class="co">#&gt; PEESE             2.351 4.703 0.000 0.000 15.815</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5  0.975</span></span>
-<span><span class="co">#&gt; PET               3.642 1.624 0.387 3.968  6.348</span></span>
-<span><span class="co">#&gt; PEESE             9.539 4.729 1.083 9.519 17.695</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000  1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.717 0.296 0.058 0.812  1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.481 0.280 0.029 0.479  0.971</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.397 0.264 0.019 0.360  0.940</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.474 0.278 0.029 0.476  0.968</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.693 0.345 0.049 0.875  1.000</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.727 0.287 0.092 0.815  1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.394 0.276 0.012 0.353  0.942</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.305 0.253 0.007 0.238  0.894</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.356 0.282 0.008 0.289  0.942</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.490 0.386 0.008 0.383  1.000</span></span>
+<span><span class="co">#&gt; PET               3.511 1.520 0.331 3.907  6.041</span></span>
+<span><span class="co">#&gt; PEESE             9.207 4.847 1.000 8.904 17.916</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
 <p>We notice the additional values in the ‘Component Inclusion’ table in
 the ‘Publication Bias’ row. The model is now extended with 32
 publication bias adjustment models that account for 50% of the prior
-model probability. When comparing the RoBMA to the second BMA fit, we
-notice a large decrease in the inclusion Bayes factor for the presence
-of the effect
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>2.42</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 2.42</annotation></semantics></math>
-vs. <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>240.9</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 240.9</annotation></semantics></math>,
+model probability. When comparing RoBMA to the second BMA fit, we notice
+a large decrease in the inclusion Bayes factor for the presence of the
+effect,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>2.77</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 2.77</annotation></semantics></math>
+vs. <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>250</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 250</annotation></semantics></math>,
 which still presents weak evidence for the presence of the effect. We
-can further quantify the evidence in favor of the publication bias with
-the inclusion Bayes factor for publication bias
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mrow><mi>p</mi><mi>b</mi></mrow></msub><mo>=</mo><mn>4.97</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{pb} = 4.97</annotation></semantics></math>,
+can further quantify the evidence in favor of publication bias with the
+inclusion Bayes factor for publication bias
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mrow><mi>p</mi><mi>b</mi></mrow></msub><mo>=</mo><mn>4.74</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{pb} = 4.74</annotation></semantics></math>,
 which can be interpreted as moderate evidence in favor of publication
 bias.</p>
 <p>We can also compare the unadjusted and publication-bias-adjusted
 conditional effect size estimates. Including models assuming publication
 bias into our model-averaged estimate (assuming the presence of the
-effect) decreases the estimated effect to d = 0.655, 95% CI [-0.384,
-1.330] with a much wider credible interval.</p>
+effect) decreases the estimated effect to d = 0.704, 95% CI [-0.327,
+1.338] with a much wider credible interval.</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_BMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Pooled Effect Size</span></span>
-<span><span class="co">#&gt;     Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; mu 1.080  1.092 0.661 1.424</span></span>
+<span><span class="co">#&gt;     Mean Median 0.025 0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 1.083  1.091 0.690 1.422    0.311    1.776</span></span>
 <span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Pooled Effect Size</span></span>
-<span><span class="co">#&gt;     Mean Median  0.025 0.975</span></span>
-<span><span class="co">#&gt; mu 0.655  0.720 -0.384 1.330</span></span></code></pre></div>
+<span><span class="co">#&gt;     Mean Median  0.025 0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 0.699  0.786 -0.303 1.334   -0.438    1.610</span></span></code></pre></div>
 <p>The same shift is visible in the prior and posterior plot below.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">0</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">1</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">fit_RoBMA</span>, parameter <span class="op">=</span> <span class="st">"mu"</span>, prior <span class="op">=</span> <span class="cn">TRUE</span>, conditional <span class="op">=</span> <span class="cn">TRUE</span>, xlim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, ylim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1.35</span><span class="op">)</span>, lwd <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span></code></pre></div>
 <p><img src="v34-bma-norm-medicine_files/figure-html/fig_mu_RoBMA_cond-1.png" class="r-plt" alt="" width="75%" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level2">
@@ -462,7 +464,7 @@ estimating effect size in the presence of publication bias.
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

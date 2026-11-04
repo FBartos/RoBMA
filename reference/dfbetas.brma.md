@@ -16,6 +16,8 @@ dfbetas(
   standardized_coefficients = FALSE,
   transform_factors = TRUE,
   return_loo_estimates = FALSE,
+  component = NULL,
+  parameter = NULL,
   ...
 )
 ```
@@ -35,12 +37,14 @@ dfbetas(
 
 - standardized_coefficients:
 
-  whether to show standardized meta-regression coefficients. Defaults to
-  `FALSE`. When set to `TRUE`, standardized meta-regression coefficients
-  are returned for the intercept and continuous predictors. These
-  coefficients correspond to the standardized scale on which prior
-  distributions are specified by default (i.e.,
-  `standardize_continuous_predictors = TRUE`).
+  whether to show standardized meta-regression and scale-regression
+  coefficients. Defaults to `FALSE`. When set to `TRUE`, standardized
+  coefficients are returned for the intercept and continuous predictors
+  of the location (`type = "mods"`) and scale (`type = "scale"`)
+  formulas. These coefficients correspond to the standardized scale on
+  which prior distributions are specified by default (i.e.,
+  `standardize_continuous_predictors = TRUE`). Otherwise, the
+  coefficients are returned on the original scale of the predictors.
 
 - transform_factors:
 
@@ -52,6 +56,16 @@ dfbetas(
   whether to return the leave-one-out coefficient estimates used to
   compute DFBETAS instead of standardized DFBETAS values. Defaults to
   `FALSE`.
+
+- component:
+
+  optional parameter namespace. Use `"random"` for semantic
+  random-effect SD, correlation, and allocation quantities.
+
+- parameter:
+
+  optional semantic random-effect quantity. When omitted with
+  `component = "random"`, all available random quantities are returned.
 
 - ...:
 
@@ -88,11 +102,18 @@ In the Bayesian context using LOO approximation:
 
 This approximation allows computing influence statistics without
 refitting the model \\K\\ times, making it computationally efficient.
-For `type = "bias"`, fixed identification parameters (e.g., the
-reference \\\omega = 1\\ interval) can have zero LOO posterior standard
-deviation. These parameters are retained in the output, but their
-DFBETAS values are reported as `NaN` because the standardized diagnostic
-is undefined.
+For [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+objects, DFBETAS use estimate-unit PSIS weights. With correlated
+known-`V` data, this is influence under conditional estimate deletion,
+not independent-study deletion. A requested random-effect correlation
+must be defined in every posterior draw. If either SD is zero in some
+draws, the complete influence request is unavailable; explicitly select
+an everywhere-defined quantity with `component = "random"` and
+`parameter` instead. For `type = "bias"`, fixed identification
+parameters (e.g., the reference \\\omega = 1\\ interval) can have zero
+LOO posterior standard deviation. These parameters are retained in the
+output, but their DFBETAS values are reported as `NaN` because the
+standardized diagnostic is undefined.
 
 Note: This function requires that LOO-CV has been computed for the model
 using

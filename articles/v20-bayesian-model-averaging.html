@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Bayesian Model Averaging • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Bayesian Model Averaging">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -83,7 +85,8 @@
                         <h4 data-toc-skip class="author">František
 Bartoš</h4>
             
-            <h4 data-toc-skip class="date">4th of May 2026</h4>
+            <h4 data-toc-skip class="date">4th of May 2026 (updated:
+25th of October 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v20-bayesian-model-averaging.Rmd" class="external-link"><code>vignettes/v20-bayesian-model-averaging.Rmd</code></a></small>
       <div class="d-none name"><code>v20-bayesian-model-averaging.Rmd</code></div>
@@ -214,8 +217,8 @@ the heterogeneity.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.554 0.070 0.424 0.551 0.701</span></span>
-<span><span class="co">#&gt; tau 0.140 0.084 0.008 0.134 0.318</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.554 0.070 0.424 0.552 0.700</span></span>
+<span><span class="co">#&gt; tau 0.140 0.083 0.008 0.134 0.318</span></span></code></pre></div>
 <p>Setting the heterogeneity prior distribution to a spike at zero turns
 the random-effects model into a fixed-effect model.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
@@ -228,17 +231,18 @@ the random-effects model into a fixed-effect model.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_FE</span>, include_mcmc_diagnostics <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Bayesian Random-Effects Model (k = 23)</span></span>
+<span><span class="co">#&gt; Bayesian Fixed-Effect Model (k = 23)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
-<span><span class="co">#&gt;     Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu 0.525 0.055 0.418 0.525 0.633</span></span></code></pre></div>
+<span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
+<span><span class="co">#&gt; mu  0.526 0.055 0.418 0.526 0.634</span></span>
+<span><span class="co">#&gt; tau 0.000 0.000 0.000 0.000 0.000</span></span></code></pre></div>
 <p>With marginal likelihoods attached to the models via
 <code><a href="../reference/add_marglik.brma.html">add_marglik()</a></code>, <code><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bf()</a></code> returns the Bayes factor
 between the two fits.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/pkg/bridgesampling/man/bf.html" class="external-link">bf</a></span><span class="op">(</span><span class="va">fit_RE</span>, <span class="va">fit_FE</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Bayes factor in favor of Model 1 over Model 2: 0.76191</span></span></code></pre></div>
+<span><span class="co">#&gt; Bayes factor in favor of Model 1 over Model 2: 0.76130</span></span></code></pre></div>
 <p>The Bayes factor is close to one and neither model is decisively
 preferred. Rather than picking one of the two models, we can
 model-average over them and weight the inference by the posterior model
@@ -268,12 +272,12 @@ above.</p>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              1.000       1.000           NA                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.429        0.752                2.363</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.434        0.766                2.344</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.421 0.536 0.670     0.00058          0.009 11883 1.000</span></span>
-<span><span class="co">#&gt; tau 0.060 0.088 0.000 0.000 0.280     0.00095          0.011  8757 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.538 0.063 0.421 0.536 0.670     0.00057          0.009 12056 1.000</span></span>
+<span><span class="co">#&gt; tau 0.061 0.088 0.000 0.000 0.278     0.00094          0.011  8836 1.000</span></span></code></pre></div>
 <p>The <em>Components</em> table reports the posterior probability and
 inclusion Bayes factor for heterogeneity. This BF closely matches
 <code>bf(fit_RE, fit_FE)</code> above up to MCMC noise. The two routes
@@ -307,12 +311,12 @@ heterogeneity, each present or absent).</p>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.429        0.752                2.351</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.431        0.757                2.368</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.421 0.536 0.671     0.00058          0.009 11972 1.000</span></span>
-<span><span class="co">#&gt; tau 0.060 0.089 0.000 0.000 0.284     0.00096          0.011  8682 1.000</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.668     0.00057          0.009 12033 1.000</span></span>
+<span><span class="co">#&gt; tau 0.060 0.088 0.000 0.000 0.277     0.00094          0.011  8696 1.000</span></span></code></pre></div>
 <p>Both inclusion Bayes factors come from the same MCMC. The effect BF
 is overwhelming on this dataset; the heterogeneity BF is the same as
 before. The model-averaged estimates are spike-and-slab mixtures: a
@@ -347,17 +351,17 @@ where the spike’s posterior weight is essentially zero.</p>
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.429        0.752                2.351</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.431        0.757                2.368</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.421 0.536 0.671     0.00058          0.009 11972 1.000</span></span>
-<span><span class="co">#&gt; tau 0.060 0.089 0.000 0.000 0.284     0.00096          0.011  8682 1.000</span></span>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.668     0.00057          0.009 12033 1.000</span></span>
+<span><span class="co">#&gt; tau 0.060 0.088 0.000 0.000 0.277     0.00094          0.011  8696 1.000</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Conditional Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; mu  0.538 0.063 0.421 0.536 0.671</span></span>
-<span><span class="co">#&gt; tau 0.141 0.084 0.008 0.136 0.319</span></span></code></pre></div>
+<span><span class="co">#&gt; mu  0.538 0.063 0.420 0.536 0.668</span></span>
+<span><span class="co">#&gt; tau 0.140 0.083 0.009 0.133 0.312</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="meta-regression-with-model-averaging">Meta-Regression with Model Averaging<a class="anchor" aria-label="anchor" href="#meta-regression-with-model-averaging"></a>
@@ -411,21 +415,21 @@ heterogeneity
 <span><span class="co">#&gt; Component Inclusion</span></span>
 <span><span class="co">#&gt;               Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
 <span><span class="co">#&gt; Effect              0.500       1.000   &gt;14999.000                   NA</span></span>
-<span><span class="co">#&gt; Heterogeneity       0.500       0.370        0.588                2.516</span></span>
+<span><span class="co">#&gt; Heterogeneity       0.500       0.366        0.577                2.457</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression Inclusion</span></span>
 <span><span class="co">#&gt;        Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)</span></span>
-<span><span class="co">#&gt; tailor       0.500       0.557        1.257                3.513</span></span>
+<span><span class="co">#&gt; tailor       0.500       0.546        1.204                3.471</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; tau 0.047 0.079 0.000 0.000 0.259     0.00092          0.012 7317 1.000</span></span>
+<span><span class="co">#&gt; tau 0.046 0.079 0.000 0.000 0.261     0.00089          0.011 7862 1.001</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                  Mean    SD  0.025    0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat</span></span>
-<span><span class="co">#&gt; intercept       0.510 0.069  0.379  0.509 0.651     0.00085          0.012 6576 1.000</span></span>
-<span><span class="co">#&gt; tailor[dif: 0] -0.067 0.075 -0.224 -0.043 0.000     0.00119          0.016 4066 1.001</span></span>
-<span><span class="co">#&gt; tailor[dif: 1]  0.067 0.075  0.000  0.043 0.224     0.00119          0.016 4066 1.001</span></span></code></pre></div>
+<span><span class="co">#&gt; intercept       0.510 0.068  0.378  0.508 0.649     0.00082          0.012 6956 1.000</span></span>
+<span><span class="co">#&gt; tailor[dif: 0] -0.066 0.076 -0.227 -0.036 0.000     0.00118          0.016 4159 1.000</span></span>
+<span><span class="co">#&gt; tailor[dif: 1]  0.066 0.076  0.000  0.036 0.227     0.00118          0.016 4159 1.000</span></span></code></pre></div>
 <p>The <em>Components</em> table now also lists <code>tailor</code> and
 its inclusion BF. Because we average the moderation across models in
 which the slope is zero, <code><a href="../reference/regplot.html">regplot()</a></code> shrinks the difference
@@ -443,10 +447,10 @@ and posterior distributions at each moderator level.</p>
 <span><span class="va">emm</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-Averaged Marginal Means:</span></span>
-<span><span class="co">#&gt;            Mean    SD 0.025   0.5 0.975 Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept 0.510 0.069 0.379 0.509 0.651          Inf</span></span>
-<span><span class="co">#&gt; tailor[0] 0.443 0.124 0.191 0.459 0.649      130.849</span></span>
-<span><span class="co">#&gt; tailor[1] 0.577 0.075 0.440 0.575 0.731          Inf</span></span>
+<span><span class="co">#&gt;            Mean    SD 0.025   0.5 0.975  Inclusion BF</span></span>
+<span><span class="co">#&gt; intercept 0.510 0.068 0.378 0.508 0.649 6.194632e+192</span></span>
+<span><span class="co">#&gt; tailor[0] 0.443 0.123 0.193 0.462 0.646  1.921280e+02</span></span>
+<span><span class="co">#&gt; tailor[1] 0.576 0.075 0.439 0.573 0.731 1.251480e+214</span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_tailor[1]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span></span>
@@ -500,7 +504,7 @@ zero (a perinull) to test against a region of practical equivalence:</p>
 <span>  prior_mods_null <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>tailor <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>, only_priors <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/print_prior.html">print_prior</a></span><span class="op">(</span><span class="va">fit_priors</span>, parameter_mods <span class="op">=</span> <span class="st">"tailor"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/print_prior.html">print_prior</a></span><span class="op">(</span><span class="va">fit_priors</span>, parameter <span class="op">=</span> <span class="st">"tailor"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; mu_tailor:</span></span>
 <span><span class="co">#&gt;   alternative:</span></span>
 <span><span class="co">#&gt;     (1/1) * mean difference contrast: mNormal(0, 0.35)</span></span></code></pre></div>
@@ -577,7 +581,7 @@ Psychology</em>, <em>55</em>(5), 331–347. <a href="https://doi.org/10.1016/j.j
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

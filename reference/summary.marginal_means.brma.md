@@ -53,6 +53,8 @@ summary(
   whether to show inclusion Bayes factors. Defaults to the setting
   stored by
   [`marginal_means()`](https://fbartos.github.io/RoBMA/reference/marginal_means.md).
+  An explicit `TRUE` computes previously skipped KDE Bayes factors from
+  the stored conditional posteriors at the stored null hypothesis.
 
 - output_measure:
 
@@ -69,7 +71,7 @@ summary(
 
 - ...:
 
-  additional arguments (currently ignored).
+  unused additional arguments. Supplied arguments trigger a warning.
 
 ## Value
 

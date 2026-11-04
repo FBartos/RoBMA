@@ -18,6 +18,7 @@ plot_diagnostic(
   type,
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 
@@ -32,6 +33,7 @@ plot_diagnostic_autocorrelation(
   type = "autocorrelation",
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 
@@ -46,6 +48,7 @@ plot_diagnostic_trace(
   type = "trace",
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 
@@ -60,6 +63,7 @@ plot_diagnostic_density(
   type = "density",
   plot_type = "base",
   lags = 30,
+  component = "auto",
   ...
 )
 ```
@@ -81,15 +85,21 @@ plot_diagnostic_density(
   base parameter to plot. Defaults to `NULL`, which uses `"mu"` or the
   meta-regression intercept. Valid values include `"mu"`, `"tau"`,
   `"rho"`, `"PET"`, `"PEESE"`, and `"omega"` or `"weightfunction"` when
-  present.
+  present. A quantity of the fitted model that is no model parameter
+  (e.g. an inclusion indicator or a weight-function coordinate such as
+  `"omega[1]"`) stops with the classes `BayesTools_hypothesis_target`
+  and `BayesTools_hypothesis_unavailable`, as in
+  [`plot.brma()`](https://fbartos.github.io/RoBMA/reference/plot.brma.md).
 
 - parameter_mods:
 
-  moderator term for location regression.
+  legacy moderator selector. Prefer `parameter` with
+  `component = "mods"`.
 
 - parameter_scale:
 
-  term for scale regression.
+  legacy scale-regression selector. Prefer `parameter` with
+  `component = "scale"`.
 
 - type:
 
@@ -105,11 +115,24 @@ plot_diagnostic_density(
 
   number of lags for autocorrelation plots. Defaults to 30.
 
+- component:
+
+  parameter component. Defaults to `"auto"`, which infers the component
+  when possible. Use `"mods"` (alias `"location"`), `"scale"`,
+  `"random"`, or `"bias"` to disambiguate terms used in multiple model
+  components. The random component selects semantic standard deviation,
+  correlation, and allocation parameters from
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+  random formulas. A `parameter_mods` or `parameter_scale` selection
+  with another `component` stops with an error of class
+  `RoBMA_component_mismatch`.
+
 ## Value
 
 `plot_diagnostic` returns the object returned by
 [`BayesTools::JAGS_diagnostics()`](https://fbartos.github.io/BayesTools/reference/JAGS_diagnostics.html),
-invisibly for base graphics.
+including a list when several coordinate plots are produced, invisibly
+for base graphics.
 
 ## See also
 

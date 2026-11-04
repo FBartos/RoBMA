@@ -7,8 +7,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <title>Multilevel Robust Bayesian Model-Averaged Meta-Regression • RoBMA</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Multilevel Robust Bayesian Model-Averaged Meta-Regression">
 </head>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -43,10 +43,12 @@
     <li><a class="dropdown-item" href="../articles/v11-metafor-parity-publication-bias.html">Publication-Bias Adjustment</a></li>
     <li><a class="dropdown-item" href="../articles/v12-metafor-parity-location-scale.html">Location-Scale Meta-Analysis</a></li>
     <li><a class="dropdown-item" href="../articles/v13-metafor-parity-glmm.html">Generalized Linear Mixed-Effects Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v14-metafor-parity-multivariate.html">Multivariate and Multilevel Meta-Analysis</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Bayesian Model Averaging</h6></li>
     <li><a class="dropdown-item" href="../articles/v20-bayesian-model-averaging.html">Bayesian Model Averaging</a></li>
     <li><a class="dropdown-item" href="../articles/v21-robust-bayesian-meta-analysis.html">Robust Bayesian Meta-Analysis</a></li>
+    <li><a class="dropdown-item" href="../articles/v22-posterior-densities-parameter-tests.html">Posterior Densities and Parameter Tests</a></li>
     <li><hr class="dropdown-divider"></li>
     <li><h6 class="dropdown-header" data-toc-skip>Manuscript Companions</h6></li>
     <li><a class="dropdown-item" href="../articles/v30-tutorial.html">Adjusting for Publication Bias Tutorial</a></li>
@@ -84,7 +86,7 @@
 Bartoš</h4>
             
             <h4 data-toc-skip class="date">17th of December 2025
-(updated: 29th of April 2026)</h4>
+(updated: 25th of October 2026)</h4>
       
       <small class="dont-index">Source: <a href="https://github.com/FBartos/RoBMA/blob/master/vignettes/v33-robma-multilevel-metaregression.Rmd" class="external-link"><code>vignettes/v33-robma-multilevel-metaregression.Rmd</code></a></small>
       <div class="d-none name"><code>v33-robma-multilevel-metaregression.Rmd</code></div>
@@ -209,24 +211,24 @@ and model parameters.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Common Estimates</span></span>
 <span><span class="co">#&gt;      Mean    SD 0.025   0.5 0.975</span></span>
-<span><span class="co">#&gt; tau 4.525 0.380 3.863 4.495 5.344</span></span>
-<span><span class="co">#&gt; rho 0.819 0.033 0.748 0.821 0.879</span></span>
+<span><span class="co">#&gt; tau 4.529 0.377 3.863 4.500 5.341</span></span>
+<span><span class="co">#&gt; rho 0.820 0.033 0.750 0.821 0.878</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Meta-Regression</span></span>
 <span><span class="co">#&gt;                                Mean    SD  0.025    0.5  0.975</span></span>
-<span><span class="co">#&gt; intercept                     3.030 0.556  1.941  3.027  4.123</span></span>
-<span><span class="co">#&gt; facing_customer[dif: No]     -2.224 0.435 -3.083 -2.222 -1.384</span></span>
-<span><span class="co">#&gt; facing_customer[dif: Some]    1.010 0.514  0.000  1.006  2.008</span></span>
-<span><span class="co">#&gt; facing_customer[dif: Direct]  1.214 0.407  0.420  1.211  2.015</span></span>
+<span><span class="co">#&gt; intercept                     3.012 0.559  1.916  3.012  4.107</span></span>
+<span><span class="co">#&gt; facing_customer[dif: No]     -2.224 0.444 -3.102 -2.224 -1.362</span></span>
+<span><span class="co">#&gt; facing_customer[dif: Some]    1.006 0.523 -0.009  1.001  2.033</span></span>
+<span><span class="co">#&gt; facing_customer[dif: Direct]  1.218 0.406  0.426  1.214  2.031</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Publication Bias</span></span>
 <span><span class="co">#&gt;                    Mean    SD 0.025   0.5 0.975</span></span>
 <span><span class="co">#&gt; omega[0,0.025]    1.000 0.000 1.000 1.000 1.000</span></span>
-<span><span class="co">#&gt; omega[0.025,0.05] 0.891 0.107 0.669 0.905 1.000</span></span>
-<span><span class="co">#&gt; omega[0.05,0.5]   0.494 0.054 0.395 0.492 0.606</span></span>
-<span><span class="co">#&gt; omega[0.5,0.95]   0.222 0.038 0.156 0.219 0.305</span></span>
-<span><span class="co">#&gt; omega[0.95,0.975] 0.222 0.038 0.156 0.219 0.305</span></span>
-<span><span class="co">#&gt; omega[0.975,1]    0.222 0.038 0.156 0.219 0.305</span></span>
+<span><span class="co">#&gt; omega[0.025,0.05] 0.892 0.107 0.671 0.907 1.000</span></span>
+<span><span class="co">#&gt; omega[0.05,0.5]   0.495 0.054 0.394 0.493 0.607</span></span>
+<span><span class="co">#&gt; omega[0.5,0.95]   0.222 0.039 0.155 0.220 0.306</span></span>
+<span><span class="co">#&gt; omega[0.95,0.975] 0.222 0.039 0.155 0.220 0.306</span></span>
+<span><span class="co">#&gt; omega[0.975,1]    0.222 0.039 0.155 0.220 0.306</span></span>
 <span><span class="co">#&gt; PET               0.000 0.000 0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; PEESE             0.000 0.000 0.000 0.000 0.000</span></span>
 <span><span class="co">#&gt; P-value intervals for publication bias weights omega correspond to one-sided p-values.</span></span></code></pre></div>
@@ -236,18 +238,18 @@ and model parameters.</p>
 <p>The multilevel RoBMA meta-regression finds extreme evidence for the
 presence of the average effect, moderation by the degree of consumer
 contact, between-study heterogeneity, and publication bias (all BFs &gt;
-10,000).</p>
+59,999).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/pooled_effect.html">pooled_effect</a></span><span class="op">(</span><span class="va">fit_reg</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Pooled Effect Size</span></span>
-<span><span class="co">#&gt;     Mean Median 0.025 0.975</span></span>
-<span><span class="co">#&gt; mu 3.230  3.227 2.146 4.319</span></span></code></pre></div>
+<span><span class="co">#&gt;     Mean Median 0.025 0.975 PI 0.025 PI 0.975</span></span>
+<span><span class="co">#&gt; mu 3.213  3.212 2.120 4.313   -5.779   12.219</span></span></code></pre></div>
 <p>The model-averaged effect estimate is accompanied by considerable
-overall heterogeneity and a cluster-level allocation close to 1,
-indicating a high degree of similarity among estimates from the same
-study. MCMC diagnostics are included in <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> by
-default, and chain-level checks are available via
+overall heterogeneity and a cluster-level allocation of about 0.82,
+indicating that most modeled heterogeneity is at the study level. MCMC
+diagnostics are included in <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> by default, and
+chain-level checks are available via
 <code><a href="../reference/plot_diagnostic.html">plot_diagnostic_trace()</a></code>,
 <code><a href="../reference/plot_diagnostic.html">plot_diagnostic_density()</a></code>, and
 <code><a href="../reference/plot_diagnostic.html">plot_diagnostic_autocorrelation()</a></code>.</p>
@@ -260,16 +262,18 @@ marginal means.</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Model-Averaged Marginal Means:</span></span>
 <span><span class="co">#&gt;                          Mean    SD  0.025   0.5 0.975 Inclusion BF</span></span>
-<span><span class="co">#&gt; intercept               3.030 0.556  1.941 3.027 4.123          Inf</span></span>
-<span><span class="co">#&gt; facing_customer[No]     0.805 0.712 -0.606 0.807 2.199        0.108</span></span>
-<span><span class="co">#&gt; facing_customer[Some]   4.040 0.792  2.494 4.037 5.589          Inf</span></span>
-<span><span class="co">#&gt; facing_customer[Direct] 4.244 0.643  2.992 4.240 5.515          Inf</span></span>
+<span><span class="co">#&gt; intercept               3.012 0.559  1.916 3.012 4.107 2.645197e+40</span></span>
+<span><span class="co">#&gt; facing_customer[No]     0.789 0.716 -0.629 0.789 2.182 1.020000e-01</span></span>
+<span><span class="co">#&gt; facing_customer[Some]   4.018 0.800  2.472 4.008 5.632 1.575202e+27</span></span>
+<span><span class="co">#&gt; facing_customer[Direct] 4.230 0.648  2.970 4.225 5.514 7.169201e+98</span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_intercept: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_facing_customer[Some]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BB0000;">mu_facing_customer[Direct]: Posterior samples do not span both sides of the null hypothesis. The Savage-Dickey density ratio is likely to be overestimated.</span></span></span></code></pre></div>
 <p>The estimated marginal means reveal moderate evidence for the absence
-of an effect for jobs with no consumer contact and extreme evidence for
-an effect for jobs with some or direct consumer contact.</p>
+of an effect for jobs with no consumer contact
+(<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mtext mathvariant="normal">BF</mtext><mn>10</mn></msub><mo>=</mo><mn>0.10</mn></mrow><annotation encoding="application/x-tex">\text{BF}_{10} = 0.10</annotation></semantics></math>)
+and extreme evidence for an effect for jobs with some or direct consumer
+contact.</p>
 </div>
 <div class="section level2">
 <h2 id="visual-fit-assessment">Visual Fit Assessment<a class="anchor" aria-label="anchor" href="#visual-fit-assessment"></a>
@@ -280,7 +284,7 @@ Publication-Bias Diagnostics</em></a> vignette for more details. The
 zplot shows the distribution of the observed
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>z</mi><annotation encoding="application/x-tex">z</annotation></semantics></math>-statistics,
 computed as the effect size divided by the standard error, with dotted
-red horizontal lines highlighting the typical steps on which publication
+red vertical lines highlighting the typical steps on which publication
 bias operates. These are
 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>z</mi><mo>=</mo><mi>±</mi><mn>1.65</mn></mrow><annotation encoding="application/x-tex">z = \pm 1.65</annotation></semantics></math>
 and
@@ -292,7 +296,7 @@ and
 corresponding to selection on the direction of the effect.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/zplot.brma.html">zplot</a></span><span class="op">(</span><span class="va">fit_reg</span>, by.hist <span class="op">=</span> <span class="fl">0.25</span>, plot_extrapolation <span class="op">=</span> <span class="cn">FALSE</span>, from <span class="op">=</span> <span class="op">-</span><span class="fl">4</span>, to <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="../reference/zplot.brma.html">zplot</a></span><span class="op">(</span><span class="va">fit_reg</span>, by.hist <span class="op">=</span> <span class="fl">0.25</span>, from <span class="op">=</span> <span class="op">-</span><span class="fl">4</span>, to <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span></code></pre></div>
 <p><img src="v33-robma-multilevel-metaregression_files/figure-html/zplot-1.png" class="r-plt" alt="" width="576"></p>
 <p>We can notice clear discontinuities corresponding to selection on the
 direction of the effect and marginal significance. The posterior
@@ -335,7 +339,7 @@ success</em>.
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
     </footer>

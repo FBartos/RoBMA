@@ -44,6 +44,23 @@ is preferred over WAIC because it provides better estimates and includes
 diagnostics (Pareto k values) that indicate when the approximation may
 be unreliable.
 
+For Gaussian multilevel and known-`V`
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+models, estimate-unit WAIC uses the same integrated conditional
+log-likelihood matrix as estimate-unit LOO, \\p(y_i \mid y\_{-i},
+\theta)\\. Estimate deletion retains the fitted grouping and dependency
+structure. Weighted Gaussian cluster models integrate the powered row
+likelihood, with its normalizing constant, over the retained-data
+cluster-effect distribution. Earlier stored weighted estimate-unit WAIC
+results require recomputation with `add_waic()`.
+
+For [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+models with known random-effect group covariance `R`, the known `R`
+matrix and fitted random-effect covariance enter through BayesTools'
+metadata-defined marginal \\ZGZ'\\ covariance. The same four-field
+comparison policy applies across sampled, marginalized, and mixed
+local-effect representations.
+
 ## See also
 
 [`waic.brma`](https://fbartos.github.io/RoBMA/reference/waic.brma.md),

@@ -56,8 +56,9 @@ plot_weightfunction(
 
 - show_data:
 
-  whether observed one-sided p-values should be shown as rug marks on
-  the weightfunction axis. Defaults to `TRUE`.
+  whether observed p-values should be shown as rug marks on the
+  weightfunction axis, using its one-sided or two-sided convention.
+  Defaults to `TRUE`.
 
 - dots_data:
 

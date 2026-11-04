@@ -25,13 +25,13 @@ Source:
 [`inst/CITATION`](https://github.com/FBartos/RoBMA/blob/master/inst/CITATION)
 
 Bartoš F, Maier M (2020). “RoBMA: An R Package for Robust Bayesian
-Meta-Analyses.” R package version 4.0.0,
+Meta-Analyses.” R package version 4.1.0,
 <https://CRAN.R-project.org/package=RoBMA>.
 
     @Misc{,
       title = {RoBMA: An R Package for Robust Bayesian Meta-Analyses},
       author = {František Bartoš and Maximilian Maier},
       year = {2020},
-      note = {R package version 4.0.0},
+      note = {R package version 4.1.0},
       url = {https://CRAN.R-project.org/package=RoBMA},
     }

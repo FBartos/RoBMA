@@ -55,8 +55,9 @@ formulation that corresponds to the binomial GLMM in
 ``` r
 
 fit1_metafor <- metafor::rma.glmm(
-  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR", 
-  model = "UM.FS", data = dat.bcg
+  ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
+  model = "UM.FS",
+  data = dat.bcg
 )
 fit1_metafor
 #> 
@@ -75,7 +76,7 @@ fit1_metafor
 #> Model Results:
 #> 
 #> estimate      se     zval    pval    ci.lb    ci.ub      
-#>  -0.7450  0.1756  -4.2434  <.0001  -1.0891  -0.4009  *** 
+#>  -0.7450  0.1756  -4.2435  <.0001  -1.0891  -0.4009  *** 
 #> 
 #> ---
 #> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
@@ -88,7 +89,8 @@ The matching Bayesian fit takes the same count columns and
 
 fit1_brma <- brma.glmm(
   ai = tpos, bi = tneg, ci = cpos, di = cneg, measure = "OR",
-  data = dat.bcg, seed = 1
+  data = dat.bcg, seed = 1,
+  sample = 15000, burnin = 3000
 )
 ```
 
@@ -105,8 +107,8 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>       Mean    SD  0.025    0.5  0.975
-#> mu  -0.719 0.183 -1.089 -0.718 -0.353
-#> tau  0.589 0.141  0.361  0.569  0.922
+#> mu  -0.700 0.186 -1.072 -0.702 -0.328
+#> tau  0.586 0.144  0.356  0.568  0.916
 ```
 
 The posterior mean for `mu` tracks the maximum-likelihood estimate from
@@ -120,8 +122,8 @@ returns the same summary backtransformed to the odds-ratio scale via
 pooled_effect(fit1_brma, transform = "EXP")
 #> 
 #> Pooled Effect Size (odds ratio)
-#>     Mean Median 0.025 0.975
-#> mu 0.495  0.488 0.337 0.703
+#>     Mean Median 0.025 0.975 PI 0.025 PI 0.975
+#> mu 0.505  0.496 0.342 0.721    0.141    1.758
 #> Effect estimates are summarized on the odds ratio scale using EXP on the log odds ratio measure.
 ```
 
@@ -140,12 +142,18 @@ placed independently on each `pi[i]`. For Poisson outcomes
 incidence rates before applying half of the study-specific log incidence
 rate ratio to each arm. Because this midpoint log-rate is unbounded,
 there is no bounded flat default analogous to `Beta(1, 1)`, so the
-default `prior_lograte` is a proper data-based unit-information normal
-used independently for each `phi[i]`. Thus the default
-nuisance-parameter prior distributions are exchangeable in the iid
-sense, but they are not hierarchical prior distributions with a learned
-common baseline-rate distribution. Both defaults can be overridden via
-the corresponding `prior_*` argument; see the [*Prior
+default `prior_lograte` is a proper normal distribution centered at the
+pooled crude log-rate and used independently for each `phi[i]`. Its
+standard deviation defaults to `1`, matching the default IRR
+effect-prior scale, and can be changed with
+`RoBMA.options(default_lograte.sd = ...)`. The fixed standard deviation
+makes the default equivariant to exposure-unit changes: rescaling every
+person-time shifts the prior mean by the corresponding log conversion
+while retaining its informativeness. Thus the default nuisance-parameter
+prior distributions are exchangeable in the iid sense, but they are not
+hierarchical prior distributions with a learned common baseline-rate
+distribution. Both defaults can be overridden via the corresponding
+`prior_*` argument; see the [*Prior
 Distributions*](https://fbartos.github.io/RoBMA/articles/v01-prior-distributions.md)
 vignette. The Poisson model corresponds to Bagos & Nikolopoulos
 ([2009](#ref-bagos2009mixed)) and uses event counts and exposure times
@@ -159,8 +167,9 @@ the same way for a
 [`brma.glmm()`](https://fbartos.github.io/RoBMA/reference/brma.glmm.md)
 fit. Meta-regression via `mods`, multilevel structures via `cluster`,
 location-scale models via `scale`, posterior summaries, plots,
-predictions, residuals, influence, and LOO comparisons all carry over.
-See the [*Bayesian
+predictions, residuals, influence, and LOO comparisons with small
+exceptions where unavailable for the model specification (i.e., LOO-PIT
+residuals) all carry over. See the [*Bayesian
 Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md)
 vignette for the full walkthrough and the [*Multilevel
 Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v10-metafor-parity-multilevel.md)

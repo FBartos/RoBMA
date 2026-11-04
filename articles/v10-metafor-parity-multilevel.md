@@ -1,13 +1,25 @@
 # Multilevel Meta-Analysis
 
 This vignette illustrates how to use the `RoBMA` R package ([Bartoš &
-Maier, 2020](#ref-RoBMA)) with multilevel meta-analytic data. We walk
-through the school-calendar dataset from Konstantopoulos
+Maier, 2020](#ref-RoBMA)) with simple multilevel meta-analytic data. We
+walk through the school-calendar dataset from Konstantopoulos
 ([2011](#ref-konstantopoulos2011fixed)), showing the
 [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) call with
-the `cluster` argument alongside its
+the `cluster` argument and compare the results with the more general
 [`metafor::rma.mv()`](https://wviechtb.github.io/metafor/reference/rma.mv.html)
-counterpart ([Viechtbauer, 2010](#ref-metafor)).
+function ([Viechtbauer, 2010](#ref-metafor)). The `cluster` argument
+provides a specialized way to fit three-level models through the
+univariate [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md)
+interface, without requiring the more general
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+specification. It supports one cluster grouping above the estimate level
+and parameterizes the model by total heterogeneity $`\tau^2`$ and
+cluster-level allocation $`\rho`$. See the [*Multivariate and Multilevel
+Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v14-metafor-parity-multivariate.md)
+vignette for complex multilevel and multivariate models fully matching
+features its
+[`metafor::rma.mv()`](https://wviechtb.github.io/metafor/reference/rma.mv.html)
+counterpart.
 
 All [`brma()`](https://fbartos.github.io/RoBMA/reference/brma.md) calls
 keep the default prior distributions; see the [*Prior
@@ -17,12 +29,6 @@ non-multilevel workflow showing more features (also applicable to the
 multilevel models) see the [*Bayesian
 Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md)
 vignette.
-
-The `RoBMA` R package currently supports the simple multilevel structure
-shown here, with one cluster grouping above the estimate level
-(parameterized by total heterogeneity $`\tau^2`$ and cluster-level
-allocation $`\rho`$). Broader support for multivariate models and more
-complex random-effects structures is planned for a future release.
 
 ## Multilevel Random-Effects Model
 
@@ -85,7 +91,8 @@ The matching Bayesian fit replaces the `random = ...` argument with
 parameterizes the multilevel model in the same compound-symmetric form:
 a total heterogeneity $`\tau`$ and a cluster-level allocation $`\rho`$
 where $`\tau_{between} = \tau\sqrt{\rho}`$ and
-$`\tau_{within} = \tau\sqrt{1 - \rho}`$. `measure = "SMD"` selects the
+$`\tau_{within} = \tau\sqrt{1 - \rho}`$. `brma(..., cluster = ...)` is
+the specialized interface for this model. `measure = "SMD"` selects the
 default prior distributions for standardized mean differences.
 
 ``` r
@@ -109,9 +116,9 @@ summary(fit1_brma, include_mcmc_diagnostics = FALSE)
 #> 
 #> Estimates
 #>      Mean    SD 0.025   0.5 0.975
-#> mu  0.183 0.089 0.009 0.182 0.365
-#> tau 0.323 0.058 0.233 0.314 0.461
-#> rho 0.634 0.140 0.329 0.647 0.863
+#> mu  0.186 0.085 0.022 0.186 0.356
+#> tau 0.318 0.056 0.232 0.310 0.450
+#> rho 0.627 0.139 0.327 0.639 0.858
 ```
 
 The posterior mean for the pooled effect tracks the REML estimate from
@@ -147,17 +154,17 @@ summary_heterogeneity(fit1_brma)
 #> 
 #> Heterogeneity Estimates:
 #>                  Mean Median  0.025  0.975
-#> tau             0.323  0.314  0.233  0.461
-#> rho             0.634  0.647  0.329  0.863
-#> tau [within]    0.187  0.185  0.132  0.255
-#> tau [between]   0.258  0.248  0.150  0.417
-#> tau2            0.108  0.099  0.054  0.213
-#> tau2 [within]   0.036  0.034  0.017  0.065
-#> tau2 [between]  0.071  0.062  0.022  0.174
-#> I2             95.094 95.238 91.673 97.727
-#> I2 [within]    34.673 33.498 13.262 62.913
-#> I2 [between]   60.421 61.434 30.803 83.757
-#> H2             22.745 21.000 12.010 43.998
+#> tau             0.318  0.310  0.232  0.450
+#> rho             0.627  0.639  0.327  0.858
+#> tau [within]    0.187  0.185  0.131  0.253
+#> tau [between]   0.253  0.245  0.147  0.405
+#> tau2            0.104  0.096  0.054  0.203
+#> tau2 [within]   0.036  0.034  0.017  0.064
+#> tau2 [between]  0.068  0.060  0.022  0.164
+#> I2             94.980 95.105 91.586 97.617
+#> I2 [within]    35.298 34.226 13.779 63.148
+#> I2 [between]   59.682 60.617 30.491 83.176
+#> H2             22.097 20.430 11.886 41.970
 ```
 
 [`plot()`](https://rdrr.io/r/graphics/plot.default.html) visualizes the
@@ -189,7 +196,11 @@ includes meta-regression and location-scale models, model comparison,
 and fit diagnostics. See the [*Bayesian
 Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v02-bayesian-meta-analysis.md)
 vignette for the full walkthrough; the only thing that changes here is
-the addition of `cluster = district`.
+the addition of `cluster = district`. For known sampling covariance
+matrices and richer random-effects structures, see the [*Multivariate
+and Multilevel
+Meta-Analysis*](https://fbartos.github.io/RoBMA/articles/v14-metafor-parity-multivariate.md)
+vignette.
 
 ## References
 

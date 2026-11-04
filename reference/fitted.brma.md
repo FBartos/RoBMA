@@ -37,9 +37,9 @@ fitted(
 
 - component:
 
-  fitted component to return. `"location"` returns location fitted
-  values, `"scale"` returns fitted heterogeneity \\\tau_i\\, and `"all"`
-  returns both as a named list.
+  fitted component to return. `"location"` (alias `"mods"`) returns
+  location fitted values, `"scale"` returns fitted heterogeneity
+  \\\tau_i\\, and `"all"` returns both as a named list.
 
 - bias_adjusted:
 

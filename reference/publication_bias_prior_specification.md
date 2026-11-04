@@ -5,7 +5,8 @@ meta-analytic prior distributions documented in
 [`prior_specification`](https://fbartos.github.io/RoBMA/reference/prior_specification.md).
 They define selection-model weights, PET/PEESE regression coefficients,
 or the publication-bias model space in
-[`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md).
+[`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) and
+[`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md).
 
 ## Arguments
 
@@ -15,12 +16,16 @@ or the publication-bias model space in
   [`bselmodel`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
   this is usually a weightfunction prior created by
   [`prior_weightfunction`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md).
-  For [`bPET`](https://fbartos.github.io/RoBMA/reference/bPET.md), use
+  For [`bPET`](https://fbartos.github.io/RoBMA/reference/bPET.md) and
+  [`bPET.mv`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md), use
   [`prior_PET`](https://fbartos.github.io/RoBMA/reference/prior_PET.md).
-  For [`bPEESE`](https://fbartos.github.io/RoBMA/reference/bPEESE.md),
+  For [`bPEESE`](https://fbartos.github.io/RoBMA/reference/bPEESE.md)
+  and
+  [`bPEESE.mv`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md),
   use
   [`prior_PEESE`](https://fbartos.github.io/RoBMA/reference/prior_PEESE.md).
-  For [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md),
+  For [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) and
+  [`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md),
   this can be a single publication-bias prior distribution or a list of
   publication-bias prior distributions. In the single-model
   bias-adjustment constructors, omitted or `NULL` uses the corresponding
@@ -29,7 +34,9 @@ or the publication-bias model space in
 - prior_bias_null:
 
   prior distribution(s) for null publication-bias component(s) in
-  [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md), usually
+  [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) or
+  [`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md),
+  usually
   [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md).
   A single prior distribution object creates one null component, a list
   creates multiple null components, and `NULL` or `FALSE` omits the null
@@ -39,8 +46,9 @@ or the publication-bias model space in
 
   character string specifying predefined publication-bias model
   ensembles for
-  [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md). One of
-  `"PSMA"`, `"6w"`, `"2w"`, or `"PP"`.
+  [`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) and
+  [`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md).
+  One of `"PSMA"`, `"6w"`, `"2w"`, or `"PP"`.
 
 - steps:
 
@@ -54,10 +62,13 @@ or the publication-bias model space in
 ### Single-model bias-adjustment priors
 
 [`bselmodel`](https://fbartos.github.io/RoBMA/reference/bselmodel.md),
-[`bPET`](https://fbartos.github.io/RoBMA/reference/bPET.md), and
-[`bPEESE`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) fit one
-publication-bias adjustment at a time. The `prior_bias` argument must
-match the fitted bias-adjustment type.
+[`bselmodel.mv`](https://fbartos.github.io/RoBMA/reference/bselmodel.mv.md),
+[`bPET`](https://fbartos.github.io/RoBMA/reference/bPET.md),
+[`bPET.mv`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md),
+[`bPEESE`](https://fbartos.github.io/RoBMA/reference/bPEESE.md), and
+[`bPEESE.mv`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md)
+fit one publication-bias adjustment at a time. The `prior_bias` argument
+must match the fitted bias-adjustment type.
 
 |  |  |  |
 |----|----|----|
@@ -65,6 +76,8 @@ match the fitted bias-adjustment type.
 | [`bselmodel()`](https://fbartos.github.io/RoBMA/reference/bselmodel.md) | [`prior_weightfunction`](https://fbartos.github.io/RoBMA/reference/prior_weightfunction.md) | one-sided cumulative weightfunction with `steps = 0.025` |
 | [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md) | [`prior_PET`](https://fbartos.github.io/RoBMA/reference/prior_PET.md) | positive Cauchy centered at 0 |
 | [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) | [`prior_PEESE`](https://fbartos.github.io/RoBMA/reference/prior_PEESE.md) | positive Cauchy centered at 0, with UISD-adjusted scale |
+| [`bPET.mv()`](https://fbartos.github.io/RoBMA/reference/bPET.mv.md) | [`prior_PET`](https://fbartos.github.io/RoBMA/reference/prior_PET.md) | same as [`bPET()`](https://fbartos.github.io/RoBMA/reference/bPET.md) |
+| [`bPEESE.mv()`](https://fbartos.github.io/RoBMA/reference/bPEESE.mv.md) | [`prior_PEESE`](https://fbartos.github.io/RoBMA/reference/prior_PEESE.md) | same as [`bPEESE()`](https://fbartos.github.io/RoBMA/reference/bPEESE.md) |
 
 The default PET prior distribution uses
 `RoBMA.get_option("default_bias_PET.scale")`. The default PEESE prior
@@ -76,8 +89,10 @@ cumulative-Dirichlet alpha parameter.
 
 ### Model-averaged publication-bias priors
 
-[`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) averages
-over publication-bias components. By default, `prior_bias_null` is
+[`RoBMA`](https://fbartos.github.io/RoBMA/reference/RoBMA.md) and
+[`RoBMA.mv`](https://fbartos.github.io/RoBMA/reference/RoBMA.mv.md)
+average over publication-bias components. By default, `prior_bias_null`
+is
 [`prior_none()`](https://fbartos.github.io/RoBMA/reference/prior_none.md)
 and `model_type` determines the alternative components:
 

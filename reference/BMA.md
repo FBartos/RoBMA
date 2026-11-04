@@ -71,25 +71,40 @@ BMA(
 
 - weights:
 
-  an optional vector of positive likelihood weights. For
+  an optional vector of finite positive likelihood weights. For
   normal/effect-size models, each weight powers the estimate likelihood.
   For constructors with GLMM raw-count input, each weight powers the
-  paired two-arm likelihood for one study.
+  paired two-arm likelihood for one study. An integer weight \\w\\
+  repeats that conditional likelihood contribution \\w\\ times, with the
+  declared latent-effect and grouping structure held fixed. Positive
+  fractional likelihood powers are also supported.
 
 - ni:
 
   an optional vector of sample sizes. Used for `measure = "GEN"` or when
-  estimating `"UISD"`).
+  estimating the unit information standard deviation.
 
 - mods:
 
   an optional matrix, data.frame, or formula specifying location
-  moderators (meta-regressors). Formula input is evaluated in `data`.
+  moderators (meta-regressors). Formula input is evaluated in `data` and
+  supports explicit columns and standard formula operators, including
+  `^` as R's crossing operator with a literal whole exponent of at least
+  2: `(x + z)^2` expands to `x + z + x:z`, and `x^2` is not a quadratic
+  term (`x + x^2` is `x`). Precompute transformed predictors, such as a
+  squared predictor, as columns in `data`; inline calls such as
+  [`I()`](https://rdrr.io/r/base/AsIs.html),
+  [`poly()`](https://rdrr.io/r/stats/poly.html), spline constructors,
+  and user functions are not supported.
 
 - scale:
 
   an optional matrix, data.frame, or formula specifying scale predictors
-  for location-scale models. Formula input is evaluated in `data`.
+  for location-scale models. Formula input is evaluated in `data` and
+  follows the same explicit-column formula grammar as `mods`.
+  Random-formula models also accept a named list targeting top-level
+  random components or concrete random-effect blocks; see
+  [`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md).
 
 - cluster:
 
@@ -107,7 +122,22 @@ BMA(
 - subset:
 
   an optional logical or numeric vector specifying a subset of data to
-  be used.
+  be used. Subsetting precedes missing-row removal; retained-row outcome
+  and predictor checks follow these steps. Type, shape, and existing
+  extraction checks can still reject malformed inputs before subsetting.
+  Row selection (by `subset` or missing-row removal) drops factor levels
+  left without rows from `mods`, `scale`, and random-effect grouping
+  factors. The index variable of a structured random-effect term
+  (`cs()`, `hcs()`, `ar1()`, `har()` with one index variable) keeps its
+  declared levels, which define the covariance structure; the variables
+  of a multi-variable `cs(a + b | group)` index follow the ordinary
+  rule, because that index is built from their observed combinations. If
+  an index variable that keeps its levels is also used in `mods` or
+  `scale` and loses one of its levels to the selection, the fit stops
+  with an error of class `RoBMA_structured_index_level_removed` (also
+  `RoBMA_data_error`); remove the level from the data with
+  [`droplevels()`](https://rdrr.io/r/base/droplevels.html) or use a
+  separate column for the moderator.
 
 - measure:
 
@@ -130,18 +160,34 @@ BMA(
 
   prior distribution(s) for alternative moderator components. A single
   prior applies to all terms; a named list can specify term-specific
-  components.
+  components. This argument can be specified only when `mods` is
+  specified. For a formula without an intercept (`~ 0 + x`), an
+  `intercept` entry other than a point prior at zero stops with an error
+  of class `RoBMA_prior_intercept_conflict` (also of class
+  `RoBMA_prior_error`). A named alternative `intercept` must be a single
+  simple or point prior; it is the complete intercept prior and replaces
+  the global effect mixture. Specify it in one place: null-list
+  intercepts and explicit global effect declarations left without a
+  consumer are refused. Ordinary term entries replace only their
+  alternative component.
 
 - prior_scale:
 
   prior distribution(s) for alternative scale-regression components. A
   single prior applies to all terms; a named list can specify
-  term-specific components.
+  term-specific components. This argument can be specified only when
+  `scale` is specified. A named alternative `intercept` must be a single
+  positive simple or point prior; it is the complete SD prior used by
+  `log(intercept)`. Global heterogeneity declarations remain meaningful
+  when they supply another random root or its inclusion weights;
+  declarations replaced without a consumer are refused. Null-list
+  intercept declarations are unavailable.
 
 - prior_heterogeneity_allocation:
 
   prior distribution(s) for the alternative cluster-level heterogeneity
-  allocation component(s).
+  allocation component(s). This argument can be specified only when
+  `cluster` is specified.
 
 - prior_effect_null:
 
@@ -153,20 +199,30 @@ BMA(
 
 - prior_mods_null:
 
-  prior distribution(s) for null moderator components. A single prior
-  applies to all terms; a named list can specify term-specific
-  components.
+  prior distribution(s) for null moderator components. A named
+  `intercept` entry, including `NULL` or `FALSE`, is unavailable: put
+  the complete intercept prior in `prior_mods`, or use global prior
+  arguments without a formula-list intercept. The same rule applies to
+  `prior_scale_null`. A single prior applies to all terms; a named list
+  can specify term-specific components. This argument can be specified
+  only when `mods` is specified. The null and the alternative prior of a
+  factor term need the same contrast; a conflict stops with an error of
+  class `RoBMA_prior_contrast_conflict` (also of class
+  `RoBMA_prior_error`) that names the term and the remedies. The same
+  rule applies to `prior_scale_null`.
 
 - prior_scale_null:
 
   prior distribution(s) for null scale-regression components. A single
   prior applies to all terms; a named list can specify term-specific
-  components.
+  components. This argument can be specified only when `scale` is
+  specified.
 
 - prior_heterogeneity_allocation_null:
 
   prior distribution(s) for the null cluster-level heterogeneity
-  allocation component(s).
+  allocation component(s). This argument can be specified only when
+  `cluster` is specified.
 
 - standardize_continuous_predictors:
 
@@ -176,9 +232,23 @@ BMA(
 - set_contrast_factor_predictors:
 
   character. How to set contrast for factor predictors. Defaults are
-  constructor-specific and shown in each function usage; single-model
-  constructors use `"treatment"`, while model-averaging constructors use
-  `"meandif"`.
+  constructor-specific and shown in each function usage. Single-model
+  constructors use `"treatment"`; model-averaging constructors use
+  `"meandif"`. Accepted values are `"treatment"`, `"meandif"`,
+  `"orthonormal"`, and `"independent"`. Independent coding creates one
+  coefficient per factor level. Random-coefficient blocks reuse the
+  resolved fixed-factor contrast unless `random_block(contrasts = ...)`
+  overrides it. A warning is issued when default or inherited
+  independent contrasts make a fixed or random design overspecified.
+  With `"meandif"` or `"orthonormal"` contrasts, a formula term that
+  interacts a factor with a predictor whose own term is missing, such as
+  `g:x` in `~ g + g:x` or `~ g / x`, stops the fit: the term codes `g`
+  by level indicators, with one coefficient per level, on which
+  mean-difference and orthonormal priors are not defined. Specify an
+  independent prior for that term, e.g.,
+  `prior_mods = list("g:x" = prior_factor("normal", list(0, 1), contrast = "independent"))`
+  (or `prior_scale` for a scale formula), include the missing term
+  (`~ g * x`), or use `set_contrast_factor_predictors = "treatment"`.
 
 - prior_unit_information_sd:
 
@@ -188,9 +258,11 @@ BMA(
 - rescale_priors:
 
   numeric. A scaling factor for supported prior distributions. Point and
-  none priors are unchanged. For constructors with publication-bias
-  prior distributions, `rescale_priors` does not rescale them except for
-  the default PEESE prior's UISD adjustment. Defaults to 1.
+  none priors are unchanged; supplied
+  [`prior_random()`](https://fbartos.github.io/RoBMA/reference/prior_random.md)
+  scale architectures and publication-bias priors are not rescaled. The
+  default PEESE prior separately uses its documented UISD adjustment,
+  independently of `rescale_priors`. Defaults to 1.
 
 - prior_informed_field:
 
@@ -199,8 +271,9 @@ BMA(
 
 - prior_informed_subfield:
 
-  character. The subfield of the informed prior distributions. Omit to
-  use the field-specific default, such as `"Cochrane"` for
+  character. The subfield of the informed prior distributions. Can only
+  be specified together with `prior_informed_field`. Omit to use the
+  field-specific default, such as `"Cochrane"` for
   `prior_informed_field = "medicine"`; explicit `NULL` is invalid.
 
 - sample:

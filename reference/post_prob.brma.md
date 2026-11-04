@@ -24,8 +24,10 @@ post_prob(x, ..., prior_prob = NULL, model_names = NULL)
 
   numeric vector with prior model probabilities or weights. Values must
   be finite, nonnegative, have the same length as the retained models,
-  and have a positive total. If omitted, a uniform prior is used.
-  Supplied values are normalized internally.
+  and have a positive total. If omitted, a uniform prior is used. Finite
+  comparisons combine the original weights with marginal likelihoods in
+  log space and normalize the resulting probabilities. An exactly zero
+  prior weight excludes that model.
 
 - model_names:
 
@@ -34,8 +36,9 @@ post_prob(x, ..., prior_prob = NULL, model_names = NULL)
 
 ## Value
 
-A named numeric vector with posterior model probabilities (i.e., which
-sum to one).
+A named numeric vector with posterior model probabilities for single
+estimates, or a repetition-by-model numeric matrix when any model has
+repeated estimates. Each successfully evaluated comparison sums to one.
 
 ## Details
 
@@ -44,7 +47,21 @@ The marginal likelihoods must first be computed using
 `x` and at least one additional `brma` model must be supplied.
 Non-`brma` objects in `...` are ignored with a warning. All retained
 models must be fitted to the same outcome target/data, including outcome
-type and, when present, weights and cluster identifiers.
+type and, when present, likelihood weights. Cluster identifiers define
+model structure and are not part of the outcome-data identity. A known
+sampling covariance without correlated blocks (e.g., `V = diag(sei^2)`
+in [`brma.mv`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)) is
+the outcome data of its standard errors, whereas a correlated `V` is a
+different target.
+
+If any model contains repeated bridge estimates, comparisons retain
+those repetitions regardless of model order. Models with fewer
+repetitions are recycled to the largest repetition count with a warning,
+following bridgesampling. Standardized marginal-likelihood results must
+be finite. Legacy raw `"bridge_list"` results retain non-finite
+repetitions and use upstream comparison behavior through bridgesampling,
+with normalized prior probabilities and its missing-value propagation,
+warnings, and errors.
 
 ## See also
 

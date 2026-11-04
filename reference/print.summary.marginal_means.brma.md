@@ -17,7 +17,7 @@ print(x, ...)
 
 - ...:
 
-  additional arguments (currently ignored).
+  unused additional arguments. Supplied arguments trigger a warning.
 
 ## Value
 

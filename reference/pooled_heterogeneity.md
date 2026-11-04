@@ -1,7 +1,7 @@
 # Pooled Heterogeneity
 
-Computes the pooled (aggregated) heterogeneity estimate (tau) from a
-fitted model.
+Computes method-specific pooled (aggregated) heterogeneity from a fitted
+model.
 
 ## Usage
 

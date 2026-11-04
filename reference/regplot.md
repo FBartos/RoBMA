@@ -1,9 +1,9 @@
 # Regression Plot (Bubble Plot) for brma Object
 
 `regplot.brma` creates a regression plot (also known as bubble plot) for
-a fitted brma object with moderators. The plot displays observed effect
-sizes against a moderator variable, with point sizes proportional to
-study precision.
+a fitted brma object with location or scale moderators. The plot
+displays observed effect sizes against a moderator variable, with point
+sizes proportional to study precision.
 
 ## Usage
 
@@ -44,7 +44,7 @@ regplot(
 
 - x:
 
-  a fitted brma object with moderators
+  a fitted brma object with location or scale moderators
 
 - mod:
 
@@ -59,6 +59,7 @@ regplot(
 - ci:
 
   logical; whether to show credible interval bands. Defaults to `TRUE`.
+  See Details for the quantile estimator of the bands.
 
 - pi:
 
@@ -77,14 +78,15 @@ regplot(
 
 - level:
 
-  numeric; credible/prediction interval level in percent. Defaults to
-  `95`.
+  numeric; credible/prediction interval level in percent, from `50` to
+  `99.9`. Defaults to `95`.
 
 - at:
 
   numeric vector; for continuous moderators, values at which to evaluate
   the prediction. If not specified, uses a sequence across the observed
-  range.
+  range. Continuous evaluation values are sorted with all associated
+  predictions and intervals; duplicate evaluations are retained.
 
 - digits:
 
@@ -113,8 +115,10 @@ regplot(
 - psize:
 
   numeric vector or `NULL`; point sizes for each study. If scalar, it is
-  recycled to all studies. If `NULL` (default), sizes are computed based
-  on inverse sampling variance.
+  recycled to all studies. If `NULL` (default), sizes are computed from
+  the inverse sampling variance, mapped to `plim`. Equal precisions use
+  the lower endpoint; zero SEs receive the established maximum priority
+  when positive SEs are also present.
 
 - plim:
 
@@ -127,7 +131,12 @@ regplot(
   lines/colors. Defaults to `NULL`. If omitted and the selected
   moderator enters exactly one two-way interaction, the other variable
   in the interaction is used automatically. Continuous `by` moderators
-  are shown at mean - SD, mean, and mean + SD.
+  are shown at mean - SD, mean, and mean + SD. Grouping by `sei` or `vi`
+  supplies the pointwise precision when neither precision measure is
+  plotted; an explicit `sei` reference is then not allowed. The
+  companion precision measure (`sei` versus `vi`) is not selected
+  automatically; an explicitly inconsistent companion grouping grid is
+  unavailable.
 
 - legend:
 
@@ -156,13 +165,27 @@ regplot(
   predictions and sampling intervals. Defaults to `TRUE`. For PET/PEESE
   models, this includes the expected regression bias in predictions. For
   selection models, sampling-bias adjustment applies to sampling
-  intervals when `si = TRUE`; the mean prediction is unchanged.
+  intervals when `si = TRUE`; the mean prediction is unchanged. Selected
+  sampling intervals require a supported scalar selection law; joint
+  configurations needing retained-source or multivariate-event
+  integration are unavailable. Use `sampling_bias = FALSE` for
+  bias-adjusted intervals. Conditioning every applicable selection
+  source cancels positive weights and uses the ordinary Gaussian
+  interval law. This Gaussian case permits zero pointwise SE; active
+  selection kernels still require strictly positive pointwise SE.
 
 - sei:
 
   single positive numeric value used as the reference standard error for
   sampling-bias and sampling-interval calculations. Defaults to the
-  median observed standard error.
+  median observed standard error. When `mod = "sei"` or `mod = "vi"`,
+  the plotted moderator supplies the pointwise standard error and an
+  explicit `sei` override is not allowed. A grouping moderator
+  `by = "sei"` or `by = "vi"` also supplies pointwise precision and
+  disallows an explicit `sei` override. The companion precision column
+  is synchronized with the plotted or grouped values. When precision is
+  neither plotted nor grouped and no override is supplied, its existing
+  representative predictor value supplies the precision.
 
 - max_samples:
 
@@ -263,7 +286,8 @@ meta-regression results. It displays:
 
 - Confidence bands showing uncertainty in the mean prediction
 
-- Optional prediction bands showing expected range of true effects
+- Optional marginal prediction bands showing the expected range of new
+  true effects
 
 - Optional sampling interval bands showing expected range of observed
   outcomes
@@ -271,11 +295,70 @@ meta-regression results. It displays:
 For continuous moderators, predictions are computed across the observed
 range of the moderator. For categorical moderators (factors),
 predictions are computed at each factor level with optional jittering of
-points.
+points. The other predictors are held at a reference design: continuous
+predictors of the location and scale formulas at their means and factors
+at their reference levels, predictors of random slopes in the same way
+(a random slope whose predictor is held at zero, such as a centered
+predictor at its mean, adds no variance to the prediction and sampling
+bands), and grouping variables at new row-unique levels. The line and
+bands describe the regression at this reference design, not an average
+over the observed predictor values, and the prediction and sampling
+bands are pointwise rather than a joint band for one random regression
+curve. For PET/PEESE models with `sampling_bias = TRUE`, the line and
+its credible band include the expected bias at the reference standard
+error (`sei`); `sampling_bias = FALSE` shows the bias-adjusted line. A
+moderator that appears only in the scale formula produces a constant
+mean prediction while prediction and sampling intervals reflect its
+effect on heterogeneity.
+
+The credible interval band of a continuous moderator (`ci = TRUE`) is
+formed by pointwise Harrell-Davis quantiles (at the probabilities
+implied by `level`) of the posterior draws of the mean prediction at
+each grid value; they are computed by
+[`BayesTools::harrell_davis_quantile()`](https://fbartos.github.io/BayesTools/reference/harrell_davis_quantile.html)
+on the model scale, before `transf` is applied. The Harrell-Davis
+quantiles estimate the same quantiles as the empirical quantiles of the
+draws but smooth the kinks that the empirical quantiles show along the
+moderator. The bands remain pointwise, and, because every draw
+contributes, they can differ visibly from the empirical quantiles when
+few draws are used (`max_samples` below a few hundred). Near the edge of
+a point mass in the draws (e.g., draws of models that fix the plotted
+quantity in a model-averaged posterior) the band blends the point mass
+and the remaining draws, and extreme probabilities (e.g.,
+`level = 99.9`) are not estimated more accurately than by the empirical
+quantiles; see
+[`BayesTools::harrell_davis_quantile()`](https://fbartos.github.io/BayesTools/reference/harrell_davis_quantile.html)
+for these caveats. The credible intervals of categorical moderators use
+the empirical quantiles of the draws of each level. Prediction and
+sampling intervals are quantiles of a different distribution, the
+posterior predictive mixture over the draws, and are computed by a
+different estimator (mixture quantiles, not Harrell-Davis quantiles of
+the draws).
+
+Prediction intervals marginalize newly realized random effects. Sampling
+intervals use the corresponding marginal response distribution by also
+adding representative sampling error; evaluating a fitted moderator
+value does not condition these bands on its fitted latent effect. For
+marginalized known-`R` random-effect blocks, `pi` and `si` are
+unavailable because the group-covariance multipliers belong to the
+fitted layout and `R_new` is unsupported. Use `pi = FALSE, si = FALSE`
+for the mean and credible-interval plot. For binomial and Poisson GLMMs,
+prediction intervals retain this latent-effect interpretation, but
+sampling intervals are only descriptive normal approximations on the
+derived effect-size scale. They are not intervals from the fitted
+discrete likelihood and do not use the prior-nuisance marginal GLMM
+response target from
+[`predict()`](https://rdrr.io/r/stats/predict.html).
 
 The `by` argument allows displaying separate regression lines for
 different levels of a second moderator, useful for visualizing
-interactions.
+interactions. For
+[`brma.mv()`](https://fbartos.github.io/RoBMA/reference/brma.mv.md)
+known-`V` models, prediction and sampling bands are pointwise
+descriptive bands. They summarize row-wise marginal random-effect
+variation and, for sampling intervals, a representative sampling
+standard error. They are not full joint predictive regions for
+correlated known-`V` outcomes.
 
 ## See also
 
