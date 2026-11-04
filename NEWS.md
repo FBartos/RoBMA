@@ -60,6 +60,8 @@
 - row selection (`subset`, missing values) drops unused factor levels, except for the index factor of structured random-effect terms
 - unspecified factor null priors use the contrast of the alternative prior; conflicting contrasts stop with an error
 - with `prior_informed_field = "medicine"`, default interaction priors that would depend on a mean-difference or orthonormal basis use the multivariate t version of the informed prior
+- a finite prior truncation point outside the support of the heterogeneity, scale intercepts, heterogeneity allocation, or base rate is an error instead of being moved to the boundary
+- `rstandard()` reports `NA` instead of 0 for the standardized residuals of exactly fitted estimates, and `qqnorm()` omits them
 
 ### Fixes
 - marginal-means Bayes factors use the exact kernel density at the null; the grid estimate understated Bayes factors of long-tailed posteriors
