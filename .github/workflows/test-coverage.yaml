@@ -23,7 +23,7 @@ jobs:
           - {os: windows-latest, r: '4.6'}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
@@ -35,7 +35,7 @@ jobs:
 
       - name: Cache JAGS (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: C:\Program Files\JAGS
           key: ${{ runner.os }}-jags-4.3.1

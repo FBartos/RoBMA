@@ -21,9 +21,10 @@ jobs:
           - {os: windows-latest, r: '4.6'}
           - {os: ubuntu-latest, r: '4.6'}
           - {os: macos-15-intel, r: '4.6'}
+          - {os: macos-latest, r: '4.6'}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
@@ -35,7 +36,7 @@ jobs:
 
       - name: Cache JAGS (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: C:\Program Files\JAGS
           key: ${{ runner.os }}-jags-4.3.1
@@ -47,7 +48,7 @@ jobs:
       # package is used instead.
       - name: Cache JAGS installer (macOS)
         if: runner.os == 'macOS'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/jags-installer
           key: ${{ runner.os }}-jags-pkg-4.3.2
@@ -202,7 +203,7 @@ jobs:
 
       - name: Upload check results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: ${{ runner.os }}-r${{ matrix.config.r }}-results
+          name: ${{ runner.os }}-${{ runner.arch }}-r${{ matrix.config.r }}-results
           path: check
