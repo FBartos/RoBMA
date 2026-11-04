@@ -57,7 +57,9 @@ Estimate-unit GLMM draws integrate the nuisance base rate or log-rate over
 its prior: point priors and untruncated beta (base rate) and normal
 (log-rate) priors adaptively, other priors on a refined prior-CDF grid; a
 uniform(0, 1) base-rate prior is a Beta(1, 1) prior and is integrated
-adaptively. The grid is accepted only when its log-likelihood changes by less
+adaptively. The adaptive Gauss-Hermite rules raise the quadrature order until
+successive orders agree within the tolerance; this agreement is an empirical
+refinement check, not an error bound. The grid is accepted only when its log-likelihood changes by less
 than \code{1e-6} between refinements. Any nuisance prior without an adaptive route
 (other than an untruncated beta base rate or an untruncated normal log-rate;
 truncated ones take the grid too) can fail to reach this, especially

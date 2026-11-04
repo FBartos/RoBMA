@@ -118,6 +118,11 @@ summary_heterogeneity <- function(object, ...) {
 #' Row-specific marginal standard deviations remain available from
 #' \code{predict(type = "terms.scale")} and in covariance-based prediction and
 #' diagnostics.
+#' \eqn{I^2} and \eqn{H^2} use the original sampling variances and the fitted
+#' location design to define the typical sampling variance. Likelihood weights
+#' affect these summaries through the posterior heterogeneity but do not
+#' replace the sampling variances \eqn{v_i} by \eqn{v_i / w_i}, so rescaling all
+#' weights does not change the reference variance (as in \pkg{metafor}).
 #' Relative \eqn{I^2} and \eqn{H^2} summaries are not reported for general
 #' known-V covariance structures, nor for a meta-regression whose location
 #' design leaves no residual degrees of freedom (as many estimable coefficients

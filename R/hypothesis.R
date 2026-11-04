@@ -53,7 +53,10 @@
 #' \code{"normal"}, or \code{"IWMDE"} explicitly to select another route.
 #' For binomial and Poisson GLMMs, the nuisance state includes the sampled
 #' estimate-level heterogeneity effects and baserates or log-rates. Averaging
-#' their row-conditional focal densities is an exact marginalization identity.
+#' the normalized row-conditional focal densities over the posterior draws of
+#' this nuisance state targets the marginal posterior density by an exact
+#' identity; the estimate approximates that expectation with the posterior
+#' draws and numerical normalization, subject to the reported diagnostics.
 #' IWMDE is unavailable for GLMM density estimation because its
 #' high-dimensional conditional weights did not meet bridge-sampling
 #' certification. GLMM density curves and point-null hypotheses require qCMDE.

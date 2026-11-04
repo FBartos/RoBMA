@@ -118,6 +118,14 @@ raises \code{RoBMA_marglik_rank_deficiency}, inheriting from
 sampling; more draws alone need not resolve dependence. The message names the
 first reported pivot coordinates; they identify one dependent set, not
 uniquely faulty nodes.
+
+The stored result records an identity of the data, weights, priors, and
+model it was computed for. \code{bridge_sampler()}, \code{logml()},
+\code{bf()}, and \code{post_prob()} refuse a stored result that no longer
+matches the object, or that an earlier RoBMA version stored, with an error of
+class \code{RoBMA_marglik_stale} (inheriting from \code{RoBMA_marglik_error});
+recompute it with \code{add_marglik()}. \code{update(slab = )} keeps it, and
+extending the fit with \code{update()} recomputes or drops it.
 }
 \examples{
 \dontrun{

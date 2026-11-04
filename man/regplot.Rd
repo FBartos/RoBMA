@@ -190,6 +190,18 @@ true effects
 For continuous moderators, predictions are computed across the observed
 range of the moderator. For categorical moderators (factors), predictions
 are computed at each factor level with optional jittering of points.
+The other predictors are held at a reference design: continuous predictors
+of the location and scale formulas at their means and factors at their
+reference levels, predictors of random slopes in the same way (a random slope
+whose predictor is held at zero, such as a centered predictor at its mean,
+adds no variance to the prediction and sampling bands), and grouping
+variables at new row-unique levels. The line and bands describe the regression at
+this reference design, not an average over the observed predictor values,
+and the prediction and sampling bands are pointwise rather than a joint band
+for one random regression curve. For PET/PEESE models with
+\code{sampling_bias = TRUE}, the line and its credible band include the
+expected bias at the reference standard error (\code{sei});
+\code{sampling_bias = FALSE} shows the bias-adjusted line.
 A moderator that appears only in the scale formula produces a constant mean
 prediction while prediction and sampling intervals reflect its effect on
 heterogeneity.
