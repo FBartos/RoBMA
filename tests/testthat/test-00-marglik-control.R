@@ -73,7 +73,10 @@ test_that("add_marglik forwards bridge and parallel controls", {
     .brma_mv_attach_marglik_target_metadata = function(marglik, object) marglik
   )
   object <- structure(
-    list(fit_control = list(parallel = TRUE, cores = 3L)),
+    list(
+      fit_control = list(parallel = TRUE, cores = 3L),
+      fit         = BayesTools:::.bt_attach_fit_contract(structure(list(), class = "BayesTools_fit"))
+    ),
     class = c("brma.norm", "brma")
   )
 
