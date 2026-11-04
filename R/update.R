@@ -145,6 +145,8 @@ update.brma <- function(
     object[["fit"]] <- .recheck_brma_fit(object)
   }
 
+  object <- .brma_store_print_summary(object)
+
   return(object)
 }
 

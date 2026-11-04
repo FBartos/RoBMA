@@ -70,6 +70,9 @@
 #' Optional selection-conditioning comparisons are inspected explicitly with
 #' [selection_sensitivity_diagnostics()]. Printing a model or its summary does
 #' not emit sensitivity notifications.
+#' Fitted objects store their default summary, so `print()` and `summary()`
+#' without further arguments return it without recomputation; [`update()`][update.brma] and
+#' [add_selection_sensitivity_diagnostics()] store it again.
 #'
 #' @examples \dontrun{
 #' if (requireNamespace("metadat", quietly = TRUE)) {
@@ -100,6 +103,15 @@ summary.brma       <- function(
     BF01                      = FALSE, ...) {
 
   .warn_unused_dots(list(...), allowed = character(), caller = "summary.brma()")
+
+  # the default summary stored by fitting, update(), and
+  # add_selection_sensitivity_diagnostics() (see .brma_store_print_summary())
+  if (missing(probs) && missing(include_mcmc_diagnostics) &&
+      missing(standardized_coefficients) && missing(conditional) &&
+      missing(logBF) && missing(BF01) && ...length() == 0L &&
+      inherits(object[["print_summary"]], "summary.brma")) {
+    return(object[["print_summary"]])
+  }
 
   ### model information
   is_mods       <- .is_mods(object)
@@ -678,6 +690,25 @@ as.data.frame.summary.brma <- function(
 #' @export
 print.brma <- function(x, ...) {
   print(summary(x, ...))
+}
+
+# Store the default summary that print() and summary() show, so printing a fit
+# does not recompute it. Every function that changes what summary() reads (the
+# fit, data, priors, or selection-sensitivity diagnostics) stores it again. A
+# summary that fails is not stored; summary() then gives the same error.
+.brma_store_print_summary <- function(object) {
+
+  object[["print_summary"]] <- NULL
+  if (.brma_is_only_data(object) || .brma_is_only_priors(object)) {
+    return(object)
+  }
+
+  object[["print_summary"]] <- tryCatch(
+    summary.brma(object),
+    error = function(error) NULL
+  )
+
+  return(object)
 }
 
 .summary_scale_formula_parameters <- function(object) {

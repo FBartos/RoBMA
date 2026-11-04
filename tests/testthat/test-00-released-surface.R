@@ -238,6 +238,43 @@ test_that("update() has no seed argument and the extension continues the stored 
   )
 })
 
+test_that("fitted objects store the default summary shown by print() and summary()", {
+
+  fit      <- .surface_fit("mods")
+  stored   <- fit[["print_summary"]]
+  uncached <- fit
+  uncached[["print_summary"]] <- NULL
+  expect_s3_class(stored, "summary.brma")
+  expect_identical(stored, summary(uncached))
+
+  # print() and summary() without arguments return the stored summary
+  original_pair <- RoBMA:::.summary_estimates_pair
+  pair_calls    <- 0L
+  testthat::local_mocked_bindings(
+    .summary_estimates_pair = function(...) {
+      pair_calls <<- pair_calls + 1L
+      original_pair(...)
+    },
+    .package = "RoBMA"
+  )
+  expect_identical(summary(fit), stored)
+  printed <- capture.output(print(fit))
+  expect_identical(pair_calls, 0L)
+  expect_identical(printed, capture.output(print(uncached)))
+  expect_gt(pair_calls, 0L)
+
+  # other arguments recompute it, and objects without a stored summary are summarized live
+  expect_identical(summary(fit, probs = c(.1, .9)), summary(uncached, probs = c(.1, .9)))
+  expect_false(identical(summary(fit, probs = c(.1, .9)), stored))
+
+  # update() stores the summary of the extended fit
+  extended <- update(fit, sample_extend = 20)
+  extended_uncached <- extended
+  extended_uncached[["print_summary"]] <- NULL
+  expect_identical(extended[["print_summary"]], summary(extended_uncached))
+  expect_false(identical(extended[["print_summary"]], stored))
+})
+
 test_that("unused arguments in the dots of released methods warn and never stop", {
 
   ordinary   <- .surface_fit("ordinary")

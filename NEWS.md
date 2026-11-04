@@ -96,6 +96,7 @@
 
 ### Performance
 - saved fits no longer contain the compiled rjags model
+- `print()` and `summary()` without further arguments reuse the summary stored with the fitted model
 - post-fit native kernels run in parallel (`RoBMA.options(native_threads = )`) and use AVX2/AVX-512 for selection normalizers
 - faster multilevel cluster likelihoods, selection normalizers, funnel, regplot, and zplot computations, and LOO
 

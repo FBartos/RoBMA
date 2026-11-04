@@ -94,6 +94,9 @@ This reporting rule is the same for \code{brma.mv()} and \code{BMA.mv()}: compon
 Optional selection-conditioning comparisons are inspected explicitly with
 \code{\link[=selection_sensitivity_diagnostics]{selection_sensitivity_diagnostics()}}. Printing a model or its summary does
 not emit sensitivity notifications.
+Fitted objects store their default summary, so \code{print()} and \code{summary()}
+without further arguments return it without recomputation; \code{\link[=update.brma]{update()}} and
+\code{\link[=add_selection_sensitivity_diagnostics]{add_selection_sensitivity_diagnostics()}} store it again.
 }
 \description{
 \code{summary.brma} creates summary tables for a

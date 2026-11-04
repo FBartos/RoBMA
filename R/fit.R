@@ -879,7 +879,8 @@
   object[["summary"]]      <- .object_summary(object)
   object[["coefficients"]] <- .object_coefficients(object)
 
-  .autocompute_brma(object)
+  object <- .autocompute_brma(object)
+  .brma_store_print_summary(object)
 }
 
 

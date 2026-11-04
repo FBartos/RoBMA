@@ -170,6 +170,7 @@ add_selection_sensitivity_diagnostics <- function(object, ...) {
   object[["selection_sensitivity_diagnostics"]] <- NULL
   object[["selection_sensitivity_diagnostics"]] <-
     selection_sensitivity_diagnostics(object, ...)
+  object <- .brma_store_print_summary(object)
   return(object)
 }
 
