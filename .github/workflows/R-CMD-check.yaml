@@ -1,30 +1,48 @@
 name: R-CMD-check
 
+# Pushes and pull requests check the CI platforms without vignettes;
+# weekly.yaml and release-check.yaml call this workflow for further R versions
+# and platforms, the release check with vignettes.
 on:
   push:
-    branches: [main, master, development]
+    branches: [master, development]
   pull_request:
-    branches: [main, master, development]
+    branches: [master, development]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      matrix:
+        description: JSON list of runner configurations, each {"os", "r"}.
+        type: string
+        required: true
+      ref:
+        description: Git ref to check; empty checks the triggering ref.
+        type: string
+        default: ""
+      vignettes:
+        description: Build and check the vignettes.
+        type: boolean
+        default: false
 
+# Called workflows share the caller's github.workflow, hence the literal prefix.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: R-CMD-check-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  check:
+    name: check (${{ matrix.config.os }}, R ${{ matrix.config.r }})
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - {os: windows-latest, r: '4.6'}
-          - {os: ubuntu-latest, r: '4.6'}
-          - {os: macos-15-intel, r: '4.6'}
-          - {os: macos-latest, r: '4.6'}
+        config: ${{ fromJSON(inputs.matrix || '[{"os":"windows-latest","r":"4.6"},{"os":"ubuntu-latest","r":"4.6"},{"os":"macos-latest","r":"4.6"}]') }}
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
@@ -34,111 +52,14 @@ jobs:
       - name: Setup Pandoc
         uses: r-lib/actions/setup-pandoc@v2
 
-      - name: Cache JAGS (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/cache@v6
+      - name: Set up JAGS
+        uses: FBartos/BayesTools/.github/actions/setup-jags@development
         with:
-          path: C:\Program Files\JAGS
-          key: ${{ runner.os }}-jags-4.3.1
-          restore-keys: |
-            ${{ runner.os }}-jags-
-
-      # Cache the JAGS 4.3.2 installer (macOS). RoBMA requires JAGS 4.x;
-      # Homebrew's jags formula installs JAGS 5, so the official universal
-      # package is used instead.
-      - name: Cache JAGS installer (macOS)
-        if: runner.os == 'macOS'
-        uses: actions/cache@v6
-        with:
-          path: ~/jags-installer
-          key: ${{ runner.os }}-jags-pkg-4.3.2
-
-      - name: Install JAGS and system dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jags
-
-      - name: Install JAGS (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          if not exist "C:\Program Files\JAGS\JAGS-4.3.1\bin\jags-terminal.exe" (
-            echo "JAGS not found in cache, downloading and installing..."
-            curl -o jags-installer.exe -L https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/JAGS-4.3.1.exe/download
-            jags-installer.exe /S
-            del jags-installer.exe
-          ) else (
-            echo "JAGS found in cache, skipping installation"
-          )
-
-      - name: Set JAGS environment variables (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1" >> $env:GITHUB_ENV
-          "JAGS_MAJOR_VERSION=4" >> $env:GITHUB_ENV
-          "C:\Program Files\JAGS\JAGS-4.3.1\bin" >> $env:GITHUB_PATH
-
-      # Install JAGS 4.3.2 on macOS from the official universal package, which
-      # installs into /usr/local (library, JAGS headers, jags.pc, jags binary).
-      # Nothing is installed with Homebrew: it no longer has bottles for Intel
-      # macOS and builds formulae such as gcc from source past the job timeout.
-      - name: Install JAGS (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          # Remove a Homebrew jags first: on Intel runners Homebrew also links
-          # into /usr/local, where the package installs JAGS 4.3.2.
-          if brew list --formula jags > /dev/null 2>&1; then
-            brew uninstall --ignore-dependencies jags
-          fi
-          mkdir -p ~/jags-installer
-          if [ ! -f ~/jags-installer/JAGS-4.3.2.pkg ]; then
-            echo "JAGS installer not found in cache, downloading..."
-            curl --retry 3 --fail -L -o ~/jags-installer/JAGS-4.3.2.pkg \
-              https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Mac%20OS%20X/JAGS-4.3.2.pkg/download
-          fi
-          sudo installer -pkg ~/jags-installer/JAGS-4.3.2.pkg -target /
-
-      # R CMD check --as-cran regenerates configure with autoreconf, which needs
-      # aclocal; the runner has autoconf but not automake, so automake is built
-      # from its GNU release (plain Perl scripts, no compiler involved)
-      - name: Install automake (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          curl --retry 3 --fail -L -o "$RUNNER_TEMP/automake-1.18.1.tar.gz" \
-            https://ftp.gnu.org/gnu/automake/automake-1.18.1.tar.gz
-          tar -xzf "$RUNNER_TEMP/automake-1.18.1.tar.gz" -C "$RUNNER_TEMP"
-          cd "$RUNNER_TEMP/automake-1.18.1"
-          ./configure --prefix="$RUNNER_TEMP/automake" > /dev/null
-          make install > /dev/null
-          echo "$RUNNER_TEMP/automake/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/automake/bin/aclocal" --version | head -n 1
-
-      # Point pkg-config at the JAGS 4.3.2 installation; configure rejects any
-      # JAGS major version other than 4 with a clear message
-      - name: Set JAGS environment variables (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig" >> $GITHUB_ENV
-          echo "DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}" >> $GITHUB_ENV
-          if command -v pkg-config > /dev/null 2>&1; then
-            echo "pkg-config reports JAGS $(PKG_CONFIG_PATH=/usr/local/lib/pkgconfig pkg-config --modversion jags)"
-          fi
-
-      - name: Verify JAGS runtime files (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          command -v jags
-          test -f /usr/local/lib/JAGS/modules-4/basemod.so
-          test -f /usr/local/lib/JAGS/modules-4/bugs.so
-          ls -l /usr/local/lib/libjags*.dylib
-          otool -L /usr/local/lib/libjags*.dylib
-          ls -l /usr/local/lib/JAGS/modules-4/basemod.so
+          automake: "true"
 
       - name: Resolve BayesTools source
         id: bayestools
-        run: Rscript .github/scripts/resolve-bayestools-source.R
+        uses: FBartos/BayesTools/.github/actions/bayestools-source@development
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -147,7 +68,7 @@ jobs:
           cache-version: 3
           install-pandoc: false
           extra-packages: |
-            ${{ steps.bayestools.outputs.pak_spec }}
+            ${{ steps.bayestools.outputs.pak-spec }}
             any::rcmdcheck
             any::posterior
 
@@ -160,46 +81,42 @@ jobs:
         shell: Rscript {0}
 
       - name: Check
-        if: runner.os == 'Linux'
         env:
           _R_CHECK_CRAN_INCOMING_REMOTE_: false
+          CHECK_VIGNETTES: ${{ inputs.vignettes }}
         run: |
           options(crayon.enabled = TRUE)
+          args       <- c("--no-manual", "--as-cran")
+          build_args <- character()
+          if (!identical(Sys.getenv("CHECK_VIGNETTES"), "true")) {
+            args       <- c(args, "--ignore-vignettes")
+            build_args <- "--no-build-vignettes"
+          }
+          if (identical(Sys.info()[["sysname"]], "Darwin")) {
+            args <- c(args, "--install-args=--configure-args=--enable-rpath")
+          }
           rcmdcheck::rcmdcheck(
-            args        = c("--no-manual", "--as-cran", "--ignore-vignettes"),
-            build_args  = c("--no-build-vignettes"),
+            args        = args,
+            build_args  = build_args,
             error_on    = "warning",
             check_dir   = "check")
         shell: Rscript {0}
 
-      - name: Check
-        if: runner.os == 'macOS'
-        env:
-          _R_CHECK_CRAN_INCOMING_REMOTE_: false
+      # A binary the maintainer can install to try a pull request.
+      - name: Build Windows binary
+        if: runner.os == 'Windows' && github.event_name == 'pull_request'
         run: |
-          options(crayon.enabled = TRUE)
-          rcmdcheck::rcmdcheck(
-            args        = c("--no-manual", "--as-cran", "--ignore-vignettes",
-                            "--install-args=--configure-args=--enable-rpath"),
-            build_args  = c("--no-build-vignettes"),
-            error_on    = "warning",
-            check_dir   = "check")
+          dir.create("binary")
+          pkgbuild::build(binary = TRUE, dest_path = "binary")
         shell: Rscript {0}
 
-      - name: Check
-        if: runner.os == 'Windows'
-        env:
-          _R_CHECK_CRAN_INCOMING_REMOTE_: false
-          JAGS_ROOT: "/c/progra~1/JAGS/JAGS-4.3.1"
-          JAGS_MAJOR_VERSION: 4
-        run: |
-          options(crayon.enabled = TRUE)
-          rcmdcheck::rcmdcheck(
-            args        = c("--no-manual", "--as-cran", "--ignore-vignettes"),
-            build_args  = c("--no-build-vignettes"),
-            error_on    = "warning",
-            check_dir   = "check")
-        shell: Rscript {0}
+      - name: Upload Windows binary
+        if: runner.os == 'Windows' && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: RoBMA-windows-binary
+          path: binary/*.zip
+          retention-days: 14
 
       - name: Upload check results
         if: failure()

@@ -1,17 +1,32 @@
 name: R-unit-tests
 
+# Runs the standard profile against cached standard fits. weekly.yaml calls
+# this workflow for Linux.
 on:
   push:
-    branches: [main, master, development]
+    branches: [master, development]
   pull_request:
-    branches: [main, master, development]
+    branches: [master, development]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      matrix:
+        description: JSON list of runner configurations, each {"os", "r"}.
+        type: string
+        required: true
+      ref:
+        description: Git ref to test; empty tests the triggering ref.
+        type: string
+        default: ""
 
+# Called workflows share the caller's github.workflow, hence the literal prefix.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: R-unit-tests-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
+    name: tests (${{ matrix.config.os }}, R ${{ matrix.config.r }})
     runs-on: ${{ matrix.config.os }}
     timeout-minutes: 180
     env:
@@ -19,50 +34,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - {os: windows-latest, r: '4.6'}
+        config: ${{ fromJSON(inputs.matrix || '[{"os":"windows-latest","r":"4.6"}]') }}
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
           r-version: ${{ matrix.config.r }}
 
-      - name: Cache JAGS (Windows)
-        if: runner.os == 'Windows'
-        uses: actions/cache@v6
-        with:
-          path: C:\Program Files\JAGS
-          key: ${{ runner.os }}-jags-4.3.1
-          restore-keys: |
-            ${{ runner.os }}-jags-
-
-      - name: Install JAGS (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          if not exist "C:\Program Files\JAGS\JAGS-4.3.1\bin\jags-terminal.exe" (
-            echo "JAGS not found in cache, downloading and installing..."
-            curl -o jags-installer.exe -L https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/JAGS-4.3.1.exe/download
-            jags-installer.exe /S
-            del jags-installer.exe
-          ) else (
-            echo "JAGS found in cache, skipping installation"
-          )
-
-      - name: Set JAGS environment variables (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          "JAGS_ROOT=/c/progra~1/JAGS/JAGS-4.3.1" >> $env:GITHUB_ENV
-          "JAGS_MAJOR_VERSION=4" >> $env:GITHUB_ENV
-          "C:\Program Files\JAGS\JAGS-4.3.1\bin" >> $env:GITHUB_PATH
+      - name: Set up JAGS
+        uses: FBartos/BayesTools/.github/actions/setup-jags@development
 
       - name: Resolve BayesTools source
         id: bayestools
-        run: Rscript .github/scripts/resolve-bayestools-source.R
+        uses: FBartos/BayesTools/.github/actions/bayestools-source@development
 
       - name: Install R dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -71,7 +60,7 @@ jobs:
           cache-version: 3
           install-pandoc: false
           extra-packages: |
-            ${{ steps.bayestools.outputs.pak_spec }}
+            ${{ steps.bayestools.outputs.pak-spec }}
             any::devtools
             any::posterior
 
