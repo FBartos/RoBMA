@@ -1370,6 +1370,7 @@
     } else if (!BayesTools::is.prior.PET(prior)) {
       stop("'prior_bias' must be a `prior_PET` object", call. = FALSE)
     }
+    .check_prior.not_discrete(prior, "prior_bias")
 
     return(prior)
   }
@@ -1387,6 +1388,7 @@
     } else if (!BayesTools::is.prior.PEESE(prior)) {
       stop("'prior_bias' must be a `prior_PEESE` object", call. = FALSE)
     }
+    .check_prior.not_discrete(prior, "prior_bias")
 
     return(prior)
   }

@@ -1439,6 +1439,18 @@ test_that("scalar priors reject PET, PEESE, and non-point discrete distributions
   expect_error(brma(yi = effect, sei = std_err, data = test_data, measure = "SMD",
                     prior_effect = bernoulli, only_priors = TRUE),
                sprintf(discrete_message, "prior_effect"), fixed = TRUE)
+  # including discrete PET and PEESE bias priors, alone or as RoBMA components
+  discrete_pet   <- BayesTools::prior_PET("bernoulli", list(.5))
+  discrete_peese <- BayesTools::prior_PEESE("bernoulli", list(.5))
+  expect_error(bPET(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+                    prior_bias = discrete_pet, only_priors = TRUE),
+               sprintf(discrete_message, "prior_bias"), fixed = TRUE)
+  expect_error(bPEESE(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+                      prior_bias = discrete_peese, only_priors = TRUE),
+               sprintf(discrete_message, "prior_bias"), fixed = TRUE)
+  expect_error(RoBMA(yi = effect, sei = std_err, data = test_data, measure = "SMD",
+                     prior_bias = list(discrete_pet), only_priors = TRUE),
+               sprintf(discrete_message, "prior_bias"), fixed = TRUE)
   # an ordered-factor prior with a discrete total is not a scalar prior
   expect_null(RoBMA:::.check_prior.term(
     BayesTools::prior_ordered(bernoulli, allocation = c(.25, .75))))
