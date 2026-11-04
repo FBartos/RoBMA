@@ -57,7 +57,7 @@
 #' @param prior_baserate prior distribution for the estimate-specific midpoint
 #' base-rate probability in binomial GLMM models (`measure = "OR"`). If omitted
 #' or `NULL`, defaults to independent `Beta(1, 1)` priors. Continuous priors
-#' are restricted to `[0, 1]` (see Description) and
+#' are restricted to `[0, 1]` (see \code{\link{prior_specification}}) and
 #' point priors must lie strictly inside `(0, 1)`. The estimate-unit
 #' log-likelihood of the model (`log_lik()`, LOO, WAIC) integrates the base rate
 #' over any of these priors: point priors and untruncated beta priors
