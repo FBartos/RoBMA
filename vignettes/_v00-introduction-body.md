@@ -30,25 +30,26 @@ The package exposes a small set of high-level fitting functions.
 
 | Function              | What it fits                                                               |
 |:----------------------|:---------------------------------------------------------------------------|
-| [`brma()`](`r reference_url("brma")`), [`brma.norm()`](`r reference_url("brma")`) | Bayesian random-effects meta-analysis                                      |
+| [`brma()`](`r reference_url("brma")`), [`brma.norm()`](`r reference_url("brma")`), [`brma.mv()`](`r reference_url("brma.mv")`) | Bayesian random-effects meta-analysis                                      |
 | [`brma.glmm()`](`r reference_url("brma.glmm")`) | Bayesian GLMM meta-analysis (binomial / log OR or Poisson / log IRR)       |
-| [`bselmodel()`](`r reference_url("bselmodel")`) | Bayesian weight-function selection model                                   |
-| [`bPET()`](`r reference_url("bPET")`), [`bPEESE()`](`r reference_url("bPEESE")`) | Bayesian PET / PEESE publication-bias adjustment                           |
-| [`BMA()`](`r reference_url("BMA")`), [`BMA.norm()`](`r reference_url("BMA")`) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
+| [`bselmodel()`](`r reference_url("bselmodel")`), [`bselmodel.mv()`](`r reference_url("bselmodel.mv")`) | Bayesian weight-function selection model                                   |
+| [`bPET()`](`r reference_url("bPET")`), [`bPEESE()`](`r reference_url("bPEESE")`), [`bPET.mv()`](`r reference_url("bPET.mv")`), [`bPEESE.mv()`](`r reference_url("bPEESE.mv")`) | Bayesian PET / PEESE publication-bias adjustment                           |
+| [`BMA()`](`r reference_url("BMA")`), [`BMA.norm()`](`r reference_url("BMA")`), [`BMA.mv()`](`r reference_url("BMA.mv")`) | Bayesian model-averaging across presence / absence of effect and heterogeneity (no bias adjustment) |
 | [`BMA.glmm()`](`r reference_url("BMA.glmm")`) | Bayesian model-averaging for GLMM meta-analysis                            |
-| [`RoBMA()`](`r reference_url("RoBMA")`) | Robust Bayesian model-averaging including publication-bias models          |
+| [`RoBMA()`](`r reference_url("RoBMA")`), [`RoBMA.mv()`](`r reference_url("RoBMA.mv")`) | Robust Bayesian model-averaging including publication-bias models          |
 
 `brma()` and `RoBMA()` are the main workhorses.
 `brma()` fits a single model in the same spirit as `metafor::rma()`; `RoBMA()` averages across an ensemble that includes publication-bias adjustment.
 `BMA()` is `RoBMA()` without the bias-adjustment models.
+The `.mv` variants extend these models to multivariate and multilevel data with a known sampling covariance matrix (`V`) and random-effect formulas (`random`, e.g., `~ 1 | study / esid`), in the same spirit as `metafor::rma.mv()`.
 
 All fitting functions
 
-- share an effect-size interface (`yi`, `sei` / `vi`, `measure` arguments; apart from glmm),
+- share an effect-size interface (`yi`, `sei` / `vi`, `measure` arguments; the `.mv` variants also accept `V`, and the `.glmm` variants take outcome counts),
 - can be extended into a meta-regression (`mods` argument),
 - can be extended into a location-scale model (`scale` argument),
-- can be extended into a multilevel model (`cluster` argument),
-- and all produce objects that work with the same set of inference helpers (`summary()`, `plot()`, `predict()`, `loo()`, `funnel()`, `regplot()`, residuals and influence diagnostics, ...).
+- can be extended into a multilevel model (`cluster` argument; `random` in the `.mv` variants),
+- and produce objects that work with the same set of inference helpers (`summary()`, `plot()`, `predict()`, `loo()`, `funnel()`, `regplot()`, residuals and influence diagnostics, ...); see [*Feature Coverage*](`r article_url("v03-feature-coverage")`) for the exceptions.
 
 ## Vignette Map
 
