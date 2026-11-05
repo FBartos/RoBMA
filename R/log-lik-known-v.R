@@ -1186,6 +1186,13 @@
       if ("log_upper" %in% components) {
         out[["log_upper"]] <- log_upper
       }
+      # Valid inputs give non-finite moments only when the selection weights
+      # span beyond double precision (the native summary refuses them).
+      if (any(c("mean", "variance") %in% components) &&
+          (any(!is.finite(summary[["mean"]])) || any(!is.finite(summary[["variance"]])))) {
+        stop("Selected-normal predictive moments are unavailable because the selection weights span beyond double precision.",
+             call. = FALSE)
+      }
       if ("mean" %in% components) {
         out[["mean"]] <- if (lower_tail) summary[["mean"]] else -summary[["mean"]]
       }

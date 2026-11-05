@@ -719,6 +719,28 @@ test_that("product deletion batches preserve the conditional row law and log tai
     ), info = component)
     expect_null(conditionCall(error))
   }
+  # Moments the native summary refuses (weights spanning beyond double
+  # precision) stop the moment targets but not the tails.
+  conditional$selection_context <- context
+  summary_matrix <- .selection_step_predictive_summary_matrix
+  testthat::local_mocked_bindings(
+    .selection_step_predictive_summary_matrix = function(...) {
+      value <- summary_matrix(...)
+      value$mean[1L, 1L] <- NaN
+      value$variance[1L, 1L] <- NaN
+      value
+    },
+    .package = "RoBMA"
+  )
+  expect_identical(.selection_joint_estimate_targets(setup, "log_lower")$log_lower, got$log_lower)
+  for (component in c("mean", "variance")) {
+    error <- tryCatch(.selection_joint_estimate_targets(setup, component), error = identity)
+    expect_identical(conditionMessage(error), paste0(
+      "Selected-normal predictive moments are unavailable because the selection ",
+      "weights span beyond double precision."
+    ), info = component)
+    expect_null(conditionCall(error))
+  }
 })
 
 
