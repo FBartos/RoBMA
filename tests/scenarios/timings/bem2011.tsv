@@ -72,7 +72,7 @@ text	fit_loo_comparison	0.000000000	0.380371	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_loo_comparison_RoBMA	0.000000000	0.383887	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_summary	0.010000000	0.335742	4.6.0	Windows/x86_64-w64-mingw32
 text	mu_BF_3PSM_uncertainty	0.050000000	0.461133	4.6.0	Windows/x86_64-w64-mingw32
-plot	bfunnel_3PSM	2.760000000	0.611231	4.6.0	Windows/x86_64-w64-mingw32
+plot	bfunnel_3PSM	2.720000000	0.611231	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_PET	1.680000000	0.603320	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_simple	1.590000000	0.618848	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_PEESE	2.940000000	2.023731	4.6.0	Windows/x86_64-w64-mingw32
@@ -93,10 +93,10 @@ plot	funnel_RoBMA	0.100000000	0.558691	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_simple	0.010000000	0.387695	4.6.0	Windows/x86_64-w64-mingw32
 plot	mu_BF_3PSM_comparison	0.000000000	0.371191	4.6.0	Windows/x86_64-w64-mingw32
 plot	mu_BF_PET_comparison	0.000000000	0.371191	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm_3PSM	1.370000000	0.654199	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm_3PSM	0.420000000	0.654199	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_BMA	0.060000000	0.442383	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_PET	0.250000000	0.597266	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm_RoBMA	1.640000000	0.734473	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm_RoBMA	0.480000000	0.734473	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_simple	0.060000000	0.413672	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot	4.420000000	0.809863	4.6.0	Windows/x86_64-w64-mingw32
 plot	zplot_averaged	2.800000000	0.745019	4.6.0	Windows/x86_64-w64-mingw32
