@@ -372,7 +372,7 @@ fit3_brma <- brma.mv(
   mods = ~ 0 + time_factor,
   random = ~ har(time | study),
   prior_effect              = NULL,
-  prior_mods                = BayesTools::prior_factor(
+  prior_mods                = prior_factor(
     distribution = "normal",
     parameters   = list(mean = 0, sd = ishak_unit_information_sd),
     contrast     = "independent"
@@ -504,16 +504,16 @@ the treatment-level correlation at zero.
 
 begg_unit_information_sd <- estimate_unit_information_sd(sei = dat_begg$sei, ni = dat_begg$ni)
 
-sd_prior <- BayesTools::prior(
+sd_prior <- prior(
   distribution = "normal",
   parameters = list(mean = 0, sd = begg_unit_information_sd),
   truncation = list(lower = 0, upper = Inf)
 )
-cor_zero <- BayesTools::prior(
+cor_zero <- prior(
   distribution = "spike",
   parameters = list(location = 0)
 )
-cs_zero <- BayesTools::random_covariance(
+cs_zero <- random_covariance(
   cor       = cor_zero,
   cor_scale = "cor"
 )
@@ -525,9 +525,9 @@ fit4_brma <- brma.mv(
     study     = ~ 1 | study,
     treatment = ~ cs(trt | study)
   ),
-  prior_heterogeneity = BayesTools::prior_random(
-    study     = BayesTools::random_block(sd = sd_prior),
-    treatment = BayesTools::random_block(
+  prior_heterogeneity = prior_random(
+    study     = random_block(sd = sd_prior),
+    treatment = random_block(
       sd         = sd_prior,
       covariance = cs_zero
     )
