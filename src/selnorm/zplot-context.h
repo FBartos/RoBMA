@@ -154,6 +154,15 @@ struct ZplotProjectionOutcome {
   double integration_error[8] = {0, 0, 0, 0, 0, 0, 0, 0};
   int quadrature[3] = {0, 0, 0};  // context, numerator, denominator
   bool bounded_cdf = true;
+  // Refinement steps in order (zplot_trace_* codes), whatever the status.
+  std::vector<int> trace;
+};
+
+enum ZplotTraceCode {
+  trace_resolution_inner = 1, trace_resolution_context, trace_selection_inner,
+  trace_selection_denominator, trace_selection_outer, trace_omission_allowance,
+  trace_route_normalizer, trace_route_inner, trace_route_outer, trace_route_cdf,
+  trace_route_compression, trace_route_pruning, trace_route_covariance, trace_own_normalizer
 };
 
 // .zplot_context_projection() for every draw of a block, after the R-side

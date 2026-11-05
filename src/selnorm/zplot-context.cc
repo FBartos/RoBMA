@@ -67,6 +67,32 @@ bool r_is_na(double x)
   return bits.word[0] == 1954;
 }
 
+// exp(), expm1() and log1p() as byte-compiled R evaluates them on a plain
+// double vector of length n (R 4.6.0 src/main/eval.c FastMath1/DO_MATH1 and
+// arithmetic.c math1_ari). A scalar calls the C library function; a longer
+// vector goes through do_math1, whose Rexp, Rexpm1 and Rlog1p return 1 + x or
+// x for arguments too small to matter and 1 or 0 at zero. The package is
+// byte-compiled (and load_all() code is JIT-compiled), so these are the
+// semantics of the R controller.
+double r_exp(double x, std::size_t n)
+{
+  if (n == 1) return std::exp(x);
+  if (x == 0.) return 1.;
+  return std::fabs(x) <= std::sqrt(DBL_EPSILON) ? 1. + x : std::exp(x);
+}
+double r_expm1(double x, std::size_t n)
+{
+  if (n == 1) return std::expm1(x);
+  if (x == 0.) return 0.;
+  return std::fabs(x) <= DBL_EPSILON ? x : std::expm1(x);
+}
+double r_log1p(double x, std::size_t n)
+{
+  if (n == 1) return std::log1p(x);
+  if (x == 0.) return 0.;
+  return std::fabs(x) <= DBL_EPSILON ? x : std::log1p(x);
+}
+
 // ---------------------------------------------------------------------------
 // R reductions (R 4.6.0 src/main/summary.c and array.c)
 // ---------------------------------------------------------------------------
@@ -293,7 +319,7 @@ double log_sum(const std::vector<double> &values)
   const double largest = r_max(values);
   if (std::isinf(largest) && largest < 0) return -kInf;
   std::vector<double> shifted(values.size());
-  for (std::size_t i = 0; i < values.size(); ++i) shifted[i] = std::exp(values[i] - largest);
+  for (std::size_t i = 0; i < values.size(); ++i) shifted[i] = r_exp(values[i] - largest, values.size());
   return largest + std::log(r_sum(shifted));
 }
 
@@ -318,22 +344,40 @@ std::vector<double> normal_interval(const std::vector<double> &lower, const std:
       big = Rf_pnorm5(upper[i], 0.0, 1.0, 1, 1);
       small = Rf_pnorm5(lower[i], 0.0, 1.0, 1, 1);
     }
-    out[i] = big + r_log(-std::expm1(small - big));
+    out[i] = big + r_log(-r_expm1(small - big, lower.size()));
   }
   return out;
 }
 
-double log_abs_expm1(double value)
+// log_abs_expm1(value): each branch evaluates its subset as one vector.
+std::vector<double> log_abs_expm1(const std::vector<double> &value)
 {
-  if (value > std::log(2.0)) return value + std::log1p(-std::exp(-value));
-  return r_log(std::fabs(std::expm1(value)));
+  std::size_t large_count = 0;
+  for (double entry : value) if (entry > std::log(2.0)) ++large_count;
+  const std::size_t small_count = value.size() - large_count;
+  std::vector<double> answer(value.size(), 0.0);
+  for (std::size_t i = 0; i < value.size(); ++i) {
+    if (value[i] > std::log(2.0)) {
+      answer[i] = value[i] + r_log1p(-r_exp(-value[i], large_count), large_count);
+    } else if (!std::isnan(value[i])) {
+      answer[i] = r_log(std::fabs(r_expm1(value[i], small_count)));
+    } else {
+      answer[i] = kNaN;
+    }
+  }
+  return answer;
 }
 
-double log_add(double first, double second)
+// log_add(first, second) for vectors of equal length.
+std::vector<double> log_add(const std::vector<double> &first, const std::vector<double> &second)
 {
-  const double largest = r_pmax(first, second);
-  double value = largest + std::log1p(std::exp(-std::fabs(first - second)));
-  if (largest == -kInf) value = -kInf;
+  const std::size_t n = first.size();
+  std::vector<double> value(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    const double largest = r_pmax(first[i], second[i]);
+    value[i] = largest + r_log1p(r_exp(-std::fabs(first[i] - second[i]), n), n);
+    if (largest == -kInf) value[i] = -kInf;
+  }
   return value;
 }
 
@@ -545,15 +589,18 @@ std::vector<double> gaussian_bound(const std::vector<double> &beta, int order)
   const double o = static_cast<double>(order);
   const double scale = (std::log(2.0) + Rf_lgammafn(2 * o + 1) - Rf_lgammafn(o + 1)) / o -
     std::log(4.0);
+  std::size_t active = 0;
+  for (double value : beta) if (std::isfinite(value) && value > 0) ++active;
   for (std::size_t i = 0; i < beta.size(); ++i) {
     if (!(std::isfinite(beta[i]) && beta[i] > 0)) continue;
     const double log_beta = std::log(beta[i]);
     const double log_x = scale - log_beta;
-    const double x = std::exp(log_x);
+    const double x = r_exp(log_x, active);
     const double first = o * log_beta + Rf_pgamma(x, o + .5, 1.0, 1, 1);
     const double second = std::log(4.0) + Rf_pnorm5(-std::sqrt(2 * x), 0.0, 1.0, 1, 1);
     const double largest = r_pmax(first, second);
-    result[i] = std::exp(largest + std::log(std::exp(first - largest) + std::exp(second - largest)));
+    result[i] = r_exp(largest + std::log(r_exp(first - largest, active) + r_exp(second - largest, active)),
+      active);
   }
   return result;
 }
@@ -754,6 +801,9 @@ class ZplotContextController {
   ZplotProjectionOutcome *out_;
   int k_;
   Stage stage_ = stage_setup;
+  // The refinement steps taken, for tests that pin which branches a fixture
+  // exercises (ZplotProjectionOutcome::trace).
+  void trace(int code) { out_->trace.push_back(code); }
   const int context_count_ = static_cast<int>(s_.context_orders.size());
   const int inner_count_ = static_cast<int>(s_.inner_orders.size());
   std::map<int, std::vector<double>> factor_bounds_, context_bounds_;
@@ -930,7 +980,7 @@ const ContextTable *ZplotContextController::context_table(int order)
   for (std::size_t j = 0; j < K; ++j) {
     const double marginal = marginal_base + beta_ * (standardized_distance[j] * standardized_distance[j]);
     log_density_ratio[j] = covariance_log_A_bound_ + marginal + companion[j];
-    error_terms[j] = row_density_bound_[j] * std::expm1(log_density_ratio[j]);
+    error_terms[j] = row_density_bound_[j] * r_expm1(log_density_ratio[j], K);
   }
   const double covariance_error = r_mean(error_terms) * std::exp(log_context_mass);
   std::vector<double> scaled_precision(K);
@@ -1148,6 +1198,7 @@ const Evaluation *ZplotContextController::evaluate(int outer_order, int inner_or
   if (table == nullptr) return nullptr;
   const bool own_normalizer = reuse_normalizer_ && inner_order == denominator_order &&
     normalizers_.find(std::make_tuple(outer_order, denominator_order, cdf_enabled_)) == normalizers_.end();
+  if (own_normalizer) trace(trace_own_normalizer);
   // R holds the denominator record by value: the numerator's raw A written
   // below under the same key must not change it.
   NormalizerRecord denominator;
@@ -1201,15 +1252,20 @@ const Evaluation *ZplotContextController::evaluate(int outer_order, int inner_or
   for (int row = 0; row < k_; ++row) ratio[row] = s_.sei[row] / geometry_.residual_sd[row];
   const double numerator_tail = numerator_mass_tail * r_mean(ratio) / std::sqrt(2 * M_PI);
   const std::size_t kept = keep.size();
-  std::vector<double> cdf_terms(kept), mass_terms(kept);
+  std::vector<double> log_weighted_ratio(kept), mass_log_error(kept), curve_log_error(kept);
   for (std::size_t i = 0; i < kept; ++i) {
     const int index = keep[i];
     const double log_mass_ratio = log_A[index] - log_D[index];
-    const double mass_log_error = record.mass_error[index] + denominator.mass_error[index];
-    const double curve_log_error = record.numerator_error[index] + denominator.mass_error[index];
-    const double log_weighted_ratio = table->log_weights[index] + log_mass_ratio;
-    cdf_terms[i] = log_weighted_ratio + mass_log_error + log_abs_expm1(curve_log_error);
-    mass_terms[i] = log_weighted_ratio + log_abs_expm1(mass_log_error);
+    mass_log_error[i] = record.mass_error[index] + denominator.mass_error[index];
+    curve_log_error[i] = record.numerator_error[index] + denominator.mass_error[index];
+    log_weighted_ratio[i] = table->log_weights[index] + log_mass_ratio;
+  }
+  const std::vector<double> curve_term = log_abs_expm1(curve_log_error);
+  const std::vector<double> mass_term = log_abs_expm1(mass_log_error);
+  std::vector<double> cdf_terms(kept), mass_terms(kept);
+  for (std::size_t i = 0; i < kept; ++i) {
+    cdf_terms[i] = log_weighted_ratio[i] + mass_log_error[i] + curve_term[i];
+    mass_terms[i] = log_weighted_ratio[i] + mass_term[i];
   }
   Evaluation value;
   value.cdf_error = compact_density_bound_ * std::exp(log_sum(cdf_terms));
@@ -1254,19 +1310,20 @@ bool ZplotContextController::inner_table(int outer_order, double allowance, Inne
   const NormalizerRecord *previous_D = &previous;
   const std::vector<int> &keep = fine->keep;
   const std::size_t kept = keep.size();
-  std::vector<double> log_weights(kept), log_difference(kept), adjacent_error(kept);
+  std::vector<double> log_weights(kept), log_ratio(kept), adjacent_error(kept);
   bool any_adjacent = false;
   for (std::size_t i = 0; i < kept; ++i) {
     const int index = keep[i];
     log_weights[i] = fine->table->log_weights[index];
-    log_difference[i] = log_abs_expm1(previous_D->log_A[index] - fine->log_D[index]);
+    log_ratio[i] = previous_D->log_A[index] - fine->log_D[index];
     adjacent_error[i] = previous_D->mass_error[index] + fine->denominator_error[index];
     if (adjacent_error[i] > 0) any_adjacent = true;
   }
+  std::vector<double> log_difference = log_abs_expm1(log_ratio);
   if (any_adjacent) {
-    for (std::size_t i = 0; i < kept; ++i) {
-      log_difference[i] = log_add(adjacent_error[i] + log_difference[i], log_abs_expm1(adjacent_error[i]));
-    }
+    std::vector<double> shifted(kept);
+    for (std::size_t i = 0; i < kept; ++i) shifted[i] = adjacent_error[i] + log_difference[i];
+    log_difference = log_add(shifted, log_abs_expm1(adjacent_error));
   }
   std::vector<double> terms(kept);
   for (std::size_t i = 0; i < kept; ++i) terms[i] = log_weights[i] + log_difference[i];
@@ -1437,7 +1494,15 @@ void ZplotContextController::setup()
   const int k = k_;
   const std::size_t K = static_cast<std::size_t>(k);
   omega_.assign(d_.omega, d_.omega + s_.bins);
-  for (double weight : omega_) if (weight <= 0) return;
+  // if (any(omega <= 0)) return(NULL): a missing weight is an error unless a
+  // nonpositive one already decides it.
+  bool nonpositive = false, missing = false;
+  for (double weight : omega_) {
+    if (std::isnan(weight)) missing = true;
+    else if (weight <= 0) nonpositive = true;
+  }
+  if (nonpositive) return;
+  if (missing) fail("missing value where TRUE/FALSE needed");
   const bool cdf_enabled = true;
   cdf_enabled_ = cdf_enabled;
   // stopifnot(): only the draw-dependent conditions, in R's order. The
@@ -1500,10 +1565,15 @@ void ZplotContextController::setup()
     }
     const int m = point_rows_;
     std::vector<double> density(static_cast<std::size_t>(m) * s_.size);
+    // The zcurve kernel this mirrors polls for interrupts per grid point and
+    // observation; a serial batch does the same here.
+    robma_parallel::SerialWork work(main_thread_);
     for (int row = 0; row < m; ++row) {
       for (int point = 0; point < s_.size; ++point) {
+        work.add();
         double sum = 0;
         for (std::size_t j = 0; j < K; ++j) {
+          work.add(1.0);
           sum += cpp_selnorm_affine_normal_pdf_log_scale(s_.z[point], s_.sei[j],
             point_means_[row + m * j], sd[j], log_scale[j]);
         }
@@ -1570,6 +1640,8 @@ void ZplotContextController::setup()
     k * r_log(min_omega()) > r_log(DBL_MIN) / 2 &&
     k * r_log(max_omega()) < r_log(DBL_MAX) / 2;
   tolerance_ = s_.tolerance;
+  stop_if_not(std::isfinite(tolerance_), "is.finite(tolerance)");
+  stop_if_not(tolerance_ > 0, "tolerance > 0");
   grid_min_ = r_min(s_.z, s_.size);
   grid_max_ = r_max(s_.z, s_.size);
   const int columns = geometry_.columns;
@@ -1675,10 +1747,13 @@ void ZplotContextController::ladder()
     if (!std::isfinite(resolution[2]) || resolution[2] > tolerance_) {
       if (inner_index_ < inner_count_ && (point_context_ || resolution[0] >= resolution[1])) {
         ++inner_index_;
+        trace(trace_resolution_inner);
       } else if (!point_context_ && context_index_ < context_count_) {
         ++context_index_;
+        trace(trace_resolution_context);
       } else if (inner_index_ < inner_count_) {
         ++inner_index_;
+        trace(trace_resolution_inner);
       } else return;
       continue;
     }
@@ -1687,10 +1762,13 @@ void ZplotContextController::ladder()
     if (!(resolved[0] && resolved[1] && resolved[2])) {
       if (!resolved[0] && inner_index_ < inner_count_) {
         ++inner_index_;
+        trace(trace_selection_inner);
       } else if (!resolved[1] && denominator_index_ < inner_count_) {
         ++denominator_index_;
+        trace(trace_selection_denominator);
       } else if (!resolved[2] && !point_context_ && context_index_ < context_count_) {
         ++context_index_;
+        trace(trace_selection_outer);
       } else return;
       continue;
     }
@@ -1741,6 +1819,7 @@ void ZplotContextController::ladder()
     if (mass_error > tolerance_ && mass_omission_error >= mass_error / 2 && allowance_ > 0) {
       ++compression_refinements_;
       allowance_ = compression_refinements_ < 8 ? allowance_ / 2 : 0;
+      trace(trace_omission_allowance);
       continue;
     }
     const double routing_budget = !absolute ?
@@ -1752,20 +1831,27 @@ void ZplotContextController::ladder()
     for (int action : priority_order(priority)) {
       if (action == normalizer && denominator_index_ < inner_count_) {
         ++denominator_index_;
+        trace(trace_route_normalizer);
       } else if (action == inner && inner_index_ < inner_count_) {
         ++inner_index_;
+        trace(trace_route_inner);
       } else if (action == outer && !point_context_ && context_index_ < context_count_) {
         ++context_index_;
+        trace(trace_route_outer);
       } else if (action == cdf && cdf_enabled_ && cdf_part > routing_budget / 4) {
         cdf_enabled_ = false;
+        trace(trace_route_cdf);
       } else if (action == compression && allowance_ > 0 && compression_part > routing_budget / 4) {
         ++compression_refinements_;
         allowance_ = compression_refinements_ < 8 ? allowance_ / 2 : 0;
+        trace(trace_route_compression);
       } else if (action == pruning && pruning_allowance_ > 0 &&
           (pruning_part > routing_budget / 4 || fine.fine->omitted_mass > tolerance_ / 4)) {
         ++pruning_refinements_;
         pruning_allowance_ = pruning_refinements_ < 8 ? pruning_allowance_ / 2 : 0;
+        trace(trace_route_pruning);
       } else if (action == covariance && covariance_part > routing_budget) {
+        trace(trace_route_covariance);
         return;
       } else continue;
       advanced = true;

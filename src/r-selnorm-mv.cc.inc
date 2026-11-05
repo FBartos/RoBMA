@@ -2221,8 +2221,7 @@ extern "C" SEXP RoBMA_zplot_context_projection_batch(
       matrix_nrow(omega, "omega") != S ||
       XLENGTH(covariance) != static_cast<R_xlen_t>(k) * k * S ||
       XLENGTH(context_factor) % (static_cast<R_xlen_t>(k) * S) != 0 ||
-      XLENGTH(context_factor) == 0 || Rf_length(tolerance) != 1 ||
-      !std::isfinite(REAL(tolerance)[0]) || !(REAL(tolerance)[0] > 0)) {
+      XLENGTH(context_factor) == 0 || Rf_length(tolerance) != 1) {
     Rf_error("Batched zplot context projection inputs are invalid.");
   }
   const int factor_rows = static_cast<int>(XLENGTH(context_factor) / (static_cast<R_xlen_t>(k) * S));
@@ -2348,10 +2347,18 @@ extern "C" SEXP RoBMA_zplot_context_projection_batch(
   zplot_context_projection_batch(setup, draws, schedule.threads, chunk_rows, &outcomes);
 
   const char *labels[] = {"status", "message", "uniform", "density", "relative_error", "mass_error",
-    "mass_omission_error", "integration_error", "quadrature", "bounded_cdf"};
-  SEXP result = PROTECT(Rf_allocVector(VECSXP, 10));
-  SEXP names = PROTECT(Rf_allocVector(STRSXP, 10));
-  for (int i = 0; i < 10; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+    "mass_omission_error", "integration_error", "quadrature", "bounded_cdf", "trace"};
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 11));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 11));
+  for (int i = 0; i < 11; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+  SEXP traces = PROTECT(Rf_allocVector(VECSXP, S));
+  for (int s = 0; s < S; ++s) {
+    const std::vector<int> &steps = outcomes[s].trace;
+    SEXP steps_r = Rf_allocVector(INTSXP, static_cast<R_xlen_t>(steps.size()));
+    SET_VECTOR_ELT(traces, s, steps_r);
+    std::copy(steps.begin(), steps.end(), INTEGER(steps_r));
+  }
+  SET_VECTOR_ELT(result, 10, traces);
   Rf_setAttrib(result, R_NamesSymbol, names);
   SEXP status = PROTECT(Rf_allocVector(INTSXP, S));
   SEXP message = PROTECT(Rf_allocVector(STRSXP, S));
@@ -2396,7 +2403,7 @@ extern "C" SEXP RoBMA_zplot_context_projection_batch(
   SET_VECTOR_ELT(result, 7, integration_error);
   SET_VECTOR_ELT(result, 8, orders);
   SET_VECTOR_ELT(result, 9, bounded_cdf);
-  UNPROTECT(12);
+  UNPROTECT(13);
   return result;
   ROBMA_NATIVE_END
 }

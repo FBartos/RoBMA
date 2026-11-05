@@ -186,11 +186,12 @@
 # `context_factor` r x k x S and `omega` S x bins (each draw's selection
 # weights); `selection` supplies the fields the draws share. The arguments
 # that do not depend on the draw are checked here, the rest per draw in the
-# controller's order. .zplot_context_projection_result() returns one draw as
+# controller's order; `context_means` is the point-context batch of a single
+# draw. .zplot_context_projection_result() returns one draw as
 # .zplot_context_projection() would, raising its error if it had one.
 .zplot_context_projection_batch <- function(z, means, covariance, context_factor, sei,
                                             selection, omega, control,
-                                            absolute_tolerance = NULL) {
+                                            absolute_tolerance = NULL, context_means = NULL) {
 
   if (!is.null(absolute_tolerance) &&
       (!is.numeric(absolute_tolerance) || length(absolute_tolerance) != 1L ||
@@ -205,9 +206,11 @@
   }
   stopifnot(k > 0L, length(sei) == k, is.matrix(omega), nrow(omega) == S,
     identical(dim(covariance), c(k, k, S)), length(dim(context_factor)) == 3L,
-    identical(dim(context_factor)[2:3], c(k, S)), length(z) > 0L)
+    identical(dim(context_factor)[2:3], c(k, S)), length(z) > 0L,
+    is.null(context_means) || (S == 1L && is.matrix(context_means) && ncol(context_means) == k))
+  # The tolerance is checked per draw where the R controller checks it.
   tolerance <- control$relative_tolerance
-  stopifnot(is.finite(tolerance), tolerance > 0)
+  stopifnot(is.numeric(tolerance), length(tolerance) == 1L)
   static <- BayesTools::selection_native_static_args(selection)
   .Call("RoBMA_zplot_context_projection_batch", as.double(z), as.double(sei),
     .native_numeric_matrix(means), as.double(covariance), as.double(context_factor),
@@ -216,7 +219,8 @@
       as.logical(static$telescope_probabilities), as.double(selection$z_lower),
       as.double(selection$sign)),
     as.double(tolerance), if (is.null(absolute_tolerance)) NULL else as.double(absolute_tolerance),
-    .zplot_context_projection_rules(), NULL, PACKAGE = "RoBMA")
+    .zplot_context_projection_rules(),
+    if (is.null(context_means)) NULL else .native_numeric_matrix(context_means), PACKAGE = "RoBMA")
 }
 
 
