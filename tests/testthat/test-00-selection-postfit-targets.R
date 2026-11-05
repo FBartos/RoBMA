@@ -703,13 +703,18 @@ test_that("product deletion batches preserve the conditional row law and log tai
     expect_identical(.selection_joint_estimate_targets(setup, component)[[component]],
                      got[[component]])
   }
+  # The vectorized tails are the paired cell kernel of the same CDF.
+  expect_equal(exp(got$log_lower), got$cdf, tolerance = 1e-14)
+  expect_equal(exp(got$log_upper) + got$cdf, matrix(1, 3L, 2L), tolerance = 1e-14)
   conditional$selection_context$omega[1L, ] <- 0
-  error <- tryCatch(.selection_joint_estimate_targets(setup, "log_density"), error = identity)
-  expect_identical(conditionMessage(error), paste0(
-    "Selected row deletion is unavailable because its conditional selection event ",
-    "cannot be normalized."
-  ))
-  expect_null(conditionCall(error))
+  for (component in c("log_density", "log_lower", "log_upper")) {
+    error <- tryCatch(.selection_joint_estimate_targets(setup, component), error = identity)
+    expect_identical(conditionMessage(error), paste0(
+      "Selected row deletion is unavailable because its conditional selection event ",
+      "cannot be normalized."
+    ), info = component)
+    expect_null(conditionCall(error))
+  }
 })
 
 

@@ -94,6 +94,17 @@ test_that("threaded selection kernels return identical values at any thread coun
         kernel_mode    = inputs[["kernel_mode"]]
       )
     }, rows = inputs[["S"]], work_per_row = inputs[["K"]] * inputs[["spec"]][["n_bins"]])
+    .expect_thread_invariant("predictive_summary_matrix", function() {
+      .selnorm_kernel_predictive_summary_matrix(
+        q              = inputs[["yi"]],
+        mean           = mean,
+        sd             = sd,
+        sei            = inputs[["sei"]],
+        omega          = inputs[["omega"]],
+        selection_spec = spec,
+        kernel_mode    = inputs[["kernel_mode"]]
+      )
+    }, rows = inputs[["S"]], work_per_row = inputs[["K"]] * inputs[["spec"]][["n_bins"]])
     .expect_thread_invariant("moments_matrix", function() {
       .selnorm_kernel_moments_matrix(
         mean           = mean,
@@ -104,6 +115,71 @@ test_that("threaded selection kernels return identical values at any thread coun
         kernel_mode    = inputs[["kernel_mode"]]
       )
     }, rows = inputs[["S"]], work_per_row = inputs[["K"]] * inputs[["spec"]][["n_bins"]])
+    # The PSIS-weighted summary threads over observations, each reducing its
+    # posterior rows in order.
+    .expect_thread_invariant("weighted_summary", function() {
+      .selnorm_kernel_weighted_summary(
+        yi             = inputs[["yi"]],
+        mean           = mean,
+        sd             = sd,
+        sei            = inputs[["sei"]],
+        psis_weights   = basis,
+        omega          = inputs[["omega"]],
+        selection_spec = spec,
+        kernel_mode    = inputs[["kernel_mode"]]
+      )
+    }, rows = inputs[["K"]], work_per_row = inputs[["S"]] * inputs[["spec"]][["n_bins"]])
+  })
+})
+
+
+test_that("plot mixture quantiles are identical at any thread count", {
+
+  .with_kernel_thread_worker({
+
+    # More rows than one summation block, so the blocked CDF sum is threaded.
+    S        <- 3L * 4096L + 100L
+    inputs   <- .kernel_thread_inputs(S = S, K = 3L)
+    context  <- .kernel_thread_selection_context(inputs)
+    selected <- inputs[["kernel_mode"]] == SELKERNEL_STEP
+
+    .expect_thread_invariant("plot_mixture_quantiles", function() {
+      .plot_mixture_quantiles_native(
+        mean_samples      = inputs[["mean"]],
+        sd_samples        = inputs[["sd"]],
+        se                = inputs[["sei"]],
+        probs             = c(.025, .5, .975),
+        weights           = seq(.5, 1.5, length.out = S),
+        selected_rows     = selected,
+        selection_context = context,
+        caller            = "test"
+      )
+    }, rows = ceiling(S / 4096), work_per_row = 4096 * inputs[["spec"]][["n_bins"]])
+  })
+})
+
+
+test_that("scalar Gaussian event masses are identical at any thread count", {
+
+  .with_kernel_thread_worker({
+
+    # One coordinate per row is the estimate-deletion shape; its work per row
+    # is the number of bins, so the gate threads it only for long batches.
+    S      <- 20000L
+    z_cuts <- stats::qnorm(c(.025, .05), lower.tail = FALSE)
+    omega  <- cbind(1, seq(.4, .95, length.out = S), seq(.1, .6, length.out = S))
+    mean   <- matrix(seq(-.5, .8, length.out = S), S, 1L)
+    var    <- matrix(seq(.02, .3, length.out = S), S, 1L)
+    upper  <- matrix(.25, S, 1L)
+
+    .expect_thread_invariant("gaussian_event_mass", function() {
+      .Call(
+        "RoBMA_selnorm_gaussian_event_mass_batch",
+        mean, var, .2, omega, c(z_cuts, -Inf), c(Inf, z_cuts),
+        1L, SELKERNEL_STEP, 0L, matrix(-Inf, S, 1L), upper,
+        numeric(), 512L, 8L, NULL, NULL, .005, PACKAGE = "RoBMA"
+      )
+    }, rows = S, work_per_row = ncol(omega))
   })
 })
 

@@ -88,6 +88,41 @@ test_that("bselmodel.mv prediction and latent summaries remain available", {
 })
 
 
+test_that("bselmodel.mv rstudent reduces the product-weight deletion target natively", {
+
+  setup <- .estimate_likelihood_setup.brma(
+    fit_bselmodel_mv,
+    condition_local_effects = FALSE
+  )
+  expect_true(.setup_uses_joint_selection_likelihood(setup))
+  expect_true(.selection_joint_product_weights(setup[["data"]]))
+  expect_false(.selection_retains_sampling(setup[["data"]]))
+
+  psis_weights <- .diagnostic_psis_context(fit_bselmodel_mv)[["psis_weights"]]
+  fused        <- .loo_predictive_joint_product_summary(setup, psis_weights)
+  # The per-draw targets reduced in R are the reference.
+  targets <- .normal_covariance_estimate_target_summary_from_setup(
+    setup      = setup,
+    components = c("log_lower", "log_upper", "mean", "variance")
+  )
+  moments <- .weighted_predictive_moments(
+    mean     = targets[["mean"]],
+    variance = targets[["variance"]],
+    weights  = psis_weights
+  )
+  expect_equal(fused[["z"]], .loo_pit_z_from_log_tails(
+    targets[["log_lower"]], targets[["log_upper"]], psis_weights
+  ), tolerance = 1e-10)
+  expect_equal(fused[["resid"]], .outcome_data_yi(fit_bselmodel_mv) - moments[["mean"]],
+               tolerance = 1e-10)
+  expect_equal(fused[["se"]], moments[["se"]], tolerance = 1e-10)
+
+  residuals <- rstudent(fit_bselmodel_mv)
+  expect_equal(residuals[["z"]], fused[["z"]])
+  expect_equal(residuals[["se"]], fused[["se"]])
+})
+
+
 test_that("marginal random-effect posterior draws use the shared covariance plan", {
 
   posterior_samples <- .get_posterior_samples(fit_bselmodel_mv[["fit"]])

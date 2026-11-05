@@ -1117,6 +1117,18 @@
 }
 
 
+# Whether every active selection branch uses product weights. A deleted row
+# then keeps its own scalar selection event, unchanged by the retained rows.
+.selection_joint_product_weights <- function(data) {
+
+  model    <- .data_selection_model(data)
+  branches <- model[["branches"]][model[["active_branches"]]]
+  return(length(branches) > 0L && all(vapply(branches, function(branch) {
+    identical(branch[["weight_rule"]], "product")
+  }, logical(1L))))
+}
+
+
 .selection_joint_estimate_targets <- function(
     setup, components = c("log_density", "cdf", "log_lower", "log_upper", "mean", "variance")) {
 
@@ -1128,12 +1140,7 @@
   out <- stats::setNames(lapply(components, function(x) {
     matrix(NA_real_, setup[["S"]], setup[["K"]])
   }), components)
-  model <- .data_selection_model(setup[["data"]])
-  branches <- model[["branches"]][model[["active_branches"]]]
-  product <- length(branches) > 0L && all(vapply(branches, function(branch) {
-    identical(branch[["weight_rule"]], "product")
-  }, logical(1L)))
-  if (product) {
+  if (.selection_joint_product_weights(setup[["data"]])) {
     context <- conditional[["selection_context"]]
     mean <- conditional[["means"]]
     variance <- conditional[["variance"]]
@@ -1154,30 +1161,43 @@
         }
       }
     }
-    if ("cdf" %in% components) {
-      out[["cdf"]] <- .selection_step_cdf_matrix(
-        q = y, mean = mean, sd = sd, sei = sei,
-        selection_context = context, lower.tail = conditional[["lower_tail"]]
+    # Product weights leave a deleted row's selection event unchanged, so every
+    # row's tails and moments are those of one scalar selected normal, all from
+    # a single cell summary.
+    if (any(c("cdf", "log_lower", "log_upper", "mean", "variance") %in% components)) {
+      summary <- .selection_step_predictive_summary_matrix(
+        q = y, mean = mean, sd = sd, sei = sei, selection_context = context
       )
-    }
-    if (any(c("mean", "variance") %in% components)) {
-      moments <- .selection_step_moments_matrix(mean, sd, sei, context)
+      # The event is evaluated in the signed direction; the returned tails
+      # and mean keep the orientation of the original outcomes.
+      lower_tail <- conditional[["lower_tail"]]
+      log_lower  <- summary[[if (lower_tail) "log_lower" else "log_upper"]]
+      log_upper  <- summary[[if (lower_tail) "log_upper" else "log_lower"]]
+      if (any(c("log_lower", "log_upper") %in% components) &&
+          (anyNA(log_lower) || anyNA(log_upper))) {
+        stop("Selected row deletion is unavailable because its conditional selection event cannot be normalized.", call. = FALSE)
+      }
+      if ("cdf" %in% components) {
+        out[["cdf"]] <- exp(log_lower)
+      }
+      if ("log_lower" %in% components) {
+        out[["log_lower"]] <- log_lower
+      }
+      if ("log_upper" %in% components) {
+        out[["log_upper"]] <- log_upper
+      }
       if ("mean" %in% components) {
-        out[["mean"]] <- if (conditional[["lower_tail"]]) {
-          moments[["mean"]]
-        } else {
-          -moments[["mean"]]
-        }
+        out[["mean"]] <- if (lower_tail) summary[["mean"]] else -summary[["mean"]]
       }
       if ("variance" %in% components) {
-        variance <- moments[["variance"]]
+        variance <- summary[["variance"]]
         if (any(!is.finite(variance)) || any(variance < 0)) {
           stop("Selected-normal predictive variance is invalid.", call. = FALSE)
         }
         out[["variance"]] <- variance
       }
     }
-    components <- intersect(components, c("log_lower", "log_upper"))
+    components <- character()
   }
   for (row in if (length(components)) seq_len(setup[["K"]]) else integer()) {
     context <- .selection_joint_deleted_row_context(

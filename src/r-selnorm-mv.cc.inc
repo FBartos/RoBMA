@@ -232,8 +232,14 @@ extern "C" SEXP RoBMA_selnorm_gaussian_event_mass_batch(
       Rf_error("Gaussian selection events require a normal or step selection kernel.");
     }
   }
-  const int threads = robma_batch_threads(S);
-  robma_parallel::for_rows(S, threads, [&](int s) {
+  // A scalar or rank-one event costs one pass over the bins of each
+  // coordinate, a dense multivariate event one per QMC point. Cheap rows stay
+  // serial or few-threaded instead of opening a parallel region per chunk.
+  const bool dense_qmc = rank_one_loading == R_NilValue && K > 1;
+  const double work_per_row = static_cast<double>(K) * B *
+    (dense_qmc ? static_cast<double>(n_points) * n_scrambles : 1.0);
+  const RobmaRowSchedule schedule = robma_row_schedule(S, work_per_row);
+  robma_parallel::for_rows(S, schedule, [&](int s) {
     std::vector<double> row_mean(static_cast<std::size_t>(K));
     std::vector<double> row_covariance(static_cast<std::size_t>(L));
     std::vector<double> row_weights(static_cast<std::size_t>(B));

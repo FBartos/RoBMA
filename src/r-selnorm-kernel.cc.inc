@@ -465,6 +465,101 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
   ROBMA_NATIVE_END
 }
 
+// Paired log tails log P(Y <= q) and log P(Y >= q) with the mean and
+// variance of every cell, from cpp_selnorm_kernel_predictive_summary(). Both
+// tails are kept so that callers resolve whichever is small without a
+// complement.
+extern "C" SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(
+  SEXP x, SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha,
+  SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
+  SEXP sign, SEXP q, SEXP phack_z_source, SEXP phack_z_dest,
+  SEXP segment_bounds, SEXP segment_step_bin, SEXP segment_phack_region,
+  SEXP telescope_probabilities)
+{
+  ROBMA_NATIVE_BEGIN(x, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q, phack_z_source, phack_z_dest, segment_bounds, segment_step_bin, segment_phack_region, telescope_probabilities)
+  check_real(x, "q");
+  check_real(mean, "mean");
+  check_real(sd, "sd");
+  check_real(sei, "sei");
+
+  const int S = matrix_nrow(mean, "mean");
+  const int K = matrix_ncol(mean, "mean");
+  const SelNormNativeArgs selnorm = validate_selnorm_native_args(
+    omega, alpha, phack_kind, kernel_mode, z_lower, z_upper, sign, q,
+    phack_z_source, phack_z_dest, segment_bounds, segment_step_bin,
+    segment_phack_region, telescope_probabilities, S
+  );
+
+  validate_matrix_dims_named(sd, "sd", S, K, "mean");
+
+  if ((Rf_length(x) != 1 && Rf_length(x) != K) || Rf_length(sei) != K) {
+    Rf_error("'q' must have length 1 or K and 'sei' must have one value per observation.");
+  }
+
+  const char *labels[] = {"log_lower", "log_upper", "mean", "variance"};
+  SEXP out   = PROTECT(Rf_allocVector(VECSXP, 4));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 4));
+  double *out_p[4];
+  for (int i = 0; i < 4; ++i) {
+    SET_VECTOR_ELT(out, i, allocate_selnorm_matrix(REALSXP, S, K));
+    SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+    out_p[i] = REAL(VECTOR_ELT(out, i));
+  }
+  Rf_setAttrib(out, R_NamesSymbol, names);
+
+  const double *x_p    = REAL(x);
+  const double *mean_p = REAL(mean);
+  const double *sd_p   = REAL(sd);
+  const double *sei_p  = REAL(sei);
+
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  std::vector<double> q_by_observation(static_cast<std::size_t>(K));
+  for (int k = 0; k < K; ++k) {
+    q_by_observation[static_cast<std::size_t>(k)] =
+      scalar_or_col_real(x_p, Rf_length(x), k, "q");
+  }
+  const auto compute_cell = [&](int s, int k) {
+    const int cell = s + S * k;
+    const std::size_t row = static_cast<std::size_t>(s);
+    cpp_selnorm_kernel_predictive_summary(
+      q_by_observation[static_cast<std::size_t>(k)],
+      mean_p[cell],
+      sd_p[cell],
+      sei_p[k],
+      selnorm.omega_row(s),
+      row_args.alpha[row],
+      row_args.phack_kind[row],
+      row_args.kernel_mode[row],
+      selnorm.data,
+      out_p[0] + cell,
+      out_p[1] + cell,
+      out_p[2] + cell,
+      out_p[3] + cell,
+      S
+    );
+  };
+
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    S, static_cast<double>(K) * selnorm.B);
+  if (schedule.threads == 1) {
+    robma_parallel::SerialWork work;
+    for (int k = 0; k < K; ++k) {
+      for (int s = 0; s < S; ++s) {
+        compute_cell(s, k);
+        work.add(selnorm.B);
+      }
+    }
+  } else {
+    robma_parallel::for_rows(S, schedule, [&](int s) {
+      for (int k = 0; k < K; ++k) compute_cell(s, k);
+    });
+  }
+
+  UNPROTECT(2);
+  return out;
+  ROBMA_NATIVE_END
+}
+
 extern "C" SEXP RoBMA_selnorm_kernel_moments_matrix(
   SEXP mean, SEXP sd, SEXP sei, SEXP omega, SEXP alpha, SEXP phack_kind,
   SEXP kernel_mode, SEXP z_lower, SEXP z_upper, SEXP sign, SEXP q,
@@ -620,6 +715,31 @@ extern "C" SEXP RoBMA_selnorm_kernel_rng_matrix(
   ROBMA_NATIVE_END
 }
 
+// Log of a sum of exponentials accumulated one term at a time against the
+// running maximum: one exponential per term instead of a log and two.
+struct StreamingLogSum {
+  double maximum = -INFINITY;
+  double scaled  = 0;
+
+  void add(double term)
+  {
+    if (term == -INFINITY) {
+      return;
+    }
+    if (term > maximum) {
+      scaled  = maximum == -INFINITY ? 1 : scaled * std::exp(maximum - term) + 1;
+      maximum = term;
+    } else {
+      scaled += std::exp(term - maximum);
+    }
+  }
+
+  double value() const
+  {
+    return maximum == -INFINITY ? -INFINITY : maximum + std::log(scaled);
+  }
+};
+
 extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   SEXP yi, SEXP mean, SEXP sd, SEXP sei, SEXP psis_weights, SEXP omega,
   SEXP alpha, SEXP phack_kind, SEXP kernel_mode, SEXP z_lower, SEXP z_upper,
@@ -675,123 +795,102 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   double *log_upper_out_p   = REAL(out_log_upper);
   double *mean_out_p        = REAL(out_mean);
   double *variance_out_p    = REAL(out_variance);
-  double *moment_mean_work = reinterpret_cast<double *>(
-    R_alloc(S, sizeof(double))
-  );
-  double *moment_variance_work = reinterpret_cast<double *>(
-    R_alloc(S, sizeof(double))
-  );
 
-  // Serial: this batch reduces over posterior rows into one summary per
-  // observation, its row body raises R errors on invalid weights and moments,
-  // and the moment work buffers are shared across rows.
-  robma_parallel::SerialWork work;
-  for (int k = 0; k < K; ++k) {
-    double log_lower_sum = -INFINITY;
-    double log_upper_sum = -INFINITY;
+  // Observations are independent reductions over the posterior rows, so they
+  // run in parallel; each keeps the serial row order, and a failure is
+  // recorded where the serial loop would stop and raised afterwards on the
+  // main thread, in observation order.
+  enum SummaryStatus {
+    summary_ok = 0,
+    summary_invalid_weight,
+    summary_invalid_moments,
+    summary_invalid_weight_sum,
+    summary_invalid_variance,
+    summary_undefined_tails
+  };
+  std::vector<int> status(static_cast<std::size_t>(K), summary_ok);
+
+  const auto summarize = [&](int k) {
+    std::vector<double> moment_mean_work(static_cast<std::size_t>(S));
+    std::vector<double> moment_variance_work(static_cast<std::size_t>(S));
+    StreamingLogSum lower_sum;
+    StreamingLogSum upper_sum;
+    bool tails_unavailable = false;
     long double weight_sum = 0;
     long double mean_sum = 0;
 
     for (int s = 0; s < S; ++s) {
-      work.add(selnorm.B);
       const int cell = s + S * k;
       const double w = weights_p[cell];
       if (!std::isfinite(w) || w < 0) {
-        Rf_error("'psis_weights' must be finite and non-negative.");
+        status[static_cast<std::size_t>(k)] = summary_invalid_weight;
+        return;
       }
       if (w == 0) {
         continue;
       }
-      const double alpha_s = selnorm.alpha_at(s);
-      const int phack_s = selnorm.phack_kind_at(s);
-      const int mode_s = selnorm.kernel_mode_at(s);
-      double moment_mean = NA_REAL;
-      double moment_second = NA_REAL;
-      double moment_variance = NA_REAL;
-
-      cpp_selnorm_kernel_moments(
-        mean_p[cell],
-        sd_p[cell],
-        sei_p[k],
-        selnorm.omega_row(s),
-        alpha_s,
-        phack_s,
-        mode_s,
-        selnorm.data,
-        &moment_mean,
-        &moment_second,
-        S,
-        false,
-        &moment_variance
+      double log_lower;
+      double log_upper;
+      double moment_mean;
+      double moment_variance;
+      cpp_selnorm_kernel_predictive_summary(
+        yi_p[k], mean_p[cell], sd_p[cell], sei_p[k], selnorm.omega_row(s),
+        selnorm.alpha_at(s), selnorm.phack_kind_at(s),
+        selnorm.kernel_mode_at(s), selnorm.data,
+        &log_lower, &log_upper, &moment_mean, &moment_variance, S
       );
       if (!std::isfinite(moment_mean) || !std::isfinite(moment_variance) ||
           moment_variance < 0) {
-        Rf_error("Selected-normal predictive moments are not finite.");
+        status[static_cast<std::size_t>(k)] = summary_invalid_moments;
+        return;
       }
-      moment_mean_work[s]     = moment_mean;
-      moment_variance_work[s] = moment_variance;
-
-      const double log_weight = std::log(w);
-      double log_lower;
-      double log_upper;
-      cpp_selnorm_kernel_log_tail_pair(
-        yi_p[k], mean_p[cell], sd_p[cell], sei_p[k],
-        selnorm.omega_row(s), alpha_s, phack_s, mode_s, selnorm.data,
-        &log_lower, &log_upper, S, false
-      );
+      moment_mean_work[static_cast<std::size_t>(s)]     = moment_mean;
+      moment_variance_work[static_cast<std::size_t>(s)] = moment_variance;
 
       if (std::isnan(log_lower) || std::isnan(log_upper)) {
-        log_lower_sum = NA_REAL;
-        log_upper_sum = NA_REAL;
-      } else if (!std::isnan(log_lower_sum)) {
-        const double lower_term = log_weight + log_lower;
-        const double upper_term = log_weight + log_upper;
-        const double lower_max  = std::max(log_lower_sum, lower_term);
-        const double upper_max  = std::max(log_upper_sum, upper_term);
-        log_lower_sum = lower_max == -INFINITY ? -INFINITY :
-          lower_max + std::log(
-            std::exp(log_lower_sum - lower_max) +
-            std::exp(lower_term - lower_max)
-          );
-        log_upper_sum = upper_max == -INFINITY ? -INFINITY :
-          upper_max + std::log(
-            std::exp(log_upper_sum - upper_max) +
-            std::exp(upper_term - upper_max)
-          );
+        tails_unavailable = true;
+      } else if (!tails_unavailable) {
+        const double log_weight = std::log(w);
+        lower_sum.add(log_weight + log_lower);
+        upper_sum.add(log_weight + log_upper);
       }
       weight_sum += static_cast<long double>(w);
       mean_sum += static_cast<long double>(w) * moment_mean;
     }
 
     if (!std::isfinite(weight_sum) || weight_sum <= 0) {
-      Rf_error("'psis_weights' must have positive finite column sums.");
+      status[static_cast<std::size_t>(k)] = summary_invalid_weight_sum;
+      return;
     }
     const long double mixture_mean = mean_sum / weight_sum;
     long double variance_sum = 0;
     for (int s = 0; s < S; ++s) {
-      work.add(selnorm.B);
       const int cell = s + S * k;
       if (weights_p[cell] == 0) {
         continue;
       }
-      const long double component_mean = moment_mean_work[s];
+      const long double component_mean =
+        moment_mean_work[static_cast<std::size_t>(s)];
       const long double centered = component_mean - mixture_mean;
-      const long double component_variance = moment_variance_work[s];
+      const long double component_variance =
+        moment_variance_work[static_cast<std::size_t>(s)];
       variance_sum += static_cast<long double>(weights_p[cell]) *
         (component_variance + centered * centered);
     }
     const long double mixture_variance = variance_sum / weight_sum;
     if (!std::isfinite(mixture_variance) || mixture_variance < 0) {
-      Rf_error(
-        "Selected-normal predictive variance is not finite and non-negative."
-      );
+      status[static_cast<std::size_t>(k)] = summary_invalid_variance;
+      return;
     }
 
-    if (std::isnan(log_lower_sum) || std::isnan(log_upper_sum)) {
+    const double log_lower_sum = lower_sum.value();
+    const double log_upper_sum = upper_sum.value();
+    if (tails_unavailable) {
       log_lower_out_p[k] = NA_REAL;
       log_upper_out_p[k] = NA_REAL;
     } else if (log_lower_sum == -INFINITY && log_upper_sum == -INFINITY) {
-      Rf_error("Selected-normal predictive tail probabilities are undefined.");
+      status[static_cast<std::size_t>(k)] = summary_undefined_tails;
+      return;
     } else if (log_lower_sum == -INFINITY) {
       log_lower_out_p[k] = -INFINITY;
       log_upper_out_p[k] = 0;
@@ -809,6 +908,29 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     }
     mean_out_p[k]      = static_cast<double>(mixture_mean);
     variance_out_p[k]  = static_cast<double>(mixture_variance);
+  };
+
+  robma_parallel::for_rows(
+    K, robma_row_schedule(K, static_cast<double>(S) * selnorm.B), summarize
+  );
+
+  for (int k = 0; k < K; ++k) {
+    switch (status[static_cast<std::size_t>(k)]) {
+    case summary_invalid_weight:
+      Rf_error("'psis_weights' must be finite and non-negative.");
+    case summary_invalid_moments:
+      Rf_error("Selected-normal predictive moments are not finite.");
+    case summary_invalid_weight_sum:
+      Rf_error("'psis_weights' must have positive finite column sums.");
+    case summary_invalid_variance:
+      Rf_error(
+        "Selected-normal predictive variance is not finite and non-negative."
+      );
+    case summary_undefined_tails:
+      Rf_error("Selected-normal predictive tail probabilities are undefined.");
+    default:
+      break;
+    }
   }
 
   UNPROTECT(6);

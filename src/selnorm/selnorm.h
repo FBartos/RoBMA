@@ -299,6 +299,28 @@ void cpp_selnorm_kernel_moments(
   double *moment_variance = nullptr
 );
 
+// Paired log tails at q and the mean and variance of one selected-normal cell:
+// the values of cpp_selnorm_kernel_log_tail_pair() and
+// cpp_selnorm_kernel_moments() with a variance. Step cells over a trusted
+// partition evaluate each boundary once for all four; other cells, and cells
+// with a tail mass near underflow, use those two log-space kernels.
+void cpp_selnorm_kernel_predictive_summary(
+  double q,
+  double mean,
+  double sd,
+  double sei,
+  const double *omega,
+  double alpha,
+  int phack_kind,
+  int kernel_mode,
+  const SelNormKernelData &data,
+  double *log_lower,
+  double *log_upper,
+  double *moment_mean,
+  double *moment_variance,
+  int omega_stride = 1
+);
+
 double cpp_selnorm_kernel_threshold(
   double z_threshold,
   double mean,
