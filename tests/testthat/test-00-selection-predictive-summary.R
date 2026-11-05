@@ -189,6 +189,45 @@ test_that("predictive cell tails stay finite for widely spaced finite weights", 
 })
 
 
+test_that("predictive cell tails keep heavily weighted bins whose probability underflows", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # The middle bin's standardized interval [40, 41] underflows in probability
+  # space, but its weight makes it dominate the upper tail.
+  omega <- c(1, 1e300, 1e-100)
+  prior <- BayesTools::prior_weightfunction(
+    "one-sided", c(stats::pnorm(1, lower.tail = FALSE), .5), BayesTools::wf_fixed(omega)
+  )
+  for (direction in c("positive", "negative")) {
+    q <- if (direction == "positive") -40 else 40
+    spec <- suppressWarnings(.selection_spec(
+      list(outcome = list(bias = prior)), yi = q, sei = 1,
+      effect_direction = direction, signed_data = FALSE
+    ))
+    args <- list(mean = matrix(q), sd = matrix(1), sei = 1, omega = matrix(omega, 1L),
+                 selection_spec = spec, kernel_mode = SELKERNEL_STEP)
+    expected <- .predictive_cell_reference(q, q, 1, 1, omega,
+                                           BayesTools::selection_native_static_args(spec))
+    summary  <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = q), args))
+    weighted <- do.call(.selnorm_kernel_weighted_summary,
+                        c(list(yi = q, psis_weights = matrix(1)), args))
+    moments  <- do.call(.selnorm_kernel_moments_matrix, args)
+    for (tail in c("log_lower", "log_upper")) {
+      label <- paste(direction, tail)
+      expect_lt(abs(summary[[tail]][1L, 1L] - expected[[tail]]),
+                1e-11 * max(1, abs(expected[[tail]])), label = label)
+      expect_lt(abs(weighted[[tail]] - expected[[tail]]),
+                1e-11 * max(1, abs(expected[[tail]])), label = paste("weighted", label))
+    }
+    # The heavily weighted bin is far in the signed upper tail.
+    expect_lt(expected[[if (direction == "positive") "log_lower" else "log_upper"]], -100)
+    expect_identical(summary$mean[1L, 1L], moments$mean[1L, 1L])
+    expect_identical(summary$variance[1L, 1L], moments$variance[1L, 1L])
+  }
+})
+
+
 test_that("predictive cell moments of narrow standardized intervals keep their accuracy", {
 
   skip_if_not(.has_native_selnorm_kernel())

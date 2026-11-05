@@ -1113,8 +1113,9 @@ void shared_log_tail_pair(double lower_mass, double upper_mass,
 }
 
 // The shared step evaluation in the signed direction. Returns false when the
-// tails need the log-space kernel: a nonpositive or unavailable mass, or a
-// tail whose mass is close to the underflow range of probability space.
+// tails need the log-space kernel: a nonpositive or unavailable mass, a tail
+// whose mass is close to the underflow range of probability space, or weights
+// large enough that a bin probability lost to underflow could matter.
 // `moments_resolved` is false when the centered moments lose more than four
 // digits to cancellation (a narrow interval carrying the mass, relative to
 // the operands it is formed from); the partition-moment kernel then supplies
@@ -1130,11 +1131,16 @@ bool step_predictive_summary_shared(const double *omega,
 {
   // Masses below this stay in probability space only far from underflow.
   const double minimum_mass = 1e-280;
+  // Absolute error, per unit weight, of a bin's probability and density terms
+  // whose operands fall below the normal range (rounded to subnormal values
+  // or to zero; the score-density terms carry |score| < 40 there).
+  const double underflow_error = 128 * std::numeric_limits<double>::min();
   // Largest admitted ratio of the moments' operand scale to the variance.
   const double maximum_cancellation = 1e4;
   *moments_resolved = false;
   const SharedNormalPoint query = shared_normal_point(q_score);
   SharedNormalPoint upper = shared_normal_point(INFINITY);
+  double weight_total = 0;
   double lower_mass   = 0;
   double upper_mass   = 0;
   double first        = 0;
@@ -1173,6 +1179,7 @@ bool step_predictive_summary_shared(const double *omega,
       if (std::isnan(probability)) {
         return false;
       }
+      weight_total += w;
       if (query.score <= lower.score) {
         upper_mass   += w * probability;
         upper_support = true;
@@ -1206,6 +1213,15 @@ bool step_predictive_summary_shared(const double *omega,
       !std::isfinite(lower_mass) || !std::isfinite(upper_mass) ||
       !std::isfinite(first) || !std::isfinite(second) ||
       !std::isfinite(first_scale) || !std::isfinite(second_scale)) {
+    return false;
+  }
+  // A bin whose probability underflowed can still carry a tail when its
+  // weight is large enough; such a cell is evaluated in log space. Weights
+  // bounded by one never reach this with masses above `minimum_mass`.
+  const double underflow_floor = underflow_error * weight_total;
+  const double epsilon = std::numeric_limits<double>::epsilon();
+  if ((lower_support && !(underflow_floor <= epsilon * lower_mass)) ||
+      (upper_support && !(underflow_floor <= epsilon * upper_mass))) {
     return false;
   }
 
