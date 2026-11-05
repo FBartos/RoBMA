@@ -262,6 +262,22 @@ test_that("predictive cells outside the fused gate return the base kernels' valu
     expect_identical(summary$mean, moments$mean, label = paste(label, "mean"))
     expect_identical(summary$variance, moments$variance, label = paste(label, "variance"))
     expect_lt(abs(exp(summary$log_lower[1L, 1L]) - cdf[1L, 1L]), 1e-15, label = paste(label, "cdf"))
+    # The reducer takes the same cell values: it fails exactly where the base
+    # moments are not finite and otherwise returns the matrix tails.
+    weighted <- tryCatch(
+      do.call(.selnorm_kernel_weighted_summary,
+              c(list(yi = sign * case$q, psis_weights = matrix(1)), args)),
+      error = identity
+    )
+    if (is.finite(moments$mean[1L, 1L]) && is.finite(moments$variance[1L, 1L])) {
+      expect_false(inherits(weighted, "error"), label = paste(label, "reducer"))
+      for (tail in c("log_lower", "log_upper")) {
+        expect_equal(weighted[[tail]], summary[[tail]][1L, 1L], tolerance = 1e-14,
+                     label = paste(label, "reducer", tail))
+      }
+    } else {
+      expect_s3_class(weighted, "error")
+    }
   }
 })
 
