@@ -1,6 +1,6 @@
 name: R-unit-tests
 
-# Runs the standard profile against cached standard fits. weekly.yaml calls
+# Runs the standard profile against cached standard fits. post-merge.yaml calls
 # this workflow for Linux.
 on:
   push:
@@ -14,10 +14,6 @@ on:
         description: JSON list of runner configurations, each {"os", "r"}.
         type: string
         required: true
-      ref:
-        description: Git ref to test; empty tests the triggering ref.
-        type: string
-        default: ""
 
 # A called workflow sees the caller's github.workflow: the literal prefix keeps
 # two workflows called by one caller apart, github.workflow keeps the callers
@@ -40,8 +36,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2

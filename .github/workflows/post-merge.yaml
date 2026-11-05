@@ -1,18 +1,20 @@
-name: weekly
+name: post-merge
 
-# Platforms and R versions outside the per-push checks. GitHub runs scheduled
-# and manually dispatched workflows from the default branch; a scheduled run
-# checks out development.
+# After each merge into development: platforms and R versions outside the
+# pull request checks.
 on:
-  schedule:
-    - cron: '47 3 * * 1'
+  push:
+    branches: [development]
   workflow_dispatch:
+
+concurrency:
+  group: post-merge-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
     uses: ./.github/workflows/R-CMD-check.yaml
     with:
-      ref: ${{ github.event_name == 'schedule' && 'development' || '' }}
       matrix: >-
         [{"os": "windows-latest", "r": "devel"},
          {"os": "windows-latest", "r": "oldrel-1"},
@@ -21,5 +23,4 @@ jobs:
   tests:
     uses: ./.github/workflows/R-CMD-tests.yaml
     with:
-      ref: ${{ github.event_name == 'schedule' && 'development' || '' }}
       matrix: '[{"os": "ubuntu-latest", "r": "4.6"}]'

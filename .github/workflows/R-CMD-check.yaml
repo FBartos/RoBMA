@@ -1,8 +1,8 @@
 name: R-CMD-check
 
 # Pushes and pull requests check the CI platforms without vignettes;
-# weekly.yaml and release-check.yaml call this workflow for further R versions
-# and platforms, the release check with vignettes.
+# post-merge.yaml and release-check.yaml call this workflow for further R
+# versions and platforms, the release check with vignettes.
 on:
   push:
     branches: [master, development]
@@ -15,10 +15,6 @@ on:
         description: JSON list of runner configurations, each {"os", "r"}.
         type: string
         required: true
-      ref:
-        description: Git ref to check; empty checks the triggering ref.
-        type: string
-        default: ""
       vignettes:
         description: Build and check the vignettes.
         type: boolean
@@ -43,8 +39,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2

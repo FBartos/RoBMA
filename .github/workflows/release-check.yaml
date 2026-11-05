@@ -1,11 +1,17 @@
 name: release-check
 
-# Run manually on development before a CRAN submission (see the BayesToolsVerse
-# development workflow): R CMD check --as-cran with vignettes on the CRAN
-# platforms and R versions, the CRAN reverse dependencies, URLs, and the
-# pkgdown reference index.
+# Runs on the release pull request (development into master) and on hotfix pull
+# requests: R CMD check --as-cran with vignettes on the CRAN platforms and R
+# versions, the CRAN reverse dependencies, URLs, and the pkgdown reference
+# index.
 on:
+  pull_request:
+    branches: [master]
   workflow_dispatch:
+
+concurrency:
+  group: release-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check:
