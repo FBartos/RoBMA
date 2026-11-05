@@ -365,12 +365,21 @@ test_that("parallel uniform-weight draws stay interruptible", {
   selection <- .zplot_native_test_selection(sei, 1.96, c(1, 1), "positive")
   omega <- matrix(selection$omega[1L, ], S, ncol(selection$omega), byrow = TRUE)
   z <- seq(-4, 4, length.out = 400000L)
-  run <- function() .zplot_context_projection_batch(z, matrix(.1, S, k), array(diag(k), c(k, k, S)),
-    array(0, c(1L, k, S)), sei, selection, omega, set_selection_likelihood_control())
-  # The uniform-weight grid work polls on the main thread, so an elapsed-time
-  # limit stops the batch instead of letting every draw finish.
+  means <- matrix(.1, S, k)
+  covariance <- array(diag(k), c(k, k, S))
+  factor <- array(0, c(1L, k, S))
+  control <- set_selection_likelihood_control()
+  run <- function() .zplot_context_projection_batch(z, means, covariance, factor, sei, selection, omega, control)
+  # The uncancelled batch, which also warms every code path the limited run takes.
+  full <- system.time(run())[["elapsed"]]
+  skip_if(full < .5, "The uniform-weight workload is too small to time an interrupt.")
+  # The grid work polls on the main thread, so an elapsed-time limit stops the
+  # batch well before the remaining draws would have finished.
   setTimeLimit(elapsed = .05, transient = TRUE)
   on.exit(setTimeLimit(elapsed = Inf), add = TRUE)
+  started <- proc.time()[["elapsed"]]
   expect_error(run(), "time limit")
+  interrupted <- proc.time()[["elapsed"]] - started
   setTimeLimit(elapsed = Inf)
+  expect_lt(interrupted, full / 2)
 })

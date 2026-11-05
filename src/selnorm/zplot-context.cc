@@ -573,45 +573,18 @@ bool transition_rule_resolves(const ZplotProjectionSetup &setup, const double *o
   return true;
 }
 
-// .zplot_context_gaussian_bound(beta, order). Main thread only (Rmath pgamma).
-std::vector<double> gaussian_bound(const std::vector<double> &beta, int order);
-
-// gaussian_bound() inside the protected R-call adapter: an Rmath warning that
-// options(warn = 2) turns into an error unwinds through C++ cleanup.
-std::vector<double> protected_bound(const std::vector<double> &beta, int order)
+// .zplot_context_gaussian_bound(beta, order), on the main thread only (Rmath
+// pgamma and lgamma can warn, and options(warn = 2) makes a warning an R
+// error). The checks and allocation happen first; the protected R-call adapter
+// then runs only plain arithmetic and Rmath on preallocated storage, so an R
+// unwind skips no C++ destructor.
+void gaussian_bound_fill(const double *beta, std::size_t n, std::size_t active, int order,
+                         double *result) noexcept
 {
-  std::vector<double> value;
-  std::string failure;
-  robma_native::protect_call([&]() -> SEXP {
-    try {
-      value = gaussian_bound(beta, order);
-    } catch (const ZplotNativeFailure &error) {
-      failure = error.what();
-    }
-    return R_NilValue;
-  });
-  if (!failure.empty()) fail(failure);
-  return value;
-}
-
-std::vector<double> gaussian_bound(const std::vector<double> &beta, int order)
-{
-  std::vector<double> result(beta.size(), 0.0);
-  for (double value : beta) {
-    if (std::isnan(value) || value < 0) fail("Gaussian resolution ratios must be nonnegative.");
-  }
-  bool any_active = false;
-  for (std::size_t i = 0; i < beta.size(); ++i) {
-    if (std::isinf(beta[i])) result[i] = kInf;
-    if (std::isfinite(beta[i]) && beta[i] > 0) any_active = true;
-  }
-  if (!any_active) return result;
   const double o = static_cast<double>(order);
   const double scale = (std::log(2.0) + Rf_lgammafn(2 * o + 1) - Rf_lgammafn(o + 1)) / o -
     std::log(4.0);
-  std::size_t active = 0;
-  for (double value : beta) if (std::isfinite(value) && value > 0) ++active;
-  for (std::size_t i = 0; i < beta.size(); ++i) {
+  for (std::size_t i = 0; i < n; ++i) {
     if (!(std::isfinite(beta[i]) && beta[i] > 0)) continue;
     const double log_beta = std::log(beta[i]);
     const double log_x = scale - log_beta;
@@ -622,6 +595,27 @@ std::vector<double> gaussian_bound(const std::vector<double> &beta, int order)
     result[i] = r_exp(largest + std::log(r_exp(first - largest, active) + r_exp(second - largest, active)),
       active);
   }
+}
+
+std::vector<double> gaussian_bound(const std::vector<double> &beta, int order)
+{
+  std::vector<double> result(beta.size(), 0.0);
+  for (double value : beta) {
+    if (std::isnan(value) || value < 0) fail("Gaussian resolution ratios must be nonnegative.");
+  }
+  std::size_t active = 0;
+  for (std::size_t i = 0; i < beta.size(); ++i) {
+    if (std::isinf(beta[i])) result[i] = kInf;
+    if (std::isfinite(beta[i]) && beta[i] > 0) ++active;
+  }
+  if (active == 0) return result;
+  const double *values = beta.data();
+  double *output = result.data();
+  const std::size_t n = beta.size();
+  robma_native::protect_call([values, n, active, order, output]() -> SEXP {
+    gaussian_bound_fill(values, n, active, order, output);
+    return R_NilValue;
+  });
   return result;
 }
 
@@ -924,13 +918,13 @@ const std::vector<double> &ZplotContextController::gaussian_resolution(int inner
     }
   }
   const int columns = geometry_.columns;
-  if (!factor_bounds_.count(inner_order)) factor_bounds_[inner_order] = protected_bound(factor_beta_, inner_order);
+  if (!factor_bounds_.count(inner_order)) factor_bounds_[inner_order] = gaussian_bound(factor_beta_, inner_order);
   const std::vector<double> &bound = factor_bounds_[inner_order];
   const std::vector<double> row_bound = r_row_sums(bound.data(), k_, columns);
   std::vector<double> inner(k_), outer(k_, 0.0), total(k_);
   for (int row = 0; row < k_; ++row) inner[row] = height_ratio_[row] * row_bound[row];
   if (!point_context_) {
-    if (!context_bounds_.count(outer_order)) context_bounds_[outer_order] = protected_bound(context_beta_, outer_order);
+    if (!context_bounds_.count(outer_order)) context_bounds_[outer_order] = gaussian_bound(context_beta_, outer_order);
     const std::vector<double> &context = context_bounds_[outer_order];
     for (int row = 0; row < k_; ++row) outer[row] = height_ratio_[row] * context[row];
   }
@@ -1500,10 +1494,10 @@ bool ZplotContextController::supply_bounds()
   }
   try {
     for (int order : factor_requests_) {
-      if (!factor_bounds_.count(order)) factor_bounds_[order] = protected_bound(factor_beta_, order);
+      if (!factor_bounds_.count(order)) factor_bounds_[order] = gaussian_bound(factor_beta_, order);
     }
     for (int order : context_requests_) {
-      if (!context_bounds_.count(order)) context_bounds_[order] = protected_bound(context_beta_, order);
+      if (!context_bounds_.count(order)) context_bounds_[order] = gaussian_bound(context_beta_, order);
     }
   } catch (const ZplotNativeFailure &failure) {
     out_->status = ZplotProjectionOutcome::failed;
