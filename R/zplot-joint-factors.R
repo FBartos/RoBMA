@@ -165,6 +165,15 @@
         batch <- .zplot_context_projection_batch(z, block_mean, array(covariance_draws, c(k, k, S)),
           if (rank > 0L) aperm(loading, c(3L, 2L, 1L)) else array(0, c(1L, k, S)), block_sei,
           projection_context, block_context[["omega"]], control)
+        # Draws that pass .zplot_context_projection_density() and the density
+        # check below cannot fail, so they are added at once; unavailable and
+        # failing draws keep their fallbacks and errors in draw order.
+        tolerance <- control[["relative_tolerance"]]
+        passes <- function(error) !is.na(error) & error >= 0 & is.finite(error) & error <= tolerance
+        accepted <- batch$status == 1L & passes(batch$relative_error) & passes(batch$mass_error) &
+          rowSums(!is.finite(batch$density) | batch$density < 0) == 0L
+        selected[accepted, ] <- selected[accepted, ] + batch$density[accepted, , drop = FALSE] * k / K
+        streamed_rows <- which(!accepted)
       }
       for (draw in streamed_rows) {
         lower_draw <- lower[draw, ]

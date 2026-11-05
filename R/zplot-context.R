@@ -167,9 +167,11 @@
 
 
 # The controller's ladders and every Gauss-Hermite rule they reach, in the
-# layout of RoBMA_zplot_context_projection_batch.
+# layout of RoBMA_zplot_context_projection_batch; built once per session.
+.zplot_context_rules_cache <- new.env(parent = emptyenv())
 .zplot_context_projection_rules <- function() {
 
+  if (!is.null(.zplot_context_rules_cache$rules)) return(.zplot_context_rules_cache$rules)
   context_orders <- c(3L, 7L, SELNORM_CLUSTER_QUADRATURE_ORDERS)
   inner_orders <- c(7L, SELNORM_CLUSTER_QUADRATURE_ORDERS)
   tables <- lapply(sort(unique(c(context_orders, inner_orders))), function(order) {
@@ -177,7 +179,7 @@
     list(order, as.double(rule$nodes), as.double(rule$log_weights),
       as.double(.gauss_hermite_nodes_only(order)))
   })
-  list(context_orders, inner_orders, tables)
+  .zplot_context_rules_cache$rules <- list(context_orders, inner_orders, tables)
 }
 
 

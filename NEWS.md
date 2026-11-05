@@ -1,3 +1,7 @@
+## development version
+### Performance
+- faster `zplot()` of multivariate selection models
+
 ## version 4.1.0
 ### Breaking changes
 - requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod

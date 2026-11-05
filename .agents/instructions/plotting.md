@@ -180,6 +180,17 @@ full summaries; custom `as_zplot()` conversions retain generic dispatch.
 `summary_max_samples` remains validated for compatibility in direct plotting.
 Figure-specific numerical failures still propagate.
 
+The joint-factor zplot loop projects all draws of a block in one native call,
+parallel over draws (`src/selnorm/zplot-context.cc`). It ports
+`.zplot_context_projection()` statement by statement, including R's long-double
+reductions, the BLAS/LAPACK routines behind `chol()`, `%*%` and `norm()`, and
+byte-compiled `exp()`/`expm1()`/`log1p()` (library calls for scalars, R's
+small-argument shortcuts for vectors), so results are identical; a non-default
+`matprod` option keeps the R controller. Draws needing Gaussian resolution
+bounds (Rmath `pgamma`) pause and the main thread computes them between rounds.
+Change the R controller and the port together;
+`test-00-zplot-context-native.R` pins them.
+
 Point-context raw-rule caches are local to one projection controller and keyed
 by the complete original inputs and numerical policy. Reuse raw rule quantities,
 not normalized or compressed curves under a changed denominator. Preserve the

@@ -157,18 +157,29 @@ test_that("the native batch gives the joint loop the R controller's projections 
 
   setup <- .zplot_joint_test_setup()
   fallback <- list()
-  run <- function(native, result = .zplot_context_projection_result) {
+  batch <- .zplot_context_projection_batch
+  # The batch with some draws turned unavailable or failing, as the native
+  # controller reports them.
+  edited <- function(unavailable = integer(), failing = integer()) function(...) {
+    out <- batch(...)
+    out$status[unavailable] <- 0L
+    out$status[failing] <- 2L
+    out$message[failing] <- "draw failed"
+    out
+  }
+  run <- function(native, projection = batch, fallback_density = function(z) matrix(.8, 1L, length(z)),
+                  z = seq(-2, 3, length.out = 21L)) {
     fallback <<- list()
     testthat::with_mocked_bindings(
       .zplot_joint_marginal(setup$object, setup$samples, setup$predictive, setup$selection,
-        seq(-2, 3, length.out = 21L), FALSE, set_selection_likelihood_control()),
+        z, FALSE, set_selection_likelihood_control()),
       .zplot_joint_factor_preparation = function(...) setup$prepared,
       .predict_joint_selection_gaussian_parts = function(...) stop("Dense covariance cubes must not be requested."),
       .zplot_context_native_available = function() native,
-      .zplot_context_projection_result = result,
+      .zplot_context_projection_batch = projection,
       .zplot_full_event_context_draw = function(z, mean, sigma, latent, sei, context, ...) {
         fallback[[length(fallback) + 1L]] <<- list(mean = mean, C = sigma, G = latent, omega = context$omega)
-        matrix(.8, 1L, length(z))
+        fallback_density(z)
       },
       .package = "RoBMA")
   }
@@ -178,9 +189,7 @@ test_that("the native batch gives the joint loop the R controller's projections 
 
   # A draw the batch leaves unavailable takes the full-event fallback at its
   # place in draw order, with that draw's covariance and retained factor.
-  replay <- .zplot_context_projection_result
-  first_unavailable <- function(batch, draw) if (draw == 1L) NULL else replay(batch, draw)
-  partial <- run(TRUE, first_unavailable)
+  partial <- run(TRUE, edited(unavailable = 1L))
   expect_length(fallback, 1L)
   expect_equal(fallback[[1L]]$C, setup$V[1:2, 1:2] + diag(setup$tau_e[3L]^2, 2L))
   expect_equal(fallback[[1L]]$G, matrix(setup$tau_b[3L]^2, 2L, 2L))
@@ -188,23 +197,10 @@ test_that("the native batch gives the joint loop the R controller's projections 
   expect_false(identical(partial$fitted[3L, ], reference$fitted[3L, ]))
   expect_identical(partial$fitted[-3L, ], reference$fitted[-3L, ])
 
-  # Errors surface in draw order: the second draw's error is not reached when
-  # the first draw's fallback fails.
-  failing <- function(batch, draw) if (draw == 1L) NULL else stop("second draw failed", call. = FALSE)
-  expect_error(testthat::with_mocked_bindings(
-    .zplot_joint_marginal(setup$object, setup$samples, setup$predictive, setup$selection,
-      c(-1, 0, 2), FALSE, set_selection_likelihood_control()),
-    .zplot_joint_factor_preparation = function(...) setup$prepared,
-    .zplot_context_native_available = function() TRUE,
-    .zplot_context_projection_result = failing,
-    .zplot_full_event_context_draw = function(...) stop("first draw fallback failed", call. = FALSE),
-    .package = "RoBMA"), "first draw fallback failed")
-  expect_error(testthat::with_mocked_bindings(
-    .zplot_joint_marginal(setup$object, setup$samples, setup$predictive, setup$selection,
-      c(-1, 0, 2), FALSE, set_selection_likelihood_control()),
-    .zplot_joint_factor_preparation = function(...) setup$prepared,
-    .zplot_context_native_available = function() TRUE,
-    .zplot_context_projection_result = failing,
-    .zplot_full_event_context_draw = function(z, ...) matrix(.8, 1L, length(z)),
-    .package = "RoBMA"), "second draw failed")
+  # Errors surface in draw order: a failing first-draw fallback precedes the
+  # second draw's own error, which otherwise is raised with its message.
+  expect_error(run(TRUE, edited(unavailable = 1L, failing = 2L),
+    fallback_density = function(z) stop("first draw fallback failed", call. = FALSE)),
+    "first draw fallback failed")
+  expect_error(run(TRUE, edited(unavailable = 1L, failing = 2L)), "^draw failed$")
 })
