@@ -574,6 +574,26 @@ bool transition_rule_resolves(const ZplotProjectionSetup &setup, const double *o
 }
 
 // .zplot_context_gaussian_bound(beta, order). Main thread only (Rmath pgamma).
+std::vector<double> gaussian_bound(const std::vector<double> &beta, int order);
+
+// gaussian_bound() inside the protected R-call adapter: an Rmath warning that
+// options(warn = 2) turns into an error unwinds through C++ cleanup.
+std::vector<double> protected_bound(const std::vector<double> &beta, int order)
+{
+  std::vector<double> value;
+  std::string failure;
+  robma_native::protect_call([&]() -> SEXP {
+    try {
+      value = gaussian_bound(beta, order);
+    } catch (const ZplotNativeFailure &error) {
+      failure = error.what();
+    }
+    return R_NilValue;
+  });
+  if (!failure.empty()) fail(failure);
+  return value;
+}
+
 std::vector<double> gaussian_bound(const std::vector<double> &beta, int order)
 {
   std::vector<double> result(beta.size(), 0.0);
@@ -808,6 +828,7 @@ class ZplotContextController {
   const int inner_count_ = static_cast<int>(s_.inner_orders.size());
   std::map<int, std::vector<double>> factor_bounds_, context_bounds_;
   std::vector<int> factor_requests_, context_requests_;
+  bool uniform_pending_ = false;
 
   // Draw state
   std::vector<double> omega_;
@@ -855,6 +876,8 @@ class ZplotContextController {
   std::map<std::pair<int, int>, bool> sweeps_;
 
   void setup();
+  void uniform_density();
+  void setup_projection();
   void resolve();
   void ladder();
 
@@ -901,13 +924,13 @@ const std::vector<double> &ZplotContextController::gaussian_resolution(int inner
     }
   }
   const int columns = geometry_.columns;
-  if (!factor_bounds_.count(inner_order)) factor_bounds_[inner_order] = gaussian_bound(factor_beta_, inner_order);
+  if (!factor_bounds_.count(inner_order)) factor_bounds_[inner_order] = protected_bound(factor_beta_, inner_order);
   const std::vector<double> &bound = factor_bounds_[inner_order];
   const std::vector<double> row_bound = r_row_sums(bound.data(), k_, columns);
   std::vector<double> inner(k_), outer(k_, 0.0), total(k_);
   for (int row = 0; row < k_; ++row) inner[row] = height_ratio_[row] * row_bound[row];
   if (!point_context_) {
-    if (!context_bounds_.count(outer_order)) context_bounds_[outer_order] = gaussian_bound(context_beta_, outer_order);
+    if (!context_bounds_.count(outer_order)) context_bounds_[outer_order] = protected_bound(context_beta_, outer_order);
     const std::vector<double> &context = context_bounds_[outer_order];
     for (int row = 0; row < k_; ++row) outer[row] = height_ratio_[row] * context[row];
   }
@@ -1469,12 +1492,18 @@ bool ZplotContextController::step()
 
 bool ZplotContextController::supply_bounds()
 {
+  if (uniform_pending_) {
+    uniform_pending_ = false;
+    uniform_density();
+    stage_ = stage_done;
+    return false;
+  }
   try {
     for (int order : factor_requests_) {
-      if (!factor_bounds_.count(order)) factor_bounds_[order] = gaussian_bound(factor_beta_, order);
+      if (!factor_bounds_.count(order)) factor_bounds_[order] = protected_bound(factor_beta_, order);
     }
     for (int order : context_requests_) {
-      if (!context_bounds_.count(order)) context_bounds_[order] = gaussian_bound(context_beta_, order);
+      if (!context_bounds_.count(order)) context_bounds_[order] = protected_bound(context_beta_, order);
     }
   } catch (const ZplotNativeFailure &failure) {
     out_->status = ZplotProjectionOutcome::failed;
@@ -1549,10 +1578,29 @@ void ZplotContextController::setup()
     if (info != 0) return;
   }
   // Uniform weights: the full Gaussian marginal (.zplot_normal_density_matrix
-  // averaged over the point rows by colMeans).
+  // averaged over the point rows by colMeans). Its grid work polls for
+  // interrupts like the zcurve kernel it mirrors, so a parallel batch hands
+  // the draw to the main thread.
   bool uniform = true;
   for (double weight : omega_) if (!(weight == omega_[0])) uniform = false;
   if (uniform) {
+    if (!main_thread_) {
+      uniform_pending_ = true;
+      throw NeedBound{};
+    }
+    uniform_density();
+    return;
+  }
+  setup_projection();
+}
+
+void ZplotContextController::uniform_density()
+{
+  const int k = k_;
+  const std::size_t K = static_cast<std::size_t>(k);
+  const int factor_rows = d_.factor_rows;
+  const std::size_t factor_size = static_cast<std::size_t>(factor_rows) * K;
+  {
     const std::vector<double> factor_square_sums = [&] {
       std::vector<double> squares(factor_size);
       for (std::size_t i = 0; i < factor_size; ++i) squares[i] = context_factor_[i] * context_factor_[i];
@@ -1567,7 +1615,7 @@ void ZplotContextController::setup()
     std::vector<double> density(static_cast<std::size_t>(m) * s_.size);
     // The zcurve kernel this mirrors polls for interrupts per grid point and
     // observation; a serial batch does the same here.
-    robma_parallel::SerialWork work(main_thread_);
+    robma_parallel::SerialWork work(true);
     for (int row = 0; row < m; ++row) {
       for (int point = 0; point < s_.size; ++point) {
         work.add();
@@ -1583,8 +1631,16 @@ void ZplotContextController::setup()
     out_->density = r_col_sums(density.data(), m, s_.size, true);
     out_->uniform = true;
     out_->status = ZplotProjectionOutcome::accepted;
-    return;
   }
+}
+
+// The rest of the setup for weights that differ.
+void ZplotContextController::setup_projection()
+{
+  const int k = k_;
+  const std::size_t K = static_cast<std::size_t>(k);
+  const int factor_rows = d_.factor_rows;
+  const std::size_t factor_size = static_cast<std::size_t>(factor_rows) * K;
   // precision <- chol2inv(cholesky): dpotri("U"); only its diagonal is read.
   {
     std::vector<double> inverse(K * K, 0.0);
@@ -2049,11 +2105,17 @@ void zplot_context_projection_batch(const ZplotProjectionSetup &setup,
     }
     return;
   }
-  // Parallel rounds. A draw stops only where it needs Gaussian resolution
-  // bounds, which the main thread computes between rounds in draw order; each
-  // draw's computation is therefore the serial one at every thread count.
-  std::vector<int> pending(S);
-  for (int s = 0; s < S; ++s) pending[s] = s;
+  // Parallel rounds. A draw stops only where it needs main-thread work
+  // (Gaussian resolution bounds, or a uniform-weight density, which polls for
+  // interrupts), done between rounds in draw order; each draw's computation is
+  // therefore the serial one at every thread count. Groups of draws go through
+  // all their rounds before the next group starts, so suspended controllers
+  // and their memo tables are bounded by the group size, not the batch.
+  const int group_size = std::max(64 * threads, chunk_rows);
+  for (int group_start = 0; group_start < S; group_start += group_size) {
+  const int group_end = std::min(S, group_start + group_size);
+  std::vector<int> pending;
+  for (int s = group_start; s < group_end; ++s) pending.push_back(s);
   while (!pending.empty()) {
     const int rows = static_cast<int>(pending.size());
     std::vector<char> finished(rows, 0);
@@ -2074,4 +2136,6 @@ void zplot_context_projection_batch(const ZplotProjectionSetup &setup,
     }
     pending.swap(next);
   }
+  }
+  robma_native::check_interrupt();
 }

@@ -185,9 +185,12 @@ parallel over draws (`src/selnorm/zplot-context.cc`). It ports
 `.zplot_context_projection()` statement by statement, including R's long-double
 reductions, the BLAS/LAPACK routines behind `chol()`, `%*%` and `norm()`, and
 byte-compiled `exp()`/`expm1()`/`log1p()` (library calls for scalars, R's
-small-argument shortcuts for vectors), so results are identical; a non-default
-`matprod` option keeps the R controller. Draws needing Gaussian resolution
-bounds (Rmath `pgamma`) pause and the main thread computes them between rounds.
+small-argument shortcuts for vectors); with R's reference BLAS and LAPACK the
+results are identical to the R controller, and a non-default `matprod` option
+keeps the R controller. Draws needing main-thread work (Gaussian resolution
+bounds through Rmath `pgamma`, or interruptible uniform-weight densities) pause
+and the main thread does it between rounds, one bounded group of draws at a
+time.
 Change the R controller and the port together;
 `test-00-zplot-context-native.R` pins them.
 

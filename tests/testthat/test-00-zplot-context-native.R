@@ -20,11 +20,42 @@
 
 
 # One fixture per status and per reachable refinement step of the ladder,
-# found by a randomized search over the R controller (each comment names the
-# steps the native trace records; ZplotTraceCode in zplot-context.h). The
-# compression and pruning routes and the omission-allowance halving cannot be
-# reached: their allowances keep those errors below the routing thresholds.
+# found by a randomized search over the R controller and by review (each
+# comment names the steps the native trace records; ZplotTraceCode in
+# zplot-context.h). Pruning routing is not reachable: its allocation keeps the
+# pruning error below the routing threshold.
 .zplot_native_test_fixtures <- list(
+  # ok-point-absolute: route compression (eight halvings, the last to zero)
+  list(
+    cutoffs = c(2.7073688422096893, 2.5156306988792494, 1.522085587028414),
+    weights = c(1, 0.67502524894375393, 0.20437466374088981, 0.063700387783312107),
+    direction = "positive",
+    sei = c(0.243497576341975, 0.20383368450977943),
+    covariance = c(0.0077905055288595287, 0.00099697707429221107, 0.00099697707429221107,
+      0.0022804408084654212),
+    factor = c(0, 0),
+    mean = c(-0.016321328318342997, -0.15736476617395681),
+    tolerance = 0.0095661360668959864,
+    grid = 41,
+    context_means = c(0.051629034384735088, 0.12530872485333505, -0.03610120369623919, 0.27549200724393885,
+      -0.12994916115724406, 0.097788129583496752),
+    absolute = 1e-07
+  ),
+  # ok-continuous: omission allowance halving
+  list(
+    cutoffs = 1.96,
+    weights = c(1, 1e-04),
+    direction = "positive",
+    sei = c(1, 1),
+    covariance = c(1, 0.1, 0.1, 1),
+    factor = c(0, 0),
+    mean = c(-1, -1),
+    tolerance = 0.1,
+    grid = 41,
+    z = c(-2, 0),
+    context_means = NULL,
+    absolute = NULL
+  ),
   # ok-point-absolute
   list(
     cutoffs = c(2.7073688422096893, 2.5156306988792494, 1.522085587028414),
@@ -188,7 +219,8 @@
 
   k <- length(fixture$sei)
   context_means <- if (is.null(fixture$context_means)) NULL else matrix(fixture$context_means, ncol = k)
-  list(z = seq(-4, 6, length.out = fixture$grid),
+  range <- if (is.null(fixture$z)) c(-4, 6) else fixture$z
+  list(z = seq(range[[1L]], range[[2L]], length.out = fixture$grid),
     mean = if (is.null(context_means)) fixture$mean else colMeans(context_means),
     covariance = matrix(fixture$covariance, k), factor = matrix(fixture$factor, 1L), sei = fixture$sei,
     selection = .zplot_native_test_selection(fixture$sei, fixture$cutoffs, fixture$weights, fixture$direction),
@@ -243,13 +275,14 @@ test_that("the native context projection reproduces the R controller on every la
     steps <- c(steps, batch$trace[[1L]])
   }
   expect_setequal(statuses, c("error", "null", "uniform", "point", "continuous"))
-  expect_true(all(c(1:5, 7:10, 13L, 14L) %in% steps))
+  expect_true(all(c(1:11, 13L, 14L) %in% steps))
+  expect_identical(sum(steps == 11L), 8L)
 })
 
 
 test_that("the native context projection keeps the controller's argument checks", {
 
-  case <- .zplot_native_test_case(.zplot_native_test_fixtures[[3L]])
+  case <- .zplot_native_test_case(.zplot_native_test_fixtures[[5L]])
   k <- length(case$sei)
   run <- function(case) {
     list(reference = .zplot_native_test_reference(case), batch = .zplot_native_test_batch(case))
@@ -266,7 +299,7 @@ test_that("the native context projection keeps the controller's argument checks"
   modified$control$relative_tolerance <- 0
   out <- run(modified)
   .zplot_native_test_same(out$reference, out$batch, 1L)
-  uniform <- .zplot_native_test_case(.zplot_native_test_fixtures[[2L]])
+  uniform <- .zplot_native_test_case(.zplot_native_test_fixtures[[4L]])
   uniform$control$relative_tolerance <- 0
   out <- run(uniform)
   .zplot_native_test_same(out$reference, out$batch, 1L)
@@ -281,7 +314,7 @@ test_that("the batched context projection is invariant to the native thread coun
 
   previous <- RoBMA.get_option("native_threads")
   on.exit(RoBMA.options(native_threads = previous), add = TRUE)
-  case <- .zplot_native_test_case(.zplot_native_test_fixtures[[10L]])
+  case <- .zplot_native_test_case(.zplot_native_test_fixtures[[12L]])
   k <- length(case$sei)
   withr::local_seed(20261105L)
   S <- 40L
@@ -318,4 +351,26 @@ test_that("the native route follows the default matrix product only", {
   expect_true(.zplot_context_native_available())
   withr::local_options(matprod = "internal")
   expect_false(.zplot_context_native_available())
+})
+
+
+test_that("parallel uniform-weight draws stay interruptible", {
+
+  previous <- RoBMA.get_option("native_threads")
+  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
+  RoBMA.options(native_threads = 2L)
+  k <- 40L
+  S <- 4L
+  sei <- rep(1, k)
+  selection <- .zplot_native_test_selection(sei, 1.96, c(1, 1), "positive")
+  omega <- matrix(selection$omega[1L, ], S, ncol(selection$omega), byrow = TRUE)
+  z <- seq(-4, 4, length.out = 400000L)
+  run <- function() .zplot_context_projection_batch(z, matrix(.1, S, k), array(diag(k), c(k, k, S)),
+    array(0, c(1L, k, S)), sei, selection, omega, set_selection_likelihood_control())
+  # The uniform-weight grid work polls on the main thread, so an elapsed-time
+  # limit stops the batch instead of letting every draw finish.
+  setTimeLimit(elapsed = .05, transient = TRUE)
+  on.exit(setTimeLimit(elapsed = Inf), add = TRUE)
+  expect_error(run(), "time limit")
+  setTimeLimit(elapsed = Inf)
 })
