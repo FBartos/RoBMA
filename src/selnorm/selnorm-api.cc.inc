@@ -1265,27 +1265,24 @@ void cpp_selnorm_kernel_predictive_summary(
     double centered_mean;
     double centered_variance;
     bool moments_resolved;
+    // A cell whose shared moments are ill-conditioned has a narrow interval
+    // carrying its mass, which conditions its tails as well; it uses the
+    // separate kernels below for all four values.
     if (std::isfinite(q_score) &&
         step_predictive_summary_shared(
           omega, data, q_score, signed_mean, sd, sei, omega_stride,
           &signed_log_lower, &signed_log_upper,
           &centered_mean, &centered_variance, &moments_resolved
-        )) {
-      *log_lower = data.effect_sign == 1 ? signed_log_lower : signed_log_upper;
-      *log_upper = data.effect_sign == 1 ? signed_log_upper : signed_log_lower;
+        ) && moments_resolved) {
       const double result_mean = data.effect_sign * (signed_mean + centered_mean);
-      if (moments_resolved && std::isfinite(result_mean) &&
-          std::isfinite(centered_variance) && centered_variance >= 0) {
+      if (std::isfinite(result_mean) && std::isfinite(centered_variance) &&
+          centered_variance >= 0) {
+        *log_lower       = data.effect_sign == 1 ? signed_log_lower : signed_log_upper;
+        *log_upper       = data.effect_sign == 1 ? signed_log_upper : signed_log_lower;
         *moment_mean     = result_mean;
         *moment_variance = centered_variance;
-      } else {
-        double moment_second = nan;
-        cpp_selnorm_kernel_moments(
-          mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
-          moment_mean, &moment_second, omega_stride, false, moment_variance
-        );
+        return;
       }
-      return;
     }
   }
 
