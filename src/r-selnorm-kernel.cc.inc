@@ -810,7 +810,12 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   };
   std::vector<int> status(static_cast<std::size_t>(K), summary_ok);
 
+  const SelNormKernelRowArgs row_args(selnorm, S);
+  const RobmaRowSchedule schedule = robma_row_schedule(
+    K, static_cast<double>(S) * selnorm.B);
   const auto summarize = [&](int k) {
+    // Serial execution polls interrupts within an observation's rows too.
+    robma_parallel::SerialWork row_work(schedule.threads <= 1);
     std::vector<double> moment_mean_work(static_cast<std::size_t>(S));
     std::vector<double> moment_variance_work(static_cast<std::size_t>(S));
     StreamingLogSum lower_sum;
@@ -820,6 +825,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     long double mean_sum = 0;
 
     for (int s = 0; s < S; ++s) {
+      row_work.add(selnorm.B);
       const int cell = s + S * k;
       const double w = weights_p[cell];
       if (!std::isfinite(w) || w < 0) {
@@ -835,8 +841,9 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       double moment_variance;
       cpp_selnorm_kernel_predictive_summary(
         yi_p[k], mean_p[cell], sd_p[cell], sei_p[k], selnorm.omega_row(s),
-        selnorm.alpha_at(s), selnorm.phack_kind_at(s),
-        selnorm.kernel_mode_at(s), selnorm.data,
+        row_args.alpha[static_cast<std::size_t>(s)],
+        row_args.phack_kind[static_cast<std::size_t>(s)],
+        row_args.kernel_mode[static_cast<std::size_t>(s)], selnorm.data,
         &log_lower, &log_upper, &moment_mean, &moment_variance, S
       );
       if (!std::isfinite(moment_mean) || !std::isfinite(moment_variance) ||
@@ -865,6 +872,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     const long double mixture_mean = mean_sum / weight_sum;
     long double variance_sum = 0;
     for (int s = 0; s < S; ++s) {
+      row_work.add();
       const int cell = s + S * k;
       if (weights_p[cell] == 0) {
         continue;
@@ -910,9 +918,7 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     variance_out_p[k]  = static_cast<double>(mixture_variance);
   };
 
-  robma_parallel::for_rows(
-    K, robma_row_schedule(K, static_cast<double>(S) * selnorm.B), summarize
-  );
+  robma_parallel::for_rows(K, schedule, summarize);
 
   for (int k = 0; k < K; ++k) {
     switch (status[static_cast<std::size_t>(k)]) {

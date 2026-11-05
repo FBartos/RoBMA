@@ -156,3 +156,71 @@ test_that("predictive cell summaries match an independent log-space reference", 
               1e-10, label = label)
   }
 })
+
+
+test_that("predictive cell tails stay finite for widely spaced finite weights", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # Both tail masses are representable, but their ratio is about 1e350.
+  prior <- BayesTools::prior_weightfunction(
+    "one-sided", c(.025, .5), BayesTools::wf_fixed(c(1, 1e100, 1e-250))
+  )
+  # Weights this wide disable probability telescoping, which the cell kernel
+  # does not use.
+  expect_warning(
+    spec <- .selection_spec(list(outcome = list(bias = prior)), yi = -1, sei = 1,
+                            effect_direction = "positive", signed_data = FALSE),
+    "telescoping disabled"
+  )
+  args <- list(mean = matrix(0), sd = matrix(1), sei = 1,
+               omega = matrix(c(1, 1e100, 1e-250), 1L), selection_spec = spec,
+               kernel_mode = SELKERNEL_STEP)
+  log_sum  <- function(x) max(x) + log(sum(exp(x - max(x))))
+  log_mass <- log_sum(c(log(.025), log(1e100) + log(.475), log(1e-250) + log(.5)))
+  expected <- log(1e-250) + stats::pnorm(-1, log.p = TRUE) - log_mass
+
+  summary  <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = -1), args))
+  weighted <- do.call(.selnorm_kernel_weighted_summary,
+                      c(list(yi = -1, psis_weights = matrix(1)), args))
+  expect_equal(summary$log_lower[1L, 1L], expected, tolerance = 1e-12)
+  expect_equal(weighted$log_lower, expected, tolerance = 1e-12)
+  expect_equal(summary$log_upper[1L, 1L], log1p(-exp(expected)))
+})
+
+
+test_that("predictive cell moments of narrow standardized intervals keep their accuracy", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # Almost all mass sits in [0, sei] in an interval that is narrow on the
+  # scale of a large sd, where shared tail differences cancel.
+  prior <- BayesTools::prior_weightfunction(
+    "one-sided", c(stats::pnorm(1, lower.tail = FALSE), .5),
+    BayesTools::wf_fixed(c(1, 1e100, 0))
+  )
+  expect_warning(
+    spec <- .selection_spec(list(outcome = list(bias = prior)), yi = .5, sei = 1,
+                            effect_direction = "positive", signed_data = FALSE),
+    "telescoping disabled"
+  )
+  for (sd in c(1, 10, 100, 1e3, 1e4, 1e5)) {
+    args <- list(mean = matrix(0), sd = matrix(sd), sei = 1,
+                 omega = matrix(c(1, 1e100, 0), 1L), selection_spec = spec,
+                 kernel_mode = SELKERNEL_STEP)
+    got <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = .5), args))
+    old <- do.call(.selnorm_kernel_moments_matrix, args)
+    kernel <- function(x) exp(-.5 * (x / sd)^2)
+    mass   <- stats::integrate(kernel, 0, 1, rel.tol = 1e-13)$value
+    first  <- stats::integrate(function(x) x * kernel(x), 0, 1, rel.tol = 1e-13)$value / mass
+    second <- stats::integrate(function(x) (x - first)^2 * kernel(x), 0, 1,
+                               rel.tol = 1e-13)$value / mass
+    # Never further from the integrated truncated-normal moments than the
+    # partition-moment kernel, and within its accuracy.
+    tolerance <- max(1e-9, 2 * abs(old$variance[1L, 1L] - second) / second)
+    expect_lt(abs(got$variance[1L, 1L] - second) / second, tolerance,
+              label = paste("variance at sd", sd))
+    expect_lt(abs(got$mean[1L, 1L] - first), max(1e-9, 2 * abs(old$mean[1L, 1L] - first)),
+              label = paste("mean at sd", sd))
+  }
+})

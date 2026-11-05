@@ -133,6 +133,47 @@ test_that("threaded selection kernels return identical values at any thread coun
 })
 
 
+test_that("the weighted summary raises its first failure in observation order", {
+
+  .with_kernel_thread_worker({
+
+    inputs <- .kernel_thread_inputs(S = 6000L)
+    reduce <- function(weights, sd = inputs[["sd"]]) {
+      .selnorm_kernel_weighted_summary(
+        yi             = inputs[["yi"]],
+        mean           = inputs[["mean"]],
+        sd             = sd,
+        sei            = inputs[["sei"]],
+        psis_weights   = weights,
+        omega          = inputs[["omega"]],
+        selection_spec = inputs[["spec"]],
+        kernel_mode    = inputs[["kernel_mode"]]
+      )
+    }
+    weights <- matrix(1, inputs[["S"]], inputs[["K"]])
+    previous <- RoBMA.get_option("native_threads")
+    for (threads in c(1L, 2L)) {
+      RoBMA.options(native_threads = threads)
+      # The lower observation's failure wins over a later one.
+      zero_column <- weights
+      zero_column[, 2L] <- 0
+      zero_column[3000L, 4L] <- NaN
+      expect_error(reduce(zero_column), "positive finite column sums")
+      # Within an observation, the first failing row decides.
+      first_row <- weights
+      first_row[20L, 3L] <- -1
+      sd <- inputs[["sd"]]
+      sd[3000L, 3L] <- NaN
+      expect_error(reduce(first_row, sd), "must be finite and non-negative")
+      first_row[20L, 3L] <- 1
+      first_row[4000L, 3L] <- -1
+      expect_error(reduce(first_row, sd), "predictive moments are not finite")
+    }
+    RoBMA.options(native_threads = previous)
+  })
+})
+
+
 test_that("plot mixture quantiles are identical at any thread count", {
 
   .with_kernel_thread_worker({

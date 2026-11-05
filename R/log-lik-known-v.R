@@ -1168,8 +1168,8 @@
       summary <- .selection_step_predictive_summary_matrix(
         q = y, mean = mean, sd = sd, sei = sei, selection_context = context
       )
-      # The event is evaluated in the signed direction; the returned tails
-      # and mean keep the orientation of the original outcomes.
+      # The event is evaluated in the signed direction; the tails and the mean
+      # return to the orientation of the original outcomes.
       lower_tail <- conditional[["lower_tail"]]
       log_lower  <- summary[[if (lower_tail) "log_lower" else "log_upper"]]
       log_upper  <- summary[[if (lower_tail) "log_upper" else "log_lower"]]

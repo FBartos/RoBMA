@@ -1058,52 +1058,91 @@ SharedNormalPoint shared_normal_point(double score)
 }
 
 // Standard normal probability of [lower, upper] from the endpoints' shared
-// tails. Each side of zero subtracts the smaller tails; an interval around
-// zero uses erf, whose opposite-signed terms do not cancel. NaN marks a
-// difference that rounding left negative.
+// tails. An interval inside either side of zero subtracts its smaller tails;
+// one that touches or contains zero uses erf, whose terms do not cancel
+// (as interval_log_prob() does). `operand` receives the magnitude of the
+// subtracted values, which bounds the rounding error of the result. NaN marks
+// a difference that rounding left negative.
 double shared_interval_probability(const SharedNormalPoint &lower,
-                                   const SharedNormalPoint &upper)
+                                   const SharedNormalPoint &upper,
+                                   double *operand)
 {
+  *operand = 0;
   if (!(lower.score < upper.score)) {
     return 0;
   }
   double probability;
-  if (lower.score >= 0) {
+  if (lower.score > 0) {
     probability = lower.tail - upper.tail;
-  } else if (upper.score <= 0) {
+    *operand    = lower.tail;
+  } else if (upper.score < 0) {
     probability = upper.cdf - lower.cdf;
+    *operand    = upper.cdf;
   } else {
     const double upper_erf = std::isinf(upper.score) ? 1.0 :
       std::erf(upper.score * M_SQRT1_2);
     const double lower_erf = std::isinf(lower.score) ? -1.0 :
       std::erf(lower.score * M_SQRT1_2);
     probability = 0.5 * (upper_erf - lower_erf);
+    *operand    = probability;
   }
   return probability >= 0 && std::isfinite(probability) ?
     probability : std::numeric_limits<double>::quiet_NaN();
 }
 
+// Normalized paired log tails from the two tail masses, without forming a
+// ratio that could overflow: each tail is taken relative to the larger mass.
+void shared_log_tail_pair(double lower_mass, double upper_mass,
+                          double *log_lower, double *log_upper)
+{
+  if (lower_mass == 0) {
+    *log_lower = -INFINITY;
+    *log_upper = 0;
+  } else if (upper_mass == 0) {
+    *log_lower = 0;
+    *log_upper = -INFINITY;
+  } else if (upper_mass <= lower_mass) {
+    const double ratio = upper_mass / lower_mass;
+    *log_lower = -std::log1p(ratio);
+    *log_upper = std::log(upper_mass) - std::log(lower_mass) - std::log1p(ratio);
+  } else {
+    const double ratio = lower_mass / upper_mass;
+    *log_lower = std::log(lower_mass) - std::log(upper_mass) - std::log1p(ratio);
+    *log_upper = -std::log1p(ratio);
+  }
+}
+
 // The shared step evaluation in the signed direction. Returns false when the
-// cell needs the log-space kernels: a nonpositive or unavailable mass, or a
+// tails need the log-space kernel: a nonpositive or unavailable mass, or a
 // tail whose mass is close to the underflow range of probability space.
+// `moments_resolved` is false when the centered moments lose more than four
+// digits to cancellation (a narrow interval carrying the mass, relative to
+// the operands it is formed from); the partition-moment kernel then supplies
+// them.
 bool step_predictive_summary_shared(const double *omega,
                                     const SelNormKernelData &data,
                                     double q_score, double signed_mean,
                                     double sd, double sei, int omega_stride,
                                     double *log_lower, double *log_upper,
                                     double *centered_mean,
-                                    double *centered_variance)
+                                    double *centered_variance,
+                                    bool *moments_resolved)
 {
   // Masses below this stay in probability space only far from underflow.
   const double minimum_mass = 1e-280;
+  // Largest admitted ratio of the moments' operand scale to the variance.
+  const double maximum_cancellation = 1e4;
+  *moments_resolved = false;
   const SharedNormalPoint query = shared_normal_point(q_score);
   SharedNormalPoint upper = shared_normal_point(INFINITY);
-  double lower_mass = 0;
-  double upper_mass = 0;
-  double first      = 0;
-  double second     = 0;
-  bool lower_support = false;
-  bool upper_support = false;
+  double lower_mass   = 0;
+  double upper_mass   = 0;
+  double first        = 0;
+  double second       = 0;
+  double first_scale  = 0;
+  double second_scale = 0;
+  bool lower_support  = false;
+  bool upper_support  = false;
 
   for (int b = 0; b < data.n_bins; ) {
     const double w = omega_at(omega, b + 1, omega_stride);
@@ -1126,7 +1165,11 @@ bool step_predictive_summary_shared(const double *omega,
     }
 
     if (w > 0) {
-      const double probability = shared_interval_probability(lower, upper);
+      double operand;
+      double unused;
+      const double probability = shared_interval_probability(
+        lower, upper, &operand
+      );
       if (std::isnan(probability)) {
         return false;
       }
@@ -1137,8 +1180,8 @@ bool step_predictive_summary_shared(const double *omega,
         lower_mass   += w * probability;
         lower_support = true;
       } else {
-        const double below = shared_interval_probability(lower, query);
-        const double above = shared_interval_probability(query, upper);
+        const double below = shared_interval_probability(lower, query, &unused);
+        const double above = shared_interval_probability(query, upper, &unused);
         if (std::isnan(below) || std::isnan(above)) {
           return false;
         }
@@ -1147,8 +1190,11 @@ bool step_predictive_summary_shared(const double *omega,
         lower_support = true;
         upper_support = true;
       }
-      first  += w * (lower.phi - upper.phi);
-      second += w * (probability + lower.score_phi - upper.score_phi);
+      first        += w * (lower.phi - upper.phi);
+      second       += w * (probability + lower.score_phi - upper.score_phi);
+      first_scale  += w * (lower.phi + upper.phi);
+      second_scale += w * (operand + std::abs(lower.score_phi) +
+                           std::abs(upper.score_phi));
     }
 
     upper = lower;
@@ -1158,7 +1204,8 @@ bool step_predictive_summary_shared(const double *omega,
   if ((lower_support && !(lower_mass >= minimum_mass)) ||
       (upper_support && !(upper_mass >= minimum_mass)) ||
       !std::isfinite(lower_mass) || !std::isfinite(upper_mass) ||
-      !std::isfinite(first) || !std::isfinite(second)) {
+      !std::isfinite(first) || !std::isfinite(second) ||
+      !std::isfinite(first_scale) || !std::isfinite(second_scale)) {
     return false;
   }
 
@@ -1166,14 +1213,23 @@ bool step_predictive_summary_shared(const double *omega,
   if (!(normalizer >= minimum_mass) || !std::isfinite(normalizer)) {
     return false;
   }
-  *log_lower = lower_mass > 0 ? -std::log1p(upper_mass / lower_mass) : -INFINITY;
-  *log_upper = upper_mass > 0 ? -std::log1p(lower_mass / upper_mass) : -INFINITY;
+  shared_log_tail_pair(lower_mass, upper_mass, log_lower, log_upper);
+  if (std::isnan(*log_lower) || std::isnan(*log_upper)) {
+    return false;
+  }
 
-  const double mean_score = first / normalizer;
+  const double mean_score     = first / normalizer;
   const double variance_score = second / normalizer - mean_score * mean_score;
+  const double mean_scale     = first_scale / normalizer;
+  const double variance_scale = second_scale / normalizer +
+    2 * std::abs(mean_score) * mean_scale + mean_score * mean_score;
+  *moments_resolved = variance_score > 0 &&
+    variance_scale <= maximum_cancellation * variance_score &&
+    mean_scale * mean_scale <=
+      maximum_cancellation * maximum_cancellation * variance_score;
   *centered_mean     = sd * mean_score;
   *centered_variance = sd * sd * variance_score;
-  return std::isfinite(*log_lower) || std::isfinite(*log_upper);
+  return true;
 }
 
 }  // namespace
@@ -1208,21 +1264,28 @@ void cpp_selnorm_kernel_predictive_summary(
     double signed_log_upper;
     double centered_mean;
     double centered_variance;
+    bool moments_resolved;
     if (std::isfinite(q_score) &&
         step_predictive_summary_shared(
           omega, data, q_score, signed_mean, sd, sei, omega_stride,
           &signed_log_lower, &signed_log_upper,
-          &centered_mean, &centered_variance
+          &centered_mean, &centered_variance, &moments_resolved
         )) {
+      *log_lower = data.effect_sign == 1 ? signed_log_lower : signed_log_upper;
+      *log_upper = data.effect_sign == 1 ? signed_log_upper : signed_log_lower;
       const double result_mean = data.effect_sign * (signed_mean + centered_mean);
-      if (std::isfinite(result_mean) && std::isfinite(centered_variance) &&
-          centered_variance >= 0) {
-        *log_lower       = data.effect_sign == 1 ? signed_log_lower : signed_log_upper;
-        *log_upper       = data.effect_sign == 1 ? signed_log_upper : signed_log_lower;
+      if (moments_resolved && std::isfinite(result_mean) &&
+          std::isfinite(centered_variance) && centered_variance >= 0) {
         *moment_mean     = result_mean;
         *moment_variance = centered_variance;
-        return;
+      } else {
+        double moment_second = nan;
+        cpp_selnorm_kernel_moments(
+          mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
+          moment_mean, &moment_second, omega_stride, false, moment_variance
+        );
       }
+      return;
     }
   }
 

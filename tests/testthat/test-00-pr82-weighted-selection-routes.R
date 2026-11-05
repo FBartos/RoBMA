@@ -1,4 +1,7 @@
-.weighted_selection_fixture <- function(mode, weights = NULL, direction = "positive") {
+.weighted_selection_fixture <- function(mode, weights = NULL, direction = "positive",
+                                        weight_rule = "product",
+                                        known_sampling_variance = "integrate",
+                                        setup = TRUE) {
 
   dat <- data.frame(yi = c(.4, -.2, .3), sei = c(.8, 1.1, .6), paper = rep("a", 3L))
   object <- bselmodel(
@@ -12,10 +15,14 @@
       "one-sided", .5, BayesTools::wf_fixed(c(1, .2)),
       model = BayesTools::selection_model(
         estimate_random_effects = mode, other_random_effects = "integrate",
-        known_sampling_variance = "integrate", group = "paper", weight_rule = "product"
+        known_sampling_variance = known_sampling_variance, group = "paper",
+        weight_rule = weight_rule
       )
     )
   )
+  if (!setup) {
+    return(list(object = object, dat = dat))
+  }
   samples <- rbind(c(.2, .4, .5, -1, 1.5), c(-.1, .7, -1, .2, .6))
   colnames(samples) <- c("mu", "tau", paste0("theta[", 1:3, "]"))
   if (mode == "integrate") samples <- samples[, c("mu", "tau"), drop = FALSE]
@@ -102,4 +109,92 @@ test_that("weighted joint-selection LOO tails and moments follow the selected la
       tolerance = 1e-12
     )
   }
+})
+
+
+# The PSIS-weighted LOO-PIT z, residual and SE of the selected-normal law of
+# .weighted_selection_reference() in either effect direction, by integration.
+.weighted_selection_loo_pit_reference <- function(fixture, mode, sign, psis_weights) {
+
+  samples <- fixture[["samples"]]
+  dat     <- fixture[["dat"]]
+  mean    <- matrix(samples[, "mu"], 2L, 3L)
+  sd      <- matrix(dat[["sei"]], 2L, 3L, byrow = TRUE)
+  if (mode == "condition") {
+    mean <- mean + unname(samples[, 3:5]) * unname(samples[, "tau"])
+  } else {
+    sd <- sqrt(sd^2 + unname(samples[, "tau"])^2)
+  }
+  cdf <- first <- variance <- matrix(NA_real_, 2L, 3L)
+  for (s in 1:2) for (k in 1:3) {
+    # Selection acts on the signed outcome: weight 1 above zero, .2 below.
+    m       <- sign * mean[s, k]
+    v       <- sd[s, k]
+    density <- function(x, power = 0) x^power * stats::dnorm(x, m, v) * ifelse(x > 0, 1, .2)
+    moment  <- function(power) sum(vapply(list(c(-Inf, 0), c(0, Inf)), function(range) {
+      stats::integrate(density, range[1L], range[2L], power = power, rel.tol = 1e-12)$value
+    }, numeric(1L)))
+    mass    <- moment(0)
+    signed_cdf <- function(t) {
+      lower <- stats::integrate(density, -Inf, min(t, 0), rel.tol = 1e-12)$value
+      upper <- if (t > 0) stats::integrate(density, 0, t, rel.tol = 1e-12)$value else 0
+      (lower + upper) / mass
+    }
+    y <- dat[["yi"]][k]
+    cdf[s, k]      <- if (sign == 1) signed_cdf(y) else 1 - signed_cdf(-y)
+    first[s, k]    <- sign * moment(1) / mass
+    variance[s, k] <- moment(2) / mass - (moment(1) / mass)^2
+  }
+  weights <- sweep(psis_weights, 2L, colSums(psis_weights), "/")
+  center  <- colSums(weights * first)
+  list(
+    z     = stats::qnorm(colSums(weights * cdf)),
+    resid = dat[["yi"]] - center,
+    se    = sqrt(colSums(weights * (variance + sweep(first, 2L, center)^2)))
+  )
+}
+
+test_that("the native product-weight LOO-PIT reducer follows effect direction and likelihood weights", {
+
+  psis_weights <- matrix(c(.3, .7, .8, .2, .5, .5), 2L, 3L)
+  for (direction in c("positive", "negative")) {
+    for (mode in c("condition", "integrate")) {
+      for (weights in list(NULL, c(2, .5, 3))) {
+        fixture   <- .weighted_selection_fixture(mode, weights = weights, direction = direction)
+        reference <- .weighted_selection_loo_pit_reference(
+          fixture, mode, if (direction == "positive") 1 else -1, psis_weights
+        )
+        actual <- .loo_predictive_joint_product_summary(fixture[["setup"]], psis_weights)
+        info   <- paste(direction, mode, if (is.null(weights)) "unweighted" else "weighted")
+        expect_equal(actual[["z"]], reference[["z"]], tolerance = 1e-9, info = info)
+        expect_equal(actual[["resid"]], reference[["resid"]], tolerance = 1e-9, info = info)
+        expect_equal(actual[["se"]], reference[["se"]], tolerance = 1e-9, info = info)
+      }
+    }
+  }
+})
+
+test_that("the native LOO-PIT reducer is taken only for product weights without retained sampling", {
+
+  routing <- function(fixture) {
+    data <- fixture[["object"]][["data"]]
+    .loo_predictive_joint_product_summary(
+      list(outcome_type = "norm", data = data, weights = NULL),
+      psis_weights = matrix(1, 1L, 3L)
+    )
+  }
+  product  <- .weighted_selection_fixture("integrate", setup = FALSE)
+  best     <- .weighted_selection_fixture("integrate", weight_rule = "best", setup = FALSE)
+  retained <- .weighted_selection_fixture(
+    "integrate", known_sampling_variance = "condition", setup = FALSE
+  )
+  expect_true(.selection_joint_product_weights(product[["object"]][["data"]]))
+  expect_false(.selection_joint_product_weights(best[["object"]][["data"]]))
+  expect_true(.selection_retains_sampling(retained[["object"]][["data"]]))
+  expect_null(routing(best))
+  expect_null(routing(retained))
+  expect_null(.loo_predictive_joint_product_summary(
+    list(outcome_type = "bin", data = product[["object"]][["data"]], weights = NULL),
+    psis_weights = matrix(1, 1L, 3L)
+  ))
 })

@@ -142,12 +142,16 @@ Under product weights the retained rows leave a deleted row's selection event
 unchanged, so its LOO-PIT tails and predictive moments are those of the scalar
 selected normal at its conditional mean and variance; they are evaluated for
 all rows and draws in one batch (and `rstudent()` reduces them with the PSIS
-weights natively). Best weights condition the event on the retained rows and
-keep the per-row Gaussian event evaluation. The batch uses the fused step cell
-summary (paired log tails, mean, variance), which evaluates each boundary's
-normal tails and density once; a non-step cell, an unavailable mass, or a tail
-mass below `1e-280` falls back to the log-space tail and partition-moment
-kernels.
+weights natively; like the univariate reducer, it skips draws whose PSIS
+weight is exactly zero). Best weights condition the event on the retained rows
+and keep the per-row Gaussian event evaluation. The batch uses the fused step
+cell summary (paired log tails, mean, variance), which evaluates each
+boundary's normal tails and density once and normalizes the tails against the
+larger tail mass; a non-step cell, an unavailable mass, or a tail mass below
+`1e-280` falls back to the log-space tail and partition-moment kernels, and a
+cell whose moments would lose more than four digits to cancellation (a narrow
+standardized interval carrying the mass) takes them from the partition-moment
+kernel.
 
 Keep `known_v_factor()` as an explicit exact computational representation,
 and accept ordinary covariance matrices directly. Preserve row identity and

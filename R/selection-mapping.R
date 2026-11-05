@@ -610,6 +610,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     "RoBMA_selnorm_kernel_log_norm_matrix",
     "RoBMA_selnorm_kernel_cdf_matrix",
     "RoBMA_selnorm_kernel_moments_matrix",
+    "RoBMA_selnorm_kernel_predictive_summary_matrix",
     "RoBMA_selnorm_kernel_rng_matrix",
     "RoBMA_selnorm_kernel_weighted_summary"
   )

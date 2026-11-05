@@ -452,6 +452,32 @@ test_that("native regplot quantiles preserve subnormal continuous scales", {
   )
 })
 
+test_that("blocked plot mixture CDFs stay within one for widely ranging weights", {
+
+  skip_if_not(.has_native_regplot_mixture())
+
+  # More rows than one 4096-row block, weights spanning sixteen orders of
+  # magnitude, and probabilities next to zero and one: the bracket where every
+  # row's CDF is one must not round above one.
+  S        <- 5L * 4096L + 17L
+  inputs   <- .kernel_thread_inputs(S = S, K = 2L)
+  context  <- .kernel_thread_selection_context(inputs)
+  weights  <- withr::with_seed(20261105, 10^stats::runif(S, -8, 8))
+  quantile <- .plot_mixture_quantiles_native(
+    mean_samples      = inputs[["mean"]],
+    sd_samples        = inputs[["sd"]],
+    se                = inputs[["sei"]],
+    probs             = c(1e-12, .5, 1 - 1e-12),
+    weights           = weights,
+    selected_rows     = inputs[["kernel_mode"]] == SELKERNEL_STEP,
+    selection_context = context,
+    caller            = "test"
+  )
+  expect_true(all(is.finite(quantile)))
+  expect_true(all(quantile[, 1L] < quantile[, 2L] & quantile[, 2L] < quantile[, 3L]))
+})
+
+
 test_that("shared native plot quantiles honor weights and arbitrary probabilities", {
 
   skip_if_not(.has_native_regplot_mixture())

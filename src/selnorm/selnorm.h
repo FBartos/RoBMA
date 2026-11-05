@@ -303,7 +303,9 @@ void cpp_selnorm_kernel_moments(
 // the values of cpp_selnorm_kernel_log_tail_pair() and
 // cpp_selnorm_kernel_moments() with a variance. Step cells over a trusted
 // partition evaluate each boundary once for all four; other cells, and cells
-// with a tail mass near underflow, use those two log-space kernels.
+// with a tail mass near underflow, use those two log-space kernels, and cells
+// whose shared moments lose more than four digits to cancellation take their
+// moments from the partition-moment kernel.
 void cpp_selnorm_kernel_predictive_summary(
   double q,
   double mean,

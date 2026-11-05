@@ -118,6 +118,7 @@ test_that("bselmodel.mv rstudent reduces the product-weight deletion target nati
   expect_equal(fused[["se"]], moments[["se"]], tolerance = 1e-10)
 
   residuals <- rstudent(fit_bselmodel_mv)
+  expect_equal(residuals[["resid"]], fused[["resid"]])
   expect_equal(residuals[["z"]], fused[["z"]])
   expect_equal(residuals[["se"]], fused[["se"]])
 })
