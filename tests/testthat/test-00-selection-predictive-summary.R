@@ -210,20 +210,58 @@ test_that("predictive cell tails keep heavily weighted bins whose probability un
     expected <- .predictive_cell_reference(q, q, 1, 1, omega,
                                            BayesTools::selection_native_static_args(spec))
     summary  <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = q), args))
+    weighted <- do.call(.selnorm_kernel_weighted_summary,
+                        c(list(yi = q, psis_weights = matrix(1)), args))
+    moments  <- do.call(.selnorm_kernel_moments_matrix, args)
     for (tail in c("log_lower", "log_upper")) {
+      label <- paste(direction, tail)
       expect_lt(abs(summary[[tail]][1L, 1L] - expected[[tail]]),
-                1e-11 * max(1, abs(expected[[tail]])), label = paste(direction, tail))
+                1e-11 * max(1, abs(expected[[tail]])), label = label)
+      expect_lt(abs(weighted[[tail]] - expected[[tail]]),
+                1e-11 * max(1, abs(expected[[tail]])), label = paste("weighted", label))
     }
     # The heavily weighted bin is far in the signed upper tail.
     expect_lt(expected[[if (direction == "positive") "log_lower" else "log_upper"]], -100)
-    # Its moments are beyond double precision in probability space (the
-    # partition-moment kernel drops the bin), so they are refused.
-    expect_true(is.nan(summary$mean[1L, 1L]) && is.nan(summary$variance[1L, 1L]))
-    expect_error(
-      do.call(.selnorm_kernel_weighted_summary, c(list(yi = q, psis_weights = matrix(1)), args)),
-      "Selected-normal predictive moments are unavailable because the selection weights span beyond double precision.",
-      fixed = TRUE
+    expect_identical(summary$mean[1L, 1L], moments$mean[1L, 1L])
+    expect_identical(summary$variance[1L, 1L], moments$variance[1L, 1L])
+  }
+})
+
+
+test_that("predictive cells outside the fused gate return the base kernels' values", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # Weights spanning beyond double precision, a query beyond the double range
+  # and a subnormal query: each cell takes the unchanged log-tail and
+  # partition-moment kernels, including their limits at such inputs.
+  cases <- list(
+    list(steps = c(stats::pnorm(1, lower.tail = FALSE), .5), omega = c(1, 1e308, 1),
+         mean = 500, sd = 1, sei = 1000, q = 500 - 36.8),
+    list(steps = c(stats::pnorm(1, lower.tail = FALSE), .5), omega = c(1, 1e300, 1e-100),
+         mean = -4, sd = .1, sei = .1, q = 1e308),
+    list(steps = .5, omega = c(1e308, 0), mean = 0, sd = 1, sei = 1,
+         q = 1.9762625833649862e-323)
+  )
+  for (case in cases) for (direction in c("positive", "negative")) {
+    sign  <- if (direction == "positive") 1 else -1
+    prior <- BayesTools::prior_weightfunction(
+      "one-sided", case$steps, BayesTools::wf_fixed(replace(pmin(case$omega, 1), 1L, 1))
     )
+    spec <- suppressWarnings(.selection_spec(
+      list(outcome = list(bias = prior)), yi = sign * case$q, sei = case$sei,
+      effect_direction = direction, signed_data = FALSE
+    ))
+    args <- list(mean = matrix(sign * case$mean), sd = matrix(case$sd), sei = case$sei,
+                 omega = matrix(case$omega, 1L), selection_spec = spec,
+                 kernel_mode = SELKERNEL_STEP)
+    label   <- paste(direction, "q =", case$q)
+    summary <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = sign * case$q), args))
+    moments <- do.call(.selnorm_kernel_moments_matrix, args)
+    cdf     <- do.call(.selnorm_kernel_cdf_matrix, c(list(q = sign * case$q), args))
+    expect_identical(summary$mean, moments$mean, label = paste(label, "mean"))
+    expect_identical(summary$variance, moments$variance, label = paste(label, "variance"))
+    expect_lt(abs(exp(summary$log_lower[1L, 1L]) - cdf[1L, 1L]), 1e-15, label = paste(label, "cdf"))
   }
 })
 
@@ -232,14 +270,12 @@ test_that("predictive cell moments stay available for bounded weights at tiny ma
 
   skip_if_not(.has_native_selnorm_kernel())
 
-  # The mass sits in a bin of weight 1e-290 while the unit-weight bin starts
-  # at standardized scores 37.4 to 39, where its probability is subnormal or
-  # zero: the underflow loss stays far below the normalizer's last digit.
-  sei   <- 1
-  spec  <- .test_step_spec(0, sei)
-  B     <- spec[["n_bins"]]
+  # The mass sits in bins of weight 1e-290 while the unit-weight bin starts at
+  # standardized scores 37.4 to 39, where its probability is subnormal or zero.
+  sei    <- 1
+  spec   <- .test_step_spec(0, sei)
   static <- BayesTools::selection_native_static_args(spec)
-  omega <- rep(1e-290, B)
+  omega  <- rep(1e-290, spec[["n_bins"]])
   omega[1L] <- 1
   first_cut <- static[["z_lower"]][1L] * sei
   for (score in c(37.4, 37.52, 37.6, 38, 38.5, 39)) {
@@ -253,49 +289,6 @@ test_that("predictive cell moments stay available for bounded weights at tiny ma
                 label = paste("moments at score", score))
     expect_lt(abs(got$log_lower[1L, 1L] - expected$log_lower), 1e-11,
               label = paste("log_lower at score", score))
-  }
-})
-
-
-test_that("predictive cell summaries keep huge weights on bins far from underflow", {
-
-  skip_if_not(.has_native_selnorm_kernel())
-
-  # The heavy bin [0, 1000] holds a selected normal at 500 with sd 1, so the
-  # selection is immaterial; its boundary terms underflow only negligibly.
-  omega <- c(1, 1e308, 1)
-  prior <- BayesTools::prior_weightfunction(
-    "one-sided", c(stats::pnorm(1, lower.tail = FALSE), .5), BayesTools::wf_fixed(omega)
-  )
-  for (direction in c("positive", "negative")) {
-    sign <- if (direction == "positive") 1 else -1
-    q    <- sign * (500 - 36.8)
-    spec <- suppressWarnings(.selection_spec(
-      list(outcome = list(bias = prior)), yi = q, sei = 1000,
-      effect_direction = direction, signed_data = FALSE
-    ))
-    args <- list(mean = matrix(sign * 500), sd = matrix(1), sei = 1000,
-                 omega = matrix(omega, 1L), selection_spec = spec,
-                 kernel_mode = SELKERNEL_STEP)
-    summary  <- do.call(.selnorm_kernel_predictive_summary_matrix, c(list(q = q), args))
-    weighted <- do.call(.selnorm_kernel_weighted_summary,
-                        c(list(yi = q, psis_weights = matrix(1)), args))
-    expected <- list(
-      log_lower = stats::pnorm(q, sign * 500, 1, log.p = TRUE),
-      log_upper = stats::pnorm(q, sign * 500, 1, lower.tail = FALSE, log.p = TRUE)
-    )
-    for (tail in c("log_lower", "log_upper")) {
-      expect_lt(abs(summary[[tail]][1L, 1L] - expected[[tail]]),
-                1e-11 * max(1, abs(expected[[tail]])), label = paste(direction, tail))
-      expect_lt(abs(weighted[[tail]] - expected[[tail]]),
-                1e-11 * max(1, abs(expected[[tail]])), label = paste("weighted", direction, tail))
-    }
-    for (value in list(summary$mean[1L, 1L], weighted$mean)) {
-      expect_lt(abs(value - sign * 500), 1e-10, label = paste(direction, "mean"))
-    }
-    for (value in list(summary$variance[1L, 1L], weighted$variance)) {
-      expect_lt(abs(value - 1), 1e-10, label = paste(direction, "variance"))
-    }
   }
 })
 

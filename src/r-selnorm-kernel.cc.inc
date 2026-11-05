@@ -465,13 +465,6 @@ extern "C" SEXP RoBMA_selnorm_kernel_cdf_matrix(
   ROBMA_NATIVE_END
 }
 
-// Raised when a cell's moments are not representable in double precision
-// (cpp_selnorm_kernel_predictive_summary()); the R product-weight path raises
-// the same message for the NaN moments of the matrix summary.
-static const char *const selnorm_unrepresentable_moments_message =
-  "Selected-normal predictive moments are unavailable because the selection "
-  "weights span beyond double precision.";
-
 // Paired log tails log P(Y <= q) and log P(Y >= q) with the mean and
 // variance of every cell, from cpp_selnorm_kernel_predictive_summary(). Both
 // tails are kept so that callers resolve whichever is small without a
@@ -810,7 +803,6 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
   enum SummaryStatus {
     summary_ok = 0,
     summary_invalid_weight,
-    summary_unavailable_moments,
     summary_invalid_moments,
     summary_invalid_weight_sum,
     summary_invalid_variance,
@@ -847,19 +839,13 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
       double log_upper;
       double moment_mean;
       double moment_variance;
-      bool moments_unavailable;
       cpp_selnorm_kernel_predictive_summary(
         yi_p[k], mean_p[cell], sd_p[cell], sei_p[k], selnorm.omega_row(s),
         row_args.alpha[static_cast<std::size_t>(s)],
         row_args.phack_kind[static_cast<std::size_t>(s)],
         row_args.kernel_mode[static_cast<std::size_t>(s)], selnorm.data,
-        &log_lower, &log_upper, &moment_mean, &moment_variance, S,
-        &moments_unavailable
+        &log_lower, &log_upper, &moment_mean, &moment_variance, S
       );
-      if (moments_unavailable) {
-        status[static_cast<std::size_t>(k)] = summary_unavailable_moments;
-        return;
-      }
       if (!std::isfinite(moment_mean) || !std::isfinite(moment_variance) ||
           moment_variance < 0) {
         status[static_cast<std::size_t>(k)] = summary_invalid_moments;
@@ -938,8 +924,6 @@ extern "C" SEXP RoBMA_selnorm_kernel_weighted_summary(
     switch (status[static_cast<std::size_t>(k)]) {
     case summary_invalid_weight:
       Rf_error("'psis_weights' must be finite and non-negative.");
-    case summary_unavailable_moments:
-      Rf_error("%s", selnorm_unrepresentable_moments_message);
     case summary_invalid_moments:
       Rf_error("Selected-normal predictive moments are not finite.");
     case summary_invalid_weight_sum:

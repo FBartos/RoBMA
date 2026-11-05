@@ -1112,56 +1112,14 @@ void shared_log_tail_pair(double lower_mass, double upper_mass,
   }
 }
 
-// Log of a bound on the absolute error that underflow leaves in the terms one
-// boundary point contributes to a bin: its smaller tail (used by the bin and
-// by a query slice), density, and score times density. Up to |score| = 37
-// these are in the normal range and carry rounding only. A subnormal value
-// (an exp() rounded below the normal range times factors near one, scaled by
-// |score| < 39) is within 1024 subnormal units of its true value; a value
-// rounded to zero loses all of it: at most phi/|score| (Mills' ratio), phi,
-// and |score| phi in truth.
-double log_boundary_underflow_error(const SharedNormalPoint &point)
-{
-  const double magnitude = std::abs(point.score);
-  if (!(magnitude > 37) || std::isinf(magnitude)) {
-    return -INFINITY;
-  }
-  const double log_sqrt_2pi  = 0.918938533204672741780329736406;
-  const double log_phi       = -0.5 * magnitude * magnitude - log_sqrt_2pi;
-  const double log_magnitude = std::log(magnitude);
-  const double log_subnormal =
-    std::log(1024 * std::numeric_limits<double>::denorm_min());
-  struct Operand {
-    double value;
-    double log_true;
-    double uses;
-  };
-  const Operand operands[] = {
-    {std::min(point.cdf, point.tail), log_phi - log_magnitude, 2},
-    {point.phi, log_phi, 1},
-    {std::abs(point.score_phi), log_magnitude + log_phi, 1}
-  };
-  double log_error = -INFINITY;
-  for (const Operand &operand : operands) {
-    if (!(operand.value < std::numeric_limits<double>::min())) {
-      continue;
-    }
-    const double log_lost = operand.value == 0 ? operand.log_true : log_subnormal;
-    log_error = add_logspace(log_error, std::log(operand.uses) + log_lost);
-  }
-  return log_error;
-}
-
 // The shared step evaluation in the signed direction. Returns false when the
 // tails need the log-space kernel: a nonpositive or unavailable mass, a tail
-// whose mass is close to the underflow range of probability space, or a
-// weighted bin term lost to underflow that could reach a tail mass's last
-// digit. `moments_unavailable` is set when such a loss could reach the
-// normalizer's last digit: the probability-space moment kernels drop the same
-// terms, so these moments are not representable. `moments_resolved` is false
-// when the centered moments lose more than four digits to cancellation (a
-// narrow interval carrying the mass, relative to the operands it is formed
-// from); the partition-moment kernel then supplies them.
+// whose mass is close to the underflow range of probability space, or weights
+// large enough that a bin probability lost to underflow could matter.
+// `moments_resolved` is false when the centered moments lose more than four
+// digits to cancellation (a narrow interval carrying the mass, relative to
+// the operands it is formed from); the partition-moment kernel then supplies
+// them.
 bool step_predictive_summary_shared(const double *omega,
                                     const SelNormKernelData &data,
                                     double q_score, double signed_mean,
@@ -1169,19 +1127,20 @@ bool step_predictive_summary_shared(const double *omega,
                                     double *log_lower, double *log_upper,
                                     double *centered_mean,
                                     double *centered_variance,
-                                    bool *moments_resolved,
-                                    bool *moments_unavailable)
+                                    bool *moments_resolved)
 {
   // Masses below this stay in probability space only far from underflow.
   const double minimum_mass = 1e-280;
+  // Absolute error, per unit weight, of a bin's probability and density terms
+  // whose operands fall below the normal range (rounded to subnormal values
+  // or to zero; the score-density terms carry |score| < 40 there).
+  const double underflow_error = 128 * std::numeric_limits<double>::min();
   // Largest admitted ratio of the moments' operand scale to the variance.
   const double maximum_cancellation = 1e4;
-  *moments_resolved    = false;
-  *moments_unavailable = false;
+  *moments_resolved = false;
   const SharedNormalPoint query = shared_normal_point(q_score);
-  const double log_query_error = log_boundary_underflow_error(query);
   SharedNormalPoint upper = shared_normal_point(INFINITY);
-  double log_underflow_error = -INFINITY;
+  double weight_total = 0;
   double lower_mass   = 0;
   double upper_mass   = 0;
   double first        = 0;
@@ -1220,18 +1179,7 @@ bool step_predictive_summary_shared(const double *omega,
       if (std::isnan(probability)) {
         return false;
       }
-      double log_bin_error = add_logspace(
-        log_boundary_underflow_error(lower),
-        log_boundary_underflow_error(upper)
-      );
-      if (lower.score < query.score && query.score < upper.score) {
-        log_bin_error = add_logspace(log_bin_error, log_query_error);
-      }
-      if (log_bin_error != -INFINITY) {
-        log_underflow_error = add_logspace(
-          log_underflow_error, std::log(w) + log_bin_error
-        );
-      }
+      weight_total += w;
       if (query.score <= lower.score) {
         upper_mass   += w * probability;
         upper_support = true;
@@ -1260,23 +1208,20 @@ bool step_predictive_summary_shared(const double *omega,
     b = last + 1;
   }
 
-  // A bin term lost to underflow can still carry a tail when its weight is
-  // large enough (weights spanning beyond double precision); the tails are
-  // then evaluated in log space. Weights bounded by one never reach this
-  // with masses above `minimum_mass`.
-  const double log_epsilon = std::log(std::numeric_limits<double>::epsilon());
-  const auto underflow_material = [&](double mass) {
-    return log_underflow_error != -INFINITY &&
-      !(log_underflow_error <= log_epsilon + std::log(mass));
-  };
-  *moments_unavailable = underflow_material(lower_mass + upper_mass);
   if ((lower_support && !(lower_mass >= minimum_mass)) ||
       (upper_support && !(upper_mass >= minimum_mass)) ||
       !std::isfinite(lower_mass) || !std::isfinite(upper_mass) ||
       !std::isfinite(first) || !std::isfinite(second) ||
-      !std::isfinite(first_scale) || !std::isfinite(second_scale) ||
-      (lower_support && underflow_material(lower_mass)) ||
-      (upper_support && underflow_material(upper_mass))) {
+      !std::isfinite(first_scale) || !std::isfinite(second_scale)) {
+    return false;
+  }
+  // A bin whose probability underflowed can still carry a tail when its
+  // weight is large enough; such a cell is evaluated in log space. Weights
+  // bounded by one never reach this with masses above `minimum_mass`.
+  const double underflow_floor = underflow_error * weight_total;
+  const double epsilon = std::numeric_limits<double>::epsilon();
+  if ((lower_support && !(underflow_floor <= epsilon * lower_mass)) ||
+      (upper_support && !(underflow_floor <= epsilon * upper_mass))) {
     return false;
   }
 
@@ -1319,12 +1264,9 @@ void cpp_selnorm_kernel_predictive_summary(
   double *log_upper,
   double *moment_mean,
   double *moment_variance,
-  int omega_stride,
-  bool *moments_unavailable)
+  int omega_stride)
 {
   const double nan = std::numeric_limits<double>::quiet_NaN();
-  bool unrepresentable_moments = false;
-  if (moments_unavailable != nullptr) *moments_unavailable = false;
   if (kernel_mode == SELKERNEL_STEP && data.trusted_step_partition &&
       sd > 0 && std::isfinite(sd) && sei > 0 && std::isfinite(sei) &&
       std::isfinite(mean) && std::isfinite(q) &&
@@ -1346,8 +1288,7 @@ void cpp_selnorm_kernel_predictive_summary(
         step_predictive_summary_shared(
           omega, data, q_score, signed_mean, sd, sei, omega_stride,
           &signed_log_lower, &signed_log_upper,
-          &centered_mean, &centered_variance, &moments_resolved,
-          &unrepresentable_moments
+          &centered_mean, &centered_variance, &moments_resolved
         ) && moments_resolved) {
       const double result_mean = data.effect_sign * (signed_mean + centered_mean);
       if (std::isfinite(result_mean) && std::isfinite(centered_variance) &&
@@ -1365,14 +1306,6 @@ void cpp_selnorm_kernel_predictive_summary(
     q, mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,
     log_lower, log_upper, omega_stride, false
   );
-  if (unrepresentable_moments) {
-    // The partition-moment kernel would drop the same underflowed terms.
-    // These moments lie beyond double precision; refuse them.
-    *moment_mean     = nan;
-    *moment_variance = nan;
-    if (moments_unavailable != nullptr) *moments_unavailable = true;
-    return;
-  }
   double moment_second = nan;
   cpp_selnorm_kernel_moments(
     mean, sd, sei, omega, alpha, phack_kind, kernel_mode, data,

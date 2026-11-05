@@ -148,14 +148,13 @@ and keep the per-row Gaussian event evaluation. The batch uses the fused step
 cell summary (paired log tails, mean, variance), which evaluates each
 boundary's normal tails and density once and normalizes the tails against the
 larger tail mass; a non-step cell, an unavailable mass, a tail mass below
-`1e-280`, a weighted boundary term lost to underflow (bounded by its true
-magnitude beyond standardized score 37) that could reach a tail mass's last
-digit, or a cell whose shared moments would lose more than four digits to
-cancellation (a narrow standardized interval carrying the mass) falls back to
-the log-space tail and partition-moment kernels. When that underflow loss
-could reach the normalizer, the partition-moment kernel would drop the same
-terms: the moments are refused with an "unavailable" error (weights spanning
-beyond double precision) while the log-space tails remain.
+`1e-280`, weights large enough that a bin probability lost to underflow could
+reach a tail mass's last digit, or a cell whose shared moments would lose more
+than four digits to cancellation (a narrow standardized interval carrying the
+mass) falls back to the log-space tail and partition-moment kernels. The gate
+only decides where the shared evaluation is exact enough; cells outside it get
+those kernels' values unchanged, including their own limits at weights that
+span beyond double precision or at subnormal queries.
 
 Keep `known_v_factor()` as an explicit exact computational representation,
 and accept ordinary covariance matrices directly. Preserve row identity and
