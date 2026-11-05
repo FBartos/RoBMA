@@ -259,3 +259,4 @@ prior distributions, see \code{\link{publication_bias_prior_specification}}.
 \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}},
 \code{\link{brma}}
 }
+\keyword{internal}
