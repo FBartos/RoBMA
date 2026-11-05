@@ -228,6 +228,35 @@ test_that("predictive cell tails keep heavily weighted bins whose probability un
 })
 
 
+test_that("predictive cell moments stay available for bounded weights at tiny masses", {
+
+  skip_if_not(.has_native_selnorm_kernel())
+
+  # The mass sits in a bin of weight 1e-290 while the unit-weight bin starts
+  # at standardized scores 37.4 to 39, where its probability is subnormal or
+  # zero: the underflow loss stays far below the normalizer's last digit.
+  sei   <- 1
+  spec  <- .test_step_spec(0, sei)
+  B     <- spec[["n_bins"]]
+  static <- BayesTools::selection_native_static_args(spec)
+  omega <- rep(1e-290, B)
+  omega[1L] <- 1
+  first_cut <- static[["z_lower"]][1L] * sei
+  for (score in c(37.4, 37.52, 37.6, 38, 38.5, 39)) {
+    mean <- first_cut - score
+    got  <- .selnorm_kernel_predictive_summary_matrix(
+      q = mean, mean = matrix(mean), sd = matrix(1), sei = sei,
+      omega = matrix(omega, 1L), selection_spec = spec, kernel_mode = SELKERNEL_STEP
+    )
+    expected <- .predictive_cell_reference(mean, mean, 1, sei, omega, static)
+    expect_true(is.finite(got$mean[1L, 1L]) && is.finite(got$variance[1L, 1L]),
+                label = paste("moments at score", score))
+    expect_lt(abs(got$log_lower[1L, 1L] - expected$log_lower), 1e-11,
+              label = paste("log_lower at score", score))
+  }
+})
+
+
 test_that("predictive cell summaries keep huge weights on bins far from underflow", {
 
   skip_if_not(.has_native_selnorm_kernel())

@@ -1113,23 +1113,43 @@ void shared_log_tail_pair(double lower_mass, double upper_mass,
 }
 
 // Log of a bound on the absolute error that underflow leaves in the terms one
-// boundary at standardized score `score` contributes to a bin: its smaller
-// tail (used by the bin and by a query slice), density, and score times
-// density. Below |score| = 37 these are in the normal range. Beyond it each
-// is at most |score| phi(score) in truth, and R's pnorm_both() and dnorm()
-// return subnormal values only below |score| = 39 and exact zeros beyond.
-double log_boundary_underflow_error(double score)
+// boundary point contributes to a bin: its smaller tail (used by the bin and
+// by a query slice), density, and score times density. Up to |score| = 37
+// these are in the normal range and carry rounding only. A subnormal value
+// (an exp() rounded below the normal range times factors near one, scaled by
+// |score| < 39) is within 1024 subnormal units of its true value; a value
+// rounded to zero loses all of it: at most phi/|score| (Mills' ratio), phi,
+// and |score| phi in truth.
+double log_boundary_underflow_error(const SharedNormalPoint &point)
 {
-  const double magnitude = std::abs(score);
+  const double magnitude = std::abs(point.score);
   if (!(magnitude > 37) || std::isinf(magnitude)) {
     return -INFINITY;
   }
-  const double log_sqrt_2pi = 0.918938533204672741780329736406;
-  const double log_true = std::log(magnitude) - 0.5 * magnitude * magnitude -
-    log_sqrt_2pi;
-  const double log_computed = magnitude < 39 ?
-    std::log(std::numeric_limits<double>::min()) : -INFINITY;
-  return std::log(4.0) + add_logspace(log_true, log_computed);
+  const double log_sqrt_2pi  = 0.918938533204672741780329736406;
+  const double log_phi       = -0.5 * magnitude * magnitude - log_sqrt_2pi;
+  const double log_magnitude = std::log(magnitude);
+  const double log_subnormal =
+    std::log(1024 * std::numeric_limits<double>::denorm_min());
+  struct Operand {
+    double value;
+    double log_true;
+    double uses;
+  };
+  const Operand operands[] = {
+    {std::min(point.cdf, point.tail), log_phi - log_magnitude, 2},
+    {point.phi, log_phi, 1},
+    {std::abs(point.score_phi), log_magnitude + log_phi, 1}
+  };
+  double log_error = -INFINITY;
+  for (const Operand &operand : operands) {
+    if (!(operand.value < std::numeric_limits<double>::min())) {
+      continue;
+    }
+    const double log_lost = operand.value == 0 ? operand.log_true : log_subnormal;
+    log_error = add_logspace(log_error, std::log(operand.uses) + log_lost);
+  }
+  return log_error;
 }
 
 // The shared step evaluation in the signed direction. Returns false when the
@@ -1159,7 +1179,7 @@ bool step_predictive_summary_shared(const double *omega,
   *moments_resolved    = false;
   *moments_unavailable = false;
   const SharedNormalPoint query = shared_normal_point(q_score);
-  const double log_query_error = log_boundary_underflow_error(q_score);
+  const double log_query_error = log_boundary_underflow_error(query);
   SharedNormalPoint upper = shared_normal_point(INFINITY);
   double log_underflow_error = -INFINITY;
   double lower_mass   = 0;
@@ -1201,8 +1221,8 @@ bool step_predictive_summary_shared(const double *omega,
         return false;
       }
       double log_bin_error = add_logspace(
-        log_boundary_underflow_error(lower.score),
-        log_boundary_underflow_error(upper.score)
+        log_boundary_underflow_error(lower),
+        log_boundary_underflow_error(upper)
       );
       if (lower.score < query.score && query.score < upper.score) {
         log_bin_error = add_logspace(log_bin_error, log_query_error);
