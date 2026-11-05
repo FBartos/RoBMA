@@ -1,0 +1,26 @@
+name: post-merge
+
+# After each merge into development: platforms and R versions outside the
+# pull request checks.
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+concurrency:
+  group: post-merge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    uses: ./.github/workflows/R-CMD-check.yaml
+    with:
+      matrix: >-
+        [{"os": "windows-latest", "r": "devel"},
+         {"os": "windows-latest", "r": "oldrel-1"},
+         {"os": "macos-15-intel", "r": "4.6"}]
+
+  tests:
+    uses: ./.github/workflows/R-CMD-tests.yaml
+    with:
+      matrix: '[{"os": "ubuntu-latest", "r": "4.6"}]'
