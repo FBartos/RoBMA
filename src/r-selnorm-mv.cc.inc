@@ -1,41 +1,3 @@
-// A posterior branch can use only a subset of the shared prior-union cuts.
-// This call-owned view removes exact adjacent repeats after validation, without
-// changing the context, branch routing, or the weight at an observed boundary.
-struct CompactStepPartition {
-  std::vector<double> omega, lower, upper;
-  std::vector<int> obs_bin, bin_map;
-
-  bool prepare(const double *weights, const double *z_lower,
-      const double *z_upper, int bins, const int *observed = nullptr,
-      int observations = 0)
-  {
-    if (bins <= 2) return false;
-    bool repeated = false;
-    for (int bin = 1; bin < bins; ++bin)
-      repeated = repeated || weights[bin] == weights[bin - 1];
-    if (!repeated) return false;
-    omega.clear(); lower.clear(); upper.clear();
-    if (observed != nullptr) bin_map.resize(bins);
-    for (int first = 0; first < bins;) {
-      int last = first;
-      while (last + 1 < bins && weights[last + 1] == weights[first]) ++last;
-      omega.push_back(weights[first]);
-      lower.push_back(z_lower[last]);
-      upper.push_back(z_upper[first]);
-      if (observed != nullptr)
-        for (int bin = first; bin <= last; ++bin)
-          bin_map[bin] = static_cast<int>(omega.size());
-      first = last + 1;
-    }
-    if (observed != nullptr) {
-      obs_bin.resize(observations);
-      for (int row = 0; row < observations; ++row)
-        obs_bin[row] = bin_map[observed[row] - 1];
-    }
-    return true;
-  }
-};
-
 static SelNormDenseIntegration validate_dense_integration(
   SEXP normalizer_quadrature, SEXP relative_tolerance,
   std::vector<double> &normalizer_orders)
@@ -1996,87 +1958,46 @@ extern "C" SEXP RoBMA_selnorm_covariance_envelope_components(
     "covariance_residual_radius"};
   for (int i = 0; i < 10; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   Rf_setAttrib(result, R_NamesSymbol, names);
-  SEXP sd = PROTECT(Rf_allocVector(REALSXP, k));
-  SEXP work = PROTECT(allocate_selnorm_matrix(REALSXP, k, 4));
-  SEXP types = PROTECT(Rf_allocVector(INTSXP, k));
-  int groups = 0;
-  bool available = false;
-  bool allocation_failed = false;
+  // The shared core is also what the native zplot controller calls.
+  ZplotEnvelopeComponents components;
+  std::string failure;
   try {
-    available = cpp_selnorm_covariance_envelope_components(
-      REAL(covariance_lower), k, REAL(selection_se), LOGICAL(upper)[0],
-      REAL(sd), REAL(work), &groups, INTEGER(types));
-  } catch (const std::bad_alloc &) {
-    allocation_failed = true;
+    zplot_covariance_envelope_components(REAL(covariance_lower), k, REAL(selection_se),
+      LOGICAL(upper)[0], &components);
+  } catch (const ZplotNativeFailure &error) {
+    failure = error.what();
   }
-  if (allocation_failed) Rf_error("Compact envelope allocation failed.");
-  SET_VECTOR_ELT(result, 0, Rf_ScalarLogical(available));
+  if (!failure.empty()) Rf_error("%s", failure.c_str());
+  SET_VECTOR_ELT(result, 0, Rf_ScalarLogical(components.available));
   SET_VECTOR_ELT(result, 8, upper);
-  if (!available) {
+  if (!components.available) {
     SET_VECTOR_ELT(result, 1, Rf_mkString(
       "No admissible positive-residual covariance envelope is available."));
-    UNPROTECT(5);
+    UNPROTECT(2);
     return result;
   }
-  const int rank = groups == 1 ? 1 : groups + 1;
+  const int rank = components.rank;
+  SEXP sd = PROTECT(Rf_allocVector(REALSXP, k));
+  SEXP types = PROTECT(Rf_allocVector(INTSXP, k));
   SEXP variance = PROTECT(Rf_allocVector(REALSXP, k));
   SEXP loading = PROTECT(allocate_selnorm_matrix(REALSXP, k, rank));
   SEXP residual = PROTECT(allocate_selnorm_matrix(REALSXP, k, k));
   SEXP radius = PROTECT(allocate_selnorm_matrix(REALSXP, k, k));
-  std::copy_n(REAL(work), static_cast<std::size_t>(k) * rank, REAL(loading));
-  for (int row = 0; row < k; ++row) {
-    REAL(variance)[row] = static_cast<double>(
-      static_cast<long double>(REAL(sd)[row]) * REAL(sd)[row]);
-    INTEGER(types)[row] += 1;
-  }
-  // Ctilde is defined by the actual emitted double SDs and loadings, not by
-  // nominal envelope coefficients or a rounded reconstruction of Ctilde.
-  const long double infinity = std::numeric_limits<long double>::infinity();
-  const auto operation_radius = [infinity](long double value) {
-    if (!std::isfinite(value)) return infinity;
-    return std::max(std::nextafter(value, infinity) - value,
-                    value - std::nextafter(value, -infinity));
-  };
-  const auto add_radius = [infinity](long double left, long double right) {
-    return std::nextafter(left + right, infinity);
-  };
-  std::size_t position = 0;
-  for (int column = 0; column < k; ++column) {
-    for (int row = column; row < k; ++row) {
-      long double represented = row == column ?
-        static_cast<long double>(REAL(sd)[row]) * REAL(sd)[row] : 0.0L;
-      long double error = row == column ? operation_radius(represented) : 0.0L;
-      for (int factor = 0; factor < rank; ++factor) {
-        const long double product = static_cast<long double>(REAL(loading)[row + k * factor]) *
-          REAL(loading)[column + k * factor];
-        error = add_radius(error, operation_radius(product));
-        represented += product;
-        error = add_radius(error, operation_radius(represented));
-      }
-      const long double exact_input_difference =
-        static_cast<long double>(REAL(covariance_lower)[position++]) - represented;
-      error = add_radius(error, operation_radius(exact_input_difference));
-      const double difference = static_cast<double>(exact_input_difference);
-      const double double_infinity = std::numeric_limits<double>::infinity();
-      const double cast_error = std::max(
-        std::nextafter(difference, double_infinity) - difference,
-        difference - std::nextafter(difference, -double_infinity));
-      error = add_radius(error, static_cast<long double>(cast_error));
-      const double returned_radius = std::nextafter(static_cast<double>(error), double_infinity);
-      REAL(residual)[row + k * column] = difference;
-      REAL(residual)[column + k * row] = difference;
-      REAL(radius)[row + k * column] = returned_radius;
-      REAL(radius)[column + k * row] = returned_radius;
-    }
-  }
+  std::copy(components.residual_sd.begin(), components.residual_sd.end(), REAL(sd));
+  std::copy(components.type_index.begin(), components.type_index.end(), INTEGER(types));
+  std::copy(components.residual_variance.begin(), components.residual_variance.end(), REAL(variance));
+  std::copy(components.loading.begin(), components.loading.end(), REAL(loading));
+  std::copy(components.covariance_residual.begin(), components.covariance_residual.end(), REAL(residual));
+  std::copy(components.covariance_residual_radius.begin(), components.covariance_residual_radius.end(),
+    REAL(radius));
   SET_VECTOR_ELT(result, 2, variance);
   SET_VECTOR_ELT(result, 3, sd);
   SET_VECTOR_ELT(result, 4, loading);
   SET_VECTOR_ELT(result, 5, residual);
-  SET_VECTOR_ELT(result, 6, Rf_ScalarInteger(groups));
+  SET_VECTOR_ELT(result, 6, Rf_ScalarInteger(components.groups));
   SET_VECTOR_ELT(result, 7, types);
   SET_VECTOR_ELT(result, 9, radius);
-  UNPROTECT(9);
+  UNPROTECT(8);
   return result;
   ROBMA_NATIVE_END
 }
@@ -2104,32 +2025,38 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
       Rf_length(telescope) != 1 || LOGICAL(telescope)[0] == NA_LOGICAL ||
       (log_normalizers != R_NilValue && Rf_length(log_normalizers) != contexts) ||
       Rf_length(context_log_weights) != contexts ||
-      Rf_length(log_weights) != order || Rf_length(allowance) != 1 ||
-      !std::isfinite(REAL(allowance)[0]) || REAL(allowance)[0] < 0.0) {
+      Rf_length(log_weights) != order || Rf_length(allowance) != 1) {
     Rf_error("Deterministic star projection dimensions or controls are invalid.");
   }
-  const auto finite = [](SEXP values) {
-    for (R_xlen_t i = 0; i < XLENGTH(values); ++i) if (!std::isfinite(REAL(values)[i])) return false;
-    return true;
-  };
-  if (!finite(means) || (log_normalizers != R_NilValue && !finite(log_normalizers)) ||
-      !finite(nodes) || !finite(log_weights) || !finite(z)) {
-    Rf_error("Deterministic star projection locations and quadrature values must be finite.");
+  // The value checks and the computation are shared with the native zplot
+  // controller (selnorm/zplot-context.cc), which calls the same core.
+  ZplotStarCall call;
+  call.means = REAL(means);
+  call.contexts = contexts;
+  call.k = k;
+  call.covariance_lower = REAL(covariance_lower);
+  call.selection_se = REAL(selection_se);
+  call.omega = REAL(omega);
+  call.bins = bins;
+  call.lower = REAL(lower);
+  call.upper = REAL(upper);
+  call.effect_sign = INTEGER(sign)[0];
+  call.telescope = LOGICAL(telescope)[0];
+  call.log_normalizers = log_normalizers == R_NilValue ? nullptr : REAL(log_normalizers);
+  call.context_log_weights = REAL(context_log_weights);
+  call.nodes = REAL(nodes);
+  call.log_weights = REAL(log_weights);
+  call.order = order;
+  call.z = REAL(z);
+  call.size = size;
+  call.allowance = REAL(allowance)[0];
+  std::string failure;
+  try {
+    zplot_star_validate(call);
+  } catch (const ZplotNativeFailure &error) {
+    failure = error.what();
   }
-  for (int context = 0; context < contexts; ++context) {
-    if (std::isnan(REAL(context_log_weights)[context]) || REAL(context_log_weights)[context] == R_PosInf) {
-      Rf_error("Context log weights must be finite or negative infinity.");
-    }
-  }
-  for (int row = 0; row < k; ++row) {
-    if (!std::isfinite(REAL(selection_se)[row]) || !(REAL(selection_se)[row] > 0)) {
-      Rf_error("'selection_se' must be finite and positive.");
-    }
-  }
-  validate_omega_matrix(REAL(omega), 1, bins);
-  if (!selnorm_is_descending_step_partition(REAL(lower), REAL(upper), bins)) {
-    Rf_error("Selection bounds do not define a descending step partition.");
-  }
+  if (!failure.empty()) Rf_error("%s", failure.c_str());
   SEXP cdf_policy = Rf_getAttrib(nodes, Rf_install("bounded_cdf"));
   bool bounded_cdf = false;
   if (cdf_policy != R_NilValue) {
@@ -2216,76 +2143,41 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
       saved_rules = REAL(values);
     }
   }
+  call.bounded_cdf = bounded_cdf;
+  call.cached_rules = cached_rules;
+  call.saved_rules = saved_rules;
+  ZplotStarResult value;
+  try {
+    zplot_star_evaluate(call, zplot_star_threads(call), &value);
+  } catch (const ZplotNativeFailure &error) {
+    failure = error.what();
+  }
+  if (!failure.empty()) Rf_error("%s", failure.c_str());
+  const bool available = value.available;
   SEXP result = PROTECT(Rf_allocVector(VECSXP, 6));
   SEXP names = PROTECT(Rf_allocVector(STRSXP, 6));
   SEXP density = PROTECT(Rf_allocVector(REALSXP, size));
   SEXP compact = PROTECT(Rf_allocVector(REALSXP, contexts));
-  std::fill_n(REAL(compact), contexts, NA_REAL);
   SEXP cdf_factor = PROTECT(Rf_allocVector(REALSXP, contexts));
   SEXP cdf_mass = PROTECT(Rf_allocVector(REALSXP, contexts));
   SEXP cdf_numerator = PROTECT(Rf_allocVector(REALSXP, contexts));
-  std::fill_n(REAL(cdf_factor), contexts, 0.0);
+  std::copy(value.density.begin(), value.density.end(), REAL(density));
+  std::copy(value.compact_log_normalizers.begin(), value.compact_log_normalizers.end(), REAL(compact));
+  std::copy(value.cdf_factor_log_error.begin(), value.cdf_factor_log_error.end(), REAL(cdf_factor));
+  std::copy(value.cdf_log_error.begin(), value.cdf_log_error.end(), REAL(cdf_mass));
+  std::copy(value.cdf_numerator_log_error.begin(), value.cdf_numerator_log_error.end(), REAL(cdf_numerator));
   const char *labels[] = {"available", "density", "mass", "compression_error", "mixture_components", "compact_log_normalizers"};
   for (int i = 0; i < 6; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
   Rf_setAttrib(result, R_NamesSymbol, names);
-  double mass = NA_REAL, error = NA_REAL, omitted_mass_error = 0.0;
-  std::size_t components = 0;
-  bool available = false;
-  // The star rule integrates one common axis and one child axis per
-  // nonsingleton group, so a context costs on the order of k * order^2 node
-  // probabilities. The two weights convert that count into the kernel
-  // evaluations robma_row_schedule() is calibrated in: a numerator context also
-  // collects and projects its mixture, while a mass-only context takes the
-  // cached direct-product branch and is an order of magnitude cheaper per node
-  // probability. The work decides whether threads pay for themselves at all;
-  // the team size stays the one context and mixture-row count the call can use.
-  int active_contexts = 0;
-  for (int context = 0; context < contexts; ++context) {
-    if (REAL(context_log_weights)[context] != R_NegInf) ++active_contexts;
-  }
-  const int star_rows = std::max(contexts, k);
-  // Own-A normalization also collects the mixture. The supplied-denominator
-  // flag therefore says nothing about whether a context takes the cheap path.
-  const double star_work = static_cast<double>(k) * order * order *
-    (0.4 * (contexts - active_contexts) + 10.0 * active_contexts);
-  const int star_threads =
-    robma_work_threads(star_rows, star_work / star_rows) > 1 ?
-      robma_batch_threads(star_rows, 2) : 1;
-  char error_message[512] = {};
-  try {
-    CompactStepPartition partition;
-    const bool compact_partition = bounded_cdf && LOGICAL(telescope)[0] &&
-      partition.prepare(REAL(omega), REAL(lower), REAL(upper), bins);
-    available = cpp_selnorm_context_star_projection(REAL(means), contexts, REAL(covariance_lower), k,
-      REAL(selection_se), compact_partition ? partition.omega.data() : REAL(omega),
-      compact_partition ? static_cast<int>(partition.omega.size()) : bins,
-      compact_partition ? partition.lower.data() : REAL(lower),
-      compact_partition ? partition.upper.data() : REAL(upper), INTEGER(sign)[0], LOGICAL(telescope)[0],
-      log_normalizers == R_NilValue ? nullptr : REAL(log_normalizers),
-      REAL(context_log_weights), REAL(nodes), REAL(log_weights), order,
-      REAL(z), size, REAL(allowance)[0], REAL(density), &mass, &error, &components, REAL(compact),
-      bounded_cdf, REAL(cdf_factor), &omitted_mass_error, star_threads, cached_rules, saved_rules);
-  } catch (const std::exception &exception) {
-    std::strncpy(error_message, exception.what(), sizeof(error_message) - 1);
-  }
-  if (error_message[0]) Rf_error("Deterministic star projection failed: %s.", error_message);
   SET_VECTOR_ELT(result, 0, Rf_ScalarLogical(available));
   if (available) SET_VECTOR_ELT(result, 1, density);
-  SET_VECTOR_ELT(result, 2, Rf_ScalarReal(mass));
-  SEXP compression = PROTECT(Rf_ScalarReal(error));
-  SEXP omission = PROTECT(Rf_ScalarReal(omitted_mass_error));
+  SET_VECTOR_ELT(result, 2, Rf_ScalarReal(value.mass));
+  SEXP compression = PROTECT(Rf_ScalarReal(value.compression_error));
+  SEXP omission = PROTECT(Rf_ScalarReal(value.omitted_mass_error));
   Rf_setAttrib(compression, Rf_install("omitted_mass_error"), omission);
   SET_VECTOR_ELT(result, 3, compression);
-  SET_VECTOR_ELT(result, 4, Rf_ScalarReal(static_cast<double>(components)));
+  SET_VECTOR_ELT(result, 4, Rf_ScalarReal(value.components));
   SET_VECTOR_ELT(result, 5, compact);
-  const auto multiple_bound = [](double bound, int count) {
-    return bound > 0 && count > 0 ?
-      std::nextafter(bound * count, std::numeric_limits<double>::infinity()) : 0.0;
-  };
-  for (int context = 0; context < contexts; ++context) {
-    REAL(cdf_mass)[context] = multiple_bound(REAL(cdf_factor)[context], k);
-    REAL(cdf_numerator)[context] = multiple_bound(REAL(cdf_factor)[context], k - 1);
-  }
   // These describe this rule's own raw-A and numerator primitives only.
   // Supplied-denominator uncertainty belongs to the R controller. Attributes
   // remain available for complete mass-only tables with available == FALSE.
@@ -2299,6 +2191,212 @@ extern "C" SEXP RoBMA_selnorm_context_star_zplot(
     UNPROTECT(1);
   }
   UNPROTECT(9 + cache_protect);
+  return result;
+  ROBMA_NATIVE_END
+}
+
+// .zplot_context_projection() for every posterior draw of one block, in one
+// call (see selnorm/zplot-context.h). R checks the arguments that do not depend
+// on the draw and replays each draw's status in draw order: an error message,
+// NULL (the caller's full-event fallback) or the projected density with the
+// diagnostics the R controller returns.
+extern "C" SEXP RoBMA_zplot_context_projection_batch(
+  SEXP z, SEXP sei, SEXP means, SEXP covariance, SEXP context_factor, SEXP omega,
+  SEXP selection, SEXP tolerance, SEXP absolute_tolerance, SEXP rules, SEXP point_means)
+{
+  ROBMA_NATIVE_BEGIN(z, sei, means, covariance, context_factor, omega, selection, tolerance,
+    absolute_tolerance, rules, point_means)
+  check_real(z, "z");
+  check_real(sei, "sei");
+  check_real(means, "means");
+  check_real(covariance, "covariance");
+  check_real(context_factor, "context_factor");
+  check_real(omega, "omega");
+  check_real(tolerance, "tolerance");
+  const int S = matrix_nrow(means, "means");
+  const int k = matrix_ncol(means, "means");
+  const int size = Rf_length(z);
+  const int bins = matrix_ncol(omega, "omega");
+  if (S < 1 || k < 1 || size < 1 || bins < 1 || Rf_length(sei) != k ||
+      matrix_nrow(omega, "omega") != S ||
+      XLENGTH(covariance) != static_cast<R_xlen_t>(k) * k * S ||
+      XLENGTH(context_factor) % (static_cast<R_xlen_t>(k) * S) != 0 ||
+      XLENGTH(context_factor) == 0 || Rf_length(tolerance) != 1 ||
+      !std::isfinite(REAL(tolerance)[0]) || !(REAL(tolerance)[0] > 0)) {
+    Rf_error("Batched zplot context projection inputs are invalid.");
+  }
+  const int factor_rows = static_cast<int>(XLENGTH(context_factor) / (static_cast<R_xlen_t>(k) * S));
+  if (absolute_tolerance != R_NilValue) {
+    check_real(absolute_tolerance, "absolute_tolerance");
+    if (Rf_length(absolute_tolerance) != 1) Rf_error("Batched zplot context projection inputs are invalid.");
+  }
+  int point_rows = 0;
+  if (point_means != R_NilValue) {
+    check_real(point_means, "point_means");
+    point_rows = matrix_nrow(point_means, "point_means");
+    if (S != 1 || matrix_ncol(point_means, "point_means") != k || point_rows < 1) {
+      Rf_error("Batched zplot context projection inputs are invalid.");
+    }
+  }
+  // selection: list(z_lower, z_upper, sign, telescope_probabilities,
+  // rule_z_lower, rule_sign) from BayesTools::selection_native_static_args()
+  // and the selection context.
+  if (TYPEOF(selection) != VECSXP || Rf_length(selection) != 6) {
+    Rf_error("Batched zplot context projection selection inputs are invalid.");
+  }
+  SEXP z_lower = VECTOR_ELT(selection, 0), z_upper = VECTOR_ELT(selection, 1);
+  SEXP sign = VECTOR_ELT(selection, 2), telescope = VECTOR_ELT(selection, 3);
+  SEXP rule_z_lower = VECTOR_ELT(selection, 4), rule_sign = VECTOR_ELT(selection, 5);
+  check_real(z_lower, "z_lower");
+  check_real(z_upper, "z_upper");
+  check_integer(sign, "sign");
+  check_logical(telescope, "telescope_probabilities");
+  check_real(rule_z_lower, "rule_z_lower");
+  check_real(rule_sign, "rule_sign");
+  if (Rf_length(z_lower) != bins || Rf_length(z_upper) != bins || Rf_length(sign) != 1 ||
+      (INTEGER(sign)[0] != -1 && INTEGER(sign)[0] != 1) || Rf_length(telescope) != 1 ||
+      LOGICAL(telescope)[0] == NA_LOGICAL || Rf_length(rule_sign) != 1) {
+    Rf_error("Batched zplot context projection selection inputs are invalid.");
+  }
+  // rules: list(context_orders, inner_orders, list(list(order, nodes,
+  // log_weights, nodes_only), ...)) covering every order of both ladders.
+  if (TYPEOF(rules) != VECSXP || Rf_length(rules) != 3) Rf_error("Batched zplot quadrature rules are invalid.");
+  SEXP context_orders = VECTOR_ELT(rules, 0), inner_orders = VECTOR_ELT(rules, 1);
+  SEXP tables = VECTOR_ELT(rules, 2);
+  check_integer(context_orders, "context_orders");
+  check_integer(inner_orders, "inner_orders");
+  if (Rf_length(context_orders) < 2 || Rf_length(inner_orders) < 3 || TYPEOF(tables) != VECSXP) {
+    Rf_error("Batched zplot quadrature rules are invalid.");
+  }
+  std::vector<ZplotGaussHermiteRule> quadrature(Rf_length(tables));
+  for (int index = 0; index < Rf_length(tables); ++index) {
+    SEXP rule = VECTOR_ELT(tables, index);
+    if (TYPEOF(rule) != VECSXP || Rf_length(rule) != 4) Rf_error("Batched zplot quadrature rules are invalid.");
+    SEXP order = VECTOR_ELT(rule, 0), nodes = VECTOR_ELT(rule, 1);
+    SEXP log_weights = VECTOR_ELT(rule, 2), nodes_only = VECTOR_ELT(rule, 3);
+    check_integer(order, "order");
+    check_real(nodes, "nodes");
+    check_real(log_weights, "log_weights");
+    check_real(nodes_only, "nodes_only");
+    if (Rf_length(order) != 1 || Rf_length(nodes) != INTEGER(order)[0] ||
+        Rf_length(log_weights) != INTEGER(order)[0] || Rf_length(nodes_only) != INTEGER(order)[0]) {
+      Rf_error("Batched zplot quadrature rules are invalid.");
+    }
+    quadrature[index].order = INTEGER(order)[0];
+    quadrature[index].nodes.assign(REAL(nodes), REAL(nodes) + Rf_length(nodes));
+    quadrature[index].log_weights.assign(REAL(log_weights), REAL(log_weights) + Rf_length(log_weights));
+    quadrature[index].nodes_only.assign(REAL(nodes_only), REAL(nodes_only) + Rf_length(nodes_only));
+  }
+  ZplotProjectionSetup setup;
+  setup.z = REAL(z);
+  setup.size = size;
+  setup.sei = REAL(sei);
+  setup.k = k;
+  setup.z_lower = REAL(z_lower);
+  setup.z_upper = REAL(z_upper);
+  setup.bins = bins;
+  setup.effect_sign = INTEGER(sign)[0];
+  setup.telescope = LOGICAL(telescope)[0];
+  setup.rule_z_lower = REAL(rule_z_lower);
+  setup.rule_z_lower_length = Rf_length(rule_z_lower);
+  setup.rule_sign = REAL(rule_sign)[0];
+  setup.tolerance = REAL(tolerance)[0];
+  setup.has_absolute_tolerance = absolute_tolerance != R_NilValue;
+  setup.absolute_tolerance = setup.has_absolute_tolerance ? REAL(absolute_tolerance)[0] : 0.0;
+  setup.rules = &quadrature;
+  setup.context_orders.assign(INTEGER(context_orders), INTEGER(context_orders) + Rf_length(context_orders));
+  setup.inner_orders.assign(INTEGER(inner_orders), INTEGER(inner_orders) + Rf_length(inner_orders));
+  for (int order : setup.context_orders) {
+    bool found = false;
+    for (const ZplotGaussHermiteRule &rule : quadrature) found = found || rule.order == order;
+    if (!found) Rf_error("Batched zplot quadrature rules are invalid.");
+  }
+  for (int order : setup.inner_orders) {
+    bool found = false;
+    for (const ZplotGaussHermiteRule &rule : quadrature) found = found || rule.order == order;
+    if (!found) Rf_error("Batched zplot quadrature rules are invalid.");
+  }
+  // Draw-major copies: each worker reads its own contiguous inputs.
+  const std::size_t K = static_cast<std::size_t>(k);
+  std::vector<double> draw_means(K * S), draw_omega(static_cast<std::size_t>(bins) * S);
+  for (int s = 0; s < S; ++s) {
+    for (std::size_t j = 0; j < K; ++j) draw_means[K * s + j] = REAL(means)[s + static_cast<std::size_t>(S) * j];
+    for (int b = 0; b < bins; ++b) {
+      draw_omega[static_cast<std::size_t>(bins) * s + b] = REAL(omega)[s + static_cast<std::size_t>(S) * b];
+    }
+  }
+  const double *covariance_p = REAL(covariance);
+  const double *factor_p = REAL(context_factor);
+  const double *point_p = point_means == R_NilValue ? nullptr : REAL(point_means);
+  std::vector<ZplotProjectionDraw> draws(S);
+  for (int s = 0; s < S; ++s) {
+    draws[s].mean = draw_means.data() + K * s;
+    draws[s].covariance = covariance_p + K * K * s;
+    draws[s].context_factor = factor_p + static_cast<std::size_t>(factor_rows) * K * s;
+    draws[s].factor_rows = factor_rows;
+    draws[s].point_means = point_p;
+    draws[s].point_rows = point_rows;
+    draws[s].omega = draw_omega.data() + static_cast<std::size_t>(bins) * s;
+  }
+  // A draw runs a handful of star kernel calls, each about contexts x k x
+  // order^2 node probabilities; draws are uneven (some climb the ladder), so
+  // a region holds sixteen of them per thread to balance the dynamic schedule
+  // while the main thread still checks for interrupts between regions.
+  const RobmaRowSchedule schedule = robma_row_schedule(S, 2.0e4 * k);
+  const int chunk_rows = schedule.threads > 1 ? std::max(schedule.chunk_rows, 16 * schedule.threads) : 0;
+  std::vector<ZplotProjectionOutcome> outcomes;
+  zplot_context_projection_batch(setup, draws, schedule.threads, chunk_rows, &outcomes);
+
+  const char *labels[] = {"status", "message", "uniform", "density", "relative_error", "mass_error",
+    "mass_omission_error", "integration_error", "quadrature", "bounded_cdf"};
+  SEXP result = PROTECT(Rf_allocVector(VECSXP, 10));
+  SEXP names = PROTECT(Rf_allocVector(STRSXP, 10));
+  for (int i = 0; i < 10; ++i) SET_STRING_ELT(names, i, Rf_mkChar(labels[i]));
+  Rf_setAttrib(result, R_NamesSymbol, names);
+  SEXP status = PROTECT(Rf_allocVector(INTSXP, S));
+  SEXP message = PROTECT(Rf_allocVector(STRSXP, S));
+  SEXP uniform = PROTECT(Rf_allocVector(LGLSXP, S));
+  SEXP density = PROTECT(allocate_selnorm_matrix(REALSXP, S, size));
+  SEXP relative_error = PROTECT(Rf_allocVector(REALSXP, S));
+  SEXP mass_error = PROTECT(Rf_allocVector(REALSXP, S));
+  SEXP mass_omission_error = PROTECT(Rf_allocVector(REALSXP, S));
+  SEXP integration_error = PROTECT(allocate_selnorm_matrix(REALSXP, S, 8));
+  SEXP orders = PROTECT(allocate_selnorm_matrix(INTSXP, S, 3));
+  SEXP bounded_cdf = PROTECT(Rf_allocVector(LGLSXP, S));
+  for (int s = 0; s < S; ++s) {
+    const ZplotProjectionOutcome &outcome = outcomes[s];
+    INTEGER(status)[s] = outcome.status;
+    SET_STRING_ELT(message, s, outcome.status == ZplotProjectionOutcome::failed ?
+      Rf_mkChar(outcome.message.c_str()) : NA_STRING);
+    LOGICAL(uniform)[s] = outcome.uniform;
+    const bool accepted = outcome.status == ZplotProjectionOutcome::accepted;
+    for (int point = 0; point < size; ++point) {
+      REAL(density)[s + static_cast<std::size_t>(S) * point] = accepted ? outcome.density[point] : NA_REAL;
+    }
+    REAL(relative_error)[s] = accepted ? outcome.relative_error : NA_REAL;
+    REAL(mass_error)[s] = accepted ? outcome.mass_error : NA_REAL;
+    REAL(mass_omission_error)[s] = accepted ? outcome.mass_omission_error : NA_REAL;
+    for (int column = 0; column < 8; ++column) {
+      REAL(integration_error)[s + static_cast<std::size_t>(S) * column] =
+        accepted ? outcome.integration_error[column] : NA_REAL;
+    }
+    for (int column = 0; column < 3; ++column) {
+      INTEGER(orders)[s + static_cast<std::size_t>(S) * column] =
+        accepted ? outcome.quadrature[column] : NA_INTEGER;
+    }
+    LOGICAL(bounded_cdf)[s] = accepted ? outcome.bounded_cdf : NA_LOGICAL;
+  }
+  SET_VECTOR_ELT(result, 0, status);
+  SET_VECTOR_ELT(result, 1, message);
+  SET_VECTOR_ELT(result, 2, uniform);
+  SET_VECTOR_ELT(result, 3, density);
+  SET_VECTOR_ELT(result, 4, relative_error);
+  SET_VECTOR_ELT(result, 5, mass_error);
+  SET_VECTOR_ELT(result, 6, mass_omission_error);
+  SET_VECTOR_ELT(result, 7, integration_error);
+  SET_VECTOR_ELT(result, 8, orders);
+  SET_VECTOR_ELT(result, 9, bounded_cdf);
+  UNPROTECT(12);
   return result;
   ROBMA_NATIVE_END
 }
