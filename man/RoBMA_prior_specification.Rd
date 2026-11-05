@@ -382,3 +382,4 @@ if (requireNamespace("metadat", quietly = TRUE)) {
 functions,
 \code{\link[BayesTools]{prior}} for creating prior distribution objects
 }
+\keyword{internal}

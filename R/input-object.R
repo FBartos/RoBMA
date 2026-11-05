@@ -24,6 +24,7 @@
 #' `only_priors`, `is_JASP`, and `is_JASP_prefix`.
 #'
 #' @seealso \code{\link{brma}}, \code{\link{set_autofit_control}}, \code{\link{set_convergence_checks}}
+#' @keywords internal
 #' @aliases fitting_specification
 NULL
 

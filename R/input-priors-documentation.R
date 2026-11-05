@@ -233,6 +233,7 @@
 #' \code{\link{random_effect_prior_specification}},
 #' \code{\link[BayesTools]{prior}}, \code{\link{RoBMA.options}},
 #' \code{\link{brma}}
+#' @keywords internal
 #' @aliases prior_specification
 NULL
 
@@ -552,6 +553,7 @@ NULL
 #' \code{\link{random_covariance}},
 #' \code{\link{random_variance_allocation}}
 #'
+#' @keywords internal
 #' @aliases random_effect_prior_specification random_prior_specification
 NULL
 
@@ -653,6 +655,7 @@ NULL
 #' \code{\link{RoBMA_prior_specification}},
 #' \code{\link{prior_specification}}
 #'
+#' @keywords internal
 #' @aliases publication_bias_prior_specification bias_prior_specification
 NULL
 
@@ -1015,6 +1018,7 @@ NULL
 #' }
 #' }
 #'
+#' @keywords internal
 #' @aliases RoBMA_prior_specification
 NULL
 

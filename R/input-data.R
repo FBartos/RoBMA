@@ -115,6 +115,7 @@
 #' @param t1i a vector of the person-time in the treatment/experimental group.
 #' @param t2i a vector of the person-time in the control group.
 #'
+#' @keywords internal
 NULL
 
 

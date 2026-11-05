@@ -144,3 +144,4 @@ Normal models use approximate effect-size estimates supplied through
 arguments for binomial (\code{measure = "OR"}) or Poisson (\code{measure = "IRR"})
 outcomes.
 }
+\keyword{internal}

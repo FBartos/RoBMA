@@ -40,3 +40,4 @@ MCMC sampling and fitting settings.
 \seealso{
 \code{\link{brma}}, \code{\link{set_autofit_control}}, \code{\link{set_convergence_checks}}
 }
+\keyword{internal}
