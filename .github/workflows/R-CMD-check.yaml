@@ -49,7 +49,7 @@ jobs:
         uses: r-lib/actions/setup-pandoc@v2
 
       - name: Set up JAGS
-        uses: FBartos/BayesTools/.github/actions/setup-jags@fix/setup-jags-autoconf
+        uses: FBartos/BayesTools/.github/actions/setup-jags@development
         with:
           automake: "true"
 
