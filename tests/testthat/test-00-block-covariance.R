@@ -65,12 +65,16 @@ test_that("a block covariance answers what its dense cube answered", {
     }
   }
 
-  # `cube[draw, , ] %*% v` is bit-identical block-wise: what the block form
-  # leaves out is exactly zero.
+  # `cube[draw, , ] %*% v` block-wise: what the block form leaves out is exactly
+  # zero, so R's reference BLAS returns the same bits. An optimized BLAS (such
+  # as OpenBLAS on Linux) may sum the products in another order or fuse them;
+  # the two then agree to the rounding bound of K-term dot products,
+  # 2 K eps (|cube[draw, , ]| %*% |v|).
   vector <- stats::rnorm(toy[["K"]])
   for (draw in seq_len(toy[["S"]])) {
-    expect_identical(.block_covariance_matvec(x, draw, vector),
-                     as.vector(toy[["dense"]][[draw]] %*% vector))
+    dense    <- toy[["dense"]][[draw]]
+    rounding <- 2 * toy[["K"]] * .Machine$double.eps * as.vector(abs(dense) %*% abs(vector))
+    expect_true(all(abs(.block_covariance_matvec(x, draw, vector) - as.vector(dense %*% vector)) <= rounding))
   }
 
   # The block-wise solve against the dense factorization. LAPACK factorizes an

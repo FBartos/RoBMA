@@ -40,17 +40,20 @@ test_that("public point underflow retains log evidence and diagnostic rows", {
       # 'normalization_prob') adds at most log(1 + b), and the trapezoid error
       # d is bounded by the nested-grid change c, log(1 + d) in
       # [log(1 - c), -log(1 - c)]. The underflowed record keeps b but not c,
-      # so c comes from a finite ordinate of the same design.
+      # so c comes from a finite ordinate of the same design. Both log
+      # ordinates are evaluated in double precision at about this magnitude,
+      # which the error model leaves out; with c = 0 they agree to rounding.
       companion <- density_diagnostics(hypothesis(fit, "mu = 0",
         density_method = method, density_control = list(samples = 40L, n_points = 20L)))
-      bound  <- record[["truncation_ordinate_bound"]]
-      change <- companion[["ordinate_relative_change"]]
+      bound    <- record[["truncation_ordinate_bound"]]
+      change   <- companion[["ordinate_relative_change"]]
+      rounding <- 64 * .Machine$double.eps * abs(exact_log_ordinate)
       expect_identical(record[["normalization_truncation_status"]], "exact")
       expect_lte(record[["normalization_truncation"]], (1 - .999) * (1 + 1e-9))
       expect_equal(bound, companion[["truncation_ordinate_bound"]])
       error <- record[["log_ordinate"]] - exact_log_ordinate
-      expect_lte(error, log1p(bound) - log1p(-change))
-      expect_gte(error, log1p(-change))
+      expect_lte(error, log1p(bound) - log1p(-change) + rounding)
+      expect_gte(error, log1p(-change) - rounding)
     }
   }
   mixed <- .iwmde_estimate(.iwmde_context(fit), "mu", "qCMDE",

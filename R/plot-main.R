@@ -1199,6 +1199,10 @@ lines.brma <- function(
 }
 
 
+# The density estimator forms its draws itself (a linear parameter as one
+# matrix product of its coordinate draws), so they agree with the plotted
+# draws to rounding, which an optimized BLAS leaves in the last bits. A draw
+# order, scale, or transform that differs moves them far beyond it.
 .plot_brma_same_sample_scale <- function(raw_samples, plotted_samples) {
 
   raw_samples     <- as.numeric(raw_samples)
@@ -1210,7 +1214,8 @@ lines.brma <- function(
     return(FALSE)
   }
 
-  return(identical(raw_samples, plotted_samples))
+  scale <- max(abs(plotted_samples))
+  return(max(abs(raw_samples - plotted_samples)) <= sqrt(.Machine$double.eps) * scale)
 }
 
 

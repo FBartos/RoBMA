@@ -270,15 +270,16 @@ test_that("the best weight rule keeps its geometric acceptance, decisions and va
   # Seeded random best-rule blocks (one- and two-sided; rank-one clusters and
   # rank-two and rank-three factors) with the outputs of the build before the
   # certificate: the best rule keeps the precheck, the exact ladder start and
-  # the geometric acceptance, so decisions and values are unchanged. The values
-  # are compared at 1e-12 relative so that the test also holds on other
-  # compilers and instruction sets (the rounding of the long double sums
-  # differs there). That the best path reproduces the build before the
-  # certificate bitwise was checked as an A/B comparison of the two builds during
-  # development, not in the suite. The randomized fallback of a block stops later
-  # than that build did when its one-standard-error stage fails the scaled rule
-  # (2.36 times the standard error); the stored output is then the stage where
-  # the old rule stopped (.test_cert_expect_stored_fallback).
+  # the geometric acceptance, so decisions and values are unchanged. The
+  # deterministic values are compared at 1e-12 relative so that the test also
+  # holds on other compilers and instruction sets (the rounding of the long
+  # double sums differs there), the randomized fallback's at the rounding of
+  # its normalizer estimate (.test_cert_expect_stored_fallback). That the best
+  # path reproduces the certificate bitwise was checked as an A/B comparison of
+  # the two builds during development, not in the suite. The randomized
+  # fallback of a block stops later than that build did when its
+  # one-standard-error stage fails the scaled rule (2.36 times the standard
+  # error); the stored output is then the stage where the old rule stopped.
   reference <- readRDS(testthat::test_path("fixtures", "selection-certificate-best-reference.rds"))
   factor_rules  <- .selection_joint_factor_quadrature_rules()
   cluster_rules <- .selection_joint_cluster_quadrature_rules(SELNORM_CLUSTER_QUADRATURE_ORDERS)

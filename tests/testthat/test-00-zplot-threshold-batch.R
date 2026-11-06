@@ -118,8 +118,13 @@ test_that("threshold quadrature preserves nonfinite values and validates its new
     selection_context = selection, mean_extrapolated = matrix(c(0, -Inf, NA), 3L, 2L),
     latent_sd = matrix(c(.1, 0, Inf), 3L, 2L),
     quadrature = list(nodes = c(-1, 0, 1), weights = c(.25, .5, .25)), fitted_only = FALSE)
-  expect_identical(do.call(.zplot_selnorm_threshold_quadrature, args),
-    do.call(.zplot_threshold_batch_reference, args))
+  # Where NA meets NaN, R leaves which of the two results to the platform (?NA):
+  # its arithmetic keeps one operand's payload, and compilers order the
+  # operands differently. The kernel returns NA there, so the missing values are
+  # compared as one kind; every other value is compared bit for bit.
+  missing_as_na <- function(x) lapply(x, function(value) replace(value, is.na(value), NA_real_))
+  expect_identical(missing_as_na(do.call(.zplot_selnorm_threshold_quadrature, args)),
+    missing_as_na(do.call(.zplot_threshold_batch_reference, args)))
   invalid <- args
   invalid$latent_sd <- matrix(0, 2L, 2L)
   expect_error(do.call(.zplot_selnorm_threshold_quadrature, invalid), "latent_sd", fixed = TRUE)

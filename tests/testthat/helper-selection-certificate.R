@@ -113,13 +113,20 @@
 # rule stops and the run is the stage at which the scaled rule stops, each stage from a run
 # with that single budget (`stage_run(points)`; the design of a stage is the leading part
 # of the next one). A change of proposals or of the design shows as an unreproduced stage.
+#
+# The fields are compared to `rounding` in absolute terms: they are the log normalizer and
+# log density and errors relative to the normalizer, so rounding of the normalizer's sums
+# moves all of them by the same absolute amount. One-ulp perturbations of a block's means
+# and SDs move them by up to 3e-10, and the Linux build (GCC and glibc) differs from the
+# Windows build (MinGW) that stored them by up to 2.3e-10. A change of proposals or of the
+# design moves them by the order of the relative MCSE, at least 8e-8 in the stored blocks.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
-                                              info = "") {
+                                              rounding = 5e-9, info = "") {
 
-  matches <- function(x, y) all(vapply(fields, function(field) {
-    isTRUE(all.equal(as.numeric(x[[field]]), as.numeric(y[[field]]), tolerance = 1e-12))
-  }, logical(1L)))
+  difference <- function(x, y, field) abs(as.numeric(x[[field]]) - as.numeric(y[[field]]))
+  matches <- function(x, y) all(vapply(fields, function(field) difference(x, y, field) <= rounding,
+                                       logical(1L)))
   if (matches(actual, expected)) return(invisible("unchanged"))
 
   results <- lapply(stages, stage_run)
@@ -133,10 +140,10 @@
   new <- stop_stage(.selection_qmc_z())
   testthat::expect_lt(old, new, label = paste(info, "stage of the one-standard-error rule"))
   for (field in fields) {
-    testthat::expect_equal(as.numeric(results[[old]][[field]]), as.numeric(expected[[field]]),
-      tolerance = 1e-12, info = paste(info, "stored output, stage", stages[[old]], field))
-    testthat::expect_equal(as.numeric(results[[new]][[field]]), as.numeric(actual[[field]]),
-      tolerance = 1e-12, info = paste(info, "run, stage", stages[[new]], field))
+    testthat::expect_lte(difference(results[[old]], expected, field), rounding,
+      label = paste(info, "stored output, stage", stages[[old]], field))
+    testthat::expect_lte(difference(results[[new]], actual, field), rounding,
+      label = paste(info, "run, stage", stages[[new]], field))
   }
   invisible("later stage")
 }
