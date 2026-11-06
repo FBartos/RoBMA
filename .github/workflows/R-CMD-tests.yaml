@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 180
     env:
       NOT_CRAN: "true"
+      TESTTHAT_MAX_FAILS: Inf
     strategy:
       fail-fast: false
       matrix:
