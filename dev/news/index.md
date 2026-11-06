@@ -318,7 +318,8 @@
   (`RoBMA.options(native_threads = )`) and use AVX2/AVX-512 for
   selection normalizers
 - faster multilevel cluster likelihoods, selection normalizers, funnel,
-  regplot, and zplot computations, and LOO
+  bfunnel, regplot, and zplot computations (especially of multivariate
+  selection models), LOO, and LOO-PIT residuals
 
 ### Documentation
 
