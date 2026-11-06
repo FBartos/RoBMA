@@ -29,7 +29,6 @@ jobs:
     timeout-minutes: 180
     env:
       NOT_CRAN: "true"
-      TESTTHAT_MAX_FAILS: Inf
     strategy:
       fail-fast: false
       matrix:
@@ -79,10 +78,6 @@ jobs:
       - name: Refresh missing or stale fitted models
         run: |
           Rscript tools/test-profile.R refresh-standard
-
-      - name: TEMP Linux diagnostics
-        continue-on-error: true
-        run: Rscript tools/tmp-linux-diag.R
 
       - name: Run Unit Tests
         env:
