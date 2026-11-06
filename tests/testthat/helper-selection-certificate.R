@@ -117,10 +117,9 @@
 # The fields are compared to `rounding` in absolute terms: they are the log normalizer and
 # log density and errors relative to the normalizer, so rounding of the normalizer's sums
 # moves all of them by the same absolute amount. One-ulp perturbations of a block's means
-# and SDs move them by up to 3e-10, and another platform's arithmetic (OpenBLAS and glibc
-# on Linux against R's BLAS and the MinGW runtime on Windows) by up to 2.3e-10. A change of
-# proposals or of the design moves them by the order of the relative MCSE, at least 8e-8
-# in the stored blocks.
+# and SDs move them by up to 3e-10, and the Linux build (GCC and glibc) differs from the
+# Windows build (MinGW) that stored them by up to 2.3e-10. A change of proposals or of the
+# design moves them by the order of the relative MCSE, at least 8e-8 in the stored blocks.
 .test_cert_expect_stored_fallback <- function(actual, expected, stage_run, stages, tolerance = .005,
                                               fields = c("log_normalizer", "relative_mcse", "relative_change"),
                                               rounding = 5e-9, info = "") {
