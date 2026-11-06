@@ -19,6 +19,14 @@ test_that("IWMDE density alignment requires an unchanged sample scale", {
   expect_true(.plot_brma_same_sample_scale(raw, raw))
   expect_false(.plot_brma_same_sample_scale(raw, raw * 2^200))
   expect_false(.plot_brma_same_sample_scale(raw / 2^-400, raw))
+
+  # Rounding of the same draws (another BLAS's summation order) is accepted;
+  # a slightly different scale or another draw order is not.
+  expect_true(.plot_brma_same_sample_scale(raw * (1 + 4 * .Machine$double.eps), raw))
+  expect_false(.plot_brma_same_sample_scale(raw * (1 + 1e-6), raw))
+  expect_false(.plot_brma_same_sample_scale(rev(raw), raw))
+  expect_true(.plot_brma_same_sample_scale(numeric(3), numeric(3)))
+  expect_false(.plot_brma_same_sample_scale(c(0, 2^-1000, 0), numeric(3)))
 })
 
 test_that("regplot variance conversion rejects invalid values", {
