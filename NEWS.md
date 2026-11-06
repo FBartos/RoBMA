@@ -1,9 +1,3 @@
-## development version
-### Performance
-- faster `zplot()` of multivariate selection models
-- faster LOO-PIT residuals (`rstudent()`, `residuals(type = "LOO-PIT")`, and the residual `funnel()`) of selection models, especially multivariate ones, and faster `bfunnel()`
-
-
 ## version 4.1.0
 ### Breaking changes
 - requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod
@@ -104,7 +98,7 @@
 - saved fits no longer contain the compiled rjags model
 - faster repeated `print()` and default `summary()` of fitted models
 - post-fit native kernels run in parallel (`RoBMA.options(native_threads = )`) and use AVX2/AVX-512 for selection normalizers
-- faster multilevel cluster likelihoods, selection normalizers, funnel, regplot, and zplot computations, and LOO
+- faster multilevel cluster likelihoods, selection normalizers, funnel, bfunnel, regplot, and zplot computations (especially of multivariate selection models), LOO, and LOO-PIT residuals
 
 ### Documentation
 - adds the vignettes "Posterior Densities and Parameter Tests" and "Multivariate and Multilevel Meta-Analysis"
