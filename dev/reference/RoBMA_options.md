@@ -46,7 +46,7 @@ The available options are:
   models fitted with `parallel = TRUE` evaluate their post-processing
   rows with up to `max_cores` native threads, unless this option sets an
   explicit thread count. Parallel work is arranged so that every
-  reduction keeps its serial order, so results do not depend on the
+  reduction sums in a fixed order, so results do not depend on the
   thread count; single-state fitting and bridge-sampling evaluations
   stay serial. A model fitted with `parallel = FALSE` does its
   post-processing serially unless this option sets an explicit thread

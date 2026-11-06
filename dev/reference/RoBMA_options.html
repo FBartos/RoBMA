@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.0</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.0.9001</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -99,7 +99,7 @@ value of the requested option.</p>
 <dd><p>number of cores to use for parallel computing (default is one fewer than detected logical cores, with a minimum/fallback of 1)</p></dd>
 
 <dt><code>native_threads</code></dt>
-<dd><p>maximum number of native threads used to evaluate independent posterior rows of the compiled selection-likelihood batches in post-processing such as likelihood-aware densities, z-plots, and predictions. The default <code>NA</code> inherits the model's fitting setup: models fitted with <code>parallel = TRUE</code> evaluate their post-processing rows with up to <code>max_cores</code> native threads, unless this option sets an explicit thread count. Parallel work is arranged so that every reduction keeps its serial order, so results do not depend on the thread count; single-state fitting and bridge-sampling evaluations stay serial. A model fitted with <code>parallel = FALSE</code> does its post-processing serially unless this option sets an explicit thread count.</p></dd>
+<dd><p>maximum number of native threads used to evaluate independent posterior rows of the compiled selection-likelihood batches in post-processing such as likelihood-aware densities, z-plots, and predictions. The default <code>NA</code> inherits the model's fitting setup: models fitted with <code>parallel = TRUE</code> evaluate their post-processing rows with up to <code>max_cores</code> native threads, unless this option sets an explicit thread count. Parallel work is arranged so that every reduction sums in a fixed order, so results do not depend on the thread count; single-state fitting and bridge-sampling evaluations stay serial. A model fitted with <code>parallel = FALSE</code> does its post-processing serially unless this option sets an explicit thread count.</p></dd>
 
 <dt><code>check_scaling</code></dt>
 <dd><p>whether to check scaling of predictors (default <code>TRUE</code>)</p></dd>
