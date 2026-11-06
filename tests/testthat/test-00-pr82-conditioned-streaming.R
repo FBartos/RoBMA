@@ -50,8 +50,14 @@
   .log_lik_posterior_setup(fit, samples, object[["data"]], object[["priors"]], "estimate", NULL)
 }
 
+# Draw chunks change the row count of the matrix products. R's reference BLAS
+# sums every element in one order whatever the shape; an optimized BLAS (such as
+# OpenBLAS on Linux) picks kernels by shape, so the same draw rounds differently
+# in another chunk. R's internal matrix product keeps the order, so these tests
+# certify bit for bit that chunking changes no draw on every platform.
 test_that("dense sampling covariance keeps global dependence across draw chunks", {
 
+  withr::local_options(matprod = "internal")
   setup <- .pr82_dense_sampling_setup()
   plan <- .data_selection_execution_plan(setup[["data"]])
   expect_identical(plan[["row_blocks"]], list(seq_len(setup[["K"]])))
@@ -68,6 +74,7 @@ test_that("dense sampling covariance keeps global dependence across draw chunks"
 
 test_that("global conditioned covariances stream without changing scores or source draws", {
 
+  withr::local_options(matprod = "internal")
   setup <- .pr82_global_conditioned_setup()
   state <- .selection_conditioned_sampling_state(setup)
   expect_equal(max(lengths(state[["total_covariance"]][["blocks"]])), setup[["K"]])
