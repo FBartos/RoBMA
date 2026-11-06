@@ -216,6 +216,43 @@ test_that("serial predictor grids interrupt during real batch and single-row wor
   }
 })
 
+test_that("serial selected-normal summaries interrupt within one observation", {
+
+  skip_on_cran()
+  skip_if_not(.has_native_selnorm_kernel())
+  previous <- RoBMA.get_option("native_threads")
+  on.exit(RoBMA.options(native_threads = previous), add = TRUE)
+  on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE), add = TRUE)
+  RoBMA.options(native_threads = 1L)
+  # One observation with many posterior rows: only the row loop can poll.
+  S      <- 2000000L
+  spec   <- .test_step_spec(.2, .1)
+  static <- BayesTools::selection_native_static_args(spec)
+  omega  <- matrix(rep(seq(1, .2, length.out = spec[["n_bins"]]), each = S), S)
+  args   <- list(.2, matrix(.1, S, 1L), matrix(.2, S, 1L), .1, matrix(1, S, 1L),
+    omega, 0, 0L, SELKERNEL_STEP, static[["z_lower"]], static[["z_upper"]],
+    static[["sign"]], static[["phack_q"]], static[["phack_z_source"]],
+    static[["phack_z_dest"]], static[["segment_bounds"]],
+    static[["segment_step_bin"]], static[["segment_phack_region"]],
+    static[["telescope_probabilities"]])
+  before    <- .native_unwind_probe("counts")
+  completed <- FALSE
+  caught <- tryCatch(.native_unwind_probe("callback", function() {
+    setTimeLimit(elapsed = .02, transient = TRUE)
+    do.call(.Call, c(list("RoBMA_selnorm_kernel_weighted_summary"), args,
+      list(PACKAGE = "RoBMA")))
+    completed <<- TRUE
+    setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE)
+  }), error = identity)
+  setTimeLimit(cpu = Inf, elapsed = Inf, transient = FALSE)
+  expect_s3_class(caught, "error")
+  expect_match(conditionMessage(caught), "reached elapsed time limit", fixed = TRUE)
+  expect_false(completed)
+  after <- .native_unwind_probe("counts")
+  expect_identical(after[[1L]], 0L)
+  expect_identical(after[[2L]] - before[[2L]], 2L)
+})
+
 test_that("worker failures return to the main boundary without R API calls", {
 
   for (threads in 1:2) {

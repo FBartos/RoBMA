@@ -23,7 +23,7 @@ text	priors_brma	0.000000000	0.311328	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_BMA	0.250000000	0.376074	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-fit_brma	0.100000000	0.329688	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-heterogenity	0.010000000	0.327246	4.6.0	Windows/x86_64-w64-mingw32
-text	summary-models-fit_BMA	0.050000000	0.367969	4.6.0	Windows/x86_64-w64-mingw32
+text	summary-models-fit_BMA	0.040000000	0.367969	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_BMA_forest	0.080000000	0.416797	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_forest	0.090000000	0.367773	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_funnel	0.010000000	0.370117	4.6.0	Windows/x86_64-w64-mingw32

@@ -1,3 +1,7 @@
+## development version
+### Performance
+- faster LOO-PIT residuals (`rstudent()`, `residuals(type = "LOO-PIT")`, and the residual `funnel()`) of selection models, especially multivariate ones, and faster `bfunnel()`
+
 ## version 4.1.0
 ### Breaking changes
 - requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod
