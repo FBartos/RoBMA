@@ -22,6 +22,8 @@
 #include "selnorm/selnorm.h"
 #include "selnorm/selnorm-tail.h"
 #include "selnorm/selnorm-mv.h"
+#include "selnorm/selnorm-compact-partition.h"
+#include "selnorm/zplot-context.h"
 #include "selnorm/selnorm-parallel.h"
 #include "selnorm/selnorm-qmc-z.h"
 #include "samplers/CoarseCorrectedSlice.h"

@@ -153,6 +153,28 @@
       projection_context[["kernel_mode"]] <- SELKERNEL_STEP
       projection_context[["vector_rule"]] <- 0L
       projection_context[["omega"]] <- NULL
+      # All draws of the block are projected in one native call, parallel over
+      # draws; their results, errors and fallbacks are then taken in draw order
+      # exactly as the per-draw R controller produced them.
+      native <- .zplot_context_native_available()
+      if (native) {
+        covariance_draws <- matrix(0, k * k, S)
+        covariance_draws[lower_index, ] <- t(lower)
+        covariance_draws[upper_index, ] <- t(lower)
+        projection_context[["omega"]] <- block_context[["omega"]][1L, , drop = FALSE]
+        batch <- .zplot_context_projection_batch(z, block_mean, array(covariance_draws, c(k, k, S)),
+          if (rank > 0L) aperm(loading, c(3L, 2L, 1L)) else array(0, c(1L, k, S)), block_sei,
+          projection_context, block_context[["omega"]], control)
+        # Draws that pass .zplot_context_projection_density() and the density
+        # check below cannot fail, so they are added at once; unavailable and
+        # failing draws keep their fallbacks and errors in draw order.
+        tolerance <- control[["relative_tolerance"]]
+        passes <- function(error) !is.na(error) & error >= 0 & is.finite(error) & error <= tolerance
+        accepted <- batch$status == 1L & passes(batch$relative_error) & passes(batch$mass_error) &
+          rowSums(!is.finite(batch$density) | batch$density < 0) == 0L
+        selected[accepted, ] <- selected[accepted, ] + batch$density[accepted, , drop = FALSE] * k / K
+        streamed_rows <- which(!accepted)
+      }
       for (draw in streamed_rows) {
         lower_draw <- lower[draw, ]
         covariance <- matrix(0, k, k)
@@ -161,8 +183,9 @@
         context_factor <- if (rank > 0L) t(matrix(loading[draw, , , drop = FALSE], k, rank)) else
           matrix(0, 1L, k)
         projection_context[["omega"]] <- block_context[["omega"]][draw, , drop = FALSE]
-        projected <- .zplot_context_projection(z, as.numeric(block_mean[draw, ]),
-          covariance, context_factor, block_sei, projection_context, control)
+        projected <- if (native) .zplot_context_projection_result(batch, draw) else
+          .zplot_context_projection(z, as.numeric(block_mean[draw, ]),
+            covariance, context_factor, block_sei, projection_context, control)
         if (is.null(projected)) {
           context <- BayesTools::selection_context_subset_rows(block_context, draw)
           if (!fallback_prepared) {

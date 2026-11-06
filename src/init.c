@@ -409,6 +409,8 @@ extern SEXP RoBMA_selnorm_context_star_zplot(
   SEXP means, SEXP covariance_lower, SEXP selection_se, SEXP omega,
   SEXP lower, SEXP upper, SEXP sign, SEXP telescope, SEXP log_normalizers,
   SEXP context_log_weights, SEXP nodes, SEXP log_weights, SEXP z, SEXP allowance);
+extern SEXP RoBMA_zplot_context_projection_batch(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP,
+  SEXP, SEXP, SEXP, SEXP);
 
 
 static const R_CallMethodDef callMethods[] = {
@@ -416,6 +418,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_outcome_hash_raw", (DL_FUNC) &RoBMA_outcome_hash_raw, 1},
     {"RoBMA_selnorm_covariance_envelope_components", (DL_FUNC) &RoBMA_selnorm_covariance_envelope_components, 3},
     {"RoBMA_selnorm_context_star_zplot", (DL_FUNC) &RoBMA_selnorm_context_star_zplot, 14},
+    {"RoBMA_zplot_context_projection_batch", (DL_FUNC) &RoBMA_zplot_context_projection_batch, 11},
     {"RoBMA_selnorm_cache_control", (DL_FUNC) &RoBMA_selnorm_cache_control, 2},
     {"RoBMA_selnorm_normal_upper_tail", (DL_FUNC) &RoBMA_selnorm_normal_upper_tail, 2},
     {"RoBMA_selnorm_set_native_threads", (DL_FUNC) &RoBMA_selnorm_set_native_threads, 1},
