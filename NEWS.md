@@ -1,6 +1,8 @@
 ## development version
 ### Performance
 - faster `zplot()` of multivariate selection models
+- faster LOO-PIT residuals (`rstudent()`, `residuals(type = "LOO-PIT")`, and the residual `funnel()`) of selection models, especially multivariate ones, and faster `bfunnel()`
+
 
 ## version 4.1.0
 ### Breaking changes

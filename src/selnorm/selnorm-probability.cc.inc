@@ -44,6 +44,24 @@ double tail_at(double x, double mean, double sd)
   return pnorm(x, mean, sd, false, false);
 }
 
+// Both standard normal tails from one evaluation. R's pnorm_both() computes
+// the two tails together, so each equals the separate cdf_at()/tail_at()
+// value at a standard normal score.
+void cdf_tail_at(double x, double *cdf, double *tail)
+{
+  if (std::isnan(x)) {
+    *cdf  = x;
+    *tail = x;
+    return;
+  }
+  if (std::isinf(x)) {
+    *cdf  = x < 0 ? 0 : 1;
+    *tail = x < 0 ? 1 : 0;
+    return;
+  }
+  pnorm_both(x, cdf, tail, 2, 0);
+}
+
 double add_logspace(double log_a, double log_b)
 {
   if (log_a == -INFINITY) {

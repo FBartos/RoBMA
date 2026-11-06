@@ -72,8 +72,8 @@ text	fit_loo_comparison	0.000000000	0.370117	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_loo_comparison_RoBMA	0.000000000	0.383887	4.6.0	Windows/x86_64-w64-mingw32
 text	fit_simple_summary	0.010000000	0.335742	4.6.0	Windows/x86_64-w64-mingw32
 text	mu_BF_3PSM_uncertainty	0.050000000	0.461133	4.6.0	Windows/x86_64-w64-mingw32
-plot	bfunnel_3PSM	2.760000000	0.606543	4.6.0	Windows/x86_64-w64-mingw32
-plot	bfunnel_PET	1.680000000	0.594043	4.6.0	Windows/x86_64-w64-mingw32
+plot	bfunnel_3PSM	2.720000000	0.611231	4.6.0	Windows/x86_64-w64-mingw32
+plot	bfunnel_PET	1.680000000	0.603320	4.6.0	Windows/x86_64-w64-mingw32
 plot	bfunnel_simple	1.590000000	0.618848	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_PEESE	2.940000000	2.012305	4.6.0	Windows/x86_64-w64-mingw32
 plot	fit_PET	3.420000000	1.997949	4.6.0	Windows/x86_64-w64-mingw32

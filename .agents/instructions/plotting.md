@@ -151,6 +151,13 @@ prediction and sampling intervals (posterior predictive mixture quantiles), and
 step bands keep their own estimators; document the estimator where a band is
 described.
 
+The native mixture inverter behind these quantiles (`funnel()`, `bfunnel()`,
+`regplot()`) prepares its row plans in parallel and sums the mixture CDF in
+fixed 4,096-row blocks, block sums in order, so a quantile is identical at every
+thread count. In mixtures of hundreds of thousands of rows (`bfunnel()` expands
+conditioned sources by quadrature) the summation order alone moves contour
+quantiles by about `1e-12`.
+
 ## API and Verification
 
 Ordinary qCMDE/IWMDE rows compose the existing numerical ordered-prior kernel

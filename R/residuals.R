@@ -840,6 +840,21 @@ rstudent.brma <- function(model, unit = "estimate",
     return(out)
   }
 
+  joint_summary <- .loo_predictive_joint_product_summary(
+    setup        = setup,
+    psis_weights = psis_weights
+  )
+  if (!is.null(joint_summary)) {
+    out <- data.frame(
+      resid = joint_summary[["resid"]],
+      se    = joint_summary[["se"]],
+      z     = joint_summary[["z"]]
+    )
+    out <- .diagnostic_set_rownames(out, model)
+
+    return(out)
+  }
+
   predictive_summary <- NULL
   if (.estimate_normal_target_integrates_local_effects(
       setup[["data"]], setup[["priors"]])) {
@@ -1073,6 +1088,62 @@ rstudent.brma <- function(model, unit = "estimate",
       summary[["log_lower"]],
       summary[["log_upper"]]
     )
+  ))
+}
+
+
+# ---------------------------------------------------------------------------- #
+# .loo_predictive_joint_product_summary
+# ---------------------------------------------------------------------------- #
+#
+# Fused LOO-PIT and predictive-moment reducer for joint selection with product
+# weights. Each deleted estimate then follows the scalar selected normal at its
+# conditional mean and variance (see .selection_joint_estimate_targets()), so
+# its PSIS-weighted tails and moments reduce in one native pass, without the
+# per-draw matrices.
+#
+# @return NULL when the setup has no such law, else a list with numeric
+#   vectors resid, se, and z.
+#
+# ---------------------------------------------------------------------------- #
+.loo_predictive_joint_product_summary <- function(setup, psis_weights) {
+
+  # Likelihood weights power the scores only; the law is that of the setup
+  # without them (see .setup_weighted_joint_selection()).
+  if (.setup_weighted_joint_selection(setup)) {
+    setup <- .setup_without_likelihood_weights(setup)
+  }
+  if (!identical(setup[["outcome_type"]], "norm") ||
+      !.setup_uses_joint_selection_likelihood(setup) ||
+      .selection_retains_sampling(setup[["data"]]) ||
+      !.selection_joint_product_weights(setup[["data"]])) {
+    return(NULL)
+  }
+
+  conditional <- .selection_joint_conditional_summary_from_setup(setup)
+  summary     <- .selection_step_weighted_summary(
+    yi                = conditional[["y"]],
+    mean              = conditional[["means"]],
+    sd                = sqrt(conditional[["variance"]]),
+    sei               = setup[["selection_sei"]],
+    psis_weights      = psis_weights,
+    selection_context = conditional[["selection_context"]]
+  )
+
+  # The event is evaluated in the signed direction; the tails and the mean
+  # return to the orientation of the original outcomes.
+  lower_tail <- conditional[["lower_tail"]]
+  log_lower  <- summary[[if (lower_tail) "log_lower" else "log_upper"]]
+  log_upper  <- summary[[if (lower_tail) "log_upper" else "log_lower"]]
+  if (anyNA(log_lower) || anyNA(log_upper)) {
+    stop("Selected row deletion is unavailable because its conditional selection event cannot be normalized.", call. = FALSE)
+  }
+  mean <- if (lower_tail) summary[["mean"]] else -summary[["mean"]]
+
+  return(list(
+    resid = setup[["yi"]] - mean,
+    se    = sqrt(summary[["variance"]]),
+    z     = .loo_pit_z_from_log_probabilities(log_lower, log_upper)
   ))
 }
 

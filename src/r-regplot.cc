@@ -12,6 +12,7 @@
 
 #include "plot-root.h"
 #include "selnorm/selnorm.h"
+#include "selnorm/selnorm-parallel.h"
 
 #include "r-native-api.h"
 
@@ -206,6 +207,9 @@ double plot_probability_or_na(double x)
   return std::isfinite(x) && x >= 0 && x <= 1 ? x : NA_REAL;
 }
 
+// Rows per block of the mixture CDF sum (see plot_mixture_cdf()).
+const int PLOT_MIXTURE_BLOCK_ROWS = 4096;
+
 struct PlotMixtureContext {
   int S;
   double se;
@@ -221,6 +225,7 @@ struct PlotMixtureContext {
   const std::vector<int> *row_mode;
   const std::vector<bool> *row_active_phack;
   const SelNormKernelData *data;
+  RobmaRowSchedule cdf_schedule;
   std::vector<char> telescope_plan_valid;
   std::vector<char> telescope_has_zero;
   std::vector<double> telescope_boundary_tail;
@@ -262,13 +267,15 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
   ctx->log_upper_score.assign(log_size, 0);
   ctx->log_weight.assign(log_size, 0);
 
-  for (int s = 0; s < ctx->S; ++s) {
+  // Each row writes only its own plan slots, so rows are prepared in parallel
+  // with the same values at any thread count.
+  const auto prepare_row = [ctx, B, boundaries](int s) {
     const size_t si = static_cast<size_t>(s);
     const int mode = (*ctx->row_mode)[si];
     if (ctx->selected[s] == 0 || !(ctx->sd[s] > 0) ||
         !(ctx->se > 0) || (*ctx->row_active_phack)[si] ||
         !(mode == SELKERNEL_STEP || mode == SELKERNEL_STEP_PHACK_POWER)) {
-      continue;
+      return;
     }
 
     const size_t boundary_offset = si * static_cast<size_t>(boundaries);
@@ -290,7 +297,7 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
         &ctx->telescope_normalizer[si], ctx->S, false
       );
     if (ctx->telescope_plan_valid[si] && !ctx->telescope_has_zero[si]) {
-      continue;
+      return;
     }
 
     const size_t log_offset = si * static_cast<size_t>(B);
@@ -329,7 +336,10 @@ void plot_prepare_selection(PlotMixtureContext *ctx)
           );
       }
     }
-  }
+  };
+  robma_parallel::for_rows(
+    ctx->S, robma_row_schedule(ctx->S, 4.0 * std::max(1, B)), prepare_row
+  );
 }
 
 double plot_add_log_mass(double left, double right)
@@ -460,10 +470,13 @@ double plot_selected_cdf(double q, int s, const PlotMixtureContext &ctx)
   );
 }
 
-double plot_mixture_cdf(double q, const PlotMixtureContext &ctx)
+// Weighted CDF sum of rows [start, end) in row order; NaN marks a row whose
+// CDF is unavailable.
+double plot_mixture_cdf_block(double q, const PlotMixtureContext &ctx,
+                              int start, int end)
 {
   double cdf_sum = 0;
-  for (int s = 0; s < ctx.S; ++s) {
+  for (int s = start; s < end; ++s) {
     if (ctx.weights[s] == 0) {
       continue;
     }
@@ -478,9 +491,69 @@ double plot_mixture_cdf(double q, const PlotMixtureContext &ctx)
     }
     cdf_s = plot_probability_or_na(cdf_s);
     if (!std::isfinite(cdf_s)) {
-      return NA_REAL;
+      return std::numeric_limits<double>::quiet_NaN();
     }
     cdf_sum += ctx.weights[s] * cdf_s;
+  }
+  return cdf_sum;
+}
+
+// The weight total in the block order of plot_mixture_cdf(). Rows whose CDF
+// is one then sum to exactly this total, and since rounded addition is
+// monotone the mixture CDF never exceeds one through summation order.
+// `validated_sum` is the row-order total that plot_validate_weights() checked.
+double plot_blocked_weight_sum(const double *weights, int S,
+                               double validated_sum)
+{
+  const int blocks = (S + PLOT_MIXTURE_BLOCK_ROWS - 1) /
+    PLOT_MIXTURE_BLOCK_ROWS;
+  if (blocks <= 1) {
+    return validated_sum;
+  }
+  double total = 0;
+  for (int block = 0; block < blocks; ++block) {
+    const int start = block * PLOT_MIXTURE_BLOCK_ROWS;
+    const int end   = std::min(S, start + PLOT_MIXTURE_BLOCK_ROWS);
+    double block_sum = 0;
+    for (int s = start; s < end; ++s) {
+      if (weights[s] != 0) {
+        block_sum += weights[s];
+      }
+    }
+    total += block_sum;
+  }
+  return total;
+}
+
+// Rows are summed in fixed blocks of PLOT_MIXTURE_BLOCK_ROWS and the block
+// sums in block order, so the value does not depend on the thread count. A
+// mixture of one block is the plain row-order sum.
+double plot_mixture_cdf(double q, const PlotMixtureContext &ctx)
+{
+  const int blocks = (ctx.S + PLOT_MIXTURE_BLOCK_ROWS - 1) /
+    PLOT_MIXTURE_BLOCK_ROWS;
+  double cdf_sum = 0;
+  if (blocks <= 1 || ctx.cdf_schedule.threads <= 1) {
+    for (int block = 0; block < blocks; ++block) {
+      const int start = block * PLOT_MIXTURE_BLOCK_ROWS;
+      cdf_sum += plot_mixture_cdf_block(
+        q, ctx, start, std::min(ctx.S, start + PLOT_MIXTURE_BLOCK_ROWS)
+      );
+    }
+  } else {
+    std::vector<double> partial(static_cast<size_t>(blocks));
+    robma_parallel::for_rows(blocks, ctx.cdf_schedule, [&](int block) {
+      const int start = block * PLOT_MIXTURE_BLOCK_ROWS;
+      partial[static_cast<size_t>(block)] = plot_mixture_cdf_block(
+        q, ctx, start, std::min(ctx.S, start + PLOT_MIXTURE_BLOCK_ROWS)
+      );
+    });
+    for (int block = 0; block < blocks; ++block) {
+      cdf_sum += partial[static_cast<size_t>(block)];
+    }
+  }
+  if (!std::isfinite(cdf_sum)) {
+    return NA_REAL;
   }
   return plot_probability_or_na(cdf_sum / ctx.weight_sum);
 }
@@ -741,8 +814,14 @@ SEXP plot_mixture_quantile_matrix(SEXP mean, SEXP sd, SEXP probs,
 
   ctx->S          = S;
   ctx->weights    = REAL(weights);
-  ctx->weight_sum = weight_sum;
+  ctx->weight_sum = plot_blocked_weight_sum(ctx->weights, S, weight_sum);
   ctx->full_support = plot_mixture_has_full_support(*ctx);
+  // One mixture CDF evaluation costs about one bin pass per row.
+  ctx->cdf_schedule = robma_row_schedule(
+    (S + PLOT_MIXTURE_BLOCK_ROWS - 1) / PLOT_MIXTURE_BLOCK_ROWS,
+    static_cast<double>(PLOT_MIXTURE_BLOCK_ROWS) *
+      (ctx->data == NULL ? 1 : std::max(1, ctx->data->n_bins))
+  );
   for (int k = 0; k < K; ++k) {
     ctx->mean = REAL(mean) + static_cast<size_t>(S) * static_cast<size_t>(k);
     ctx->sd   = REAL(sd)   + static_cast<size_t>(S) * static_cast<size_t>(k);
