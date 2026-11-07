@@ -104,3 +104,4 @@ to the effect-size measure via the unit-information standard deviation.
 \code{\link{RoBMA_prior_specification}},
 \code{\link{prior_specification}}
 }
+\keyword{internal}

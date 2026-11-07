@@ -119,7 +119,11 @@ test_that("estimate and cluster residual variances avoid PSD subtraction", {
     block_indices = blocks
   )
 
-  expect_true(any(old_estimate < 0))
+  # diag(W - WX B WX') of these double inputs evaluated in 256-bit arithmetic
+  # (mpmath). The PSD subtraction loses every digit of the smallest variances;
+  # whether what remains is negative depends on the BLAS's rounding.
+  reference <- c(2.36844211493e-4, 2.79836763227e-14, 2.36322052799e-4, 2.82461127268e-10)
+  expect_true(any(abs(old_estimate - reference) > reference))
   expect_true(all(estimate_variance >= 0))
   expect_true(all(cluster_variance >= 0))
 })

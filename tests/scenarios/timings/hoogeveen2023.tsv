@@ -25,7 +25,7 @@ fit_marglik	fit_brma_mv_rcor	2.690000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 fit_marglik	fit_brma_mv_rcor_null	2.580000000	NA	4.6.0	Windows/x86_64-w64-mingw32
 text	effect-bayes-factors	1.790000000	0.621387	4.6.0	Windows/x86_64-w64-mingw32
 text	model-comparison	0.660000000	0.621387	4.6.0	Windows/x86_64-w64-mingw32
-text	model-fit-loo	0.190000000	0.496680	4.6.0	Windows/x86_64-w64-mingw32
+text	model-fit-loo	0.190000000	0.493945	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-cor-R	0.060000000	0.398535	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-known-R	0.070000000	0.444141	4.6.0	Windows/x86_64-w64-mingw32
 text	summary-no-known-R	0.070000000	0.436523	4.6.0	Windows/x86_64-w64-mingw32
@@ -38,6 +38,6 @@ plot	diagnostics-no-known-R	17.940000000	0.813379	4.6.0	Windows/x86_64-w64-mingw
 plot	funnel	4.060000000	0.781738	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-mu	0.940000000	0.670996	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-tau	4.630000000	0.674219	4.6.0	Windows/x86_64-w64-mingw32
-plot	qqnorm	2.240000000	0.771387	4.6.0	Windows/x86_64-w64-mingw32
+plot	qqnorm	2.140000000	0.771387	4.6.0	Windows/x86_64-w64-mingw32
 plot	random-effects	7.520000000	0.722266	4.6.0	Windows/x86_64-w64-mingw32
-plot	zplot	0.150000000	0.540332	4.6.0	Windows/x86_64-w64-mingw32
+plot	zplot	0.150000000	0.531152	4.6.0	Windows/x86_64-w64-mingw32

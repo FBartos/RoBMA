@@ -293,6 +293,20 @@ extern SEXP RoBMA_selnorm_kernel_cdf_matrix(SEXP x, SEXP mean, SEXP sd,
                                             SEXP segment_phack_region,
                                             SEXP lower_tail,
                                             SEXP telescope_probabilities);
+extern SEXP RoBMA_selnorm_kernel_predictive_summary_matrix(SEXP x, SEXP mean,
+                                                           SEXP sd, SEXP sei,
+                                                           SEXP omega, SEXP alpha,
+                                                           SEXP phack_kind,
+                                                           SEXP kernel_mode,
+                                                           SEXP z_lower,
+                                                           SEXP z_upper, SEXP sign,
+                                                           SEXP q,
+                                                           SEXP phack_z_source,
+                                                           SEXP phack_z_dest,
+                                                           SEXP segment_bounds,
+                                                           SEXP segment_step_bin,
+                                                           SEXP segment_phack_region,
+                                                           SEXP telescope_probabilities);
 extern SEXP RoBMA_selnorm_kernel_moments_matrix(SEXP mean, SEXP sd,
                                                 SEXP sei, SEXP omega,
                                                 SEXP alpha,
@@ -395,6 +409,8 @@ extern SEXP RoBMA_selnorm_context_star_zplot(
   SEXP means, SEXP covariance_lower, SEXP selection_se, SEXP omega,
   SEXP lower, SEXP upper, SEXP sign, SEXP telescope, SEXP log_normalizers,
   SEXP context_log_weights, SEXP nodes, SEXP log_weights, SEXP z, SEXP allowance);
+extern SEXP RoBMA_zplot_context_projection_batch(SEXP, SEXP, SEXP, SEXP, SEXP, SEXP, SEXP,
+  SEXP, SEXP, SEXP, SEXP);
 
 
 static const R_CallMethodDef callMethods[] = {
@@ -402,6 +418,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_outcome_hash_raw", (DL_FUNC) &RoBMA_outcome_hash_raw, 1},
     {"RoBMA_selnorm_covariance_envelope_components", (DL_FUNC) &RoBMA_selnorm_covariance_envelope_components, 3},
     {"RoBMA_selnorm_context_star_zplot", (DL_FUNC) &RoBMA_selnorm_context_star_zplot, 14},
+    {"RoBMA_zplot_context_projection_batch", (DL_FUNC) &RoBMA_zplot_context_projection_batch, 11},
     {"RoBMA_selnorm_cache_control", (DL_FUNC) &RoBMA_selnorm_cache_control, 2},
     {"RoBMA_selnorm_normal_upper_tail", (DL_FUNC) &RoBMA_selnorm_normal_upper_tail, 2},
     {"RoBMA_selnorm_set_native_threads", (DL_FUNC) &RoBMA_selnorm_set_native_threads, 1},
@@ -461,6 +478,7 @@ static const R_CallMethodDef callMethods[] = {
     {"RoBMA_selnorm_kernel_log_norm_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_log_norm_matrix, 17},
     {"RoBMA_selnorm_kernel_log_norm_delta_grid", (DL_FUNC) &RoBMA_selnorm_kernel_log_norm_delta_grid, 22},
     {"RoBMA_selnorm_kernel_cdf_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_cdf_matrix, 19},
+    {"RoBMA_selnorm_kernel_predictive_summary_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_predictive_summary_matrix, 18},
     {"RoBMA_selnorm_kernel_moments_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_moments_matrix, 17},
     {"RoBMA_selnorm_kernel_rng_matrix", (DL_FUNC) &RoBMA_selnorm_kernel_rng_matrix, 17},
     {"RoBMA_selnorm_kernel_weighted_summary", (DL_FUNC) &RoBMA_selnorm_kernel_weighted_summary, 19},

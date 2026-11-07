@@ -610,6 +610,7 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     "RoBMA_selnorm_kernel_log_norm_matrix",
     "RoBMA_selnorm_kernel_cdf_matrix",
     "RoBMA_selnorm_kernel_moments_matrix",
+    "RoBMA_selnorm_kernel_predictive_summary_matrix",
     "RoBMA_selnorm_kernel_rng_matrix",
     "RoBMA_selnorm_kernel_weighted_summary"
   )
@@ -946,6 +947,63 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     native_static[["segment_step_bin"]],
     native_static[["segment_phack_region"]],
     as.logical(lower.tail),
+    native_static[["telescope_probabilities"]],
+    PACKAGE = "RoBMA"
+  ))
+}
+
+# Paired log tails, log P(Y <= q) and log P(Y >= q), with the mean and variance
+# of every cell.
+.selnorm_kernel_predictive_summary_matrix <- function(q, mean, sd, sei, omega,
+                                                      selection_spec,
+                                                      alpha = NULL,
+                                                      phack_kind = NULL,
+                                                      kernel_mode = NULL) {
+
+  S <- nrow(mean)
+
+  native_args   <- BayesTools::selection_native_kernel_args(
+    selection_spec = selection_spec,
+    S              = S,
+    alpha          = alpha,
+    phack_kind     = phack_kind,
+    kernel_mode    = kernel_mode
+  )
+  native_static <- native_args[["static"]]
+  alpha         <- native_args[["alpha"]]
+  phack_kind    <- native_args[["phack_kind"]]
+  kernel_mode   <- native_args[["kernel_mode"]]
+  .selection_require_native_no_active_phack(
+    alpha       = alpha,
+    phack_kind  = phack_kind,
+    kernel_mode = kernel_mode,
+    S           = S,
+    caller      = ".selnorm_kernel_predictive_summary_matrix()"
+  )
+
+  if (!.has_native_selnorm_kernel()) {
+    stop("The selected-normal native kernel is not loaded.", call. = FALSE)
+  }
+
+  return(.Call(
+    "RoBMA_selnorm_kernel_predictive_summary_matrix",
+    .native_numeric_vector(q),
+    .native_numeric_matrix(mean),
+    .native_numeric_matrix(sd),
+    .native_numeric_vector(sei),
+    .native_numeric_matrix(omega),
+    .native_numeric_vector(alpha),
+    .native_integer_vector(phack_kind),
+    .native_integer_vector(kernel_mode),
+    native_static[["z_lower"]],
+    native_static[["z_upper"]],
+    native_static[["sign"]],
+    native_static[["phack_q"]],
+    native_static[["phack_z_source"]],
+    native_static[["phack_z_dest"]],
+    native_static[["segment_bounds"]],
+    native_static[["segment_step_bin"]],
+    native_static[["segment_phack_region"]],
     native_static[["telescope_probabilities"]],
     PACKAGE = "RoBMA"
   ))
@@ -1477,6 +1535,24 @@ SELKERNEL_STEP_PHACK_POWER <- 3L
     phack_kind     = selection_context[["phack_kind"]],
     kernel_mode    = selection_context[["kernel_mode"]],
     lower.tail     = lower.tail
+  ))
+}
+
+.selection_step_predictive_summary_matrix <- function(q, mean, sd, sei,
+                                                      selection_context) {
+
+  .selection_require_step_evaluable(selection_context, ".selection_step_predictive_summary_matrix()")
+
+  return(.selnorm_kernel_predictive_summary_matrix(
+    q              = q,
+    mean           = mean,
+    sd             = sd,
+    sei            = sei,
+    omega          = selection_context[["omega"]],
+    selection_spec = selection_context,
+    alpha          = selection_context[["alpha"]],
+    phack_kind     = selection_context[["phack_kind"]],
+    kernel_mode    = selection_context[["kernel_mode"]]
   ))
 }
 

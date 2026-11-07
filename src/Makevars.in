@@ -49,6 +49,7 @@ OBJECTS = glmm-aghq.o \
 		  samplers/CoarseCorrectedSlice.o \
 		  selnorm/selnorm.o \
 		  selnorm/selnorm-mv.o \
+		  selnorm/zplot-context.o \
 		  r-glmm.o r-known-v.o r-regplot.o r-selnorm.o init.o RoBMA.o testRoBMA.o
 
 ###############
@@ -101,6 +102,8 @@ selnorm/selnorm.o: $(SELNORM_INC) selnorm/selnorm.h
 
 selnorm/selnorm-mv.o distributions/DSELNORMMVSTEP.o distributions/DSELNORMCLUSTERSTEP.o distributions/DSELNORMFACTORSTEP.o: selnorm/selnorm-mv.h selnorm/selnorm.h
 selnorm/selnorm-mv.o: selnorm/selnorm-event.cc.inc selnorm/selnorm-sampling-conditioned.cc.inc
+selnorm/zplot-context.o: selnorm/zplot-context.h selnorm/selnorm.h selnorm/selnorm-mv.h selnorm/selnorm-compact-partition.h selnorm/selnorm-parallel.h r-native-boundary.h
+r-selnorm.o: selnorm/zplot-context.h selnorm/selnorm-compact-partition.h
 distributions/DSELNORMSAMPLINGCONDITIONED.o: selnorm/selnorm-mv.h selnorm/selnorm.h
 
 r-regplot.o distributions/DSELNORMSTEP.o distributions/DSELNORMSTEPSWITCH.o distributions/DSELNORMKERNEL.o: selnorm/selnorm.h

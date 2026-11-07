@@ -155,6 +155,96 @@
 .zplot_context_batch_size <- function() 512L
 
 
+# The native batch below ports .zplot_context_projection() statement by
+# statement (src/selnorm/zplot-context.cc): it reproduces the R arithmetic,
+# including the BLAS and LAPACK routines behind chol(), forwardsolve(), %*%,
+# tcrossprod() and norm(). Those follow the 'matprod' option, so any setting
+# other than the default keeps the R controller.
+.zplot_context_native_available <- function() {
+
+  identical(getOption("matprod", "default"), "default")
+}
+
+
+# The controller's ladders and every Gauss-Hermite rule they reach, in the
+# layout of RoBMA_zplot_context_projection_batch; built once per session.
+.zplot_context_rules_cache <- new.env(parent = emptyenv())
+.zplot_context_projection_rules <- function() {
+
+  if (!is.null(.zplot_context_rules_cache$rules)) return(.zplot_context_rules_cache$rules)
+  context_orders <- c(3L, 7L, SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  inner_orders <- c(7L, SELNORM_CLUSTER_QUADRATURE_ORDERS)
+  tables <- lapply(sort(unique(c(context_orders, inner_orders))), function(order) {
+    rule <- .gauss_hermite_nodes(order)
+    list(order, as.double(rule$nodes), as.double(rule$log_weights),
+      as.double(.gauss_hermite_nodes_only(order)))
+  })
+  .zplot_context_rules_cache$rules <- list(context_orders, inner_orders, tables)
+}
+
+
+# .zplot_context_projection() for every posterior draw of one block in one
+# native call, parallel over draws. `means` is S x k, `covariance` k x k x S,
+# `context_factor` r x k x S and `omega` S x bins (each draw's selection
+# weights); `selection` supplies the fields the draws share. The arguments
+# that do not depend on the draw are checked here, the rest per draw in the
+# controller's order; `context_means` is the point-context batch of a single
+# draw. .zplot_context_projection_result() returns one draw as
+# .zplot_context_projection() would, raising its error if it had one.
+.zplot_context_projection_batch <- function(z, means, covariance, context_factor, sei,
+                                            selection, omega, control,
+                                            absolute_tolerance = NULL, context_means = NULL) {
+
+  if (!is.null(absolute_tolerance) &&
+      (!is.numeric(absolute_tolerance) || length(absolute_tolerance) != 1L ||
+       !is.finite(absolute_tolerance) || absolute_tolerance <= 0)) {
+    stop("The context projection absolute tolerance must be finite and positive.", call. = FALSE)
+  }
+  S <- nrow(means)
+  k <- ncol(means)
+  if (isTRUE(selection$use_normal) || selection$kernel_mode != SELKERNEL_STEP ||
+      selection$vector_rule != 0L) {
+    return(list(status = rep(0L, S)))
+  }
+  stopifnot(k > 0L, length(sei) == k, is.matrix(omega), nrow(omega) == S,
+    identical(dim(covariance), c(k, k, S)), length(dim(context_factor)) == 3L,
+    identical(dim(context_factor)[2:3], c(k, S)), length(z) > 0L,
+    is.null(context_means) || (S == 1L && is.matrix(context_means) && ncol(context_means) == k))
+  # The tolerance is checked per draw where the R controller checks it.
+  tolerance <- control$relative_tolerance
+  stopifnot(is.numeric(tolerance), length(tolerance) == 1L)
+  static <- BayesTools::selection_native_static_args(selection)
+  .Call("RoBMA_zplot_context_projection_batch", as.double(z), as.double(sei),
+    .native_numeric_matrix(means), as.double(covariance), as.double(context_factor),
+    .native_numeric_matrix(omega),
+    list(as.double(static$z_lower), as.double(static$z_upper), as.integer(static$sign),
+      as.logical(static$telescope_probabilities), as.double(selection$z_lower),
+      as.double(selection$sign)),
+    as.double(tolerance), if (is.null(absolute_tolerance)) NULL else as.double(absolute_tolerance),
+    .zplot_context_projection_rules(),
+    if (is.null(context_means)) NULL else .native_numeric_matrix(context_means), PACKAGE = "RoBMA")
+}
+
+
+.zplot_context_projection_result <- function(batch, draw) {
+
+  status <- batch$status[[draw]]
+  if (status == 2L) stop(batch$message[[draw]], call. = FALSE)
+  if (status == 0L) return(NULL)
+  density <- batch$density[draw, , drop = FALSE]
+  if (batch$uniform[[draw]]) {
+    return(list(density = density, relative_error = 0, mass_error = 0,
+      mass_omission_error = 0, integration_error = c(absolute = 0)))
+  }
+  list(density = density, relative_error = batch$relative_error[[draw]],
+    mass_error = batch$mass_error[[draw]], mass_omission_error = batch$mass_omission_error[[draw]],
+    integration_error = stats::setNames(batch$integration_error[draw, ], c("absolute",
+      "numerator", "denominator", "compression", "cdf_curve", "covariance", "pruning", "context")),
+    quadrature = stats::setNames(batch$quadrature[draw, ], c("context", "numerator", "denominator")),
+    bounded_cdf = batch$bounded_cdf[[draw]])
+}
+
+
 # `context_means` projects a batch of point contexts at once: the equal-weight
 # average of their full-event densities, each normalized at its own context,
 # which is what a Monte Carlo average over retained realizations consumes. One

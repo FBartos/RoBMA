@@ -151,6 +151,13 @@ prediction and sampling intervals (posterior predictive mixture quantiles), and
 step bands keep their own estimators; document the estimator where a band is
 described.
 
+The native mixture inverter behind these quantiles (`funnel()`, `bfunnel()`,
+`regplot()`) prepares its row plans in parallel and sums the mixture CDF in
+fixed 4,096-row blocks, block sums in order, so a quantile is identical at every
+thread count. In mixtures of hundreds of thousands of rows (`bfunnel()` expands
+conditioned sources by quadrature) the summation order alone moves contour
+quantiles by about `1e-12`.
+
 ## API and Verification
 
 Ordinary qCMDE/IWMDE rows compose the existing numerical ordered-prior kernel
@@ -179,6 +186,20 @@ do not compute undisplayed summaries. Explicit `as_zplot()` objects retain their
 full summaries; custom `as_zplot()` conversions retain generic dispatch.
 `summary_max_samples` remains validated for compatibility in direct plotting.
 Figure-specific numerical failures still propagate.
+
+The joint-factor zplot loop projects all draws of a block in one native call,
+parallel over draws (`src/selnorm/zplot-context.cc`). It ports
+`.zplot_context_projection()` statement by statement, including R's long-double
+reductions, the BLAS/LAPACK routines behind `chol()`, `%*%` and `norm()`, and
+byte-compiled `exp()`/`expm1()`/`log1p()` (library calls for scalars, R's
+small-argument shortcuts for vectors); with R's reference BLAS and LAPACK the
+results are identical to the R controller, and a non-default `matprod` option
+keeps the R controller. Draws needing main-thread work (Gaussian resolution
+bounds through Rmath `pgamma`, or interruptible uniform-weight densities) pause
+and the main thread does it between rounds, one bounded group of draws at a
+time.
+Change the R controller and the port together;
+`test-00-zplot-context-native.R` pins them.
 
 Point-context raw-rule caches are local to one projection controller and keyed
 by the complete original inputs and numerical policy. Reuse raw rule quantities,

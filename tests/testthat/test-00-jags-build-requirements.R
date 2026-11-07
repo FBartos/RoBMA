@@ -332,31 +332,26 @@ test_that("the JAGS version header guard rejects JAGS 5 at compile time", {
 })
 
 
-test_that("macOS CI builds against a cached JAGS 4 installer, never Homebrew's jags", {
+test_that("CI installs JAGS 4 through the shared BayesTools setup-jags action, never Homebrew's jags", {
 
+  # The action (BayesTools' .github/actions/setup-jags, whose own tests check
+  # the cached JAGS 4 installer on macOS) is the one place that installs JAGS.
   workflow_dir <- .jags_build_repository_file(".github", "workflows")
   skip_if_not(
     dir.exists(workflow_dir),
     "Repository workflow sources are not available in this installed-package context."
   )
 
+  setup_jags <- "uses: FBartos/BayesTools/\\.github/actions/setup-jags@"
   for (path in list.files(workflow_dir, pattern = "\\.ya?ml$", full.names = TRUE)) {
     workflow <- readLines(path, warn = FALSE, encoding = "UTF-8")
     brew_installs <- workflow[grepl("brew install", workflow, fixed = TRUE)]
     expect_false(any(grepl("\\bjags\\b", brew_installs)), info = basename(path))
-    if (!any(grepl("name: Install JAGS (macOS)", workflow, fixed = TRUE))) {
+    if (!any(grepl("^\\s*runs-on:", workflow))) {
       next
     }
-
-    text <- paste(workflow, collapse = "\n")
-    expect_match(text, "path: ~/jags-installer", fixed = TRUE, info = basename(path))
-    expect_match(text, "~/jags-installer/JAGS-4\\.3\\.[0-9]+\\.pkg", info = basename(path))
-    installer <- regexpr("sudo installer -pkg", text, fixed = TRUE)
-    expect_true(installer > 0L, info = basename(path))
-    # Homebrew links into /usr/local on Intel runners, so a Homebrew jags is
-    # removed before the package installs JAGS 4 there, never afterwards.
-    removal <- regexpr("brew uninstall --ignore-dependencies jags", text, fixed = TRUE)
-    expect_true(removal > 0L && removal < installer, info = basename(path))
+    expect_true(any(grepl(setup_jags, workflow)), info = basename(path))
+    expect_false(any(grepl("jags-installer|apt-get install.*\\bjags\\b|JAGS-4\\.3\\.[0-9]+\\.exe", workflow, perl = TRUE)), info = basename(path))
   }
 })
 

@@ -5,10 +5,10 @@ README
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-check.yaml)
-[![R-unit-tests](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-tests.yaml/badge.svg)](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-tests.yaml)
-[![test-coverage](https://github.com/FBartos/RoBMA/actions/workflows/test-coverage.yaml/badge.svg)](https://github.com/FBartos/RoBMA/actions/workflows/test-coverage.yaml)
-[![Codecov](https://codecov.io/gh/FBartos/RoBMA/graph/badge.svg)](https://app.codecov.io/gh/FBartos/RoBMA)
+[![R-CMD-check](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-check.yaml/badge.svg?branch=development)](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-check.yaml)
+[![R-unit-tests](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-tests.yaml/badge.svg?branch=development)](https://github.com/FBartos/RoBMA/actions/workflows/R-CMD-tests.yaml)
+[![test-coverage](https://github.com/FBartos/RoBMA/actions/workflows/test-coverage.yaml/badge.svg?branch=development)](https://github.com/FBartos/RoBMA/actions/workflows/test-coverage.yaml)
+[![Codecov](https://codecov.io/gh/FBartos/RoBMA/branch/development/graph/badge.svg)](https://app.codecov.io/gh/FBartos/RoBMA?branch=development)
 [![CRAN
 status](https://www.r-pkg.org/badges/version/RoBMA)](https://CRAN.R-project.org/package=RoBMA)
 <!-- badges: end -->

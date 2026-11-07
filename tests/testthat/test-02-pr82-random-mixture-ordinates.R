@@ -151,14 +151,17 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
   # density by the factor 1 / (1 - t_j), at most t / (1 - t) for the largest
   # t, and the trapezoid discretization, which the change between the nested
   # grids measures (it overstates the error of the selected, finer grid).
-  # With 'normalization_prob' 1 - 1e-8 every row loses at most 1e-8.
+  # With 'normalization_prob' 1 - 1e-8 every row loses at most 1e-8. Both
+  # ordinates are also rounded in double precision, which the error model
+  # leaves out: when both bounds are zero they agree to a few ulps.
+  rounding <- 64 * .Machine$double.eps
   error <- result[["posterior"]] / mean(expected) - 1
   expect_identical(diagnostic[["normalization_truncation_status"]], "exact")
   expect_lte(diagnostic[["normalization_truncation"]],
              (1 - (1 - 1e-8)) * (1 + 1e-6))
   expect_lte(error, diagnostic[["truncation_ordinate_bound"]] +
-    diagnostic[["ordinate_relative_change"]])
-  expect_gte(error, -diagnostic[["ordinate_relative_change"]])
+    diagnostic[["ordinate_relative_change"]] + rounding)
+  expect_gte(error, -diagnostic[["ordinate_relative_change"]] - rounding)
   expect_lt(abs(error), 1e-6)
 
   # Every row here is an exact Normal law (checked above), whose normalizer is
@@ -171,7 +174,7 @@ test_that("public qCMDE random-mixture hypotheses match conditional Normal ordin
   expect_equal(loose_diagnostic[["normalization_truncation"]], 0)
   expect_lt(abs(loose_error), 1e-6)
   expect_lte(loose_error, loose_diagnostic[["truncation_ordinate_bound"]] +
-    loose_diagnostic[["ordinate_relative_change"]])
+    loose_diagnostic[["ordinate_relative_change"]] + rounding)
   # The public prior height uses BayesTools' shared linear-density interpolation
   # with a 1e-4 relative refinement target, unlike the analytic reference here.
   expect_lt(abs(as.numeric(result[["prior"]]) / stats::dnorm(.1, prior_mean, prior_sd) - 1), 1e-4)

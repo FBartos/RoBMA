@@ -63,7 +63,9 @@ test_that("product publication inputs preserve the streamed zplot factor path", 
 })
 
 
-test_that("streamed contexts keep row weights and current-cell fallback aligned", {
+# The joint loop of the streamed-context tests: two active draws over a
+# two-row block with a retained rank-one factor and a scalar block.
+.zplot_joint_test_setup <- function() {
 
   dat <- data.frame(yi = c(.1, .2, .3), study = c("a", "a", "b"), esid = 1:3)
   V <- matrix(c(.25, .1, 0, .1, .49, 0, 0, 0, .64), 3L)
@@ -97,6 +99,15 @@ test_that("streamed contexts keep row weights and current-cell fallback aligned"
   prepared <- list(active = active, setup = list(data = object$data, S = 2L, K = 3L),
     execution_plan = plan, integrated = integrated, retained = retained,
     selection = BayesTools::selection_context_subset_rows(selection, active))
+  list(object = object, plan = plan, samples = samples, active = active, tau_e = tau_e, tau_b = tau_b,
+    V = V, predictive = predictive, selection = selection, prepared = prepared)
+}
+
+
+test_that("streamed contexts keep row weights and current-cell fallback aligned", {
+
+  setup <- .zplot_joint_test_setup()
+  for (name in names(setup)) assign(name, setup[[name]])
   calls <- list()
   fallback <- list()
   scalar <- list()
@@ -104,6 +115,8 @@ test_that("streamed contexts keep row weights and current-cell fallback aligned"
   testthat::local_mocked_bindings(
     .zplot_joint_factor_preparation = function(...) prepared,
     .predict_joint_selection_gaussian_parts = function(...) stop("Dense covariance cubes must not be requested."),
+    # The R controller route; the native batch is pinned to it below.
+    .zplot_context_native_available = function() FALSE,
     .zplot_context_projection = function(z, mean, covariance, context_factor, sei, selection, control) {
       calls[[length(calls) + 1L]] <<- list(mean = mean, C = covariance, L = context_factor,
         omega = selection$omega, static = BayesTools::selection_native_static_args(selection))
@@ -137,4 +150,57 @@ test_that("streamed contexts keep row weights and current-cell fallback aligned"
   expect_equal(result$fitted[3L, ], rep(.8 * 2 / 3 + .15 / 3, length(z)))
   expect_equal(result$fitted[1L, ], rep(.4 * 2 / 3 + .25 / 3, length(z)))
   expect_equal(result$fitted[2L, ], result$extrapolated[2L, ])
+})
+
+
+test_that("the native batch gives the joint loop the R controller's projections and fallbacks", {
+
+  setup <- .zplot_joint_test_setup()
+  fallback <- list()
+  batch <- .zplot_context_projection_batch
+  # The batch with some draws turned unavailable or failing, as the native
+  # controller reports them.
+  edited <- function(unavailable = integer(), failing = integer()) function(...) {
+    out <- batch(...)
+    out$status[unavailable] <- 0L
+    out$status[failing] <- 2L
+    out$message[failing] <- "draw failed"
+    out
+  }
+  run <- function(native, projection = batch, fallback_density = function(z) matrix(.8, 1L, length(z)),
+                  z = seq(-2, 3, length.out = 21L)) {
+    fallback <<- list()
+    testthat::with_mocked_bindings(
+      .zplot_joint_marginal(setup$object, setup$samples, setup$predictive, setup$selection,
+        z, FALSE, set_selection_likelihood_control()),
+      .zplot_joint_factor_preparation = function(...) setup$prepared,
+      .predict_joint_selection_gaussian_parts = function(...) stop("Dense covariance cubes must not be requested."),
+      .zplot_context_native_available = function() native,
+      .zplot_context_projection_batch = projection,
+      .zplot_full_event_context_draw = function(z, mean, sigma, latent, sei, context, ...) {
+        fallback[[length(fallback) + 1L]] <<- list(mean = mean, C = sigma, G = latent, omega = context$omega)
+        fallback_density(z)
+      },
+      .package = "RoBMA")
+  }
+  reference <- run(FALSE)
+  expect_identical(run(TRUE), reference)
+  expect_length(fallback, 0L)
+
+  # A draw the batch leaves unavailable takes the full-event fallback at its
+  # place in draw order, with that draw's covariance and retained factor.
+  partial <- run(TRUE, edited(unavailable = 1L))
+  expect_length(fallback, 1L)
+  expect_equal(fallback[[1L]]$C, setup$V[1:2, 1:2] + diag(setup$tau_e[3L]^2, 2L))
+  expect_equal(fallback[[1L]]$G, matrix(setup$tau_b[3L]^2, 2L, 2L))
+  # Draw 1 is posterior row 3 (active = c(3, 1)); the other rows are unchanged.
+  expect_false(identical(partial$fitted[3L, ], reference$fitted[3L, ]))
+  expect_identical(partial$fitted[-3L, ], reference$fitted[-3L, ])
+
+  # Errors surface in draw order: a failing first-draw fallback precedes the
+  # second draw's own error, which otherwise is raised with its message.
+  expect_error(run(TRUE, edited(unavailable = 1L, failing = 2L),
+    fallback_density = function(z) stop("first draw fallback failed", call. = FALSE)),
+    "first draw fallback failed")
+  expect_error(run(TRUE, edited(unavailable = 1L, failing = 2L)), "^draw failed$")
 })

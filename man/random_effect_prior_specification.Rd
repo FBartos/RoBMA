@@ -331,3 +331,4 @@ print_prior(priors, parameter = "random")
 \code{\link{random_covariance}},
 \code{\link{random_variance_allocation}}
 }
+\keyword{internal}

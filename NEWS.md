@@ -98,7 +98,7 @@
 - saved fits no longer contain the compiled rjags model
 - faster repeated `print()` and default `summary()` of fitted models
 - post-fit native kernels run in parallel (`RoBMA.options(native_threads = )`) and use AVX2/AVX-512 for selection normalizers
-- faster multilevel cluster likelihoods, selection normalizers, funnel, regplot, and zplot computations, and LOO
+- faster multilevel cluster likelihoods, selection normalizers, funnel, bfunnel, regplot, and zplot computations (especially of multivariate selection models), LOO, and LOO-PIT residuals
 
 ### Documentation
 - adds the vignettes "Posterior Densities and Parameter Tests" and "Multivariate and Multilevel Meta-Analysis"
