@@ -114,13 +114,12 @@ native sources change.
 
 - Document exports with roxygen2 and `\insertCite{key}{RoBMA}`;
   vignettes use Pandoc citations.
-- Use the fourth DESCRIPTION version component for development revisions
-  and keep NEWS under the intended three-component release. The
-  maintainer sets the final DESCRIPTION release version immediately
-  before merging the release PR. Update NEWS for the final feature
-  state: one short line per user-visible change since the last release,
-  revising existing entries instead of recording changes to unreleased
-  work.
+- Branches, development versions, NEWS headings, reviews, and releases
+  follow the BayesToolsVerse development workflow
+  (`.agents/instructions/development-workflow.md` in the parent
+  workspace). Update NEWS for the final feature state: one short line
+  per user-visible change since the last release, revising existing
+  entries instead of recording changes to unreleased work.
 - Preserve released interfaces, including the compatibility periods
   documented in the model-interface guide.
 - CRAN runs only the smoke test (see the testing guide). Keep

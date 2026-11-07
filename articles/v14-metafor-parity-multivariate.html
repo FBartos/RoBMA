@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">4.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -430,7 +430,7 @@ use it directly in the prior distribution specification.</p>
 <span>  mods <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">time_factor</span>,</span>
 <span>  random <span class="op">=</span> <span class="op">~</span> <span class="fu">har</span><span class="op">(</span><span class="va">time</span> <span class="op">|</span> <span class="va">study</span><span class="op">)</span>,</span>
 <span>  prior_effect              <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  prior_mods                <span class="op">=</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior_factor.html" class="external-link">prior_factor</a></span><span class="op">(</span></span>
+<span>  prior_mods                <span class="op">=</span> <span class="fu"><a href="../reference/prior_factor.html">prior_factor</a></span><span class="op">(</span></span>
 <span>    distribution <span class="op">=</span> <span class="st">"normal"</span>,</span>
 <span>    parameters   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="va">ishak_unit_information_sd</span><span class="op">)</span>,</span>
 <span>    contrast     <span class="op">=</span> <span class="st">"independent"</span></span>
@@ -548,16 +548,16 @@ correlation at zero.</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">begg_unit_information_sd</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/estimate_unit_information_sd.html">estimate_unit_information_sd</a></span><span class="op">(</span>sei <span class="op">=</span> <span class="va">dat_begg</span><span class="op">$</span><span class="va">sei</span>, ni <span class="op">=</span> <span class="va">dat_begg</span><span class="op">$</span><span class="va">ni</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">sd_prior</span> <span class="op">&lt;-</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior.html" class="external-link">prior</a></span><span class="op">(</span></span>
+<span><span class="va">sd_prior</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span></span>
 <span>  distribution <span class="op">=</span> <span class="st">"normal"</span>,</span>
 <span>  parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="va">begg_unit_information_sd</span><span class="op">)</span>,</span>
 <span>  truncation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>lower <span class="op">=</span> <span class="fl">0</span>, upper <span class="op">=</span> <span class="cn">Inf</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">cor_zero</span> <span class="op">&lt;-</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior.html" class="external-link">prior</a></span><span class="op">(</span></span>
+<span><span class="va">cor_zero</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prior.html">prior</a></span><span class="op">(</span></span>
 <span>  distribution <span class="op">=</span> <span class="st">"spike"</span>,</span>
 <span>  parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>location <span class="op">=</span> <span class="fl">0</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">cs_zero</span> <span class="op">&lt;-</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior_random.html" class="external-link">random_covariance</a></span><span class="op">(</span></span>
+<span><span class="va">cs_zero</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prior_random.html">random_covariance</a></span><span class="op">(</span></span>
 <span>  cor       <span class="op">=</span> <span class="va">cor_zero</span>,</span>
 <span>  cor_scale <span class="op">=</span> <span class="st">"cor"</span></span>
 <span><span class="op">)</span></span>
@@ -569,9 +569,9 @@ correlation at zero.</p>
 <span>    study     <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">|</span> <span class="va">study</span>,</span>
 <span>    treatment <span class="op">=</span> <span class="op">~</span> <span class="fu">cs</span><span class="op">(</span><span class="va">trt</span> <span class="op">|</span> <span class="va">study</span><span class="op">)</span></span>
 <span>  <span class="op">)</span>,</span>
-<span>  prior_heterogeneity <span class="op">=</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior_random.html" class="external-link">prior_random</a></span><span class="op">(</span></span>
-<span>    study     <span class="op">=</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior_random.html" class="external-link">random_block</a></span><span class="op">(</span>sd <span class="op">=</span> <span class="va">sd_prior</span><span class="op">)</span>,</span>
-<span>    treatment <span class="op">=</span> <span class="fu">BayesTools</span><span class="fu">::</span><span class="fu"><a href="https://fbartos.github.io/BayesTools/reference/prior_random.html" class="external-link">random_block</a></span><span class="op">(</span></span>
+<span>  prior_heterogeneity <span class="op">=</span> <span class="fu"><a href="../reference/prior_random.html">prior_random</a></span><span class="op">(</span></span>
+<span>    study     <span class="op">=</span> <span class="fu"><a href="../reference/prior_random.html">random_block</a></span><span class="op">(</span>sd <span class="op">=</span> <span class="va">sd_prior</span><span class="op">)</span>,</span>
+<span>    treatment <span class="op">=</span> <span class="fu"><a href="../reference/prior_random.html">random_block</a></span><span class="op">(</span></span>
 <span>      sd         <span class="op">=</span> <span class="va">sd_prior</span>,</span>
 <span>      covariance <span class="op">=</span> <span class="va">cs_zero</span></span>
 <span>    <span class="op">)</span></span>
