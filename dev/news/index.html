@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">RoBMA</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.0</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="In-development version">4.1.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -62,9 +62,9 @@
     </div>
 
     <div class="section level2">
-<h2 class="pkg-version" data-toc-text="4.1.0" id="version-410">version 4.1.0<a class="anchor" aria-label="anchor" href="#version-410"></a></h2>
+<h2 class="pkg-version" data-toc-text="4.1.1" id="version-411">version 4.1.1<a class="anchor" aria-label="anchor" href="#version-411"></a></h2>
 <div class="section level3">
-<h3 id="breaking-changes-4-1-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-4-1-0"></a></h3>
+<h3 id="breaking-changes-4-1-1">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-4-1-1"></a></h3>
 <ul><li>requires R &gt;= 4.3.0, BayesTools &gt;= 0.4.0, loo &gt;= 2.10.0, and JAGS 4.x (&gt;= 4.3.1), and imports Matrix, ps, and statmod</li>
 <li>models fitted with RoBMA 4.0.0 must be refitted; functions that read the fitted parameters stop on them with a <code>BayesTools_refit_required</code> error</li>
 <li>
@@ -103,7 +103,7 @@
 <li>the scale intercept of <code><a href="../reference/BMA.html">BMA()</a></code> and <code><a href="../reference/RoBMA.html">RoBMA()</a></code> summaries is labelled <code>exp(intercept)</code>, and a location intercept fixed at zero is omitted from meta-regression output</li>
 </ul></div>
 <div class="section level3">
-<h3 id="features-4-1-0">Features<a class="anchor" aria-label="anchor" href="#features-4-1-0"></a></h3>
+<h3 id="features-4-1-1">Features<a class="anchor" aria-label="anchor" href="#features-4-1-1"></a></h3>
 <ul><li>adds <code><a href="../reference/brma.mv.html">brma.mv()</a></code> for meta-analysis with a known sampling covariance matrix <code>V</code> and formula random effects (<code>random</code>, e.g., <code>~ 1 | study / esid</code>) with diagonal, unstructured, compound-symmetry, AR(1), heterogeneous, and continuous-time AR(1) structures, and known random-effect group covariance (<code>R</code>)</li>
 <li>adds <code><a href="../reference/BMA.mv.html">BMA.mv()</a></code>, <code><a href="../reference/RoBMA.mv.html">RoBMA.mv()</a></code>, <code><a href="../reference/bPET.mv.html">bPET.mv()</a></code>, <code><a href="../reference/bPEESE.mv.html">bPEESE.mv()</a></code>, and <code><a href="../reference/bselmodel.mv.html">bselmodel.mv()</a></code> for model-averaged and publication-bias-adjusted multivariate and multilevel models</li>
 <li>re-exports BayesTools’ <code><a href="../reference/prior_random.html">prior_random()</a></code> interface for structured random-effect priors (variance allocations, inclusion gates, and LKJ priors), completed with RoBMA’s default priors</li>
@@ -147,7 +147,7 @@
 </li>
 </ul></div>
 <div class="section level3">
-<h3 id="changes-4-1-0">Changes<a class="anchor" aria-label="anchor" href="#changes-4-1-0"></a></h3>
+<h3 id="changes-4-1-1">Changes<a class="anchor" aria-label="anchor" href="#changes-4-1-1"></a></h3>
 <ul><li>
 <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">cooks.distance()</a></code> uses the unscaled squared Mahalanobis distance, matching metafor (values are multiplied by the fixed-effect rank relative to 4.0.0)</li>
 <li>influence diagnostics that reuse the cached LOO result warn about high Pareto k values</li>
@@ -160,7 +160,7 @@
 <code><a href="https://rdrr.io/r/stats/influence.measures.html" class="external-link">rstandard()</a></code> reports <code>NA</code> instead of 0 for the standardized residuals of exactly fitted estimates, and <code><a href="https://rdrr.io/r/stats/qqnorm.html" class="external-link">qqnorm()</a></code> omits them</li>
 </ul></div>
 <div class="section level3">
-<h3 id="fixes-4-1-0">Fixes<a class="anchor" aria-label="anchor" href="#fixes-4-1-0"></a></h3>
+<h3 id="fixes-4-1-1">Fixes<a class="anchor" aria-label="anchor" href="#fixes-4-1-1"></a></h3>
 <ul><li>marginal-means Bayes factors use the exact kernel density at the null; the grid estimate understated Bayes factors of long-tailed posteriors</li>
 <li>estimate-unit GLMM log-likelihoods use adaptive Gauss-Hermite quadrature or a convergence-checked grid instead of a fixed 30-node grid, which was inaccurate for some nuisance priors and failed for sparse data</li>
 <li>GLMM predictions accept the four-cell binomial count representation and return raw count samples</li>
@@ -206,14 +206,14 @@
 <li>clearer input and diagnostic messages</li>
 </ul></div>
 <div class="section level3">
-<h3 id="performance-4-1-0">Performance<a class="anchor" aria-label="anchor" href="#performance-4-1-0"></a></h3>
+<h3 id="performance-4-1-1">Performance<a class="anchor" aria-label="anchor" href="#performance-4-1-1"></a></h3>
 <ul><li>saved fits no longer contain the compiled rjags model</li>
 <li>faster repeated <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> and default <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> of fitted models</li>
 <li>post-fit native kernels run in parallel (<code>RoBMA.options(native_threads = )</code>) and use AVX2/AVX-512 for selection normalizers</li>
 <li>faster multilevel cluster likelihoods, selection normalizers, funnel, bfunnel, regplot, and zplot computations (especially of multivariate selection models), LOO, and LOO-PIT residuals</li>
 </ul></div>
 <div class="section level3">
-<h3 id="documentation-4-1-0">Documentation<a class="anchor" aria-label="anchor" href="#documentation-4-1-0"></a></h3>
+<h3 id="documentation-4-1-1">Documentation<a class="anchor" aria-label="anchor" href="#documentation-4-1-1"></a></h3>
 <ul><li>adds the vignettes “Posterior Densities and Parameter Tests” and “Multivariate and Multilevel Meta-Analysis”</li>
 <li>documents the qCMDE/IWMDE estimators, their diagnostics, and the Savage-Dickey requirements</li>
 </ul></div>
