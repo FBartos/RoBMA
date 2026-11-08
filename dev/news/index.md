@@ -2,6 +2,8 @@
 
 ## version 4.1.1
 
+CRAN release: 2026-11-08
+
 ### Breaking changes
 
 - requires R \>= 4.3.0, BayesTools \>= 0.4.0, loo \>= 2.10.0, and JAGS
