@@ -1,6 +1,8 @@
 # Changelog
 
-## version 4.1.0
+## version 4.1.1
+
+CRAN release: 2026-11-08
 
 ### Breaking changes
 
