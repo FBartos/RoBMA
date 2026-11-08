@@ -62,11 +62,16 @@ jobs:
             any::pkgdown
             local::.
 
+      # CRAN's site can take longer to connect than the checker's 5 second limit.
       - name: Check URLs
         run: |
-          problems <- urlchecker::url_check()
-          print(problems)
-          if (nrow(problems) > 0) {
+          for (attempt in 1:3) {
+            problems <- urlchecker::url_check()
+            if (nrow(problems) == 0L) break
+            print(problems)
+            Sys.sleep(60)
+          }
+          if (nrow(problems) > 0L) {
             stop("URL check found ", nrow(problems), " problem(s).", call. = FALSE)
           }
         shell: Rscript {0}
