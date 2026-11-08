@@ -228,6 +228,46 @@ test_that("general selected-normal JAGS kernel restores protocol sentinels", {
 })
 
 
+test_that("selection bound sentinels decode by magnitude", {
+
+  RoBMA:::.load_RoBMA_module()
+
+  # the value R parses from the literal 1e300 on Apple silicon
+  inexact <- 1e300 * (1 + 2^-50)
+  expect_gt(inexact, 1e300)
+
+  expect_identical(
+    RoBMA:::.marglik_restore_jags_selection_bounds(c(-inexact, -1e300, 0, 1e300, inexact, NA)),
+    c(-Inf, -Inf, 0, Inf, Inf, NA)
+  )
+
+  bound_deviance <- function(sentinel) {
+    model <- rjags::jags.model(
+      file = textConnection(paste0(
+        "model{\n",
+        "  y ~ dselnorm_step_switch(0.1, 0.2, 0.2, 1, omega, z_lower, z_upper, ",
+        "obs_bin, 1, 1, 1)\n",
+        "}\n"
+      )),
+      data = list(
+        y       = 0.3,
+        omega   = c(1, .5),
+        z_lower = c(1.96, -sentinel),
+        z_upper = c(sentinel, 1.96),
+        obs_bin = 2L
+      ),
+      quiet    = TRUE,
+      n.chains = 2,
+      n.adapt  = 0
+    )
+    dic <- rjags::dic.samples(model, n.iter = 2, type = "pD", progress.bar = "none")
+    as.numeric(sum(dic[["deviance"]]))
+  }
+
+  expect_identical(bound_deviance(inexact), bound_deviance(1e300))
+})
+
+
 test_that("RoBMA JAGS module exposes known-V multivariate normal kernel", {
 
   RoBMA:::.load_RoBMA_module()
