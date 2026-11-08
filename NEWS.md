@@ -1,4 +1,4 @@
-## version 4.1.0
+## version 4.1.1
 ### Breaking changes
 - requires R >= 4.3.0, BayesTools >= 0.4.0, loo >= 2.10.0, and JAGS 4.x (>= 4.3.1), and imports Matrix, ps, and statmod
 - models fitted with RoBMA 4.0.0 must be refitted; functions that read the fitted parameters stop on them with a `BayesTools_refit_required` error
