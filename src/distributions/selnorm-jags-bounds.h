@@ -24,14 +24,17 @@ inline bool selnorm_jags_qmc_length(unsigned int length, unsigned int dimensions
   return length % partial == 0 && length / partial == scrambles;
 }
 
-// JAGS serializes infinite selection bounds as exact finite sentinels.
-// Decode them only at distribution ingress; observations remain finite.
+// JAGS serializes infinite selection bounds as the finite sentinels +-1e300.
+// R parses that literal inexactly where long double adds no precision (on Apple
+// silicon as 1.0000000000000006e300), so decode by magnitude: finite z bounds
+// are far below 1e299. Decode only at distribution ingress; observations remain
+// finite.
 inline double selnorm_jags_bound_to_ieee(double value)
 {
-  if (value == -1e300) {
+  if (value <= -1e299) {
     return -std::numeric_limits<double>::infinity();
   }
-  if (value == 1e300) {
+  if (value >= 1e299) {
     return std::numeric_limits<double>::infinity();
   }
   return value;

@@ -1686,8 +1686,9 @@ add_marglik.brma <- function(object, parallel = NULL, cores = NULL,
     return(NULL)
   }
 
-  negative_sentinel <- !is.na(x) & x == -1e300
-  positive_sentinel <- !is.na(x) & x ==  1e300
+  # by magnitude: R parses 1e300 inexactly on Apple silicon, and fits move between machines
+  negative_sentinel <- !is.na(x) & x <= -1e299
+  positive_sentinel <- !is.na(x) & x >=  1e299
   x[negative_sentinel] <- -Inf
   x[positive_sentinel] <-  Inf
 
