@@ -638,7 +638,11 @@
     # Raw Aq is independent of the supplied denominator and compression.
     # Reuse N15's raw A15 as the initial denominator's coarse comparison.
     record <- cdf_record(out, nrow(table$means))
-    assign(normalizer_key(outer_order, inner_order), record, normalizers)
+    # Keep a stored mass-only A: log-product routes can round the collected A
+    # differently, and every inner rule must see one denominator.
+    if (!exists(normalizer_key(outer_order, inner_order), normalizers, inherits = FALSE)) {
+      assign(normalizer_key(outer_order, inner_order), record, normalizers)
+    }
     if (own_normalizer) {
       denominator <- record
       log_D <- record$log_A
