@@ -42,11 +42,7 @@ The bands are pointwise Harrell-Davis quantiles of the posterior density draws
 \item{max_samples}{maximum posterior samples for density estimation.
 Defaults to 1000 for \code{brma.mv} models and 10000 for other models.
 Use \code{Inf} to use all posterior samples. This plotting budget does not
-change the EDR and missing-study summary budget in \code{as_zplot()}.
-\code{max_samples = 250} gives a quicker look: about four times faster on a
-multivariate \code{dat.assink2016} fit, with the 95\% band edges within about
-2.6\% of a 3000-draw reference there (0.7\% and 1.9\% for the line and bands at
-1000).}
+change the EDR and missing-study summary budget in \code{as_zplot()}.}
 
 \item{plot_fit}{whether to show fitted density (with bias adjustments).
 Defaults to \code{TRUE}.}
