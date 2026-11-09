@@ -461,7 +461,7 @@ plot	funnel_BMA_mv	0.170000000	1.095996	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_brma_mv	1.750000000	1.177148	4.6.0	Windows/x86_64-w64-mingw32
 plot	funnel_brma_mv_reg	1.030000000	1.294238	4.6.0	Windows/x86_64-w64-mingw32
 plot	marginal_means_plot	0.510000000	0.850098	4.6.0	Windows/x86_64-w64-mingw32
-plot	posterior-fit_RoBMA_mv_cond	380.120000000	3.158301	4.6.0	Windows/x86_64-w64-mingw32
+plot	posterior-fit_RoBMA_mv_cond	247.950000000	1.222656	4.6.0	Windows/x86_64-w64-mingw32
 plot	posterior-fit_RoBMA_mv_diag_cond	24.820000000	1.370703	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_BMA_mv	1.870000000	1.309375	4.6.0	Windows/x86_64-w64-mingw32
 plot	qqnorm_brma_mv	0.930000000	1.290918	4.6.0	Windows/x86_64-w64-mingw32
