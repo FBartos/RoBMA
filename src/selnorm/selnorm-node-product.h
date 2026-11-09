@@ -32,7 +32,7 @@ inline bool selnorm_direct_product_usable(long double product)
   return product > 0.0L && std::isfinite(product);
 }
 
-// A term of a direct sum: on this range an exhausted term has no mass to lose.
+// A term of a direct sum that reached the end of this range has no mass left.
 inline bool selnorm_direct_term_usable(long double)
 {
   return true;
@@ -127,9 +127,18 @@ class SelNormScaledProduct {
 
   bool usable() const { return mantissa_ > 0.0 && std::isfinite(mantissa_); }
 
+  // A function of the value alone, whatever scale its history left the mantissa
+  // at; the fraction in [sqrt(1/2), sqrt(2)) keeps a value near one exact.
   double log() const
   {
-    return std::log(mantissa_) + static_cast<double>(exponent_) * 0.693147180559945309417232121458;
+    int shift = 0;
+    double fraction = std::frexp(mantissa_, &shift);
+    if (fraction < 0.70710678118654752440) {
+      fraction *= 2.0;
+      --shift;
+    }
+    return std::log(fraction) +
+      static_cast<double>(exponent_ + shift) * 0.693147180559945309417232121458;
   }
 
  private:

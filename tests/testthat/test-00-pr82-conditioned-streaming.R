@@ -103,8 +103,10 @@ test_that("global conditioned covariances stream without changing scores or sour
       expect_identical(estimate, expected_estimate)
     } else {
       # Bit for bit only where the accumulators are extended: another chunk size
-      # moves the means on Apple silicon by up to 8.3e-17. The operation that
-      # rounds differently has not been traced.
+      # moves the means on Apple silicon by up to 8.3e-17. The sampling state and
+      # the deleted Gaussian coordinates do not move, so this enters later, through
+      # the integrals of the conditioned normalizers; the operation that rounds
+      # differently has not been traced.
       expect_identical(attributes(estimate), attributes(expected_estimate))
       expect_lte(max(abs(unlist(estimate) - unlist(expected_estimate))), 1e-15)
     }

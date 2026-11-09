@@ -529,7 +529,7 @@ test_that("binomial AGHQ bounds the node-independent dbeta error of very skewed 
     BayesTools::prior("beta", list(alpha = 1e-9, beta = 1e-9))), error = identity)
   expect_s3_class(condition, "RoBMA_glmm_prior_unavailable")
   # Ordinary shapes keep the rule of the solver unchanged.
-  for (shapes in list(c(1e-7, 1e-7), c(1e-3, 1e-3), c(.5, .5), c(1, 1), c(2, 5), c(50, 50), c(1e3, 1e5))) {
+  for (shapes in list(c(1e-7, 1e-7), c(1e-3, 1e-3), c(.5, .5), c(1, 1), c(2, 5), c(50, 50), c(3, 97))) {
     grid <- .glmm_beta_prior_grid(BayesTools::prior("beta", list(alpha = shapes[[1L]], beta = shapes[[2L]])), 1200L)
     rule <- statmod::gauss.quad.prob(1200L, dist = "beta", alpha = shapes[[1L]], beta = shapes[[2L]])
     expect_identical(grid[["grid"]], rule[["nodes"]])

@@ -386,8 +386,8 @@
   }
 
   # The solver places the nodes to an absolute error of a few eps (measured up to
-  # 8e-16 at the boundaries of symmetric small shapes), so the sign of a node that
-  # close to 0 or 1 is noise and differs between platforms.
+  # 2e-15 at the boundaries of symmetric small shapes), so whether a node that close
+  # to 0 or 1 lands inside the unit interval is noise and differs between platforms.
   node_noise_floor <- 64 * .Machine[["double.eps"]]
   if (anyNA(out[["grid"]]) || any(!is.finite(out[["grid"]])) ||
       any(pmin(out[["grid"]], 1 - out[["grid"]]) < node_noise_floor) ||

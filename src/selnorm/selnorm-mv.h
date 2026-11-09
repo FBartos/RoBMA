@@ -154,7 +154,7 @@ struct SelNormCertificateProbe {
   std::vector<double> reuse_value, full_value;
   // Whether the rung (and its shifted copies) came from the double precision
   // node products, and the shifted values of the same requests computed with
-  // the long double products.
+  // the full-range products.
   bool lean = false;
   std::vector<double> reference_value;
   // Averages over the shift grids M = 2 and 4 of the refinement tier, at the
