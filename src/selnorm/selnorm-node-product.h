@@ -57,7 +57,8 @@ inline bool selnorm_direct_product_usable(long double product)
   return product >= LDBL_MIN && std::isfinite(product);
 }
 
-// A subnormal term has lost bits and may grow again under a weight above one.
+// A subnormal term has lost bits and may grow again under a weight above one, so
+// the direct sums check it after every factor.
 inline bool selnorm_direct_term_usable(long double term)
 {
   return term >= LDBL_MIN;

@@ -196,6 +196,19 @@ test_that("a normalizer below the normal range of double keeps its accuracy", {
     expect_lt(.test_cert_relative_error(probe[["log_normalizer"]], .test_cert_tensor_log_integral(crossing, 15L)),
               1e-9, label = paste("tensor rung", info))
   }
+
+  # Weights above one: the 159 rows of weight .01 come first and take every term of
+  # the order-5 tensor rule into the subnormal range of double without reaching zero
+  # (its weight products span 1.3e-4 to .28), and the 80 rows of weight 3 bring each
+  # term back to the normal range, where a check of the finished term passes.
+  through <- .test_cert_block(list(
+    .test_cert_small_group(159L, c(.01, .01), 1, -6),
+    .test_cert_small_group(40L, c(.01, 0), 1, 6),
+    .test_cert_small_group(40L, c(0, .01), 1, 6)), c(3, .01))
+  probe <- .test_cert_probe(through, 5L, refine = FALSE)
+  reference <- .test_cert_tensor_log_integral(through, 5L)
+  expect_lt(.test_cert_relative_error(probe[["log_normalizer"]], reference), 1e-9)
+  expect_lt(.test_cert_relative_error(probe[["reference_log_normalizer"]], reference), 1e-9)
 })
 
 test_that("a block whose refinement checks fail goes on to the randomized fallback", {

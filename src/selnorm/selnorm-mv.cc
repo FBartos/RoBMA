@@ -3792,7 +3792,10 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
       latent[factor] = nodes[offset + index];
       term *= weights[static_cast<std::size_t>(index)];
     }
-    for (int i = 0; i < context.dimension; ++i) {
+    // A term that passes through the subnormal range has lost bits even when
+    // later rows of weight above one bring it back.
+    direct_ok = selnorm_direct_term_usable(term);
+    for (int i = 0; i < context.dimension && direct_ok; ++i) {
       double conditional_mean = context.mean[i];
       for (int factor = 0; factor < context.rank; ++factor) {
         conditional_mean +=
@@ -3807,10 +3810,10 @@ double factor_rule_log_integral(const FactorNormalizerContext &context,
       );
       if (!direct_ok) break;
       term *= static_cast<long double>(normalizer);
+      direct_ok = selnorm_direct_term_usable(term);
     }
     direct_sum += term;
-    direct_ok = direct_ok && selnorm_direct_term_usable(term) &&
-      std::isfinite(direct_sum) && direct_sum > 0.0L;
+    direct_ok = direct_ok && std::isfinite(direct_sum) && direct_sum > 0.0L;
   }
   if (direct_ok) return static_cast<double>(std::log(direct_sum));
 
@@ -4685,6 +4688,8 @@ class FactorTensorRung {
         term *= moved[factor] ? shifted_weights[factor][index[factor]] :
           weights_[index[factor]];
       }
+      // Checked after every factor, as in factor_rule_log_integral.
+      if (!selnorm_direct_term_usable(term)) return false;
       for (int i = 0; i < context_.dimension; ++i) {
         double conditional_mean = context_.mean[i];
         for (std::size_t factor = 0; factor < rank; ++factor) {
@@ -4698,8 +4703,8 @@ class FactorTensorRung {
               context_.omega, context_.selection, nullptr, nullptr, &omega_last,
               &normalizer, 1, false)) return false;
         term *= static_cast<long double>(normalizer);
+        if (!selnorm_direct_term_usable(term)) return false;
       }
-      if (!selnorm_direct_term_usable(term)) return false;
       direct_sum += term;
       if (!std::isfinite(direct_sum) || !(direct_sum > 0.0L)) return false;
       if (point_terms != nullptr) (*point_terms)[point] = term;
@@ -5191,6 +5196,10 @@ bool factor_anisotropic_rule_integral(
     lower_size *= static_cast<std::size_t>(points);
   }
 
+  // The rows check every product they make; a weight product must start in range.
+  for (std::size_t point = 0; point < total; ++point) {
+    if (!selnorm_direct_term_usable((*value)[point])) return false;
+  }
   for (int row = 0; row < context.dimension; ++row) {
     (*conditional)[0] = context.mean[row];
     lower_size = 1;

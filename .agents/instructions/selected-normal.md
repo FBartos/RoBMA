@@ -432,7 +432,8 @@ post-fit batches and the estimate-deletion delegation alike (`tol` is
   with a binary exponent per node where it does not (Apple silicon). The cluster,
   tensor, sparse-grid and factor-box rules keep long double and have a log-scale
   or randomized fallback, which on such a platform also takes any product that
-  reaches the subnormal range.
+  reaches the subnormal range at any factor, also when later weights above one
+  would bring it back.
 - Corrected sampler: `selection.sampler = "coarse_corrected"`
   (`src/samplers/CoarseCorrectedSlice.cc`) makes one slice transition per
   eligible scalar update on a surrogate density and accepts it with the ratio
